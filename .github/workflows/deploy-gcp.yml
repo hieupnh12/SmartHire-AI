@@ -12,7 +12,7 @@ name: Deploy GCP VPS
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [production]
     paths:
       - "backend/**"
       - "frontend/**"
