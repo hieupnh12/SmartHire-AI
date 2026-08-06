@@ -1,0 +1,110 @@
+export type Locale = "en" | "vi" | "ja";
+
+export const locales: Locale[] = ["en", "vi", "ja"];
+
+/** Deep string message tree — locales may differ in wording. */
+export type Messages = {
+  [key: string]: string | Messages;
+};
+
+export const en = {
+  brand: {
+    name: "SmartHire AI",
+    tagline: "Hire smarter with AI",
+  },
+  common: {
+    loading: "Loading…",
+    save: "Save",
+    cancel: "Cancel",
+    confirm: "Confirm",
+    delete: "Delete",
+    back: "Back",
+    next: "Next",
+    search: "Search",
+    logout: "Logout",
+    login: "Login",
+    register: "Get started",
+    welcome: "Welcome",
+    language: "Language",
+    shortcuts: "Keyboard shortcuts",
+    close: "Close",
+    retry: "Retry",
+    emptyTitle: "Nothing here yet",
+    emptyHint: "When there is data, it will show up in this space.",
+    errorGeneric: "Something went wrong. Please try again.",
+    required: "This field is required",
+  },
+  welcome: {
+    title: "Hire smarter with AI screening & interviews",
+    subtitle:
+      "Workspaces by role: Candidate, Recruiter, and Admin — clean, fast, and built for productivity.",
+    createAccount: "Create account",
+    signIn: "Sign in",
+    preview: "Preview UI",
+    forCandidate: "For Candidates",
+    forRecruiter: "For Recruiters",
+    forAdmin: "For Admins",
+    candidateBlurb: "Apply, upload CV, take assessments, AI practice interviews.",
+    recruiterBlurb: "Jobs, pipeline, AI CV matching, interviews, analytics.",
+    adminBlurb: "Users, roles, system health and platform settings.",
+  },
+  auth: {
+    loginTitle: "Sign in",
+    loginHint: "Access your role workspace securely.",
+    registerTitle: "Create account",
+    email: "Email",
+    password: "Password",
+    confirmPassword: "Confirm password",
+    fullName: "Full name",
+    role: "I am a",
+    candidate: "Candidate",
+    recruiter: "Recruiter",
+    noAccount: "No account?",
+    hasAccount: "Already have an account?",
+    signingIn: "Signing in…",
+    creating: "Creating…",
+  },
+  roles: {
+    candidate: "Candidate",
+    recruiter: "Recruiter",
+    admin: "Admin",
+  },
+  nav: {
+    home: "Home",
+    dashboard: "Dashboard",
+    jobs: "Jobs",
+    applications: "Applications",
+    applicants: "Applicants",
+    myCv: "My CV",
+    cvScreening: "CV Screening",
+    matching: "Matching",
+    pipeline: "Pipeline",
+    assessments: "Assessments",
+    interviews: "Interviews",
+    practice: "Practice",
+    schedules: "Schedules",
+    notifications: "Notifications",
+    users: "Users",
+    system: "System",
+    overview: "Overview",
+  },
+  shortcuts: {
+    title: "Keyboard shortcuts",
+    hint: "Press ? anytime to open this panel.",
+    goWelcome: "Go to Welcome",
+    goWorkspace: "Go to your workspace home",
+    openShortcuts: "Open shortcuts help",
+    switchLang: "Cycle language (EN → VI → JA)",
+    focusSearch: "Focus search (when available)",
+    close: "Close dialog / panel",
+  },
+  toast: {
+    saved: "Saved successfully",
+    deleted: "Deleted",
+    copied: "Copied to clipboard",
+  },
+  a11y: {
+    skipToContent: "Skip to main content",
+    mainNav: "Main navigation",
+  },
+};

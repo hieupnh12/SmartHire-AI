@@ -1,0 +1,132 @@
+# Production stack for Google Cloud VPS (Compute Engine)
+# Usage:
+#   cp deploy/.env.production.example deploy/.env.production
+#   # edit secrets
+#   docker compose -f docker-compose.prod.yml --env-file deploy/.env.production up -d --build
+
+name: smarthire-prod
+
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: smarthire-mysql
+    restart: unless-stopped
+    env_file:
+      - ./deploy/.env.production
+    environment:
+      MYSQL_DATABASE: ${DB_NAME:-smarthire}
+      MYSQL_USER: ${DB_USER:-smarthire}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?set MYSQL_ROOT_PASSWORD}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$$MYSQL_ROOT_PASSWORD || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+    # No host ports — only reachable inside Docker network
+
+  redis:
+    image: redis:7-alpine
+    container_name: smarthire-redis
+    restart: unless-stopped
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD}
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" ping | grep -q PONG"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: smarthire-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:?set RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?set RABBITMQ_PASSWORD}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    # Management UI not published publicly — tunnel via SSH if needed:
+    #   ssh -L 15672:localhost:15672 user@VM_IP
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: smarthire-backend
+    restart: unless-stopped
+    env_file:
+      - ./deploy/.env.production
+    environment:
+      DB_HOST: mysql
+      DB_PORT: 3306
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      SPRING_PROFILES_ACTIVE: prod
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8080/actuator/health | grep -q UP || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 10
+      start_period: 90s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # Same-origin API via nginx proxy inside frontend container
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api/v1}
+    container_name: smarthire-frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - internal
+      - edge
+    ports:
+      - "8080:80"
+    # Host nginx (TLS) proxies :443 → 127.0.0.1:8080
+    # Or map 80:80 if TLS is terminated elsewhere
+
+  # Optional: expose only via edge nginx on host — see deploy/nginx/smarthire.conf
+
+volumes:
+  mysql_data:
+  redis_data:
+  rabbitmq_data:
+
+networks:
+  internal:
+    driver: bridge
+    internal: false
+  edge:
+    driver: bridge

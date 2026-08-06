@@ -1,0 +1,125 @@
+spring:
+  application:
+    name: smarthire-backend
+  datasource:
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:smarthire}?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    username: ${DB_USER:smarthire}
+    password: ${DB_PASSWORD:smarthire}
+    hikari:
+      pool-name: SmartHireHikariPool
+      maximum-pool-size: ${HIKARI_MAX_POOL:20}
+      minimum-idle: ${HIKARI_MIN_IDLE:5}
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      leak-detection-threshold: 60000
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 3s
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+    listener:
+      simple:
+        # Worker pool per backend/consumer instance
+        concurrency: ${RABBIT_CONCURRENCY:3}
+        max-concurrency: ${RABBIT_MAX_CONCURRENCY:10}
+        prefetch: 1
+        default-requeue-rejected: false
+    template:
+      retry:
+        enabled: true
+        initial-interval: 1s
+        max-attempts: 3
+        multiplier: 2.0
+
+server:
+  port: ${SERVER_PORT:8080}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  health:
+    redis:
+      enabled: true
+    rabbit:
+      enabled: true
+    db:
+      enabled: true
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+
+logging:
+  level:
+    root: INFO
+    com.smarthire: DEBUG
+    com.zaxxer.hikari: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+
+app:
+  cors:
+    allowed-origins: ${CORS_ORIGINS:http://localhost:5173}
+  jwt:
+    secret: ${JWT_SECRET:change-me-use-a-256-bit-secret-key-please}
+    access-token-minutes: 30
+    refresh-token-days: 7
+  redis:
+    ttl:
+      job-list-seconds: 120
+      dashboard-seconds: 60
+      otp-seconds: 600
+      match-score-seconds: 1800
+      rate-limit-window-seconds: 60
+  rabbitmq:
+    exchanges:
+      cv-parse: cv.parse
+      cv-extract: cv.extract
+      cv-analysis: cv.analysis
+      cv-matching: cv.matching
+      interview-questions: interview.questions
+      interview-stt: interview.stt
+      interview-nlp: interview.nlp
+      interview-score: interview.score
+      assessment-code-grade: assessment.code.grade
+      practice-feedback: practice.feedback
+      notify-email: notify.email
+      auth-email-otp: auth.email.otp
+      job-events: job.events
+    queues:
+      cv-parse: cv.parse.q
+      cv-extract: cv.extract.q
+      cv-analysis: cv.analysis.q
+      cv-matching: cv.matching.q
+      interview-questions: interview.questions.q
+      interview-stt: interview.stt.q
+      interview-nlp: interview.nlp.q
+      interview-score: interview.score.q
+      assessment-code-grade: assessment.code.grade.q
+      practice-feedback: practice.feedback.q
+      notify-email: notify.email.q
+      auth-email-otp: auth.email.otp.q
+      job-events: job.events.q

@@ -1,0 +1,28 @@
+spring:
+  jpa:
+    show-sql: false
+  datasource:
+    url: jdbc:mysql://${DB_HOST}:${DB_PORT:3306}/${DB_NAME}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+
+server:
+  forward-headers-strategy: framework
+
+logging:
+  level:
+    root: INFO
+    com.smarthire: INFO
+
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+# Swagger can stay on for staging; lock down via nginx/IP allowlist on prod if needed
+springdoc:
+  swagger-ui:
+    enabled: ${SWAGGER_ENABLED:true}

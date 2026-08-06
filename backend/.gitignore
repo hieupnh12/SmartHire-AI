@@ -1,0 +1,17 @@
+# Backend — complements root .gitignore
+target/
+!.mvn/wrapper/maven-wrapper.jar
+.env
+.env.*
+!.env.example
+application-local.yml
+application-local.yaml
+*.log
+*.iml
+.idea/
+.DS_Store
+uploads/
+storage/
+hs_err_pid*
+replay_pid*
+*.hprof

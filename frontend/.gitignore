@@ -1,0 +1,16 @@
+# Frontend — complements root .gitignore
+node_modules/
+dist/
+dist-ssr/
+.env
+.env.*
+!.env.example
+*.log
+*.tsbuildinfo
+.vite/
+coverage/
+.eslintcache
+.DS_Store
+.vscode/
+test-results/
+playwright-report/

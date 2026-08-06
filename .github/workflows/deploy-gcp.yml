@@ -1,0 +1,46 @@
+# Deploy SmartHire-AI to Google Cloud VPS (Compute Engine) via SSH
+# Required GitHub Secrets:
+#   GCP_VPS_HOST          — external IP or DNS
+#   GCP_VPS_USER          — SSH user (e.g. smarthire or ubuntu)
+#   GCP_VPS_SSH_KEY       — private key (PEM) for that user
+#   GCP_VPS_DEPLOY_PATH   — e.g. /opt/smarthire (optional, default /opt/smarthire)
+#
+# On the VPS: repo already cloned, deploy/.env.production present (never in git).
+
+name: Deploy GCP VPS
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - "frontend/**"
+      - "docker-compose.prod.yml"
+      - "deploy/**"
+
+concurrency:
+  group: deploy-gcp-vps
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: SSH Deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.GCP_VPS_HOST }}
+          username: ${{ secrets.GCP_VPS_USER }}
+          key: ${{ secrets.GCP_VPS_SSH_KEY }}
+          script_stop: true
+          script: |
+            set -euo pipefail
+            DEPLOY_PATH="${{ secrets.GCP_VPS_DEPLOY_PATH }}"
+            DEPLOY_PATH="${DEPLOY_PATH:-/opt/smarthire}"
+            cd "${DEPLOY_PATH}"
+            git fetch origin
+            git checkout main
+            git pull --ff-only origin main
+            bash deploy/scripts/deploy.sh
