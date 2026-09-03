@@ -34,11 +34,3 @@ export function RoleRoute({ roles }: Props) {
   return <Outlet />;
 }
 
-/** After login — send user to role home. */
-export function RoleHomeRedirect() {
-  const user = useAuthStore((s) => s.user);
-  if (!user) return <Navigate to="/login" replace />;
-  if (user.role === "ADMIN") return <Navigate to="/admin" replace />;
-  if (user.role === "RECRUITER") return <Navigate to="/recruiter" replace />;
-  return <Navigate to="/candidate" replace />;
-}

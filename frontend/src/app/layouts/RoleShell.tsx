@@ -12,7 +12,7 @@ type NavItem = { to: string; labelKey: string };
 type RoleShellProps = {
   brandKey: "roles.candidate" | "roles.recruiter" | "roles.admin";
   basePath: string;
-  links: NavItem[];
+  links: readonly NavItem[];
 };
 
 export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {

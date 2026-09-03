@@ -1,29 +1,50 @@
-# Frontend features — by role
+# Frontend Features By Actor
 
-UI is split by **actor**, not by domain CRUD.
+UI is organized by actor boundary first, then by feature inside each actor.
 
 | Feature folder | Who | Routes |
 |---|---|---|
-| `welcome/` | Guest | `/` |
-| `auth/` | Guest | `/login`, `/register` |
-| `candidate/` | Candidate | `/candidate/*` |
-| `recruiter/` | Recruiter | `/recruiter/*` |
-| `admin/` | Admin | `/admin/*` |
+| `master/landing/` | Guest / Tenant prospect | `/`, `/career`, `/jobs`, `/onboard` |
+| `master/admin/` | Platform admin | `/admin/*` |
+| `tenant/auth/` | Tenant users / candidate auth | `/login`, `/internal/login`, `/candidate/login` |
+| `tenant/career/` | Public tenant career page | `/career`, `/jobs` |
+| `tenant/candidate/` | Candidate | `/candidate/*` |
+| `tenant/recruiter/` | Recruiter | `/recruiter/*` |
+| `tenant/admin/`, `tenant/dashboard/` | Tenant admin / workspace | `/tenant/admin`, `/company/workspace` |
 
-Shared HTTP clients live in **`src/api/`** (job, cv, interview, …) — used by any role.
+Shared HTTP clients live in `src/api/`. Feature folders may add local `api/`, `hooks/`, `services/`, `types/`, or `utils/` only when that feature needs ownership of that logic.
 
-```
+```text
 src/
-  api/                 # Axios ↔ Spring Boot modules
+  api/                       # shared Axios clients and contracts
   features/
-    welcome/
-    auth/              # pages + zustand store + types
-    candidate/pages|nav
-    recruiter/pages|nav
-    admin/pages|nav
+    master/
+      landing/
+      admin/
+    tenant/
+      auth/
+      career/
+      candidate/             # actor boundary
+        dashboard/
+          pages/
+          components/
+          constants/
+          types/
+        jobs/pages/
+        applications/pages/
+        cv/pages/
+        assessments/pages/
+        interviews/pages/
+        practice/pages/
+        schedules/pages/
+        notifications/pages/
+        nav.ts
+      recruiter/
+      admin/
+      dashboard/
   app/
     layouts/RoleShell.tsx
     guards/RoleRoute.tsx
 ```
 
-Login redirects: `CANDIDATE` → `/candidate`, `RECRUITER` → `/recruiter`, `ADMIN` → `/admin`.
+Login redirects: `CANDIDATE` -> `/candidate`, `RECRUITER` -> `/recruiter`, `ADMIN` -> `/admin`.
