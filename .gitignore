@@ -68,6 +68,23 @@ __MACOSX/
 .scannerwork/
 .sonar/
 .direnv/
+.gemini/
+.claude/
+.augment/
+.codebuddy/
+.codewhale/
+.continue/
+.factory/
+.kilocode/
+.kiro/
+.opencode/
+.qoder/
+.roo/
+.trae/
+.warp/
+.windsurf/
+.github/prompts/
+scratch/
 *.swp
 *~
 

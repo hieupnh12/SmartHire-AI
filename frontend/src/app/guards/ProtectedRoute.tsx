@@ -1,5 +1,5 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
-import { useAuthStore } from "@/features/auth/stores/authStore";
+import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 import type { Role } from "@/types/api";
 
 type Props = {

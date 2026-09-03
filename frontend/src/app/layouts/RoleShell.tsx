@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from "react-router-dom";
-import { useAuthStore } from "@/features/auth/stores/authStore";
+import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 import { useT } from "@/i18n";
 import { LanguageSwitcher } from "@/components/ux/LanguageSwitcher";
 import { Tooltip } from "@/components/ux/Tooltip";

@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -35,10 +36,25 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.validationError("Validation failed", errors));
     }
 
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiResponse<Void>> handleJsonParse(HttpMessageNotReadableException ex) {
+        log.warn("JSON parse error: {}", ex.getMessage());
+        return ResponseEntity.badRequest()
+                .body(ApiResponse.error("Invalid JSON body format or invalid character escape", "BAD_REQUEST"));
+    }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ApiResponse<Void>> handleIllegalArgument(IllegalArgumentException ex) {
+        log.warn("Illegal argument: {}", ex.getMessage());
+        return ResponseEntity.badRequest()
+                .body(ApiResponse.error(ex.getMessage(), "BAD_REQUEST"));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleGeneric(Exception ex) {
-        log.error("Unhandled exception", ex);
+        log.error("Unhandled exception: ", ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponse.error("Internal server error", "INTERNAL_ERROR"));
+                .body(ApiResponse.error(ex.getMessage() != null ? ex.getMessage() : "Internal server error", "INTERNAL_ERROR"));
     }
 }
+

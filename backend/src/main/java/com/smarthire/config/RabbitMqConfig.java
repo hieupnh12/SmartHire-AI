@@ -239,3 +239,4 @@ public class RabbitMqConfig {
         return BindingBuilder.bind(jobEventsQueue).to(jobEventsExchange).with(RK);
     }
 }
+

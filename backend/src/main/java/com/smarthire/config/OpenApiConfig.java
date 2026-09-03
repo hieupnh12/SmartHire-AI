@@ -26,3 +26,4 @@ public class OpenApiConfig {
                         .license(new License().name("Proprietary")));
     }
 }
+

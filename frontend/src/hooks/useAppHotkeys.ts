@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useI18nStore } from "@/i18n";
 import { useUiStore } from "@/stores/uiStore";
-import { useAuthStore } from "@/features/auth/stores/authStore";
+import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 
 function isTypingTarget(el: EventTarget | null) {
   if (!(el instanceof HTMLElement)) return false;

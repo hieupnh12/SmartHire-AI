@@ -1,221 +1,180 @@
-# DESIGN.md — Design System (Google Stitch)
-
-Nguồn thiết kế UI/UX và icon của SmartHire-AI lấy từ **Google Stitch**. Khi Stitch export token/icon set, cập nhật các bảng dưới đây — đây là nguồn sự thật duy nhất cho Frontend.
-
-> **Quy tắc:** Không dùng màu/icon ngoài file này. Nếu thiếu token, bổ sung vào đây trước rồi mới dùng trong code.
-
+---
+name: Luminous Professional
+colors:
+  surface: '#f9f9ff'
+  surface-dim: '#d8d9e3'
+  surface-bright: '#f9f9ff'
+  surface-container-lowest: '#ffffff'
+  surface-container-low: '#f2f3fd'
+  surface-container: '#ecedf7'
+  surface-container-high: '#e6e7f2'
+  surface-container-highest: '#e1e2ec'
+  on-surface: '#191b23'
+  on-surface-variant: '#424754'
+  inverse-surface: '#2e3038'
+  inverse-on-surface: '#eff0fa'
+  outline: '#727785'
+  outline-variant: '#c2c6d6'
+  surface-tint: '#005ac2'
+  primary: '#0058be'
+  on-primary: '#ffffff'
+  primary-container: '#2170e4'
+  on-primary-container: '#fefcff'
+  inverse-primary: '#adc6ff'
+  secondary: '#505f76'
+  on-secondary: '#ffffff'
+  secondary-container: '#d0e1fb'
+  on-secondary-container: '#54647a'
+  tertiary: '#924700'
+  on-tertiary: '#ffffff'
+  tertiary-container: '#b75b00'
+  on-tertiary-container: '#fffbff'
+  error: '#ba1a1a'
+  on-error: '#ffffff'
+  error-container: '#ffdad6'
+  on-error-container: '#93000a'
+  primary-fixed: '#d8e2ff'
+  primary-fixed-dim: '#adc6ff'
+  on-primary-fixed: '#001a42'
+  on-primary-fixed-variant: '#004395'
+  secondary-fixed: '#d3e4fe'
+  secondary-fixed-dim: '#b7c8e1'
+  on-secondary-fixed: '#0b1c30'
+  on-secondary-fixed-variant: '#38485d'
+  tertiary-fixed: '#ffdcc6'
+  tertiary-fixed-dim: '#ffb786'
+  on-tertiary-fixed: '#311400'
+  on-tertiary-fixed-variant: '#723600'
+  background: '#f9f9ff'
+  on-background: '#191b23'
+  surface-variant: '#e1e2ec'
+  surface-base: '#ffffff'
+  surface-alt: '#f8f9ff'
+  container-blue: rgba(59, 130, 246, 0.08)
+  container-neutral: rgba(100, 116, 139, 0.05)
+typography:
+  headline-lg:
+    fontFamily: Hanken Grotesk
+    fontSize: 30px
+    fontWeight: '600'
+    lineHeight: 38px
+    letterSpacing: -0.02em
+  headline-md:
+    fontFamily: Hanken Grotesk
+    fontSize: 24px
+    fontWeight: '600'
+    lineHeight: 32px
+    letterSpacing: -0.02em
+  headline-sm:
+    fontFamily: Hanken Grotesk
+    fontSize: 18px
+    fontWeight: '600'
+    lineHeight: 26px
+    letterSpacing: -0.01em
+  body-lg:
+    fontFamily: Hanken Grotesk
+    fontSize: 16px
+    fontWeight: '400'
+    lineHeight: 24px
+  body-md:
+    fontFamily: Hanken Grotesk
+    fontSize: 14px
+    fontWeight: '400'
+    lineHeight: 20px
+  body-sm:
+    fontFamily: Hanken Grotesk
+    fontSize: 13px
+    fontWeight: '400'
+    lineHeight: 18px
+  label-md:
+    fontFamily: Hanken Grotesk
+    fontSize: 12px
+    fontWeight: '600'
+    lineHeight: 16px
+    letterSpacing: 0.02em
+  label-sm:
+    fontFamily: Hanken Grotesk
+    fontSize: 11px
+    fontWeight: '500'
+    lineHeight: 14px
+    letterSpacing: 0.03em
+  headline-lg-mobile:
+    fontFamily: Hanken Grotesk
+    fontSize: 24px
+    fontWeight: '600'
+    lineHeight: 32px
+rounded:
+  sm: 0.25rem
+  DEFAULT: 0.5rem
+  md: 0.75rem
+  lg: 1rem
+  xl: 1.5rem
+  full: 9999px
+spacing:
+  unit: 4px
+  xs: 4px
+  sm: 8px
+  md: 16px
+  lg: 24px
+  xl: 32px
+  gutter: 20px
+  margin-desktop: 40px
+  margin-mobile: 16px
 ---
 
-## 1. Brand
+## Brand & Style
 
-| Thuộc tính | Giá trị |
-|---|---|
-| Product name | SmartHire AI |
-| Tagline | Hire smarter with AI |
-| Stitch project | _[điền link Google Stitch]_ |
-| Icon pack (Stitch / Material Symbols) | _[điền link export]_ |
+The design system is a "Luminous Professional" aesthetic, evolving the enterprise SaaS look into a lighter, airier, and more sophisticated territory. It targets high-level decision-makers and power users who require a high-density information environment that doesn't feel heavy or fatiguing.
 
----
+The design style is **Minimalism** with a heavy influence of **Glassmorphism**, though refined for a corporate context. By utilizing a white-dominant palette and translucent layers, the UI evokes a sense of transparency, breathability, and modern efficiency. The emotional response is one of calm clarity and effortless precision. Every element feels "light as air," reducing the cognitive load often associated with complex data-driven platforms.
 
-## 2. Color tokens
+## Colors
 
-Đặt tên theo semantic; map sang CSS variables trong `frontend/src/styles/tokens.css`.
+The color strategy is white-dominant, using a soft, professional blue as the primary anchor. The palette prioritizes high-key values to maintain an expansive, open feel.
 
-### 2.1 Brand & surface
+- **Primary Blue:** #3b82f6 is used for primary actions, active indicators, and critical focus states.
+- **Secondary Opacity:** Rather than solid grays, the system heavily utilizes opacity for secondary elements. Secondary text uses #64748b at 100%, but decorative accents and non-critical containers use the same hue at 30% to 60% opacity.
+- **Surface Strategy:** The background is a crisp #FFFFFF. A very subtle #f8f9ff is used for large background sections to distinguish them from interactive "elevated" white cards.
+- **Translucency:** Secondary containers and "ghost" buttons should use a 30% to 50% opacity of the secondary color to allow the white background to "breathe" through the UI elements.
 
-| Token | Hex (placeholder) | CSS variable | Usage |
-|---|---|---|---|
-| `color.brand.primary` | `#0F6E56` | `--color-brand-primary` | CTA chính, link nhấn mạnh |
-| `color.brand.primary-hover` | `#0B5A46` | `--color-brand-primary-hover` | Hover CTA |
-| `color.brand.secondary` | `#1D4E89` | `--color-brand-secondary` | Secondary actions |
-| `color.brand.accent` | `#C97800` | `--color-brand-accent` | Highlight AI / score |
-| `color.surface.page` | `#F7F8FA` | `--color-surface-page` | Page background |
-| `color.surface.card` | `#FFFFFF` | `--color-surface-card` | Panel / dialog surface |
-| `color.surface.muted` | `#EEF1F4` | `--color-surface-muted` | Subtle sections |
-| `color.border.default` | `#D8DEE6` | `--color-border-default` | Borders, dividers |
-| `color.border.focus` | `#0F6E56` | `--color-border-focus` | Focus ring |
+## Typography
 
-### 2.2 Text
+This design system uses **Hanken Grotesk** to provide a sharp, contemporary, and technical feel that is slightly more "designed" than standard system fonts.
 
-| Token | Hex | CSS variable | Usage |
-|---|---|---|---|
-| `color.text.primary` | `#12161C` | `--color-text-primary` | Body / headings |
-| `color.text.secondary` | `#5B6573` | `--color-text-secondary` | Supporting copy |
-| `color.text.inverse` | `#FFFFFF` | `--color-text-inverse` | Text on primary |
-| `color.text.disabled` | `#9AA3AF` | `--color-text-disabled` | Disabled |
+- **Weight & Contrast:** Headlines use a SemiBold weight in a deep charcoal (#1e293b). Body text utilizes #475569 for a softer contrast against the white-dominant background.
+- **Softness through Color:** For secondary information, instead of smaller font sizes, use 60% opacity of the body color to maintain legibility while establishing hierarchy.
+- **Labels:** Labels and tags should be used sparingly, often in a Medium weight with slight tracking (letter-spacing) to ensure they feel like distinct UI meta-elements.
 
-### 2.3 Status
+## Layout & Spacing
 
-| Token | Hex | CSS variable | Usage |
-|---|---|---|---|
-| `color.status.success` | `#1B7F4A` | `--color-status-success` | Pass / hired |
-| `color.status.warning` | `#B86E00` | `--color-status-warning` | Pending review |
-| `color.status.danger` | `#C62828` | `--color-status-danger` | Reject / error |
-| `color.status.info` | `#1565C0` | `--color-status-info` | Info banners |
+The layout is built on a **Fluid Grid** that leans heavily into whitespace to create the "airy" aesthetic requested.
 
-> Sau khi export từ Google Stitch: thay toàn bộ Hex placeholder bằng giá trị Stitch và giữ nguyên tên token.
+- **Grid Model:** 12-column layout on desktop with generous 20px gutters. Outer margins on desktop are expanded to 40px to give the content "room to breathe."
+- **Spacing Rhythm:** A strict 4px baseline is maintained. However, "Macro-spacing" (gaps between major sections) should favor the `xl` (32px) or larger values to prevent the UI from feeling cluttered.
+- **Responsiveness:** On mobile, margins collapse to 16px. Containers that are side-by-side on desktop stack vertically with `md` (16px) spacing between them.
 
----
+## Elevation & Depth
 
-## 3. Typography
+Hierarchy is established through **Glassmorphism** and **Low-Contrast Outlines** rather than traditional shadows.
 
-| Role | Font (placeholder) | Size / Weight | Notes |
-|---|---|---|---|
-| Display | `Manrope` | 36–48 / 700 | Landing / brand moments |
-| Heading | `Manrope` | 20–28 / 600–700 | Page & section titles |
-| Body | `IBM Plex Sans` | 14–16 / 400–500 | Forms, tables, copy |
-| Mono | `IBM Plex Mono` | 12–14 / 400 | Scores, IDs, code snippets |
+- **Tonal Layers:** The background is #FFFFFF. Elevated cards also use #FFFFFF but are defined by a very soft 1px border (#e2e8f0) or a soft-blue tinted shadow.
+- **Ambient Shadows:** When depth is required (e.g., for modals or floating menus), use a "tinted" shadow: `0 20px 25px -5px rgba(59, 130, 246, 0.05)`. The blue tint in the shadow keeps the elevation feeling clean and integrated with the brand color.
+- **Backdrop Blurs:** For overlays and navigation bars, use a `blur(12px)` combined with a 70% opaque white background to create a frosted glass effect that maintains context of the content beneath.
 
-Load fonts qua Google Fonts hoặc self-host trong `frontend/index.html` / CSS.
+## Shapes
 
----
+The shape language is **Rounded**, moving away from the "sharpness" of traditional enterprise software to achieve a softer, more modern feel.
 
-## 4. Spacing & radius
+- **Components:** Buttons and input fields use a 0.5rem (8px) radius.
+- **Large Containers:** Dashboard cards, modals, and main panels use `rounded-xl` (1.5rem / 24px) for a distinctly soft, premium look.
+- **Small Elements:** Chips and badges use a fully rounded "pill" shape to contrast with the more structured rectangular containers.
+- **Stroke:** All borders should be 1px wide, using #e2e8f0. For active states, the border increases to 1.5px and shifts to the primary blue.
 
-| Token | Value |
-|---|---|
-| `--space-1` … `--space-8` | 4 / 8 / 12 / 16 / 24 / 32 / 48 / 64 px |
-| `--radius-sm` | 6px |
-| `--radius-md` | 10px |
-| `--radius-lg` | 16px |
-| `--radius-full` | 9999px (avatar / chip only) |
+## Components
 
----
-
-## 5. Icon system (Google Stitch)
-
-- **Nguồn:** Google Stitch icon export (ưu tiên Material Symbols Outlined nếu Stitch dùng set đó).
-- **Thư mục FE:** `frontend/src/assets/icons/` (SVG) hoặc component wrapper `components/shared/Icon.tsx`.
-- **Kích thước chuẩn:** `16` / `20` / `24` (mặc định 20 cho button).
-- **Stroke:** theo Stitch; không tự đổi stroke width.
-
-### 5.1 Icon map theo button / action
-
-| Action / Button | Icon name (Stitch) | Component usage |
-|---|---|---|
-| Primary submit / Save | `check` | `<Icon name="check" />` |
-| Cancel / Close | `close` | Dialog dismiss, cancel |
-| Login | `login` | Auth submit |
-| Register | `person_add` | Register CTA |
-| Google Login | `google` | OAuth |
-| Profile | `person` | User profile |
-| RBAC / Admin | `admin_panel_settings` | Admin only |
-| Create Job | `add` / `work` | Job create |
-| Publish Job | `publish` | Publish |
-| Skills | `psychology` | Skill requirements |
-| Pipeline stage | `view_kanban` | Stages / pipeline |
-| Applicants | `group` | Applicant list |
-| Upload CV | `upload_file` | Upload |
-| Parse / Extract | `description` | CV parse |
-| AI Analysis | `auto_awesome` | AI actions |
-| Matching Score | `speed` | Score badge |
-| Ranking | `leaderboard` | Rankings |
-| Recommendation | `recommend` | Suggestions |
-| Assessment / Quiz | `quiz` | MCQ |
-| Coding | `code` | Coding challenge |
-| Timer | `timer` | Assessment timer |
-| Proctor / Shield | `shield` | Anti-cheat |
-| Mic / Voice | `mic` | Voice interview |
-| Grade | `grade` | Scoring |
-| Feedback | `rate_review` | Feedback |
-| Schedule | `event` | Interview schedule |
-| Notification | `notifications` | Header / WS |
-| Email | `mail` | Email notify |
-| Practice | `school` | Practice interview |
-| Dashboard | `dashboard` | Analytics |
-| Charts | `bar_chart` | Dashboard charts |
-| Search | `search` | Filters |
-| Filter | `filter_list` | Table filters |
-| Settings | `settings` | Account |
-| Logout | `logout` | User menu |
-| Delete (danger) | `delete` | Destructive |
-| Back | `arrow_back` | Navigation |
-| Hire / Decision | `how_to_reg` | Hiring decision |
-
-Khi Stitch đổi tên icon: cập nhật cột **Icon name** ở đây; FE chỉ đọc map này.
-
----
-
-## 6. Button variants
-
-| Variant | Background | Text | Border | Icon |
-|---|---|---|---|---|
-| `primary` | `brand.primary` | `text.inverse` | none | optional leading 20px |
-| `secondary` | `surface.card` | `text.primary` | `border.default` | optional |
-| `ghost` | transparent | `text.secondary` | none | optional |
-| `danger` | `status.danger` | `text.inverse` | none | `delete` / `close` |
-| `ai` | `brand.accent` | `text.inverse` | none | `auto_awesome` |
-
-Height: `sm` 32px · `md` 40px · `lg` 48px. Min tap target mobile: 44px.
-
----
-
-## 7. Motion
-
-| Token | Value | Usage |
-|---|---|---|
-| `--motion-fast` | 150ms | Hover, focus |
-| `--motion-normal` | 250ms | Panel open |
-| `--motion-slow` | 400ms | Page transition nhẹ |
-
-Easing: `cubic-bezier(0.2, 0.8, 0.2, 1)`. Không dùng glow / multi-shadow nặng.
-
----
-
-## 8. Internationalization (i18n)
-
-Supported locales: **English (`en`)**, **Tiếng Việt (`vi`)**, **日本語 (`ja`)**.
-
-- Catalogs: `frontend/src/i18n/locales/{en,vi,ja}.ts`
-- Switcher in header; shortcut **Alt+L** cycles language
-- `document.documentElement.lang` updates with locale
-- Font stack includes `Noto Sans JP` for Japanese
-
----
-
-## 9. Keyboard shortcuts
-
-| Shortcut | Action |
-|---|---|
-| `?` | Open shortcuts help |
-| `Esc` | Close dialog / panel |
-| `Alt+L` | Cycle EN → VI → JA |
-| `g` then `h` | Go to Welcome |
-| `g` then `w` | Go to role workspace home |
-| `/` | Focus search (`[data-search-input]`) |
-
-Ignore shortcuts while typing in inputs.
-
----
-
-## 10. UX / Accessibility principles (enterprise SaaS)
-
-Direction: trustworthy, efficient, uncluttered — **productivity over visual noise**.
-
-- Clean navigation, clear hierarchy, consistent design system (`components/ux/*`)
-- Large clickable targets (≥44px), readable typography, high-contrast text
-- Responsive desktop / tablet / mobile; soft card shadows, rounded corners
-- Smooth short transitions; respect `prefers-reduced-motion`
-- Friendly empty states, tooltips, clear validation & error messages
-- Confirm before destructive actions; loading skeletons; toast feedback
-- Keyboard accessible; skip link; WCAG-minded focus rings & `aria-*`
-- Fast / lightweight — avoid heavy effects, glow, multi-layer decoration
-
-Primitives: `Button`, `Card`, `EmptyState`, `Skeleton`, `Toast`, `ConfirmDialog`, `Tooltip`, `LanguageSwitcher`, `ShortcutsHelp`.
-
----
-
-## 11. Dark mode
-
-Chưa bật mặc định. Nếu Stitch cung cấp dark palette: thêm section Dark tokens và map `--color-*` trong `[data-theme="dark"]`.
-
----
-
-## 12. Checklist khi implement UI
-
-1. Màu lấy từ CSS variables / Tailwind theme map từ bảng trên.
-2. Copy UI qua `useT("…")` — không hardcode EN/VI/JA.
-3. Icon đúng tên trong §5.1.
-4. Button đúng variant §6; min height đủ touch target.
-5. Empty / loading / error / confirm / toast khi phù hợp.
-6. Sau khi sync Stitch: cập nhật Hex + icon name, rồi PR `chore(design): sync stitch tokens`.
+- **Buttons:** Primary buttons use a solid light blue (#3b82f6) with white text. Secondary buttons use a background of `rgba(59, 130, 246, 0.1)` with blue text and no border, creating a soft "ghost" effect.
+- **Input Fields:** Use a subtle #f8f9ff background with a 1px #e2e8f0 border. On focus, the background stays white and the border glows with a soft blue 30% opacity ring.
+- **Cards:** White background, 24px corner radius, and a 1px border. Inside cards, use 30% opacity blue dividers for a softer separation of content than standard gray lines.
+- **Chips:** Highly translucent backgrounds (e.g., `rgba(59, 130, 246, 0.15)`) with a slightly darker version of the hue for the text. No borders on chips.
+- **Sidebars:** Use a backdrop blur and a 1px right border. Active navigation items are signaled by a soft blue container with 10% opacity and a pill-shaped indicator.
+- **Lists:** Table rows should not have borders. Use a subtle `rgba(59, 130, 246, 0.04)` background on hover to maintain the light, airy feel.

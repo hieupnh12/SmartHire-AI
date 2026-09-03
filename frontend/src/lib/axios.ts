@@ -1,5 +1,6 @@
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from "axios";
 import type { ApiResponse } from "@/types/api";
+import { getTenantIdFromWindow } from "@/lib/tenant";
 
 const baseURL =
   import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080/api/v1";
@@ -14,6 +15,12 @@ api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const token = localStorage.getItem("accessToken");
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
+  }
+
+  // Inject X-Tenant-ID header dynamically from window subdomain or localStorage
+  const tenantId = getTenantIdFromWindow();
+  if (tenantId) {
+    config.headers["X-Tenant-ID"] = tenantId;
   }
   return config;
 });
@@ -55,8 +62,8 @@ api.interceptors.response.use(
         original.headers.Authorization = `Bearer ${token}`;
         return api(original);
       }
-      if (!window.location.pathname.startsWith("/login")) {
-        window.location.href = "/login";
+      if (!window.location.pathname.startsWith("/login") && !window.location.pathname.startsWith("/internal/login")) {
+        window.location.href = "/internal/login";
       }
     }
     return Promise.reject(error);

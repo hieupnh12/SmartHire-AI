@@ -30,3 +30,4 @@ public record ApiResponse<T>(
         return new ApiResponse<>(false, message, null, "VALIDATION_ERROR", errors, Instant.now());
     }
 }
+

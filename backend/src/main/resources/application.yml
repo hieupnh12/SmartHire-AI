@@ -2,9 +2,10 @@ spring:
   application:
     name: smarthire-backend
   datasource:
-    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:smarthire}?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
-    username: ${DB_USER:smarthire}
-    password: ${DB_PASSWORD:smarthire}
+    driver-class-name: org.h2.Driver
+    url: ${DB_URL:jdbc:h2:mem:smarthire_master;MODE=MySQL;DB_CLOSE_DELAY=-1;CASE_INSENSITIVE_IDENTIFIERS=TRUE}
+    username: ${DB_USER:sa}
+    password: ${DB_PASSWORD:}
     hikari:
       pool-name: SmartHireHikariPool
       maximum-pool-size: ${HIKARI_MAX_POOL:20}
@@ -13,16 +14,22 @@ spring:
       idle-timeout: 600000
       max-lifetime: 1800000
       leak-detection-threshold: 60000
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+      settings:
+        web-allow-others: true
   jpa:
     hibernate:
-      ddl-auto: validate
+      ddl-auto: none
     open-in-view: false
     properties:
       hibernate:
         format_sql: true
   flyway:
     enabled: true
-    locations: classpath:db/migration
+    locations: classpath:db/migration/master
   data:
     redis:
       host: ${REDIS_HOST:localhost}
@@ -36,6 +43,7 @@ spring:
     password: ${RABBITMQ_PASSWORD:guest}
     listener:
       simple:
+        auto-startup: false
         # Worker pool per backend/consumer instance
         concurrency: ${RABBIT_CONCURRENCY:3}
         max-concurrency: ${RABBIT_MAX_CONCURRENCY:10}
@@ -123,3 +131,9 @@ app:
       notify-email: notify.email.q
       auth-email-otp: auth.email.otp.q
       job-events: job.events.q
+
+smarthire:
+  jwt:
+    secret: ${JWT_SECRET:SmartHireAiEnterpriseSuperSecureJwtSecretKey2026SaaS}
+    expiration-ms: ${JWT_EXPIRATION:86400000}
+
