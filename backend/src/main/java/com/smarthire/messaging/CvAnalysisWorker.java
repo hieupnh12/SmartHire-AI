@@ -3,21 +3,20 @@ package com.smarthire.messaging;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Component;
 
-/**
- * Scaffold AI CV analysis worker.
- * Concurrency controlled by spring.rabbitmq.listener.simple.concurrency (Worker Pool).
- * Replace body with real OpenAI / model call when implementing CV-04.
- */
 @Component
 public class CvAnalysisWorker {
-
     private static final Logger log = LoggerFactory.getLogger(CvAnalysisWorker.class);
+    private final TenantJobExecutor executor;
+    public CvAnalysisWorker(TenantJobExecutor executor) { this.executor = executor; }
 
     @RabbitListener(queues = "${app.rabbitmq.queues.cv-analysis}")
-    public void onCvAnalysis(String payload) {
-        // TODO CV-04: parse payload → call AI → persist cv_analyses → WebSocket notify
-        log.info("Received cv.analysis job (scaffold): {}", payload);
+    public void onCvAnalysis(String payload, @Header(name = "X-Tenant-ID", required = false) String tenant) {
+        executor.execute(tenant, () -> {
+            // TODO CV-04: call AI and persist results inside this tenant scope.
+            log.info("Received CV analysis job (scaffold)");
+        });
     }
 }

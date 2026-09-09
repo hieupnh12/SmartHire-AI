@@ -1,6 +1,6 @@
-import axios from "axios";
+import { masterClient } from "./client";
 
-const API_BASE = "http://localhost:8080/api/v1";
+const API_BASE = "";
 
 export interface MasterLoginRequest {
   email: string;
@@ -25,11 +25,11 @@ export interface MasterLoginResponse {
 
 export const masterAuthApi = {
   login: async (credentials: MasterLoginRequest) => {
-    const response = await axios.post(`${API_BASE}/master/auth/login`, credentials);
+    const response = await masterClient.post(`${API_BASE}/master/auth/login`, credentials);
     return response.data;
   },
   me: async (accessToken: string) => {
-    const response = await axios.get(`${API_BASE}/master/auth/me`, {
+    const response = await masterClient.get(`${API_BASE}/master/auth/me`, {
       headers: {
         Authorization: `Bearer ${accessToken}`
       }

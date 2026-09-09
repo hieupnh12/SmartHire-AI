@@ -109,7 +109,7 @@ openssl rand -base64 48   # JWT_SECRET, passwords…
 Cập nhật:
 
 - `DOMAIN`, `PUBLIC_URL`, `CORS_ORIGINS`
-- `DB_PASSWORD`, `MYSQL_ROOT_PASSWORD`, `REDIS_PASSWORD`, `RABBITMQ_*`
+- `MASTER_DB_PASSWORD`, `TENANT_PROVISIONING_PASSWORD`, `MYSQL_ROOT_PASSWORD`, `REDIS_PASSWORD`, `RABBITMQ_*`
 - `JWT_SECRET`, Google OAuth nếu dùng
 
 `deploy/.env.production` **không** commit (đã ignore).
@@ -213,8 +213,8 @@ bash deploy/scripts/deploy.sh
 Restore MySQL:
 
 ```bash
-gunzip -c /var/backups/smarthire/smarthire_YYYYMMDD_HHMMSS.sql.gz \
-  | docker exec -i smarthire-mysql mysql -u"$DB_USER" -p"$DB_PASSWORD" "$DB_NAME"
+gunzip -c /var/backups/smarthire/mysql_YYYYMMDD_HHMMSS.sql.gz \
+  | docker exec -i smarthire-mysql sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql -uroot'
 ```
 
 ## Bảo mật checklist
@@ -245,3 +245,45 @@ gunzip -c /var/backups/smarthire/smarthire_YYYYMMDD_HHMMSS.sql.gz \
 ## Ước lượng chi phí (tham khảo)
 
 e2-medium + 50GB disk + static IP ~ vài chục USD/tháng tùy region/discount. Theo dõi Billing alerts trên GCP.
+
+## PostgreSQL master và MySQL theo tenant
+
+Stack chạy PostgreSQL 16 cho master, MySQL 8.4 chứa các database tenant, Redis, RabbitMQ, backend và frontend. Database production chỉ mở trong mạng Docker; một tenant không cần một VPS riêng.
+
+### Cấu hình và khởi động mới
+
+1. Sao chép `deploy/.env.production.example` thành `deploy/.env.production`.
+2. Điền `MASTER_DB_PASSWORD`, `MYSQL_ROOT_PASSWORD`, JWT và credential Redis/RabbitMQ.
+3. Tạo `TENANT_PROVISIONING_PASSWORD` bằng `openssl rand -hex 24`.
+4. Tạo `TENANT_CREDENTIALS_KEY` bằng `openssl rand -base64 32`. Giữ khóa ổn định và backup riêng; mất khóa sẽ không giải mã được credential tenant trong registry.
+5. Lần đầu, đặt `BOOTSTRAP_ADMIN_ENABLED=true` và cung cấp email/password riêng cho superadmin.
+6. Chạy `docker compose -f docker-compose.prod.yml --env-file deploy/.env.production up -d --build`.
+7. Đăng nhập `/admin/login` và tạo tenant. Sau bootstrap, tắt cờ bootstrap và bỏ password bootstrap khỏi env.
+
+`.env` không chứa URL/password của từng tenant. Registry PostgreSQL lưu thông tin kết nối và ciphertext. Spring Boot không tự đọc file `.env`; khi chạy trực tiếp cần export biến qua shell/IDE, còn Compose dùng `--env-file`.
+
+Local: sao chép `backend/.env.example` thành `backend/.env`, điền secret rồi chạy `docker compose --env-file backend/.env --profile apps up -d --build`.
+
+Script `deploy/mysql/init-provisioner.sh` chỉ chạy khi MySQL volume mới. Với volume đã có dữ liệu, chạy script bằng tài khoản quản trị sau khi cấp biến môi trường; không xóa volume để chạy lại init. Provisioner có quyền tạo user toàn cục và quản lý DB theo prefix `smarthire_tenant_`; pool tenant chỉ dùng tài khoản riêng.
+
+### Dữ liệu hiện hữu
+
+Migration master mới dành cho PostgreSQL mới. Không chạy migration này vào MySQL master cũ và không sửa checksum để ép chạy. Việc chuyển dữ liệu master cũ cần một đợt migration riêng, giữ ID/quan hệ và mã hóa lại credential bằng cùng khóa AES-GCM.
+
+Nếu DB tenant hiện hữu có bảng nhưng chưa có Flyway history, hãy kiểm tra schema và baseline thủ công đúng phiên bản. Backend cố ý không tự baseline database không rõ cấu trúc.
+
+### Subdomain và nhiều máy
+
+Đặt `TENANT_BASE_DOMAIN` trùng domain triển khai. DNS và TLS phải bao phủ từng subdomain hoặc wildcard. Cấu hình Nginx mẫu phục vụ domain chính; bổ sung wildcard `server_name` và chứng chỉ trước khi dùng subdomain production.
+
+Khi MySQL ở VPS khác, dùng IP/DNS mạng riêng. `TENANT_MYSQL_BASE_URL` áp dụng cho tenant tự động tạo mới; tenant đã tồn tại tiếp tục dùng URL trong registry. Khi chuyển DB tenant, phải chuyển dữ liệu, cập nhật registry và thu hồi pool.
+
+### Backup và khôi phục
+
+Chạy cả `deploy/scripts/backup-postgres.sh` và `deploy/scripts/backup-mysql.sh`, rồi lưu bản sao ngoài VPS. Giữ master dump, MySQL dump và khóa mã hóa cùng một đợt backup. Tạm dừng onboarding khi lấy backup phối hợp và kiểm tra restore ở môi trường tách biệt.
+
+### Kiểm thử trước deploy
+
+- `mvn test` cần Docker và JDK 21; test tự tạo PostgreSQL/MySQL container, không dùng database production.
+- `npm run build` xác minh TypeScript và frontend.
+- Giới hạn connection mỗi backend process xấp xỉ `TENANT_MAX_POOLS × TENANT_DB_POOL_SIZE`, cộng pool master và connection provisioning.

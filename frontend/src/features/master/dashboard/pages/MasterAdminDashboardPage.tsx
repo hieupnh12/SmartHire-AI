@@ -29,9 +29,6 @@ import {
   Check,
   X,
   Sparkles,
-  Globe,
-  KeyRound,
-  ArrowRight
 } from "lucide-react";
 
 export function MasterAdminDashboardPage() {
@@ -49,9 +46,6 @@ export function MasterAdminDashboardPage() {
 
   // Modals state
   const [selectedTenant, setSelectedTenant] = useState<TenantInfo | null>(null);
-  const [showProvisionModal, setShowProvisionModal] = useState(false);
-  const [provisionSuccessData, setProvisionSuccessData] = useState<TenantInfo | null>(null);
-  const [copiedCreds, setCopiedCreds] = useState(false);
 
   const [showPlanModal, setShowPlanModal] = useState<SubscriptionPlan | null>(null);
   const [isNewPlan, setIsNewPlan] = useState(false);
@@ -61,9 +55,6 @@ export function MasterAdminDashboardPage() {
   const [tenantSearch, setTenantSearch] = useState("");
 
   // Provision Tenant form state
-  const [newTenantCode, setNewTenantCode] = useState("");
-  const [newTenantName, setNewTenantName] = useState("");
-  const [newTenantSubdomain, setNewTenantSubdomain] = useState("");
 
   // Plan Form state
   const [planCode, setPlanCode] = useState("");
@@ -104,37 +95,16 @@ export function MasterAdminDashboardPage() {
 
   // Handlers
   const handleToggleTenantStatus = async (tenant: TenantInfo) => {
+    if (tenant.status === "FAILED" || tenant.status === "PROVISIONING") {
+      navigate(`/onboard?retry=${tenant.id}`);
+      return;
+    }
     const nextStatus = tenant.status === "ACTIVE" ? "SUSPENDED" : "ACTIVE";
     try {
       const updated = await masterAdminApi.updateTenantStatus(tenant.id, nextStatus);
       setTenants(tenants.map(t => t.id === updated.id ? updated : t));
     } catch (err) {
       alert("Lỗi khi thay đổi trạng thái tenant");
-    }
-  };
-
-  const handleNewTenantCodeChange = (val: string) => {
-    const clean = val.toLowerCase().replace(/[^a-z0-9-]/g, "");
-    setNewTenantCode(clean);
-    setNewTenantSubdomain(clean);
-    if (!newTenantName || newTenantName.endsWith("Corp") || newTenantName.endsWith("Enterprise")) {
-      setNewTenantName(clean ? `${clean.toUpperCase()} Enterprise` : "");
-    }
-  };
-
-  const handleProvisionTenantSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const created = await masterAdminApi.provisionTenant({
-        code: newTenantCode,
-        name: newTenantName,
-        subdomain: newTenantSubdomain
-      });
-      setTenants([...tenants, created]);
-      setShowProvisionModal(false);
-      setProvisionSuccessData(created);
-    } catch (err: any) {
-      alert(err.response?.data?.message || "Lỗi khi cấp phát tenant");
     }
   };
 
@@ -419,7 +389,7 @@ export function MasterAdminDashboardPage() {
               </div>
 
               <button
-                onClick={() => setShowProvisionModal(true)}
+                onClick={() => navigate("/onboard")}
                 className="px-4 py-2.5 text-xs font-semibold rounded-[8px] bg-[#3b82f6] hover:bg-[#2563eb] text-white shadow-md shadow-[#3b82f6]/20 transition-all flex items-center gap-2"
               >
                 <Plus className="w-4 h-4" />
@@ -487,7 +457,7 @@ export function MasterAdminDashboardPage() {
                               : "bg-[#16a34a]/10 text-[#16a34a] hover:bg-[#16a34a]/20"
                           }`}
                         >
-                          {tenant.status === "ACTIVE" ? "Suspend" : "Activate"}
+                          {tenant.status === "FAILED" || tenant.status === "PROVISIONING" ? "Retry" : tenant.status === "ACTIVE" ? "Suspend" : "Activate"}
                         </button>
                       </td>
                     </tr>
@@ -678,177 +648,7 @@ export function MasterAdminDashboardPage() {
               <div className="flex justify-between"><span className="text-[#64748b]">Database Name:</span><span className="text-[#16a34a] font-bold">{selectedTenant.dbName}</span></div>
               <div className="flex justify-between"><span className="text-[#64748b]">Trạng Thái:</span><span className="font-bold">{selectedTenant.status}</span></div>
 
-              <div className="pt-3 border-t border-[#e2e8f0] space-y-2 font-sans">
-                <span className="text-xs font-bold text-[#1e293b] block">🔑 Thông Tin Đăng Nhập Quản Trị Tenant:</span>
-                <div className="flex justify-between font-mono text-xs"><span className="text-[#64748b]">Email Admin:</span><span className="font-bold text-[#3b82f6]">admin@{selectedTenant.code}.com</span></div>
-                <div className="flex justify-between font-mono text-xs"><span className="text-[#64748b]">Mật Khẩu Mặc Định:</span><span className="font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">Password123!</span></div>
-                <div className="flex justify-between font-mono text-xs"><span className="text-[#64748b]">Quyền Hạn:</span><span className="font-bold text-[#16a34a]">TENANT_ADMIN</span></div>
-                <div className="flex justify-between font-mono text-xs pt-1">
-                  <span className="text-[#64748b]">Subdomain Login:</span>
-                  <a
-                    href={`http://${selectedTenant.code}.localhost:${window.location.port || 5173}/internal/login`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-[#3b82f6] font-bold underline"
-                  >
-                    http://{selectedTenant.code}.smarthire.ai/internal/login
-                  </a>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
-      {/* MODAL: PROVISION NEW TENANT */}
-      {showProvisionModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-6">
-          <div className="bg-white border border-[#e2e8f0] rounded-[24px] p-8 max-w-md w-full shadow-2xl relative">
-            <button onClick={() => setShowProvisionModal(false)} className="absolute top-6 right-6 text-[#64748b] hover:text-[#1e293b]">
-              <X className="w-5 h-5" />
-            </button>
-            <h3 className="text-xl font-bold font-display text-[#1e293b] mb-4">Create & Provision New Tenant</h3>
-            <form onSubmit={handleProvisionTenantSubmit} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold mb-1">Mã Tenant (Code)</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="ctya"
-                  value={newTenantCode}
-                  onChange={(e) => handleNewTenantCodeChange(e.target.value)}
-                  className="w-full px-3 py-2 rounded-[8px] bg-[#f8f9ff] border text-xs font-mono"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold mb-1">Tên Doanh Nghiệp</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Cong ty A"
-                  value={newTenantName}
-                  onChange={(e) => setNewTenantName(e.target.value)}
-                  className="w-full px-3 py-2 rounded-[8px] bg-[#f8f9ff] border text-xs"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold mb-1">Subdomain</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="ctya"
-                  value={newTenantSubdomain}
-                  onChange={(e) => setNewTenantSubdomain(e.target.value.toLowerCase())}
-                  className="w-full px-3 py-2 rounded-[8px] bg-[#f8f9ff] border text-xs font-mono"
-                />
-              </div>
-              <button type="submit" className="w-full py-2.5 rounded-[8px] bg-[#3b82f6] text-white font-bold text-xs shadow-md">
-                Provision Database & Initialize Admin
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL: PROVISION TENANT SUCCESS CREDENTIALS DISPLAY */}
-      {provisionSuccessData && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-6">
-          <div className="bg-white border border-[#e2e8f0] rounded-[24px] p-8 max-w-lg w-full shadow-2xl relative text-center animate-fade-in">
-            <button
-              onClick={() => {
-                setProvisionSuccessData(null);
-                setNewTenantCode("");
-                setNewTenantName("");
-                setNewTenantSubdomain("");
-              }}
-              className="absolute top-6 right-6 text-[#64748b] hover:text-[#1e293b]"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <div className="w-16 h-16 rounded-full bg-[#16a34a]/10 text-[#16a34a] flex items-center justify-center mx-auto mb-4">
-              <CheckCircle2 className="w-10 h-10" />
-            </div>
-
-            <h3 className="text-2xl font-bold font-display text-[#1e293b] mb-1">
-              Khởi Tạo Enterprise Tenant Thành Công 🎉
-            </h3>
-            <p className="text-xs text-[#64748b] mb-6">
-              Database <strong>`smarthire_tenant_{provisionSuccessData.code}`</strong> cho <strong>{provisionSuccessData.name}</strong> đã được tạo & khởi tạo tài khoản Admin hoàn tất!
-            </p>
-
-            {/* CREDENTIALS BOX WITH 2 LINKS */}
-            <div className="bg-[#f8f9ff] p-5 rounded-[16px] border border-[#e2e8f0] text-left space-y-3 font-mono text-xs mb-6">
-              {/* Link 1: Subdomain Landing Page / Career Portal */}
-              <div className="flex justify-between items-center pb-2 border-b border-[#e2e8f0]">
-                <span className="text-[#64748b] flex items-center gap-1.5 font-sans font-semibold">
-                  <Globe className="w-4 h-4 text-emerald-600" /> Link 1 (Landing / Career Portal):
-                </span>
-                <a
-                  href={`http://${provisionSuccessData.code}.localhost:${window.location.port || 5173}/`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-emerald-600 font-bold underline text-xs"
-                >
-                  http://{provisionSuccessData.code}.smarthire.ai/
-                </a>
-              </div>
-
-              {/* Link 2: Subdomain Internal Login (HR & Admin) */}
-              <div className="flex justify-between items-center pb-2 border-b border-[#e2e8f0]">
-                <span className="text-[#64748b] flex items-center gap-1.5 font-sans font-semibold">
-                  <KeyRound className="w-4 h-4 text-[#3b82f6]" /> Link 2 (Đăng Nhập HR / Admin):
-                </span>
-                <a
-                  href={`http://${provisionSuccessData.code}.localhost:${window.location.port || 5173}/internal/login`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-[#3b82f6] font-bold underline text-xs"
-                >
-                  http://{provisionSuccessData.code}.smarthire.ai/internal/login
-                </a>
-              </div>
-
-              <div className="flex justify-between items-center">
-                <span className="text-[#64748b] font-sans font-semibold">Username / Email Admin:</span>
-                <span className="text-[#1e293b] font-bold">admin@{provisionSuccessData.code}.com</span>
-              </div>
-
-              <div className="flex justify-between items-center">
-                <span className="text-[#64748b] font-sans font-semibold flex items-center gap-1">
-                  <KeyRound className="w-3.5 h-3.5 text-amber-600" /> Mật Khẩu Mặc Định:
-                </span>
-                <span className="text-amber-600 font-bold bg-amber-50 px-2 py-0.5 rounded">Password123!</span>
-              </div>
-
-              <div className="flex justify-between items-center pt-2 border-t border-[#e2e8f0]">
-                <span className="text-[#64748b] font-sans font-semibold">Quyền Hạn (Role Token):</span>
-                <span className="text-[#16a34a] font-bold">TENANT_ADMIN</span>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => {
-                  const info = `Landing Page: http://${provisionSuccessData.code}.smarthire.ai/\nLogin Internal: http://${provisionSuccessData.code}.smarthire.ai/internal/login\nEmail: admin@${provisionSuccessData.code}.com\nPassword: Password123!`;
-                  navigator.clipboard.writeText(info);
-                  setCopiedCreds(true);
-                  setTimeout(() => setCopiedCreds(false), 2000);
-                }}
-                className="flex-1 py-3 px-4 rounded-[8px] bg-slate-100 hover:bg-slate-200 text-[#1e293b] font-bold text-xs transition-all border border-[#e2e8f0] flex items-center justify-center gap-2"
-              >
-                <span>{copiedCreds ? "Đã Sao Chép! ✓" : "Sao Chép Thông Tin"}</span>
-              </button>
-
-              <a
-                href={`http://${provisionSuccessData.code}.localhost:${window.location.port || 5173}/internal/login`}
-                target="_blank"
-                rel="noreferrer"
-                className="flex-1 py-3 px-4 rounded-[8px] bg-[#3b82f6] hover:bg-[#2563eb] text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-2"
-              >
-                <span>Vào Đăng Nhập HR</span>
-                <ArrowRight className="w-4 h-4" />
-              </a>
             </div>
           </div>
         </div>

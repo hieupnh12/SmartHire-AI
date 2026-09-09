@@ -1,0 +1,3 @@
+
+# Container entrypoint and deployment scripts must use Unix line endings.
+*.sh text eol=lf

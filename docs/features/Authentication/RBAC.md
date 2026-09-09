@@ -1,7 +1,7 @@
 # Role-Based Access Control (RBAC)
 
 **Epic:** Authentication & User Management  
-**Trạng thái:** `To Do`  
+**Trạng thái:** `Doing`
 **Code ID:** `AUTH-04`
 
 ## Mục đích chức năng
@@ -43,3 +43,13 @@ Phân quyền theo role (và permission nếu cần) cho mọi API/UI route.
 ## Phụ thuộc
 
 AUTH-02
+
+## Cập nhật triển khai multi-tenant
+
+- API quản trị master yêu cầu `SUPER_ADMIN`, tách biệt với `ADMIN`/`TENANT_ADMIN` của doanh nghiệp.
+- API quản lý người dùng tenant yêu cầu `TENANT_ADMIN` hoặc `ADMIN`.
+- API nghiệp vụ yêu cầu tenant role và tenant đang `ACTIVE`; JWT, header và subdomain phải cùng tenant.
+- Endpoint công khai giới hạn ở login và kiểm tra tenant đang hoạt động; Swagger/health phục vụ vận hành.
+- CORS chỉ nhận các origin cụ thể từ `CORS_ORIGINS`, không cho wildcard kèm credential.
+- Phân quyền chi tiết của từng nghiệp vụ tiếp tục theo feature tương ứng.
+- Chi tiết: [Khởi tạo doanh nghiệp](Tenant-Onboarding.md).

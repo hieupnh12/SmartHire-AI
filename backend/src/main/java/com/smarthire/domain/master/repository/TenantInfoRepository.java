@@ -8,6 +8,11 @@ import java.util.Optional;
 
 @Repository
 public interface TenantInfoRepository extends JpaRepository<TenantInfo, Long> {
+    @org.springframework.transaction.annotation.Transactional(transactionManager = "masterTransactionManager")
+    @org.springframework.data.jpa.repository.Modifying(clearAutomatically = true)
+    @org.springframework.data.jpa.repository.Query("update TenantInfo t set t.status = :status, t.updatedAt = CURRENT_TIMESTAMP where t.id = :id and t.status in ('ACTIVE', 'SUSPENDED')")
+    int changeOperationalStatus(@org.springframework.data.repository.query.Param("id") Long id,
+                                @org.springframework.data.repository.query.Param("status") String status);
     Optional<TenantInfo> findByCode(String code);
     Optional<TenantInfo> findBySubdomain(String subdomain);
     boolean existsByCode(String code);

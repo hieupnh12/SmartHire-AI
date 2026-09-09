@@ -112,3 +112,50 @@ Envelope chuẩn: xem phiên bản trước — `success`, `message`, `data`, `e
 
 Chi tiết request/response: Swagger + từng file trong `docs/features/**`.  
 Postman skeleton: `docs/api/SmartHire.postman_collection.json` (regenerate từ OpenAPI khi BE sẵn sàng).
+
+## Contract Ranking đã triển khai
+
+Các path dưới đây có prefix `/api/v1`. Header `Authorization: Bearer <JWT>` và `X-Tenant-ID` phải thuộc cùng tenant. Chỉ Recruiter sở hữu Job được truy cập.
+
+| Method | Path | Kết quả |
+|---|---|---|
+| GET | `/rankings/jobs` | Danh sách `{id,title}` các Job sở hữu |
+| GET | `/jobs/{id}/rankings` | Board tính từ dữ liệu hiện tại, không ghi snapshot |
+| POST | `/jobs/{id}/rankings/recompute` | Tính lại toàn bộ và lưu snapshot; trả Board |
+| PUT | `/jobs/{id}/rankings/config` | Lưu cấu hình theo revision và tính lại; trả Board |
+| GET | `/applications/{id}/overall-score` | Một row cùng breakdown/nguồn/bằng chứng |
+| GET | `/applications/{id}/ranking-sources` | `{cvs,attempts,interviews,selected}`; mỗi option `{id,label,status}` |
+| PUT | `/applications/{id}/ranking-sources` | Chọn nguồn thuộc hồ sơ và tính lại Job |
+
+Mẫu cấu hình (groups phải khớp nhóm thực tế trong Job; lấy từ `skillCategories` của Board):
+
+```json
+{
+  "weights": {"skills": 35, "experience": 15, "assessment": 30, "interview": 20},
+  "groups": {"backend": 50, "database": 25, "devops": 20, "frontend": 5},
+  "requiredExperienceMonths": 24,
+  "revision": 0
+}
+```
+
+`revision=0` khi tạo lần đầu; lần sau gửi revision hiện tại. Tổng mỗi tầng phải bằng 100, trọng số nguyên từ 0–100; kinh nghiệm từ 0–1200 tháng, phải >0 nếu bật trọng số E.
+
+Chọn nguồn: `{"cvId":1,"attemptId":2,"interviewId":3}`. Giá trị null dùng chế độ tự chọn duy nhất, nhiều nguồn thì chờ Recruiter chọn, không tự chọn điểm cao nhất.
+
+Board: `{jobId,jobTitle,config,rankingVersion,calculatedAt,skillCategories,rows}`. Row gồm `applicationId,candidateName,status,rank,result,groups,missingRequired,experienceMonths,experienceEvidence,notices,sources,interviewFeedback`.
+
+`result` gồm `score,availableWeight,completedComponents,requiredComponents,cohort,complete,components`; mỗi component gồm `key,score,weight,contribution,state`. Điểm null khác 0. Chỉ so hạng cùng cohort; trong chế độ tất cả FE ẩn hạng. Snapshot trong DB không được dùng như kết quả hiện tại nếu nguồn đã đổi.
+
+HTTP: 400 dữ liệu/trọng số/nguồn sai; 403 sai tenant hoặc role; 404 Job/application không truy cập được; 409 revision cũ. Tất cả bọc `ApiResponse`.
+
+Kiểm tra: `mvn.cmd test` với Java 21; máy dùng Java 24 có thể chạy `mvn.cmd test "-Dnet.bytebuddy.experimental=true"` cho Byte Buddy hiện tại. FE: `npm.cmd run build` trong `frontend/`. H2 integration test không thay thế việc chạy migration MySQL trên tenant thực.
+
+## PostgreSQL master / MySQL tenant
+
+API quản trị master yêu cầu `Authorization: Bearer <master-token>` với role `SUPER_ADMIN`.
+`POST /master/tenants/onboard` yêu cầu `code`, `name`, `subdomain`, `adminName`, `adminEmail`, `adminPassword`.
+Không gọi API user tenant để bootstrap admin. Response chỉ chứa metadata và không chứa credential kết nối.
+`POST /master/tenants/{id}/retry` gửi lại `adminName`, `adminEmail`, `adminPassword` cho tenant `FAILED` hoặc `PROVISIONING` bị gián đoạn.
+Chế độ thủ công bổ sung `customDbUrl`, `dbUsername`, `dbPassword`; backend chạy migration trên DB đã chuẩn bị.
+Trạng thái provisioning là `PROVISIONING` → `ACTIVE` hoặc `FAILED`; trạng thái vận hành là `ACTIVE` ↔ `SUSPENDED`. Không kích hoạt trực tiếp tenant `FAILED`.
+Xem [contract và business rules](../features/Authentication/Tenant-Onboarding.md).

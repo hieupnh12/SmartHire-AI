@@ -1,19 +1,35 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: smarthire_master
+      POSTGRES_USER: ${MASTER_DB_USERNAME:-smarthire_master}
+      POSTGRES_PASSWORD: ${MASTER_DB_PASSWORD:?set MASTER_DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d smarthire_master"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+    ports:
+      - "127.0.0.1:5432:5432"
+
   mysql:
     image: mysql:8.4
     container_name: smarthire-mysql
     restart: unless-stopped
     environment:
-      MYSQL_DATABASE: smarthire
-      MYSQL_USER: smarthire
-      MYSQL_PASSWORD: smarthire
-      MYSQL_ROOT_PASSWORD: root
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?set MYSQL_ROOT_PASSWORD}
+      TENANT_PROVISIONING_PASSWORD: ${TENANT_PROVISIONING_PASSWORD:?set TENANT_PROVISIONING_PASSWORD}
     ports:
-      - "3306:3306"
+      - "127.0.0.1:3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
+      - ./deploy/mysql/init-provisioner.sh:/docker-entrypoint-initdb.d/init-provisioner.sh:ro
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      test: ["CMD-SHELL", "MYSQL_PWD=$$MYSQL_ROOT_PASSWORD mysqladmin ping -h localhost -uroot"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -23,7 +39,7 @@ services:
     container_name: smarthire-redis
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -38,8 +54,8 @@ services:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - "127.0.0.1:5672:5672"
+      - "127.0.0.1:15672:15672"
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 10s
@@ -51,6 +67,8 @@ services:
     build: ./backend
     container_name: smarthire-backend
     depends_on:
+      postgres:
+        condition: service_healthy
       mysql:
         condition: service_healthy
       redis:
@@ -58,11 +76,23 @@ services:
       rabbitmq:
         condition: service_healthy
     environment:
-      DB_HOST: mysql
-      DB_PORT: 3306
-      DB_NAME: smarthire
-      DB_USER: smarthire
-      DB_PASSWORD: smarthire
+      MASTER_DB_URL: jdbc:postgresql://postgres:5432/smarthire_master
+      MASTER_DB_USERNAME: ${MASTER_DB_USERNAME:-smarthire_master}
+      MASTER_DB_PASSWORD: ${MASTER_DB_PASSWORD:?set MASTER_DB_PASSWORD}
+      TENANT_CREDENTIALS_KEY: ${TENANT_CREDENTIALS_KEY:?set TENANT_CREDENTIALS_KEY}
+      TENANT_MYSQL_BASE_URL: jdbc:mysql://mysql:3306
+      TENANT_PROVISIONING_URL: jdbc:mysql://mysql:3306/?allowPublicKeyRetrieval=true
+      TENANT_PROVISIONING_USERNAME: smarthire_provisioner
+      TENANT_PROVISIONING_PASSWORD: ${TENANT_PROVISIONING_PASSWORD:?set TENANT_PROVISIONING_PASSWORD}
+      MASTER_DB_POOL_SIZE: ${MASTER_DB_POOL_SIZE:-10}
+      TENANT_DB_POOL_SIZE: ${TENANT_DB_POOL_SIZE:-5}
+      TENANT_MAX_POOLS: ${TENANT_MAX_POOLS:-20}
+      TENANT_BASE_DOMAIN: ${TENANT_BASE_DOMAIN:-smarthire.ai}
+      TENANT_MYSQL_OPTIONS: ${TENANT_MYSQL_OPTIONS:-sslMode=PREFERRED&allowPublicKeyRetrieval=true}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
+      BOOTSTRAP_ADMIN_ENABLED: ${BOOTSTRAP_ADMIN_ENABLED:-false}
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
       REDIS_HOST: redis
       REDIS_PORT: 6379
       RABBITMQ_HOST: rabbitmq
@@ -86,4 +116,5 @@ services:
       - "80:80"
 
 volumes:
+  postgres_data:
   mysql_data:

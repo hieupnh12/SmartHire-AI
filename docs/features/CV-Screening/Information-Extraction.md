@@ -42,3 +42,27 @@ Trích xuất thông tin có cấu trúc: education, experience, contacts, certi
 ## Phụ thuộc
 
 CV-02
+
+## Contract kinh nghiệm cho RANK-01/RANK-03
+
+Bộ đọc ranking đã hỗ trợ trường `experience` trong `cv_extractions.extraction_json`. Module trích xuất vẫn `To Do`; khi tích hợp phải cung cấp dữ liệu thật theo mẫu:
+
+```json
+{
+  "experience": [
+    {
+      "startDate": "2024-01",
+      "endDate": "2025-06",
+      "current": false,
+      "skills": ["Java", "SpringBoot"],
+      "evidence": "Phát triển dịch vụ Java/Spring Boot từ 01/2024 đến 06/2025."
+    }
+  ]
+}
+```
+
+- `current=true` cho công việc hiện tại, không cần `endDate`. Mốc tháng dùng YYYY-MM, không nhận ngày tương lai hoặc kết thúc trước bắt đầu.
+- `skills` là kỹ năng có bằng chứng trong công việc đó; không chép toàn bộ kỹ năng CV vào mọi công việc.
+- `evidence` là nội dung trích xuất phục vụ Recruiter kiểm tra; không tự sinh kinh nghiệm không có trong CV.
+- Mảng rỗng có nghĩa đã xác định không có kinh nghiệm. Thiếu trường/JSON không hợp lệ/ngày liên quan hoặc bằng chứng thiếu làm điểm kinh nghiệm chưa xác định, cần xác minh.
+- Ranking chỉ tính thời gian có ít nhất một kỹ năng chuẩn khớp yêu cầu Job và loại trùng tháng giữa các công việc.

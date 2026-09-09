@@ -38,7 +38,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ApiResponse<Void>> handleJsonParse(HttpMessageNotReadableException ex) {
-        log.warn("JSON parse error: {}", ex.getMessage());
+        log.warn("Invalid request JSON");
         return ResponseEntity.badRequest()
                 .body(ApiResponse.error("Invalid JSON body format or invalid character escape", "BAD_REQUEST"));
     }
@@ -52,9 +52,15 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleGeneric(Exception ex) {
-        log.error("Unhandled exception: ", ex);
+        // JPA may wrap connection-provider domain failures while opening a transaction.
+        Throwable cause = ex.getCause();
+        while (cause != null && cause != cause.getCause()) {
+            if (cause instanceof BusinessException business) return handleBusiness(business);
+            cause = cause.getCause();
+        }
+        log.error("Unhandled exception type: {}", ex.getClass().getSimpleName());
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponse.error(ex.getMessage() != null ? ex.getMessage() : "Internal server error", "INTERNAL_ERROR"));
+                .body(ApiResponse.error("Internal server error", "INTERNAL_ERROR"));
     }
 }
 

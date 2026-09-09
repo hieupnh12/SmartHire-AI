@@ -1,11 +1,13 @@
 package com.smarthire.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.smarthire.common.api.ApiResponse;
 import com.smarthire.security.JwtAuthenticationFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -14,42 +16,32 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 
 @Configuration
 public class SecurityConfig {
-
-    private final JwtAuthenticationFilter jwtAuthenticationFilter;
-
-    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter) {
-        this.jwtAuthenticationFilter = jwtAuthenticationFilter;
-    }
+    @Bean public PasswordEncoder passwordEncoder() { return new BCryptPasswordEncoder(); }
 
     @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
-    }
-
-    @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        http
-                .csrf(AbstractHttpConfigurer::disable)
-                .cors(Customizer.withDefaults())
-                .headers(headers -> headers.frameOptions(frame -> frame.disable()))
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthenticationFilter jwt,
+                                                   ObjectMapper mapper) throws Exception {
+        http.csrf(csrf -> csrf.disable()).cors(Customizer.withDefaults())
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .exceptionHandling(errors -> errors
+                        .authenticationEntryPoint((req, res, ex) -> {
+                            res.setStatus(401); res.setContentType("application/json");
+                            mapper.writeValue(res.getOutputStream(), ApiResponse.error("Authentication required", "UNAUTHORIZED"));
+                        })
+                        .accessDeniedHandler((req, res, ex) -> {
+                            res.setStatus(403); res.setContentType("application/json");
+                            mapper.writeValue(res.getOutputStream(), ApiResponse.error("Access denied", "FORBIDDEN"));
+                        }))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(
-                                "/h2-console/**",
-                                "/swagger-ui/**",
-                                "/swagger-ui.html",
-                                "/v3/api-docs/**",
-                                "/actuator/health",
-                                "/actuator/health/**",
-                                "/api/v1/master/**",
-                                "/api/v1/tenant/auth/**",
-                                "/api/v1/tenant/users/**",
-                                "/api/v1/tenant/**"
-                        ).permitAll()
-                        .anyRequest().authenticated()
-                )
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
-
+                        .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**",
+                                "/actuator/health", "/actuator/health/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/master/auth/login", "/api/v1/tenant/auth/login").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/master/tenants/check/*").permitAll()
+                        .requestMatchers("/api/v1/master/**").hasRole("SUPER_ADMIN")
+                        .requestMatchers("/api/v1/tenant/users/**").hasAnyRole("TENANT_ADMIN", "ADMIN")
+                        .requestMatchers("/api/v1/**").hasAnyRole("TENANT_ADMIN", "ADMIN", "HR", "RECRUITER", "CANDIDATE")
+                        .anyRequest().authenticated())
+                .addFilterBefore(jwt, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
 }
