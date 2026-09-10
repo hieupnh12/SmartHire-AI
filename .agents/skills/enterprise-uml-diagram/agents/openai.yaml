@@ -1,0 +1,4 @@
+interface:
+  display_name: "Enterprise UML Diagram"
+  short_description: "Create rigorous enterprise class and sequence diagrams"
+  default_prompt: "Use $enterprise-uml-diagram to create enterprise class and sequence diagrams for a feature."
