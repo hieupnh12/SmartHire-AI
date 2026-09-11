@@ -22,8 +22,7 @@ import {
   BrainCircuit,
   Database,
   Cpu,
-  Layers,
-  KeyRound
+  Layers
 } from "lucide-react";
 
 const loginSchema = z.object({
@@ -54,7 +53,6 @@ export function LoginPage() {
   const {
     register,
     handleSubmit,
-    setValue,
     formState: { errors },
   } = useForm<LoginForm>({ resolver: zodResolver(loginSchema) });
 
@@ -75,11 +73,6 @@ export function LoginPage() {
     },
     onError: (err) => toast.danger(getApiErrorMessage(err, t("common.errorGeneric"))),
   });
-
-  const handleFillDemoCreds = (email: string) => {
-    setValue("email", email);
-    setValue("password", "Password123!");
-  };
 
   return (
     <div className="min-h-screen bg-[#f9f9ff] text-[#191b23] font-sans antialiased flex flex-col justify-between selection:bg-teal-600 selection:text-white">
@@ -244,25 +237,6 @@ export function LoginPage() {
                 </button>
               </form>
 
-              {/* DEMO CREDENTIALS QUICK FILL CHIP BOX */}
-              <div className="mt-8 p-4 rounded-[14px] bg-[#f8f9ff] border border-[#e2e8f0] text-xs font-mono">
-                <span className="text-[11px] font-bold text-[#1e293b] flex items-center gap-1.5 mb-2">
-                  <KeyRound className="w-3.5 h-3.5 text-amber-600" /> Tài Khoản Quản Trị Demo (`{theme.code}`):
-                </span>
-                <div className="flex items-center justify-between bg-white p-2 rounded-[8px] border border-[#e2e8f0]">
-                  <div>
-                    <span className="text-[#3b82f6] font-bold block">admin@{theme.code}.com</span>
-                    <span className="text-amber-600 text-[10px]">Password123! [TENANT_ADMIN]</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleFillDemoCreds(`admin@${theme.code}.com`)}
-                    className="px-3 py-1 rounded-[6px] bg-[#3b82f6]/10 text-[#3b82f6] font-bold text-[10px] hover:bg-[#3b82f6]/20 transition-colors"
-                  >
-                    Tự Điền
-                  </button>
-                </div>
-              </div>
             </div>
 
             {/* Footer Notice */}

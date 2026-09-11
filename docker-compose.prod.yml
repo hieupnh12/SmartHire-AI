@@ -7,23 +7,37 @@
 name: smarthire-prod
 
 services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: smarthire_master
+      POSTGRES_USER: ${MASTER_DB_USERNAME:-smarthire_master}
+      POSTGRES_PASSWORD: ${MASTER_DB_PASSWORD:?set MASTER_DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d smarthire_master"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+    networks:
+      - internal
+
   mysql:
     image: mysql:8.4
     container_name: smarthire-mysql
     restart: unless-stopped
-    env_file:
-      - ./deploy/.env.production
     environment:
-      MYSQL_DATABASE: ${DB_NAME:-smarthire}
-      MYSQL_USER: ${DB_USER:-smarthire}
-      MYSQL_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD}
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?set MYSQL_ROOT_PASSWORD}
+      TENANT_PROVISIONING_PASSWORD: ${TENANT_PROVISIONING_PASSWORD:?set TENANT_PROVISIONING_PASSWORD}
     volumes:
       - mysql_data:/var/lib/mysql
+      - ./deploy/mysql/init-provisioner.sh:/docker-entrypoint-initdb.d/init-provisioner.sh:ro
     networks:
       - internal
     healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$$MYSQL_ROOT_PASSWORD || exit 1"]
+      test: ["CMD-SHELL", "MYSQL_PWD=$$MYSQL_ROOT_PASSWORD mysqladmin ping -h localhost -uroot"]
       interval: 10s
       timeout: 5s
       retries: 15
@@ -74,14 +88,26 @@ services:
     env_file:
       - ./deploy/.env.production
     environment:
-      DB_HOST: mysql
-      DB_PORT: 3306
+      MASTER_DB_URL: ${MASTER_DB_URL:-jdbc:postgresql://postgres:5432/smarthire_master}
+      MASTER_DB_USERNAME: ${MASTER_DB_USERNAME:-smarthire_master}
+      MASTER_DB_PASSWORD: ${MASTER_DB_PASSWORD:?set MASTER_DB_PASSWORD}
+      TENANT_CREDENTIALS_KEY: ${TENANT_CREDENTIALS_KEY:?set TENANT_CREDENTIALS_KEY}
+      TENANT_MYSQL_BASE_URL: ${TENANT_MYSQL_BASE_URL:-jdbc:mysql://mysql:3306}
+      TENANT_PROVISIONING_URL: ${TENANT_PROVISIONING_URL:-jdbc:mysql://mysql:3306/?allowPublicKeyRetrieval=true}
+      TENANT_PROVISIONING_USERNAME: ${TENANT_PROVISIONING_USERNAME:-smarthire_provisioner}
+      TENANT_PROVISIONING_PASSWORD: ${TENANT_PROVISIONING_PASSWORD:?set TENANT_PROVISIONING_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
+      BOOTSTRAP_ADMIN_ENABLED: ${BOOTSTRAP_ADMIN_ENABLED:-false}
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
       REDIS_HOST: redis
       REDIS_PORT: 6379
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_PORT: 5672
       SPRING_PROFILES_ACTIVE: prod
     depends_on:
+      postgres:
+        condition: service_healthy
       mysql:
         condition: service_healthy
       redis:
@@ -113,13 +139,14 @@ services:
       - internal
       - edge
     ports:
-      - "8080:80"
+      - "127.0.0.1:8080:80"
     # Host nginx (TLS) proxies :443 → 127.0.0.1:8080
     # Or map 80:80 if TLS is terminated elsewhere
 
   # Optional: expose only via edge nginx on host — see deploy/nginx/smarthire.conf
 
 volumes:
+  postgres_data:
   mysql_data:
   redis_data:
   rabbitmq_data:

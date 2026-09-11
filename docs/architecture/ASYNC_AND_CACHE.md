@@ -166,10 +166,17 @@ Candidate Approved → RabbitMQ → Notification Worker → WebSocket + optional
 
 | Thành phần | File / chỗ cấu hình |
 |---|---|
-| HikariCP | `application.yml` → `spring.datasource.hikari.*` |
+| HikariCP | `application.yml` → `app.datasource.master.hikari.*`, `app.tenant.pool-size`, `app.tenant.max-pools` |
 | Redis | Docker `redis`, `RedisConfig`, `RedisKeys` |
 | RabbitMQ exchanges/queues | `RabbitMqConfig`, `application.yml` → `app.rabbitmq.*` |
 | Worker concurrency | `spring.rabbitmq.listener.simple.*` |
 | Nginx | `frontend/nginx.conf`, `deploy/nginx/smarthire.conf` |
 
 Consumers (`@RabbitListener`) implement dần trong `com.smarthire.messaging` khi làm từng feature CV/Interview/Email.
+
+## Cách ly tenant trong worker
+
+`JobPublisher` kiểm tra tenant đang `ACTIVE` và gắn header `X-Tenant-ID`.
+`TenantJobExecutor` tra registry PostgreSQL trước khi chạy callback, đặt context theo mã chuẩn và luôn xóa context trong `finally`. Header thiếu hoặc tenant không hoạt động bị reject và không requeue.
+`CvAnalysisWorker` đã dùng wrapper này; phần AI vẫn là scaffold và không log payload CV.
+Khi thêm worker mới, gọi service có transaction bên trong callback để session được mở sau khi đặt tenant.

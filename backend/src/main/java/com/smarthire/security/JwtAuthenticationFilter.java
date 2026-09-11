@@ -44,6 +44,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 List<SimpleGrantedAuthority> authorities = List.of(new SimpleGrantedAuthority("ROLE_" + role));
                 UsernamePasswordAuthenticationToken authentication =
                         new UsernamePasswordAuthenticationToken(email, null, authorities);
+                authentication.setDetails(tokenTenantId);
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             }
         }
@@ -51,7 +52,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         try {
             filterChain.doFilter(request, response);
         } finally {
-            // Context is cleared after request completes in TenantWebInterceptor or here
+            TenantContext.clear();
         }
     }
 

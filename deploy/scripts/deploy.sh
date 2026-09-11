@@ -15,10 +15,6 @@ if [[ ! -f "${ENV_FILE}" ]]; then
   exit 1
 fi
 
-# shellcheck disable=SC1090
-set -a
-source "${ENV_FILE}"
-set +a
 
 echo "==> Pulling base images / building app"
 docker compose -f docker-compose.prod.yml --env-file "${ENV_FILE}" pull || true

@@ -1,0 +1,151 @@
+@startuml
+title TENANT-16 — Super Admin Create Tenant
+
+skinparam dpi 300
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam sequenceArrowThickness 1
+skinparam sequenceMessageAlign center
+skinparam ArrowColor #64748B
+skinparam ParticipantBorderColor #CBD5E1
+skinparam ParticipantBackgroundColor #F8FAFC
+skinparam ActorBorderColor #3B82F6
+skinparam ActorBackgroundColor #EFF6FF
+skinparam DatabaseBorderColor #94A3B8
+skinparam DatabaseBackgroundColor #F8FAFC
+autonumber
+
+actor "Super Admin" as Admin
+boundary "Tenant Onboarding UI" as UI
+control "Spring Security\nJWT + RBAC" as Security
+boundary "MasterTenantController" as Controller
+control "MasterTenantService" as MasterService
+database "Master PostgreSQL" as MasterDB
+control "TenantCredentialService" as Credentials
+control "TenantProvisioningService" as Provisioner
+database "MySQL Server\n(provisioner account)" as MySQL
+control "TenantDataSourceFactory" as Factory
+control "Flyway" as Flyway
+database "Dedicated Tenant DB" as TenantDB
+control "BCrypt PasswordEncoder" as BCrypt
+
+note over Admin,Security
+  Preconditions: authenticated platform user has SUPER_ADMIN role.
+  Provisioning is synchronous. Secrets and raw passwords are never returned or logged.
+end note
+
+Admin -> UI: Submit tenant identity and initial admin credentials
+UI -> UI: Validate code, subdomain, email, and password
+UI -> Security: POST /api/v1/master/tenants/onboard\nBearer JWT + JSON request
+
+alt Missing/invalid JWT
+  Security --> UI: 401 UNAUTHORIZED
+else Authenticated without SUPER_ADMIN
+  Security --> UI: 403 FORBIDDEN
+else Authorized SUPER_ADMIN
+  Security -> Controller: Forward validated security context and request
+  Controller -> Controller: Jakarta Bean Validation
+  alt Invalid request
+    Controller --> UI: 400 validation error
+  else Structurally valid request
+    Controller -> MasterService: onboardTenant(request)
+    MasterService -> MasterDB: Begin master registration transaction\npg_advisory_xact_lock(-1)
+    MasterService -> MasterDB: Check reserved/cross-alias uniqueness
+
+    alt Code, subdomain, or database identity unavailable
+      MasterDB --> MasterService: Conflict / unique constraint failure
+      MasterService -> MasterDB: Roll back registration
+      MasterService --> Controller: TENANT_EXISTS
+      Controller --> UI: 409 Conflict
+    else Identity available
+      MasterService -> MasterService: Derive immutable dbName\nselect managed or custom mode\nvalidate JDBC URL and DB config
+      alt Invalid database configuration
+        MasterService -> MasterDB: Roll back registration
+        MasterService --> Controller: INVALID_DATABASE_CONFIG
+        Controller --> UI: 400 Bad Request
+      else Database configuration valid
+        MasterService -> MasterService: Generate random DB username/password\n(managed mode only)
+        MasterService -> Credentials: encrypt(code, DB password)
+        Credentials --> MasterService: AES-256-GCM ciphertext
+        MasterService -> MasterDB: INSERT tenants(status=PROVISIONING, encrypted credential)
+        MasterDB --> MasterService: tenantId
+        MasterService -> MasterDB: Commit registration
+
+        MasterService -> Provisioner: provision(tenantId, initialAdmin)
+        Provisioner -> MasterDB: pg_try_advisory_lock(tenantId)
+        alt Provisioning lock unavailable
+          MasterDB --> Provisioner: false
+          Provisioner --> MasterService: PROVISIONING_IN_PROGRESS
+          MasterService --> Controller: Conflict
+          Controller --> UI: 409 Conflict
+        else Provisioning lock acquired
+          MasterDB --> Provisioner: true
+          Provisioner -> MasterDB: Load tenant; persist PROVISIONING
+
+          alt Managed database mode
+            Provisioner -> Credentials: decrypt(code, encrypted DB password)
+            Credentials --> Provisioner: DB password (memory only)
+            Provisioner -> MySQL: CREATE DATABASE IF NOT EXISTS\nCREATE USER IF NOT EXISTS\nGRANT only tenant_db.*
+            MySQL --> Provisioner: Dedicated DB and least-scope user ready
+          else Pre-provisioned custom database mode
+            note over Provisioner,MySQL
+              CREATE DATABASE/USER/GRANT is skipped.
+              The supplied URL and credentials target only this tenant database.
+            end note
+          end
+
+          Provisioner -> Factory: create(tenant connection metadata)
+          Factory -> Credentials: decrypt DB credential
+          Credentials --> Factory: plaintext for Hikari configuration
+          Factory -> TenantDB: Open bounded tenant Hikari pool
+          TenantDB --> Factory: Connection ready
+          Provisioner -> Factory: migrate(pool)
+          Factory -> Flyway: migrate; clean disabled; no baseline
+          Flyway -> TenantDB: Apply tenant migrations
+          TenantDB --> Flyway: Schema current
+          Flyway --> Factory: Migration success
+
+          Provisioner -> TenantDB: BEGIN initial-admin transaction\nSELECT role WHERE email = ?
+          alt Admin email does not exist
+            Provisioner -> BCrypt: encode(adminPassword)
+            BCrypt --> Provisioner: password hash
+            Provisioner -> TenantDB: INSERT users(role=TENANT_ADMIN, status=ACTIVE)
+          else Existing TENANT_ADMIN (retry)
+            note over Provisioner,TenantDB: Preserve the existing admin account.
+          else Existing user has a conflicting role
+            TenantDB --> Provisioner: Role conflict
+          end
+
+          alt Provisioning step fails
+            Provisioner -> TenantDB: Roll back admin transaction when active
+            Provisioner -> MasterDB: Persist status=FAILED
+            note over Provisioner,MySQL
+              Do not drop partially created resources or customer data.
+              A later explicit retry resumes under the same tenant lock.
+            end note
+            Provisioner --> MasterService: TENANT_PROVISIONING_FAILED
+            Provisioner -> MasterDB: pg_advisory_unlock(tenantId)
+            MasterService --> Controller: Service unavailable
+            Controller --> UI: 503 Service Unavailable
+          else All provisioning steps succeed
+            Provisioner -> TenantDB: Commit initial-admin transaction
+            Provisioner -> MasterDB: Persist status=ACTIVE
+            Provisioner -> MasterDB: pg_advisory_unlock(tenantId)
+            Provisioner --> MasterService: Active TenantInfo
+            MasterService --> Controller: Active TenantInfo
+            Controller -> Controller: Map safe TenantResponse\n(exclude DB credentials and admin password)
+            Controller --> UI: 201 Created + tenant metadata
+            UI --> Admin: Show activated tenant and login code
+          end
+        end
+      end
+    end
+  end
+end
+
+note over MasterDB,TenantDB
+  Master registration and tenant provisioning are separate transaction boundaries.
+  No distributed transaction spans PostgreSQL and MySQL.
+end note
+
+@enduml

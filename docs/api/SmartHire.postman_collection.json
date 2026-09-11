@@ -5,8 +5,50 @@
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
-    { "key": "baseUrl", "value": "http://localhost:8080/api/v1" },
-    { "key": "accessToken", "value": "" }
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080/api/v1"
+    },
+    {
+      "key": "accessToken",
+      "value": ""
+    },
+    {
+      "key": "tenantId",
+      "value": "acme"
+    },
+    {
+      "key": "jobId",
+      "value": "1"
+    },
+    {
+      "key": "applicationId",
+      "value": "1"
+    },
+    {
+      "key": "masterToken",
+      "value": ""
+    },
+    {
+      "key": "tenantRecordId",
+      "value": "1"
+    },
+    {
+      "key": "adminEmail",
+      "value": "admin@example.test"
+    },
+    {
+      "key": "adminPassword",
+      "value": ""
+    },
+    {
+      "key": "masterEmail",
+      "value": ""
+    },
+    {
+      "key": "masterPassword",
+      "value": ""
+    }
   ],
   "item": [
     {
@@ -16,7 +58,12 @@
           "name": "Register",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "url": "{{baseUrl}}/auth/register",
             "body": {
               "mode": "raw",
@@ -28,7 +75,12 @@
           "name": "Login",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "url": "{{baseUrl}}/auth/login",
             "body": {
               "mode": "raw",
@@ -40,7 +92,12 @@
           "name": "Google Login",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "url": "{{baseUrl}}/auth/google",
             "body": {
               "mode": "raw",
@@ -58,8 +115,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
             ],
             "url": "{{baseUrl}}/jobs",
             "body": {
@@ -72,7 +135,12 @@
           "name": "Close Job",
           "request": {
             "method": "PATCH",
-            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
             "url": "{{baseUrl}}/jobs/1/close"
           }
         }
@@ -85,13 +153,26 @@
           "name": "Upload CV",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
             "url": "{{baseUrl}}/cvs",
             "body": {
               "mode": "formdata",
               "formdata": [
-                { "key": "jobId", "value": "1", "type": "text" },
-                { "key": "file", "type": "file", "src": [] }
+                {
+                  "key": "jobId",
+                  "value": "1",
+                  "type": "text"
+                },
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": []
+                }
               ]
             }
           }
@@ -100,7 +181,12 @@
           "name": "Analyze CV (async RabbitMQ)",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
             "url": "{{baseUrl}}/cvs/1/analyze"
           }
         }
@@ -113,7 +199,12 @@
           "name": "Generate Questions (async RabbitMQ)",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
             "url": "{{baseUrl}}/interviews/1/questions/generate"
           }
         },
@@ -121,8 +212,135 @@
           "name": "AI Scoring (async RabbitMQ)",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
             "url": "{{baseUrl}}/interviews/1/score"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Candidate Ranking",
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{accessToken}}",
+            "type": "string"
+          }
+        ]
+      },
+      "item": [
+        {
+          "name": "Owned jobs",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/rankings/jobs"
+          }
+        },
+        {
+          "name": "Current ranking board",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/jobs/{{jobId}}/rankings"
+          }
+        },
+        {
+          "name": "Recompute snapshots",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/jobs/{{jobId}}/rankings/recompute"
+          }
+        },
+        {
+          "name": "Save weights (use current revision and job categories)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/jobs/{{jobId}}/rankings/config",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"weights\": {\"skills\": 35, \"experience\": 15, \"assessment\": 30, \"interview\": 20},\n  \"groups\": {\"backend\": 100},\n  \"requiredExperienceMonths\": 24,\n  \"revision\": 0\n}"
+            }
+          }
+        },
+        {
+          "name": "Overall score and evidence",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/applications/{{applicationId}}/overall-score"
+          }
+        },
+        {
+          "name": "Available official sources",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/applications/{{applicationId}}/ranking-sources"
+          }
+        },
+        {
+          "name": "Select official sources (null selects only a unique source)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/applications/{{applicationId}}/ranking-sources",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cvId\": null,\n  \"attemptId\": null,\n  \"interviewId\": null\n}"
+            }
           }
         }
       ]
@@ -134,9 +352,164 @@
           "name": "Summary",
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
             "url": "{{baseUrl}}/dashboard/summary"
           }
+        }
+      ]
+    },
+    {
+      "name": "Master and Tenant Provisioning",
+      "item": [
+        {
+          "name": "Master Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/master/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{masterEmail}}\",\n  \"password\": \"{{masterPassword}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  pm.collectionVariables.set(\"masterToken\", pm.response.json().data.accessToken);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Onboard Tenant (automatic)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{masterToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/master/tenants/onboard",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"{{tenantId}}\",\n  \"name\": \"Company\",\n  \"subdomain\": \"{{tenantId}}\",\n  \"adminName\": \"Tenant Admin\",\n  \"adminEmail\": \"{{adminEmail}}\",\n  \"adminPassword\": \"{{adminPassword}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "List Tenants",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{masterToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/master/tenants"
+          }
+        },
+        {
+          "name": "Retry Tenant Provisioning",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{masterToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/master/tenants/{{tenantRecordId}}/retry",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"adminName\": \"Tenant Admin\",\n  \"adminEmail\": \"{{adminEmail}}\",\n  \"adminPassword\": \"{{adminPassword}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Suspend Tenant",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{masterToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/master/tenants/{{tenantRecordId}}/status?status=SUSPENDED"
+          }
+        },
+        {
+          "name": "Activate Tenant",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{masterToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/master/tenants/{{tenantRecordId}}/status?status=ACTIVE"
+          }
+        },
+        {
+          "name": "Tenant Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/tenant/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  pm.collectionVariables.set(\"accessToken\", pm.response.json().data.accessToken);",
+                  "}"
+                ]
+              }
+            }
+          ]
         }
       ]
     }

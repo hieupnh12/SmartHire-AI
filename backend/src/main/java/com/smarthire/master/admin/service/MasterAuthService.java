@@ -28,7 +28,7 @@ public class MasterAuthService {
         this.tokenProvider = tokenProvider;
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "masterTransactionManager", readOnly = true)
     public MasterLoginResponse login(MasterLoginRequest request) {
         PlatformUser user = platformUserRepository.findByEmailIgnoreCase(request.getEmail())
                 .orElseThrow(() -> new BusinessException("Invalid email or password", HttpStatus.UNAUTHORIZED, "INVALID_CREDENTIALS"));
@@ -46,7 +46,7 @@ public class MasterAuthService {
         return new MasterLoginResponse(accessToken, "Bearer", PlatformUserResponse.fromEntity(user), "smarthire_master");
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "masterTransactionManager", readOnly = true)
     public PlatformUserResponse getCurrentAdmin(String authHeader) {
         if (!StringUtils.hasText(authHeader) || !authHeader.startsWith("Bearer ")) {
             throw new BusinessException("Missing or invalid Authorization header", HttpStatus.UNAUTHORIZED, "INVALID_TOKEN");

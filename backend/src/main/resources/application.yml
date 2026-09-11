@@ -1,25 +1,6 @@
 spring:
   application:
     name: smarthire-backend
-  datasource:
-    driver-class-name: org.h2.Driver
-    url: ${DB_URL:jdbc:h2:mem:smarthire_master;MODE=MySQL;DB_CLOSE_DELAY=-1;CASE_INSENSITIVE_IDENTIFIERS=TRUE}
-    username: ${DB_USER:sa}
-    password: ${DB_PASSWORD:}
-    hikari:
-      pool-name: SmartHireHikariPool
-      maximum-pool-size: ${HIKARI_MAX_POOL:20}
-      minimum-idle: ${HIKARI_MIN_IDLE:5}
-      connection-timeout: 30000
-      idle-timeout: 600000
-      max-lifetime: 1800000
-      leak-detection-threshold: 60000
-  h2:
-    console:
-      enabled: true
-      path: /h2-console
-      settings:
-        web-allow-others: true
   jpa:
     hibernate:
       ddl-auto: none
@@ -43,7 +24,7 @@ spring:
     password: ${RABBITMQ_PASSWORD:guest}
     listener:
       simple:
-        auto-startup: false
+        auto-startup: ${RABBIT_LISTENERS_ENABLED:true}
         # Worker pool per backend/consumer instance
         concurrency: ${RABBIT_CONCURRENCY:3}
         max-concurrency: ${RABBIT_MAX_CONCURRENCY:10}
@@ -89,10 +70,34 @@ logging:
     console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
 
 app:
+  datasource:
+    master:
+      driver-class-name: org.postgresql.Driver
+      url: ${MASTER_DB_URL:jdbc:postgresql://localhost:5432/smarthire_master}
+      username: ${MASTER_DB_USERNAME:smarthire_master}
+      password: ${MASTER_DB_PASSWORD}
+      hikari:
+        maximum-pool-size: ${MASTER_DB_POOL_SIZE:10}
+        minimum-idle: 1
+  tenant:
+    credentials-key: ${TENANT_CREDENTIALS_KEY}
+    base-domain: ${TENANT_BASE_DOMAIN:smarthire.ai}
+    mysql-base-url: ${TENANT_MYSQL_BASE_URL:jdbc:mysql://localhost:3306}
+    mysql-options: ${TENANT_MYSQL_OPTIONS:sslMode=PREFERRED&allowPublicKeyRetrieval=true}
+    pool-size: ${TENANT_DB_POOL_SIZE:5}
+    max-pools: ${TENANT_MAX_POOLS:20}
+    provisioning:
+      url: ${TENANT_PROVISIONING_URL:jdbc:mysql://localhost:3306/}
+      username: ${TENANT_PROVISIONING_USERNAME:smarthire_provisioner}
+      password: ${TENANT_PROVISIONING_PASSWORD:}
+  bootstrap:
+    admin-enabled: ${BOOTSTRAP_ADMIN_ENABLED:false}
+    admin-email: ${BOOTSTRAP_ADMIN_EMAIL:}
+    admin-password: ${BOOTSTRAP_ADMIN_PASSWORD:}
   cors:
     allowed-origins: ${CORS_ORIGINS:http://localhost:5173}
   jwt:
-    secret: ${JWT_SECRET:change-me-use-a-256-bit-secret-key-please}
+    secret: ${JWT_SECRET}
     access-token-minutes: 30
     refresh-token-days: 7
   redis:
@@ -134,6 +139,6 @@ app:
 
 smarthire:
   jwt:
-    secret: ${JWT_SECRET:SmartHireAiEnterpriseSuperSecureJwtSecretKey2026SaaS}
+    secret: ${JWT_SECRET}
     expiration-ms: ${JWT_EXPIRATION:86400000}
 

@@ -29,8 +29,15 @@ public class TenantInfo {
     @Column(name = "db_username", length = 128)
     private String dbUsername;
 
-    @Column(name = "db_password")
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    @Column(name = "db_password", length = 1024)
     private String dbPassword;
+
+    @Column(name = "managed_database", nullable = false)
+    private boolean managedDatabase;
+
+    public boolean isManagedDatabase() { return managedDatabase; }
+    public void setManagedDatabase(boolean value) { managedDatabase = value; }
 
     @Column(nullable = false, length = 32)
     private String status = "ACTIVE";

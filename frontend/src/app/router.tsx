@@ -1,3 +1,4 @@
+import { MasterRoute } from "@/app/guards/MasterRoute";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { RootRouteSwitcher } from "@/app/RootRouteSwitcher";
 import { RoleRoute } from "@/app/guards/RoleRoute";
@@ -108,10 +109,12 @@ export function AppRouter() {
       </Route>
 
       <Route path="/company/workspace" element={<TenantAdminDashboardPage />} />
-      <Route path="/onboard" element={<TenantOnboardPage />} />
+      <Route element={<MasterRoute />}>
+        <Route path="/onboard" element={<TenantOnboardPage />} />
+        <Route path="/admin" element={<MasterAdminDashboardPage />} />
+        <Route path="/admin/dashboard" element={<MasterAdminDashboardPage />} />
+      </Route>
       <Route path="/admin/login" element={<MasterLoginPage />} />
-      <Route path="/admin" element={<MasterAdminDashboardPage />} />
-      <Route path="/admin/dashboard" element={<MasterAdminDashboardPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

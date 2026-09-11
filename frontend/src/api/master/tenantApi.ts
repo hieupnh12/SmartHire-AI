@@ -1,8 +1,13 @@
-import axios from "axios";
+import { masterClient } from "./client";
+import type { ApiResponse } from "@/types/api";
 
-const API_BASE = "http://localhost:8080/api/v1";
+export interface TenantAdminRequest {
+  adminName: string;
+  adminEmail: string;
+  adminPassword: string;
+}
 
-export interface OnboardTenantRequest {
+export interface OnboardTenantRequest extends TenantAdminRequest {
   code: string;
   name: string;
   subdomain: string;
@@ -19,8 +24,8 @@ export interface OnboardTenantResponse {
 }
 
 export const masterTenantApi = {
-  onboardTenant: async (data: OnboardTenantRequest) => {
-    const response = await axios.post(`${API_BASE}/master/tenants/onboard`, data);
-    return response.data;
-  }
+  onboardTenant: async (data: OnboardTenantRequest) =>
+    (await masterClient.post<ApiResponse<OnboardTenantResponse>>("/master/tenants/onboard", data)).data.data,
+  retry: async (id: number, data: TenantAdminRequest) =>
+    (await masterClient.post<ApiResponse<OnboardTenantResponse>>(`/master/tenants/${id}/retry`, data)).data.data,
 };

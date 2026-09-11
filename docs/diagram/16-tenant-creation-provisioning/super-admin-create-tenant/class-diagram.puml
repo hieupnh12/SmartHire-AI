@@ -1,0 +1,157 @@
+@startuml
+title TENANT-16 — Super Admin Create Tenant\nApplication-design viewpoint
+
+skinparam dpi 300
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam ArrowColor #64748B
+skinparam ClassBorderColor #CBD5E1
+skinparam ClassBackgroundColor #F8FAFC
+skinparam InterfaceBackgroundColor #EFF6FF
+skinparam NoteBackgroundColor #FFF7ED
+skinparam NoteBorderColor #FDBA74
+
+package "Master Web / API" #EFF6FF {
+  class MasterTenantController <<REST controller>> {
+    +onboardTenant(request: OnboardTenantRequest): ResponseEntity<ApiResponse<TenantResponse>>
+  }
+
+  class OnboardTenantRequest <<request DTO>> {
+    +code: String
+    +name: String
+    +subdomain: String
+    +customDbUrl: String [0..1]
+    +dbUsername: String [0..1]
+    +dbPassword: String [0..1] {write-only}
+  }
+
+  class TenantAdminRequest <<request DTO>> {
+    +adminEmail: String
+    +adminName: String
+    +adminPassword: String {write-only}
+  }
+
+  class TenantResponse <<response DTO>> {
+    +id: Long
+    +code: String
+    +name: String
+    +subdomain: String
+    +dbName: String
+    +status: String
+    +createdAt: LocalDateTime
+  }
+
+  OnboardTenantRequest --|> TenantAdminRequest
+}
+
+package "Master Domain (PostgreSQL)" #F0FDF4 {
+  class MasterTenantService <<application service>> {
+    +onboardTenant(request: OnboardTenantRequest): TenantInfo
+    -registerTenant(request: OnboardTenantRequest): TenantInfo
+    -randomPassword(): String
+    -validateUrl(url: String, dbName: String): void
+  }
+
+  interface TenantInfoRepository <<master repository>> {
+    +existsByCode(code: String): boolean
+    +existsBySubdomain(subdomain: String): boolean
+    +saveAndFlush(tenant: TenantInfo): TenantInfo
+    +findById(id: Long): Optional<TenantInfo>
+  }
+
+  class TenantInfo <<master entity>> {
+    +id: Long
+    +code: String {unique}
+    +name: String
+    +subdomain: String {unique}
+    +dbName: String {unique}
+    +dbUrl: String
+    +dbUsername: String
+    -dbPassword: String {encrypted}
+    +managedDatabase: boolean
+    +status: String
+    +createdAt: LocalDateTime
+    +updatedAt: LocalDateTime
+  }
+
+  enum TenantStatus {
+    PROVISIONING
+    ACTIVE
+    FAILED
+    SUSPENDED
+  }
+
+  TenantInfo --> TenantStatus : status
+  TenantInfoRepository "1" --> "0..*" TenantInfo : persists
+}
+
+package "Provisioning / Infrastructure" #FFF7ED {
+  class TenantProvisioningService <<provisioning service>> {
+    +provision(id: Long, admin: TenantAdminRequest): TenantInfo
+    -createDatabaseAndUser(tenant: TenantInfo): void
+    -seedAdmin(dataSource: DataSource, admin: TenantAdminRequest): void
+  }
+
+  class TenantCredentialService <<security service>> {
+    +encrypt(tenantCode: String, password: String): String
+    +decrypt(tenantCode: String, ciphertext: String): String
+  }
+
+  class TenantDataSourceFactory <<infrastructure factory>> {
+    +create(tenant: TenantInfo): HikariDataSource
+    +migrate(dataSource: HikariDataSource): void
+  }
+
+  class "Master PostgreSQL\n(table: tenants)" as MasterDB <<database>>
+  class "Dedicated Tenant MySQL\n(table: users + tenant schema)" as TenantDB <<database>>
+  class "Flyway tenant migrations" as Flyway <<infrastructure>>
+  class "BCrypt PasswordEncoder" as BCrypt <<security component>>
+}
+
+package "Tenant Domain (dedicated database)" #FDF4FF {
+  class TenantAdmin <<tenant users row>> {
+    +id: Long
+    +email: String {unique}
+    +passwordHash: String
+    +fullName: String
+    +role: String = TENANT_ADMIN
+    +status: String = ACTIVE
+  }
+}
+
+MasterTenantController --> OnboardTenantRequest : validates
+MasterTenantController --> MasterTenantService
+MasterTenantController ..> TenantResponse : maps response
+MasterTenantService --> TenantInfoRepository
+MasterTenantService --> TenantCredentialService : encrypts DB password
+MasterTenantService --> TenantProvisioningService : provisions after registration
+TenantProvisioningService --> TenantInfoRepository : updates status
+TenantProvisioningService --> TenantCredentialService : decrypts DB password
+TenantProvisioningService --> TenantDataSourceFactory
+TenantProvisioningService --> BCrypt : hashes admin password
+TenantInfoRepository --> MasterDB
+TenantDataSourceFactory --> Flyway
+Flyway --> TenantDB : migrates
+TenantProvisioningService --> TenantDB : creates DB/user; seeds admin
+TenantDB "1" *-- "1" TenantAdmin : contains initial admin
+
+note right of TenantInfo
+  Master-owned connection metadata only.
+  dbPassword uses AES-256-GCM with tenant code as AAD.
+  API responses exclude DB URL, username, and password.
+end note
+
+note bottom of TenantDB
+  One physically separate MySQL database per tenant.
+  There is no foreign key or shared ACID transaction
+  between Master PostgreSQL and Tenant MySQL.
+end note
+
+note bottom of TenantProvisioningService
+  A PostgreSQL session advisory lock serializes provisioning per tenant.
+  Partial tenant resources are retained for idempotent retry.
+end note
+
+@enduml

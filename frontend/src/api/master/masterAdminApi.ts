@@ -1,6 +1,6 @@
-import axios from "axios";
+import { masterClient } from "./client";
 
-const API_BASE = "http://localhost:8080/api/v1";
+const API_BASE = "";
 
 // Types
 export interface TenantInfo {
@@ -56,59 +56,59 @@ export interface AuditLog {
 export const masterAdminApi = {
   // 1. Tenants
   getTenants: async (): Promise<TenantInfo[]> => {
-    const res = await axios.get(`${API_BASE}/master/tenants`);
+    const res = await masterClient.get(`${API_BASE}/master/tenants`);
     return res.data.data;
   },
   getTenantById: async (id: number): Promise<TenantInfo> => {
-    const res = await axios.get(`${API_BASE}/master/tenants/${id}`);
+    const res = await masterClient.get(`${API_BASE}/master/tenants/${id}`);
     return res.data.data;
   },
   updateTenantStatus: async (id: number, status: "ACTIVE" | "SUSPENDED"): Promise<TenantInfo> => {
-    const res = await axios.patch(`${API_BASE}/master/tenants/${id}/status?status=${status}`);
+    const res = await masterClient.patch(`${API_BASE}/master/tenants/${id}/status?status=${status}`);
     return res.data.data;
   },
   checkTenantExists: async (codeOrSubdomain: string): Promise<boolean> => {
     try {
-      const res = await axios.get(`${API_BASE}/master/tenants/check/${codeOrSubdomain}`);
+      const res = await masterClient.get(`${API_BASE}/master/tenants/check/${codeOrSubdomain}`);
       return res.data.data;
     } catch {
       return false;
     }
   },
-  provisionTenant: async (data: { code: string; name: string; subdomain: string }): Promise<TenantInfo> => {
-    const res = await axios.post(`${API_BASE}/master/tenants/onboard`, data);
+  provisionTenant: async (data: import("./tenantApi").OnboardTenantRequest): Promise<TenantInfo> => {
+    const res = await masterClient.post(`${API_BASE}/master/tenants/onboard`, data);
     return res.data.data;
   },
 
   // 2. Subscriptions
   getSubscriptions: async (): Promise<SubscriptionPlan[]> => {
-    const res = await axios.get(`${API_BASE}/master/subscriptions`);
+    const res = await masterClient.get(`${API_BASE}/master/subscriptions`);
     return res.data.data;
   },
   createSubscription: async (plan: SubscriptionPlan): Promise<SubscriptionPlan> => {
-    const res = await axios.post(`${API_BASE}/master/subscriptions`, plan);
+    const res = await masterClient.post(`${API_BASE}/master/subscriptions`, plan);
     return res.data.data;
   },
   updateSubscription: async (id: number, plan: SubscriptionPlan): Promise<SubscriptionPlan> => {
-    const res = await axios.put(`${API_BASE}/master/subscriptions/${id}`, plan);
+    const res = await masterClient.put(`${API_BASE}/master/subscriptions/${id}`, plan);
     return res.data.data;
   },
   updateSubscriptionStatus: async (id: number, status: "ACTIVE" | "INACTIVE"): Promise<SubscriptionPlan> => {
-    const res = await axios.patch(`${API_BASE}/master/subscriptions/${id}/status?status=${status}`);
+    const res = await masterClient.patch(`${API_BASE}/master/subscriptions/${id}/status?status=${status}`);
     return res.data.data;
   },
 
   // 3. Analytics & Logs
   getRevenueAnalytics: async (): Promise<RevenueAnalytics> => {
-    const res = await axios.get(`${API_BASE}/master/analytics/revenue`);
+    const res = await masterClient.get(`${API_BASE}/master/analytics/revenue`);
     return res.data.data;
   },
   getAiQuotaUsage: async (): Promise<AiQuotaUsage> => {
-    const res = await axios.get(`${API_BASE}/master/analytics/ai-quota`);
+    const res = await masterClient.get(`${API_BASE}/master/analytics/ai-quota`);
     return res.data.data;
   },
   getAuditLogs: async (): Promise<AuditLog[]> => {
-    const res = await axios.get(`${API_BASE}/master/analytics/logs`);
+    const res = await masterClient.get(`${API_BASE}/master/analytics/logs`);
     return res.data.data;
   }
 };

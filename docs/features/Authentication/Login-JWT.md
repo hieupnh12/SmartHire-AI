@@ -1,7 +1,7 @@
 # Login & JWT Authentication
 
 **Epic:** Authentication & User Management  
-**Trạng thái:** `To Do`  
+**Trạng thái:** `Doing`
 **Code ID:** `AUTH-02`
 
 ## Mục đích chức năng
@@ -47,3 +47,12 @@ Xác thực email/password, cấp access/refresh JWT, bảo vệ API theo token.
 ## Phụ thuộc
 
 AUTH-01
+
+## Cập nhật kết nối và tenant
+
+- Login thực tế: `POST /api/v1/master/auth/login` cho superadmin, `POST /api/v1/tenant/auth/login` cho doanh nghiệp.
+- Profile: `/api/v1/master/auth/me`, `/api/v1/tenant/auth/me`.
+- Login tenant bắt buộc mã tenant hoặc subdomain hợp lệ; registry nằm trên PostgreSQL và dữ liệu người dùng nằm trên MySQL tenant.
+- JWT chứa mã tenant chuẩn; tenant thiếu, bị khóa hoặc khác header sẽ bị từ chối.
+- Không có tài khoản demo hoặc mật khẩu mặc định; bootstrap superadmin phải được bật rõ và nhận credential từ môi trường.
+- Refresh, logout và rate limit trong kế hoạch phía trên chưa thuộc thay đổi kết nối DB này.
