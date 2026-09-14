@@ -3,3 +3,50 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes float-reverse {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(8px);
+  }
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    opacity: 0.35;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.65;
+    transform: scale(1.08);
+  }
+}
+
+.animate-float {
+  animation: float 5s ease-in-out infinite;
+}
+
+.animate-float-delayed {
+  animation: float-reverse 6s ease-in-out infinite 1.5s;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 7s ease-in-out infinite;
+}

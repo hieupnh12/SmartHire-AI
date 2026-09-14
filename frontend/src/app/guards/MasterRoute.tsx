@@ -10,8 +10,15 @@ export function MasterRoute() {
     enabled: Boolean(token),
     retry: false,
   });
-  if (!token || query.isError) return <Navigate to="/admin/login" replace />;
-  if (query.isPending) return <p role="status" className="p-6">?ang ki?m tra phi?n ??ng nh?p?</p>;
-  if (query.data?.data?.role !== "WORKSPACE_ADMIN") return <Navigate to="/admin/login" replace />;
+  if (!token) return <Navigate to="/admin/login" replace />;
+  if (query.isError) {
+    localStorage.removeItem("master_access_token");
+    return <Navigate to="/admin/login" replace />;
+  }
+  if (query.isPending) return <p role="status" className="p-6">Đang kiểm tra phiên đăng nhập...</p>;
+  if (query.data?.data?.role !== "WORKSPACE_ADMIN") {
+    localStorage.removeItem("master_access_token");
+    return <Navigate to="/admin/login" replace />;
+  }
   return <Outlet />;
 }

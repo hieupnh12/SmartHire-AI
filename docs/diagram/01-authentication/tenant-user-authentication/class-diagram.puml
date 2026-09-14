@@ -1,0 +1,268 @@
+@startuml
+title AUTH-01..04 — Tenant Authentication & Session Lifecycle\nApplication-design viewpoint
+
+skinparam dpi 300
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam ArrowColor #64748B
+skinparam ClassBorderColor #CBD5E1
+skinparam ClassBackgroundColor #F8FAFC
+skinparam InterfaceBackgroundColor #EFF6FF
+skinparam NoteBackgroundColor #FFF7ED
+skinparam NoteBorderColor #FDBA74
+
+package "Tenant Web / API Layer" #EFF6FF {
+  class TenantAuthController <<REST controller>> {
+    +login(request: LoginRequest): ResponseEntity<ApiResponse<LoginResponse>>
+    +googleLogin(request: GoogleLoginRequest): ResponseEntity<ApiResponse<LoginResponse>>
+    +refreshToken(request: RefreshTokenRequest): ResponseEntity<ApiResponse<TokenResponse>>
+    +logout(authHeader: String): ResponseEntity<ApiResponse<Void>>
+    +forgotPassword(request: ForgotPasswordRequest): ResponseEntity<ApiResponse<Void>>
+    +resetPassword(request: ResetPasswordRequest): ResponseEntity<ApiResponse<Void>>
+    +getCurrentUser(): ResponseEntity<ApiResponse<UserResponse>>
+  }
+
+  class LoginRequest <<request DTO>> {
+    +email: String
+    +password: String {write-only}
+  }
+
+  class GoogleLoginRequest <<request DTO>> {
+    +idToken: String {write-only}
+  }
+
+  class RefreshTokenRequest <<request DTO>> {
+    +refreshToken: String {write-only}
+  }
+
+  class ForgotPasswordRequest <<request DTO>> {
+    +email: String
+  }
+
+  class ResetPasswordRequest <<request DTO>> {
+    +email: String
+    +otp: String
+    +newPassword: String {write-only}
+  }
+
+  class LoginResponse <<response DTO>> {
+    +accessToken: String
+    +refreshToken: String
+    +tokenType: String
+    +user: UserResponse
+    +tenantId: String
+  }
+
+  class TokenResponse <<response DTO>> {
+    +accessToken: String
+    +refreshToken: String
+    +tokenType: String
+  }
+
+  class UserResponse <<response DTO>> {
+    +id: Long
+    +email: String
+    +fullName: String
+    +role: String
+    +status: String
+    +createdAt: Instant
+  }
+}
+
+package "Security & Context Interceptors" #F1F5F9 {
+  class TenantWebInterceptor <<Spring HandlerInterceptor>> {
+    +preHandle(request, response, handler): boolean
+    +afterCompletion(request, response, handler, ex): void
+  }
+
+  class TenantContext <<ThreadLocal>> {
+    +{static} setCurrentTenant(tenantId: String): void
+    +{static} getCurrentTenant(): String
+    +{static} clear(): void
+  }
+
+  class JwtAuthenticationFilter <<OncePerRequestFilter>> {
+    -tokenProvider: JwtTokenProvider
+    -redisSessionService: RedisSessionService
+    #doFilterInternal(request, response, filterChain): void
+  }
+
+  class JwtTokenProvider <<component>> {
+    -secretKey: SecretKey
+    -accessTokenExpirationMs: long
+    -refreshTokenExpirationMs: long
+    +generateAccessToken(user: User, tenantId: String): String
+    +generateRefreshToken(user: User, tenantId: String): String
+    +validateToken(token: String): boolean
+    +getEmailFromToken(token: String): String
+    +getTenantIdFromToken(token: String): String
+  }
+}
+
+package "Tenant Application Layer" #F0FDF4 {
+  class TenantAuthService <<application service>> {
+    -userRepository: UserRepository
+    -oauthAccountRepository: OauthAccountRepository
+    -userProfileRepository: UserProfileRepository
+    -passwordEncoder: PasswordEncoder
+    -tokenProvider: JwtTokenProvider
+    -googleVerifier: GoogleTokenVerifierService
+    -redisSessionService: RedisSessionService
+    -emailNotificationProducer: EmailNotificationProducer
+    +login(request: LoginRequest): LoginResponse
+    +googleLogin(request: GoogleLoginRequest): LoginResponse
+    +refreshToken(request: RefreshTokenRequest): TokenResponse
+    +logout(accessToken: String): void
+    +initiatePasswordReset(request: ForgotPasswordRequest): void
+    +completePasswordReset(request: ResetPasswordRequest): void
+  }
+
+  class GoogleTokenVerifierService <<domain service>> {
+    -googleClientId: String
+    +verifyIdToken(idToken: String): GoogleUserPayload
+  }
+
+  class GoogleUserPayload <<value object>> {
+    +googleSub: String
+    +email: String
+    +fullName: String
+    +avatarUrl: String
+    +emailVerified: boolean
+  }
+
+  class RedisSessionService <<infrastructure service>> {
+    -redisTemplate: RedisTemplate<String, Object>
+    +saveRefreshToken(tenantId: String, userId: Long, token: String, ttlMs: long): void
+    +isValidRefreshToken(tenantId: String, userId: Long, token: String): boolean
+    +revokeRefreshToken(tenantId: String, userId: Long): void
+    +blacklistAccessToken(token: String, remainingTtlMs: long): void
+    +isTokenBlacklisted(token: String): boolean
+    +storePasswordResetOtp(tenantId: String, email: String, otp: String, ttlMinutes: int): void
+    +verifyAndConsumeOtp(tenantId: String, email: String, otp: String): boolean
+  }
+}
+
+package "Tenant Persistence Layer (Dedicated MySQL DB)" #FEFCE8 {
+  entity User <<entity>> {
+    +id: Long
+    +email: String
+    +passwordHash: String [0..1]
+    +fullName: String
+    +role: UserRole
+    +status: UserStatus
+    +createdAt: Instant
+    +updatedAt: Instant
+  }
+
+  entity OauthAccount <<entity>> {
+    +id: Long
+    +userId: Long
+    +provider: OAuthProvider
+    +providerUserId: String
+    +createdAt: Instant
+  }
+
+  entity UserProfile <<entity>> {
+    +id: Long
+    +userId: Long
+    +phone: String [0..1]
+    +avatarUrl: String [0..1]
+    +bio: String [0..1]
+    +headline: String [0..1]
+    +linksJson: String [0..1]
+  }
+
+  enum UserRole <<enumeration>> {
+    TENANT_ADMIN
+    ADMIN
+    HR
+    RECRUITER
+    CANDIDATE
+  }
+
+  enum UserStatus <<enumeration>> {
+    ACTIVE
+    SUSPENDED
+    PENDING_VERIFICATION
+  }
+
+  enum OAuthProvider <<enumeration>> {
+    GOOGLE
+    LINKEDIN
+  }
+
+  interface UserRepository <<repository>> {
+    +findByEmailIgnoreCase(email: String): Optional<User>
+    +existsByEmailIgnoreCase(email: String): boolean
+    +save(user: User): User
+  }
+
+  interface OauthAccountRepository <<repository>> {
+    +findByProviderAndProviderUserId(provider: OAuthProvider, providerUserId: String): Optional<OauthAccount>
+    +save(account: OauthAccount): OauthAccount
+  }
+
+  interface UserProfileRepository <<repository>> {
+    +findByUserId(userId: Long): Optional<UserProfile>
+    +save(profile: UserProfile): UserProfile
+  }
+}
+
+package "Asynchronous Integration" #FAF5FF {
+  class EmailNotificationProducer <<messaging producer>> {
+    -rabbitTemplate: RabbitTemplate
+    +publishResetPasswordOtp(tenantId: String, email: String, otp: String): void
+  }
+}
+
+' Relationships
+TenantAuthController --> TenantAuthService : delegates to
+TenantAuthController ..> LoginRequest : consumes
+TenantAuthController ..> GoogleLoginRequest : consumes
+TenantAuthController ..> RefreshTokenRequest : consumes
+TenantAuthController ..> ForgotPasswordRequest : consumes
+TenantAuthController ..> ResetPasswordRequest : consumes
+TenantAuthController ..> LoginResponse : produces
+TenantAuthController ..> TokenResponse : produces
+
+TenantWebInterceptor ..> TenantContext : sets / clears
+JwtAuthenticationFilter ..> JwtTokenProvider : uses
+JwtAuthenticationFilter ..> RedisSessionService : checks blacklist
+JwtAuthenticationFilter ..> TenantContext : enforces tenant
+
+TenantAuthService --> UserRepository : accesses
+TenantAuthService --> OauthAccountRepository : accesses
+TenantAuthService --> UserProfileRepository : accesses
+TenantAuthService --> JwtTokenProvider : uses
+TenantAuthService --> GoogleTokenVerifierService : uses
+TenantAuthService --> RedisSessionService : uses
+TenantAuthService --> EmailNotificationProducer : dispatches events
+GoogleTokenVerifierService ..> GoogleUserPayload : produces
+
+User "1" o-- "0..*" OauthAccount : has
+User "1" o-- "0..1" UserProfile : has
+User --> UserRole : typed by
+User --> UserStatus : typed by
+OauthAccount --> OAuthProvider : typed by
+
+UserRepository ..> User : manages
+OauthAccountRepository ..> OauthAccount : manages
+UserProfileRepository ..> UserProfile : manages
+
+note right of User
+  Multi-tenant Invariant:
+  All users, oauth accounts, and profiles
+  reside strictly within each dedicated Tenant MySQL DB.
+  passwordHash is NULL for social candidates.
+end note
+
+note right of RedisSessionService
+  Redis keys isolated per tenant:
+  - tenant:{tenantId}:refresh:{userId}
+  - tenant:{tenantId}:pwd_reset:{email}
+  - blacklist:token:{hash(token)}
+end note
+
+@enduml
