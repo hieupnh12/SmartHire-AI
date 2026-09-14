@@ -12,6 +12,6 @@ export function MasterRoute() {
   });
   if (!token || query.isError) return <Navigate to="/admin/login" replace />;
   if (query.isPending) return <p role="status" className="p-6">?ang ki?m tra phi?n ??ng nh?p?</p>;
-  if (query.data?.data?.role !== "SUPER_ADMIN") return <Navigate to="/admin/login" replace />;
+  if (query.data?.data?.role !== "WORKSPACE_ADMIN") return <Navigate to="/admin/login" replace />;
   return <Outlet />;
 }

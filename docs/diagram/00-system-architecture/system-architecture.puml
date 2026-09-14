@@ -29,7 +29,7 @@ left to right direction
 
 actor "Candidate" as candidate
 actor "Recruiter /\nTenant Admin" as tenantUser
-actor "Platform\nSuper Admin" as platformAdmin
+actor "Workspace\nAdmin" as platformAdmin
 
 cloud "Internet / DNS" as internet
 

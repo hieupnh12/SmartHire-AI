@@ -44,7 +44,7 @@ com.smarthire
 │   ├── tenant          # Tenant Onboarding & Status Management
 │   ├── subscription    # SaaS Subscription Plans & Quota Management
 │   ├── billing         # Payment Gateways & Invoicing
-│   ├── admin           # Platform Super Admin Management
+│   ├── admin           # Workspace Admin Management
 │   └── analytics       # SaaS Platform Level Analytics (MRR, AI usage, Active Tenants)
 ├── tenant              # 🏬 TENANT DOMAIN (Dịch vụ Tuyển dụng từng Doanh nghiệp)
 │   ├── auth            # AUTH-01..05 (Tenant User Authentication & RBAC)
@@ -104,13 +104,13 @@ frontend/src
 ├── app             # providers, router, RoleShell, RoleRoute
 ├── api             # Axios instance & Clients split by Master vs Tenant
 │   ├── axios.ts    # Interceptor injecting Auth Token & X-Tenant-ID Header
-│   ├── master/     # Platform APIs (onboarding, subscriptions, billing, super-admin)
+│   ├── master/     # Platform APIs (onboarding, subscriptions, billing, workspace-admin)
 │   └── tenant/     # Tenant APIs (auth, job, cv, assessment, interview, dashboard)
 ├── components
 │   ├── ui          # Shadcn UI primitives
 │   └── shared      # Header, Sidebar, LanguageSwitcher, Icon, ConfirmDialog
 ├── features        # BY MASTER vs TENANT DOMAIN
-│   ├── master/     # 🏢 Platform Landlord Portal (landing, onboarding, super-admin, billing)
+│   ├── master/     # 🏢 Platform Landlord Portal (landing, onboarding, workspace-admin, billing)
 │   └── tenant/     # 🏬 Enterprise Tenant Workspace (auth, recruiter, candidate, admin)
 ├── lib             # tenant.ts (Subdomain/Header resolver), utils.ts
 ├── hooks           # useTenantContext, useAuth, useT

@@ -26,6 +26,8 @@ Use the most accurate PlantUML participant type: `actor`, `boundary`, `control`,
 
 Add `hide footbox` to every sequence diagram. Participants remain visible at the top, while the duplicated participant row at the bottom is hidden.
 
+Show activation bars for participants that actively process a call. Prefer explicit `activate` and `deactivate` statements across alternative/error branches so every bar starts when processing begins and ends on its corresponding response or termination; do not allow automatic activation to leave bars open across unrelated branches.
+
 ## Required flow content
 
 - Add a title containing the feature ID and function name.

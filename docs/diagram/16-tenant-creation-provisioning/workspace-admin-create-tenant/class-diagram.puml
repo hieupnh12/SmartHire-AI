@@ -1,5 +1,5 @@
 @startuml
-title TENANT-16 — Super Admin Create Tenant\nApplication-design viewpoint
+title TENANT-16 — Workspace Admin Create Tenant\nApplication-design viewpoint
 
 skinparam dpi 300
 skinparam backgroundColor #FFFFFF

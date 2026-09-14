@@ -46,7 +46,7 @@ AUTH-02
 
 ## Cập nhật triển khai multi-tenant
 
-- API quản trị master yêu cầu `SUPER_ADMIN`, tách biệt với `ADMIN`/`TENANT_ADMIN` của doanh nghiệp.
+- API quản trị master yêu cầu `WORKSPACE_ADMIN`, tách biệt với `ADMIN`/`TENANT_ADMIN` của doanh nghiệp.
 - API quản lý người dùng tenant yêu cầu `TENANT_ADMIN` hoặc `ADMIN`.
 - API nghiệp vụ yêu cầu tenant role và tenant đang `ACTIVE`; JWT, header và subdomain phải cùng tenant.
 - Endpoint công khai giới hạn ở login và kiểm tra tenant đang hoạt động; Swagger/health phục vụ vận hành.

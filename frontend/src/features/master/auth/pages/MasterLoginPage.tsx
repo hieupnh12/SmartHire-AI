@@ -34,7 +34,7 @@ export function MasterLoginPage() {
       const response = await masterAuthApi.login({ email, password });
       if (response.success && response.data) {
         localStorage.setItem("master_access_token", response.data.accessToken);
-        // Direct immediate redirection to Super Admin Dashboard
+        // Direct immediate redirection to Workspace Admin Dashboard
         navigate("/admin/dashboard", { replace: true });
       } else {
         setError(response.message || "Đăng nhập thất bại");
@@ -61,7 +61,7 @@ export function MasterLoginPage() {
                 SmartHire AI
               </span>
               <span className="ml-2.5 text-xs font-semibold px-2.5 py-0.5 rounded-full bg-[rgba(59,130,246,0.1)] text-[#3b82f6]">
-                Super Admin Portal
+                Workspace Admin Portal
               </span>
             </div>
           </div>
@@ -84,7 +84,7 @@ export function MasterLoginPage() {
               <KeyRound className="w-6 h-6" />
             </div>
             <h1 className="text-2xl font-bold font-display text-[#1e293b] mb-1">
-              Platform Super Admin Access
+              Workspace Admin Access
             </h1>
             <p className="text-xs text-[#64748b]">
               Cổng xác thực tối cao dành cho Ban quản trị nền tảng SaaS SmartHire AI.
@@ -103,7 +103,7 @@ export function MasterLoginPage() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-xs font-semibold text-[#1e293b] mb-1.5">
-                Super Admin Email <span className="text-red-500">*</span>
+                Workspace Admin Email <span className="text-red-500">*</span>
               </label>
               <input
                 type="email"
@@ -138,7 +138,7 @@ export function MasterLoginPage() {
                 <span>Đang Xác Thực Master DB...</span>
               ) : (
                 <>
-                  <span>Đăng Nhập Super Admin</span>
+                  <span>Đăng Nhập Workspace Admin</span>
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}

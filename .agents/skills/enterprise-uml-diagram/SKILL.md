@@ -18,7 +18,7 @@ docs/diagram/<number-feature>/<function-name>/
 `-- README.md
 ```
 
-The two `.puml` files and `README.md` are mandatory. Rendered SVG or PNG files are optional and must not be created until the user explicitly agrees after reviewing the completed sources and README. Keep one primary business function per function directory. Do not place multiple UML diagram types in one `.puml` file. Use English for filenames and diagram content. Write the generated README in Vietnamese by default, unless the user explicitly requests another language or repository instructions require one.
+The two `.puml` files and `README.md` are mandatory. Rendered PNG files are optional and must not be created until the user explicitly agrees after reviewing the completed sources and README. Do not generate SVG files. Keep one primary business function per function directory. Do not place multiple UML diagram types in one `.puml` file. Use English for filenames and diagram content. Write the generated README in Vietnamese by default, unless the user explicitly requests another language or repository instructions require one.
 
 ## Workflow
 
@@ -31,8 +31,8 @@ The two `.puml` files and `README.md` are mandatory. Rendered SVG or PNG files a
 7. Create or update both mandatory `.puml` files and the `README.md`. Preserve unrelated user changes.
 8. Cross-check names, responsibilities, relationships, messages, states, data ownership, and tenant boundaries across both diagrams and the source contracts.
 9. If a renderer is available, run `scripts/render-diagrams.ps1 -ValidateOnly` to check PlantUML syntax without creating images. If no supported renderer exists, keep the sources and report the exact limitation; do not download or install software without authorization.
-10. After both `.puml` files and the README are complete, stop and ask the user whether they want images generated. Do not infer consent from the original diagram request and do not render SVG or PNG in the same turn unless the user explicitly requested image generation in advance.
-11. Only after the user agrees, always generate both SVG and PNG by running `scripts/render-diagrams.ps1 -Format Both -PngDpi 300`. Do not offer an SVG-only rendering path. PNG must satisfy at least one high-resolution criterion: 2x scale, 3x scale, or 300 DPI and above. Use 300 DPI or higher by default because it is deterministic and verifiable.
+10. After both `.puml` files and the README are complete, stop and ask the user whether they want PNG images generated. Do not infer consent from the original diagram request and do not render PNG in the same turn unless the user explicitly requested image generation in advance.
+11. Only after the user agrees, generate PNG by running `scripts/render-diagrams.ps1 -Format Png -PngDpi 300`. Do not generate SVG. PNG must satisfy at least one high-resolution criterion: 2x scale, 3x scale, or 300 DPI and above. Use 300 DPI or higher by default because it is deterministic and verifiable.
 12. Inspect generated images when an image-viewing tool is available. Fix clipping, unreadable text, excessive crossings, and invalid layout before reporting rendering complete.
 
 ## Clarification policy
@@ -87,14 +87,14 @@ Use precise explanations. Do not merely transcribe labels from the diagrams: con
 
 ## Rendering and image quality
 
-- Rendering is a separate, user-approved phase. Creating or updating `.puml` and README files does not authorize creating SVG or PNG files.
-- After rendering is approved, always create both SVG and PNG. SVG remains the canonical rendered image because it stays sharp at any zoom, while PNG is the required raster deliverable.
+- Rendering is a separate, user-approved phase. Creating or updating `.puml` and README files does not authorize creating PNG files.
+- After rendering is approved, create PNG only; do not generate SVG artifacts.
 - Include `skinparam dpi 300` in every diagram so PNG output has sufficient pixel dimensions.
 - Every generated PNG must satisfy at least one high-resolution criterion: 2x scale, 3x scale, or at least 300 DPI. Prefer the deterministic default of 300 DPI or higher. When using the DPI criterion, the PNG metadata itself must report the target value; pixel dimensions alone are not sufficient. Use the renderer's `-PngDpi` option (default `300`) and verify both horizontal and vertical DPI after rendering.
 - Prefer readable layout over fitting everything into one image. Split oversized diagrams by use case or bounded context and link them from the README.
-- Use UTF-8. Do not rasterize SVG for a document that supports vector images.
-- After explicit approval, run `scripts/render-diagrams.ps1 -InputPath <function-directory> -Format Both -PngDpi 300`. The script writes and verifies PNG DPI metadata automatically.
+- Use UTF-8.
+- After explicit approval, run `scripts/render-diagrams.ps1 -InputPath <function-directory> -Format Png -PngDpi 300`. The script writes and verifies PNG DPI metadata automatically.
 
 ## Completion rules
 
-The source phase is complete when both source diagrams and the README exist, cross-diagram checks pass, and syntax validation was attempted without rendering. At that point, report `Source complete — awaiting rendering decision` and ask whether the user wants images. The rendering phase is complete only after explicit approval, successful generation of both SVG and PNG, verification that every PNG reports at least 300 DPI, and image inspection when available. State which images were rendered and which checks could not run. Never modify application behavior merely to make a diagram appear consistent.
+The source phase is complete when both source diagrams and the README exist, cross-diagram checks pass, and syntax validation was attempted without rendering. At that point, report `Source complete — awaiting rendering decision` and ask whether the user wants PNG images. The rendering phase is complete only after explicit approval, successful PNG generation, verification that every PNG reports at least 300 DPI, and image inspection when available. State which images were rendered and which checks could not run. Never modify application behavior merely to make a diagram appear consistent.

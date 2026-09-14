@@ -178,7 +178,7 @@ export function MasterAdminDashboardPage() {
                 SmartHire AI
               </span>
               <span className="ml-2.5 text-xs font-semibold px-2.5 py-0.5 rounded-full bg-[rgba(59,130,246,0.1)] text-[#3b82f6]">
-                Super Admin Dashboard
+                Workspace Admin Dashboard
               </span>
             </div>
           </div>
@@ -703,7 +703,7 @@ export function MasterAdminDashboardPage() {
 
       {/* Footer */}
       <footer className="border-t border-[#e2e8f0] py-6 text-center text-xs text-[#64748b] bg-white">
-        SmartHire AI Platform © 2026. Super Admin Administration Module.
+        SmartHire AI Platform © 2026. Workspace Admin Administration Module.
       </footer>
     </div>
   );

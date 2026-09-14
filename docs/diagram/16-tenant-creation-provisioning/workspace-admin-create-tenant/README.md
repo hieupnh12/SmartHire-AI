@@ -1,8 +1,8 @@
-# TENANT-16 — Super Admin tạo Tenant
+# TENANT-16 — Workspace Admin tạo Tenant
 
 ## Mục đích và phạm vi
 
-Chức năng này mô tả cách Super Admin đăng ký và cấp phát đồng bộ một tenant doanh nghiệp. Phạm vi gồm validation, đăng ký trong master registry, thiết lập MySQL tự động hoặc thủ công, chạy Flyway, tạo `TENANT_ADMIN` đầu tiên, kích hoạt tenant và xử lý lỗi quan trọng.
+Chức năng này mô tả cách Workspace Admin đăng ký và cấp phát đồng bộ một tenant doanh nghiệp. Phạm vi gồm validation, đăng ký trong master registry, thiết lập MySQL tự động hoặc thủ công, chạy Flyway, tạo `TENANT_ADMIN` đầu tiên, kích hoạt tenant và xử lý lỗi quan trọng.
 
 Class diagram sử dụng **góc nhìn thiết kế ứng dụng** ở mức phù hợp cho đồ án tốt nghiệp. Sơ đồ tập trung vào route, DTO, controller, service, repository, entity và ranh giới hai kho dữ liệu; các lớp hạ tầng như mã hóa credential, datasource factory, Flyway và password encoder được lược khỏi class diagram chính.
 
@@ -20,13 +20,13 @@ Class diagram sử dụng **góc nhìn thiết kế ứng dụng** ở mức ph�
 
 ## Actor và thành phần tham gia
 
-Actor chính là người dùng nền tảng có role `SUPER_ADMIN`. Trang onboarding validation phía client và gọi master API. Spring Security xác thực JWT và kiểm tra role. `MasterTenantService` chịu trách nhiệm quy tắc đăng ký và master transaction; `TenantProvisioningService` điều phối quy trình cấp phát qua hai database. PostgreSQL là master registry, còn mỗi tenant có một MySQL database tách biệt vật lý.
+Actor chính là người dùng nền tảng có role `WORKSPACE_ADMIN`. Trang onboarding validation phía client và gọi master API. Spring Security xác thực JWT và kiểm tra role. `MasterTenantService` chịu trách nhiệm quy tắc đăng ký và master transaction; `TenantProvisioningService` điều phối quy trình cấp phát qua hai database. PostgreSQL là master registry, còn mỗi tenant có một MySQL database tách biệt vật lý.
 
 ## Tiền điều kiện và hậu điều kiện
 
 Tiền điều kiện:
 
-- Caller đã đăng nhập và có role `SUPER_ADMIN`.
+- Caller đã đăng nhập và có role `WORKSPACE_ADMIN`.
 - Định danh tenant và thông tin admin đầu tiên thỏa mãn DTO validation.
 - Provisioning credential và khóa AES-256-GCM được cấu hình bên ngoài database.
 - Với chế độ thủ công, database và user giới hạn quyền đã tồn tại; URL trỏ đúng database của tenant.
@@ -66,9 +66,9 @@ Provisioning tiếp tục bằng session-level advisory lock theo tenant ID. Ch�
 
 | Thành phần | Trách nhiệm trong luồng |
 |---|---|
-| `Super Admin` | Khởi tạo yêu cầu tạo doanh nghiệp và nhận kết quả cuối cùng. |
+| `Workspace Admin` | Khởi tạo yêu cầu tạo doanh nghiệp và nhận kết quả cuối cùng. |
 | `Tenant Onboarding UI` | Thu thập dữ liệu tenant/admin, gửi HTTP request và hiển thị thành công hoặc lỗi. |
-| `Spring Security` | Xác thực JWT và chỉ cho phép người dùng có quyền `SUPER_ADMIN` đi vào API quản trị. |
+| `Spring Security` | Xác thực JWT và chỉ cho phép người dùng có quyền `WORKSPACE_ADMIN` đi vào API quản trị. |
 | `MasterTenantController` | Biên HTTP của backend; nhận DTO, chạy Bean Validation, gọi service và ánh xạ kết quả sang HTTP response. |
 | `MasterTenantService` | Thực thi quy tắc đăng ký tenant, kiểm tra định danh, lưu trạng thái vòng đời và điều phối provisioning. |
 | `Master PostgreSQL` | Lưu registry của tenant và các trạng thái `PROVISIONING`, `ACTIVE`, `FAILED`. |
@@ -79,17 +79,19 @@ Provisioning tiếp tục bằng session-level advisory lock theo tenant ID. Ch�
 
 #### Diễn giải từng bước
 
-1. `Super Admin → Tenant Onboarding UI`: người quản trị nhập thông tin tenant và admin đầu tiên. Đây là dữ liệu đầu vào của use case.
+Các hình chữ nhật hẹp trên lifeline là **activation bar**, biểu thị khoảng thời gian participant đang trực tiếp xử lý một lời gọi. Thanh bắt đầu khi participant nhận request và kết thúc khi trả kết quả hoặc khi nhánh lỗi dừng xử lý; chúng không biểu thị thời gian thực theo tỷ lệ.
+
+1. `Workspace Admin → Tenant Onboarding UI`: người quản trị nhập thông tin tenant và admin đầu tiên. Đây là dữ liệu đầu vào của use case.
 2. `Tenant Onboarding UI → Spring Security`: UI gửi `POST /api/v1/master/tenants/onboard`. Request đi qua security trước controller để quyền được kiểm tra tại biên tin cậy của backend.
 3. Nhánh `Unauthenticated or insufficient permission`: request thiếu/sai xác thực nhận `401`, còn người đã đăng nhập nhưng thiếu quyền nhận `403`; UI dừng luồng và hiển thị lỗi truy cập.
-4. Nhánh `Authorized Super Admin`: Spring Security chuyển request hợp lệ cho `MasterTenantController`.
+4. Nhánh `Authorized Workspace Admin`: Spring Security chuyển request hợp lệ cho `MasterTenantController`.
 5. `MasterTenantController → MasterTenantController`: controller chạy validation cho DTO. Nếu dữ liệu sai định dạng, nhánh `Invalid request` trả `400` và không gọi service hoặc truy cập database.
 6. Nhánh `Valid request`: controller gọi `MasterTenantService.onboardTenant(request)` để chuyển xử lý nghiệp vụ ra khỏi tầng HTTP.
 7. `MasterTenantService ↔ Master PostgreSQL`: service kiểm tra `code` và `subdomain`. Kết quả quyết định tenant có thể được đăng ký hay không.
 8. Nhánh `Tenant identity already exists`: service trả xung đột, controller ánh xạ thành `409`, UI thông báo định danh tenant bị trùng; không tạo database mới.
 9. Nhánh `Tenant identity is available`: service lưu tenant với trạng thái `PROVISIONING`. Trạng thái trung gian cho biết registry đã tồn tại nhưng database riêng chưa sẵn sàng; Master DB trả lại `tenantId` để provisioning xử lý đúng bản ghi.
 10. `MasterTenantService → TenantProvisioningService`: service yêu cầu cấp phát database và tạo admin đầu tiên cho tenant vừa đăng ký.
-11. Nhánh `Managed database`: hệ thống tạo database và database user có phạm vi quyền riêng cho tenant. Nhánh `Pre-provisioned database` dùng database do Super Admin chuẩn bị sẵn; cả hai nhánh phải kết thúc bằng một kết nối tenant hợp lệ.
+11. Nhánh `Managed database`: hệ thống tạo database và database user có phạm vi quyền riêng cho tenant. Nhánh `Pre-provisioned database` dùng database do Workspace Admin chuẩn bị sẵn; cả hai nhánh phải kết thúc bằng một kết nối tenant hợp lệ.
 12. `TenantProvisioningService → Flyway → Dedicated Tenant DB`: Flyway áp dụng migration. Bước này phải hoàn tất trước khi tạo admin để bảng `users` và các ràng buộc schema chắc chắn tồn tại.
 13. `TenantProvisioningService ↔ Dedicated Tenant DB`: hệ thống tạo `TENANT_ADMIN` đầu tiên và nhận xác nhận. Mật khẩu được lưu dưới dạng hash, nhưng chi tiết bộ mã hóa được lược khỏi sơ đồ chính.
 14. `TenantProvisioningService → MasterTenantService`: trả kết quả tổng hợp của quá trình provisioning để service quyết định trạng thái cuối.
@@ -154,7 +156,6 @@ Sơ đồ không vẽ quan hệ trực tiếp giữa `TenantInfo` và `TenantAdm
 
 ## Render và file được tạo
 
-- `class-diagram.svg`, `sequence-diagram.svg`: ảnh vector chuẩn cho tài liệu.
 - `class-diagram.png`, `sequence-diagram.png`: ảnh raster có metadata 300 DPI.
 
 Lệnh render và validate từ thư mục gốc repository:
@@ -162,14 +163,14 @@ Lệnh render và validate từ thư mục gốc repository:
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass `
   -File ./.agents/skills/enterprise-uml-diagram/scripts/render-diagrams.ps1 `
-  -InputPath docs/diagram/16-tenant-creation-provisioning/super-admin-create-tenant `
+  -InputPath docs/diagram/16-tenant-creation-provisioning/workspace-admin-create-tenant `
   -PlantUmlJar E:/Tools/PlantUML/plantuml.jar `
-  -Format Both `
+  -Format Png `
   -PngDpi 300
 ```
 
-Lần kiểm tra ngày 2026-09-11 sử dụng PlantUML 1.2026.8. Cả hai file `.puml` đều vượt qua syntax validation; SVG và PNG được render thành công và kiểm tra trực quan. Renderer ghi và xác minh metadata PNG ở 300 DPI cho cả hai chiều. SVG vẫn là định dạng chuẩn vì không phụ thuộc độ phân giải.
+Lần kiểm tra sử dụng PlantUML 1.2026.8. Cả hai file `.puml` đều vượt qua syntax validation; PNG được render thành công và kiểm tra trực quan. Renderer ghi và xác minh metadata PNG ở 300 DPI cho cả hai chiều.
 
 ## Trạng thái review
 
-**Source complete — awaiting rendering decision** — nguồn PlantUML rút gọn đã được đối chiếu với contract và vượt qua syntax validation. Các ảnh SVG/PNG hiện có là bản render trước khi rút gọn và chỉ được tạo lại khi người dùng đồng ý.
+**Complete** — nguồn PlantUML đã được đối chiếu với contract và vượt qua syntax validation. Hai ảnh PNG đã được render lại, kiểm tra trực quan và xác minh metadata 300 DPI; không tạo artifact SVG.

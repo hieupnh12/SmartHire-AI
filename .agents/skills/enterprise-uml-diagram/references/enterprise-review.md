@@ -34,4 +34,4 @@ Apply relevant items and record material gaps in the function README.
 - Fonts remain readable at normal document zoom.
 - Lines and labels are not clipped.
 - Large diagrams are split instead of compressed.
-- SVG is canonical; requested PNG output uses at least 300 DPI.
+- Only PNG artifacts are generated; requested PNG output uses at least 300 DPI.

@@ -23,7 +23,7 @@ Hai sơ đồ giúp nhóm phát triển nhìn rõ luồng từ người dùng qu
 
 ## Thành phần và actor
 
-- Actor: Candidate, Recruiter/Tenant Admin và Platform Super Admin.
+- Actor: Candidate, Recruiter/Tenant Admin và Workspace Admin.
 - Frontend: React SPA, route theo role, API client tách Master/Tenant và tự gắn `X-Tenant-ID` cho tenant API.
 - Backend: REST, bảo mật JWT/RBAC, Master Domain, Tenant Domain, Multi-Tenant Core và worker RabbitMQ; WebSocket là phần dự kiến.
 - Persistence: PostgreSQL cho Master DB; MySQL database riêng cho từng tenant; Redis cho dữ liệu ngắn hạn; RabbitMQ cho công việc bất đồng bộ.
@@ -47,7 +47,7 @@ Hai sơ đồ giúp nhóm phát triển nhìn rõ luồng từ người dùng qu
 | --- | --- |
 | **Users — Candidate** | Ứng viên sử dụng giao diện tìm việc, hồ sơ/CV, ứng tuyển, đánh giá và phỏng vấn theo phạm vi tính năng được triển khai. |
 | **Users — Recruiter / Tenant Admin** | Nhà tuyển dụng xử lý nghiệp vụ tuyển dụng; quản trị viên doanh nghiệp quản lý người dùng và cấu hình trong tenant của mình. |
-| **Users — Platform Super Admin** | Quản trị nền tảng SaaS, quản lý tenant và các chức năng cấp Master; khác với quản trị viên của một doanh nghiệp. |
+| **Users — Workspace Admin** | Quản trị workspace nền tảng, quản lý tenant và các chức năng cấp Master; khác với quản trị viên của một doanh nghiệp. |
 | **GitHub** | Lưu mã nguồn và lịch sử thay đổi. Sự kiện push hoặc thao tác chạy workflow thủ công có thể kích hoạt GitHub Actions theo cấu hình workflow. |
 | **GitHub Actions** | Chạy các workflow kiểm tra/build và triển khai. Workflow triển khai dùng SSH để chạy quy trình deploy trên VPS; các workflow không mặc nhiên là một chuỗi build → test → deploy có ràng buộc đầy đủ. |
 | **Google Cloud VPS / Compute Engine** | Máy chủ chạy ứng dụng và các dịch vụ hạ tầng theo cấu hình production. Frontend và backend được triển khai trên cùng môi trường VPS trong sơ đồ. |

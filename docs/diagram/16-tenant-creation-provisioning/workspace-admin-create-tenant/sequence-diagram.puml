@@ -1,5 +1,5 @@
 @startuml
-title TENANT-16 — Super Admin Create Tenant
+title TENANT-16 — Workspace Admin Create Tenant
 
 skinparam dpi 300
 skinparam backgroundColor #FFFFFF
@@ -16,7 +16,7 @@ skinparam DatabaseBackgroundColor #F8FAFC
 hide footbox
 autonumber
 
-actor "Super Admin" as Admin
+actor "Workspace Admin" as Admin
 boundary "Tenant Onboarding UI" as UI
 control "Spring Security" as Security
 boundary "MasterTenantController" as Controller
@@ -28,63 +28,101 @@ control "Flyway" as Flyway
 database "Dedicated Tenant DB" as TenantDB
 
 note over Admin,Security
-  The endpoint requires an authenticated platform user with the SUPER_ADMIN role.
+  The endpoint requires an authenticated platform user with the WORKSPACE_ADMIN role.
   Credentials and raw passwords are never returned to the UI.
 end note
 
 Admin -> UI: Enter tenant and initial admin information
+activate UI
 UI -> Security: POST /api/v1/master/tenants/onboard
+activate Security
 
 alt Unauthenticated or insufficient permission
   Security --> UI: 401 Unauthorized / 403 Forbidden
+  deactivate Security
   UI --> Admin: Show access error
-else Authorized Super Admin
+  deactivate UI
+else Authorized Workspace Admin
   Security -> Controller: Forward onboarding request
+  activate Controller
+  deactivate Security
   Controller -> Controller: Validate request data
 
   alt Invalid request
     Controller --> UI: 400 Bad Request
+    deactivate Controller
     UI --> Admin: Show validation errors
+    deactivate UI
   else Valid request
     Controller -> MasterService: onboardTenant(request)
+    activate MasterService
     MasterService -> MasterDB: Check tenant code and subdomain
+    activate MasterDB
     MasterDB --> MasterService: Availability result
+    deactivate MasterDB
 
     alt Tenant identity already exists
       MasterService --> Controller: Tenant conflict
+      deactivate MasterService
       Controller --> UI: 409 Conflict
+      deactivate Controller
       UI --> Admin: Show duplicate tenant error
+      deactivate UI
     else Tenant identity is available
       MasterService -> MasterDB: Save tenant with PROVISIONING status
+      activate MasterDB
       MasterDB --> MasterService: Tenant ID
+      deactivate MasterDB
       MasterService -> Provisioner: provision(tenantId, initialAdmin)
+      activate Provisioner
 
       alt Managed database
         Provisioner -> MySQL: Create dedicated database and tenant-scoped user
+        activate MySQL
         MySQL --> Provisioner: Tenant database ready
+        deactivate MySQL
       else Pre-provisioned database
         Provisioner -> MySQL: Connect to the provided tenant database
+        activate MySQL
         MySQL --> Provisioner: Connection ready
+        deactivate MySQL
       end
 
       Provisioner -> Flyway: Apply tenant schema migrations
+      activate Flyway
       Flyway -> TenantDB: Migrate tenant schema
+      activate TenantDB
       TenantDB --> Flyway: Schema ready
+      deactivate TenantDB
       Flyway --> Provisioner: Migration completed
+      deactivate Flyway
       Provisioner -> TenantDB: Create initial TENANT_ADMIN
+      activate TenantDB
       TenantDB --> Provisioner: Administrator created
+      deactivate TenantDB
       Provisioner --> MasterService: Provisioning result
+      deactivate Provisioner
 
       alt Provisioning failed
         MasterService -> MasterDB: Update tenant status to FAILED
+        activate MasterDB
+        deactivate MasterDB
         MasterService --> Controller: Provisioning failure
+        deactivate MasterService
         Controller --> UI: 503 Service Unavailable
+        deactivate Controller
         UI --> Admin: Show provisioning failure
+        deactivate UI
       else Provisioning succeeded
         MasterService -> MasterDB: Update tenant status to ACTIVE
+        activate MasterDB
+        deactivate MasterDB
         MasterService --> Controller: Active tenant metadata
+        deactivate MasterService
         Controller --> UI: 201 Created
+        deactivate Controller
         UI --> Admin: Show activated tenant
+        deactivate UI
       end
     end
   end
