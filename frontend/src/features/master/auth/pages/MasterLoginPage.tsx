@@ -74,7 +74,7 @@ export function MasterLoginPage() {
                 SmartHire<span className="text-blue-600">.AI</span>
               </span>
               <span className="text-[10px] font-semibold tracking-wider uppercase px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200">
-                Master Admin
+                Workspace Admin
               </span>
             </div>
           </div>
@@ -126,7 +126,7 @@ export function MasterLoginPage() {
           <div className="md:col-span-7 p-8 sm:p-10 flex flex-col justify-center">
             <div className="mb-6">
               <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-                Đăng Nhập Master Admin
+                Đăng Nhập Workspace Admin
               </h1>
               <p className="text-xs text-slate-500 mt-1">
                 Vui lòng nhập tài khoản quản trị hệ thống để tiếp tục

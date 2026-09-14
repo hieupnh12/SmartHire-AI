@@ -16,7 +16,7 @@ export function MasterRoute() {
     return <Navigate to="/admin/login" replace />;
   }
   if (query.isPending) return <p role="status" className="p-6">Đang kiểm tra phiên đăng nhập...</p>;
-  if (query.data?.data?.role !== "SUPER_ADMIN") {
+  if (query.data?.data?.role !== "WORKSPACE_ADMIN") {
     localStorage.removeItem("master_access_token");
     return <Navigate to="/admin/login" replace />;
   }

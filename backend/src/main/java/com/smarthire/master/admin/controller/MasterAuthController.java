@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/v1/master/auth")
-@Tag(name = "Platform Administration Auth", description = "Login and Profile APIs for SaaS Platform Super Admins")
+@Tag(name = "Platform Administration Auth", description = "Login and Profile APIs for Workspace Admins")
 public class MasterAuthController {
 
     private final MasterAuthService masterAuthService;
@@ -23,14 +23,14 @@ public class MasterAuthController {
     }
 
     @PostMapping("/login")
-    @Operation(summary = "Login Platform Super Admin", description = "Authenticates SaaS Platform Super Admin against Master DB and issues signed JWT Token.")
+    @Operation(summary = "Login Workspace Admin", description = "Authenticates Workspace Admin against Master DB and issues signed JWT Token.")
     public ResponseEntity<ApiResponse<MasterLoginResponse>> login(@Valid @RequestBody MasterLoginRequest request) {
         MasterLoginResponse response = masterAuthService.login(request);
-        return ResponseEntity.ok(ApiResponse.ok("Super Admin login successful", response));
+        return ResponseEntity.ok(ApiResponse.ok("Workspace Admin login successful", response));
     }
 
     @GetMapping("/me")
-    @Operation(summary = "Get Super Admin Profile", description = "Decodes JWT Bearer token and returns authenticated Super Admin profile.")
+    @Operation(summary = "Get Workspace Admin Profile", description = "Decodes JWT Bearer token and returns authenticated Workspace Admin profile.")
     public ResponseEntity<ApiResponse<PlatformUserResponse>> getCurrentAdmin(@RequestHeader(value = "Authorization", required = false) String authHeader) {
         PlatformUserResponse response = masterAuthService.getCurrentAdmin(authHeader);
         return ResponseEntity.ok(ApiResponse.ok(response));

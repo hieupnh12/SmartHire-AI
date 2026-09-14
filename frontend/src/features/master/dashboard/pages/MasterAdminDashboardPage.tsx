@@ -199,7 +199,7 @@ export function MasterAdminDashboardPage() {
             id: 1091,
             tenantCode: "techcombank",
             action: "PROVISION_RETRY_TRIGGERED",
-            description: "Super Admin kích hoạt lại luồng cấu hình database cho Techcombank",
+            description: "Workspace Admin kích hoạt lại luồng cấu hình database cho Techcombank",
             level: "WARN" as const,
             timestamp: "2026-09-13T09:45:00Z",
             ipAddress: "118.70.128.5",
@@ -216,8 +216,8 @@ export function MasterAdminDashboardPage() {
           {
             id: 1089,
             tenantCode: "master",
-            action: "SUPER_ADMIN_LOGIN",
-            description: "Super Admin đăng nhập thành công qua Master Auth API",
+            action: "WORKSPACE_ADMIN_LOGIN",
+            description: "Workspace Admin đăng nhập thành công qua Master Auth API",
             level: "INFO" as const,
             timestamp: "2026-09-13T07:15:00Z",
             ipAddress: "14.161.42.99",
@@ -231,7 +231,7 @@ export function MasterAdminDashboardPage() {
       setAiQuota(quotaData);
       setLogs(logsData);
     } catch (err) {
-      console.error("Error fetching master admin data:", err);
+      console.error("Error fetching workspace admin data:", err);
     } finally {
       setLoading(false);
     }
@@ -378,7 +378,7 @@ export function MasterAdminDashboardPage() {
                   SmartHire<span className="text-blue-600">.AI</span>
                 </span>
                 <span className="text-[10px] font-semibold tracking-wider uppercase px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200">
-                  Master Console
+                  Workspace Admin
                 </span>
               </div>
               <div className="flex items-center gap-1.5 text-[11px] text-slate-500 mt-0.5">
@@ -416,7 +416,7 @@ export function MasterAdminDashboardPage() {
                 navigate("/admin/login");
               }}
               className="px-3 py-2 text-xs font-semibold rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 transition-colors flex items-center gap-1.5"
-              title="Đăng xuất khỏi Master Admin"
+              title="Đăng xuất khỏi Workspace Admin"
             >
               <LogOut className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Đăng xuất</span>

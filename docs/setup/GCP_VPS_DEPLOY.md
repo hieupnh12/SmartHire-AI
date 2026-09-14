@@ -256,7 +256,7 @@ Stack chạy PostgreSQL 16 cho master, MySQL 8.4 chứa các database tenant, Re
 2. Điền `MASTER_DB_PASSWORD`, `MYSQL_ROOT_PASSWORD`, JWT và credential Redis/RabbitMQ.
 3. Tạo `TENANT_PROVISIONING_PASSWORD` bằng `openssl rand -hex 24`.
 4. Tạo `TENANT_CREDENTIALS_KEY` bằng `openssl rand -base64 32`. Giữ khóa ổn định và backup riêng; mất khóa sẽ không giải mã được credential tenant trong registry.
-5. Lần đầu, đặt `BOOTSTRAP_ADMIN_ENABLED=true` và cung cấp email/password riêng cho superadmin.
+5. Lần đầu, đặt `BOOTSTRAP_ADMIN_ENABLED=true` và cung cấp email/password riêng cho Workspace Admin.
 6. Chạy `docker compose -f docker-compose.prod.yml --env-file deploy/.env.production up -d --build`.
 7. Đăng nhập `/admin/login` và tạo tenant. Sau bootstrap, tắt cờ bootstrap và bỏ password bootstrap khỏi env.
 

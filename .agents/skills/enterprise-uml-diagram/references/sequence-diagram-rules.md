@@ -4,9 +4,29 @@
 
 Model one primary use case from trigger to observable result. A sequence diagram explains runtime collaboration and ordering; it is not a component inventory or a replacement for source code.
 
+## Detail level
+
+Default to a graduation-project documentation level unless the user explicitly asks for an enterprise implementation view. The primary diagram must make the business flow, application responsibilities, and architecture-defining boundaries understandable without exposing every internal mechanism.
+
+For a typical primary diagram, prefer roughly 8–10 participants, 20–30 meaningful messages, and no more than 2–3 levels of nested alternatives. Treat these as readability guidance rather than hard limits; split the diagram or justify additional detail when the use case genuinely requires more.
+
+Keep:
+
+- The initiating actor, UI or system boundary, trusted authorization boundary, main controller/service responsibilities, and relevant data stores.
+- The complete success path, important state transitions, architecture-defining master/tenant separation, and the few failure branches that change the observable outcome.
+- Infrastructure such as Flyway, queues, or external AI providers only when it explains a defining property of the feature.
+
+Normally summarize in a message or note instead of creating separate lifelines for credential-encryption internals, password encoders, connection-pool factories, raw DDL statements, advisory-lock calls, transaction-manager mechanics, and retry internals. Include them only when they are the subject of the diagram, required to explain correctness, or explicitly requested.
+
+When detailed operational behavior is still valuable, keep the primary diagram concise and place the enterprise implementation sequence in a separate diagram or appendix.
+
 ## Participants
 
 Use the most accurate PlantUML participant type: `actor`, `boundary`, `control`, `entity`, `database`, `collections`, `queue`, or a clearly stereotyped external system. Order participants from initiator through application and domain components to infrastructure. Include a component only when it sends or receives a relevant message.
+
+Add `hide footbox` to every sequence diagram. Participants remain visible at the top, while the duplicated participant row at the bottom is hidden.
+
+Show activation bars for participants that actively process a call. Prefer explicit `activate` and `deactivate` statements across alternative/error branches so every bar starts when processing begins and ends on its corresponding response or termination; do not allow automatic activation to leave bars open across unrelated branches.
 
 ## Required flow content
 

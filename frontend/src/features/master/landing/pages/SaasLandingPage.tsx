@@ -1333,7 +1333,7 @@ export function SaasLandingPage() {
                 className="text-xs text-slate-500 hover:text-blue-600 inline-flex items-center gap-1.5 transition-colors"
               >
                 <KeyRound className="w-3.5 h-3.5" />
-                <span>Quản trị viên nền tảng? Đăng nhập Super Admin</span>
+                <span>Quản trị viên nền tảng? Đăng nhập Workspace Admin</span>
               </button>
             </div>
           </div>

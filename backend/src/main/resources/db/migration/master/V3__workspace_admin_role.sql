@@ -1,0 +1,6 @@
+ALTER TABLE platform_users
+    ALTER COLUMN role SET DEFAULT 'WORKSPACE_ADMIN';
+
+UPDATE platform_users
+SET role = 'WORKSPACE_ADMIN'
+WHERE role = 'SUPER_ADMIN';

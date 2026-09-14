@@ -3,8 +3,8 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$InputPath,
 
-    [ValidateSet('Svg', 'Png', 'Both')]
-    [string]$Format = 'Svg',
+    [ValidateSet('Png')]
+    [string]$Format = 'Png',
 
     [string]$PlantUmlJar,
 
@@ -102,11 +102,7 @@ if ($ValidateOnly) {
     return
 }
 
-$formats = switch ($Format) {
-    'Svg' { @('svg') }
-    'Png' { @('png') }
-    'Both' { @('svg', 'png') }
-}
+$formats = @('png')
 
 foreach ($outputFormat in $formats) {
     Invoke-PlantUml -Arguments (@('-charset', 'UTF-8', "-t$outputFormat") + $paths)
@@ -118,4 +114,4 @@ foreach ($outputFormat in $formats) {
     }
 }
 
-Write-Output "Validated $($diagramFiles.Count) PlantUML file(s). Rendered format: $Format.$(if ($Format -ne 'Svg') { " PNG metadata: $PngDpi DPI." })"
+Write-Output "Validated $($diagramFiles.Count) PlantUML file(s). Rendered format: PNG. PNG metadata: $PngDpi DPI."

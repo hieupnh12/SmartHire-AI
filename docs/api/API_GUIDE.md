@@ -152,7 +152,7 @@ Kiểm tra: `mvn.cmd test` với Java 21; máy dùng Java 24 có thể chạy `m
 
 ## PostgreSQL master / MySQL tenant
 
-API quản trị master yêu cầu `Authorization: Bearer <master-token>` với role `SUPER_ADMIN`.
+API quản trị master yêu cầu `Authorization: Bearer <master-token>` với role `WORKSPACE_ADMIN`.
 `POST /master/tenants/onboard` yêu cầu `code`, `name`, `subdomain`, `adminName`, `adminEmail`, `adminPassword`.
 Không gọi API user tenant để bootstrap admin. Response chỉ chứa metadata và không chứa credential kết nối.
 `POST /master/tenants/{id}/retry` gửi lại `adminName`, `adminEmail`, `adminPassword` cho tenant `FAILED` hoặc `PROVISIONING` bị gián đoạn.

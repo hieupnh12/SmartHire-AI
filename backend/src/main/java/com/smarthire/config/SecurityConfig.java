@@ -37,7 +37,7 @@ public class SecurityConfig {
                                 "/actuator/health", "/actuator/health/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/master/auth/login", "/api/v1/tenant/auth/login").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/master/tenants/check/*").permitAll()
-                        .requestMatchers("/api/v1/master/**").hasRole("SUPER_ADMIN")
+                        .requestMatchers("/api/v1/master/**").hasRole("WORKSPACE_ADMIN")
                         .requestMatchers("/api/v1/tenant/users/**").hasAnyRole("TENANT_ADMIN", "ADMIN")
                         .requestMatchers("/api/v1/**").hasAnyRole("TENANT_ADMIN", "ADMIN", "HR", "RECRUITER", "CANDIDATE")
                         .anyRequest().authenticated())

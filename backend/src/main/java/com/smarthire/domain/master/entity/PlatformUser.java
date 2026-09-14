@@ -21,7 +21,7 @@ public class PlatformUser {
     private String fullName;
 
     @Column(nullable = false, length = 32)
-    private String role = "SUPER_ADMIN";
+    private String role = "WORKSPACE_ADMIN";
 
     @Column(nullable = false, length = 32)
     private String status = "ACTIVE";

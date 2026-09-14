@@ -37,7 +37,7 @@ public class DemoDataSeeder implements ApplicationRunner {
         user.setEmail(email);
         user.setFullName("Platform Administrator");
         user.setPasswordHash(encoder.encode(password));
-        user.setRole("SUPER_ADMIN");
+        user.setRole("WORKSPACE_ADMIN");
         user.setStatus("ACTIVE");
         users.save(user);
     }

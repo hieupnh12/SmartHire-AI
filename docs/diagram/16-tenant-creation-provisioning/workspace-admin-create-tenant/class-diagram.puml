@@ -1,0 +1,119 @@
+@startuml
+title TENANT-16 — Workspace Admin Create Tenant\nApplication-design viewpoint
+
+skinparam dpi 300
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam ArrowColor #64748B
+skinparam ClassBorderColor #CBD5E1
+skinparam ClassBackgroundColor #F8FAFC
+skinparam InterfaceBackgroundColor #EFF6FF
+skinparam NoteBackgroundColor #FFF7ED
+skinparam NoteBorderColor #FDBA74
+
+package "Master API" #EFF6FF {
+  class TenantOnboardingRoute <<REST API>> {
+    +POST /api/v1/master/tenants/onboard
+  }
+
+  class MasterTenantController <<Controller>> {
+    +onboardTenant(request: OnboardTenantRequest): TenantResponse
+  }
+
+  class OnboardTenantRequest <<Request>> {
+    +code: String
+    +name: String
+    +subdomain: String
+    +customDbUrl: String [0..1]
+  }
+
+  class TenantAdminRequest <<Request>> {
+    +adminName: String
+    +adminEmail: String
+  }
+
+  class TenantResponse <<Response>> {
+    +id: Long
+    +code: String
+    +name: String
+    +subdomain: String
+    +status: String
+  }
+}
+
+package "Master Domain" #F0FDF4 {
+  class MasterTenantService <<Service>> {
+    +onboardTenant(request: OnboardTenantRequest): TenantInfo
+  }
+
+  interface TenantInfoRepository <<Repository>> {
+    +existsByCode(code: String): boolean
+    +existsBySubdomain(subdomain: String): boolean
+    +save(tenant: TenantInfo): TenantInfo
+  }
+
+  class TenantInfo <<Entity>> {
+    +id: Long
+    +code: String
+    +name: String
+    +subdomain: String
+    +dbName: String
+    +managedDatabase: boolean
+    +status: String
+    +createdAt: LocalDateTime
+  }
+
+  class "Master PostgreSQL\ntenants" as MasterDB <<Database>>
+}
+
+package "Tenant Provisioning" #FFF7ED {
+  class TenantProvisioningService <<Service>> {
+    +provision(tenantId: Long, admin: TenantAdminRequest): TenantInfo
+    -prepareTenantDatabase(tenant: TenantInfo): void
+    -createInitialAdmin(tenant: TenantInfo): void
+  }
+}
+
+package "Tenant Domain" #FDF4FF {
+  class TenantAdmin <<Entity>> {
+    +id: Long
+    +email: String
+    +fullName: String
+    +role: String = TENANT_ADMIN
+    +status: String = ACTIVE
+  }
+
+  class "Dedicated Tenant MySQL\nusers + tenant schema" as TenantDB <<Database>>
+}
+
+TenantOnboardingRoute ..> MasterTenantController : routes
+MasterTenantController ..> OnboardTenantRequest : receives
+MasterTenantController --> MasterTenantService : uses
+MasterTenantController ..> TenantResponse : returns
+OnboardTenantRequest --|> TenantAdminRequest
+
+MasterTenantService ..> OnboardTenantRequest : processes
+MasterTenantService --> TenantInfoRepository : persists through
+MasterTenantService --> TenantProvisioningService : provisions
+
+TenantInfoRepository --> TenantInfo : manages
+TenantInfoRepository --> MasterDB : stores in
+
+TenantProvisioningService ..> TenantInfo : provisions
+TenantProvisioningService --> TenantDB : prepares
+TenantDB *-- TenantAdmin : contains
+
+note bottom of MasterDB
+  Tenant registry and lifecycle status
+  belong to the platform database.
+  Status: PROVISIONING, ACTIVE, FAILED, or SUSPENDED.
+end note
+
+note bottom of TenantDB
+  Each tenant has a physically separate database.
+  No cross-database foreign key exists.
+end note
+
+@enduml

@@ -9,13 +9,13 @@ Dùng PostgreSQL cho dữ liệu nền tảng và một database MySQL riêng ch
 
 ## Actor
 
-- Superadmin đăng ký, retry, khóa và mở doanh nghiệp.
+- Workspace Admin đăng ký, retry, khóa và mở doanh nghiệp.
 - Admin doanh nghiệp đăng nhập bằng tài khoản được cung cấp khi khởi tạo.
 - Worker RabbitMQ xử lý tác vụ trong đúng tenant.
 
 ## Luồng hoạt động
 
-1. Superadmin đăng nhập qua `POST /api/v1/master/auth/login`.
+1. Workspace Admin đăng nhập qua `POST /api/v1/master/auth/login`.
 2. Gửi mã, tên, subdomain và thông tin admin doanh nghiệp.
 3. Backend lưu cấu hình kết nối ở PostgreSQL với trạng thái `PROVISIONING`.
 4. Chế độ tự động dùng tài khoản provisioning riêng để tạo database MySQL, tạo user ngẫu nhiên và chỉ cấp quyền trên database đó.
@@ -24,11 +24,11 @@ Dùng PostgreSQL cho dữ liệu nền tảng và một database MySQL riêng ch
 7. Retry qua `POST /api/v1/master/tenants/{id}/retry`; PostgreSQL advisory lock ngăn hai tiến trình provisioning cùng tenant chạy đồng thời.
 8. Sau khi backend khởi động lại, connection pool được tạo khi có request dựa trên registry PostgreSQL; không cần thêm biến `.env` cho từng tenant.
 
-Provisioning hiện chạy đồng bộ trong request. Nếu HTTP bị gián đoạn, superadmin kiểm tra trạng thái tenant trước khi retry. Database đã tạo một phần được giữ lại để retry; hệ thống không tự xóa dữ liệu. Retry giữ nguyên admin đã tồn tại và phải dùng lại email admin ban đầu.
+Provisioning hiện chạy đồng bộ trong request. Nếu HTTP bị gián đoạn, Workspace Admin kiểm tra trạng thái tenant trước khi retry. Database đã tạo một phần được giữ lại để retry; hệ thống không tự xóa dữ liệu. Retry giữ nguyên admin đã tồn tại và phải dùng lại email admin ban đầu.
 
 ## Business Rules
 
-- API master quản trị chỉ nhận `SUPER_ADMIN`; chỉ login và kiểm tra tenant đang ACTIVE được công khai.
+- API master quản trị chỉ nhận `WORKSPACE_ADMIN`; chỉ login và kiểm tra tenant đang ACTIVE được công khai.
 - API tạo user tenant yêu cầu `TENANT_ADMIN` hoặc `ADMIN`.
 - JWT, header và subdomain phải quy về cùng mã tenant. Subdomain chỉ được lấy dưới domain cấu hình hoặc `.localhost`.
 - Tenant thiếu, không tồn tại hoặc không ACTIVE bị từ chối. Không fallback sang master.
@@ -50,11 +50,11 @@ Provisioning hiện chạy đồng bộ trong request. Nếu HTTP bị gián đo
 
 | Method | Path | Quyền |
 |---|---|---|
-| POST | `/api/v1/master/tenants/onboard` | SUPER_ADMIN |
-| POST | `/api/v1/master/tenants/{id}/retry` | SUPER_ADMIN |
-| GET | `/api/v1/master/tenants` | SUPER_ADMIN |
-| GET | `/api/v1/master/tenants/{id}` | SUPER_ADMIN |
-| PATCH | `/api/v1/master/tenants/{id}/status?status=ACTIVE\|SUSPENDED` | SUPER_ADMIN |
+| POST | `/api/v1/master/tenants/onboard` | WORKSPACE_ADMIN |
+| POST | `/api/v1/master/tenants/{id}/retry` | WORKSPACE_ADMIN |
+| GET | `/api/v1/master/tenants` | WORKSPACE_ADMIN |
+| GET | `/api/v1/master/tenants/{id}` | WORKSPACE_ADMIN |
+| PATCH | `/api/v1/master/tenants/{id}/status?status=ACTIVE\|SUSPENDED` | WORKSPACE_ADMIN |
 | GET | `/api/v1/master/tenants/check/{codeOrSubdomain}` | Public, trả boolean |
 | POST | `/api/v1/tenant/auth/login` | Public, bắt buộc tenant |
 | GET | `/api/v1/tenant/auth/me` | Tenant user |
@@ -72,7 +72,7 @@ Request tự động:
 }
 ```
 
-Ở chế độ thủ công, superadmin chuẩn bị DB và user trước rồi bổ sung `customDbUrl`, `dbUsername`, `dbPassword`. Backend vẫn chạy Flyway và tạo admin nhưng không chạy `CREATE DATABASE`, `CREATE USER` hoặc `GRANT`.
+Ở chế độ thủ công, Workspace Admin chuẩn bị DB và user trước rồi bổ sung `customDbUrl`, `dbUsername`, `dbPassword`. Backend vẫn chạy Flyway và tạo admin nhưng không chạy `CREATE DATABASE`, `CREATE USER` hoặc `GRANT`.
 
 ## Database liên quan
 
@@ -83,7 +83,7 @@ Request tự động:
 
 ## UI mockup
 
-- `/onboard`: form superadmin có validation, trạng thái chờ và lỗi.
+- `/onboard`: form Workspace Admin có validation, trạng thái chờ và lỗi.
 - `/onboard?retry=<id>`: form retry với thông tin admin.
 - Dashboard master hiển thị thao tác Retry cho `FAILED`/`PROVISIONING`.
 - Không hiển thị mật khẩu DB hoặc mật khẩu admin mặc định.

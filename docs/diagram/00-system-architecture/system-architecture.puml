@@ -1,0 +1,110 @@
+@startuml
+title SmartHire-AI — System Architecture
+
+skinparam dpi 300
+skinparam backgroundColor #F9F9FF
+skinparam defaultFontName Arial
+skinparam defaultFontColor #191B23
+skinparam shadowing false
+skinparam roundcorner 16
+skinparam ArrowColor #505F76
+skinparam rectangle {
+  BorderColor #727785
+  BackgroundColor #FFFFFF
+}
+skinparam database {
+  BorderColor #0058BE
+  BackgroundColor #D8E2FF
+}
+skinparam queue {
+  BorderColor #924700
+  BackgroundColor #FFDCC6
+}
+skinparam cloud {
+  BorderColor #505F76
+  BackgroundColor #D3E4FE
+}
+
+left to right direction
+
+actor "Candidate" as candidate
+actor "Recruiter /\nTenant Admin" as tenantUser
+actor "Workspace\nAdmin" as platformAdmin
+
+cloud "Internet / DNS" as internet
+
+node "Google Cloud VPS" as gcp {
+  rectangle "Host Nginx\nTLS termination" as hostNginx
+
+  node "Docker Compose — edge network" as edge {
+    rectangle "Frontend container\nNginx + React 19 SPA\nReact Router · TanStack Query\nZustand · Axios" as frontend
+  }
+
+  node "Docker Compose — internal network" as internal {
+    rectangle "Spring Boot 3 / Java 21" as backend {
+      component "REST API + WebSocket" as api
+      component "JWT / RBAC / Validation" as security
+      component "Master Domain\nTenant · Subscription · Admin · Analytics" as master
+      component "Tenant Domain\nAuth · Job · Applicant · CV · Matching\nAssessment · Interview · Practice\nWorkflow · Schedule · Notification · Dashboard" as tenant
+      component "Multi-Tenant Core\nTenantWebInterceptor · TenantContext\nTenant Registry · Dynamic HikariCP Pools" as mt
+      component "Messaging Workers\nTenant-aware publisher / executor" as workers
+    }
+
+    database "PostgreSQL 16\nMaster Database\nTenant registry, encrypted DB credentials,\nplans and platform data" as masterDb
+    database "MySQL 8.4\nTenant Database A" as tenantDbA
+    database "MySQL 8.4\nTenant Database B … N" as tenantDbN
+    database "Redis 7\nCache · OTP · JWT blacklist\nsession · rate limit · locks" as redis
+    queue "RabbitMQ 3.13\nAI · grading · email · notification jobs\nX-Tenant-ID message header" as rabbit
+  }
+}
+
+cloud "External / planned integrations" as external {
+  component "AI / NLP / STT Provider" as ai <<planned>>
+  component "Object Storage\nCV · audio · video" as storage <<planned>>
+  component "Email Gateway / SMTP" as email <<planned>>
+  component "Google OAuth" as oauth <<external>>
+}
+
+candidate --> internet : HTTPS
+tenantUser --> internet : HTTPS
+platformAdmin --> internet : HTTPS
+internet --> hostNginx : TLS :443
+hostNginx --> frontend : reverse proxy
+frontend --> api : REST /api/v1\nAuthorization + X-Tenant-ID
+api --> frontend : WebSocket notifications
+
+api --> security
+security --> master : platform routes
+security --> mt : tenant routes
+mt --> tenant : validated TenantContext
+
+master --> masterDb : master JPA / Flyway
+mt --> masterDb : resolve active tenant\nand encrypted credentials
+tenant --> mt : request tenant connection
+mt --> tenantDbA : selected HikariCP pool
+mt --> tenantDbN : selected HikariCP pool
+tenant --> redis : cache / session / locks
+tenant --> rabbit : publish async jobs
+rabbit --> workers : consume (3..10 per instance)
+workers --> mt : restore and clear TenantContext
+workers --> tenantDbA : tenant-scoped transaction
+workers --> tenantDbN : tenant-scoped transaction
+
+workers ..> ai : asynchronous processing
+tenant ..> storage : object metadata / content
+workers ..> email : email delivery
+security ..> oauth : OAuth 2.0
+
+note bottom of mt
+  Database-per-tenant isolation:
+  exactly one tenant database is selected per request or job.
+  No direct cross-tenant database association is permitted.
+end note
+
+legend right
+  |= Boundary |= Responsibility |
+  | Master | SaaS landlord and tenant registry |
+  | Tenant | Recruiting data isolated per database |
+  | Dashed dependency | External/planned integration |
+endlegend
+@enduml
