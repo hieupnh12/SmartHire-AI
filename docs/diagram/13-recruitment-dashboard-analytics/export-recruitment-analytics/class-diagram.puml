@@ -1,0 +1,133 @@
+@startuml
+title FE13-F03 — Export Recruitment Analytics\nLayered target application-design viewpoint
+top to bottom direction
+skinparam dpi 300
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+skinparam ArrowColor #64748B
+skinparam ClassBorderColor #CBD5E1
+skinparam ClassBackgroundColor #F8FAFC
+skinparam InterfaceBackgroundColor #F3E8FF
+
+package "Routing & Boundary" #EFF6FF {
+  class AnalyticsExportRoute <<REST API, conceptual>> {
+    +POST /api/v1/dashboard/exports
+    +GET /api/v1/dashboard/exports/{id}
+  }
+}
+package "Controller Layer" #EFF6FF {
+  class AnalyticsExportController <<Controller>> {
+    -exportService: AnalyticsExportService
+    +createExport(request: ExportAnalyticsRequest): ApiResponse<ExportJobResponse>
+    +getExport(id: UUID): ApiResponse<ExportJobResponse>
+  }
+}
+package "Service Layer" #F0FDF4 {
+  interface AnalyticsExportService <<Service>> {
+    +requestExport(request: ExportAnalyticsRequest, principal: Principal): ExportJobResponse
+    +getExport(id: UUID, principal: Principal): ExportJobResponse
+  }
+  class AnalyticsExportServiceImpl <<Service>> {
+    -jobRepository: ExportJobRepository
+    -publisher: AnalyticsExportPublisher
+    +requestExport(request: ExportAnalyticsRequest, principal: Principal): ExportJobResponse
+    +getExport(id: UUID, principal: Principal): ExportJobResponse
+  }
+  class ExportWorker <<Rabbit Listener>> {
+    +generate(message: AnalyticsExportMessage): void
+  }
+  class AnalyticsReportBuilder <<Domain Service>> {
+    +build(snapshot: AnalyticsSnapshot, format: ExportFormat): BinaryReport
+  }
+}
+package "DTO Layer" #FFF7ED {
+  class ExportAnalyticsRequest <<Request>> {
+    +format: ExportFormat
+    +filter: AnalyticsFilterRequest
+    +metricVersion: String
+    +reportSections: Set<ReportSection>
+  }
+  class ExportJobResponse <<Response>> {
+    +id: UUID
+    +status: ExportStatus
+    +downloadUrl: URI [0..1]
+    +expiresAt: Instant [0..1]
+  }
+  class AnalyticsExportMessage <<Domain Event>> {
+    +tenantId: String
+    +exportJobId: UUID
+    +correlationId: String
+  }
+}
+package "Repository Layer" #F5F3FF {
+  interface ExportJobRepository <<Repository>> {
+    +save(job: AnalyticsExportJob): AnalyticsExportJob
+    +findAuthorized(id: UUID): Optional<AnalyticsExportJob>
+  }
+  interface AnalyticsSnapshotRepository <<Repository>> {
+    +load(filter: NormalizedAnalyticsFilter, metricVersion: String): AnalyticsSnapshot
+  }
+}
+package "Domain Entity Layer" #F0FDF4 {
+  entity AnalyticsExportJob <<Entity>> {
+    +id: UUID
+    +requestedBy: Long
+    +format: ExportFormat
+    +metricVersion: String
+    +status: ExportStatus
+    +objectKey: String [0..1]
+    +expiresAt: Instant [0..1]
+  }
+  enum ExportFormat <<Enum>> {
+    CSV
+    PDF
+  }
+  enum ExportStatus <<Enum>> {
+    QUEUED
+    PROCESSING
+    READY
+    FAILED
+    EXPIRED
+  }
+}
+package "Infrastructure & Persistence" #FEFCE8 {
+  class AnalyticsExportPublisher <<Message Publisher>> {
+    +publish(message: AnalyticsExportMessage, tenantId: String): void
+  }
+  class "RabbitMQ analytics-export.queue" as Queue <<Message Broker>>
+  class "Dedicated Tenant DB" as TenantDB <<Database>>
+  class "Private Object Storage" as Storage <<Object Storage>>
+  class "Tenant Audit Log" as Audit <<Audit Store>>
+  class TenantContext <<ThreadLocal>> {
+    +{static} getCurrentTenant(): String
+  }
+}
+
+AnalyticsExportRoute -down-> AnalyticsExportController : defines routes
+AnalyticsExportController -down-> AnalyticsExportService : delegates
+AnalyticsExportServiceImpl ..|> AnalyticsExportService : implements
+AnalyticsExportController ..> ExportAnalyticsRequest : consumes
+AnalyticsExportController ..> ExportJobResponse : returns
+AnalyticsExportServiceImpl --> ExportJobRepository : creates / reads
+AnalyticsExportServiceImpl --> AnalyticsExportPublisher : publishes
+AnalyticsExportServiceImpl ..> AnalyticsExportMessage : creates
+AnalyticsExportServiceImpl --> Audit : audits
+AnalyticsExportPublisher --> Queue : tenant header + event
+Queue --> ExportWorker : delivers
+ExportWorker --> AnalyticsSnapshotRepository : loads snapshot
+ExportWorker --> AnalyticsReportBuilder : renders
+ExportWorker --> ExportJobRepository : updates status
+ExportWorker ..> TenantContext : restores / clears
+AnalyticsReportBuilder --> Storage : writes encrypted report
+ExportJobRepository ..> AnalyticsExportJob : manages
+ExportJobRepository --> TenantDB : persists
+AnalyticsSnapshotRepository --> TenantDB : queries
+AnalyticsExportJob --> ExportFormat : typed by
+AnalyticsExportJob --> ExportStatus : has status
+note right of AnalyticsExportMessage
+  RabbitMQ header and message tenantId must match.
+end note
+@enduml

@@ -1,0 +1,107 @@
+@startuml
+title FE13-F03 — Export Recruitment Analytics
+skinparam dpi 300
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam sequenceArrowThickness 1
+skinparam ArrowColor #64748B
+skinparam ParticipantBorderColor #CBD5E1
+skinparam ParticipantBackgroundColor #F8FAFC
+hide footbox
+autonumber
+
+actor "Recruiter / Tenant Admin" as User
+boundary "Export Dialog" as FE
+control "Security + TenantWebInterceptor" as Guard
+control "TenantContext" as Context
+boundary "AnalyticsExportController" as Controller
+control "AnalyticsExportService" as Service
+database "Dedicated Tenant DB" as TenantDB
+queue "RabbitMQ Export Queue" as Queue
+control "ExportWorker + ReportBuilder" as Worker
+collections "Private Object Storage" as Storage
+database "Tenant Audit Log" as Audit
+
+User -> FE: Choose CSV/PDF and report sections
+activate FE
+FE -> Guard: POST /api/v1/dashboard/exports\nfilter + timezone + metricVersion + format
+activate Guard
+Guard -> Guard: authenticate + check EXPORT_ANALYTICS permission
+alt permission denied
+  Guard --> FE: 401 / 403
+  deactivate Guard
+  FE --> User: Show permission error
+  deactivate FE
+else permitted
+  Guard -> Context: setCurrentTenant(tenantId)
+  Guard -> Controller: forward request
+  activate Controller
+  Controller -> Service: requestExport(request, principal)
+  activate Service
+  Service -> Service: validate range, format, sections and metric version
+  alt invalid request
+    Service --> Controller: 400 INVALID_EXPORT_REQUEST
+    deactivate Service
+    Controller --> FE: error response
+    deactivate Controller
+  else valid request
+    Service -> TenantDB: create QUEUED job with immutable filter/timezone/version snapshot
+    TenantDB --> Service: exportJobId
+    Service -> Audit: record EXPORT_REQUESTED without PII payload
+    Service -> Queue: publish(message, X-Tenant-ID, correlationId)
+    Service --> Controller: ExportJobResponse(QUEUED)
+    deactivate Service
+    Controller --> FE: 202 Accepted
+    deactivate Controller
+    Guard -> Context: clear() in finally
+    deactivate Guard
+
+    Queue -> Worker: deliver export message + X-Tenant-ID
+    activate Worker
+    Worker -> Worker: validate header tenant matches message tenant
+    Worker -> Context: setCurrentTenant(tenantId)
+    Worker -> TenantDB: atomically claim QUEUED job as PROCESSING
+    alt duplicate delivery or job already terminal
+      TenantDB --> Worker: no claim
+      Worker -> Worker: acknowledge idempotently
+      Worker -> Context: clear() in finally
+      deactivate Worker
+    else claimed
+      TenantDB --> Worker: immutable export specification
+      Worker -> TenantDB: load authorized analytics snapshot using exact metric version
+      TenantDB --> Worker: AnalyticsSnapshot
+      Worker -> Worker: build UTF-8 CSV or PDF in selected timezone
+      Worker -> Storage: store encrypted private report with retention expiry
+      Storage --> Worker: objectKey
+      Worker -> TenantDB: mark READY(objectKey, expiresAt)
+      Worker -> Audit: record EXPORT_READY
+      Worker -> Context: clear() in finally
+      deactivate Worker
+    end
+
+    loop poll until terminal status
+      FE -> Guard: GET /api/v1/dashboard/exports/{id}
+      Guard -> Context: setCurrentTenant(tenantId)
+      Guard -> Controller: authorized status request
+      Controller -> Service: getExport(id, principal)
+      Service -> TenantDB: find job owned/authorized in current tenant
+      alt processing failed
+        TenantDB --> Service: FAILED with safe error code
+        Service --> FE: 200 + FAILED
+      else ready
+        TenantDB --> Service: READY + objectKey
+        Service -> Storage: create short-lived signed download URL
+        Storage --> Service: signed URL
+        Service -> Audit: record DOWNLOAD_LINK_ISSUED
+        Service --> FE: 200 + READY + URL + expiry
+      else still queued/processing
+        TenantDB --> Service: current status
+        Service --> FE: 200 + status
+      end
+      Guard -> Context: clear() in finally
+    end
+    FE --> User: Download report or show safe failure
+    deactivate FE
+  end
+end
+@enduml

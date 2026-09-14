@@ -1,0 +1,87 @@
+@startuml
+title FE-09 — Recruiter Reviews, Overrides and Shortlists
+skinparam dpi 300
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam sequenceArrowThickness 1
+skinparam ArrowColor #64748B
+skinparam ParticipantBorderColor #CBD5E1
+skinparam ParticipantBackgroundColor #F8FAFC
+hide footbox
+autonumber
+
+actor Recruiter
+boundary "React Ranking Page" as FE
+control "Tenant + JWT Security" as Security
+boundary RankingReviewController as Controller
+control RankingReviewService as Service
+control HumanDecisionPolicy as Policy
+control AuditService as Audit
+database "Dedicated Tenant DB" as DB
+
+note over Security,DB
+Preconditions: Recruiter owns the Job; ranking breakdown is available.
+Filters/sorts are read-only UI operations and never alter persisted rank.
+end note
+
+Recruiter -> FE: Open candidate breakdown and evidence
+FE -> Security: GET /applications/{id}/ranking-review
+activate Security
+Security -> Security: Validate tenant, role and Job ownership
+alt Unauthorized or cross-tenant
+  Security --> FE: 403/404 generic response
+else Authorized
+  Security -> Controller: Forward request
+  Controller -> Service: review(applicationId)
+  activate Service
+  Service -> DB: Read snapshot, sources and active override
+  DB --> Service: CandidateRankingDetail
+  Service --> Controller: Automated + effective label and reasons
+  Controller --> FE: 200 detail
+  deactivate Service
+  FE --> Recruiter: Explain score, evidence and provenance
+
+  alt Recruiter overrides advisory recommendation
+    Recruiter -> FE: Select label and enter mandatory reason
+    FE -> Controller: POST /applications/{id}/ranking-overrides
+    Controller -> Service: override(actor, id, request)
+    activate Service
+    Service -> Policy: validate role, reason and expected ranking version
+    alt Invalid reason or stale version
+      Policy --> Service: Reject
+      Service --> Controller: 400 / 409
+      Controller --> FE: Explain correction/refresh required
+    else Valid override
+      Policy --> Service: Allowed
+      Service -> DB: BEGIN; append override without changing AI snapshot
+      Service -> Audit: record before/after, actor and reason
+      Audit -> DB: INSERT immutable audit event
+      Service -> DB: COMMIT
+      Service --> Controller: Effective recommendation updated
+      Controller --> FE: 200 review result
+    end
+    deactivate Service
+  else Recruiter shortlists candidate
+    Recruiter -> FE: Confirm shortlist
+    FE -> Controller: POST /applications/{id}/shortlist
+    Controller -> Service: shortlist(actor, id, request)
+    activate Service
+    Service -> Policy: requireHumanReview(SHORTLIST, automatedLabel)
+    Policy --> Service: Allowed human decision
+    Service -> DB: Lock Application; update workflow stage/version
+    Service -> Audit: record human shortlist decision
+    Audit -> DB: INSERT immutable audit event
+    Service -> DB: COMMIT
+    Service --> Controller: Shortlisted status
+    Controller --> FE: 200 result
+    deactivate Service
+  end
+end
+Security -> Security: Clear TenantContext in finally
+deactivate Security
+
+note over Policy,DB
+Automated NOT_RECOMMENDED never invokes rejection.
+Reject is a separate authenticated workflow action with human audit evidence.
+end note
+@enduml

@@ -1,0 +1,95 @@
+@startuml
+title FE13-F01 — View Recruitment Analytics Dashboard
+skinparam dpi 300
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam sequenceArrowThickness 1
+skinparam sequenceMessageAlign center
+skinparam ArrowColor #64748B
+skinparam ParticipantBorderColor #CBD5E1
+skinparam ParticipantBackgroundColor #F8FAFC
+hide footbox
+autonumber
+
+actor "Recruiter / Tenant Admin" as User
+boundary "Recruitment Dashboard" as FE
+control "Security + TenantWebInterceptor" as Guard
+control "TenantContext" as Context
+boundary "DashboardController" as Controller
+control "DashboardAnalyticsService" as Service
+control "Timezone + Metric Services" as Rules
+collections "Redis" as Cache
+database "Dedicated Tenant DB" as TenantDB
+
+note over User,TenantDB
+  Preconditions: authenticated RECRUITER or TENANT_ADMIN; active tenant.
+  All filter IDs must belong to the current tenant. Timestamps are stored in UTC.
+end note
+
+User -> FE: Open dashboard / apply time, job, department, recruiter filters
+activate FE
+FE -> Guard: GET /api/v1/dashboard/analytics\nX-Tenant-ID + AnalyticsFilter
+activate Guard
+Guard -> Guard: authenticate and authorize role
+alt unauthenticated or unauthorized
+  Guard --> FE: 401 / 403
+  deactivate Guard
+  FE --> User: Show access error
+  deactivate FE
+else authorized
+  Guard -> Context: setCurrentTenant(tenantId)
+  Guard -> Controller: forward validated identity and request
+  activate Controller
+  Controller -> Service: getDashboard(filter, principal)
+  activate Service
+  Service -> Rules: normalize local range to UTC; validate max range/granularity
+  activate Rules
+  alt invalid date, timezone or granularity
+    Rules --> Service: validation error
+    deactivate Rules
+    Service --> Controller: 400 INVALID_ANALYTICS_FILTER
+    deactivate Service
+    Controller --> FE: error response
+    deactivate Controller
+  else valid normalized filter
+    Rules --> Service: normalizedFilter
+    deactivate Rules
+    Service -> TenantDB: verify job/department/recruiter IDs in current tenant
+    alt foreign or unknown filter
+      TenantDB --> Service: not accessible
+      Service --> Controller: 403 FILTER_OUTSIDE_TENANT_SCOPE
+      deactivate Service
+      Controller --> FE: error response
+      deactivate Controller
+    else filters accessible
+      TenantDB --> Service: valid
+      Service -> Rules: get active metric definitions
+      activate Rules
+      Rules --> Service: definitions + metricVersion
+      deactivate Rules
+      Service -> Cache: GET tenant + normalizedFilter + metricVersion
+      alt cache hit
+        Cache --> Service: DashboardResponse
+      else cache miss
+        Cache --> Service: empty
+        Service -> TenantDB: aggregate jobs, applications, stages, offers and scores
+        TenantDB --> Service: AnalyticsDataset
+        Service -> Rules: calculate KPIs, funnel, durations, distributions and trends
+        activate Rules
+        Rules --> Service: DashboardResponse
+        deactivate Rules
+        Service -> Cache: PUT response with bounded TTL
+      end
+      Service --> Controller: DashboardResponse
+      deactivate Service
+      Controller --> FE: 200 OK + dashboard analytics
+      deactivate Controller
+      FE -> FE: Render KPI cards, charts and empty states
+      FE --> User: Tenant-scoped analytics dashboard
+      deactivate FE
+    end
+  end
+  Guard -> Context: clear() in finally
+  deactivate Guard
+end
+@enduml

@@ -1,0 +1,88 @@
+@startuml
+title TENANT-16 — Workspace Admin Suspend or Reactivate Tenant
+skinparam dpi 300
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam ArrowColor #64748B
+skinparam ParticipantBorderColor #CBD5E1
+skinparam ParticipantBackgroundColor #F8FAFC
+skinparam ActorBorderColor #3B82F6
+skinparam ActorBackgroundColor #EFF6FF
+skinparam DatabaseBorderColor #94A3B8
+skinparam DatabaseBackgroundColor #F8FAFC
+hide footbox
+autonumber
+actor "Workspace Admin" as Admin
+boundary "Master Admin Dashboard" as UI
+control "Spring Security" as Security
+boundary "MasterTenantController" as Controller
+control "MasterTenantService" as Service
+database "Master PostgreSQL" as MasterDB
+control "DynamicMultiTenantConnectionProvider" as Pools
+collections "Local Hikari Pool Cache" as Cache
+
+note over Admin,Security
+  Requires WORKSPACE_ADMIN. Requested status must be ACTIVE or SUSPENDED.
+  FAILED and PROVISIONING tenants must use retry instead.
+end note
+Admin -> UI: Choose Suspend or Reactivate
+activate UI
+UI -> Security: PATCH /master/tenants/{id}/status?status=...
+activate Security
+alt Unauthenticated or unauthorized
+ Security --> UI: 401 Unauthorized / 403 Forbidden
+ deactivate Security
+ UI --> Admin: Show access error
+ deactivate UI
+else Authorized
+ Security -> Controller: Forward request
+ deactivate Security
+ activate Controller
+ Controller -> Service: updateTenantStatus(id, status)
+ activate Service
+ alt Status is not ACTIVE or SUSPENDED
+  Service --> Controller: INVALID_STATUS
+  deactivate Service
+  Controller --> UI: 400 Bad Request
+  deactivate Controller
+  UI --> Admin: Show invalid status
+  deactivate UI
+ else Allowed target status
+  Service -> MasterDB: Conditional update where current state is ACTIVE/SUSPENDED
+  activate MasterDB
+  MasterDB --> Service: Updated row count
+  deactivate MasterDB
+  alt No row updated
+   Service --> Controller: INVALID_TENANT_STATE
+   deactivate Service
+   Controller --> UI: 409 Conflict
+   deactivate Controller
+   UI --> Admin: Keep current display and show conflict
+   deactivate UI
+  else One row updated
+   Service -> MasterDB: Reload tenant by ID
+   activate MasterDB
+   MasterDB --> Service: Updated tenant metadata
+   deactivate MasterDB
+   Service -> Pools: evict(tenant.code)
+   activate Pools
+   Pools -> Cache: Remove and close local pool if present
+   activate Cache
+   Cache --> Pools: Eviction completed
+   deactivate Cache
+   Pools --> Service: Done
+   deactivate Pools
+   Service --> Controller: Updated TenantInfo
+   deactivate Service
+   Controller --> UI: 200 OK with safe TenantResponse
+   deactivate Controller
+   UI --> Admin: Refresh status display
+   deactivate UI
+  end
+ end
+end
+note over MasterDB,Cache
+  The database state is authoritative. Pool eviction is local to this backend process.
+  A transaction started before suspension may finish; new acquisitions recheck status.
+end note
+@enduml
