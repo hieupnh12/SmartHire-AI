@@ -1,0 +1,52 @@
+@startuml
+title TENANT-16 — Public Check Active Tenant\nApplication-design viewpoint
+skinparam dpi 300
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam ArrowColor #64748B
+skinparam ClassBorderColor #CBD5E1
+skinparam ClassBackgroundColor #F8FAFC
+skinparam InterfaceBackgroundColor #EFF6FF
+skinparam NoteBackgroundColor #FFF7ED
+skinparam NoteBorderColor #FDBA74
+package "Public Master API" #EFF6FF {
+ class TenantAvailabilityRoute <<REST API>> {
+  +GET /api/v1/master/tenants/check/:codeOrSubdomain
+ }
+ class MasterTenantController <<Controller>> {
+  +checkTenantExists(identifier: String): Boolean
+ }
+ class "ApiResponse of Boolean" as BooleanResponse <<Response>> {
+  +success: boolean
+  +data: Boolean
+ }
+}
+package "Master Domain" #F0FDF4 {
+ class MasterTenantService <<Service>> {
+  +checkTenantExists(identifier: String): boolean
+ }
+ interface TenantInfoRepository <<Repository>> {
+  +findByCode(code: String): Optional<TenantInfo>
+  +findBySubdomain(subdomain: String): Optional<TenantInfo>
+ }
+ class TenantInfo <<Entity>> {
+  +code: String
+  +subdomain: String
+  +status: String
+ }
+ class "Master PostgreSQL\ntenants" as MasterDB <<Database>>
+}
+TenantAvailabilityRoute ..> MasterTenantController : routes publicly
+MasterTenantController --> MasterTenantService : uses
+MasterTenantController ..> BooleanResponse : returns
+MasterTenantService --> TenantInfoRepository : queries through
+TenantInfoRepository --> TenantInfo : maps
+TenantInfoRepository --> MasterDB : reads from
+note bottom of MasterTenantService
+  Input is trimmed and lowercased.
+  Returns true only when a code or subdomain resolves to an ACTIVE tenant.
+  Blank, missing, FAILED, PROVISIONING, and SUSPENDED all return false.
+end note
+@enduml

@@ -1,0 +1,66 @@
+@startuml
+title FE13-F02 — Drill Down Recruitment Analytics
+skinparam dpi 300
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam sequenceArrowThickness 1
+skinparam ArrowColor #64748B
+skinparam ParticipantBorderColor #CBD5E1
+skinparam ParticipantBackgroundColor #F8FAFC
+hide footbox
+autonumber
+
+actor "Recruiter / Tenant Admin" as User
+boundary "Analytics Chart / Detail Drawer" as FE
+control "Security + TenantWebInterceptor" as Guard
+control "TenantContext" as Context
+boundary "DrillDownController" as Controller
+control "DrillDownService" as Service
+control "Metric + Authorization Services" as Policy
+database "Dedicated Tenant DB" as TenantDB
+
+User -> FE: Select KPI, funnel stage or chart data point
+activate FE
+FE -> Guard: GET /api/v1/dashboard/drill-down\nselection + original filter + metricVersion + page
+activate Guard
+Guard -> Guard: authenticate and authorize
+alt denied
+  Guard --> FE: 401 / 403
+  deactivate Guard
+  FE --> User: Show access error
+  deactivate FE
+else allowed
+  Guard -> Context: setCurrentTenant(tenantId)
+  Guard -> Controller: forward request
+  activate Controller
+  Controller -> Service: getDetails(request, principal)
+  activate Service
+  Service -> Policy: resolve metricCode + exact metricVersion
+  activate Policy
+  alt unsupported metric/dimension or expired version
+    Policy --> Service: invalid selection
+    deactivate Policy
+    Service --> Controller: 400 INVALID_DRILL_DOWN
+    deactivate Service
+    Controller --> FE: error response
+    deactivate Controller
+  else valid definition
+    Policy --> Service: metric predicate + visible fields
+    Service -> Policy: derive authorized data scope
+    Policy --> Service: allowed jobs + PII policy
+    deactivate Policy
+    Service -> TenantDB: paginated detail query with tenant, filter, predicate and scope
+    TenantDB --> Service: detail projections + total count
+    Service -> Service: mask fields not permitted by PII policy
+    Service --> Controller: Page<DrillDownRow>
+    deactivate Service
+    Controller --> FE: 200 OK + rows and pagination
+    deactivate Controller
+    FE -> FE: Render detail drawer/table
+    FE --> User: Explain the selected aggregate
+    deactivate FE
+  end
+  Guard -> Context: clear() in finally
+  deactivate Guard
+end
+@enduml

@@ -1,0 +1,127 @@
+@startuml
+title FE13-F01 — View Recruitment Analytics Dashboard\nLayered target application-design viewpoint
+top to bottom direction
+skinparam dpi 300
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+skinparam ArrowColor #64748B
+skinparam ClassBorderColor #CBD5E1
+skinparam ClassBackgroundColor #F8FAFC
+skinparam InterfaceBackgroundColor #F3E8FF
+
+package "Routing & Boundary" #EFF6FF {
+  class DashboardAnalyticsRoute <<REST API, conceptual>> {
+    +GET /api/v1/dashboard/analytics
+  }
+}
+package "Controller Layer" #EFF6FF {
+  class DashboardController <<Controller>> {
+    -dashboardService: DashboardAnalyticsService
+    +getDashboard(filter: AnalyticsFilterRequest): ApiResponse<DashboardResponse>
+  }
+}
+package "Service Layer" #F0FDF4 {
+  interface DashboardAnalyticsService <<Service>> {
+    +getDashboard(filter: AnalyticsFilterRequest, principal: Principal): DashboardResponse
+  }
+  class DashboardAnalyticsServiceImpl <<Service>> {
+    -repository: DashboardAnalyticsRepository
+    -metricService: MetricDefinitionService
+    -timezoneService: TimezoneService
+    -cache: DashboardCache
+    +getDashboard(filter: AnalyticsFilterRequest, principal: Principal): DashboardResponse
+  }
+  class MetricDefinitionService <<Domain Service>> {
+    +getActiveDefinitions(): MetricDefinitionSet
+    +calculate(dataset: AnalyticsDataset, definitions: MetricDefinitionSet): DashboardResponse
+  }
+  class TimezoneService <<Domain Service>> {
+    +normalize(filter: AnalyticsFilterRequest): NormalizedAnalyticsFilter
+  }
+}
+package "DTO Layer" #FFF7ED {
+  class AnalyticsFilterRequest <<Request>> {
+    +from: LocalDate
+    +to: LocalDate
+    +timezone: ZoneId
+    +granularity: TimeGranularity
+    +jobId: Long [0..1]
+    +departmentId: Long [0..1]
+    +recruiterId: Long [0..1]
+  }
+  class DashboardResponse <<Response>> {
+    +summary: SummaryMetrics
+    +stageCounts: List<StageMetric>
+    +funnel: List<FunnelStep>
+    +timing: TimingMetrics
+    +sources: List<PerformanceMetric>
+    +scoreDistributions: List<DistributionBucket>
+    +jobs: List<PerformanceMetric>
+    +recruiters: List<PerformanceMetric>
+    +trends: List<TrendPoint>
+    +metricVersion: String
+  }
+  class AnalyticsDataset <<Query Projection>> {
+    +jobs: List<JobFact>
+    +applications: List<ApplicationFact>
+    +stageTransitions: List<StageTransitionFact>
+    +offers: List<OfferFact>
+    +scores: List<ScoreFact>
+  }
+}
+package "Repository Layer" #F5F3FF {
+  interface DashboardAnalyticsRepository <<Repository>> {
+    +aggregate(filter: NormalizedAnalyticsFilter): AnalyticsDataset
+    +filtersBelongToTenant(filter: NormalizedAnalyticsFilter): boolean
+  }
+}
+package "Domain Entity Layer" #F0FDF4 {
+  class MetricDefinitionSet <<Value Object>> {
+    +version: String
+    +conversionRule: String
+    +timingRules: String
+    +offerAcceptanceRule: String
+  }
+  enum TimeGranularity <<Enum>> {
+    DAY
+    MONTH
+    QUARTER
+  }
+}
+package "Infrastructure & Persistence" #FEFCE8 {
+  interface DashboardCache <<Cache Port>> {
+    +get(key: DashboardCacheKey): Optional<DashboardResponse>
+    +put(key: DashboardCacheKey, value: DashboardResponse, ttl: Duration): void
+  }
+  class TenantContext <<ThreadLocal>> {
+    +{static} getCurrentTenant(): String
+  }
+  class "Dedicated Tenant MySQL DB" as TenantDB <<Database>>
+  class "Redis\nTenant-partitioned keys" as Redis <<Cache>>
+}
+
+DashboardAnalyticsRoute -down-> DashboardController : defines routes
+DashboardController -down-> DashboardAnalyticsService : delegates
+DashboardAnalyticsServiceImpl ..|> DashboardAnalyticsService : implements
+DashboardController ..> AnalyticsFilterRequest : consumes
+DashboardController ..> DashboardResponse : returns
+DashboardAnalyticsServiceImpl --> MetricDefinitionService : applies definitions
+DashboardAnalyticsServiceImpl --> TimezoneService : normalizes range
+DashboardAnalyticsServiceImpl --> DashboardAnalyticsRepository : queries aggregates
+DashboardAnalyticsServiceImpl --> DashboardCache : reads / writes
+DashboardAnalyticsServiceImpl ..> TenantContext : requires tenant
+DashboardAnalyticsServiceImpl ..> DashboardResponse : creates
+MetricDefinitionService --> MetricDefinitionSet : owns version
+MetricDefinitionService ..> AnalyticsDataset : calculates from
+DashboardAnalyticsRepository ..> AnalyticsDataset : returns
+DashboardAnalyticsRepository --> TenantDB : current tenant only
+DashboardCache --> Redis : tenant + filter + version key
+AnalyticsFilterRequest --> TimeGranularity : typed by
+note right of TenantDB
+  Recruitment facts belong only to the database selected
+  by TenantContext. Timestamps are stored in UTC.
+end note
+@enduml

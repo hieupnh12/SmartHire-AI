@@ -1,0 +1,59 @@
+@startuml
+title TENANT-16 — Public Check Active Tenant
+skinparam dpi 300
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam ArrowColor #64748B
+skinparam ParticipantBorderColor #CBD5E1
+skinparam ParticipantBackgroundColor #F8FAFC
+skinparam ActorBorderColor #3B82F6
+skinparam ActorBackgroundColor #EFF6FF
+skinparam DatabaseBorderColor #94A3B8
+skinparam DatabaseBackgroundColor #F8FAFC
+hide footbox
+autonumber
+actor "Guest or Client Application" as Client
+boundary "Login / Tenant Resolver UI" as UI
+control "Spring Security" as Security
+boundary "MasterTenantController" as Controller
+control "MasterTenantService" as Service
+database "Master PostgreSQL" as MasterDB
+note over Client,Security
+  This GET endpoint is public. It exposes only a boolean and never returns
+  tenant connection credentials or detailed tenant metadata.
+end note
+Client -> UI: Enter or resolve tenant code/subdomain
+activate UI
+UI -> Security: GET /master/tenants/check/{identifier}
+activate Security
+Security -> Controller: Permit public request
+deactivate Security
+activate Controller
+Controller -> Service: checkTenantExists(identifier)
+activate Service
+Service -> Service: Reject blank; trim and lowercase otherwise
+alt Identifier is blank
+ Service --> Controller: false
+else Non-blank identifier
+ Service -> MasterDB: Find by code
+ activate MasterDB
+ MasterDB --> Service: Optional tenant
+ deactivate MasterDB
+ alt Code not found
+  Service -> MasterDB: Find by subdomain
+  activate MasterDB
+  MasterDB --> Service: Optional tenant
+  deactivate MasterDB
+ end
+ alt Tenant found and status is ACTIVE
+  Service --> Controller: true
+ else Missing or not ACTIVE
+  Service --> Controller: false
+ end
+end
+deactivate Service
+Controller --> UI: 200 OK, ApiResponse<Boolean>
+deactivate Controller
+UI --> Client: Continue tenant login or show unavailable
+deactivate UI
+@enduml

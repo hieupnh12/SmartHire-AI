@@ -1,0 +1,133 @@
+@startuml
+title FE13-F02 — Drill Down Recruitment Analytics\nLayered target application-design viewpoint
+top to bottom direction
+
+skinparam dpi 300
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 10
+skinparam linetype ortho
+skinparam ArrowColor #64748B
+skinparam ClassBorderColor #CBD5E1
+skinparam ClassBackgroundColor #F8FAFC
+skinparam InterfaceBackgroundColor #F3E8FF
+
+package "Routing & Boundary" #EFF6FF {
+  class DrillDownRoute <<REST API, conceptual>> {
+    +GET /api/v1/dashboard/drill-down
+  }
+}
+
+package "Controller Layer" #EFF6FF {
+  class DrillDownController <<Controller>> {
+    -drillDownService: DrillDownService
+    +getDetails(request: DrillDownRequest): ApiResponse<Page<DrillDownRow>>
+  }
+}
+
+package "Service Layer" #F0FDF4 {
+  interface DrillDownService <<Service>> {
+    +getDetails(request: DrillDownRequest, principal: Principal): Page<DrillDownRow>
+  }
+
+  class DrillDownServiceImpl <<Service>> {
+    -drillDownRepository: DrillDownRepository
+    -tenantContext: TenantContext
+    +getDetails(request: DrillDownRequest, principal: Principal): Page<DrillDownRow>
+  }
+}
+
+package "DTO Layer" #FFF7ED {
+  class DrillDownRequest <<Request>> {
+    +metricCode: String
+    +dimension: String
+    +dimensionValue: String
+    +from: LocalDate
+    +to: LocalDate
+    +timezone: ZoneId
+    +metricVersion: String
+    +page: int
+    +size: int
+  }
+
+  class DrillDownRow <<Response>> {
+    +jobId: Long
+    +jobTitle: String
+    +applicationId: Long [0..1]
+    +candidateDisplayName: String [0..1]
+    +stage: String [0..1]
+    +occurredAt: OffsetDateTime
+    +value: Decimal [0..1]
+  }
+}
+
+package "Repository Layer" #F5F3FF {
+  interface DrillDownRepository <<Repository>> {
+    +findDetails(request: DrillDownRequest, allowedJobIds: Set<Long>): Page<Application>
+  }
+}
+
+package "Domain Entity Layer" #F0FDF4 {
+  entity Application <<Entity>> {
+    -id: Long
+    -status: ApplicationStatus
+    -source: String
+    -createdAt: Instant
+    +getStage(): RecruitmentStage
+  }
+
+  entity Job <<Entity>> {
+    -id: Long
+    -title: String
+    -status: JobStatus
+  }
+
+  entity RecruitmentStage <<Entity>> {
+    -id: Long
+    -name: String
+    -sortOrder: int
+  }
+}
+
+package "Infrastructure & Persistence" #FEFCE8 {
+  class "Dedicated Tenant MySQL DB" as TenantDB <<Database>> {
+    +jobs
+    +applications
+    +recruitment_stages
+    +application_status_history
+  }
+
+  class TenantContext <<ThreadLocal>> {
+    +{static} getCurrentTenant(): String
+  }
+}
+
+DrillDownRoute -down-> DrillDownController : defines routes
+DrillDownController -down-> DrillDownService : delegates
+DrillDownService -[hidden]down-> DrillDownServiceImpl
+DrillDownServiceImpl ..up|> DrillDownService : implements
+
+DrillDownController ..> DrillDownRequest : consumes
+DrillDownController ..> DrillDownRow : returns
+DrillDownServiceImpl ..> DrillDownRequest : processes
+DrillDownServiceImpl ..> DrillDownRow : creates
+DrillDownServiceImpl -down-> DrillDownRepository : queries details
+DrillDownServiceImpl --> TenantContext : enforces tenant scope
+
+DrillDownRepository -down-> Application : manages
+Application "0..*" --> "1" Job : belongs to
+Application "0..*" --> "0..1" RecruitmentStage : currently at
+Application --> TenantDB : persists to
+Job --> TenantDB : persists to
+RecruitmentStage --> TenantDB : persists to
+
+DrillDownRequest -[hidden]right-> DrillDownRow
+Job -[hidden]right-> RecruitmentStage
+TenantDB -[hidden]right-> TenantContext
+
+note right of DrillDownServiceImpl
+  Reuses the dashboard filter, timezone and metric version.
+  Applies role scope and masks candidate PII before returning rows.
+end note
+@enduml

@@ -1,0 +1,90 @@
+@startuml
+title TENANT-16 — Workspace Admin Retry Tenant Provisioning\nApplication-design viewpoint
+skinparam dpi 300
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam ArrowColor #64748B
+skinparam ClassBorderColor #CBD5E1
+skinparam ClassBackgroundColor #F8FAFC
+skinparam InterfaceBackgroundColor #EFF6FF
+skinparam NoteBackgroundColor #FFF7ED
+skinparam NoteBorderColor #FDBA74
+
+package "Master API" #EFF6FF {
+  class RetryProvisioningRoute <<REST API>> {
+    +POST /api/v1/master/tenants/:id/retry
+  }
+  class MasterTenantController <<Controller>> {
+    +retry(id: Long, request: TenantAdminRequest): TenantResponse
+  }
+  class TenantAdminRequest <<Request>> {
+    +adminName: String
+    +adminEmail: String
+    +adminPassword: String [write-only]
+  }
+  class TenantResponse <<Response>> {
+    +id: Long
+    +code: String
+    +name: String
+    +subdomain: String
+    +dbName: String
+    +status: String
+  }
+}
+package "Master Domain" #F0FDF4 {
+  class MasterTenantService <<Service>> {
+    +retryProvisioning(id: Long, request: TenantAdminRequest): TenantInfo
+  }
+  interface TenantInfoRepository <<Repository>> {
+    +findById(id: Long): Optional<TenantInfo>
+    +saveAndFlush(tenant: TenantInfo): TenantInfo
+  }
+  class TenantInfo <<Entity>> {
+    +id: Long
+    +code: String
+    +dbName: String
+    +managedDatabase: boolean
+    +status: String
+  }
+  class "Master PostgreSQL\ntenants + advisory lock" as MasterDB <<Database>>
+}
+package "Tenant Provisioning" #FFF7ED {
+  class TenantProvisioningService <<Service>> {
+    +provision(id: Long, admin: TenantAdminRequest): TenantInfo
+    -createDatabaseAndUser(tenant: TenantInfo): void
+    -seedAdmin(dataSource, admin): void
+  }
+  class TenantDataSourceFactory <<Infrastructure>> {
+    +create(tenant: TenantInfo): DataSource
+    +migrate(dataSource): void
+  }
+}
+package "Tenant Domain" #FDF4FF {
+  class "Dedicated Tenant MySQL\nusers + Flyway history" as TenantDB <<Database>>
+}
+
+RetryProvisioningRoute ..> MasterTenantController : routes
+MasterTenantController ..> TenantAdminRequest : receives
+MasterTenantController --> MasterTenantService : uses
+MasterTenantController ..> TenantResponse : returns
+MasterTenantService --> TenantInfoRepository : verifies through
+MasterTenantService --> TenantProvisioningService : retries through
+TenantProvisioningService --> TenantInfoRepository : updates status
+TenantInfoRepository --> TenantInfo : manages
+TenantInfoRepository --> MasterDB : persists in
+TenantProvisioningService --> MasterDB : locks tenant session
+TenantProvisioningService --> TenantDataSourceFactory : creates and migrates
+TenantDataSourceFactory --> TenantDB : connects to
+TenantProvisioningService --> TenantDB : idempotently seeds admin
+
+note bottom of TenantInfo
+  Retry is allowed only from FAILED or PROVISIONING.
+  Final state is ACTIVE or FAILED.
+end note
+note bottom of TenantDB
+  Partial resources are retained. Existing TENANT_ADMIN
+  with the same email is preserved; customer data is never dropped.
+end note
+@enduml
