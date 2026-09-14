@@ -178,3 +178,7 @@ Khi AI implement xong một phần: đổi status tương ứng và ghi chú com
 - Code, identifier, commit message: **English**
 - Tài liệu sản phẩm trong `docs/`: **Tiếng Việt** (trừ khi team quy định khác)
 - Comment trong code: English, ngắn gọn, chỉ khi cần
+
+## 10. Phong cách sơ đồ kiến trúc đã lưu
+
+Chỉ khi tạo hoặc chỉnh **System Architecture**, **Package Diagram** hoặc **Database Design / ERD**, đọc và áp dụng skill [architecture-diagram-style](.agents/skills/architecture-diagram-style/SKILL.md). Đây là phong cách người dùng đã chọn: nền trắng, màu phân biệt thành phần, đường nối đậm, PNG tối thiểu 300 DPI. Mặc định chỉ xuất PNG; yêu cầu mới của người dùng được ưu tiên. Không áp dụng quy ước này cho UI, banner, slide, class diagram hoặc sequence diagram.

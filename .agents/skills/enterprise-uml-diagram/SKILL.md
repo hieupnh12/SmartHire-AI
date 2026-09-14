@@ -25,8 +25,8 @@ The two `.puml` files and `README.md` are mandatory. Rendered SVG or PNG files a
 1. Read repository instructions, `DESIGN.md`, the matching `docs/features` document, API contracts, relevant code, migrations, and existing diagrams before editing.
 2. Confirm the feature directory and define the function boundary, actors, trigger, preconditions, success result, and important failure results. If either the feature or its specific function is ambiguous, follow the clarification policy and obtain the user's choice before creating files.
 3. Apply the clarification policy below before creating files.
-4. Read [references/class-diagram-rules.md](references/class-diagram-rules.md) before creating or reviewing the class diagram.
-5. Read [references/sequence-diagram-rules.md](references/sequence-diagram-rules.md) before creating or reviewing the sequence diagram.
+4. Read [references/class-diagram-rules.md](references/class-diagram-rules.md) before creating or reviewing the class diagram. Use its concise graduation-project application-design view by default; expand to a domain, persistence, or enterprise implementation view only when explicitly requested or materially necessary.
+5. Read [references/sequence-diagram-rules.md](references/sequence-diagram-rules.md) before creating or reviewing the sequence diagram. Use its concise graduation-project detail level by default and hide the duplicated bottom participant row; expand to an enterprise implementation view only when explicitly requested or materially necessary.
 6. Read [references/enterprise-review.md](references/enterprise-review.md) for every task and apply all relevant checks.
 7. Create or update both mandatory `.puml` files and the `README.md`. Preserve unrelated user changes.
 8. Cross-check names, responsibilities, relationships, messages, states, data ownership, and tenant boundaries across both diagrams and the source contracts.
@@ -76,14 +76,14 @@ Document at least:
 - Actors and participating components
 - Preconditions and postconditions
 - Main flow and alternative/error flows
-- Class diagram explanation
-- Sequence diagram explanation
+- Sequence participant responsibilities and a numbered walkthrough of every meaningful interaction or tightly related interaction group. Explain what each step does, why it exists when the reason is not obvious, what data or state changes, and the entry/outcome conditions of every `alt`, `opt`, `loop`, or `par` fragment.
+- Class diagram element responsibilities, including why each class/interface/DTO/entity/database appears. Explain every connector by naming its UML relationship or dependency type, its source and target, what it means in this use case, and why that connector is appropriate. Explicitly explain inheritance, realization, aggregation, composition, association, and dependency whenever used.
 - Applicable multi-tenant, security, transaction, async, audit, and privacy decisions
 - Assumptions and unresolved decisions
 - Rendering instructions and generated artifacts
 - Review status: `Source complete — awaiting rendering decision`, `Complete`, `Complete with assumptions`, or `Blocked by missing contract`
 
-Use precise explanations. Do not repeat every message or class mechanically.
+Use precise explanations. Do not merely transcribe labels from the diagrams: connect each element and interaction to its responsibility, condition, state change, or design rationale. Adjacent trivial return messages may be explained with their initiating call when that is clearer, but no meaningful step or connector may remain unexplained.
 
 ## Rendering and image quality
 

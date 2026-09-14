@@ -1,0 +1,156 @@
+@startuml
+title SmartHire-AI — Package Diagram
+
+skinparam dpi 300
+skinparam backgroundColor #F9F9FF
+skinparam defaultFontName Arial
+skinparam defaultFontColor #191B23
+skinparam shadowing false
+skinparam roundcorner 12
+skinparam packageStyle rectangle
+skinparam ArrowColor #505F76
+skinparam package {
+  BorderColor #727785
+  BackgroundColor #FFFFFF
+}
+
+top to bottom direction
+
+package "frontend/src" as fe #F2F3FD {
+  package "app" as feApp
+  package "features.master" as feMaster
+  package "features.tenant" as feTenant
+  package "api.master" as apiMaster
+  package "api.tenant" as apiTenant
+  package "components" as feComponents
+  package "hooks + stores" as feState
+  package "lib" as feLib
+  package "styles + i18n + types" as feSupport
+}
+
+package "backend — com.smarthire" as be #E6E7F2 {
+  package "config" as config
+  package "security" as security
+  package "common" as common {
+    package "api" as commonApi
+    package "exception" as commonException
+    package "redis" as commonRedis
+  }
+
+  package "master" as master #D3E4FE {
+    package "admin" as masterAdmin
+    package "tenant" as masterTenant
+    package "subscription" as masterSubscription
+    package "analytics" as masterAnalytics
+  }
+
+  package "tenant" as tenant #D8E2FF {
+    package "auth" as tenantAuth
+    package "job" as tenantJob
+    package "applicant" as tenantApplicant
+    package "cv" as tenantCv
+    package "matching" as tenantMatching
+    package "assessment" as tenantAssessment
+    package "interview" as tenantInterview
+    package "practice" as tenantPractice
+    package "workflow" as tenantWorkflow
+    package "schedule" as tenantSchedule
+    package "notification" as tenantNotification
+    package "dashboard" as tenantDashboard
+  }
+
+  package "domain" as domain #FFFFFF {
+    package "master.entity + repository" as domainMaster
+    package "tenant.entity + repository" as domainTenant
+    package "enums" as domainEnums
+  }
+
+  package "multitenancy" as multitenancy #FFDCC6 {
+    package "context" as mtContext
+    package "interceptor" as mtInterceptor
+    package "resolver" as mtResolver
+    package "datasource" as mtDatasource
+    package "service" as mtService
+  }
+
+  package "messaging" as messaging #FFE9DA
+}
+
+package "Infrastructure" as infra #FFFFFF {
+  database "PostgreSQL\nMaster DB" as postgres
+  database "MySQL\nTenant DB per company" as mysql
+  database "Redis" as redis
+  queue "RabbitMQ" as rabbit
+}
+
+feApp --> feMaster : routes / providers
+feApp --> feTenant : role-protected routes
+feMaster --> apiMaster
+feTenant --> apiTenant
+feMaster --> feComponents
+feTenant --> feComponents
+feMaster --> feState
+feTenant --> feState
+apiMaster --> feLib : Axios base client
+apiTenant --> feLib : Axios + X-Tenant-ID
+feApp --> feSupport
+feComponents --> feSupport
+
+apiMaster ..> master : HTTPS / platform API
+apiTenant ..> tenant : HTTPS / tenant API
+
+config --> security
+config --> multitenancy
+config --> commonRedis
+config --> messaging
+
+security --> commonException
+security --> mtContext : validates token tenant
+
+master --> domainMaster
+master --> commonApi
+master --> commonException
+masterTenant --> mtService : provision / registry
+masterTenant --> mtDatasource : evict tenant pool
+
+tenant --> domainTenant
+tenant --> domainEnums
+tenant --> commonApi
+tenant --> commonException
+tenant --> commonRedis
+tenant --> messaging : publish async work
+tenant --> mtContext : current tenant
+
+mtInterceptor --> mtService : require active tenant
+mtInterceptor --> mtContext : set / clear
+mtResolver --> mtContext : resolve identifier
+mtDatasource --> mtService : load DB credentials
+messaging --> mtService : validate job tenant
+messaging --> mtContext : restore / clear
+messaging --> tenantCv : worker callback
+
+domainMaster --> postgres : master JPA
+mtService --> domainMaster : tenant registry
+mtDatasource --> mysql : dynamic HikariCP pools
+domainTenant --> mysql : tenant JPA
+commonRedis --> redis
+messaging --> rabbit
+
+note right of domainMaster
+  Master and tenant persistence use separate
+  entity managers and transaction managers.
+end note
+
+note right of mtDatasource
+  Selects one physical MySQL database from
+  TenantContext; packages must not bypass it.
+end note
+
+legend right
+  |= Relation |= Meaning |
+  | solid arrow | compile-time/runtime dependency |
+  | dashed arrow | network/API dependency |
+  | blue package | master or tenant business boundary |
+  | orange package | tenant isolation / async boundary |
+endlegend
+@enduml

@@ -4,7 +4,7 @@
 
 Chức năng này mô tả cách Super Admin đăng ký và cấp phát đồng bộ một tenant doanh nghiệp. Phạm vi gồm validation, đăng ký trong master registry, thiết lập MySQL tự động hoặc thủ công, chạy Flyway, tạo `TENANT_ADMIN` đầu tiên, kích hoạt tenant và xử lý lỗi quan trọng.
 
-Class diagram sử dụng **góc nhìn thiết kế ứng dụng**. Sơ đồ chỉ gồm API, application service, persistence boundary, thành phần bảo mật và hai kho dữ liệu vật lý cần thiết cho chức năng; đây không phải sơ đồ đầy đủ của toàn hệ thống.
+Class diagram sử dụng **góc nhìn thiết kế ứng dụng** ở mức phù hợp cho đồ án tốt nghiệp. Sơ đồ tập trung vào route, DTO, controller, service, repository, entity và ranh giới hai kho dữ liệu; các lớp hạ tầng như mã hóa credential, datasource factory, Flyway và password encoder được lược khỏi class diagram chính.
 
 ## Nguồn đã đối chiếu
 
@@ -60,9 +60,82 @@ Provisioning tiếp tục bằng session-level advisory lock theo tenant ID. Ch�
 
 ## Giải thích sơ đồ
 
-`class-diagram.puml` thể hiện trách nhiệm ứng dụng và ranh giới sở hữu master/tenant. `TenantInfo` chỉ thuộc master database. Tài khoản quản trị đầu tiên chỉ thuộc tenant database riêng; không có entity association hoặc foreign key xuyên database.
+### Sequence diagram
 
-`sequence-diagram.puml` theo dõi request từ Super Admin tới `201 Created`, gồm các nhánh security, validation, uniqueness, provisioning lock, hai chế độ database, ranh giới transaction, ghi nhận thất bại và kết quả `503`.
+#### Vai trò các thành phần
+
+| Thành phần | Trách nhiệm trong luồng |
+|---|---|
+| `Super Admin` | Khởi tạo yêu cầu tạo doanh nghiệp và nhận kết quả cuối cùng. |
+| `Tenant Onboarding UI` | Thu thập dữ liệu tenant/admin, gửi HTTP request và hiển thị thành công hoặc lỗi. |
+| `Spring Security` | Xác thực JWT và chỉ cho phép người dùng có quyền `SUPER_ADMIN` đi vào API quản trị. |
+| `MasterTenantController` | Biên HTTP của backend; nhận DTO, chạy Bean Validation, gọi service và ánh xạ kết quả sang HTTP response. |
+| `MasterTenantService` | Thực thi quy tắc đăng ký tenant, kiểm tra định danh, lưu trạng thái vòng đời và điều phối provisioning. |
+| `Master PostgreSQL` | Lưu registry của tenant và các trạng thái `PROVISIONING`, `ACTIVE`, `FAILED`. |
+| `TenantProvisioningService` | Điều phối việc chuẩn bị database riêng, migration schema và tạo quản trị viên đầu tiên. |
+| `MySQL Server` | Tạo database/user riêng ở chế độ managed hoặc cung cấp kết nối tới database đã chuẩn bị trước. |
+| `Flyway` | Đưa schema của tenant về đúng phiên bản migration trước khi ghi dữ liệu nghiệp vụ. |
+| `Dedicated Tenant DB` | Lưu schema và dữ liệu của đúng một tenant, bao gồm tài khoản `TENANT_ADMIN`. |
+
+#### Diễn giải từng bước
+
+1. `Super Admin → Tenant Onboarding UI`: người quản trị nhập thông tin tenant và admin đầu tiên. Đây là dữ liệu đầu vào của use case.
+2. `Tenant Onboarding UI → Spring Security`: UI gửi `POST /api/v1/master/tenants/onboard`. Request đi qua security trước controller để quyền được kiểm tra tại biên tin cậy của backend.
+3. Nhánh `Unauthenticated or insufficient permission`: request thiếu/sai xác thực nhận `401`, còn người đã đăng nhập nhưng thiếu quyền nhận `403`; UI dừng luồng và hiển thị lỗi truy cập.
+4. Nhánh `Authorized Super Admin`: Spring Security chuyển request hợp lệ cho `MasterTenantController`.
+5. `MasterTenantController → MasterTenantController`: controller chạy validation cho DTO. Nếu dữ liệu sai định dạng, nhánh `Invalid request` trả `400` và không gọi service hoặc truy cập database.
+6. Nhánh `Valid request`: controller gọi `MasterTenantService.onboardTenant(request)` để chuyển xử lý nghiệp vụ ra khỏi tầng HTTP.
+7. `MasterTenantService ↔ Master PostgreSQL`: service kiểm tra `code` và `subdomain`. Kết quả quyết định tenant có thể được đăng ký hay không.
+8. Nhánh `Tenant identity already exists`: service trả xung đột, controller ánh xạ thành `409`, UI thông báo định danh tenant bị trùng; không tạo database mới.
+9. Nhánh `Tenant identity is available`: service lưu tenant với trạng thái `PROVISIONING`. Trạng thái trung gian cho biết registry đã tồn tại nhưng database riêng chưa sẵn sàng; Master DB trả lại `tenantId` để provisioning xử lý đúng bản ghi.
+10. `MasterTenantService → TenantProvisioningService`: service yêu cầu cấp phát database và tạo admin đầu tiên cho tenant vừa đăng ký.
+11. Nhánh `Managed database`: hệ thống tạo database và database user có phạm vi quyền riêng cho tenant. Nhánh `Pre-provisioned database` dùng database do Super Admin chuẩn bị sẵn; cả hai nhánh phải kết thúc bằng một kết nối tenant hợp lệ.
+12. `TenantProvisioningService → Flyway → Dedicated Tenant DB`: Flyway áp dụng migration. Bước này phải hoàn tất trước khi tạo admin để bảng `users` và các ràng buộc schema chắc chắn tồn tại.
+13. `TenantProvisioningService ↔ Dedicated Tenant DB`: hệ thống tạo `TENANT_ADMIN` đầu tiên và nhận xác nhận. Mật khẩu được lưu dưới dạng hash, nhưng chi tiết bộ mã hóa được lược khỏi sơ đồ chính.
+14. `TenantProvisioningService → MasterTenantService`: trả kết quả tổng hợp của quá trình provisioning để service quyết định trạng thái cuối.
+15. Nhánh `Provisioning failed`: Master DB được cập nhật thành `FAILED`; API trả `503` và UI thông báo lỗi. Trạng thái này giúp phân biệt lỗi cấp phát với lỗi validation và cho phép xử lý retry ở use case riêng.
+16. Nhánh `Provisioning succeeded`: service cập nhật tenant thành `ACTIVE`; controller trả `201 Created` cùng metadata an toàn và UI xác nhận tenant đã sẵn sàng.
+
+Hai database không nằm trong một distributed transaction. Vì vậy, trạng thái trong Master PostgreSQL là điểm theo dõi nhất quán khi một bước provisioning ở Tenant MySQL thất bại.
+
+### Class diagram
+
+#### Vai trò các thành phần
+
+| Thành phần | Loại | Vai trò |
+|---|---|---|
+| `TenantOnboardingRoute` | `<<REST API>>` conceptual | Công khai method/path của use case; không phải class Java thực tế. |
+| `MasterTenantController` | `<<Controller>>` | Nhận request, validation, gọi service và tạo response HTTP. |
+| `OnboardTenantRequest` | `<<Request>>` | Mang dữ liệu nhận diện tenant và cấu hình database tùy chọn. |
+| `TenantAdminRequest` | `<<Request>>` | Mang thông tin quản trị viên đầu tiên; là phần dữ liệu chung có thể tái sử dụng cho onboarding và retry. |
+| `TenantResponse` | `<<Response>>` | Chỉ trả metadata an toàn; không trả URL, username hoặc password database. |
+| `MasterTenantService` | `<<Service>>` | Thực thi quy tắc đăng ký tenant và điều phối provisioning. |
+| `TenantInfoRepository` | `<<Repository>>` | Cung cấp persistence boundary cho `TenantInfo`, che giấu chi tiết truy vấn Master DB. |
+| `TenantInfo` | `<<Entity>>` | Đại diện tenant trong registry nền tảng và giữ trạng thái vòng đời provisioning. |
+| `Master PostgreSQL` | `<<Database>>` | Sở hữu bảng `tenants` và metadata cấp nền tảng. |
+| `TenantProvisioningService` | `<<Service>>` | Chuẩn bị database riêng và tạo admin đầu tiên; chi tiết Hikari, encryption và Flyway wrapper được ẩn ở mức sơ đồ này. |
+| `TenantAdmin` | `<<Entity>>` | Đại diện tài khoản quản trị đầu tiên thuộc database tenant. |
+| `Dedicated Tenant MySQL` | `<<Database>>` | Kho dữ liệu vật lý riêng của một tenant. |
+
+#### Giải thích các đường nối
+
+| Nguồn → đích | Ký pháp | Loại quan hệ và lý do sử dụng |
+|---|---|---|
+| `TenantOnboardingRoute → MasterTenantController` | `..>` | **Dependency**: route chuyển request tới controller nhưng không sở hữu vòng đời controller. Đường nét đứt phù hợp với quan hệ sử dụng conceptual. |
+| `MasterTenantController → OnboardTenantRequest` | `..>` | **Dependency**: controller nhận DTO làm tham số. DTO chỉ được dùng trong lời gọi, không phải thành phần được controller sở hữu. |
+| `MasterTenantController → MasterTenantService` | `-->` | **Directed association**: controller giữ service như một collaborator được inject và gọi lâu dài, vì vậy dùng đường liền có hướng. |
+| `MasterTenantController → TenantResponse` | `..>` | **Dependency**: controller tạo/trả response DTO cho API nhưng không quản lý vòng đời domain của DTO. |
+| `OnboardTenantRequest → TenantAdminRequest` | `--|>` | **Generalization/inheritance**: code thực tế khai báo `OnboardTenantRequest extends TenantAdminRequest`, nên onboarding kế thừa các trường admin dùng chung. |
+| `MasterTenantService → OnboardTenantRequest` | `..>` | **Dependency**: request được dùng làm đầu vào của operation `onboardTenant`, không phải entity được service sở hữu. |
+| `MasterTenantService → TenantInfoRepository` | `-->` | **Directed association**: repository là dependency được inject và được service sử dụng để kiểm tra/lưu tenant. |
+| `MasterTenantService → TenantProvisioningService` | `-->` | **Directed association**: service chính giữ provisioning service như collaborator để hoàn tất use case sau khi đăng ký tenant. |
+| `TenantInfoRepository → TenantInfo` | `-->` | **Navigable association**: repository quản lý và trả về entity `TenantInfo`; hướng nối thể hiện repository biết kiểu entity được persistence. |
+| `TenantInfoRepository → Master PostgreSQL` | `-->` | **Directed association tới data store**: mọi thao tác repository của `TenantInfo` được lưu trong Master DB, làm rõ quyền sở hữu dữ liệu. |
+| `TenantProvisioningService → TenantInfo` | `..>` | **Dependency**: provisioning đọc metadata tenant để chuẩn bị database nhưng không sở hữu entity master. |
+| `TenantProvisioningService → Dedicated Tenant MySQL` | `-->` | **Directed association tới data store**: service chủ động chuẩn bị schema và ghi admin vào database riêng. |
+| `Dedicated Tenant MySQL → TenantAdmin` | `*--` | **Composition**: `TenantAdmin` thuộc hoàn toàn về database tenant; không tồn tại trong Master DB và không được dùng chung giữa các tenant. Hình thoi đặc nhấn mạnh quyền sở hữu vòng đời/dữ liệu. |
+
+Sơ đồ không vẽ quan hệ trực tiếp giữa `TenantInfo` và `TenantAdmin` vì chúng nằm ở hai database vật lý, không có foreign key hoặc entity association xuyên database.
 
 ## Quyết định kiến trúc, bảo mật và vận hành
 
@@ -99,4 +172,4 @@ Lần kiểm tra ngày 2026-09-11 sử dụng PlantUML 1.2026.8. Cả hai file `
 
 ## Trạng thái review
 
-**Complete with assumptions** — sơ đồ đã được đối chiếu với contract và implementation, syntax validation thành công, SVG/PNG đã được kiểm tra. Các giả định còn lại được ghi rõ ở trên.
+**Source complete — awaiting rendering decision** — nguồn PlantUML rút gọn đã được đối chiếu với contract và vượt qua syntax validation. Các ảnh SVG/PNG hiện có là bản render trước khi rút gọn và chỉ được tạo lại khi người dùng đồng ý.
