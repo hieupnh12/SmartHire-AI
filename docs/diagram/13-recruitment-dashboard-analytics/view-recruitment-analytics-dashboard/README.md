@@ -39,9 +39,9 @@ Recruiter hoặc Tenant Admin xem KPI, số ứng viên theo stage, funnel, th�
 
 - `DashboardAnalyticsRoute` là boundary khái niệm và có **dependency** `defines routes` tới controller; nó mô tả endpoint chứ không khẳng định tồn tại route class riêng trong Spring.
 - Controller **dependency** vào request/response DTO và **association** tới `DashboardAnalyticsService`: validate boundary rồi ủy quyền.
-- `DashboardAnalyticsServiceImpl` **realization** (`implements`) `DashboardAnalyticsService`, đồng thời có **association** tới timezone, metric, repository và cache vì điều phối các collaborator lâu dài.
-- `MetricDefinitionService` **association** tới `MetricDefinitionSet`: quản lý bộ công thức có version; service **dependency** vào `AnalyticsDataset` để tính response.
-- `DashboardAnalyticsRepository` và `DashboardCache` là interface/port. Repository **association** tới dedicated Tenant DB; cache **association** tới Redis.
+- `DashboardAnalyticsServiceImpl` **realization** (`implements`) `DashboardAnalyticsService`, đồng thời có **association** tới repository, cache và `TenantContext`. Timezone normalization và metric definition được giữ như trách nhiệm của implementation/note để Service Layer không bị kéo ngang.
+- `DashboardAnalyticsRepository` và `DashboardCache` là interface/port. Repository tổng hợp các entity tuyển dụng trong dedicated Tenant DB; cache **association** tới Redis.
+- `Job` có **association** một-nhiều với `Application`; application có thể ở một `RecruitmentStage` và nhận nhiều `Offer`. Đây là dữ liệu nghiệp vụ tạo nên dashboard metrics.
 - Không dùng inheritance, aggregation hoặc composition vì không có quan hệ sở hữu vòng đời phù hợp; realization chỉ dùng cho service contract và implementation.
 
 ## Quyết định metric và dữ liệu

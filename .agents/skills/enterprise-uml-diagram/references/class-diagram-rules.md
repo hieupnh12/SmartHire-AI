@@ -59,7 +59,9 @@ Prefer orthogonal connectors and the following approved layered layout:
 
 A small number of horizontal infrastructure connections is acceptable. If the diagram still becomes excessively wide, move secondary infrastructure or detailed projections to an appendix instead of shrinking the entire diagram.
 
-Use compact PlantUML visibility icons in the default layered view (`skinparam classAttributeIconSize 10`). Keep UML visibility markers in member declarations so PlantUML renders public members as small green circular icons and private members as small red square icons, matching the approved reference appearance. Use text-only `+` and `-` markers only when the user explicitly requests a plain notation style.
+Use compact but clearly visible PlantUML visibility icons in the default layered view (`skinparam classAttributeIconSize 12`). Keep UML visibility markers in member declarations so PlantUML renders public members as green circular icons and private members as red square icons, matching the approved reference appearance. Use text-only `+` and `-` markers only when the user explicitly requests a plain notation style.
+
+Use high-contrast structural styling by default: dark slate connector lines, visibly stronger class/package borders, and near-black member text on light backgrounds. A recommended PlantUML baseline is `ArrowColor #334155`, `ArrowThickness 1`, `ClassBorderColor #64748B`, `ClassBorderThickness 1`, `PackageBorderColor #475569`, `PackageBorderThickness 1`, and text color `#111827`. Preserve semantic fill colors while ensuring boundaries and connectors remain readable after PNG downscaling.
 
 When detailed infrastructure structure remains valuable, keep the primary class diagram concise and place the enterprise implementation view in a separate diagram or appendix.
 

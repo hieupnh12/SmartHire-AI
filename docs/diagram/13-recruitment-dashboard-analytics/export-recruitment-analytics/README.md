@@ -33,10 +33,10 @@ Recruiter hoặc Tenant Admin có quyền tạo CSV/PDF từ đúng filter, time
 
 - `AnalyticsExportRoute` là REST boundary khái niệm và có **dependency** `defines routes` tới controller.
 - Controller **association** tới `AnalyticsExportService`; request/response DTO là dependencies tại API boundary.
-- `AnalyticsExportServiceImpl` **realization** (`implements`) service contract và có **association** tới repository, publisher, queue và audit vì quản lý vòng đời request.
+- `AnalyticsExportServiceImpl` **realization** (`implements`) service contract và có **association** tới repository, publisher và `TenantContext` vì quản lý vòng đời request trong tenant.
 - `ExportJobRepository` **dependency** tới `AnalyticsExportJob` (quản lý persistence) và **association** tới tenant DB.
 - Queue **association** tới worker thể hiện delivery bất đồng bộ; message là dependency/payload, không phải domain ownership.
-- Worker **association** tới snapshot repository và report builder; builder **association** tới private storage.
+- Worker **association** tới tenant DB và private object storage: tải snapshot analytics, tạo CSV/PDF và lưu file mã hóa. Các helper builder/repository chi tiết được lược khỏi sơ đồ chính để tránh kéo ngang Service Layer.
 - Không dùng inheritance, aggregation hoặc composition. Realization được dùng cho service contract; repository interfaces vẫn là persistence ports.
 
 ## Multi-tenant, security, transaction, async và audit
