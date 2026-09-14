@@ -5,12 +5,19 @@ skinparam dpi 300
 skinparam backgroundColor #FFFFFF
 skinparam shadowing false
 skinparam packageStyle rectangle
-skinparam classAttributeIconSize 0
+skinparam classAttributeIconSize 12
 skinparam linetype ortho
-skinparam ArrowColor #64748B
-skinparam ClassBorderColor #CBD5E1
+skinparam ArrowColor #334155
+skinparam ArrowThickness 1
+skinparam ClassBorderColor #64748B
+skinparam ClassBorderThickness 1
 skinparam ClassBackgroundColor #F8FAFC
 skinparam InterfaceBackgroundColor #F3E8FF
+skinparam PackageBorderColor #475569
+skinparam PackageBorderThickness 1
+skinparam DefaultFontColor #111827
+skinparam ClassFontColor #111827
+skinparam ClassAttributeFontColor #111827
 
 package "Routing & Boundary" #EFF6FF {
   class AnalyticsExportRoute <<REST API, conceptual>> {
@@ -31,22 +38,19 @@ package "Service Layer" #F0FDF4 {
     +getExport(id: UUID, principal: Principal): ExportJobResponse
   }
   class AnalyticsExportServiceImpl <<Service>> {
-    -jobRepository: ExportJobRepository
-    -publisher: AnalyticsExportPublisher
+    -exportJobRepository: ExportJobRepository
+    -exportPublisher: AnalyticsExportPublisher
+    -tenantContext: TenantContext
     +requestExport(request: ExportAnalyticsRequest, principal: Principal): ExportJobResponse
     +getExport(id: UUID, principal: Principal): ExportJobResponse
-  }
-  class ExportWorker <<Rabbit Listener>> {
-    +generate(message: AnalyticsExportMessage): void
-  }
-  class AnalyticsReportBuilder <<Domain Service>> {
-    +build(snapshot: AnalyticsSnapshot, format: ExportFormat): BinaryReport
   }
 }
 package "DTO Layer" #FFF7ED {
   class ExportAnalyticsRequest <<Request>> {
     +format: ExportFormat
-    +filter: AnalyticsFilterRequest
+    +from: LocalDate
+    +to: LocalDate
+    +timezone: ZoneId
     +metricVersion: String
     +reportSections: Set<ReportSection>
   }
@@ -67,19 +71,16 @@ package "Repository Layer" #F5F3FF {
     +save(job: AnalyticsExportJob): AnalyticsExportJob
     +findAuthorized(id: UUID): Optional<AnalyticsExportJob>
   }
-  interface AnalyticsSnapshotRepository <<Repository>> {
-    +load(filter: NormalizedAnalyticsFilter, metricVersion: String): AnalyticsSnapshot
-  }
 }
 package "Domain Entity Layer" #F0FDF4 {
   entity AnalyticsExportJob <<Entity>> {
-    +id: UUID
-    +requestedBy: Long
-    +format: ExportFormat
-    +metricVersion: String
-    +status: ExportStatus
-    +objectKey: String [0..1]
-    +expiresAt: Instant [0..1]
+    -id: UUID
+    -requestedBy: Long
+    -format: ExportFormat
+    -metricVersion: String
+    -status: ExportStatus
+    -objectKey: String [0..1]
+    -expiresAt: Instant [0..1]
   }
   enum ExportFormat <<Enum>> {
     CSV
@@ -97,10 +98,16 @@ package "Infrastructure & Persistence" #FEFCE8 {
   class AnalyticsExportPublisher <<Message Publisher>> {
     +publish(message: AnalyticsExportMessage, tenantId: String): void
   }
+  class ExportWorker <<Rabbit Listener>> {
+    +generate(message: AnalyticsExportMessage): void
+  }
   class "RabbitMQ analytics-export.queue" as Queue <<Message Broker>>
-  class "Dedicated Tenant DB" as TenantDB <<Database>>
-  class "Private Object Storage" as Storage <<Object Storage>>
-  class "Tenant Audit Log" as Audit <<Audit Store>>
+  class "Dedicated Tenant MySQL DB" as TenantDB <<Database>> {
+    +analytics_export_jobs
+  }
+  class "Private Object Storage" as Storage <<Object Storage>> {
+    +tenant/{tenantId}/analytics-exports/{jobId}
+  }
   class TenantContext <<ThreadLocal>> {
     +{static} getCurrentTenant(): String
   }
@@ -108,26 +115,33 @@ package "Infrastructure & Persistence" #FEFCE8 {
 
 AnalyticsExportRoute -down-> AnalyticsExportController : defines routes
 AnalyticsExportController -down-> AnalyticsExportService : delegates
-AnalyticsExportServiceImpl ..|> AnalyticsExportService : implements
+AnalyticsExportService -[hidden]down-> AnalyticsExportServiceImpl
+AnalyticsExportServiceImpl ..up|> AnalyticsExportService : implements
 AnalyticsExportController ..> ExportAnalyticsRequest : consumes
 AnalyticsExportController ..> ExportJobResponse : returns
-AnalyticsExportServiceImpl --> ExportJobRepository : creates / reads
-AnalyticsExportServiceImpl --> AnalyticsExportPublisher : publishes
-AnalyticsExportServiceImpl ..> AnalyticsExportMessage : creates
-AnalyticsExportServiceImpl --> Audit : audits
-AnalyticsExportPublisher --> Queue : tenant header + event
-Queue --> ExportWorker : delivers
-ExportWorker --> AnalyticsSnapshotRepository : loads snapshot
-ExportWorker --> AnalyticsReportBuilder : renders
-ExportWorker --> ExportJobRepository : updates status
-ExportWorker ..> TenantContext : restores / clears
-AnalyticsReportBuilder --> Storage : writes encrypted report
-ExportJobRepository ..> AnalyticsExportJob : manages
-ExportJobRepository --> TenantDB : persists
-AnalyticsSnapshotRepository --> TenantDB : queries
+AnalyticsExportServiceImpl ..> ExportAnalyticsRequest : processes
+AnalyticsExportServiceImpl ..> ExportJobResponse : creates
+AnalyticsExportServiceImpl ..> AnalyticsExportMessage : emits
+AnalyticsExportServiceImpl -down-> ExportJobRepository : creates / reads job
+AnalyticsExportServiceImpl --> AnalyticsExportPublisher : publishes task
+AnalyticsExportServiceImpl --> TenantContext : enforces tenant scope
+ExportJobRepository -down-> AnalyticsExportJob : manages
 AnalyticsExportJob --> ExportFormat : typed by
 AnalyticsExportJob --> ExportStatus : has status
-note right of AnalyticsExportMessage
-  RabbitMQ header and message tenantId must match.
+AnalyticsExportJob --> TenantDB : persists to
+AnalyticsExportPublisher --> Queue : tenant header + event
+Queue --> ExportWorker : delivers
+ExportWorker --> TenantContext : restores / clears
+ExportWorker --> TenantDB : loads analytics snapshot
+ExportWorker --> Storage : writes encrypted CSV / PDF
+ExportAnalyticsRequest -[hidden]right-> ExportJobResponse
+ExportJobResponse -[hidden]right-> AnalyticsExportMessage
+ExportFormat -[hidden]right-> ExportStatus
+TenantDB -[hidden]right-> Queue
+Queue -[hidden]right-> Storage
+Storage -[hidden]right-> TenantContext
+note right of AnalyticsExportServiceImpl
+  Captures an immutable filter, timezone and metric-version snapshot.
+  Export processing is asynchronous and idempotent.
 end note
 @enduml
