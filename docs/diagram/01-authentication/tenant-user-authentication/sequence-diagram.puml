@@ -1,0 +1,171 @@
+@startuml
+title AUTH-01..04 — Tenant User Authentication & Session Lifecycle
+skinparam dpi 300
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam sequenceArrowThickness 1
+skinparam sequenceMessageAlign center
+skinparam ArrowColor #64748B
+skinparam ParticipantBorderColor #CBD5E1
+skinparam ParticipantBackgroundColor #F8FAFC
+skinparam ActorBorderColor #3B82F6
+skinparam ActorBackgroundColor #EFF6FF
+skinparam DatabaseBorderColor #94A3B8
+skinparam DatabaseBackgroundColor #F8FAFC
+skinparam QueueBorderColor #A855F7
+skinparam QueueBackgroundColor #FAF5FF
+
+autonumber
+
+actor "User / Candidate" as User
+boundary "Frontend (React SPA)" as FE
+control "TenantWebInterceptor" as Interceptor
+control "TenantContext" as Context
+control "JwtAuthenticationFilter" as JwtFilter
+boundary "TenantAuthController" as Controller
+control "TenantAuthService" as AuthService
+control "GoogleVerifierService" as GoogleVerifier
+entity "Google Public Keys / API" as GoogleAPI
+control "JwtTokenProvider" as JwtProvider
+collections "Redis Cache" as Redis
+database "Tenant DB (MySQL)" as TenantDB
+queue "RabbitMQ (Email Queue)" as RabbitMQ
+
+note over User, TenantDB
+  Preconditions:
+  - Request carries tenant context via Header 'X-Tenant-ID' or Subdomain.
+  - Dedicated MySQL Database for the tenant is active and provisioned.
+  - Data isolation: All credentials, OAuth tokens, and candidate records remain strictly within the Tenant DB.
+end note
+
+== 1. Internal User Login (Email / Password) ==
+
+User -> FE: Enter email & password, click "Sign In"
+FE -> Interceptor: POST /api/v1/tenant/auth/login\n(Header: X-Tenant-ID: {tenantId})
+Interceptor -> Context: setCurrentTenant(tenantId)
+Interceptor -> Controller: Route validated request
+Controller -> AuthService: login(LoginRequest)
+AuthService -> TenantDB: findByEmailIgnoreCase(email)
+
+alt User not found or Account SUSPENDED
+  TenantDB --> AuthService: Empty or status != ACTIVE
+  AuthService --> Controller: 401 UNAUTHORIZED ("Invalid credentials")
+  Controller --> FE: Error response (generic message)
+else User found & ACTIVE
+  TenantDB --> AuthService: Return User record
+  AuthService -> AuthService: BCrypt.matches(rawPassword, passwordHash)
+  
+  alt Password mismatch
+    AuthService --> Controller: 401 UNAUTHORIZED ("Invalid credentials")
+    Controller --> FE: Error response
+  else Password matches
+    AuthService -> JwtProvider: generateAccessToken(user, tenantId) [TTL 30m]
+    JwtProvider --> AuthService: accessToken
+    AuthService -> JwtProvider: generateRefreshToken(user, tenantId) [TTL 7d]
+    JwtProvider --> AuthService: refreshToken
+    AuthService -> Redis: SET tenant:{tenantId}:refresh:{userId} = refreshToken (TTL 7d)
+    AuthService --> Controller: LoginResponse(accessToken, refreshToken, userDto)
+    Controller --> FE: 200 OK + JSON Auth Tokens
+    FE -> FE: Store tokens securely & redirect to Role Workspace
+  end
+end
+Interceptor -> Context: clear()
+
+== 2. Candidate 1-Click Google OAuth Sign-in & JIT Provisioning ==
+
+User -> FE: Click "Continue with Google"
+FE -> FE: Obtain Google ID Token via Google Identity Services (GSI)
+FE -> Interceptor: POST /api/v1/tenant/auth/google\n(Body: { idToken }, Header: X-Tenant-ID: {tenantId})
+Interceptor -> Context: setCurrentTenant(tenantId)
+Interceptor -> Controller: Forward request
+Controller -> AuthService: googleLogin(GoogleLoginRequest)
+AuthService -> GoogleVerifier: verifyIdToken(idToken)
+GoogleVerifier -> GoogleAPI: Fetch JWKS & verify signature, audience, expiry
+GoogleAPI --> GoogleVerifier: Verified Google Payload (email, name, picture, sub)
+GoogleVerifier --> AuthService: GoogleUserPayload
+
+AuthService -> TenantDB: findByEmailIgnoreCase(googleEmail)
+alt User does NOT exist in Tenant DB (Just-In-Time Provisioning)
+  AuthService -> TenantDB: INSERT User (email, fullName, role=CANDIDATE, password_hash=NULL, status=ACTIVE)
+  AuthService -> TenantDB: INSERT OauthAccount (user_id, provider=GOOGLE, provider_user_id=sub)
+  AuthService -> TenantDB: INSERT UserProfile (user_id, avatar_url=picture)
+else User already exists
+  AuthService -> TenantDB: Check / Link OauthAccount if missing
+end
+
+AuthService -> JwtProvider: generateAccessToken(user, tenantId)
+AuthService -> JwtProvider: generateRefreshToken(user, tenantId)
+AuthService -> Redis: SET tenant:{tenantId}:refresh:{userId} = refreshToken (TTL 7d)
+AuthService --> Controller: LoginResponse(accessToken, refreshToken, userDto)
+Controller --> FE: 200 OK + Auth Tokens + Candidate Profile
+FE -> FE: Store tokens & navigate candidate to AI Interview / Portal
+Interceptor -> Context: clear()
+
+== 3. Session Revocation / Logout ==
+
+User -> FE: Click "Sign Out"
+FE -> JwtFilter: POST /api/v1/tenant/auth/logout\n(Header: Authorization: Bearer {accessToken})
+JwtFilter -> JwtFilter: Extract token, validate signature & expiry
+JwtFilter -> Redis: Check if token in blacklist:token:{hash}
+alt Token blacklisted
+  JwtFilter --> FE: 401 UNAUTHORIZED
+else Valid Token
+  JwtFilter -> Context: setCurrentTenant(tokenTenantId)
+  JwtFilter -> Controller: Forward authenticated request
+  Controller -> AuthService: logout(accessToken)
+  AuthService -> Redis: DEL tenant:{tenantId}:refresh:{userId}
+  AuthService -> Redis: SET blacklist:token:{hash(accessToken)} = "revoked"\n(TTL = remaining token lifetime)
+  AuthService --> Controller: Success
+  Controller --> FE: 200 OK ("Logged out successfully")
+  FE -> FE: Clear local storage / session state & redirect to Login
+end
+JwtFilter -> Context: clear()
+
+== 4. Password Reset Flow (Forgot & Reset Password) ==
+
+group Step 4.1: Request Password Reset OTP
+  User -> FE: Enter email on "Forgot Password" page
+  FE -> Interceptor: POST /api/v1/tenant/auth/forgot-password\n(Body: { email }, Header: X-Tenant-ID)
+  Interceptor -> Context: setCurrentTenant(tenantId)
+  Interceptor -> Controller: Forward request
+  Controller -> AuthService: initiatePasswordReset(email)
+  AuthService -> TenantDB: findByEmailIgnoreCase(email)
+  
+  opt Email exists and User has password_hash != NULL
+    AuthService -> AuthService: Generate cryptographically secure 6-digit OTP
+    AuthService -> Redis: SET tenant:{tenantId}:pwd_reset:{email} = OTP (TTL 15m)
+    AuthService -> RabbitMQ: publishEmailEvent("RESET_PASSWORD", email, otp, tenantId)
+  end
+  note over AuthService, Controller
+    Always return 200 OK to prevent account enumeration attacks
+  end note
+  AuthService --> Controller: Success
+  Controller --> FE: 200 OK ("If the account exists, an OTP email has been sent")
+  Interceptor -> Context: clear()
+end
+
+group Step 4.2: Submit OTP & Set New Password
+  User -> FE: Enter OTP received via email + New Password
+  FE -> Interceptor: POST /api/v1/tenant/auth/reset-password\n(Body: { email, otp, newPassword })
+  Interceptor -> Context: setCurrentTenant(tenantId)
+  Interceptor -> Controller: Forward request
+  Controller -> AuthService: completePasswordReset(ResetPasswordRequest)
+  AuthService -> Redis: GET tenant:{tenantId}:pwd_reset:{email}
+  
+  alt OTP missing, expired, or mismatch
+    AuthService --> Controller: 400 BAD REQUEST ("Invalid or expired OTP")
+    Controller --> FE: Error message
+  else OTP matches
+    AuthService -> Redis: DEL tenant:{tenantId}:pwd_reset:{email}
+    AuthService -> TenantDB: findByEmailIgnoreCase(email)
+    AuthService -> AuthService: BCrypt.encode(newPassword)
+    AuthService -> TenantDB: UPDATE User SET password_hash = newHash
+    AuthService -> Redis: Revoke any existing refresh tokens for user
+    AuthService --> Controller: Success
+    Controller --> FE: 200 OK ("Password updated. Please sign in.")
+    FE -> FE: Redirect to Login page
+  end
+  Interceptor -> Context: clear()
+end
+
+@enduml

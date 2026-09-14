@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { masterAuthApi } from "@/api/master/masterAuthApi";
 import { LanguageSwitcher } from "@/components/ux/LanguageSwitcher";
@@ -6,24 +6,21 @@ import {
   BrainCircuit,
   Lock,
   ArrowRight,
+  ArrowLeft,
   AlertCircle,
-  KeyRound
+  Mail,
+  Eye,
+  EyeOff,
+  ShieldCheck
 } from "lucide-react";
 
 export function MasterLoginPage() {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    // If token exists, auto redirect to admin dashboard
-    const existingToken = localStorage.getItem("master_access_token");
-    if (existingToken) {
-      navigate("/admin/dashboard", { replace: true });
-    }
-  }, [navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,13 +31,15 @@ export function MasterLoginPage() {
       const response = await masterAuthApi.login({ email, password });
       if (response.success && response.data) {
         localStorage.setItem("master_access_token", response.data.accessToken);
-        // Direct immediate redirection to Super Admin Dashboard
         navigate("/admin/dashboard", { replace: true });
       } else {
-        setError(response.message || "Đăng nhập thất bại");
+        setError(response.message || "Email hoặc mật khẩu không chính xác.");
       }
     } catch (err: any) {
-      const msg = err.response?.data?.message || err.message || "Tài khoản hoặc mật khẩu không chính xác";
+      const msg =
+        err.response?.data?.message ||
+        err.message ||
+        "Tài khoản hoặc mật khẩu quản trị không chính xác.";
       setError(msg);
     } finally {
       setLoading(false);
@@ -48,108 +47,180 @@ export function MasterLoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f9f9ff] text-[#191b23] font-sans antialiased flex flex-col justify-between selection:bg-[#3b82f6] selection:text-white">
+    <div className="min-h-screen bg-[#f8fafc] text-slate-800 font-sans antialiased selection:bg-blue-600 selection:text-white flex flex-col justify-between relative">
+      {/* Subtle Background Pattern */}
+      <div className="fixed inset-0 pointer-events-none z-0 opacity-40">
+        <div
+          className="w-full h-full"
+          style={{
+            backgroundImage: "radial-gradient(#cbd5e1 1px, transparent 1px)",
+            backgroundSize: "28px 28px",
+          }}
+        />
+      </div>
+
       {/* Top Header */}
-      <header className="border-b border-[#e2e8f0] bg-white/80 backdrop-blur-md sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
-          <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate("/")}>
-            <div className="w-10 h-10 rounded-[12px] bg-[#3b82f6] text-white flex items-center justify-center shadow-md shadow-[#3b82f6]/20">
-              <BrainCircuit className="w-6 h-6" />
+      <header className="relative z-20 border-b border-slate-200/80 bg-white/90 backdrop-blur-md">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-18 flex items-center justify-between">
+          <div
+            className="flex items-center gap-3 cursor-pointer select-none group"
+            onClick={() => navigate("/")}
+          >
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-700 via-blue-600 to-indigo-500 text-white flex items-center justify-center shadow-md shadow-blue-600/20 ring-1 ring-white/20 group-hover:scale-105 transition-transform duration-200">
+              <BrainCircuit className="w-5 h-5 text-white" />
             </div>
-            <div>
-              <span className="text-xl font-bold font-display text-[#1e293b] tracking-tight">
-                SmartHire AI
+            <div className="flex items-center gap-2">
+              <span className="text-xl font-bold tracking-tight text-slate-900 font-display">
+                SmartHire<span className="text-blue-600">.AI</span>
               </span>
-              <span className="ml-2.5 text-xs font-semibold px-2.5 py-0.5 rounded-full bg-[rgba(59,130,246,0.1)] text-[#3b82f6]">
-                Super Admin Portal
+              <span className="text-[10px] font-semibold tracking-wider uppercase px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200">
+                Master Admin
               </span>
             </div>
           </div>
 
-          <div className="flex items-center gap-4 text-xs text-[#64748b]">
+          <div className="flex items-center gap-4 text-xs font-medium">
+            <button
+              type="button"
+              onClick={() => navigate("/")}
+              className="flex items-center gap-1.5 text-slate-600 hover:text-blue-600 transition-colors"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>Về trang chủ</span>
+            </button>
             <LanguageSwitcher />
-            <div className="flex items-center gap-1.5 text-[#3b82f6] font-semibold bg-[rgba(59,130,246,0.08)] px-3 py-1.5 rounded-full">
-              <Lock className="w-4 h-4" />
-              <span>Master DB Control</span>
-            </div>
           </div>
         </div>
       </header>
 
-      {/* Main Login Card - Production Luminous Professional Style */}
-      <main className="max-w-md mx-auto px-6 py-16 w-full flex-grow flex items-center justify-center">
-        <div className="w-full bg-white border border-[#e2e8f0] rounded-[24px] p-8 shadow-[0_20px_25px_-5px_rgba(59,130,246,0.05)]">
-          <div className="text-center mb-8">
-            <div className="w-12 h-12 rounded-[12px] bg-[rgba(59,130,246,0.1)] text-[#3b82f6] flex items-center justify-center mx-auto mb-4 font-bold">
-              <KeyRound className="w-6 h-6" />
+      {/* Main Login Section */}
+      <main className="relative z-10 max-w-4xl mx-auto px-4 sm:px-6 py-10 w-full flex-grow flex items-center justify-center">
+        <div className="w-full bg-white border border-slate-200/90 rounded-2xl shadow-xl shadow-slate-900/5 overflow-hidden grid md:grid-cols-12 transition-all">
+          {/* Left Column: Visual Illustration Banner */}
+          <div className="md:col-span-5 bg-gradient-to-b from-blue-50/70 via-slate-50/50 to-indigo-50/40 p-8 flex flex-col justify-between border-b md:border-b-0 md:border-r border-slate-100 text-center relative">
+            <div className="flex items-center justify-center">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white text-blue-700 text-xs font-semibold shadow-2xs border border-blue-100">
+                <ShieldCheck className="w-3.5 h-3.5 text-blue-600" />
+                <span>Bảo mật Master Database</span>
+              </span>
             </div>
-            <h1 className="text-2xl font-bold font-display text-[#1e293b] mb-1">
-              Platform Super Admin Access
-            </h1>
-            <p className="text-xs text-[#64748b]">
-              Cổng xác thực tối cao dành cho Ban quản trị nền tảng SaaS SmartHire AI.
-            </p>
+
+            {/* Clean 3D Illustration */}
+            <div className="my-6 flex justify-center">
+              <div className="relative group">
+                <img
+                  src="/master_admin_shield.jpg"
+                  alt="SmartHire Security Illustration"
+                  className="w-56 h-56 object-contain rounded-2xl drop-shadow-md group-hover:scale-105 transition-transform duration-300"
+                />
+              </div>
+            </div>
+
+            <div className="text-slate-500 text-xs leading-relaxed">
+              <p className="font-semibold text-slate-700">Trung Tâm Điều Hành Nền Tảng</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">Dành riêng cho Ban Quản Trị SmartHire-AI</p>
+            </div>
           </div>
 
-          {/* Error Alert */}
-          {error && (
-            <div className="mb-6 p-4 rounded-[12px] bg-red-50 border border-red-200 text-red-600 text-xs flex items-center gap-2.5">
-              <AlertCircle className="w-4 h-4 flex-shrink-0" />
-              <span>{error}</span>
-            </div>
-          )}
-
-          {/* Login Form */}
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-xs font-semibold text-[#1e293b] mb-1.5">
-                Super Admin Email <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="email"
-                required
-                placeholder="admin@smarthire.ai"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-[8px] bg-[#f8f9ff] border border-[#e2e8f0] text-[#1e293b] text-sm focus:border-[#3b82f6] focus:outline-none transition-colors"
-              />
+          {/* Right Column: Clean & Compact Login Form */}
+          <div className="md:col-span-7 p-8 sm:p-10 flex flex-col justify-center">
+            <div className="mb-6">
+              <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+                Đăng Nhập Master Admin
+              </h1>
+              <p className="text-xs text-slate-500 mt-1">
+                Vui lòng nhập tài khoản quản trị hệ thống để tiếp tục
+              </p>
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-[#1e293b] mb-1.5">
-                Mật Khẩu Quản Trị <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="password"
-                required
-                placeholder="••••••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-[8px] bg-[#f8f9ff] border border-[#e2e8f0] text-[#1e293b] text-sm focus:border-[#3b82f6] focus:outline-none transition-colors"
-              />
-            </div>
+            {/* Error Message Alert */}
+            {error && (
+              <div className="mb-5 p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-600 text-xs flex items-start gap-2.5 animate-fade-in">
+                <AlertCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+                <span className="leading-relaxed">{error}</span>
+              </div>
+            )}
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-3 px-4 rounded-[8px] bg-[#3b82f6] hover:bg-[#2563eb] text-white font-bold text-sm shadow-md shadow-[#3b82f6]/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50 mt-6"
-            >
-              {loading ? (
-                <span>Đang Xác Thực Master DB...</span>
-              ) : (
-                <>
-                  <span>Đăng Nhập Super Admin</span>
-                  <ArrowRight className="w-4 h-4" />
-                </>
-              )}
-            </button>
-          </form>
+            {/* Form */}
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Email Quản Trị Viên <span className="text-rose-500">*</span>
+                </label>
+                <div className="relative rounded-lg border border-slate-300 bg-slate-50/50 focus-within:border-blue-600 focus-within:bg-white focus-within:ring-1 focus-within:ring-blue-600 transition-colors">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                    <Mail className="w-4 h-4" />
+                  </div>
+                  <input
+                    type="email"
+                    required
+                    placeholder="admin@smarthire.ai"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full pl-10 pr-3.5 py-2.5 bg-transparent text-sm text-slate-900 placeholder-slate-400 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Mật Khẩu <span className="text-rose-500">*</span>
+                </label>
+                <div className="relative rounded-lg border border-slate-300 bg-slate-50/50 focus-within:border-blue-600 focus-within:bg-white focus-within:ring-1 focus-within:ring-blue-600 transition-colors">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                    <Lock className="w-4 h-4" />
+                  </div>
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    required
+                    placeholder="••••••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full pl-10 pr-10 py-2.5 bg-transparent text-sm text-slate-900 placeholder-slate-400 focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 transition-colors"
+                    tabIndex={-1}
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full mt-2 py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-98 text-white font-semibold text-sm shadow-md shadow-blue-600/20 hover:shadow-lg hover:shadow-blue-600/30 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading ? (
+                  <span className="flex items-center gap-2">
+                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Đang Xác Thực...</span>
+                  </span>
+                ) : (
+                  <>
+                    <span>Đăng Nhập Quản Trị Viên</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
+              </button>
+            </form>
+
+            <div className="mt-6 pt-5 border-t border-slate-100 text-center">
+              <span className="text-[11px] text-slate-400 flex items-center justify-center gap-1">
+                <Lock className="w-3 h-3 text-slate-400" />
+                <span>Xác thực bảo mật kết nối trực tiếp Master Database</span>
+              </span>
+            </div>
+          </div>
         </div>
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-[#e2e8f0] py-6 text-center text-xs text-[#64748b] bg-white">
-        SmartHire AI Platform © 2026. Master DB Control Panel.
+      <footer className="relative z-10 border-t border-slate-200/80 py-4 text-center text-xs text-slate-400 bg-white">
+        © 2026 SmartHire-AI SaaS Platform · Master Control Panel
       </footer>
     </div>
   );
