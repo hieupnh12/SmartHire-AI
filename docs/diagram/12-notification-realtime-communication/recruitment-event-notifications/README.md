@@ -71,30 +71,33 @@ Loại `NotificationType`: apply thành công, chuyển stage, reject, offer, m�
 
 Nguồn: [`class-diagram.puml`](class-diagram.puml)
 
+Viewpoint: **layered application-design**. `ResultReleasePolicy` và `DeepLinkBuilder` gói trong dispatcher (ghi chú + operation `canNotifyResult`) để Service Layer không kéo ngang.
+
 ### 7.1. Vai trò phần tử
 
-| Phần tử | Loại | Vai trò |
+| Phần tử | Lớp | Vai trò |
 |---|---|---|
-| HiringDomainServices | modules hiện có | Nguồn event, không implement notify. |
-| Event / Dispatcher | conceptual | Một cửa fan-out. |
-| ResultReleasePolicy | conceptual | Privacy điểm số. |
-| DeepLinkBuilder | conceptual | Payload điều hướng. |
-| EmailNotificationProducer | conceptual | Không render template ở đây. |
-| Notification / Type / Repository | mix | Inbox; enum conceptual (`type` đang là String). |
-| Queue | topology | Side-effect email. |
+| HiringDomainServices | Routing | Trigger sau commit nghiệp vụ. |
+| RecruitmentNotificationDispatcher | Service | Recipients, policy kết quả, inbox, fan-out email. |
+| RecruitmentNotificationEvent | DTO | Hợp đồng sự kiện. |
+| NotificationRepository | Repository | INSERT inbox. |
+| Notification, NotificationType | Domain | Inbox; enum conceptual (`type` đang String). |
+| EmailNotificationProducer, RabbitMQ, TenantDB, TenantContext | Infrastructure | Lệnh email + isolation. |
 
 ### 7.2. Quan hệ
 
 | Nguồn → đích | Ký pháp | Loại và lý do |
 |---|---|---|
-| Domain → Event | `..>` | Dependency emit. |
-| Dispatcher → Event | `..>` | Dependency handle. |
-| Dispatcher → Policy / DeepLink | `-->` | Association. |
-| Dispatcher → Repository | `-->` | Ghi inbox. |
-| Dispatcher → Producer | `-->` | Fan-out. |
-| Notification → Type | `-->` | Typed-by. |
-| Repository → Notification | `..>` | Manage. |
-| Producer → Queue | `..>` | Publish. |
+| Domain → Dispatcher | `-->` `emits` | Association sau commit. |
+| Domain → Event | `..>` `creates` | Dependency. |
+| Dispatcher → Event | `..>` `processes` | Dependency. |
+| Dispatcher → Repository | `-->` `persists inbox` | Association. |
+| Dispatcher → Producer | `-->` `fans out email` | Association. |
+| Dispatcher → TenantContext | `-->` | Association tenant. |
+| Repository → Notification | `-->` `manages` | Association. |
+| Notification → Type | `-->` `typed by` | Dependency enum. |
+| Notification → TenantDB | `-->` `persists to` | Association. |
+| Producer → Broker | `-->` `publishes X-Tenant-ID` | Association. |
 
 ## 8. Quyết định kiến trúc và bảo mật
 
@@ -109,7 +112,7 @@ Nguồn: [`class-diagram.puml`](class-diagram.puml)
 - Nhiều recipient = lặp `dispatch` từng user, không vẽ `loop`.
 - In-app luôn ghi khi policy cho phép; email có thể skip ở email-notification (preference).
 - `sourceEventId` uniqueness = reliability.
-- WS được gọi gián tiếp sau INSERT (cùng JVM hook), không vẽ để tránh trùng `realtime-notification`.
+- ResultReleasePolicy / DeepLinkBuilder không tách class trên sơ đồ chính; logic nằm ở dispatcher.
 
 ## 10. Render và file được tạo
 

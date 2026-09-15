@@ -1,32 +1,57 @@
 @startuml
-title COMPANY-01 — View and Update Company Profile\nApplication-design viewpoint
+title COMPANY-01 — View and Update Company Profile\nLayered target application-design viewpoint
+top to bottom direction
 
 skinparam dpi 300
 skinparam backgroundColor #FFFFFF
 skinparam shadowing false
 skinparam packageStyle rectangle
-skinparam classAttributeIconSize 0
-skinparam ArrowColor #64748B
-skinparam ClassBorderColor #CBD5E1
+skinparam classAttributeIconSize 12
+skinparam linetype ortho
+skinparam ArrowColor #334155
+skinparam ArrowThickness 1
+skinparam ClassBorderColor #64748B
+skinparam ClassBorderThickness 1
 skinparam ClassBackgroundColor #F8FAFC
-skinparam InterfaceBackgroundColor #EFF6FF
+skinparam InterfaceBackgroundColor #F3E8FF
+skinparam PackageBorderColor #475569
+skinparam PackageBorderThickness 1
+skinparam DefaultFontColor #111827
+skinparam ClassFontColor #111827
+skinparam ClassAttributeFontColor #111827
 skinparam NoteBackgroundColor #FFF7ED
 skinparam NoteBorderColor #FDBA74
 
-package "Tenant Web / API Layer" #EFF6FF {
-  class CompanyProfileRoute <<REST API>> {
+package "Routing & Boundary" #EFF6FF {
+  class CompanyProfileRoute <<REST API, conceptual>> {
     +GET /api/v1/tenant/company
     +PUT /api/v1/tenant/company
     +POST /api/v1/tenant/company/logo
   }
+}
 
-  class CompanyProfileController <<conceptual controller>> {
+package "Controller Layer" #EFF6FF {
+  class CompanyProfileController <<Controller, conceptual>> {
+    -companyProfileService: CompanyProfileService
+    +getProfile(): ApiResponse<CompanyProfileResponse>
+    +updateProfile(request: UpdateCompanyProfileRequest): ApiResponse<CompanyProfileResponse>
+    +uploadLogo(file: MultipartFile): ApiResponse<CompanyProfileResponse>
+  }
+}
+
+package "Service Layer" #F0FDF4 {
+  class CompanyProfileService <<Service, conceptual>> {
+    -companyProfileRepository: CompanyProfileRepository
+    -objectStorage: ObjectStoragePort
+    -tenantContext: TenantContext
     +getProfile(): CompanyProfileResponse
     +updateProfile(request: UpdateCompanyProfileRequest): CompanyProfileResponse
-    +uploadLogo(file: MultipartFile): CompanyProfileResponse
+    +replaceLogo(file: MultipartFile): CompanyProfileResponse
   }
+}
 
-  class UpdateCompanyProfileRequest <<request DTO>> {
+package "DTO Layer" #FFF7ED {
+  class UpdateCompanyProfileRequest <<Request>> {
     +name: String
     +tagline: String [0..1]
     +website: String [0..1]
@@ -35,92 +60,66 @@ package "Tenant Web / API Layer" #EFF6FF {
     +description: String [0..1]
     +companySize: String [0..1]
   }
-
-  class CompanyProfileResponse <<response DTO>> {
+  class CompanyProfileResponse <<Response>> {
     +name: String
-    +tagline: String [0..1]
     +website: String [0..1]
-    +address: String [0..1]
-    +industry: String [0..1]
-    +description: String [0..1]
-    +companySize: String [0..1]
     +logoUrl: String [0..1]
     +updatedAt: Instant
   }
 }
 
-package "Security & Tenant Context" #F1F5F9 {
-  class TenantWebInterceptor <<Spring HandlerInterceptor>> {
-    +preHandle(request, response, handler): boolean
-    +afterCompletion(request, response, handler, ex): void
+package "Repository Layer" #F5F3FF {
+  interface CompanyProfileRepository <<Repository, conceptual>> {
+    +findSingleton(): Optional<CompanyProfile>
+    +save(profile: CompanyProfile): CompanyProfile
   }
+}
 
+package "Domain Entity Layer" #F0FDF4 {
+  entity CompanyProfile <<Entity, conceptual>> {
+    -id: Long
+    -name: String
+    -tagline: String [0..1]
+    -website: String [0..1]
+    -address: String [0..1]
+    -industry: String [0..1]
+    -logoObjectKey: String [0..1]
+    -updatedAt: Instant
+  }
+}
+
+package "Infrastructure & Persistence" #FEFCE8 {
+  interface ObjectStoragePort <<Storage Port, conceptual>> {
+    +storeLogo(tenantId: String, file: MultipartFile): String
+  }
+  class "Dedicated Tenant MySQL DB" as TenantDB <<Database>> {
+    +company_profiles
+  }
   class TenantContext <<ThreadLocal>> {
-    +{static} setCurrentTenant(tenantId: String): void
     +{static} getCurrentTenant(): String
     +{static} clear(): void
   }
 }
 
-package "Tenant Application Layer" #F0FDF4 {
-  class CompanyProfileService <<conceptual service>> {
-    +getProfile(): CompanyProfileResponse
-    +updateProfile(request: UpdateCompanyProfileRequest): CompanyProfileResponse
-    +replaceLogo(file: MultipartFile): CompanyProfileResponse
-  }
-
-  interface ObjectStoragePort <<conceptual port>> {
-    +storeLogo(tenantId: String, file: MultipartFile): String
-    +deleteObject(objectKey: String): void
-  }
-}
-
-package "Tenant Persistence Layer (Dedicated MySQL DB)" #FEFCE8 {
-  entity CompanyProfile <<conceptual entity>> {
-    +id: Long
-    +name: String
-    +tagline: String [0..1]
-    +website: String [0..1]
-    +address: String [0..1]
-    +industry: String [0..1]
-    +description: String [0..1]
-    +companySize: String [0..1]
-    +logoObjectKey: String [0..1]
-    +updatedAt: Instant
-  }
-
-  interface CompanyProfileRepository <<conceptual repository>> {
-    +findSingleton(): Optional<CompanyProfile>
-    +save(profile: CompanyProfile): CompanyProfile
-  }
-
-  class "Dedicated Tenant MySQL\ncompany_profiles" as TenantDB <<Database>>
-}
-
-CompanyProfileRoute ..> CompanyProfileController : routes
+CompanyProfileRoute -down-> CompanyProfileController : defines routes
+CompanyProfileController -down-> CompanyProfileService : delegates
 CompanyProfileController ..> UpdateCompanyProfileRequest : consumes
-CompanyProfileController ..> CompanyProfileResponse : produces
-CompanyProfileController --> CompanyProfileService : delegates to
-
-TenantWebInterceptor ..> TenantContext : sets / clears
-
-CompanyProfileService --> CompanyProfileRepository : persists through
-CompanyProfileService ..> ObjectStoragePort : stores logo
+CompanyProfileController ..> CompanyProfileResponse : returns
 CompanyProfileService ..> UpdateCompanyProfileRequest : processes
-CompanyProfileRepository ..> CompanyProfile : manages
-CompanyProfileRepository --> TenantDB : stores in
-TenantDB *-- CompanyProfile : contains
+CompanyProfileService ..> CompanyProfileResponse : creates
+CompanyProfileService -down-> CompanyProfileRepository : persists through
+CompanyProfileService --> ObjectStoragePort : stores logo
+CompanyProfileService --> TenantContext : enforces tenant scope
+CompanyProfileRepository -down-> CompanyProfile : manages
+CompanyProfile --> TenantDB : persists to
 
-note bottom of CompanyProfile
-  Designed tenant branding record: one row per
-  dedicated Tenant DB. No tenantId column because
-  isolation is physical (database-per-tenant).
-  Not present in current Flyway tenant migrations.
-end note
+UpdateCompanyProfileRequest -[hidden]right-> CompanyProfileResponse
+TenantDB -[hidden]right-> TenantContext
 
-note bottom of ObjectStoragePort
+note right of CompanyProfile
+  One branding row per dedicated Tenant DB.
+  No tenantId column. Not in current Flyway.
   Logo bytes stay in object storage.
-  The database stores only the object key / public URL.
 end note
 
 @enduml

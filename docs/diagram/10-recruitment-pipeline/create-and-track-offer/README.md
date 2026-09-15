@@ -88,6 +88,8 @@ Mail không được phép biến quyết định đã commit thành thất bạ
 
 Nguồn: [`class-diagram.puml`](class-diagram.puml)
 
+Viewpoint: **layered application-design** (`Routing & Boundary` → `Controller` → `Service` → `DTO` → `Repository` → `Domain Entity` → `Infrastructure`). Isolation qua `TenantContext` và Tenant DB, không prefix `Tenant` trên mọi package.
+
 ### 7.1. Vai trò phần tử
 
 | Phần tử | Loại | Vai trò |

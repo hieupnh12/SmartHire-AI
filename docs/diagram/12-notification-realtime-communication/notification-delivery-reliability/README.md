@@ -77,27 +77,30 @@ Ghi chú: inbox trùng dùng cùng `sourceEventId` (unique thiết kế). Tenant
 
 Nguồn: [`class-diagram.puml`](class-diagram.puml)
 
+Viewpoint: **layered application-design**. `DeliveryPolicy` và `IdempotencyStore` gói trong worker/repository (`maxAttempts`, `findByIdempotencyKey`) để không invent type chỉ để lấp layer.
+
 ### 7.1. Vai trò phần tử
 
-| Phần tử | Loại | Vai trò |
+| Phần tử | Lớp | Vai trò |
 |---|---|---|
-| EmailWorker | conceptual | Entry consume. |
-| DeliveryPolicy | conceptual | `maxAttempts = 3`. |
-| IdempotencyStore | conceptual | Có thể chính unique trên outbox. |
-| EmailOutbox + Status + Repo | mix | `attempts` thật; key thiết kế. |
-| Notification | entity | Unique `sourceEventId` thiết kế. |
-| Queue / DLQ / SMTP | mix | DLQ conceptual. |
+| EmailWorker | Service | Consume; retry/DLQ/idempotent. |
+| EmailOutboxRepository | Repository | Unique key + save status/attempts. |
+| EmailOutbox, Notification, Status | Domain | Outbox thật; `sourceEventId` thiết kế trên inbox. |
+| RabbitMQ, DLQ, SMTP, TenantDB, TenantContext | Infrastructure | Requeue, park, send, isolation. |
 
 ### 7.2. Quan hệ
 
 | Nguồn → đích | Ký pháp | Loại và lý do |
 |---|---|---|
-| Worker → Policy / Store | `-->` | Association. |
-| Worker → Repository | `-->` | Persist attempts/status. |
-| Outbox → Status | `-->` | Typed-by. |
-| Repository → Outbox | `..>` | Manage. |
-| Worker → Queue / SMTP / DLQ | `..>` | Consume, send, park. |
-| Notification → Outbox | `..>` | Cùng `sourceEventId` (không FK). |
+| Worker → Broker | `..>` `consumes / nacks` | Dependency queue. |
+| Worker → Repository | `-->` `persists through` | Association attempts/status. |
+| Worker → TenantContext | `-->` | Restore tenant từ header. |
+| Worker → SMTP | `-->` `sends` | Association cổng ngoài. |
+| Worker → DLQ | `-->` `routes after max attempts` | Association park. |
+| Repository → Outbox | `-->` `manages` | Association. |
+| Outbox → Status | `-->` `typed by` | Dependency enum. |
+| Entity → TenantDB | `-->` `persists to` | Association. |
+| Notification → Outbox | `..>` `same sourceEventId` | Dependency không FK. |
 
 ## 8. Quyết định kiến trúc và bảo mật
 
@@ -108,7 +111,8 @@ Nguồn: [`class-diagram.puml`](class-diagram.puml)
 
 ## 9. Giả định
 
-- `maxAttempts = 3` (không có trong schema).
+- `maxAttempts = 3` (không có trong schema); DeliveryPolicy không tách class.
+- Unique `idempotencyKey` nằm trên outbox/repository, không invent `IdempotencyStore`.
 - `idempotencyKey` / `sourceEventId` **thiết kế**, chưa cột Flyway.
 - DLQ tên `notify.email.dlq` **chưa** bind trong `RabbitMqConfig`.
 - Nack requeue dùng retry broker; chưa vẽ exponential backoff chi tiết.

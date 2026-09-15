@@ -1,43 +1,67 @@
 @startuml
-title PIPE — Create and Track Offer\nApplication-design viewpoint
+title PIPE — Create and Track Offer\nLayered target application-design viewpoint
+top to bottom direction
 
 skinparam dpi 300
 skinparam backgroundColor #FFFFFF
 skinparam shadowing false
 skinparam packageStyle rectangle
-skinparam classAttributeIconSize 0
-skinparam ArrowColor #64748B
-skinparam ClassBorderColor #CBD5E1
+skinparam classAttributeIconSize 12
+skinparam linetype ortho
+skinparam ArrowColor #334155
+skinparam ArrowThickness 1
+skinparam ClassBorderColor #64748B
+skinparam ClassBorderThickness 1
 skinparam ClassBackgroundColor #F8FAFC
-skinparam InterfaceBackgroundColor #EFF6FF
+skinparam InterfaceBackgroundColor #F3E8FF
+skinparam PackageBorderColor #475569
+skinparam PackageBorderThickness 1
+skinparam DefaultFontColor #111827
+skinparam ClassFontColor #111827
+skinparam ClassAttributeFontColor #111827
 skinparam NoteBackgroundColor #FFF7ED
 skinparam NoteBorderColor #FDBA74
 
-package "Tenant Web / API Layer" #EFF6FF {
-  class OfferRoute <<REST API>> {
+package "Routing & Boundary" #EFF6FF {
+  class OfferRoute <<REST API, conceptual>> {
     +POST /api/v1/applications/{id}/offers
     +GET /api/v1/applications/{id}/offers
     +POST /api/v1/applications/{id}/decisions
   }
+}
 
-  class HiringDecisionController <<conceptual controller>> {
-    +createOffer(id: Long, request: CreateOfferRequest): OfferResponse
-    +getOffer(id: Long): OfferResponse
-    +decide(id: Long, request: DecisionRequest): OfferResponse
+package "Controller Layer" #EFF6FF {
+  class HiringDecisionController <<Controller, conceptual>> {
+    -hiringDecisionService: HiringDecisionService
+    +createOffer(id: Long, request: CreateOfferRequest): ApiResponse<OfferResponse>
+    +getOffer(id: Long): ApiResponse<OfferResponse>
+    +decide(id: Long, request: DecisionRequest): ApiResponse<OfferResponse>
   }
+}
 
-  class CreateOfferRequest <<conceptual request DTO>> {
+package "Service Layer" #F0FDF4 {
+  class HiringDecisionService <<Service, conceptual>> {
+    -applicationRepository: ApplicationRepository
+    -hiringDecisionRepository: HiringDecisionRepository
+    -emailProducer: EmailNotificationProducer
+    -tenantContext: TenantContext
+    +createOffer(actorId: Long, applicationId: Long, request: CreateOfferRequest): OfferResponse
+    +getLatest(applicationId: Long): OfferResponse
+    +decide(actorId: Long, applicationId: Long, request: DecisionRequest): OfferResponse
+  }
+}
+
+package "DTO Layer" #FFF7ED {
+  class CreateOfferRequest <<Request, conceptual>> {
     +note: String [0..1]
     +expectedUpdatedAt: Instant
   }
-
-  class DecisionRequest <<conceptual request DTO>> {
+  class DecisionRequest <<Request, conceptual>> {
     +decision: String
     +reason: String [0..1]
     +expectedUpdatedAt: Instant
   }
-
-  class OfferResponse <<conceptual response DTO>> {
+  class OfferResponse <<Response, conceptual>> {
     +applicationId: Long
     +status: String
     +decision: String [0..1]
@@ -46,42 +70,36 @@ package "Tenant Web / API Layer" #EFF6FF {
   }
 }
 
-package "Tenant Application Layer" #F0FDF4 {
-  class HiringDecisionService <<conceptual service>> {
-    +createOffer(actorId: Long, applicationId: Long, request: CreateOfferRequest): OfferResponse
-    +getLatest(applicationId: Long): OfferResponse
-    +decide(actorId: Long, applicationId: Long, request: DecisionRequest): OfferResponse
+package "Repository Layer" #F5F3FF {
+  interface ApplicationRepository <<Repository>> {
+    +findById(id: Long): Optional<Application>
+    +save(application: Application): Application
   }
-
-  class EmailNotificationProducer <<conceptual producer>> {
-    +publishOfferEvent(tenantId: String, applicationId: Long, kind: String): void
+  interface HiringDecisionRepository <<Repository>> {
+    +findLatestByApplicationId(id: Long): Optional<HiringDecision>
+    +save(decision: HiringDecision): HiringDecision
   }
 }
 
-package "Tenant Persistence Layer (Dedicated MySQL DB)" #FEFCE8 {
-  entity Application <<entity>> {
-    +id: Long
-    +stageId: Long [0..1]
-    +status: ApplicationStatus
-    +updatedAt: Instant
+package "Domain Entity Layer" #F0FDF4 {
+  entity Application <<Entity>> {
+    -id: Long
+    -stageId: Long [0..1]
+    -status: ApplicationStatus
+    -updatedAt: Instant
   }
-
-  entity HiringDecision <<entity>> {
-    +id: Long
-    +decision: HiringDecisionType
-    +reason: String [0..1]
-    +decidedBy: Long
-    +createdAt: Instant
+  entity HiringDecision <<Entity>> {
+    -id: Long
+    -decision: HiringDecisionType
+    -reason: String [0..1]
+    -decidedBy: Long
+    -createdAt: Instant
   }
-
-  entity ApplicationStatusHistory <<entity>> {
-    +id: Long
-    +fromStatus: String [0..1]
-    +toStatus: String
-    +changedBy: Long [0..1]
-    +note: String [0..1]
+  entity ApplicationStatusHistory <<Entity>> {
+    -id: Long
+    -fromStatus: String [0..1]
+    -toStatus: String
   }
-
   enum ApplicationStatus <<enumeration>> {
     INTERVIEW
     OFFER
@@ -89,52 +107,60 @@ package "Tenant Persistence Layer (Dedicated MySQL DB)" #FEFCE8 {
     REJECTED
     WITHDRAWN
   }
-
   enum HiringDecisionType <<enumeration>> {
     OFFER
     HIRE
     REJECT
     HOLD
   }
+}
 
-  interface ApplicationRepository <<repository>> {
-    +findById(id: Long): Optional<Application>
-    +save(application: Application): Application
+package "Infrastructure & Persistence" #FEFCE8 {
+  interface EmailNotificationProducer <<Messaging Port, conceptual>> {
+    +publishOfferEvent(tenantId: String, applicationId: Long, kind: String): void
   }
-
-  interface HiringDecisionRepository <<repository>> {
-    +findLatestByApplicationId(id: Long): Optional<HiringDecision>
-    +save(decision: HiringDecision): HiringDecision
+  class "RabbitMQ notify.email" as NotifyBroker <<Message Broker>> {
+    +notify.email.q
+  }
+  class "Dedicated Tenant MySQL DB" as TenantDB <<Database>> {
+    +applications
+    +hiring_decisions
+    +application_status_history
+  }
+  class TenantContext <<ThreadLocal>> {
+    +{static} getCurrentTenant(): String
+    +{static} clear(): void
   }
 }
 
-OfferRoute ..> HiringDecisionController : routes
+OfferRoute -down-> HiringDecisionController : defines routes
+HiringDecisionController -down-> HiringDecisionService : delegates
 HiringDecisionController ..> CreateOfferRequest : consumes
 HiringDecisionController ..> DecisionRequest : consumes
-HiringDecisionController ..> OfferResponse : produces
-HiringDecisionController --> HiringDecisionService : delegates to
-
-HiringDecisionService --> ApplicationRepository : persists through
+HiringDecisionController ..> OfferResponse : returns
+HiringDecisionService ..> CreateOfferRequest : processes
+HiringDecisionService ..> OfferResponse : creates
+HiringDecisionService -down-> ApplicationRepository : persists through
 HiringDecisionService --> HiringDecisionRepository : persists through
 HiringDecisionService --> EmailNotificationProducer : notifies
-
+HiringDecisionService --> TenantContext : enforces tenant scope
+ApplicationRepository -down-> Application : manages
+HiringDecisionRepository -down-> HiringDecision : manages
 Application "1" *-- "0..*" HiringDecision : decisions
 Application "1" *-- "0..*" ApplicationStatusHistory : audit
 Application --> ApplicationStatus : typed by
 HiringDecision --> HiringDecisionType : typed by
-ApplicationRepository ..> Application : manages
-HiringDecisionRepository ..> HiringDecision : manages
+Application --> TenantDB : persists to
+HiringDecision --> TenantDB : persists to
+EmailNotificationProducer --> NotifyBroker : publishes X-Tenant-ID
 
-note bottom of HiringDecisionType
-  Code today: HIRE, REJECT, HOLD.
-  OFFER is a designed value so creating an offer is
-  auditable before a terminal HIRE or REJECT.
-end note
+CreateOfferRequest -[hidden]right-> OfferResponse
+NotifyBroker -[hidden]right-> TenantDB
+TenantDB -[hidden]right-> TenantContext
 
-note bottom of HiringDecisionService
-  No offer-letter, salary, or e-sign document.
-  Offer tracking is application status OFFER plus
-  the latest hiring_decisions row.
+note right of HiringDecisionService
+  No offer-letter, salary, or e-sign.
+  OFFER is a designed HiringDecisionType; code today is HIRE, REJECT, HOLD.
 end note
 
 @enduml

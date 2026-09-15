@@ -75,29 +75,33 @@ Không có Tenant DB: persist xong trước khi publisher chạy. Không SMTP.
 
 Nguồn: [`class-diagram.puml`](class-diagram.puml)
 
+Viewpoint: **layered application-design**. Không có REST controller; ranh giới là STOMP CONNECT/SUBSCRIBE.
+
 ### 7.1. Vai trò phần tử
 
-| Phần tử | Loại | Vai trò |
+| Phần tử | Lớp | Vai trò |
 |---|---|---|
-| WebSocketEndpoint | conceptual | Hợp đồng STOMP. |
-| JwtChannelInterceptor | conceptual | Auth kênh WS. |
-| NotificationRealtimePublisher | conceptual | Gửi user destination. |
-| RealtimeNotificationPayload | conceptual | Payload nhỏ, có `id` để dedupe. |
-| NotificationService | scaffold | Hook sau insert. |
-| Notification | entity | Nguồn sự thật inbox. |
-| STOMP broker | infrastructure | Bắt buộc để giải thích kênh. |
+| WebSocketEndpoint | Routing | Hợp đồng STOMP `/ws`. |
+| JwtChannelInterceptor | Routing | JWT trên CONNECT; gắn tenant. |
+| NotificationService | Service | Hook sau inbox insert; không invent interface. |
+| RealtimeNotificationPayload | DTO | Payload nhỏ, `id` để client dedupe. |
+| Notification | Domain | Bản đã lưu; function này không INSERT. |
+| NotificationRealtimePublisher | Infrastructure port | `convertAndSendToUser`. |
+| STOMP broker, TenantContext | Infrastructure | Kênh + isolation. |
 
 ### 7.2. Quan hệ
 
 | Nguồn → đích | Ký pháp | Loại và lý do |
 |---|---|---|
-| Endpoint → Interceptor | `..>` | Dependency auth CONNECT. |
-| Interceptor → Broker | `..>` | Dependency cho phép SUBSCRIBE. |
-| Service → Publisher | `-->` | Association sau persist. |
-| Publisher → Broker | `..>` | Dependency send. |
-| Publisher → Payload | `..>` | Dependency. |
-| Broker → Endpoint | `..>` | Dependency deliver. |
-| Service → Notification | `..>` | Đọc bản đã lưu, không tạo ở đây. |
+| Endpoint → Interceptor | `-->` `authenticates CONNECT` | Association auth kênh. |
+| Interceptor → Broker | `-->` `authorizes SUBSCRIBE` | Association cho phép destination. |
+| Interceptor → TenantContext | `-->` | Association set tenant từ JWT. |
+| Service → Publisher | `-->` `after persist` | Association sau commit inbox. |
+| Service → TenantContext | `-->` | Association phạm vi tenant. |
+| Service → Notification | `..>` `already stored` | Dependency đọc, không tạo. |
+| Publisher → Payload | `..>` `sends` | Dependency. |
+| Publisher → Broker | `-->` | Association send. |
+| Broker → Endpoint | `..>` `delivers` | Dependency tới subscriber. |
 
 ## 8. Quyết định kiến trúc và bảo mật
 

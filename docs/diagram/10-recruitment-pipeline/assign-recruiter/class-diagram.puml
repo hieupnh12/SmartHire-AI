@@ -1,33 +1,55 @@
 @startuml
-title PIPE — Assign Recruiter to Application\nApplication-design viewpoint
+title PIPE — Assign Recruiter to Application\nLayered target application-design viewpoint
+top to bottom direction
 
 skinparam dpi 300
 skinparam backgroundColor #FFFFFF
 skinparam shadowing false
 skinparam packageStyle rectangle
-skinparam classAttributeIconSize 0
-skinparam ArrowColor #64748B
-skinparam ClassBorderColor #CBD5E1
+skinparam classAttributeIconSize 12
+skinparam linetype ortho
+skinparam ArrowColor #334155
+skinparam ArrowThickness 1
+skinparam ClassBorderColor #64748B
+skinparam ClassBorderThickness 1
 skinparam ClassBackgroundColor #F8FAFC
-skinparam InterfaceBackgroundColor #EFF6FF
+skinparam InterfaceBackgroundColor #F3E8FF
+skinparam PackageBorderColor #475569
+skinparam PackageBorderThickness 1
+skinparam DefaultFontColor #111827
+skinparam ClassFontColor #111827
+skinparam ClassAttributeFontColor #111827
 skinparam NoteBackgroundColor #FFF7ED
 skinparam NoteBorderColor #FDBA74
 
-package "Tenant Web / API Layer" #EFF6FF {
-  class AssignRecruiterRoute <<REST API>> {
+package "Routing & Boundary" #EFF6FF {
+  class AssignRecruiterRoute <<REST API, conceptual>> {
     +PATCH /api/v1/applications/{id}/assignee
   }
+}
 
-  class ApplicationAssigneeController <<conceptual controller>> {
-    +assign(id: Long, request: AssignRecruiterRequest): ApplicationCardResponse
+package "Controller Layer" #EFF6FF {
+  class ApplicationAssigneeController <<Controller, conceptual>> {
+    -assigneeService: ApplicationAssigneeService
+    +assign(id: Long, request: AssignRecruiterRequest): ApiResponse<ApplicationCardResponse>
   }
+}
 
-  class AssignRecruiterRequest <<conceptual request DTO>> {
+package "Service Layer" #F0FDF4 {
+  class ApplicationAssigneeService <<Service, conceptual>> {
+    -applicationRepository: ApplicationRepository
+    -userRepository: UserRepository
+    -tenantContext: TenantContext
+    +assign(actorId: Long, applicationId: Long, recruiterId: Long, expectedUpdatedAt: Instant): ApplicationCardResponse
+  }
+}
+
+package "DTO Layer" #FFF7ED {
+  class AssignRecruiterRequest <<Request, conceptual>> {
     +recruiterId: Long [0..1]
     +expectedUpdatedAt: Instant
   }
-
-  class ApplicationCardResponse <<conceptual response DTO>> {
+  class ApplicationCardResponse <<Response, conceptual>> {
     +id: Long
     +candidateName: String
     +stageId: Long
@@ -36,87 +58,86 @@ package "Tenant Web / API Layer" #EFF6FF {
   }
 }
 
-package "Tenant Application Layer" #F0FDF4 {
-  class ApplicationAssigneeService <<conceptual service>> {
-    +assign(actorId: Long, applicationId: Long, recruiterId: Long, expectedUpdatedAt: Instant): ApplicationCardResponse
+package "Repository Layer" #F5F3FF {
+  interface ApplicationRepository <<Repository>> {
+    +findById(id: Long): Optional<Application>
+    +save(application: Application): Application
+  }
+  interface UserRepository <<Repository>> {
+    +findById(id: Long): Optional<User>
   }
 }
 
-package "Tenant Persistence Layer (Dedicated MySQL DB)" #FEFCE8 {
-  entity Application <<entity>> {
-    +id: Long
-    +jobId: Long
-    +candidateId: Long
-    +stageId: Long [0..1]
-    +status: ApplicationStatus
-    +assignedRecruiterId: Long [0..1]
-    +updatedAt: Instant
+package "Domain Entity Layer" #F0FDF4 {
+  entity Application <<Entity>> {
+    -id: Long
+    -jobId: Long
+    -stageId: Long [0..1]
+    -assignedRecruiterId: Long [0..1]
+    -updatedAt: Instant
   }
-
-  entity User <<entity>> {
-    +id: Long
-    +fullName: String
-    +role: UserRole
-    +status: UserStatus
+  entity User <<Entity>> {
+    -id: Long
+    -fullName: String
+    -role: UserRole
+    -status: UserStatus
   }
-
-  entity ApplicationStatusHistory <<entity>> {
-    +id: Long
-    +fromStatus: String [0..1]
-    +toStatus: String
-    +changedBy: Long [0..1]
-    +note: String [0..1]
+  entity ApplicationStatusHistory <<Entity>> {
+    -id: Long
+    -note: String [0..1]
+    -changedBy: Long [0..1]
   }
-
   enum UserRole <<enumeration>> {
     TENANT_ADMIN
     ADMIN
     HR
     RECRUITER
-    CANDIDATE
   }
-
   enum UserStatus <<enumeration>> {
     ACTIVE
     LOCKED
     DISABLED
   }
+}
 
-  interface ApplicationRepository <<repository>> {
-    +findById(id: Long): Optional<Application>
-    +save(application: Application): Application
+package "Infrastructure & Persistence" #FEFCE8 {
+  class "Dedicated Tenant MySQL DB" as TenantDB <<Database>> {
+    +applications
+    +users
+    +application_status_history
   }
-
-  interface UserRepository <<repository>> {
-    +findById(id: Long): Optional<User>
+  class TenantContext <<ThreadLocal>> {
+    +{static} getCurrentTenant(): String
+    +{static} clear(): void
   }
 }
 
-AssignRecruiterRoute ..> ApplicationAssigneeController : routes
+AssignRecruiterRoute -down-> ApplicationAssigneeController : defines routes
+ApplicationAssigneeController -down-> ApplicationAssigneeService : delegates
 ApplicationAssigneeController ..> AssignRecruiterRequest : consumes
-ApplicationAssigneeController ..> ApplicationCardResponse : produces
-ApplicationAssigneeController --> ApplicationAssigneeService : delegates to
-
-ApplicationAssigneeService --> ApplicationRepository : persists through
+ApplicationAssigneeController ..> ApplicationCardResponse : returns
+ApplicationAssigneeService ..> AssignRecruiterRequest : processes
+ApplicationAssigneeService ..> ApplicationCardResponse : creates
+ApplicationAssigneeService -down-> ApplicationRepository : persists through
 ApplicationAssigneeService --> UserRepository : persists through
-
+ApplicationAssigneeService --> TenantContext : enforces tenant scope
+ApplicationRepository -down-> Application : manages
+UserRepository -down-> User : manages
 Application "0..*" --> "0..1" User : assignedRecruiter
 Application "1" *-- "0..*" ApplicationStatusHistory : audit trail
 User --> UserRole : typed by
 User --> UserStatus : typed by
-ApplicationRepository ..> Application : manages
-UserRepository ..> User : manages
+Application --> TenantDB : persists to
+User --> TenantDB : persists to
 
-note bottom of Application
-  assignedRecruiterId is designed; current applications
-  table has no assignee column. Job.createdBy remains
-  job owner and is out of this function.
-end note
+AssignRecruiterRequest -[hidden]right-> ApplicationCardResponse
+Application -[hidden]right-> User
+TenantDB -[hidden]right-> TenantContext
 
-note bottom of ApplicationAssigneeService
-  Assignee must be ACTIVE with role HR, RECRUITER,
-  ADMIN, or TENANT_ADMIN in this Tenant DB.
+note right of ApplicationAssigneeService
+  Assignee must be ACTIVE HR, RECRUITER, ADMIN, or TENANT_ADMIN.
   Null recruiterId unassigns the card.
+  assignedRecruiterId is designed; job owner is out of scope.
 end note
 
 @enduml

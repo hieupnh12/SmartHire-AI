@@ -1,84 +1,93 @@
 @startuml
-title PIPE — Transition Candidate Stage\nApplication-design viewpoint
+title PIPE — Transition Candidate Stage\nLayered target application-design viewpoint
+top to bottom direction
 
 skinparam dpi 300
 skinparam backgroundColor #FFFFFF
 skinparam shadowing false
 skinparam packageStyle rectangle
-skinparam classAttributeIconSize 0
-skinparam ArrowColor #64748B
-skinparam ClassBorderColor #CBD5E1
+skinparam classAttributeIconSize 12
+skinparam linetype ortho
+skinparam ArrowColor #334155
+skinparam ArrowThickness 1
+skinparam ClassBorderColor #64748B
+skinparam ClassBorderThickness 1
 skinparam ClassBackgroundColor #F8FAFC
-skinparam InterfaceBackgroundColor #EFF6FF
+skinparam InterfaceBackgroundColor #F3E8FF
+skinparam PackageBorderColor #475569
+skinparam PackageBorderThickness 1
+skinparam DefaultFontColor #111827
+skinparam ClassFontColor #111827
+skinparam ClassAttributeFontColor #111827
 skinparam NoteBackgroundColor #FFF7ED
 skinparam NoteBorderColor #FDBA74
 
-package "Tenant Web / API Layer" #EFF6FF {
-  class PipelineMoveRoute <<REST API>> {
+package "Routing & Boundary" #EFF6FF {
+  class PipelineMoveRoute <<REST API, conceptual>> {
     +GET /api/v1/jobs/{jobId}/pipeline
     +POST /api/v1/applications/{id}/move
   }
+}
 
-  class WorkflowController <<conceptual controller>> {
-    +getPipeline(jobId: Long): PipelineBoardResponse
-    +move(id: Long, request: MoveApplicationRequest): ApplicationCardResponse
+package "Controller Layer" #EFF6FF {
+  class WorkflowController <<Controller, conceptual>> {
+    -workflowService: WorkflowService
+    +getPipeline(jobId: Long): ApiResponse<PipelineBoardResponse>
+    +move(id: Long, request: MoveApplicationRequest): ApiResponse<ApplicationCardResponse>
   }
+}
 
-  class MoveApplicationRequest <<conceptual request DTO>> {
+package "Service Layer" #F0FDF4 {
+  class WorkflowService <<Service>> {
+    -applicationRepository: ApplicationRepository
+    -emailProducer: EmailNotificationProducer
+    -tenantContext: TenantContext
+    +getPipeline(jobId: Long): PipelineBoardResponse
+    +move(actorId: Long, applicationId: Long, request: MoveApplicationRequest): ApplicationCardResponse
+    +canMove(from: RecruitmentStage, to: RecruitmentStage, status: ApplicationStatus): boolean
+  }
+}
+
+package "DTO Layer" #FFF7ED {
+  class MoveApplicationRequest <<Request, conceptual>> {
     +toStageId: Long
     +expectedUpdatedAt: Instant
     +note: String [0..1]
   }
-
-  class PipelineBoardResponse <<conceptual response DTO>> {
+  class PipelineBoardResponse <<Response, conceptual>> {
     +jobId: Long
     +columns: StageColumn[*]
   }
 }
 
-package "Tenant Application Layer" #F0FDF4 {
-  class WorkflowService <<application service>> {
-    +getPipeline(jobId: Long): PipelineBoardResponse
-    +move(actorId: Long, applicationId: Long, request: MoveApplicationRequest): ApplicationCardResponse
-  }
-
-  class TransitionPolicy <<conceptual domain service>> {
-    +canMove(from: RecruitmentStage, to: RecruitmentStage, status: ApplicationStatus): boolean
-  }
-
-  class EmailNotificationProducer <<conceptual producer>> {
-    +publishStageChanged(tenantId: String, applicationId: Long, toCode: String): void
+package "Repository Layer" #F5F3FF {
+  interface ApplicationRepository <<Repository>> {
+    +findById(id: Long): Optional<Application>
+    +save(application: Application): Application
   }
 }
 
-package "Tenant Persistence Layer (Dedicated MySQL DB)" #FEFCE8 {
-  entity Application <<entity>> {
-    +id: Long
-    +stageId: Long [0..1]
-    +status: ApplicationStatus
-    +updatedAt: Instant
+package "Domain Entity Layer" #F0FDF4 {
+  entity Application <<Entity>> {
+    -id: Long
+    -stageId: Long [0..1]
+    -status: ApplicationStatus
+    -updatedAt: Instant
   }
-
-  entity RecruitmentStage <<entity>> {
-    +id: Long
-    +code: String [0..1]
-    +name: String
-    +terminal: boolean
+  entity RecruitmentStage <<Entity>> {
+    -id: Long
+    -code: String [0..1]
+    -name: String
+    -terminal: boolean
   }
-
-  entity ApplicationStatusHistory <<entity>> {
-    +id: Long
-    +fromStatus: String [0..1]
-    +toStatus: String
-    +fromStageId: Long [0..1]
-    +toStageId: Long
-    +enteredAt: Instant
-    +exitedAt: Instant [0..1]
-    +durationSeconds: Long [0..1]
-    +changedBy: Long [0..1]
-    +note: String [0..1]
+  entity ApplicationStatusHistory <<Entity>> {
+    -id: Long
+    -fromStageId: Long [0..1]
+    -toStageId: Long
+    -enteredAt: Instant
+    -exitedAt: Instant [0..1]
+    -durationSeconds: Long [0..1]
   }
-
   enum ApplicationStatus <<enumeration>> {
     NEW
     IN_REVIEW
@@ -89,43 +98,50 @@ package "Tenant Persistence Layer (Dedicated MySQL DB)" #FEFCE8 {
     REJECTED
     WITHDRAWN
   }
+}
 
-  interface ApplicationRepository <<repository>> {
-    +findById(id: Long): Optional<Application>
-    +save(application: Application): Application
+package "Infrastructure & Persistence" #FEFCE8 {
+  interface EmailNotificationProducer <<Messaging Port, conceptual>> {
+    +publishStageChanged(tenantId: String, applicationId: Long, toCode: String): void
+  }
+  class "RabbitMQ notify.email" as NotifyBroker <<Message Broker>> {
+    +notify.email.q
+  }
+  class "Dedicated Tenant MySQL DB" as TenantDB <<Database>> {
+    +applications
+    +recruitment_stages
+    +application_status_history
+  }
+  class TenantContext <<ThreadLocal>> {
+    +{static} getCurrentTenant(): String
+    +{static} clear(): void
   }
 }
 
-package "Asynchronous Integration" #FAF5FF {
-  class "RabbitMQ notify-email" as NotifyQueue <<queue>>
-}
-
-PipelineMoveRoute ..> WorkflowController : routes
+PipelineMoveRoute -down-> WorkflowController : defines routes
+WorkflowController -down-> WorkflowService : delegates
 WorkflowController ..> MoveApplicationRequest : consumes
-WorkflowController ..> PipelineBoardResponse : produces
-WorkflowController --> WorkflowService : delegates to
-
-WorkflowService --> TransitionPolicy : consults
-WorkflowService --> ApplicationRepository : persists through
+WorkflowController ..> PipelineBoardResponse : returns
+WorkflowService ..> MoveApplicationRequest : processes
+WorkflowService -down-> ApplicationRepository : persists through
 WorkflowService --> EmailNotificationProducer : dispatches events
-EmailNotificationProducer ..> NotifyQueue : publishes X-Tenant-ID
-
+WorkflowService --> TenantContext : enforces tenant scope
+ApplicationRepository -down-> Application : manages
 Application --> RecruitmentStage : currently in
 Application --> ApplicationStatus : typed by
 Application "1" *-- "0..*" ApplicationStatusHistory : history
-ApplicationRepository ..> Application : manages
+Application --> TenantDB : persists to
+RecruitmentStage --> TenantDB : persists to
+EmailNotificationProducer --> NotifyBroker : publishes X-Tenant-ID
 
-note bottom of TransitionPolicy
-  Forward moves along sort_order are allowed.
-  Hired/Rejected are terminal: no move out except
-  WITHDRAWN by candidate (out of this function).
-  Offer/Hire/Reject decisions belong to create-and-track-offer.
-end note
+MoveApplicationRequest -[hidden]right-> PipelineBoardResponse
+NotifyBroker -[hidden]right-> TenantDB
+TenantDB -[hidden]right-> TenantContext
 
-note bottom of ApplicationStatusHistory
-  Existing columns: from_status, to_status, changed_by, note.
-  fromStageId, enteredAt, exitedAt, durationSeconds are
-  designed so time-in-stage can be computed.
+note right of WorkflowService
+  canMove: forward along sort_order.
+  HIRED/REJECTED are terminal (WITHDRAWN is out of scope).
+  Offer/Hire/Reject belong to create-and-track-offer.
 end note
 
 @enduml

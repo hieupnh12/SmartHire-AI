@@ -80,31 +80,32 @@ Nguồn: [`sequence-diagram.puml`](sequence-diagram.puml)
 
 Nguồn: [`class-diagram.puml`](class-diagram.puml)
 
+Viewpoint: **layered application-design**. Không REST; enqueue từ dispatcher. `MailTemplateRenderer` gói trong service để không kéo ngang Service Layer.
+
 ### 7.1. Vai trò phần tử
 
-| Phần tử | Loại | Vai trò |
+| Phần tử | Lớp | Vai trò |
 |---|---|---|
-| EmailNotificationService | conceptual | Orchestrate happy path. |
-| SendEmailCommand | conceptual | Input từ dispatcher. |
-| MailTemplateRenderer / MailTemplate / RenderedMail | conceptual | i18n; **không** có bảng Flyway. |
-| NotificationPreference | conceptual | Opt-out theo `type`. |
-| EmailOutbox / Status / Repository | entity thật | Outbox + enum code. |
-| EmailWorker | conceptual | `@RabbitListener` tương lai. |
-| Queue / SMTP | topology + external | Kênh gửi. |
+| EmailNotificationService | Service | Preference + render i18n + outbox + publish. |
+| SendEmailCommand, RenderedMail | DTO | Input dispatcher; snapshot subject/body. |
+| EmailOutboxRepository | Repository | Persist outbox. |
+| EmailOutbox, MailTemplate, Preference, Status | Domain | Outbox thật; template/preference conceptual. |
+| EmailWorker, RabbitMQ, SMTP, TenantDB, TenantContext | Infrastructure | Consume, SMTP, isolation. |
 
 ### 7.2. Quan hệ
 
 | Nguồn → đích | Ký pháp | Loại và lý do |
 |---|---|---|
-| Service → Command | `..>` | Dependency. |
-| Service → Renderer | `-->` | Association. |
-| Service → OutboxRepository | `-->` | Association persist. |
-| Service → Preference | `..>` | Dependency consult. |
-| Renderer → Template / RenderedMail | `..>` | Đọc / tạo value. |
-| Repository → Outbox | `..>` | Manage. |
-| Outbox → Status | `-->` | Typed-by. |
-| Service → Queue | `..>` | Publish. |
-| Worker → Queue / SMTP / Repository | `..>` / `-->` | Consume, send, mark SENT. |
+| Service → Command | `..>` `processes` | Dependency input. |
+| Service → RenderedMail | `..>` `creates` | Dependency kết quả render. |
+| Service → Preference / Template | `..>` | Consult / đọc template. |
+| Service → Repository | `-->` `persists through` | Association. |
+| Service → TenantContext | `-->` | Association tenant. |
+| Service → Broker | `-->` `publishes X-Tenant-ID` | Association queue. |
+| Repository → Outbox | `-->` `manages` | Association. |
+| Outbox → Status | `-->` `typed by` | Dependency enum. |
+| Entity → TenantDB | `-->` `persists to` | Association. |
+| Worker → Broker / SMTP / Repo / Context | `..>` / `-->` | Consume, send, mark SENT, restore tenant. |
 
 ## 8. Quyết định kiến trúc và bảo mật
 
@@ -117,7 +118,7 @@ Nguồn: [`class-diagram.puml`](class-diagram.puml)
 
 - Locale trên command (dispatcher chọn); `User` chưa có `preferredLocale`.
 - Default preference = email bật nếu chưa có dòng.
-- Template conceptual; body lưu snapshot trên outbox lúc enqueue (đúng cột `body` hiện có).
+- Render i18n nằm trong EmailNotificationService (không tách MailTemplateRenderer trên sơ đồ chính).
 - SMTP 250 = thành công nghiệp vụ gửi; bounce sau đó không vẽ.
 - Retry/DLQ/idempotency **không** vẽ ở đây dù feature doc nêu.
 

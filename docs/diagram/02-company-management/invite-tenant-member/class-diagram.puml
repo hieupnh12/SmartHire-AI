@@ -1,157 +1,172 @@
 @startuml
-title COMPANY-02 — Invite Tenant Member\nApplication-design viewpoint
+title COMPANY-02 — Invite Tenant Member\nLayered target application-design viewpoint
+top to bottom direction
 
 skinparam dpi 300
 skinparam backgroundColor #FFFFFF
 skinparam shadowing false
 skinparam packageStyle rectangle
-skinparam classAttributeIconSize 0
-skinparam ArrowColor #64748B
-skinparam ClassBorderColor #CBD5E1
+skinparam classAttributeIconSize 12
+skinparam linetype ortho
+skinparam ArrowColor #334155
+skinparam ArrowThickness 1
+skinparam ClassBorderColor #64748B
+skinparam ClassBorderThickness 1
 skinparam ClassBackgroundColor #F8FAFC
-skinparam InterfaceBackgroundColor #EFF6FF
+skinparam InterfaceBackgroundColor #F3E8FF
+skinparam PackageBorderColor #475569
+skinparam PackageBorderThickness 1
+skinparam DefaultFontColor #111827
+skinparam ClassFontColor #111827
+skinparam ClassAttributeFontColor #111827
 skinparam NoteBackgroundColor #FFF7ED
 skinparam NoteBorderColor #FDBA74
 
-package "Tenant Web / API Layer" #EFF6FF {
-  class MemberInvitationRoute <<REST API>> {
+package "Routing & Boundary" #EFF6FF {
+  class MemberInvitationRoute <<REST API, conceptual>> {
     +POST /api/v1/tenant/users/invitations
     +POST /api/v1/tenant/users/invitations/accept
   }
+}
 
-  class TenantUserController <<REST controller>> {
-    +inviteMember(request: InviteMemberRequest): InvitationResponse
-    +acceptInvitation(request: AcceptInvitationRequest): UserResponse
-  }
-
-  class InviteMemberRequest <<conceptual request DTO>> {
-    +email: String
-    +fullName: String
-    +role: String
-  }
-
-  class AcceptInvitationRequest <<conceptual request DTO>> {
-    +token: String {write-only}
-    +password: String {write-only}
-  }
-
-  class InvitationResponse <<conceptual response DTO>> {
-    +id: Long
-    +email: String
-    +role: String
-    +status: String
-    +expiresAt: Instant
-  }
-
-  class UserResponse <<response DTO>> {
-    +id: Long
-    +email: String
-    +fullName: String
-    +role: String
-    +status: String
+package "Controller Layer" #EFF6FF {
+  class TenantUserController <<Controller>> {
+    -memberInvitationService: MemberInvitationService
+    +inviteMember(request: InviteMemberRequest): ApiResponse<InvitationResponse>
+    +acceptInvitation(request: AcceptInvitationRequest): ApiResponse<UserResponse>
   }
 }
 
-package "Tenant Application Layer" #F0FDF4 {
-  class MemberInvitationService <<conceptual service>> {
+package "Service Layer" #F0FDF4 {
+  class MemberInvitationService <<Service, conceptual>> {
+    -invitationRepository: MemberInvitationRepository
+    -userRepository: UserRepository
+    -emailProducer: EmailNotificationProducer
+    -tenantContext: TenantContext
     +invite(request: InviteMemberRequest): InvitationResponse
     +accept(request: AcceptInvitationRequest): UserResponse
   }
+}
 
-  class EmailNotificationProducer <<conceptual producer>> {
-    +publishMemberInvite(tenantId: String, email: String, acceptUrl: String): void
+package "DTO Layer" #FFF7ED {
+  class InviteMemberRequest <<Request, conceptual>> {
+    +email: String
+    +fullName: String
+    +role: String
+  }
+  class AcceptInvitationRequest <<Request, conceptual>> {
+    +tokenHashInput: String {write-only}
+  }
+  class InvitationResponse <<Response, conceptual>> {
+    +id: Long
+    +email: String
+    +role: String
+    +status: String
+    +expiresAt: Instant
+  }
+  class UserResponse <<Response>> {
+    +id: Long
+    +email: String
+    +fullName: String
+    +role: String
+    +status: String
   }
 }
 
-package "Tenant Persistence Layer (Dedicated MySQL DB)" #FEFCE8 {
-  entity MemberInvitation <<conceptual entity>> {
-    +id: Long
-    +email: String
-    +fullName: String
-    +role: UserRole
-    +tokenHash: String
-    +status: InvitationStatus
-    +expiresAt: Instant
-    +acceptedUserId: Long [0..1]
+package "Repository Layer" #F5F3FF {
+  interface MemberInvitationRepository <<Repository, conceptual>> {
+    +findByEmailAndStatus(email: String, status: InvitationStatus): Optional<MemberInvitation>
+    +findByTokenHash(tokenHash: String): Optional<MemberInvitation>
+    +save(invitation: MemberInvitation): MemberInvitation
   }
-
-  entity User <<entity>> {
-    +id: Long
-    +email: String
-    +passwordHash: String
-    +fullName: String
-    +role: UserRole
-    +status: UserStatus
+  interface UserRepository <<Repository>> {
+    +existsByEmailIgnoreCase(email: String): boolean
+    +save(user: User): User
   }
+}
 
+package "Domain Entity Layer" #F0FDF4 {
+  entity MemberInvitation <<Entity, conceptual>> {
+    -id: Long
+    -email: String
+    -fullName: String
+    -role: UserRole
+    -tokenHash: String
+    -status: InvitationStatus
+    -expiresAt: Instant
+  }
+  entity User <<Entity>> {
+    -id: Long
+    -email: String
+    -fullName: String
+    -role: UserRole
+    -status: UserStatus
+  }
   enum UserRole <<enumeration>> {
     TENANT_ADMIN
     ADMIN
     HR
     RECRUITER
   }
-
-  enum UserStatus <<enumeration>> {
-    ACTIVE
-    LOCKED
-    DISABLED
-  }
-
-  enum InvitationStatus <<conceptual enumeration>> {
+  enum InvitationStatus <<enumeration, conceptual>> {
     PENDING
     ACCEPTED
     EXPIRED
     REVOKED
   }
-
-  interface MemberInvitationRepository <<conceptual repository>> {
-    +findByEmailAndStatus(email: String, status: InvitationStatus): Optional<MemberInvitation>
-    +findByTokenHash(tokenHash: String): Optional<MemberInvitation>
-    +save(invitation: MemberInvitation): MemberInvitation
-  }
-
-  interface UserRepository <<repository>> {
-    +existsByEmailIgnoreCase(email: String): boolean
-    +save(user: User): User
+  enum UserStatus <<enumeration>> {
+    ACTIVE
+    LOCKED
+    DISABLED
   }
 }
 
-package "Asynchronous Integration" #FAF5FF {
-  class "RabbitMQ notify-email" as NotifyQueue <<queue>>
+package "Infrastructure & Persistence" #FEFCE8 {
+  interface EmailNotificationProducer <<Messaging Port, conceptual>> {
+    +publishMemberInvite(tenantId: String, email: String, acceptUrl: String): void
+  }
+  class "RabbitMQ notify.email" as NotifyBroker <<Message Broker>> {
+    +notify.email.q
+  }
+  class "Dedicated Tenant MySQL DB" as TenantDB <<Database>> {
+    +users
+  }
+  class TenantContext <<ThreadLocal>> {
+    +{static} getCurrentTenant(): String
+    +{static} clear(): void
+  }
 }
 
-MemberInvitationRoute ..> TenantUserController : routes
+MemberInvitationRoute -down-> TenantUserController : defines routes
+TenantUserController -down-> MemberInvitationService : delegates
 TenantUserController ..> InviteMemberRequest : consumes
 TenantUserController ..> AcceptInvitationRequest : consumes
-TenantUserController ..> InvitationResponse : produces
-TenantUserController ..> UserResponse : produces
-TenantUserController --> MemberInvitationService : delegates to
-
-MemberInvitationService --> MemberInvitationRepository : persists through
-MemberInvitationService --> UserRepository : persists through
-MemberInvitationService --> EmailNotificationProducer : dispatches events
+TenantUserController ..> InvitationResponse : returns
+TenantUserController ..> UserResponse : returns
 MemberInvitationService ..> InviteMemberRequest : processes
-EmailNotificationProducer ..> NotifyQueue : publishes X-Tenant-ID
-
+MemberInvitationService -down-> MemberInvitationRepository : persists through
+MemberInvitationService --> UserRepository : persists through
+MemberInvitationService --> EmailNotificationProducer : fans out email
+MemberInvitationService --> TenantContext : enforces tenant scope
+MemberInvitationRepository -down-> MemberInvitation : manages
+UserRepository -down-> User : manages
 User --> UserRole : typed by
 User --> UserStatus : typed by
 MemberInvitation --> UserRole : assigns
 MemberInvitation --> InvitationStatus : typed by
 MemberInvitation "0..1" --> "0..1" User : accepted as
+User --> TenantDB : persists to
+EmailNotificationProducer --> NotifyBroker : publishes X-Tenant-ID
 
-MemberInvitationRepository ..> MemberInvitation : manages
-UserRepository ..> User : manages
+InviteMemberRequest -[hidden]right-> InvitationResponse
+NotifyBroker -[hidden]right-> TenantDB
+TenantDB -[hidden]right-> TenantContext
 
 note right of InviteMemberRequest
   Designed invite has no password field.
   Current POST /api/v1/tenant/users still
   creates an ACTIVE user with a password.
-end note
-
-note bottom of MemberInvitation
-  tokenHash is stored; raw token is emailed
-  once and never logged. CANDIDATE is not
-  an invitable workspace role.
+  CANDIDATE is not invitable.
 end note
 
 @enduml

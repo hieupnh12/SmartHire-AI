@@ -1,32 +1,53 @@
 @startuml
-title COMPANY-03 — Change Member Role\nApplication-design viewpoint
+title COMPANY-03 — Change Member Role\nLayered target application-design viewpoint
+top to bottom direction
 
 skinparam dpi 300
 skinparam backgroundColor #FFFFFF
 skinparam shadowing false
 skinparam packageStyle rectangle
-skinparam classAttributeIconSize 0
-skinparam ArrowColor #64748B
-skinparam ClassBorderColor #CBD5E1
+skinparam classAttributeIconSize 12
+skinparam linetype ortho
+skinparam ArrowColor #334155
+skinparam ArrowThickness 1
+skinparam ClassBorderColor #64748B
+skinparam ClassBorderThickness 1
 skinparam ClassBackgroundColor #F8FAFC
-skinparam InterfaceBackgroundColor #EFF6FF
+skinparam InterfaceBackgroundColor #F3E8FF
+skinparam PackageBorderColor #475569
+skinparam PackageBorderThickness 1
+skinparam DefaultFontColor #111827
+skinparam ClassFontColor #111827
+skinparam ClassAttributeFontColor #111827
 skinparam NoteBackgroundColor #FFF7ED
 skinparam NoteBorderColor #FDBA74
 
-package "Tenant Web / API Layer" #EFF6FF {
-  class ChangeMemberRoleRoute <<REST API>> {
+package "Routing & Boundary" #EFF6FF {
+  class ChangeMemberRoleRoute <<REST API, conceptual>> {
     +PATCH /api/v1/tenant/users/{id}/role
   }
+}
 
-  class TenantUserController <<REST controller>> {
-    +changeRole(id: Long, request: ChangeRoleRequest): UserResponse
+package "Controller Layer" #EFF6FF {
+  class TenantUserController <<Controller>> {
+    -tenantUserService: TenantUserService
+    +changeRole(id: Long, request: ChangeRoleRequest): ApiResponse<UserResponse>
   }
+}
 
-  class ChangeRoleRequest <<conceptual request DTO>> {
+package "Service Layer" #F0FDF4 {
+  class TenantUserService <<Service>> {
+    -userRepository: UserRepository
+    -tenantContext: TenantContext
+    +changeRole(actorId: Long, targetId: Long, role: String): UserResponse
+  }
+}
+
+package "DTO Layer" #FFF7ED {
+  class ChangeRoleRequest <<Request, conceptual>> {
     +role: String
   }
-
-  class UserResponse <<response DTO>> {
+  class UserResponse <<Response>> {
     +id: Long
     +email: String
     +fullName: String
@@ -35,37 +56,22 @@ package "Tenant Web / API Layer" #EFF6FF {
   }
 }
 
-package "Security & Tenant Context" #F1F5F9 {
-  class TenantWebInterceptor <<Spring HandlerInterceptor>> {
-    +preHandle(request, response, handler): boolean
-    +afterCompletion(request, response, handler, ex): void
-  }
-
-  class TenantContext <<ThreadLocal>> {
-    +{static} setCurrentTenant(tenantId: String): void
-    +{static} clear(): void
+package "Repository Layer" #F5F3FF {
+  interface UserRepository <<Repository>> {
+    +findById(id: Long): Optional<User>
+    +countByRoleAndStatus(role: UserRole, status: UserStatus): long
+    +save(user: User): User
   }
 }
 
-package "Tenant Application Layer" #F0FDF4 {
-  class TenantUserService <<application service>> {
-    +changeRole(actorId: Long, targetId: Long, role: String): UserResponse
+package "Domain Entity Layer" #F0FDF4 {
+  entity User <<Entity>> {
+    -id: Long
+    -email: String
+    -fullName: String
+    -role: UserRole
+    -status: UserStatus
   }
-
-  class RedisSessionService <<conceptual service>> {
-    +revokeRefreshToken(tenantId: String, userId: Long): void
-  }
-}
-
-package "Tenant Persistence Layer (Dedicated MySQL DB)" #FEFCE8 {
-  entity User <<entity>> {
-    +id: Long
-    +email: String
-    +fullName: String
-    +role: UserRole
-    +status: UserStatus
-  }
-
   enum UserRole <<enumeration>> {
     TENANT_ADMIN
     ADMIN
@@ -73,40 +79,48 @@ package "Tenant Persistence Layer (Dedicated MySQL DB)" #FEFCE8 {
     RECRUITER
     CANDIDATE
   }
-
   enum UserStatus <<enumeration>> {
     ACTIVE
     LOCKED
     DISABLED
   }
+}
 
-  interface UserRepository <<repository>> {
-    +findById(id: Long): Optional<User>
-    +countByRoleAndStatus(role: UserRole, status: UserStatus): long
-    +save(user: User): User
+package "Infrastructure & Persistence" #FEFCE8 {
+  class RedisCache <<Cache>> {
+    +refreshToken:{tenantId}:{userId}
+  }
+  class "Dedicated Tenant MySQL DB" as TenantDB <<Database>> {
+    +users
+  }
+  class TenantContext <<ThreadLocal>> {
+    +{static} getCurrentTenant(): String
+    +{static} clear(): void
   }
 }
 
-ChangeMemberRoleRoute ..> TenantUserController : routes
+ChangeMemberRoleRoute -down-> TenantUserController : defines routes
+TenantUserController -down-> TenantUserService : delegates
 TenantUserController ..> ChangeRoleRequest : consumes
-TenantUserController ..> UserResponse : produces
-TenantUserController --> TenantUserService : delegates to
-TenantWebInterceptor ..> TenantContext : sets / clears
-
-TenantUserService --> UserRepository : persists through
-TenantUserService ..> RedisSessionService : revokes session on demotion
+TenantUserController ..> UserResponse : returns
 TenantUserService ..> ChangeRoleRequest : processes
-
+TenantUserService ..> UserResponse : creates
+TenantUserService -down-> UserRepository : persists through
+TenantUserService --> TenantContext : enforces tenant scope
+TenantUserService --> RedisCache : revokes refresh on demotion
+UserRepository -down-> User : manages
 User --> UserRole : typed by
 User --> UserStatus : typed by
-UserRepository ..> User : manages
+User --> TenantDB : persists to
 
-note bottom of TenantUserService
-  Invariants:
-  - Only TENANT_ADMIN or ADMIN may change roles.
-  - Workspace roles exclude CANDIDATE.
-  - The last ACTIVE TENANT_ADMIN cannot be demoted.
-  - Actor cannot demote themselves if they are the last admin.
+ChangeRoleRequest -[hidden]right-> UserResponse
+TenantDB -[hidden]right-> RedisCache
+RedisCache -[hidden]right-> TenantContext
+
+note right of TenantUserService
+  Only TENANT_ADMIN or ADMIN may change roles.
+  Workspace roles exclude CANDIDATE.
+  The last ACTIVE TENANT_ADMIN cannot be demoted.
 end note
 
 @enduml

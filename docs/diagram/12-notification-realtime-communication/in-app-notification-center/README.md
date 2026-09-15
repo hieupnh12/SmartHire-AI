@@ -82,27 +82,33 @@ Deep link: UI điều hướng trong tenant hiện tại từ `payload_json`; kh
 
 Nguồn: [`class-diagram.puml`](class-diagram.puml)
 
+Viewpoint: **layered application-design** (`Routing & Boundary` → `Controller` → `Service` → `DTO` → `Repository` → `Domain Entity` → `Infrastructure`). Tenant isolation qua `TenantContext` và Tenant DB, không prefix `Tenant` trên mọi package.
+
 ### 7.1. Vai trò phần tử
 
-| Phần tử | Loại | Vai trò |
+| Phần tử | Lớp | Vai trò |
 |---|---|---|
-| NotificationInboxRoute | conceptual REST | Hợp đồng GET/PATCH. |
-| NotificationController | hiện có (scaffold) | Thêm method conceptual. |
-| List/Response DTO | conceptual | `unreadCount` trên list, không cột riêng. |
-| NotificationService | hiện có (scaffold) | Chỉ inbox caller. |
-| Notification / Repository | entity + repo JPA rỗng | `read_at` là nguồn unread. |
-| User | entity | Chủ inbox; không `tenantId` (DB-per-tenant). |
+| NotificationInboxRoute | Routing | Hợp đồng GET/PATCH conceptual. |
+| NotificationController | Controller | Inject service; không persist. |
+| NotificationService | Service | Concrete class (không invent interface). Inbox đúng `userId`. |
+| List / Item / MarkAll DTO | DTO | `unreadCount` derived; `deepLink` từ payload. |
+| NotificationRepository | Repository | Query theo caller. |
+| User, Notification | Domain | Composition inbox; `read_at` nguồn unread. |
+| Tenant MySQL, TenantContext | Infrastructure | DB-per-tenant; set/clear context. |
 
 ### 7.2. Quan hệ
 
 | Nguồn → đích | Ký pháp | Loại và lý do |
 |---|---|---|
-| Route → Controller | `..>` | Dependency định tuyến. |
-| Controller → DTO | `..>` | Dependency. |
-| Controller → Service | `-->` | Association inject. |
-| Service → Repository | `-->` | Association persist. |
-| Repository → Notification | `..>` | Manage. |
-| User → Notification | `*--` | Composition inbox (xóa user kéo theo thông báo). |
+| Route → Controller | `-->` `defines routes` | Association định tuyến. |
+| Controller → Service | `-->` `delegates` | Association inject. |
+| Controller → DTO | `..>` `returns` | Dependency output. |
+| Service → DTO | `..>` `creates` | Dependency map entity → response. |
+| Service → Repository | `-->` `persists through` | Association. |
+| Service → TenantContext | `-->` | Association phạm vi tenant. |
+| Repository → Notification | `-->` `manages` | Association persist. |
+| User → Notification | `*--` `inbox of` | Composition: xóa user kéo theo inbox. |
+| Entity → TenantDB | `-->` `persists to` | Association hạ tầng. |
 
 ## 8. Quyết định kiến trúc và bảo mật
 

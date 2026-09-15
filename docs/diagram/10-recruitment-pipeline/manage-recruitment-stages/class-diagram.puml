@@ -1,44 +1,67 @@
 @startuml
-title PIPE — Manage Recruitment Stages\nApplication-design viewpoint
+title PIPE — Manage Recruitment Stages\nLayered target application-design viewpoint
+top to bottom direction
 
 skinparam dpi 300
 skinparam backgroundColor #FFFFFF
 skinparam shadowing false
 skinparam packageStyle rectangle
-skinparam classAttributeIconSize 0
-skinparam ArrowColor #64748B
-skinparam ClassBorderColor #CBD5E1
+skinparam classAttributeIconSize 12
+skinparam linetype ortho
+skinparam ArrowColor #334155
+skinparam ArrowThickness 1
+skinparam ClassBorderColor #64748B
+skinparam ClassBorderThickness 1
 skinparam ClassBackgroundColor #F8FAFC
-skinparam InterfaceBackgroundColor #EFF6FF
+skinparam InterfaceBackgroundColor #F3E8FF
+skinparam PackageBorderColor #475569
+skinparam PackageBorderThickness 1
+skinparam DefaultFontColor #111827
+skinparam ClassFontColor #111827
+skinparam ClassAttributeFontColor #111827
 skinparam NoteBackgroundColor #FFF7ED
 skinparam NoteBorderColor #FDBA74
 
-package "Tenant Web / API Layer" #EFF6FF {
-  class JobStageRoute <<REST API>> {
+package "Routing & Boundary" #EFF6FF {
+  class JobStageRoute <<REST API, conceptual>> {
     +GET /api/v1/jobs/{jobId}/stages
     +POST /api/v1/jobs/{jobId}/stages
     +PATCH /api/v1/jobs/{jobId}/stages/{stageId}
     +PUT /api/v1/jobs/{jobId}/stages/order
     +DELETE /api/v1/jobs/{jobId}/stages/{stageId}
   }
+}
 
-  class RecruitmentStageController <<conceptual controller>> {
-    +list(jobId: Long): List<StageResponse>
-    +create(jobId: Long, request: CreateStageRequest): StageResponse
-    +update(jobId: Long, stageId: Long, request: UpdateStageRequest): StageResponse
-    +reorder(jobId: Long, request: ReorderStagesRequest): List<StageResponse>
+package "Controller Layer" #EFF6FF {
+  class RecruitmentStageController <<Controller, conceptual>> {
+    -recruitmentStageService: RecruitmentStageService
+    +list(jobId: Long): ApiResponse<List<StageResponse>>
+    +create(jobId: Long, request: CreateStageRequest): ApiResponse<StageResponse>
+    +update(jobId: Long, stageId: Long, request: UpdateStageRequest): ApiResponse<StageResponse>
+    +reorder(jobId: Long, request: ReorderStagesRequest): ApiResponse<List<StageResponse>>
     +delete(jobId: Long, stageId: Long): void
   }
+}
 
-  class CreateStageRequest <<conceptual request DTO>> {
+package "Service Layer" #F0FDF4 {
+  class RecruitmentStageService <<Service, conceptual>> {
+    -stageRepository: RecruitmentStageRepository
+    -applicationRepository: ApplicationRepository
+    -tenantContext: TenantContext
+    +list(jobId: Long): List<StageResponse>
+    +createCustom(jobId: Long, name: String): StageResponse
+    +removeOrArchive(jobId: Long, stageId: Long): void
+  }
+}
+
+package "DTO Layer" #FFF7ED {
+  class CreateStageRequest <<Request, conceptual>> {
     +name: String
   }
-
-  class UpdateStageRequest <<conceptual request DTO>> {
+  class UpdateStageRequest <<Request, conceptual>> {
     +name: String
   }
-
-  class StageResponse <<conceptual response DTO>> {
+  class StageResponse <<Response, conceptual>> {
     +id: Long
     +code: String [0..1]
     +name: String
@@ -48,17 +71,34 @@ package "Tenant Web / API Layer" #EFF6FF {
   }
 }
 
-package "Tenant Application Layer" #F0FDF4 {
-  class RecruitmentStageService <<conceptual service>> {
-    +list(jobId: Long): List<StageResponse>
-    +createCustom(jobId: Long, name: String): StageResponse
-    +rename(jobId: Long, stageId: Long, name: String): StageResponse
-    +reorder(jobId: Long, orderedIds: Long[*]): List<StageResponse>
-    +removeOrArchive(jobId: Long, stageId: Long): void
+package "Repository Layer" #F5F3FF {
+  interface RecruitmentStageRepository <<Repository>> {
+    +findByJobIdOrderBySortOrder(jobId: Long): List<RecruitmentStage>
+    +save(stage: RecruitmentStage): RecruitmentStage
+  }
+  interface ApplicationRepository <<Repository>> {
+    +countByStageId(stageId: Long): long
   }
 }
 
-package "Tenant Persistence Layer (Dedicated MySQL DB)" #FEFCE8 {
+package "Domain Entity Layer" #F0FDF4 {
+  entity Job <<Entity>> {
+    -id: Long
+    -title: String
+  }
+  entity RecruitmentStage <<Entity>> {
+    -id: Long
+    -name: String
+    -sortOrder: int
+    -terminal: boolean
+    -system: boolean
+    -code: SystemStageCode [0..1]
+    -archivedAt: Instant [0..1]
+  }
+  entity Application <<Entity>> {
+    -id: Long
+    -stageId: Long [0..1]
+  }
   enum SystemStageCode <<enumeration>> {
     APPLIED
     SCREENING
@@ -68,64 +108,45 @@ package "Tenant Persistence Layer (Dedicated MySQL DB)" #FEFCE8 {
     HIRED
     REJECTED
   }
+}
 
-  entity Job <<entity>> {
-    +id: Long
-    +title: String
+package "Infrastructure & Persistence" #FEFCE8 {
+  class "Dedicated Tenant MySQL DB" as TenantDB <<Database>> {
+    +jobs
+    +recruitment_stages
+    +applications
   }
-
-  entity RecruitmentStage <<entity>> {
-    +id: Long
-    +name: String
-    +sortOrder: int
-    +terminal: boolean
-    +system: boolean
-    +code: SystemStageCode [0..1]
-    +archivedAt: Instant [0..1]
-  }
-
-  entity Application <<entity>> {
-    +id: Long
-    +stageId: Long [0..1]
-  }
-
-  interface RecruitmentStageRepository <<repository>> {
-    +findByJobIdOrderBySortOrder(jobId: Long): List<RecruitmentStage>
-    +save(stage: RecruitmentStage): RecruitmentStage
-  }
-
-  interface ApplicationRepository <<repository>> {
-    +countByStageId(stageId: Long): long
+  class TenantContext <<ThreadLocal>> {
+    +{static} getCurrentTenant(): String
+    +{static} clear(): void
   }
 }
 
-JobStageRoute ..> RecruitmentStageController : routes
+JobStageRoute -down-> RecruitmentStageController : defines routes
+RecruitmentStageController -down-> RecruitmentStageService : delegates
 RecruitmentStageController ..> CreateStageRequest : consumes
 RecruitmentStageController ..> UpdateStageRequest : consumes
-RecruitmentStageController ..> StageResponse : produces
-RecruitmentStageController --> RecruitmentStageService : delegates to
-
-RecruitmentStageService --> RecruitmentStageRepository : persists through
+RecruitmentStageController ..> StageResponse : returns
+RecruitmentStageService ..> StageResponse : creates
+RecruitmentStageService -down-> RecruitmentStageRepository : persists through
 RecruitmentStageService --> ApplicationRepository : counts occupants
-RecruitmentStageService ..> SystemStageCode : enforces catalog
-
+RecruitmentStageService --> TenantContext : enforces tenant scope
+RecruitmentStageRepository -down-> RecruitmentStage : manages
+ApplicationRepository -down-> Application : manages
 Job "1" *-- "1..*" RecruitmentStage : owns
 RecruitmentStage --> SystemStageCode : typed by when system
 Application "0..*" --> "0..1" RecruitmentStage : currently in
+Job --> TenantDB : persists to
+RecruitmentStage --> TenantDB : persists to
+Application --> TenantDB : persists to
 
-RecruitmentStageRepository ..> RecruitmentStage : manages
-ApplicationRepository ..> Application : manages
+CreateStageRequest -[hidden]right-> StageResponse
+Job -[hidden]right-> Application
+TenantDB -[hidden]right-> TenantContext
 
-note bottom of SystemStageCode
-  System catalog for this function: Applied, Screening,
-  Assessment, Interview, Offer, Hired, Rejected.
-  System rows cannot be hard-deleted; they may be archived
-  only when empty. Custom stages have code = null.
-end note
-
-note bottom of RecruitmentStage
-  Existing columns: name, sort_order, is_terminal.
-  system, code, archivedAt are designed extensions.
+note right of SystemStageCode
+  System rows cannot be hard-deleted.
+  Archive only when empty. Custom stages have code = null.
 end note
 
 @enduml

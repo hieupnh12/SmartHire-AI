@@ -3,7 +3,7 @@
 - **Mã Feature:** `COMPANY` / `02-company-management`
 - **Mã Function:** `change-member-role`
 - **Thư mục:** `docs/diagram/02-company-management/change-member-role`
-- **Trạng thái Review:** `Source complete — awaiting rendering decision`
+- **Trạng thái Review:** `Complete with assumptions`
 
 ---
 
@@ -80,6 +80,8 @@ Redis chỉ cần khi giảm quyền: access token cũ còn role cao đến khi 
 ## 7. Class diagram
 
 Nguồn: [`class-diagram.puml`](class-diagram.puml)
+
+Viewpoint: **layered application-design** (`Routing & Boundary` → `Controller` → `Service` → `DTO` → `Repository` → `Domain Entity` → `Infrastructure`). Isolation qua `TenantContext` và database, không prefix `Tenant` trên mọi package.
 
 ### 7.1. Vai trò phần tử
 

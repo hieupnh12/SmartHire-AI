@@ -3,7 +3,7 @@
 - **Mã Feature:** `COMPANY` / `02-company-management`
 - **Mã Function:** `verify-company`
 - **Thư mục:** `docs/diagram/02-company-management/verify-company`
-- **Trạng thái Review:** `Source complete — awaiting rendering decision`
+- **Trạng thái Review:** `Complete with assumptions`
 
 ---
 
@@ -116,6 +116,8 @@ Không có bước Tenant DB trong review: badge không do tenant ghi.
 ## 7. Class diagram
 
 Nguồn: [`class-diagram.puml`](class-diagram.puml)
+
+Viewpoint: **layered application-design**. Submit trên Tenant API, review trên Master API. Persistence tách Master PostgreSQL và Tenant MySQL. Isolation qua `TenantContext` khi gọi tenant.
 
 ### 7.1. Vai trò phần tử
 

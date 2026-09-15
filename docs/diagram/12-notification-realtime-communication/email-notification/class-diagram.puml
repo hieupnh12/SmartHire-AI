@@ -1,24 +1,37 @@
 @startuml
-title NOTIFY — Email Notification\nApplication-design viewpoint
+title NOTIFY — Email Notification\nLayered target application-design viewpoint
+top to bottom direction
 
 skinparam dpi 300
 skinparam backgroundColor #FFFFFF
 skinparam shadowing false
 skinparam packageStyle rectangle
-skinparam classAttributeIconSize 0
-skinparam ArrowColor #64748B
-skinparam ClassBorderColor #CBD5E1
+skinparam classAttributeIconSize 12
+skinparam linetype ortho
+skinparam ArrowColor #334155
+skinparam ArrowThickness 1
+skinparam ClassBorderColor #64748B
+skinparam ClassBorderThickness 1
 skinparam ClassBackgroundColor #F8FAFC
-skinparam InterfaceBackgroundColor #EFF6FF
+skinparam InterfaceBackgroundColor #F3E8FF
+skinparam PackageBorderColor #475569
+skinparam PackageBorderThickness 1
+skinparam DefaultFontColor #111827
+skinparam ClassFontColor #111827
+skinparam ClassAttributeFontColor #111827
 skinparam NoteBackgroundColor #FFF7ED
 skinparam NoteBorderColor #FDBA74
 
-package "Tenant Application Layer" #F0FDF4 {
-  class EmailNotificationService <<conceptual service>> {
+package "Service Layer" #F0FDF4 {
+  class EmailNotificationService <<Service, conceptual>> {
+    -emailOutboxRepository: EmailOutboxRepository
+    -tenantContext: TenantContext
     +enqueue(command: SendEmailCommand): void
   }
+}
 
-  class SendEmailCommand <<conceptual command>> {
+package "DTO Layer" #FFF7ED {
+  class SendEmailCommand <<Request, conceptual>> {
     +toUserId: Long
     +toEmail: String
     +type: String
@@ -26,84 +39,91 @@ package "Tenant Application Layer" #F0FDF4 {
     +model: Map
     +idempotencyKey: String
   }
-
-  class MailTemplateRenderer <<conceptual domain service>> {
-    +render(type: String, locale: String, model: Map): RenderedMail
-  }
-
-  class RenderedMail <<conceptual value>> {
+  class RenderedMail <<Response, conceptual>> {
     +subject: String
     +body: String
-  }
-
-  class EmailWorker <<conceptual worker>> {
-    +onNotifyEmail(payload: String, tenantId: String): void
   }
 }
 
-package "Tenant Persistence Layer (Dedicated MySQL DB)" #FEFCE8 {
-  entity EmailOutbox <<entity>> {
-    +id: Long
-    +toEmail: String
-    +subject: String
-    +body: String
-    +status: NotificationStatus
-    +attempts: int
-    +sentAt: Instant [0..1]
+package "Repository Layer" #F5F3FF {
+  interface EmailOutboxRepository <<Repository>> {
+    +save(row: EmailOutbox): EmailOutbox
   }
+}
 
-  entity MailTemplate <<conceptual entity>> {
-    +type: String
-    +locale: String
-    +subjectTemplate: String
-    +bodyTemplate: String
+package "Domain Entity Layer" #F0FDF4 {
+  entity EmailOutbox <<Entity>> {
+    -id: Long
+    -toEmail: String
+    -subject: String
+    -body: String
+    -status: NotificationStatus
+    -attempts: int
+    -sentAt: Instant [0..1]
   }
-
-  entity NotificationPreference <<conceptual entity>> {
-    +userId: Long
-    +type: String
-    +emailEnabled: boolean
+  entity MailTemplate <<Entity, conceptual>> {
+    -type: String
+    -locale: String
+    -subjectTemplate: String
+    -bodyTemplate: String
   }
-
+  entity NotificationPreference <<Entity, conceptual>> {
+    -userId: Long
+    -type: String
+    -emailEnabled: boolean
+  }
   enum NotificationStatus <<enumeration>> {
     PENDING
     SENT
     FAILED
   }
+}
 
-  interface EmailOutboxRepository <<repository>> {
-    +save(row: EmailOutbox): EmailOutbox
+package "Infrastructure & Persistence" #FEFCE8 {
+  class EmailWorker <<Worker, conceptual>> {
+    +onNotifyEmail(payload: String, tenantId: String): void
+  }
+  class "RabbitMQ notify.email" as NotifyBroker <<Message Broker>> {
+    +notify.email.q
+  }
+  class "SMTP provider" as Smtp <<External>>
+  class "Dedicated Tenant MySQL DB" as TenantDB <<Database>> {
+    +email_outbox
+  }
+  class TenantContext <<ThreadLocal>> {
+    +{static} getCurrentTenant(): String
+    +{static} clear(): void
   }
 }
 
-package "Asynchronous Integration" #FAF5FF {
-  class "RabbitMQ notify-email" as NotifyQueue <<queue>>
-  class "SMTP provider" as Smtp <<external>>
-}
-
 EmailNotificationService ..> SendEmailCommand : processes
-EmailNotificationService --> MailTemplateRenderer : renders through
-EmailNotificationService --> EmailOutboxRepository : persists through
+EmailNotificationService ..> RenderedMail : creates
 EmailNotificationService ..> NotificationPreference : consults
-MailTemplateRenderer ..> MailTemplate : reads
-MailTemplateRenderer ..> RenderedMail : produces
-EmailOutboxRepository ..> EmailOutbox : manages
+EmailNotificationService ..> MailTemplate : renders from
+EmailNotificationService -down-> EmailOutboxRepository : persists through
+EmailNotificationService --> TenantContext : enforces tenant scope
+EmailNotificationService --> NotifyBroker : publishes X-Tenant-ID
+EmailOutboxRepository -down-> EmailOutbox : manages
 EmailOutbox --> NotificationStatus : typed by
-EmailNotificationService ..> NotifyQueue : publishes X-Tenant-ID
-EmailWorker ..> NotifyQueue : consumes
-EmailWorker ..> Smtp : sends
+EmailOutbox --> TenantDB : persists to
+MailTemplate --> TenantDB : persists to
+NotificationPreference --> TenantDB : persists to
+EmailWorker ..> NotifyBroker : consumes
+EmailWorker --> Smtp : sends
 EmailWorker --> EmailOutboxRepository : marks SENT
+EmailWorker --> TenantContext : restores tenant from header
 
-note bottom of MailTemplate
-  Locales follow product i18n: en, vi, ja.
-  No mail_templates table exists in Flyway yet.
-end note
+SendEmailCommand -[hidden]right-> RenderedMail
+MailTemplate -[hidden]right-> NotificationPreference
+NotifyBroker -[hidden]right-> Smtp
+Smtp -[hidden]right-> TenantDB
+TenantDB -[hidden]right-> TenantContext
 
 note right of EmailNotificationService
-  Happy path only: first SMTP attempt succeeds.
-  Retry, DLQ, and duplicate suppression
-  belong to notification-delivery-reliability.
-  OTP mail is AUTH, not this function.
+  Happy path: first SMTP attempt succeeds.
+  Renders en/vi/ja templates inside the service.
+  Retry, DLQ, and duplicate suppression belong to
+  notification-delivery-reliability. OTP is AUTH.
 end note
 
 @enduml
