@@ -28,7 +28,6 @@ Actor là `WORKSPACE_ADMIN`. Tenant phải tồn tại và ở `FAILED` hoặc `
 
 ## Thành phần class và quan hệ
 
-- `RetryProvisioningRoute ..> MasterTenantController`: dependency định tuyến HTTP.
 - Controller phụ thuộc `TenantAdminRequest`, `TenantResponse` và association tới `MasterTenantService` để giữ HTTP layer mỏng.
 - `MasterTenantService --> TenantInfoRepository`: association dùng repository để xác nhận tenant; `--> TenantProvisioningService` để điều phối retry.
 - `TenantInfoRepository --> TenantInfo` và Master PostgreSQL: repository quản lý entity registry trong master DB.

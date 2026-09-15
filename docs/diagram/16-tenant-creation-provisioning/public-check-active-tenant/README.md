@@ -27,7 +27,6 @@ Không có transaction ghi, async, retry hay `TenantContext`. Đây là master r
 
 ## Thành phần class và quan hệ
 
-- `TenantAvailabilityRoute ..> MasterTenantController`: dependency route conceptual tới controller.
 - Controller association tới service và dependency tới `ApiResponse<Boolean>`.
 - Service association tới repository để thực hiện lookup có thứ tự.
 - Repository association tới entity và Master PostgreSQL để ánh xạ/read bảng `tenants`.
