@@ -1,0 +1,90 @@
+@startuml
+skinparam dpi 300
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam roundcorner 6
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+
+hide footbox
+
+actor "Candidate\n(Job Applicant)" as Cand #E2E8F0
+boundary "Candidate Portal UI\n(Web SPA)" as FE #E2E8F0
+control "Security & Gateway\n(TenantWebInterceptor / Filter)" as Sec #E2E8F0
+control "CandidateAuthController\n(Spring REST Controller)" as Ctrl #E2E8F0
+control "CandidateAuthService\n(Application Service)" as Svc #E2E8F0
+control "GoogleTokenVerifierService\n(Token Verification Client)" as Google #E2E8F0
+database "Dedicated Tenant MySQL\n(Isolated DB)" as DB #EDF2F7
+database "Redis Cache\n(Session Store)" as Redis #EDF2F7
+
+== Candidate 1-Click Google OAuth & JIT Provisioning Flow ==
+
+Cand -> FE : 1: Click "Sign in with Google"
+FE -> FE : 2: Obtain Google idToken from Google Identity Services
+FE -> Sec : 3: POST /api/v1/tenant/auth/google\n[Header: X-Tenant-ID: "acme-corp"]\n[Body: { idToken: "ey..." }]
+activate Sec
+
+Sec -> Sec : 4: Resolve TenantContext from X-Tenant-ID\n& verify Tenant ACTIVE status
+Sec -> Ctrl : 5: Forward Google login request
+activate Ctrl
+
+Ctrl -> Svc : 6: authenticateWithGoogle(request)
+activate Svc
+
+Svc -> Google : 7: verifyToken(idToken)
+activate Google
+Google -> Google : 8: Verify signature via Google JWKS, validate issuer & expiry
+Google --> Svc : 9: GooglePayload(email, name, pictureUrl, sub, emailVerified)
+deactivate Google
+
+alt #FFF5F5 Token invalid or email not verified
+    Svc --> Ctrl : 10: Throw InvalidGoogleTokenException("Invalid Google token")
+    Ctrl --> FE : 11: HTTP 401 Unauthorized\n{ success: false, message: 'Google authentication failed' }
+    FE --> Cand : 12: Display authentication error
+else #F0FFF4 Token valid & Email verified
+    Svc -> DB : 13: findByEmail(payload.email)
+    activate DB
+    DB --> Svc : 14: User query result
+    deactivate DB
+
+    alt #E6FFFA First-time candidate login (Just-In-Time Provisioning)
+        Svc -> Svc : 15: Instantiate User (role: CANDIDATE, status: ACTIVE, passwordHash: null)
+        Svc -> DB : 16: save(user)
+        activate DB
+        DB --> Svc : 17: User persisted (generated id)
+        deactivate DB
+
+        Svc -> Svc : 18: Create OauthAccount (provider: "GOOGLE", providerUserId: sub)
+        Svc -> DB : 19: save(oauthAccount)
+        activate DB
+        DB --> Svc : 20: OauthAccount persisted
+        deactivate DB
+
+        Svc -> Svc : 21: Create UserProfile (avatarUrl: payload.pictureUrl)
+        Svc -> DB : 22: save(userProfile)
+        activate DB
+        DB --> Svc : 23: UserProfile persisted
+        deactivate DB
+    else #F0FFF4 Existing candidate
+        Svc -> Svc : 24: Retrieve existing Candidate from DB
+    end
+
+    Svc -> Svc : 25: Generate Access Token (30m) & Refresh Token (7d)\n[Claims: userId, role: 'CANDIDATE', tenantId]
+    
+    Svc -> Redis : 26: SET tenant:{tenantId}:refresh:{userId} -> refreshToken\n[TTL: 7d]
+    activate Redis
+    Redis --> Svc : 27: Session stored
+    deactivate Redis
+
+    Svc --> Ctrl : 28: Return CandidateLoginResponse(tokens, profile)
+    deactivate Svc
+
+    Ctrl --> FE : 29: HTTP 200 OK\n{ success: true, data: CandidateLoginResponse }
+    deactivate Ctrl
+
+    FE -> FE : 30: Store tokens in LocalStorage
+    FE --> Cand : 31: Redirect to Candidate Portal / AI Interview (/candidate)
+end
+deactivate Sec
+
+@enduml

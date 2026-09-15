@@ -1,0 +1,157 @@
+@startuml
+skinparam dpi 300
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam roundcorner 6
+skinparam linetype ortho
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam classFontSize 11
+skinparam classAttributeFontSize 10
+
+skinparam class {
+    BackgroundColor #FFFFFF
+    BorderColor #2D3748
+    ArrowColor #2D3748
+}
+
+package "Routing & Boundary" {
+    class TenantUserRoute <<REST API>> {
+        + POST /api/v1/tenant/users/invite
+    }
+}
+
+package "Controller Layer" {
+    class TenantUserController <<Controller>> {
+        - tenantUserService: TenantUserService
+        + inviteRecruiter(request: InviteRecruiterRequest): ApiResponse<UserResponse>
+    }
+}
+
+package "DTO Layer" {
+    class InviteRecruiterRequest <<Request>> {
+        + email: String
+        + fullName: String
+        + role: UserRole
+    }
+
+    class UserResponse <<Response>> {
+        + id: Long
+        + email: String
+        + fullName: String
+        + role: String
+        + status: String
+        + createdAt: LocalDateTime
+    }
+
+    class RecruiterInvitationEvent <<Domain Event>> {
+        + tenantId: String
+        + email: String
+        + fullName: String
+        + invitationToken: String
+        + expiresAt: LocalDateTime
+    }
+}
+
+package "Service Layer" {
+    interface TenantUserService <<Service>> {
+        + inviteRecruiter(request: InviteRecruiterRequest): UserResponse
+    }
+
+    class TenantUserServiceImpl <<Service>> {
+        - userRepository: UserRepository
+        - userProfileRepository: UserProfileRepository
+        - rabbitTemplate: RabbitTemplate
+        - redisService: RedisService
+        + inviteRecruiter(request: InviteRecruiterRequest): UserResponse
+    }
+}
+
+package "Repository Layer" {
+    interface UserRepository <<Repository>> {
+        + findByEmail(email: String): Optional<User>
+        + save(user: User): User
+        + existsByEmail(email: String): boolean
+    }
+
+    interface UserProfileRepository <<Repository>> {
+        + save(profile: UserProfile): UserProfile
+    }
+}
+
+package "Domain Entity Layer" {
+    enum UserRole <<Enum>> {
+        ADMIN
+        RECRUITER
+        CANDIDATE
+    }
+
+    enum UserStatus <<Enum>> {
+        ACTIVE
+        INVITED
+        SUSPENDED
+    }
+
+    class User <<Entity>> {
+        - id: Long
+        - email: String
+        - passwordHash: String
+        - fullName: String
+        - role: UserRole
+        - status: UserStatus
+    }
+
+    class UserProfile <<Entity>> {
+        - id: Long
+        - user: User
+        - phone: String
+        - avatarUrl: String
+        - bio: String
+        - headline: String
+    }
+}
+
+package "Infrastructure & Persistence" {
+    class DedicatedTenantMySQL <<Database>> {
+        .. Isolated Tenant DB ..
+        + users
+        + user_profiles
+    }
+
+    class RedisCache <<Cache>> {
+        .. Invitation State ..
+        + tenant:{id}:invite:{token}
+    }
+
+    class RabbitMQExchange <<Queue>> {
+        .. Notification Channel ..
+        + smarthire.notification.email
+    }
+}
+
+' Relationships
+TenantUserRoute ..> TenantUserController : defines route >
+TenantUserController ..> InviteRecruiterRequest : consumes >
+TenantUserController --> TenantUserService : delegates >
+TenantUserController ..> UserResponse : returns >
+
+TenantUserService <|.. TenantUserServiceImpl : implements
+TenantUserServiceImpl ..> InviteRecruiterRequest : processes >
+TenantUserServiceImpl ..> UserResponse : creates >
+TenantUserServiceImpl ..> RecruiterInvitationEvent : emits >
+TenantUserServiceImpl --> UserRepository : invokes >
+TenantUserServiceImpl --> UserProfileRepository : initializes profile >
+TenantUserServiceImpl --> RedisCache : stores invite token >
+TenantUserServiceImpl --> RabbitMQExchange : publishes email task >
+
+UserRepository --> User : manages >
+UserProfileRepository --> UserProfile : manages >
+UserProfile "1" *-- "1" User : belongs to
+
+User ..> UserRole : typed by
+User ..> UserStatus : has status
+
+UserRepository --> DedicatedTenantMySQL : persists to
+UserProfileRepository --> DedicatedTenantMySQL : persists to
+
+@enduml

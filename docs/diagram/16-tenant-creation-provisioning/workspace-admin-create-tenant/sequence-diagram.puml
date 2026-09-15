@@ -1,5 +1,4 @@
 @startuml
-title TENANT-16 — Workspace Admin Create Tenant
 
 skinparam dpi 300
 skinparam backgroundColor #FFFFFF

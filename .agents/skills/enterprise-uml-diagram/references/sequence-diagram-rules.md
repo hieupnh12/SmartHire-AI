@@ -20,6 +20,27 @@ Normally summarize in a message or note instead of creating separate lifelines f
 
 When detailed operational behavior is still valuable, keep the primary diagram concise and place the enterprise implementation sequence in a separate diagram or appendix.
 
+## Visual & Structural Style Standard (Mandatory)
+
+- **No Diagram Title:** Do NOT include `title ...` in `.puml` files (keep diagrams clean for embedding in reports/documentation). The title is documented in the accompanying `README.md`.
+- **Hide Footbox:** Always include `hide footbox` to remove duplicated bottom participants.
+- **Skinparam Specification:**
+  ```plantuml
+  skinparam dpi 300
+  skinparam shadowing false
+  skinparam roundcorner 6
+  skinparam defaultFontName "Arial"
+  skinparam defaultFontSize 11
+  skinparam sequence {
+      ArrowColor #2D3748
+      ActorBorderColor #2D3748
+      LifeLineBorderColor #2D3748
+      ParticipantBorderColor #2D3748
+      ParticipantBackgroundColor #FFFFFF
+      BoxBorderColor #A0AEC0
+  }
+  ```
+
 ## Participants
 
 Use the most accurate PlantUML participant type: `actor`, `boundary`, `control`, `entity`, `database`, `collections`, `queue`, or a clearly stereotyped external system. Order participants from initiator through application and domain components to infrastructure. Include a component only when it sends or receives a relevant message.
@@ -30,7 +51,7 @@ Show activation bars for participants that actively process a call. Prefer expli
 
 ## Required flow content
 
-- Add a title containing the feature ID and function name.
+- Do NOT add `title` inside `.puml` files.
 - State important preconditions and invariants in notes.
 - Use numbered messages and concise operation-oriented labels.
 - Show request data only when it changes a decision or boundary.

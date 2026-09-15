@@ -1,0 +1,168 @@
+@startuml
+skinparam dpi 300
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam roundcorner 6
+skinparam linetype ortho
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam classFontSize 11
+skinparam classAttributeFontSize 10
+
+skinparam class {
+    BackgroundColor #FFFFFF
+    BorderColor #2D3748
+    ArrowColor #2D3748
+}
+
+package "Routing & Boundary" {
+    class CandidateAuthRoute <<REST API>> {
+        + POST /api/v1/tenant/auth/google
+    }
+}
+
+package "Controller Layer" {
+    class CandidateAuthController <<Controller>> {
+        - candidateAuthService: CandidateAuthService
+        + loginWithGoogle(request: GoogleLoginRequest): ApiResponse<CandidateLoginResponse>
+    }
+}
+
+package "DTO Layer" {
+    class GoogleLoginRequest <<Request>> {
+        + idToken: String
+    }
+
+    class CandidateLoginResponse <<Response>> {
+        + accessToken: String
+        + refreshToken: String
+        + tokenType: String
+        + candidate: CandidateProfileResponse
+    }
+
+    class CandidateProfileResponse <<Response>> {
+        + id: Long
+        + email: String
+        + fullName: String
+        + avatarUrl: String
+        + role: String
+    }
+
+    class GooglePayload <<Value Object>> {
+        + email: String
+        + name: String
+        + pictureUrl: String
+        + sub: String
+        + emailVerified: boolean
+    }
+}
+
+package "Service Layer" {
+    interface CandidateAuthService <<Service>> {
+        + authenticateWithGoogle(request: GoogleLoginRequest): CandidateLoginResponse
+    }
+
+    class CandidateAuthServiceImpl <<Service>> {
+        - googleTokenVerifier: GoogleTokenVerifierService
+        - userRepository: UserRepository
+        - oauthAccountRepository: OauthAccountRepository
+        - userProfileRepository: UserProfileRepository
+        - jwtTokenProvider: JwtTokenProvider
+        - redisService: RedisService
+        + authenticateWithGoogle(request: GoogleLoginRequest): CandidateLoginResponse
+    }
+
+    interface GoogleTokenVerifierService <<External Port>> {
+        + verifyToken(idToken: String): GooglePayload
+    }
+}
+
+package "Repository Layer" {
+    interface UserRepository <<Repository>> {
+        + findByEmail(email: String): Optional<User>
+        + save(user: User): User
+    }
+
+    interface OauthAccountRepository <<Repository>> {
+        + findByProviderAndProviderUserId(provider: String, sub: String): Optional<OauthAccount>
+        + save(account: OauthAccount): OauthAccount
+    }
+
+    interface UserProfileRepository <<Repository>> {
+        + save(profile: UserProfile): UserProfile
+    }
+}
+
+package "Domain Entity Layer" {
+    class User <<Entity>> {
+        - id: Long
+        - email: String
+        - passwordHash: String
+        - fullName: String
+        - role: UserRole
+        - status: UserStatus
+    }
+
+    class OauthAccount <<Entity>> {
+        - id: Long
+        - user: User
+        - provider: String
+        - providerUserId: String
+    }
+
+    class UserProfile <<Entity>> {
+        - id: Long
+        - user: User
+        - avatarUrl: String
+    }
+}
+
+package "Infrastructure & External Systems" {
+    class DedicatedTenantMySQL <<Database>> {
+        .. Isolated Tenant DB ..
+        + users
+        + oauth_accounts
+        + user_profiles
+    }
+
+    class GoogleOAuthServer <<External Identity Provider>> {
+        + JWKS Endpoint
+        + Token Verification
+    }
+
+    class RedisCache <<Cache>> {
+        .. Session Storage ..
+        + tenant:{tenantId}:refresh:{userId}
+    }
+}
+
+' Relationships
+CandidateAuthRoute ..> CandidateAuthController : defines route >
+CandidateAuthController ..> GoogleLoginRequest : consumes >
+CandidateAuthController --> CandidateAuthService : delegates >
+CandidateAuthController ..> CandidateLoginResponse : returns >
+
+CandidateAuthService <|.. CandidateAuthServiceImpl : implements
+CandidateAuthServiceImpl ..> GoogleLoginRequest : processes >
+CandidateAuthServiceImpl ..> CandidateLoginResponse : creates >
+CandidateLoginResponse *-- CandidateProfileResponse : composes >
+
+CandidateAuthServiceImpl --> GoogleTokenVerifierService : validates token >
+GoogleTokenVerifierService --> GoogleOAuthServer : fetches JWKS >
+CandidateAuthServiceImpl --> UserRepository : provisions user >
+CandidateAuthServiceImpl --> OauthAccountRepository : links account >
+CandidateAuthServiceImpl --> UserProfileRepository : creates profile >
+CandidateAuthServiceImpl --> RedisCache : stores refresh token >
+
+UserRepository --> User : manages >
+OauthAccountRepository --> OauthAccount : manages >
+UserProfileRepository --> UserProfile : manages >
+
+OauthAccount "1" *-- "1" User : belongs to
+UserProfile "1" *-- "1" User : belongs to
+
+UserRepository --> DedicatedTenantMySQL : persists to
+OauthAccountRepository --> DedicatedTenantMySQL : persists to
+UserProfileRepository --> DedicatedTenantMySQL : persists to
+
+@enduml

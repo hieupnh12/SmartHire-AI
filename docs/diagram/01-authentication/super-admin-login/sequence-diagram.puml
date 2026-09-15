@@ -1,0 +1,83 @@
+@startuml
+skinparam dpi 300
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam sequenceArrowThickness 1
+skinparam sequenceMessageAlign center
+skinparam ArrowColor #64748B
+skinparam ParticipantBorderColor #CBD5E1
+skinparam ParticipantBackgroundColor #F8FAFC
+skinparam ActorBorderColor #3B82F6
+skinparam ActorBackgroundColor #EFF6FF
+skinparam DatabaseBorderColor #94A3B8
+skinparam DatabaseBackgroundColor #F8FAFC
+
+hide footbox
+autonumber
+
+actor "Platform Super Admin" as Admin
+boundary "Master Login UI" as UI
+control "Spring Security" as Security
+boundary "MasterAuthController" as Controller
+control "MasterAuthService" as AuthService
+database "Master PostgreSQL\n(platform_users)" as MasterDB
+
+note over Admin, MasterDB
+  Preconditions:
+  - Super Admin credentials exist in Master PostgreSQL registry.
+  - Endpoint /api/v1/master/auth/login is public (no Bearer token or tenant context required).
+  - All operations target Master DB using masterTransactionManager.
+end note
+
+Admin -> UI: Enter admin email & password, click "Sign In"
+activate UI
+UI -> Security: POST /api/v1/master/auth/login\nJSON Body: { email, password }
+activate Security
+Security -> Security: Permit public master auth endpoint
+Security -> Controller: Forward login request
+activate Controller
+deactivate Security
+
+Controller -> Controller: Validate request format
+alt Invalid request (empty fields / invalid email)
+  Controller --> UI: 400 Bad Request
+  UI --> Admin: Show validation error
+else Structurally valid request
+  Controller -> AuthService: login(MasterLoginRequest)
+  activate AuthService
+  AuthService -> MasterDB: Query platform user by email
+  activate MasterDB
+  MasterDB --> AuthService: PlatformUser record or empty
+  deactivate MasterDB
+
+  alt User not found
+    AuthService --> Controller: 401 Unauthorized ("Invalid email or password")
+    Controller --> UI: 401 Unauthorized
+    UI --> Admin: Show credentials error
+  else User found
+    alt User status != 'ACTIVE'
+      AuthService --> Controller: 403 Forbidden ("Platform admin account is disabled")
+      Controller --> UI: 403 Forbidden
+      UI --> Admin: Show account disabled error
+    else User is ACTIVE
+      AuthService -> AuthService: BCrypt.matches(password, passwordHash)
+      
+      alt Password mismatch
+        AuthService --> Controller: 401 Unauthorized ("Invalid email or password")
+        Controller --> UI: 401 Unauthorized
+        UI --> Admin: Show credentials error
+      else Password verified
+        AuthService -> AuthService: Generate JWT token\n(role=WORKSPACE_ADMIN, tenantId=smarthire_master)
+        AuthService --> Controller: MasterLoginResponse(accessToken, userDto)
+        deactivate AuthService
+        Controller --> UI: 200 OK + JWT Access Token
+        deactivate Controller
+        UI -> UI: Store master_access_token & redirect to /admin/dashboard
+        UI --> Admin: Access Platform Dashboard
+        deactivate UI
+      end
+    end
+  end
+end
+
+@enduml

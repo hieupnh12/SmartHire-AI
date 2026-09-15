@@ -1,0 +1,70 @@
+@startuml
+skinparam dpi 300
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam roundcorner 6
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+
+hide footbox
+
+actor "Tenant Staff\n(HR / Recruiter / Admin)" as Staff #E2E8F0
+boundary "Recruiter Portal UI\n(Web SPA)" as FE #E2E8F0
+control "Security & Gateway\n(TenantWebInterceptor / Filter)" as Sec #E2E8F0
+control "TenantAuthController\n(Spring REST Controller)" as Ctrl #E2E8F0
+control "TenantAuthService\n(Application Service)" as Svc #E2E8F0
+database "Dedicated Tenant MySQL\n(Isolated DB)" as DB #EDF2F7
+database "Redis Cache\n(Session Store)" as Redis #EDF2F7
+
+== Tenant Staff Login Flow ==
+
+Staff -> FE : 1: Enter email & corporate password
+FE -> Sec : 2: POST /api/v1/tenant/auth/login\n[Header: X-Tenant-ID: "acme-corp"]\n[Body: { email, password }]
+activate Sec
+
+Sec -> Sec : 3: Resolve TenantContext from X-Tenant-ID\n& verify Tenant ACTIVE status
+
+alt #FFF5F5 Tenant not found or SUSPENDED
+    Sec --> FE : 4: HTTP 403 Forbidden\n{ success: false, message: 'Tenant is not active' }
+    FE --> Staff : 5: Display workspace suspended or not found
+else #F0FFF4 Tenant valid & ACTIVE
+    Sec -> Ctrl : 6: Forward request to Controller
+    activate Ctrl
+
+    Ctrl -> Svc : 7: login(request)
+    activate Svc
+
+    Svc -> DB : 8: findByEmail(email)
+    activate DB
+    DB --> Svc : 9: Return User entity (or Empty)
+    deactivate DB
+
+    alt #FFF5F5 User not found OR invalid BCrypt password
+        Svc --> Ctrl : 10: Throw BadCredentialsException("Invalid email or password")
+        Ctrl --> FE : 11: HTTP 401 Unauthorized\n{ success: false, message: 'Invalid email or password' }
+        FE --> Staff : 12: Display invalid credentials message
+    else #FFF5F5 Account not activated or locked (status != ACTIVE)
+        Svc --> Ctrl : 13: Throw AccountDisabledException("Account is not active")
+        Ctrl --> FE : 14: HTTP 403 Forbidden\n{ success: false, message: 'Account is disabled' }
+        FE --> Staff : 15: Display account locked/pending message
+    else #F0FFF4 Authentication successful & Account ACTIVE
+        Svc -> Svc : 16: Generate Access Token (30m) & Refresh Token (7d)\n[Claims: userId, email, role, tenantId]
+        
+        Svc -> Redis : 17: SET tenant:{tenantId}:refresh:{userId} -> refreshToken\n[TTL: 7d]
+        activate Redis
+        Redis --> Svc : 18: OK (Session stored)
+        deactivate Redis
+
+        Svc --> Ctrl : 19: Return LoginResponse(tokens, userSummary)
+        deactivate Svc
+
+        Ctrl --> FE : 20: HTTP 200 OK\n{ success: true, data: LoginResponse }
+        deactivate Ctrl
+
+        FE -> FE : 21: Store access_token & refresh_token in LocalStorage
+        FE --> Staff : 22: Redirect to Recruiter Dashboard (/recruiter)
+    end
+end
+deactivate Sec
+
+@enduml
