@@ -1,90 +1,110 @@
 @startuml
-title TENANT-16 — Workspace Admin Retry Tenant Provisioning\nApplication-design viewpoint
-skinparam dpi 300
-skinparam backgroundColor #FFFFFF
-skinparam shadowing false
-skinparam packageStyle rectangle
-skinparam classAttributeIconSize 0
-skinparam ArrowColor #64748B
-skinparam ClassBorderColor #CBD5E1
-skinparam ClassBackgroundColor #F8FAFC
-skinparam InterfaceBackgroundColor #EFF6FF
-skinparam NoteBackgroundColor #FFF7ED
-skinparam NoteBorderColor #FDBA74
-
-package "Master API" #EFF6FF {
-  class RetryProvisioningRoute <<REST API>> {
-    +POST /api/v1/master/tenants/:id/retry
-  }
+!include ../class-style.puml
+package "Controller Layer" #EEF6FF {
   class MasterTenantController <<Controller>> {
-    +retry(id: Long, request: TenantAdminRequest): TenantResponse
+    - masterTenantService: MasterTenantService
+    + retry(id: Long, request: TenantAdminRequest): ApiResponse<TenantResponse>
   }
+}
+package "DTO Layer" #FFF8EF {
   class TenantAdminRequest <<Request>> {
-    +adminName: String
-    +adminEmail: String
-    +adminPassword: String [write-only]
+    + adminName: String
+    + adminEmail: String
+    + adminPassword: String {writeOnly}
   }
   class TenantResponse <<Response>> {
-    +id: Long
-    +code: String
-    +name: String
-    +subdomain: String
-    +dbName: String
-    +status: String
+    + id: Long
+    + code: String
+    + dbName: String
+    + status: TenantStatus
   }
 }
-package "Master Domain" #F0FDF4 {
-  class MasterTenantService <<Service>> {
-    +retryProvisioning(id: Long, request: TenantAdminRequest): TenantInfo
+package "Service Layer" #EFFBF4 {
+  interface MasterTenantService <<Service>> {
+    + retryProvisioning(id: Long, request: TenantAdminRequest): TenantResponse
   }
+  class MasterTenantServiceImpl <<Service>> {
+    - tenantRepository: TenantInfoRepository
+    - provisioningService: TenantProvisioningService
+    + retryProvisioning(id: Long, request: TenantAdminRequest): TenantResponse
+  }
+  interface TenantProvisioningService <<Service>> {
+    + retry(tenant: TenantInfo, admin: TenantAdminRequest): void
+  }
+  class TenantProvisioningServiceImpl <<Service>> {
+    - lockManager: ProvisioningLockManager
+    - dataSourceFactory: TenantDataSourceFactory
+    - flywayService: FlywayMigrationService
+    + retry(tenant: TenantInfo, admin: TenantAdminRequest): void
+  }
+}
+package "Repository Layer" #F5F3FF {
   interface TenantInfoRepository <<Repository>> {
-    +findById(id: Long): Optional<TenantInfo>
-    +saveAndFlush(tenant: TenantInfo): TenantInfo
+    + findById(id: Long): Optional<TenantInfo>
+    + saveAndFlush(tenant: TenantInfo): TenantInfo
   }
-  class TenantInfo <<Entity>> {
-    +id: Long
-    +code: String
-    +dbName: String
-    +managedDatabase: boolean
-    +status: String
-  }
-  class "Master PostgreSQL\ntenants + advisory lock" as MasterDB <<Database>>
 }
-package "Tenant Provisioning" #FFF7ED {
-  class TenantProvisioningService <<Service>> {
-    +provision(id: Long, admin: TenantAdminRequest): TenantInfo
-    -createDatabaseAndUser(tenant: TenantInfo): void
-    -seedAdmin(dataSource, admin): void
+package "Domain Entity Layer" #F0FBF5 {
+  class TenantInfo <<Entity>> {
+    - id: Long
+    - code: String
+    - dbName: String
+    - managedDatabase: boolean
+    - status: TenantStatus
+    + startProvisioning(): void
+    + activate(): void
+    + failProvisioning(): void
+  }
+  class TenantAdminUser <<Entity>> {
+    - email: String
+    - passwordHash: String
+    - role: UserRole
+  }
+  enum TenantStatus <<Enum>> {
+    PROVISIONING
+    ACTIVE
+    FAILED
+  }
+}
+package "Infrastructure & Persistence" #FFFCEE {
+  class ProvisioningLockManager <<Infrastructure>> {
+    + tryLock(tenantId: Long): boolean
+    + unlock(tenantId: Long): void
   }
   class TenantDataSourceFactory <<Infrastructure>> {
-    +create(tenant: TenantInfo): DataSource
-    +migrate(dataSource): void
+    + createOrReuse(tenant: TenantInfo): DataSource
+  }
+  class FlywayMigrationService <<Infrastructure>> {
+    + migrateTenant(dataSource: DataSource): void
+  }
+  class MasterPostgreSQL <<Database>> {
+    + tenants
+    + advisory_lock
+  }
+  class DedicatedTenantMySQL <<Database>> {
+    + users
+    + flyway_schema_history
   }
 }
-package "Tenant Domain" #FDF4FF {
-  class "Dedicated Tenant MySQL\nusers + Flyway history" as TenantDB <<Database>>
-}
-
-RetryProvisioningRoute ..> MasterTenantController : routes
-MasterTenantController ..> TenantAdminRequest : receives
-MasterTenantController --> MasterTenantService : uses
-MasterTenantController ..> TenantResponse : returns
-MasterTenantService --> TenantInfoRepository : verifies through
-MasterTenantService --> TenantProvisioningService : retries through
-TenantProvisioningService --> TenantInfoRepository : updates status
-TenantInfoRepository --> TenantInfo : manages
-TenantInfoRepository --> MasterDB : persists in
-TenantProvisioningService --> MasterDB : locks tenant session
-TenantProvisioningService --> TenantDataSourceFactory : creates and migrates
-TenantDataSourceFactory --> TenantDB : connects to
-TenantProvisioningService --> TenantDB : idempotently seeds admin
-
-note bottom of TenantInfo
-  Retry is allowed only from FAILED or PROVISIONING.
-  Final state is ACTIVE or FAILED.
-end note
-note bottom of TenantDB
-  Partial resources are retained. Existing TENANT_ADMIN
-  with the same email is preserved; customer data is never dropped.
-end note
+MasterTenantController --> MasterTenantService : delegates >
+MasterTenantController ..> TenantAdminRequest : consumes >
+MasterTenantController ..> TenantResponse : returns >
+MasterTenantServiceImpl ..|> MasterTenantService : implements
+MasterTenantService -[hidden]down-> MasterTenantServiceImpl
+MasterTenantServiceImpl --> TenantInfoRepository : manages status >
+MasterTenantServiceImpl --> TenantProvisioningService : retries through >
+TenantProvisioningServiceImpl ..|> TenantProvisioningService : implements
+TenantProvisioningService -[hidden]down-> TenantProvisioningServiceImpl
+TenantProvisioningServiceImpl --> ProvisioningLockManager : prevents concurrent retry >
+TenantProvisioningServiceImpl --> TenantDataSourceFactory : creates or reuses >
+TenantProvisioningServiceImpl --> FlywayMigrationService : migrates idempotently >
+TenantProvisioningServiceImpl ..> TenantAdminUser : seeds idempotently >
+TenantInfoRepository --> TenantInfo : manages >
+TenantInfoRepository --> MasterPostgreSQL : persists to >
+ProvisioningLockManager --> MasterPostgreSQL : locks session >
+TenantDataSourceFactory --> DedicatedTenantMySQL : connects to >
+FlywayMigrationService --> DedicatedTenantMySQL : migrates >
+DedicatedTenantMySQL *-- TenantAdminUser : stores >
+TenantInfo --> TenantStatus : typed by >
 @enduml
+

@@ -26,7 +26,6 @@ Actor là `WORKSPACE_ADMIN`. Tenant hiện tại phải ở `ACTIVE` hoặc `SUS
 
 ## Thành phần class và quan hệ
 
-- Route phụ thuộc controller; controller association tới service và phụ thuộc response DTO.
 - Service association tới repository để cập nhật registry và tới provider để vô hiệu pool.
 - Repository association tới `TenantInfo` và Master PostgreSQL.
 - `TenantInfo ..> TenantOperationalStatus` là dependency ràng buộc giá trị; enum trong sơ đồ diễn giải invariant dù code đang lưu `String`.
