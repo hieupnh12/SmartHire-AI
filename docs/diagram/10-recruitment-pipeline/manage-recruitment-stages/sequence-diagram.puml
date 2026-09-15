@@ -1,0 +1,161 @@
+@startuml
+title PIPE — Manage Recruitment Stages
+
+skinparam dpi 300
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam sequenceArrowThickness 1
+skinparam sequenceMessageAlign center
+skinparam ArrowColor #64748B
+skinparam ParticipantBorderColor #CBD5E1
+skinparam ParticipantBackgroundColor #F8FAFC
+skinparam ActorBorderColor #3B82F6
+skinparam ActorBackgroundColor #EFF6FF
+skinparam DatabaseBorderColor #94A3B8
+skinparam DatabaseBackgroundColor #F8FAFC
+
+hide footbox
+autonumber
+
+actor "Recruiter / Admin" as Recruiter
+boundary "Job Stages UI" as UI
+control "Spring Security" as Security
+control "TenantWebInterceptor" as Interceptor
+boundary "RecruitmentStageController" as Controller
+control "RecruitmentStageService" as Service
+database "Tenant DB (MySQL)" as TenantDB
+
+note over Recruiter, Security
+  Preconditions: tenant ACTIVE; caller can manage the job;
+  job already has a pipeline (from apply-template or seed).
+  System stages: APPLIED, SCREENING, ASSESSMENT, INTERVIEW, OFFER, HIRED, REJECTED.
+end note
+
+Recruiter -> UI: Open stage manager for the job
+activate UI
+UI -> Security: GET /api/v1/jobs/{jobId}/stages
+activate Security
+Security -> Interceptor: Forward after RBAC
+activate Interceptor
+deactivate Security
+Interceptor -> Interceptor: setCurrentTenant(tenantId)
+Interceptor -> Controller: Route request
+activate Controller
+Controller -> Service: list(jobId)
+activate Service
+Service -> TenantDB: findByJobIdOrderBySortOrder
+activate TenantDB
+TenantDB --> Service: Stage list
+deactivate TenantDB
+Service --> Controller: StageResponse[*]
+deactivate Service
+Controller --> UI: 200 OK
+deactivate Controller
+UI --> Recruiter: Show system and custom columns
+Interceptor -> Interceptor: clear TenantContext
+deactivate Interceptor
+
+alt Create custom stage
+  Recruiter -> UI: Add stage name
+  UI -> Security: POST /api/v1/jobs/{jobId}/stages
+  activate Security
+  Security -> Interceptor: Forward after RBAC
+  activate Interceptor
+  deactivate Security
+  Interceptor -> Interceptor: setCurrentTenant(tenantId)
+  Interceptor -> Controller: Route request
+  activate Controller
+  Controller -> Service: createCustom(jobId, name)
+  activate Service
+  Service -> TenantDB: INSERT RecruitmentStage system=false
+  activate TenantDB
+  TenantDB --> Service: Created stage
+  deactivate TenantDB
+  Service --> Controller: StageResponse
+  deactivate Service
+  Controller --> UI: 201 Created
+  deactivate Controller
+  UI --> Recruiter: New column appears
+  Interceptor -> Interceptor: clear TenantContext
+  deactivate Interceptor
+
+else Rename or reorder
+  Recruiter -> UI: Rename stage or drag column order
+  UI -> Security: PATCH stage or PUT /stages/order
+  activate Security
+  Security -> Interceptor: Forward after RBAC
+  activate Interceptor
+  deactivate Security
+  Interceptor -> Interceptor: setCurrentTenant(tenantId)
+  Interceptor -> Controller: Route request
+  activate Controller
+  Controller -> Service: rename(...) or reorder(...)
+  activate Service
+  Service -> TenantDB: UPDATE name and/or sort_order
+  activate TenantDB
+  TenantDB --> Service: Saved
+  deactivate TenantDB
+  Service --> Controller: StageResponse[*]
+  deactivate Service
+  Controller --> UI: 200 OK
+  deactivate Controller
+  UI --> Recruiter: Columns refreshed
+  Interceptor -> Interceptor: clear TenantContext
+  deactivate Interceptor
+
+else Delete or archive stage
+  Recruiter -> UI: Delete column
+  UI -> Security: DELETE /api/v1/jobs/{jobId}/stages/{stageId}
+  activate Security
+  Security -> Interceptor: Forward after RBAC
+  activate Interceptor
+  deactivate Security
+  Interceptor -> Interceptor: setCurrentTenant(tenantId)
+  Interceptor -> Controller: Route request
+  activate Controller
+  Controller -> Service: removeOrArchive(jobId, stageId)
+  activate Service
+  Service -> TenantDB: Load stage and count applications on it
+  activate TenantDB
+  TenantDB --> Service: Stage and occupant count
+  deactivate TenantDB
+
+  alt System stage
+    Service --> Controller: SYSTEM_STAGE_PROTECTED
+    deactivate Service
+    Controller --> UI: 409 Conflict
+    deactivate Controller
+    UI --> Recruiter: System stages cannot be deleted
+  else Stage has candidates
+    Service -> TenantDB: SET archivedAt = now()
+    activate TenantDB
+    TenantDB --> Service: Archived
+    deactivate TenantDB
+    Service --> Controller: Success archived
+    deactivate Service
+    Controller --> UI: 200 OK
+    deactivate Controller
+    UI --> Recruiter: Column hidden; cards stay until moved
+  else Empty custom stage
+    Service -> TenantDB: DELETE RecruitmentStage
+    activate TenantDB
+    TenantDB --> Service: Removed
+    deactivate TenantDB
+    Service --> Controller: Success
+    deactivate Service
+    Controller --> UI: 204 No Content
+    deactivate Controller
+    UI --> Recruiter: Column removed
+  end
+  Interceptor -> Interceptor: clear TenantContext
+  deactivate Interceptor
+end
+
+deactivate UI
+
+note over TenantDB
+  At least one non-archived first and last stage must remain.
+  Hired and Rejected stay terminal system stages.
+end note
+
+@enduml

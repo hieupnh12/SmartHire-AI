@@ -1,0 +1,80 @@
+@startuml
+title NOTIFY — Real-Time Notification\nApplication-design viewpoint
+
+skinparam dpi 300
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam ArrowColor #64748B
+skinparam ClassBorderColor #CBD5E1
+skinparam ClassBackgroundColor #F8FAFC
+skinparam InterfaceBackgroundColor #EFF6FF
+skinparam NoteBackgroundColor #FFF7ED
+skinparam NoteBorderColor #FDBA74
+
+package "Tenant Web / Realtime Layer" #EFF6FF {
+  class WebSocketEndpoint <<conceptual WS API>> {
+    +CONNECT /ws
+    +SUBSCRIBE /user/queue/notifications
+  }
+
+  class JwtChannelInterceptor <<conceptual interceptor>> {
+    +preSend(message: Message): Message
+  }
+
+  class NotificationRealtimePublisher <<conceptual publisher>> {
+    +pushToUser(userId: Long, payload: RealtimeNotificationPayload): void
+  }
+
+  class RealtimeNotificationPayload <<conceptual DTO>> {
+    +id: Long
+    +type: String
+    +title: String
+    +deepLink: String [0..1]
+  }
+}
+
+package "Tenant Application Layer" #F0FDF4 {
+  class NotificationService <<application service>> {
+    +afterInboxInsert(notification: Notification): void
+  }
+}
+
+package "Tenant Persistence Layer (Dedicated MySQL DB)" #FEFCE8 {
+  entity Notification <<entity>> {
+    +id: Long
+    +userId: Long
+    +type: String
+    +title: String
+    +payloadJson: String [0..1]
+    +readAt: Instant [0..1]
+  }
+}
+
+package "Realtime Broker" #FAF5FF {
+  class "STOMP broker" as StompBroker <<broker>>
+}
+
+WebSocketEndpoint ..> JwtChannelInterceptor : authenticates CONNECT
+JwtChannelInterceptor ..> StompBroker : authorizes SUBSCRIBE
+NotificationService --> NotificationRealtimePublisher : after persist
+NotificationRealtimePublisher ..> StompBroker : convertAndSendToUser
+NotificationRealtimePublisher ..> RealtimeNotificationPayload : sends
+StompBroker ..> WebSocketEndpoint : delivers to subscriber
+NotificationService ..> Notification : already stored
+
+note bottom of WebSocketEndpoint
+  Product contract (SCHED-02): STOMP /ws and
+  /user/queue/notifications with JWT on CONNECT.
+  FE scaffold currently opens
+  /ws/notifications?token= as raw WebSocket.
+end note
+
+note right of JwtChannelInterceptor
+  Reject CONNECT without a valid JWT.
+  TenantContext is set from the token tenant
+  and cleared when the session ends.
+end note
+
+@enduml

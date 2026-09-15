@@ -1,0 +1,131 @@
+@startuml
+title PIPE — Configure Recruitment Pipeline\nApplication-design viewpoint
+
+skinparam dpi 300
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam ArrowColor #64748B
+skinparam ClassBorderColor #CBD5E1
+skinparam ClassBackgroundColor #F8FAFC
+skinparam InterfaceBackgroundColor #EFF6FF
+skinparam NoteBackgroundColor #FFF7ED
+skinparam NoteBorderColor #FDBA74
+
+package "Tenant Web / API Layer" #EFF6FF {
+  class PipelineTemplateRoute <<REST API>> {
+    +GET /api/v1/tenant/pipeline-template
+    +PUT /api/v1/tenant/pipeline-template
+    +POST /api/v1/jobs/{jobId}/pipeline:apply-template
+  }
+
+  class PipelineTemplateController <<conceptual controller>> {
+    +getTemplate(): PipelineTemplateResponse
+    +saveTemplate(request: SaveTemplateRequest): PipelineTemplateResponse
+    +applyToJob(jobId: Long): JobPipelineResponse
+  }
+
+  class SaveTemplateRequest <<conceptual request DTO>> {
+    +stages: TemplateStageDraft[*]
+  }
+
+  class PipelineTemplateResponse <<conceptual response DTO>> {
+    +id: Long
+    +stages: TemplateStageDraft[*]
+  }
+
+  class JobPipelineResponse <<conceptual response DTO>> {
+    +jobId: Long
+    +stageCount: int
+  }
+}
+
+package "Tenant Application Layer" #F0FDF4 {
+  class PipelineTemplateService <<conceptual service>> {
+    +getTemplate(): PipelineTemplateResponse
+    +saveTemplate(request: SaveTemplateRequest): PipelineTemplateResponse
+    +applyTemplateToJob(jobId: Long): JobPipelineResponse
+  }
+}
+
+package "Tenant Persistence Layer (Dedicated MySQL DB)" #FEFCE8 {
+  entity PipelineTemplate <<conceptual entity>> {
+    +id: Long
+    +updatedAt: Instant
+  }
+
+  entity TemplateStage <<conceptual entity>> {
+    +id: Long
+    +code: String
+    +name: String
+    +sortOrder: int
+    +isSystem: boolean
+  }
+
+  entity Job <<entity>> {
+    +id: Long
+    +title: String
+    +status: JobStatus
+  }
+
+  entity RecruitmentStage <<entity>> {
+    +id: Long
+    +name: String
+    +sortOrder: int
+    +terminal: boolean
+  }
+
+  interface PipelineTemplateRepository <<conceptual repository>> {
+    +findSingleton(): Optional<PipelineTemplate>
+    +save(template: PipelineTemplate): PipelineTemplate
+  }
+
+  interface JobRepository <<repository>> {
+    +findById(id: Long): Optional<Job>
+  }
+
+  interface RecruitmentStageRepository <<repository>> {
+    +deleteByJobId(jobId: Long): void
+    +saveAll(stages: List<RecruitmentStage>): void
+    +countByJobId(jobId: Long): long
+  }
+
+  class "Dedicated Tenant MySQL" as TenantDB <<Database>>
+}
+
+PipelineTemplateRoute ..> PipelineTemplateController : routes
+PipelineTemplateController ..> SaveTemplateRequest : consumes
+PipelineTemplateController ..> PipelineTemplateResponse : produces
+PipelineTemplateController ..> JobPipelineResponse : produces
+PipelineTemplateController --> PipelineTemplateService : delegates to
+
+PipelineTemplateService --> PipelineTemplateRepository : persists through
+PipelineTemplateService --> JobRepository : persists through
+PipelineTemplateService --> RecruitmentStageRepository : persists through
+
+PipelineTemplate "1" *-- "1..*" TemplateStage : contains
+Job "1" *-- "0..*" RecruitmentStage : owns
+PipelineTemplate ..> Job : copied onto
+TemplateStage ..> RecruitmentStage : cloned as
+
+PipelineTemplateRepository ..> PipelineTemplate : manages
+JobRepository ..> Job : manages
+RecruitmentStageRepository ..> RecruitmentStage : manages
+PipelineTemplateRepository --> TenantDB : stores in
+JobRepository --> TenantDB : stores in
+RecruitmentStageRepository --> TenantDB : stores in
+
+note bottom of PipelineTemplate
+  Designed singleton per Tenant DB (no tenantId column).
+  Not in current Flyway. System stage codes are stored
+  on TemplateStage.isSystem and copied in PIPE stage mgmt.
+end note
+
+note bottom of Job
+  Job pipeline rows live in recruitment_stages.job_id
+  (existing table). Apply-template replaces empty pipeline
+  or rejects when stages already exist (see sequence).
+end note
+
+@enduml

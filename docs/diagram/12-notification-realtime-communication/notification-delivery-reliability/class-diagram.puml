@@ -1,0 +1,88 @@
+@startuml
+title NOTIFY — Notification Delivery and Reliability\nApplication-design viewpoint
+
+skinparam dpi 300
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam ArrowColor #64748B
+skinparam ClassBorderColor #CBD5E1
+skinparam ClassBackgroundColor #F8FAFC
+skinparam InterfaceBackgroundColor #EFF6FF
+skinparam NoteBackgroundColor #FFF7ED
+skinparam NoteBorderColor #FDBA74
+
+package "Tenant Application Layer" #F0FDF4 {
+  class EmailWorker <<conceptual worker>> {
+    +onNotifyEmail(payload: String, tenantId: String): void
+  }
+
+  class DeliveryPolicy <<conceptual domain service>> {
+    +maxAttempts(): int
+    +shouldRequeue(attempts: int): boolean
+  }
+
+  interface IdempotencyStore <<conceptual>> {
+    +seen(key: String): boolean
+    +remember(key: String): void
+  }
+}
+
+package "Tenant Persistence Layer (Dedicated MySQL DB)" #FEFCE8 {
+  entity EmailOutbox <<entity>> {
+    +id: Long
+    +toEmail: String
+    +status: NotificationStatus
+    +attempts: int
+    +idempotencyKey: String
+    +sentAt: Instant [0..1]
+  }
+
+  entity Notification <<entity>> {
+    +id: Long
+    +userId: Long
+    +type: String
+    +sourceEventId: String
+  }
+
+  enum NotificationStatus <<enumeration>> {
+    PENDING
+    SENT
+    FAILED
+  }
+
+  interface EmailOutboxRepository <<repository>> {
+    +findByIdempotencyKey(key: String): Optional<EmailOutbox>
+    +save(row: EmailOutbox): EmailOutbox
+  }
+}
+
+package "Asynchronous Integration" #FAF5FF {
+  class "RabbitMQ notify-email" as NotifyQueue <<queue>>
+  class "notify.email.dlq" as Dlq <<conceptual queue>>
+  class "SMTP provider" as Smtp <<external>>
+}
+
+EmailWorker --> DeliveryPolicy : consults
+EmailWorker --> IdempotencyStore : checks
+EmailWorker --> EmailOutboxRepository : persists through
+EmailOutbox --> NotificationStatus : typed by
+EmailOutboxRepository ..> EmailOutbox : manages
+EmailWorker ..> NotifyQueue : consumes / nacks
+EmailWorker ..> Smtp : sends
+EmailWorker ..> Dlq : routes after max attempts
+Notification ..> EmailOutbox : same sourceEventId
+
+note bottom of EmailOutbox
+  Flyway today: status, attempts, sent_at.
+  idempotencyKey is designed (unique per tenant DB)
+  so a retried publish does not send a second mail.
+end note
+
+note right of DeliveryPolicy
+  Designed maxAttempts = 3.
+  RabbitMqConfig has no DLQ binding yet.
+end note
+
+@enduml

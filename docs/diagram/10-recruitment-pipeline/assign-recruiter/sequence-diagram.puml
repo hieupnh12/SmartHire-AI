@@ -1,0 +1,109 @@
+@startuml
+title PIPE — Assign Recruiter to Application
+
+skinparam dpi 300
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam sequenceArrowThickness 1
+skinparam sequenceMessageAlign center
+skinparam ArrowColor #64748B
+skinparam ParticipantBorderColor #CBD5E1
+skinparam ParticipantBackgroundColor #F8FAFC
+skinparam ActorBorderColor #3B82F6
+skinparam ActorBackgroundColor #EFF6FF
+skinparam DatabaseBorderColor #94A3B8
+skinparam DatabaseBackgroundColor #F8FAFC
+
+hide footbox
+autonumber
+
+actor "Recruiter / Admin" as Actor
+boundary "Job Kanban UI" as UI
+control "Spring Security" as Security
+control "TenantWebInterceptor" as Interceptor
+boundary "ApplicationAssigneeController" as Controller
+control "ApplicationAssigneeService" as Service
+database "Tenant DB (MySQL)" as TenantDB
+
+note over Actor, Security
+  Preconditions: tenant ACTIVE; caller can manage the job Kanban;
+  assignment is per application card, not per job.
+end note
+
+Actor -> UI: Open a candidate card and pick assignee
+activate UI
+UI -> Security: PATCH /api/v1/applications/{id}/assignee
+activate Security
+
+alt Unauthenticated or forbidden
+  Security --> UI: 401 Unauthorized / 403 Forbidden
+  deactivate Security
+  UI --> Actor: Show access error
+  deactivate UI
+else Authorized
+  Security -> Interceptor: Forward authenticated request
+  activate Interceptor
+  deactivate Security
+  Interceptor -> Interceptor: setCurrentTenant(tenantId)
+  Interceptor -> Controller: Route request
+  activate Controller
+  Controller -> Service: assign(actorId, applicationId, recruiterId, expectedUpdatedAt)
+  activate Service
+  Service -> TenantDB: find Application by id
+  activate TenantDB
+  TenantDB --> Service: Application or empty
+  deactivate TenantDB
+
+  alt Application missing
+    Service --> Controller: APPLICATION_NOT_FOUND
+    deactivate Service
+    Controller --> UI: 404 Not Found
+    deactivate Controller
+    UI --> Actor: Show card not found
+  else Card updated concurrently
+    Service --> Controller: STALE_CARD
+    deactivate Service
+    Controller --> UI: 409 Conflict
+    deactivate Controller
+    UI --> Actor: Reload Kanban and retry
+  else Card current
+    opt recruiterId provided
+      Service -> TenantDB: find User by recruiterId
+      activate TenantDB
+      TenantDB --> Service: User or empty
+      deactivate TenantDB
+    end
+
+    alt Assignee invalid, locked, or CANDIDATE
+      Service --> Controller: INVALID_ASSIGNEE
+      deactivate Service
+      Controller --> UI: 400 Bad Request
+      deactivate Controller
+      UI --> Actor: Show assignee error
+    else Assignee valid or unassign
+      Service -> TenantDB: UPDATE assigned_recruiter_id and updated_at
+      activate TenantDB
+      TenantDB --> Service: Application saved
+      deactivate TenantDB
+      Service -> TenantDB: INSERT ApplicationStatusHistory note (assignee change)
+      activate TenantDB
+      TenantDB --> Service: Audit row
+      deactivate TenantDB
+      Service --> Controller: ApplicationCardResponse
+      deactivate Service
+      Controller --> UI: 200 OK
+      deactivate Controller
+      UI --> Actor: Show owner on the Kanban card
+    end
+  end
+  Interceptor -> Interceptor: clear TenantContext
+  deactivate Interceptor
+  deactivate UI
+end
+
+note over TenantDB
+  History note records who assigned whom; stage and
+  application status do not change in this function.
+end note
+
+@enduml

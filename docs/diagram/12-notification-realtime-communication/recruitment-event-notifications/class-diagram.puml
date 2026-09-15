@@ -1,0 +1,105 @@
+@startuml
+title NOTIFY — Recruitment Event Notifications\nApplication-design viewpoint
+
+skinparam dpi 300
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam ArrowColor #64748B
+skinparam ClassBorderColor #CBD5E1
+skinparam ClassBackgroundColor #F8FAFC
+skinparam InterfaceBackgroundColor #EFF6FF
+skinparam NoteBackgroundColor #FFF7ED
+skinparam NoteBorderColor #FDBA74
+
+package "Tenant Web / Domain Triggers" #EFF6FF {
+  class HiringDomainServices <<existing modules>> {
+    +applyJob()
+    +moveStage()
+    +decideHireOrReject()
+    +inviteAssessment()
+    +inviteInterview()
+  }
+}
+
+package "Tenant Application Layer" #F0FDF4 {
+  class RecruitmentNotificationDispatcher <<conceptual service>> {
+    +dispatch(event: RecruitmentNotificationEvent): void
+  }
+
+  class RecruitmentNotificationEvent <<conceptual event>> {
+    +type: NotificationType
+    +actorUserId: Long [0..1]
+    +recipientUserId: Long
+    +applicationId: Long
+    +jobId: Long [0..1]
+    +sourceEventId: String
+  }
+
+  class ResultReleasePolicy <<conceptual domain service>> {
+    +canNotifyResult(applicationId: Long, recipientRole: String): boolean
+  }
+
+  class DeepLinkBuilder <<conceptual>> {
+    +build(tenantCode: String, type: NotificationType, resourceId: Long): String
+  }
+
+  class EmailNotificationProducer <<conceptual producer>> {
+    +publish(command: SendEmailCommand): void
+  }
+}
+
+package "Tenant Persistence Layer (Dedicated MySQL DB)" #FEFCE8 {
+  entity Notification <<entity>> {
+    +id: Long
+    +userId: Long
+    +type: String
+    +title: String
+    +payloadJson: String [0..1]
+    +readAt: Instant [0..1]
+  }
+
+  enum NotificationType <<conceptual enumeration>> {
+    APPLICATION_SUBMITTED
+    STAGE_CHANGED
+    APPLICATION_REJECTED
+    OFFER_CREATED
+    ASSESSMENT_INVITED
+    INTERVIEW_INVITED
+    SCHEDULE_REMINDER
+    RESULT_AVAILABLE
+  }
+
+  interface NotificationRepository <<repository>> {
+    +save(notification: Notification): Notification
+  }
+}
+
+package "Asynchronous Integration" #FAF5FF {
+  class "RabbitMQ notify-email" as NotifyQueue <<queue>>
+}
+
+HiringDomainServices ..> RecruitmentNotificationEvent : emits
+RecruitmentNotificationDispatcher ..> RecruitmentNotificationEvent : handles
+RecruitmentNotificationDispatcher --> ResultReleasePolicy : consults
+RecruitmentNotificationDispatcher --> DeepLinkBuilder : builds payload
+RecruitmentNotificationDispatcher --> NotificationRepository : persists inbox
+RecruitmentNotificationDispatcher --> EmailNotificationProducer : fans out email
+Notification --> NotificationType : typed by
+NotificationRepository ..> Notification : manages
+EmailNotificationProducer ..> NotifyQueue : publishes X-Tenant-ID
+
+note bottom of ResultReleasePolicy
+  RESULT_AVAILABLE is sent to the candidate only
+  after the recruiter (or policy) releases scores.
+  Other types are not gated by this policy.
+end note
+
+note right of DeepLinkBuilder
+  payload_json stores tenantCode, resourceType,
+  resourceId, and path. Client stays on the
+  current tenant host; no cross-tenant link.
+end note
+
+@enduml

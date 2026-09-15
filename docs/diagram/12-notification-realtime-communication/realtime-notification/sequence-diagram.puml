@@ -1,0 +1,89 @@
+@startuml
+title NOTIFY — Real-Time Notification
+
+skinparam dpi 300
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam sequenceArrowThickness 1
+skinparam sequenceMessageAlign center
+skinparam ArrowColor #64748B
+skinparam ParticipantBorderColor #CBD5E1
+skinparam ParticipantBackgroundColor #F8FAFC
+skinparam ActorBorderColor #3B82F6
+skinparam ActorBackgroundColor #EFF6FF
+skinparam DatabaseBorderColor #94A3B8
+skinparam DatabaseBackgroundColor #F8FAFC
+
+hide footbox
+autonumber
+
+actor "Authenticated User" as User
+boundary "App Shell / WS Client" as UI
+control "JwtChannelInterceptor" as Security
+control "STOMP Broker" as Broker
+control "NotificationService" as Service
+control "NotificationRealtimePublisher" as Publisher
+
+note over User, Security
+  Preconditions: tenant ACTIVE; user already authenticated on REST;
+  an inbox row has just been committed (dispatcher function).
+  This function does not list, mark-read, or send SMTP.
+end note
+
+== Subscribe ==
+
+User -> UI: Keep session open after login
+activate UI
+UI -> Security: CONNECT /ws (JWT)
+activate Security
+
+alt Missing or invalid JWT
+  Security --> UI: Close connection
+  deactivate Security
+  UI --> User: Fall back to polling inbox later
+else Authenticated
+  Security -> Security: setCurrentTenant(tenant from token)
+  Security -> Broker: Accept CONNECT
+  activate Broker
+  deactivate Security
+  UI -> Broker: SUBSCRIBE /user/queue/notifications
+  Broker --> UI: Subscribed
+
+  == Push after inbox insert ==
+
+  opt User session still subscribed
+    Service -> Publisher: afterInboxInsert(notification)
+    activate Service
+    activate Publisher
+    Publisher -> Broker: convertAndSendToUser(userId, payload)
+    Broker -> UI: MESSAGE (id, type, title, deepLink)
+    UI --> User: Toast / unread badge +1
+    Publisher --> Service
+    deactivate Publisher
+    deactivate Service
+  end
+
+  == Client at-least-once ==
+
+  opt Duplicate MESSAGE with same notification id
+    UI -> UI: Ignore already rendered id
+  end
+
+  == Disconnect ==
+
+  User -> UI: Leave workspace or token expires
+  UI -> Broker: DISCONNECT
+  Broker -> Broker: clear TenantContext
+  deactivate Broker
+  UI --> User: Realtime stopped
+end
+
+deactivate UI
+
+note over Broker, Publisher
+  At-least-once: broker may redeliver after reconnect.
+  Client dedupes by notification id. Missed messages
+  are recovered by GET /notifications, not by this channel.
+end note
+
+@enduml

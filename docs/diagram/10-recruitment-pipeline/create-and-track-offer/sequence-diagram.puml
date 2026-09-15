@@ -1,0 +1,162 @@
+@startuml
+title PIPE — Create and Track Offer
+
+skinparam dpi 300
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam sequenceArrowThickness 1
+skinparam sequenceMessageAlign center
+skinparam ArrowColor #64748B
+skinparam ParticipantBorderColor #CBD5E1
+skinparam ParticipantBackgroundColor #F8FAFC
+skinparam ActorBorderColor #3B82F6
+skinparam ActorBackgroundColor #EFF6FF
+skinparam DatabaseBorderColor #94A3B8
+skinparam DatabaseBackgroundColor #F8FAFC
+skinparam QueueBorderColor #A855F7
+skinparam QueueBackgroundColor #FAF5FF
+
+hide footbox
+autonumber
+
+actor "Recruiter / Admin" as Recruiter
+boundary "Pipeline / Offer UI" as UI
+control "Spring Security" as Security
+control "TenantWebInterceptor" as Interceptor
+boundary "HiringDecisionController" as Controller
+control "HiringDecisionService" as Service
+database "Tenant DB (MySQL)" as TenantDB
+queue "RabbitMQ notify-email" as RabbitMQ
+
+note over Recruiter, Security
+  Preconditions: tenant ACTIVE; caller can decide on the job;
+  application is not already HIRED or REJECTED.
+end note
+
+== Create offer ==
+
+Recruiter -> UI: Issue offer for a candidate
+activate UI
+UI -> Security: POST /api/v1/applications/{id}/offers
+activate Security
+
+alt Unauthenticated or forbidden
+  Security --> UI: 401 Unauthorized / 403 Forbidden
+  deactivate Security
+  UI --> Recruiter: Show access error
+else Authorized
+  Security -> Interceptor: Forward authenticated request
+  activate Interceptor
+  deactivate Security
+  Interceptor -> Interceptor: setCurrentTenant(tenantId)
+  Interceptor -> Controller: Route request
+  activate Controller
+  Controller -> Service: createOffer(actorId, id, request)
+  activate Service
+  Service -> TenantDB: Load Application and Offer stage
+  activate TenantDB
+  TenantDB --> Service: Card and stage
+  deactivate TenantDB
+
+  alt Missing, stale, or already terminal
+    Service --> Controller: 404 / 409 / 422
+    deactivate Service
+    Controller --> UI: Error status
+    deactivate Controller
+    UI --> Recruiter: Show why offer is blocked
+  else Eligible application
+    Service -> TenantDB: INSERT HiringDecision OFFER
+    activate TenantDB
+    TenantDB --> Service: Decision saved
+    deactivate TenantDB
+    Service -> TenantDB: UPDATE status=OFFER, stage=Offer, updated_at
+    activate TenantDB
+    TenantDB --> Service: Card saved
+    deactivate TenantDB
+    Service -> TenantDB: INSERT status history (audit)
+    activate TenantDB
+    TenantDB --> Service: Audit row
+    deactivate TenantDB
+    Service -> RabbitMQ: publishOfferEvent(OFFER_CREATED)
+    activate RabbitMQ
+    RabbitMQ --> Service: Accepted
+    deactivate RabbitMQ
+    Service --> Controller: OfferResponse
+    deactivate Service
+    Controller --> UI: 201 Created
+    deactivate Controller
+    UI --> Recruiter: Card in Offer column
+  end
+  Interceptor -> Interceptor: clear TenantContext
+  deactivate Interceptor
+end
+
+== Track or resolve offer ==
+
+Recruiter -> UI: Open offer or record hire/reject
+UI -> Security: GET offer or POST /applications/{id}/decisions
+activate Security
+Security -> Interceptor: Forward after RBAC
+activate Interceptor
+deactivate Security
+Interceptor -> Interceptor: setCurrentTenant(tenantId)
+Interceptor -> Controller: Route request
+activate Controller
+
+alt Track only
+  Controller -> Service: getLatest(applicationId)
+  activate Service
+  Service -> TenantDB: Latest HiringDecision and Application
+  activate TenantDB
+  TenantDB --> Service: Offer snapshot
+  deactivate TenantDB
+  Service --> Controller: OfferResponse
+  deactivate Service
+  Controller --> UI: 200 OK
+  deactivate Controller
+  UI --> Recruiter: Show current offer status
+else Hire or reject
+  Controller -> Service: decide(actorId, id, request)
+  activate Service
+  Service -> TenantDB: Load Application (must be OFFER)
+  activate TenantDB
+  TenantDB --> Service: Card
+  deactivate TenantDB
+
+  alt Not in OFFER or reason missing on REJECT
+    Service --> Controller: 422 DECISION_NOT_ALLOWED
+    deactivate Service
+    Controller --> UI: Error status
+    deactivate Controller
+    UI --> Recruiter: Show blocked decision
+  else Decision allowed
+    Service -> TenantDB: INSERT HiringDecision HIRE or REJECT
+    activate TenantDB
+    TenantDB --> Service: Decision saved
+    deactivate TenantDB
+    Service -> TenantDB: UPDATE terminal status/stage and history
+    activate TenantDB
+    TenantDB --> Service: Card locked
+    deactivate TenantDB
+    Service -> RabbitMQ: publishOfferEvent(HIRED or REJECTED)
+    activate RabbitMQ
+    RabbitMQ --> Service: Accepted
+    deactivate RabbitMQ
+    Service --> Controller: OfferResponse
+    deactivate Service
+    Controller --> UI: 200 OK
+    deactivate Controller
+    UI --> Recruiter: Terminal column updated
+  end
+end
+
+Interceptor -> Interceptor: clear TenantContext
+deactivate Interceptor
+deactivate UI
+
+note over TenantDB
+  Terminal HIRED/REJECTED is not reopened in this function.
+  Mail failure does not roll back the decision; retry is the notify worker.
+end note
+
+@enduml

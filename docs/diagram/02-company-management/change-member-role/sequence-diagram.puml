@@ -1,0 +1,123 @@
+@startuml
+title COMPANY-03 — Change Member Role
+
+skinparam dpi 300
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam sequenceArrowThickness 1
+skinparam sequenceMessageAlign center
+skinparam ArrowColor #64748B
+skinparam ParticipantBorderColor #CBD5E1
+skinparam ParticipantBackgroundColor #F8FAFC
+skinparam ActorBorderColor #3B82F6
+skinparam ActorBackgroundColor #EFF6FF
+skinparam DatabaseBorderColor #94A3B8
+skinparam DatabaseBackgroundColor #F8FAFC
+
+hide footbox
+autonumber
+
+actor "Tenant Admin" as Admin
+boundary "Member Directory UI" as UI
+control "Spring Security" as Security
+control "TenantWebInterceptor" as Interceptor
+boundary "TenantUserController" as Controller
+control "TenantUserService" as Service
+database "Tenant DB (MySQL)" as TenantDB
+collections "Redis" as Redis
+
+note over Admin, Security
+  Preconditions: tenant ACTIVE; caller TENANT_ADMIN or ADMIN;
+  target user belongs to this Tenant DB.
+end note
+
+Admin -> UI: Select member and new role
+activate UI
+UI -> Security: PATCH /api/v1/tenant/users/{id}/role
+activate Security
+
+alt Unauthenticated or forbidden role
+  Security --> UI: 401 Unauthorized / 403 Forbidden
+  deactivate Security
+  UI --> Admin: Show access error
+  deactivate UI
+else Authorized administrator
+  Security -> Interceptor: Forward authenticated request
+  activate Interceptor
+  deactivate Security
+  Interceptor -> Interceptor: setCurrentTenant(tenantId)
+  Interceptor -> Controller: Route request
+  activate Controller
+  Controller -> Controller: Validate role token
+
+  alt Unknown role or CANDIDATE assigned as staff
+    Controller --> UI: 400 INVALID_ROLE
+    deactivate Controller
+    UI --> Admin: Show role error
+    Interceptor -> Interceptor: clear TenantContext
+    deactivate Interceptor
+    deactivate UI
+  else Valid workspace role
+    Controller -> Service: changeRole(actorId, targetId, role)
+    activate Service
+    Service -> TenantDB: findById(targetId)
+    activate TenantDB
+    TenantDB --> Service: User or empty
+    deactivate TenantDB
+
+    alt User missing or DISABLED
+      Service --> Controller: USER_NOT_FOUND
+      deactivate Service
+      Controller --> UI: 404 Not Found
+      deactivate Controller
+      UI --> Admin: Show member not found
+      Interceptor -> Interceptor: clear TenantContext
+      deactivate Interceptor
+      deactivate UI
+    else User found
+      Service -> TenantDB: countByRoleAndStatus(TENANT_ADMIN, ACTIVE)
+      activate TenantDB
+      TenantDB --> Service: Active admin count
+      deactivate TenantDB
+
+      alt Last ACTIVE TENANT_ADMIN would be demoted
+        Service --> Controller: LAST_ADMIN_PROTECTED
+        deactivate Service
+        Controller --> UI: 409 Conflict
+        deactivate Controller
+        UI --> Admin: Block demotion of last admin
+        Interceptor -> Interceptor: clear TenantContext
+        deactivate Interceptor
+        deactivate UI
+      else Role change allowed
+        Service -> TenantDB: UPDATE users.role
+        activate TenantDB
+        TenantDB --> Service: User saved
+        deactivate TenantDB
+
+        opt Privilege reduced
+          Service -> Redis: revokeRefreshToken(tenantId, targetId)
+          activate Redis
+          Redis --> Service: Session revoked
+          deactivate Redis
+        end
+
+        Service --> Controller: UserResponse
+        deactivate Service
+        Controller --> UI: 200 OK
+        deactivate Controller
+        UI --> Admin: Show updated role
+        Interceptor -> Interceptor: clear TenantContext
+        deactivate Interceptor
+        deactivate UI
+      end
+    end
+  end
+end
+
+note over Redis
+  Demotion revokes refresh tokens so the old JWT
+  privilege cannot continue until the user signs in again.
+end note
+
+@enduml

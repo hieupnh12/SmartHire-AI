@@ -1,0 +1,131 @@
+@startuml
+title PIPE — Transition Candidate Stage\nApplication-design viewpoint
+
+skinparam dpi 300
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam ArrowColor #64748B
+skinparam ClassBorderColor #CBD5E1
+skinparam ClassBackgroundColor #F8FAFC
+skinparam InterfaceBackgroundColor #EFF6FF
+skinparam NoteBackgroundColor #FFF7ED
+skinparam NoteBorderColor #FDBA74
+
+package "Tenant Web / API Layer" #EFF6FF {
+  class PipelineMoveRoute <<REST API>> {
+    +GET /api/v1/jobs/{jobId}/pipeline
+    +POST /api/v1/applications/{id}/move
+  }
+
+  class WorkflowController <<conceptual controller>> {
+    +getPipeline(jobId: Long): PipelineBoardResponse
+    +move(id: Long, request: MoveApplicationRequest): ApplicationCardResponse
+  }
+
+  class MoveApplicationRequest <<conceptual request DTO>> {
+    +toStageId: Long
+    +expectedUpdatedAt: Instant
+    +note: String [0..1]
+  }
+
+  class PipelineBoardResponse <<conceptual response DTO>> {
+    +jobId: Long
+    +columns: StageColumn[*]
+  }
+}
+
+package "Tenant Application Layer" #F0FDF4 {
+  class WorkflowService <<application service>> {
+    +getPipeline(jobId: Long): PipelineBoardResponse
+    +move(actorId: Long, applicationId: Long, request: MoveApplicationRequest): ApplicationCardResponse
+  }
+
+  class TransitionPolicy <<conceptual domain service>> {
+    +canMove(from: RecruitmentStage, to: RecruitmentStage, status: ApplicationStatus): boolean
+  }
+
+  class EmailNotificationProducer <<conceptual producer>> {
+    +publishStageChanged(tenantId: String, applicationId: Long, toCode: String): void
+  }
+}
+
+package "Tenant Persistence Layer (Dedicated MySQL DB)" #FEFCE8 {
+  entity Application <<entity>> {
+    +id: Long
+    +stageId: Long [0..1]
+    +status: ApplicationStatus
+    +updatedAt: Instant
+  }
+
+  entity RecruitmentStage <<entity>> {
+    +id: Long
+    +code: String [0..1]
+    +name: String
+    +terminal: boolean
+  }
+
+  entity ApplicationStatusHistory <<entity>> {
+    +id: Long
+    +fromStatus: String [0..1]
+    +toStatus: String
+    +fromStageId: Long [0..1]
+    +toStageId: Long
+    +enteredAt: Instant
+    +exitedAt: Instant [0..1]
+    +durationSeconds: Long [0..1]
+    +changedBy: Long [0..1]
+    +note: String [0..1]
+  }
+
+  enum ApplicationStatus <<enumeration>> {
+    NEW
+    IN_REVIEW
+    ASSESSMENT
+    INTERVIEW
+    OFFER
+    HIRED
+    REJECTED
+    WITHDRAWN
+  }
+
+  interface ApplicationRepository <<repository>> {
+    +findById(id: Long): Optional<Application>
+    +save(application: Application): Application
+  }
+}
+
+package "Asynchronous Integration" #FAF5FF {
+  class "RabbitMQ notify-email" as NotifyQueue <<queue>>
+}
+
+PipelineMoveRoute ..> WorkflowController : routes
+WorkflowController ..> MoveApplicationRequest : consumes
+WorkflowController ..> PipelineBoardResponse : produces
+WorkflowController --> WorkflowService : delegates to
+
+WorkflowService --> TransitionPolicy : consults
+WorkflowService --> ApplicationRepository : persists through
+WorkflowService --> EmailNotificationProducer : dispatches events
+EmailNotificationProducer ..> NotifyQueue : publishes X-Tenant-ID
+
+Application --> RecruitmentStage : currently in
+Application --> ApplicationStatus : typed by
+Application "1" *-- "0..*" ApplicationStatusHistory : history
+ApplicationRepository ..> Application : manages
+
+note bottom of TransitionPolicy
+  Forward moves along sort_order are allowed.
+  Hired/Rejected are terminal: no move out except
+  WITHDRAWN by candidate (out of this function).
+  Offer/Hire/Reject decisions belong to create-and-track-offer.
+end note
+
+note bottom of ApplicationStatusHistory
+  Existing columns: from_status, to_status, changed_by, note.
+  fromStageId, enteredAt, exitedAt, durationSeconds are
+  designed so time-in-stage can be computed.
+end note
+
+@enduml

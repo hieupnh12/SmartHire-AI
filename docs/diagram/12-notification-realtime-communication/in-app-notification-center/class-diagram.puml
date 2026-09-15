@@ -1,0 +1,101 @@
+@startuml
+title NOTIFY — In-App Notification Center\nApplication-design viewpoint
+
+skinparam dpi 300
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam ArrowColor #64748B
+skinparam ClassBorderColor #CBD5E1
+skinparam ClassBackgroundColor #F8FAFC
+skinparam InterfaceBackgroundColor #EFF6FF
+skinparam NoteBackgroundColor #FFF7ED
+skinparam NoteBorderColor #FDBA74
+
+package "Tenant Web / API Layer" #EFF6FF {
+  class NotificationInboxRoute <<REST API>> {
+    +GET /api/v1/notifications
+    +PATCH /api/v1/notifications/{id}
+    +PATCH /api/v1/notifications/read-all
+  }
+
+  class NotificationController <<REST controller>> {
+    +list(unreadOnly: boolean): NotificationListResponse
+    +markRead(id: Long): NotificationResponse
+    +markAllRead(): MarkAllReadResponse
+  }
+
+  class NotificationListResponse <<conceptual response DTO>> {
+    +items: NotificationResponse[*]
+    +unreadCount: long
+  }
+
+  class NotificationResponse <<conceptual response DTO>> {
+    +id: Long
+    +type: String
+    +title: String
+    +body: String [0..1]
+    +deepLink: String [0..1]
+    +readAt: Instant [0..1]
+    +createdAt: Instant
+  }
+}
+
+package "Tenant Application Layer" #F0FDF4 {
+  class NotificationService <<application service>> {
+    +listMine(userId: Long, unreadOnly: boolean): NotificationListResponse
+    +markRead(userId: Long, id: Long): NotificationResponse
+    +markAllRead(userId: Long): int
+  }
+}
+
+package "Tenant Persistence Layer (Dedicated MySQL DB)" #FEFCE8 {
+  entity Notification <<entity>> {
+    +id: Long
+    +userId: Long
+    +type: String
+    +title: String
+    +body: String [0..1]
+    +payloadJson: String [0..1]
+    +readAt: Instant [0..1]
+    +createdAt: Instant
+  }
+
+  entity User <<entity>> {
+    +id: Long
+    +email: String
+    +fullName: String
+  }
+
+  interface NotificationRepository <<repository>> {
+    +findByUserIdOrderByCreatedAtDesc(userId: Long): List<Notification>
+    +countByUserIdAndReadAtIsNull(userId: Long): long
+    +findByIdAndUserId(id: Long, userId: Long): Optional<Notification>
+    +markAllRead(userId: Long, readAt: Instant): int
+  }
+}
+
+NotificationInboxRoute ..> NotificationController : routes
+NotificationController ..> NotificationListResponse : produces
+NotificationController ..> NotificationResponse : produces
+NotificationController --> NotificationService : delegates to
+
+NotificationService --> NotificationRepository : persists through
+NotificationRepository ..> Notification : manages
+User "1" *-- "0..*" Notification : inbox of
+
+note bottom of Notification
+  Unread = read_at IS NULL. payload_json may hold
+  tenantCode, resourceType, resourceId, path for
+  the client deep link. Creation is owned by
+  recruitment-event-notifications.
+end note
+
+note right of NotificationInboxRoute
+  GET/PATCH exist in the product contract and FE client.
+  Controller currently exposes only /health.
+  PATCH .../read-all is designed; FE has mark-one only.
+end note
+
+@enduml

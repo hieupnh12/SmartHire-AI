@@ -1,0 +1,157 @@
+@startuml
+title COMPANY-02 — Invite Tenant Member\nApplication-design viewpoint
+
+skinparam dpi 300
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam ArrowColor #64748B
+skinparam ClassBorderColor #CBD5E1
+skinparam ClassBackgroundColor #F8FAFC
+skinparam InterfaceBackgroundColor #EFF6FF
+skinparam NoteBackgroundColor #FFF7ED
+skinparam NoteBorderColor #FDBA74
+
+package "Tenant Web / API Layer" #EFF6FF {
+  class MemberInvitationRoute <<REST API>> {
+    +POST /api/v1/tenant/users/invitations
+    +POST /api/v1/tenant/users/invitations/accept
+  }
+
+  class TenantUserController <<REST controller>> {
+    +inviteMember(request: InviteMemberRequest): InvitationResponse
+    +acceptInvitation(request: AcceptInvitationRequest): UserResponse
+  }
+
+  class InviteMemberRequest <<conceptual request DTO>> {
+    +email: String
+    +fullName: String
+    +role: String
+  }
+
+  class AcceptInvitationRequest <<conceptual request DTO>> {
+    +token: String {write-only}
+    +password: String {write-only}
+  }
+
+  class InvitationResponse <<conceptual response DTO>> {
+    +id: Long
+    +email: String
+    +role: String
+    +status: String
+    +expiresAt: Instant
+  }
+
+  class UserResponse <<response DTO>> {
+    +id: Long
+    +email: String
+    +fullName: String
+    +role: String
+    +status: String
+  }
+}
+
+package "Tenant Application Layer" #F0FDF4 {
+  class MemberInvitationService <<conceptual service>> {
+    +invite(request: InviteMemberRequest): InvitationResponse
+    +accept(request: AcceptInvitationRequest): UserResponse
+  }
+
+  class EmailNotificationProducer <<conceptual producer>> {
+    +publishMemberInvite(tenantId: String, email: String, acceptUrl: String): void
+  }
+}
+
+package "Tenant Persistence Layer (Dedicated MySQL DB)" #FEFCE8 {
+  entity MemberInvitation <<conceptual entity>> {
+    +id: Long
+    +email: String
+    +fullName: String
+    +role: UserRole
+    +tokenHash: String
+    +status: InvitationStatus
+    +expiresAt: Instant
+    +acceptedUserId: Long [0..1]
+  }
+
+  entity User <<entity>> {
+    +id: Long
+    +email: String
+    +passwordHash: String
+    +fullName: String
+    +role: UserRole
+    +status: UserStatus
+  }
+
+  enum UserRole <<enumeration>> {
+    TENANT_ADMIN
+    ADMIN
+    HR
+    RECRUITER
+  }
+
+  enum UserStatus <<enumeration>> {
+    ACTIVE
+    LOCKED
+    DISABLED
+  }
+
+  enum InvitationStatus <<conceptual enumeration>> {
+    PENDING
+    ACCEPTED
+    EXPIRED
+    REVOKED
+  }
+
+  interface MemberInvitationRepository <<conceptual repository>> {
+    +findByEmailAndStatus(email: String, status: InvitationStatus): Optional<MemberInvitation>
+    +findByTokenHash(tokenHash: String): Optional<MemberInvitation>
+    +save(invitation: MemberInvitation): MemberInvitation
+  }
+
+  interface UserRepository <<repository>> {
+    +existsByEmailIgnoreCase(email: String): boolean
+    +save(user: User): User
+  }
+}
+
+package "Asynchronous Integration" #FAF5FF {
+  class "RabbitMQ notify-email" as NotifyQueue <<queue>>
+}
+
+MemberInvitationRoute ..> TenantUserController : routes
+TenantUserController ..> InviteMemberRequest : consumes
+TenantUserController ..> AcceptInvitationRequest : consumes
+TenantUserController ..> InvitationResponse : produces
+TenantUserController ..> UserResponse : produces
+TenantUserController --> MemberInvitationService : delegates to
+
+MemberInvitationService --> MemberInvitationRepository : persists through
+MemberInvitationService --> UserRepository : persists through
+MemberInvitationService --> EmailNotificationProducer : dispatches events
+MemberInvitationService ..> InviteMemberRequest : processes
+EmailNotificationProducer ..> NotifyQueue : publishes X-Tenant-ID
+
+User --> UserRole : typed by
+User --> UserStatus : typed by
+MemberInvitation --> UserRole : assigns
+MemberInvitation --> InvitationStatus : typed by
+MemberInvitation "0..1" --> "0..1" User : accepted as
+
+MemberInvitationRepository ..> MemberInvitation : manages
+UserRepository ..> User : manages
+
+note right of InviteMemberRequest
+  Designed invite has no password field.
+  Current POST /api/v1/tenant/users still
+  creates an ACTIVE user with a password.
+end note
+
+note bottom of MemberInvitation
+  tokenHash is stored; raw token is emailed
+  once and never logged. CANDIDATE is not
+  an invitable workspace role.
+end note
+
+@enduml

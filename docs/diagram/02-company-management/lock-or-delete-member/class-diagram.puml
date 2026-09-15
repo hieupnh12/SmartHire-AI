@@ -1,0 +1,121 @@
+@startuml
+title COMPANY-04 — Lock or Delete Member\nApplication-design viewpoint
+
+skinparam dpi 300
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam ArrowColor #64748B
+skinparam ClassBorderColor #CBD5E1
+skinparam ClassBackgroundColor #F8FAFC
+skinparam InterfaceBackgroundColor #EFF6FF
+skinparam NoteBackgroundColor #FFF7ED
+skinparam NoteBorderColor #FDBA74
+
+package "Tenant Web / API Layer" #EFF6FF {
+  class MemberLifecycleRoute <<REST API>> {
+    +PATCH /api/v1/tenant/users/{id}/status
+    +DELETE /api/v1/tenant/users/{id}
+  }
+
+  class TenantUserController <<REST controller>> {
+    +updateStatus(id: Long, request: UpdateMemberStatusRequest): UserResponse
+    +deleteMember(id: Long): void
+  }
+
+  class UpdateMemberStatusRequest <<conceptual request DTO>> {
+    +status: String
+  }
+
+  class UserResponse <<response DTO>> {
+    +id: Long
+    +email: String
+    +fullName: String
+    +role: String
+    +status: String
+  }
+}
+
+package "Security & Tenant Context" #F1F5F9 {
+  class TenantWebInterceptor <<Spring HandlerInterceptor>> {
+    +preHandle(request, response, handler): boolean
+    +afterCompletion(request, response, handler, ex): void
+  }
+
+  class TenantContext <<ThreadLocal>> {
+    +{static} setCurrentTenant(tenantId: String): void
+    +{static} clear(): void
+  }
+}
+
+package "Tenant Application Layer" #F0FDF4 {
+  class TenantUserService <<application service>> {
+    +updateStatus(actorId: Long, targetId: Long, status: UserStatus): UserResponse
+    +deleteMember(actorId: Long, targetId: Long): void
+  }
+
+  class RedisSessionService <<conceptual service>> {
+    +revokeRefreshToken(tenantId: String, userId: Long): void
+  }
+}
+
+package "Tenant Persistence Layer (Dedicated MySQL DB)" #FEFCE8 {
+  entity User <<entity>> {
+    +id: Long
+    +email: String
+    +fullName: String
+    +role: UserRole
+    +status: UserStatus
+  }
+
+  enum UserRole <<enumeration>> {
+    TENANT_ADMIN
+    ADMIN
+    HR
+    RECRUITER
+    CANDIDATE
+  }
+
+  enum UserStatus <<enumeration>> {
+    ACTIVE
+    LOCKED
+    DISABLED
+  }
+
+  interface UserRepository <<repository>> {
+    +findById(id: Long): Optional<User>
+    +countByRoleAndStatus(role: UserRole, status: UserStatus): long
+    +countJobOwnership(userId: Long): long
+    +save(user: User): User
+    +delete(user: User): void
+  }
+}
+
+MemberLifecycleRoute ..> TenantUserController : routes
+TenantUserController ..> UpdateMemberStatusRequest : consumes
+TenantUserController ..> UserResponse : produces
+TenantUserController --> TenantUserService : delegates to
+TenantWebInterceptor ..> TenantContext : sets / clears
+
+TenantUserService --> UserRepository : persists through
+TenantUserService --> RedisSessionService : revokes sessions
+TenantUserService ..> UpdateMemberStatusRequest : processes
+
+User --> UserRole : typed by
+User --> UserStatus : typed by
+UserRepository ..> User : manages
+
+note bottom of UserStatus
+  ACTIVE: can sign in.
+  LOCKED: reversible block; row kept.
+  DISABLED: soft delete for members with job history.
+  Hard delete is allowed only when the user owns no jobs.
+end note
+
+note bottom of TenantUserService
+  Actor cannot lock, unlock, or delete themselves.
+  The last ACTIVE TENANT_ADMIN cannot be locked or deleted.
+end note
+
+@enduml

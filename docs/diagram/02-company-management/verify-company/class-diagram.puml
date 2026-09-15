@@ -1,0 +1,159 @@
+@startuml
+title COMPANY-05 — Verify Company\nApplication-design viewpoint
+
+skinparam dpi 300
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam ArrowColor #64748B
+skinparam ClassBorderColor #CBD5E1
+skinparam ClassBackgroundColor #F8FAFC
+skinparam InterfaceBackgroundColor #EFF6FF
+skinparam NoteBackgroundColor #FFF7ED
+skinparam NoteBorderColor #FDBA74
+
+package "Tenant API" #EFF6FF {
+  class TenantVerificationRoute <<REST API>> {
+    +POST /api/v1/tenant/company/verifications
+  }
+
+  class TenantCompanyVerificationController <<conceptual controller>> {
+    +submit(request: SubmitVerificationRequest): VerificationResponse
+  }
+
+  class SubmitVerificationRequest <<conceptual request DTO>> {
+    +legalName: String
+    +taxId: String
+    +documentFiles: MultipartFile[*]
+  }
+}
+
+package "Master API" #E0F2FE {
+  class MasterVerificationRoute <<REST API>> {
+    +GET /api/v1/master/company-verifications
+    +PATCH /api/v1/master/company-verifications/{id}
+  }
+
+  class MasterCompanyVerificationController <<conceptual controller>> {
+    +list(status: String): List<VerificationResponse>
+    +review(id: Long, request: ReviewVerificationRequest): VerificationResponse
+  }
+
+  class ReviewVerificationRequest <<conceptual request DTO>> {
+    +decision: String
+    +reviewNote: String [0..1]
+  }
+
+  class VerificationResponse <<conceptual response DTO>> {
+    +id: Long
+    +tenantCode: String
+    +legalName: String
+    +status: String
+    +reviewedAt: Instant [0..1]
+  }
+}
+
+package "Application Services" #F0FDF4 {
+  class CompanyVerificationService <<conceptual service>> {
+    +submit(tenantId: String, request: SubmitVerificationRequest): VerificationResponse
+    +review(reviewerId: Long, id: Long, request: ReviewVerificationRequest): VerificationResponse
+  }
+
+  interface ObjectStoragePort <<conceptual port>> {
+    +storeVerificationDocument(tenantId: String, file: MultipartFile): String
+  }
+
+  class EmailNotificationProducer <<conceptual producer>> {
+    +publishVerificationSubmitted(tenantId: String): void
+    +publishVerificationReviewed(tenantId: String, decision: String): void
+  }
+}
+
+package "Master Persistence (PostgreSQL)" #FEF3C7 {
+  entity TenantInfo <<entity>> {
+    +id: Long
+    +code: String
+    +name: String
+    +status: String
+    +verificationStatus: VerificationStatus
+  }
+
+  entity CompanyVerificationRequest <<conceptual entity>> {
+    +id: Long
+    +tenantId: Long
+    +legalName: String
+    +taxId: String
+    +documentKeys: String
+    +status: VerificationStatus
+    +submitterEmail: String
+    +reviewNote: String [0..1]
+    +reviewedBy: Long [0..1]
+  }
+
+  enum VerificationStatus <<conceptual enumeration>> {
+    UNVERIFIED
+    PENDING
+    VERIFIED
+    REJECTED
+  }
+
+  interface CompanyVerificationRequestRepository <<conceptual repository>> {
+    +findCurrentByTenantId(tenantId: Long): Optional<CompanyVerificationRequest>
+    +save(request: CompanyVerificationRequest): CompanyVerificationRequest
+  }
+
+  interface TenantInfoRepository <<repository>> {
+    +findByCode(code: String): Optional<TenantInfo>
+    +save(tenant: TenantInfo): TenantInfo
+  }
+
+  class "Master PostgreSQL\ntenants + company_verification_requests" as MasterDB <<Database>>
+}
+
+package "Tenant Persistence (MySQL)" #FEFCE8 {
+  entity CompanyProfile <<conceptual entity>> {
+    +name: String
+    +address: String [0..1]
+    +website: String [0..1]
+  }
+
+  class "Dedicated Tenant MySQL" as TenantDB <<Database>>
+}
+
+TenantVerificationRoute ..> TenantCompanyVerificationController : routes
+TenantCompanyVerificationController ..> SubmitVerificationRequest : consumes
+TenantCompanyVerificationController --> CompanyVerificationService : delegates to
+MasterVerificationRoute ..> MasterCompanyVerificationController : routes
+MasterCompanyVerificationController ..> ReviewVerificationRequest : consumes
+MasterCompanyVerificationController ..> VerificationResponse : produces
+MasterCompanyVerificationController --> CompanyVerificationService : delegates to
+
+CompanyVerificationService --> CompanyVerificationRequestRepository : persists through
+CompanyVerificationService --> TenantInfoRepository : persists through
+CompanyVerificationService ..> ObjectStoragePort : stores evidence
+CompanyVerificationService ..> EmailNotificationProducer : notifies
+CompanyVerificationService ..> CompanyProfile : reads completeness
+
+CompanyVerificationRequest --> VerificationStatus : typed by
+TenantInfo --> VerificationStatus : typed by
+TenantInfo "1" o-- "0..*" CompanyVerificationRequest : has history
+CompanyVerificationRequestRepository ..> CompanyVerificationRequest : manages
+TenantInfoRepository ..> TenantInfo : manages
+CompanyVerificationRequestRepository --> MasterDB : stores in
+TenantInfoRepository --> MasterDB : stores in
+TenantDB *-- CompanyProfile : contains
+
+note bottom of CompanyVerificationRequest
+  Platform-owned trust record. tenantId is a Master
+  registry key, not a foreign key into Tenant MySQL.
+  Document bytes are not stored in either database.
+end note
+
+note bottom of TenantInfo
+  verificationStatus is designed and not in the
+  current tenants Flyway columns. tenants.status
+  (ACTIVE/SUSPENDED) remains operational, not KYC.
+end note
+
+@enduml

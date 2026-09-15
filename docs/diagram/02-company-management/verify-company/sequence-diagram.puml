@@ -1,0 +1,152 @@
+@startuml
+title COMPANY-05 — Verify Company
+
+skinparam dpi 300
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam sequenceArrowThickness 1
+skinparam sequenceMessageAlign center
+skinparam ArrowColor #64748B
+skinparam ParticipantBorderColor #CBD5E1
+skinparam ParticipantBackgroundColor #F8FAFC
+skinparam ActorBorderColor #3B82F6
+skinparam ActorBackgroundColor #EFF6FF
+skinparam DatabaseBorderColor #94A3B8
+skinparam DatabaseBackgroundColor #F8FAFC
+skinparam QueueBorderColor #A855F7
+skinparam QueueBackgroundColor #FAF5FF
+
+hide footbox
+autonumber
+
+actor "Tenant Admin" as TenantAdmin
+actor "Workspace Admin" as WorkspaceAdmin
+boundary "Tenant Workspace UI" as TenantUI
+boundary "Master Review UI" as MasterUI
+control "Spring Security" as Security
+boundary "Verification Controllers" as Controller
+control "CompanyVerificationService" as Service
+entity "Object Storage" as Storage
+database "Master PostgreSQL" as MasterDB
+database "Tenant DB (MySQL)" as TenantDB
+queue "RabbitMQ notify-email" as RabbitMQ
+
+note over TenantAdmin, Security
+  Option 1: company submits legal evidence; Workspace Admin approves
+  a platform VERIFIED badge. Operational tenant status stays separate.
+end note
+
+== Submit verification ==
+
+TenantAdmin -> TenantUI: Enter legal name, tax id and upload license files
+activate TenantUI
+TenantUI -> Security: POST /api/v1/tenant/company/verifications
+activate Security
+
+alt Unauthenticated or not TENANT_ADMIN / ADMIN
+  Security --> TenantUI: 401 Unauthorized / 403 Forbidden
+  deactivate Security
+  TenantUI --> TenantAdmin: Show access error
+else Authorized tenant administrator
+  Security -> Controller: Forward after TenantContext is set
+  activate Controller
+  deactivate Security
+  Controller -> Service: submit(tenantId, request)
+  activate Service
+  Service -> TenantDB: Load CompanyProfile completeness
+  activate TenantDB
+  TenantDB --> Service: Profile fields
+  deactivate TenantDB
+  Service -> MasterDB: Load TenantInfo and current verification
+  activate MasterDB
+  MasterDB --> Service: Tenant + current request
+  deactivate MasterDB
+
+  alt Submit not allowed
+    Service --> Controller: 400 / 409 VERIFICATION_NOT_ALLOWED
+    deactivate Service
+    Controller --> TenantUI: Error response
+    deactivate Controller
+    TenantUI --> TenantAdmin: Show why submit is blocked
+  else Eligible UNVERIFIED or REJECTED tenant
+    Service -> Storage: storeVerificationDocument(files)
+    activate Storage
+    Storage --> Service: documentKeys
+    deactivate Storage
+    Service -> MasterDB: INSERT request PENDING and set TenantInfo.verificationStatus=PENDING
+    activate MasterDB
+    MasterDB --> Service: Request id
+    deactivate MasterDB
+    Service -> RabbitMQ: publishVerificationSubmitted(tenantId)
+    activate RabbitMQ
+    RabbitMQ --> Service: Accepted
+    deactivate RabbitMQ
+    Service --> Controller: VerificationResponse PENDING
+    deactivate Service
+    Controller --> TenantUI: 201 Created
+    deactivate Controller
+    TenantUI --> TenantAdmin: Show pending review
+  end
+end
+deactivate TenantUI
+
+== Review verification ==
+
+WorkspaceAdmin -> MasterUI: Open pending company verification
+activate MasterUI
+MasterUI -> Security: PATCH /api/v1/master/company-verifications/{id}
+activate Security
+
+alt Unauthenticated or not WORKSPACE_ADMIN
+  Security --> MasterUI: 401 Unauthorized / 403 Forbidden
+  deactivate Security
+  MasterUI --> WorkspaceAdmin: Show access error
+else Authorized platform administrator
+  Security -> Controller: Forward master request
+  activate Controller
+  deactivate Security
+  Controller -> Service: review(reviewerId, id, decision)
+  activate Service
+  Service -> MasterDB: Load PENDING CompanyVerificationRequest
+  activate MasterDB
+  MasterDB --> Service: Request or empty
+  deactivate MasterDB
+
+  alt Request missing or not PENDING
+    Service --> Controller: 404 / 409 REVIEW_NOT_ALLOWED
+    deactivate Service
+    Controller --> MasterUI: Error response
+    deactivate Controller
+    MasterUI --> WorkspaceAdmin: Show stale request
+  else PENDING request
+    alt Approve
+      Service -> MasterDB: Set request and TenantInfo.verificationStatus = VERIFIED
+      activate MasterDB
+      MasterDB --> Service: Saved VERIFIED
+      deactivate MasterDB
+    else Reject
+      Service -> MasterDB: Set request and TenantInfo.verificationStatus = REJECTED\n(store reviewNote)
+      activate MasterDB
+      MasterDB --> Service: Saved REJECTED
+      deactivate MasterDB
+    end
+    Service -> RabbitMQ: publishVerificationReviewed(tenantId, decision)
+    activate RabbitMQ
+    RabbitMQ --> Service: Accepted
+    deactivate RabbitMQ
+    Service --> Controller: VerificationResponse
+    deactivate Service
+    Controller --> MasterUI: 200 OK
+    deactivate Controller
+    MasterUI --> WorkspaceAdmin: Show reviewed status
+  end
+end
+deactivate MasterUI
+
+note over MasterDB, TenantDB
+  Evidence metadata lives in Master PostgreSQL so Workspace Admin
+  can review across tenants. Tenant MySQL has no FK to this record.
+  Career page reads VERIFIED from Master metadata, not from tenant self-assertion.
+end note
+
+@enduml

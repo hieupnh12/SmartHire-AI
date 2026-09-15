@@ -1,0 +1,140 @@
+@startuml
+title PIPE — Create and Track Offer\nApplication-design viewpoint
+
+skinparam dpi 300
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam ArrowColor #64748B
+skinparam ClassBorderColor #CBD5E1
+skinparam ClassBackgroundColor #F8FAFC
+skinparam InterfaceBackgroundColor #EFF6FF
+skinparam NoteBackgroundColor #FFF7ED
+skinparam NoteBorderColor #FDBA74
+
+package "Tenant Web / API Layer" #EFF6FF {
+  class OfferRoute <<REST API>> {
+    +POST /api/v1/applications/{id}/offers
+    +GET /api/v1/applications/{id}/offers
+    +POST /api/v1/applications/{id}/decisions
+  }
+
+  class HiringDecisionController <<conceptual controller>> {
+    +createOffer(id: Long, request: CreateOfferRequest): OfferResponse
+    +getOffer(id: Long): OfferResponse
+    +decide(id: Long, request: DecisionRequest): OfferResponse
+  }
+
+  class CreateOfferRequest <<conceptual request DTO>> {
+    +note: String [0..1]
+    +expectedUpdatedAt: Instant
+  }
+
+  class DecisionRequest <<conceptual request DTO>> {
+    +decision: String
+    +reason: String [0..1]
+    +expectedUpdatedAt: Instant
+  }
+
+  class OfferResponse <<conceptual response DTO>> {
+    +applicationId: Long
+    +status: String
+    +decision: String [0..1]
+    +reason: String [0..1]
+    +decidedAt: Instant [0..1]
+  }
+}
+
+package "Tenant Application Layer" #F0FDF4 {
+  class HiringDecisionService <<conceptual service>> {
+    +createOffer(actorId: Long, applicationId: Long, request: CreateOfferRequest): OfferResponse
+    +getLatest(applicationId: Long): OfferResponse
+    +decide(actorId: Long, applicationId: Long, request: DecisionRequest): OfferResponse
+  }
+
+  class EmailNotificationProducer <<conceptual producer>> {
+    +publishOfferEvent(tenantId: String, applicationId: Long, kind: String): void
+  }
+}
+
+package "Tenant Persistence Layer (Dedicated MySQL DB)" #FEFCE8 {
+  entity Application <<entity>> {
+    +id: Long
+    +stageId: Long [0..1]
+    +status: ApplicationStatus
+    +updatedAt: Instant
+  }
+
+  entity HiringDecision <<entity>> {
+    +id: Long
+    +decision: HiringDecisionType
+    +reason: String [0..1]
+    +decidedBy: Long
+    +createdAt: Instant
+  }
+
+  entity ApplicationStatusHistory <<entity>> {
+    +id: Long
+    +fromStatus: String [0..1]
+    +toStatus: String
+    +changedBy: Long [0..1]
+    +note: String [0..1]
+  }
+
+  enum ApplicationStatus <<enumeration>> {
+    INTERVIEW
+    OFFER
+    HIRED
+    REJECTED
+    WITHDRAWN
+  }
+
+  enum HiringDecisionType <<enumeration>> {
+    OFFER
+    HIRE
+    REJECT
+    HOLD
+  }
+
+  interface ApplicationRepository <<repository>> {
+    +findById(id: Long): Optional<Application>
+    +save(application: Application): Application
+  }
+
+  interface HiringDecisionRepository <<repository>> {
+    +findLatestByApplicationId(id: Long): Optional<HiringDecision>
+    +save(decision: HiringDecision): HiringDecision
+  }
+}
+
+OfferRoute ..> HiringDecisionController : routes
+HiringDecisionController ..> CreateOfferRequest : consumes
+HiringDecisionController ..> DecisionRequest : consumes
+HiringDecisionController ..> OfferResponse : produces
+HiringDecisionController --> HiringDecisionService : delegates to
+
+HiringDecisionService --> ApplicationRepository : persists through
+HiringDecisionService --> HiringDecisionRepository : persists through
+HiringDecisionService --> EmailNotificationProducer : notifies
+
+Application "1" *-- "0..*" HiringDecision : decisions
+Application "1" *-- "0..*" ApplicationStatusHistory : audit
+Application --> ApplicationStatus : typed by
+HiringDecision --> HiringDecisionType : typed by
+ApplicationRepository ..> Application : manages
+HiringDecisionRepository ..> HiringDecision : manages
+
+note bottom of HiringDecisionType
+  Code today: HIRE, REJECT, HOLD.
+  OFFER is a designed value so creating an offer is
+  auditable before a terminal HIRE or REJECT.
+end note
+
+note bottom of HiringDecisionService
+  No offer-letter, salary, or e-sign document.
+  Offer tracking is application status OFFER plus
+  the latest hiring_decisions row.
+end note
+
+@enduml

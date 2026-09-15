@@ -1,0 +1,130 @@
+@startuml
+title NOTIFY — In-App Notification Center
+
+skinparam dpi 300
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam sequenceArrowThickness 1
+skinparam sequenceMessageAlign center
+skinparam ArrowColor #64748B
+skinparam ParticipantBorderColor #CBD5E1
+skinparam ParticipantBackgroundColor #F8FAFC
+skinparam ActorBorderColor #3B82F6
+skinparam ActorBackgroundColor #EFF6FF
+skinparam DatabaseBorderColor #94A3B8
+skinparam DatabaseBackgroundColor #F8FAFC
+
+hide footbox
+autonumber
+
+actor "Authenticated User" as User
+boundary "Notification Center UI" as UI
+control "Spring Security" as Security
+control "TenantWebInterceptor" as Interceptor
+boundary "NotificationController" as Controller
+control "NotificationService" as Service
+database "Tenant DB (MySQL)" as TenantDB
+
+note over User, Security
+  Preconditions: tenant ACTIVE; JWT belongs to this tenant;
+  inbox rows already exist for the caller (written by the dispatcher).
+  This function does not send WebSocket or email.
+end note
+
+== Open inbox ==
+
+User -> UI: Open notification center
+activate UI
+UI -> Security: GET /api/v1/notifications
+activate Security
+
+alt Unauthenticated or forbidden
+  Security --> UI: 401 Unauthorized / 403 Forbidden
+  deactivate Security
+  UI --> User: Show access error
+else Authorized
+  Security -> Interceptor: Forward authenticated request
+  activate Interceptor
+  deactivate Security
+  Interceptor -> Interceptor: setCurrentTenant(tenantId)
+  Interceptor -> Controller: Route request
+  activate Controller
+  Controller -> Service: listMine(actorId, unreadOnly)
+  activate Service
+  Service -> TenantDB: Load caller's notifications and unread count
+  activate TenantDB
+  TenantDB --> Service: Items + unreadCount
+  deactivate TenantDB
+  Service --> Controller: NotificationListResponse
+  deactivate Service
+  Controller --> UI: 200 OK
+  deactivate Controller
+  UI --> User: Render list and unread badge
+  Interceptor -> Interceptor: clear TenantContext
+  deactivate Interceptor
+end
+
+== Mark read ==
+
+User -> UI: Mark one or mark all as read
+UI -> Security: PATCH mark-read (one or all)
+activate Security
+
+alt Unauthenticated or forbidden
+  Security --> UI: 401 Unauthorized / 403 Forbidden
+  deactivate Security
+  UI --> User: Show access error
+else Authorized
+  Security -> Interceptor: Forward authenticated request
+  activate Interceptor
+  deactivate Security
+  Interceptor -> Interceptor: setCurrentTenant(tenantId)
+  Interceptor -> Controller: Route request
+  activate Controller
+
+  alt Mark one notification
+    Controller -> Service: markRead(actorId, id)
+    activate Service
+    Service -> TenantDB: Find by id AND user_id
+    activate TenantDB
+    TenantDB --> Service: Row or empty
+    deactivate TenantDB
+    alt Missing or not owned by caller
+      Service --> Controller: 404 Not Found
+      deactivate Service
+      Controller --> UI: 404
+      UI --> User: Keep unread state
+    else Found
+      Service -> TenantDB: SET read_at = now() if still null
+      activate TenantDB
+      TenantDB --> Service: Updated
+      deactivate TenantDB
+      Service --> Controller: NotificationResponse
+      deactivate Service
+    end
+  else Mark all
+    Controller -> Service: markAllRead(actorId)
+    activate Service
+    Service -> TenantDB: SET read_at = now() WHERE user_id AND read_at IS NULL
+    activate TenantDB
+    TenantDB --> Service: Updated row count
+    deactivate TenantDB
+    Service --> Controller: MarkAllReadResponse
+    deactivate Service
+  end
+
+  Controller --> UI: 200 OK
+  deactivate Controller
+  UI --> User: Unread badge decreases
+  Interceptor -> Interceptor: clear TenantContext
+  deactivate Interceptor
+end
+
+deactivate UI
+
+note over UI, TenantDB
+  Deep-link click only navigates inside the current tenant using payload_json.
+  Resource screens belong to Job, Pipeline, Assessment, or Interview.
+end note
+
+@enduml

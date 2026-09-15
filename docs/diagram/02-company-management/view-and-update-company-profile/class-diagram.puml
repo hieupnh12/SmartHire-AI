@@ -1,0 +1,126 @@
+@startuml
+title COMPANY-01 — View and Update Company Profile\nApplication-design viewpoint
+
+skinparam dpi 300
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam ArrowColor #64748B
+skinparam ClassBorderColor #CBD5E1
+skinparam ClassBackgroundColor #F8FAFC
+skinparam InterfaceBackgroundColor #EFF6FF
+skinparam NoteBackgroundColor #FFF7ED
+skinparam NoteBorderColor #FDBA74
+
+package "Tenant Web / API Layer" #EFF6FF {
+  class CompanyProfileRoute <<REST API>> {
+    +GET /api/v1/tenant/company
+    +PUT /api/v1/tenant/company
+    +POST /api/v1/tenant/company/logo
+  }
+
+  class CompanyProfileController <<conceptual controller>> {
+    +getProfile(): CompanyProfileResponse
+    +updateProfile(request: UpdateCompanyProfileRequest): CompanyProfileResponse
+    +uploadLogo(file: MultipartFile): CompanyProfileResponse
+  }
+
+  class UpdateCompanyProfileRequest <<request DTO>> {
+    +name: String
+    +tagline: String [0..1]
+    +website: String [0..1]
+    +address: String [0..1]
+    +industry: String [0..1]
+    +description: String [0..1]
+    +companySize: String [0..1]
+  }
+
+  class CompanyProfileResponse <<response DTO>> {
+    +name: String
+    +tagline: String [0..1]
+    +website: String [0..1]
+    +address: String [0..1]
+    +industry: String [0..1]
+    +description: String [0..1]
+    +companySize: String [0..1]
+    +logoUrl: String [0..1]
+    +updatedAt: Instant
+  }
+}
+
+package "Security & Tenant Context" #F1F5F9 {
+  class TenantWebInterceptor <<Spring HandlerInterceptor>> {
+    +preHandle(request, response, handler): boolean
+    +afterCompletion(request, response, handler, ex): void
+  }
+
+  class TenantContext <<ThreadLocal>> {
+    +{static} setCurrentTenant(tenantId: String): void
+    +{static} getCurrentTenant(): String
+    +{static} clear(): void
+  }
+}
+
+package "Tenant Application Layer" #F0FDF4 {
+  class CompanyProfileService <<conceptual service>> {
+    +getProfile(): CompanyProfileResponse
+    +updateProfile(request: UpdateCompanyProfileRequest): CompanyProfileResponse
+    +replaceLogo(file: MultipartFile): CompanyProfileResponse
+  }
+
+  interface ObjectStoragePort <<conceptual port>> {
+    +storeLogo(tenantId: String, file: MultipartFile): String
+    +deleteObject(objectKey: String): void
+  }
+}
+
+package "Tenant Persistence Layer (Dedicated MySQL DB)" #FEFCE8 {
+  entity CompanyProfile <<conceptual entity>> {
+    +id: Long
+    +name: String
+    +tagline: String [0..1]
+    +website: String [0..1]
+    +address: String [0..1]
+    +industry: String [0..1]
+    +description: String [0..1]
+    +companySize: String [0..1]
+    +logoObjectKey: String [0..1]
+    +updatedAt: Instant
+  }
+
+  interface CompanyProfileRepository <<conceptual repository>> {
+    +findSingleton(): Optional<CompanyProfile>
+    +save(profile: CompanyProfile): CompanyProfile
+  }
+
+  class "Dedicated Tenant MySQL\ncompany_profiles" as TenantDB <<Database>>
+}
+
+CompanyProfileRoute ..> CompanyProfileController : routes
+CompanyProfileController ..> UpdateCompanyProfileRequest : consumes
+CompanyProfileController ..> CompanyProfileResponse : produces
+CompanyProfileController --> CompanyProfileService : delegates to
+
+TenantWebInterceptor ..> TenantContext : sets / clears
+
+CompanyProfileService --> CompanyProfileRepository : persists through
+CompanyProfileService ..> ObjectStoragePort : stores logo
+CompanyProfileService ..> UpdateCompanyProfileRequest : processes
+CompanyProfileRepository ..> CompanyProfile : manages
+CompanyProfileRepository --> TenantDB : stores in
+TenantDB *-- CompanyProfile : contains
+
+note bottom of CompanyProfile
+  Designed tenant branding record: one row per
+  dedicated Tenant DB. No tenantId column because
+  isolation is physical (database-per-tenant).
+  Not present in current Flyway tenant migrations.
+end note
+
+note bottom of ObjectStoragePort
+  Logo bytes stay in object storage.
+  The database stores only the object key / public URL.
+end note
+
+@enduml

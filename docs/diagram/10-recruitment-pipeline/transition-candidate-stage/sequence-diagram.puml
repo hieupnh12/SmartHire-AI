@@ -1,0 +1,130 @@
+@startuml
+title PIPE — Transition Candidate Stage
+
+skinparam dpi 300
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam sequenceArrowThickness 1
+skinparam sequenceMessageAlign center
+skinparam ArrowColor #64748B
+skinparam ParticipantBorderColor #CBD5E1
+skinparam ParticipantBackgroundColor #F8FAFC
+skinparam ActorBorderColor #3B82F6
+skinparam ActorBackgroundColor #EFF6FF
+skinparam DatabaseBorderColor #94A3B8
+skinparam DatabaseBackgroundColor #F8FAFC
+skinparam QueueBorderColor #A855F7
+skinparam QueueBackgroundColor #FAF5FF
+
+hide footbox
+autonumber
+
+actor "Recruiter" as Recruiter
+boundary "Job Kanban UI" as UI
+control "Spring Security" as Security
+control "TenantWebInterceptor" as Interceptor
+boundary "WorkflowController" as Controller
+control "WorkflowService" as Service
+database "Tenant DB (MySQL)" as TenantDB
+queue "RabbitMQ notify-email" as RabbitMQ
+
+note over Recruiter, Security
+  Preconditions: tenant ACTIVE; caller can manage the job;
+  card is not in a locked terminal hiring state.
+end note
+
+== Load Kanban ==
+
+Recruiter -> UI: Open job pipeline
+activate UI
+UI -> Security: GET /api/v1/jobs/{jobId}/pipeline
+activate Security
+Security -> Interceptor: Forward after RBAC
+activate Interceptor
+deactivate Security
+Interceptor -> Interceptor: setCurrentTenant(tenantId)
+Interceptor -> Controller: Route request
+activate Controller
+Controller -> Service: getPipeline(jobId)
+activate Service
+Service -> TenantDB: Load stages and applications
+activate TenantDB
+TenantDB --> Service: Columns and cards
+deactivate TenantDB
+Service --> Controller: PipelineBoardResponse
+deactivate Service
+Controller --> UI: 200 OK
+deactivate Controller
+UI --> Recruiter: Render Kanban columns
+Interceptor -> Interceptor: clear TenantContext
+deactivate Interceptor
+
+== Move card ==
+
+Recruiter -> UI: Drag card to another stage
+UI -> Security: POST /api/v1/applications/{id}/move
+activate Security
+
+alt Unauthenticated or forbidden
+  Security --> UI: 401 Unauthorized / 403 Forbidden
+  deactivate Security
+  UI --> Recruiter: Show access error
+else Authorized
+  Security -> Interceptor: Forward authenticated request
+  activate Interceptor
+  deactivate Security
+  Interceptor -> Interceptor: setCurrentTenant(tenantId)
+  Interceptor -> Controller: Route request
+  activate Controller
+  Controller -> Service: move(actorId, id, request)
+  activate Service
+  Service -> TenantDB: Load Application, from-stage, to-stage, last history
+  activate TenantDB
+  TenantDB --> Service: Current card and stages
+  deactivate TenantDB
+
+  alt Missing card/stage, stale version, or illegal transition
+    Service --> Controller: 404 / 409 / 422
+    deactivate Service
+    Controller --> UI: Error status
+    deactivate Controller
+    UI --> Recruiter: Reload board or show blocked move
+  else Transition allowed
+    Service -> TenantDB: Close previous history (exitedAt, durationSeconds)
+    activate TenantDB
+    TenantDB --> Service: Prior stay closed
+    deactivate TenantDB
+    Service -> TenantDB: UPDATE application.stage_id, status, updated_at
+    activate TenantDB
+    TenantDB --> Service: Card saved
+    deactivate TenantDB
+    Service -> TenantDB: INSERT history (toStage, enteredAt, actor, note)
+    activate TenantDB
+    TenantDB --> Service: Audit row
+    deactivate TenantDB
+
+    opt Target is Assessment or Interview
+      Service -> RabbitMQ: publishStageChanged(tenantId, applicationId, toCode)
+      activate RabbitMQ
+      RabbitMQ --> Service: Accepted
+      deactivate RabbitMQ
+    end
+
+    Service --> Controller: ApplicationCardResponse
+    deactivate Service
+    Controller --> UI: 200 OK
+    deactivate Controller
+    UI --> Recruiter: Card sits in the new column
+  end
+  Interceptor -> Interceptor: clear TenantContext
+  deactivate Interceptor
+end
+
+deactivate UI
+
+note over TenantDB, RabbitMQ
+  Time in stage = exitedAt - enteredAt of the closed history row.
+  Assessment/Interview workers are not executed here; only a tenant-scoped event is published.
+end note
+
+@enduml

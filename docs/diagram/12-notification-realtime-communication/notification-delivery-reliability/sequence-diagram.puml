@@ -1,0 +1,109 @@
+@startuml
+title NOTIFY — Notification Delivery and Reliability
+
+skinparam dpi 300
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam sequenceArrowThickness 1
+skinparam sequenceMessageAlign center
+skinparam ArrowColor #64748B
+skinparam ParticipantBorderColor #CBD5E1
+skinparam ParticipantBackgroundColor #F8FAFC
+skinparam ActorBorderColor #3B82F6
+skinparam ActorBackgroundColor #EFF6FF
+skinparam DatabaseBorderColor #94A3B8
+skinparam DatabaseBackgroundColor #F8FAFC
+skinparam QueueBorderColor #A855F7
+skinparam QueueBackgroundColor #FAF5FF
+
+hide footbox
+autonumber
+
+queue "RabbitMQ notify-email" as RabbitMQ
+control "EmailWorker" as Worker
+control "TenantJobExecutor" as Executor
+database "Tenant DB (MySQL)" as TenantDB
+entity "SMTP provider" as Smtp
+queue "notify.email.dlq" as DLQ
+
+note over RabbitMQ, Worker
+  Preconditions: tenant ACTIVE when the message was published;
+  outbox row exists. This function is the failure/duplicate path,
+  not the first successful send (see email-notification).
+end note
+
+RabbitMQ -> Worker: Deliver notify.email (X-Tenant-ID, idempotencyKey)
+activate Worker
+Worker -> Executor: execute(tenantId, task)
+activate Executor
+Executor -> Executor: requireActive; setCurrentTenant
+
+alt Duplicate key already SENT
+  Executor -> TenantDB: Find outbox by idempotencyKey
+  activate TenantDB
+  TenantDB --> Executor: SENT row
+  deactivate TenantDB
+  Executor -> Executor: clear TenantContext
+  Executor --> Worker: Skip send
+  deactivate Executor
+  Worker --> RabbitMQ: Ack duplicate
+else First or retryable attempt
+  Executor -> TenantDB: Load PENDING/FAILED outbox
+  activate TenantDB
+  TenantDB --> Executor: Row
+  deactivate TenantDB
+  Executor -> Smtp: Send
+  activate Smtp
+
+  alt SMTP success
+    Smtp --> Executor: 250 OK
+    deactivate Smtp
+    Executor -> TenantDB: status=SENT, sent_at=now()
+    activate TenantDB
+    TenantDB --> Executor: Saved
+    deactivate TenantDB
+    Executor -> Executor: remember idempotencyKey
+    Executor -> Executor: clear TenantContext
+    Executor --> Worker: Done
+    deactivate Executor
+    Worker --> RabbitMQ: Ack
+  else SMTP failure
+    Smtp --> Executor: 4xx/5xx or timeout
+    deactivate Smtp
+    Executor -> TenantDB: attempts = attempts + 1
+    activate TenantDB
+    TenantDB --> Executor: Updated
+    deactivate TenantDB
+
+    alt attempts < 3
+      Executor -> Executor: clear TenantContext
+      Executor --> Worker: Retry
+      deactivate Executor
+      Worker --> RabbitMQ: Nack requeue
+    else Max attempts reached
+      Executor -> TenantDB: status=FAILED
+      activate TenantDB
+      TenantDB --> Executor: Saved
+      deactivate TenantDB
+      Executor -> DLQ: Publish failed payload (X-Tenant-ID)
+      activate DLQ
+      DLQ --> Executor: Accepted
+      deactivate DLQ
+      Executor -> Executor: clear TenantContext
+      Executor --> Worker: Give up
+      deactivate Executor
+      Worker --> RabbitMQ: Ack original (parked on DLQ)
+    end
+  end
+end
+
+deactivate Worker
+
+note over TenantDB, DLQ
+  Inbox insert uses the same sourceEventId so a retried
+  domain event does not create a second notification row.
+  Inactive tenant: TenantJobExecutor rejects without requeue
+  (AmqpRejectAndDontRequeueException).
+end note
+
+@enduml

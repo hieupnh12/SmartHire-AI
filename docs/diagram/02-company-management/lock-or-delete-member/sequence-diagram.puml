@@ -1,0 +1,156 @@
+@startuml
+title COMPANY-04 — Lock or Delete Member
+
+skinparam dpi 300
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam sequenceArrowThickness 1
+skinparam sequenceMessageAlign center
+skinparam ArrowColor #64748B
+skinparam ParticipantBorderColor #CBD5E1
+skinparam ParticipantBackgroundColor #F8FAFC
+skinparam ActorBorderColor #3B82F6
+skinparam ActorBackgroundColor #EFF6FF
+skinparam DatabaseBorderColor #94A3B8
+skinparam DatabaseBackgroundColor #F8FAFC
+
+hide footbox
+autonumber
+
+actor "Tenant Admin" as Admin
+boundary "Member Directory UI" as UI
+control "Spring Security" as Security
+control "TenantWebInterceptor" as Interceptor
+boundary "TenantUserController" as Controller
+control "TenantUserService" as Service
+database "Tenant DB (MySQL)" as TenantDB
+collections "Redis" as Redis
+
+note over Admin, Security
+  Preconditions: tenant ACTIVE; caller TENANT_ADMIN or ADMIN;
+  target is a workspace member in this Tenant DB.
+end note
+
+Admin -> UI: Choose lock, unlock, or delete
+activate UI
+
+alt Lock or unlock member
+  UI -> Security: PATCH /api/v1/tenant/users/{id}/status
+  activate Security
+
+  alt Unauthenticated or forbidden role
+    Security --> UI: 401 Unauthorized / 403 Forbidden
+    deactivate Security
+    UI --> Admin: Show access error
+  else Authorized administrator
+    Security -> Interceptor: Forward authenticated request
+    activate Interceptor
+    deactivate Security
+    Interceptor -> Interceptor: setCurrentTenant(tenantId)
+    Interceptor -> Controller: Route request
+    activate Controller
+    Controller -> Service: updateStatus(actorId, targetId, status)
+    activate Service
+    Service -> TenantDB: findById(targetId)
+    activate TenantDB
+    TenantDB --> Service: User or empty
+    deactivate TenantDB
+
+    alt Lifecycle blocked
+      Service --> Controller: 404 / 409 MEMBER_LIFECYCLE_BLOCKED
+      deactivate Service
+      Controller --> UI: Error status
+      deactivate Controller
+      UI --> Admin: Show blocked action
+    else Transition allowed
+      Service -> TenantDB: UPDATE users.status to ACTIVE or LOCKED
+      activate TenantDB
+      TenantDB --> Service: User saved
+      deactivate TenantDB
+
+      opt Status became LOCKED
+        Service -> Redis: revokeRefreshToken(tenantId, targetId)
+        activate Redis
+        Redis --> Service: Session revoked
+        deactivate Redis
+      end
+
+      Service --> Controller: UserResponse
+      deactivate Service
+      Controller --> UI: 200 OK
+      deactivate Controller
+      UI --> Admin: Show new member status
+    end
+    Interceptor -> Interceptor: clear TenantContext
+    deactivate Interceptor
+  end
+
+else Delete member
+  UI -> Security: DELETE /api/v1/tenant/users/{id}
+  activate Security
+
+  alt Unauthenticated or forbidden role
+    Security --> UI: 401 Unauthorized / 403 Forbidden
+    deactivate Security
+    UI --> Admin: Show access error
+  else Authorized administrator
+    Security -> Interceptor: Forward authenticated request
+    activate Interceptor
+    deactivate Security
+    Interceptor -> Interceptor: setCurrentTenant(tenantId)
+    Interceptor -> Controller: Route request
+    activate Controller
+    Controller -> Service: deleteMember(actorId, targetId)
+    activate Service
+    Service -> TenantDB: findById(targetId)
+    activate TenantDB
+    TenantDB --> Service: User or empty
+    deactivate TenantDB
+
+    alt Lifecycle blocked
+      Service --> Controller: 404 / 409 MEMBER_LIFECYCLE_BLOCKED
+      deactivate Service
+      Controller --> UI: Error status
+      deactivate Controller
+      UI --> Admin: Show blocked delete
+    else Delete allowed
+      Service -> TenantDB: countJobOwnership(targetId)
+      activate TenantDB
+      TenantDB --> Service: Owned job count
+      deactivate TenantDB
+      Service -> Redis: revokeRefreshToken(tenantId, targetId)
+      activate Redis
+      Redis --> Service: Session revoked
+      deactivate Redis
+
+      alt User owns jobs or applications
+        Service -> TenantDB: UPDATE status = DISABLED
+        activate TenantDB
+        TenantDB --> Service: Soft-deleted
+        deactivate TenantDB
+      else No owned history
+        Service -> TenantDB: DELETE user row
+        activate TenantDB
+        TenantDB --> Service: Hard-deleted
+        deactivate TenantDB
+      end
+
+      Service --> Controller: Success
+      deactivate Service
+      Controller --> UI: 204 No Content
+      deactivate Controller
+      UI --> Admin: Remove member from directory
+    end
+    Interceptor -> Interceptor: clear TenantContext
+    deactivate Interceptor
+  end
+end
+
+deactivate UI
+
+note over TenantDB, Redis
+  Lock is reversible. Delete prefers DISABLED so job
+  ownership history in this Tenant DB remains intact.
+end note
+
+@enduml
