@@ -10,6 +10,7 @@ export function RootRouteSwitcher() {
 
   const [checking, setChecking] = useState(!!tenantId);
   const [tenantExists, setTenantExists] = useState(true);
+  const [checkFailed, setCheckFailed] = useState(false);
 
   useEffect(() => {
     if (!tenantId) {
@@ -26,10 +27,11 @@ export function RootRouteSwitcher() {
 
     masterAdminApi.checkTenantExists(tenantId)
       .then((exists) => {
+        setCheckFailed(false);
         setTenantExists(exists);
       })
       .catch(() => {
-        setTenantExists(false);
+        setCheckFailed(true);
       })
       .finally(() => {
         setChecking(false);
@@ -42,6 +44,14 @@ export function RootRouteSwitcher() {
       return (
         <div className="min-h-screen bg-[#f9f9ff] flex items-center justify-center text-xs text-[#64748b] font-mono">
           <span>Đang xác thực Subdomain "{tenantId}" trên Master DB...</span>
+        </div>
+      );
+    }
+
+    if (checkFailed) {
+      return (
+        <div role="alert" className="min-h-screen bg-[#f9f9ff] flex items-center justify-center px-6 text-center text-sm text-[#64748b]">
+          Không thể kết nối để xác thực tenant "{tenantId}". Vui lòng thử tải lại trang.
         </div>
       );
     }

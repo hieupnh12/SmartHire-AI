@@ -108,7 +108,7 @@ services:
     build:
       context: ./frontend
       args:
-        VITE_API_BASE_URL: http://localhost:8080/api/v1
+        VITE_API_BASE_URL: /api/v1
     container_name: smarthire-frontend
     depends_on:
       - backend

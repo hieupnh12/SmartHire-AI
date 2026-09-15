@@ -3,7 +3,7 @@ import type { ApiResponse } from "@/types/api";
 import { getTenantIdFromWindow } from "@/lib/tenant";
 
 const baseURL =
-  import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080/api/v1";
+  import.meta.env.VITE_API_BASE_URL ?? "/api/v1";
 
 export const api = axios.create({
   baseURL,
@@ -17,7 +17,7 @@ api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
     config.headers.Authorization = `Bearer ${token}`;
   }
 
-  // Inject X-Tenant-ID header dynamically from window subdomain or localStorage
+  // Inject X-Tenant-ID dynamically from the validated tenant subdomain.
   const tenantId = getTenantIdFromWindow();
   if (tenantId) {
     config.headers["X-Tenant-ID"] = tenantId;

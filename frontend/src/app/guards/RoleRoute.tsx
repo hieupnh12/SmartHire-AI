@@ -23,8 +23,8 @@ export function RoleRoute({ roles }: Props) {
 
   if (user && !roles.includes(user.role)) {
     const home =
-      user.role === "ADMIN"
-        ? "/admin"
+      user.role === "ADMIN" || user.role === "TENANT_ADMIN"
+        ? "/tenant/admin"
         : user.role === "RECRUITER"
           ? "/recruiter"
           : "/candidate";

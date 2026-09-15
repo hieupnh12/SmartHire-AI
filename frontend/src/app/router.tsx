@@ -95,7 +95,7 @@ export function AppRouter() {
         </Route>
       </Route>
 
-      <Route element={<RoleRoute roles={["ADMIN"]} />}>
+      <Route element={<RoleRoute roles={["ADMIN", "TENANT_ADMIN"]} />}>
         <Route
           path="/tenant/admin"
           element={
