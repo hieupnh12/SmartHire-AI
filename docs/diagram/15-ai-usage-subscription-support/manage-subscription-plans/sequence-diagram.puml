@@ -1,0 +1,97 @@
+﻿@startuml
+autonumber
+hide footbox
+skinparam dpi 300
+skinparam shadowing false
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam sequenceMessageAlign center
+skinparam roundcorner 6
+
+actor "Workspace Admin" as Admin
+participant "Admin Portal UI" as UI
+participant "Spring Security" as Sec
+participant "MasterSubscriptionController" as Ctrl
+participant "MasterSubscriptionService" as Svc
+participant "SubscriptionPlanRepository" as Repo
+database "Master PostgreSQL\n(subscription_plans)" as DB
+queue "RabbitMQ Exchange" as MQ
+
+Admin -> UI: 1 Navigate to "Quản lý Gói dịch vụ" & Create/Update Plan
+activate Admin
+activate UI
+
+UI -> Sec: 2 POST/PUT /api/v1/master/subscriptions (with JWT & Payload)
+activate Sec
+Sec -> Ctrl: 3 Authorized request (WORKSPACE_ADMIN)
+activate Ctrl
+
+Ctrl -> Svc: 4 createPlan(request) / updatePlan(id, request)
+activate Svc
+
+alt Case 1: Create New Plan
+    Svc -> Repo: 5 findByCode(request.code)
+    activate Repo
+    Repo -> DB: 6 SELECT * FROM subscription_plans WHERE code = ?
+    activate DB
+    DB --> Repo: 7 result (Optional<SubscriptionPlan>)
+    deactivate DB
+    Repo --> Svc: 8 Optional
+    deactivate Repo
+
+    alt Plan code already exists
+        Svc --> Ctrl: 9 throw BusinessException(409, "PLAN_CODE_EXISTS")
+        Ctrl --> UI: 10 409 Conflict
+        UI --> Admin: 11 Show error "Mã gói đã tồn tại"
+    else Plan code is unique
+        Svc -> Repo: 12 save(new SubscriptionPlan)
+        activate Repo
+        Repo -> DB: 13 INSERT INTO subscription_plans (...) VALUES (...)
+        activate DB
+        DB --> Repo: 14 saved entity
+        deactivate DB
+        Repo --> Svc: 15 SubscriptionPlan
+        deactivate Repo
+
+        Svc -> MQ: 16 Publish SubscriptionPlanChangedEvent(CREATED)
+        Svc --> Ctrl: 17 SubscriptionPlanResponse
+        Ctrl --> UI: 18 201 Created (ApiResponse<SubscriptionPlanResponse>)
+        UI --> Admin: 19 Show success toast & reload plans list
+    end
+else Case 2: Update Plan Quotas / Status
+    Svc -> Repo: 20 findById(id)
+    activate Repo
+    Repo -> DB: 21 SELECT * FROM subscription_plans WHERE id = ?
+    activate DB
+    DB --> Repo: 22 result
+    deactivate DB
+    Repo --> Svc: 23 Optional<SubscriptionPlan>
+    deactivate Repo
+
+    alt Plan not found
+        Svc --> Ctrl: 24 throw BusinessException(404, "PLAN_NOT_FOUND")
+        Ctrl --> UI: 25 404 Not Found
+    else Plan exists
+        Svc -> Svc: 26 update attributes (pricing, maxJobs, maxCvParses, maxAiInterviewHours)
+        Svc -> Repo: 27 save(updatedPlan)
+        activate Repo
+        Repo -> DB: 28 UPDATE subscription_plans SET ... WHERE id = ?
+        activate DB
+        DB --> Repo: 29 updated entity
+        deactivate DB
+        Repo --> Svc: 30 SubscriptionPlan
+        deactivate Repo
+
+        Svc -> MQ: 31 Publish SubscriptionPlanChangedEvent(UPDATED)
+        Svc --> Ctrl: 32 SubscriptionPlanResponse
+        Ctrl --> UI: 33 200 OK (ApiResponse<SubscriptionPlanResponse>)
+        UI --> Admin: 34 Render updated plan card with new quotas
+    end
+end
+
+deactivate Svc
+deactivate Ctrl
+deactivate Sec
+deactivate UI
+deactivate Admin
+@enduml

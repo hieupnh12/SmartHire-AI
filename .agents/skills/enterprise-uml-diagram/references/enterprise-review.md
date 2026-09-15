@@ -29,8 +29,9 @@ Apply relevant items and record material gaps in the function README.
 
 ## Readability and rendering
 
-- Titles and feature/function identifiers are present.
-- Legends explain non-obvious stereotypes or styles.
+- No `title ...` inside `.puml` files (keep diagrams clean for embedding in reports/slides). Feature/function identifiers are present in `README.md`.
+- No `Routing & Boundary` or `<<REST API>>` pseudo-classes in class diagrams.
+- Legends or notes explain non-obvious stereotypes or styles where needed.
 - Fonts remain readable at normal document zoom.
 - Lines and labels are not clipped.
 - Large diagrams are split instead of compressed.

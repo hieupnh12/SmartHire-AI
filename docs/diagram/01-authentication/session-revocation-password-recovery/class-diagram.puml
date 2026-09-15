@@ -1,0 +1,127 @@
+@startuml
+skinparam dpi 300
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam roundcorner 6
+skinparam linetype ortho
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam classFontSize 11
+skinparam classAttributeFontSize 10
+
+skinparam class {
+    BackgroundColor #FFFFFF
+    BorderColor #2D3748
+    ArrowColor #2D3748
+}
+
+package "Routing & Boundary" {
+    class SessionRecoveryRoute <<REST API>> {
+        + POST /api/v1/tenant/auth/logout
+        + POST /api/v1/tenant/auth/forgot-password
+        + POST /api/v1/tenant/auth/reset-password
+    }
+}
+
+package "Controller Layer" {
+    class SessionRecoveryController <<Controller>> {
+        - sessionRecoveryService: SessionRecoveryService
+        + logout(authHeader: String): ApiResponse<Void>
+        + forgotPassword(request: ForgotPasswordRequest): ApiResponse<Void>
+        + resetPassword(request: ResetPasswordRequest): ApiResponse<Void>
+    }
+}
+
+package "DTO Layer" {
+    class ForgotPasswordRequest <<Request>> {
+        + email: String
+    }
+
+    class ResetPasswordRequest <<Request>> {
+        + email: String
+        + otp: String
+        + newPassword: String {write-only}
+    }
+
+    class PasswordResetEmailEvent <<Domain Event>> {
+        + tenantId: String
+        + email: String
+        + otp: String
+        + expiresAt: LocalDateTime
+    }
+}
+
+package "Service Layer" {
+    interface SessionRecoveryService <<Service>> {
+        + logout(accessToken: String): void
+        + requestPasswordReset(request: ForgotPasswordRequest): void
+        + resetPassword(request: ResetPasswordRequest): void
+    }
+
+    class SessionRecoveryServiceImpl <<Service>> {
+        - userRepository: UserRepository
+        - passwordEncoder: PasswordEncoder
+        - redisService: RedisService
+        - rabbitTemplate: RabbitTemplate
+        - jwtTokenProvider: JwtTokenProvider
+        + logout(accessToken: String): void
+        + requestPasswordReset(request: ForgotPasswordRequest): void
+        + resetPassword(request: ResetPasswordRequest): void
+    }
+}
+
+package "Repository Layer" {
+    interface UserRepository <<Repository>> {
+        + findByEmail(email: String): Optional<User>
+        + save(user: User): User
+    }
+}
+
+package "Domain Entity Layer" {
+    class User <<Entity>> {
+        - id: Long
+        - email: String
+        - passwordHash: String
+        - status: UserStatus
+        + setPasswordHash(hash: String): void
+    }
+}
+
+package "Infrastructure & Cache/Queue" {
+    class DedicatedTenantMySQL <<Database>> {
+        .. Isolated Tenant DB ..
+        + users
+    }
+
+    class RedisCache <<Cache>> {
+        .. Token & OTP Store ..
+        + tenant:{id}:refresh:{userId}
+        + blacklist:token:{tokenHash}
+        + tenant:{id}:otp:{email}
+    }
+
+    class RabbitMQExchange <<Queue>> {
+        .. Notification Channel ..
+        + smarthire.notification.email
+    }
+}
+
+' Relationships
+SessionRecoveryRoute ..> SessionRecoveryController : defines routes >
+SessionRecoveryController ..> ForgotPasswordRequest : consumes >
+SessionRecoveryController ..> ResetPasswordRequest : consumes >
+SessionRecoveryController --> SessionRecoveryService : delegates >
+
+SessionRecoveryService <|.. SessionRecoveryServiceImpl : implements
+SessionRecoveryServiceImpl ..> ForgotPasswordRequest : processes >
+SessionRecoveryServiceImpl ..> ResetPasswordRequest : processes >
+SessionRecoveryServiceImpl ..> PasswordResetEmailEvent : emits >
+
+SessionRecoveryServiceImpl --> UserRepository : updates password >
+SessionRecoveryServiceImpl --> RedisCache : blacklists token & manages OTP >
+SessionRecoveryServiceImpl --> RabbitMQExchange : publishes email task >
+
+UserRepository --> User : manages >
+UserRepository --> DedicatedTenantMySQL : persists to
+
+@enduml
