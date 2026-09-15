@@ -1,8 +1,8 @@
 # PIPE — Cấu hình pipeline công ty và job
 
-- **Mã Feature:** `PIPE` / `10-recruitment-pipeline` (luận văn 3.10)
+- **Mã Feature:** `PIPE` / `10-recruitment-pipeline-management` (luận văn 3.10)
 - **Mã Function:** `configure-recruitment-pipeline`
-- **Thư mục:** `docs/diagram/10-recruitment-pipeline/configure-recruitment-pipeline`
+- **Thư mục:** `docs/diagram/10-recruitment-pipeline-management/configure-recruitment-pipeline`
 - **Trạng thái Review:** `Complete with assumptions`
 
 ---
@@ -139,7 +139,7 @@ Viewpoint: **layered application-design** (`Routing & Boundary` → `Controller`
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass `
   -File ./.agents/skills/enterprise-uml-diagram/scripts/render-diagrams.ps1 `
-  -InputPath docs/diagram/10-recruitment-pipeline/configure-recruitment-pipeline `
+  -InputPath docs/diagram/10-recruitment-pipeline-management/configure-recruitment-pipeline `
   -PlantUmlJar "$env:LOCALAPPDATA\PlantUML\plantuml-1.2026.7.jar" `
   -Format Png `
   -PngDpi 300

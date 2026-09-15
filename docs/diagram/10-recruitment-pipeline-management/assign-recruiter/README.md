@@ -1,8 +1,8 @@
 # PIPE — Gán recruiter phụ trách trên Kanban
 
-- **Mã Feature:** `PIPE` / `10-recruitment-pipeline`
+- **Mã Feature:** `PIPE` / `10-recruitment-pipeline-management`
 - **Mã Function:** `assign-recruiter`
-- **Thư mục:** `docs/diagram/10-recruitment-pipeline/assign-recruiter`
+- **Thư mục:** `docs/diagram/10-recruitment-pipeline-management/assign-recruiter`
 - **Trạng thái Review:** `Complete with assumptions`
 
 ---
@@ -121,7 +121,7 @@ Viewpoint: **layered application-design** (`Routing & Boundary` → `Controller`
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass `
   -File ./.agents/skills/enterprise-uml-diagram/scripts/render-diagrams.ps1 `
-  -InputPath docs/diagram/10-recruitment-pipeline/assign-recruiter `
+  -InputPath docs/diagram/10-recruitment-pipeline-management/assign-recruiter `
   -PlantUmlJar "$env:LOCALAPPDATA\PlantUML\plantuml-1.2026.7.jar" `
   -Format Png `
   -PngDpi 300

@@ -1,8 +1,8 @@
 # PIPE — Tạo và theo dõi offer
 
-- **Mã Feature:** `PIPE` / `10-recruitment-pipeline` · `WF-03`
+- **Mã Feature:** `PIPE` / `10-recruitment-pipeline-management` · `WF-03`
 - **Mã Function:** `create-and-track-offer`
-- **Thư mục:** `docs/diagram/10-recruitment-pipeline/create-and-track-offer`
+- **Thư mục:** `docs/diagram/10-recruitment-pipeline-management/create-and-track-offer`
 - **Trạng thái Review:** `Complete with assumptions`
 
 ---
@@ -146,7 +146,7 @@ Không association sang bảng offer letter — không tồn tại.
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass `
   -File ./.agents/skills/enterprise-uml-diagram/scripts/render-diagrams.ps1 `
-  -InputPath docs/diagram/10-recruitment-pipeline/create-and-track-offer `
+  -InputPath docs/diagram/10-recruitment-pipeline-management/create-and-track-offer `
   -PlantUmlJar "$env:LOCALAPPDATA\PlantUML\plantuml-1.2026.7.jar" `
   -Format Png `
   -PngDpi 300

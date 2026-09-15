@@ -1,8 +1,8 @@
 # PIPE — Quản lý stage (kèm system stages)
 
-- **Mã Feature:** `PIPE` / `10-recruitment-pipeline`
+- **Mã Feature:** `PIPE` / `10-recruitment-pipeline-management`
 - **Mã Function:** `manage-recruitment-stages`
-- **Thư mục:** `docs/diagram/10-recruitment-pipeline/manage-recruitment-stages`
+- **Thư mục:** `docs/diagram/10-recruitment-pipeline-management/manage-recruitment-stages`
 - **Trạng thái Review:** `Complete with assumptions`
 
 ---
@@ -128,7 +128,7 @@ Không inheritance custom/system: một class + cờ `system`.
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass `
   -File ./.agents/skills/enterprise-uml-diagram/scripts/render-diagrams.ps1 `
-  -InputPath docs/diagram/10-recruitment-pipeline/manage-recruitment-stages `
+  -InputPath docs/diagram/10-recruitment-pipeline-management/manage-recruitment-stages `
   -PlantUmlJar "$env:LOCALAPPDATA\PlantUML\plantuml-1.2026.7.jar" `
   -Format Png `
   -PngDpi 300

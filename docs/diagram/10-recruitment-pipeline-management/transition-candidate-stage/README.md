@@ -1,8 +1,8 @@
 # PIPE — Chuyển giai đoạn và ghi lịch sử
 
-- **Mã Feature:** `PIPE` / `10-recruitment-pipeline` · `WF-01`/`WF-02`
+- **Mã Feature:** `PIPE` / `10-recruitment-pipeline-management` · `WF-01`/`WF-02`
 - **Mã Function:** `transition-candidate-stage`
-- **Thư mục:** `docs/diagram/10-recruitment-pipeline/transition-candidate-stage`
+- **Thư mục:** `docs/diagram/10-recruitment-pipeline-management/transition-candidate-stage`
 - **Trạng thái Review:** `Complete with assumptions`
 
 ---
@@ -132,7 +132,7 @@ Viewpoint: **layered application-design** (`Routing & Boundary` → `Controller`
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass `
   -File ./.agents/skills/enterprise-uml-diagram/scripts/render-diagrams.ps1 `
-  -InputPath docs/diagram/10-recruitment-pipeline/transition-candidate-stage `
+  -InputPath docs/diagram/10-recruitment-pipeline-management/transition-candidate-stage `
   -PlantUmlJar "$env:LOCALAPPDATA\PlantUML\plantuml-1.2026.7.jar" `
   -Format Png `
   -PngDpi 300
