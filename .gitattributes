@@ -1,3 +1,6 @@
 
 # Container entrypoint and deployment scripts must use Unix line endings.
 *.sh text eol=lf
+
+# Repository-local AI skills are development tooling, not application source.
+.agents/** linguist-vendored
