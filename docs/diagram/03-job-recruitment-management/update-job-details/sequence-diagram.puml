@@ -1,0 +1,46 @@
+@startuml
+!include ../sequence-style.puml
+actor Recruiter
+boundary "Tenant Web" as Web
+control "TenantWebInterceptor" as Interceptor
+control "JobController" as Controller
+control "JobCommandServiceImpl" as Service
+entity "JobRepository" as Repo
+database "Tenant DB" as DB
+collections "Job Cache" as Cache
+queue "job.events" as Events
+
+Recruiter -> Web: 1. Submit edited job
+Web -> Interceptor: 2. PUT /api/v1/jobs/{id}
+activate Interceptor
+Interceptor -> Interceptor: 3. Authenticate, authorize, set tenant
+Interceptor -> Controller: 4. update(id, request)
+activate Controller
+Controller -> Service: 5. update(id, request, principal)
+activate Service
+Service -> Repo: 6. findAuthorized(id, principal)
+Repo -> DB: 7. SELECT job in tenant DB
+DB --> Repo: 8. Job or empty
+alt Job inaccessible or missing
+  Service --> Controller: 9a. NotFound
+  Controller --> Web: 10a. 404
+else Version conflict
+  Service --> Controller: 9b. Conflict
+  Controller --> Web: 10b. 409
+else Update allowed
+  Service -> Service: 9c. Apply rules and update details
+  Service -> Repo: 10c. save(job)
+  Repo -> DB: 11. UPDATE jobs with version check
+  DB --> Repo: 12. Updated job
+  Service -> Cache: 13. Evict tenant job views
+  Service -> Events: 14. Publish JobUpdatedEvent + tenant header
+  Service --> Controller: 15. JobResponse
+  Controller --> Web: 16. 200 OK
+end
+deactivate Service
+deactivate Controller
+Interceptor -> Interceptor: 17. Clear TenantContext in finally
+deactivate Interceptor
+Web --> Recruiter: 18. Show updated job or error
+@enduml
+

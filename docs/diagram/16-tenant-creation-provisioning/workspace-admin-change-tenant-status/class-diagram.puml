@@ -1,78 +1,81 @@
 @startuml
-title TENANT-16 — Workspace Admin Suspend or Reactivate Tenant\nApplication-design viewpoint
-skinparam dpi 300
-skinparam backgroundColor #FFFFFF
-skinparam shadowing false
-skinparam packageStyle rectangle
-skinparam classAttributeIconSize 0
-skinparam ArrowColor #64748B
-skinparam ClassBorderColor #CBD5E1
-skinparam ClassBackgroundColor #F8FAFC
-skinparam InterfaceBackgroundColor #EFF6FF
-skinparam NoteBackgroundColor #FFF7ED
-skinparam NoteBorderColor #FDBA74
-package "Master API" #EFF6FF {
- class TenantStatusRoute <<REST API>> {
-  +PATCH /api/v1/master/tenants/:id/status
- }
- class MasterTenantController <<Controller>> {
-  +updateTenantStatus(id: Long, status: String): TenantResponse
- }
- class TenantResponse <<Response>> {
-  +id: Long
-  +code: String
-  +name: String
-  +subdomain: String
-  +dbName: String
-  +status: String
- }
+!include ../class-style.puml
+package "Controller Layer" #EEF6FF {
+  class MasterTenantController <<Controller>> {
+    - masterTenantService: MasterTenantService
+    + updateTenantStatus(id: Long, status: TenantOperationalStatus): ApiResponse<TenantResponse>
+  }
 }
-package "Master Domain" #F0FDF4 {
- class MasterTenantService <<Service>> {
-  +updateTenantStatus(id: Long, status: String): TenantInfo
-  +getTenantById(id: Long): TenantInfo
- }
- interface TenantInfoRepository <<Repository>> {
-  +changeOperationalStatus(id: Long, status: String): int
-  +findById(id: Long): Optional<TenantInfo>
- }
- class TenantInfo <<Entity>> {
-  +id: Long
-  +code: String
-  +status: String
-  +updatedAt: LocalDateTime
- }
- enum TenantOperationalStatus {
-  ACTIVE
-  SUSPENDED
- }
- class "Master PostgreSQL\ntenants" as MasterDB <<Database>>
+package "DTO Layer" #FFF8EF {
+  class TenantResponse <<Response>> {
+    + id: Long
+    + code: String
+    + name: String
+    + status: TenantOperationalStatus
+    + updatedAt: LocalDateTime
+  }
 }
-package "Tenant Connection Management" #FFF7ED {
- class DynamicMultiTenantConnectionProvider <<Infrastructure>> {
-  -pools: Map<String, HikariDataSource>
-  +evict(code: String): void
-  +getConnection(identifier: String): Connection
- }
- class HikariDataSource <<Connection Pool>> {
-  +close(): void
- }
+package "Service Layer" #EFFBF4 {
+  interface MasterTenantService <<Service>> {
+    + updateTenantStatus(id: Long, status: TenantOperationalStatus): TenantResponse
+  }
+  class MasterTenantServiceImpl <<Service>> {
+    - tenantRepository: TenantInfoRepository
+    - connectionProvider: DynamicMultiTenantConnectionProvider
+    + updateTenantStatus(id: Long, status: TenantOperationalStatus): TenantResponse
+  }
 }
-TenantStatusRoute ..> MasterTenantController : routes
-MasterTenantController --> MasterTenantService : uses
-MasterTenantController ..> TenantResponse : returns
-MasterTenantService --> TenantInfoRepository : conditionally updates
-MasterTenantService --> DynamicMultiTenantConnectionProvider : evicts pool through
-TenantInfoRepository --> TenantInfo : manages
-TenantInfoRepository --> MasterDB : persists in
-TenantInfo ..> TenantOperationalStatus : constrained by
-DynamicMultiTenantConnectionProvider o-- "0..*" HikariDataSource : caches
+package "Repository Layer" #F5F3FF {
+  interface TenantInfoRepository <<Repository>> {
+    + changeOperationalStatus(id: Long, status: TenantOperationalStatus): int
+    + findById(id: Long): Optional<TenantInfo>
+  }
+}
+package "Domain Entity Layer" #F0FBF5 {
+  class TenantInfo <<Entity>> {
+    - id: Long
+    - code: String
+    - status: TenantStatus
+    - updatedAt: LocalDateTime
+  }
+  enum TenantOperationalStatus <<Enum>> {
+    ACTIVE
+    SUSPENDED
+  }
+  enum TenantStatus <<Enum>> {
+    PROVISIONING
+    ACTIVE
+    SUSPENDED
+    FAILED
+  }
+}
+package "Infrastructure & Persistence" #FFFCEE {
+  class DynamicMultiTenantConnectionProvider <<Infrastructure>> {
+    - pools: Map<String, HikariDataSource>
+    + evict(code: String): void
+  }
+  class HikariDataSource <<Connection Pool>> {
+    + close(): void
+  }
+  class MasterPostgreSQL <<Database>> {
+    + tenants
+  }
+}
+MasterTenantController --> MasterTenantService : delegates >
+MasterTenantController ..> TenantResponse : returns >
+MasterTenantServiceImpl ..|> MasterTenantService : implements
+MasterTenantService -[hidden]down-> MasterTenantServiceImpl
+MasterTenantServiceImpl --> TenantInfoRepository : conditionally updates >
+MasterTenantServiceImpl --> DynamicMultiTenantConnectionProvider : evicts pool >
+MasterTenantServiceImpl ..> TenantResponse : creates >
+TenantInfoRepository --> TenantInfo : manages >
+TenantInfoRepository --> MasterPostgreSQL : persists to >
+TenantInfo --> TenantStatus : typed by >
+TenantOperationalStatus ..> TenantStatus : restricts target state >
+DynamicMultiTenantConnectionProvider o-- "0..*" HikariDataSource : caches >
 note bottom of TenantInfoRepository
-  The update succeeds only when the current state is ACTIVE or SUSPENDED.
-  This prevents racing with provisioning and invalid activation from FAILED.
-end note
-note bottom of DynamicMultiTenantConnectionProvider
-  Eviction closes the local process pool. Every later connection acquisition
-  rechecks ACTIVE status against the master registry.
+  Atomic update accepts only current ACTIVE or SUSPENDED state;
+  PROVISIONING and FAILED cannot bypass provisioning.
 end note
 @enduml
+

@@ -1,0 +1,127 @@
+@startuml
+!include ../class-style.puml
+
+package "Controller Layer" #EEF6FF {
+  class JobController <<Controller>> {
+    - jobService: JobCommandService
+    + createDraft(request: CreateJobRequest): ApiResponse<JobResponse>
+  }
+}
+package "DTO Layer" #FFF8EF {
+  class CreateJobRequest <<Request>> {
+    + title: String
+    + description: String
+    + responsibilities: List<String>
+    + benefits: List<String>
+    + employmentType: EmploymentType
+    + workplaceMode: WorkplaceMode
+    + location: String
+    + headcount: int
+    + deadline: LocalDate
+    + salary: SalaryRange
+    + departmentId: Long
+    + recruiterId: Long
+  }
+  class JobResponse <<Response>> {
+    + id: Long
+    + status: JobStatus
+    + version: long
+  }
+}
+package "Service Layer" #EFFBF4 {
+  interface JobCommandService <<Service>> {
+    + createDraft(request: CreateJobRequest, principal: Principal): JobResponse
+  }
+  class JobCommandServiceImpl <<Service>> {
+    - jobRepository: JobRepository
+    - departmentRepository: DepartmentRepository
+    - userRepository: UserRepository
+    + createDraft(request: CreateJobRequest, principal: Principal): JobResponse
+  }
+}
+package "Repository Layer" #F5F3FF {
+  interface JobRepository <<Repository>> {
+    + save(job: Job): Job
+  }
+  interface DepartmentRepository <<Repository>> {
+    + existsById(id: Long): boolean
+  }
+  interface UserRepository <<Repository>> {
+    + isActiveRecruiter(id: Long): boolean
+  }
+}
+package "Domain Entity Layer" #F0FBF5 {
+  class Job <<Entity>> {
+    - id: Long
+    - title: String
+    - description: String
+    - responsibilities: List<String>
+    - benefits: List<String>
+    - location: String
+    - headcount: int
+    - deadline: LocalDate
+    - status: JobStatus
+    - version: long
+    + createDraft(): Job
+  }
+  class Department <<Entity>> {
+    - id: Long
+    - name: String
+  }
+  class User <<Entity>> {
+    - id: Long
+    - role: UserRole
+  }
+  enum JobStatus <<Enum>> {
+    DRAFT
+  }
+  enum EmploymentType <<Enum>> {
+    FULL_TIME
+    PART_TIME
+    CONTRACT
+    INTERNSHIP
+  }
+  enum WorkplaceMode <<Enum>> {
+    ONSITE
+    HYBRID
+    REMOTE
+  }
+  class SalaryRange <<Value Object>> {
+    + min: Decimal
+    + max: Decimal
+    + currency: String
+    + visible: boolean
+  }
+}
+package "Infrastructure & Persistence" #FFFCEE {
+  class TenantContext <<ThreadLocal>> {
+    + getCurrentTenant(): String
+  }
+  class "Dedicated Tenant MySQL DB" as TenantDb <<Database>> {
+    + jobs
+    + departments
+    + users
+  }
+}
+JobController --> JobCommandService : delegates >
+JobController ..> CreateJobRequest : consumes >
+JobController ..> JobResponse : returns >
+JobCommandServiceImpl ..|> JobCommandService : implements
+JobCommandServiceImpl --> JobRepository : persists through >
+JobCommandServiceImpl --> DepartmentRepository : validates >
+JobCommandServiceImpl --> UserRepository : validates >
+JobCommandServiceImpl ..> Job : creates >
+JobCommandServiceImpl --> TenantContext : enforces tenant scope >
+JobRepository --> Job : manages >
+DepartmentRepository --> Department : manages >
+UserRepository --> User : manages >
+Job --> JobStatus : typed by >
+Job --> EmploymentType : typed by >
+Job --> WorkplaceMode : typed by >
+Job *-- SalaryRange : owns >
+Job --> Department : belongs to >
+Job --> User : assigned recruiter >
+JobRepository --> TenantDb : persists to >
+DepartmentRepository --> TenantDb : reads from >
+UserRepository --> TenantDb : reads from >
+@enduml

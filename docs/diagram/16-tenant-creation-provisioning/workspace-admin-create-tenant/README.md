@@ -106,7 +106,6 @@ Hai database không nằm trong một distributed transaction. Vì vậy, trạn
 
 | Thành phần | Loại | Vai trò |
 |---|---|---|
-| `TenantOnboardingRoute` | `<<REST API>>` conceptual | Công khai method/path của use case; không phải class Java thực tế. |
 | `MasterTenantController` | `<<Controller>>` | Nhận request, validation, gọi service và tạo response HTTP. |
 | `OnboardTenantRequest` | `<<Request>>` | Mang dữ liệu nhận diện tenant và cấu hình database tùy chọn. |
 | `TenantAdminRequest` | `<<Request>>` | Mang thông tin quản trị viên đầu tiên; là phần dữ liệu chung có thể tái sử dụng cho onboarding và retry. |
@@ -123,7 +122,6 @@ Hai database không nằm trong một distributed transaction. Vì vậy, trạn
 
 | Nguồn → đích | Ký pháp | Loại quan hệ và lý do sử dụng |
 |---|---|---|
-| `TenantOnboardingRoute → MasterTenantController` | `..>` | **Dependency**: route chuyển request tới controller nhưng không sở hữu vòng đời controller. Đường nét đứt phù hợp với quan hệ sử dụng conceptual. |
 | `MasterTenantController → OnboardTenantRequest` | `..>` | **Dependency**: controller nhận DTO làm tham số. DTO chỉ được dùng trong lời gọi, không phải thành phần được controller sở hữu. |
 | `MasterTenantController → MasterTenantService` | `-->` | **Directed association**: controller giữ service như một collaborator được inject và gọi lâu dài, vì vậy dùng đường liền có hướng. |
 | `MasterTenantController → TenantResponse` | `..>` | **Dependency**: controller tạo/trả response DTO cho API nhưng không quản lý vòng đời domain của DTO. |

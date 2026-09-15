@@ -65,8 +65,6 @@ export function SaasLandingPage() {
     if (!tenantCodeInput.trim()) return;
     const code = tenantCodeInput.trim().toLowerCase().replace(/[^a-z0-9-]/g, "");
 
-    localStorage.setItem("smarthire_tenant_id", code);
-
     const currentHost = window.location.host;
     if (currentHost.includes("localhost")) {
       window.location.href = `http://${code}.localhost:${window.location.port || 5173}/login`;
@@ -76,7 +74,6 @@ export function SaasLandingPage() {
   };
 
   const handleDirectTenantJump = (code: string) => {
-    localStorage.setItem("smarthire_tenant_id", code);
     const currentHost = window.location.host;
     if (currentHost.includes("localhost")) {
       window.location.href = `http://${code}.localhost:${window.location.port || 5173}/login`;

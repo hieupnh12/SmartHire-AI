@@ -1,0 +1,143 @@
+@startuml
+skinparam dpi 300
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam roundcorner 6
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+
+hide footbox
+
+actor "User\n(Staff / Candidate)" as User #E2E8F0
+boundary "Web Portal UI\n(Frontend SPA)" as FE #E2E8F0
+control "Security & Gateway\n(TenantWebInterceptor / Filter)" as Sec #E2E8F0
+control "SessionRecoveryController\n(Spring REST Controller)" as Ctrl #E2E8F0
+control "SessionRecoveryService\n(Application Service)" as Svc #E2E8F0
+database "Redis Cache\n(Blacklist / OTP Store)" as Redis #EDF2F7
+database "Dedicated Tenant MySQL\n(Isolated DB)" as DB #EDF2F7
+queue "RabbitMQ Exchange\n(Async Email Task)" as MQ #EDF2F7
+
+== Flow 1: Session Revocation & Logout ==
+
+User -> FE : 1: Click "Sign Out"
+FE -> Sec : 2: POST /api/v1/tenant/auth/logout\n[Header: X-Tenant-ID, Authorization: Bearer <Access_Token>]
+activate Sec
+
+Sec -> Redis : 3: Check if token is blacklisted
+activate Redis
+Redis --> Sec : 4: Token valid (not blacklisted)
+deactivate Redis
+
+Sec -> Ctrl : 5: Forward logout request
+activate Ctrl
+
+Ctrl -> Svc : 6: logout(accessToken)
+activate Svc
+
+Svc -> Redis : 7: DEL tenant:{tenantId}:refresh:{userId}\n(Revoke Refresh Token)
+activate Redis
+Redis --> Svc : 8: Deleted
+deactivate Redis
+
+Svc -> Redis : 9: SET blacklist:token:{hash} -> "revoked"\n[TTL = Remaining Access Token lifetime]
+activate Redis
+Redis --> Svc : 10: Stored
+deactivate Redis
+
+Svc --> Ctrl : 11: Logout completed
+deactivate Svc
+
+Ctrl --> FE : 12: HTTP 200 OK\n{ success: true, message: 'Logged out successfully' }
+deactivate Ctrl
+
+FE -> FE : 13: Clear LocalStorage tokens & redirect to Login page
+deactivate Sec
+
+== Flow 2: Forgot & Reset Password via OTP ==
+
+group Step 2.1: Request Password Reset OTP
+    User -> FE : 14: Enter email & click "Send OTP Code"
+    FE -> Sec : 15: POST /api/v1/tenant/auth/forgot-password\n[Header: X-Tenant-ID]\n[Body: { email }]
+    activate Sec
+
+    Sec -> Ctrl : 16: Forward forgot password request
+    activate Ctrl
+
+    Ctrl -> Svc : 17: requestPasswordReset(request)
+    activate Svc
+
+    Svc -> DB : 18: findByEmail(email)
+    activate DB
+    DB --> Svc : 19: User query result
+    deactivate DB
+
+    opt #F0FFF4 User exists in Tenant DB
+        Svc -> Svc : 20: Generate random 6-digit OTP code
+        Svc -> Redis : 21: SET tenant:{id}:otp:{email} -> { otp, attempts: 0 }\n[TTL: 15m]
+        activate Redis
+        Redis --> Svc : 22: Stored
+        deactivate Redis
+
+        Svc -> MQ : 23: publish(smarthire.notification.email, PasswordResetEmailEvent)\n[Header: X-Tenant-ID = tenantId]
+        activate MQ
+        MQ --> Svc : 24: Ack
+        deactivate MQ
+    end
+
+    Svc --> Ctrl : 25: Return generic success (Anti-Enumeration)
+    deactivate Svc
+
+    Ctrl --> FE : 26: HTTP 200 OK\n{ success: true, message: 'If account exists, OTP was sent' }
+    deactivate Ctrl
+    deactivate Sec
+end
+
+group Step 2.2: Verify OTP & Reset Password
+    User -> FE : 27: Enter 6-digit OTP + New Password & click "Confirm"
+    FE -> Sec : 28: POST /api/v1/tenant/auth/reset-password\n[Header: X-Tenant-ID]\n[Body: { email, otp, newPassword }]
+    activate Sec
+
+    Sec -> Ctrl : 29: Forward reset password request
+    activate Ctrl
+
+    Ctrl -> Svc : 30: resetPassword(request)
+    activate Svc
+
+    Svc -> Redis : 31: GET tenant:{id}:otp:{email}
+    activate Redis
+    Redis --> Svc : 32: Return stored OTP payload
+    deactivate Redis
+
+    alt #FFF5F5 Invalid or expired OTP
+        Svc --> Ctrl : 33: Throw InvalidOtpException("Invalid or expired OTP")
+        Ctrl --> FE : 34: HTTP 400 Bad Request\n{ success: false, message: 'Invalid or expired OTP' }
+        FE --> User : 35: Display OTP error message
+    else #F0FFF4 Valid OTP
+        Svc -> DB : 36: findByEmail(email)
+        activate DB
+        DB --> Svc : 37: User entity
+        deactivate DB
+
+        Svc -> Svc : 38: Hash new password via BCrypt
+        Svc -> DB : 39: update users set password_hash = :hash where email = :email
+        activate DB
+        DB --> Svc : 40: Update successful
+        deactivate DB
+
+        Svc -> Redis : 41: DEL tenant:{id}:otp:{email} & DEL tenant:{tenantId}:refresh:{userId}\n(Invalidate OTP & Revoke active refresh sessions)
+        activate Redis
+        Redis --> Svc : 42: Deleted
+        deactivate Redis
+
+        Svc --> Ctrl : 43: Password reset completed
+        deactivate Svc
+
+        Ctrl --> FE : 44: HTTP 200 OK\n{ success: true, message: 'Password reset successfully' }
+        deactivate Ctrl
+
+        FE --> User : 45: Show success message & redirect to Login page
+    end
+    deactivate Sec
+end
+
+@enduml

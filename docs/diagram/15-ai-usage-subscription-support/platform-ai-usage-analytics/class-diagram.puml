@@ -1,0 +1,140 @@
+﻿@startuml
+skinparam dpi 300
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam roundcorner 6
+skinparam linetype ortho
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam classFontSize 11
+skinparam classAttributeFontSize 10
+
+skinparam class {
+    BackgroundColor #FFFFFF
+    BorderColor #2D3748
+    ArrowColor #2D3748
+}
+
+package "Controller Layer" {
+    class MasterAiAnalyticsController <<Controller>> {
+        - masterAiAnalyticsService: MasterAiAnalyticsService
+        + getPlatformAiSummary(): ResponseEntity<ApiResponse<PlatformAiSummaryResponse>>
+        + getTenantAiConsumption(tenantId: Long, timeframe: String): ResponseEntity<ApiResponse<TenantAiConsumptionResponse>>
+        + getTopAiConsumingTenants(limit: int): ResponseEntity<ApiResponse<List<TenantAiConsumptionResponse>>>
+    }
+}
+
+package "DTO Layer" {
+    class PlatformAiSummaryResponse <<Response>> {
+        + totalAiInterviewHoursConsumed: Double
+        + totalCvParsesExecuted: Long
+        + totalEstimatedCostUsd: BigDecimal
+        + activeAiTenantsCount: Integer
+        + highUsageAlertsCount: Integer
+        + generatedAt: LocalDateTime
+    }
+
+    class TenantAiConsumptionResponse <<Response>> {
+        + tenantId: Long
+        + tenantCode: String
+        + tenantName: String
+        + currentPlanCode: String
+        + cvParsesUsed: Long
+        + cvParsesLimit: Long
+        + cvUsagePercent: Double
+        + aiInterviewHoursUsed: Double
+        + aiInterviewHoursLimit: Double
+        + aiInterviewUsagePercent: Double
+        + estimatedCostUsd: BigDecimal
+        + status: String
+    }
+}
+
+package "Service Layer" {
+    interface MasterAiAnalyticsService <<Service>> {
+        + getPlatformAiSummary(): PlatformAiSummaryResponse
+        + getTenantAiConsumption(tenantId: Long, timeframe: String): TenantAiConsumptionResponse
+        + getTopAiConsumingTenants(limit: int): List<TenantAiConsumptionResponse>
+    }
+
+    class MasterAiAnalyticsServiceImpl <<Service>> {
+        - aiUsageRecordRepository: AiUsageRecordRepository
+        - tenantInfoRepository: TenantInfoRepository
+        - subscriptionPlanRepository: SubscriptionPlanRepository
+        + getPlatformAiSummary(): PlatformAiSummaryResponse
+        + getTenantAiConsumption(tenantId: Long, timeframe: String): TenantAiConsumptionResponse
+        + getTopAiConsumingTenants(limit: int): List<TenantAiConsumptionResponse>
+    }
+
+    class AiUsageEventConsumer <<Consumer>> {
+        - aiUsageRecordRepository: AiUsageRecordRepository
+        + consumeAiUsageEvent(event: AiUsageReportEvent): void
+    }
+}
+
+package "Repository Layer" {
+    interface AiUsageRecordRepository <<Repository>> {
+        + sumUnitsByFeature(featureType: String, fromDate: LocalDateTime): Long
+        + sumCostUsd(fromDate: LocalDateTime): BigDecimal
+        + findConsumptionByTenantId(tenantId: Long): List<AiUsageRecord>
+        + save(record: AiUsageRecord): AiUsageRecord
+    }
+
+    interface TenantInfoRepository <<Repository>> {
+        + findAll(): List<TenantInfo>
+        + findById(id: Long): Optional<TenantInfo>
+    }
+}
+
+package "Domain Entity Layer" {
+    class AiUsageRecord <<Entity>> {
+        - id: Long
+        - tenantId: Long
+        - tenantCode: String
+        - featureType: String
+        - unitsConsumed: Long
+        - estimatedCostUsd: BigDecimal
+        - recordedAt: LocalDateTime
+    }
+
+    class TenantInfo <<Entity>> {
+        - id: Long
+        - code: String
+        - name: String
+        - status: String
+    }
+}
+
+package "Infrastructure & Persistence" {
+    class MasterPostgreSQL <<Database>> {
+        .. Master Landlord DB ..
+        + ai_usage_records
+        + tenants
+        + subscription_plans
+    }
+
+    class RabbitMQQueue <<Queue>> {
+        .. AI Analytics Ingestion ..
+        + smarthire.ai.usage.recorded
+    }
+}
+
+' Relationships
+MasterAiAnalyticsController --> MasterAiAnalyticsService : delegates >
+MasterAiAnalyticsController ..> PlatformAiSummaryResponse : returns >
+MasterAiAnalyticsController ..> TenantAiConsumptionResponse : returns >
+
+MasterAiAnalyticsService <|.. MasterAiAnalyticsServiceImpl : implements
+MasterAiAnalyticsServiceImpl ..> PlatformAiSummaryResponse : creates >
+MasterAiAnalyticsServiceImpl ..> TenantAiConsumptionResponse : creates >
+MasterAiAnalyticsServiceImpl --> AiUsageRecordRepository : aggregates data >
+MasterAiAnalyticsServiceImpl --> TenantInfoRepository : joins tenant metadata >
+
+AiUsageEventConsumer --> AiUsageRecordRepository : persists ingested events >
+RabbitMQQueue ..> AiUsageEventConsumer : delivers messages >
+
+AiUsageRecordRepository --> AiUsageRecord : manages >
+AiUsageRecordRepository --> MasterPostgreSQL : persists to >
+TenantInfoRepository --> MasterPostgreSQL : reads from >
+
+@enduml

@@ -20,12 +20,18 @@ docs/diagram/<number-feature>/<function-name>/
 
 The two `.puml` files and `README.md` are mandatory. Rendered PNG files are optional and must not be created until the user explicitly agrees after reviewing the completed sources and README. Do not generate SVG files. Keep one primary business function per function directory. Do not place multiple UML diagram types in one `.puml` file. Use English for filenames and diagram content. Write the generated README in Vietnamese by default, unless the user explicitly requests another language or repository instructions require one.
 
+> [!IMPORTANT]
+> **Diagram Style Invariants:**
+> - **NO Diagram Titles:** Never add `title ...` inside any `.puml` files (keep diagrams clean for report embedding).
+> - **NO "Routing & Boundary" Package:** Do NOT include conceptual `Routing & Boundary` packages or `<<REST API>>` pseudo-classes in class diagrams. Class diagrams model real code structure starting from Controller downwards.
+> - **Clean Layered Packages & Orthogonal Lines:** Use standard package tiers (Controller, DTO, Service, Repository, Entity, Infrastructure) with `linetype ortho`, `roundcorner 6`, `#FFFFFF` backgrounds, and `#2D3748` borders.
+
 ## Workflow
 
 1. Read repository instructions, `DESIGN.md`, the matching `docs/features` document, API contracts, relevant code, migrations, and existing diagrams before editing.
 2. Confirm the feature directory and define the function boundary, actors, trigger, preconditions, success result, and important failure results. If either the feature or its specific function is ambiguous, follow the clarification policy and obtain the user's choice before creating files.
 3. Apply the clarification policy below before creating files.
-4. Read [references/class-diagram-rules.md](references/class-diagram-rules.md) before creating or reviewing the class diagram. Use its layered graduation-project application-design view by default; expand to a domain, persistence, clean/hexagonal, or enterprise implementation view only when explicitly requested or materially necessary.
+4. Read [references/class-diagram-rules.md](references/class-diagram-rules.md) before creating or reviewing the class diagram. Use its concise graduation-project application-design view by default; expand to a domain, persistence, or enterprise implementation view only when explicitly requested or materially necessary.
 5. Read [references/sequence-diagram-rules.md](references/sequence-diagram-rules.md) before creating or reviewing the sequence diagram. Use its concise graduation-project detail level by default and hide the duplicated bottom participant row; expand to an enterprise implementation view only when explicitly requested or materially necessary.
 6. Read [references/enterprise-review.md](references/enterprise-review.md) for every task and apply all relevant checks.
 7. Create or update both mandatory `.puml` files and the `README.md`. Preserve unrelated user changes.

@@ -68,12 +68,8 @@ export const masterAdminApi = {
     return res.data.data;
   },
   checkTenantExists: async (codeOrSubdomain: string): Promise<boolean> => {
-    try {
-      const res = await masterClient.get(`${API_BASE}/master/tenants/check/${codeOrSubdomain}`);
-      return res.data.data;
-    } catch {
-      return false;
-    }
+    const res = await masterClient.get(`${API_BASE}/master/tenants/check/${codeOrSubdomain}`);
+    return res.data.data;
   },
   provisionTenant: async (data: import("./tenantApi").OnboardTenantRequest): Promise<TenantInfo> => {
     const res = await masterClient.post(`${API_BASE}/master/tenants/onboard`, data);

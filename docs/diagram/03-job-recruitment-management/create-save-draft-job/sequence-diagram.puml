@@ -1,0 +1,55 @@
+@startuml
+!include ../sequence-style.puml
+actor Recruiter
+boundary "Tenant Web" as Web
+control "TenantWebInterceptor" as Interceptor
+control "JobController" as Controller
+control "JobCommandServiceImpl" as Service
+entity "DepartmentRepository" as DeptRepo
+entity "UserRepository" as UserRepo
+entity "JobRepository" as JobRepo
+database "Tenant DB" as DB
+
+note over Interceptor,DB: All reads and writes use the resolved tenant database.
+Recruiter -> Web: 1. Submit job draft
+Web -> Interceptor: 2. POST /api/v1/jobs + X-Tenant-ID
+activate Interceptor
+Interceptor -> Interceptor: 3. Authenticate, authorize and set TenantContext
+alt Invalid tenant or insufficient permission
+  Interceptor --> Web: 4a. 401/403
+else Authorized
+  Interceptor -> Controller: 4b. createDraft(request)
+  activate Controller
+  Controller -> Controller: 5. Validate request DTO
+  alt Invalid fields
+    Controller --> Web: 6a. 400 validation errors
+  else Valid request
+    Controller -> Service: 6b. createDraft(request, principal)
+    activate Service
+    Service -> DeptRepo: 7. Verify department
+    DeptRepo -> DB: 8. Query department
+    DB --> DeptRepo: 9. Department result
+    Service -> UserRepo: 10. Verify assigned recruiter
+    UserRepo -> DB: 11. Query active recruiter
+    DB --> UserRepo: 12. Recruiter result
+    alt Invalid department or recruiter
+      Service --> Controller: 13a. Domain validation error
+      Controller --> Web: 14a. 422
+    else References valid
+      Service -> Service: 13b. Build Job with DRAFT status
+      Service -> JobRepo: 14b. save(job)
+      JobRepo -> DB: 15. INSERT jobs
+      DB --> JobRepo: 16. Persisted job
+      JobRepo --> Service: 17. Job
+      Service --> Controller: 18. JobResponse
+      deactivate Service
+      Controller --> Web: 19. 201 Created
+    end
+  end
+  deactivate Controller
+end
+Interceptor -> Interceptor: 20. Clear TenantContext in finally
+deactivate Interceptor
+Web --> Recruiter: 21. Show saved draft or error
+@enduml
+

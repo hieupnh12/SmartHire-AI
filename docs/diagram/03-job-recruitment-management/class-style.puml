@@ -1,0 +1,33 @@
+skinparam dpi 300
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam roundcorner 6
+skinparam linetype ortho
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam classFontSize 11
+skinparam classAttributeFontSize 10
+skinparam classAttributeIconSize 10
+skinparam ArrowColor #334155
+skinparam ArrowThickness 1
+skinparam ClassBorderColor #2D3748
+skinparam ClassBorderThickness 1
+skinparam PackageBorderColor #475569
+skinparam PackageBorderThickness 1
+skinparam BackgroundColor #FFFFFF
+skinparam classBackgroundColor #FFFFFF
+skinparam classFontColor #111827
+skinparam classAttributeFontColor #111827
+skinparam packageFontColor #111827
+skinparam stereotypeCBackgroundColor #A7D7B5
+skinparam stereotypeIBackgroundColor #B8A7E8
+skinparam stereotypeEBackgroundColor #A7D7B5
+skinparam stereotypeNBackgroundColor #F29A7E
+
+<style>
+classDiagram {
+  class {
+    Padding 5
+  }
+}
+</style>

@@ -1,119 +1,114 @@
 @startuml
-title TENANT-16 — Workspace Admin Create Tenant\nApplication-design viewpoint
+!include ../class-style.puml
 
-skinparam dpi 300
-skinparam backgroundColor #FFFFFF
-skinparam shadowing false
-skinparam packageStyle rectangle
-skinparam classAttributeIconSize 0
-skinparam ArrowColor #64748B
-skinparam ClassBorderColor #CBD5E1
-skinparam ClassBackgroundColor #F8FAFC
-skinparam InterfaceBackgroundColor #EFF6FF
-skinparam NoteBackgroundColor #FFF7ED
-skinparam NoteBorderColor #FDBA74
-
-package "Master API" #EFF6FF {
-  class TenantOnboardingRoute <<REST API>> {
-    +POST /api/v1/master/tenants/onboard
-  }
-
+package "Controller Layer" #EEF6FF {
   class MasterTenantController <<Controller>> {
-    +onboardTenant(request: OnboardTenantRequest): TenantResponse
+    - masterTenantService: MasterTenantService
+    + onboardTenant(request: OnboardTenantRequest): ApiResponse<TenantResponse>
   }
-
+}
+package "DTO Layer" #FFF8EF {
   class OnboardTenantRequest <<Request>> {
-    +code: String
-    +name: String
-    +subdomain: String
-    +customDbUrl: String [0..1]
+    + code: String
+    + name: String
+    + subdomain: String
+    + adminName: String
+    + adminEmail: String
+    + adminPassword: String {writeOnly}
+    + customDbUrl: String [0..1]
   }
-
-  class TenantAdminRequest <<Request>> {
-    +adminName: String
-    +adminEmail: String
-  }
-
   class TenantResponse <<Response>> {
-    +id: Long
-    +code: String
-    +name: String
-    +subdomain: String
-    +status: String
+    + id: Long
+    + code: String
+    + name: String
+    + subdomain: String
+    + dbName: String
+    + status: TenantStatus
   }
 }
-
-package "Master Domain" #F0FDF4 {
-  class MasterTenantService <<Service>> {
-    +onboardTenant(request: OnboardTenantRequest): TenantInfo
+package "Service Layer" #EFFBF4 {
+  interface MasterTenantService <<Service>> {
+    + onboardTenant(request: OnboardTenantRequest): TenantResponse
   }
-
+  class MasterTenantServiceImpl <<Service>> {
+    - tenantRepository: TenantInfoRepository
+    - provisioningService: TenantProvisioningService
+    + onboardTenant(request: OnboardTenantRequest): TenantResponse
+  }
+  interface TenantProvisioningService <<Service>> {
+    + provision(tenant: TenantInfo, request: OnboardTenantRequest): void
+  }
+  class TenantProvisioningServiceImpl <<Service>> {
+    - dataSourceFactory: TenantDataSourceFactory
+    - flywayService: FlywayMigrationService
+    + provision(tenant: TenantInfo, request: OnboardTenantRequest): void
+  }
+}
+package "Repository Layer" #F5F3FF {
   interface TenantInfoRepository <<Repository>> {
-    +existsByCode(code: String): boolean
-    +existsBySubdomain(subdomain: String): boolean
-    +save(tenant: TenantInfo): TenantInfo
+    + existsByCode(code: String): boolean
+    + existsBySubdomain(subdomain: String): boolean
+    + save(tenant: TenantInfo): TenantInfo
   }
-
+}
+package "Domain Entity Layer" #F0FBF5 {
   class TenantInfo <<Entity>> {
-    +id: Long
-    +code: String
-    +name: String
-    +subdomain: String
-    +dbName: String
-    +managedDatabase: boolean
-    +status: String
-    +createdAt: LocalDateTime
+    - id: Long
+    - code: String
+    - name: String
+    - subdomain: String
+    - dbName: String
+    - encryptedDbPassword: String
+    - managedDatabase: boolean
+    - status: TenantStatus
+    + activate(): void
+    + failProvisioning(): void
   }
-
-  class "Master PostgreSQL\ntenants" as MasterDB <<Database>>
-}
-
-package "Tenant Provisioning" #FFF7ED {
-  class TenantProvisioningService <<Service>> {
-    +provision(tenantId: Long, admin: TenantAdminRequest): TenantInfo
-    -prepareTenantDatabase(tenant: TenantInfo): void
-    -createInitialAdmin(tenant: TenantInfo): void
+  class TenantAdminUser <<Entity>> {
+    - id: Long
+    - email: String
+    - passwordHash: String
+    - role: UserRole
+  }
+  enum TenantStatus <<Enum>> {
+    PROVISIONING
+    ACTIVE
+    SUSPENDED
+    FAILED
   }
 }
-
-package "Tenant Domain" #FDF4FF {
-  class TenantAdmin <<Entity>> {
-    +id: Long
-    +email: String
-    +fullName: String
-    +role: String = TENANT_ADMIN
-    +status: String = ACTIVE
+package "Infrastructure & Persistence" #FFFCEE {
+  class TenantDataSourceFactory <<Infrastructure>> {
+    + createDatabaseAndUser(tenant: TenantInfo): DataSource
   }
-
-  class "Dedicated Tenant MySQL\nusers + tenant schema" as TenantDB <<Database>>
+  class FlywayMigrationService <<Infrastructure>> {
+    + migrateTenant(dataSource: DataSource): void
+  }
+  class MasterPostgreSQL <<Database>> {
+    + tenants
+  }
+  class DedicatedTenantMySQL <<Database>> {
+    + users
+    + flyway_schema_history
+  }
 }
-
-TenantOnboardingRoute ..> MasterTenantController : routes
-MasterTenantController ..> OnboardTenantRequest : receives
-MasterTenantController --> MasterTenantService : uses
-MasterTenantController ..> TenantResponse : returns
-OnboardTenantRequest --|> TenantAdminRequest
-
-MasterTenantService ..> OnboardTenantRequest : processes
-MasterTenantService --> TenantInfoRepository : persists through
-MasterTenantService --> TenantProvisioningService : provisions
-
-TenantInfoRepository --> TenantInfo : manages
-TenantInfoRepository --> MasterDB : stores in
-
-TenantProvisioningService ..> TenantInfo : provisions
-TenantProvisioningService --> TenantDB : prepares
-TenantDB *-- TenantAdmin : contains
-
-note bottom of MasterDB
-  Tenant registry and lifecycle status
-  belong to the platform database.
-  Status: PROVISIONING, ACTIVE, FAILED, or SUSPENDED.
-end note
-
-note bottom of TenantDB
-  Each tenant has a physically separate database.
-  No cross-database foreign key exists.
-end note
-
+MasterTenantController --> MasterTenantService : delegates >
+MasterTenantController ..> OnboardTenantRequest : consumes >
+MasterTenantController ..> TenantResponse : returns >
+MasterTenantServiceImpl ..|> MasterTenantService : implements
+MasterTenantService -[hidden]down-> MasterTenantServiceImpl
+MasterTenantServiceImpl --> TenantInfoRepository : persists metadata >
+MasterTenantServiceImpl --> TenantProvisioningService : delegates provisioning >
+TenantProvisioningServiceImpl ..|> TenantProvisioningService : implements
+TenantProvisioningService -[hidden]down-> TenantProvisioningServiceImpl
+TenantProvisioningServiceImpl --> TenantDataSourceFactory : creates tenant database >
+TenantProvisioningServiceImpl --> FlywayMigrationService : runs migration >
+TenantProvisioningServiceImpl ..> TenantAdminUser : seeds admin >
+TenantInfoRepository --> TenantInfo : manages >
+TenantInfoRepository --> MasterPostgreSQL : persists to >
+TenantInfo --> TenantStatus : typed by >
+TenantDataSourceFactory --> DedicatedTenantMySQL : provisions >
+FlywayMigrationService --> DedicatedTenantMySQL : migrates >
+DedicatedTenantMySQL *-- TenantAdminUser : stores >
 @enduml
+

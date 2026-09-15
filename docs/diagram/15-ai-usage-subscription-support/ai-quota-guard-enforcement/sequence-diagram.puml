@@ -1,0 +1,63 @@
+﻿@startuml
+autonumber
+hide footbox
+skinparam dpi 300
+skinparam shadowing false
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam sequenceMessageAlign center
+skinparam roundcorner 6
+
+actor "Tenant User / Candidate" as Client
+participant "AiQuotaGuardFilter" as Filter
+participant "AiInferenceGatewayController" as Gateway
+participant "AiQuotaEnforcementService" as QuotaSvc
+participant "RedisDistributedCache" as Redis
+participant "External AI Engine\n(OpenAI / Gemini / STT)" as Engine
+queue "RabbitMQ Exchange" as MQ
+
+Client -> Filter: 1 Request AI Operation (POST /api/v1/tenant/interview/start or cv/parse)
+activate Client
+activate Filter
+
+Filter -> QuotaSvc: 2 checkAndReserveQuota(tenantCode, featureType, requiredUnits=1)
+activate QuotaSvc
+
+QuotaSvc -> Redis: 3 Atomic Lua Script: HGET limits vs HGET usage
+activate Redis
+Redis --> QuotaSvc: 4 Return (currentUsage, maxLimit)
+deactivate Redis
+
+alt Quota Exceeded (currentUsage >= maxLimit)
+    QuotaSvc --> Filter: 5 QuotaCheckResult(allowed=false, violationReason="QUOTA_EXCEEDED")
+    Filter --> Client: 6 429 Too Many Requests (ApiResponse: "Hạn ngạch AI của gói đã hết")
+else Quota Available
+    QuotaSvc -> Redis: 7 HINCRBY tenant:{code}:quota:usage feature 1 (Reserve)
+    activate Redis
+    Redis --> QuotaSvc: 8 newUsageCount
+    deactivate Redis
+
+    QuotaSvc --> Filter: 9 QuotaCheckResult(allowed=true, remainingUnits)
+    deactivate QuotaSvc
+
+    Filter -> Gateway: 10 Pass request to Controller
+    activate Gateway
+
+    Gateway -> Engine: 11 Call AI LLM / STT Inference Service
+    activate Engine
+    Engine --> Gateway: 12 Return AI Analysis / Transcript / Assessment
+    deactivate Engine
+
+    Gateway -> QuotaSvc: 13 commitUsage(tenantCode, featureType, actualUnitsConsumed)
+    activate QuotaSvc
+    QuotaSvc -> MQ: 14 Publish AiUsageReportEvent (Async tracking to Master DB)
+    QuotaSvc --> Gateway: 15 Commit ACK
+    deactivate QuotaSvc
+
+    Gateway --> Client: 16 200 OK (AiScreeningResponse / SessionStarted)
+    deactivate Gateway
+end
+
+deactivate Filter
+deactivate Client
+@enduml
