@@ -1,0 +1,43 @@
+@startuml
+!include ../sequence-style.puml
+actor Recruiter
+boundary "Tenant Web" as Web
+control "TenantWebInterceptor" as Interceptor
+control "JobQueryController" as Controller
+control "JobQueryServiceImpl" as Service
+entity "JobQueryRepository" as Repo
+database "Tenant DB" as DB
+
+Recruiter -> Web: 1. Search or open a job
+Web -> Interceptor: 2. GET /api/v1/jobs[/{id}] + filters
+activate Interceptor
+Interceptor -> Interceptor: 3. Authenticate, authorize, set tenant
+alt Request rejected
+  Interceptor --> Web: 4a. 401/403
+else Authorized
+  Interceptor -> Controller: 4b. search(filter) or getDetail(id)
+  activate Controller
+  Controller -> Service: 5. Query using principal scope
+  activate Service
+  Service -> Service: 6. Derive department/recruiter access scope
+  Service -> Repo: 7. Query jobs with scope and pagination
+  Repo -> DB: 8. SELECT jobs + application aggregates
+  DB --> Repo: 9. Rows and counts
+  alt Detail requested but inaccessible or absent
+    Repo --> Service: 10a. Empty
+    Service --> Controller: 11a. NotFound
+    Controller --> Web: 12a. 404
+  else Results available
+    Repo --> Service: 10b. Projections
+    Service -> Service: 11b. Map safe response DTOs
+    Service --> Controller: 12b. Page or detail
+    Controller --> Web: 13b. 200 OK
+  end
+  deactivate Service
+  deactivate Controller
+end
+Interceptor -> Interceptor: 14. Clear TenantContext in finally
+deactivate Interceptor
+Web --> Recruiter: 15. Render results or error
+@enduml
+

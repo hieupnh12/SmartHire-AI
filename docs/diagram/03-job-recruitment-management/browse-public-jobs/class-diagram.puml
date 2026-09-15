@@ -1,0 +1,119 @@
+@startuml
+!include ../class-style.puml
+package "Controller Layer" #EEF6FF {
+  class PublicJobController <<Controller>> {
+    - publicJobService: PublicJobQueryService
+  + search(filter: PublicJobSearchRequest): ApiResponse<Page<PublicJobSummaryResponse>>
+  + getDetail(slug: String): ApiResponse<PublicJobDetailResponse>
+  }
+  }
+package "DTO Layer" #FFF8EF {
+  class PublicJobSearchRequest <<Request>> {
+    + keyword: String
+    + location: String
+    + employmentType: EmploymentType
+    + workplaceMode: WorkplaceMode
+    + page: int
+    + size: int
+  }
+  class PublicJobSummaryResponse <<Response>> {
+    + slug: String
+    + title: String
+    + location: String
+    + employmentType: EmploymentType
+  }
+  class PublicJobDetailResponse <<Response>> {
+    + slug: String
+    + title: String
+    + description: String
+    + responsibilities: List<String>
+    + benefits: List<String>
+    + salary: PublicSalaryRange
+    + acceptingApplications: boolean
+  }
+}
+package "Service Layer" #EFFBF4 {
+  interface PublicJobQueryService <<Service>> {
+    + search(filter: PublicJobSearchRequest): Page<PublicJobSummaryResponse>
+    + getDetail(slug: String): PublicJobDetailResponse
+  }
+  class PublicJobQueryServiceImpl <<Service>> {
+    - publicJobRepository: PublicJobRepository
+    - careerPageRepository: CareerPageRepository
+    - cache: PublicJobCache
+    + search(filter: PublicJobSearchRequest): Page<PublicJobSummaryResponse>
+    + getDetail(slug: String): PublicJobDetailResponse
+  }
+}
+package "Repository Layer" #F5F3FF {
+  interface PublicJobRepository <<Repository>> {
+    + searchOpen(filter: PublicJobSearchRequest, now: Instant): Page<Job>
+    + findOpenBySlug(slug: String, now: Instant): Optional<Job>
+  }
+  interface CareerPageRepository <<Repository>> {
+    + getConfiguration(): CareerPageConfiguration
+  }
+}
+package "Domain Entity Layer" #F0FBF5 {
+  class Job <<Entity>> {
+    - id: Long
+    - slug: String
+    - status: JobStatus
+    - deadline: LocalDate
+    - salary: SalaryRange
+    + isAcceptingApplications(now: Instant): boolean
+  }
+  class CareerPageConfiguration <<Entity>> {
+    - enabled: boolean
+    - showSalary: boolean
+  }
+  class SalaryRange <<Value Object>> {
+    - min: Decimal
+    - max: Decimal
+    - currency: String
+  }
+  class PublicSalaryRange <<DTO>> {
+    + min: Decimal
+    + max: Decimal
+    + currency: String
+  }
+  enum JobStatus <<Enum>> {
+    PUBLISHED
+    PAUSED
+    CLOSED
+  }
+}
+package "Infrastructure & Persistence" #FFFCEE {
+  class TenantDomainResolver <<Resolver>> {
+    + resolve(host: String): String
+  }
+  class TenantContext <<ThreadLocal>> {
+    + getCurrentTenant(): String
+  }
+  class PublicJobCache <<Cache>> {
+    + get(key: String): Optional<Object>
+    + put(key: String, value: Object): void
+  }
+  class "Dedicated Tenant MySQL DB" as TenantDb <<Database>> {
+    + jobs
+    + career_page_configuration
+  }
+}
+PublicJobController --> PublicJobQueryService : delegates >
+PublicJobController ..> PublicJobSearchRequest : consumes >
+PublicJobController ..> PublicJobSummaryResponse : returns >
+PublicJobController ..> PublicJobDetailResponse : returns >
+PublicJobQueryServiceImpl ..|> PublicJobQueryService : implements
+PublicJobQueryServiceImpl --> PublicJobRepository : queries >
+PublicJobQueryServiceImpl --> CareerPageRepository : reads visibility >
+PublicJobQueryServiceImpl --> PublicJobCache : caches >
+PublicJobQueryServiceImpl --> TenantContext : enforces tenant scope >
+PublicJobRepository --> Job : reads >
+CareerPageRepository --> CareerPageConfiguration : manages >
+Job *-- SalaryRange : owns >
+Job --> JobStatus : typed by >
+PublicJobQueryServiceImpl ..> PublicSalaryRange : creates when visible >
+PublicJobRepository --> TenantDb : reads from >
+CareerPageRepository --> TenantDb : reads from >
+TenantDomainResolver --> TenantContext : establishes tenant >
+@enduml

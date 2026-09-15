@@ -1,0 +1,47 @@
+@startuml
+!include ../sequence-style.puml
+actor Recruiter
+boundary "Tenant Web" as Web
+control "TenantWebInterceptor" as Interceptor
+control "JobCloneController" as Controller
+control "JobCloneServiceImpl" as Service
+entity "JobRepository" as JobRepo
+entity "JobTemplateRepository" as TemplateRepo
+database "Tenant DB" as DB
+
+Recruiter -> Web: 1. Choose job or template and overrides
+Web -> Interceptor: 2. POST clone/from-template
+activate Interceptor
+Interceptor -> Interceptor: 3. Authenticate, authorize, set tenant
+Interceptor -> Controller: 4. Create draft copy
+activate Controller
+Controller -> Service: 5. cloneJob(...) or createFromTemplate(...)
+activate Service
+alt Existing job selected
+  Service -> JobRepo: 6a. findCloneSource(id, principal)
+  JobRepo -> DB: 7a. Load job configuration
+  DB --> JobRepo: 8a. Source aggregate or empty
+else Template selected
+  Service -> TemplateRepo: 6b. findAuthorized(templateId)
+  TemplateRepo -> DB: 7b. Load template configuration
+  DB --> TemplateRepo: 8b. Template aggregate or empty
+end
+alt Source unavailable
+  Service --> Controller: 9a. NotFound
+  Controller --> Web: 10a. 404
+else Source available
+  Service -> Service: 9b. Copy allowed configuration and apply overrides
+  note right of Service: Never copy applications, history or runtime results.
+  Service -> Service: 10b. Force new identity and DRAFT status
+  Service -> JobRepo: 11. save(newJob)
+  JobRepo -> DB: 12. INSERT job aggregate
+  DB --> JobRepo: 13. Persisted draft
+  Service --> Controller: 14. JobResponse
+  Controller --> Web: 15. 201 Created
+end
+deactivate Service
+deactivate Controller
+Interceptor -> Interceptor: 16. Clear TenantContext in finally
+deactivate Interceptor
+Web --> Recruiter: 17. Open new draft or show error
+@enduml
