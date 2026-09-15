@@ -1,0 +1,87 @@
+@startuml
+title FE-09 — Recalculate, Rank and Persist Candidates
+skinparam dpi 300
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam sequenceArrowThickness 1
+skinparam sequenceMessageAlign center
+skinparam ArrowColor #64748B
+skinparam ParticipantBorderColor #CBD5E1
+skinparam ParticipantBackgroundColor #F8FAFC
+skinparam ActorBorderColor #3B82F6
+skinparam ActorBackgroundColor #EFF6FF
+hide footbox
+autonumber
+
+actor Recruiter
+boundary "React Ranking Page" as FE
+control "Tenant + JWT Security" as Security
+boundary RankingController as Controller
+control RankingService as Service
+entity "Tenant Ranking Data" as Data
+control RankingCalculator as Calculator
+control RecommendationPolicy as Policy
+database "Dedicated Tenant DB" as DB
+
+note over Security,DB
+Preconditions: authenticated RECRUITER; JWT tenant matches X-Tenant-ID;
+Recruiter owns the Job. AI results are advisory only.
+end note
+
+Recruiter -> FE: Request ranking refresh for selected Job
+FE -> Security: POST /jobs/{jobId}/rankings/recompute
+activate Security
+Security -> Security: Resolve tenant, authenticate and set TenantContext
+alt Invalid tenant, role or Job ownership
+  Security --> FE: 403/404 ApiResponse
+  Security -> Security: Clear TenantContext
+  deactivate Security
+else Authorized
+  Security -> Controller: Forward tenant-scoped request
+  activate Controller
+  Controller -> Service: recomputeAndPersist(jobId, MANUAL)
+  activate Service
+  Service -> Data: lock Job and load config + applications + current sources
+  activate Data
+  Data -> DB: SELECT tenant-owned ranking inputs
+  DB --> Data: Job, config, CV, assessment, interview evidence
+  Data --> Service: RankingInput
+  deactivate Data
+  alt Configuration invalid or stale
+    Service --> Controller: 400 validation / 409 revision conflict
+    Controller --> FE: Error ApiResponse
+  else Valid configuration
+    loop Every application in the Job
+      Service -> Calculator: calculate(config, official sources)
+      activate Calculator
+      Calculator -> Calculator: Validate scores and compute weighted/partial score
+      Calculator --> Service: ScoreBreakdown + completeness + cohort
+      deactivate Calculator
+      Service -> Policy: classify and explain(score, completeness, evidence)
+      Policy --> Service: STRONG_FIT / REVIEW / NOT_RECOMMENDED + reasons
+    end
+    Service -> Calculator: rank comparable rows by cohort and score
+    Calculator --> Service: Competition ranks; applicationId stable order
+    Service -> DB: BEGIN; replace Job snapshots with new version
+    alt Persistence succeeds
+      DB --> Service: COMMIT
+      Service --> Controller: RankingBoardResponse
+      Controller --> FE: 200 board + breakdown + version
+      FE --> Recruiter: Display explainable ranking
+    else Persistence fails
+      DB --> Service: ROLLBACK
+      Service --> Controller: Domain persistence error
+      Controller --> FE: 5xx generic error; previous snapshot remains
+    end
+  end
+  deactivate Service
+  deactivate Controller
+  Security -> Security: Clear TenantContext in finally
+  deactivate Security
+end
+
+note over Service,Policy
+The recommendation label never changes Application.status.
+Reject/shortlist decisions require the separate human-review flow.
+end note
+@enduml

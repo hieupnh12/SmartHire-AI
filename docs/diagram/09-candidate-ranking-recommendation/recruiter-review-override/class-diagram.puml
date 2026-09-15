@@ -1,0 +1,111 @@
+@startuml
+title FE-09 — Recruiter Review, Shortlist & Override\nTarget application-design viewpoint
+skinparam dpi 300
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam ArrowColor #64748B
+skinparam ClassBorderColor #CBD5E1
+skinparam ClassBackgroundColor #F8FAFC
+skinparam InterfaceBackgroundColor #EFF6FF
+skinparam NoteBackgroundColor #FFF7ED
+skinparam NoteBorderColor #FDBA74
+
+package "Tenant API Layer" #EFF6FF {
+  class RankingReviewController <<target REST controller>> {
+    +getCandidateDetail(applicationId: Long): CandidateRankingDetail
+    +shortlist(applicationId: Long, request: ShortlistRequest): ReviewResult
+    +overrideRecommendation(applicationId: Long, request: OverrideRequest): ReviewResult
+  }
+  class OverrideRequest <<target request DTO>> {
+    +expectedRankingVersion: String
+    +label: RecommendationLabel
+    +reason: String
+  }
+  class ShortlistRequest <<target request DTO>> {
+    +expectedApplicationVersion: Long
+    +note: String [0..1]
+  }
+  class CandidateRankingDetail <<response DTO>> {
+    +rankingVersion: String
+    +automatedLabel: RecommendationLabel
+    +effectiveLabel: RecommendationLabel
+    +breakdown: ScoreBreakdown
+    +evidence: List<EvidenceSummary>
+  }
+}
+
+package "Human Review Application" #F0FDF4 {
+  class RankingReviewService <<target application service>> {
+    +review(applicationId: Long): CandidateRankingDetail
+    +override(actorId: Long, applicationId: Long, request): ReviewResult
+    +shortlist(actorId: Long, applicationId: Long, request): ReviewResult
+  }
+  class HumanDecisionPolicy <<target domain policy>> {
+    +canOverride(role, status, reason): boolean
+    +requireHumanReview(action, automatedLabel): void
+  }
+  class AuditService <<application service>> {
+    +record(event: AuditEvent): void
+  }
+}
+
+package "Tenant Persistence (Dedicated MySQL DB)" #FEFCE8 {
+  interface RankingReviewRepository <<target tenant-scoped repository>> {
+    +findDetail(applicationId: Long): CandidateRankingDetail
+    +saveOverride(override: RankingOverride): RankingOverride
+  }
+  interface ApplicationRepository <<tenant-scoped repository>> {
+    +findForUpdate(applicationId: Long): Application
+    +save(application: Application): Application
+  }
+  entity RankingOverride <<target entity>> {
+    +id: Long
+    +applicationId: Long
+    +rankingVersion: String
+    +originalLabel: RecommendationLabel
+    +overrideLabel: RecommendationLabel
+    +reason: String
+    +overriddenBy: Long
+    +createdAt: Instant
+    +revokedAt: Instant [0..1]
+  }
+  entity Application <<entity>> {
+    +id: Long
+    +status: ApplicationStatus
+    +version: Long
+    +humanReviewedAt: Instant [0..1]
+  }
+  entity AuditEvent <<target entity>> {
+    +id: Long
+    +actorId: Long
+    +action: String
+    +subjectId: Long
+    +beforeJson: JSON
+    +afterJson: JSON
+    +reason: String
+    +createdAt: Instant
+  }
+}
+
+RankingReviewController --> RankingReviewService : delegates
+RankingReviewController ..> OverrideRequest : consumes
+RankingReviewController ..> ShortlistRequest : consumes
+RankingReviewController ..> CandidateRankingDetail : produces
+RankingReviewService --> HumanDecisionPolicy : enforces
+RankingReviewService --> RankingReviewRepository : reads/writes review data
+RankingReviewService --> ApplicationRepository : locks and changes stage
+RankingReviewService --> AuditService : records decisions
+AuditService --> AuditEvent : creates
+RankingReviewRepository ..> RankingOverride : manages
+Application "1" -- "0..*" RankingOverride : reviewed overrides
+RankingOverride "1" --> "1" AuditEvent : evidenced by
+
+note right of HumanDecisionPolicy
+  AI output is advisory. REJECTED is forbidden
+  without an authenticated human decision.
+  Override requires a non-blank reason and never
+  rewrites the original automated snapshot.
+end note
+@enduml

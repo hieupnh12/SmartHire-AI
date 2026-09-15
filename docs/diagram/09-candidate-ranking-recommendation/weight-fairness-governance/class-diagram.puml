@@ -1,0 +1,117 @@
+@startuml
+title FE-09 — Weight Configuration & Fairness Governance\nTarget application-design viewpoint
+skinparam dpi 300
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam ArrowColor #64748B
+skinparam ClassBorderColor #CBD5E1
+skinparam ClassBackgroundColor #F8FAFC
+skinparam InterfaceBackgroundColor #EFF6FF
+skinparam NoteBackgroundColor #FFF7ED
+skinparam NoteBorderColor #FDBA74
+
+package "Tenant API Layer" #EFF6FF {
+  class RankingGovernanceController <<target REST controller>> {
+    +updateWeights(jobId: Long, request: WeightConfigRequest): RankingConfigResponse
+    +getFairnessReport(jobId: Long, version: String): FairnessReportResponse
+  }
+  class WeightConfigRequest <<request DTO>> {
+    +componentWeights: Map<Component, Integer>
+    +skillGroupWeights: Map<String, Integer>
+    +recommendationThresholds: Map<Label, Decimal>
+    +expectedRevision: Long
+  }
+  class FairnessReportResponse <<target response DTO>> {
+    +rankingVersion: String
+    +sampleSize: Integer
+    +metrics: List<FairnessMetric>
+    +alerts: List<FairnessAlert>
+    +status: ReviewStatus
+  }
+}
+
+package "Ranking Governance Application" #F0FDF4 {
+  class RankingConfigurationService <<application service>> {
+    +updateVersionedConfig(jobId: Long, request): RankingConfig
+  }
+  class FairnessMonitoringService <<target application service>> {
+    +evaluate(jobId: Long, rankingVersion: String): FairnessReport
+  }
+  class FairnessPolicy <<target domain policy>> {
+    +evaluate(metrics, thresholds): List<FairnessAlert>
+    +isProtectedAttributeExcluded(config): boolean
+  }
+  class RankingService <<application service>> {
+    +recomputeAndPersist(jobId: Long, trigger): RankingBoard
+  }
+}
+
+package "Tenant Governance Persistence (Dedicated MySQL DB)" #FEFCE8 {
+  interface RankingConfigRepository <<tenant-scoped repository>> {
+    +findForUpdate(jobId: Long): RankingConfig
+    +save(config: RankingConfig): RankingConfig
+  }
+  interface FairnessReportRepository <<target tenant-scoped repository>> {
+    +save(report: FairnessReport): FairnessReport
+    +find(jobId: Long, rankingVersion: String): FairnessReport
+  }
+  entity RankingConfig <<entity>> {
+    +jobId: Long
+    +revision: Long
+    +algorithmVersion: String
+    +weightsJson: JSON
+    +thresholdsJson: JSON
+    +updatedBy: Long
+    +updatedAt: Instant
+  }
+  entity FairnessReport <<target entity>> {
+    +id: Long
+    +jobId: Long
+    +rankingVersion: String
+    +populationDefinition: String
+    +metricsJson: JSON
+    +alertsJson: JSON
+    +status: ReviewStatus
+    +generatedAt: Instant
+  }
+  class FairnessMetric <<target value object>> {
+    +name: String
+    +groupKey: String
+    +value: Decimal
+    +sampleSize: Integer
+  }
+  class FairnessAlert <<target value object>> {
+    +metric: String
+    +severity: Severity
+    +messageCode: String
+  }
+}
+
+RankingGovernanceController --> RankingConfigurationService : updates weights
+RankingGovernanceController --> FairnessMonitoringService : queries reports
+RankingGovernanceController ..> WeightConfigRequest : consumes
+RankingGovernanceController ..> FairnessReportResponse : produces
+RankingConfigurationService --> RankingConfigRepository : locks and versions
+RankingConfigurationService --> RankingService : triggers atomic recompute
+FairnessMonitoringService --> FairnessPolicy : evaluates aggregate metrics
+FairnessMonitoringService --> FairnessReportRepository : persists report
+RankingConfigRepository ..> RankingConfig : manages
+FairnessReportRepository ..> FairnessReport : manages
+FairnessReport *-- "1..*" FairnessMetric : contains
+FairnessReport *-- "0..*" FairnessAlert : contains
+
+note right of FairnessPolicy
+  Protected attributes are excluded from scoring inputs.
+  Monitoring uses authorized, aggregated cohorts only.
+  Small samples are suppressed; alerts request review
+  and never automatically modify ranks or decisions.
+end note
+
+note bottom of RankingConfig
+  Component and skill-group weights each total 100.
+  Optimistic revision prevents lost updates.
+  Every accepted change creates a new ranking version.
+end note
+@enduml

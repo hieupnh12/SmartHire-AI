@@ -1,0 +1,82 @@
+@startuml
+title FE-09 — Configure Weights, Recompute and Monitor Fairness
+skinparam dpi 300
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam sequenceArrowThickness 1
+skinparam ArrowColor #64748B
+skinparam ParticipantBorderColor #CBD5E1
+skinparam ParticipantBackgroundColor #F8FAFC
+hide footbox
+autonumber
+
+actor Recruiter
+boundary "Ranking Configuration UI" as FE
+control "Tenant + JWT Security" as Security
+boundary RankingGovernanceController as Controller
+control RankingConfigurationService as ConfigService
+control RankingService as RankingService
+queue "ranking.snapshot.created" as Queue
+control FairnessMonitoringService as Fairness
+database "Dedicated Tenant DB" as DB
+
+note over Security,DB
+Preconditions: Recruiter owns Job; expectedRevision is current.
+Fairness access requires governance permission and minimum sample size.
+end note
+
+Recruiter -> FE: Save component/group weights and thresholds
+FE -> Security: PUT /jobs/{id}/ranking-config
+activate Security
+Security -> Security: Validate tenant, JWT, role and ownership
+alt Unauthorized
+  Security --> FE: 403/404 generic response
+else Authorized
+  Security -> Controller: Forward validated request
+  Controller -> ConfigService: updateVersionedConfig(jobId, request)
+  activate ConfigService
+  ConfigService -> ConfigService: Validate ranges, totals and protected-input exclusion
+  alt Invalid totals or policy
+    ConfigService --> Controller: 400 validation error
+    Controller --> FE: Correct highlighted fields
+  else Expected revision is stale
+    ConfigService -> DB: Compare current revision
+    DB --> ConfigService: Revision mismatch
+    ConfigService --> Controller: 409 conflict
+    Controller --> FE: Refresh before retry
+  else Configuration accepted
+    ConfigService -> DB: BEGIN; lock Job and persist revision + 1
+    ConfigService -> RankingService: recomputeAndPersist(jobId, CONFIG_CHANGED)
+    activate RankingService
+    RankingService -> DB: Replace snapshots with new ranking version
+    DB --> RankingService: Snapshots persisted
+    RankingService --> ConfigService: RankingBoard
+    deactivate RankingService
+    ConfigService -> DB: Write configuration audit; COMMIT
+    ConfigService -> Queue: Publish snapshot-created event with X-Tenant-ID
+    ConfigService --> Controller: New revision/version + board
+    Controller --> FE: 200 configuration applied
+  end
+  deactivate ConfigService
+end
+Security -> Security: Clear TenantContext in finally
+deactivate Security
+
+Queue -> Fairness: Consume event; restore tenant context; deduplicate
+activate Fairness
+Fairness -> DB: Read aggregate outcomes for ranking version
+DB --> Fairness: Authorized aggregates and sample sizes
+alt Sample below privacy threshold
+  Fairness -> DB: Save INSUFFICIENT_DATA report
+else Sufficient sample
+  Fairness -> Fairness: Calculate approved metrics and alerts
+  Fairness -> DB: Save report linked to ranking version
+end
+Fairness -> Fairness: Clear TenantContext in finally
+deactivate Fairness
+
+note over Fairness,DB
+Fairness alerts request human investigation only.
+They never alter scores, ranks, recommendations, or application status.
+end note
+@enduml

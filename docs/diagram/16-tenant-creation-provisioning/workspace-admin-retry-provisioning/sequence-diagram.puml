@@ -1,0 +1,145 @@
+@startuml
+title TENANT-16 — Workspace Admin Retry Tenant Provisioning
+skinparam dpi 300
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam ArrowColor #64748B
+skinparam ParticipantBorderColor #CBD5E1
+skinparam ParticipantBackgroundColor #F8FAFC
+skinparam ActorBorderColor #3B82F6
+skinparam ActorBackgroundColor #EFF6FF
+skinparam DatabaseBorderColor #94A3B8
+skinparam DatabaseBackgroundColor #F8FAFC
+hide footbox
+autonumber
+actor "Workspace Admin" as Admin
+boundary "Master Dashboard / Retry Form" as UI
+control "Spring Security" as Security
+boundary "MasterTenantController" as Controller
+control "MasterTenantService" as Service
+control "TenantProvisioningService" as Provisioner
+database "Master PostgreSQL" as MasterDB
+control "TenantDataSourceFactory / Flyway" as Factory
+database "Dedicated Tenant DB" as TenantDB
+
+note over Admin,Security
+  Requires WORKSPACE_ADMIN. Retry is synchronous and accepts only
+  FAILED or interrupted PROVISIONING tenants.
+end note
+Admin -> UI: Submit original admin identity and a valid password
+activate UI
+UI -> Security: POST /master/tenants/{id}/retry
+activate Security
+alt Unauthenticated or unauthorized
+  Security --> UI: 401 Unauthorized / 403 Forbidden
+  deactivate Security
+  UI --> Admin: Show access error
+  deactivate UI
+else Authorized
+  Security -> Controller: Forward request
+  deactivate Security
+  activate Controller
+  Controller -> Controller: Validate TenantAdminRequest
+  alt Invalid request
+    Controller --> UI: 400 Bad Request
+    deactivate Controller
+    UI --> Admin: Show validation errors
+    deactivate UI
+  else Valid request
+    Controller -> Service: retryProvisioning(id, request)
+    activate Service
+    Service -> MasterDB: Find tenant by ID
+    activate MasterDB
+    alt Tenant not found
+      MasterDB --> Service: No tenant
+      deactivate MasterDB
+      Service --> Controller: TENANT_NOT_FOUND
+      deactivate Service
+      Controller --> UI: 404 Not Found
+      deactivate Controller
+      UI --> Admin: Show not-found error
+      deactivate UI
+    else Tenant found
+      MasterDB --> Service: Tenant metadata
+      deactivate MasterDB
+      Service -> Provisioner: provision(id, admin)
+      activate Provisioner
+      Provisioner -> MasterDB: Try session advisory lock(id)
+      activate MasterDB
+      alt Lock unavailable
+        MasterDB --> Provisioner: Not acquired
+        deactivate MasterDB
+        Provisioner --> Service: PROVISIONING_IN_PROGRESS
+        deactivate Provisioner
+        Service --> Controller: Conflict
+        deactivate Service
+        Controller --> UI: 409 Conflict
+        deactivate Controller
+        UI --> Admin: Show retry-in-progress notice
+        deactivate UI
+      else Lock acquired
+        MasterDB --> Provisioner: Lock acquired
+        deactivate MasterDB
+        Provisioner -> MasterDB: Re-read tenant and validate state
+        activate MasterDB
+        alt State is not FAILED or PROVISIONING
+          MasterDB --> Provisioner: ACTIVE / SUSPENDED
+          deactivate MasterDB
+          Provisioner -> MasterDB: Release advisory lock
+          Provisioner --> Service: INVALID_TENANT_STATE
+          deactivate Provisioner
+          Service --> Controller: Conflict
+          deactivate Service
+          Controller --> UI: 409 Conflict
+          deactivate Controller
+          UI --> Admin: Show invalid-state error
+          deactivate UI
+        else Retryable state
+          MasterDB --> Provisioner: Retryable tenant
+          deactivate MasterDB
+          Provisioner -> MasterDB: Set status PROVISIONING
+          Provisioner -> Factory: Recreate/reuse DB resources and run Flyway
+          activate Factory
+          Factory -> TenantDB: Connect and migrate idempotently
+          activate TenantDB
+          TenantDB --> Factory: Schema result
+          deactivate TenantDB
+          Factory --> Provisioner: Database result
+          deactivate Factory
+          Provisioner -> TenantDB: Preserve matching admin or create TENANT_ADMIN
+          activate TenantDB
+          TenantDB --> Provisioner: Admin seed result
+          deactivate TenantDB
+          alt Provisioning step failed
+            Provisioner -> MasterDB: Set status FAILED
+            Provisioner -> MasterDB: Release advisory lock
+            Provisioner --> Service: TENANT_PROVISIONING_FAILED
+            deactivate Provisioner
+            Service --> Controller: Failure
+            deactivate Service
+            Controller --> UI: 503 Service Unavailable
+            deactivate Controller
+            UI --> Admin: Show retry failure
+            deactivate UI
+          else Provisioning completed
+            Provisioner -> MasterDB: Set status ACTIVE
+            Provisioner -> MasterDB: Release advisory lock
+            Provisioner --> Service: Active tenant metadata
+            deactivate Provisioner
+            Service --> Controller: TenantInfo
+            deactivate Service
+            Controller --> UI: 200 OK with safe TenantResponse
+            deactivate Controller
+            UI --> Admin: Show tenant is active
+            deactivate UI
+          end
+        end
+      end
+    end
+  end
+end
+note over MasterDB,TenantDB
+  There is no distributed transaction. Master status records the outcome;
+  partially created tenant resources remain available for another retry.
+end note
+@enduml

@@ -1,0 +1,90 @@
+@startuml
+title TENANT-16 — Workspace Admin View Tenant Directory and Details
+skinparam dpi 300
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam ArrowColor #64748B
+skinparam ParticipantBorderColor #CBD5E1
+skinparam ParticipantBackgroundColor #F8FAFC
+skinparam ActorBorderColor #3B82F6
+skinparam ActorBackgroundColor #EFF6FF
+skinparam DatabaseBorderColor #94A3B8
+skinparam DatabaseBackgroundColor #F8FAFC
+hide footbox
+autonumber
+actor "Workspace Admin" as Admin
+boundary "Master Admin Dashboard" as UI
+control "Spring Security" as Security
+boundary "MasterTenantController" as Controller
+control "MasterTenantService" as Service
+database "Master PostgreSQL" as MasterDB
+note over Admin,Security
+  Both endpoints require WORKSPACE_ADMIN. Responses are safe projections
+  and never contain tenant database connection credentials.
+end note
+Admin -> UI: Open Tenant Directory
+activate UI
+UI -> Security: GET /master/tenants
+activate Security
+alt Unauthenticated or unauthorized
+ Security --> UI: 401 Unauthorized / 403 Forbidden
+ deactivate Security
+ UI --> Admin: Show access error
+ deactivate UI
+else Authorized
+ Security -> Controller: Forward list request
+ deactivate Security
+ activate Controller
+ Controller -> Service: getAllTenants()
+ activate Service
+ Service -> MasterDB: findAll tenants
+ activate MasterDB
+ MasterDB --> Service: TenantInfo list
+ deactivate MasterDB
+ Service --> Controller: TenantInfo list
+ deactivate Service
+ Controller -> Controller: Map each entity to TenantResponse
+ Controller --> UI: 200 OK with tenant directory
+ deactivate Controller
+ UI -> UI: Apply client-side search/status filter
+ UI --> Admin: Display safe tenant rows
+
+ opt Admin requests details
+  Admin -> UI: Select a tenant
+  UI -> Security: GET /master/tenants/{id}
+  activate Security
+  alt Session no longer authorized
+   Security --> UI: 401 Unauthorized / 403 Forbidden
+   deactivate Security
+   UI --> Admin: Show access error
+  else Authorized detail request
+   Security -> Controller: Forward detail request
+   deactivate Security
+   activate Controller
+   Controller -> Service: getTenantById(id)
+   activate Service
+   Service -> MasterDB: findById(id)
+   activate MasterDB
+   alt Tenant not found
+    MasterDB --> Service: Empty result
+    deactivate MasterDB
+    Service --> Controller: TENANT_NOT_FOUND
+    deactivate Service
+    Controller --> UI: 404 Not Found
+    deactivate Controller
+    UI --> Admin: Show not-found error
+   else Tenant found
+    MasterDB --> Service: TenantInfo
+    deactivate MasterDB
+    Service --> Controller: TenantInfo
+    deactivate Service
+    Controller -> Controller: Map to TenantResponse
+    Controller --> UI: 200 OK with safe tenant details
+    deactivate Controller
+    UI --> Admin: Show tenant detail panel
+   end
+  end
+ end
+ deactivate UI
+end
+@enduml

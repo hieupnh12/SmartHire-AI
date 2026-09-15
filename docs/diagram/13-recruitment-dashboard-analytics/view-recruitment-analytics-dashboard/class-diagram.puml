@@ -1,0 +1,149 @@
+@startuml
+title FE13-F01 — View Recruitment Analytics Dashboard\nLayered target application-design viewpoint
+top to bottom direction
+skinparam dpi 300
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 12
+skinparam linetype ortho
+skinparam ArrowColor #334155
+skinparam ArrowThickness 1
+skinparam ClassBorderColor #64748B
+skinparam ClassBorderThickness 1
+skinparam ClassBackgroundColor #F8FAFC
+skinparam InterfaceBackgroundColor #F3E8FF
+skinparam PackageBorderColor #475569
+skinparam PackageBorderThickness 1
+skinparam DefaultFontColor #111827
+skinparam ClassFontColor #111827
+skinparam ClassAttributeFontColor #111827
+
+package "Routing & Boundary" #EFF6FF {
+  class DashboardAnalyticsRoute <<REST API, conceptual>> {
+    +GET /api/v1/dashboard/analytics
+  }
+}
+package "Controller Layer" #EFF6FF {
+  class DashboardController <<Controller>> {
+    -dashboardService: DashboardAnalyticsService
+    +getDashboard(filter: AnalyticsFilterRequest): ApiResponse<DashboardResponse>
+  }
+}
+package "Service Layer" #F0FDF4 {
+  interface DashboardAnalyticsService <<Service>> {
+    +getDashboard(filter: AnalyticsFilterRequest, principal: Principal): DashboardResponse
+  }
+  class DashboardAnalyticsServiceImpl <<Service>> {
+    -analyticsRepository: DashboardAnalyticsRepository
+    -dashboardCache: DashboardCache
+    -tenantContext: TenantContext
+    +getDashboard(filter: AnalyticsFilterRequest, principal: Principal): DashboardResponse
+  }
+}
+package "DTO Layer" #FFF7ED {
+  class AnalyticsFilterRequest <<Request>> {
+    +from: LocalDate
+    +to: LocalDate
+    +timezone: ZoneId
+    +granularity: TimeGranularity
+    +jobId: Long [0..1]
+    +departmentId: Long [0..1]
+    +recruiterId: Long [0..1]
+  }
+  class DashboardResponse <<Response>> {
+    +summary: SummaryMetrics
+    +stageCounts: List<StageMetric>
+    +funnel: List<FunnelStep>
+    +timing: TimingMetrics
+    +sources: List<PerformanceMetric>
+    +scoreDistributions: List<DistributionBucket>
+    +jobs: List<PerformanceMetric>
+    +recruiters: List<PerformanceMetric>
+    +trends: List<TrendPoint>
+    +metricVersion: String
+  }
+}
+package "Repository Layer" #F5F3FF {
+  interface DashboardAnalyticsRepository <<Repository>> {
+    +aggregate(filter: AnalyticsFilterRequest): DashboardResponse
+    +filtersBelongToTenant(filter: AnalyticsFilterRequest): boolean
+  }
+}
+package "Domain Entity Layer" #F0FDF4 {
+  entity Job <<Entity>> {
+    -id: Long
+    -title: String
+    -status: JobStatus
+    -departmentId: Long
+    -createdBy: Long
+  }
+  entity Application <<Entity>> {
+    -id: Long
+    -status: ApplicationStatus
+    -source: String
+    -createdAt: Instant
+  }
+  entity RecruitmentStage <<Entity>> {
+    -id: Long
+    -name: String
+    -sortOrder: int
+  }
+  entity Offer <<Entity>> {
+    -id: Long
+    -status: OfferStatus
+    -offeredAt: Instant
+    -respondedAt: Instant [0..1]
+  }
+}
+package "Infrastructure & Persistence" #FEFCE8 {
+  interface DashboardCache <<Cache Port>> {
+    +get(key: String): Optional<DashboardResponse>
+    +put(key: String, value: DashboardResponse, ttl: Duration): void
+  }
+  class "Dedicated Tenant MySQL DB" as TenantDB <<Database>> {
+    +jobs
+    +applications
+    +recruitment_stages
+    +application_status_history
+    +offers
+    +assessment_and_interview_scores
+  }
+  class RedisCache <<Cache>> {
+    +tenant:{tenantId}:dashboard:{filterHash}:{metricVersion}
+  }
+  class TenantContext <<ThreadLocal>> {
+    +{static} getCurrentTenant(): String
+  }
+}
+
+DashboardAnalyticsRoute -down-> DashboardController : defines routes
+DashboardController -down-> DashboardAnalyticsService : delegates
+DashboardAnalyticsService -[hidden]down-> DashboardAnalyticsServiceImpl
+DashboardAnalyticsServiceImpl ..up|> DashboardAnalyticsService : implements
+DashboardController ..> AnalyticsFilterRequest : consumes
+DashboardController ..> DashboardResponse : returns
+DashboardAnalyticsServiceImpl ..> AnalyticsFilterRequest : processes
+DashboardAnalyticsServiceImpl ..> DashboardResponse : creates
+DashboardAnalyticsServiceImpl -down-> DashboardAnalyticsRepository : queries aggregates
+DashboardAnalyticsServiceImpl --> DashboardCache : reads / writes
+DashboardAnalyticsServiceImpl --> TenantContext : enforces tenant scope
+DashboardAnalyticsRepository -down-> Job : aggregates
+Job "1" <-- "0..*" Application : receives
+Application "0..*" --> "0..1" RecruitmentStage : currently at
+Application "1" --> "0..*" Offer : receives
+Job --> TenantDB : persists to
+Application --> TenantDB : persists to
+RecruitmentStage --> TenantDB : persists to
+Offer --> TenantDB : persists to
+DashboardCache --> RedisCache : stores snapshot
+AnalyticsFilterRequest -[hidden]right-> DashboardResponse
+Job -[hidden]right-> Application
+RecruitmentStage -[hidden]right-> Offer
+TenantDB -[hidden]right-> RedisCache
+RedisCache -[hidden]right-> TenantContext
+note right of DashboardAnalyticsServiceImpl
+  Normalizes timezone and applies the versioned definitions for
+  funnel, conversion, timing, source, score and trend metrics.
+end note
+@enduml
