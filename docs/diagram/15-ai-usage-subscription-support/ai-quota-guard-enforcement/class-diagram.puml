@@ -1,0 +1,108 @@
+﻿@startuml
+skinparam dpi 300
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam roundcorner 6
+skinparam linetype ortho
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam classFontSize 11
+skinparam classAttributeFontSize 10
+
+skinparam class {
+    BackgroundColor #FFFFFF
+    BorderColor #2D3748
+    ArrowColor #2D3748
+}
+
+package "Filter & Interceptor Layer" {
+    class AiQuotaGuardFilter <<Filter>> {
+        - quotaEnforcementService: AiQuotaEnforcementService
+        + doFilter(request: HttpServletRequest, response: HttpServletResponse, chain: FilterChain): void
+    }
+}
+
+package "Controller Layer" {
+    class AiInferenceGatewayController <<Controller>> {
+        - aiInferenceExecutionService: AiInferenceExecutionService
+        + executeAiScreening(jobId: Long, request: AiScreeningRequest): ResponseEntity<ApiResponse<AiScreeningResponse>>
+        + startAiInterview(sessionId: String): ResponseEntity<ApiResponse<AiInterviewSessionResponse>>
+    }
+}
+
+package "DTO Layer" {
+    class QuotaCheckResult <<DTO>> {
+        + allowed: Boolean
+        + remainingUnits: Long
+        + totalLimit: Long
+        + usagePercentage: Double
+        + warningThresholdReached: Boolean
+        + violationReason: String
+    }
+
+    class AiUsageReportEvent <<Domain Event>> {
+        + tenantCode: String
+        + featureType: String
+        + unitsConsumed: Long
+        + costEstimatedUsd: BigDecimal
+        + timestamp: LocalDateTime
+    }
+}
+
+package "Service Layer" {
+    interface AiQuotaEnforcementService <<Service>> {
+        + checkAndReserveQuota(tenantCode: String, feature: AiFeatureType, requiredUnits: long): QuotaCheckResult
+        + commitUsage(tenantCode: String, feature: AiFeatureType, actualUnitsConsumed: long): void
+        + rollbackReservation(tenantCode: String, feature: AiFeatureType, units: long): void
+    }
+
+    class AiQuotaEnforcementServiceImpl <<Service>> {
+        - redisQuotaManager: RedisQuotaManager
+        - rabbitTemplate: RabbitTemplate
+        + checkAndReserveQuota(tenantCode: String, feature: AiFeatureType, requiredUnits: long): QuotaCheckResult
+        + commitUsage(tenantCode: String, feature: AiFeatureType, actualUnitsConsumed: long): void
+        + rollbackReservation(tenantCode: String, feature: AiFeatureType, units: long): void
+    }
+
+    interface RedisQuotaManager <<Service>> {
+        + getUsageAndLimit(tenantCode: String, metricKey: String): Pair<Long, Long>
+        + incrementUsage(tenantCode: String, metricKey: String, delta: long): Long
+    }
+}
+
+package "Domain Entity Layer" {
+    enum AiFeatureType <<Enum>> {
+        CV_PARSING
+        AI_INTERVIEW_MINUTES
+        MATCHING_INFERENCE
+    }
+}
+
+package "Infrastructure & Persistence" {
+    class RedisDistributedCache <<Cache>> {
+        .. Atomic Counters & Limits ..
+        + tenant:{code}:quota:limits
+        + tenant:{code}:quota:usage
+        + INCRBY / HGETALL
+    }
+
+    class RabbitMQExchange <<Queue>> {
+        .. Async Analytics Pipeline ..
+        + smarthire.ai.usage.recorded
+    }
+}
+
+' Relationships
+AiQuotaGuardFilter --> AiQuotaEnforcementService : checks quota before execution >
+AiInferenceGatewayController --> AiQuotaEnforcementService : commits final usage >
+
+AiQuotaEnforcementService <|.. AiQuotaEnforcementServiceImpl : implements
+AiQuotaEnforcementServiceImpl ..> QuotaCheckResult : returns >
+AiQuotaEnforcementServiceImpl ..> AiUsageReportEvent : emits >
+AiQuotaEnforcementServiceImpl ..> AiFeatureType : validates against >
+AiQuotaEnforcementServiceImpl --> RedisQuotaManager : interacts with atomic counters >
+AiQuotaEnforcementServiceImpl --> RabbitMQExchange : publishes usage event >
+
+RedisQuotaManager --> RedisDistributedCache : executes atomic Redis scripts >
+
+@enduml

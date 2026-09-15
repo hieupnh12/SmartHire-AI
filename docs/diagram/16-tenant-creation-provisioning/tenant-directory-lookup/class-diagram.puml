@@ -1,0 +1,116 @@
+@startuml
+skinparam dpi 300
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam roundcorner 6
+skinparam linetype ortho
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam classFontSize 11
+skinparam classAttributeFontSize 10
+
+skinparam class {
+    BackgroundColor #FFFFFF
+    BorderColor #2D3748
+    ArrowColor #2D3748
+}
+
+package "Routing & Boundary" {
+    class MasterTenantQueryRoute <<REST API>> {
+        + GET /api/v1/master/tenants
+        + GET /api/v1/master/tenants/{id}
+        + GET /api/v1/master/tenants/check/{codeOrSubdomain}
+    }
+}
+
+package "Controller Layer" {
+    class MasterTenantController <<Controller>> {
+        - masterTenantService: MasterTenantService
+        + getAllTenants(): ApiResponse<List<TenantResponse>>
+        + getTenantById(id: Long): ApiResponse<TenantResponse>
+        + checkTenantExists(codeOrSubdomain: String): ApiResponse<Boolean>
+    }
+}
+
+package "DTO Layer" {
+    class TenantResponse <<Response>> {
+        + id: Long
+        + code: String
+        + name: String
+        + subdomain: String
+        + dbName: String
+        + status: String
+        + createdAt: LocalDateTime
+        + updatedAt: LocalDateTime
+        {static} + from(entity: TenantInfo): TenantResponse
+    }
+}
+
+package "Service Layer" {
+    interface MasterTenantService <<Service>> {
+        + getAllTenants(): List<TenantResponse>
+        + getTenantById(id: Long): TenantResponse
+        + checkTenantExists(identifier: String): boolean
+    }
+
+    class MasterTenantServiceImpl <<Service>> {
+        - tenantInfoRepository: TenantInfoRepository
+        + getAllTenants(): List<TenantResponse>
+        + getTenantById(id: Long): TenantResponse
+        + checkTenantExists(identifier: String): boolean
+    }
+}
+
+package "Repository Layer" {
+    interface TenantInfoRepository <<Repository>> {
+        + findAll(): List<TenantInfo>
+        + findById(id: Long): Optional<TenantInfo>
+        + findByCode(code: String): Optional<TenantInfo>
+        + findBySubdomain(subdomain: String): Optional<TenantInfo>
+    }
+}
+
+package "Domain Entity Layer" {
+    enum TenantStatus <<Enum>> {
+        PROVISIONING
+        ACTIVE
+        SUSPENDED
+        FAILED
+    }
+
+    class TenantInfo <<Entity>> {
+        - id: Long
+        - code: String
+        - name: String
+        - subdomain: String
+        - dbName: String
+        - dbUrl: String
+        - dbUsername: String
+        - dbPassword: String
+        - status: TenantStatus
+        - createdAt: LocalDateTime
+        - updatedAt: LocalDateTime
+    }
+}
+
+package "Infrastructure & Persistence" {
+    class MasterPostgreSQL <<Database>> {
+        .. Master Landlord DB ..
+        + tenants
+    }
+}
+
+' Relationships
+MasterTenantQueryRoute ..> MasterTenantController : defines route >
+MasterTenantController --> MasterTenantService : delegates >
+MasterTenantController ..> TenantResponse : returns sanitized DTO >
+
+MasterTenantService <|.. MasterTenantServiceImpl : implements
+MasterTenantServiceImpl ..> TenantResponse : creates >
+MasterTenantServiceImpl --> TenantInfoRepository : queries >
+
+TenantInfoRepository --> TenantInfo : manages >
+TenantInfoRepository --> MasterPostgreSQL : reads from >
+TenantInfo ..> TenantStatus : typed by >
+
+@enduml

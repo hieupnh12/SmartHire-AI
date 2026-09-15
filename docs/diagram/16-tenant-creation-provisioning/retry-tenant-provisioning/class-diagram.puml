@@ -16,27 +16,23 @@ skinparam class {
 }
 
 package "Routing & Boundary" {
-    class TenantOnboardingRoute <<REST API>> {
-        + POST /api/v1/master/tenants/onboard
+    class TenantRetryRoute <<REST API>> {
+        + POST /api/v1/master/tenants/{id}/retry
     }
 }
 
 package "Controller Layer" {
     class MasterTenantController <<Controller>> {
         - masterTenantService: MasterTenantService
-        + onboardTenant(request: OnboardTenantRequest): ApiResponse<TenantResponse>
+        + retry(id: Long, request: TenantAdminRequest): ApiResponse<TenantResponse>
     }
 }
 
 package "DTO Layer" {
-    class OnboardTenantRequest <<Request>> {
-        + code: String
-        + name: String
-        + subdomain: String
+    class TenantAdminRequest <<Request>> {
         + adminName: String
         + adminEmail: String
         + adminPassword: String
-        + customDbUrl: String
     }
 
     class TenantResponse <<Response>> {
@@ -46,50 +42,46 @@ package "DTO Layer" {
         + subdomain: String
         + dbName: String
         + status: String
-        + createdAt: LocalDateTime
     }
 
-    class TenantProvisionedEvent <<Domain Event>> {
+    class TenantRetryCompletedEvent <<Domain Event>> {
         + tenantId: Long
         + code: String
-        + dbName: String
-        + adminEmail: String
+        + status: String
         + timestamp: LocalDateTime
     }
 }
 
 package "Service Layer" {
     interface MasterTenantService <<Service>> {
-        + onboardTenant(request: OnboardTenantRequest): TenantResponse
+        + retryProvisioning(id: Long, request: TenantAdminRequest): TenantResponse
     }
 
     class MasterTenantServiceImpl <<Service>> {
         - tenantInfoRepository: TenantInfoRepository
         - tenantProvisioningService: TenantProvisioningService
         - rabbitTemplate: RabbitTemplate
-        + onboardTenant(request: OnboardTenantRequest): TenantResponse
+        + retryProvisioning(id: Long, request: TenantAdminRequest): TenantResponse
     }
 
     interface TenantProvisioningService <<Service>> {
-        + provision(tenant: TenantInfo, request: OnboardTenantRequest): void
+        + retryProvision(tenant: TenantInfo, request: TenantAdminRequest): void
     }
 
     class TenantProvisioningServiceImpl <<Service>> {
-        - flywayMigrationService: FlywayMigrationService
         - tenantDataSourceFactory: TenantDataSourceFactory
-        + provision(tenant: TenantInfo, request: OnboardTenantRequest): void
-        - createDedicatedDatabase(tenant: TenantInfo): void
+        - tenantAdvisoryLockManager: TenantAdvisoryLockManager
+        + retryProvision(tenant: TenantInfo, request: TenantAdminRequest): void
+        - ensureDatabaseAndUser(tenant: TenantInfo): void
         - runFlywayMigration(dataSource: DataSource): void
-        - seedInitialTenantAdmin(dataSource: DataSource, request: OnboardTenantRequest): void
+        - seedOrUpdateAdmin(dataSource: DataSource, request: TenantAdminRequest): void
     }
 }
 
 package "Repository Layer" {
     interface TenantInfoRepository <<Repository>> {
-        + existsByCode(code: String): boolean
-        + existsBySubdomain(subdomain: String): boolean
-        + save(tenant: TenantInfo): TenantInfo
         + findById(id: Long): Optional<TenantInfo>
+        + saveAndFlush(tenant: TenantInfo): TenantInfo
     }
 }
 
@@ -112,11 +104,9 @@ package "Domain Entity Layer" {
         - dbPassword: String
         - managedDatabase: boolean
         - status: TenantStatus
-        - createdAt: LocalDateTime
-        - updatedAt: LocalDateTime
     }
 
-    class TenantAdminUser <<Entity>> {
+    class TenantUser <<Entity>> {
         - id: Long
         - email: String
         - fullName: String
@@ -130,7 +120,7 @@ package "Infrastructure & Persistence" {
     class MasterPostgreSQL <<Database>> {
         .. Master Landlord DB ..
         + tenants
-        + subscription_plans
+        + pg_try_advisory_lock()
     }
 
     class DedicatedTenantMySQL <<Database>> {
@@ -140,33 +130,34 @@ package "Infrastructure & Persistence" {
     }
 
     class RabbitMQExchange <<Queue>> {
-        .. Tenant Lifecycle Channel ..
+        .. Lifecycle Notifications ..
         + smarthire.tenant.provisioned
     }
 }
 
 ' Relationships
-TenantOnboardingRoute ..> MasterTenantController : defines route >
-MasterTenantController ..> OnboardTenantRequest : consumes >
+TenantRetryRoute ..> MasterTenantController : defines route >
+MasterTenantController ..> TenantAdminRequest : consumes >
 MasterTenantController --> MasterTenantService : delegates >
 MasterTenantController ..> TenantResponse : returns >
 
 MasterTenantService <|.. MasterTenantServiceImpl : implements
-MasterTenantServiceImpl ..> OnboardTenantRequest : processes >
+MasterTenantServiceImpl ..> TenantAdminRequest : processes >
 MasterTenantServiceImpl ..> TenantResponse : creates >
-MasterTenantServiceImpl ..> TenantProvisionedEvent : emits >
-MasterTenantServiceImpl --> TenantInfoRepository : persists metadata >
-MasterTenantServiceImpl --> TenantProvisioningService : executes provisioning >
-MasterTenantServiceImpl --> RabbitMQExchange : publishes event >
+MasterTenantServiceImpl ..> TenantRetryCompletedEvent : emits >
+MasterTenantServiceImpl --> TenantInfoRepository : queries & updates >
+MasterTenantServiceImpl --> TenantProvisioningService : coordinates retry >
+MasterTenantServiceImpl --> RabbitMQExchange : publishes completion event >
 
 TenantProvisioningService <|.. TenantProvisioningServiceImpl : implements
-TenantProvisioningServiceImpl --> DedicatedTenantMySQL : creates DB & runs Flyway >
-TenantProvisioningServiceImpl ..> TenantAdminUser : seeds admin >
+TenantProvisioningServiceImpl --> MasterPostgreSQL : acquires advisory lock >
+TenantProvisioningServiceImpl --> DedicatedTenantMySQL : runs Flyway & seeds admin >
+TenantProvisioningServiceImpl ..> TenantUser : maintains admin entity >
 
 TenantInfoRepository --> TenantInfo : manages >
 TenantInfoRepository --> MasterPostgreSQL : persists to >
 TenantInfo ..> TenantStatus : typed by >
 
-DedicatedTenantMySQL *-- TenantAdminUser : stores >
+DedicatedTenantMySQL *-- TenantUser : stores >
 
 @enduml

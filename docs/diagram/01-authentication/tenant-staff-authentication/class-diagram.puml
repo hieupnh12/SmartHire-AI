@@ -1,0 +1,128 @@
+@startuml
+skinparam dpi 300
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam roundcorner 6
+skinparam linetype ortho
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam classFontSize 11
+skinparam classAttributeFontSize 10
+
+skinparam class {
+    BackgroundColor #FFFFFF
+    BorderColor #2D3748
+    ArrowColor #2D3748
+}
+
+package "Routing & Boundary" {
+    class TenantAuthRoute <<REST API>> {
+        + POST /api/v1/tenant/auth/login
+    }
+}
+
+package "Controller Layer" {
+    class TenantAuthController <<Controller>> {
+        - tenantAuthService: TenantAuthService
+        + login(request: LoginRequest): ApiResponse<LoginResponse>
+    }
+}
+
+package "DTO Layer" {
+    class LoginRequest <<Request>> {
+        + email: String
+        + password: String {write-only}
+    }
+
+    class LoginResponse <<Response>> {
+        + accessToken: String
+        + refreshToken: String
+        + tokenType: String
+        + user: UserSummaryResponse
+    }
+
+    class UserSummaryResponse <<Response>> {
+        + id: Long
+        + email: String
+        + fullName: String
+        + role: String
+        + status: String
+    }
+}
+
+package "Service Layer" {
+    interface TenantAuthService <<Service>> {
+        + login(request: LoginRequest): LoginResponse
+    }
+
+    class TenantAuthServiceImpl <<Service>> {
+        - userRepository: UserRepository
+        - passwordEncoder: PasswordEncoder
+        - jwtTokenProvider: JwtTokenProvider
+        - redisService: RedisService
+        + login(request: LoginRequest): LoginResponse
+    }
+}
+
+package "Repository Layer" {
+    interface UserRepository <<Repository>> {
+        + findByEmail(email: String): Optional<User>
+    }
+}
+
+package "Domain Entity Layer" {
+    enum UserRole <<Enum>> {
+        ADMIN
+        RECRUITER
+    }
+
+    enum UserStatus <<Enum>> {
+        ACTIVE
+        INVITED
+        SUSPENDED
+    }
+
+    class User <<Entity>> {
+        - id: Long
+        - email: String
+        - passwordHash: String
+        - fullName: String
+        - role: UserRole
+        - status: UserStatus
+        + getPasswordHash(): String
+    }
+}
+
+package "Infrastructure & Persistence" {
+    class DedicatedTenantMySQL <<Database>> {
+        .. Isolated Tenant DB ..
+        + users
+    }
+
+    class RedisCache <<Cache>> {
+        .. Session Storage ..
+        + tenant:{tenantId}:refresh:{userId}
+    }
+}
+
+' Relationships
+TenantAuthRoute ..> TenantAuthController : defines route >
+TenantAuthController ..> LoginRequest : consumes >
+TenantAuthController --> TenantAuthService : delegates >
+TenantAuthController ..> LoginResponse : returns >
+
+TenantAuthService <|.. TenantAuthServiceImpl : implements
+TenantAuthServiceImpl ..> LoginRequest : processes >
+TenantAuthServiceImpl ..> LoginResponse : creates >
+LoginResponse *-- UserSummaryResponse : composes >
+
+TenantAuthServiceImpl --> UserRepository : queries user >
+TenantAuthServiceImpl --> RedisCache : stores refresh token >
+
+UserRepository --> User : manages >
+User ..> UserRole : typed by
+User ..> UserStatus : has status
+
+UserRepository --> DedicatedTenantMySQL : persists to
+
+@enduml

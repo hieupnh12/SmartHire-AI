@@ -1,0 +1,157 @@
+@startuml
+skinparam dpi 300
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam roundcorner 6
+skinparam linetype ortho
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam classFontSize 11
+skinparam classAttributeFontSize 10
+
+skinparam class {
+    BackgroundColor #FFFFFF
+    BorderColor #2D3748
+    ArrowColor #2D3748
+}
+
+package "Routing & Boundary" {
+    class UserProfileRoute <<REST API>> {
+        + GET /api/v1/tenant/users/me
+        + PUT /api/v1/tenant/users/me
+        + POST /api/v1/tenant/users/me/avatar
+    }
+}
+
+package "Controller Layer" {
+    class UserProfileController <<Controller>> {
+        - userProfileService: UserProfileService
+        + getMyProfile(authHeader: String): ApiResponse<UserProfileResponse>
+        + updateMyProfile(request: UpdateProfileRequest, authHeader: String): ApiResponse<UserProfileResponse>
+        + uploadAvatar(file: MultipartFile, authHeader: String): ApiResponse<AvatarUploadResponse>
+    }
+}
+
+package "DTO Layer" {
+    class UpdateProfileRequest <<Request>> {
+        + fullName: String
+        + phone: String
+        + bio: String
+        + headline: String
+        + linksJson: String
+    }
+
+    class UserProfileResponse <<Response>> {
+        + userId: Long
+        + email: String
+        + fullName: String
+        + role: String
+        + phone: String
+        + avatarUrl: String
+        + bio: String
+        + headline: String
+        + linksJson: String
+        + isGoogleAccount: boolean
+    }
+
+    class AvatarUploadResponse <<Response>> {
+        + avatarUrl: String
+        + fileSize: Long
+        + uploadedAt: LocalDateTime
+    }
+}
+
+package "Service Layer" {
+    interface UserProfileService <<Service>> {
+        + getProfile(userId: Long): UserProfileResponse
+        + updateProfile(userId: Long, request: UpdateProfileRequest): UserProfileResponse
+        + uploadAvatar(userId: Long, file: MultipartFile): AvatarUploadResponse
+    }
+
+    class UserProfileServiceImpl <<Service>> {
+        - userRepository: UserRepository
+        - userProfileRepository: UserProfileRepository
+        - fileStorageService: FileStorageService
+        + getProfile(userId: Long): UserProfileResponse
+        + updateProfile(userId: Long, request: UpdateProfileRequest): UserProfileResponse
+        + uploadAvatar(userId: Long, file: MultipartFile): AvatarUploadResponse
+    }
+
+    interface FileStorageService <<Infrastructure Service>> {
+        + uploadFile(path: String, bytes: byte[], contentType: String): String
+    }
+}
+
+package "Repository Layer" {
+    interface UserRepository <<Repository>> {
+        + findById(id: Long): Optional<User>
+        + save(user: User): User
+    }
+
+    interface UserProfileRepository <<Repository>> {
+        + findByUserId(userId: Long): Optional<UserProfile>
+        + save(profile: UserProfile): UserProfile
+    }
+}
+
+package "Domain Entity Layer" {
+    class User <<Entity>> {
+        - id: Long
+        - email: String
+        - fullName: String
+        - role: UserRole
+        - status: UserStatus
+        + getPasswordHash(): String
+    }
+
+    class UserProfile <<Entity>> {
+        - id: Long
+        - user: User
+        - phone: String
+        - avatarUrl: String
+        - bio: String
+        - headline: String
+        - linksJson: String
+    }
+}
+
+package "Infrastructure & Storage" {
+    class DedicatedTenantMySQL <<Database>> {
+        .. Isolated Tenant DB ..
+        + users
+        + user_profiles
+    }
+
+    class ObjectStorageService <<Storage / S3 / GCS>> {
+        .. Cloud Media Store ..
+        + tenant/{id}/avatars/
+    }
+}
+
+' Relationships
+UserProfileRoute ..> UserProfileController : defines routes >
+UserProfileController ..> UpdateProfileRequest : consumes >
+UserProfileController --> UserProfileService : delegates >
+UserProfileController ..> UserProfileResponse : returns >
+UserProfileController ..> AvatarUploadResponse : returns >
+
+UserProfileService <|.. UserProfileServiceImpl : implements
+UserProfileServiceImpl ..> UpdateProfileRequest : processes >
+UserProfileServiceImpl ..> UserProfileResponse : creates >
+UserProfileServiceImpl ..> AvatarUploadResponse : creates >
+UserProfileServiceImpl --> UserRepository : queries user >
+UserProfileServiceImpl --> UserProfileRepository : queries profile >
+UserProfileServiceImpl --> FileStorageService : delegates upload >
+
+UserProfileServiceImpl ..> User : checks existence & provider
+UserProfileServiceImpl ..> UserProfile : updates fields
+
+UserRepository --> User : manages >
+UserProfileRepository --> UserProfile : manages >
+UserProfile "1" *-- "1" User : belongs to
+
+UserRepository --> DedicatedTenantMySQL : persists to
+UserProfileRepository --> DedicatedTenantMySQL : persists to
+FileStorageService --> ObjectStorageService : stores media in
+
+@enduml

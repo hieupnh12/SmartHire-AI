@@ -1,0 +1,103 @@
+﻿@startuml
+autonumber
+hide footbox
+skinparam dpi 300
+skinparam shadowing false
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam sequenceMessageAlign center
+skinparam roundcorner 6
+
+actor "Workspace Admin" as Admin
+participant "Admin Portal UI" as UI
+participant "Spring Security" as Sec
+participant "MasterAiAnalyticsController" as Ctrl
+participant "MasterAiAnalyticsService" as Svc
+participant "AiUsageRecordRepository" as RecordRepo
+participant "TenantInfoRepository" as TenantRepo
+database "Master PostgreSQL" as DB
+
+Admin -> UI: 1 Open "Giám sát Sử dụng AI Nền tảng" (AI Analytics Dashboard)
+activate Admin
+activate UI
+
+UI -> Sec: 2 GET /api/v1/master/analytics/ai-usage (with JWT)
+activate Sec
+Sec -> Ctrl: 3 Authorized request (WORKSPACE_ADMIN)
+activate Ctrl
+
+Ctrl -> Svc: 4 getPlatformAiSummary()
+activate Svc
+
+Svc -> RecordRepo: 5 sumUnitsByFeature('AI_INTERVIEW_MINUTES', 30_DAYS)
+activate RecordRepo
+RecordRepo -> DB: 6 SELECT SUM(units_consumed) FROM ai_usage_records WHERE ...
+activate DB
+DB --> RecordRepo: 7 totalMinutes
+deactivate DB
+RecordRepo --> Svc: 8 totalHours (converted)
+deactivate RecordRepo
+
+Svc -> RecordRepo: 9 sumUnitsByFeature('CV_PARSING', 30_DAYS)
+activate RecordRepo
+RecordRepo -> DB: 10 SELECT SUM(units_consumed) FROM ai_usage_records WHERE feature_type='CV_PARSING'
+activate DB
+DB --> RecordRepo: 11 totalCvParses
+deactivate DB
+RecordRepo --> Svc: 12 totalCvParses
+deactivate RecordRepo
+
+Svc -> RecordRepo: 13 sumCostUsd(30_DAYS)
+activate RecordRepo
+RecordRepo -> DB: 14 SELECT SUM(estimated_cost_usd) FROM ai_usage_records WHERE ...
+activate DB
+DB --> RecordRepo: 15 totalCostUsd
+deactivate DB
+RecordRepo --> Svc: 16 totalCostUsd
+deactivate RecordRepo
+
+Svc -> Svc: 17 calculateActiveAiTenants() & countHighUsageAlerts()
+Svc --> Ctrl: 18 PlatformAiSummaryResponse
+deactivate Svc
+
+Ctrl --> UI: 19 200 OK (ApiResponse<PlatformAiSummaryResponse>)
+deactivate Ctrl
+deactivate Sec
+
+UI --> Admin: 20 Render Summary KPI Widgets (Total Hours, Total CVs, Total Cost, Alert Badges)
+
+Admin -> UI: 21 View Tenant AI Details: Click Tenant Row
+UI -> Ctrl: 22 GET /api/v1/master/analytics/tenants/{id}/ai-consumption
+activate Ctrl
+Ctrl -> Svc: 23 getTenantAiConsumption(tenantId, timeframe)
+activate Svc
+
+Svc -> TenantRepo: 24 findById(tenantId)
+activate TenantRepo
+TenantRepo -> DB: 25 SELECT * FROM tenants WHERE id = ?
+activate DB
+DB --> TenantRepo: 26 TenantInfo
+deactivate DB
+TenantRepo --> Svc: 27 tenantInfo
+deactivate TenantRepo
+
+Svc -> RecordRepo: 28 findConsumptionByTenantId(tenantId)
+activate RecordRepo
+RecordRepo -> DB: 29 SELECT * FROM ai_usage_records WHERE tenant_id = ?
+activate DB
+DB --> RecordRepo: 30 records
+deactivate DB
+RecordRepo --> Svc: 31 records
+deactivate RecordRepo
+
+Svc -> Svc: 32 compute percentage against plan limit (e.g. 85% CV, 60% AI Interview)
+Svc --> Ctrl: 33 TenantAiConsumptionResponse
+deactivate Svc
+
+Ctrl --> UI: 34 200 OK (ApiResponse<TenantAiConsumptionResponse>)
+deactivate Ctrl
+UI --> Admin: 35 Display Tenant Consumption Gauge, Chart & Warning Alert if >= 80%
+
+deactivate UI
+deactivate Admin
+@enduml

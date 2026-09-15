@@ -1,0 +1,93 @@
+@startuml
+
+skinparam dpi 300
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam sequenceArrowThickness 1
+skinparam sequenceMessageAlign center
+skinparam ArrowColor #64748B
+skinparam ParticipantBorderColor #CBD5E1
+skinparam ParticipantBackgroundColor #F8FAFC
+skinparam ActorBorderColor #3B82F6
+skinparam ActorBackgroundColor #EFF6FF
+skinparam DatabaseBorderColor #94A3B8
+skinparam DatabaseBackgroundColor #F8FAFC
+hide footbox
+autonumber
+
+actor "Workspace Admin" as Admin
+boundary "Master Admin UI" as UI
+control "Spring Security" as Security
+boundary "MasterTenantController" as Controller
+control "MasterTenantService" as Service
+database "TenantInfoRepository\n(Master DB)" as Repo
+control "DynamicMultiTenant\nConnectionProvider" as PoolProvider
+
+note over Admin,Security
+  Operation requires WORKSPACE_ADMIN role bearer token in Authorization header.
+  Affects platform routing and tenant physical connection pool.
+end note
+
+Admin -> UI: Click "Tạm khóa" (Suspend) or "Mở khóa" (Activate)
+activate UI
+UI -> Security: PATCH /api/v1/master/tenants/{id}/status?status={status}
+activate Security
+
+alt Unauthenticated or insufficient role
+  Security --> UI: 401 Unauthorized / 403 Forbidden
+  deactivate Security
+  UI --> Admin: Show permission error notification
+else Authorized Workspace Admin
+  Security -> Controller: Forward request with path {id} and param {status}
+  activate Controller
+  deactivate Security
+
+  Controller -> Service: updateTenantStatus(id, status)
+  activate Service
+
+  alt Invalid status parameter (not ACTIVE or SUSPENDED)
+    Service --> Controller: BusinessException(400, "INVALID_STATUS")
+    Controller --> UI: 400 Bad Request
+    UI --> Admin: Show invalid status error
+  else Valid status parameter
+    Service -> Repo: changeOperationalStatus(id, status)
+    activate Repo
+    Repo --> Service: updatedRows count (0 or 1)
+    deactivate Repo
+
+    alt Tenant not found or state not in ('ACTIVE', 'SUSPENDED')
+      Service --> Controller: BusinessException(409, "INVALID_TENANT_STATE")
+      Controller --> UI: 409 Conflict\n"Tenant must be in ACTIVE or SUSPENDED state"
+      UI --> Admin: Show conflict error (cannot suspend PROVISIONING/FAILED tenant)
+    else Status updated successfully (updatedRows == 1)
+      Service -> Repo: findById(id)
+      activate Repo
+      Repo --> Service: TenantInfo entity
+      deactivate Repo
+
+      Service -> PoolProvider: evict(tenant.getCode())
+      activate PoolProvider
+      note over PoolProvider
+        Closes existing HikariCP connection pool for this tenant.
+        Forces subsequent requests to re-evaluate tenant active status.
+      end note
+      PoolProvider --> Service: Pool closed & evicted
+      deactivate PoolProvider
+
+      Service --> Controller: Updated TenantInfo
+      deactivate Service
+
+      Controller --> UI: 200 OK with TenantResponse
+      deactivate Controller
+      UI --> Admin: Update UI status badge and action button
+      deactivate UI
+    end
+  end
+end
+
+note over UI,PoolProvider
+  When a tenant is SUSPENDED:
+  TenantWebInterceptor intercepts future tenant requests and blocks access with 401/403.
+end note
+
+@enduml

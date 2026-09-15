@@ -1,0 +1,90 @@
+@startuml
+skinparam dpi 300
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam ArrowColor #64748B
+skinparam ClassBorderColor #CBD5E1
+skinparam ClassBackgroundColor #F8FAFC
+skinparam InterfaceBackgroundColor #EFF6FF
+skinparam NoteBackgroundColor #FFF7ED
+skinparam NoteBorderColor #FDBA74
+
+package "Master API Layer" #EFF6FF {
+  class MasterAuthRoute <<REST API>> {
+    +POST /api/v1/master/auth/login
+    +GET /api/v1/master/auth/me
+  }
+
+  class MasterAuthController <<Controller>> {
+    +login(request: MasterLoginRequest): MasterLoginResponse
+    +getCurrentAdmin(authHeader: String): PlatformUserResponse
+  }
+
+  class MasterLoginRequest <<Request>> {
+    +email: String
+    +password: String {write-only}
+  }
+
+  class MasterLoginResponse <<Response>> {
+    +accessToken: String
+    +tokenType: String = "Bearer"
+    +user: PlatformUserResponse
+    +tenantId: String = "smarthire_master"
+  }
+
+  class PlatformUserResponse <<Response>> {
+    +id: Long
+    +email: String
+    +fullName: String
+    +role: String
+    +status: String
+  }
+}
+
+package "Master Domain Layer" #F0FDF4 {
+  class MasterAuthService <<Service>> {
+    +login(request: MasterLoginRequest): MasterLoginResponse
+    +getCurrentAdmin(authHeader: String): PlatformUserResponse
+  }
+
+  interface PlatformUserRepository <<Repository>> {
+    +findByEmailIgnoreCase(email: String): Optional<PlatformUser>
+    +save(user: PlatformUser): PlatformUser
+  }
+
+  class PlatformUser <<Entity>> {
+    +id: Long
+    +email: String
+    +passwordHash: String
+    +fullName: String
+    +role: String = "WORKSPACE_ADMIN"
+    +status: String = "ACTIVE"
+  }
+
+  class "Master PostgreSQL\nplatform_users" as MasterDB <<Database>>
+}
+
+' Connectors and Relationships
+MasterAuthRoute ..> MasterAuthController : routes
+MasterAuthController ..> MasterLoginRequest : receives
+MasterAuthController --> MasterAuthService : uses
+MasterAuthController ..> MasterLoginResponse : returns
+MasterLoginResponse *-- PlatformUserResponse : contains
+
+MasterAuthService ..> MasterLoginRequest : processes
+MasterAuthService --> PlatformUserRepository : persists through
+PlatformUserRepository --> PlatformUser : manages
+PlatformUserRepository --> MasterDB : queries
+
+MasterDB *-- PlatformUser : stores
+
+note right of MasterAuthService
+  Architecture Invariant:
+  Super Admin authentication operates strictly
+  on the Master PostgreSQL database.
+  No X-Tenant-ID header or TenantContext is required.
+end note
+
+@enduml

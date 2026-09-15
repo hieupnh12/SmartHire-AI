@@ -1,0 +1,82 @@
+@startuml
+skinparam dpi 300
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam roundcorner 6
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+
+hide footbox
+
+actor "Tenant Admin\n(HR Lead / Org Admin)" as Admin #E2E8F0
+boundary "Tenant Admin UI\n(Portal Web SPA)" as FE #E2E8F0
+control "Security & Gateway\n(TenantWebInterceptor / Filter)" as Sec #E2E8F0
+control "TenantUserController\n(Spring REST Controller)" as Ctrl #E2E8F0
+control "TenantUserService\n(Application Service)" as Svc #E2E8F0
+database "Dedicated Tenant MySQL\n(Isolated DB)" as DB #EDF2F7
+database "Redis Cache\n(Token Store)" as Redis #EDF2F7
+queue "RabbitMQ Exchange\n(Async Email Task)" as MQ #EDF2F7
+
+== Tenant Admin Invite Recruiter Flow ==
+
+Admin -> FE : 1: Enter email, full name & select Role (RECRUITER)
+FE -> Sec : 2: POST /api/v1/tenant/users/invite\n[Header: X-Tenant-ID, Authorization: Bearer <Admin_JWT>]\n[Body: { email, fullName, role: 'RECRUITER' }]
+activate Sec
+
+Sec -> Sec : 3: Resolve TenantContext from X-Tenant-ID\n& Verify JWT Role in ['ADMIN', 'TENANT_ADMIN']
+
+alt #FFF5F5 Invalid tenant or insufficient JWT permissions
+    Sec --> FE : 4: HTTP 403 Forbidden\n{ success: false, message: 'Access denied: Admin role required' }
+    FE --> Admin : 5: Display forbidden error message
+else #F0FFF4 Valid Tenant Identity & Admin Role
+    Sec -> Ctrl : 6: Forward request to Controller
+    activate Ctrl
+
+    Ctrl -> Svc : 7: inviteRecruiter(request)
+    activate Svc
+
+    Svc -> DB : 8: findByEmail(email)
+    activate DB
+    DB --> Svc : 9: User query result
+    deactivate DB
+
+    alt #FFF5F5 Recruiter email already registered in workspace
+        Svc --> Ctrl : 10: Throw EmailAlreadyExistsException("Email already registered in workspace")
+        Ctrl --> FE : 11: HTTP 409 Conflict\n{ success: false, message: 'Email already exists' }
+        FE --> Admin : 12: Display duplicate email alert
+    else #F0FFF4 Valid Email (not registered in Tenant)
+        Svc -> Svc : 13: Instantiate User entity (role: RECRUITER, status: INVITED, passwordHash: null)
+        Svc -> DB : 14: save(user)
+        activate DB
+        DB --> Svc : 15: Persisted User (with generated id)
+        deactivate DB
+
+        Svc -> Svc : 16: Instantiate default UserProfile bound to User
+        Svc -> DB : 17: save(userProfile)
+        activate DB
+        DB --> Svc : 18: Persisted UserProfile
+        deactivate DB
+
+        Svc -> Svc : 19: Generate random invitation token (UUID cryptographically secure)
+        Svc -> Redis : 20: SET tenant:{id}:invite:{token} -> { userId, email, role }\n[TTL: 48h]
+        activate Redis
+        Redis --> Svc : 21: OK (Token stored)
+        deactivate Redis
+
+        Svc -> MQ : 22: publish(smarthire.notification.email, RecruiterInvitationEvent)\n[Header: X-Tenant-ID = tenantId]
+        activate MQ
+        MQ --> Svc : 23: Ack (Email task accepted)
+        deactivate MQ
+
+        Svc --> Ctrl : 24: Return UserResponse(id, email, fullName, role, status: 'INVITED')
+        deactivate Svc
+
+        Ctrl --> FE : 25: HTTP 201 Created\n{ success: true, message: 'Recruiter invited successfully', data: UserResponse }
+        deactivate Ctrl
+
+        FE --> Admin : 26: Show invitation success notification & refresh member list
+    end
+end
+deactivate Sec
+
+@enduml

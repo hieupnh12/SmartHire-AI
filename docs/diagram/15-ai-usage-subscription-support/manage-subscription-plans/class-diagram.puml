@@ -1,0 +1,153 @@
+﻿@startuml
+skinparam dpi 300
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam roundcorner 6
+skinparam linetype ortho
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam classFontSize 11
+skinparam classAttributeFontSize 10
+
+skinparam class {
+    BackgroundColor #FFFFFF
+    BorderColor #2D3748
+    ArrowColor #2D3748
+}
+
+package "Controller Layer" {
+    class MasterSubscriptionController <<Controller>> {
+        - masterSubscriptionService: MasterSubscriptionService
+        + getAllPlans(): ResponseEntity<ApiResponse<List<SubscriptionPlanResponse>>>
+        + createPlan(request: CreateSubscriptionPlanRequest): ResponseEntity<ApiResponse<SubscriptionPlanResponse>>
+        + updatePlan(id: Long, request: UpdateSubscriptionPlanRequest): ResponseEntity<ApiResponse<SubscriptionPlanResponse>>
+        + updatePlanStatus(id: Long, status: String): ResponseEntity<ApiResponse<SubscriptionPlanResponse>>
+    }
+}
+
+package "DTO Layer" {
+    class CreateSubscriptionPlanRequest <<Request>> {
+        + code: String
+        + name: String
+        + description: String
+        + priceMonthly: BigDecimal
+        + priceYearly: BigDecimal
+        + maxJobs: Integer
+        + maxCvParses: Integer
+        + maxAiInterviewHours: Integer
+    }
+
+    class UpdateSubscriptionPlanRequest <<Request>> {
+        + name: String
+        + description: String
+        + priceMonthly: BigDecimal
+        + priceYearly: BigDecimal
+        + maxJobs: Integer
+        + maxCvParses: Integer
+        + maxAiInterviewHours: Integer
+    }
+
+    class SubscriptionPlanResponse <<Response>> {
+        + id: Long
+        + code: String
+        + name: String
+        + description: String
+        + priceMonthly: BigDecimal
+        + priceYearly: BigDecimal
+        + maxJobs: Integer
+        + maxCvParses: Integer
+        + maxAiInterviewHours: Integer
+        + status: String
+        + createdAt: LocalDateTime
+        {static} + from(entity: SubscriptionPlan): SubscriptionPlanResponse
+    }
+
+    class SubscriptionPlanChangedEvent <<Domain Event>> {
+        + planId: Long
+        + code: String
+        + action: String
+        + timestamp: LocalDateTime
+    }
+}
+
+package "Service Layer" {
+    interface MasterSubscriptionService <<Service>> {
+        + getAllPlans(): List<SubscriptionPlanResponse>
+        + createPlan(request: CreateSubscriptionPlanRequest): SubscriptionPlanResponse
+        + updatePlan(id: Long, request: UpdateSubscriptionPlanRequest): SubscriptionPlanResponse
+        + updatePlanStatus(id: Long, status: String): SubscriptionPlanResponse
+    }
+
+    class MasterSubscriptionServiceImpl <<Service>> {
+        - planRepository: SubscriptionPlanRepository
+        - rabbitTemplate: RabbitTemplate
+        + getAllPlans(): List<SubscriptionPlanResponse>
+        + createPlan(request: CreateSubscriptionPlanRequest): SubscriptionPlanResponse
+        + updatePlan(id: Long, request: UpdateSubscriptionPlanRequest): SubscriptionPlanResponse
+        + updatePlanStatus(id: Long, status: String): SubscriptionPlanResponse
+    }
+}
+
+package "Repository Layer" {
+    interface SubscriptionPlanRepository <<Repository>> {
+        + findAll(): List<SubscriptionPlan>
+        + findById(id: Long): Optional<SubscriptionPlan>
+        + findByCode(code: String): Optional<SubscriptionPlan>
+        + save(plan: SubscriptionPlan): SubscriptionPlan
+    }
+}
+
+package "Domain Entity Layer" {
+    enum PlanStatus <<Enum>> {
+        ACTIVE
+        INACTIVE
+        ARCHIVED
+    }
+
+    class SubscriptionPlan <<Entity>> {
+        - id: Long
+        - code: String
+        - name: String
+        - description: String
+        - priceMonthly: BigDecimal
+        - priceYearly: BigDecimal
+        - maxJobs: Integer
+        - maxCvParses: Integer
+        - maxAiInterviewHours: Integer
+        - status: PlanStatus
+        - createdAt: LocalDateTime
+        - updatedAt: LocalDateTime
+    }
+}
+
+package "Infrastructure & Persistence" {
+    class MasterPostgreSQL <<Database>> {
+        .. Master Landlord DB ..
+        + subscription_plans
+    }
+
+    class RabbitMQExchange <<Queue>> {
+        .. Platform Broadcast ..
+        + smarthire.plan.changed
+    }
+}
+
+' Relationships
+MasterSubscriptionController ..> CreateSubscriptionPlanRequest : consumes >
+MasterSubscriptionController ..> UpdateSubscriptionPlanRequest : consumes >
+MasterSubscriptionController --> MasterSubscriptionService : delegates >
+MasterSubscriptionController ..> SubscriptionPlanResponse : returns >
+
+MasterSubscriptionService <|.. MasterSubscriptionServiceImpl : implements
+MasterSubscriptionServiceImpl ..> CreateSubscriptionPlanRequest : processes >
+MasterSubscriptionServiceImpl ..> UpdateSubscriptionPlanRequest : processes >
+MasterSubscriptionServiceImpl ..> SubscriptionPlanResponse : creates >
+MasterSubscriptionServiceImpl ..> SubscriptionPlanChangedEvent : emits >
+MasterSubscriptionServiceImpl --> SubscriptionPlanRepository : persists plan >
+MasterSubscriptionServiceImpl --> RabbitMQExchange : publishes event >
+
+SubscriptionPlanRepository --> SubscriptionPlan : manages >
+SubscriptionPlanRepository --> MasterPostgreSQL : persists to >
+SubscriptionPlan ..> PlanStatus : typed by >
+
+@enduml
