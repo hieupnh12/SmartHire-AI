@@ -1,0 +1,139 @@
+@startuml
+title FE11-F02 — Practice Question Generation\nLayered target application-design viewpoint
+top to bottom direction
+skinparam dpi 300
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 12
+skinparam linetype ortho
+skinparam ArrowColor #334155
+skinparam ArrowThickness 1
+skinparam ClassBorderColor #64748B
+skinparam ClassBorderThickness 1
+skinparam ClassBackgroundColor #F8FAFC
+skinparam InterfaceBackgroundColor #F3E8FF
+skinparam PackageBorderColor #475569
+skinparam PackageBorderThickness 1
+skinparam DefaultFontColor #111827
+
+package "Routing & Boundary" #EFF6FF {
+  class PracticeQuestionRoute <<REST API, conceptual>> {
+    +POST /api/v1/practice/sessions/{id}/questions/generate
+  }
+}
+
+package "Controller Layer" #EFF6FF {
+  class PracticeController <<Controller>> {
+    -practiceService: PracticeService
+    +generateQuestions(sessionId: Long): ApiResponse<GenerateAcceptedResponse>
+  }
+}
+
+package "Service Layer" #F0FDF4 {
+  class PracticeService <<Service>> {
+    -sessionRepository: PracticeSessionRepository
+    -questionPublisher: PracticeQuestionPublisher
+    -tenantContext: TenantContext
+    +requestQuestionGeneration(sessionId: Long, principal: Principal): GenerateAcceptedResponse
+  }
+  class PracticeQuestionGenerator <<Service>> {
+    -sessionRepository: PracticeSessionRepository
+    -answerRepository: PracticeAnswerRepository
+    -aiQuestionPort: AiQuestionPort
+    -bankPort: PracticeQuestionBankPort
+    +generate(job: PracticeQuestionJob): List<PracticeAnswer>
+  }
+  class PracticeQuestionConsumer <<RabbitMQ Consumer>> {
+    -generator: PracticeQuestionGenerator
+    +onGenerate(job: PracticeQuestionJob, tenantId: String): void
+  }
+}
+
+package "DTO Layer" #FFF7ED {
+  class GenerateAcceptedResponse <<Response>> {
+    +sessionId: Long
+    +accepted: boolean
+  }
+  class PracticeQuestionJob <<Message>> {
+    +sessionId: Long
+    +types: List<PracticeQuestionType>
+    +correlationId: String
+  }
+}
+
+package "Repository Layer" #F5F3FF {
+  interface PracticeSessionRepository <<Repository>> {
+    +findByIdAndCandidate(id: Long, candidateId: Long): Optional<PracticeSession>
+  }
+  interface PracticeAnswerRepository <<Repository>> {
+    +replaceQuestions(sessionId: Long, rows: List<PracticeAnswer>): void
+  }
+}
+
+package "Domain Entity Layer" #F0FDF4 {
+  entity PracticeSession <<Entity>> {
+    -id: Long
+    -topic: String
+    -targetRole: String [0..1]
+    -status: PracticeStatus
+  }
+  entity PracticeAnswer <<Entity>> {
+    -id: Long
+    -questionText: String
+    -questionType: PracticeQuestionType
+    -answerText: String [0..1]
+  }
+  enum PracticeQuestionType <<Enumeration>> {
+    GENERAL
+    TECHNICAL
+    BEHAVIORAL
+    JAPANESE
+  }
+  enum PracticeStatus <<Enumeration>> {
+    CREATED
+    IN_PROGRESS
+    COMPLETED
+    FAILED
+  }
+}
+
+package "Infrastructure & Persistence" #FEFCE8 {
+  interface AiQuestionPort <<AI Port>> {
+    +generatePractice(topic: String, role: String, types: List<PracticeQuestionType>): List<GeneratedQuestion>
+  }
+  interface PracticeQuestionBankPort <<Bank Port>> {
+    +pick(topic: String, types: List<PracticeQuestionType>, limit: int): List<GeneratedQuestion>
+  }
+  class PracticeQuestionPublisher <<Publisher>> {
+    +publish(job: PracticeQuestionJob, tenantId: String): void
+  }
+  class "RabbitMQ\npractice.questions" as Q <<Message Broker>>
+  class "Dedicated Tenant MySQL DB" as TenantDB <<Database>>
+  class TenantContext <<ThreadLocal>>
+}
+
+PracticeQuestionRoute -down-> PracticeController : defines routes
+PracticeController -down-> PracticeService : delegates
+PracticeService --> PracticeQuestionPublisher : publishes
+PracticeQuestionPublisher --> Q : sends with X-Tenant-ID
+Q --> PracticeQuestionConsumer : delivers
+PracticeQuestionConsumer --> PracticeQuestionGenerator : processes
+PracticeQuestionGenerator --> AiQuestionPort : may call AI
+PracticeQuestionGenerator --> PracticeQuestionBankPort : may pick bank
+PracticeQuestionGenerator --> PracticeAnswerRepository : seeds question rows
+PracticeSession "1" *-- "0..*" PracticeAnswer : contains
+PracticeAnswer ..> PracticeQuestionType : typed by
+
+note right of PracticeQuestionGenerator
+  Mix AI generation and/or question bank
+  for TECHNICAL, BEHAVIORAL, JAPANESE
+  (+ optional GENERAL) from candidate
+  topic/target role. Writes practice_* only.
+end note
+
+note bottom of Q
+  Target queue practice.questions
+  (mirrors interview.questions; not in yml yet).
+end note
+@enduml

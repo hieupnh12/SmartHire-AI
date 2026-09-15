@@ -1,0 +1,122 @@
+@startuml
+title FE11-F05 — Practice Result Review\nLayered target application-design viewpoint
+top to bottom direction
+skinparam dpi 300
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 12
+skinparam linetype ortho
+skinparam ArrowColor #334155
+skinparam ArrowThickness 1
+skinparam ClassBorderColor #64748B
+skinparam ClassBorderThickness 1
+skinparam ClassBackgroundColor #F8FAFC
+skinparam InterfaceBackgroundColor #F3E8FF
+skinparam PackageBorderColor #475569
+skinparam PackageBorderThickness 1
+skinparam DefaultFontColor #111827
+
+package "Routing & Boundary" #EFF6FF {
+  class PracticeReviewRoute <<REST API, conceptual>> {
+    +GET /api/v1/practice/sessions
+    +GET /api/v1/practice/sessions/{id}
+    +GET /api/v1/practice/sessions/{id}/feedback
+    +DELETE /api/v1/practice/sessions/{id}
+  }
+}
+
+package "Controller Layer" #EFF6FF {
+  class PracticeController <<Controller>> {
+    -practiceService: PracticeService
+    +listSessions(): ApiResponse<List<PracticeSessionSummary>>
+    +getSession(id: Long): ApiResponse<PracticeSessionDetail>
+    +getFeedback(id: Long): ApiResponse<PracticeFeedbackResponse>
+    +deleteSession(id: Long): ApiResponse<Void>
+  }
+}
+
+package "Service Layer" #F0FDF4 {
+  class PracticeService <<Service>> {
+    -sessionRepository: PracticeSessionRepository
+    -answerRepository: PracticeAnswerRepository
+    -feedbackRepository: PracticeFeedbackRepository
+    -tenantContext: TenantContext
+    +listMine(principal: Principal): List<PracticeSessionSummary>
+    +getDetail(id: Long, principal: Principal): PracticeSessionDetail
+    +getFeedback(id: Long, principal: Principal): PracticeFeedbackResponse
+    +softDelete(id: Long, principal: Principal): void
+  }
+}
+
+package "DTO Layer" #FFF7ED {
+  class PracticeSessionSummary <<Response>> {
+    +id: Long
+    +topic: String
+    +status: PracticeStatus
+    +score: Decimal [0..1]
+    +createdAt: Instant
+  }
+  class PracticeSessionDetail <<Response>> {
+    +id: Long
+    +topic: String
+    +status: PracticeStatus
+    +answers: List<PracticeAnswerView>
+    +feedback: PracticeFeedbackResponse [0..1]
+  }
+  class PracticeAnswerView <<Response>> {
+    +questionText: String
+    +questionType: PracticeQuestionType [0..1]
+    +answerText: String [0..1]
+  }
+  class PracticeFeedbackResponse <<Response>> {
+    +score: Decimal [0..1]
+    +content: String
+    +sections: List<SectionScore> [0..*]
+  }
+}
+
+package "Repository Layer" #F5F3FF {
+  interface PracticeSessionRepository <<Repository>> {
+    +findAllByCandidate(candidateId: Long): List<PracticeSession>
+    +findByIdAndCandidate(id: Long, candidateId: Long): Optional<PracticeSession>
+    +softDelete(id: Long, candidateId: Long): void
+  }
+  interface PracticeAnswerRepository <<Repository>>
+  interface PracticeFeedbackRepository <<Repository>>
+}
+
+package "Domain Entity Layer" #F0FDF4 {
+  entity PracticeSession <<Entity>> {
+    -id: Long
+    -topic: String
+    -status: PracticeStatus
+    -deletedAt: Instant [0..1]
+  }
+  entity PracticeAnswer <<Entity>>
+  entity PracticeFeedback <<Entity>> {
+    -score: Decimal
+    -content: String
+  }
+}
+
+package "Infrastructure & Persistence" #FEFCE8 {
+  class "Dedicated Tenant MySQL DB" as TenantDB <<Database>>
+  class TenantContext <<ThreadLocal>>
+}
+
+PracticeReviewRoute -down-> PracticeController : defines routes
+PracticeController -down-> PracticeService : delegates
+PracticeService --> PracticeSessionRepository : queries
+PracticeService --> PracticeAnswerRepository : loads answers
+PracticeService --> PracticeFeedbackRepository : loads feedback
+PracticeService --> TenantContext : enforces owner scope
+PracticeSession "1" *-- "0..*" PracticeAnswer : contains
+PracticeSession "1" *-- "0..1" PracticeFeedback : has
+
+note right of PracticeService
+  Read-only review + soft delete (owner only).
+  No AI calls. Progress chart optional later.
+  deletedAt is target design (PRACT-03).
+end note
+@enduml

@@ -1,0 +1,135 @@
+@startuml
+title FE08-F01 — AI Interview Question Generation\nGenerate questions for AI interview session
+skinparam dpi 300
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam sequenceArrowThickness 1
+skinparam sequenceMessageAlign center
+skinparam ArrowColor #64748B
+skinparam ParticipantBorderColor #CBD5E1
+skinparam ParticipantBackgroundColor #F8FAFC
+hide footbox
+autonumber
+
+actor "Recruiter / HR" as Recruiter
+boundary "Interview Question UI" as FE
+control "Security + TenantWebInterceptor" as Guard
+control "TenantContext" as Context
+boundary "InterviewController" as Controller
+control "InterviewService" as Service
+queue "RabbitMQ\ninterview.questions" as MQ
+control "InterviewQuestionConsumer" as Consumer
+control "InterviewQuestionGenerator" as Generator
+control "AiQuestionPort" as AI
+database "Dedicated Tenant DB" as TenantDB
+
+note over Recruiter,TenantDB
+  Preconditions: RECRUITER or TENANT_ADMIN; active tenant;
+  interview exists in CREATED (or regenerable draft) with Job (+ optional CV).
+  Question types: GENERAL, TECHNICAL, BEHAVIORAL, JAPANESE.
+  Analysis/Scoring belongs to FE07-F02 (choice A).
+end note
+
+Recruiter -> FE: Request AI question generation
+activate FE
+FE -> Guard: POST /api/v1/interviews/{id}/questions/generate\nX-Tenant-ID
+activate Guard
+Guard -> Guard: authenticate and authorize
+
+alt unauthenticated or unauthorized
+  Guard --> FE: 401 / 403
+  deactivate Guard
+  FE --> Recruiter: Show access error
+  deactivate FE
+else authorized
+  Guard -> Context: setCurrentTenant(tenantId)
+  Guard -> Controller: forward request
+  activate Controller
+  Controller -> Service: requestQuestionGeneration(id, principal)
+  activate Service
+  Service -> TenantDB: load Interview + Job + optional Cv
+  activate TenantDB
+
+  alt interview or job missing
+    TenantDB --> Service: empty
+    deactivate TenantDB
+    Service --> Controller: 404 INTERVIEW_NOT_FOUND
+    deactivate Service
+    Controller --> FE: error response
+    deactivate Controller
+    FE --> Recruiter: Show not found
+    deactivate FE
+  else context loaded
+    TenantDB --> Service: Interview context
+    deactivate TenantDB
+
+    alt status does not allow generate\n(e.g. IN_PROGRESS / SCORED)
+      Service --> Controller: 409 GENERATE_NOT_ALLOWED
+      deactivate Service
+      Controller --> FE: error response
+      deactivate Controller
+      FE --> Recruiter: Show not allowed
+      deactivate FE
+    else allowed
+      Service -> MQ: publish QuestionGenerationJob\nheader X-Tenant-ID
+      activate MQ
+      MQ --> Service: accepted
+      deactivate MQ
+      Service --> Controller: GenerateAcceptedResponse
+      deactivate Service
+      Controller --> FE: 202 Accepted
+      deactivate Controller
+      FE --> Recruiter: Generation in progress
+      deactivate FE
+
+      MQ -> Consumer: deliver job
+      activate Consumer
+      Consumer -> Context: setCurrentTenant(X-Tenant-ID)
+      Consumer -> Generator: generate(job)
+      activate Generator
+      Generator -> TenantDB: load JD, requirements, CV signals
+      activate TenantDB
+      TenantDB --> Generator: generation context
+      deactivate TenantDB
+      Generator -> AI: generate(GENERAL, TECHNICAL,\nBEHAVIORAL, JAPANESE)
+      activate AI
+
+      alt AI provider failure
+        AI --> Generator: error
+        deactivate AI
+        Generator -> TenantDB: status remains CREATED / mark FAILED note
+        activate TenantDB
+        TenantDB --> Generator: updated
+        deactivate TenantDB
+        Generator --> Consumer: failure
+        deactivate Generator
+      else AI success
+        AI --> Generator: generated questions (bounded count)
+        deactivate AI
+        Generator -> TenantDB: replace draft interview_questions
+        activate TenantDB
+        TenantDB --> Generator: questions saved
+        deactivate TenantDB
+        Generator -> TenantDB: status = QUESTIONS_READY
+        activate TenantDB
+        TenantDB --> Generator: updated
+        deactivate TenantDB
+        Generator --> Consumer: questions ready
+        deactivate Generator
+      end
+
+      Consumer -> Context: clear() in finally
+      deactivate Consumer
+    end
+  end
+
+  Guard -> Context: clear() in finally
+  deactivate Guard
+end
+
+note over MQ,TenantDB
+  Worker restores and clears TenantContext.
+  Recruiter may edit questions before start; live voice is FE08-F02;
+  NLP analysis and scoring are FE07-F02.
+end note
+@enduml

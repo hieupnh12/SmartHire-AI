@@ -1,0 +1,216 @@
+@startuml
+title FE07-F02 — Interview Evaluation & Scoring\nLayered target application-design viewpoint
+top to bottom direction
+skinparam dpi 300
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 12
+skinparam linetype ortho
+skinparam ArrowColor #334155
+skinparam ArrowThickness 1
+skinparam ClassBorderColor #64748B
+skinparam ClassBorderThickness 1
+skinparam ClassBackgroundColor #F8FAFC
+skinparam InterfaceBackgroundColor #F3E8FF
+skinparam PackageBorderColor #475569
+skinparam PackageBorderThickness 1
+skinparam DefaultFontColor #111827
+skinparam ClassFontColor #111827
+skinparam ClassAttributeFontColor #111827
+
+package "Routing & Boundary" #EFF6FF {
+  class InterviewScoreRoute <<REST API, conceptual>> {
+    +POST /api/v1/interviews/{id}/score
+  }
+}
+
+package "Controller Layer" #EFF6FF {
+  class InterviewController <<Controller>> {
+    -interviewService: InterviewService
+    +requestScore(interviewId: Long): ApiResponse<ScoreAcceptedResponse>
+  }
+}
+
+package "Service Layer" #F0FDF4 {
+  class InterviewService <<Service>> {
+    -interviewRepository: InterviewRepository
+    -scorePublisher: InterviewScorePublisher
+    -tenantContext: TenantContext
+    +requestScore(interviewId: Long, principal: Principal): ScoreAcceptedResponse
+  }
+  class InterviewScoringService <<Service>> {
+    -interviewRepository: InterviewRepository
+    -analysisRepository: InterviewAnswerAnalysisRepository
+    -scoreRepository: InterviewScoreRepository
+    -rubric: ScoringRubricPolicy
+    -tenantContext: TenantContext
+    +scoreInterview(job: InterviewScoreJob): InterviewScore
+  }
+  class ScoringRubricPolicy <<Domain Policy>> {
+    +evaluate(answer: InterviewAnswer, question: InterviewQuestion): QuestionEvaluation
+    +aggregate(evaluations: List<QuestionEvaluation>): OverallScoreResult
+  }
+  class InterviewScoreConsumer <<RabbitMQ Consumer>> {
+    -scoringService: InterviewScoringService
+    +onScoreRequested(job: InterviewScoreJob, tenantId: String): void
+  }
+}
+
+package "DTO Layer" #FFF7ED {
+  class ScoreAcceptedResponse <<Response>> {
+    +interviewId: Long
+    +status: InterviewStatus
+    +accepted: boolean
+  }
+  class InterviewScoreJob <<Message>> {
+    +interviewId: Long
+    +requestedBy: Long
+    +correlationId: String
+  }
+  class QuestionEvaluation <<Value Object>> {
+    +questionId: Long
+    +competency: String [0..1]
+    +relevance: Decimal
+    +depth: Decimal
+    +softSkills: Decimal
+    +questionScore: Decimal
+  }
+  class OverallScoreResult <<Value Object>> {
+    +overallScore: Decimal
+    +breakdownJson: String
+    +modelVersion: String
+  }
+}
+
+package "Repository Layer" #F5F3FF {
+  interface InterviewRepository <<Repository>> {
+    +findById(id: Long): Optional<Interview>
+    +save(interview: Interview): Interview
+  }
+  interface InterviewAnswerAnalysisRepository <<Repository>> {
+    +upsertByAnswer(analysis: InterviewAnswerAnalysis): InterviewAnswerAnalysis
+  }
+  interface InterviewScoreRepository <<Repository>> {
+    +upsertByInterview(score: InterviewScore): InterviewScore
+  }
+}
+
+package "Domain Entity Layer" #F0FDF4 {
+  entity Interview <<Entity>> {
+    -id: Long
+    -status: InterviewStatus
+  }
+  entity InterviewQuestion <<Entity>> {
+    -id: Long
+    -sortOrder: int
+    -questionText: String
+    -competency: String [0..1]
+  }
+  entity InterviewAnswer <<Entity>> {
+    -id: Long
+    -transcript: String [0..1]
+    -status: String
+  }
+  entity InterviewAnswerAnalysis <<Entity>> {
+    -id: Long
+    -analysisJson: String
+    -modelVersion: String
+  }
+  entity InterviewScore <<Entity>> {
+    -id: Long
+    -overallScore: Decimal
+    -breakdownJson: String
+    -modelVersion: String
+    -createdAt: Instant
+  }
+  enum InterviewStatus <<Enumeration>> {
+    CREATED
+    QUESTIONS_READY
+    IN_PROGRESS
+    SCORING
+    SCORED
+    FAILED
+  }
+}
+
+package "Infrastructure & Persistence" #FEFCE8 {
+  class InterviewScorePublisher <<Publisher>> {
+    +publish(job: InterviewScoreJob, tenantId: String): void
+  }
+  class "Dedicated Tenant MySQL DB" as TenantDB <<Database>> {
+    +interviews
+    +interview_questions
+    +interview_answers
+    +interview_answer_analyses
+    +interview_scores
+  }
+  class "RabbitMQ\ninterview.score" as ScoreQueue <<Message Broker>>
+  class TenantContext <<ThreadLocal>> {
+    +{static} getCurrentTenant(): String
+    +{static} setCurrentTenant(tenantId: String): void
+    +{static} clear(): void
+  }
+}
+
+InterviewScoreRoute -down-> InterviewController : defines routes
+InterviewController -down-> InterviewService : delegates
+InterviewController ..> ScoreAcceptedResponse : returns
+InterviewService ..> ScoreAcceptedResponse : creates
+InterviewService ..> InterviewScoreJob : emits
+InterviewService -down-> InterviewRepository : loads / updates
+InterviewService --> InterviewScorePublisher : publishes
+InterviewService --> TenantContext : enforces tenant scope
+
+InterviewScorePublisher --> ScoreQueue : sends with X-Tenant-ID
+ScoreQueue --> InterviewScoreConsumer : delivers
+InterviewScoreConsumer --> InterviewScoringService : processes
+InterviewScoreConsumer --> TenantContext : restores / clears
+InterviewScoringService --> ScoringRubricPolicy : evaluates & aggregates
+InterviewScoringService --> InterviewRepository : loads session
+InterviewScoringService --> InterviewAnswerAnalysisRepository : upserts per answer
+InterviewScoringService --> InterviewScoreRepository : upserts overall
+InterviewScoringService ..> InterviewScoreJob : processes
+InterviewScoringService ..> QuestionEvaluation : creates
+InterviewScoringService ..> OverallScoreResult : creates
+ScoringRubricPolicy ..> QuestionEvaluation : produces
+ScoringRubricPolicy ..> OverallScoreResult : produces
+
+InterviewRepository -down-> Interview : manages
+InterviewAnswerAnalysisRepository -down-> InterviewAnswerAnalysis : manages
+InterviewScoreRepository -down-> InterviewScore : manages
+
+Interview "1" *-- "1..*" InterviewQuestion : contains
+InterviewQuestion "1" *-- "0..1" InterviewAnswer : answered by
+InterviewAnswer "1" *-- "0..1" InterviewAnswerAnalysis : analyzed as
+Interview "1" *-- "0..1" InterviewScore : scored as
+Interview ..> InterviewStatus : has status
+
+Interview --> TenantDB : persists to
+InterviewQuestion --> TenantDB : persists to
+InterviewAnswer --> TenantDB : persists to
+InterviewAnswerAnalysis --> TenantDB : persists to
+InterviewScore --> TenantDB : persists to
+
+ScoreAcceptedResponse -[hidden]right-> InterviewScoreJob
+QuestionEvaluation -[hidden]right-> OverallScoreResult
+InterviewAnswerAnalysisRepository -[hidden]right-> InterviewScoreRepository
+InterviewQuestion -[hidden]right-> InterviewAnswer
+InterviewAnswerAnalysis -[hidden]right-> InterviewScore
+ScoreQueue -[hidden]right-> TenantContext
+
+note right of ScoringRubricPolicy
+  Fixed system rubric (choice 1):
+  relevance, depth, soft-skills.
+  questionScore combines criteria;
+  competency comes from the question.
+  AI output is advisory for human review.
+end note
+
+note right of InterviewScoringService
+  Idempotent re-score: upsert analysis
+  and interview_scores; set status SCORED
+  or FAILED. Ranking refresh is notified
+  after success (INT-04), not owned here.
+end note
+@enduml

@@ -1,0 +1,162 @@
+@startuml
+title FE11-F01 — Practice Interview Session\nLayered target application-design viewpoint
+top to bottom direction
+skinparam dpi 300
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 12
+skinparam linetype ortho
+skinparam ArrowColor #334155
+skinparam ArrowThickness 1
+skinparam ClassBorderColor #64748B
+skinparam ClassBorderThickness 1
+skinparam ClassBackgroundColor #F8FAFC
+skinparam InterfaceBackgroundColor #F3E8FF
+skinparam PackageBorderColor #475569
+skinparam PackageBorderThickness 1
+skinparam DefaultFontColor #111827
+
+package "Routing & Boundary" #EFF6FF {
+  class PracticeSessionRoute <<REST API, conceptual>> {
+    +POST /api/v1/practice/sessions
+    +POST /api/v1/practice/sessions/{id}/answers
+  }
+}
+
+package "Controller Layer" #EFF6FF {
+  class PracticeController <<Controller>> {
+    -practiceService: PracticeService
+    +createSession(request: CreatePracticeSessionRequest): ApiResponse<PracticeSessionResponse>
+    +submitAnswer(sessionId: Long, request: SubmitPracticeAnswerRequest): ApiResponse<PracticeAnswerResponse>
+  }
+}
+
+package "Service Layer" #F0FDF4 {
+  class PracticeService <<Service>> {
+    -sessionRepository: PracticeSessionRepository
+    -answerRepository: PracticeAnswerRepository
+    -tenantContext: TenantContext
+    +createSession(request: CreatePracticeSessionRequest, principal: Principal): PracticeSessionResponse
+    +submitTextAnswer(sessionId: Long, request: SubmitPracticeAnswerRequest, principal: Principal): PracticeAnswerResponse
+  }
+}
+
+package "DTO Layer" #FFF7ED {
+  class CreatePracticeSessionRequest <<Request>> {
+    +topic: String
+    +targetRole: String [0..1]
+    +questionTypes: List<PracticeQuestionType> [0..*]
+  }
+  class SubmitPracticeAnswerRequest <<Request>> {
+    +answerId: Long
+    +answerText: String
+  }
+  class PracticeSessionResponse <<Response>> {
+    +id: Long
+    +topic: String
+    +status: PracticeStatus
+    +createdAt: Instant
+  }
+  class PracticeAnswerResponse <<Response>> {
+    +id: Long
+    +questionText: String
+    +answerText: String [0..1]
+    +status: String
+  }
+}
+
+package "Repository Layer" #F5F3FF {
+  interface PracticeSessionRepository <<Repository>> {
+    +save(session: PracticeSession): PracticeSession
+    +findByIdAndCandidate(id: Long, candidateId: Long): Optional<PracticeSession>
+  }
+  interface PracticeAnswerRepository <<Repository>> {
+    +findByIdAndSession(id: Long, sessionId: Long): Optional<PracticeAnswer>
+    +save(answer: PracticeAnswer): PracticeAnswer
+  }
+}
+
+package "Domain Entity Layer" #F0FDF4 {
+  entity PracticeSession <<Entity>> {
+    -id: Long
+    -candidate: User
+    -topic: String
+    -targetRole: String [0..1]
+    -status: PracticeStatus
+    -createdAt: Instant
+  }
+  entity PracticeAnswer <<Entity>> {
+    -id: Long
+    -questionText: String
+    -questionType: PracticeQuestionType [0..1]
+    -answerText: String [0..1]
+    -audioUrl: String [0..1]
+    -status: String
+  }
+  entity User <<Entity>> {
+    -id: Long
+    -role: UserRole
+  }
+  enum PracticeStatus <<Enumeration>> {
+    CREATED
+    IN_PROGRESS
+    COMPLETED
+    FAILED
+  }
+  enum PracticeQuestionType <<Enumeration>> {
+    GENERAL
+    TECHNICAL
+    BEHAVIORAL
+    JAPANESE
+  }
+}
+
+package "Infrastructure & Persistence" #FEFCE8 {
+  class "Dedicated Tenant MySQL DB" as TenantDB <<Database>> {
+    +practice_sessions
+    +practice_answers
+    +users
+  }
+  class TenantContext <<ThreadLocal>> {
+    +{static} getCurrentTenant(): String
+    +{static} clear(): void
+  }
+}
+
+PracticeSessionRoute -down-> PracticeController : defines routes
+PracticeController -down-> PracticeService : delegates
+PracticeController ..> CreatePracticeSessionRequest : consumes
+PracticeController ..> SubmitPracticeAnswerRequest : consumes
+PracticeController ..> PracticeSessionResponse : returns
+PracticeController ..> PracticeAnswerResponse : returns
+PracticeService ..> CreatePracticeSessionRequest : processes
+PracticeService ..> SubmitPracticeAnswerRequest : processes
+PracticeService -down-> PracticeSessionRepository : persists sessions
+PracticeService --> PracticeAnswerRepository : updates answers
+PracticeService --> TenantContext : enforces tenant scope
+
+PracticeSessionRepository -down-> PracticeSession : manages
+PracticeAnswerRepository -down-> PracticeAnswer : manages
+PracticeSession "0..*" --> "1" User : owned by
+PracticeSession "1" *-- "0..*" PracticeAnswer : contains
+PracticeSession ..> PracticeStatus : has status
+PracticeAnswer ..> PracticeQuestionType : typed by
+
+PracticeSession --> TenantDB : persists to
+PracticeAnswer --> TenantDB : persists to
+User --> TenantDB : persists to
+
+CreatePracticeSessionRequest -[hidden]right-> SubmitPracticeAnswerRequest
+PracticeSessionResponse -[hidden]right-> PracticeAnswerResponse
+PracticeStatus -[hidden]right-> PracticeQuestionType
+TenantDB -[hidden]right-> TenantContext
+
+note right of PracticeService
+  Sandbox only: never writes interviews
+  or ranking tables. Question generation
+  and voice STT are FE11-F02/F03.
+  Text answer path updates answerText
+  and moves session to IN_PROGRESS.
+end note
+@enduml

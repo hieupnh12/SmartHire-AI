@@ -1,0 +1,137 @@
+@startuml
+title FE11-F04 — Practice Performance Analysis & Feedback\nLayered target application-design viewpoint
+top to bottom direction
+skinparam dpi 300
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 12
+skinparam linetype ortho
+skinparam ArrowColor #334155
+skinparam ArrowThickness 1
+skinparam ClassBorderColor #64748B
+skinparam ClassBorderThickness 1
+skinparam ClassBackgroundColor #F8FAFC
+skinparam InterfaceBackgroundColor #F3E8FF
+skinparam PackageBorderColor #475569
+skinparam PackageBorderThickness 1
+skinparam DefaultFontColor #111827
+
+package "Routing & Boundary" #EFF6FF {
+  class PracticeFeedbackRoute <<REST API, conceptual>> {
+    +POST /api/v1/practice/sessions/{id}/feedback
+  }
+}
+
+package "Controller Layer" #EFF6FF {
+  class PracticeController <<Controller>> {
+    -practiceService: PracticeService
+    +requestFeedback(sessionId: Long): ApiResponse<FeedbackAcceptedResponse>
+  }
+}
+
+package "Service Layer" #F0FDF4 {
+  class PracticeService <<Service>> {
+    -sessionRepository: PracticeSessionRepository
+    -feedbackPublisher: PracticeFeedbackPublisher
+    +requestFeedback(sessionId: Long, principal: Principal): FeedbackAcceptedResponse
+  }
+  class PracticeFeedbackService <<Service>> {
+    -sessionRepository: PracticeSessionRepository
+    -answerRepository: PracticeAnswerRepository
+    -feedbackRepository: PracticeFeedbackRepository
+    -analysisPort: PracticeAnalysisPort
+    +analyzeAndFeedback(job: PracticeFeedbackJob): PracticeFeedback
+  }
+  class PracticeFeedbackConsumer <<RabbitMQ Consumer>> {
+    -feedbackService: PracticeFeedbackService
+    +onFeedback(job: PracticeFeedbackJob, tenantId: String): void
+  }
+}
+
+package "DTO Layer" #FFF7ED {
+  class FeedbackAcceptedResponse <<Response>> {
+    +sessionId: Long
+    +accepted: boolean
+  }
+  class PracticeFeedbackJob <<Message>> {
+    +sessionId: Long
+    +correlationId: String
+  }
+  class SectionScore <<Value Object>> {
+    +section: PracticeQuestionType
+    +score: Decimal
+    +tips: List<String>
+  }
+}
+
+package "Repository Layer" #F5F3FF {
+  interface PracticeSessionRepository <<Repository>>
+  interface PracticeAnswerRepository <<Repository>>
+  interface PracticeFeedbackRepository <<Repository>> {
+    +upsertBySession(feedback: PracticeFeedback): PracticeFeedback
+  }
+}
+
+package "Domain Entity Layer" #F0FDF4 {
+  entity PracticeSession <<Entity>> {
+    -id: Long
+    -status: PracticeStatus
+  }
+  entity PracticeAnswer <<Entity>> {
+    -id: Long
+    -questionText: String
+    -answerText: String
+    -questionType: PracticeQuestionType [0..1]
+  }
+  entity PracticeFeedback <<Entity>> {
+    -id: Long
+    -content: String
+    -score: Decimal
+    -breakdownJson: String [0..1]
+  }
+  enum PracticeStatus <<Enumeration>> {
+    IN_PROGRESS
+    COMPLETED
+    FAILED
+  }
+  enum PracticeQuestionType <<Enumeration>> {
+    GENERAL
+    TECHNICAL
+    BEHAVIORAL
+    JAPANESE
+  }
+}
+
+package "Infrastructure & Persistence" #FEFCE8 {
+  interface PracticeAnalysisPort <<AI Port>> {
+    +analyze(answers: List<PracticeAnswer>): AnalysisResult
+  }
+  class PracticeFeedbackPublisher <<Publisher>>
+  class "RabbitMQ\npractice.feedback" as MQ <<Message Broker>>
+  class "Dedicated Tenant MySQL DB" as TenantDB <<Database>> {
+    +practice_sessions
+    +practice_answers
+    +practice_feedbacks
+  }
+  class TenantContext <<ThreadLocal>>
+}
+
+PracticeFeedbackRoute -down-> PracticeController : defines routes
+PracticeController -down-> PracticeService : delegates
+PracticeService --> PracticeFeedbackPublisher : publishes
+PracticeFeedbackPublisher --> MQ : X-Tenant-ID
+MQ --> PracticeFeedbackConsumer : delivers
+PracticeFeedbackConsumer --> PracticeFeedbackService : processes
+PracticeFeedbackService --> PracticeAnalysisPort : analyzes
+PracticeFeedbackService --> PracticeFeedbackRepository : upserts
+PracticeSession "1" *-- "0..1" PracticeFeedback : scored as
+PracticeSession "1" *-- "1..*" PracticeAnswer : answered
+
+note right of PracticeFeedbackService
+  Constructive feedback; no ideal answer dump.
+  Overall score + per-section tips (TECHNICAL/
+  BEHAVIORAL/JAPANESE). Advisory only.
+  Does not update hiring ranking.
+end note
+@enduml
