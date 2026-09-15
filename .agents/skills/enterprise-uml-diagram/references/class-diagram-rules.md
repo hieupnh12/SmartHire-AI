@@ -27,6 +27,9 @@ Apply the approved enterprise layered style across all class diagrams:
   skinparam defaultFontSize 11
   skinparam classFontSize 11
   skinparam classAttributeFontSize 10
+  skinparam ArrowThickness 1
+  skinparam ClassBorderThickness 1
+  skinparam PackageBorderThickness 1
 
   skinparam class {
       BackgroundColor #FFFFFF

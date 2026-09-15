@@ -1,0 +1,45 @@
+@startuml
+!include ../sequence-style.puml
+actor Recruiter
+boundary "Tenant Web" as Web
+control "TenantWebInterceptor" as Interceptor
+control "JobRequirementController" as Controller
+control "JobRequirementServiceImpl" as Service
+entity "JobRepository" as JobRepo
+entity "SkillRepository" as SkillRepo
+entity "MatchingConfigurationRepository" as ConfigRepo
+database "Tenant DB" as DB
+
+Recruiter -> Web: 1. Submit matching criteria
+Web -> Interceptor: 2. PUT /api/v1/jobs/{id}/matching
+activate Interceptor
+Interceptor -> Interceptor: 3. Authenticate, authorize, set tenant
+Interceptor -> Controller: 4. configure(jobId, request)
+activate Controller
+Controller -> Service: 5. configure(..., principal)
+activate Service
+Service -> JobRepo: 6. Check authorized job
+JobRepo -> DB: 7. Query job
+DB --> JobRepo: 8. Access result
+Service -> SkillRepo: 9. findAllActive(skillIds)
+SkillRepo -> DB: 10. Query normalized skills
+DB --> SkillRepo: 11. Skills
+Service -> Service: 12. Validate duplicates, levels and weight total
+alt Invalid job, skill or total weight
+  Service --> Controller: 13a. Domain validation error
+  Controller --> Web: 14a. 404/422
+else Valid configuration
+  Service -> Service: 13b. Create next immutable configuration version
+  Service -> ConfigRepo: 14b. save(configuration)
+  ConfigRepo -> DB: 15. Persist configuration and job skills
+  DB --> ConfigRepo: 16. Saved version
+  Service --> Controller: 17. MatchingConfigurationResponse
+  Controller --> Web: 18. 200 OK
+end
+deactivate Service
+deactivate Controller
+Interceptor -> Interceptor: 19. Clear TenantContext in finally
+deactivate Interceptor
+Web --> Recruiter: 20. Show configuration or errors
+@enduml
+

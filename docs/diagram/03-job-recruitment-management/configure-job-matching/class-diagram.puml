@@ -1,0 +1,110 @@
+@startuml
+!include ../class-style.puml
+package "Controller Layer" #EEF6FF {
+  class JobRequirementController <<Controller>> {
+    - requirementService: JobRequirementService
+  + configure(jobId: Long, request: ConfigureMatchingRequest): ApiResponse<MatchingConfigurationResponse>
+  }
+  }
+package "DTO Layer" #FFF8EF {
+  class ConfigureMatchingRequest <<Request>> {
+    + requiredExperienceYears: int
+    + educationLevel: EducationLevel
+    + criteria: List<CriterionInput>
+  }
+  class CriterionInput <<DTO>> {
+    + skillId: Long
+    + required: boolean
+    + level: SkillLevel
+    + weight: Decimal
+  }
+  class MatchingConfigurationResponse <<Response>> {
+    + jobId: Long
+    + version: int
+    + totalWeight: Decimal
+  }
+}
+package "Service Layer" #EFFBF4 {
+  interface JobRequirementService <<Service>> {
+    + configure(jobId: Long, request: ConfigureMatchingRequest, principal: Principal): MatchingConfigurationResponse
+  }
+  class JobRequirementServiceImpl <<Service>> {
+    - jobRepository: JobRepository
+    - skillRepository: SkillRepository
+    - matchingRepository: MatchingConfigurationRepository
+    + configure(jobId: Long, request: ConfigureMatchingRequest, principal: Principal): MatchingConfigurationResponse
+  }
+}
+package "Repository Layer" #F5F3FF {
+  interface JobRepository <<Repository>> {
+    + existsAuthorized(id: Long, principal: Principal): boolean
+  }
+  interface SkillRepository <<Repository>> {
+    + findAllActive(ids: Set<Long>): List<Skill>
+  }
+  interface MatchingConfigurationRepository <<Repository>> {
+    + save(configuration: MatchingConfiguration): MatchingConfiguration
+  }
+}
+package "Domain Entity Layer" #F0FBF5 {
+  class Job <<Entity>> {
+    - id: Long
+  }
+  class MatchingConfiguration <<Entity>> {
+    - id: Long
+    - version: int
+    - experienceYears: int
+    - educationLevel: EducationLevel
+    + validateWeights(): void
+  }
+  class JobSkillRequirement <<Entity>> {
+    - required: boolean
+    - level: SkillLevel
+    - weight: Decimal
+  }
+  class Skill <<Entity>> {
+    - id: Long
+    - normalizedName: String
+  }
+  enum SkillLevel <<Enum>> {
+    BEGINNER
+    INTERMEDIATE
+    ADVANCED
+    EXPERT
+  }
+  enum EducationLevel <<Enum>> {
+    HIGH_SCHOOL
+    COLLEGE
+    BACHELOR
+    MASTER
+    DOCTORATE
+  }
+}
+package "Infrastructure & Persistence" #FFFCEE {
+  class TenantContext <<ThreadLocal>> {
+    + getCurrentTenant(): String
+  }
+ class "Dedicated Tenant MySQL DB" as TenantDb <<Database>> {
+    + jobs
+  + skills
+  + job_matching_configurations
+  + job_skills
+  }
+  }
+JobRequirementController --> JobRequirementService : delegates >
+JobRequirementController ..> ConfigureMatchingRequest : consumes >
+JobRequirementController ..> MatchingConfigurationResponse : returns >
+JobRequirementServiceImpl ..|> JobRequirementService : implements
+JobRequirementServiceImpl --> JobRepository : authorizes job >
+JobRequirementServiceImpl --> SkillRepository : validates skills >
+JobRequirementServiceImpl --> MatchingConfigurationRepository : persists through >
+JobRequirementServiceImpl --> TenantContext : enforces tenant scope >
+MatchingConfigurationRepository --> MatchingConfiguration : manages >
+MatchingConfiguration *-- "1..*" JobSkillRequirement : owns >
+JobSkillRequirement --> "1" Skill : references >
+MatchingConfiguration --> EducationLevel : typed by >
+JobSkillRequirement --> SkillLevel : typed by >
+Job "1" *-- "1" MatchingConfiguration : defines >
+MatchingConfigurationRepository --> TenantDb : persists to >
+SkillRepository --> TenantDb : reads from >
+@enduml

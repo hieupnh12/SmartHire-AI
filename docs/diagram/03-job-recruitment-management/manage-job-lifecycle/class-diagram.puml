@@ -1,0 +1,110 @@
+@startuml
+!include ../class-style.puml
+package "Controller Layer" #EEF6FF {
+  class JobLifecycleController <<Controller>> {
+    - lifecycleService: JobLifecycleService
+  + transition(id: Long, request: ChangeJobStatusRequest): ApiResponse<JobStatusResponse>
+  }
+  }
+package "DTO Layer" #FFF8EF {
+  class ChangeJobStatusRequest <<Request>> {
+    + action: JobLifecycleAction
+    + expectedVersion: long
+  }
+  class JobStatusResponse <<Response>> {
+    + jobId: Long
+    + status: JobStatus
+    + changedAt: Instant
+  }
+  class JobStatusChangedEvent <<Domain Event>> {
+    + jobId: Long
+    + previousStatus: JobStatus
+    + currentStatus: JobStatus
+    + occurredAt: Instant
+  }
+}
+package "Service Layer" #EFFBF4 {
+  interface JobLifecycleService <<Service>> {
+    + transition(id: Long, request: ChangeJobStatusRequest, principal: Principal): JobStatusResponse
+  }
+  class JobLifecycleServiceImpl <<Service>> {
+    - jobRepository: JobRepository
+    - readinessPolicy: JobPublicationPolicy
+    - historyRepository: JobStatusHistoryRepository
+    - eventPublisher: JobEventPublisher
+    + transition(id: Long, request: ChangeJobStatusRequest, principal: Principal): JobStatusResponse
+  }
+  class JobPublicationPolicy <<Domain Service>> {
+    + validate(job: Job): ValidationResult
+  }
+}
+package "Repository Layer" #F5F3FF {
+  interface JobRepository <<Repository>> {
+    + findAuthorized(id: Long, principal: Principal): Optional<Job>
+    + save(job: Job): Job
+  }
+  interface JobStatusHistoryRepository <<Repository>> {
+    + save(history: JobStatusHistory): void
+  }
+}
+package "Domain Entity Layer" #F0FBF5 {
+  class Job <<Entity>> {
+    - id: Long
+    - status: JobStatus
+    - publishedAt: Instant
+    - closedAt: Instant
+    + transition(action: JobLifecycleAction): JobStatusHistory
+  }
+  class JobStatusHistory <<Entity>> {
+    - previousStatus: JobStatus
+    - currentStatus: JobStatus
+    - changedAt: Instant
+  }
+  enum JobStatus <<Enum>> {
+    DRAFT
+    PUBLISHED
+    PAUSED
+    CLOSED
+  }
+  enum JobLifecycleAction <<Enum>> {
+    PUBLISH
+    UNPUBLISH
+    PAUSE
+    CLOSE
+    REOPEN
+  }
+}
+package "Infrastructure & Persistence" #FFFCEE {
+  interface JobEventPublisher <<Message Publisher>> {
+    + publish(event: JobStatusChangedEvent, tenantId: String): void
+  }
+  class PublicJobCache <<Cache>> {
+    + evict(jobId: Long): void
+  }
+  class TenantContext <<ThreadLocal>> {
+    + getCurrentTenant(): String
+  }
+  class "Dedicated Tenant MySQL DB" as TenantDb <<Database>> {
+    + jobs
+    + job_status_history
+  }
+  class "job.events" as JobEvents <<Queue>>
+}
+JobLifecycleController --> JobLifecycleService : delegates >
+JobLifecycleController ..> ChangeJobStatusRequest : consumes >
+JobLifecycleController ..> JobStatusResponse : returns >
+JobLifecycleServiceImpl ..|> JobLifecycleService : implements
+JobLifecycleServiceImpl --> JobPublicationPolicy : validates readiness >
+JobLifecycleServiceImpl --> JobRepository : manages >
+JobLifecycleServiceImpl --> JobStatusHistoryRepository : records audit >
+JobLifecycleServiceImpl ..> JobStatusChangedEvent : creates >
+JobLifecycleServiceImpl --> JobEventPublisher : publishes event >
+JobLifecycleServiceImpl --> PublicJobCache : evicts >
+JobLifecycleServiceImpl --> TenantContext : enforces tenant scope >
+Job --> JobStatus : typed by >
+Job --> JobLifecycleAction : accepts >
+Job "1" *-- "0..*" JobStatusHistory : records >
+JobRepository --> TenantDb : persists to >
+JobStatusHistoryRepository --> TenantDb : persists to >
+JobEventPublisher --> JobEvents : publishes to >
+@enduml
