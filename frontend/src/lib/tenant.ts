@@ -20,17 +20,5 @@ export const getTenantIdFromWindow = (): string | null => {
     }
   }
 
-  // Check LocalStorage override
-  const storedTenant = localStorage.getItem('smarthire_tenant_id');
-  if (storedTenant) return storedTenant.toLowerCase();
-
   return null;
-};
-
-export const setTenantId = (tenantId: string | null): void => {
-  if (tenantId) {
-    localStorage.setItem('smarthire_tenant_id', tenantId);
-  } else {
-    localStorage.removeItem('smarthire_tenant_id');
-  }
 };

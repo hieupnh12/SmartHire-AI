@@ -1,0 +1,204 @@
+﻿@startuml
+skinparam dpi 300
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam roundcorner 6
+skinparam linetype ortho
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam classFontSize 11
+skinparam classAttributeFontSize 10
+
+skinparam class {
+    BackgroundColor #FFFFFF
+    BorderColor #2D3748
+    ArrowColor #2D3748
+}
+
+package "Controller Layer" {
+    class TenantSubscriptionController <<Controller>> {
+        - tenantSubscriptionService: TenantSubscriptionService
+        + getCurrentSubscription(tenantId: Long): ResponseEntity<ApiResponse<TenantSubscriptionResponse>>
+        + assignSubscription(tenantId: Long, request: AssignSubscriptionRequest): ResponseEntity<ApiResponse<TenantSubscriptionResponse>>
+        + changePlan(tenantId: Long, request: ChangePlanRequest): ResponseEntity<ApiResponse<TenantSubscriptionResponse>>
+    }
+}
+
+package "DTO Layer" {
+    class AssignSubscriptionRequest <<Request>> {
+        + planId: Long
+        + autoRenew: Boolean
+        + billingCycle: String
+    }
+
+    class ChangePlanRequest <<Request>> {
+        + newPlanId: Long
+        + immediateEffect: Boolean
+    }
+
+    class TenantSubscriptionResponse <<Response>> {
+        + id: Long
+        + tenantId: Long
+        + planId: Long
+        + planCode: String
+        + planName: String
+        + maxJobs: Integer
+        + maxCvParses: Integer
+        + maxAiInterviewHours: Integer
+        + status: String
+        + startsAt: LocalDateTime
+        + endsAt: LocalDateTime
+        + autoRenew: Boolean
+    }
+
+    class TenantQuotaSyncEvent <<Domain Event>> {
+        + tenantId: Long
+        + tenantCode: String
+        + maxJobs: Integer
+        + maxCvParses: Integer
+        + maxAiInterviewHours: Integer
+        + timestamp: LocalDateTime
+    }
+}
+
+package "Service Layer" {
+    interface TenantSubscriptionService <<Service>> {
+        + getActiveSubscription(tenantId: Long): TenantSubscriptionResponse
+        + assignSubscription(tenantId: Long, request: AssignSubscriptionRequest): TenantSubscriptionResponse
+        + changePlan(tenantId: Long, request: ChangePlanRequest): TenantSubscriptionResponse
+    }
+
+    class TenantSubscriptionServiceImpl <<Service>> {
+        - tenantSubscriptionRepository: TenantSubscriptionRepository
+        - tenantInfoRepository: TenantInfoRepository
+        - planRepository: SubscriptionPlanRepository
+        - invoiceRepository: InvoiceRepository
+        - redisQuotaService: RedisQuotaService
+        - rabbitTemplate: RabbitTemplate
+        + getActiveSubscription(tenantId: Long): TenantSubscriptionResponse
+        + assignSubscription(tenantId: Long, request: AssignSubscriptionRequest): TenantSubscriptionResponse
+        + changePlan(tenantId: Long, request: ChangePlanRequest): TenantSubscriptionResponse
+        - syncQuotaToTenantCache(subscription: TenantSubscription, plan: SubscriptionPlan): void
+    }
+
+    interface RedisQuotaService <<Service>> {
+        + initializeQuota(tenantCode: String, maxJobs: int, maxCv: int, maxAiHours: int): void
+        + updateQuotaLimit(tenantCode: String, maxJobs: int, maxCv: int, maxAiHours: int): void
+    }
+}
+
+package "Repository Layer" {
+    interface TenantSubscriptionRepository <<Repository>> {
+        + findActiveByTenantId(tenantId: Long): Optional<TenantSubscription>
+        + save(subscription: TenantSubscription): TenantSubscription
+    }
+
+    interface TenantInfoRepository <<Repository>> {
+        + findById(id: Long): Optional<TenantInfo>
+    }
+
+    interface SubscriptionPlanRepository <<Repository>> {
+        + findById(id: Long): Optional<SubscriptionPlan>
+    }
+
+    interface InvoiceRepository <<Repository>> {
+        + save(invoice: Invoice): Invoice
+    }
+}
+
+package "Domain Entity Layer" {
+    enum SubscriptionStatus <<Enum>> {
+        ACTIVE
+        EXPIRED
+        UPGRADED
+        CANCELLED
+    }
+
+    class TenantSubscription <<Entity>> {
+        - id: Long
+        - tenantId: Long
+        - planId: Long
+        - status: SubscriptionStatus
+        - startsAt: LocalDateTime
+        - endsAt: LocalDateTime
+        - autoRenew: Boolean
+        - createdAt: LocalDateTime
+        - updatedAt: LocalDateTime
+    }
+
+    class Invoice <<Entity>> {
+        - id: Long
+        - tenantId: Long
+        - subscriptionId: Long
+        - amount: BigDecimal
+        - currency: String
+        - status: String
+        - paidAt: LocalDateTime
+    }
+
+    class TenantInfo <<Entity>> {
+        - id: Long
+        - code: String
+        - name: String
+        - status: String
+    }
+
+    class SubscriptionPlan <<Entity>> {
+        - id: Long
+        - code: String
+        - name: String
+        - maxJobs: Integer
+        - maxCvParses: Integer
+        - maxAiInterviewHours: Integer
+    }
+}
+
+package "Infrastructure & Persistence" {
+    class MasterPostgreSQL <<Database>> {
+        .. Master Landlord DB ..
+        + tenant_subscriptions
+        + invoices
+        + tenants
+        + subscription_plans
+    }
+
+    class RedisCache <<Cache>> {
+        .. Distributed Quota Store ..
+        + tenant:{code}:quota:limits
+    }
+
+    class RabbitMQExchange <<Queue>> {
+        .. Tenant Sync Channel ..
+        + smarthire.tenant.quota.sync
+    }
+}
+
+' Relationships
+TenantSubscriptionController ..> AssignSubscriptionRequest : consumes >
+TenantSubscriptionController ..> ChangePlanRequest : consumes >
+TenantSubscriptionController --> TenantSubscriptionService : delegates >
+TenantSubscriptionController ..> TenantSubscriptionResponse : returns >
+
+TenantSubscriptionService <|.. TenantSubscriptionServiceImpl : implements
+TenantSubscriptionServiceImpl ..> AssignSubscriptionRequest : processes >
+TenantSubscriptionServiceImpl ..> ChangePlanRequest : processes >
+TenantSubscriptionServiceImpl ..> TenantSubscriptionResponse : creates >
+TenantSubscriptionServiceImpl ..> TenantQuotaSyncEvent : emits >
+
+TenantSubscriptionServiceImpl --> TenantSubscriptionRepository : manages >
+TenantSubscriptionServiceImpl --> TenantInfoRepository : verifies tenant >
+TenantSubscriptionServiceImpl --> SubscriptionPlanRepository : fetches plan >
+TenantSubscriptionServiceImpl --> InvoiceRepository : creates billing record >
+TenantSubscriptionServiceImpl --> RedisQuotaService : synchronizes quota cache >
+TenantSubscriptionServiceImpl --> RabbitMQExchange : publishes sync event >
+
+TenantSubscriptionRepository --> TenantSubscription : manages >
+TenantSubscriptionRepository --> MasterPostgreSQL : persists to >
+TenantSubscription ..> SubscriptionStatus : typed by >
+
+InvoiceRepository --> Invoice : manages >
+InvoiceRepository --> MasterPostgreSQL : persists to >
+
+RedisQuotaService --> RedisCache : writes limits >
+
+@enduml

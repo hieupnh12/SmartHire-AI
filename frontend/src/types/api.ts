@@ -15,4 +15,4 @@ export type PageMeta = {
   totalPages: number;
 };
 
-export type Role = "ADMIN" | "RECRUITER" | "CANDIDATE";
+export type Role = "TENANT_ADMIN" | "ADMIN" | "RECRUITER" | "CANDIDATE";

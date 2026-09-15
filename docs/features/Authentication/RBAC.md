@@ -22,7 +22,7 @@ Phân quyền theo role (và permission nếu cần) cho mọi API/UI route.
 
 ## Business Rules
 
-- Roles: `ADMIN`, `RECRUITER`, `CANDIDATE`.
+- Roles tenant: `TENANT_ADMIN`, `ADMIN`, `RECRUITER`, `CANDIDATE`.
 - Recruiter chỉ data thuộc org/job của mình.
 - Admin full (audit log khuyến nghị).
 
@@ -48,6 +48,7 @@ AUTH-02
 
 - API quản trị master yêu cầu `WORKSPACE_ADMIN`, tách biệt với `ADMIN`/`TENANT_ADMIN` của doanh nghiệp.
 - API quản lý người dùng tenant yêu cầu `TENANT_ADMIN` hoặc `ADMIN`.
+- Frontend chuyển `TENANT_ADMIN` và `ADMIN` của doanh nghiệp về `/tenant/admin`; route này không dùng cho `WORKSPACE_ADMIN` của nền tảng.
 - API nghiệp vụ yêu cầu tenant role và tenant đang `ACTIVE`; JWT, header và subdomain phải cùng tenant.
 - Endpoint công khai giới hạn ở login và kiểm tra tenant đang hoạt động; Swagger/health phục vụ vận hành.
 - CORS chỉ nhận các origin cụ thể từ `CORS_ORIGINS`, không cho wildcard kèm credential.

@@ -1,0 +1,51 @@
+@startuml
+!include ../sequence-style.puml
+actor Guest
+boundary "Public Career Page" as Web
+control "TenantDomainResolver" as Resolver
+control "PublicJobController" as Controller
+control "PublicJobQueryServiceImpl" as Service
+collections "Public Job Cache" as Cache
+entity "CareerPageRepository" as CareerRepo
+entity "PublicJobRepository" as JobRepo
+database "Tenant DB" as DB
+
+Guest -> Web: 1. Search jobs or open public detail
+Web -> Resolver: 2. GET career host + filters/slug
+activate Resolver
+Resolver -> Resolver: 3. Resolve active tenant from trusted host
+alt Unknown or disabled tenant
+  Resolver --> Web: 4a. 404
+else Tenant resolved
+  Resolver -> Resolver: 4b. Set TenantContext
+  Resolver -> Controller: 5. search(filter) or getDetail(slug)
+  activate Controller
+  Controller -> Service: 6. Query public jobs
+  activate Service
+  Service -> Cache: 7. Get tenant-scoped cache key
+  alt Cache hit
+    Cache --> Service: 8a. Cached public response
+  else Cache miss
+    Service -> CareerRepo: 8b. getConfiguration()
+    CareerRepo -> DB: 9. Read career page visibility
+    DB --> CareerRepo: 10. Configuration
+    Service -> JobRepo: 11. Query PUBLISHED and unexpired jobs
+    JobRepo -> DB: 12. SELECT public-safe job data
+    DB --> JobRepo: 13. Jobs or empty
+    Service -> Service: 14. Mask hidden salary and derive accepting flag
+    Service -> Cache: 15. Cache tenant-safe response
+  end
+  alt Detail absent, paused, closed or expired
+    Service --> Controller: 16a. NotFound
+    Controller --> Web: 17a. 404
+  else Public result available
+    Service --> Controller: 16b. Public DTO
+    Controller --> Web: 17b. 200 OK
+  end
+  deactivate Service
+  deactivate Controller
+end
+Resolver -> Resolver: 18. Clear TenantContext in finally
+deactivate Resolver
+Web --> Guest: 19. Render public jobs or not-found page
+@enduml

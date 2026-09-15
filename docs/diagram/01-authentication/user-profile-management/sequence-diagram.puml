@@ -1,0 +1,101 @@
+@startuml
+skinparam dpi 300
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam roundcorner 6
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+
+hide footbox
+
+actor "User\n(Candidate / Recruiter)" as User #E2E8F0
+boundary "User Profile UI\n(Profile View / Settings)" as FE #E2E8F0
+control "Security & Gateway\n(TenantWebInterceptor / Filter)" as Sec #E2E8F0
+control "UserProfileController\n(Spring REST Controller)" as Ctrl #E2E8F0
+control "UserProfileService\n(Application Service)" as Svc #E2E8F0
+control "FileStorageService\n(Cloud Media Storage)" as Storage #E2E8F0
+database "Dedicated Tenant MySQL\n(Isolated DB)" as DB #EDF2F7
+
+== Profile Update Flow ==
+
+User -> FE : 1: Edit full name, phone, bio, headline, links & click "Save Changes"
+FE -> Sec : 2: PUT /api/v1/tenant/users/me\n[Header: X-Tenant-ID, Authorization: Bearer <User_JWT>]\n[Body: { fullName, phone, bio, headline, linksJson }]
+activate Sec
+
+Sec -> Sec : 3: Resolve TenantContext & extract userId from JWT claims
+
+alt #FFF5F5 Invalid or expired JWT
+    Sec --> FE : 4: HTTP 401 Unauthorized\n{ success: false, message: 'Invalid or expired token' }
+    FE --> User : 5: Prompt user to re-authenticate
+else #F0FFF4 Valid Authenticated Session
+    Sec -> Ctrl : 6: Forward update profile request
+    activate Ctrl
+
+    Ctrl -> Svc : 7: updateProfile(userId, request)
+    activate Svc
+
+    Svc -> DB : 8: findById(userId) & findByUserId(userId)
+    activate DB
+    DB --> Svc : 9: User & UserProfile entities
+    deactivate DB
+
+    Svc -> Svc : 10: Update User entity (fullName)\nand UserProfile entity (phone, bio, headline, linksJson)\n(Email and role immutable)
+    
+    Svc -> DB : 11: save(user) & save(userProfile)
+    activate DB
+    DB --> Svc : 12: Successfully saved
+    deactivate DB
+
+    Svc -> Svc : 13: Map to UserProfileResponse\n(set isGoogleAccount = true if passwordHash == null)
+
+    Svc --> Ctrl : 14: Return UserProfileResponse
+    deactivate Svc
+
+    Ctrl --> FE : 15: HTTP 200 OK\n{ success: true, message: 'Profile updated successfully', data: UserProfileResponse }
+    deactivate Ctrl
+
+    FE --> User : 16: Display profile update success message
+end
+deactivate Sec
+
+== Avatar Upload Flow ==
+
+User -> FE : 17: Select new avatar file (JPG/PNG, < 5MB)
+FE -> Sec : 18: POST /api/v1/tenant/users/me/avatar\n[Header: X-Tenant-ID, Authorization: Bearer <User_JWT>]\n[FormData: file=<image_bytes>]
+activate Sec
+
+Sec -> Sec : 19: Verify JWT token & TenantContext
+Sec -> Ctrl : 20: Forward avatar upload request
+activate Ctrl
+
+Ctrl -> Svc : 21: uploadAvatar(userId, file)
+activate Svc
+
+Svc -> Svc : 22: Validate image MIME type (image/png, image/jpeg) & size (<= 5MB)
+
+alt #FFF5F5 Invalid file format or exceeds max size
+    Svc --> Ctrl : 23: Throw InvalidFileException("Only JPEG/PNG up to 5MB allowed")
+    Ctrl --> FE : 24: HTTP 400 Bad Request\n{ success: false, message: 'Invalid file format or size' }
+    FE --> User : 25: Display invalid file alert
+else #F0FFF4 Valid Image File
+    Svc -> Storage : 26: uploadFile(tenant/{id}/avatars/{userId}_{timestamp}.png, bytes)
+    activate Storage
+    Storage --> Svc : 27: Return public avatarUrl
+    deactivate Storage
+
+    Svc -> DB : 28: update user_profiles set avatar_url = :avatarUrl where user_id = :userId
+    activate DB
+    DB --> Svc : 29: Persisted record updated
+    deactivate DB
+
+    Svc --> Ctrl : 30: Return AvatarUploadResponse(avatarUrl, fileSize, uploadedAt)
+    deactivate Svc
+
+    Ctrl --> FE : 31: HTTP 200 OK\n{ success: true, message: 'Avatar uploaded successfully', data: AvatarUploadResponse }
+    deactivate Ctrl
+
+    FE --> User : 32: Update and render new avatar in UI
+end
+deactivate Sec
+
+@enduml

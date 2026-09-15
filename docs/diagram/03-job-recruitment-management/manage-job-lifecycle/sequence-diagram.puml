@@ -1,0 +1,49 @@
+@startuml
+!include ../sequence-style.puml
+actor Recruiter
+boundary "Tenant Web" as Web
+control "TenantWebInterceptor" as Interceptor
+control "JobLifecycleController" as Controller
+control "JobLifecycleServiceImpl" as Service
+control "JobPublicationPolicy" as Policy
+entity "JobRepository" as JobRepo
+entity "JobStatusHistoryRepository" as HistoryRepo
+database "Tenant DB" as DB
+collections "Public Job Cache" as Cache
+queue "job.events" as Events
+
+Recruiter -> Web: 1. Request lifecycle action
+Web -> Interceptor: 2. POST /api/v1/jobs/{id}/{action}
+activate Interceptor
+Interceptor -> Interceptor: 3. Authenticate, authorize, set tenant
+Interceptor -> Controller: 4. transition(id, request)
+activate Controller
+Controller -> Service: 5. transition(..., principal)
+activate Service
+Service -> JobRepo: 6. findAuthorized(id, principal)
+JobRepo -> DB: 7. SELECT job with version
+DB --> JobRepo: 8. Job or empty
+Service -> Policy: 9. Validate transition and publish readiness
+Policy --> Service: 10. Validation result
+alt Missing job, invalid transition or incomplete configuration
+  Service --> Controller: 11a. Domain error
+  Controller --> Web: 12a. 404/409/422
+else Transition allowed
+  Service -> Service: 11b. Apply state transition and timestamps
+  Service -> JobRepo: 12b. save(job)
+  Service -> HistoryRepo: 13. save(statusHistory)
+  JobRepo -> DB: 14. UPDATE jobs
+  HistoryRepo -> DB: 15. INSERT job_status_history
+  DB --> Service: 16. Transaction committed
+  Service -> Cache: 17. Evict public/search views
+  Service -> Events: 18. Publish event + tenant header
+  Service --> Controller: 19. JobStatusResponse
+  Controller --> Web: 20. 200 OK
+end
+deactivate Service
+deactivate Controller
+Interceptor -> Interceptor: 21. Clear TenantContext in finally
+deactivate Interceptor
+Web --> Recruiter: 22. Show current state or error
+@enduml
+

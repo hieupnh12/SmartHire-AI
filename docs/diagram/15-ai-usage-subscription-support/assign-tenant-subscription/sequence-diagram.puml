@@ -1,0 +1,97 @@
+﻿@startuml
+autonumber
+hide footbox
+skinparam dpi 300
+skinparam shadowing false
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam sequenceMessageAlign center
+skinparam roundcorner 6
+
+actor "Workspace Admin" as Admin
+participant "Admin Portal UI" as UI
+participant "Spring Security" as Sec
+participant "TenantSubscriptionController" as Ctrl
+participant "TenantSubscriptionService" as Svc
+participant "TenantSubscriptionRepository" as SubRepo
+participant "SubscriptionPlanRepository" as PlanRepo
+participant "InvoiceRepository" as InvRepo
+participant "RedisQuotaService" as Redis
+database "Master PostgreSQL" as DB
+queue "RabbitMQ Exchange" as MQ
+
+Admin -> UI: 1 Select Tenant & Click "Đổi Gói Dịch Vụ" (Change Plan)
+activate Admin
+activate UI
+
+UI -> Sec: 2 POST /api/v1/master/tenants/{id}/subscription (Payload: newPlanId)
+activate Sec
+Sec -> Ctrl: 3 Authorized request (WORKSPACE_ADMIN)
+activate Ctrl
+
+Ctrl -> Svc: 4 changePlan(tenantId, request)
+activate Svc
+
+Svc -> PlanRepo: 5 findById(newPlanId)
+activate PlanRepo
+PlanRepo -> DB: 6 SELECT * FROM subscription_plans WHERE id = ?
+activate DB
+DB --> PlanRepo: 7 SubscriptionPlan
+deactivate DB
+PlanRepo --> Svc: 8 newPlan (maxJobs, maxCv, maxAiHours)
+deactivate PlanRepo
+
+Svc -> SubRepo: 9 findActiveByTenantId(tenantId)
+activate SubRepo
+SubRepo -> DB: 10 SELECT * FROM tenant_subscriptions WHERE tenant_id = ? AND status = 'ACTIVE'
+activate DB
+DB --> SubRepo: 11 activeSubscription
+deactivate DB
+SubRepo --> Svc: 12 currentSub
+deactivate SubRepo
+
+opt Active Subscription Exists
+    Svc -> Svc: 13 currentSub.setStatus(UPGRADED)
+    Svc -> SubRepo: 14 save(currentSub)
+    activate SubRepo
+    SubRepo -> DB: 15 UPDATE tenant_subscriptions SET status = 'UPGRADED'
+    activate DB
+    DB --> SubRepo: 16 updated
+    deactivate DB
+    deactivate SubRepo
+end
+
+Svc -> SubRepo: 17 save(newTenantSubscription: ACTIVE)
+activate SubRepo
+SubRepo -> DB: 18 INSERT INTO tenant_subscriptions (...) VALUES (...)
+activate DB
+DB --> SubRepo: 19 newSubscription
+deactivate DB
+SubRepo --> Svc: 20 persistedSub
+deactivate SubRepo
+
+Svc -> InvRepo: 21 save(new Invoice: amount, status='PENDING')
+activate InvRepo
+InvRepo -> DB: 22 INSERT INTO invoices (...)
+activate DB
+DB --> InvRepo: 23 savedInvoice
+deactivate DB
+deactivate InvRepo
+
+Svc -> Redis: 24 updateQuotaLimit(tenantCode, maxJobs, maxCv, maxAiHours)
+activate Redis
+Redis -> Redis: 25 HSET tenant:{code}:quota:limits max_jobs, max_cv, max_ai
+Redis --> Svc: 26 limits cached
+deactivate Redis
+
+Svc -> MQ: 27 publish(TenantQuotaSyncEvent: tenantId, quotas)
+Svc --> Ctrl: 28 TenantSubscriptionResponse
+Ctrl --> UI: 29 200 OK (ApiResponse<TenantSubscriptionResponse>)
+UI --> Admin: 30 Render updated subscription badge & new quota limits
+
+deactivate Svc
+deactivate Ctrl
+deactivate Sec
+deactivate UI
+deactivate Admin
+@enduml

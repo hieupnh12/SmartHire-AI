@@ -1,0 +1,16 @@
+skinparam dpi 300
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam sequenceArrowThickness 1
+skinparam sequence {
+  ArrowColor #2D3748
+  ActorBorderColor #2D3748
+  LifeLineBorderColor #2D3748
+  ParticipantBorderColor #2D3748
+  ParticipantBackgroundColor #FFFFFF
+  BoxBorderColor #A0AEC0
+}
+hide footbox
+

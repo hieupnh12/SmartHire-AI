@@ -1,0 +1,44 @@
+@startuml
+!include ../sequence-style.puml
+actor Recruiter
+boundary "Tenant Web" as Web
+control "TenantWebInterceptor" as Interceptor
+control "SelectionPlanController" as Controller
+control "SelectionPlanServiceImpl" as Service
+entity "RecruitmentPipelineRepository" as PipelineRepo
+entity "AssessmentRepository" as AssessmentRepo
+entity "SelectionPlanRepository" as PlanRepo
+database "Tenant DB" as DB
+
+Recruiter -> Web: 1. Submit assessment and interview plan
+Web -> Interceptor: 2. PUT /api/v1/jobs/{id}/selection-plan
+activate Interceptor
+Interceptor -> Interceptor: 3. Authenticate, authorize, set tenant
+Interceptor -> Controller: 4. configure(jobId, request)
+activate Controller
+Controller -> Service: 5. configure(..., principal)
+activate Service
+Service -> PipelineRepo: 6. Load authorized pipeline
+PipelineRepo -> DB: 7. Query job stages
+DB --> PipelineRepo: 8. Pipeline or empty
+Service -> AssessmentRepo: 9. findAllPublished(assessmentIds)
+AssessmentRepo -> DB: 10. Query published assessments
+DB --> AssessmentRepo: 11. Assessments
+Service -> Service: 12. Validate stage types, scores, rounds and duration
+alt Invalid references or plan
+  Service --> Controller: 13a. Validation error
+  Controller --> Web: 14a. 404/422
+else Valid plan
+  Service -> PlanRepo: 13b. save(selectionPlan)
+  PlanRepo -> DB: 14b. Persist plan atomically
+  DB --> PlanRepo: 15. Saved plan
+  Service --> Controller: 16. SelectionPlanResponse
+  Controller --> Web: 17. 200 OK
+end
+deactivate Service
+deactivate Controller
+Interceptor -> Interceptor: 18. Clear TenantContext in finally
+deactivate Interceptor
+Web --> Recruiter: 19. Show plan or validation errors
+@enduml
+

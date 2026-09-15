@@ -1,0 +1,156 @@
+@startuml
+
+skinparam dpi 300
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam sequenceArrowThickness 1
+skinparam sequenceMessageAlign center
+skinparam ArrowColor #64748B
+skinparam ParticipantBorderColor #CBD5E1
+skinparam ParticipantBackgroundColor #F8FAFC
+skinparam ActorBorderColor #3B82F6
+skinparam ActorBackgroundColor #EFF6FF
+skinparam DatabaseBorderColor #94A3B8
+skinparam DatabaseBackgroundColor #F8FAFC
+hide footbox
+autonumber
+
+actor "Workspace Admin" as Admin
+boundary "Master Admin UI" as UI
+control "Spring Security" as Security
+boundary "MasterTenantController" as Controller
+control "MasterTenantService" as MasterService
+control "TenantProvisioningService" as Provisioner
+database "Master PostgreSQL" as MasterDB
+database "Dedicated Tenant MySQL" as TenantDB
+control "Flyway" as Flyway
+
+note over Admin,Security
+  Retry endpoint requires WORKSPACE_ADMIN role bearer token.
+  Retries interrupted or FAILED tenant provisioning without data loss.
+end note
+
+Admin -> UI: Click "Cấp phát lại" (Retry Provisioning) & confirm admin credentials
+activate UI
+UI -> Security: POST /api/v1/master/tenants/{id}/retry\n{adminName, adminEmail, adminPassword}
+activate Security
+
+alt Unauthenticated or insufficient permission
+  Security --> UI: 401 Unauthorized / 403 Forbidden
+  deactivate Security
+  UI --> Admin: Show access error notification
+else Authorized Workspace Admin
+  Security -> Controller: Forward retry request
+  activate Controller
+  deactivate Security
+
+  Controller -> MasterService: retryProvisioning(id, request)
+  activate MasterService
+
+  MasterService -> Provisioner: provision(id, request)
+  activate Provisioner
+
+  Provisioner -> MasterDB: SELECT pg_try_advisory_lock(id)
+  activate MasterDB
+  MasterDB --> Provisioner: lockResult (true or false)
+  deactivate MasterDB
+
+  alt Lock cannot be acquired (provisioning already in progress)
+    Provisioner --> MasterService: BusinessException(409, "PROVISIONING_IN_PROGRESS")
+    MasterService --> Controller: Conflict error
+    Controller --> UI: 409 Conflict\n"Provisioning is already running for this tenant"
+    UI --> Admin: Show in-progress notification
+  else Lock acquired successfully
+    Provisioner -> MasterDB: findById(id)
+    activate MasterDB
+    MasterDB --> Provisioner: TenantInfo
+    deactivate MasterDB
+
+    alt Tenant status is neither FAILED nor PROVISIONING (e.g., already ACTIVE)
+      Provisioner -> MasterDB: SELECT pg_advisory_unlock(id)
+      activate MasterDB
+      MasterDB --> Provisioner: Lock released
+      deactivate MasterDB
+      Provisioner --> MasterService: BusinessException(409, "INVALID_TENANT_STATE")
+      MasterService --> Controller: Invalid state error
+      Controller --> UI: 409 Conflict\n"Only incomplete or failed tenants can be retried"
+      UI --> Admin: Show invalid state alert
+    else Tenant is in FAILED or PROVISIONING state
+      Provisioner -> MasterDB: UPDATE tenants SET status = 'PROVISIONING'
+      activate MasterDB
+      MasterDB --> Provisioner: Updated
+      deactivate MasterDB
+
+      alt Managed database mode
+        Provisioner -> TenantDB: CREATE DATABASE IF NOT EXISTS & CREATE USER IF NOT EXISTS
+        activate TenantDB
+        TenantDB --> Provisioner: Database & user ready
+        deactivate TenantDB
+      end
+
+      Provisioner -> Flyway: Apply pending migrations via temporary Hikari pool
+      activate Flyway
+      Flyway -> TenantDB: Run incremental migration scripts
+      activate TenantDB
+      TenantDB --> Flyway: Schema at latest version
+      deactivate TenantDB
+      Flyway --> Provisioner: Migrations finished
+      deactivate Flyway
+
+      Provisioner -> TenantDB: Query: SELECT role FROM users WHERE email = ?
+      activate TenantDB
+      TenantDB --> Provisioner: Existing user check result
+      deactivate TenantDB
+
+      alt Administrator user already exists
+        note over Provisioner,TenantDB
+          Preserves existing admin credentials without overwriting.
+        end note
+      else Administrator user does not exist
+        Provisioner -> TenantDB: INSERT INTO users (email, password_hash, full_name, role, status)
+        activate TenantDB
+        TenantDB --> Provisioner: Admin seeded successfully
+        deactivate TenantDB
+      end
+
+      alt Provisioning exception occurs during steps
+        Provisioner -> MasterDB: UPDATE tenants SET status = 'FAILED'
+        activate MasterDB
+        MasterDB --> Provisioner: Status FAILED persisted
+        deactivate MasterDB
+        Provisioner -> MasterDB: SELECT pg_advisory_unlock(id)
+        activate MasterDB
+        MasterDB --> Provisioner: Lock released
+        deactivate MasterDB
+        Provisioner --> MasterService: BusinessException(503, "TENANT_PROVISIONING_FAILED")
+        MasterService --> Controller: Provisioning failed error
+        Controller --> UI: 503 Service Unavailable\n"Provisioning failed; check logs and retry"
+        UI --> Admin: Show provisioning failure notification
+      else All provisioning steps succeed
+        Provisioner -> MasterDB: UPDATE tenants SET status = 'ACTIVE'
+        activate MasterDB
+        MasterDB --> Provisioner: Status ACTIVE persisted
+        deactivate MasterDB
+
+        Provisioner -> MasterDB: SELECT pg_advisory_unlock(id)
+        activate MasterDB
+        MasterDB --> Provisioner: Lock released
+        deactivate MasterDB
+
+        Provisioner --> MasterService: Active TenantInfo
+        deactivate Provisioner
+
+        MasterService --> Controller: Active TenantInfo
+        deactivate MasterService
+
+        Controller --> UI: 200 OK with TenantResponse
+        deactivate Controller
+
+        UI --> Admin: Show green ACTIVE badge and success alert
+        deactivate UI
+      end
+    end
+  end
+end
+
+@enduml

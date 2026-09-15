@@ -1,0 +1,85 @@
+@startuml
+!include ../class-style.puml
+package "Controller Layer" #EEF6FF {
+  class JobController <<Controller>> {
+    - jobService: JobCommandService
+  + update(id: Long, request: UpdateJobRequest): ApiResponse<JobResponse>
+  }
+  }
+package "DTO Layer" #FFF8EF {
+  class UpdateJobRequest <<Request>> {
+    + title: String
+    + description: String
+    + responsibilities: List<String>
+    + benefits: List<String>
+    + headcount: int
+    + deadline: LocalDate
+    + expectedVersion: long
+  }
+  class JobResponse <<Response>> {
+    + id: Long
+    + status: JobStatus
+    + version: long
+  }
+  class JobUpdatedEvent <<Domain Event>> {
+    + jobId: Long
+    + changedFields: Set<String>
+  }
+}
+package "Service Layer" #EFFBF4 {
+  interface JobCommandService <<Service>> {
+    + update(id: Long, request: UpdateJobRequest, principal: Principal): JobResponse
+  }
+  class JobCommandServiceImpl <<Service>> {
+    - jobRepository: JobRepository
+    - eventPublisher: JobEventPublisher
+    + update(id: Long, request: UpdateJobRequest, principal: Principal): JobResponse
+  }
+}
+package "Repository Layer" #F5F3FF {
+  interface JobRepository <<Repository>> {
+    + findAuthorized(id: Long, principal: Principal): Optional<Job>
+  + save(job: Job): Job
+  }
+  }
+package "Domain Entity Layer" #F0FBF5 {
+  class Job <<Entity>> {
+    - id: Long
+  - status: JobStatus
+  - version: long
+  + updateDetails(request: UpdateJobRequest): void
+  }
+ enum JobStatus <<Enum>> {
+   DRAFT
+   PUBLISHED
+   PAUSED
+   CLOSED
+ }
+}
+package "Infrastructure & Persistence" #FFFCEE {
+  interface JobEventPublisher <<Message Publisher>> {
+    + publish(event: JobUpdatedEvent, tenantId: String): void
+  }
+  class TenantContext <<ThreadLocal>> {
+    + getCurrentTenant(): String
+  }
+  class "Dedicated Tenant MySQL DB" as TenantDb <<Database>> {
+    + jobs
+  }
+  class JobCache <<Cache>> {
+    + evict(jobId: Long): void
+  }
+}
+JobController --> JobCommandService : delegates >
+JobController ..> UpdateJobRequest : consumes >
+JobController ..> JobResponse : returns >
+JobCommandServiceImpl ..|> JobCommandService : implements
+JobCommandServiceImpl --> JobRepository : manages >
+JobCommandServiceImpl ..> JobUpdatedEvent : creates >
+JobCommandServiceImpl --> JobEventPublisher : publishes event >
+JobCommandServiceImpl --> JobCache : evicts >
+JobCommandServiceImpl --> TenantContext : enforces tenant scope >
+JobRepository --> Job : manages >
+Job --> JobStatus : typed by >
+JobRepository --> TenantDb : persists to >
+@enduml
