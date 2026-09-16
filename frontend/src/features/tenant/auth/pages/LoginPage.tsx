@@ -33,7 +33,8 @@ const loginSchema = z.object({
 type LoginForm = z.infer<typeof loginSchema>;
 
 function homeForRole(role?: string) {
-  if (role === "ADMIN" || role === "TENANT_ADMIN" || role === "RECRUITER") return "/recruiter";
+  if (role === "ADMIN" || role === "TENANT_ADMIN") return "/tenant/admin";
+  if (role === "RECRUITER") return "/recruiter";
   return "/candidate";
 }
 
@@ -64,7 +65,7 @@ export function LoginPage() {
 
       const user = res.data.user;
       if (user) {
-        setUser(user as any);
+        setUser(user);
       }
 
       const role = user?.role || "TENANT_ADMIN";

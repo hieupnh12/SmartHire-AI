@@ -1,0 +1,94 @@
+@startuml
+!include ../class-style.puml
+package "Controller Layer" #EEF6FF {
+  class JobCloneController <<Controller>> {
+    - cloneService: JobCloneService
+  + cloneJob(id: Long, request: CloneJobRequest): ApiResponse<JobResponse>
+  + createFromTemplate(id: Long, request: CloneJobRequest): ApiResponse<JobResponse>
+  }
+  }
+package "DTO Layer" #FFF8EF {
+  class CloneJobRequest <<Request>> {
+    + title: String
+    + departmentId: Long
+    + recruiterId: Long
+    + deadline: LocalDate
+  }
+  class JobResponse <<Response>> {
+    + id: Long
+    + status: JobStatus
+  }
+}
+package "Service Layer" #EFFBF4 {
+  interface JobCloneService <<Service>> {
+    + cloneJob(sourceId: Long, request: CloneJobRequest, principal: Principal): JobResponse
+    + createFromTemplate(templateId: Long, request: CloneJobRequest, principal: Principal): JobResponse
+  }
+  class JobCloneServiceImpl <<Service>> {
+    - jobRepository: JobRepository
+    - templateRepository: JobTemplateRepository
+    + cloneJob(sourceId: Long, request: CloneJobRequest, principal: Principal): JobResponse
+    + createFromTemplate(templateId: Long, request: CloneJobRequest, principal: Principal): JobResponse
+  }
+}
+package "Repository Layer" #F5F3FF {
+  interface JobRepository <<Repository>> {
+    + findCloneSource(id: Long, principal: Principal): Optional<Job>
+    + save(job: Job): Job
+  }
+  interface JobTemplateRepository <<Repository>> {
+    + findAuthorized(id: Long): Optional<JobTemplate>
+  }
+}
+package "Domain Entity Layer" #F0FBF5 {
+  class Job <<Entity>> {
+    - id: Long
+    - title: String
+    - status: JobStatus
+    + copyAsDraft(overrides: CloneJobRequest): Job
+  }
+  class JobTemplate <<Entity>> {
+    - id: Long
+    - name: String
+    + instantiate(overrides: CloneJobRequest): Job
+  }
+  class JobSkillRequirement <<Entity>> {
+    - required: boolean
+    - weight: Decimal
+  }
+  class RecruitmentStage <<Entity>> {
+    - name: String
+    - sortOrder: int
+  }
+  enum JobStatus <<Enum>> {
+    DRAFT
+  }
+}
+package "Infrastructure & Persistence" #FFFCEE {
+  class TenantContext <<ThreadLocal>> {
+    + getCurrentTenant(): String
+  }
+ class "Dedicated Tenant MySQL DB" as TenantDb <<Database>> {
+    + jobs
+  + job_templates
+  + job_skills
+  + recruitment_stages
+  }
+  }
+JobCloneController --> JobCloneService : delegates >
+JobCloneController ..> CloneJobRequest : consumes >
+JobCloneController ..> JobResponse : returns >
+JobCloneServiceImpl ..|> JobCloneService : implements
+JobCloneServiceImpl --> JobRepository : manages >
+JobCloneServiceImpl --> JobTemplateRepository : queries >
+JobCloneServiceImpl --> TenantContext : enforces tenant scope >
+JobTemplate ..> Job : creates draft >
+Job *-- "0..*" JobSkillRequirement : copies configuration >
+Job *-- "1..*" RecruitmentStage : copies pipeline >
+Job --> JobStatus : typed by >
+JobRepository --> Job : manages >
+JobTemplateRepository --> JobTemplate : manages >
+JobRepository --> TenantDb : persists to >
+JobTemplateRepository --> TenantDb : reads from >
+@enduml
+

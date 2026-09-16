@@ -1,0 +1,84 @@
+@startuml
+!include ../class-style.puml
+package "Controller Layer" #EEF6FF {
+  class JobController <<Controller>> {
+    - jobService: JobDeletionService
+  + delete(id: Long): ApiResponse<Void>
+  }
+  }
+package "DTO Layer" #FFF8EF {
+  class JobDeletedEvent <<Domain Event>> {
+    + jobId: Long
+  + mode: DeletionMode
+  }
+  }
+package "Service Layer" #EFFBF4 {
+  interface JobDeletionService <<Service>> {
+    + delete(id: Long, principal: Principal): void
+  }
+  class JobDeletionServiceImpl <<Service>> {
+    - jobRepository: JobRepository
+    - applicationRepository: ApplicationRepository
+    - publisher: JobEventPublisher
+    + delete(id: Long, principal: Principal): void
+  }
+}
+package "Repository Layer" #F5F3FF {
+  interface JobRepository <<Repository>> {
+    + findAuthorized(id: Long, principal: Principal): Optional<Job>
+    + delete(job: Job): void
+    + save(job: Job): Job
+  }
+  interface ApplicationRepository <<Repository>> {
+    + existsByJobId(jobId: Long): boolean
+  }
+}
+package "Domain Entity Layer" #F0FBF5 {
+  class Job <<Entity>> {
+    - id: Long
+    - status: JobStatus
+    - deletedAt: Instant
+    + archive(): void
+  }
+  class Application <<Entity>> {
+    - id: Long
+  }
+  enum DeletionMode <<Enum>> {
+    HARD_DELETE
+    SOFT_DELETE
+  }
+  enum JobStatus <<Enum>> {
+    DRAFT
+    PUBLISHED
+    PAUSED
+    CLOSED
+    ARCHIVED
+  }
+}
+package "Infrastructure & Persistence" #FFFCEE {
+  interface JobEventPublisher <<Message Publisher>> {
+    + publish(event: JobDeletedEvent, tenantId: String): void
+  }
+  class TenantContext <<ThreadLocal>> {
+    + getCurrentTenant(): String
+  }
+  class "Dedicated Tenant MySQL DB" as TenantDb <<Database>> {
+    + jobs
+    + applications
+  }
+}
+JobController --> JobDeletionService : delegates >
+JobDeletionServiceImpl ..|> JobDeletionService : implements
+JobDeletionServiceImpl --> JobRepository : manages >
+JobDeletionServiceImpl --> ApplicationRepository : checks references >
+JobDeletionServiceImpl ..> JobDeletedEvent : creates >
+JobDeletionServiceImpl --> JobEventPublisher : publishes event >
+JobDeletionServiceImpl --> TenantContext : enforces tenant scope >
+JobRepository --> Job : manages >
+ApplicationRepository --> Application : reads >
+Job "1" <-- "0..*" Application : receives
+Job --> JobStatus : typed by >
+JobDeletedEvent --> DeletionMode : typed by >
+JobRepository --> TenantDb : persists to >
+ApplicationRepository --> TenantDb : reads from >
+@enduml

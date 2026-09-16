@@ -1,0 +1,97 @@
+@startuml
+!include ../class-style.puml
+package "Controller Layer" #EEF6FF {
+  class RecruitmentPipelineController <<Controller>> {
+    - pipelineService: RecruitmentPipelineService
+  + configure(jobId: Long, request: ConfigurePipelineRequest): ApiResponse<PipelineResponse>
+  }
+  }
+package "DTO Layer" #FFF8EF {
+  class ConfigurePipelineRequest <<Request>> {
+    + stages: List<StageInput>
+  }
+  class StageInput <<DTO>> {
+    + id: Long
+    + name: String
+    + type: StageType
+    + sortOrder: int
+    + active: boolean
+  }
+  class PipelineResponse <<Response>> {
+    + jobId: Long
+    + stages: List<StageInput>
+  }
+}
+package "Service Layer" #EFFBF4 {
+  interface RecruitmentPipelineService <<Service>> {
+    + configure(jobId: Long, request: ConfigurePipelineRequest, principal: Principal): PipelineResponse
+  }
+  class RecruitmentPipelineServiceImpl <<Service>> {
+    - pipelineRepository: RecruitmentPipelineRepository
+    - applicationRepository: ApplicationRepository
+    + configure(jobId: Long, request: ConfigurePipelineRequest, principal: Principal): PipelineResponse
+  }
+}
+package "Repository Layer" #F5F3FF {
+  interface RecruitmentPipelineRepository <<Repository>> {
+    + findByJobAuthorized(jobId: Long, principal: Principal): Optional<RecruitmentPipeline>
+    + save(pipeline: RecruitmentPipeline): RecruitmentPipeline
+  }
+  interface ApplicationRepository <<Repository>> {
+    + countByStageIds(ids: Set<Long>): Map<Long,Long>
+  }
+}
+package "Domain Entity Layer" #F0FBF5 {
+  class Job <<Entity>> {
+    - id: Long
+  }
+  class RecruitmentPipeline <<Entity>> {
+    - id: Long
+    + replaceStages(input: List<StageInput>, usage: Map<Long,Long>): void
+    + validate(): void
+  }
+  class RecruitmentStage <<Entity>> {
+    - id: Long
+    - name: String
+    - type: StageType
+    - sortOrder: int
+    - active: boolean
+    + archive(): void
+  }
+  class Application <<Entity>> {
+    - id: Long
+  }
+  enum StageType <<Enum>> {
+    APPLIED
+    SCREENING
+    ASSESSMENT
+    INTERVIEW
+    OFFER
+    HIRED
+    REJECTED
+  }
+}
+package "Infrastructure & Persistence" #FFFCEE {
+  class TenantContext <<ThreadLocal>> {
+    + getCurrentTenant(): String
+  }
+ class "Dedicated Tenant MySQL DB" as TenantDb <<Database>> {
+    + recruitment_pipelines
+  + recruitment_stages
+  + applications
+  }
+  }
+RecruitmentPipelineController --> RecruitmentPipelineService : delegates >
+RecruitmentPipelineController ..> ConfigurePipelineRequest : consumes >
+RecruitmentPipelineController ..> PipelineResponse : returns >
+RecruitmentPipelineServiceImpl ..|> RecruitmentPipelineService : implements
+RecruitmentPipelineServiceImpl --> RecruitmentPipelineRepository : manages >
+RecruitmentPipelineServiceImpl --> ApplicationRepository : checks stage usage >
+RecruitmentPipelineServiceImpl --> TenantContext : enforces tenant scope >
+Job "1" *-- "1" RecruitmentPipeline : owns >
+RecruitmentPipeline "1" *-- "1..*" RecruitmentStage : contains >
+RecruitmentStage --> StageType : typed by >
+Application --> "1" RecruitmentStage : currently at >
+RecruitmentPipelineRepository --> TenantDb : persists to >
+ApplicationRepository --> TenantDb : reads from >
+@enduml

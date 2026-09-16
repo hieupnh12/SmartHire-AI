@@ -1,31 +1,35 @@
 @startuml
-title FE13-F03 — Export Recruitment Analytics\nLayered target application-design viewpoint
 top to bottom direction
 skinparam dpi 300
 skinparam backgroundColor #FFFFFF
 skinparam shadowing false
 skinparam packageStyle rectangle
-skinparam classAttributeIconSize 12
+skinparam roundcorner 6
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam classFontSize 11
+skinparam classAttributeFontSize 10
+skinparam classAttributeIconSize 10
 skinparam linetype ortho
 skinparam ArrowColor #334155
 skinparam ArrowThickness 1
-skinparam ClassBorderColor #64748B
+skinparam ClassBorderColor #2D3748
 skinparam ClassBorderThickness 1
-skinparam ClassBackgroundColor #F8FAFC
-skinparam InterfaceBackgroundColor #F3E8FF
-skinparam PackageBorderColor #475569
+skinparam ClassBackgroundColor #FFFFFF
+skinparam InterfaceBackgroundColor #FFFFFF
+skinparam PackageBorderColor #2D3748
 skinparam PackageBorderThickness 1
 skinparam DefaultFontColor #111827
 skinparam ClassFontColor #111827
 skinparam ClassAttributeFontColor #111827
 
-package "Routing & Boundary" #EFF6FF {
-  class AnalyticsExportRoute <<REST API, conceptual>> {
-    +POST /api/v1/dashboard/exports
-    +GET /api/v1/dashboard/exports/{id}
-  }
+<style>
+classDiagram {
+  class { Padding 5 }
 }
-package "Controller Layer" #EFF6FF {
+</style>
+
+package "Controller Layer" #F7FAFC {
   class AnalyticsExportController <<Controller>> {
     -exportService: AnalyticsExportService
     +createExport(request: ExportAnalyticsRequest): ApiResponse<ExportJobResponse>
@@ -113,27 +117,26 @@ package "Infrastructure & Persistence" #FEFCE8 {
   }
 }
 
-AnalyticsExportRoute -down-> AnalyticsExportController : defines routes
-AnalyticsExportController -down-> AnalyticsExportService : delegates
+AnalyticsExportController -down-> AnalyticsExportService : delegates >
 AnalyticsExportService -[hidden]down-> AnalyticsExportServiceImpl
 AnalyticsExportServiceImpl ..up|> AnalyticsExportService : implements
-AnalyticsExportController ..> ExportAnalyticsRequest : consumes
-AnalyticsExportController ..> ExportJobResponse : returns
-AnalyticsExportServiceImpl ..> ExportAnalyticsRequest : processes
-AnalyticsExportServiceImpl ..> ExportJobResponse : creates
-AnalyticsExportServiceImpl ..> AnalyticsExportMessage : emits
-AnalyticsExportServiceImpl -down-> ExportJobRepository : creates / reads job
-AnalyticsExportServiceImpl --> AnalyticsExportPublisher : publishes task
-AnalyticsExportServiceImpl --> TenantContext : enforces tenant scope
-ExportJobRepository -down-> AnalyticsExportJob : manages
-AnalyticsExportJob --> ExportFormat : typed by
-AnalyticsExportJob --> ExportStatus : has status
-AnalyticsExportJob --> TenantDB : persists to
-AnalyticsExportPublisher --> Queue : tenant header + event
-Queue --> ExportWorker : delivers
-ExportWorker --> TenantContext : restores / clears
-ExportWorker --> TenantDB : loads analytics snapshot
-ExportWorker --> Storage : writes encrypted CSV / PDF
+AnalyticsExportController ..> ExportAnalyticsRequest : consumes >
+AnalyticsExportController ..> ExportJobResponse : returns >
+AnalyticsExportServiceImpl ..> ExportAnalyticsRequest : processes >
+AnalyticsExportServiceImpl ..> ExportJobResponse : creates >
+AnalyticsExportServiceImpl ..> AnalyticsExportMessage : emits >
+AnalyticsExportServiceImpl -down-> ExportJobRepository : persists through >
+AnalyticsExportServiceImpl --> AnalyticsExportPublisher : publishes event >
+AnalyticsExportServiceImpl --> TenantContext : reads tenant scope >
+ExportJobRepository -down-> AnalyticsExportJob : manages >
+AnalyticsExportJob --> ExportFormat : typed by >
+AnalyticsExportJob --> ExportStatus : typed by >
+ExportJobRepository --> TenantDB : persists to >
+AnalyticsExportPublisher --> Queue : publishes event >
+Queue --> ExportWorker : delivers >
+ExportWorker --> TenantContext : restores / clears >
+ExportWorker --> TenantDB : reads / updates >
+ExportWorker --> Storage : writes report >
 ExportAnalyticsRequest -[hidden]right-> ExportJobResponse
 ExportJobResponse -[hidden]right-> AnalyticsExportMessage
 ExportFormat -[hidden]right-> ExportStatus

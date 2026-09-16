@@ -1,31 +1,48 @@
 @startuml
-title FE-09 — Candidate Scoring & Ranking Engine\nTarget application-design viewpoint
-
+top to bottom direction
 skinparam dpi 300
 skinparam backgroundColor #FFFFFF
 skinparam shadowing false
 skinparam packageStyle rectangle
-skinparam classAttributeIconSize 0
-skinparam ArrowColor #64748B
-skinparam ClassBorderColor #CBD5E1
-skinparam ClassBackgroundColor #F8FAFC
-skinparam InterfaceBackgroundColor #EFF6FF
+skinparam roundcorner 6
+skinparam linetype ortho
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam classFontSize 11
+skinparam classAttributeFontSize 10
+skinparam classAttributeIconSize 10
+skinparam ArrowThickness 1
+skinparam ClassBorderThickness 1
+skinparam PackageBorderThickness 1
 skinparam NoteBackgroundColor #FFF7ED
 skinparam NoteBorderColor #FDBA74
+skinparam class {
+  BackgroundColor #FFFFFF
+  BorderColor #2D3748
+  ArrowColor #2D3748
+}
+<style>
+classDiagram {
+  class { Padding 5 }
+}
+</style>
 
-package "Tenant API Layer" #EFF6FF {
-  class RankingController <<REST controller>> {
+package "Controller Layer" #F7FAFC {
+  class RankingController <<Controller>> {
     +getBoard(jobId: Long): RankingBoardResponse
     +recompute(jobId: Long): RankingBoardResponse
     +getOverallScore(applicationId: Long): RankingRowResponse
   }
-  class RankingBoardResponse <<response DTO>> {
+}
+
+package "DTO Layer" #FFFFFF {
+  class RankingBoardResponse <<Response>> {
     +jobId: Long
     +rankingVersion: String
     +calculatedAt: Instant
     +rows: List<RankingRowResponse>
   }
-  class RankingRowResponse <<response DTO>> {
+  class RankingRowResponse <<Response>> {
     +applicationId: Long
     +overallScore: Decimal [0..1]
     +rank: Integer [0..1]
@@ -33,25 +50,7 @@ package "Tenant API Layer" #EFF6FF {
     +reasonCodes: List<String>
     +breakdown: ScoreBreakdown
   }
-}
-
-package "Tenant Ranking Application" #F0FDF4 {
-  class RankingService <<application service>> {
-    +getCurrentBoard(jobId: Long): RankingBoardResponse
-    +recomputeAndPersist(jobId: Long, trigger: RecalculationTrigger): RankingBoardResponse
-  }
-  class RankingCalculator <<domain service>> {
-    +calculate(config, sources): ScoreBreakdown
-    +rank(rows): List<RankingRowResponse>
-  }
-  class RecommendationPolicy <<domain policy>> {
-    +classify(score, completeness, evidence): RecommendationLabel
-    +explain(result): List<String>
-  }
-  class RankingSourceChangedConsumer <<RabbitMQ consumer>> {
-    +onSourceChanged(event: RankingSourceChanged): void
-  }
-  class RankingSourceChanged <<domain event>> {
+  class RankingSourceChanged <<Domain Event>> {
     +tenantId: String
     +jobId: Long
     +applicationId: Long
@@ -61,22 +60,44 @@ package "Tenant Ranking Application" #F0FDF4 {
   }
 }
 
-package "Tenant Ranking Persistence (Dedicated MySQL DB)" #FEFCE8 {
-  interface RankingDataRepository <<tenant-scoped repository>> {
+package "Service Layer" #FFFFFF {
+  interface RankingService <<Service>> {
+    +getCurrentBoard(jobId: Long): RankingBoardResponse
+    +recomputeAndPersist(jobId: Long, trigger: RecalculationTrigger): RankingBoardResponse
+  }
+  class RankingServiceImpl <<Service>> {
+    +getCurrentBoard(jobId: Long): RankingBoardResponse
+    +recomputeAndPersist(jobId: Long, trigger: RecalculationTrigger): RankingBoardResponse
+  }
+  class RankingCalculator <<Service>> {
+    +calculate(config, sources): ScoreBreakdown
+    +rank(rows): List<RankingRowResponse>
+  }
+  class RecommendationPolicy <<Service>> {
+    +classify(score, completeness, evidence): RecommendationLabel
+    +explain(result): List<String>
+  }
+}
+
+package "Repository Layer" #FFFFFF {
+  interface RankingDataRepository <<Repository>> {
     +loadJobData(jobId: Long): RankingInput
   }
-  interface RankingSnapshotRepository <<tenant-scoped repository>> {
+  interface RankingSnapshotRepository <<Repository>> {
     +replaceJobSnapshots(jobId: Long, version: String, snapshots): void
     +findLatestByJob(jobId: Long): List<RankingSnapshot>
   }
-  entity RankingConfig <<entity>> {
+}
+
+package "Domain Entity Layer" #FFFFFF {
+  entity RankingConfig <<Entity>> {
     +jobId: Long
     +componentWeights: JSON
     +skillGroupWeights: JSON
     +revision: Long
     +algorithmVersion: String
   }
-  entity RankingSnapshot <<target entity>> {
+  entity RankingSnapshot <<Entity>> {
     +id: Long
     +jobId: Long
     +applicationId: Long
@@ -89,40 +110,44 @@ package "Tenant Ranking Persistence (Dedicated MySQL DB)" #FEFCE8 {
     +sourceFingerprint: String
     +calculatedAt: Instant
   }
-  entity Application <<entity>> {
+  entity Application <<Entity>> {
     +id: Long
     +status: ApplicationStatus
   }
-  enum RecommendationLabel <<target enumeration>> {
+  enum RecommendationLabel <<Enum>> {
     STRONG_FIT
     REVIEW
     NOT_RECOMMENDED
   }
 }
 
-package "Tenant Event Infrastructure" #FAF5FF {
-  class "ranking.source.changed" as SourceQueue <<RabbitMQ queue>>
-  class "Tenant MySQL DB" as TenantDB <<database>>
+package "Infrastructure & Persistence" #F7FAFC {
+  class RankingSourceChangedConsumer <<Queue Consumer>> {
+    +onSourceChanged(event: RankingSourceChanged): void
+  }
+  class "ranking.source.changed" as SourceQueue <<Queue>>
+  class "Dedicated Tenant MySQL DB" as TenantDB <<Database>>
 }
 
-RankingController --> RankingService : delegates
-RankingController ..> RankingBoardResponse : produces
+RankingController --> RankingService : delegates >
+RankingController ..> RankingBoardResponse : returns >
 RankingBoardResponse *-- "1..*" RankingRowResponse : contains
-RankingRowResponse --> RecommendationLabel : classified as
-RankingService --> RankingCalculator : calculates and ranks
-RankingService --> RecommendationPolicy : classifies and explains
-RankingService --> RankingDataRepository : loads current sources
-RankingService --> RankingSnapshotRepository : replaces snapshots
-RankingSourceChangedConsumer --> RankingService : requests recalculation
-RankingSourceChangedConsumer ..> RankingSourceChanged : consumes
-SourceQueue ..> RankingSourceChangedConsumer : delivers asynchronously
-RankingDataRepository ..> Application : reads candidates
-RankingDataRepository ..> RankingConfig : reads configuration
-RankingSnapshotRepository ..> RankingSnapshot : manages
+RankingRowResponse --> RecommendationLabel : typed by >
+RankingServiceImpl ..up|> RankingService : implements
+RankingServiceImpl --> RankingCalculator : delegates calculation >
+RankingServiceImpl --> RecommendationPolicy : applies policy >
+RankingServiceImpl --> RankingDataRepository : queries >
+RankingServiceImpl --> RankingSnapshotRepository : persists through >
+RankingSourceChangedConsumer --> RankingService : delegates >
+RankingSourceChangedConsumer ..> RankingSourceChanged : consumes >
+SourceQueue ..> RankingSourceChangedConsumer : delivers >
+RankingDataRepository ..> Application : manages >
+RankingDataRepository ..> RankingConfig : manages >
+RankingSnapshotRepository ..> RankingSnapshot : manages >
 Application "1" -- "0..*" RankingSnapshot : versioned results
-RankingSnapshot --> RecommendationLabel : stores advisory label
-RankingDataRepository --> TenantDB
-RankingSnapshotRepository --> TenantDB
+RankingSnapshot --> RecommendationLabel : typed by >
+RankingDataRepository --> TenantDB : reads from >
+RankingSnapshotRepository --> TenantDB : persists to >
 
 note right of RankingCalculator
   Score = weighted CV/skills, experience,

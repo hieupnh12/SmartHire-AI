@@ -1,0 +1,114 @@
+@startuml
+!include ../class-style.puml
+package "Controller Layer" #EEF6FF {
+  class SelectionPlanController <<Controller>> {
+    - selectionPlanService: SelectionPlanService
+  + configure(jobId: Long, request: ConfigureSelectionPlanRequest): ApiResponse<SelectionPlanResponse>
+  }
+  }
+package "DTO Layer" #FFF8EF {
+  class ConfigureSelectionPlanRequest <<Request>> {
+    + assessments: List<AssessmentPlanInput>
+    + interviews: List<InterviewRoundInput>
+  }
+  class AssessmentPlanInput <<DTO>> {
+    + assessmentId: Long
+    + stageId: Long
+    + passScore: Decimal
+  }
+  class InterviewRoundInput <<DTO>> {
+    + stageId: Long
+    + type: InterviewType
+    + durationMinutes: int
+    + requiredInterviewerRole: UserRole
+  }
+  class SelectionPlanResponse <<Response>> {
+    + jobId: Long
+    + assessmentCount: int
+    + interviewRoundCount: int
+  }
+}
+package "Service Layer" #EFFBF4 {
+  interface SelectionPlanService <<Service>> {
+    + configure(jobId: Long, request: ConfigureSelectionPlanRequest, principal: Principal): SelectionPlanResponse
+  }
+  class SelectionPlanServiceImpl <<Service>> {
+    - planRepository: SelectionPlanRepository
+    - assessmentRepository: AssessmentRepository
+    - pipelineRepository: RecruitmentPipelineRepository
+    + configure(jobId: Long, request: ConfigureSelectionPlanRequest, principal: Principal): SelectionPlanResponse
+  }
+}
+package "Repository Layer" #F5F3FF {
+  interface SelectionPlanRepository <<Repository>> {
+    + save(plan: SelectionPlan): SelectionPlan
+  }
+  interface AssessmentRepository <<Repository>> {
+    + findAllPublished(ids: Set<Long>): List<Assessment>
+  }
+  interface RecruitmentPipelineRepository <<Repository>> {
+    + findByJobAuthorized(jobId: Long, principal: Principal): Optional<RecruitmentPipeline>
+  }
+}
+package "Domain Entity Layer" #F0FBF5 {
+  class Job <<Entity>> {
+    - id: Long
+  }
+  class SelectionPlan <<Entity>> {
+    - id: Long
+    + validateAgainst(pipeline: RecruitmentPipeline): void
+  }
+  class JobAssessmentPlan <<Entity>> {
+    - passScore: Decimal
+  }
+  class JobInterviewPlan <<Entity>> {
+    - type: InterviewType
+    - durationMinutes: int
+    - interviewerRole: UserRole
+  }
+  class Assessment <<Entity>> {
+    - id: Long
+    - status: AssessmentStatus
+  }
+  class RecruitmentPipeline <<Entity>> {
+    - id: Long
+  }
+  class RecruitmentStage <<Entity>> {
+    - id: Long
+    - type: StageType
+  }
+  enum InterviewType <<Enum>> {
+    PHONE
+    VIDEO
+    ONSITE
+    AI
+  }
+}
+package "Infrastructure & Persistence" #FFFCEE {
+  class TenantContext <<ThreadLocal>> {
+    + getCurrentTenant(): String
+  }
+ class "Dedicated Tenant MySQL DB" as TenantDb <<Database>> {
+    + job_selection_plans
+  + job_assessment_plans
+  + job_interview_plans
+  + assessments
+  }
+  }
+SelectionPlanController --> SelectionPlanService : delegates >
+SelectionPlanController ..> ConfigureSelectionPlanRequest : consumes >
+SelectionPlanController ..> SelectionPlanResponse : returns >
+SelectionPlanServiceImpl ..|> SelectionPlanService : implements
+SelectionPlanServiceImpl --> SelectionPlanRepository : persists through >
+SelectionPlanServiceImpl --> AssessmentRepository : validates assessments >
+SelectionPlanServiceImpl --> RecruitmentPipelineRepository : validates stages >
+SelectionPlanServiceImpl --> TenantContext : enforces tenant scope >
+Job "1" *-- "1" SelectionPlan : owns >
+SelectionPlan *-- "0..*" JobAssessmentPlan : contains >
+SelectionPlan *-- "0..*" JobInterviewPlan : contains >
+JobAssessmentPlan --> Assessment : selects >
+JobAssessmentPlan --> RecruitmentStage : scheduled at >
+JobInterviewPlan --> RecruitmentStage : scheduled at >
+SelectionPlanRepository --> TenantDb : persists to >
+AssessmentRepository --> TenantDb : reads from >
+@enduml

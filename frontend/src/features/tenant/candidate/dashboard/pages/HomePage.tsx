@@ -1,8 +1,12 @@
-import { CandidateTaskList } from "@/features/tenant/candidate/dashboard/components/CandidateTaskList";
-import { CandidateStatsGrid } from "@/features/tenant/candidate/dashboard/components/CandidateStatsGrid";
-import { CandidateWelcomePanel } from "@/features/tenant/candidate/dashboard/components/CandidateWelcomePanel";
+import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
+import "../dashboard.css";
+import { DashboardReveal } from "../components/DashboardReveal";
 import { ApplicationStatusTimeline } from "@/features/tenant/candidate/dashboard/components/ApplicationStatusTimeline";
+import { CandidateStatsGrid } from "@/features/tenant/candidate/dashboard/components/CandidateStatsGrid";
+import { CandidateTaskList } from "@/features/tenant/candidate/dashboard/components/CandidateTaskList";
+import { CandidateWelcomePanel } from "@/features/tenant/candidate/dashboard/components/CandidateWelcomePanel";
 import { UpcomingInterviewCard } from "@/features/tenant/candidate/dashboard/components/UpcomingInterviewCard";
+import { CandidateQuickLinks } from "@/features/tenant/candidate/dashboard/components/CandidateQuickLinks";
 import {
   candidateApplicationStages,
   candidateStats,
@@ -10,28 +14,29 @@ import {
   FEATURED_APPLICATION_ROLE,
   FEATURED_APPLICATION_STATUS,
 } from "@/features/tenant/candidate/dashboard/constants/candidateDashboard";
-import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 
 export function HomePage() {
   const user = useAuthStore((s) => s.user);
 
   return (
-    <section className="space-y-6">
-      <div className="grid gap-4 lg:grid-cols-[1.4fr_0.6fr]">
-        <CandidateWelcomePanel candidateName={user?.fullName} />
-        <UpcomingInterviewCard />
+    <section className="candidate-dashboard space-y-8" aria-labelledby="candidate-dashboard-title">
+      <CandidateWelcomePanel candidateName={user?.fullName} />
+      <div className="grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(300px,1fr)]">
+        <CandidateTaskList tasks={candidateTasks} />
+        <div className="min-w-0">
+          <UpcomingInterviewCard />
+        </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_0.9fr]">
+      <div className="grid min-w-0 gap-8 border-t border-[var(--color-border-default)] pt-8 lg:grid-cols-[minmax(0,2fr)_minmax(300px,1fr)]">
         <ApplicationStatusTimeline
           roleTitle={FEATURED_APPLICATION_ROLE}
           statusLabel={FEATURED_APPLICATION_STATUS}
           stages={candidateApplicationStages}
         />
-        <CandidateTaskList tasks={candidateTasks} />
+        <CandidateStatsGrid stats={candidateStats} />
       </div>
-
-      <CandidateStatsGrid stats={candidateStats} />
+      <DashboardReveal><CandidateQuickLinks /></DashboardReveal>
     </section>
   );
 }

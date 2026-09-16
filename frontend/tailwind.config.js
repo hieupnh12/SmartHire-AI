@@ -24,8 +24,8 @@ export default {
         },
       },
       fontFamily: {
-        display: ["Manrope", "sans-serif"],
-        sans: ["IBM Plex Sans", "sans-serif"],
+        display: ["var(--font-family)"],
+        sans: ["var(--font-family)"],
         mono: ["IBM Plex Mono", "monospace"],
       },
       borderRadius: {

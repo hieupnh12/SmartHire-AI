@@ -3,7 +3,7 @@
 - **Feature:** `FE13`
 - **Function:** `drill-down-analytics`
 - **Góc nhìn:** Application design theo kiến trúc mục tiêu
-- **Trạng thái:** `Complete`
+- **Trạng thái:** `Complete with assumptions`
 
 ## Mục đích và phạm vi
 
@@ -30,7 +30,6 @@ Cho phép Recruiter/Tenant Admin chọn một KPI, funnel stage hoặc data poin
 
 ## Giải thích class và connector
 
-- `DrillDownRoute` là REST boundary khái niệm và có **dependency** `defines routes` tới controller.
 - Controller **dependency** vào request/response DTO và **association** tới `DrillDownService` để ủy quyền.
 - `DrillDownServiceImpl` **realization** (`implements`) service contract và có **association** tới `DrillDownRepository` cùng `TenantContext`. Việc giữ metric semantics, giới hạn role và mask PII được thể hiện là trách nhiệm của implementation thay vì tách thành các helper class làm loãng sơ đồ chính.
 - Repository là port, **dependency** vào `Application` mà nó quản lý và gián tiếp truy cập dedicated tenant database qua các entity.
@@ -56,4 +55,4 @@ Cho phép Recruiter/Tenant Admin chọn một KPI, funnel stage hoặc data poin
 pwsh -File .agents/skills/enterprise-uml-diagram/scripts/render-diagrams.ps1 -InputPath docs/diagram/13-recruitment-dashboard-analytics/drill-down-analytics -ValidateOnly
 ```
 
-Đã tạo `class-diagram.png` và `sequence-diagram.png` bằng PlantUML 1.2026.8. Cả hai file đã được gắn và kiểm tra metadata 300 DPI, đồng thời kiểm tra trực quan để bảo đảm không clipping.
+Đã render lại `class-diagram.png` bằng PlantUML 1.2026.8, xác minh metadata 300 DPI và kiểm tra trực quan không clipping. `sequence-diagram.png` không thay đổi.

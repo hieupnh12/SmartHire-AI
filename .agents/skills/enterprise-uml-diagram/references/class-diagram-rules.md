@@ -27,13 +27,26 @@ Apply the approved enterprise layered style across all class diagrams:
   skinparam defaultFontSize 11
   skinparam classFontSize 11
   skinparam classAttributeFontSize 10
+  skinparam classAttributeIconSize 10
+  skinparam ArrowThickness 1
+  skinparam ClassBorderThickness 1
+  skinparam PackageBorderThickness 1
 
   skinparam class {
       BackgroundColor #FFFFFF
       BorderColor #2D3748
       ArrowColor #2D3748
   }
+
+  <style>
+  classDiagram {
+    class {
+      Padding 5
+    }
+  }
+  </style>
   ```
+- **Member-row spacing:** Keep `classAttributeIconSize` no larger than `classAttributeFontSize`, and keep class `Padding 5` in the CSS `<style>` block (or use a larger value when inspection requires it). This prevents the bottom border and compartment separators from overlapping the final attribute or operation. Do not use deprecated `skinparam Padding` and do not compensate by increasing border thickness.
 - **Stereotype Styling Standards:**
   - Controllers: `<<Controller>>` (`#F7FAFC`, border `#2D3748`)
   - Services: `interface <<Service>>` and `class <<Service>>` (`#FFFFFF`, border `#2D3748`)

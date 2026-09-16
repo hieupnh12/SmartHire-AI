@@ -40,7 +40,7 @@ Function này mô tả kiến trúc đích: tổng hợp CV/kỹ năng, kinh ngh
 ## Trách nhiệm class và quan hệ
 
 - `RankingController` là REST boundary, phụ thuộc (`dependency`) vào `RankingService` và DTO response.
-- `RankingService` điều phối use case, liên kết có hướng (`directed association`) tới calculator, policy và repositories.
+- `RankingServiceImpl` **realization** (`implements`) `RankingService`, đồng thời có association có hướng tới calculator, policy và repositories để điều phối use case.
 - `RankingCalculator` tính weighted/partial score, cohort, tie và rank; `RecommendationPolicy` phân loại và giải thích nhưng không ra quyết định tuyển dụng.
 - `RankingDataRepository` và `RankingSnapshotRepository` là repository tenant-scoped; dependency tới entity thể hiện dữ liệu chúng đọc/quản lý.
 - `RankingBoardResponse` composition (`*--`) nhiều `RankingRowResponse`: row không có ý nghĩa ngoài board trả về.
@@ -48,7 +48,7 @@ Function này mô tả kiến trúc đích: tổng hợp CV/kỹ năng, kinh ngh
 - `RankingSnapshot` association tới `RecommendationLabel` để lưu kết quả tư vấn tại thời điểm tính.
 - Queue có dependency bất đồng bộ tới consumer; event mang tenant header/context thay vì tạo liên kết xuyên tenant.
 
-Không dùng inheritance, realization, aggregation trong sơ đồ vì không có quan hệ nghiệp vụ cần các ký pháp này.
+Không dùng inheritance hoặc aggregation; realization chỉ biểu diễn implementation thực thi service contract.
 
 ## Multi-tenant, bảo mật, transaction và async
 
@@ -62,8 +62,10 @@ Mọi nguồn và snapshot nằm trong dedicated tenant MySQL DB. Request và wo
 
 ## Render
 
-Đã tạo và kiểm tra trực quan `class-diagram.png` và `sequence-diagram.png` ở 300 DPI. Có thể render lại bằng:
+Đã render lại `class-diagram.png` bằng PlantUML 1.2026.8 và xác minh metadata 300 DPI. Có thể kiểm tra source không tạo ảnh bằng:
 
 ```powershell
-.agents/skills/enterprise-uml-diagram/scripts/render-diagrams.ps1 -InputPath docs/diagram/09-candidate-ranking-recommendation/candidate-scoring-ranking-engine -Format Png -PngDpi 300
+.agents/skills/enterprise-uml-diagram/scripts/render-diagrams.ps1 -InputPath docs/diagram/09-candidate-ranking-recommendation/candidate-scoring-ranking-engine -ValidateOnly
 ```
+
+Ảnh đã được kiểm tra trực quan: không clipping, nội dung và connector đọc được ở độ phân giải gốc.

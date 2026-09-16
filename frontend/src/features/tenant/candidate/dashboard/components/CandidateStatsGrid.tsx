@@ -8,27 +8,32 @@ const STAT_ICONS: Record<CandidateStatIcon, typeof BriefcaseBusiness> = {
   practice: Bot,
 };
 
-type CandidateStatsGridProps = {
-  stats: CandidateStat[];
+const STAT_ICON_TONES: Record<CandidateStatIcon, string> = {
+  applications: "bg-teal-50 text-teal-600",
+  cv: "bg-emerald-50 text-emerald-600",
+  practice: "bg-amber-50 text-amber-600",
 };
+
+type CandidateStatsGridProps = { stats: CandidateStat[] };
 
 export function CandidateStatsGrid({ stats }: CandidateStatsGridProps) {
   return (
-    <div className="grid gap-4 sm:grid-cols-3">
+    <section className="min-w-0 rounded-xl border border-[var(--color-border-default)] bg-white p-5 shadow-sm sm:p-6" aria-label="Tổng quan hồ sơ">
+      <h2 className="mb-4 text-lg font-semibold">Tổng quan hồ sơ</h2>
       {stats.map((item) => {
         const Icon = STAT_ICONS[item.icon];
         return (
-          <Card key={item.label} className="flex items-center gap-4">
-            <div className="flex h-11 w-11 items-center justify-center rounded-[8px] bg-[#eff6ff] text-[#2563eb]">
-              <Icon className="h-5 w-5" aria-hidden="true" />
+          <Card key={item.label} className="mb-3 flex items-center gap-4 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-alt)] p-4 shadow-none last:mb-0">
+            <div className={`grid size-12 shrink-0 place-items-center rounded-[var(--radius-md)] ${STAT_ICON_TONES[item.icon]}`}>
+              <Icon className="size-5" aria-hidden="true" />
             </div>
-            <div>
-              <p className="text-xs text-[#64748b]">{item.label}</p>
-              <p className="font-display text-2xl font-bold text-[#0f172a]">{item.value}</p>
+            <div className="min-w-0">
+              <p className="text-sm text-[var(--color-on-surface-variant)]">{item.label}</p>
+              <p className="mt-0.5 text-2xl font-semibold tracking-[-0.02em] text-[var(--color-on-surface)]">{item.value}</p>
             </div>
           </Card>
         );
       })}
-    </div>
+    </section>
   );
 }

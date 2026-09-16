@@ -1,0 +1,44 @@
+@startuml
+!include ../sequence-style.puml
+actor Recruiter
+boundary "Tenant Web" as Web
+control "TenantWebInterceptor" as Interceptor
+control "RecruitmentPipelineController" as Controller
+control "RecruitmentPipelineServiceImpl" as Service
+entity "RecruitmentPipelineRepository" as PipelineRepo
+entity "ApplicationRepository" as AppRepo
+database "Tenant DB" as DB
+
+Recruiter -> Web: 1. Reorder or edit stages
+Web -> Interceptor: 2. PUT /api/v1/jobs/{id}/stages
+activate Interceptor
+Interceptor -> Interceptor: 3. Authenticate, authorize, set tenant
+Interceptor -> Controller: 4. configure(jobId, request)
+activate Controller
+Controller -> Service: 5. configure(..., principal)
+activate Service
+Service -> PipelineRepo: 6. findByJobAuthorized(jobId, principal)
+PipelineRepo -> DB: 7. Load pipeline and stages
+DB --> PipelineRepo: 8. Pipeline or empty
+Service -> AppRepo: 9. countByStageIds(removedStageIds)
+AppRepo -> DB: 10. Count applications per stage
+DB --> AppRepo: 11. Usage map
+Service -> Service: 12. Validate order, initial/final stages and usage
+alt Invalid pipeline
+  Service --> Controller: 13a. Validation error
+  Controller --> Web: 14a. 404/422
+else Valid pipeline
+  Service -> Service: 13b. Archive used removed stages; replace others
+  Service -> PipelineRepo: 14b. save(pipeline)
+  PipelineRepo -> DB: 15. Persist stages atomically
+  DB --> PipelineRepo: 16. Saved pipeline
+  Service --> Controller: 17. PipelineResponse
+  Controller --> Web: 18. 200 OK
+end
+deactivate Service
+deactivate Controller
+Interceptor -> Interceptor: 19. Clear TenantContext in finally
+deactivate Interceptor
+Web --> Recruiter: 20. Render pipeline or error
+@enduml
+
