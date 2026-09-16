@@ -33,11 +33,11 @@ Function này bao gồm cấu hình trọng số/threshold có revision, recompu
 ## Trách nhiệm class và quan hệ
 
 - Controller phụ thuộc DTO và điều phối hai service application.
-- `RankingConfigurationService` association tới config repository và ranking service để bảo đảm config–snapshot nhất quán.
-- `FairnessMonitoringService` association tới policy và report repository.
+- `RankingConfigurationServiceImpl` **realization** (`implements`) `RankingConfigurationService`, rồi association tới config repository và ranking service để bảo đảm config–snapshot nhất quán.
+- `FairnessMonitoringServiceImpl` **realization** (`implements`) `FairnessMonitoringService`, rồi association tới policy và report repository.
 - Hai repository có dependency tới entity mà chúng quản lý, đều tenant-scoped.
 - `FairnessReport` composition (`*--`) metrics và alerts vì các value object này thuộc lifecycle của report.
-- Không dùng inheritance, realization hay aggregation do không có subtype/shared-lifecycle phù hợp.
+- Không dùng inheritance hay aggregation; realization chỉ biểu diễn implementation thực thi service contract.
 
 ## Multi-tenant, security, transaction, async và privacy
 
@@ -49,4 +49,4 @@ Fairness service/report/API, thresholds trong config, audit config và snapshot-
 
 ## Render
 
-Đã tạo và kiểm tra trực quan `class-diagram.png` và `sequence-diagram.png` ở 300 DPI. Dùng script render của skill với `-Format Png -PngDpi 300` để tạo lại khi source thay đổi.
+Đã render lại `class-diagram.png` bằng PlantUML 1.2026.8, xác minh metadata 300 DPI và kiểm tra trực quan không clipping. Dùng script của skill với `-ValidateOnly` để kiểm tra source mà không tạo ảnh.

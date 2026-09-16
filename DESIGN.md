@@ -54,52 +54,52 @@ colors:
   container-neutral: rgba(100, 116, 139, 0.05)
 typography:
   headline-lg:
-    fontFamily: Hanken Grotesk
+    fontFamily: Inter
     fontSize: 30px
     fontWeight: '600'
     lineHeight: 38px
     letterSpacing: -0.02em
   headline-md:
-    fontFamily: Hanken Grotesk
+    fontFamily: Inter
     fontSize: 24px
     fontWeight: '600'
     lineHeight: 32px
     letterSpacing: -0.02em
   headline-sm:
-    fontFamily: Hanken Grotesk
+    fontFamily: Inter
     fontSize: 18px
     fontWeight: '600'
     lineHeight: 26px
     letterSpacing: -0.01em
   body-lg:
-    fontFamily: Hanken Grotesk
+    fontFamily: Inter
     fontSize: 16px
     fontWeight: '400'
     lineHeight: 24px
   body-md:
-    fontFamily: Hanken Grotesk
+    fontFamily: Inter
     fontSize: 14px
     fontWeight: '400'
     lineHeight: 20px
   body-sm:
-    fontFamily: Hanken Grotesk
+    fontFamily: Inter
     fontSize: 13px
     fontWeight: '400'
     lineHeight: 18px
   label-md:
-    fontFamily: Hanken Grotesk
+    fontFamily: Inter
     fontSize: 12px
     fontWeight: '600'
     lineHeight: 16px
     letterSpacing: 0.02em
   label-sm:
-    fontFamily: Hanken Grotesk
+    fontFamily: Inter
     fontSize: 11px
     fontWeight: '500'
     lineHeight: 14px
     letterSpacing: 0.03em
   headline-lg-mobile:
-    fontFamily: Hanken Grotesk
+    fontFamily: Inter
     fontSize: 24px
     fontWeight: '600'
     lineHeight: 32px
@@ -139,7 +139,9 @@ The color strategy is white-dominant, using a soft, professional blue as the pri
 
 ## Typography
 
-This design system uses **Hanken Grotesk** to provide a sharp, contemporary, and technical feel that is slightly more "designed" than standard system fonts.
+Toàn bộ giao diện dùng **Inter** cho tiêu đề, nội dung, điều hướng và biểu mẫu. `--font-family` là nguồn cấu hình chung; `font-sans` và `font-display` cùng tham chiếu token này. Dùng system sans-serif khi font chưa tải hoặc không có glyph phù hợp (ví dụ tiếng Nhật).
+
+Nội dung dùng weight 400; nhãn và nút 500; tiêu đề 600. Chỉ dùng 700–800 khi thực sự cần nhấn mạnh. Giữ **IBM Plex Mono** riêng cho mã nguồn và nội dung kỹ thuật cần căn ký tự.
 
 - **Weight & Contrast:** Headlines use a SemiBold weight in a deep charcoal (#1e293b). Body text utilizes #475569 for a softer contrast against the white-dominant background.
 - **Softness through Color:** For secondary information, instead of smaller font sizes, use 60% opacity of the body color to maintain legibility while establishing hierarchy.

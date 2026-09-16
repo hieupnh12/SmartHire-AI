@@ -1,29 +1,47 @@
 @startuml
-title FE-09 — Weight Configuration & Fairness Governance\nTarget application-design viewpoint
+top to bottom direction
 skinparam dpi 300
 skinparam backgroundColor #FFFFFF
 skinparam shadowing false
 skinparam packageStyle rectangle
-skinparam classAttributeIconSize 0
-skinparam ArrowColor #64748B
-skinparam ClassBorderColor #CBD5E1
-skinparam ClassBackgroundColor #F8FAFC
-skinparam InterfaceBackgroundColor #EFF6FF
+skinparam roundcorner 6
+skinparam linetype ortho
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam classFontSize 11
+skinparam classAttributeFontSize 10
+skinparam classAttributeIconSize 10
+skinparam ArrowThickness 1
+skinparam ClassBorderThickness 1
+skinparam PackageBorderThickness 1
 skinparam NoteBackgroundColor #FFF7ED
 skinparam NoteBorderColor #FDBA74
 
-package "Tenant API Layer" #EFF6FF {
-  class RankingGovernanceController <<target REST controller>> {
+skinparam class {
+  BackgroundColor #FFFFFF
+  BorderColor #2D3748
+  ArrowColor #2D3748
+}
+<style>
+classDiagram {
+  class { Padding 5 }
+}
+</style>
+
+package "Controller Layer" #F7FAFC {
+  class RankingGovernanceController <<Controller>> {
     +updateWeights(jobId: Long, request: WeightConfigRequest): RankingConfigResponse
     +getFairnessReport(jobId: Long, version: String): FairnessReportResponse
   }
-  class WeightConfigRequest <<request DTO>> {
+}
+package "DTO Layer" #FFFFFF {
+  class WeightConfigRequest <<Request>> {
     +componentWeights: Map<Component, Integer>
     +skillGroupWeights: Map<String, Integer>
     +recommendationThresholds: Map<Label, Decimal>
     +expectedRevision: Long
   }
-  class FairnessReportResponse <<target response DTO>> {
+  class FairnessReportResponse <<Response>> {
     +rankingVersion: String
     +sampleSize: Integer
     +metrics: List<FairnessMetric>
@@ -32,32 +50,40 @@ package "Tenant API Layer" #EFF6FF {
   }
 }
 
-package "Ranking Governance Application" #F0FDF4 {
-  class RankingConfigurationService <<application service>> {
+package "Service Layer" #FFFFFF {
+  interface RankingConfigurationService <<Service>> {
     +updateVersionedConfig(jobId: Long, request): RankingConfig
   }
-  class FairnessMonitoringService <<target application service>> {
+  class RankingConfigurationServiceImpl <<Service>> {
+    +updateVersionedConfig(jobId: Long, request): RankingConfig
+  }
+  interface FairnessMonitoringService <<Service>> {
     +evaluate(jobId: Long, rankingVersion: String): FairnessReport
   }
-  class FairnessPolicy <<target domain policy>> {
+  class FairnessMonitoringServiceImpl <<Service>> {
+    +evaluate(jobId: Long, rankingVersion: String): FairnessReport
+  }
+  class FairnessPolicy <<Service>> {
     +evaluate(metrics, thresholds): List<FairnessAlert>
     +isProtectedAttributeExcluded(config): boolean
   }
-  class RankingService <<application service>> {
+  class RankingService <<Service>> {
     +recomputeAndPersist(jobId: Long, trigger): RankingBoard
   }
 }
 
-package "Tenant Governance Persistence (Dedicated MySQL DB)" #FEFCE8 {
-  interface RankingConfigRepository <<tenant-scoped repository>> {
+package "Repository Layer" #FFFFFF {
+  interface RankingConfigRepository <<Repository>> {
     +findForUpdate(jobId: Long): RankingConfig
     +save(config: RankingConfig): RankingConfig
   }
-  interface FairnessReportRepository <<target tenant-scoped repository>> {
+  interface FairnessReportRepository <<Repository>> {
     +save(report: FairnessReport): FairnessReport
     +find(jobId: Long, rankingVersion: String): FairnessReport
   }
-  entity RankingConfig <<entity>> {
+}
+package "Domain Entity Layer" #FFFFFF {
+  entity RankingConfig <<Entity>> {
     +jobId: Long
     +revision: Long
     +algorithmVersion: String
@@ -66,7 +92,7 @@ package "Tenant Governance Persistence (Dedicated MySQL DB)" #FEFCE8 {
     +updatedBy: Long
     +updatedAt: Instant
   }
-  entity FairnessReport <<target entity>> {
+  entity FairnessReport <<Entity>> {
     +id: Long
     +jobId: Long
     +rankingVersion: String
@@ -76,29 +102,37 @@ package "Tenant Governance Persistence (Dedicated MySQL DB)" #FEFCE8 {
     +status: ReviewStatus
     +generatedAt: Instant
   }
-  class FairnessMetric <<target value object>> {
+  class FairnessMetric <<Value Object>> {
     +name: String
     +groupKey: String
     +value: Decimal
     +sampleSize: Integer
   }
-  class FairnessAlert <<target value object>> {
+  class FairnessAlert <<Value Object>> {
     +metric: String
     +severity: Severity
     +messageCode: String
   }
 }
 
-RankingGovernanceController --> RankingConfigurationService : updates weights
-RankingGovernanceController --> FairnessMonitoringService : queries reports
-RankingGovernanceController ..> WeightConfigRequest : consumes
-RankingGovernanceController ..> FairnessReportResponse : produces
-RankingConfigurationService --> RankingConfigRepository : locks and versions
-RankingConfigurationService --> RankingService : triggers atomic recompute
-FairnessMonitoringService --> FairnessPolicy : evaluates aggregate metrics
-FairnessMonitoringService --> FairnessReportRepository : persists report
-RankingConfigRepository ..> RankingConfig : manages
-FairnessReportRepository ..> FairnessReport : manages
+package "Infrastructure & Persistence" #F7FAFC {
+  class "Dedicated Tenant MySQL DB" as TenantDB <<Database>>
+}
+
+RankingGovernanceController --> RankingConfigurationService : delegates >
+RankingGovernanceController --> FairnessMonitoringService : delegates >
+RankingGovernanceController ..> WeightConfigRequest : consumes >
+RankingGovernanceController ..> FairnessReportResponse : returns >
+RankingConfigurationServiceImpl ..up|> RankingConfigurationService : implements
+FairnessMonitoringServiceImpl ..up|> FairnessMonitoringService : implements
+RankingConfigurationServiceImpl --> RankingConfigRepository : persists through >
+RankingConfigurationServiceImpl --> RankingService : delegates recompute >
+FairnessMonitoringServiceImpl --> FairnessPolicy : applies policy >
+FairnessMonitoringServiceImpl --> FairnessReportRepository : persists through >
+RankingConfigRepository ..> RankingConfig : manages >
+FairnessReportRepository ..> FairnessReport : manages >
+RankingConfigRepository --> TenantDB : persists to >
+FairnessReportRepository --> TenantDB : persists to >
 FairnessReport *-- "1..*" FairnessMetric : contains
 FairnessReport *-- "0..*" FairnessAlert : contains
 
