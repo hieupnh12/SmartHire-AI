@@ -16,8 +16,8 @@ Hướng dẫn đầy đủ: [docs/setup/GCP_VPS_DEPLOY.md](../docs/setup/GCP_VP
 Khi lên server
 Tạo VM Ubuntu + static IP + firewall 22/80/443 (lệnh gcloud trong doc)
 bash deploy/scripts/bootstrap-gcp-vps.sh
-Clone repo → copy & điền deploy/.env.production
-bash deploy/scripts/deploy.sh
+Đưa manifest deploy lên `/opt/smarthire` → copy & điền `deploy/.env.production` (domain mặc định: `smarthire.top`)
+IMAGE_TAG=latest bash deploy/scripts/deploy.sh
 Trỏ DNS → bash deploy/scripts/setup-tls.sh
-(Tuỳ chọn) Thêm GitHub Secrets GCP_VPS_HOST / USER / SSH_KEY để CD
+Thêm GitHub Secrets VPS và Docker Hub để workflow build/push image rồi pull trên VPS
 Chi tiết từng bước: docs/setup/GCP_VPS_DEPLOY.md
