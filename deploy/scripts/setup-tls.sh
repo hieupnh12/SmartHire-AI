@@ -28,7 +28,7 @@ sudo tee /etc/nginx/sites-available/smarthire >/dev/null <<EOF
 server {
     listen 80;
     listen [::]:80;
-    server_name ${DOMAIN};
+    server_name ${DOMAIN} *.${DOMAIN};
 
     location /.well-known/acme-challenge/ {
         root /var/www/certbot;

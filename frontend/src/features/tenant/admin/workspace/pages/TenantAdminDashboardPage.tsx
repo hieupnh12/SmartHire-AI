@@ -67,7 +67,7 @@ export function TenantAdminDashboardPage() {
   const [companyName, setCompanyName] = useState(theme.name);
   const [companyTagline, setCompanyTagline] = useState(theme.tagline);
   const [companySize, setCompanySize] = useState("100 - 500 Kỹ sư");
-  const [companyWebsite, setCompanyWebsite] = useState(`https://${theme.code}.smarthire.ai`);
+  const [companyWebsite, setCompanyWebsite] = useState(`https://${theme.code}.smarthire.top`);
   const [companyAddress, setCompanyAddress] = useState("Tầng 12, Tòa nhà Enterprise Tech Tower, Hà Nội / TP.HCM");
   const [companyBio, setCompanyBio] = useState(`Dẫn đầu các giải pháp Công nghệ Enterprise Multi-Tenant & Phỏng vấn AI tại Việt Nam.`);
   const [selectedThemePreset, setSelectedThemePreset] = useState(theme.accentBadge);

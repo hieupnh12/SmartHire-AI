@@ -12,7 +12,7 @@ import static org.assertj.core.api.Assertions.*;
 
 class RankingTenantIsolationTest {
     private final com.smarthire.multitenancy.service.TenantRegistryService registry = org.mockito.Mockito.mock(com.smarthire.multitenancy.service.TenantRegistryService.class);
-    private final TenantWebInterceptor interceptor = new TenantWebInterceptor(registry, "smarthire.ai");
+    private final TenantWebInterceptor interceptor = new TenantWebInterceptor(registry, "smarthire.top");
     @BeforeEach void login() {
         org.mockito.Mockito.when(registry.requireActive(org.mockito.ArgumentMatchers.anyString())).thenAnswer(invocation -> {
             var tenant = new com.smarthire.domain.master.entity.TenantInfo();
@@ -29,7 +29,7 @@ class RankingTenantIsolationTest {
         assertThat(TenantContext.getCurrentTenant()).isNull();
     }
     @Test void rejectsSubdomainOverrideOfJwtTenant() {
-        var request = new MockHttpServletRequest(); request.setServerName("other.smarthire.ai");
+        var request = new MockHttpServletRequest(); request.setServerName("other.smarthire.top");
         assertThatThrownBy(() -> interceptor.preHandle(request, new MockHttpServletResponse(), new Object())).isInstanceOf(BusinessException.class);
     }
     @Test void usesAuthenticatedTenantAndClearsAfterRequest() {
