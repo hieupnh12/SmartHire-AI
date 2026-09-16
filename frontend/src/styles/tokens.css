@@ -1,6 +1,6 @@
 :root {
   /* Luminous Professional Design System — DESIGN.md */
-  --font-family: "Hanken Grotesk", sans-serif;
+  --font-family: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
 
   /* Colors */
   --color-surface: #f9f9ff;
@@ -22,6 +22,9 @@
   --color-primary-hover: #2563eb;
   --color-on-primary: #ffffff;
   --color-primary-container: #2170e4;
+  --color-primary-soft: rgba(59, 130, 246, 0.12);
+  --color-primary-subtle: rgba(59, 130, 246, 0.06);
+  --color-primary-shadow: rgba(59, 130, 246, 0.75);
 
   --color-secondary: #505f76;
   --color-on-secondary: #ffffff;
@@ -37,6 +40,18 @@
   --container-blue: rgba(59, 130, 246, 0.08);
   --container-neutral: rgba(100, 116, 139, 0.05);
 
+  /* Semantic aliases consumed by shared Tailwind components */
+  --color-brand-primary: var(--color-primary);
+  --color-brand-primary-hover: var(--color-primary-hover);
+  --color-brand-secondary: var(--color-secondary);
+  --color-brand-accent: var(--color-tertiary);
+  --color-surface-page: var(--color-background);
+  --color-surface-muted: var(--color-surface-container-low);
+  --color-text-primary: var(--color-on-surface);
+  --color-text-secondary: var(--color-on-surface-variant);
+  --color-text-inverse: var(--color-on-primary);
+  --color-border-focus: var(--color-primary);
+
   /* Radius */
   --radius-sm: 0.25rem;
   --radius-default: 0.5rem;
@@ -50,6 +65,51 @@
   --shadow-card: 0 4px 6px -1px rgba(59, 130, 246, 0.03), 0 2px 4px -2px rgba(59, 130, 246, 0.03);
   --motion-fast: 150ms cubic-bezier(0.2, 0.8, 0.2, 1);
   --motion-normal: 250ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.tenant-workspace-theme {
+  /* SE36 career portal palette: teal actions, slate copy, white/lilac surfaces. */
+  --color-primary: #0d9488;
+  --color-primary-hover: #0f766e;
+  --color-primary-container: #f0fdfa;
+  --color-background: #f9f9ff;
+  --color-surface: #f9f9ff;
+  --color-surface-alt: #f8f9ff;
+  --color-surface-container-low: #f0fdfa;
+  --color-surface-container: #f0fdfa;
+  --color-on-surface: #1e293b;
+  --color-on-surface-variant: #64748b;
+  --color-outline: #64748b;
+  --color-outline-variant: #e2e8f0;
+  --color-border-default: #e2e8f0;
+  --container-blue: #f0fdfa;
+  --container-neutral: #f8f9ff;
+  --color-primary-soft: rgba(13, 148, 136, 0.1);
+  --color-primary-subtle: #f0fdfa;
+  --color-primary-shadow: rgba(13, 148, 136, 0.65);
+  --shadow-card: 0 4px 10px -4px rgba(30, 41, 59, 0.1);
+
+  /* Re-resolve inherited semantic aliases inside the candidate scope. */
+  --color-brand-primary: #0d9488;
+  --color-brand-primary-hover: #0f766e;
+  --color-brand-secondary: #64748b;
+  --color-brand-accent: #0d9488;
+  --color-surface-page: #f9f9ff;
+  --color-surface-muted: #f0fdfa;
+  --color-text-primary: #1e293b;
+  --color-text-secondary: #64748b;
+  --color-text-inverse: #ffffff;
+  --color-border-focus: #0d9488;
+}
+
+.tenant-workspace-theme,
+.tenant-workspace-theme * {
+  --tw-ring-color: rgba(13, 148, 136, 0.35);
+}
+
+.tenant-workspace-theme ::selection {
+  color: #ffffff;
+  background: #0d9488;
 }
 
 * {

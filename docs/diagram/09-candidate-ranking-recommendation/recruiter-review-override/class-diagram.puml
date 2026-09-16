@@ -1,33 +1,51 @@
 @startuml
-title FE-09 — Recruiter Review, Shortlist & Override\nTarget application-design viewpoint
+top to bottom direction
 skinparam dpi 300
 skinparam backgroundColor #FFFFFF
 skinparam shadowing false
 skinparam packageStyle rectangle
-skinparam classAttributeIconSize 0
-skinparam ArrowColor #64748B
-skinparam ClassBorderColor #CBD5E1
-skinparam ClassBackgroundColor #F8FAFC
-skinparam InterfaceBackgroundColor #EFF6FF
+skinparam roundcorner 6
+skinparam linetype ortho
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam classFontSize 11
+skinparam classAttributeFontSize 10
+skinparam classAttributeIconSize 10
+skinparam ArrowThickness 1
+skinparam ClassBorderThickness 1
+skinparam PackageBorderThickness 1
 skinparam NoteBackgroundColor #FFF7ED
 skinparam NoteBorderColor #FDBA74
 
-package "Tenant API Layer" #EFF6FF {
-  class RankingReviewController <<target REST controller>> {
+skinparam class {
+  BackgroundColor #FFFFFF
+  BorderColor #2D3748
+  ArrowColor #2D3748
+}
+<style>
+classDiagram {
+  class { Padding 5 }
+}
+</style>
+
+package "Controller Layer" #F7FAFC {
+  class RankingReviewController <<Controller>> {
     +getCandidateDetail(applicationId: Long): CandidateRankingDetail
     +shortlist(applicationId: Long, request: ShortlistRequest): ReviewResult
     +overrideRecommendation(applicationId: Long, request: OverrideRequest): ReviewResult
   }
-  class OverrideRequest <<target request DTO>> {
+}
+package "DTO Layer" #FFFFFF {
+  class OverrideRequest <<Request>> {
     +expectedRankingVersion: String
     +label: RecommendationLabel
     +reason: String
   }
-  class ShortlistRequest <<target request DTO>> {
+  class ShortlistRequest <<Request>> {
     +expectedApplicationVersion: Long
     +note: String [0..1]
   }
-  class CandidateRankingDetail <<response DTO>> {
+  class CandidateRankingDetail <<Response>> {
     +rankingVersion: String
     +automatedLabel: RecommendationLabel
     +effectiveLabel: RecommendationLabel
@@ -36,31 +54,38 @@ package "Tenant API Layer" #EFF6FF {
   }
 }
 
-package "Human Review Application" #F0FDF4 {
-  class RankingReviewService <<target application service>> {
+package "Service Layer" #FFFFFF {
+  interface RankingReviewService <<Service>> {
     +review(applicationId: Long): CandidateRankingDetail
     +override(actorId: Long, applicationId: Long, request): ReviewResult
     +shortlist(actorId: Long, applicationId: Long, request): ReviewResult
   }
-  class HumanDecisionPolicy <<target domain policy>> {
+  class RankingReviewServiceImpl <<Service>> {
+    +review(applicationId: Long): CandidateRankingDetail
+    +override(actorId: Long, applicationId: Long, request): ReviewResult
+    +shortlist(actorId: Long, applicationId: Long, request): ReviewResult
+  }
+  class HumanDecisionPolicy <<Service>> {
     +canOverride(role, status, reason): boolean
     +requireHumanReview(action, automatedLabel): void
   }
-  class AuditService <<application service>> {
+  class AuditService <<Service>> {
     +record(event: AuditEvent): void
   }
 }
 
-package "Tenant Persistence (Dedicated MySQL DB)" #FEFCE8 {
-  interface RankingReviewRepository <<target tenant-scoped repository>> {
+package "Repository Layer" #FFFFFF {
+  interface RankingReviewRepository <<Repository>> {
     +findDetail(applicationId: Long): CandidateRankingDetail
     +saveOverride(override: RankingOverride): RankingOverride
   }
-  interface ApplicationRepository <<tenant-scoped repository>> {
+  interface ApplicationRepository <<Repository>> {
     +findForUpdate(applicationId: Long): Application
     +save(application: Application): Application
   }
-  entity RankingOverride <<target entity>> {
+}
+package "Domain Entity Layer" #FFFFFF {
+  entity RankingOverride <<Entity>> {
     +id: Long
     +applicationId: Long
     +rankingVersion: String
@@ -71,13 +96,13 @@ package "Tenant Persistence (Dedicated MySQL DB)" #FEFCE8 {
     +createdAt: Instant
     +revokedAt: Instant [0..1]
   }
-  entity Application <<entity>> {
+  entity Application <<Entity>> {
     +id: Long
     +status: ApplicationStatus
     +version: Long
     +humanReviewedAt: Instant [0..1]
   }
-  entity AuditEvent <<target entity>> {
+  entity AuditEvent <<Entity>> {
     +id: Long
     +actorId: Long
     +action: String
@@ -89,16 +114,24 @@ package "Tenant Persistence (Dedicated MySQL DB)" #FEFCE8 {
   }
 }
 
-RankingReviewController --> RankingReviewService : delegates
-RankingReviewController ..> OverrideRequest : consumes
-RankingReviewController ..> ShortlistRequest : consumes
-RankingReviewController ..> CandidateRankingDetail : produces
-RankingReviewService --> HumanDecisionPolicy : enforces
-RankingReviewService --> RankingReviewRepository : reads/writes review data
-RankingReviewService --> ApplicationRepository : locks and changes stage
-RankingReviewService --> AuditService : records decisions
-AuditService --> AuditEvent : creates
-RankingReviewRepository ..> RankingOverride : manages
+package "Infrastructure & Persistence" #F7FAFC {
+  class "Dedicated Tenant MySQL DB" as TenantDB <<Database>>
+}
+
+RankingReviewController --> RankingReviewService : delegates >
+RankingReviewController ..> OverrideRequest : consumes >
+RankingReviewController ..> ShortlistRequest : consumes >
+RankingReviewController ..> CandidateRankingDetail : returns >
+RankingReviewServiceImpl ..up|> RankingReviewService : implements
+RankingReviewServiceImpl --> HumanDecisionPolicy : applies policy >
+RankingReviewServiceImpl --> RankingReviewRepository : persists through >
+RankingReviewServiceImpl --> ApplicationRepository : persists through >
+RankingReviewServiceImpl --> AuditService : delegates audit >
+AuditService --> AuditEvent : creates >
+RankingReviewRepository ..> RankingOverride : manages >
+ApplicationRepository ..> Application : manages >
+RankingReviewRepository --> TenantDB : persists to >
+ApplicationRepository --> TenantDB : persists to >
 Application "1" -- "0..*" RankingOverride : reviewed overrides
 RankingOverride "1" --> "1" AuditEvent : evidenced by
 
