@@ -1,102 +1,101 @@
 @startuml
-title COMPANY-04 — Lock or Delete Member\nLayered target application-design viewpoint
-top to bottom direction
-
 skinparam dpi 300
-skinparam backgroundColor #FFFFFF
 skinparam shadowing false
 skinparam packageStyle rectangle
-skinparam classAttributeIconSize 12
+skinparam roundcorner 6
 skinparam linetype ortho
-skinparam ArrowColor #334155
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam classFontSize 11
+skinparam classAttributeFontSize 10
+skinparam classAttributeIconSize 10
 skinparam ArrowThickness 1
-skinparam ClassBorderColor #64748B
 skinparam ClassBorderThickness 1
-skinparam ClassBackgroundColor #F8FAFC
-skinparam InterfaceBackgroundColor #F3E8FF
-skinparam PackageBorderColor #475569
 skinparam PackageBorderThickness 1
-skinparam DefaultFontColor #111827
-skinparam ClassFontColor #111827
-skinparam ClassAttributeFontColor #111827
-skinparam NoteBackgroundColor #FFF7ED
-skinparam NoteBorderColor #FDBA74
 
-package "Routing & Boundary" #EFF6FF {
-  class MemberLifecycleRoute <<REST API, conceptual>> {
-    +PATCH /api/v1/tenant/users/{id}/status
-    +DELETE /api/v1/tenant/users/{id}
-  }
+skinparam class {
+    BackgroundColor #FFFFFF
+    BorderColor #2D3748
+    ArrowColor #2D3748
 }
 
-package "Controller Layer" #EFF6FF {
+<style>
+classDiagram {
+  class {
+    Padding 5
+  }
+}
+</style>
+
+package "Controller Layer" {
   class TenantUserController <<Controller>> {
-    -tenantUserService: TenantUserService
-    +updateStatus(id: Long, request: UpdateMemberStatusRequest): ApiResponse<UserResponse>
-    +deleteMember(id: Long): void
+    - tenantUserService: TenantUserService
+    + updateStatus(id: Long, request: UpdateUserStatusRequest): ApiResponse<UserResponse>
+    + deleteMember(id: Long): ApiResponse<Void>
   }
 }
 
-package "Service Layer" #F0FDF4 {
-  class TenantUserService <<Service>> {
-    -userRepository: UserRepository
-    -tenantContext: TenantContext
-    +updateStatus(actorId: Long, targetId: Long, status: UserStatus): UserResponse
-    +deleteMember(actorId: Long, targetId: Long): void
-  }
-}
-
-package "DTO Layer" #FFF7ED {
-  class UpdateMemberStatusRequest <<Request, conceptual>> {
-    +status: String
+package "DTO Layer" {
+  class UpdateUserStatusRequest <<Request>> {
+    + status: String
   }
   class UserResponse <<Response>> {
-    +id: Long
-    +email: String
-    +fullName: String
-    +role: String
-    +status: String
+    + id: Long
+    + email: String
+    + fullName: String
+    + role: String
+    + status: String
   }
 }
 
-package "Repository Layer" #F5F3FF {
+package "Service Layer" {
+  interface TenantUserService <<Service>> {
+    + updateStatus(actorId: Long, targetId: Long, status: UserStatus): UserResponse
+    + deleteMember(actorId: Long, targetId: Long): void
+  }
+  class TenantUserServiceImpl <<Service>> {
+    - userRepository: UserRepository
+    - redisService: RedisService
+    + updateStatus(actorId: Long, targetId: Long, status: UserStatus): UserResponse
+    + deleteMember(actorId: Long, targetId: Long): void
+  }
+}
+
+package "Repository Layer" {
   interface UserRepository <<Repository>> {
-    +findById(id: Long): Optional<User>
-    +countByRoleAndStatus(role: UserRole, status: UserStatus): long
-    +countJobOwnership(userId: Long): long
-    +save(user: User): User
-    +delete(user: User): void
+    + findById(id: Long): Optional<User>
+    + countByRoleAndStatus(role: UserRole, status: UserStatus): long
+    + save(user: User): User
   }
 }
 
-package "Domain Entity Layer" #F0FDF4 {
-  entity User <<Entity>> {
-    -id: Long
-    -email: String
-    -fullName: String
-    -role: UserRole
-    -status: UserStatus
-  }
-  enum UserRole <<enumeration>> {
+package "Domain Entity Layer" {
+  enum UserRole <<Enum>> {
     TENANT_ADMIN
     ADMIN
     HR
     RECRUITER
-    CANDIDATE
   }
-  enum UserStatus <<enumeration>> {
+  enum UserStatus <<Enum>> {
     ACTIVE
     LOCKED
     DISABLED
   }
+  class User <<Entity>> {
+    - id: Long
+    - email: String
+    - fullName: String
+    - role: UserRole
+    - status: UserStatus
+  }
 }
 
-package "Infrastructure & Persistence" #FEFCE8 {
-  class RedisCache <<Cache>> {
-    +refreshToken:{tenantId}:{userId}
+package "Infrastructure & Persistence" {
+  class DedicatedTenantMySQL <<Database>> {
+    + users
   }
-  class "Dedicated Tenant MySQL DB" as TenantDB <<Database>> {
-    +users
+  class RedisCache <<Cache>> {
+    + tenant:{tenantId}:refresh:{userId}
   }
   class TenantContext <<ThreadLocal>> {
     +{static} getCurrentTenant(): String
@@ -104,34 +103,27 @@ package "Infrastructure & Persistence" #FEFCE8 {
   }
 }
 
-MemberLifecycleRoute -down-> TenantUserController : defines routes
-TenantUserController -down-> TenantUserService : delegates
-TenantUserController ..> UpdateMemberStatusRequest : consumes
-TenantUserController ..> UserResponse : returns
-TenantUserService ..> UpdateMemberStatusRequest : processes
-TenantUserService ..> UserResponse : creates
-TenantUserService -down-> UserRepository : persists through
-TenantUserService --> TenantContext : enforces tenant scope
-TenantUserService --> RedisCache : revokes sessions
-UserRepository -down-> User : manages
-User --> UserRole : typed by
-User --> UserStatus : typed by
-User --> TenantDB : persists to
+' Relationships
+TenantUserController --> TenantUserService : delegates >
+TenantUserController ..> UpdateUserStatusRequest : consumes >
+TenantUserController ..> UserResponse : returns >
 
-UpdateMemberStatusRequest -[hidden]right-> UserResponse
-TenantDB -[hidden]right-> RedisCache
-RedisCache -[hidden]right-> TenantContext
+TenantUserService <|.. TenantUserServiceImpl : implements
+TenantUserServiceImpl ..> UpdateUserStatusRequest : processes >
+TenantUserServiceImpl ..> UserResponse : creates >
+TenantUserServiceImpl --> UserRepository : queries & saves >
+TenantUserServiceImpl --> RedisCache : revokes session on lock/disable >
+TenantUserServiceImpl ..> TenantContext : reads tenant context >
 
-note right of UserStatus
-  ACTIVE: can sign in.
-  LOCKED: reversible block.
-  DISABLED: soft delete when the user owns jobs.
-  Hard delete only when job ownership is zero.
-end note
+UserRepository --> User : manages >
+UserRepository --> DedicatedTenantMySQL : persists to >
 
-note right of TenantUserService
-  Actor cannot lock, unlock, or delete themselves.
-  The last ACTIVE TENANT_ADMIN cannot be locked or deleted.
+User ..> UserRole : typed by >
+User ..> UserStatus : typed by >
+
+note right of TenantUserServiceImpl
+  Self-locking or self-deletion is forbidden.
+  Cannot lock/disable the last ACTIVE TENANT_ADMIN.
 end note
 
 @enduml

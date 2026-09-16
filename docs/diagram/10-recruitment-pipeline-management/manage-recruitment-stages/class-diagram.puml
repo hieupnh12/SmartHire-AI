@@ -1,120 +1,111 @@
 @startuml
-title PIPE — Manage Recruitment Stages\nLayered target application-design viewpoint
-top to bottom direction
-
 skinparam dpi 300
-skinparam backgroundColor #FFFFFF
 skinparam shadowing false
 skinparam packageStyle rectangle
-skinparam classAttributeIconSize 12
+skinparam roundcorner 6
 skinparam linetype ortho
-skinparam ArrowColor #334155
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam classFontSize 11
+skinparam classAttributeFontSize 10
+skinparam classAttributeIconSize 10
 skinparam ArrowThickness 1
-skinparam ClassBorderColor #64748B
 skinparam ClassBorderThickness 1
-skinparam ClassBackgroundColor #F8FAFC
-skinparam InterfaceBackgroundColor #F3E8FF
-skinparam PackageBorderColor #475569
 skinparam PackageBorderThickness 1
-skinparam DefaultFontColor #111827
-skinparam ClassFontColor #111827
-skinparam ClassAttributeFontColor #111827
-skinparam NoteBackgroundColor #FFF7ED
-skinparam NoteBorderColor #FDBA74
 
-package "Routing & Boundary" #EFF6FF {
-  class JobStageRoute <<REST API, conceptual>> {
-    +GET /api/v1/jobs/{jobId}/stages
-    +POST /api/v1/jobs/{jobId}/stages
-    +PATCH /api/v1/jobs/{jobId}/stages/{stageId}
-    +PUT /api/v1/jobs/{jobId}/stages/order
-    +DELETE /api/v1/jobs/{jobId}/stages/{stageId}
+skinparam class {
+    BackgroundColor #FFFFFF
+    BorderColor #2D3748
+    ArrowColor #2D3748
+}
+
+<style>
+classDiagram {
+  class {
+    Padding 5
+  }
+}
+</style>
+
+package "Controller Layer" {
+  class JobStageController <<Controller>> {
+    - jobStageService: JobStageService
+    + addStage(jobId: Long, request: CreateStageRequest): ApiResponse<StageResponse>
+    + reorderStages(jobId: Long, request: ReorderStagesRequest): ApiResponse<List<StageResponse>>
+    + deleteStage(jobId: Long, stageId: Long): ApiResponse<Void>
   }
 }
 
-package "Controller Layer" #EFF6FF {
-  class RecruitmentStageController <<Controller, conceptual>> {
-    -recruitmentStageService: RecruitmentStageService
-    +list(jobId: Long): ApiResponse<List<StageResponse>>
-    +create(jobId: Long, request: CreateStageRequest): ApiResponse<StageResponse>
-    +update(jobId: Long, stageId: Long, request: UpdateStageRequest): ApiResponse<StageResponse>
-    +reorder(jobId: Long, request: ReorderStagesRequest): ApiResponse<List<StageResponse>>
-    +delete(jobId: Long, stageId: Long): void
+package "DTO Layer" {
+  class CreateStageRequest <<Request>> {
+    + name: String
+    + sortOrder: int
+    + terminal: boolean
+  }
+  class ReorderStagesRequest <<Request>> {
+    + stageIds: List<Long>
+  }
+  class StageResponse <<Response>> {
+    + id: Long
+    + jobId: Long
+    + name: String
+    + sortOrder: int
+    + terminal: boolean
+    + applicantCount: long
   }
 }
 
-package "Service Layer" #F0FDF4 {
-  class RecruitmentStageService <<Service, conceptual>> {
-    -stageRepository: RecruitmentStageRepository
-    -applicationRepository: ApplicationRepository
-    -tenantContext: TenantContext
-    +list(jobId: Long): List<StageResponse>
-    +createCustom(jobId: Long, name: String): StageResponse
-    +removeOrArchive(jobId: Long, stageId: Long): void
+package "Service Layer" {
+  interface JobStageService <<Service>> {
+    + addStage(jobId: Long, request: CreateStageRequest): StageResponse
+    + reorderStages(jobId: Long, request: ReorderStagesRequest): List<StageResponse>
+    + deleteStage(jobId: Long, stageId: Long): void
+  }
+  class JobStageServiceImpl <<Service>> {
+    - stageRepository: RecruitmentStageRepository
+    - jobRepository: JobRepository
+    - applicationRepository: ApplicationRepository
+    + addStage(jobId: Long, request: CreateStageRequest): StageResponse
+    + reorderStages(jobId: Long, request: ReorderStagesRequest): List<StageResponse>
+    + deleteStage(jobId: Long, stageId: Long): void
   }
 }
 
-package "DTO Layer" #FFF7ED {
-  class CreateStageRequest <<Request, conceptual>> {
-    +name: String
-  }
-  class UpdateStageRequest <<Request, conceptual>> {
-    +name: String
-  }
-  class StageResponse <<Response, conceptual>> {
-    +id: Long
-    +code: String [0..1]
-    +name: String
-    +sortOrder: int
-    +system: boolean
-    +archived: boolean
-  }
-}
-
-package "Repository Layer" #F5F3FF {
+package "Repository Layer" {
   interface RecruitmentStageRepository <<Repository>> {
-    +findByJobIdOrderBySortOrder(jobId: Long): List<RecruitmentStage>
-    +save(stage: RecruitmentStage): RecruitmentStage
+    + findById(id: Long): Optional<RecruitmentStage>
+    + findByJobIdOrderBySortOrderAsc(jobId: Long): List<RecruitmentStage>
+    + save(stage: RecruitmentStage): RecruitmentStage
+    + saveAll(stages: List<RecruitmentStage>): List<RecruitmentStage>
+    + delete(stage: RecruitmentStage): void
+  }
+  interface JobRepository <<Repository>> {
+    + findById(id: Long): Optional<Job>
   }
   interface ApplicationRepository <<Repository>> {
-    +countByStageId(stageId: Long): long
+    + countByCurrentStageId(stageId: Long): long
   }
 }
 
-package "Domain Entity Layer" #F0FDF4 {
-  entity Job <<Entity>> {
-    -id: Long
-    -title: String
+package "Domain Entity Layer" {
+  class RecruitmentStage <<Entity>> {
+    - id: Long
+    - jobId: Long
+    - name: String
+    - sortOrder: int
+    - terminal: boolean
   }
-  entity RecruitmentStage <<Entity>> {
-    -id: Long
-    -name: String
-    -sortOrder: int
-    -terminal: boolean
-    -system: boolean
-    -code: SystemStageCode [0..1]
-    -archivedAt: Instant [0..1]
-  }
-  entity Application <<Entity>> {
-    -id: Long
-    -stageId: Long [0..1]
-  }
-  enum SystemStageCode <<enumeration>> {
-    APPLIED
-    SCREENING
-    ASSESSMENT
-    INTERVIEW
-    OFFER
-    HIRED
-    REJECTED
+  class Job <<Entity>> {
+    - id: Long
+    - title: String
   }
 }
 
-package "Infrastructure & Persistence" #FEFCE8 {
-  class "Dedicated Tenant MySQL DB" as TenantDB <<Database>> {
-    +jobs
-    +recruitment_stages
-    +applications
+package "Infrastructure & Persistence" {
+  class DedicatedTenantMySQL <<Database>> {
+    + jobs
+    + recruitment_stages
+    + applications
   }
   class TenantContext <<ThreadLocal>> {
     +{static} getCurrentTenant(): String
@@ -122,31 +113,32 @@ package "Infrastructure & Persistence" #FEFCE8 {
   }
 }
 
-JobStageRoute -down-> RecruitmentStageController : defines routes
-RecruitmentStageController -down-> RecruitmentStageService : delegates
-RecruitmentStageController ..> CreateStageRequest : consumes
-RecruitmentStageController ..> UpdateStageRequest : consumes
-RecruitmentStageController ..> StageResponse : returns
-RecruitmentStageService ..> StageResponse : creates
-RecruitmentStageService -down-> RecruitmentStageRepository : persists through
-RecruitmentStageService --> ApplicationRepository : counts occupants
-RecruitmentStageService --> TenantContext : enforces tenant scope
-RecruitmentStageRepository -down-> RecruitmentStage : manages
-ApplicationRepository -down-> Application : manages
-Job "1" *-- "1..*" RecruitmentStage : owns
-RecruitmentStage --> SystemStageCode : typed by when system
-Application "0..*" --> "0..1" RecruitmentStage : currently in
-Job --> TenantDB : persists to
-RecruitmentStage --> TenantDB : persists to
-Application --> TenantDB : persists to
+' Relationships
+JobStageController --> JobStageService : delegates >
+JobStageController ..> CreateStageRequest : consumes >
+JobStageController ..> ReorderStagesRequest : consumes >
+JobStageController ..> StageResponse : returns >
 
-CreateStageRequest -[hidden]right-> StageResponse
-Job -[hidden]right-> Application
-TenantDB -[hidden]right-> TenantContext
+JobStageService <|.. JobStageServiceImpl : implements
+JobStageServiceImpl ..> CreateStageRequest : processes >
+JobStageServiceImpl ..> ReorderStagesRequest : processes >
+JobStageServiceImpl ..> StageResponse : creates >
+JobStageServiceImpl --> RecruitmentStageRepository : manages stages >
+JobStageServiceImpl --> JobRepository : verifies job >
+JobStageServiceImpl --> ApplicationRepository : checks stage usage >
+JobStageServiceImpl ..> TenantContext : reads tenant context >
 
-note right of SystemStageCode
-  System rows cannot be hard-deleted.
-  Archive only when empty. Custom stages have code = null.
+RecruitmentStageRepository --> RecruitmentStage : manages >
+JobRepository --> Job : manages >
+RecruitmentStageRepository --> DedicatedTenantMySQL : persists to >
+JobRepository --> DedicatedTenantMySQL : persists to >
+ApplicationRepository --> DedicatedTenantMySQL : queries from >
+
+Job "1" *-- "0..*" RecruitmentStage : owns >
+
+note right of JobStageServiceImpl
+  Cannot delete stage that currently contains active applications.
+  System terminal stages cannot be removed arbitrarily.
 end note
 
 @enduml

@@ -1,48 +1,51 @@
-# NOTIFY — Real-Time Notification
+# NOTIF-04 — Truyền nhận thông báo thời gian thực qua WebSocket/STOMP (Realtime Notification Push)
 
-- **Mã Feature:** `NOTIFY` / `12-notification-realtime-communication` · `SCHED-02`
+- **Mã Feature:** `NOTIF` / `12-notification-realtime-communication`
 - **Mã Function:** `realtime-notification`
 - **Thư mục:** `docs/diagram/12-notification-realtime-communication/realtime-notification`
-- **Trạng thái Review:** `Complete with assumptions`
+- **Trạng thái Review:** `Complete` — sơ đồ nguồn và hình ảnh PNG (DPI 300) đã được hoàn tạo.
 
 ---
 
 ## 1. Mục đích và phạm vi
 
-Đẩy thông báo **đã lưu inbox** tới client đang online qua **WebSocket/STOMP**. Function này là **kênh realtime**, không phải hộp thư REST và không gửi email. Backend **chưa có** cấu hình WebSocket trong source.
+Mô tả cơ chế đẩy thông báo thời gian thực (Realtime Push Notification) tới trình duyệt của Recruiter/Staff thông qua kết nối WebSocket (giao thức STOMP). Khi có các sự kiện như ứng viên mới ứng tuyển, kết quả phỏng vấn AI hoàn tất hoặc offer được chấp nhận, hệ thống bắn ngay thông báo tức thì lên giao diện người dùng mà không cần F5/reload trang.
 
 ## 2. Nguồn đã đối chiếu
 
-- `docs/features/Scheduling-Notifications/WebSocket-Notifications.md` — `/ws`, `/user/queue/notifications`, JWT, at-least-once + idempotent client
-- `docs/api/API_GUIDE.md` — `WS /ws → /user/queue/notifications`
-- `docs/architecture/ASYNC_AND_CACHE.md` — fan-out in-app → WebSocket sau worker
-- `frontend/src/lib/ws.ts` — scaffold ` /ws/notifications?token=`
-- Package diagram: WebSocket gắn `planned`
+- Configuration: `WebSocketConfig`, `SecurityConfig`
+- DTO & Service: `RealtimeNotificationPayload`, `RealtimeNotificationService`
+- Infrastructure: `SimpMessagingTemplate`, `RedisService` (`ws_session`)
 
 ## 3. Actor và thành phần
 
 | Thành phần | Trách nhiệm |
 |---|---|
-| Authenticated User | Giữ session, nhận toast. |
-| App Shell / WS Client | CONNECT, SUBSCRIBE, dedupe theo `id`. |
-| JwtChannelInterceptor | JWT trên CONNECT; gắn tenant. |
-| STOMP Broker | Điểm đến `/user/queue/notifications`. |
-| NotificationService | Gọi publisher **sau khi** inbox commit. |
-| NotificationRealtimePublisher | `convertAndSendToUser`. |
+| Client Web SPA | Trình duyệt người dùng kết nối WebSocket và lắng nghe topic STOMP. |
+| STOMP WebSocket Handler | Tiếp nhận kết nối WSS, xác thực JWT token và đăng ký channel. |
+| Spring Security WSS | Xác thực JWT token trên STOMP CONNECT header. |
+| RealtimeNotificationService | Xử lý đẩy thông báo thời gian thực tới user cụ thể. |
+| SimpMessagingTemplate | Framework port gửi STOMP message frame. |
+| Redis Cache | Lưu trữ danh sách các phiên kết nối WebSocket active của từng Tenant (`ws_session`). |
 
 ## 4. Tiền điều kiện và hậu điều kiện
 
-**Tiền:** JWT hợp lệ; tenant `ACTIVE`; dòng `notifications` đã commit.
-
-**Thành công:** client nhận MESSAGE; badge tăng nếu chưa đọc.
-
-**Thất bại CONNECT:** đóng socket; UI có thể poll REST (center).
-
-**Offline:** không push; user đọc lại bằng GET inbox.
+- **Tiền điều kiện:** WebSocket Handshake thành công; Token JWT hợp lệ; Client Subscribe vào topic `/topic/tenant.{tenantId}.user.{userId}`.
+- **Thành công:** Message STOMP frame được đẩy xuống Client trong vòng vài milisecond; Giao diện Client hiển thị Toast thông báo phát âm thanh alert.
+- **Thất bại:** Kết nối WebSocket bị ngắt -> Thông báo tự động chuyển sang lưu trữ trong In-App Notification Center.
 
 ## 5. Luồng chính và lỗi
 
-CONNECT JWT → SUBSCRIBE → (inbox insert ở function khác) → push user destination → client dedupe → DISCONNECT/`clear()`.
+1. **Luồng Kết nối Handshake & Register Topic:**
+   - Client gửi `STOMP CONNECT` tới endpoint `ws://host/ws/notifications`.
+   - Spring Security xác thực JWT Token và Tenant ID trong Header.
+   - Khi thành công, lưu trạng thái phiên kết nối active trên Redis.
+   - Client đăng ký topic `/topic/tenant.{tenantId}.user.{userId}`.
+
+2. **Luồng Đẩy thông báo (Push Event):**
+   - Sự kiện tuyển dụng phát sinh -> Service kiểm tra session online trong Redis.
+   - Gọi `SimpMessagingTemplate.convertAndSendToUser` đẩy dữ liệu qua kênh STOMP.
+   - Trình duyệt nhận frame thông báo, bật Popup Toast notification.
 
 ## 6. Sequence diagram
 
@@ -50,92 +53,64 @@ Nguồn: [`sequence-diagram.puml`](sequence-diagram.puml)
 
 ### 6.1. Vai trò participant
 
-Không có Tenant DB: persist xong trước khi publisher chạy. Không SMTP.
+- `Client`: Single Page Application (React).
+- `WSHandler`: Spring STOMP WebSocket Controller.
+- `Security`: Spring Security WebSocket Authenticator.
+- `Service`: `RealtimeNotificationService`.
+- `Messaging`: `SimpMessagingTemplate`.
+- `Redis`: Cache quản lý trạng thái online.
 
-### 6.2. Diễn giải bước
+### 6.2. Diễn giải chi tiết các bước
 
-**Subscribe**
-
-1. App mở WS sau login.
-2. `CONNECT /ws` kèm JWT (không log token).
-3. JWT thiếu/sai: đóng kết nối.
-4–6. `setCurrentTenant` → broker accept → `SUBSCRIBE /user/queue/notifications`.
-
-**Push / dedupe / disconnect** (chỉ khi CONNECT thành công)
-
-7. `opt` còn subscribe: `afterInboxInsert`.
-8. `convertAndSendToUser(userId)`.
-9. MESSAGE tới subscriber (id, type, title, deepLink — không PII thừa).
-10. Toast / badge.
-11. Publisher trả.
-12. `opt` cùng `id`: bỏ qua (at-least-once).
-13–15. DISCONNECT; `clear TenantContext`.
+1. Client gửi `STOMP CONNECT`. `Security` xác thực JWT -> `WSHandler` lưu session active vào `Redis`.
+2. Client gửi `SUBSCRIBE` channel theo tenant.
+3. Khi có sự kiện -> `Service` đọc `Redis` kiểm tra phiên kết nối.
+4. `Service` gọi `Messaging.convertAndSendToUser` đẩy frame STOMP tới Client.
+5. `Client` nhận dữ liệu và hiển thị UI Toast.
 
 ## 7. Class diagram
 
 Nguồn: [`class-diagram.puml`](class-diagram.puml)
 
-Viewpoint: **layered application-design**. Không có REST controller; ranh giới là STOMP CONNECT/SUBSCRIBE.
+Viewpoint: **Application-design**. Kiến trúc Controller -> DTO -> Service -> Infrastructure.
 
 ### 7.1. Vai trò phần tử
 
-| Phần tử | Lớp | Vai trò |
+| Phần tử | StereoType | Vai trò |
 |---|---|---|
-| WebSocketEndpoint | Routing | Hợp đồng STOMP `/ws`. |
-| JwtChannelInterceptor | Routing | JWT trên CONNECT; gắn tenant. |
-| NotificationService | Service | Hook sau inbox insert; không invent interface. |
-| RealtimeNotificationPayload | DTO | Payload nhỏ, `id` để client dedupe. |
-| Notification | Domain | Bản đã lưu; function này không INSERT. |
-| NotificationRealtimePublisher | Infrastructure port | `convertAndSendToUser`. |
-| STOMP broker, TenantContext | Infrastructure | Kênh + isolation. |
+| `WebSocketNotificationController` | `<<Controller>>` | Xử lý handshake và quản lý kết nối STOMP. |
+| `RealtimeNotificationPayload` | `<<DTO>>` | DTO chứa dữ liệu thông báo đẩy realtime. |
+| `RealtimeNotificationService` | `<<Service>>` | Interface nghiệp vụ đẩy thông báo thời gian thực. |
+| `RealtimeNotificationServiceImpl` | `<<Service>>` | Implementation gọi SimpMessagingTemplate đẩy dữ liệu. |
+| `SimpMessagingTemplate` | `<<Framework Port>>` | Port của Spring Messaging đẩy tin nhắn qua WebSocket Broker. |
+| `WebSocketSTOMPBroker` | `<<Message Broker>>` | Broker quản lý các topic đăng ký của client. |
+| `RedisCache` | `<<Cache>>` | Cache lưu phiên làm việc WebSocket. |
 
-### 7.2. Quan hệ
+### 7.2. Quan hệ giữa các lớp
 
-| Nguồn → đích | Ký pháp | Loại và lý do |
-|---|---|---|
-| Endpoint → Interceptor | `-->` `authenticates CONNECT` | Association auth kênh. |
-| Interceptor → Broker | `-->` `authorizes SUBSCRIBE` | Association cho phép destination. |
-| Interceptor → TenantContext | `-->` | Association set tenant từ JWT. |
-| Service → Publisher | `-->` `after persist` | Association sau commit inbox. |
-| Service → TenantContext | `-->` | Association phạm vi tenant. |
-| Service → Notification | `..>` `already stored` | Dependency đọc, không tạo. |
-| Publisher → Payload | `..>` `sends` | Dependency. |
-| Publisher → Broker | `-->` | Association send. |
-| Broker → Endpoint | `..>` `delivers` | Dependency tới subscriber. |
+- `WebSocketNotificationController --> RealtimeNotificationService`: Ủy quyền nghiệp vụ (`delegates >`).
+- `RealtimeNotificationServiceImpl ..|> RealtimeNotificationService`: Hiện thực hóa interface (`implements`).
+- `RealtimeNotificationServiceImpl ..> RealtimeNotificationPayload`: Đóng gói dữ liệu (`consumes >`).
+- `RealtimeNotificationServiceImpl --> SimpMessagingTemplate`: Gửi tin nhắn STOMP (`pushes STOMP message >`).
+- `RealtimeNotificationServiceImpl --> RedisCache`: Kiểm tra trạng thái online (`checks online status >`).
+- `SimpMessagingTemplate --> WebSocketSTOMPBroker`: Gửi vào topic (`sends to topic >`).
 
 ## 8. Quyết định kiến trúc và bảo mật
 
-- **JWT trên CONNECT**, không nhét token vào MESSAGE.
-- **Tenant trên session WS** khớp token; không subscribe tenant khác.
-- **At-least-once:** client idempotent theo `id`; missed → REST inbox.
-- **Không** dùng WS để mark-read.
+- **Tenant Topic Isolation:** Mọi topic WebSocket đều được gán tiền tố Tenant ID (`/topic/tenant.{tenantId}.user.{userId}`) để tuyệt đối ngăn ngừa việc rò rỉ thông báo thời gian thực giữa các doanh nghiệp.
+- **Graceful Fallback:** Nếu người dùng đang offline (kết nối WebSocket đứt), thông báo vẫn được lưu vào Database để hiển thị trên In-App Notification Center khi họ quay lại.
 
 ## 9. Giả định
 
-- Hợp đồng luận văn: **STOMP** như SCHED-02, không raw WS query `token`.
-- FE `createNotificationSocket` là scaffold, sẽ đổi khi BE có broker.
-- Spring package WebSocket **chưa có** trong backend.
-- Publisher không retry SMTP; reliability email = function riêng.
-- Không vẽ scale cluster STOMP (Redis relay) trừ khi triển khai sau.
+- Client tự động kết nối lại (Auto-reconnect) WebSocket với thuật toán Exponential Backoff khi bị rớt mạng.
 
-## 10. Render và file được tạo
+## 10. Hướng dẫn Render sơ đồ
 
-| File | Metadata |
-|---|---|
-| [class-diagram.png](class-diagram.png) | PNG, ít nhất 300 DPI |
-| [sequence-diagram.png](sequence-diagram.png) | PNG, ít nhất 300 DPI |
-
-Đã kiểm tra trực quan. Không tạo SVG.
-
+Khi có yêu cầu xuất ảnh PNG từ người dùng:
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass `
-  -File ./.agents/skills/enterprise-uml-diagram/scripts/render-diagrams.ps1 `
-  -InputPath docs/diagram/12-notification-realtime-communication/realtime-notification `
-  -PlantUmlJar "$env:LOCALAPPDATA\PlantUML\plantuml-1.2026.7.jar" `
-  -Format Png `
-  -PngDpi 300
+pwsh .agents/skills/enterprise-uml-diagram/scripts/render-diagrams.ps1 -InputPath docs/diagram/12-notification-realtime-communication/realtime-notification -Format Png -PngDpi 300
 ```
 
-## 11. Trạng thái review
+## 11. Trạng thái Review
 
-`Complete with assumptions` — nguồn và PNG 300 DPI đã xong.
+`Complete` — sơ đồ nguồn và hình ảnh PNG (DPI 300) đã được hoàn tạo.

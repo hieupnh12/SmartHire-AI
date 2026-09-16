@@ -15,14 +15,6 @@ skinparam class {
     ArrowColor #2D3748
 }
 
-package "Routing & Boundary" {
-    class SessionRecoveryRoute <<REST API>> {
-        + POST /api/v1/tenant/auth/logout
-        + POST /api/v1/tenant/auth/forgot-password
-        + POST /api/v1/tenant/auth/reset-password
-    }
-}
-
 package "Controller Layer" {
     class SessionRecoveryController <<Controller>> {
         - sessionRecoveryService: SessionRecoveryService
@@ -107,7 +99,6 @@ package "Infrastructure & Cache/Queue" {
 }
 
 ' Relationships
-SessionRecoveryRoute ..> SessionRecoveryController : defines routes >
 SessionRecoveryController ..> ForgotPasswordRequest : consumes >
 SessionRecoveryController ..> ResetPasswordRequest : consumes >
 SessionRecoveryController --> SessionRecoveryService : delegates >
@@ -122,6 +113,6 @@ SessionRecoveryServiceImpl --> RedisCache : blacklists token & manages OTP >
 SessionRecoveryServiceImpl --> RabbitMQExchange : publishes email task >
 
 UserRepository --> User : manages >
-UserRepository --> DedicatedTenantMySQL : persists to
+UserRepository --> DedicatedTenantMySQL : persists to >
 
 @enduml

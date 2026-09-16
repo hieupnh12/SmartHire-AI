@@ -8,19 +8,17 @@ import com.smarthire.master.admin.service.MasterAuthService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/v1/master/auth")
+@RequiredArgsConstructor
 @Tag(name = "Platform Administration Auth", description = "Login and Profile APIs for Workspace Admins")
 public class MasterAuthController {
 
     private final MasterAuthService masterAuthService;
-
-    public MasterAuthController(MasterAuthService masterAuthService) {
-        this.masterAuthService = masterAuthService;
-    }
 
     @PostMapping("/login")
     @Operation(summary = "Login Workspace Admin", description = "Authenticates Workspace Admin against Master DB and issues signed JWT Token.")

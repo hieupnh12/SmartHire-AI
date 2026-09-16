@@ -1,103 +1,109 @@
 @startuml
-title NOTIFY — In-App Notification Center\nLayered target application-design viewpoint
-top to bottom direction
-
 skinparam dpi 300
-skinparam backgroundColor #FFFFFF
 skinparam shadowing false
 skinparam packageStyle rectangle
-skinparam classAttributeIconSize 12
+skinparam roundcorner 6
 skinparam linetype ortho
-skinparam ArrowColor #334155
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam classFontSize 11
+skinparam classAttributeFontSize 10
+skinparam classAttributeIconSize 10
 skinparam ArrowThickness 1
-skinparam ClassBorderColor #64748B
 skinparam ClassBorderThickness 1
-skinparam ClassBackgroundColor #F8FAFC
-skinparam InterfaceBackgroundColor #F3E8FF
-skinparam PackageBorderColor #475569
 skinparam PackageBorderThickness 1
-skinparam DefaultFontColor #111827
-skinparam ClassFontColor #111827
-skinparam ClassAttributeFontColor #111827
-skinparam NoteBackgroundColor #FFF7ED
-skinparam NoteBorderColor #FDBA74
 
-package "Routing & Boundary" #EFF6FF {
-  class NotificationInboxRoute <<REST API, conceptual>> {
-    +GET /api/v1/notifications
-    +PATCH /api/v1/notifications/{id}
-    +PATCH /api/v1/notifications/read-all
+skinparam class {
+    BackgroundColor #FFFFFF
+    BorderColor #2D3748
+    ArrowColor #2D3748
+}
+
+<style>
+classDiagram {
+  class {
+    Padding 5
+  }
+}
+</style>
+
+package "Controller Layer" {
+  class NotificationCenterController <<Controller>> {
+    - notificationCenterService: NotificationCenterService
+    + getNotifications(pageable: Pageable): ApiResponse<Page<NotificationResponse>>
+    + getUnreadCount(): ApiResponse<UnreadCountResponse>
+    + markAsRead(id: Long): ApiResponse<Void>
+    + markAllAsRead(): ApiResponse<Void>
   }
 }
 
-package "Controller Layer" #EFF6FF {
-  class NotificationController <<Controller>> {
-    -notificationService: NotificationService
-    +list(unreadOnly: boolean): ApiResponse<NotificationListResponse>
-    +markRead(id: Long): ApiResponse<NotificationResponse>
-    +markAllRead(): ApiResponse<MarkAllReadResponse>
+package "DTO Layer" {
+  class NotificationResponse <<Response>> {
+    + id: Long
+    + title: String
+    + content: String
+    + type: String
+    + targetUrl: String
+    + isRead: boolean
+    + createdAt: Instant
+  }
+  class UnreadCountResponse <<Response>> {
+    + unreadCount: long
   }
 }
 
-package "Service Layer" #F0FDF4 {
-  class NotificationService <<Service>> {
-    -notificationRepository: NotificationRepository
-    -tenantContext: TenantContext
-    +listMine(userId: Long, unreadOnly: boolean): NotificationListResponse
-    +markRead(userId: Long, id: Long): NotificationResponse
-    +markAllRead(userId: Long): int
+package "Service Layer" {
+  interface NotificationCenterService <<Service>> {
+    + getNotifications(userId: Long, pageable: Pageable): Page<NotificationResponse>
+    + getUnreadCount(userId: Long): UnreadCountResponse
+    + markAsRead(userId: Long, notificationId: Long): void
+    + markAllAsRead(userId: Long): void
+  }
+  class NotificationCenterServiceImpl <<Service>> {
+    - notificationRepository: NotificationRepository
+    - redisService: RedisService
+    + getNotifications(userId: Long, pageable: Pageable): Page<NotificationResponse>
+    + getUnreadCount(userId: Long): UnreadCountResponse
+    + markAsRead(userId: Long, notificationId: Long): void
+    + markAllAsRead(userId: Long): void
   }
 }
 
-package "DTO Layer" #FFF7ED {
-  class NotificationListResponse <<Response, conceptual>> {
-    +items: List<NotificationResponse>
-    +unreadCount: long
-  }
-  class NotificationResponse <<Response, conceptual>> {
-    +id: Long
-    +type: String
-    +title: String
-    +body: String [0..1]
-    +deepLink: String [0..1]
-    +readAt: Instant [0..1]
-    +createdAt: Instant
-  }
-  class MarkAllReadResponse <<Response, conceptual>> {
-    +updatedCount: int
-  }
-}
-
-package "Repository Layer" #F5F3FF {
+package "Repository Layer" {
   interface NotificationRepository <<Repository>> {
-    +findByUserIdOrderByCreatedAtDesc(userId: Long): List<Notification>
-    +countByUserIdAndReadAtIsNull(userId: Long): long
-    +findByIdAndUserId(id: Long, userId: Long): Optional<Notification>
-    +markAllRead(userId: Long, readAt: Instant): int
+    + findByRecipientIdOrderByCreatedAtDesc(recipientId: Long, pageable: Pageable): Page<Notification>
+    + countByRecipientIdAndIsReadFalse(recipientId: Long): long
+    + findByIdAndRecipientId(id: Long, recipientId: Long): Optional<Notification>
+    + markAllAsReadByRecipientId(recipientId: Long): void
+    + save(notification: Notification): Notification
   }
 }
 
-package "Domain Entity Layer" #F0FDF4 {
-  entity User <<Entity>> {
-    -id: Long
-    -fullName: String
-    -status: UserStatus
+package "Domain Entity Layer" {
+  enum NotificationType <<Enum>> {
+    SYSTEM
+    RECRUITMENT_EVENT
+    INTERVIEW_REMINDER
+    OFFER_UPDATE
   }
-  entity Notification <<Entity>> {
-    -id: Long
-    -type: String
-    -title: String
-    -body: String [0..1]
-    -payloadJson: String [0..1]
-    -readAt: Instant [0..1]
-    -createdAt: Instant
+  class Notification <<Entity>> {
+    - id: Long
+    - recipientId: Long
+    - title: String
+    - content: String
+    - type: NotificationType
+    - targetUrl: String
+    - isRead: boolean
+    - createdAt: Instant
   }
 }
 
-package "Infrastructure & Persistence" #FEFCE8 {
-  class "Dedicated Tenant MySQL DB" as TenantDB <<Database>> {
-    +users
-    +notifications
+package "Infrastructure & Persistence" {
+  class RedisCache <<Cache>> {
+    + tenant:{tenantId}:unread_notif:{userId}
+  }
+  class DedicatedTenantMySQL <<Database>> {
+    + notifications
   }
   class TenantContext <<ThreadLocal>> {
     +{static} getCurrentTenant(): String
@@ -105,34 +111,26 @@ package "Infrastructure & Persistence" #FEFCE8 {
   }
 }
 
-NotificationInboxRoute -down-> NotificationController : defines routes
-NotificationController -down-> NotificationService : delegates
-NotificationController ..> NotificationListResponse : returns
-NotificationController ..> NotificationResponse : returns
-NotificationController ..> MarkAllReadResponse : returns
-NotificationService ..> NotificationListResponse : creates
-NotificationService ..> NotificationResponse : creates
-NotificationService -down-> NotificationRepository : persists through
-NotificationService --> TenantContext : enforces tenant scope
-NotificationRepository -down-> Notification : manages
-User "1" *-- "0..*" Notification : inbox of
-User --> TenantDB : persists to
-Notification --> TenantDB : persists to
+' Relationships
+NotificationCenterController --> NotificationCenterService : delegates >
+NotificationCenterController ..> NotificationResponse : returns >
+NotificationCenterController ..> UnreadCountResponse : returns >
 
-NotificationListResponse -[hidden]right-> NotificationResponse
-NotificationResponse -[hidden]right-> MarkAllReadResponse
-User -[hidden]right-> Notification
-TenantDB -[hidden]right-> TenantContext
+NotificationCenterService <|.. NotificationCenterServiceImpl : implements
+NotificationCenterServiceImpl ..> NotificationResponse : creates >
+NotificationCenterServiceImpl ..> UnreadCountResponse : creates >
+NotificationCenterServiceImpl --> NotificationRepository : manages notifications >
+NotificationCenterServiceImpl --> RedisCache : caches unread count >
+NotificationCenterServiceImpl ..> TenantContext : reads tenant context >
 
-note right of NotificationService
-  Queries always filter by caller userId.
-  Unread count is derived from read_at IS NULL.
-  No dedicated NotificationService interface exists in code.
-end note
+NotificationRepository --> Notification : manages >
+NotificationRepository --> DedicatedTenantMySQL : persists to >
 
-note right of NotificationInboxRoute
-  GET/PATCH are product contract; controller currently exposes /health.
-  PATCH .../read-all is designed; FE currently marks one item.
+Notification ..> NotificationType : typed by >
+
+note right of NotificationCenterServiceImpl
+  Unread count is cached in Redis for fast badge rendering.
+  Querying notifications is tenant-isolated and paginated.
 end note
 
 @enduml

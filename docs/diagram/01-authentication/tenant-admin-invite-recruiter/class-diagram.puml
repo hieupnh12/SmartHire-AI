@@ -15,12 +15,6 @@ skinparam class {
     ArrowColor #2D3748
 }
 
-package "Routing & Boundary" {
-    class TenantUserRoute <<REST API>> {
-        + POST /api/v1/tenant/users/invite
-    }
-}
-
 package "Controller Layer" {
     class TenantUserController <<Controller>> {
         - tenantUserService: TenantUserService
@@ -130,7 +124,6 @@ package "Infrastructure & Persistence" {
 }
 
 ' Relationships
-TenantUserRoute ..> TenantUserController : defines route >
 TenantUserController ..> InviteRecruiterRequest : consumes >
 TenantUserController --> TenantUserService : delegates >
 TenantUserController ..> UserResponse : returns >
@@ -151,7 +144,7 @@ UserProfile "1" *-- "1" User : belongs to
 User ..> UserRole : typed by
 User ..> UserStatus : has status
 
-UserRepository --> DedicatedTenantMySQL : persists to
-UserProfileRepository --> DedicatedTenantMySQL : persists to
+UserRepository --> DedicatedTenantMySQL : persists to >
+UserProfileRepository --> DedicatedTenantMySQL : persists to >
 
 @enduml

@@ -1,112 +1,121 @@
 @startuml
-title PIPE — Configure Recruitment Pipeline\nLayered target application-design viewpoint
-top to bottom direction
-
 skinparam dpi 300
-skinparam backgroundColor #FFFFFF
 skinparam shadowing false
 skinparam packageStyle rectangle
-skinparam classAttributeIconSize 12
+skinparam roundcorner 6
 skinparam linetype ortho
-skinparam ArrowColor #334155
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam classFontSize 11
+skinparam classAttributeFontSize 10
+skinparam classAttributeIconSize 10
 skinparam ArrowThickness 1
-skinparam ClassBorderColor #64748B
 skinparam ClassBorderThickness 1
-skinparam ClassBackgroundColor #F8FAFC
-skinparam InterfaceBackgroundColor #F3E8FF
-skinparam PackageBorderColor #475569
 skinparam PackageBorderThickness 1
-skinparam DefaultFontColor #111827
-skinparam ClassFontColor #111827
-skinparam ClassAttributeFontColor #111827
-skinparam NoteBackgroundColor #FFF7ED
-skinparam NoteBorderColor #FDBA74
 
-package "Routing & Boundary" #EFF6FF {
-  class PipelineTemplateRoute <<REST API, conceptual>> {
-    +GET /api/v1/tenant/pipeline-template
-    +PUT /api/v1/tenant/pipeline-template
-    +POST /api/v1/jobs/{jobId}/pipeline:apply-template
+skinparam class {
+    BackgroundColor #FFFFFF
+    BorderColor #2D3748
+    ArrowColor #2D3748
+}
+
+<style>
+classDiagram {
+  class {
+    Padding 5
+  }
+}
+</style>
+
+package "Controller Layer" {
+  class PipelineTemplateController <<Controller>> {
+    - pipelineTemplateService: PipelineTemplateService
+    + getTemplate(): ApiResponse<PipelineTemplateResponse>
+    + saveTemplate(request: SaveTemplateRequest): ApiResponse<PipelineTemplateResponse>
+    + applyToJob(jobId: Long): ApiResponse<JobPipelineResponse>
   }
 }
 
-package "Controller Layer" #EFF6FF {
-  class PipelineTemplateController <<Controller, conceptual>> {
-    -pipelineTemplateService: PipelineTemplateService
-    +getTemplate(): ApiResponse<PipelineTemplateResponse>
-    +saveTemplate(request: SaveTemplateRequest): ApiResponse<PipelineTemplateResponse>
-    +applyToJob(jobId: Long): ApiResponse<JobPipelineResponse>
+package "DTO Layer" {
+  class SaveTemplateRequest <<Request>> {
+    + stages: List<TemplateStageDraft>
+  }
+  class TemplateStageDraft <<DTO>> {
+    + code: String
+    + name: String
+    + sortOrder: int
+    + isSystem: boolean
+  }
+  class PipelineTemplateResponse <<Response>> {
+    + id: Long
+    + stages: List<TemplateStageDraft>
+  }
+  class JobPipelineResponse <<Response>> {
+    + jobId: Long
+    + stageCount: int
   }
 }
 
-package "Service Layer" #F0FDF4 {
-  class PipelineTemplateService <<Service, conceptual>> {
-    -templateRepository: PipelineTemplateRepository
-    -jobRepository: JobRepository
-    -stageRepository: RecruitmentStageRepository
-    -tenantContext: TenantContext
-    +getTemplate(): PipelineTemplateResponse
-    +saveTemplate(request: SaveTemplateRequest): PipelineTemplateResponse
-    +applyTemplateToJob(jobId: Long): JobPipelineResponse
+package "Service Layer" {
+  interface PipelineTemplateService <<Service>> {
+    + getTemplate(): PipelineTemplateResponse
+    + saveTemplate(request: SaveTemplateRequest): PipelineTemplateResponse
+    + applyTemplateToJob(jobId: Long): JobPipelineResponse
+  }
+  class PipelineTemplateServiceImpl <<Service>> {
+    - templateRepository: PipelineTemplateRepository
+    - jobRepository: JobRepository
+    - stageRepository: RecruitmentStageRepository
+    + getTemplate(): PipelineTemplateResponse
+    + saveTemplate(request: SaveTemplateRequest): PipelineTemplateResponse
+    + applyTemplateToJob(jobId: Long): JobPipelineResponse
   }
 }
 
-package "DTO Layer" #FFF7ED {
-  class SaveTemplateRequest <<Request, conceptual>> {
-    +stages: TemplateStageDraft[*]
-  }
-  class PipelineTemplateResponse <<Response, conceptual>> {
-    +id: Long
-    +stages: TemplateStageDraft[*]
-  }
-  class JobPipelineResponse <<Response, conceptual>> {
-    +jobId: Long
-    +stageCount: int
-  }
-}
-
-package "Repository Layer" #F5F3FF {
-  interface PipelineTemplateRepository <<Repository, conceptual>> {
-    +findSingleton(): Optional<PipelineTemplate>
-    +save(template: PipelineTemplate): PipelineTemplate
+package "Repository Layer" {
+  interface PipelineTemplateRepository <<Repository>> {
+    + findSingleton(): Optional<PipelineTemplate>
+    + save(template: PipelineTemplate): PipelineTemplate
   }
   interface JobRepository <<Repository>> {
-    +findById(id: Long): Optional<Job>
+    + findById(id: Long): Optional<Job>
   }
   interface RecruitmentStageRepository <<Repository>> {
-    +countByJobId(jobId: Long): long
-    +saveAll(stages: List<RecruitmentStage>): void
+    + countByJobId(jobId: Long): long
+    + saveAll(stages: List<RecruitmentStage>): List<RecruitmentStage>
   }
 }
 
-package "Domain Entity Layer" #F0FDF4 {
-  entity PipelineTemplate <<Entity, conceptual>> {
-    -id: Long
-    -updatedAt: Instant
+package "Domain Entity Layer" {
+  class PipelineTemplate <<Entity>> {
+    - id: Long
+    - updatedAt: Instant
   }
-  entity TemplateStage <<Entity, conceptual>> {
-    -code: String
-    -name: String
-    -sortOrder: int
-    -isSystem: boolean
+  class TemplateStage <<Entity>> {
+    - id: Long
+    - code: String
+    - name: String
+    - sortOrder: int
+    - isSystem: boolean
   }
-  entity Job <<Entity>> {
-    -id: Long
-    -title: String
-    -status: JobStatus
+  class Job <<Entity>> {
+    - id: Long
+    - title: String
+    - status: String
   }
-  entity RecruitmentStage <<Entity>> {
-    -id: Long
-    -name: String
-    -sortOrder: int
-    -terminal: boolean
+  class RecruitmentStage <<Entity>> {
+    - id: Long
+    - name: String
+    - sortOrder: int
+    - terminal: boolean
   }
 }
 
-package "Infrastructure & Persistence" #FEFCE8 {
-  class "Dedicated Tenant MySQL DB" as TenantDB <<Database>> {
-    +jobs
-    +recruitment_stages
+package "Infrastructure & Persistence" {
+  class DedicatedTenantMySQL <<Database>> {
+    + jobs
+    + recruitment_stages
+    + pipeline_templates
   }
   class TenantContext <<ThreadLocal>> {
     +{static} getCurrentTenant(): String
@@ -114,34 +123,36 @@ package "Infrastructure & Persistence" #FEFCE8 {
   }
 }
 
-PipelineTemplateRoute -down-> PipelineTemplateController : defines routes
-PipelineTemplateController -down-> PipelineTemplateService : delegates
-PipelineTemplateController ..> SaveTemplateRequest : consumes
-PipelineTemplateController ..> PipelineTemplateResponse : returns
-PipelineTemplateController ..> JobPipelineResponse : returns
-PipelineTemplateService ..> SaveTemplateRequest : processes
-PipelineTemplateService -down-> PipelineTemplateRepository : persists through
-PipelineTemplateService --> JobRepository : persists through
-PipelineTemplateService --> RecruitmentStageRepository : persists through
-PipelineTemplateService --> TenantContext : enforces tenant scope
-PipelineTemplateRepository -down-> PipelineTemplate : manages
-JobRepository -down-> Job : manages
-RecruitmentStageRepository -down-> RecruitmentStage : manages
-PipelineTemplate "1" *-- "1..*" TemplateStage : contains
-Job "1" *-- "0..*" RecruitmentStage : owns
-TemplateStage ..> RecruitmentStage : cloned as
-PipelineTemplate --> TenantDB : persists to
-Job --> TenantDB : persists to
-RecruitmentStage --> TenantDB : persists to
+' Relationships
+PipelineTemplateController --> PipelineTemplateService : delegates >
+PipelineTemplateController ..> SaveTemplateRequest : consumes >
+PipelineTemplateController ..> PipelineTemplateResponse : returns >
+PipelineTemplateController ..> JobPipelineResponse : returns >
 
-SaveTemplateRequest -[hidden]right-> PipelineTemplateResponse
-Job -[hidden]right-> RecruitmentStage
-TenantDB -[hidden]right-> TenantContext
+PipelineTemplateService <|.. PipelineTemplateServiceImpl : implements
+PipelineTemplateServiceImpl ..> SaveTemplateRequest : processes >
+PipelineTemplateServiceImpl ..> PipelineTemplateResponse : creates >
+PipelineTemplateServiceImpl ..> JobPipelineResponse : creates >
+PipelineTemplateServiceImpl --> PipelineTemplateRepository : manages template >
+PipelineTemplateServiceImpl --> JobRepository : queries job >
+PipelineTemplateServiceImpl --> RecruitmentStageRepository : persists job stages >
+PipelineTemplateServiceImpl ..> TenantContext : reads tenant context >
 
-note right of PipelineTemplate
-  Designed singleton per Tenant DB.
-  Apply-template copies into recruitment_stages
-  only when the job has zero stages.
+PipelineTemplateRepository --> PipelineTemplate : manages >
+JobRepository --> Job : manages >
+RecruitmentStageRepository --> RecruitmentStage : manages >
+
+PipelineTemplateRepository --> DedicatedTenantMySQL : persists to >
+JobRepository --> DedicatedTenantMySQL : persists to >
+RecruitmentStageRepository --> DedicatedTenantMySQL : persists to >
+
+PipelineTemplate "1" *-- "1..*" TemplateStage : contains >
+Job "1" *-- "0..*" RecruitmentStage : owns >
+SaveTemplateRequest *-- TemplateStageDraft : composes >
+
+note right of PipelineTemplateServiceImpl
+  Template is maintained per Tenant DB.
+  Applying template copies stages to job only if job has 0 stages.
 end note
 
 @enduml

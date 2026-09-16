@@ -1,80 +1,56 @@
 @startuml
-title NOTIFY — Recruitment Event Notifications
-
 skinparam dpi 300
-skinparam backgroundColor #FFFFFF
 skinparam shadowing false
-skinparam sequenceArrowThickness 1
-skinparam sequenceMessageAlign center
-skinparam ArrowColor #64748B
-skinparam ParticipantBorderColor #CBD5E1
-skinparam ParticipantBackgroundColor #F8FAFC
-skinparam ActorBorderColor #3B82F6
-skinparam ActorBackgroundColor #EFF6FF
-skinparam DatabaseBorderColor #94A3B8
-skinparam DatabaseBackgroundColor #F8FAFC
-skinparam QueueBorderColor #A855F7
-skinparam QueueBackgroundColor #FAF5FF
+skinparam roundcorner 6
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam sequence {
+    ArrowColor #2D3748
+    ActorBorderColor #2D3748
+    LifeLineBorderColor #2D3748
+    ParticipantBorderColor #2D3748
+    ParticipantBackgroundColor #FFFFFF
+    BoxBorderColor #A0AEC0
+}
 
 hide footbox
 autonumber
 
-actor "Hiring Actor" as Actor
-control "Hiring Domain" as Domain
-control "RecruitmentNotificationDispatcher" as Dispatcher
-control "ResultReleasePolicy" as Policy
+control "Spring ApplicationEvent" as EventBus
+control "RecruitmentEventListener" as Listener
 database "Tenant DB (MySQL)" as TenantDB
-queue "RabbitMQ notify-email" as RabbitMQ
+queue "RabbitMQ notify.email.q" as RabbitMQ
+control "RealtimeNotificationService" as WebSocket
 
-note over Actor, Domain
-  Preconditions: tenant ACTIVE; domain use case already committed
-  (apply, move, reject, offer, invite, reminder, or score).
-  WebSocket push and SMTP retry are other functions.
+note over EventBus, WebSocket
+  Event Fan-Out Architecture: Automatically dispatches domain events
+  to In-App DB, Email Queue, and Realtime WebSocket simultaneously.
 end note
 
-== Domain commits then notifies ==
+== Fan-Out Recruitment Event Notification ==
 
-Actor -> Domain: Complete a hiring action
-activate Actor
-activate Domain
-Domain -> Dispatcher: dispatch(RecruitmentNotificationEvent)
-activate Dispatcher
+EventBus -> Listener: Publish Event (e.g. CandidateAppliedEvent / InterviewScheduledEvent)
+activate Listener
+Listener -> Listener: TenantContext.setCurrentTenant(event.tenantId)
 
-alt RESULT_AVAILABLE and candidate must not see scores yet
-  Dispatcher -> Policy: canNotifyResult(applicationId, role)
-  activate Policy
-  Policy --> Dispatcher: false
-  deactivate Policy
-  Dispatcher --> Domain: Skip candidate notification
-else Recipients allowed
-  Dispatcher -> Policy: canNotifyResult (no-op true for other types)
-  activate Policy
-  Policy --> Dispatcher: true
-  deactivate Policy
-  Dispatcher -> Dispatcher: Build deep link for this tenant and resource
-  Dispatcher -> TenantDB: INSERT notifications (user, type, title, payload_json)
-  activate TenantDB
-  TenantDB --> Dispatcher: Inbox id
-  deactivate TenantDB
-  Dispatcher -> RabbitMQ: publish email command (X-Tenant-ID, sourceEventId)
+Listener -> TenantDB: INSERT notifications (In-App Notification record)
+activate TenantDB
+TenantDB --> Listener: Notification saved
+deactivate TenantDB
+
+par Parallel Channel Dispatch
+  Listener -> RabbitMQ: publishEmail(EmailMessageDTO)
   activate RabbitMQ
-  RabbitMQ --> Dispatcher: Accepted
+  RabbitMQ --> Listener: Email queued
   deactivate RabbitMQ
-  Dispatcher --> Domain: Dispatched
+else Realtime Push
+  Listener -> WebSocket: pushNotificationToUser(recipientId, payload)
+  activate WebSocket
+  WebSocket --> Listener: STOMP frame pushed
+  deactivate WebSocket
 end
 
-deactivate Dispatcher
-Domain --> Actor: Hiring action remains committed
-deactivate Domain
-deactivate Actor
-
-note over Dispatcher, RabbitMQ
-  Types: APPLICATION_SUBMITTED, STAGE_CHANGED,
-  APPLICATION_REJECTED, OFFER_CREATED,
-  ASSESSMENT_INVITED, INTERVIEW_INVITED,
-  SCHEDULE_REMINDER, RESULT_AVAILABLE.
-  Inbox insert enables realtime-notification afterwards.
-  Duplicate sourceEventId is handled by reliability.
-end note
+Listener -> Listener: TenantContext.clear()
+deactivate Listener
 
 @enduml

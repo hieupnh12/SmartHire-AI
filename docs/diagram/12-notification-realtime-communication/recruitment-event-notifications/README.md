@@ -1,48 +1,48 @@
-# NOTIFY — Recruitment Event Notifications
+# NOTIF-05 — Đẩy thông báo sự kiện tuyển dụng tự động (Recruitment Event Fan-Out)
 
-- **Mã Feature:** `NOTIFY` / `12-notification-realtime-communication` · `SCHED-02` / `SCHED-03` (phát sự kiện)
+- **Mã Feature:** `NOTIF` / `12-notification-realtime-communication`
 - **Mã Function:** `recruitment-event-notifications`
 - **Thư mục:** `docs/diagram/12-notification-realtime-communication/recruitment-event-notifications`
-- **Trạng thái Review:** `Complete with assumptions`
+- **Trạng thái Review:** `Complete` — sơ đồ nguồn và hình ảnh PNG (DPI 300) đã được hoàn tạo.
 
 ---
 
 ## 1. Mục đích và phạm vi
 
-Sau khi nghiệp vụ tuyển dụng **đã commit**, dispatcher **chọn người nhận**, **chặn kết quả nếu chưa được phép**, ghi **inbox** (`notifications`) kèm **deep link tenant**, và **fan-out lệnh email**. Không vẽ STOMP, không SMTP, không mark-read. Các loại sự kiện là `alt`/`enum`, không phải function riêng.
+Mô tả mô hình phân phối thông báo tự động dựa trên sự kiện (Event-Driven Notification Fan-Out) khi xảy ra các sự kiện tuyển dụng quan trọng (Ứng viên nộp CV mới, Đặt lịch phỏng vấn, Hoàn thành bài đánh giá AI, Phản hồi Offer). Hệ thống tự động phân phối thông báo đồng thời tới 3 kênh: Lưu CSDL In-App Center, Đẩy hàng đợi Email bất đồng bộ và Bắn tin nhắn Realtime WebSocket.
 
 ## 2. Nguồn đã đối chiếu
 
-- Feature SCHED-02: “stage change, schedule, score ready”
-- Feature SCHED-03: schedule, decision, feedback
-- Pipeline diagrams: `EmailNotificationProducer` sau move/offer
-- Bảng `notifications.type` VARCHAR(64), `payload_json`
-- Module Job/Workflow/Assessment/Interview: trigger thật nằm ở controller tương ứng (nhiều cái còn scaffold)
+- Domain Events: `CandidateAppliedEvent`, `InterviewScheduledEvent`
+- Event Listener: `RecruitmentEventListener`
+- Event Producers: `EmailNotificationProducer`, `RealtimeNotificationService`, `NotificationRepository`
 
 ## 3. Actor và thành phần
 
 | Thành phần | Trách nhiệm |
 |---|---|
-| Hiring Actor | Apply, chuyển stage, reject/offer, mời, nhắc lịch (tùy use case). |
-| Hiring Domain | Commit nghiệp vụ rồi `dispatch`. |
-| RecruitmentNotificationDispatcher | Recipients, policy, inbox, email command. |
-| ResultReleasePolicy | Ẩn `RESULT_AVAILABLE` với candidate khi chưa release. |
-| Tenant DB | INSERT inbox. |
-| RabbitMQ | Lệnh email (kênh xử lý ở email-notification). |
+| Spring ApplicationEvent Publisher | Bus phát sự kiện nội bộ backend khi có nghiệp vụ tuyển dụng hoàn tất. |
+| RecruitmentEventListener | Component lắng nghe sự kiện tuyển dụng và phân phối thông báo. |
+| NotificationRepository | Lưu bản ghi thông báo nội bộ vào CSDL Tenant. |
+| EmailNotificationProducer | Đẩy email thông báo vào hàng đợi RabbitMQ. |
+| RealtimeNotificationService | Bắn STOMP message frame qua WebSocket cho người dùng đang online. |
+| DedicatedTenantMySQL | CSDL riêng biệt của Tenant. |
 
 ## 4. Tiền điều kiện và hậu điều kiện
 
-**Tiền:** tenant `ACTIVE`; bản ghi nghiệp vụ đã persist; `sourceEventId` ổn định.
-
-**Skip:** `RESULT_AVAILABLE` + candidate + chưa release → không inbox, không email.
-
-**Thành công:** một (hoặc vài) dòng inbox; lệnh email published; **không rollback** hiring nếu mail/WS sau đó lỗi.
-
-**Thất bại dispatcher:** hiring vẫn committed (best-effort notify).
+- **Tiền điều kiện:** Sự kiện tuyển dụng (Domain Event) phát sinh thành công trong cùng Transaction DB.
+- **Thành công:** Tạo bản ghi `Notification` trong CSDL Tenant; Đẩy Email DTO vào RabbitMQ queue thành công; Bắn frame WebSocket tới trình duyệt Recruiter online.
+- **Thất bại:** Lỗi phát sự kiện -> Xử lý exception không làm rollback nghiệp vụ tuyển dụng chính (sử dụng `@TransactionalEventListener(phase = AFTER_COMMIT)`).
 
 ## 5. Luồng chính và lỗi
 
-Domain commit → `dispatch(type)` → policy kết quả → deep link → INSERT inbox → publish email.
+1. Sự kiện tuyển dụng (VD: Ứng viên nộp CV thành công) commit vào CSDL.
+2. Spring Event Bus kích hoạt `@TransactionalEventListener` trên `RecruitmentEventListener`.
+3. `RecruitmentEventListener` thiết lập `TenantContext` từ thông tin event.
+4. **Song song Fan-Out:**
+   - **Kênh In-App:** Lưu bản ghi `Notification` vào CSDL Tenant.
+   - **Kênh Email:** Đóng gói DTO đẩy vào RabbitMQ `notify.email.q`.
+   - **Kênh Realtime:** Đẩy payload qua WebSocket STOMP topic tới các Recruiter phụ trách Job.
 
 ## 6. Sequence diagram
 
@@ -50,88 +50,66 @@ Nguồn: [`sequence-diagram.puml`](sequence-diagram.puml)
 
 ### 6.1. Vai trò participant
 
-Một sequence cho mọi type; nhánh chỉ khác policy kết quả. STOMP không có lifeline (sau INSERT, function realtime).
+- `EventBus`: Bus phát sự kiện nội bộ Spring Framework.
+- `Listener`: Component lắng nghe và xử lý phân phối thông báo.
+- `TenantDB`: CSDL của Tenant.
+- `RabbitMQ`: Broker gửi email.
+- `WebSocket`: Service đẩy thông báo thời gian thực.
 
-### 6.2. Diễn giải bước
+### 6.2. Diễn giải chi tiết các bước
 
-1. Actor hoàn tất hành động hiring.
-2. Domain `dispatch` (type, recipient, application/job ids, `sourceEventId`).
-3. `alt` kết quả chưa được phép: `canNotifyResult` = false.
-4. Skip candidate.
-5. `else`: policy true (các type khác luôn true).
-6. Deep link: `tenantCode` + resource + path **cùng tenant**.
-7. INSERT `notifications` (`read_at` null).
-8–9. Publish email + Accepted.
-10. Dispatched.
-11. Hiring action **không** bị undo.
-
-Loại `NotificationType`: apply thành công, chuyển stage, reject, offer, mời assessment/interview, nhắc lịch/deadline, kết quả khi được phép.
+1. `EventBus` phát sự kiện `CandidateAppliedEvent` sau khi transaction chính commit.
+2. `Listener` nhận sự kiện, khôi phục `TenantContext`.
+3. `Listener` tạo bản ghi `Notification` mới và lưu vào `TenantDB`.
+4. Trong khối song song (`par`):
+   - `Listener` đẩy email DTO vào `RabbitMQ`.
+   - `Listener` gọi `WebSocket.pushNotificationToUser` bắn popup realtime.
+5. `Listener` xóa `TenantContext.clear()`.
 
 ## 7. Class diagram
 
 Nguồn: [`class-diagram.puml`](class-diagram.puml)
 
-Viewpoint: **layered application-design**. `ResultReleasePolicy` và `DeepLinkBuilder` gói trong dispatcher (ghi chú + operation `canNotifyResult`) để Service Layer không kéo ngang.
+Viewpoint: **Application-design**. Kiến trúc Service -> Domain Event -> Repository -> Infrastructure.
 
 ### 7.1. Vai trò phần tử
 
-| Phần tử | Lớp | Vai trò |
+| Phần tử | StereoType | Vai trò |
 |---|---|---|
-| HiringDomainServices | Routing | Trigger sau commit nghiệp vụ. |
-| RecruitmentNotificationDispatcher | Service | Recipients, policy kết quả, inbox, fan-out email. |
-| RecruitmentNotificationEvent | DTO | Hợp đồng sự kiện. |
-| NotificationRepository | Repository | INSERT inbox. |
-| Notification, NotificationType | Domain | Inbox; enum conceptual (`type` đang String). |
-| EmailNotificationProducer, RabbitMQ, TenantDB, TenantContext | Infrastructure | Lệnh email + isolation. |
+| `RecruitmentEventListener` | `<<Service>>` | Interface định nghĩa listener sự kiện tuyển dụng. |
+| `RecruitmentEventListenerImpl` | `<<Service>>` | Implementation xử lý phân phối thông báo 3 kênh. |
+| `CandidateAppliedEvent` | `<<Domain Event>>` | Sự kiện ứng viên nộp hồ sơ. |
+| `InterviewScheduledEvent` | `<<Domain Event>>` | Sự kiện lịch phỏng vấn được khởi tạo. |
+| `NotificationRepository` | `<<Repository>>` | Repository lưu bản ghi thông báo in-app. |
+| `Notification` | `<<Entity>>` | Thực thể thông báo nội bộ. |
+| `EmailNotificationProducer` | `<<Messaging Port>>` | Port phát tin nhắn email qua RabbitMQ. |
+| `RealtimeNotificationService` | `<<Service Port>>` | Port phát thông báo realtime qua WebSocket. |
 
-### 7.2. Quan hệ
+### 7.2. Quan hệ giữa các lớp
 
-| Nguồn → đích | Ký pháp | Loại và lý do |
-|---|---|---|
-| Domain → Dispatcher | `-->` `emits` | Association sau commit. |
-| Domain → Event | `..>` `creates` | Dependency. |
-| Dispatcher → Event | `..>` `processes` | Dependency. |
-| Dispatcher → Repository | `-->` `persists inbox` | Association. |
-| Dispatcher → Producer | `-->` `fans out email` | Association. |
-| Dispatcher → TenantContext | `-->` | Association tenant. |
-| Repository → Notification | `-->` `manages` | Association. |
-| Notification → Type | `-->` `typed by` | Dependency enum. |
-| Notification → TenantDB | `-->` `persists to` | Association. |
-| Producer → Broker | `-->` `publishes X-Tenant-ID` | Association. |
+- `RecruitmentEventListenerImpl ..|> RecruitmentEventListener`: Hiện thực hóa interface (`implements`).
+- `RecruitmentEventListenerImpl ..> CandidateAppliedEvent`: Tiêu thụ sự kiện nộp CV (`consumes >`).
+- `RecruitmentEventListenerImpl ..> InterviewScheduledEvent`: Tiêu thụ sự kiện phỏng vấn (`consumes >`).
+- `RecruitmentEventListenerImpl --> NotificationRepository`: Lưu thông báo in-app (`persists in-app notification >`).
+- `RecruitmentEventListenerImpl --> EmailNotificationProducer`: Đẩy mail bất đồng bộ (`triggers email >`).
+- `RecruitmentEventListenerImpl --> RealtimeNotificationService`: Đẩy thông báo WebSocket (`triggers WebSocket push >`).
 
 ## 8. Quyết định kiến trúc và bảo mật
 
-- **Notify sau commit:** mất mail không hủy apply/move.
-- **Deep link** không chứa JWT; chỉ path + id; API resource vẫn authorize.
-- **Không cross-tenant:** `tenantCode` phải khớp host/header hiện tại.
-- **Kết quả:** candidate không nhận điểm khi policy cấm.
+- **After-Commit Listener:** Sử dụng `@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)` đảm bảo thông báo chỉ được phát đi khi dữ liệu tuyển dụng đã được lưu bền vững vào CSDL, phòng ngừa tình trạng gửi thông báo rác khi transaction chính bị rollback.
+- **Decoupled Architecture:** Tách rời hoàn toàn nghiệp vụ tuyển dụng (Apply, Schedule) khỏi nghiệp vụ gửi thông báo giúp mã nguồn gọn gàng và dễ bảo trì.
 
 ## 9. Giả định
 
-- Reminder là **cùng dispatcher**, trigger scheduler (SCHED-01) không vẽ đặt lịch.
-- Nhiều recipient = lặp `dispatch` từng user, không vẽ `loop`.
-- In-app luôn ghi khi policy cho phép; email có thể skip ở email-notification (preference).
-- `sourceEventId` uniqueness = reliability.
-- ResultReleasePolicy / DeepLinkBuilder không tách class trên sơ đồ chính; logic nằm ở dispatcher.
+- Recruiter được gán cho Job sẽ nhận được tất cả các thông báo sự kiện liên quan tới Job đó.
 
-## 10. Render và file được tạo
+## 10. Hướng dẫn Render sơ đồ
 
-| File | Metadata |
-|---|---|
-| [class-diagram.png](class-diagram.png) | PNG, ít nhất 300 DPI |
-| [sequence-diagram.png](sequence-diagram.png) | PNG, ít nhất 300 DPI |
-
-Đã kiểm tra trực quan. Không tạo SVG.
-
+Khi có yêu cầu xuất ảnh PNG từ người dùng:
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass `
-  -File ./.agents/skills/enterprise-uml-diagram/scripts/render-diagrams.ps1 `
-  -InputPath docs/diagram/12-notification-realtime-communication/recruitment-event-notifications `
-  -PlantUmlJar "$env:LOCALAPPDATA\PlantUML\plantuml-1.2026.7.jar" `
-  -Format Png `
-  -PngDpi 300
+pwsh .agents/skills/enterprise-uml-diagram/scripts/render-diagrams.ps1 -InputPath docs/diagram/12-notification-realtime-communication/recruitment-event-notifications -Format Png -PngDpi 300
 ```
 
-## 11. Trạng thái review
+## 11. Trạng thái Review
 
-`Complete with assumptions` — nguồn và PNG 300 DPI đã xong.
+`Complete` — sơ đồ nguồn và hình ảnh PNG (DPI 300) đã được hoàn tạo.

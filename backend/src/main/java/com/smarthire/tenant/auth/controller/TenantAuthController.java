@@ -8,19 +8,17 @@ import com.smarthire.tenant.auth.service.TenantAuthService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/v1/tenant/auth")
+@RequiredArgsConstructor
 @Tag(name = "Tenant Authentication", description = "Login, Logout, and JWT Profile Decoding APIs for Tenants")
 public class TenantAuthController {
 
     private final TenantAuthService tenantAuthService;
-
-    public TenantAuthController(TenantAuthService tenantAuthService) {
-        this.tenantAuthService = tenantAuthService;
-    }
 
     @PostMapping("/login")
     @Operation(summary = "Login Tenant User", description = "Authenticates Tenant User against Tenant DB and issues signed JWT Token.")

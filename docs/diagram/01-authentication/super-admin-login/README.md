@@ -121,32 +121,35 @@ Các hình chữ nhật hẹp trên lifeline là **activation bar**, biểu th�
 
 #### Vai trò các thành phần
 
-| Thành phần | Loại | Vai trò |
+| Thành phần | Stereotype | Trách nhiệm trong hệ thống |
 |---|---|---|
-| `MasterAuthRoute` | `<<REST API>>` conceptual | Khai báo các đường dẫn API thuộc phân vùng xác thực quản trị viên nền tảng. |
-| `MasterAuthController` | `<<Controller>>` | Tiếp nhận HTTP request, validate và gọi service xử lý đăng nhập super admin. |
-| `MasterLoginRequest` | `<<Request>>` | DTO chứa email và mật khẩu (đánh dấu `{write-only}`). |
-| `MasterLoginResponse` | `<<Response>>` | DTO trả về Access Token, tokenType và thông tin người dùng quản trị. |
+| `MasterAuthController` | `<<Controller>>` | Tiếp nhận yêu cầu HTTP từ giao diện quản trị, kiểm tra tính hợp lệ DTO và ánh xạ response. |
+| `MasterLoginRequest` | `<<Request>>` | DTO mang thông tin đăng nhập (`email`, `password`) gửi lên từ client. |
+| `MasterLoginResponse` | `<<Response>>` | DTO trả về kết quả đăng nhập thành công chứa JWT Access Token và thông tin user. |
 | `PlatformUserResponse` | `<<Response>>` | DTO thể hiện thông tin tóm tắt an toàn của quản trị viên nền tảng (không chứa password). |
 | `MasterAuthService` | `<<Service>>` | Service ứng dụng quản lý quy tắc đăng nhập và kiểm tra mật khẩu trên Master DB. |
+| `JwtTokenProvider` | `<<Security>>` | Thành phần tiện ích sinh mã JWT signed token và trích xuất claim bảo mật. |
+| `PasswordEncoder` | `<<Security>>` | Interface mã hóa và so khớp băm mật khẩu (BCrypt). |
 | `PlatformUserRepository` | `<<Repository>>` | Interface Spring Data JPA thao tác với bảng `platform_users`. |
 | `PlatformUser` | `<<Entity>>` | Thực thể người dùng quản trị nền tảng lưu trong Master PostgreSQL. |
-| `MasterDB` | `<<Database>>` | Cơ sở dữ liệu trung tâm PostgreSQL lưu trữ thông tin nền tảng SaaS. |
+| `MasterDB` | `<<Database>>` | Cơ sở dữ liệu trung tâm PostgreSQL lưu trữ thông tin nền tảng SaaS (`platform_users`). |
 
 #### Giải thích các đường nối
 
 | Nguồn → đích | Ký pháp | Loại quan hệ và lý do sử dụng |
 |---|---|---|
-| `MasterAuthRoute → MasterAuthController` | `..>` | **Dependency**: route định tuyến request tới controller (quan hệ sử dụng conceptual). |
-| `MasterAuthController → MasterLoginRequest` | `..>` | **Dependency**: controller nhận DTO request làm tham số đầu vào. |
-| `MasterAuthController → MasterAuthService` | `-->` | **Directed association**: controller phụ thuộc trực tiếp vào service được tiêm (inject). |
-| `MasterAuthController → MasterLoginResponse` | `..>` | **Dependency**: controller trả về response DTO cho client. |
-| `MasterLoginResponse → PlatformUserResponse` | `*--` | **Composition**: `PlatformUserResponse` là thành phần con không thể thiếu cấu thành `MasterLoginResponse`. |
-| `MasterAuthService → MasterLoginRequest` | `..>` | **Dependency**: service nhận request DTO làm dữ liệu xử lý. |
-| `MasterAuthService → PlatformUserRepository` | `-->` | **Directed association**: service gọi repository để truy vấn thông tin trong Master DB. |
-| `PlatformUserRepository → PlatformUser` | `-->` | **Navigable association**: repository quản lý và trả về đối tượng thực thể `PlatformUser`. |
-| `PlatformUserRepository → MasterDB` | `-->` | **Directed association tới data store**: repository thực hiện truy vấn trực tiếp vào Master PostgreSQL. |
-| `MasterDB → PlatformUser` | `*--` | **Composition**: thực thể `PlatformUser` thuộc quyền sở hữu dữ liệu duy nhất của Master DB, không tồn tại trong Tenant DB. |
+| `MasterAuthController → MasterAuthService` | `-->` | **Directed association**: Controller ủy quyền (`delegates >`) xử lý nghiệp vụ cho Service được tiêm (inject). |
+| `MasterAuthController → MasterLoginRequest` | `..>` | **Dependency**: Controller nhận DTO request (`consumes >`) làm tham số đầu vào. |
+| `MasterAuthController → MasterLoginResponse` | `..>` | **Dependency**: Controller trả về (`returns >`) response DTO cho client. |
+| `MasterLoginResponse → PlatformUserResponse` | `*--` | **Composition**: `PlatformUserResponse` là thành phần con không thể thiếu cấu thành (`contains >`) `MasterLoginResponse`. |
+| `MasterAuthService → MasterLoginRequest` | `..>` | **Dependency**: Service nhận request DTO (`processes >`) làm dữ liệu xử lý nghiệp vụ. |
+| `MasterAuthService → MasterLoginResponse` | `..>` | **Dependency**: Service khởi tạo (`creates >`) kết quả response DTO sau khi xác thực thành công. |
+| `MasterAuthService → PlatformUserRepository` | `-->` | **Directed association**: Service gọi repository (`queries / manages >`) để tìm kiếm người dùng trong Master DB. |
+| `MasterAuthService → PasswordEncoder` | `-->` | **Directed association**: Service sử dụng encoder (`verifies password >`) đối chiếu mật khẩu băm. |
+| `MasterAuthService → JwtTokenProvider` | `-->` | **Directed association**: Service gọi token provider (`generates token >`) sinh signed JWT token. |
+| `PlatformUserRepository → PlatformUser` | `-->` | **Navigable association**: Repository quản lý (`manages >`) thực thể `PlatformUser`. |
+| `PlatformUserRepository → MasterDB` | `-->` | **Directed association tới data store**: Repository thực hiện truy vấn (`persists to / reads from >`) vào Master PostgreSQL. |
+| `MasterDB → PlatformUser` | `*--` | **Composition**: Thực thể `PlatformUser` được lưu trữ duy nhất (`stores >`) trong Master PostgreSQL. |
 
 ---
 

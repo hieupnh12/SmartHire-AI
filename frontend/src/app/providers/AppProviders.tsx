@@ -1,6 +1,7 @@
 import { useEffect, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter } from "react-router-dom";
+import { GoogleOAuthProvider } from "@react-oauth/google";
 import { useI18nStore } from "@/i18n";
 import { useAppHotkeys } from "@/hooks/useAppHotkeys";
 import { ToastViewport } from "@/components/ux/ToastViewport";
@@ -42,19 +43,23 @@ function LocaleBoot({ children }: { children: ReactNode }) {
   return children;
 }
 
+const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || "smarthire-placeholder-client-id.apps.googleusercontent.com";
+
 export function AppProviders({ children }: { children: ReactNode }) {
   return (
-    <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <LocaleBoot>
-          <SkipLink />
-          <HotkeysBridge />
-          {children}
-          <ToastViewport />
-          <ShortcutsHelp />
-          <ConfirmDialog />
-        </LocaleBoot>
-      </BrowserRouter>
-    </QueryClientProvider>
+    <GoogleOAuthProvider clientId={googleClientId}>
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter>
+          <LocaleBoot>
+            <SkipLink />
+            <HotkeysBridge />
+            {children}
+            <ToastViewport />
+            <ShortcutsHelp />
+            <ConfirmDialog />
+          </LocaleBoot>
+        </BrowserRouter>
+      </QueryClientProvider>
+    </GoogleOAuthProvider>
   );
 }

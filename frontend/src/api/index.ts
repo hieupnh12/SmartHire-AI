@@ -1,5 +1,6 @@
 /** Domain API clients — Master vs Tenant. */
 export { authApi } from "./tenant/authApi";
+export { companyApi } from "./tenant/companyApi";
 export { jobApi } from "./tenant/jobApi";
 export { applicantApi } from "./tenant/applicantApi";
 export { cvApi } from "./tenant/cvApi";

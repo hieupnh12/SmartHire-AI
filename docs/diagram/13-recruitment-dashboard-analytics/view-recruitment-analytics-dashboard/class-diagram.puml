@@ -1,30 +1,35 @@
 @startuml
-title FE13-F01 — View Recruitment Analytics Dashboard\nLayered target application-design viewpoint
 top to bottom direction
 skinparam dpi 300
 skinparam backgroundColor #FFFFFF
 skinparam shadowing false
 skinparam packageStyle rectangle
-skinparam classAttributeIconSize 12
+skinparam roundcorner 6
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam classFontSize 11
+skinparam classAttributeFontSize 10
+skinparam classAttributeIconSize 10
 skinparam linetype ortho
 skinparam ArrowColor #334155
 skinparam ArrowThickness 1
-skinparam ClassBorderColor #64748B
+skinparam ClassBorderColor #2D3748
 skinparam ClassBorderThickness 1
-skinparam ClassBackgroundColor #F8FAFC
-skinparam InterfaceBackgroundColor #F3E8FF
-skinparam PackageBorderColor #475569
+skinparam ClassBackgroundColor #FFFFFF
+skinparam InterfaceBackgroundColor #FFFFFF
+skinparam PackageBorderColor #2D3748
 skinparam PackageBorderThickness 1
 skinparam DefaultFontColor #111827
 skinparam ClassFontColor #111827
 skinparam ClassAttributeFontColor #111827
 
-package "Routing & Boundary" #EFF6FF {
-  class DashboardAnalyticsRoute <<REST API, conceptual>> {
-    +GET /api/v1/dashboard/analytics
-  }
+<style>
+classDiagram {
+  class { Padding 5 }
 }
-package "Controller Layer" #EFF6FF {
+</style>
+
+package "Controller Layer" #F7FAFC {
   class DashboardController <<Controller>> {
     -dashboardService: DashboardAnalyticsService
     +getDashboard(filter: AnalyticsFilterRequest): ApiResponse<DashboardResponse>
@@ -117,26 +122,22 @@ package "Infrastructure & Persistence" #FEFCE8 {
   }
 }
 
-DashboardAnalyticsRoute -down-> DashboardController : defines routes
-DashboardController -down-> DashboardAnalyticsService : delegates
+DashboardController -down-> DashboardAnalyticsService : delegates >
 DashboardAnalyticsService -[hidden]down-> DashboardAnalyticsServiceImpl
 DashboardAnalyticsServiceImpl ..up|> DashboardAnalyticsService : implements
-DashboardController ..> AnalyticsFilterRequest : consumes
-DashboardController ..> DashboardResponse : returns
-DashboardAnalyticsServiceImpl ..> AnalyticsFilterRequest : processes
-DashboardAnalyticsServiceImpl ..> DashboardResponse : creates
-DashboardAnalyticsServiceImpl -down-> DashboardAnalyticsRepository : queries aggregates
-DashboardAnalyticsServiceImpl --> DashboardCache : reads / writes
-DashboardAnalyticsServiceImpl --> TenantContext : enforces tenant scope
-DashboardAnalyticsRepository -down-> Job : aggregates
+DashboardController ..> AnalyticsFilterRequest : consumes >
+DashboardController ..> DashboardResponse : returns >
+DashboardAnalyticsServiceImpl ..> AnalyticsFilterRequest : processes >
+DashboardAnalyticsServiceImpl ..> DashboardResponse : creates >
+DashboardAnalyticsServiceImpl -down-> DashboardAnalyticsRepository : queries >
+DashboardAnalyticsServiceImpl --> DashboardCache : caches / evicts >
+DashboardAnalyticsServiceImpl --> TenantContext : reads tenant scope >
+DashboardAnalyticsRepository -down-> Job : manages >
 Job "1" <-- "0..*" Application : receives
 Application "0..*" --> "0..1" RecruitmentStage : currently at
 Application "1" --> "0..*" Offer : receives
-Job --> TenantDB : persists to
-Application --> TenantDB : persists to
-RecruitmentStage --> TenantDB : persists to
-Offer --> TenantDB : persists to
-DashboardCache --> RedisCache : stores snapshot
+DashboardAnalyticsRepository --> TenantDB : reads from >
+DashboardCache --> RedisCache : caches snapshot >
 AnalyticsFilterRequest -[hidden]right-> DashboardResponse
 Job -[hidden]right-> Application
 RecruitmentStage -[hidden]right-> Offer

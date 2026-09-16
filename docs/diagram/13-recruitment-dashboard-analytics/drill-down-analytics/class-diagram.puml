@@ -1,32 +1,36 @@
 @startuml
-title FE13-F02 — Drill Down Recruitment Analytics\nLayered target application-design viewpoint
 top to bottom direction
 
 skinparam dpi 300
 skinparam backgroundColor #FFFFFF
 skinparam shadowing false
 skinparam packageStyle rectangle
-skinparam classAttributeIconSize 12
+skinparam roundcorner 6
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam classFontSize 11
+skinparam classAttributeFontSize 10
+skinparam classAttributeIconSize 10
 skinparam linetype ortho
 skinparam ArrowColor #334155
 skinparam ArrowThickness 1
-skinparam ClassBorderColor #64748B
+skinparam ClassBorderColor #2D3748
 skinparam ClassBorderThickness 1
-skinparam ClassBackgroundColor #F8FAFC
-skinparam InterfaceBackgroundColor #F3E8FF
-skinparam PackageBorderColor #475569
+skinparam ClassBackgroundColor #FFFFFF
+skinparam InterfaceBackgroundColor #FFFFFF
+skinparam PackageBorderColor #2D3748
 skinparam PackageBorderThickness 1
 skinparam DefaultFontColor #111827
 skinparam ClassFontColor #111827
 skinparam ClassAttributeFontColor #111827
 
-package "Routing & Boundary" #EFF6FF {
-  class DrillDownRoute <<REST API, conceptual>> {
-    +GET /api/v1/dashboard/drill-down
-  }
+<style>
+classDiagram {
+  class { Padding 5 }
 }
+</style>
 
-package "Controller Layer" #EFF6FF {
+package "Controller Layer" #F7FAFC {
   class DrillDownController <<Controller>> {
     -drillDownService: DrillDownService
     +getDetails(request: DrillDownRequest): ApiResponse<Page<DrillDownRow>>
@@ -110,24 +114,21 @@ package "Infrastructure & Persistence" #FEFCE8 {
   }
 }
 
-DrillDownRoute -down-> DrillDownController : defines routes
-DrillDownController -down-> DrillDownService : delegates
+DrillDownController -down-> DrillDownService : delegates >
 DrillDownService -[hidden]down-> DrillDownServiceImpl
 DrillDownServiceImpl ..up|> DrillDownService : implements
 
-DrillDownController ..> DrillDownRequest : consumes
-DrillDownController ..> DrillDownRow : returns
-DrillDownServiceImpl ..> DrillDownRequest : processes
-DrillDownServiceImpl ..> DrillDownRow : creates
-DrillDownServiceImpl -down-> DrillDownRepository : queries details
-DrillDownServiceImpl --> TenantContext : enforces tenant scope
+DrillDownController ..> DrillDownRequest : consumes >
+DrillDownController ..> DrillDownRow : returns >
+DrillDownServiceImpl ..> DrillDownRequest : processes >
+DrillDownServiceImpl ..> DrillDownRow : creates >
+DrillDownServiceImpl -down-> DrillDownRepository : queries >
+DrillDownServiceImpl --> TenantContext : reads tenant scope >
 
-DrillDownRepository -down-> Application : manages
+DrillDownRepository -down-> Application : manages >
 Application "0..*" --> "1" Job : belongs to
 Application "0..*" --> "0..1" RecruitmentStage : currently at
-Application --> TenantDB : persists to
-Job --> TenantDB : persists to
-RecruitmentStage --> TenantDB : persists to
+DrillDownRepository --> TenantDB : reads from >
 
 DrillDownRequest -[hidden]right-> DrillDownRow
 Job -[hidden]right-> RecruitmentStage

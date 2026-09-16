@@ -1,94 +1,102 @@
 @startuml
-title NOTIFY — Email Notification\nLayered target application-design viewpoint
-top to bottom direction
-
 skinparam dpi 300
-skinparam backgroundColor #FFFFFF
 skinparam shadowing false
 skinparam packageStyle rectangle
-skinparam classAttributeIconSize 12
+skinparam roundcorner 6
 skinparam linetype ortho
-skinparam ArrowColor #334155
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam classFontSize 11
+skinparam classAttributeFontSize 10
+skinparam classAttributeIconSize 10
 skinparam ArrowThickness 1
-skinparam ClassBorderColor #64748B
 skinparam ClassBorderThickness 1
-skinparam ClassBackgroundColor #F8FAFC
-skinparam InterfaceBackgroundColor #F3E8FF
-skinparam PackageBorderColor #475569
 skinparam PackageBorderThickness 1
-skinparam DefaultFontColor #111827
-skinparam ClassFontColor #111827
-skinparam ClassAttributeFontColor #111827
-skinparam NoteBackgroundColor #FFF7ED
-skinparam NoteBorderColor #FDBA74
 
-package "Service Layer" #F0FDF4 {
-  class EmailNotificationService <<Service, conceptual>> {
-    -emailOutboxRepository: EmailOutboxRepository
-    -tenantContext: TenantContext
-    +enqueue(command: SendEmailCommand): void
+skinparam class {
+    BackgroundColor #FFFFFF
+    BorderColor #2D3748
+    ArrowColor #2D3748
+}
+
+<style>
+classDiagram {
+  class {
+    Padding 5
+  }
+}
+</style>
+
+package "Controller Layer" {
+  class EmailNotificationController <<Controller>> {
+    - emailService: EmailNotificationService
+    + sendCustomEmail(request: SendEmailRequest): ApiResponse<Void>
   }
 }
 
-package "DTO Layer" #FFF7ED {
-  class SendEmailCommand <<Request, conceptual>> {
-    +toUserId: Long
-    +toEmail: String
-    +type: String
-    +locale: String
-    +model: Map
-    +idempotencyKey: String
+package "DTO Layer" {
+  class SendEmailRequest <<Request>> {
+    + recipientEmail: String
+    + templateCode: String
+    + templateVariables: Map<String, Object>
   }
-  class RenderedMail <<Response, conceptual>> {
-    +subject: String
-    +body: String
-  }
-}
-
-package "Repository Layer" #F5F3FF {
-  interface EmailOutboxRepository <<Repository>> {
-    +save(row: EmailOutbox): EmailOutbox
+  class EmailMessageDTO <<DTO>> {
+    + tenantId: String
+    + recipientEmail: String
+    + subject: String
+    + htmlBody: String
   }
 }
 
-package "Domain Entity Layer" #F0FDF4 {
-  entity EmailOutbox <<Entity>> {
-    -id: Long
-    -toEmail: String
-    -subject: String
-    -body: String
-    -status: NotificationStatus
-    -attempts: int
-    -sentAt: Instant [0..1]
+package "Service Layer" {
+  interface EmailNotificationService <<Service>> {
+    + sendEmailAsync(request: SendEmailRequest): void
+    + processEmailQueueMessage(message: EmailMessageDTO): void
   }
-  entity MailTemplate <<Entity, conceptual>> {
-    -type: String
-    -locale: String
-    -subjectTemplate: String
-    -bodyTemplate: String
+  class EmailNotificationServiceImpl <<Service>> {
+    - emailProducer: EmailNotificationProducer
+    - templateEngine: TemplateEngine
+    - mailSender: JavaMailSender
+    + sendEmailAsync(request: SendEmailRequest): void
+    + processEmailQueueMessage(message: EmailMessageDTO): void
   }
-  entity NotificationPreference <<Entity, conceptual>> {
-    -userId: Long
-    -type: String
-    -emailEnabled: boolean
+}
+
+package "Repository Layer" {
+  interface EmailLogRepository <<Repository>> {
+    + save(emailLog: EmailLog): EmailLog
   }
-  enum NotificationStatus <<enumeration>> {
+}
+
+package "Domain Entity Layer" {
+  enum EmailStatus <<Enum>> {
     PENDING
     SENT
     FAILED
   }
+  class EmailLog <<Entity>> {
+    - id: Long
+    - recipientEmail: String
+    - subject: String
+    - templateCode: String
+    - status: EmailStatus
+    - errorMessage: String
+    - sentAt: Instant
+  }
 }
 
-package "Infrastructure & Persistence" #FEFCE8 {
-  class EmailWorker <<Worker, conceptual>> {
-    +onNotifyEmail(payload: String, tenantId: String): void
+package "Infrastructure & Persistence" {
+  interface EmailNotificationProducer <<Messaging Port>> {
+    + publishEmail(message: EmailMessageDTO): void
   }
-  class "RabbitMQ notify.email" as NotifyBroker <<Message Broker>> {
-    +notify.email.q
+  class RabbitMQBroker <<Queue>> {
+    + notify.email.q
   }
-  class "SMTP provider" as Smtp <<External>>
-  class "Dedicated Tenant MySQL DB" as TenantDB <<Database>> {
-    +email_outbox
+  class JavaMailSender <<External API>> {
+    + send(mimeMessage: MimeMessage): void
+  }
+  class DedicatedTenantMySQL <<Database>> {
+    + email_logs
   }
   class TenantContext <<ThreadLocal>> {
     +{static} getCurrentTenant(): String
@@ -96,34 +104,28 @@ package "Infrastructure & Persistence" #FEFCE8 {
   }
 }
 
-EmailNotificationService ..> SendEmailCommand : processes
-EmailNotificationService ..> RenderedMail : creates
-EmailNotificationService ..> NotificationPreference : consults
-EmailNotificationService ..> MailTemplate : renders from
-EmailNotificationService -down-> EmailOutboxRepository : persists through
-EmailNotificationService --> TenantContext : enforces tenant scope
-EmailNotificationService --> NotifyBroker : publishes X-Tenant-ID
-EmailOutboxRepository -down-> EmailOutbox : manages
-EmailOutbox --> NotificationStatus : typed by
-EmailOutbox --> TenantDB : persists to
-MailTemplate --> TenantDB : persists to
-NotificationPreference --> TenantDB : persists to
-EmailWorker ..> NotifyBroker : consumes
-EmailWorker --> Smtp : sends
-EmailWorker --> EmailOutboxRepository : marks SENT
-EmailWorker --> TenantContext : restores tenant from header
+' Relationships
+EmailNotificationController --> EmailNotificationService : delegates >
+EmailNotificationController ..> SendEmailRequest : consumes >
 
-SendEmailCommand -[hidden]right-> RenderedMail
-MailTemplate -[hidden]right-> NotificationPreference
-NotifyBroker -[hidden]right-> Smtp
-Smtp -[hidden]right-> TenantDB
-TenantDB -[hidden]right-> TenantContext
+EmailNotificationService <|.. EmailNotificationServiceImpl : implements
+EmailNotificationServiceImpl ..> SendEmailRequest : processes >
+EmailNotificationServiceImpl ..> EmailMessageDTO : constructs >
+EmailNotificationServiceImpl --> EmailNotificationProducer : pushes to queue >
+EmailNotificationServiceImpl --> JavaMailSender : sends SMTP mail >
+EmailNotificationServiceImpl --> EmailLogRepository : logs delivery >
+EmailNotificationServiceImpl ..> TenantContext : reads tenant context >
 
-note right of EmailNotificationService
-  Happy path: first SMTP attempt succeeds.
-  Renders en/vi/ja templates inside the service.
-  Retry, DLQ, and duplicate suppression belong to
-  notification-delivery-reliability. OTP is AUTH.
+EmailLogRepository --> EmailLog : manages >
+EmailLogRepository --> DedicatedTenantMySQL : persists to >
+
+EmailNotificationProducer --> RabbitMQBroker : publishes message >
+
+EmailLog ..> EmailStatus : typed by >
+
+note right of EmailNotificationServiceImpl
+  RabbitMQ consumer restores TenantContext from message header.
+  SMTP execution is fully asynchronous and decoupled from HTTP thread.
 end note
 
 @enduml

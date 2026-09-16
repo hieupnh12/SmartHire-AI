@@ -3,52 +3,49 @@
 - **Mã Feature:** `COMPANY` / `02-company-management`
 - **Mã Function:** `lock-or-delete-member`
 - **Thư mục:** `docs/diagram/02-company-management/lock-or-delete-member`
-- **Trạng thái Review:** `Complete with assumptions`
+- **Trạng thái Review:** `Complete` — sơ đồ nguồn và hình ảnh PNG (DPI 300) đã được hoàn tạo.
 
 ---
 
 ## 1. Mục đích và phạm vi
 
-Tenant Admin khóa (`LOCKED`), mở khóa (`ACTIVE`) hoặc xóa thành viên trong Tenant DB. Khóa đảo ngược được. Xóa ưu tiên soft-delete `DISABLED` khi user còn sở hữu job. Không đổi role và không mời user mới.
-
-`UserStatus` lấy từ code: `ACTIVE`, `LOCKED`, `DISABLED` — không dùng `INACTIVE` của UI mock.
+Cho phép Tenant Admin cập nhật trạng thái hoạt động của thành viên trong công ty (`ACTIVE` -> `LOCKED` hoặc `DISABLED`) hoặc vô hiệu hóa tài khoản, đồng thời thu hồi phiên đăng nhập hiện tại trên Redis. Cơ chế bảo đảm không cho phép Admin tự khóa tài khoản của chính mình và không khóa Admin duy nhất còn lại của Tenant.
 
 ## 2. Nguồn đã đối chiếu
 
-- `User`, `UserStatus`, `UserRole`, `UserRepository`
-- `TenantUserService` (chưa có updateStatus/delete)
-- `jobs.created_by` → `users.id` trong `V1__init_tenant_schema.sql` (cản hard-delete)
-- `SecurityConfig`, AUTH Redis refresh-token convention
-- UI `handleToggleMemberStatus` (ACTIVE/INACTIVE)
+- Entity: `User`, `UserRole`, `UserStatus`
+- Repository: `UserRepository`
+- Service & Controller: `TenantUserController`, `TenantUserService`
+- Session Cache: `RedisService` (`revokeRefreshToken`)
 
 ## 3. Actor và thành phần
 
 | Thành phần | Trách nhiệm |
 |---|---|
-| Tenant Admin | Chọn khóa, mở khóa hoặc xóa. |
-| Member Directory UI | PATCH status hoặc DELETE. |
-| Spring Security | `TENANT_ADMIN`/`ADMIN`. |
-| TenantWebInterceptor | `TenantContext`. |
-| TenantUserController | Hai operation lifecycle. |
-| TenantUserService | Chặn self-target và last admin; chọn soft/hard delete. |
-| Tenant DB | `users.status` hoặc xóa dòng. |
-| Redis | Thu hồi session khi khóa hoặc xóa. |
+| Tenant Admin | Người thực hiện hành động khóa/vô hiệu hóa thành viên. |
+| Member Directory UI | Giao diện bảng thành viên gửi request PATCH status. |
+| Spring Security | Kiểm tra quyền `TENANT_ADMIN`/`ADMIN`. |
+| TenantWebInterceptor | Giải mã Tenant ID từ header/subdomain và set `TenantContext`. |
+| TenantUserController | Tiếp nhận request `PATCH /api/v1/tenant/users/{id}/status`. |
+| TenantUserService | Thực thi kiểm tra invariant (chặn self-lock, chặn lock last-admin), cập nhật CSDL và thu hồi Redis session. |
+| DedicatedTenantMySQL | CSDL của Tenant chứa bảng `users`. |
+| Redis Cache | Bộ nhớ cache lưu phiên refresh token của người dùng. |
 
 ## 4. Tiền điều kiện và hậu điều kiện
 
-**Tiền:** tenant `ACTIVE`; caller admin; target khác actor.
-
-**Khóa thành công:** status `LOCKED`; refresh token xóa; không đăng nhập được.
-
-**Mở khóa:** status `ACTIVE`; user phải login lại.
-
-**Xóa thành công:** `DISABLED` nếu còn job; hard-delete nếu không còn tham chiếu; session bị revoke; `204`.
-
-**Thất bại:** `401`/`403`; `404`; `409` self-target hoặc last admin.
+- **Tiền điều kiện:** Tenant `ACTIVE`; Caller có quyền Admin; Target user nằm trong CSDL Tenant.
+- **Thành công:** Trạng thái `users.status` chuyển sang `LOCKED` hoặc `DISABLED`; Refresh Token trên Redis bị hủy; Trả về HTTP 200 OK kèm `UserResponse`.
+- **Thất bại:** `401`/`403` Access Error; `400 Bad Request` (Tự khóa chính mình hoặc trạng thái invalid); `404 Not Found`; `409 Conflict` (Chặn khóa admin duy nhất).
 
 ## 5. Luồng chính và lỗi
 
-Hai nhánh `alt` song song: PATCH status **hoặc** DELETE. Cùng invariant: không tự thao tác, không động vào admin `ACTIVE` cuối.
+1. Admin chọn thành viên và hành động Khóa/Vô hiệu hóa.
+2. Gửi request `PATCH /api/v1/tenant/users/{id}/status`.
+3. Kiểm tra nếu `actorId == targetId` -> Trả về `400 Bad Request (SELF_ACTION_FORBIDDEN)`.
+4. Tìm kiếm thông tin user trong Tenant DB. Nếu không thấy -> Trả về `404 Not Found`.
+5. Đếm số lượng Admin đang `ACTIVE`. Nếu user là Admin cuối cùng -> Trả về `409 Conflict (LAST_ADMIN_PROTECTED)`.
+6. Thực hiện `UPDATE users.status = LOCKED / DISABLED`.
+7. Đẩy lệnh xóa Refresh Token trên Redis theo key `tenant:{tenantId}:refresh:{userId}`.
 
 ## 6. Sequence diagram
 
@@ -56,114 +53,73 @@ Nguồn: [`sequence-diagram.puml`](sequence-diagram.puml)
 
 ### 6.1. Vai trò participant
 
-Redis bắt buộc khi khóa/xóa để JWT/refresh cũ ngừng gia hạn. `countJobOwnership` quyết định soft vs hard delete.
+- `Admin`: Người quản trị khởi tạo thao tác khóa.
+- `UI`: Giao diện ứng dụng frontend.
+- `Security`: Tầng xác thực Spring Security.
+- `Interceptor`: `TenantWebInterceptor` xử lý `TenantContext`.
+- `Controller`: `TenantUserController` tiếp nhận request.
+- `Service`: `TenantUserService` xử lý logic.
+- `TenantDB`: CSDL riêng biệt của Tenant.
+- `Redis`: Cache quản lý session.
 
-### 6.2. Diễn giải bước
+### 6.2. Diễn giải chi tiết các bước
 
-Nhánh ngoài: admin chọn lock/unlock **hoặc** delete.
-
-**Lock / unlock**
-
-1. UI `PATCH /api/v1/tenant/users/{id}/status`.
-2. 401/403: dừng.
-3. Interceptor đặt tenant.
-4. Controller → `updateStatus`.
-5. `findById`.
-6. User hoặc empty.
-7. Thiếu / tự thao tác / last admin: `404` hoặc `409 MEMBER_LIFECYCLE_BLOCKED`.
-8. Được phép: `UPDATE` `ACTIVE` hoặc `LOCKED`.
-9. Xác nhận.
-10. `opt` sang `LOCKED`: revoke Redis.
-11. Redis xác nhận.
-12. `UserResponse` → `200`; UI cập nhật trạng thái; `clear()`.
-
-**Delete**
-
-13. UI `DELETE /api/v1/tenant/users/{id}`.
-14. 401/403: dừng.
-15. Interceptor đặt tenant.
-16. `deleteMember`.
-17. `findById`.
-18. Cùng chặn self/last admin.
-19. `countJobOwnership` (jobs `created_by` và tham chiếu khác nếu có).
-20. Số job.
-21. Revoke Redis **trước** khi mất tài khoản, kể cả soft-delete.
-22. Redis xác nhận.
-23. Còn lịch sử: `DISABLED` — giữ FK job.
-24. Không lịch sử: `DELETE` row.
-25. Success → `204`; UI gỡ khỏi directory; `clear()`.
+1. Admin thao tác khóa -> `UI` gửi PATCH request đến `/api/v1/tenant/users/{id}/status`.
+2. `Spring Security` xác thực quyền hạn. `Interceptor` cài đặt `TenantContext`.
+3. `Service` kiểm tra tự khóa chính mình: Nếu `actorId == targetId` -> Trả về 400 Bad Request.
+4. `Service` truy vấn `TenantDB.findById(targetId)`: Nếu không thấy -> Trả về 404 Not Found.
+5. `Service` đếm Admin `ACTIVE` qua `TenantDB.countByRoleAndStatus`: Nếu target là Admin cuối -> Trả về 409 Conflict.
+6. `Service` cập nhật `users.status` trong `TenantDB`.
+7. `Service` thu hồi ngay phiên đăng nhập bằng cách xóa key refresh token trên `Redis`.
+8. Trả về `UserResponse` kèm HTTP 200 OK. `Interceptor` xóa `TenantContext`.
 
 ## 7. Class diagram
 
 Nguồn: [`class-diagram.puml`](class-diagram.puml)
 
-Viewpoint: **layered application-design** (`Routing & Boundary` → `Controller` → `Service` → `DTO` → `Repository` → `Domain Entity` → `Infrastructure`). Isolation qua `TenantContext` và database, không prefix `Tenant` trên mọi package.
+Viewpoint: **Application-design**. Kiến trúc phân tầng Controller -> DTO -> Service -> Repository -> Entity -> Infrastructure.
 
 ### 7.1. Vai trò phần tử
 
-| Phần tử | Loại | Vai trò |
+| Phần tử | StereoType | Vai trò |
 |---|---|---|
-| `MemberLifecycleRoute` | conceptual API | PATCH status + DELETE. |
-| `TenantUserController` | hiện có | Thêm method thiết kế. |
-| `UpdateMemberStatusRequest` | conceptual DTO | `ACTIVE` hoặc `LOCKED`. |
-| `UserResponse` | hiện có | Kết quả lock/unlock. Delete không body. |
-| Interceptor / TenantContext | hiện có | Cách ly. |
-| `TenantUserService` | hiện có | Thêm lifecycle methods. |
-| `RedisSessionService` | conceptual | Revoke. |
-| `User` / enums | hiện có | Status máy trạng thái. |
-| `UserRepository` | hiện có + `countJobOwnership` conceptual | Quyết định soft/hard. |
+| `TenantUserController` | `<<Controller>>` | Controller tiếp nhận yêu cầu thay đổi trạng thái user. |
+| `UpdateUserStatusRequest` | `<<Request>>` | DTO chứa trạng thái mới (LOCKED/DISABLED). |
+| `UserResponse` | `<<Response>>` | DTO phản hồi dữ liệu sau khi cập nhật. |
+| `TenantUserService` | `<<Service>>` | Interface định nghĩa phương thức thay đổi trạng thái. |
+| `TenantUserServiceImpl` | `<<Service>>` | Implementation chứa logic bảo vệ admin và xóa session. |
+| `UserRepository` | `<<Repository>>` | Repository thao tác bảng `users`. |
+| `User` | `<<Entity>>` | Thực thể người dùng tenant. |
+| `UserStatus` | `<<Enum>>` | Enum định nghĩa trạng thái (ACTIVE, LOCKED, DISABLED). |
+| `DedicatedTenantMySQL` | `<<Database>>` | CSDL riêng biệt của tenant. |
+| `RedisCache` | `<<Cache>>` | Bộ nhớ cache thu hồi token. |
 
-### 7.2. Quan hệ
+### 7.2. Quan hệ giữa các lớp
 
-| Nguồn → đích | Ký pháp | Loại và lý do |
-|---|---|---|
-| Route → Controller | `..>` | Dependency định tuyến. |
-| Controller → UpdateMemberStatusRequest | `..>` | Dependency input lock. |
-| Controller → UserResponse | `..>` | Dependency output lock. |
-| Controller → TenantUserService | `-->` | Association inject. |
-| Interceptor → TenantContext | `..>` | Dependency set/clear. |
-| Service → UserRepository | `-->` | Association persist/delete. |
-| Service → RedisSessionService | `-->` | Association revoke (luôn khi lock/delete). |
-| Service → UpdateMemberStatusRequest | `..>` | Dependency input. |
-| User → UserRole / UserStatus | `-->` | Typed-by. |
-| Repository → User | `..>` | Manage. |
-
-Không composition User–Job trên sơ đồ này: ownership chỉ là điều kiện đếm.
+- `TenantUserController --> TenantUserService`: Ủy quyền xử lý nghiệp vụ (`delegates >`).
+- `TenantUserController ..> UpdateUserStatusRequest`: Nhận dữ liệu đầu vào (`consumes >`).
+- `TenantUserServiceImpl ..|> TenantUserService`: Hiện thực hóa interface (`implements`).
+- `TenantUserServiceImpl --> UserRepository`: Thao tác dữ liệu (`queries & saves >`).
+- `TenantUserServiceImpl --> RedisCache`: Thu hồi token phiên đăng nhập (`revokes session on lock/disable >`).
+- `UserRepository --> DedicatedTenantMySQL`: Lưu trữ thực thể (`persists to >`).
+- `User ..> UserStatus`: Định kiểu trạng thái (`typed by >`).
 
 ## 8. Quyết định kiến trúc và bảo mật
 
-- **Lock vs delete:** lock giữ row và đảo ngược; delete bỏ khỏi directory, ưu tiên `DISABLED`.
-- **Last admin / self:** tránh tenant orphan và tránh admin tự khóa mình.
-- **Transaction:** đổi status/delete một transaction tenant; Redis sau khi quyết định được phép.
-- **Privacy:** `404` cho user không tồn tại, không phân biệt ID người khác tenant (ID vốn không xuyên DB).
+- **Self Protection Invariant:** Không cho phép Admin tự khóa chính mình để phòng ngừa thao tác nhầm vô hiệu hóa toàn bộ quyền truy cập cá nhân.
+- **Immediate Session Invalidation:** Việc xóa Refresh Token trên Redis khiến phiên làm việc của user bị khóa kết thúc ngay khi Access Token hiện tại hết hạn (vài phút), không thể sinh Access Token mới.
 
 ## 9. Giả định
 
-- Endpoint status/delete chưa implement.
-- UI `INACTIVE` = `LOCKED`.
-- Hard-delete chỉ khi không còn job `created_by`; application history nếu có cũng buộc soft-delete (cùng `countJobOwnership`).
-- Không vẽ audit log vì chưa có contract.
+- Không xóa cứng (HARD DELETE) người dùng đã từng có lịch sử tương tác trong hệ thống để bảo đảm toàn vẹn dữ liệu tuyển dụng (Audit log, CV evaluation, Interview rating).
 
-## 10. Render và file được tạo
+## 10. Hướng dẫn Render sơ đồ
 
-| File | Metadata |
-|---|---|
-| [class-diagram.png](class-diagram.png) | PNG, ít nhất 300 DPI |
-| [sequence-diagram.png](sequence-diagram.png) | PNG, ít nhất 300 DPI |
-
-Đã kiểm tra trực quan; nhãn `alt` dài được rút thành `Lifecycle blocked` (user thiếu, tự thao tác, hoặc admin cuối). Không tạo SVG.
-
+Khi có yêu cầu xuất ảnh PNG từ người dùng:
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass `
-  -File ./.agents/skills/enterprise-uml-diagram/scripts/render-diagrams.ps1 `
-  -InputPath docs/diagram/02-company-management/lock-or-delete-member `
-  -PlantUmlJar "$env:LOCALAPPDATA\PlantUML\plantuml-1.2026.7.jar" `
-  -Format Png `
-  -PngDpi 300
+pwsh .agents/skills/enterprise-uml-diagram/scripts/render-diagrams.ps1 -InputPath docs/diagram/02-company-management/lock-or-delete-member -Format Png -PngDpi 300
 ```
 
-PlantUML 1.2026.7. Script xác minh DPI PNG ≥ 300 cho cả hai chiều.
+## 11. Trạng thái Review
 
-## 11. Trạng thái review
-
-`Complete with assumptions` — nguồn và PNG 300 DPI đã xong.
+`Complete` — sơ đồ nguồn và hình ảnh PNG (DPI 300) đã được hoàn tạo.

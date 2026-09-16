@@ -1,23 +1,22 @@
 @startuml
-title PIPE — Configure Recruitment Pipeline
-
 skinparam dpi 300
-skinparam backgroundColor #FFFFFF
 skinparam shadowing false
-skinparam sequenceArrowThickness 1
-skinparam sequenceMessageAlign center
-skinparam ArrowColor #64748B
-skinparam ParticipantBorderColor #CBD5E1
-skinparam ParticipantBackgroundColor #F8FAFC
-skinparam ActorBorderColor #3B82F6
-skinparam ActorBackgroundColor #EFF6FF
-skinparam DatabaseBorderColor #94A3B8
-skinparam DatabaseBackgroundColor #F8FAFC
+skinparam roundcorner 6
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam sequence {
+    ArrowColor #2D3748
+    ActorBorderColor #2D3748
+    LifeLineBorderColor #2D3748
+    ParticipantBorderColor #2D3748
+    ParticipantBackgroundColor #FFFFFF
+    BoxBorderColor #A0AEC0
+}
 
 hide footbox
 autonumber
 
-actor "Tenant Admin / Recruiter" as Admin
+actor "HR Manager" as Manager
 boundary "Pipeline Settings UI" as UI
 control "Spring Security" as Security
 control "TenantWebInterceptor" as Interceptor
@@ -25,115 +24,100 @@ boundary "PipelineTemplateController" as Controller
 control "PipelineTemplateService" as Service
 database "Tenant DB (MySQL)" as TenantDB
 
-note over Admin, Security
-  Preconditions: tenant ACTIVE; JWT TENANT_ADMIN/ADMIN to edit the company template;
-  Recruiter may apply the template to a job they can manage.
-  Stage CRUD is a separate function (manage-recruitment-stages).
+note over Manager, Security
+  Preconditions: tenant ACTIVE; caller is TENANT_ADMIN, ADMIN, or HR.
 end note
 
-== Save company pipeline template ==
+== Save Pipeline Template ==
 
-Admin -> UI: Edit default stage list and save
+Manager -> UI: Configure global pipeline stages (Applied, Screening, Interview, Offer, Hired)
 activate UI
 UI -> Security: PUT /api/v1/tenant/pipeline-template
 activate Security
+Security -> Interceptor: Forward request
+activate Interceptor
+deactivate Security
+Interceptor -> Interceptor: setCurrentTenant(tenantId)
+Interceptor -> Controller: Route request
+activate Controller
 
-alt Unauthenticated or forbidden role
-  Security --> UI: 401 Unauthorized / 403 Forbidden
-  deactivate Security
-  UI --> Admin: Show access error
-else Authorized administrator
-  Security -> Interceptor: Forward authenticated request
-  activate Interceptor
-  deactivate Security
-  Interceptor -> Interceptor: setCurrentTenant(tenantId)
-  Interceptor -> Controller: Route request
-  activate Controller
-  Controller -> Controller: Validate unique sortOrder and names
+Controller -> Controller: Validate stage list & required system stages
 
-  alt Invalid template
-    Controller --> UI: 400 Bad Request
-    deactivate Controller
-    UI --> Admin: Show validation errors
-    Interceptor -> Interceptor: clear TenantContext
-    deactivate Interceptor
-  else Valid template
-    Controller -> Service: saveTemplate(request)
-    activate Service
-    Service -> TenantDB: UPSERT PipelineTemplate and TemplateStage rows
-    activate TenantDB
-    TenantDB --> Service: Saved template
-    deactivate TenantDB
-    Service --> Controller: PipelineTemplateResponse
-    deactivate Service
-    Controller --> UI: 200 OK
-    deactivate Controller
-    UI --> Admin: Show company template saved
-    Interceptor -> Interceptor: clear TenantContext
-    deactivate Interceptor
-  end
-end
-
-== Apply template to a job ==
-
-Admin -> UI: Apply company template to selected job
-UI -> Security: POST /api/v1/jobs/{jobId}/pipeline:apply-template
-activate Security
-
-alt Unauthenticated or cannot manage job
-  Security --> UI: 401 Unauthorized / 403 Forbidden
-  deactivate Security
-  UI --> Admin: Show access error
-else Authorized
-  Security -> Interceptor: Forward authenticated request
-  activate Interceptor
-  deactivate Security
-  Interceptor -> Interceptor: setCurrentTenant(tenantId)
-  Interceptor -> Controller: Route request
-  activate Controller
-  Controller -> Service: applyTemplateToJob(jobId)
+alt Missing system required stage (e.g. APPLIED or HIRED)
+  Controller --> UI: 400 Bad Request
+  deactivate Controller
+  UI --> Manager: Show invalid template error
+  Interceptor -> Interceptor: clear TenantContext
+  deactivate Interceptor
+else Valid template configuration
+  Controller -> Service: saveTemplate(request)
   activate Service
-  Service -> TenantDB: Load Job and count recruitment_stages
+  Service -> TenantDB: findSingleton()
   activate TenantDB
-  TenantDB --> Service: Job and stage count
+  TenantDB --> Service: PipelineTemplate or empty
   deactivate TenantDB
 
-  alt Job missing
-    Service --> Controller: JOB_NOT_FOUND
-    deactivate Service
-    Controller --> UI: 404 Not Found
-    deactivate Controller
-    UI --> Admin: Show job not found
-  else Job already has stages
-    Service --> Controller: PIPELINE_ALREADY_INITIALIZED
-    deactivate Service
-    Controller --> UI: 409 Conflict
-    deactivate Controller
-    UI --> Admin: Tell user to edit job stages instead
-  else Job pipeline empty
-    Service -> TenantDB: Load PipelineTemplate stages
-    activate TenantDB
-    TenantDB --> Service: TemplateStage list
-    deactivate TenantDB
-    Service -> TenantDB: INSERT RecruitmentStage clones for jobId
-    activate TenantDB
-    TenantDB --> Service: Job pipeline created
-    deactivate TenantDB
-    Service --> Controller: JobPipelineResponse
-    deactivate Service
-    Controller --> UI: 201 Created
-    deactivate Controller
-    UI --> Admin: Open job Kanban with copied columns
-  end
+  Service -> TenantDB: UPDATE / INSERT pipeline_templates & template_stages
+  activate TenantDB
+  TenantDB --> Service: Template saved
+  deactivate TenantDB
+
+  Service --> Controller: PipelineTemplateResponse
+  deactivate Service
+  Controller --> UI: 200 OK
+  deactivate Controller
+  UI --> Manager: Show template saved toast
+  Interceptor -> Interceptor: clear TenantContext
+  deactivate Interceptor
+end
+
+== Apply Template to Job ==
+
+Manager -> UI: Click "Apply Template" on Job configuration page
+UI -> Security: POST /api/v1/jobs/{jobId}/pipeline:apply-template
+activate Security
+Security -> Interceptor: Forward request
+activate Interceptor
+deactivate Security
+Interceptor -> Interceptor: setCurrentTenant(tenantId)
+Interceptor -> Controller: Route request
+activate Controller
+
+Controller -> Service: applyTemplateToJob(jobId)
+activate Service
+Service -> TenantDB: countByJobId(jobId)
+activate TenantDB
+TenantDB --> Service: Existing stage count
+deactivate TenantDB
+
+alt Job already has pipeline stages
+  Service --> Controller: JOB_PIPELINE_NOT_EMPTY
+  deactivate Service
+  Controller --> UI: 409 Conflict
+  deactivate Controller
+  UI --> Manager: Block applying template to non-empty pipeline
+  Interceptor -> Interceptor: clear TenantContext
+  deactivate Interceptor
+else Job has 0 stages
+  Service -> TenantDB: findSingleton()
+  activate TenantDB
+  TenantDB --> Service: PipelineTemplate
+  deactivate TenantDB
+
+  Service -> TenantDB: INSERT recruitment_stages (cloned from template_stages)
+  activate TenantDB
+  TenantDB --> Service: Stages created
+  deactivate TenantDB
+
+  Service --> Controller: JobPipelineResponse
+  deactivate Service
+  Controller --> UI: 200 OK
+  deactivate Controller
+  UI --> Manager: Show pipeline applied to job
   Interceptor -> Interceptor: clear TenantContext
   deactivate Interceptor
 end
 
 deactivate UI
-
-note over TenantDB
-  Apply copies rows into recruitment_stages; it does not
-  keep a live FK from job stages back to the template.
-end note
 
 @enduml

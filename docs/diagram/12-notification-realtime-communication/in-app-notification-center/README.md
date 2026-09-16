@@ -1,51 +1,54 @@
-# NOTIFY — In-App Notification Center
+# NOTIF-02 — Trung tâm thông báo nội bộ ứng dụng (In-App Notification Center)
 
-- **Mã Feature:** `NOTIFY` / `12-notification-realtime-communication` · `SCHED-02`
+- **Mã Feature:** `NOTIF` / `12-notification-realtime-communication`
 - **Mã Function:** `in-app-notification-center`
 - **Thư mục:** `docs/diagram/12-notification-realtime-communication/in-app-notification-center`
-- **Trạng thái Review:** `Complete with assumptions`
+- **Trạng thái Review:** `Complete` — sơ đồ nguồn và hình ảnh PNG (DPI 300) đã được hoàn tạo.
 
 ---
 
 ## 1. Mục đích và phạm vi
 
-User đã đăng nhập **xem hộp thư in-app**, **số chưa đọc**, **đánh dấu đã đọc một hoặc tất cả**. Không tạo thông báo mới, không WebSocket, không SMTP. Ghi inbox thuộc `recruitment-event-notifications`. Đẩy realtime thuộc `realtime-notification`.
+Mô tả hoạt động của Trung tâm thông báo (Notification Center) trên giao diện ứng dụng Workspace. Người dùng (Recruiter/Admin) có thể xem số lượng thông báo chưa đọc (Badge counter), mở danh sách thông báo phân trang, đánh giá trạng thái đã đọc (`isRead = true`) và truy cập trực tiếp các liên kết liên quan (`targetUrl`).
 
 ## 2. Nguồn đã đối chiếu
 
-- `docs/features/Scheduling-Notifications/WebSocket-Notifications.md` — REST `GET /api/v1/notifications`
-- `docs/api/API_GUIDE.md` — `GET/PATCH /notifications`
-- Entity `Notification`, bảng `notifications` (`read_at`, `payload_json`)
-- `NotificationController` / `NotificationService` hiện chỉ `/health`
-- FE `notificationApi.list` / `markRead`; trang Notifications còn scaffold
-- `SecurityConfig`: `/api/v1/**` mọi role tenant đã auth
+- Entity: `Notification`, `NotificationType`
+- Repository: `NotificationRepository`
+- Service & Controller: `NotificationCenterController`, `NotificationCenterService`
+- Cache: `RedisService` (`unread_notif` counter)
 
 ## 3. Actor và thành phần
 
 | Thành phần | Trách nhiệm |
 |---|---|
-| Authenticated User | Mở center, mark read. |
-| Notification Center UI | GET list, PATCH read. |
-| Spring Security | JWT + role. |
-| TenantWebInterceptor | `TenantContext`. |
-| NotificationController / Service | Inbox của **chính caller**. |
-| Tenant DB | `notifications` theo `user_id`. |
+| Recruiter / Staff | Người nhận thông báo trên hệ thống. |
+| Notification Bell UI | Component biểu tượng quả chuông hiển thị badge số lượng và danh sách thông báo. |
+| Spring Security | Xác thực token và phân quyền truy cập. |
+| TenantWebInterceptor | Giải mã Tenant ID gán `TenantContext`. |
+| NotificationCenterController | Tiếp nhận API `GET /notifications`, `GET /unread-count`, `PATCH /{id}/read`. |
+| NotificationCenterService | Đọc/ghi thông báo và lưu cache số lượng chưa đọc trên Redis. |
+| NotificationRepository | Quản lý bản ghi `notifications` trong CSDL của Tenant. |
+| Redis Cache | Lưu cache số lượng thông báo chưa đọc (`tenant:{tenantId}:unread_notif:{userId}`). |
+| DedicatedTenantMySQL | CSDL riêng của Tenant. |
 
 ## 4. Tiền điều kiện và hậu điều kiện
 
-**Tiền:** tenant `ACTIVE`; JWT đúng tenant; user xem **inbox của mình**.
-
-**Thành công (list):** `200` kèm items + `unreadCount` (`read_at IS NULL`).
-
-**Thành công (mark one):** `read_at` gán nếu còn null; `200`.
-
-**Thành công (mark all):** mọi dòng unread của caller có `read_at`; `200`.
-
-**Thất bại:** `401`/`403`; `404` khi id không tồn tại hoặc **không thuộc** caller (không lộ inbox người khác).
+- **Tiền điều kiện:** Tenant `ACTIVE`; Người dùng đã đăng nhập hệ thống.
+- **Thành công:** Trả về số lượng chưa đọc cực nhanh từ Redis Cache; Phân trang danh sách thông báo mới nhất; Cập nhật `isRead = true` và giảm counter cache khi xem.
+- **Thất bại:** `401`/`403` Access Error; `404 Not Found` (Thông báo không thuộc về user).
 
 ## 5. Luồng chính và lỗi
 
-Mở center → GET list → render badge → PATCH một hoặc tất cả → cập nhật unread.
+1. **Luồng lấy số thông báo chưa đọc (Badge Counter):**
+   - Khi load header ứng dụng -> Gọi `GET /api/v1/tenant/notifications/unread-count`.
+   - Đọc Redis key `tenant:{tenantId}:unread_notif:{userId}`. Nếu Cache Hit -> Trả về lập tức.
+   - Nếu Cache Miss -> Đếm trong `TenantDB` qua `countByRecipientIdAndIsReadFalse`, lưu vào Redis (TTL 1 giờ) và trả về client.
+
+2. **Luồng xem danh sách & Đánh dấu đã đọc:**
+   - Khi click chuông thông báo -> Gọi `GET /api/v1/tenant/notifications?page=0&size=10`.
+   - Khi click vào 1 item -> Gọi `PATCH /api/v1/tenant/notifications/{id}/read`.
+   - Cập nhật `is_read = true` trong `TenantDB` và giảm số đếm trong Redis (`DECR`).
 
 ## 6. Sequence diagram
 
@@ -53,95 +56,69 @@ Nguồn: [`sequence-diagram.puml`](sequence-diagram.puml)
 
 ### 6.1. Vai trò participant
 
-Không có RabbitMQ/WebSocket: function chỉ đọc/ghi `read_at`.
+- `User`: Người dùng ứng dụng.
+- `UI`: Giao diện quả chuông thông báo.
+- `Security`: Spring Security authorization context.
+- `Interceptor`: `TenantWebInterceptor` xử lý `TenantContext`.
+- `Controller`: `NotificationCenterController` tiếp nhận API.
+- `Service`: `NotificationCenterService` xử lý cache và CSDL.
+- `TenantDB`: CSDL riêng biệt của Tenant.
+- `Redis`: Cache đếm số lượng chưa đọc.
 
-### 6.2. Diễn giải bước
+### 6.2. Diễn giải chi tiết các bước
 
-**Open inbox**
-
-1. User mở center.
-2. `GET /api/v1/notifications`.
-3. 401/403.
-4–8. `setCurrentTenant` → `listMine` → load đúng `user_id` + đếm unread → `200` → vẽ list/badge → `clear()`.
-
-**Mark read**
-
-9. Chọn một hoặc tất cả.
-10. `PATCH /notifications/{id}` hoặc `PATCH /notifications/read-all`.
-11. 401/403.
-12–14. Tenant + route.
-15. `alt` mark one: tìm `id AND user_id`.
-16. Không có / không sở hữu: `404` (cùng mã để không dò inbox).
-17. Có: `read_at = now()` nếu còn null (idempotent nếu đã đọc).
-18. `else` mark all: update mọi unread của caller.
-19. `200`; badge giảm; `clear()`.
-
-Deep link: UI điều hướng trong tenant hiện tại từ `payload_json`; không gọi API inbox khác.
+1. User load Header -> `UI` gửi `GET /unread-count`.
+2. `Service` đọc `Redis`: Nếu Hit -> Trả về ngay. Nếu Miss -> Truy vấn `TenantDB`, set `Redis` và trả về count.
+3. User mở danh sách -> `UI` gửi `GET /notifications?page=0&size=10`. `Service` đọc `TenantDB` phân trang.
+4. User click thông báo -> `UI` gửi `PATCH /{id}/read`. `Service` cập nhật `is_read = true` trong `TenantDB` và gọi `Redis DECR`.
 
 ## 7. Class diagram
 
 Nguồn: [`class-diagram.puml`](class-diagram.puml)
 
-Viewpoint: **layered application-design** (`Routing & Boundary` → `Controller` → `Service` → `DTO` → `Repository` → `Domain Entity` → `Infrastructure`). Tenant isolation qua `TenantContext` và Tenant DB, không prefix `Tenant` trên mọi package.
+Viewpoint: **Application-design**. Kiến trúc phân tầng Controller -> DTO -> Service -> Repository -> Entity -> Infrastructure.
 
 ### 7.1. Vai trò phần tử
 
-| Phần tử | Lớp | Vai trò |
+| Phần tử | StereoType | Vai trò |
 |---|---|---|
-| NotificationInboxRoute | Routing | Hợp đồng GET/PATCH conceptual. |
-| NotificationController | Controller | Inject service; không persist. |
-| NotificationService | Service | Concrete class (không invent interface). Inbox đúng `userId`. |
-| List / Item / MarkAll DTO | DTO | `unreadCount` derived; `deepLink` từ payload. |
-| NotificationRepository | Repository | Query theo caller. |
-| User, Notification | Domain | Composition inbox; `read_at` nguồn unread. |
-| Tenant MySQL, TenantContext | Infrastructure | DB-per-tenant; set/clear context. |
+| `NotificationCenterController` | `<<Controller>>` | Controller tiếp nhận request xem và đánh dấu đọc thông báo. |
+| `NotificationResponse` | `<<Response>>` | DTO phản hồi thông tin thông báo. |
+| `UnreadCountResponse` | `<<Response>>` | DTO phản hồi số lượng thông báo chưa đọc. |
+| `NotificationCenterService` | `<<Service>>` | Interface định nghĩa nghiệp vụ trung tâm thông báo. |
+| `NotificationCenterServiceImpl` | `<<Service>>` | Implementation thực thi đọc/ghi CSDL và lưu Redis cache. |
+| `NotificationRepository` | `<<Repository>>` | Repository quản lý bảng `notifications`. |
+| `Notification` | `<<Entity>>` | Thực thể thông báo nội bộ. |
+| `NotificationType` | `<<Enum>>` | Phân loại thông báo (SYSTEM, RECRUITMENT_EVENT, INTERVIEW_REMINDER, OFFER_UPDATE). |
+| `RedisCache` | `<<Cache>>` | Cache số lượng thông báo chưa đọc. |
 
-### 7.2. Quan hệ
+### 7.2. Quan hệ giữa các lớp
 
-| Nguồn → đích | Ký pháp | Loại và lý do |
-|---|---|---|
-| Route → Controller | `-->` `defines routes` | Association định tuyến. |
-| Controller → Service | `-->` `delegates` | Association inject. |
-| Controller → DTO | `..>` `returns` | Dependency output. |
-| Service → DTO | `..>` `creates` | Dependency map entity → response. |
-| Service → Repository | `-->` `persists through` | Association. |
-| Service → TenantContext | `-->` | Association phạm vi tenant. |
-| Repository → Notification | `-->` `manages` | Association persist. |
-| User → Notification | `*--` `inbox of` | Composition: xóa user kéo theo inbox. |
-| Entity → TenantDB | `-->` `persists to` | Association hạ tầng. |
+- `NotificationCenterController --> NotificationCenterService`: Ủy quyền xử lý nghiệp vụ (`delegates >`).
+- `NotificationCenterController ..> NotificationResponse`: Trả về dữ liệu (`returns >`).
+- `NotificationCenterController ..> UnreadCountResponse`: Trả về số đếm (`returns >`).
+- `NotificationCenterServiceImpl ..|> NotificationCenterService`: Hiện thực hóa interface (`implements`).
+- `NotificationCenterServiceImpl --> NotificationRepository`: Quản lý danh sách thông báo (`manages notifications >`).
+- `NotificationCenterServiceImpl --> RedisCache`: Cập nhật cache chưa đọc (`caches unread count >`).
+- `NotificationRepository --> DedicatedTenantMySQL`: Lưu trữ dữ liệu (`persists to >`).
+- `Notification ..> NotificationType`: Định kiểu phân loại (`typed by >`).
 
 ## 8. Quyết định kiến trúc và bảo mật
 
-- **Ownership:** mọi query gắn `user_id = actor`. Không admin đọc inbox người khác trong function này.
-- **Unread:** derived, không cache Redis ở đây.
-- **Deep link:** client-side; server không tin path FE nếu sau này authorize resource.
-- **Multi-tenant:** Tenant DB riêng; không mang `tenantId` trên entity.
+- **High Performance Counter Cache:** Sử dụng Redis `DECR` và `SETEX` để hiển thị Badge Counter vô cùng nhanh chóng trên giao diện mà không tạo tải truy vấn `COUNT(*)` liên tục lên MySQL Database.
+- **Tenant Isolation:** Toàn bộ thông báo được lưu trữ và truy vấn độc lập trong CSDL riêng của Tenant.
 
 ## 9. Giả định
 
-- `PATCH .../read-all` và field `unreadCount` là thiết kế; FE hiện chỉ `list` + `markRead`.
-- `markRead` lặp lại trên dòng đã đọc vẫn `200`.
-- Phân trang inbox không vẽ (list mới nhất).
-- Tạo notification / WS / email **ngoài** function này.
+- Mặc định danh sách thông báo sắp xếp theo thời gian tạo giảm dần (`createdAt DESC`).
 
-## 10. Render và file được tạo
+## 10. Hướng dẫn Render sơ đồ
 
-| File | Metadata |
-|---|---|
-| [class-diagram.png](class-diagram.png) | PNG, ít nhất 300 DPI |
-| [sequence-diagram.png](sequence-diagram.png) | PNG, ít nhất 300 DPI |
-
-Đã kiểm tra trực quan. Không tạo SVG.
-
+Khi có yêu cầu xuất ảnh PNG từ người dùng:
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass `
-  -File ./.agents/skills/enterprise-uml-diagram/scripts/render-diagrams.ps1 `
-  -InputPath docs/diagram/12-notification-realtime-communication/in-app-notification-center `
-  -PlantUmlJar "$env:LOCALAPPDATA\PlantUML\plantuml-1.2026.7.jar" `
-  -Format Png `
-  -PngDpi 300
+pwsh .agents/skills/enterprise-uml-diagram/scripts/render-diagrams.ps1 -InputPath docs/diagram/12-notification-realtime-communication/in-app-notification-center -Format Png -PngDpi 300
 ```
 
-## 11. Trạng thái review
+## 11. Trạng thái Review
 
-`Complete with assumptions` — nguồn và PNG 300 DPI đã xong.
+`Complete` — sơ đồ nguồn và hình ảnh PNG (DPI 300) đã được hoàn tạo.

@@ -1,116 +1,113 @@
 @startuml
-title PIPE — Transition Candidate Stage\nLayered target application-design viewpoint
-top to bottom direction
-
 skinparam dpi 300
-skinparam backgroundColor #FFFFFF
 skinparam shadowing false
 skinparam packageStyle rectangle
-skinparam classAttributeIconSize 12
+skinparam roundcorner 6
 skinparam linetype ortho
-skinparam ArrowColor #334155
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam classFontSize 11
+skinparam classAttributeFontSize 10
+skinparam classAttributeIconSize 10
 skinparam ArrowThickness 1
-skinparam ClassBorderColor #64748B
 skinparam ClassBorderThickness 1
-skinparam ClassBackgroundColor #F8FAFC
-skinparam InterfaceBackgroundColor #F3E8FF
-skinparam PackageBorderColor #475569
 skinparam PackageBorderThickness 1
-skinparam DefaultFontColor #111827
-skinparam ClassFontColor #111827
-skinparam ClassAttributeFontColor #111827
-skinparam NoteBackgroundColor #FFF7ED
-skinparam NoteBorderColor #FDBA74
 
-package "Routing & Boundary" #EFF6FF {
-  class PipelineMoveRoute <<REST API, conceptual>> {
-    +GET /api/v1/jobs/{jobId}/pipeline
-    +POST /api/v1/applications/{id}/move
+skinparam class {
+    BackgroundColor #FFFFFF
+    BorderColor #2D3748
+    ArrowColor #2D3748
+}
+
+<style>
+classDiagram {
+  class {
+    Padding 5
+  }
+}
+</style>
+
+package "Controller Layer" {
+  class CandidatePipelineController <<Controller>> {
+    - candidatePipelineService: CandidatePipelineService
+    + transitionStage(applicationId: Long, request: TransitionStageRequest): ApiResponse<ApplicationStageResponse>
   }
 }
 
-package "Controller Layer" #EFF6FF {
-  class WorkflowController <<Controller, conceptual>> {
-    -workflowService: WorkflowService
-    +getPipeline(jobId: Long): ApiResponse<PipelineBoardResponse>
-    +move(id: Long, request: MoveApplicationRequest): ApiResponse<ApplicationCardResponse>
+package "DTO Layer" {
+  class TransitionStageRequest <<Request>> {
+    + targetStageId: Long
+    + note: String
+  }
+  class ApplicationStageResponse <<Response>> {
+    + applicationId: Long
+    + previousStageId: Long
+    + currentStageId: Long
+    + currentStageName: String
+    + updatedBy: String
+    + updatedAt: Instant
   }
 }
 
-package "Service Layer" #F0FDF4 {
-  class WorkflowService <<Service>> {
-    -applicationRepository: ApplicationRepository
-    -emailProducer: EmailNotificationProducer
-    -tenantContext: TenantContext
-    +getPipeline(jobId: Long): PipelineBoardResponse
-    +move(actorId: Long, applicationId: Long, request: MoveApplicationRequest): ApplicationCardResponse
-    +canMove(from: RecruitmentStage, to: RecruitmentStage, status: ApplicationStatus): boolean
+package "Service Layer" {
+  interface CandidatePipelineService <<Service>> {
+    + transitionStage(applicationId: Long, request: TransitionStageRequest): ApplicationStageResponse
+  }
+  class CandidatePipelineServiceImpl <<Service>> {
+    - applicationRepository: ApplicationRepository
+    - stageRepository: RecruitmentStageRepository
+    - auditLogRepository: StageAuditLogRepository
+    - eventPublisher: EventNotificationProducer
+    + transitionStage(applicationId: Long, request: TransitionStageRequest): ApplicationStageResponse
   }
 }
 
-package "DTO Layer" #FFF7ED {
-  class MoveApplicationRequest <<Request, conceptual>> {
-    +toStageId: Long
-    +expectedUpdatedAt: Instant
-    +note: String [0..1]
-  }
-  class PipelineBoardResponse <<Response, conceptual>> {
-    +jobId: Long
-    +columns: StageColumn[*]
-  }
-}
-
-package "Repository Layer" #F5F3FF {
+package "Repository Layer" {
   interface ApplicationRepository <<Repository>> {
-    +findById(id: Long): Optional<Application>
-    +save(application: Application): Application
+    + findById(id: Long): Optional<Application>
+    + save(application: Application): Application
+  }
+  interface RecruitmentStageRepository <<Repository>> {
+    + findById(id: Long): Optional<RecruitmentStage>
+  }
+  interface StageAuditLogRepository <<Repository>> {
+    + save(auditLog: StageAuditLog): StageAuditLog
   }
 }
 
-package "Domain Entity Layer" #F0FDF4 {
-  entity Application <<Entity>> {
-    -id: Long
-    -stageId: Long [0..1]
-    -status: ApplicationStatus
-    -updatedAt: Instant
+package "Domain Entity Layer" {
+  class Application <<Entity>> {
+    - id: Long
+    - candidateId: Long
+    - jobId: Long
+    - currentStageId: Long
+    - status: String
   }
-  entity RecruitmentStage <<Entity>> {
-    -id: Long
-    -code: String [0..1]
-    -name: String
-    -terminal: boolean
+  class RecruitmentStage <<Entity>> {
+    - id: Long
+    - jobId: Long
+    - name: String
+    - sortOrder: int
   }
-  entity ApplicationStatusHistory <<Entity>> {
-    -id: Long
-    -fromStageId: Long [0..1]
-    -toStageId: Long
-    -enteredAt: Instant
-    -exitedAt: Instant [0..1]
-    -durationSeconds: Long [0..1]
-  }
-  enum ApplicationStatus <<enumeration>> {
-    NEW
-    IN_REVIEW
-    ASSESSMENT
-    INTERVIEW
-    OFFER
-    HIRED
-    REJECTED
-    WITHDRAWN
+  class StageAuditLog <<Entity>> {
+    - id: Long
+    - applicationId: Long
+    - fromStageId: Long
+    - toStageId: Long
+    - changedBy: String
+    - note: String
+    - createdAt: Instant
   }
 }
 
-package "Infrastructure & Persistence" #FEFCE8 {
-  interface EmailNotificationProducer <<Messaging Port, conceptual>> {
-    +publishStageChanged(tenantId: String, applicationId: Long, toCode: String): void
+package "Infrastructure & Persistence" {
+  interface EventNotificationProducer <<Messaging Port>> {
+    + publishStageTransitionEvent(tenantId: String, applicationId: Long, toStageId: Long): void
   }
-  class "RabbitMQ notify.email" as NotifyBroker <<Message Broker>> {
-    +notify.email.q
-  }
-  class "Dedicated Tenant MySQL DB" as TenantDB <<Database>> {
-    +applications
-    +recruitment_stages
-    +application_status_history
+  class DedicatedTenantMySQL <<Database>> {
+    + applications
+    + recruitment_stages
+    + stage_audit_logs
   }
   class TenantContext <<ThreadLocal>> {
     +{static} getCurrentTenant(): String
@@ -118,30 +115,34 @@ package "Infrastructure & Persistence" #FEFCE8 {
   }
 }
 
-PipelineMoveRoute -down-> WorkflowController : defines routes
-WorkflowController -down-> WorkflowService : delegates
-WorkflowController ..> MoveApplicationRequest : consumes
-WorkflowController ..> PipelineBoardResponse : returns
-WorkflowService ..> MoveApplicationRequest : processes
-WorkflowService -down-> ApplicationRepository : persists through
-WorkflowService --> EmailNotificationProducer : dispatches events
-WorkflowService --> TenantContext : enforces tenant scope
-ApplicationRepository -down-> Application : manages
-Application --> RecruitmentStage : currently in
-Application --> ApplicationStatus : typed by
-Application "1" *-- "0..*" ApplicationStatusHistory : history
-Application --> TenantDB : persists to
-RecruitmentStage --> TenantDB : persists to
-EmailNotificationProducer --> NotifyBroker : publishes X-Tenant-ID
+' Relationships
+CandidatePipelineController --> CandidatePipelineService : delegates >
+CandidatePipelineController ..> TransitionStageRequest : consumes >
+CandidatePipelineController ..> ApplicationStageResponse : returns >
 
-MoveApplicationRequest -[hidden]right-> PipelineBoardResponse
-NotifyBroker -[hidden]right-> TenantDB
-TenantDB -[hidden]right-> TenantContext
+CandidatePipelineService <|.. CandidatePipelineServiceImpl : implements
+CandidatePipelineServiceImpl ..> TransitionStageRequest : processes >
+CandidatePipelineServiceImpl ..> ApplicationStageResponse : creates >
+CandidatePipelineServiceImpl --> ApplicationRepository : updates application >
+CandidatePipelineServiceImpl --> RecruitmentStageRepository : verifies target stage >
+CandidatePipelineServiceImpl --> StageAuditLogRepository : records audit trail >
+CandidatePipelineServiceImpl --> EventNotificationProducer : publishes transition event >
+CandidatePipelineServiceImpl ..> TenantContext : reads tenant context >
 
-note right of WorkflowService
-  canMove: forward along sort_order.
-  HIRED/REJECTED are terminal (WITHDRAWN is out of scope).
-  Offer/Hire/Reject belong to create-and-track-offer.
+ApplicationRepository --> Application : manages >
+RecruitmentStageRepository --> RecruitmentStage : manages >
+StageAuditLogRepository --> StageAuditLog : manages >
+
+ApplicationRepository --> DedicatedTenantMySQL : persists to >
+RecruitmentStageRepository --> DedicatedTenantMySQL : persists to >
+StageAuditLogRepository --> DedicatedTenantMySQL : persists to >
+
+Application "1" --> "1" RecruitmentStage : current stage >
+StageAuditLog "0..*" --> "1" Application : tracks history >
+
+note right of CandidatePipelineServiceImpl
+  Kanban drag-and-drop triggers stage transition.
+  Records immutable audit log entry and notifies assigned recruiters.
 end note
 
 @enduml

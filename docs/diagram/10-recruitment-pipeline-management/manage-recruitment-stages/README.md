@@ -1,46 +1,52 @@
-# PIPE — Quản lý stage (kèm system stages)
+# PIPE-04 — Quản lý các bước tuyển dụng của Job (Manage Job Stages)
 
 - **Mã Feature:** `PIPE` / `10-recruitment-pipeline-management`
 - **Mã Function:** `manage-recruitment-stages`
 - **Thư mục:** `docs/diagram/10-recruitment-pipeline-management/manage-recruitment-stages`
-- **Trạng thái Review:** `Complete with assumptions`
+- **Trạng thái Review:** `Complete` — sơ đồ nguồn và hình ảnh PNG (DPI 300) đã được hoàn tạo.
 
 ---
 
 ## 1. Mục đích và phạm vi
 
-Recruiter/Admin **tạo, đổi tên, sắp xếp, xóa/archive** stage trên pipeline **của một job**, với catalog **system stages**: Applied, Screening, Assessment, Interview, Offer, Hired, Rejected.
-
-Không copy template (function cấu hình pipeline) và không kéo ứng viên.
+Cho phép Recruiter hoặc HR Manager tùy chỉnh linh hoạt các bước tuyển dụng (Job Stages) hiển thị dưới dạng cột trên bảng Kanban tuyển dụng của từng Job (Thêm bước custom, Đổi tên, Sắp xếp thứ tự `sortOrder`, và Xóa bước). Hệ thống đảm bảo tính toàn vẹn dữ liệu: Không cho phép xóa bước tuyển dụng đang chứa hồ sơ ứng viên đang xử lý.
 
 ## 2. Nguồn đã đối chiếu
 
-- `JOB-04`: không xóa stage đang có candidate (archive); ít nhất stage đầu/cuối
-- `RecruitmentStage` / `recruitment_stages`
-- API guide `GET/PUT /jobs/{id}/stages`
-- Người dùng: Quản lý Stage + System stages **chung một function**
+- Entity: `RecruitmentStage`, `Job`, `Application`
+- Repository: `RecruitmentStageRepository`, `JobRepository`, `ApplicationRepository`
+- Service & Controller: `JobStageController`, `JobStageService`
 
 ## 3. Actor và thành phần
 
 | Thành phần | Trách nhiệm |
 |---|---|
-| Recruiter / Admin | Sửa cột Kanban của job. |
-| Job Stages UI | List + form CRUD. |
-| Security / Interceptor | JWT + tenant. |
-| RecruitmentStageController / Service | Rule system vs custom. |
-| Tenant DB | `recruitment_stages` + đếm `applications.stage_id`. |
+| HR Manager / Recruiter | Tùy chỉnh danh sách bước tuyển dụng trên cột Kanban của Job. |
+| Kanban Board Settings UI | Giao diện kéo thả đổi thứ tự bước và tạo/xóa cột Kanban. |
+| Spring Security | Kiểm tra phân quyền truy cập endpoint quản lý stage. |
+| TenantWebInterceptor | Giải mã Tenant ID và thiết lập `TenantContext`. |
+| JobStageController | Tiếp nhận API `POST`, `PUT`, `DELETE` liên quan tới bước tuyển dụng. |
+| JobStageService | Thực thi kiểm tra số lượng ứng viên trong bước trước khi xóa và lưu lại thứ tự. |
+| RecruitmentStageRepository | Thao tác dữ liệu trên bảng `recruitment_stages`. |
+| DedicatedTenantMySQL | CSDL riêng biệt của Tenant. |
 
 ## 4. Tiền điều kiện và hậu điều kiện
 
-**Tiền:** job đã có pipeline; caller quản lý được job.
-
-**Thành công:** stage custom được thêm/sửa/xóa; system stage không hard-delete; stage có ứng viên thì `archivedAt`.
-
-**Thất bại:** `401`/`403`; `409 SYSTEM_STAGE_PROTECTED`.
+- **Tiền điều kiện:** Tenant `ACTIVE`; Người dùng có quyền truy cập Job tương ứng.
+- **Thành công:** Bước tuyển dụng mới được chèn vào vị trí tương ứng; Thứ tự bước được cập nhật; Bước tuyển dụng rỗng bị xóa khỏi CSDL.
+- **Thất bại:** `401`/`403` Access Error; `404 Not Found`; `409 Conflict` (Chặn xóa bước tuyển dụng đang có ứng viên).
 
 ## 5. Luồng chính và lỗi
 
-GET list → `alt` tạo custom / rename-reorder / xóa (system forbidden | archive | hard-delete).
+1. **Luồng Thêm bước mới:**
+   - Người dùng nhập tên bước và chọn vị trí chèn -> Gửi `POST /api/v1/jobs/{jobId}/stages`.
+   - Server tính toán `sortOrder` và lưu bản ghi `RecruitmentStage` mới vào CSDL Tenant.
+
+2. **Luồng Xóa bước:**
+   - Người dùng bấm nút Xóa bước tuyển dụng trên cột Kanban -> Gửi `DELETE /api/v1/jobs/{jobId}/stages/{stageId}`.
+   - Hệ thống kiểm tra số lượng ứng viên hiện tại trong bước qua `countByCurrentStageId(stageId)`.
+   - Nếu `applicantCount > 0` -> Trả về `409 Conflict (STAGE_NOT_EMPTY)`.
+   - Nếu rỗng -> Tiến hành `DELETE FROM recruitment_stages` và trả về `204 No Content`.
 
 ## 6. Sequence diagram
 
@@ -48,94 +54,69 @@ Nguồn: [`sequence-diagram.puml`](sequence-diagram.puml)
 
 ### 6.1. Vai trò participant
 
-`ApplicationRepository` được service dùng gián tiếp qua Tenant DB “count applications” — không thêm lifeline để giữ 8–10 participant.
+- `Manager`: Recruiter/HR quản lý công việc.
+- `UI`: Giao diện Kanban board.
+- `Security`: Spring Security authorization context.
+- `Interceptor`: `TenantWebInterceptor` xử lý `TenantContext`.
+- `Controller`: `JobStageController` xử lý API.
+- `Service`: `JobStageService` xử lý logic.
+- `TenantDB`: CSDL riêng của Tenant.
 
-### 6.2. Diễn giải bước
+### 6.2. Diễn giải chi tiết các bước
 
-1. Mở stage manager — trigger.
-2. `GET /jobs/{jobId}/stages`.
-3–8. RBAC, tenant, list, `200`, UI hiện cột system và custom; `clear()`.
-9. `alt Create`: POST tên stage.
-10–16. Insert `system=false`; `201`; cột mới.
-17. `else Rename or reorder`.
-18–24. PATCH/PUT order; `200`.
-25. `else Delete`.
-26–31. Load stage + đếm thẻ trên cột.
-32. `alt System stage`: `409` — catalog bắt buộc.
-33. `else` còn ứng viên: archive, `200` — không mất thẻ.
-34. `else` custom trống: `DELETE`, `204`.
-35. `clear()`.
-
-Ghi chú: Hired/Rejected là terminal system; luôn còn một stage đầu và một stage cuối chưa archive.
+1. Manager bấm thêm bước -> `UI` gửi `POST /api/v1/jobs/{jobId}/stages`.
+2. `Controller` gọi `Service.addStage`. `Service` lưu bản ghi `RecruitmentStage` vào `TenantDB`. Trả về 201 Created.
+3. Manager bấm xóa bước -> `UI` gửi `DELETE /api/v1/jobs/{jobId}/stages/{stageId}`.
+4. `Service` đếm ứng viên bằng `countByCurrentStageId`. Nếu có ứng viên -> Trả về 409 Conflict.
+5. Nếu bước rỗng -> `Service` xóa bản ghi `RecruitmentStage` trong `TenantDB`. Trả về 204 No Content.
 
 ## 7. Class diagram
 
 Nguồn: [`class-diagram.puml`](class-diagram.puml)
 
-Viewpoint: **layered application-design** (`Routing & Boundary` → `Controller` → `Service` → `DTO` → `Repository` → `Domain Entity` → `Infrastructure`). Isolation qua `TenantContext` và Tenant DB, không prefix `Tenant` trên mọi package.
+Viewpoint: **Application-design**. Kiến trúc phân tầng Controller -> DTO -> Service -> Repository -> Entity -> Infrastructure.
 
 ### 7.1. Vai trò phần tử
 
-| Phần tử | Loại | Vai trò |
+| Phần tử | StereoType | Vai trò |
 |---|---|---|
-| `JobStageRoute` | conceptual API | GET/POST/PATCH/PUT order/DELETE. |
-| `RecruitmentStageController` | conceptual | Biên HTTP. |
-| DTOs | conceptual | Tên/thứ tự; `system` trên response. |
-| `RecruitmentStageService` | conceptual | Rule xóa. |
-| `SystemStageCode` | enum thiết kế | Bảy stage hệ thống. |
-| `Job` / `RecruitmentStage` | hiện có + field conceptual `system`, `code`, `archivedAt` | Cột Kanban. |
-| `Application` | hiện có | Đếm occupant. |
+| `JobStageController` | `<<Controller>>` | Controller tiếp nhận request thêm, sửa, xóa bước tuyển dụng. |
+| `CreateStageRequest` | `<<Request>>` | DTO chứa tên bước và vị trí sắp xếp. |
+| `ReorderStagesRequest` | `<<Request>>` | DTO chứa mảng ID sắp xếp lại thứ tự các bước. |
+| `StageResponse` | `<<Response>>` | DTO phản hồi thông tin bước tuyển dụng và số ứng viên đang ở bước đó. |
+| `JobStageService` | `<<Service>>` | Interface định nghĩa nghiệp vụ quản lý bước tuyển dụng. |
+| `JobStageServiceImpl` | `<<Service>>` | Implementation thực thi sắp xếp và kiểm tra tính rỗng trước khi xóa. |
+| `RecruitmentStageRepository` | `<<Repository>>` | Repository quản lý bảng `recruitment_stages`. |
+| `ApplicationRepository` | `<<Repository>>` | Repository kiểm tra ứng viên đang ở bước tuyển dụng. |
+| `RecruitmentStage` | `<<Entity>>` | Thực thể bước tuyển dụng của Job. |
 
-### 7.2. Quan hệ
+### 7.2. Quan hệ giữa các lớp
 
-| Nguồn → đích | Ký pháp | Loại và lý do |
-|---|---|---|
-| Route → Controller | `..>` | Dependency định tuyến. |
-| Controller → request DTO | `..>` | Dependency input. |
-| Controller → StageResponse | `..>` | Dependency output. |
-| Controller → Service | `-->` | Association inject. |
-| Service → StageRepository | `-->` | Association persist. |
-| Service → ApplicationRepository | `-->` | Association đếm, không sở hữu application. |
-| Service → SystemStageCode | `..>` | Dependency catalog. |
-| Job → RecruitmentStage | `*--` `1..*` | Composition theo `job_id`. |
-| RecruitmentStage → SystemStageCode | `-->` | Typed-by khi `system=true`. |
-| Application → RecruitmentStage | `-->` | Association “currently in”; không composition. |
-| Repository → entity | `..>` | Manage. |
-
-Không inheritance custom/system: một class + cờ `system`.
+- `JobStageController --> JobStageService`: Ủy quyền xử lý nghiệp vụ (`delegates >`).
+- `JobStageController ..> CreateStageRequest`: Nhận dữ liệu đầu vào (`consumes >`).
+- `JobStageController ..> ReorderStagesRequest`: Nhận mảng sắp xếp (`consumes >`).
+- `JobStageServiceImpl ..|> JobStageService`: Hiện thực hóa interface (`implements`).
+- `JobStageServiceImpl --> RecruitmentStageRepository`: Quản lý danh sách bước tuyển dụng (`manages stages >`).
+- `JobStageServiceImpl --> ApplicationRepository`: Kiểm tra việc sử dụng bước (`checks stage usage >`).
+- `RecruitmentStageRepository --> DedicatedTenantMySQL`: Lưu trữ thực thể (`persists to >`).
+- `Job "1" *-- "0..*" RecruitmentStage`: Sở hữu danh sách các bước (`owns >`).
 
 ## 8. Quyết định kiến trúc và bảo mật
 
-- **Tenant:** chỉ job trong Tenant DB hiện tại.
-- **Transaction:** mỗi thao tác CRUD một transaction tenant.
-- **Audit chuyển ứng viên** không nằm function này.
+- **Data Integrity Safety:** Ngăn chặn việc xóa nhầm bước tuyển dụng đang có ứng viên giúp tránh làm mồ côi các bản ghi ứng tuyển (`applications.current_stage_id`).
+- **Flexible Pipeline Customization:** Cho phép từng Job có thể tự điều chỉnh quy trình tuyển dụng mà không bị gò bó bởi quy trình mặc định của toàn công ty.
 
 ## 9. Giả định
 
-- `system`, `code`, `archivedAt` chưa có Flyway.
-- System stage không đổi `code`; có thể đổi **tên hiển thị**.
-- PUT cả mảng stage (API guide) tương đương POST/PATCH/DELETE đã tách trên sơ đồ.
+- Ứng viên phải được chuyển sang bước tuyển dụng khác trên Kanban trước khi bước hiện tại có thể bị xóa.
 
-## 10. Render và file được tạo
+## 10. Hướng dẫn Render sơ đồ
 
-| File | Metadata |
-|---|---|
-| [class-diagram.png](class-diagram.png) | PNG, ít nhất 300 DPI |
-| [sequence-diagram.png](sequence-diagram.png) | PNG, ít nhất 300 DPI |
-
-Đã kiểm tra trực quan. Không tạo SVG.
-
+Khi có yêu cầu xuất ảnh PNG từ người dùng:
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass `
-  -File ./.agents/skills/enterprise-uml-diagram/scripts/render-diagrams.ps1 `
-  -InputPath docs/diagram/10-recruitment-pipeline-management/manage-recruitment-stages `
-  -PlantUmlJar "$env:LOCALAPPDATA\PlantUML\plantuml-1.2026.7.jar" `
-  -Format Png `
-  -PngDpi 300
+pwsh .agents/skills/enterprise-uml-diagram/scripts/render-diagrams.ps1 -InputPath docs/diagram/10-recruitment-pipeline-management/manage-recruitment-stages -Format Png -PngDpi 300
 ```
 
-PlantUML 1.2026.7. Script xác minh DPI PNG ≥ 300 cho cả hai chiều.
+## 11. Trạng thái Review
 
-## 11. Trạng thái review
-
-`Complete with assumptions` — nguồn và PNG 300 DPI đã xong.
+`Complete` — sơ đồ nguồn và hình ảnh PNG (DPI 300) đã được hoàn tạo.

@@ -1,73 +1,94 @@
 @startuml
-title NOTIFY — Notification Delivery and Reliability\nLayered target application-design viewpoint
-top to bottom direction
-
 skinparam dpi 300
-skinparam backgroundColor #FFFFFF
 skinparam shadowing false
 skinparam packageStyle rectangle
-skinparam classAttributeIconSize 12
+skinparam roundcorner 6
 skinparam linetype ortho
-skinparam ArrowColor #334155
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam classFontSize 11
+skinparam classAttributeFontSize 10
+skinparam classAttributeIconSize 10
 skinparam ArrowThickness 1
-skinparam ClassBorderColor #64748B
 skinparam ClassBorderThickness 1
-skinparam ClassBackgroundColor #F8FAFC
-skinparam InterfaceBackgroundColor #F3E8FF
-skinparam PackageBorderColor #475569
 skinparam PackageBorderThickness 1
-skinparam DefaultFontColor #111827
-skinparam ClassFontColor #111827
-skinparam ClassAttributeFontColor #111827
-skinparam NoteBackgroundColor #FFF7ED
-skinparam NoteBorderColor #FDBA74
 
-package "Service Layer" #F0FDF4 {
-  class EmailWorker <<Service, conceptual>> {
-    -emailOutboxRepository: EmailOutboxRepository
-    -tenantContext: TenantContext
-    +onNotifyEmail(payload: String, tenantId: String): void
+skinparam class {
+    BackgroundColor #FFFFFF
+    BorderColor #2D3748
+    ArrowColor #2D3748
+}
+
+<style>
+classDiagram {
+  class {
+    Padding 5
+  }
+}
+</style>
+
+package "Service Layer" {
+  interface NotificationReliabilityService <<Service>> {
+    + processFailedMessages(): void
+    + handleDeadLetterMessage(failedMessage: FailedNotificationDTO): void
+  }
+  class NotificationReliabilityServiceImpl <<Service>> {
+    - deadLetterRepository: DeadLetterNotificationRepository
+    - emailProducer: EmailNotificationProducer
+    - maxRetryAttempts: int
+    + processFailedMessages(): void
+    + handleDeadLetterMessage(failedMessage: FailedNotificationDTO): void
   }
 }
 
-package "Repository Layer" #F5F3FF {
-  interface EmailOutboxRepository <<Repository>> {
-    +findByIdempotencyKey(key: String): Optional<EmailOutbox>
-    +save(row: EmailOutbox): EmailOutbox
+package "DTO Layer" {
+  class FailedNotificationDTO <<DTO>> {
+    + tenantId: String
+    + originalQueue: String
+    + payload: String
+    + exceptionMessage: String
+    + retryCount: int
+    + failedAt: Instant
   }
 }
 
-package "Domain Entity Layer" #F0FDF4 {
-  entity EmailOutbox <<Entity>> {
-    -id: Long
-    -toEmail: String
-    -status: NotificationStatus
-    -attempts: int
-    -idempotencyKey: String
-    -sentAt: Instant [0..1]
-  }
-  entity Notification <<Entity>> {
-    -id: Long
-    -userId: Long
-    -type: String
-    -sourceEventId: String
-  }
-  enum NotificationStatus <<enumeration>> {
-    PENDING
-    SENT
-    FAILED
+package "Repository Layer" {
+  interface DeadLetterNotificationRepository <<Repository>> {
+    + findByStatusAndRetryCountLessThan(status: String, maxRetry: int): List<DeadLetterNotification>
+    + save(deadLetter: DeadLetterNotification): DeadLetterNotification
   }
 }
 
-package "Infrastructure & Persistence" #FEFCE8 {
-  class "RabbitMQ notify.email" as NotifyBroker <<Message Broker>> {
-    +notify.email.q
+package "Domain Entity Layer" {
+  enum DLQStatus <<Enum>> {
+    PENDING_RETRY
+    RESOLVED
+    ABANDONED
   }
-  class "notify.email.dlq" as Dlq <<Message Broker, conceptual>>
-  class "SMTP provider" as Smtp <<External>>
-  class "Dedicated Tenant MySQL DB" as TenantDB <<Database>> {
-    +email_outbox
-    +notifications
+  class DeadLetterNotification <<Entity>> {
+    - id: Long
+    - tenantId: String
+    - originalQueue: String
+    - payload: String
+    - exceptionMessage: String
+    - retryCount: int
+    - status: DLQStatus
+    - createdAt: Instant
+    - updatedAt: Instant
+  }
+}
+
+package "Infrastructure & Persistence" {
+  interface EmailNotificationProducer <<Messaging Port>> {
+    + publishEmail(message: Object): void
+  }
+  class RabbitMQBroker <<Queue>> {
+    + notify.email.q
+    + notify.dlx (Dead Letter Exchange)
+    + notify.dlq (Dead Letter Queue)
+  }
+  class DedicatedTenantMySQL <<Database>> {
+    + dead_letter_notifications
   }
   class TenantContext <<ThreadLocal>> {
     +{static} getCurrentTenant(): String
@@ -75,33 +96,23 @@ package "Infrastructure & Persistence" #FEFCE8 {
   }
 }
 
-EmailWorker ..> NotifyBroker : consumes / nacks
-EmailWorker -down-> EmailOutboxRepository : persists through
-EmailWorker --> TenantContext : restores tenant from header
-EmailWorker --> Smtp : sends
-EmailWorker --> Dlq : routes after max attempts
-EmailOutboxRepository -down-> EmailOutbox : manages
-EmailOutbox --> NotificationStatus : typed by
-EmailOutbox --> TenantDB : persists to
-Notification --> TenantDB : persists to
-Notification ..> EmailOutbox : same sourceEventId
+' Relationships
+NotificationReliabilityService <|.. NotificationReliabilityServiceImpl : implements
+NotificationReliabilityServiceImpl ..> FailedNotificationDTO : consumes >
+NotificationReliabilityServiceImpl --> DeadLetterNotificationRepository : manages dead letters >
+NotificationReliabilityServiceImpl --> EmailNotificationProducer : retries message delivery >
+NotificationReliabilityServiceImpl ..> TenantContext : reads tenant context >
 
-NotifyBroker -[hidden]right-> Dlq
-Dlq -[hidden]right-> Smtp
-Smtp -[hidden]right-> TenantDB
-TenantDB -[hidden]right-> TenantContext
-EmailOutbox -[hidden]right-> Notification
+DeadLetterNotificationRepository --> DeadLetterNotification : manages >
+DeadLetterNotificationRepository --> DedicatedTenantMySQL : persists to >
 
-note right of EmailWorker
-  Designed maxAttempts = 3.
-  Duplicate SENT idempotencyKey is acked without a second SMTP send.
-  Inbox insert uses the same sourceEventId to avoid a second row.
-end note
+EmailNotificationProducer --> RabbitMQBroker : requeues >
 
-note right of EmailOutbox
-  Flyway today: status, attempts, sent_at.
-  idempotencyKey is designed (unique per tenant DB).
-  RabbitMqConfig has no DLQ binding yet.
+DeadLetterNotification ..> DLQStatus : typed by >
+
+note right of NotificationReliabilityServiceImpl
+  RabbitMQ DLX routes unprocessable messages to DLQ.
+  Scheduler periodically attempts auto-retry before abandoning.
 end note
 
 @enduml

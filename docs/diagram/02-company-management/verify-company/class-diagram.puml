@@ -1,167 +1,140 @@
 @startuml
-title COMPANY-05 — Verify Company\nLayered target application-design viewpoint
-top to bottom direction
-
 skinparam dpi 300
-skinparam backgroundColor #FFFFFF
 skinparam shadowing false
 skinparam packageStyle rectangle
-skinparam classAttributeIconSize 12
+skinparam roundcorner 6
 skinparam linetype ortho
-skinparam ArrowColor #334155
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam classFontSize 11
+skinparam classAttributeFontSize 10
+skinparam classAttributeIconSize 10
 skinparam ArrowThickness 1
-skinparam ClassBorderColor #64748B
 skinparam ClassBorderThickness 1
-skinparam ClassBackgroundColor #F8FAFC
-skinparam InterfaceBackgroundColor #F3E8FF
-skinparam PackageBorderColor #475569
 skinparam PackageBorderThickness 1
-skinparam DefaultFontColor #111827
-skinparam ClassFontColor #111827
-skinparam ClassAttributeFontColor #111827
-skinparam NoteBackgroundColor #FFF7ED
-skinparam NoteBorderColor #FDBA74
 
-package "Routing & Boundary" #EFF6FF {
-  class TenantVerificationRoute <<REST API, conceptual>> {
-    +POST /api/v1/tenant/company/verifications
+skinparam class {
+    BackgroundColor #FFFFFF
+    BorderColor #2D3748
+    ArrowColor #2D3748
+}
+
+<style>
+classDiagram {
+  class {
+    Padding 5
   }
-  class MasterVerificationRoute <<REST API, conceptual>> {
-    +GET /api/v1/master/company-verifications
-    +PATCH /api/v1/master/company-verifications/{id}
+}
+</style>
+
+package "Controller Layer" {
+  class MasterTenantAdminController <<Controller>> {
+    - companyVerificationService: CompanyVerificationService
+    + submitVerification(tenantId: String, request: SubmitVerificationRequest): ApiResponse<VerificationResponse>
+    + reviewVerification(verificationId: Long, request: ReviewVerificationRequest): ApiResponse<VerificationResponse>
   }
 }
 
-package "Controller Layer" #EFF6FF {
-  class TenantCompanyVerificationController <<Controller, conceptual>> {
-    -companyVerificationService: CompanyVerificationService
-    +submit(request: SubmitVerificationRequest): ApiResponse<VerificationResponse>
+package "DTO Layer" {
+  class SubmitVerificationRequest <<Request>> {
+    + taxCode: String
+    + businessLicenseUrl: String
+    + documentUrls: List<String>
   }
-  class MasterCompanyVerificationController <<Controller, conceptual>> {
-    -companyVerificationService: CompanyVerificationService
-    +list(status: String): ApiResponse<List<VerificationResponse>>
-    +review(id: Long, request: ReviewVerificationRequest): ApiResponse<VerificationResponse>
+  class ReviewVerificationRequest <<Request>> {
+    + status: String
+    + rejectionReason: String
   }
-}
-
-package "Service Layer" #F0FDF4 {
-  class CompanyVerificationService <<Service, conceptual>> {
-    -requestRepository: CompanyVerificationRequestRepository
-    -tenantInfoRepository: TenantInfoRepository
-    -objectStorage: ObjectStoragePort
-    +submit(tenantId: String, request: SubmitVerificationRequest): VerificationResponse
-    +review(reviewerId: Long, id: Long, request: ReviewVerificationRequest): VerificationResponse
+  class VerificationResponse <<Response>> {
+    + id: Long
+    + tenantId: String
+    + status: String
+    + taxCode: String
+    + reviewedAt: Instant
   }
 }
 
-package "DTO Layer" #FFF7ED {
-  class SubmitVerificationRequest <<Request, conceptual>> {
-    +legalName: String
-    +taxId: String
+package "Service Layer" {
+  interface CompanyVerificationService <<Service>> {
+    + submitVerification(tenantId: String, request: SubmitVerificationRequest): VerificationResponse
+    + reviewVerification(verificationId: Long, request: ReviewVerificationRequest): VerificationResponse
   }
-  class ReviewVerificationRequest <<Request, conceptual>> {
-    +decision: String
-    +reviewNote: String [0..1]
-  }
-  class VerificationResponse <<Response, conceptual>> {
-    +id: Long
-    +tenantCode: String
-    +legalName: String
-    +status: String
-    +reviewedAt: Instant [0..1]
+  class CompanyVerificationServiceImpl <<Service>> {
+    - verificationRepository: CompanyVerificationRepository
+    - tenantInfoRepository: TenantInfoRepository
+    - eventPublisher: ApplicationEventPublisher
+    + submitVerification(tenantId: String, request: SubmitVerificationRequest): VerificationResponse
+    + reviewVerification(verificationId: Long, request: ReviewVerificationRequest): VerificationResponse
   }
 }
 
-package "Repository Layer" #F5F3FF {
-  interface CompanyVerificationRequestRepository <<Repository, conceptual>> {
-    +findCurrentByTenantId(tenantId: Long): Optional<CompanyVerificationRequest>
-    +save(request: CompanyVerificationRequest): CompanyVerificationRequest
+package "Repository Layer" {
+  interface CompanyVerificationRepository <<Repository>> {
+    + findByTenantId(tenantId: String): Optional<CompanyVerification>
+    + save(verification: CompanyVerification): CompanyVerification
   }
   interface TenantInfoRepository <<Repository>> {
-    +findByCode(code: String): Optional<TenantInfo>
-    +save(tenant: TenantInfo): TenantInfo
+    + findByTenantId(tenantId: String): Optional<TenantInfo>
+    + save(tenantInfo: TenantInfo): TenantInfo
   }
 }
 
-package "Domain Entity Layer" #F0FDF4 {
-  entity TenantInfo <<Entity>> {
-    -id: Long
-    -code: String
-    -name: String
-    -status: String
-    -verificationStatus: VerificationStatus
-  }
-  entity CompanyVerificationRequest <<Entity, conceptual>> {
-    -id: Long
-    -tenantId: Long
-    -legalName: String
-    -taxId: String
-    -documentKeys: String
-    -status: VerificationStatus
-    -reviewedBy: Long [0..1]
-  }
-  entity CompanyProfile <<Entity, conceptual>> {
-    -name: String
-    -address: String [0..1]
-  }
-  enum VerificationStatus <<enumeration, conceptual>> {
+package "Domain Entity Layer" {
+  enum VerificationStatus <<Enum>> {
     UNVERIFIED
     PENDING
     VERIFIED
     REJECTED
   }
-}
-
-package "Infrastructure & Persistence" #FEFCE8 {
-  interface ObjectStoragePort <<Storage Port, conceptual>> {
-    +storeVerificationDocument(tenantId: String, file: MultipartFile): String
+  class CompanyVerification <<Entity>> {
+    - id: Long
+    - tenantId: String
+    - taxCode: String
+    - businessLicenseUrl: String
+    - status: VerificationStatus
+    - rejectionReason: String
+    - submittedAt: Instant
+    - reviewedAt: Instant
   }
-  interface EmailNotificationProducer <<Messaging Port, conceptual>> {
-    +publishVerificationReviewed(tenantId: String, decision: String): void
-  }
-  class "Master PostgreSQL" as MasterDB <<Database>> {
-    +tenants
-    +company_verification_requests
-  }
-  class "Dedicated Tenant MySQL DB" as TenantDB <<Database>> {
-    +company_profiles
-  }
-  class TenantContext <<ThreadLocal>> {
-    +{static} getCurrentTenant(): String
-    +{static} clear(): void
+  class TenantInfo <<Entity>> {
+    - id: Long
+    - tenantId: String
+    - companyName: String
+    - isVerified: boolean
   }
 }
 
-TenantVerificationRoute -down-> TenantCompanyVerificationController : defines routes
-MasterVerificationRoute -down-> MasterCompanyVerificationController : defines routes
-TenantCompanyVerificationController -down-> CompanyVerificationService : delegates
-MasterCompanyVerificationController -down-> CompanyVerificationService : delegates
-TenantCompanyVerificationController ..> SubmitVerificationRequest : consumes
-MasterCompanyVerificationController ..> ReviewVerificationRequest : consumes
-MasterCompanyVerificationController ..> VerificationResponse : returns
-CompanyVerificationService ..> VerificationResponse : creates
-CompanyVerificationService -down-> CompanyVerificationRequestRepository : persists through
-CompanyVerificationService --> TenantInfoRepository : persists through
-CompanyVerificationService --> ObjectStoragePort : stores evidence
-CompanyVerificationService --> EmailNotificationProducer : notifies
-CompanyVerificationService --> TenantContext : tenant submit scope
-CompanyVerificationRequestRepository -down-> CompanyVerificationRequest : manages
-TenantInfoRepository -down-> TenantInfo : manages
-TenantInfo "1" o-- "0..*" CompanyVerificationRequest : has history
-CompanyVerificationRequest --> VerificationStatus : typed by
-TenantInfo --> VerificationStatus : typed by
-TenantInfo --> MasterDB : persists to
-CompanyVerificationRequest --> MasterDB : persists to
-CompanyProfile --> TenantDB : persists to
+package "Infrastructure & Persistence" {
+  class MasterMySQLDB <<Database>> {
+    + tenant_info
+    + company_verifications
+  }
+}
 
-SubmitVerificationRequest -[hidden]right-> ReviewVerificationRequest
-MasterDB -[hidden]right-> TenantDB
-TenantDB -[hidden]right-> TenantContext
+' Relationships
+MasterTenantAdminController --> CompanyVerificationService : delegates >
+MasterTenantAdminController ..> SubmitVerificationRequest : consumes >
+MasterTenantAdminController ..> ReviewVerificationRequest : consumes >
+MasterTenantAdminController ..> VerificationResponse : returns >
 
-note right of CompanyVerificationRequest
-  Platform-owned KYC. tenantId is a Master registry key,
-  not a FK into Tenant MySQL. Document bytes are not in DB.
-  tenants.status stays operational; verificationStatus is designed.
+CompanyVerificationService <|.. CompanyVerificationServiceImpl : implements
+CompanyVerificationServiceImpl ..> SubmitVerificationRequest : processes >
+CompanyVerificationServiceImpl ..> ReviewVerificationRequest : processes >
+CompanyVerificationServiceImpl ..> VerificationResponse : creates >
+CompanyVerificationServiceImpl --> CompanyVerificationRepository : manages verification >
+CompanyVerificationServiceImpl --> TenantInfoRepository : updates tenant status >
+
+CompanyVerificationRepository --> CompanyVerification : manages >
+TenantInfoRepository --> TenantInfo : manages >
+CompanyVerificationRepository --> MasterMySQLDB : persists to >
+TenantInfoRepository --> MasterMySQLDB : persists to >
+
+CompanyVerification ..> VerificationStatus : typed by >
+CompanyVerification "1" --> "1" TenantInfo : verifies tenant >
+
+note right of CompanyVerificationServiceImpl
+  Operates on the Master Platform Database.
+  Platform Admin reviews and approves/rejects enterprise tenant identity.
 end note
 
 @enduml

@@ -1,110 +1,119 @@
 @startuml
-title PIPE — Assign Recruiter to Application\nLayered target application-design viewpoint
-top to bottom direction
-
 skinparam dpi 300
-skinparam backgroundColor #FFFFFF
 skinparam shadowing false
 skinparam packageStyle rectangle
-skinparam classAttributeIconSize 12
+skinparam roundcorner 6
 skinparam linetype ortho
-skinparam ArrowColor #334155
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam classFontSize 11
+skinparam classAttributeFontSize 10
+skinparam classAttributeIconSize 10
 skinparam ArrowThickness 1
-skinparam ClassBorderColor #64748B
 skinparam ClassBorderThickness 1
-skinparam ClassBackgroundColor #F8FAFC
-skinparam InterfaceBackgroundColor #F3E8FF
-skinparam PackageBorderColor #475569
 skinparam PackageBorderThickness 1
-skinparam DefaultFontColor #111827
-skinparam ClassFontColor #111827
-skinparam ClassAttributeFontColor #111827
-skinparam NoteBackgroundColor #FFF7ED
-skinparam NoteBorderColor #FDBA74
 
-package "Routing & Boundary" #EFF6FF {
-  class AssignRecruiterRoute <<REST API, conceptual>> {
-    +PATCH /api/v1/applications/{id}/assignee
+skinparam class {
+    BackgroundColor #FFFFFF
+    BorderColor #2D3748
+    ArrowColor #2D3748
+}
+
+<style>
+classDiagram {
+  class {
+    Padding 5
+  }
+}
+</style>
+
+package "Controller Layer" {
+  class JobAssignmentController <<Controller>> {
+    - jobAssignmentService: JobAssignmentService
+    + assignRecruiter(jobId: Long, request: AssignRecruiterRequest): ApiResponse<JobAssignmentResponse>
+    + removeAssignment(jobId: Long, recruiterId: Long): ApiResponse<Void>
   }
 }
 
-package "Controller Layer" #EFF6FF {
-  class ApplicationAssigneeController <<Controller, conceptual>> {
-    -assigneeService: ApplicationAssigneeService
-    +assign(id: Long, request: AssignRecruiterRequest): ApiResponse<ApplicationCardResponse>
+package "DTO Layer" {
+  class AssignRecruiterRequest <<Request>> {
+    + recruiterId: Long
+    + assignmentRole: String
+  }
+  class JobAssignmentResponse <<Response>> {
+    + id: Long
+    + jobId: Long
+    + recruiterId: Long
+    + recruiterName: String
+    + assignmentRole: String
+    + assignedAt: Instant
   }
 }
 
-package "Service Layer" #F0FDF4 {
-  class ApplicationAssigneeService <<Service, conceptual>> {
-    -applicationRepository: ApplicationRepository
-    -userRepository: UserRepository
-    -tenantContext: TenantContext
-    +assign(actorId: Long, applicationId: Long, recruiterId: Long, expectedUpdatedAt: Instant): ApplicationCardResponse
+package "Service Layer" {
+  interface JobAssignmentService <<Service>> {
+    + assignRecruiter(jobId: Long, request: AssignRecruiterRequest): JobAssignmentResponse
+    + removeAssignment(jobId: Long, recruiterId: Long): void
+  }
+  class JobAssignmentServiceImpl <<Service>> {
+    - jobAssignmentRepository: JobAssignmentRepository
+    - jobRepository: JobRepository
+    - userRepository: UserRepository
+    - notificationProducer: EventNotificationProducer
+    + assignRecruiter(jobId: Long, request: AssignRecruiterRequest): JobAssignmentResponse
+    + removeAssignment(jobId: Long, recruiterId: Long): void
   }
 }
 
-package "DTO Layer" #FFF7ED {
-  class AssignRecruiterRequest <<Request, conceptual>> {
-    +recruiterId: Long [0..1]
-    +expectedUpdatedAt: Instant
+package "Repository Layer" {
+  interface JobAssignmentRepository <<Repository>> {
+    + findByJobIdAndRecruiterId(jobId: Long, recruiterId: Long): Optional<JobAssignment>
+    + existsByJobIdAndRecruiterId(jobId: Long, recruiterId: Long): boolean
+    + save(assignment: JobAssignment): JobAssignment
+    + delete(assignment: JobAssignment): void
   }
-  class ApplicationCardResponse <<Response, conceptual>> {
-    +id: Long
-    +candidateName: String
-    +stageId: Long
-    +assignedRecruiterId: Long [0..1]
-    +updatedAt: Instant
-  }
-}
-
-package "Repository Layer" #F5F3FF {
-  interface ApplicationRepository <<Repository>> {
-    +findById(id: Long): Optional<Application>
-    +save(application: Application): Application
+  interface JobRepository <<Repository>> {
+    + findById(id: Long): Optional<Job>
   }
   interface UserRepository <<Repository>> {
-    +findById(id: Long): Optional<User>
+    + findById(id: Long): Optional<User>
   }
 }
 
-package "Domain Entity Layer" #F0FDF4 {
-  entity Application <<Entity>> {
-    -id: Long
-    -jobId: Long
-    -stageId: Long [0..1]
-    -assignedRecruiterId: Long [0..1]
-    -updatedAt: Instant
+package "Domain Entity Layer" {
+  enum AssignmentRole <<Enum>> {
+    PRIMARY_RECRUITER
+    CO_RECRUITER
+    INTERVIEWER
   }
-  entity User <<Entity>> {
-    -id: Long
-    -fullName: String
-    -role: UserRole
-    -status: UserStatus
+  class JobAssignment <<Entity>> {
+    - id: Long
+    - jobId: Long
+    - recruiterId: Long
+    - assignmentRole: AssignmentRole
+    - assignedAt: Instant
   }
-  entity ApplicationStatusHistory <<Entity>> {
-    -id: Long
-    -note: String [0..1]
-    -changedBy: Long [0..1]
+  class Job <<Entity>> {
+    - id: Long
+    - title: String
+    - status: String
   }
-  enum UserRole <<enumeration>> {
-    TENANT_ADMIN
-    ADMIN
-    HR
-    RECRUITER
-  }
-  enum UserStatus <<enumeration>> {
-    ACTIVE
-    LOCKED
-    DISABLED
+  class User <<Entity>> {
+    - id: Long
+    - fullName: String
+    - email: String
+    - role: String
   }
 }
 
-package "Infrastructure & Persistence" #FEFCE8 {
-  class "Dedicated Tenant MySQL DB" as TenantDB <<Database>> {
-    +applications
-    +users
-    +application_status_history
+package "Infrastructure & Persistence" {
+  interface EventNotificationProducer <<Messaging Port>> {
+    + publishAssignmentNotification(tenantId: String, recruiterId: Long, jobId: Long): void
+  }
+  class DedicatedTenantMySQL <<Database>> {
+    + jobs
+    + users
+    + job_assignments
   }
   class TenantContext <<ThreadLocal>> {
     +{static} getCurrentTenant(): String
@@ -112,32 +121,35 @@ package "Infrastructure & Persistence" #FEFCE8 {
   }
 }
 
-AssignRecruiterRoute -down-> ApplicationAssigneeController : defines routes
-ApplicationAssigneeController -down-> ApplicationAssigneeService : delegates
-ApplicationAssigneeController ..> AssignRecruiterRequest : consumes
-ApplicationAssigneeController ..> ApplicationCardResponse : returns
-ApplicationAssigneeService ..> AssignRecruiterRequest : processes
-ApplicationAssigneeService ..> ApplicationCardResponse : creates
-ApplicationAssigneeService -down-> ApplicationRepository : persists through
-ApplicationAssigneeService --> UserRepository : persists through
-ApplicationAssigneeService --> TenantContext : enforces tenant scope
-ApplicationRepository -down-> Application : manages
-UserRepository -down-> User : manages
-Application "0..*" --> "0..1" User : assignedRecruiter
-Application "1" *-- "0..*" ApplicationStatusHistory : audit trail
-User --> UserRole : typed by
-User --> UserStatus : typed by
-Application --> TenantDB : persists to
-User --> TenantDB : persists to
+' Relationships
+JobAssignmentController --> JobAssignmentService : delegates >
+JobAssignmentController ..> AssignRecruiterRequest : consumes >
+JobAssignmentController ..> JobAssignmentResponse : returns >
 
-AssignRecruiterRequest -[hidden]right-> ApplicationCardResponse
-Application -[hidden]right-> User
-TenantDB -[hidden]right-> TenantContext
+JobAssignmentService <|.. JobAssignmentServiceImpl : implements
+JobAssignmentServiceImpl ..> AssignRecruiterRequest : processes >
+JobAssignmentServiceImpl ..> JobAssignmentResponse : creates >
+JobAssignmentServiceImpl --> JobAssignmentRepository : manages assignments >
+JobAssignmentServiceImpl --> JobRepository : verifies job >
+JobAssignmentServiceImpl --> UserRepository : verifies recruiter >
+JobAssignmentServiceImpl --> EventNotificationProducer : publishes event >
+JobAssignmentServiceImpl ..> TenantContext : reads tenant context >
 
-note right of ApplicationAssigneeService
-  Assignee must be ACTIVE HR, RECRUITER, ADMIN, or TENANT_ADMIN.
-  Null recruiterId unassigns the card.
-  assignedRecruiterId is designed; job owner is out of scope.
+JobAssignmentRepository --> JobAssignment : manages >
+JobRepository --> Job : manages >
+UserRepository --> User : manages >
+
+JobAssignmentRepository --> DedicatedTenantMySQL : persists to >
+JobRepository --> DedicatedTenantMySQL : persists to >
+UserRepository --> DedicatedTenantMySQL : persists to >
+
+JobAssignment ..> AssignmentRole : typed by >
+JobAssignment "0..*" --> "1" Job : belongs to >
+JobAssignment "0..*" --> "1" User : assigned user >
+
+note right of JobAssignmentServiceImpl
+  Ensures user has RECRUITER or HR role before assignment.
+  Sends notification to recruiter upon assignment.
 end note
 
 @enduml

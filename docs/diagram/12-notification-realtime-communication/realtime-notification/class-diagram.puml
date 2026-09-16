@@ -1,71 +1,71 @@
 @startuml
-title NOTIFY — Real-Time Notification\nLayered target application-design viewpoint
-top to bottom direction
-
 skinparam dpi 300
-skinparam backgroundColor #FFFFFF
 skinparam shadowing false
 skinparam packageStyle rectangle
-skinparam classAttributeIconSize 12
+skinparam roundcorner 6
 skinparam linetype ortho
-skinparam ArrowColor #334155
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam classFontSize 11
+skinparam classAttributeFontSize 10
+skinparam classAttributeIconSize 10
 skinparam ArrowThickness 1
-skinparam ClassBorderColor #64748B
 skinparam ClassBorderThickness 1
-skinparam ClassBackgroundColor #F8FAFC
-skinparam InterfaceBackgroundColor #F3E8FF
-skinparam PackageBorderColor #475569
 skinparam PackageBorderThickness 1
-skinparam DefaultFontColor #111827
-skinparam ClassFontColor #111827
-skinparam ClassAttributeFontColor #111827
-skinparam NoteBackgroundColor #FFF7ED
-skinparam NoteBorderColor #FDBA74
 
-package "Routing & Boundary" #EFF6FF {
-  class WebSocketEndpoint <<WS API, conceptual>> {
-    +CONNECT /ws
-    +SUBSCRIBE /user/queue/notifications
+skinparam class {
+    BackgroundColor #FFFFFF
+    BorderColor #2D3748
+    ArrowColor #2D3748
+}
+
+<style>
+classDiagram {
+  class {
+    Padding 5
   }
-  class JwtChannelInterceptor <<Interceptor, conceptual>> {
-    +preSend(message: Message): Message
+}
+</style>
+
+package "Controller Layer" {
+  class WebSocketNotificationController <<Controller>> {
+    - messagingTemplate: SimpMessagingTemplate
+    + handleWebSocketConnect(): void
   }
 }
 
-package "Service Layer" #F0FDF4 {
-  class NotificationService <<Service>> {
-    -realtimePublisher: NotificationRealtimePublisher
-    -tenantContext: TenantContext
-    +afterInboxInsert(notification: Notification): void
+package "DTO Layer" {
+  class RealtimeNotificationPayload <<DTO>> {
+    + tenantId: String
+    + recipientId: Long
+    + title: String
+    + content: String
+    + type: String
+    + targetUrl: String
+    + timestamp: Instant
   }
 }
 
-package "DTO Layer" #FFF7ED {
-  class RealtimeNotificationPayload <<Response, conceptual>> {
-    +id: Long
-    +type: String
-    +title: String
-    +deepLink: String [0..1]
+package "Service Layer" {
+  interface RealtimeNotificationService <<Service>> {
+    + pushNotificationToUser(recipientId: Long, payload: RealtimeNotificationPayload): void
+  }
+  class RealtimeNotificationServiceImpl <<Service>> {
+    - messagingTemplate: SimpMessagingTemplate
+    - redisService: RedisService
+    + pushNotificationToUser(recipientId: Long, payload: RealtimeNotificationPayload): void
   }
 }
 
-package "Domain Entity Layer" #F0FDF4 {
-  entity Notification <<Entity>> {
-    -id: Long
-    -userId: Long
-    -type: String
-    -title: String
-    -payloadJson: String [0..1]
-    -readAt: Instant [0..1]
+package "Infrastructure & Persistence" {
+  class SimpMessagingTemplate <<Framework Port>> {
+    + convertAndSendToUser(user: String, destination: String, payload: Object): void
   }
-}
-
-package "Infrastructure & Persistence" #FEFCE8 {
-  interface NotificationRealtimePublisher <<Messaging Port, conceptual>> {
-    +pushToUser(userId: Long, payload: RealtimeNotificationPayload): void
+  class WebSocketSTOMPBroker <<Message Broker>> {
+    + /topic/tenant.{tenantId}.user.{userId}
   }
-  class "STOMP broker" as StompBroker <<Message Broker, conceptual>> {
-    +/user/queue/notifications
+  class RedisCache <<Cache>> {
+    + tenant:{tenantId}:ws_session:{userId}
   }
   class TenantContext <<ThreadLocal>> {
     +{static} getCurrentTenant(): String
@@ -73,28 +73,19 @@ package "Infrastructure & Persistence" #FEFCE8 {
   }
 }
 
-WebSocketEndpoint -down-> JwtChannelInterceptor : authenticates CONNECT
-JwtChannelInterceptor --> StompBroker : authorizes SUBSCRIBE
-NotificationService -down-> NotificationRealtimePublisher : after persist
-NotificationService --> TenantContext : enforces tenant scope
-NotificationService ..> Notification : already stored
-NotificationRealtimePublisher ..> RealtimeNotificationPayload : sends
-NotificationRealtimePublisher --> StompBroker : convertAndSendToUser
-StompBroker ..> WebSocketEndpoint : delivers to subscriber
-JwtChannelInterceptor --> TenantContext : sets tenant from JWT
+' Relationships
+WebSocketNotificationController --> RealtimeNotificationService : delegates >
+RealtimeNotificationService <|.. RealtimeNotificationServiceImpl : implements
+RealtimeNotificationServiceImpl ..> RealtimeNotificationPayload : consumes >
+RealtimeNotificationServiceImpl --> SimpMessagingTemplate : pushes STOMP message >
+RealtimeNotificationServiceImpl --> RedisCache : checks online status >
+RealtimeNotificationServiceImpl ..> TenantContext : reads tenant context >
 
-WebSocketEndpoint -[hidden]right-> JwtChannelInterceptor
-Notification -[hidden]down-> StompBroker
-StompBroker -[hidden]right-> TenantContext
+SimpMessagingTemplate --> WebSocketSTOMPBroker : sends to topic >
 
-note right of WebSocketEndpoint
-  Product contract (SCHED-02): STOMP /ws with JWT on CONNECT.
-  FE scaffold currently opens /ws/notifications?token= as raw WebSocket.
-end note
-
-note right of NotificationService
-  This function does not list or mark-read.
-  Inbox insert is owned by recruitment-event-notifications.
+note right of RealtimeNotificationServiceImpl
+  STOMP WebSocket endpoint routes realtime alerts to online web sessions.
+  Topics are strictly tenant-isolated via /topic/tenant.{tenantId}.
 end note
 
 @enduml

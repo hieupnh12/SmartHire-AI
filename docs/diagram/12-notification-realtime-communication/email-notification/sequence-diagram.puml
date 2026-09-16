@@ -1,100 +1,79 @@
 @startuml
-title NOTIFY — Email Notification
-
 skinparam dpi 300
-skinparam backgroundColor #FFFFFF
 skinparam shadowing false
-skinparam sequenceArrowThickness 1
-skinparam sequenceMessageAlign center
-skinparam ArrowColor #64748B
-skinparam ParticipantBorderColor #CBD5E1
-skinparam ParticipantBackgroundColor #F8FAFC
-skinparam ActorBorderColor #3B82F6
-skinparam ActorBackgroundColor #EFF6FF
-skinparam DatabaseBorderColor #94A3B8
-skinparam DatabaseBackgroundColor #F8FAFC
-skinparam QueueBorderColor #A855F7
-skinparam QueueBackgroundColor #FAF5FF
+skinparam roundcorner 6
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam sequence {
+    ArrowColor #2D3748
+    ActorBorderColor #2D3748
+    LifeLineBorderColor #2D3748
+    ParticipantBorderColor #2D3748
+    ParticipantBackgroundColor #FFFFFF
+    BoxBorderColor #A0AEC0
+}
 
 hide footbox
 autonumber
 
-actor "Hiring Domain" as Domain
+actor "System / Recruiter" as Caller
+control "Spring Security" as Security
+control "TenantWebInterceptor" as Interceptor
+boundary "EmailNotificationController" as Controller
 control "EmailNotificationService" as Service
+queue "RabbitMQ notify.email.q" as RabbitMQ
+control "EmailConsumerWorker" as Consumer
+entity "SMTP Provider" as SMTP
 database "Tenant DB (MySQL)" as TenantDB
-queue "RabbitMQ notify-email" as RabbitMQ
-control "EmailWorker" as Worker
-control "TenantJobExecutor" as Executor
-entity "SMTP provider" as Smtp
 
-note over Domain, Service
-  Preconditions: tenant ACTIVE; dispatcher already decided
-  this recipient should receive email for a recruitment type.
-  Retry/DLQ is out of scope. OTP is AUTH.
+note over Caller, Security
+  Preconditions: tenant ACTIVE; payload valid; SMTP credentials configured.
 end note
 
-== Enqueue ==
+== Enqueue Email Notification ==
 
-Domain -> Service: enqueue(SendEmailCommand)
-activate Domain
+Caller -> Controller: Trigger email request (e.g. Invite, Offer, Interview)
+activate Controller
+
+Controller -> Service: sendEmailAsync(request)
 activate Service
-Service -> TenantDB: Load email preference for user and type
-activate TenantDB
-TenantDB --> Service: Preference or default enabled
-deactivate TenantDB
+Service -> Service: Render HTML body via Thymeleaf template
 
-alt Email disabled for this type
-  Service --> Domain: Skip (no outbox)
-  deactivate Service
-  deactivate Domain
-else Email allowed
-  Service -> TenantDB: Load MailTemplate(type, locale)
-  activate TenantDB
-  TenantDB --> Service: Subject/body templates (en / vi / ja)
-  deactivate TenantDB
-  Service -> Service: Render subject and body (no extra PII)
-  Service -> TenantDB: INSERT email_outbox PENDING attempts=0
-  activate TenantDB
-  TenantDB --> Service: Outbox id
-  deactivate TenantDB
-  Service -> RabbitMQ: publish (outboxId, X-Tenant-ID)
-  activate RabbitMQ
-  RabbitMQ --> Service: Accepted
-  deactivate RabbitMQ
-  Service --> Domain: Enqueued
-  deactivate Service
-  deactivate Domain
+Service -> RabbitMQ: publishEmail(EmailMessageDTO with X-Tenant-ID header)
+activate RabbitMQ
+RabbitMQ --> Service: Message accepted
+deactivate RabbitMQ
 
-  == Deliver (first attempt succeeds) ==
+Service --> Controller: Void / Async Accepted
+deactivate Service
+Controller --> Caller: 202 Accepted (Fast HTTP response)
+deactivate Controller
 
-  RabbitMQ -> Worker: onNotifyEmail(payload, X-Tenant-ID)
-  activate Worker
-  Worker -> Executor: execute(tenantId, sendTask)
-  activate Executor
-  Executor -> Executor: requireActive tenant; setCurrentTenant
-  Executor -> TenantDB: Load PENDING outbox row
+== Asynchronous Processing by Worker ==
+
+RabbitMQ -> Consumer: Deliver message (X-Tenant-ID header)
+activate Consumer
+Consumer -> Consumer: TenantContext.setCurrentTenant(tenantId)
+
+Consumer -> SMTP: Send MimeMessage (SSL/TLS)
+activate SMTP
+
+alt SMTP Delivery Success
+  SMTP --> Consumer: 250 OK Message accepted
+  deactivate SMTP
+  Consumer -> TenantDB: INSERT email_logs status = SENT
   activate TenantDB
-  TenantDB --> Executor: Outbox
+  TenantDB --> Consumer: Log saved
   deactivate TenantDB
-  Executor -> Smtp: Send rendered mail
-  activate Smtp
-  Smtp --> Executor: 250 OK
-  deactivate Smtp
-  Executor -> TenantDB: UPDATE status=SENT, sent_at=now()
+else SMTP Network / Credential Error
+  SMTP --> Consumer: Connection failure / Rejected
+  Consumer -> TenantDB: INSERT email_logs status = FAILED + errorMessage
   activate TenantDB
-  TenantDB --> Executor: Saved
+  TenantDB --> Consumer: Log saved
   deactivate TenantDB
-  Executor -> Executor: clear TenantContext
-  Executor --> Worker: Done
-  deactivate Executor
-  Worker --> RabbitMQ: Ack
-  deactivate Worker
 end
 
-note over TenantDB, Smtp
-  Queue notify.email / notify.email.q exists in RabbitMqConfig.
-  EmailWorker is conceptual (no @RabbitListener yet).
-  Failed attempts are modelled in notification-delivery-reliability.
-end note
+Consumer -> Consumer: TenantContext.clear()
+deactivate Consumer
 
 @enduml

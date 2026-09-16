@@ -1,99 +1,110 @@
 @startuml
-title COMPANY-01 — View and Update Company Profile\nLayered target application-design viewpoint
-top to bottom direction
-
 skinparam dpi 300
-skinparam backgroundColor #FFFFFF
 skinparam shadowing false
 skinparam packageStyle rectangle
-skinparam classAttributeIconSize 12
+skinparam roundcorner 6
 skinparam linetype ortho
-skinparam ArrowColor #334155
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam classFontSize 11
+skinparam classAttributeFontSize 10
+skinparam classAttributeIconSize 10
 skinparam ArrowThickness 1
-skinparam ClassBorderColor #64748B
 skinparam ClassBorderThickness 1
-skinparam ClassBackgroundColor #F8FAFC
-skinparam InterfaceBackgroundColor #F3E8FF
-skinparam PackageBorderColor #475569
 skinparam PackageBorderThickness 1
-skinparam DefaultFontColor #111827
-skinparam ClassFontColor #111827
-skinparam ClassAttributeFontColor #111827
-skinparam NoteBackgroundColor #FFF7ED
-skinparam NoteBorderColor #FDBA74
 
-package "Routing & Boundary" #EFF6FF {
-  class CompanyProfileRoute <<REST API, conceptual>> {
-    +GET /api/v1/tenant/company
-    +PUT /api/v1/tenant/company
-    +POST /api/v1/tenant/company/logo
+skinparam class {
+    BackgroundColor #FFFFFF
+    BorderColor #2D3748
+    ArrowColor #2D3748
+}
+
+<style>
+classDiagram {
+  class {
+    Padding 5
+  }
+}
+</style>
+
+package "Controller Layer" {
+  class CompanyProfileController <<Controller>> {
+    - companyProfileService: CompanyProfileService
+    + getProfile(): ApiResponse<CompanyProfileResponse>
+    + updateProfile(request: UpdateCompanyProfileRequest): ApiResponse<CompanyProfileResponse>
   }
 }
 
-package "Controller Layer" #EFF6FF {
-  class CompanyProfileController <<Controller, conceptual>> {
-    -companyProfileService: CompanyProfileService
-    +getProfile(): ApiResponse<CompanyProfileResponse>
-    +updateProfile(request: UpdateCompanyProfileRequest): ApiResponse<CompanyProfileResponse>
-    +uploadLogo(file: MultipartFile): ApiResponse<CompanyProfileResponse>
-  }
-}
-
-package "Service Layer" #F0FDF4 {
-  class CompanyProfileService <<Service, conceptual>> {
-    -companyProfileRepository: CompanyProfileRepository
-    -objectStorage: ObjectStoragePort
-    -tenantContext: TenantContext
-    +getProfile(): CompanyProfileResponse
-    +updateProfile(request: UpdateCompanyProfileRequest): CompanyProfileResponse
-    +replaceLogo(file: MultipartFile): CompanyProfileResponse
-  }
-}
-
-package "DTO Layer" #FFF7ED {
+package "DTO Layer" {
   class UpdateCompanyProfileRequest <<Request>> {
-    +name: String
-    +tagline: String [0..1]
-    +website: String [0..1]
-    +address: String [0..1]
-    +industry: String [0..1]
-    +description: String [0..1]
-    +companySize: String [0..1]
+    + companyName: String
+    + description: String
+    + logoUrl: String
+    + website: String
+    + address: String
+    + industry: String
+    + companySize: String
   }
   class CompanyProfileResponse <<Response>> {
-    +name: String
-    +website: String [0..1]
-    +logoUrl: String [0..1]
-    +updatedAt: Instant
+    + tenantId: String
+    + companyName: String
+    + subdomain: String
+    + description: String
+    + logoUrl: String
+    + website: String
+    + address: String
+    + industry: String
+    + companySize: String
+    + verified: boolean
   }
 }
 
-package "Repository Layer" #F5F3FF {
-  interface CompanyProfileRepository <<Repository, conceptual>> {
-    +findSingleton(): Optional<CompanyProfile>
-    +save(profile: CompanyProfile): CompanyProfile
+package "Service Layer" {
+  interface CompanyProfileService <<Service>> {
+    + getProfile(): CompanyProfileResponse
+    + updateProfile(request: UpdateCompanyProfileRequest): CompanyProfileResponse
+  }
+  class CompanyProfileServiceImpl <<Service>> {
+    - tenantInfoRepository: TenantInfoRepository
+    - companyProfileMapper: CompanyProfileMapper
+    + getProfile(): CompanyProfileResponse
+    + updateProfile(request: UpdateCompanyProfileRequest): CompanyProfileResponse
+    - currentTenant(): TenantInfo
+  }
+  interface CompanyProfileMapper <<Mapper>> {
+    + toCompanyProfileResponse(tenant: TenantInfo): CompanyProfileResponse
+    + updateEntity(request: UpdateCompanyProfileRequest, tenant: TenantInfo): void
   }
 }
 
-package "Domain Entity Layer" #F0FDF4 {
-  entity CompanyProfile <<Entity, conceptual>> {
-    -id: Long
-    -name: String
-    -tagline: String [0..1]
-    -website: String [0..1]
-    -address: String [0..1]
-    -industry: String [0..1]
-    -logoObjectKey: String [0..1]
-    -updatedAt: Instant
+package "Repository Layer" {
+  interface TenantInfoRepository <<Repository>> {
+    + findByCode(code: String): Optional<TenantInfo>
+    + findBySubdomain(subdomain: String): Optional<TenantInfo>
+    + save(tenantInfo: TenantInfo): TenantInfo
   }
 }
 
-package "Infrastructure & Persistence" #FEFCE8 {
-  interface ObjectStoragePort <<Storage Port, conceptual>> {
-    +storeLogo(tenantId: String, file: MultipartFile): String
+package "Domain Entity Layer" {
+  class TenantInfo <<Entity>> {
+    - id: Long
+    - code: String
+    - name: String
+    - subdomain: String
+    - description: String
+    - logoUrl: String
+    - website: String
+    - address: String
+    - industry: String
+    - companySize: String
+    - verified: boolean
+    - status: String
   }
-  class "Dedicated Tenant MySQL DB" as TenantDB <<Database>> {
-    +company_profiles
+}
+
+package "Infrastructure & Persistence" {
+  class MasterPostgresDB <<Database>> {
+    + tenants
   }
   class TenantContext <<ThreadLocal>> {
     +{static} getCurrentTenant(): String
@@ -101,25 +112,26 @@ package "Infrastructure & Persistence" #FEFCE8 {
   }
 }
 
-CompanyProfileRoute -down-> CompanyProfileController : defines routes
-CompanyProfileController -down-> CompanyProfileService : delegates
-CompanyProfileController ..> UpdateCompanyProfileRequest : consumes
-CompanyProfileController ..> CompanyProfileResponse : returns
-CompanyProfileService ..> UpdateCompanyProfileRequest : processes
-CompanyProfileService ..> CompanyProfileResponse : creates
-CompanyProfileService -down-> CompanyProfileRepository : persists through
-CompanyProfileService --> ObjectStoragePort : stores logo
-CompanyProfileService --> TenantContext : enforces tenant scope
-CompanyProfileRepository -down-> CompanyProfile : manages
-CompanyProfile --> TenantDB : persists to
+' Relationships
+CompanyProfileController --> CompanyProfileService : delegates >
+CompanyProfileController ..> UpdateCompanyProfileRequest : consumes >
+CompanyProfileController ..> CompanyProfileResponse : returns >
 
-UpdateCompanyProfileRequest -[hidden]right-> CompanyProfileResponse
-TenantDB -[hidden]right-> TenantContext
+CompanyProfileService <|.. CompanyProfileServiceImpl : implements
+CompanyProfileServiceImpl --> CompanyProfileMapper : maps through >
+CompanyProfileMapper ..> UpdateCompanyProfileRequest : processes >
+CompanyProfileMapper ..> CompanyProfileResponse : creates >
+CompanyProfileServiceImpl --> TenantInfoRepository : queries & updates >
+CompanyProfileServiceImpl ..> TenantContext : reads tenant context >
 
-note right of CompanyProfile
-  One branding row per dedicated Tenant DB.
-  No tenantId column. Not in current Flyway.
-  Logo bytes stay in object storage.
+TenantInfoRepository --> TenantInfo : manages >
+TenantInfoRepository --> MasterPostgresDB : persists to >
+
+note right of CompanyProfileServiceImpl
+  Company branding metadata is stored in the Master DB tenants table,
+  so both service methods run on masterTransactionManager.
+  Provisioning columns (db_url, db_username, db_password) are never mapped
+  from client input and never leave through CompanyProfileResponse.
 end note
 
 @enduml

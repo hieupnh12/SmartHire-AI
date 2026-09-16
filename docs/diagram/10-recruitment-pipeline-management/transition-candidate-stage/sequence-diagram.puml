@@ -1,130 +1,103 @@
 @startuml
-title PIPE — Transition Candidate Stage
-
 skinparam dpi 300
-skinparam backgroundColor #FFFFFF
 skinparam shadowing false
-skinparam sequenceArrowThickness 1
-skinparam sequenceMessageAlign center
-skinparam ArrowColor #64748B
-skinparam ParticipantBorderColor #CBD5E1
-skinparam ParticipantBackgroundColor #F8FAFC
-skinparam ActorBorderColor #3B82F6
-skinparam ActorBackgroundColor #EFF6FF
-skinparam DatabaseBorderColor #94A3B8
-skinparam DatabaseBackgroundColor #F8FAFC
-skinparam QueueBorderColor #A855F7
-skinparam QueueBackgroundColor #FAF5FF
+skinparam roundcorner 6
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam sequence {
+    ArrowColor #2D3748
+    ActorBorderColor #2D3748
+    LifeLineBorderColor #2D3748
+    ParticipantBorderColor #2D3748
+    ParticipantBackgroundColor #FFFFFF
+    BoxBorderColor #A0AEC0
+}
 
 hide footbox
 autonumber
 
 actor "Recruiter" as Recruiter
-boundary "Job Kanban UI" as UI
+boundary "Kanban Board UI" as UI
 control "Spring Security" as Security
 control "TenantWebInterceptor" as Interceptor
-boundary "WorkflowController" as Controller
-control "WorkflowService" as Service
+boundary "CandidatePipelineController" as Controller
+control "CandidatePipelineService" as Service
 database "Tenant DB (MySQL)" as TenantDB
-queue "RabbitMQ notify-email" as RabbitMQ
+queue "RabbitMQ notify-event" as RabbitMQ
 
 note over Recruiter, Security
-  Preconditions: tenant ACTIVE; caller can manage the job;
-  card is not in a locked terminal hiring state.
+  Preconditions: tenant ACTIVE; Recruiter assigned to Job;
+  Application and Target Stage belong to same Job.
 end note
 
-== Load Kanban ==
+== Drag and Drop Candidate to New Stage ==
 
-Recruiter -> UI: Open job pipeline
+Recruiter -> UI: Drag candidate card to target stage column
 activate UI
-UI -> Security: GET /api/v1/jobs/{jobId}/pipeline
+UI -> Security: POST /api/v1/applications/{applicationId}/transition
 activate Security
-Security -> Interceptor: Forward after RBAC
+Security -> Interceptor: Forward request
 activate Interceptor
 deactivate Security
 Interceptor -> Interceptor: setCurrentTenant(tenantId)
 Interceptor -> Controller: Route request
 activate Controller
-Controller -> Service: getPipeline(jobId)
+
+Controller -> Service: transitionStage(applicationId, request)
 activate Service
-Service -> TenantDB: Load stages and applications
+Service -> TenantDB: findApplicationById(applicationId)
 activate TenantDB
-TenantDB --> Service: Columns and cards
+TenantDB --> Service: Application or empty
 deactivate TenantDB
-Service --> Controller: PipelineBoardResponse
-deactivate Service
-Controller --> UI: 200 OK
-deactivate Controller
-UI --> Recruiter: Render Kanban columns
-Interceptor -> Interceptor: clear TenantContext
-deactivate Interceptor
 
-== Move card ==
-
-Recruiter -> UI: Drag card to another stage
-UI -> Security: POST /api/v1/applications/{id}/move
-activate Security
-
-alt Unauthenticated or forbidden
-  Security --> UI: 401 Unauthorized / 403 Forbidden
-  deactivate Security
-  UI --> Recruiter: Show access error
-else Authorized
-  Security -> Interceptor: Forward authenticated request
-  activate Interceptor
-  deactivate Security
-  Interceptor -> Interceptor: setCurrentTenant(tenantId)
-  Interceptor -> Controller: Route request
-  activate Controller
-  Controller -> Service: move(actorId, id, request)
-  activate Service
-  Service -> TenantDB: Load Application, from-stage, to-stage, last history
+alt Application missing
+  Service --> Controller: APPLICATION_NOT_FOUND
+  deactivate Service
+  Controller --> UI: 404 Not Found
+  deactivate Controller
+  UI --> Recruiter: Show application not found
+  Interceptor -> Interceptor: clear TenantContext
+  deactivate Interceptor
+else Application exists
+  Service -> TenantDB: findStageById(targetStageId)
   activate TenantDB
-  TenantDB --> Service: Current card and stages
+  TenantDB --> Service: RecruitmentStage or empty
   deactivate TenantDB
 
-  alt Missing card/stage, stale version, or illegal transition
-    Service --> Controller: 404 / 409 / 422
+  alt Target stage invalid or belongs to different job
+    Service --> Controller: INVALID_TARGET_STAGE
     deactivate Service
-    Controller --> UI: Error status
+    Controller --> UI: 400 Bad Request
     deactivate Controller
-    UI --> Recruiter: Reload board or show blocked move
-  else Transition allowed
-    Service -> TenantDB: Close previous history (exitedAt, durationSeconds)
+    UI --> Recruiter: Show invalid stage target error
+    Interceptor -> Interceptor: clear TenantContext
+    deactivate Interceptor
+  else Valid transition
+    Service -> TenantDB: UPDATE applications SET current_stage_id = targetStageId
     activate TenantDB
-    TenantDB --> Service: Prior stay closed
-    deactivate TenantDB
-    Service -> TenantDB: UPDATE application.stage_id, status, updated_at
-    activate TenantDB
-    TenantDB --> Service: Card saved
-    deactivate TenantDB
-    Service -> TenantDB: INSERT history (toStage, enteredAt, actor, note)
-    activate TenantDB
-    TenantDB --> Service: Audit row
+    TenantDB --> Service: Application updated
     deactivate TenantDB
 
-    opt Target is Assessment or Interview
-      Service -> RabbitMQ: publishStageChanged(tenantId, applicationId, toCode)
-      activate RabbitMQ
-      RabbitMQ --> Service: Accepted
-      deactivate RabbitMQ
-    end
+    Service -> TenantDB: INSERT stage_audit_logs (fromStageId, toStageId, changedBy, note)
+    activate TenantDB
+    TenantDB --> Service: Audit log recorded
+    deactivate TenantDB
 
-    Service --> Controller: ApplicationCardResponse
+    Service -> RabbitMQ: publishStageTransitionEvent(tenantId, applicationId, toStageId)
+    activate RabbitMQ
+    RabbitMQ --> Service: Event queued
+    deactivate RabbitMQ
+
+    Service --> Controller: ApplicationStageResponse
     deactivate Service
     Controller --> UI: 200 OK
     deactivate Controller
-    UI --> Recruiter: Card sits in the new column
+    UI --> Recruiter: Update Kanban card position smoothly
+    Interceptor -> Interceptor: clear TenantContext
+    deactivate Interceptor
   end
-  Interceptor -> Interceptor: clear TenantContext
-  deactivate Interceptor
 end
 
 deactivate UI
-
-note over TenantDB, RabbitMQ
-  Time in stage = exitedAt - enteredAt of the closed history row.
-  Assessment/Interview workers are not executed here; only a tenant-scoped event is published.
-end note
 
 @enduml

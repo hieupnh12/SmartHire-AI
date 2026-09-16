@@ -13,6 +13,7 @@ import { TenantCareerPage } from "@/features/tenant/career/pages/TenantCareerPag
 import { TenantAdminDashboardPage } from "@/features/tenant/admin/workspace/pages/TenantAdminDashboardPage";
 import { adminNav } from "@/features/tenant/admin/nav";
 import { HomePage as TenantAdminHomePage } from "@/features/tenant/admin/overview/pages/HomePage";
+import { CompanyProfilePage } from "@/features/tenant/admin/company/pages/CompanyProfilePage";
 import { SystemPage } from "@/features/tenant/admin/system/pages/SystemPage";
 import { UsersPage } from "@/features/tenant/admin/users/pages/UsersPage";
 import { candidateNav } from "@/features/tenant/candidate/nav";
@@ -103,6 +104,7 @@ export function AppRouter() {
           }
         >
           <Route index element={<TenantAdminHomePage />} />
+          <Route path="company" element={<CompanyProfilePage />} />
           <Route path="users" element={<UsersPage />} />
           <Route path="system" element={<SystemPage />} />
         </Route>

@@ -1,6 +1,6 @@
 import { api } from "@/lib/axios";
 import type { ApiResponse } from "@/types/api";
-import type { AuthTokens, LoginRequest, RegisterRequest, UserProfile } from "@/features/tenant/auth/types";
+import type { AuthTokens, CandidateLoginResponse, LoginRequest, RegisterRequest, UserProfile } from "@/features/tenant/auth/types";
 
 export const authApi = {
   login: (body: LoginRequest) =>
@@ -8,7 +8,7 @@ export const authApi = {
   register: (body: RegisterRequest) =>
     api.post<ApiResponse<AuthTokens>>("/tenant/auth/register", body).then((r) => r.data),
   google: (idToken: string) =>
-    api.post<ApiResponse<AuthTokens>>("/tenant/auth/google", { idToken }).then((r) => r.data),
+    api.post<ApiResponse<CandidateLoginResponse>>("/tenant/auth/google", { idToken }).then((r) => r.data),
   refresh: (refreshToken: string) =>
     api.post<ApiResponse<AuthTokens>>("/tenant/auth/refresh", { refreshToken }).then((r) => r.data),
   logout: () => api.post<ApiResponse<null>>("/tenant/auth/logout").then((r) => r.data),

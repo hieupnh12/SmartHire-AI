@@ -1,18 +1,17 @@
 @startuml
-title COMPANY-03 — Change Member Role
-
 skinparam dpi 300
-skinparam backgroundColor #FFFFFF
 skinparam shadowing false
-skinparam sequenceArrowThickness 1
-skinparam sequenceMessageAlign center
-skinparam ArrowColor #64748B
-skinparam ParticipantBorderColor #CBD5E1
-skinparam ParticipantBackgroundColor #F8FAFC
-skinparam ActorBorderColor #3B82F6
-skinparam ActorBackgroundColor #EFF6FF
-skinparam DatabaseBorderColor #94A3B8
-skinparam DatabaseBackgroundColor #F8FAFC
+skinparam roundcorner 6
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam sequence {
+    ArrowColor #2D3748
+    ActorBorderColor #2D3748
+    LifeLineBorderColor #2D3748
+    ParticipantBorderColor #2D3748
+    ParticipantBackgroundColor #FFFFFF
+    BoxBorderColor #A0AEC0
+}
 
 hide footbox
 autonumber
@@ -24,12 +23,14 @@ control "TenantWebInterceptor" as Interceptor
 boundary "TenantUserController" as Controller
 control "TenantUserService" as Service
 database "Tenant DB (MySQL)" as TenantDB
-collections "Redis" as Redis
+collections "Redis Cache" as Redis
 
 note over Admin, Security
   Preconditions: tenant ACTIVE; caller TENANT_ADMIN or ADMIN;
   target user belongs to this Tenant DB.
 end note
+
+== Change Member Role ==
 
 Admin -> UI: Select member and new role
 activate UI

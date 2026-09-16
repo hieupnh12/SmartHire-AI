@@ -1,94 +1,88 @@
 @startuml
-title NOTIFY — Recruitment Event Notifications\nLayered target application-design viewpoint
-top to bottom direction
-
 skinparam dpi 300
-skinparam backgroundColor #FFFFFF
 skinparam shadowing false
 skinparam packageStyle rectangle
-skinparam classAttributeIconSize 12
+skinparam roundcorner 6
 skinparam linetype ortho
-skinparam ArrowColor #334155
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam classFontSize 11
+skinparam classAttributeFontSize 10
+skinparam classAttributeIconSize 10
 skinparam ArrowThickness 1
-skinparam ClassBorderColor #64748B
 skinparam ClassBorderThickness 1
-skinparam ClassBackgroundColor #F8FAFC
-skinparam InterfaceBackgroundColor #F3E8FF
-skinparam PackageBorderColor #475569
 skinparam PackageBorderThickness 1
-skinparam DefaultFontColor #111827
-skinparam ClassFontColor #111827
-skinparam ClassAttributeFontColor #111827
-skinparam NoteBackgroundColor #FFF7ED
-skinparam NoteBorderColor #FDBA74
 
-package "Routing & Boundary" #EFF6FF {
-  class HiringDomainServices <<existing modules>> {
-    +applyJob()
-    +moveStage()
-    +decideHireOrReject()
-    +inviteAssessment()
-    +inviteInterview()
+skinparam class {
+    BackgroundColor #FFFFFF
+    BorderColor #2D3748
+    ArrowColor #2D3748
+}
+
+<style>
+classDiagram {
+  class {
+    Padding 5
+  }
+}
+</style>
+
+package "Service Layer" {
+  interface RecruitmentEventListener <<Service>> {
+    + handleCandidateApplied(event: CandidateAppliedEvent): void
+    + handleInterviewScheduled(event: InterviewScheduledEvent): void
+  }
+  class RecruitmentEventListenerImpl <<Service>> {
+    - notificationRepository: NotificationRepository
+    - emailProducer: EmailNotificationProducer
+    - realtimeService: RealtimeNotificationService
+    + handleCandidateApplied(event: CandidateAppliedEvent): void
+    + handleInterviewScheduled(event: InterviewScheduledEvent): void
   }
 }
 
-package "Service Layer" #F0FDF4 {
-  class RecruitmentNotificationDispatcher <<Service, conceptual>> {
-    -notificationRepository: NotificationRepository
-    -emailProducer: EmailNotificationProducer
-    -tenantContext: TenantContext
-    +dispatch(event: RecruitmentNotificationEvent): void
-    +canNotifyResult(applicationId: Long, recipientRole: String): boolean
+package "DTO Layer" {
+  class CandidateAppliedEvent <<Domain Event>> {
+    + tenantId: String
+    + applicationId: Long
+    + jobId: Long
+    + candidateName: String
+  }
+  class InterviewScheduledEvent <<Domain Event>> {
+    + tenantId: String
+    + interviewId: Long
+    + candidateId: Long
+    + scheduledTime: Instant
   }
 }
 
-package "DTO Layer" #FFF7ED {
-  class RecruitmentNotificationEvent <<Event, conceptual>> {
-    +type: NotificationType
-    +actorUserId: Long [0..1]
-    +recipientUserId: Long
-    +applicationId: Long
-    +jobId: Long [0..1]
-    +sourceEventId: String
-  }
-}
-
-package "Repository Layer" #F5F3FF {
+package "Repository Layer" {
   interface NotificationRepository <<Repository>> {
-    +save(notification: Notification): Notification
+    + save(notification: Notification): Notification
   }
 }
 
-package "Domain Entity Layer" #F0FDF4 {
-  entity Notification <<Entity>> {
-    -id: Long
-    -userId: Long
-    -type: String
-    -title: String
-    -payloadJson: String [0..1]
-    -readAt: Instant [0..1]
-  }
-  enum NotificationType <<enumeration, conceptual>> {
-    APPLICATION_SUBMITTED
-    STAGE_CHANGED
-    APPLICATION_REJECTED
-    OFFER_CREATED
-    ASSESSMENT_INVITED
-    INTERVIEW_INVITED
-    SCHEDULE_REMINDER
-    RESULT_AVAILABLE
+package "Domain Entity Layer" {
+  class Notification <<Entity>> {
+    - id: Long
+    - recipientId: Long
+    - title: String
+    - content: String
+    - type: String
+    - targetUrl: String
+    - isRead: boolean
   }
 }
 
-package "Infrastructure & Persistence" #FEFCE8 {
-  interface EmailNotificationProducer <<Messaging Port, conceptual>> {
-    +publish(command: SendEmailCommand): void
+package "Infrastructure & Persistence" {
+  interface EmailNotificationProducer <<Messaging Port>> {
+    + publishEmail(message: Object): void
   }
-  class "RabbitMQ notify.email" as NotifyBroker <<Message Broker>> {
-    +notify.email.q
+  interface RealtimeNotificationService <<Service Port>> {
+    + pushNotificationToUser(recipientId: Long, payload: Object): void
   }
-  class "Dedicated Tenant MySQL DB" as TenantDB <<Database>> {
-    +notifications
+  class DedicatedTenantMySQL <<Database>> {
+    + notifications
   }
   class TenantContext <<ThreadLocal>> {
     +{static} getCurrentTenant(): String
@@ -96,26 +90,21 @@ package "Infrastructure & Persistence" #FEFCE8 {
   }
 }
 
-HiringDomainServices -down-> RecruitmentNotificationDispatcher : emits
-HiringDomainServices ..> RecruitmentNotificationEvent : creates
-RecruitmentNotificationDispatcher ..> RecruitmentNotificationEvent : processes
-RecruitmentNotificationDispatcher -down-> NotificationRepository : persists inbox
-RecruitmentNotificationDispatcher --> EmailNotificationProducer : fans out email
-RecruitmentNotificationDispatcher --> TenantContext : enforces tenant scope
-NotificationRepository -down-> Notification : manages
-Notification --> NotificationType : typed by
-Notification --> TenantDB : persists to
-EmailNotificationProducer --> NotifyBroker : publishes X-Tenant-ID
+' Relationships
+RecruitmentEventListener <|.. RecruitmentEventListenerImpl : implements
+RecruitmentEventListenerImpl ..> CandidateAppliedEvent : consumes >
+RecruitmentEventListenerImpl ..> InterviewScheduledEvent : consumes >
+RecruitmentEventListenerImpl --> NotificationRepository : persists in-app notification >
+RecruitmentEventListenerImpl --> EmailNotificationProducer : triggers email >
+RecruitmentEventListenerImpl --> RealtimeNotificationService : triggers WebSocket push >
+RecruitmentEventListenerImpl ..> TenantContext : reads tenant context >
 
-RecruitmentNotificationEvent -[hidden]down-> Notification
-NotifyBroker -[hidden]right-> TenantDB
-TenantDB -[hidden]right-> TenantContext
+NotificationRepository --> Notification : manages >
+NotificationRepository --> DedicatedTenantMySQL : persists to >
 
-note right of RecruitmentNotificationDispatcher
-  RESULT_AVAILABLE reaches the candidate only after scores
-  are released. Deep link is built into payload_json
-  (tenantCode, resourceType, resourceId, path) for this tenant.
-  WebSocket push and SMTP retry are other functions.
+note right of RecruitmentEventListenerImpl
+  Listens to domain events across recruitment workflow.
+  Dispatches to both In-App Notification Center, Email Queue, and Realtime WebSocket.
 end note
 
 @enduml

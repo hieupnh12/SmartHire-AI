@@ -260,11 +260,11 @@ export function TenantCareerPage() {
       <header className="sticky top-0 z-40 bg-white/85 backdrop-blur-md border-b border-[#e2e8f0] shadow-sm">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
           <div className="flex items-center gap-3 cursor-pointer" onClick={() => window.location.reload()}>
-            <div className={`w-10 h-10 rounded-[12px] ${theme.primaryColorBtn} text-white flex items-center justify-center shadow-md font-bold text-lg`}>
+            <div className={`w-10 h-10 rounded-[12px] ${theme.primaryColorBtn} text-white flex items-center justify-center shadow-md font-semibold text-lg`}>
               {theme.code.charAt(0).toUpperCase()}
             </div>
             <div>
-              <span className="text-xl font-bold font-display text-[#1e293b] tracking-tight">
+              <span className="text-xl font-semibold font-display text-[#1e293b] tracking-tight">
                 {theme.name}
               </span>
               <span className={`ml-2.5 text-xs font-semibold px-2.5 py-0.5 rounded-full border ${theme.badgeBg}`}>
@@ -313,7 +313,7 @@ export function TenantCareerPage() {
                 <span>{theme.tagline}</span>
               </div>
 
-              <h1 className="text-4xl sm:text-5xl md:text-6xl font-extrabold font-display tracking-tight leading-tight mb-6 text-white">
+              <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold font-display tracking-tight leading-tight mb-6 text-white">
                 Chinh Phục Tương Lai Công Nghệ Cùng{" "}
                 <span className={`bg-gradient-to-r ${theme.primaryGradient} bg-clip-text text-transparent`}>
                   {theme.name}
@@ -339,7 +339,7 @@ export function TenantCareerPage() {
 
                 <a
                   href="#jobs"
-                  className={`w-full sm:w-auto px-7 py-3 rounded-[10px] ${theme.primaryColorBtn} text-white font-bold text-sm transition-all flex items-center justify-center gap-2 shadow-lg`}
+                  className={`w-full sm:w-auto px-7 py-3 rounded-[10px] ${theme.primaryColorBtn} text-white font-semibold text-sm transition-all flex items-center justify-center gap-2 shadow-lg`}
                 >
                   <span>Tìm Việc IT</span>
                   <ArrowRight className="w-4 h-4" />
@@ -362,8 +362,8 @@ export function TenantCareerPage() {
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent flex items-end p-8">
                   <div className="text-white space-y-1">
-                    <span className="text-xs font-bold text-cyan-400 uppercase tracking-wider block">Văn Hóa Làm Việc Agile</span>
-                    <h3 className="text-xl font-bold font-display">Tự Do Sáng Tạo & Phát Triển Sự Nghiệp IT</h3>
+                    <span className="text-xs font-semibold text-cyan-400 uppercase tracking-wider block">Văn Hóa Làm Việc Agile</span>
+                    <h3 className="text-xl font-semibold font-display">Tự Do Sáng Tạo & Phát Triển Sự Nghiệp IT</h3>
                   </div>
                 </div>
               </div>
@@ -371,10 +371,10 @@ export function TenantCareerPage() {
               {/* Content & Stats */}
               <div className="space-y-6">
                 <div>
-                  <span className={`text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full ${theme.badgeBg}`}>
+                  <span className={`text-xs font-semibold uppercase tracking-wider px-3 py-1 rounded-full ${theme.badgeBg}`}>
                     Về Chúng Tôi
                   </span>
-                  <h2 className="text-3xl sm:text-4xl font-bold font-display text-[#1e293b] mt-3 mb-4">
+                  <h2 className="text-3xl sm:text-4xl font-semibold font-display text-[#1e293b] mt-3 mb-4">
                     Vì Sao Bạn Nên Chọn {theme.name}?
                   </h2>
                   <p className="text-[#64748b] text-sm leading-relaxed">
@@ -387,7 +387,7 @@ export function TenantCareerPage() {
                   <div className="p-5 rounded-[16px] bg-[#f8f9ff] border border-[#e2e8f0]">
                     <div className="flex items-center gap-2 mb-1">
                       <Users className="w-5 h-5 text-teal-600" />
-                      <span className="text-2xl font-extrabold text-[#1e293b]">500+</span>
+                      <span className="text-2xl font-bold text-[#1e293b]">500+</span>
                     </div>
                     <span className="text-xs text-[#64748b]">Kỹ Sư Phần Mềm & AI</span>
                   </div>
@@ -395,7 +395,7 @@ export function TenantCareerPage() {
                   <div className="p-5 rounded-[16px] bg-[#f8f9ff] border border-[#e2e8f0]">
                     <div className="flex items-center gap-2 mb-1">
                       <Zap className="w-5 h-5 text-amber-600" />
-                      <span className="text-2xl font-extrabold text-[#1e293b]">99.99%</span>
+                      <span className="text-2xl font-bold text-[#1e293b]">99.99%</span>
                     </div>
                     <span className="text-xs text-[#64748b]">SLA Enterprise High Availability</span>
                   </div>
@@ -403,7 +403,7 @@ export function TenantCareerPage() {
                   <div className="p-5 rounded-[16px] bg-[#f8f9ff] border border-[#e2e8f0]">
                     <div className="flex items-center gap-2 mb-1">
                       <Award className="w-5 h-5 text-[#3b82f6]" />
-                      <span className="text-2xl font-extrabold text-[#1e293b]">100%</span>
+                      <span className="text-2xl font-bold text-[#1e293b]">100%</span>
                     </div>
                     <span className="text-xs text-[#64748b]">Tài Trợ Chứng Chỉ AWS/GCP</span>
                   </div>
@@ -411,7 +411,7 @@ export function TenantCareerPage() {
                   <div className="p-5 rounded-[16px] bg-[#f8f9ff] border border-[#e2e8f0]">
                     <div className="flex items-center gap-2 mb-1">
                       <Globe className="w-5 h-5 text-indigo-600" />
-                      <span className="text-2xl font-extrabold text-[#1e293b]">Global</span>
+                      <span className="text-2xl font-bold text-[#1e293b]">Global</span>
                     </div>
                     <span className="text-xs text-[#64748b]">Dự Án Enterprise Quốc Tế</span>
                   </div>
@@ -425,40 +425,40 @@ export function TenantCareerPage() {
         <section id="techstack" className="py-20 bg-[#f8f9ff] border-b border-[#e2e8f0]">
           <div className="max-w-7xl mx-auto px-6">
             <div className="text-center max-w-2xl mx-auto mb-14">
-              <h2 className="text-3xl font-bold font-display text-[#1e293b] mb-3">Hệ Sinh Thái Công Nghệ Core</h2>
+              <h2 className="text-3xl font-semibold font-display text-[#1e293b] mb-3">Hệ Sinh Thái Công Nghệ Core</h2>
               <p className="text-[#64748b] text-sm">Các công nghệ tiên tiến đang được áp dụng trực tiếp tại các dự án.</p>
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
               <div className="p-6 rounded-[24px] bg-white border border-[#e2e8f0] shadow-sm hover:shadow-md transition-all text-center">
-                <div className="w-12 h-12 rounded-[12px] bg-teal-50 text-teal-600 flex items-center justify-center mx-auto mb-4 font-bold">
+                <div className="w-12 h-12 rounded-[12px] bg-teal-50 text-teal-600 flex items-center justify-center mx-auto mb-4 font-semibold">
                   <Code className="w-6 h-6" />
                 </div>
-                <h3 className="font-bold text-[#1e293b] text-base mb-1">Backend Microservices</h3>
+                <h3 className="font-semibold text-[#1e293b] text-base mb-1">Backend Microservices</h3>
                 <p className="text-xs text-[#64748b]">Java 21, Spring Boot 3, Hibernate Multi-Tenancy, MySQL Separate DB.</p>
               </div>
 
               <div className="p-6 rounded-[24px] bg-white border border-[#e2e8f0] shadow-sm hover:shadow-md transition-all text-center">
-                <div className="w-12 h-12 rounded-[12px] bg-cyan-50 text-cyan-600 flex items-center justify-center mx-auto mb-4 font-bold">
+                <div className="w-12 h-12 rounded-[12px] bg-cyan-50 text-cyan-600 flex items-center justify-center mx-auto mb-4 font-semibold">
                   <Layers className="w-6 h-6" />
                 </div>
-                <h3 className="font-bold text-[#1e293b] text-base mb-1">Modern Web Frontend</h3>
+                <h3 className="font-semibold text-[#1e293b] text-base mb-1">Modern Web Frontend</h3>
                 <p className="text-xs text-[#64748b]">React 19, TypeScript, Vite, Zustand, Tailwind CSS, TanStack Query.</p>
               </div>
 
               <div className="p-6 rounded-[24px] bg-white border border-[#e2e8f0] shadow-sm hover:shadow-md transition-all text-center">
-                <div className="w-12 h-12 rounded-[12px] bg-amber-50 text-amber-600 flex items-center justify-center mx-auto mb-4 font-bold">
+                <div className="w-12 h-12 rounded-[12px] bg-amber-50 text-amber-600 flex items-center justify-center mx-auto mb-4 font-semibold">
                   <Cpu className="w-6 h-6" />
                 </div>
-                <h3 className="font-bold text-[#1e293b] text-base mb-1">AI CV & Voice Engine</h3>
+                <h3 className="font-semibold text-[#1e293b] text-base mb-1">AI CV & Voice Engine</h3>
                 <p className="text-xs text-[#64748b]">Python PyTorch, Whisper STT, NLP Parsing & Matching Score Model.</p>
               </div>
 
               <div className="p-6 rounded-[24px] bg-white border border-[#e2e8f0] shadow-sm hover:shadow-md transition-all text-center">
-                <div className="w-12 h-12 rounded-[12px] bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto mb-4 font-bold">
+                <div className="w-12 h-12 rounded-[12px] bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto mb-4 font-semibold">
                   <HeartHandshake className="w-6 h-6" />
                 </div>
-                <h3 className="font-bold text-[#1e293b] text-base mb-1">Cloud & Async Queue</h3>
+                <h3 className="font-semibold text-[#1e293b] text-base mb-1">Cloud & Async Queue</h3>
                 <p className="text-xs text-[#64748b]">Google Cloud VPS, Docker, Kubernetes, Redis, RabbitMQ Worker Pool.</p>
               </div>
             </div>
@@ -469,10 +469,10 @@ export function TenantCareerPage() {
         <section id="jobs" className="py-24 max-w-7xl mx-auto px-6">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-12">
             <div>
-              <span className={`text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full ${theme.badgeBg}`}>
+              <span className={`text-xs font-semibold uppercase tracking-wider px-3 py-1 rounded-full ${theme.badgeBg}`}>
                 Tất Cả Vị Trí IT Đang Mở
               </span>
-              <h2 className="text-3xl font-bold font-display text-[#1e293b] mt-3">Cơ Hội Việc Làm Nổi Bật</h2>
+              <h2 className="text-3xl font-semibold font-display text-[#1e293b] mt-3">Cơ Hội Việc Làm Nổi Bật</h2>
             </div>
 
             {/* Department Filter Pills */}
@@ -502,7 +502,7 @@ export function TenantCareerPage() {
               >
                 <div className="space-y-3 max-w-3xl">
                   <div className="flex items-center gap-3 flex-wrap">
-                    <span className={`px-3 py-0.5 rounded-full text-[11px] font-bold ${theme.badgeBg}`}>
+                    <span className={`px-3 py-0.5 rounded-full text-[11px] font-semibold ${theme.badgeBg}`}>
                       {job.department}
                     </span>
                     <span className="text-xs text-[#64748b] flex items-center gap-1">
@@ -514,7 +514,7 @@ export function TenantCareerPage() {
                   </div>
 
                   <h3
-                    className="text-xl font-bold text-[#1e293b] hover:text-teal-600 transition-colors cursor-pointer"
+                    className="text-xl font-semibold text-[#1e293b] hover:text-teal-600 transition-colors cursor-pointer"
                     onClick={() => setSelectedJob(job)}
                   >
                     {job.title}
@@ -534,12 +534,12 @@ export function TenantCareerPage() {
                 <div className="flex flex-col items-end justify-between gap-4 w-full md:w-auto border-t md:border-t-0 pt-4 md:pt-0 border-[#e2e8f0]">
                   <div className="text-right">
                     <span className="text-xs text-[#64748b] block">Mức Lương Hấp Dẫn</span>
-                    <span className={`text-xl font-extrabold ${theme.primaryText}`}>{job.salary}</span>
+                    <span className={`text-xl font-bold ${theme.primaryText}`}>{job.salary}</span>
                   </div>
 
                   <button
                     onClick={() => setShowApplyModal(job)}
-                    className={`w-full md:w-auto px-6 py-3 rounded-[10px] ${theme.primaryColorBtn} text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-2`}
+                    className={`w-full md:w-auto px-6 py-3 rounded-[10px] ${theme.primaryColorBtn} text-white font-semibold text-xs shadow-md transition-all flex items-center justify-center gap-2`}
                   >
                     <Briefcase className="w-4 h-4" />
                     <span>Ứng Tuyển Ngay</span>
@@ -559,25 +559,25 @@ export function TenantCareerPage() {
               <X className="w-5 h-5" />
             </button>
 
-            <span className={`px-3 py-0.5 rounded-full text-[11px] font-bold mb-3 inline-block ${theme.badgeBg}`}>
+            <span className={`px-3 py-0.5 rounded-full text-[11px] font-semibold mb-3 inline-block ${theme.badgeBg}`}>
               {selectedJob.department}
             </span>
-            <h3 className="text-2xl font-bold font-display text-[#1e293b] mb-2">{selectedJob.title}</h3>
+            <h3 className="text-2xl font-semibold font-display text-[#1e293b] mb-2">{selectedJob.title}</h3>
 
             <div className="flex items-center gap-4 text-xs text-[#64748b] mb-6 border-b border-[#e2e8f0] pb-4">
               <span>📍 {selectedJob.location}</span>
               <span>💼 {selectedJob.type}</span>
-              <span className={`${theme.primaryText} font-bold`}>💰 {selectedJob.salary}</span>
+              <span className={`${theme.primaryText} font-semibold`}>💰 {selectedJob.salary}</span>
             </div>
 
             <div className="space-y-4 text-xs text-[#475569] mb-8">
               <div>
-                <h4 className="font-bold text-[#1e293b] text-sm mb-1.5">Mô Tả Công Việc</h4>
+                <h4 className="font-semibold text-[#1e293b] text-sm mb-1.5">Mô Tả Công Việc</h4>
                 <p className="leading-relaxed">{selectedJob.description}</p>
               </div>
 
               <div>
-                <h4 className="font-bold text-[#1e293b] text-sm mb-1.5">Yêu Cầu Chuyên Môn</h4>
+                <h4 className="font-semibold text-[#1e293b] text-sm mb-1.5">Yêu Cầu Chuyên Môn</h4>
                 <ul className="space-y-1.5 list-disc pl-5">
                   {selectedJob.requirements.map((req, idx) => (
                     <li key={idx}>{req}</li>
@@ -592,7 +592,7 @@ export function TenantCareerPage() {
                 setSelectedJob(null);
                 setShowApplyModal(target);
               }}
-              className={`w-full py-3.5 rounded-[10px] ${theme.primaryColorBtn} text-white font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2`}
+              className={`w-full py-3.5 rounded-[10px] ${theme.primaryColorBtn} text-white font-semibold text-sm shadow-md transition-all flex items-center justify-center gap-2`}
             >
               <span>Nộp Hồ Sơ Ứng Tuyển Vị Trí Này</span>
               <ArrowRight className="w-4 h-4" />
@@ -612,12 +612,12 @@ export function TenantCareerPage() {
             {applySubmitted ? (
               <div className="text-center py-6">
                 <CheckCircle2 className="w-12 h-12 text-[#16a34a] mx-auto mb-3" />
-                <h4 className="text-xl font-bold text-[#1e293b] mb-1">Nộp Hồ Sơ Thành Công 🎉</h4>
+                <h4 className="text-xl font-semibold text-[#1e293b] mb-1">Nộp Hồ Sơ Thành Công 🎉</h4>
                 <p className="text-xs text-[#64748b]">Cảm ơn bạn đã ứng tuyển vào {theme.name}. Hệ thống AI sẽ tự động phân tích CV và liên hệ bạn sớm nhất!</p>
               </div>
             ) : (
               <>
-                <h3 className="text-xl font-bold font-display text-[#1e293b] mb-1">Nộp CV Ứng Tuyển</h3>
+                <h3 className="text-xl font-semibold font-display text-[#1e293b] mb-1">Nộp CV Ứng Tuyển</h3>
                 <p className={`text-xs ${theme.primaryText} font-semibold mb-6`}>{showApplyModal.title}</p>
 
                 <form onSubmit={handleApplySubmit} className="space-y-4 text-xs">
@@ -676,7 +676,7 @@ export function TenantCareerPage() {
 
                   <button
                     type="submit"
-                    className={`w-full py-3 rounded-[8px] ${theme.primaryColorBtn} text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-2 mt-4`}
+                    className={`w-full py-3 rounded-[8px] ${theme.primaryColorBtn} text-white font-semibold text-xs shadow-md transition-all flex items-center justify-center gap-2 mt-4`}
                   >
                     <span>Gửi Hồ Sơ Ứng Tuyển</span>
                     <ArrowRight className="w-4 h-4" />
@@ -698,7 +698,7 @@ export function TenantCareerPage() {
           <div className="flex items-center gap-4">
             <button
               onClick={() => navigate("/internal/login")}
-              className="text-xs text-[#3b82f6] font-bold hover:underline inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[6px] bg-[#3b82f6]/10"
+              className="text-xs text-[#3b82f6] font-semibold hover:underline inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[6px] bg-[#3b82f6]/10"
             >
               <ShieldCheck className="w-4 h-4" />
               <span>Dành Cho HR & Admin (Internal Portal Login)</span>

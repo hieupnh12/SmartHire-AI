@@ -141,4 +141,6 @@ smarthire:
   jwt:
     secret: ${JWT_SECRET:51330ac6763ee8ea260ef202bb35a6b84629fbb3a5b8598d75279cfb84b6e9c7}
     expiration-ms: ${JWT_EXPIRATION:86400000}
+  google:
+    client-id: ${GOOGLE_CLIENT_ID:}
 

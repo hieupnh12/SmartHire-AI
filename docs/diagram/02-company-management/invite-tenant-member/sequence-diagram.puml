@@ -1,20 +1,17 @@
 @startuml
-title COMPANY-02 — Invite Tenant Member
-
 skinparam dpi 300
-skinparam backgroundColor #FFFFFF
 skinparam shadowing false
-skinparam sequenceArrowThickness 1
-skinparam sequenceMessageAlign center
-skinparam ArrowColor #64748B
-skinparam ParticipantBorderColor #CBD5E1
-skinparam ParticipantBackgroundColor #F8FAFC
-skinparam ActorBorderColor #3B82F6
-skinparam ActorBackgroundColor #EFF6FF
-skinparam DatabaseBorderColor #94A3B8
-skinparam DatabaseBackgroundColor #F8FAFC
-skinparam QueueBorderColor #A855F7
-skinparam QueueBackgroundColor #FAF5FF
+skinparam roundcorner 6
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam sequence {
+    ArrowColor #2D3748
+    ActorBorderColor #2D3748
+    LifeLineBorderColor #2D3748
+    ParticipantBorderColor #2D3748
+    ParticipantBackgroundColor #FFFFFF
+    BoxBorderColor #A0AEC0
+}
 
 hide footbox
 autonumber
@@ -34,7 +31,7 @@ note over Admin, Security
   invitee email is not yet a user in this Tenant DB.
 end note
 
-== Send invitation ==
+== Send Invitation ==
 
 Admin -> UI: Enter name, work email, role and send invite
 activate UI
@@ -97,7 +94,7 @@ else Authorized administrator
   end
 end
 
-== Accept invitation ==
+== Accept Invitation ==
 
 Invitee -> UI: Open accept link from email and set password
 UI -> Security: POST /api/v1/tenant/users/invitations/accept

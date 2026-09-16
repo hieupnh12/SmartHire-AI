@@ -15,11 +15,6 @@ skinparam class {
     ArrowColor #2D3748
 }
 
-package "Routing & Boundary" {
-    class CandidateAuthRoute <<REST API>> {
-        + POST /api/v1/tenant/auth/google
-    }
-}
 
 package "Controller Layer" {
     class CandidateAuthController <<Controller>> {
@@ -137,7 +132,6 @@ package "Infrastructure & External Systems" {
 }
 
 ' Relationships
-CandidateAuthRoute ..> CandidateAuthController : defines route >
 CandidateAuthController ..> GoogleLoginRequest : consumes >
 CandidateAuthController --> CandidateAuthService : delegates >
 CandidateAuthController ..> CandidateLoginResponse : returns >

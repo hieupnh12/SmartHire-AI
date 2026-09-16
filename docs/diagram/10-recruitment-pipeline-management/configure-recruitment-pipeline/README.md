@@ -1,47 +1,51 @@
-# PIPE — Cấu hình pipeline công ty và job
+# PIPE-02 — Cấu hình Template Quy trình tuyển dụng (Recruitment Pipeline)
 
-- **Mã Feature:** `PIPE` / `10-recruitment-pipeline-management` (luận văn 3.10)
+- **Mã Feature:** `PIPE` / `10-recruitment-pipeline-management`
 - **Mã Function:** `configure-recruitment-pipeline`
 - **Thư mục:** `docs/diagram/10-recruitment-pipeline-management/configure-recruitment-pipeline`
-- **Trạng thái Review:** `Complete with assumptions`
+- **Trạng thái Review:** `Complete` — sơ đồ nguồn và hình ảnh PNG (DPI 300) đã được hoàn tạo.
 
 ---
 
 ## 1. Mục đích và phạm vi
 
-Tenant Admin lưu **pipeline template của công ty**, rồi **copy** template đó thành pipeline riêng của một job. Không gồm CRUD từng stage (function `manage-recruitment-stages`) và không kéo thẻ Kanban.
+Cho phép HR Manager định nghĩa Template quy trình tuyển dụng chuẩn của toàn công ty (bao gồm các bước cố định như *Ứng tuyển*, *Sàng lọc*, *Phỏng vấn*, *Offer*, *Trúng tuyển*). Template này sau đó có thể được áp dụng tự động để khởi tạo danh sách các bước (`recruitment_stages`) cho các Job mới tạo.
 
 ## 2. Nguồn đã đối chiếu
 
-- `docs/features/Job-Recruitment/Recruitment-Stages.md` (`JOB-04`)
-- `docs/api/API_GUIDE.md`: `GET/PUT /jobs/{id}/stages`
-- Flyway `recruitment_stages` (`job_id`, `name`, `sort_order`, `is_terminal`)
-- `Job`, `RecruitmentStage`; `JobController` hiện chỉ `/health`
-- Người dùng: template công ty và pipeline theo job tách khỏi quản lý stage
+- Entity: `PipelineTemplate`, `TemplateStage`, `RecruitmentStage`, `Job`
+- Repository: `PipelineTemplateRepository`, `RecruitmentStageRepository`, `JobRepository`
+- Service & Controller: `PipelineTemplateController`, `PipelineTemplateService`
 
 ## 3. Actor và thành phần
 
 | Thành phần | Trách nhiệm |
 |---|---|
-| Tenant Admin / Recruiter | Sửa template (admin); apply lên job (recruiter/admin). |
-| Pipeline Settings UI | Form template và nút apply. |
-| Spring Security / TenantWebInterceptor | JWT + `TenantContext`. |
-| PipelineTemplateController / Service | Lưu template; clone sang `recruitment_stages`. |
-| Tenant DB | Template conceptual + bảng stage theo job (có thật). |
+| HR Manager | Thiết lập danh sách bước chuẩn và áp dụng cho các Job. |
+| Pipeline Settings UI | Giao diện kéo thả sắp xếp các bước tuyển dụng template. |
+| Spring Security | Kiểm tra vai trò `TENANT_ADMIN`, `ADMIN`, hoặc `HR`. |
+| TenantWebInterceptor | Thiết lập TenantContext cho kết nối DB. |
+| PipelineTemplateController | Tiếp nhận request `PUT /pipeline-template` và `POST /jobs/{jobId}/pipeline:apply-template`. |
+| PipelineTemplateService | Lưu template mẫu và nhân bản các bước vào Job. |
+| DedicatedTenantMySQL | CSDL riêng biệt của Tenant. |
 
 ## 4. Tiền điều kiện và hậu điều kiện
 
-**Tiền:** tenant `ACTIVE`; quyền admin để PUT template; quyền quản lý job để apply.
-
-**Thành công lưu template:** singleton template trong Tenant DB.
-
-**Thành công apply:** job có bộ `RecruitmentStage` clone; HTTP `201`.
-
-**Thất bại:** `401`/`403`; `400` template sai; `404` job; `409` job đã có stage.
+- **Tiền điều kiện:** Tenant `ACTIVE`; Người dùng có quyền HR/Admin.
+- **Thành công:** Template quy trình chuẩn được lưu vào `pipeline_templates`; Khi áp dụng vào Job (chưa có bước nào), toàn bộ stage mẫu được sao chép vào `recruitment_stages`.
+- **Thất bại:** `401`/`403` Access Error; `400 Bad Request` (Thiếu các bước hệ thống bắt buộc); `409 Conflict` (Áp dụng template vào Job đã có quy trình).
 
 ## 5. Luồng chính và lỗi
 
-Lưu template → apply chỉ khi job **chưa** có stage. Job đã có pipeline thì sửa ở function quản lý stage.
+1. **Luồng lưu Template:**
+   - HR Manager cấu hình tên và thứ tự các bước -> Gửi `PUT /api/v1/tenant/pipeline-template`.
+   - Kiểm tra xem các bước hệ thống bắt buộc (`APPLIED`, `HIRED`) có mặt không. Nếu thiếu -> Trả về `400 Bad Request`.
+   - Lưu bản ghi Template vào CSDL của Tenant.
+
+2. **Luồng áp dụng Template cho Job:**
+   - Đội ngũ tuyển dụng bấm "Áp dụng Template" cho một Job mới -> Gửi `POST /api/v1/jobs/{jobId}/pipeline:apply-template`.
+   - Hệ thống đếm số bước hiện tại của Job. Nếu `stageCount > 0` -> Trả về `409 Conflict`.
+   - Đọc danh sách `TemplateStage` và nhân bản tạo các bản ghi `RecruitmentStage` tương ứng gán cho `jobId`.
 
 ## 6. Sequence diagram
 
@@ -49,104 +53,72 @@ Nguồn: [`sequence-diagram.puml`](sequence-diagram.puml)
 
 ### 6.1. Vai trò participant
 
-Interceptor bắt buộc vì ghi Tenant DB. Không có RabbitMQ: copy stage đồng bộ.
+- `Manager`: HR Manager cấu hình hệ thống.
+- `UI`: Giao diện cấu hình pipeline.
+- `Security`: Spring Security authorization context.
+- `Interceptor`: `TenantWebInterceptor` gán Tenant ID.
+- `Controller`: `PipelineTemplateController` xử lý API.
+- `Service`: `PipelineTemplateService` thực hiện clone stage.
+- `TenantDB`: CSDL của Tenant.
 
-### 6.2. Diễn giải bước
+### 6.2. Diễn giải chi tiết các bước
 
-**Lưu template**
-
-1. Admin sửa danh sách stage mặc định — trigger.
-2. `PUT /api/v1/tenant/pipeline-template`.
-3. 401/403: không ghi.
-4. Interceptor đặt tenant.
-5. Controller nhận request.
-6. Validate `sortOrder`/tên trùng.
-7. Sai: `400`.
-8. `saveTemplate`.
-9. UPSERT template + `TemplateStage`.
-10. `200`; `clear()`.
-
-**Apply**
-
-11. Chọn job và apply.
-12. `POST .../pipeline:apply-template`.
-13. 401/403 nếu không quản lý được job.
-14. Interceptor đặt tenant.
-15. `applyTemplateToJob`.
-16. Load job + đếm stage.
-17. Không có job: `404`.
-18. Đã có stage: `409` — tránh ghi đè Kanban đang chạy.
-19. Pipeline trống: đọc template.
-20. Insert clone `RecruitmentStage` theo `jobId`.
-21. `201`; UI mở Kanban; `clear()`.
+1. Manager bấm lưu cấu hình Template -> `UI` gửi `PUT /api/v1/tenant/pipeline-template`.
+2. `Controller` validate danh sách bước. `Service` lưu thông tin vào `TenantDB`. Trả về HTTP 200 OK.
+3. Manager áp dụng template cho Job -> `UI` gửi `POST /api/v1/jobs/{jobId}/pipeline:apply-template`.
+4. `Service` đếm số bước của Job trong `TenantDB`. Nếu đã có bước -> Trả về 409 Conflict.
+5. Nếu Job chưa có bước -> `Service` đọc `PipelineTemplate` và `INSERT` toàn bộ bước vào `recruitment_stages`.
+6. Trả về `JobPipelineResponse` kèm HTTP 200 OK.
 
 ## 7. Class diagram
 
 Nguồn: [`class-diagram.puml`](class-diagram.puml)
 
-Viewpoint: **layered application-design** (`Routing & Boundary` → `Controller` → `Service` → `DTO` → `Repository` → `Domain Entity` → `Infrastructure`). Isolation qua `TenantContext` và Tenant DB, không prefix `Tenant` trên mọi package.
+Viewpoint: **Application-design**. Kiến trúc phân tầng Controller -> DTO -> Service -> Repository -> Entity -> Infrastructure.
 
 ### 7.1. Vai trò phần tử
 
-| Phần tử | Loại | Vai trò |
+| Phần tử | StereoType | Vai trò |
 |---|---|---|
-| `PipelineTemplateRoute` | conceptual API | Ba endpoint template/apply. |
-| `PipelineTemplateController` | conceptual | Biên HTTP. |
-| `SaveTemplateRequest` / responses | conceptual DTO | Không lộ PII. |
-| `PipelineTemplateService` | conceptual | Copy template; không sửa từng stage. |
-| `PipelineTemplate` / `TemplateStage` | conceptual | Một template / Tenant DB. |
-| `Job` / `RecruitmentStage` | hiện có | Pipeline vật lý theo job. |
-| Repositories | mix | Template conceptual; Job/Stage hiện có. |
+| `PipelineTemplateController` | `<<Controller>>` | Controller tiếp nhận request cấu hình template pipeline. |
+| `SaveTemplateRequest` | `<<Request>>` | DTO chứa danh sách các bước draft. |
+| `PipelineTemplateResponse` | `<<Response>>` | DTO phản hồi template pipeline đã lưu. |
+| `JobPipelineResponse` | `<<Response>>` | DTO phản hồi kết quả áp dụng template vào Job. |
+| `PipelineTemplateService` | `<<Service>>` | Interface định nghĩa nghiệp vụ template pipeline. |
+| `PipelineTemplateServiceImpl` | `<<Service>>` | Implementation thực thi nhân bản stage vào Job. |
+| `PipelineTemplateRepository` | `<<Repository>>` | Repository quản lý bảng `pipeline_templates`. |
+| `RecruitmentStageRepository` | `<<Repository>>` | Repository quản lý bảng `recruitment_stages`. |
+| `PipelineTemplate` | `<<Entity>>` | Thực thể template quy trình tuyển dụng của Tenant. |
+| `TemplateStage` | `<<Entity>>` | Thực thể chi tiết từng bước trong template. |
+| `RecruitmentStage` | `<<Entity>>` | Thực thể bước tuyển dụng áp dụng cho Job cụ thể. |
 
-### 7.2. Quan hệ
+### 7.2. Quan hệ giữa các lớp
 
-| Nguồn → đích | Ký pháp | Loại và lý do |
-|---|---|---|
-| Route → Controller | `..>` | Dependency định tuyến. |
-| Controller → DTOs | `..>` | Dependency input/output. |
-| Controller → Service | `-->` | Association inject. |
-| Service → 3 repository | `-->` | Association persist. |
-| PipelineTemplate → TemplateStage | `*--` | Composition: stage template chết theo template. |
-| Job → RecruitmentStage | `*--` | Composition: stage job chết theo job (`job_id` NOT NULL). |
-| Template → Job | `..>` | Dependency “copied onto”: không FK live. |
-| TemplateStage → RecruitmentStage | `..>` | Dependency clone, không inheritance. |
-| Repository → entity | `..>` | Manage. |
-| Repository → Tenant DB | `-->` | Cùng Tenant MySQL. |
+- `PipelineTemplateController --> PipelineTemplateService`: Ủy quyền xử lý nghiệp vụ (`delegates >`).
+- `PipelineTemplateController ..> SaveTemplateRequest`: Nhận dữ liệu đầu vào (`consumes >`).
+- `PipelineTemplateServiceImpl ..|> PipelineTemplateService`: Hiện thực hóa interface (`implements`).
+- `PipelineTemplateServiceImpl --> PipelineTemplateRepository`: Quản lý template (`manages template >`).
+- `PipelineTemplateServiceImpl --> RecruitmentStageRepository`: Lưu trữ các bước tuyển dụng của Job (`persists job stages >`).
+- `PipelineTemplateRepository --> DedicatedTenantMySQL`: Lưu trữ dữ liệu (`persists to >`).
+- `PipelineTemplate "1" *-- "1..*" TemplateStage`: Chứa danh sách các bước mẫu (`contains >`).
+- `Job "1" *-- "0..*" RecruitmentStage`: Sở hữu danh sách các bước tuyển dụng thực tế (`owns >`).
 
 ## 8. Quyết định kiến trúc và bảo mật
 
-- **Multi-tenant:** chỉ Tenant DB hiện tại.
-- **Authorization:** sửa template = admin tenant; apply = người quản lý job.
-- **Transaction:** apply một transaction tenant (đọc template + insert stages).
-- **Async:** không.
-- **Không ghi Master.**
+- **Tenant Isolation:** Mỗi Tenant có 1 Template quy trình tuyển dụng chuẩn duy nhất được lưu trong CSDL Tenant riêng biệt.
+- **Pipeline Cloned Execution:** Các bước tuyển dụng của Job được nhân bản độc lập từ Template, cho phép người dùng tùy chỉnh sâu từng bước của từng Job mà không làm ảnh hưởng đến Template chung.
 
 ## 9. Giả định
 
-- `pipeline_templates` chưa có Flyway.
-- Apply không ghi đè pipeline đã có.
-- Seed system stages nằm trên template và được copy; ràng buộc xóa system stage thuộc function 2.
+- Chỉ cho phép áp dụng Template tự động đối với các Job chưa khởi tạo bất kỳ bước tuyển dụng nào.
 
-## 10. Render và file được tạo
+## 10. Hướng dẫn Render sơ đồ
 
-| File | Metadata |
-|---|---|
-| [class-diagram.png](class-diagram.png) | PNG, ít nhất 300 DPI |
-| [sequence-diagram.png](sequence-diagram.png) | PNG, ít nhất 300 DPI |
-
-Đã kiểm tra trực quan. Không tạo SVG.
-
+Khi có yêu cầu xuất ảnh PNG từ người dùng:
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass `
-  -File ./.agents/skills/enterprise-uml-diagram/scripts/render-diagrams.ps1 `
-  -InputPath docs/diagram/10-recruitment-pipeline-management/configure-recruitment-pipeline `
-  -PlantUmlJar "$env:LOCALAPPDATA\PlantUML\plantuml-1.2026.7.jar" `
-  -Format Png `
-  -PngDpi 300
+pwsh .agents/skills/enterprise-uml-diagram/scripts/render-diagrams.ps1 -InputPath docs/diagram/10-recruitment-pipeline-management/configure-recruitment-pipeline -Format Png -PngDpi 300
 ```
 
-PlantUML 1.2026.7. Script xác minh DPI PNG ≥ 300 cho cả hai chiều.
+## 11. Trạng thái Review
 
-## 11. Trạng thái review
-
-`Complete with assumptions` — nguồn và PNG 300 DPI đã xong.
+`Complete` — sơ đồ nguồn và hình ảnh PNG (DPI 300) đã được hoàn tạo.

@@ -1,169 +1,104 @@
 @startuml
-title COMPANY-01 — View and Update Company Profile
-
 skinparam dpi 300
-skinparam backgroundColor #FFFFFF
 skinparam shadowing false
-skinparam sequenceArrowThickness 1
-skinparam sequenceMessageAlign center
-skinparam ArrowColor #64748B
-skinparam ParticipantBorderColor #CBD5E1
-skinparam ParticipantBackgroundColor #F8FAFC
-skinparam ActorBorderColor #3B82F6
-skinparam ActorBackgroundColor #EFF6FF
-skinparam DatabaseBorderColor #94A3B8
-skinparam DatabaseBackgroundColor #F8FAFC
+skinparam roundcorner 6
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam sequence {
+    ArrowColor #2D3748
+    ActorBorderColor #2D3748
+    LifeLineBorderColor #2D3748
+    ParticipantBorderColor #2D3748
+    ParticipantBackgroundColor #FFFFFF
+    BoxBorderColor #A0AEC0
+}
 
 hide footbox
 autonumber
 
-actor "Tenant Admin" as Admin
-boundary "Company Workspace UI" as UI
+actor "Tenant Admin / Recruiter" as User
+boundary "Company Profile UI" as UI
 control "Spring Security" as Security
 control "TenantWebInterceptor" as Interceptor
 boundary "CompanyProfileController" as Controller
 control "CompanyProfileService" as Service
-database "Tenant DB (MySQL)" as TenantDB
-entity "Object Storage" as Storage
+database "Master DB (PostgreSQL)" as MasterDB
 
-note over Admin, Security
-  Preconditions: tenant is ACTIVE; caller JWT has TENANT_ADMIN or ADMIN;
-  X-Tenant-ID / subdomain / token tenant claims match.
+note over User, Security
+  Preconditions: tenant ACTIVE.
+  GET allowed for TENANT_ADMIN, ADMIN, HR, RECRUITER.
+  PUT restricted to TENANT_ADMIN and ADMIN.
 end note
 
-== View company profile ==
+== View Company Profile ==
 
-Admin -> UI: Open Profile and Branding
+User -> UI: Navigate to Company Profile page
 activate UI
-UI -> Security: GET /api/v1/tenant/company
+UI -> Security: GET /api/v1/tenant/company/profile
 activate Security
+Security -> Interceptor: Forward request
+activate Interceptor
+deactivate Security
+Interceptor -> Interceptor: setCurrentTenant(tenantId)
+Interceptor -> Controller: Route request
+activate Controller
 
-alt Unauthenticated or forbidden role
-  Security --> UI: 401 Unauthorized / 403 Forbidden
-  deactivate Security
-  UI --> Admin: Show access error
-else Authorized tenant administrator
-  Security -> Interceptor: Forward authenticated request
-  activate Interceptor
-  deactivate Security
-  Interceptor -> Interceptor: setCurrentTenant(tenantId)
-  Interceptor -> Controller: Route request
-  activate Controller
-  Controller -> Service: getProfile()
+Controller -> Service: getProfile()
+activate Service
+Service -> MasterDB: findByCode(tenantCode)
+activate MasterDB
+MasterDB --> Service: TenantInfo
+deactivate MasterDB
+
+Service --> Controller: CompanyProfileResponse
+deactivate Service
+Controller --> UI: 200 OK
+deactivate Controller
+UI --> User: Display company profile & branding
+Interceptor -> Interceptor: clear TenantContext
+deactivate Interceptor
+
+== Update Company Profile ==
+
+User -> UI: Edit profile info (Logo, address, website, description) & save
+UI -> Security: PUT /api/v1/tenant/company/profile
+activate Security
+Security -> Interceptor: Forward request
+activate Interceptor
+deactivate Security
+Interceptor -> Interceptor: setCurrentTenant(tenantId)
+Interceptor -> Controller: Route request
+activate Controller
+Controller -> Controller: Validate input fields
+
+alt Invalid website URL or missing company name
+  Controller --> UI: 400 Bad Request
+  deactivate Controller
+  UI --> User: Display validation error
+  Interceptor -> Interceptor: clear TenantContext
+  deactivate Interceptor
+else Valid payload
+  Controller -> Service: updateProfile(request)
   activate Service
-  Service -> TenantDB: findSingleton()
-  activate TenantDB
-  TenantDB --> Service: CompanyProfile or empty
-  deactivate TenantDB
+  Service -> MasterDB: findByCode(tenantCode)
+  activate MasterDB
+  MasterDB --> Service: TenantInfo
+  deactivate MasterDB
 
-  alt Profile row missing
-    Service -> TenantDB: Insert default profile from registry name
-    activate TenantDB
-    TenantDB --> Service: Created CompanyProfile
-    deactivate TenantDB
-  end
+  Service -> MasterDB: UPDATE tenants (name, logo_url, website, address, industry, company_size, description)
+  activate MasterDB
+  MasterDB --> Service: Updated TenantInfo
+  deactivate MasterDB
 
   Service --> Controller: CompanyProfileResponse
   deactivate Service
-  Controller --> UI: 200 OK + profile fields
+  Controller --> UI: 200 OK
   deactivate Controller
-  UI --> Admin: Display name, logo, website, address, industry
-  Interceptor -> Interceptor: clear TenantContext
-  deactivate Interceptor
-end
-
-== Update company profile ==
-
-Admin -> UI: Edit fields and save
-UI -> Security: PUT /api/v1/tenant/company\n(name, tagline, website, address, industry, description)
-activate Security
-
-alt Unauthenticated or forbidden role
-  Security --> UI: 401 Unauthorized / 403 Forbidden
-  deactivate Security
-  UI --> Admin: Show access error
-else Authorized tenant administrator
-  Security -> Interceptor: Forward authenticated request
-  activate Interceptor
-  deactivate Security
-  Interceptor -> Interceptor: setCurrentTenant(tenantId)
-  Interceptor -> Controller: Route request
-  activate Controller
-  Controller -> Controller: Validate DTO (name required, URL/length limits)
-
-  alt Invalid payload
-    Controller --> UI: 400 Bad Request
-    deactivate Controller
-    UI --> Admin: Show field errors
-    Interceptor -> Interceptor: clear TenantContext
-    deactivate Interceptor
-  else Valid payload
-    Controller -> Service: updateProfile(request)
-    activate Service
-    Service -> TenantDB: save(CompanyProfile)
-    activate TenantDB
-    TenantDB --> Service: Updated row
-    deactivate TenantDB
-    Service --> Controller: CompanyProfileResponse
-    deactivate Service
-    Controller --> UI: 200 OK + updated profile
-    deactivate Controller
-    UI --> Admin: Show save confirmation
-    Interceptor -> Interceptor: clear TenantContext
-    deactivate Interceptor
-  end
-end
-
-== Optional: replace logo ==
-
-Admin -> UI: Upload logo file
-UI -> Security: POST /api/v1/tenant/company/logo\n(multipart image)
-activate Security
-
-alt Unauthenticated, forbidden, or invalid MIME/size
-  Security --> UI: 401 / 403 / 400
-  deactivate Security
-  UI --> Admin: Show upload error
-else Authorized and file accepted at gateway
-  Security -> Interceptor: Forward authenticated request
-  activate Interceptor
-  deactivate Security
-  Interceptor -> Interceptor: setCurrentTenant(tenantId)
-  Interceptor -> Controller: Route request
-  activate Controller
-  Controller -> Service: replaceLogo(file)
-  activate Service
-  Service -> Service: Validate image type and size
-  alt File rejected
-    Service --> Controller: 400 INVALID_LOGO
-    deactivate Service
-    Controller --> UI: 400 Bad Request
-    deactivate Controller
-    UI --> Admin: Show logo validation error
-  else File accepted
-    Service -> Storage: storeLogo(tenantId, file)
-    activate Storage
-    Storage --> Service: objectKey / public URL
-    deactivate Storage
-    Service -> TenantDB: UPDATE logo_object_key
-    activate TenantDB
-    TenantDB --> Service: Profile updated
-    deactivate TenantDB
-    Service --> Controller: CompanyProfileResponse
-    deactivate Service
-    Controller --> UI: 200 OK + logoUrl
-    deactivate Controller
-    UI --> Admin: Preview new logo
-  end
+  UI --> User: Show update success toast
   Interceptor -> Interceptor: clear TenantContext
   deactivate Interceptor
 end
 
 deactivate UI
-
-note over TenantDB, Storage
-  Branding data stays in the dedicated Tenant DB.
-  This use case does not write Master PostgreSQL tenants.name.
-end note
 
 @enduml
