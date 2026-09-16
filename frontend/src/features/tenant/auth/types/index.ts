@@ -31,3 +31,21 @@ export type UserProfile = {
   bio?: string | null;
   headline?: string | null;
 };
+
+export type CandidateProfile = {
+  id: number;
+  email: string;
+  fullName: string;
+  role: Role;
+  avatarUrl?: string | null;
+  headline?: string | null;
+  status?: string | null;
+};
+
+export type CandidateLoginResponse = {
+  accessToken: string;
+  refreshToken: string;
+  tokenType: string;
+  tenantId: string;
+  candidate: CandidateProfile;
+};

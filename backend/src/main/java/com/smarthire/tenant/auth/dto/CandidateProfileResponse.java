@@ -1,39 +1,39 @@
 package com.smarthire.tenant.auth.dto;
 
 import com.smarthire.domain.tenant.entity.User;
+import com.smarthire.domain.tenant.entity.UserProfile;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import java.time.Instant;
-
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class UserResponse {
+public class CandidateProfileResponse {
     private Long id;
     private String email;
     private String fullName;
+    private String avatarUrl;
     private String role;
+    private String headline;
     private String status;
-    private Instant createdAt;
 
-    public static UserResponse fromEntity(User user) {
+    public static CandidateProfileResponse fromEntity(User user, UserProfile profile) {
         if (user == null) {
             return null;
         }
-        return UserResponse.builder()
+        return CandidateProfileResponse.builder()
                 .id(user.getId())
                 .email(user.getEmail())
                 .fullName(user.getFullName())
-                .role(user.getRole() != null ? user.getRole().name() : null)
-                .status(user.getStatus() != null ? user.getStatus().name() : null)
-                .createdAt(user.getCreatedAt())
+                .avatarUrl(profile != null ? profile.getAvatarUrl() : null)
+                .role(user.getRole() != null ? user.getRole().name() : "CANDIDATE")
+                .headline(profile != null ? profile.getHeadline() : null)
+                .status(user.getStatus() != null ? user.getStatus().name() : "ACTIVE")
                 .build();
     }
 }
-

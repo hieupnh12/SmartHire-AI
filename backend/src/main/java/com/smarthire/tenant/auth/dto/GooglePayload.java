@@ -11,11 +11,11 @@ import lombok.Setter;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class LoginResponse {
-    private String accessToken;
-    @Builder.Default
-    private String tokenType = "Bearer";
-    private UserResponse user;
-    private String tenantId;
+public class GooglePayload {
+    private String email;
+    private String name;
+    private String pictureUrl;
+    private String sub;
+    private boolean emailVerified;
 }
 
