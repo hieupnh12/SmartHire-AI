@@ -1,0 +1,117 @@
+@startuml
+hide footbox
+skinparam dpi 300
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam sequence {
+    ArrowColor #2D3748
+    ActorBorderColor #2D3748
+    LifeLineBorderColor #2D3748
+    ParticipantBorderColor #2D3748
+    ParticipantBackgroundColor #FFFFFF
+    BoxBorderColor #A0AEC0
+}
+
+actor "Workspace Admin" as Admin
+boundary "Master Dashboard UI" as UI
+control "Spring Security" as Security
+control "MasterAnalyticsController" as Controller
+control "MasterAnalyticsService" as Service
+collections "Redis Cache" as Cache
+entity "TenantInfoRepository" as TenantRepo
+entity "TenantSubscriptionRepository" as SubRepo
+entity "InvoiceRepository" as InvoiceRepo
+database "Master PostgreSQL" as MasterDB
+
+== 1. Yêu cầu tải Chỉ số Doanh thu Nền tảng ==
+
+Admin -> UI : 1: Truy cập tab "Tổng quan & Doanh thu"
+activate UI
+
+UI -> Security : 2: GET /api/v1/master/analytics/revenue\n[Authorization: Bearer <JWT>]
+activate Security
+
+alt 1. Token không hợp lệ hoặc thiếu quyền
+    Security --> UI : 3a: 401 Unauthorized / 403 Forbidden
+    UI --> Admin : 4a: Hiển thị lỗi truy cập hoặc chuyển về login
+else 2. Xác thực thành công (Role: WORKSPACE_ADMIN)
+    Security -> Controller : 3b: Chuyển tiếp request
+    activate Controller
+    deactivate Security
+
+    Controller -> Service : 4b: calculateRevenueAnalytics()
+    activate Service
+
+    == 2. Kiểm tra Cache Phân tích ==
+
+    Service -> Cache : 5: GET master:analytics:revenue
+    activate Cache
+
+    alt 2.1 Cache Hit (Dữ liệu đã được tính toán)
+        Cache --> Service : 6a: Trả về RevenueAnalyticsResponse từ cache
+    else 2.2 Cache Miss (Tổng hợp dữ liệu từ Master DB)
+        Cache --> Service : 6b: null (Không có cache)
+        deactivate Cache
+
+        note over Service, MasterDB
+            Giao dịch chỉ đọc: @Transactional(transactionManager = "masterTransactionManager", readOnly = true)
+        end note
+
+        Service -> TenantRepo : 7: countByStatus("ACTIVE")
+        activate TenantRepo
+        TenantRepo -> MasterDB : 8: SELECT COUNT(*) FROM tenants WHERE status = 'ACTIVE'
+        activate MasterDB
+        MasterDB --> TenantRepo : 9: 42 active tenants
+        deactivate MasterDB
+        TenantRepo --> Service : 10: 42
+        deactivate TenantRepo
+
+        Service -> SubRepo : 11: findActiveSubscriptions()
+        activate SubRepo
+        SubRepo -> MasterDB : 12: SELECT ts, p FROM tenant_subscriptions ts JOIN subscription_plans p ON ts.plan_id = p.id WHERE ts.status = 'ACTIVE'
+        activate MasterDB
+        MasterDB --> SubRepo : 13: List<TenantSubscription> (kèm giá gói)
+        deactivate MasterDB
+        SubRepo --> Service : 14: List<TenantSubscription>
+        deactivate SubRepo
+
+        Service -> InvoiceRepo : 15: sumPaidAmountBetween(startDate, endDate)
+        activate InvoiceRepo
+        InvoiceRepo -> MasterDB : 16: SELECT SUM(amount) FROM invoices WHERE status = 'PAID' AND paid_at BETWEEN ...
+        activate MasterDB
+        MasterDB --> InvoiceRepo : 17: Tổng doanh thu đã thanh toán
+        deactivate MasterDB
+        InvoiceRepo --> Service : 18: BigDecimal totalPaid
+        deactivate InvoiceRepo
+
+        Service -> Service : 19: Tính toán MRR, ARR, growthRate (+18.5%),\nphân bổ gói (STARTER: 15, PRO: 22, ENTERPRISE: 5)
+        
+        Service -> Cache : 20: SET master:analytics:revenue (TTL = 10m)
+        activate Cache
+        Cache --> Service : 21: OK
+        deactivate Cache
+    end
+
+    Service --> Controller : 22: RevenueAnalyticsResponse
+    deactivate Service
+
+    Controller --> UI : 23: 200 OK + ApiResponse<RevenueAnalyticsResponse>
+    deactivate Controller
+
+    UI --> Admin : 24: Render 4 Thẻ KPI (MRR, ARR, Tenants, SLA)\nvà Biểu đồ Phân bổ Gói Cước
+    deactivate UI
+end
+
+== 3. Xuất Báo cáo Tài chính (CSV Export) ==
+
+opt Workspace Admin nhấn "Xuất báo cáo tài chính (CSV)"
+    Admin -> UI : 25: Nhấn "Xuất báo cáo tài chính (CSV)"
+    activate UI
+    UI -> UI : 26: Kết xuất dữ liệu Tenant & Doanh thu thành file CSV\n(Mã, Tên, Subdomain, Database, Trạng thái)
+    UI --> Admin : 27: Tự động tải xuống file smarthire_tenants_report_YYYY-MM-DD.csv\nkèm thông báo hoàn tất
+    deactivate UI
+end
+
+@enduml

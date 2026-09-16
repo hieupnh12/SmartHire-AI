@@ -1,0 +1,211 @@
+@startuml
+skinparam dpi 300
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam roundcorner 6
+skinparam linetype ortho
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam classFontSize 11
+skinparam classAttributeFontSize 10
+
+skinparam class {
+    BackgroundColor #FFFFFF
+    BorderColor #2D3748
+    ArrowColor #2D3748
+}
+
+package "Controller Layer" {
+    class MasterAnalyticsController <<Controller>> {
+        - masterAnalyticsService: MasterAnalyticsService
+        + getRevenueAnalytics(): ResponseEntity<ApiResponse<RevenueAnalyticsResponse>>
+        + exportFinancialReport(): ResponseEntity<byte[]>
+    }
+}
+
+package "DTO Layer" {
+    class RevenueAnalyticsResponse <<Response>> {
+        - mrr: BigDecimal
+        - arr: BigDecimal
+        - activeTenants: int
+        - growthRate: String
+        - planDistribution: Map<String, Integer>
+        - totalCollectedRevenue: BigDecimal
+        - currency: String
+        + getMrr(): BigDecimal
+        + getArr(): BigDecimal
+        + getActiveTenants(): int
+        + getGrowthRate(): String
+        + getPlanDistribution(): Map<String, Integer>
+    }
+
+    class PlanDistributionDto <<DTO>> {
+        - planCode: String
+        - planName: String
+        - tenantCount: int
+        - percentage: double
+        + getPlanCode(): String
+        + getTenantCount(): int
+    }
+}
+
+package "Service Layer" {
+    interface MasterAnalyticsService <<Service>> {
+        + calculateRevenueAnalytics(): RevenueAnalyticsResponse
+        + exportRevenueCsv(): byte[]
+    }
+
+    class MasterAnalyticsServiceImpl <<Service>> {
+        - tenantInfoRepository: TenantInfoRepository
+        - tenantSubscriptionRepository: TenantSubscriptionRepository
+        - subscriptionPlanRepository: SubscriptionPlanRepository
+        - invoiceRepository: InvoiceRepository
+        - redisTemplate: RedisTemplate<String, Object>
+        + calculateRevenueAnalytics(): RevenueAnalyticsResponse
+        + exportRevenueCsv(): byte[]
+        - aggregateMrr(): BigDecimal
+        - calculateGrowthRate(): String
+        - computePlanDistribution(): Map<String, Integer>
+    }
+}
+
+package "Repository Layer" {
+    interface TenantInfoRepository <<Repository>> {
+        + countByStatus(status: String): long
+        + findAllActiveTenants(): List<TenantInfo>
+    }
+
+    interface TenantSubscriptionRepository <<Repository>> {
+        + findActiveSubscriptions(): List<TenantSubscription>
+        + countByPlanIdAndStatus(planId: Long, status: String): long
+    }
+
+    interface SubscriptionPlanRepository <<Repository>> {
+        + findAllActivePlans(): List<SubscriptionPlan>
+        + findByCode(code: String): Optional<SubscriptionPlan>
+    }
+
+    interface InvoiceRepository <<Repository>> {
+        + sumPaidAmountBetween(startDate: LocalDateTime, endDate: LocalDateTime): BigDecimal
+        + findAllPaidInvoices(): List<Invoice>
+    }
+}
+
+package "Domain Entity Layer" {
+    class TenantInfo <<Entity>> {
+        - id: Long
+        - code: String
+        - name: String
+        - subdomain: String
+        - dbName: String
+        - status: String
+        - createdAt: LocalDateTime
+        - updatedAt: LocalDateTime
+        + getId(): Long
+        + getCode(): String
+        + getStatus(): String
+    }
+
+    class SubscriptionPlan <<Entity>> {
+        - id: Long
+        - code: String
+        - name: String
+        - priceMonthly: BigDecimal
+        - priceYearly: BigDecimal
+        - maxJobs: int
+        - maxCvParses: int
+        - maxAiInterviewHours: int
+        - status: String
+        + getId(): Long
+        + getPriceMonthly(): BigDecimal
+        + getPriceYearly(): BigDecimal
+    }
+
+    class TenantSubscription <<Entity>> {
+        - id: Long
+        - tenantId: Long
+        - planId: Long
+        - status: SubscriptionStatus
+        - startsAt: LocalDateTime
+        - endsAt: LocalDateTime
+        - autoRenew: boolean
+        + getId(): Long
+        + getStatus(): SubscriptionStatus
+    }
+
+    class Invoice <<Entity>> {
+        - id: Long
+        - tenantId: Long
+        - subscriptionId: Long
+        - amount: BigDecimal
+        - currency: String
+        - status: InvoiceStatus
+        - paymentGateway: String
+        - transactionId: String
+        - paidAt: LocalDateTime
+        + getId(): Long
+        + getAmount(): BigDecimal
+        + getStatus(): InvoiceStatus
+    }
+
+    enum SubscriptionStatus <<Enum>> {
+        ACTIVE
+        EXPIRED
+        CANCELLED
+        PENDING
+    }
+
+    enum InvoiceStatus <<Enum>> {
+        PENDING
+        PAID
+        FAILED
+        REFUNDED
+    }
+}
+
+package "Infrastructure & Persistence" {
+    class MasterPostgreSQL <<Database>> {
+        .. Master Landlord DB ..
+        + tenants
+        + subscription_plans
+        + tenant_subscriptions
+        + invoices
+    }
+
+    class RedisCache <<Cache>> {
+        .. Cache Cluster ..
+        + master:analytics:revenue
+    }
+}
+
+' Relationships & Navigation
+
+MasterAnalyticsController --> MasterAnalyticsService : delegates >
+MasterAnalyticsController ..> RevenueAnalyticsResponse : returns >
+
+RevenueAnalyticsResponse o-- PlanDistributionDto : aggregates >
+
+MasterAnalyticsServiceImpl .up.|> MasterAnalyticsService : implements >
+MasterAnalyticsServiceImpl ..> RevenueAnalyticsResponse : creates >
+MasterAnalyticsServiceImpl --> TenantInfoRepository : queries >
+MasterAnalyticsServiceImpl --> TenantSubscriptionRepository : queries >
+MasterAnalyticsServiceImpl --> SubscriptionPlanRepository : queries >
+MasterAnalyticsServiceImpl --> InvoiceRepository : queries >
+MasterAnalyticsServiceImpl --> RedisCache : caches / evicts >
+
+TenantInfoRepository --> TenantInfo : manages >
+TenantInfoRepository --> MasterPostgreSQL : reads from >
+
+TenantSubscriptionRepository --> TenantSubscription : manages >
+TenantSubscriptionRepository --> MasterPostgreSQL : reads from >
+
+SubscriptionPlanRepository --> SubscriptionPlan : manages >
+SubscriptionPlanRepository --> MasterPostgreSQL : reads from >
+
+InvoiceRepository --> Invoice : manages >
+InvoiceRepository --> MasterPostgreSQL : reads from >
+
+TenantSubscription ..> SubscriptionStatus : typed by >
+Invoice ..> InvoiceStatus : typed by >
+
+@enduml

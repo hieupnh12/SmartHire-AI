@@ -84,8 +84,7 @@ Sơ đồ sử dụng góc nhìn thiết kế ứng dụng (application-design v
 
 | Nguồn → đích | Ký pháp | Loại quan hệ và lý do sử dụng |
 |---|---|---|
-| `TenantAuthRoute → TenantAuthController` | `..>` | **Dependency**: Route ánh xạ tới Controller. |
-| `TenantAuthController → LoginRequest` | `..>` | **Dependency**: Controller nhận DTO request. |
+| `TenantAuthController → LoginRequest` | `..>` | **Dependency**: Controller nhận DTO request (`consumes >`). |
 | `TenantAuthController → TenantAuthService` | `-->` | **Directed association**: Controller ủy thác cho Service xử lý. |
 | `TenantAuthController → LoginResponse` | `..>` | **Dependency**: Controller trả về DTO response. |
 | `TenantAuthServiceImpl ..|> TenantAuthService` | `<\|..` | **Realization**: Lớp triển khai thực hiện Interface Service. |

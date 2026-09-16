@@ -93,8 +93,7 @@ Class diagram sử dụng **góc nhìn thiết kế ứng dụng (application-de
 
 | Nguồn → đích | Ký pháp | Loại quan hệ và lý do sử dụng |
 |---|---|---|
-| `TenantUserRoute → TenantUserController` | `..>` | **Dependency**: Route ánh xạ request tới Controller. |
-| `TenantUserController → InviteRecruiterRequest` | `..>` | **Dependency**: Controller nhận DTO request làm tham số. |
+| `TenantUserController → InviteRecruiterRequest` | `..>` | **Dependency**: Controller nhận DTO request làm tham số (`consumes >`). |
 | `TenantUserController → TenantUserService` | `-->` | **Directed association**: Controller phụ thuộc và gọi Service xử lý. |
 | `TenantUserController → UserResponse` | `..>` | **Dependency**: Controller trả về response DTO. |
 | `TenantUserServiceImpl ..|> TenantUserService` | `<\|..` | **Realization**: Lớp triển khai hiện thực hóa Interface service. |

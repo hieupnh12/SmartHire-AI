@@ -88,8 +88,7 @@ Sơ đồ tuân thủ chặt chẽ tài liệu Software Design Document (SDD), p
 
 | Nguồn → đích | Ký pháp | Loại quan hệ và lý do sử dụng |
 |---|---|---|
-| `SessionRecoveryRoute → SessionRecoveryController` | `..>` | **Dependency**: Route ánh xạ tới Controller. |
-| `SessionRecoveryController → ForgotPasswordRequest` | `..>` | **Dependency**: Controller nhận DTO quên mật khẩu. |
+| `SessionRecoveryController → ForgotPasswordRequest` | `..>` | **Dependency**: Controller nhận DTO quên mật khẩu (`consumes >`). |
 | `SessionRecoveryController → ResetPasswordRequest` | `..>` | **Dependency**: Controller nhận DTO đổi mật khẩu. |
 | `SessionRecoveryController → SessionRecoveryService` | `-->` | **Directed association**: Controller gọi Service xử lý. |
 | `SessionRecoveryService <\|.. SessionRecoveryServiceImpl` | `<\|..` | **Realization**: Lớp triển khai thực hiện Interface Service. |

@@ -15,12 +15,6 @@ skinparam class {
     ArrowColor #2D3748
 }
 
-package "Routing & Boundary" {
-    class TenantAuthRoute <<REST API>> {
-        + POST /api/v1/tenant/auth/login
-    }
-}
-
 package "Controller Layer" {
     class TenantAuthController <<Controller>> {
         - tenantAuthService: TenantAuthService
@@ -106,7 +100,6 @@ package "Infrastructure & Persistence" {
 }
 
 ' Relationships
-TenantAuthRoute ..> TenantAuthController : defines route >
 TenantAuthController ..> LoginRequest : consumes >
 TenantAuthController --> TenantAuthService : delegates >
 TenantAuthController ..> LoginResponse : returns >
@@ -123,6 +116,6 @@ UserRepository --> User : manages >
 User ..> UserRole : typed by
 User ..> UserStatus : has status
 
-UserRepository --> DedicatedTenantMySQL : persists to
+UserRepository --> DedicatedTenantMySQL : persists to >
 
 @enduml
