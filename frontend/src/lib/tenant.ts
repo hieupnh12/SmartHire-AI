@@ -12,7 +12,7 @@ export const getTenantIdFromWindow = (): string | null => {
     }
   }
 
-  // Case B: acme.smarthire.ai (3+ parts)
+  // Case B: acme.smarthire.top (3+ parts)
   if (parts.length > 2) {
     const subdomain = parts[0].toLowerCase();
     if (!['www', 'api', 'app', 'localhost'].includes(subdomain)) {

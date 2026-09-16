@@ -38,7 +38,7 @@ export function RootRouteSwitcher() {
       });
   }, [tenantId]);
 
-  // If accessed on a Tenant subdomain (e.g. acme.localhost, vng.localhost, acme.smarthire.ai)
+  // If accessed on a Tenant subdomain (e.g. acme.localhost, vng.localhost, acme.smarthire.top)
   if (tenantId) {
     if (checking) {
       return (
