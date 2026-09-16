@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-# Build & start production stack on the VPS
-# Usage (from repo root on VPS):
-#   bash deploy/scripts/deploy.sh
+# Pull pre-built images from Docker Hub and start the production stack.
+# Usage: IMAGE_TAG=<git-sha> bash deploy/scripts/deploy.sh
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -16,9 +15,8 @@ if [[ ! -f "${ENV_FILE}" ]]; then
 fi
 
 
-echo "==> Pulling base images / building app"
-docker compose -f docker-compose.prod.yml --env-file "${ENV_FILE}" pull || true
-docker compose -f docker-compose.prod.yml --env-file "${ENV_FILE}" build --pull
+echo "==> Pulling Docker images (tag: ${IMAGE_TAG:-latest})"
+docker compose -f docker-compose.prod.yml --env-file "${ENV_FILE}" pull
 
 echo "==> Starting stack"
 docker compose -f docker-compose.prod.yml --env-file "${ENV_FILE}" up -d --remove-orphans

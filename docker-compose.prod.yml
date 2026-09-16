@@ -1,8 +1,9 @@
-# Production stack for Google Cloud VPS (Compute Engine)
+# Production stack for Google Cloud VPS (Compute Engine).
+# Application images are built by GitHub Actions and pulled from Docker Hub.
 # Usage:
 #   cp deploy/.env.production.example deploy/.env.production
 #   # edit secrets
-#   docker compose -f docker-compose.prod.yml --env-file deploy/.env.production up -d --build
+#   IMAGE_TAG=latest docker compose -f docker-compose.prod.yml --env-file deploy/.env.production up -d
 
 name: smarthire-prod
 
@@ -80,9 +81,7 @@ services:
     #   ssh -L 15672:localhost:15672 user@VM_IP
 
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    image: ${BACKEND_IMAGE:-hieupnh12/smarthire-backend}:${IMAGE_TAG:-latest}
     container_name: smarthire-backend
     restart: unless-stopped
     env_file:
@@ -124,12 +123,7 @@ services:
       start_period: 90s
 
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-      args:
-        # Same-origin API via nginx proxy inside frontend container
-        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api/v1}
+    image: ${FRONTEND_IMAGE:-hieupnh12/smarthire-frontend}:${IMAGE_TAG:-latest}
     container_name: smarthire-frontend
     restart: unless-stopped
     depends_on:

@@ -1,13 +1,5 @@
-# Deploy SmartHire-AI to Google Cloud VPS (Compute Engine) via SSH
-# Required GitHub Secrets:
-#   GCP_VPS_HOST          — external IP or DNS
-#   GCP_VPS_USER          — SSH user (e.g. smarthire or ubuntu)
-#   GCP_VPS_SSH_KEY       — private key (PEM) for that user
-#   GCP_VPS_DEPLOY_PATH   — e.g. /opt/smarthire (optional, default /opt/smarthire)
-#
-# On the VPS: repo already cloned, deploy/.env.production present (never in git).
-
-name: Deploy GCP VPS
+# Build application images, push them to Docker Hub, then pull and run them on the VPS.
+name: Build images and deploy VPS
 
 on:
   workflow_dispatch:
@@ -18,29 +10,92 @@ on:
       - "frontend/**"
       - "docker-compose.prod.yml"
       - "deploy/**"
+      - ".github/workflows/deploy-gcp.yml"
+
+permissions:
+  contents: read
 
 concurrency:
   group: deploy-gcp-vps
   cancel-in-progress: false
 
+env:
+  BACKEND_IMAGE: hieupnh12/smarthire-backend
+  FRONTEND_IMAGE: hieupnh12/smarthire-frontend
+
 jobs:
-  deploy:
-    name: SSH Deploy
+  build:
+    name: Build and push Docker images
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy over SSH
-        uses: appleboy/ssh-action@v1.2.0
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push backend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          push: true
+          tags: |
+            ${{ env.BACKEND_IMAGE }}:${{ github.sha }}
+            ${{ env.BACKEND_IMAGE }}:latest
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
+
+      - name: Build and push frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          push: true
+          build-args: VITE_API_BASE_URL=/api/v1
+          tags: |
+            ${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
+            ${{ env.FRONTEND_IMAGE }}:latest
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
+
+  deploy:
+    name: Pull images on VPS
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Upload deployment manifests
+        uses: appleboy/scp-action@v1.0.0
         with:
           host: ${{ secrets.GCP_VPS_HOST }}
           username: ${{ secrets.GCP_VPS_USER }}
           key: ${{ secrets.GCP_VPS_SSH_KEY }}
+          source: "docker-compose.prod.yml,deploy/.env.production.example,deploy/scripts/deploy.sh,deploy/scripts/setup-tls.sh,deploy/nginx/smarthire.conf,deploy/mysql/init-provisioner.sh"
+          target: ${{ secrets.GCP_VPS_DEPLOY_PATH || '/opt/smarthire' }}
+          overwrite: true
+
+      - name: Pull and start release
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.sha }}
+        with:
+          host: ${{ secrets.GCP_VPS_HOST }}
+          username: ${{ secrets.GCP_VPS_USER }}
+          key: ${{ secrets.GCP_VPS_SSH_KEY }}
+          envs: DOCKERHUB_USERNAME,DOCKERHUB_TOKEN,RELEASE_TAG
           script_stop: true
           script: |
             set -euo pipefail
             DEPLOY_PATH="${{ secrets.GCP_VPS_DEPLOY_PATH }}"
             DEPLOY_PATH="${DEPLOY_PATH:-/opt/smarthire}"
             cd "${DEPLOY_PATH}"
-            git fetch origin
-            git checkout main
-            git pull --ff-only origin main
-            bash deploy/scripts/deploy.sh
+            test -f deploy/.env.production
+            echo "${DOCKERHUB_TOKEN}" | docker login --username "${DOCKERHUB_USERNAME}" --password-stdin
+            IMAGE_TAG="${RELEASE_TAG}" bash deploy/scripts/deploy.sh
