@@ -32,12 +32,15 @@ public class RankingService {
                           ExperienceScoringService experience, ObjectMapper mapper) {
         this.data = data; this.calculator = calculator; this.skills = skills; this.experience = experience; this.mapper = mapper;
     }
+    private static final Set<String> STAFF = Set.of(
+            "ROLE_RECRUITER", "ROLE_HR", "ROLE_ADMIN", "ROLE_TENANT_ADMIN");
+
     private String actor() {
         var auth = SecurityContextHolder.getContext().getAuthentication();
         String tenant = TenantContext.getCurrentTenant();
         if (tenant == null || tenant.isBlank() || tenant.equals("smarthire_master") || auth == null
                 || !auth.isAuthenticated() || !tenant.equals(auth.getDetails())
-                || auth.getAuthorities().stream().noneMatch(a -> a.getAuthority().equals("ROLE_RECRUITER")))
+                || auth.getAuthorities().stream().map(a -> a.getAuthority()).noneMatch(STAFF::contains))
             throw new BusinessException("Recruiter tenant access required", HttpStatus.FORBIDDEN, "RANKING_FORBIDDEN");
         return auth.getName();
     }

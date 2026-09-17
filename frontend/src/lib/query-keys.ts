@@ -13,6 +13,8 @@ export const queryKeys = {
   },
   cvs: {
     detail: (id: number | string) => ["cvs", "detail", id] as const,
+    mine: ["cvs", "mine"] as const,
+    byJob: (jobId: number | string) => ["cvs", "job", jobId] as const,
   },
   matching: {
     rankings: (jobId: number | string) => ["matching", "rankings", jobId] as const,

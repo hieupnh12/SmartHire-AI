@@ -40,6 +40,13 @@ class RankingServiceTest {
         assertThatThrownBy(() -> service.board(1)).isInstanceOf(BusinessException.class);
         verify(data, never()).applications(anyLong());
     }
+    @Test void allowsHrToListOwnJobs() {
+        var auth = new UsernamePasswordAuthenticationToken("hr@example.test", null, List.of(new SimpleGrantedAuthority("ROLE_HR")));
+        auth.setDetails("acme");
+        SecurityContextHolder.getContext().setAuthentication(auth);
+        when(data.jobs("hr@example.test")).thenReturn(List.of());
+        assertThat(service.jobs()).isEmpty();
+    }
     @Test void returnsEmptyBoardWithUnsavedDefaults() {
         when(data.job(1, false)).thenReturn(job());
         var board = service.board(1);

@@ -46,6 +46,12 @@ public class RankingDataRepository {
     public InterviewScore interview(long interviewId) {
         return em.createQuery("select s from InterviewScore s where s.interview.id = :id", InterviewScore.class).setParameter("id", interviewId).getResultStream().findFirst().orElse(null);
     }
+    public void detachCv(long cvId) {
+        em.createQuery("update RankingSource s set s.cvId = null where s.cvId = :id")
+                .setParameter("id", cvId)
+                .executeUpdate();
+    }
+
     public void save(Object entity) { em.merge(entity); }
     public void replaceSnapshots(long jobId) {
         em.createQuery("delete from CandidateRanking r where r.job.id = :id").setParameter("id", jobId).executeUpdate();

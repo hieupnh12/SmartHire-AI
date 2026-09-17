@@ -1,7 +1,7 @@
 # Applicant Management
 
 **Epic:** Job Recruitment Management  
-**Trạng thái:** `To Do`  
+**Trạng thái:** `Doing`  
 **Code ID:** `JOB-05`
 
 ## Mục đích chức năng
@@ -15,9 +15,9 @@ Quản lý danh sách ứng viên apply vào job: xem, lọc, gán stage, ghi ch
 
 ## Luồng hoạt động
 
-1. Candidate apply → `applications`.
-2. Recruiter list/filter/sort.
-3. Update stage/status/notes.
+1. Candidate apply → `POST /api/v1/jobs/{id}/applications` (career page hoặc `/candidate/jobs`).
+2. Recruiter xem `GET /api/v1/jobs/{id}/applications` (số lượng trên job list).
+3. Update stage/status/notes (chưa làm PATCH đầy đủ).
 
 ## Business Rules
 

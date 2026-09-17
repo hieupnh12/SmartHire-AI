@@ -30,6 +30,8 @@ import { NotificationsPage as CandidateNotificationsPage } from "@/features/tena
 import { recruiterNav } from "@/features/tenant/recruiter/nav";
 import { HomePage as RecruiterHomePage } from "@/features/tenant/recruiter/dashboard/pages/HomePage";
 import { JobsPage } from "@/features/tenant/recruiter/jobs/pages/JobsPage";
+import { JobFormPage } from "@/features/tenant/recruiter/jobs/pages/JobFormPage";
+import { JobDetailPage } from "@/features/tenant/recruiter/jobs/pages/JobDetailPage";
 import { ApplicantsPage } from "@/features/tenant/recruiter/applicants/pages/ApplicantsPage";
 import { CvScreeningPage } from "@/features/tenant/recruiter/cv-screening/pages/CvScreeningPage";
 import { MatchingPage } from "@/features/tenant/recruiter/matching/pages/MatchingPage";
@@ -87,6 +89,9 @@ export function AppRouter() {
         >
           <Route index element={<RecruiterHomePage />} />
           <Route path="jobs" element={<JobsPage />} />
+          <Route path="jobs/new" element={<JobFormPage />} />
+          <Route path="jobs/:id" element={<JobDetailPage />} />
+          <Route path="jobs/:id/edit" element={<JobFormPage />} />
           <Route path="applicants" element={<ApplicantsPage />} />
           <Route path="cvs" element={<CvScreeningPage />} />
           <Route path="matching" element={<MatchingPage />} />

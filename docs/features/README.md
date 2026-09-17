@@ -27,21 +27,21 @@ Mỗi trang gồm: Mục đích · Actor · Luồng · Business Rules · API · 
 
 | Code | Feature | Doc | Status |
 |---|---|---|---|
-| JOB-01 | Create / Update / Delete Job | [Job-CRUD](Job-Recruitment/Job-CRUD.md) | To Do |
-| JOB-02 | Job Publishing | [Job-Publishing](Job-Recruitment/Job-Publishing.md) | To Do |
-| JOB-03 | Skill Requirement Management | [Skill-Requirements](Job-Recruitment/Skill-Requirements.md) | To Do |
-| JOB-04 | Recruitment Stage Management | [Recruitment-Stages](Job-Recruitment/Recruitment-Stages.md) | To Do |
-| JOB-05 | Applicant Management | [Applicant-Management](Job-Recruitment/Applicant-Management.md) | To Do |
+| JOB-01 | Create / Update / Delete Job | [Job-CRUD](Job-Recruitment/Job-CRUD.md) | Done |
+| JOB-02 | Job Publishing | [Job-Publishing](Job-Recruitment/Job-Publishing.md) | Done |
+| JOB-03 | Skill Requirement Management | [Skill-Requirements](Job-Recruitment/Skill-Requirements.md) | Done |
+| JOB-04 | Recruitment Stage Management | [Recruitment-Stages](Job-Recruitment/Recruitment-Stages.md) | Done |
+| JOB-05 | Applicant Management | [Applicant-Management](Job-Recruitment/Applicant-Management.md) | Doing |
 
 ## 4. AI-Powered CV Screening & Analysis
 
 | Code | Feature | Doc | Status |
 |---|---|---|---|
-| CV-01 | CV Upload | [CV-Upload](CV-Screening/CV-Upload.md) | To Do |
-| CV-02 | CV Parsing | [CV-Parsing](CV-Screening/CV-Parsing.md) | To Do |
-| CV-03 | Information Extraction | [Information-Extraction](CV-Screening/Information-Extraction.md) | To Do |
-| CV-04 | AI Skill Analysis | [AI-Skill-Analysis](CV-Screening/AI-Skill-Analysis.md) | To Do |
-| CV-05 | Candidate Matching Score | [Matching-Score](CV-Screening/Matching-Score.md) | To Do |
+| CV-01 | CV Upload | [CV-Upload](CV-Screening/CV-Upload.md) | Done |
+| CV-02 | CV Parsing | [CV-Parsing](CV-Screening/CV-Parsing.md) | Done |
+| CV-03 | Information Extraction | [Information-Extraction](CV-Screening/Information-Extraction.md) | Done |
+| CV-04 | AI Skill Analysis | [AI-Skill-Analysis](CV-Screening/AI-Skill-Analysis.md) | Done |
+| CV-05 | Candidate Matching Score | [Matching-Score](CV-Screening/Matching-Score.md) | Done |
 
 ## 5. Candidate-Job Matching & Ranking
 

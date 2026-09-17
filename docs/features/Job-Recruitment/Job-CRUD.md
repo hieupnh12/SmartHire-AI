@@ -1,42 +1,46 @@
 # Create / Update / Delete Job
 
 **Epic:** Job Recruitment Management  
-**Trạng thái:** `To Do`  
+**Trạng thái:** `Done`  
 **Code ID:** `JOB-01`
 
 ## Mục đích chức năng
 
-Recruiter quản lý vòng đời tin tuyển dụng: tạo, sửa, xóa (soft delete).
+Recruiter quản lý vòng đời tin tuyển dụng: tạo nháp, sửa, clone, xóa (soft delete).
 
 ## Actor
 
-- Recruiter, Admin
+- Recruiter, Admin, HR
 
 ## Luồng hoạt động
 
 1. CRUD qua `/api/v1/jobs`.
-2. Soft delete khi có applicants.
-3. Invalidate cache listing.
+2. Tạo mặc định `DRAFT`, skill mẫu (nếu bỏ trống) và pipeline Applied → Hired.
+3. Clone copy nội dung/skill/stage, không copy application.
+4. Soft delete `deleted_at` + `ARCHIVED`.
 
 ## Business Rules
 
-- Ownership/org check.
-- Không hard-delete nếu có applications (soft delete).
+- Staff trong tenant mới được quản lý.
+- Không hard-delete khi đã có applicants.
 
 ## API liên quan
 
 | Method | Path |
 |---|---|
-| POST/GET/PUT/DELETE | `/api/v1/jobs`, `/api/v1/jobs/{id}` |
+| GET | `/api/v1/jobs` |
+| POST | `/api/v1/jobs` |
+| GET/PUT/DELETE | `/api/v1/jobs/{id}` |
+| POST | `/api/v1/jobs/{id}/clone` |
+| POST | `/api/v1/jobs/quick` |
 
 ## Database liên quan
 
-- `jobs`
+- `jobs` (V6: department, work_mode, headcount, deadline, salary_*, responsibilities, benefits, experience, education)
 
 ## UI mockup
 
-- Google Stitch: **Job Recruitment Management / Create / Update / Delete Job** — _[dán link]_
-- Icons: xem `DESIGN.md`
+- Recruiter: `/recruiter/jobs`, `/recruiter/jobs/new`, `/recruiter/jobs/:id`
 
 ## Phụ thuộc
 

@@ -38,6 +38,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/v1/master/auth/login", "/api/v1/tenant/auth/login", "/api/v1/tenant/auth/google").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/master/tenants/check/*").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/tenant/users/invitations/accept").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/public/jobs", "/api/v1/public/jobs/**").permitAll()
                         .requestMatchers("/api/v1/master/**").hasRole("WORKSPACE_ADMIN")
                         .requestMatchers("/api/v1/tenant/users/**").hasAnyRole("TENANT_ADMIN", "ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/v1/tenant/company/profile").hasAnyRole("TENANT_ADMIN", "ADMIN", "HR", "RECRUITER")

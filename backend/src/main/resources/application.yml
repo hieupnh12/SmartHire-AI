@@ -1,6 +1,10 @@
 spring:
   application:
     name: smarthire-backend
+  servlet:
+    multipart:
+      max-file-size: ${CV_MAX_FILE:10MB}
+      max-request-size: ${CV_MAX_REQUEST:12MB}
   jpa:
     hibernate:
       ddl-auto: auto
@@ -147,6 +151,12 @@ app:
       notify-email: notify.email.q
       auth-email-otp: auth.email.otp.q
       job-events: job.events.q
+  cv:
+    storage-dir: ${CV_STORAGE_DIR:./storage/cvs}
+    max-file-bytes: ${CV_MAX_FILE_BYTES:10485760}
+    gemini-api-key: ${GEMINI_API_KEY:}
+    gemini-model: ${GEMINI_MODEL:gemini-2.0-flash}
+    timeout-seconds: ${CV_AI_TIMEOUT_SECONDS:30}
 
 smarthire:
   jwt:

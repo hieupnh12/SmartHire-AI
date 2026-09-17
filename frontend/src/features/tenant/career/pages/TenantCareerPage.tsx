@@ -1,6 +1,10 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { getTenantIdFromWindow } from "@/lib/tenant";
+import { jobApi } from "@/api/tenant/jobApi";
+import { applicantApi } from "@/api/tenant/applicantApi";
+import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 import { LanguageSwitcher } from "@/components/ux/LanguageSwitcher";
 import {
   Search,
@@ -169,69 +173,24 @@ export function TenantCareerPage() {
   const [cvFile, setCvFile] = useState<File | null>(null);
   const [applySubmitted, setApplySubmitted] = useState(false);
 
-  // IT Open Positions
-  const jobsList: JobPosting[] = [
-    {
-      id: 1,
-      title: "Senior Java Backend Engineer (Microservices & Spring Boot)",
-      department: "Backend Engineering",
-      location: "Hồ Chí Minh / Hybrid",
-      type: "Toàn thời gian",
-      salary: "$2,200 - $3,500",
-      tags: ["Java 21", "Spring Boot", "MySQL Multi-Tenant", "RabbitMQ", "Redis"],
-      description: `Phát triển hệ thống Backend SaaS quy mô lớn tại ${theme.name}, xử lý hàng triệu requests song song với kiến trúc Separate Database per Tenant bảo mật cao.`,
-      requirements: [
-        "Từ 4+ năm kinh nghiệm Java / Spring Boot 3.x",
-        "Thành thạo MySQL, Hibernate/JPA Multi-Tenancy strategy",
-        "Kinh nghiệm làm việc với Redis Cache, RabbitMQ Queue Worker Pool"
-      ]
-    },
-    {
-      id: 2,
-      title: "Lead Frontend Engineer (React 19 & TypeScript)",
-      department: "Frontend Engineering",
-      location: "Hà Nội / Hybrid",
-      type: "Toàn thời gian",
-      salary: "$2,000 - $3,200",
-      tags: ["React 19", "TypeScript", "Vite", "Zustand", "Tailwind CSS"],
-      description: `Xây dựng các giao diện Dashboard tuyển dụng AI cao cấp cho ${theme.name}, tối ưu trải nghiệm người dùng với Luminous Professional Design System.`,
-      requirements: [
-        "Từ 3+ năm kinh nghiệm React, TypeScript, TanStack Query",
-        "Tư duy UI/UX xuất sắc, thành thạo Tailwind CSS và Design Tokens",
-        "Có kinh nghiệm tối ưu performance & code-splitting"
-      ]
-    },
-    {
-      id: 3,
-      title: "AI / ML Engineer (NLP & Voice STT Engine)",
-      department: "AI Research",
-      location: "Hồ Chí Minh / Remote",
-      type: "Toàn thời gian",
-      salary: "$2,500 - $4,000",
-      tags: ["Python", "PyTorch", "Whisper STT", "NLP Parsing", "FastText"],
-      description: `Nghiên cứu và triển khai mô hình AI Phân tích CV tự động & Engine Phỏng Vấn Giọng Nói AI (Speech-to-Text & Sentiment Analysis) cho ${theme.name}.`,
-      requirements: [
-        "Kinh nghiệm huấn luyện / fine-tune LLM, Whisper STT",
-        "Thành thạo Python, PyTorch, Docker Containerization",
-        "Tư duy toán học và tối ưu thuật toán Matching Score"
-      ]
-    },
-    {
-      id: 4,
-      title: "DevOps & Cloud Infrastructure Specialist",
-      department: "Infrastructure",
-      location: "Đà Nẵng / Hybrid",
-      type: "Toàn thời gian",
-      salary: "$2,200 - $3,800",
-      tags: ["GCP Cloud", "Docker", "Kubernetes", "Nginx", "GitHub Actions"],
-      description: `Quản trị hạ tầng Compute Engine trên Google Cloud VPS, tự động hóa CI/CD pipeline và duy trì High Availability cho Separate DB per Tenant tại ${theme.name}.`,
-      requirements: [
-        "Kinh nghiệm triển khai Docker, Docker Compose Prod, Nginx TLS",
-        "Thành thạo GCP / AWS Cloud Services & Shell Scripting",
-        "Hiểu biết về monitoring Redis, RabbitMQ & HikariCP Connection Pool"
-      ]
-    }
-  ];
+  const token = useAuthStore((s) => s.accessToken);
+  const publicJobs = useQuery({ queryKey: ["public-jobs"], queryFn: () => jobApi.publicList() });
+
+  const jobsList: JobPosting[] = (publicJobs.data?.data ?? []).map((job) => ({
+    id: job.id,
+    title: job.title,
+    department: job.department || "General",
+    location: [job.location, job.workMode].filter(Boolean).join(" / ") || "Flexible",
+    type: job.employmentType || "FULL_TIME",
+    salary: job.salary || "Thỏa thuận",
+    tags: job.skills,
+    description: job.description,
+    requirements: [
+      job.minYearsExperience ? `${job.minYearsExperience}+ năm kinh nghiệm` : "",
+      job.educationLevel || "",
+      job.responsibilities || "",
+    ].filter(Boolean),
+  }));
 
   const filteredJobs = jobsList.filter((j) => {
     const matchSearch =
@@ -241,17 +200,27 @@ export function TenantCareerPage() {
     return matchSearch && matchDept;
   });
 
+  const departments = ["ALL", ...new Set(jobsList.map((job) => job.department))];
+
   const handleApplySubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setApplySubmitted(true);
-    setTimeout(() => {
-      setApplySubmitted(false);
-      setShowApplyModal(null);
-      setCandidateName("");
-      setCandidateEmail("");
-      setCandidatePhone("");
-      setCvFile(null);
-    }, 1800);
+    if (!showApplyModal) return;
+    if (!token) {
+      navigate("/candidate/login");
+      return;
+    }
+    void applicantApi.apply(showApplyModal.id, { source: "CAREER" }).then(() => {
+      setApplySubmitted(true);
+      setTimeout(() => {
+        setApplySubmitted(false);
+        setShowApplyModal(null);
+        setCandidateName("");
+        setCandidateEmail("");
+        setCandidatePhone("");
+        setCvFile(null);
+        navigate("/candidate/cv");
+      }, 1200);
+    });
   };
 
   return (
@@ -477,7 +446,7 @@ export function TenantCareerPage() {
 
             {/* Department Filter Pills */}
             <div className="flex items-center gap-2 flex-wrap">
-              {["ALL", "Backend Engineering", "Frontend Engineering", "AI Research", "Infrastructure"].map((dept) => (
+              {departments.map((dept) => (
                 <button
                   key={dept}
                   onClick={() => setSelectedDepartment(dept)}
@@ -495,6 +464,9 @@ export function TenantCareerPage() {
 
           {/* Jobs List Grid */}
           <div className="grid gap-6">
+            {filteredJobs.length === 0 && (
+              <p className="text-sm text-[#64748b]">Chưa có tin PUBLISHED. Recruiter tạo và publish job trong mục Việc làm.</p>
+            )}
             {filteredJobs.map((job) => (
               <div
                 key={job.id}
