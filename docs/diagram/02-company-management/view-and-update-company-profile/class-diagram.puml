@@ -1,0 +1,137 @@
+@startuml
+skinparam dpi 300
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam roundcorner 6
+skinparam linetype ortho
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam classFontSize 11
+skinparam classAttributeFontSize 10
+skinparam classAttributeIconSize 10
+skinparam ArrowThickness 1
+skinparam ClassBorderThickness 1
+skinparam PackageBorderThickness 1
+
+skinparam class {
+    BackgroundColor #FFFFFF
+    BorderColor #2D3748
+    ArrowColor #2D3748
+}
+
+<style>
+classDiagram {
+  class {
+    Padding 5
+  }
+}
+</style>
+
+package "Controller Layer" {
+  class CompanyProfileController <<Controller>> {
+    - companyProfileService: CompanyProfileService
+    + getProfile(): ApiResponse<CompanyProfileResponse>
+    + updateProfile(request: UpdateCompanyProfileRequest): ApiResponse<CompanyProfileResponse>
+  }
+}
+
+package "DTO Layer" {
+  class UpdateCompanyProfileRequest <<Request>> {
+    + companyName: String
+    + description: String
+    + logoUrl: String
+    + website: String
+    + address: String
+    + industry: String
+    + companySize: String
+  }
+  class CompanyProfileResponse <<Response>> {
+    + tenantId: String
+    + companyName: String
+    + subdomain: String
+    + description: String
+    + logoUrl: String
+    + website: String
+    + address: String
+    + industry: String
+    + companySize: String
+    + verified: boolean
+  }
+}
+
+package "Service Layer" {
+  interface CompanyProfileService <<Service>> {
+    + getProfile(): CompanyProfileResponse
+    + updateProfile(request: UpdateCompanyProfileRequest): CompanyProfileResponse
+  }
+  class CompanyProfileServiceImpl <<Service>> {
+    - tenantInfoRepository: TenantInfoRepository
+    - companyProfileMapper: CompanyProfileMapper
+    + getProfile(): CompanyProfileResponse
+    + updateProfile(request: UpdateCompanyProfileRequest): CompanyProfileResponse
+    - currentTenant(): TenantInfo
+  }
+  interface CompanyProfileMapper <<Mapper>> {
+    + toCompanyProfileResponse(tenant: TenantInfo): CompanyProfileResponse
+    + updateEntity(request: UpdateCompanyProfileRequest, tenant: TenantInfo): void
+  }
+}
+
+package "Repository Layer" {
+  interface TenantInfoRepository <<Repository>> {
+    + findByCode(code: String): Optional<TenantInfo>
+    + findBySubdomain(subdomain: String): Optional<TenantInfo>
+    + save(tenantInfo: TenantInfo): TenantInfo
+  }
+}
+
+package "Domain Entity Layer" {
+  class TenantInfo <<Entity>> {
+    - id: Long
+    - code: String
+    - name: String
+    - subdomain: String
+    - description: String
+    - logoUrl: String
+    - website: String
+    - address: String
+    - industry: String
+    - companySize: String
+    - verified: boolean
+    - status: String
+  }
+}
+
+package "Infrastructure & Persistence" {
+  class MasterPostgresDB <<Database>> {
+    + tenants
+  }
+  class TenantContext <<ThreadLocal>> {
+    +{static} getCurrentTenant(): String
+    +{static} clear(): void
+  }
+}
+
+' Relationships
+CompanyProfileController --> CompanyProfileService : delegates >
+CompanyProfileController ..> UpdateCompanyProfileRequest : consumes >
+CompanyProfileController ..> CompanyProfileResponse : returns >
+
+CompanyProfileService <|.. CompanyProfileServiceImpl : implements
+CompanyProfileServiceImpl --> CompanyProfileMapper : maps through >
+CompanyProfileMapper ..> UpdateCompanyProfileRequest : processes >
+CompanyProfileMapper ..> CompanyProfileResponse : creates >
+CompanyProfileServiceImpl --> TenantInfoRepository : queries & updates >
+CompanyProfileServiceImpl ..> TenantContext : reads tenant context >
+
+TenantInfoRepository --> TenantInfo : manages >
+TenantInfoRepository --> MasterPostgresDB : persists to >
+
+note right of CompanyProfileServiceImpl
+  Company branding metadata is stored in the Master DB tenants table,
+  so both service methods run on masterTransactionManager.
+  Provisioning columns (db_url, db_username, db_password) are never mapped
+  from client input and never leave through CompanyProfileResponse.
+end note
+
+@enduml

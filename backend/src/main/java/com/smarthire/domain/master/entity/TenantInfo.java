@@ -39,6 +39,27 @@ public class TenantInfo {
     public boolean isManagedDatabase() { return managedDatabase; }
     public void setManagedDatabase(boolean value) { managedDatabase = value; }
 
+    @Column(name = "logo_url", length = 512)
+    private String logoUrl;
+
+    @Column(length = 255)
+    private String website;
+
+    @Column(length = 512)
+    private String address;
+
+    @Column(length = 128)
+    private String industry;
+
+    @Column(name = "company_size", length = 64)
+    private String companySize;
+
+    @Column(columnDefinition = "TEXT")
+    private String description;
+
+    @Column(name = "is_verified", nullable = false)
+    private boolean verified;
+
     @Column(nullable = false, length = 32)
     private String status = "ACTIVE";
 
@@ -78,6 +99,27 @@ public class TenantInfo {
 
     public String getDbPassword() { return dbPassword; }
     public void setDbPassword(String dbPassword) { this.dbPassword = dbPassword; }
+
+    public String getLogoUrl() { return logoUrl; }
+    public void setLogoUrl(String logoUrl) { this.logoUrl = logoUrl; }
+
+    public String getWebsite() { return website; }
+    public void setWebsite(String website) { this.website = website; }
+
+    public String getAddress() { return address; }
+    public void setAddress(String address) { this.address = address; }
+
+    public String getIndustry() { return industry; }
+    public void setIndustry(String industry) { this.industry = industry; }
+
+    public String getCompanySize() { return companySize; }
+    public void setCompanySize(String companySize) { this.companySize = companySize; }
+
+    public String getDescription() { return description; }
+    public void setDescription(String description) { this.description = description; }
+
+    public boolean isVerified() { return verified; }
+    public void setVerified(boolean verified) { this.verified = verified; }
 
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }

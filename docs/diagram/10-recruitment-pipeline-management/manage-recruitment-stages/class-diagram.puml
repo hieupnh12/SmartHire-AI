@@ -1,0 +1,144 @@
+@startuml
+skinparam dpi 300
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam roundcorner 6
+skinparam linetype ortho
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam classFontSize 11
+skinparam classAttributeFontSize 10
+skinparam classAttributeIconSize 10
+skinparam ArrowThickness 1
+skinparam ClassBorderThickness 1
+skinparam PackageBorderThickness 1
+
+skinparam class {
+    BackgroundColor #FFFFFF
+    BorderColor #2D3748
+    ArrowColor #2D3748
+}
+
+<style>
+classDiagram {
+  class {
+    Padding 5
+  }
+}
+</style>
+
+package "Controller Layer" {
+  class JobStageController <<Controller>> {
+    - jobStageService: JobStageService
+    + addStage(jobId: Long, request: CreateStageRequest): ApiResponse<StageResponse>
+    + reorderStages(jobId: Long, request: ReorderStagesRequest): ApiResponse<List<StageResponse>>
+    + deleteStage(jobId: Long, stageId: Long): ApiResponse<Void>
+  }
+}
+
+package "DTO Layer" {
+  class CreateStageRequest <<Request>> {
+    + name: String
+    + sortOrder: int
+    + terminal: boolean
+  }
+  class ReorderStagesRequest <<Request>> {
+    + stageIds: List<Long>
+  }
+  class StageResponse <<Response>> {
+    + id: Long
+    + jobId: Long
+    + name: String
+    + sortOrder: int
+    + terminal: boolean
+    + applicantCount: long
+  }
+}
+
+package "Service Layer" {
+  interface JobStageService <<Service>> {
+    + addStage(jobId: Long, request: CreateStageRequest): StageResponse
+    + reorderStages(jobId: Long, request: ReorderStagesRequest): List<StageResponse>
+    + deleteStage(jobId: Long, stageId: Long): void
+  }
+  class JobStageServiceImpl <<Service>> {
+    - stageRepository: RecruitmentStageRepository
+    - jobRepository: JobRepository
+    - applicationRepository: ApplicationRepository
+    + addStage(jobId: Long, request: CreateStageRequest): StageResponse
+    + reorderStages(jobId: Long, request: ReorderStagesRequest): List<StageResponse>
+    + deleteStage(jobId: Long, stageId: Long): void
+  }
+}
+
+package "Repository Layer" {
+  interface RecruitmentStageRepository <<Repository>> {
+    + findById(id: Long): Optional<RecruitmentStage>
+    + findByJobIdOrderBySortOrderAsc(jobId: Long): List<RecruitmentStage>
+    + save(stage: RecruitmentStage): RecruitmentStage
+    + saveAll(stages: List<RecruitmentStage>): List<RecruitmentStage>
+    + delete(stage: RecruitmentStage): void
+  }
+  interface JobRepository <<Repository>> {
+    + findById(id: Long): Optional<Job>
+  }
+  interface ApplicationRepository <<Repository>> {
+    + countByCurrentStageId(stageId: Long): long
+  }
+}
+
+package "Domain Entity Layer" {
+  class RecruitmentStage <<Entity>> {
+    - id: Long
+    - jobId: Long
+    - name: String
+    - sortOrder: int
+    - terminal: boolean
+  }
+  class Job <<Entity>> {
+    - id: Long
+    - title: String
+  }
+}
+
+package "Infrastructure & Persistence" {
+  class DedicatedTenantMySQL <<Database>> {
+    + jobs
+    + recruitment_stages
+    + applications
+  }
+  class TenantContext <<ThreadLocal>> {
+    +{static} getCurrentTenant(): String
+    +{static} clear(): void
+  }
+}
+
+' Relationships
+JobStageController --> JobStageService : delegates >
+JobStageController ..> CreateStageRequest : consumes >
+JobStageController ..> ReorderStagesRequest : consumes >
+JobStageController ..> StageResponse : returns >
+
+JobStageService <|.. JobStageServiceImpl : implements
+JobStageServiceImpl ..> CreateStageRequest : processes >
+JobStageServiceImpl ..> ReorderStagesRequest : processes >
+JobStageServiceImpl ..> StageResponse : creates >
+JobStageServiceImpl --> RecruitmentStageRepository : manages stages >
+JobStageServiceImpl --> JobRepository : verifies job >
+JobStageServiceImpl --> ApplicationRepository : checks stage usage >
+JobStageServiceImpl ..> TenantContext : reads tenant context >
+
+RecruitmentStageRepository --> RecruitmentStage : manages >
+JobRepository --> Job : manages >
+RecruitmentStageRepository --> DedicatedTenantMySQL : persists to >
+JobRepository --> DedicatedTenantMySQL : persists to >
+ApplicationRepository --> DedicatedTenantMySQL : queries from >
+
+Job "1" *-- "0..*" RecruitmentStage : owns >
+
+note right of JobStageServiceImpl
+  Cannot delete stage that currently contains active applications.
+  System terminal stages cannot be removed arbitrarily.
+end note
+
+@enduml

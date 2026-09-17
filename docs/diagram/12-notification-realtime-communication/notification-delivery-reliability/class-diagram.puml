@@ -1,0 +1,118 @@
+@startuml
+skinparam dpi 300
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam roundcorner 6
+skinparam linetype ortho
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam classFontSize 11
+skinparam classAttributeFontSize 10
+skinparam classAttributeIconSize 10
+skinparam ArrowThickness 1
+skinparam ClassBorderThickness 1
+skinparam PackageBorderThickness 1
+
+skinparam class {
+    BackgroundColor #FFFFFF
+    BorderColor #2D3748
+    ArrowColor #2D3748
+}
+
+<style>
+classDiagram {
+  class {
+    Padding 5
+  }
+}
+</style>
+
+package "Service Layer" {
+  interface NotificationReliabilityService <<Service>> {
+    + processFailedMessages(): void
+    + handleDeadLetterMessage(failedMessage: FailedNotificationDTO): void
+  }
+  class NotificationReliabilityServiceImpl <<Service>> {
+    - deadLetterRepository: DeadLetterNotificationRepository
+    - emailProducer: EmailNotificationProducer
+    - maxRetryAttempts: int
+    + processFailedMessages(): void
+    + handleDeadLetterMessage(failedMessage: FailedNotificationDTO): void
+  }
+}
+
+package "DTO Layer" {
+  class FailedNotificationDTO <<DTO>> {
+    + tenantId: String
+    + originalQueue: String
+    + payload: String
+    + exceptionMessage: String
+    + retryCount: int
+    + failedAt: Instant
+  }
+}
+
+package "Repository Layer" {
+  interface DeadLetterNotificationRepository <<Repository>> {
+    + findByStatusAndRetryCountLessThan(status: String, maxRetry: int): List<DeadLetterNotification>
+    + save(deadLetter: DeadLetterNotification): DeadLetterNotification
+  }
+}
+
+package "Domain Entity Layer" {
+  enum DLQStatus <<Enum>> {
+    PENDING_RETRY
+    RESOLVED
+    ABANDONED
+  }
+  class DeadLetterNotification <<Entity>> {
+    - id: Long
+    - tenantId: String
+    - originalQueue: String
+    - payload: String
+    - exceptionMessage: String
+    - retryCount: int
+    - status: DLQStatus
+    - createdAt: Instant
+    - updatedAt: Instant
+  }
+}
+
+package "Infrastructure & Persistence" {
+  interface EmailNotificationProducer <<Messaging Port>> {
+    + publishEmail(message: Object): void
+  }
+  class RabbitMQBroker <<Queue>> {
+    + notify.email.q
+    + notify.dlx (Dead Letter Exchange)
+    + notify.dlq (Dead Letter Queue)
+  }
+  class DedicatedTenantMySQL <<Database>> {
+    + dead_letter_notifications
+  }
+  class TenantContext <<ThreadLocal>> {
+    +{static} getCurrentTenant(): String
+    +{static} clear(): void
+  }
+}
+
+' Relationships
+NotificationReliabilityService <|.. NotificationReliabilityServiceImpl : implements
+NotificationReliabilityServiceImpl ..> FailedNotificationDTO : consumes >
+NotificationReliabilityServiceImpl --> DeadLetterNotificationRepository : manages dead letters >
+NotificationReliabilityServiceImpl --> EmailNotificationProducer : retries message delivery >
+NotificationReliabilityServiceImpl ..> TenantContext : reads tenant context >
+
+DeadLetterNotificationRepository --> DeadLetterNotification : manages >
+DeadLetterNotificationRepository --> DedicatedTenantMySQL : persists to >
+
+EmailNotificationProducer --> RabbitMQBroker : requeues >
+
+DeadLetterNotification ..> DLQStatus : typed by >
+
+note right of NotificationReliabilityServiceImpl
+  RabbitMQ DLX routes unprocessable messages to DLQ.
+  Scheduler periodically attempts auto-retry before abandoning.
+end note
+
+@enduml

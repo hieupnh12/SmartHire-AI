@@ -1,0 +1,129 @@
+@startuml
+skinparam dpi 300
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam sequence {
+    ArrowColor #2D3748
+    ActorBorderColor #2D3748
+    LifeLineBorderColor #2D3748
+    ParticipantBorderColor #2D3748
+    ParticipantBackgroundColor #FFFFFF
+    BoxBorderColor #A0AEC0
+}
+
+hide footbox
+autonumber
+
+actor "Recruiter / Staff" as User
+boundary "Notification Bell UI" as UI
+control "Spring Security" as Security
+control "TenantWebInterceptor" as Interceptor
+boundary "NotificationCenterController" as Controller
+control "NotificationCenterService" as Service
+database "Tenant DB (MySQL)" as TenantDB
+collections "Redis Cache" as Redis
+
+note over User, Security
+  Preconditions: tenant ACTIVE; user authenticated in Tenant Workspace.
+end note
+
+== Fetch Unread Badge Count ==
+
+User -> UI: Load App Header
+activate UI
+UI -> Security: GET /api/v1/tenant/notifications/unread-count
+activate Security
+Security -> Interceptor: Forward request
+activate Interceptor
+deactivate Security
+Interceptor -> Interceptor: setCurrentTenant(tenantId)
+Interceptor -> Controller: Route request
+activate Controller
+
+Controller -> Service: getUnreadCount(userId)
+activate Service
+Service -> Redis: GET tenant:{tenantId}:unread_notif:{userId}
+activate Redis
+Redis --> Service: unreadCount or null
+deactivate Redis
+
+alt Redis Cache Hit
+  Service --> Controller: UnreadCountResponse
+else Redis Cache Miss
+  Service -> TenantDB: countByRecipientIdAndIsReadFalse(userId)
+  activate TenantDB
+  TenantDB --> Service: unreadCount
+  deactivate TenantDB
+  Service -> Redis: SETEX tenant:{tenantId}:unread_notif:{userId}
+  Service --> Controller: UnreadCountResponse
+end
+
+deactivate Service
+Controller --> UI: 200 OK (unreadCount)
+deactivate Controller
+UI --> User: Display badge counter (e.g. "5")
+Interceptor -> Interceptor: clear TenantContext
+deactivate Interceptor
+
+== Fetch Paginated Notifications & Mark Read ==
+
+User -> UI: Click Notification Bell dropdown
+UI -> Security: GET /api/v1/tenant/notifications?page=0&size=10
+activate Security
+Security -> Interceptor: Forward request
+activate Interceptor
+deactivate Security
+Interceptor -> Interceptor: setCurrentTenant(tenantId)
+Interceptor -> Controller: Route request
+activate Controller
+
+Controller -> Service: getNotifications(userId, pageable)
+activate Service
+Service -> TenantDB: findByRecipientIdOrderByCreatedAtDesc(userId, pageable)
+activate TenantDB
+TenantDB --> Service: Page<Notification>
+deactivate TenantDB
+
+Service --> Controller: Page<NotificationResponse>
+deactivate Service
+Controller --> UI: 200 OK
+deactivate Controller
+UI --> User: Render notification dropdown list
+Interceptor -> Interceptor: clear TenantContext
+deactivate Interceptor
+
+User -> UI: Click on notification item
+UI -> Security: PATCH /api/v1/tenant/notifications/{id}/read
+activate Security
+Security -> Interceptor: Forward request
+activate Interceptor
+deactivate Security
+Interceptor -> Interceptor: setCurrentTenant(tenantId)
+Interceptor -> Controller: Route request
+activate Controller
+
+Controller -> Service: markAsRead(userId, notificationId)
+activate Service
+Service -> TenantDB: UPDATE notifications SET is_read = true WHERE id = notificationId
+activate TenantDB
+TenantDB --> Service: Notification updated
+deactivate TenantDB
+
+Service -> Redis: DECR tenant:{tenantId}:unread_notif:{userId}
+activate Redis
+Redis --> Service: Updated count
+deactivate Redis
+
+Service --> Controller: Void response
+deactivate Service
+Controller --> UI: 204 No Content
+deactivate Controller
+UI --> User: Decrement badge & update item style
+Interceptor -> Interceptor: clear TenantContext
+deactivate Interceptor
+
+deactivate UI
+
+@enduml

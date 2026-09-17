@@ -62,7 +62,11 @@ api.interceptors.response.use(
         original.headers.Authorization = `Bearer ${token}`;
         return api(original);
       }
-      if (!window.location.pathname.startsWith("/login") && !window.location.pathname.startsWith("/internal/login")) {
+      if (
+        !window.location.pathname.startsWith("/login") &&
+        !window.location.pathname.startsWith("/internal/login") &&
+        !window.location.pathname.startsWith("/invite/accept")
+      ) {
         window.location.href = "/internal/login";
       }
     }

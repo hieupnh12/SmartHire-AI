@@ -1,0 +1,155 @@
+@startuml
+skinparam dpi 300
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam roundcorner 6
+skinparam linetype ortho
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam classFontSize 11
+skinparam classAttributeFontSize 10
+skinparam classAttributeIconSize 10
+skinparam ArrowThickness 1
+skinparam ClassBorderThickness 1
+skinparam PackageBorderThickness 1
+
+skinparam class {
+    BackgroundColor #FFFFFF
+    BorderColor #2D3748
+    ArrowColor #2D3748
+}
+
+<style>
+classDiagram {
+  class {
+    Padding 5
+  }
+}
+</style>
+
+package "Controller Layer" {
+  class JobAssignmentController <<Controller>> {
+    - jobAssignmentService: JobAssignmentService
+    + assignRecruiter(jobId: Long, request: AssignRecruiterRequest): ApiResponse<JobAssignmentResponse>
+    + removeAssignment(jobId: Long, recruiterId: Long): ApiResponse<Void>
+  }
+}
+
+package "DTO Layer" {
+  class AssignRecruiterRequest <<Request>> {
+    + recruiterId: Long
+    + assignmentRole: String
+  }
+  class JobAssignmentResponse <<Response>> {
+    + id: Long
+    + jobId: Long
+    + recruiterId: Long
+    + recruiterName: String
+    + assignmentRole: String
+    + assignedAt: Instant
+  }
+}
+
+package "Service Layer" {
+  interface JobAssignmentService <<Service>> {
+    + assignRecruiter(jobId: Long, request: AssignRecruiterRequest): JobAssignmentResponse
+    + removeAssignment(jobId: Long, recruiterId: Long): void
+  }
+  class JobAssignmentServiceImpl <<Service>> {
+    - jobAssignmentRepository: JobAssignmentRepository
+    - jobRepository: JobRepository
+    - userRepository: UserRepository
+    - notificationProducer: EventNotificationProducer
+    + assignRecruiter(jobId: Long, request: AssignRecruiterRequest): JobAssignmentResponse
+    + removeAssignment(jobId: Long, recruiterId: Long): void
+  }
+}
+
+package "Repository Layer" {
+  interface JobAssignmentRepository <<Repository>> {
+    + findByJobIdAndRecruiterId(jobId: Long, recruiterId: Long): Optional<JobAssignment>
+    + existsByJobIdAndRecruiterId(jobId: Long, recruiterId: Long): boolean
+    + save(assignment: JobAssignment): JobAssignment
+    + delete(assignment: JobAssignment): void
+  }
+  interface JobRepository <<Repository>> {
+    + findById(id: Long): Optional<Job>
+  }
+  interface UserRepository <<Repository>> {
+    + findById(id: Long): Optional<User>
+  }
+}
+
+package "Domain Entity Layer" {
+  enum AssignmentRole <<Enum>> {
+    PRIMARY_RECRUITER
+    CO_RECRUITER
+    INTERVIEWER
+  }
+  class JobAssignment <<Entity>> {
+    - id: Long
+    - jobId: Long
+    - recruiterId: Long
+    - assignmentRole: AssignmentRole
+    - assignedAt: Instant
+  }
+  class Job <<Entity>> {
+    - id: Long
+    - title: String
+    - status: String
+  }
+  class User <<Entity>> {
+    - id: Long
+    - fullName: String
+    - email: String
+    - role: String
+  }
+}
+
+package "Infrastructure & Persistence" {
+  interface EventNotificationProducer <<Messaging Port>> {
+    + publishAssignmentNotification(tenantId: String, recruiterId: Long, jobId: Long): void
+  }
+  class DedicatedTenantMySQL <<Database>> {
+    + jobs
+    + users
+    + job_assignments
+  }
+  class TenantContext <<ThreadLocal>> {
+    +{static} getCurrentTenant(): String
+    +{static} clear(): void
+  }
+}
+
+' Relationships
+JobAssignmentController --> JobAssignmentService : delegates >
+JobAssignmentController ..> AssignRecruiterRequest : consumes >
+JobAssignmentController ..> JobAssignmentResponse : returns >
+
+JobAssignmentService <|.. JobAssignmentServiceImpl : implements
+JobAssignmentServiceImpl ..> AssignRecruiterRequest : processes >
+JobAssignmentServiceImpl ..> JobAssignmentResponse : creates >
+JobAssignmentServiceImpl --> JobAssignmentRepository : manages assignments >
+JobAssignmentServiceImpl --> JobRepository : verifies job >
+JobAssignmentServiceImpl --> UserRepository : verifies recruiter >
+JobAssignmentServiceImpl --> EventNotificationProducer : publishes event >
+JobAssignmentServiceImpl ..> TenantContext : reads tenant context >
+
+JobAssignmentRepository --> JobAssignment : manages >
+JobRepository --> Job : manages >
+UserRepository --> User : manages >
+
+JobAssignmentRepository --> DedicatedTenantMySQL : persists to >
+JobRepository --> DedicatedTenantMySQL : persists to >
+UserRepository --> DedicatedTenantMySQL : persists to >
+
+JobAssignment ..> AssignmentRole : typed by >
+JobAssignment "0..*" --> "1" Job : belongs to >
+JobAssignment "0..*" --> "1" User : assigned user >
+
+note right of JobAssignmentServiceImpl
+  Ensures user has RECRUITER or HR role before assignment.
+  Sends notification to recruiter upon assignment.
+end note
+
+@enduml

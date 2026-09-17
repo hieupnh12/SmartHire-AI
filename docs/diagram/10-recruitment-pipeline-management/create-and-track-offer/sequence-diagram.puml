@@ -1,0 +1,132 @@
+@startuml
+skinparam dpi 300
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam sequence {
+    ArrowColor #2D3748
+    ActorBorderColor #2D3748
+    LifeLineBorderColor #2D3748
+    ParticipantBorderColor #2D3748
+    ParticipantBackgroundColor #FFFFFF
+    BoxBorderColor #A0AEC0
+}
+
+hide footbox
+autonumber
+
+actor "Recruiter / HR" as Recruiter
+actor "Candidate" as Candidate
+boundary "Offer Portal UI" as UI
+control "Spring Security" as Security
+control "TenantWebInterceptor" as Interceptor
+boundary "JobOfferController" as Controller
+control "JobOfferService" as Service
+database "Tenant DB (MySQL)" as TenantDB
+queue "RabbitMQ notify-email" as RabbitMQ
+
+note over Recruiter, Security
+  Preconditions: tenant ACTIVE; Application is in Offer / Final stage.
+end note
+
+== Create and Send Offer ==
+
+Recruiter -> UI: Fill offer details (Salary, start date, expiration) and send
+activate UI
+UI -> Security: POST /api/v1/tenant/offers
+activate Security
+Security -> Interceptor: Forward request
+activate Interceptor
+deactivate Security
+Interceptor -> Interceptor: setCurrentTenant(tenantId)
+Interceptor -> Controller: Route request
+activate Controller
+
+Controller -> Service: createOffer(request)
+activate Service
+Service -> TenantDB: findApplicationById(applicationId)
+activate TenantDB
+TenantDB --> Service: Application or empty
+deactivate TenantDB
+
+alt Application missing or invalid status
+  Service --> Controller: INVALID_APPLICATION
+  deactivate Service
+  Controller --> UI: 400 Bad Request
+  deactivate Controller
+  UI --> Recruiter: Show invalid application error
+  Interceptor -> Interceptor: clear TenantContext
+  deactivate Interceptor
+else Valid application
+  Service -> TenantDB: INSERT job_offers SENT
+  activate TenantDB
+  TenantDB --> Service: JobOffer created
+  deactivate TenantDB
+
+  Service -> RabbitMQ: publishOfferEmail(tenantId, offerId, candidateEmail)
+  activate RabbitMQ
+  RabbitMQ --> Service: Email queued
+  deactivate RabbitMQ
+
+  Service --> Controller: OfferResponse
+  deactivate Service
+  Controller --> UI: 201 Created
+  deactivate Controller
+  UI --> Recruiter: Show offer sent confirmation
+  Interceptor -> Interceptor: clear TenantContext
+  deactivate Interceptor
+end
+
+== Candidate Respond to Offer ==
+
+Candidate -> UI: Open offer link & click Accept / Decline
+UI -> Security: PATCH /api/v1/tenant/offers/{id}/status
+activate Security
+Security -> Interceptor: Forward request (Public token / Candidate auth)
+activate Interceptor
+deactivate Security
+Interceptor -> Interceptor: setCurrentTenant(tenantId)
+Interceptor -> Controller: Route request
+activate Controller
+
+Controller -> Service: updateOfferStatus(id, request)
+activate Service
+Service -> TenantDB: findOfferById(id)
+activate TenantDB
+TenantDB --> Service: JobOffer
+deactivate TenantDB
+
+alt Offer expired or already responded
+  Service --> Controller: OFFER_CLOSED
+  deactivate Service
+  Controller --> UI: 400 Bad Request
+  deactivate Controller
+  UI --> Candidate: Show offer closed message
+  Interceptor -> Interceptor: clear TenantContext
+  deactivate Interceptor
+else Valid response (ACCEPTED or DECLINED)
+  Service -> TenantDB: UPDATE job_offers status = ACCEPTED / DECLINED
+  activate TenantDB
+  TenantDB --> Service: Offer updated
+  deactivate TenantDB
+
+  alt Accepted
+    Service -> TenantDB: UPDATE applications status = OFFER_ACCEPTED
+    activate TenantDB
+    TenantDB --> Service: Application updated
+    deactivate TenantDB
+  end
+
+  Service --> Controller: OfferResponse
+  deactivate Service
+  Controller --> UI: 200 OK
+  deactivate Controller
+  UI --> Candidate: Display response confirmation
+  Interceptor -> Interceptor: clear TenantContext
+  deactivate Interceptor
+end
+
+deactivate UI
+
+@enduml

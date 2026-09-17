@@ -22,7 +22,8 @@ Phân quyền theo role (và permission nếu cần) cho mọi API/UI route.
 
 ## Business Rules
 
-- Roles tenant: `TENANT_ADMIN`, `ADMIN`, `RECRUITER`, `CANDIDATE`.
+- Roles tenant: `TENANT_ADMIN`, `ADMIN`, `HR`, `RECRUITER`, `CANDIDATE`.
+- Sau login nội bộ: `TENANT_ADMIN`/`ADMIN` → `/tenant/admin`; `HR`/`RECRUITER` → `/recruiter`; `CANDIDATE` → `/candidate` (subdomain tenant hiện tại, ví dụ `ttqt.localhost:5173/recruiter`).
 - Recruiter chỉ data thuộc org/job của mình.
 - Admin full (audit log khuyến nghị).
 

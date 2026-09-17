@@ -1,0 +1,104 @@
+@startuml
+skinparam dpi 300
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam sequence {
+    ArrowColor #2D3748
+    ActorBorderColor #2D3748
+    LifeLineBorderColor #2D3748
+    ParticipantBorderColor #2D3748
+    ParticipantBackgroundColor #FFFFFF
+    BoxBorderColor #A0AEC0
+}
+
+hide footbox
+autonumber
+
+actor "Tenant Admin / Recruiter" as User
+boundary "Company Profile UI" as UI
+control "Spring Security" as Security
+control "TenantWebInterceptor" as Interceptor
+boundary "CompanyProfileController" as Controller
+control "CompanyProfileService" as Service
+database "Master DB (PostgreSQL)" as MasterDB
+
+note over User, Security
+  Preconditions: tenant ACTIVE.
+  GET allowed for TENANT_ADMIN, ADMIN, HR, RECRUITER.
+  PUT restricted to TENANT_ADMIN and ADMIN.
+end note
+
+== View Company Profile ==
+
+User -> UI: Navigate to Company Profile page
+activate UI
+UI -> Security: GET /api/v1/tenant/company/profile
+activate Security
+Security -> Interceptor: Forward request
+activate Interceptor
+deactivate Security
+Interceptor -> Interceptor: setCurrentTenant(tenantId)
+Interceptor -> Controller: Route request
+activate Controller
+
+Controller -> Service: getProfile()
+activate Service
+Service -> MasterDB: findByCode(tenantCode)
+activate MasterDB
+MasterDB --> Service: TenantInfo
+deactivate MasterDB
+
+Service --> Controller: CompanyProfileResponse
+deactivate Service
+Controller --> UI: 200 OK
+deactivate Controller
+UI --> User: Display company profile & branding
+Interceptor -> Interceptor: clear TenantContext
+deactivate Interceptor
+
+== Update Company Profile ==
+
+User -> UI: Edit profile info (Logo, address, website, description) & save
+UI -> Security: PUT /api/v1/tenant/company/profile
+activate Security
+Security -> Interceptor: Forward request
+activate Interceptor
+deactivate Security
+Interceptor -> Interceptor: setCurrentTenant(tenantId)
+Interceptor -> Controller: Route request
+activate Controller
+Controller -> Controller: Validate input fields
+
+alt Invalid website URL or missing company name
+  Controller --> UI: 400 Bad Request
+  deactivate Controller
+  UI --> User: Display validation error
+  Interceptor -> Interceptor: clear TenantContext
+  deactivate Interceptor
+else Valid payload
+  Controller -> Service: updateProfile(request)
+  activate Service
+  Service -> MasterDB: findByCode(tenantCode)
+  activate MasterDB
+  MasterDB --> Service: TenantInfo
+  deactivate MasterDB
+
+  Service -> MasterDB: UPDATE tenants (name, logo_url, website, address, industry, company_size, description)
+  activate MasterDB
+  MasterDB --> Service: Updated TenantInfo
+  deactivate MasterDB
+
+  Service --> Controller: CompanyProfileResponse
+  deactivate Service
+  Controller --> UI: 200 OK
+  deactivate Controller
+  UI --> User: Show update success toast
+  Interceptor -> Interceptor: clear TenantContext
+  deactivate Interceptor
+end
+
+deactivate UI
+
+@enduml

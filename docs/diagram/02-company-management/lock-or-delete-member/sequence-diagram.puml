@@ -1,0 +1,125 @@
+@startuml
+skinparam dpi 300
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam sequence {
+    ArrowColor #2D3748
+    ActorBorderColor #2D3748
+    LifeLineBorderColor #2D3748
+    ParticipantBorderColor #2D3748
+    ParticipantBackgroundColor #FFFFFF
+    BoxBorderColor #A0AEC0
+}
+
+hide footbox
+autonumber
+
+actor "Tenant Admin" as Admin
+boundary "Member Directory UI" as UI
+control "Spring Security" as Security
+control "TenantWebInterceptor" as Interceptor
+boundary "TenantUserController" as Controller
+control "TenantUserService" as Service
+database "Tenant DB (MySQL)" as TenantDB
+collections "Redis Cache" as Redis
+
+note over Admin, Security
+  Preconditions: tenant ACTIVE; caller is TENANT_ADMIN or ADMIN;
+  target user exists in this Tenant DB.
+end note
+
+== Lock / Disable Member ==
+
+Admin -> UI: Select member and action (LOCK / DISABLE)
+activate UI
+UI -> Security: PATCH /api/v1/tenant/users/{id}/status
+activate Security
+
+alt Unauthenticated or forbidden caller
+  Security --> UI: 401 Unauthorized / 403 Forbidden
+  deactivate Security
+  UI --> Admin: Show access error
+else Authorized administrator
+  Security -> Interceptor: Forward authenticated request
+  activate Interceptor
+  deactivate Security
+  Interceptor -> Interceptor: setCurrentTenant(tenantId)
+  Interceptor -> Controller: Route request
+  activate Controller
+  Controller -> Controller: Validate status payload
+
+  alt Invalid status token
+    Controller --> UI: 400 Bad Request
+    deactivate Controller
+    UI --> Admin: Show invalid status error
+    Interceptor -> Interceptor: clear TenantContext
+    deactivate Interceptor
+  else Valid status (LOCKED or DISABLED)
+    Controller -> Service: updateStatus(actorId, targetId, status)
+    activate Service
+
+    alt Self lock/disable attempted
+      Service --> Controller: SELF_ACTION_FORBIDDEN
+      deactivate Service
+      Controller --> UI: 400 Bad Request
+      deactivate Controller
+      UI --> Admin: Block self locking
+      Interceptor -> Interceptor: clear TenantContext
+      deactivate Interceptor
+    else Valid target user
+      Service -> TenantDB: findById(targetId)
+      activate TenantDB
+      TenantDB --> Service: User or empty
+      deactivate TenantDB
+
+      alt User missing
+        Service --> Controller: USER_NOT_FOUND
+        deactivate Service
+        Controller --> UI: 404 Not Found
+        deactivate Controller
+        UI --> Admin: Show user not found
+        Interceptor -> Interceptor: clear TenantContext
+        deactivate Interceptor
+      else User found
+        Service -> TenantDB: countByRoleAndStatus(TENANT_ADMIN, ACTIVE)
+        activate TenantDB
+        TenantDB --> Service: Active admin count
+        deactivate TenantDB
+
+        alt Target is the last ACTIVE TENANT_ADMIN
+          Service --> Controller: LAST_ADMIN_PROTECTED
+          deactivate Service
+          Controller --> UI: 409 Conflict
+          deactivate Controller
+          UI --> Admin: Block locking of last admin
+          Interceptor -> Interceptor: clear TenantContext
+          deactivate Interceptor
+        else Status update allowed
+          Service -> TenantDB: UPDATE users.status
+          activate TenantDB
+          TenantDB --> Service: User updated
+          deactivate TenantDB
+
+          Service -> Redis: revokeRefreshToken(tenantId, targetId)
+          activate Redis
+          Redis --> Service: Session revoked
+          deactivate Redis
+
+          Service --> Controller: UserResponse
+          deactivate Service
+          Controller --> UI: 200 OK
+          deactivate Controller
+          UI --> Admin: Show status updated
+          Interceptor -> Interceptor: clear TenantContext
+          deactivate Interceptor
+        end
+      end
+    end
+  end
+end
+
+deactivate UI
+
+@enduml

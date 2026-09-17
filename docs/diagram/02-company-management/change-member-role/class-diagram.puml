@@ -1,0 +1,126 @@
+@startuml
+skinparam dpi 300
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam roundcorner 6
+skinparam linetype ortho
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam classFontSize 11
+skinparam classAttributeFontSize 10
+skinparam classAttributeIconSize 10
+skinparam ArrowThickness 1
+skinparam ClassBorderThickness 1
+skinparam PackageBorderThickness 1
+
+skinparam class {
+    BackgroundColor #FFFFFF
+    BorderColor #2D3748
+    ArrowColor #2D3748
+}
+
+<style>
+classDiagram {
+  class {
+    Padding 5
+  }
+}
+</style>
+
+package "Controller Layer" {
+  class TenantUserController <<Controller>> {
+    - tenantUserService: TenantUserService
+    + changeRole(id: Long, request: ChangeRoleRequest): ApiResponse<UserResponse>
+  }
+}
+
+package "DTO Layer" {
+  class ChangeRoleRequest <<Request>> {
+    + role: String
+  }
+  class UserResponse <<Response>> {
+    + id: Long
+    + email: String
+    + fullName: String
+    + role: String
+    + status: String
+  }
+}
+
+package "Service Layer" {
+  interface TenantUserService <<Service>> {
+    + changeRole(actorId: Long, targetId: Long, role: String): UserResponse
+  }
+  class TenantUserServiceImpl <<Service>> {
+    - userRepository: UserRepository
+    - redisService: RedisService
+    + changeRole(actorId: Long, targetId: Long, role: String): UserResponse
+  }
+}
+
+package "Repository Layer" {
+  interface UserRepository <<Repository>> {
+    + findById(id: Long): Optional<User>
+    + countByRoleAndStatus(role: UserRole, status: UserStatus): long
+    + save(user: User): User
+  }
+}
+
+package "Domain Entity Layer" {
+  enum UserRole <<Enum>> {
+    TENANT_ADMIN
+    ADMIN
+    HR
+    RECRUITER
+  }
+  enum UserStatus <<Enum>> {
+    ACTIVE
+    LOCKED
+    DISABLED
+  }
+  class User <<Entity>> {
+    - id: Long
+    - email: String
+    - fullName: String
+    - role: UserRole
+    - status: UserStatus
+  }
+}
+
+package "Infrastructure & Persistence" {
+  class DedicatedTenantMySQL <<Database>> {
+    + users
+  }
+  class RedisCache <<Cache>> {
+    + tenant:{tenantId}:refresh:{userId}
+  }
+  class TenantContext <<ThreadLocal>> {
+    +{static} getCurrentTenant(): String
+    +{static} clear(): void
+  }
+}
+
+' Relationships
+TenantUserController --> TenantUserService : delegates >
+TenantUserController ..> ChangeRoleRequest : consumes >
+TenantUserController ..> UserResponse : returns >
+
+TenantUserService <|.. TenantUserServiceImpl : implements
+TenantUserServiceImpl ..> ChangeRoleRequest : processes >
+TenantUserServiceImpl ..> UserResponse : creates >
+TenantUserServiceImpl --> UserRepository : queries & saves >
+TenantUserServiceImpl --> RedisCache : revokes session on demotion >
+TenantUserServiceImpl ..> TenantContext : reads tenant context >
+
+UserRepository --> User : manages >
+UserRepository --> DedicatedTenantMySQL : persists to >
+
+User ..> UserRole : typed by >
+User ..> UserStatus : typed by >
+
+note right of TenantUserServiceImpl
+  Only TENANT_ADMIN or ADMIN may change roles.
+  The last ACTIVE TENANT_ADMIN cannot be demoted.
+end note
+
+@enduml
