@@ -28,6 +28,10 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
   const isCandidateWorkspace = basePath === "/candidate";
   const isRecruiterWorkspace = basePath === "/recruiter";
   const useWorkspaceHeader = isCandidateWorkspace || isRecruiterWorkspace;
+  const handleLogout = () => {
+    logout();
+    navigate("/", { replace: true });
+  };
   const submitWorkspaceSearch = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const query = new FormData(event.currentTarget).get("workspace-search")?.toString().trim();
@@ -110,7 +114,7 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
               </span>
             )}
             {useWorkspaceHeader ? (
-              <HeaderActionsMenu userInitial={userInitial} userName={user?.fullName} onLogout={logout} />
+              <HeaderActionsMenu userInitial={userInitial} userName={user?.fullName} onLogout={handleLogout} />
             ) : (
               <div className="flex items-center gap-1">
                 <LanguageSwitcher />
@@ -118,7 +122,7 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
                   <Home className="size-4" aria-hidden="true" />
                   {t("common.welcome")}
                 </NavLink>
-                <Button variant="primary" size="sm" onClick={() => logout()}>
+                <Button variant="primary" size="sm" onClick={handleLogout}>
                   <LogOut className="size-4" aria-hidden="true" />
                   <span className="hidden sm:inline">{t("common.logout")}</span>
                 </Button>

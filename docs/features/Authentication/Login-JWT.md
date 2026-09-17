@@ -18,7 +18,7 @@ Xác thực email/password, cấp access/refresh JWT, bảo vệ API theo token.
 2. Verify credentials + status.
 3. Issue JWT (access ngắn, refresh dài; refresh metadata Redis).
 4. FE lưu token, Axios interceptor gắn Bearer.
-5. Logout revoke refresh (blacklist Redis).
+5. Logout xóa token phía client và chuyển về trang chủ tương ứng với domain hiện tại; revoke refresh (blacklist Redis) tiếp tục theo kế hoạch backend.
 
 ## Business Rules
 

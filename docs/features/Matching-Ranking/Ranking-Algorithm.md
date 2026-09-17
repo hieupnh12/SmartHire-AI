@@ -14,7 +14,7 @@ Xếp hạng hồ sơ ứng tuyển của một Job bằng hai tầng trọng s�
 
 ## Luồng hoạt động
 
-1. Recruiter mở `/recruiter/matching`, chọn Job thuộc quyền quản lý.
+1. Recruiter mở `/recruiter/rank`, chọn Job thuộc quyền quản lý.
 2. Cấu hình trọng số bốn thành phần (mặc định 35/15/30/20), trọng số nhóm kỹ năng và số tháng kinh nghiệm liên quan yêu cầu. Cấu hình chưa lưu không tạo điểm rank.
 3. Backend đọc yêu cầu từ `job_skills`, kỹ năng từ `cv_skills`, kinh nghiệm từ `cv_extractions`, điểm chính thức từ `attempt_scores` và `interview_scores`.
 4. Nếu chỉ có một nguồn liên kết hồ sơ, tự chọn nguồn đó. Khi có nhiều CV/lần đánh giá, hiển thị `SELECT_SOURCE`; Recruiter chọn nguồn chính thức trong panel chi tiết. Không tự chọn lần cao điểm nhất.
@@ -56,8 +56,8 @@ Response bọc `ApiResponse`. Board có `jobId`, `jobTitle`, `config`, `rankingV
 
 ## UI mockup
 
-- `/recruiter/matching`: chọn Job → ba thẻ tổng quan → cấu hình có thể mở rộng → bộ lọc → bảng điểm → phân trang.
-- Nhấn tên ứng viên mở panel bên phải có điểm đóng góp, kỹ năng/độ bao phủ, kinh nghiệm, nhận xét interview và chọn nguồn. Panel hỗ trợ Escape, focus bàn phím; bảng cuộn ngang trên màn hình nhỏ.
+- `/recruiter/rank`: chọn Job → bốn thẻ tổng quan → cấu hình có thể mở rộng → trọng số đang dùng → bộ lọc → bảng điểm → phân trang và xuất CSV theo kết quả đang lọc. Frontend hiện có dữ liệu preview để hoàn thiện và duyệt giao diện trước khi nối đầy đủ backend.
+- Nhấn tên ứng viên mở màn hình chi tiết dạng modal lớn: hồ sơ và điểm tổng, hành động recruiter, phân tích điểm đa chiều, công thức trọng số, kỹ năng/độ bao phủ, bằng chứng kinh nghiệm, nhận xét interview, insight hỗ trợ quyết định và timeline ứng tuyển. Modal hỗ trợ Escape, focus bàn phím; bảng cuộn ngang trên màn hình nhỏ. Insight và hành động thay đổi pipeline hiện dùng dữ liệu preview, chờ nối backend.
 - Màu, font và khoảng cách theo `DESIGN.md`, không thêm dependency frontend.
 
 ## Phụ thuộc

@@ -32,7 +32,7 @@ import { HomePage as RecruiterHomePage } from "@/features/tenant/recruiter/dashb
 import { JobsPage } from "@/features/tenant/recruiter/jobs/pages/JobsPage";
 import { ApplicantsPage } from "@/features/tenant/recruiter/applicants/pages/ApplicantsPage";
 import { CvScreeningPage } from "@/features/tenant/recruiter/cv-screening/pages/CvScreeningPage";
-import { MatchingPage } from "@/features/tenant/recruiter/matching/pages/MatchingPage";
+import { RankingPage } from "@/features/tenant/recruiter/matching/pages/MatchingPage";
 import { PipelinePage } from "@/features/tenant/recruiter/pipeline/pages/PipelinePage";
 import { AssessmentsPage as RecruiterAssessmentsPage } from "@/features/tenant/recruiter/assessments/pages/AssessmentsPage";
 import { InterviewsPage as RecruiterInterviewsPage } from "@/features/tenant/recruiter/interviews/pages/InterviewsPage";
@@ -89,7 +89,8 @@ export function AppRouter() {
           <Route path="jobs" element={<JobsPage />} />
           <Route path="applicants" element={<ApplicantsPage />} />
           <Route path="cvs" element={<CvScreeningPage />} />
-          <Route path="matching" element={<MatchingPage />} />
+          <Route path="rank" element={<RankingPage />} />
+          <Route path="matching" element={<Navigate to="/recruiter/rank" replace />} />
           <Route path="pipeline" element={<PipelinePage />} />
           <Route path="assessments" element={<RecruiterAssessmentsPage />} />
           <Route path="interviews" element={<RecruiterInterviewsPage />} />
