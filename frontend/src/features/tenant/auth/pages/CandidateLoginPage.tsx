@@ -5,7 +5,7 @@ import { GoogleLogin } from "@react-oauth/google";
 import { LanguageSwitcher } from "@/components/ux/LanguageSwitcher";
 import { authApi } from "@/api/tenant/authApi";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
-import { getTenantTheme } from "@/features/tenant/career/pages/TenantCareerPage";
+import { getTenantTheme, getTenantThemeStyle } from "@/lib/tenantTheme";
 import { getTenantIdFromWindow } from "@/lib/tenant";
 
 export function CandidateLoginPage() {
@@ -52,7 +52,7 @@ export function CandidateLoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col bg-[var(--color-surface)] text-[var(--color-on-surface)] selection:bg-teal-600 selection:text-white">
+    <div className="tenant-workspace-theme flex min-h-screen flex-col bg-[var(--color-surface)] text-[var(--color-on-surface)]" style={getTenantThemeStyle(theme)}>
       <header className="relative z-10 border-b border-[var(--color-border-default)] bg-white/90 backdrop-blur-md">
         <div className="mx-auto flex min-h-20 max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-6">
           <button

@@ -15,7 +15,7 @@ interface RankingState {
   select: (id: number | null) => void;
 }
 export const useRankingStore = create<RankingState>((set) => ({
-  jobId: null, cohort: "ALL", search: "", status: "ACTIVE", minimum: "", page: 0, selectedId: null, sort: "score",
+  jobId: 9001, cohort: "COMPLETE", search: "", status: "ACTIVE", minimum: "", page: 0, selectedId: null, sort: "score",
   setJob: (jobId) => set({ jobId, cohort: "ALL", search: "", status: "ACTIVE", minimum: "", page: 0, selectedId: null }),
   filter: (value) => set({ ...value, page: 0 }),
   setPage: (page) => set({ page }),

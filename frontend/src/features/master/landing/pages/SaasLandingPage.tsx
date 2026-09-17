@@ -144,7 +144,7 @@ export function SaasLandingPage() {
 
       {/* TOP NAVIGATION BAR */}
       <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-[0_2px_8px_-2px_rgba(0,0,0,0.03)] transition-all">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 sm:h-[84px] flex items-center justify-between gap-6">
+        <div className="mx-auto grid min-h-20 w-full max-w-[1536px] grid-cols-[minmax(0,1fr)_auto] items-center gap-2 px-4 py-3 sm:min-h-[84px] sm:gap-6 sm:px-6 lg:px-8 xl:grid-cols-[minmax(max-content,1fr)_auto_minmax(max-content,1fr)]">
           {/* Logo & Brand */}
           <div
             className="flex items-center gap-3.5 cursor-pointer select-none shrink-0 group"
@@ -153,18 +153,18 @@ export function SaasLandingPage() {
             <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-blue-700 via-blue-600 to-indigo-500 text-white flex items-center justify-center shadow-md shadow-blue-600/25 ring-1 ring-white/20 group-hover:scale-105 transition-transform duration-200">
               <BrainCircuit className="w-6 h-6 text-white" />
             </div>
-            <div className="flex items-center gap-2.5">
-              <span className="text-xl sm:text-2xl font-semibold tracking-tight text-slate-900 font-display">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <span className="hidden text-xl font-semibold tracking-tight text-slate-900 font-display min-[420px]:inline sm:text-2xl">
                 SmartHire<span className="text-blue-600">.AI</span>
               </span>
-              <span className="text-[11px] font-semibold tracking-wider uppercase px-2.5 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200/80">
+              <span className="hidden text-[11px] font-semibold tracking-wider uppercase px-2.5 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200/80 lg:inline-flex">
                 Enterprise
               </span>
             </div>
           </div>
 
           {/* Navigation Links - Clean, spacious, no line-breaks */}
-          <nav className="hidden md:flex items-center gap-1.5 lg:gap-3 text-sm font-medium text-slate-600">
+          <nav className="hidden items-center justify-center gap-1.5 text-sm font-medium text-slate-600 xl:flex" aria-label="Điều hướng chính">
             <a
               href="#solutions"
               className="px-3.5 py-2 rounded-full hover:text-blue-600 hover:bg-slate-100/80 transition-all whitespace-nowrap active:scale-95"
@@ -198,21 +198,23 @@ export function SaasLandingPage() {
           </nav>
 
           {/* Action CTAs */}
-          <div className="flex items-center gap-3 shrink-0">
+          <div className="flex shrink-0 items-center justify-self-end gap-2 sm:gap-3">
             <button
               onClick={() => setShowWorkspaceModal(true)}
-              className="px-4 py-2.5 text-sm font-medium rounded-lg text-slate-700 hover:text-slate-900 hover:bg-slate-100/80 transition-all flex items-center gap-2 border border-slate-200 bg-white shadow-2xs whitespace-nowrap active:scale-95"
+              className="flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 shadow-2xs transition-all hover:bg-slate-100/80 hover:text-slate-900 active:scale-95 sm:px-4"
+              aria-label="Vào Workspace"
             >
               <Building2 className="w-4 h-4 text-slate-500" />
-              <span>Vào Workspace</span>
+              <span className="hidden lg:inline">Vào Workspace</span>
             </button>
 
             <button
               onClick={() => openDemoModalWithTier("Tư Vấn Giải Pháp Doanh Nghiệp")}
-              className="px-5 py-2.5 text-sm font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white shadow-sm hover:shadow-md transition-all flex items-center gap-2 whitespace-nowrap group active:scale-95"
+              className="group flex min-h-11 items-center gap-2 whitespace-nowrap rounded-lg bg-blue-600 px-3 text-sm font-semibold text-white shadow-sm transition-all hover:bg-blue-700 hover:shadow-md active:scale-95 active:bg-blue-800 sm:px-5"
             >
-              <span>Yêu cầu Demo</span>
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              <span className="sm:hidden">Demo</span>
+              <span className="hidden sm:inline">Yêu cầu Demo</span>
+              <ArrowRight className="hidden w-4 h-4 group-hover:translate-x-1 transition-transform min-[360px]:block" />
             </button>
           </div>
         </div>

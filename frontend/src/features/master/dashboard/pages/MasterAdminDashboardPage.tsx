@@ -9,11 +9,17 @@ import {
   AuditLog,
 } from "@/api/master/masterAdminApi";
 import { LanguageSwitcher } from "@/components/ux/LanguageSwitcher";
+import { Tooltip } from "@/components/ux/Tooltip";
+import type { LucideIcon } from "lucide-react";
 import {
   BrainCircuit,
   Building2,
+  BadgeCheck,
   CreditCard,
+  ReceiptText,
+  ArrowUpDown,
   BarChart3,
+  House,
   FileText,
   Plus,
   Search,
@@ -23,7 +29,6 @@ import {
   Activity,
   Cpu,
   LogOut,
-  RefreshCw,
   Eye,
   Sliders,
   Check,
@@ -32,12 +37,33 @@ import {
   ExternalLink,
   Filter,
   Clock,
-  Layers
+  Layers,
+  ChevronLeft,
+  ChevronRight,
+  Bell,
+  CircleUserRound
 } from "lucide-react";
+
+type DashboardTab = "analytics" | "tenants" | "subscriptions" | "logs" | "account-profile" | "account-security" | "account-accessibility" | "account-notifications";
+type SidebarGroupId = "overview" | "tenants" | "commerce" | "system" | "account";
+type SidebarItem = {
+  tab?: DashboardTab;
+  action?: () => void;
+  label: string;
+  description: string;
+  icon: LucideIcon;
+  comingSoon?: boolean;
+};
 
 export function MasterAdminDashboardPage() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<"analytics" | "tenants" | "subscriptions" | "logs">("analytics");
+  const [activeTab, setActiveTab] = useState<DashboardTab>("analytics");
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
+  const [openSidebarGroup, setOpenSidebarGroup] = useState<SidebarGroupId | null>(null);
+  const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
+  const [isNotificationPanelOpen, setIsNotificationPanelOpen] = useState(false);
+  const [reducedMotion, setReducedMotion] = useState(() => localStorage.getItem("master_reduced_motion") === "true");
+  const [emailNotifications, setEmailNotifications] = useState(() => localStorage.getItem("master_email_notifications") !== "false");
 
   // State Data
   const [tenants, setTenants] = useState<TenantInfo[]>([]);
@@ -46,7 +72,7 @@ export function MasterAdminDashboardPage() {
   const [aiQuota, setAiQuota] = useState<AiQuotaUsage | null>(null);
   const [logs, setLogs] = useState<AuditLog[]>([]);
 
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
 
   // Modals state
   const [selectedTenant, setSelectedTenant] = useState<TenantInfo | null>(null);
@@ -354,6 +380,137 @@ export function MasterAdminDashboardPage() {
     });
   }, [logs, logLevelFilter]);
 
+  const sidebarGroups: Array<{
+    id: SidebarGroupId;
+    label: string;
+    icon: LucideIcon;
+    items: SidebarItem[];
+  }> = [
+    {
+      id: "overview",
+      label: "Trang chủ",
+      icon: House,
+      items: [
+        {
+          tab: "analytics",
+          label: "Doanh thu & tài nguyên",
+          description: "Theo dõi doanh thu, tenant và hạn ngạch AI toàn nền tảng.",
+          icon: BarChart3,
+        },
+      ],
+    },
+    {
+      id: "tenants",
+      label: "Doanh nghiệp",
+      icon: Building2,
+      items: [
+        {
+          action: () => navigate("/onboard"),
+          label: "Khởi tạo Tenant mới",
+          description: "Tạo workspace và cấp phát cơ sở dữ liệu cho doanh nghiệp.",
+          icon: Plus,
+        },
+        {
+          tab: "tenants",
+          label: `Danh bạ doanh nghiệp (${tenants.length})`,
+          description: "Quản lý tenant, trạng thái và thông tin cơ sở dữ liệu.",
+          icon: Building2,
+        },
+        {
+          label: "Xác thực doanh nghiệp",
+          description: "Thẩm định hồ sơ pháp lý và phê duyệt trạng thái xác thực doanh nghiệp.",
+          icon: BadgeCheck,
+          comingSoon: true,
+        },
+      ],
+    },
+    {
+      id: "commerce",
+      label: "Gói & thanh toán",
+      icon: CreditCard,
+      items: [
+        {
+          tab: "subscriptions",
+          label: `Gói dịch vụ SaaS (${plans.length})`,
+          description: "Cấu hình gói thuê bao, giới hạn và mức giá dịch vụ.",
+          icon: CreditCard,
+        },
+        {
+          label: "Phân bổ gói cho Tenant",
+          description: "Gán, nâng cấp hoặc hạ cấp gói dịch vụ của từng doanh nghiệp.",
+          icon: ArrowUpDown,
+          comingSoon: true,
+        },
+        {
+          label: "Hóa đơn & thanh toán",
+          description: "Theo dõi hóa đơn, trạng thái thanh toán và lịch sử doanh thu.",
+          icon: ReceiptText,
+          comingSoon: true,
+        },
+      ],
+    },
+    {
+      id: "system",
+      label: "Hệ thống",
+      icon: ShieldCheck,
+      items: [
+        {
+          tab: "logs",
+          label: `Nhật ký hệ thống (${logs.length})`,
+          description: "Kiểm tra hoạt động quản trị và các sự kiện hệ thống.",
+          icon: FileText,
+        },
+        {
+          label: "Báo cáo sử dụng AI",
+          description: "Phân tích mức tiêu thụ AI theo tenant, dịch vụ và thời gian.",
+          icon: BrainCircuit,
+          comingSoon: true,
+        },
+        {
+          label: "Quản lý hạn ngạch AI",
+          description: "Theo dõi giới hạn, cảnh báo và chính sách sử dụng tài nguyên AI.",
+          icon: Sliders,
+          comingSoon: true,
+        },
+      ],
+    },
+  ];
+  const accountSidebarGroup: {
+    id: SidebarGroupId;
+    label: string;
+    icon: LucideIcon;
+    items: SidebarItem[];
+  } = {
+    id: "account",
+    label: "Tài khoản",
+    icon: CircleUserRound,
+    items: [
+      { tab: "account-profile", label: "Hồ sơ của bạn", description: "Xem thông tin tài khoản Workspace Admin.", icon: CircleUserRound },
+      { tab: "account-security", label: "Tài khoản và bảo mật", description: "Quản lý phiên đăng nhập và bảo mật tài khoản.", icon: ShieldCheck },
+      { tab: "account-accessibility", label: "Khả năng tiếp cận", description: "Điều chỉnh trải nghiệm sử dụng phù hợp.", icon: Eye },
+      { tab: "account-notifications", label: "Tùy chọn thông báo", description: "Cấu hình cách nhận thông báo quản trị.", icon: Bell },
+    ],
+  };
+  const allSidebarGroups = [...sidebarGroups, accountSidebarGroup];
+  const notificationCount = tenants.filter((tenant) => tenant.status !== "ACTIVE").length;
+  const selectedSidebarGroup = allSidebarGroups.find((group) => group.id === openSidebarGroup)
+    ?? allSidebarGroups.find((group) => group.items.some((item) => item.tab === activeTab))
+    ?? sidebarGroups[0];
+
+  useEffect(() => {
+    if (!isAccountMenuOpen && !isNotificationPanelOpen) return;
+
+    const closeUtilityPanels = (event: PointerEvent) => {
+      const target = event.target;
+      if (target instanceof Element && target.closest("[data-dashboard-utility]")) return;
+      setIsAccountMenuOpen(false);
+      setIsNotificationPanelOpen(false);
+    };
+
+    document.addEventListener("pointerdown", closeUtilityPanels);
+    return () => document.removeEventListener("pointerdown", closeUtilityPanels);
+  }, [isAccountMenuOpen, isNotificationPanelOpen]);
+
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-800 font-sans antialiased flex flex-col justify-between selection:bg-blue-600 selection:text-white">
       {/* Toast Notification Banner */}
@@ -365,121 +522,579 @@ export function MasterAdminDashboardPage() {
       )}
 
       {/* TOP EXECUTIVE NAVIGATION BAR */}
-      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-2xs">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-4">
+      <header className="hidden">
+        <div
+          className={`mx-auto grid min-h-[84px] w-full max-w-[1536px] grid-cols-[5rem_minmax(0,1fr)] items-center transition-[grid-template-columns] duration-200 ${
+            isSidebarCollapsed ? "" : "md:grid-cols-[16rem_minmax(0,1fr)]"
+          }`}
+        >
           {/* Logo & Platform Info */}
-          <div className="flex items-center gap-3.5 cursor-pointer select-none" onClick={() => navigate("/")}>
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-700 via-blue-600 to-indigo-500 text-white flex items-center justify-center shadow-md shadow-blue-600/20 ring-1 ring-white/20">
-              <BrainCircuit className="w-5 h-5 text-white" />
+          <div
+            className={`flex h-full min-w-0 cursor-pointer select-none items-center gap-3.5 border-r border-slate-200 px-3 ${
+              isSidebarCollapsed ? "justify-center" : "justify-center md:justify-start"
+            }`}
+            onClick={() => navigate("/")}
+          >
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-blue-700 via-blue-600 to-indigo-500 text-white shadow-md shadow-blue-600/20 ring-1 ring-white/20">
+              <BrainCircuit className="w-6 h-6 text-white" />
             </div>
-            <div>
+            {!isSidebarCollapsed && <div className="hidden min-w-0 md:block">
               <div className="flex items-center gap-2">
-                <span className="text-xl font-bold tracking-tight text-slate-900 font-display">
+                <span className="text-xl font-semibold tracking-tight text-slate-900 font-display sm:text-2xl">
                   SmartHire<span className="text-blue-600">.AI</span>
                 </span>
-                <span className="text-[10px] font-semibold tracking-wider uppercase px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200">
-                  Workspace Admin
-                </span>
               </div>
-              <div className="flex items-center gap-1.5 text-[11px] text-slate-500 mt-0.5">
+              <div className="mt-0.5 hidden items-center gap-1.5 text-[11px] text-slate-500 md:flex">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                 <span>Master DB: PostgreSQL 16 · Online</span>
               </div>
-            </div>
+            </div>}
           </div>
 
-          {/* Quick Actions & Profile */}
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => navigate("/onboard")}
-              className="hidden sm:flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition-all"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Khởi tạo Tenant mới</span>
-            </button>
-
-            <button
-              onClick={fetchData}
-              className="p-2 rounded-lg border border-slate-200 text-slate-600 hover:text-blue-600 hover:bg-slate-50 transition-colors"
-              title="Làm mới dữ liệu"
-            >
-              <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin text-blue-600" : ""}`} />
-            </button>
-
-            <LanguageSwitcher />
-
-            <div className="h-6 w-px bg-slate-200 hidden sm:block" />
-
-            <button
-              onClick={() => {
-                localStorage.removeItem("master_access_token");
-                navigate("/admin/login");
-              }}
-              className="px-3 py-2 text-xs font-semibold rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 transition-colors flex items-center gap-1.5"
-              title="Đăng xuất khỏi Workspace Admin"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Đăng xuất</span>
-            </button>
-          </div>
+          <div aria-hidden="true" />
         </div>
 
-        {/* Sub-Navigation Tabs Bar */}
-        <div className="border-t border-slate-100 bg-slate-50/50">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center gap-1 overflow-x-auto py-2 scrollbar-none">
-            <button
-              onClick={() => setActiveTab("analytics")}
-              className={`px-4 py-2 text-xs font-semibold rounded-lg transition-all flex items-center gap-2 whitespace-nowrap ${
-                activeTab === "analytics"
-                  ? "bg-white text-blue-700 shadow-2xs border border-slate-200"
-                  : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
-              }`}
-            >
-              <BarChart3 className="w-4 h-4" />
-              <span>Tổng quan & Doanh thu</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab("tenants")}
-              className={`px-4 py-2 text-xs font-semibold rounded-lg transition-all flex items-center gap-2 whitespace-nowrap ${
-                activeTab === "tenants"
-                  ? "bg-white text-blue-700 shadow-2xs border border-slate-200"
-                  : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
-              }`}
-            >
-              <Building2 className="w-4 h-4" />
-              <span>Danh bạ Doanh nghiệp ({tenants.length})</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab("subscriptions")}
-              className={`px-4 py-2 text-xs font-semibold rounded-lg transition-all flex items-center gap-2 whitespace-nowrap ${
-                activeTab === "subscriptions"
-                  ? "bg-white text-blue-700 shadow-2xs border border-slate-200"
-                  : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
-              }`}
-            >
-              <CreditCard className="w-4 h-4" />
-              <span>Gói dịch vụ SaaS ({plans.length})</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab("logs")}
-              className={`px-4 py-2 text-xs font-semibold rounded-lg transition-all flex items-center gap-2 whitespace-nowrap ${
-                activeTab === "logs"
-                  ? "bg-white text-blue-700 shadow-2xs border border-slate-200"
-                  : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
-              }`}
-            >
-              <FileText className="w-4 h-4" />
-              <span>Nhật ký hệ thống ({logs.length})</span>
-            </button>
-          </div>
-        </div>
       </header>
 
-      {/* MAIN DASHBOARD CONTENT */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full flex-grow">
+      <div className="relative mx-auto flex w-full max-w-[1536px] flex-grow items-start">
+        <aside
+          className="fixed bottom-0 left-0 top-0 z-30 flex w-20 shrink-0 flex-col overflow-visible border-r border-slate-200 bg-white/95 shadow-sm backdrop-blur-md 2xl:left-[calc((100vw-1536px)/2)]"
+          aria-label="Điều hướng quản trị nền tảng"
+        >
+          {!isSidebarCollapsed && (
+            <nav data-dashboard-utility className="hidden" aria-label="Thanh điều hướng nhanh">
+              <button
+                type="button"
+                onClick={() => navigate("/")}
+                className="mb-5 flex min-h-12 items-center justify-center rounded-xl text-blue-700 transition-colors hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                aria-label="Trang chủ SmartHire.AI"
+              >
+                <BrainCircuit className="size-7" />
+              </button>
+              <div className="space-y-2">
+                {sidebarGroups.map((group) => {
+                  const GroupIcon = group.icon;
+                  const groupIsActive = group.items.some((item) => item.tab === activeTab);
+                  return (
+                    <button
+                      key={group.id}
+                      type="button"
+                      onClick={() => {
+                        const targetItem = group.items.find((item) => item.tab === activeTab) ?? group.items[0];
+                        if (targetItem.action) targetItem.action();
+                        else if (targetItem.tab) setActiveTab(targetItem.tab);
+                      }}
+                      className={`flex min-h-16 w-full flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
+                        groupIsActive ? "bg-blue-100 text-blue-700" : "text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+                      }`}
+                      aria-label={group.label}
+                    >
+                      <GroupIcon className="size-6" />
+                      <span className="max-w-full truncate">{group.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="mt-auto flex flex-col items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsNotificationPanelOpen((open) => !open);
+                    setIsAccountMenuOpen(false);
+                  }}
+                  className="relative flex size-11 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-white hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                  aria-label="Thông báo"
+                >
+                  <Bell className="size-6" />
+                  {notificationCount > 0 && <span className="absolute right-1 top-1 size-2.5 rounded-full bg-amber-500 ring-2 ring-slate-50" />}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAccountMenuOpen((open) => !open);
+                    setIsNotificationPanelOpen(false);
+                  }}
+                  className="flex size-11 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 text-sm font-semibold text-white shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+                  aria-label="Tài khoản Workspace Admin"
+                >
+                  W
+                </button>
+              </div>
+            </nav>
+          )}
+
+          <div className={`absolute top-4 z-50 ${isSidebarCollapsed ? "left-full" : "left-[21rem]"}`}>
+            <Tooltip content={isSidebarCollapsed ? "Mở rộng" : "Thu gọn"} side="right">
+              <button
+                type="button"
+                data-sidebar-toggle
+                onClick={() => {
+                  setIsSidebarCollapsed((collapsed) => {
+                    if (collapsed) {
+                      const activeGroup = sidebarGroups.find((group) => group.items.some((item) => item.tab === activeTab));
+                      setOpenSidebarGroup((current) => current ?? activeGroup?.id ?? "overview");
+                    } else {
+                      setOpenSidebarGroup(null);
+                    }
+                    return !collapsed;
+                  });
+                }}
+                className="flex h-10 w-5 items-center justify-center rounded-r-full border border-l-0 border-slate-200 bg-white text-slate-600 shadow-sm transition-colors hover:bg-slate-50 hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                aria-label={isSidebarCollapsed ? "Mở rộng thanh điều hướng" : "Thu gọn thanh điều hướng"}
+                aria-expanded={!isSidebarCollapsed}
+              >
+                {isSidebarCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+              </button>
+            </Tooltip>
+          </div>
+
+          {!isSidebarCollapsed && (
+            <section className="absolute inset-y-0 left-full z-40 flex w-64 flex-col overflow-hidden border-r border-slate-200 bg-white px-3 py-4 shadow-[8px_0_24px_-18px_rgba(15,23,42,0.35)]" aria-label={`Nhóm ${selectedSidebarGroup.label}`}>
+              <div className="mb-5 flex h-12 items-center px-3">
+                <span className="text-xl font-semibold tracking-tight text-slate-900 font-display">SmartHire<span className="text-blue-600">.AI</span></span>
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">{selectedSidebarGroup.label}</p>
+                <nav className="space-y-1.5">
+                  {selectedSidebarGroup.items.map((item) => {
+                    const ItemIcon = item.icon;
+                    const itemIsActive = activeTab === item.tab;
+                    return (
+                      <button
+                        key={item.tab ?? item.label}
+                        type="button"
+                        disabled={item.comingSoon}
+                        onClick={() => {
+                          if (item.action) item.action();
+                          else if (item.tab) setActiveTab(item.tab);
+                        }}
+                        className={`flex min-h-12 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
+                          item.comingSoon
+                            ? "cursor-not-allowed text-slate-400"
+                            : itemIsActive
+                              ? "bg-blue-50 text-blue-700"
+                              : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"
+                        }`}
+                        aria-current={itemIsActive ? "page" : undefined}
+                      >
+                        <ItemIcon className="size-5 shrink-0" />
+                        <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                        {item.comingSoon && <span className="shrink-0 rounded-full bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-500">Sắp phát triển</span>}
+                      </button>
+                    );
+                  })}
+                </nav>
+              </div>
+            </section>
+          )}
+
+          <div className="relative z-10 min-h-0 flex-1 overflow-visible p-3">
+          {true ? (
+            <button
+              type="button"
+              onClick={() => navigate("/")}
+              className="mb-4 flex min-h-12 w-full items-center justify-center rounded-xl text-blue-700 transition-colors hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              aria-label="Trang chủ SmartHire.AI"
+            >
+              <BrainCircuit className="size-7" />
+            </button>
+          ) : (
+            <div className="mb-5 flex h-12 items-center px-3">
+              <span className="text-xl font-semibold tracking-tight text-slate-900 font-display">SmartHire<span className="text-blue-600">.AI</span></span>
+            </div>
+          )}
+          {true ? (
+            <nav
+              className="space-y-2"
+              onBlur={(event) => {
+                const nextTarget = event.relatedTarget;
+                if (
+                  isSidebarCollapsed
+                  && !event.currentTarget.contains(nextTarget)
+                  && !(nextTarget instanceof Element && nextTarget.closest("[data-sidebar-toggle]"))
+                ) setOpenSidebarGroup(null);
+              }}
+            >
+              {sidebarGroups.map((group) => {
+                const GroupIcon = group.icon;
+                const groupIsActive = group.items.some((item) => item.tab === activeTab)
+                  || openSidebarGroup === group.id;
+
+                return (
+                  <div
+                    key={group.id}
+                    className="relative"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (group.id === "overview") {
+                          setActiveTab("analytics");
+                          setOpenSidebarGroup(null);
+                          setIsSidebarCollapsed(true);
+                          return;
+                        }
+                        if (!isSidebarCollapsed && openSidebarGroup === "account") {
+                          setIsSidebarCollapsed(true);
+                          setOpenSidebarGroup(group.id);
+                          return;
+                        }
+                        setOpenSidebarGroup((current) => {
+                          if (!isSidebarCollapsed) return group.id;
+                          return current === group.id ? null : group.id;
+                        });
+                      }}
+                      className={`flex min-h-16 w-full flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-medium transition-colors active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
+                        groupIsActive
+                          ? "bg-blue-50 text-blue-700"
+                          : "text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+                      }`}
+                      aria-label={group.id === "overview" ? group.label : `Mở nhóm ${group.label}`}
+                      aria-current={group.id === "overview" && activeTab === "analytics" ? "page" : undefined}
+                      aria-expanded={group.id === "overview" ? undefined : openSidebarGroup === group.id}
+                      aria-haspopup={group.id === "overview" ? undefined : "menu"}
+                    >
+                      <GroupIcon className="h-6 w-6" />
+                      <span className="max-w-full truncate">{group.label}</span>
+                    </button>
+
+                    {group.id !== "overview" && isSidebarCollapsed && openSidebarGroup === group.id && (
+                      <div
+                        className="absolute left-[calc(100%+0.5rem)] top-0 z-40 w-[min(22rem,calc(100vw-6rem))] rounded-3xl border border-slate-200/90 bg-white p-3 shadow-[0_20px_50px_-16px_rgba(15,23,42,0.28)] before:absolute before:-left-2 before:top-0 before:h-full before:w-2 before:content-['']"
+                        role="menu"
+                        aria-label={group.label}
+                      >
+                        <p className="px-3 pb-2 pt-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">
+                          {group.label}
+                        </p>
+                        <div className="space-y-1.5">
+                          {group.items.map((item) => {
+                            const ItemIcon = item.icon;
+                            const itemIsActive = activeTab === item.tab;
+
+                            return (
+                              <button
+                                key={item.tab ?? item.label}
+                                type="button"
+                                role="menuitem"
+                                disabled={item.comingSoon}
+                                onClick={() => {
+                                  if (item.action) item.action();
+                                  else if (item.tab) setActiveTab(item.tab);
+                                  setOpenSidebarGroup(null);
+                                }}
+                                className={`group flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition-[background-color,border-color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
+                                  item.comingSoon
+                                    ? "cursor-not-allowed border-transparent bg-slate-50/70 opacity-70"
+                                    : itemIsActive
+                                      ? "cursor-pointer border-slate-300 bg-slate-200 shadow-sm"
+                                      : "cursor-pointer border-transparent bg-white hover:border-slate-300 hover:bg-slate-100 hover:shadow-md"
+                                }`}
+                              >
+                                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] border border-slate-200 bg-white text-slate-800 shadow-2xs transition-colors group-hover:border-blue-300 group-hover:text-blue-700">
+                                  <ItemIcon className="h-[22px] w-[22px]" />
+                                </span>
+                                <span className="min-w-0">
+                                  <span className="flex items-center gap-2">
+                                    <span className="min-w-0 truncate text-base font-semibold leading-5 text-slate-900">{item.label}</span>
+                                    {item.comingSoon && <span className="shrink-0 rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-semibold text-slate-600">Sắp phát triển</span>}
+                                  </span>
+                                  <span className="mt-1 block truncate text-sm leading-5 text-slate-600">{item.description}</span>
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </nav>
+          ) : (
+          <nav className="space-y-5">
+            <div className="space-y-1">
+              {!isSidebarCollapsed && <p className="px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">Tổng quan</p>}
+              <Tooltip content="Tổng quan & Doanh thu" side="right" disabled={!isSidebarCollapsed} className="w-full">
+              <button
+                type="button"
+                onClick={() => setActiveTab("analytics")}
+                aria-label="Tổng quan & Doanh thu"
+                aria-current={activeTab === "analytics" ? "page" : undefined}
+                className={`flex min-h-11 w-full items-center rounded-lg text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${isSidebarCollapsed ? "justify-center px-0" : "gap-3 px-3"} ${
+                  activeTab === "analytics"
+                    ? "border border-slate-200 bg-blue-50 text-blue-700 shadow-2xs"
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                }`}
+              >
+                <BarChart3 className="h-5 w-5 shrink-0" />
+                {!isSidebarCollapsed && <span>Tổng quan & Doanh thu</span>}
+              </button>
+              </Tooltip>
+            </div>
+
+            <div className={`space-y-1 border-t ${isSidebarCollapsed ? "border-slate-300 pt-2" : "border-slate-100 pt-4"}`}>
+              {!isSidebarCollapsed && <p className="px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">Quản trị</p>}
+              <button
+                type="button"
+                onClick={() => navigate("/onboard")}
+                className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-100 hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              >
+                <Plus className="h-5 w-5 shrink-0" />
+                <span className="truncate">Khởi tạo Tenant mới</span>
+              </button>
+              <Tooltip content={`Danh bạ Doanh nghiệp (${tenants.length})`} side="right" disabled={!isSidebarCollapsed} className="w-full">
+              <button
+                type="button"
+                onClick={() => setActiveTab("tenants")}
+                aria-label={`Danh bạ Doanh nghiệp (${tenants.length})`}
+                aria-current={activeTab === "tenants" ? "page" : undefined}
+                className={`flex min-h-11 w-full items-center rounded-lg text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${isSidebarCollapsed ? "justify-center px-0" : "gap-3 px-3"} ${
+                  activeTab === "tenants"
+                    ? "border border-slate-200 bg-blue-50 text-blue-700 shadow-2xs"
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                }`}
+              >
+                <Building2 className="h-5 w-5 shrink-0" />
+                {!isSidebarCollapsed && <span className="truncate">Danh bạ Doanh nghiệp ({tenants.length})</span>}
+              </button>
+              </Tooltip>
+              <Tooltip content={`Gói dịch vụ SaaS (${plans.length})`} side="right" disabled={!isSidebarCollapsed} className="w-full">
+              <button
+                type="button"
+                onClick={() => setActiveTab("subscriptions")}
+                aria-label={`Gói dịch vụ SaaS (${plans.length})`}
+                aria-current={activeTab === "subscriptions" ? "page" : undefined}
+                className={`flex min-h-11 w-full items-center rounded-lg text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${isSidebarCollapsed ? "justify-center px-0" : "gap-3 px-3"} ${
+                  activeTab === "subscriptions"
+                    ? "border border-slate-200 bg-blue-50 text-blue-700 shadow-2xs"
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                }`}
+              >
+                <CreditCard className="h-5 w-5 shrink-0" />
+                {!isSidebarCollapsed && <span className="truncate">Gói dịch vụ SaaS ({plans.length})</span>}
+              </button>
+              </Tooltip>
+            </div>
+
+            <div className={`space-y-1 border-t ${isSidebarCollapsed ? "border-slate-300 pt-2" : "border-slate-100 pt-4"}`}>
+              {!isSidebarCollapsed && <p className="px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">Hệ thống</p>}
+              <Tooltip content={`Nhật ký hệ thống (${logs.length})`} side="right" disabled={!isSidebarCollapsed} className="w-full">
+              <button
+                type="button"
+                onClick={() => setActiveTab("logs")}
+                aria-label={`Nhật ký hệ thống (${logs.length})`}
+                aria-current={activeTab === "logs" ? "page" : undefined}
+                className={`flex min-h-11 w-full items-center rounded-lg text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${isSidebarCollapsed ? "justify-center px-0" : "gap-3 px-3"} ${
+                  activeTab === "logs"
+                    ? "border border-slate-200 bg-blue-50 text-blue-700 shadow-2xs"
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                }`}
+              >
+                <FileText className="h-5 w-5 shrink-0" />
+                {!isSidebarCollapsed && <span className="truncate">Nhật ký hệ thống ({logs.length})</span>}
+              </button>
+              </Tooltip>
+            </div>
+          </nav>
+          )}
+          </div>
+
+          <div data-dashboard-utility className="relative shrink-0 border-t border-slate-200 p-3">
+            {(isAccountMenuOpen || isNotificationPanelOpen) && (
+              <button
+                type="button"
+                className="fixed inset-0 z-30 cursor-default"
+                onClick={() => {
+                  setIsAccountMenuOpen(false);
+                  setIsNotificationPanelOpen(false);
+                }}
+                aria-label="Đóng bảng tiện ích"
+              />
+            )}
+
+            <div className="flex flex-col items-center gap-3">
+              {true ? (
+                <Tooltip content="Thông báo hệ thống" side="right">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsNotificationPanelOpen((open) => !open);
+                      setIsAccountMenuOpen(false);
+                    }}
+                    className="relative flex size-11 items-center justify-center rounded-xl text-slate-600 transition-colors hover:bg-slate-100 hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                    aria-label={`Thông báo hệ thống${notificationCount ? `, ${notificationCount} cần chú ý` : ""}`}
+                  >
+                    <Bell className="size-6" />
+                    {notificationCount > 0 && (
+                      <span className="absolute right-1 top-1 flex min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold leading-4 text-white" role="status" aria-atomic="true">
+                        {notificationCount}
+                      </span>
+                    )}
+                  </button>
+                </Tooltip>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsNotificationPanelOpen((open) => !open);
+                    setIsAccountMenuOpen(false);
+                  }}
+                  className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                  aria-label={`Thông báo hệ thống${notificationCount ? `, ${notificationCount} cần chú ý` : ""}`}
+                >
+                  <Bell className="size-5" />
+                  <span className="flex-1 text-left">Thông báo</span>
+                  {notificationCount > 0 && (
+                    <span className="flex min-w-5 items-center justify-center rounded-full bg-amber-100 px-1.5 text-[11px] font-bold leading-5 text-amber-800" role="status" aria-atomic="true">
+                      {notificationCount}
+                    </span>
+                  )}
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => {
+                  setIsAccountMenuOpen((open) => !open);
+                  setIsNotificationPanelOpen(false);
+                }}
+                className="relative z-40 flex size-12 items-center justify-center rounded-full border border-slate-200 bg-white p-1 shadow-sm transition-colors hover:border-blue-300 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                aria-label="Mở menu tài khoản"
+                aria-haspopup="menu"
+                aria-expanded={isAccountMenuOpen}
+              >
+                <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 text-base font-semibold text-white">
+                  W
+                </span>
+                {false && (
+                  <>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-semibold text-slate-900">Workspace Admin</span>
+                      <span className="block truncate text-xs text-slate-500">Platform Administrator</span>
+                    </span>
+                    <ChevronRight className="size-4 shrink-0 text-slate-500" />
+                  </>
+                )}
+              </button>
+            </div>
+
+            {isNotificationPanelOpen && (
+              <div
+                className="absolute bottom-0 left-[calc(100%+0.75rem)] z-40 w-[min(22rem,calc(100vw-6rem))] overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_24px_60px_-18px_rgba(15,23,42,0.32)]"
+                role="dialog"
+                aria-label="Thông báo hệ thống"
+              >
+                <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+                  <div>
+                    <h2 className="text-base font-semibold text-slate-950">Thông báo</h2>
+                    <p className="mt-0.5 text-xs text-slate-500">Các tenant cần quản trị viên chú ý</p>
+                  </div>
+                  {notificationCount > 0 && (
+                    <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-800">{notificationCount} mới</span>
+                  )}
+                </div>
+
+                <div className="max-h-80 overflow-y-auto p-3">
+                  {notificationCount === 0 ? (
+                    <div className="flex flex-col items-center px-4 py-8 text-center">
+                      <span className="flex size-11 items-center justify-center rounded-full bg-emerald-50 text-emerald-600"><CheckCircle2 className="size-6" /></span>
+                      <p className="mt-3 text-sm font-semibold text-slate-800">Không có thông báo mới</p>
+                      <p className="mt-1 text-xs text-slate-500">Tất cả tenant đang hoạt động bình thường.</p>
+                    </div>
+                  ) : (
+                    tenants.filter((tenant) => tenant.status !== "ACTIVE").map((tenant) => (
+                      <button
+                        key={tenant.id}
+                        type="button"
+                        onClick={() => {
+                          setActiveTab("tenants");
+                          setIsNotificationPanelOpen(false);
+                        }}
+                        className="flex w-full items-start gap-3 rounded-2xl p-3 text-left transition-colors hover:bg-amber-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
+                      >
+                        <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700"><Building2 className="size-5" /></span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-semibold text-slate-900">{tenant.name}</span>
+                          <span className="mt-1 block text-xs text-slate-500">Trạng thái: {tenant.status}</span>
+                        </span>
+                        <ChevronRight className="mt-2 size-4 shrink-0 text-slate-400" />
+                      </button>
+                    ))
+                  )}
+                </div>
+
+                <div className="border-t border-slate-200 p-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab("logs");
+                      setIsNotificationPanelOpen(false);
+                    }}
+                    className="min-h-10 w-full rounded-xl text-sm font-semibold text-blue-700 transition-colors hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                  >
+                    Xem nhật ký hệ thống
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {isAccountMenuOpen && (
+              <div
+                className="absolute bottom-0 left-[calc(100%+0.75rem)] z-40 w-[min(24rem,calc(100vw-6rem))] rounded-3xl border border-slate-200 bg-white shadow-[0_24px_60px_-18px_rgba(15,23,42,0.32)]"
+                role="dialog"
+                aria-label="Tài khoản Workspace Admin"
+              >
+                <div className="px-5 pb-2 pt-5 text-sm font-semibold text-slate-700">Tài khoản</div>
+                <div className="mx-3 mb-3 flex items-center gap-3 rounded-2xl bg-slate-100 px-3 py-2.5">
+                  <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 text-sm font-semibold text-white">W</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-semibold text-slate-950">Workspace Admin</span>
+                    <span className="mt-0.5 block truncate text-xs text-slate-600">Platform Administrator</span>
+                  </span>
+                </div>
+
+                <div className="border-t border-slate-200 px-3 py-3">
+                  <p className="px-2 pb-2 text-xs font-semibold text-slate-500">Tùy chọn</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab("account-profile");
+                      setOpenSidebarGroup("account");
+                      setIsSidebarCollapsed(false);
+                      setIsAccountMenuOpen(false);
+                    }}
+                    className="mb-1 flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                  >
+                    <CircleUserRound className="size-5 shrink-0" aria-hidden="true" />
+                    Tài khoản của bạn
+                  </button>
+                  <LanguageSwitcher variant="sidebar" menuSide="right" openOnHover />
+                </div>
+
+                <div className="border-t border-slate-200 p-3">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      localStorage.removeItem("master_access_token");
+                      navigate("/admin/login");
+                    }}
+                    className="flex min-h-12 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-rose-50 hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
+                  >
+                    <LogOut className="size-5" />
+                    <span>Đăng xuất</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </aside>
+
+        {/* MAIN DASHBOARD CONTENT */}
+        <main className={`min-w-0 flex-1 px-4 py-8 transition-[margin] duration-200 sm:px-6 lg:px-8 ${
+          isSidebarCollapsed ? "ml-20" : "ml-20 md:ml-[21rem]"
+        }`}>
         {/* TAB 1: REVENUE & AI QUOTA ANALYTICS */}
         {activeTab === "analytics" && (
           <div className="space-y-8 animate-fade-in">
@@ -1036,7 +1651,61 @@ export function MasterAdminDashboardPage() {
             </div>
           </div>
         )}
-      </main>
+
+        {activeTab.startsWith("account-") && (
+          <div className="mx-auto max-w-5xl animate-fade-in">
+            <div className="mb-7 rounded-3xl border border-slate-200 bg-gradient-to-br from-cyan-50 via-white to-violet-50 px-6 py-8 sm:px-10">
+              <p className="text-sm font-semibold text-blue-700">Workspace Admin</p>
+              <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">Quản lý tài khoản</h1>
+              <p className="mt-2 text-sm text-slate-600">Quản lý hồ sơ, bảo mật và các tùy chọn cá nhân của bạn.</p>
+            </div>
+
+            {activeTab === "account-profile" && (
+              <section aria-labelledby="account-profile-title">
+                <h2 id="account-profile-title" className="mb-5 text-2xl font-bold text-slate-950">Hồ sơ của bạn</h2>
+                <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+                  <div className="flex items-center gap-5 border-b border-slate-200 p-6">
+                    <span className="flex size-20 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 text-2xl font-bold text-white">W</span>
+                    <div><p className="text-lg font-semibold text-slate-950">Workspace Admin</p><p className="mt-1 text-sm text-slate-500">Quản trị viên nền tảng SmartHire.AI</p></div>
+                  </div>
+                  {[["Vai trò", "WORKSPACE_ADMIN"], ["Phạm vi", "Master Platform"], ["Trạng thái", "Đang hoạt động"]].map(([label, value]) => (
+                    <div key={label} className="grid gap-1 border-b border-slate-200 px-6 py-5 last:border-b-0 sm:grid-cols-[12rem_1fr]"><span className="text-sm font-semibold">{label}</span><span className="text-sm text-slate-600">{value}</span></div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {activeTab === "account-security" && (
+              <section aria-labelledby="account-security-title">
+                <h2 id="account-security-title" className="mb-5 text-2xl font-bold text-slate-950">Tài khoản và bảo mật</h2>
+                <div className="space-y-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                  <div className="rounded-2xl bg-emerald-50 p-5"><p className="font-semibold text-emerald-900">Phiên đăng nhập đang hoạt động</p><p className="mt-1 text-sm text-emerald-700">Tài khoản đã được xác thực bằng Master Auth.</p></div>
+                  <button type="button" onClick={() => { localStorage.removeItem("master_access_token"); navigate("/admin/login"); }} className="flex min-h-12 items-center gap-3 rounded-xl border border-rose-200 px-4 text-sm font-semibold text-rose-700 transition-colors hover:bg-rose-50"><LogOut className="size-5" />Đăng xuất khỏi thiết bị này</button>
+                </div>
+              </section>
+            )}
+
+            {activeTab === "account-accessibility" && (
+              <section aria-labelledby="account-accessibility-title">
+                <h2 id="account-accessibility-title" className="mb-5 text-2xl font-bold text-slate-950">Khả năng tiếp cận</h2>
+                <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                  <label className="flex cursor-pointer items-center justify-between gap-6 rounded-2xl p-4 hover:bg-slate-50"><span><span className="block font-semibold">Giảm hiệu ứng chuyển động</span><span className="mt-1 block text-sm text-slate-500">Hạn chế hoạt ảnh không cần thiết trong giao diện.</span></span><input type="checkbox" checked={reducedMotion} onChange={(event) => { setReducedMotion(event.target.checked); localStorage.setItem("master_reduced_motion", String(event.target.checked)); }} className="size-5 accent-blue-600" /></label>
+                </div>
+              </section>
+            )}
+
+            {activeTab === "account-notifications" && (
+              <section aria-labelledby="account-notifications-title">
+                <h2 id="account-notifications-title" className="mb-5 text-2xl font-bold text-slate-950">Tùy chọn thông báo</h2>
+                <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                  <label className="flex cursor-pointer items-center justify-between gap-6 rounded-2xl p-4 hover:bg-slate-50"><span><span className="block font-semibold">Thông báo qua email</span><span className="mt-1 block text-sm text-slate-500">Nhận thông báo quản trị và trạng thái tenant qua email.</span></span><input type="checkbox" checked={emailNotifications} onChange={(event) => { setEmailNotifications(event.target.checked); localStorage.setItem("master_email_notifications", String(event.target.checked)); }} className="size-5 accent-blue-600" /></label>
+                </div>
+              </section>
+            )}
+          </div>
+        )}
+        </main>
+      </div>
 
       {/* MODAL 1: VIEW TENANT DETAILS */}
       {selectedTenant && (

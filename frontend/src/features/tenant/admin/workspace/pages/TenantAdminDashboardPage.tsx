@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getTenantIdFromWindow } from "@/lib/tenant";
-import { getTenantTheme } from "@/features/tenant/career/pages/TenantCareerPage";
+import { getTenantTheme } from "@/lib/tenantTheme";
 import { LanguageSwitcher } from "@/components/ux/LanguageSwitcher";
 import {
   Users,

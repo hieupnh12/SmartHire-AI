@@ -1,5 +1,5 @@
 import { MasterRoute } from "@/app/guards/MasterRoute";
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { RootRouteSwitcher } from "@/app/RootRouteSwitcher";
 import { RoleRoute } from "@/app/guards/RoleRoute";
 import { RoleShell } from "@/app/layouts/RoleShell";
@@ -16,6 +16,7 @@ import { HomePage as TenantAdminHomePage } from "@/features/tenant/admin/overvie
 import { CompanyProfilePage } from "@/features/tenant/admin/company/pages/CompanyProfilePage";
 import { SystemPage } from "@/features/tenant/admin/system/pages/SystemPage";
 import { UsersPage } from "@/features/tenant/admin/users/pages/UsersPage";
+import { AccountPage as TenantAdminAccountPage } from "@/features/tenant/admin/account/pages/AccountPage";
 import { AcceptInvitationPage } from "@/features/tenant/auth/pages/AcceptInvitationPage";
 import { candidateNav } from "@/features/tenant/candidate/nav";
 import { HomePage as CandidateHomePage } from "@/features/tenant/candidate/dashboard/pages/HomePage";
@@ -32,12 +33,24 @@ import { HomePage as RecruiterHomePage } from "@/features/tenant/recruiter/dashb
 import { JobsPage } from "@/features/tenant/recruiter/jobs/pages/JobsPage";
 import { ApplicantsPage } from "@/features/tenant/recruiter/applicants/pages/ApplicantsPage";
 import { CvScreeningPage } from "@/features/tenant/recruiter/cv-screening/pages/CvScreeningPage";
-import { MatchingPage } from "@/features/tenant/recruiter/matching/pages/MatchingPage";
+import { RankingPage } from "@/features/tenant/recruiter/matching/pages/MatchingPage";
 import { PipelinePage } from "@/features/tenant/recruiter/pipeline/pages/PipelinePage";
 import { AssessmentsPage as RecruiterAssessmentsPage } from "@/features/tenant/recruiter/assessments/pages/AssessmentsPage";
 import { InterviewsPage as RecruiterInterviewsPage } from "@/features/tenant/recruiter/interviews/pages/InterviewsPage";
 import { SchedulesPage as RecruiterSchedulesPage } from "@/features/tenant/recruiter/schedules/pages/SchedulesPage";
 import { NotificationsPage as RecruiterNotificationsPage } from "@/features/tenant/recruiter/notifications/pages/NotificationsPage";
+
+function LegacyTenantAdminRedirect() {
+  const location = useLocation();
+  const suffix = location.pathname.slice("/tenant/admin".length);
+
+  return (
+    <Navigate
+      to={`/internal/admin${suffix}${location.search}${location.hash}`}
+      replace
+    />
+  );
+}
 
 export function AppRouter() {
   return (
@@ -89,7 +102,8 @@ export function AppRouter() {
           <Route path="jobs" element={<JobsPage />} />
           <Route path="applicants" element={<ApplicantsPage />} />
           <Route path="cvs" element={<CvScreeningPage />} />
-          <Route path="matching" element={<MatchingPage />} />
+          <Route path="rank" element={<RankingPage />} />
+          <Route path="matching" element={<Navigate to="/recruiter/rank" replace />} />
           <Route path="pipeline" element={<PipelinePage />} />
           <Route path="assessments" element={<RecruiterAssessmentsPage />} />
           <Route path="interviews" element={<RecruiterInterviewsPage />} />
@@ -100,17 +114,19 @@ export function AppRouter() {
 
       <Route element={<RoleRoute roles={["ADMIN", "TENANT_ADMIN"]} />}>
         <Route
-          path="/tenant/admin"
+          path="/internal/admin"
           element={
-            <RoleShell brandKey="roles.admin" basePath="/tenant/admin" links={adminNav} />
+            <RoleShell brandKey="roles.admin" basePath="/internal/admin" links={adminNav} />
           }
         >
           <Route index element={<TenantAdminHomePage />} />
           <Route path="company" element={<CompanyProfilePage />} />
           <Route path="users" element={<UsersPage />} />
           <Route path="system" element={<SystemPage />} />
+          <Route path="account" element={<TenantAdminAccountPage />} />
         </Route>
       </Route>
+      <Route path="/tenant/admin/*" element={<LegacyTenantAdminRedirect />} />
 
       <Route path="/company/workspace" element={<TenantAdminDashboardPage />} />
       <Route element={<MasterRoute />}>

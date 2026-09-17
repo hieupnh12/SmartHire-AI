@@ -68,7 +68,7 @@
 }
 
 .tenant-workspace-theme {
-  /* SE36 career portal palette: teal actions, slate copy, white/lilac surfaces. */
+  /* Teal fallback; RoleShell replaces these semantic tokens with the current tenant palette. */
   --color-primary: #0d9488;
   --color-primary-hover: #0f766e;
   --color-primary-container: #f0fdfa;
@@ -109,7 +109,7 @@
 
 .tenant-workspace-theme ::selection {
   color: #ffffff;
-  background: #0d9488;
+  background: var(--color-primary);
 }
 
 * {

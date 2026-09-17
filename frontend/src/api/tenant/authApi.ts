@@ -12,7 +12,7 @@ export const authApi = {
   refresh: (refreshToken: string) =>
     api.post<ApiResponse<AuthTokens>>("/tenant/auth/refresh", { refreshToken }).then((r) => r.data),
   logout: () => api.post<ApiResponse<null>>("/tenant/auth/logout").then((r) => r.data),
-  me: () => api.get<ApiResponse<UserProfile>>("/tenant/users/me").then((r) => r.data),
+  me: () => api.get<ApiResponse<UserProfile>>("/tenant/auth/me").then((r) => r.data),
   updateMe: (body: Partial<UserProfile>) =>
     api.put<ApiResponse<UserProfile>>("/tenant/users/me", body).then((r) => r.data),
   health: () => api.get<ApiResponse<Record<string, string>>>("/tenant/auth/health").then((r) => r.data),

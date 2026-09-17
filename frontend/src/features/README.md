@@ -10,7 +10,7 @@ UI is organized by actor boundary first, then by feature inside each actor.
 | `tenant/career/` | Public tenant career page | `/career`, `/jobs` |
 | `tenant/candidate/` | Candidate | `/candidate/*` |
 | `tenant/recruiter/` | Recruiter | `/recruiter/*` |
-| `tenant/admin/`, `tenant/dashboard/` | Tenant admin / workspace | `/tenant/admin`, `/company/workspace` |
+| `tenant/admin/`, `tenant/dashboard/` | Tenant admin / workspace | `/internal/admin`, `/company/workspace` |
 
 Shared HTTP clients live in `src/api/`. Feature folders may add local `api/`, `hooks/`, `services/`, `types/`, or `utils/` only when that feature needs ownership of that logic.
 
