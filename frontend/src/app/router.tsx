@@ -1,5 +1,5 @@
 import { MasterRoute } from "@/app/guards/MasterRoute";
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { RootRouteSwitcher } from "@/app/RootRouteSwitcher";
 import { RoleRoute } from "@/app/guards/RoleRoute";
 import { RoleShell } from "@/app/layouts/RoleShell";
@@ -16,6 +16,7 @@ import { HomePage as TenantAdminHomePage } from "@/features/tenant/admin/overvie
 import { CompanyProfilePage } from "@/features/tenant/admin/company/pages/CompanyProfilePage";
 import { SystemPage } from "@/features/tenant/admin/system/pages/SystemPage";
 import { UsersPage } from "@/features/tenant/admin/users/pages/UsersPage";
+import { AccountPage as TenantAdminAccountPage } from "@/features/tenant/admin/account/pages/AccountPage";
 import { AcceptInvitationPage } from "@/features/tenant/auth/pages/AcceptInvitationPage";
 import { candidateNav } from "@/features/tenant/candidate/nav";
 import { HomePage as CandidateHomePage } from "@/features/tenant/candidate/dashboard/pages/HomePage";
@@ -38,6 +39,18 @@ import { AssessmentsPage as RecruiterAssessmentsPage } from "@/features/tenant/r
 import { InterviewsPage as RecruiterInterviewsPage } from "@/features/tenant/recruiter/interviews/pages/InterviewsPage";
 import { SchedulesPage as RecruiterSchedulesPage } from "@/features/tenant/recruiter/schedules/pages/SchedulesPage";
 import { NotificationsPage as RecruiterNotificationsPage } from "@/features/tenant/recruiter/notifications/pages/NotificationsPage";
+
+function LegacyTenantAdminRedirect() {
+  const location = useLocation();
+  const suffix = location.pathname.slice("/tenant/admin".length);
+
+  return (
+    <Navigate
+      to={`/internal/admin${suffix}${location.search}${location.hash}`}
+      replace
+    />
+  );
+}
 
 export function AppRouter() {
   return (
@@ -101,17 +114,19 @@ export function AppRouter() {
 
       <Route element={<RoleRoute roles={["ADMIN", "TENANT_ADMIN"]} />}>
         <Route
-          path="/tenant/admin"
+          path="/internal/admin"
           element={
-            <RoleShell brandKey="roles.admin" basePath="/tenant/admin" links={adminNav} />
+            <RoleShell brandKey="roles.admin" basePath="/internal/admin" links={adminNav} />
           }
         >
           <Route index element={<TenantAdminHomePage />} />
           <Route path="company" element={<CompanyProfilePage />} />
           <Route path="users" element={<UsersPage />} />
           <Route path="system" element={<SystemPage />} />
+          <Route path="account" element={<TenantAdminAccountPage />} />
         </Route>
       </Route>
+      <Route path="/tenant/admin/*" element={<LegacyTenantAdminRedirect />} />
 
       <Route path="/company/workspace" element={<TenantAdminDashboardPage />} />
       <Route element={<MasterRoute />}>

@@ -14,8 +14,12 @@ import type { LucideIcon } from "lucide-react";
 import {
   BrainCircuit,
   Building2,
+  BadgeCheck,
   CreditCard,
+  ReceiptText,
+  ArrowUpDown,
   BarChart3,
+  House,
   FileText,
   Plus,
   Search,
@@ -41,12 +45,20 @@ import {
 } from "lucide-react";
 
 type DashboardTab = "analytics" | "tenants" | "subscriptions" | "logs" | "account-profile" | "account-security" | "account-accessibility" | "account-notifications";
-type SidebarGroupId = "overview" | "management" | "system" | "account";
+type SidebarGroupId = "overview" | "tenants" | "commerce" | "system" | "account";
+type SidebarItem = {
+  tab?: DashboardTab;
+  action?: () => void;
+  label: string;
+  description: string;
+  icon: LucideIcon;
+  comingSoon?: boolean;
+};
 
 export function MasterAdminDashboardPage() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<DashboardTab>("analytics");
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => window.innerWidth < 1024);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
   const [openSidebarGroup, setOpenSidebarGroup] = useState<SidebarGroupId | null>(null);
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
   const [isNotificationPanelOpen, setIsNotificationPanelOpen] = useState(false);
@@ -372,12 +384,12 @@ export function MasterAdminDashboardPage() {
     id: SidebarGroupId;
     label: string;
     icon: LucideIcon;
-    items: Array<{ tab?: DashboardTab; action?: () => void; label: string; description: string; icon: LucideIcon }>;
+    items: SidebarItem[];
   }> = [
     {
       id: "overview",
-      label: "Tổng quan",
-      icon: BarChart3,
+      label: "Trang chủ",
+      icon: House,
       items: [
         {
           tab: "analytics",
@@ -388,9 +400,9 @@ export function MasterAdminDashboardPage() {
       ],
     },
     {
-      id: "management",
-      label: "Quản trị",
-      icon: Layers,
+      id: "tenants",
+      label: "Doanh nghiệp",
+      icon: Building2,
       items: [
         {
           action: () => navigate("/onboard"),
@@ -405,10 +417,35 @@ export function MasterAdminDashboardPage() {
           icon: Building2,
         },
         {
+          label: "Xác thực doanh nghiệp",
+          description: "Thẩm định hồ sơ pháp lý và phê duyệt trạng thái xác thực doanh nghiệp.",
+          icon: BadgeCheck,
+          comingSoon: true,
+        },
+      ],
+    },
+    {
+      id: "commerce",
+      label: "Gói & thanh toán",
+      icon: CreditCard,
+      items: [
+        {
           tab: "subscriptions",
           label: `Gói dịch vụ SaaS (${plans.length})`,
           description: "Cấu hình gói thuê bao, giới hạn và mức giá dịch vụ.",
           icon: CreditCard,
+        },
+        {
+          label: "Phân bổ gói cho Tenant",
+          description: "Gán, nâng cấp hoặc hạ cấp gói dịch vụ của từng doanh nghiệp.",
+          icon: ArrowUpDown,
+          comingSoon: true,
+        },
+        {
+          label: "Hóa đơn & thanh toán",
+          description: "Theo dõi hóa đơn, trạng thái thanh toán và lịch sử doanh thu.",
+          icon: ReceiptText,
+          comingSoon: true,
         },
       ],
     },
@@ -423,6 +460,18 @@ export function MasterAdminDashboardPage() {
           description: "Kiểm tra hoạt động quản trị và các sự kiện hệ thống.",
           icon: FileText,
         },
+        {
+          label: "Báo cáo sử dụng AI",
+          description: "Phân tích mức tiêu thụ AI theo tenant, dịch vụ và thời gian.",
+          icon: BrainCircuit,
+          comingSoon: true,
+        },
+        {
+          label: "Quản lý hạn ngạch AI",
+          description: "Theo dõi giới hạn, cảnh báo và chính sách sử dụng tài nguyên AI.",
+          icon: Sliders,
+          comingSoon: true,
+        },
       ],
     },
   ];
@@ -430,7 +479,7 @@ export function MasterAdminDashboardPage() {
     id: SidebarGroupId;
     label: string;
     icon: LucideIcon;
-    items: Array<{ tab?: DashboardTab; action?: () => void; label: string; description: string; icon: LucideIcon }>;
+    items: SidebarItem[];
   } = {
     id: "account",
     label: "Tài khoản",
@@ -614,17 +663,23 @@ export function MasterAdminDashboardPage() {
                       <button
                         key={item.tab ?? item.label}
                         type="button"
+                        disabled={item.comingSoon}
                         onClick={() => {
                           if (item.action) item.action();
                           else if (item.tab) setActiveTab(item.tab);
                         }}
                         className={`flex min-h-12 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
-                          itemIsActive ? "bg-blue-50 text-blue-700" : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"
+                          item.comingSoon
+                            ? "cursor-not-allowed text-slate-400"
+                            : itemIsActive
+                              ? "bg-blue-50 text-blue-700"
+                              : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"
                         }`}
                         aria-current={itemIsActive ? "page" : undefined}
                       >
                         <ItemIcon className="size-5 shrink-0" />
-                        <span className="truncate">{item.label}</span>
+                        <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                        {item.comingSoon && <span className="shrink-0 rounded-full bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-500">Sắp phát triển</span>}
                       </button>
                     );
                   })}
@@ -673,6 +728,12 @@ export function MasterAdminDashboardPage() {
                     <button
                       type="button"
                       onClick={() => {
+                        if (group.id === "overview") {
+                          setActiveTab("analytics");
+                          setOpenSidebarGroup(null);
+                          setIsSidebarCollapsed(true);
+                          return;
+                        }
                         if (!isSidebarCollapsed && openSidebarGroup === "account") {
                           setIsSidebarCollapsed(true);
                           setOpenSidebarGroup(group.id);
@@ -688,15 +749,16 @@ export function MasterAdminDashboardPage() {
                           ? "bg-blue-50 text-blue-700"
                           : "text-slate-500 hover:bg-slate-100 hover:text-slate-900"
                       }`}
-                      aria-label={`Mở nhóm ${group.label}`}
-                      aria-expanded={openSidebarGroup === group.id}
-                      aria-haspopup="menu"
+                      aria-label={group.id === "overview" ? group.label : `Mở nhóm ${group.label}`}
+                      aria-current={group.id === "overview" && activeTab === "analytics" ? "page" : undefined}
+                      aria-expanded={group.id === "overview" ? undefined : openSidebarGroup === group.id}
+                      aria-haspopup={group.id === "overview" ? undefined : "menu"}
                     >
                       <GroupIcon className="h-6 w-6" />
                       <span className="max-w-full truncate">{group.label}</span>
                     </button>
 
-                    {isSidebarCollapsed && openSidebarGroup === group.id && (
+                    {group.id !== "overview" && isSidebarCollapsed && openSidebarGroup === group.id && (
                       <div
                         className="absolute left-[calc(100%+0.5rem)] top-0 z-40 w-[min(22rem,calc(100vw-6rem))] rounded-3xl border border-slate-200/90 bg-white p-3 shadow-[0_20px_50px_-16px_rgba(15,23,42,0.28)] before:absolute before:-left-2 before:top-0 before:h-full before:w-2 before:content-['']"
                         role="menu"
@@ -715,22 +777,28 @@ export function MasterAdminDashboardPage() {
                                 key={item.tab ?? item.label}
                                 type="button"
                                 role="menuitem"
+                                disabled={item.comingSoon}
                                 onClick={() => {
                                   if (item.action) item.action();
                                   else if (item.tab) setActiveTab(item.tab);
                                   setOpenSidebarGroup(null);
                                 }}
-                                className={`group flex w-full cursor-pointer items-center gap-3 rounded-2xl border p-3 text-left transition-[background-color,border-color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
-                                  itemIsActive
-                                    ? "border-slate-300 bg-slate-200 shadow-sm"
-                                    : "border-transparent bg-white hover:border-slate-300 hover:bg-slate-100 hover:shadow-md"
+                                className={`group flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition-[background-color,border-color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
+                                  item.comingSoon
+                                    ? "cursor-not-allowed border-transparent bg-slate-50/70 opacity-70"
+                                    : itemIsActive
+                                      ? "cursor-pointer border-slate-300 bg-slate-200 shadow-sm"
+                                      : "cursor-pointer border-transparent bg-white hover:border-slate-300 hover:bg-slate-100 hover:shadow-md"
                                 }`}
                               >
                                 <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] border border-slate-200 bg-white text-slate-800 shadow-2xs transition-colors group-hover:border-blue-300 group-hover:text-blue-700">
                                   <ItemIcon className="h-[22px] w-[22px]" />
                                 </span>
                                 <span className="min-w-0">
-                                  <span className="block truncate text-base font-semibold leading-5 text-slate-900">{item.label}</span>
+                                  <span className="flex items-center gap-2">
+                                    <span className="min-w-0 truncate text-base font-semibold leading-5 text-slate-900">{item.label}</span>
+                                    {item.comingSoon && <span className="shrink-0 rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-semibold text-slate-600">Sắp phát triển</span>}
+                                  </span>
                                   <span className="mt-1 block truncate text-sm leading-5 text-slate-600">{item.description}</span>
                                 </span>
                               </button>

@@ -68,7 +68,7 @@
 }
 
 .tenant-workspace-theme {
-  /* SE36 career portal palette: teal actions, slate copy, white/lilac surfaces. */
+  /* Teal fallback; RoleShell replaces these semantic tokens with the current tenant palette. */
   --color-primary: #0d9488;
   --color-primary-hover: #0f766e;
   --color-primary-container: #f0fdfa;
@@ -109,32 +109,7 @@
 
 .tenant-workspace-theme ::selection {
   color: #ffffff;
-  background: #0d9488;
-}
-
-/* Rank screens intentionally use the Luminous Professional blue palette. */
-.tenant-workspace-theme .rank-blue-theme,
-.tenant-workspace-theme dialog.rank-blue-theme {
-  --color-primary: #004191;
-  --color-primary-hover: #003473;
-  --color-primary-container: #0058be;
-  --color-on-primary: #ffffff;
-  --color-primary-soft: rgba(0, 65, 145, 0.12);
-  --color-primary-subtle: rgba(0, 65, 145, 0.05);
-  --color-primary-shadow: rgba(0, 65, 145, 0.45);
-  --color-surface-container-low: #f1f3ff;
-  --color-surface-container: #e9edfe;
-  --container-blue: rgba(0, 65, 145, 0.08);
-  --color-brand-primary: #004191;
-  --color-brand-primary-hover: #003473;
-  --color-border-focus: #004191;
-  --tw-ring-color: rgba(0, 65, 145, 0.3);
-}
-
-.tenant-workspace-theme .rank-blue-theme ::selection,
-.tenant-workspace-theme dialog.rank-blue-theme ::selection {
-  color: #ffffff;
-  background: #004191;
+  background: var(--color-primary);
 }
 
 * {

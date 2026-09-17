@@ -18,7 +18,7 @@ export function ApplicationStatusTimeline({ roleTitle, statusLabel, stages }: Ap
           <h2 className="mt-1 text-lg font-semibold text-[var(--color-on-surface)]">Trạng thái ứng tuyển</h2>
           <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">{roleTitle}</p>
         </div>
-        <span className="rounded-full border border-teal-500/20 bg-teal-500/10 px-3 py-1.5 text-xs font-semibold text-brand-primary">{statusLabel}</span>
+        <span className="rounded-full border border-brand-primary/20 bg-[var(--color-primary-soft)] px-3 py-1.5 text-xs font-semibold text-brand-primary">{statusLabel}</span>
       </div>
 
       <ol className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-5" aria-label="Tiến trình ứng tuyển">

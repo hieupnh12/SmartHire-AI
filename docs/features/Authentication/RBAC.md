@@ -23,7 +23,7 @@ Phân quyền theo role (và permission nếu cần) cho mọi API/UI route.
 ## Business Rules
 
 - Roles tenant: `TENANT_ADMIN`, `ADMIN`, `HR`, `RECRUITER`, `CANDIDATE`.
-- Sau login nội bộ: `TENANT_ADMIN`/`ADMIN` → `/tenant/admin`; `HR`/`RECRUITER` → `/recruiter`; `CANDIDATE` → `/candidate` (subdomain tenant hiện tại, ví dụ `ttqt.localhost:5173/recruiter`).
+- Sau login nội bộ: `TENANT_ADMIN`/`ADMIN` → `/internal/admin`; `HR`/`RECRUITER` → `/recruiter`; `CANDIDATE` → `/candidate` (subdomain tenant hiện tại, ví dụ `ttqt.localhost:5173/recruiter`).
 - Recruiter chỉ data thuộc org/job của mình.
 - Admin full (audit log khuyến nghị).
 
@@ -49,7 +49,7 @@ AUTH-02
 
 - API quản trị master yêu cầu `WORKSPACE_ADMIN`, tách biệt với `ADMIN`/`TENANT_ADMIN` của doanh nghiệp.
 - API quản lý người dùng tenant yêu cầu `TENANT_ADMIN` hoặc `ADMIN`.
-- Frontend chuyển `TENANT_ADMIN` và `ADMIN` của doanh nghiệp về `/tenant/admin`; route này không dùng cho `WORKSPACE_ADMIN` của nền tảng.
+- Frontend chuyển `TENANT_ADMIN` và `ADMIN` của doanh nghiệp về `/internal/admin`; route này không dùng cho `WORKSPACE_ADMIN` của nền tảng. Đường dẫn cũ `/tenant/admin` chỉ giữ để chuyển hướng tương thích.
 - API nghiệp vụ yêu cầu tenant role và tenant đang `ACTIVE`; JWT, header và subdomain phải cùng tenant.
 - Endpoint công khai giới hạn ở login và kiểm tra tenant đang hoạt động; Swagger/health phục vụ vận hành.
 - CORS chỉ nhận các origin cụ thể từ `CORS_ORIGINS`, không cho wildcard kèm credential.

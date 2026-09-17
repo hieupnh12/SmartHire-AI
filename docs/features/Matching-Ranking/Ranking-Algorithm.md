@@ -56,9 +56,9 @@ Response bọc `ApiResponse`. Board có `jobId`, `jobTitle`, `config`, `rankingV
 
 ## UI mockup
 
-- `/recruiter/rank`: chọn Job → bốn thẻ tổng quan → cấu hình có thể mở rộng → trọng số đang dùng → bộ lọc → bảng điểm → phân trang và xuất CSV theo kết quả đang lọc. Frontend hiện có dữ liệu preview để hoàn thiện và duyệt giao diện trước khi nối đầy đủ backend.
-- Nhấn tên ứng viên mở màn hình chi tiết dạng modal lớn: hồ sơ và điểm tổng, hành động recruiter, phân tích điểm đa chiều, công thức trọng số, kỹ năng/độ bao phủ, bằng chứng kinh nghiệm, nhận xét interview, insight hỗ trợ quyết định và timeline ứng tuyển. Modal hỗ trợ Escape, focus bàn phím; bảng cuộn ngang trên màn hình nhỏ. Insight và hành động thay đổi pipeline hiện dùng dữ liệu preview, chờ nối backend.
-- Màu, font và khoảng cách theo `DESIGN.md`, không thêm dependency frontend.
+- `/recruiter/rank`: chọn Job → bốn thẻ tổng quan → cấu hình có thể mở rộng → trọng số đang dùng → bộ lọc → bảng điểm → phân trang và xuất CSV theo kết quả đang lọc. Bảng desktop ưu tiên hạng, ứng viên, các điểm chính, trạng thái và hành động xem chi tiết; màn hình nhỏ chuyển sang card ứng viên để không phụ thuộc cuộn ngang. Frontend hiện có dữ liệu preview chỉ đọc để hoàn thiện và duyệt giao diện trước khi nối đầy đủ backend.
+- Nhấn tên hoặc nút xem chi tiết mở dialog thích ứng: toàn màn hình trên mobile và modal lớn trên desktop. Phần đầu tóm tắt hồ sơ, hạng, điểm tổng, bốn điểm thành phần và liên kết sang assessment/interview/lịch hẹn; phần dưới trình bày phân tích đa chiều, kỹ năng/độ bao phủ, bằng chứng kinh nghiệm, nhận xét interview, insight và timeline. Công thức trọng số được thu gọn và mở khi cần. Dialog hỗ trợ Escape và quản lý focus bằng native dialog.
+- Màu, font và khoảng cách theo `DESIGN.md`. Trang Rank và dialog chi tiết kế thừa semantic color token từ `RoleShell`, không dùng palette riêng, nên luôn đồng bộ với tenant hiện tại.
 
 ## Phụ thuộc
 
