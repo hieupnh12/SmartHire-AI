@@ -1,8 +1,12 @@
 package com.smarthire.tenant.auth.controller;
 
 import com.smarthire.common.api.ApiResponse;
+import com.smarthire.tenant.auth.dto.AcceptInvitationRequest;
 import com.smarthire.tenant.auth.dto.CreateEmployeeRequest;
+import com.smarthire.tenant.auth.dto.InviteMemberRequest;
+import com.smarthire.tenant.auth.dto.InviteMemberResponse;
 import com.smarthire.tenant.auth.dto.UserResponse;
+import com.smarthire.tenant.auth.service.MemberInvitationService;
 import com.smarthire.tenant.auth.service.TenantUserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -21,6 +25,7 @@ import java.util.List;
 public class TenantUserController {
 
     private final TenantUserService tenantUserService;
+    private final MemberInvitationService memberInvitationService;
 
     @PostMapping
     @Operation(summary = "Create Employee & Assign Role", description = "Creates a new employee in the Tenant DB with a specified role (TENANT_ADMIN, HR, CANDIDATE).")
@@ -35,5 +40,20 @@ public class TenantUserController {
     public ResponseEntity<ApiResponse<List<UserResponse>>> getEmployees() {
         List<UserResponse> employees = tenantUserService.getEmployees();
         return ResponseEntity.ok(ApiResponse.ok(employees));
+    }
+
+    @PostMapping("/invitations")
+    @Operation(summary = "Invite a staff member", description = "Creates a pending invitation and emails a password-setup link. Roles: TENANT_ADMIN, ADMIN, HR, RECRUITER.")
+    public ResponseEntity<ApiResponse<InviteMemberResponse>> inviteMember(@Valid @RequestBody InviteMemberRequest request) {
+        InviteMemberResponse response = memberInvitationService.invite(request);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.ok("Invitation created", response));
+    }
+
+    @PostMapping("/invitations/accept")
+    @Operation(summary = "Accept a staff invitation", description = "Sets the invitee's password and activates the account.")
+    public ResponseEntity<ApiResponse<UserResponse>> acceptInvitation(@Valid @RequestBody AcceptInvitationRequest request) {
+        UserResponse response = memberInvitationService.accept(request);
+        return ResponseEntity.ok(ApiResponse.ok("Account activated", response));
     }
 }

@@ -16,6 +16,7 @@ import { HomePage as TenantAdminHomePage } from "@/features/tenant/admin/overvie
 import { CompanyProfilePage } from "@/features/tenant/admin/company/pages/CompanyProfilePage";
 import { SystemPage } from "@/features/tenant/admin/system/pages/SystemPage";
 import { UsersPage } from "@/features/tenant/admin/users/pages/UsersPage";
+import { AcceptInvitationPage } from "@/features/tenant/auth/pages/AcceptInvitationPage";
 import { candidateNav } from "@/features/tenant/candidate/nav";
 import { HomePage as CandidateHomePage } from "@/features/tenant/candidate/dashboard/pages/HomePage";
 import { BrowseJobsPage } from "@/features/tenant/candidate/jobs/pages/BrowseJobsPage";
@@ -48,6 +49,7 @@ export function AppRouter() {
       <Route path="/internal/login" element={<LoginPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route path="/invite/accept" element={<AcceptInvitationPage />} />
 
       <Route element={<RoleRoute roles={["CANDIDATE"]} />}>
         <Route
@@ -72,7 +74,7 @@ export function AppRouter() {
         </Route>
       </Route>
 
-      <Route element={<RoleRoute roles={["RECRUITER"]} />}>
+      <Route element={<RoleRoute roles={["RECRUITER", "HR"]} />}>
         <Route
           path="/recruiter"
           element={

@@ -25,7 +25,7 @@ export function RoleRoute({ roles }: Props) {
     const home =
       user.role === "ADMIN" || user.role === "TENANT_ADMIN"
         ? "/tenant/admin"
-        : user.role === "RECRUITER"
+        : user.role === "RECRUITER" || user.role === "HR"
           ? "/recruiter"
           : "/candidate";
     return <Navigate to={home} replace />;

@@ -21,6 +21,7 @@ Mỗi trang gồm: Mục đích · Actor · Luồng · Business Rules · API · 
 | Code | Feature | Doc | Status |
 |---|---|---|---|
 | COMPANY-01 | View & Update Company Profile | [Company-Profile](Company-Management/Company-Profile.md) | Doing |
+| COMPANY-02 | Invite tenant staff | [Invite-Member](Company-Management/Invite-Member.md) | Done |
 
 ## 3. Job Recruitment Management
 

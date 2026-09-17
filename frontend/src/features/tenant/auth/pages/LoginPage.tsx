@@ -34,7 +34,7 @@ type LoginForm = z.infer<typeof loginSchema>;
 
 function homeForRole(role?: string) {
   if (role === "ADMIN" || role === "TENANT_ADMIN") return "/tenant/admin";
-  if (role === "RECRUITER") return "/recruiter";
+  if (role === "RECRUITER" || role === "HR") return "/recruiter";
   return "/candidate";
 }
 
