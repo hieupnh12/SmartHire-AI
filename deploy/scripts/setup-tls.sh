@@ -2,7 +2,7 @@
 # Issue Let's Encrypt cert and install host Nginx site
 # Prerequisites: DOMAIN DNS A record points to this VM; ports 80/443 open in GCP firewall + UFW
 # Usage:
-#   DOMAIN=example.com bash deploy/scripts/setup-tls.sh
+#   DOMAIN=smarthire.top bash deploy/scripts/setup-tls.sh
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -28,7 +28,7 @@ sudo tee /etc/nginx/sites-available/smarthire >/dev/null <<EOF
 server {
     listen 80;
     listen [::]:80;
-    server_name ${DOMAIN};
+    server_name ${DOMAIN} *.${DOMAIN};
 
     location /.well-known/acme-challenge/ {
         root /var/www/certbot;

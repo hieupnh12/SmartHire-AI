@@ -116,7 +116,7 @@ Tóm tắt:
 sudo bash deploy/scripts/bootstrap-gcp-vps.sh
 cp deploy/.env.production.example deploy/.env.production  # điền secrets
 bash deploy/scripts/deploy.sh
-DOMAIN=your.domain.com bash deploy/scripts/setup-tls.sh
+DOMAIN=smarthire.top bash deploy/scripts/setup-tls.sh
 ```
 
 File chính: `docker-compose.prod.yml`, `deploy/`, `.github/workflows/deploy-gcp.yml`.

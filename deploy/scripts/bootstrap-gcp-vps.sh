@@ -58,9 +58,9 @@ sudo systemctl enable --now nginx
 
 echo "==> Bootstrap complete"
 echo "Next:"
-echo "  1. Clone repo into ${DEPLOY_PATH}"
+echo "  1. Upload the deployment manifests into ${DEPLOY_PATH}"
 echo "  2. cp deploy/.env.production.example deploy/.env.production && edit secrets"
-echo "  3. bash deploy/scripts/deploy.sh"
+echo "  3. Log in to Docker Hub and run IMAGE_TAG=latest bash deploy/scripts/deploy.sh"
 echo "  4. Configure DNS A record → this VM external IP"
 echo "  5. bash deploy/scripts/setup-tls.sh"
 echo "Re-login (or newgrp docker) so docker group applies."

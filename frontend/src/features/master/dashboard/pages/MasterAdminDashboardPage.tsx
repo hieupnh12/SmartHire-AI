@@ -325,7 +325,7 @@ export function MasterAdminDashboardPage() {
   const handleExportFinancial = () => {
     const csvContent =
       "data:text/csv;charset=utf-8,Tenant Code,Company Name,Database,Subdomain,Status\n" +
-      tenants.map((t) => `${t.code},${t.name},${t.dbName},${t.subdomain}.smarthire.ai,${t.status}`).join("\n");
+      tenants.map((t) => `${t.code},${t.name},${t.dbName},${t.subdomain}.smarthire.top,${t.status}`).join("\n");
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
@@ -769,7 +769,7 @@ export function MasterAdminDashboardPage() {
                             rel="noreferrer"
                             className="hover:text-blue-600 hover:underline inline-flex items-center gap-1"
                           >
-                            <span>{tenant.subdomain}.smarthire.ai</span>
+                            <span>{tenant.subdomain}.smarthire.top</span>
                             <ExternalLink className="w-3 h-3" />
                           </a>
                         </td>
@@ -1069,7 +1069,7 @@ export function MasterAdminDashboardPage() {
               </div>
               <div className="flex justify-between pb-2 border-b border-slate-200/80">
                 <span className="text-slate-500 font-sans">Cổng Đăng Nhập (Subdomain):</span>
-                <span className="text-slate-700">{selectedTenant.subdomain}.smarthire.ai</span>
+                <span className="text-slate-700">{selectedTenant.subdomain}.smarthire.top</span>
               </div>
               <div className="flex justify-between pb-2 border-b border-slate-200/80">
                 <span className="text-slate-500 font-sans">Database Riêng Biệt:</span>

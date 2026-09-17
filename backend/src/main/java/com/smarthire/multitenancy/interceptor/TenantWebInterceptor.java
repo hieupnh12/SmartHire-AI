@@ -19,7 +19,7 @@ public class TenantWebInterceptor implements HandlerInterceptor {
     private final String baseDomain;
 
     public TenantWebInterceptor(TenantRegistryService registry,
-            @Value("${app.tenant.base-domain:smarthire.ai}") String baseDomain) {
+            @Value("${app.tenant.base-domain:smarthire.top}") String baseDomain) {
         this.registry = registry;
         this.baseDomain = baseDomain.toLowerCase(Locale.ROOT);
     }

@@ -48,7 +48,7 @@ export function TenantNotFoundPage({ subdomain }: TenantNotFoundPageProps) {
               Doanh Nghiệp Chưa Đăng Ký
             </h1>
             <p className="text-xs text-[#64748b] leading-relaxed">
-              Subdomain <strong className="font-mono text-red-600 bg-red-50 px-2 py-0.5 rounded">"{subdomain}.smarthire.ai"</strong> chưa được cấp phát hoặc chưa đăng ký dịch vụ trên nền tảng SmartHire AI SaaS.
+              Subdomain <strong className="font-mono text-red-600 bg-red-50 px-2 py-0.5 rounded">"{subdomain}.smarthire.top"</strong> chưa được cấp phát hoặc chưa đăng ký dịch vụ trên nền tảng SmartHire AI SaaS.
             </p>
           </div>
 

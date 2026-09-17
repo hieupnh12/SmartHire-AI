@@ -154,7 +154,7 @@ export function MasterLoginPage() {
                   <input
                     type="email"
                     required
-                    placeholder="admin@smarthire.ai"
+                    placeholder="admin@smarthire.top"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="w-full pl-10 pr-3.5 py-2.5 bg-transparent text-sm text-slate-900 placeholder-slate-400 focus:outline-none"
