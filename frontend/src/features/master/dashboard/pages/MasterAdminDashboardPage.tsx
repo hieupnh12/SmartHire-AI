@@ -12,11 +12,18 @@ import { masterAuthApi } from "@/api/master/masterAuthApi";
 import { consultationApi, ConsultationResponse } from "@/api/master/consultationApi";
 import { LanguageSwitcher } from "@/components/ux/LanguageSwitcher";
 import { Tooltip } from "@/components/ux/Tooltip";
+import { PlatformAnalyticsDashboard } from "@/features/master/dashboard/components/PlatformAnalyticsDashboard";
+import { PlatformHomeDashboard } from "@/features/master/dashboard/components/PlatformHomeDashboard";
+import { TenantManagementHub } from "@/features/master/tenant-management/components/TenantManagementHub";
+import { BillingWorkspace } from "@/features/master/billing/components/BillingWorkspace";
+import type { BillingView } from "@/features/master/billing/components/BillingWorkspace";
+import type { TenantHubTab } from "@/features/master/tenant-management/components/TenantManagementHub";
+import { TrafficIngressInspector } from "@/features/master/system/components/TrafficIngressInspector";
+import { SystemManagementWorkspace } from "@/features/master/system/components/SystemManagementWorkspace";
 import type { LucideIcon } from "lucide-react";
 import {
   BrainCircuit,
   Building2,
-  BadgeCheck,
   CreditCard,
   ReceiptText,
   ArrowUpDown,
@@ -25,6 +32,7 @@ import {
   FileText,
   Plus,
   Search,
+  AlertTriangle,
   CheckCircle2,
   XCircle,
   Download,
@@ -33,7 +41,6 @@ import {
   LogOut,
   Eye,
   Sliders,
-  Check,
   X,
   ShieldCheck,
   ExternalLink,
@@ -49,11 +56,11 @@ import {
   Inbox,
   UserPlus,
   Loader2,
-  RefreshCw,
+  Check,
 } from "lucide-react";
 
-type DashboardTab = "analytics" | "leads" | "tenants" | "subscriptions" | "logs" | "account-profile" | "account-security" | "account-accessibility" | "account-notifications";
-type SidebarGroupId = "overview" | "tenants" | "commerce" | "system" | "account";
+type DashboardTab = "home" | "analytics" | "leads" | "tenants" | "subscriptions" | "logs" | "ai-usage" | "ai-quotas" | "account-profile" | "account-security" | "account-accessibility" | "account-notifications";
+type SidebarGroupId = "overview" | "analytics" | "tenants" | "commerce" | "system" | "account";
 type SidebarItem = {
   tab?: DashboardTab;
   action?: () => void;
@@ -61,11 +68,14 @@ type SidebarItem = {
   description: string;
   icon: LucideIcon;
   comingSoon?: boolean;
+  isActive?: boolean;
 };
 
 export function MasterAdminDashboardPage() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<DashboardTab>("analytics");
+  const [activeTab, setActiveTab] = useState<DashboardTab>("home");
+  const [tenantHubTab, setTenantHubTab] = useState<TenantHubTab>("overview");
+  const [billingView, setBillingView] = useState<BillingView>("overview");
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
   const [openSidebarGroup, setOpenSidebarGroup] = useState<SidebarGroupId | null>(null);
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
@@ -99,6 +109,10 @@ export function MasterAdminDashboardPage() {
   const [logLevelFilter, setLogLevelFilter] = useState<string>("ALL");
   const [leadSearch, setLeadSearch] = useState("");
   const [leadStatusFilter, setLeadStatusFilter] = useState<string>("ALL");
+  const [logSearch, setLogSearch] = useState("");
+  const [logTenantFilter, setLogTenantFilter] = useState("ALL");
+  const [logTimeRange, setLogTimeRange] = useState("ALL");
+  const [logPage, setLogPage] = useState(1);
 
   // Plan Form state
   const [planCode, setPlanCode] = useState("");
@@ -472,19 +486,6 @@ export function MasterAdminDashboardPage() {
     triggerNotification("Đã xuất báo cáo danh sách Tenant dạng CSV thành công!");
   };
 
-  const handleLogout = async () => {
-    try {
-      const refreshToken = localStorage.getItem("master_refresh_token");
-      await masterAuthApi.logout(refreshToken);
-    } catch {
-      // Ignore network errors on logout
-    } finally {
-      localStorage.removeItem("master_access_token");
-      localStorage.removeItem("master_refresh_token");
-      navigate("/admin/login", { replace: true });
-    }
-  };
-
   const handleChangePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setPasswordError(null);
@@ -528,10 +529,32 @@ export function MasterAdminDashboardPage() {
   }, [tenants, tenantSearch, tenantStatusFilter]);
 
   const filteredLogs = useMemo(() => {
+    const newestLogTime = logs.reduce((latest, item) => Math.max(latest, new Date(item.timestamp).getTime()), 0);
     return logs.filter((log) => {
-      return logLevelFilter === "ALL" || log.level === logLevelFilter;
+      const normalizedSearch = logSearch.trim().toLowerCase();
+      const matchesSearch = !normalizedSearch
+        || log.action.toLowerCase().includes(normalizedSearch)
+        || log.description.toLowerCase().includes(normalizedSearch)
+        || log.tenantCode.toLowerCase().includes(normalizedSearch)
+        || log.ipAddress.toLowerCase().includes(normalizedSearch)
+        || String(log.id).includes(normalizedSearch);
+      const matchesLevel = logLevelFilter === "ALL" || log.level === logLevelFilter;
+      const matchesTenant = logTenantFilter === "ALL" || log.tenantCode === logTenantFilter;
+      const eventTime = new Date(log.timestamp).getTime();
+      const rangeInDays = logTimeRange === "24H" ? 1 : logTimeRange === "7D" ? 7 : logTimeRange === "30D" ? 30 : null;
+      const matchesTime = rangeInDays === null || eventTime >= newestLogTime - rangeInDays * 86_400_000;
+      return matchesSearch && matchesLevel && matchesTenant && matchesTime;
     });
-  }, [logs, logLevelFilter]);
+  }, [logs, logLevelFilter, logSearch, logTenantFilter, logTimeRange]);
+
+  const logTenantOptions = useMemo(() => Array.from(new Set(logs.map((log) => log.tenantCode))).sort(), [logs]);
+  const logPageSize = 5;
+  const logPageCount = Math.max(1, Math.ceil(filteredLogs.length / logPageSize));
+  const paginatedLogs = filteredLogs.slice((logPage - 1) * logPageSize, logPage * logPageSize);
+
+  useEffect(() => {
+    setLogPage(1);
+  }, [logLevelFilter, logSearch, logTenantFilter, logTimeRange]);
 
   const filteredLeads = useMemo(() => {
     return leads.filter((l) => {
@@ -563,9 +586,22 @@ export function MasterAdminDashboardPage() {
       icon: House,
       items: [
         {
+          tab: "home",
+          label: "Trung tâm thông tin",
+          description: "Sự kiện mới, cảnh báo và việc cần xử lý trên toàn nền tảng.",
+          icon: House,
+        },
+      ],
+    },
+    {
+      id: "analytics",
+      label: "Thống kê",
+      icon: BarChart3,
+      items: [
+        {
           tab: "analytics",
-          label: "Doanh thu & tài nguyên",
-          description: "Theo dõi doanh thu, tenant và hạn ngạch AI toàn nền tảng.",
+          label: "Phân tích nền tảng",
+          description: "Doanh thu, tenant health, AI usage, hệ thống, bảo mật và vận hành.",
           icon: BarChart3,
         },
       ],
@@ -576,15 +612,14 @@ export function MasterAdminDashboardPage() {
       icon: Building2,
       items: [
         {
-          action: () => navigate("/onboard"),
-          label: "Khởi tạo Tenant mới",
-          description: "Tạo workspace và cấp phát cơ sở dữ liệu cho doanh nghiệp.",
-          icon: Plus,
-        },
-        {
           tab: "tenants",
-          label: `Danh bạ doanh nghiệp (${tenants.length})`,
-          description: "Quản lý tenant, trạng thái và thông tin cơ sở dữ liệu.",
+          isActive: activeTab === "tenants" && tenantHubTab === "overview",
+          action: () => {
+            setTenantHubTab("overview");
+            setActiveTab("tenants");
+          },
+          label: `Tổng quan doanh nghiệp (${tenants.length})`,
+          description: "Tình trạng tenant và các thao tác quản trị nhanh.",
           icon: Building2,
         },
         {
@@ -594,10 +629,44 @@ export function MasterAdminDashboardPage() {
           icon: PhoneCall,
         },
         {
+          isActive: activeTab === "tenants" && tenantHubTab === "directory",
+          action: () => {
+            setTenantHubTab("directory");
+            setActiveTab("tenants");
+          },
+          label: "Danh bạ tenant",
+          description: "Tìm kiếm, xem chi tiết và quản lý trạng thái tenant.",
+          icon: FileText,
+        },
+        {
+          isActive: activeTab === "tenants" && tenantHubTab === "create",
+          action: () => {
+            setTenantHubTab("create");
+            setActiveTab("tenants");
+          },
+          label: "Tạo tenant mới",
+          description: "Đăng ký tenant, cấp phát database và tạo admin đầu tiên.",
+          icon: Plus,
+        },
+        {
+          isActive: activeTab === "tenants" && tenantHubTab === "verification",
+          action: () => {
+            setTenantHubTab("verification");
+            setActiveTab("tenants");
+          },
           label: "Xác thực doanh nghiệp",
-          description: "Thẩm định hồ sơ pháp lý và phê duyệt trạng thái xác thực doanh nghiệp.",
-          icon: BadgeCheck,
-          comingSoon: true,
+          description: "Thẩm định hồ sơ pháp lý; hiện là giao diện mẫu.",
+          icon: ShieldCheck,
+        },
+        {
+          isActive: activeTab === "tenants" && tenantHubTab === "provisioning",
+          action: () => {
+            setTenantHubTab("provisioning");
+            setActiveTab("tenants");
+          },
+          label: "Theo dõi provisioning",
+          description: "Kiểm tra tenant đang tạo database hoặc cần retry.",
+          icon: Sliders,
         },
       ],
     },
@@ -608,21 +677,34 @@ export function MasterAdminDashboardPage() {
       items: [
         {
           tab: "subscriptions",
+          isActive: activeTab === "subscriptions" && (billingView === "overview" || billingView === "plans"),
+          action: () => {
+            setBillingView("plans");
+            setActiveTab("subscriptions");
+          },
           label: `Gói dịch vụ SaaS (${plans.length})`,
           description: "Cấu hình gói thuê bao, giới hạn và mức giá dịch vụ.",
           icon: CreditCard,
         },
         {
+          isActive: activeTab === "subscriptions" && billingView === "allocations",
+          action: () => {
+            setBillingView("allocations");
+            setActiveTab("subscriptions");
+          },
           label: "Phân bổ gói cho Tenant",
           description: "Gán, nâng cấp hoặc hạ cấp gói dịch vụ của từng doanh nghiệp.",
           icon: ArrowUpDown,
-          comingSoon: true,
         },
         {
+          isActive: activeTab === "subscriptions" && billingView === "invoices",
+          action: () => {
+            setBillingView("invoices");
+            setActiveTab("subscriptions");
+          },
           label: "Hóa đơn & thanh toán",
           description: "Theo dõi hóa đơn, trạng thái thanh toán và lịch sử doanh thu.",
           icon: ReceiptText,
-          comingSoon: true,
         },
       ],
     },
@@ -638,16 +720,16 @@ export function MasterAdminDashboardPage() {
           icon: FileText,
         },
         {
+          tab: "ai-usage",
           label: "Báo cáo sử dụng AI",
           description: "Phân tích mức tiêu thụ AI theo tenant, dịch vụ và thời gian.",
           icon: BrainCircuit,
-          comingSoon: true,
         },
         {
+          tab: "ai-quotas",
           label: "Quản lý hạn ngạch AI",
           description: "Theo dõi giới hạn, cảnh báo và chính sách sử dụng tài nguyên AI.",
           icon: Sliders,
-          comingSoon: true,
         },
       ],
     },
@@ -834,7 +916,7 @@ export function MasterAdminDashboardPage() {
                 <nav className="space-y-1.5">
                   {selectedSidebarGroup.items.map((item) => {
                     const ItemIcon = item.icon;
-                    const itemIsActive = activeTab === item.tab;
+                    const itemIsActive = item.isActive ?? activeTab === item.tab;
                     return (
                       <button
                         key={item.tab ?? item.label}
@@ -893,6 +975,9 @@ export function MasterAdminDashboardPage() {
             >
               {sidebarGroups.map((group) => {
                 const GroupIcon = group.icon;
+                const directItem = group.items.length === 1 && !group.items[0].comingSoon
+                  ? group.items[0]
+                  : null;
                 const groupIsActive = group.items.some((item) => item.tab === activeTab)
                   || openSidebarGroup === group.id;
 
@@ -904,8 +989,9 @@ export function MasterAdminDashboardPage() {
                     <button
                       type="button"
                       onClick={() => {
-                        if (group.id === "overview") {
-                          setActiveTab("analytics");
+                        if (directItem) {
+                          if (directItem.action) directItem.action();
+                          else if (directItem.tab) setActiveTab(directItem.tab);
                           setOpenSidebarGroup(null);
                           setIsSidebarCollapsed(true);
                           return;
@@ -925,16 +1011,16 @@ export function MasterAdminDashboardPage() {
                           ? "bg-blue-50 text-blue-700"
                           : "text-slate-500 hover:bg-slate-100 hover:text-slate-900"
                       }`}
-                      aria-label={group.id === "overview" ? group.label : `Mở nhóm ${group.label}`}
-                      aria-current={group.id === "overview" && activeTab === "analytics" ? "page" : undefined}
-                      aria-expanded={group.id === "overview" ? undefined : openSidebarGroup === group.id}
-                      aria-haspopup={group.id === "overview" ? undefined : "menu"}
+                      aria-label={directItem ? group.label : `Mở nhóm ${group.label}`}
+                      aria-current={directItem?.tab === activeTab ? "page" : undefined}
+                      aria-expanded={directItem ? undefined : openSidebarGroup === group.id}
+                      aria-haspopup={directItem ? undefined : "menu"}
                     >
                       <GroupIcon className="h-6 w-6" />
                       <span className="max-w-full truncate">{group.label}</span>
                     </button>
 
-                    {group.id !== "overview" && isSidebarCollapsed && openSidebarGroup === group.id && (
+                    {!directItem && isSidebarCollapsed && openSidebarGroup === group.id && (
                       <div
                         className="absolute left-[calc(100%+0.5rem)] top-0 z-40 w-[min(22rem,calc(100vw-6rem))] rounded-3xl border border-slate-200/90 bg-white p-3 shadow-[0_20px_50px_-16px_rgba(15,23,42,0.28)] before:absolute before:-left-2 before:top-0 before:h-full before:w-2 before:content-['']"
                         role="menu"
@@ -946,7 +1032,7 @@ export function MasterAdminDashboardPage() {
                         <div className="space-y-1.5">
                           {group.items.map((item) => {
                             const ItemIcon = item.icon;
-                            const itemIsActive = activeTab === item.tab;
+                            const itemIsActive = item.isActive ?? activeTab === item.tab;
 
                             return (
                               <button
@@ -1271,8 +1357,29 @@ export function MasterAdminDashboardPage() {
         <main className={`min-w-0 flex-1 px-4 py-8 transition-[margin] duration-200 sm:px-6 lg:px-8 ${
           isSidebarCollapsed ? "ml-20" : "ml-20 md:ml-[21rem]"
         }`}>
-        {/* TAB 1: REVENUE & AI QUOTA ANALYTICS */}
+        {activeTab === "home" && (
+          <PlatformHomeDashboard
+            revenue={revenue}
+            aiQuota={aiQuota}
+            tenants={tenants}
+            logs={logs}
+            onNavigate={setActiveTab}
+            onCreateTenant={() => navigate("/onboard")}
+          />
+        )}
+
         {activeTab === "analytics" && (
+          <PlatformAnalyticsDashboard
+            revenue={revenue}
+            aiQuota={aiQuota}
+            tenants={tenants}
+            logs={logs}
+            onExport={handleExportFinancial}
+          />
+        )}
+
+        {/* Legacy analytics layout retained temporarily while downstream actions are migrated. */}
+        {false && (
           <div className="space-y-8 animate-fade-in">
             {/* Action & Title */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -1439,7 +1546,7 @@ export function MasterAdminDashboardPage() {
 
                   <div className="space-y-4 my-6">
                     {revenue?.planDistribution &&
-                      Object.entries(revenue.planDistribution).map(([name, count], i) => (
+                      Object.entries(revenue?.planDistribution ?? {}).map(([name, count], i) => (
                         <div key={i} className="space-y-1.5">
                           <div className="flex justify-between text-xs font-semibold">
                             <span className="text-slate-700">{name}</span>
@@ -1688,6 +1795,18 @@ export function MasterAdminDashboardPage() {
 
         {/* TAB 2: TENANT DIRECTORY & PROVISIONING */}
         {activeTab === "tenants" && (
+          <TenantManagementHub
+            activeTab={tenantHubTab}
+            onTabChange={setTenantHubTab}
+            tenants={tenants}
+            onTenantCreated={(tenant) => setTenants((current) => [tenant, ...current])}
+            onToggleStatus={handleToggleTenantStatus}
+            onRetryProvisioning={(tenant) => navigate(`/onboard?retry=${tenant.id}`)}
+          />
+        )}
+
+        {/* Legacy directory UI retained temporarily while its modal actions are migrated. */}
+        {false && (
           <div className="space-y-6 animate-fade-in">
             {/* Header & New Tenant CTA */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -1840,21 +1959,16 @@ export function MasterAdminDashboardPage() {
           </div>
         )}
 
-        {/* TAB 3: SAAS SUBSCRIPTION PLANS */}
+        {/* TAB 3: SAAS SUBSCRIPTION & BILLING */}
         {activeTab === "subscriptions" && (
-          <div className="space-y-6 animate-fade-in">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div>
-                <h1 className="text-2xl font-bold text-slate-900">
-                  Quản Lý Gói Dịch Vụ SaaS (Subscriptions)
-                </h1>
-                <p className="text-xs text-slate-500 mt-1">
-                  Định nghĩa các gói cước, thiết lập hạn mức tuyển dụng và giá thuê phần mềm định kỳ.
-                </p>
-              </div>
-
-              <button
-                onClick={() => {
+          <BillingWorkspace
+            plans={plans}
+            tenants={tenants}
+            view={billingView}
+            onViewChange={setBillingView}
+            monthlyRevenue={revenue?.mrr ?? 48500}
+            activeTenants={revenue?.activeTenants ?? tenants.filter((tenant) => tenant.status === "ACTIVE").length}
+            onCreatePlan={() => {
                   setIsNewPlan(true);
                   setPlanCode("");
                   setPlanName("");
@@ -1865,67 +1979,8 @@ export function MasterAdminDashboardPage() {
                   setMaxCvParses(500);
                   setMaxAiHours(20);
                   setShowPlanModal({} as SubscriptionPlan);
-                }}
-                className="px-4 py-2.5 text-xs font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition-all flex items-center gap-2"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Tạo Gói Dịch Vụ Mới</span>
-              </button>
-            </div>
-
-            {/* Plans Grid */}
-            <div className="grid md:grid-cols-3 gap-6">
-              {plans.map((plan) => (
-                <div
-                  key={plan.id || plan.code}
-                  className="p-7 rounded-2xl bg-white border border-slate-200/90 shadow-2xs flex flex-col justify-between hover:shadow-md transition-all"
-                >
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="text-lg font-bold text-slate-900">{plan.name}</h3>
-                      <span
-                        className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
-                          plan.status === "ACTIVE"
-                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                            : "bg-rose-50 text-rose-700 border border-rose-200"
-                        }`}
-                      >
-                        {plan.status}
-                      </span>
-                    </div>
-
-                    <p className="text-xs text-slate-500 mb-4 min-h-[32px]">{plan.description}</p>
-
-                    <div className="flex items-baseline gap-1 mb-6 pb-4 border-b border-slate-100">
-                      <span className="text-3xl font-extrabold text-blue-600">${plan.priceMonthly}</span>
-                      <span className="text-xs text-slate-500">/tháng (${plan.priceYearly}/năm)</span>
-                    </div>
-
-                    <ul className="space-y-3 text-xs text-slate-600 mb-6 font-medium">
-                      <li className="flex items-center gap-2">
-                        <Check className="w-4 h-4 text-blue-600" />
-                        <span>
-                          Tối đa <strong>{plan.maxJobs} Vị trí tuyển dụng</strong>
-                        </span>
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <Check className="w-4 h-4 text-blue-600" />
-                        <span>
-                          Sàng lọc <strong>{plan.maxCvParses.toLocaleString()} CVs</strong> / tháng
-                        </span>
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <Check className="w-4 h-4 text-blue-600" />
-                        <span>
-                          <strong>{plan.maxAiInterviewHours} Giờ</strong> Phỏng vấn AI Voice
-                        </span>
-                      </li>
-                    </ul>
-                  </div>
-
-                  <div className="flex items-center gap-2 pt-4 border-t border-slate-100">
-                    <button
-                      onClick={() => {
+            }}
+            onEditPlan={(plan) => {
                         setIsNewPlan(false);
                         setPlanCode(plan.code);
                         setPlanName(plan.name);
@@ -1936,60 +1991,47 @@ export function MasterAdminDashboardPage() {
                         setMaxCvParses(plan.maxCvParses);
                         setMaxAiHours(plan.maxAiInterviewHours);
                         setShowPlanModal(plan);
-                      }}
-                      className="flex-1 py-2 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs transition-colors flex items-center justify-center gap-1.5"
-                    >
-                      <Sliders className="w-3.5 h-3.5 text-slate-500" />
-                      <span>Sửa cấu hình</span>
-                    </button>
-
-                    <button
-                      onClick={() => handleTogglePlanStatus(plan)}
-                      className={`px-3 py-2 rounded-lg font-semibold text-xs transition-colors ${
-                        plan.status === "ACTIVE"
-                          ? "bg-rose-50 text-rose-600 hover:bg-rose-100"
-                          : "bg-emerald-50 text-emerald-600 hover:bg-emerald-100"
-                      }`}
-                    >
-                      {plan.status === "ACTIVE" ? "Tạm ngưng" : "Kích hoạt"}
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+            }}
+            onTogglePlanStatus={handleTogglePlanStatus}
+          />
         )}
 
         {/* TAB 4: SYSTEM AUDIT LOGS */}
         {activeTab === "logs" && (
           <div className="space-y-6 animate-fade-in">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div>
-                <h1 className="text-2xl font-bold text-slate-900">
-                  Nhật Ký Kiểm Toán Hệ Thống (Audit Logs)
-                </h1>
-                <p className="text-xs text-slate-500 mt-1">
-                  Ghi nhận mọi hành vi quản trị, cấp phát Database và các sự kiện an toàn thông tin toàn sàn.
-                </p>
+                <div className="mb-2 flex items-center gap-2"><span className="text-sm font-semibold text-blue-700">Hệ thống / Audit</span><span className="rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-blue-700">Master scope</span></div>
+                <h1 className="text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl">Nhật ký hệ thống</h1>
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">Theo dõi hành vi quản trị, quá trình cấp phát database và các sự kiện an toàn thông tin trên toàn nền tảng.</p>
               </div>
-
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-500">Lọc theo mức độ:</span>
-                <select
-                  value={logLevelFilter}
-                  onChange={(e) => setLogLevelFilter(e.target.value)}
-                  className="px-3 py-2 rounded-lg bg-white border border-slate-200 text-xs text-slate-700 focus:border-blue-600 focus:outline-none shadow-2xs"
-                >
-                  <option value="ALL">Tất cả mức độ</option>
-                  <option value="INFO">Thông tin (INFO)</option>
-                  <option value="WARN">Cảnh báo (WARN)</option>
-                  <option value="ERROR">Lỗi (ERROR)</option>
-                </select>
-              </div>
+              <button type="button" onClick={() => { const escapeCsv = (value: string | number) => `"${String(value).replace(/"/g, '""')}"`; const rows = filteredLogs.map((log) => [log.id, log.timestamp, log.level, log.tenantCode, log.action, log.ipAddress, log.description].map(escapeCsv).join(",")); const csv = ["ID,Timestamp,Level,Tenant,Action,IP Address,Description", ...rows].join("\n"); const link = document.createElement("a"); link.href = `data:text/csv;charset=utf-8,${encodeURIComponent(csv)}`; link.download = `system-audit-logs-${new Date().toISOString().slice(0, 10)}.csv`; document.body.appendChild(link); link.click(); document.body.removeChild(link); }} disabled={filteredLogs.length === 0} className="inline-flex min-h-10 items-center justify-center gap-2 self-start rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"><Download className="size-4" aria-hidden="true" />Xuất CSV ({filteredLogs.length})</button>
             </div>
 
+            <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Tổng quan nhật ký hệ thống">
+              {[
+                { label: "Tổng sự kiện", value: logs.length, detail: "Trong phạm vi dữ liệu hiện tại", icon: Activity, tone: "bg-blue-50 text-blue-700" },
+                { label: "Cảnh báo", value: logs.filter((log) => log.level === "WARN").length, detail: "Cần theo dõi hoặc xác minh", icon: AlertTriangle, tone: "bg-amber-50 text-amber-700" },
+                { label: "Lỗi hệ thống", value: logs.filter((log) => log.level === "ERROR").length, detail: "Sự kiện cần ưu tiên xử lý", icon: XCircle, tone: "bg-rose-50 text-rose-700" },
+                { label: "Tenant phát sinh log", value: logTenantOptions.length, detail: "Không truy cập dữ liệu tenant", icon: Building2, tone: "bg-violet-50 text-violet-700" },
+              ].map(({ label, value, detail, icon: Icon, tone }) => <article key={label} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_4px_14px_-8px_rgba(15,23,42,0.18)]"><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p><p className="mt-2 text-2xl font-bold text-slate-950">{value}</p></div><span className={`grid size-10 place-items-center rounded-xl ${tone}`}><Icon className="size-5" aria-hidden="true" /></span></div><p className="mt-3 text-xs text-slate-500">{detail}</p></article>)}
+            </section>
+
+            <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-2xs" aria-label="Bộ lọc nhật ký">
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(16rem,1.4fr)_repeat(3,minmax(9rem,0.7fr))_auto]">
+                <label className="relative"><span className="sr-only">Tìm kiếm nhật ký</span><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" /><input value={logSearch} onChange={(event) => setLogSearch(event.target.value)} placeholder="Tìm mã log, hành động, IP..." className="min-h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-3 text-sm outline-none transition-colors focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100" /></label>
+                <select value={logLevelFilter} onChange={(event) => setLogLevelFilter(event.target.value)} aria-label="Lọc theo mức độ" className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"><option value="ALL">Tất cả mức độ</option><option value="INFO">Thông tin (INFO)</option><option value="WARN">Cảnh báo (WARN)</option><option value="ERROR">Lỗi (ERROR)</option></select>
+                <select value={logTenantFilter} onChange={(event) => setLogTenantFilter(event.target.value)} aria-label="Lọc theo tenant" className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"><option value="ALL">Tất cả tenant</option>{logTenantOptions.map((code) => <option key={code} value={code}>{code}</option>)}</select>
+                <select value={logTimeRange} onChange={(event) => setLogTimeRange(event.target.value)} aria-label="Lọc theo thời gian" className="min-h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"><option value="ALL">Toàn bộ thời gian</option><option value="24H">24 giờ gần nhất</option><option value="7D">7 ngày gần nhất</option><option value="30D">30 ngày gần nhất</option></select>
+                <button type="button" onClick={() => { setLogSearch(""); setLogLevelFilter("ALL"); setLogTenantFilter("ALL"); setLogTimeRange("ALL"); }} className="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-600 hover:bg-slate-50">Xóa lọc</button>
+              </div>
+              <p className="mt-3 text-xs text-slate-500">Hiển thị {filteredLogs.length} trên {logs.length} sự kiện</p>
+            </section>
+
+            <TrafficIngressInspector tenants={tenants} />
+
             <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-2xs">
-              <table className="w-full text-left text-xs text-slate-600">
+              <div className="overflow-x-auto"><table className="w-full min-w-[980px] text-left text-xs text-slate-600">
                 <thead className="bg-slate-50 text-slate-800 font-semibold border-b border-slate-200">
                   <tr>
                     <th className="p-4">Mã Log</th>
@@ -2002,7 +2044,7 @@ export function MasterAdminDashboardPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredLogs.map((log) => (
+                  {paginatedLogs.map((log) => (
                     <tr key={log.id} className="hover:bg-slate-50/80 transition-colors font-mono">
                       <td className="p-4 text-slate-400">#{log.id}</td>
                       <td className="p-4 font-bold text-blue-600">{log.tenantCode}</td>
@@ -2036,10 +2078,16 @@ export function MasterAdminDashboardPage() {
                       </td>
                     </tr>
                   ))}
+                  {paginatedLogs.length === 0 && <tr><td colSpan={7} className="px-6 py-14 text-center"><FileText className="mx-auto size-8 text-slate-300" /><p className="mt-3 font-semibold text-slate-700">Không tìm thấy sự kiện phù hợp</p><p className="mt-1 text-slate-500">Thử thay đổi từ khóa hoặc xóa bộ lọc.</p></td></tr>}
                 </tbody>
-              </table>
+              </table></div>
+              <div className="flex flex-col gap-3 border-t border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between"><p className="text-xs text-slate-500">Trang {Math.min(logPage, logPageCount)} / {logPageCount}</p><div className="flex gap-2"><button type="button" disabled={logPage === 1} onClick={() => setLogPage((page) => Math.max(1, page - 1))} className="inline-flex min-h-9 items-center gap-1 rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"><ChevronLeft className="size-4" />Trước</button><button type="button" disabled={logPage >= logPageCount} onClick={() => setLogPage((page) => Math.min(logPageCount, page + 1))} className="inline-flex min-h-9 items-center gap-1 rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40">Sau<ChevronRight className="size-4" /></button></div></div>
             </div>
           </div>
+        )}
+
+        {(activeTab === "ai-usage" || activeTab === "ai-quotas") && (
+          <SystemManagementWorkspace view={activeTab} tenants={tenants} />
         )}
 
         {activeTab.startsWith("account-") && (

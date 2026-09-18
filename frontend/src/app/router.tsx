@@ -18,6 +18,7 @@ import { CompanyProfilePage } from "@/features/tenant/admin/company/pages/Compan
 import { SystemPage } from "@/features/tenant/admin/system/pages/SystemPage";
 import { UsersPage } from "@/features/tenant/admin/users/pages/UsersPage";
 import { AccountPage as TenantAdminAccountPage } from "@/features/tenant/admin/account/pages/AccountPage";
+import { AnalyticsPage } from "@/features/tenant/admin/analytics/pages/AnalyticsPage";
 import { AcceptInvitationPage } from "@/features/tenant/auth/pages/AcceptInvitationPage";
 import { candidateNav } from "@/features/tenant/candidate/nav";
 import { HomePage as CandidateHomePage } from "@/features/tenant/candidate/dashboard/pages/HomePage";
@@ -40,6 +41,7 @@ import { AssessmentsPage as RecruiterAssessmentsPage } from "@/features/tenant/r
 import { InterviewsPage as RecruiterInterviewsPage } from "@/features/tenant/recruiter/interviews/pages/InterviewsPage";
 import { SchedulesPage as RecruiterSchedulesPage } from "@/features/tenant/recruiter/schedules/pages/SchedulesPage";
 import { NotificationsPage as RecruiterNotificationsPage } from "@/features/tenant/recruiter/notifications/pages/NotificationsPage";
+import { RecruiterAnalyticsPage } from "@/features/tenant/recruiter/analytics/pages/RecruiterAnalyticsPage";
 
 function LegacyTenantAdminRedirect() {
   const location = useLocation();
@@ -107,6 +109,7 @@ export function AppRouter() {
           <Route path="rank" element={<RankingPage />} />
           <Route path="matching" element={<Navigate to="/recruiter/rank" replace />} />
           <Route path="pipeline" element={<PipelinePage />} />
+          <Route path="analytics" element={<RecruiterAnalyticsPage />} />
           <Route path="assessments" element={<RecruiterAssessmentsPage />} />
           <Route path="interviews" element={<RecruiterInterviewsPage />} />
           <Route path="schedules" element={<RecruiterSchedulesPage />} />
@@ -124,6 +127,7 @@ export function AppRouter() {
           <Route index element={<TenantAdminHomePage />} />
           <Route path="company" element={<CompanyProfilePage />} />
           <Route path="users" element={<UsersPage />} />
+          <Route path="analytics" element={<AnalyticsPage />} />
           <Route path="system" element={<SystemPage />} />
           <Route path="account" element={<TenantAdminAccountPage />} />
         </Route>
