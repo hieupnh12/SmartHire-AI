@@ -10,7 +10,7 @@ import { getApiErrorMessage } from "@/lib/axios";
 import { useT } from "@/i18n";
 import { LanguageSwitcher } from "@/components/ux/LanguageSwitcher";
 import { toast } from "@/stores/toastStore";
-import { getTenantIdFromWindow } from "@/lib/tenant";
+import { getTenantIdFromWindow, buildTenantUrl } from "@/lib/tenant";
 import { getTenantTheme, getTenantThemeStyle } from "@/lib/tenantTheme";
 import {
   ShieldCheck,
@@ -72,7 +72,16 @@ export function LoginPage() {
 
       const role = user?.role || "TENANT_ADMIN";
       toast.success("Đăng nhập thành công 🎉");
-      navigate(from && from !== "/login" && from !== "/internal/login" ? from : homeForRole(role), { replace: true });
+      const targetPath = from && from !== "/login" && from !== "/internal/login" ? from : homeForRole(role);
+      const tenantCode = res.data.tenantId || rawTenantCode || "acme";
+      localStorage.setItem("tenantId", tenantCode);
+
+      const targetUrl = buildTenantUrl(tenantCode, targetPath);
+      if (window.location.href !== targetUrl) {
+        window.location.href = targetUrl;
+      } else {
+        navigate(targetPath, { replace: true });
+      }
     },
     onError: (err) => toast.danger(getApiErrorMessage(err, t("common.errorGeneric"))),
   });

@@ -13,6 +13,7 @@ import lombok.Setter;
 @Builder
 public class MasterLoginResponse {
     private String accessToken;
+    private String refreshToken;
     @Builder.Default
     private String tokenType = "Bearer";
     private PlatformUserResponse user;

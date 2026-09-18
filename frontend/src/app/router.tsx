@@ -7,6 +7,7 @@ import { TenantOnboardPage } from "@/features/master/onboarding/pages/TenantOnbo
 import { LoginPage } from "@/features/tenant/auth/pages/LoginPage";
 import { RegisterPage } from "@/features/tenant/auth/pages/RegisterPage";
 import { CandidateLoginPage } from "@/features/tenant/auth/pages/CandidateLoginPage";
+import { OAuthCallbackPage } from "@/features/tenant/auth/pages/OAuthCallbackPage";
 import { MasterLoginPage } from "@/features/master/auth/pages/MasterLoginPage";
 import { MasterAdminDashboardPage } from "@/features/master/dashboard/pages/MasterAdminDashboardPage";
 import { TenantCareerPage } from "@/features/tenant/career/pages/TenantCareerPage";
@@ -59,6 +60,7 @@ export function AppRouter() {
       <Route path="/career" element={<TenantCareerPage />} />
       <Route path="/jobs" element={<TenantCareerPage />} />
       <Route path="/candidate/login" element={<CandidateLoginPage />} />
+      <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
       <Route path="/internal/login" element={<LoginPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />

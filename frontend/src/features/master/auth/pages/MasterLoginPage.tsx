@@ -31,6 +31,9 @@ export function MasterLoginPage() {
       const response = await masterAuthApi.login({ email, password });
       if (response.success && response.data) {
         localStorage.setItem("master_access_token", response.data.accessToken);
+        if (response.data.refreshToken) {
+          localStorage.setItem("master_refresh_token", response.data.refreshToken);
+        }
         navigate("/admin/dashboard", { replace: true });
       } else {
         setError(response.message || "Email hoặc mật khẩu không chính xác.");

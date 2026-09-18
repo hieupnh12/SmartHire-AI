@@ -97,4 +97,14 @@ public class JwtTokenProvider {
         }
         return null;
     }
+
+    public java.time.Duration getRemainingTtl(String token) {
+        try {
+            Date expiration = getClaimsFromToken(token).getExpiration();
+            long diff = expiration.getTime() - System.currentTimeMillis();
+            return diff > 0 ? java.time.Duration.ofMillis(diff) : java.time.Duration.ZERO;
+        } catch (Exception e) {
+            return java.time.Duration.ofHours(24);
+        }
+    }
 }

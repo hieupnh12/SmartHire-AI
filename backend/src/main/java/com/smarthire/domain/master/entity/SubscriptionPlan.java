@@ -3,75 +3,79 @@ package com.smarthire.domain.master.entity;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import lombok.*;
+import lombok.experimental.FieldDefaults;
 
 @Entity
 @Table(name = "subscription_plans")
+@Builder
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@FieldDefaults(level = AccessLevel.PRIVATE)
 public class SubscriptionPlan {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    Long id;
 
     @Column(nullable = false, unique = true, length = 64)
-    private String code;
+    String code;
 
     @Column(nullable = false, length = 128)
-    private String name;
+    String name;
 
-    private String description;
+    String description;
 
+    @Builder.Default
     @Column(name = "price_monthly", nullable = false)
-    private BigDecimal priceMonthly = BigDecimal.ZERO;
+    BigDecimal priceMonthly = BigDecimal.ZERO;
 
+    @Builder.Default
     @Column(name = "price_yearly", nullable = false)
-    private BigDecimal priceYearly = BigDecimal.ZERO;
+    BigDecimal priceYearly = BigDecimal.ZERO;
 
+    @Builder.Default
     @Column(name = "max_jobs", nullable = false)
-    private Integer maxJobs = 5;
+    Integer maxJobs = 5;
 
+    @Builder.Default
     @Column(name = "max_cv_parses", nullable = false)
-    private Integer maxCvParses = 100;
+    Integer maxCvParses = 100;
 
+    @Builder.Default
     @Column(name = "max_ai_interview_hours", nullable = false)
-    private Integer maxAiInterviewHours = 10;
+    Integer maxAiInterviewHours = 10;
 
+    @Builder.Default
+    @Column(name = "max_storage_gb", nullable = false)
+    Integer maxStorageGb = 5;
+
+    @Builder.Default
+    @Column(name = "max_proctoring_hours", nullable = false)
+    Integer maxProctoringHours = 0;
+
+    @Builder.Default
+    @Column(name = "video_retention_days", nullable = false)
+    Integer videoRetentionDays = 30;
+
+    @Column(name = "features_json", columnDefinition = "TEXT")
+    String featuresJson;
+
+    @Builder.Default
     @Column(nullable = false, length = 32)
-    private String status = "ACTIVE";
+    String status = "ACTIVE";
 
+    @Builder.Default
     @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime createdAt = LocalDateTime.now();
+    LocalDateTime createdAt = LocalDateTime.now();
 
-    public SubscriptionPlan() {}
+    @Builder.Default
+    @Column(name = "updated_at", nullable = false)
+    LocalDateTime updatedAt = LocalDateTime.now();
 
-    public Long getId() { return id; }
-    public void setId(Long id) { this.id = id; }
-
-    public String getCode() { return code; }
-    public void setCode(String code) { this.code = code; }
-
-    public String getName() { return name; }
-    public void setName(String name) { this.name = name; }
-
-    public String getDescription() { return description; }
-    public void setDescription(String description) { this.description = description; }
-
-    public BigDecimal getPriceMonthly() { return priceMonthly; }
-    public void setPriceMonthly(BigDecimal priceMonthly) { this.priceMonthly = priceMonthly; }
-
-    public BigDecimal getPriceYearly() { return priceYearly; }
-    public void setPriceYearly(BigDecimal priceYearly) { this.priceYearly = priceYearly; }
-
-    public Integer getMaxJobs() { return maxJobs; }
-    public void setMaxJobs(Integer maxJobs) { this.maxJobs = maxJobs; }
-
-    public Integer getMaxCvParses() { return maxCvParses; }
-    public void setMaxCvParses(Integer maxCvParses) { this.maxCvParses = maxCvParses; }
-
-    public Integer getMaxAiInterviewHours() { return maxAiInterviewHours; }
-    public void setMaxAiInterviewHours(Integer maxAiInterviewHours) { this.maxAiInterviewHours = maxAiInterviewHours; }
-
-    public String getStatus() { return status; }
-    public void setStatus(String status) { this.status = status; }
-
-    public LocalDateTime getCreatedAt() { return createdAt; }
+    @PreUpdate
+    public void onUpdate() {
+        this.updatedAt = LocalDateTime.now();
+    }
 }
