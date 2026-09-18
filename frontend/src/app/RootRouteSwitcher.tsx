@@ -1,12 +1,12 @@
 import { useState, useEffect } from "react";
-import { getTenantIdFromWindow } from "@/lib/tenant";
+import { getTenantIdFromSubdomain } from "@/lib/tenant";
 import { SaasLandingPage } from "@/features/master/landing/pages/SaasLandingPage";
 import { TenantCareerPage } from "@/features/tenant/career/pages/TenantCareerPage";
 import { TenantNotFoundPage } from "@/features/tenant/career/pages/TenantNotFoundPage";
 import { masterAdminApi } from "@/api/master/masterAdminApi";
 
 export function RootRouteSwitcher() {
-  const tenantId = getTenantIdFromWindow();
+  const tenantId = getTenantIdFromSubdomain();
 
   const [checking, setChecking] = useState(!!tenantId);
   const [tenantExists, setTenantExists] = useState(true);

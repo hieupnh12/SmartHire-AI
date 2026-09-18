@@ -6,34 +6,37 @@ import lombok.*;
 import lombok.experimental.FieldDefaults;
 
 @Entity
-@Table(name = "platform_users")
+@Table(name = "tenant_subscriptions")
 @Builder
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class PlatformUser {
+public class TenantSubscription {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     Long id;
 
-    @Column(nullable = false, unique = true)
-    String email;
+    @Column(name = "tenant_id", nullable = false)
+    Long tenantId;
 
-    @Column(name = "password_hash", nullable = false)
-    String passwordHash;
-
-    @Column(name = "full_name", nullable = false)
-    String fullName;
+    @Column(name = "plan_id", nullable = false)
+    Long planId;
 
     @Builder.Default
-    @Column(nullable = false, length = 32)
-    String role = "WORKSPACE_ADMIN";
-
-    @Builder.Default
-    @Column(nullable = false, length = 32)
     String status = "ACTIVE";
+
+    @Builder.Default
+    @Column(name = "starts_at", nullable = false)
+    LocalDateTime startsAt = LocalDateTime.now();
+
+    @Column(name = "ends_at")
+    LocalDateTime endsAt;
+
+    @Builder.Default
+    @Column(name = "auto_renew", nullable = false)
+    boolean autoRenew = true;
 
     @Builder.Default
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -47,4 +50,6 @@ public class PlatformUser {
     public void onUpdate() {
         this.updatedAt = LocalDateTime.now();
     }
+
+
 }

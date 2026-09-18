@@ -40,5 +40,13 @@ public final class RedisKeys {
     public static String cvAnalyzeLock(Long cvId) {
         return "lock:cv:analyze:" + cvId;
     }
+
+    public static String masterRefreshSession(String tokenId) {
+        return "auth:master:refresh:" + tokenId;
+    }
+
+    public static String masterLoginFailedAttempts(String email) {
+        return "ratelimit:master:login:failed:" + (email == null ? "" : email.trim().toLowerCase());
+    }
 }
 

@@ -35,7 +35,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**",
                                 "/actuator/health", "/actuator/health/**").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/v1/master/auth/login", "/api/v1/tenant/auth/login", "/api/v1/tenant/auth/google").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/master/auth/login", "/api/v1/master/auth/refresh", "/api/v1/master/auth/logout", "/api/v1/tenant/auth/login", "/api/v1/tenant/auth/google").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/master/consultations").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/master/tenants/check/*").permitAll()
                         .requestMatchers("/api/v1/master/**").hasRole("WORKSPACE_ADMIN")
                         .requestMatchers("/api/v1/tenant/users/**").hasAnyRole("TENANT_ADMIN", "ADMIN")

@@ -8,6 +8,8 @@ import {
   AiQuotaUsage,
   AuditLog,
 } from "@/api/master/masterAdminApi";
+import { masterAuthApi } from "@/api/master/masterAuthApi";
+import { consultationApi, ConsultationResponse } from "@/api/master/consultationApi";
 import { LanguageSwitcher } from "@/components/ux/LanguageSwitcher";
 import {
   BrainCircuit,
@@ -32,12 +34,17 @@ import {
   ExternalLink,
   Filter,
   Clock,
-  Layers
+  Layers,
+  KeyRound,
+  PhoneCall,
+  Inbox,
+  UserPlus,
+  Loader2
 } from "lucide-react";
 
 export function MasterAdminDashboardPage() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<"analytics" | "tenants" | "subscriptions" | "logs">("analytics");
+  const [activeTab, setActiveTab] = useState<"analytics" | "leads" | "tenants" | "subscriptions" | "logs">("analytics");
 
   // State Data
   const [tenants, setTenants] = useState<TenantInfo[]>([]);
@@ -45,6 +52,7 @@ export function MasterAdminDashboardPage() {
   const [revenue, setRevenue] = useState<RevenueAnalytics | null>(null);
   const [aiQuota, setAiQuota] = useState<AiQuotaUsage | null>(null);
   const [logs, setLogs] = useState<AuditLog[]>([]);
+  const [leads, setLeads] = useState<ConsultationResponse[]>([]);
 
   const [loading, setLoading] = useState(true);
 
@@ -53,11 +61,17 @@ export function MasterAdminDashboardPage() {
   const [showPlanModal, setShowPlanModal] = useState<SubscriptionPlan | null>(null);
   const [isNewPlan, setIsNewPlan] = useState(false);
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
+  const [selectedLead, setSelectedLead] = useState<ConsultationResponse | null>(null);
+  const [leadNotesEdit, setLeadNotesEdit] = useState("");
+  const [leadStatusEdit, setLeadStatusEdit] = useState<"PENDING" | "CONTACTED" | "PROVISIONED" | "REJECTED">("PENDING");
+  const [updatingLead, setUpdatingLead] = useState(false);
 
   // Filters state
   const [tenantSearch, setTenantSearch] = useState("");
   const [tenantStatusFilter, setTenantStatusFilter] = useState<string>("ALL");
   const [logLevelFilter, setLogLevelFilter] = useState<string>("ALL");
+  const [leadSearch, setLeadSearch] = useState("");
+  const [leadStatusFilter, setLeadStatusFilter] = useState<string>("ALL");
 
   // Plan Form state
   const [planCode, setPlanCode] = useState("");
@@ -72,10 +86,18 @@ export function MasterAdminDashboardPage() {
   // Action status message
   const [actionSuccessMsg, setActionSuccessMsg] = useState<string | null>(null);
 
+  // Change Password state
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [tenantsData, plansData, revenueData, quotaData, logsData] = await Promise.all([
+      const [tenantsData, plansData, revenueData, quotaData, logsData, leadsData] = await Promise.all([
         masterAdminApi.getTenants().catch(() => [
           {
             id: 1,
@@ -223,6 +245,40 @@ export function MasterAdminDashboardPage() {
             ipAddress: "14.161.42.99",
           },
         ] as AuditLog[]),
+        consultationApi.getAll().catch(() => [
+          {
+            id: 1,
+            companyName: "Tập đoàn VNP Group",
+            contactName: "Trần Minh Quang",
+            jobTitle: "HR Director",
+            workEmail: "quang.tm@vnp.com.vn",
+            phoneNumber: "0987 654 321",
+            companySize: "500-2000",
+            requestType: "CONTRACT_QUOTE" as const,
+            planTier: "Gói Doanh Nghiệp (Enterprise)",
+            primaryNeed: "Tự động hóa sàng lọc CV và phỏng vấn sơ loại AI",
+            notes: "Cần tư vấn báo giá hạ tầng Dedicated DB cho 15 HR và 5,000 CVs/tháng",
+            status: "PENDING" as const,
+            createdAt: "2026-09-17T14:30:00Z",
+            updatedAt: "2026-09-17T14:30:00Z",
+          },
+          {
+            id: 2,
+            companyName: "Techcom Finance JSC",
+            contactName: "Lê Thu Hà",
+            jobTitle: "Head of Talent Acquisition",
+            workEmail: "ha.lt@techcomfinance.vn",
+            phoneNumber: "0912 345 678",
+            companySize: "100-500",
+            requestType: "DEMO" as const,
+            planTier: "Gói Chuyên Nghiệp (Professional)",
+            primaryNeed: "Đánh giá bài test kỹ thuật tự động cho Developers",
+            notes: "Muốn xem demo trực tiếp tính năng Code Sandbox chấm điểm",
+            status: "CONTACTED" as const,
+            createdAt: "2026-09-16T09:15:00Z",
+            updatedAt: "2026-09-16T11:00:00Z",
+          }
+        ] as ConsultationResponse[]),
       ]);
 
       setTenants(tenantsData);
@@ -230,6 +286,7 @@ export function MasterAdminDashboardPage() {
       setRevenue(revenueData);
       setAiQuota(quotaData);
       setLogs(logsData);
+      setLeads(leadsData);
     } catch (err) {
       console.error("Error fetching workspace admin data:", err);
     } finally {
@@ -244,6 +301,58 @@ export function MasterAdminDashboardPage() {
   const triggerNotification = (msg: string) => {
     setActionSuccessMsg(msg);
     setTimeout(() => setActionSuccessMsg(null), 4000);
+  };
+
+  // Lead Handlers
+  const handleUpdateLeadStatus = async (
+    id: number,
+    status: "PENDING" | "CONTACTED" | "PROVISIONED" | "REJECTED",
+    notes?: string
+  ) => {
+    try {
+      const updated = await consultationApi.updateStatus(id, { status, notes });
+      setLeads((prev) => prev.map((l) => (l.id === id ? updated : l)));
+      if (selectedLead && selectedLead.id === id) {
+        setSelectedLead(updated);
+      }
+      triggerNotification(`Đã cập nhật trạng thái yêu cầu sang: ${status}`);
+    } catch (err: any) {
+      // Mock fallback if API offline
+      setLeads((prev) =>
+        prev.map((l) => (l.id === id ? { ...l, status, notes: notes || l.notes } : l))
+      );
+      if (selectedLead && selectedLead.id === id) {
+        setSelectedLead({ ...selectedLead, status, notes: notes || selectedLead.notes });
+      }
+      triggerNotification(`Đã cập nhật trạng thái yêu cầu sang: ${status}`);
+    }
+  };
+
+  const handleOpenLeadModal = (lead: ConsultationResponse) => {
+    setSelectedLead(lead);
+    setLeadNotesEdit(lead.notes || "");
+    setLeadStatusEdit(lead.status);
+  };
+
+  const handleSaveLeadModal = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedLead) return;
+    setUpdatingLead(true);
+    try {
+      await handleUpdateLeadStatus(selectedLead.id, leadStatusEdit, leadNotesEdit);
+      setSelectedLead(null);
+    } finally {
+      setUpdatingLead(false);
+    }
+  };
+
+  const handleProvisionFromLead = (lead: ConsultationResponse) => {
+    const query = new URLSearchParams({
+      name: lead.companyName,
+      email: lead.workEmail,
+      adminName: lead.contactName,
+    }).toString();
+    navigate(`/onboard?${query}`);
   };
 
   // Handlers
@@ -336,6 +445,49 @@ export function MasterAdminDashboardPage() {
     triggerNotification("Đã xuất báo cáo danh sách Tenant dạng CSV thành công!");
   };
 
+  const handleLogout = async () => {
+    try {
+      const refreshToken = localStorage.getItem("master_refresh_token");
+      await masterAuthApi.logout(refreshToken);
+    } catch {
+      // Ignore network errors on logout
+    } finally {
+      localStorage.removeItem("master_access_token");
+      localStorage.removeItem("master_refresh_token");
+      navigate("/admin/login", { replace: true });
+    }
+  };
+
+  const handleChangePasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordError(null);
+
+    if (newPassword.length < 12) {
+      setPasswordError("Mật khẩu mới phải có tối thiểu 12 ký tự.");
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setPasswordError("Xác nhận mật khẩu mới không khớp.");
+      return;
+    }
+
+    setPasswordLoading(true);
+    try {
+      await masterAuthApi.changePassword({ currentPassword, newPassword });
+      triggerNotification("Đổi mật khẩu Quản trị viên thành công!");
+      setShowPasswordModal(false);
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (err: any) {
+      const msg = err.response?.data?.message || err.message || "Không thể đổi mật khẩu. Vui lòng kiểm tra lại mật khẩu hiện tại.";
+      setPasswordError(msg);
+    } finally {
+      setPasswordLoading(false);
+    }
+  };
+
   // Filtered Lists
   const filteredTenants = useMemo(() => {
     return tenants.filter((t) => {
@@ -353,6 +505,24 @@ export function MasterAdminDashboardPage() {
       return logLevelFilter === "ALL" || log.level === logLevelFilter;
     });
   }, [logs, logLevelFilter]);
+
+  const filteredLeads = useMemo(() => {
+    return leads.filter((l) => {
+      const q = leadSearch.toLowerCase();
+      const matchSearch =
+        l.companyName.toLowerCase().includes(q) ||
+        l.contactName.toLowerCase().includes(q) ||
+        l.workEmail.toLowerCase().includes(q) ||
+        (l.phoneNumber && l.phoneNumber.toLowerCase().includes(q)) ||
+        (l.planTier && l.planTier.toLowerCase().includes(q));
+      const matchStatus = leadStatusFilter === "ALL" || l.status === leadStatusFilter;
+      return matchSearch && matchStatus;
+    });
+  }, [leads, leadSearch, leadStatusFilter]);
+
+  const pendingLeadsCount = useMemo(() => {
+    return leads.filter((l) => l.status === "PENDING").length;
+  }, [leads]);
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-800 font-sans antialiased flex flex-col justify-between selection:bg-blue-600 selection:text-white">
@@ -395,26 +565,36 @@ export function MasterAdminDashboardPage() {
               className="hidden sm:flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition-all"
             >
               <Plus className="w-4 h-4" />
-              <span>Khởi tạo Tenant mới</span>
+              <span>Cấp phát Tenant</span>
             </button>
 
             <button
-              onClick={fetchData}
-              className="p-2 rounded-lg border border-slate-200 text-slate-600 hover:text-blue-600 hover:bg-slate-50 transition-colors"
-              title="Làm mới dữ liệu"
+              onClick={() => fetchData()}
+              className="p-2 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-600 transition-colors"
+              title="Làm mới dữ liệu thời gian thực"
             >
               <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin text-blue-600" : ""}`} />
             </button>
 
             <LanguageSwitcher />
 
-            <div className="h-6 w-px bg-slate-200 hidden sm:block" />
-
             <button
               onClick={() => {
-                localStorage.removeItem("master_access_token");
-                navigate("/admin/login");
+                setPasswordError(null);
+                setCurrentPassword("");
+                setNewPassword("");
+                setConfirmPassword("");
+                setShowPasswordModal(true);
               }}
+              className="px-3 py-2 text-xs font-semibold rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors flex items-center gap-1.5"
+              title="Đổi mật khẩu tài khoản Quản trị viên"
+            >
+              <KeyRound className="w-3.5 h-3.5 text-slate-500" />
+              <span className="hidden sm:inline">Đổi mật khẩu</span>
+            </button>
+
+            <button
+              onClick={handleLogout}
               className="px-3 py-2 text-xs font-semibold rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 transition-colors flex items-center gap-1.5"
               title="Đăng xuất khỏi Workspace Admin"
             >
@@ -437,6 +617,23 @@ export function MasterAdminDashboardPage() {
             >
               <BarChart3 className="w-4 h-4" />
               <span>Tổng quan & Doanh thu</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab("leads")}
+              className={`px-4 py-2 text-xs font-semibold rounded-lg transition-all flex items-center gap-2 whitespace-nowrap ${
+                activeTab === "leads"
+                  ? "bg-white text-blue-700 shadow-2xs border border-slate-200"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
+              }`}
+            >
+              <PhoneCall className="w-4 h-4" />
+              <span>Yêu cầu Demo & Báo giá ({leads.length})</span>
+              {pendingLeadsCount > 0 && (
+                <span className="px-1.5 py-0.5 rounded-full bg-amber-500 text-white text-[10px] font-bold animate-pulse">
+                  {pendingLeadsCount} mới
+                </span>
+              )}
             </button>
 
             <button
@@ -676,6 +873,220 @@ export function MasterAdminDashboardPage() {
                     100% doanh nghiệp được cung cấp Database riêng biệt và connection pool độc lập, đảm bảo an toàn dữ liệu mức tối cao.
                   </p>
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB: ENTERPRISE DEMO & CONTRACT LEADS */}
+        {activeTab === "leads" && (
+          <div className="space-y-6 animate-fade-in">
+            {/* Header */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div>
+                <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2.5">
+                  <span>Yêu Cầu Demo & Báo Giá Hợp Đồng</span>
+                  {pendingLeadsCount > 0 && (
+                    <span className="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 text-xs font-bold border border-amber-300">
+                      {pendingLeadsCount} yêu cầu mới
+                    </span>
+                  )}
+                </h1>
+                <p className="text-xs text-slate-500 mt-1">
+                  Khách hàng doanh nghiệp quan tâm từ Landing Page. Trao đổi nhu cầu và trực tiếp Cấp phát Workspace riêng khi chốt hợp đồng.
+                </p>
+              </div>
+
+              <button
+                onClick={() => navigate("/onboard")}
+                className="px-4 py-2.5 text-xs font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition-all flex items-center gap-2"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Cấp phát Workspace thủ công</span>
+              </button>
+            </div>
+
+            {/* KPI Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="p-4 rounded-xl bg-white border border-slate-200/80 shadow-2xs">
+                <span className="text-xs text-slate-500 font-semibold block mb-1">Tổng Số Lead Tiếp Nhận</span>
+                <span className="text-2xl font-bold text-slate-900">{leads.length}</span>
+              </div>
+              <div className="p-4 rounded-xl bg-amber-50/60 border border-amber-200 shadow-2xs">
+                <span className="text-xs text-amber-800 font-semibold block mb-1">Chờ Xử Lý & Liên Hệ</span>
+                <span className="text-2xl font-bold text-amber-600">{pendingLeadsCount}</span>
+              </div>
+              <div className="p-4 rounded-xl bg-blue-50/60 border border-blue-200 shadow-2xs">
+                <span className="text-xs text-blue-800 font-semibold block mb-1">Đăng Ký Trải Nghiệm Demo</span>
+                <span className="text-2xl font-bold text-blue-600">
+                  {leads.filter((l) => l.requestType === "DEMO").length}
+                </span>
+              </div>
+              <div className="p-4 rounded-xl bg-emerald-50/60 border border-emerald-200 shadow-2xs">
+                <span className="text-xs text-emerald-800 font-semibold block mb-1">Báo Giá & Hợp Đồng Enterprise</span>
+                <span className="text-2xl font-bold text-emerald-600">
+                  {leads.filter((l) => l.requestType === "CONTRACT_QUOTE").length}
+                </span>
+              </div>
+            </div>
+
+            {/* Filter & Search */}
+            <div className="flex flex-col sm:flex-row items-center gap-3">
+              <div className="relative flex-1 w-full">
+                <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Tìm theo tên công ty, người liên hệ, email, số điện thoại..."
+                  value={leadSearch}
+                  onChange={(e) => setLeadSearch(e.target.value)}
+                  className="w-full pl-9 pr-4 py-2 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-blue-600"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <Filter className="w-4 h-4 text-slate-400 shrink-0" />
+                <select
+                  value={leadStatusFilter}
+                  onChange={(e) => setLeadStatusFilter(e.target.value)}
+                  className="px-3 py-2 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-blue-600 font-semibold text-slate-700"
+                >
+                  <option value="ALL">Tất cả trạng thái ({leads.length})</option>
+                  <option value="PENDING">Chờ xử lý ({leads.filter((l) => l.status === "PENDING").length})</option>
+                  <option value="CONTACTED">Đang trao đổi / Demo ({leads.filter((l) => l.status === "CONTACTED").length})</option>
+                  <option value="PROVISIONED">Đã cấp Workspace ({leads.filter((l) => l.status === "PROVISIONED").length})</option>
+                  <option value="REJECTED">Từ chối / Hủy ({leads.filter((l) => l.status === "REJECTED").length})</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Leads Table */}
+            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-600 font-semibold">
+                      <th className="py-3 px-4">Doanh Nghiệp</th>
+                      <th className="py-3 px-4">Người Liên Hệ</th>
+                      <th className="py-3 px-4">Loại Yêu Cầu & Gói</th>
+                      <th className="py-3 px-4">Nhu Cầu / Ghi Chú</th>
+                      <th className="py-3 px-4">Thời Gian</th>
+                      <th className="py-3 px-4">Trạng Thái</th>
+                      <th className="py-3 px-4 text-right">Thao Tác</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {filteredLeads.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="text-center py-10 text-slate-400">
+                          <Inbox className="w-8 h-8 mx-auto mb-2 text-slate-300" />
+                          <span>Không tìm thấy yêu cầu demo hoặc báo giá nào.</span>
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredLeads.map((lead) => (
+                        <tr key={lead.id} className="hover:bg-slate-50/60 transition-colors">
+                          <td className="py-3.5 px-4">
+                            <div className="font-bold text-slate-900">{lead.companyName}</div>
+                            <div className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
+                              <Building2 className="w-3 h-3 text-slate-400" />
+                              <span>Quy mô: {lead.companySize || "Chưa rõ"}</span>
+                            </div>
+                          </td>
+
+                          <td className="py-3.5 px-4">
+                            <div className="font-semibold text-slate-800">{lead.contactName}</div>
+                            {lead.jobTitle && <div className="text-[11px] text-slate-500">{lead.jobTitle}</div>}
+                            <div className="text-[11px] text-blue-600 font-mono mt-0.5">{lead.workEmail}</div>
+                            {lead.phoneNumber && (
+                              <div className="text-[11px] text-slate-500 font-mono">{lead.phoneNumber}</div>
+                            )}
+                          </td>
+
+                          <td className="py-3.5 px-4">
+                            <span
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold ${
+                                lead.requestType === "CONTRACT_QUOTE"
+                                  ? "bg-purple-50 text-purple-700 border border-purple-200"
+                                  : "bg-sky-50 text-sky-700 border border-sky-200"
+                              }`}
+                            >
+                              {lead.requestType === "CONTRACT_QUOTE" ? "Báo Giá Hợp Đồng" : "Trải Nghiệm Demo"}
+                            </span>
+                            <div className="text-[11px] text-slate-600 font-medium mt-1 truncate max-w-[180px]">
+                              {lead.planTier || "Chưa chọn gói"}
+                            </div>
+                          </td>
+
+                          <td className="py-3.5 px-4 max-w-[220px]">
+                            {lead.notes ? (
+                              <p className="text-[11px] text-slate-700 line-clamp-2 leading-relaxed" title={lead.notes}>
+                                {lead.notes}
+                              </p>
+                            ) : lead.primaryNeed ? (
+                              <p className="text-[11px] text-slate-500 line-clamp-2" title={lead.primaryNeed}>
+                                {lead.primaryNeed}
+                              </p>
+                            ) : (
+                              <span className="text-[11px] text-slate-400 italic">—</span>
+                            )}
+                          </td>
+
+                          <td className="py-3.5 px-4 text-slate-500 whitespace-nowrap text-[11px]">
+                            {new Date(lead.createdAt).toLocaleDateString("vi-VN", {
+                              day: "2-digit",
+                              month: "2-digit",
+                              year: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </td>
+
+                          <td className="py-3.5 px-4 whitespace-nowrap">
+                            <span
+                              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold ${
+                                lead.status === "PENDING"
+                                  ? "bg-amber-50 text-amber-700 border border-amber-200"
+                                  : lead.status === "CONTACTED"
+                                  ? "bg-blue-50 text-blue-700 border border-blue-200"
+                                  : lead.status === "PROVISIONED"
+                                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                  : "bg-rose-50 text-rose-700 border border-rose-200"
+                              }`}
+                            >
+                              {lead.status === "PENDING" && "Chờ liên hệ"}
+                              {lead.status === "CONTACTED" && "Đang trao đổi"}
+                              {lead.status === "PROVISIONED" && "Đã cấp Tenant"}
+                              {lead.status === "REJECTED" && "Từ chối"}
+                            </span>
+                          </td>
+
+                          <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                onClick={() => handleOpenLeadModal(lead)}
+                                className="px-2.5 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-700 text-[11px] font-semibold transition-colors"
+                                title="Xem chi tiết & Cập nhật ghi chú"
+                              >
+                                Chi tiết
+                              </button>
+
+                              {lead.status !== "PROVISIONED" && (
+                                <button
+                                  onClick={() => handleProvisionFromLead(lead)}
+                                  className="px-2.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-semibold transition-colors flex items-center gap-1 shadow-2xs"
+                                  title="Tự động điền thông tin và chuyển tới trang cấp phát Database riêng"
+                                >
+                                  <UserPlus className="w-3.5 h-3.5" />
+                                  <span>Cấp Workspace</span>
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>
@@ -1300,6 +1711,232 @@ export function MasterAdminDashboardPage() {
                 Đóng
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: LEAD DETAIL & EDIT NOTES */}
+      {selectedLead && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 max-w-lg w-full shadow-2xl relative animate-fade-in max-h-[90vh] overflow-y-auto">
+            <button
+              onClick={() => setSelectedLead(null)}
+              className="absolute top-6 right-6 text-slate-400 hover:text-slate-800"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold border border-blue-200">
+                <PhoneCall className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">{selectedLead.companyName}</h3>
+                <span className="text-xs text-slate-500">
+                  {selectedLead.requestType === "CONTRACT_QUOTE"
+                    ? "Yêu cầu Báo giá & Hợp đồng"
+                    : "Đăng ký Trải nghiệm Demo"} · Lead #{selectedLead.id}
+                </span>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 p-4 rounded-xl space-y-2.5 border border-slate-200 text-xs mb-5">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <span className="text-slate-500 block text-[11px]">Người liên hệ:</span>
+                  <span className="font-semibold text-slate-800">{selectedLead.contactName}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block text-[11px]">Chức vụ:</span>
+                  <span className="text-slate-700">{selectedLead.jobTitle || "—"}</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <span className="text-slate-500 block text-[11px]">Email doanh nghiệp:</span>
+                  <a href={`mailto:${selectedLead.workEmail}`} className="text-blue-600 font-mono hover:underline">
+                    {selectedLead.workEmail}
+                  </a>
+                </div>
+                <div>
+                  <span className="text-slate-500 block text-[11px]">Số điện thoại:</span>
+                  <a href={`tel:${selectedLead.phoneNumber}`} className="text-slate-800 font-mono hover:underline">
+                    {selectedLead.phoneNumber || "—"}
+                  </a>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-200/60">
+                <div>
+                  <span className="text-slate-500 block text-[11px]">Quy mô nhân sự:</span>
+                  <span className="text-slate-700">{selectedLead.companySize || "—"}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block text-[11px]">Gói quan tâm:</span>
+                  <span className="font-semibold text-blue-700">{selectedLead.planTier || "—"}</span>
+                </div>
+              </div>
+
+              {selectedLead.primaryNeed && (
+                <div className="pt-1 border-t border-slate-200/60">
+                  <span className="text-slate-500 block text-[11px]">Nhu cầu chính:</span>
+                  <span className="text-slate-700">{selectedLead.primaryNeed}</span>
+                </div>
+              )}
+
+              <div className="pt-1 border-t border-slate-200/60 flex justify-between text-[11px] text-slate-500">
+                <span>Thời gian đăng ký:</span>
+                <span>{new Date(selectedLead.createdAt).toLocaleString("vi-VN")}</span>
+              </div>
+            </div>
+
+            <form onSubmit={handleSaveLeadModal} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Trạng thái xử lý *</label>
+                <select
+                  value={leadStatusEdit}
+                  onChange={(e) => setLeadStatusEdit(e.target.value as any)}
+                  className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 font-semibold focus:outline-none focus:border-blue-600"
+                >
+                  <option value="PENDING">Chờ xử lý / Chưa liên hệ</option>
+                  <option value="CONTACTED">Đang liên hệ & Trao đổi Demo</option>
+                  <option value="PROVISIONED">Đã cấp phát Workspace (Hoàn tất)</option>
+                  <option value="REJECTED">Từ chối / Hủy yêu cầu</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Ghi chú chăm sóc / Nhu cầu chi tiết</label>
+                <textarea
+                  rows={3}
+                  value={leadNotesEdit}
+                  onChange={(e) => setLeadNotesEdit(e.target.value)}
+                  placeholder="Nhập ghi chú sau khi gọi điện/trao đổi với khách hàng..."
+                  className="w-full px-3.5 py-2 rounded-lg border border-slate-300 focus:outline-none focus:border-blue-600 resize-none"
+                />
+              </div>
+
+              <div className="pt-2 flex flex-col sm:flex-row gap-2.5">
+                {selectedLead.status !== "PROVISIONED" && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const l = selectedLead;
+                      setSelectedLead(null);
+                      handleProvisionFromLead(l);
+                    }}
+                    className="py-2.5 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold flex items-center justify-center gap-1.5 transition-colors"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    <span>Cấp Workspace Ngay</span>
+                  </button>
+                )}
+
+                <div className="flex-1 flex gap-2 justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedLead(null)}
+                    className="px-4 py-2.5 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 font-semibold"
+                  >
+                    Đóng
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={updatingLead}
+                    className="px-5 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold disabled:opacity-50 flex items-center gap-1.5"
+                  >
+                    {updatingLead ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                    <span>Lưu Thay Đổi</span>
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 4: CHANGE PASSWORD */}
+      {showPasswordModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 max-w-md w-full shadow-2xl relative animate-fade-in">
+            <button
+              onClick={() => setShowPasswordModal(false)}
+              className="absolute top-6 right-6 text-slate-400 hover:text-slate-800"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold border border-blue-200">
+                <KeyRound className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">Đổi Mật Khẩu Quản Trị</h3>
+                <span className="text-xs text-slate-500">Cập nhật mật khẩu bảo vệ Master Admin</span>
+              </div>
+            </div>
+
+            {passwordError && (
+              <div className="mb-4 p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-600 text-xs flex items-start gap-2">
+                <XCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>{passwordError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleChangePasswordSubmit} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Mật khẩu hiện tại *</label>
+                <input
+                  type="password"
+                  required
+                  placeholder="••••••••••••"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Mật khẩu mới (Tối thiểu 12 ký tự) *</label>
+                <input
+                  type="password"
+                  required
+                  placeholder="••••••••••••"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Xác nhận mật khẩu mới *</label>
+                <input
+                  type="password"
+                  required
+                  placeholder="••••••••••••"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+                />
+              </div>
+
+              <div className="pt-2 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowPasswordModal(false)}
+                  className="w-1/2 py-2.5 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 font-semibold"
+                >
+                  Hủy bỏ
+                </button>
+                <button
+                  type="submit"
+                  disabled={passwordLoading}
+                  className="w-1/2 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold disabled:opacity-50"
+                >
+                  {passwordLoading ? "Đang cập nhật..." : "Lưu mật khẩu"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

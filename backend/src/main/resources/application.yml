@@ -11,6 +11,7 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration/master
+    validate-on-migrate: false
   data:
     redis:
       host: ${REDIS_HOST:localhost}

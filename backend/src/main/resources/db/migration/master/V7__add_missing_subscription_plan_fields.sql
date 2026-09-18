@@ -1,0 +1,5 @@
+ALTER TABLE subscription_plans
+    ADD COLUMN IF NOT EXISTS max_storage_gb INT NOT NULL DEFAULT 5,
+    ADD COLUMN IF NOT EXISTS max_proctoring_hours INT NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS video_retention_days INT NOT NULL DEFAULT 30,
+    ADD COLUMN IF NOT EXISTS features_json TEXT NULL;
