@@ -28,4 +28,19 @@ public class TenantRegistryService {
         }
         return tenant;
     }
+
+    @Transactional(transactionManager = "masterTransactionManager", readOnly = true)
+    public TenantInfo requireActiveBySubdomain(String subdomain) {
+        if (subdomain == null || subdomain.isBlank()) {
+            throw new BusinessException("Tenant is required", HttpStatus.BAD_REQUEST, "TENANT_REQUIRED");
+        }
+        String normalized = subdomain.trim().toLowerCase(Locale.ROOT);
+        TenantInfo tenant = repository.findBySubdomain(normalized)
+                .orElseThrow(() -> new BusinessException("Tenant subdomain not found", HttpStatus.NOT_FOUND,
+                        "TENANT_NOT_FOUND"));
+        if (!"ACTIVE".equals(tenant.getStatus())) {
+            throw new BusinessException("Tenant is not active", HttpStatus.FORBIDDEN, "TENANT_INACTIVE");
+        }
+        return tenant;
+    }
 }

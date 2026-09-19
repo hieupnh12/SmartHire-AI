@@ -39,7 +39,18 @@ public class TenantDataSourceFactory {
     }
 
     public void migrate(HikariDataSource dataSource) {
-        Flyway.configure().dataSource(dataSource).locations("classpath:db/migration/tenant")
-                .cleanDisabled(true).baselineOnMigrate(false).load().migrate();
+        Flyway flyway = Flyway.configure()
+                .dataSource(dataSource)
+                .locations("classpath:db/migration/tenant")
+                .cleanDisabled(true)
+                .baselineOnMigrate(false)
+                .load();
+        try {
+            flyway.migrate();
+        } catch (Exception first) {
+            // A previous failed V4 leaves Flyway blocked until repair.
+            flyway.repair();
+            flyway.migrate();
+        }
     }
 }

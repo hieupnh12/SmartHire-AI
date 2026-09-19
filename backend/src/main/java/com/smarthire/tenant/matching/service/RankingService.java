@@ -8,6 +8,7 @@ import com.smarthire.domain.tenant.entity.*;
 import com.smarthire.domain.tenant.repository.RankingDataRepository;
 import com.smarthire.multitenancy.context.TenantContext;
 import com.smarthire.tenant.matching.dto.RankingModels.*;
+import com.smarthire.tenant.matching.realtime.RankingWebSocketHandler;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.YearMonth;
@@ -28,16 +29,27 @@ public class RankingService {
     private final SkillScoringService skills;
     private final ExperienceScoringService experience;
     private final ObjectMapper mapper;
+    private final RankingWebSocketHandler realtime;
+    @org.springframework.beans.factory.annotation.Autowired
+    public RankingService(RankingDataRepository data, RankingCalculator calculator, SkillScoringService skills,
+                          ExperienceScoringService experience, ObjectMapper mapper,
+                          org.springframework.beans.factory.ObjectProvider<RankingWebSocketHandler> realtime) {
+        this.data = data; this.calculator = calculator; this.skills = skills; this.experience = experience; this.mapper = mapper;
+        this.realtime = realtime.getIfAvailable();
+    }
     public RankingService(RankingDataRepository data, RankingCalculator calculator, SkillScoringService skills,
                           ExperienceScoringService experience, ObjectMapper mapper) {
-        this.data = data; this.calculator = calculator; this.skills = skills; this.experience = experience; this.mapper = mapper;
+        this.data = data; this.calculator = calculator; this.skills = skills; this.experience = experience; this.mapper = mapper; this.realtime = null;
     }
+    private static final Set<String> STAFF = Set.of(
+            "ROLE_RECRUITER", "ROLE_HR", "ROLE_ADMIN", "ROLE_TENANT_ADMIN");
+
     private String actor() {
         var auth = SecurityContextHolder.getContext().getAuthentication();
         String tenant = TenantContext.getCurrentTenant();
         if (tenant == null || tenant.isBlank() || tenant.equals("smarthire_master") || auth == null
                 || !auth.isAuthenticated() || !tenant.equals(auth.getDetails())
-                || auth.getAuthorities().stream().noneMatch(a -> a.getAuthority().equals("ROLE_RECRUITER")))
+                || auth.getAuthorities().stream().map(a -> a.getAuthority()).noneMatch(STAFF::contains))
             throw new BusinessException("Recruiter tenant access required", HttpStatus.FORBIDDEN, "RANKING_FORBIDDEN");
         return auth.getName();
     }
@@ -84,11 +96,61 @@ public class RankingService {
         Config config = new Config(request.weights(), request.groups(), request.requiredExperienceMonths(), revision + 1);
         RankingConfig entity = stored == null ? new RankingConfig() : stored;
         entity.setJobId(jobId); entity.setRevision(revision + 1); entity.setConfigJson(encode(config)); data.save(entity);
-        return compute(job, true);
+        return notifyUpdated(compute(job, true));
     }
     @Transactional(readOnly = true)
     public Board board(long jobId) { return compute(authorize(jobId, false), false); }
-    public Board recompute(long jobId) { return compute(authorize(jobId, true), true); }
+    @Transactional(readOnly = true)
+    public BoardPage page(long jobId, int page, int size, String search, String status, String cohort,
+                          BigDecimal minScore, String sort) {
+        if (page < 0 || !Set.of(20, 50, 100).contains(size))
+            throw new IllegalArgumentException("Page must be non-negative and size must be 20, 50 or 100");
+        if (!Set.of("score", "skills", "experience", "assessment", "interview").contains(sort))
+            throw new IllegalArgumentException("Unsupported ranking sort");
+        Board board = compute(authorize(jobId, false), false);
+        List<Row> all = board.rows();
+        Set<String> terminal = Set.of("REJECTED", "WITHDRAWN", "HIRED");
+        String term = search == null ? "" : search.trim().toLowerCase(Locale.ROOT);
+        List<Row> filtered = all.stream()
+                .filter(row -> term.isEmpty() || row.candidateName().toLowerCase(Locale.ROOT).contains(term))
+                .filter(row -> "ALL".equals(status) || ("ACTIVE".equals(status) ? !terminal.contains(row.status()) : row.status().equals(status)))
+                .filter(row -> "ALL".equals(cohort) || ("COMPLETE".equals(cohort) ? row.result().complete() : row.result().cohort().equals(cohort)))
+                .filter(row -> minScore == null || row.result().score() != null && row.result().score().compareTo(minScore) >= 0)
+                .sorted(Comparator.comparing((Row row) -> sortScore(row, sort), Comparator.nullsLast(Comparator.reverseOrder()))
+                        .thenComparing(Row::applicationId))
+                .toList();
+        int from = Math.min(page * size, filtered.size());
+        int to = Math.min(from + size, filtered.size());
+        List<Row> items = filtered.subList(from, to).stream().map(this::lightweight).toList();
+        List<Row> scored = all.stream().filter(row -> row.result().score() != null).toList();
+        Row top = scored.stream().max(Comparator.comparing(row -> row.result().score())).orElse(null);
+        BigDecimal average = scored.isEmpty() ? null : scored.stream().map(row -> row.result().score())
+                .reduce(BigDecimal.ZERO, BigDecimal::add).divide(BigDecimal.valueOf(scored.size()), 2, java.math.RoundingMode.HALF_UP);
+        Summary summary = new Summary(all.size(), all.stream().filter(row -> !terminal.contains(row.status())).count(), scored.size(),
+                average, top == null ? null : top.candidateName(), top == null ? null : top.result().score(),
+                all.stream().filter(row -> row.result().complete()).count());
+        return new BoardPage(board.jobId(), board.jobTitle(), board.config(), board.rankingVersion(), board.calculatedAt(),
+                items, board.skillCategories(), all.stream().map(row -> row.result().cohort()).filter(value -> !value.isBlank()).distinct().sorted().toList(), summary,
+                new PageInfo(page, size, filtered.size(), filtered.isEmpty() ? 0 : (filtered.size() + size - 1) / size));
+    }
+
+    private BigDecimal sortScore(Row row, String key) {
+        if ("score".equals(key)) return row.result().score();
+        return row.result().components().stream().filter(component -> component.key().equals(key))
+                .map(Component::score).findFirst().orElse(null);
+    }
+
+    private Row lightweight(Row row) {
+        return new Row(row.applicationId(), row.candidateName(), row.status(), row.rank(), row.result(), List.of(), List.of(),
+                row.experienceMonths(), List.of(), row.notices(), row.sources(), null, List.of(), null);
+    }
+    public Board recompute(long jobId) { return notifyUpdated(compute(authorize(jobId, true), true)); }
+    public Board recomputeFromWorker(long jobId) {
+        Job job = data.job(jobId, true);
+        if (job == null || job.getDeletedAt() != null)
+            throw new BusinessException("Job not found", HttpStatus.NOT_FOUND, "JOB_NOT_FOUND");
+        return notifyUpdated(compute(job, true));
+    }
     @Transactional(readOnly = true)
     public Row overall(long appId) {
         Application app = application(appId);
@@ -110,7 +172,17 @@ public class RankingService {
         RankingSource source = new RankingSource();
         source.setApplicationId(appId); source.setCvId(selected.cvId()); source.setAttemptId(selected.attemptId()); source.setInterviewId(selected.interviewId());
         data.save(source);
-        return compute(job, true);
+        return notifyUpdated(compute(job, true));
+    }
+    private Board notifyUpdated(Board board) {
+        if (realtime != null) {
+            String tenant = TenantContext.getCurrentTenant();
+            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                    new org.springframework.transaction.support.TransactionSynchronization() {
+                        @Override public void afterCommit() { realtime.rankingUpdated(tenant, board.jobId(), board.rankingVersion()); }
+                    });
+        }
+        return board;
     }
     private Selection selection(long appId) {
         RankingSource selected = data.source(appId);
@@ -177,11 +249,31 @@ public class RankingService {
                 interview == null ? (interviews.size() > 1 ? "SELECT_SOURCE" : "MISSING") : interview.getStatus() == InterviewStatus.FAILED ? "FAILED" : "PROCESSING");
         List<String> missing = groups.stream().flatMap(g -> g.matches().stream()).filter(m -> m.required() && m.similarity().compareTo(BigDecimal.ONE) < 0)
                 .map(SkillMatch::requiredSkill).toList();
+        List<TimelineEvent> timeline = new ArrayList<>();
+        timeline.add(new TimelineEvent("APPLICATION_RECEIVED", app.getCreatedAt()));
+        data.history(id).forEach(item -> timeline.add(new TimelineEvent("STATUS_" + item.getToStatus(), item.getCreatedAt())));
+        if (cv != null && cv.getStatus() == CvStatus.ANALYZED) timeline.add(new TimelineEvent("CV_ANALYZED", cv.getUpdatedAt()));
+        if (assessment != null) timeline.add(new TimelineEvent("ASSESSMENT_GRADED", assessment.getGradedAt()));
+        if (interviewScore != null) timeline.add(new TimelineEvent("INTERVIEW_SCORED", interviewScore.getCreatedAt()));
+        timeline.sort(Comparator.comparing(TimelineEvent::occurredAt, Comparator.nullsLast(Comparator.naturalOrder())));
         if (config.revision() == 0) scores.clear();
         return new Row(id, app.getCandidate().getFullName(), app.getStatus().name(), null,
                 calculator.calculate(config.weights(), scores, states), groups, missing, exp.months(), exp.evidence(), notices,
                 new Selection(cv == null ? null : cv.getId(), attempt == null ? null : attempt.getId(), interview == null ? null : interview.getId()),
-                interviewScore == null ? null : interviewScore.getFeedback());
+                interviewScore == null ? null : interviewScore.getFeedback(), timeline,
+                insight(calculator.calculate(config.weights(), scores, states), missing));
+    }
+    private Insight insight(Calculation result, List<String> missing) {
+        BigDecimal score = result.score();
+        String recommendation = score == null ? "WAIT_FOR_DATA" : score.compareTo(BigDecimal.valueOf(80)) >= 0
+                ? "ADVANCE" : score.compareTo(BigDecimal.valueOf(60)) >= 0 ? "REVIEW" : "HOLD";
+        List<String> strengths = result.components().stream().filter(component -> component.score() != null && component.score().compareTo(BigDecimal.valueOf(75)) >= 0)
+                .map(component -> "STRONG_" + component.key().toUpperCase(Locale.ROOT)).toList();
+        List<String> risks = new ArrayList<>();
+        if (!missing.isEmpty()) risks.add("MISSING_REQUIRED_SKILLS");
+        result.components().stream().filter(component -> component.score() == null).map(component -> "MISSING_" + component.key().toUpperCase(Locale.ROOT)).forEach(risks::add);
+        List<String> questions = missing.stream().limit(3).map(skill -> "VERIFY_SKILL:" + skill).toList();
+        return new Insight(recommendation, strengths, risks, questions);
     }
     private void addScore(Map<String, BigDecimal> scores, Map<String, String> states, String key, BigDecimal value, String absent) {
         if (value != null && (value.signum() < 0 || value.compareTo(BigDecimal.valueOf(100)) > 0)) states.put(key, "NEEDS_REVIEW");

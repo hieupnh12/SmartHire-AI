@@ -45,7 +45,7 @@ class CandidateAuthControllerTest {
                 1L, "candidate@example.com", "Nguyễn Văn A", "https://avatar.com/1.jpg", "CANDIDATE", "Candidate", "ACTIVE"
         );
         CandidateLoginResponse response = new CandidateLoginResponse(
-                "mock-access-token", "mock-refresh-token", "Bearer", "acme", profile
+                "mock-access-token", "mock-refresh-token", "Bearer", "acme", "se36", profile
         );
 
         when(candidateAuthService.authenticateWithGoogle(any(GoogleLoginRequest.class))).thenReturn(response);
@@ -56,6 +56,7 @@ class CandidateAuthControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.accessToken").value("mock-access-token"))
+                .andExpect(jsonPath("$.data.subdomain").value("se36"))
                 .andExpect(jsonPath("$.data.candidate.email").value("candidate@example.com"));
     }
 

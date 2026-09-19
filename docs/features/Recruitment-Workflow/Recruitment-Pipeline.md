@@ -1,37 +1,40 @@
 # Recruitment Pipeline
 
 **Epic:** Recruitment Workflow Management  
-**Trạng thái:** `To Do`  
+**Trạng thái:** `Doing`  
 **Code ID:** `WF-01`
 
 ## Mục đích chức năng
 
-Kanban/pipeline theo stages của job; kéo thả chuyển ứng viên.
+Luồng tuyển dụng theo job: Apply → sàng lọc CV → phỏng vấn AI → technical test (code + trắc nghiệm) → điểm tổng. Recruiter xem kết quả các vòng rồi quyết định phỏng vấn trực tiếp (online/offline). Kanban kéo-thả chưa làm.
 
 ## Actor
 
-- Recruiter
+- Recruiter, Candidate, System (auto-advance khi CV đạt)
 
 ## Luồng hoạt động
 
-1. `GET /jobs/{id}/pipeline`.
-2. Move application → stage.
-3. Emit notification + analytics invalidate.
+1. Candidate apply; trạng thái `NEW` (Đã apply).
+2. Recruiter/system sàng lọc CV (`IN_REVIEW`). Điểm ≥ 60 và không thiếu skill bắt buộc → `INTERVIEW` (phỏng vấn AI). Không tự reject nếu chưa đạt.
+3. Sau phỏng vấn AI → `ASSESSMENT` (technical test). Module interview/test chưa triển khai.
+4. Recruiter xem điểm các vòng (Matching / overall) rồi quyết định F2F / offer.
 
 ## Business Rules
 
-- Transition rules (optional gates: cần assessment pass).
+- Không auto-reject khi CV chưa đạt.
+- Recruiter list không gồm `WITHDRAWN`.
 
 ## API liên quan
 
 | Method | Path |
 |---|---|
-| GET | `/api/v1/jobs/{id}/pipeline` |
-| POST | `/api/v1/applications/{id}/move` |
+| GET | `/api/v1/jobs/{id}/applications` |
+| GET | `/api/v1/applications/me` |
+| POST | `/api/v1/applications/{id}/status` |
 
 ## Database liên quan
 
-- `applications.stage_id`, `recruitment_stages`
+- `applications.status`, `match_scores`
 
 ## UI mockup
 
@@ -40,4 +43,4 @@ Kanban/pipeline theo stages của job; kéo thả chuyển ứng viên.
 
 ## Phụ thuộc
 
-JOB-04, JOB-05
+JOB-04, JOB-05, CV-05

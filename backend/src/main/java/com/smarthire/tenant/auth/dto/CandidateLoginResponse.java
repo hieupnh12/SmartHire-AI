@@ -17,6 +17,7 @@ public class CandidateLoginResponse {
     @Builder.Default
     private String tokenType = "Bearer";
     private String tenantId;
+    private String subdomain;
     private CandidateProfileResponse candidate;
 }
 

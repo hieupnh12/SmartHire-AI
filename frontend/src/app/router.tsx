@@ -2,6 +2,7 @@ import { MasterRoute } from "@/app/guards/MasterRoute";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { RootRouteSwitcher } from "@/app/RootRouteSwitcher";
 import { RoleRoute } from "@/app/guards/RoleRoute";
+import { TenantSubdomainGuard } from "@/app/guards/TenantSubdomainGuard";
 import { RoleShell } from "@/app/layouts/RoleShell";
 import { TenantOnboardPage } from "@/features/master/onboarding/pages/TenantOnboardPage";
 import { LoginPage } from "@/features/tenant/auth/pages/LoginPage";
@@ -23,6 +24,7 @@ import { AcceptInvitationPage } from "@/features/tenant/auth/pages/AcceptInvitat
 import { candidateNav } from "@/features/tenant/candidate/nav";
 import { HomePage as CandidateHomePage } from "@/features/tenant/candidate/dashboard/pages/HomePage";
 import { BrowseJobsPage } from "@/features/tenant/candidate/jobs/pages/BrowseJobsPage";
+import { CandidateJobDetailPage } from "@/features/tenant/candidate/jobs/pages/CandidateJobDetailPage";
 import { MyApplicationsPage } from "@/features/tenant/candidate/applications/pages/MyApplicationsPage";
 import { MyCvPage } from "@/features/tenant/candidate/cv/pages/MyCvPage";
 import { AssessmentsPage as CandidateAssessmentsPage } from "@/features/tenant/candidate/assessments/pages/AssessmentsPage";
@@ -33,6 +35,8 @@ import { NotificationsPage as CandidateNotificationsPage } from "@/features/tena
 import { recruiterNav } from "@/features/tenant/recruiter/nav";
 import { HomePage as RecruiterHomePage } from "@/features/tenant/recruiter/dashboard/pages/HomePage";
 import { JobsPage } from "@/features/tenant/recruiter/jobs/pages/JobsPage";
+import { JobFormPage } from "@/features/tenant/recruiter/jobs/pages/JobFormPage";
+import { JobDetailPage } from "@/features/tenant/recruiter/jobs/pages/JobDetailPage";
 import { ApplicantsPage } from "@/features/tenant/recruiter/applicants/pages/ApplicantsPage";
 import { CvScreeningPage } from "@/features/tenant/recruiter/cv-screening/pages/CvScreeningPage";
 import { RankingPage } from "@/features/tenant/recruiter/matching/pages/MatchingPage";
@@ -59,10 +63,12 @@ export function AppRouter() {
   return (
     <Routes>
       <Route path="/" element={<RootRouteSwitcher />} />
+      <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
+
+      <Route element={<TenantSubdomainGuard />}>
       <Route path="/career" element={<TenantCareerPage />} />
       <Route path="/jobs" element={<TenantCareerPage />} />
       <Route path="/candidate/login" element={<CandidateLoginPage />} />
-      <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
       <Route path="/internal/login" element={<LoginPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
@@ -81,6 +87,7 @@ export function AppRouter() {
         >
           <Route index element={<CandidateHomePage />} />
           <Route path="jobs" element={<BrowseJobsPage />} />
+          <Route path="jobs/:id" element={<CandidateJobDetailPage />} />
           <Route path="applications" element={<MyApplicationsPage />} />
           <Route path="cv" element={<MyCvPage />} />
           <Route path="assessments" element={<CandidateAssessmentsPage />} />
@@ -104,6 +111,9 @@ export function AppRouter() {
         >
           <Route index element={<RecruiterHomePage />} />
           <Route path="jobs" element={<JobsPage />} />
+          <Route path="jobs/new" element={<JobFormPage />} />
+          <Route path="jobs/:id" element={<JobDetailPage />} />
+          <Route path="jobs/:id/edit" element={<JobFormPage />} />
           <Route path="applicants" element={<ApplicantsPage />} />
           <Route path="cvs" element={<CvScreeningPage />} />
           <Route path="rank" element={<RankingPage />} />
@@ -135,6 +145,8 @@ export function AppRouter() {
       <Route path="/tenant/admin/*" element={<LegacyTenantAdminRedirect />} />
 
       <Route path="/company/workspace" element={<TenantAdminDashboardPage />} />
+      </Route>
+
       <Route element={<MasterRoute />}>
         <Route path="/onboard" element={<TenantOnboardPage />} />
         <Route path="/admin" element={<MasterAdminDashboardPage />} />

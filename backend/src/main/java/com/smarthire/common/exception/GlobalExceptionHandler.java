@@ -10,6 +10,8 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MultipartException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -43,6 +45,13 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error("Invalid JSON body format or invalid character escape", "BAD_REQUEST"));
     }
 
+    @ExceptionHandler({MultipartException.class, MissingServletRequestPartException.class})
+    public ResponseEntity<ApiResponse<Void>> handleMultipart(Exception ex) {
+        log.warn("Invalid multipart upload: {}", ex.getMessage());
+        return ResponseEntity.badRequest()
+                .body(ApiResponse.error("CV upload must be multipart/form-data with a file part", "CV_MULTIPART"));
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ApiResponse<Void>> handleIllegalArgument(IllegalArgumentException ex) {
         log.warn("Illegal argument: {}", ex.getMessage());
@@ -58,9 +67,15 @@ public class GlobalExceptionHandler {
             if (cause instanceof BusinessException business) return handleBusiness(business);
             cause = cause.getCause();
         }
-        log.error("Unhandled exception type: {}", ex.getClass().getSimpleName());
+        Throwable root = ex;
+        while (root.getCause() != null && root.getCause() != root) {
+            root = root.getCause();
+        }
+        log.error("Unhandled exception {}: {}", ex.getClass().getName(), ex.getMessage(), ex);
+        String detail = root.getClass().getSimpleName() + ": " + String.valueOf(root.getMessage());
+        if (detail.length() > 400) detail = detail.substring(0, 400);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponse.error("Internal server error", "INTERNAL_ERROR"));
+                .body(ApiResponse.error(detail, "INTERNAL_ERROR"));
     }
 }
 

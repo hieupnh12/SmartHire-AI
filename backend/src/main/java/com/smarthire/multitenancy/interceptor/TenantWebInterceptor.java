@@ -39,7 +39,7 @@ public class TenantWebInterceptor implements HandlerInterceptor {
                 break;
             }
         }
-        String hostCode = subdomain == null ? null : registry.requireActive(subdomain).getCode();
+        String hostCode = subdomain == null ? null : registry.requireActiveBySubdomain(subdomain).getCode();
         if (headerCode != null && hostCode != null && !headerCode.equals(hostCode)) throw mismatch();
         String requested = headerCode != null ? headerCode : hostCode;
         var auth = SecurityContextHolder.getContext().getAuthentication();

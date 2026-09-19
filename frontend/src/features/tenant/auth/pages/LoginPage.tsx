@@ -76,7 +76,7 @@ export function LoginPage() {
       const tenantCode = res.data.tenantId || rawTenantCode || "acme";
       localStorage.setItem("tenantId", tenantCode);
 
-      const targetUrl = buildTenantUrl(tenantCode, targetPath);
+      const targetUrl = buildTenantUrl(res.data.subdomain, targetPath);
       if (window.location.href !== targetUrl) {
         window.location.href = targetUrl;
       } else {

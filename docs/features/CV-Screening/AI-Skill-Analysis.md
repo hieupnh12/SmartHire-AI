@@ -1,7 +1,7 @@
 # AI Skill Analysis
 
 **Epic:** AI-Powered CV Screening & Analysis  
-**Trạng thái:** `To Do`  
+**Trạng thái:** `Done`  
 **Code ID:** `CV-04`
 
 ## Mục đích chức năng

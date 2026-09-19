@@ -1,7 +1,7 @@
 # Skill Requirement Management
 
 **Epic:** Job Recruitment Management  
-**Trạng thái:** `To Do`  
+**Trạng thái:** `Done`  
 **Code ID:** `JOB-03`
 
 ## Mục đích chức năng
