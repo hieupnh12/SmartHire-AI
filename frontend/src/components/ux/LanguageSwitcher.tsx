@@ -3,7 +3,13 @@ import { useEffect, useId, useRef, useState } from "react";
 import { localeLabels, locales, useI18nStore, useT, type Locale } from "@/i18n";
 import { cn } from "@/lib/utils";
 
-export function LanguageSwitcher() {
+type LanguageSwitcherProps = {
+  variant?: "default" | "sidebar" | "icon";
+  menuSide?: "top" | "right" | "bottom";
+  openOnHover?: boolean;
+};
+
+export function LanguageSwitcher({ variant = "default", menuSide = "bottom", openOnHover = false }: LanguageSwitcherProps) {
   const t = useT();
   const locale = useI18nStore((s) => s.locale);
   const setLocale = useI18nStore((s) => s.setLocale);
@@ -12,6 +18,14 @@ export function LanguageSwitcher() {
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const hoverCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearHoverCloseTimer = () => {
+    if (hoverCloseTimerRef.current) {
+      clearTimeout(hoverCloseTimerRef.current);
+      hoverCloseTimerRef.current = null;
+    }
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -34,6 +48,8 @@ export function LanguageSwitcher() {
     };
   }, [open]);
 
+  useEffect(() => () => clearHoverCloseTimer(), []);
+
   const openAndFocus = (index = locales.indexOf(locale)) => {
     setOpen(true);
     requestAnimationFrame(() => itemRefs.current[Math.max(index, 0)]?.focus());
@@ -51,12 +67,31 @@ export function LanguageSwitcher() {
   };
 
   return (
-    <div ref={rootRef} className="relative inline-flex">
+    <div
+      ref={rootRef}
+      className={cn("relative inline-flex", variant === "sidebar" && "w-full")}
+      onMouseEnter={() => {
+        if (!openOnHover) return;
+        clearHoverCloseTimer();
+        setOpen(true);
+      }}
+      onMouseLeave={() => {
+        if (!openOnHover) return;
+        clearHoverCloseTimer();
+        hoverCloseTimerRef.current = setTimeout(() => setOpen(false), 220);
+      }}
+      onFocusCapture={() => openOnHover && setOpen(true)}
+      onBlurCapture={(event) => {
+        if (openOnHover && !event.currentTarget.contains(event.relatedTarget as Node | null)) setOpen(false);
+      }}
+    >
       <button
         ref={triggerRef}
         type="button"
         className={cn(
           "inline-flex min-h-10 items-center gap-2 rounded-[var(--radius-default)] border px-3 text-sm font-medium",
+          variant === "sidebar" && "min-h-11 w-full justify-between rounded-xl",
+          variant === "icon" && "size-11 min-h-11 justify-center rounded-xl p-0",
           "transition-[color,background-color,border-color,box-shadow] duration-[var(--motion-fast)]",
           "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-primary)]",
           open
@@ -75,10 +110,16 @@ export function LanguageSwitcher() {
           }
         }}
       >
-        <Languages className="size-[18px] shrink-0" aria-hidden="true" />
-        <span className="hidden whitespace-nowrap sm:inline">{localeLabels[locale]}</span>
+        {variant === "sidebar" ? (
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-full border border-blue-200 bg-blue-50 text-blue-700">
+            <Languages className="size-[18px]" aria-hidden="true" />
+          </span>
+        ) : (
+          <Languages className="size-[18px] shrink-0" aria-hidden="true" />
+        )}
+        <span className={cn("hidden whitespace-nowrap sm:inline", variant === "sidebar" && "inline", variant === "icon" && "hidden")}>{localeLabels[locale]}</span>
         <ChevronDown
-          className={cn("size-4 shrink-0 transition-transform duration-[var(--motion-fast)]", open && "rotate-180")}
+          className={cn("size-4 shrink-0 transition-transform duration-[var(--motion-fast)]", open && "rotate-180", variant === "icon" && "hidden")}
           aria-hidden="true"
         />
       </button>
@@ -88,7 +129,13 @@ export function LanguageSwitcher() {
           id={menuId}
           role="menu"
           aria-label={t("common.language")}
-          className="absolute right-0 top-[calc(100%+8px)] z-50 min-w-48 overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-white/95 p-1.5 shadow-[var(--shadow-ambient)] backdrop-blur-xl"
+          className={cn(
+            "absolute right-0 z-50 min-w-48 overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-white/95 p-1.5 shadow-[var(--shadow-ambient)] backdrop-blur-xl",
+            menuSide === "top" && "bottom-[calc(100%+8px)]",
+            menuSide === "bottom" && "top-[calc(100%+8px)]",
+            menuSide === "right" && "bottom-0 left-[calc(100%+12px)] right-auto top-auto min-w-56 rounded-2xl border-slate-200 bg-white shadow-[0_20px_50px_-18px_rgba(15,23,42,0.32)] before:absolute before:-left-3 before:bottom-0 before:h-full before:w-3",
+            variant === "icon" && menuSide !== "right" && "left-[calc(100%+8px)] right-auto",
+          )}
         >
           <div className="px-2.5 pb-1.5 pt-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--color-on-surface-variant)]/70">
             {t("common.language")}

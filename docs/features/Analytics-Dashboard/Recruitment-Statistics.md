@@ -1,7 +1,7 @@
 # Recruitment Statistics
 
 **Epic:** Recruitment Analytics Dashboard  
-**Trạng thái:** `To Do`  
+**Trạng thái:** `Doing`
 **Code ID:** `DASH-01`
 
 ## Mục đích chức năng
@@ -34,6 +34,7 @@ KPI: open jobs, applicants, hire rate, avg time-to-hire, avg scores.
 
 ## UI mockup
 
+- Frontend: `/internal/admin/analytics` — giao diện thống kê theo tab ngang, hiện dùng dữ liệu mẫu trong khi chờ API DASH-01/DASH-02.
 - Google Stitch: **Recruitment Analytics Dashboard / Recruitment Statistics** — _[dán link]_
 - Icons: xem `DESIGN.md`
 

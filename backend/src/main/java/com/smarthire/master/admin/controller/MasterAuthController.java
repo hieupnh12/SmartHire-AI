@@ -27,10 +27,37 @@ public class MasterAuthController {
         return ResponseEntity.ok(ApiResponse.ok("Workspace Admin login successful", response));
     }
 
+    @PostMapping("/refresh")
+    @Operation(summary = "Refresh Platform Admin Access Token", description = "Refreshes expired JWT Access Token using valid Refresh Token.")
+    public ResponseEntity<ApiResponse<MasterLoginResponse>> refresh(@Valid @RequestBody com.smarthire.master.admin.dto.MasterRefreshTokenRequest request) {
+        MasterLoginResponse response = masterAuthService.refreshToken(request);
+        return ResponseEntity.ok(ApiResponse.ok("Token refreshed successfully", response));
+    }
+
     @GetMapping("/me")
     @Operation(summary = "Get Workspace Admin Profile", description = "Decodes JWT Bearer token and returns authenticated Workspace Admin profile.")
     public ResponseEntity<ApiResponse<PlatformUserResponse>> getCurrentAdmin(@RequestHeader(value = "Authorization", required = false) String authHeader) {
         PlatformUserResponse response = masterAuthService.getCurrentAdmin(authHeader);
         return ResponseEntity.ok(ApiResponse.ok(response));
+    }
+
+    @PostMapping("/logout")
+    @Operation(summary = "Logout Workspace Admin", description = "Revokes current JWT Token via Redis Blacklist and deletes refresh session.")
+    public ResponseEntity<ApiResponse<Void>> logout(
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            @RequestBody(required = false) com.smarthire.master.admin.dto.MasterLogoutRequest request
+    ) {
+        masterAuthService.logout(authHeader, request);
+        return ResponseEntity.ok(ApiResponse.ok("Đăng xuất thành công", null));
+    }
+
+    @PostMapping("/change-password")
+    @Operation(summary = "Change Password", description = "Allows authenticated Workspace Admin to update their password.")
+    public ResponseEntity<ApiResponse<Void>> changePassword(
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            @Valid @RequestBody com.smarthire.master.admin.dto.MasterChangePasswordRequest request
+    ) {
+        masterAuthService.changePassword(authHeader, request);
+        return ResponseEntity.ok(ApiResponse.ok("Đổi mật khẩu thành công", null));
     }
 }

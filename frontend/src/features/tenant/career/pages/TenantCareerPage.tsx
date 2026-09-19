@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { getTenantIdFromWindow } from "@/lib/tenant";
+import { getTenantTheme, getTenantThemeStyle } from "@/lib/tenantTheme";
 import { jobApi } from "@/api/tenant/jobApi";
 import { applicantApi } from "@/api/tenant/applicantApi";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
@@ -27,122 +28,6 @@ import {
   Briefcase,
   ShieldCheck
 } from "lucide-react";
-
-interface TenantThemeConfig {
-  code: string;
-  name: string;
-  tagline: string;
-  primaryColorBtn: string;
-  primaryHoverBtn: string;
-  primaryText: string;
-  primaryBgLight: string;
-  primaryGradient: string;
-  badgeBg: string;
-  heroImage: string;
-  cultureImage: string;
-  accentBadge: string;
-}
-
-const COLOR_PRESETS: Omit<TenantThemeConfig, "code" | "name" | "tagline">[] = [
-  {
-    primaryColorBtn: "bg-teal-600 hover:bg-teal-700",
-    primaryHoverBtn: "hover:bg-teal-700",
-    primaryText: "text-teal-600",
-    primaryBgLight: "bg-teal-50",
-    primaryGradient: "from-teal-600 via-cyan-600 to-emerald-600",
-    badgeBg: "bg-teal-500/10 text-teal-600 border-teal-500/20",
-    heroImage: "/acme_tech_hero.png",
-    cultureImage: "/acme_culture.png",
-    accentBadge: "Teal Cyber Tech"
-  },
-  {
-    primaryColorBtn: "bg-indigo-600 hover:bg-indigo-700",
-    primaryHoverBtn: "hover:bg-indigo-700",
-    primaryText: "text-indigo-600",
-    primaryBgLight: "bg-indigo-50",
-    primaryGradient: "from-indigo-600 via-purple-600 to-blue-600",
-    badgeBg: "bg-indigo-500/10 text-indigo-600 border-indigo-500/20",
-    heroImage: "/acme_tech_hero.png",
-    cultureImage: "/acme_culture.png",
-    accentBadge: "Royal Indigo Tech"
-  },
-  {
-    primaryColorBtn: "bg-amber-600 hover:bg-amber-700",
-    primaryHoverBtn: "hover:bg-amber-700",
-    primaryText: "text-amber-600",
-    primaryBgLight: "bg-amber-50",
-    primaryGradient: "from-amber-600 via-orange-600 to-yellow-500",
-    badgeBg: "bg-amber-500/10 text-amber-600 border-amber-500/20",
-    heroImage: "/acme_tech_hero.png",
-    cultureImage: "/acme_culture.png",
-    accentBadge: "Sunset Amber Tech"
-  },
-  {
-    primaryColorBtn: "bg-rose-600 hover:bg-rose-700",
-    primaryHoverBtn: "hover:bg-rose-700",
-    primaryText: "text-rose-600",
-    primaryBgLight: "bg-rose-50",
-    primaryGradient: "from-rose-600 via-red-600 to-pink-600",
-    badgeBg: "bg-rose-500/10 text-rose-600 border-rose-500/20",
-    heroImage: "/acme_tech_hero.png",
-    cultureImage: "/acme_culture.png",
-    accentBadge: "Ruby Crimson Tech"
-  },
-  {
-    primaryColorBtn: "bg-emerald-600 hover:bg-emerald-700",
-    primaryHoverBtn: "hover:bg-emerald-700",
-    primaryText: "text-emerald-600",
-    primaryBgLight: "bg-emerald-50",
-    primaryGradient: "from-emerald-600 via-teal-600 to-green-600",
-    badgeBg: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
-    heroImage: "/acme_tech_hero.png",
-    cultureImage: "/acme_culture.png",
-    accentBadge: "Vibrant Emerald Tech"
-  },
-  {
-    primaryColorBtn: "bg-violet-600 hover:bg-violet-700",
-    primaryHoverBtn: "hover:bg-violet-700",
-    primaryText: "text-violet-600",
-    primaryBgLight: "bg-violet-50",
-    primaryGradient: "from-violet-600 via-purple-600 to-fuchsia-600",
-    badgeBg: "bg-violet-500/10 text-violet-600 border-violet-500/20",
-    heroImage: "/acme_tech_hero.png",
-    cultureImage: "/acme_culture.png",
-    accentBadge: "Deep Violet Tech"
-  },
-  {
-    primaryColorBtn: "bg-blue-600 hover:bg-blue-700",
-    primaryHoverBtn: "hover:bg-blue-700",
-    primaryText: "text-blue-600",
-    primaryBgLight: "bg-blue-50",
-    primaryGradient: "from-blue-600 via-cyan-600 to-sky-600",
-    badgeBg: "bg-blue-500/10 text-blue-600 border-blue-500/20",
-    heroImage: "/acme_tech_hero.png",
-    cultureImage: "/acme_culture.png",
-    accentBadge: "Electric Blue Tech"
-  }
-];
-
-export function getTenantTheme(code: string): TenantThemeConfig {
-  const cleanCode = (code || "acme").toLowerCase();
-
-  // Deterministic hash based on tenant code string
-  let hash = 0;
-  for (let i = 0; i < cleanCode.length; i++) {
-    hash = cleanCode.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  const presetIndex = Math.abs(hash) % COLOR_PRESETS.length;
-  const preset = COLOR_PRESETS[presetIndex];
-
-  const formattedName = cleanCode.toUpperCase() + " Enterprise IT";
-
-  return {
-    code: cleanCode,
-    name: formattedName,
-    tagline: `Dẫn đầu Giải pháp Công nghệ Enterprise Multi-Tenant & AI`,
-    ...preset
-  };
-}
 
 interface JobPosting {
   id: number;
@@ -224,7 +109,7 @@ export function TenantCareerPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f9f9ff] text-[#191b23] font-sans antialiased flex flex-col justify-between selection:bg-teal-600 selection:text-white">
+    <div className="tenant-workspace-theme min-h-screen bg-[#f9f9ff] text-[#191b23] font-sans antialiased flex flex-col justify-between" style={getTenantThemeStyle(theme)}>
       {/* Top Glassmorphism Navigation Bar */}
       <header className="sticky top-0 z-40 bg-white/85 backdrop-blur-md border-b border-[#e2e8f0] shadow-sm">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
@@ -355,7 +240,7 @@ export function TenantCareerPage() {
                 <div className="grid grid-cols-2 gap-4 pt-4">
                   <div className="p-5 rounded-[16px] bg-[#f8f9ff] border border-[#e2e8f0]">
                     <div className="flex items-center gap-2 mb-1">
-                      <Users className="w-5 h-5 text-teal-600" />
+                      <Users className={`w-5 h-5 ${theme.primaryText}`} />
                       <span className="text-2xl font-bold text-[#1e293b]">500+</span>
                     </div>
                     <span className="text-xs text-[#64748b]">Kỹ Sư Phần Mềm & AI</span>
@@ -400,7 +285,7 @@ export function TenantCareerPage() {
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
               <div className="p-6 rounded-[24px] bg-white border border-[#e2e8f0] shadow-sm hover:shadow-md transition-all text-center">
-                <div className="w-12 h-12 rounded-[12px] bg-teal-50 text-teal-600 flex items-center justify-center mx-auto mb-4 font-semibold">
+                <div className={`w-12 h-12 rounded-[12px] ${theme.primaryBgLight} ${theme.primaryText} flex items-center justify-center mx-auto mb-4 font-semibold`}>
                   <Code className="w-6 h-6" />
                 </div>
                 <h3 className="font-semibold text-[#1e293b] text-base mb-1">Backend Microservices</h3>
@@ -470,7 +355,7 @@ export function TenantCareerPage() {
             {filteredJobs.map((job) => (
               <div
                 key={job.id}
-                className="p-8 rounded-[28px] bg-white border border-[#e2e8f0] shadow-[0_20px_25px_-5px_rgba(59,130,246,0.03)] hover:border-teal-500/40 transition-all flex flex-col md:flex-row items-start md:items-center justify-between gap-6"
+                className="p-8 rounded-[28px] bg-white border border-[#e2e8f0] shadow-[0_20px_25px_-5px_rgba(59,130,246,0.03)] hover:border-brand-primary/40 transition-all flex flex-col md:flex-row items-start md:items-center justify-between gap-6"
               >
                 <div className="space-y-3 max-w-3xl">
                   <div className="flex items-center gap-3 flex-wrap">
@@ -486,7 +371,7 @@ export function TenantCareerPage() {
                   </div>
 
                   <h3
-                    className="text-xl font-semibold text-[#1e293b] hover:text-teal-600 transition-colors cursor-pointer"
+                    className="text-xl font-semibold text-[#1e293b] hover:text-brand-primary transition-colors cursor-pointer"
                     onClick={() => setSelectedJob(job)}
                   >
                     {job.title}

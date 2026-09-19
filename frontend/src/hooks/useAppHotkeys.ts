@@ -16,7 +16,7 @@ function isTypingTarget(el: EventTarget | null) {
 }
 
 function workspaceHome(role?: string | null) {
-  if (role === "ADMIN" || role === "TENANT_ADMIN") return "/tenant/admin";
+  if (role === "ADMIN" || role === "TENANT_ADMIN") return "/internal/admin";
   if (role === "RECRUITER" || role === "HR") return "/recruiter";
   if (role === "CANDIDATE") return "/candidate";
   return "/";
