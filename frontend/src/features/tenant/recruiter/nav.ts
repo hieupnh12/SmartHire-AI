@@ -5,6 +5,7 @@ export const recruiterNav = [
   { to: "/cvs", labelKey: "nav.cvScreening" },
   { to: "/rank", labelKey: "nav.ranking" },
   { to: "/pipeline", labelKey: "nav.pipeline" },
+  { to: "/analytics", labelKey: "nav.recruitmentAnalytics" },
   { to: "/assessments", labelKey: "nav.assessments" },
   { to: "/interviews", labelKey: "nav.interviews" },
   { to: "/schedules", labelKey: "nav.schedules" },
