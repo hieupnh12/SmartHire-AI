@@ -36,6 +36,25 @@ public class Application extends BaseEntity {
     @Column(columnDefinition = "TEXT")
     private String notes;
 
+    @Column(name = "referral_code", length = 64)
+    private String referralCode;
+
+    @Column(length = 512)
+    private String tags;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "assignee_id")
+    private User assignee;
+
+    @Column(name = "archived_at")
+    private java.time.Instant archivedAt;
+
+    @Column(name = "reject_reason", columnDefinition = "TEXT")
+    private String rejectReason;
+
+    @Column(name = "withdrawn_at")
+    private java.time.Instant withdrawnAt;
+
     public Job getJob() { return job; }
     public void setJob(Job job) { this.job = job; }
     public User getCandidate() { return candidate; }
@@ -48,5 +67,17 @@ public class Application extends BaseEntity {
     public void setSource(String source) { this.source = source; }
     public String getNotes() { return notes; }
     public void setNotes(String notes) { this.notes = notes; }
+    public String getReferralCode() { return referralCode; }
+    public void setReferralCode(String referralCode) { this.referralCode = referralCode; }
+    public String getTags() { return tags; }
+    public void setTags(String tags) { this.tags = tags; }
+    public User getAssignee() { return assignee; }
+    public void setAssignee(User assignee) { this.assignee = assignee; }
+    public java.time.Instant getArchivedAt() { return archivedAt; }
+    public void setArchivedAt(java.time.Instant archivedAt) { this.archivedAt = archivedAt; }
+    public String getRejectReason() { return rejectReason; }
+    public void setRejectReason(String rejectReason) { this.rejectReason = rejectReason; }
+    public java.time.Instant getWithdrawnAt() { return withdrawnAt; }
+    public void setWithdrawnAt(java.time.Instant withdrawnAt) { this.withdrawnAt = withdrawnAt; }
 }
 

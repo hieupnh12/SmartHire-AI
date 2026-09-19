@@ -18,7 +18,7 @@ Xác thực email/password, cấp access/refresh JWT, bảo vệ API theo token.
 2. Verify credentials + status.
 3. Issue JWT (access ngắn, refresh dài; refresh metadata Redis).
 4. FE lưu token, Axios interceptor gắn Bearer.
-5. Logout revoke refresh (blacklist Redis).
+5. Logout xóa token phía client và chuyển về trang chủ tương ứng với domain hiện tại; revoke refresh (blacklist Redis) tiếp tục theo kế hoạch backend.
 
 ## Business Rules
 
@@ -52,7 +52,9 @@ AUTH-01
 
 - Login thực tế: `POST /api/v1/master/auth/login` cho Workspace Admin, `POST /api/v1/tenant/auth/login` cho doanh nghiệp.
 - Profile: `/api/v1/master/auth/me`, `/api/v1/tenant/auth/me`.
+- Frontend khôi phục hồ sơ từ `/api/v1/tenant/auth/me` khi còn access token nhưng state người dùng bị mất sau reload; header hiển thị tên người dùng, không dùng ngôn ngữ hiện tại làm tên thay thế.
 - Login tenant bắt buộc mã tenant hoặc subdomain hợp lệ; registry nằm trên PostgreSQL và dữ liệu người dùng nằm trên MySQL tenant.
 - JWT chứa mã tenant chuẩn; tenant thiếu, bị khóa hoặc khác header sẽ bị từ chối.
+- Response đăng nhập trả riêng `tenantId` (mã tenant dùng cho JWT/database context) và `subdomain` lấy từ Master DB; frontend chỉ dùng `subdomain` để dựng hostname workspace sau đăng nhập.
 - Không có tài khoản demo hoặc mật khẩu mặc định; bootstrap Workspace Admin phải được bật rõ và nhận credential từ môi trường.
 - Refresh, logout và rate limit trong kế hoạch phía trên chưa thuộc thay đổi kết nối DB này.

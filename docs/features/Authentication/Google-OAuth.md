@@ -24,7 +24,8 @@
 
 - Chỉ chấp nhận email Google đã được `email_verified == true`.
 - Tự động liên kết `oauth_accounts` nếu tài khoản email đã tồn tại trong Tenant DB.
-- Chặn đăng nhập nếu trạng thái tài khoản không phải `ACTIVE`.
+- 401 Axios trên luồng ứng viên (`/candidate`, `/oauth/callback`) chuyển về `/candidate/login`, không về `/internal/login`.
+- Google callback local: Google trả về `localhost` rồi FE hop sang `{tenant}.localhost` trước khi gọi API, để giữ `X-Tenant-ID`.
 
 ## API liên quan
 

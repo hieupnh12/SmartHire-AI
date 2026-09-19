@@ -9,6 +9,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import java.time.Instant;
 import org.hibernate.annotations.JdbcTypeCode;
@@ -33,11 +34,24 @@ public class CvExtraction {
     @Column(name = "model_version", length = 64)
     private String modelVersion;
 
+    @Column(name = "prompt_version", length = 64)
+    private String promptVersion;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
+    @Column(name = "updated_at")
+    private Instant updatedAt;
+
     @PrePersist
-    void onCreate() { createdAt = Instant.now(); }
+    void onCreate() {
+        Instant now = Instant.now();
+        createdAt = now;
+        updatedAt = now;
+    }
+
+    @PreUpdate
+    void onUpdate() { updatedAt = Instant.now(); }
 
     public Long getId() { return id; }
     public Cv getCv() { return cv; }
@@ -46,6 +60,9 @@ public class CvExtraction {
     public void setExtractionJson(String extractionJson) { this.extractionJson = extractionJson; }
     public String getModelVersion() { return modelVersion; }
     public void setModelVersion(String modelVersion) { this.modelVersion = modelVersion; }
+    public String getPromptVersion() { return promptVersion; }
+    public void setPromptVersion(String promptVersion) { this.promptVersion = promptVersion; }
     public Instant getCreatedAt() { return createdAt; }
+    public Instant getUpdatedAt() { return updatedAt; }
 }
 

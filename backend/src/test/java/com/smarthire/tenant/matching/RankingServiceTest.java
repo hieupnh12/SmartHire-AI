@@ -40,11 +40,22 @@ class RankingServiceTest {
         assertThatThrownBy(() -> service.board(1)).isInstanceOf(BusinessException.class);
         verify(data, never()).applications(anyLong());
     }
+    @Test void allowsHrToListOwnJobs() {
+        var auth = new UsernamePasswordAuthenticationToken("hr@example.test", null, List.of(new SimpleGrantedAuthority("ROLE_HR")));
+        auth.setDetails("acme");
+        SecurityContextHolder.getContext().setAuthentication(auth);
+        when(data.jobs("hr@example.test")).thenReturn(List.of());
+        assertThat(service.jobs()).isEmpty();
+    }
     @Test void returnsEmptyBoardWithUnsavedDefaults() {
         when(data.job(1, false)).thenReturn(job());
         var board = service.board(1);
         assertThat(board.rows()).isEmpty(); assertThat(board.config().weights()).isEqualTo(new Weights(35, 15, 30, 20));
         assertThat(board.config().revision()).isZero();
+        var page = service.page(1, 0, 20, "", "ACTIVE", "ALL", null, "score");
+        assertThat(page.rows()).isEmpty();
+        assertThat(page.summary().totalCandidates()).isZero();
+        assertThat(page.page().totalPages()).isZero();
     }
     @Test void rejectsStaleConfigurationAndForeignSource() {
         Job job = job(); when(data.job(1, true)).thenReturn(job);

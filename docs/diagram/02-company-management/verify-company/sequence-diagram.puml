@@ -1,0 +1,108 @@
+@startuml
+skinparam dpi 300
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam sequence {
+    ArrowColor #2D3748
+    ActorBorderColor #2D3748
+    LifeLineBorderColor #2D3748
+    ParticipantBorderColor #2D3748
+    ParticipantBackgroundColor #FFFFFF
+    BoxBorderColor #A0AEC0
+}
+
+hide footbox
+autonumber
+
+actor "Tenant Admin" as TenantAdmin
+actor "Platform Admin" as PlatformAdmin
+boundary "Admin Portal UI" as UI
+control "Spring Security" as Security
+boundary "MasterTenantAdminController" as Controller
+control "CompanyVerificationService" as Service
+database "Master DB (MySQL)" as MasterDB
+
+note over TenantAdmin, PlatformAdmin
+  Submit verification is performed by Tenant Admin.
+  Review & Approval is performed by Platform Admin on Master DB.
+end note
+
+== Submit Verification Documents ==
+
+TenantAdmin -> UI: Submit tax code & business license URLs
+activate UI
+UI -> Security: POST /api/v1/master/tenants/{tenantId}/verify
+activate Security
+Security -> Controller: Forward request (Tenant Admin)
+activate Controller
+
+Controller -> Service: submitVerification(tenantId, request)
+activate Service
+Service -> MasterDB: findByTenantId(tenantId)
+activate MasterDB
+MasterDB --> Service: CompanyVerification or empty
+deactivate MasterDB
+
+alt Existing pending verification
+  Service --> Controller: VERIFICATION_PENDING_EXISTS
+  deactivate Service
+  Controller --> UI: 409 Conflict
+  deactivate Controller
+  UI --> TenantAdmin: Show verification pending error
+else New submission
+  Service -> MasterDB: INSERT CompanyVerification PENDING
+  activate MasterDB
+  MasterDB --> Service: Verification saved
+  deactivate MasterDB
+
+  Service --> Controller: VerificationResponse
+  deactivate Service
+  Controller --> UI: 202 Accepted
+  deactivate Controller
+  UI --> TenantAdmin: Show submission successful
+end
+deactivate UI
+
+== Review Verification Request ==
+
+PlatformAdmin -> UI: Review verification submission (VERIFIED / REJECTED)
+activate UI
+UI -> Security: POST /api/v1/master/verifications/{id}/review
+activate Security
+Security -> Controller: Forward request (Platform Admin)
+activate Controller
+
+Controller -> Service: reviewVerification(verificationId, request)
+activate Service
+Service -> MasterDB: findVerificationById(verificationId)
+activate MasterDB
+MasterDB --> Service: CompanyVerification
+deactivate MasterDB
+
+alt Approved / Verified
+  Service -> MasterDB: UPDATE CompanyVerification status = VERIFIED
+  activate MasterDB
+  MasterDB --> Service: Verification updated
+  deactivate MasterDB
+
+  Service -> MasterDB: UPDATE TenantInfo isVerified = true
+  activate MasterDB
+  MasterDB --> Service: TenantInfo updated
+  deactivate MasterDB
+else Rejected
+  Service -> MasterDB: UPDATE CompanyVerification status = REJECTED + reason
+  activate MasterDB
+  MasterDB --> Service: Verification updated
+  deactivate MasterDB
+end
+
+Service --> Controller: VerificationResponse
+deactivate Service
+Controller --> UI: 200 OK
+deactivate Controller
+UI --> PlatformAdmin: Show review completed
+deactivate UI
+
+@enduml

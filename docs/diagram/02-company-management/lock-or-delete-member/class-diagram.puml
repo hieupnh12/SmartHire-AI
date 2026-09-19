@@ -1,0 +1,129 @@
+@startuml
+skinparam dpi 300
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam roundcorner 6
+skinparam linetype ortho
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam classFontSize 11
+skinparam classAttributeFontSize 10
+skinparam classAttributeIconSize 10
+skinparam ArrowThickness 1
+skinparam ClassBorderThickness 1
+skinparam PackageBorderThickness 1
+
+skinparam class {
+    BackgroundColor #FFFFFF
+    BorderColor #2D3748
+    ArrowColor #2D3748
+}
+
+<style>
+classDiagram {
+  class {
+    Padding 5
+  }
+}
+</style>
+
+package "Controller Layer" {
+  class TenantUserController <<Controller>> {
+    - tenantUserService: TenantUserService
+    + updateStatus(id: Long, request: UpdateUserStatusRequest): ApiResponse<UserResponse>
+    + deleteMember(id: Long): ApiResponse<Void>
+  }
+}
+
+package "DTO Layer" {
+  class UpdateUserStatusRequest <<Request>> {
+    + status: String
+  }
+  class UserResponse <<Response>> {
+    + id: Long
+    + email: String
+    + fullName: String
+    + role: String
+    + status: String
+  }
+}
+
+package "Service Layer" {
+  interface TenantUserService <<Service>> {
+    + updateStatus(actorId: Long, targetId: Long, status: UserStatus): UserResponse
+    + deleteMember(actorId: Long, targetId: Long): void
+  }
+  class TenantUserServiceImpl <<Service>> {
+    - userRepository: UserRepository
+    - redisService: RedisService
+    + updateStatus(actorId: Long, targetId: Long, status: UserStatus): UserResponse
+    + deleteMember(actorId: Long, targetId: Long): void
+  }
+}
+
+package "Repository Layer" {
+  interface UserRepository <<Repository>> {
+    + findById(id: Long): Optional<User>
+    + countByRoleAndStatus(role: UserRole, status: UserStatus): long
+    + save(user: User): User
+  }
+}
+
+package "Domain Entity Layer" {
+  enum UserRole <<Enum>> {
+    TENANT_ADMIN
+    ADMIN
+    HR
+    RECRUITER
+  }
+  enum UserStatus <<Enum>> {
+    ACTIVE
+    LOCKED
+    DISABLED
+  }
+  class User <<Entity>> {
+    - id: Long
+    - email: String
+    - fullName: String
+    - role: UserRole
+    - status: UserStatus
+  }
+}
+
+package "Infrastructure & Persistence" {
+  class DedicatedTenantMySQL <<Database>> {
+    + users
+  }
+  class RedisCache <<Cache>> {
+    + tenant:{tenantId}:refresh:{userId}
+  }
+  class TenantContext <<ThreadLocal>> {
+    +{static} getCurrentTenant(): String
+    +{static} clear(): void
+  }
+}
+
+' Relationships
+TenantUserController --> TenantUserService : delegates >
+TenantUserController ..> UpdateUserStatusRequest : consumes >
+TenantUserController ..> UserResponse : returns >
+
+TenantUserService <|.. TenantUserServiceImpl : implements
+TenantUserServiceImpl ..> UpdateUserStatusRequest : processes >
+TenantUserServiceImpl ..> UserResponse : creates >
+TenantUserServiceImpl --> UserRepository : queries & saves >
+TenantUserServiceImpl --> RedisCache : revokes session on lock/disable >
+TenantUserServiceImpl ..> TenantContext : reads tenant context >
+
+UserRepository --> User : manages >
+UserRepository --> DedicatedTenantMySQL : persists to >
+
+User ..> UserRole : typed by >
+User ..> UserStatus : typed by >
+
+note right of TenantUserServiceImpl
+  Self-locking or self-deletion is forbidden.
+  Cannot lock/disable the last ACTIVE TENANT_ADMIN.
+end note
+
+@enduml

@@ -41,8 +41,10 @@ public class MasterJpaConfig {
         factory.setDataSource(dataSource);
         factory.setPackagesToScan("com.smarthire.domain.master");
         factory.setJpaVendorAdapter(new HibernateJpaVendorAdapter());
-        factory.setJpaPropertyMap(Map.of("hibernate.dialect", "org.hibernate.dialect.PostgreSQLDialect",
-                "hibernate.hbm2ddl.auto", "validate"));
+        factory.setJpaPropertyMap(Map.of(
+                "hibernate.hbm2ddl.auto", "validate",
+                "hibernate.physical_naming_strategy", "org.hibernate.boot.model.naming.CamelCaseToUnderscoresNamingStrategy"
+        ));
         return factory;
     }
 

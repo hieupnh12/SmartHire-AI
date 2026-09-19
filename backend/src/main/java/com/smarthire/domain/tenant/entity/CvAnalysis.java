@@ -44,6 +44,9 @@ public class CvAnalysis {
     @Column(name = "model_version", length = 64)
     private String modelVersion;
 
+    @Column(name = "prompt_version", length = 64)
+    private String promptVersion;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -63,6 +66,8 @@ public class CvAnalysis {
     public void setRawJson(String rawJson) { this.rawJson = rawJson; }
     public String getModelVersion() { return modelVersion; }
     public void setModelVersion(String modelVersion) { this.modelVersion = modelVersion; }
+    public String getPromptVersion() { return promptVersion; }
+    public void setPromptVersion(String promptVersion) { this.promptVersion = promptVersion; }
     public Instant getCreatedAt() { return createdAt; }
 }
 

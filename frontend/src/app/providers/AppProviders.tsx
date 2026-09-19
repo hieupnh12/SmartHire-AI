@@ -49,7 +49,7 @@ export function AppProviders({ children }: { children: ReactNode }) {
   return (
     <GoogleOAuthProvider clientId={googleClientId}>
       <QueryClientProvider client={queryClient}>
-        <BrowserRouter>
+        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <LocaleBoot>
             <SkipLink />
             <HotkeysBridge />

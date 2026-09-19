@@ -30,8 +30,8 @@ public class CorsConfig {
         List<String> patterns = new ArrayList<>(allowedOrigins);
         patterns.add("http://localhost:*");
         patterns.add("http://*.localhost:*");
-        patterns.add("https://*.smarthire.ai");
-        patterns.add("https://smarthire.ai");
+        patterns.add("https://*.smarthire.top");
+        patterns.add("https://smarthire.top");
 
         config.setAllowedOriginPatterns(patterns);
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));

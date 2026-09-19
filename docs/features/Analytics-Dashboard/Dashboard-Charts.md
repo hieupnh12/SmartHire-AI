@@ -1,7 +1,7 @@
 # Dashboard Charts
 
 **Epic:** Recruitment Analytics Dashboard  
-**Trạng thái:** `To Do`  
+**Trạng thái:** `Doing`
 **Code ID:** `DASH-02`
 
 ## Mục đích chức năng
@@ -34,6 +34,8 @@ API dữ liệu biểu đồ (funnel, distribution scores, source).
 
 ## UI mockup
 
+- Frontend Admin: `/internal/admin/analytics` — biểu đồ tổng hợp toàn tenant theo phạm vi quản trị.
+- Frontend Recruiter: `/recruiter/analytics` — biểu đồ vận hành giới hạn theo job được phân công.
 - Google Stitch: **Recruitment Analytics Dashboard / Dashboard Charts** — _[dán link]_
 - Icons: xem `DESIGN.md`
 

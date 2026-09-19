@@ -52,6 +52,10 @@ public class MasterSubscriptionController {
         existing.setMaxJobs(planData.getMaxJobs());
         existing.setMaxCvParses(planData.getMaxCvParses());
         existing.setMaxAiInterviewHours(planData.getMaxAiInterviewHours());
+        existing.setMaxStorageGb(planData.getMaxStorageGb());
+        existing.setMaxProctoringHours(planData.getMaxProctoringHours());
+        existing.setVideoRetentionDays(planData.getVideoRetentionDays());
+        existing.setFeaturesJson(planData.getFeaturesJson());
 
         SubscriptionPlan updated = planRepository.save(existing);
         return ResponseEntity.ok(ApiResponse.ok("Subscription plan updated successfully", updated));

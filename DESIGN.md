@@ -130,6 +130,8 @@ The design style is **Minimalism** with a heavy influence of **Glassmorphism**, 
 
 ## Colors
 
+Trong tenant workspace, `RoleShell` là phạm vi theme duy nhất. Palette được xác định ổn định từ tenant code/subdomain và ánh xạ vào semantic CSS tokens; mọi trang con và dialog phải kế thừa các token này, không tạo palette thương hiệu riêng theo module. Màu xanh lá, vàng và đỏ chỉ dùng cho trạng thái thành công, cảnh báo và lỗi.
+
 The color strategy is white-dominant, using a soft, professional blue as the primary anchor. The palette prioritizes high-key values to maintain an expansive, open feel.
 
 - **Primary Blue:** #3b82f6 is used for primary actions, active indicators, and critical focus states.

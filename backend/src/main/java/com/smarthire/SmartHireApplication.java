@@ -6,11 +6,13 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.TimeZone;
 
 @SpringBootApplication
 public class SmartHireApplication {
 
     public static void main(String[] args) {
+        TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
         loadDotEnv();
         SpringApplication.run(SmartHireApplication.class, args);
     }

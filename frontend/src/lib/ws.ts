@@ -41,3 +41,20 @@ export function createNotificationSocket(
     return null;
   }
 }
+
+export type RankingUpdatedMessage = { type: "ranking.updated"; jobId: number; rankingVersion: string; occurredAt: string };
+
+export function createRankingSocket(token: string, onUpdate: (message: RankingUpdatedMessage) => void): WebSocket | null {
+  const wsBase = import.meta.env.VITE_WS_BASE_URL ??
+    (import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080/api/v1").replace(/\/api\/v1\/?$/, "").replace(/^http/, "ws");
+  try {
+    const ws = new WebSocket(`${wsBase}/ws/rankings?token=${encodeURIComponent(token)}`);
+    ws.onmessage = (event) => {
+      try {
+        const message = JSON.parse(event.data as string) as RankingUpdatedMessage;
+        if (message.type === "ranking.updated") onUpdate(message);
+      } catch { /* Ignore malformed messages. */ }
+    };
+    return ws;
+  } catch { return null; }
+}

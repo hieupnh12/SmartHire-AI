@@ -1,0 +1,15 @@
+package com.smarthire.master.admin.dto;
+
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+public class MasterLogoutRequest {
+
+    private String refreshToken;
+}

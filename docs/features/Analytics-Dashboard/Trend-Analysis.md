@@ -1,7 +1,7 @@
 # Recruitment Trend Analysis
 
 **Epic:** Recruitment Analytics Dashboard  
-**Trạng thái:** `To Do`  
+**Trạng thái:** `Doing`
 **Code ID:** `DASH-03`
 
 ## Mục đích chức năng
@@ -34,6 +34,8 @@ Phân tích xu hướng theo thời gian (applications, hires, scores).
 
 ## UI mockup
 
+- Frontend Admin: `/internal/admin/analytics` — xu hướng toàn doanh nghiệp.
+- Frontend Recruiter: `/recruiter/analytics` — xu hướng chất lượng ứng viên và hiệu suất cá nhân.
 - Google Stitch: **Recruitment Analytics Dashboard / Recruitment Trend Analysis** — _[dán link]_
 - Icons: xem `DESIGN.md`
 

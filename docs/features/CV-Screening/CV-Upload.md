@@ -1,33 +1,41 @@
 # CV Upload
 
 **Epic:** AI-Powered CV Screening & Analysis  
-**Trạng thái:** `To Do`  
+**Trạng thái:** `Done`  
 **Code ID:** `CV-01`
 
 ## Mục đích chức năng
 
-Upload CV (PDF/DOCX) gắn application/job.
+Ứng viên nộp CV (PDF/DOCX) khi apply job đang tuyển. Recruiter không upload hộ; trang Sàng lọc CV chỉ đọc CV đã nộp.
 
 ## Actor
 
-- Candidate, Recruiter
+- Candidate (upload)
+- Recruiter (xem / xóa CV trên job, không upload)
 
 ## Luồng hoạt động
 
-1. Multipart upload → storage + `cvs`.
-2. Status `UPLOADED`.
-3. Optional auto-enqueue parse.
+1. Recruiter tạo và đăng job ở Quản lý tin tuyển.
+2. Candidate tải CV ở **CV của tôi** (không chọn job). Khi apply: Xem chi tiết JD → Apply (chọn CV đã có, tải từ máy, hoặc sang trang CV của tôi).
+3. Status `UPLOADED`.
+4. Auto-enqueue parse; nếu RabbitMQ không chạy thì xử lý ngay trên request.
+5. Recruiter/candidate có thể `DELETE /cvs/{id}` để gỡ CV test hoặc rút CV.
 
 ## Business Rules
 
 - MIME/size whitelist.
 - Job phải PUBLISHED khi candidate apply.
+- Recruiter/HR/Admin gọi `POST /cvs` → `403 CV_UPLOAD_CANDIDATE_ONLY`.
+- Xóa: candidate chỉ CV của mình; recruiter xóa CV thuộc job mình quản lý (gỡ document/extraction/analysis/skills/match_score, tách interview/ranking_source).
 
 ## API liên quan
 
 | Method | Path |
 |---|---|
-| POST | `/api/v1/cvs` |
+| POST | `/api/v1/cvs` (candidate) |
+| DELETE | `/api/v1/cvs/{id}` |
+| GET | `/api/v1/jobs/published` |
+| GET | `/api/v1/jobs/options` |
 
 ## Database liên quan
 

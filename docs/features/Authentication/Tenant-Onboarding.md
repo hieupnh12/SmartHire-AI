@@ -32,6 +32,8 @@ Provisioning hiện chạy đồng bộ trong request. Nếu HTTP bị gián đo
 - API tạo user tenant yêu cầu `TENANT_ADMIN` hoặc `ADMIN`.
 - JWT, header và subdomain phải quy về cùng mã tenant. Subdomain chỉ được lấy dưới domain cấu hình hoặc `.localhost`.
 - Frontend xác định tenant trực tiếp từ subdomain; domain nền tảng không fallback sang tenant đã lưu trong `localStorage`.
+- Nhãn hostname chỉ được đối chiếu với cột `tenants.subdomain`; mã tenant (`code`) không được chấp nhận như một subdomain.
+- Mọi route tenant trên frontend đều đi qua subdomain guard; route login/admin không render nếu subdomain không tồn tại hoặc không ACTIVE.
 - Tenant thiếu, không tồn tại hoặc không ACTIVE bị từ chối. Không fallback sang master.
 - Master và tenant có `EntityManagerFactory`, repository scan và transaction manager riêng.
 - Mật khẩu DB được mã hóa AES-256-GCM và ràng buộc với mã tenant. Khóa Base64 32 byte nằm ngoài DB.
@@ -86,7 +88,11 @@ Request tự động:
 
 - `/onboard`: form Workspace Admin có validation, trạng thái chờ và lỗi.
 - `/onboard?retry=<id>`: form retry với thông tin admin.
-- Dashboard master hiển thị thao tác Retry cho `FAILED`/`PROVISIONING`.
+- Dashboard master có cụm quản lý vòng đời tenant: tạo mới, danh bạ, bốn trạng thái `PROVISIONING` / `ACTIVE` / `FAILED` / `SUSPENDED`, suspend/reactivate và Retry cho `FAILED`/`PROVISIONING`.
+- Màn hình provisioning mô tả sáu checkpoint: kiểm tra định danh, ghi Master DB, tạo database/quyền, Flyway, tenant admin, áp dụng plan/quota/pipeline; kèm guardrail idempotency, recovery và zero-secret logging.
+- Trang Theo dõi provisioning gom các khối vận hành liên quan: health check, datasource pool rotation, plan/quota mặc định, recruitment pipeline, backup, restore, retention và quy trình xóa tenant. Các thao tác chưa có API được khóa và ghi rõ là UI mẫu.
+- Trang Theo dõi provisioning có `Live Saga Recovery Console` dạng UI mẫu để xem checkpoint, copy log và tải JSON minh họa; chưa kết nối API stream log.
+- Cụm Hệ thống có `Traffic Ingress Inspector` để mô phỏng resolve host, trạng thái tenant và quyết định routing từ Master Registry; công cụ không gửi request thật hoặc truy vấn tenant database.
 - Không hiển thị mật khẩu DB hoặc mật khẩu admin mặc định.
 
 ## Kiểm thử

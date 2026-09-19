@@ -9,6 +9,8 @@ import org.hibernate.engine.jdbc.connections.spi.MultiTenantConnectionProvider;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -17,6 +19,7 @@ import java.util.Map;
 
 @Component
 public class DynamicMultiTenantConnectionProvider implements MultiTenantConnectionProvider<String> {
+    private static final Logger log = LoggerFactory.getLogger(DynamicMultiTenantConnectionProvider.class);
     private final ObjectProvider<TenantRegistryService> registry;
     private final TenantDataSourceFactory factory;
     private final int maxPools;
@@ -53,16 +56,31 @@ public class DynamicMultiTenantConnectionProvider implements MultiTenantConnecti
                 pool = created;
             } catch (Exception ex) {
                 if (created != null) created.close();
-                throw new BusinessException("Tenant database is unavailable", HttpStatus.SERVICE_UNAVAILABLE,
+                log.error("Failed to open tenant database for {}", tenant.getCode(), ex);
+                throw new BusinessException(
+                        "Tenant database is unavailable: " + brief(ex),
+                        HttpStatus.SERVICE_UNAVAILABLE,
                         "TENANT_DATABASE_UNAVAILABLE");
             }
         }
         try {
             return pool.getConnection();
         } catch (SQLException ex) {
-            throw new BusinessException("Tenant database is unavailable", HttpStatus.SERVICE_UNAVAILABLE,
+            log.error("Failed to borrow tenant connection for {}", tenant.getCode(), ex);
+            throw new BusinessException(
+                    "Tenant database is unavailable: " + brief(ex),
+                    HttpStatus.SERVICE_UNAVAILABLE,
                     "TENANT_DATABASE_UNAVAILABLE");
         }
+    }
+
+    private static String brief(Throwable ex) {
+        Throwable current = ex;
+        while (current.getCause() != null && current.getCause() != current) {
+            current = current.getCause();
+        }
+        String message = current.getMessage() == null ? current.getClass().getSimpleName() : current.getMessage();
+        return message.length() > 180 ? message.substring(0, 180) : message;
     }
 
     private void evictIdlePoolIfFull() {

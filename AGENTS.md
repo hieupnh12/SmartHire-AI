@@ -182,3 +182,7 @@ Khi AI implement xong một phần: đổi status tương ứng và ghi chú com
 ## 10. Phong cách sơ đồ kiến trúc đã lưu
 
 Chỉ khi tạo hoặc chỉnh **System Architecture**, **Package Diagram** hoặc **Database Design / ERD**, đọc và áp dụng skill [architecture-diagram-style](.agents/skills/architecture-diagram-style/SKILL.md). Đây là phong cách người dùng đã chọn: nền trắng, màu phân biệt thành phần, đường nối đậm, PNG tối thiểu 300 DPI. Mặc định chỉ xuất PNG; yêu cầu mới của người dùng được ưu tiên. Không áp dụng quy ước này cho UI, banner, slide, class diagram hoặc sequence diagram.
+
+## 11. Karpathy Guidelines (hành vi khi code)
+
+Khi viết, review, hoặc refactor code, đọc và áp dụng skill [karpathy-guidelines](.agents/skills/karpathy-guidelines/SKILL.md). Bốn nguyên tắc: Think Before Coding, Simplicity First, Surgical Changes, Goal-Driven Execution. Cursor rule luôn bật: `.cursor/rules/karpathy-guidelines.mdc` (`alwaysApply: true`). Task nhỏ (typo, one-liner) không cần đủ bốn bước.

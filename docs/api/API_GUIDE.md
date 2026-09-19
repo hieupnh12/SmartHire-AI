@@ -26,21 +26,35 @@ Envelope chuẩn: xem phiên bản trước — `success`, `message`, `data`, `e
 | Method | Path | Feature |
 |---|---|---|
 | CRUD | `/jobs` | JOB-01 |
-| POST | `/jobs/{id}/publish` · `/close` | JOB-02 |
+| POST | `/jobs/{id}/publish` · `/unpublish` · `/pause` · `/close` · `/reopen` · `/clone` | JOB-02 |
+| POST | `/jobs/quick` | JOB-01 (screening) |
 | GET/PUT | `/jobs/{id}/skills` | JOB-03 |
 | GET/PUT | `/jobs/{id}/stages` | JOB-04 |
 | POST/GET | `/jobs/{id}/applications` | JOB-05 |
-| PATCH | `/applications/{id}` | JOB-05 |
+| POST | `/jobs/{id}/applications/manual` | JOB-05 |
+| GET | `/applications/me` | JOB-05 |
+| GET/PATCH | `/applications/{id}` | JOB-05 |
+| POST | `/applications/{id}/status` · `/reject` · `/archive` · `/restore` · `/withdraw` | JOB-05 / WF-02 |
+| GET | `/applications/{id}/history` | WF-02 |
+| GET | `/public/jobs` · `/public/jobs/{id}` | JOB-02 public |
 
 ## CV screening
 
 | Method | Path | Feature |
 |---|---|---|
-| POST | `/cvs` | CV-01 |
-| POST | `/cvs/{id}/parse` | CV-02 |
+| POST | `/cvs` | CV-01 (candidate only) |
+| DELETE | `/cvs/{id}` | CV-01 |
+| GET | `/cvs/me` | CV-01 |
+| GET | `/cvs/{id}` | CV-02 |
+| GET | `/cvs/{id}/file` | CV-01 preview |
+| GET | `/cvs/{id}/extraction` | CV-03 |
+| POST | `/cvs/{id}/parse` | CV-02 (sync pipeline, heuristic if no Gemini) |
 | POST | `/cvs/{id}/extract` | CV-03 |
 | POST | `/cvs/{id}/analyze` | CV-04 |
+| GET | `/jobs/{jobId}/cvs` | CV-05 / UI |
 | GET/POST | `/jobs/{jobId}/cvs/{cvId}/match` | CV-05 |
+| GET | `/jobs/published` | JOB-02 (thin, for CV upload) |
+| GET/PUT | `/jobs/{id}/skills` | JOB-03 |
 
 ## Matching & ranking
 

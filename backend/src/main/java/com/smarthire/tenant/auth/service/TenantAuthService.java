@@ -4,6 +4,7 @@ import com.smarthire.common.exception.BusinessException;
 import com.smarthire.domain.tenant.entity.User;
 import com.smarthire.domain.tenant.repository.UserRepository;
 import com.smarthire.multitenancy.context.TenantContext;
+import com.smarthire.multitenancy.service.TenantRegistryService;
 import com.smarthire.security.JwtTokenProvider;
 import com.smarthire.tenant.auth.dto.LoginRequest;
 import com.smarthire.tenant.auth.dto.LoginResponse;
@@ -26,6 +27,7 @@ public class TenantAuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider tokenProvider;
     private final AuthMapper authMapper;
+    private final TenantRegistryService tenantRegistryService;
 
     @Transactional(readOnly = true)
     public LoginResponse login(LoginRequest request) {
@@ -43,12 +45,14 @@ public class TenantAuthService {
         }
 
         String accessToken = tokenProvider.generateToken(user, currentTenant);
+        String subdomain = tenantRegistryService.requireActive(currentTenant).getSubdomain();
 
         return LoginResponse.builder()
                 .accessToken(accessToken)
                 .tokenType("Bearer")
                 .user(authMapper.toUserResponse(user))
                 .tenantId(currentTenant)
+                .subdomain(subdomain)
                 .build();
     }
 

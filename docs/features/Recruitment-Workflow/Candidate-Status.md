@@ -1,7 +1,7 @@
 # Candidate Status Management
 
 **Epic:** Recruitment Workflow Management  
-**Trạng thái:** `To Do`  
+**Trạng thái:** `Done`  
 **Code ID:** `WF-02`
 
 ## Mục đích chức năng
@@ -14,9 +14,9 @@ Status ứng viên: NEW, IN_REVIEW, ASSESSMENT, INTERVIEW, OFFER, HIRED, REJECTE
 
 ## Luồng hoạt động
 
-1. PATCH status.
-2. Audit history.
-3. Notify.
+1. PATCH/POST status (`/applications/{id}/status`, `/reject`, `/withdraw`).
+2. Ghi `application_status_history`.
+3. Recruiter archive/restore; candidate theo dõi trên `/candidate/applications` (không gồm đơn đã rút).
 
 ## Business Rules
 

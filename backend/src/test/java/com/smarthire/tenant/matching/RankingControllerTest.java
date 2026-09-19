@@ -34,7 +34,8 @@ class RankingControllerTest {
     @Test void mapsForbiddenAndMissingJob() throws Exception {
         when(service.jobs()).thenThrow(new BusinessException("Forbidden", HttpStatus.FORBIDDEN, "RANKING_FORBIDDEN"));
         mvc.perform(get("/api/v1/rankings/jobs")).andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("RANKING_FORBIDDEN"));
-        when(service.board(99)).thenThrow(new BusinessException("Job not found", HttpStatus.NOT_FOUND, "JOB_NOT_FOUND"));
+        when(service.page(eq(99L), eq(0), eq(20), eq(""), eq("ACTIVE"), eq("ALL"), isNull(), eq("score")))
+                .thenThrow(new BusinessException("Job not found", HttpStatus.NOT_FOUND, "JOB_NOT_FOUND"));
         mvc.perform(get("/api/v1/jobs/99/rankings")).andExpect(status().isNotFound());
     }
 }
