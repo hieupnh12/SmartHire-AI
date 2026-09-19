@@ -6,6 +6,8 @@ import com.smarthire.multitenancy.service.TenantRegistryService;
 import com.zaxxer.hikari.HikariDataSource;
 import jakarta.annotation.PreDestroy;
 import org.hibernate.engine.jdbc.connections.spi.MultiTenantConnectionProvider;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -17,6 +19,7 @@ import java.util.Map;
 
 @Component
 public class DynamicMultiTenantConnectionProvider implements MultiTenantConnectionProvider<String> {
+    private static final Logger log = LoggerFactory.getLogger(DynamicMultiTenantConnectionProvider.class);
     private final ObjectProvider<TenantRegistryService> registry;
     private final TenantDataSourceFactory factory;
     private final int maxPools;
@@ -53,15 +56,17 @@ public class DynamicMultiTenantConnectionProvider implements MultiTenantConnecti
                 pool = created;
             } catch (Exception ex) {
                 if (created != null) created.close();
+                log.error("Failed to open tenant database [{}]", tenant.getCode(), ex);
                 throw new BusinessException("Tenant database is unavailable", HttpStatus.SERVICE_UNAVAILABLE,
-                        "TENANT_DATABASE_UNAVAILABLE");
+                        "TENANT_DATABASE_UNAVAILABLE", ex);
             }
         }
         try {
             return pool.getConnection();
         } catch (SQLException ex) {
+            log.error("Failed to borrow tenant connection [{}]", tenant.getCode(), ex);
             throw new BusinessException("Tenant database is unavailable", HttpStatus.SERVICE_UNAVAILABLE,
-                    "TENANT_DATABASE_UNAVAILABLE");
+                    "TENANT_DATABASE_UNAVAILABLE", ex);
         }
     }
 

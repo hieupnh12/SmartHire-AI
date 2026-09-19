@@ -3,6 +3,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { usersApi, type InviteMemberRequest } from "@/api/tenant/usersApi";
+import { tenantRolesApi } from "@/api/tenant/tenantRolesApi";
 import { Button } from "@/components/ux/Button";
 import { Card } from "@/components/ux/Card";
 import { getApiErrorMessage } from "@/lib/axios";
@@ -11,7 +12,7 @@ import { toast } from "@/stores/toastStore";
 const schema = z.object({
   fullName: z.string().trim().min(1, "Họ tên bắt buộc"),
   email: z.string().trim().email("Email không hợp lệ"),
-  role: z.enum(["TENANT_ADMIN", "ADMIN", "HR", "RECRUITER"]),
+  role: z.string().trim().min(1, "Chọn vai trò"),
 });
 
 type Form = z.infer<typeof schema>;
@@ -31,6 +32,13 @@ export function UsersPage() {
     defaultValues: { role: "RECRUITER" },
   });
 
+  const rolesQuery = useQuery({
+    queryKey: ["tenant-roles"],
+    queryFn: tenantRolesApi.list,
+  });
+  const assignableRoles = (rolesQuery.data?.data?.roles ?? []).filter((role) => role.workspace !== "CANDIDATE");
+  const roleLabel = (code: string) => assignableRoles.find((role) => role.code === code)?.name ?? code;
+
   const members = useQuery({
     queryKey: ["tenant-users"],
     queryFn: () => usersApi.list(),
@@ -47,8 +55,20 @@ export function UsersPage() {
     onError: (err) => toast.danger(getApiErrorMessage(err, "Không gửi được lời mời")),
   });
 
+  const assignMutation = useMutation({
+    mutationFn: ({ id, role }: { id: number; role: string }) => usersApi.assignRole(id, role),
+    onSuccess: (res) => {
+      if (!res.success || !res.data) throw new Error(res.message);
+      toast.success("Đã gắn vai trò. Nhân viên cần đăng nhập lại để áp dụng quyền mới.");
+      void queryClient.invalidateQueries({ queryKey: ["tenant-users"] });
+    },
+    onError: (err) => toast.danger(getApiErrorMessage(err, "Không gắn được vai trò")),
+  });
+
   const invite = mutation.data?.data;
-  const rows = members.data?.data ?? [];
+  const rows = (members.data?.data ?? []).filter(
+    (row) => row.role !== "CANDIDATE" && row.workspace !== "CANDIDATE",
+  );
 
   return (
     <section className="space-y-6">
@@ -86,13 +106,14 @@ export function UsersPage() {
             </div>
             <div>
               <label className="mb-1.5 block text-sm font-medium" htmlFor="role">
-                Quyền *
+                Vai trò *
               </label>
               <select id="role" className={inputClass} {...register("role")}>
-                <option value="RECRUITER">RECRUITER</option>
-                <option value="HR">HR</option>
-                <option value="ADMIN">ADMIN</option>
-                <option value="TENANT_ADMIN">TENANT_ADMIN</option>
+                {assignableRoles.map((role) => (
+                  <option key={role.code} value={role.code}>
+                    {role.name}
+                  </option>
+                ))}
               </select>
             </div>
             <Button type="submit" disabled={mutation.isPending}>
@@ -110,6 +131,9 @@ export function UsersPage() {
 
         <Card className="space-y-4 overflow-hidden">
           <h2 className="text-base font-semibold text-[var(--color-text-primary)]">Quản lý nhân viên</h2>
+          <p className="text-sm text-[var(--color-text-secondary)]">
+            Chọn vai trò đã tạo ở Phân quyền cho từng nhân viên.
+          </p>
           {members.isLoading && <p className="text-sm text-[var(--color-text-secondary)]">Đang tải…</p>}
           {members.isError && (
             <p className="text-sm text-status-danger" role="alert">
@@ -126,7 +150,7 @@ export function UsersPage() {
                   <tr>
                     <th className="px-3 py-3 font-semibold">Họ tên</th>
                     <th className="px-3 py-3 font-semibold">Email</th>
-                    <th className="px-3 py-3 font-semibold">Quyền</th>
+                    <th className="px-3 py-3 font-semibold">Vai trò</th>
                     <th className="px-3 py-3 font-semibold">Trạng thái</th>
                   </tr>
                 </thead>
@@ -135,7 +159,28 @@ export function UsersPage() {
                     <tr key={row.id} className="border-t border-[var(--color-border-default)]">
                       <td className="px-3 py-3">{row.fullName}</td>
                       <td className="px-3 py-3">{row.email}</td>
-                      <td className="px-3 py-3">{row.role}</td>
+                      <td className="px-3 py-3">
+                        <select
+                          className={inputClass}
+                          value={row.role}
+                          disabled={assignMutation.isPending}
+                          aria-label={`Vai trò của ${row.fullName}`}
+                          onChange={(event) => {
+                            const next = event.target.value;
+                            if (next === row.role) return;
+                            assignMutation.mutate({ id: row.id, role: next });
+                          }}
+                        >
+                          {assignableRoles.map((role) => (
+                            <option key={role.code} value={role.code}>
+                              {role.name}
+                            </option>
+                          ))}
+                          {!assignableRoles.some((role) => role.code === row.role) && (
+                            <option value={row.role}>{roleLabel(row.role)}</option>
+                          )}
+                        </select>
+                      </td>
                       <td className="px-3 py-3">{row.status ?? "—"}</td>
                     </tr>
                   ))}

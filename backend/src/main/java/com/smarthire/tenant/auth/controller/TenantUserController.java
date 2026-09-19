@@ -5,6 +5,7 @@ import com.smarthire.tenant.auth.dto.AcceptInvitationRequest;
 import com.smarthire.tenant.auth.dto.CreateEmployeeRequest;
 import com.smarthire.tenant.auth.dto.InviteMemberRequest;
 import com.smarthire.tenant.auth.dto.InviteMemberResponse;
+import com.smarthire.tenant.auth.dto.UpdateUserRoleRequest;
 import com.smarthire.tenant.auth.dto.UserResponse;
 import com.smarthire.tenant.auth.service.MemberInvitationService;
 import com.smarthire.tenant.auth.service.TenantUserService;
@@ -36,10 +37,18 @@ public class TenantUserController {
     }
 
     @GetMapping
-    @Operation(summary = "List Tenant Employees", description = "Returns a list of all users/employees registered in the current Tenant DB.")
+    @Operation(summary = "List Tenant Employees", description = "Returns staff users in the current tenant. Candidate accounts are excluded.")
     public ResponseEntity<ApiResponse<List<UserResponse>>> getEmployees() {
         List<UserResponse> employees = tenantUserService.getEmployees();
         return ResponseEntity.ok(ApiResponse.ok(employees));
+    }
+
+    @PutMapping("/{id}/role")
+    @Operation(summary = "Assign a staff role", description = "Updates the role of an existing staff user. Candidates cannot be converted here.")
+    public ResponseEntity<ApiResponse<UserResponse>> assignRole(
+            @PathVariable Long id,
+            @Valid @RequestBody UpdateUserRoleRequest request) {
+        return ResponseEntity.ok(ApiResponse.ok("Role assigned", tenantUserService.assignRole(id, request.getRole())));
     }
 
     @PostMapping("/invitations")

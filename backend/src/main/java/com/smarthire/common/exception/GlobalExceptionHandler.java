@@ -21,7 +21,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ApiResponse<Void>> handleBusiness(BusinessException ex) {
-        log.warn("Business exception [{}]: {}", ex.getCode(), ex.getMessage());
+        log.warn("Business exception [{}]: {}", ex.getCode(), ex.getMessage(), ex);
         return ResponseEntity.status(ex.getStatus())
                 .body(ApiResponse.error(ex.getMessage(), ex.getCode()));
     }
@@ -58,7 +58,7 @@ public class GlobalExceptionHandler {
             if (cause instanceof BusinessException business) return handleBusiness(business);
             cause = cause.getCause();
         }
-        log.error("Unhandled exception type: {}", ex.getClass().getSimpleName());
+        log.error("Unhandled exception", ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(ApiResponse.error("Internal server error", "INTERNAL_ERROR"));
     }

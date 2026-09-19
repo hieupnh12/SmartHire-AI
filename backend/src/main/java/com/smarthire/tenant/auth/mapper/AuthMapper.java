@@ -12,6 +12,8 @@ import java.util.List;
 @Mapper
 public interface AuthMapper {
 
+    @Mapping(target = "permissions", ignore = true)
+    @Mapping(target = "workspace", ignore = true)
     UserResponse toUserResponse(User user);
 
     List<UserResponse> toUserResponseList(List<User> users);

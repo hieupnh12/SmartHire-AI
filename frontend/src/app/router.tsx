@@ -1,6 +1,7 @@
 import { MasterRoute } from "@/app/guards/MasterRoute";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { RootRouteSwitcher } from "@/app/RootRouteSwitcher";
+import { FeatureRoute } from "@/app/guards/FeatureRoute";
 import { RoleRoute } from "@/app/guards/RoleRoute";
 import { RoleShell } from "@/app/layouts/RoleShell";
 import { TenantOnboardPage } from "@/features/master/onboarding/pages/TenantOnboardPage";
@@ -42,6 +43,7 @@ import { InterviewsPage as RecruiterInterviewsPage } from "@/features/tenant/rec
 import { SchedulesPage as RecruiterSchedulesPage } from "@/features/tenant/recruiter/schedules/pages/SchedulesPage";
 import { NotificationsPage as RecruiterNotificationsPage } from "@/features/tenant/recruiter/notifications/pages/NotificationsPage";
 import { RecruiterAnalyticsPage } from "@/features/tenant/recruiter/analytics/pages/RecruiterAnalyticsPage";
+import { RolesPage } from "@/features/tenant/admin/roles/pages/RolesPage";
 
 function LegacyTenantAdminRedirect() {
   const location = useLocation();
@@ -68,7 +70,7 @@ export function AppRouter() {
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/invite/accept" element={<AcceptInvitationPage />} />
 
-      <Route element={<RoleRoute roles={["CANDIDATE"]} />}>
+      <Route element={<RoleRoute workspaces={["CANDIDATE"]} />}>
         <Route
           path="/candidate"
           element={
@@ -91,7 +93,7 @@ export function AppRouter() {
         </Route>
       </Route>
 
-      <Route element={<RoleRoute roles={["RECRUITER", "HR"]} />}>
+      <Route element={<RoleRoute workspaces={["RECRUITER"]} />}>
         <Route
           path="/recruiter"
           element={
@@ -102,22 +104,44 @@ export function AppRouter() {
             />
           }
         >
-          <Route index element={<RecruiterHomePage />} />
-          <Route path="jobs" element={<JobsPage />} />
-          <Route path="applicants" element={<ApplicantsPage />} />
-          <Route path="cvs" element={<CvScreeningPage />} />
-          <Route path="rank" element={<RankingPage />} />
-          <Route path="matching" element={<Navigate to="/recruiter/rank" replace />} />
-          <Route path="pipeline" element={<PipelinePage />} />
-          <Route path="analytics" element={<RecruiterAnalyticsPage />} />
-          <Route path="assessments" element={<RecruiterAssessmentsPage />} />
-          <Route path="interviews" element={<RecruiterInterviewsPage />} />
-          <Route path="schedules" element={<RecruiterSchedulesPage />} />
-          <Route path="notifications" element={<RecruiterNotificationsPage />} />
+          <Route element={<FeatureRoute feature="DASHBOARD" />}>
+            <Route index element={<RecruiterHomePage />} />
+          </Route>
+          <Route element={<FeatureRoute feature="JOBS" />}>
+            <Route path="jobs" element={<JobsPage />} />
+          </Route>
+          <Route element={<FeatureRoute feature="APPLICANTS" />}>
+            <Route path="applicants" element={<ApplicantsPage />} />
+          </Route>
+          <Route element={<FeatureRoute feature="CV_SCREENING" />}>
+            <Route path="cvs" element={<CvScreeningPage />} />
+          </Route>
+          <Route element={<FeatureRoute feature="RANKING" />}>
+            <Route path="rank" element={<RankingPage />} />
+            <Route path="matching" element={<Navigate to="/recruiter/rank" replace />} />
+          </Route>
+          <Route element={<FeatureRoute feature="PIPELINE" />}>
+            <Route path="pipeline" element={<PipelinePage />} />
+          </Route>
+          <Route element={<FeatureRoute feature="ANALYTICS" />}>
+            <Route path="analytics" element={<RecruiterAnalyticsPage />} />
+          </Route>
+          <Route element={<FeatureRoute feature="ASSESSMENTS" />}>
+            <Route path="assessments" element={<RecruiterAssessmentsPage />} />
+          </Route>
+          <Route element={<FeatureRoute feature="INTERVIEWS" />}>
+            <Route path="interviews" element={<RecruiterInterviewsPage />} />
+          </Route>
+          <Route element={<FeatureRoute feature="SCHEDULES" />}>
+            <Route path="schedules" element={<RecruiterSchedulesPage />} />
+          </Route>
+          <Route element={<FeatureRoute feature="NOTIFICATIONS" />}>
+            <Route path="notifications" element={<RecruiterNotificationsPage />} />
+          </Route>
         </Route>
       </Route>
 
-      <Route element={<RoleRoute roles={["ADMIN", "TENANT_ADMIN"]} />}>
+      <Route element={<RoleRoute workspaces={["ADMIN"]} />}>
         <Route
           path="/internal/admin"
           element={
@@ -127,6 +151,7 @@ export function AppRouter() {
           <Route index element={<TenantAdminHomePage />} />
           <Route path="company" element={<CompanyProfilePage />} />
           <Route path="users" element={<UsersPage />} />
+          <Route path="roles" element={<RolesPage />} />
           <Route path="analytics" element={<AnalyticsPage />} />
           <Route path="system" element={<SystemPage />} />
           <Route path="account" element={<TenantAdminAccountPage />} />

@@ -3,6 +3,8 @@ package com.smarthire.config;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.smarthire.common.api.ApiResponse;
 import com.smarthire.security.JwtAuthenticationFilter;
+import com.smarthire.security.RecruiterFeatureFilter;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -19,7 +21,16 @@ public class SecurityConfig {
     @Bean public PasswordEncoder passwordEncoder() { return new BCryptPasswordEncoder(); }
 
     @Bean
+    public FilterRegistrationBean<RecruiterFeatureFilter> recruiterFeatureFilterRegistration(
+            RecruiterFeatureFilter filter) {
+        FilterRegistrationBean<RecruiterFeatureFilter> registration = new FilterRegistrationBean<>(filter);
+        registration.setEnabled(false);
+        return registration;
+    }
+
+    @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthenticationFilter jwt,
+                                                   RecruiterFeatureFilter recruiterFeatureFilter,
                                                    ObjectMapper mapper) throws Exception {
         http.csrf(csrf -> csrf.disable()).cors(Customizer.withDefaults())
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -40,12 +51,15 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/v1/master/tenants/check/*").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/tenant/users/invitations/accept").permitAll()
                         .requestMatchers("/api/v1/master/**").hasRole("WORKSPACE_ADMIN")
+                        .requestMatchers("/api/v1/tenant/role-permissions/**").hasAnyRole("TENANT_ADMIN", "ADMIN")
+                        .requestMatchers("/api/v1/tenant/roles/**").hasAnyRole("TENANT_ADMIN", "ADMIN")
                         .requestMatchers("/api/v1/tenant/users/**").hasAnyRole("TENANT_ADMIN", "ADMIN")
-                        .requestMatchers(HttpMethod.GET, "/api/v1/tenant/company/profile").hasAnyRole("TENANT_ADMIN", "ADMIN", "HR", "RECRUITER")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/tenant/company/profile").hasAnyRole("TENANT_ADMIN", "ADMIN", "HR", "RECRUITER", "STAFF")
                         .requestMatchers(HttpMethod.PUT, "/api/v1/tenant/company/profile").hasAnyRole("TENANT_ADMIN", "ADMIN")
-                        .requestMatchers("/api/v1/**").hasAnyRole("TENANT_ADMIN", "ADMIN", "HR", "RECRUITER", "CANDIDATE")
+                        .requestMatchers("/api/v1/**").hasAnyRole("TENANT_ADMIN", "ADMIN", "HR", "RECRUITER", "CANDIDATE", "STAFF")
                         .anyRequest().authenticated())
-                .addFilterBefore(jwt, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(jwt, UsernamePasswordAuthenticationFilter.class)
+                .addFilterAfter(recruiterFeatureFilter, JwtAuthenticationFilter.class);
         return http.build();
     }
 }

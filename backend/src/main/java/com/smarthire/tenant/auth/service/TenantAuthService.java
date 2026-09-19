@@ -1,6 +1,7 @@
 package com.smarthire.tenant.auth.service;
 
 import com.smarthire.common.exception.BusinessException;
+import com.smarthire.domain.enums.UserRole;
 import com.smarthire.domain.tenant.entity.User;
 import com.smarthire.domain.tenant.repository.UserRepository;
 import com.smarthire.multitenancy.context.TenantContext;
@@ -26,6 +27,7 @@ public class TenantAuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider tokenProvider;
     private final AuthMapper authMapper;
+    private final RolePermissionService rolePermissionService;
 
     @Transactional(readOnly = true)
     public LoginResponse login(LoginRequest request) {
@@ -47,7 +49,7 @@ public class TenantAuthService {
         return LoginResponse.builder()
                 .accessToken(accessToken)
                 .tokenType("Bearer")
-                .user(authMapper.toUserResponse(user))
+                .user(withPermissions(user))
                 .tenantId(currentTenant)
                 .build();
     }
@@ -67,7 +69,14 @@ public class TenantAuthService {
         User user = userRepository.findByEmailIgnoreCase(email)
                 .orElseThrow(() -> new BusinessException("User not found in tenant database", HttpStatus.NOT_FOUND, "USER_NOT_FOUND"));
 
-        return authMapper.toUserResponse(user);
+        return withPermissions(user);
+    }
+
+    private UserResponse withPermissions(User user) {
+        UserResponse response = authMapper.toUserResponse(user);
+        response.setWorkspace(UserRole.workspaceOf(user.getRole()));
+        response.setPermissions(rolePermissionService.permissionsFor(user.getRole()));
+        return response;
     }
 }
 

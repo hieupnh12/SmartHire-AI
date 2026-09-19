@@ -64,7 +64,7 @@ public class CandidateAuthService {
             user = new User();
             user.setEmail(payload.getEmail().toLowerCase());
             user.setFullName(StringUtils.hasText(payload.getName()) ? payload.getName() : payload.getEmail());
-            user.setRole(UserRole.CANDIDATE);
+            user.setRole(UserRole.CANDIDATE.name());
             user.setStatus(UserStatus.ACTIVE);
             user = userRepository.save(user);
 

@@ -13,7 +13,7 @@ Mỗi trang gồm: Mục đích · Actor · Luồng · Business Rules · API · 
 | AUTH-01 | User Registration | [User-Registration](Authentication/User-Registration.md) | To Do |
 | AUTH-02 | Login & JWT Authentication | [Login-JWT](Authentication/Login-JWT.md) | To Do |
 | AUTH-03 | Google OAuth Login | [Google-OAuth](Authentication/Google-OAuth.md) | To Do |
-| AUTH-04 | Role-Based Access Control (RBAC) | [RBAC](Authentication/RBAC.md) | To Do |
+| AUTH-04 | Role-Based Access Control (RBAC) | [RBAC](Authentication/RBAC.md) | Done |
 | AUTH-05 | User Profile Management | [User-Profile](Authentication/User-Profile.md) | To Do |
 
 ## 2. Company Management

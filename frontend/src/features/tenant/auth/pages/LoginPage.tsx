@@ -11,6 +11,9 @@ import { useT } from "@/i18n";
 import { LanguageSwitcher } from "@/components/ux/LanguageSwitcher";
 import { toast } from "@/stores/toastStore";
 import { getTenantIdFromWindow, buildTenantUrl } from "@/lib/tenant";
+import { recruiterHomePath, isAllowedRecruiterPath } from "@/features/tenant/recruiter/permissions";
+import { workspaceOf } from "@/features/tenant/auth/workspace";
+import type { RoleWorkspace } from "@/types/api";
 import { getTenantTheme, getTenantThemeStyle } from "@/lib/tenantTheme";
 import {
   ShieldCheck,
@@ -32,10 +35,19 @@ const loginSchema = z.object({
 
 type LoginForm = z.infer<typeof loginSchema>;
 
-function homeForRole(role?: string) {
-  if (role === "ADMIN" || role === "TENANT_ADMIN") return "/internal/admin";
-  if (role === "RECRUITER" || role === "HR") return "/recruiter";
+function homeForRole(role?: string, workspace?: RoleWorkspace, permissions?: string[]) {
+  const ws = workspaceOf(role, workspace);
+  if (ws === "ADMIN") return "/internal/admin";
+  if (ws === "RECRUITER") return recruiterHomePath(permissions);
   return "/candidate";
+}
+
+function resumePath(from: string | undefined, role?: string, workspace?: RoleWorkspace, permissions?: string[]) {
+  if (!from || from === "/login" || from === "/internal/login") return null;
+  if (workspaceOf(role, workspace) === "RECRUITER") {
+    return isAllowedRecruiterPath(from, permissions) ? from : null;
+  }
+  return from;
 }
 
 export function LoginPage() {
@@ -70,9 +82,8 @@ export function LoginPage() {
       }
       if (user) setUser(user);
 
-      const role = user?.role || "TENANT_ADMIN";
       toast.success("Đăng nhập thành công 🎉");
-      const targetPath = from && from !== "/login" && from !== "/internal/login" ? from : homeForRole(role);
+      const targetPath = resumePath(from, user?.role, user?.workspace, user?.permissions) ?? homeForRole(user?.role, user?.workspace, user?.permissions);
       const tenantCode = res.data.tenantId || rawTenantCode || "acme";
       localStorage.setItem("tenantId", tenantCode);
 

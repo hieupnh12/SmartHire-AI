@@ -50,8 +50,8 @@ class RankingPersistenceTest {
     }
     @AfterEach void cleanup() { TenantContext.clear(); SecurityContextHolder.clearContext(); }
     @Test void readsRealSourcesPersistsSnapshotsAndRecomputesIdempotently() {
-        User recruiter = new User(); recruiter.setEmail("recruiter@example.test"); recruiter.setFullName("Recruiter"); recruiter.setRole(UserRole.RECRUITER); em.persist(recruiter);
-        User candidate = new User(); candidate.setEmail("candidate@example.test"); candidate.setFullName("Candidate"); candidate.setRole(UserRole.CANDIDATE); em.persist(candidate);
+        User recruiter = new User(); recruiter.setEmail("recruiter@example.test"); recruiter.setFullName("Recruiter"); recruiter.setRole(UserRole.RECRUITER.name()); em.persist(recruiter);
+        User candidate = new User(); candidate.setEmail("candidate@example.test"); candidate.setFullName("Candidate"); candidate.setRole(UserRole.CANDIDATE.name()); em.persist(candidate);
         Job job = new Job(); job.setTitle("Backend"); job.setDescription("Java"); job.setCreatedBy(recruiter); em.persist(job);
         Application app = new Application(); app.setJob(job); app.setCandidate(candidate); em.persist(app);
         Skill skill = new Skill(); skill.setName("Java"); skill.setCategory("backend"); em.persist(skill);

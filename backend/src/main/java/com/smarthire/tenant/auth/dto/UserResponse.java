@@ -1,5 +1,6 @@
 package com.smarthire.tenant.auth.dto;
 
+import com.smarthire.domain.enums.UserRole;
 import com.smarthire.domain.tenant.entity.User;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -8,6 +9,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.Instant;
+import java.util.List;
 
 @Getter
 @Setter
@@ -19,8 +21,10 @@ public class UserResponse {
     private String email;
     private String fullName;
     private String role;
+    private String workspace;
     private String status;
     private Instant createdAt;
+    private List<String> permissions;
 
     public static UserResponse fromEntity(User user) {
         if (user == null) {
@@ -30,7 +34,8 @@ public class UserResponse {
                 .id(user.getId())
                 .email(user.getEmail())
                 .fullName(user.getFullName())
-                .role(user.getRole() != null ? user.getRole().name() : null)
+                .role(user.getRole())
+                .workspace(user.getRole() != null ? UserRole.workspaceOf(user.getRole()) : null)
                 .status(user.getStatus() != null ? user.getStatus().name() : null)
                 .createdAt(user.getCreatedAt())
                 .build();

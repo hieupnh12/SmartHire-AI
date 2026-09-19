@@ -1,4 +1,4 @@
-import type { Role } from "@/types/api";
+import type { Role, RoleWorkspace } from "@/types/api";
 
 export type LoginRequest = {
   email: string;
@@ -9,7 +9,7 @@ export type RegisterRequest = {
   email: string;
   password: string;
   fullName: string;
-  role: Extract<Role, "CANDIDATE" | "RECRUITER">;
+  role: "CANDIDATE" | "RECRUITER";
 };
 
 export type AuthTokens = {
@@ -26,10 +26,12 @@ export type UserProfile = {
   email: string;
   fullName: string;
   role: Role;
+  workspace?: RoleWorkspace;
   phone?: string | null;
   avatarUrl?: string | null;
   bio?: string | null;
   headline?: string | null;
+  permissions?: string[];
 };
 
 export type CandidateProfile = {

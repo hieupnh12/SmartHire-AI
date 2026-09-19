@@ -37,7 +37,11 @@ public class RankingService {
         String tenant = TenantContext.getCurrentTenant();
         if (tenant == null || tenant.isBlank() || tenant.equals("smarthire_master") || auth == null
                 || !auth.isAuthenticated() || !tenant.equals(auth.getDetails())
-                || auth.getAuthorities().stream().noneMatch(a -> a.getAuthority().equals("ROLE_RECRUITER")))
+                || auth.getAuthorities().stream().noneMatch(a -> {
+                    String value = a.getAuthority();
+                    return "ROLE_STAFF".equals(value) || "ROLE_RECRUITER".equals(value) || "ROLE_HR".equals(value)
+                            || "ROLE_TENANT_ADMIN".equals(value) || "ROLE_ADMIN".equals(value);
+                }))
             throw new BusinessException("Recruiter tenant access required", HttpStatus.FORBIDDEN, "RANKING_FORBIDDEN");
         return auth.getName();
     }

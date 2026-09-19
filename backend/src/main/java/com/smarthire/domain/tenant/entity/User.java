@@ -1,6 +1,5 @@
 package com.smarthire.domain.tenant.entity;
 
-import com.smarthire.domain.enums.UserRole;
 import com.smarthire.domain.enums.UserStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -21,9 +20,8 @@ public class User extends BaseEntity {
     @Column(name = "full_name", nullable = false)
     private String fullName;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 32)
-    private UserRole role;
+    @Column(nullable = false, length = 64)
+    private String role;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)
@@ -35,8 +33,8 @@ public class User extends BaseEntity {
     public void setPasswordHash(String passwordHash) { this.passwordHash = passwordHash; }
     public String getFullName() { return fullName; }
     public void setFullName(String fullName) { this.fullName = fullName; }
-    public UserRole getRole() { return role; }
-    public void setRole(UserRole role) { this.role = role; }
+    public String getRole() { return role; }
+    public void setRole(String role) { this.role = role; }
     public UserStatus getStatus() { return status; }
     public void setStatus(UserStatus status) { this.status = status; }
 }
