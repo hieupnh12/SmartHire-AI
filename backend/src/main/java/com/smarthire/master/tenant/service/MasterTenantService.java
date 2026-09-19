@@ -52,10 +52,10 @@ public class MasterTenantService {
                 new BusinessException("Tenant not found", HttpStatus.NOT_FOUND, "TENANT_NOT_FOUND"));
     }
 
-    public boolean checkTenantExists(String identifier) {
-        if (identifier == null || identifier.isBlank()) return false;
-        String value = identifier.trim().toLowerCase(Locale.ROOT);
-        return tenants.findByCode(value).or(() -> tenants.findBySubdomain(value))
+    public boolean checkSubdomainExists(String subdomain) {
+        if (subdomain == null || subdomain.isBlank()) return false;
+        String value = subdomain.trim().toLowerCase(Locale.ROOT);
+        return tenants.findBySubdomain(value)
                 .filter(t -> "ACTIVE".equals(t.getStatus())).isPresent();
     }
 

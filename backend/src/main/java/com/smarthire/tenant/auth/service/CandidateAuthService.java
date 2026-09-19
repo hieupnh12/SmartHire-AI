@@ -13,6 +13,7 @@ import com.smarthire.domain.tenant.repository.OauthAccountRepository;
 import com.smarthire.domain.tenant.repository.UserProfileRepository;
 import com.smarthire.domain.tenant.repository.UserRepository;
 import com.smarthire.multitenancy.context.TenantContext;
+import com.smarthire.multitenancy.service.TenantRegistryService;
 import com.smarthire.security.JwtTokenProvider;
 import com.smarthire.tenant.auth.dto.CandidateLoginResponse;
 import com.smarthire.tenant.auth.dto.CandidateProfileResponse;
@@ -42,6 +43,7 @@ public class CandidateAuthService {
     private final JwtTokenProvider tokenProvider;
     private final RedisService redisService;
     private final AuthMapper authMapper;
+    private final TenantRegistryService tenantRegistryService;
 
     @Transactional
     public CandidateLoginResponse authenticateWithGoogle(GoogleLoginRequest request) {
@@ -132,11 +134,13 @@ public class CandidateAuthService {
         }
 
         CandidateProfileResponse profileResponse = authMapper.toCandidateProfileResponse(user, profile);
+        String subdomain = tenantRegistryService.requireActive(currentTenant).getSubdomain();
         return CandidateLoginResponse.builder()
                 .accessToken(accessToken)
                 .refreshToken(refreshToken)
                 .tokenType("Bearer")
                 .tenantId(currentTenant)
+                .subdomain(subdomain)
                 .candidate(profileResponse)
                 .build();
     }

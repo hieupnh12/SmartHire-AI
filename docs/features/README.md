@@ -47,7 +47,7 @@ Mỗi trang gồm: Mục đích · Actor · Luồng · Business Rules · API · 
 
 | Code | Feature | Doc | Status |
 |---|---|---|---|
-| RANK-01 | Candidate Ranking Algorithm | [Ranking-Algorithm](Matching-Ranking/Ranking-Algorithm.md) | To Do |
+| RANK-01 | Candidate Ranking Algorithm | [Ranking-Algorithm](Matching-Ranking/Ranking-Algorithm.md) | Doing |
 | RANK-02 | Recommendation Engine | [Recommendation-Engine](Matching-Ranking/Recommendation-Engine.md) | To Do |
 | RANK-03 | Overall Candidate Score | [Overall-Candidate-Score](Matching-Ranking/Overall-Candidate-Score.md) | To Do |
 

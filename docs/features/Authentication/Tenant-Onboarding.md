@@ -32,6 +32,8 @@ Provisioning hiện chạy đồng bộ trong request. Nếu HTTP bị gián đo
 - API tạo user tenant yêu cầu `TENANT_ADMIN` hoặc `ADMIN`.
 - JWT, header và subdomain phải quy về cùng mã tenant. Subdomain chỉ được lấy dưới domain cấu hình hoặc `.localhost`.
 - Frontend xác định tenant trực tiếp từ subdomain; domain nền tảng không fallback sang tenant đã lưu trong `localStorage`.
+- Nhãn hostname chỉ được đối chiếu với cột `tenants.subdomain`; mã tenant (`code`) không được chấp nhận như một subdomain.
+- Mọi route tenant trên frontend đều đi qua subdomain guard; route login/admin không render nếu subdomain không tồn tại hoặc không ACTIVE.
 - Tenant thiếu, không tồn tại hoặc không ACTIVE bị từ chối. Không fallback sang master.
 - Master và tenant có `EntityManagerFactory`, repository scan và transaction manager riêng.
 - Mật khẩu DB được mã hóa AES-256-GCM và ràng buộc với mã tenant. Khóa Base64 32 byte nằm ngoài DB.

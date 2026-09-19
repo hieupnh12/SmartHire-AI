@@ -55,6 +55,13 @@ export const rankingPreview: RankingBoard = {
       notices: ["PREVIEW_DATA"],
       sources: { cvId: candidate.id + 1000, attemptId: candidate.id + 2000, interviewId: candidate.id + 3000 },
       interviewFeedback: "Giao tiếp rõ ràng, có tư duy hệ thống và xử lý tình huống tốt.",
+      timeline: [
+        { type: "APPLICATION_RECEIVED", occurredAt: null },
+        { type: "CV_ANALYZED", occurredAt: null },
+        { type: "ASSESSMENT_GRADED", occurredAt: null },
+        { type: "INTERVIEW_SCORED", occurredAt: null },
+      ],
+      insight: { recommendation: "ADVANCE", strengths: ["STRONG_SKILLS", "STRONG_ASSESSMENT", "STRONG_INTERVIEW"], risks: [], questions: ["VERIFY_SKILL:System design"] },
     };
   }),
 };

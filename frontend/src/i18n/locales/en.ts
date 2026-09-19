@@ -81,7 +81,7 @@ export const en = {
     myCv: "My CV",
     cvScreening: "CV Screening",
     matching: "Ranking",
-    ranking: "Candidate Ranking",
+    ranking: "Ranking",
     pipeline: "Pipeline",
     assessments: "Assessments",
     interviews: "Interviews",

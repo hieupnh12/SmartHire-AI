@@ -1,10 +1,10 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Award, BriefcaseBusiness, CalendarDays, Check, ChevronDown, CircleAlert, Code2, FileSearch, Lightbulb, MessageSquareText, Sparkles, Target, X } from "lucide-react";
 import { matchingApi } from "@/api/tenant/matchingApi";
 import { getApiErrorMessage } from "@/lib/axios";
-import type { RankingRow } from "../types/ranking";
+import type { RankingRow, RankingSources, Selection } from "../types/ranking";
 import { button, labels, muted, primary, scoreText } from "./rankingUi";
 
 const section = "rounded-xl border border-[var(--color-border-default)] bg-white p-5 shadow-sm";
@@ -57,24 +57,45 @@ function SkillEvidence({ row }: { row: RankingRow }) {
 }
 
 function InsightPanel({ row, preview }: { row: RankingRow; preview: boolean }) {
+  if (!row.insight) return null;
+  const recommendation: Record<string, string> = { ADVANCE: "Nên chuyển vòng tiếp theo", REVIEW: "Cần recruiter xem xét thêm", HOLD: "Nên tạm giữ", WAIT_FOR_DATA: "Chờ bổ sung dữ liệu" };
+  const signal: Record<string, string> = { STRONG_SKILLS: "Kỹ năng phù hợp tốt", STRONG_EXPERIENCE: "Kinh nghiệm liên quan tốt", STRONG_ASSESSMENT: "Kết quả assessment tốt", STRONG_INTERVIEW: "Kết quả AI interview tốt", MISSING_REQUIRED_SKILLS: "Còn thiếu kỹ năng bắt buộc", MISSING_SKILLS: "Chưa có dữ liệu kỹ năng", MISSING_EXPERIENCE: "Chưa có dữ liệu kinh nghiệm", MISSING_ASSESSMENT: "Chưa có kết quả assessment", MISSING_INTERVIEW: "Chưa có kết quả interview" };
   return <section className={`${section} relative overflow-hidden`} aria-labelledby="insight-title">
     <div className="absolute -right-12 -top-12 size-40 rounded-full bg-[var(--color-primary-soft)] blur-3xl" aria-hidden="true" />
     <header className="relative flex items-start justify-between gap-3"><div><h3 id="insight-title" className="flex items-center gap-2 text-lg font-semibold"><Sparkles className="size-5 text-[var(--color-primary)]" aria-hidden="true" />Trợ lý phân tích Rank</h3><p className={muted}>Tóm tắt hỗ trợ recruiter ra quyết định.</p></div>{preview && <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">Dữ liệu mẫu</span>}</header>
-    <div className="relative mt-4 rounded-xl bg-[var(--color-primary-subtle)] p-4"><p className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--color-primary-hover)]">Đề xuất · {scoreText(row.result.score)}/100</p><p className="mt-1 text-lg font-semibold">Phù hợp tốt · Nên chuyển vòng kỹ thuật</p><p className="mt-2 text-sm leading-6 text-[var(--color-on-surface-variant)]">Ứng viên có nền tảng kỹ thuật đồng đều, mức bao phủ kỹ năng tốt và kết quả phỏng vấn tích cực.</p></div>
-    <div className="mt-5"><h4 className="flex items-center gap-2 text-sm font-semibold"><Award className="size-4 text-[var(--color-primary)]" aria-hidden="true" />Điểm mạnh nổi bật</h4><ul className="mt-3 space-y-2 text-sm text-[var(--color-on-surface-variant)]"><li className="flex gap-2"><Check className="mt-0.5 size-4 shrink-0 text-emerald-600" aria-hidden="true" />Kỹ năng cốt lõi phù hợp trực tiếp với yêu cầu Job.</li><li className="flex gap-2"><Check className="mt-0.5 size-4 shrink-0 text-emerald-600" aria-hidden="true" />Kết quả assessment và interview ổn định.</li></ul></div>
-    <div className="mt-5"><h4 className="flex items-center gap-2 text-sm font-semibold"><CircleAlert className="size-4 text-amber-600" aria-hidden="true" />Điểm cần xác minh</h4><p className="mt-2 rounded-lg bg-amber-50 p-3 text-sm leading-6 text-amber-800">Xác minh thêm mức độ trực tiếp tham gia thiết kế hạ tầng và xử lý sự cố production.</p></div>
-    <div className="mt-5"><h4 className="flex items-center gap-2 text-sm font-semibold"><Lightbulb className="size-4 text-[var(--color-primary)]" aria-hidden="true" />Câu hỏi gợi ý</h4><ol className="mt-3 space-y-2 text-sm text-[var(--color-on-surface-variant)]"><li>1. Bạn xử lý idempotency trong hệ thống thanh toán như thế nào?</li><li>2. Hãy mô tả một quyết định kiến trúc bạn từng phải đánh đổi.</li></ol></div>
+    <div className="relative mt-4 rounded-xl bg-[var(--color-primary-subtle)] p-4"><p className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--color-primary-hover)]">Đề xuất · {scoreText(row.result.score)}/100</p><p className="mt-1 text-lg font-semibold">{recommendation[row.insight.recommendation] ?? row.insight.recommendation}</p><p className="mt-2 text-sm leading-6 text-[var(--color-on-surface-variant)]">Nhận định được tạo theo quy tắc từ các thành phần điểm và dữ liệu còn thiếu.</p></div>
+    {row.insight.strengths.length > 0 && <div className="mt-5"><h4 className="flex items-center gap-2 text-sm font-semibold"><Award className="size-4 text-[var(--color-primary)]" aria-hidden="true" />Điểm mạnh nổi bật</h4><ul className="mt-3 space-y-2 text-sm text-[var(--color-on-surface-variant)]">{row.insight.strengths.map((item) => <li key={item} className="flex gap-2"><Check className="mt-0.5 size-4 shrink-0 text-emerald-600" aria-hidden="true" />{signal[item] ?? item}</li>)}</ul></div>}
+    {row.insight.risks.length > 0 && <div className="mt-5"><h4 className="flex items-center gap-2 text-sm font-semibold"><CircleAlert className="size-4 text-amber-600" aria-hidden="true" />Điểm cần xác minh</h4><ul className="mt-2 space-y-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">{row.insight.risks.map((item) => <li key={item}>{signal[item] ?? item}</li>)}</ul></div>}
+    {row.insight.questions.length > 0 && <div className="mt-5"><h4 className="flex items-center gap-2 text-sm font-semibold"><Lightbulb className="size-4 text-[var(--color-primary)]" aria-hidden="true" />Câu hỏi gợi ý</h4><ol className="mt-3 space-y-2 text-sm text-[var(--color-on-surface-variant)]">{row.insight.questions.map((item, index) => <li key={item}>{index + 1}. Hãy mô tả kinh nghiệm thực tế với {item.replace("VERIFY_SKILL:", "")}.</li>)}</ol></div>}
   </section>;
 }
 
 function Timeline({ row }: { row: RankingRow }) {
-  const steps = ["Đã tiếp nhận hồ sơ", "CV đã được phân tích", "Assessment đã chấm", "AI Interview đã đánh giá", labels[row.status] ?? row.status];
+  const eventLabels: Record<string, string> = { APPLICATION_RECEIVED: "Đã tiếp nhận hồ sơ", CV_ANALYZED: "CV đã được phân tích", ASSESSMENT_GRADED: "Assessment đã chấm", INTERVIEW_SCORED: "AI Interview đã đánh giá" };
   return <section className={section} aria-labelledby="timeline-title"><header className="mb-4"><h3 id="timeline-title" className="flex items-center gap-2 text-lg font-semibold"><BriefcaseBusiness className="size-5 text-[var(--color-primary)]" aria-hidden="true" />Hành trình ứng tuyển</h3><p className={muted}>Các mốc dữ liệu tạo nên kết quả xếp hạng hiện tại.</p></header>
-    <ol className="relative ml-2 border-l border-[var(--color-outline-variant)]">{steps.map((step, index) => <li key={`${step}-${index}`} className="relative pb-5 pl-6 last:pb-0"><span className="absolute -left-2 top-0 grid size-4 place-items-center rounded-full bg-[var(--color-primary)] ring-4 ring-white"><Check className="size-2.5 text-white" aria-hidden="true" /></span><p className="text-sm font-semibold">{step}</p><p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">Dữ liệu đã được đưa vào snapshot xếp hạng.</p></li>)}</ol>
+    <ol className="relative ml-2 border-l border-[var(--color-outline-variant)]">{row.timeline.map((event, index) => <li key={`${event.type}-${event.occurredAt ?? index}`} className="relative pb-5 pl-6 last:pb-0"><span className="absolute -left-2 top-0 grid size-4 place-items-center rounded-full bg-[var(--color-primary)] ring-4 ring-white"><Check className="size-2.5 text-white" aria-hidden="true" /></span><p className="text-sm font-semibold">{eventLabels[event.type] ?? (event.type.startsWith("STATUS_") ? labels[event.type.slice(7)] ?? event.type.slice(7) : event.type)}</p><p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">{event.occurredAt ? new Date(event.occurredAt).toLocaleString("vi-VN") : "Chưa có thời gian ghi nhận"}</p></li>)}</ol>
   </section>;
 }
 
-export function RankingDetail({ row, jobTitle, tenantKey, preview = false, onClose }: {
+function SourceSelector({ applicationId, tenantKey, data }: { applicationId: number; tenantKey: string; data: RankingSources }) {
+  const client = useQueryClient();
+  const [selection, setSelection] = useState<Selection>(data.selected);
+  const mutation = useMutation({
+    mutationFn: () => matchingApi.selectSources(applicationId, selection),
+    onSuccess: async () => {
+      await client.invalidateQueries({ queryKey: ["rankings"] });
+      await client.invalidateQueries({ queryKey: ["ranking-sources", tenantKey, applicationId] });
+    },
+  });
+  const fields = [
+    { key: "cvId" as const, label: "CV", options: data.cvs },
+    { key: "attemptId" as const, label: "Assessment", options: data.attempts },
+    { key: "interviewId" as const, label: "AI Interview", options: data.interviews },
+  ];
+  return <section className={section} aria-labelledby="source-title"><h3 id="source-title" className="text-lg font-semibold">Nguồn dữ liệu xếp hạng</h3><p className={muted}>Chọn nguồn chính thức khi ứng viên có nhiều lần đánh giá.</p><div className="mt-4 space-y-3">{fields.map((field) => <label key={field.key} className="block text-sm"><span className="mb-1 block font-medium">{field.label}</span><select className="w-full rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-alt)] px-3 py-2" value={selection[field.key] ?? ""} onChange={(event) => setSelection((current) => ({ ...current, [field.key]: event.target.value ? Number(event.target.value) : null }))}><option value="">{field.options.length > 1 ? "Chọn nguồn" : "Chưa có nguồn"}</option>{field.options.map((option) => <option key={option.id} value={option.id}>{option.label} · {option.status}</option>)}</select></label>)}</div>{mutation.isError && <p role="alert" className="mt-3 text-sm text-red-700">{getApiErrorMessage(mutation.error)}</p>}<button type="button" className={`${primary} mt-4 w-full`} disabled={mutation.isPending} onClick={() => mutation.mutate()}>{mutation.isPending ? "Đang lưu…" : "Lưu nguồn và tính lại"}</button></section>;
+}
+
+function RankingDetailContent({ row, jobTitle, tenantKey, preview = false, onClose }: {
   row: RankingRow; jobTitle: string; tenantKey: string; preview?: boolean; onClose: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
@@ -99,9 +120,19 @@ export function RankingDetail({ row, jobTitle, tenantKey, preview = false, onClo
 
       <div className="grid gap-6 lg:grid-cols-12"><div className="space-y-6 lg:col-span-8"><ComponentBreakdown row={row} /><SkillEvidence row={row} /><section className={section}><h3 className="text-lg font-semibold">Kinh nghiệm liên quan</h3><p className="mt-1 text-sm">{row.experienceMonths === null ? "Chưa đủ dữ liệu xác minh" : `${row.experienceMonths} tháng, đã loại trừ thời gian trùng lặp`}</p>{row.experienceEvidence.map((evidence, index) => <blockquote key={index} className="mt-3 rounded-r-lg border-l-2 border-[var(--color-primary)] bg-[var(--color-surface-alt)] p-3 text-sm">{evidence}</blockquote>)}</section><FormulaTable row={row} /></div>
         <aside className="space-y-6 lg:col-span-4"><InsightPanel row={row} preview={preview} />{row.interviewFeedback && <section className={section}><h3 className="flex items-center gap-2 text-lg font-semibold"><MessageSquareText className="size-5 text-[var(--color-primary)]" aria-hidden="true" />Nhận xét AI Interview</h3><p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-[var(--color-on-surface-variant)]">{row.interviewFeedback}</p></section>}<Timeline row={row} />
-          {!preview && sources.isPending && <p role="status" className={section}>Đang tải nguồn đánh giá…</p>}{!preview && sources.isError && <div role="alert" className={section}>{getApiErrorMessage(sources.error)}</div>}
+          {!preview && sources.isPending && <p role="status" className={section}>Đang tải nguồn đánh giá…</p>}{!preview && sources.isError && <div role="alert" className={section}>{getApiErrorMessage(sources.error)}</div>}{!preview && sources.data && <SourceSelector applicationId={row.applicationId} tenantKey={tenantKey} data={sources.data.data} />}
         </aside></div>
     </div>
     <div className="sticky bottom-0 z-20 flex flex-col gap-3 border-t border-[var(--color-border-default)] bg-white/90 px-4 py-3 backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between sm:px-6"><div><p className="text-sm font-semibold">Điểm chỉ hỗ trợ ra quyết định</p><p className="text-xs text-[var(--color-on-surface-variant)]">Hãy kiểm tra bằng chứng và phỏng vấn trước khi thay đổi trạng thái ứng viên.</p></div><div className="flex gap-2"><button className={`${button} flex-1 sm:flex-none`} onClick={onClose}>Đóng</button><Link className={`${primary} flex-1 sm:flex-none`} to={`/recruiter/interviews?applicationId=${row.applicationId}`}>Xem phỏng vấn</Link></div></div>
   </dialog>;
+}
+
+export function RankingDetail({ applicationId, previewRow, jobTitle, tenantKey, onClose }: {
+  applicationId: number; previewRow?: RankingRow; jobTitle: string; tenantKey: string; onClose: () => void;
+}) {
+  const detail = useQuery({ queryKey: ["ranking-detail", tenantKey, applicationId], queryFn: () => matchingApi.detail(applicationId), enabled: !previewRow });
+  if (previewRow) return <RankingDetailContent row={previewRow} jobTitle={jobTitle} tenantKey={tenantKey} preview onClose={onClose} />;
+  if (detail.isPending) return <div role="status" className="fixed inset-0 z-50 grid place-items-center bg-slate-900/45"><div className={section}>Đang tải chi tiết xếp hạng…</div></div>;
+  if (detail.isError) return <div role="alert" className="fixed inset-0 z-50 grid place-items-center bg-slate-900/45"><div className={section}><p>{getApiErrorMessage(detail.error)}</p><button className={`${button} mt-3`} onClick={onClose}>Đóng</button></div></div>;
+  return <RankingDetailContent row={detail.data.data} jobTitle={jobTitle} tenantKey={tenantKey} onClose={onClose} />;
 }

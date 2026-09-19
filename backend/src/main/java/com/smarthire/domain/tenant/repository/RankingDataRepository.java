@@ -21,6 +21,10 @@ public class RankingDataRepository {
     public List<Application> applications(long jobId) {
         return em.createQuery("select a from Application a join fetch a.candidate where a.job.id = :id order by a.id", Application.class).setParameter("id", jobId).getResultList();
     }
+    public List<ApplicationStatusHistory> history(long appId) {
+        return em.createQuery("select h from ApplicationStatusHistory h where h.application.id = :id order by h.createdAt", ApplicationStatusHistory.class)
+                .setParameter("id", appId).getResultList();
+    }
     public List<JobSkill> requirements(long jobId) {
         return em.createQuery("select s from JobSkill s join fetch s.skill where s.job.id = :id order by s.id", JobSkill.class).setParameter("id", jobId).getResultList();
     }

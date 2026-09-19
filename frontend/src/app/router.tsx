@@ -2,6 +2,7 @@ import { MasterRoute } from "@/app/guards/MasterRoute";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { RootRouteSwitcher } from "@/app/RootRouteSwitcher";
 import { RoleRoute } from "@/app/guards/RoleRoute";
+import { TenantSubdomainGuard } from "@/app/guards/TenantSubdomainGuard";
 import { RoleShell } from "@/app/layouts/RoleShell";
 import { TenantOnboardPage } from "@/features/master/onboarding/pages/TenantOnboardPage";
 import { LoginPage } from "@/features/tenant/auth/pages/LoginPage";
@@ -62,10 +63,12 @@ export function AppRouter() {
   return (
     <Routes>
       <Route path="/" element={<RootRouteSwitcher />} />
+      <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
+
+      <Route element={<TenantSubdomainGuard />}>
       <Route path="/career" element={<TenantCareerPage />} />
       <Route path="/jobs" element={<TenantCareerPage />} />
       <Route path="/candidate/login" element={<CandidateLoginPage />} />
-      <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
       <Route path="/internal/login" element={<LoginPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
@@ -142,6 +145,8 @@ export function AppRouter() {
       <Route path="/tenant/admin/*" element={<LegacyTenantAdminRedirect />} />
 
       <Route path="/company/workspace" element={<TenantAdminDashboardPage />} />
+      </Route>
+
       <Route element={<MasterRoute />}>
         <Route path="/onboard" element={<TenantOnboardPage />} />
         <Route path="/admin" element={<MasterAdminDashboardPage />} />

@@ -38,14 +38,15 @@ Xếp hạng hồ sơ ứng tuyển của một Job bằng hai tầng trọng s�
 
 | Method | Path |
 |---|---|
-| GET | `/api/v1/jobs/{id}/rankings` |
+| GET | `/api/v1/jobs/{id}/rankings?page=&size=&search=&status=&cohort=&minScore=&sort=` |
 | POST | `/api/v1/jobs/{id}/rankings/recompute` |
 | GET | `/api/v1/rankings/jobs` |
 | PUT | `/api/v1/jobs/{id}/rankings/config` |
 | GET | `/api/v1/applications/{id}/ranking-sources` |
 | PUT | `/api/v1/applications/{id}/ranking-sources` |
+| GET | `/api/v1/applications/{id}/ranking-detail` |
 
-Response bọc `ApiResponse`. Board có `jobId`, `jobTitle`, `config`, `rankingVersion`, `calculatedAt`, `skillCategories`, `rows`. Mỗi row chứa thành phần/đóng góp, cohort, hạng, kỹ năng thiếu, bằng chứng kinh nghiệm và nguồn được sử dụng.
+Response bọc `ApiResponse`. API danh sách trả `summary`, `page`, `cohorts` và row nhẹ; tìm kiếm, trạng thái, cohort, điểm tối thiểu, sắp xếp và phân trang được xử lý phía backend sau khi tính hạng trên toàn cohort. API detail trả breakdown, bằng chứng, nguồn, `timeline` và insight theo quy tắc.
 
 ## Database liên quan
 
@@ -56,8 +57,8 @@ Response bọc `ApiResponse`. Board có `jobId`, `jobTitle`, `config`, `rankingV
 
 ## UI mockup
 
-- `/recruiter/rank`: chọn Job → bốn thẻ tổng quan → cấu hình có thể mở rộng → trọng số đang dùng → bộ lọc → bảng điểm → phân trang và xuất CSV theo kết quả đang lọc. Bảng desktop ưu tiên hạng, ứng viên, các điểm chính, trạng thái và hành động xem chi tiết; màn hình nhỏ chuyển sang card ứng viên để không phụ thuộc cuộn ngang. Frontend hiện có dữ liệu preview chỉ đọc để hoàn thiện và duyệt giao diện trước khi nối đầy đủ backend.
-- Nhấn tên hoặc nút xem chi tiết mở dialog thích ứng: toàn màn hình trên mobile và modal lớn trên desktop. Phần đầu tóm tắt hồ sơ, hạng, điểm tổng, bốn điểm thành phần và liên kết sang assessment/interview/lịch hẹn; phần dưới trình bày phân tích đa chiều, kỹ năng/độ bao phủ, bằng chứng kinh nghiệm, nhận xét interview, insight và timeline. Công thức trọng số được thu gọn và mở khi cần. Dialog hỗ trợ Escape và quản lý focus bằng native dialog.
+- `/recruiter/rank`: chọn Job → bốn thẻ tổng quan → cấu hình có thể mở rộng → trọng số đang dùng → bộ lọc → bảng điểm → phân trang và xuất CSV theo kết quả đang lọc. Bảng desktop ưu tiên hạng, ứng viên, các điểm chính, trạng thái và hành động xem chi tiết; màn hình nhỏ chuyển sang card ứng viên để không phụ thuộc cuộn ngang. Dữ liệu preview chỉ hiển thị trong môi trường development hoặc khi bật `VITE_ENABLE_RANKING_PREVIEW=true`.
+- Nhấn tên hoặc nút xem chi tiết mở dialog thích ứng: toàn màn hình trên mobile và modal lớn trên desktop. Dialog hiển thị breakdown, bằng chứng, timeline từ dữ liệu nghiệp vụ và cho phép chọn CV/assessment/interview chính thức. Insight mẫu chỉ hiển thị trong preview, không giả lập thành nhận định thật.
 - Màu, font và khoảng cách theo `DESIGN.md`. Trang Rank và dialog chi tiết kế thừa semantic color token từ `RoleShell`, không dùng palette riêng, nên luôn đồng bộ với tenant hiện tại.
 
 ## Phụ thuộc
@@ -69,4 +70,4 @@ CV-03/04/05, JOB-03/05, ASSESS-03, INT-04.
 - Đã triển khai thuật toán, API, lưu snapshot, cấu hình, chọn nguồn và giao diện sử dụng dữ liệu thật.
 - Unit test: công thức 81,35; điểm tạm 79,30; điểm 0/thiếu; trọng số sai; alias; tương đồng khác bao phủ; loại trùng thời gian; cohort/đồng hạng; quyền tenant/Job; validation HTTP và xung đột revision.
 - Integration test H2: đọc CV/assessment/interview thật, tính 84,20 theo fixture, lưu/chọn nguồn/tính lại nhiều lần chỉ còn một snapshot mỗi hồ sơ.
-- Còn phụ thuộc các module tạo Job/hồ sơ, trích xuất CV, chấm assessment và AI interview hiện là scaffold. Các link chuyển module chưa thực hiện gửi lời mời/đặt lịch. Chưa tích hợp sự kiện RabbitMQ/WebSocket cập nhật ranking; dùng GET làm mới khi màn hình mở. Vì vậy trạng thái toàn luồng giữ `Doing`.
+- Còn phụ thuộc các module tạo Job/hồ sơ, trích xuất CV, chấm assessment và AI interview hiện là scaffold. Khi các module này hoàn tất dữ liệu, chúng publish `RANKING_RECOMPUTE` lên `job.events` kèm `X-Tenant-ID`; worker tính snapshot và WebSocket `/ws/rankings` phát `ranking.updated` sau commit. Polling 30 giây được giữ làm fallback. Vì các producer upstream còn scaffold, trạng thái toàn luồng giữ `Doing`.

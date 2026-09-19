@@ -93,6 +93,10 @@ uploads/
 storage/
 **/uploads/
 **/storage/
+!backend/src/main/java/com/smarthire/common/storage/
+!backend/src/main/java/com/smarthire/common/storage/**
+!backend/src/test/java/com/smarthire/common/storage/
+!backend/src/test/java/com/smarthire/common/storage/**
 backups/
 /data/
 *.sql.gz

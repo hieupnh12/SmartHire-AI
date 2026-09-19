@@ -52,6 +52,10 @@ class RankingServiceTest {
         var board = service.board(1);
         assertThat(board.rows()).isEmpty(); assertThat(board.config().weights()).isEqualTo(new Weights(35, 15, 30, 20));
         assertThat(board.config().revision()).isZero();
+        var page = service.page(1, 0, 20, "", "ACTIVE", "ALL", null, "score");
+        assertThat(page.rows()).isEmpty();
+        assertThat(page.summary().totalCandidates()).isZero();
+        assertThat(page.page().totalPages()).isZero();
     }
     @Test void rejectsStaleConfigurationAndForeignSource() {
         Job job = job(); when(data.job(1, true)).thenReturn(job);

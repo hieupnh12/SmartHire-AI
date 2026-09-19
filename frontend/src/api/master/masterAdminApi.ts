@@ -67,8 +67,8 @@ export const masterAdminApi = {
     const res = await masterClient.patch(`${API_BASE}/master/tenants/${id}/status?status=${status}`);
     return res.data.data;
   },
-  checkTenantExists: async (codeOrSubdomain: string): Promise<boolean> => {
-    const res = await masterClient.get(`${API_BASE}/master/tenants/check/${codeOrSubdomain}`);
+  checkSubdomainExists: async (subdomain: string): Promise<boolean> => {
+    const res = await masterClient.get(`${API_BASE}/master/tenants/check-subdomain/${subdomain}`);
     return res.data.data;
   },
   provisionTenant: async (data: import("./tenantApi").OnboardTenantRequest): Promise<TenantInfo> => {

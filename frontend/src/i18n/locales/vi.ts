@@ -74,7 +74,7 @@ export const vi: Messages = {
     myCv: "CV của tôi",
     cvScreening: "Sàng lọc CV",
     matching: "Xếp hạng",
-    ranking: "Xếp hạng ứng viên",
+    ranking: "Xếp hạng",
     pipeline: "Pipeline",
     assessments: "Bài kiểm tra",
     interviews: "Phỏng vấn",

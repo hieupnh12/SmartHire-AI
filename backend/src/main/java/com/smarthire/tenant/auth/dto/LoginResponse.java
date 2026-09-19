@@ -17,5 +17,6 @@ public class LoginResponse {
     private String tokenType = "Bearer";
     private UserResponse user;
     private String tenantId;
+    private String subdomain;
 }
 

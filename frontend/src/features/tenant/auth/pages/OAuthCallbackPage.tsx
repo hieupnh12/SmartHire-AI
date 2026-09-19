@@ -91,7 +91,7 @@ export function OAuthCallbackPage() {
         if (isCancelled) return;
 
         if (response.success && response.data) {
-          const { accessToken, refreshToken, candidate } = response.data;
+          const { accessToken, refreshToken, subdomain, candidate } = response.data;
           setTokens(accessToken, refreshToken);
           setUser({
             id: candidate.id,
@@ -106,7 +106,7 @@ export function OAuthCallbackPage() {
           setStatusMessage("Đăng nhập thành công! Đang chuyển hướng...");
 
           window.setTimeout(() => {
-            const targetUrl = buildTenantUrl(targetTenant, redirectUrl);
+            const targetUrl = buildTenantUrl(subdomain, redirectUrl);
             if (window.location.href !== targetUrl) {
               window.location.href = targetUrl;
             } else {

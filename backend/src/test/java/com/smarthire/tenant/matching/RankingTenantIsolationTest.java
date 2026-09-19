@@ -18,6 +18,10 @@ class RankingTenantIsolationTest {
             var tenant = new com.smarthire.domain.master.entity.TenantInfo();
             tenant.setCode(invocation.getArgument(0)); return tenant;
         });
+        org.mockito.Mockito.when(registry.requireActiveBySubdomain(org.mockito.ArgumentMatchers.anyString())).thenAnswer(invocation -> {
+            var tenant = new com.smarthire.domain.master.entity.TenantInfo();
+            tenant.setCode(invocation.getArgument(0)); return tenant;
+        });
         var auth = new UsernamePasswordAuthenticationToken("recruiter", null, List.of());
         auth.setDetails("acme"); SecurityContextHolder.getContext().setAuthentication(auth);
         TenantContext.setCurrentTenant("acme");
