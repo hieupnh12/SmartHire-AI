@@ -31,7 +31,7 @@ Mỗi trang gồm: Mục đích · Actor · Luồng · Business Rules · API · 
 | JOB-02 | Job Publishing | [Job-Publishing](Job-Recruitment/Job-Publishing.md) | Done |
 | JOB-03 | Skill Requirement Management | [Skill-Requirements](Job-Recruitment/Skill-Requirements.md) | Done |
 | JOB-04 | Recruitment Stage Management | [Recruitment-Stages](Job-Recruitment/Recruitment-Stages.md) | Done |
-| JOB-05 | Applicant Management | [Applicant-Management](Job-Recruitment/Applicant-Management.md) | Doing |
+| JOB-05 | Applicant Management | [Applicant-Management](Job-Recruitment/Applicant-Management.md) | Done |
 
 ## 4. AI-Powered CV Screening & Analysis
 
@@ -76,7 +76,7 @@ Mỗi trang gồm: Mục đích · Actor · Luồng · Business Rules · API · 
 | Code | Feature | Doc | Status |
 |---|---|---|---|
 | WF-01 | Recruitment Pipeline | [Recruitment-Pipeline](Recruitment-Workflow/Recruitment-Pipeline.md) | To Do |
-| WF-02 | Candidate Status Management | [Candidate-Status](Recruitment-Workflow/Candidate-Status.md) | To Do |
+| WF-02 | Candidate Status Management | [Candidate-Status](Recruitment-Workflow/Candidate-Status.md) | Done |
 | WF-03 | Hiring Decision Management | [Hiring-Decision](Recruitment-Workflow/Hiring-Decision.md) | To Do |
 
 ## 9. Recruitment Analytics Dashboard

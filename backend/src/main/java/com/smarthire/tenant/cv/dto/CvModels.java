@@ -13,7 +13,7 @@ public final class CvModels {
 
     public record CvSummary(
             long id,
-            long jobId,
+            Long jobId,
             long userId,
             String candidateName,
             String originalFilename,
@@ -28,7 +28,7 @@ public final class CvModels {
 
     public record CvDetail(
             long id,
-            long jobId,
+            Long jobId,
             long userId,
             Long applicationId,
             String candidateName,

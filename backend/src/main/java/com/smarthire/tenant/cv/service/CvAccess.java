@@ -67,6 +67,9 @@ public class CvAccess {
             }
             return;
         }
+        if (cv.getJob() == null) {
+            throw new BusinessException("CV not found", HttpStatus.NOT_FOUND, "CV_NOT_FOUND");
+        }
         requireJob(cv.getJob());
     }
 }

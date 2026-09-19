@@ -39,10 +39,10 @@ public class CvController {
     }
 
     @PostMapping(value = "/cvs", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @Operation(summary = "Candidate upload of a CV for a published job")
+    @Operation(summary = "Candidate upload of a personal CV, or a CV attached to a published job")
     public ResponseEntity<ApiResponse<CvDetail>> upload(
             @RequestParam("file") MultipartFile file,
-            @RequestParam("jobId") long jobId,
+            @RequestParam(value = "jobId", required = false) Long jobId,
             @RequestParam(value = "applicationId", required = false) Long applicationId,
             @RequestParam(value = "candidateEmail", required = false) String candidateEmail) {
         return ResponseEntity.status(HttpStatus.ACCEPTED)

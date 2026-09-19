@@ -18,9 +18,9 @@ export function RoleRoute({ roles }: Props) {
   const location = useLocation();
 
   if (requireAuth && !token) {
-    const loginPath = roles.includes("ADMIN") || roles.includes("TENANT_ADMIN")
-      ? "/internal/login"
-      : "/login";
+    const loginPath = roles.includes("CANDIDATE")
+      ? "/candidate/login"
+      : "/internal/login";
     return <Navigate to={loginPath} replace state={{ from: location }} />;
   }
 

@@ -13,6 +13,7 @@ import com.smarthire.domain.tenant.repository.CvExtractionRepository;
 import com.smarthire.domain.tenant.repository.CvRepository;
 import com.smarthire.domain.tenant.repository.JobSkillRepository;
 import com.smarthire.messaging.JobPublisher;
+import com.smarthire.tenant.applicant.service.ApplicantService;
 import com.smarthire.tenant.cv.ai.CvAiClient;
 import com.smarthire.tenant.cv.parse.CvDocumentParser;
 import java.time.Duration;
@@ -33,6 +34,7 @@ public class CvPipelineService {
     private final CvAiClient ai;
     private final CvSkillAnalysisService analysis;
     private final CvMatchingService matching;
+    private final ApplicantService applicants;
     private final JobPublisher publisher;
     private final RedisService redis;
     private final JobSkillRepository jobSkills;
@@ -46,6 +48,7 @@ public class CvPipelineService {
             CvAiClient ai,
             CvSkillAnalysisService analysis,
             CvMatchingService matching,
+            ApplicantService applicants,
             JobPublisher publisher,
             RedisService redis,
             JobSkillRepository jobSkills) {
@@ -57,6 +60,7 @@ public class CvPipelineService {
         this.ai = ai;
         this.analysis = analysis;
         this.matching = matching;
+        this.applicants = applicants;
         this.publisher = publisher;
         this.redis = redis;
         this.jobSkills = jobSkills;
@@ -170,7 +174,10 @@ public class CvPipelineService {
     public boolean match(long cvId, boolean enqueue) {
         if (!lock(cvId)) return false;
         try {
-            matching.score(require(cvId));
+            Cv cv = require(cvId);
+            if (cv.getJob() == null) return true;
+            var score = matching.score(cv);
+            applicants.advanceFromCvScreening(cv, score);
             return true;
         } catch (Exception ex) {
             fail(require(cvId), "MATCH_FAILED", ex, enqueue);
@@ -182,6 +189,7 @@ public class CvPipelineService {
 
     private String jobContext(Cv cv) {
         var job = cv.getJob();
+        if (job == null) return "Personal CV (no job context)";
         String skills = jobSkills.findByJob_IdOrderByIdAsc(job.getId()).stream()
                 .filter(js -> js.getSkill() != null && js.getSkill().getName() != null)
                 .map(js -> js.getSkill().getName() + (js.isRequired() ? " (required)" : ""))

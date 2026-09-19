@@ -23,6 +23,7 @@ import { AcceptInvitationPage } from "@/features/tenant/auth/pages/AcceptInvitat
 import { candidateNav } from "@/features/tenant/candidate/nav";
 import { HomePage as CandidateHomePage } from "@/features/tenant/candidate/dashboard/pages/HomePage";
 import { BrowseJobsPage } from "@/features/tenant/candidate/jobs/pages/BrowseJobsPage";
+import { CandidateJobDetailPage } from "@/features/tenant/candidate/jobs/pages/CandidateJobDetailPage";
 import { MyApplicationsPage } from "@/features/tenant/candidate/applications/pages/MyApplicationsPage";
 import { MyCvPage } from "@/features/tenant/candidate/cv/pages/MyCvPage";
 import { AssessmentsPage as CandidateAssessmentsPage } from "@/features/tenant/candidate/assessments/pages/AssessmentsPage";
@@ -83,6 +84,7 @@ export function AppRouter() {
         >
           <Route index element={<CandidateHomePage />} />
           <Route path="jobs" element={<BrowseJobsPage />} />
+          <Route path="jobs/:id" element={<CandidateJobDetailPage />} />
           <Route path="applications" element={<MyApplicationsPage />} />
           <Route path="cv" element={<MyCvPage />} />
           <Route path="assessments" element={<CandidateAssessmentsPage />} />

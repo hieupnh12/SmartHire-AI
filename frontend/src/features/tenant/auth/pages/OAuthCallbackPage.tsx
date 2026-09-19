@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { AlertCircle, CheckCircle2, Loader2, ArrowLeft } from "lucide-react";
 import { authApi } from "@/api/tenant/authApi";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
-import { getTenantIdFromWindow, getBaseDomain, buildTenantUrl } from "@/lib/tenant";
+import { getTenantIdFromSubdomain, getBaseDomain, buildTenantUrl } from "@/lib/tenant";
 
 export function OAuthCallbackPage() {
   const navigate = useNavigate();
@@ -52,21 +52,19 @@ export function OAuthCallbackPage() {
           }
         }
 
-        const currentTenant = getTenantIdFromWindow();
         const hostname = window.location.hostname;
         const port = window.location.port ? `:${window.location.port}` : "";
         const baseDomain = getBaseDomain();
+        const isLocal = hostname === "localhost" || hostname === "127.0.0.1" || hostname.endsWith(".localhost");
+        const onTenantHost = Boolean(getTenantIdFromSubdomain());
 
-        // 2. Check if we need to route from Central Hub (smarthire.top) to Tenant Subdomain (e.g. se36.smarthire.top)
-        const isCentralDomain = !currentTenant || hostname === baseDomain;
-        const isLocal = hostname === "localhost" || hostname === "127.0.0.1";
-
-        if (isCentralDomain && !isLocal && targetTenant && targetTenant !== "smarthire") {
+        // Google returns to the central callback; hop onto the tenant host before calling the API.
+        if (!onTenantHost && targetTenant && targetTenant !== "smarthire") {
           if (!isCancelled) {
             setStatusMessage(`Đang chuyển hướng về không gian ${targetTenant}...`);
           }
-          const targetUrl = `${window.location.protocol}//${targetTenant}.${baseDomain}${port}/oauth/callback${window.location.hash}`;
-          window.location.href = targetUrl;
+          const host = isLocal ? `${targetTenant}.localhost` : `${targetTenant}.${baseDomain}`;
+          window.location.href = `${window.location.protocol}//${host}${port}/oauth/callback${window.location.search}${window.location.hash}`;
           return;
         }
 

@@ -16,7 +16,7 @@
 ## Luồng hoạt động
 
 1. Recruiter tạo và đăng job ở Quản lý tin tuyển.
-2. Candidate chọn job PUBLISHED → multipart upload → storage + `cvs`.
+2. Candidate tải CV ở **CV của tôi** (không chọn job). Khi apply: Xem chi tiết JD → Apply (chọn CV đã có, tải từ máy, hoặc sang trang CV của tôi).
 3. Status `UPLOADED`.
 4. Auto-enqueue parse; nếu RabbitMQ không chạy thì xử lý ngay trên request.
 5. Recruiter/candidate có thể `DELETE /cvs/{id}` để gỡ CV test hoặc rút CV.

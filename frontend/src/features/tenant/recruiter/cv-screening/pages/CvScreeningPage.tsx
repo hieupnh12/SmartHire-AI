@@ -56,8 +56,7 @@ export function CvScreeningPage() {
         <p className={muted}>Tuyển dụng / Sàng lọc CV</p>
         <h1 className="mt-1 text-3xl font-semibold tracking-tight">CV Screening</h1>
         <p className={`mt-2 max-w-2xl ${muted}`}>
-          Chỉ CV ứng viên nộp khi apply job mới xuất hiện ở đây. Recruiter xem file, phân tích theo JD, hoặc xóa CV test.
-          Điểm Matching (kỹ năng + assessment + interview) nằm ở trang Matching sau khi đủ bước.
+          Chỉ CV ứng viên nộp khi apply mới xuất hiện. Điểm ≥ 60 và không thiếu skill bắt buộc → đạt chuẩn CV, chuyển phỏng vấn AI. Điểm Matching tổng (assessment + interview) ở trang Matching khi đủ vòng.
         </p>
       </header>
       <div className={panel}>
@@ -166,6 +165,10 @@ function CvDetailPanel({ cv, breakdown, onRetry, retryPending, onDelete, deleteP
         <div>
           <p className="text-sm font-semibold">Đánh giá so với yêu cầu job</p>
           <p className="font-mono text-2xl">{cv.match.score}</p>
+          <p className={muted}>
+            {breakdown?.passed ? "Đạt chuẩn CV → chuyển phỏng vấn AI" : "Chưa đạt ngưỡng sàng lọc"}
+            {breakdown?.passThreshold != null ? ` (ngưỡng ${breakdown.passThreshold})` : ""}
+          </p>
           <p className={muted}>{cv.match.modelVersion}{breakdown?.source ? ` · ${breakdown.source}` : ""}</p>
           <SkillGroup title="Khớp JD" items={breakdown?.matched?.map((i) => i.required) ?? []} />
           <SkillGroup title="Thiếu so với JD" items={breakdown?.missing?.map((i) => i.required) ?? []} />

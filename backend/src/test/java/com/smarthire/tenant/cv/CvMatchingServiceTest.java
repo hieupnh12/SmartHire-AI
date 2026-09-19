@@ -78,7 +78,7 @@ class CvMatchingServiceTest {
         MatchScore score = matching(mapper, scoring).score(cv);
         assertThat(score.getModelVersion()).isEqualTo(CvMatchingService.HEURISTIC_SCREEN);
         assertThat(score.getScore()).isEqualByComparingTo("100.00");
-        assertThat(score.getBreakdownJson()).contains("verdict").contains("React");
+        assertThat(score.getBreakdownJson()).contains("verdict").contains("React").contains("\"passed\":true");
     }
 
     @Test
@@ -106,7 +106,7 @@ class CvMatchingServiceTest {
 
         MatchScore score = matching(mapper, scoring).score(cv);
         assertThat(score.getScore()).isEqualByComparingTo("0.00");
-        assertThat(score.getBreakdownJson()).contains("khớp 0/1").doesNotContain("\"skills\":35");
+        assertThat(score.getBreakdownJson()).contains("khớp 0/1").contains("\"passed\":false").doesNotContain("\"skills\":35");
     }
 
     @Test

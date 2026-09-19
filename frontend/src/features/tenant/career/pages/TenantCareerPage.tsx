@@ -105,6 +105,9 @@ export function TenantCareerPage() {
         setCvFile(null);
         navigate("/candidate/cv");
       }, 1200);
+    }).catch((err: unknown) => {
+      const code = (err as { response?: { data?: { code?: string } } })?.response?.data?.code;
+      if (code === "APPLICATION_EXISTS") navigate("/candidate/cv");
     });
   };
 

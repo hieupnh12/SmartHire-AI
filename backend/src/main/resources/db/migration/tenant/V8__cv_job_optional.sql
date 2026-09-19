@@ -1,0 +1,2 @@
+ALTER TABLE cvs
+    MODIFY job_id BIGINT NULL;

@@ -29,7 +29,7 @@ public class CvMapper {
     public CvSummary summary(Cv cv, MatchScore score) {
         return new CvSummary(
                 cv.getId(),
-                cv.getJob().getId(),
+                cv.getJob() == null ? null : cv.getJob().getId(),
                 cv.getUser().getId(),
                 cv.getUser().getFullName(),
                 cv.getOriginalFilename(),
@@ -43,7 +43,7 @@ public class CvMapper {
                            MatchScore score, boolean includeMatch) {
         return new CvDetail(
                 cv.getId(),
-                cv.getJob().getId(),
+                cv.getJob() == null ? null : cv.getJob().getId(),
                 cv.getUser().getId(),
                 cv.getApplication() == null ? null : cv.getApplication().getId(),
                 cv.getUser().getFullName(),

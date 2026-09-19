@@ -6,7 +6,6 @@ import com.smarthire.tenant.cv.dto.CvModels.JobCreateRequest;
 import com.smarthire.tenant.cv.dto.CvModels.JobOption;
 import com.smarthire.tenant.cv.dto.CvModels.JobSkillView;
 import com.smarthire.tenant.cv.dto.CvModels.JobSkillsRequest;
-import com.smarthire.tenant.job.dto.JobModels.ApplicationView;
 import com.smarthire.tenant.job.dto.JobModels.JobDetail;
 import com.smarthire.tenant.job.dto.JobModels.JobPage;
 import com.smarthire.tenant.job.dto.JobModels.JobUpsertRequest;
@@ -156,18 +155,5 @@ public class JobController {
     @Operation(summary = "Replace recruitment stages")
     public ApiResponse<List<StageView>> replaceStages(@PathVariable long id, @Valid @RequestBody StagesRequest body) {
         return ApiResponse.ok(jobService.replaceStages(id, body));
-    }
-
-    @GetMapping("/{id}/applications")
-    @Operation(summary = "List applications for a job")
-    public ApiResponse<List<ApplicationView>> applications(@PathVariable long id) {
-        return ApiResponse.ok(jobService.applications(id));
-    }
-
-    @PostMapping("/{id}/applications")
-    @Operation(summary = "Candidate apply to a published job")
-    public ApiResponse<ApplicationView> apply(@PathVariable long id, @RequestBody(required = false) Map<String, String> body) {
-        String source = body == null ? null : body.get("source");
-        return ApiResponse.ok(jobService.apply(id, source));
     }
 }

@@ -22,6 +22,8 @@ export type MatchBreakdown = {
   matched?: { required: string; candidate: string | null; similarity: number; mandatory: boolean }[];
   missing?: { required: string; candidate: string | null; similarity: number; mandatory: boolean }[];
   requiredMissing?: string[];
+  passed?: boolean;
+  passThreshold?: number;
 };
 
 export type MatchView = {
@@ -34,7 +36,7 @@ export type MatchView = {
 
 export type CvSummary = {
   id: number;
-  jobId: number;
+  jobId: number | null;
   userId: number;
   candidateName: string;
   originalFilename: string;
@@ -46,7 +48,7 @@ export type CvSummary = {
 
 export type CvDetail = {
   id: number;
-  jobId: number;
+  jobId: number | null;
   userId: number;
   applicationId: number | null;
   candidateName: string;

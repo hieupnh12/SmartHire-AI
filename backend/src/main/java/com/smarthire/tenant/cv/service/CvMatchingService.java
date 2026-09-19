@@ -30,6 +30,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class CvMatchingService {
     public static final String HEURISTIC_SCREEN = "heuristic-screen";
+    public static final BigDecimal PASS_THRESHOLD = new BigDecimal("60");
     private final JobSkillRepository jobSkills;
     private final CvSkillRepository cvSkills;
     private final CvExtractionRepository extractions;
@@ -60,6 +61,9 @@ public class CvMatchingService {
 
     @Transactional
     public MatchScore score(Cv cv) {
+        if (cv.getJob() == null) {
+            throw new IllegalStateException("CV has no job to match");
+        }
         List<JobSkill> requirements = jobSkills.findByJob_IdOrderByIdAsc(cv.getJob().getId());
         List<CvSkill> candidateSkills = cvSkills.findByCv_Id(cv.getId());
         CvExtraction extraction = extractions.findByCv_Id(cv.getId()).orElse(null);
@@ -111,6 +115,10 @@ public class CvMatchingService {
         breakdown.put("verdict", verdict);
         breakdown.put("explanation", verdict);
         breakdown.put("source", model.startsWith("gemini") ? "gemini" : "heuristic");
+        boolean gemini = screening.has("score") && screening.get("score").isNumber();
+        boolean passed = passed(score, requiredMissing.size(), requirements.size(), gemini);
+        breakdown.put("passed", passed);
+        breakdown.put("passThreshold", PASS_THRESHOLD);
 
         MatchScore saved = scores.findByJob_IdAndCv_Id(cv.getJob().getId(), cv.getId()).orElseGet(MatchScore::new);
         saved.setJob(cv.getJob());
@@ -125,6 +133,24 @@ public class CvMatchingService {
             // Cache is optional.
         }
         return saved;
+    }
+
+    public static boolean passed(MatchScore score) {
+        if (score == null || score.getScore() == null || score.getBreakdownJson() == null) return false;
+        try {
+            JsonNode root = new ObjectMapper().readTree(score.getBreakdownJson());
+            if (root.has("passed")) return root.path("passed").asBoolean(false);
+        } catch (Exception ignored) {
+            // Fall through to score-only rule.
+        }
+        return score.getScore().compareTo(PASS_THRESHOLD) >= 0;
+    }
+
+    private static boolean passed(BigDecimal score, int requiredMissing, int totalRequirements, boolean geminiScore) {
+        if (score == null || score.compareTo(PASS_THRESHOLD) < 0) return false;
+        if (requiredMissing > 0) return false;
+        if (totalRequirements == 0 && !geminiScore) return false;
+        return true;
     }
 
     private static String heuristicVerdict(String title, int hits, int total, ArrayNode missing) {

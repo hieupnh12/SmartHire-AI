@@ -10,6 +10,7 @@ export const queryKeys = {
   applicants: {
     byJob: (jobId: number | string) => ["applicants", "job", jobId] as const,
     detail: (id: number | string) => ["applicants", "detail", id] as const,
+    mine: ["applicants", "mine"] as const,
   },
   cvs: {
     detail: (id: number | string) => ["cvs", "detail", id] as const,

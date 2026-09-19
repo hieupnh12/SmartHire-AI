@@ -115,17 +115,21 @@ public class CvService {
         if (!access.candidate()) {
             throw new BusinessException("Only candidates can upload CVs", HttpStatus.FORBIDDEN, "CV_UPLOAD_CANDIDATE_ONLY");
         }
-        Job job = jobs.findById(jobId).orElseThrow(() -> notFound("Job not found", "JOB_NOT_FOUND"));
         User actor = access.actor();
         User owner = owner(actor, candidateEmail);
-        if (job.getStatus() != JobStatus.PUBLISHED) {
-            throw new BusinessException("Job is not open for applications", HttpStatus.BAD_REQUEST, "JOB_NOT_PUBLISHED");
-        }
         if (!owner.getId().equals(actor.getId())) {
             throw new BusinessException("Cannot upload for another user", HttpStatus.FORBIDDEN, "CV_FORBIDDEN");
         }
         validate(file);
-        Application application = resolveApplication(job, owner, applicationId);
+        Job job = null;
+        Application application = null;
+        if (jobId != null) {
+            job = jobs.findById(jobId).orElseThrow(() -> notFound("Job not found", "JOB_NOT_FOUND"));
+            if (job.getStatus() != JobStatus.PUBLISHED) {
+                throw new BusinessException("Job is not open for applications", HttpStatus.BAD_REQUEST, "JOB_NOT_PUBLISHED");
+            }
+            application = resolveApplication(job, owner, applicationId);
+        }
         try {
             byte[] bytes = file.getBytes();
             String filename = safeName(file.getOriginalFilename());
@@ -139,6 +143,7 @@ public class CvService {
             cv.setChecksumSha256(sha256(bytes));
             cv.setStatus(CvStatus.UPLOADED);
             cv.setFileUrl("pending");
+            cv.setRetainUntil(java.time.Instant.now().plus(730, java.time.temporal.ChronoUnit.DAYS));
             cvs.save(cv);
             try {
                 var stored = storage.store(TenantContext.getCurrentTenant(), String.valueOf(cv.getId()), filename, bytes);
@@ -162,6 +167,9 @@ public class CvService {
     public StoredCvFile file(long id) {
         Cv cv = cvs.findById(id).orElseThrow(() -> notFound("CV not found", "CV_NOT_FOUND"));
         access.requireCv(cv);
+        if (cv.getRetainUntil() != null && java.time.Instant.now().isAfter(cv.getRetainUntil())) {
+            throw new BusinessException("CV retention period has ended", HttpStatus.GONE, "CV_EXPIRED");
+        }
         try {
             String name = cv.getOriginalFilename() == null ? "cv.pdf" : cv.getOriginalFilename();
             String mime = cv.getMimeType() == null || cv.getMimeType().isBlank()
@@ -224,7 +232,7 @@ public class CvService {
     @Transactional(readOnly = true)
     public MatchView match(long jobId, long cvId) {
         Cv cv = cvs.findById(cvId).orElseThrow(() -> notFound("CV not found", "CV_NOT_FOUND"));
-        if (!cv.getJob().getId().equals(jobId)) throw notFound("CV not found", "CV_NOT_FOUND");
+        if (cv.getJob() == null || !cv.getJob().getId().equals(jobId)) throw notFound("CV not found", "CV_NOT_FOUND");
         access.requireJob(cv.getJob());
         var score = scores.findByJob_IdAndCv_Id(jobId, cvId)
                 .orElseThrow(() -> notFound("Match score not found", "MATCH_NOT_FOUND"));
@@ -257,7 +265,7 @@ public class CvService {
     @Transactional
     public MatchView recomputeMatch(long jobId, long cvId) {
         Cv cv = cvs.findById(cvId).orElseThrow(() -> notFound("CV not found", "CV_NOT_FOUND"));
-        if (!cv.getJob().getId().equals(jobId)) throw notFound("CV not found", "CV_NOT_FOUND");
+        if (cv.getJob() == null || !cv.getJob().getId().equals(jobId)) throw notFound("CV not found", "CV_NOT_FOUND");
         access.requireJob(cv.getJob());
         if (cv.getStatus() != CvStatus.ANALYZED) {
             throw new BusinessException("CV is not analyzed yet", HttpStatus.CONFLICT, "CV_NOT_ANALYZED");
@@ -307,7 +315,7 @@ public class CvService {
                 extractions.findByCv_Id(cv.getId()).orElse(null),
                 cvSkills.findByCv_Id(cv.getId()),
                 analyses.findByCv_Id(cv.getId()).orElse(null),
-                includeMatch ? scores.findByJob_IdAndCv_Id(cv.getJob().getId(), cv.getId()).orElse(null) : null,
+                includeMatch && cv.getJob() != null ? scores.findByJob_IdAndCv_Id(cv.getJob().getId(), cv.getId()).orElse(null) : null,
                 includeMatch);
     }
 

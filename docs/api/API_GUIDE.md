@@ -31,6 +31,11 @@ Envelope chuẩn: xem phiên bản trước — `success`, `message`, `data`, `e
 | GET/PUT | `/jobs/{id}/skills` | JOB-03 |
 | GET/PUT | `/jobs/{id}/stages` | JOB-04 |
 | POST/GET | `/jobs/{id}/applications` | JOB-05 |
+| POST | `/jobs/{id}/applications/manual` | JOB-05 |
+| GET | `/applications/me` | JOB-05 |
+| GET/PATCH | `/applications/{id}` | JOB-05 |
+| POST | `/applications/{id}/status` · `/reject` · `/archive` · `/restore` · `/withdraw` | JOB-05 / WF-02 |
+| GET | `/applications/{id}/history` | WF-02 |
 | GET | `/public/jobs` · `/public/jobs/{id}` | JOB-02 public |
 
 ## CV screening

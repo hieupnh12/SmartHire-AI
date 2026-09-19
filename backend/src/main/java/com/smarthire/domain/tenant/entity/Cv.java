@@ -14,8 +14,8 @@ import jakarta.persistence.Table;
 @Table(name = "cvs")
 public class Cv extends BaseEntity {
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "job_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "job_id")
     private Job job;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
@@ -43,6 +43,9 @@ public class Cv extends BaseEntity {
 
     @Column(name = "storage_key", length = 512)
     private String storageKey;
+
+    @Column(name = "retain_until")
+    private java.time.Instant retainUntil;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)
@@ -72,6 +75,8 @@ public class Cv extends BaseEntity {
     public void setChecksumSha256(String checksumSha256) { this.checksumSha256 = checksumSha256; }
     public String getStorageKey() { return storageKey; }
     public void setStorageKey(String storageKey) { this.storageKey = storageKey; }
+    public java.time.Instant getRetainUntil() { return retainUntil; }
+    public void setRetainUntil(java.time.Instant retainUntil) { this.retainUntil = retainUntil; }
     public CvStatus getStatus() { return status; }
     public void setStatus(CvStatus status) { this.status = status; }
     public String getErrorCode() { return errorCode; }
