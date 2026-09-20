@@ -19,6 +19,9 @@ public class Invoice {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     Long id;
 
+    @Column(name = "invoice_number", unique = true)
+    String invoiceNumber;
+
     @Column(name = "tenant_id", nullable = false)
     Long tenantId;
 
@@ -27,11 +30,26 @@ public class Invoice {
 
     BigDecimal amount;
 
+    BigDecimal subtotal;
+
+    @Builder.Default
+    @Column(name = "tax_rate")
+    BigDecimal taxRate = BigDecimal.ZERO;
+
     @Builder.Default
     String currency = "USD";
 
     @Builder.Default
     String status = "PENDING";
+
+    @Column(name = "due_date")
+    LocalDateTime dueDate;
+
+    @Column(name = "billing_period_start")
+    LocalDateTime billingPeriodStart;
+
+    @Column(name = "billing_period_end")
+    LocalDateTime billingPeriodEnd;
 
     @Column(name = "payment_gateway")
     String paymentGateway;
@@ -41,6 +59,9 @@ public class Invoice {
 
     @Column(name = "paid_at")
     LocalDateTime paidAt;
+
+    @Column(columnDefinition = "TEXT")
+    String notes;
 
     @Builder.Default
     @Column(name = "created_at", nullable = false, updatable = false)

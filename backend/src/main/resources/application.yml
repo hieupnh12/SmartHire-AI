@@ -1,6 +1,8 @@
 spring:
   application:
     name: smarthire-backend
+  config:
+    import: optional:file:.env[.properties]
   jpa:
     hibernate:
       ddl-auto: auto
@@ -25,12 +27,12 @@ spring:
             enable: true
   data:
     redis:
-      host: ${REDIS_HOST:localhost}
+      host: ${REDIS_HOST:127.0.0.1}
       port: ${REDIS_PORT:6379}
       password: ${REDIS_PASSWORD:}
       timeout: 3s
   rabbitmq:
-    host: ${RABBITMQ_HOST:localhost}
+    host: ${RABBITMQ_HOST:127.0.0.1}
     port: ${RABBITMQ_PORT:5672}
     username: ${RABBITMQ_USER:guest}
     password: ${RABBITMQ_PASSWORD:guest}
@@ -85,21 +87,21 @@ app:
   datasource:
     master:
       driver-class-name: org.postgresql.Driver
-      url: ${MASTER_DB_URL:jdbc:postgresql://localhost:5432/smarthire_master}
+      url: ${MASTER_DB_URL:jdbc:postgresql://127.0.0.1:5432/smarthire_master}
       username: ${MASTER_DB_USERNAME:smarthire_master}
-      password: ${MASTER_DB_PASSWORD}
+      password: ${MASTER_DB_PASSWORD:smarthire_master_secret}
       hikari:
         maximum-pool-size: ${MASTER_DB_POOL_SIZE:10}
         minimum-idle: 1
   tenant:
-    credentials-key: ${TENANT_CREDENTIALS_KEY}
+    credentials-key: ${TENANT_CREDENTIALS_KEY:MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=}
     base-domain: ${TENANT_BASE_DOMAIN:smarthire.top}
-    mysql-base-url: ${TENANT_MYSQL_BASE_URL:jdbc:mysql://localhost:3306}
+    mysql-base-url: ${TENANT_MYSQL_BASE_URL:jdbc:mysql://127.0.0.1:3306}
     mysql-options: ${TENANT_MYSQL_OPTIONS:sslMode=PREFERRED&allowPublicKeyRetrieval=true}
     pool-size: ${TENANT_DB_POOL_SIZE:5}
     max-pools: ${TENANT_MAX_POOLS:20}
     provisioning:
-      url: ${TENANT_PROVISIONING_URL:jdbc:mysql://localhost:3306/}
+      url: ${TENANT_PROVISIONING_URL:jdbc:mysql://127.0.0.1:3306/}
       username: ${TENANT_PROVISIONING_USERNAME:smarthire_provisioner}
       password: ${TENANT_PROVISIONING_PASSWORD:}
   bootstrap:
@@ -109,7 +111,7 @@ app:
   cors:
     allowed-origins: ${CORS_ORIGINS:http://localhost:5173}
   jwt:
-    secret: ${JWT_SECRET}
+    secret: ${JWT_SECRET:51330ac6763ee8ea260ef202bb35a6b84629fbb3a5b8598d75279cfb84b6e9c7}
     access-token-minutes: 30
     refresh-token-days: 7
   redis:

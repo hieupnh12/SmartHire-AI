@@ -11,6 +11,7 @@ export interface OnboardTenantRequest extends TenantAdminRequest {
   code: string;
   name: string;
   subdomain: string;
+  environmentType?: "PRODUCTION" | "POC_SANDBOX";
 }
 
 export interface OnboardTenantResponse {
@@ -20,6 +21,7 @@ export interface OnboardTenantResponse {
   subdomain: string;
   dbName: string;
   status: string;
+  environmentType?: string;
   createdAt: string;
 }
 

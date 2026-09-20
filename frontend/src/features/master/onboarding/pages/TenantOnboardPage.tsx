@@ -22,6 +22,7 @@ const schema = adminSchema.extend({
   name: z.string().trim().min(1, "Vui lòng nhập tên doanh nghiệp").max(255),
   subdomain: z.string()
     .regex(/^[a-z][a-z0-9-]{1,61}[a-z0-9]$/, "Subdomain gồm 3-63 ký tự chữ thường và số (ví dụ: se36, acme)"),
+  environmentType: z.enum(["PRODUCTION", "POC_SANDBOX"]).default("PRODUCTION"),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -35,6 +36,7 @@ export function TenantOnboardPage() {
   const initialName = params.get("name") || "";
   const initialEmail = params.get("email") || "";
   const initialAdminName = params.get("adminName") || "";
+  const initialEnv = (params.get("env") as "PRODUCTION" | "POC_SANDBOX") || "PRODUCTION";
   const initialCode = initialName
     ? initialName
         .toLowerCase()
@@ -51,6 +53,7 @@ export function TenantOnboardPage() {
       code: initialCode,
       name: initialName,
       subdomain: initialCode,
+      environmentType: initialEnv,
       adminName: initialAdminName,
       adminEmail: initialEmail,
       adminPassword: "",
@@ -250,6 +253,52 @@ export function TenantOnboardPage() {
                             {form.formState.errors.subdomain.message}
                           </p>
                         )}
+                      </div>
+                    </div>
+
+                    {/* Environment Type (Production vs POC Sandbox) */}
+                    <div>
+                      <label className="mb-1.5 block text-sm font-semibold text-[#1e293b]">
+                        Loại Môi trường Triển khai <span className="text-red-500">*</span>
+                      </label>
+                      <div className="grid grid-cols-2 gap-3">
+                        <label
+                          className={`flex items-center gap-2.5 p-3 rounded-[10px] border cursor-pointer transition-all ${
+                            form.watch("environmentType") === "PRODUCTION"
+                              ? "border-blue-600 bg-blue-50/50 text-blue-950 font-semibold"
+                              : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            value="PRODUCTION"
+                            {...form.register("environmentType")}
+                            className="text-blue-600 focus:ring-blue-500"
+                          />
+                          <div>
+                            <div className="text-xs">Chính thức (Production)</div>
+                            <div className="text-[10px] text-slate-500 font-normal">Dành cho Hợp đồng dài hạn</div>
+                          </div>
+                        </label>
+
+                        <label
+                          className={`flex items-center gap-2.5 p-3 rounded-[10px] border cursor-pointer transition-all ${
+                            form.watch("environmentType") === "POC_SANDBOX"
+                              ? "border-amber-600 bg-amber-50/50 text-amber-950 font-semibold"
+                              : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            value="POC_SANDBOX"
+                            {...form.register("environmentType")}
+                            className="text-amber-600 focus:ring-amber-500"
+                          />
+                          <div>
+                            <div className="text-xs">Dùng thử (POC Sandbox)</div>
+                            <div className="text-[10px] text-slate-500 font-normal">Môi trường thử nghiệm</div>
+                          </div>
+                        </label>
                       </div>
                     </div>
 

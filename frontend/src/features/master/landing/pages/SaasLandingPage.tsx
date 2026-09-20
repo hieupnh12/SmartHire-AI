@@ -90,9 +90,25 @@ export function SaasLandingPage() {
     }
   };
 
+  const BLOCKED_PERSONAL_DOMAINS = [
+    "gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "live.com",
+    "icloud.com", "mail.com", "zoho.com", "proton.me", "protonmail.com", "yandex.com"
+  ];
+
+  const isPersonalEmail = (email: string) => {
+    const domain = email.trim().toLowerCase().split("@")[1];
+    return domain ? BLOCKED_PERSONAL_DOMAINS.includes(domain) : false;
+  };
+
   const handleDemoSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitError(null);
+
+    if (isPersonalEmail(formData.workEmail)) {
+      setSubmitError("Vui lòng sử dụng Email Doanh nghiệp (domain công ty riêng, ví dụ: name@company.com) để được xếp lịch thẩm định & demo 1:1 nhanh nhất.");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       await consultationApi.submit({
@@ -109,7 +125,16 @@ export function SaasLandingPage() {
       });
       setDemoSubmitted(true);
     } catch (err: any) {
-      setSubmitError(err?.response?.data?.message || "Không thể gửi yêu cầu lúc này. Vui lòng thử lại hoặc gửi email tới contact@smarthire.ai");
+      if (err?.response?.data?.errors && typeof err.response.data.errors === "object") {
+        const firstErrMsg = Object.values(err.response.data.errors)[0] as string;
+        setSubmitError(firstErrMsg || err.response.data.message || "Dữ liệu không hợp lệ. Vui lòng kiểm tra lại.");
+      } else if (err?.response?.data?.message) {
+        setSubmitError(err.response.data.message);
+      } else if (err?.message === "Network Error" || !err?.response) {
+        setSubmitError("Không thể kết nối đến máy chủ Backend (Port 8080). Vui lòng đảm bảo dịch vụ Backend đang chạy.");
+      } else {
+        setSubmitError("Không thể gửi yêu cầu lúc này. Vui lòng thử lại hoặc gửi email tới contact@smarthire.top");
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -545,33 +570,30 @@ export function SaasLandingPage() {
             <div className="flex flex-wrap items-center justify-center gap-2 mt-8 p-1.5 rounded-2xl bg-slate-200/70 max-w-xl mx-auto">
               <button
                 onClick={() => setActiveTab("screening")}
-                className={`flex-1 min-w-[140px] py-2.5 px-4 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2 ${
-                  activeTab === "screening"
+                className={`flex-1 min-w-[140px] py-2.5 px-4 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2 ${activeTab === "screening"
                     ? "bg-white text-blue-700 shadow-md shadow-slate-900/5"
                     : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
-                }`}
+                  }`}
               >
                 <FileCheck2 className="w-4 h-4" />
                 <span>1. Lọc CV Thông Minh</span>
               </button>
               <button
                 onClick={() => setActiveTab("assessment")}
-                className={`flex-1 min-w-[140px] py-2.5 px-4 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2 ${
-                  activeTab === "assessment"
+                className={`flex-1 min-w-[140px] py-2.5 px-4 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2 ${activeTab === "assessment"
                     ? "bg-white text-blue-700 shadow-md shadow-slate-900/5"
                     : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
-                }`}
+                  }`}
               >
                 <Code2 className="w-4 h-4" />
                 <span>2. Đánh Giá Kỹ Thuật</span>
               </button>
               <button
                 onClick={() => setActiveTab("interview")}
-                className={`flex-1 min-w-[140px] py-2.5 px-4 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2 ${
-                  activeTab === "interview"
+                className={`flex-1 min-w-[140px] py-2.5 px-4 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2 ${activeTab === "interview"
                     ? "bg-white text-blue-700 shadow-md shadow-slate-900/5"
                     : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
-                }`}
+                  }`}
               >
                 <Mic className="w-4 h-4" />
                 <span>3. Phỏng Vấn Giọng Nói AI</span>
@@ -1234,8 +1256,16 @@ export function SaasLandingPage() {
                         placeholder="name@company.com"
                         value={formData.workEmail}
                         onChange={(e) => setFormData({ ...formData, workEmail: e.target.value })}
-                        className="w-full px-3.5 py-2.5 rounded-lg bg-slate-50 border border-slate-300 text-sm text-slate-900 focus:border-blue-600 focus:bg-white focus:outline-none transition-colors"
+                        className={`w-full px-3.5 py-2.5 rounded-lg bg-slate-50 border text-sm text-slate-900 focus:bg-white focus:outline-none transition-colors ${isPersonalEmail(formData.workEmail)
+                            ? "border-amber-500 focus:border-amber-600 focus:ring-1 focus:ring-amber-500"
+                            : "border-slate-300 focus:border-blue-600"
+                          }`}
                       />
+                      {isPersonalEmail(formData.workEmail) && (
+                        <span className="text-[11px] text-amber-600 mt-1 block">
+                          * Yêu cầu email công ty (domain riêng, không dùng @gmail/@yahoo)
+                        </span>
+                      )}
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-slate-900 mb-1">
