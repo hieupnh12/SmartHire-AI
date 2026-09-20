@@ -9,7 +9,7 @@ name: smarthire-prod
 
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:17.11
     restart: unless-stopped
     environment:
       POSTGRES_DB: smarthire_postgres
@@ -28,10 +28,11 @@ services:
       - internal
 
   mysql:
-    image: mysql:8.4
+    image: mysql:8.4.11
     container_name: smarthire-mysql
     restart: unless-stopped
     environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?set MYSQL_ROOT_PASSWORD}
       TENANT_PROVISIONING_PASSWORD: ${TENANT_PROVISIONING_PASSWORD:?set TENANT_PROVISIONING_PASSWORD}
     volumes:
@@ -147,8 +148,10 @@ services:
 volumes:
   postgres_data:
     name: smarthire-postgres-data
+    external: true
   mysql_data:
     name: smarthire-mysql-data
+    external: true
   redis_data:
   rabbitmq_data:
 
