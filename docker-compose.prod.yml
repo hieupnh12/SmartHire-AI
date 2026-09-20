@@ -31,6 +31,8 @@ services:
     image: mysql:8.4.11
     container_name: smarthire-mysql
     restart: unless-stopped
+    ports:
+      - "0.0.0.0:3306:3306"
     environment:
       MYSQL_DATABASE: ${MYSQL_DATABASE}
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?set MYSQL_ROOT_PASSWORD}

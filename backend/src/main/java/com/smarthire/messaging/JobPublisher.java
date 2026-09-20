@@ -4,6 +4,7 @@ import com.smarthire.config.RabbitMqConfig;
 import com.smarthire.multitenancy.context.TenantContext;
 import com.smarthire.multitenancy.service.TenantRegistryService;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -17,6 +18,7 @@ public class JobPublisher {
     private final String cvMatchingExchange;
     private final String jobEventsExchange;
 
+    @Autowired
     public JobPublisher(
             RabbitTemplate rabbitTemplate,
             TenantRegistryService registry,
