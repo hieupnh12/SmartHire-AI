@@ -23,4 +23,16 @@ public class SignContractRequest {
 
     @Builder.Default
     private boolean autoCreateInvoice = true; // Auto generate B2B Invoice when signed
+    public String getSignMethod() { return signMethod; }
+    public void setSignMethod(String signMethod) { this.signMethod = signMethod; }
+    public String getSignatureData() { return signatureData; }
+    public void setSignatureData(String signatureData) { this.signatureData = signatureData; }
+    public String getSignedDocumentUrl() { return signedDocumentUrl; }
+    public void setSignedDocumentUrl(String signedDocumentUrl) { this.signedDocumentUrl = signedDocumentUrl; }
+    public String getDocumentChecksum() { return documentChecksum; }
+    public void setDocumentChecksum(String documentChecksum) { this.documentChecksum = documentChecksum; }
+    public String getNotes() { return notes; }
+    public void setNotes(String notes) { this.notes = notes; }
+    public boolean isAutoCreateInvoice() { return autoCreateInvoice; }
+    public void setAutoCreateInvoice(boolean autoCreateInvoice) { this.autoCreateInvoice = autoCreateInvoice; }
 }
