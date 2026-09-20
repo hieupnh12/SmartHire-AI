@@ -22,6 +22,7 @@ import { UsersPage } from "@/features/tenant/admin/users/pages/UsersPage";
 import { AccountPage as TenantAdminAccountPage } from "@/features/tenant/admin/account/pages/AccountPage";
 import { AnalyticsPage } from "@/features/tenant/admin/analytics/pages/AnalyticsPage";
 import { AcceptInvitationPage } from "@/features/tenant/auth/pages/AcceptInvitationPage";
+import { PublicContractSigningPage } from "@/features/master/contract/pages/PublicContractSigningPage";
 import { candidateNav } from "@/features/tenant/candidate/nav";
 import { HomePage as CandidateHomePage } from "@/features/tenant/candidate/dashboard/pages/HomePage";
 import { BrowseJobsPage } from "@/features/tenant/candidate/jobs/pages/BrowseJobsPage";
@@ -75,6 +76,8 @@ export function AppRouter() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/invite/accept" element={<AcceptInvitationPage />} />
+      <Route path="/contracts/sign/:token" element={<PublicContractSigningPage />} />
+      <Route path="/contracts/view/:token" element={<PublicContractSigningPage />} />
 
       <Route element={<RoleRoute workspaces={["CANDIDATE"]} />}>
         <Route

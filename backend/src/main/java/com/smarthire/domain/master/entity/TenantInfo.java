@@ -81,6 +81,17 @@ public class TenantInfo {
     boolean verified;
 
     @Builder.Default
+    @Column(name = "environment_type", nullable = false, length = 32)
+    String environmentType = "PRODUCTION";
+
+    @Builder.Default
+    @Column(name = "is_deleted", nullable = false)
+    boolean deleted = false;
+
+    @Column(name = "deleted_at")
+    LocalDateTime deletedAt;
+
+    @Builder.Default
     @Column(nullable = false, length = 32)
     String status = "ACTIVE";
 

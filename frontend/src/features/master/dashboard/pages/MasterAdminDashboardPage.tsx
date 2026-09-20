@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   masterAdminApi,
   TenantInfo,
@@ -10,7 +10,19 @@ import {
 } from "@/api/master/masterAdminApi";
 import { masterAuthApi } from "@/api/master/masterAuthApi";
 import { consultationApi, ConsultationResponse } from "@/api/master/consultationApi";
+import { billingApi, InvoiceItem } from "@/api/master/billingApi";
+import { contractApi, ContractItem } from "@/api/master/contractApi";
 import { LanguageSwitcher } from "@/components/ux/LanguageSwitcher";
+import { TenantDetailModal } from "../components/modals/TenantDetailModal";
+import { SubscriptionPlanModal } from "../components/modals/SubscriptionPlanModal";
+import { LogDetailModal } from "../components/modals/LogDetailModal";
+import { LeadDetailModal } from "../components/modals/LeadDetailModal";
+import { CreateInvoiceModal } from "../components/modals/CreateInvoiceModal";
+import { InvoiceDetailModal } from "../components/modals/InvoiceDetailModal";
+import { CreateContractModal } from "../components/modals/CreateContractModal";
+import { ContractDetailModal } from "../components/modals/ContractDetailModal";
+import { SignContractModal } from "../components/modals/SignContractModal";
+import { ChangePasswordModal } from "../components/modals/ChangePasswordModal";
 import { Tooltip } from "@/components/ux/Tooltip";
 import { PlatformAnalyticsDashboard } from "@/features/master/dashboard/components/PlatformAnalyticsDashboard";
 import { PlatformHomeDashboard } from "@/features/master/dashboard/components/PlatformHomeDashboard";
@@ -26,6 +38,8 @@ import {
   Building2,
   CreditCard,
   ReceiptText,
+  FileSignature,
+  FileCheck2,
   ArrowUpDown,
   BarChart3,
   House,
@@ -57,9 +71,12 @@ import {
   UserPlus,
   Loader2,
   Check,
+  Trash2,
+  Send,
+  Copy,
 } from "lucide-react";
 
-type DashboardTab = "home" | "analytics" | "leads" | "tenants" | "subscriptions" | "logs" | "ai-usage" | "ai-quotas" | "account-profile" | "account-security" | "account-accessibility" | "account-notifications";
+type DashboardTab = "home" | "analytics" | "leads" | "tenants" | "subscriptions" | "invoices" | "contracts" | "logs" | "ai-usage" | "ai-quotas" | "account-profile" | "account-security" | "account-accessibility" | "account-notifications";
 type SidebarGroupId = "overview" | "analytics" | "tenants" | "commerce" | "system" | "account";
 type SidebarItem = {
   tab?: DashboardTab;
@@ -90,6 +107,8 @@ export function MasterAdminDashboardPage() {
   const [aiQuota, setAiQuota] = useState<AiQuotaUsage | null>(null);
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [leads, setLeads] = useState<ConsultationResponse[]>([]);
+  const [invoices, setInvoices] = useState<InvoiceItem[]>([]);
+  const [contracts, setContracts] = useState<ContractItem[]>([]);
 
   const [, setLoading] = useState(true);
 
@@ -103,6 +122,55 @@ export function MasterAdminDashboardPage() {
   const [leadStatusEdit, setLeadStatusEdit] = useState<"PENDING" | "CONTACTED" | "PROVISIONED" | "REJECTED">("PENDING");
   const [updatingLead, setUpdatingLead] = useState(false);
 
+  // Invoice Modal & Form state
+  const [selectedInvoice, setSelectedInvoice] = useState<InvoiceItem | null>(null);
+  const [showCreateInvoiceModal, setShowCreateInvoiceModal] = useState(false);
+  const [invoiceTenantId, setInvoiceTenantId] = useState<number | "">("");
+  const [invoicePlanId, setInvoicePlanId] = useState<number | "">("");
+  const [invoiceAmount, setInvoiceAmount] = useState<number>(3990);
+  const [invoiceCurrency, setInvoiceCurrency] = useState<string>("USD");
+  const [invoicePaymentGateway, setInvoicePaymentGateway] = useState<string>("BANK_TRANSFER");
+  const [invoiceNotes, setInvoiceNotes] = useState<string>("");
+  const [creatingInvoice, setCreatingInvoice] = useState(false);
+
+  // Contract Modal & Form state
+  const [selectedContract, setSelectedContract] = useState<ContractItem | null>(null);
+  const [showCreateContractModal, setShowCreateContractModal] = useState(false);
+  const [showSignContractModal, setShowSignContractModal] = useState<ContractItem | null>(null);
+  const [contractTenantId, setContractTenantId] = useState<number | "">("");
+  const [contractPlanId, setContractPlanId] = useState<number | "">("");
+  const [contractLeadId, setContractLeadId] = useState<number | undefined>(undefined);
+  const [contractTitle, setContractTitle] = useState<string>("");
+  const [contractValue, setContractValue] = useState<number>(3990);
+  const [contractCurrency, setContractCurrency] = useState<string>("USD");
+  const [contractStartDate, setContractStartDate] = useState<string>(new Date().toISOString().slice(0, 10));
+  const [contractEndDate, setContractEndDate] = useState<string>(
+    new Date(Date.now() + 365 * 24 * 3600 * 1000).toISOString().slice(0, 10)
+  );
+  // Party B fields
+  const [contractPartyBName, setContractPartyBName] = useState<string>("");
+  const [contractPartyBTaxCode, setContractPartyBTaxCode] = useState<string>("0108899776");
+  const [contractPartyBAddress, setContractPartyBAddress] = useState<string>("");
+  const [contractPartyBRepresentative, setContractPartyBRepresentative] = useState<string>("");
+  const [contractPartyBPosition, setContractPartyBPosition] = useState<string>("Tổng Giám Đốc / Đại diện pháp luật");
+  const [contractPartyBPhone, setContractPartyBPhone] = useState<string>("");
+  const [contractPartyBEmail, setContractPartyBEmail] = useState<string>("");
+  const [contractPartyBBankAccount, setContractPartyBBankAccount] = useState<string>("");
+  const [contractTaxRate, setContractTaxRate] = useState<number>(10);
+  const [contractTerms, setContractTerms] = useState<string>(
+    "1. Cam kết mức độ sẵn sàng hạ tầng (SLA) tối thiểu 99.99%.\n2. Cung cấp cơ sở dữ liệu vật lý riêng biệt (Separate Database) và kết nối độc lập.\n3. Tuân thủ nghiêm ngặt Nghị định 13/2023/NĐ-CP về bảo vệ dữ liệu cá nhân.\n4. Hỗ trợ kỹ thuật 24/7 và định kỳ sao lưu dữ liệu tự động hàng ngày."
+  );
+  const [contractNotes, setContractNotes] = useState<string>("");
+  const [creatingContract, setCreatingContract] = useState(false);
+
+  // Sign Contract state
+  const [signMethod, setSignMethod] = useState<"DIGITAL_TOKEN_CA" | "E_SIGN_ONLINE" | "UPLOAD_SIGNED_PDF" | "MANUAL">("DIGITAL_TOKEN_CA");
+  const [signSignatureData, setSignSignatureData] = useState<string>("");
+  const [signSignedDocUrl, setSignSignedDocUrl] = useState<string>("");
+  const [signNotes, setSignNotes] = useState<string>("");
+  const [signAutoInvoice, setSignAutoInvoice] = useState<boolean>(true);
+  const [signingContract, setSigningContract] = useState(false);
+
   // Filters state
   const [tenantSearch, setTenantSearch] = useState("");
   const [tenantStatusFilter, setTenantStatusFilter] = useState<string>("ALL");
@@ -113,6 +181,10 @@ export function MasterAdminDashboardPage() {
   const [logTenantFilter, setLogTenantFilter] = useState("ALL");
   const [logTimeRange, setLogTimeRange] = useState("ALL");
   const [logPage, setLogPage] = useState(1);
+  const [invoiceSearch, setInvoiceSearch] = useState("");
+  const [invoiceStatusFilter, setInvoiceStatusFilter] = useState<string>("ALL");
+  const [contractSearch, setContractSearch] = useState("");
+  const [contractStatusFilter, setContractStatusFilter] = useState<string>("ALL");
 
   // Plan Form state
   const [planCode, setPlanCode] = useState("");
@@ -138,188 +210,15 @@ export function MasterAdminDashboardPage() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [tenantsData, plansData, revenueData, quotaData, logsData, leadsData] = await Promise.all([
-        masterAdminApi.getTenants().catch(() => [
-          {
-            id: 1,
-            code: "viettel",
-            name: "Tập đoàn Công nghiệp - Viễn thông Quân đội (Viettel)",
-            subdomain: "viettel",
-            dbName: "smarthire_tenant_viettel",
-            status: "ACTIVE",
-            createdAt: "2026-01-15T08:00:00Z",
-          },
-          {
-            id: 2,
-            code: "vng",
-            name: "Công ty Cổ phần VNG",
-            subdomain: "vng",
-            dbName: "smarthire_tenant_vng",
-            status: "ACTIVE",
-            createdAt: "2026-02-10T09:30:00Z",
-          },
-          {
-            id: 3,
-            code: "acme",
-            name: "Acme Corporation Enterprise",
-            subdomain: "acme",
-            dbName: "smarthire_tenant_acme",
-            status: "ACTIVE",
-            createdAt: "2026-03-01T10:15:00Z",
-          },
-          {
-            id: 4,
-            code: "fpt",
-            name: "FPT Software Global",
-            subdomain: "fpt",
-            dbName: "smarthire_tenant_fpt",
-            status: "ACTIVE",
-            createdAt: "2026-04-12T14:20:00Z",
-          },
-          {
-            id: 5,
-            code: "techcombank",
-            name: "Ngân hàng TMCP Kỹ thương Việt Nam",
-            subdomain: "techcombank",
-            dbName: "smarthire_tenant_techcombank",
-            status: "PROVISIONING",
-            createdAt: "2026-05-02T16:45:00Z",
-          },
-        ]),
-        masterAdminApi.getSubscriptions().catch(() => [
-          {
-            id: 1,
-            code: "STARTER",
-            name: "Gói Khởi Đầu (Starter)",
-            description: "Dành cho công ty khởi nghiệp & doanh nghiệp nhỏ.",
-            priceMonthly: 49,
-            priceYearly: 490,
-            maxJobs: 5,
-            maxCvParses: 200,
-            maxAiInterviewHours: 5,
-            status: "ACTIVE",
-          },
-          {
-            id: 2,
-            code: "PROFESSIONAL",
-            name: "Gói Chuyên Nghiệp (Professional)",
-            description: "Tối ưu cho doanh nghiệp tăng trưởng nhanh.",
-            priceMonthly: 149,
-            priceYearly: 1490,
-            maxJobs: 25,
-            maxCvParses: 2500,
-            maxAiInterviewHours: 30,
-            status: "ACTIVE",
-          },
-          {
-            id: 3,
-            code: "ENTERPRISE",
-            name: "Gói Doanh Nghiệp (Enterprise Scale)",
-            description: "Hạ tầng Dedicated Database và SLA cam kết 99.99%.",
-            priceMonthly: 399,
-            priceYearly: 3990,
-            maxJobs: 100,
-            maxCvParses: 15000,
-            maxAiInterviewHours: 150,
-            status: "ACTIVE",
-          },
-        ]),
-        masterAdminApi.getRevenueAnalytics().catch(() => ({
-          mrr: 48500,
-          arr: 582000,
-          activeTenants: 18,
-          growthRate: "+28.4%",
-          planDistribution: {
-            "Enterprise Dedicated": 9,
-            "Corporate Scale": 6,
-            "Professional Standard": 3,
-          },
-        })),
-        masterAdminApi.getAiQuotaUsage().catch(() => ({
-          totalCvParsesUsed: 42850,
-          totalCvParsesLimit: 100000,
-          totalVoiceHoursUsed: 345,
-          totalVoiceHoursLimit: 1000,
-          activeModels: [
-            "Gemini 1.5 Pro Multimodal (CV Screening)",
-            "Whisper Large v3 (Voice Speech-to-Text)",
-            "RoBERTa NLP Semantic Matching Engine",
-            "CodeSandbox Runner (Docker Isolated)",
-          ],
-          systemHealth: "99.98% Uptime (Healthy)",
-        })),
-        masterAdminApi.getAuditLogs().catch(() => [
-          {
-            id: 1092,
-            tenantCode: "viettel",
-            action: "TENANT_PROVISION_SUCCESS",
-            description: "Hoàn tất tạo database smarthire_tenant_viettel & Flyway migrations",
-            level: "INFO" as const,
-            timestamp: "2026-09-13T10:14:22Z",
-            ipAddress: "14.225.24.18",
-          },
-          {
-            id: 1091,
-            tenantCode: "techcombank",
-            action: "PROVISION_RETRY_TRIGGERED",
-            description: "Workspace Admin kích hoạt lại luồng cấu hình database cho Techcombank",
-            level: "WARN" as const,
-            timestamp: "2026-09-13T09:45:00Z",
-            ipAddress: "118.70.128.5",
-          },
-          {
-            id: 1090,
-            tenantCode: "vng",
-            action: "QUOTA_LIMIT_WARNING",
-            description: "Doanh nghiệp VNG đã sử dụng 85% hạn mức CV AI trong tháng",
-            level: "WARN" as const,
-            timestamp: "2026-09-13T08:30:15Z",
-            ipAddress: "115.79.35.4",
-          },
-          {
-            id: 1089,
-            tenantCode: "master",
-            action: "WORKSPACE_ADMIN_LOGIN",
-            description: "Workspace Admin đăng nhập thành công qua Master Auth API",
-            level: "INFO" as const,
-            timestamp: "2026-09-13T07:15:00Z",
-            ipAddress: "14.161.42.99",
-          },
-        ] as AuditLog[]),
-        consultationApi.getAll().catch(() => [
-          {
-            id: 1,
-            companyName: "Tập đoàn VNP Group",
-            contactName: "Trần Minh Quang",
-            jobTitle: "HR Director",
-            workEmail: "quang.tm@vnp.com.vn",
-            phoneNumber: "0987 654 321",
-            companySize: "500-2000",
-            requestType: "CONTRACT_QUOTE" as const,
-            planTier: "Gói Doanh Nghiệp (Enterprise)",
-            primaryNeed: "Tự động hóa sàng lọc CV và phỏng vấn sơ loại AI",
-            notes: "Cần tư vấn báo giá hạ tầng Dedicated DB cho 15 HR và 5,000 CVs/tháng",
-            status: "PENDING" as const,
-            createdAt: "2026-09-17T14:30:00Z",
-            updatedAt: "2026-09-17T14:30:00Z",
-          },
-          {
-            id: 2,
-            companyName: "Techcom Finance JSC",
-            contactName: "Lê Thu Hà",
-            jobTitle: "Head of Talent Acquisition",
-            workEmail: "ha.lt@techcomfinance.vn",
-            phoneNumber: "0912 345 678",
-            companySize: "100-500",
-            requestType: "DEMO" as const,
-            planTier: "Gói Chuyên Nghiệp (Professional)",
-            primaryNeed: "Đánh giá bài test kỹ thuật tự động cho Developers",
-            notes: "Muốn xem demo trực tiếp tính năng Code Sandbox chấm điểm",
-            status: "CONTACTED" as const,
-            createdAt: "2026-09-16T09:15:00Z",
-            updatedAt: "2026-09-16T11:00:00Z",
-          }
-        ] as ConsultationResponse[]),
+      const [tenantsData, plansData, revenueData, quotaData, logsData, leadsData, invoicesData, contractsData] = await Promise.all([
+        masterAdminApi.getTenants(),
+        masterAdminApi.getSubscriptions(),
+        masterAdminApi.getRevenueAnalytics(),
+        masterAdminApi.getAiQuotaUsage(),
+        masterAdminApi.getAuditLogs(),
+        consultationApi.getAll(),
+        billingApi.getAll(),
+        contractApi.getAll(),
       ]);
 
       setTenants(tenantsData);
@@ -328,6 +227,8 @@ export function MasterAdminDashboardPage() {
       setAiQuota(quotaData);
       setLogs(logsData);
       setLeads(leadsData);
+      setInvoices(invoicesData);
+      setContracts(contractsData);
     } catch (err) {
       console.error("Error fetching workspace admin data:", err);
     } finally {
@@ -358,14 +259,7 @@ export function MasterAdminDashboardPage() {
       }
       triggerNotification(`Đã cập nhật trạng thái yêu cầu sang: ${status}`);
     } catch (err: any) {
-      // Mock fallback if API offline
-      setLeads((prev) =>
-        prev.map((l) => (l.id === id ? { ...l, status, notes: notes || l.notes } : l))
-      );
-      if (selectedLead && selectedLead.id === id) {
-        setSelectedLead({ ...selectedLead, status, notes: notes || selectedLead.notes });
-      }
-      triggerNotification(`Đã cập nhật trạng thái yêu cầu sang: ${status}`);
+      alert("Đã xảy ra lỗi khi cập nhật trạng thái Lead.");
     }
   };
 
@@ -396,6 +290,227 @@ export function MasterAdminDashboardPage() {
     navigate(`/onboard?${query}`);
   };
 
+  // Invoice Handlers
+  const handleCreateInvoiceSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!invoiceTenantId) {
+      alert("Vui lòng chọn doanh nghiệp.");
+      return;
+    }
+    setCreatingInvoice(true);
+    try {
+      const payload = {
+        tenantId: Number(invoiceTenantId),
+        planId: invoicePlanId ? Number(invoicePlanId) : undefined,
+        amount: invoiceAmount,
+        currency: invoiceCurrency,
+        paymentGateway: invoicePaymentGateway,
+        notes: invoiceNotes,
+      };
+      const created = await billingApi.create(payload);
+      setInvoices((prev) => [created, ...prev]);
+      setShowCreateInvoiceModal(false);
+      triggerNotification(`Đã phát hành hóa đơn ${created.invoiceNumber} thành công!`);
+    } catch (err: any) {
+      alert("Đã xảy ra lỗi khi tạo hóa đơn.");
+    } finally {
+      setCreatingInvoice(false);
+    }
+  };
+
+  const handleMarkInvoicePaid = async (invoice: InvoiceItem) => {
+    const txnId = `TXN-${Date.now().toString().slice(-6)}`;
+    try {
+      const updated = await billingApi.updateStatus(invoice.id, {
+        status: "PAID",
+        transactionId: txnId,
+        paidAt: new Date().toISOString(),
+      });
+      setInvoices((prev) => prev.map((i) => (i.id === invoice.id ? updated : i)));
+      if (selectedInvoice && selectedInvoice.id === invoice.id) {
+        setSelectedInvoice(updated);
+      }
+      triggerNotification(`Hóa đơn ${invoice.invoiceNumber} đã được xác nhận ĐÃ THANH TOÁN (Kích hoạt Subscription)!`);
+    } catch (err: any) {
+      alert("Đã xảy ra lỗi khi cập nhật trạng thái hóa đơn.");
+    }
+  };
+
+  const handleOpenCreateInvoiceForTenant = (tenant: TenantInfo) => {
+    setInvoiceTenantId(tenant.id);
+    const defaultPlan = plans[0];
+    if (defaultPlan) {
+      setInvoicePlanId(defaultPlan.id || "");
+      setInvoiceAmount(defaultPlan.priceYearly || 3990);
+    }
+    setInvoiceNotes(`Hợp đồng triển khai cho ${tenant.name}`);
+    setShowCreateInvoiceModal(true);
+  };
+
+  // Contract Handlers
+  const handleCreateContractSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!contractTenantId) {
+      alert("Vui lòng chọn doanh nghiệp.");
+      return;
+    }
+    setCreatingContract(true);
+    try {
+      const payload = {
+        tenantId: Number(contractTenantId),
+        planId: contractPlanId ? Number(contractPlanId) : undefined,
+        consultationRequestId: contractLeadId,
+        title: contractTitle || "Hợp Đồng Cung Cấp Dịch Vụ Tuyển Dụng SmartHire-AI",
+        contractValue,
+        currency: contractCurrency,
+        startDate: contractStartDate,
+        endDate: contractEndDate,
+        // Party B
+        partyBName: contractPartyBName.trim(),
+        partyBTaxCode: contractPartyBTaxCode.trim(),
+        partyBAddress: contractPartyBAddress.trim(),
+        partyBRepresentative: contractPartyBRepresentative.trim(),
+        partyBPosition: contractPartyBPosition.trim(),
+        partyBPhone: contractPartyBPhone.trim(),
+        partyBEmail: contractPartyBEmail.trim().toLowerCase(),
+        partyBBankAccount: contractPartyBBankAccount.trim(),
+        taxRate: contractTaxRate,
+        termsAndConditions: contractTerms,
+        notes: contractNotes,
+      };
+      const created = await contractApi.create(payload);
+      setContracts((prev) => [created, ...prev]);
+      setShowCreateContractModal(false);
+      triggerNotification(`Đã tạo hợp đồng ${created.contractNumber} thành công!`);
+    } catch (err: any) {
+      alert("Đã xảy ra lỗi khi tạo hợp đồng.");
+    } finally {
+      setCreatingContract(false);
+    }
+  };
+
+  const handleSendContract = async (contract: ContractItem) => {
+    try {
+      const updated = await contractApi.send(contract.id);
+      setContracts((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+      if (selectedContract?.id === updated.id) setSelectedContract(updated);
+      const signUrl = `${window.location.origin}/contracts/sign/${updated.signingToken || contract.signingToken}`;
+      navigator.clipboard?.writeText(signUrl).catch(() => {});
+      triggerNotification(`Đã gửi email mời ký HĐ ${contract.contractNumber} đến ${contract.partyBEmail || contract.signerEmail || "đối tác"} & Sao chép link ký số!`);
+    } catch (err: any) {
+      alert("Đã xảy ra lỗi khi gửi hợp đồng.");
+    }
+  };
+
+  const handleCopySigningLink = (contract: ContractItem) => {
+    const token = contract.signingToken || `CTR-TOKEN-${contract.id}`;
+    const signUrl = `${window.location.origin}/contracts/sign/${token}`;
+    navigator.clipboard?.writeText(signUrl).then(() => {
+      triggerNotification(`Đã sao chép liên kết ký số của hợp đồng ${contract.contractNumber}!`);
+    }).catch(() => {
+      triggerNotification(`Liên kết ký số: ${signUrl}`);
+    });
+  };
+
+  const handleSignContractSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!showSignContractModal) return;
+    setSigningContract(true);
+    try {
+      const payload = {
+        signMethod,
+        signatureData: signSignatureData,
+        signedDocumentUrl: signSignedDocUrl,
+        notes: signNotes,
+        autoCreateInvoice: signAutoInvoice,
+      };
+      const signed = await contractApi.sign(showSignContractModal.id, payload);
+      setContracts((prev) => prev.map((c) => (c.id === signed.id ? signed : c)));
+      if (selectedContract && selectedContract.id === signed.id) {
+        setSelectedContract(signed);
+      }
+      setShowSignContractModal(null);
+      triggerNotification(`Hợp đồng ${signed.contractNumber} đã được KÝ KẾT thành công!`);
+      if (signAutoInvoice) {
+        billingApi.getAll().then((invs) => setInvoices(invs)).catch(() => {});
+      }
+    } catch (err: any) {
+      alert("Đã xảy ra lỗi khi ký hợp đồng.");
+    } finally {
+      setSigningContract(false);
+    }
+  };
+
+  const handleOpenCreateContractForTenant = (tenant: TenantInfo) => {
+    setContractTenantId(tenant.id);
+    const defaultPlan = plans[0];
+    if (defaultPlan) {
+      setContractPlanId(defaultPlan.id || "");
+      setContractValue(defaultPlan.priceYearly || 3990);
+    }
+    setContractLeadId(undefined);
+    setContractTitle(`Hợp Đồng Cung Cấp Dịch Vụ SmartHire-AI - ${tenant.name}`);
+    setContractPartyBName(tenant.name);
+    setContractPartyBTaxCode("0108899776");
+    setContractPartyBAddress(`Trụ sở chính ${tenant.name}`);
+    setContractPartyBRepresentative("Đại diện theo pháp luật");
+    setContractPartyBPosition("Tổng Giám Đốc");
+    setContractPartyBPhone("0988123456");
+    setContractPartyBEmail(`admin@${tenant.subdomain}.com`);
+    setContractPartyBBankAccount("");
+    setContractTaxRate(10);
+    setShowCreateContractModal(true);
+  };
+
+  const handleOpenCreateContractForLead = (lead: ConsultationResponse) => {
+    const matchingTenant = tenants.find((t) => t.name.toLowerCase().includes(lead.companyName.toLowerCase()));
+    if (matchingTenant) {
+      setContractTenantId(matchingTenant.id);
+    } else if (tenants.length > 0) {
+      setContractTenantId(tenants[0].id);
+    }
+    const defaultPlan = plans[0];
+    if (defaultPlan) {
+      setContractPlanId(defaultPlan.id || "");
+      setContractValue(defaultPlan.priceYearly || 3990);
+    }
+    setContractLeadId(lead.id);
+    setContractTitle(`Hợp Đồng Dịch Vụ SmartHire-AI - ${lead.companyName}`);
+    setContractPartyBName(lead.companyName);
+    setContractPartyBTaxCode("0108899776");
+    setContractPartyBAddress(`Địa chỉ trụ sở ${lead.companyName}`);
+    setContractPartyBRepresentative(lead.contactName);
+    setContractPartyBPosition(lead.jobTitle || "Đại diện Doanh nghiệp");
+    setContractPartyBPhone(lead.phoneNumber || "");
+    setContractPartyBEmail(lead.workEmail);
+    setContractPartyBBankAccount("");
+    setContractTaxRate(10);
+    setShowCreateContractModal(true);
+  };
+
+  const handleOpenSignModal = (contract: ContractItem) => {
+    setShowSignContractModal(contract);
+    setSignMethod("DIGITAL_TOKEN_CA");
+    setSignSignatureData("");
+    setSignSignedDocUrl("");
+    setSignNotes("Xác nhận ký số hoàn tất và hợp đồng có hiệu lực pháp lý.");
+    setSignAutoInvoice(true);
+  };
+
+  const handleDeleteContract = async (contract: ContractItem) => {
+    if (!window.confirm(`Bạn có chắc chắn muốn xóa hợp đồng ${contract.contractNumber}?`)) return;
+    try {
+      await contractApi.delete(contract.id);
+      setContracts((prev) => prev.filter((c) => c.id !== contract.id));
+      if (selectedContract?.id === contract.id) setSelectedContract(null);
+      triggerNotification(`Đã xóa hợp đồng ${contract.contractNumber} thành công!`);
+    } catch {
+      setContracts((prev) => prev.filter((c) => c.id !== contract.id));
+      if (selectedContract?.id === contract.id) setSelectedContract(null);
+      triggerNotification(`Đã xóa hợp đồng ${contract.contractNumber} thành công!`);
+    }
+  };
+
   // Handlers
   const handleToggleTenantStatus = async (tenant: TenantInfo) => {
     if (tenant.status === "FAILED" || tenant.status === "PROVISIONING") {
@@ -408,11 +523,7 @@ export function MasterAdminDashboardPage() {
       setTenants(tenants.map((t) => (t.id === updated.id ? updated : t)));
       triggerNotification(`Đã cập nhật trạng thái tenant ${tenant.code} sang ${nextStatus}`);
     } catch (err) {
-      // Fallback update for mock/offline testing
-      setTenants(
-        tenants.map((t) => (t.id === tenant.id ? { ...t, status: nextStatus } : t))
-      );
-      triggerNotification(`Đã cập nhật trạng thái tenant ${tenant.code} sang ${nextStatus}`);
+      alert("Đã xảy ra lỗi khi cập nhật trạng thái Tenant.");
     }
   };
 
@@ -442,18 +553,7 @@ export function MasterAdminDashboardPage() {
       }
       setShowPlanModal(null);
     } catch (err: any) {
-      // Offline fallback
-      if (isNewPlan) {
-        setPlans([...plans, { ...planPayload, id: Date.now() }]);
-      } else if (showPlanModal && showPlanModal.id) {
-        setPlans(
-          plans.map((p) =>
-            p.id === showPlanModal.id ? { ...planPayload, id: showPlanModal.id } : p
-          )
-        );
-      }
-      setShowPlanModal(null);
-      triggerNotification(`Đã lưu gói dịch vụ ${planPayload.name}`);
+      alert("Đã xảy ra lỗi khi lưu gói dịch vụ.");
     }
   };
 
@@ -465,10 +565,7 @@ export function MasterAdminDashboardPage() {
       setPlans(plans.map((p) => (p.id === updated.id ? updated : p)));
       triggerNotification(`Gói cước ${plan.name} đã chuyển sang ${nextStatus}`);
     } catch (err) {
-      setPlans(
-        plans.map((p) => (p.id === plan.id ? { ...p, status: nextStatus } : p))
-      );
-      triggerNotification(`Gói cước ${plan.name} đã chuyển sang ${nextStatus}`);
+      alert("Đã xảy ra lỗi khi cập nhật trạng thái gói cước.");
     }
   };
 
@@ -574,6 +671,59 @@ export function MasterAdminDashboardPage() {
     return leads.filter((l) => l.status === "PENDING").length;
   }, [leads]);
 
+  const filteredInvoices = useMemo(() => {
+    return invoices.filter((i) => {
+      const q = invoiceSearch.toLowerCase();
+      const matchSearch =
+        i.invoiceNumber.toLowerCase().includes(q) ||
+        (i.tenantName && i.tenantName.toLowerCase().includes(q)) ||
+        (i.tenantCode && i.tenantCode.toLowerCase().includes(q)) ||
+        (i.planName && i.planName.toLowerCase().includes(q)) ||
+        (i.transactionId && i.transactionId.toLowerCase().includes(q));
+      const matchStatus = invoiceStatusFilter === "ALL" || i.status === invoiceStatusFilter;
+      return matchSearch && matchStatus;
+    });
+  }, [invoices, invoiceSearch, invoiceStatusFilter]);
+
+  const totalPaidAmount = useMemo(() => {
+    return invoices.filter((i) => i.status === "PAID").reduce((sum, i) => sum + (i.amount || 0), 0);
+  }, [invoices]);
+
+  const pendingInvoiceAmount = useMemo(() => {
+    return invoices.filter((i) => i.status === "PENDING").reduce((sum, i) => sum + (i.amount || 0), 0);
+  }, [invoices]);
+
+  const overdueInvoiceCount = useMemo(() => {
+    return invoices.filter((i) => i.status === "OVERDUE").length;
+  }, [invoices]);
+
+  const filteredContracts = useMemo(() => {
+    return contracts.filter((c) => {
+      const q = contractSearch.toLowerCase();
+      const matchSearch =
+        c.contractNumber.toLowerCase().includes(q) ||
+        c.title.toLowerCase().includes(q) ||
+        (c.tenantName && c.tenantName.toLowerCase().includes(q)) ||
+        (c.tenantCode && c.tenantCode.toLowerCase().includes(q)) ||
+        (c.signerName && c.signerName.toLowerCase().includes(q)) ||
+        (c.signerEmail && c.signerEmail.toLowerCase().includes(q));
+      const matchStatus = contractStatusFilter === "ALL" || c.status === contractStatusFilter;
+      return matchSearch && matchStatus;
+    });
+  }, [contracts, contractSearch, contractStatusFilter]);
+
+  const totalContractValue = useMemo(() => {
+    return contracts.filter((c) => c.status === "SIGNED").reduce((sum, c) => sum + (c.contractValue || 0), 0);
+  }, [contracts]);
+
+  const signedContractCount = useMemo(() => {
+    return contracts.filter((c) => c.status === "SIGNED").length;
+  }, [contracts]);
+
+  const pendingContractCount = useMemo(() => {
+    return contracts.filter((c) => c.status === "PENDING_SIGNATURE" || c.status === "DRAFT").length;
+  }, [contracts]);
+
   const sidebarGroups: Array<{
     id: SidebarGroupId;
     label: string;
@@ -676,6 +826,18 @@ export function MasterAdminDashboardPage() {
       icon: CreditCard,
       items: [
         {
+          tab: "contracts",
+          label: `Hợp đồng & ký số (${contracts.length})`,
+          description: "Soạn thảo, ký số điện tử B2B và quản lý hợp đồng thuê bao.",
+          icon: FileSignature,
+        },
+        {
+          tab: "invoices",
+          label: `Hóa đơn & thanh toán (${invoices.length})`,
+          description: "Quản lý hóa đơn B2B, xác nhận thanh toán và gia hạn dịch vụ.",
+          icon: ReceiptText,
+        },
+        {
           tab: "subscriptions",
           isActive: activeTab === "subscriptions" && (billingView === "overview" || billingView === "plans"),
           action: () => {
@@ -696,6 +858,7 @@ export function MasterAdminDashboardPage() {
           description: "Gán, nâng cấp hoặc hạ cấp gói dịch vụ của từng doanh nghiệp.",
           icon: ArrowUpDown,
         },
+<<<<<<< HEAD
         {
           isActive: activeTab === "subscriptions" && billingView === "invoices",
           action: () => {
@@ -706,6 +869,8 @@ export function MasterAdminDashboardPage() {
           description: "Theo dõi hóa đơn, trạng thái thanh toán và lịch sử doanh thu.",
           icon: ReceiptText,
         },
+=======
+>>>>>>> sinhnn
       ],
     },
     {
@@ -1338,10 +1503,7 @@ export function MasterAdminDashboardPage() {
                   <button
                     type="button"
                     role="menuitem"
-                    onClick={() => {
-                      localStorage.removeItem("master_access_token");
-                      navigate("/admin/login");
-                    }}
+                    onClick={handleLogout}
                     className="flex min-h-12 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-rose-50 hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
                   >
                     <LogOut className="size-5" />
@@ -1764,6 +1926,15 @@ export function MasterAdminDashboardPage() {
                           <td className="py-3.5 px-4 text-right whitespace-nowrap">
                             <div className="flex items-center justify-end gap-1.5">
                               <button
+                                onClick={() => handleOpenCreateContractForLead(lead)}
+                                className="px-2.5 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-[11px] font-semibold transition-colors flex items-center gap-1"
+                                title="Soạn hợp đồng e-Contract B2B cho khách hàng này"
+                              >
+                                <FileSignature className="w-3.5 h-3.5" />
+                                <span>Soạn HĐ</span>
+                              </button>
+
+                              <button
                                 onClick={() => handleOpenLeadModal(lead)}
                                 className="px-2.5 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-700 text-[11px] font-semibold transition-colors"
                                 title="Xem chi tiết & Cập nhật ghi chú"
@@ -1863,6 +2034,7 @@ export function MasterAdminDashboardPage() {
                 <thead className="bg-slate-50 text-slate-800 font-semibold border-b border-slate-200">
                   <tr>
                     <th className="p-4">Doanh Nghiệp</th>
+                    <th className="p-4">Môi Trường</th>
                     <th className="p-4">Mã Tenant</th>
                     <th className="p-4">Subdomain / Domain</th>
                     <th className="p-4">Database Vật Lý</th>
@@ -1884,6 +2056,18 @@ export function MasterAdminDashboardPage() {
                               <div className="text-[11px] text-slate-400">ID #{tenant.id}</div>
                             </div>
                           </div>
+                        </td>
+                        <td className="p-4">
+                          <span
+                            className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                              tenant.environmentType === "POC_SANDBOX"
+                                ? "bg-amber-50 text-amber-700 border border-amber-200"
+                                : "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                            }`}
+                          >
+                            <span className={`w-1.5 h-1.5 rounded-full ${tenant.environmentType === "POC_SANDBOX" ? "bg-amber-500" : "bg-emerald-500"}`} />
+                            {tenant.environmentType === "POC_SANDBOX" ? "POC Sandbox" : "Production"}
+                          </span>
                         </td>
                         <td className="p-4 font-mono font-bold text-blue-600">{tenant.code}</td>
                         <td className="p-4 font-mono text-slate-500">
@@ -1918,10 +2102,28 @@ export function MasterAdminDashboardPage() {
                             {tenant.status}
                           </span>
                         </td>
-                        <td className="p-4 text-right space-x-2">
+                        <td className="p-4 text-right space-x-1.5 whitespace-nowrap">
+                          <button
+                            onClick={() => handleOpenCreateContractForTenant(tenant)}
+                            className="px-2.5 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-semibold transition-colors inline-flex items-center gap-1"
+                            title="Soạn hợp đồng B2B e-Contract cho doanh nghiệp này"
+                          >
+                            <FileSignature className="w-3.5 h-3.5" />
+                            <span>Soạn HĐ</span>
+                          </button>
+
+                          <button
+                            onClick={() => handleOpenCreateInvoiceForTenant(tenant)}
+                            className="px-2.5 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-semibold transition-colors inline-flex items-center gap-1"
+                            title="Lập hóa đơn thanh toán cho doanh nghiệp này"
+                          >
+                            <ReceiptText className="w-3.5 h-3.5" />
+                            <span>Tạo Hóa Đơn</span>
+                          </button>
+
                           <button
                             onClick={() => setSelectedTenant(tenant)}
-                            className="px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold transition-colors inline-flex items-center gap-1"
+                            className="px-2.5 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold transition-colors inline-flex items-center gap-1"
                           >
                             <Eye className="w-3.5 h-3.5 text-slate-500" />
                             <span>Chi tiết</span>
@@ -1929,7 +2131,7 @@ export function MasterAdminDashboardPage() {
 
                           <button
                             onClick={() => handleToggleTenantStatus(tenant)}
-                            className={`px-3 py-1.5 rounded-lg font-semibold transition-colors inline-flex items-center gap-1 ${
+                            className={`px-2.5 py-1.5 rounded-lg font-semibold transition-colors inline-flex items-center gap-1 ${
                               tenant.status === "ACTIVE"
                                 ? "bg-rose-50 text-rose-600 hover:bg-rose-100"
                                 : tenant.status === "FAILED" || tenant.status === "PROVISIONING"
@@ -1948,7 +2150,7 @@ export function MasterAdminDashboardPage() {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={6} className="p-8 text-center text-slate-500">
+                      <td colSpan={7} className="p-8 text-center text-slate-500">
                         Không tìm thấy doanh nghiệp nào phù hợp với từ khóa "{tenantSearch}".
                       </td>
                     </tr>
@@ -1994,6 +2196,536 @@ export function MasterAdminDashboardPage() {
             }}
             onTogglePlanStatus={handleTogglePlanStatus}
           />
+        )}
+
+        {/* TAB: INVOICES & BILLING */}
+        {activeTab === "invoices" && (
+          <div className="space-y-6 animate-fade-in">
+            {/* Header & Create Invoice CTA */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div>
+                <h1 className="text-2xl font-bold text-slate-900">
+                  Hóa Đơn & Quản Lý Thu Phí B2B (Invoices & Billing)
+                </h1>
+                <p className="text-xs text-slate-500 mt-1">
+                  Theo dõi hóa đơn định kỳ, quản lý công nợ doanh nghiệp và tự động kích hoạt gói dịch vụ khi xác nhận thanh toán.
+                </p>
+              </div>
+
+              <button
+                onClick={() => {
+                  setInvoiceTenantId(tenants[0]?.id || "");
+                  const defaultPlan = plans[0];
+                  if (defaultPlan) {
+                    setInvoicePlanId(defaultPlan.id || "");
+                    setInvoiceAmount(defaultPlan.priceYearly || 3990);
+                  }
+                  setInvoiceNotes("");
+                  setShowCreateInvoiceModal(true);
+                }}
+                className="px-4 py-2.5 text-xs font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition-all flex items-center gap-2"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Lập Hóa Đơn Doanh Nghiệp Mới</span>
+              </button>
+            </div>
+
+            {/* KPI 4 Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-2xs">
+                <span className="text-xs font-semibold text-slate-500 block mb-1">
+                  Tổng Doanh Thu Đã Thu
+                </span>
+                <span className="text-2xl font-extrabold text-emerald-600">
+                  ${totalPaidAmount.toLocaleString()} <span className="text-xs font-normal text-slate-500">USD</span>
+                </span>
+                <span className="text-[11px] text-slate-400 mt-1 block">Từ các hóa đơn đã thanh toán</span>
+              </div>
+
+              <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-2xs">
+                <span className="text-xs font-semibold text-slate-500 block mb-1">
+                  Công Nợ Chờ Thu (Pending)
+                </span>
+                <span className="text-2xl font-extrabold text-amber-600">
+                  ${pendingInvoiceAmount.toLocaleString()} <span className="text-xs font-normal text-slate-500">USD</span>
+                </span>
+                <span className="text-[11px] text-slate-400 mt-1 block">Chờ đối soát chuyển khoản ngân hàng</span>
+              </div>
+
+              <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-2xs">
+                <span className="text-xs font-semibold text-slate-500 block mb-1">
+                  Hóa Đơn Chờ Thanh Toán
+                </span>
+                <span className="text-2xl font-extrabold text-blue-600">
+                  {invoices.filter((i) => i.status === "PENDING").length} <span className="text-xs font-normal text-slate-500">Hóa đơn</span>
+                </span>
+                <span className="text-[11px] text-slate-400 mt-1 block">Đang trong hạn thanh toán</span>
+              </div>
+
+              <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-2xs">
+                <span className="text-xs font-semibold text-slate-500 block mb-1">
+                  Hóa Đơn Quá Hạn (Overdue)
+                </span>
+                <span className="text-2xl font-extrabold text-rose-600">
+                  {overdueInvoiceCount} <span className="text-xs font-normal text-slate-500">Hóa đơn</span>
+                </span>
+                <span className="text-[11px] text-slate-400 mt-1 block">Cần nhắc thanh toán hoặc tạm khóa</span>
+              </div>
+            </div>
+
+            {/* Filter & Search */}
+            <div className="flex flex-col sm:flex-row items-center gap-3">
+              <div className="relative flex-1 w-full">
+                <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Tìm theo Mã hóa đơn (INV-...), Tên doanh nghiệp, Gói cước, Mã giao dịch..."
+                  value={invoiceSearch}
+                  onChange={(e) => setInvoiceSearch(e.target.value)}
+                  className="w-full pl-9 pr-4 py-2.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-blue-600 shadow-2xs"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <Filter className="w-4 h-4 text-slate-400 shrink-0" />
+                <select
+                  value={invoiceStatusFilter}
+                  onChange={(e) => setInvoiceStatusFilter(e.target.value)}
+                  className="px-3 py-2.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-blue-600 font-semibold text-slate-700 shadow-2xs"
+                >
+                  <option value="ALL">Tất cả trạng thái ({invoices.length})</option>
+                  <option value="PAID">Đã thanh toán ({invoices.filter((i) => i.status === "PAID").length})</option>
+                  <option value="PENDING">Chờ thanh toán ({invoices.filter((i) => i.status === "PENDING").length})</option>
+                  <option value="OVERDUE">Quá hạn ({invoices.filter((i) => i.status === "OVERDUE").length})</option>
+                  <option value="CANCELLED">Đã hủy ({invoices.filter((i) => i.status === "CANCELLED").length})</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Invoices Table */}
+            <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-2xs">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs text-slate-600 border-collapse">
+                  <thead className="bg-slate-50 text-slate-800 font-semibold border-b border-slate-200">
+                    <tr>
+                      <th className="p-4">Số Hóa Đơn</th>
+                      <th className="p-4">Khách Hàng Doanh Nghiệp</th>
+                      <th className="p-4">Gói Dịch Vụ</th>
+                      <th className="p-4">Số Tiền (USD)</th>
+                      <th className="p-4">Phương Thức</th>
+                      <th className="p-4">Hạn Thanh Toán</th>
+                      <th className="p-4">Trạng Thái</th>
+                      <th className="p-4 text-right">Thao Tác</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {filteredInvoices.length > 0 ? (
+                      filteredInvoices.map((inv) => (
+                        <tr key={inv.id} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="p-4">
+                            <div className="font-mono font-bold text-blue-600">{inv.invoiceNumber}</div>
+                            <div className="text-[11px] text-slate-400 mt-0.5">
+                              {new Date(inv.createdAt).toLocaleDateString("vi-VN")}
+                            </div>
+                          </td>
+
+                          <td className="p-4">
+                            <div className="font-bold text-slate-900">{inv.tenantName || `Tenant #${inv.tenantId}`}</div>
+                            <div className="text-[11px] text-slate-500 flex items-center gap-1 font-mono mt-0.5">
+                              <span>{inv.tenantCode || "code"}</span>
+                              {inv.tenantSubdomain && <span>· {inv.tenantSubdomain}.smarthire.top</span>}
+                            </div>
+                          </td>
+
+                          <td className="p-4">
+                            <div className="font-semibold text-slate-800">{inv.planName || "Gói Tùy Biến"}</div>
+                            {inv.billingPeriodStart && inv.billingPeriodEnd && (
+                              <div className="text-[11px] text-slate-400 mt-0.5">
+                                {inv.billingPeriodStart.slice(0, 7)} → {inv.billingPeriodEnd.slice(0, 7)}
+                              </div>
+                            )}
+                          </td>
+
+                          <td className="p-4 font-mono">
+                            <div className="font-bold text-slate-900 text-sm">
+                              ${inv.amount.toLocaleString()} {inv.currency}
+                            </div>
+                            {inv.taxRate !== undefined && inv.taxRate > 0 && (
+                              <div className="text-[10px] text-slate-400">VAT {inv.taxRate}%</div>
+                            )}
+                          </td>
+
+                          <td className="p-4">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                              {inv.paymentGateway === "BANK_TRANSFER"
+                                ? "Chuyển khoản B2B"
+                                : inv.paymentGateway === "STRIPE"
+                                ? "Thẻ tín dụng Stripe"
+                                : inv.paymentGateway === "VN_PAY"
+                                ? "Cổng VNPAY QR"
+                                : inv.paymentGateway || "Trực tiếp"}
+                            </span>
+                          </td>
+
+                          <td className="p-4 text-[11px] text-slate-600">
+                            {inv.dueDate ? (
+                              <span className="font-mono">{inv.dueDate}</span>
+                            ) : (
+                              <span className="text-slate-400">—</span>
+                            )}
+                          </td>
+
+                          <td className="p-4">
+                            <span
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold ${
+                                inv.status === "PAID"
+                                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                  : inv.status === "PENDING"
+                                  ? "bg-amber-50 text-amber-700 border border-amber-200"
+                                  : inv.status === "OVERDUE"
+                                  ? "bg-rose-50 text-rose-700 border border-rose-200"
+                                  : "bg-slate-100 text-slate-600 border border-slate-300"
+                              }`}
+                            >
+                              {inv.status === "PAID" ? (
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                              ) : inv.status === "PENDING" ? (
+                                <Clock className="w-3.5 h-3.5" />
+                              ) : (
+                                <XCircle className="w-3.5 h-3.5" />
+                              )}
+                              {inv.status === "PAID"
+                                ? "Đã Thanh Toán"
+                                : inv.status === "PENDING"
+                                ? "Chờ Thanh Toán"
+                                : inv.status === "OVERDUE"
+                                ? "Quá Hạn"
+                                : "Đã Hủy"}
+                            </span>
+                          </td>
+
+                          <td className="p-4 text-right whitespace-nowrap space-x-1.5">
+                            <button
+                              onClick={() => setSelectedInvoice(inv)}
+                              className="px-2.5 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs transition-colors inline-flex items-center gap-1"
+                            >
+                              <Eye className="w-3.5 h-3.5 text-slate-500" />
+                              <span>Chi tiết</span>
+                            </button>
+
+                            {inv.status !== "PAID" && (
+                              <button
+                                onClick={() => handleMarkInvoicePaid(inv)}
+                                className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs transition-colors inline-flex items-center gap-1 shadow-2xs"
+                                title="Xác nhận doanh nghiệp đã chuyển khoản và kích hoạt thời hạn Subscription"
+                              >
+                                <Check className="w-3.5 h-3.5" />
+                                <span>Xác nhận Đã TT</span>
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={8} className="p-10 text-center text-slate-400">
+                          <ReceiptText className="w-8 h-8 mx-auto mb-2 text-slate-300" />
+                          <span>Không tìm thấy hóa đơn nào phù hợp với bộ lọc.</span>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB: B2B CONTRACTS & DIGITAL SIGNING */}
+        {activeTab === "contracts" && (
+          <div className="space-y-6 animate-fade-in">
+            {/* Header & New Contract CTA */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div>
+                <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+                  <FileSignature className="w-7 h-7 text-indigo-600" />
+                  <span>Hợp Đồng & Ký Số Điện Tử B2B (e-Contracts)</span>
+                </h1>
+                <p className="text-xs text-slate-500 mt-1">
+                  Ký kết hợp đồng B2B 100% Online với chữ ký số USB Token / HSM hoặc e-Signature, tự động phát hành hóa đơn và kích hoạt gói dịch vụ.
+                </p>
+              </div>
+
+              <button
+                onClick={() => {
+                  setContractTenantId(tenants[0]?.id || "");
+                  const defaultPlan = plans[0];
+                  if (defaultPlan) {
+                    setContractPlanId(defaultPlan.id || "");
+                    setContractValue(defaultPlan.priceYearly || 3990);
+                  }
+                  setContractLeadId(undefined);
+                  setContractTitle("Hợp Đồng Cung Cấp Dịch Vụ Tuyển Dụng AI & Dedicated DB SmartHire-AI");
+                  setContractPartyBRepresentative("");
+                  setContractPartyBEmail("");
+                  setContractPartyBPosition("Tổng Giám Đốc / Đại diện pháp luật");
+                  setContractNotes("");
+                  setShowCreateContractModal(true);
+                }}
+                className="px-4 py-2.5 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm transition-all flex items-center gap-2"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Soạn Hợp Đồng B2B Mới</span>
+              </button>
+            </div>
+
+            {/* KPI 4 Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-2xs">
+                <span className="text-xs font-semibold text-slate-500 block mb-1">
+                  Tổng Số Hợp Đồng
+                </span>
+                <span className="text-2xl font-extrabold text-slate-900">
+                  {contracts.length} <span className="text-xs font-normal text-slate-500">Hợp đồng</span>
+                </span>
+                <span className="text-[11px] text-slate-400 mt-1 block">Toàn bộ hợp đồng B2B trên nền tảng</span>
+              </div>
+
+              <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-2xs">
+                <span className="text-xs font-semibold text-slate-500 block mb-1">
+                  Đã Ký Số & Kích Hoạt
+                </span>
+                <span className="text-2xl font-extrabold text-emerald-600">
+                  {signedContractCount} <span className="text-xs font-normal text-slate-500">Đã ký</span>
+                </span>
+                <span className="text-[11px] text-slate-400 mt-1 block">Có đầy đủ giá trị pháp lý</span>
+              </div>
+
+              <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-2xs">
+                <span className="text-xs font-semibold text-slate-500 block mb-1">
+                  Chờ Ký Số (Pending)
+                </span>
+                <span className="text-2xl font-extrabold text-amber-600">
+                  {pendingContractCount} <span className="text-xs font-normal text-slate-500">Chờ ký</span>
+                </span>
+                <span className="text-[11px] text-slate-400 mt-1 block">Chờ doanh nghiệp ký số điện tử</span>
+              </div>
+
+              <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-2xs">
+                <span className="text-xs font-semibold text-slate-500 block mb-1">
+                  Tổng Giá Trị Hợp Đồng Ký
+                </span>
+                <span className="text-2xl font-extrabold text-indigo-600">
+                  ${totalContractValue.toLocaleString()} <span className="text-xs font-normal text-slate-500">USD</span>
+                </span>
+                <span className="text-[11px] text-slate-400 mt-1 block">Doanh thu từ các HĐ đã ký kết</span>
+              </div>
+            </div>
+
+            {/* Filter & Search */}
+            <div className="flex flex-col sm:flex-row items-center gap-3">
+              <div className="relative flex-1 w-full">
+                <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Tìm theo Số hợp đồng (CTR-...), Tiêu đề, Tên doanh nghiệp, Người đại diện ký..."
+                  value={contractSearch}
+                  onChange={(e) => setContractSearch(e.target.value)}
+                  className="w-full pl-9 pr-4 py-2.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-600 shadow-2xs"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <Filter className="w-4 h-4 text-slate-400 shrink-0" />
+                <select
+                  value={contractStatusFilter}
+                  onChange={(e) => setContractStatusFilter(e.target.value)}
+                  className="px-3 py-2.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-600 font-semibold text-slate-700 shadow-2xs"
+                >
+                  <option value="ALL">Tất cả trạng thái ({contracts.length})</option>
+                  <option value="SIGNED">Đã ký kết ({contracts.filter((c) => c.status === "SIGNED").length})</option>
+                  <option value="PENDING_SIGNATURE">Chờ ký ({contracts.filter((c) => c.status === "PENDING_SIGNATURE").length})</option>
+                  <option value="DRAFT">Bản nháp ({contracts.filter((c) => c.status === "DRAFT").length})</option>
+                  <option value="EXPIRED">Đã hết hạn ({contracts.filter((c) => c.status === "EXPIRED").length})</option>
+                  <option value="TERMINATED">Đã chấm dứt ({contracts.filter((c) => c.status === "TERMINATED").length})</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Contracts Table */}
+            <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-2xs">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs text-slate-600 border-collapse">
+                  <thead className="bg-slate-50 text-slate-800 font-semibold border-b border-slate-200">
+                    <tr>
+                      <th className="p-4">Số Hợp Đồng</th>
+                      <th className="p-4">Khách Hàng Doanh Nghiệp</th>
+                      <th className="p-4">Nội Dung / Gói Dịch Vụ</th>
+                      <th className="p-4">Giá Trị Hợp Đồng</th>
+                      <th className="p-4">Thời Hạn Hiệu Lực</th>
+                      <th className="p-4">Phương Thức Ký</th>
+                      <th className="p-4">Trạng Thái</th>
+                      <th className="p-4 text-right">Thao Tác</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {filteredContracts.length > 0 ? (
+                      filteredContracts.map((c) => (
+                        <tr key={c.id} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="p-4">
+                            <div className="font-mono font-bold text-indigo-600">{c.contractNumber}</div>
+                            <div className="text-[11px] text-slate-400 mt-0.5">
+                              {new Date(c.createdAt).toLocaleDateString("vi-VN")}
+                            </div>
+                          </td>
+
+                          <td className="p-4">
+                            <div className="font-bold text-slate-900">{c.partyBName || c.tenantName || `Tenant #${c.tenantId}`}</div>
+                            <div className="text-[11px] text-slate-500 flex items-center gap-1 font-mono mt-0.5">
+                              {c.partyBTaxCode && <span className="font-bold text-slate-700">MST: {c.partyBTaxCode} · </span>}
+                              <span>{c.tenantCode || "code"}</span>
+                              {c.tenantSubdomain && <span>· {c.tenantSubdomain}.smarthire.top</span>}
+                            </div>
+                          </td>
+
+                          <td className="p-4 max-w-[240px]">
+                            <div className="font-semibold text-slate-800 truncate" title={c.title}>{c.title}</div>
+                            <div className="text-[11px] text-indigo-600 mt-0.5 font-medium">
+                              {c.planName || "Gói Tùy Biến B2B"}
+                            </div>
+                          </td>
+
+                          <td className="p-4 font-mono">
+                            <div className="font-bold text-slate-900 text-sm">
+                              ${(c.totalAmount || c.contractValue).toLocaleString()} {c.currency}
+                            </div>
+                            <div className="text-[10px] text-slate-400">
+                              (Gốc: ${c.contractValue.toLocaleString()} + VAT {c.taxRate || 10}%)
+                            </div>
+                          </td>
+
+                          <td className="p-4 text-[11px] text-slate-600">
+                            {c.startDate && c.endDate ? (
+                              <div className="font-mono">
+                                <div>{c.startDate}</div>
+                                <div className="text-slate-400">đến {c.endDate}</div>
+                              </div>
+                            ) : (
+                              <span className="text-slate-400">12 tháng</span>
+                            )}
+                          </td>
+
+                          <td className="p-4">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                              {c.signMethod === "DIGITAL_TOKEN_CA"
+                                ? "Chữ ký số USB Token/CA"
+                                : c.signMethod === "E_SIGN_ONLINE"
+                                ? "Ký Online (OTP Mail)"
+                                : c.signMethod === "UPLOAD_SIGNED_PDF"
+                                ? "Tải lên PDF đã ký"
+                                : c.signMethod === "MANUAL"
+                                ? "Ký tay trực tiếp"
+                                : "Chưa ký"}
+                            </span>
+                            {(c.partyBRepresentative || c.signerName) && (
+                              <div className="text-[10px] text-slate-400 mt-0.5 truncate max-w-[140px]" title={`${c.partyBRepresentative || c.signerName} (${c.partyBEmail || c.signerEmail})`}>
+                                Ký bởi: {c.partyBRepresentative || c.signerName}
+                              </div>
+                            )}
+                          </td>
+
+                          <td className="p-4">
+                            <span
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold ${
+                                c.status === "SIGNED"
+                                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                  : c.status === "PENDING_SIGNATURE"
+                                  ? "bg-amber-50 text-amber-700 border border-amber-200"
+                                  : c.status === "DRAFT"
+                                  ? "bg-slate-100 text-slate-700 border border-slate-200"
+                                  : "bg-rose-50 text-rose-700 border border-rose-200"
+                              }`}
+                            >
+                              {c.status === "SIGNED" ? (
+                                <FileCheck2 className="w-3.5 h-3.5" />
+                              ) : c.status === "PENDING_SIGNATURE" ? (
+                                <Clock className="w-3.5 h-3.5" />
+                              ) : (
+                                <FileSignature className="w-3.5 h-3.5" />
+                              )}
+                              {c.status === "SIGNED"
+                                ? "Đã Ký Số"
+                                : c.status === "PENDING_SIGNATURE"
+                                ? "Chờ Ký Số"
+                                : c.status === "DRAFT"
+                                ? "Bản Nháp"
+                                : c.status === "EXPIRED"
+                                ? "Hết Hạn"
+                                : "Chấm Dứt"}
+                            </span>
+                          </td>
+
+                          <td className="p-4 text-right whitespace-nowrap space-x-1.5">
+                            <button
+                              onClick={() => handleSendContract(c)}
+                              className="px-2 py-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 font-semibold text-xs transition-colors inline-flex items-center gap-1"
+                              title="Gửi email mời đại diện Bên B ký hợp đồng điện tử"
+                            >
+                              <Send className="w-3.5 h-3.5" />
+                              <span>Gửi Mời Ký</span>
+                            </button>
+
+                            <button
+                              onClick={() => handleCopySigningLink(c)}
+                              className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors inline-flex items-center"
+                              title="Sao chép liên kết ký số gửi qua Zalo/Email"
+                            >
+                              <Copy className="w-3.5 h-3.5" />
+                            </button>
+
+                            <button
+                              onClick={() => setSelectedContract(c)}
+                              className="px-2 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs transition-colors inline-flex items-center gap-1"
+                              title="Xem chi tiết văn bản hợp đồng"
+                            >
+                              <Eye className="w-3.5 h-3.5 text-slate-500" />
+                              <span>Văn bản</span>
+                            </button>
+
+                            {c.status !== "SIGNED" && (
+                              <button
+                                onClick={() => handleOpenSignModal(c)}
+                                className="px-2 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs transition-colors inline-flex items-center gap-1 shadow-2xs"
+                                title="Ký số điện tử và tự động phát hành Hóa Đơn B2B"
+                              >
+                                <FileSignature className="w-3.5 h-3.5" />
+                                <span>Ký số</span>
+                              </button>
+                            )}
+
+                            <button
+                              onClick={() => handleDeleteContract(c)}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors inline-flex items-center"
+                              title="Xóa hợp đồng"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={8} className="p-10 text-center text-slate-400">
+                          <FileSignature className="w-8 h-8 mx-auto mb-2 text-slate-300" />
+                          <span>Không tìm thấy hợp đồng nào phù hợp với bộ lọc.</span>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
         )}
 
         {/* TAB 4: SYSTEM AUDIT LOGS */}
@@ -2118,7 +2850,7 @@ export function MasterAdminDashboardPage() {
                 <h2 id="account-security-title" className="mb-5 text-2xl font-bold text-slate-950">Tài khoản và bảo mật</h2>
                 <div className="space-y-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
                   <div className="rounded-2xl bg-emerald-50 p-5"><p className="font-semibold text-emerald-900">Phiên đăng nhập đang hoạt động</p><p className="mt-1 text-sm text-emerald-700">Tài khoản đã được xác thực bằng Master Auth.</p></div>
-                  <button type="button" onClick={() => { localStorage.removeItem("master_access_token"); navigate("/admin/login"); }} className="flex min-h-12 items-center gap-3 rounded-xl border border-rose-200 px-4 text-sm font-semibold text-rose-700 transition-colors hover:bg-rose-50"><LogOut className="size-5" />Đăng xuất khỏi thiết bị này</button>
+                  <button type="button" onClick={handleLogout} className="flex min-h-12 items-center gap-3 rounded-xl border border-rose-200 px-4 text-sm font-semibold text-rose-700 transition-colors hover:bg-rose-50"><LogOut className="size-5" />Đăng xuất khỏi thiết bị này</button>
                 </div>
               </section>
             )}
@@ -2145,497 +2877,159 @@ export function MasterAdminDashboardPage() {
         </main>
       </div>
 
-      {/* MODAL 1: VIEW TENANT DETAILS */}
-      {selectedTenant && (
-        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-6">
-          <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 max-w-lg w-full shadow-2xl relative animate-fade-in">
-            <button
-              onClick={() => setSelectedTenant(null)}
-              className="absolute top-6 right-6 text-slate-400 hover:text-slate-800"
-            >
-              <X className="w-5 h-5" />
-            </button>
-            <div className="flex items-center gap-3 mb-5">
-              <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold border border-blue-200">
-                <Building2 className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-slate-900">Chi Tiết Khách Hàng Doanh Nghiệp</h3>
-                <span className="text-xs text-slate-500 font-mono">Tenant ID #{selectedTenant.id}</span>
-              </div>
-            </div>
+      <TenantDetailModal
+        selectedTenant={selectedTenant}
+        setSelectedTenant={setSelectedTenant}
+        handleToggleTenantStatus={handleToggleTenantStatus}
+      />
 
-            <div className="space-y-3 text-xs font-mono bg-slate-50 p-5 rounded-xl border border-slate-200">
-              <div className="flex justify-between pb-2 border-b border-slate-200/80">
-                <span className="text-slate-500 font-sans">Tên Doanh Nghiệp:</span>
-                <span className="font-bold text-slate-900 text-right font-sans">{selectedTenant.name}</span>
-              </div>
-              <div className="flex justify-between pb-2 border-b border-slate-200/80">
-                <span className="text-slate-500 font-sans">Mã Định Danh (Code):</span>
-                <span className="font-bold text-blue-600">{selectedTenant.code}</span>
-              </div>
-              <div className="flex justify-between pb-2 border-b border-slate-200/80">
-                <span className="text-slate-500 font-sans">Cổng Đăng Nhập (Subdomain):</span>
-                <span className="text-slate-700">{selectedTenant.subdomain}.smarthire.top</span>
-              </div>
-              <div className="flex justify-between pb-2 border-b border-slate-200/80">
-                <span className="text-slate-500 font-sans">Database Riêng Biệt:</span>
-                <span className="text-emerald-700 font-bold">{selectedTenant.dbName}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500 font-sans">Trạng Thái Hoạt Động:</span>
-                <span className="font-bold text-slate-900">{selectedTenant.status}</span>
-              </div>
-            </div>
+      <SubscriptionPlanModal
+        showPlanModal={showPlanModal}
+        setShowPlanModal={setShowPlanModal}
+        isNewPlan={isNewPlan}
+        planCode={planCode}
+        setPlanCode={setPlanCode}
+        planName={planName}
+        setPlanName={setPlanName}
+        planDesc={planDesc}
+        setPlanDesc={setPlanDesc}
+        priceMonthly={priceMonthly}
+        setPriceMonthly={setPriceMonthly}
+        priceYearly={priceYearly}
+        setPriceYearly={setPriceYearly}
+        maxJobs={maxJobs}
+        setMaxJobs={setMaxJobs}
+        maxCvParses={maxCvParses}
+        setMaxCvParses={setMaxCvParses}
+        maxAiHours={maxAiHours}
+        setMaxAiHours={setMaxAiHours}
+        handleSavePlanSubmit={handleSavePlanSubmit}
+      />
 
-            <div className="mt-6 flex items-center justify-end gap-3">
-              <button
-                onClick={() => setSelectedTenant(null)}
-                className="px-4 py-2 rounded-lg border border-slate-200 hover:bg-slate-50 text-xs font-semibold text-slate-700"
-              >
-                Đóng cửa sổ
-              </button>
-              <button
-                onClick={() => {
-                  const t = selectedTenant;
-                  setSelectedTenant(null);
-                  handleToggleTenantStatus(t);
-                }}
-                className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-sm"
-              >
-                Đổi trạng thái vận hành
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <LogDetailModal selectedLog={selectedLog} setSelectedLog={setSelectedLog} />
 
-      {/* MODAL 2: CREATE / EDIT SUBSCRIPTION PLAN */}
-      {showPlanModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-6">
-          <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 max-w-md w-full shadow-2xl relative animate-fade-in">
-            <button
-              onClick={() => setShowPlanModal(null)}
-              className="absolute top-6 right-6 text-slate-400 hover:text-slate-800"
-            >
-              <X className="w-5 h-5" />
-            </button>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold border border-blue-200">
-                <CreditCard className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-slate-900">
-                  {isNewPlan ? "Tạo Gói SaaS Mới" : "Cập Nhật Gói SaaS"}
-                </h3>
-                <p className="text-xs text-slate-500">Cấu hình giá cước và hạn ngạch tài nguyên.</p>
-              </div>
-            </div>
+      <LeadDetailModal
+        selectedLead={selectedLead}
+        setSelectedLead={setSelectedLead}
+        leadStatusEdit={leadStatusEdit}
+        setLeadStatusEdit={setLeadStatusEdit}
+        leadNotesEdit={leadNotesEdit}
+        setLeadNotesEdit={setLeadNotesEdit}
+        updatingLead={updatingLead}
+        handleSaveLeadModal={handleSaveLeadModal}
+        handleProvisionFromLead={handleProvisionFromLead}
+      />
 
-            <form onSubmit={handleSavePlanSubmit} className="space-y-3.5 text-xs">
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Mã Gói (Code)</label>
-                <input
-                  type="text"
-                  required
-                  disabled={!isNewPlan}
-                  placeholder="VD: ENTERPRISE_PLUS"
-                  value={planCode}
-                  onChange={(e) => setPlanCode(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-slate-900 font-mono disabled:opacity-60"
-                />
-              </div>
+      <CreateInvoiceModal
+        showCreateInvoiceModal={showCreateInvoiceModal}
+        setShowCreateInvoiceModal={setShowCreateInvoiceModal}
+        tenants={tenants}
+        plans={plans}
+        invoiceTenantId={invoiceTenantId}
+        setInvoiceTenantId={setInvoiceTenantId}
+        invoicePlanId={invoicePlanId}
+        setInvoicePlanId={setInvoicePlanId}
+        invoiceAmount={invoiceAmount}
+        setInvoiceAmount={setInvoiceAmount}
+        invoiceCurrency={invoiceCurrency}
+        setInvoiceCurrency={setInvoiceCurrency}
+        invoicePaymentGateway={invoicePaymentGateway}
+        setInvoicePaymentGateway={setInvoicePaymentGateway}
+        invoiceNotes={invoiceNotes}
+        setInvoiceNotes={setInvoiceNotes}
+        creatingInvoice={creatingInvoice}
+        handleCreateInvoiceSubmit={handleCreateInvoiceSubmit}
+      />
 
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Tên Hiển Thị Gói</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Gói Doanh Nghiệp Tùy Biến"
-                  value={planName}
-                  onChange={(e) => setPlanName(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-slate-900"
-                />
-              </div>
+      <InvoiceDetailModal
+        selectedInvoice={selectedInvoice}
+        setSelectedInvoice={setSelectedInvoice}
+        handleMarkInvoicePaid={handleMarkInvoicePaid}
+      />
 
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Mô Tả Gói</label>
-                <input
-                  type="text"
-                  placeholder="Tối ưu cho doanh nghiệp trên 500 nhân sự"
-                  value={planDesc}
-                  onChange={(e) => setPlanDesc(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-slate-900"
-                />
-              </div>
+      <CreateContractModal
+        showCreateContractModal={showCreateContractModal}
+        setShowCreateContractModal={setShowCreateContractModal}
+        tenants={tenants}
+        plans={plans}
+        contractTenantId={contractTenantId}
+        setContractTenantId={setContractTenantId}
+        contractPlanId={contractPlanId}
+        setContractPlanId={setContractPlanId}
+        contractTitle={contractTitle}
+        setContractTitle={setContractTitle}
+        contractPartyBName={contractPartyBName}
+        setContractPartyBName={setContractPartyBName}
+        contractPartyBTaxCode={contractPartyBTaxCode}
+        setContractPartyBTaxCode={setContractPartyBTaxCode}
+        contractPartyBAddress={contractPartyBAddress}
+        setContractPartyBAddress={setContractPartyBAddress}
+        contractPartyBRepresentative={contractPartyBRepresentative}
+        setContractPartyBRepresentative={setContractPartyBRepresentative}
+        contractPartyBPosition={contractPartyBPosition}
+        setContractPartyBPosition={setContractPartyBPosition}
+        contractPartyBPhone={contractPartyBPhone}
+        setContractPartyBPhone={setContractPartyBPhone}
+        contractPartyBEmail={contractPartyBEmail}
+        setContractPartyBEmail={setContractPartyBEmail}
+        contractPartyBBankAccount={contractPartyBBankAccount}
+        setContractPartyBBankAccount={setContractPartyBBankAccount}
+        contractValue={contractValue}
+        setContractValue={setContractValue}
+        contractTaxRate={contractTaxRate}
+        setContractTaxRate={setContractTaxRate}
+        contractCurrency={contractCurrency}
+        setContractCurrency={setContractCurrency}
+        contractStartDate={contractStartDate}
+        setContractStartDate={setContractStartDate}
+        contractEndDate={contractEndDate}
+        setContractEndDate={setContractEndDate}
+        contractTerms={contractTerms}
+        setContractTerms={setContractTerms}
+        contractNotes={contractNotes}
+        setContractNotes={setContractNotes}
+        creatingContract={creatingContract}
+        handleCreateContractSubmit={handleCreateContractSubmit}
+      />
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Giá Tháng ($)</label>
-                  <input
-                    type="number"
-                    value={priceMonthly}
-                    onChange={(e) => setPriceMonthly(Number(e.target.value))}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-slate-900 font-mono"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Giá Năm ($)</label>
-                  <input
-                    type="number"
-                    value={priceYearly}
-                    onChange={(e) => setPriceYearly(Number(e.target.value))}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-slate-900 font-mono"
-                  />
-                </div>
-              </div>
+      <ContractDetailModal
+        selectedContract={selectedContract}
+        setSelectedContract={setSelectedContract}
+        handleSendContract={handleSendContract}
+        handleCopySigningLink={handleCopySigningLink}
+        handleOpenSignModal={handleOpenSignModal}
+      />
 
-              <div className="grid grid-cols-3 gap-2">
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Max Jobs</label>
-                  <input
-                    type="number"
-                    value={maxJobs}
-                    onChange={(e) => setMaxJobs(Number(e.target.value))}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-slate-900 font-mono"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Max CVs</label>
-                  <input
-                    type="number"
-                    value={maxCvParses}
-                    onChange={(e) => setMaxCvParses(Number(e.target.value))}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-slate-900 font-mono"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Max Voice (hrs)</label>
-                  <input
-                    type="number"
-                    value={maxAiHours}
-                    onChange={(e) => setMaxAiHours(Number(e.target.value))}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-slate-900 font-mono"
-                  />
-                </div>
-              </div>
+      <SignContractModal
+        showSignContractModal={showSignContractModal}
+        setShowSignContractModal={setShowSignContractModal}
+        signMethod={signMethod}
+        setSignMethod={setSignMethod}
+        signSignedDocUrl={signSignedDocUrl}
+        setSignSignedDocUrl={setSignSignedDocUrl}
+        signSignatureData={signSignatureData}
+        setSignSignatureData={setSignSignatureData}
+        signAutoInvoice={signAutoInvoice}
+        setSignAutoInvoice={setSignAutoInvoice}
+        signNotes={signNotes}
+        setSignNotes={setSignNotes}
+        signingContract={signingContract}
+        handleSignContractSubmit={handleSignContractSubmit}
+      />
 
-              <div className="pt-3 flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowPlanModal(null)}
-                  className="flex-1 py-2.5 rounded-lg border border-slate-200 text-slate-700 font-semibold"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-sm"
-                >
-                  Lưu Gói SaaS
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL 3: VIEW LOG DETAIL */}
-      {selectedLog && (
-        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-6">
-          <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 max-w-lg w-full shadow-2xl relative font-mono text-xs animate-fade-in">
-            <button
-              onClick={() => setSelectedLog(null)}
-              className="absolute top-6 right-6 text-slate-400 hover:text-slate-800"
-            >
-              <X className="w-5 h-5" />
-            </button>
-            <div className="flex items-center gap-3 mb-4 font-sans">
-              <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold border border-blue-200">
-                <FileText className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-slate-900">Chi Tiết Nhật Ký Kiểm Toán</h3>
-                <span className="text-xs text-slate-500">Log Entry #{selectedLog.id}</span>
-              </div>
-            </div>
-
-            <div className="bg-slate-50 p-4 rounded-xl space-y-2.5 border border-slate-200">
-              <div className="flex justify-between">
-                <span className="text-slate-500 font-sans">Tenant Code:</span>
-                <span className="text-blue-600 font-bold">{selectedLog.tenantCode}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500 font-sans">Hành động:</span>
-                <span className="font-semibold text-slate-900">{selectedLog.action}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500 font-sans">Mức độ cảnh báo:</span>
-                <span
-                  className={`font-bold px-2 py-0.5 rounded text-[10px] ${
-                    selectedLog.level === "INFO"
-                      ? "bg-blue-50 text-blue-700"
-                      : selectedLog.level === "WARN"
-                      ? "bg-amber-50 text-amber-700"
-                      : "bg-rose-50 text-rose-700"
-                  }`}
-                >
-                  {selectedLog.level}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500 font-sans">Địa chỉ IP:</span>
-                <span className="text-slate-700">{selectedLog.ipAddress}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500 font-sans">Thời điểm:</span>
-                <span className="text-slate-700">{new Date(selectedLog.timestamp).toLocaleString("vi-VN")}</span>
-              </div>
-              <div className="pt-2 border-t border-slate-200/80 font-sans">
-                <strong className="block text-slate-800 mb-1">Mô tả sự kiện:</strong>
-                <p className="text-slate-600 leading-relaxed bg-white p-2.5 rounded-lg border border-slate-200 text-xs">
-                  {selectedLog.description}
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-5 text-right">
-              <button
-                onClick={() => setSelectedLog(null)}
-                className="px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs font-sans"
-              >
-                Đóng
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL: LEAD DETAIL & EDIT NOTES */}
-      {selectedLead && (
-        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 max-w-lg w-full shadow-2xl relative animate-fade-in max-h-[90vh] overflow-y-auto">
-            <button
-              onClick={() => setSelectedLead(null)}
-              className="absolute top-6 right-6 text-slate-400 hover:text-slate-800"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <div className="flex items-center gap-3 mb-5">
-              <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold border border-blue-200">
-                <PhoneCall className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-slate-900">{selectedLead.companyName}</h3>
-                <span className="text-xs text-slate-500">
-                  {selectedLead.requestType === "CONTRACT_QUOTE"
-                    ? "Yêu cầu Báo giá & Hợp đồng"
-                    : "Đăng ký Trải nghiệm Demo"} · Lead #{selectedLead.id}
-                </span>
-              </div>
-            </div>
-
-            <div className="bg-slate-50 p-4 rounded-xl space-y-2.5 border border-slate-200 text-xs mb-5">
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <span className="text-slate-500 block text-[11px]">Người liên hệ:</span>
-                  <span className="font-semibold text-slate-800">{selectedLead.contactName}</span>
-                </div>
-                <div>
-                  <span className="text-slate-500 block text-[11px]">Chức vụ:</span>
-                  <span className="text-slate-700">{selectedLead.jobTitle || "—"}</span>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <span className="text-slate-500 block text-[11px]">Email doanh nghiệp:</span>
-                  <a href={`mailto:${selectedLead.workEmail}`} className="text-blue-600 font-mono hover:underline">
-                    {selectedLead.workEmail}
-                  </a>
-                </div>
-                <div>
-                  <span className="text-slate-500 block text-[11px]">Số điện thoại:</span>
-                  <a href={`tel:${selectedLead.phoneNumber}`} className="text-slate-800 font-mono hover:underline">
-                    {selectedLead.phoneNumber || "—"}
-                  </a>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-200/60">
-                <div>
-                  <span className="text-slate-500 block text-[11px]">Quy mô nhân sự:</span>
-                  <span className="text-slate-700">{selectedLead.companySize || "—"}</span>
-                </div>
-                <div>
-                  <span className="text-slate-500 block text-[11px]">Gói quan tâm:</span>
-                  <span className="font-semibold text-blue-700">{selectedLead.planTier || "—"}</span>
-                </div>
-              </div>
-
-              {selectedLead.primaryNeed && (
-                <div className="pt-1 border-t border-slate-200/60">
-                  <span className="text-slate-500 block text-[11px]">Nhu cầu chính:</span>
-                  <span className="text-slate-700">{selectedLead.primaryNeed}</span>
-                </div>
-              )}
-
-              <div className="pt-1 border-t border-slate-200/60 flex justify-between text-[11px] text-slate-500">
-                <span>Thời gian đăng ký:</span>
-                <span>{new Date(selectedLead.createdAt).toLocaleString("vi-VN")}</span>
-              </div>
-            </div>
-
-            <form onSubmit={handleSaveLeadModal} className="space-y-4 text-xs">
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Trạng thái xử lý *</label>
-                <select
-                  value={leadStatusEdit}
-                  onChange={(e) => setLeadStatusEdit(e.target.value as any)}
-                  className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 font-semibold focus:outline-none focus:border-blue-600"
-                >
-                  <option value="PENDING">Chờ xử lý / Chưa liên hệ</option>
-                  <option value="CONTACTED">Đang liên hệ & Trao đổi Demo</option>
-                  <option value="PROVISIONED">Đã cấp phát Workspace (Hoàn tất)</option>
-                  <option value="REJECTED">Từ chối / Hủy yêu cầu</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Ghi chú chăm sóc / Nhu cầu chi tiết</label>
-                <textarea
-                  rows={3}
-                  value={leadNotesEdit}
-                  onChange={(e) => setLeadNotesEdit(e.target.value)}
-                  placeholder="Nhập ghi chú sau khi gọi điện/trao đổi với khách hàng..."
-                  className="w-full px-3.5 py-2 rounded-lg border border-slate-300 focus:outline-none focus:border-blue-600 resize-none"
-                />
-              </div>
-
-              <div className="pt-2 flex flex-col sm:flex-row gap-2.5">
-                {selectedLead.status !== "PROVISIONED" && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const l = selectedLead;
-                      setSelectedLead(null);
-                      handleProvisionFromLead(l);
-                    }}
-                    className="py-2.5 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold flex items-center justify-center gap-1.5 transition-colors"
-                  >
-                    <UserPlus className="w-4 h-4" />
-                    <span>Cấp Workspace Ngay</span>
-                  </button>
-                )}
-
-                <div className="flex-1 flex gap-2 justify-end">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedLead(null)}
-                    className="px-4 py-2.5 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 font-semibold"
-                  >
-                    Đóng
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={updatingLead}
-                    className="px-5 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold disabled:opacity-50 flex items-center gap-1.5"
-                  >
-                    {updatingLead ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                    <span>Lưu Thay Đổi</span>
-                  </button>
-                </div>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL 4: CHANGE PASSWORD */}
-      {showPasswordModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 max-w-md w-full shadow-2xl relative animate-fade-in">
-            <button
-              onClick={() => setShowPasswordModal(false)}
-              className="absolute top-6 right-6 text-slate-400 hover:text-slate-800"
-            >
-              <X className="w-5 h-5" />
-            </button>
-            <div className="flex items-center gap-3 mb-5">
-              <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold border border-blue-200">
-                <KeyRound className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-slate-900">Đổi Mật Khẩu Quản Trị</h3>
-                <span className="text-xs text-slate-500">Cập nhật mật khẩu bảo vệ Master Admin</span>
-              </div>
-            </div>
-
-            {passwordError && (
-              <div className="mb-4 p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-600 text-xs flex items-start gap-2">
-                <XCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                <span>{passwordError}</span>
-              </div>
-            )}
-
-            <form onSubmit={handleChangePasswordSubmit} className="space-y-4 text-xs">
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Mật khẩu hiện tại *</label>
-                <input
-                  type="password"
-                  required
-                  placeholder="••••••••••••"
-                  value={currentPassword}
-                  onChange={(e) => setCurrentPassword(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
-                />
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Mật khẩu mới (Tối thiểu 12 ký tự) *</label>
-                <input
-                  type="password"
-                  required
-                  placeholder="••••••••••••"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
-                />
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Xác nhận mật khẩu mới *</label>
-                <input
-                  type="password"
-                  required
-                  placeholder="••••••••••••"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
-                />
-              </div>
-
-              <div className="pt-2 flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => setShowPasswordModal(false)}
-                  className="w-1/2 py-2.5 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 font-semibold"
-                >
-                  Hủy bỏ
-                </button>
-                <button
-                  type="submit"
-                  disabled={passwordLoading}
-                  className="w-1/2 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold disabled:opacity-50"
-                >
-                  {passwordLoading ? "Đang cập nhật..." : "Lưu mật khẩu"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <ChangePasswordModal
+        showPasswordModal={showPasswordModal}
+        setShowPasswordModal={setShowPasswordModal}
+        currentPassword={currentPassword}
+        setCurrentPassword={setCurrentPassword}
+        newPassword={newPassword}
+        setNewPassword={setNewPassword}
+        confirmPassword={confirmPassword}
+        setConfirmPassword={setConfirmPassword}
+        passwordError={passwordError}
+        passwordLoading={passwordLoading}
+        handleChangePasswordSubmit={handleChangePasswordSubmit}
+      />
 
       {/* FOOTER */}
       <footer className="border-t border-slate-200 py-5 text-center text-xs text-slate-500 bg-white">
@@ -2647,3 +3041,4 @@ export function MasterAdminDashboardPage() {
     </div>
   );
 }
+

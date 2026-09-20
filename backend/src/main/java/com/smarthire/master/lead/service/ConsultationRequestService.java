@@ -22,11 +22,28 @@ import java.util.Set;
 public class ConsultationRequestService {
 
     private static final Set<String> VALID_STATUSES = Set.of("PENDING", "CONTACTED", "PROVISIONED", "REJECTED");
+    private static final Set<String> BLOCKED_EMAIL_DOMAINS = Set.of(
+            "gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "live.com", 
+            "icloud.com", "mail.com", "zoho.com", "proton.me", "protonmail.com", "yandex.com"
+    );
 
     private final ConsultationRequestRepository repository;
 
     @Transactional(transactionManager = "masterTransactionManager")
     public ConsultationResponse createRequest(CreateConsultationRequest request) {
+        String email = request.getWorkEmail().trim().toLowerCase();
+        int atIndex = email.lastIndexOf('@');
+        if (atIndex > 0) {
+            String domain = email.substring(atIndex + 1);
+            if (BLOCKED_EMAIL_DOMAINS.contains(domain)) {
+                throw new BusinessException(
+                        "Vui lòng sử dụng Email Doanh nghiệp (domain công ty riêng, ví dụ: name@company.com) để được hỗ trợ thẩm định nhanh nhất.",
+                        HttpStatus.BAD_REQUEST,
+                        "WORK_EMAIL_REQUIRED"
+                );
+            }
+        }
+
         String reqType = StringUtils.hasText(request.getRequestType()) ? request.getRequestType().toUpperCase() : "DEMO";
         if (!"DEMO".equals(reqType) && !"CONTRACT_QUOTE".equals(reqType)) {
             reqType = "DEMO";
