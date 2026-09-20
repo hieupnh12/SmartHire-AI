@@ -133,6 +133,8 @@ Image database phải giữ tương thích với data directory hiện hữu: Po
 
 Host Nginx chuyển frontend tới `127.0.0.1:8080` và API tới `127.0.0.1:8081`. Hai cổng này chỉ bind loopback trên VPS; backend vẫn lắng nghe cổng `8080` bên trong container.
 
+Frontend chỉ chờ container backend bắt đầu, không chờ backend healthy. Vì vậy giao diện tĩnh vẫn hoạt động khi backend lỗi; các request `/api` có thể trả `502` cho đến khi backend phục hồi.
+
 ```bash
 chmod +x deploy/scripts/*.sh
 IMAGE_TAG=latest bash deploy/scripts/deploy.sh
@@ -142,7 +144,8 @@ Kiểm tra:
 
 ```bash
 docker compose -f docker-compose.prod.yml --env-file deploy/.env.production ps
-curl -s http://127.0.0.1:8080/actuator/health
+curl -s http://127.0.0.1:8081/actuator/health/liveness
+curl -s http://127.0.0.1:8081/actuator/health   # DB, Redis, RabbitMQ, SMTP
 curl -s http://127.0.0.1:8080/   # frontend
 ```
 

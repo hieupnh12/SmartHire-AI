@@ -124,7 +124,7 @@ services:
     networks:
       - internal
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8080/actuator/health | grep -q UP || exit 1"]
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8080/actuator/health/liveness | grep -q UP || exit 1"]
       interval: 20s
       timeout: 5s
       retries: 10
@@ -136,7 +136,7 @@ services:
     restart: unless-stopped
     depends_on:
       backend:
-        condition: service_healthy
+        condition: service_started
     networks:
       - internal
       - edge
