@@ -127,7 +127,9 @@ Cập nhật:
 
 ## Bước 3 — Deploy stack
 
-PostgreSQL và MySQL dùng cố định hai Docker volume `smarthire-postgres-data` và `smarthire-mysql-data`. Việc recreate container hoặc chạy lại GitHub Actions vẫn gắn lại các volume này; không dùng `docker compose down -v` hoặc `docker volume prune` trên VPS production.
+PostgreSQL và MySQL dùng cố định hai Docker volume external `smarthire-postgres-data` và `smarthire-mysql-data`. Các volume này phải tồn tại trước khi deploy; Compose sẽ dừng thay vì tự tạo volume database rỗng. Việc recreate container hoặc chạy lại GitHub Actions vẫn gắn lại các volume này; không dùng `docker compose down -v` hoặc `docker volume prune` trên VPS production.
+
+Image database phải giữ tương thích với data directory hiện hữu: PostgreSQL `17.11` và MySQL `8.4.11`. Không hạ PostgreSQL xuống major version thấp hơn khi dùng lại volume cũ.
 
 Host Nginx chuyển frontend tới `127.0.0.1:8080` và API tới `127.0.0.1:8081`. Hai cổng này chỉ bind loopback trên VPS; backend vẫn lắng nghe cổng `8080` bên trong container.
 
