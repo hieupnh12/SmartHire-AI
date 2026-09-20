@@ -32,11 +32,11 @@ public class MasterTenantController {
         return ResponseEntity.ok(ApiResponse.ok("Tenants directory fetched successfully", tenants));
     }
 
-    @GetMapping("/check/{codeOrSubdomain}")
-    @Operation(summary = "Check if Tenant Exists", description = "Verifies whether a tenant code or subdomain exists in Master DB.")
-    public ResponseEntity<ApiResponse<Boolean>> checkTenantExists(@PathVariable String codeOrSubdomain) {
-        boolean exists = masterTenantService.checkTenantExists(codeOrSubdomain);
-        return ResponseEntity.ok(ApiResponse.ok("Tenant existence check completed", exists));
+    @GetMapping("/check-subdomain/{subdomain}")
+    @Operation(summary = "Check if tenant subdomain exists", description = "Verifies an active tenant by the subdomain column only.")
+    public ResponseEntity<ApiResponse<Boolean>> checkSubdomainExists(@PathVariable String subdomain) {
+        boolean exists = masterTenantService.checkSubdomainExists(subdomain);
+        return ResponseEntity.ok(ApiResponse.ok("Tenant subdomain check completed", exists));
     }
 
     @GetMapping("/{id}")

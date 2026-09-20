@@ -74,7 +74,7 @@ export const ja: Messages = {
     myCv: "マイCV",
     cvScreening: "CVスクリーニング",
     matching: "ランキング",
-    ranking: "候補者ランキング",
+    ranking: "ランキング",
     pipeline: "パイプライン",
     assessments: "評価",
     interviews: "面接",

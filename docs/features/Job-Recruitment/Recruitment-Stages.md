@@ -1,7 +1,7 @@
 # Recruitment Stage Management
 
 **Epic:** Job Recruitment Management  
-**Trạng thái:** `To Do`  
+**Trạng thái:** `Done`  
 **Code ID:** `JOB-04`
 
 ## Mục đích chức năng
@@ -15,8 +15,7 @@
 ## Luồng hoạt động
 
 1. Template stages mặc định khi tạo job.
-2. Recruiter tùy chỉnh order/name.
-3. Applicant chuyển stage theo workflow.
+2. Recruiter xem pipeline trên job detail; `PUT /jobs/{id}/stages` để đổi order/name.
 
 ## Business Rules
 

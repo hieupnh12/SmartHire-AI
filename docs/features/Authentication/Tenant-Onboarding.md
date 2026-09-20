@@ -32,6 +32,8 @@ Provisioning hiện chạy đồng bộ trong request. Nếu HTTP bị gián đo
 - API tạo user tenant yêu cầu `TENANT_ADMIN` hoặc `ADMIN`.
 - JWT, header và subdomain phải quy về cùng mã tenant. Subdomain chỉ được lấy dưới domain cấu hình hoặc `.localhost`.
 - Frontend xác định tenant trực tiếp từ subdomain; domain nền tảng không fallback sang tenant đã lưu trong `localStorage`.
+- Nhãn hostname chỉ được đối chiếu với cột `tenants.subdomain`; mã tenant (`code`) không được chấp nhận như một subdomain.
+- Mọi route tenant trên frontend đều đi qua subdomain guard; route login/admin không render nếu subdomain không tồn tại hoặc không ACTIVE.
 - Tenant thiếu, không tồn tại hoặc không ACTIVE bị từ chối. Không fallback sang master.
 - Master và tenant có `EntityManagerFactory`, repository scan và transaction manager riêng.
 - Mật khẩu DB được mã hóa AES-256-GCM và ràng buộc với mã tenant. Khóa Base64 32 byte nằm ngoài DB.
@@ -80,6 +82,7 @@ Request tự động:
 - PostgreSQL: `tenants`, `platform_users`, `subscription_plans`, `tenant_subscriptions`, `invoices`.
 - MySQL từng tenant: schema trong `db/migration/tenant`.
 - `tenants.db_password` chứa ciphertext; `managed_database` phân biệt tự động và thủ công.
+- Khi mở pool cho tenant managed, backend ghép JDBC URL từ `TENANT_MYSQL_BASE_URL` của môi trường và `tenants.db_name`; `tenants.db_url` chỉ được dùng trực tiếp cho custom database. Vì vậy cùng một master DB có thể dùng hostname Docker trên VPS và địa chỉ public/tunnel khi phát triển local.
 - Không có foreign key hoặc transaction ACID chung giữa PostgreSQL master và MySQL tenant.
 
 ## UI mockup

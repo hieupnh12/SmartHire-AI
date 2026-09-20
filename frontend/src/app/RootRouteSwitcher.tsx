@@ -25,7 +25,7 @@ export function RootRouteSwitcher() {
       return;
     }
 
-    masterAdminApi.checkTenantExists(tenantId)
+    masterAdminApi.checkSubdomainExists(tenantId)
       .then((exists) => {
         setCheckFailed(false);
         setTenantExists(exists);

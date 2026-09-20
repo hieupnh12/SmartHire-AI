@@ -20,10 +20,12 @@ export function RoleRoute({ roles, workspaces }: Props) {
   const location = useLocation();
   const allowedWorkspaces = workspaces ?? [];
   const allowedRoles = roles ?? [];
-  const needsAdminLogin = allowedWorkspaces.includes("ADMIN") || allowedRoles.includes("ADMIN") || allowedRoles.includes("TENANT_ADMIN");
 
   if (requireAuth && !token) {
-    const loginPath = needsAdminLogin ? "/internal/login" : "/login";
+    const loginPath =
+      allowedWorkspaces.includes("CANDIDATE") || allowedRoles.includes("CANDIDATE")
+        ? "/candidate/login"
+        : "/internal/login";
     return <Navigate to={loginPath} replace state={{ from: location }} />;
   }
 

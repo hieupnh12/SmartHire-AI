@@ -19,6 +19,7 @@ export type AuthTokens = {
   expiresIn?: number;
   user?: UserProfile;
   tenantId?: string;
+  subdomain: string;
 };
 
 export type UserProfile = {
@@ -49,5 +50,6 @@ export type CandidateLoginResponse = {
   refreshToken: string;
   tokenType: string;
   tenantId: string;
+  subdomain: string;
   candidate: CandidateProfile;
 };

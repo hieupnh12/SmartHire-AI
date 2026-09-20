@@ -16,20 +16,28 @@ public class TenantDataSourceFactory {
     private final TenantCredentialService credentials;
     private final TenantSchemaBootstrap schemaBootstrap;
     private final int poolSize;
+    private final String mysqlBaseUrl;
+    private final String mysqlOptions;
 
     public TenantDataSourceFactory(TenantCredentialService credentials,
             TenantSchemaBootstrap schemaBootstrap,
-            @Value("${app.tenant.pool-size:5}") int poolSize) {
+            @Value("${app.tenant.pool-size:5}") int poolSize,
+            @Value("${app.tenant.mysql-base-url}") String mysqlBaseUrl,
+            @Value("${app.tenant.mysql-options:sslMode=PREFERRED&allowPublicKeyRetrieval=true}") String mysqlOptions) {
         if (poolSize < 1) throw new IllegalArgumentException("Tenant pool size must be positive");
         this.credentials = credentials;
         this.schemaBootstrap = schemaBootstrap;
         this.poolSize = poolSize;
+        this.mysqlBaseUrl = mysqlBaseUrl.endsWith("/")
+                ? mysqlBaseUrl.substring(0, mysqlBaseUrl.length() - 1)
+                : mysqlBaseUrl;
+        this.mysqlOptions = mysqlOptions;
     }
 
     public HikariDataSource create(TenantInfo tenant) {
         HikariConfig config = new HikariConfig();
         config.setDriverClassName("com.mysql.cj.jdbc.Driver");
-        config.setJdbcUrl(tenant.getDbUrl());
+        config.setJdbcUrl(resolveJdbcUrl(tenant));
         config.setUsername(tenant.getDbUsername());
         config.setPassword(credentials.decrypt(tenant.getCode(), tenant.getDbPassword()));
         config.addDataSourceProperty("connectTimeout", "10000");
@@ -42,6 +50,12 @@ public class TenantDataSourceFactory {
         config.setMaxLifetime(1800000);
         config.setPoolName("tenant-" + tenant.getCode());
         return new HikariDataSource(config);
+    }
+
+    String resolveJdbcUrl(TenantInfo tenant) {
+        if (!tenant.isManagedDatabase()) return tenant.getDbUrl();
+        String url = mysqlBaseUrl + "/" + tenant.getDbName();
+        return mysqlOptions == null || mysqlOptions.isBlank() ? url : url + "?" + mysqlOptions;
     }
 
     public void migrate(HikariDataSource dataSource) {

@@ -178,6 +178,19 @@
           }
         },
         {
+          "name": "Delete CV",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/cvs/1"
+          }
+        },
+        {
           "name": "Analyze CV (async RabbitMQ)",
           "request": {
             "method": "POST",

@@ -30,6 +30,12 @@ public class CvDocument {
     @Column(name = "page_count")
     private Integer pageCount;
 
+    @Column(name = "parser_version", length = 64)
+    private String parserVersion;
+
+    @Column(name = "ocr_used", nullable = false)
+    private boolean ocrUsed = false;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -43,6 +49,10 @@ public class CvDocument {
     public void setRawText(String rawText) { this.rawText = rawText; }
     public Integer getPageCount() { return pageCount; }
     public void setPageCount(Integer pageCount) { this.pageCount = pageCount; }
+    public String getParserVersion() { return parserVersion; }
+    public void setParserVersion(String parserVersion) { this.parserVersion = parserVersion; }
+    public boolean isOcrUsed() { return ocrUsed; }
+    public void setOcrUsed(boolean ocrUsed) { this.ocrUsed = ocrUsed; }
     public Instant getCreatedAt() { return createdAt; }
 }
 

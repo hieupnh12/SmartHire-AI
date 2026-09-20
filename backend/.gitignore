@@ -11,7 +11,7 @@ application-local.yaml
 .idea/
 .DS_Store
 uploads/
-storage/
+/storage/
 hs_err_pid*
 replay_pid*
 *.hprof

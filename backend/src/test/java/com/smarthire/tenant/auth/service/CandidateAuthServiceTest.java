@@ -5,6 +5,7 @@ import com.smarthire.common.redis.RedisService;
 import com.smarthire.domain.enums.OAuthProvider;
 import com.smarthire.domain.enums.UserRole;
 import com.smarthire.domain.enums.UserStatus;
+import com.smarthire.domain.master.entity.TenantInfo;
 import com.smarthire.domain.tenant.entity.OauthAccount;
 import com.smarthire.domain.tenant.entity.User;
 import com.smarthire.domain.tenant.entity.UserProfile;
@@ -12,6 +13,7 @@ import com.smarthire.domain.tenant.repository.OauthAccountRepository;
 import com.smarthire.domain.tenant.repository.UserProfileRepository;
 import com.smarthire.domain.tenant.repository.UserRepository;
 import com.smarthire.multitenancy.context.TenantContext;
+import com.smarthire.multitenancy.service.TenantRegistryService;
 import com.smarthire.security.JwtTokenProvider;
 import com.smarthire.tenant.auth.dto.CandidateLoginResponse;
 import com.smarthire.tenant.auth.dto.GoogleLoginRequest;
@@ -54,6 +56,9 @@ class CandidateAuthServiceTest {
     @Mock
     private RedisService redisService;
 
+    @Mock
+    private TenantRegistryService tenantRegistryService;
+
     @Spy
     private AuthMapper authMapper = Mappers.getMapper(AuthMapper.class);
 
@@ -63,6 +68,8 @@ class CandidateAuthServiceTest {
     @BeforeEach
     void setUp() {
         TenantContext.setCurrentTenant("acme");
+        TenantInfo tenant = TenantInfo.builder().code("acme").subdomain("se36").status("ACTIVE").build();
+        lenient().when(tenantRegistryService.requireActive("acme")).thenReturn(tenant);
     }
 
     @AfterEach
@@ -101,6 +108,7 @@ class CandidateAuthServiceTest {
         assertNotNull(response);
         assertEquals("mocked-jwt-token", response.getAccessToken());
         assertEquals("acme", response.getTenantId());
+        assertEquals("se36", response.getSubdomain());
         assertNotNull(response.getCandidate());
         assertEquals("candidate@acme.com", response.getCandidate().getEmail());
         assertEquals("Nguyễn Văn A", response.getCandidate().getFullName());

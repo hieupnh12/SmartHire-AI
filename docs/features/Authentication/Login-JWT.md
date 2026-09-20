@@ -55,5 +55,6 @@ AUTH-01
 - Frontend khôi phục hồ sơ từ `/api/v1/tenant/auth/me` khi còn access token nhưng state người dùng bị mất sau reload; header hiển thị tên người dùng, không dùng ngôn ngữ hiện tại làm tên thay thế.
 - Login tenant bắt buộc mã tenant hoặc subdomain hợp lệ; registry nằm trên PostgreSQL và dữ liệu người dùng nằm trên MySQL tenant.
 - JWT chứa mã tenant chuẩn; tenant thiếu, bị khóa hoặc khác header sẽ bị từ chối.
+- Response đăng nhập trả riêng `tenantId` (mã tenant dùng cho JWT/database context) và `subdomain` lấy từ Master DB; frontend chỉ dùng `subdomain` để dựng hostname workspace sau đăng nhập.
 - Không có tài khoản demo hoặc mật khẩu mặc định; bootstrap Workspace Admin phải được bật rõ và nhận credential từ môi trường.
 - Refresh, logout và rate limit trong kế hoạch phía trên chưa thuộc thay đổi kết nối DB này.

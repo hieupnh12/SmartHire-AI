@@ -1,7 +1,7 @@
 # Information Extraction
 
 **Epic:** AI-Powered CV Screening & Analysis  
-**Trạng thái:** `To Do`  
+**Trạng thái:** `Done`  
 **Code ID:** `CV-03`
 
 ## Mục đích chức năng
@@ -66,3 +66,5 @@ Bộ đọc ranking đã hỗ trợ trường `experience` trong `cv_extractions
 - `evidence` là nội dung trích xuất phục vụ Recruiter kiểm tra; không tự sinh kinh nghiệm không có trong CV.
 - Mảng rỗng có nghĩa đã xác định không có kinh nghiệm. Thiếu trường/JSON không hợp lệ/ngày liên quan hoặc bằng chứng thiếu làm điểm kinh nghiệm chưa xác định, cần xác minh.
 - Ranking chỉ tính thời gian có ít nhất một kỹ năng chuẩn khớp yêu cầu Job và loại trùng tháng giữa các công việc.
+- Gemini (khi có key) đọc text PDF và nhận context skill của job; heuristic-v1 dùng khi không có key.
+- Overall matching = 0 nếu CV không trùng skill nào của job, dù có bằng cấp / năm KN.

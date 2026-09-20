@@ -1,20 +1,20 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowDownToLine, Award, BriefcaseBusiness, ChevronDown, ChevronLeft, ChevronRight, Clock3, Eye, FilterX, Gauge, Radio, RefreshCw, Search, SlidersHorizontal, Sparkles, Users } from "lucide-react";
-import { useMemo, useState } from "react";
+import { ArrowDownToLine, Award, BriefcaseBusiness, ChevronLeft, ChevronRight, Clock3, Eye, FilterX, Gauge, RefreshCw, Search, SlidersHorizontal, Sparkles, Users } from "lucide-react";
+import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { matchingApi } from "@/api/tenant/matchingApi";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 import { getApiErrorMessage } from "@/lib/axios";
 import { getTenantIdFromWindow } from "@/lib/tenant";
+import { createRankingSocket } from "@/lib/ws";
 import { RankingConfigForm } from "../components/RankingConfigForm";
 import { RankingDetail } from "../components/RankingDetail";
 import { PREVIEW_JOB_ID, rankingPreview } from "../data/rankingPreview";
 import { button, input, labels, muted, primary, scoreText } from "../components/rankingUi";
 import { useRankingStore } from "../stores/useRankingStore";
-import type { RankingBoard, RankingRow } from "../types/ranking";
-import type { ApiResponse } from "@/types/api";
+import type { RankingPage, RankingRow } from "../types/ranking";
 
 const terminal = new Set(["REJECTED", "WITHDRAWN", "HIRED"]);
-const pageSize = 20;
+const previewEnabled = import.meta.env.DEV || import.meta.env.VITE_ENABLE_RANKING_PREVIEW === "true";
 const componentScore = (row: RankingRow, key: string) => row.result.components.find((part) => part.key === key)?.score ?? null;
 
 function ScoreGauge({ score }: { score: number | null }) {
@@ -72,17 +72,29 @@ export function RankingPage() {
   const tenantKey = `${getTenantIdFromWindow() ?? ""}:${sessionKey}`;
   const client = useQueryClient();
   const jobId = state.jobId;
+  const pageSize = state.pageSize;
+  const deferredSearch = useDeferredValue(state.search);
   const isPreview = jobId === PREVIEW_JOB_ID;
   const jobs = useQuery({ queryKey: ["ranking-jobs", tenantKey], queryFn: matchingApi.jobs, enabled: !!token && !isPreview });
   const [previewUpdatedAt, setPreviewUpdatedAt] = useState(rankingPreview.calculatedAt);
   const [previewRefreshing, setPreviewRefreshing] = useState(false);
-  const query = useQuery({ queryKey: ["rankings", tenantKey, jobId], queryFn: () => matchingApi.rankings(jobId!), enabled: jobId !== null && jobId !== PREVIEW_JOB_ID && !!token, refetchInterval: 30_000, refetchOnWindowFocus: true });
-  const board = isPreview ? { ...rankingPreview, calculatedAt: previewUpdatedAt } : query.data?.data;
+  const rankingQuery = { page: state.page, size: pageSize, search: deferredSearch, status: state.status, cohort: state.cohort, minScore: state.minimum === "" ? undefined : Number(state.minimum), sort: state.sort };
+  const query = useQuery({ queryKey: ["rankings", tenantKey, jobId, rankingQuery], queryFn: () => matchingApi.rankings(jobId!, rankingQuery), enabled: jobId !== null && jobId !== PREVIEW_JOB_ID && !!token, refetchInterval: 30_000, refetchOnWindowFocus: true });
+  const previewRows = rankingPreview.rows.filter((row) => !terminal.has(row.status));
+  const previewBoard: RankingPage = { ...rankingPreview, calculatedAt: previewUpdatedAt, cohorts: [...new Set(rankingPreview.rows.map((row) => row.result.cohort))], summary: { totalCandidates: rankingPreview.rows.length, activeCandidates: previewRows.length, scoredCandidates: rankingPreview.rows.length, averageScore: rankingPreview.rows.reduce((sum, row) => sum + (row.result.score ?? 0), 0) / rankingPreview.rows.length, topCandidateName: rankingPreview.rows[0]?.candidateName ?? null, topScore: rankingPreview.rows[0]?.result.score ?? null, completeCandidates: rankingPreview.rows.filter((row) => row.result.complete).length }, page: { number: 0, size: pageSize, totalElements: rankingPreview.rows.length, totalPages: 1 } };
+  const board = isPreview ? previewBoard : query.data?.data;
+  useEffect(() => {
+    if (!token || isPreview) return;
+    const socket = createRankingSocket(token, (event) => {
+      if (event.jobId === jobId) void client.invalidateQueries({ queryKey: ["rankings", tenantKey, jobId] });
+    });
+    return () => socket?.close();
+  }, [client, isPreview, jobId, tenantKey, token]);
   const categories = board?.skillCategories ?? [];
   const groupMismatch = board && categories.length > 0 && [...Object.keys(board.config.groups)].sort().join("|") !== [...categories].sort().join("|");
   const formConfig = board && groupMismatch ? { ...board.config, groups: Object.fromEntries(categories.map((category, index) => [category, Math.floor(100 / categories.length) + (index < 100 % categories.length ? 1 : 0)])) } : board?.config;
-  const saved = (value: RankingBoard) => client.setQueryData<ApiResponse<RankingBoard>>(["rankings", tenantKey, value.jobId], { success: true, message: "OK", data: value });
-  const recompute = useMutation({ mutationFn: (id: number) => matchingApi.recompute(id), onSuccess: (response) => saved(response.data) });
+  const saved = async () => client.invalidateQueries({ queryKey: ["rankings", tenantKey, jobId] });
+  const recompute = useMutation({ mutationFn: (id: number) => matchingApi.recompute(id), onSuccess: saved });
   const refreshing = recompute.isPending || previewRefreshing;
   const refreshRanking = () => {
     if (!jobId) return;
@@ -90,22 +102,11 @@ export function RankingPage() {
     setPreviewRefreshing(true);
     window.setTimeout(() => { setPreviewUpdatedAt(new Date().toISOString()); setPreviewRefreshing(false); }, 650);
   };
-  const cohorts = [...new Set(board?.rows.map((row) => row.result.cohort).filter(Boolean) ?? [])];
-  const filtered = (board?.rows ?? []).filter((row) =>
-    (state.cohort === "ALL" || (state.cohort === "COMPLETE" ? row.result.complete : row.result.cohort === state.cohort)) &&
-    (state.status === "ALL" || (state.status === "ACTIVE" ? !terminal.has(row.status) : row.status === state.status)) &&
-    row.candidateName.toLocaleLowerCase().includes(state.search.toLocaleLowerCase()) &&
-    (state.minimum === "" || (row.result.score !== null && row.result.score >= Number(state.minimum))))
-    .sort((a, b) => {
-      const left = state.sort === "score" ? a.result.score : componentScore(a, state.sort);
-      const right = state.sort === "score" ? b.result.score : componentScore(b, state.sort);
-      return (right ?? -1) - (left ?? -1) || a.applicationId - b.applicationId;
-    });
-  const page = Math.min(state.page, Math.max(0, Math.ceil(filtered.length / pageSize) - 1));
+  const cohorts = board?.cohorts ?? [];
+  const filtered = board?.rows ?? [];
+  const page = board?.page.number ?? 0;
   const selected = board?.rows.find((row) => row.applicationId === state.selectedId);
-  const scored = board?.rows.filter((row) => row.result.score !== null) ?? [];
-  const average = scored.length ? scored.reduce((sum, row) => sum + (row.result.score ?? 0), 0) / scored.length : null;
-  const top = [...scored].sort((a, b) => (b.result.score ?? 0) - (a.result.score ?? 0))[0];
+  const summary = board?.summary;
 
   const exportCsv = () => {
     if (!board) return;
@@ -133,7 +134,7 @@ export function RankingPage() {
 
     {!token && <p role="status" className="rounded-xl border border-[var(--color-border-default)] bg-white p-5">Đăng nhập bằng tài khoản Recruiter để xem bảng xếp hạng.</p>}
     <div className="rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-4 shadow-sm">
-      <label className="block max-w-2xl space-y-2"><span className="text-xs font-semibold uppercase tracking-[0.06em] text-[var(--color-on-surface-variant)]">Vị trí tuyển dụng</span><select className={input} value={jobId ?? ""} onChange={(event) => state.setJob(event.target.value ? Number(event.target.value) : null)} disabled={!isPreview && jobs.isPending}><option value="">Chọn Job để xem xếp hạng</option><option value={PREVIEW_JOB_ID}>{rankingPreview.jobTitle} · Dữ liệu mẫu</option>{jobs.data?.data.filter((job) => job.id !== PREVIEW_JOB_ID).map((job) => <option key={job.id} value={job.id}>{job.title}</option>)}</select></label>
+      <label className="block max-w-2xl space-y-2"><span className="text-xs font-semibold uppercase tracking-[0.06em] text-[var(--color-on-surface-variant)]">Vị trí tuyển dụng</span><select className={input} value={jobId ?? ""} onChange={(event) => state.setJob(event.target.value ? Number(event.target.value) : null)} disabled={!isPreview && jobs.isPending}><option value="">Chọn Job để xem xếp hạng</option>{previewEnabled && <option value={PREVIEW_JOB_ID}>{rankingPreview.jobTitle} · Dữ liệu mẫu</option>}{jobs.data?.data.filter((job) => job.id !== PREVIEW_JOB_ID).map((job) => <option key={job.id} value={job.id}>{job.title}</option>)}</select></label>
       {!isPreview && jobs.isPending && token && <p role="status" className="mt-3 text-sm">Đang tải Job…</p>}
       {!isPreview && jobs.isError && <p role="alert" className="mt-3 text-sm">{getApiErrorMessage(jobs.error)} <button className={button} onClick={() => void jobs.refetch()}>Thử lại</button></p>}
       {!isPreview && jobs.isSuccess && jobs.data.data.length === 0 && <p className={`mt-3 ${muted}`}>Bạn chưa có Job được giao quyền quản lý.</p>}
@@ -145,7 +146,7 @@ export function RankingPage() {
     {recompute.isError && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{getApiErrorMessage(recompute.error)}</p>}
 
     {board && <>
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><StatCard icon={Users} label="Tổng ứng viên" value={board.rows.length} helper={`${board.rows.filter((row) => !terminal.has(row.status)).length} hồ sơ đang xét tuyển`} /><StatCard icon={Gauge} label="Điểm trung bình" value={average === null ? "—" : scoreText(average)} helper={`${scored.length}/${board.rows.length} hồ sơ đã có điểm`} /><StatCard icon={Award} label="Ứng viên dẫn đầu" value={top ? scoreText(top.result.score) : "—"} helper={top?.candidateName ?? "Chưa đủ dữ liệu xếp hạng"} /><StatCard icon={Sparkles} label="Đủ kết quả" value={board.rows.filter((row) => row.result.complete).length} helper={`${board.rows.filter((row) => !row.result.complete).length} hồ sơ đang chờ bổ sung`} /></div>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><StatCard icon={Users} label="Tổng ứng viên" value={summary?.totalCandidates ?? 0} helper={`${summary?.activeCandidates ?? 0} hồ sơ đang xét tuyển`} /><StatCard icon={Gauge} label="Điểm trung bình" value={summary?.averageScore == null ? "—" : scoreText(summary.averageScore)} helper={`${summary?.scoredCandidates ?? 0}/${summary?.totalCandidates ?? 0} hồ sơ đã có điểm`} /><StatCard icon={Award} label="Ứng viên dẫn đầu" value={summary?.topScore == null ? "—" : scoreText(summary.topScore)} helper={summary?.topCandidateName ?? "Chưa đủ dữ liệu xếp hạng"} /><StatCard icon={Sparkles} label="Đủ kết quả" value={summary?.completeCandidates ?? 0} helper={`${(summary?.totalCandidates ?? 0) - (summary?.completeCandidates ?? 0)} hồ sơ đang chờ bổ sung`} /></div>
 
       <details key={board.jobId} className="group rounded-xl border border-[var(--color-border-default)] bg-white shadow-sm" open={board.config.revision === 0 ? true : undefined}>
         <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-primary)]"><span className="flex items-center gap-3 font-semibold"><span className="grid size-9 place-items-center rounded-lg bg-[var(--color-primary-soft)] text-[var(--color-primary)]"><SlidersHorizontal className="size-4" aria-hidden="true" /></span>Cấu hình điểm và trọng số</span><span className="text-xs text-[var(--color-on-surface-variant)]">Revision {board.config.revision}</span></summary>
@@ -167,12 +168,12 @@ export function RankingPage() {
         </div>
 
         <div className="grid gap-3 p-4 md:hidden">
-          {filtered.slice(page * pageSize, (page + 1) * pageSize).map((row) => <CandidateCard key={row.applicationId} row={row} showRank={state.cohort !== "ALL"} onOpen={() => state.select(row.applicationId)} />)}
+          {filtered.map((row) => <CandidateCard key={row.applicationId} row={row} showRank={state.cohort !== "ALL"} onOpen={() => state.select(row.applicationId)} />)}
         </div>
         <div className="hidden overflow-x-auto md:block"><table className="w-full min-w-[980px] border-collapse text-left text-sm">
           <caption className="sr-only">Điểm ứng viên cho {board.jobTitle}; thứ hạng chỉ so sánh trong cùng nhóm thành phần.</caption>
           <thead className="bg-[var(--color-surface-container-low)] text-xs text-[var(--color-on-surface-variant)]"><tr>{["Hạng", "Ứng viên", "Điểm tổng", "CV Match", "Assessment", "AI Interview", "Trạng thái", ""].map((title) => <th key={title || "actions"} scope="col" className="whitespace-nowrap px-4 py-3 font-semibold">{title}<span className={title ? "sr-only" : undefined}>{title ? "" : "Hành động"}</span></th>)}</tr></thead>
-          <tbody>{filtered.slice(page * pageSize, (page + 1) * pageSize).map((row) => <tr key={row.applicationId} className={`border-t border-[var(--color-border-default)]/70 transition-colors hover:bg-[var(--color-primary-subtle)] ${row.rank === 1 ? "bg-[var(--color-primary-subtle)]" : ""}`}>
+          <tbody>{filtered.map((row) => <tr key={row.applicationId} className={`border-t border-[var(--color-border-default)]/70 transition-colors hover:bg-[var(--color-primary-subtle)] ${row.rank === 1 ? "bg-[var(--color-primary-subtle)]" : ""}`}>
             <td className="px-4 py-4"><span className={`grid size-8 place-items-center rounded-full text-xs font-bold ${row.rank && row.rank <= 3 ? "bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)]" : "bg-[var(--color-surface-container-low)]"}`}>{state.cohort === "ALL" ? "—" : row.rank ?? "—"}</span></td>
             <td className="max-w-[280px] px-4 py-4"><div className="flex items-center gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-full bg-[var(--color-primary-soft)] text-xs font-bold text-[var(--color-primary-hover)]">{row.candidateName.split(" ").slice(-2).map((part) => part[0]).join("")}</span><div className="min-w-0"><button onClick={() => state.select(row.applicationId)} className="block max-w-full truncate text-left font-semibold hover:text-[var(--color-primary)] hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-primary)]">{row.candidateName}</button><p className="mt-1 truncate text-xs text-[var(--color-on-surface-variant)]">Hồ sơ #{row.applicationId} · {row.experienceMonths === null ? "Chưa rõ kinh nghiệm" : `${(row.experienceMonths / 12).toFixed(1)} năm`}</p></div></div></td>
             <td className="px-4 py-4"><div className="flex items-center gap-2"><ScoreGauge score={row.result.score} /><div><p className="text-xs font-semibold text-[var(--color-primary-hover)]">{row.result.complete ? "Hoàn chỉnh" : "Tạm tính"}</p><p className="text-xs text-[var(--color-on-surface-variant)]">{row.result.availableWeight}% trọng số</p></div></div></td>
@@ -183,31 +184,9 @@ export function RankingPage() {
           </tr>)}</tbody>
         </table></div>
         {filtered.length === 0 && <div className="px-6 py-14 text-center"><FilterX className="mx-auto size-8 text-[var(--color-outline)]" aria-hidden="true" /><p className="mt-3 font-semibold">{board.rows.length === 0 ? "Job chưa có ứng viên" : "Không có ứng viên phù hợp bộ lọc"}</p></div>}
-        <div className="flex flex-wrap items-center justify-between gap-4 bg-[var(--color-surface-container-low)] px-5 py-4"><div className="flex flex-wrap items-center gap-3 text-xs text-[var(--color-on-surface-variant)]"><span>Hiển thị <strong className="text-[var(--color-on-surface)]">{filtered.length === 0 ? 0 : page * pageSize + 1}–{Math.min((page + 1) * pageSize, filtered.length)}</strong> trong <strong className="text-[var(--color-on-surface)]">{filtered.length}</strong> ứng viên</span><span aria-hidden="true">•</span><label className="flex items-center gap-1.5">Số dòng:<select className="rounded-md border-0 bg-white px-2 py-1 text-xs"><option>20</option><option>50</option><option>100</option></select></label><span className="rounded-md bg-[var(--color-surface-container)] px-2 py-1 font-mono">Snapshot: {board.rankingVersion}</span></div><div className="flex items-center gap-2"><button className={button} disabled={page === 0} onClick={() => state.setPage(page - 1)} aria-label="Trang trước"><ChevronLeft className="size-4" aria-hidden="true" /></button><span className="grid size-9 place-items-center rounded-lg bg-[var(--color-primary-container)] text-xs font-semibold text-white">{page + 1}</span><span className="min-w-12 text-center text-xs text-[var(--color-on-surface-variant)]">/ {Math.max(1, Math.ceil(filtered.length / pageSize))}</span><button className={button} disabled={(page + 1) * pageSize >= filtered.length} onClick={() => state.setPage(page + 1)} aria-label="Trang sau"><ChevronRight className="size-4" aria-hidden="true" /></button></div></div>
+        <div className="flex flex-wrap items-center justify-between gap-4 bg-[var(--color-surface-container-low)] px-5 py-4"><div className="flex flex-wrap items-center gap-3 text-xs text-[var(--color-on-surface-variant)]"><span>Hiển thị <strong className="text-[var(--color-on-surface)]">{board.page.totalElements === 0 ? 0 : page * pageSize + 1}–{Math.min((page + 1) * pageSize, board.page.totalElements)}</strong> trong <strong className="text-[var(--color-on-surface)]">{board.page.totalElements}</strong> ứng viên</span><span aria-hidden="true">•</span><label className="flex items-center gap-1.5">Số dòng:<select className="rounded-md border-0 bg-white px-2 py-1 text-xs" value={pageSize} onChange={(event) => state.setPageSize(Number(event.target.value))}><option value={20}>20</option><option value={50}>50</option><option value={100}>100</option></select></label><span className="rounded-md bg-[var(--color-surface-container)] px-2 py-1 font-mono">Snapshot: {board.rankingVersion}</span></div><div className="flex items-center gap-2"><button className={button} disabled={page === 0} onClick={() => state.setPage(page - 1)} aria-label="Trang trước"><ChevronLeft className="size-4" aria-hidden="true" /></button><span className="grid size-9 place-items-center rounded-lg bg-[var(--color-primary-container)] text-xs font-semibold text-white">{page + 1}</span><span className="min-w-12 text-center text-xs text-[var(--color-on-surface-variant)]">/ {Math.max(1, board.page.totalPages)}</span><button className={button} disabled={page + 1 >= board.page.totalPages} onClick={() => state.setPage(page + 1)} aria-label="Trang sau"><ChevronRight className="size-4" aria-hidden="true" /></button></div></div>
       </div>
-      <details className="group overflow-hidden rounded-xl border border-[var(--color-border-default)] bg-white shadow-sm" open>
-        <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3 bg-[var(--color-surface-container-low)] px-5 py-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-primary)]">
-          <span className="flex items-center gap-2 text-sm font-semibold">
-            <span className="relative grid size-7 place-items-center rounded-full bg-[var(--color-primary-soft)] text-[var(--color-primary)]">
-              <Radio className="size-4" aria-hidden="true" />
-              <span className="absolute right-0 top-0 size-2 animate-pulse rounded-full bg-emerald-500 motion-reduce:animate-none" />
-            </span>
-            Event-driven Architecture Monitor
-            <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-medium text-[var(--color-primary-hover)]">Mock live feed</span>
-          </span>
-          <span className="flex items-center gap-2 text-xs text-[var(--color-on-surface-variant)]">
-            Channel: <strong className="font-mono text-[var(--color-on-surface)]">candidate.ranking.preview</strong>
-            <ChevronDown className="size-4 transition-transform group-open:rotate-180" aria-hidden="true" />
-          </span>
-        </summary>
-        <div className="space-y-2 overflow-x-auto bg-[#2e3038] p-4 font-mono text-xs leading-5 text-[#eff0fa]">
-          <p className="flex min-w-[720px] gap-3"><span className="text-slate-400">09:41:22.104</span><strong className="text-[var(--color-primary-subtle)]">[CV Parser]</strong><span>Đã hoàn tất phân tích hồ sơ ứng viên #105.</span></p>
-          <p className="flex min-w-[720px] gap-3"><span className="text-slate-400">09:41:22.112</span><strong className="text-emerald-300">[Ranking Cache]</strong><span>Đã làm mới dữ liệu preview cho Java Backend Developer.</span></p>
-          <p className="flex min-w-[720px] gap-3"><span className="text-slate-400">09:41:22.146</span><strong className="text-cyan-300">[Rank Engine]</strong><span>Đã tính lại ma trận điểm của 5 ứng viên trong 42ms.</span></p>
-          <p className="flex min-w-[720px] gap-3"><span className="text-slate-400">09:41:22.158</span><strong className="text-slate-200">[UI Preview]</strong><span>Snapshot mới đã được phản ánh trên bảng xếp hạng.</span></p>
-        </div>
-      </details>
-      {selected && <RankingDetail key={`${tenantKey}:${selected.applicationId}`} row={selected} jobTitle={board.jobTitle} tenantKey={tenantKey} preview={isPreview} onClose={() => state.select(null)} />}
+      {state.selectedId && <RankingDetail key={`${tenantKey}:${state.selectedId}`} applicationId={state.selectedId} previewRow={isPreview ? selected : undefined} jobTitle={board.jobTitle} tenantKey={tenantKey} onClose={() => state.select(null)} />}
     </>}
   </section>;
 }
