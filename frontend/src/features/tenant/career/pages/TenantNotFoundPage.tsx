@@ -1,5 +1,6 @@
 import { BrainCircuit, AlertTriangle, ArrowLeft, Plus } from "lucide-react";
 import { LanguageSwitcher } from "@/components/ux/LanguageSwitcher";
+import { buildPlatformUrl } from "@/lib/tenant";
 
 interface TenantNotFoundPageProps {
   subdomain: string;
@@ -18,7 +19,7 @@ export function TenantNotFoundPage({ subdomain }: TenantNotFoundPageProps) {
       {/* Header */}
       <header className="relative z-10 border-b border-[#e2e8f0] bg-white/80 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
-          <div className="flex items-center gap-3 cursor-pointer" onClick={() => window.location.href = "http://localhost:5173/"}>
+          <div className="flex items-center gap-3 cursor-pointer" onClick={() => window.location.href = buildPlatformUrl()}>
             <div className="w-10 h-10 rounded-[12px] bg-[#3b82f6] text-white flex items-center justify-center shadow-md">
               <BrainCircuit className="w-6 h-6" />
             </div>
@@ -62,7 +63,7 @@ export function TenantNotFoundPage({ subdomain }: TenantNotFoundPageProps) {
 
           <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
             <button
-              onClick={() => window.location.href = "http://localhost:5173/"}
+              onClick={() => window.location.href = buildPlatformUrl()}
               className="w-full py-3 px-4 rounded-[10px] bg-slate-100 hover:bg-slate-200 text-[#1e293b] font-bold text-xs transition-colors flex items-center justify-center gap-2 border border-[#e2e8f0]"
             >
               <ArrowLeft className="w-4 h-4" />
@@ -70,7 +71,7 @@ export function TenantNotFoundPage({ subdomain }: TenantNotFoundPageProps) {
             </button>
 
             <button
-              onClick={() => window.location.href = "http://localhost:5173/onboard"}
+              onClick={() => window.location.href = buildPlatformUrl("/onboard")}
               className="w-full py-3 px-4 rounded-[10px] bg-[#3b82f6] hover:bg-[#2563eb] text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-2"
             >
               <Plus className="w-4 h-4" />

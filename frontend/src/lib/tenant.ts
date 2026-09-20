@@ -55,6 +55,20 @@ export const getCentralOAuthRedirectUri = (): string => {
   return `${window.location.protocol}//${baseDomain}${port}/oauth/callback`;
 };
 
+export const buildPlatformUrl = (path: string = ''): string => {
+  if (typeof window === 'undefined') return path || '/';
+
+  const normalizedPath = path ? (path.startsWith('/') ? path : `/${path}`) : '/';
+  const hostname = window.location.hostname;
+  const port = window.location.port ? `:${window.location.port}` : '';
+
+  if (hostname === 'localhost' || hostname.endsWith('.localhost') || hostname === '127.0.0.1') {
+    return `${window.location.protocol}//localhost${port}${normalizedPath}`;
+  }
+
+  return `${window.location.protocol}//${getBaseDomain()}${port}${normalizedPath}`;
+};
+
 export const buildTenantUrl = (tenantId: string, path: string = ''): string => {
   if (typeof window === 'undefined') return path || '/';
 

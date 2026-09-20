@@ -11,7 +11,17 @@ import { RegisterPage } from "@/features/tenant/auth/pages/RegisterPage";
 import { CandidateLoginPage } from "@/features/tenant/auth/pages/CandidateLoginPage";
 import { OAuthCallbackPage } from "@/features/tenant/auth/pages/OAuthCallbackPage";
 import { MasterLoginPage } from "@/features/master/auth/pages/MasterLoginPage";
-import { MasterAdminDashboardPage } from "@/features/master/dashboard/pages/MasterAdminDashboardPage";
+import { MasterAdminLayout } from "@/features/master/shell/MasterAdminLayout";
+import { DashboardPage } from "@/features/master/dashboard/pages/DashboardPage";
+import { AnalyticsPage as MasterAnalyticsPage } from "@/features/master/analytics/pages/AnalyticsPage";
+import { LeadsPage } from "@/features/master/leads/pages/LeadsPage";
+import { TenantManagementPage } from "@/features/master/tenant-management/pages/TenantManagementPage";
+import { ContractsPage } from "@/features/master/contract/pages/ContractsPage";
+import { InvoicesPage } from "@/features/master/billing/pages/InvoicesPage";
+import { BillingPage } from "@/features/master/billing/pages/BillingPage";
+import { AuditLogsPage } from "@/features/master/system/pages/AuditLogsPage";
+import { AiManagementPage } from "@/features/master/system/pages/AiManagementPage";
+import { AccountPage as MasterAccountPage } from "@/features/master/account/pages/AccountPage";
 import { TenantCareerPage } from "@/features/tenant/career/pages/TenantCareerPage";
 import { TenantAdminDashboardPage } from "@/features/tenant/admin/workspace/pages/TenantAdminDashboardPage";
 import { adminNav } from "@/features/tenant/admin/nav";
@@ -177,8 +187,25 @@ export function AppRouter() {
 
       <Route element={<MasterRoute />}>
         <Route path="/onboard" element={<TenantOnboardPage />} />
-        <Route path="/admin" element={<MasterAdminDashboardPage />} />
-        <Route path="/admin/dashboard" element={<MasterAdminDashboardPage />} />
+        <Route path="/admin" element={<MasterAdminLayout />}>
+          <Route index element={<Navigate to="dashboard" replace />} />
+          <Route path="dashboard" element={<DashboardPage />} />
+          <Route path="analytics" element={<MasterAnalyticsPage />} />
+          <Route path="leads" element={<LeadsPage />} />
+          <Route path="tenants" element={<Navigate to="/admin/tenants/directory" replace />} />
+          <Route path="tenants/:section" element={<TenantManagementPage />} />
+          <Route path="contracts" element={<ContractsPage />} />
+          <Route path="invoices" element={<InvoicesPage />} />
+          <Route path="subscriptions" element={<Navigate to="/admin/subscriptions/overview" replace />} />
+          <Route path="subscriptions/:section" element={<BillingPage />} />
+          <Route path="system/logs" element={<AuditLogsPage />} />
+          <Route path="system/ai-usage" element={<AiManagementPage />} />
+          <Route path="system/ai-quotas" element={<AiManagementPage />} />
+          <Route path="account/profile" element={<MasterAccountPage activeTab="account-profile" />} />
+          <Route path="account/security" element={<MasterAccountPage activeTab="account-security" />} />
+          <Route path="account/accessibility" element={<MasterAccountPage activeTab="account-accessibility" />} />
+          <Route path="account/notifications" element={<MasterAccountPage activeTab="account-notifications" />} />
+        </Route>
       </Route>
       <Route path="/admin/login" element={<MasterLoginPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />

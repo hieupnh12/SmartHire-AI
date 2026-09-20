@@ -1407,27 +1407,20 @@ export function SaasLandingPage() {
               <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block mb-2.5">
                 Hoặc trải nghiệm nhanh không gian mẫu:
               </span>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
-                  onClick={() => handleDirectTenantJump("acme")}
+                  onClick={() => handleDirectTenantJump("se36")}
                   className="px-2.5 py-2 rounded-lg bg-slate-50 hover:bg-blue-50 hover:text-blue-600 border border-slate-200 text-xs font-mono text-slate-700 transition-colors text-center active:scale-95"
                 >
-                  acme
+                  se36
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleDirectTenantJump("vng")}
+                  onClick={() => handleDirectTenantJump("se37")}
                   className="px-2.5 py-2 rounded-lg bg-slate-50 hover:bg-blue-50 hover:text-blue-600 border border-slate-200 text-xs font-mono text-slate-700 transition-colors text-center active:scale-95"
                 >
-                  vng
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleDirectTenantJump("viettel")}
-                  className="px-2.5 py-2 rounded-lg bg-slate-50 hover:bg-blue-50 hover:text-blue-600 border border-slate-200 text-xs font-mono text-slate-700 transition-colors text-center active:scale-95"
-                >
-                  viettel
+                  se37
                 </button>
               </div>
             </div>
