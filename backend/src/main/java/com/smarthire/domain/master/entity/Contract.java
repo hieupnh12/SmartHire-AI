@@ -179,7 +179,7 @@ public class Contract {
         if (updatedAt == null) updatedAt = LocalDateTime.now();
     }
 
-    @PreUpdate
+
     void preUpdate() {
         updatedAt = LocalDateTime.now();
     }

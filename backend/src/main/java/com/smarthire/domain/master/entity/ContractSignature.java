@@ -45,4 +45,5 @@ public class ContractSignature {
 
     @Column(name = "client_ip", length = 64)
     String clientIp;
+    
 }
