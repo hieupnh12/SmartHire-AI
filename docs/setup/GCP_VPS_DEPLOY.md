@@ -67,6 +67,19 @@ gcloud compute firewall-rules create smarthire-allow-ssh \
   --description="SSH"
 ```
 
+PostgreSQL được publish trên cổng `5432` của VPS. Chỉ cho phép IP quản trị tin cậy truy cập cổng này; không mở `5432` cho `0.0.0.0/0`:
+
+```bash
+gcloud compute firewall-rules create smarthire-allow-postgres-admin \
+  --allow=tcp:5432 \
+  --source-ranges=YOUR_PUBLIC_IP/32 \
+  --target-tags=smarthire-web \
+  --description="PostgreSQL access from trusted admin IP"
+
+# Chạy trên VPS nếu UFW đang bật
+sudo ufw allow from YOUR_PUBLIC_IP to any port 5432 proto tcp
+```
+
 **Không** mở 3306 / 6379 / 5672 / 15672 / 8080 ra `0.0.0.0/0`.
 
 ## Bước 1 — Bootstrap VPS
@@ -113,6 +126,10 @@ Cập nhật:
 `deploy/.env.production` **không** commit (đã ignore).
 
 ## Bước 3 — Deploy stack
+
+PostgreSQL và MySQL dùng cố định hai Docker volume `smarthire-postgres-data` và `smarthire-mysql-data`. Việc recreate container hoặc chạy lại GitHub Actions vẫn gắn lại các volume này; không dùng `docker compose down -v` hoặc `docker volume prune` trên VPS production.
+
+Host Nginx chuyển frontend tới `127.0.0.1:8080` và API tới `127.0.0.1:8081`. Hai cổng này chỉ bind loopback trên VPS; backend vẫn lắng nghe cổng `8080` bên trong container.
 
 ```bash
 chmod +x deploy/scripts/*.sh
@@ -219,9 +236,9 @@ gunzip -c /var/backups/smarthire/mysql_YYYYMMDD_HHMMSS.sql.gz \
 ## Bảo mật checklist
 
 - [ ] Static IP + DNS + HTTPS
-- [ ] GCP firewall chỉ 22/80/443
+- [ ] GCP firewall mở 22/80/443; cổng 5432 chỉ cho IP quản trị tin cậy
 - [ ] UFW bật; fail2ban bật
-- [ ] DB/Redis/RabbitMQ không expose public
+- [ ] MySQL/Redis/RabbitMQ không expose public
 - [ ] Secrets mạnh trong `.env.production`
 - [ ] SSH key only (tắt password auth nếu có thể)
 - [ ] Backup cron + kiểm tra restore
