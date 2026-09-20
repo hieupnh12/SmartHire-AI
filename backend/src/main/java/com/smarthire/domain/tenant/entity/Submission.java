@@ -1,7 +1,10 @@
 package com.smarthire.domain.tenant.entity;
 
+import com.smarthire.domain.enums.TestSubmissionStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -27,28 +30,41 @@ import lombok.experimental.FieldDefaults;
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
 @Entity
-@Table(name = "practice_feedbacks")
-public class PracticeFeedback {
+@Table(name = "submissions")
+public class Submission {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "practice_answer_id", nullable = false)
-    PracticeAnswer practiceAnswer;
+    @JoinColumn(name = "test_id", nullable = false)
+    JobTest test;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "candidate_id", nullable = false)
+    User candidate;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "application_id", nullable = false)
+    Application application;
+
+    @Column(name = "started_at")
+    Instant startedAt;
+
+    @Column(name = "submitted_at")
+    Instant submittedAt;
 
     @Column(precision = 10, scale = 2)
     BigDecimal score;
 
-    @Column(name = "feedback_text", columnDefinition = "TEXT")
-    String feedbackText;
-
     @Column(columnDefinition = "TEXT")
-    String strengths;
+    String notes;
 
-    @Column(columnDefinition = "TEXT")
-    String weaknesses;
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 32)
+    TestSubmissionStatus status = TestSubmissionStatus.NOT_STARTED;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     Instant createdAt;

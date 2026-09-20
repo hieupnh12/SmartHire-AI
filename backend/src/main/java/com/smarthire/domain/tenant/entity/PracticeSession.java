@@ -13,6 +13,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
+import java.math.BigDecimal;
 import java.time.Instant;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -40,8 +41,19 @@ public class PracticeSession {
     @JoinColumn(name = "candidate_id", nullable = false)
     User candidate;
 
+    @Column(length = 255)
     String topic;
 
+    @Column(name = "started_at")
+    Instant startedAt;
+
+    @Column(name = "completed_at")
+    Instant completedAt;
+
+    @Column(name = "overall_score", precision = 10, scale = 2)
+    BigDecimal overallScore;
+
+    @Builder.Default
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)
     PracticeStatus status = PracticeStatus.CREATED;
@@ -50,5 +62,7 @@ public class PracticeSession {
     Instant createdAt;
 
     @PrePersist
-    void onCreate() { createdAt = Instant.now(); }
+    void onCreate() {
+        createdAt = Instant.now();
+    }
 }

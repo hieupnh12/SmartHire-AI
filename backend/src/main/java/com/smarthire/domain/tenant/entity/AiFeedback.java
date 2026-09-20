@@ -10,6 +10,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
+import java.math.BigDecimal;
 import java.time.Instant;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -26,26 +27,34 @@ import lombok.experimental.FieldDefaults;
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
 @Entity
-@Table(name = "interview_feedbacks")
-public class InterviewFeedback {
+@Table(name = "ai_feedbacks")
+public class AiFeedback {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     Long id;
 
     @OneToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "interview_id", nullable = false, unique = true)
-    Interview interview;
+    @JoinColumn(name = "ai_answer_id", nullable = false, unique = true)
+    AiAnswer aiAnswer;
 
-    @Column(nullable = false, columnDefinition = "TEXT")
-    String content;
+    @Column(precision = 10, scale = 2)
+    BigDecimal score;
 
-    @Column(name = "shared_with_candidate", nullable = false)
-    boolean sharedWithCandidate;
+    @Column(name = "feedback_text", columnDefinition = "TEXT")
+    String feedbackText;
+
+    @Column(columnDefinition = "TEXT")
+    String strengths;
+
+    @Column(columnDefinition = "TEXT")
+    String weaknesses;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     Instant createdAt;
 
     @PrePersist
-    void onCreate() { createdAt = Instant.now(); }
+    void onCreate() {
+        createdAt = Instant.now();
+    }
 }

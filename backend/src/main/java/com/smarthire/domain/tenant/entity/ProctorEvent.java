@@ -36,8 +36,8 @@ public class ProctorEvent {
     Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "attempt_id", nullable = false)
-    Attempt attempt;
+    @JoinColumn(name = "submission_id", nullable = false)
+    Submission submission;
 
     @Column(name = "event_type", nullable = false, length = 64)
     String eventType;
@@ -50,5 +50,7 @@ public class ProctorEvent {
     Instant createdAt;
 
     @PrePersist
-    void onCreate() { createdAt = Instant.now(); }
+    void onCreate() {
+        createdAt = Instant.now();
+    }
 }

@@ -1,7 +1,10 @@
 package com.smarthire.domain.tenant.entity;
 
+import com.smarthire.domain.enums.AiInterviewStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -10,6 +13,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
+import java.math.BigDecimal;
 import java.time.Instant;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -26,29 +30,40 @@ import lombok.experimental.FieldDefaults;
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
 @Entity
-@Table(name = "interview_questions")
-public class InterviewQuestion {
+@Table(name = "ai_interviews")
+public class AiInterview {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "interview_id", nullable = false)
-    Interview interview;
+    @JoinColumn(name = "application_id", nullable = false)
+    Application application;
 
-    @Column(name = "sort_order", nullable = false)
-    int sortOrder;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "workflow_stage_id")
+    RecruitmentStage workflowStage;
 
-    @Column(name = "question_text", nullable = false, columnDefinition = "TEXT")
-    String questionText;
+    @Column(name = "started_at")
+    Instant startedAt;
 
-    @Column(length = 128)
-    String competency;
+    @Column(name = "completed_at")
+    Instant completedAt;
+
+    @Column(name = "overall_score", precision = 10, scale = 2)
+    BigDecimal overallScore;
+
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 32)
+    AiInterviewStatus status = AiInterviewStatus.CREATED;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     Instant createdAt;
 
     @PrePersist
-    void onCreate() { createdAt = Instant.now(); }
+    void onCreate() {
+        createdAt = Instant.now();
+    }
 }

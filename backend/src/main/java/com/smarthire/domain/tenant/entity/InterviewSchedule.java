@@ -11,7 +11,6 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
-import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import java.time.Instant;
 import lombok.AccessLevel;
@@ -37,34 +36,23 @@ public class InterviewSchedule {
     Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "application_id", nullable = false)
-    Application application;
+    @JoinColumn(name = "interview_id", nullable = false)
+    Interview interview;
 
-    @Column(name = "interview_id")
-    Long interviewId;
+    @Column(name = "scheduled_start", nullable = false)
+    Instant scheduledStart;
 
-    @Column(name = "starts_at", nullable = false)
-    Instant startsAt;
+    @Column(name = "scheduled_end", nullable = false)
+    Instant scheduledEnd;
 
-    @Column(name = "ends_at", nullable = false)
-    Instant endsAt;
+    @Column(length = 255)
+    String location;
 
-    @Column(nullable = false, length = 64)
-    String timezone = "UTC";
+    @Column(name = "meeting_url", length = 512)
+    String meetingUrl;
 
+    @Builder.Default
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)
     ScheduleStatus status = ScheduleStatus.PROPOSED;
-
-    @Column(name = "location_or_url", length = 512)
-    String locationOrUrl;
-
-    @Column(name = "created_by", nullable = false)
-    Long createdBy;
-
-    @Column(name = "created_at", nullable = false, updatable = false)
-    Instant createdAt;
-
-    @PrePersist
-    void onCreate() { createdAt = Instant.now(); }
 }

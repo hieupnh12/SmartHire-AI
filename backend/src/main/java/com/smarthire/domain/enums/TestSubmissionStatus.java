@@ -1,6 +1,6 @@
 package com.smarthire.domain.enums;
 
-public enum AttemptStatus {
+public enum TestSubmissionStatus {
     NOT_STARTED,
     IN_PROGRESS,
     SUBMITTED,

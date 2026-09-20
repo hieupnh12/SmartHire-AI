@@ -8,8 +8,9 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
-import java.math.BigDecimal;
+import java.time.Instant;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -25,16 +26,16 @@ import lombok.experimental.FieldDefaults;
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
 @Entity
-@Table(name = "questions")
-public class Question {
+@Table(name = "ai_questions")
+public class AiQuestion {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "test_id", nullable = false)
-    JobTest test;
+    @JoinColumn(name = "ai_interview_id", nullable = false)
+    AiInterview aiInterview;
 
     @Column(name = "question_text", nullable = false, columnDefinition = "TEXT")
     String questionText;
@@ -43,10 +44,14 @@ public class Question {
     String questionType;
 
     @Builder.Default
-    @Column(nullable = false)
-    int points = 1;
-
-    @Builder.Default
     @Column(name = "question_order", nullable = false)
     int questionOrder = 0;
+
+    @Column(name = "created_at", nullable = false, updatable = false)
+    Instant createdAt;
+
+    @PrePersist
+    void onCreate() {
+        createdAt = Instant.now();
+    }
 }

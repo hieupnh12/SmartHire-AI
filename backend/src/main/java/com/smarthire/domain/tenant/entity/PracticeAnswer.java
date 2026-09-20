@@ -40,15 +40,29 @@ public class PracticeAnswer {
     @Column(name = "question_text", nullable = false, columnDefinition = "TEXT")
     String questionText;
 
+    @Column(name = "question_type", length = 32)
+    String questionType;
+
+    @Column(name = "question_order")
+    Integer questionOrder;
+
     @Column(name = "answer_text", columnDefinition = "TEXT")
     String answerText;
 
+    @Column(name = "answer_duration")
+    Integer answerDuration;
+
     @Column(name = "audio_url", length = 512)
     String audioUrl;
+
+    @Column(name = "answered_at")
+    Instant answeredAt;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     Instant createdAt;
 
     @PrePersist
-    void onCreate() { createdAt = Instant.now(); }
+    void onCreate() {
+        createdAt = Instant.now();
+    }
 }

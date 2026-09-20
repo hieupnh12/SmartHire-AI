@@ -1,6 +1,6 @@
 package com.smarthire.domain.enums;
 
-public enum AssessmentStatus {
+public enum TestStatus {
     DRAFT,
     PUBLISHED,
     ARCHIVED;

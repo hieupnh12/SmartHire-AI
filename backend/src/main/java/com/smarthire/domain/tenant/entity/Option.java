@@ -9,7 +9,6 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
-import java.math.BigDecimal;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -25,28 +24,21 @@ import lombok.experimental.FieldDefaults;
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
 @Entity
-@Table(name = "questions")
-public class Question {
+@Table(name = "options")
+public class Option {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "test_id", nullable = false)
-    JobTest test;
+    @JoinColumn(name = "question_id", nullable = false)
+    Question question;
 
-    @Column(name = "question_text", nullable = false, columnDefinition = "TEXT")
-    String questionText;
-
-    @Column(name = "question_type", nullable = false, length = 32)
-    String questionType;
+    @Column(name = "option_text", nullable = false, columnDefinition = "TEXT")
+    String optionText;
 
     @Builder.Default
-    @Column(nullable = false)
-    int points = 1;
-
-    @Builder.Default
-    @Column(name = "question_order", nullable = false)
-    int questionOrder = 0;
+    @Column(name = "is_correct", nullable = false)
+    boolean correct = false;
 }

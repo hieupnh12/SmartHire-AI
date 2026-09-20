@@ -37,8 +37,8 @@ public class ProctorReport {
     Long id;
 
     @OneToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "attempt_id", nullable = false, unique = true)
-    Attempt attempt;
+    @JoinColumn(name = "submission_id", nullable = false, unique = true)
+    Submission submission;
 
     @Column(name = "risk_score", nullable = false, precision = 5, scale = 2)
     BigDecimal riskScore;
@@ -51,5 +51,7 @@ public class ProctorReport {
     Instant createdAt;
 
     @PrePersist
-    void onCreate() { createdAt = Instant.now(); }
+    void onCreate() {
+        createdAt = Instant.now();
+    }
 }

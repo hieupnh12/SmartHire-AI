@@ -29,9 +29,9 @@ public class RankingSource {
     @Column(name = "cv_id")
     Long cvId;
 
-    @Column(name = "attempt_id")
-    Long attemptId;
+    @Column(name = "submission_id")
+    Long submissionId;
 
-    @Column(name = "interview_id")
-    Long interviewId;
+    @Column(name = "ai_interview_id")
+    Long aiInterviewId;
 }

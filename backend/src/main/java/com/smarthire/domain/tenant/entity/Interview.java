@@ -1,8 +1,19 @@
 package com.smarthire.domain.tenant.entity;
 
 import com.smarthire.domain.enums.InterviewStatus;
-import jakarta.persistence.*;
-import lombok.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 import lombok.experimental.FieldDefaults;
 
 @Getter
@@ -15,14 +26,16 @@ import lombok.experimental.FieldDefaults;
 public class Interview extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "job_id", nullable = false) Job job;
+    @JoinColumn(name = "application_id", nullable = false)
+    Application application;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "candidate_id", nullable = false) User candidate;
+    @Column(name = "interview_type", nullable = false, length = 64)
+    String interviewType;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "cv_id") Cv cv;
+    @Column(nullable = false, length = 64)
+    String mode;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 32) InterviewStatus status = InterviewStatus.CREATED;
+    @Column(nullable = false, length = 32)
+    InterviewStatus status = InterviewStatus.CREATED;
 }

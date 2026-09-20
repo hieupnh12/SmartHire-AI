@@ -8,7 +8,6 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToOne;
-import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import java.time.Instant;
 import lombok.AccessLevel;
@@ -18,8 +17,6 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.FieldDefaults;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
 
 @Getter
 @Setter
@@ -28,27 +25,23 @@ import org.hibernate.type.SqlTypes;
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
 @Entity
-@Table(name = "interview_answer_analyses")
-public class InterviewAnswerAnalysis {
+@Table(name = "ai_answers")
+public class AiAnswer {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     Long id;
 
     @OneToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "answer_id", nullable = false, unique = true)
-    InterviewAnswer answer;
+    @JoinColumn(name = "ai_question_id", nullable = false, unique = true)
+    AiQuestion aiQuestion;
 
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "analysis_json", nullable = false, columnDefinition = "json")
-    String analysisJson;
+    @Column(name = "answer_text", columnDefinition = "TEXT")
+    String answerText;
 
-    @Column(name = "model_version", length = 64)
-    String modelVersion;
+    @Column(name = "answer_duration")
+    Integer answerDuration;
 
-    @Column(name = "created_at", nullable = false, updatable = false)
-    Instant createdAt;
-
-    @PrePersist
-    void onCreate() { createdAt = Instant.now(); }
+    @Column(name = "answered_at")
+    Instant answeredAt;
 }

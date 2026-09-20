@@ -38,17 +38,13 @@ public class RankingDataRepository {
         return em.createQuery("select e.extractionJson from CvExtraction e where e.cv.id = :id", String.class)
                 .setParameter("id", cvId).getResultStream().findFirst().orElse(null);
     }
-    public List<Attempt> attempts(long appId) {
-        return em.createQuery("select a from Attempt a where a.application.id = :id and a.assessment.job = a.application.job order by a.id", Attempt.class).setParameter("id", appId).getResultList();
+    public List<Submission> submissions(long appId) {
+        return em.createQuery("select s from Submission s where s.application.id = :id and s.test.job = s.application.job order by s.id", Submission.class)
+                .setParameter("id", appId).getResultList();
     }
-    public List<Interview> interviews(long appId) {
-        return em.createQuery("select i from Interview i where i.cv.application.id = :id and i.job = i.cv.application.job and i.candidate = i.cv.application.candidate order by i.id", Interview.class).setParameter("id", appId).getResultList();
-    }
-    public AttemptScore assessment(long attemptId) {
-        return em.createQuery("select s from AttemptScore s where s.attempt.id = :id", AttemptScore.class).setParameter("id", attemptId).getResultStream().findFirst().orElse(null);
-    }
-    public InterviewScore interview(long interviewId) {
-        return em.createQuery("select s from InterviewScore s where s.interview.id = :id", InterviewScore.class).setParameter("id", interviewId).getResultStream().findFirst().orElse(null);
+    public List<AiInterview> aiInterviews(long appId) {
+        return em.createQuery("select i from AiInterview i where i.application.id = :id order by i.id", AiInterview.class)
+                .setParameter("id", appId).getResultList();
     }
     public void detachCv(long cvId) {
         em.createQuery("update RankingSource s set s.cvId = null where s.cvId = :id")

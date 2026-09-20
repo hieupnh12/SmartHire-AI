@@ -8,12 +8,12 @@
 |---|---|
 | Kiến trúc | Separate Database per Tenant |
 | Số database logic | 2 loại (1 Master + N Tenant) |
-| Tổng số bảng | **53** (8 master + 45 tenant) |
-| Tổng số entity JPA | **53** (8 master + 45 tenant) — ánh xạ 1:1 với bảng |
-| Tổng số khoá ngoại | **59** (4 master + 55 tenant) |
-| Ràng buộc UNIQUE | **26** (6 master + 20 tenant) |
-| Số file migration | **16** (8 master + 8 tenant) |
-| Cập nhật lần cuối | Phiên bản schema master `V8`, tenant `V8` |
+| Tổng số bảng | **54** (8 master + 46 tenant) |
+| Tổng số entity JPA | **54** (8 master + 46 tenant) — ánh xạ 1:1 với bảng |
+| Tổng số khoá ngoại | **66** (4 master + 62 tenant) |
+| Ràng buộc UNIQUE | **24** (6 master + 18 tenant) |
+| Số file migration | **17** (8 master + 9 tenant) |
+| Cập nhật lần cuối | Phiên bản schema master `V8`, tenant `V9` |
 
 **Mục lục theo đúng thứ tự đặc tả**
 
@@ -160,7 +160,7 @@ thay vì âm thầm đọc nhầm database của doanh nghiệp khác.
 | 09 | `Application` | `applications` | Application pipeline | Có |
 | 10 | `ApplicationStatusHistory` | `application_status_history` | Application pipeline | Không |
 | 11 | `HiringDecision` | `hiring_decisions` | Application pipeline | Không |
-| 12 | `InterviewSchedule` | `interview_schedules` | Application pipeline | Không |
+| 12 | `InterviewSchedule` | `interview_schedules` | Direct Interview | Không |
 | 13 | `Cv` | `cvs` | CV & AI screening | Có |
 | 14 | `CvDocument` | `cv_documents` | CV & AI screening | Không |
 | 15 | `CvExtraction` | `cv_extractions` | CV & AI screening | Không |
@@ -172,28 +172,29 @@ thay vì âm thầm đọc nhầm database của doanh nghiệp khác.
 | 21 | `RankingConfig` | `ranking_configs` | Ranking | Không — PK tự nhiên `job_id` |
 | 22 | `RankingSource` | `ranking_sources` | Ranking | Không — PK tự nhiên `application_id` |
 | 23 | `Recommendation` | `recommendations` | Ranking | Không |
-| 24 | `Assessment` | `assessments` | Assessment | Không |
-| 25 | `Question` | `questions` | Assessment | Không |
-| 26 | `QuestionOption` | `question_options` | Assessment | Không |
-| 27 | `CodingProblem` | `coding_problems` | Assessment | Không |
-| 28 | `TestCase` | `test_cases` | Assessment | Không |
-| 29 | `Attempt` | `attempts` | Assessment | Không |
-| 30 | `AttemptAnswer` | `attempt_answers` | Assessment | Không |
-| 31 | `CodingSubmission` | `coding_submissions` | Assessment | Không |
-| 32 | `AttemptScore` | `attempt_scores` | Assessment | Không |
-| 33 | `ProctorEvent` | `proctor_events` | Assessment | Không |
-| 34 | `ProctorReport` | `proctor_reports` | Assessment | Không |
-| 35 | `Interview` | `interviews` | AI Interview | Có |
-| 36 | `InterviewQuestion` | `interview_questions` | AI Interview | Không |
-| 37 | `InterviewAnswer` | `interview_answers` | AI Interview | Không |
-| 38 | `InterviewAnswerAnalysis` | `interview_answer_analyses` | AI Interview | Không |
-| 39 | `InterviewScore` | `interview_scores` | AI Interview | Không |
-| 40 | `InterviewFeedback` | `interview_feedbacks` | AI Interview | Không |
-| 41 | `Notification` | `notifications` | Notification | Không |
-| 42 | `EmailOutbox` | `email_outbox` | Notification | Không |
-| 43 | `PracticeSession` | `practice_sessions` | Practice | Không |
-| 44 | `PracticeAnswer` | `practice_answers` | Practice | Không |
-| 45 | `PracticeFeedback` | `practice_feedbacks` | Practice | Không |
+| 24 | `JobTest` | `tests` | Test & Proctoring | Không |
+| 25 | `Question` | `questions` | Test & Proctoring | Không |
+| 26 | `Option` | `options` | Test & Proctoring | Không |
+| 27 | `CodingProblem` | `coding_problems` | Test & Proctoring | Không |
+| 28 | `TestCase` | `test_cases` | Test & Proctoring | Không |
+| 29 | `Submission` | `submissions` | Test & Proctoring | Không |
+| 30 | `Answer` | `answers` | Test & Proctoring | Không |
+| 31 | `CodingSubmission` | `coding_submissions` | Test & Proctoring | Không |
+| 32 | `ProctorEvent` | `proctor_events` | Test & Proctoring | Không |
+| 33 | `ProctorReport` | `proctor_reports` | Test & Proctoring | Không |
+| 34 | `Interview` | `interviews` | Direct Interview | Có |
+| 35 | `InterviewParticipant` | `interview_participants` | Direct Interview | Không — PK kép |
+| 36 | `InterviewSecuritySetting` | `interview_security_settings` | Direct Interview | Có |
+| 37 | `InterviewEvaluation` | `interview_evaluations` | Direct Interview | Không |
+| 38 | `AiInterview` | `ai_interviews` | AI Interview | Không |
+| 39 | `AiQuestion` | `ai_questions` | AI Interview | Không |
+| 40 | `AiAnswer` | `ai_answers` | AI Interview | Không |
+| 41 | `AiFeedback` | `ai_feedbacks` | AI Interview | Không |
+| 42 | `Notification` | `notifications` | Notification | Không |
+| 43 | `EmailOutbox` | `email_outbox` | Notification | Không |
+| 44 | `PracticeSession` | `practice_sessions` | Practice | Không |
+| 45 | `PracticeAnswer` | `practice_answers` | Practice | Không |
+| 46 | `PracticeFeedback` | `practice_feedbacks` | Practice | Không |
 
 `BaseEntity` (`@MappedSuperclass`, không sinh bảng) cung cấp `id`, `created_at`, `updated_at` cùng callback
 `@PrePersist` / `@PreUpdate`. Các entity không kế thừa nó tự khai báo `@Id` và chỉ có `created_at`.
@@ -210,12 +211,13 @@ thay vì âm thầm đọc nhầm database của doanh nghiệp khác.
 | `ApplicationStatus` | `applications.status` | `NEW`, `IN_REVIEW`, `ASSESSMENT`, `INTERVIEW`, `OFFER`, `HIRED`, `REJECTED`, `WITHDRAWN` |
 | `HiringDecisionType` | `hiring_decisions.decision` | `HIRE`, `REJECT`, `HOLD` |
 | `CvStatus` | `cvs.status` | `UPLOADED`, `PARSING`, `PARSED`, `EXTRACTING`, `ANALYZING`, `ANALYZED`, `FAILED` |
-| `AssessmentStatus` | `assessments.status` | `DRAFT`, `PUBLISHED`, `ARCHIVED` |
-| `AttemptStatus` | `attempts.status` | `NOT_STARTED`, `IN_PROGRESS`, `SUBMITTED`, `GRADED`, `EXPIRED` |
+| `TestStatus` | `tests.status` | `DRAFT`, `PUBLISHED`, `ARCHIVED` |
+| `TestSubmissionStatus` | `submissions.status` | `NOT_STARTED`, `IN_PROGRESS`, `SUBMITTED`, `GRADED`, `EXPIRED` |
 | `SubmissionStatus` | `coding_submissions.status` | `QUEUED`, `RUNNING`, `PASSED`, … |
-| `InterviewStatus` | `interviews.status` | `CREATED`, `QUESTIONS_READY`, `IN_PROGRESS`, `SCORING`, `SCORED`, `FAILED` |
+| `InterviewStatus` | `interviews.status` | `CREATED`, `SCHEDULED`, `IN_PROGRESS`, `EVALUATED`, `CANCELLED` |
+| `AiInterviewStatus` | `ai_interviews.status` | `CREATED`, `QUESTIONS_READY`, `IN_PROGRESS`, `SCORING`, `SCORED`, `FAILED` |
 | `ScheduleStatus` | `interview_schedules.status` | `PROPOSED`, `CONFIRMED`, `CANCELLED`, `DONE` |
-| `PracticeStatus` | `practice_sessions.status` | `CREATED`, `IN_PROGRESS`, `COMPLETED` |
+| `PracticeStatus` | `practice_sessions.status` | `CREATED`, `IN_PROGRESS`, `COMPLETED`, `FAILED` |
 | `NotificationStatus` | **chưa dùng** | `PENDING`, `SENT`, `FAILED` |
 
 Tất cả đều lưu dưới dạng `VARCHAR(32)` với `@Enumerated(EnumType.STRING)`. Database **không** có `CHECK`
@@ -311,7 +313,6 @@ flowchart LR
         applications
         application_status_history
         hiring_decisions
-        interview_schedules
     end
     subgraph CV["CV & AI screening"]
         cvs
@@ -328,17 +329,21 @@ flowchart LR
         ranking_sources
         recommendations
     end
-    subgraph ASSESS["Assessment"]
-        assessments
-        attempts
-        attempt_scores
+    subgraph ASSESS["Test & Proctoring"]
+        tests
+        submissions
         proctor_reports
     end
-    subgraph INT["AI Interview"]
+    subgraph DIRECT["Direct Interview"]
         interviews
-        interview_questions
-        interview_answers
-        interview_scores
+        interview_schedules
+        interview_evaluations
+    end
+    subgraph INT["AI Interview"]
+        ai_interviews
+        ai_questions
+        ai_answers
+        ai_feedbacks
     end
     subgraph OTHER["Notification & Practice"]
         notifications
@@ -352,8 +357,8 @@ flowchart LR
     APP --> CV
     APP --> ASSESS
     APP --> RANK
-    JOB --> INT
-    ID --> INT
+    APP --> DIRECT
+    APP --> INT
     ID --> OTHER
 ```
 
@@ -382,8 +387,9 @@ erDiagram
 
     applications ||--o{ application_status_history : "nhật ký đổi trạng thái"
     applications ||--o{ hiring_decisions : "quyết định tuyển"
-    applications ||--o{ interview_schedules : "lịch phỏng vấn"
-    applications ||--o{ attempts : "lượt làm bài"
+    applications ||--o{ submissions : "lượt làm bài"
+    applications ||--o{ interviews : "phỏng vấn trực tiếp"
+    applications ||--o{ ai_interviews : "phỏng vấn AI"
     applications ||--o| overall_scores : "điểm tổng 1:1"
     applications ||--o| ranking_sources : "nguồn điểm 1:1"
     applications ||--o{ candidate_rankings : "thứ hạng trong job"
@@ -413,61 +419,65 @@ Pipeline chạy tuần tự qua RabbitMQ: `cv.parse` ghi `cv_documents` → `cv.
 `cv.analysis` ghi `cv_analyses` và `cv_skills` → `cv.matching` ghi `match_scores`. Cột `cvs.status` phản
 ánh chặng hiện tại.
 
-### 4.6 Tenant — Assessment & Proctoring
+### 4.6 Tenant — Test & Proctoring
 
 ```mermaid
 erDiagram
-    jobs ||--o{ assessments : "đề thi của job"
-    assessments ||--o{ questions : "câu hỏi"
-    questions ||--o{ question_options : "lựa chọn"
-    assessments ||--o{ coding_problems : "bài lập trình"
+    jobs ||--o{ tests : "đề thi của job"
+    tests ||--o{ questions : "câu hỏi"
+    questions ||--o{ options : "lựa chọn"
+    tests ||--o{ coding_problems : "bài lập trình"
     coding_problems ||--o{ test_cases : "bộ test"
 
-    assessments ||--o{ attempts : "lượt làm bài"
-    applications ||--o{ attempts : "của đơn ứng tuyển"
+    tests ||--o{ submissions : "lượt làm bài"
+    applications ||--o{ submissions : "của đơn ứng tuyển"
+    users ||--o{ submissions : "candidate_id"
 
-    attempts ||--o{ attempt_answers : "câu trả lời"
-    questions ||--o{ attempt_answers : "thuộc câu hỏi"
-    question_options |o..o{ attempt_answers : "option_id · KHÔNG có FK"
+    submissions ||--o{ answers : "câu trả lời"
+    questions ||--o{ answers : "thuộc câu hỏi"
+    options |o--o{ answers : "selected_option_id"
 
-    attempts ||--o{ coding_submissions : "bài nộp code"
+    submissions ||--o{ coding_submissions : "bài nộp code"
     coding_problems ||--o{ coding_submissions : "của bài tập"
 
-    attempts ||--o| attempt_scores : "tổng điểm 1:1"
-    attempts ||--o{ proctor_events : "sự kiện giám sát"
-    attempts ||--o| proctor_reports : "báo cáo rủi ro 1:1"
+    submissions ||--o{ proctor_events : "sự kiện giám sát"
+    submissions ||--o| proctor_reports : "báo cáo rủi ro 1:1"
 ```
 
-### 4.7 Tenant — AI Interview
+### 4.7 Tenant — Direct Interview
 
 ```mermaid
 erDiagram
-    jobs ||--o{ interviews : "phỏng vấn cho job"
-    users ||--o{ interviews : "candidate_id"
-    cvs |o--o{ interviews : "cv_id · nullable"
-
-    interviews ||--o{ interview_questions : "câu hỏi AI sinh"
-    interview_questions ||--o| interview_answers : "câu trả lời 1:1"
-    interview_answers ||--o| interview_answer_analyses : "phân tích NLP 1:1"
-    interviews ||--o| interview_scores : "điểm phiên 1:1"
-    interviews ||--o| interview_feedbacks : "nhận xét 1:1"
-
-    interviews |o..o{ interview_schedules : "interview_id · KHÔNG có FK"
-    interviews |o--o| ranking_sources : "interview_id · có FK"
+    applications ||--o{ interviews : "phỏng vấn trực tiếp"
+    interviews ||--o{ interview_schedules : "lịch"
+    interviews ||--o{ interview_participants : "người tham gia"
+    users ||--o{ interview_participants : "user_id"
+    interviews ||--o| interview_security_settings : "cấu hình bảo mật 1:1"
+    interviews ||--o{ interview_evaluations : "đánh giá"
+    users ||--o{ interview_evaluations : "evaluator_id"
 ```
 
-> **Lưu ý kiến trúc:** `interviews` gắn thẳng vào `jobs` + `users`, **không** đi qua `applications`. Đây là
-> nhánh duy nhất trong pipeline tuyển dụng bỏ qua bảng trung tâm. Cầu nối trở lại đơn ứng tuyển chỉ là cột
-> `interview_schedules.interview_id` (không FK) và `ranking_sources.interview_id` (có FK).
+### 4.8 Tenant — AI Interview
 
-### 4.8 Tenant — Notification & Practice
+```mermaid
+erDiagram
+    applications ||--o{ ai_interviews : "phiên AI"
+    recruitment_stages |o--o{ ai_interviews : "workflow_stage_id"
+    ai_interviews ||--o{ ai_questions : "câu hỏi AI"
+    ai_questions ||--o| ai_answers : "câu trả lời 1:1"
+    ai_answers ||--o| ai_feedbacks : "feedback 1:1"
+    ai_interviews |o--o| ranking_sources : "ai_interview_id"
+    submissions |o--o| ranking_sources : "submission_id"
+```
+
+### 4.9 Tenant — Notification & Practice
 
 ```mermaid
 erDiagram
     users ||--o{ notifications : "thông báo in-app"
     users ||--o{ practice_sessions : "phiên tự luyện"
     practice_sessions ||--o{ practice_answers : "câu hỏi và trả lời"
-    practice_sessions ||--o| practice_feedbacks : "nhận xét phiên 1:1"
+    practice_answers ||--o{ practice_feedbacks : "feedback từng câu"
     email_outbox {
         bigint id PK
         varchar to_email "không FK · gửi được cho người ngoài hệ thống"
@@ -515,10 +525,9 @@ erDiagram
 
 | Entity | Mục đích | Ghi chú quan trọng |
 |---|---|---|
-| `Application` | **Bảng trung tâm của toàn bộ tenant schema.** Một ứng viên nộp vào một job | Assessment, lịch phỏng vấn, điểm tổng và thứ hạng đều neo vào đây. Mang `status`, `stage_id`, `assignee_id`, `tags`, `referral_code`, `reject_reason`, `withdrawn_at`, `archived_at` |
+| `Application` | **Bảng trung tâm của toàn bộ tenant schema.** Một ứng viên nộp vào một job | Test submission, lịch phỏng vấn, AI interview, điểm tổng và thứ hạng đều neo vào đây. Mang `status`, `stage_id`, `assignee_id`, `tags`, `referral_code`, `reject_reason`, `withdrawn_at`, `archived_at` |
 | `ApplicationStatusHistory` | Nhật ký mỗi lần đổi trạng thái | `from_status → to_status`, `changed_by`, `note`. `changed_by` là số thô, không có FK |
 | `HiringDecision` | Quyết định cuối cùng của đơn | `HIRE` / `REJECT` / `HOLD` kèm `reason`. `decided_by` không có FK |
-| `InterviewSchedule` | Lịch phỏng vấn của một đơn | `starts_at`, `ends_at`, `timezone`, `location_or_url`, `status`. `interview_id` và `created_by` đều không có FK |
 
 ### 5.5 Tenant — CV & AI screening
 
@@ -538,45 +547,52 @@ erDiagram
 | `OverallScore` | Điểm tổng hợp cuối cùng của một đơn | 1:1 với `applications`, có `ranking_version` |
 | `CandidateRanking` | Thứ hạng cụ thể của đơn trong một job | Unique `(job_id, application_id)`, mang `rank_position` |
 | `RankingConfig` | Bộ trọng số chấm điểm cấu hình riêng cho từng job | **PK tự nhiên `job_id`** để ép 1:1. `config_json` + `revision` cho phép version hoá cấu hình |
-| `RankingSource` | Chốt ba nguồn điểm đã dùng để tính hạng | **PK tự nhiên `application_id`**. Ba cột `cv_id`, `attempt_id`, `interview_id` đều nullable và **đều có FK** |
+| `RankingSource` | Chốt ba nguồn điểm đã dùng để tính hạng | **PK tự nhiên `application_id`**. Ba cột `cv_id`, `submission_id`, `ai_interview_id` đều nullable và **đều có FK** |
 | `Recommendation` | Gợi ý dạng đa hình | `subject_type`/`subject_id` → `target_type`/`target_id`. Không có FK nào; toàn vẹn phụ thuộc hoàn toàn vào code |
 
-### 5.7 Tenant — Assessment
+### 5.7 Tenant — Test & Proctoring
 
 | Entity | Mục đích | Ghi chú quan trọng |
 |---|---|---|
-| `Assessment` | Đề thi gắn với một job | `duration_seconds`, `status` |
-| `Question` | Câu hỏi trắc nghiệm hoặc tự luận | `question_type`, `points`, `sort_order` |
-| `QuestionOption` | Lựa chọn trả lời | `is_correct` nằm ngay trong bảng — **không được trả cột này ra API cho thí sinh** |
-| `CodingProblem` | Bài lập trình | `time_limit_ms`, `memory_mb` |
-| `TestCase` | Bộ test của bài code | `is_sample` quyết định có lộ cho thí sinh không, `weight` để tính điểm |
-| `Attempt` | Một lượt làm bài của một đơn ứng tuyển | Không unique theo `(assessment_id, application_id)` nên **cho phép làm lại nhiều lần**. `duration_seconds` được chốt riêng cho từng lượt, không đọc lại từ đề |
-| `AttemptAnswer` | Câu trả lời trong lượt làm | Chứa được cả `option_id` (trắc nghiệm) lẫn `answer_text` (tự luận) |
-| `CodingSubmission` | Bài nộp code | `language`, `source_code` (`LONGTEXT`), `result_json`, `status` |
-| `AttemptScore` | Tổng điểm sau chấm | 1:1 với `attempts` |
-| `ProctorEvent` | Sự kiện giám sát thô | `event_type` + `payload_json`; ghi liên tục trong lúc thi |
-| `ProctorReport` | Báo cáo rủi ro tổng hợp | 1:1 với `attempts`, có `risk_score` |
+| `JobTest` | Đề thi gắn với một job (bảng `tests`) | `duration_minutes`, `passing_score`, `status` — tên class tránh xung đột JUnit `Test` |
+| `Question` | Câu hỏi trắc nghiệm hoặc tự luận | `question_text`, `question_type`, `points`, `question_order` |
+| `Option` | Lựa chọn trả lời | `is_correct` — **không được trả cột này ra API cho thí sinh** |
+| `CodingProblem` | Bài lập trình | `time_limit_ms`, `memory_mb`, FK `test_id` |
+| `TestCase` | Bộ test của bài code | `is_sample`, `weight` |
+| `Submission` | Một lượt làm bài của ứng viên | Điểm tổng nằm ở cột `score`; cho phép làm lại nhiều lần |
+| `Answer` | Câu trả lời trong lượt làm | `selected_option_id` (có FK), `answer_text`, `is_correct`, `score` |
+| `CodingSubmission` | Bài nộp code | `language`, `source_code`, `result_json`, `status` |
+| `ProctorEvent` | Sự kiện giám sát thô | FK `submission_id` |
+| `ProctorReport` | Báo cáo rủi ro tổng hợp | 1:1 với `submissions` |
 
-### 5.8 Tenant — AI Interview
+### 5.8 Tenant — Direct Interview
 
 | Entity | Mục đích | Ghi chú quan trọng |
 |---|---|---|
-| `Interview` | Phiên phỏng vấn AI của một ứng viên cho một job | Gắn vào `jobs` + `users`, **không** qua `applications` |
-| `InterviewQuestion` | Câu hỏi do AI sinh | `sort_order`, `competency` (năng lực cần đánh giá) |
-| `InterviewAnswer` | Câu trả lời | `audio_url` + `transcript`. Unique theo `question_id` nên mỗi câu hỏi chỉ được trả lời một lần |
-| `InterviewAnswerAnalysis` | Phân tích NLP từng câu trả lời | 1:1 với `interview_answers` |
-| `InterviewScore` | Điểm tổng của cả phiên | 1:1 với `interviews`, có `breakdown_json` và `feedback` |
-| `InterviewFeedback` | Nhận xét của người phỏng vấn | `shared_with_candidate` quyết định ứng viên có thấy được không |
+| `Interview` | Phiên phỏng vấn trực tiếp (người) | Neo vào `applications`; `interview_type`, `mode`, `status` |
+| `InterviewSchedule` | Lịch của phiên | `scheduled_start` / `scheduled_end`, `location`, `meeting_url` |
+| `InterviewParticipant` | Người tham gia | PK kép `(interview_id, user_id)`, `participant_role` |
+| `InterviewSecuritySetting` | Cấu hình camera/mic/fullscreen… | 1:1 với `interviews` |
+| `InterviewEvaluation` | Đánh giá của interviewer | Điểm technical/communication/culture/overall + `recommendation` |
 
-### 5.9 Tenant — Notification & Practice
+### 5.9 Tenant — AI Interview
+
+| Entity | Mục đích | Ghi chú quan trọng |
+|---|---|---|
+| `AiInterview` | Phiên phỏng vấn AI | Neo vào `applications`, tùy chọn `workflow_stage_id`; `overall_score` trên phiên |
+| `AiQuestion` | Câu hỏi do AI sinh | `question_order`, `question_type` |
+| `AiAnswer` | Câu trả lời ứng viên | 1:1 với `ai_questions`; `answer_duration`, `answered_at` |
+| `AiFeedback` | Feedback AI theo từng câu trả lời | 1:1 với `ai_answers`; `score`, `strengths`, `weaknesses` |
+
+### 5.10 Tenant — Notification & Practice
 
 | Entity | Mục đích | Ghi chú quan trọng |
 |---|---|---|
 | `Notification` | Thông báo in-app | `type`, `payload_json`, `read_at`. Bảng **không** dùng enum `NotificationStatus` |
-| `EmailOutbox` | Hàng đợi email theo mẫu outbox | Không có FK — cố ý, để gửi được cho cả người chưa có tài khoản. `attempts` đếm số lần thử |
-| `PracticeSession` | Phiên tự luyện phỏng vấn của ứng viên | Hoàn toàn tách khỏi luồng tuyển dụng thật, không ảnh hưởng ranking |
-| `PracticeAnswer` | Cặp câu hỏi và trả lời trong phiên | Có thể kèm `audio_url` |
-| `PracticeFeedback` | Nhận xét và điểm cho toàn phiên | 1:1 với `practice_sessions` |
+| `EmailOutbox` | Hàng đợi email theo mẫu outbox | Không có FK — cố ý. `attempts` đếm số lần thử |
+| `PracticeSession` | Phiên tự luyện | Tách khỏi ranking; có `started_at`, `completed_at`, `overall_score` |
+| `PracticeAnswer` | Câu hỏi/trả lời trong phiên | Có thể kèm `audio_url`, `answer_duration` |
+| `PracticeFeedback` | Feedback theo từng câu trả lời | FK `practice_answer_id`; `strengths` / `weaknesses` |
 
 ---
 
@@ -646,7 +662,6 @@ erDiagram
 | `applications` | `assignee_id` | `users` | Có | N:0..1 | `fk_app_assignee` |
 | `application_status_history` | `application_id` | `applications` | Không | N:1 | `fk_ash_app` |
 | `hiring_decisions` | `application_id` | `applications` | Không | N:1 | `fk_hd_app` |
-| `interview_schedules` | `application_id` | `applications` | Không | N:1 | `fk_isched_app` |
 | `cvs` | `job_id` | `jobs` | Có (từ V8) | N:0..1 | `fk_cvs_job` |
 | `cvs` | `user_id` | `users` | Không | N:1 | `fk_cvs_user` |
 | `cv_documents` | `cv_id` | `cvs` | Không | 1:1 (UQ) | `fk_cvdoc_cv` |
@@ -661,34 +676,39 @@ erDiagram
 | `ranking_configs` | `job_id` | `jobs` | Không | 1:1 (PK) | `fk_rank_config_job` |
 | `ranking_sources` | `application_id` | `applications` | Không | 1:1 (PK) | `fk_rank_source_app` |
 | `ranking_sources` | `cv_id` | `cvs` | Có | 1:0..1 | `fk_rank_source_cv` |
-| `ranking_sources` | `attempt_id` | `attempts` | Có | 1:0..1 | `fk_rank_source_attempt` |
-| `ranking_sources` | `interview_id` | `interviews` | Có | 1:0..1 | `fk_rank_source_interview` |
-| `assessments` | `job_id` | `jobs` | Không | N:1 | `fk_as_job` |
-| `questions` | `assessment_id` | `assessments` | Không | N:1 | `fk_q_as` |
-| `question_options` | `question_id` | `questions` | Không | N:1 | `fk_qo_q` |
-| `coding_problems` | `assessment_id` | `assessments` | Không | N:1 | `fk_cp_as` |
+| `ranking_sources` | `submission_id` | `submissions` | Có | 1:0..1 | `fk_rank_source_submission` |
+| `ranking_sources` | `ai_interview_id` | `ai_interviews` | Có | 1:0..1 | `fk_rank_source_ai_interview` |
+| `tests` | `job_id` | `jobs` | Không | N:1 | `fk_tests_job` |
+| `questions` | `test_id` | `tests` | Không | N:1 | `fk_questions_test` |
+| `options` | `question_id` | `questions` | Không | N:1 | `fk_options_question` |
+| `coding_problems` | `test_id` | `tests` | Không | N:1 | `fk_cp_test` |
 | `test_cases` | `coding_problem_id` | `coding_problems` | Không | N:1 | `fk_tc_cp` |
-| `attempts` | `assessment_id` | `assessments` | Không | N:1 | `fk_att_as` |
-| `attempts` | `application_id` | `applications` | Không | N:1 | `fk_att_app` |
-| `attempt_answers` | `attempt_id` | `attempts` | Không | N:1 | `fk_aa_att` |
-| `attempt_answers` | `question_id` | `questions` | Không | N:1 | `fk_aa_q` |
-| `coding_submissions` | `attempt_id` | `attempts` | Không | N:1 | `fk_cs_att` |
+| `submissions` | `test_id` | `tests` | Không | N:1 | `fk_submissions_test` |
+| `submissions` | `candidate_id` | `users` | Không | N:1 | `fk_submissions_candidate` |
+| `submissions` | `application_id` | `applications` | Không | N:1 | `fk_submissions_application` |
+| `answers` | `submission_id` | `submissions` | Không | N:1 | `fk_answers_submission` |
+| `answers` | `question_id` | `questions` | Không | N:1 | `fk_answers_question` |
+| `answers` | `selected_option_id` | `options` | Có | N:0..1 | `fk_answers_option` |
+| `coding_submissions` | `submission_id` | `submissions` | Không | N:1 | `fk_cs_submission` |
 | `coding_submissions` | `coding_problem_id` | `coding_problems` | Không | N:1 | `fk_cs_cp` |
-| `attempt_scores` | `attempt_id` | `attempts` | Không | 1:1 (UQ) | `fk_ascore_att` |
-| `proctor_events` | `attempt_id` | `attempts` | Không | N:1 | `fk_pe_att` |
-| `proctor_reports` | `attempt_id` | `attempts` | Không | 1:1 (UQ) | `fk_pr_att` |
-| `interviews` | `job_id` | `jobs` | Không | N:1 | `fk_interviews_job` |
-| `interviews` | `candidate_id` | `users` | Không | N:1 | `fk_interviews_candidate` |
-| `interviews` | `cv_id` | `cvs` | Có | N:0..1 | `fk_interviews_cv` |
-| `interview_questions` | `interview_id` | `interviews` | Không | N:1 | `fk_iq_interview` |
-| `interview_answers` | `question_id` | `interview_questions` | Không | 1:1 (UQ) | `fk_ia_question` |
-| `interview_answer_analyses` | `answer_id` | `interview_answers` | Không | 1:1 (UQ) | `fk_iaa_ans` |
-| `interview_scores` | `interview_id` | `interviews` | Không | 1:1 (UQ) | `fk_is_interview` |
-| `interview_feedbacks` | `interview_id` | `interviews` | Không | 1:1 (UQ) | `fk_if_int` |
+| `proctor_events` | `submission_id` | `submissions` | Không | N:1 | `fk_pe_submission` |
+| `proctor_reports` | `submission_id` | `submissions` | Không | 1:1 (UQ) | `fk_pr_submission` |
+| `interviews` | `application_id` | `applications` | Không | N:1 | `fk_interviews_application` |
+| `interview_schedules` | `interview_id` | `interviews` | Không | N:1 | `fk_isched_interview` |
+| `interview_participants` | `interview_id` | `interviews` | Không | N:1 | `fk_ip_interview` |
+| `interview_participants` | `user_id` | `users` | Không | N:1 | `fk_ip_user` |
+| `interview_security_settings` | `interview_id` | `interviews` | Không | 1:1 (UQ) | `fk_iss_interview` |
+| `interview_evaluations` | `interview_id` | `interviews` | Không | N:1 | `fk_ie_interview` |
+| `interview_evaluations` | `evaluator_id` | `users` | Không | N:1 | `fk_ie_evaluator` |
+| `ai_interviews` | `application_id` | `applications` | Không | N:1 | `fk_ai_int_application` |
+| `ai_interviews` | `workflow_stage_id` | `recruitment_stages` | Có | N:0..1 | `fk_ai_int_stage` |
+| `ai_questions` | `ai_interview_id` | `ai_interviews` | Không | N:1 | `fk_ai_q_interview` |
+| `ai_answers` | `ai_question_id` | `ai_questions` | Không | 1:1 (UQ) | `fk_ai_a_question` |
+| `ai_feedbacks` | `ai_answer_id` | `ai_answers` | Không | 1:1 (UQ) | `fk_ai_f_answer` |
 | `notifications` | `user_id` | `users` | Không | N:1 | `fk_notif_user` |
 | `practice_sessions` | `candidate_id` | `users` | Không | N:1 | `fk_ps_user` |
 | `practice_answers` | `session_id` | `practice_sessions` | Không | N:1 | `fk_pa_ps` |
-| `practice_feedbacks` | `session_id` | `practice_sessions` | Không | 1:1 (UQ) | `fk_pf_ps` |
+| `practice_feedbacks` | `practice_answer_id` | `practice_answers` | Không | N:1 | `fk_pf_answer` |
 
 ### 7.3 Cột tham chiếu **không** có khoá ngoại
 
@@ -698,11 +718,8 @@ erDiagram
 |---|---|---|---|---|
 | Tenant | `cvs` | `application_id` | `applications.id` | Thêm bằng `ALTER` ở V2 mà không kèm FK — có thể trỏ vào đơn đã xoá |
 | Tenant | `cv_skills` | `skill_id` | `skills.id` | Cố ý để trống khi chưa map được vào từ điển |
-| Tenant | `attempt_answers` | `option_id` | `question_options.id` | Có thể trỏ sang lựa chọn của câu hỏi khác |
 | Tenant | `application_status_history` | `changed_by` | `users.id` | Xoá user là mất dấu vết truy vết |
 | Tenant | `hiring_decisions` | `decided_by` | `users.id` | Như trên |
-| Tenant | `interview_schedules` | `interview_id` | `interviews.id` | Entity map thành `Long` rời, không phải `@ManyToOne` |
-| Tenant | `interview_schedules` | `created_by` | `users.id` | Như `changed_by` |
 | Tenant | `recommendations` | `subject_id`, `target_id` | đa hình theo `*_type` | Database không kiểm tra được gì |
 | Master | `invoices` | `subscription_id` | `tenant_subscriptions.id` | Hoá đơn có thể trỏ vào subscription không tồn tại |
 | Master | `platform_audit_logs` | `platform_user_id` | `platform_users.id` | Cố ý — log sống lâu hơn tài khoản |
@@ -735,7 +752,7 @@ kho hồ sơ (talent pool) chưa gắn với tin tuyển dụng nào.
 | `platform_users` | `uk_platform_users_email` | `email` | Email quản trị viên không trùng |
 | `tenant_usage_daily` | `uk_tenant_usage_daily` | `(tenant_id, usage_date)` | Mỗi tenant mỗi ngày đúng một dòng usage |
 
-### 8.2 Ràng buộc UNIQUE — Tenant (20)
+### 8.2 Ràng buộc UNIQUE — Tenant (18)
 
 | Bảng | Ràng buộc | Cột | Ý nghĩa nghiệp vụ |
 |---|---|---|---|
@@ -752,13 +769,11 @@ kho hồ sơ (talent pool) chưa gắn với tin tuyển dụng nào.
 | `match_scores` | `uk_match_job_cv` | `(job_id, cv_id)` | Mỗi cặp job-CV một điểm khớp |
 | `overall_scores` | `uk_os_app` | `application_id` | Mỗi đơn một điểm tổng |
 | `candidate_rankings` | `uk_cr_job_app` | `(job_id, application_id)` | Mỗi đơn xuất hiện một lần trong bảng xếp hạng của job |
-| `attempt_scores` | `uk_ascore_att` | `attempt_id` | Mỗi lượt thi một bản điểm |
-| `proctor_reports` | `uk_pr_att` | `attempt_id` | Mỗi lượt thi một báo cáo giám sát |
-| `interview_answers` | `uk_answer_question` | `question_id` | **Mỗi câu hỏi phỏng vấn chỉ một câu trả lời** |
-| `interview_answer_analyses` | `uk_iaa_ans` | `answer_id` | Mỗi câu trả lời một bản phân tích |
-| `interview_scores` | `uk_score_interview` | `interview_id` | Mỗi phiên một bản điểm |
-| `interview_feedbacks` | `uk_if_int` | `interview_id` | Mỗi phiên một bản nhận xét |
-| `practice_feedbacks` | `uk_pf_ps` | `session_id` | Mỗi phiên luyện một bản nhận xét |
+| `proctor_reports` | `uk_pr_submission` | `submission_id` | Mỗi lượt thi một báo cáo giám sát |
+| `interview_security_settings` | `uk_iss_interview` | `interview_id` | Mỗi phiên một cấu hình bảo mật |
+| `ai_answers` | `uk_ai_a_question` | `ai_question_id` | **Mỗi câu hỏi AI chỉ một câu trả lời** |
+| `ai_feedbacks` | `uk_ai_f_answer` | `ai_answer_id` | Mỗi câu trả lời một bản feedback |
+| `ranking_sources` | PK `application_id` | `application_id` | Mỗi đơn một bộ nguồn xếp hạng |
 
 ### 8.3 Máy trạng thái
 
@@ -788,13 +803,19 @@ UPLOADED ──▶ PARSING ──▶ PARSED ──▶ EXTRACTING ──▶ ANALY
 `FAILED` luôn đi kèm `error_code` và `error_message`; method `Cv.fail()` đảm bảo điều này. `Cv.mark()` xoá
 sạch thông tin lỗi khi chuyển sang trạng thái thành công.
 
-**Attempt** — `attempts.status`
+**Submission** — `submissions.status`
 ```
 NOT_STARTED ──▶ IN_PROGRESS ──▶ SUBMITTED ──▶ GRADED
                      └──▶ EXPIRED
 ```
 
-**Interview** — `interviews.status`
+**Interview (direct)** — `interviews.status`
+```
+CREATED ──▶ SCHEDULED ──▶ IN_PROGRESS ──▶ EVALUATED
+    └───────────┴───────────────┴──▶ CANCELLED
+```
+
+**AI Interview** — `ai_interviews.status`
 ```
 CREATED ──▶ QUESTIONS_READY ──▶ IN_PROGRESS ──▶ SCORING ──▶ SCORED
     └───────────┴──────────────────┴─────────────┴──▶ FAILED
@@ -809,10 +830,10 @@ Những quy tắc sau bắt buộc phải kiểm tra ở tầng service, vì kh�
 | BR-01 | `TenantContext` phải được set trước mọi truy vấn tenant, kể cả trong `@RabbitListener` | `TenantWebInterceptor`, consumer messaging |
 | BR-02 | `cvs.job_id` và `cvs.application_id → job_id` phải trỏ về cùng một job, hoặc `job_id` để trống | Service CV |
 | BR-03 | Ba bảng điểm `match_scores`, `overall_scores`, `candidate_rankings` phải được cập nhật trong cùng một giao dịch chấm lại | Service ranking |
-| BR-04 | `attempt_answers.option_id` phải thuộc đúng `question_id` của chính dòng đó | Service assessment |
-| BR-05 | `question_options.is_correct` không bao giờ được trả ra API dành cho thí sinh | DTO/mapper assessment |
+| BR-04 | `answers.selected_option_id` phải thuộc đúng `question_id` của chính dòng đó | Service test |
+| BR-05 | `options.is_correct` không bao giờ được trả ra API dành cho thí sinh | DTO/mapper test |
 | BR-06 | Miền giá trị enum (`status`, `role`, `decision`) — database chỉ lưu `VARCHAR`, không có `CHECK` | `@Enumerated(EnumType.STRING)` |
-| BR-07 | `attempts.duration_seconds` chốt tại thời điểm bắt đầu, không đọc lại từ `assessments` | Service assessment |
+| BR-07 | `tests.duration_minutes` là nguồn sự thật; thời gian còn lại tính từ `submissions.started_at` | Service test |
 | BR-08 | `member_invitations` hết hạn theo `expires_at`; token đối chiếu bằng `token_hash`, không bao giờ log token gốc | Service invitation |
 | BR-09 | `cvs.retain_until` mặc định 24 tháng kể từ `created_at`; job dọn dẹp phải tôn trọng mốc này | Job vòng đời dữ liệu |
 | BR-10 | Hạn mức trong `subscription_plans` được đối chiếu với `tenant_usage_daily`; database không chặn vượt hạn mức | Service subscription |
@@ -821,10 +842,9 @@ Những quy tắc sau bắt buộc phải kiểm tra ở tầng service, vì kh�
 
 - **Không nộp lại đơn:** ràng buộc `uk_app_job_candidate` khiến ứng viên đã rút đơn (`withdrawn_at`) không
   thể nộp lại cùng một job. Muốn cho phép nộp lại thì phải đổi ràng buộc, không thể lách ở tầng code.
-- **Không ghi đè câu trả lời phỏng vấn:** `uk_answer_question` khiến `interview_answers` không hỗ trợ trả
-  lời lại hay lưu nhiều lần thử.
-- **Được thi lại:** `attempts` cố ý **không** unique theo `(assessment_id, application_id)`.
-- **Không có `ON DELETE` nào được khai báo** trên toàn bộ 59 khoá ngoại, nên mặc định là `RESTRICT`. Xoá
+- **Không ghi đè câu trả lời AI:** `uk_ai_a_question` khiến `ai_answers` không hỗ trợ trả lời lại cùng một câu.
+- **Được thi lại:** `submissions` cố ý **không** unique theo `(test_id, application_id)`.
+- **Không có `ON DELETE` nào được khai báo** trên toàn bộ khoá ngoại, nên mặc định là `RESTRICT`. Xoá
   cứng một `job` hay một `application` sẽ thất bại nếu còn bản ghi con. Đây là lý do `jobs` dùng `deleted_at`
   và `applications` dùng `archived_at` để xoá mềm.
 
@@ -919,6 +939,7 @@ Hai pipeline dùng **hai phương ngữ SQL khác nhau** và không thể dùng 
 | V6 | `V6__job_management.sql` | 13 cột nghiệp vụ tuyển dụng cho `jobs` |
 | V7 | `V7__application_management.sql` | 6 cột quản lý đơn, 2 index, `cvs.retain_until` + backfill 24 tháng |
 | V8 | `V8__cv_job_optional.sql` | `cvs.job_id` chuyển thành nullable để hỗ trợ kho hồ sơ |
+| V9 | `V9__interview_test_ai_practice_redesign.sql` | Redesign Test/Submission, Direct Interview, AI Interview, Practice theo ERD mới |
 
 ### 10.4 Quy trình cấp phát tenant mới
 
