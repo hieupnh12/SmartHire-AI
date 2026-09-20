@@ -82,6 +82,7 @@ Request tự động:
 - PostgreSQL: `tenants`, `platform_users`, `subscription_plans`, `tenant_subscriptions`, `invoices`.
 - MySQL từng tenant: schema trong `db/migration/tenant`.
 - `tenants.db_password` chứa ciphertext; `managed_database` phân biệt tự động và thủ công.
+- Khi mở pool cho tenant managed, backend ghép JDBC URL từ `TENANT_MYSQL_BASE_URL` của môi trường và `tenants.db_name`; `tenants.db_url` chỉ được dùng trực tiếp cho custom database. Vì vậy cùng một master DB có thể dùng hostname Docker trên VPS và địa chỉ public/tunnel khi phát triển local.
 - Không có foreign key hoặc transaction ACID chung giữa PostgreSQL master và MySQL tenant.
 
 ## UI mockup
