@@ -15,6 +15,7 @@ import com.smarthire.domain.tenant.repository.MatchScoreRepository;
 import com.smarthire.domain.tenant.repository.RankingDataRepository;
 import com.smarthire.domain.tenant.repository.UserRepository;
 import com.smarthire.messaging.JobPublisher;
+import com.smarthire.multitenancy.service.TenantRegistryService;
 import com.smarthire.tenant.cv.mapper.CvMapper;
 import com.smarthire.tenant.cv.service.CvAccess;
 import com.smarthire.tenant.cv.service.CvMatchingService;
@@ -51,6 +52,7 @@ class CvServiceTest {
     @Mock CvMapper mapper;
     @Mock CvMatchingService matching;
     @Mock CvPipelineService pipeline;
+    @Mock TenantRegistryService tenants;
 
     CvService service;
 
@@ -58,7 +60,7 @@ class CvServiceTest {
     void setUp() {
         service = new CvService(
                 cvs, jobs, users, applications, documents, extractions, cvSkills, analyses, scores,
-                interviews, rankingData, storage, publisher, access, mapper, matching, pipeline, 10_485_760);
+                interviews, rankingData, storage, publisher, access, mapper, matching, pipeline, tenants, 10_485_760);
     }
 
     @Test

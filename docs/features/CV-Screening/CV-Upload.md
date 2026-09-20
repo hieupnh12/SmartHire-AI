@@ -39,7 +39,12 @@
 
 ## Database liên quan
 
-- `cvs`
+- `cvs` (`storage_key`, `file_url`)
+
+## Lưu file
+
+- Chỉ **Cloudinary**. PDF: `resource_type=image`, public id `cv_{subdomain}_{cvId}`. DOCX: `raw`. Lưu `secure_url`. Xem qua `GET /api/v1/cvs/{id}/file` (URL public, nếu 401 thì tải bằng API có chữ ký). Xóa trên web gọi Cloudinary `destroy`. Gói Free: bật **Allow delivery of PDF and ZIP files** trong Cloudinary Security.
+- Bắt buộc `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` trong `backend/.env`. Không ghi file CV xuống đĩa máy.
 
 ## UI mockup
 

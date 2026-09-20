@@ -21,6 +21,7 @@ import com.smarthire.domain.tenant.repository.RankingDataRepository;
 import com.smarthire.domain.tenant.repository.UserRepository;
 import com.smarthire.messaging.JobPublisher;
 import com.smarthire.multitenancy.context.TenantContext;
+import com.smarthire.multitenancy.service.TenantRegistryService;
 import com.smarthire.tenant.cv.dto.CvModels.CvDetail;
 import com.smarthire.tenant.cv.dto.CvModels.CvSummary;
 import com.smarthire.tenant.cv.dto.CvModels.MatchView;
@@ -65,6 +66,7 @@ public class CvService {
     private final CvMapper mapper;
     private final CvMatchingService matching;
     private final CvPipelineService pipeline;
+    private final TenantRegistryService tenants;
     private final long maxBytes;
 
     public CvService(
@@ -85,6 +87,7 @@ public class CvService {
             CvMapper mapper,
             CvMatchingService matching,
             CvPipelineService pipeline,
+            TenantRegistryService tenants,
             @Value("${app.cv.max-file-bytes:10485760}") long maxBytes) {
         this.cvs = cvs;
         this.jobs = jobs;
@@ -103,6 +106,7 @@ public class CvService {
         this.mapper = mapper;
         this.matching = matching;
         this.pipeline = pipeline;
+        this.tenants = tenants;
         this.maxBytes = maxBytes;
     }
 
@@ -146,7 +150,8 @@ public class CvService {
             cv.setRetainUntil(java.time.Instant.now().plus(730, java.time.temporal.ChronoUnit.DAYS));
             cvs.save(cv);
             try {
-                var stored = storage.store(TenantContext.getCurrentTenant(), String.valueOf(cv.getId()), filename, bytes);
+                var stored = storage.store(tenants.requireActive(TenantContext.getCurrentTenant()).getSubdomain(),
+                        String.valueOf(cv.getId()), filename, bytes);
                 cv.setStorageKey(stored.storageKey());
                 cv.setFileUrl(stored.url());
                 cvs.save(cv);
@@ -159,6 +164,7 @@ public class CvService {
         } catch (BusinessException ex) {
             throw ex;
         } catch (Exception ex) {
+            log.error("Failed to store CV", ex);
             throw new BusinessException("Failed to store CV", HttpStatus.INTERNAL_SERVER_ERROR, "CV_STORE_FAILED");
         }
     }
@@ -179,6 +185,7 @@ public class CvService {
                     : cv.getMimeType();
             return new StoredCvFile(storage.read(cv.getStorageKey()), name, mime);
         } catch (Exception ex) {
+            log.error("Cannot read CV file {}", id, ex);
             throw new BusinessException("Cannot read CV file", HttpStatus.NOT_FOUND, "CV_FILE_MISSING");
         }
     }

@@ -14,11 +14,12 @@ const EDUCATION_LEVELS = ["Trung học phổ thông", "Cao đẳng", "Đại h�
 
 export function JobFormPage() {
   const { id } = useParams();
-  const editing = Boolean(id);
+  const jobId = id && /^\d+$/.test(id) ? id : undefined;
+  const editing = Boolean(jobId);
   const navigate = useNavigate();
   const existing = useQuery({
-    queryKey: queryKeys.jobs.detail(id ?? 0),
-    queryFn: () => jobApi.get(id!),
+    queryKey: queryKeys.jobs.detail(jobId ?? 0),
+    queryFn: () => jobApi.get(jobId!),
     enabled: editing,
   });
   const [form, setForm] = useState<JobUpsertRequest>({

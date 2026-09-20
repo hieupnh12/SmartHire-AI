@@ -1,10 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { cvApi } from "@/api/tenant/cvApi";
 import { getApiErrorMessage } from "@/lib/axios";
 import { queryKeys } from "@/lib/query-keys";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 import { button, muted, panel } from "@/features/tenant/recruiter/matching/components/rankingUi";
+import { CvFilePreview } from "@/components/shared/CvFilePreview";
 import type { CvDetail } from "@/api/types/cv";
 
 const chip = "rounded-full px-2.5 py-0.5 text-xs font-medium bg-[var(--color-primary-container)] text-[var(--color-on-primary)]";
@@ -166,33 +167,4 @@ function ExtractionFacts({ extraction }: { extraction: Record<string, unknown> |
 
 function text(value: unknown) {
   return typeof value === "string" && value.trim() ? value : null;
-}
-
-function CvFilePreview({ cvId, mimeType, filename }: { cvId: number; mimeType: string | null; filename: string }) {
-  const [url, setUrl] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const pdf = (mimeType ?? "").includes("pdf") || filename.toLowerCase().endsWith(".pdf");
-  useEffect(() => {
-    let objectUrl: string | null = null;
-    let cancelled = false;
-    cvApi.file(cvId).then((blob) => {
-      if (cancelled) return;
-      objectUrl = URL.createObjectURL(blob);
-      setUrl(objectUrl);
-    }).catch((err: unknown) => {
-      if (!cancelled) setError(getApiErrorMessage(err, "Không mở được file CV"));
-    });
-    return () => {
-      cancelled = true;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-  }, [cvId]);
-  if (error) return <p role="alert">{error}</p>;
-  if (!url) return <p className={muted}>Đang tải file CV…</p>;
-  return (
-    <div className="space-y-2">
-      <a className={`${button} inline-flex`} href={url} target="_blank" rel="noreferrer">Mở file CV</a>
-      {pdf && <iframe title={filename} src={url} className="h-[28rem] w-full rounded-md border border-[var(--color-border-default)] bg-white" />}
-    </div>
-  );
 }

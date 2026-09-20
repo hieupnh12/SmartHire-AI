@@ -41,7 +41,7 @@ public class RecruiterFeatureFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
         String role = currentRoleCode();
-        if (!UserRole.isRecruiterStaff(role)) {
+        if (!UserRole.isRecruiterStaff(role) || isAppliedCvAccess(request)) {
             filterChain.doFilter(request, response);
             return;
         }
@@ -70,5 +70,17 @@ public class RecruiterFeatureFilter extends OncePerRequestFilter {
             }
         }
         return null;
+    }
+
+    private static boolean isAppliedCvAccess(HttpServletRequest request) {
+        String path = request.getServletPath();
+        if (path == null) {
+            return false;
+        }
+        String method = request.getMethod();
+        if ("GET".equalsIgnoreCase(method) && path.matches("/api/v1/cvs/[0-9]+(/file|/extraction)?")) {
+            return true;
+        }
+        return "POST".equalsIgnoreCase(method) && path.matches("/api/v1/cvs/[0-9]+/(parse|extract|analyze)");
     }
 }

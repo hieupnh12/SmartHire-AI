@@ -19,7 +19,7 @@ Quản lý application theo job: apply từ candidate, lọc/phân trang, hồ s
 2. Recruiter xem `GET /jobs/{id}/applications?q&status&source&archived&page&size` — không gồm hồ sơ đã rút đơn (`WITHDRAWN`).
 3. Chi tiết `GET /applications/{id}`: profile, mọi phiên bản CV, lịch sử.
 4. PATCH notes/tags/assignee/source/referral; reject/archive/restore; candidate withdraw.
-5. Candidate theo dõi `GET /applications/me` (không gồm `WITHDRAWN`). Upload PDF/DOCX (≤10MB) tại `/candidate/cv`; recruiter xem/tải nếu chưa hết hạn lưu.
+5. Candidate theo dõi `GET /applications/me` (không gồm `WITHDRAWN`). Upload PDF/DOCX (≤10MB) tại `/candidate/cv`; recruiter chọn job → chọn ứng viên → xem file CV và `POST /cvs/{id}/parse` để phân tích AI theo JD.
 
 ## Business Rules
 

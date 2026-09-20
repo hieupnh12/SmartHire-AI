@@ -7,12 +7,13 @@ import { button, muted, panel, primary } from "@/features/tenant/recruiter/match
 
 export function JobDetailPage() {
   const { id } = useParams();
+  const jobId = id && /^\d+$/.test(id) ? id : undefined;
   const navigate = useNavigate();
   const client = useQueryClient();
   const detail = useQuery({
-    queryKey: queryKeys.jobs.detail(id ?? 0),
-    queryFn: () => jobApi.get(id!),
-    enabled: Boolean(id),
+    queryKey: queryKeys.jobs.detail(jobId ?? 0),
+    queryFn: () => jobApi.get(jobId!),
+    enabled: Boolean(jobId),
   });
   const refresh = () => void client.invalidateQueries({ queryKey: queryKeys.jobs.detail(id ?? 0) });
   const act = useMutation({
@@ -47,13 +48,13 @@ export function JobDetailPage() {
             </div>
             <div className="flex flex-wrap gap-2">
               <Link className={button} to={`/recruiter/jobs/${job.id}/edit`}>Sửa</Link>
-              {job.status === "DRAFT" || job.status === "PAUSED" ? <button className={primary} onClick={() => act.mutate("publish")}>Publish</button> : null}
+              <Link className={primary} to={`/recruiter/applicants?jobId=${job.id}`}>Ứng viên</Link>
+              {job.status === "DRAFT" || job.status === "PAUSED" ? <button className={button} onClick={() => act.mutate("publish")}>Publish</button> : null}
               {job.status === "PUBLISHED" ? <button className={button} onClick={() => act.mutate("unpublish")}>Unpublish</button> : null}
               {job.status === "PUBLISHED" ? <button className={button} onClick={() => act.mutate("pause")}>Pause</button> : null}
               {job.status === "PUBLISHED" || job.status === "PAUSED" ? <button className={button} onClick={() => act.mutate("close")}>Close</button> : null}
-              {job.status === "CLOSED" || job.status === "PAUSED" ? <button className={primary} onClick={() => act.mutate("reopen")}>Reopen</button> : null}
+              {job.status === "CLOSED" || job.status === "PAUSED" ? <button className={button} onClick={() => act.mutate("reopen")}>Reopen</button> : null}
               <button className={button} onClick={() => act.mutate("clone")}>Clone</button>
-              <Link className={button} to="/recruiter/cvs">Sàng lọc CV</Link>
             </div>
           </header>
           {act.isError && <p role="alert">{getApiErrorMessage(act.error)}</p>}
