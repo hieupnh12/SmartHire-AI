@@ -63,7 +63,9 @@ ehthumbs.db
 __MACOSX/
 
 # === Tooling / local agent ===
-.cursor/
+# Shared project rules are versioned; the rest of .cursor/ stays local
+.cursor/*
+!.cursor/rules/
 .codegraph/
 .scannerwork/
 .sonar/

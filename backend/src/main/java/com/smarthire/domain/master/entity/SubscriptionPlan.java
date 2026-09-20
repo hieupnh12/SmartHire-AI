@@ -6,25 +6,20 @@ import java.time.LocalDateTime;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
-@Entity
-@Table(name = "subscription_plans")
+@Getter
+@Setter
 @Builder
-@Data
 @NoArgsConstructor
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
+@Entity
+@Table(name = "subscription_plans")
 public class SubscriptionPlan {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    Long id;
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY) Long id;
 
-    @Column(nullable = false, unique = true, length = 64)
-    String code;
-
-    @Column(nullable = false, length = 128)
-    String name;
-
+    @Column(nullable = false, unique = true, length = 64) String code;
+    @Column(nullable = false, length = 128) String name;
     String description;
 
     @Builder.Default
@@ -59,8 +54,7 @@ public class SubscriptionPlan {
     @Column(name = "video_retention_days", nullable = false)
     Integer videoRetentionDays = 30;
 
-    @Column(name = "features_json", columnDefinition = "TEXT")
-    String featuresJson;
+    @Column(name = "features_json", columnDefinition = "TEXT") String featuresJson;
 
     @Builder.Default
     @Column(nullable = false, length = 32)

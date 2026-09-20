@@ -1,114 +1,96 @@
 @startuml
-title FE08-F01 — AI Interview Question Generation\nLayered target application-design viewpoint
-top to bottom direction
-skinparam dpi 300
-skinparam backgroundColor #FFFFFF
-skinparam shadowing false
-skinparam packageStyle rectangle
-skinparam classAttributeIconSize 12
-skinparam linetype ortho
-skinparam ArrowColor #334155
-skinparam ArrowThickness 1
-skinparam ClassBorderColor #64748B
-skinparam ClassBorderThickness 1
-skinparam ClassBackgroundColor #F8FAFC
-skinparam InterfaceBackgroundColor #F3E8FF
-skinparam PackageBorderColor #475569
-skinparam PackageBorderThickness 1
-skinparam DefaultFontColor #111827
-skinparam ClassFontColor #111827
-skinparam ClassAttributeFontColor #111827
+!include ../class-style.puml
 
-package "Routing & Boundary" #EFF6FF {
-  class InterviewQuestionRoute <<REST API, conceptual>> {
-    +POST /api/v1/interviews/{id}/questions/generate
-  }
-}
-
-package "Controller Layer" #EFF6FF {
+package "Controller Layer" {
   class InterviewController <<Controller>> {
-    -interviewService: InterviewService
-    +generateQuestions(interviewId: Long): ApiResponse<GenerateAcceptedResponse>
+    - interviewService: InterviewService
+    + generateQuestions(interviewId: Long): ApiResponse<GenerateAcceptedResponse>
   }
 }
 
-package "Service Layer" #F0FDF4 {
-  class InterviewService <<Service>> {
-    -interviewRepository: InterviewRepository
-    -questionPublisher: InterviewQuestionPublisher
-    -tenantContext: TenantContext
-    +requestQuestionGeneration(interviewId: Long, principal: Principal): GenerateAcceptedResponse
-  }
-  class InterviewQuestionGenerator <<Service>> {
-    -interviewRepository: InterviewRepository
-    -questionRepository: InterviewQuestionRepository
-    -aiQuestionPort: AiQuestionPort
-    -tenantContext: TenantContext
-    +generate(job: QuestionGenerationJob): List<InterviewQuestion>
-  }
-  class InterviewQuestionConsumer <<RabbitMQ Consumer>> {
-    -generator: InterviewQuestionGenerator
-    +onGenerate(job: QuestionGenerationJob, tenantId: String): void
-  }
-}
-
-package "DTO Layer" #FFF7ED {
+package "DTO Layer" {
   class GenerateAcceptedResponse <<Response>> {
-    +interviewId: Long
-    +status: InterviewStatus
-    +accepted: boolean
+    + interviewId: Long
+    + status: InterviewStatus
+    + accepted: boolean
   }
-  class QuestionGenerationJob <<Message>> {
-    +interviewId: Long
-    +requestedBy: Long
-    +correlationId: String
+  class QuestionGenerationJob <<Domain Event>> {
+    + interviewId: Long
+    + requestedBy: Long
+    + correlationId: String
   }
 }
 
-package "Repository Layer" #F5F3FF {
+package "Service Layer" {
+  interface InterviewService <<Service>> {
+    + requestQuestionGeneration(interviewId: Long, principal: Principal): GenerateAcceptedResponse
+  }
+  class InterviewServiceImpl <<Service>> {
+    - interviewRepository: InterviewRepository
+    - questionPublisher: InterviewQuestionPublisher
+    - tenantContext: TenantContext
+    + requestQuestionGeneration(interviewId: Long, principal: Principal): GenerateAcceptedResponse
+  }
+  interface InterviewQuestionGenerator <<Service>> {
+    + generate(job: QuestionGenerationJob): List<InterviewQuestion>
+  }
+  class InterviewQuestionGeneratorImpl <<Service>> {
+    - interviewRepository: InterviewRepository
+    - questionRepository: InterviewQuestionRepository
+    - aiQuestionPort: AiQuestionPort
+    - tenantContext: TenantContext
+    + generate(job: QuestionGenerationJob): List<InterviewQuestion>
+  }
+  class InterviewQuestionConsumer <<Service>> {
+    - generator: InterviewQuestionGenerator
+    + onGenerate(job: QuestionGenerationJob, tenantId: String): void
+  }
+}
+
+package "Repository Layer" {
   interface InterviewRepository <<Repository>> {
-    +findById(id: Long): Optional<Interview>
-    +save(interview: Interview): Interview
+    + findById(id: Long): Optional<Interview>
+    + save(interview: Interview): Interview
   }
   interface InterviewQuestionRepository <<Repository>> {
-    +deleteDraftByInterview(interviewId: Long): void
-    +saveAll(questions: List<InterviewQuestion>): List<InterviewQuestion>
-    +countByInterview(interviewId: Long): int
+    + deleteDraftByInterview(interviewId: Long): void
+    + saveAll(questions: List<InterviewQuestion>): List<InterviewQuestion>
+    + countByInterview(interviewId: Long): int
   }
 }
 
-package "Domain Entity Layer" #F0FDF4 {
-  entity Interview <<Entity>> {
-    -id: Long
-    -job: Job
-    -candidate: User
-    -cv: Cv [0..1]
-    -status: InterviewStatus
+package "Domain Entity Layer" {
+  class Interview <<Entity>> {
+    - id: Long
+    - job: Job
+    - candidate: User
+    - cv: Cv [0..1]
+    - status: InterviewStatus
   }
-  entity Job <<Entity>> {
-    -id: Long
-    -title: String
-    -description: String
+  class Job <<Entity>> {
+    - id: Long
+    - title: String
+    - description: String
   }
-  entity Cv <<Entity>> {
-    -id: Long
-    -status: CvStatus
+  class Cv <<Entity>> {
+    - id: Long
+    - status: CvStatus
   }
-  entity InterviewQuestion <<Entity>> {
-    -id: Long
-    -sortOrder: int
-    -questionText: String
-    -questionType: QuestionType
-    -competency: String [0..1]
-    -language: String
+  class InterviewQuestion <<Entity>> {
+    - id: Long
+    - sortOrder: int
+    - questionText: String
+    - questionType: QuestionType
+    - competency: String [0..1]
+    - language: String
   }
-  enum QuestionType <<Enumeration>> {
+  enum QuestionType <<Enum>> {
     GENERAL
     TECHNICAL
     BEHAVIORAL
     JAPANESE
   }
-  enum InterviewStatus <<Enumeration>> {
+  enum InterviewStatus <<Enum>> {
     CREATED
     QUESTIONS_READY
     IN_PROGRESS
@@ -118,64 +100,61 @@ package "Domain Entity Layer" #F0FDF4 {
   }
 }
 
-package "Infrastructure & Persistence" #FEFCE8 {
-  interface AiQuestionPort <<AI Port>> {
-    +generate(jobContext: Job, cv: Cv, types: List<QuestionType>): List<GeneratedQuestion>
+package "Infrastructure & Persistence" {
+  interface AiQuestionPort <<DataSource>> {
+    + generate(jobContext: Job, cv: Cv, types: List<QuestionType>): List<GeneratedQuestion>
   }
-  class InterviewQuestionPublisher <<Publisher>> {
-    +publish(job: QuestionGenerationJob, tenantId: String): void
+  class InterviewQuestionPublisher <<Queue>> {
+    + publish(job: QuestionGenerationJob, tenantId: String): void
   }
-  class "Dedicated Tenant MySQL DB" as TenantDB <<Database>> {
-    +interviews
-    +jobs
-    +cvs
-    +interview_questions
+  class TenantMySQL <<Database>> {
+    .. Dedicated Tenant DB ..
+    + interviews
+    + jobs
+    + cvs
+    + interview_questions
   }
-  class "RabbitMQ\ninterview.questions" as QQueue <<Message Broker>>
-  class TenantContext <<ThreadLocal>> {
-    +{static} getCurrentTenant(): String
-    +{static} setCurrentTenant(tenantId: String): void
-    +{static} clear(): void
+  class QuestionQueue <<Queue>> {
+    .. RabbitMQ interview.questions ..
+  }
+  class TenantContext <<DataSource>> {
+    + {static} getCurrentTenant(): String
+    + {static} setCurrentTenant(tenantId: String): void
+    + {static} clear(): void
   }
 }
 
-InterviewQuestionRoute -down-> InterviewController : defines routes
-InterviewController -down-> InterviewService : delegates
-InterviewController ..> GenerateAcceptedResponse : returns
-InterviewService ..> GenerateAcceptedResponse : creates
-InterviewService ..> QuestionGenerationJob : emits
-InterviewService -down-> InterviewRepository : loads
-InterviewService --> InterviewQuestionPublisher : publishes
-InterviewService --> TenantContext : enforces tenant scope
+InterviewController ..> GenerateAcceptedResponse : returns >
+InterviewController --> InterviewService : delegates >
+InterviewService <|.. InterviewServiceImpl : implements
+InterviewServiceImpl ..> GenerateAcceptedResponse : creates >
+InterviewServiceImpl ..> QuestionGenerationJob : emits >
+InterviewServiceImpl --> InterviewRepository : queries >
+InterviewServiceImpl --> InterviewQuestionPublisher : publishes event >
+InterviewServiceImpl --> TenantContext : caches / evicts >
 
-InterviewQuestionPublisher --> QQueue : sends with X-Tenant-ID
-QQueue --> InterviewQuestionConsumer : delivers
-InterviewQuestionConsumer --> InterviewQuestionGenerator : processes
-InterviewQuestionConsumer --> TenantContext : restores / clears
-InterviewQuestionGenerator --> AiQuestionPort : calls AI
-InterviewQuestionGenerator --> InterviewRepository : loads context
-InterviewQuestionGenerator --> InterviewQuestionRepository : replaces draft set
-InterviewQuestionGenerator ..> QuestionGenerationJob : processes
+InterviewQuestionPublisher --> QuestionQueue : publishes event >
+QuestionQueue ..> InterviewQuestionConsumer : delivers >
+InterviewQuestionConsumer --> InterviewQuestionGenerator : delegates >
+InterviewQuestionConsumer --> TenantContext : caches / evicts >
+InterviewQuestionGenerator <|.. InterviewQuestionGeneratorImpl : implements
+InterviewQuestionGeneratorImpl --> AiQuestionPort : queries >
+InterviewQuestionGeneratorImpl --> InterviewRepository : queries >
+InterviewQuestionGeneratorImpl --> InterviewQuestionRepository : persists through >
+InterviewQuestionGeneratorImpl ..> QuestionGenerationJob : processes >
 
-InterviewRepository -down-> Interview : manages
-InterviewQuestionRepository -down-> InterviewQuestion : manages
-Interview "0..*" --> "1" Job : for position
-Interview "0..*" --> "0..1" Cv : references
-Interview "1" *-- "0..*" InterviewQuestion : contains
-InterviewQuestion ..> QuestionType : typed by
-Interview ..> InterviewStatus : has status
+InterviewRepository --> Interview : manages >
+InterviewQuestionRepository --> InterviewQuestion : manages >
+InterviewRepository --> TenantMySQL : persists to >
+InterviewQuestionRepository --> TenantMySQL : persists to >
 
-Interview --> TenantDB : persists to
-Job --> TenantDB : persists to
-Cv --> TenantDB : persists to
-InterviewQuestion --> TenantDB : persists to
+Interview "0..*" --> "1" Job
+Interview "0..*" --> "0..1" Cv
+Interview "1" *-- "0..*" InterviewQuestion
+InterviewQuestion ..> QuestionType : typed by >
+Interview ..> InterviewStatus : typed by >
 
-GenerateAcceptedResponse -[hidden]right-> QuestionGenerationJob
-Job -[hidden]right-> Cv
-QuestionType -[hidden]right-> InterviewStatus
-QQueue -[hidden]right-> TenantContext
-
-note right of InterviewQuestionGenerator
+note right of InterviewQuestionGeneratorImpl
   Builds GENERAL, TECHNICAL, BEHAVIORAL
   and JAPANESE questions from JD,
   hiring requirements and candidate CV.

@@ -10,41 +10,41 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+import lombok.experimental.FieldDefaults;
 
+@Getter
+@Setter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+@FieldDefaults(level = AccessLevel.PRIVATE)
 @Entity
 @Table(name = "questions")
 public class Question {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "assessment_id", nullable = false)
-    private Assessment assessment;
+    Assessment assessment;
 
     @Column(name = "question_type", nullable = false, length = 32)
-    private String questionType;
+    String questionType;
 
     @Column(nullable = false, columnDefinition = "TEXT")
-    private String prompt;
+    String prompt;
 
     @Column(nullable = false, precision = 5, scale = 2)
-    private BigDecimal points = BigDecimal.ONE;
+    BigDecimal points = BigDecimal.ONE;
 
     @Column(name = "sort_order", nullable = false)
-    private int sortOrder;
-
-    public Long getId() { return id; }
-    public Assessment getAssessment() { return assessment; }
-    public void setAssessment(Assessment assessment) { this.assessment = assessment; }
-    public String getQuestionType() { return questionType; }
-    public void setQuestionType(String questionType) { this.questionType = questionType; }
-    public String getPrompt() { return prompt; }
-    public void setPrompt(String prompt) { this.prompt = prompt; }
-    public BigDecimal getPoints() { return points; }
-    public void setPoints(BigDecimal points) { this.points = points; }
-    public int getSortOrder() { return sortOrder; }
-    public void setSortOrder(int sortOrder) { this.sortOrder = sortOrder; }
+    int sortOrder;
 }
-

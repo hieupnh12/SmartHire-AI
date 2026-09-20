@@ -2,7 +2,7 @@
 
 - **Feature:** `11 / ai-interview-practice` (`PRACT-03`)
 - **Function:** `practice-result-review`
-- **Trạng thái:** `Source complete — awaiting rendering decision`
+- **Trạng thái:** `Complete`
 
 ## Phạm vi
 

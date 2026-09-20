@@ -40,8 +40,8 @@
 
 ## Class diagram — quan hệ chính
 
-- Route → Controller → `InterviewService` (upload + enqueue).
-- `ObjectStoragePort` lưu audio; `InterviewSttPublisher` → RabbitMQ → `InterviewSttConsumer` → `InterviewSttService` → `SpeechToTextPort`.
+- Không vẽ *Routing & Boundary*; Controller `delegates >` `InterviewService` / Impl (upload + enqueue).
+- `ObjectStoragePort` lưu audio; `InterviewSttPublisher` → RabbitMQ → `InterviewSttConsumer` → `InterviewSttService` / Impl → `SpeechToTextPort`.
 - `InterviewQuestion` **composition** tối đa một `InterviewAnswer` (UNIQUE `question_id`).
 - Status answer dạng chuỗi nghiệp vụ (`TRANSCRIBING` / `TRANSCRIBED` / `STT_FAILED`) — thiết kế đích trên cột `status` hiện có.
 

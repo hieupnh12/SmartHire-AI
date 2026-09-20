@@ -9,36 +9,38 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+import lombok.experimental.FieldDefaults;
 
+@Getter
+@Setter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+@FieldDefaults(level = AccessLevel.PRIVATE)
 @Entity
 @Table(name = "recruitment_stages")
 public class RecruitmentStage {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "job_id", nullable = false)
-    private Job job;
+    Job job;
 
     @Column(nullable = false, length = 128)
-    private String name;
+    String name;
 
     @Column(name = "sort_order", nullable = false)
-    private int sortOrder;
+    int sortOrder;
 
     @Column(name = "is_terminal", nullable = false)
-    private boolean terminal;
-
-    public Long getId() { return id; }
-    public Job getJob() { return job; }
-    public void setJob(Job job) { this.job = job; }
-    public String getName() { return name; }
-    public void setName(String name) { this.name = name; }
-    public int getSortOrder() { return sortOrder; }
-    public void setSortOrder(int sortOrder) { this.sortOrder = sortOrder; }
-    public boolean isTerminal() { return terminal; }
-    public void setTerminal(boolean terminal) { this.terminal = terminal; }
+    boolean terminal;
 }
-

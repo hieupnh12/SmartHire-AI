@@ -9,31 +9,35 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+import lombok.experimental.FieldDefaults;
 
+@Getter
+@Setter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+@FieldDefaults(level = AccessLevel.PRIVATE)
 @Entity
 @Table(name = "question_options")
 public class QuestionOption {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "question_id", nullable = false)
-    private Question question;
+    Question question;
 
     @Column(name = "option_text", nullable = false, columnDefinition = "TEXT")
-    private String optionText;
+    String optionText;
 
     @Column(name = "is_correct", nullable = false)
-    private boolean correct;
-
-    public Long getId() { return id; }
-    public Question getQuestion() { return question; }
-    public void setQuestion(Question question) { this.question = question; }
-    public String getOptionText() { return optionText; }
-    public void setOptionText(String optionText) { this.optionText = optionText; }
-    public boolean isCorrect() { return correct; }
-    public void setCorrect(boolean correct) { this.correct = correct; }
+    boolean correct;
 }
-

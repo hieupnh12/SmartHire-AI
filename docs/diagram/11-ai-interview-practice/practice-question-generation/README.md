@@ -2,7 +2,7 @@
 
 - **Feature:** `11 / ai-interview-practice` (hỗ trợ `PRACT-01`, pattern `INT-01`)
 - **Function:** `practice-question-generation`
-- **Trạng thái:** `Source complete — awaiting rendering decision`
+- **Trạng thái:** `Complete`
 
 ## Phạm vi
 

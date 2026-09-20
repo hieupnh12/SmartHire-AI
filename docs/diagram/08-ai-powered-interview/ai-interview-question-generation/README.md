@@ -41,9 +41,9 @@ Recruiter/HR yêu cầu AI sinh bộ câu hỏi cho một phiên phỏng vấn �
 
 ## Class diagram — quan hệ chính
 
-- Route **dependency** controller; controller ủy quyền `InterviewService`.
-- Service **emits** job qua publisher → RabbitMQ → `InterviewQuestionConsumer` → `InterviewQuestionGenerator`.
-- Generator **association** `AiQuestionPort` và repositories; Interview **composition** questions; question **typed by** `QuestionType`.
+- Không vẽ *Routing & Boundary*; controller `delegates >` `InterviewService` (interface + `InterviewServiceImpl`).
+- Service **emits** job qua publisher → RabbitMQ → `InterviewQuestionConsumer` → `InterviewQuestionGenerator` (interface + Impl).
+- Generator **association** `AiQuestionPort` và repositories; Interview **composition** questions; question **typed by >** `QuestionType`.
 - `questionType` (+ `language`) là thiết kế đích; schema hiện có `competency` — ghi trong assumptions.
 
 ## Multi-tenant & bảo mật

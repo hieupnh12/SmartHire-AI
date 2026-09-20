@@ -1,0 +1,107 @@
+@startuml
+skinparam dpi 300
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam sequence {
+    ArrowColor #2D3748
+    ActorBorderColor #2D3748
+    LifeLineBorderColor #2D3748
+    ParticipantBorderColor #2D3748
+    ParticipantBackgroundColor #FFFFFF
+    BoxBorderColor #A0AEC0
+}
+hide footbox
+autonumber
+
+actor "Recruiter / HR\n/ Interviewer" as Staff
+boundary "Direct Interview UI" as UI
+control "Security +\nTenantWebInterceptor" as Guard
+control "TenantContext" as Context
+boundary "DirectInterviewController" as Ctrl
+control "DirectInterviewService" as Svc
+database "Dedicated Tenant DB" as TenantDB
+
+note over Staff,TenantDB
+  FE18-F01 Direct Interview Setup — create shell only.
+  mode=DIRECT; status=CREATED. No schedule/participants yet (FE18-F02).
+end note
+
+Staff -> UI: Select candidate, job/application,\ninterview type, optional CV/notes
+activate UI
+UI -> Guard: POST /api/v1/direct-interviews\nX-Tenant-ID + CreateDirectInterviewRequest
+activate Guard
+Guard -> Guard: authenticate + authorize\n(RECRUITER / TENANT_ADMIN / INTERVIEWER)
+
+alt unauthenticated or unauthorized
+  Guard --> UI: 401 / 403
+  deactivate Guard
+  UI --> Staff: Access error
+  deactivate UI
+else authorized
+  Guard -> Context: setCurrentTenant(tenantId)
+  Guard -> Ctrl: forward + principal
+  activate Ctrl
+  Ctrl -> Ctrl: validate DTO
+  alt invalid body
+    Ctrl --> UI: 400 Bad Request
+    deactivate Ctrl
+    UI --> Staff: Validation errors
+    deactivate UI
+  else valid
+    Ctrl -> Svc: createDirectInterview(request, principal)
+    activate Svc
+    Svc -> Context: getCurrentTenant()
+    Svc -> TenantDB: find Application + Job + Candidate
+    activate TenantDB
+
+    alt application / job / candidate invalid
+      TenantDB --> Svc: missing or mismatched
+      deactivate TenantDB
+      Svc --> Ctrl: 404 / 409
+      deactivate Svc
+      Ctrl --> UI: error
+      deactivate Ctrl
+      UI --> Staff: Show domain error
+      deactivate UI
+    else refs valid
+      TenantDB --> Svc: Application, Job, Candidate
+      deactivate TenantDB
+
+      opt cvId provided
+        Svc -> TenantDB: find Cv; must match candidate + job
+        activate TenantDB
+        alt CV mismatch
+          TenantDB --> Svc: invalid
+          deactivate TenantDB
+          Svc --> Ctrl: 404 / 409 CV_MISMATCH
+          deactivate Svc
+          Ctrl --> UI: error
+          deactivate Ctrl
+          UI --> Staff: CV error
+          deactivate UI
+        else CV ok
+          TenantDB --> Svc: Cv
+          deactivate TenantDB
+        end
+      end
+
+      Svc -> Svc: Build Interview\nmode=DIRECT, type=request.interviewType,\nstatus=CREATED, createdBy=principal
+      Svc -> TenantDB: INSERT interviews
+      activate TenantDB
+      TenantDB --> Svc: Interview id
+      deactivate TenantDB
+      Svc --> Ctrl: DirectInterviewResponse
+      deactivate Svc
+      Ctrl --> UI: 201 Created
+      deactivate Ctrl
+      UI --> Staff: Show session CREATED
+      deactivate UI
+    end
+  end
+  Guard -> Context: clear() in finally
+  deactivate Guard
+end
+
+@enduml

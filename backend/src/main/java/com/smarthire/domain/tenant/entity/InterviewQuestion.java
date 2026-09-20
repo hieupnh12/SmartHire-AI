@@ -11,43 +11,44 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+import lombok.experimental.FieldDefaults;
 
+@Getter
+@Setter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+@FieldDefaults(level = AccessLevel.PRIVATE)
 @Entity
 @Table(name = "interview_questions")
 public class InterviewQuestion {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "interview_id", nullable = false)
-    private Interview interview;
+    Interview interview;
 
     @Column(name = "sort_order", nullable = false)
-    private int sortOrder;
+    int sortOrder;
 
     @Column(name = "question_text", nullable = false, columnDefinition = "TEXT")
-    private String questionText;
+    String questionText;
 
     @Column(length = 128)
-    private String competency;
+    String competency;
 
     @Column(name = "created_at", nullable = false, updatable = false)
-    private Instant createdAt;
+    Instant createdAt;
 
     @PrePersist
     void onCreate() { createdAt = Instant.now(); }
-
-    public Long getId() { return id; }
-    public Interview getInterview() { return interview; }
-    public void setInterview(Interview interview) { this.interview = interview; }
-    public int getSortOrder() { return sortOrder; }
-    public void setSortOrder(int sortOrder) { this.sortOrder = sortOrder; }
-    public String getQuestionText() { return questionText; }
-    public void setQuestionText(String questionText) { this.questionText = questionText; }
-    public String getCompetency() { return competency; }
-    public void setCompetency(String competency) { this.competency = competency; }
-    public Instant getCreatedAt() { return createdAt; }
 }
-

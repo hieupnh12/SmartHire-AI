@@ -161,6 +161,7 @@ Khi AI implement xong một phần: đổi status tương ứng và ghi chú com
 - [ ] Validation + exception handling (BE) hoặc Zod + error UI (FE)
 - [ ] Không phá DESIGN tokens / icon set
 - [ ] Cập nhật feature doc + status nếu đổi hành vi
+- [ ] Cập nhật `docs/database/` nếu đổi schema / entity / enum (xem mục 12)
 - [ ] Test hoặc bước verify thủ công đã nêu rõ
 - [ ] Không commit file nhạy cảm
 
@@ -186,3 +187,31 @@ Chỉ khi tạo hoặc chỉnh **System Architecture**, **Package Diagram** ho�
 ## 11. Karpathy Guidelines (hành vi khi code)
 
 Khi viết, review, hoặc refactor code, đọc và áp dụng skill [karpathy-guidelines](.agents/skills/karpathy-guidelines/SKILL.md). Bốn nguyên tắc: Think Before Coding, Simplicity First, Surgical Changes, Goal-Driven Execution. Cursor rule luôn bật: `.cursor/rules/karpathy-guidelines.mdc` (`alwaysApply: true`). Task nhỏ (typo, one-liner) không cần đủ bốn bước.
+
+## 12. Đồng bộ tài liệu Database & ERD (bắt buộc)
+
+Tài liệu database là **một nguồn sự thật** cho schema: [`docs/database/`](docs/database/README.md) — gồm Database Architecture, Database List, Entity List, ERD, Entity Description, Data Dictionary, Relationships, Business Rules & Constraints, Index/Security, Physical Database/Migration.
+
+**Nguyên tắc:** Flyway migration là nguồn sự thật, entity JPA chỉ là ánh xạ. Một `@ManyToOne` hoặc một cột kết thúc bằng `_id` **không** chứng minh khoá ngoại tồn tại trong database — luôn đọc SQL trước khi ghi tài liệu.
+
+**Trigger bắt buộc cập nhật** — khi task chạm vào bất kỳ đường dẫn nào sau đây:
+
+- `backend/src/main/resources/db/migration/**` (master hoặc tenant)
+- `backend/src/main/java/com/smarthire/domain/**` (entity, enum)
+- `backend/src/main/java/com/smarthire/multitenancy/**`
+- `backend/src/main/resources/application.yml` (datasource, Flyway)
+
+**Phải cập nhật trong cùng thay đổi đó:**
+
+| Thay đổi | File tài liệu |
+|---|---|
+| Cột / kiểu / nullable / default | `docs/database/DATA_DICTIONARY_MASTER.md` hoặc `DATA_DICTIONARY_TENANT.md` |
+| Bảng mới hoặc xoá, quan hệ, lực lượng | `docs/database/README.md` §3 Entity List, §4 ERD (Mermaid), §5, §7 Relationships |
+| UNIQUE, enum, máy trạng thái | `docs/database/README.md` §3.3, §8 |
+| Index mới | `docs/database/README.md` §9.1 |
+| Migration mới | `docs/database/README.md` §10.2 (master) hoặc §10.3 (tenant) |
+| Mọi thay đổi | Bảng thống kê ở đầu `docs/database/README.md` |
+
+Checklist đầy đủ và cách kiểm chứng: [`docs/database/MAINTENANCE.md`](docs/database/MAINTENANCE.md). Cursor rule tự đính kèm khi mở các file trên: `.cursor/rules/database-docs-sync.mdc`.
+
+ERD viết bằng **Mermaid** ngay trong markdown để sửa được cùng lúc với code. Ảnh PNG (nếu cần cho báo cáo) là bản phái sinh, sinh lại theo skill ở mục 10, không sửa tay.

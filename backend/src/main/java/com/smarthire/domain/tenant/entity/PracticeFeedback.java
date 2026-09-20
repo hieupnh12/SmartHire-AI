@@ -12,38 +12,41 @@ import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.time.Instant;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+import lombok.experimental.FieldDefaults;
 
+@Getter
+@Setter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+@FieldDefaults(level = AccessLevel.PRIVATE)
 @Entity
 @Table(name = "practice_feedbacks")
 public class PracticeFeedback {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    Long id;
 
     @OneToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "session_id", nullable = false, unique = true)
-    private PracticeSession session;
+    PracticeSession session;
 
     @Column(nullable = false, columnDefinition = "TEXT")
-    private String content;
+    String content;
 
     @Column(precision = 5, scale = 2)
-    private BigDecimal score;
+    BigDecimal score;
 
     @Column(name = "created_at", nullable = false, updatable = false)
-    private Instant createdAt;
+    Instant createdAt;
 
     @PrePersist
     void onCreate() { createdAt = Instant.now(); }
-
-    public Long getId() { return id; }
-    public PracticeSession getSession() { return session; }
-    public void setSession(PracticeSession session) { this.session = session; }
-    public String getContent() { return content; }
-    public void setContent(String content) { this.content = content; }
-    public BigDecimal getScore() { return score; }
-    public void setScore(BigDecimal score) { this.score = score; }
-    public Instant getCreatedAt() { return createdAt; }
 }
-

@@ -1,20 +1,37 @@
 package com.smarthire.domain.tenant.entity;
 
-import jakarta.persistence.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+import lombok.experimental.FieldDefaults;
 
+@Getter
+@Setter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+@FieldDefaults(level = AccessLevel.PRIVATE)
 @Entity
 @Table(name = "ranking_sources")
 public class RankingSource {
-    @Id @Column(name = "application_id") private Long applicationId;
-    @Column(name = "cv_id") private Long cvId;
-    @Column(name = "attempt_id") private Long attemptId;
-    @Column(name = "interview_id") private Long interviewId;
-    public Long getApplicationId() { return applicationId; }
-    public void setApplicationId(Long value) { applicationId = value; }
-    public Long getCvId() { return cvId; }
-    public void setCvId(Long value) { cvId = value; }
-    public Long getAttemptId() { return attemptId; }
-    public void setAttemptId(Long value) { attemptId = value; }
-    public Long getInterviewId() { return interviewId; }
-    public void setInterviewId(Long value) { interviewId = value; }
+
+    @Id
+    @Column(name = "application_id")
+    Long applicationId;
+
+    @Column(name = "cv_id")
+    Long cvId;
+
+    @Column(name = "attempt_id")
+    Long attemptId;
+
+    @Column(name = "interview_id")
+    Long interviewId;
 }

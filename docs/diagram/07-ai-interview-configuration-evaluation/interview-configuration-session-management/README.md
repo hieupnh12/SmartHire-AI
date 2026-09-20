@@ -44,11 +44,11 @@ Recruiter/HR tạo một phiên phỏng vấn AI trước khi bắt đầu: ch�
 
 ## Trách nhiệm và quan hệ trong class diagram
 
-- `InterviewSessionRoute` là boundary khái niệm; **dependency** `defines routes` tới `InterviewController`.
-- Controller **dependency** `consumes`/`returns` DTO và **association** ủy quyền sang `InterviewService`.
-- `InterviewService` (một class concrete, khớp scaffold hiện tại) **dependency** xử lý request/response; **association** tới các repository và `TenantContext`.
-- `InterviewRepository` **association** `manages` entity `Interview`; các repo Job/User/Cv dùng để validate tham chiếu trước khi lưu.
-- `Interview` **association** nhiều-một tới `Job` và `User` (candidate); **association** tùy chọn tới `Cv`; **dependency** `typed by` / `has status` tới `InterviewMode` và `InterviewStatus`.
+- Không vẽ package *Routing & Boundary* / pseudo-class REST; HTTP route nằm ở sequence diagram.
+- `InterviewController` **dependency** `consumes >` / `returns >` DTO và **association** `delegates >` sang `InterviewService`.
+- `InterviewService` **realization** bởi `InterviewServiceImpl`; Impl **dependency** xử lý request/response; **association** tới các repository và `TenantContext`.
+- `InterviewRepository` **association** `manages >` entity `Interview`; các repo Job/User/Cv dùng để validate tham chiếu trước khi lưu.
+- `Interview` **association** nhiều-một tới `Job` và `User` (candidate); **association** tùy chọn tới `Cv`; **dependency** `typed by >` tới `InterviewMode` và `InterviewStatus`.
 - `Cv` gắn với `Job` và `User` để diễn giải quy tắc CV phải khớp candidate + vị trí.
 - Không dùng inheritance/composition cho vòng đời session ở bước create; persistence là Separate Tenant MySQL.
 

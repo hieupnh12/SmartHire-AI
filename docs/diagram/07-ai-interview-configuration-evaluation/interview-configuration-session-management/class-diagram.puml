@@ -1,113 +1,92 @@
 @startuml
-title FE07-F01 — Interview Configuration & Session Management\nLayered target application-design viewpoint
-top to bottom direction
-skinparam dpi 300
-skinparam backgroundColor #FFFFFF
-skinparam shadowing false
-skinparam packageStyle rectangle
-skinparam classAttributeIconSize 12
-skinparam linetype ortho
-skinparam ArrowColor #334155
-skinparam ArrowThickness 1
-skinparam ClassBorderColor #64748B
-skinparam ClassBorderThickness 1
-skinparam ClassBackgroundColor #F8FAFC
-skinparam InterfaceBackgroundColor #F3E8FF
-skinparam PackageBorderColor #475569
-skinparam PackageBorderThickness 1
-skinparam DefaultFontColor #111827
-skinparam ClassFontColor #111827
-skinparam ClassAttributeFontColor #111827
+!include ../class-style.puml
 
-package "Routing & Boundary" #EFF6FF {
-  class InterviewSessionRoute <<REST API, conceptual>> {
-    +POST /api/v1/interviews
-  }
-}
-
-package "Controller Layer" #EFF6FF {
+package "Controller Layer" {
   class InterviewController <<Controller>> {
-    -interviewService: InterviewService
-    +createSession(request: CreateInterviewRequest): ApiResponse<InterviewResponse>
+    - interviewService: InterviewService
+    + createSession(request: CreateInterviewRequest): ApiResponse<InterviewResponse>
   }
 }
 
-package "Service Layer" #F0FDF4 {
-  class InterviewService <<Service>> {
-    -interviewRepository: InterviewRepository
-    -jobRepository: JobRepository
-    -userRepository: UserRepository
-    -cvRepository: CvRepository
-    -tenantContext: TenantContext
-    +createSession(request: CreateInterviewRequest, principal: Principal): InterviewResponse
-  }
-}
-
-package "DTO Layer" #FFF7ED {
+package "DTO Layer" {
   class CreateInterviewRequest <<Request>> {
-    +jobId: Long
-    +candidateId: Long
-    +cvId: Long [0..1]
-    +mode: InterviewMode
+    + jobId: Long
+    + candidateId: Long
+    + cvId: Long [0..1]
+    + mode: InterviewMode
   }
   class InterviewResponse <<Response>> {
-    +id: Long
-    +jobId: Long
-    +candidateId: Long
-    +cvId: Long [0..1]
-    +mode: InterviewMode
-    +status: InterviewStatus
-    +createdAt: Instant
+    + id: Long
+    + jobId: Long
+    + candidateId: Long
+    + cvId: Long [0..1]
+    + mode: InterviewMode
+    + status: InterviewStatus
+    + createdAt: Instant
   }
 }
 
-package "Repository Layer" #F5F3FF {
+package "Service Layer" {
+  interface InterviewService <<Service>> {
+    + createSession(request: CreateInterviewRequest, principal: Principal): InterviewResponse
+  }
+  class InterviewServiceImpl <<Service>> {
+    - interviewRepository: InterviewRepository
+    - jobRepository: JobRepository
+    - userRepository: UserRepository
+    - cvRepository: CvRepository
+    - tenantContext: TenantContext
+    + createSession(request: CreateInterviewRequest, principal: Principal): InterviewResponse
+  }
+}
+
+package "Repository Layer" {
   interface InterviewRepository <<Repository>> {
-    +save(interview: Interview): Interview
+    + save(interview: Interview): Interview
   }
   interface JobRepository <<Repository>> {
-    +findById(id: Long): Optional<Job>
+    + findById(id: Long): Optional<Job>
   }
   interface UserRepository <<Repository>> {
-    +findById(id: Long): Optional<User>
+    + findById(id: Long): Optional<User>
   }
   interface CvRepository <<Repository>> {
-    +findById(id: Long): Optional<Cv>
+    + findById(id: Long): Optional<Cv>
   }
 }
 
-package "Domain Entity Layer" #F0FDF4 {
-  entity Interview <<Entity>> {
-    -id: Long
-    -job: Job
-    -candidate: User
-    -cv: Cv [0..1]
-    -mode: InterviewMode
-    -status: InterviewStatus
-    -createdAt: Instant
+package "Domain Entity Layer" {
+  class Interview <<Entity>> {
+    - id: Long
+    - job: Job
+    - candidate: User
+    - cv: Cv [0..1]
+    - mode: InterviewMode
+    - status: InterviewStatus
+    - createdAt: Instant
   }
-  entity Job <<Entity>> {
-    -id: Long
-    -title: String
-    -status: JobStatus
+  class Job <<Entity>> {
+    - id: Long
+    - title: String
+    - status: JobStatus
   }
-  entity User <<Entity>> {
-    -id: Long
-    -fullName: String
-    -role: UserRole
-    -status: UserStatus
+  class User <<Entity>> {
+    - id: Long
+    - fullName: String
+    - role: UserRole
+    - status: UserStatus
   }
-  entity Cv <<Entity>> {
-    -id: Long
-    -job: Job
-    -user: User
-    -status: CvStatus
+  class Cv <<Entity>> {
+    - id: Long
+    - job: Job
+    - user: User
+    - status: CvStatus
   }
-  enum InterviewMode <<Enumeration>> {
+  enum InterviewMode <<Enum>> {
     AI_VOICE
     AI_TEXT
   }
-  enum InterviewStatus <<Enumeration>> {
+  enum InterviewStatus <<Enum>> {
     CREATED
     QUESTIONS_READY
     IN_PROGRESS
@@ -117,68 +96,47 @@ package "Domain Entity Layer" #F0FDF4 {
   }
 }
 
-package "Infrastructure & Persistence" #FEFCE8 {
-  class "Dedicated Tenant MySQL DB" as TenantDB <<Database>> {
-    +interviews
-    +jobs
-    +users
-    +cvs
+package "Infrastructure & Persistence" {
+  class TenantMySQL <<Database>> {
+    .. Dedicated Tenant DB ..
+    + interviews
+    + jobs
+    + users
+    + cvs
   }
-  class TenantContext <<ThreadLocal>> {
-    +{static} getCurrentTenant(): String
-    +{static} setCurrentTenant(tenantId: String): void
-    +{static} clear(): void
+  class TenantContext <<DataSource>> {
+    + {static} getCurrentTenant(): String
+    + {static} setCurrentTenant(tenantId: String): void
+    + {static} clear(): void
   }
 }
 
-InterviewSessionRoute -down-> InterviewController : defines routes
-InterviewController -down-> InterviewService : delegates
-InterviewController ..> CreateInterviewRequest : consumes
-InterviewController ..> InterviewResponse : returns
-InterviewService ..> CreateInterviewRequest : processes
-InterviewService ..> InterviewResponse : creates
-InterviewService -down-> InterviewRepository : persists
-InterviewService --> JobRepository : validates job
-InterviewService --> UserRepository : validates candidate
-InterviewService --> CvRepository : validates CV
-InterviewService --> TenantContext : enforces tenant scope
+InterviewController ..> CreateInterviewRequest : consumes >
+InterviewController ..> InterviewResponse : returns >
+InterviewController --> InterviewService : delegates >
+InterviewService <|.. InterviewServiceImpl : implements
+InterviewServiceImpl ..> CreateInterviewRequest : processes >
+InterviewServiceImpl ..> InterviewResponse : creates >
+InterviewServiceImpl --> InterviewRepository : persists through >
+InterviewServiceImpl --> JobRepository : queries >
+InterviewServiceImpl --> UserRepository : queries >
+InterviewServiceImpl --> CvRepository : queries >
+InterviewServiceImpl --> TenantContext : caches / evicts >
 
-InterviewRepository -down-> Interview : manages
-JobRepository -down-> Job : manages
-UserRepository -down-> User : manages
-CvRepository -down-> Cv : manages
+InterviewRepository --> Interview : manages >
+JobRepository --> Job : manages >
+UserRepository --> User : manages >
+CvRepository --> Cv : manages >
+InterviewRepository --> TenantMySQL : persists to >
 
-Interview "0..*" --> "1" Job : for position
-Interview "0..*" --> "1" User : interviews
-Interview "0..*" --> "0..1" Cv : references
-Interview ..> InterviewMode : typed by
-Interview ..> InterviewStatus : has status
-Cv "0..*" --> "1" Job : belongs to job
-Cv "0..*" --> "1" User : owned by
+Interview "0..*" --> "1" Job
+Interview "0..*" --> "1" User
+Interview "0..*" --> "0..1" Cv
+Interview ..> InterviewMode : typed by >
+Interview ..> InterviewStatus : typed by >
+Cv "0..*" --> "1" Job
+Cv "0..*" --> "1" User
 
-Interview --> TenantDB : persists to
-Job --> TenantDB : persists to
-User --> TenantDB : persists to
-Cv --> TenantDB : persists to
+note right of InterviewServiceImpl
 
-CreateInterviewRequest -[hidden]right-> InterviewResponse
-JobRepository -[hidden]right-> UserRepository
-UserRepository -[hidden]right-> CvRepository
-Job -[hidden]right-> User
-User -[hidden]right-> Cv
-InterviewMode -[hidden]right-> InterviewStatus
-TenantDB -[hidden]right-> TenantContext
-
-note right of InterviewService
-  Creates an AI interview session in CREATED status only.
-  Does not generate questions, start STT, or score.
-  Candidate must be ACTIVE with role CANDIDATE.
-  Optional CV must belong to the same candidate and job.
-end note
-
-note bottom of InterviewMode
-  Target design: mode is required on create.
-  Current Flyway interviews table does not yet store mode;
-  treat as planned column for this function.
-end note
 @enduml

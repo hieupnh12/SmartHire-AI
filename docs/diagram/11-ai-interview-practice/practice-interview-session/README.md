@@ -3,7 +3,7 @@
 - **Feature:** `11 / ai-interview-practice` (`PRACT-01`)
 - **Function:** `practice-interview-session`
 - **Góc nhìn:** Application design (target)
-- **Trạng thái:** `Source complete — awaiting rendering decision`
+- **Trạng thái:** `Complete`
 
 ## Mục đích và phạm vi
 

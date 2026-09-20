@@ -50,11 +50,11 @@ Sau khi ứng viên đã trả lời, Recruiter/HR yêu cầu chấm điểm. H�
 
 ## Trách nhiệm và quan hệ trong class diagram
 
-- `InterviewScoreRoute` **dependency** `defines routes` tới controller.
-- Controller **association** ủy quyền `InterviewService`; **dependency** trả `ScoreAcceptedResponse`.
-- `InterviewService` **dependency** tạo `InterviewScoreJob`; **association** publish qua `InterviewScorePublisher` và cập nhật `Interview` qua repository.
+- Không vẽ package *Routing & Boundary* / pseudo-class REST; HTTP route nằm ở sequence diagram.
+- Controller **association** `delegates >` `InterviewService`; **dependency** `returns >` `ScoreAcceptedResponse`.
+- `InterviewService` **realization** bởi `InterviewServiceImpl`; **dependency** `emits >` `InterviewScoreJob`; **association** publish qua `InterviewScorePublisher` và cập nhật `Interview` qua repository.
 - `InterviewScoreConsumer` nhận message từ RabbitMQ, restore `TenantContext`, **association** tới `InterviewScoringService`.
-- `InterviewScoringService` **association** tới rubric + repositories analysis/score; tạo `QuestionEvaluation` / `OverallScoreResult`.
+- `InterviewScoringService` **realization** bởi `InterviewScoringServiceImpl`; **association** tới rubric + repositories analysis/score; tạo `QuestionEvaluation` / `OverallScoreResult`.
 - `ScoringRubricPolicy` là policy domain (không phải entity DB): rubric cố định relevance / depth / soft-skills.
 - `Interview` **composition** câu hỏi; câu hỏi **composition** tối đa một answer; answer **composition** tối đa một analysis; interview **composition** tối đa một score (khớp UNIQUE trong schema).
 - Điểm từng câu nằm trong `analysis_json`; tổng hợp trong `breakdown_json` + `overall_score` — không invent bảng điểm riêng.
