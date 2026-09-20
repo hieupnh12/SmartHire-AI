@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-# Build & start production stack on the VPS
-# Usage (from repo root on VPS):
-#   bash deploy/scripts/deploy.sh
+# Pull pre-built images from Docker Hub and start the production stack.
+# Usage: IMAGE_TAG=<git-sha> bash deploy/scripts/deploy.sh
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -16,9 +15,8 @@ if [[ ! -f "${ENV_FILE}" ]]; then
 fi
 
 
-echo "==> Pulling base images / building app"
-docker compose -f docker-compose.prod.yml --env-file "${ENV_FILE}" pull || true
-docker compose -f docker-compose.prod.yml --env-file "${ENV_FILE}" build --pull
+echo "==> Pulling Docker images (tag: ${IMAGE_TAG:-latest})"
+docker compose -f docker-compose.prod.yml --env-file "${ENV_FILE}" pull
 
 echo "==> Starting stack"
 docker compose -f docker-compose.prod.yml --env-file "${ENV_FILE}" up -d --remove-orphans
@@ -26,15 +24,15 @@ docker compose -f docker-compose.prod.yml --env-file "${ENV_FILE}" up -d --remov
 echo "==> Status"
 docker compose -f docker-compose.prod.yml --env-file "${ENV_FILE}" ps
 
-echo "==> Backend health (via frontend proxy on :8080)"
+echo "==> Backend liveness (direct on :8081)"
 for i in {1..30}; do
-  if curl -fsS "http://127.0.0.1:8080/actuator/health" >/dev/null 2>&1; then
-    echo "Health OK"
+  if curl -fsS "http://127.0.0.1:8081/actuator/health/liveness" >/dev/null 2>&1; then
+    echo "Liveness OK"
     exit 0
   fi
   sleep 3
 done
 
-echo "WARNING: health check did not pass yet — inspect logs:"
+echo "WARNING: backend liveness check did not pass yet — inspect logs:"
 echo "  docker compose -f docker-compose.prod.yml --env-file ${ENV_FILE} logs -f backend"
 exit 1

@@ -1,0 +1,110 @@
+@startuml
+skinparam dpi 300
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam roundcorner 6
+skinparam linetype ortho
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam classFontSize 11
+skinparam classAttributeFontSize 10
+skinparam classAttributeIconSize 10
+skinparam ArrowThickness 1
+skinparam ClassBorderThickness 1
+skinparam PackageBorderThickness 1
+
+skinparam class {
+    BackgroundColor #FFFFFF
+    BorderColor #2D3748
+    ArrowColor #2D3748
+}
+
+<style>
+classDiagram {
+  class {
+    Padding 5
+  }
+}
+</style>
+
+package "Service Layer" {
+  interface RecruitmentEventListener <<Service>> {
+    + handleCandidateApplied(event: CandidateAppliedEvent): void
+    + handleInterviewScheduled(event: InterviewScheduledEvent): void
+  }
+  class RecruitmentEventListenerImpl <<Service>> {
+    - notificationRepository: NotificationRepository
+    - emailProducer: EmailNotificationProducer
+    - realtimeService: RealtimeNotificationService
+    + handleCandidateApplied(event: CandidateAppliedEvent): void
+    + handleInterviewScheduled(event: InterviewScheduledEvent): void
+  }
+}
+
+package "DTO Layer" {
+  class CandidateAppliedEvent <<Domain Event>> {
+    + tenantId: String
+    + applicationId: Long
+    + jobId: Long
+    + candidateName: String
+  }
+  class InterviewScheduledEvent <<Domain Event>> {
+    + tenantId: String
+    + interviewId: Long
+    + candidateId: Long
+    + scheduledTime: Instant
+  }
+}
+
+package "Repository Layer" {
+  interface NotificationRepository <<Repository>> {
+    + save(notification: Notification): Notification
+  }
+}
+
+package "Domain Entity Layer" {
+  class Notification <<Entity>> {
+    - id: Long
+    - recipientId: Long
+    - title: String
+    - content: String
+    - type: String
+    - targetUrl: String
+    - isRead: boolean
+  }
+}
+
+package "Infrastructure & Persistence" {
+  interface EmailNotificationProducer <<Messaging Port>> {
+    + publishEmail(message: Object): void
+  }
+  interface RealtimeNotificationService <<Service Port>> {
+    + pushNotificationToUser(recipientId: Long, payload: Object): void
+  }
+  class DedicatedTenantMySQL <<Database>> {
+    + notifications
+  }
+  class TenantContext <<ThreadLocal>> {
+    +{static} getCurrentTenant(): String
+    +{static} clear(): void
+  }
+}
+
+' Relationships
+RecruitmentEventListener <|.. RecruitmentEventListenerImpl : implements
+RecruitmentEventListenerImpl ..> CandidateAppliedEvent : consumes >
+RecruitmentEventListenerImpl ..> InterviewScheduledEvent : consumes >
+RecruitmentEventListenerImpl --> NotificationRepository : persists in-app notification >
+RecruitmentEventListenerImpl --> EmailNotificationProducer : triggers email >
+RecruitmentEventListenerImpl --> RealtimeNotificationService : triggers WebSocket push >
+RecruitmentEventListenerImpl ..> TenantContext : reads tenant context >
+
+NotificationRepository --> Notification : manages >
+NotificationRepository --> DedicatedTenantMySQL : persists to >
+
+note right of RecruitmentEventListenerImpl
+  Listens to domain events across recruitment workflow.
+  Dispatches to both In-App Notification Center, Email Queue, and Realtime WebSocket.
+end note
+
+@enduml

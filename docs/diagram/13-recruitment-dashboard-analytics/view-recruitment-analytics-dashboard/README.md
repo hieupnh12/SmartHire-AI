@@ -3,7 +3,7 @@
 - **Feature:** `FE13 / DASH-01..03`
 - **Function:** `view-recruitment-analytics-dashboard`
 - **Góc nhìn:** Application design theo kiến trúc mục tiêu khi dự án hoàn thành
-- **Trạng thái:** `Complete`
+- **Trạng thái:** `Complete with assumptions`
 
 ## Mục đích và phạm vi
 
@@ -37,7 +37,6 @@ Recruiter hoặc Tenant Admin xem KPI, số ứng viên theo stage, funnel, th�
 
 ## Trách nhiệm và quan hệ trong class diagram
 
-- `DashboardAnalyticsRoute` là boundary khái niệm và có **dependency** `defines routes` tới controller; nó mô tả endpoint chứ không khẳng định tồn tại route class riêng trong Spring.
 - Controller **dependency** vào request/response DTO và **association** tới `DashboardAnalyticsService`: validate boundary rồi ủy quyền.
 - `DashboardAnalyticsServiceImpl` **realization** (`implements`) `DashboardAnalyticsService`, đồng thời có **association** tới repository, cache và `TenantContext`. Timezone normalization và metric definition được giữ như trách nhiệm của implementation/note để Service Layer không bị kéo ngang.
 - `DashboardAnalyticsRepository` và `DashboardCache` là interface/port. Repository tổng hợp các entity tuyển dụng trong dedicated Tenant DB; cache **association** tới Redis.
@@ -77,4 +76,4 @@ Kiểm tra source không tạo ảnh:
 pwsh -File .agents/skills/enterprise-uml-diagram/scripts/render-diagrams.ps1 -InputPath docs/diagram/13-recruitment-dashboard-analytics/view-recruitment-analytics-dashboard -ValidateOnly
 ```
 
-Đã tạo `class-diagram.png` và `sequence-diagram.png` bằng PlantUML 1.2026.8. Cả hai file đã được gắn và kiểm tra metadata 300 DPI, đồng thời kiểm tra trực quan để bảo đảm không clipping.
+Đã render lại `class-diagram.png` bằng PlantUML 1.2026.8, xác minh metadata 300 DPI và kiểm tra trực quan không clipping. `sequence-diagram.png` không thay đổi.

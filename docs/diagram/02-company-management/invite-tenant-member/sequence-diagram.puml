@@ -1,0 +1,147 @@
+@startuml
+skinparam dpi 300
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam sequence {
+    ArrowColor #2D3748
+    ActorBorderColor #2D3748
+    LifeLineBorderColor #2D3748
+    ParticipantBorderColor #2D3748
+    ParticipantBackgroundColor #FFFFFF
+    BoxBorderColor #A0AEC0
+}
+
+hide footbox
+autonumber
+
+actor "Tenant Admin" as Admin
+actor "Invitee" as Invitee
+boundary "Frontend SPA" as UI
+control "Spring Security" as Security
+control "TenantWebInterceptor" as Interceptor
+boundary "TenantUserController" as Controller
+control "MemberInvitationService" as Service
+database "Tenant DB (MySQL)" as TenantDB
+queue "RabbitMQ notify-email" as RabbitMQ
+
+note over Admin, Security
+  Preconditions: tenant ACTIVE; caller is TENANT_ADMIN or ADMIN;
+  invitee email is not yet a user in this Tenant DB.
+end note
+
+== Send Invitation ==
+
+Admin -> UI: Enter name, work email, role and send invite
+activate UI
+UI -> Security: POST /api/v1/tenant/users/invitations
+activate Security
+
+alt Unauthenticated or forbidden role
+  Security --> UI: 401 Unauthorized / 403 Forbidden
+  deactivate Security
+  UI --> Admin: Show access error
+else Authorized administrator
+  Security -> Interceptor: Forward authenticated request
+  activate Interceptor
+  deactivate Security
+  Interceptor -> Interceptor: setCurrentTenant(tenantId)
+  Interceptor -> Controller: Route request
+  activate Controller
+  Controller -> Controller: Validate email, name, role
+
+  alt Invalid payload or role is CANDIDATE
+    Controller --> UI: 400 Bad Request
+    deactivate Controller
+    UI --> Admin: Show validation error
+    Interceptor -> Interceptor: clear TenantContext
+    deactivate Interceptor
+  else Valid workspace role
+    Controller -> Service: invite(request)
+    activate Service
+    Service -> TenantDB: existsByEmailIgnoreCase(email)
+    activate TenantDB
+    TenantDB --> Service: Email existence
+    deactivate TenantDB
+
+    alt Email already registered
+      Service --> Controller: EMAIL_EXISTS
+      deactivate Service
+      Controller --> UI: 409 Conflict
+      deactivate Controller
+      UI --> Admin: Show duplicate member error
+      Interceptor -> Interceptor: clear TenantContext
+      deactivate Interceptor
+    else Email available
+      Service -> Service: Generate token, hash token, set expiry 72h
+      Service -> TenantDB: INSERT MemberInvitation PENDING
+      activate TenantDB
+      TenantDB --> Service: Invitation id
+      deactivate TenantDB
+      Service -> RabbitMQ: publishMemberInvite(tenantId, email, acceptUrl)
+      activate RabbitMQ
+      RabbitMQ --> Service: Accepted
+      deactivate RabbitMQ
+      Service --> Controller: InvitationResponse (no raw token)
+      deactivate Service
+      Controller --> UI: 201 Created
+      deactivate Controller
+      UI --> Admin: Show invite sent
+      Interceptor -> Interceptor: clear TenantContext
+      deactivate Interceptor
+    end
+  end
+end
+
+== Accept Invitation ==
+
+Invitee -> UI: Open accept link from email and set password
+UI -> Security: POST /api/v1/tenant/users/invitations/accept
+activate Security
+Security -> Interceptor: Resolve tenant from link / header
+activate Interceptor
+deactivate Security
+Interceptor -> Interceptor: setCurrentTenant(tenantId)
+Interceptor -> Controller: Route request
+activate Controller
+Controller -> Service: accept(request)
+activate Service
+Service -> Service: Hash submitted token
+Service -> TenantDB: findByTokenHash(tokenHash)
+activate TenantDB
+TenantDB --> Service: Invitation or empty
+deactivate TenantDB
+
+alt Missing, expired, revoked, or already accepted
+  Service --> Controller: INVALID_INVITATION
+  deactivate Service
+  Controller --> UI: 400 Bad Request
+  deactivate Controller
+  UI --> Invitee: Show invalid or expired invite
+else Invitation PENDING and unexpired
+  Service -> TenantDB: INSERT User ACTIVE with role and BCrypt password
+  activate TenantDB
+  TenantDB --> Service: User created
+  deactivate TenantDB
+  Service -> TenantDB: UPDATE invitation ACCEPTED + acceptedUserId
+  activate TenantDB
+  TenantDB --> Service: Invitation closed
+  deactivate TenantDB
+  Service --> Controller: UserResponse
+  deactivate Service
+  Controller --> UI: 200 OK
+  deactivate Controller
+  UI --> Invitee: Redirect to tenant login
+end
+
+Interceptor -> Interceptor: clear TenantContext
+deactivate Interceptor
+deactivate UI
+
+note over RabbitMQ
+  Email worker must restore and clear TenantContext
+  from header X-Tenant-ID. Raw token is not logged.
+end note
+
+@enduml

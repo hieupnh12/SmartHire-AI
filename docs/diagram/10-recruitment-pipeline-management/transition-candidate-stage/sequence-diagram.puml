@@ -1,0 +1,103 @@
+@startuml
+skinparam dpi 300
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam sequence {
+    ArrowColor #2D3748
+    ActorBorderColor #2D3748
+    LifeLineBorderColor #2D3748
+    ParticipantBorderColor #2D3748
+    ParticipantBackgroundColor #FFFFFF
+    BoxBorderColor #A0AEC0
+}
+
+hide footbox
+autonumber
+
+actor "Recruiter" as Recruiter
+boundary "Kanban Board UI" as UI
+control "Spring Security" as Security
+control "TenantWebInterceptor" as Interceptor
+boundary "CandidatePipelineController" as Controller
+control "CandidatePipelineService" as Service
+database "Tenant DB (MySQL)" as TenantDB
+queue "RabbitMQ notify-event" as RabbitMQ
+
+note over Recruiter, Security
+  Preconditions: tenant ACTIVE; Recruiter assigned to Job;
+  Application and Target Stage belong to same Job.
+end note
+
+== Drag and Drop Candidate to New Stage ==
+
+Recruiter -> UI: Drag candidate card to target stage column
+activate UI
+UI -> Security: POST /api/v1/applications/{applicationId}/transition
+activate Security
+Security -> Interceptor: Forward request
+activate Interceptor
+deactivate Security
+Interceptor -> Interceptor: setCurrentTenant(tenantId)
+Interceptor -> Controller: Route request
+activate Controller
+
+Controller -> Service: transitionStage(applicationId, request)
+activate Service
+Service -> TenantDB: findApplicationById(applicationId)
+activate TenantDB
+TenantDB --> Service: Application or empty
+deactivate TenantDB
+
+alt Application missing
+  Service --> Controller: APPLICATION_NOT_FOUND
+  deactivate Service
+  Controller --> UI: 404 Not Found
+  deactivate Controller
+  UI --> Recruiter: Show application not found
+  Interceptor -> Interceptor: clear TenantContext
+  deactivate Interceptor
+else Application exists
+  Service -> TenantDB: findStageById(targetStageId)
+  activate TenantDB
+  TenantDB --> Service: RecruitmentStage or empty
+  deactivate TenantDB
+
+  alt Target stage invalid or belongs to different job
+    Service --> Controller: INVALID_TARGET_STAGE
+    deactivate Service
+    Controller --> UI: 400 Bad Request
+    deactivate Controller
+    UI --> Recruiter: Show invalid stage target error
+    Interceptor -> Interceptor: clear TenantContext
+    deactivate Interceptor
+  else Valid transition
+    Service -> TenantDB: UPDATE applications SET current_stage_id = targetStageId
+    activate TenantDB
+    TenantDB --> Service: Application updated
+    deactivate TenantDB
+
+    Service -> TenantDB: INSERT stage_audit_logs (fromStageId, toStageId, changedBy, note)
+    activate TenantDB
+    TenantDB --> Service: Audit log recorded
+    deactivate TenantDB
+
+    Service -> RabbitMQ: publishStageTransitionEvent(tenantId, applicationId, toStageId)
+    activate RabbitMQ
+    RabbitMQ --> Service: Event queued
+    deactivate RabbitMQ
+
+    Service --> Controller: ApplicationStageResponse
+    deactivate Service
+    Controller --> UI: 200 OK
+    deactivate Controller
+    UI --> Recruiter: Update Kanban card position smoothly
+    Interceptor -> Interceptor: clear TenantContext
+    deactivate Interceptor
+  end
+end
+
+deactivate UI
+
+@enduml

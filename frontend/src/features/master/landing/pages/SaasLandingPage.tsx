@@ -23,8 +23,11 @@ import {
   Award,
   Terminal,
   Activity,
-  Check
+  Check,
+  Loader2,
+  FileText
 } from "lucide-react";
+import { consultationApi } from "@/api/master/consultationApi";
 
 interface DemoRequestForm {
   companyName: string;
@@ -34,6 +37,7 @@ interface DemoRequestForm {
   phoneNumber: string;
   companySize: string;
   primaryNeed: string;
+  notes: string;
 }
 
 export function SaasLandingPage() {
@@ -42,6 +46,9 @@ export function SaasLandingPage() {
   const [showDemoModal, setShowDemoModal] = useState(false);
   const [tenantCodeInput, setTenantCodeInput] = useState("");
   const [selectedTier, setSelectedTier] = useState<string>("Gói Doanh Nghiệp (Enterprise)");
+  const [requestType, setRequestType] = useState<"DEMO" | "CONTRACT_QUOTE">("DEMO");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [demoSubmitted, setDemoSubmitted] = useState(false);
 
   // Interactive Live Preview State
@@ -58,6 +65,7 @@ export function SaasLandingPage() {
     phoneNumber: "",
     companySize: "100-500",
     primaryNeed: "Tự động hóa sàng lọc CV và phỏng vấn sơ loại AI",
+    notes: "",
   });
 
   const handleSubdomainLogin = (e: React.FormEvent) => {
@@ -69,7 +77,7 @@ export function SaasLandingPage() {
     if (currentHost.includes("localhost")) {
       window.location.href = `http://${code}.localhost:${window.location.port || 5173}/login`;
     } else {
-      window.location.href = `http://${code}.smarthire.ai/login`;
+      window.location.href = `https://${code}.smarthire.top/login`;
     }
   };
 
@@ -78,18 +86,40 @@ export function SaasLandingPage() {
     if (currentHost.includes("localhost")) {
       window.location.href = `http://${code}.localhost:${window.location.port || 5173}/login`;
     } else {
-      window.location.href = `http://${code}.smarthire.ai/login`;
+      window.location.href = `https://${code}.smarthire.top/login`;
     }
   };
 
-  const handleDemoSubmit = (e: React.FormEvent) => {
+  const handleDemoSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setDemoSubmitted(true);
+    setSubmitError(null);
+    setIsSubmitting(true);
+    try {
+      await consultationApi.submit({
+        companyName: formData.companyName,
+        contactName: formData.contactName,
+        jobTitle: formData.jobTitle,
+        workEmail: formData.workEmail,
+        phoneNumber: formData.phoneNumber,
+        companySize: formData.companySize,
+        requestType: requestType,
+        planTier: selectedTier,
+        primaryNeed: formData.primaryNeed,
+        notes: formData.notes,
+      });
+      setDemoSubmitted(true);
+    } catch (err: any) {
+      setSubmitError(err?.response?.data?.message || "Không thể gửi yêu cầu lúc này. Vui lòng thử lại hoặc gửi email tới contact@smarthire.ai");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const openDemoModalWithTier = (tierName: string) => {
+  const openDemoModalWithTier = (tierName: string, type: "DEMO" | "CONTRACT_QUOTE" = "DEMO") => {
     setSelectedTier(tierName);
+    setRequestType(type);
     setDemoSubmitted(false);
+    setSubmitError(null);
     setShowDemoModal(true);
   };
 
@@ -144,7 +174,7 @@ export function SaasLandingPage() {
 
       {/* TOP NAVIGATION BAR */}
       <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-[0_2px_8px_-2px_rgba(0,0,0,0.03)] transition-all">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 sm:h-[84px] flex items-center justify-between gap-6">
+        <div className="mx-auto grid min-h-20 w-full max-w-[1536px] grid-cols-[minmax(0,1fr)_auto] items-center gap-2 px-4 py-3 sm:min-h-[84px] sm:gap-6 sm:px-6 lg:px-8 xl:grid-cols-[minmax(max-content,1fr)_auto_minmax(max-content,1fr)]">
           {/* Logo & Brand */}
           <div
             className="flex items-center gap-3.5 cursor-pointer select-none shrink-0 group"
@@ -153,18 +183,18 @@ export function SaasLandingPage() {
             <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-blue-700 via-blue-600 to-indigo-500 text-white flex items-center justify-center shadow-md shadow-blue-600/25 ring-1 ring-white/20 group-hover:scale-105 transition-transform duration-200">
               <BrainCircuit className="w-6 h-6 text-white" />
             </div>
-            <div className="flex items-center gap-2.5">
-              <span className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 font-display">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <span className="hidden text-xl font-semibold tracking-tight text-slate-900 font-display min-[420px]:inline sm:text-2xl">
                 SmartHire<span className="text-blue-600">.AI</span>
               </span>
-              <span className="text-[11px] font-semibold tracking-wider uppercase px-2.5 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200/80">
+              <span className="hidden text-[11px] font-semibold tracking-wider uppercase px-2.5 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200/80 lg:inline-flex">
                 Enterprise
               </span>
             </div>
           </div>
 
           {/* Navigation Links - Clean, spacious, no line-breaks */}
-          <nav className="hidden md:flex items-center gap-1.5 lg:gap-3 text-sm font-medium text-slate-600">
+          <nav className="hidden items-center justify-center gap-1.5 text-sm font-medium text-slate-600 xl:flex" aria-label="Điều hướng chính">
             <a
               href="#solutions"
               className="px-3.5 py-2 rounded-full hover:text-blue-600 hover:bg-slate-100/80 transition-all whitespace-nowrap active:scale-95"
@@ -198,21 +228,23 @@ export function SaasLandingPage() {
           </nav>
 
           {/* Action CTAs */}
-          <div className="flex items-center gap-3 shrink-0">
+          <div className="flex shrink-0 items-center justify-self-end gap-2 sm:gap-3">
             <button
               onClick={() => setShowWorkspaceModal(true)}
-              className="px-4 py-2.5 text-sm font-medium rounded-lg text-slate-700 hover:text-slate-900 hover:bg-slate-100/80 transition-all flex items-center gap-2 border border-slate-200 bg-white shadow-2xs whitespace-nowrap active:scale-95"
+              className="flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 shadow-2xs transition-all hover:bg-slate-100/80 hover:text-slate-900 active:scale-95 sm:px-4"
+              aria-label="Vào Workspace"
             >
               <Building2 className="w-4 h-4 text-slate-500" />
-              <span>Vào Workspace</span>
+              <span className="hidden lg:inline">Vào Workspace</span>
             </button>
 
             <button
               onClick={() => openDemoModalWithTier("Tư Vấn Giải Pháp Doanh Nghiệp")}
-              className="px-5 py-2.5 text-sm font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white shadow-sm hover:shadow-md transition-all flex items-center gap-2 whitespace-nowrap group active:scale-95"
+              className="group flex min-h-11 items-center gap-2 whitespace-nowrap rounded-lg bg-blue-600 px-3 text-sm font-semibold text-white shadow-sm transition-all hover:bg-blue-700 hover:shadow-md active:scale-95 active:bg-blue-800 sm:px-5"
             >
-              <span>Yêu cầu Demo</span>
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              <span className="sm:hidden">Demo</span>
+              <span className="hidden sm:inline">Yêu cầu Demo</span>
+              <ArrowRight className="hidden w-4 h-4 group-hover:translate-x-1 transition-transform min-[360px]:block" />
             </button>
           </div>
         </div>
@@ -227,7 +259,7 @@ export function SaasLandingPage() {
               <span>Nền Tảng Quản Trị Tuyển Dụng Thông Minh Thế Hệ Mới</span>
             </div>
 
-            <h1 className="text-4xl sm:text-5xl md:text-6xl font-extrabold tracking-tight text-slate-900 leading-[1.15] mb-6">
+            <h1 className="text-4xl sm:text-5xl md:text-6xl font-semibold tracking-tight text-slate-900 leading-[1.15] mb-6">
               Nâng Tầm Hiệu Suất Tuyển Dụng Với{" "}
               <span className="text-blue-600 bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-600 bg-clip-text text-transparent">
                 Trí Tuệ Nhân Tạo
@@ -259,22 +291,22 @@ export function SaasLandingPage() {
             <div className="relative max-w-5xl mx-auto mt-4 mb-16">
               {/* Floating Chip Left */}
               <div className="hidden lg:flex items-center gap-3 absolute -top-6 -left-6 z-20 bg-white/95 backdrop-blur-md px-4 py-2.5 rounded-2xl border border-slate-200/80 shadow-xl shadow-slate-900/5 animate-float">
-                <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
+                <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center font-semibold">
                   <CheckCircle2 className="w-5 h-5" />
                 </div>
                 <div className="text-left text-xs">
-                  <div className="font-bold text-slate-900">Đã sàng lọc 1,840 CVs hôm nay</div>
+                  <div className="font-semibold text-slate-900">Đã sàng lọc 1,840 CVs hôm nay</div>
                   <div className="text-slate-500 font-medium">Tốc độ xử lý: 1.2s / hồ sơ</div>
                 </div>
               </div>
 
               {/* Floating Chip Right */}
               <div className="hidden lg:flex items-center gap-3 absolute -bottom-6 -right-6 z-20 bg-white/95 backdrop-blur-md px-4 py-2.5 rounded-2xl border border-slate-200/80 shadow-xl shadow-slate-900/5 animate-float-delayed">
-                <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+                <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-semibold">
                   <Activity className="w-5 h-5" />
                 </div>
                 <div className="text-left text-xs">
-                  <div className="font-bold text-slate-900">96.4% Độ khớp ứng viên</div>
+                  <div className="font-semibold text-slate-900">96.4% Độ khớp ứng viên</div>
                   <div className="text-slate-500 font-medium">Tự động đề xuất phỏng vấn AI</div>
                 </div>
               </div>
@@ -288,7 +320,7 @@ export function SaasLandingPage() {
                     <span className="w-3 h-3 rounded-full bg-amber-400" />
                     <span className="w-3 h-3 rounded-full bg-emerald-400" />
                     <span className="ml-3 text-xs font-mono text-slate-500 font-medium">
-                      smarthire.ai/workspace/pipeline/senior-fullstack
+                      smarthire.top/workspace/pipeline/senior-fullstack
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
@@ -304,18 +336,18 @@ export function SaasLandingPage() {
                     {/* Column 1: Sàng lọc CV */}
                     <div className="bg-white rounded-xl p-3.5 border border-slate-200 shadow-2xs">
                       <div className="flex items-center justify-between pb-2 mb-3 border-b border-slate-100">
-                        <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                        <span className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
                           <FileCheck2 className="w-3.5 h-3.5 text-blue-600" />
                           <span>1. Sàng lọc CV</span>
                         </span>
-                        <span className="text-[11px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+                        <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
                           48
                         </span>
                       </div>
                       <div className="p-3 rounded-lg bg-blue-50/60 border border-blue-200/70 mb-2.5">
                         <div className="flex items-center justify-between mb-1">
-                          <span className="text-xs font-bold text-slate-900">Nguyễn Minh Anh</span>
-                          <span className="text-[11px] font-bold text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded">
+                          <span className="text-xs font-semibold text-slate-900">Nguyễn Minh Anh</span>
+                          <span className="text-[11px] font-semibold text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded">
                             96% Match
                           </span>
                         </div>
@@ -331,8 +363,8 @@ export function SaasLandingPage() {
                       </div>
                       <div className="p-3 rounded-lg bg-white border border-slate-200 opacity-70">
                         <div className="flex items-center justify-between mb-1">
-                          <span className="text-xs font-bold text-slate-800">Trần Quốc Bảo</span>
-                          <span className="text-[11px] font-bold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">
+                          <span className="text-xs font-semibold text-slate-800">Trần Quốc Bảo</span>
+                          <span className="text-[11px] font-semibold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">
                             88% Match
                           </span>
                         </div>
@@ -343,18 +375,18 @@ export function SaasLandingPage() {
                     {/* Column 2: Đánh giá Kỹ thuật */}
                     <div className="bg-white rounded-xl p-3.5 border border-slate-200 shadow-2xs">
                       <div className="flex items-center justify-between pb-2 mb-3 border-b border-slate-100">
-                        <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                        <span className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
                           <Code2 className="w-3.5 h-3.5 text-indigo-600" />
                           <span>2. Đánh giá Code</span>
                         </span>
-                        <span className="text-[11px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+                        <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
                           14
                         </span>
                       </div>
                       <div className="p-3 rounded-lg bg-indigo-50/60 border border-indigo-200/70 mb-2.5">
                         <div className="flex items-center justify-between mb-1">
-                          <span className="text-xs font-bold text-slate-900">Lê Hoàng Nam</span>
-                          <span className="text-[11px] font-bold text-indigo-700 bg-indigo-100 px-1.5 py-0.5 rounded">
+                          <span className="text-xs font-semibold text-slate-900">Lê Hoàng Nam</span>
+                          <span className="text-[11px] font-semibold text-indigo-700 bg-indigo-100 px-1.5 py-0.5 rounded">
                             100/100
                           </span>
                         </div>
@@ -368,18 +400,18 @@ export function SaasLandingPage() {
                     {/* Column 3: Phỏng vấn AI */}
                     <div className="bg-white rounded-xl p-3.5 border border-slate-200 shadow-2xs">
                       <div className="flex items-center justify-between pb-2 mb-3 border-b border-slate-100">
-                        <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                        <span className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
                           <Mic className="w-3.5 h-3.5 text-amber-600" />
                           <span>3. Phỏng vấn AI</span>
                         </span>
-                        <span className="text-[11px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+                        <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
                           8
                         </span>
                       </div>
                       <div className="p-3 rounded-lg bg-amber-50/60 border border-amber-200/70 mb-2.5">
                         <div className="flex items-center justify-between mb-1">
-                          <span className="text-xs font-bold text-slate-900">Phạm Thúy Vy</span>
-                          <span className="text-[11px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">
+                          <span className="text-xs font-semibold text-slate-900">Phạm Thúy Vy</span>
+                          <span className="text-[11px] font-semibold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">
                             9.2 / 10
                           </span>
                         </div>
@@ -393,18 +425,18 @@ export function SaasLandingPage() {
                     {/* Column 4: Gửi Thư Mời (Offer) */}
                     <div className="bg-white rounded-xl p-3.5 border border-slate-200 shadow-2xs">
                       <div className="flex items-center justify-between pb-2 mb-3 border-b border-slate-100">
-                        <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                        <span className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
                           <Award className="w-3.5 h-3.5 text-emerald-600" />
                           <span>4. Chốt Offer</span>
                         </span>
-                        <span className="text-[11px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+                        <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
                           5
                         </span>
                       </div>
                       <div className="p-3 rounded-lg bg-emerald-50/70 border border-emerald-200/70">
                         <div className="flex items-center justify-between mb-1">
-                          <span className="text-xs font-bold text-slate-900">Vũ Đình Khoa</span>
-                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
+                          <span className="text-xs font-semibold text-slate-900">Vũ Đình Khoa</span>
+                          <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
                             Accepted
                           </span>
                         </div>
@@ -423,11 +455,11 @@ export function SaasLandingPage() {
                 Giải pháp được nghiên cứu và tin cậy bởi các tổ chức & doanh nghiệp hàng đầu
               </p>
               <div className="flex flex-wrap items-center justify-center gap-8 sm:gap-14 opacity-75 hover:opacity-100 transition-opacity">
-                <span className="text-sm sm:text-base font-bold text-slate-700 tracking-wider">VIETTEL SOLUTIONS</span>
-                <span className="text-sm sm:text-base font-bold text-slate-700 tracking-wider">VNG CORPORATION</span>
-                <span className="text-sm sm:text-base font-bold text-slate-700 tracking-wider">FPT SOFTWARE</span>
-                <span className="text-sm sm:text-base font-bold text-slate-700 tracking-wider">TECHCOMBANK</span>
-                <span className="text-sm sm:text-base font-bold text-slate-700 tracking-wider">VNPT-IT</span>
+                <span className="text-sm sm:text-base font-semibold text-slate-700 tracking-wider">VIETTEL SOLUTIONS</span>
+                <span className="text-sm sm:text-base font-semibold text-slate-700 tracking-wider">VNG CORPORATION</span>
+                <span className="text-sm sm:text-base font-semibold text-slate-700 tracking-wider">FPT SOFTWARE</span>
+                <span className="text-sm sm:text-base font-semibold text-slate-700 tracking-wider">TECHCOMBANK</span>
+                <span className="text-sm sm:text-base font-semibold text-slate-700 tracking-wider">VNPT-IT</span>
               </div>
             </div>
           </div>
@@ -437,10 +469,10 @@ export function SaasLandingPage() {
         <section id="value" className="py-20 bg-white border-y border-slate-200/80">
           <div className="max-w-7xl mx-auto px-6">
             <div className="text-center max-w-3xl mx-auto mb-16">
-              <span className="text-xs font-bold text-blue-600 uppercase tracking-wider px-3 py-1 rounded-full bg-blue-50 border border-blue-200">
+              <span className="text-xs font-semibold text-blue-600 uppercase tracking-wider px-3 py-1 rounded-full bg-blue-50 border border-blue-200">
                 Giá Trị Thực Tiễn
               </span>
-              <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900 mt-4 mb-4">
+              <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight text-slate-900 mt-4 mb-4">
                 Chuyển Đổi Hiệu Quả Tuyển Dụng Bằng Số Liệu Đo Lường Cụ Thể
               </h2>
               <p className="text-slate-600 text-base leading-relaxed">
@@ -453,8 +485,8 @@ export function SaasLandingPage() {
                 <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto mb-4 border border-blue-200 group-hover:scale-110 group-hover:bg-blue-600 group-hover:text-white transition-all duration-300">
                   <Clock className="w-6 h-6" />
                 </div>
-                <div className="text-4xl font-extrabold text-slate-900 mb-2">-70%</div>
-                <h4 className="text-base font-bold text-slate-900 mb-1">Thời Gian Lọc Hồ Sơ</h4>
+                <div className="text-4xl font-bold text-slate-900 mb-2">-70%</div>
+                <h4 className="text-base font-semibold text-slate-900 mb-1">Thời Gian Lọc Hồ Sơ</h4>
                 <p className="text-xs text-slate-600 leading-relaxed">
                   Tự động phân loại và đọc hiểu hàng trăm CV trong vài phút thay vì hàng tuần làm thủ công.
                 </p>
@@ -464,8 +496,8 @@ export function SaasLandingPage() {
                 <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto mb-4 border border-blue-200 group-hover:scale-110 group-hover:bg-blue-600 group-hover:text-white transition-all duration-300">
                   <TrendingUp className="w-6 h-6" />
                 </div>
-                <div className="text-4xl font-extrabold text-slate-900 mb-2">3.5x</div>
-                <h4 className="text-base font-bold text-slate-900 mb-1">Tốc Độ Đóng Vị Trí</h4>
+                <div className="text-4xl font-bold text-slate-900 mb-2">3.5x</div>
+                <h4 className="text-base font-semibold text-slate-900 mb-1">Tốc Độ Đóng Vị Trí</h4>
                 <p className="text-xs text-slate-600 leading-relaxed">
                   Rút ngắn chu kỳ tuyển dụng từ khi đăng tin đến khi gửi thư mời nhận việc (Offer letter).
                 </p>
@@ -475,8 +507,8 @@ export function SaasLandingPage() {
                 <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto mb-4 border border-blue-200 group-hover:scale-110 group-hover:bg-blue-600 group-hover:text-white transition-all duration-300">
                   <UserCheck className="w-6 h-6" />
                 </div>
-                <div className="text-4xl font-extrabold text-slate-900 mb-2">95%</div>
-                <h4 className="text-base font-bold text-slate-900 mb-1">Độ Chính Xác Phù Hợp</h4>
+                <div className="text-4xl font-bold text-slate-900 mb-2">95%</div>
+                <h4 className="text-base font-semibold text-slate-900 mb-1">Độ Chính Xác Phù Hợp</h4>
                 <p className="text-xs text-slate-600 leading-relaxed">
                   Đối khớp năng lực ứng viên chính xác với yêu cầu công việc, giảm thiểu tỷ lệ tuyển sai người.
                 </p>
@@ -486,8 +518,8 @@ export function SaasLandingPage() {
                 <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto mb-4 border border-blue-200 group-hover:scale-110 group-hover:bg-blue-600 group-hover:text-white transition-all duration-300">
                   <ShieldCheck className="w-6 h-6" />
                 </div>
-                <div className="text-4xl font-extrabold text-slate-900 mb-2">100%</div>
-                <h4 className="text-base font-bold text-slate-900 mb-1">Bảo Mật & Riêng Tư</h4>
+                <div className="text-4xl font-bold text-slate-900 mb-2">100%</div>
+                <h4 className="text-base font-semibold text-slate-900 mb-1">Bảo Mật & Riêng Tư</h4>
                 <p className="text-xs text-slate-600 leading-relaxed">
                   Không gian dữ liệu độc lập cho từng công ty, tuyệt đối không chia sẻ dữ liệu nhân sự ra bên ngoài.
                 </p>
@@ -499,10 +531,10 @@ export function SaasLandingPage() {
         {/* SECTION 2: INTERACTIVE DEEP DIVE PREVIEW TABS */}
         <section id="preview" className="py-24 max-w-7xl mx-auto px-6">
           <div className="text-center max-w-3xl mx-auto mb-12">
-            <span className="text-xs font-bold text-blue-600 uppercase tracking-wider px-3 py-1 rounded-full bg-blue-50 border border-blue-200">
+            <span className="text-xs font-semibold text-blue-600 uppercase tracking-wider px-3 py-1 rounded-full bg-blue-50 border border-blue-200">
               Trải Nghiệm Tính Năng
             </span>
-            <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900 mt-4 mb-4">
+            <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight text-slate-900 mt-4 mb-4">
               Khám Phá Sức Mạnh Tuyển Dụng AI Trực Quan
             </h2>
             <p className="text-slate-600 text-base">
@@ -555,7 +587,7 @@ export function SaasLandingPage() {
                   <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-semibold">
                     <Sparkles className="w-3.5 h-3.5" /> AI Parsing & Match Scoring
                   </div>
-                  <h3 className="text-2xl font-bold text-slate-900">
+                  <h3 className="text-2xl font-semibold text-slate-900">
                     Tự động bóc tách & xếp hạng hồ sơ trong 1 giây
                   </h3>
                   <p className="text-sm text-slate-600 leading-relaxed">
@@ -573,17 +605,17 @@ export function SaasLandingPage() {
                 <div className="md:col-span-6 bg-slate-50 rounded-xl p-5 border border-slate-200 font-sans text-xs">
                   <div className="flex items-center justify-between pb-3 border-b border-slate-200 mb-4">
                     <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-xs">
+                      <div className="w-8 h-8 rounded-full bg-blue-600 text-white font-semibold flex items-center justify-center text-xs">
                         NA
                       </div>
                       <div>
-                        <div className="font-bold text-slate-900">Nguyễn Tuấn Anh</div>
+                        <div className="font-semibold text-slate-900">Nguyễn Tuấn Anh</div>
                         <div className="text-[11px] text-slate-500">Ứng tuyển: Backend Tech Lead</div>
                       </div>
                     </div>
                     <div className="text-right">
-                      <span className="text-base font-extrabold text-blue-600">96 / 100</span>
-                      <div className="text-[10px] text-emerald-600 font-bold">Rất Phù Hợp</div>
+                      <span className="text-base font-bold text-blue-600">96 / 100</span>
+                      <div className="text-[10px] text-emerald-600 font-semibold">Rất Phù Hợp</div>
                     </div>
                   </div>
                   <div className="space-y-3">
@@ -617,7 +649,7 @@ export function SaasLandingPage() {
                   <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 text-indigo-700 text-xs font-semibold">
                     <Terminal className="w-3.5 h-3.5" /> Coding Sandbox & Anti-Cheat
                   </div>
-                  <h3 className="text-2xl font-bold text-slate-900">
+                  <h3 className="text-2xl font-semibold text-slate-900">
                     Đánh giá năng lực thực chiến & Chống gian lận
                   </h3>
                   <p className="text-sm text-slate-600 leading-relaxed">
@@ -635,7 +667,7 @@ export function SaasLandingPage() {
                 <div className="md:col-span-6 bg-slate-900 rounded-xl p-5 text-white font-mono text-xs shadow-inner">
                   <div className="flex items-center justify-between pb-3 border-b border-slate-700 mb-3">
                     <span className="text-slate-400">Solution.java (Coding Challenge)</span>
-                    <span className="text-emerald-400 font-bold">4 / 4 Test Cases Passed</span>
+                    <span className="text-emerald-400 font-semibold">4 / 4 Test Cases Passed</span>
                   </div>
                   <div className="text-slate-300 space-y-1 text-[11px] mb-4">
                     <p><span className="text-blue-400">public</span> <span className="text-blue-400">int</span> maxSubArray(<span className="text-blue-400">int</span>[] nums) &#123;</p>
@@ -662,7 +694,7 @@ export function SaasLandingPage() {
                   <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-50 text-amber-700 text-xs font-semibold">
                     <Mic className="w-3.5 h-3.5" /> Realtime Voice STT & NLP Analysis
                   </div>
-                  <h3 className="text-2xl font-bold text-slate-900">
+                  <h3 className="text-2xl font-semibold text-slate-900">
                     Phỏng vấn đàm thoại 24/7 cùng Trợ lý AI
                   </h3>
                   <p className="text-sm text-slate-600 leading-relaxed">
@@ -681,7 +713,7 @@ export function SaasLandingPage() {
                   <div className="flex items-center justify-between pb-3 border-b border-slate-200 mb-3">
                     <div className="flex items-center gap-2">
                       <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
-                      <span className="font-bold text-slate-900">AI Voice Session: Đang phỏng vấn</span>
+                      <span className="font-semibold text-slate-900">AI Voice Session: Đang phỏng vấn</span>
                     </div>
                     <span className="text-slate-500 font-mono text-[11px]">00:04:18</span>
                   </div>
@@ -697,11 +729,11 @@ export function SaasLandingPage() {
                     </div>
                     <div className="flex items-center justify-between text-[11px] text-slate-600 mb-1">
                       <span>Độ rõ ràng & mạch lạc</span>
-                      <span className="font-bold text-blue-700">92%</span>
+                      <span className="font-semibold text-blue-700">92%</span>
                     </div>
                     <div className="flex items-center justify-between text-[11px] text-slate-600">
                       <span>Khả năng giải quyết vấn đề</span>
-                      <span className="font-bold text-blue-700">89%</span>
+                      <span className="font-semibold text-blue-700">89%</span>
                     </div>
                   </div>
                 </div>
@@ -715,10 +747,10 @@ export function SaasLandingPage() {
           <div className="max-w-7xl mx-auto px-6">
             <div className="grid md:grid-cols-2 gap-12 items-center">
               <div>
-                <span className="text-xs font-bold text-blue-600 uppercase tracking-wider px-3 py-1 rounded-full bg-blue-50 border border-blue-200">
+                <span className="text-xs font-semibold text-blue-600 uppercase tracking-wider px-3 py-1 rounded-full bg-blue-50 border border-blue-200">
                   An Toàn & Bảo Mật Doanh Nghiệp
                 </span>
-                <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900 mt-4 mb-6">
+                <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight text-slate-900 mt-4 mb-6">
                   Bảo Vệ Dữ Liệu Nhân Sự & Danh Tiếng Doanh Nghiệp
                 </h2>
                 <p className="text-slate-600 text-base leading-relaxed mb-8">
@@ -729,7 +761,7 @@ export function SaasLandingPage() {
                   <div className="flex items-start gap-3">
                     <CheckCircle2 className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
                     <div>
-                      <h4 className="text-sm font-bold text-slate-900">Cô Lập Dữ Liệu Tuyệt Đối</h4>
+                      <h4 className="text-sm font-semibold text-slate-900">Cô Lập Dữ Liệu Tuyệt Đối</h4>
                       <p className="text-xs text-slate-600">Mỗi công ty sở hữu một không gian lưu trữ dữ liệu độc lập hoàn toàn, triệt tiêu mọi rủi ro thất thoát thông tin sang các bên thứ ba.</p>
                     </div>
                   </div>
@@ -737,7 +769,7 @@ export function SaasLandingPage() {
                   <div className="flex items-start gap-3">
                     <CheckCircle2 className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
                     <div>
-                      <h4 className="text-sm font-bold text-slate-900">Tuân Thủ Nghị Định 13/2023/NĐ-CP</h4>
+                      <h4 className="text-sm font-semibold text-slate-900">Tuân Thủ Nghị Định 13/2023/NĐ-CP</h4>
                       <p className="text-xs text-slate-600">Đảm bảo trọn vẹn quyền riêng tư dữ liệu cá nhân của ứng viên theo đúng quy định pháp luật Việt Nam.</p>
                     </div>
                   </div>
@@ -745,7 +777,7 @@ export function SaasLandingPage() {
                   <div className="flex items-start gap-3">
                     <CheckCircle2 className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
                     <div>
-                      <h4 className="text-sm font-bold text-slate-900">Tích Hợp Đăng Nhập Một Lần (SSO)</h4>
+                      <h4 className="text-sm font-semibold text-slate-900">Tích Hợp Đăng Nhập Một Lần (SSO)</h4>
                       <p className="text-xs text-slate-600">Đồng bộ thuận tiện và bảo mật với tài khoản doanh nghiệp qua Google Workspace, Microsoft 365, Okta.</p>
                     </div>
                   </div>
@@ -754,32 +786,32 @@ export function SaasLandingPage() {
 
               <div className="bg-slate-50 rounded-2xl p-8 border border-slate-200 shadow-inner space-y-6">
                 <div className="flex items-center gap-4 p-4 rounded-xl bg-white border border-slate-200 hover:border-blue-400/50 hover:shadow-md transition-all">
-                  <div className="w-12 h-12 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+                  <div className="w-12 h-12 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-semibold">
                     <Lock className="w-6 h-6" />
                   </div>
                   <div>
                     <span className="text-xs font-semibold text-slate-500">Tiêu chuẩn bảo mật</span>
-                    <h4 className="text-base font-bold text-slate-900">Mã Hóa Toàn Diện Dữ Liệu Lưu Trữ & Truyền Tải</h4>
+                    <h4 className="text-base font-semibold text-slate-900">Mã Hóa Toàn Diện Dữ Liệu Lưu Trữ & Truyền Tải</h4>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-4 p-4 rounded-xl bg-white border border-slate-200 hover:border-blue-400/50 hover:shadow-md transition-all">
-                  <div className="w-12 h-12 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+                  <div className="w-12 h-12 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-semibold">
                     <Award className="w-6 h-6" />
                   </div>
                   <div>
                     <span className="text-xs font-semibold text-slate-500">Cam kết vận hành</span>
-                    <h4 className="text-base font-bold text-slate-900">Độ Sẵn Sàng Dịch Vụ Ổn Định 99.9%</h4>
+                    <h4 className="text-base font-semibold text-slate-900">Độ Sẵn Sàng Dịch Vụ Ổn Định 99.9%</h4>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-4 p-4 rounded-xl bg-white border border-slate-200 hover:border-blue-400/50 hover:shadow-md transition-all">
-                  <div className="w-12 h-12 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+                  <div className="w-12 h-12 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-semibold">
                     <ShieldCheck className="w-6 h-6" />
                   </div>
                   <div>
                     <span className="text-xs font-semibold text-slate-500">Pháp lý vững chắc</span>
-                    <h4 className="text-base font-bold text-slate-900">Ký Kết Thỏa Thuận Bảo Mật Thông Tin (NDA)</h4>
+                    <h4 className="text-base font-semibold text-slate-900">Ký Kết Thỏa Thuận Bảo Mật Thông Tin (NDA)</h4>
                   </div>
                 </div>
               </div>
@@ -790,10 +822,10 @@ export function SaasLandingPage() {
         {/* SECTION 4: SOLUTION TIERS */}
         <section id="packages" className="py-24 max-w-7xl mx-auto px-6">
           <div className="text-center max-w-3xl mx-auto mb-16">
-            <span className="text-xs font-bold text-blue-600 uppercase tracking-wider px-3 py-1 rounded-full bg-blue-50 border border-blue-200">
+            <span className="text-xs font-semibold text-blue-600 uppercase tracking-wider px-3 py-1 rounded-full bg-blue-50 border border-blue-200">
               Gói Giải Pháp Doanh Nghiệp
             </span>
-            <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900 mt-4 mb-4">
+            <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight text-slate-900 mt-4 mb-4">
               Linh Hoạt Theo Quy Mô & Mục Tiêu Tuyển Dụng
             </h2>
             <p className="text-slate-600 text-base">
@@ -806,7 +838,7 @@ export function SaasLandingPage() {
             <div className="rounded-2xl bg-white border border-slate-200 p-8 flex flex-col justify-between shadow-sm hover:shadow-xl hover:-translate-y-1.5 transition-all duration-300">
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-xl font-bold text-slate-900">Gói Chuyên Nghiệp</h3>
+                  <h3 className="text-xl font-semibold text-slate-900">Gói Chuyên Nghiệp</h3>
                   <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-700">
                     Doanh nghiệp tăng trưởng
                   </span>
@@ -815,7 +847,7 @@ export function SaasLandingPage() {
 
                 <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 mb-6">
                   <span className="text-xs text-slate-500 block mb-1">Quy mô phù hợp</span>
-                  <span className="text-sm font-bold text-slate-900">Từ 50 đến 200 nhân sự</span>
+                  <span className="text-sm font-semibold text-slate-900">Từ 50 đến 200 nhân sự</span>
                 </div>
 
                 <ul className="space-y-3 text-sm text-slate-600 mb-8">
@@ -839,7 +871,7 @@ export function SaasLandingPage() {
               </div>
 
               <button
-                onClick={() => openDemoModalWithTier("Gói Chuyên Nghiệp (Professional)")}
+                onClick={() => openDemoModalWithTier("Gói Chuyên Nghiệp (Professional)", "CONTRACT_QUOTE")}
                 className="w-full py-3.5 px-4 rounded-lg bg-blue-50 hover:bg-blue-100 active:scale-98 text-blue-700 font-semibold text-sm transition-all flex items-center justify-center gap-2"
               >
                 <span>Nhận Tư Vấn Gói Này</span>
@@ -849,13 +881,13 @@ export function SaasLandingPage() {
 
             {/* TIER 2: ENTERPRISE (HIGHLIGHTED) */}
             <div className="rounded-2xl bg-white border-2 border-blue-600 p-8 flex flex-col justify-between shadow-xl relative hover:-translate-y-2 transition-all duration-300">
-              <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[11px] font-bold px-3.5 py-1 rounded-full shadow-sm tracking-wide">
+              <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[11px] font-semibold px-3.5 py-1 rounded-full shadow-sm tracking-wide">
                 Lựa Chọn Phổ Biến Nhất
               </div>
 
               <div>
                 <div className="flex items-center justify-between mb-3 mt-1">
-                  <h3 className="text-xl font-bold text-slate-900">Gói Doanh Nghiệp</h3>
+                  <h3 className="text-xl font-semibold text-slate-900">Gói Doanh Nghiệp</h3>
                   <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-blue-50 text-blue-700">
                     Doanh nghiệp quy mô lớn
                   </span>
@@ -864,7 +896,7 @@ export function SaasLandingPage() {
 
                 <div className="p-4 rounded-xl bg-blue-50/60 border border-blue-200 mb-6">
                   <span className="text-xs text-blue-700 block mb-1">Quy mô phù hợp</span>
-                  <span className="text-sm font-bold text-slate-900">Từ 200 đến 1,000+ nhân sự</span>
+                  <span className="text-sm font-semibold text-slate-900">Từ 200 đến 1,000+ nhân sự</span>
                 </div>
 
                 <ul className="space-y-3 text-sm text-slate-600 mb-8">
@@ -892,8 +924,8 @@ export function SaasLandingPage() {
               </div>
 
               <button
-                onClick={() => openDemoModalWithTier("Gói Doanh Nghiệp (Enterprise)")}
-                className="w-full py-3.5 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 active:scale-98 text-white font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2"
+                onClick={() => openDemoModalWithTier("Gói Doanh Nghiệp (Enterprise)", "CONTRACT_QUOTE")}
+                className="w-full py-3.5 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 active:scale-98 text-white font-semibold text-sm shadow-md transition-all flex items-center justify-center gap-2"
               >
                 <span>Đăng Ký Tư Vấn Doanh Nghiệp</span>
                 <ChevronRight className="w-4 h-4" />
@@ -904,7 +936,7 @@ export function SaasLandingPage() {
             <div className="rounded-2xl bg-white border border-slate-200 p-8 flex flex-col justify-between shadow-sm hover:shadow-xl hover:-translate-y-1.5 transition-all duration-300">
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-xl font-bold text-slate-900">Gói Tùy Biến Chuyên Sâu</h3>
+                  <h3 className="text-xl font-semibold text-slate-900">Gói Tùy Biến Chuyên Sâu</h3>
                   <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-700">
                     Tập đoàn & Tổ chức tài chính
                   </span>
@@ -913,7 +945,7 @@ export function SaasLandingPage() {
 
                 <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 mb-6">
                   <span className="text-xs text-slate-500 block mb-1">Mô hình triển khai</span>
-                  <span className="text-sm font-bold text-slate-900">Tùy biến theo hạ tầng riêng của công ty</span>
+                  <span className="text-sm font-semibold text-slate-900">Tùy biến theo hạ tầng riêng của công ty</span>
                 </div>
 
                 <ul className="space-y-3 text-sm text-slate-600 mb-8">
@@ -937,7 +969,7 @@ export function SaasLandingPage() {
               </div>
 
               <button
-                onClick={() => openDemoModalWithTier("Gói Tùy Biến Chuyên Sâu (Custom Solution)")}
+                onClick={() => openDemoModalWithTier("Gói Tùy Biến Chuyên Sâu (Custom Solution)", "CONTRACT_QUOTE")}
                 className="w-full py-3.5 px-4 rounded-lg bg-blue-50 hover:bg-blue-100 active:scale-98 text-blue-700 font-semibold text-sm transition-all flex items-center justify-center gap-2"
               >
                 <span>Liên Hệ Đội Ngũ Chuyên Gia</span>
@@ -951,10 +983,10 @@ export function SaasLandingPage() {
         <section className="py-20 bg-white border-t border-slate-200/80">
           <div className="max-w-4xl mx-auto px-6">
             <div className="text-center mb-14">
-              <span className="text-xs font-bold text-blue-600 uppercase tracking-wider px-3 py-1 rounded-full bg-blue-50 border border-blue-200">
+              <span className="text-xs font-semibold text-blue-600 uppercase tracking-wider px-3 py-1 rounded-full bg-blue-50 border border-blue-200">
                 Hỏi Đáp Thường Gặp
               </span>
-              <h2 className="text-3xl font-bold tracking-tight text-slate-900 mt-4 mb-3">
+              <h2 className="text-3xl font-semibold tracking-tight text-slate-900 mt-4 mb-3">
                 Giải Đáp Thắc Mắc Về Nền Tảng
               </h2>
               <p className="text-slate-600 text-sm">
@@ -1001,7 +1033,7 @@ export function SaasLandingPage() {
               <Sparkles className="w-3.5 h-3.5" />
               <span>Chuyển Đổi Số Tuyển Dụng</span>
             </div>
-            <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight mb-6">
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight mb-6">
               Sẵn Sàng Nâng Tầm Năng Lực Tuyển Dụng Của Doanh Nghiệp?
             </h2>
             <p className="text-base sm:text-lg text-slate-400 max-w-2xl mx-auto mb-10 leading-relaxed">
@@ -1035,7 +1067,7 @@ export function SaasLandingPage() {
                 <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center">
                   <BrainCircuit className="w-5 h-5" />
                 </div>
-                <span className="font-bold text-slate-900 text-base">SmartHire.AI Enterprise</span>
+                <span className="font-semibold text-slate-900 text-base">SmartHire.AI Enterprise</span>
               </div>
               <p className="text-xs text-slate-500 max-w-sm leading-relaxed">
                 Nền tảng quản trị tuyển dụng thông minh hàng đầu dành cho doanh nghiệp, tối ưu hóa thời gian và gia tăng chất lượng tuyển dụng nhân tài.
@@ -1043,7 +1075,7 @@ export function SaasLandingPage() {
             </div>
 
             <div>
-              <h5 className="font-bold text-slate-900 text-sm mb-3">Thông Tin Giải Pháp</h5>
+              <h5 className="font-semibold text-slate-900 text-sm mb-3">Thông Tin Giải Pháp</h5>
               <ul className="space-y-2 text-xs">
                 <li><a href="#value" className="hover:text-blue-600 transition-colors">Hiệu Quả & Chỉ Số Tuyển Dụng</a></li>
                 <li><a href="#preview" className="hover:text-blue-600 transition-colors">Trải Nghiệm Tính Năng Trực Quan</a></li>
@@ -1053,7 +1085,7 @@ export function SaasLandingPage() {
             </div>
 
             <div>
-              <h5 className="font-bold text-slate-900 text-sm mb-3">Dành Cho Khách Hàng</h5>
+              <h5 className="font-semibold text-slate-900 text-sm mb-3">Dành Cho Khách Hàng</h5>
               <ul className="space-y-2 text-xs">
                 <li>
                   <button
@@ -1073,8 +1105,8 @@ export function SaasLandingPage() {
                   </button>
                 </li>
                 <li>
-                  <a href="mailto:contact@smarthire.ai" className="hover:text-blue-600 transition-colors">
-                    contact@smarthire.ai
+                  <a href="mailto:contact@smarthire.top" className="hover:text-blue-600 transition-colors">
+                    contact@smarthire.top
                   </a>
                 </li>
               </ul>
@@ -1106,20 +1138,48 @@ export function SaasLandingPage() {
             {!demoSubmitted ? (
               <>
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
-                    <PhoneCall className="w-5 h-5" />
+                  <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-semibold">
+                    {requestType === "DEMO" ? <PhoneCall className="w-5 h-5" /> : <FileText className="w-5 h-5" />}
                   </div>
                   <div>
-                    <h3 className="text-xl font-bold text-slate-900">Đăng Ký Tư Vấn & Demo Giải Pháp</h3>
+                    <h3 className="text-xl font-semibold text-slate-900">
+                      {requestType === "DEMO" ? "Đăng Ký Trải Nghiệm Demo 1:1" : "Tư Vấn Báo Giá & Hợp Đồng"}
+                    </h3>
                     <span className="text-xs font-medium text-blue-600">{selectedTier}</span>
                   </div>
                 </div>
 
-                <p className="text-xs text-slate-500 mb-6 leading-relaxed">
-                  Vui lòng cung cấp thông tin liên hệ. Chuyên viên giải pháp của SmartHire-AI sẽ kết nối trong vòng 2 giờ làm việc để xếp lịch trao đổi thuận tiện nhất cho bạn.
+                {/* Switch between Demo and Contract quote */}
+                <div className="flex rounded-lg bg-slate-100 p-1 mb-5 text-xs font-semibold">
+                  <button
+                    type="button"
+                    onClick={() => setRequestType("DEMO")}
+                    className={`flex-1 py-1.5 rounded-md transition-all ${requestType === "DEMO" ? "bg-white text-blue-600 shadow-xs" : "text-slate-600 hover:text-slate-900"}`}
+                  >
+                    Đặt Lịch Demo 1:1
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRequestType("CONTRACT_QUOTE")}
+                    className={`flex-1 py-1.5 rounded-md transition-all ${requestType === "CONTRACT_QUOTE" ? "bg-white text-blue-600 shadow-xs" : "text-slate-600 hover:text-slate-900"}`}
+                  >
+                    Báo Giá & Hợp Đồng Enterprise
+                  </button>
+                </div>
+
+                {submitError && (
+                  <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-red-600">
+                    {submitError}
+                  </div>
+                )}
+
+                <p className="text-xs text-slate-500 mb-5 leading-relaxed">
+                  {requestType === "DEMO"
+                    ? "Chuyên viên giải pháp của SmartHire-AI sẽ liên hệ trong 2 giờ làm việc để chuẩn bị nội dung demo phù hợp với doanh nghiệp của bạn."
+                    : "Đội ngũ chuyên trách Enterprise sẽ liên hệ để trao đổi chi tiết bảng giá, thỏa thuận SLA và quy trình ký kết hợp đồng."}
                 </p>
 
-                <form onSubmit={handleDemoSubmit} className="space-y-4">
+                <form onSubmit={handleDemoSubmit} className="space-y-3.5">
                   <div>
                     <label className="block text-xs font-semibold text-slate-900 mb-1">
                       Tên Doanh Nghiệp / Tổ Chức <span className="text-red-500">*</span>
@@ -1127,7 +1187,7 @@ export function SaasLandingPage() {
                     <input
                       type="text"
                       required
-                      placeholder="Ví dụ: Công ty Cổ phần Công nghệ ABC..."
+                      placeholder="Ví dụ: Tập đoàn Công nghệ VNP..."
                       value={formData.companyName}
                       onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
                       className="w-full px-3.5 py-2.5 rounded-lg bg-slate-50 border border-slate-300 text-sm text-slate-900 focus:border-blue-600 focus:bg-white focus:outline-none transition-colors"
@@ -1208,12 +1268,35 @@ export function SaasLandingPage() {
                     </select>
                   </div>
 
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-900 mb-1">
+                      Nhu Cầu hoặc Ghi Chú Cụ Thể (Tùy chọn)
+                    </label>
+                    <textarea
+                      rows={2}
+                      placeholder="Ví dụ: Mong muốn tích hợp đánh giá code tự động và phỏng vấn AI cho khối IT..."
+                      value={formData.notes}
+                      onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                      className="w-full px-3.5 py-2 rounded-lg bg-slate-50 border border-slate-300 text-sm text-slate-900 focus:border-blue-600 focus:bg-white focus:outline-none transition-colors resize-none"
+                    />
+                  </div>
+
                   <button
                     type="submit"
-                    className="w-full mt-2 py-3.5 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 active:scale-98 text-white font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2"
+                    disabled={isSubmitting}
+                    className="w-full mt-2 py-3.5 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 active:scale-98 text-white font-semibold text-sm shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:pointer-events-none"
                   >
-                    <Send className="w-4 h-4" />
-                    <span>Gửi Yêu Cầu Tư Vấn</span>
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Đang gửi thông tin...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-4 h-4" />
+                        <span>{requestType === "DEMO" ? "Gửi Yêu Cầu Đặt Lịch Demo" : "Gửi Yêu Cầu Báo Giá & Ký Hợp Đồng"}</span>
+                      </>
+                    )}
                   </button>
                 </form>
               </>
@@ -1222,7 +1305,7 @@ export function SaasLandingPage() {
                 <div className="w-16 h-16 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-4 border border-emerald-200">
                   <CheckCircle2 className="w-8 h-8" />
                 </div>
-                <h3 className="text-xl font-bold text-slate-900 mb-2">Đã Tiếp Nhận Thông Tin!</h3>
+                <h3 className="text-xl font-semibold text-slate-900 mb-2">Đã Tiếp Nhận Thông Tin!</h3>
                 <p className="text-sm text-slate-600 mb-6 leading-relaxed">
                   Cảm ơn Quý doanh nghiệp <strong>{formData.companyName}</strong>. Chuyên viên giải pháp của SmartHire-AI sẽ liên hệ trực tiếp qua email <strong>{formData.workEmail}</strong> và số điện thoại <strong>{formData.phoneNumber}</strong> trong vòng 2 giờ làm việc.
                 </p>
@@ -1249,11 +1332,11 @@ export function SaasLandingPage() {
               <X className="w-5 h-5" />
             </button>
 
-            <div className="w-12 h-12 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center mb-5 font-bold border border-blue-200">
+            <div className="w-12 h-12 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center mb-5 font-semibold border border-blue-200">
               <Building2 className="w-6 h-6" />
             </div>
 
-            <h3 className="text-xl font-bold text-slate-900 mb-1">
+            <h3 className="text-xl font-semibold text-slate-900 mb-1">
               Đăng Nhập Không Gian Tuyển Dụng
             </h3>
             <p className="text-xs text-slate-500 mb-6 leading-relaxed">
@@ -1275,14 +1358,14 @@ export function SaasLandingPage() {
                     className="w-full px-3.5 py-2.5 bg-slate-50 text-slate-900 font-mono text-sm focus:outline-none"
                   />
                   <span className="bg-slate-100 text-slate-500 px-3.5 py-2.5 text-xs font-mono border-l border-slate-300 flex items-center">
-                    .smarthire.ai
+                    .smarthire.top
                   </span>
                 </div>
               </div>
 
               <button
                 type="submit"
-                className="w-full py-3 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 active:scale-98 text-white font-bold text-sm shadow transition-all flex items-center justify-center gap-2"
+                className="w-full py-3 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 active:scale-98 text-white font-semibold text-sm shadow transition-all flex items-center justify-center gap-2"
               >
                 <span>Đến Trang Đăng Nhập Riêng</span>
                 <ArrowRight className="w-4 h-4" />

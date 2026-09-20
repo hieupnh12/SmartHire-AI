@@ -19,6 +19,7 @@ export type AuthTokens = {
   expiresIn?: number;
   user?: UserProfile;
   tenantId?: string;
+  subdomain: string;
 };
 
 export type UserProfile = {
@@ -30,4 +31,23 @@ export type UserProfile = {
   avatarUrl?: string | null;
   bio?: string | null;
   headline?: string | null;
+};
+
+export type CandidateProfile = {
+  id: number;
+  email: string;
+  fullName: string;
+  role: Role;
+  avatarUrl?: string | null;
+  headline?: string | null;
+  status?: string | null;
+};
+
+export type CandidateLoginResponse = {
+  accessToken: string;
+  refreshToken: string;
+  tokenType: string;
+  tenantId: string;
+  subdomain: string;
+  candidate: CandidateProfile;
 };

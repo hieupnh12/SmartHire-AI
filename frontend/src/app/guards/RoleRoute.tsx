@@ -18,14 +18,17 @@ export function RoleRoute({ roles }: Props) {
   const location = useLocation();
 
   if (requireAuth && !token) {
-    return <Navigate to="/login" replace state={{ from: location }} />;
+    const loginPath = roles.includes("CANDIDATE")
+      ? "/candidate/login"
+      : "/internal/login";
+    return <Navigate to={loginPath} replace state={{ from: location }} />;
   }
 
   if (user && !roles.includes(user.role)) {
     const home =
       user.role === "ADMIN" || user.role === "TENANT_ADMIN"
-        ? "/tenant/admin"
-        : user.role === "RECRUITER"
+        ? "/internal/admin"
+        : user.role === "RECRUITER" || user.role === "HR"
           ? "/recruiter"
           : "/candidate";
     return <Navigate to={home} replace />;

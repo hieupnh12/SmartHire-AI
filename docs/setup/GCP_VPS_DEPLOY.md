@@ -32,7 +32,7 @@ Internet
 | OS | Ubuntu 22.04 LTS hoặc 24.04 LTS |
 | Region | gần user (vd. `asia-southeast1`) |
 | Static IP | Reserve external IP + gắn VM |
-| DNS | A record `DOMAIN` → static IP |
+| DNS | A record `smarthire.top` → static IP |
 
 ### Tạo VM nhanh (gcloud)
 
@@ -67,6 +67,19 @@ gcloud compute firewall-rules create smarthire-allow-ssh \
   --description="SSH"
 ```
 
+PostgreSQL được publish trên cổng `5432` của VPS. Chỉ cho phép IP quản trị tin cậy truy cập cổng này; không mở `5432` cho `0.0.0.0/0`:
+
+```bash
+gcloud compute firewall-rules create smarthire-allow-postgres-admin \
+  --allow=tcp:5432 \
+  --source-ranges=YOUR_PUBLIC_IP/32 \
+  --target-tags=smarthire-web \
+  --description="PostgreSQL access from trusted admin IP"
+
+# Chạy trên VPS nếu UFW đang bật
+sudo ufw allow from YOUR_PUBLIC_IP to any port 5432 proto tcp
+```
+
 **Không** mở 3306 / 6379 / 5672 / 15672 / 8080 ra `0.0.0.0/0`.
 
 ## Bước 1 — Bootstrap VPS
@@ -78,22 +91,20 @@ gcloud compute ssh smarthire-vps --zone=asia-southeast1-a
 # hoặc: ssh USER@EXTERNAL_IP
 ```
 
-Clone repo (hoặc scp), rồi:
+Tải bộ manifest deploy lần đầu (không cần clone source), rồi chạy script bootstrap:
 
 ```bash
-cd /path/to/SmartHire-AI
 sudo bash deploy/scripts/bootstrap-gcp-vps.sh
 # logout / newgrp docker
 ```
 
 Script cài: Docker, Compose plugin, Nginx, Certbot, UFW (22/80/443), fail2ban, thư mục `/opt/smarthire`.
 
-## Bước 2 — Đặt code & secrets
+## Bước 2 — Đặt manifest & secrets
 
 ```bash
 sudo mkdir -p /opt/smarthire
 sudo chown "$USER:$USER" /opt/smarthire
-git clone <YOUR_REPO_URL> /opt/smarthire
 cd /opt/smarthire
 
 cp deploy/.env.production.example deploy/.env.production
@@ -108,7 +119,7 @@ openssl rand -base64 48   # JWT_SECRET, passwords…
 
 Cập nhật:
 
-- `DOMAIN`, `PUBLIC_URL`, `CORS_ORIGINS`
+- `DOMAIN=smarthire.top`, `PUBLIC_URL=https://smarthire.top`, `CORS_ORIGINS=https://smarthire.top`
 - `MASTER_DB_PASSWORD`, `TENANT_PROVISIONING_PASSWORD`, `MYSQL_ROOT_PASSWORD`, `REDIS_PASSWORD`, `RABBITMQ_*`
 - `JWT_SECRET`, Google OAuth nếu dùng
 
@@ -116,31 +127,40 @@ Cập nhật:
 
 ## Bước 3 — Deploy stack
 
+PostgreSQL và MySQL dùng cố định hai Docker volume external `smarthire-postgres-data` và `smarthire-mysql-data`. Các volume này phải tồn tại trước khi deploy; Compose sẽ dừng thay vì tự tạo volume database rỗng. Việc recreate container hoặc chạy lại GitHub Actions vẫn gắn lại các volume này; không dùng `docker compose down -v` hoặc `docker volume prune` trên VPS production.
+
+Image database phải giữ tương thích với data directory hiện hữu: PostgreSQL `17.11` và MySQL `8.4.11`. Không hạ PostgreSQL xuống major version thấp hơn khi dùng lại volume cũ.
+
+Host Nginx chuyển frontend tới `127.0.0.1:8080` và API tới `127.0.0.1:8081`. Hai cổng này chỉ bind loopback trên VPS; backend vẫn lắng nghe cổng `8080` bên trong container.
+
+Frontend chỉ chờ container backend bắt đầu, không chờ backend healthy. Vì vậy giao diện tĩnh vẫn hoạt động khi backend lỗi; các request `/api` có thể trả `502` cho đến khi backend phục hồi.
+
 ```bash
 chmod +x deploy/scripts/*.sh
-bash deploy/scripts/deploy.sh
+IMAGE_TAG=latest bash deploy/scripts/deploy.sh
 ```
 
 Kiểm tra:
 
 ```bash
 docker compose -f docker-compose.prod.yml --env-file deploy/.env.production ps
-curl -s http://127.0.0.1:8080/actuator/health
+curl -s http://127.0.0.1:8081/actuator/health/liveness
+curl -s http://127.0.0.1:8081/actuator/health   # DB, Redis, RabbitMQ, SMTP
 curl -s http://127.0.0.1:8080/   # frontend
 ```
 
 ## Bước 4 — DNS + TLS
 
-1. Trỏ A record `DOMAIN` → static IP VM (đợi propagate).
+1. Trỏ A record `smarthire.top` → static IP VM (đợi propagate).
 2. Chạy:
 
 ```bash
-DOMAIN=your.domain.com TLS_EMAIL=you@email.com bash deploy/scripts/setup-tls.sh
+DOMAIN=smarthire.top TLS_EMAIL=you@email.com bash deploy/scripts/setup-tls.sh
 ```
 
-3. Mở `https://your.domain.com` — API cùng origin qua `/api/v1`.
+3. Mở `https://smarthire.top` — API cùng origin qua `/api/v1`.
 
-Swagger (nếu bật): `https://your.domain.com/swagger-ui/index.html`
+Swagger (nếu bật): `https://smarthire.top/swagger-ui/index.html`
 
 ## Bước 5 — CI/CD (GitHub Actions)
 
@@ -154,15 +174,17 @@ Tạo GitHub Secrets:
 | `GCP_VPS_USER` | user SSH có quyền docker |
 | `GCP_VPS_SSH_KEY` | private key PEM |
 | `GCP_VPS_DEPLOY_PATH` | `/opt/smarthire` (optional) |
+| `DOCKERHUB_USERNAME` | `hieupnh12` |
+| `DOCKERHUB_TOKEN` | Docker Hub access token có quyền Read & Write |
 
 Trên VPS, user deploy cần:
 
-- Clone sẵn repo tại `DEPLOY_PATH`
+- Có thư mục `DEPLOY_PATH`; workflow tự tải manifest deploy qua SCP
 - File `deploy/.env.production` sẵn
 - Thuộc group `docker`
-- Deploy key / read access `git pull`
+- Có quyền ghi vào `DEPLOY_PATH`
 
-Push `main` (đổi backend/frontend/deploy) hoặc **Actions → Deploy GCP VPS → Run workflow**.
+Push nhánh `production` hoặc **Actions → Build images and deploy VPS → Run workflow**. GitHub Actions build hai image, push lên Docker Hub bằng tag commit SHA và `latest`, tải manifest qua SCP, rồi yêu cầu VPS pull đúng tag SHA. VPS không clone/pull source và không build ứng dụng.
 
 ## Backup & bảo trì
 
@@ -194,20 +216,19 @@ docker compose -f docker-compose.prod.yml --env-file deploy/.env.production exec
 
 Hoặc thêm profile debug publish `127.0.0.1:15672:15672` khi cần.
 
-## Update phiên bản thủ công
+## Deploy phiên bản thủ công
 
 ```bash
 cd /opt/smarthire
-git pull --ff-only
-bash deploy/scripts/deploy.sh
+echo "$DOCKERHUB_TOKEN" | docker login -u hieupnh12 --password-stdin
+IMAGE_TAG=<commit-sha-or-latest> bash deploy/scripts/deploy.sh
 ```
 
 ## Rollback nhanh
 
 ```bash
-git log --oneline -5
-git checkout <previous-commit>
-bash deploy/scripts/deploy.sh
+# Dùng SHA của image đã push thành công trước đó lên Docker Hub
+IMAGE_TAG=<previous-commit-sha> bash deploy/scripts/deploy.sh
 ```
 
 Restore MySQL:
@@ -220,9 +241,9 @@ gunzip -c /var/backups/smarthire/mysql_YYYYMMDD_HHMMSS.sql.gz \
 ## Bảo mật checklist
 
 - [ ] Static IP + DNS + HTTPS
-- [ ] GCP firewall chỉ 22/80/443
+- [ ] GCP firewall mở 22/80/443; cổng 5432 chỉ cho IP quản trị tin cậy
 - [ ] UFW bật; fail2ban bật
-- [ ] DB/Redis/RabbitMQ không expose public
+- [ ] MySQL/Redis/RabbitMQ không expose public
 - [ ] Secrets mạnh trong `.env.production`
 - [ ] SSH key only (tắt password auth nếu có thể)
 - [ ] Backup cron + kiểm tra restore
@@ -257,7 +278,7 @@ Stack chạy PostgreSQL 16 cho master, MySQL 8.4 chứa các database tenant, Re
 3. Tạo `TENANT_PROVISIONING_PASSWORD` bằng `openssl rand -hex 24`.
 4. Tạo `TENANT_CREDENTIALS_KEY` bằng `openssl rand -base64 32`. Giữ khóa ổn định và backup riêng; mất khóa sẽ không giải mã được credential tenant trong registry.
 5. Lần đầu, đặt `BOOTSTRAP_ADMIN_ENABLED=true` và cung cấp email/password riêng cho Workspace Admin.
-6. Chạy `docker compose -f docker-compose.prod.yml --env-file deploy/.env.production up -d --build`.
+6. Đăng nhập Docker Hub, sau đó chạy `IMAGE_TAG=latest bash deploy/scripts/deploy.sh`; CI/CD dùng tag commit SHA thay cho `latest`.
 7. Đăng nhập `/admin/login` và tạo tenant. Sau bootstrap, tắt cờ bootstrap và bỏ password bootstrap khỏi env.
 
 `.env` không chứa URL/password của từng tenant. Registry PostgreSQL lưu thông tin kết nối và ciphertext. Spring Boot không tự đọc file `.env`; khi chạy trực tiếp cần export biến qua shell/IDE, còn Compose dùng `--env-file`.

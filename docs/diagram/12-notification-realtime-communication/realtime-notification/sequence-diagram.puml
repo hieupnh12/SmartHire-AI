@@ -1,0 +1,69 @@
+@startuml
+skinparam dpi 300
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam sequence {
+    ArrowColor #2D3748
+    ActorBorderColor #2D3748
+    LifeLineBorderColor #2D3748
+    ParticipantBorderColor #2D3748
+    ParticipantBackgroundColor #FFFFFF
+    BoxBorderColor #A0AEC0
+}
+
+hide footbox
+autonumber
+
+actor "Client Web SPA" as Client
+control "STOMP WebSocket Handler" as WSHandler
+control "Spring Security WSS" as Security
+control "RealtimeNotificationService" as Service
+control "SimpMessagingTemplate" as Messaging
+collections "Redis Cache" as Redis
+
+note over Client, Redis
+  Preconditions: WebSocket connection authenticated via JWT in STOMP CONNECT header;
+  TenantContext resolved from connection parameters.
+end note
+
+== WebSocket Handshake & Channel Subscription ==
+
+Client -> WSHandler: WSS Connect ws://host/ws/notifications (STOMP CONNECT)
+activate WSHandler
+WSHandler -> Security: Validate JWT token & Tenant Header
+activate Security
+Security --> WSHandler: Authenticated User Principal
+deactivate Security
+
+WSHandler -> Redis: SET tenant:{tenantId}:ws_session:{userId} = active
+activate Redis
+Redis --> WSHandler: Session recorded
+deactivate Redis
+
+WSHandler --> Client: STOMP CONNECTED
+Client -> WSHandler: SUBSCRIBE /topic/tenant.{tenantId}.user.{userId}
+WSHandler --> Client: SUBSCRIBE ACK
+deactivate WSHandler
+
+== Realtime Push Event Dispatch ==
+
+Service -> Redis: Check online status tenant:{tenantId}:ws_session:{userId}
+activate Service
+activate Redis
+Redis --> Service: Active session found
+deactivate Redis
+
+Service -> Messaging: convertAndSendToUser(userId, "/topic/tenant.{tenantId}.user.{userId}", payload)
+activate Messaging
+Messaging -> WSHandler: Dispatch STOMP frame
+activate WSHandler
+deactivate Messaging
+
+WSHandler -> Client: Push Realtime STOMP MESSAGE Frame
+deactivate WSHandler
+Client -> Client: Trigger UI Toast & Audio Alert
+deactivate Service
+
+@enduml

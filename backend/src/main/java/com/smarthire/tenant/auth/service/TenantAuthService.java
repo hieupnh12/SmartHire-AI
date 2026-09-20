@@ -4,30 +4,30 @@ import com.smarthire.common.exception.BusinessException;
 import com.smarthire.domain.tenant.entity.User;
 import com.smarthire.domain.tenant.repository.UserRepository;
 import com.smarthire.multitenancy.context.TenantContext;
+import com.smarthire.multitenancy.service.TenantRegistryService;
 import com.smarthire.security.JwtTokenProvider;
 import com.smarthire.tenant.auth.dto.LoginRequest;
 import com.smarthire.tenant.auth.dto.LoginResponse;
 import com.smarthire.tenant.auth.dto.UserResponse;
+import com.smarthire.tenant.auth.mapper.AuthMapper;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+@Slf4j
 @Service
+@RequiredArgsConstructor
 public class TenantAuthService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider tokenProvider;
-
-    public TenantAuthService(UserRepository userRepository,
-                             PasswordEncoder passwordEncoder,
-                             JwtTokenProvider tokenProvider) {
-        this.userRepository = userRepository;
-        this.passwordEncoder = passwordEncoder;
-        this.tokenProvider = tokenProvider;
-    }
+    private final AuthMapper authMapper;
+    private final TenantRegistryService tenantRegistryService;
 
     @Transactional(readOnly = true)
     public LoginResponse login(LoginRequest request) {
@@ -45,8 +45,15 @@ public class TenantAuthService {
         }
 
         String accessToken = tokenProvider.generateToken(user, currentTenant);
+        String subdomain = tenantRegistryService.requireActive(currentTenant).getSubdomain();
 
-        return new LoginResponse(accessToken, "Bearer", UserResponse.fromEntity(user), currentTenant);
+        return LoginResponse.builder()
+                .accessToken(accessToken)
+                .tokenType("Bearer")
+                .user(authMapper.toUserResponse(user))
+                .tenantId(currentTenant)
+                .subdomain(subdomain)
+                .build();
     }
 
     @Transactional(readOnly = true)
@@ -64,6 +71,7 @@ public class TenantAuthService {
         User user = userRepository.findByEmailIgnoreCase(email)
                 .orElseThrow(() -> new BusinessException("User not found in tenant database", HttpStatus.NOT_FOUND, "USER_NOT_FOUND"));
 
-        return UserResponse.fromEntity(user);
+        return authMapper.toUserResponse(user);
     }
 }
+

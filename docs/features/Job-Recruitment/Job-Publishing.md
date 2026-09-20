@@ -1,43 +1,50 @@
 # Job Publishing
 
 **Epic:** Job Recruitment Management  
-**Trạng thái:** `To Do`  
+**Trạng thái:** `Done`  
 **Code ID:** `JOB-02`
 
 ## Mục đích chức năng
 
-Chuyển job giữa DRAFT → PUBLISHED/OPEN → CLOSED/ARCHIVED; kiểm soát visibility.
+Chuyển job giữa DRAFT → PUBLISHED → PAUSED/CLOSED; kiểm soát visibility public.
 
 ## Actor
 
-- Recruiter, Admin
+- Recruiter, Admin, HR
 
 ## Luồng hoạt động
 
-1. `POST /api/v1/jobs/{id}/publish`.
-2. `POST /api/v1/jobs/{id}/close`.
-3. Event `job.events` → Redis/search/notify.
+1. Recruiter lưu nháp, hoặc bấm **Đăng tuyển** trên form (create/update rồi publish).
+2. `POST /api/v1/jobs/{id}/publish` (từ DRAFT hoặc PAUSED).
+3. `unpublish` → DRAFT; `pause` → PAUSED; `close` → CLOSED; `reopen` → PUBLISHED.
+4. Public list chỉ job `PUBLISHED` chưa quá deadline.
 
 ## Business Rules
 
-- Chỉ PUBLISHED nhận applicant mới.
-- Publish cần đủ title, description, skills tối thiểu.
+- Publish cần title, description và ít nhất 1 skill.
+- Chỉ PUBLISHED (và chưa deadline) nhận application / CV candidate.
 
 ## API liên quan
 
 | Method | Path |
 |---|---|
 | POST | `/api/v1/jobs/{id}/publish` |
+| POST | `/api/v1/jobs/{id}/unpublish` |
+| POST | `/api/v1/jobs/{id}/pause` |
 | POST | `/api/v1/jobs/{id}/close` |
+| POST | `/api/v1/jobs/{id}/reopen` |
+| GET | `/api/v1/jobs/published` |
+| GET | `/api/v1/public/jobs` |
+| GET | `/api/v1/public/jobs/{id}` |
 
 ## Database liên quan
 
-- `jobs.status`, `published_at`, `closed_at`
+- `jobs.status`, `published_at`, `paused_at`, `closed_at`
 
 ## UI mockup
 
-- Google Stitch: **Job Recruitment Management / Job Publishing** — _[dán link]_
-- Icons: xem `DESIGN.md`
+- Job detail: Publish / Pause / Close / Reopen
+- Career page `/career` đọc public jobs
 
 ## Phụ thuộc
 

@@ -1,0 +1,164 @@
+@startuml
+skinparam dpi 300
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam roundcorner 6
+skinparam linetype ortho
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam classFontSize 11
+skinparam classAttributeFontSize 10
+skinparam classAttributeIconSize 10
+skinparam ArrowThickness 1
+skinparam ClassBorderThickness 1
+skinparam PackageBorderThickness 1
+
+skinparam class {
+    BackgroundColor #FFFFFF
+    BorderColor #2D3748
+    ArrowColor #2D3748
+}
+
+<style>
+classDiagram {
+  class {
+    Padding 5
+  }
+}
+</style>
+
+package "Controller Layer" {
+  class JobOfferController <<Controller>> {
+    - jobOfferService: JobOfferService
+    + createOffer(request: CreateOfferRequest): ApiResponse<OfferResponse>
+    + updateOfferStatus(id: Long, request: UpdateOfferStatusRequest): ApiResponse<OfferResponse>
+  }
+}
+
+package "DTO Layer" {
+  class CreateOfferRequest <<Request>> {
+    + applicationId: Long
+    + salary: BigDecimal
+    + positionTitle: String
+    + startDate: LocalDate
+    + expirationDate: LocalDate
+    + note: String
+  }
+  class UpdateOfferStatusRequest <<Request>> {
+    + status: String
+    + responseNote: String
+  }
+  class OfferResponse <<Response>> {
+    + id: Long
+    + applicationId: Long
+    + candidateName: String
+    + positionTitle: String
+    + salary: BigDecimal
+    + status: String
+    + startDate: LocalDate
+    + expirationDate: LocalDate
+  }
+}
+
+package "Service Layer" {
+  interface JobOfferService <<Service>> {
+    + createOffer(request: CreateOfferRequest): OfferResponse
+    + updateOfferStatus(id: Long, request: UpdateOfferStatusRequest): OfferResponse
+  }
+  class JobOfferServiceImpl <<Service>> {
+    - offerRepository: JobOfferRepository
+    - applicationRepository: ApplicationRepository
+    - emailProducer: EmailNotificationProducer
+    + createOffer(request: CreateOfferRequest): OfferResponse
+    + updateOfferStatus(id: Long, request: UpdateOfferStatusRequest): OfferResponse
+  }
+}
+
+package "Repository Layer" {
+  interface JobOfferRepository <<Repository>> {
+    + findById(id: Long): Optional<JobOffer>
+    + findByApplicationId(applicationId: Long): Optional<JobOffer>
+    + save(offer: JobOffer): JobOffer
+  }
+  interface ApplicationRepository <<Repository>> {
+    + findById(id: Long): Optional<Application>
+    + save(application: Application): Application
+  }
+}
+
+package "Domain Entity Layer" {
+  enum OfferStatus <<Enum>> {
+    DRAFT
+    SENT
+    ACCEPTED
+    DECLINED
+    EXPIRED
+  }
+  class JobOffer <<Entity>> {
+    - id: Long
+    - applicationId: Long
+    - positionTitle: String
+    - salary: BigDecimal
+    - startDate: LocalDate
+    - expirationDate: LocalDate
+    - status: OfferStatus
+    - responseNote: String
+    - createdAt: Instant
+  }
+  class Application <<Entity>> {
+    - id: Long
+    - candidateId: Long
+    - jobId: Long
+    - currentStageId: Long
+    - status: String
+  }
+}
+
+package "Infrastructure & Persistence" {
+  interface EmailNotificationProducer <<Messaging Port>> {
+    + publishOfferEmail(tenantId: String, offerId: Long, candidateEmail: String): void
+  }
+  class RabbitMQBroker <<Queue>> {
+    + notify.email.q
+  }
+  class DedicatedTenantMySQL <<Database>> {
+    + applications
+    + job_offers
+  }
+  class TenantContext <<ThreadLocal>> {
+    +{static} getCurrentTenant(): String
+    +{static} clear(): void
+  }
+}
+
+' Relationships
+JobOfferController --> JobOfferService : delegates >
+JobOfferController ..> CreateOfferRequest : consumes >
+JobOfferController ..> UpdateOfferStatusRequest : consumes >
+JobOfferController ..> OfferResponse : returns >
+
+JobOfferService <|.. JobOfferServiceImpl : implements
+JobOfferServiceImpl ..> CreateOfferRequest : processes >
+JobOfferServiceImpl ..> UpdateOfferStatusRequest : processes >
+JobOfferServiceImpl ..> OfferResponse : creates >
+JobOfferServiceImpl --> JobOfferRepository : manages offer >
+JobOfferServiceImpl --> ApplicationRepository : updates application >
+JobOfferServiceImpl --> EmailNotificationProducer : sends offer notification >
+JobOfferServiceImpl ..> TenantContext : reads tenant context >
+
+JobOfferRepository --> JobOffer : manages >
+ApplicationRepository --> Application : manages >
+JobOfferRepository --> DedicatedTenantMySQL : persists to >
+ApplicationRepository --> DedicatedTenantMySQL : persists to >
+
+EmailNotificationProducer --> RabbitMQBroker : publishes message >
+
+JobOffer ..> OfferStatus : typed by >
+JobOffer "1" --> "1" Application : linked to >
+
+note right of JobOfferServiceImpl
+  Offer status changes trigger application pipeline updates.
+  Accepting offer updates application status to OFFER_ACCEPTED.
+end note
+
+@enduml

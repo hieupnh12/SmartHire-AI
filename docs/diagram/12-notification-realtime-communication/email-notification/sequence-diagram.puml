@@ -1,0 +1,79 @@
+@startuml
+skinparam dpi 300
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam sequence {
+    ArrowColor #2D3748
+    ActorBorderColor #2D3748
+    LifeLineBorderColor #2D3748
+    ParticipantBorderColor #2D3748
+    ParticipantBackgroundColor #FFFFFF
+    BoxBorderColor #A0AEC0
+}
+
+hide footbox
+autonumber
+
+actor "System / Recruiter" as Caller
+control "Spring Security" as Security
+control "TenantWebInterceptor" as Interceptor
+boundary "EmailNotificationController" as Controller
+control "EmailNotificationService" as Service
+queue "RabbitMQ notify.email.q" as RabbitMQ
+control "EmailConsumerWorker" as Consumer
+entity "SMTP Provider" as SMTP
+database "Tenant DB (MySQL)" as TenantDB
+
+note over Caller, Security
+  Preconditions: tenant ACTIVE; payload valid; SMTP credentials configured.
+end note
+
+== Enqueue Email Notification ==
+
+Caller -> Controller: Trigger email request (e.g. Invite, Offer, Interview)
+activate Controller
+
+Controller -> Service: sendEmailAsync(request)
+activate Service
+Service -> Service: Render HTML body via Thymeleaf template
+
+Service -> RabbitMQ: publishEmail(EmailMessageDTO with X-Tenant-ID header)
+activate RabbitMQ
+RabbitMQ --> Service: Message accepted
+deactivate RabbitMQ
+
+Service --> Controller: Void / Async Accepted
+deactivate Service
+Controller --> Caller: 202 Accepted (Fast HTTP response)
+deactivate Controller
+
+== Asynchronous Processing by Worker ==
+
+RabbitMQ -> Consumer: Deliver message (X-Tenant-ID header)
+activate Consumer
+Consumer -> Consumer: TenantContext.setCurrentTenant(tenantId)
+
+Consumer -> SMTP: Send MimeMessage (SSL/TLS)
+activate SMTP
+
+alt SMTP Delivery Success
+  SMTP --> Consumer: 250 OK Message accepted
+  deactivate SMTP
+  Consumer -> TenantDB: INSERT email_logs status = SENT
+  activate TenantDB
+  TenantDB --> Consumer: Log saved
+  deactivate TenantDB
+else SMTP Network / Credential Error
+  SMTP --> Consumer: Connection failure / Rejected
+  Consumer -> TenantDB: INSERT email_logs status = FAILED + errorMessage
+  activate TenantDB
+  TenantDB --> Consumer: Log saved
+  deactivate TenantDB
+end
+
+Consumer -> Consumer: TenantContext.clear()
+deactivate Consumer
+
+@enduml

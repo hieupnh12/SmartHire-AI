@@ -7,24 +7,24 @@ import com.smarthire.domain.tenant.entity.User;
 import com.smarthire.domain.tenant.repository.UserRepository;
 import com.smarthire.tenant.auth.dto.CreateEmployeeRequest;
 import com.smarthire.tenant.auth.dto.UserResponse;
+import com.smarthire.tenant.auth.mapper.AuthMapper;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
+@Slf4j
 @Service
+@RequiredArgsConstructor
 public class TenantUserService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
-
-    public TenantUserService(UserRepository userRepository, PasswordEncoder passwordEncoder) {
-        this.userRepository = userRepository;
-        this.passwordEncoder = passwordEncoder;
-    }
+    private final AuthMapper authMapper;
 
     @Transactional
     public UserResponse createEmployee(CreateEmployeeRequest request) {
@@ -47,13 +47,12 @@ public class TenantUserService {
         user.setStatus(UserStatus.ACTIVE);
 
         User savedUser = userRepository.save(user);
-        return UserResponse.fromEntity(savedUser);
+        return authMapper.toUserResponse(savedUser);
     }
 
     @Transactional(readOnly = true)
     public List<UserResponse> getEmployees() {
-        return userRepository.findAll().stream()
-                .map(UserResponse::fromEntity)
-                .collect(Collectors.toList());
+        return authMapper.toUserResponseList(userRepository.findAll());
     }
 }
+

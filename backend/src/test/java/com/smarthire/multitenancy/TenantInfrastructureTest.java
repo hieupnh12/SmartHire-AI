@@ -69,7 +69,8 @@ class TenantInfrastructureTest {
         var tenant = new TenantInfo(); tenant.setCode("alpha");
         when(registry.requireActive("alpha")).thenReturn(tenant);
         var rabbit = mock(org.springframework.amqp.rabbit.core.RabbitTemplate.class);
-        var publisher = new com.smarthire.messaging.JobPublisher(rabbit, registry, "cv.analysis");
+        var publisher = new com.smarthire.messaging.JobPublisher(
+                rabbit, registry, "cv.parse", "cv.extract", "cv.analysis", "cv.matching");
         TenantContext.setCurrentTenant("alpha");
         publisher.publishCvAnalysis("{}");
         var captor = org.mockito.ArgumentCaptor.forClass(org.springframework.amqp.core.MessagePostProcessor.class);

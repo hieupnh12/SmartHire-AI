@@ -3,7 +3,7 @@
 - **Feature:** `FE13`
 - **Function:** `export-recruitment-analytics`
 - **Góc nhìn:** Application design theo kiến trúc mục tiêu
-- **Trạng thái:** `Complete`
+- **Trạng thái:** `Complete with assumptions`
 
 ## Mục đích và phạm vi
 
@@ -31,7 +31,6 @@ Recruiter hoặc Tenant Admin có quyền tạo CSV/PDF từ đúng filter, time
 
 ## Giải thích class và connector
 
-- `AnalyticsExportRoute` là REST boundary khái niệm và có **dependency** `defines routes` tới controller.
 - Controller **association** tới `AnalyticsExportService`; request/response DTO là dependencies tại API boundary.
 - `AnalyticsExportServiceImpl` **realization** (`implements`) service contract và có **association** tới repository, publisher và `TenantContext` vì quản lý vòng đời request trong tenant.
 - `ExportJobRepository` **dependency** tới `AnalyticsExportJob` (quản lý persistence) và **association** tới tenant DB.
@@ -60,4 +59,4 @@ Recruiter hoặc Tenant Admin có quyền tạo CSV/PDF từ đúng filter, time
 pwsh -File .agents/skills/enterprise-uml-diagram/scripts/render-diagrams.ps1 -InputPath docs/diagram/13-recruitment-dashboard-analytics/export-recruitment-analytics -ValidateOnly
 ```
 
-Đã tạo `class-diagram.png` và `sequence-diagram.png` bằng PlantUML 1.2026.8. Cả hai file đã được gắn và kiểm tra metadata 300 DPI, đồng thời kiểm tra trực quan để bảo đảm không clipping.
+Đã render lại `class-diagram.png` bằng PlantUML 1.2026.8, xác minh metadata 300 DPI và kiểm tra trực quan không clipping. `sequence-diagram.png` không thay đổi.

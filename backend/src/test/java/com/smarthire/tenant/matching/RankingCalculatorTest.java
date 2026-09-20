@@ -46,7 +46,7 @@ class RankingCalculatorTest {
     }
     private Row row(long id, int score, String cohort, String status) {
         return new Row(id, "Candidate", status, null, new Calculation(bd(score), 35, 1, 4, cohort, false, List.of()),
-                List.of(), List.of(), null, List.of(), List.of(), new Selection(null, null, null), null);
+                List.of(), List.of(), null, List.of(), List.of(), new Selection(null, null, null), null, List.of(), null);
     }
     private BigDecimal bd(int value) { return BigDecimal.valueOf(value); }
 }

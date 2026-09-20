@@ -11,9 +11,41 @@ export const api = axios.create({
   headers: { "Content-Type": "application/json" },
 });
 
+function requestUrl(config: InternalAxiosRequestConfig) {
+  return `${config.baseURL ?? ""}${config.url ?? ""}`;
+}
+
+function isPublicTenantAuth(url: string) {
+  return /\/tenant\/auth\/(login|google|register|refresh)(?:\?|$)/.test(url);
+}
+
+function shouldSkipLoginRedirect(pathname: string, url = "") {
+  if (isPublicTenantAuth(url)) return true;
+  return (
+    pathname.startsWith("/login") ||
+    pathname.startsWith("/internal/login") ||
+    pathname.startsWith("/candidate/login") ||
+    pathname.startsWith("/oauth/callback") ||
+    pathname.startsWith("/invite/accept") ||
+    pathname.startsWith("/admin/login")
+  );
+}
+
+function loginPathFor(pathname: string) {
+  if (
+    pathname.startsWith("/candidate") ||
+    pathname.startsWith("/oauth") ||
+    pathname.startsWith("/career") ||
+    pathname.startsWith("/jobs")
+  ) {
+    return "/candidate/login";
+  }
+  return "/internal/login";
+}
+
 api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const token = localStorage.getItem("accessToken");
-  if (token) {
+  if (token && !isPublicTenantAuth(requestUrl(config))) {
     config.headers.Authorization = `Bearer ${token}`;
   }
 
@@ -21,6 +53,9 @@ api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const tenantId = getTenantIdFromWindow();
   if (tenantId) {
     config.headers["X-Tenant-ID"] = tenantId;
+  }
+  if (typeof FormData !== "undefined" && config.data instanceof FormData) {
+    delete config.headers["Content-Type"];
   }
   return config;
 });
@@ -32,7 +67,7 @@ async function refreshAccessToken(): Promise<string | null> {
   if (!refreshToken) return null;
   try {
     const { data } = await axios.post<ApiResponse<{ accessToken: string; refreshToken?: string }>>(
-      `${baseURL}/auth/refresh`,
+      `${baseURL}/tenant/auth/refresh`,
       { refreshToken },
     );
     if (!data.success || !data.data?.accessToken) return null;
@@ -53,6 +88,9 @@ api.interceptors.response.use(
   async (error: AxiosError<ApiResponse<unknown>>) => {
     const original = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
     if (error.response?.status === 401 && original && !original._retry) {
+      if (isPublicTenantAuth(requestUrl(original))) {
+        return Promise.reject(error);
+      }
       original._retry = true;
       refreshing ??= refreshAccessToken().finally(() => {
         refreshing = null;
@@ -62,8 +100,9 @@ api.interceptors.response.use(
         original.headers.Authorization = `Bearer ${token}`;
         return api(original);
       }
-      if (!window.location.pathname.startsWith("/login") && !window.location.pathname.startsWith("/internal/login")) {
-        window.location.href = "/internal/login";
+      const pathname = window.location.pathname;
+      if (!shouldSkipLoginRedirect(pathname, requestUrl(original))) {
+        window.location.href = loginPathFor(pathname);
       }
     }
     return Promise.reject(error);

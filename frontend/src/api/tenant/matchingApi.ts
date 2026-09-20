@@ -1,11 +1,13 @@
 import { api } from "@/lib/axios";
 import type { ApiResponse } from "@/types/api";
-import type { RankingBoard, RankingConfig, RankingRow, RankingSources, Selection } from "@/features/tenant/recruiter/matching/types/ranking";
+import type { RankingBoard, RankingConfig, RankingPage, RankingQuery, RankingRow, RankingSources, Selection } from "@/features/tenant/recruiter/matching/types/ranking";
 
 export const matchingApi = {
   jobs: () => api.get<ApiResponse<{ id: number; title: string }[]>>("/rankings/jobs").then((r) => r.data),
-  rankings: (jobId: number | string) =>
-    api.get<ApiResponse<RankingBoard>>(`/jobs/${jobId}/rankings`).then((r) => r.data),
+  rankings: (jobId: number | string, query: RankingQuery) =>
+    api.get<ApiResponse<RankingPage>>(`/jobs/${jobId}/rankings`, { params: query }).then((r) => r.data),
+  detail: (applicationId: number | string) =>
+    api.get<ApiResponse<RankingRow>>(`/applications/${applicationId}/ranking-detail`).then((r) => r.data),
   recompute: (jobId: number | string) =>
     api.post<ApiResponse<RankingBoard>>(`/jobs/${jobId}/rankings/recompute`).then((r) => r.data),
   configure: (jobId: number, config: RankingConfig) =>

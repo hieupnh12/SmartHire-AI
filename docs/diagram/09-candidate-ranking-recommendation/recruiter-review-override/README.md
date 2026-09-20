@@ -29,13 +29,13 @@ Mô tả human-in-the-loop của kiến trúc đích. Filter/sort chỉ hỗ tr�
 ## Trách nhiệm class và quan hệ
 
 - Controller tiêu thụ DTO (`dependency`) và ủy quyền service (`directed association`).
-- `RankingReviewService` điều phối repository, policy và audit.
+- `RankingReviewServiceImpl` **realization** (`implements`) `RankingReviewService`, rồi điều phối repository, policy và audit.
 - `HumanDecisionPolicy` bảo đảm override có lý do và không cho AI tự reject.
 - `RankingReviewRepository` quản lý (`dependency`) `RankingOverride`; `ApplicationRepository` khóa và lưu workflow state.
 - `Application 1 — 0..* RankingOverride` là association lịch sử; override không sở hữu/xóa snapshot AI.
 - `RankingOverride → AuditEvent` là association chứng cứ: mỗi override thành công phải có audit tương ứng.
 
-Không có inheritance, realization, aggregation hoặc composition cần thiết trong scope này.
+Không có inheritance, aggregation hoặc composition cần thiết; realization chỉ biểu diễn implementation thực thi service contract.
 
 ## Bảo mật, transaction, audit và privacy
 
@@ -47,4 +47,4 @@ Các API, `RankingOverride`, `AuditEvent`, shortlist command và policy là targ
 
 ## Render
 
-Đã tạo và kiểm tra trực quan `class-diagram.png` và `sequence-diagram.png` ở 300 DPI. Dùng script render của skill với `-Format Png -PngDpi 300` để tạo lại khi source thay đổi.
+Đã render lại `class-diagram.png` bằng PlantUML 1.2026.8, xác minh metadata 300 DPI và kiểm tra trực quan không clipping. Dùng script của skill với `-ValidateOnly` để kiểm tra source mà không tạo ảnh.

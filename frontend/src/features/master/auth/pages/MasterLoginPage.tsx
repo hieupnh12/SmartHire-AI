@@ -31,6 +31,9 @@ export function MasterLoginPage() {
       const response = await masterAuthApi.login({ email, password });
       if (response.success && response.data) {
         localStorage.setItem("master_access_token", response.data.accessToken);
+        if (response.data.refreshToken) {
+          localStorage.setItem("master_refresh_token", response.data.refreshToken);
+        }
         navigate("/admin/dashboard", { replace: true });
       } else {
         setError(response.message || "Email hoặc mật khẩu không chính xác.");
@@ -154,7 +157,7 @@ export function MasterLoginPage() {
                   <input
                     type="email"
                     required
-                    placeholder="admin@smarthire.ai"
+                    placeholder="admin@smarthire.top"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="w-full pl-10 pr-3.5 py-2.5 bg-transparent text-sm text-slate-900 placeholder-slate-400 focus:outline-none"

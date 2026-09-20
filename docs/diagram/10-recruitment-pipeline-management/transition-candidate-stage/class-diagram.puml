@@ -1,0 +1,148 @@
+@startuml
+skinparam dpi 300
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam roundcorner 6
+skinparam linetype ortho
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam classFontSize 11
+skinparam classAttributeFontSize 10
+skinparam classAttributeIconSize 10
+skinparam ArrowThickness 1
+skinparam ClassBorderThickness 1
+skinparam PackageBorderThickness 1
+
+skinparam class {
+    BackgroundColor #FFFFFF
+    BorderColor #2D3748
+    ArrowColor #2D3748
+}
+
+<style>
+classDiagram {
+  class {
+    Padding 5
+  }
+}
+</style>
+
+package "Controller Layer" {
+  class CandidatePipelineController <<Controller>> {
+    - candidatePipelineService: CandidatePipelineService
+    + transitionStage(applicationId: Long, request: TransitionStageRequest): ApiResponse<ApplicationStageResponse>
+  }
+}
+
+package "DTO Layer" {
+  class TransitionStageRequest <<Request>> {
+    + targetStageId: Long
+    + note: String
+  }
+  class ApplicationStageResponse <<Response>> {
+    + applicationId: Long
+    + previousStageId: Long
+    + currentStageId: Long
+    + currentStageName: String
+    + updatedBy: String
+    + updatedAt: Instant
+  }
+}
+
+package "Service Layer" {
+  interface CandidatePipelineService <<Service>> {
+    + transitionStage(applicationId: Long, request: TransitionStageRequest): ApplicationStageResponse
+  }
+  class CandidatePipelineServiceImpl <<Service>> {
+    - applicationRepository: ApplicationRepository
+    - stageRepository: RecruitmentStageRepository
+    - auditLogRepository: StageAuditLogRepository
+    - eventPublisher: EventNotificationProducer
+    + transitionStage(applicationId: Long, request: TransitionStageRequest): ApplicationStageResponse
+  }
+}
+
+package "Repository Layer" {
+  interface ApplicationRepository <<Repository>> {
+    + findById(id: Long): Optional<Application>
+    + save(application: Application): Application
+  }
+  interface RecruitmentStageRepository <<Repository>> {
+    + findById(id: Long): Optional<RecruitmentStage>
+  }
+  interface StageAuditLogRepository <<Repository>> {
+    + save(auditLog: StageAuditLog): StageAuditLog
+  }
+}
+
+package "Domain Entity Layer" {
+  class Application <<Entity>> {
+    - id: Long
+    - candidateId: Long
+    - jobId: Long
+    - currentStageId: Long
+    - status: String
+  }
+  class RecruitmentStage <<Entity>> {
+    - id: Long
+    - jobId: Long
+    - name: String
+    - sortOrder: int
+  }
+  class StageAuditLog <<Entity>> {
+    - id: Long
+    - applicationId: Long
+    - fromStageId: Long
+    - toStageId: Long
+    - changedBy: String
+    - note: String
+    - createdAt: Instant
+  }
+}
+
+package "Infrastructure & Persistence" {
+  interface EventNotificationProducer <<Messaging Port>> {
+    + publishStageTransitionEvent(tenantId: String, applicationId: Long, toStageId: Long): void
+  }
+  class DedicatedTenantMySQL <<Database>> {
+    + applications
+    + recruitment_stages
+    + stage_audit_logs
+  }
+  class TenantContext <<ThreadLocal>> {
+    +{static} getCurrentTenant(): String
+    +{static} clear(): void
+  }
+}
+
+' Relationships
+CandidatePipelineController --> CandidatePipelineService : delegates >
+CandidatePipelineController ..> TransitionStageRequest : consumes >
+CandidatePipelineController ..> ApplicationStageResponse : returns >
+
+CandidatePipelineService <|.. CandidatePipelineServiceImpl : implements
+CandidatePipelineServiceImpl ..> TransitionStageRequest : processes >
+CandidatePipelineServiceImpl ..> ApplicationStageResponse : creates >
+CandidatePipelineServiceImpl --> ApplicationRepository : updates application >
+CandidatePipelineServiceImpl --> RecruitmentStageRepository : verifies target stage >
+CandidatePipelineServiceImpl --> StageAuditLogRepository : records audit trail >
+CandidatePipelineServiceImpl --> EventNotificationProducer : publishes transition event >
+CandidatePipelineServiceImpl ..> TenantContext : reads tenant context >
+
+ApplicationRepository --> Application : manages >
+RecruitmentStageRepository --> RecruitmentStage : manages >
+StageAuditLogRepository --> StageAuditLog : manages >
+
+ApplicationRepository --> DedicatedTenantMySQL : persists to >
+RecruitmentStageRepository --> DedicatedTenantMySQL : persists to >
+StageAuditLogRepository --> DedicatedTenantMySQL : persists to >
+
+Application "1" --> "1" RecruitmentStage : current stage >
+StageAuditLog "0..*" --> "1" Application : tracks history >
+
+note right of CandidatePipelineServiceImpl
+  Kanban drag-and-drop triggers stage transition.
+  Records immutable audit log entry and notifies assigned recruiters.
+end note
+
+@enduml

@@ -1,89 +1,114 @@
 @startuml
 skinparam dpi 300
-skinparam backgroundColor #FFFFFF
 skinparam shadowing false
 skinparam packageStyle rectangle
-skinparam classAttributeIconSize 0
-skinparam ArrowColor #64748B
-skinparam ClassBorderColor #CBD5E1
-skinparam ClassBackgroundColor #F8FAFC
-skinparam InterfaceBackgroundColor #EFF6FF
-skinparam NoteBackgroundColor #FFF7ED
-skinparam NoteBorderColor #FDBA74
+skinparam roundcorner 6
+skinparam linetype ortho
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam classFontSize 11
+skinparam classAttributeFontSize 10
 
-package "Master API Layer" #EFF6FF {
-  class MasterAuthRoute <<REST API>> {
-    +POST /api/v1/master/auth/login
-    +GET /api/v1/master/auth/me
-  }
+skinparam class {
+    BackgroundColor #FFFFFF
+    BorderColor #2D3748
+    ArrowColor #2D3748
+}
 
+package "Controller Layer" {
   class MasterAuthController <<Controller>> {
-    +login(request: MasterLoginRequest): MasterLoginResponse
-    +getCurrentAdmin(authHeader: String): PlatformUserResponse
+    - masterAuthService: MasterAuthService
+    + login(request: MasterLoginRequest): ResponseEntity<ApiResponse<MasterLoginResponse>>
+    + getCurrentAdmin(authHeader: String): ResponseEntity<ApiResponse<PlatformUserResponse>>
   }
+}
 
+package "DTO Layer" {
   class MasterLoginRequest <<Request>> {
-    +email: String
-    +password: String {write-only}
+    + email: String
+    + password: String
   }
 
   class MasterLoginResponse <<Response>> {
-    +accessToken: String
-    +tokenType: String = "Bearer"
-    +user: PlatformUserResponse
-    +tenantId: String = "smarthire_master"
+    + accessToken: String
+    + tokenType: String
+    + user: PlatformUserResponse
+    + tenantId: String
   }
 
   class PlatformUserResponse <<Response>> {
-    +id: Long
-    +email: String
-    +fullName: String
-    +role: String
-    +status: String
+    + id: Long
+    + email: String
+    + fullName: String
+    + role: String
+    + status: String
   }
 }
 
-package "Master Domain Layer" #F0FDF4 {
+package "Service Layer" {
   class MasterAuthService <<Service>> {
-    +login(request: MasterLoginRequest): MasterLoginResponse
-    +getCurrentAdmin(authHeader: String): PlatformUserResponse
+    - platformUserRepository: PlatformUserRepository
+    - passwordEncoder: PasswordEncoder
+    - tokenProvider: JwtTokenProvider
+    + login(request: MasterLoginRequest): MasterLoginResponse
+    + getCurrentAdmin(authHeader: String): PlatformUserResponse
   }
 
-  interface PlatformUserRepository <<Repository>> {
-    +findByEmailIgnoreCase(email: String): Optional<PlatformUser>
-    +save(user: PlatformUser): PlatformUser
+  class JwtTokenProvider <<Security>> {
+    + generateToken(userId: Long, email: String, role: String, tenantId: String): String
+    + validateToken(token: String): boolean
+    + getUsernameFromJwt(token: String): String
   }
 
-  class PlatformUser <<Entity>> {
-    +id: Long
-    +email: String
-    +passwordHash: String
-    +fullName: String
-    +role: String = "WORKSPACE_ADMIN"
-    +status: String = "ACTIVE"
+  interface PasswordEncoder <<Security>> {
+    + matches(rawPassword: CharSequence, encodedPassword: String): boolean
+    + encode(rawPassword: CharSequence): String
   }
-
-  class "Master PostgreSQL\nplatform_users" as MasterDB <<Database>>
 }
 
-' Connectors and Relationships
-MasterAuthRoute ..> MasterAuthController : routes
-MasterAuthController ..> MasterLoginRequest : receives
-MasterAuthController --> MasterAuthService : uses
-MasterAuthController ..> MasterLoginResponse : returns
-MasterLoginResponse *-- PlatformUserResponse : contains
+package "Repository Layer" {
+  interface PlatformUserRepository <<Repository>> {
+    + findByEmailIgnoreCase(email: String): Optional<PlatformUser>
+    + save(user: PlatformUser): PlatformUser
+  }
+}
 
-MasterAuthService ..> MasterLoginRequest : processes
-MasterAuthService --> PlatformUserRepository : persists through
-PlatformUserRepository --> PlatformUser : manages
-PlatformUserRepository --> MasterDB : queries
+package "Domain Entity Layer" {
+  class PlatformUser <<Entity>> {
+    - id: Long
+    - email: String
+    - passwordHash: String
+    - fullName: String
+    - role: String
+    - status: String
+    - createdAt: LocalDateTime
+    - updatedAt: LocalDateTime
+  }
+}
 
-MasterDB *-- PlatformUser : stores
+package "Infrastructure & Persistence" {
+  class "Master PostgreSQL\n(platform_users)" as MasterDB <<Database>>
+}
 
-note right of MasterAuthService
+' Relationships & Navigation
+MasterAuthController --> MasterAuthService : delegates >
+MasterAuthController ..> MasterLoginRequest : consumes >
+MasterAuthController ..> MasterLoginResponse : returns >
+MasterLoginResponse *-- PlatformUserResponse : contains >
+
+MasterAuthService ..> MasterLoginRequest : processes >
+MasterAuthService ..> MasterLoginResponse : creates >
+MasterAuthService --> PlatformUserRepository : queries / manages >
+MasterAuthService --> PasswordEncoder : verifies password >
+MasterAuthService --> JwtTokenProvider : generates token >
+
+PlatformUserRepository --> PlatformUser : manages >
+PlatformUserRepository --> MasterDB : persists to / reads from >
+MasterDB *-- PlatformUser : stores >
+
+note bottom of MasterAuthService
   Architecture Invariant:
-  Super Admin authentication operates strictly
-  on the Master PostgreSQL database.
+  Super Admin operates strictly on Master DB.
   No X-Tenant-ID header or TenantContext is required.
 end note
 

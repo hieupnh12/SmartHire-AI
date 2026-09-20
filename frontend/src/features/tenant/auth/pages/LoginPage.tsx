@@ -10,8 +10,8 @@ import { getApiErrorMessage } from "@/lib/axios";
 import { useT } from "@/i18n";
 import { LanguageSwitcher } from "@/components/ux/LanguageSwitcher";
 import { toast } from "@/stores/toastStore";
-import { getTenantIdFromWindow } from "@/lib/tenant";
-import { getTenantTheme } from "@/features/tenant/career/pages/TenantCareerPage";
+import { getTenantIdFromWindow, buildTenantUrl } from "@/lib/tenant";
+import { getTenantTheme, getTenantThemeStyle } from "@/lib/tenantTheme";
 import {
   ShieldCheck,
   Mail,
@@ -33,8 +33,8 @@ const loginSchema = z.object({
 type LoginForm = z.infer<typeof loginSchema>;
 
 function homeForRole(role?: string) {
-  if (role === "ADMIN" || role === "TENANT_ADMIN") return "/tenant/admin";
-  if (role === "RECRUITER") return "/recruiter";
+  if (role === "ADMIN" || role === "TENANT_ADMIN") return "/internal/admin";
+  if (role === "RECRUITER" || role === "HR") return "/recruiter";
   return "/candidate";
 }
 
@@ -63,23 +63,34 @@ export function LoginPage() {
       if (!res.success || !res.data) throw new Error(res.message || t("common.errorGeneric"));
       setTokens(res.data.accessToken, res.data.refreshToken);
 
-      const user = res.data.user;
-      if (user) {
-        setUser(user);
+      let user = res.data.user;
+      if (!user) {
+        const profile = await authApi.me();
+        if (profile.success && profile.data) user = profile.data;
       }
+      if (user) setUser(user);
 
       const role = user?.role || "TENANT_ADMIN";
       toast.success("Đăng nhập thành công 🎉");
-      navigate(from && from !== "/login" && from !== "/internal/login" ? from : homeForRole(role), { replace: true });
+      const targetPath = from && from !== "/login" && from !== "/internal/login" ? from : homeForRole(role);
+      const tenantCode = res.data.tenantId || rawTenantCode || "acme";
+      localStorage.setItem("tenantId", tenantCode);
+
+      const targetUrl = buildTenantUrl(res.data.subdomain, targetPath);
+      if (window.location.href !== targetUrl) {
+        window.location.href = targetUrl;
+      } else {
+        navigate(targetPath, { replace: true });
+      }
     },
     onError: (err) => toast.danger(getApiErrorMessage(err, t("common.errorGeneric"))),
   });
 
   return (
-    <div className="min-h-screen bg-[#f9f9ff] text-[#191b23] font-sans antialiased flex flex-col justify-between selection:bg-teal-600 selection:text-white">
+    <div className="tenant-workspace-theme min-h-screen bg-[#f9f9ff] text-[#191b23] font-sans antialiased flex flex-col justify-between" style={getTenantThemeStyle(theme)}>
       {/* Background Glows */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
-        <div className="absolute -top-40 -left-40 w-96 h-96 bg-teal-500/10 rounded-full blur-3xl" />
+        <div className="absolute -top-40 -left-40 w-96 h-96 bg-[var(--color-primary-soft)] rounded-full blur-3xl" />
         <div className="absolute bottom-0 right-0 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl" />
       </div>
 
@@ -128,7 +139,7 @@ export function LoginPage() {
             {/* Features Bullet List */}
             <div className="relative z-10 space-y-3 font-mono text-xs text-slate-300 pt-6 border-t border-white/15">
               <div className="flex items-center gap-3">
-                <Database className="w-4 h-4 text-teal-400 flex-shrink-0" />
+                <Database className="w-4 h-4 text-brand-primary flex-shrink-0" />
                 <span>Độc lập dữ liệu tuyệt đối (Database Isolated)</span>
               </div>
               <div className="flex items-center gap-3">

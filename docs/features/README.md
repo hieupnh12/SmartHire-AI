@@ -16,35 +16,42 @@ Mỗi trang gồm: Mục đích · Actor · Luồng · Business Rules · API · 
 | AUTH-04 | Role-Based Access Control (RBAC) | [RBAC](Authentication/RBAC.md) | To Do |
 | AUTH-05 | User Profile Management | [User-Profile](Authentication/User-Profile.md) | To Do |
 
-## 2. Job Recruitment Management
+## 2. Company Management
 
 | Code | Feature | Doc | Status |
 |---|---|---|---|
-| JOB-01 | Create / Update / Delete Job | [Job-CRUD](Job-Recruitment/Job-CRUD.md) | To Do |
-| JOB-02 | Job Publishing | [Job-Publishing](Job-Recruitment/Job-Publishing.md) | To Do |
-| JOB-03 | Skill Requirement Management | [Skill-Requirements](Job-Recruitment/Skill-Requirements.md) | To Do |
-| JOB-04 | Recruitment Stage Management | [Recruitment-Stages](Job-Recruitment/Recruitment-Stages.md) | To Do |
-| JOB-05 | Applicant Management | [Applicant-Management](Job-Recruitment/Applicant-Management.md) | To Do |
+| COMPANY-01 | View & Update Company Profile | [Company-Profile](Company-Management/Company-Profile.md) | Doing |
+| COMPANY-02 | Invite tenant staff | [Invite-Member](Company-Management/Invite-Member.md) | Done |
 
-## 3. AI-Powered CV Screening & Analysis
+## 3. Job Recruitment Management
 
 | Code | Feature | Doc | Status |
 |---|---|---|---|
-| CV-01 | CV Upload | [CV-Upload](CV-Screening/CV-Upload.md) | To Do |
-| CV-02 | CV Parsing | [CV-Parsing](CV-Screening/CV-Parsing.md) | To Do |
-| CV-03 | Information Extraction | [Information-Extraction](CV-Screening/Information-Extraction.md) | To Do |
-| CV-04 | AI Skill Analysis | [AI-Skill-Analysis](CV-Screening/AI-Skill-Analysis.md) | To Do |
-| CV-05 | Candidate Matching Score | [Matching-Score](CV-Screening/Matching-Score.md) | To Do |
+| JOB-01 | Create / Update / Delete Job | [Job-CRUD](Job-Recruitment/Job-CRUD.md) | Done |
+| JOB-02 | Job Publishing | [Job-Publishing](Job-Recruitment/Job-Publishing.md) | Done |
+| JOB-03 | Skill Requirement Management | [Skill-Requirements](Job-Recruitment/Skill-Requirements.md) | Done |
+| JOB-04 | Recruitment Stage Management | [Recruitment-Stages](Job-Recruitment/Recruitment-Stages.md) | Done |
+| JOB-05 | Applicant Management | [Applicant-Management](Job-Recruitment/Applicant-Management.md) | Done |
 
-## 4. Candidate-Job Matching & Ranking
+## 4. AI-Powered CV Screening & Analysis
 
 | Code | Feature | Doc | Status |
 |---|---|---|---|
-| RANK-01 | Candidate Ranking Algorithm | [Ranking-Algorithm](Matching-Ranking/Ranking-Algorithm.md) | To Do |
+| CV-01 | CV Upload | [CV-Upload](CV-Screening/CV-Upload.md) | Done |
+| CV-02 | CV Parsing | [CV-Parsing](CV-Screening/CV-Parsing.md) | Done |
+| CV-03 | Information Extraction | [Information-Extraction](CV-Screening/Information-Extraction.md) | Done |
+| CV-04 | AI Skill Analysis | [AI-Skill-Analysis](CV-Screening/AI-Skill-Analysis.md) | Done |
+| CV-05 | Candidate Matching Score | [Matching-Score](CV-Screening/Matching-Score.md) | Done |
+
+## 5. Candidate-Job Matching & Ranking
+
+| Code | Feature | Doc | Status |
+|---|---|---|---|
+| RANK-01 | Candidate Ranking Algorithm | [Ranking-Algorithm](Matching-Ranking/Ranking-Algorithm.md) | Doing |
 | RANK-02 | Recommendation Engine | [Recommendation-Engine](Matching-Ranking/Recommendation-Engine.md) | To Do |
 | RANK-03 | Overall Candidate Score | [Overall-Candidate-Score](Matching-Ranking/Overall-Candidate-Score.md) | To Do |
 
-## 5. FE-05: Online Technical Assessment
+## 6. FE-05: Online Technical Assessment
 
 | Code | Feature | Doc | Status |
 |---|---|---|---|
@@ -54,7 +61,7 @@ Mỗi trang gồm: Mục đích · Actor · Luồng · Business Rules · API · 
 | ASSESS-04 | Timer Control | [Timer-Control](Technical-Assessment/Timer-Control.md) | To Do |
 | ASSESS-05 | Anti-cheating Detection | [Anti-Cheating](Technical-Assessment/Anti-Cheating.md) | To Do |
 
-## 6. AI Interview System
+## 7. AI Interview System
 
 | Code | Feature | Doc | Status |
 |---|---|---|---|
@@ -64,15 +71,15 @@ Mỗi trang gồm: Mục đích · Actor · Luồng · Business Rules · API · 
 | INT-04 | AI Interview Scoring | [AI-Scoring](AI-Interview/AI-Scoring.md) | To Do |
 | INT-05 | Interview Feedback | [Interview-Feedback](AI-Interview/Interview-Feedback.md) | To Do |
 
-## 7. Recruitment Workflow Management
+## 8. Recruitment Workflow Management
 
 | Code | Feature | Doc | Status |
 |---|---|---|---|
 | WF-01 | Recruitment Pipeline | [Recruitment-Pipeline](Recruitment-Workflow/Recruitment-Pipeline.md) | To Do |
-| WF-02 | Candidate Status Management | [Candidate-Status](Recruitment-Workflow/Candidate-Status.md) | To Do |
+| WF-02 | Candidate Status Management | [Candidate-Status](Recruitment-Workflow/Candidate-Status.md) | Done |
 | WF-03 | Hiring Decision Management | [Hiring-Decision](Recruitment-Workflow/Hiring-Decision.md) | To Do |
 
-## 8. Recruitment Analytics Dashboard
+## 9. Recruitment Analytics Dashboard
 
 | Code | Feature | Doc | Status |
 |---|---|---|---|
@@ -80,7 +87,7 @@ Mỗi trang gồm: Mục đích · Actor · Luồng · Business Rules · API · 
 | DASH-02 | Dashboard Charts | [Dashboard-Charts](Analytics-Dashboard/Dashboard-Charts.md) | To Do |
 | DASH-03 | Recruitment Trend Analysis | [Trend-Analysis](Analytics-Dashboard/Trend-Analysis.md) | To Do |
 
-## 9. Interview Scheduling & Real-time Notifications
+## 10. Interview Scheduling & Real-time Notifications
 
 | Code | Feature | Doc | Status |
 |---|---|---|---|
@@ -88,7 +95,7 @@ Mỗi trang gồm: Mục đích · Actor · Luồng · Business Rules · API · 
 | SCHED-02 | WebSocket Notification | [WebSocket-Notifications](Scheduling-Notifications/WebSocket-Notifications.md) | To Do |
 | SCHED-03 | Email Notification | [Email-Notifications](Scheduling-Notifications/Email-Notifications.md) | To Do |
 
-## 10. AI Practice Interview for Candidates
+## 11. AI Practice Interview for Candidates
 
 | Code | Feature | Doc | Status |
 |---|---|---|---|
@@ -101,18 +108,19 @@ Mỗi trang gồm: Mục đích · Actor · Luồng · Business Rules · API · 
 ## Thứ tự implement đề xuất
 
 ```
-AUTH → JOB → CV → RANK → ASSESS → INT → WF → SCHED → DASH → PRACT
+AUTH → COMPANY → JOB → CV → RANK → ASSESS → INT → WF → SCHED → DASH → PRACT
 ```
 
 1. Auth/RBAC/Profile trước (mọi API phụ thuộc).
-2. Job + Stages + Applicants.
-3. CV pipeline (upload → parse → extract → analyze → match) qua RabbitMQ.
-4. Ranking / overall score.
-5. Technical Assessment (FE-05).
-6. AI Interview (+ STT/NLP).
-7. Workflow + Hiring decision.
-8. Scheduling + WebSocket + Email.
-9. Analytics dashboard.
-10. Practice interview (tái sử dụng INT services, data tách biệt).
+2. Company profile (Master DB branding).
+3. Job + Stages + Applicants.
+4. CV pipeline (upload → parse → extract → analyze → match) qua RabbitMQ.
+5. Ranking / overall score.
+6. Technical Assessment (FE-05).
+7. AI Interview (+ STT/NLP).
+8. Workflow + Hiring decision.
+9. Scheduling + WebSocket + Email.
+10. Analytics dashboard.
+11. Practice interview (tái sử dụng INT services, data tách biệt).
 
 Khi code xong một Code ID: đổi status trong file feature **và** bảng trên.

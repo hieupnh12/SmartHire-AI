@@ -1,0 +1,181 @@
+@startuml
+skinparam dpi 300
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam roundcorner 6
+skinparam linetype ortho
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam classFontSize 11
+skinparam classAttributeFontSize 10
+skinparam classAttributeIconSize 10
+skinparam ArrowThickness 1
+skinparam ClassBorderThickness 1
+skinparam PackageBorderThickness 1
+
+skinparam class {
+    BackgroundColor #FFFFFF
+    BorderColor #2D3748
+    ArrowColor #2D3748
+}
+
+<style>
+classDiagram {
+  class {
+    Padding 5
+  }
+}
+</style>
+
+package "Controller Layer" {
+  class TenantUserController <<Controller>> {
+    - memberInvitationService: MemberInvitationService
+    + inviteMember(request: InviteMemberRequest): ApiResponse<InvitationResponse>
+    + acceptInvitation(request: AcceptInvitationRequest): ApiResponse<UserResponse>
+  }
+}
+
+package "DTO Layer" {
+  class InviteMemberRequest <<Request>> {
+    + email: String
+    + fullName: String
+    + role: String
+  }
+  class AcceptInvitationRequest <<Request>> {
+    + tokenHashInput: String {write-only}
+    + password: String {write-only}
+  }
+  class InvitationResponse <<Response>> {
+    + id: Long
+    + email: String
+    + role: String
+    + status: String
+    + expiresAt: Instant
+  }
+  class UserResponse <<Response>> {
+    + id: Long
+    + email: String
+    + fullName: String
+    + role: String
+    + status: String
+  }
+}
+
+package "Service Layer" {
+  interface MemberInvitationService <<Service>> {
+    + invite(request: InviteMemberRequest): InvitationResponse
+    + accept(request: AcceptInvitationRequest): UserResponse
+  }
+  class MemberInvitationServiceImpl <<Service>> {
+    - invitationRepository: MemberInvitationRepository
+    - userRepository: UserRepository
+    - emailProducer: EmailNotificationProducer
+    - passwordEncoder: PasswordEncoder
+    + invite(request: InviteMemberRequest): InvitationResponse
+    + accept(request: AcceptInvitationRequest): UserResponse
+  }
+}
+
+package "Repository Layer" {
+  interface MemberInvitationRepository <<Repository>> {
+    + findByEmailAndStatus(email: String, status: InvitationStatus): Optional<MemberInvitation>
+    + findByTokenHash(tokenHash: String): Optional<MemberInvitation>
+    + save(invitation: MemberInvitation): MemberInvitation
+  }
+  interface UserRepository <<Repository>> {
+    + existsByEmailIgnoreCase(email: String): boolean
+    + save(user: User): User
+  }
+}
+
+package "Domain Entity Layer" {
+  enum UserRole <<Enum>> {
+    TENANT_ADMIN
+    ADMIN
+    HR
+    RECRUITER
+  }
+  enum InvitationStatus <<Enum>> {
+    PENDING
+    ACCEPTED
+    EXPIRED
+    REVOKED
+  }
+  enum UserStatus <<Enum>> {
+    ACTIVE
+    LOCKED
+    DISABLED
+  }
+  entity MemberInvitation <<Entity>> {
+    - id: Long
+    - email: String
+    - fullName: String
+    - role: UserRole
+    - tokenHash: String
+    - status: InvitationStatus
+    - expiresAt: Instant
+  }
+  entity User <<Entity>> {
+    - id: Long
+    - email: String
+    - fullName: String
+    - role: UserRole
+    - status: UserStatus
+  }
+}
+
+package "Infrastructure & Persistence" {
+  interface EmailNotificationProducer <<Messaging Port>> {
+    + publishMemberInvite(tenantId: String, email: String, acceptUrl: String): void
+  }
+  class RabbitMQBroker <<Queue>> {
+    + notify.email.q
+  }
+  class DedicatedTenantMySQL <<Database>> {
+    + users
+    + member_invitations
+  }
+  class TenantContext <<ThreadLocal>> {
+    +{static} getCurrentTenant(): String
+    +{static} clear(): void
+  }
+}
+
+' Relationships
+TenantUserController --> MemberInvitationService : delegates >
+TenantUserController ..> InviteMemberRequest : consumes >
+TenantUserController ..> AcceptInvitationRequest : consumes >
+TenantUserController ..> InvitationResponse : returns >
+TenantUserController ..> UserResponse : returns >
+
+MemberInvitationService <|.. MemberInvitationServiceImpl : implements
+MemberInvitationServiceImpl ..> InviteMemberRequest : processes >
+MemberInvitationServiceImpl ..> AcceptInvitationRequest : processes >
+MemberInvitationServiceImpl ..> InvitationResponse : creates >
+MemberInvitationServiceImpl ..> UserResponse : creates >
+
+MemberInvitationServiceImpl --> MemberInvitationRepository : persists invitations >
+MemberInvitationServiceImpl --> UserRepository : manages users >
+MemberInvitationServiceImpl --> EmailNotificationProducer : publishes email event >
+MemberInvitationServiceImpl ..> TenantContext : reads tenant context >
+
+MemberInvitationRepository --> MemberInvitation : manages >
+UserRepository --> User : manages >
+MemberInvitationRepository --> DedicatedTenantMySQL : persists to >
+UserRepository --> DedicatedTenantMySQL : persists to >
+
+EmailNotificationProducer --> RabbitMQBroker : publishes message >
+
+User ..> UserRole : typed by >
+User ..> UserStatus : typed by >
+MemberInvitation ..> UserRole : assigns >
+MemberInvitation ..> InvitationStatus : typed by >
+
+MemberInvitation "0..1" --> "0..1" User : accepted as >
+
+note right of MemberInvitationServiceImpl
+  Invite does not require password upfront.
+  Candidate cannot be invited via workspace member invitation.
+end note
+
+@enduml

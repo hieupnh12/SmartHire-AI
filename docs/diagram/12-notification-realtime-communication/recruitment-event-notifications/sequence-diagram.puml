@@ -1,0 +1,56 @@
+@startuml
+skinparam dpi 300
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam sequence {
+    ArrowColor #2D3748
+    ActorBorderColor #2D3748
+    LifeLineBorderColor #2D3748
+    ParticipantBorderColor #2D3748
+    ParticipantBackgroundColor #FFFFFF
+    BoxBorderColor #A0AEC0
+}
+
+hide footbox
+autonumber
+
+control "Spring ApplicationEvent" as EventBus
+control "RecruitmentEventListener" as Listener
+database "Tenant DB (MySQL)" as TenantDB
+queue "RabbitMQ notify.email.q" as RabbitMQ
+control "RealtimeNotificationService" as WebSocket
+
+note over EventBus, WebSocket
+  Event Fan-Out Architecture: Automatically dispatches domain events
+  to In-App DB, Email Queue, and Realtime WebSocket simultaneously.
+end note
+
+== Fan-Out Recruitment Event Notification ==
+
+EventBus -> Listener: Publish Event (e.g. CandidateAppliedEvent / InterviewScheduledEvent)
+activate Listener
+Listener -> Listener: TenantContext.setCurrentTenant(event.tenantId)
+
+Listener -> TenantDB: INSERT notifications (In-App Notification record)
+activate TenantDB
+TenantDB --> Listener: Notification saved
+deactivate TenantDB
+
+par Parallel Channel Dispatch
+  Listener -> RabbitMQ: publishEmail(EmailMessageDTO)
+  activate RabbitMQ
+  RabbitMQ --> Listener: Email queued
+  deactivate RabbitMQ
+else Realtime Push
+  Listener -> WebSocket: pushNotificationToUser(recipientId, payload)
+  activate WebSocket
+  WebSocket --> Listener: STOMP frame pushed
+  deactivate WebSocket
+end
+
+Listener -> Listener: TenantContext.clear()
+deactivate Listener
+
+@enduml

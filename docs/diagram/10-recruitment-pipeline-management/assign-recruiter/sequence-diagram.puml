@@ -1,0 +1,120 @@
+@startuml
+skinparam dpi 300
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam sequence {
+    ArrowColor #2D3748
+    ActorBorderColor #2D3748
+    LifeLineBorderColor #2D3748
+    ParticipantBorderColor #2D3748
+    ParticipantBackgroundColor #FFFFFF
+    BoxBorderColor #A0AEC0
+}
+
+hide footbox
+autonumber
+
+actor "HR Manager / Admin" as Manager
+boundary "Recruitment Workspace UI" as UI
+control "Spring Security" as Security
+control "TenantWebInterceptor" as Interceptor
+boundary "JobAssignmentController" as Controller
+control "JobAssignmentService" as Service
+database "Tenant DB (MySQL)" as TenantDB
+queue "RabbitMQ notify-event" as RabbitMQ
+
+note over Manager, Security
+  Preconditions: tenant ACTIVE; caller is TENANT_ADMIN, ADMIN, or HR;
+  target Job and Recruiter exist in Tenant DB.
+end note
+
+== Assign Recruiter to Job ==
+
+Manager -> UI: Select recruiter & role for job assignment
+activate UI
+UI -> Security: POST /api/v1/jobs/{jobId}/assignments
+activate Security
+
+alt Unauthenticated or unauthorized role
+  Security --> UI: 401 Unauthorized / 403 Forbidden
+  deactivate Security
+  UI --> Manager: Show access error
+else Authorized HR / Admin
+  Security -> Interceptor: Forward request
+  activate Interceptor
+  deactivate Security
+  Interceptor -> Interceptor: setCurrentTenant(tenantId)
+  Interceptor -> Controller: Route request
+  activate Controller
+
+  Controller -> Service: assignRecruiter(jobId, request)
+  activate Service
+  Service -> TenantDB: findJobById(jobId)
+  activate TenantDB
+  TenantDB --> Service: Job or empty
+  deactivate TenantDB
+
+  alt Job missing
+    Service --> Controller: JOB_NOT_FOUND
+    deactivate Service
+    Controller --> UI: 404 Not Found
+    deactivate Controller
+    UI --> Manager: Show job not found error
+    Interceptor -> Interceptor: clear TenantContext
+    deactivate Interceptor
+  else Job exists
+    Service -> TenantDB: findUserById(recruiterId)
+    activate TenantDB
+    TenantDB --> Service: User or empty
+    deactivate TenantDB
+
+    alt User missing or invalid role
+      Service --> Controller: INVALID_RECRUITER
+      deactivate Service
+      Controller --> UI: 400 Bad Request
+      deactivate Controller
+      UI --> Manager: Show invalid recruiter error
+      Interceptor -> Interceptor: clear TenantContext
+      deactivate Interceptor
+    else Valid recruiter
+      Service -> TenantDB: existsByJobIdAndRecruiterId(jobId, recruiterId)
+      activate TenantDB
+      TenantDB --> Service: boolean
+      deactivate TenantDB
+
+      alt Already assigned
+        Service --> Controller: ALREADY_ASSIGNED
+        deactivate Service
+        Controller --> UI: 409 Conflict
+        deactivate Controller
+        UI --> Manager: Show recruiter already assigned
+        Interceptor -> Interceptor: clear TenantContext
+        deactivate Interceptor
+      else Assignment allowed
+        Service -> TenantDB: INSERT job_assignments
+        activate TenantDB
+        TenantDB --> Service: JobAssignment saved
+        deactivate TenantDB
+
+        Service -> RabbitMQ: publishAssignmentNotification(tenantId, recruiterId, jobId)
+        activate RabbitMQ
+        RabbitMQ --> Service: Message queued
+        deactivate RabbitMQ
+
+        Service --> Controller: JobAssignmentResponse
+        deactivate Service
+        Controller --> UI: 201 Created
+        deactivate Controller
+        UI --> Manager: Show recruiter assigned
+        Interceptor -> Interceptor: clear TenantContext
+        deactivate Interceptor
+      end
+    end
+  end
+end
+
+deactivate UI
+
+@enduml

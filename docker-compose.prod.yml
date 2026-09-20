@@ -1,21 +1,24 @@
-# Production stack for Google Cloud VPS (Compute Engine)
+# Production stack for Google Cloud VPS (Compute Engine).
+# Application images are built by GitHub Actions and pulled from Docker Hub.
 # Usage:
 #   cp deploy/.env.production.example deploy/.env.production
 #   # edit secrets
-#   docker compose -f docker-compose.prod.yml --env-file deploy/.env.production up -d --build
+#   IMAGE_TAG=latest docker compose -f docker-compose.prod.yml --env-file deploy/.env.production up -d
 
 name: smarthire-prod
 
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:17.11
     restart: unless-stopped
     environment:
-      POSTGRES_DB: smarthire_master
+      POSTGRES_DB: smarthire_postgres
       POSTGRES_USER: ${MASTER_DB_USERNAME:-smarthire_master}
       POSTGRES_PASSWORD: ${MASTER_DB_PASSWORD:?set MASTER_DB_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "0.0.0.0:5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d smarthire_master"]
       interval: 10s
@@ -25,10 +28,13 @@ services:
       - internal
 
   mysql:
-    image: mysql:8.4
+    image: mysql:8.4.11
     container_name: smarthire-mysql
     restart: unless-stopped
+    ports:
+      - "0.0.0.0:3306:3306"
     environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?set MYSQL_ROOT_PASSWORD}
       TENANT_PROVISIONING_PASSWORD: ${TENANT_PROVISIONING_PASSWORD:?set TENANT_PROVISIONING_PASSWORD}
     volumes:
@@ -41,6 +47,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 15
+      start_period: 30s
     # No host ports — only reachable inside Docker network
 
   redis:
@@ -80,11 +87,11 @@ services:
     #   ssh -L 15672:localhost:15672 user@VM_IP
 
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    image: ${BACKEND_IMAGE:-hieupnh12/smarthire-backend}:${IMAGE_TAG:-latest}
     container_name: smarthire-backend
     restart: unless-stopped
+    ports:
+      - "127.0.0.1:8081:8080"
     env_file:
       - ./deploy/.env.production
     environment:
@@ -117,24 +124,19 @@ services:
     networks:
       - internal
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8080/actuator/health | grep -q UP || exit 1"]
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8080/actuator/health/liveness | grep -q UP || exit 1"]
       interval: 20s
       timeout: 5s
       retries: 10
       start_period: 90s
 
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-      args:
-        # Same-origin API via nginx proxy inside frontend container
-        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api/v1}
+    image: ${FRONTEND_IMAGE:-hieupnh12/smarthire-frontend}:${IMAGE_TAG:-latest}
     container_name: smarthire-frontend
     restart: unless-stopped
     depends_on:
       backend:
-        condition: service_healthy
+        condition: service_started
     networks:
       - internal
       - edge
@@ -147,7 +149,11 @@ services:
 
 volumes:
   postgres_data:
+    name: smarthire-postgres-data
+    external: true
   mysql_data:
+    name: smarthire-mysql-data
+    external: true
   redis_data:
   rabbitmq_data:
 

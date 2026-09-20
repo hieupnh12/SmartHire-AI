@@ -1,12 +1,12 @@
 # Google OAuth Login
 
 **Epic:** Authentication & User Management  
-**Trạng thái:** `To Do`  
+**Trạng thái:** `Done`  
 **Code ID:** `AUTH-03`
 
 ## Mục đích chức năng
 
-Đăng nhập/đăng ký nhanh bằng Google ID token; liên kết `oauth_accounts`.
+Đăng nhập/đăng ký nhanh bằng Google ID token với cơ chế JIT (Just-In-Time) Provisioning; tự động lưu `User`, `UserProfile` và liên kết `oauth_accounts` vào cơ sở dữ liệu riêng biệt của từng Doanh nghiệp (Tenant Database).
 
 ## Actor
 
@@ -14,20 +14,24 @@
 
 ## Luồng hoạt động
 
-1. FE nhận Google `idToken`.
-2. `POST /api/v1/auth/google`.
-3. BE verify token → find/create user → JWT.
+1. FE nhận Google `idToken` từ Google Sign-In SDK.
+2. Gửi request `POST /api/v1/tenant/auth/google` kèm header `X-Tenant-ID`.
+3. BE xác thực chữ ký token qua JWKS của Google (`GoogleTokenVerifierService`).
+4. BE thực hiện JIT Provisioning (khởi tạo User với role `CANDIDATE`, lưu `UserProfile` và liên kết `oauth_accounts` trong Tenant DB).
+5. BE cấp phát JWT Access Token & Refresh Token (lưu session vào Redis) và trả về thông tin Candidate.
 
 ## Business Rules
 
-- Chỉ email Google verified.
-- Policy merge nếu email đã có password account.
+- Chỉ chấp nhận email Google đã được `email_verified == true`.
+- Tự động liên kết `oauth_accounts` nếu tài khoản email đã tồn tại trong Tenant DB.
+- 401 Axios trên luồng ứng viên (`/candidate`, `/oauth/callback`) chuyển về `/candidate/login`, không về `/internal/login`.
+- Google callback local: Google trả về `localhost` rồi FE hop sang `{tenant}.localhost` trước khi gọi API, để giữ `X-Tenant-ID`.
 
 ## API liên quan
 
-| Method | Path |
-|---|---|
-| POST | `/api/v1/auth/google` |
+| Method | Path | Mô tả |
+|---|---|---|
+| POST | `/api/v1/tenant/auth/google` | Đăng nhập/Đăng ký tự động ứng viên qua Google ID Token |
 
 ## Database liên quan
 

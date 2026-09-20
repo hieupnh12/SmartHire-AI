@@ -24,9 +24,25 @@ export interface RankingRow {
   notices: string[];
   sources: Selection;
   interviewFeedback: string | null;
+  timeline: RankingTimelineEvent[];
+  insight: RankingInsight | null;
 }
+export interface RankingTimelineEvent { type: string; occurredAt: string | null }
+export interface RankingInsight { recommendation: string; strengths: string[]; risks: string[]; questions: string[] }
 export interface RankingBoard {
   jobId: number; jobTitle: string; config: RankingConfig; rankingVersion: string; calculatedAt: string; rows: RankingRow[]; skillCategories: string[];
+}
+export interface RankingSummary {
+  totalCandidates: number; activeCandidates: number; scoredCandidates: number; averageScore: number | null;
+  topCandidateName: string | null; topScore: number | null; completeCandidates: number;
+}
+export interface RankingPage extends RankingBoard {
+  cohorts: string[];
+  summary: RankingSummary;
+  page: { number: number; size: number; totalElements: number; totalPages: number };
+}
+export interface RankingQuery {
+  page: number; size: number; search: string; status: string; cohort: string; minScore?: number; sort: string;
 }
 export interface RankingSources {
   cvs: SourceOption[]; attempts: SourceOption[]; interviews: SourceOption[]; selected: Selection;

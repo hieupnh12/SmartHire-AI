@@ -1,0 +1,136 @@
+@startuml
+skinparam dpi 300
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam roundcorner 6
+skinparam linetype ortho
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam classFontSize 11
+skinparam classAttributeFontSize 10
+skinparam classAttributeIconSize 10
+skinparam ArrowThickness 1
+skinparam ClassBorderThickness 1
+skinparam PackageBorderThickness 1
+
+skinparam class {
+    BackgroundColor #FFFFFF
+    BorderColor #2D3748
+    ArrowColor #2D3748
+}
+
+<style>
+classDiagram {
+  class {
+    Padding 5
+  }
+}
+</style>
+
+package "Controller Layer" {
+  class NotificationCenterController <<Controller>> {
+    - notificationCenterService: NotificationCenterService
+    + getNotifications(pageable: Pageable): ApiResponse<Page<NotificationResponse>>
+    + getUnreadCount(): ApiResponse<UnreadCountResponse>
+    + markAsRead(id: Long): ApiResponse<Void>
+    + markAllAsRead(): ApiResponse<Void>
+  }
+}
+
+package "DTO Layer" {
+  class NotificationResponse <<Response>> {
+    + id: Long
+    + title: String
+    + content: String
+    + type: String
+    + targetUrl: String
+    + isRead: boolean
+    + createdAt: Instant
+  }
+  class UnreadCountResponse <<Response>> {
+    + unreadCount: long
+  }
+}
+
+package "Service Layer" {
+  interface NotificationCenterService <<Service>> {
+    + getNotifications(userId: Long, pageable: Pageable): Page<NotificationResponse>
+    + getUnreadCount(userId: Long): UnreadCountResponse
+    + markAsRead(userId: Long, notificationId: Long): void
+    + markAllAsRead(userId: Long): void
+  }
+  class NotificationCenterServiceImpl <<Service>> {
+    - notificationRepository: NotificationRepository
+    - redisService: RedisService
+    + getNotifications(userId: Long, pageable: Pageable): Page<NotificationResponse>
+    + getUnreadCount(userId: Long): UnreadCountResponse
+    + markAsRead(userId: Long, notificationId: Long): void
+    + markAllAsRead(userId: Long): void
+  }
+}
+
+package "Repository Layer" {
+  interface NotificationRepository <<Repository>> {
+    + findByRecipientIdOrderByCreatedAtDesc(recipientId: Long, pageable: Pageable): Page<Notification>
+    + countByRecipientIdAndIsReadFalse(recipientId: Long): long
+    + findByIdAndRecipientId(id: Long, recipientId: Long): Optional<Notification>
+    + markAllAsReadByRecipientId(recipientId: Long): void
+    + save(notification: Notification): Notification
+  }
+}
+
+package "Domain Entity Layer" {
+  enum NotificationType <<Enum>> {
+    SYSTEM
+    RECRUITMENT_EVENT
+    INTERVIEW_REMINDER
+    OFFER_UPDATE
+  }
+  class Notification <<Entity>> {
+    - id: Long
+    - recipientId: Long
+    - title: String
+    - content: String
+    - type: NotificationType
+    - targetUrl: String
+    - isRead: boolean
+    - createdAt: Instant
+  }
+}
+
+package "Infrastructure & Persistence" {
+  class RedisCache <<Cache>> {
+    + tenant:{tenantId}:unread_notif:{userId}
+  }
+  class DedicatedTenantMySQL <<Database>> {
+    + notifications
+  }
+  class TenantContext <<ThreadLocal>> {
+    +{static} getCurrentTenant(): String
+    +{static} clear(): void
+  }
+}
+
+' Relationships
+NotificationCenterController --> NotificationCenterService : delegates >
+NotificationCenterController ..> NotificationResponse : returns >
+NotificationCenterController ..> UnreadCountResponse : returns >
+
+NotificationCenterService <|.. NotificationCenterServiceImpl : implements
+NotificationCenterServiceImpl ..> NotificationResponse : creates >
+NotificationCenterServiceImpl ..> UnreadCountResponse : creates >
+NotificationCenterServiceImpl --> NotificationRepository : manages notifications >
+NotificationCenterServiceImpl --> RedisCache : caches unread count >
+NotificationCenterServiceImpl ..> TenantContext : reads tenant context >
+
+NotificationRepository --> Notification : manages >
+NotificationRepository --> DedicatedTenantMySQL : persists to >
+
+Notification ..> NotificationType : typed by >
+
+note right of NotificationCenterServiceImpl
+  Unread count is cached in Redis for fast badge rendering.
+  Querying notifications is tenant-isolated and paginated.
+end note
+
+@enduml

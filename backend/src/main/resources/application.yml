@@ -1,6 +1,10 @@
 spring:
   application:
     name: smarthire-backend
+  servlet:
+    multipart:
+      max-file-size: ${CV_MAX_FILE:10MB}
+      max-request-size: ${CV_MAX_REQUEST:12MB}
   jpa:
     hibernate:
       ddl-auto: auto
@@ -11,6 +15,18 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration/master
+    validate-on-migrate: false
+  mail:
+    host: ${MAIL_HOST:}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
   data:
     redis:
       host: ${REDIS_HOST:localhost}
@@ -81,7 +97,7 @@ app:
         minimum-idle: 1
   tenant:
     credentials-key: ${TENANT_CREDENTIALS_KEY}
-    base-domain: ${TENANT_BASE_DOMAIN:smarthire.ai}
+    base-domain: ${TENANT_BASE_DOMAIN:smarthire.top}
     mysql-base-url: ${TENANT_MYSQL_BASE_URL:jdbc:mysql://localhost:3306}
     mysql-options: ${TENANT_MYSQL_OPTIONS:sslMode=PREFERRED&allowPublicKeyRetrieval=true}
     pool-size: ${TENANT_DB_POOL_SIZE:5}
@@ -136,9 +152,20 @@ app:
       notify-email: notify.email.q
       auth-email-otp: auth.email.otp.q
       job-events: job.events.q
+  cv:
+    storage-dir: ${CV_STORAGE_DIR:./storage/cvs}
+    max-file-bytes: ${CV_MAX_FILE_BYTES:10485760}
+    gemini-api-key: ${GEMINI_API_KEY:}
+    gemini-model: ${GEMINI_MODEL:gemini-2.0-flash}
+    timeout-seconds: ${CV_AI_TIMEOUT_SECONDS:30}
 
 smarthire:
   jwt:
     secret: ${JWT_SECRET:51330ac6763ee8ea260ef202bb35a6b84629fbb3a5b8598d75279cfb84b6e9c7}
     expiration-ms: ${JWT_EXPIRATION:86400000}
+  google:
+    client-id: ${GOOGLE_CLIENT_ID:}
+  invite:
+    public-origin: ${INVITE_PUBLIC_ORIGIN:http://localhost:5173}
+    expire-hours: ${INVITE_EXPIRE_HOURS:72}
 
