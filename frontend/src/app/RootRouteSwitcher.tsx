@@ -18,13 +18,6 @@ export function RootRouteSwitcher() {
       return;
     }
 
-    // Default seed tenants like acme or ctya
-    if (["acme", "ctya", "vng", "viettel", "fpt"].includes(tenantId.toLowerCase())) {
-      setTenantExists(true);
-      setChecking(false);
-      return;
-    }
-
     masterAdminApi.checkSubdomainExists(tenantId)
       .then((exists) => {
         setCheckFailed(false);
@@ -38,7 +31,7 @@ export function RootRouteSwitcher() {
       });
   }, [tenantId]);
 
-  // If accessed on a Tenant subdomain (e.g. acme.localhost, vng.localhost, acme.smarthire.top)
+  // If accessed on a tenant subdomain (e.g. se36.localhost or se36.smarthire.top)
   if (tenantId) {
     if (checking) {
       return (

@@ -87,6 +87,9 @@ Request tự động:
 
 ## UI mockup
 
+- Landing page hiển thị hai không gian mẫu đang có dữ liệu là `se36` và `se37`.
+- Trang Tenant Not Found điều hướng về domain nền tảng hiện tại: `smarthire.top` ở production và `localhost` khi phát triển local.
+
 - `/onboard`: form Workspace Admin có validation, trạng thái chờ và lỗi.
 - `/onboard?retry=<id>`: form retry với thông tin admin.
 - Dashboard master có cụm quản lý vòng đời tenant: tạo mới, danh bạ, bốn trạng thái `PROVISIONING` / `ACTIVE` / `FAILED` / `SUSPENDED`, suspend/reactivate và Retry cho `FAILED`/`PROVISIONING`.
