@@ -20,6 +20,8 @@ export type SidebarGroupId = "overview" | "analytics" | "tenants" | "commerce" |
 
 export type SidebarItem = {
   tab?: DashboardTab;
+  path?: string;
+  activePaths?: string[];
   action?: () => void;
   label: string;
   description: string;
