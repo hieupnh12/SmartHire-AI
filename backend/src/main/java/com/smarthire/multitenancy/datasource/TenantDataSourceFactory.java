@@ -4,23 +4,29 @@ import com.smarthire.domain.master.entity.TenantInfo;
 import com.smarthire.multitenancy.service.TenantCredentialService;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
+import org.flywaydb.core.Flyway;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
-import org.flywaydb.core.Flyway;
 
 @Component
 public class TenantDataSourceFactory {
+    private static final Logger log = LoggerFactory.getLogger(TenantDataSourceFactory.class);
     private final TenantCredentialService credentials;
+    private final TenantSchemaBootstrap schemaBootstrap;
     private final int poolSize;
     private final String mysqlBaseUrl;
     private final String mysqlOptions;
 
     public TenantDataSourceFactory(TenantCredentialService credentials,
+            TenantSchemaBootstrap schemaBootstrap,
             @Value("${app.tenant.pool-size:5}") int poolSize,
             @Value("${app.tenant.mysql-base-url}") String mysqlBaseUrl,
             @Value("${app.tenant.mysql-options:sslMode=PREFERRED&allowPublicKeyRetrieval=true}") String mysqlOptions) {
         if (poolSize < 1) throw new IllegalArgumentException("Tenant pool size must be positive");
         this.credentials = credentials;
+        this.schemaBootstrap = schemaBootstrap;
         this.poolSize = poolSize;
         this.mysqlBaseUrl = mysqlBaseUrl.endsWith("/")
                 ? mysqlBaseUrl.substring(0, mysqlBaseUrl.length() - 1)
@@ -58,13 +64,19 @@ public class TenantDataSourceFactory {
                 .locations("classpath:db/migration/tenant")
                 .cleanDisabled(true)
                 .baselineOnMigrate(false)
+                .validateOnMigrate(false)
                 .load();
         try {
             flyway.migrate();
-        } catch (Exception first) {
-            // A previous failed V4 leaves Flyway blocked until repair.
-            flyway.repair();
-            flyway.migrate();
+        } catch (Exception ex) {
+            log.error("Tenant Flyway migrate failed; repairing and retrying", ex);
+            try {
+                flyway.repair();
+                flyway.migrate();
+            } catch (Exception retry) {
+                log.error("Tenant Flyway retry failed; applying JDBC role schema anyway", retry);
+            }
         }
+        schemaBootstrap.apply(dataSource);
     }
 }

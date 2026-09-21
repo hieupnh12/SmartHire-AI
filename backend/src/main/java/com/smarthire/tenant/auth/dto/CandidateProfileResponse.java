@@ -31,7 +31,7 @@ public class CandidateProfileResponse {
                 .email(user.getEmail())
                 .fullName(user.getFullName())
                 .avatarUrl(profile != null ? profile.getAvatarUrl() : null)
-                .role(user.getRole() != null ? user.getRole().name() : "CANDIDATE")
+                .role(user.getRole() != null ? user.getRole() : "CANDIDATE")
                 .headline(profile != null ? profile.getHeadline() : null)
                 .status(user.getStatus() != null ? user.getStatus().name() : "ACTIVE")
                 .build();

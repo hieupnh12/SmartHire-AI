@@ -3,6 +3,7 @@ package com.smarthire.tenant.auth.service;
 import com.smarthire.common.exception.BusinessException;
 import com.smarthire.domain.enums.UserRole;
 import com.smarthire.domain.enums.UserStatus;
+import com.smarthire.domain.tenant.entity.TenantRole;
 import com.smarthire.domain.tenant.entity.User;
 import com.smarthire.domain.tenant.repository.UserRepository;
 import com.smarthire.tenant.auth.dto.CreateEmployeeRequest;
@@ -25,6 +26,7 @@ public class TenantUserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuthMapper authMapper;
+    private final TenantRoleService tenantRoleService;
 
     @Transactional
     public UserResponse createEmployee(CreateEmployeeRequest request) {
@@ -32,27 +34,44 @@ public class TenantUserService {
             throw new BusinessException("User with email '" + request.getEmail() + "' already exists in this Tenant.", HttpStatus.CONFLICT, "EMAIL_EXISTS");
         }
 
-        UserRole userRole;
-        try {
-            userRole = UserRole.valueOf(request.getRole().toUpperCase());
-        } catch (IllegalArgumentException e) {
-            throw new BusinessException("Invalid role specified. Supported roles: TENANT_ADMIN, ADMIN, HR, RECRUITER, CANDIDATE", HttpStatus.BAD_REQUEST, "INVALID_ROLE");
-        }
+        TenantRole tenantRole = tenantRoleService.requireExisting(request.getRole());
 
         User user = new User();
         user.setEmail(request.getEmail().toLowerCase());
         user.setFullName(request.getFullName());
         user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
-        user.setRole(userRole);
+        user.setRole(tenantRole.getCode());
         user.setStatus(UserStatus.ACTIVE);
 
         User savedUser = userRepository.save(user);
-        return authMapper.toUserResponse(savedUser);
+        return withWorkspace(authMapper.toUserResponse(savedUser));
+    }
+
+    @Transactional
+    public UserResponse assignRole(Long userId, String roleCode) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException("User not found", HttpStatus.NOT_FOUND, "USER_NOT_FOUND"));
+        if (UserRole.isCandidate(user.getRole())) {
+            throw new BusinessException("Cannot change a candidate account to a staff role",
+                    HttpStatus.BAD_REQUEST, "USER_NOT_STAFF");
+        }
+        TenantRole tenantRole = tenantRoleService.requireAssignable(roleCode);
+        user.setRole(tenantRole.getCode());
+        return withWorkspace(authMapper.toUserResponse(userRepository.save(user)));
     }
 
     @Transactional(readOnly = true)
     public List<UserResponse> getEmployees() {
-        return authMapper.toUserResponseList(userRepository.findAll());
+        return authMapper.toUserResponseList(userRepository.findAll()).stream()
+                .filter(user -> !UserRole.isCandidate(user.getRole()))
+                .map(this::withWorkspace)
+                .toList();
+    }
+
+    private UserResponse withWorkspace(UserResponse response) {
+        if (response != null) {
+            response.setWorkspace(UserRole.workspaceOf(response.getRole()));
+        }
+        return response;
     }
 }
-

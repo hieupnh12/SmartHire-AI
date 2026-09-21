@@ -9,6 +9,7 @@ import { Tooltip } from "@/components/ux/Tooltip";
 import { authApi } from "@/api/tenant/authApi";
 import { companyApi } from "@/api/tenant/companyApi";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
+import { hasRecruiterFeature, recruiterHomePath, visibleRecruiterNav } from "@/features/tenant/recruiter/permissions";
 import { useT } from "@/i18n";
 import { getTenantIdFromWindow } from "@/lib/tenant";
 import { getTenantTheme, getTenantThemeStyle } from "@/lib/tenantTheme";
@@ -67,6 +68,13 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
   const tenantLogoUrl = companyProfile?.logoUrl?.trim() || null;
   const tenantDisplayName = companyProfile?.companyName?.trim() || tenantTheme.name;
   const showTenantLogo = !!tenantLogoUrl && failedTenantLogoUrl !== tenantLogoUrl;
+  const displayedLinks = isRecruiterWorkspace
+    ? accessToken && !user
+      ? []
+      : visibleRecruiterNav(user?.permissions)
+    : links;
+  const showRecruiterNotifications =
+    !isRecruiterWorkspace || hasRecruiterFeature(user?.permissions, "NOTIFICATIONS");
   useEffect(() => {
     if (profileQuery.data?.success && profileQuery.data.data) setUser(profileQuery.data.data);
   }, [profileQuery.data, setUser]);
@@ -77,7 +85,11 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
   const submitWorkspaceSearch = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const query = new FormData(event.currentTarget).get("workspace-search")?.toString().trim();
-    const target = isCandidateWorkspace ? "/candidate/jobs" : "/recruiter/applicants";
+    const target = isCandidateWorkspace
+      ? "/candidate/jobs"
+      : hasRecruiterFeature(user?.permissions, "APPLICANTS")
+        ? "/recruiter/applicants"
+        : recruiterHomePath(user?.permissions);
     navigate(query ? `${target}?q=${encodeURIComponent(query)}` : target);
   };
   const submitAdminSearch = (event: FormEvent<HTMLFormElement>) => {
@@ -85,6 +97,7 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
     const query = new FormData(event.currentTarget).get("admin-search")?.toString().trim().toLocaleLowerCase() ?? "";
     if (/doanh nghiệp|company|hồ sơ/.test(query)) navigate(`${basePath}/company`);
     else if (/người dùng|thành viên|user|member/.test(query)) navigate(`${basePath}/users`);
+    else if (/phân quyền|roles|permission/.test(query)) navigate(`${basePath}/roles`);
     else if (/hệ thống|system|health/.test(query)) navigate(`${basePath}/system`);
     else if (/tài khoản|account|bảo mật|security/.test(query)) navigate(`${basePath}/account`);
     else navigate(basePath);
@@ -336,7 +349,7 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
                 <CircleHelp className="size-[18px]" aria-hidden="true" />
               </Button>
             </Tooltip>
-            {useWorkspaceHeader && (
+            {useWorkspaceHeader && showRecruiterNotifications && (
               <Tooltip content={t("nav.notifications")} side="bottom">
                 <NavLink
                   to={`${basePath}/notifications`}
@@ -380,7 +393,7 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
             className="mx-auto flex max-w-[1440px] gap-1 overflow-x-auto px-4 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:px-6 lg:px-10"
             aria-label={t("a11y.mainNav")}
           >
-            {links.map((l) => (
+            {displayedLinks.map((l) => (
               <NavLink
                 key={l.to}
                 to={`${basePath}${l.to}`}

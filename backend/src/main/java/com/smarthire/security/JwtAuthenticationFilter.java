@@ -14,7 +14,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
+import com.smarthire.domain.enums.UserRole;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 @Component
@@ -54,7 +56,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 }
 
                 if (StringUtils.hasText(email)) {
-                    List<SimpleGrantedAuthority> authorities = List.of(new SimpleGrantedAuthority("ROLE_" + role));
+                    List<SimpleGrantedAuthority> authorities = new ArrayList<>();
+                    authorities.add(new SimpleGrantedAuthority("ROLE_" + role));
+                    if (UserRole.isRecruiterStaff(role)) {
+                        authorities.add(new SimpleGrantedAuthority("ROLE_STAFF"));
+                    }
                     UsernamePasswordAuthenticationToken authentication =
                             new UsernamePasswordAuthenticationToken(email, null, authorities);
                     authentication.setDetails(tokenTenantId);

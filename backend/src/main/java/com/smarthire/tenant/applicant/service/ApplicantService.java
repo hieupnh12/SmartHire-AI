@@ -124,10 +124,10 @@ public class ApplicantService {
             candidate = new User();
             candidate.setEmail(email);
             candidate.setFullName(request.fullName().trim());
-            candidate.setRole(UserRole.CANDIDATE);
+            candidate.setRole(UserRole.CANDIDATE.name());
             candidate.setStatus(UserStatus.ACTIVE);
             users.save(candidate);
-        } else if (candidate.getRole() != UserRole.CANDIDATE) {
+        } else if (!UserRole.isCandidate(candidate.getRole())) {
             throw new BusinessException("Email belongs to a staff account", HttpStatus.BAD_REQUEST, "EMAIL_NOT_CANDIDATE");
         }
         var existing = applications.findByJob_IdAndCandidate_Id(jobId, candidate.getId());
@@ -193,7 +193,7 @@ public class ApplicantService {
             } else {
                 User assignee = users.findByEmailIgnoreCase(request.assigneeEmail().trim())
                         .orElseThrow(() -> new BusinessException("Assignee not found", HttpStatus.NOT_FOUND, "USER_NOT_FOUND"));
-                if (assignee.getRole() == UserRole.CANDIDATE) {
+                if (UserRole.isCandidate(assignee.getRole())) {
                     throw new BusinessException("Assignee must be staff", HttpStatus.BAD_REQUEST, "ASSIGNEE_NOT_STAFF");
                 }
                 application.setAssignee(assignee);

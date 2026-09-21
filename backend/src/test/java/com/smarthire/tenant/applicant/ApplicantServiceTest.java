@@ -53,7 +53,7 @@ class ApplicantServiceTest {
         candidate.setId(9L);
         candidate.setEmail("can@se36.local");
         candidate.setFullName("Candidate");
-        candidate.setRole(UserRole.CANDIDATE);
+        candidate.setRole(UserRole.CANDIDATE.name());
         job = new Job();
         job.setId(1L);
         job.setTitle("Backend Java");

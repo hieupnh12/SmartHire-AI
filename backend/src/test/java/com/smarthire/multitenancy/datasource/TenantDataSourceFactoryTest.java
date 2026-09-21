@@ -11,7 +11,8 @@ class TenantDataSourceFactoryTest {
 
     @Test
     void managedTenantUsesEnvironmentBaseUrlAndStoredDatabaseName() {
-        var factory = new TenantDataSourceFactory(mock(TenantCredentialService.class), 5,
+        var factory = new TenantDataSourceFactory(mock(TenantCredentialService.class),
+                mock(TenantSchemaBootstrap.class), 5,
                 "jdbc:mysql://mysql:3306/", "sslMode=PREFERRED&allowPublicKeyRetrieval=true");
         var tenant = new TenantInfo();
         tenant.setManagedDatabase(true);
@@ -24,7 +25,8 @@ class TenantDataSourceFactoryTest {
 
     @Test
     void customTenantKeepsItsStoredDatabaseUrl() {
-        var factory = new TenantDataSourceFactory(mock(TenantCredentialService.class), 5,
+        var factory = new TenantDataSourceFactory(mock(TenantCredentialService.class),
+                mock(TenantSchemaBootstrap.class), 5,
                 "jdbc:mysql://mysql:3306", "sslMode=PREFERRED");
         var tenant = new TenantInfo();
         tenant.setManagedDatabase(false);

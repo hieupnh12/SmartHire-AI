@@ -17,6 +17,7 @@ public class OnboardTenantRequest extends TenantAdminRequest {
     @Size(max = 256)
     @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private String dbPassword;
+    private String environmentType;
 
     public String getCode() { return code; }
     public void setCode(String value) { code = value; }
@@ -30,4 +31,6 @@ public class OnboardTenantRequest extends TenantAdminRequest {
     public void setDbUsername(String value) { dbUsername = value; }
     public String getDbPassword() { return dbPassword; }
     public void setDbPassword(String value) { dbPassword = value; }
+    public String getEnvironmentType() { return environmentType; }
+    public void setEnvironmentType(String value) { environmentType = value; }
 }

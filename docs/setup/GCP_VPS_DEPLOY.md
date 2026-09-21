@@ -177,6 +177,8 @@ Tạo GitHub Secrets:
 | `DOCKERHUB_USERNAME` | `hieupnh12` |
 | `DOCKERHUB_TOKEN` | Docker Hub access token có quyền Read & Write |
 
+Tạo GitHub Actions Repository Variable `VITE_GOOGLE_CLIENT_ID` với OAuth client ID dùng cho frontend. Biến `VITE_*` được nhúng khi build image và không được đọc từ `deploy/.env.production` trên VPS. Backend vẫn đọc `GOOGLE_CLIENT_ID` từ file env production.
+
 Trên VPS, user deploy cần:
 
 - Có thư mục `DEPLOY_PATH`; workflow tự tải manifest deploy qua SCP
