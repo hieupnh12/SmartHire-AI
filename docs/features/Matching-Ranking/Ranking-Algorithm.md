@@ -68,6 +68,10 @@ CV-03/04/05, JOB-03/05, ASSESS-03, INT-04.
 ## Tiến độ và kiểm thử
 
 - Đã triển khai thuật toán, API, lưu snapshot, cấu hình, chọn nguồn và giao diện sử dụng dữ liệu thật.
+- Giao diện Rank hiển thị đủ bốn thành phần điểm trên desktop/mobile, kế thừa semantic token của tenant và hỗ trợ focus, dialog, validation accessible.
+- Khu vực đầu trang dùng hero điều hành, gom chọn Job, trạng thái snapshot và hành động chính vào một hierarchy; empty state hướng dẫn rõ nguồn điểm, button có hover riêng cho primary/secondary.
+- Các trường chọn Job, bộ lọc, số dòng và nguồn đánh giá dùng dropdown đồng bộ theme tenant, hỗ trợ bàn phím, trạng thái active và click-outside; riêng danh sách Job hỗ trợ tìm kiếm không dấu, đếm kết quả và trạng thái rỗng để xử lý danh sách lớn.
+- Panel chọn Job luôn nổi trên các thẻ thống kê; nút xem chi tiết chuyển sang màu primary đậm khi hover để thể hiện rõ hành động.
 - Unit test: công thức 81,35; điểm tạm 79,30; điểm 0/thiếu; trọng số sai; alias; tương đồng khác bao phủ; loại trùng thời gian; cohort/đồng hạng; quyền tenant/Job; validation HTTP và xung đột revision.
 - Integration test H2: đọc CV/assessment/interview thật, tính 84,20 theo fixture, lưu/chọn nguồn/tính lại nhiều lần chỉ còn một snapshot mỗi hồ sơ.
 - Còn phụ thuộc các module tạo Job/hồ sơ, trích xuất CV, chấm assessment và AI interview hiện là scaffold. Khi các module này hoàn tất dữ liệu, chúng publish `RANKING_RECOMPUTE` lên `job.events` kèm `X-Tenant-ID`; worker tính snapshot và WebSocket `/ws/rankings` phát `ranking.updated` sau commit. Polling 30 giây được giữ làm fallback. Vì các producer upstream còn scaffold, trạng thái toàn luồng giữ `Doing`.

@@ -27,21 +27,32 @@ export interface SubscriptionPlan {
   status?: string;
 }
 
+export interface ChartDataPoint {
+  label: string;
+  value: number;
+}
+
 export interface RevenueAnalytics {
+  totalRevenue: number;
   mrr: number;
   arr: number;
   activeTenants: number;
+  totalTenants: number;
   growthRate: string;
   planDistribution: Record<string, number>;
+  revenueTrend: ChartDataPoint[];
 }
 
 export interface AiQuotaUsage {
   totalCvParsesUsed: number;
-  totalCvParsesLimit: number;
-  totalVoiceHoursUsed: number;
-  totalVoiceHoursLimit: number;
-  activeModels: string[];
+  totalVoiceSecondsUsed: number;
+  totalTokensConsumed: number;
   systemHealth: string;
+  activeModels: string[];
+  usageTrend: ChartDataPoint[];
+  totalVoiceHoursUsed?: number;
+  totalCvParsesLimit?: number;
+  totalVoiceHoursLimit?: number;
 }
 
 export interface AuditLog {
@@ -96,12 +107,19 @@ export const masterAdminApi = {
   },
 
   // 3. Analytics & Logs
-  getRevenueAnalytics: async (): Promise<RevenueAnalytics> => {
-    const res = await masterClient.get(`${API_BASE}/master/analytics/revenue`);
+  getRevenueAnalytics: async (startDate?: string, endDate?: string, groupBy?: string): Promise<RevenueAnalytics> => {
+    const params = new URLSearchParams();
+    if (startDate) params.append("startDate", startDate);
+    if (endDate) params.append("endDate", endDate);
+    if (groupBy) params.append("groupBy", groupBy);
+    const res = await masterClient.get(`${API_BASE}/master/analytics/revenue?${params.toString()}`);
     return res.data.data;
   },
-  getAiQuotaUsage: async (): Promise<AiQuotaUsage> => {
-    const res = await masterClient.get(`${API_BASE}/master/analytics/ai-quota`);
+  getAiQuotaUsage: async (startDate?: string, endDate?: string): Promise<AiQuotaUsage> => {
+    const params = new URLSearchParams();
+    if (startDate) params.append("startDate", startDate);
+    if (endDate) params.append("endDate", endDate);
+    const res = await masterClient.get(`${API_BASE}/master/analytics/ai-quota?${params.toString()}`);
     return res.data.data;
   },
   getAuditLogs: async (): Promise<AuditLog[]> => {

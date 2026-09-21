@@ -201,6 +201,7 @@ export function AppRouter() {
           <Route path="system/logs" element={<AuditLogsPage />} />
           <Route path="system/ai-usage" element={<AiManagementPage />} />
           <Route path="system/ai-quotas" element={<AiManagementPage />} />
+          <Route path="system/ai-config" element={<AiManagementPage />} />
           <Route path="account/profile" element={<MasterAccountPage activeTab="account-profile" />} />
           <Route path="account/security" element={<MasterAccountPage activeTab="account-security" />} />
           <Route path="account/accessibility" element={<MasterAccountPage activeTab="account-accessibility" />} />

@@ -18,7 +18,7 @@ const schema = z.object({
   { message: "Nhập số tháng kinh nghiệm yêu cầu hoặc đặt trọng số kinh nghiệm bằng 0", path: ["requiredExperienceMonths"] });
 
 export function RankingConfigForm({ jobId, config, onSaved }: { jobId: number; config: RankingConfig; onSaved: (board: RankingBoard) => void }) {
-  const form = useForm<RankingConfig>({ resolver: zodResolver(schema), defaultValues: config });
+  const form = useForm<RankingConfig>({ resolver: zodResolver(schema), defaultValues: config, shouldFocusError: true });
   const save = useMutation({ mutationFn: (value: RankingConfig) => matchingApi.configure(jobId, value),
     onSuccess: (response) => { if (response.data) onSaved(response.data); } });
   const values = form.watch();
@@ -28,23 +28,23 @@ export function RankingConfigForm({ jobId, config, onSaved }: { jobId: number; c
       <legend className="font-semibold">Trọng số thành phần · {Object.values(values.weights).reduce((a, b) => a + Number(b), 0)}%</legend>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {(["skills", "experience", "assessment", "interview"] as const).map((key) => <label key={key} className="space-y-2 text-sm">
-          <span>{labels[key]} (%)</span><input className={input} type="number" min={0} max={100} step={1} {...form.register(`weights.${key}`)} />
-          {form.formState.errors.weights?.[key] && <span role="alert">Nhập số nguyên từ 0 đến 100.</span>}
+          <span>{labels[key]} (%)</span><input className={input} type="number" inputMode="numeric" min={0} max={100} step={1} aria-invalid={!!form.formState.errors.weights?.[key]} aria-describedby={form.formState.errors.weights?.[key] ? `weight-${key}-error` : undefined} {...form.register(`weights.${key}`)} />
+          {form.formState.errors.weights?.[key] && <span id={`weight-${key}-error`} role="alert" className="block text-red-700">Nhập số nguyên từ 0 đến 100.</span>}
         </label>)}
       </div>
       {form.formState.errors.weights?.message && <p role="alert">{form.formState.errors.weights.message}</p>}
       <p className="font-semibold">Trọng số nhóm kỹ năng · {Object.values(values.groups).reduce((a, b) => a + Number(b), 0)}%</p>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {Object.keys(config.groups).map((key) => <label key={key} className="space-y-2 text-sm"><span>{labels[key] ?? key} (%)</span>
-          <input className={input} type="number" min={0} max={100} step={1} {...form.register(`groups.${key}`)} />
-          {form.formState.errors.groups?.[key] && <span role="alert">Nhập số nguyên từ 0 đến 100.</span>}
+          <input className={input} type="number" inputMode="numeric" min={0} max={100} step={1} aria-invalid={!!form.formState.errors.groups?.[key]} aria-describedby={form.formState.errors.groups?.[key] ? `group-${key}-error` : undefined} {...form.register(`groups.${key}`)} />
+          {form.formState.errors.groups?.[key] && <span id={`group-${key}-error`} role="alert" className="block text-red-700">Nhập số nguyên từ 0 đến 100.</span>}
         </label>)}
       </div>
       {form.formState.errors.groups?.message && <p role="alert">{String(form.formState.errors.groups.message)}</p>}
       <label className="block max-w-sm space-y-2 text-sm"><span>Kinh nghiệm liên quan yêu cầu (tháng)</span>
-        <input className={input} type="number" min={0} max={1200} {...form.register("requiredExperienceMonths")} />
+        <input className={input} type="number" inputMode="numeric" min={0} max={1200} aria-invalid={!!form.formState.errors.requiredExperienceMonths} aria-describedby={form.formState.errors.requiredExperienceMonths ? "experience-error" : undefined} {...form.register("requiredExperienceMonths")} />
       </label>
-      {form.formState.errors.requiredExperienceMonths && <p role="alert">{form.formState.errors.requiredExperienceMonths.message}</p>}
+      {form.formState.errors.requiredExperienceMonths && <p id="experience-error" role="alert" className="text-sm text-red-700">{form.formState.errors.requiredExperienceMonths.message}</p>}
       <button className={primary} type="submit">{save.isPending ? "Đang tính lại…" : "Lưu và tính lại toàn bộ"}</button>
     </fieldset>
     {save.isError && <p role="alert">{getApiErrorMessage(save.error)}</p>}

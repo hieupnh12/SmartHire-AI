@@ -5,6 +5,11 @@ import { useMasterDashboard } from "@/features/master/shell/MasterAdminContext";
 export function AiManagementPage() {
   const location = useLocation();
   const { tenants } = useMasterDashboard();
-  const view: SystemManagementView = location.pathname.endsWith("ai-quotas") ? "ai-quotas" : "ai-usage";
+  let view: SystemManagementView = "ai-usage";
+  if (location.pathname.endsWith("ai-quotas")) {
+    view = "ai-quotas";
+  } else if (location.pathname.endsWith("ai-config")) {
+    view = "ai-config";
+  }
   return <SystemManagementWorkspace view={view} tenants={tenants} />;
 }

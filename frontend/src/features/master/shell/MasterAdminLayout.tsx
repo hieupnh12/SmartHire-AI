@@ -13,6 +13,7 @@ const paths: Record<DashboardTab, string> = {
   tenants: "/admin/tenants/directory", subscriptions: "/admin/subscriptions/plans",
   invoices: "/admin/invoices", contracts: "/admin/contracts", logs: "/admin/system/logs",
   "ai-usage": "/admin/system/ai-usage", "ai-quotas": "/admin/system/ai-quotas",
+  "ai-config": "/admin/system/ai-config",
   "account-profile": "/admin/account/profile", "account-security": "/admin/account/security",
   "account-accessibility": "/admin/account/accessibility", "account-notifications": "/admin/account/notifications",
 };
@@ -112,7 +113,7 @@ function MasterAdminLayoutContent() {
         />
       )}
 
-      <div className="relative mx-auto flex w-full min-w-0 max-w-[1536px] flex-1 items-start">
+      <div className="relative flex w-full min-w-0 flex-1 items-start">
         <MasterAdminSidebar
           activeTab={activeTab}
           setActiveTab={setActiveTab}
@@ -134,7 +135,7 @@ function MasterAdminLayoutContent() {
 
       {/* FOOTER */}
       <footer className={`border-t border-slate-200 bg-white py-5 text-center text-xs text-slate-500 transition-[padding] ${isSidebarCollapsed ? "md:pl-20" : "md:pl-[21rem]"}`}>
-        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-2 px-4 sm:flex-row">
+        <div className="flex w-full flex-col items-center justify-between gap-2 px-4 sm:flex-row sm:px-6 lg:px-8">
           <span>SmartHire-AI Platform © 2026 · Cổng Quản Trị Trung Tâm (Master DB Controller)</span>
           <span className="text-slate-400">PostgreSQL Master Registry · Separate Database Architecture</span>
         </div>
