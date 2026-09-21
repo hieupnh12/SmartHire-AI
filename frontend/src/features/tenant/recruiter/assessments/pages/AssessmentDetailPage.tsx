@@ -1,327 +1,69 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Send, Trash2 } from "lucide-react";
-import { PrototypeBanner } from "@/components/ux/PrototypeBanner";
-import { StatusPill } from "@/components/ux/StatusPill";
-import { button, input, muted, panel, primary } from "@/features/tenant/recruiter/matching/components/rankingUi";
-import {
-  mockTests,
-  submissionStatusLabel,
-  testStatusLabel,
-  type MockQuestion,
-  type MockTest,
-} from "@/features/tenant/recruiter/assessments/constants/mockTests";
-
-const emptyTest = (): MockTest => ({
-  id: 0,
-  jobId: 101,
-  jobTitle: "Backend Engineer",
-  title: "",
-  description: "",
-  durationMinutes: 45,
-  passingScore: 70,
-  status: "DRAFT",
-  questionCount: 0,
-  assignedCount: 0,
-  submittedCount: 0,
-  createdAt: new Date().toISOString(),
-  questions: [],
-  submissions: [],
-});
+import { ArrowLeft, Check, Pencil, Plus, Send, Trash2 } from "lucide-react";
+import { assessmentApi } from "@/api/tenant/assessmentApi";
+import { jobApi } from "@/api/tenant/jobApi";
+import type { Question, QuestionRequest, TestRequest } from "@/api/types/assessment";
+import { queryKeys } from "@/lib/query-keys";
+import { Button } from "@/components/ux/Button";
+import { Tooltip } from "@/components/ux/Tooltip";
+import { AssessmentError, assessmentLink, assessmentMuted as muted, assessmentStatus } from "@/components/ux/assessmentUi";
+import { TestForm } from "../components/TestForm";
+import { QuestionForm } from "../components/QuestionForm";
 
 export function AssessmentDetailPage() {
   const { id } = useParams();
+  const testId = Number(id);
+  const isNew = !id || id === "new";
+  const valid = Number.isSafeInteger(testId) && testId > 0;
   const navigate = useNavigate();
-  const isNew = id === "new";
-  const source = useMemo(
-    () => (isNew ? emptyTest() : mockTests.find((t) => String(t.id) === id) ?? null),
-    [id, isNew],
-  );
-
-  const [title, setTitle] = useState(source?.title ?? "");
-  const [description, setDescription] = useState(source?.description ?? "");
-  const [duration, setDuration] = useState(source?.durationMinutes ?? 45);
-  const [passing, setPassing] = useState(source?.passingScore ?? 70);
-  const [jobTitle, setJobTitle] = useState(source?.jobTitle ?? "Backend Engineer");
-  const [status, setStatus] = useState(source?.status ?? "DRAFT");
-  const [questions, setQuestions] = useState<MockQuestion[]>(source?.questions ?? []);
-  const [assignAppId, setAssignAppId] = useState("");
-  const [toast, setToast] = useState<string | null>(null);
-
-  if (!source) {
-    return (
-      <section className="space-y-4 text-[var(--color-on-surface)]">
-        <p role="alert">Không tìm thấy đề kiểm tra.</p>
-        <Link className={button} to="/recruiter/assessments">Quay lại danh sách</Link>
+  const client = useQueryClient();
+  const [dirty, setDirty] = useState(false);
+  const [editor, setEditor] = useState<Question | "new" | null>(null);
+  const [notice, setNotice] = useState("");
+  const test = useQuery({ queryKey: queryKeys.assessments.detail(testId), queryFn: () => assessmentApi.get(testId), enabled: valid });
+  const questions = useQuery({ queryKey: queryKeys.assessments.questions(testId), queryFn: () => assessmentApi.questions(testId), enabled: valid });
+  const jobs = useQuery({ queryKey: [...queryKeys.assessments.all(), "jobs"], queryFn: jobApi.options });
+  const refresh = () => client.invalidateQueries({ queryKey: queryKeys.assessments.all() });
+  const metadata = useMutation({ mutationFn: (body: TestRequest) => isNew ? assessmentApi.create(body) : assessmentApi.update(testId, body), onSuccess: async result => {
+    client.setQueryData(queryKeys.assessments.detail(result.id), result); setNotice("Đã lưu thông tin đề."); await refresh();
+    if (isNew) navigate(`/recruiter/assessments/${result.id}`, { replace: true });
+  } });
+  const saveQuestion = useMutation({ mutationFn: (body: QuestionRequest) => editor && editor !== "new" ? assessmentApi.updateQuestion(testId, editor.id, body) : assessmentApi.createQuestion(testId, body), onSuccess: async () => { setEditor(null); setNotice("Đã lưu câu hỏi."); await refresh(); } });
+  const remove = useMutation({ mutationFn: (questionId: number) => assessmentApi.deleteQuestion(testId, questionId), onSuccess: refresh });
+  const publish = useMutation({ mutationFn: () => assessmentApi.publish(testId), onSuccess: async () => { setNotice("Đề đã được xuất bản."); await refresh(); } });
+  const busy = metadata.isPending || saveQuestion.isPending || remove.isPending || publish.isPending;
+  const draft = isNew || test.data?.status === "DRAFT";
+  const total = questions.data?.reduce((sum, q) => sum + q.points, 0) ?? 0;
+  if (!isNew && !valid) return <p role="alert">Mã đề không hợp lệ.</p>;
+  return <section className="space-y-6 text-[var(--color-on-surface)]">
+    <Link className={assessmentLink} to="/recruiter/assessments"><ArrowLeft className="size-4" aria-hidden="true" />Danh sách đề</Link>
+    <header className="flex flex-wrap items-start justify-between gap-4"><div className="min-w-0"><p className={muted}>{isNew ? "Đề mới" : assessmentStatus[test.data?.status ?? "DRAFT"]}</p><h1 className="break-words text-2xl font-semibold">{isNew ? "Tạo đề kiểm tra" : test.data?.title ?? "Đề kiểm tra"}</h1></div>
+      {!isNew && draft && <Button disabled={busy || dirty || !!editor || !questions.data?.length || questions.isError} onClick={() => { if (window.confirm("Xuất bản đề? Nội dung và thời lượng sẽ không thể sửa.")) publish.mutate(); }}><Send className="size-4" aria-hidden="true" />Xuất bản</Button>}
+    </header>
+    {notice && <p role="status" className="text-sm text-[var(--color-primary)]">{notice}</p>}
+    <AssessmentError error={test.error || questions.error || jobs.error} retry={() => void refresh()} />
+    <AssessmentError error={metadata.error || saveQuestion.error || remove.error || publish.error} />
+    {!isNew && test.isPending && <p role="status">Đang tải đề…</p>}
+    {(isNew || test.data) && <div className="grid gap-8 xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
+      <section className="min-w-0 space-y-4"><h2 className="text-lg font-semibold">Thông tin đề</h2>
+        {draft ? <TestForm key={test.data?.id ?? "new"} test={test.data} jobs={jobs.data?.data ?? []} busy={busy || jobs.isPending || jobs.isError}
+          onDirty={setDirty} onSave={async body => { await metadata.mutateAsync(body); }} />
+          : <dl className="space-y-3 text-sm"><div><dt className={muted}>Vị trí</dt><dd>{jobs.data?.data.find(j => j.id === test.data?.jobId)?.title ?? `Job #${test.data?.jobId}`}</dd></div><div><dt className={muted}>Thời lượng</dt><dd>{test.data?.durationMinutes} phút</dd></div><div><dt className={muted}>Điểm đạt</dt><dd>{test.data?.passingScore ?? "Không đặt"}</dd></div><div><dt className={muted}>Mô tả</dt><dd className="whitespace-pre-wrap break-words">{test.data?.description || "Không có"}</dd></div></dl>}
       </section>
-    );
-  }
-
-  const flash = (message: string) => {
-    setToast(message);
-    window.setTimeout(() => setToast(null), 2500);
-  };
-
-  const addQuestion = () => {
-    const nextId = Math.max(0, ...questions.map((q) => q.id)) + 1;
-    setQuestions((prev) => [
-      ...prev,
-      {
-        id: nextId,
-        text: "",
-        points: 10,
-        options: [
-          { id: nextId * 10 + 1, text: "" },
-          { id: nextId * 10 + 2, text: "" },
-          { id: nextId * 10 + 3, text: "" },
-          { id: nextId * 10 + 4, text: "" },
-        ],
-      },
-    ]);
-  };
-
-  return (
-    <section className="space-y-6 text-[var(--color-on-surface)]">
-      <header className="space-y-3">
-        <Link className={`${button} w-fit`} to="/recruiter/assessments">
-          <ArrowLeft className="size-4" aria-hidden="true" />
-          Danh sách đề
-        </Link>
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <p className={muted}>Technical test / {isNew ? "Tạo mới" : `Đề #${source.id}`}</p>
-            <h1 className="mt-1 text-3xl font-semibold tracking-tight">
-              {isNew ? "Soạn đề kiểm tra" : source.title}
-            </h1>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <StatusPill status={status} label={testStatusLabel[status]} />
-            <button
-              type="button"
-              className={button}
-              onClick={() => {
-                flash("Đã lưu nháp (mock).");
-                setStatus("DRAFT");
-              }}
-            >
-              Lưu nháp
-            </button>
-            <button
-              type="button"
-              className={primary}
-              onClick={() => {
-                setStatus("PUBLISHED");
-                flash("Đã publish đề (mock). Ứng viên chỉ làm được khi được giao.");
-              }}
-            >
-              Publish
-            </button>
-          </div>
-        </div>
-      </header>
-
-      <PrototypeBanner note="form local state — chưa gọi assessmentApi" />
-      {toast && (
-        <p className="rounded-xl bg-[var(--color-primary-subtle)] px-4 py-2 text-sm text-[var(--color-primary-hover)]" role="status">
-          {toast}
-        </p>
-      )}
-
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(18rem,0.9fr)]">
-        <div className="space-y-6">
-          <div className={`${panel} space-y-4`}>
-            <h2 className="text-lg font-semibold">Thông tin đề</h2>
-            <label className="block space-y-1 text-sm">
-              <span>Tiêu đề</span>
-              <input className={input} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Java & SQL — vòng kỹ thuật" />
-            </label>
-            <label className="block space-y-1 text-sm">
-              <span>Job gắn đề</span>
-              <select className={input} value={jobTitle} onChange={(e) => setJobTitle(e.target.value)}>
-                <option>Backend Engineer</option>
-                <option>Frontend Engineer</option>
-                <option>Full-stack Engineer</option>
-              </select>
-            </label>
-            <label className="block space-y-1 text-sm">
-              <span>Mô tả</span>
-              <textarea className={input} rows={3} value={description} onChange={(e) => setDescription(e.target.value)} />
-            </label>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="block space-y-1 text-sm">
-                <span>Thời gian (phút)</span>
-                <input
-                  className={input}
-                  type="number"
-                  min={5}
-                  value={duration}
-                  onChange={(e) => setDuration(Number(e.target.value) || 0)}
-                />
-              </label>
-              <label className="block space-y-1 text-sm">
-                <span>Điểm đạt (%)</span>
-                <input
-                  className={input}
-                  type="number"
-                  min={0}
-                  max={100}
-                  value={passing}
-                  onChange={(e) => setPassing(Number(e.target.value) || 0)}
-                />
-              </label>
-            </div>
-          </div>
-
-          <div className={`${panel} space-y-4`}>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-lg font-semibold">Câu hỏi trắc nghiệm</h2>
-              <button type="button" className={button} onClick={addQuestion}>
-                Thêm câu
-              </button>
-            </div>
-            {questions.length === 0 && <p className={muted}>Chưa có câu hỏi. Thêm ít nhất 1 câu trước khi publish.</p>}
-            <ul className="space-y-5">
-              {questions.map((question, index) => (
-                <li key={question.id} className="space-y-3 rounded-2xl border border-[var(--color-border-default)] p-4">
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <p className="font-medium">Câu {index + 1}</p>
-                    <button
-                      type="button"
-                      className={button}
-                      aria-label={`Xóa câu ${index + 1}`}
-                      onClick={() => setQuestions((prev) => prev.filter((q) => q.id !== question.id))}
-                    >
-                      <Trash2 className="size-4" aria-hidden="true" />
-                      Xóa
-                    </button>
-                  </div>
-                  <textarea
-                    className={input}
-                    rows={2}
-                    value={question.text}
-                    placeholder="Nội dung câu hỏi"
-                    onChange={(e) => {
-                      const text = e.target.value;
-                      setQuestions((prev) => prev.map((q) => (q.id === question.id ? { ...q, text } : q)));
-                    }}
-                  />
-                  <div className="grid gap-2">
-                    {question.options.map((option, optIndex) => (
-                      <label key={option.id} className="flex items-center gap-2 text-sm">
-                        <input
-                          type="radio"
-                          name={`correct-${question.id}`}
-                          checked={Boolean(option.correct)}
-                          onChange={() => {
-                            setQuestions((prev) =>
-                              prev.map((q) =>
-                                q.id !== question.id
-                                  ? q
-                                  : {
-                                      ...q,
-                                      options: q.options.map((o) => ({ ...o, correct: o.id === option.id })),
-                                    },
-                              ),
-                            );
-                          }}
-                        />
-                        <span className="w-5 shrink-0 font-mono text-[var(--color-on-surface-variant)]">
-                          {String.fromCharCode(65 + optIndex)}.
-                        </span>
-                        <input
-                          className={input}
-                          value={option.text}
-                          placeholder="Đáp án"
-                          onChange={(e) => {
-                            const text = e.target.value;
-                            setQuestions((prev) =>
-                              prev.map((q) =>
-                                q.id !== question.id
-                                  ? q
-                                  : {
-                                      ...q,
-                                      options: q.options.map((o) => (o.id === option.id ? { ...o, text } : o)),
-                                    },
-                              ),
-                            );
-                          }}
-                        />
-                      </label>
-                    ))}
-                  </div>
-                  <p className={muted}>Chọn radio để đánh dấu đáp án đúng (chỉ recruiter thấy).</p>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-
-        <aside className="space-y-6">
-          <div className={`${panel} space-y-4`}>
-            <h2 className="text-lg font-semibold">Giao bài</h2>
-            <p className={muted}>
-              Giao theo đơn ứng tuyển. Đề chỉ hiện với candidate khi đã ASSIGNED — publish chưa đủ.
-            </p>
-            <label className="block space-y-1 text-sm">
-              <span>Application ID</span>
-              <input
-                className={input}
-                value={assignAppId}
-                onChange={(e) => setAssignAppId(e.target.value)}
-                placeholder="ví dụ 501"
-              />
-            </label>
-            <button
-              type="button"
-              className={primary}
-              disabled={status !== "PUBLISHED"}
-              onClick={() => {
-                flash(assignAppId ? `Đã giao đề cho đơn #${assignAppId} (mock).` : "Nhập Application ID.");
-              }}
-            >
-              <Send className="size-4" aria-hidden="true" />
-              Giao cho đơn
-            </button>
-            {status !== "PUBLISHED" && (
-              <p className={muted}>Cần publish đề trước khi giao.</p>
-            )}
-          </div>
-
-          <div className={`${panel} space-y-3`}>
-            <h2 className="text-lg font-semibold">Bài đã nộp</h2>
-            {source.submissions.length === 0 && <p className={muted}>Chưa có lượt làm.</p>}
-            <ul className="space-y-3">
-              {source.submissions.map((row) => (
-                <li key={row.id} className="rounded-xl border border-[var(--color-border-default)] p-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="font-medium">{row.candidateName}</p>
-                    <StatusPill status={row.status} label={submissionStatusLabel[row.status]} />
-                  </div>
-                  <p className={muted}>
-                    Đơn #{row.applicationId} · {row.score == null ? "Chưa có điểm" : `${row.score}%`}
-                  </p>
-                  {row.submittedAt && (
-                    <p className={muted}>Nộp {new Date(row.submittedAt).toLocaleString("vi-VN")}</p>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {isNew && (
-            <button
-              type="button"
-              className={button}
-              onClick={() => {
-                flash("Prototype: sau khi có API sẽ tạo đề thật rồi chuyển trang.");
-                navigate("/recruiter/assessments");
-              }}
-            >
-              Hủy / về danh sách
-            </button>
-          )}
-        </aside>
+      <section className="min-w-0 space-y-4 xl:border-l xl:border-[var(--color-border-default)] xl:pl-8"><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-lg font-semibold">Câu hỏi</h2><p className={muted}>{questions.data?.length ?? 0} câu · {total} điểm</p></div>
+        {!isNew && draft && <Button variant="secondary" disabled={busy || !!editor || (questions.data?.length ?? 0) >= 100} onClick={() => { saveQuestion.reset(); setEditor("new"); }}><Plus className="size-4" aria-hidden="true" />Thêm câu</Button>}
       </div>
-    </section>
-  );
+      {isNew && <p className={muted}>Chưa có câu hỏi.</p>}
+      {questions.isPending && !isNew && <p role="status">Đang tải câu hỏi…</p>}
+      {editor && <QuestionForm key={editor === "new" ? "new" : editor.id} question={editor === "new" ? undefined : editor} order={Math.max(-1, ...(questions.data ?? []).map(q => q.questionOrder)) + 1} busy={busy} onSave={body => saveQuestion.mutate(body)} onCancel={() => setEditor(null)} />}
+      {questions.data?.map((q, index) => <article key={q.id} className="space-y-3 border-t border-[var(--color-border-default)] py-4">
+        <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className={muted}>Câu {index + 1} · {q.points} điểm</p><h3 className="whitespace-pre-wrap break-words font-medium">{q.questionText}</h3></div>
+          {draft && <div className="flex shrink-0"><Tooltip content="Sửa câu hỏi"><Button variant="ghost" disabled={busy || !!editor} aria-label={`Sửa câu ${index + 1}`} onClick={() => { saveQuestion.reset(); setEditor(q); }}><Pencil className="size-4" aria-hidden="true" /></Button></Tooltip><Tooltip content="Xóa câu hỏi"><Button variant="ghost" disabled={busy || !!editor} aria-label={`Xóa câu ${index + 1}`} onClick={() => { if (window.confirm("Xóa câu hỏi này?")) remove.mutate(q.id); }}><Trash2 className="size-4" aria-hidden="true" /></Button></Tooltip></div>}
+        </div><ul className="space-y-2">{q.options.map(o => <li key={o.id} className={`flex items-start gap-2 break-words text-sm ${o.correct ? "font-medium text-[var(--color-primary)]" : ""}`}><span className="inline-flex size-5 shrink-0">{o.correct && <Check className="size-4" aria-label="Đáp án đúng" />}</span><span className="min-w-0 whitespace-pre-wrap break-words">{o.optionText}</span></li>)}</ul>
+      </article>)}
+      </section>
+    </div>}
+  </section>;
 }

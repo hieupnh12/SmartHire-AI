@@ -1,76 +1,35 @@
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { ClipboardList, Plus } from "lucide-react";
-import { PrototypeBanner } from "@/components/ux/PrototypeBanner";
-import { StatusPill } from "@/components/ux/StatusPill";
-import { button, muted, panel, primary } from "@/features/tenant/recruiter/matching/components/rankingUi";
-import { mockTests, testStatusLabel } from "@/features/tenant/recruiter/assessments/constants/mockTests";
+import { ArrowLeft, ArrowRight, ClipboardList, Plus } from "lucide-react";
+import { assessmentApi } from "@/api/tenant/assessmentApi";
+import { jobApi } from "@/api/tenant/jobApi";
+import { queryKeys } from "@/lib/query-keys";
+import { Button } from "@/components/ux/Button";
+import { AssessmentError, assessmentLink, assessmentMuted as muted, assessmentStatus } from "@/components/ux/assessmentUi";
 
 export function AssessmentsPage() {
-  return (
-    <section className="space-y-6 text-[var(--color-on-surface)]">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className={muted}>Tuyển dụng / Technical test</p>
-          <h1 className="mt-1 text-3xl font-semibold tracking-tight">Quản lý đề kiểm tra</h1>
-          <p className={`mt-2 max-w-2xl ${muted}`}>
-            Tạo đề trắc nghiệm gắn job, publish, giao cho đơn ứng tuyển, rồi xem điểm. Coding sẽ bổ sung sau.
-          </p>
-        </div>
-        <Link to="new" className={primary}>
-          <Plus className="size-4" aria-hidden="true" />
-          Tạo đề mới
-        </Link>
-      </header>
-
-      <PrototypeBanner note="mốc đầu: tạo đề → giao → candidate nộp → xem kết quả" />
-
-      <div className={`${panel} overflow-x-auto`}>
-        {mockTests.length === 0 ? (
-          <div className="flex flex-col items-start gap-3 py-4">
-            <ClipboardList className="size-8 text-[var(--color-on-surface-variant)]" aria-hidden="true" />
-            <p className={muted}>Chưa có đề. Tạo đề nháp rồi thêm câu hỏi trắc nghiệm.</p>
-            <Link to="new" className={primary}>Tạo đề mới</Link>
-          </div>
-        ) : (
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr className={muted}>
-                <th className="py-2">Đề kiểm tra</th>
-                <th>Job</th>
-                <th>Trạng thái</th>
-                <th>Thời gian</th>
-                <th>Giao / Nộp</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {mockTests.map((test) => (
-                <tr key={test.id} className="border-t border-[var(--color-border-default)]">
-                  <td className="py-3">
-                    <Link className="font-semibold hover:underline" to={`/recruiter/assessments/${test.id}`}>
-                      {test.title}
-                    </Link>
-                    <p className={muted}>{test.questionCount} câu · đạt từ {test.passingScore}%</p>
-                  </td>
-                  <td>{test.jobTitle}</td>
-                  <td>
-                    <StatusPill status={test.status} label={testStatusLabel[test.status]} />
-                  </td>
-                  <td>{test.durationMinutes} phút</td>
-                  <td className="font-mono">
-                    {test.assignedCount} / {test.submittedCount}
-                  </td>
-                  <td className="whitespace-nowrap">
-                    <Link className={button} to={`/recruiter/assessments/${test.id}`}>
-                      Xem / sửa
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-    </section>
-  );
+  const [page, setPage] = useState(0);
+  const tests = useQuery({ queryKey: queryKeys.assessments.list(page), queryFn: () => assessmentApi.list(page) });
+  const jobs = useQuery({ queryKey: [...queryKeys.assessments.all(), "jobs"], queryFn: jobApi.options });
+  return <section className="space-y-6 text-[var(--color-on-surface)]">
+    <header className="flex flex-wrap items-center justify-between gap-3"><div><p className={muted}>Tuyển dụng / Đánh giá kỹ thuật</p><h1 className="mt-1 text-2xl font-semibold">Đề kiểm tra</h1></div><Link to="new" className={assessmentLink}><Plus className="size-4" aria-hidden="true" />Tạo đề mới</Link></header>
+    <AssessmentError error={tests.error} retry={() => void tests.refetch()} />
+    {tests.isPending && <p role="status">Đang tải đề kiểm tra…</p>}
+    {tests.data && <>
+      <div className="overflow-x-auto border-y border-[var(--color-outline-variant)]"><table className="w-full min-w-[600px] text-left text-sm">
+        <thead className="bg-[var(--color-surface-container-low)]"><tr>{["Tên đề", "Vị trí", "Trạng thái", "Thời lượng", "Điểm đạt"].map(label => <th key={label} className="px-3 py-3 font-medium">{label}</th>)}</tr></thead>
+        <tbody>{tests.data.items.map(test => <tr key={test.id} className="border-t border-[var(--color-border-default)] hover:bg-[var(--color-surface-container-low)]">
+          <td className="max-w-sm px-3 py-4"><Link className="font-semibold text-[var(--color-primary)] hover:underline break-words" to={String(test.id)}>{test.title}</Link><p className={muted}>#{test.id}</p></td>
+          <td className="px-3 py-4">{jobs.data?.data.find(job => job.id === test.jobId)?.title ?? `Job #${test.jobId}`}</td>
+          <td className="px-3 py-4">{assessmentStatus[test.status]}</td><td className="px-3 py-4">{test.durationMinutes} phút</td><td className="px-3 py-4">{test.passingScore ?? "Không đặt"}</td>
+        </tr>)}</tbody>
+      </table></div>
+      {!tests.data.items.length && <div className="flex items-center gap-3 py-8"><ClipboardList className="size-8 text-[var(--color-primary)]" aria-hidden="true" /><p>Chưa có đề kiểm tra.</p></div>}
+      <div className="flex flex-wrap items-center justify-between gap-3"><p className={muted}>{tests.data.total} đề · Trang {page + 1}</p><div className="flex gap-2">
+        <Button variant="secondary" disabled={page === 0} aria-label="Trang trước" title="Trang trước" onClick={() => setPage(p => p - 1)}><ArrowLeft className="size-4" aria-hidden="true" /></Button>
+        <Button variant="secondary" disabled={(page + 1) * 20 >= tests.data.total} aria-label="Trang sau" title="Trang sau" onClick={() => setPage(p => p + 1)}><ArrowRight className="size-4" aria-hidden="true" /></Button>
+      </div></div>
+    </>}
+  </section>;
 }

@@ -1,3 +1,8 @@
+import { getTenantIdFromWindow } from "@/lib/tenant";
+import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
+
+const assessmentScope = () => ["assessments", getTenantIdFromWindow(), useAuthStore.getState().user?.id ?? "session"] as const;
+
 export const queryKeys = {
   auth: {
     me: ["auth", "me"] as const,
@@ -22,8 +27,13 @@ export const queryKeys = {
     overall: (appId: number | string) => ["matching", "overall", appId] as const,
   },
   assessments: {
-    list: (jobId?: number | string) => ["assessments", jobId] as const,
-    attempt: (id: number | string) => ["attempts", id] as const,
+    all: assessmentScope,
+    list: (page: number) => [...assessmentScope(), "list", page] as const,
+    detail: (id: number) => [...assessmentScope(), "detail", id] as const,
+    questions: (id: number) => [...assessmentScope(), "questions", id] as const,
+    available: (id: number) => [...assessmentScope(), "available", id] as const,
+    submission: (id: number) => [...assessmentScope(), "submission", id] as const,
+    result: (id: number) => [...assessmentScope(), "result", id] as const,
   },
   interviews: {
     detail: (id: number | string) => ["interviews", id] as const,

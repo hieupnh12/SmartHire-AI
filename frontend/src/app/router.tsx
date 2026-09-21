@@ -110,7 +110,7 @@ export function AppRouter() {
           <Route path="applications/:id" element={<ApplicationDetailPage />} />
           <Route path="cv" element={<MyCvPage />} />
           <Route path="assessments" element={<CandidateAssessmentsPage />} />
-          <Route path="assessments/:assignmentId/take" element={<TakeAssessmentPage />} />
+          <Route path="assessments/:submissionId/take" element={<TakeAssessmentPage />} />
           <Route path="interviews" element={<CandidateInterviewsPage />} />
           <Route path="practice" element={<PracticePage />} />
           <Route path="schedules" element={<CandidateSchedulesPage />} />

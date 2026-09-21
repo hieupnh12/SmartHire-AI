@@ -3,7 +3,6 @@ import { Bot, CalendarDays, ClipboardList } from "lucide-react";
 import { PrototypeBanner } from "@/components/ux/PrototypeBanner";
 import { StatusPill } from "@/components/ux/StatusPill";
 import { button, muted, panel, primary } from "@/features/tenant/recruiter/matching/components/rankingUi";
-import { assignmentStatusLabel } from "@/features/tenant/candidate/assessments/constants/mockAssignments";
 import {
   interviewModeLabel,
   interviewStatusLabel,
@@ -57,13 +56,10 @@ export function ApplicationDetailPage() {
               <ClipboardList className="size-5 text-[var(--color-primary)]" aria-hidden="true" />
               <h2 className="text-lg font-semibold">Bài kiểm tra</h2>
             </div>
-            <StatusPill status="ASSIGNED" label={assignmentStatusLabel.ASSIGNED} />
           </div>
-          <p className="font-medium">Java & SQL — vòng kỹ thuật</p>
-          <p className={muted}>45 phút · trắc nghiệm · có thể giao trước hoặc trong interview chính thức.</p>
           <div className="mt-auto flex flex-wrap gap-2">
-            <Link className={primary} to="/candidate/assessments/12/take">
-              Bắt đầu làm
+            <Link className={primary} to={`/candidate/assessments?applicationId=${applicationId}`}>
+              Xem bài kiểm tra
             </Link>
             <Link className={button} to="/candidate/assessments">
               Tất cả bài test

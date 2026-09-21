@@ -14,6 +14,7 @@
 | Ràng buộc UNIQUE | **24** (6 master + 18 tenant) |
 | Số file migration | **17** (8 master + 9 tenant) |
 | Cập nhật lần cuối | Phiên bản schema master `V8`, tenant `V9` |
+| Rà soát assessment 2026-09-21 | Bổ sung query/khóa hàng và nghiệp vụ MCQ; không đổi bảng, entity, FK, UNIQUE hay migration |
 
 **Mục lục theo đúng thứ tự đặc tả**
 
@@ -809,6 +810,8 @@ NOT_STARTED ──▶ IN_PROGRESS ──▶ SUBMITTED ──▶ GRADED
                      └──▶ EXPIRED
 ```
 
+Luồng MCQ hiện chấm đồng bộ nên chuyển thẳng `IN_PROGRESS → GRADED` khi submit; `EXPIRED` cũng lưu điểm phần đã trả lời. `SUBMITTED` còn trong enum cho xử lý bất đồng bộ về sau, chưa được dùng bởi API MCQ hiện tại.
+
 **Interview (direct)** — `interviews.status`
 ```
 CREATED ──▶ SCHEDULED ──▶ IN_PROGRESS ──▶ EVALUATED
@@ -837,13 +840,17 @@ Những quy tắc sau bắt buộc phải kiểm tra ở tầng service, vì kh�
 | BR-08 | `member_invitations` hết hạn theo `expires_at`; token đối chiếu bằng `token_hash`, không bao giờ log token gốc | Service invitation |
 | BR-09 | `cvs.retain_until` mặc định 24 tháng kể từ `created_at`; job dọn dẹp phải tôn trọng mốc này | Job vòng đời dữ liệu |
 | BR-10 | Hạn mức trong `subscription_plans` được đối chiếu với `tenant_usage_daily`; database không chặn vượt hạn mức | Service subscription |
+| BR-11 | MCQ publish cần 1–100 câu, 2–10 options/câu và đúng một đáp án đúng; khóa nội dung/thời lượng sau publish | `QuestionService`, `AssessmentService` |
+| BR-12 | Start giữ khóa hàng test; save/submit giữ khóa hàng submission, READ_COMMITTED. Upsert answer theo submission/question; SQL chưa có UNIQUE cho cặp này | `SubmissionService` |
+| BR-13 | Candidate sở hữu application cùng job, ở ASSESSMENT/INTERVIEW mới bắt đầu; không đọc/lưu/nộp bài người khác; không tự chuyển trạng thái application | `SubmissionService`, tenant auth |
+| BR-14 | Lượt quá hạn được chấm từ đáp án đã lưu khi có request tiếp theo; ghi EXPIRED và submitted_at bằng deadline. Chưa có worker quét chủ động | `SubmissionService` |
 
 ### 8.5 Hệ quả nghiệp vụ cần biết
 
 - **Không nộp lại đơn:** ràng buộc `uk_app_job_candidate` khiến ứng viên đã rút đơn (`withdrawn_at`) không
   thể nộp lại cùng một job. Muốn cho phép nộp lại thì phải đổi ràng buộc, không thể lách ở tầng code.
 - **Không ghi đè câu trả lời AI:** `uk_ai_a_question` khiến `ai_answers` không hỗ trợ trả lời lại cùng một câu.
-- **Được thi lại:** `submissions` cố ý **không** unique theo `(test_id, application_id)`.
+- **Schema cho phép thi lại:** `submissions` cố ý **không** unique theo `(test_id, application_id)`. API MCQ hiện trả lượt gần nhất khi start lại, chưa cung cấp cấp quyền thi lại; không suy ra policy thi lại từ khả năng lưu nhiều dòng của SQL.
 - **Không có `ON DELETE` nào được khai báo** trên toàn bộ khoá ngoại, nên mặc định là `RESTRICT`. Xoá
   cứng một `job` hay một `application` sẽ thất bại nếu còn bản ghi con. Đây là lý do `jobs` dùng `deleted_at`
   và `applications` dùng `archived_at` để xoá mềm.
