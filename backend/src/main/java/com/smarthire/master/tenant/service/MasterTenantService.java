@@ -113,6 +113,9 @@ public class MasterTenantService {
         tenant.setDbUsername(username);
         tenant.setDbPassword(credentials.encrypt(code, password));
         tenant.setManagedDatabase(managed);
+        String envType = (request.getEnvironmentType() != null && !request.getEnvironmentType().isBlank())
+                ? request.getEnvironmentType().toUpperCase() : "PRODUCTION";
+        tenant.setEnvironmentType(envType);
         tenant.setStatus("PROVISIONING");
         try {
             tenant = tenants.saveAndFlush(tenant);

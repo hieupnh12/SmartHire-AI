@@ -9,4 +9,6 @@ public interface MemberInvitationRepository extends JpaRepository<MemberInvitati
     Optional<MemberInvitation> findByTokenHashAndStatus(String tokenHash, InvitationStatus status);
 
     boolean existsByEmailIgnoreCaseAndStatus(String email, InvitationStatus status);
+
+    boolean existsByRoleAndStatus(String role, InvitationStatus status);
 }

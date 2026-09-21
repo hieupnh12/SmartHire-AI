@@ -42,7 +42,7 @@ public class RankingService {
         this.data = data; this.calculator = calculator; this.skills = skills; this.experience = experience; this.mapper = mapper; this.realtime = null;
     }
     private static final Set<String> STAFF = Set.of(
-            "ROLE_RECRUITER", "ROLE_HR", "ROLE_ADMIN", "ROLE_TENANT_ADMIN");
+            "ROLE_STAFF", "ROLE_RECRUITER", "ROLE_HR", "ROLE_ADMIN", "ROLE_TENANT_ADMIN");
 
     private String actor() {
         var auth = SecurityContextHolder.getContext().getAuthentication();

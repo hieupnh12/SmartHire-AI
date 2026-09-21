@@ -5,6 +5,8 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Getter
 @Setter
@@ -54,7 +56,15 @@ public class SubscriptionPlan {
     @Column(name = "video_retention_days", nullable = false)
     Integer videoRetentionDays = 30;
 
-    @Column(name = "features_json", columnDefinition = "TEXT") String featuresJson;
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "features_json", columnDefinition = "jsonb")
+    String featuresJson;
+
+    @Builder.Default
+    @Column(name = "is_deleted", nullable = false)
+    boolean deleted = false;
+
+    @Column(name = "deleted_at") LocalDateTime deletedAt;
 
     @Builder.Default
     @Column(nullable = false, length = 32)

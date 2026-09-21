@@ -1,6 +1,7 @@
 import { MasterRoute } from "@/app/guards/MasterRoute";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { RootRouteSwitcher } from "@/app/RootRouteSwitcher";
+import { FeatureRoute } from "@/app/guards/FeatureRoute";
 import { RoleRoute } from "@/app/guards/RoleRoute";
 import { TenantSubdomainGuard } from "@/app/guards/TenantSubdomainGuard";
 import { RoleShell } from "@/app/layouts/RoleShell";
@@ -10,7 +11,17 @@ import { RegisterPage } from "@/features/tenant/auth/pages/RegisterPage";
 import { CandidateLoginPage } from "@/features/tenant/auth/pages/CandidateLoginPage";
 import { OAuthCallbackPage } from "@/features/tenant/auth/pages/OAuthCallbackPage";
 import { MasterLoginPage } from "@/features/master/auth/pages/MasterLoginPage";
-import { MasterAdminDashboardPage } from "@/features/master/dashboard/pages/MasterAdminDashboardPage";
+import { MasterAdminLayout } from "@/features/master/shell/MasterAdminLayout";
+import { DashboardPage } from "@/features/master/dashboard/pages/DashboardPage";
+import { AnalyticsPage as MasterAnalyticsPage } from "@/features/master/analytics/pages/AnalyticsPage";
+import { LeadsPage } from "@/features/master/leads/pages/LeadsPage";
+import { TenantManagementPage } from "@/features/master/tenant-management/pages/TenantManagementPage";
+import { ContractsPage } from "@/features/master/contract/pages/ContractsPage";
+import { InvoicesPage } from "@/features/master/billing/pages/InvoicesPage";
+import { BillingPage } from "@/features/master/billing/pages/BillingPage";
+import { AuditLogsPage } from "@/features/master/system/pages/AuditLogsPage";
+import { AiManagementPage } from "@/features/master/system/pages/AiManagementPage";
+import { AccountPage as MasterAccountPage } from "@/features/master/account/pages/AccountPage";
 import { TenantCareerPage } from "@/features/tenant/career/pages/TenantCareerPage";
 import { TenantAdminDashboardPage } from "@/features/tenant/admin/workspace/pages/TenantAdminDashboardPage";
 import { adminNav } from "@/features/tenant/admin/nav";
@@ -21,6 +32,7 @@ import { UsersPage } from "@/features/tenant/admin/users/pages/UsersPage";
 import { AccountPage as TenantAdminAccountPage } from "@/features/tenant/admin/account/pages/AccountPage";
 import { AnalyticsPage } from "@/features/tenant/admin/analytics/pages/AnalyticsPage";
 import { AcceptInvitationPage } from "@/features/tenant/auth/pages/AcceptInvitationPage";
+import { PublicContractSigningPage } from "@/features/master/contract/pages/PublicContractSigningPage";
 import { candidateNav } from "@/features/tenant/candidate/nav";
 import { HomePage as CandidateHomePage } from "@/features/tenant/candidate/dashboard/pages/HomePage";
 import { BrowseJobsPage } from "@/features/tenant/candidate/jobs/pages/BrowseJobsPage";
@@ -46,6 +58,7 @@ import { InterviewsPage as RecruiterInterviewsPage } from "@/features/tenant/rec
 import { SchedulesPage as RecruiterSchedulesPage } from "@/features/tenant/recruiter/schedules/pages/SchedulesPage";
 import { NotificationsPage as RecruiterNotificationsPage } from "@/features/tenant/recruiter/notifications/pages/NotificationsPage";
 import { RecruiterAnalyticsPage } from "@/features/tenant/recruiter/analytics/pages/RecruiterAnalyticsPage";
+import { RolesPage } from "@/features/tenant/admin/roles/pages/RolesPage";
 
 function LegacyTenantAdminRedirect() {
   const location = useLocation();
@@ -73,8 +86,10 @@ export function AppRouter() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/invite/accept" element={<AcceptInvitationPage />} />
+      <Route path="/contracts/sign/:token" element={<PublicContractSigningPage />} />
+      <Route path="/contracts/view/:token" element={<PublicContractSigningPage />} />
 
-      <Route element={<RoleRoute roles={["CANDIDATE"]} />}>
+      <Route element={<RoleRoute workspaces={["CANDIDATE"]} />}>
         <Route
           path="/candidate"
           element={
@@ -98,7 +113,7 @@ export function AppRouter() {
         </Route>
       </Route>
 
-      <Route element={<RoleRoute roles={["RECRUITER", "HR"]} />}>
+      <Route element={<RoleRoute workspaces={["RECRUITER"]} />}>
         <Route
           path="/recruiter"
           element={
@@ -109,25 +124,47 @@ export function AppRouter() {
             />
           }
         >
-          <Route index element={<RecruiterHomePage />} />
-          <Route path="jobs" element={<JobsPage />} />
-          <Route path="jobs/new" element={<JobFormPage />} />
-          <Route path="jobs/:id" element={<JobDetailPage />} />
-          <Route path="jobs/:id/edit" element={<JobFormPage />} />
-          <Route path="applicants" element={<ApplicantsPage />} />
-          <Route path="cvs" element={<CvScreeningPage />} />
-          <Route path="rank" element={<RankingPage />} />
-          <Route path="matching" element={<Navigate to="/recruiter/rank" replace />} />
-          <Route path="pipeline" element={<PipelinePage />} />
-          <Route path="analytics" element={<RecruiterAnalyticsPage />} />
-          <Route path="assessments" element={<RecruiterAssessmentsPage />} />
-          <Route path="interviews" element={<RecruiterInterviewsPage />} />
-          <Route path="schedules" element={<RecruiterSchedulesPage />} />
-          <Route path="notifications" element={<RecruiterNotificationsPage />} />
+          <Route element={<FeatureRoute feature="DASHBOARD" />}>
+            <Route index element={<RecruiterHomePage />} />
+          </Route>
+          <Route element={<FeatureRoute feature="JOBS" />}>
+            <Route path="jobs" element={<JobsPage />} />
+            <Route path="jobs/new" element={<JobFormPage />} />
+            <Route path="jobs/:id" element={<JobDetailPage />} />
+            <Route path="jobs/:id/edit" element={<JobFormPage />} />
+          </Route>
+          <Route element={<FeatureRoute feature="APPLICANTS" />}>
+            <Route path="applicants" element={<ApplicantsPage />} />
+          </Route>
+          <Route element={<FeatureRoute feature="CV_SCREENING" />}>
+            <Route path="cvs" element={<CvScreeningPage />} />
+          </Route>
+          <Route element={<FeatureRoute feature="RANKING" />}>
+            <Route path="rank" element={<RankingPage />} />
+            <Route path="matching" element={<Navigate to="/recruiter/rank" replace />} />
+          </Route>
+          <Route element={<FeatureRoute feature="PIPELINE" />}>
+            <Route path="pipeline" element={<PipelinePage />} />
+          </Route>
+          <Route element={<FeatureRoute feature="ANALYTICS" />}>
+            <Route path="analytics" element={<RecruiterAnalyticsPage />} />
+          </Route>
+          <Route element={<FeatureRoute feature="ASSESSMENTS" />}>
+            <Route path="assessments" element={<RecruiterAssessmentsPage />} />
+          </Route>
+          <Route element={<FeatureRoute feature="INTERVIEWS" />}>
+            <Route path="interviews" element={<RecruiterInterviewsPage />} />
+          </Route>
+          <Route element={<FeatureRoute feature="SCHEDULES" />}>
+            <Route path="schedules" element={<RecruiterSchedulesPage />} />
+          </Route>
+          <Route element={<FeatureRoute feature="NOTIFICATIONS" />}>
+            <Route path="notifications" element={<RecruiterNotificationsPage />} />
+          </Route>
         </Route>
       </Route>
 
-      <Route element={<RoleRoute roles={["ADMIN", "TENANT_ADMIN"]} />}>
+      <Route element={<RoleRoute workspaces={["ADMIN"]} />}>
         <Route
           path="/internal/admin"
           element={
@@ -137,6 +174,7 @@ export function AppRouter() {
           <Route index element={<TenantAdminHomePage />} />
           <Route path="company" element={<CompanyProfilePage />} />
           <Route path="users" element={<UsersPage />} />
+          <Route path="roles" element={<RolesPage />} />
           <Route path="analytics" element={<AnalyticsPage />} />
           <Route path="system" element={<SystemPage />} />
           <Route path="account" element={<TenantAdminAccountPage />} />
@@ -149,8 +187,25 @@ export function AppRouter() {
 
       <Route element={<MasterRoute />}>
         <Route path="/onboard" element={<TenantOnboardPage />} />
-        <Route path="/admin" element={<MasterAdminDashboardPage />} />
-        <Route path="/admin/dashboard" element={<MasterAdminDashboardPage />} />
+        <Route path="/admin" element={<MasterAdminLayout />}>
+          <Route index element={<Navigate to="dashboard" replace />} />
+          <Route path="dashboard" element={<DashboardPage />} />
+          <Route path="analytics" element={<MasterAnalyticsPage />} />
+          <Route path="leads" element={<LeadsPage />} />
+          <Route path="tenants" element={<Navigate to="/admin/tenants/directory" replace />} />
+          <Route path="tenants/:section" element={<TenantManagementPage />} />
+          <Route path="contracts" element={<ContractsPage />} />
+          <Route path="invoices" element={<InvoicesPage />} />
+          <Route path="subscriptions" element={<Navigate to="/admin/subscriptions/overview" replace />} />
+          <Route path="subscriptions/:section" element={<BillingPage />} />
+          <Route path="system/logs" element={<AuditLogsPage />} />
+          <Route path="system/ai-usage" element={<AiManagementPage />} />
+          <Route path="system/ai-quotas" element={<AiManagementPage />} />
+          <Route path="account/profile" element={<MasterAccountPage activeTab="account-profile" />} />
+          <Route path="account/security" element={<MasterAccountPage activeTab="account-security" />} />
+          <Route path="account/accessibility" element={<MasterAccountPage activeTab="account-accessibility" />} />
+          <Route path="account/notifications" element={<MasterAccountPage activeTab="account-notifications" />} />
+        </Route>
       </Route>
       <Route path="/admin/login" element={<MasterLoginPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />

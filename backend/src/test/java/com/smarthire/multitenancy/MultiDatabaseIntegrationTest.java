@@ -116,7 +116,7 @@ class MultiDatabaseIntegrationTest {
         TenantContext.setCurrentTenant(alpha.getCode());
         var markerUser = new com.smarthire.domain.tenant.entity.User();
         markerUser.setEmail("alpha-only@example.test"); markerUser.setFullName("Alpha only");
-        markerUser.setRole(com.smarthire.domain.enums.UserRole.CANDIDATE);
+        markerUser.setRole(com.smarthire.domain.enums.UserRole.CANDIDATE.name());
         users.saveAndFlush(markerUser);
         TenantContext.setCurrentTenant(beta.getCode());
         assertThat(users.findByEmailIgnoreCase("alpha-only@example.test")).isEmpty();

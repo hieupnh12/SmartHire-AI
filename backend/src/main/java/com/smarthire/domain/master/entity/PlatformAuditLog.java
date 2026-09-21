@@ -4,6 +4,8 @@ import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Getter
 @Setter
@@ -27,7 +29,10 @@ public class PlatformAuditLog {
 
     @Column(nullable = false, columnDefinition = "TEXT") String description;
     @Column(name = "ip_address", length = 64) String ipAddress;
-    @Column(name = "metadata_json", columnDefinition = "TEXT") String metadataJson;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "metadata_json", columnDefinition = "jsonb")
+    String metadataJson;
 
     @Builder.Default
     @Column(name = "created_at", nullable = false, updatable = false)

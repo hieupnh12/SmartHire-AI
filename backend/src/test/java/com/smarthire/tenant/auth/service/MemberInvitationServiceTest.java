@@ -2,8 +2,10 @@ package com.smarthire.tenant.auth.service;
 
 import com.smarthire.common.exception.BusinessException;
 import com.smarthire.domain.enums.InvitationStatus;
+import com.smarthire.domain.enums.RoleWorkspace;
 import com.smarthire.domain.enums.UserRole;
 import com.smarthire.domain.tenant.entity.MemberInvitation;
+import com.smarthire.domain.tenant.entity.TenantRole;
 import com.smarthire.domain.tenant.entity.User;
 import com.smarthire.domain.tenant.repository.MemberInvitationRepository;
 import com.smarthire.domain.tenant.repository.UserRepository;
@@ -49,6 +51,8 @@ class MemberInvitationServiceTest {
     private PasswordEncoder passwordEncoder;
     @Mock
     private InviteMailSender inviteMailSender;
+    @Mock
+    private TenantRoleService tenantRoleService;
     @Spy
     private AuthMapper authMapper = Mappers.getMapper(AuthMapper.class);
 
@@ -69,6 +73,7 @@ class MemberInvitationServiceTest {
 
     @Test
     void invite_StaffRole_PersistsPendingInvitation() {
+        when(tenantRoleService.requireAssignable("HR")).thenReturn(role("HR", "HR", RoleWorkspace.RECRUITER));
         when(userRepository.existsByEmailIgnoreCase("hr@se36.com")).thenReturn(false);
         when(invitationRepository.existsByEmailIgnoreCaseAndStatus("hr@se36.com", InvitationStatus.PENDING)).thenReturn(false);
         when(invitationRepository.save(any(MemberInvitation.class))).thenAnswer(call -> call.getArgument(0));
@@ -83,13 +88,16 @@ class MemberInvitationServiceTest {
         ArgumentCaptor<MemberInvitation> captor = ArgumentCaptor.forClass(MemberInvitation.class);
         verify(invitationRepository).save(captor.capture());
         assertEquals(InvitationStatus.PENDING, captor.getValue().getStatus());
-        assertEquals(UserRole.HR, captor.getValue().getRole());
+        assertEquals("HR", captor.getValue().getRole());
         assertTrue(response.isEmailSent());
         assertTrue(response.getAcceptUrl().startsWith("http://se36.localhost:5173/invite/accept?token="));
     }
 
     @Test
     void invite_CandidateRole_Throws() {
+        when(tenantRoleService.requireAssignable("CANDIDATE"))
+                .thenThrow(new BusinessException("Candidates cannot be invited as staff",
+                        org.springframework.http.HttpStatus.BAD_REQUEST, "INVALID_ROLE"));
         BusinessException ex = assertThrows(BusinessException.class, () -> memberInvitationService.invite(
                 InviteMemberRequest.builder().email("a@b.com").fullName("A").role("CANDIDATE").build()));
         assertEquals("INVALID_ROLE", ex.getCode());
@@ -100,7 +108,7 @@ class MemberInvitationServiceTest {
         MemberInvitation invitation = new MemberInvitation();
         invitation.setEmail("recruiter@se36.com");
         invitation.setFullName("Recruiter");
-        invitation.setRole(UserRole.RECRUITER);
+        invitation.setRole(UserRole.RECRUITER.name());
         invitation.setStatus(InvitationStatus.PENDING);
         invitation.setExpiresAt(Instant.now().plus(1, ChronoUnit.HOURS));
         invitation.setTokenHash(MemberInvitationService.sha256("raw-token"));
@@ -131,5 +139,14 @@ class MemberInvitationServiceTest {
         BusinessException ex = assertThrows(BusinessException.class, () -> memberInvitationService.accept(
                 AcceptInvitationRequest.builder().token("nope").password("secret1").build()));
         assertEquals("INVITE_INVALID", ex.getCode());
+    }
+
+    private static TenantRole role(String code, String name, RoleWorkspace workspace) {
+        TenantRole role = new TenantRole();
+        role.setCode(code);
+        role.setName(name);
+        role.setWorkspace(workspace);
+        role.setSystem(true);
+        return role;
     }
 }

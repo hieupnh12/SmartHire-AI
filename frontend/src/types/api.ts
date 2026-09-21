@@ -15,4 +15,6 @@ export type PageMeta = {
   totalPages: number;
 };
 
-export type Role = "TENANT_ADMIN" | "ADMIN" | "HR" | "RECRUITER" | "CANDIDATE";
+export type Role = string;
+
+export type RoleWorkspace = "ADMIN" | "RECRUITER" | "CANDIDATE";

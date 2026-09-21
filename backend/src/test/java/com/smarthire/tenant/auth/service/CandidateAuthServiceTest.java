@@ -89,7 +89,7 @@ class CandidateAuthServiceTest {
         User savedUser = new User();
         savedUser.setEmail("candidate@acme.com");
         savedUser.setFullName("Nguyễn Văn A");
-        savedUser.setRole(UserRole.CANDIDATE);
+        savedUser.setRole(UserRole.CANDIDATE.name());
         savedUser.setStatus(UserStatus.ACTIVE);
         when(userRepository.save(any(User.class))).thenReturn(savedUser);
 
@@ -128,7 +128,7 @@ class CandidateAuthServiceTest {
         User existingUser = new User();
         existingUser.setEmail("existing@acme.com");
         existingUser.setFullName("Existing Candidate");
-        existingUser.setRole(UserRole.CANDIDATE);
+        existingUser.setRole(UserRole.CANDIDATE.name());
         existingUser.setStatus(UserStatus.ACTIVE);
 
         UserProfile existingProfile = new UserProfile();

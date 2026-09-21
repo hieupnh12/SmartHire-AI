@@ -5,6 +5,7 @@ import com.smarthire.domain.enums.InvitationStatus;
 import com.smarthire.domain.enums.UserRole;
 import com.smarthire.domain.enums.UserStatus;
 import com.smarthire.domain.tenant.entity.MemberInvitation;
+import com.smarthire.domain.tenant.entity.TenantRole;
 import com.smarthire.domain.tenant.entity.User;
 import com.smarthire.domain.tenant.repository.MemberInvitationRepository;
 import com.smarthire.domain.tenant.repository.UserRepository;
@@ -22,7 +23,6 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.HexFormat;
 import java.util.Locale;
-import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -35,14 +35,12 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class MemberInvitationService {
 
-    private static final Set<UserRole> INVITABLE_ROLES = Set.of(
-            UserRole.TENANT_ADMIN, UserRole.ADMIN, UserRole.HR, UserRole.RECRUITER);
-
     private final MemberInvitationRepository invitationRepository;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuthMapper authMapper;
     private final InviteMailSender inviteMailSender;
+    private final TenantRoleService tenantRoleService;
 
     @Value("${smarthire.invite.public-origin:http://localhost:5173}")
     private String publicOrigin;
@@ -52,7 +50,7 @@ public class MemberInvitationService {
 
     @Transactional
     public InviteMemberResponse invite(InviteMemberRequest request) {
-        UserRole role = parseStaffRole(request.getRole());
+        TenantRole role = tenantRoleService.requireAssignable(request.getRole());
         String email = request.getEmail().trim().toLowerCase(Locale.ROOT);
 
         if (userRepository.existsByEmailIgnoreCase(email)) {
@@ -70,7 +68,7 @@ public class MemberInvitationService {
         MemberInvitation invitation = new MemberInvitation();
         invitation.setEmail(email);
         invitation.setFullName(request.getFullName().trim());
-        invitation.setRole(role);
+        invitation.setRole(role.getCode());
         invitation.setTokenHash(sha256(rawToken));
         invitation.setStatus(InvitationStatus.PENDING);
         invitation.setExpiresAt(expiresAt);
@@ -80,13 +78,13 @@ public class MemberInvitationService {
         boolean emailSent = inviteMailSender.send(
                 email,
                 "Invitation to SmartHire workspace",
-                "You were invited as " + role.name() + ".\nSet your password:\n" + acceptUrl + "\nThis link expires in "
+                "You were invited as " + role.getName() + ".\nSet your password:\n" + acceptUrl + "\nThis link expires in "
                         + expireHours + " hours.");
 
         return InviteMemberResponse.builder()
                 .email(email)
                 .fullName(invitation.getFullName())
-                .role(role.name())
+                .role(role.getCode())
                 .expiresAt(expiresAt)
                 .emailSent(emailSent)
                 .acceptUrl(acceptUrl)
@@ -118,22 +116,9 @@ public class MemberInvitationService {
 
         invitation.setStatus(InvitationStatus.ACCEPTED);
         invitationRepository.save(invitation);
-        return authMapper.toUserResponse(saved);
-    }
-
-    private UserRole parseStaffRole(String raw) {
-        UserRole role;
-        try {
-            role = UserRole.valueOf(raw.trim().toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException ex) {
-            throw new BusinessException("Invalid role. Allowed: TENANT_ADMIN, ADMIN, HR, RECRUITER",
-                    HttpStatus.BAD_REQUEST, "INVALID_ROLE");
-        }
-        if (!INVITABLE_ROLES.contains(role)) {
-            throw new BusinessException("Candidates cannot be invited as staff",
-                    HttpStatus.BAD_REQUEST, "INVALID_ROLE");
-        }
-        return role;
+        UserResponse response = authMapper.toUserResponse(saved);
+        response.setWorkspace(UserRole.workspaceOf(saved.getRole()));
+        return response;
     }
 
     private String acceptUrl(String rawToken) {

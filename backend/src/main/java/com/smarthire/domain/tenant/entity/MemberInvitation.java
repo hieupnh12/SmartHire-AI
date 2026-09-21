@@ -1,7 +1,6 @@
 package com.smarthire.domain.tenant.entity;
 
 import com.smarthire.domain.enums.InvitationStatus;
-import com.smarthire.domain.enums.UserRole;
 import jakarta.persistence.*;
 import java.time.Instant;
 import lombok.*;
@@ -20,8 +19,7 @@ public class MemberInvitation extends BaseEntity {
 
     @Column(name = "full_name", nullable = false) String fullName;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 32) UserRole role;
+    @Column(nullable = false, length = 64) String role;
 
     @Column(name = "token_hash", nullable = false, unique = true, length = 64) String tokenHash;
 

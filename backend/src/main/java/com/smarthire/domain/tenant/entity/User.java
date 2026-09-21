@@ -1,6 +1,5 @@
 package com.smarthire.domain.tenant.entity;
 
-import com.smarthire.domain.enums.UserRole;
 import com.smarthire.domain.enums.UserStatus;
 import jakarta.persistence.*;
 import lombok.*;
@@ -21,8 +20,7 @@ public class User extends BaseEntity {
 
     @Column(name = "full_name", nullable = false) String fullName;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 32) UserRole role;
+    @Column(nullable = false, length = 64) String role;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32) UserStatus status = UserStatus.ACTIVE;

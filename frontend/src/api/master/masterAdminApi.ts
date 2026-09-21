@@ -10,6 +10,7 @@ export interface TenantInfo {
   subdomain: string;
   dbName: string;
   status: string;
+  environmentType?: "PRODUCTION" | "POC_SANDBOX";
   createdAt: string;
 }
 
