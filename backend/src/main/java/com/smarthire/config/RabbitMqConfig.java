@@ -88,6 +88,11 @@ public class RabbitMqConfig {
     }
 
     @Bean
+    public TopicExchange notifyEmailDlx(@Value("${app.rabbitmq.queues.notify-email}") String name) {
+        return new TopicExchange(name + ".dlx", true, false);
+    }
+
+    @Bean
     public TopicExchange authEmailOtpExchange(
             @Value("${app.rabbitmq.exchanges.auth-email-otp}") String name) {
         return new TopicExchange(name, true, false);
@@ -155,7 +160,15 @@ public class RabbitMqConfig {
 
     @Bean
     public Queue notifyEmailQueue(@Value("${app.rabbitmq.queues.notify-email}") String name) {
-        return QueueBuilder.durable(name).build();
+        return QueueBuilder.durable(name)
+                .withArgument("x-dead-letter-exchange", name + ".dlx")
+                .withArgument("x-dead-letter-routing-key", RK)
+                .build();
+    }
+
+    @Bean
+    public Queue notifyEmailDlq(@Value("${app.rabbitmq.queues.notify-email}") String name) {
+        return QueueBuilder.durable(name + ".dlq").build();
     }
 
     @Bean
@@ -227,6 +240,11 @@ public class RabbitMqConfig {
     @Bean
     public Binding notifyEmailBinding(Queue notifyEmailQueue, TopicExchange notifyEmailExchange) {
         return BindingBuilder.bind(notifyEmailQueue).to(notifyEmailExchange).with(RK);
+    }
+
+    @Bean
+    public Binding notifyEmailDlqBinding(Queue notifyEmailDlq, TopicExchange notifyEmailDlx) {
+        return BindingBuilder.bind(notifyEmailDlq).to(notifyEmailDlx).with(RK);
     }
 
     @Bean

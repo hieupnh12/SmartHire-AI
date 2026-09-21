@@ -12,7 +12,10 @@ import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
-/** Gemini JSON extraction with heuristic fallback. Never few-shots other tenants' CVs. */
+import com.smarthire.config.ai.DynamicAiConfigProvider;
+import org.springframework.beans.factory.annotation.Autowired;
+
+/** Gemini JSON extraction with heuristic fallback and dynamic AI config support. */
 @Component
 @Primary
 public class GeminiCvAiClient implements CvAiClient {
@@ -29,29 +32,55 @@ public class GeminiCvAiClient implements CvAiClient {
 
     private final HeuristicCvAiClient fallback;
     private final ObjectMapper mapper;
-    private final String apiKey;
-    private final String model;
+    private final String defaultApiKey;
+    private final String defaultModel;
+    private final int timeoutSeconds;
     private final RestClient http;
+    private DynamicAiConfigProvider configProvider;
 
     public GeminiCvAiClient(
             HeuristicCvAiClient fallback,
             ObjectMapper mapper,
-            @Value("${app.cv.gemini-api-key:}") String apiKey,
-            @Value("${app.cv.gemini-model:gemini-2.0-flash}") String model,
-            @Value("${app.cv.timeout-seconds:30}") int timeoutSeconds) {
+            @Value("${app.ai.gemini.api-key:}") String apiKey,
+            @Value("${app.ai.models.cv-parsing:gemini-2.0-flash}") String model,
+            @Value("${app.ai.timeout-seconds:30}") int timeoutSeconds) {
         this.fallback = fallback;
         this.mapper = mapper;
-        this.apiKey = apiKey == null ? "" : apiKey.trim();
-        this.model = model;
+        this.defaultApiKey = apiKey == null ? "" : apiKey.trim();
+        this.defaultModel = model;
+        this.timeoutSeconds = timeoutSeconds;
         var factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(Duration.ofSeconds(5));
         factory.setReadTimeout(Duration.ofSeconds(Math.max(5, timeoutSeconds)));
         this.http = RestClient.builder().requestFactory(factory).build();
     }
 
+    @Autowired(required = false)
+    public void setConfigProvider(DynamicAiConfigProvider configProvider) {
+        this.configProvider = configProvider;
+    }
+
+    private String getEffectiveApiKey() {
+        if (configProvider != null) {
+            String key = configProvider.resolveConfig("CV_PARSING").apiKey();
+            if (key != null && !key.isBlank()) return key;
+        }
+        return defaultApiKey;
+    }
+
+    private String getEffectiveModel() {
+        if (configProvider != null) {
+            String model = configProvider.resolveConfig("CV_PARSING").modelName();
+            if (model != null && !model.isBlank()) return model;
+        }
+        return defaultModel;
+    }
+
     @Override
     public String extractJson(String rawText, String jobContext) {
-        if (apiKey.isBlank()) return fallback.extractJson(rawText, jobContext);
+        String apiKey = getEffectiveApiKey();
+        String model = getEffectiveModel();
+        if (apiKey == null || apiKey.isBlank()) return fallback.extractJson(rawText, jobContext);
         try {
             String body = """
                     {"contents":[{"parts":[{"text":%s}]}]}
@@ -71,7 +100,7 @@ public class GeminiCvAiClient implements CvAiClient {
             mapper.readTree(json);
             return json;
         } catch (Exception ex) {
-            log.error("Gemini extraction failed");
+            log.error("Gemini extraction failed: {}", ex.getMessage());
             throw new IllegalStateException("Gemini CV extraction failed", ex);
         }
     }
@@ -96,11 +125,14 @@ public class GeminiCvAiClient implements CvAiClient {
 
     @Override
     public String modelVersion() {
-        return apiKey.isBlank() ? fallback.modelVersion() : "gemini:" + model;
+        String apiKey = getEffectiveApiKey();
+        String model = getEffectiveModel();
+        return (apiKey == null || apiKey.isBlank()) ? fallback.modelVersion() : "gemini:" + model;
     }
 
     @Override
     public String promptVersion() {
-        return apiKey.isBlank() ? fallback.promptVersion() : "screen-v1-job";
+        String apiKey = getEffectiveApiKey();
+        return (apiKey == null || apiKey.isBlank()) ? fallback.promptVersion() : "screen-v1-job";
     }
 }

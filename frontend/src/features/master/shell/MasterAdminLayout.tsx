@@ -13,6 +13,7 @@ const paths: Record<DashboardTab, string> = {
   tenants: "/admin/tenants/directory", subscriptions: "/admin/subscriptions/plans",
   invoices: "/admin/invoices", contracts: "/admin/contracts", logs: "/admin/system/logs",
   "ai-usage": "/admin/system/ai-usage", "ai-quotas": "/admin/system/ai-quotas",
+  "ai-config": "/admin/system/ai-config",
   "account-profile": "/admin/account/profile", "account-security": "/admin/account/security",
   "account-accessibility": "/admin/account/accessibility", "account-notifications": "/admin/account/notifications",
 };

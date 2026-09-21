@@ -21,6 +21,7 @@ import {
   ChevronRight,
   LogOut,
   Sliders,
+  Cpu,
   X,
 } from "lucide-react";
 import { Tooltip } from "@/components/ux/Tooltip";
@@ -209,6 +210,13 @@ export function MasterAdminSidebar({
           label: "Quản lý hạn ngạch AI",
           description: "Theo dõi giới hạn, cảnh báo và chính sách sử dụng tài nguyên AI.",
           icon: Sliders,
+        },
+        {
+          tab: "ai-config",
+          path: "/admin/system/ai-config",
+          label: "Cấu hình AI Engine",
+          description: "Quản lý tập trung API Keys và gán Model động cho các tác vụ.",
+          icon: Cpu,
         },
       ],
     },

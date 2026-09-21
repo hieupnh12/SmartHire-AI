@@ -17,4 +17,5 @@ public interface TenantInfoRepository extends JpaRepository<TenantInfo, Long> {
     Optional<TenantInfo> findBySubdomain(String subdomain);
     boolean existsByCode(String code);
     boolean existsBySubdomain(String subdomain);
+    long countByStatus(String status);
 }

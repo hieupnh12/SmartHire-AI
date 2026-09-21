@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Hóa đơn mới</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f4f5; padding: 20px; }
+        .container { background-color: #ffffff; padding: 30px; border-radius: 8px; max-width: 600px; margin: 0 auto; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        h2 { color: #111827; }
+        .details { margin: 20px 0; padding: 15px; background-color: #f9fafb; border-radius: 6px; }
+        .details table { width: 100%; }
+        .details td { padding: 8px 0; }
+        .details td:nth-child(2) { font-weight: bold; text-align: right; }
+        .btn { display: inline-block; padding: 12px 24px; background-color: #2563eb; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: bold; margin-top: 20px; }
+        .footer { margin-top: 30px; font-size: 12px; color: #6b7280; text-align: center; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h2>SmartHire Platform</h2>
+    <p>Xin chào <span th:text="${tenantName}">Khách hàng</span>,</p>
+    <p>Hệ thống SmartHire vừa tạo một hóa đơn mới cho kỳ sử dụng của bạn. Vui lòng thanh toán trước hạn để không bị gián đoạn dịch vụ.</p>
+    
+    <div class="details">
+        <table>
+            <tr>
+                <td>Mã hóa đơn:</td>
+                <td th:text="'#' + ${invoiceCode}">#12345</td>
+            </tr>
+            <tr>
+                <td>Tổng tiền:</td>
+                <td th:text="${amount} + ' VND'">1,000,000 VND</td>
+            </tr>
+            <tr>
+                <td>Hạn thanh toán:</td>
+                <td th:text="${dueDate}">2026-10-01</td>
+            </tr>
+        </table>
+    </div>
+    
+    <div style="text-align: center;">
+        <a href="https://smarthire.top/admin/billing" class="btn">Xem chi tiết hóa đơn</a>
+    </div>
+    
+    <div class="footer">
+        <p>Email này được gửi tự động từ hệ thống SmartHire-AI. Vui lòng không trả lời trực tiếp email này (no-reply).</p>
+    </div>
+</div>
+</body>
+</html>
