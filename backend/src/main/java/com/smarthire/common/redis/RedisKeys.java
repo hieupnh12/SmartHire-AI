@@ -45,6 +45,14 @@ public final class RedisKeys {
         return "auth:master:refresh:" + tokenId;
     }
 
+    public static String aiTaskConfig(String taskType) {
+        return "cache:ai:config:" + (taskType == null ? "DEFAULT" : taskType.trim().toUpperCase());
+    }
+
+    public static String aiProviderKey(String provider) {
+        return "cache:ai:key:" + (provider == null ? "DEFAULT" : provider.trim().toUpperCase());
+    }
+
     public static String masterLoginFailedAttempts(String email) {
         return "ratelimit:master:login:failed:" + (email == null ? "" : email.trim().toLowerCase());
     }

@@ -31,6 +31,7 @@ interface MasterDashboardContextType {
   
   loading: boolean;
   fetchData: () => Promise<void>;
+  fetchAnalytics: (startDate?: string, endDate?: string, groupBy?: string) => Promise<void>;
   
   actionSuccessMsg: string | null;
   triggerNotification: (msg: string) => void;
@@ -80,6 +81,19 @@ export const MasterDashboardProvider = ({ children }: { children: ReactNode }) =
     }
   };
 
+  const fetchAnalytics = async (startDate?: string, endDate?: string, groupBy?: string) => {
+    try {
+      const [revenueData, quotaData] = await Promise.all([
+        masterAdminApi.getRevenueAnalytics(startDate, endDate, groupBy),
+        masterAdminApi.getAiQuotaUsage(startDate, endDate),
+      ]);
+      setRevenue(revenueData);
+      setAiQuota(quotaData);
+    } catch (err) {
+      console.error("Error fetching filtered analytics data:", err);
+    }
+  };
+
   useEffect(() => {
     fetchData();
   }, []);
@@ -102,6 +116,7 @@ export const MasterDashboardProvider = ({ children }: { children: ReactNode }) =
         contracts, setContracts,
         loading,
         fetchData,
+        fetchAnalytics,
         actionSuccessMsg,
         triggerNotification
       }}

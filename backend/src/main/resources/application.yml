@@ -114,10 +114,6 @@ app:
     admin-password: ${BOOTSTRAP_ADMIN_PASSWORD:}
   cors:
     allowed-origins: ${CORS_ORIGINS:http://localhost:5173}
-  jwt:
-    secret: ${JWT_SECRET}
-    access-token-minutes: 30
-    refresh-token-days: 7
   redis:
     ttl:
       job-list-seconds: 120
@@ -154,12 +150,12 @@ app:
       notify-email: notify.email.q
       auth-email-otp: auth.email.otp.q
       job-events: job.events.q
-  cv:
-    storage-dir: ${CV_STORAGE_DIR:./storage/cvs}
-    max-file-bytes: ${CV_MAX_FILE_BYTES:10485760}
-    gemini-api-key: ${GEMINI_API_KEY:}
-    gemini-model: ${GEMINI_MODEL:gemini-2.0-flash}
+  ai:
     timeout-seconds: ${CV_AI_TIMEOUT_SECONDS:30}
+    gemini:
+      api-key: ${GEMINI_API_KEY:}
+    models:
+      cv-parsing: ${GEMINI_MODEL:gemini-2.0-flash}
 
 smarthire:
   jwt:

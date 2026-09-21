@@ -13,4 +13,5 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
     List<Invoice> findByTenantIdOrderByCreatedAtDesc(Long tenantId);
     List<Invoice> findByStatusOrderByCreatedAtDesc(String status);
     Optional<Invoice> findByInvoiceNumber(String invoiceNumber);
+    List<Invoice> findByStatusAndPaidAtBetweenOrderByPaidAtAsc(String status, java.time.LocalDateTime start, java.time.LocalDateTime end);
 }
