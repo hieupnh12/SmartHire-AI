@@ -1,0 +1,133 @@
+@startuml
+!include ../class-style.puml
+
+package "Controller Layer" {
+  class JobController <<Controller>> {
+    - jobService: JobService
+    + updateJob(id: Long, request: UpdateJobRequest): ApiResponse<JobResponse>
+  }
+}
+
+package "DTO Layer" {
+  class TenantAuditRecordCommand <<DTO>> {
+    + actorUserId: Long
+    + action: String
+    + resourceType: String
+    + resourceId: String [0..1]
+    + summary: String
+    + ipAddress: String [0..1]
+    + metadataJson: String [0..1]
+  }
+  class UpdateJobRequest <<Request>> {
+    + title: String
+    + status: String [0..1]
+  }
+  class JobResponse <<Response>> {
+    + id: Long
+    + title: String
+    + status: String
+  }
+}
+
+package "Service Layer" {
+  interface JobService <<Service>> {
+    + updateJob(id: Long, request: UpdateJobRequest, principal: Principal): JobResponse
+  }
+  class JobServiceImpl <<Service>> {
+    - jobRepository: JobRepository
+    - tenantAuditService: TenantAuditService
+    - tenantContext: TenantContext
+    + updateJob(id: Long, request: UpdateJobRequest, principal: Principal): JobResponse
+  }
+  interface TenantAuditService <<Service>> {
+    + record(command: TenantAuditRecordCommand): void
+  }
+  class TenantAuditServiceImpl <<Service>> {
+    - auditLogRepository: AuditLogRepository
+    - tenantContext: TenantContext
+    + record(command: TenantAuditRecordCommand): void
+  }
+}
+
+package "Repository Layer" {
+  interface JobRepository <<Repository>> {
+    + findById(id: Long): Optional<Job>
+    + save(job: Job): Job
+  }
+  interface AuditLogRepository <<Repository>> {
+    + save(log: AuditLog): AuditLog
+  }
+}
+
+package "Domain Entity Layer" {
+  class Job <<Entity>> {
+    - id: Long
+    - title: String
+    - status: String
+  }
+  class AuditLog <<Entity>> {
+    - id: Long
+    - actorUserId: Long
+    - action: String
+    - resourceType: String
+    - resourceId: String [0..1]
+    - summary: String
+    - ipAddress: String [0..1]
+    - metadataJson: String [0..1]
+    - occurredAt: Instant
+  }
+  enum AuditAction <<Enum>> {
+    CREATE
+    UPDATE
+    DELETE
+    STATUS_CHANGE
+    LOGIN
+    EXPORT
+  }
+}
+
+package "Infrastructure & Persistence" {
+  class TenantMySQL <<Database>> {
+    .. Dedicated Tenant DB ..
+    + jobs
+    + audit_logs
+  }
+  class TenantContext <<DataSource>> {
+    + {static} getCurrentTenant(): String
+    + {static} setCurrentTenant(tenantId: String): void
+    + {static} clear(): void
+  }
+}
+
+JobController --> JobService : delegates >
+JobController ..> UpdateJobRequest : consumes >
+JobController ..> JobResponse : returns >
+
+JobService <|.. JobServiceImpl : implements
+TenantAuditService <|.. TenantAuditServiceImpl : implements
+
+JobServiceImpl --> JobRepository : manages >
+JobServiceImpl --> TenantAuditService : records audit >
+JobServiceImpl --> TenantContext : caches / evicts >
+JobServiceImpl ..> UpdateJobRequest : processes >
+JobServiceImpl ..> JobResponse : creates >
+
+TenantAuditServiceImpl ..> TenantAuditRecordCommand : processes >
+TenantAuditServiceImpl --> AuditLogRepository : persists through >
+TenantAuditServiceImpl --> TenantContext : caches / evicts >
+
+JobRepository --> Job : manages >
+AuditLogRepository --> AuditLog : manages >
+JobRepository --> TenantMySQL : persists to >
+AuditLogRepository --> TenantMySQL : persists to >
+
+AuditLog ..> AuditAction : typed by >
+
+note right of TenantAuditServiceImpl
+  Representative write path: job update.
+  Same TenantAuditService is reused by
+  other tenant use cases (CV, ranking, hiring).
+  Append-only; no cross-tenant writes.
+end note
+
+@enduml

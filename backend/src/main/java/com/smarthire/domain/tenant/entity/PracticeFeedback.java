@@ -7,43 +7,54 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
-import jakarta.persistence.OneToOne;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.time.Instant;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+import lombok.experimental.FieldDefaults;
 
+@Getter
+@Setter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+@FieldDefaults(level = AccessLevel.PRIVATE)
 @Entity
 @Table(name = "practice_feedbacks")
 public class PracticeFeedback {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    Long id;
 
-    @OneToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "session_id", nullable = false, unique = true)
-    private PracticeSession session;
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "practice_answer_id", nullable = false)
+    PracticeAnswer practiceAnswer;
 
-    @Column(nullable = false, columnDefinition = "TEXT")
-    private String content;
+    @Column(precision = 10, scale = 2)
+    BigDecimal score;
 
-    @Column(precision = 5, scale = 2)
-    private BigDecimal score;
+    @Column(name = "feedback_text", columnDefinition = "TEXT")
+    String feedbackText;
+
+    @Column(columnDefinition = "TEXT")
+    String strengths;
+
+    @Column(columnDefinition = "TEXT")
+    String weaknesses;
 
     @Column(name = "created_at", nullable = false, updatable = false)
-    private Instant createdAt;
+    Instant createdAt;
 
     @PrePersist
-    void onCreate() { createdAt = Instant.now(); }
-
-    public Long getId() { return id; }
-    public PracticeSession getSession() { return session; }
-    public void setSession(PracticeSession session) { this.session = session; }
-    public String getContent() { return content; }
-    public void setContent(String content) { this.content = content; }
-    public BigDecimal getScore() { return score; }
-    public void setScore(BigDecimal score) { this.score = score; }
-    public Instant getCreatedAt() { return createdAt; }
+    void onCreate() {
+        createdAt = Instant.now();
+    }
 }
-

@@ -1,7 +1,11 @@
 # Domain Model (logical)
 
 Nguồn sự thật schema: Flyway `backend/src/main/resources/db/migration`.  
-File này mô tả quan hệ logic theo product backlog.
+File này mô tả quan hệ logic theo product backlog — một bản phác nhanh để định hướng.
+
+> **Đặc tả vật lý đầy đủ và cập nhật nằm ở [`docs/database/`](../database/README.md)**: ERD theo từng nhóm
+> nghiệp vụ, data dictionary chi tiết từng cột, danh sách 59 khoá ngoại, ràng buộc và index. Khi hai file
+> mâu thuẫn, `docs/database/` thắng.
 
 ## Core identity
 

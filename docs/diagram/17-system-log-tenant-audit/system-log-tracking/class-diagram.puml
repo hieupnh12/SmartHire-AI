@@ -1,0 +1,119 @@
+@startuml
+!include ../class-style.puml
+
+package "Controller Layer" {
+  class SystemLogController <<Controller>> {
+    - systemLogService: SystemLogService
+    + healthProbe(): ApiResponse<Void>
+  }
+}
+
+package "DTO Layer" {
+  class SystemLogRecordCommand <<DTO>> {
+    + category: SystemEventCategory
+    + level: LogLevel
+    + action: String
+    + message: String
+    + tenantCode: String [0..1]
+    + source: String
+    + correlationId: String [0..1]
+    + ipAddress: String [0..1]
+  }
+  class SystemLogEvent <<Domain Event>> {
+    + category: SystemEventCategory
+    + level: LogLevel
+    + action: String
+    + message: String
+    + tenantCode: String [0..1]
+    + source: String
+    + correlationId: String [0..1]
+    + occurredAt: Instant
+  }
+}
+
+package "Service Layer" {
+  interface SystemLogService <<Service>> {
+    + record(command: SystemLogRecordCommand): void
+  }
+  class SystemLogServiceImpl <<Service>> {
+    - systemLogRepository: SystemLogRepository
+    + record(command: SystemLogRecordCommand): void
+  }
+  class AuthEventLogAdapter <<Service>> {
+    - systemLogService: SystemLogService
+    + onLoginSuccess(email: String, ip: String): void
+    + onLoginFailure(emailHint: String, ip: String): void
+  }
+  class InfraEventLogAdapter <<Service>> {
+    - systemLogService: SystemLogService
+    + onProvisioningCompleted(tenantCode: String): void
+    + onPoolPressure(tenantCode: String, usagePercent: int): void
+    + onUnhandledError(source: String, correlationId: String): void
+  }
+}
+
+package "Repository Layer" {
+  interface SystemLogRepository <<Repository>> {
+    + save(log: SystemLog): SystemLog
+  }
+}
+
+package "Domain Entity Layer" {
+  class SystemLog <<Entity>> {
+    - id: Long
+    - category: SystemEventCategory
+    - level: LogLevel
+    - action: String
+    - message: String
+    - tenantCode: String [0..1]
+    - source: String
+    - correlationId: String [0..1]
+    - ipAddress: String [0..1]
+    - occurredAt: Instant
+  }
+  enum SystemEventCategory <<Enum>> {
+    AUTH
+    INFRA
+    PROVISIONING
+    APPLICATION_ERROR
+    SECURITY
+  }
+  enum LogLevel <<Enum>> {
+    INFO
+    WARN
+    ERROR
+  }
+}
+
+package "Infrastructure & Persistence" {
+  class MasterPostgreSQL <<Database>> {
+    .. Master Landlord DB ..
+    + system_logs
+  }
+}
+
+' Relationships
+SystemLogController --> SystemLogService : delegates >
+AuthEventLogAdapter --> SystemLogService : delegates >
+InfraEventLogAdapter --> SystemLogService : delegates >
+
+SystemLogService <|.. SystemLogServiceImpl : implements
+SystemLogServiceImpl ..> SystemLogRecordCommand : processes >
+SystemLogServiceImpl ..> SystemLogEvent : creates >
+SystemLogServiceImpl --> SystemLogRepository : persists through >
+
+SystemLogRepository --> SystemLog : manages >
+SystemLogRepository --> MasterPostgreSQL : persists to >
+
+SystemLog ..> SystemEventCategory : typed by >
+SystemLog ..> LogLevel : typed by >
+SystemLogRecordCommand ..> SystemEventCategory : typed by >
+SystemLogRecordCommand ..> LogLevel : typed by >
+
+note right of SystemLogServiceImpl
+  Append-only write path.
+  Never store raw passwords, JWTs,
+  or full exception stacks with secrets.
+end note
+
+@enduml

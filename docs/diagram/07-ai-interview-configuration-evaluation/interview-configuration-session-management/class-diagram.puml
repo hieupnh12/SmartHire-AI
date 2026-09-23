@@ -1,0 +1,142 @@
+@startuml
+!include ../class-style.puml
+
+package "Controller Layer" {
+  class InterviewController <<Controller>> {
+    - interviewService: InterviewService
+    + createSession(request: CreateInterviewRequest): ApiResponse<InterviewResponse>
+  }
+}
+
+package "DTO Layer" {
+  class CreateInterviewRequest <<Request>> {
+    + jobId: Long
+    + candidateId: Long
+    + cvId: Long [0..1]
+    + mode: InterviewMode
+  }
+  class InterviewResponse <<Response>> {
+    + id: Long
+    + jobId: Long
+    + candidateId: Long
+    + cvId: Long [0..1]
+    + mode: InterviewMode
+    + status: InterviewStatus
+    + createdAt: Instant
+  }
+}
+
+package "Service Layer" {
+  interface InterviewService <<Service>> {
+    + createSession(request: CreateInterviewRequest, principal: Principal): InterviewResponse
+  }
+  class InterviewServiceImpl <<Service>> {
+    - interviewRepository: InterviewRepository
+    - jobRepository: JobRepository
+    - userRepository: UserRepository
+    - cvRepository: CvRepository
+    - tenantContext: TenantContext
+    + createSession(request: CreateInterviewRequest, principal: Principal): InterviewResponse
+  }
+}
+
+package "Repository Layer" {
+  interface InterviewRepository <<Repository>> {
+    + save(interview: Interview): Interview
+  }
+  interface JobRepository <<Repository>> {
+    + findById(id: Long): Optional<Job>
+  }
+  interface UserRepository <<Repository>> {
+    + findById(id: Long): Optional<User>
+  }
+  interface CvRepository <<Repository>> {
+    + findById(id: Long): Optional<Cv>
+  }
+}
+
+package "Domain Entity Layer" {
+  class Interview <<Entity>> {
+    - id: Long
+    - job: Job
+    - candidate: User
+    - cv: Cv [0..1]
+    - mode: InterviewMode
+    - status: InterviewStatus
+    - createdAt: Instant
+  }
+  class Job <<Entity>> {
+    - id: Long
+    - title: String
+    - status: JobStatus
+  }
+  class User <<Entity>> {
+    - id: Long
+    - fullName: String
+    - role: UserRole
+    - status: UserStatus
+  }
+  class Cv <<Entity>> {
+    - id: Long
+    - job: Job
+    - user: User
+    - status: CvStatus
+  }
+  enum InterviewMode <<Enum>> {
+    AI_VOICE
+    AI_TEXT
+  }
+  enum InterviewStatus <<Enum>> {
+    CREATED
+    QUESTIONS_READY
+    IN_PROGRESS
+    SCORING
+    SCORED
+    FAILED
+  }
+}
+
+package "Infrastructure & Persistence" {
+  class TenantMySQL <<Database>> {
+    .. Dedicated Tenant DB ..
+    + interviews
+    + jobs
+    + users
+    + cvs
+  }
+  class TenantContext <<DataSource>> {
+    + {static} getCurrentTenant(): String
+    + {static} setCurrentTenant(tenantId: String): void
+    + {static} clear(): void
+  }
+}
+
+InterviewController ..> CreateInterviewRequest : consumes >
+InterviewController ..> InterviewResponse : returns >
+InterviewController --> InterviewService : delegates >
+InterviewService <|.. InterviewServiceImpl : implements
+InterviewServiceImpl ..> CreateInterviewRequest : processes >
+InterviewServiceImpl ..> InterviewResponse : creates >
+InterviewServiceImpl --> InterviewRepository : persists through >
+InterviewServiceImpl --> JobRepository : queries >
+InterviewServiceImpl --> UserRepository : queries >
+InterviewServiceImpl --> CvRepository : queries >
+InterviewServiceImpl --> TenantContext : caches / evicts >
+
+InterviewRepository --> Interview : manages >
+JobRepository --> Job : manages >
+UserRepository --> User : manages >
+CvRepository --> Cv : manages >
+InterviewRepository --> TenantMySQL : persists to >
+
+Interview "0..*" --> "1" Job
+Interview "0..*" --> "1" User
+Interview "0..*" --> "0..1" Cv
+Interview ..> InterviewMode : typed by >
+Interview ..> InterviewStatus : typed by >
+Cv "0..*" --> "1" Job
+Cv "0..*" --> "1" User
+
+note right of InterviewServiceImpl
+
+@enduml
