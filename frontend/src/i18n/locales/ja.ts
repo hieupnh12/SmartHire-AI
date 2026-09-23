@@ -96,7 +96,7 @@ export const ja: Messages = {
     adminRecruitment: "採用管理",
     overviewDescription: "管理ダッシュボード",
     adminCompanyDescription: "企業情報と認証",
-    adminPeopleDescription: "メンバーと権限",
+    adminPeopleDescription: "メンバー、権限、担当者割当",
     adminRecruitmentDescription: "採用フローと分析",
     adminSystemDescription: "稼働状況と監査",
   },

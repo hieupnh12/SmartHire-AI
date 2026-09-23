@@ -59,6 +59,7 @@ import { SchedulesPage as RecruiterSchedulesPage } from "@/features/tenant/recru
 import { NotificationsPage as RecruiterNotificationsPage } from "@/features/tenant/recruiter/notifications/pages/NotificationsPage";
 import { RecruiterAnalyticsPage } from "@/features/tenant/recruiter/analytics/pages/RecruiterAnalyticsPage";
 import { RolesPage } from "@/features/tenant/admin/roles/pages/RolesPage";
+import { AssignmentsPage } from "@/features/tenant/admin/assignments/pages/AssignmentsPage";
 
 function LegacyTenantAdminRedirect() {
   const location = useLocation();
@@ -175,6 +176,7 @@ export function AppRouter() {
           <Route path="company" element={<CompanyProfilePage />} />
           <Route path="users" element={<UsersPage />} />
           <Route path="roles" element={<RolesPage />} />
+          <Route path="recruiter-assignments" element={<AssignmentsPage />} />
           <Route path="analytics" element={<AnalyticsPage />} />
           <Route path="system" element={<SystemPage />} />
           <Route path="account" element={<TenantAdminAccountPage />} />

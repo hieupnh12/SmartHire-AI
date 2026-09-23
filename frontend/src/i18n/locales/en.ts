@@ -103,7 +103,7 @@ export const en = {
     adminRecruitment: "Recruitment",
     overviewDescription: "Administration dashboard",
     adminCompanyDescription: "Profile and verification",
-    adminPeopleDescription: "Members and permissions",
+    adminPeopleDescription: "Members, permissions, and assignments",
     adminRecruitmentDescription: "Pipeline and reports",
     adminSystemDescription: "Health and audit",
   },

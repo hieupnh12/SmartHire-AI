@@ -14,6 +14,16 @@ public class RankingDataRepository {
         return em.createQuery("select j from Job j where lower(j.createdBy.email) = lower(:email) and j.deletedAt is null order by j.id desc", Job.class)
                 .setParameter("email", email).getResultList();
     }
+    public List<Job> activeJobs() {
+        return em.createQuery("select j from Job j where j.deletedAt is null order by j.id desc", Job.class).getResultList();
+    }
+    public List<Job> assignedJobs(long userId) {
+        return em.createQuery(
+                        "select a.job from JobAssignment a where a.user.id = :userId and a.job.deletedAt is null order by a.job.id desc",
+                        Job.class)
+                .setParameter("userId", userId)
+                .getResultList();
+    }
     public Job job(long id, boolean lock) { return em.find(Job.class, id, lock ? LockModeType.PESSIMISTIC_WRITE : LockModeType.NONE); }
     public Application application(long id) { return em.find(Application.class, id); }
     public RankingConfig config(long jobId) { return em.find(RankingConfig.class, jobId); }

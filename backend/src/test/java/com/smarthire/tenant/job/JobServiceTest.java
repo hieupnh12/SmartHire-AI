@@ -12,6 +12,7 @@ import com.smarthire.tenant.cv.service.CvAccess;
 import com.smarthire.tenant.cv.service.CvSkillAnalysisService;
 import com.smarthire.tenant.job.dto.JobModels.JobUpsertRequest;
 import com.smarthire.tenant.job.mapper.JobMapper;
+import com.smarthire.tenant.job.service.JobAssignmentService;
 import com.smarthire.tenant.job.service.JobService;
 import java.util.List;
 import java.util.Optional;
@@ -32,6 +33,7 @@ class JobServiceTest {
     @Mock ApplicationRepository applications;
     @Mock CvAccess access;
     @Mock CvSkillAnalysisService taxonomy;
+    @Mock JobAssignmentService assignments;
 
     JobService service;
     User recruiter;
@@ -39,7 +41,7 @@ class JobServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new JobService(jobs, jobSkills, stages, applications, access, taxonomy, new JobMapper());
+        service = new JobService(jobs, jobSkills, stages, applications, access, taxonomy, new JobMapper(), assignments);
         recruiter = new User();
         recruiter.setEmail("recruiter@se36.local");
         recruiter.setFullName("Le Cong Cuong");

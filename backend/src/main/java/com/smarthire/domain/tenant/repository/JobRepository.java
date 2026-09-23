@@ -22,11 +22,29 @@ public interface JobRepository extends JpaRepository<Job, Long> {
             select j from Job j
             where j.deletedAt is null
               and (:status is null or j.status = :status)
+              and (:assigneeId is null or exists (
+                    select 1 from JobAssignment a
+                    where a.job = j and a.user.id = :assigneeId))
               and (:q is null or :q = '' or lower(j.title) like lower(concat('%', :q, '%'))
                    or lower(coalesce(j.location, '')) like lower(concat('%', :q, '%'))
                    or lower(coalesce(j.department, '')) like lower(concat('%', :q, '%')))
             """)
-    Page<Job> search(@Param("status") JobStatus status, @Param("q") String q, Pageable pageable);
+    Page<Job> search(
+            @Param("status") JobStatus status,
+            @Param("q") String q,
+            @Param("assigneeId") Long assigneeId,
+            Pageable pageable);
+
+    @Query("""
+            select j from Job j
+            where j.deletedAt is null
+              and (:status is null or j.status = :status)
+              and (:assigneeId is null or exists (
+                    select 1 from JobAssignment a
+                    where a.job = j and a.user.id = :assigneeId))
+            order by j.id desc
+            """)
+    List<Job> findVisible(@Param("status") JobStatus status, @Param("assigneeId") Long assigneeId);
 
     @Query("""
             select j from Job j

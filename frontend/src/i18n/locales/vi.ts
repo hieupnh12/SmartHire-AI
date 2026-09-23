@@ -96,7 +96,7 @@ export const vi: Messages = {
     adminRecruitment: "Tuyển dụng",
     overviewDescription: "Dashboard quản trị",
     adminCompanyDescription: "Hồ sơ và xác thực",
-    adminPeopleDescription: "Thành viên và phân quyền",
+    adminPeopleDescription: "Thành viên, phân quyền và phân công",
     adminRecruitmentDescription: "Quy trình và báo cáo",
     adminSystemDescription: "Sức khỏe và kiểm toán",
   },

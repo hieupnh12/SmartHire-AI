@@ -3,6 +3,7 @@ package com.smarthire.tenant.job.service;
 import com.smarthire.common.exception.BusinessException;
 import com.smarthire.domain.enums.ApplicationStatus;
 import com.smarthire.domain.enums.JobStatus;
+import com.smarthire.domain.enums.UserRole;
 import com.smarthire.domain.tenant.entity.Application;
 import com.smarthire.domain.tenant.entity.Job;
 import com.smarthire.domain.tenant.entity.JobSkill;
@@ -62,6 +63,7 @@ public class JobService {
     private final CvAccess access;
     private final CvSkillAnalysisService taxonomy;
     private final JobMapper mapper;
+    private final JobAssignmentService assignments;
 
     public JobService(
             JobRepository jobs,
@@ -70,7 +72,8 @@ public class JobService {
             ApplicationRepository applications,
             CvAccess access,
             CvSkillAnalysisService taxonomy,
-            JobMapper mapper) {
+            JobMapper mapper,
+            JobAssignmentService assignments) {
         this.jobs = jobs;
         this.jobSkills = jobSkills;
         this.stages = stages;
@@ -78,6 +81,7 @@ public class JobService {
         this.access = access;
         this.taxonomy = taxonomy;
         this.mapper = mapper;
+        this.assignments = assignments;
     }
 
     public Map<String, String> health() {
@@ -89,7 +93,7 @@ public class JobService {
         requireStaff();
         int safeSize = Math.min(Math.max(size, 1), 50);
         int safePage = Math.max(page, 0);
-        var result = jobs.search(status, blankToNull(query), PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "id")));
+        var result = jobs.search(status, blankToNull(query), access.jobScopeUserId(), PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "id")));
         Map<Long, Long> counts = counts(result.getContent().stream().map(Job::getId).toList());
         List<JobListItem> items = result.getContent().stream()
                 .map(job -> mapper.listItem(job, counts.getOrDefault(job.getId(), 0L)))
@@ -134,8 +138,9 @@ public class JobService {
 
     @Transactional(readOnly = true)
     public List<JobOption> published() {
-        access.actor();
-        return jobs.findByStatusAndDeletedAtIsNullOrderByIdDesc(JobStatus.PUBLISHED).stream()
+        var actor = access.actor();
+        Long scope = UserRole.isRecruiterStaff(actor.getRole()) ? actor.getId() : null;
+        return jobs.findVisible(JobStatus.PUBLISHED, scope).stream()
                 .map(mapper::option)
                 .toList();
     }
@@ -143,7 +148,7 @@ public class JobService {
     @Transactional(readOnly = true)
     public List<JobOption> options() {
         requireStaff();
-        return jobs.findByDeletedAtIsNullOrderByIdDesc().stream().map(mapper::option).toList();
+        return jobs.findVisible(null, access.jobScopeUserId()).stream().map(mapper::option).toList();
     }
 
     @Transactional
@@ -166,6 +171,7 @@ public class JobService {
         job.setStatus(JobStatus.DRAFT);
         apply(job, request);
         jobs.save(job);
+        assignments.assignCreator(job);
         if (request.skills() != null && !request.skills().isEmpty()) {
             replaceSkillsInternal(job, request.skills());
         }
@@ -217,6 +223,7 @@ public class JobService {
         copy.setMinYearsExperience(source.getMinYearsExperience());
         copy.setEducationLevel(source.getEducationLevel());
         jobs.save(copy);
+        assignments.assignCreator(copy);
         replaceSkillsInternal(copy, jobSkills.findViewRowsByJobId(id).stream()
                 .map(row -> new JobSkillItem(
                         (String) row[1],
