@@ -124,8 +124,8 @@ public class CvPipelineService {
             CvExtraction extraction = extractions.findByCv_Id(cvId).orElseGet(CvExtraction::new);
             extraction.setCv(cv);
             extraction.setExtractionJson(json);
-            extraction.setModelVersion(ai.modelVersion());
-            extraction.setPromptVersion(ai.promptVersion());
+            extraction.setModelVersion(ai.modelVersionFor(json));
+            extraction.setPromptVersion(ai.promptVersionFor(json));
             extractions.save(extraction);
             cvs.save(cv);
             if (enqueue) publisher.publishAnalysis(cvId);

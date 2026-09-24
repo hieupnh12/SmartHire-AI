@@ -14,16 +14,35 @@ export type SkillView = {
   confidence: number | null;
 };
 
+export type RequirementStatus = "MATCH" | "PARTIAL" | "MISSING" | "UNKNOWN";
+
+export type RequirementMatch = {
+  requirement: string;
+  required?: string;
+  candidate?: string | null;
+  status: RequirementStatus;
+  matchType?: "TAXONOMY" | "SEMANTIC" | "BOTH" | "NONE";
+  similarity?: number;
+  mandatory?: boolean;
+  evidence?: string;
+  explanation?: string;
+};
+
 export type MatchBreakdown = {
   skillScore?: number;
+  jaccardSimilarity?: number;
   verdict?: string;
   explanation?: string;
   source?: string;
-  matched?: { required: string; candidate: string | null; similarity: number; mandatory: boolean }[];
-  missing?: { required: string; candidate: string | null; similarity: number; mandatory: boolean }[];
+  matched?: RequirementMatch[];
+  partialMatches?: RequirementMatch[];
+  missing?: RequirementMatch[];
   requiredMissing?: string[];
   passed?: boolean;
   passThreshold?: number;
+  weights?: { required?: number; preferred?: number; jaccard?: number; experience?: number; semantic?: number };
+  components?: { required?: number; preferred?: number | null; jaccard?: number; experience?: number | null; semantic?: number };
+  experienceAnalysis?: { requiredYears?: number | null; candidateYears?: number | null; match?: boolean };
 };
 
 export type MatchView = {

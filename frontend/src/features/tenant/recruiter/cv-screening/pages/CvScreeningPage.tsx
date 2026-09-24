@@ -7,6 +7,7 @@ import { queryKeys } from "@/lib/query-keys";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 import { button, input, muted, panel } from "@/features/tenant/recruiter/matching/components/rankingUi";
 import { CvFilePreview } from "@/components/shared/CvFilePreview";
+import { ScreeningBreakdown } from "@/features/tenant/recruiter/cv-screening/components/ScreeningBreakdown";
 import type { CvDetail, MatchBreakdown } from "@/api/types/cv";
 
 const chip = "rounded-full px-2.5 py-0.5 text-xs font-medium";
@@ -57,7 +58,7 @@ export function CvScreeningPage() {
         <p className={muted}>Tuyển dụng / Sàng lọc CV</p>
         <h1 className="mt-1 text-3xl font-semibold tracking-tight">CV Screening</h1>
         <p className={`mt-2 max-w-2xl ${muted}`}>
-          Chỉ CV ứng viên nộp khi apply mới xuất hiện. Điểm ≥ 60 và không thiếu skill bắt buộc → đạt chuẩn CV, chuyển phỏng vấn AI. Điểm Matching tổng (assessment + interview) ở trang Matching khi đủ vòng.
+          Hybrid screening: taxonomy + Jaccard + Gemini semantic. Điểm ≥ 60 và không thiếu skill bắt buộc → đạt chuẩn CV, chuyển phỏng vấn AI. Recruiter quyết định vòng Human-to-Human sau các vòng đánh giá.
         </p>
       </header>
       <div className={panel}>
@@ -161,19 +162,8 @@ function CvDetailPanel({ cv, breakdown, onRetry, retryPending, onDelete, deleteP
           {deletePending ? "Đang xóa…" : "Xóa CV"}
         </button>
       </div>
-      {breakdown?.verdict && <p className="text-sm">{breakdown.verdict}</p>}
       {cv.match && (
-        <div>
-          <p className="text-sm font-semibold">Đánh giá so với yêu cầu job</p>
-          <p className="font-mono text-2xl">{cv.match.score}</p>
-          <p className={muted}>
-            {breakdown?.passed ? "Đạt chuẩn CV → chuyển phỏng vấn AI" : "Chưa đạt ngưỡng sàng lọc"}
-            {breakdown?.passThreshold != null ? ` (ngưỡng ${breakdown.passThreshold})` : ""}
-          </p>
-          <p className={muted}>{cv.match.modelVersion}{breakdown?.source ? ` · ${breakdown.source}` : ""}</p>
-          <SkillGroup title="Khớp JD" items={breakdown?.matched?.map((i) => i.required) ?? []} />
-          <SkillGroup title="Thiếu so với JD" items={breakdown?.missing?.map((i) => i.required) ?? []} />
-        </div>
+        <ScreeningBreakdown score={cv.match.score} modelVersion={cv.match.modelVersion} breakdown={breakdown} />
       )}
       {cv.analysis?.yearsExperience != null && (
         <p className={muted}>{cv.analysis.yearsExperience} năm kinh nghiệm (trích từ CV)</p>
@@ -185,9 +175,3 @@ function CvDetailPanel({ cv, breakdown, onRetry, retryPending, onDelete, deleteP
   );
 }
 
-function SkillGroup({ title, items }: { title: string; items: string[] }) {
-  if (items.length === 0) return null;
-  return (
-    <p className="mt-2 text-sm"><span className="font-semibold">{title}: </span>{items.join(", ")}</p>
-  );
-}

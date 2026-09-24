@@ -48,6 +48,8 @@ public class CvService {
     private static final Logger log = LoggerFactory.getLogger(CvService.class);
     private static final Set<String> ALLOWED_MIME = Set.of(
             "application/pdf",
+            "application/msword",
+            "application/vnd.ms-word",
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
     private final CvRepository cvs;
     private final JobRepository jobs;
@@ -358,8 +360,11 @@ public class CvService {
         }
         String mime = file.getContentType() == null ? "" : file.getContentType().toLowerCase(Locale.ROOT);
         String name = file.getOriginalFilename() == null ? "" : file.getOriginalFilename().toLowerCase(Locale.ROOT);
-        boolean allowed = ALLOWED_MIME.contains(mime) || name.endsWith(".pdf") || name.endsWith(".docx");
-        if (!allowed) throw new BusinessException("Only PDF and DOCX are allowed", HttpStatus.BAD_REQUEST, "CV_TYPE_REJECTED");
+        boolean allowed = ALLOWED_MIME.contains(mime)
+                || name.endsWith(".pdf")
+                || name.endsWith(".doc")
+                || name.endsWith(".docx");
+        if (!allowed) throw new BusinessException("Only PDF, DOC, and DOCX are allowed", HttpStatus.BAD_REQUEST, "CV_TYPE_REJECTED");
     }
 
     private static String safeName(String original) {

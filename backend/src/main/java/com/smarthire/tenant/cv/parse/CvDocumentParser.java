@@ -6,6 +6,8 @@ import java.util.Locale;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
+import org.apache.poi.hwpf.HWPFDocument;
+import org.apache.poi.hwpf.extractor.WordExtractor;
 import org.apache.poi.xwpf.extractor.XWPFWordExtractor;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.springframework.stereotype.Component;
@@ -20,6 +22,7 @@ public class CvDocumentParser {
         String name = filename == null ? "" : filename.toLowerCase(Locale.ROOT);
         String mime = mimeType == null ? "" : mimeType.toLowerCase(Locale.ROOT);
         if (name.endsWith(".docx") || mime.contains("wordprocessingml")) return docx(content);
+        if (name.endsWith(".doc") || mime.contains("msword") || mime.contains("ms-word")) return doc(content);
         if (name.endsWith(".pdf") || mime.contains("pdf")) return pdf(content);
         throw new IOException("Unsupported CV type");
     }
@@ -46,6 +49,19 @@ public class CvDocumentParser {
             return new Result(text == null ? "" : text.trim(), pages, false);
         } catch (Exception ex) {
             throw new IOException("Failed to parse DOCX", ex);
+        }
+    }
+
+    private Result doc(byte[] content) throws IOException {
+        try (HWPFDocument document = new HWPFDocument(new ByteArrayInputStream(content));
+             WordExtractor extractor = new WordExtractor(document)) {
+            String text = extractor.getText();
+            int pages = Math.max(1, document.getSummaryInformation() == null
+                    ? 1
+                    : Math.max(1, document.getSummaryInformation().getPageCount()));
+            return new Result(text == null ? "" : text.trim(), pages, false);
+        } catch (Exception ex) {
+            throw new IOException("Failed to parse DOC", ex);
         }
     }
 }

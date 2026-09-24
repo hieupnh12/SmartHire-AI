@@ -6,7 +6,7 @@
 
 ## Mục đích chức năng
 
-Tính điểm khớp CV ↔ Job **sau khi đủ bước** (để Matching/Ranking dùng). Sàng lọc CV trên UI recruiter dùng Gemini đánh giá JD, không dùng trọng số 35/15/30/20.
+Tính điểm khớp CV ↔ Job **sau khi đủ bước parse / extract / taxonomy**. Điểm screening là hybrid (thuật toán + Jaccard + Gemini semantic), không phải “Gemini cho một điểm”. Rank-v1 35/15/30/20 chỉ dùng ở Matching sau assessment/interview.
 
 ## Actor
 
@@ -14,13 +14,47 @@ Tính điểm khớp CV ↔ Job **sau khi đủ bước** (để Matching/Rankin
 
 ## Luồng hoạt động
 
-1. Queue `cv.matching` hoặc sync nếu nhẹ.
-2. Lưu `match_scores` + Redis cache.
+1. Candidate apply (kèm CV đã upload) → gắn `job` + `application` → enqueue extract/match với đúng JD.
+2. Backend đọc CV từ Cloudinary, parse text, extract (Gemini hoặc heuristic).
+3. Chuẩn hóa skill bằng taxonomy (`SkillScoringService`).
+4. Tính Jaccard trên tập skill đã normalize.
+5. Gemini chỉ trả MATCH / PARTIAL / MISSING / UNKNOWN + evidence; **không** quyết định điểm cuối.
+6. Backend tính weighted score → `match_scores` + Redis cache.
 
 ## Business Rules
 
-- Cần CV analyzed + job skills.
-- Score 0–100 + breakdown.
+- Cần CV analyzed + `job_skills` của đúng job.
+- Score 0–100 + breakdown giải thích được.
+- Pass: `score ≥ 60` **và** không thiếu skill bắt buộc (`requiredMissing == 0`). Không auto-reject, không auto-hire.
+- PARTIAL = 0.5 credit. UNKNOWN/MISSING = 0. Required UNKNOWN/MISSING đưa vào `requiredMissing`.
+- Gemini API lỗi hoặc không có key → heuristic extract; trọng số semantic gộp vào required.
+
+### Công thức hybrid-v1
+
+| Thành phần | Ký hiệu | Trọng số gốc | Ý nghĩa thực tế |
+|---|---|---|---|
+| Required skills | \(R\) | **40** | Lọc vòng đầu: skill bắt buộc sau taxonomy + semantic |
+| Semantic Gemini | \(G\) | **25** | Hiểu ngữ nghĩa (“REST APIs with Spring Boot” ≈ Spring Boot) |
+| Jaccard | \(J\) | **15** | \(\|A \cap B\| / \|A \cup B\| \times 100\) trên skill đã normalize |
+| Experience | \(E\) | **12** | \(\min(\text{candidateYears}/\text{requiredYears}, 1) \times 100\) |
+| Preferred skills | \(P\) | **8** | Skill `required=false`; không được át required |
+
+\[
+\text{CV Score} = (R \times w_R + P \times w_P + J \times w_J + E \times w_E + G \times w_G) / 100
+\]
+
+Redistribute (không hard-code im lặng):
+
+- Không có preferred → \(w_P=0\), cộng 8 vào \(w_R\).
+- Job không yêu cầu số năm → \(w_E=0\), cộng 12 vào \(w_R\).
+- Gemini không trả requirement rows → \(w_G=0\), cộng 25 vào \(w_R\); \(G\) không tham gia.
+
+Ví dụ (có đủ 5 thành phần): \(R=80, G=75, J=60, E=100, P=50\)  
+→ \(80\times0.40 + 50\times0.08 + 60\times0.15 + 100\times0.12 + 75\times0.25 = 75.15\).
+
+Ví dụ Jaccard: Job `{Java, Spring Boot, PostgreSQL, Docker}`, CV `{Java, Spring Boot, PostgreSQL, React}` → \(3/5 = 0.6\).
+
+Đây **không** phải điểm tuyển dụng cuối. Recruiter xem kết quả rồi quyết định vòng Human-to-Human sau AI Interview / Technical / Code Test.
 
 ## API liên quan
 
@@ -30,7 +64,7 @@ Tính điểm khớp CV ↔ Job **sau khi đủ bước** (để Matching/Rankin
 
 ## Database liên quan
 
-- `match_scores`
+- `match_scores.breakdown_json` (schema mở rộng, không thêm cột)
 
 ## UI mockup
 
@@ -43,14 +77,10 @@ CV-04, JOB-03
 
 ## Tích hợp bảng xếp hạng (rank-v1)
 
-- Tích hợp bảng xếp hạng (rank-v1): `SkillScoringService` ghi `match_scores` (tương đương `screening_results` trên ERD nhóm: overall + skill/experience/education trong `breakdown_json`).
+- Rank-v1 (`SkillScoringService` nhóm + 35/15/30/20) **không** ghi đè điểm screening. Screening dùng `hybrid-v1` trong `match_scores`.
 - Alias taxonomy (`ReactJS` → `react`) nằm ở `SkillScoringService` và cột `skills.aliases_json`.
 - Không dùng embedding; không lấy CV tenant khác làm few-shot.
 - Chuẩn hóa NFKC, chữ thường, khoảng trắng và alias: ReactJS/React.js → react, SpringBoot → spring boot, K8s → kubernetes, My SQL → mysql, Postgres → postgresql, NodeJS → node.js, RESTful API → rest api. Java và JavaScript khác nhau.
-- Nhóm ưu tiên `skills.category`, chuẩn hóa BE/FE/DB; nếu thiếu dùng ánh xạ xác định cho kỹ năng phổ biến, còn lại `other`. Chuẩn hóa cả CV và Job; kỹ năng trùng alias chỉ tính một lần.
-- Với mỗi kỹ năng yêu cầu, lấy mức tương đồng lớn nhất từ CV: khớp chuẩn=1; cặp mysql/postgresql=0,5; các cặp khác=0. Đây là bộ quy tắc xác định ban đầu, không dùng embedding/LLM và không suy ra độ tương đồng chỉ từ cùng category. Muốn mở rộng phải thay quy tắc, test và phiên bản thuật toán.
-- Điểm nhóm = trung bình tương đồng có trọng số `job_skills.weight` × 100. Trọng số kỹ năng phải >0. Độ bao phủ trực tiếp = số yêu cầu khớp chuẩn / số yêu cầu duy nhất × 100, hiển thị riêng.
-- Điểm kỹ năng S = tổng điểm nhóm × trọng số nhóm /100. Yêu cầu bắt buộc chưa khớp trực tiếp được gắn cờ, kể cả khi có kỹ năng liên quan. Không tự từ chối hồ sơ.
-- Điểm S và kinh nghiệm E tham gia riêng trong công thức RANK-03 để không tính trùng kinh nghiệm. Bằng chứng kỹ năng hiện là tên gốc từ `cv_skills.skill_name`; chưa có vị trí/đoạn văn gốc CV trong schema này.
-- Trang Sàng lọc CV: Gemini (hoặc heuristic nếu chưa có key) đọc file CV của đúng job, so với `job_skills`/JD, ghi `match_scores` với `verdict` + điểm fit + `passed` (ngưỡng 60, không thiếu skill bắt buộc). CV đạt → application chuyển `INTERVIEW` (phỏng vấn AI). Rank-v1 35/15/30/20 chỉ dùng ở Matching khi đã có assessment/interview.
-- Unit test bao phủ alias, không nhầm Java/JavaScript, không suy diễn Docker/Kubernetes, bao phủ khác tương đồng, loại trùng và trọng số nhóm.
+- Gemini không được bịa skill/kinh nghiệm không có trong CV. Thiếu thông tin → MISSING hoặc UNKNOWN.
+- Trang Sàng lọc CV / Applicants hiển thị Jaccard, MATCH/PARTIAL/MISSING, evidence, thành phần điểm. CV đạt → application chuyển `INTERVIEW` (phỏng vấn AI).
+- Unit test: Jaccard 3/5, alias ReactJS, bỏ qua `screening.score` của Gemini, semantic MATCH khi taxonomy miss, apply CV cũ vẫn enqueue screening.

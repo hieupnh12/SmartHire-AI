@@ -10,6 +10,7 @@ import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 import { button, input, labels, muted, panel, primary } from "@/features/tenant/recruiter/matching/components/rankingUi";
 import { ApplicationPipeline } from "@/features/tenant/recruiter/matching/components/recruitmentFlow";
 import { CvFilePreview } from "@/components/shared/CvFilePreview";
+import { ScreeningBreakdown } from "@/features/tenant/recruiter/cv-screening/components/ScreeningBreakdown";
 import type { ApplicationDetail, CvRef } from "@/api/types/applicant";
 
 const statuses = ["NEW", "IN_REVIEW", "ASSESSMENT", "INTERVIEW", "OFFER", "HIRED", "REJECTED"];
@@ -217,16 +218,8 @@ function AppliedCvReview({ cvs }: { cvs: CvRef[] }) {
           </button>
           {analyze.isError && <p role="alert">{getApiErrorMessage(analyze.error)}</p>}
           {detail.isError && <p role="alert">{getApiErrorMessage(detail.error)}</p>}
-          {breakdown?.verdict && <p>{breakdown.verdict}</p>}
           {cv?.match && (
-            <div>
-              <p className="font-semibold">Đánh giá so với JD</p>
-              <p className="font-mono text-2xl">{cv.match.score}</p>
-              <p className={muted}>
-                {breakdown?.passed ? "Đạt chuẩn CV" : "Chưa đạt ngưỡng sàng lọc"}
-                {breakdown?.passThreshold != null ? ` (ngưỡng ${breakdown.passThreshold})` : ""}
-              </p>
-            </div>
+            <ScreeningBreakdown score={cv.match.score} modelVersion={cv.match.modelVersion} breakdown={breakdown} />
           )}
           {skills.length > 0 && (
             <div className="flex flex-wrap gap-2">

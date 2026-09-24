@@ -57,7 +57,7 @@ export function MyCvPage() {
     <section className="space-y-6 text-[var(--color-on-surface)]">
       <header>
         <h1 className="text-3xl font-semibold tracking-tight">CV của tôi</h1>
-        <p className={`mt-2 max-w-2xl ${muted}`}>Tải PDF/DOCX, xem file và thông tin hệ thống trích xuất. Nộp CV khi apply việc, không gắn sẵn với một job.</p>
+        <p className={`mt-2 max-w-2xl ${muted}`}>Tải PDF, DOC hoặc DOCX, xem file và thông tin hệ thống trích xuất. Nộp CV khi apply việc, không gắn sẵn với một job.</p>
       </header>
       <div className={panel}>
         <label className={button}>
@@ -65,7 +65,7 @@ export function MyCvPage() {
           <input
             type="file"
             className="hidden"
-            accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
             onChange={(e) => {
               const file = e.target.files?.[0];
               if (file) upload.mutate(file);

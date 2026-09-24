@@ -2,6 +2,7 @@ package com.smarthire.tenant.applicant.service;
 
 import com.smarthire.common.exception.BusinessException;
 import com.smarthire.domain.enums.ApplicationStatus;
+import com.smarthire.domain.enums.CvStatus;
 import com.smarthire.domain.enums.UserRole;
 import com.smarthire.domain.enums.UserStatus;
 import com.smarthire.domain.tenant.entity.Application;
@@ -22,6 +23,7 @@ import com.smarthire.tenant.applicant.dto.ApplicantModels.HistoryView;
 import com.smarthire.tenant.applicant.dto.ApplicantModels.ManualCreateRequest;
 import com.smarthire.tenant.applicant.dto.ApplicantModels.PageResult;
 import com.smarthire.tenant.applicant.dto.ApplicantModels.PatchRequest;
+import com.smarthire.messaging.JobPublisher;
 import com.smarthire.tenant.applicant.mapper.ApplicantMapper;
 import com.smarthire.tenant.cv.service.CvAccess;
 import com.smarthire.tenant.job.mapper.JobMapper;
@@ -30,14 +32,19 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Service
 public class ApplicantService {
+    private static final Logger log = LoggerFactory.getLogger(ApplicantService.class);
     private static final Set<ApplicationStatus> TERMINAL = Set.of(ApplicationStatus.HIRED);
     private final ApplicationRepository applications;
     private final ApplicationStatusHistoryRepository history;
@@ -48,6 +55,7 @@ public class ApplicantService {
     private final CvAccess access;
     private final JobMapper jobsMapper;
     private final ApplicantMapper mapper;
+    private final JobPublisher publisher;
 
     public ApplicantService(
             ApplicationRepository applications,
@@ -58,7 +66,8 @@ public class ApplicantService {
             RecruitmentStageRepository stages,
             CvAccess access,
             JobMapper jobsMapper,
-            ApplicantMapper mapper) {
+            ApplicantMapper mapper,
+            JobPublisher publisher) {
         this.applications = applications;
         this.history = history;
         this.jobs = jobs;
@@ -68,6 +77,7 @@ public class ApplicantService {
         this.access = access;
         this.jobsMapper = jobsMapper;
         this.mapper = mapper;
+        this.publisher = publisher;
     }
 
     public Map<String, String> health() {
@@ -343,6 +353,34 @@ public class ApplicantService {
         cv.setJob(job);
         cv.setApplication(application);
         cvs.save(cv);
+        enqueueScreening(cv);
+    }
+
+    /** Personal CVs are parsed without a job; attach must re-run extract/match against this JD. */
+    private void enqueueScreening(Cv cv) {
+        long cvId = cv.getId();
+        CvStatus status = cv.getStatus();
+        Runnable run = () -> {
+            try {
+                if (status == null || status == CvStatus.UPLOADED || status == CvStatus.FAILED) {
+                    publisher.publishParse(cvId);
+                } else {
+                    publisher.publishExtract(cvId);
+                }
+            } catch (Exception ex) {
+                log.warn("Could not enqueue CV screening for application CV {}", cvId, ex);
+            }
+        };
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    run.run();
+                }
+            });
+            return;
+        }
+        run.run();
     }
 
     private static ApplicationStatus parseStatus(String status) {
