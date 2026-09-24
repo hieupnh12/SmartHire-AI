@@ -23,7 +23,12 @@ export interface SubscriptionPlan {
   priceYearly: number;
   maxJobs: number;
   maxCvParses: number;
-  maxAiInterviewHours: number;
+  maxAiInterviewHours: number | null;
+  maxStorageGb?: number | null;
+  maxProctoringHours?: number | null;
+  videoRetentionDays?: number | null;
+  priceMonthlyVnd?: number;
+  priceYearlyVnd?: number;
   status?: string;
 }
 

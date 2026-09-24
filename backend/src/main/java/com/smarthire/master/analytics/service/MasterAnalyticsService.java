@@ -30,7 +30,7 @@ public class MasterAnalyticsService {
     private final SubscriptionPlanRepository planRepository;
     private final TenantUsageDailyRepository usageDailyRepository;
 
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "masterTransactionManager", readOnly = true)
     public RevenueAnalyticsResponse getRevenueAnalytics(LocalDateTime startDate, LocalDateTime endDate, String groupBy) {
         if (startDate == null) startDate = LocalDateTime.now().minusMonths(11).withDayOfMonth(1).withHour(0).withMinute(0);
         if (endDate == null) endDate = LocalDateTime.now();
@@ -89,7 +89,7 @@ public class MasterAnalyticsService {
                 .build();
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "masterTransactionManager", readOnly = true)
     public AiQuotaUsageResponse getAiQuotaUsage(LocalDate startDate, LocalDate endDate) {
         if (startDate == null) startDate = LocalDate.now().minusDays(30);
         if (endDate == null) endDate = LocalDate.now();

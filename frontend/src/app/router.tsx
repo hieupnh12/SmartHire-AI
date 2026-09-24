@@ -1,6 +1,13 @@
 import { MasterRoute } from "@/app/guards/MasterRoute";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { RootRouteSwitcher } from "@/app/RootRouteSwitcher";
+import { LandingLayout } from "@/features/master/landing/components/LandingLayout";
+import { SolutionsPage } from "@/features/master/landing/pages/SolutionsPage";
+import { PreviewPage } from "@/features/master/landing/pages/PreviewPage";
+import { RoiPage } from "@/features/master/landing/pages/RoiPage";
+import { SecurityPage } from "@/features/master/landing/pages/SecurityPage";
+import { PricingPage } from "@/features/master/landing/pages/PricingPage";
+import { getTenantIdFromSubdomain } from "@/lib/tenant";
 import { FeatureRoute } from "@/app/guards/FeatureRoute";
 import { RoleRoute } from "@/app/guards/RoleRoute";
 import { TenantSubdomainGuard } from "@/app/guards/TenantSubdomainGuard";
@@ -17,7 +24,12 @@ import { AnalyticsPage as MasterAnalyticsPage } from "@/features/master/analytic
 import { LeadsPage } from "@/features/master/leads/pages/LeadsPage";
 import { TenantManagementPage } from "@/features/master/tenant-management/pages/TenantManagementPage";
 import { ContractsPage } from "@/features/master/contract/pages/ContractsPage";
+import { CreateContractPage } from "@/features/master/contract/pages/CreateContractPage";
+import { CreateSubscriptionPlanPage } from "@/features/master/billing/pages/CreateSubscriptionPlanPage";
 import { InvoicesPage } from "@/features/master/billing/pages/InvoicesPage";
+import { CheckoutPage } from "@/features/master/billing/pages/CheckoutPage";
+import { CheckoutSuccessPage } from "@/features/master/billing/pages/CheckoutSuccessPage";
+import { VnPayReturnPage } from "@/features/master/billing/pages/VnPayReturnPage";
 import { BillingPage } from "@/features/master/billing/pages/BillingPage";
 import { AuditLogsPage } from "@/features/master/system/pages/AuditLogsPage";
 import { AiManagementPage } from "@/features/master/system/pages/AiManagementPage";
@@ -78,11 +90,29 @@ function LegacyTenantAdminRedirect() {
   );
 }
 
+function PublicMarketingRoute({ children }: { children: React.ReactNode }) {
+  const tenantId = getTenantIdFromSubdomain();
+  if (tenantId) {
+    return <Navigate to="/career" replace />;
+  }
+  return <LandingLayout>{children}</LandingLayout>;
+}
+
 export function AppRouter() {
   return (
     <Routes>
       <Route path="/" element={<RootRouteSwitcher />} />
+      <Route path="/solutions" element={<PublicMarketingRoute><SolutionsPage /></PublicMarketingRoute>} />
+      <Route path="/preview" element={<PublicMarketingRoute><PreviewPage /></PublicMarketingRoute>} />
+      <Route path="/roi" element={<PublicMarketingRoute><RoiPage /></PublicMarketingRoute>} />
+      <Route path="/value" element={<Navigate to="/roi" replace />} />
+      <Route path="/security" element={<PublicMarketingRoute><SecurityPage /></PublicMarketingRoute>} />
+      <Route path="/pricing" element={<PublicMarketingRoute><PricingPage /></PublicMarketingRoute>} />
+      <Route path="/packages" element={<Navigate to="/pricing" replace />} />
       <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
+      <Route path="/checkout/:planCode" element={<CheckoutPage />} />
+      <Route path="/checkout/success" element={<CheckoutSuccessPage />} />
+      <Route path="/checkout/vnpay-return" element={<VnPayReturnPage />} />
 
       <Route element={<TenantSubdomainGuard />}>
       <Route path="/career" element={<TenantCareerPage />} />
@@ -210,8 +240,10 @@ export function AppRouter() {
           <Route path="tenants" element={<Navigate to="/admin/tenants/directory" replace />} />
           <Route path="tenants/:section" element={<TenantManagementPage />} />
           <Route path="contracts" element={<ContractsPage />} />
+          <Route path="contracts/create" element={<CreateContractPage />} />
           <Route path="invoices" element={<InvoicesPage />} />
-          <Route path="subscriptions" element={<Navigate to="/admin/subscriptions/overview" replace />} />
+          <Route path="subscriptions" element={<Navigate to="/admin/subscriptions/plans" replace />} />
+          <Route path="subscriptions/create" element={<CreateSubscriptionPlanPage />} />
           <Route path="subscriptions/:section" element={<BillingPage />} />
           <Route path="system/logs" element={<AuditLogsPage />} />
           <Route path="system/ai-usage" element={<AiManagementPage />} />

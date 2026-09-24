@@ -33,14 +33,37 @@ public class TenantInfo {
     @Column(name = "db_password", length = 1024)
     String dbPassword;
 
-    @Column(name = "managed_database", nullable = false) boolean managedDatabase;
-    @Column(name = "logo_url", length = 512) String logoUrl;
-    @Column(length = 255) String website;
-    @Column(length = 512) String address;
-    @Column(length = 128) String industry;
-    @Column(name = "company_size", length = 64) String companySize;
-    @Column(columnDefinition = "TEXT") String description;
-    @Column(name = "is_verified", nullable = false) boolean verified;
+    @Column(name = "managed_database", nullable = false)
+    boolean managedDatabase;
+    @Column(name = "logo_url", length = 512)
+    String logoUrl;
+
+    @Column(length = 255)
+    String website;
+
+    @Column(length = 512)
+    String address;
+
+    @Column(name = "tax_code", length = 50)
+    String taxCode;
+
+    @Column(name = "company_legal_name", length = 255)
+    String companyLegalName;
+
+    @Column(name = "billing_address", length = 512)
+    String billingAddress;
+
+    @Column(length = 128)
+    String industry;
+
+    @Column(name = "company_size", length = 64)
+    String companySize;
+
+    @Column(columnDefinition = "TEXT")
+    String description;
+
+    @Column(name = "is_verified", nullable = false)
+    boolean verified;
 
     @Builder.Default
     @Column(name = "environment_type", nullable = false, length = 32)

@@ -1,41 +1,29 @@
 import { useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { Plus, Search, Filter, FileSignature, FileCheck2, Clock, Send, Copy, Eye, Trash2 } from "lucide-react";
 import { ContractItem, contractApi } from "@/api/master/contractApi";
 import { useMasterDashboard } from "@/features/master/shell/MasterAdminContext";
 
-interface ContractsTabProps {
-  setContractTenantId: (val: number | "") => void;
-  setContractPlanId: (val: number | "") => void;
-  setContractValue: (val: number) => void;
-  setContractLeadId: (val: number | undefined) => void;
-  setContractTitle: (val: string) => void;
-  setContractPartyBRepresentative: (val: string) => void;
-  setContractPartyBEmail: (val: string) => void;
-  setContractPartyBPosition: (val: string) => void;
-  setContractNotes: (val: string) => void;
-  setShowCreateContractModal: (val: boolean) => void;
-  setSelectedContract: (val: ContractItem | null) => void;
-  setShowSignContractModal: (val: ContractItem | null) => void;
-}
+import { ContractDetailModal } from "../components/ContractDetailModal";
+import { SignContractModal } from "../components/SignContractModal";
 
-function ContractsContent({
-  setContractTenantId,
-  setContractPlanId,
-  setContractValue,
-  setContractLeadId,
-  setContractTitle,
-  setContractPartyBRepresentative,
-  setContractPartyBEmail,
-  setContractPartyBPosition,
-  setContractNotes,
-  setShowCreateContractModal,
-  setSelectedContract,
-  setShowSignContractModal,
-}: ContractsTabProps) {
-  const { contracts, setContracts, tenants, plans, triggerNotification } = useMasterDashboard();
+export function ContractsPage() {
+  const navigate = useNavigate();
+  const { contracts, setContracts, triggerNotification } = useMasterDashboard();
 
   const [contractSearch, setContractSearch] = useState("");
   const [contractStatusFilter, setContractStatusFilter] = useState<string>("ALL");
+
+
+  // State cho Detail & Sign
+  const [selectedContract, setSelectedContract] = useState<ContractItem | null>(null);
+  const [showSignContractModal, setShowSignContractModal] = useState<ContractItem | null>(null);
+  const [signMethod, setSignMethod] = useState<"DIGITAL_TOKEN_CA" | "E_SIGN_ONLINE" | "UPLOAD_SIGNED_PDF" | "MANUAL">("DIGITAL_TOKEN_CA");
+  const [signSignedDocUrl, setSignSignedDocUrl] = useState("");
+  const [signSignatureData, setSignSignatureData] = useState("");
+  const [signAutoInvoice, setSignAutoInvoice] = useState(true);
+  const [signNotes, setSignNotes] = useState("");
+  const [signingContract, setSigningContract] = useState(false);
 
   const filteredContracts = useMemo(() => {
     return contracts.filter((c) => {
@@ -66,26 +54,37 @@ function ContractsContent({
       .reduce((sum, c) => sum + (c.totalAmount || c.contractValue || 0), 0);
   }, [contracts]);
 
-  const handleSendContract = async (contract: ContractItem) => {
-    try {
-      const updated = await contractApi.send(contract.id);
-      setContracts((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
-      const signUrl = `${window.location.origin}/contracts/sign/${updated.signingToken || contract.signingToken}`;
-      navigator.clipboard?.writeText(signUrl).catch(() => {});
-      triggerNotification(`Đã gửi email mời ký HĐ ${contract.contractNumber} đến ${contract.partyBEmail || contract.signerEmail || "đối tác"} & Sao chép link ký số!`);
-    } catch (err: any) {
-      alert("Đã xảy ra lỗi khi gửi hợp đồng.");
-    }
+  const handleSendContract = (contract: ContractItem) => {
+    triggerNotification(`Đang tiến hành gửi email mời ký hợp đồng ${contract.contractNumber}...`);
+    
+    contractApi.send(contract.id)
+      .then((updated) => {
+        setContracts((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+        const signUrl = `${window.location.origin}/contracts/sign/${updated.signingToken || contract.signingToken}`;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(signUrl).catch(() => {});
+        }
+        triggerNotification(`Đã gửi thành công email mời ký HĐ ${contract.contractNumber} & Sao chép link ký số!`);
+      })
+      .catch((err: any) => {
+        console.error("Send contract error:", err);
+        const errMsg = err.response?.data?.message || err.message || "Unknown error";
+        alert(`Đã xảy ra lỗi khi gửi hợp đồng ${contract.contractNumber}: ${errMsg}`);
+      });
   };
 
   const handleCopySigningLink = (contract: ContractItem) => {
     const token = contract.signingToken || `CTR-TOKEN-${contract.id}`;
     const signUrl = `${window.location.origin}/contracts/sign/${token}`;
-    navigator.clipboard?.writeText(signUrl).then(() => {
-      triggerNotification(`Đã sao chép liên kết ký số của hợp đồng ${contract.contractNumber}!`);
-    }).catch(() => {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(signUrl).then(() => {
+        triggerNotification(`Đã sao chép liên kết ký số của hợp đồng ${contract.contractNumber}!`);
+      }).catch(() => {
+        triggerNotification(`Liên kết ký số: ${signUrl}`);
+      });
+    } else {
       triggerNotification(`Liên kết ký số: ${signUrl}`);
-    });
+    }
   };
 
   const handleDeleteContract = async (contract: ContractItem) => {
@@ -96,6 +95,31 @@ function ContractsContent({
       triggerNotification(`Đã xóa Hợp đồng ${contract.contractNumber}`);
     } catch (err) {
       alert("Đã xảy ra lỗi khi xóa hợp đồng.");
+    }
+  };
+
+
+
+  const handleSignContractSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!showSignContractModal) return;
+    setSigningContract(true);
+    try {
+      const payload = {
+        signMethod,
+        signatureData: signSignatureData,
+        signedDocumentUrl: signSignedDocUrl,
+        autoCreateInvoice: signAutoInvoice,
+        notes: signNotes,
+      };
+      const res = await contractApi.sign(showSignContractModal.id, payload as any);
+      setContracts((prev) => prev.map((c) => (c.id === res.id ? res : c)));
+      setShowSignContractModal(null);
+      triggerNotification(`Ký hợp đồng ${res.contractNumber} thành công!`);
+    } catch (err: any) {
+      alert("Lỗi khi ký hợp đồng");
+    } finally {
+      setSigningContract(false);
     }
   };
 
@@ -114,21 +138,7 @@ function ContractsContent({
         </div>
 
         <button
-          onClick={() => {
-            setContractTenantId(tenants[0]?.id || "");
-            const defaultPlan = plans[0];
-            if (defaultPlan) {
-              setContractPlanId(defaultPlan.id || "");
-              setContractValue(defaultPlan.priceYearly || 3990);
-            }
-            setContractLeadId(undefined);
-            setContractTitle("Hợp Đồng Cung Cấp Dịch Vụ Tuyển Dụng AI & Dedicated DB SmartHire-AI");
-            setContractPartyBRepresentative("");
-            setContractPartyBEmail("");
-            setContractPartyBPosition("Tổng Giám Đốc / Đại diện pháp luật");
-            setContractNotes("");
-            setShowCreateContractModal(true);
-          }}
+          onClick={() => navigate("/admin/contracts/create")}
           className="px-4 py-2.5 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm transition-all flex items-center gap-2"
         >
           <Plus className="w-4 h-4" />
@@ -382,36 +392,35 @@ function ContractsContent({
           </table>
         </div>
       </div>
+
+
+      <ContractDetailModal
+        selectedContract={selectedContract}
+        setSelectedContract={setSelectedContract}
+        handleSendContract={handleSendContract}
+        handleCopySigningLink={handleCopySigningLink}
+        handleOpenSignModal={(contract) => {
+          setSelectedContract(null);
+          setShowSignContractModal(contract);
+        }}
+      />
+
+      <SignContractModal
+        showSignContractModal={showSignContractModal}
+        setShowSignContractModal={setShowSignContractModal}
+        signMethod={signMethod}
+        setSignMethod={setSignMethod}
+        signSignedDocUrl={signSignedDocUrl}
+        setSignSignedDocUrl={setSignSignedDocUrl}
+        signSignatureData={signSignatureData}
+        setSignSignatureData={setSignSignatureData}
+        signAutoInvoice={signAutoInvoice}
+        setSignAutoInvoice={setSignAutoInvoice}
+        signNotes={signNotes}
+        setSignNotes={setSignNotes}
+        signingContract={signingContract}
+        handleSignContractSubmit={handleSignContractSubmit}
+      />
     </div>
   );
-}
-
-export function ContractsPage() {
-  const [, setTenantId] = useState<number | "">("");
-  const [, setPlanId] = useState<number | "">("");
-  const [, setValue] = useState(0);
-  const [, setLeadId] = useState<number | undefined>();
-  const [, setTitle] = useState("");
-  const [, setRepresentative] = useState("");
-  const [, setEmail] = useState("");
-  const [, setPosition] = useState("");
-  const [, setNotes] = useState("");
-  const [, setCreating] = useState(false);
-  const [, setSelected] = useState<ContractItem | null>(null);
-  const [, setSigning] = useState<ContractItem | null>(null);
-
-  return <ContractsContent
-    setContractTenantId={setTenantId}
-    setContractPlanId={setPlanId}
-    setContractValue={setValue}
-    setContractLeadId={setLeadId}
-    setContractTitle={setTitle}
-    setContractPartyBRepresentative={setRepresentative}
-    setContractPartyBEmail={setEmail}
-    setContractPartyBPosition={setPosition}
-    setContractNotes={setNotes}
-    setShowCreateContractModal={setCreating}
-    setSelectedContract={setSelected}
-    setShowSignContractModal={setSigning}
-  />;
 }

@@ -20,6 +20,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
@@ -39,6 +40,7 @@ public class MasterAiConfigService {
     private final ObjectMapper mapper;
     private final RestClient restClient;
 
+    @Autowired
     public MasterAiConfigService(
             AiProviderKeyRepository providerKeyRepository,
             AiModelConfigRepository modelConfigRepository,
@@ -46,17 +48,31 @@ public class MasterAiConfigService {
             TenantCredentialService credentialService,
             DynamicAiConfigProvider configProvider,
             ObjectMapper mapper) {
+        this(providerKeyRepository, modelConfigRepository, auditLogRepository, credentialService, configProvider, mapper, createDefaultRestClient());
+    }
+
+    public MasterAiConfigService(
+            AiProviderKeyRepository providerKeyRepository,
+            AiModelConfigRepository modelConfigRepository,
+            PlatformAuditLogRepository auditLogRepository,
+            TenantCredentialService credentialService,
+            DynamicAiConfigProvider configProvider,
+            ObjectMapper mapper,
+            RestClient restClient) {
         this.providerKeyRepository = providerKeyRepository;
         this.modelConfigRepository = modelConfigRepository;
         this.auditLogRepository = auditLogRepository;
         this.credentialService = credentialService;
         this.configProvider = configProvider;
         this.mapper = mapper;
+        this.restClient = restClient;
+    }
 
+    private static RestClient createDefaultRestClient() {
         var factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(Duration.ofSeconds(6));
         factory.setReadTimeout(Duration.ofSeconds(12));
-        this.restClient = RestClient.builder().requestFactory(factory).build();
+        return RestClient.builder().requestFactory(factory).build();
     }
 
     public List<AiProviderKeyDto> getAllProviderKeys() {
@@ -65,7 +81,7 @@ public class MasterAiConfigService {
                 .collect(Collectors.toList());
     }
 
-    @Transactional
+    @Transactional("masterTransactionManager")
     public AiProviderKeyDto saveProviderKey(AiProviderKeyDto dto, String adminEmail) {
         AiProviderKey entity;
         String provider = dto.getProvider() != null ? dto.getProvider().toUpperCase() : "GEMINI";
@@ -119,7 +135,7 @@ public class MasterAiConfigService {
         return toProviderKeyDto(saved);
     }
 
-    @Transactional
+    @Transactional("masterTransactionManager")
     public void deleteProviderKey(Long id, String adminEmail) {
         AiProviderKey key = providerKeyRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Key not found with id: " + id));
@@ -138,7 +154,7 @@ public class MasterAiConfigService {
                 .collect(Collectors.toList());
     }
 
-    @Transactional
+    @Transactional("masterTransactionManager")
     public AiModelConfigDto updateTaskConfig(String taskType, AiModelConfigDto dto, String adminEmail) {
         String normalizedTask = taskType.toUpperCase();
         AiModelConfig entity = modelConfigRepository.findByTaskType(normalizedTask)
@@ -169,14 +185,30 @@ public class MasterAiConfigService {
     }
 
     public AiTestConnectionResponse testConnection(AiTestConnectionRequest request) {
-        String provider = request.getProvider() != null ? request.getProvider().toUpperCase() : "GEMINI";
+        String provider = request.getProvider() != null && !request.getProvider().isBlank()
+                ? request.getProvider().trim().toUpperCase()
+                : null;
         String apiKey = request.getApiKey();
+        String endpointUrl = request.getEndpointUrl();
 
-        if ((apiKey == null || apiKey.isBlank()) && request.getKeyId() != null) {
+        if (request.getKeyId() != null) {
             Optional<AiProviderKey> keyOpt = providerKeyRepository.findById(request.getKeyId());
             if (keyOpt.isPresent()) {
-                apiKey = credentialService.decrypt("MASTER_AI_KEY", keyOpt.get().getApiKeyEncrypted());
+                AiProviderKey k = keyOpt.get();
+                if (apiKey == null || apiKey.isBlank()) {
+                    apiKey = credentialService.decrypt("MASTER_AI_KEY", k.getApiKeyEncrypted());
+                }
+                if (provider == null) {
+                    provider = k.getProvider() != null ? k.getProvider().trim().toUpperCase() : null;
+                }
+                if (endpointUrl == null || endpointUrl.isBlank()) {
+                    endpointUrl = k.getEndpointUrl();
+                }
             }
+        }
+
+        if (provider == null || provider.isBlank()) {
+            provider = "GEMINI";
         }
 
         if (apiKey == null || apiKey.isBlank()) {
@@ -190,22 +222,39 @@ public class MasterAiConfigService {
                     .build();
         }
 
+        String defaultModel = switch (provider) {
+            case "OPENAI" -> "o3-mini";
+            case "DEEPSEEK" -> "deepseek-chat";
+            case "ANTHROPIC" -> "claude-3-5-haiku-20241022";
+            case "HUGGINGFACE" -> "Qwen/Qwen2.5-7B-Instruct";
+            default -> "gemini-3.6-flash";
+        };
+
         String model = request.getModelName() != null && !request.getModelName().isBlank()
-                ? request.getModelName()
-                : ("OPENAI".equalsIgnoreCase(provider) ? "gpt-4o-mini" : "gemini-2.0-flash");
+                ? request.getModelName().trim()
+                : defaultModel;
 
         long start = System.currentTimeMillis();
 
         try {
-            if ("OPENAI".equalsIgnoreCase(provider)) {
+            if ("OPENAI".equalsIgnoreCase(provider) || "DEEPSEEK".equalsIgnoreCase(provider) || "HUGGINGFACE".equalsIgnoreCase(provider)) {
+                String defaultEndpoint = switch (provider) {
+                    case "OPENAI" -> "https://api.openai.com/v1/chat/completions";
+                    case "DEEPSEEK" -> "https://api.deepseek.com/chat/completions";
+                    default -> "https://router.huggingface.co/hf-inference/models/" + model + "/v1/chat/completions";
+                };
+
+                String targetUrl = (endpointUrl != null && !endpointUrl.isBlank())
+                        ? endpointUrl.trim()
+                        : defaultEndpoint;
+
                 String body = """
                         {"model":"%s","messages":[{"role":"user","content":"ping"}],"max_tokens":5}
                         """.formatted(model);
-                String res = restClient.post()
-                        .uri(request.getEndpointUrl() != null && !request.getEndpointUrl().isBlank()
-                                ? request.getEndpointUrl()
-                                : "https://api.openai.com/v1/chat/completions")
-                        .header("Authorization", "Bearer " + apiKey)
+
+                restClient.post()
+                        .uri(targetUrl)
+                        .header("Authorization", "Bearer " + apiKey.trim())
                         .contentType(MediaType.APPLICATION_JSON)
                         .body(body)
                         .retrieve()
@@ -215,18 +264,59 @@ public class MasterAiConfigService {
                 updateKeyLastTested(request.getKeyId(), true);
                 return AiTestConnectionResponse.builder()
                         .success(true)
-                        .message("Kết nối thành công đến OpenAI!")
+                        .message("Kết nối thành công đến " + provider + "!")
                         .latencyMs(latency)
-                        .modelVersion("openai:" + model)
+                        .modelVersion(provider.toLowerCase() + ":" + model)
                         .build();
+
+            } else if ("ANTHROPIC".equalsIgnoreCase(provider)) {
+                String defaultEndpoint = "https://api.anthropic.com/v1/messages";
+                String targetUrl = (endpointUrl != null && !endpointUrl.isBlank())
+                        ? endpointUrl.trim()
+                        : defaultEndpoint;
+
+                String body = """
+                        {"model":"%s","max_tokens":10,"messages":[{"role":"user","content":"ping"}]}
+                        """.formatted(model);
+
+                restClient.post()
+                        .uri(targetUrl)
+                        .header("x-api-key", apiKey.trim())
+                        .header("anthropic-version", "2023-06-01")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(body)
+                        .retrieve()
+                        .body(String.class);
+
+                long latency = System.currentTimeMillis() - start;
+                updateKeyLastTested(request.getKeyId(), true);
+                return AiTestConnectionResponse.builder()
+                        .success(true)
+                        .message("Kết nối thành công đến Anthropic Claude!")
+                        .latencyMs(latency)
+                        .modelVersion("anthropic:" + model)
+                        .build();
+
             } else {
                 // Default: Google Gemini
                 String body = """
                         {"contents":[{"parts":[{"text":"ping"}]}]}
                         """;
-                String url = "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + apiKey;
-                String res = restClient.post()
-                        .uri(url)
+
+                String defaultUrl = "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + apiKey.trim();
+                String targetUrl;
+                if (endpointUrl != null && !endpointUrl.isBlank()) {
+                    String base = endpointUrl.trim();
+                    if (!base.contains(":generateContent") && !base.contains("/v1beta/models/")) {
+                        base = base.replaceAll("/+$", "") + "/v1beta/models/" + model + ":generateContent";
+                    }
+                    targetUrl = base.contains("?") ? base + "&key=" + apiKey.trim() : base + "?key=" + apiKey.trim();
+                } else {
+                    targetUrl = defaultUrl;
+                }
+
+                restClient.post()
+                        .uri(targetUrl)
                         .contentType(MediaType.APPLICATION_JSON)
                         .body(body)
                         .retrieve()

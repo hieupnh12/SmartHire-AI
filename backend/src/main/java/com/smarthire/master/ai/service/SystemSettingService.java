@@ -44,7 +44,7 @@ public class SystemSettingService {
         });
     }
 
-    @Transactional
+    @Transactional(transactionManager = "masterTransactionManager")
     public SystemSetting saveSetting(String key, String value, String category, String description, boolean encrypt, String adminEmail) {
         String storedValue = value;
         if (encrypt && value != null && !value.isBlank()) {
