@@ -76,32 +76,85 @@ public class GeminiCvAiClient implements CvAiClient {
         return defaultModel;
     }
 
+    private String getEffectiveProvider() {
+        if (configProvider != null) {
+            String p = configProvider.resolveConfig("CV_PARSING").provider();
+            if (p != null && !p.isBlank()) return p.toUpperCase();
+        }
+        return "GEMINI";
+    }
+
+    private String getEffectiveEndpoint() {
+        if (configProvider != null) {
+            return configProvider.resolveConfig("CV_PARSING").endpointUrl();
+        }
+        return null;
+    }
+
     @Override
     public String extractJson(String rawText, String jobContext) {
         String apiKey = getEffectiveApiKey();
         String model = getEffectiveModel();
+        String provider = getEffectiveProvider();
         if (apiKey == null || apiKey.isBlank()) return fallback.extractJson(rawText, jobContext);
         try {
-            String body = """
-                    {"contents":[{"parts":[{"text":%s}]}]}
-                    """.formatted(mapper.writeValueAsString(prompt(rawText, jobContext)));
-            String response = http.post()
-                    .uri("https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}",
-                            model, apiKey)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(body)
-                    .retrieve()
-                    .body(String.class);
-            String text = readText(response);
+            String promptText = prompt(rawText, jobContext);
+            String text;
+
+            if ("OPENAI".equalsIgnoreCase(provider) || "DEEPSEEK".equalsIgnoreCase(provider)) {
+                String defaultEndpoint = "DEEPSEEK".equalsIgnoreCase(provider)
+                        ? "https://api.deepseek.com/chat/completions"
+                        : "https://api.openai.com/v1/chat/completions";
+                String endpoint = getEffectiveEndpoint();
+                String url = (endpoint != null && !endpoint.isBlank()) ? endpoint.trim() : defaultEndpoint;
+
+                String body = """
+                        {
+                          "model": %s,
+                          "messages": [
+                            {"role": "system", "content": %s},
+                            {"role": "user", "content": %s}
+                          ],
+                          "response_format": {"type": "json_object"}
+                        }
+                        """.formatted(
+                                mapper.writeValueAsString(model),
+                                mapper.writeValueAsString(INSTRUCTION),
+                                mapper.writeValueAsString(promptText)
+                        );
+
+                String response = http.post()
+                        .uri(url)
+                        .header("Authorization", "Bearer " + apiKey.trim())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(body)
+                        .retrieve()
+                        .body(String.class);
+
+                text = readOpenAiText(response);
+            } else {
+                String body = """
+                        {"contents":[{"parts":[{"text":%s}]}]}
+                        """.formatted(mapper.writeValueAsString(promptText));
+                String response = http.post()
+                        .uri("https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}",
+                                model, apiKey.trim())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(body)
+                        .retrieve()
+                        .body(String.class);
+                text = readText(response);
+            }
+
             int start = text.indexOf('{');
             int end = text.lastIndexOf('}');
-            if (start < 0 || end <= start) throw new IllegalStateException("Gemini returned no JSON");
+            if (start < 0 || end <= start) throw new IllegalStateException("AI returned no JSON");
             String json = text.substring(start, end + 1);
             mapper.readTree(json);
             return json;
         } catch (Exception ex) {
-            log.error("Gemini extraction failed: {}", ex.getMessage());
-            throw new IllegalStateException("Gemini CV extraction failed", ex);
+            log.error("AI extraction failed (provider={}): {}", provider, ex.getMessage());
+            throw new IllegalStateException("AI CV extraction failed", ex);
         }
     }
 
@@ -118,6 +171,12 @@ public class GeminiCvAiClient implements CvAiClient {
         return text.isMissingNode() ? "" : text.asText();
     }
 
+    private String readOpenAiText(String response) throws Exception {
+        JsonNode root = mapper.readTree(response);
+        JsonNode content = root.path("choices").path(0).path("message").path("content");
+        return content.isMissingNode() ? "" : content.asText();
+    }
+
     private static String truncate(String text) {
         if (text == null) return "";
         return text.length() <= 20_000 ? text : text.substring(0, 20_000);
@@ -127,7 +186,8 @@ public class GeminiCvAiClient implements CvAiClient {
     public String modelVersion() {
         String apiKey = getEffectiveApiKey();
         String model = getEffectiveModel();
-        return (apiKey == null || apiKey.isBlank()) ? fallback.modelVersion() : "gemini:" + model;
+        String provider = getEffectiveProvider();
+        return (apiKey == null || apiKey.isBlank()) ? fallback.modelVersion() : provider.toLowerCase() + ":" + model;
     }
 
     @Override

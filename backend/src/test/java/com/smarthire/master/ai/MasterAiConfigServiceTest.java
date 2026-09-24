@@ -15,15 +15,24 @@ import com.smarthire.multitenancy.service.TenantCredentialService;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
+import com.smarthire.master.ai.dto.AiTestConnectionRequest;
+import com.smarthire.master.ai.dto.AiTestConnectionResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.client.MockRestServiceServer;
+import org.springframework.web.client.RestClient;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.*;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.*;
 
 @ExtendWith(MockitoExtension.class)
 class MasterAiConfigServiceTest {
@@ -146,5 +155,75 @@ class MasterAiConfigServiceTest {
         DynamicAiConfigProvider.ResolvedAiConfig config = configProvider.resolveConfig("CV_PARSING");
         assertThat(config.modelName()).isEqualTo("gemini-2.0-flash");
         assertThat(config.apiKey()).isEqualTo("fallback-gemini-key");
+    }
+
+    @Test
+    void testConnection_DeepSeek_UsesDeepSeekEndpointAndChatModel() {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        RestClient mockRestClient = builder.build();
+
+        MasterAiConfigService serviceWithMock = new MasterAiConfigService(
+                providerKeyRepository,
+                modelConfigRepository,
+                auditLogRepository,
+                credentialService,
+                configProvider,
+                mapper,
+                mockRestClient
+        );
+
+        server.expect(requestTo("https://api.deepseek.com/chat/completions"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("Authorization", "Bearer sk-deepseek-test-123"))
+                .andExpect(content().string(containsString("\"model\":\"deepseek-chat\"")))
+                .andRespond(withSuccess("{\"choices\":[{\"message\":{\"content\":\"pong\"}}]}", MediaType.APPLICATION_JSON));
+
+        AiTestConnectionRequest req = AiTestConnectionRequest.builder()
+                .provider("DEEPSEEK")
+                .apiKey("sk-deepseek-test-123")
+                .build();
+
+        AiTestConnectionResponse res = serviceWithMock.testConnection(req);
+
+        server.verify();
+        assertThat(res.getSuccess()).isTrue();
+        assertThat(res.getModelVersion()).isEqualTo("deepseek:deepseek-chat");
+        assertThat(res.getMessage()).contains("DEEPSEEK");
+    }
+
+    @Test
+    void testConnection_Anthropic_UsesAnthropicEndpoint() {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        RestClient mockRestClient = builder.build();
+
+        MasterAiConfigService serviceWithMock = new MasterAiConfigService(
+                providerKeyRepository,
+                modelConfigRepository,
+                auditLogRepository,
+                credentialService,
+                configProvider,
+                mapper,
+                mockRestClient
+        );
+
+        server.expect(requestTo("https://api.anthropic.com/v1/messages"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("x-api-key", "sk-ant-test-123"))
+                .andExpect(header("anthropic-version", "2023-06-01"))
+                .andExpect(content().string(containsString("\"model\":\"claude-3-5-haiku-20241022\"")))
+                .andRespond(withSuccess("{\"content\":[{\"text\":\"pong\"}]}", MediaType.APPLICATION_JSON));
+
+        AiTestConnectionRequest req = AiTestConnectionRequest.builder()
+                .provider("ANTHROPIC")
+                .apiKey("sk-ant-test-123")
+                .build();
+
+        AiTestConnectionResponse res = serviceWithMock.testConnection(req);
+
+        server.verify();
+        assertThat(res.getSuccess()).isTrue();
+        assertThat(res.getModelVersion()).isEqualTo("anthropic:claude-3-5-haiku-20241022");
     }
 }

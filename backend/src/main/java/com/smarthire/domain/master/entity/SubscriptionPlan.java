@@ -38,6 +38,14 @@ public class SubscriptionPlan {
     BigDecimal priceYearly = BigDecimal.ZERO;
 
     @Builder.Default
+    @Column(name = "price_monthly_vnd", nullable = false)
+    BigDecimal priceMonthlyVnd = BigDecimal.ZERO;
+
+    @Builder.Default
+    @Column(name = "price_yearly_vnd", nullable = false)
+    BigDecimal priceYearlyVnd = BigDecimal.ZERO;
+
+    @Builder.Default
     @Column(name = "max_jobs", nullable = false)
     Integer maxJobs = 5;
 
@@ -45,21 +53,17 @@ public class SubscriptionPlan {
     @Column(name = "max_cv_parses", nullable = false)
     Integer maxCvParses = 100;
 
-    @Builder.Default
-    @Column(name = "max_ai_interview_hours", nullable = false)
-    Integer maxAiInterviewHours = 10;
+    @Column(name = "max_ai_interview_hours")
+    Integer maxAiInterviewHours;
 
-    @Builder.Default
-    @Column(name = "max_storage_gb", nullable = false)
-    Integer maxStorageGb = 5;
+    @Column(name = "max_storage_gb")
+    Integer maxStorageGb;
 
-    @Builder.Default
-    @Column(name = "max_proctoring_hours", nullable = false)
-    Integer maxProctoringHours = 0;
+    @Column(name = "max_proctoring_hours")
+    Integer maxProctoringHours;
 
-    @Builder.Default
-    @Column(name = "video_retention_days", nullable = false)
-    Integer videoRetentionDays = 30;
+    @Column(name = "video_retention_days")
+    Integer videoRetentionDays;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "features_json", columnDefinition = "jsonb")

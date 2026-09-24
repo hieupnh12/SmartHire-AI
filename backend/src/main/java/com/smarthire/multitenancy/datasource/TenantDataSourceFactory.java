@@ -31,7 +31,7 @@ public class TenantDataSourceFactory {
         this.mysqlBaseUrl = mysqlBaseUrl.endsWith("/")
                 ? mysqlBaseUrl.substring(0, mysqlBaseUrl.length() - 1)
                 : mysqlBaseUrl;
-        this.mysqlOptions = mysqlOptions;
+        this.mysqlOptions = mysqlOptions != null ? mysqlOptions.replaceAll("^['\"]+|['\"]+$", "") : "";
     }
 
     public HikariDataSource create(TenantInfo tenant) {

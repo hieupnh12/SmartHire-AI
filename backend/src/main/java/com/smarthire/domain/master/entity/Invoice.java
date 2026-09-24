@@ -54,6 +54,18 @@ public class Invoice {
     @Column(name = "payment_gateway")
     String paymentGateway;
 
+    @Column(name = "payment_proof_url", length = 512)
+    String paymentProofUrl;
+
+    @Column(name = "billing_tax_code", length = 50)
+    String billingTaxCode;
+
+    @Column(name = "billing_legal_name", length = 255)
+    String billingLegalName;
+
+    @Column(name = "billing_address", length = 512)
+    String billingAddress;
+
     @Column(name = "transaction_id")
     String transactionId;
 

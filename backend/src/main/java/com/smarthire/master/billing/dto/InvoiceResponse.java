@@ -31,6 +31,10 @@ public class InvoiceResponse {
     private LocalDateTime billingPeriodStart;
     private LocalDateTime billingPeriodEnd;
     private String paymentGateway;
+    private String paymentProofUrl;
+    private String billingTaxCode;
+    private String billingLegalName;
+    private String billingAddress;
     private String transactionId;
     private LocalDateTime paidAt;
     private String notes;
@@ -57,6 +61,10 @@ public class InvoiceResponse {
                 .billingPeriodStart(invoice.getBillingPeriodStart())
                 .billingPeriodEnd(invoice.getBillingPeriodEnd())
                 .paymentGateway(invoice.getPaymentGateway())
+                .paymentProofUrl(invoice.getPaymentProofUrl())
+                .billingTaxCode(invoice.getBillingTaxCode() != null ? invoice.getBillingTaxCode() : (tenant != null ? tenant.getTaxCode() : null))
+                .billingLegalName(invoice.getBillingLegalName() != null ? invoice.getBillingLegalName() : (tenant != null ? tenant.getCompanyLegalName() : null))
+                .billingAddress(invoice.getBillingAddress() != null ? invoice.getBillingAddress() : (tenant != null ? tenant.getBillingAddress() : null))
                 .transactionId(invoice.getTransactionId())
                 .paidAt(invoice.getPaidAt())
                 .notes(invoice.getNotes())

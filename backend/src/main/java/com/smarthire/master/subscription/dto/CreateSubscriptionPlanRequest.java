@@ -38,19 +38,15 @@ public class CreateSubscriptionPlanRequest {
     @Min(0)
     Integer maxCvParses;
     
-    @NotNull(message = "Max AI interview hours is required")
     @Min(0)
     Integer maxAiInterviewHours;
     
-    @NotNull(message = "Max storage GB is required")
     @Min(0)
     Integer maxStorageGb;
     
-    @NotNull(message = "Max proctoring hours is required")
     @Min(0)
     Integer maxProctoringHours;
     
-    @NotNull(message = "Video retention days is required")
     @Min(0)
     Integer videoRetentionDays;
     

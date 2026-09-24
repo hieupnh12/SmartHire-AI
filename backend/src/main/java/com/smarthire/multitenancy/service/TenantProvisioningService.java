@@ -74,10 +74,11 @@ public class TenantProvisioningService {
                     tenant.setStatus("ACTIVE");
                     return tenants.saveAndFlush(tenant);
                 } catch (Exception ex) {
+                    ex.printStackTrace(); // Log the actual provisioning exception!
                     tenant.setStatus("FAILED");
                     tenants.saveAndFlush(tenant);
                     // Keep partially created resources for idempotent retry; never drop customer data.
-                    throw new BusinessException("Tenant provisioning failed; correct the configuration and retry",
+                    throw new BusinessException("Tenant provisioning failed: " + ex.getMessage(),
                             HttpStatus.SERVICE_UNAVAILABLE, "TENANT_PROVISIONING_FAILED");
                 }
             } finally {
@@ -87,6 +88,7 @@ public class TenantProvisioningService {
                 }
             }
         } catch (SQLException ex) {
+            ex.printStackTrace();
             throw new BusinessException("Provisioning registry is unavailable",
                     HttpStatus.SERVICE_UNAVAILABLE, "PROVISIONING_REGISTRY_UNAVAILABLE");
         }
