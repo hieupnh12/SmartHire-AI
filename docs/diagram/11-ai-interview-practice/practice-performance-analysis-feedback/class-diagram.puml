@@ -1,0 +1,159 @@
+@startuml
+!include ../class-style.puml
+
+package "Controller Layer" {
+  class PracticeController <<Controller>> {
+    - practiceService: PracticeService
+    + requestFeedback(sessionId: Long): ApiResponse<FeedbackAcceptedResponse>
+  }
+}
+
+package "DTO Layer" {
+  class FeedbackAcceptedResponse <<Response>> {
+    + sessionId: Long
+    + accepted: boolean
+  }
+  class PracticeFeedbackJob <<Domain Event>> {
+    + sessionId: Long
+    + correlationId: String
+  }
+  class SectionScore <<DTO>> {
+    + section: PracticeQuestionType
+    + score: Decimal
+    + tips: List<String>
+  }
+}
+
+package "Service Layer" {
+  interface PracticeService <<Service>> {
+    + requestFeedback(sessionId: Long, principal: Principal): FeedbackAcceptedResponse
+  }
+  class PracticeServiceImpl <<Service>> {
+    - sessionRepository: PracticeSessionRepository
+    - feedbackPublisher: PracticeFeedbackPublisher
+    - tenantContext: TenantContext
+    + requestFeedback(sessionId: Long, principal: Principal): FeedbackAcceptedResponse
+  }
+  interface PracticeFeedbackService <<Service>> {
+    + analyzeAndFeedback(job: PracticeFeedbackJob): PracticeFeedback
+  }
+  class PracticeFeedbackServiceImpl <<Service>> {
+    - sessionRepository: PracticeSessionRepository
+    - answerRepository: PracticeAnswerRepository
+    - feedbackRepository: PracticeFeedbackRepository
+    - analysisPort: PracticeAnalysisPort
+    - tenantContext: TenantContext
+    + analyzeAndFeedback(job: PracticeFeedbackJob): PracticeFeedback
+  }
+  class PracticeFeedbackConsumer <<Service>> {
+    - feedbackService: PracticeFeedbackService
+    + onFeedback(job: PracticeFeedbackJob, tenantId: String): void
+  }
+}
+
+package "Repository Layer" {
+  interface PracticeSessionRepository <<Repository>> {
+    + findByIdAndCandidate(id: Long, candidateId: Long): Optional<PracticeSession>
+    + save(session: PracticeSession): PracticeSession
+  }
+  interface PracticeAnswerRepository <<Repository>> {
+    + findAllBySession(sessionId: Long): List<PracticeAnswer>
+  }
+  interface PracticeFeedbackRepository <<Repository>> {
+    + upsertBySession(feedback: PracticeFeedback): PracticeFeedback
+  }
+}
+
+package "Domain Entity Layer" {
+  class PracticeSession <<Entity>> {
+    - id: Long
+    - status: PracticeStatus
+  }
+  class PracticeAnswer <<Entity>> {
+    - id: Long
+    - questionText: String
+    - answerText: String
+    - questionType: PracticeQuestionType [0..1]
+  }
+  class PracticeFeedback <<Entity>> {
+    - id: Long
+    - content: String
+    - score: Decimal
+    - breakdownJson: String [0..1]
+  }
+  enum PracticeStatus <<Enum>> {
+    IN_PROGRESS
+    COMPLETED
+    FAILED
+  }
+  enum PracticeQuestionType <<Enum>> {
+    GENERAL
+    TECHNICAL
+    BEHAVIORAL
+    JAPANESE
+  }
+}
+
+package "Infrastructure & Persistence" {
+  interface PracticeAnalysisPort <<DataSource>> {
+    + analyze(answers: List<PracticeAnswer>): AnalysisResult
+  }
+  class PracticeFeedbackPublisher <<Queue>> {
+    + publish(job: PracticeFeedbackJob, tenantId: String): void
+  }
+  class FeedbackQueue <<Queue>> {
+    .. RabbitMQ practice.feedback ..
+  }
+  class TenantMySQL <<Database>> {
+    .. Dedicated Tenant DB ..
+    + practice_sessions
+    + practice_answers
+    + practice_feedbacks
+  }
+  class TenantContext <<DataSource>> {
+    + {static} getCurrentTenant(): String
+    + {static} clear(): void
+  }
+}
+
+PracticeController ..> FeedbackAcceptedResponse : returns >
+PracticeController --> PracticeService : delegates >
+PracticeService <|.. PracticeServiceImpl : implements
+PracticeServiceImpl ..> FeedbackAcceptedResponse : creates >
+PracticeServiceImpl ..> PracticeFeedbackJob : emits >
+PracticeServiceImpl --> PracticeSessionRepository : queries >
+PracticeServiceImpl --> PracticeFeedbackPublisher : publishes event >
+PracticeServiceImpl --> TenantContext : caches / evicts >
+
+PracticeFeedbackPublisher --> FeedbackQueue : publishes event >
+FeedbackQueue ..> PracticeFeedbackConsumer : delivers >
+PracticeFeedbackConsumer --> PracticeFeedbackService : delegates >
+PracticeFeedbackConsumer --> TenantContext : caches / evicts >
+PracticeFeedbackService <|.. PracticeFeedbackServiceImpl : implements
+PracticeFeedbackServiceImpl --> PracticeAnalysisPort : queries >
+PracticeFeedbackServiceImpl --> PracticeSessionRepository : queries >
+PracticeFeedbackServiceImpl --> PracticeAnswerRepository : queries >
+PracticeFeedbackServiceImpl --> PracticeFeedbackRepository : persists through >
+PracticeFeedbackServiceImpl ..> PracticeFeedbackJob : processes >
+PracticeFeedbackServiceImpl ..> SectionScore : creates >
+
+PracticeSessionRepository --> PracticeSession : manages >
+PracticeAnswerRepository --> PracticeAnswer : manages >
+PracticeFeedbackRepository --> PracticeFeedback : manages >
+PracticeSessionRepository --> TenantMySQL : persists to >
+PracticeAnswerRepository --> TenantMySQL : persists to >
+PracticeFeedbackRepository --> TenantMySQL : persists to >
+
+PracticeSession "1" *-- "0..1" PracticeFeedback
+PracticeSession "1" *-- "1..*" PracticeAnswer
+PracticeSession ..> PracticeStatus : typed by >
+PracticeAnswer ..> PracticeQuestionType : typed by >
+SectionScore ..> PracticeQuestionType : typed by >
+
+note right of PracticeFeedbackServiceImpl
+  Constructive feedback; no ideal answer dump.
+  Overall score + per-section tips (TECHNICAL/
+  BEHAVIORAL/JAPANESE). Advisory only.
+  Does not update hiring ranking.
+end note
+@enduml

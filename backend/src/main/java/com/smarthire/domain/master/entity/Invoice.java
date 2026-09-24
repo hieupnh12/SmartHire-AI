@@ -6,53 +6,40 @@ import java.time.LocalDateTime;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
-@Entity
-@Table(name = "invoices")
+@Getter
+@Setter
 @Builder
-@Data
 @NoArgsConstructor
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
+@Entity
+@Table(name = "invoices")
 public class Invoice {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    Long id;
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY) Long id;
 
-    @Column(name = "invoice_number", unique = true)
-    String invoiceNumber;
+    @Column(name = "invoice_number", unique = true) String invoiceNumber;
 
-    @Column(name = "tenant_id", nullable = false)
-    Long tenantId;
-
-    @Column(name = "subscription_id")
-    Long subscriptionId;
+    @Column(name = "tenant_id", nullable = false) Long tenantId;
+    @Column(name = "subscription_id") Long subscriptionId;
 
     BigDecimal amount;
-
     BigDecimal subtotal;
 
     @Builder.Default
     @Column(name = "tax_rate")
     BigDecimal taxRate = BigDecimal.ZERO;
 
-    @Builder.Default
-    String currency = "USD";
+    @Builder.Default String currency = "USD";
+    @Builder.Default String status = "PENDING";
 
-    @Builder.Default
-    String status = "PENDING";
+    @Column(name = "due_date") LocalDateTime dueDate;
+    @Column(name = "billing_period_start") LocalDateTime billingPeriodStart;
+    @Column(name = "billing_period_end") LocalDateTime billingPeriodEnd;
 
-    @Column(name = "due_date")
-    LocalDateTime dueDate;
-
-    @Column(name = "billing_period_start")
-    LocalDateTime billingPeriodStart;
-
-    @Column(name = "billing_period_end")
-    LocalDateTime billingPeriodEnd;
-
-    @Column(name = "payment_gateway")
-    String paymentGateway;
+    @Column(name = "payment_gateway") String paymentGateway;
+    @Column(name = "transaction_id") String transactionId;
+    @Column(name = "paid_at") LocalDateTime paidAt;
 
     @Column(name = "payment_proof_url", length = 512)
     String paymentProofUrl;
@@ -65,12 +52,6 @@ public class Invoice {
 
     @Column(name = "billing_address", length = 512)
     String billingAddress;
-
-    @Column(name = "transaction_id")
-    String transactionId;
-
-    @Column(name = "paid_at")
-    LocalDateTime paidAt;
 
     @Column(columnDefinition = "TEXT")
     String notes;

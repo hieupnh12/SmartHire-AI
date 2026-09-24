@@ -12,41 +12,46 @@ import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.time.Instant;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+import lombok.experimental.FieldDefaults;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
+@Getter
+@Setter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+@FieldDefaults(level = AccessLevel.PRIVATE)
 @Entity
 @Table(name = "proctor_reports")
 public class ProctorReport {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    Long id;
 
     @OneToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "attempt_id", nullable = false, unique = true)
-    private Attempt attempt;
+    @JoinColumn(name = "submission_id", nullable = false, unique = true)
+    Submission submission;
 
     @Column(name = "risk_score", nullable = false, precision = 5, scale = 2)
-    private BigDecimal riskScore;
+    BigDecimal riskScore;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "summary_json", columnDefinition = "json")
-    private String summaryJson;
+    String summaryJson;
 
     @Column(name = "created_at", nullable = false, updatable = false)
-    private Instant createdAt;
+    Instant createdAt;
 
     @PrePersist
-    void onCreate() { createdAt = Instant.now(); }
-
-    public Long getId() { return id; }
-    public Attempt getAttempt() { return attempt; }
-    public void setAttempt(Attempt attempt) { this.attempt = attempt; }
-    public BigDecimal getRiskScore() { return riskScore; }
-    public void setRiskScore(BigDecimal riskScore) { this.riskScore = riskScore; }
-    public String getSummaryJson() { return summaryJson; }
-    public void setSummaryJson(String summaryJson) { this.summaryJson = summaryJson; }
-    public Instant getCreatedAt() { return createdAt; }
+    void onCreate() {
+        createdAt = Instant.now();
+    }
 }
-

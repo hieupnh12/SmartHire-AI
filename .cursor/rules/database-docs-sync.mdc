@@ -1,0 +1,49 @@
+---
+description: Bắt buộc đồng bộ docs/database (Data Dictionary + ERD) mỗi khi schema, entity hoặc enum thay đổi
+globs: backend/src/main/resources/db/migration/**/*.sql,backend/src/main/java/com/smarthire/domain/**/*.java,backend/src/main/java/com/smarthire/multitenancy/**/*.java,backend/src/main/resources/application.yml
+alwaysApply: false
+---
+
+# Đồng bộ tài liệu Database & ERD
+
+Khi task chạm vào migration, entity, enum trạng thái, hoặc cấu hình multi-tenant/datasource,
+**bắt buộc** cập nhật tài liệu trong cùng một thay đổi. Không để lại "sẽ cập nhật sau".
+
+## Quy trình
+
+1. Đọc SQL migration trước — đó là nguồn sự thật. Một `@ManyToOne` hay cột `*_id` **không**
+   chứng minh khoá ngoại tồn tại trong database.
+2. Làm theo checklist trong [`docs/database/MAINTENANCE.md`](../../docs/database/MAINTENANCE.md).
+
+## File phải sửa
+
+| Thay đổi | File |
+|---|---|
+| Cột, kiểu, nullable, default | `docs/database/DATA_DICTIONARY_MASTER.md` hoặc `DATA_DICTIONARY_TENANT.md` |
+| Bảng mới/xoá, quan hệ, lực lượng | `docs/database/README.md` §3 Entity List, §4 ERD, §5, §7 Relationships |
+| UNIQUE, enum, máy trạng thái | `docs/database/README.md` §3.3, §8 |
+| Index mới | `docs/database/README.md` §9.1 |
+| Migration mới | `docs/database/README.md` §10.2 (master) hoặc §10.3 (tenant) |
+| Mọi thay đổi | Bảng thống kê ở đầu `docs/database/README.md` (số bảng, FK, UNIQUE, version) |
+
+Nếu thay đổi ảnh hưởng một feature, cập nhật luôn mục **Database liên quan** trong
+`docs/features/**` tương ứng.
+
+## Ví dụ
+
+```sql
+-- V9__job_owner_transfer.sql
+ALTER TABLE jobs ADD COLUMN owner_id BIGINT NULL,
+    ADD CONSTRAINT fk_jobs_owner FOREIGN KEY (owner_id) REFERENCES users (id);
+```
+
+Thay đổi trên buộc sửa 5 chỗ: dòng cột mới trong `DATA_DICTIONARY_TENANT.md` §B.1, dòng FK mới trong
+`README.md` §7.2, cạnh `users |o--o{ jobs` trong ERD §4.4, dòng `V9` trong §10.3, và con số
+"Tổng số khoá ngoại" ở đầu README.
+
+## Không được làm
+
+- Sửa file migration đã apply — luôn tạo version mới.
+- Bỏ bảng khỏi ERD cho gọn — tách sơ đồ thay vì giấu bảng.
+- Ghi password, connection string thật hoặc giá trị bản ghi vào tài liệu.
+- Bỏ sót cột `ref*` (trông như FK nhưng không có ràng buộc) khỏi `README.md` §7.3.

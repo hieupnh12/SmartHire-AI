@@ -5,6 +5,10 @@
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
+    { "key": "candidateToken", "value": "" },
+    { "key": "questionId", "value": "1" },
+    { "key": "optionId", "value": "1" },
+    { "key": "submissionId", "value": "1" },
     {
       "key": "baseUrl",
       "value": "http://localhost:8080/api/v1"
@@ -19,6 +23,10 @@
     },
     {
       "key": "jobId",
+      "value": "1"
+    },
+    {
+      "key": "testId",
       "value": "1"
     },
     {
@@ -51,6 +59,363 @@
     }
   ],
   "item": [
+    {
+      "name": "Technical Assessment - Questions and Submissions",
+      "description": "Staff uses accessToken; candidate uses candidateToken in the same tenant. Create a JobTest first. Use returned IDs. Publish before start. Application must belong to the candidate and test job, at ASSESSMENT or INTERVIEW.",
+      "item": [
+        {
+          "name": "Create question with options",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/assessments/{{testId}}/questions",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"questionText\": \"Which keyword defines a Java class?\",\n  \"points\": 5,\n  \"questionOrder\": 0,\n  \"options\": [\n    {\n      \"optionText\": \"class\",\n      \"correct\": true\n    },\n    {\n      \"optionText\": \"def\",\n      \"correct\": false\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "List questions (staff)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/assessments/{{testId}}/questions"
+          }
+        },
+        {
+          "name": "Replace question and options (new option IDs)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/assessments/{{testId}}/questions/{{questionId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"questionText\": \"Which keyword defines a Java class?\",\n  \"points\": 5,\n  \"questionOrder\": 0,\n  \"options\": [\n    {\n      \"optionText\": \"class\",\n      \"correct\": true\n    },\n    {\n      \"optionText\": \"def\",\n      \"correct\": false\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Delete draft question",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/assessments/{{testId}}/questions/{{questionId}}"
+          }
+        },
+        {
+          "name": "Publish MCQ test",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/assessments/{{testId}}/publish"
+          }
+        },
+        {
+          "name": "Start or resume own submission",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{candidateToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/assessments/{{testId}}/submissions",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"applicationId\": {{applicationId}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Get own paper and timer",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{candidateToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/submissions/{{submissionId}}"
+          }
+        },
+        {
+          "name": "Save answers",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{candidateToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/submissions/{{submissionId}}/answers",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"answers\": [{ \"questionId\": {{questionId}}, \"selectedOptionId\": {{optionId}} }]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Clear one answer",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{candidateToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/submissions/{{submissionId}}/answers",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"answers\": [{ \"questionId\": {{questionId}}, \"selectedOptionId\": null }]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Submit saved answers",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{candidateToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/submissions/{{submissionId}}/submit"
+          }
+        },
+        {
+          "name": "Inspect submission (staff)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/submissions/{{submissionId}}/result"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Technical Assessment - JobTest",
+      "item": [
+        {
+          "name": "Create draft test",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/assessments",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jobId\": {{jobId}},\n  \"title\": \"Java basics\",\n  \"description\": \"Java assessment\",\n  \"durationMinutes\": 30,\n  \"passingScore\": 5\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "List tests",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/assessments?page=0&size=20"
+          }
+        },
+        {
+          "name": "Get test",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/assessments/{{testId}}"
+          }
+        },
+        {
+          "name": "Update draft test",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/assessments/{{testId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jobId\": {{jobId}},\n  \"title\": \"Java basics\",\n  \"description\": \"Java assessment\",\n  \"durationMinutes\": 30,\n  \"passingScore\": 5\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
     {
       "name": "Auth",
       "item": [
