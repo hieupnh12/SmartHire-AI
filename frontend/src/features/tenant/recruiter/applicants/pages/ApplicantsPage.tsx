@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { applicantApi } from "@/api/tenant/applicantApi";
 import { cvApi } from "@/api/tenant/cvApi";
 import { jobApi } from "@/api/tenant/jobApi";
@@ -9,6 +9,8 @@ import { queryKeys } from "@/lib/query-keys";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 import { button, input, labels, muted, panel, primary } from "@/features/tenant/recruiter/matching/components/rankingUi";
 import { ApplicationPipeline } from "@/features/tenant/recruiter/matching/components/recruitmentFlow";
+import { ApplicantRounds } from "@/features/tenant/recruiter/applicants/components/ApplicantRounds";
+import { DetailDialog } from "@/components/ux/DetailDialog";
 import { CvFilePreview } from "@/components/shared/CvFilePreview";
 import { ScreeningBreakdown } from "@/features/tenant/recruiter/cv-screening/components/ScreeningBreakdown";
 import type { ApplicationDetail, CvRef } from "@/api/types/applicant";
@@ -54,7 +56,7 @@ export function ApplicantsPage() {
       <header>
         <p className={muted}>Tuyển dụng / Ứng viên</p>
         <h1 className="mt-1 text-3xl font-semibold tracking-tight">Quản lý ứng viên</h1>
-        <p className={`mt-2 max-w-2xl ${muted}`}>Chọn job, chọn ứng viên đã apply, xem CV đã nộp rồi phân tích bằng AI so với JD.</p>
+        <p className={`mt-2 max-w-2xl ${muted}`}>Chọn job rồi bấm một ứng viên để mở hồ sơ chi tiết.</p>
       </header>
       <div className={panel}>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
@@ -87,43 +89,51 @@ export function ApplicantsPage() {
         </div>
       </div>
       {jobId && (
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,32rem)]">
-          <div className={`${panel} overflow-x-auto`}>
-            {list.isPending && <p>Đang tải…</p>}
-            {list.isError && <p role="alert">{getApiErrorMessage(list.error)}</p>}
-            {rows.length === 0 && list.isSuccess && <p className={muted}>Chưa có application.</p>}
-            {rows.length > 0 && (
-              <table className="w-full text-left text-sm">
-                <thead><tr className={muted}><th className="py-2">Ứng viên</th><th>Nguồn</th><th>Trạng thái</th><th>Phụ trách</th></tr></thead>
-                <tbody>
-                  {rows.map((row) => (
-                    <tr key={row.id} className={`cursor-pointer border-t border-[var(--color-border-default)] ${selectedId === row.id ? "bg-[var(--color-surface-container-low)]" : ""}`} onClick={() => setSelectedId(row.id)}>
-                      <td className="py-2">
-                        <p className="font-medium">{row.candidateName}</p>
-                        <p className={muted}>{row.candidateEmail}{row.duplicate ? " · trùng hồ sơ" : ""}</p>
-                      </td>
-                      <td>{row.source ?? "—"}{row.referralCode ? ` / ${row.referralCode}` : ""}</td>
-                      <td>{labels[row.status] ?? row.status}</td>
-                      <td>{row.assigneeName ?? "—"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-            {total > 20 && (
-              <div className="mt-4 flex gap-2">
-                <button className={button} type="button" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>Trước</button>
-                <button className={button} type="button" disabled={(page + 1) * 20 >= total} onClick={() => setPage((p) => p + 1)}>Sau</button>
-              </div>
-            )}
-          </div>
-          <aside className={panel}>
-            {!detail.data?.data && <p className={muted}>Chọn một ứng viên để xem CV đã apply.</p>}
-            {detail.data?.data && <ApplicationPanel key={detail.data.data.id} detail={detail.data.data} onChanged={() => { void detail.refetch(); void list.refetch(); }} />}
-            {detail.isError && <p role="alert">{getApiErrorMessage(detail.error)}</p>}
-          </aside>
+        <div className={`${panel} overflow-x-auto`}>
+          {list.isPending && <p>Đang tải…</p>}
+          {list.isError && <p role="alert">{getApiErrorMessage(list.error)}</p>}
+          {rows.length === 0 && list.isSuccess && <p className={muted}>Chưa có application.</p>}
+          {rows.length > 0 && (
+            <table className="w-full text-left text-sm">
+              <thead><tr className={muted}><th className="py-2">Ứng viên</th><th>Nguồn</th><th>Trạng thái</th><th>Phụ trách</th></tr></thead>
+              <tbody>
+                {rows.map((row) => (
+                  <tr key={row.id} className={`cursor-pointer border-t border-[var(--color-border-default)] ${selectedId === row.id ? "bg-[var(--color-surface-container-low)]" : ""}`} onClick={() => setSelectedId(row.id)}>
+                    <td className="py-2">
+                      <p className="font-medium">{row.candidateName}</p>
+                      <p className={muted}>{row.candidateEmail}{row.duplicate ? " · trùng hồ sơ" : ""}</p>
+                    </td>
+                    <td>{row.source ?? "—"}{row.referralCode ? ` / ${row.referralCode}` : ""}</td>
+                    <td>{labels[row.status] ?? row.status}</td>
+                    <td>{row.assigneeName ?? "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          {total > 20 && (
+            <div className="mt-4 flex gap-2">
+              <button className={button} type="button" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>Trước</button>
+              <button className={button} type="button" disabled={(page + 1) * 20 >= total} onClick={() => setPage((p) => p + 1)}>Sau</button>
+            </div>
+          )}
         </div>
       )}
+      <DetailDialog
+        open={selectedId != null}
+        title={detail.data?.data.candidateName ?? "Hồ sơ ứng viên"}
+        onClose={() => setSelectedId(null)}
+      >
+        {detail.isPending && selectedId != null && <p>Đang tải…</p>}
+        {detail.isError && <p role="alert">{getApiErrorMessage(detail.error)}</p>}
+        {detail.data?.data && (
+          <ApplicationPanel
+            key={detail.data.data.id}
+            detail={detail.data.data}
+            onChanged={() => { void detail.refetch(); void list.refetch(); }}
+          />
+        )}
+      </DetailDialog>
     </section>
   );
 }
@@ -154,28 +164,7 @@ function ApplicationPanel({ detail, onChanged }: { detail: ApplicationDetail; on
         <p className={muted}>Nguồn {detail.source ?? "—"}{detail.referralCode ? ` · referral ${detail.referralCode}` : ""}</p>
       </div>
       <ApplicationPipeline status={detail.status} />
-      <div className="space-y-3 rounded-2xl border border-dashed border-[var(--color-outline-variant)] p-3">
-        <p className="font-semibold">Kết quả vòng (UI sơ khai)</p>
-        <p className={muted}>Đánh giá AI · Bài test · Nhận xét PV — tách khỏi status đơn.</p>
-        <ul className="space-y-2 text-sm">
-          <li className="flex flex-wrap items-center justify-between gap-2">
-            <span>Đánh giá AI</span>
-            <span className={muted}>Chưa có phiên</span>
-          </li>
-          <li className="flex flex-wrap items-center justify-between gap-2">
-            <span>Bài kiểm tra</span>
-            <span>86.7% · đã chấm (mock)</span>
-          </li>
-          <li className="flex flex-wrap items-center justify-between gap-2">
-            <span>Interview chính thức</span>
-            <span className={muted}>Chờ xác nhận lịch</span>
-          </li>
-        </ul>
-        <div className="flex flex-wrap gap-2">
-          <Link className={button} to="/recruiter/assessments">Quản lý đề</Link>
-          <Link className={button} to="/recruiter/schedules">Đặt lịch PV</Link>
-        </div>
-      </div>
+      <ApplicantRounds rounds={detail.rounds} gate={detail.gateScore} />
       <AppliedCvReview cvs={detail.cvs} />
       <label className="block space-y-1"><span>Ghi chú</span><textarea className={input} value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} /></label>
       <label className="block space-y-1"><span>Tag</span><input className={input} value={tags} onChange={(e) => setTags(e.target.value)} placeholder="java, referral" /></label>

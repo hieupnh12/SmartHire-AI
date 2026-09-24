@@ -11,6 +11,7 @@ import com.smarthire.domain.tenant.entity.Skill;
 import com.smarthire.domain.tenant.repository.ApplicationRepository;
 import com.smarthire.domain.tenant.repository.JobRepository;
 import com.smarthire.domain.tenant.repository.JobSkillRepository;
+import com.smarthire.domain.tenant.repository.JobScreeningConfigRepository;
 import com.smarthire.domain.tenant.repository.RecruitmentStageRepository;
 import com.smarthire.tenant.cv.dto.CvModels.JobCreateRequest;
 import com.smarthire.tenant.cv.dto.CvModels.JobOption;
@@ -29,9 +30,12 @@ import com.smarthire.tenant.job.dto.JobModels.StageItem;
 import com.smarthire.tenant.job.dto.JobModels.StageView;
 import com.smarthire.tenant.job.dto.JobModels.StagesRequest;
 import com.smarthire.tenant.job.mapper.JobMapper;
+import com.smarthire.tenant.job.screening.JobScreeningConfigService;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -62,6 +66,9 @@ public class JobService {
     private final CvAccess access;
     private final CvSkillAnalysisService taxonomy;
     private final JobMapper mapper;
+    private final JobScreeningConfigService screening;
+    private final JobScreeningConfigRepository screeningConfigs;
+    private final JobCloseScreeningService closeScreening;
 
     public JobService(
             JobRepository jobs,
@@ -70,7 +77,10 @@ public class JobService {
             ApplicationRepository applications,
             CvAccess access,
             CvSkillAnalysisService taxonomy,
-            JobMapper mapper) {
+            JobMapper mapper,
+            JobScreeningConfigService screening,
+            JobScreeningConfigRepository screeningConfigs,
+            JobCloseScreeningService closeScreening) {
         this.jobs = jobs;
         this.jobSkills = jobSkills;
         this.stages = stages;
@@ -78,6 +88,9 @@ public class JobService {
         this.access = access;
         this.taxonomy = taxonomy;
         this.mapper = mapper;
+        this.screening = screening;
+        this.screeningConfigs = screeningConfigs;
+        this.closeScreening = closeScreening;
     }
 
     public Map<String, String> health() {
@@ -103,10 +116,12 @@ public class JobService {
             Job job = job(id);
             if (access.candidate()) {
                 if (!mapper.accepting(job)) throw notFound();
-                return mapper.detail(job, skillViews(id), stageViews(id), applications.countByJob_Id(id));
+                return mapper.detail(job, skillViews(id), stageViews(id), applications.countByJob_Id(id),
+                        screeningConfigs.findById(id).orElse(null));
             }
             access.requireJob(job);
-            return mapper.detail(job, skillViews(id), stageViews(id), applications.countByJob_Id(id));
+            return mapper.detail(job, skillViews(id), stageViews(id), applications.countByJob_Id(id),
+                    screeningConfigs.findById(id).orElse(null));
         } catch (BusinessException ex) {
             throw ex;
         } catch (RuntimeException ex) {
@@ -120,7 +135,7 @@ public class JobService {
 
     @Transactional(readOnly = true)
     public List<PublicJob> publicList(String query) {
-        return jobs.publicOpen(LocalDate.now(), blankToNull(query), JobStatus.PUBLISHED).stream()
+        return jobs.publicOpen(Instant.now(), blankToNull(query), JobStatus.PUBLISHED).stream()
                 .map(job -> mapper.publicJob(job, jobSkills.findByJob_IdOrderByIdAsc(job.getId())))
                 .toList();
     }
@@ -153,7 +168,7 @@ public class JobService {
                 request.description(),
                 null, null, null, "FULL_TIME", "HYBRID", null, 1, null,
                 null, null, "VND", true, null, null,
-                skillsOrDefault(request.skills()), null));
+                skillsOrDefault(request.skills()), null, null, null));
         JobDetail published = publish(created.id());
         return new JobOption(published.id(), published.title(), published.status());
     }
@@ -165,11 +180,12 @@ public class JobService {
         job.setCreatedBy(access.actor());
         job.setStatus(JobStatus.DRAFT);
         apply(job, request);
-        jobs.save(job);
+        jobs.saveAndFlush(job);
         if (request.skills() != null && !request.skills().isEmpty()) {
             replaceSkillsInternal(job, request.skills());
         }
         replaceStagesInternal(job, stagesOrDefault(request.stages()));
+        screening.saveForJob(job, request.cvScreening(), request.gateScreening());
         return get(job.getId());
     }
 
@@ -183,6 +199,7 @@ public class JobService {
         if (request.skills() != null) replaceSkillsInternal(job, request.skills());
         if (request.stages() != null) replaceStagesInternal(job, request.stages());
         jobs.save(job);
+        screening.saveForJob(job, request.cvScreening(), request.gateScreening());
         return get(id);
     }
 
@@ -216,7 +233,7 @@ public class JobService {
         copy.setSalaryVisible(source.isSalaryVisible());
         copy.setMinYearsExperience(source.getMinYearsExperience());
         copy.setEducationLevel(source.getEducationLevel());
-        jobs.save(copy);
+        jobs.saveAndFlush(copy);
         replaceSkillsInternal(copy, jobSkills.findViewRowsByJobId(id).stream()
                 .map(row -> new JobSkillItem(
                         (String) row[1],
@@ -228,6 +245,7 @@ public class JobService {
         replaceStagesInternal(copy, stages.findByJob_IdOrderBySortOrderAsc(id).stream()
                 .map(row -> new StageItem(row.getName(), row.getSortOrder(), row.isTerminal()))
                 .toList());
+        screening.copyTo(copy, screeningConfigs.findById(id).orElse(null));
         return get(copy.getId());
     }
 
@@ -290,7 +308,22 @@ public class JobService {
         job.setStatus(JobStatus.CLOSED);
         job.setClosedAt(Instant.now());
         jobs.save(job);
+        closeScreening.enqueueUnscreened(job);
         return get(id);
+    }
+
+    @Transactional
+    public int closeExpiredJobs() {
+        Instant now = Instant.now();
+        int closed = 0;
+        for (Job job : jobs.dueToClose(now, List.of(JobStatus.PUBLISHED, JobStatus.PAUSED))) {
+            job.setStatus(JobStatus.CLOSED);
+            job.setClosedAt(now);
+            jobs.save(job);
+            closeScreening.enqueueUnscreened(job);
+            closed++;
+        }
+        return closed;
     }
 
     @Transactional
@@ -374,7 +407,7 @@ public class JobService {
         job.setWorkMode(blankToNull(request.workMode()));
         job.setDepartment(blankToNull(request.department()));
         job.setHeadcount(request.headcount());
-        job.setDeadline(request.deadline());
+        job.setDeadline(parseDeadline(request.deadline()));
         job.setSalaryMin(request.salaryMin());
         job.setSalaryMax(request.salaryMax());
         job.setSalaryCurrency(blankToNull(request.salaryCurrency()));
@@ -486,6 +519,24 @@ public class JobService {
 
     private BusinessException notFound() {
         return new BusinessException("Job not found", HttpStatus.NOT_FOUND, "JOB_NOT_FOUND");
+    }
+
+    public static Instant parseDeadline(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        String value = raw.trim();
+        if (value.length() == 10) {
+            return LocalDate.parse(value).atTime(23, 59, 59).toInstant(ZoneOffset.UTC);
+        }
+        if (value.length() == 16) {
+            return LocalDateTime.parse(value).toInstant(ZoneOffset.UTC);
+        }
+        if (value.length() == 19 && !value.contains("T")) {
+            return LocalDateTime.parse(value.replace(" ", "T")).toInstant(ZoneOffset.UTC);
+        }
+        if (value.length() == 19 && value.contains("T") && !value.endsWith("Z") && !value.contains("+")) {
+            return LocalDateTime.parse(value).toInstant(ZoneOffset.UTC);
+        }
+        return Instant.parse(value);
     }
 
     private static String blankToNull(String value) {

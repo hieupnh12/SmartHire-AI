@@ -126,7 +126,7 @@ Entity `Job` (káº¿ thá»«a `BaseEntity`). Báº£ng Ä‘Æ°á»£c má»�
 | `department` | VARCHAR(128) | | CÃ³ | NULL | PhÃ²ng ban (V6) |
 | `work_mode` | VARCHAR(32) | | CÃ³ | NULL | Onsite, hybrid, remote (V6) |
 | `headcount` | INT | | CÃ³ | NULL | Sá»‘ lÆ°á»£ng cáº§n tuyá»ƒn (V6) |
-| `deadline` | DATE | | CÃ³ | NULL | Háº¡n ná»™p há»“ sÆ¡ (V6) |
+| `deadline` | DATETIME | | Có | NULL | Hết hạn đăng tin (V6 DATE → V15 DATETIME). Hết giờ này job đóng và tự sàng CV |
 | `salary_min` | DECIMAL(12,2) | | CÃ³ | NULL | LÆ°Æ¡ng tá»‘i thiá»ƒu (V6) |
 | `salary_max` | DECIMAL(12,2) | | CÃ³ | NULL | LÆ°Æ¡ng tá»‘i Ä‘a (V6) |
 | `salary_currency` | VARCHAR(8) | | CÃ³ | NULL | ÄÆ¡n vá»‹ tiá»n tá»‡ (V6) |
@@ -205,6 +205,7 @@ Entity `Application` (káº¿ thá»«a `BaseEntity`). Má»Ÿ rá»™ng qua V7
 | `archived_at` | TIMESTAMP | IDX | CÃ³ | NULL | LÆ°u trá»¯ Ä‘Æ¡n, tÃ¡ch khá»i danh sÃ¡ch hoáº¡t Ä‘á»™ng (V7) |
 | `reject_reason` | TEXT | | CÃ³ | NULL | LÃ½ do tá»« chá»‘i (V7) |
 | `withdrawn_at` | TIMESTAMP | | CÃ³ | NULL | Thá»i Ä‘iá»ƒm á»©ng viÃªn rÃºt Ä‘Æ¡n (V7) |
+| `ai_interview_invited_at` | TIMESTAMP | | Có | NULL | Thời điểm đã gửi mail mời phỏng vấn AI sau khi CV đạt (V14) |
 | `created_at` | TIMESTAMP | | KhÃ´ng | now | |
 | `updated_at` | TIMESTAMP | | KhÃ´ng | now on update | |
 

@@ -29,6 +29,7 @@ export function ScreeningBreakdown({
       {breakdown?.verdict && <p className="text-sm">{breakdown.verdict}</p>}
       <ComponentTable breakdown={breakdown} />
       <ExperienceLine analysis={breakdown?.experienceAnalysis} />
+      <EducationLine analysis={breakdown?.educationAnalysis} />
       <RequirementList title="Khớp JD" items={breakdown?.matched} tone="match" />
       <RequirementList title="Khớp một phần" items={breakdown?.partialMatches} tone="partial" />
       <RequirementList title="Thiếu so với JD" items={breakdown?.missing} tone="missing" />
@@ -43,6 +44,7 @@ function ComponentTable({ breakdown }: { breakdown: MatchBreakdown | null | unde
     ["Preferred skills", breakdown.components.preferred, breakdown.weights.preferred],
     ["Jaccard", breakdown.components.jaccard, breakdown.weights.jaccard],
     ["Experience", breakdown.components.experience, breakdown.weights.experience],
+    ["Education", breakdown.components.education, breakdown.weights.education],
     ["Semantic", breakdown.components.semantic, breakdown.weights.semantic],
   ] as const;
   return (
@@ -63,6 +65,16 @@ function ExperienceLine({ analysis }: { analysis: MatchBreakdown["experienceAnal
   return (
     <p className="text-sm">
       Kinh nghiệm: {analysis.candidateYears ?? "—"} / {analysis.requiredYears ?? "không yêu cầu"} năm
+      {analysis.match ? " · đạt" : " · chưa đạt"}
+    </p>
+  );
+}
+
+function EducationLine({ analysis }: { analysis: MatchBreakdown["educationAnalysis"] }) {
+  if (!analysis || (analysis.requiredLevel == null && analysis.candidateLevel == null)) return null;
+  return (
+    <p className="text-sm">
+      Học vấn: {analysis.candidateLevel ?? "—"} / {analysis.requiredLevel ?? "không yêu cầu"}
       {analysis.match ? " · đạt" : " · chưa đạt"}
     </p>
   );

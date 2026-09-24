@@ -25,32 +25,44 @@ Tính điểm khớp CV ↔ Job **sau khi đủ bước parse / extract / taxono
 
 - Cần CV analyzed + `job_skills` của đúng job.
 - Score 0–100 + breakdown giải thích được.
-- Pass: `score ≥ 60` **và** không thiếu skill bắt buộc (`requiredMissing == 0`). Không auto-reject, không auto-hire.
+- Pass: `score ≥ cvPassThreshold của Job` **và** không thiếu skill bắt buộc (`requiredMissing == 0`). Không auto-reject, không auto-hire.
 - PARTIAL = 0.5 credit. UNKNOWN/MISSING = 0. Required UNKNOWN/MISSING đưa vào `requiredMissing`.
-- Gemini API lỗi hoặc không có key → heuristic extract; trọng số semantic gộp vào required.
+- Gemini API lỗi hoặc không có key → heuristic extract; trọng số semantic gộp vào required (theo weight của Job).
+- Trọng số CV **không hard-code** trong scoring. Đọc `job_screening_configs` của Job. Rank-v1 35/15/30/20 và Gate Screening là hệ thống khác.
 
-### Công thức hybrid-v1
+### Công thức hybrid-v1 (trọng số theo Job)
 
-| Thành phần | Ký hiệu | Trọng số gốc | Ý nghĩa thực tế |
-|---|---|---|---|
-| Required skills | \(R\) | **40** | Lọc vòng đầu: skill bắt buộc sau taxonomy + semantic |
-| Semantic Gemini | \(G\) | **25** | Hiểu ngữ nghĩa (“REST APIs with Spring Boot” ≈ Spring Boot) |
-| Jaccard | \(J\) | **15** | \(\|A \cap B\| / \|A \cup B\| \times 100\) trên skill đã normalize |
-| Experience | \(E\) | **12** | \(\min(\text{candidateYears}/\text{requiredYears}, 1) \times 100\) |
-| Preferred skills | \(P\) | **8** | Skill `required=false`; không được át required |
+| Thành phần | Ký hiệu | Ý nghĩa thực tế |
+|---|---|---|
+| Required skills | \(R\) | Skill bắt buộc sau taxonomy + semantic |
+| Preferred skills | \(P\) | Skill `required=false` |
+| Jaccard | \(J\) | \(\|A \cap B\| / \|A \cup B\| \times 100\) trên skill đã normalize |
+| Experience | \(E\) | \(\min(\text{candidateYears}/\text{requiredYears}, 1) \times 100\) |
+| Education | \(D\) | So khớp `job.educationLevel` với học vấn trên CV |
+| Semantic Gemini | \(G\) | MATCH / PARTIAL từ Gemini, không phải điểm Gemini |
 
 \[
-\text{CV Score} = (R \times w_R + P \times w_P + J \times w_J + E \times w_E + G \times w_G) / 100
+\text{CV Score} = R w_R + P w_P + J w_J + E w_E + D w_D + G w_G
 \]
 
-Redistribute (không hard-code im lặng):
+\(w_*\) là phần trăm Recruiter cấu hình cho Job, tổng 100%. Redistribute dùng **chính weight của Job**, không dùng hằng số:
 
-- Không có preferred → \(w_P=0\), cộng 8 vào \(w_R\).
-- Job không yêu cầu số năm → \(w_E=0\), cộng 12 vào \(w_R\).
-- Gemini không trả requirement rows → \(w_G=0\), cộng 25 vào \(w_R\); \(G\) không tham gia.
+- Không có preferred → cộng `preferredWeight` vào required.
+- Job không yêu cầu số năm → cộng `experienceWeight` vào required.
+- Job không yêu cầu học vấn → cộng `educationWeight` vào required.
+- Gemini không trả requirement rows → cộng `semanticWeight` vào required.
 
-Ví dụ (có đủ 5 thành phần): \(R=80, G=75, J=60, E=100, P=50\)  
-→ \(80\times0.40 + 50\times0.08 + 60\times0.15 + 100\times0.12 + 75\times0.25 = 75.15\).
+Job cũ / payload không gửi config: snapshot công thức trước đây 40/8/12/0/15/25, ngưỡng 60 (education = 0 nên điểm cũ không đổi).
+
+### Gate Screening (vòng gửi xe) — độc lập
+
+Sau khi có CV Score, AI Interview Score, Assessment Score:
+
+\[
+\text{Gate Score} = \text{CV} \times w_{cv} + \text{Interview} \times w_{int} + \text{Assessment} \times w_{as}
+\]
+
+Thiếu thành phần (và weight > 0) → điểm thành phần = 0, `complete=false`, chưa PASS. Đạt khi `complete` và `Gate Score ≥ gatePassThreshold`. Job cũ snapshot 40/35/25, ngưỡng 70. Không dùng CV Screening Weights ở bước này.
 
 Ví dụ Jaccard: Job `{Java, Spring Boot, PostgreSQL, Docker}`, CV `{Java, Spring Boot, PostgreSQL, React}` → \(3/5 = 0.6\).
 
@@ -65,6 +77,9 @@ Ví dụ Jaccard: Job `{Java, Spring Boot, PostgreSQL, Docker}`, CV `{Java, Spri
 ## Database liên quan
 
 - `match_scores.breakdown_json` (schema mở rộng, không thêm cột)
+- `job_screening_configs` (V13)
+- `gate_scores` (V13, theo application)
+- `applications.ai_interview_invited_at` (V14)
 
 ## UI mockup
 
@@ -82,5 +97,6 @@ CV-04, JOB-03
 - Không dùng embedding; không lấy CV tenant khác làm few-shot.
 - Chuẩn hóa NFKC, chữ thường, khoảng trắng và alias: ReactJS/React.js → react, SpringBoot → spring boot, K8s → kubernetes, My SQL → mysql, Postgres → postgresql, NodeJS → node.js, RESTful API → rest api. Java và JavaScript khác nhau.
 - Gemini không được bịa skill/kinh nghiệm không có trong CV. Thiếu thông tin → MISSING hoặc UNKNOWN.
-- Trang Sàng lọc CV / Applicants hiển thị Jaccard, MATCH/PARTIAL/MISSING, evidence, thành phần điểm. CV đạt → application chuyển `INTERVIEW` (phỏng vấn AI).
+- Trang Sàng lọc CV / Applicants hiển thị Jaccard, MATCH/PARTIAL/MISSING, evidence, thành phần điểm trong dialog chi tiết. CV đạt → application chuyển `INTERVIEW` (phỏng vấn AI) và gửi email mời ứng viên làm vòng phỏng vấn AI (`applications.ai_interview_invited_at`, idempotent). SMTP chưa cấu hình thì không đánh dấu đã gửi để lần match sau thử lại.
+- Job hết hạn đăng (hoặc recruiter đóng tin) → tự enqueue parse/match cho CV chưa `ANALYZED`.
 - Unit test: Jaccard 3/5, alias ReactJS, bỏ qua `screening.score` của Gemini, semantic MATCH khi taxonomy miss, apply CV cũ vẫn enqueue screening.

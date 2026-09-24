@@ -201,6 +201,7 @@ public class CvService {
         extractions.deleteByCv_Id(id);
         documents.deleteByCv_Id(id);
         rankingData.detachCv(id);
+        cvs.flush();
         cvs.delete(cv);
         try {
             storage.delete(storageKey);

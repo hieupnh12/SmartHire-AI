@@ -12,8 +12,8 @@
 | Tổng số entity JPA | **54** (8 master + 46 tenant) — ánh xạ 1:1 với bảng |
 | Tổng số khoá ngoại | **66** (4 master + 62 tenant) |
 | Ràng buộc UNIQUE | **24** (6 master + 18 tenant) |
-| Số file migration | **17** (8 master + 9 tenant) |
-| Cập nhật lần cuối | Phiên bản schema master `V8`, tenant `V9` |
+| Số file migration | **20** (8 master + 12 tenant versions V1–V9, V13–V15) |
+| Cập nhật lần cuối | Phiên bản schema master `V8`, tenant `V15` |
 | Rà soát assessment 2026-09-21 | Bổ sung query/khóa hàng và nghiệp vụ MCQ; không đổi bảng, entity, FK, UNIQUE hay migration |
 
 **Mục lục theo đúng thứ tự đặc tả**
@@ -526,7 +526,7 @@ erDiagram
 
 | Entity | Mục đích | Ghi chú quan trọng |
 |---|---|---|
-| `Application` | **Bảng trung tâm của toàn bộ tenant schema.** Một ứng viên nộp vào một job | Test submission, lịch phỏng vấn, AI interview, điểm tổng và thứ hạng đều neo vào đây. Mang `status`, `stage_id`, `assignee_id`, `tags`, `referral_code`, `reject_reason`, `withdrawn_at`, `archived_at` |
+| `Application` | **Bảng trung tâm của toàn bộ tenant schema.** Một ứng viên nộp vào một job | Test submission, lịch phỏng vấn, AI interview, điểm tổng và thứ hạng đều neo vào đây. Mang `status`, `stage_id`, `assignee_id`, `tags`, `referral_code`, `reject_reason`, `withdrawn_at`, `archived_at`, `ai_interview_invited_at` (V14) |
 | `ApplicationStatusHistory` | Nhật ký mỗi lần đổi trạng thái | `from_status → to_status`, `changed_by`, `note`. `changed_by` là số thô, không có FK |
 | `HiringDecision` | Quyết định cuối cùng của đơn | `HIRE` / `REJECT` / `HOLD` kèm `reason`. `decided_by` không có FK |
 
@@ -947,6 +947,9 @@ Hai pipeline dùng **hai phương ngữ SQL khác nhau** và không thể dùng 
 | V7 | `V7__application_management.sql` | 6 cột quản lý đơn, 2 index, `cvs.retain_until` + backfill 24 tháng |
 | V8 | `V8__cv_job_optional.sql` | `cvs.job_id` chuyển thành nullable để hỗ trợ kho hồ sơ |
 | V9 | `V9__interview_test_ai_practice_redesign.sql` | Redesign Test/Submission, Direct Interview, AI Interview, Practice theo ERD mới |
+| V13 | `V13__job_screening_config.sql` | `job_screening_configs` + `gate_scores`; seed snapshot trọng số CV/gate cho job cũ |
+| V14 | `V14__ai_interview_invite.sql` | `applications.ai_interview_invited_at` — thời điểm đã gửi mail mời phỏng vấn AI |
+| V15 | `V15__job_deadline_datetime.sql` | `jobs.deadline` DATE → DATETIME; job hết hạn tự đóng và sàng CV |
 
 ### 10.4 Quy trình cấp phát tenant mới
 

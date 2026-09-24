@@ -68,7 +68,7 @@ export function JobDetailPage() {
             <aside className={`${panel} space-y-2 text-sm`}>
               <p><span className={muted}>Ứng viên: </span>{job.applicationCount}</p>
               <p><span className={muted}>Headcount: </span>{job.headcount ?? "—"}</p>
-              <p><span className={muted}>Deadline: </span>{job.deadline ?? "—"}</p>
+              <p><span className={muted}>Hết hạn đăng: </span>{job.deadline ? new Date(job.deadline).toLocaleString("vi-VN") : "—"}</p>
               <p><span className={muted}>KN: </span>{job.minYearsExperience ?? "—"} năm</p>
               <p><span className={muted}>Học vấn: </span>{job.educationLevel ?? "—"}</p>
               <p><span className={muted}>Phụ trách: </span>{job.ownerName ?? "—"}</p>
@@ -85,6 +85,35 @@ export function JobDetailPage() {
               ))}
             </div>
           </div>
+          {(job.cvScreening || job.gateScreening) && (
+            <div className="grid gap-6 lg:grid-cols-2">
+              {job.cvScreening && (
+                <div className={panel}>
+                  <h2 className="mb-3 font-semibold">CV Screening Weights</h2>
+                  <ul className="space-y-1 text-sm">
+                    <li>Skill bắt buộc: {job.cvScreening.skillWeight}%</li>
+                    <li>Skill tùy chọn: {job.cvScreening.preferredWeight}%</li>
+                    <li>Kinh nghiệm: {job.cvScreening.experienceWeight}%</li>
+                    <li>Học vấn: {job.cvScreening.educationWeight}%</li>
+                    <li>Jaccard: {job.cvScreening.jaccardWeight}%</li>
+                    <li>Gemini semantic: {job.cvScreening.semanticWeight}%</li>
+                    <li>Ngưỡng đạt CV: {job.cvScreening.passThreshold}</li>
+                  </ul>
+                </div>
+              )}
+              {job.gateScreening && (
+                <div className={panel}>
+                  <h2 className="mb-3 font-semibold">Gate Screening Weights</h2>
+                  <ul className="space-y-1 text-sm">
+                    <li>CV score: {job.gateScreening.cvWeight}%</li>
+                    <li>AI Interview: {job.gateScreening.aiInterviewWeight}%</li>
+                    <li>Assessment: {job.gateScreening.assessmentWeight}%</li>
+                    <li>Ngưỡng vòng gửi xe: {job.gateScreening.passThreshold}</li>
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
           <div className={panel}>
             <h2 className="mb-3 font-semibold">Pipeline</h2>
             <ol className="flex flex-wrap gap-2 text-sm">

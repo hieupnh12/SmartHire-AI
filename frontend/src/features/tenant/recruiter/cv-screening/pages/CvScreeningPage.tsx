@@ -6,6 +6,7 @@ import { getApiErrorMessage } from "@/lib/axios";
 import { queryKeys } from "@/lib/query-keys";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 import { button, input, muted, panel } from "@/features/tenant/recruiter/matching/components/rankingUi";
+import { DetailDialog } from "@/components/ux/DetailDialog";
 import { CvFilePreview } from "@/components/shared/CvFilePreview";
 import { ScreeningBreakdown } from "@/features/tenant/recruiter/cv-screening/components/ScreeningBreakdown";
 import type { CvDetail, MatchBreakdown } from "@/api/types/cv";
@@ -58,7 +59,7 @@ export function CvScreeningPage() {
         <p className={muted}>Tuyển dụng / Sàng lọc CV</p>
         <h1 className="mt-1 text-3xl font-semibold tracking-tight">CV Screening</h1>
         <p className={`mt-2 max-w-2xl ${muted}`}>
-          Hybrid screening: taxonomy + Jaccard + Gemini semantic. Điểm ≥ 60 và không thiếu skill bắt buộc → đạt chuẩn CV, chuyển phỏng vấn AI. Recruiter quyết định vòng Human-to-Human sau các vòng đánh giá.
+          Hybrid screening: taxonomy + Jaccard + Gemini semantic. Bấm một CV để mở chi tiết. Khi job hết hạn đăng, hệ thống tự phân tích các CV chưa chấm.
         </p>
       </header>
       <div className={panel}>
@@ -88,47 +89,51 @@ export function CvScreeningPage() {
         </div>
       )}
       {jobId && (
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,32rem)]">
-          <div className={`${panel} overflow-x-auto`}>
-            {list.isPending && <p>Đang tải CV…</p>}
-            {list.isError && <p role="alert">{getApiErrorMessage(list.error)}</p>}
-            {rows.length === 0 && list.isSuccess && (
-              <p className={muted}>Chưa có CV cho job này. Recruiter không tải CV hộ — chỉ CV ứng viên apply mới hiện.</p>
-            )}
-            {rows.length > 0 && (
-              <table className="w-full text-left text-sm">
-                <thead><tr className={muted}><th className="py-2">Ứng viên</th><th>File</th><th>Trạng thái</th><th>Điểm sàng lọc</th></tr></thead>
-                <tbody>
-                  {rows.map((row) => (
-                    <tr key={row.id} className={`cursor-pointer border-t border-[var(--color-border-default)] ${selectedId === row.id ? "bg-[var(--color-surface-container-low)]" : ""}`}
-                      onClick={() => setSelectedId(row.id)}>
-                      <td className="py-2 font-medium">{row.candidateName}</td>
-                      <td>{row.originalFilename}</td>
-                      <td>{row.status}</td>
-                      <td className="font-mono">{row.matchScore ?? "—"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-          <aside className={panel}>
-            {!cv && <p className={muted}>Chọn một CV để xem file và đánh giá theo JD.</p>}
-            {cv && <CvDetailPanel
-              cv={cv}
-              breakdown={breakdown}
-              onRetry={() => retryParse.mutate(cv.id)}
-              retryPending={retryParse.isPending}
-              onDelete={() => {
-                if (window.confirm("Xóa CV này khỏi job? Không thể hoàn tác.")) remove.mutate(cv.id);
-              }}
-              deletePending={remove.isPending}
-            />}
-            {retryParse.isError && <p role="alert" className="mt-3">{getApiErrorMessage(retryParse.error)}</p>}
-            {remove.isError && <p role="alert" className="mt-3">{getApiErrorMessage(remove.error)}</p>}
-          </aside>
+        <div className={`${panel} overflow-x-auto`}>
+          {list.isPending && <p>Đang tải CV…</p>}
+          {list.isError && <p role="alert">{getApiErrorMessage(list.error)}</p>}
+          {rows.length === 0 && list.isSuccess && (
+            <p className={muted}>Chưa có CV cho job này. Recruiter không tải CV hộ — chỉ CV ứng viên apply mới hiện.</p>
+          )}
+          {rows.length > 0 && (
+            <table className="w-full text-left text-sm">
+              <thead><tr className={muted}><th className="py-2">Ứng viên</th><th>File</th><th>Trạng thái</th><th>Điểm sàng lọc</th></tr></thead>
+              <tbody>
+                {rows.map((row) => (
+                  <tr key={row.id} className={`cursor-pointer border-t border-[var(--color-border-default)] ${selectedId === row.id ? "bg-[var(--color-surface-container-low)]" : ""}`}
+                    onClick={() => setSelectedId(row.id)}>
+                    <td className="py-2 font-medium">{row.candidateName}</td>
+                    <td>{row.originalFilename}</td>
+                    <td>{row.status}</td>
+                    <td className="font-mono">{row.matchScore ?? "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       )}
+      <DetailDialog
+        open={selectedId != null}
+        title={cv?.candidateName ?? "Chi tiết CV"}
+        onClose={() => setSelectedId(null)}
+      >
+        {detail.isPending && selectedId != null && <p>Đang tải…</p>}
+        {cv && (
+          <CvDetailPanel
+            cv={cv}
+            breakdown={breakdown}
+            onRetry={() => retryParse.mutate(cv.id)}
+            retryPending={retryParse.isPending}
+            onDelete={() => {
+              if (window.confirm("Xóa CV này khỏi job? Không thể hoàn tác.")) remove.mutate(cv.id);
+            }}
+            deletePending={remove.isPending}
+          />
+        )}
+        {retryParse.isError && <p role="alert" className="mt-3">{getApiErrorMessage(retryParse.error)}</p>}
+        {remove.isError && <p role="alert" className="mt-3">{getApiErrorMessage(remove.error)}</p>}
+      </DetailDialog>
     </section>
   );
 }

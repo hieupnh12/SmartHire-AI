@@ -171,4 +171,7 @@ smarthire:
   invite:
     public-origin: ${INVITE_PUBLIC_ORIGIN:http://localhost:5173}
     expire-hours: ${INVITE_EXPIRE_HOURS:72}
+  jobs:
+    close-scan-enabled: ${JOB_CLOSE_SCAN_ENABLED:true}
+    close-scan-ms: ${JOB_CLOSE_SCAN_MS:60000}
 

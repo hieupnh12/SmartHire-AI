@@ -27,6 +27,7 @@ import com.smarthire.messaging.JobPublisher;
 import com.smarthire.tenant.applicant.mapper.ApplicantMapper;
 import com.smarthire.tenant.cv.service.CvAccess;
 import com.smarthire.tenant.job.mapper.JobMapper;
+import com.smarthire.tenant.job.screening.GateScreeningService;
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
@@ -56,6 +57,8 @@ public class ApplicantService {
     private final JobMapper jobsMapper;
     private final ApplicantMapper mapper;
     private final JobPublisher publisher;
+    private final GateScreeningService gateScreening;
+    private final AiInterviewInviteService aiInterviewInvites;
 
     public ApplicantService(
             ApplicationRepository applications,
@@ -67,7 +70,9 @@ public class ApplicantService {
             CvAccess access,
             JobMapper jobsMapper,
             ApplicantMapper mapper,
-            JobPublisher publisher) {
+            JobPublisher publisher,
+            GateScreeningService gateScreening,
+            AiInterviewInviteService aiInterviewInvites) {
         this.applications = applications;
         this.history = history;
         this.jobs = jobs;
@@ -78,6 +83,8 @@ public class ApplicantService {
         this.jobsMapper = jobsMapper;
         this.mapper = mapper;
         this.publisher = publisher;
+        this.gateScreening = gateScreening;
+        this.aiInterviewInvites = aiInterviewInvites;
     }
 
     public Map<String, String> health() {
@@ -184,9 +191,10 @@ public class ApplicantService {
                 .toList();
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public ApplicationDetail get(long id) {
         Application application = load(id);
+        gateScreening.recalculate(application);
         return toDetail(application);
     }
 
@@ -280,15 +288,21 @@ public class ApplicantService {
         }
         if (application == null) return;
         ApplicationStatus current = application.getStatus();
-        if (current != ApplicationStatus.NEW && current != ApplicationStatus.IN_REVIEW) return;
         boolean passed = com.smarthire.tenant.cv.service.CvMatchingService.passed(score);
-        if (passed) {
-            record(application, ApplicationStatus.INTERVIEW, "CV passed screening; moved to AI interview");
+        if (current != ApplicationStatus.NEW && current != ApplicationStatus.IN_REVIEW) {
+            if (passed && current == ApplicationStatus.INTERVIEW) {
+                aiInterviewInvites.sendIfNeeded(application, score);
+            }
+            gateScreening.recalculate(application);
             return;
         }
-        if (current == ApplicationStatus.NEW) {
+        if (passed) {
+            record(application, ApplicationStatus.INTERVIEW, "CV passed screening; moved to AI interview");
+            aiInterviewInvites.sendIfNeeded(application, score);
+        } else if (current == ApplicationStatus.NEW) {
             record(application, ApplicationStatus.IN_REVIEW, "CV screening completed; not passed yet");
         }
+        gateScreening.recalculate(application);
     }
 
     @Transactional(readOnly = true)
@@ -302,7 +316,9 @@ public class ApplicantService {
                 application,
                 applications.countByCandidate_Id(application.getCandidate().getId()),
                 cvs.findByUser_IdAndJob_IdOrderByIdDesc(application.getCandidate().getId(), application.getJob().getId()),
-                history.findByApplication_IdOrderByIdDesc(application.getId()));
+                history.findByApplication_IdOrderByIdDesc(application.getId()),
+                gateScreening.view(application),
+                gateScreening.rounds(application));
     }
 
     private void record(Application application, ApplicationStatus next, String note) {
@@ -310,7 +326,13 @@ public class ApplicantService {
         row.setApplication(application);
         row.setFromStatus(application.getStatus() == null ? null : application.getStatus().name());
         row.setToStatus(next.name());
-        row.setChangedBy(access.actor().getId());
+        Long changedBy = null;
+        try {
+            changedBy = access.actor().getId();
+        } catch (RuntimeException ignored) {
+            // Rabbit / job-close scanner has tenant context but no logged-in recruiter.
+        }
+        row.setChangedBy(changedBy);
         row.setNote(blankToNull(note));
         application.setStatus(next);
         history.save(row);

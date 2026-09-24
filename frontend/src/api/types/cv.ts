@@ -40,9 +40,24 @@ export type MatchBreakdown = {
   requiredMissing?: string[];
   passed?: boolean;
   passThreshold?: number;
-  weights?: { required?: number; preferred?: number; jaccard?: number; experience?: number; semantic?: number };
-  components?: { required?: number; preferred?: number | null; jaccard?: number; experience?: number | null; semantic?: number };
+  weights?: {
+    required?: number;
+    preferred?: number;
+    jaccard?: number;
+    experience?: number;
+    education?: number;
+    semantic?: number;
+  };
+  components?: {
+    required?: number;
+    preferred?: number | null;
+    jaccard?: number;
+    experience?: number | null;
+    education?: number | null;
+    semantic?: number;
+  };
   experienceAnalysis?: { requiredYears?: number | null; candidateYears?: number | null; match?: boolean };
+  educationAnalysis?: { requiredLevel?: string | null; candidateLevel?: string | null; match?: boolean };
 };
 
 export type MatchView = {

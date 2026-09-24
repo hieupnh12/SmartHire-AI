@@ -20,6 +20,9 @@ import com.smarthire.messaging.JobPublisher;
 import com.smarthire.tenant.applicant.service.ApplicantService;
 import com.smarthire.tenant.cv.service.CvAccess;
 import com.smarthire.tenant.job.mapper.JobMapper;
+import com.smarthire.tenant.applicant.service.AiInterviewInviteService;
+import com.smarthire.tenant.job.screening.GateScreeningService;
+import com.smarthire.domain.tenant.entity.MatchScore;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -43,6 +46,8 @@ class ApplicantServiceTest {
     @Mock RecruitmentStageRepository stages;
     @Mock CvAccess access;
     @Mock JobPublisher publisher;
+    @Mock GateScreeningService gateScreening;
+    @Mock AiInterviewInviteService aiInterviewInvites;
 
     ApplicantService service;
     User candidate;
@@ -52,7 +57,8 @@ class ApplicantServiceTest {
     @BeforeEach
     void setUp() {
         service = new ApplicantService(
-                applications, history, jobs, users, cvs, stages, access, new JobMapper(), new ApplicantMapper(), publisher);
+                applications, history, jobs, users, cvs, stages, access, new JobMapper(), new ApplicantMapper(),
+                publisher, gateScreening, aiInterviewInvites);
         candidate = new User();
         candidate.setId(9L);
         candidate.setEmail("can@se36.local");
@@ -152,5 +158,57 @@ class ApplicantServiceTest {
 
         assertThat(detail.status()).isEqualTo("WITHDRAWN");
         verify(history).save(any());
+    }
+
+    @Test
+    void cvPassMovesToInterviewAndSendsInvite() {
+        Cv cv = new Cv();
+        cv.setJob(job);
+        cv.setUser(candidate);
+        cv.setApplication(application);
+        MatchScore score = new MatchScore();
+        score.setScore(new java.math.BigDecimal("80.00"));
+        score.setBreakdownJson("{\"passed\":true}");
+        when(access.actor()).thenReturn(candidate);
+
+        service.advanceFromCvScreening(cv, score);
+
+        assertThat(application.getStatus()).isEqualTo(ApplicationStatus.INTERVIEW);
+        verify(aiInterviewInvites).sendIfNeeded(application, score);
+        verify(gateScreening).recalculate(application);
+    }
+
+    @Test
+    void cvFailDoesNotSendInvite() {
+        Cv cv = new Cv();
+        cv.setJob(job);
+        cv.setUser(candidate);
+        cv.setApplication(application);
+        MatchScore score = new MatchScore();
+        score.setScore(new java.math.BigDecimal("40.00"));
+        score.setBreakdownJson("{\"passed\":false}");
+        when(access.actor()).thenReturn(candidate);
+
+        service.advanceFromCvScreening(cv, score);
+
+        assertThat(application.getStatus()).isEqualTo(ApplicationStatus.IN_REVIEW);
+        verify(aiInterviewInvites, org.mockito.Mockito.never()).sendIfNeeded(any(), any());
+    }
+
+    @Test
+    void alreadyInInterviewStillSendsInviteOnce() {
+        application.setStatus(ApplicationStatus.INTERVIEW);
+        Cv cv = new Cv();
+        cv.setJob(job);
+        cv.setUser(candidate);
+        cv.setApplication(application);
+        MatchScore score = new MatchScore();
+        score.setScore(new java.math.BigDecimal("80.00"));
+        score.setBreakdownJson("{\"passed\":true}");
+
+        service.advanceFromCvScreening(cv, score);
+
+        verify(aiInterviewInvites).sendIfNeeded(application, score);
+        verify(gateScreening).recalculate(application);
     }
 }

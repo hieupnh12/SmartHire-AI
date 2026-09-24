@@ -2,7 +2,7 @@ package com.smarthire.domain.tenant.repository;
 
 import com.smarthire.domain.enums.JobStatus;
 import com.smarthire.domain.tenant.entity.Job;
-import java.time.LocalDate;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Page;
@@ -32,11 +32,20 @@ public interface JobRepository extends JpaRepository<Job, Long> {
             select j from Job j
             where j.deletedAt is null
               and j.status = :published
-              and (j.deadline is null or j.deadline >= :today)
+              and (j.deadline is null or j.deadline > :now)
               and (:q is null or :q = '' or lower(j.title) like lower(concat('%', :q, '%'))
                    or lower(coalesce(j.location, '')) like lower(concat('%', :q, '%'))
                    or lower(coalesce(j.department, '')) like lower(concat('%', :q, '%')))
             order by j.publishedAt desc, j.id desc
             """)
-    List<Job> publicOpen(@Param("today") LocalDate today, @Param("q") String q, @Param("published") JobStatus published);
+    List<Job> publicOpen(@Param("now") Instant now, @Param("q") String q, @Param("published") JobStatus published);
+
+    @Query("""
+            select j from Job j
+            where j.deletedAt is null
+              and j.status in :open
+              and j.deadline is not null
+              and j.deadline <= :now
+            """)
+    List<Job> dueToClose(@Param("now") Instant now, @Param("open") List<JobStatus> open);
 }

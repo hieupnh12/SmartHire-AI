@@ -16,7 +16,9 @@ import com.smarthire.domain.tenant.repository.CvAnalysisRepository;
 import com.smarthire.domain.tenant.repository.CvExtractionRepository;
 import com.smarthire.domain.tenant.repository.CvSkillRepository;
 import com.smarthire.domain.tenant.repository.JobSkillRepository;
+import com.smarthire.domain.tenant.entity.JobScreeningConfig;
 import com.smarthire.domain.tenant.repository.MatchScoreRepository;
+import com.smarthire.tenant.job.screening.JobScreeningConfigService;
 import com.smarthire.tenant.matching.service.SkillScoringService;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -42,18 +44,6 @@ public class CvMatchingService {
 
     public static final String HEURISTIC_SCREEN = "heuristic-screen";
     public static final String HYBRID_SCREEN = "hybrid-v1";
-    public static final BigDecimal PASS_THRESHOLD = new BigDecimal("60");
-
-    /** Required skills dominate first-round filtering. */
-    public static final int WEIGHT_REQUIRED = 40;
-    /** Gemini semantic credit; redistributed to required when Gemini has no requirement rows. */
-    public static final int WEIGHT_SEMANTIC = 25;
-    /** Normalized set overlap after taxonomy. */
-    public static final int WEIGHT_JACCARD = 15;
-    /** Years vs job.minYearsExperience; redistributed when the job has no year requirement. */
-    public static final int WEIGHT_EXPERIENCE = 12;
-    /** Preferred (non-required) skills; redistributed when the job has none. */
-    public static final int WEIGHT_PREFERRED = 8;
 
     private static final BigDecimal HUNDRED = new BigDecimal("100");
     private static final BigDecimal HALF = new BigDecimal("0.5");
@@ -64,6 +54,7 @@ public class CvMatchingService {
     private final CvAnalysisRepository analyses;
     private final MatchScoreRepository scores;
     private final SkillScoringService skillScoring;
+    private final JobScreeningConfigService jobScreening;
     private final ObjectMapper mapper;
     private final RedisService redis;
     private final long cacheSeconds;
@@ -75,6 +66,7 @@ public class CvMatchingService {
             CvAnalysisRepository analyses,
             MatchScoreRepository scores,
             SkillScoringService skillScoring,
+            JobScreeningConfigService jobScreening,
             ObjectMapper mapper,
             RedisService redis,
             @Value("${app.redis.ttl.match-score-seconds:1800}") long cacheSeconds) {
@@ -84,6 +76,7 @@ public class CvMatchingService {
         this.analyses = analyses;
         this.scores = scores;
         this.skillScoring = skillScoring;
+        this.jobScreening = jobScreening;
         this.mapper = mapper;
         this.redis = redis;
         this.cacheSeconds = cacheSeconds;
@@ -173,22 +166,39 @@ public class CvMatchingService {
         BigDecimal jaccardScore = pct(jaccard);
         BigDecimal experienceScore = experienceScore(cv.getJob().getMinYearsExperience(),
                 analysis == null ? null : analysis.getYearsExperience());
+        BigDecimal educationScore = educationScore(cv.getJob().getEducationLevel(), root);
         boolean hasGeminiRows = semanticCount > 0;
         BigDecimal semanticScore = hasGeminiRows ? average(semanticSum, semanticCount) : requiredScore;
 
-        int wRequired = WEIGHT_REQUIRED;
-        int wPreferred = preferredCount > 0 ? WEIGHT_PREFERRED : 0;
-        int wExperience = hasExperienceRequirement(cv.getJob().getMinYearsExperience()) ? WEIGHT_EXPERIENCE : 0;
-        int wSemantic = hasGeminiRows ? WEIGHT_SEMANTIC : 0;
-        int wJaccard = WEIGHT_JACCARD;
-        if (wPreferred == 0) wRequired += WEIGHT_PREFERRED;
-        if (wExperience == 0) wRequired += WEIGHT_EXPERIENCE;
-        if (wSemantic == 0) wRequired += WEIGHT_SEMANTIC;
+        JobScreeningConfig config = jobScreening.require(cv.getJob().getId());
+        BigDecimal configuredRequired = nz(config.getCvSkillWeight());
+        BigDecimal configuredPreferred = nz(config.getCvPreferredWeight());
+        BigDecimal configuredExperience = nz(config.getCvExperienceWeight());
+        BigDecimal configuredEducation = nz(config.getCvEducationWeight());
+        BigDecimal configuredJaccard = nz(config.getCvJaccardWeight());
+        BigDecimal configuredSemantic = nz(config.getCvSemanticWeight());
+        BigDecimal passThreshold = nz(config.getCvPassThreshold());
+
+        boolean hasPreferred = preferredCount > 0;
+        boolean hasExperience = hasExperienceRequirement(cv.getJob().getMinYearsExperience());
+        boolean hasEducation = hasEducationRequirement(cv.getJob().getEducationLevel());
+
+        BigDecimal wRequired = configuredRequired;
+        BigDecimal wPreferred = hasPreferred ? configuredPreferred : BigDecimal.ZERO;
+        BigDecimal wExperience = hasExperience ? configuredExperience : BigDecimal.ZERO;
+        BigDecimal wEducation = hasEducation ? configuredEducation : BigDecimal.ZERO;
+        BigDecimal wSemantic = hasGeminiRows ? configuredSemantic : BigDecimal.ZERO;
+        BigDecimal wJaccard = configuredJaccard;
+        if (!hasPreferred) wRequired = wRequired.add(configuredPreferred);
+        if (!hasExperience) wRequired = wRequired.add(configuredExperience);
+        if (!hasEducation) wRequired = wRequired.add(configuredEducation);
+        if (!hasGeminiRows) wRequired = wRequired.add(configuredSemantic);
 
         BigDecimal score = weighted(requiredScore, wRequired)
                 .add(weighted(preferredScore, wPreferred))
                 .add(weighted(jaccardScore, wJaccard))
                 .add(weighted(experienceScore, wExperience))
+                .add(weighted(educationScore, wEducation))
                 .add(weighted(semanticScore, wSemantic))
                 .setScale(2, RoundingMode.HALF_UP);
         if (score.signum() < 0) score = BigDecimal.ZERO;
@@ -200,7 +210,7 @@ public class CvMatchingService {
         boolean geminiExtraction = extraction != null && extraction.getModelVersion() != null
                 && extraction.getModelVersion().startsWith("gemini");
         String model = geminiExtraction || hasGeminiRows ? HYBRID_SCREEN : HEURISTIC_SCREEN;
-        boolean passed = passed(score, requiredMissing.size(), requirements.size(), hasGeminiRows || geminiExtraction);
+        boolean passed = passed(score, passThreshold, requiredMissing.size(), requirements.size(), hasGeminiRows || geminiExtraction);
 
         breakdown.put("skillScore", requiredScore);
         breakdown.put("jaccardSimilarity", jaccard);
@@ -208,20 +218,22 @@ public class CvMatchingService {
         breakdown.put("explanation", verdict);
         breakdown.put("source", model.equals(HYBRID_SCREEN) ? "hybrid" : "heuristic");
         breakdown.put("passed", passed);
-        breakdown.put("passThreshold", PASS_THRESHOLD);
+        breakdown.put("passThreshold", passThreshold);
 
         ObjectNode weights = breakdown.putObject("weights");
         weights.put("required", wRequired);
         weights.put("preferred", wPreferred);
         weights.put("jaccard", wJaccard);
         weights.put("experience", wExperience);
+        weights.put("education", wEducation);
         weights.put("semantic", wSemantic);
 
         ObjectNode components = breakdown.putObject("components");
         components.put("required", requiredScore);
-        components.put("preferred", preferredCount == 0 ? null : preferredScore);
+        components.put("preferred", hasPreferred ? preferredScore : null);
         components.put("jaccard", jaccardScore);
-        components.put("experience", wExperience == 0 ? null : experienceScore);
+        components.put("experience", hasExperience ? experienceScore : null);
+        components.put("education", hasEducation ? educationScore : null);
         components.put("semantic", semanticScore);
 
         ObjectNode experience = breakdown.putObject("experienceAnalysis");
@@ -231,7 +243,15 @@ public class CvMatchingService {
         else experience.put("requiredYears", requiredYears);
         if (candidateYears == null) experience.putNull("candidateYears");
         else experience.put("candidateYears", candidateYears);
-        experience.put("match", wExperience == 0 || experienceScore.compareTo(HUNDRED) >= 0);
+        experience.put("match", !hasExperience || experienceScore.compareTo(HUNDRED) >= 0);
+
+        ObjectNode education = breakdown.putObject("educationAnalysis");
+        if (!hasEducation) education.putNull("requiredLevel");
+        else education.put("requiredLevel", cv.getJob().getEducationLevel());
+        String candidateEducation = highestEducationLabel(root);
+        if (candidateEducation.isBlank()) education.putNull("candidateLevel");
+        else education.put("candidateLevel", candidateEducation);
+        education.put("match", !hasEducation || educationScore.compareTo(HUNDRED) >= 0);
 
         MatchScore saved = scores.findByJob_IdAndCv_Id(cv.getJob().getId(), cv.getId()).orElseGet(MatchScore::new);
         saved.setJob(cv.getJob());
@@ -254,10 +274,13 @@ public class CvMatchingService {
         try {
             JsonNode root = new ObjectMapper().readTree(score.getBreakdownJson());
             if (root.has("passed")) return root.path("passed").asBoolean(false);
+            if (root.has("passThreshold") && root.path("passThreshold").isNumber()) {
+                return score.getScore().compareTo(root.path("passThreshold").decimalValue()) >= 0;
+            }
         } catch (Exception ignored) {
-            // Fall through to score-only rule.
+            // Missing or unreadable breakdown is not a pass.
         }
-        return score.getScore().compareTo(PASS_THRESHOLD) >= 0;
+        return false;
     }
 
     /** J(A,B) = |A ∩ B| / |A ∪ B|. Empty sets → 0. */
@@ -272,8 +295,8 @@ public class CvMatchingService {
                 .divide(BigDecimal.valueOf(union.size()), 4, RoundingMode.HALF_UP);
     }
 
-    private static boolean passed(BigDecimal score, int requiredMissing, int totalRequirements, boolean geminiScore) {
-        if (score == null || score.compareTo(PASS_THRESHOLD) < 0) return false;
+    private static boolean passed(BigDecimal score, BigDecimal threshold, int requiredMissing, int totalRequirements, boolean geminiScore) {
+        if (score == null || threshold == null || score.compareTo(threshold) < 0) return false;
         if (requiredMissing > 0) return false;
         if (totalRequirements == 0 && !geminiScore) return false;
         return true;
@@ -347,6 +370,64 @@ public class CvMatchingService {
         return requiredYears != null && requiredYears.signum() > 0;
     }
 
+    private static boolean hasEducationRequirement(String required) {
+        return required != null && !required.isBlank();
+    }
+
+    static BigDecimal educationScore(String requiredLevel, JsonNode extraction) {
+        if (!hasEducationRequirement(requiredLevel)) return BigDecimal.ZERO;
+        int needed = educationRank(requiredLevel);
+        int have = candidateEducationRank(extraction);
+        if (needed <= 0) return BigDecimal.ZERO;
+        if (have <= 0) return BigDecimal.ZERO;
+        if (have >= needed) return HUNDRED;
+        if (have == needed - 1) return new BigDecimal("50.00");
+        return BigDecimal.ZERO;
+    }
+
+    private static String highestEducationLabel(JsonNode extraction) {
+        if (extraction == null) return "";
+        JsonNode education = extraction.path("education");
+        String bestLabel = firstText(extraction, "highestEducation");
+        int best = educationRank(bestLabel);
+        if (education.isArray()) {
+            for (JsonNode row : education) {
+                String label = firstText(row, "degree", "level", "name");
+                int rank = educationRank(label);
+                if (rank >= best) {
+                    best = rank;
+                    if (!label.isBlank()) bestLabel = label;
+                }
+            }
+        }
+        return bestLabel;
+    }
+
+    private static int candidateEducationRank(JsonNode extraction) {
+        if (extraction == null) return 0;
+        JsonNode education = extraction.path("education");
+        int best = 0;
+        if (education.isArray()) {
+            for (JsonNode row : education) {
+                best = Math.max(best, educationRank(firstText(row, "degree", "level", "name")));
+            }
+        }
+        best = Math.max(best, educationRank(extraction.path("highestEducation").asText("")));
+        return best;
+    }
+
+    static int educationRank(String value) {
+        if (value == null || value.isBlank()) return 0;
+        String n = value.toLowerCase(java.util.Locale.ROOT);
+        if (n.contains("tiến sĩ") || n.contains("tien si") || n.contains("phd") || n.contains("doctor")) return 5;
+        if (n.contains("thạc") || n.contains("thac") || n.contains("master") || n.contains("msc") || n.contains("mba")) return 4;
+        if (n.contains("đại học") || n.contains("dai hoc") || n.contains("cử nhân") || n.contains("cu nhan")
+                || n.contains("bachelor") || n.contains("university") || n.contains("bsc") || n.contains("ba ")) return 3;
+        if (n.contains("cao đẳng") || n.contains("cao dang") || n.contains("college") || n.contains("associate")) return 2;
+        if (n.contains("trung học") || n.contains("trung hoc") || n.contains("high school") || n.contains("secondary")) return 1;
+        return 0;
+    }
+
     private static BigDecimal experienceScore(BigDecimal requiredYears, BigDecimal candidateYears) {
         if (!hasExperienceRequirement(requiredYears)) return BigDecimal.ZERO;
         if (candidateYears == null || candidateYears.signum() < 0) return BigDecimal.ZERO;
@@ -365,9 +446,13 @@ public class CvMatchingService {
         return ratio.multiply(HUNDRED).setScale(2, RoundingMode.HALF_UP);
     }
 
-    private static BigDecimal weighted(BigDecimal component, int weight) {
-        if (weight <= 0) return BigDecimal.ZERO;
-        return component.multiply(BigDecimal.valueOf(weight)).divide(HUNDRED, 4, RoundingMode.HALF_UP);
+    private static BigDecimal weighted(BigDecimal component, BigDecimal weight) {
+        if (weight == null || weight.signum() <= 0 || component == null) return BigDecimal.ZERO;
+        return component.multiply(weight).divide(HUNDRED, 4, RoundingMode.HALF_UP);
+    }
+
+    private static BigDecimal nz(BigDecimal value) {
+        return value == null ? BigDecimal.ZERO : value;
     }
 
     private static String heuristicVerdict(String title, int hits, int total, ArrayNode missing) {

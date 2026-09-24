@@ -84,11 +84,23 @@ export function MyCvPage() {
             {rows.map((row) => (
               <li
                 key={row.id}
-                className={`cursor-pointer rounded-xl border border-[var(--color-border-default)] p-3 ${selectedId === row.id ? "bg-[var(--color-surface-container-low)]" : ""}`}
-                onClick={() => setSelectedId(row.id)}
+                className={`flex items-start justify-between gap-3 rounded-xl border border-[var(--color-border-default)] p-3 ${selectedId === row.id ? "bg-[var(--color-surface-container-low)]" : ""}`}
               >
-                <p className="font-medium">{row.originalFilename}</p>
-                <p className={muted}>{row.status} · {new Date(row.createdAt).toLocaleString("vi-VN")}</p>
+                <button type="button" className="min-w-0 flex-1 text-left" onClick={() => setSelectedId(row.id)}>
+                  <p className="font-medium">{row.originalFilename}</p>
+                  <p className={muted}>{row.status} · {new Date(row.createdAt).toLocaleString("vi-VN")}</p>
+                </button>
+                <button
+                  className={button}
+                  type="button"
+                  disabled={remove.isPending}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    if (window.confirm("Xóa CV này? Không thể hoàn tác.")) remove.mutate(row.id);
+                  }}
+                >
+                  Xóa
+                </button>
               </li>
             ))}
           </ul>

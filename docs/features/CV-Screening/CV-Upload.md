@@ -19,7 +19,7 @@
 2. Candidate tải CV ở **CV của tôi** (không chọn job). Khi apply: Xem chi tiết JD → Apply (chọn CV đã có, tải từ máy, hoặc sang trang CV của tôi).
 3. Status `UPLOADED`.
 4. Auto-enqueue parse; nếu RabbitMQ không chạy thì xử lý ngay trên request.
-5. Recruiter/candidate có thể `DELETE /cvs/{id}` để gỡ CV test hoặc rút CV.
+5. Recruiter/candidate có thể `DELETE /cvs/{id}` để gỡ CV test hoặc rút CV. Candidate xóa ngay trên danh sách **CV của tôi**.
 
 ## Business Rules
 
