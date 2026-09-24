@@ -166,6 +166,25 @@ public class ApplicantService {
     }
 
     @Transactional(readOnly = true)
+    public PageResult<ApplicationSummary> listVisible(Long jobId, String q, ApplicationStatus status, String source, boolean archived, int page, int size) {
+        if (!access.staff()) {
+            throw new BusinessException("Recruiter access required", HttpStatus.FORBIDDEN, "APPLICATION_FORBIDDEN");
+        }
+        var result = applications.searchVisible(
+                jobId,
+                access.jobScopeUserId(),
+                q == null ? null : q.trim(),
+                status,
+                blankToNull(source),
+                archived,
+                PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 50), Sort.by(Sort.Direction.DESC, "id")));
+        List<ApplicationSummary> items = result.getContent().stream()
+                .map(app -> mapper.summary(app, applications.countByCandidate_Id(app.getCandidate().getId()) > 1))
+                .toList();
+        return new PageResult<>(items, result.getNumber(), result.getSize(), result.getTotalElements());
+    }
+
+    @Transactional(readOnly = true)
     public List<ApplicationSummary> mine() {
         User actor = access.actor();
         return applications.findByCandidate_IdOrderByIdDesc(actor.getId()).stream()

@@ -22,11 +22,19 @@ export function ApplicantsPage() {
   const [archived, setArchived] = useState(false);
   const [page, setPage] = useState(0);
   const jobs = useQuery({ queryKey: ["screening-jobs"], queryFn: jobApi.options, enabled: !!token });
-  const listKey = [...queryKeys.applicants.byJob(jobId ?? 0), q, status, source, archived, page];
+  const listKey = [...queryKeys.applicants.byJob(jobId ?? "all"), q, status, source, archived, page];
   const list = useQuery({
     queryKey: listKey,
-    queryFn: () => applicantApi.listByJob(jobId!, { q: q || undefined, status: status || undefined, source: source || undefined, archived, page, size: 20 }),
-    enabled: jobId !== null && !!token,
+    queryFn: () => applicantApi.list({
+      jobId: jobId ?? undefined,
+      q: q || undefined,
+      status: status || undefined,
+      source: source || undefined,
+      archived,
+      page,
+      size: 20,
+    }),
+    enabled: !!token,
   });
   const detail = useQuery({
     queryKey: queryKeys.applicants.detail(selectedId ?? 0),
@@ -48,7 +56,7 @@ export function ApplicantsPage() {
           <label className="space-y-1 text-sm">
             <span>Job</span>
             <select className={input} value={jobId ?? ""} onChange={(e) => { setJobId(e.target.value ? Number(e.target.value) : null); setSelectedId(null); setPage(0); }}>
-              <option value="">Chọn job</option>
+              <option value="">Tất cả job</option>
               {jobList.map((job) => <option key={job.id} value={job.id}>{job.title}</option>)}
             </select>
           </label>
@@ -73,15 +81,14 @@ export function ApplicantsPage() {
           </label>
         </div>
       </div>
-      {jobId && (
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,32rem)]">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,32rem)]">
           <div className={`${panel} overflow-x-auto`}>
             {list.isPending && <p>Đang tải…</p>}
             {list.isError && <p role="alert">{getApiErrorMessage(list.error)}</p>}
-            {rows.length === 0 && list.isSuccess && <p className={muted}>Chưa có application.</p>}
+            {rows.length === 0 && list.isSuccess && <p className={muted}>Chưa có ứng viên.</p>}
             {rows.length > 0 && (
               <table className="w-full text-left text-sm">
-                <thead><tr className={muted}><th className="py-2">Ứng viên</th><th>Nguồn</th><th>Trạng thái</th><th>Phụ trách</th></tr></thead>
+                <thead><tr className={muted}><th className="py-2">Ứng viên</th><th>Job</th><th>Nguồn</th><th>Trạng thái</th><th>Phụ trách</th></tr></thead>
                 <tbody>
                   {rows.map((row) => (
                     <tr key={row.id} className={`cursor-pointer border-t border-[var(--color-border-default)] ${selectedId === row.id ? "bg-[var(--color-surface-container-low)]" : ""}`} onClick={() => setSelectedId(row.id)}>
@@ -89,6 +96,7 @@ export function ApplicantsPage() {
                         <p className="font-medium">{row.candidateName}</p>
                         <p className={muted}>{row.candidateEmail}{row.duplicate ? " · trùng hồ sơ" : ""}</p>
                       </td>
+                      <td>{row.jobTitle}</td>
                       <td>{row.source ?? "—"}{row.referralCode ? ` / ${row.referralCode}` : ""}</td>
                       <td>{labels[row.status] ?? row.status}</td>
                       <td>{row.assigneeName ?? "—"}</td>
@@ -110,7 +118,6 @@ export function ApplicantsPage() {
             {detail.isError && <p role="alert">{getApiErrorMessage(detail.error)}</p>}
           </aside>
         </div>
-      )}
     </section>
   );
 }

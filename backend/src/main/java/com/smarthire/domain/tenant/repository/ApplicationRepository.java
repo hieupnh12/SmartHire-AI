@@ -55,4 +55,32 @@ public interface ApplicationRepository extends JpaRepository<Application, Long> 
             @Param("source") String source,
             @Param("archived") boolean archived,
             Pageable pageable);
+
+    @Query("""
+            select a from Application a
+            join a.candidate c
+            join a.job j
+            where j.deletedAt is null
+              and a.status <> com.smarthire.domain.enums.ApplicationStatus.WITHDRAWN
+              and (:jobId is null or j.id = :jobId)
+              and (:assigneeId is null or exists (
+                    select 1 from JobAssignment asn
+                    where asn.job = j and asn.user.id = :assigneeId))
+              and (:status is null or a.status = :status)
+              and (:source is null or lower(a.source) = lower(:source))
+              and ((:archived = true and a.archivedAt is not null) or (:archived = false and a.archivedAt is null))
+              and (:q is null or :q = ''
+                   or lower(c.fullName) like lower(concat('%', :q, '%'))
+                   or lower(c.email) like lower(concat('%', :q, '%'))
+                   or lower(coalesce(a.tags, '')) like lower(concat('%', :q, '%'))
+                   or lower(coalesce(a.referralCode, '')) like lower(concat('%', :q, '%')))
+            """)
+    Page<Application> searchVisible(
+            @Param("jobId") Long jobId,
+            @Param("assigneeId") Long assigneeId,
+            @Param("q") String q,
+            @Param("status") ApplicationStatus status,
+            @Param("source") String source,
+            @Param("archived") boolean archived,
+            Pageable pageable);
 }

@@ -16,7 +16,7 @@ Quản lý application theo job: apply từ candidate, lọc/phân trang, hồ s
 ## Luồng hoạt động
 
 1. Candidate apply `POST /jobs/{id}/applications` (career hoặc `/candidate/jobs`). Trùng job+email → `409 APPLICATION_EXISTS` (WITHDRAWN thì reopen).
-2. Recruiter xem `GET /jobs/{id}/applications?q&status&source&archived&page&size` — không gồm hồ sơ đã rút đơn (`WITHDRAWN`).
+2. Recruiter xem `GET /api/v1/applications?jobId&q&status&source&archived&page&size`. Không chọn job thì trả mọi hồ sơ trong phạm vi job được phân công (admin thấy toàn tenant). Không gồm hồ sơ đã rút đơn (`WITHDRAWN`).
 3. Chi tiết `GET /applications/{id}`: profile, mọi phiên bản CV, lịch sử.
 4. PATCH notes/tags/assignee/source/referral; reject/archive/restore; candidate withdraw.
 5. Candidate theo dõi `GET /applications/me` (không gồm `WITHDRAWN`). Upload PDF/DOCX (≤10MB) tại `/candidate/cv`; recruiter xem/tải nếu chưa hết hạn lưu.
@@ -34,6 +34,7 @@ Quản lý application theo job: apply từ candidate, lọc/phân trang, hồ s
 | Method | Path |
 |---|---|
 | POST | `/api/v1/jobs/{id}/applications` |
+| GET | `/api/v1/applications` |
 | GET | `/api/v1/jobs/{id}/applications` |
 | GET | `/api/v1/applications/me` |
 | GET | `/api/v1/applications/{id}` |

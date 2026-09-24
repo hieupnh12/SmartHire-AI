@@ -24,9 +24,13 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -100,5 +104,29 @@ class ApplicantServiceTest {
 
         assertThat(detail.status()).isEqualTo("WITHDRAWN");
         verify(history).save(any());
+    }
+
+    @Test
+    void listVisibleReturnsStaffApplications() {
+        when(access.staff()).thenReturn(true);
+        when(access.jobScopeUserId()).thenReturn(null);
+        when(applications.searchVisible(isNull(), isNull(), eq(""), isNull(), isNull(), eq(false), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(application)));
+        when(applications.countByCandidate_Id(9L)).thenReturn(1L);
+
+        var page = service.listVisible(null, "  ", null, null, false, 0, 20);
+
+        assertThat(page.total()).isEqualTo(1);
+        assertThat(page.items().get(0).candidateName()).isEqualTo("Candidate");
+    }
+
+    @Test
+    void listVisibleRejectsCandidate() {
+        when(access.staff()).thenReturn(false);
+
+        assertThatThrownBy(() -> service.listVisible(null, null, null, null, false, 0, 20))
+                .isInstanceOf(BusinessException.class)
+                .extracting(ex -> ((BusinessException) ex).getCode())
+                .isEqualTo("APPLICATION_FORBIDDEN");
     }
 }
