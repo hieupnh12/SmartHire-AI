@@ -67,15 +67,9 @@ public class GlobalExceptionHandler {
             if (cause instanceof BusinessException business) return handleBusiness(business);
             cause = cause.getCause();
         }
-        Throwable root = ex;
-        while (root.getCause() != null && root.getCause() != root) {
-            root = root.getCause();
-        }
         log.error("Unhandled exception {}: {}", ex.getClass().getName(), ex.getMessage(), ex);
-        String detail = root.getClass().getSimpleName() + ": " + String.valueOf(root.getMessage());
-        if (detail.length() > 400) detail = detail.substring(0, 400);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponse.error(detail, "INTERNAL_ERROR"));
+                .body(ApiResponse.error("An internal error occurred. Please try again later.", "INTERNAL_ERROR"));
     }
 }
 

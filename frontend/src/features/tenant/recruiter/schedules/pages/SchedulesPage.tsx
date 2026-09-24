@@ -73,7 +73,7 @@ export function SchedulesPage() {
         </p>
       </header>
 
-      <PrototypeBanner note="AI interview nằm ở menu Interviews · trang này là vòng với người thật" />
+      <PrototypeBanner note="lịch Interview người–người · AI Interview nằm ở menu AI Interview" />
       {toast && (
         <p className="rounded-xl bg-[var(--color-primary-subtle)] px-4 py-2 text-sm text-[var(--color-primary-hover)]" role="status">
           {toast}
