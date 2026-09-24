@@ -55,8 +55,9 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
   const profileQuery = useQuery({
     queryKey: ["tenant-auth-profile", accessToken],
     queryFn: authApi.me,
-    enabled: !!accessToken && !user,
+    enabled: !!accessToken,
     retry: false,
+    staleTime: 60_000,
   });
   const companyProfileQuery = useQuery({
     queryKey: ["tenant", "company", "profile"],

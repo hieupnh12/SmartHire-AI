@@ -5,34 +5,28 @@ import java.time.LocalDateTime;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
-@Entity
-@Table(name = "tenant_subscriptions")
+@Getter
+@Setter
 @Builder
-@Data
 @NoArgsConstructor
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
+@Entity
+@Table(name = "tenant_subscriptions")
 public class TenantSubscription {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    Long id;
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY) Long id;
 
-    @Column(name = "tenant_id", nullable = false)
-    Long tenantId;
+    @Column(name = "tenant_id", nullable = false) Long tenantId;
+    @Column(name = "plan_id", nullable = false) Long planId;
 
-    @Column(name = "plan_id", nullable = false)
-    Long planId;
-
-    @Builder.Default
-    String status = "ACTIVE";
+    @Builder.Default String status = "ACTIVE";
 
     @Builder.Default
     @Column(name = "starts_at", nullable = false)
     LocalDateTime startsAt = LocalDateTime.now();
 
-    @Column(name = "ends_at")
-    LocalDateTime endsAt;
+    @Column(name = "ends_at") LocalDateTime endsAt;
 
     @Builder.Default
     @Column(name = "auto_renew", nullable = false)
@@ -50,6 +44,4 @@ public class TenantSubscription {
     public void onUpdate() {
         this.updatedAt = LocalDateTime.now();
     }
-
-
 }

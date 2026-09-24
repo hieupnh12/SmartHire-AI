@@ -40,6 +40,7 @@ public class CvController {
 
     @PostMapping(value = "/cvs", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "Candidate upload of a personal CV, or a CV attached to a published job")
+    @com.smarthire.multitenancy.quota.RequireMeteredQuota(type = com.smarthire.multitenancy.quota.QuotaType.CV_PARSE)
     public ResponseEntity<ApiResponse<CvDetail>> upload(
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "jobId", required = false) Long jobId,

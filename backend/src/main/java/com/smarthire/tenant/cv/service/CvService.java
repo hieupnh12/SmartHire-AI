@@ -14,7 +14,6 @@ import com.smarthire.domain.tenant.repository.CvDocumentRepository;
 import com.smarthire.domain.tenant.repository.CvExtractionRepository;
 import com.smarthire.domain.tenant.repository.CvRepository;
 import com.smarthire.domain.tenant.repository.CvSkillRepository;
-import com.smarthire.domain.tenant.repository.InterviewRepository;
 import com.smarthire.domain.tenant.repository.JobRepository;
 import com.smarthire.domain.tenant.repository.MatchScoreRepository;
 import com.smarthire.domain.tenant.repository.RankingDataRepository;
@@ -60,7 +59,6 @@ public class CvService {
     private final CvSkillRepository cvSkills;
     private final CvAnalysisRepository analyses;
     private final MatchScoreRepository scores;
-    private final InterviewRepository interviews;
     private final RankingDataRepository rankingData;
     private final FileStorageService storage;
     private final JobPublisher publisher;
@@ -81,7 +79,6 @@ public class CvService {
             CvSkillRepository cvSkills,
             CvAnalysisRepository analyses,
             MatchScoreRepository scores,
-            InterviewRepository interviews,
             RankingDataRepository rankingData,
             FileStorageService storage,
             JobPublisher publisher,
@@ -100,7 +97,6 @@ public class CvService {
         this.cvSkills = cvSkills;
         this.analyses = analyses;
         this.scores = scores;
-        this.interviews = interviews;
         this.rankingData = rankingData;
         this.storage = storage;
         this.publisher = publisher;
@@ -204,7 +200,6 @@ public class CvService {
         analyses.deleteByCv_Id(id);
         extractions.deleteByCv_Id(id);
         documents.deleteByCv_Id(id);
-        interviews.findByCv_Id(id).forEach(interview -> interview.setCv(null));
         rankingData.detachCv(id);
         cvs.delete(cv);
         try {

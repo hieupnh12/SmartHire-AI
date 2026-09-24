@@ -1,0 +1,101 @@
+@startuml
+title FE11-F01 — Practice Interview Session\nCreate session and submit text answers
+skinparam dpi 300
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam sequenceArrowThickness 1
+skinparam sequenceMessageAlign center
+skinparam ArrowColor #64748B
+skinparam ParticipantBorderColor #CBD5E1
+skinparam ParticipantBackgroundColor #F8FAFC
+hide footbox
+autonumber
+
+actor "Candidate" as Candidate
+boundary "Practice Session UI" as FE
+control "Security + TenantWebInterceptor" as Guard
+control "TenantContext" as Context
+boundary "PracticeController" as Controller
+control "PracticeService" as Service
+database "Dedicated Tenant DB" as TenantDB
+
+note over Candidate,TenantDB
+  Preconditions: authenticated CANDIDATE; active tenant.
+  Sandbox session is isolated from hiring interviews/ranking.
+  Voice answers: FE11-F03. Question generation: FE11-F02.
+end note
+
+== Create practice session ==
+Candidate -> FE: Choose topic / target role and start practice
+activate FE
+FE -> Guard: POST /api/v1/practice/sessions\nX-Tenant-ID + CreatePracticeSessionRequest
+activate Guard
+Guard -> Guard: authenticate CANDIDATE
+alt unauthorized
+  Guard --> FE: 401 / 403
+  deactivate Guard
+  FE --> Candidate: Access error
+  deactivate FE
+else authorized
+  Guard -> Context: setCurrentTenant(tenantId)
+  Guard -> Controller: forward
+  activate Controller
+  Controller -> Service: createSession(request, principal)
+  activate Service
+  Service -> TenantDB: INSERT practice_sessions\n(status=CREATED, candidate, topic)
+  activate TenantDB
+  TenantDB --> Service: PracticeSession
+  deactivate TenantDB
+  Service --> Controller: PracticeSessionResponse
+  deactivate Service
+  Controller --> FE: 201 Created
+  deactivate Controller
+  FE --> Candidate: Session ready
+  deactivate FE
+  Guard -> Context: clear() in finally
+  deactivate Guard
+end
+
+== Submit text answer ==
+Candidate -> FE: Submit text answer for a prepared question
+activate FE
+FE -> Guard: POST /api/v1/practice/sessions/{id}/answers\nX-Tenant-ID + SubmitPracticeAnswerRequest
+activate Guard
+Guard -> Context: setCurrentTenant(tenantId)
+Guard -> Controller: forward
+activate Controller
+Controller -> Service: submitTextAnswer(sessionId, request, principal)
+activate Service
+Service -> TenantDB: load session by id + candidate
+activate TenantDB
+alt not owner or missing
+  TenantDB --> Service: empty
+  deactivate TenantDB
+  Service --> Controller: 404 / 403
+  deactivate Service
+  Controller --> FE: error
+  deactivate Controller
+  FE --> Candidate: Cannot submit
+  deactivate FE
+else owned session
+  TenantDB --> Service: PracticeSession
+  deactivate TenantDB
+  Service -> TenantDB: update PracticeAnswer.answerText\nsession status=IN_PROGRESS
+  activate TenantDB
+  TenantDB --> Service: saved
+  deactivate TenantDB
+  Service --> Controller: PracticeAnswerResponse
+  deactivate Service
+  Controller --> FE: 200 OK
+  deactivate Controller
+  FE --> Candidate: Answer saved
+  deactivate FE
+end
+Guard -> Context: clear() in finally
+deactivate Guard
+
+note over Service,TenantDB
+  Does not call ranking or official interview tables.
+  Feedback/scoring is FE11-F04 after answers are ready.
+end note
+@enduml

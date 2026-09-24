@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { applicantApi } from "@/api/tenant/applicantApi";
 import { cvApi } from "@/api/tenant/cvApi";
 import { jobApi } from "@/api/tenant/jobApi";
@@ -154,6 +154,28 @@ function ApplicationPanel({ detail, onChanged }: { detail: ApplicationDetail; on
         <p className={muted}>Nguồn {detail.source ?? "—"}{detail.referralCode ? ` · referral ${detail.referralCode}` : ""}</p>
       </div>
       <ApplicationPipeline status={detail.status} />
+      <div className="space-y-3 rounded-2xl border border-dashed border-[var(--color-outline-variant)] p-3">
+        <p className="font-semibold">Kết quả vòng (UI sơ khai)</p>
+        <p className={muted}>Đánh giá AI · Bài test · Nhận xét PV — tách khỏi status đơn.</p>
+        <ul className="space-y-2 text-sm">
+          <li className="flex flex-wrap items-center justify-between gap-2">
+            <span>Đánh giá AI</span>
+            <span className={muted}>Chưa có phiên</span>
+          </li>
+          <li className="flex flex-wrap items-center justify-between gap-2">
+            <span>Bài kiểm tra</span>
+            <span>86.7% · đã chấm (mock)</span>
+          </li>
+          <li className="flex flex-wrap items-center justify-between gap-2">
+            <span>Interview chính thức</span>
+            <span className={muted}>Chờ xác nhận lịch</span>
+          </li>
+        </ul>
+        <div className="flex flex-wrap gap-2">
+          <Link className={button} to="/recruiter/assessments">Quản lý đề</Link>
+          <Link className={button} to="/recruiter/schedules">Đặt lịch PV</Link>
+        </div>
+      </div>
       <AppliedCvReview cvs={detail.cvs} />
       <label className="block space-y-1"><span>Ghi chú</span><textarea className={input} value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} /></label>
       <label className="block space-y-1"><span>Tag</span><input className={input} value={tags} onChange={(e) => setTags(e.target.value)} placeholder="java, referral" /></label>

@@ -23,4 +23,6 @@ public interface TenantUsageDailyRepository extends JpaRepository<TenantUsageDai
 
     @Query("SELECT COALESCE(SUM(u.aiVoiceSeconds), 0) FROM TenantUsageDaily u WHERE u.tenantId = :tenantId AND u.usageDate BETWEEN :startDate AND :endDate")
     long sumAiVoiceSecondsForPeriod(@Param("tenantId") Long tenantId, @Param("startDate") LocalDate startDate, @Param("endDate") LocalDate endDate);
+
+    List<TenantUsageDaily> findByUsageDateBetweenOrderByUsageDateAsc(LocalDate startDate, LocalDate endDate);
 }

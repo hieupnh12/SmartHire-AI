@@ -1,47 +1,36 @@
 package com.smarthire.domain.tenant.entity;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.OneToOne;
-import jakarta.persistence.PrePersist;
-import jakarta.persistence.PreUpdate;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import java.time.Instant;
+import lombok.*;
+import lombok.experimental.FieldDefaults;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
+@Getter
+@Setter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+@FieldDefaults(level = AccessLevel.PRIVATE)
 @Entity
 @Table(name = "cv_extractions")
 public class CvExtraction {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY) Long id;
 
     @OneToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "cv_id", nullable = false, unique = true)
-    private Cv cv;
+    Cv cv;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "extraction_json", nullable = false, columnDefinition = "json")
-    private String extractionJson;
+    String extractionJson;
 
-    @Column(name = "model_version", length = 64)
-    private String modelVersion;
-
-    @Column(name = "prompt_version", length = 64)
-    private String promptVersion;
-
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private Instant createdAt;
-
-    @Column(name = "updated_at")
-    private Instant updatedAt;
+    @Column(name = "model_version", length = 64) String modelVersion;
+    @Column(name = "prompt_version", length = 64) String promptVersion;
+    @Column(name = "created_at", nullable = false, updatable = false) Instant createdAt;
+    @Column(name = "updated_at") Instant updatedAt;
 
     @PrePersist
     void onCreate() {
@@ -52,17 +41,4 @@ public class CvExtraction {
 
     @PreUpdate
     void onUpdate() { updatedAt = Instant.now(); }
-
-    public Long getId() { return id; }
-    public Cv getCv() { return cv; }
-    public void setCv(Cv cv) { this.cv = cv; }
-    public String getExtractionJson() { return extractionJson; }
-    public void setExtractionJson(String extractionJson) { this.extractionJson = extractionJson; }
-    public String getModelVersion() { return modelVersion; }
-    public void setModelVersion(String modelVersion) { this.modelVersion = modelVersion; }
-    public String getPromptVersion() { return promptVersion; }
-    public void setPromptVersion(String promptVersion) { this.promptVersion = promptVersion; }
-    public Instant getCreatedAt() { return createdAt; }
-    public Instant getUpdatedAt() { return updatedAt; }
 }
-

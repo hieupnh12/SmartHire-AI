@@ -13,8 +13,9 @@ import {
 } from "lucide-react";
 import type { TenantInfo } from "@/api/master/masterAdminApi";
 import { cn } from "@/lib/utils";
+import { AiEngineConfiguration } from "./AiEngineConfiguration";
 
-export type SystemManagementView = "ai-usage" | "ai-quotas";
+export type SystemManagementView = "ai-usage" | "ai-quotas" | "ai-config";
 
 type Props = {
   view: SystemManagementView;
@@ -94,5 +95,8 @@ function AiQuotaManagement({ tenants }: { tenants: TenantInfo[] }) {
 }
 
 export function SystemManagementWorkspace({ view, tenants }: Props) {
+  if (view === "ai-config") {
+    return <AiEngineConfiguration />;
+  }
   return view === "ai-usage" ? <AiUsageReport tenants={tenants} /> : <AiQuotaManagement tenants={tenants} />;
 }

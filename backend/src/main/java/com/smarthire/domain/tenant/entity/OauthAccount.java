@@ -14,39 +14,42 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+import lombok.experimental.FieldDefaults;
 
+@Getter
+@Setter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+@FieldDefaults(level = AccessLevel.PRIVATE)
 @Entity
 @Table(name = "oauth_accounts")
 public class OauthAccount {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "user_id", nullable = false)
-    private User user;
+    User user;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)
-    private OAuthProvider provider;
+    OAuthProvider provider;
 
     @Column(name = "provider_user_id", nullable = false)
-    private String providerUserId;
+    String providerUserId;
 
     @Column(name = "created_at", nullable = false, updatable = false)
-    private Instant createdAt;
+    Instant createdAt;
 
     @PrePersist
     void onCreate() { createdAt = Instant.now(); }
-
-    public Long getId() { return id; }
-    public User getUser() { return user; }
-    public void setUser(User user) { this.user = user; }
-    public OAuthProvider getProvider() { return provider; }
-    public void setProvider(OAuthProvider provider) { this.provider = provider; }
-    public String getProviderUserId() { return providerUserId; }
-    public void setProviderUserId(String providerUserId) { this.providerUserId = providerUserId; }
-    public Instant getCreatedAt() { return createdAt; }
 }
-

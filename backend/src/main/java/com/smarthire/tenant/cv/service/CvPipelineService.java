@@ -38,6 +38,7 @@ public class CvPipelineService {
     private final JobPublisher publisher;
     private final RedisService redis;
     private final JobSkillRepository jobSkills;
+    private final com.smarthire.multitenancy.quota.TenantQuotaRedisService quotaService;
 
     public CvPipelineService(
             CvRepository cvs,
@@ -51,7 +52,8 @@ public class CvPipelineService {
             ApplicantService applicants,
             JobPublisher publisher,
             RedisService redis,
-            JobSkillRepository jobSkills) {
+            JobSkillRepository jobSkills,
+            com.smarthire.multitenancy.quota.TenantQuotaRedisService quotaService) {
         this.cvs = cvs;
         this.documents = documents;
         this.extractions = extractions;
@@ -64,6 +66,7 @@ public class CvPipelineService {
         this.publisher = publisher;
         this.redis = redis;
         this.jobSkills = jobSkills;
+        this.quotaService = quotaService;
     }
 
     /** Used when RabbitMQ is down so recruiters can still screen a CV locally. */
@@ -210,6 +213,16 @@ public class CvPipelineService {
     private void fail(Cv cv, String code, Exception ex, boolean enqueue) {
         cv.fail(code, ex.getMessage());
         cvs.save(cv);
+        
+        try {
+            String tenantCode = com.smarthire.multitenancy.context.TenantContext.getCurrentTenant();
+            if (tenantCode != null) {
+                quotaService.rollbackQuota(tenantCode, com.smarthire.multitenancy.quota.QuotaType.CV_PARSE, 1);
+            }
+        } catch (Exception rollbackEx) {
+            log.error("Failed to rollback quota for CV {}", cv.getId(), rollbackEx);
+        }
+
         if (enqueue) throw new IllegalStateException(ex);
         log.error("CV {} failed at {}", cv.getId(), code, ex);
     }

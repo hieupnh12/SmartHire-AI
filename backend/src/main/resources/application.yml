@@ -98,7 +98,7 @@ app:
         maximum-pool-size: ${MASTER_DB_POOL_SIZE:10}
         minimum-idle: 1
   tenant:
-    credentials-key: ${TENANT_CREDENTIALS_KEY:MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=}
+    credentials-key: ${TENANT_CREDENTIALS_KEY}
     base-domain: ${TENANT_BASE_DOMAIN:smarthire.top}
     mysql-base-url: ${TENANT_MYSQL_BASE_URL:jdbc:mysql://127.0.0.1:3306}
     mysql-options: ${TENANT_MYSQL_OPTIONS:sslMode=PREFERRED&allowPublicKeyRetrieval=true}
@@ -114,10 +114,6 @@ app:
     admin-password: ${BOOTSTRAP_ADMIN_PASSWORD:}
   cors:
     allowed-origins: ${CORS_ORIGINS:http://localhost:5173}
-  jwt:
-    secret: ${JWT_SECRET:51330ac6763ee8ea260ef202bb35a6b84629fbb3a5b8598d75279cfb84b6e9c7}
-    access-token-minutes: 30
-    refresh-token-days: 7
   redis:
     ttl:
       job-list-seconds: 120
@@ -159,13 +155,16 @@ app:
     cloudinary-api-key: ${CLOUDINARY_API_KEY:}
     cloudinary-api-secret: ${CLOUDINARY_API_SECRET:}
     max-file-bytes: ${CV_MAX_FILE_BYTES:10485760}
-    gemini-api-key: ${GEMINI_API_KEY:}
-    gemini-model: ${GEMINI_MODEL:gemini-2.0-flash}
+  ai:
     timeout-seconds: ${CV_AI_TIMEOUT_SECONDS:30}
+    gemini:
+      api-key: ${GEMINI_API_KEY:}
+    models:
+      cv-parsing: ${GEMINI_MODEL:gemini-2.0-flash}
 
 smarthire:
   jwt:
-    secret: ${JWT_SECRET:51330ac6763ee8ea260ef202bb35a6b84629fbb3a5b8598d75279cfb84b6e9c7}
+    secret: ${JWT_SECRET}
     expiration-ms: ${JWT_EXPIRATION:86400000}
   google:
     client-id: ${GOOGLE_CLIENT_ID:}

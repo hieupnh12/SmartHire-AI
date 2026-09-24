@@ -1,0 +1,138 @@
+@startuml
+title FE07-F01 — Interview Configuration & Session Management\nCreate AI interview session
+skinparam dpi 300
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam sequenceArrowThickness 1
+skinparam sequenceMessageAlign center
+skinparam ArrowColor #64748B
+skinparam ParticipantBorderColor #CBD5E1
+skinparam ParticipantBackgroundColor #F8FAFC
+hide footbox
+autonumber
+
+actor "Recruiter / HR" as Recruiter
+boundary "Interview Config UI" as FE
+control "Security + TenantWebInterceptor" as Guard
+control "TenantContext" as Context
+boundary "InterviewController" as Controller
+control "InterviewService" as Service
+database "Dedicated Tenant DB" as TenantDB
+
+note over Recruiter,TenantDB
+  Preconditions: authenticated RECRUITER or TENANT_ADMIN (HR);
+  active tenant; job, candidate and optional CV belong to this tenant DB.
+  Scope: create session only (POST /api/v1/interviews) → status CREATED.
+  Out of scope: question generation, live interview, scoring, scheduling.
+end note
+
+Recruiter -> FE: Select job, candidate, mode (AI_VOICE|AI_TEXT),\noptional CV, then create session
+activate FE
+FE -> Guard: POST /api/v1/interviews\nX-Tenant-ID + CreateInterviewRequest
+activate Guard
+Guard -> Guard: authenticate and authorize role
+
+alt unauthenticated or unauthorized
+  Guard --> FE: 401 Unauthorized / 403 Forbidden
+  deactivate Guard
+  FE --> Recruiter: Show access error
+  deactivate FE
+else authorized
+  Guard -> Context: setCurrentTenant(tenantId)
+  Guard -> Controller: forward request and principal
+  activate Controller
+  Controller -> Controller: validate request DTO\n(jobId, candidateId, mode required)
+
+  alt invalid request body
+    Controller --> FE: 400 Bad Request
+    deactivate Controller
+    FE --> Recruiter: Show validation errors
+    deactivate FE
+  else valid request
+    Controller -> Service: createSession(request, principal)
+    activate Service
+    Service -> Context: getCurrentTenant()
+    Service -> TenantDB: find Job by jobId
+    activate TenantDB
+
+    alt job not found or not usable
+      TenantDB --> Service: missing / closed job
+      deactivate TenantDB
+      Service --> Controller: 404 JOB_NOT_FOUND\nor 409 JOB_NOT_OPEN
+      deactivate Service
+      Controller --> FE: error response
+      deactivate Controller
+      FE --> Recruiter: Show job error
+      deactivate FE
+    else job found
+      TenantDB --> Service: Job
+      deactivate TenantDB
+      Service -> TenantDB: find User by candidateId
+      activate TenantDB
+
+      alt candidate invalid
+        TenantDB --> Service: missing / not ACTIVE CANDIDATE
+        deactivate TenantDB
+        Service --> Controller: 404 CANDIDATE_NOT_FOUND\nor 409 CANDIDATE_NOT_ELIGIBLE
+        deactivate Service
+        Controller --> FE: error response
+        deactivate Controller
+        FE --> Recruiter: Show candidate error
+        deactivate FE
+      else candidate eligible
+        TenantDB --> Service: Candidate User
+        deactivate TenantDB
+
+        alt cvId provided
+          Service -> TenantDB: find Cv by cvId
+          activate TenantDB
+          alt CV missing or mismatched
+            TenantDB --> Service: not found /\nnot same candidate+job
+            deactivate TenantDB
+            Service --> Controller: 404 CV_NOT_FOUND\nor 409 CV_MISMATCH
+            deactivate Service
+            Controller --> FE: error response
+            deactivate Controller
+            FE --> Recruiter: Show CV error
+            deactivate FE
+          else CV valid
+            TenantDB --> Service: Cv
+            deactivate TenantDB
+            Service -> Service: build Interview\nmode=request.mode,\nstatus=CREATED, cv set
+            Service -> TenantDB: INSERT interviews
+            activate TenantDB
+            TenantDB --> Service: Interview id
+            deactivate TenantDB
+            Service --> Controller: InterviewResponse
+            deactivate Service
+            Controller --> FE: 201 Created + session summary
+            deactivate Controller
+            FE --> Recruiter: Show created session (CREATED)
+            deactivate FE
+          end
+        else cvId omitted
+          Service -> Service: build Interview\nmode=request.mode,\nstatus=CREATED, cv=null
+          Service -> TenantDB: INSERT interviews
+          activate TenantDB
+          TenantDB --> Service: Interview id
+          deactivate TenantDB
+          Service --> Controller: InterviewResponse
+          deactivate Service
+          Controller --> FE: 201 Created + session summary
+          deactivate Controller
+          FE --> Recruiter: Show created session (CREATED)
+          deactivate FE
+        end
+      end
+    end
+  end
+
+  Guard -> Context: clear() in finally
+  deactivate Guard
+end
+
+note over Service,TenantDB
+  Persistence is tenant-scoped only (separate MySQL per tenant).
+  No master DB write and no RabbitMQ in this create flow.
+end note
+@enduml

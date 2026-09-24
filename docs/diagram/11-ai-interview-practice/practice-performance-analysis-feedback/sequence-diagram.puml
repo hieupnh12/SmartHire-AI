@@ -1,0 +1,100 @@
+@startuml
+title FE11-F04 — Practice Performance Analysis & Feedback\nAnalyze answers and store feedback
+skinparam dpi 300
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam sequenceArrowThickness 1
+skinparam sequenceMessageAlign center
+skinparam ArrowColor #64748B
+skinparam ParticipantBorderColor #CBD5E1
+skinparam ParticipantBackgroundColor #F8FAFC
+hide footbox
+autonumber
+
+actor "Candidate" as Candidate
+boundary "Practice UI" as FE
+control "Security + TenantWebInterceptor" as Guard
+control "TenantContext" as Context
+boundary "PracticeController" as Controller
+control "PracticeService" as Service
+queue "RabbitMQ\npractice.feedback" as MQ
+control "PracticeFeedbackConsumer" as Consumer
+control "PracticeFeedbackService" as FeedbackSvc
+control "PracticeAnalysisPort" as AI
+database "Dedicated Tenant DB" as TenantDB
+
+note over Candidate,TenantDB
+  PRACT-02: POST feedback → practice.feedback → score + content (+ section breakdown).
+  Result Review (GET) is FE11-F05. No ranking side effects.
+end note
+
+Candidate -> FE: Request analysis & feedback
+activate FE
+FE -> Guard: POST /api/v1/practice/sessions/{id}/feedback\nX-Tenant-ID
+activate Guard
+Guard -> Context: setCurrentTenant(tenantId)
+Guard -> Controller: forward
+activate Controller
+Controller -> Service: requestFeedback(id, principal)
+activate Service
+Service -> TenantDB: load owned session + answers with text
+activate TenantDB
+alt missing / incomplete answers
+  TenantDB --> Service: reject
+  deactivate TenantDB
+  Service --> Controller: 404 / 409 FEEDBACK_NOT_READY
+  deactivate Service
+  Controller --> FE: error
+  deactivate Controller
+  FE --> Candidate: Not ready
+  deactivate FE
+else ready
+  TenantDB --> Service: answers
+  deactivate TenantDB
+  Service -> MQ: publish PracticeFeedbackJob + X-Tenant-ID
+  activate MQ
+  deactivate MQ
+  Service --> Controller: 202 Accepted
+  deactivate Service
+  Controller --> FE: Analyzing…
+  deactivate Controller
+  FE --> Candidate: Wait for feedback
+  deactivate FE
+
+  MQ -> Consumer: deliver
+  activate Consumer
+  Consumer -> Context: setCurrentTenant(X-Tenant-ID)
+  Consumer -> FeedbackSvc: analyzeAndFeedback(job)
+  activate FeedbackSvc
+  FeedbackSvc -> TenantDB: load answers
+  activate TenantDB
+  TenantDB --> FeedbackSvc: PracticeAnswer list
+  deactivate TenantDB
+  FeedbackSvc -> AI: analyze(answers)
+  activate AI
+  alt AI failure
+    AI --> FeedbackSvc: error
+    deactivate AI
+    FeedbackSvc -> TenantDB: status=FAILED
+    activate TenantDB
+    deactivate TenantDB
+    FeedbackSvc --> Consumer: failure
+    deactivate FeedbackSvc
+  else success
+    AI --> FeedbackSvc: overall score + section tips + content
+    deactivate AI
+    FeedbackSvc -> TenantDB: upsert practice_feedbacks\n(content, score, breakdown)
+    activate TenantDB
+    deactivate TenantDB
+    FeedbackSvc -> TenantDB: status=COMPLETED
+    activate TenantDB
+    deactivate TenantDB
+    FeedbackSvc --> Consumer: PracticeFeedback
+    deactivate FeedbackSvc
+  end
+  Consumer -> Context: clear() in finally
+  deactivate Consumer
+end
+Guard -> Context: clear() in finally
+deactivate Guard
+@enduml

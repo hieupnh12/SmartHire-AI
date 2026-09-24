@@ -4,7 +4,7 @@ import { applicantApi } from "@/api/tenant/applicantApi";
 import { getApiErrorMessage } from "@/lib/axios";
 import { queryKeys } from "@/lib/query-keys";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
-import { button, labels, muted, panel } from "@/features/tenant/recruiter/matching/components/rankingUi";
+import { button, labels, muted, panel, primary } from "@/features/tenant/recruiter/matching/components/rankingUi";
 import { ApplicationPipeline } from "@/features/tenant/recruiter/matching/components/recruitmentFlow";
 
 export function MyApplicationsPage() {
@@ -39,6 +39,7 @@ export function MyApplicationsPage() {
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
+                <Link className={primary} to={`/candidate/applications/${row.id}`}>Chi tiết vòng</Link>
                 <Link className={button} to={`/candidate/jobs/${row.jobId}`}>Xem việc</Link>
                 {row.status !== "HIRED" && (
                   <button className={button} type="button" disabled={withdraw.isPending} onClick={() => {

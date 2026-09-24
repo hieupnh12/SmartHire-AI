@@ -9,7 +9,6 @@ import com.smarthire.domain.tenant.repository.CvDocumentRepository;
 import com.smarthire.domain.tenant.repository.CvExtractionRepository;
 import com.smarthire.domain.tenant.repository.CvRepository;
 import com.smarthire.domain.tenant.repository.CvSkillRepository;
-import com.smarthire.domain.tenant.repository.InterviewRepository;
 import com.smarthire.domain.tenant.repository.JobRepository;
 import com.smarthire.domain.tenant.repository.MatchScoreRepository;
 import com.smarthire.domain.tenant.repository.RankingDataRepository;
@@ -44,7 +43,6 @@ class CvServiceTest {
     @Mock CvSkillRepository cvSkills;
     @Mock CvAnalysisRepository analyses;
     @Mock MatchScoreRepository scores;
-    @Mock InterviewRepository interviews;
     @Mock RankingDataRepository rankingData;
     @Mock FileStorageService storage;
     @Mock JobPublisher publisher;
@@ -60,7 +58,7 @@ class CvServiceTest {
     void setUp() {
         service = new CvService(
                 cvs, jobs, users, applications, documents, extractions, cvSkills, analyses, scores,
-                interviews, rankingData, storage, publisher, access, mapper, matching, pipeline, tenants, 10_485_760);
+                rankingData, storage, publisher, access, mapper, matching, pipeline, tenants, 10_485_760);
     }
 
     @Test
@@ -81,7 +79,6 @@ class CvServiceTest {
         cv.setId(7L);
         cv.setStorageKey("ttqt/7/cv.pdf");
         when(cvs.findById(7L)).thenReturn(Optional.of(cv));
-        when(interviews.findByCv_Id(7L)).thenReturn(List.of());
 
         service.delete(7L);
 

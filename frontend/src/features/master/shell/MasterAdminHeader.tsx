@@ -12,7 +12,7 @@ export function MasterAdminHeader({ isSidebarCollapsed }: MasterHeaderProps) {
   return (
     <header className="hidden">
       <div
-        className={`mx-auto grid min-h-[84px] w-full max-w-[1536px] grid-cols-[5rem_minmax(0,1fr)] items-center transition-[grid-template-columns] duration-200 ${
+        className={`grid min-h-[84px] w-full grid-cols-[5rem_minmax(0,1fr)] items-center transition-[grid-template-columns] duration-200 ${
           isSidebarCollapsed ? "" : "md:grid-cols-[16rem_minmax(0,1fr)]"
         }`}
       >

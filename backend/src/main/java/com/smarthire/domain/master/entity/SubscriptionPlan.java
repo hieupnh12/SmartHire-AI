@@ -8,25 +8,20 @@ import lombok.experimental.FieldDefaults;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
-@Entity
-@Table(name = "subscription_plans")
+@Getter
+@Setter
 @Builder
-@Data
 @NoArgsConstructor
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
+@Entity
+@Table(name = "subscription_plans")
 public class SubscriptionPlan {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    Long id;
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY) Long id;
 
-    @Column(nullable = false, unique = true, length = 64)
-    String code;
-
-    @Column(nullable = false, length = 128)
-    String name;
-
+    @Column(nullable = false, unique = true, length = 64) String code;
+    @Column(nullable = false, length = 128) String name;
     String description;
 
     @Builder.Default
@@ -69,8 +64,7 @@ public class SubscriptionPlan {
     @Column(name = "is_deleted", nullable = false)
     boolean deleted = false;
 
-    @Column(name = "deleted_at")
-    LocalDateTime deletedAt;
+    @Column(name = "deleted_at") LocalDateTime deletedAt;
 
     @Builder.Default
     @Column(nullable = false, length = 32)

@@ -9,34 +9,33 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+import lombok.experimental.FieldDefaults;
 
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@FieldDefaults(level = AccessLevel.PRIVATE)
 @Entity
 @Table(name = "interviews")
 public class Interview extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "job_id", nullable = false)
-    private Job job;
+    @JoinColumn(name = "application_id", nullable = false)
+    Application application;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "candidate_id", nullable = false)
-    private User candidate;
+    @Column(name = "interview_type", nullable = false, length = 64)
+    String interviewType;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "cv_id")
-    private Cv cv;
+    @Column(nullable = false, length = 64)
+    String mode;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)
-    private InterviewStatus status = InterviewStatus.CREATED;
-
-    public Job getJob() { return job; }
-    public void setJob(Job job) { this.job = job; }
-    public User getCandidate() { return candidate; }
-    public void setCandidate(User candidate) { this.candidate = candidate; }
-    public Cv getCv() { return cv; }
-    public void setCv(Cv cv) { this.cv = cv; }
-    public InterviewStatus getStatus() { return status; }
-    public void setStatus(InterviewStatus status) { this.status = status; }
+    InterviewStatus status = InterviewStatus.CREATED;
 }
-

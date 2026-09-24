@@ -11,56 +11,53 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+import lombok.experimental.FieldDefaults;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
+@Getter
+@Setter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+@FieldDefaults(level = AccessLevel.PRIVATE)
 @Entity
 @Table(name = "notifications")
 public class Notification {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "user_id", nullable = false)
-    private User user;
+    User user;
 
     @Column(nullable = false, length = 64)
-    private String type;
+    String type;
 
     @Column(nullable = false)
-    private String title;
+    String title;
 
     @Column(columnDefinition = "TEXT")
-    private String body;
+    String body;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "payload_json", columnDefinition = "json")
-    private String payloadJson;
+    String payloadJson;
 
     @Column(name = "read_at")
-    private Instant readAt;
+    Instant readAt;
 
     @Column(name = "created_at", nullable = false, updatable = false)
-    private Instant createdAt;
+    Instant createdAt;
 
     @PrePersist
     void onCreate() { createdAt = Instant.now(); }
-
-    public Long getId() { return id; }
-    public User getUser() { return user; }
-    public void setUser(User user) { this.user = user; }
-    public String getType() { return type; }
-    public void setType(String type) { this.type = type; }
-    public String getTitle() { return title; }
-    public void setTitle(String title) { this.title = title; }
-    public String getBody() { return body; }
-    public void setBody(String body) { this.body = body; }
-    public String getPayloadJson() { return payloadJson; }
-    public void setPayloadJson(String payloadJson) { this.payloadJson = payloadJson; }
-    public Instant getReadAt() { return readAt; }
-    public void setReadAt(Instant readAt) { this.readAt = readAt; }
-    public Instant getCreatedAt() { return createdAt; }
 }
-

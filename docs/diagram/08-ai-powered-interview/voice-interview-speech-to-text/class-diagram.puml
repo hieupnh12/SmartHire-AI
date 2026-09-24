@@ -1,0 +1,163 @@
+@startuml
+!include ../class-style.puml
+
+package "Controller Layer" {
+  class InterviewController <<Controller>> {
+    - interviewService: InterviewService
+    + submitVoiceAnswer(interviewId: Long, request: VoiceAnswerRequest): ApiResponse<VoiceAcceptedResponse>
+  }
+}
+
+package "DTO Layer" {
+  class VoiceAnswerRequest <<Request>> {
+    + questionId: Long
+    + audio: MultipartFile
+    + language: String
+  }
+  class VoiceAcceptedResponse <<Response>> {
+    + interviewId: Long
+    + questionId: Long
+    + answerId: Long
+    + status: String
+    + accepted: boolean
+  }
+  class SttJob <<Domain Event>> {
+    + interviewId: Long
+    + answerId: Long
+    + language: String
+    + correlationId: String
+  }
+}
+
+package "Service Layer" {
+  interface InterviewService <<Service>> {
+    + submitVoiceAnswer(interviewId: Long, request: VoiceAnswerRequest, principal: Principal): VoiceAcceptedResponse
+  }
+  class InterviewServiceImpl <<Service>> {
+    - interviewRepository: InterviewRepository
+    - answerRepository: InterviewAnswerRepository
+    - objectStorage: ObjectStoragePort
+    - sttPublisher: InterviewSttPublisher
+    - tenantContext: TenantContext
+    + submitVoiceAnswer(interviewId: Long, request: VoiceAnswerRequest, principal: Principal): VoiceAcceptedResponse
+  }
+  interface InterviewSttService <<Service>> {
+    + transcribe(job: SttJob): InterviewAnswer
+  }
+  class InterviewSttServiceImpl <<Service>> {
+    - answerRepository: InterviewAnswerRepository
+    - sttPort: SpeechToTextPort
+    - tenantContext: TenantContext
+    + transcribe(job: SttJob): InterviewAnswer
+  }
+  class InterviewSttConsumer <<Service>> {
+    - sttService: InterviewSttService
+    + onSttRequested(job: SttJob, tenantId: String): void
+  }
+}
+
+package "Repository Layer" {
+  interface InterviewRepository <<Repository>> {
+    + findById(id: Long): Optional<Interview>
+  }
+  interface InterviewAnswerRepository <<Repository>> {
+    + findById(id: Long): Optional<InterviewAnswer>
+    + save(answer: InterviewAnswer): InterviewAnswer
+  }
+}
+
+package "Domain Entity Layer" {
+  class Interview <<Entity>> {
+    - id: Long
+    - status: InterviewStatus
+  }
+  class InterviewQuestion <<Entity>> {
+    - id: Long
+    - sortOrder: int
+    - questionText: String
+  }
+  class InterviewAnswer <<Entity>> {
+    - id: Long
+    - audioUrl: String
+    - transcript: String [0..1]
+    - status: String
+  }
+  enum InterviewStatus <<Enum>> {
+    QUESTIONS_READY
+    IN_PROGRESS
+    SCORING
+    SCORED
+    FAILED
+  }
+}
+
+package "Infrastructure & Persistence" {
+  interface ObjectStoragePort <<DataSource>> {
+    + storeAudio(tenantId: String, interviewId: Long, file: MultipartFile): String
+  }
+  interface SpeechToTextPort <<DataSource>> {
+    + transcribe(audioUrl: String, language: String): String
+  }
+  class InterviewSttPublisher <<Queue>> {
+    + publish(job: SttJob, tenantId: String): void
+  }
+  class TenantMySQL <<Database>> {
+    .. Dedicated Tenant DB ..
+    + interviews
+    + interview_questions
+    + interview_answers
+  }
+  class SttQueue <<Queue>> {
+    .. RabbitMQ interview.stt ..
+  }
+  class TenantContext <<DataSource>> {
+    + {static} getCurrentTenant(): String
+    + {static} setCurrentTenant(tenantId: String): void
+    + {static} clear(): void
+  }
+}
+
+InterviewController ..> VoiceAnswerRequest : consumes >
+InterviewController ..> VoiceAcceptedResponse : returns >
+InterviewController --> InterviewService : delegates >
+InterviewService <|.. InterviewServiceImpl : implements
+InterviewServiceImpl ..> VoiceAnswerRequest : processes >
+InterviewServiceImpl ..> VoiceAcceptedResponse : creates >
+InterviewServiceImpl ..> SttJob : emits >
+InterviewServiceImpl --> ObjectStoragePort : persists through >
+InterviewServiceImpl --> InterviewRepository : queries >
+InterviewServiceImpl --> InterviewAnswerRepository : persists through >
+InterviewServiceImpl --> InterviewSttPublisher : publishes event >
+InterviewServiceImpl --> TenantContext : caches / evicts >
+
+InterviewSttPublisher --> SttQueue : publishes event >
+SttQueue ..> InterviewSttConsumer : delivers >
+InterviewSttConsumer --> InterviewSttService : delegates >
+InterviewSttConsumer --> TenantContext : caches / evicts >
+InterviewSttService <|.. InterviewSttServiceImpl : implements
+InterviewSttServiceImpl --> SpeechToTextPort : queries >
+InterviewSttServiceImpl --> InterviewAnswerRepository : persists through >
+InterviewSttServiceImpl ..> SttJob : processes >
+
+InterviewRepository --> Interview : manages >
+InterviewAnswerRepository --> InterviewAnswer : manages >
+InterviewRepository --> TenantMySQL : persists to >
+InterviewAnswerRepository --> TenantMySQL : persists to >
+
+Interview "1" *-- "1..*" InterviewQuestion
+InterviewQuestion "1" *-- "0..1" InterviewAnswer
+Interview ..> InterviewStatus : typed by >
+
+note right of InterviewServiceImpl
+  Scope I: one audio upload per question.
+  Saves audio_url immediately with status
+  RECORDED / TRANSCRIBING, then enqueues STT.
+  Realtime streaming is out of scope.
+end note
+
+note right of InterviewSttServiceImpl
+  Writes transcript only. NLP analysis and
+  scoring continue in FE07-F02 after answers
+  are ready (choice A).
+end note
+@enduml

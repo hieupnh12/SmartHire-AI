@@ -38,8 +38,10 @@ import { HomePage as CandidateHomePage } from "@/features/tenant/candidate/dashb
 import { BrowseJobsPage } from "@/features/tenant/candidate/jobs/pages/BrowseJobsPage";
 import { CandidateJobDetailPage } from "@/features/tenant/candidate/jobs/pages/CandidateJobDetailPage";
 import { MyApplicationsPage } from "@/features/tenant/candidate/applications/pages/MyApplicationsPage";
+import { ApplicationDetailPage } from "@/features/tenant/candidate/applications/pages/ApplicationDetailPage";
 import { MyCvPage } from "@/features/tenant/candidate/cv/pages/MyCvPage";
 import { AssessmentsPage as CandidateAssessmentsPage } from "@/features/tenant/candidate/assessments/pages/AssessmentsPage";
+import { TakeAssessmentPage } from "@/features/tenant/candidate/assessments/pages/TakeAssessmentPage";
 import { InterviewsPage as CandidateInterviewsPage } from "@/features/tenant/candidate/interviews/pages/InterviewsPage";
 import { PracticePage } from "@/features/tenant/candidate/practice/pages/PracticePage";
 import { SchedulesPage as CandidateSchedulesPage } from "@/features/tenant/candidate/schedules/pages/SchedulesPage";
@@ -54,6 +56,7 @@ import { CvScreeningPage } from "@/features/tenant/recruiter/cv-screening/pages/
 import { RankingPage } from "@/features/tenant/recruiter/matching/pages/MatchingPage";
 import { PipelinePage } from "@/features/tenant/recruiter/pipeline/pages/PipelinePage";
 import { AssessmentsPage as RecruiterAssessmentsPage } from "@/features/tenant/recruiter/assessments/pages/AssessmentsPage";
+import { AssessmentDetailPage } from "@/features/tenant/recruiter/assessments/pages/AssessmentDetailPage";
 import { InterviewsPage as RecruiterInterviewsPage } from "@/features/tenant/recruiter/interviews/pages/InterviewsPage";
 import { SchedulesPage as RecruiterSchedulesPage } from "@/features/tenant/recruiter/schedules/pages/SchedulesPage";
 import { NotificationsPage as RecruiterNotificationsPage } from "@/features/tenant/recruiter/notifications/pages/NotificationsPage";
@@ -104,8 +107,10 @@ export function AppRouter() {
           <Route path="jobs" element={<BrowseJobsPage />} />
           <Route path="jobs/:id" element={<CandidateJobDetailPage />} />
           <Route path="applications" element={<MyApplicationsPage />} />
+          <Route path="applications/:id" element={<ApplicationDetailPage />} />
           <Route path="cv" element={<MyCvPage />} />
           <Route path="assessments" element={<CandidateAssessmentsPage />} />
+          <Route path="assessments/:submissionId/take" element={<TakeAssessmentPage />} />
           <Route path="interviews" element={<CandidateInterviewsPage />} />
           <Route path="practice" element={<PracticePage />} />
           <Route path="schedules" element={<CandidateSchedulesPage />} />
@@ -151,6 +156,8 @@ export function AppRouter() {
           </Route>
           <Route element={<FeatureRoute feature="ASSESSMENTS" />}>
             <Route path="assessments" element={<RecruiterAssessmentsPage />} />
+            <Route path="assessments/new" element={<AssessmentDetailPage />} />
+            <Route path="assessments/:id" element={<AssessmentDetailPage />} />
           </Route>
           <Route element={<FeatureRoute feature="INTERVIEWS" />}>
             <Route path="interviews" element={<RecruiterInterviewsPage />} />
@@ -201,6 +208,7 @@ export function AppRouter() {
           <Route path="system/logs" element={<AuditLogsPage />} />
           <Route path="system/ai-usage" element={<AiManagementPage />} />
           <Route path="system/ai-quotas" element={<AiManagementPage />} />
+          <Route path="system/ai-config" element={<AiManagementPage />} />
           <Route path="account/profile" element={<MasterAccountPage activeTab="account-profile" />} />
           <Route path="account/security" element={<MasterAccountPage activeTab="account-security" />} />
           <Route path="account/accessibility" element={<MasterAccountPage activeTab="account-accessibility" />} />
