@@ -25,7 +25,7 @@ async function main() {
     await context.route('**/*', async route => {
       const request = route.request();
       const url = new URL(request.url());
-      if (!url.pathname.includes('/api/')) return route.continue();
+      if (!url.pathname.startsWith('/api/v1/')) return route.continue();
       const p = url.pathname.replace(/^.*\/api\/v1/, '');
       const method = request.method();
       const body = request.postData() ? request.postDataJSON() : null;

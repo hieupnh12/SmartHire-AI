@@ -49,6 +49,14 @@ class AssessmentFlowTest {
     @Import({AssessmentService.class, QuestionService.class, SubmissionService.class, AssessmentMapper.class, CvAccess.class})
     static class Config {
         @Bean DataSource dataSource() {
+            String mysql = System.getenv("ASSESSMENT_TEST_JDBC_URL");
+            if (mysql != null) {
+                var uri = java.net.URI.create(mysql.substring(5));
+                if (!"mysql".equals(uri.getScheme()) || !uri.getPath().matches("/smarthire_tenant_assessment_verify_[a-z0-9_]+")) {
+                    throw new IllegalArgumentException("MySQL assessment tests require a dedicated verification database");
+                }
+                return new DriverManagerDataSource(mysql, System.getenv("ASSESSMENT_TEST_USER"), System.getenv("ASSESSMENT_TEST_PASSWORD"));
+            }
             return new DriverManagerDataSource("jdbc:h2:mem:assessment;MODE=MySQL;DB_CLOSE_DELAY=-1;LOCK_TIMEOUT=10000", "sa", "");
         }
         @Bean LocalContainerEntityManagerFactoryBean entityManagerFactory(DataSource dataSource) {
@@ -56,7 +64,9 @@ class AssessmentFlowTest {
             factory.setDataSource(dataSource);
             factory.setPackagesToScan("com.smarthire.domain.tenant.entity");
             factory.setJpaVendorAdapter(new HibernateJpaVendorAdapter());
-            factory.setJpaPropertyMap(Map.of("hibernate.hbm2ddl.auto", "create-drop"));
+            // Real MySQL tests must exercise Flyway's schema, never create it via Hibernate.
+            factory.setJpaPropertyMap(Map.of("hibernate.hbm2ddl.auto",
+                    System.getenv("ASSESSMENT_TEST_JDBC_URL") == null ? "create-drop" : "none"));
             return factory;
         }
         @Bean PlatformTransactionManager transactionManager(jakarta.persistence.EntityManagerFactory factory) {
