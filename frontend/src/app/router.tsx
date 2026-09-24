@@ -57,7 +57,10 @@ import { RankingPage } from "@/features/tenant/recruiter/matching/pages/Matching
 import { PipelinePage } from "@/features/tenant/recruiter/pipeline/pages/PipelinePage";
 import { AssessmentsPage as RecruiterAssessmentsPage } from "@/features/tenant/recruiter/assessments/pages/AssessmentsPage";
 import { AssessmentDetailPage } from "@/features/tenant/recruiter/assessments/pages/AssessmentDetailPage";
+import { QuestionBankPage } from "@/features/tenant/recruiter/assessments/pages/QuestionBankPage";
+import { ExcelQuestionTemplatePage } from "@/features/tenant/recruiter/assessments/pages/ExcelQuestionTemplatePage";
 import { InterviewsPage as RecruiterInterviewsPage } from "@/features/tenant/recruiter/interviews/pages/InterviewsPage";
+import { AiInterviewsPage as RecruiterAiInterviewsPage } from "@/features/tenant/recruiter/interviews/pages/AiInterviewsPage";
 import { SchedulesPage as RecruiterSchedulesPage } from "@/features/tenant/recruiter/schedules/pages/SchedulesPage";
 import { NotificationsPage as RecruiterNotificationsPage } from "@/features/tenant/recruiter/notifications/pages/NotificationsPage";
 import { RecruiterAnalyticsPage } from "@/features/tenant/recruiter/analytics/pages/RecruiterAnalyticsPage";
@@ -157,7 +160,12 @@ export function AppRouter() {
           <Route element={<FeatureRoute feature="ASSESSMENTS" />}>
             <Route path="assessments" element={<RecruiterAssessmentsPage />} />
             <Route path="assessments/new" element={<AssessmentDetailPage />} />
+            <Route path="assessments/question-bank" element={<QuestionBankPage />} />
+            <Route path="assessments/excel-template" element={<ExcelQuestionTemplatePage />} />
             <Route path="assessments/:id" element={<AssessmentDetailPage />} />
+          </Route>
+          <Route element={<FeatureRoute feature="AI_INTERVIEWS" />}>
+            <Route path="ai-interviews" element={<RecruiterAiInterviewsPage />} />
           </Route>
           <Route element={<FeatureRoute feature="INTERVIEWS" />}>
             <Route path="interviews" element={<RecruiterInterviewsPage />} />

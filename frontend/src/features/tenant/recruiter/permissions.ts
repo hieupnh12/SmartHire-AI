@@ -7,6 +7,7 @@ import { recruiterNav, type RecruiterFeatureCode } from "@/features/tenant/recru
  */
 const PROTOTYPE_NAV_FEATURES: readonly RecruiterFeatureCode[] = [
   "ASSESSMENTS",
+  "AI_INTERVIEWS",
   "INTERVIEWS",
 ];
 
@@ -34,7 +35,9 @@ export function recruiterHomePath(permissions?: string[] | null) {
 export function featureForRecruiterPath(pathname: string): RecruiterFeatureCode | null {
   const rest = pathname.replace(/^\/recruiter/, "") || "";
   if (rest === "/matching" || rest.startsWith("/rank")) return "RANKING";
-  const match = recruiterNav.find((item) => item.to === rest || (item.to !== "" && rest.startsWith(item.to)));
+  const match = [...recruiterNav]
+    .sort((a, b) => b.to.length - a.to.length)
+    .find((item) => item.to === rest || (item.to !== "" && rest.startsWith(item.to)));
   return match?.featureCode ?? null;
 }
 

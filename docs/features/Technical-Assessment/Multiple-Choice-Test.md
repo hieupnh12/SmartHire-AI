@@ -113,6 +113,7 @@ Kiểm chứng ngày 2026-09-24: 33 test assessment/multitenancy đạt, trong �
 - Google Stitch: **FE-05 Online Technical Assessment / Multiple Choice Test** — _[dán link]_
 - Icons: xem `DESIGN.md`
 - Recruiter: `/recruiter/assessments`, `/new`, `/:id`; danh sách phân trang, thông tin đề, CRUD câu hỏi/options, chọn đáp án đúng, publish khóa sửa.
+- Ngân hàng câu hỏi: `/recruiter/assessments/question-bank` tổng hợp câu MCQ theo bộ sưu tập, vị trí và bộ lọc; mở đề gốc để sửa. Yêu thích lưu trên trình duyệt. Chưa có rubric, cấp độ hay lịch sử phiên bản riêng.
 - Candidate: `/candidate/assessments` chọn đơn hợp lệ; `/:submissionId/take` có câu hỏi, radio lựa chọn, điều hướng, tiến độ, tự lưu/retry, timer, xác nhận nộp và điểm tổng.
 - Query key assessment phân biệt tenant/user; Axios hiện có gắn token và tenant header. Server state dùng TanStack Query, form dùng React Hook Form + Zod.
 
