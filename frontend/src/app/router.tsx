@@ -145,8 +145,9 @@ export function AppRouter() {
             <Route path="cvs" element={<CvScreeningPage />} />
           </Route>
           <Route element={<FeatureRoute feature="RANKING" />}>
-            <Route path="rank" element={<RankingPage />} />
-            <Route path="matching" element={<Navigate to="/recruiter/rank" replace />} />
+            <Route path="jobs/:id/rank" element={<RankingPage />} />
+            <Route path="rank" element={<Navigate to="/recruiter/jobs" replace />} />
+            <Route path="matching" element={<Navigate to="/recruiter/jobs" replace />} />
           </Route>
           <Route element={<FeatureRoute feature="PIPELINE" />}>
             <Route path="pipeline" element={<PipelinePage />} />

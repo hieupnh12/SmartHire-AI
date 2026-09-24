@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowDownToLine, Award, BriefcaseBusiness, ChevronLeft, ChevronRight, Clock3, Eye, FilterX, Gauge, RefreshCw, Search, SlidersHorizontal, Sparkles, Users } from "lucide-react";
+import { ArrowDownToLine, Award, ChevronLeft, ChevronRight, Clock3, Eye, FilterX, Gauge, RefreshCw, Search, SlidersHorizontal, Sparkles, Users } from "lucide-react";
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
+import { Link, useParams } from "react-router-dom";
 import { matchingApi } from "@/api/tenant/matchingApi";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 import { getApiErrorMessage } from "@/lib/axios";
@@ -15,7 +16,6 @@ import { useRankingStore } from "../stores/useRankingStore";
 import type { RankingPage, RankingRow } from "../types/ranking";
 
 const terminal = new Set(["REJECTED", "WITHDRAWN", "HIRED"]);
-const previewEnabled = import.meta.env.DEV || import.meta.env.VITE_ENABLE_RANKING_PREVIEW === "true";
 const componentScore = (row: RankingRow, key: string) => row.result.components.find((part) => part.key === key)?.score ?? null;
 
 function ScoreGauge({ score }: { score: number | null }) {
@@ -69,22 +69,26 @@ function CandidateCard({ row, showRank, onOpen }: { row: RankingRow; showRank: b
 
 export function RankingPage() {
   const state = useRankingStore();
+  const { id } = useParams<{ id: string }>();
   const token = useAuthStore((store) => store.accessToken);
   const sessionKey = useMemo(() => crypto.randomUUID(), [token]);
   const tenantKey = `${getTenantIdFromWindow() ?? ""}:${sessionKey}`;
   const client = useQueryClient();
-  const jobId = state.jobId;
+  const jobId = Number(id);
+  const validJobId = Number.isInteger(jobId) && jobId > 0;
   const pageSize = state.pageSize;
   const deferredSearch = useDeferredValue(state.search);
   const isPreview = jobId === PREVIEW_JOB_ID;
-  const jobs = useQuery({ queryKey: ["ranking-jobs", tenantKey], queryFn: matchingApi.jobs, enabled: !!token && !isPreview });
   const [previewUpdatedAt, setPreviewUpdatedAt] = useState(rankingPreview.calculatedAt);
   const [previewRefreshing, setPreviewRefreshing] = useState(false);
   const rankingQuery = { page: state.page, size: pageSize, search: deferredSearch, status: state.status, cohort: state.cohort, minScore: state.minimum === "" ? undefined : Number(state.minimum), sort: state.sort };
-  const query = useQuery({ queryKey: ["rankings", tenantKey, jobId, rankingQuery], queryFn: () => matchingApi.rankings(jobId!, rankingQuery), enabled: jobId !== null && jobId !== PREVIEW_JOB_ID && !!token, refetchInterval: 30_000, refetchOnWindowFocus: true });
+  const query = useQuery({ queryKey: ["rankings", tenantKey, jobId, rankingQuery], queryFn: () => matchingApi.rankings(jobId, rankingQuery), enabled: validJobId && jobId !== PREVIEW_JOB_ID && !!token, refetchInterval: 30_000, refetchOnWindowFocus: true });
   const previewRows = rankingPreview.rows.filter((row) => !terminal.has(row.status));
   const previewBoard: RankingPage = { ...rankingPreview, calculatedAt: previewUpdatedAt, cohorts: [...new Set(rankingPreview.rows.map((row) => row.result.cohort))], summary: { totalCandidates: rankingPreview.rows.length, activeCandidates: previewRows.length, scoredCandidates: rankingPreview.rows.length, averageScore: rankingPreview.rows.reduce((sum, row) => sum + (row.result.score ?? 0), 0) / rankingPreview.rows.length, topCandidateName: rankingPreview.rows[0]?.candidateName ?? null, topScore: rankingPreview.rows[0]?.result.score ?? null, completeCandidates: rankingPreview.rows.filter((row) => row.result.complete).length }, page: { number: 0, size: pageSize, totalElements: rankingPreview.rows.length, totalPages: 1 } };
   const board = isPreview ? previewBoard : query.data?.data;
+  useEffect(() => {
+    if (validJobId && state.jobId !== jobId) state.setJob(jobId);
+  }, [jobId, state, validJobId]);
   useEffect(() => {
     if (!token || isPreview) return;
     const socket = createRankingSocket(token, (event) => {
@@ -99,7 +103,7 @@ export function RankingPage() {
   const recompute = useMutation({ mutationFn: (id: number) => matchingApi.recompute(id), onSuccess: saved });
   const refreshing = recompute.isPending || previewRefreshing;
   const refreshRanking = () => {
-    if (!jobId) return;
+    if (!validJobId) return;
     if (!isPreview) { recompute.mutate(jobId); return; }
     setPreviewRefreshing(true);
     window.setTimeout(() => { setPreviewUpdatedAt(new Date().toISOString()); setPreviewRefreshing(false); }, 650);
@@ -109,11 +113,6 @@ export function RankingPage() {
   const page = board?.page.number ?? 0;
   const selected = board?.rows.find((row) => row.applicationId === state.selectedId);
   const summary = board?.summary;
-  const jobOptions = [
-    ...(previewEnabled ? [{ value: String(PREVIEW_JOB_ID), label: rankingPreview.jobTitle, description: "Khám phá giao diện với bộ dữ liệu minh họa", badge: "Dữ liệu mẫu" }] : []),
-    ...(jobs.data?.data.filter((job) => job.id !== PREVIEW_JOB_ID).map((job) => ({ value: String(job.id), label: job.title, description: "Xem bảng điểm và thứ hạng ứng viên" })) ?? []),
-  ];
-
   const exportCsv = () => {
     if (!board) return;
     const rows = [["Rank", "Candidate", "Skills", "Experience", "Assessment", "AI Interview", "Overall", "Status"], ...filtered.map((row) => [row.rank ?? "", row.candidateName, componentScore(row, "skills") ?? "", componentScore(row, "experience") ?? "", componentScore(row, "assessment") ?? "", componentScore(row, "interview") ?? "", row.result.score ?? "", row.status])];
@@ -142,17 +141,14 @@ export function RankingPage() {
         </div>
 
         <div className="relative z-40 rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)]/90 p-4 shadow-[0_16px_40px_-28px_var(--color-primary-shadow)] backdrop-blur sm:p-5">
-          <div className="space-y-2"><span className="flex items-center gap-2 text-sm font-semibold"><BriefcaseBusiness className="size-4 text-[var(--color-primary)]" aria-hidden="true" />Vị trí tuyển dụng</span><RankingSelect searchable searchPlaceholder="Tìm theo tên vị trí…" ariaLabel="Vị trí tuyển dụng" value={jobId === null ? "" : String(jobId)} options={jobOptions} placeholder="Chọn Job để bắt đầu xếp hạng" onChange={(value) => state.setJob(Number(value))} disabled={!isPreview && jobs.isPending} /></div>
+          <div><p className="text-xs font-medium text-[var(--color-on-surface-variant)]">Đang xếp hạng cho</p><p className="mt-1 truncate text-lg font-semibold">{board?.jobTitle ?? `Job #${id}`}</p><Link to={`/recruiter/jobs/${id}`} className="mt-2 inline-flex text-xs font-semibold text-[var(--color-primary)] hover:underline">Quay lại chi tiết công việc</Link></div>
           <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2"><button className={button} disabled={!board?.rows.length} onClick={exportCsv}><ArrowDownToLine className="size-4" aria-hidden="true" />Xuất CSV</button><button className={primary} disabled={!jobId || refreshing} onClick={refreshRanking}><RefreshCw className={`size-4 ${refreshing ? "animate-spin motion-reduce:animate-none" : ""}`} aria-hidden="true" />{refreshing ? "Đang tính lại…" : "Tính lại điểm"}</button></div>
-          {!isPreview && jobs.isPending && token && <p role="status" className="mt-3 text-xs text-[var(--color-on-surface-variant)]">Đang tải danh sách Job…</p>}
-          {!isPreview && jobs.isError && <div role="alert" className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{getApiErrorMessage(jobs.error)} <button className="font-semibold underline" onClick={() => void jobs.refetch()}>Thử lại</button></div>}
-          {!isPreview && jobs.isSuccess && jobs.data.data.length === 0 && <p className={`mt-3 ${muted}`}>Bạn chưa có Job được giao quyền quản lý.</p>}
         </div>
       </div>
     </header>
 
     {!token && <p role="status" className="rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-5">Đăng nhập bằng tài khoản Recruiter để xem bảng xếp hạng.</p>}
-    {!jobId && <div className="relative overflow-hidden rounded-3xl border border-dashed border-[var(--color-outline-variant)] bg-[var(--color-surface-card)] px-5 py-14 text-center sm:py-20"><div className="absolute inset-x-1/4 top-0 h-24 bg-[var(--color-primary-subtle)] blur-3xl" aria-hidden="true" /><span className="relative mx-auto grid size-16 place-items-center rounded-2xl bg-[var(--color-primary-soft)] text-[var(--color-primary)]"><Award className="size-8" aria-hidden="true" /></span><h2 className="relative mt-5 text-xl font-semibold">Chọn vị trí để mở bảng xếp hạng</h2><p className="relative mx-auto mt-2 max-w-xl text-sm leading-6 text-[var(--color-on-surface-variant)]">Hệ thống sẽ tổng hợp dữ liệu ứng viên, giải thích từng thành phần điểm và làm nổi bật những hồ sơ cần recruiter xem xét.</p><div className="relative mx-auto mt-6 flex max-w-2xl flex-wrap justify-center gap-2 text-xs"><span className="rounded-full bg-[var(--color-surface-container-low)] px-3 py-1.5">Kỹ năng & CV</span><span className="rounded-full bg-[var(--color-surface-container-low)] px-3 py-1.5">Kinh nghiệm</span><span className="rounded-full bg-[var(--color-surface-container-low)] px-3 py-1.5">Assessment</span><span className="rounded-full bg-[var(--color-surface-container-low)] px-3 py-1.5">AI Interview</span></div></div>}
+    {!validJobId && <div className="rounded-xl border border-red-200 bg-red-50 p-5 text-sm text-red-700" role="alert">Đường dẫn công việc không hợp lệ. <Link className="font-semibold underline" to="/recruiter/jobs">Quay lại danh sách công việc</Link></div>}
     {jobId && !isPreview && token && query.isPending && <div className="rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-8 text-center" role="status">Đang tải và tính điểm ứng viên…</div>}
     {jobId && !isPreview && query.isError && <div className="rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-6" role="alert">{getApiErrorMessage(query.error)} <button className={button} onClick={() => void query.refetch()}>Thử lại</button></div>}
     {recompute.isError && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{getApiErrorMessage(recompute.error)}</p>}

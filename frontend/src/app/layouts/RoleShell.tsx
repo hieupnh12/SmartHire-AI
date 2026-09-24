@@ -10,6 +10,7 @@ import { authApi } from "@/api/tenant/authApi";
 import { companyApi } from "@/api/tenant/companyApi";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 import { hasRecruiterFeature, recruiterHomePath, visibleRecruiterNav } from "@/features/tenant/recruiter/permissions";
+import { JobNavigationDrawer } from "@/features/tenant/recruiter/jobs/components/JobNavigationDrawer";
 import { useT } from "@/i18n";
 import { getTenantIdFromWindow } from "@/lib/tenant";
 import { getTenantTheme, getTenantThemeStyle } from "@/lib/tenantTheme";
@@ -49,6 +50,8 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
   const userInitial = user?.fullName.trim().charAt(0).toLocaleUpperCase();
   const isCandidateWorkspace = basePath === "/candidate";
   const isRecruiterWorkspace = basePath === "/recruiter";
+  const isRecruiterDashboard = isRecruiterWorkspace && location.pathname === "/recruiter";
+  const isRecruiterPipeline = isRecruiterWorkspace && location.pathname === "/recruiter/pipeline";
   const isTenantAdminWorkspace = basePath === "/internal/admin";
   const useWorkspaceHeader = isCandidateWorkspace || isRecruiterWorkspace;
   const tenantTheme = getTenantTheme(getTenantIdFromWindow() ?? "acme");
@@ -72,7 +75,7 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
   const displayedLinks = isRecruiterWorkspace
     ? accessToken && !user
       ? []
-      : visibleRecruiterNav(user?.permissions)
+      : visibleRecruiterNav(user?.permissions).filter((item) => item.to !== "")
     : links;
   const showRecruiterNotifications =
     !isRecruiterWorkspace || hasRecruiterFeature(user?.permissions, "NOTIFICATIONS");
@@ -298,10 +301,11 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
   }
 
   return (
-    <div className="tenant-workspace-theme min-h-screen bg-surface-page" style={getTenantThemeStyle(tenantTheme)}>
+    <div className={cn("tenant-workspace-theme min-h-screen bg-surface-page", isRecruiterPipeline && "xl:h-dvh xl:overflow-hidden")} style={getTenantThemeStyle(tenantTheme)}>
       <header className="sticky top-0 z-40 border-b border-[var(--color-border-default)] bg-white/85 shadow-sm backdrop-blur-md">
         <div className="mx-auto flex min-h-16 max-w-[1440px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-10">
           <div className="flex min-w-0 items-center gap-3">
+            {isRecruiterWorkspace && <JobNavigationDrawer />}
             <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-brand-primary text-[var(--color-on-primary)] shadow-[0_10px_20px_-10px_var(--color-primary-shadow)]">
               <Sparkles className="size-[18px]" aria-hidden="true" />
             </span>
@@ -389,7 +393,7 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
           </div>
         </div>
 
-        <div className="border-t border-[var(--color-border-default)] bg-white/85">
+        {!isRecruiterDashboard && <div className="border-t border-[var(--color-border-default)] bg-white/85">
           <nav
             className="mx-auto flex max-w-[1440px] gap-1 overflow-x-auto px-4 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:px-6 lg:px-10"
             aria-label={t("a11y.mainNav")}
@@ -413,9 +417,9 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
               </NavLink>
             ))}
           </nav>
-        </div>
+        </div>}
       </header>
-      <main id="main-content" className="mx-auto max-w-[1440px] px-4 py-6 sm:px-6 sm:py-8 lg:px-10">
+      <main id="main-content" className={cn("mx-auto", isRecruiterDashboard ? "w-full max-w-none p-0" : isRecruiterPipeline ? "w-full max-w-none px-4 sm:px-6 lg:px-10 xl:h-[calc(100dvh-7.5rem)] xl:overflow-hidden" : "max-w-[1440px] px-4 py-6 sm:px-6 sm:py-8 lg:px-10")}>
         <Outlet />
       </main>
     </div>

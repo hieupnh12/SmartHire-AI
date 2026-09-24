@@ -33,7 +33,7 @@ export function recruiterHomePath(permissions?: string[] | null) {
 
 export function featureForRecruiterPath(pathname: string): RecruiterFeatureCode | null {
   const rest = pathname.replace(/^\/recruiter/, "") || "";
-  if (rest === "/matching" || rest.startsWith("/rank")) return "RANKING";
+  if (rest === "/matching" || rest.startsWith("/rank") || /^\/jobs\/[^/]+\/rank(?:\/|$)/.test(rest)) return "RANKING";
   const match = recruiterNav.find((item) => item.to === rest || (item.to !== "" && rest.startsWith(item.to)));
   return match?.featureCode ?? null;
 }

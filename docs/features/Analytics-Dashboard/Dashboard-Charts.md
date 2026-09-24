@@ -27,6 +27,8 @@ API dữ liệu biểu đồ (funnel, distribution scores, source).
 | Method | Path |
 |---|---|
 | GET | `/api/v1/dashboard/charts` |
+| GET | `/api/v1/analytics/recruiter/pipeline` |
+| GET | `/api/v1/analytics/recruiter/quality` |
 
 ## Database liên quan
 

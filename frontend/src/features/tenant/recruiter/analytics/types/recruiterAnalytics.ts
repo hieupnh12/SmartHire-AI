@@ -1,0 +1,6 @@
+export type AnalyticsRange = "LAST_30_DAYS" | "CURRENT_QUARTER" | "LAST_12_MONTHS";
+export type AnalyticsFilter = { from: string; to: string };
+export type WorkloadData = { actions: { cvsToScreen: number; candidatesOverSla: number; assessmentsPendingReview: number; upcomingInterviews: number }; jobs: Array<{ jobId: number; title: string; candidateCount: number; currentFocusStage: string | null; overdueCount: number; healthScore: number }> };
+export type PipelineData = { totalCandidates: number; activeJobs: number; stages: Array<{ code: string; label: string; count: number; conversionRate: number | null }>; slaAlerts: Array<{ stageCode: string; stageLabel: string; candidateCount: number; oldestWaitingMinutes: number; thresholdMinutes: number }> };
+export type QualityData = { talentQualityIndex: number | null; sources: Array<{ code: string; label: string; candidateCount: number; averageQualityScore: number | null; conversionRate: number | null }>; trend: Array<{ period: string; score: number }>; insight: { title: string; message: string } | null };
+export type PerformanceData = { metrics: Array<{ code: string; value: number | null; unit: "HOURS" | "DAYS" | "PERCENT"; target: number; comparison: "LTE" | "GTE"; achieved: boolean | null }>; achievedTargets: number; totalTargets: number; recommendation: string | null };

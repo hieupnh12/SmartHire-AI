@@ -27,10 +27,11 @@ Phân tích xu hướng theo thời gian (applications, hires, scores).
 | Method | Path |
 |---|---|
 | GET | `/api/v1/dashboard/trends` |
+| GET | `/api/v1/analytics/recruiter/quality` |
 
 ## Database liên quan
 
-- time-series aggregates
+- `candidate_quality_snapshots` lưu lịch sử điểm dạng append-only; dữ liệu được giới hạn theo recruiter hiện tại.
 
 ## UI mockup
 
