@@ -28,6 +28,8 @@ KPI: open jobs, applicants, hire rate, avg time-to-hire, avg scores.
 |---|---|
 | GET | `/api/v1/dashboard/summary` |
 
+`summary` đếm trên bảng có sẵn, không cache Redis: `openJobs` là job `PUBLISHED` chưa xóa, `newApplicants` là đơn tạo trong 30 ngày (chưa lưu trữ, chưa rút), `interviewsScheduled` là lịch `PROPOSED` hoặc `CONFIRMED`. Candidate nhận 403. Hire rate và điểm trung bình chưa trả về.
+
 ## Database liên quan
 
 - aggregates từ jobs/applications/scores; Redis cache

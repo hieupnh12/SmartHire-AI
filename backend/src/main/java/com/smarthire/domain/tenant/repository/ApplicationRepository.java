@@ -2,6 +2,7 @@ package com.smarthire.domain.tenant.repository;
 
 import com.smarthire.domain.enums.ApplicationStatus;
 import com.smarthire.domain.tenant.entity.Application;
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -18,6 +19,14 @@ public interface ApplicationRepository extends JpaRepository<Application, Long> 
     List<Application> findByCandidate_IdOrderByIdDesc(Long candidateId);
     long countByJob_Id(Long jobId);
     long countByCandidate_Id(Long candidateId);
+
+    @Query("""
+            select count(a) from Application a
+            where a.createdAt >= :since
+              and a.archivedAt is null
+              and a.withdrawnAt is null
+            """)
+    long countActiveCreatedSince(@Param("since") Instant since);
 
     @Query("""
             select a.job.id, count(a) from Application a

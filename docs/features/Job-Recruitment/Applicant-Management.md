@@ -49,6 +49,7 @@ Quản lý application theo job: apply từ candidate, lọc/phân trang, hồ s
 
 ## UI mockup
 
+- Tenant Admin xem job `PUBLISHED` và danh sách ứng viên tại `/internal/admin/recruitment` (chỉ xem).
 - Google Stitch: **Job Recruitment Management / Applicant Management** — _[dán link]_
 - Icons: xem `DESIGN.md`
 

@@ -1,6 +1,7 @@
 package com.smarthire.tenant.dashboard.controller;
 
 import com.smarthire.common.api.ApiResponse;
+import com.smarthire.tenant.dashboard.dto.DashboardSummaryResponse;
 import com.smarthire.tenant.dashboard.service.DashboardService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -25,6 +26,12 @@ public class DashboardController {
     @Operation(summary = "Analytics Dashboard module scaffold health")
     public ResponseEntity<ApiResponse<Map<String, String>>> health() {
         return ResponseEntity.ok(ApiResponse.ok(dashboardService.health()));
+    }
+
+    @GetMapping("/summary")
+    @Operation(summary = "Tenant recruitment KPI counts")
+    public ResponseEntity<ApiResponse<DashboardSummaryResponse>> summary() {
+        return ResponseEntity.ok(ApiResponse.ok(dashboardService.summary()));
     }
 }
 

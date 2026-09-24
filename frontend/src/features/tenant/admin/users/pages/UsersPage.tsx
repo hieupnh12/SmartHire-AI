@@ -1,8 +1,9 @@
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { usersApi, type InviteMemberRequest } from "@/api/tenant/usersApi";
+import { usersApi, type InviteMemberRequest, type StaffAssignment, type TenantMember } from "@/api/tenant/usersApi";
 import { tenantRolesApi } from "@/api/tenant/tenantRolesApi";
 import { Button } from "@/components/ux/Button";
 import { Card } from "@/components/ux/Card";
@@ -20,8 +21,34 @@ type Form = z.infer<typeof schema>;
 const inputClass =
   "min-h-11 w-full rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-surface-card px-3 text-sm outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/15";
 
+const statusLabel: Record<string, string> = {
+  ACTIVE: "Đang hoạt động",
+  LOCKED: "Đã khóa",
+  DISABLED: "Đã vô hiệu",
+};
+
+const workspaceLabel: Record<string, string> = {
+  ADMIN: "Quản trị",
+  RECRUITER: "Tuyển dụng",
+  CANDIDATE: "Ứng viên",
+};
+
+const assignmentRoleLabel: Record<string, string> = {
+  PRIMARY_RECRUITER: "Phụ trách chính",
+  CO_RECRUITER: "Đồng phụ trách",
+};
+
+const jobStatusLabel: Record<string, string> = {
+  DRAFT: "Nháp",
+  PUBLISHED: "Đang đăng",
+  PAUSED: "Tạm dừng",
+  CLOSED: "Đã đóng",
+  ARCHIVED: "Lưu trữ",
+};
+
 export function UsersPage() {
   const queryClient = useQueryClient();
+  const [selectedId, setSelectedId] = useState<number | null>(null);
   const {
     register,
     handleSubmit,
@@ -69,6 +96,21 @@ export function UsersPage() {
   const rows = (members.data?.data ?? []).filter(
     (row) => row.role !== "CANDIDATE" && row.workspace !== "CANDIDATE",
   );
+  const selected = rows.find((row) => row.id === selectedId) ?? null;
+  const duties = useQuery({
+    queryKey: ["tenant-users", selectedId, "assignments"],
+    queryFn: () => usersApi.assignments(selectedId!),
+    enabled: selectedId != null,
+  });
+
+  useEffect(() => {
+    if (selectedId == null) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSelectedId(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selectedId]);
 
   return (
     <section className="space-y-6">
@@ -152,6 +194,7 @@ export function UsersPage() {
                     <th className="px-3 py-3 font-semibold">Email</th>
                     <th className="px-3 py-3 font-semibold">Vai trò</th>
                     <th className="px-3 py-3 font-semibold">Trạng thái</th>
+                    <th className="px-3 py-3 font-semibold">Chi tiết</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -181,7 +224,16 @@ export function UsersPage() {
                           )}
                         </select>
                       </td>
-                      <td className="px-3 py-3">{row.status ?? "—"}</td>
+                      <td className="px-3 py-3">{statusLabel[row.status ?? ""] ?? row.status ?? "—"}</td>
+                      <td className="px-3 py-3">
+                        <button
+                          type="button"
+                          className="text-sm font-semibold text-brand-primary"
+                          onClick={() => setSelectedId(row.id)}
+                        >
+                          Xem
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -190,6 +242,104 @@ export function UsersPage() {
           )}
         </Card>
       </div>
+      {selected && (
+        <EmployeeDetailDialog
+          member={selected}
+          roleName={roleLabel(selected.role)}
+          jobs={duties.data?.data ?? []}
+          loading={duties.isLoading}
+          error={duties.isError ? getApiErrorMessage(duties.error) : null}
+          onClose={() => setSelectedId(null)}
+        />
+      )}
     </section>
+  );
+}
+
+function EmployeeDetailDialog({
+  member,
+  roleName,
+  jobs,
+  loading,
+  error,
+  onClose,
+}: {
+  member: TenantMember;
+  roleName: string;
+  jobs: StaffAssignment[];
+  loading: boolean;
+  error: string | null;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4" role="presentation" onClick={onClose}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="employee-detail-title"
+        className="max-h-[min(40rem,90vh)] w-full max-w-lg overflow-y-auto rounded-[var(--radius-lg)] bg-surface-card p-6 shadow-[var(--shadow-elevated)]"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <h2 id="employee-detail-title" className="font-display text-xl font-semibold text-[var(--color-text-primary)]">
+            {member.fullName}
+          </h2>
+          <button type="button" className="text-sm text-[var(--color-text-secondary)]" onClick={onClose}>
+            Đóng
+          </button>
+        </div>
+        <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
+          <div>
+            <dt className="text-[var(--color-text-secondary)]">Email</dt>
+            <dd className="mt-1 font-medium text-[var(--color-text-primary)]">{member.email}</dd>
+          </div>
+          <div>
+            <dt className="text-[var(--color-text-secondary)]">Vai trò</dt>
+            <dd className="mt-1 font-medium text-[var(--color-text-primary)]">{roleName}</dd>
+          </div>
+          <div>
+            <dt className="text-[var(--color-text-secondary)]">Workspace</dt>
+            <dd className="mt-1 font-medium text-[var(--color-text-primary)]">
+              {workspaceLabel[member.workspace ?? ""] ?? member.workspace ?? "—"}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-[var(--color-text-secondary)]">Trạng thái</dt>
+            <dd className="mt-1 font-medium text-[var(--color-text-primary)]">
+              {statusLabel[member.status ?? ""] ?? member.status ?? "—"}
+            </dd>
+          </div>
+          <div className="sm:col-span-2">
+            <dt className="text-[var(--color-text-secondary)]">Ngày tham gia</dt>
+            <dd className="mt-1 font-medium text-[var(--color-text-primary)]">
+              {member.createdAt ? new Date(member.createdAt).toLocaleString("vi-VN") : "—"}
+            </dd>
+          </div>
+        </dl>
+        <h3 className="mt-6 text-sm font-semibold text-[var(--color-text-primary)]">Công việc đang phụ trách</h3>
+        {loading && <p className="mt-2 text-sm text-[var(--color-text-secondary)]">Đang tải…</p>}
+        {error && <p className="mt-2 text-sm text-status-danger">{error}</p>}
+        {!loading && !error && jobs.length === 0 && (
+          <p className="mt-2 text-sm text-[var(--color-text-secondary)]">Chưa được phân công job nào.</p>
+        )}
+        {jobs.length > 0 && (
+          <ul className="mt-2 divide-y divide-[var(--color-border-default)]">
+            {jobs.map((job) => (
+              <li key={job.jobId} className="flex items-start justify-between gap-3 py-3 text-sm">
+                <span>
+                  <span className="block font-medium text-[var(--color-text-primary)]">{job.title}</span>
+                  <span className="text-xs text-[var(--color-text-secondary)]">
+                    {assignmentRoleLabel[job.assignmentRole] ?? job.assignmentRole}
+                  </span>
+                </span>
+                <span className="shrink-0 text-xs font-semibold text-brand-primary">
+                  {jobStatusLabel[job.status] ?? job.status}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
   );
 }

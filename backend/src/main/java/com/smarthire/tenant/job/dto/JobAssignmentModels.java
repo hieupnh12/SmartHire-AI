@@ -26,4 +26,10 @@ public final class JobAssignmentModels {
             String assignedByName) {}
 
     public record JobAssignmentList(List<JobAssignmentResponse> items) {}
+
+    public record StaffAssignmentResponse(
+            long jobId,
+            String title,
+            String status,
+            String assignmentRole) {}
 }

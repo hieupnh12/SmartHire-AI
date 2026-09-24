@@ -9,6 +9,7 @@ import com.smarthire.tenant.auth.dto.InviteMemberResponse;
 import com.smarthire.tenant.auth.dto.UserResponse;
 import com.smarthire.tenant.auth.service.MemberInvitationService;
 import com.smarthire.tenant.auth.service.TenantUserService;
+import com.smarthire.tenant.job.service.JobAssignmentService;
 import java.time.Instant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -33,13 +34,15 @@ class TenantUserInvitationControllerTest {
     private TenantUserService tenantUserService;
     @Mock
     private MemberInvitationService memberInvitationService;
+    @Mock
+    private JobAssignmentService jobAssignmentService;
 
     private MockMvc mockMvc;
     private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
 
     @BeforeEach
     void setUp() {
-        mockMvc = MockMvcBuilders.standaloneSetup(new TenantUserController(tenantUserService, memberInvitationService))
+        mockMvc = MockMvcBuilders.standaloneSetup(new TenantUserController(tenantUserService, memberInvitationService, jobAssignmentService))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .setMessageConverters(new MappingJackson2HttpMessageConverter(objectMapper))
                 .build();

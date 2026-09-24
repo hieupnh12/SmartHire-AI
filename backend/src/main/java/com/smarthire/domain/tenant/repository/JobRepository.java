@@ -13,6 +13,8 @@ import org.springframework.data.repository.query.Param;
 
 public interface JobRepository extends JpaRepository<Job, Long> {
     List<Job> findByStatusAndDeletedAtIsNullOrderByIdDesc(JobStatus status);
+
+    long countByStatusAndDeletedAtIsNull(JobStatus status);
     List<Job> findByDeletedAtIsNullOrderByIdDesc();
 
     @Query("select j from Job j left join fetch j.createdBy where j.id = :id")

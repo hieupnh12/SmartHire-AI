@@ -2,6 +2,7 @@ package com.smarthire.tenant.job.service;
 
 import com.smarthire.common.exception.BusinessException;
 import com.smarthire.domain.enums.AssignmentRole;
+import com.smarthire.domain.enums.JobStatus;
 import com.smarthire.domain.enums.UserStatus;
 import com.smarthire.domain.tenant.entity.Job;
 import com.smarthire.domain.tenant.entity.JobAssignment;
@@ -12,6 +13,7 @@ import com.smarthire.domain.tenant.repository.UserRepository;
 import com.smarthire.tenant.cv.service.CvAccess;
 import com.smarthire.tenant.job.dto.JobAssignmentModels.AssignRecruiterRequest;
 import com.smarthire.tenant.job.dto.JobAssignmentModels.JobAssignmentResponse;
+import com.smarthire.tenant.job.dto.JobAssignmentModels.StaffAssignmentResponse;
 import com.smarthire.tenant.job.dto.JobAssignmentModels.UpdateAssignmentRequest;
 import java.util.List;
 import java.util.Optional;
@@ -167,6 +169,30 @@ class JobAssignmentServiceTest {
 
         assertEquals(0, service.list(9L).size());
         verify(access).requireJob(job);
+    }
+
+    @Test
+    void listForUserReturnsAssignedJobs() {
+        job.setStatus(JobStatus.PUBLISHED);
+        when(users.findById(2L)).thenReturn(Optional.of(recruiter));
+        when(assignments.findActiveByUserId(2L)).thenReturn(List.of(assignment(11L, recruiter, AssignmentRole.PRIMARY_RECRUITER)));
+
+        List<StaffAssignmentResponse> rows = service.listForUser(2L);
+
+        assertEquals(1, rows.size());
+        assertEquals(9L, rows.get(0).jobId());
+        assertEquals("Backend", rows.get(0).title());
+        assertEquals("PUBLISHED", rows.get(0).status());
+        assertEquals("PRIMARY_RECRUITER", rows.get(0).assignmentRole());
+    }
+
+    @Test
+    void listForUserHidesCandidates() {
+        User candidate = staff(8L, "CANDIDATE", "Candidate");
+        when(users.findById(8L)).thenReturn(Optional.of(candidate));
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.listForUser(8L));
+        assertEquals("USER_NOT_FOUND", ex.getCode());
     }
 
     private static User staff(Long id, String role, String name) {

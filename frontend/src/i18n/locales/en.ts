@@ -96,6 +96,7 @@ export const en = {
     rolesPermissions: "Permissions",
     pipelineSettings: "Pipeline setup",
     recruiterAssignments: "Assignments",
+    publishedJobs: "Jobs and applicants",
     recruitmentAnalytics: "Analytics",
     auditLogs: "Audit logs",
     adminCompany: "Company",

@@ -13,6 +13,7 @@ import com.smarthire.domain.tenant.repository.UserRepository;
 import com.smarthire.tenant.cv.service.CvAccess;
 import com.smarthire.tenant.job.dto.JobAssignmentModels.AssignRecruiterRequest;
 import com.smarthire.tenant.job.dto.JobAssignmentModels.JobAssignmentResponse;
+import com.smarthire.tenant.job.dto.JobAssignmentModels.StaffAssignmentResponse;
 import com.smarthire.tenant.job.dto.JobAssignmentModels.UpdateAssignmentRequest;
 import java.util.Comparator;
 import java.util.List;
@@ -45,6 +46,22 @@ public class JobAssignmentService {
                 .sorted(Comparator.comparing((JobAssignment row) -> row.getAssignmentRole() != AssignmentRole.PRIMARY_RECRUITER)
                         .thenComparing(JobAssignment::getId))
                 .map(this::toResponse)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<StaffAssignmentResponse> listForUser(long userId) {
+        User user = users.findById(userId)
+                .orElseThrow(() -> new BusinessException("User not found", HttpStatus.NOT_FOUND, "USER_NOT_FOUND"));
+        if (UserRole.isCandidate(user.getRole())) {
+            throw new BusinessException("User not found", HttpStatus.NOT_FOUND, "USER_NOT_FOUND");
+        }
+        return assignments.findActiveByUserId(userId).stream()
+                .map(row -> new StaffAssignmentResponse(
+                        row.getJob().getId(),
+                        row.getJob().getTitle(),
+                        row.getJob().getStatus().name(),
+                        row.getAssignmentRole().name()))
                 .toList();
     }
 

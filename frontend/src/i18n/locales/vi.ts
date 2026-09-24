@@ -89,6 +89,7 @@ export const vi: Messages = {
     rolesPermissions: "Phân quyền",
     pipelineSettings: "Quy trình",
     recruiterAssignments: "Phân công",
+    publishedJobs: "Job và ứng viên",
     recruitmentAnalytics: "Phân tích",
     auditLogs: "Kiểm toán",
     adminCompany: "Doanh nghiệp",
