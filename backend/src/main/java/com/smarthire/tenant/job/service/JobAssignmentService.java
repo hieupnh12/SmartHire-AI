@@ -51,6 +51,7 @@ public class JobAssignmentService {
 
     @Transactional(readOnly = true)
     public List<StaffAssignmentResponse> listForUser(long userId) {
+        requireSelfOrAdmin(userId);
         User user = users.findById(userId)
                 .orElseThrow(() -> new BusinessException("User not found", HttpStatus.NOT_FOUND, "USER_NOT_FOUND"));
         if (UserRole.isCandidate(user.getRole())) {
@@ -129,6 +130,14 @@ public class JobAssignmentService {
         if (!UserRole.isCompanyAdmin(access.actor().getRole())) {
             throw new BusinessException("Admin access required", HttpStatus.FORBIDDEN, "FORBIDDEN");
         }
+    }
+
+    private void requireSelfOrAdmin(long userId) {
+        User actor = access.actor();
+        if (UserRole.isCompanyAdmin(actor.getRole()) || actor.getId().equals(userId)) {
+            return;
+        }
+        throw new BusinessException("Access denied", HttpStatus.FORBIDDEN, "FORBIDDEN");
     }
 
     private Job job(long jobId) {

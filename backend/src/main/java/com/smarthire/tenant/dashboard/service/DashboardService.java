@@ -40,7 +40,8 @@ public class DashboardService {
     }
 
     public DashboardSummaryResponse summary() {
-        if (UserRole.isCandidate(currentRole())) {
+        String role = currentRole();
+        if (role == null || UserRole.isCandidate(role)) {
             throw new BusinessException("Access denied", HttpStatus.FORBIDDEN, "FORBIDDEN");
         }
         Object[] row = (Object[]) entityManager.createNativeQuery(SUMMARY_QUERY).getSingleResult();
@@ -69,7 +70,7 @@ public class DashboardService {
 
     private static String currentRole() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null) {
+        if (authentication == null || !authentication.isAuthenticated()) {
             return null;
         }
         for (GrantedAuthority authority : authentication.getAuthorities()) {

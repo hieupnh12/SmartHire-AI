@@ -9,11 +9,16 @@ import com.smarthire.tenant.dashboard.service.DashboardService;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Query;
 import java.math.BigDecimal;
+import java.util.List;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 @ExtendWith(MockitoExtension.class)
 class DashboardServiceTest {
@@ -24,8 +29,17 @@ class DashboardServiceTest {
 
     @BeforeEach
     void setUp() {
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
+                "admin@acme.com",
+                null,
+                List.of(new SimpleGrantedAuthority("ROLE_TENANT_ADMIN"))));
         service = new DashboardService(entityManager);
         when(entityManager.createNativeQuery(anyString())).thenReturn(query);
+    }
+
+    @AfterEach
+    void clearSecurity() {
+        SecurityContextHolder.clearContext();
     }
 
     @Test

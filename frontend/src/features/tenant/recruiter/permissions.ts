@@ -1,29 +1,16 @@
 import { recruiterNav, type RecruiterFeatureCode } from "@/features/tenant/recruiter/nav";
 
-/**
- * Prototype UI for technical test + interview is ready before every tenant role
- * matrix is updated. Keep these visible so recruiters can review the screens;
- * remove once Admin → Roles grants them for all recruiter staff roles.
- */
-const PROTOTYPE_NAV_FEATURES: readonly RecruiterFeatureCode[] = [
-  "ASSESSMENTS",
-  "AI_INTERVIEWS",
-  "INTERVIEWS",
-];
-
 export function hasRecruiterFeature(
   permissions: string[] | null | undefined,
   code: RecruiterFeatureCode,
 ) {
   if (permissions == null) return true;
-  if (PROTOTYPE_NAV_FEATURES.includes(code)) return true;
   return permissions.includes(code);
 }
 
 export function visibleRecruiterNav(permissions?: string[] | null) {
   if (permissions == null) return [...recruiterNav];
   const allowed = new Set(permissions);
-  for (const code of PROTOTYPE_NAV_FEATURES) allowed.add(code);
   return recruiterNav.filter((item) => allowed.has(item.featureCode));
 }
 

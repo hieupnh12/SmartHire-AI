@@ -29,6 +29,16 @@ class DashboardServiceTest {
     }
 
     @Test
+    void summary_withoutRole_isForbidden() {
+        DashboardService dashboardService = new DashboardService(entityManager);
+
+        BusinessException ex = assertThrows(BusinessException.class, dashboardService::summary);
+
+        assertEquals(HttpStatus.FORBIDDEN, ex.getStatus());
+        verifyNoInteractions(entityManager);
+    }
+
+    @Test
     void summary_candidate_isForbidden() {
         SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
                 "candidate@acme.com",

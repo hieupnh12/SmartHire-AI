@@ -174,6 +174,7 @@ class JobAssignmentServiceTest {
     @Test
     void listForUserReturnsAssignedJobs() {
         job.setStatus(JobStatus.PUBLISHED);
+        when(access.actor()).thenReturn(admin);
         when(users.findById(2L)).thenReturn(Optional.of(recruiter));
         when(assignments.findActiveByUserId(2L)).thenReturn(List.of(assignment(11L, recruiter, AssignmentRole.PRIMARY_RECRUITER)));
 
@@ -189,10 +190,21 @@ class JobAssignmentServiceTest {
     @Test
     void listForUserHidesCandidates() {
         User candidate = staff(8L, "CANDIDATE", "Candidate");
+        when(access.actor()).thenReturn(admin);
         when(users.findById(8L)).thenReturn(Optional.of(candidate));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.listForUser(8L));
         assertEquals("USER_NOT_FOUND", ex.getCode());
+    }
+
+    @Test
+    void listForUserRejectsOtherStaff() {
+        when(access.actor()).thenReturn(recruiter);
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.listForUser(8L));
+
+        assertEquals("FORBIDDEN", ex.getCode());
+        verify(users, never()).findById(any());
     }
 
     private static User staff(Long id, String role, String name) {
