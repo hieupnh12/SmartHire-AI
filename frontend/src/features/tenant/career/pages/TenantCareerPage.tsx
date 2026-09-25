@@ -1,10 +1,11 @@
-import { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { getTenantIdFromWindow } from "@/lib/tenant";
 import { getTenantTheme, getTenantThemeStyle } from "@/lib/tenantTheme";
 import { jobApi } from "@/api/tenant/jobApi";
 import { applicantApi } from "@/api/tenant/applicantApi";
+import { landingApi } from "@/api/tenant/landingApi";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 import { LanguageSwitcher } from "@/components/ux/LanguageSwitcher";
 import {
@@ -26,7 +27,16 @@ import {
   Zap,
   Globe,
   Briefcase,
-  ShieldCheck
+  ShieldCheck,
+  Laptop,
+  TrendingUp,
+  Coffee,
+  Mail,
+  Phone,
+  Building,
+  Linkedin,
+  Facebook,
+  Github,
 } from "lucide-react";
 
 interface JobPosting {
@@ -39,6 +49,28 @@ interface JobPosting {
   tags: string[];
   description: string;
   requirements: string[];
+}
+
+const ICON_MAP: Record<string, React.ElementType> = {
+  Users,
+  Award,
+  Globe,
+  Zap,
+  Briefcase,
+  HeartHandshake,
+  Laptop,
+  TrendingUp,
+  Coffee,
+  ShieldCheck,
+  CheckCircle2,
+  Code,
+  Layers,
+  Cpu,
+};
+
+function renderIcon(name: string, className?: string) {
+  const IconComponent = ICON_MAP[name] || Sparkles;
+  return <IconComponent className={className || "w-5 h-5"} />;
 }
 
 export function TenantCareerPage() {
@@ -60,6 +92,29 @@ export function TenantCareerPage() {
 
   const token = useAuthStore((s) => s.accessToken);
   const publicJobs = useQuery({ queryKey: ["public-jobs"], queryFn: () => jobApi.publicList() });
+  const publicLanding = useQuery({
+    queryKey: ["public-landing", rawTenantCode],
+    queryFn: () => landingApi.getPublicLanding(),
+  });
+
+  const customLanding = publicLanding.data?.data;
+
+  // Dynamic Theme & Palette
+  const primaryColor = customLanding?.theme?.primaryColor || theme.primary;
+  const primaryHover = customLanding?.theme?.primaryHover || theme.primaryHover;
+  const isDarkHero = customLanding?.theme?.darkModeHero !== false;
+
+  const dynamicThemeStyle = useMemo(() => {
+    const baseStyle = getTenantThemeStyle(theme);
+    return {
+      ...baseStyle,
+      "--color-primary": primaryColor,
+      "--color-primary-hover": primaryHover,
+      "--color-brand-primary": primaryColor,
+      "--color-brand-primary-hover": primaryHover,
+      fontFamily: customLanding?.theme?.fontFamily || "inherit",
+    } as React.CSSProperties;
+  }, [theme, customLanding, primaryColor, primaryHover]);
 
   const jobsList: JobPosting[] = (publicJobs.data?.data ?? []).map((job) => ({
     id: job.id,
@@ -94,55 +149,82 @@ export function TenantCareerPage() {
       navigate("/candidate/login");
       return;
     }
-    void applicantApi.apply(showApplyModal.id, { source: "CAREER" }).then(() => {
-      setApplySubmitted(true);
-      setTimeout(() => {
-        setApplySubmitted(false);
-        setShowApplyModal(null);
-        setCandidateName("");
-        setCandidateEmail("");
-        setCandidatePhone("");
-        setCvFile(null);
-        navigate("/candidate/cv");
-      }, 1200);
-    }).catch((err: unknown) => {
-      const code = (err as { response?: { data?: { code?: string } } })?.response?.data?.code;
-      if (code === "APPLICATION_EXISTS") navigate("/candidate/cv");
-    });
+    void applicantApi
+      .apply(showApplyModal.id, { source: "CAREER" })
+      .then(() => {
+        setApplySubmitted(true);
+        setTimeout(() => {
+          setApplySubmitted(false);
+          setShowApplyModal(null);
+          setCandidateName("");
+          setCandidateEmail("");
+          setCandidatePhone("");
+          setCvFile(null);
+          navigate("/candidate/cv");
+        }, 1200);
+      })
+      .catch((err: unknown) => {
+        const code = (err as { response?: { data?: { code?: string } } })?.response?.data?.code;
+        if (code === "APPLICATION_EXISTS") navigate("/candidate/cv");
+      });
   };
 
   return (
-    <div className="tenant-workspace-theme min-h-screen bg-[#f9f9ff] text-[#191b23] font-sans antialiased flex flex-col justify-between" style={getTenantThemeStyle(theme)}>
+    <div
+      className="tenant-workspace-theme min-h-screen bg-[#f9f9ff] text-[#191b23] font-sans antialiased flex flex-col justify-between"
+      style={dynamicThemeStyle}
+    >
       {/* Top Glassmorphism Navigation Bar */}
       <header className="sticky top-0 z-40 bg-white/85 backdrop-blur-md border-b border-[#e2e8f0] shadow-sm">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
           <div className="flex items-center gap-3 cursor-pointer" onClick={() => window.location.reload()}>
-            <div className={`w-10 h-10 rounded-[12px] ${theme.primaryColorBtn} text-white flex items-center justify-center shadow-md font-semibold text-lg`}>
+            <div
+              className="w-10 h-10 rounded-[12px] text-white flex items-center justify-center shadow-md font-semibold text-lg"
+              style={{ backgroundColor: primaryColor }}
+            >
               {theme.code.charAt(0).toUpperCase()}
             </div>
             <div>
               <span className="text-xl font-semibold font-display text-[#1e293b] tracking-tight">
                 {theme.name}
               </span>
-              <span className={`ml-2.5 text-xs font-semibold px-2.5 py-0.5 rounded-full border ${theme.badgeBg}`}>
+              <span
+                className="ml-2.5 text-xs font-semibold px-2.5 py-0.5 rounded-full border"
+                style={{
+                  backgroundColor: `${primaryColor}15`,
+                  color: primaryColor,
+                  borderColor: `${primaryColor}30`,
+                }}
+              >
                 {theme.accentBadge}
               </span>
             </div>
           </div>
 
           <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-[#475569]">
-            <a href="#about" className={`hover:${theme.primaryText} transition-colors`}>Về Chúng Tôi</a>
-            <a href="#techstack" className={`hover:${theme.primaryText} transition-colors`}>Tech Stack</a>
-            <a href="#jobs" className={`hover:${theme.primaryText} transition-colors`}>Vị Trí Tuyển Dụng</a>
+            <a href="#about" className="hover:text-slate-900 transition-colors">
+              Về Chúng Tôi
+            </a>
+            {customLanding?.benefits?.enabled && (
+              <a href="#benefits" className="hover:text-slate-900 transition-colors">
+                Đãi Ngộ
+              </a>
+            )}
+            <a href="#techstack" className="hover:text-slate-900 transition-colors">
+              Tech Stack
+            </a>
+            <a href="#jobs" className="hover:text-slate-900 transition-colors">
+              Vị Trí Tuyển Dụng
+            </a>
           </nav>
 
           <div className="flex items-center gap-3">
             <LanguageSwitcher />
 
-            {/* Strict "Đăng Nhập" Button (Navigates to /candidate/login) */}
             <button
               onClick={() => navigate("/candidate/login")}
-              className={`px-5 py-2.5 text-sm font-semibold rounded-[8px] ${theme.primaryColorBtn} text-white transition-all flex items-center gap-2 shadow-sm`}
+              className="px-5 py-2.5 text-sm font-semibold rounded-[8px] text-white transition-all flex items-center gap-2 shadow-sm"
+              style={{ backgroundColor: primaryColor }}
             >
               <LogIn className="w-4 h-4" />
               <span>Đăng Nhập</span>
@@ -152,337 +234,638 @@ export function TenantCareerPage() {
       </header>
 
       <main className="relative z-10">
-        {/* HERO SECTION WITH HIGH-TECH IMAGE BANNER */}
+        {/* HERO SECTION WITH DYNAMIC BANNER */}
         <section className="relative pt-12 pb-24 max-w-7xl mx-auto px-6">
-          <div className="relative rounded-[32px] overflow-hidden border border-[#e2e8f0] shadow-2xl bg-slate-950">
-            {/* Background Generated Image */}
+          <div
+            className={`relative overflow-hidden border border-[#e2e8f0] shadow-2xl ${
+              customLanding?.theme?.borderRadius || "rounded-[32px]"
+            }`}
+            style={{
+              minHeight: customLanding?.hero?.bannerHeight || "540px",
+              backgroundColor: isDarkHero ? "#020617" : "#ffffff",
+            }}
+          >
+            {/* Background Image */}
             <img
-              src={theme.heroImage}
-              alt="High-Tech IT Office Hero"
-              className="absolute inset-0 w-full h-full object-cover object-center opacity-40 mix-blend-luminosity scale-105 transition-transform duration-1000 hover:scale-100"
+              src={customLanding?.hero?.bannerImageUrl || theme.heroImage || "/acme_tech_hero.png"}
+              alt={theme.name}
+              className={`absolute inset-0 w-full h-full object-cover object-center scale-105 transition-transform duration-1000 hover:scale-100 ${
+                customLanding?.hero?.bannerImageUrl ? "" : "opacity-40 mix-blend-luminosity"
+              }`}
             />
 
             {/* Ambient Lighting & Glass Layer */}
-            <div className="absolute inset-0 bg-gradient-to-r from-slate-950/90 via-slate-950/75 to-slate-950/50" />
-            <div className="relative z-10 p-8 sm:p-14 md:p-20 text-white max-w-4xl">
-              <div className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-xs font-semibold mb-6 ${theme.primaryText}`}>
+            <div
+              className="absolute inset-0"
+              style={{
+                backgroundColor: isDarkHero ? "#020617" : "#ffffff",
+                opacity: (customLanding?.hero?.overlayOpacity ?? 75) / 100,
+              }}
+            />
+
+            <div
+              className={`relative z-10 p-8 sm:p-14 md:p-20 max-w-4xl ${
+                isDarkHero ? "text-white" : "text-slate-900"
+              }`}
+            >
+              <div
+                className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full backdrop-blur-md border text-xs font-semibold mb-6"
+                style={{
+                  backgroundColor: isDarkHero ? "rgba(255,255,255,0.12)" : `${primaryColor}15`,
+                  borderColor: isDarkHero ? "rgba(255,255,255,0.2)" : `${primaryColor}30`,
+                  color: isDarkHero ? "#67e8f9" : primaryColor,
+                }}
+              >
                 <Sparkles className="w-4 h-4 text-cyan-400" />
-                <span>{theme.tagline}</span>
+                <span>{customLanding?.hero?.badgeText || theme.tagline || "Dẫn đầu Giải pháp Công nghệ Enterprise Multi-Tenant & AI"}</span>
               </div>
 
-              <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold font-display tracking-tight leading-tight mb-6 text-white">
-                Chinh Phục Tương Lai Công Nghệ Cùng{" "}
-                <span className={`bg-gradient-to-r ${theme.primaryGradient} bg-clip-text text-transparent`}>
-                  {theme.name}
-                </span>
+              <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold font-display tracking-tight leading-tight mb-6">
+                {customLanding?.hero?.title || `Chinh Phục Tương Lai Công Nghệ Cùng ${theme.name}`}
+                {customLanding?.hero?.highlightWords && (
+                  <span className="block bg-gradient-to-r from-teal-400 via-cyan-400 to-indigo-400 bg-clip-text text-transparent mt-2">
+                    {customLanding.hero.highlightWords}
+                  </span>
+                )}
               </h1>
 
-              <p className="text-base sm:text-lg text-slate-300 mb-10 leading-relaxed max-w-2xl font-normal">
-                Chúng tôi xây dựng môi trường kỹ thuật chuẩn International Enterprise — Nơi các Kỹ sư Phần mềm & AI được phát triển những sản phẩm công nghệ tạo giá trị thực sự.
+              <p
+                className={`text-base sm:text-lg mb-10 leading-relaxed max-w-2xl font-normal ${
+                  isDarkHero ? "text-slate-300" : "text-slate-600"
+                }`}
+              >
+                {customLanding?.hero?.subtitle ||
+                  "Chúng tôi xây dựng môi trường kỹ thuật chuẩn International Enterprise — Nơi các Kỹ sư Phần mềm & AI được phát triển những sản phẩm công nghệ tạo giá trị thực sự."}
               </p>
 
               {/* Job Search Bar */}
-              <div className="max-w-2xl bg-white/95 backdrop-blur-md p-3 rounded-[18px] border border-white/20 shadow-2xl flex flex-col sm:flex-row items-center gap-3">
-                <div className="flex-1 flex items-center gap-3 px-3 w-full">
-                  <Search className="w-5 h-5 text-slate-400" />
-                  <input
-                    type="text"
-                    placeholder="Nhập vị trí IT, kỹ năng (Java, React, Python, Cloud)..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full text-sm text-slate-900 focus:outline-none bg-transparent placeholder-slate-400 font-medium"
-                  />
-                </div>
+              {(customLanding?.hero?.showSearchBar !== false) && (
+                <div className="max-w-2xl bg-white/95 backdrop-blur-md p-3 rounded-[18px] border border-white/20 shadow-2xl flex flex-col sm:flex-row items-center gap-3 mb-6">
+                  <div className="flex-1 flex items-center gap-3 px-3 w-full">
+                    <Search className="w-5 h-5 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Tìm kiếm vị trí tuyển dụng, kỹ năng..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full text-sm text-slate-900 focus:outline-none bg-transparent placeholder-slate-400 font-medium"
+                    />
+                  </div>
 
+                  <a
+                    href="#jobs"
+                    className="w-full sm:w-auto px-7 py-3 rounded-[10px] text-white font-semibold text-sm transition-all flex items-center justify-center gap-2 shadow-lg"
+                    style={{ backgroundColor: primaryColor }}
+                  >
+                    <span>{customLanding?.hero?.primaryCtaText || "Xem Vị Trí Tuyển Dụng"}</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </a>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex items-center gap-4">
                 <a
                   href="#jobs"
-                  className={`w-full sm:w-auto px-7 py-3 rounded-[10px] ${theme.primaryColorBtn} text-white font-semibold text-sm transition-all flex items-center justify-center gap-2 shadow-lg`}
+                  className="px-7 py-3 rounded-[10px] text-white font-semibold text-sm transition-all flex items-center gap-2 shadow-lg"
+                  style={{ backgroundColor: primaryColor }}
                 >
-                  <span>Tìm Việc IT</span>
+                  <span>{customLanding?.hero?.primaryCtaText || "Xem Vị Trí Tuyển Dụng"}</span>
                   <ArrowRight className="w-4 h-4" />
                 </a>
+
+                {customLanding?.hero?.secondaryCtaText && (
+                  <a
+                    href={customLanding.hero.secondaryCtaLink || "#about"}
+                    className={`px-6 py-3 rounded-[10px] font-semibold text-sm transition-all border ${
+                      isDarkHero
+                        ? "border-white/30 text-white hover:bg-white/10"
+                        : "border-slate-300 text-slate-700 bg-white hover:bg-slate-50"
+                    }`}
+                  >
+                    {customLanding.hero.secondaryCtaText}
+                  </a>
+                )}
               </div>
             </div>
           </div>
         </section>
 
         {/* COMPANY CULTURE & NUMBERS SHOWCASE */}
-        <section id="about" className="py-20 bg-white border-y border-[#e2e8f0]">
-          <div className="max-w-7xl mx-auto px-6">
-            <div className="grid lg:grid-cols-2 gap-12 items-center">
-              {/* Culture Image */}
-              <div className="relative rounded-[28px] overflow-hidden border border-[#e2e8f0] shadow-xl group">
-                <img
-                  src={theme.cultureImage}
-                  alt="IT Team Culture"
-                  className="w-full h-[420px] object-cover transition-transform duration-700 group-hover:scale-105"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent flex items-end p-8">
-                  <div className="text-white space-y-1">
-                    <span className="text-xs font-semibold text-cyan-400 uppercase tracking-wider block">Văn Hóa Làm Việc Agile</span>
-                    <h3 className="text-xl font-semibold font-display">Tự Do Sáng Tạo & Phát Triển Sự Nghiệp IT</h3>
+        {customLanding?.about?.enabled !== false && (
+          <section id="about" className="py-20 bg-white border-y border-[#e2e8f0]">
+            <div className="max-w-7xl mx-auto px-6">
+              <div className="grid lg:grid-cols-2 gap-12 items-center">
+                {/* Culture Image */}
+                <div className="relative rounded-[28px] overflow-hidden border border-[#e2e8f0] shadow-xl group">
+                  <img
+                    src={customLanding?.about?.cultureImageUrl || theme.cultureImage || "/acme_culture.png"}
+                    alt="Văn hóa công ty"
+                    className="w-full h-[420px] object-cover transition-transform duration-700 group-hover:scale-105"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent flex items-end p-8">
+                    <div className="text-white space-y-1">
+                      <span className="text-xs font-semibold text-cyan-400 uppercase tracking-wider block">
+                        Văn Hóa Làm Việc Agile
+                      </span>
+                      <h3 className="text-xl font-semibold font-display">
+                        Tự Do Sáng Tạo & Phát Triển Sự Nghiệp IT
+                      </h3>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Content & Stats */}
-              <div className="space-y-6">
-                <div>
-                  <span className={`text-xs font-semibold uppercase tracking-wider px-3 py-1 rounded-full ${theme.badgeBg}`}>
-                    Về Chúng Tôi
-                  </span>
-                  <h2 className="text-3xl sm:text-4xl font-semibold font-display text-[#1e293b] mt-3 mb-4">
-                    Vì Sao Bạn Nên Chọn {theme.name}?
-                  </h2>
-                  <p className="text-[#64748b] text-sm leading-relaxed">
-                    Tại {theme.name}, chúng tôi tin rằng con người là tài sản quý giá nhất. Đội ngũ Kỹ sư làm việc trong môi trường cởi mở, áp dụng quy trình Agile/Scrum tiêu chuẩn toàn cầu, liên tục tiếp cận các bài toán Enterprise thách thức.
-                  </p>
-                </div>
-
-                {/* Numbers Grid */}
-                <div className="grid grid-cols-2 gap-4 pt-4">
-                  <div className="p-5 rounded-[16px] bg-[#f8f9ff] border border-[#e2e8f0]">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Users className={`w-5 h-5 ${theme.primaryText}`} />
-                      <span className="text-2xl font-bold text-[#1e293b]">500+</span>
-                    </div>
-                    <span className="text-xs text-[#64748b]">Kỹ Sư Phần Mềm & AI</span>
+                {/* Content & Stats */}
+                <div className="space-y-6">
+                  <div>
+                    <span
+                      className="text-xs font-semibold uppercase tracking-wider px-3 py-1 rounded-full border"
+                      style={{
+                        backgroundColor: `${primaryColor}15`,
+                        color: primaryColor,
+                        borderColor: `${primaryColor}30`,
+                      }}
+                    >
+                      {customLanding?.about?.badge || "Về Chúng Tôi"}
+                    </span>
+                    <h2 className="text-3xl sm:text-4xl font-semibold font-display text-[#1e293b] mt-3 mb-4">
+                      {customLanding?.about?.title || `Vì Sao Bạn Nên Chọn ${theme.name}?`}
+                    </h2>
+                    <p className="text-[#64748b] text-sm leading-relaxed whitespace-pre-line">
+                      {customLanding?.about?.description ||
+                        `Tại ${theme.name}, chúng tôi tin rằng con người là tài sản quý giá nhất. Đội ngũ Kỹ sư làm việc trong môi trường cởi mở, áp dụng quy trình Agile/Scrum tiêu chuẩn toàn cầu, liên tục tiếp cận các bài toán Enterprise thách thức.`}
+                    </p>
                   </div>
 
-                  <div className="p-5 rounded-[16px] bg-[#f8f9ff] border border-[#e2e8f0]">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Zap className="w-5 h-5 text-amber-600" />
-                      <span className="text-2xl font-bold text-[#1e293b]">99.99%</span>
-                    </div>
-                    <span className="text-xs text-[#64748b]">SLA Enterprise High Availability</span>
-                  </div>
-
-                  <div className="p-5 rounded-[16px] bg-[#f8f9ff] border border-[#e2e8f0]">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Award className="w-5 h-5 text-[#3b82f6]" />
-                      <span className="text-2xl font-bold text-[#1e293b]">100%</span>
-                    </div>
-                    <span className="text-xs text-[#64748b]">Tài Trợ Chứng Chỉ AWS/GCP</span>
-                  </div>
-
-                  <div className="p-5 rounded-[16px] bg-[#f8f9ff] border border-[#e2e8f0]">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Globe className="w-5 h-5 text-indigo-600" />
-                      <span className="text-2xl font-bold text-[#1e293b]">Global</span>
-                    </div>
-                    <span className="text-xs text-[#64748b]">Dự Án Enterprise Quốc Tế</span>
+                  {/* Numbers Grid */}
+                  <div className="grid grid-cols-2 gap-4 pt-4">
+                    {(customLanding?.about?.stats && customLanding.about.stats.length > 0
+                      ? customLanding.about.stats
+                      : [
+                          { icon: "Users", value: "500+", label: "Kỹ Sư Phần Mềm & AI" },
+                          { icon: "Zap", value: "99.99%", label: "SLA Enterprise High Availability" },
+                          { icon: "Award", value: "100%", label: "Tài Trợ Chứng Chỉ AWS/GCP" },
+                          { icon: "Globe", value: "Global", label: "Dự Án Enterprise Quốc Tế" },
+                        ]
+                    ).map((st, i) => (
+                      <div
+                        key={i}
+                        className="p-5 rounded-[16px] bg-[#f8f9ff] border border-[#e2e8f0]"
+                      >
+                        <div className="flex items-center gap-2 mb-1">
+                          <div style={{ color: primaryColor }}>{renderIcon(st.icon)}</div>
+                          <span className="text-2xl font-bold text-[#1e293b]">{st.value}</span>
+                        </div>
+                        <span className="text-xs text-[#64748b]">{st.label}</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>
             </div>
-          </div>
-        </section>
+          </section>
+        )}
+
+        {/* PERKS & BENEFITS SECTION */}
+        {customLanding?.benefits?.enabled !== false && (
+          <section id="benefits" className="py-20 bg-[#f8f9ff] border-b border-[#e2e8f0]">
+            <div className="max-w-7xl mx-auto px-6">
+              <div className="text-center max-w-2xl mx-auto mb-14">
+                <span
+                  className="text-xs font-semibold uppercase tracking-wider px-3 py-1 rounded-full border"
+                  style={{
+                    backgroundColor: `${primaryColor}15`,
+                    color: primaryColor,
+                    borderColor: `${primaryColor}30`,
+                  }}
+                >
+                  {customLanding?.benefits?.badge || "Đãi Ngộ"}
+                </span>
+                <h2 className="text-3xl font-semibold font-display text-[#1e293b] mt-3 mb-2">
+                  {customLanding?.benefits?.title || "Chế Độ Đãi Ngộ & Phúc Lợi Toàn Diện"}
+                </h2>
+                <p className="text-[#64748b] text-sm">
+                  {customLanding?.benefits?.subtitle ||
+                    "Chúng tôi chăm sóc toàn diện cho sức khỏe, sự nghiệp và đời sống tinh thần của bạn"}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {(customLanding?.benefits?.items && customLanding.benefits.items.length > 0
+                  ? customLanding.benefits.items
+                  : [
+                      {
+                        icon: "HeartHandshake",
+                        title: "Chăm Sóc Sức Khỏe Toàn Diện",
+                        description:
+                          "Bảo hiểm sức khỏe cao cấp cho nhân viên và người thân, khám sức khỏe định kỳ hàng năm.",
+                      },
+                      {
+                        icon: "Laptop",
+                        title: "Thiết Bị Làm Việc Hiện Đại",
+                        description:
+                          "Trang bị Macbook Pro / Laptop cấu hình cao cùng màn hình 4K và trợ cấp setup góc làm việc.",
+                      },
+                      {
+                        icon: "TrendingUp",
+                        title: "Đào Tạo & Phát Triển Chuyên Sâu",
+                        description:
+                          "Ngân sách học tập cá nhân, hỗ trợ thi chứng chỉ quốc tế và các buổi tech-talk chia sẻ nội bộ.",
+                      },
+                      {
+                        icon: "Coffee",
+                        title: "Cân Bằng Cuộc Sống & Thưởng Hiệu Suất",
+                        description:
+                          "Lương tháng 13, thưởng dự án, ngày nghỉ phép linh hoạt và tiệc teambuilding định kỳ.",
+                      },
+                    ]
+                ).map((b, i) => (
+                  <div
+                    key={i}
+                    className="p-6 rounded-[24px] bg-white border border-[#e2e8f0] shadow-sm hover:shadow-md transition-all"
+                  >
+                    <div
+                      className="w-12 h-12 rounded-[14px] flex items-center justify-center mb-4"
+                      style={{ backgroundColor: `${primaryColor}15`, color: primaryColor }}
+                    >
+                      {renderIcon(b.icon, "w-6 h-6")}
+                    </div>
+                    <h3 className="font-semibold text-[#1e293b] text-base mb-2">{b.title}</h3>
+                    <p className="text-xs text-[#64748b] leading-relaxed">{b.description}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
 
         {/* TECH STACK GRID SECTION */}
-        <section id="techstack" className="py-20 bg-[#f8f9ff] border-b border-[#e2e8f0]">
-          <div className="max-w-7xl mx-auto px-6">
-            <div className="text-center max-w-2xl mx-auto mb-14">
-              <h2 className="text-3xl font-semibold font-display text-[#1e293b] mb-3">Hệ Sinh Thái Công Nghệ Core</h2>
-              <p className="text-[#64748b] text-sm">Các công nghệ tiên tiến đang được áp dụng trực tiếp tại các dự án.</p>
+        {customLanding?.techStack?.enabled !== false && (
+          <section id="techstack" className="py-20 bg-white border-b border-[#e2e8f0]">
+            <div className="max-w-7xl mx-auto px-6">
+              <div className="text-center max-w-2xl mx-auto mb-14">
+                <span
+                  className="text-xs font-semibold uppercase tracking-wider px-3 py-1 rounded-full border"
+                  style={{
+                    backgroundColor: `${primaryColor}15`,
+                    color: primaryColor,
+                    borderColor: `${primaryColor}30`,
+                  }}
+                >
+                  {customLanding?.techStack?.badge || "Hệ Sinh Thái Core"}
+                </span>
+                <h2 className="text-3xl font-semibold font-display text-[#1e293b] mt-3 mb-2">
+                  {customLanding?.techStack?.title || "Hệ Sinh Thái Công Nghệ Core"}
+                </h2>
+                <p className="text-[#64748b] text-sm">
+                  {customLanding?.techStack?.subtitle ||
+                    "Các công nghệ tiên tiến đang được áp dụng trực tiếp tại các dự án."}
+                </p>
+              </div>
+
+              {/* 4 Iconic Tech Pillars */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
+                <div className="p-6 rounded-[24px] bg-[#f8f9ff] border border-[#e2e8f0] shadow-sm hover:shadow-md transition-all text-center">
+                  <div
+                    className="w-12 h-12 rounded-[14px] flex items-center justify-center mx-auto mb-4"
+                    style={{ backgroundColor: `${primaryColor}15`, color: primaryColor }}
+                  >
+                    <Code className="w-6 h-6" />
+                  </div>
+                  <h3 className="font-semibold text-[#1e293b] text-base mb-1">Backend Microservices</h3>
+                  <p className="text-xs text-[#64748b]">Java 21, Spring Boot 3, Hibernate Multi-Tenancy, MySQL Separate DB.</p>
+                </div>
+
+                <div className="p-6 rounded-[24px] bg-[#f8f9ff] border border-[#e2e8f0] shadow-sm hover:shadow-md transition-all text-center">
+                  <div className="w-12 h-12 rounded-[14px] bg-cyan-50 text-cyan-600 flex items-center justify-center mx-auto mb-4">
+                    <Layers className="w-6 h-6" />
+                  </div>
+                  <h3 className="font-semibold text-[#1e293b] text-base mb-1">Modern Web Frontend</h3>
+                  <p className="text-xs text-[#64748b]">React 19, TypeScript, Vite, Zustand, Tailwind CSS, TanStack Query.</p>
+                </div>
+
+                <div className="p-6 rounded-[24px] bg-[#f8f9ff] border border-[#e2e8f0] shadow-sm hover:shadow-md transition-all text-center">
+                  <div className="w-12 h-12 rounded-[14px] bg-amber-50 text-amber-600 flex items-center justify-center mx-auto mb-4">
+                    <Cpu className="w-6 h-6" />
+                  </div>
+                  <h3 className="font-semibold text-[#1e293b] text-base mb-1">AI CV & Voice Engine</h3>
+                  <p className="text-xs text-[#64748b]">Python PyTorch, Whisper STT, NLP Parsing & Matching Score Model.</p>
+                </div>
+
+                <div className="p-6 rounded-[24px] bg-[#f8f9ff] border border-[#e2e8f0] shadow-sm hover:shadow-md transition-all text-center">
+                  <div className="w-12 h-12 rounded-[14px] bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto mb-4">
+                    <HeartHandshake className="w-6 h-6" />
+                  </div>
+                  <h3 className="font-semibold text-[#1e293b] text-base mb-1">Cloud & Async Queue</h3>
+                  <p className="text-xs text-[#64748b]">Google Cloud VPS, Docker, Kubernetes, Redis, RabbitMQ Worker Pool.</p>
+                </div>
+              </div>
+
+              {/* Dynamic Tech Tags */}
+              <div className="flex flex-wrap items-center justify-center gap-2.5 max-w-4xl mx-auto pt-2">
+                {(customLanding?.techStack?.tags && customLanding.techStack.tags.length > 0
+                  ? customLanding.techStack.tags
+                  : [
+                      "Java 21",
+                      "Spring Boot",
+                      "React 19",
+                      "TypeScript",
+                      "Docker",
+                      "Kubernetes",
+                      "Redis",
+                      "RabbitMQ",
+                      "MySQL",
+                      "Whisper AI",
+                      "Tailwind CSS",
+                    ]
+                ).map((tag, i) => (
+                  <span
+                    key={i}
+                    className="px-3.5 py-1.5 rounded-xl text-xs font-semibold border border-slate-200 bg-white text-slate-700 shadow-sm"
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
             </div>
+          </section>
+        )}
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-              <div className="p-6 rounded-[24px] bg-white border border-[#e2e8f0] shadow-sm hover:shadow-md transition-all text-center">
-                <div className={`w-12 h-12 rounded-[12px] ${theme.primaryBgLight} ${theme.primaryText} flex items-center justify-center mx-auto mb-4 font-semibold`}>
-                  <Code className="w-6 h-6" />
-                </div>
-                <h3 className="font-semibold text-[#1e293b] text-base mb-1">Backend Microservices</h3>
-                <p className="text-xs text-[#64748b]">Java 21, Spring Boot 3, Hibernate Multi-Tenancy, MySQL Separate DB.</p>
+        {/* TESTIMONIALS SECTION */}
+        {customLanding?.testimonials?.enabled !== false && (
+          <section className="py-20 bg-[#f8f9ff] border-b border-[#e2e8f0]">
+            <div className="max-w-7xl mx-auto px-6">
+              <div className="text-center max-w-2xl mx-auto mb-14">
+                <span
+                  className="text-xs font-semibold uppercase tracking-wider px-3 py-1 rounded-full border"
+                  style={{
+                    backgroundColor: `${primaryColor}15`,
+                    color: primaryColor,
+                    borderColor: `${primaryColor}30`,
+                  }}
+                >
+                  {customLanding?.testimonials?.badge || "Chia Sẻ"}
+                </span>
+                <h2 className="text-3xl font-semibold font-display text-[#1e293b] mt-3">
+                  {customLanding?.testimonials?.title || "Đánh Giá Từ Đội Ngũ Kỹ Sư"}
+                </h2>
               </div>
 
-              <div className="p-6 rounded-[24px] bg-white border border-[#e2e8f0] shadow-sm hover:shadow-md transition-all text-center">
-                <div className="w-12 h-12 rounded-[12px] bg-cyan-50 text-cyan-600 flex items-center justify-center mx-auto mb-4 font-semibold">
-                  <Layers className="w-6 h-6" />
-                </div>
-                <h3 className="font-semibold text-[#1e293b] text-base mb-1">Modern Web Frontend</h3>
-                <p className="text-xs text-[#64748b]">React 19, TypeScript, Vite, Zustand, Tailwind CSS, TanStack Query.</p>
-              </div>
-
-              <div className="p-6 rounded-[24px] bg-white border border-[#e2e8f0] shadow-sm hover:shadow-md transition-all text-center">
-                <div className="w-12 h-12 rounded-[12px] bg-amber-50 text-amber-600 flex items-center justify-center mx-auto mb-4 font-semibold">
-                  <Cpu className="w-6 h-6" />
-                </div>
-                <h3 className="font-semibold text-[#1e293b] text-base mb-1">AI CV & Voice Engine</h3>
-                <p className="text-xs text-[#64748b]">Python PyTorch, Whisper STT, NLP Parsing & Matching Score Model.</p>
-              </div>
-
-              <div className="p-6 rounded-[24px] bg-white border border-[#e2e8f0] shadow-sm hover:shadow-md transition-all text-center">
-                <div className="w-12 h-12 rounded-[12px] bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto mb-4 font-semibold">
-                  <HeartHandshake className="w-6 h-6" />
-                </div>
-                <h3 className="font-semibold text-[#1e293b] text-base mb-1">Cloud & Async Queue</h3>
-                <p className="text-xs text-[#64748b]">Google Cloud VPS, Docker, Kubernetes, Redis, RabbitMQ Worker Pool.</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl mx-auto">
+                {(customLanding?.testimonials?.items && customLanding.testimonials.items.length > 0
+                  ? customLanding.testimonials.items
+                  : [
+                      {
+                        name: "Minh Quân",
+                        role: "Senior Software Engineer",
+                        avatarUrl: "",
+                        quote: `Môi trường tại ${theme.name} mang lại cho tôi cơ hội làm việc với các hệ thống phân tán lớn và học hỏi liên tục từ các đồng nghiệp tài năng.`,
+                      },
+                      {
+                        name: "Thu Hà",
+                        role: "Tech Lead / Architect",
+                        avatarUrl: "",
+                        quote:
+                          "Văn hóa trao quyền và tôn trọng ý tưởng mới là điều tôi yêu thích nhất ở đây. Bạn luôn có không gian để tạo ra đột phá và nâng tầm giải pháp.",
+                      },
+                    ]
+                ).map((item, i) => (
+                  <div
+                    key={i}
+                    className="p-8 rounded-[24px] bg-white border border-[#e2e8f0] shadow-sm flex flex-col justify-between"
+                  >
+                    <p className="text-sm text-slate-700 italic mb-6 leading-relaxed">
+                      "{item.quote}"
+                    </p>
+                    <div className="flex items-center gap-3">
+                      <div
+                        className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm text-white"
+                        style={{ backgroundColor: primaryColor }}
+                      >
+                        {item.avatarUrl ? (
+                          <img
+                            src={item.avatarUrl}
+                            alt={item.name}
+                            className="w-full h-full rounded-full object-cover"
+                          />
+                        ) : (
+                          item.name.charAt(0)
+                        )}
+                      </div>
+                      <div>
+                        <div className="font-bold text-sm text-slate-900">{item.name}</div>
+                        <div className="text-xs text-slate-500">{item.role}</div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
-          </div>
-        </section>
+          </section>
+        )}
 
-        {/* OPEN JOBS SECTION */}
-        <section id="jobs" className="py-24 max-w-7xl mx-auto px-6">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-12">
+        {/* JOB POSITIONS SECTION */}
+        <section id="jobs" className="py-20 max-w-7xl mx-auto px-6">
+          <div className="flex flex-col md:flex-row md:items-end justify-between mb-10 gap-4">
             <div>
-              <span className={`text-xs font-semibold uppercase tracking-wider px-3 py-1 rounded-full ${theme.badgeBg}`}>
-                Tất Cả Vị Trí IT Đang Mở
+              <span
+                className="text-xs font-semibold uppercase tracking-wider px-3 py-1 rounded-full border"
+                style={{
+                  backgroundColor: `${primaryColor}15`,
+                  color: primaryColor,
+                  borderColor: `${primaryColor}30`,
+                }}
+              >
+                Cơ Hội Nghề Nghiệp
               </span>
-              <h2 className="text-3xl font-semibold font-display text-[#1e293b] mt-3">Cơ Hội Việc Làm Nổi Bật</h2>
+              <h2 className="text-3xl font-semibold font-display text-[#1e293b] mt-3 mb-2">
+                Các Vị Trí Đang Tuyển Dụng
+              </h2>
+              <p className="text-[#64748b] text-sm">
+                Tìm kiếm vị trí phù hợp với năng lực kỹ thuật và mục tiêu sự nghiệp của bạn.
+              </p>
             </div>
 
             {/* Department Filter Pills */}
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-2 overflow-x-auto pb-2">
               {departments.map((dept) => (
                 <button
                   key={dept}
                   onClick={() => setSelectedDepartment(dept)}
-                  className={`px-4 py-2 rounded-full text-xs font-semibold transition-all ${
+                  className={`px-4 py-2 rounded-full text-xs font-semibold transition-all whitespace-nowrap ${
                     selectedDepartment === dept
-                      ? `${theme.primaryColorBtn} text-white shadow-md`
-                      : "bg-white border border-[#e2e8f0] text-[#64748b] hover:text-[#1e293b]"
+                      ? "text-white shadow-sm"
+                      : "bg-white text-[#64748b] border border-[#e2e8f0] hover:bg-[#f8f9ff]"
                   }`}
+                  style={selectedDepartment === dept ? { backgroundColor: primaryColor } : undefined}
                 >
-                  {dept === "ALL" ? "Tất Cả Vị Trí" : dept}
+                  {dept === "ALL" ? "Tất Cả Phòng Ban" : dept}
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Jobs List Grid */}
-          <div className="grid gap-6">
-            {filteredJobs.length === 0 && (
-              <p className="text-sm text-[#64748b]">Chưa có tin PUBLISHED. Recruiter tạo và publish job trong mục Việc làm.</p>
-            )}
-            {filteredJobs.map((job) => (
-              <div
-                key={job.id}
-                className="p-8 rounded-[28px] bg-white border border-[#e2e8f0] shadow-[0_20px_25px_-5px_rgba(59,130,246,0.03)] hover:border-brand-primary/40 transition-all flex flex-col md:flex-row items-start md:items-center justify-between gap-6"
-              >
-                <div className="space-y-3 max-w-3xl">
-                  <div className="flex items-center gap-3 flex-wrap">
-                    <span className={`px-3 py-0.5 rounded-full text-[11px] font-semibold ${theme.badgeBg}`}>
-                      {job.department}
-                    </span>
-                    <span className="text-xs text-[#64748b] flex items-center gap-1">
-                      <MapPin className="w-3.5 h-3.5 text-[#64748b]" /> {job.location}
-                    </span>
-                    <span className="text-xs text-[#64748b] flex items-center gap-1">
-                      <Clock className="w-3.5 h-3.5 text-[#64748b]" /> {job.type}
-                    </span>
-                  </div>
-
-                  <h3
-                    className="text-xl font-semibold text-[#1e293b] hover:text-brand-primary transition-colors cursor-pointer"
-                    onClick={() => setSelectedJob(job)}
-                  >
-                    {job.title}
-                  </h3>
-
-                  <p className="text-xs text-[#64748b] leading-relaxed">{job.description}</p>
-
-                  <div className="flex items-center gap-2 flex-wrap pt-1">
-                    {job.tags.map((tag) => (
-                      <span key={tag} className="px-2.5 py-1 rounded-[6px] bg-[#f8f9ff] border border-[#e2e8f0] text-[11px] font-mono text-[#475569]">
-                        {tag}
+          {filteredJobs.length === 0 ? (
+            <div className="text-center py-16 bg-white rounded-[24px] border border-[#e2e8f0] p-8">
+              <Briefcase className="w-12 h-12 text-[#94a3b8] mx-auto mb-3 opacity-60" />
+              <h3 className="font-semibold text-lg text-[#1e293b]">Chưa có vị trí tuyển dụng phù hợp</h3>
+              <p className="text-xs text-[#64748b] mt-1 max-w-sm mx-auto">
+                Hiện tại phòng ban này chưa mở đợt tuyển mới hoặc không khớp với từ khóa tìm kiếm. Vui lòng thử lại sau!
+              </p>
+            </div>
+          ) : (
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredJobs.map((job) => (
+                <div
+                  key={job.id}
+                  className="p-6 rounded-[24px] bg-white border border-[#e2e8f0] shadow-sm hover:shadow-md transition-all flex flex-col justify-between"
+                >
+                  <div>
+                    <div className="flex items-center justify-between gap-2 mb-3">
+                      <span className="text-xs font-semibold text-[#64748b] px-2.5 py-1 rounded-[6px] bg-[#f8f9ff] border border-[#e2e8f0]">
+                        {job.department}
                       </span>
-                    ))}
+                      <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full">
+                        {job.salary}
+                      </span>
+                    </div>
+
+                    <h3 className="text-lg font-semibold text-[#1e293b] mb-2 hover:underline cursor-pointer" onClick={() => setSelectedJob(job)}>
+                      {job.title}
+                    </h3>
+
+                    <div className="flex flex-wrap items-center gap-3 text-xs text-[#64748b] mb-4">
+                      <div className="flex items-center gap-1">
+                        <MapPin className="w-3.5 h-3.5" />
+                        <span>{job.location}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Clock className="w-3.5 h-3.5" />
+                        <span>{job.type}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-1.5 mb-6">
+                      {job.tags.slice(0, 4).map((tag) => (
+                        <span key={tag} className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-[#f1f5f9] text-[#475569]">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-4 border-t border-[#e2e8f0]">
+                    <button
+                      onClick={() => setSelectedJob(job)}
+                      className="flex-1 py-2 rounded-[8px] text-xs font-semibold text-[#475569] hover:bg-[#f1f5f9] transition-colors"
+                    >
+                      Chi Tiết
+                    </button>
+                    <button
+                      onClick={() => setShowApplyModal(job)}
+                      className="flex-1 py-2 rounded-[8px] text-white text-xs font-semibold shadow-sm transition-all flex items-center justify-center gap-1"
+                      style={{ backgroundColor: primaryColor }}
+                    >
+                      <span>Ứng Tuyển</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 </div>
-
-                <div className="flex flex-col items-end justify-between gap-4 w-full md:w-auto border-t md:border-t-0 pt-4 md:pt-0 border-[#e2e8f0]">
-                  <div className="text-right">
-                    <span className="text-xs text-[#64748b] block">Mức Lương Hấp Dẫn</span>
-                    <span className={`text-xl font-bold ${theme.primaryText}`}>{job.salary}</span>
-                  </div>
-
-                  <button
-                    onClick={() => setShowApplyModal(job)}
-                    className={`w-full md:w-auto px-6 py-3 rounded-[10px] ${theme.primaryColorBtn} text-white font-semibold text-xs shadow-md transition-all flex items-center justify-center gap-2`}
-                  >
-                    <Briefcase className="w-4 h-4" />
-                    <span>Ứng Tuyển Ngay</span>
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </section>
       </main>
 
       {/* JOB DETAIL MODAL */}
       {selectedJob && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-6">
-          <div className="bg-white border border-[#e2e8f0] rounded-[28px] p-8 max-w-2xl w-full shadow-2xl relative max-h-[90vh] overflow-y-auto animate-fade-in">
-            <button onClick={() => setSelectedJob(null)} className="absolute top-6 right-6 text-[#64748b] hover:text-[#1e293b]">
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-[24px] max-w-2xl w-full max-h-[85vh] overflow-y-auto p-6 shadow-2xl relative">
+            <button
+              onClick={() => setSelectedJob(null)}
+              className="absolute top-6 right-6 p-2 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+            >
               <X className="w-5 h-5" />
             </button>
 
-            <span className={`px-3 py-0.5 rounded-full text-[11px] font-semibold mb-3 inline-block ${theme.badgeBg}`}>
-              {selectedJob.department}
-            </span>
-            <h3 className="text-2xl font-semibold font-display text-[#1e293b] mb-2">{selectedJob.title}</h3>
-
-            <div className="flex items-center gap-4 text-xs text-[#64748b] mb-6 border-b border-[#e2e8f0] pb-4">
-              <span>📍 {selectedJob.location}</span>
-              <span>💼 {selectedJob.type}</span>
-              <span className={`${theme.primaryText} font-semibold`}>💰 {selectedJob.salary}</span>
-            </div>
-
-            <div className="space-y-4 text-xs text-[#475569] mb-8">
-              <div>
-                <h4 className="font-semibold text-[#1e293b] text-sm mb-1.5">Mô Tả Công Việc</h4>
-                <p className="leading-relaxed">{selectedJob.description}</p>
-              </div>
-
-              <div>
-                <h4 className="font-semibold text-[#1e293b] text-sm mb-1.5">Yêu Cầu Chuyên Môn</h4>
-                <ul className="space-y-1.5 list-disc pl-5">
-                  {selectedJob.requirements.map((req, idx) => (
-                    <li key={idx}>{req}</li>
-                  ))}
-                </ul>
+            <div className="pr-8">
+              <span className="text-xs font-semibold text-[#64748b] px-2.5 py-1 rounded-[6px] bg-[#f8f9ff] border border-[#e2e8f0] inline-block mb-2">
+                {selectedJob.department}
+              </span>
+              <h2 className="text-2xl font-bold text-[#1e293b] mb-2">{selectedJob.title}</h2>
+              <div className="flex flex-wrap gap-4 text-xs text-[#64748b] mb-6">
+                <span>📍 {selectedJob.location}</span>
+                <span>⏰ {selectedJob.type}</span>
+                <span className="text-emerald-600 font-semibold">💰 {selectedJob.salary}</span>
               </div>
             </div>
 
-            <button
-              onClick={() => {
-                const target = selectedJob;
-                setSelectedJob(null);
-                setShowApplyModal(target);
-              }}
-              className={`w-full py-3.5 rounded-[10px] ${theme.primaryColorBtn} text-white font-semibold text-sm shadow-md transition-all flex items-center justify-center gap-2`}
-            >
-              <span>Nộp Hồ Sơ Ứng Tuyển Vị Trí Này</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
+            <div className="space-y-6 text-sm text-slate-700">
+              <div>
+                <h4 className="font-semibold text-slate-900 mb-2">Mô tả công việc</h4>
+                <p className="whitespace-pre-line leading-relaxed text-slate-600">{selectedJob.description}</p>
+              </div>
+
+              {selectedJob.requirements.length > 0 && (
+                <div>
+                  <h4 className="font-semibold text-slate-900 mb-2">Yêu cầu ứng viên</h4>
+                  <ul className="list-disc list-inside space-y-1 text-slate-600">
+                    {selectedJob.requirements.map((req, i) => (
+                      <li key={i}>{req}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+
+            <div className="pt-6 mt-6 border-t border-slate-100 flex items-center justify-end gap-3">
+              <button
+                onClick={() => setSelectedJob(null)}
+                className="px-5 py-2.5 text-xs font-semibold rounded-[8px] text-slate-600 hover:bg-slate-100 transition-colors"
+              >
+                Đóng
+              </button>
+              <button
+                onClick={() => {
+                  setShowApplyModal(selectedJob);
+                  setSelectedJob(null);
+                }}
+                className="px-6 py-2.5 text-xs font-semibold rounded-[8px] text-white shadow-sm flex items-center gap-1.5"
+                style={{ backgroundColor: primaryColor }}
+              >
+                <span>Nộp Hồ Sơ Ngay</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         </div>
       )}
 
       {/* QUICK APPLY MODAL */}
       {showApplyModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-6">
-          <div className="bg-white border border-[#e2e8f0] rounded-[28px] p-8 max-w-md w-full shadow-2xl relative animate-fade-in">
-            <button onClick={() => setShowApplyModal(null)} className="absolute top-6 right-6 text-[#64748b] hover:text-[#1e293b]">
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-[24px] max-w-lg w-full p-6 shadow-2xl relative">
+            <button
+              onClick={() => setShowApplyModal(null)}
+              className="absolute top-6 right-6 p-2 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+            >
               <X className="w-5 h-5" />
             </button>
 
             {applySubmitted ? (
-              <div className="text-center py-6">
-                <CheckCircle2 className="w-12 h-12 text-[#16a34a] mx-auto mb-3" />
-                <h4 className="text-xl font-semibold text-[#1e293b] mb-1">Nộp Hồ Sơ Thành Công 🎉</h4>
-                <p className="text-xs text-[#64748b]">Cảm ơn bạn đã ứng tuyển vào {theme.name}. Hệ thống AI sẽ tự động phân tích CV và liên hệ bạn sớm nhất!</p>
+              <div className="text-center py-8">
+                <CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto mb-3" />
+                <h3 className="font-bold text-lg text-slate-900">Ứng tuyển thành công!</h3>
+                <p className="text-xs text-slate-500 mt-1">Đang chuyển hướng tới trang quản lý hồ sơ ứng viên...</p>
               </div>
             ) : (
               <>
-                <h3 className="text-xl font-semibold font-display text-[#1e293b] mb-1">Nộp CV Ứng Tuyển</h3>
-                <p className={`text-xs ${theme.primaryText} font-semibold mb-6`}>{showApplyModal.title}</p>
+                <h3 className="text-lg font-bold text-slate-900 mb-1">Ứng tuyển vị trí</h3>
+                <p className="text-xs text-slate-500 mb-6">{showApplyModal.title}</p>
 
                 <form onSubmit={handleApplySubmit} className="space-y-4 text-xs">
                   <div>
-                    <label className="block font-semibold text-[#1e293b] mb-1">Họ và Tên ứng viên *</label>
+                    <label className="block font-semibold text-[#1e293b] mb-1">Họ và tên *</label>
                     <input
                       type="text"
                       required
@@ -527,7 +910,7 @@ export function TenantCareerPage() {
                         onChange={(e) => setCvFile(e.target.files?.[0] || null)}
                         className="absolute inset-0 opacity-0 cursor-pointer"
                       />
-                      <Upload className={`w-6 h-6 ${theme.primaryText} mx-auto mb-1`} />
+                      <Upload className="w-6 h-6 mx-auto mb-1 text-slate-400" />
                       <span className="text-xs text-[#64748b] block font-medium">
                         {cvFile ? cvFile.name : "Kéo thả file CV hoặc bấm để tải lên"}
                       </span>
@@ -536,7 +919,8 @@ export function TenantCareerPage() {
 
                   <button
                     type="submit"
-                    className={`w-full py-3 rounded-[8px] ${theme.primaryColorBtn} text-white font-semibold text-xs shadow-md transition-all flex items-center justify-center gap-2 mt-4`}
+                    className="w-full py-3 rounded-[8px] text-white font-semibold text-xs shadow-md transition-all flex items-center justify-center gap-2 mt-4"
+                    style={{ backgroundColor: primaryColor }}
                   >
                     <span>Gửi Hồ Sơ Ứng Tuyển</span>
                     <ArrowRight className="w-4 h-4" />
@@ -548,21 +932,94 @@ export function TenantCareerPage() {
         </div>
       )}
 
-      {/* Footer Bar with Dedicated Internal Staff Link */}
-      <footer className="border-t border-[#e2e8f0] py-8 bg-white">
-        <div className="max-w-7xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-[#64748b]">
-          <div>
-            {theme.name} Careers Portal © 2026. Powered by SmartHire AI Multi-Tenant SaaS.
+      {/* RICH FOOTER & CONTACTS */}
+      <footer className="border-t border-[#e2e8f0] pt-12 pb-8 bg-slate-900 text-slate-400 text-xs">
+        <div className="max-w-7xl mx-auto px-6 space-y-8">
+          <div className="flex flex-col md:flex-row justify-between gap-8">
+            <div className="space-y-3 max-w-sm">
+              <div className="flex items-center gap-3">
+                <div
+                  className="w-8 h-8 rounded-lg text-white font-bold flex items-center justify-center text-sm shadow-sm"
+                  style={{ backgroundColor: primaryColor }}
+                >
+                  {theme.code.charAt(0).toUpperCase()}
+                </div>
+                <span className="font-bold text-white text-base tracking-tight">{theme.name}</span>
+              </div>
+              <p className="text-slate-400 leading-relaxed text-xs">
+                {customLanding?.about?.description
+                  ? customLanding.about.description.slice(0, 150) + "..."
+                  : `${theme.name} — Cổng thông tin tuyển dụng và phát triển nghề nghiệp.`}
+              </p>
+            </div>
+
+            <div className="space-y-2 text-xs">
+              <span className="font-bold text-white uppercase tracking-wider block mb-2">Liên Hệ Tuyển Dụng</span>
+              {customLanding?.footer?.address && (
+                <div className="flex items-center gap-2">
+                  <Building className="w-4 h-4 text-slate-500 shrink-0" />
+                  <span>{customLanding.footer.address}</span>
+                </div>
+              )}
+              {customLanding?.footer?.contactEmail && (
+                <div className="flex items-center gap-2">
+                  <Mail className="w-4 h-4 text-slate-500 shrink-0" />
+                  <a href={`mailto:${customLanding.footer.contactEmail}`} className="hover:text-white">
+                    {customLanding.footer.contactEmail}
+                  </a>
+                </div>
+              )}
+              {customLanding?.footer?.contactPhone && (
+                <div className="flex items-center gap-2">
+                  <Phone className="w-4 h-4 text-slate-500 shrink-0" />
+                  <span>{customLanding.footer.contactPhone}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-3">
+              <span className="font-bold text-white uppercase tracking-wider block">Mạng Xã Hội</span>
+              <div className="flex items-center gap-3 text-slate-400">
+                {customLanding?.footer?.linkedinUrl && (
+                  <a href={customLanding.footer.linkedinUrl} target="_blank" rel="noreferrer" className="hover:text-white">
+                    <Linkedin className="w-5 h-5" />
+                  </a>
+                )}
+                {customLanding?.footer?.facebookUrl && (
+                  <a href={customLanding.footer.facebookUrl} target="_blank" rel="noreferrer" className="hover:text-white">
+                    <Facebook className="w-5 h-5" />
+                  </a>
+                )}
+                {customLanding?.footer?.githubUrl && (
+                  <a href={customLanding.footer.githubUrl} target="_blank" rel="noreferrer" className="hover:text-white">
+                    <Github className="w-5 h-5" />
+                  </a>
+                )}
+                {customLanding?.footer?.websiteUrl && (
+                  <a href={customLanding.footer.websiteUrl} target="_blank" rel="noreferrer" className="hover:text-white">
+                    <Globe className="w-5 h-5" />
+                  </a>
+                )}
+              </div>
+
+              <div>
+                <button
+                  onClick={() => navigate("/internal/login")}
+                  className="text-xs text-sky-400 font-semibold hover:underline inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-500/10 border border-sky-500/20"
+                >
+                  <ShieldCheck className="w-4 h-4" />
+                  <span>Portal Quản Trị & Tuyển Dụng</span>
+                </button>
+              </div>
+            </div>
           </div>
 
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => navigate("/internal/login")}
-              className="text-xs text-[#3b82f6] font-semibold hover:underline inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[6px] bg-[#3b82f6]/10"
-            >
-              <ShieldCheck className="w-4 h-4" />
-              <span>Dành Cho HR & Admin (Internal Portal Login)</span>
-            </button>
+          <div className="border-t border-slate-800 pt-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-slate-500">
+            <div>
+              {customLanding?.footer?.copyrightText ||
+                `${theme.name} Careers Portal © 2026. Powered by SmartHire AI Multi-Tenant SaaS.`}
+            </div>
+            <div>Hệ thống Tuyển dụng Doanh nghiệp Chuẩn hóa</div>
           </div>
         </div>
       </footer>

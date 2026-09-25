@@ -8,12 +8,12 @@
 |---|---|
 | Kiến trúc | Separate Database per Tenant |
 | Số database logic | 2 loại (1 Master + N Tenant) |
-| Tổng số bảng hiện hành | **56** (8 master + 48 tenant), chưa tính 19 bảng lưu trữ `legacy_v12_*` và Flyway history |
-| Tổng số entity JPA | **56** (8 master + 48 tenant); bảng lưu trữ không có entity |
+| Tổng số bảng hiện hành | **57** (8 master + 49 tenant), chưa tính 19 bảng lưu trữ `legacy_v12_*` và Flyway history |
+| Tổng số entity JPA | **57** (8 master + 49 tenant); bảng lưu trữ không có entity |
 | Tổng số khoá ngoại | **63** hiện hành (4 master + 59 tenant); thêm 9 FK của bảng lưu trữ |
 | Ràng buộc UNIQUE | **25** hiện hành (6 master + 19 tenant), không tính PK; thêm 7 UNIQUE lưu trữ |
-| Số file migration đang chạy | **19** (8 master + 11 tenant); V9 redesign chỉ còn bản tham khảo ngoài pipeline |
-| Cập nhật lần cuối | Master `V8`, tenant `V12`; đối chiếu schema MySQL ngày 2026-09-24 |
+| Số file migration đang chạy | **20** (8 master + 12 tenant); V9 redesign chỉ còn bản tham khảo ngoài pipeline |
+| Cập nhật lần cuối | Master `V8`, tenant `V13`; thêm bảng `landing_page_settings` tùy biến Landing Page |
 | Sửa lỗi assessment 2026-09-24 | V10/V11 khớp checksum lịch sử; V12 tạo schema mới và giữ bảng cũ; migration lỗi phải chặn mở tenant pool |
 | Rà soát assessment 2026-09-21 | Bổ sung query/khóa hàng và nghiệp vụ MCQ; không đổi bảng, entity, FK, UNIQUE hay migration |
 
@@ -147,7 +147,7 @@ thay vì âm thầm đọc nhầm database của doanh nghiệp khác.
 | 07 | `PlatformAuditLog` | `platform_audit_logs` | Audit | Nhật ký cấp nền tảng |
 | 08 | `ConsultationRequest` | `consultation_requests` | Sales | Yêu cầu demo/tư vấn từ landing |
 
-### 3.2 Tenant — 48 entity (`com.smarthire.domain.tenant.entity`)
+### 3.2 Tenant — 49 entity (`com.smarthire.domain.tenant.entity`)
 
 | No | Entity | Bảng | Nhóm nghiệp vụ | Kế thừa `BaseEntity` |
 |---|---|---|---|---|
@@ -199,6 +199,7 @@ thay vì âm thầm đọc nhầm database của doanh nghiệp khác.
 | 46 | `PracticeFeedback` | `practice_feedbacks` | Practice | Không |
 | 47 | `RolePermission` | `role_permissions` | Identity | Có |
 | 48 | `TenantRole` | `roles` | Identity | Có |
+| 49 | `LandingPageSetting` | `landing_page_settings` | Branding | Có |
 
 **Bảng lưu trữ V12 (19 bảng, không có entity):** thêm tiền tố `legacy_v12_` vào các tên
 `assessments`, `questions`, `question_options`, `attempts`, `attempt_answers`, `attempt_scores`,
@@ -993,6 +994,7 @@ Hai pipeline dùng **hai phương ngữ SQL khác nhau** và không thể dùng 
 | V10 | `V10__role_permissions.sql` | Quyền theo role; phục hồi tên version khớp history/checksum ttqt, nội dung không đổi |
 | V11 | `V11__custom_roles.sql` | Role tùy chỉnh và mở rộng cột role; phục hồi tên version khớp history/checksum ttqt |
 | V12 | `V12__preserve_legacy_assessment_interview_schema.sql` | Lưu 19 bảng cũ bằng RENAME; tạo Test/Submission, Direct Interview, AI Interview, cập nhật Practice và nguồn ranking |
+| V13 | `V13__create_landing_page_settings.sql` | Bảng `landing_page_settings` lưu cấu hình tùy biến toàn diện cho trang Landing Page / Career của từng tenant |
 
 V9 redesign cũ được giữ nguyên tại `db/migration-archive/`, **ngoài** location Flyway.
 Tenant tạo mới chạy V1–V8, V10–V12: 48 bảng hiện hành + 19 archive, chưa tính history.

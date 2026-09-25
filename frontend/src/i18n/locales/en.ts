@@ -91,6 +91,7 @@ export const en = {
     notifications: "Notifications",
     users: "Users",
     company: "Company",
+    landingPage: "Landing Page",
     system: "System",
     overview: "Overview",
     companyVerification: "Verification",

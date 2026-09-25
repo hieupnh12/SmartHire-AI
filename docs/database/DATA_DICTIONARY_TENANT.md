@@ -866,3 +866,23 @@ Entity `PracticeFeedback`.
 | `created_at` | TIMESTAMP | | Không | now | |
 
 **Ràng buộc:** `fk_pf_answer`
+
+---
+
+## K. Landing Page & Employer Branding
+
+### K.1 `landing_page_settings` — Cấu hình tùy biến Landing Page của Tenant
+
+Entity `LandingPageSetting` (`com.smarthire.domain.tenant.entity.LandingPageSetting`).
+
+| Cột | Kiểu | Khoá | Null | Default | Mô tả |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | Không | auto | Mã định danh bản ghi |
+| `config_json` | JSON | | Không | — | Cấu hình toàn diện: theme, hero, about, benefits, techStack, testimonials, footer, seo |
+| `is_published` | BOOLEAN | | Không | `TRUE` | Cờ trạng thái đã xuất bản hay đang là bản nháp |
+| `published_at` | TIMESTAMP | | Có | NULL | Thời điểm xuất bản lần cuối |
+| `created_at` | TIMESTAMP | | Không | `CURRENT_TIMESTAMP` | Thời điểm tạo |
+| `updated_at` | TIMESTAMP | | Không | `CURRENT_TIMESTAMP` | Thời điểm cập nhật cuối |
+
+**Ràng buộc:** Mỗi tenant database chứa 1 bản ghi cấu hình tùy biến duy nhất phục vụ trang Career công khai.
+

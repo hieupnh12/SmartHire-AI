@@ -15,6 +15,7 @@ export interface CheckoutRequestData {
   companyLegalName?: string;
   billingAddress?: string;
   notes?: string;
+  quantity?: number;
 }
 
 export interface CheckoutResponseData {
@@ -81,6 +82,19 @@ export interface VnPayVerifyReturnData {
   payDate?: string;
 }
 
+export interface PayPalVerifyReturnData {
+  success: boolean;
+  responseCode: string;
+  message: string;
+  invoiceNumber: string;
+  tenantId?: number;
+  subdomain?: string;
+  workspaceName?: string;
+  contactEmail?: string;
+  amountVnd: number;
+  transactionNo?: string;
+}
+
 export const checkoutApi = {
   submitCheckout: async (payload: CheckoutRequestData): Promise<CheckoutResponseData> => {
     const res = await axios.post<ApiResponse<CheckoutResponseData>>(`${baseURL}/public/checkout`, payload);
@@ -104,6 +118,11 @@ export const checkoutApi = {
 
   verifyVnPayReturn: async (params: Record<string, string>): Promise<VnPayVerifyReturnData> => {
     const res = await axios.get<ApiResponse<VnPayVerifyReturnData>>(`${baseURL}/public/checkout/vnpay/verify-return`, { params });
+    return res.data.data;
+  },
+
+  verifyPayPalReturn: async (invoiceId: number, orderId: string): Promise<PayPalVerifyReturnData> => {
+    const res = await axios.post<ApiResponse<PayPalVerifyReturnData>>(`${baseURL}/public/checkout/paypal/verify-return`, { invoiceId, orderId });
     return res.data.data;
   },
 };

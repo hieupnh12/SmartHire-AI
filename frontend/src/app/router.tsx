@@ -39,6 +39,7 @@ import { TenantAdminDashboardPage } from "@/features/tenant/admin/workspace/page
 import { adminNav } from "@/features/tenant/admin/nav";
 import { HomePage as TenantAdminHomePage } from "@/features/tenant/admin/overview/pages/HomePage";
 import { CompanyProfilePage } from "@/features/tenant/admin/company/pages/CompanyProfilePage";
+import { LandingPageEditorPage } from "@/features/tenant/admin/landing/pages/LandingPageEditorPage";
 import { SystemPage } from "@/features/tenant/admin/system/pages/SystemPage";
 import { UsersPage } from "@/features/tenant/admin/users/pages/UsersPage";
 import { AccountPage as TenantAdminAccountPage } from "@/features/tenant/admin/account/pages/AccountPage";
@@ -114,6 +115,9 @@ export function AppRouter() {
       <Route path="/checkout/success" element={<CheckoutSuccessPage />} />
       <Route path="/checkout/vnpay-return" element={<VnPayReturnPage />} />
 
+      <Route path="/contracts/sign/:token" element={<PublicContractSigningPage />} />
+      <Route path="/contracts/view/:token" element={<PublicContractSigningPage />} />
+
       <Route element={<TenantSubdomainGuard />}>
       <Route path="/career" element={<TenantCareerPage />} />
       <Route path="/jobs" element={<TenantCareerPage />} />
@@ -122,8 +126,6 @@ export function AppRouter() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/invite/accept" element={<AcceptInvitationPage />} />
-      <Route path="/contracts/sign/:token" element={<PublicContractSigningPage />} />
-      <Route path="/contracts/view/:token" element={<PublicContractSigningPage />} />
 
       <Route element={<RoleRoute workspaces={["CANDIDATE"]} />}>
         <Route
@@ -218,6 +220,7 @@ export function AppRouter() {
         >
           <Route index element={<TenantAdminHomePage />} />
           <Route path="company" element={<CompanyProfilePage />} />
+          <Route path="landing-page" element={<LandingPageEditorPage />} />
           <Route path="users" element={<UsersPage />} />
           <Route path="roles" element={<RolesPage />} />
           <Route path="analytics" element={<AnalyticsPage />} />

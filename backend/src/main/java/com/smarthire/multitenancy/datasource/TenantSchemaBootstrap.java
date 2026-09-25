@@ -56,11 +56,23 @@ public class TenantSchemaBootstrap {
             "ANALYTICS", "ASSESSMENTS", "AI_INTERVIEWS", "INTERVIEWS", "SCHEDULES", "NOTIFICATIONS"
     };
 
+    private static final String CREATE_LANDING_PAGE_SETTINGS = """
+            CREATE TABLE IF NOT EXISTS landing_page_settings (
+                id         BIGINT PRIMARY KEY AUTO_INCREMENT,
+                config_json JSON NOT NULL,
+                is_published BOOLEAN NOT NULL DEFAULT TRUE,
+                published_at TIMESTAMP NULL,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            )
+            """;
+
     public void apply(DataSource dataSource) {
         try (Connection connection = dataSource.getConnection(); Statement statement = connection.createStatement()) {
             statement.execute(CREATE_ROLES);
             statement.execute(SEED_ROLES);
             statement.execute(CREATE_PERMISSIONS);
+            statement.execute(CREATE_LANDING_PAGE_SETTINGS);
             widenRoleColumn(statement, "users", "role");
             widenRoleColumn(statement, "member_invitations", "role");
             widenRoleColumn(statement, "role_permissions", "role");

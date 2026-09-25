@@ -35,52 +35,63 @@ export function PricingPage() {
       .finally(() => setLoading(false));
   }, []);
 
+  const getPlanValue = (index: number, field: keyof PublicSubscriptionPlan, defaultValue: string, formatSuffix = "") => {
+    const plan = plans[index];
+    if (!plan) return defaultValue;
+    const value = plan[field];
+    if (typeof value === "number") {
+      if (value <= 0) return "Không giới hạn";
+      return `${value.toLocaleString()}${formatSuffix}`;
+    }
+    return defaultValue;
+  };
+
   const featureMatrix = [
     {
       category: "Sàng Lọc & Phân Tích Hồ Sơ (CV Screening)",
       features: [
-        { name: "Số lượng CV sàng lọc AI hàng tháng", pro: "1,500 CVs/tháng", enterprise: "10,000 CVs/tháng", custom: "Không giới hạn" },
-        { name: "Bóc tách đa định dạng (PDF, DOCX, Ảnh scanned)", pro: true, enterprise: true, custom: true },
-        { name: "Chấm điểm độ khớp JD (Match Score 0-100%)", pro: true, enterprise: true, custom: true },
-        { name: "Phát hiện từ khóa spam & CV sao chép", pro: true, enterprise: true, custom: true },
-        { name: "Tự động xếp hạng Top ứng viên sáng giá", pro: true, enterprise: true, custom: true },
+        { name: "Số lượng CV sàng lọc AI hàng tháng", starter: getPlanValue(0, "maxCvParses", "500 CVs/tháng", " CVs/tháng"), pro: getPlanValue(1, "maxCvParses", "1,500 CVs/tháng", " CVs/tháng"), enterprise: getPlanValue(2, "maxCvParses", "Không giới hạn", " CVs/tháng") },
+        { name: "Bóc tách đa định dạng (PDF, DOCX, Ảnh scanned)", starter: true, pro: true, enterprise: true },
+        { name: "Chấm điểm độ khớp JD (Match Score 0-100%)", starter: true, pro: true, enterprise: true },
+        { name: "Phát hiện từ khóa spam & CV sao chép", starter: false, pro: true, enterprise: true },
+        { name: "Tự động xếp hạng Top ứng viên sáng giá", starter: false, pro: true, enterprise: true },
       ],
     },
     {
       category: "Đánh Giá Kỹ Thuật (Technical Assessment)",
       features: [
-        { name: "Ngân hàng đề thi lập trình & trắc nghiệm", pro: "Đề thi tiêu chuẩn", enterprise: "Đề thi tiêu chuẩn + Tự tạo đề", custom: "Tùy biến ngân hàng đề riêng" },
-        { name: "Docker Sandbox chấm code tự động", pro: "Hỗ trợ 10 ngôn ngữ", enterprise: "Hỗ trợ 20+ ngôn ngữ", custom: "Tùy biến runtime riêng" },
-        { name: "Kiểm tra độ phức tạp thuật toán Time & Space", pro: true, enterprise: true, custom: true },
-        { name: "Cơ chế chống gian lận & giám sát đổi tab", pro: true, enterprise: true, custom: true },
+        { name: "Ngân hàng đề thi lập trình & trắc nghiệm", starter: "Cơ bản", pro: "Đề thi tiêu chuẩn", enterprise: "Tùy biến ngân hàng đề riêng" },
+        { name: "Docker Sandbox chấm code tự động", starter: "Hỗ trợ 5 ngôn ngữ", pro: "Hỗ trợ 10 ngôn ngữ", enterprise: "Hỗ trợ 20+ ngôn ngữ" },
+        { name: "Kiểm tra độ phức tạp thuật toán Time & Space", starter: false, pro: true, enterprise: true },
+        { name: "Cơ chế chống gian lận & giám sát đổi tab", starter: true, pro: true, enterprise: true },
       ],
     },
     {
       category: "Phỏng Vấn Giọng Nói AI (AI Voice Interview)",
       features: [
-        { name: "Trợ lý phỏng vấn đàm thoại 24/7", pro: "Tối đa 50 lượt/tháng", enterprise: "Không giới hạn lượt", custom: "Không giới hạn" },
-        { name: "Đàm thoại tiếng Việt & tiếng Anh realtime", pro: true, enterprise: true, custom: true },
-        { name: "Phân tích tư duy logic & kỹ năng mềm", pro: true, enterprise: true, custom: true },
-        { name: "Ghi âm & bóc băng transcript tự động", pro: true, enterprise: true, custom: true },
+        { name: "Thời lượng Trợ lý phỏng vấn AI/tháng", starter: getPlanValue(0, "maxAiInterviewHours", "Tối đa 10 giờ", " giờ"), pro: getPlanValue(1, "maxAiInterviewHours", "Tối đa 50 giờ", " giờ"), enterprise: getPlanValue(2, "maxAiInterviewHours", "Không giới hạn", " giờ") },
+        { name: "Đàm thoại tiếng Việt & tiếng Anh realtime", starter: true, pro: true, enterprise: true },
+        { name: "Phân tích tư duy logic & kỹ năng mềm", starter: false, pro: true, enterprise: true },
+        { name: "Ghi âm & bóc băng transcript tự động", starter: true, pro: true, enterprise: true },
       ],
     },
     {
       category: "Tài Khoản & Quản Trị Hệ Thống",
       features: [
-        { name: "Số lượng tài khoản Nhà tuyển dụng (Recruiters)", pro: "Tối đa 10 tài khoản", enterprise: "Tối đa 30 tài khoản", custom: "Không giới hạn" },
-        { name: "Cổng thông tin tuyển dụng (Career Site) riêng", pro: true, enterprise: true, custom: true },
-        { name: "Phân quyền theo phòng ban (RBAC)", pro: "Tiêu chuẩn", enterprise: "Nâng cao", custom: "Tùy biến sâu" },
-        { name: "Bảng Kanban quản lý phễu tuyển dụng", pro: true, enterprise: true, custom: true },
+        { name: "Số lượng vị trí tuyển dụng (Jobs)", starter: getPlanValue(0, "maxJobs", "Tối đa 5", ""), pro: getPlanValue(1, "maxJobs", "Tối đa 20", ""), enterprise: getPlanValue(2, "maxJobs", "Không giới hạn", "") },
+        { name: "Cổng thông tin tuyển dụng (Career Site) riêng", starter: true, pro: true, enterprise: true },
+        { name: "Phân quyền theo phòng ban (RBAC)", starter: "Cơ bản", pro: "Tiêu chuẩn", enterprise: "Tùy biến sâu" },
+        { name: "Bảng Kanban quản lý phễu tuyển dụng", starter: true, pro: true, enterprise: true },
       ],
     },
     {
       category: "Bảo Mật & Hạ Tầng Doanh Nghiệp",
       features: [
-        { name: "Kiến trúc Cơ sở dữ liệu riêng (Separate DB)", pro: true, enterprise: true, custom: true },
-        { name: "Đăng nhập một lần doanh nghiệp (SSO SAML / OIDC)", pro: false, enterprise: true, custom: true },
-        { name: "Tùy chọn hạ tầng Private Cloud hoặc On-Premise", pro: false, enterprise: false, custom: true },
-        { name: "Ký kết Thỏa thuận Bảo mật Thông tin (NDA)", pro: true, enterprise: true, custom: true },
-        { name: "Cam kết chất lượng dịch vụ (SLA)", pro: "99.5%", enterprise: "99.9%", custom: "99.99% Dedicated" },
+        { name: "Kiến trúc Cơ sở dữ liệu riêng (Separate DB)", starter: true, pro: true, enterprise: true },
+        { name: "Đăng nhập một lần doanh nghiệp (SSO SAML / OIDC)", starter: false, pro: false, enterprise: true },
+        { name: "Tùy chọn hạ tầng Private Cloud hoặc On-Premise", starter: false, pro: false, enterprise: true },
+        { name: "Ký kết Thỏa thuận Bảo mật Thông tin (NDA)", starter: false, pro: true, enterprise: true },
+        { name: "Cam kết chất lượng dịch vụ (SLA)", starter: "99.0%", pro: "99.5%", enterprise: "99.99% Dedicated" },
       ],
     },
   ];
@@ -235,9 +246,9 @@ export function PricingPage() {
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50/80">
                   <th className="py-4 px-5 font-semibold text-slate-900 w-2/5">Tính năng</th>
-                  <th className="py-4 px-5 font-semibold text-slate-700 text-center w-1/5">Professional</th>
-                  <th className="py-4 px-5 font-semibold text-blue-700 bg-blue-50/50 text-center w-1/5">Enterprise</th>
-                  <th className="py-4 px-5 font-semibold text-slate-700 text-center w-1/5">Custom</th>
+                  <th className="py-4 px-5 font-semibold text-slate-700 text-center w-1/5">{plans[0]?.name?.replace(/\s*\(.*?\)\s*/g, '') || "Starter"}</th>
+                  <th className="py-4 px-5 font-semibold text-blue-700 bg-blue-50/50 text-center w-1/5">{plans[1]?.name?.replace(/\s*\(.*?\)\s*/g, '') || "Professional"}</th>
+                  <th className="py-4 px-5 font-semibold text-slate-700 text-center w-1/5">{plans[2]?.name?.replace(/\s*\(.*?\)\s*/g, '') || "Enterprise"}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -252,24 +263,24 @@ export function PricingPage() {
                       <tr key={rIdx} className="hover:bg-slate-50/50 transition-colors">
                         <td className="py-3.5 px-5 text-slate-800 font-medium">{row.name}</td>
                         <td className="py-3.5 px-5 text-center text-slate-600">
+                          {typeof row.starter === "boolean" ? (
+                            row.starter ? <CheckCircle2 className="w-5 h-5 text-emerald-600 mx-auto" /> : <X className="w-4 h-4 text-slate-300 mx-auto" />
+                          ) : (
+                            row.starter
+                          )}
+                        </td>
+                        <td className="py-3.5 px-5 text-center font-semibold text-blue-900 bg-blue-50/30">
                           {typeof row.pro === "boolean" ? (
                             row.pro ? <CheckCircle2 className="w-5 h-5 text-emerald-600 mx-auto" /> : <X className="w-4 h-4 text-slate-300 mx-auto" />
                           ) : (
                             row.pro
                           )}
                         </td>
-                        <td className="py-3.5 px-5 text-center font-semibold text-blue-900 bg-blue-50/30">
+                        <td className="py-3.5 px-5 text-center text-slate-600">
                           {typeof row.enterprise === "boolean" ? (
                             row.enterprise ? <CheckCircle2 className="w-5 h-5 text-emerald-600 mx-auto" /> : <X className="w-4 h-4 text-slate-300 mx-auto" />
                           ) : (
                             row.enterprise
-                          )}
-                        </td>
-                        <td className="py-3.5 px-5 text-center text-slate-600">
-                          {typeof row.custom === "boolean" ? (
-                            row.custom ? <CheckCircle2 className="w-5 h-5 text-emerald-600 mx-auto" /> : <X className="w-4 h-4 text-slate-300 mx-auto" />
-                          ) : (
-                            row.custom
                           )}
                         </td>
                       </tr>

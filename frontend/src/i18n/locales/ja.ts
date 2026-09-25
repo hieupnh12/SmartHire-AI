@@ -84,6 +84,7 @@ export const ja: Messages = {
     notifications: "通知",
     users: "ユーザー",
     company: "会社情報",
+    landingPage: "採用ランディングページ",
     system: "システム",
     overview: "概要",
     companyVerification: "企業認証",

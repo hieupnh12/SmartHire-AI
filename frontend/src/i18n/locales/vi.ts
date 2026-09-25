@@ -84,6 +84,7 @@ export const vi: Messages = {
     notifications: "Thông báo",
     users: "Người dùng",
     company: "Công ty",
+    landingPage: "Trang Tuyển Dụng",
     system: "Hệ thống",
     overview: "Tổng quan",
     companyVerification: "Xác thực",
