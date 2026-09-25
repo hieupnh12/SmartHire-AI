@@ -1,6 +1,7 @@
 package com.smarthire.tenant.dashboard.controller;
 
 import com.smarthire.common.api.ApiResponse;
+import com.smarthire.tenant.dashboard.dto.DashboardSummaryResponse;
 import com.smarthire.tenant.dashboard.service.DashboardService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -19,6 +20,12 @@ public class DashboardController {
 
     public DashboardController(DashboardService dashboardService) {
         this.dashboardService = dashboardService;
+    }
+
+    @GetMapping("/summary")
+    @Operation(summary = "Get tenant recruitment dashboard summary")
+    public ResponseEntity<ApiResponse<DashboardSummaryResponse>> summary() {
+        return ResponseEntity.ok(ApiResponse.ok(dashboardService.summary()));
     }
 
     @GetMapping("/health")

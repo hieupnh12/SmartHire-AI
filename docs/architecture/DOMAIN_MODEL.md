@@ -19,6 +19,7 @@ users.role ∈ {ADMIN, RECRUITER, CANDIDATE}
 
 ```
 users(recruiter) 1──* jobs
+jobs 1──* job_assignments ──▷ users(staff)
 jobs 1──* job_skills ──▷ skills
 jobs 1──* recruitment_stages
 jobs 1──* applications ──▷ users(candidate)

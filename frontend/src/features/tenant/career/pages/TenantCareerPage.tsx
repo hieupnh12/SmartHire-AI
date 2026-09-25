@@ -6,6 +6,7 @@ import { getTenantTheme, getTenantThemeStyle } from "@/lib/tenantTheme";
 import { jobApi } from "@/api/tenant/jobApi";
 import { applicantApi } from "@/api/tenant/applicantApi";
 import { landingApi } from "@/api/tenant/landingApi";
+import { cvApi } from "@/api/tenant/cvApi";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 import { LanguageSwitcher } from "@/components/ux/LanguageSwitcher";
 import {
@@ -149,24 +150,32 @@ export function TenantCareerPage() {
       navigate("/candidate/login");
       return;
     }
-    void applicantApi
-      .apply(showApplyModal.id, { source: "CAREER" })
-      .then(() => {
-        setApplySubmitted(true);
-        setTimeout(() => {
-          setApplySubmitted(false);
-          setShowApplyModal(null);
-          setCandidateName("");
-          setCandidateEmail("");
-          setCandidatePhone("");
-          setCvFile(null);
-          navigate("/candidate/cv");
-        }, 1200);
-      })
-      .catch((err: unknown) => {
-        const code = (err as { response?: { data?: { code?: string } } })?.response?.data?.code;
-        if (code === "APPLICATION_EXISTS") navigate("/candidate/cv");
-      });
+    const jobId = showApplyModal.id;
+    const file = cvFile;
+    void applicantApi.apply(jobId, { source: "CAREER" }).catch((err: unknown) => {
+      const code = (err as { response?: { data?: { code?: string } } })?.response?.data?.code;
+      if (code !== "APPLICATION_EXISTS") throw err;
+    }).then(async () => {
+      if (file) {
+        const form = new FormData();
+        form.append("file", file);
+        form.append("jobId", String(jobId));
+        await cvApi.upload(form);
+      }
+      setApplySubmitted(true);
+      setTimeout(() => {
+        setApplySubmitted(false);
+        setShowApplyModal(null);
+        setCandidateName("");
+        setCandidateEmail("");
+        setCandidatePhone("");
+        setCvFile(null);
+        navigate("/candidate/cv");
+      }, 1200);
+    }).catch((err: unknown) => {
+      const code = (err as { response?: { data?: { code?: string } } })?.response?.data?.code;
+      if (code === "APPLICATION_EXISTS") navigate("/candidate/cv");
+    });
   };
 
   return (

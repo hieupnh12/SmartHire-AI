@@ -32,14 +32,15 @@ export const candidateTasks: CandidateTask[] = [
   },
   {
     title: "Cập nhật CV mới nhất",
-    meta: "PDF hoặc DOCX · hệ thống sẽ phân tích lại kỹ năng",
+    meta: "PDF, DOC hoặc DOCX · hệ thống sẽ phân tích lại kỹ năng",
     icon: "cv",
     to: "/candidate/cv",
   },
 ];
 
 export const candidateStats: CandidateStat[] = [
-  { label: "Ứng tuyển", value: "3", icon: "applications" },
-  { label: "CV score", value: "86%", icon: "cv" },
-  { label: "AI practice", value: "5 lượt", icon: "practice" },
+  { label: "Đơn đang theo dõi", value: "3", icon: "applications" },
+  { label: "Đang xét duyệt", value: "1", icon: "reviewing" },
+  { label: "Bài đánh giá cần làm", value: "1", icon: "assessments" },
+  { label: "Lịch phỏng vấn sắp tới", value: "1", icon: "interviews" },
 ];

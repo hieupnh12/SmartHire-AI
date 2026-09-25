@@ -73,7 +73,7 @@ export function CheckoutPage() {
 
   // VNPay state
   const [vnpayLoading, setVnpayLoading] = useState(false);
-  const [selectedBankCode, setSelectedBankCode] = useState<string>("VNBANK");
+  const selectedBankCode = "VNBANK";
 
   // PayPal state
   const [paypalVerifying, setPaypalVerifying] = useState(false);

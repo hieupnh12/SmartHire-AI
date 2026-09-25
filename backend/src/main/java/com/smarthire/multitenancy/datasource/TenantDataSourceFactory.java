@@ -28,7 +28,7 @@ public class TenantDataSourceFactory {
         this.mysqlBaseUrl = mysqlBaseUrl.endsWith("/")
                 ? mysqlBaseUrl.substring(0, mysqlBaseUrl.length() - 1)
                 : mysqlBaseUrl;
-        this.mysqlOptions = mysqlOptions != null ? mysqlOptions.replaceAll("^['\"]+|['\"]+$", "") : "";
+        this.mysqlOptions = unwrapQuotes(mysqlOptions);
     }
 
     public HikariDataSource create(TenantInfo tenant) {
@@ -66,5 +66,18 @@ public class TenantDataSourceFactory {
         // Never admit a partially migrated tenant or rewrite its history automatically.
         flyway.migrate();
         schemaBootstrap.apply(dataSource);
+    }
+
+    /** Spring `file:.env` keeps shell quotes; MySQL rejects them in the JDBC query string. */
+    static String unwrapQuotes(String value) {
+        if (value == null || value.length() < 2) {
+            return value;
+        }
+        char first = value.charAt(0);
+        char last = value.charAt(value.length() - 1);
+        if ((first == '\'' && last == '\'') || (first == '"' && last == '"')) {
+            return value.substring(1, value.length() - 1);
+        }
+        return value;
     }
 }

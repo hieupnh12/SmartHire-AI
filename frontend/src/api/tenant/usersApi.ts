@@ -24,10 +24,20 @@ export type TenantMember = {
   role: string;
   workspace?: string;
   status?: string;
+  createdAt?: string;
+};
+
+export type StaffAssignment = {
+  jobId: number;
+  title: string;
+  status: string;
+  assignmentRole: string;
 };
 
 export const usersApi = {
   list: () => api.get<ApiResponse<TenantMember[]>>("/tenant/users").then((r) => r.data),
+  assignments: (id: number) =>
+    api.get<ApiResponse<StaffAssignment[]>>(`/tenant/users/${id}/assignments`).then((r) => r.data),
   invite: (body: InviteMemberRequest) =>
     api.post<ApiResponse<InviteMemberResponse>>("/tenant/users/invitations", body).then((r) => r.data),
   assignRole: (id: number, role: string) =>

@@ -43,4 +43,6 @@ public class Application extends BaseEntity {
     @Column(name = "reject_reason", columnDefinition = "TEXT") String rejectReason;
 
     @Column(name = "withdrawn_at") Instant withdrawnAt;
+
+    @Column(name = "ai_interview_invited_at") Instant aiInterviewInvitedAt;
 }

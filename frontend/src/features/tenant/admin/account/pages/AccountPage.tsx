@@ -5,6 +5,7 @@ import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 import { getTenantIdFromWindow } from "@/lib/tenant";
 import { getTenantTheme } from "@/lib/tenantTheme";
 import { cn } from "@/lib/utils";
+import { useUiStore } from "@/stores/uiStore";
 
 type AccountSection = "profile" | "security" | "accessibility" | "notifications";
 
@@ -19,6 +20,7 @@ export function AccountPage() {
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
   const logout = useAuthStore((state) => state.logout);
+  const askConfirm = useUiStore((state) => state.askConfirm);
   const tenantTheme = getTenantTheme(getTenantIdFromWindow() ?? "acme");
   const [activeSection, setActiveSection] = useState<AccountSection>("profile");
   const [reducedMotion, setReducedMotion] = useState(() => localStorage.getItem("tenant_admin_reduced_motion") === "true");
@@ -26,10 +28,7 @@ export function AccountPage() {
   const displayName = user?.fullName ?? "Quản trị viên doanh nghiệp";
   const initial = displayName.trim().charAt(0).toLocaleUpperCase() || "A";
 
-  const handleLogout = () => {
-    logout();
-    navigate("/", { replace: true });
-  };
+  const handleLogout = () => askConfirm({ title: "Đăng xuất khỏi SmartHire?", description: "Phiên làm việc hiện tại sẽ kết thúc trên thiết bị này.", confirmLabel: "Đăng xuất", danger: true, onConfirm: () => { logout(); navigate("/", { replace: true }); } });
 
   return (
     <div className="grid min-h-[calc(100vh-3rem)] gap-8 lg:grid-cols-[18rem_minmax(0,1fr)]">

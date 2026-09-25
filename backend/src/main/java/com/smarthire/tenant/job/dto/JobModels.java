@@ -7,7 +7,6 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import java.math.BigDecimal;
 import java.time.Instant;
-import java.time.LocalDate;
 import java.util.List;
 
 public final class JobModels {
@@ -23,7 +22,7 @@ public final class JobModels {
             String workMode,
             String department,
             Integer headcount,
-            LocalDate deadline,
+            String deadline,
             BigDecimal salaryMin,
             BigDecimal salaryMax,
             String salaryCurrency,
@@ -31,7 +30,24 @@ public final class JobModels {
             BigDecimal minYearsExperience,
             String educationLevel,
             @Valid List<JobSkillItem> skills,
-            @Valid List<StageItem> stages) {}
+            @Valid List<StageItem> stages,
+            @Valid CvScreeningConfigView cvScreening,
+            @Valid GateScreeningConfigView gateScreening) {}
+
+    public record CvScreeningConfigView(
+            BigDecimal skillWeight,
+            BigDecimal preferredWeight,
+            BigDecimal experienceWeight,
+            BigDecimal educationWeight,
+            BigDecimal jaccardWeight,
+            BigDecimal semanticWeight,
+            BigDecimal passThreshold) {}
+
+    public record GateScreeningConfigView(
+            BigDecimal cvWeight,
+            BigDecimal aiInterviewWeight,
+            BigDecimal assessmentWeight,
+            BigDecimal passThreshold) {}
 
     public record StageItem(
             @NotBlank String name,
@@ -50,7 +66,7 @@ public final class JobModels {
             String employmentType,
             String workMode,
             String department,
-            LocalDate deadline,
+            Instant deadline,
             int headcount,
             long applicationCount,
             Instant publishedAt,
@@ -69,7 +85,7 @@ public final class JobModels {
             String workMode,
             String department,
             Integer headcount,
-            LocalDate deadline,
+            Instant deadline,
             BigDecimal salaryMin,
             BigDecimal salaryMax,
             String salaryCurrency,
@@ -86,7 +102,9 @@ public final class JobModels {
             long applicationCount,
             boolean acceptingApplications,
             List<JobSkillView> skills,
-            List<StageView> stages) {}
+            List<StageView> stages,
+            CvScreeningConfigView cvScreening,
+            GateScreeningConfigView gateScreening) {}
 
     public record PublicJob(
             long id,
@@ -98,7 +116,7 @@ public final class JobModels {
             String employmentType,
             String workMode,
             String department,
-            LocalDate deadline,
+            Instant deadline,
             String salary,
             BigDecimal minYearsExperience,
             String educationLevel,

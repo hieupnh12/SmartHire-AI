@@ -2,7 +2,7 @@ package com.smarthire.domain.tenant.repository;
 
 import com.smarthire.domain.enums.JobStatus;
 import com.smarthire.domain.tenant.entity.Job;
-import java.time.LocalDate;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Page;
@@ -13,6 +13,8 @@ import org.springframework.data.repository.query.Param;
 
 public interface JobRepository extends JpaRepository<Job, Long> {
     List<Job> findByStatusAndDeletedAtIsNullOrderByIdDesc(JobStatus status);
+
+    long countByStatusAndDeletedAtIsNull(JobStatus status);
     List<Job> findByDeletedAtIsNullOrderByIdDesc();
 
     @Query("select j from Job j left join fetch j.createdBy where j.id = :id")
@@ -22,21 +24,48 @@ public interface JobRepository extends JpaRepository<Job, Long> {
             select j from Job j
             where j.deletedAt is null
               and (:status is null or j.status = :status)
+              and (:assigneeId is null or exists (
+                    select 1 from JobAssignment a
+                    where a.job = j and a.user.id = :assigneeId))
               and (:q is null or :q = '' or lower(j.title) like lower(concat('%', :q, '%'))
                    or lower(coalesce(j.location, '')) like lower(concat('%', :q, '%'))
                    or lower(coalesce(j.department, '')) like lower(concat('%', :q, '%')))
             """)
-    Page<Job> search(@Param("status") JobStatus status, @Param("q") String q, Pageable pageable);
+    Page<Job> search(
+            @Param("status") JobStatus status,
+            @Param("q") String q,
+            @Param("assigneeId") Long assigneeId,
+            Pageable pageable);
+
+    @Query("""
+            select j from Job j
+            where j.deletedAt is null
+              and (:status is null or j.status = :status)
+              and (:assigneeId is null or exists (
+                    select 1 from JobAssignment a
+                    where a.job = j and a.user.id = :assigneeId))
+            order by j.id desc
+            """)
+    List<Job> findVisible(@Param("status") JobStatus status, @Param("assigneeId") Long assigneeId);
 
     @Query("""
             select j from Job j
             where j.deletedAt is null
               and j.status = :published
-              and (j.deadline is null or j.deadline >= :today)
+              and (j.deadline is null or j.deadline > :now)
               and (:q is null or :q = '' or lower(j.title) like lower(concat('%', :q, '%'))
                    or lower(coalesce(j.location, '')) like lower(concat('%', :q, '%'))
                    or lower(coalesce(j.department, '')) like lower(concat('%', :q, '%')))
             order by j.publishedAt desc, j.id desc
             """)
-    List<Job> publicOpen(@Param("today") LocalDate today, @Param("q") String q, @Param("published") JobStatus published);
+    List<Job> publicOpen(@Param("now") Instant now, @Param("q") String q, @Param("published") JobStatus published);
+
+    @Query("""
+            select j from Job j
+            where j.deletedAt is null
+              and j.status in :open
+              and j.deadline is not null
+              and j.deadline <= :now
+            """)
+    List<Job> dueToClose(@Param("now") Instant now, @Param("open") List<JobStatus> open);
 }

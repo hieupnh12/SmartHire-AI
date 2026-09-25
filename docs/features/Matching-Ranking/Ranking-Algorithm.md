@@ -14,7 +14,7 @@ Xếp hạng hồ sơ ứng tuyển của một Job bằng hai tầng trọng s�
 
 ## Luồng hoạt động
 
-1. Recruiter mở `/recruiter/rank`, chọn Job thuộc quyền quản lý.
+1. Recruiter chọn Job thuộc quyền quản lý, mở chi tiết Job rồi truy cập `/recruiter/jobs/{jobId}/rank`. Màn hình lấy `jobId` từ URL và không cho chọn lại Job.
 2. Cấu hình trọng số bốn thành phần (mặc định 35/15/30/20), trọng số nhóm kỹ năng và số tháng kinh nghiệm liên quan yêu cầu. Cấu hình chưa lưu không tạo điểm rank.
 3. Backend đọc yêu cầu từ `job_skills`, kỹ năng từ `cv_skills`, kinh nghiệm từ `cv_extractions`, điểm chính thức từ `attempt_scores` và `interview_scores`.
 4. Nếu chỉ có một nguồn liên kết hồ sơ, tự chọn nguồn đó. Khi có nhiều CV/lần đánh giá, hiển thị `SELECT_SOURCE`; Recruiter chọn nguồn chính thức trong panel chi tiết. Không tự chọn lần cao điểm nhất.
@@ -57,7 +57,7 @@ Response bọc `ApiResponse`. API danh sách trả `summary`, `page`, `cohorts` 
 
 ## UI mockup
 
-- `/recruiter/rank`: chọn Job → bốn thẻ tổng quan → cấu hình có thể mở rộng → trọng số đang dùng → bộ lọc → bảng điểm → phân trang và xuất CSV theo kết quả đang lọc. Bảng desktop ưu tiên hạng, ứng viên, các điểm chính, trạng thái và hành động xem chi tiết; màn hình nhỏ chuyển sang card ứng viên để không phụ thuộc cuộn ngang. Dữ liệu preview chỉ hiển thị trong môi trường development hoặc khi bật `VITE_ENABLE_RANKING_PREVIEW=true`.
+- `/recruiter/jobs/{jobId}/rank`: dùng Job đã chọn từ trang chi tiết → bốn thẻ tổng quan → cấu hình có thể mở rộng → trọng số đang dùng → bộ lọc → bảng điểm → phân trang và xuất CSV theo kết quả đang lọc. Trang không hiển thị bộ chọn Job; liên kết cũ `/recruiter/rank` chuyển về danh sách Job. Bảng desktop ưu tiên hạng, ứng viên, các điểm chính, trạng thái và hành động xem chi tiết; màn hình nhỏ chuyển sang card ứng viên để không phụ thuộc cuộn ngang.
 - Nhấn tên hoặc nút xem chi tiết mở dialog thích ứng: toàn màn hình trên mobile và modal lớn trên desktop. Dialog hiển thị breakdown, bằng chứng, timeline từ dữ liệu nghiệp vụ và cho phép chọn CV/assessment/interview chính thức. Insight mẫu chỉ hiển thị trong preview, không giả lập thành nhận định thật.
 - Màu, font và khoảng cách theo `DESIGN.md`. Trang Rank và dialog chi tiết kế thừa semantic color token từ `RoleShell`, không dùng palette riêng, nên luôn đồng bộ với tenant hiện tại.
 

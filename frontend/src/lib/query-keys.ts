@@ -11,6 +11,7 @@ export const queryKeys = {
     all: ["jobs"] as const,
     list: (params?: unknown) => ["jobs", "list", params] as const,
     detail: (id: number | string) => ["jobs", "detail", id] as const,
+    assignments: (jobId: number | string) => ["jobs", "assignments", jobId] as const,
   },
   applicants: {
     byJob: (jobId: number | string) => ["applicants", "job", jobId] as const,

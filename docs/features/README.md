@@ -32,6 +32,7 @@ Mỗi trang gồm: Mục đích · Actor · Luồng · Business Rules · API · 
 | JOB-03 | Skill Requirement Management | [Skill-Requirements](Job-Recruitment/Skill-Requirements.md) | Done |
 | JOB-04 | Recruitment Stage Management | [Recruitment-Stages](Job-Recruitment/Recruitment-Stages.md) | Done |
 | JOB-05 | Applicant Management | [Applicant-Management](Job-Recruitment/Applicant-Management.md) | Done |
+| JOB-06 | Recruiter Job Assignment | [Recruiter-Assignment](Job-Recruitment/Recruiter-Assignment.md) | Done |
 
 ## 4. AI-Powered CV Screening & Analysis
 

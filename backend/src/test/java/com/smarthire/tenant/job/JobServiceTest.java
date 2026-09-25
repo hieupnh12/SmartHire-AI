@@ -7,11 +7,15 @@ import com.smarthire.domain.tenant.entity.User;
 import com.smarthire.domain.tenant.repository.ApplicationRepository;
 import com.smarthire.domain.tenant.repository.JobRepository;
 import com.smarthire.domain.tenant.repository.JobSkillRepository;
+import com.smarthire.domain.tenant.repository.JobScreeningConfigRepository;
 import com.smarthire.domain.tenant.repository.RecruitmentStageRepository;
 import com.smarthire.tenant.cv.service.CvAccess;
 import com.smarthire.tenant.cv.service.CvSkillAnalysisService;
 import com.smarthire.tenant.job.dto.JobModels.JobUpsertRequest;
 import com.smarthire.tenant.job.mapper.JobMapper;
+import com.smarthire.tenant.job.screening.JobScreeningConfigService;
+import com.smarthire.tenant.job.service.JobAssignmentService;
+import com.smarthire.tenant.job.service.JobCloseScreeningService;
 import com.smarthire.tenant.job.service.JobService;
 import java.util.List;
 import java.util.Optional;
@@ -32,6 +36,10 @@ class JobServiceTest {
     @Mock ApplicationRepository applications;
     @Mock CvAccess access;
     @Mock CvSkillAnalysisService taxonomy;
+    @Mock JobAssignmentService assignments;
+    @Mock JobScreeningConfigService screening;
+    @Mock JobScreeningConfigRepository screeningConfigs;
+    @Mock JobCloseScreeningService closeScreening;
 
     JobService service;
     User recruiter;
@@ -39,7 +47,8 @@ class JobServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new JobService(jobs, jobSkills, stages, applications, access, taxonomy, new JobMapper());
+        service = new JobService(jobs, jobSkills, stages, applications, access, taxonomy, new JobMapper(),
+                assignments, screening, screeningConfigs, closeScreening);
         recruiter = new User();
         recruiter.setEmail("recruiter@se36.local");
         recruiter.setFullName("Le Cong Cuong");
@@ -68,7 +77,18 @@ class JobServiceTest {
         when(jobSkills.findViewRowsByJobId(8L)).thenReturn(List.of());
         when(stages.findByJob_IdOrderBySortOrderAsc(8L)).thenReturn(List.of());
         when(applications.countByJob_Id(8L)).thenReturn(0L);
+        when(screeningConfigs.findById(8L)).thenReturn(Optional.empty());
 
         assertThat(service.publish(8L).status()).isEqualTo("PUBLISHED");
+    }
+
+    @Test
+    void parseDeadlineAcceptsDateAndDateTime() {
+        assertThat(JobService.parseDeadline("2026-09-30"))
+                .isEqualTo(java.time.LocalDate.parse("2026-09-30").atTime(23, 59, 59).toInstant(java.time.ZoneOffset.UTC));
+        assertThat(JobService.parseDeadline("2026-09-30T17:30"))
+                .isEqualTo(java.time.LocalDateTime.parse("2026-09-30T17:30").toInstant(java.time.ZoneOffset.UTC));
+        assertThat(JobService.parseDeadline("2026-09-30T17:30:00Z")).isEqualTo(java.time.Instant.parse("2026-09-30T17:30:00Z"));
+        assertThat(JobService.parseDeadline("")).isNull();
     }
 }

@@ -37,8 +37,8 @@ V11 mở rộng `users.role`, `member_invitations.role` thành VARCHAR(64) NOT N
 
 > Xem [Database Design & ERD](README.md) và [Data Dictionary Master](DATA_DICTIONARY_MASTER.md).
 
-**Database:** MySQL riêng cho mỗi doanh nghiệp. **Số bảng:** 48 hiện hành + 19 archive, không tính Flyway history.
-**Nguồn:** `backend/src/main/resources/db/migration/tenant/`, V1-V8, V10-V12.
+**Database:** MySQL riêng cho mỗi doanh nghiệp. **Số bảng:** 50 hiện hành + 19 archive, không tính Flyway history.
+**Nguồn:** `backend/src/main/resources/db/migration/tenant/`, V1-V8, V10-V15.
 **Entity:** `com.smarthire.domain.tenant.entity`. **Hibernate:** `hbm2ddl.auto = none`.
 
 KÃ½ hiá»‡u: `PK` khoÃ¡ chÃ­nh Â· `FK` khoÃ¡ ngoáº¡i Ä‘Ã£ khai bÃ¡o Â· `UQ` thuá»™c rÃ ng buá»™c unique Â· `IDX` cÃ³ index Â·
@@ -161,7 +161,7 @@ Entity `Job` (káº¿ thá»«a `BaseEntity`). Báº£ng Ä‘Æ°á»£c má»�
 | `department` | VARCHAR(128) | | CÃ³ | NULL | PhÃ²ng ban (V6) |
 | `work_mode` | VARCHAR(32) | | CÃ³ | NULL | Onsite, hybrid, remote (V6) |
 | `headcount` | INT | | CÃ³ | NULL | Sá»‘ lÆ°á»£ng cáº§n tuyá»ƒn (V6) |
-| `deadline` | DATE | | CÃ³ | NULL | Háº¡n ná»™p há»“ sÆ¡ (V6) |
+| `deadline` | DATETIME | | Có | NULL | Hết hạn đăng tin (V6 DATE → V15 DATETIME). Hết giờ này job đóng và tự sàng CV |
 | `salary_min` | DECIMAL(12,2) | | CÃ³ | NULL | LÆ°Æ¡ng tá»‘i thiá»ƒu (V6) |
 | `salary_max` | DECIMAL(12,2) | | CÃ³ | NULL | LÆ°Æ¡ng tá»‘i Ä‘a (V6) |
 | `salary_currency` | VARCHAR(8) | | CÃ³ | NULL | ÄÆ¡n vá»‹ tiá»n tá»‡ (V6) |
@@ -240,6 +240,7 @@ Entity `Application` (káº¿ thá»«a `BaseEntity`). Má»Ÿ rá»™ng qua V7
 | `archived_at` | TIMESTAMP | IDX | CÃ³ | NULL | LÆ°u trá»¯ Ä‘Æ¡n, tÃ¡ch khá»i danh sÃ¡ch hoáº¡t Ä‘á»™ng (V7) |
 | `reject_reason` | TEXT | | CÃ³ | NULL | LÃ½ do tá»« chá»‘i (V7) |
 | `withdrawn_at` | TIMESTAMP | | CÃ³ | NULL | Thá»i Ä‘iá»ƒm á»©ng viÃªn rÃºt Ä‘Æ¡n (V7) |
+| `ai_interview_invited_at` | TIMESTAMP | | Có | NULL | Thời điểm đã gửi mail mời phỏng vấn AI sau khi CV đạt (V14) |
 | `created_at` | TIMESTAMP | | KhÃ´ng | now | |
 | `updated_at` | TIMESTAMP | | KhÃ´ng | now on update | |
 
@@ -388,6 +389,43 @@ Entity `MatchScore`.
 | `updated_at` | TIMESTAMP | | KhÃ´ng | now on update | |
 
 **RÃ ng buá»™c:** `fk_match_job`, `fk_match_cv`, `uk_match_job_cv (job_id, cv_id)`
+
+### D.7 `job_screening_configs` — Trọng số sàng CV và Gate theo job (V13)
+
+Entity `JobScreeningConfig`. PK tự nhiên `job_id`, không kế thừa `BaseEntity`.
+
+| Cột | Kiểu | Khoá | Null | Default | Mô tả |
+|---|---|---|---|---|---|
+| `job_id` | BIGINT | PK, FK → `jobs.id` | Không | — | Một cấu hình / job |
+| `cv_skill_weight` | DECIMAL(5,2) | | Không | — | Trọng số skill bắt buộc |
+| `cv_preferred_weight` | DECIMAL(5,2) | | Không | — | Trọng số skill ưu tiên |
+| `cv_experience_weight` | DECIMAL(5,2) | | Không | — | Trọng số kinh nghiệm |
+| `cv_education_weight` | DECIMAL(5,2) | | Không | — | Trọng số học vấn |
+| `cv_jaccard_weight` | DECIMAL(5,2) | | Không | — | Trọng số Jaccard |
+| `cv_semantic_weight` | DECIMAL(5,2) | | Không | — | Trọng số semantic / Gemini |
+| `cv_pass_threshold` | DECIMAL(5,2) | | Không | — | Ngưỡng đậu CV (0–100) |
+| `gate_cv_weight` | DECIMAL(5,2) | | Không | — | Trọng số CV trong Gate |
+| `gate_interview_weight` | DECIMAL(5,2) | | Không | — | Trọng số AI interview trong Gate |
+| `gate_assessment_weight` | DECIMAL(5,2) | | Không | — | Trọng số assessment trong Gate |
+| `gate_pass_threshold` | DECIMAL(5,2) | | Không | — | Ngưỡng đậu Gate (0–100) |
+
+**Ràng buộc:** `fk_job_screening_job`; CHECK trọng số ≥ 0; CHECK ngưỡng 0–100.
+
+### D.8 `gate_scores` — Điểm Gate theo đơn (V13)
+
+Entity `GateScore` (kế thừa `BaseEntity`).
+
+| Cột | Kiểu | Khoá | Null | Default | Mô tả |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | Không | auto | |
+| `application_id` | BIGINT | FK → `applications.id`, UQ | Không | — | Một điểm Gate / đơn |
+| `score` | DECIMAL(5,2) | | Không | — | Điểm Gate |
+| `breakdown_json` | JSON | | Không | — | Chi tiết CV / interview / assessment |
+| `passed` | BOOLEAN | | Không | — | Đậu ngưỡng Gate |
+| `created_at` | TIMESTAMP | | Không | now | |
+| `updated_at` | TIMESTAMP | | Có | NULL | |
+
+**Ràng buộc:** `fk_gate_score_application`
 
 ---
 

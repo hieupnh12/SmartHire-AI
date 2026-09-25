@@ -47,6 +47,19 @@ public class ApplicantController {
         return ApiResponse.ok(applicants.mine());
     }
 
+    @GetMapping("/applications")
+    @Operation(summary = "List applications visible to the current staff member")
+    public ApiResponse<PageResult<ApplicationSummary>> listVisible(
+            @RequestParam(required = false) Long jobId,
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) ApplicationStatus status,
+            @RequestParam(required = false) String source,
+            @RequestParam(defaultValue = "false") boolean archived,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ApiResponse.ok(applicants.listVisible(jobId, q, status, source, archived, page, size));
+    }
+
     @GetMapping("/jobs/{jobId}/applications")
     @Operation(summary = "Search applications for a job")
     public ApiResponse<PageResult<ApplicationSummary>> list(

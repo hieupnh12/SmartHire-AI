@@ -12,6 +12,8 @@ export type ApplicationListParams = {
 };
 
 export const applicantApi = {
+  list: (params: ApplicationListParams & { jobId?: number } = {}) =>
+    api.get<ApiResponse<ApplicationPage>>("/applications", { params }).then((r) => r.data),
   listByJob: (jobId: number | string, params: ApplicationListParams = {}) =>
     api.get<ApiResponse<ApplicationPage>>(`/jobs/${jobId}/applications`, { params }).then((r) => r.data),
   apply: (jobId: number | string, body?: Record<string, unknown>) =>

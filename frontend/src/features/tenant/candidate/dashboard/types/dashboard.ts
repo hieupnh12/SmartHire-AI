@@ -14,7 +14,7 @@ export type CandidateTask = {
   to: string;
 };
 
-export type CandidateStatIcon = "applications" | "cv" | "practice";
+export type CandidateStatIcon = "applications" | "reviewing" | "assessments" | "interviews";
 
 export type CandidateStat = {
   label: string;

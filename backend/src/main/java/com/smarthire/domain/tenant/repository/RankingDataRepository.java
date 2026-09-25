@@ -14,6 +14,16 @@ public class RankingDataRepository {
         return em.createQuery("select j from Job j where lower(j.createdBy.email) = lower(:email) and j.deletedAt is null order by j.id desc", Job.class)
                 .setParameter("email", email).getResultList();
     }
+    public List<Job> activeJobs() {
+        return em.createQuery("select j from Job j where j.deletedAt is null order by j.id desc", Job.class).getResultList();
+    }
+    public List<Job> assignedJobs(long userId) {
+        return em.createQuery(
+                        "select a.job from JobAssignment a where a.user.id = :userId and a.job.deletedAt is null order by a.job.id desc",
+                        Job.class)
+                .setParameter("userId", userId)
+                .getResultList();
+    }
     public Job job(long id, boolean lock) { return em.find(Job.class, id, lock ? LockModeType.PESSIMISTIC_WRITE : LockModeType.NONE); }
     public Application application(long id) { return em.find(Application.class, id); }
     public RankingConfig config(long jobId) { return em.find(RankingConfig.class, jobId); }
@@ -53,6 +63,18 @@ public class RankingDataRepository {
     }
 
     public void save(Object entity) { em.merge(entity); }
+    public void saveQualitySnapshot(long applicationId, java.math.BigDecimal score, String version, String componentsJson) {
+        em.createNativeQuery("""
+                insert into candidate_quality_snapshots
+                    (application_id, score, components_json, model_version, calculated_at)
+                values (:applicationId, :score, :components, :version, current_timestamp)
+                """)
+                .setParameter("applicationId", applicationId)
+                .setParameter("score", score)
+                .setParameter("components", componentsJson)
+                .setParameter("version", version)
+                .executeUpdate();
+    }
     public void replaceSnapshots(long jobId) {
         em.createQuery("delete from CandidateRanking r where r.job.id = :id").setParameter("id", jobId).executeUpdate();
         em.createQuery("delete from OverallScore s where s.application.job.id = :id").setParameter("id", jobId).executeUpdate();
