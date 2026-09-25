@@ -81,7 +81,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{baseUrl}}/assessments/{{testId}}/questions",
+            "url": "{{baseUrl}}/assessments/{{testId}}/create_question",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"questionText\": \"Which keyword defines a Java class?\",\n  \"points\": 5,\n  \"questionOrder\": 0,\n  \"options\": [\n    {\n      \"optionText\": \"class\",\n      \"correct\": true\n    },\n    {\n      \"optionText\": \"def\",\n      \"correct\": false\n    }\n  ]\n}",
@@ -107,7 +107,7 @@
                 "value": "{{tenantId}}"
               }
             ],
-            "url": "{{baseUrl}}/assessments/{{testId}}/questions"
+            "url": "{{baseUrl}}/assessments/{{testId}}/list_questions"
           }
         },
         {
@@ -128,7 +128,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{baseUrl}}/assessments/{{testId}}/questions/{{questionId}}",
+            "url": "{{baseUrl}}/assessments/{{testId}}/update_question/{{questionId}}",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"questionText\": \"Which keyword defines a Java class?\",\n  \"points\": 5,\n  \"questionOrder\": 0,\n  \"options\": [\n    {\n      \"optionText\": \"class\",\n      \"correct\": true\n    },\n    {\n      \"optionText\": \"def\",\n      \"correct\": false\n    }\n  ]\n}",
@@ -154,7 +154,7 @@
                 "value": "{{tenantId}}"
               }
             ],
-            "url": "{{baseUrl}}/assessments/{{testId}}/questions/{{questionId}}"
+            "url": "{{baseUrl}}/assessments/{{testId}}/delete_question/{{questionId}}"
           }
         },
         {
@@ -171,7 +171,7 @@
                 "value": "{{tenantId}}"
               }
             ],
-            "url": "{{baseUrl}}/assessments/{{testId}}/publish"
+            "url": "{{baseUrl}}/assessments/{{testId}}/publish_test"
           }
         },
         {
@@ -192,7 +192,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{baseUrl}}/assessments/{{testId}}/submissions",
+            "url": "{{baseUrl}}/assessments/{{testId}}/start_submission",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"applicationId\": {{applicationId}}\n}",
@@ -218,7 +218,7 @@
                 "value": "{{tenantId}}"
               }
             ],
-            "url": "{{baseUrl}}/submissions/{{submissionId}}"
+            "url": "{{baseUrl}}/submissions/{{submissionId}}/get_submission"
           }
         },
         {
@@ -239,7 +239,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{baseUrl}}/submissions/{{submissionId}}/answers",
+            "url": "{{baseUrl}}/submissions/{{submissionId}}/save_answers",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"answers\": [{ \"questionId\": {{questionId}}, \"selectedOptionId\": {{optionId}} }]\n}",
@@ -269,7 +269,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{baseUrl}}/submissions/{{submissionId}}/answers",
+            "url": "{{baseUrl}}/submissions/{{submissionId}}/save_answers",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"answers\": [{ \"questionId\": {{questionId}}, \"selectedOptionId\": null }]\n}",
@@ -295,7 +295,7 @@
                 "value": "{{tenantId}}"
               }
             ],
-            "url": "{{baseUrl}}/submissions/{{submissionId}}/submit"
+            "url": "{{baseUrl}}/submissions/{{submissionId}}/submit_test"
           }
         },
         {
@@ -312,7 +312,7 @@
                 "value": "{{tenantId}}"
               }
             ],
-            "url": "{{baseUrl}}/submissions/{{submissionId}}/result"
+            "url": "{{baseUrl}}/submissions/{{submissionId}}/get_result"
           }
         }
       ]
@@ -338,7 +338,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{baseUrl}}/assessments",
+            "url": "{{baseUrl}}/assessments/create_draft_test",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"jobId\": {{jobId}},\n  \"title\": \"Java basics\",\n  \"description\": \"Java assessment\",\n  \"durationMinutes\": 30,\n  \"passingScore\": 5\n}",
@@ -364,7 +364,7 @@
                 "value": "{{tenantId}}"
               }
             ],
-            "url": "{{baseUrl}}/assessments?page=0&size=20"
+            "url": "{{baseUrl}}/assessments/list_tenant_tests?page=0&size=20"
           }
         },
         {
@@ -381,7 +381,7 @@
                 "value": "{{tenantId}}"
               }
             ],
-            "url": "{{baseUrl}}/assessments/{{testId}}"
+            "url": "{{baseUrl}}/assessments/get_test_metadata/{{testId}}"
           }
         },
         {
@@ -402,7 +402,7 @@
                 "value": "application/json"
               }
             ],
-            "url": "{{baseUrl}}/assessments/{{testId}}",
+            "url": "{{baseUrl}}/assessments/update_draft_test/{{testId}}",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"jobId\": {{jobId}},\n  \"title\": \"Java basics\",\n  \"description\": \"Java assessment\",\n  \"durationMinutes\": 30,\n  \"passingScore\": 5\n}",

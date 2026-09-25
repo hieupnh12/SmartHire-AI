@@ -1,3 +1,4 @@
+import { useRecruitmentJob } from "../../jobs/components/JobRecruitmentWorkspace";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Bot, CalendarPlus, Link2, MapPin, Users, Video } from "lucide-react";
@@ -7,17 +8,17 @@ import { button, input, muted, panel, primary } from "@/features/tenant/recruite
 import {
   interviewModeLabel,
   interviewStatusLabel,
-  mockInterviews,
   type InterviewMode,
   type MockInterview,
 } from "@/features/tenant/recruiter/schedules/constants/mockInterviews";
 
 /** Recruiter ↔ candidate interview (người–người). AI sessions live under AI Interview. */
 export function InterviewsPage() {
-  const [rows, setRows] = useState<MockInterview[]>(mockInterviews);
+  const job = useRecruitmentJob();
+  const [rows, setRows] = useState<MockInterview[]>([]);
   const [applicationId, setApplicationId] = useState("501");
   const [candidateName, setCandidateName] = useState("Nguyễn An");
-  const [jobTitle, setJobTitle] = useState("Backend Engineer");
+  const jobTitle = job.title;
   const [mode, setMode] = useState<InterviewMode>("ONLINE");
   const [startsAt, setStartsAt] = useState("2026-09-25T09:00");
   const [duration, setDuration] = useState(60);
@@ -87,7 +88,7 @@ export function InterviewsPage() {
           </p>
         </div>
         <Link
-          to="/recruiter/ai-interviews"
+          to={`/recruiter/jobs/${job.id}/ai-interviews`}
           className="inline-flex min-h-10 items-center justify-center gap-2 self-start rounded-full border border-[var(--color-primary)] bg-[var(--color-primary-subtle)] px-4 text-sm font-semibold text-[var(--color-primary-hover)] hover:bg-[var(--color-primary-soft)] md:self-auto"
         >
           <Bot className="size-4" aria-hidden="true" />
@@ -124,7 +125,7 @@ export function InterviewsPage() {
           </label>
           <label className="block space-y-1 text-sm">
             <span className="font-medium">Vị trí</span>
-            <input className={input} value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} />
+            <input className={input} value={jobTitle} readOnly />
           </label>
           <label className="block space-y-1 text-sm">
             <span className="font-medium">Hình thức</span>
@@ -185,6 +186,7 @@ export function InterviewsPage() {
               </tr>
             </thead>
             <tbody>
+              {rows.length === 0 && <tr><td colSpan={5} className="py-6 text-center text-[var(--color-on-surface-variant)]">Chưa có lịch phỏng vấn cho vị trí này.</td></tr>}
               {rows.map((row) => (
                 <tr key={row.id} className="border-t border-[var(--color-border-default)]">
                   <td className="py-3">

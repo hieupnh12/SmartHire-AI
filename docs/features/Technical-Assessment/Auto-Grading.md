@@ -28,9 +28,9 @@ Tự chấm MCQ + coding; tổng điểm assessment.
 
 | Method | Path |
 |---|---|
-| POST | `/api/v1/submissions/{id}/submit` (candidate sở hữu) |
-| GET | `/api/v1/submissions/{id}` (candidate sở hữu) |
-| GET | `/api/v1/submissions/{id}/result` (staff) |
+| POST | `/api/v1/submissions/{id}/submit_test` (candidate sở hữu) |
+| GET | `/api/v1/submissions/{id}/get_submission` (candidate sở hữu) |
+| GET | `/api/v1/submissions/{id}/get_result` (staff) |
 
 ## Database liên quan
 

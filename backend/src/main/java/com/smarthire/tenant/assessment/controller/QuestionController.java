@@ -20,33 +20,35 @@ public class QuestionController {
 
     public QuestionController(QuestionService service) { this.service = service; }
 
-    @GetMapping("/questions")
-    @Operation(summary = "List questions and correct options (tenant staff only)")
+    @GetMapping("/list_questions")
+    @Operation(summary = "List questions and options of a JobTest (staff only)")
     public ApiResponse<List<QuestionResponse>> list(@PathVariable long testId) {
         return ApiResponse.ok(service.list(testId));
     }
 
-    @PostMapping("/questions")
-    @Operation(summary = "Create an MCQ with options in a draft test (staff only)")
+    @PostMapping("/create_question")
+    @Operation(summary = "Create an MCQ question with options in a draft JobTest (staff only)")
     public ResponseEntity<ApiResponse<QuestionResponse>> create(@PathVariable long testId, @Valid @RequestBody QuestionRequest body) {
         return ResponseEntity.status(201).body(ApiResponse.ok(service.create(testId, body)));
     }
 
-    @PutMapping("/questions/{questionId}")
-    @Operation(summary = "Replace a draft question and all its options (staff only)", description = "Option IDs are regenerated. Published tests cannot be edited.")
+    @PutMapping("/update_question/{questionId}")
+    @Operation(summary = "Replace a draft question and all its options (staff only)",
+            description = "Option IDs are regenerated. Published tests cannot be edited.")
     public ApiResponse<QuestionResponse> update(@PathVariable long testId, @PathVariable long questionId, @Valid @RequestBody QuestionRequest body) {
         return ApiResponse.ok(service.update(testId, questionId, body));
     }
 
-    @DeleteMapping("/questions/{questionId}")
+    @DeleteMapping("/delete_question/{questionId}")
     @Operation(summary = "Delete a draft question and its options (staff only)")
     public ApiResponse<Void> delete(@PathVariable long testId, @PathVariable long questionId) {
         service.delete(testId, questionId);
         return ApiResponse.ok(null);
     }
 
-    @PostMapping("/publish")
-    @Operation(summary = "Validate and publish an MCQ-only test (staff only)", description = "Requires 1-100 questions, exactly one correct option per question and a valid passing score. Freezes test metadata and questions.")
+    @PostMapping("/publish_test")
+    @Operation(summary = "Validate and publish an MCQ-only JobTest (staff only)",
+            description = "Requires 1-100 questions, exactly one correct option per question and a valid passing score. Freezes test metadata and questions.")
     public ApiResponse<JobTestResponse> publish(@PathVariable long testId) {
         return ApiResponse.ok(service.publish(testId));
     }

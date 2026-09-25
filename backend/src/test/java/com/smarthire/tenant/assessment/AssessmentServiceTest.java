@@ -140,7 +140,7 @@ class AssessmentServiceTest {
     void controllerRejectsInvalidRequestBeforeService() throws Exception {
         AssessmentService mockService = mock(AssessmentService.class);
         MockMvcBuilders.standaloneSetup(new AssessmentController(mockService)).build()
-                .perform(post("/api/v1/assessments").contentType(MediaType.APPLICATION_JSON)
+                .perform(post("/api/v1/assessments/create_draft_test").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"jobId\":0,\"title\":\" \",\"durationMinutes\":0,\"passingScore\":-1}"))
                 .andExpect(status().isBadRequest());
         verifyNoInteractions(mockService);

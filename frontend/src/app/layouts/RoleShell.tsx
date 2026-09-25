@@ -76,15 +76,32 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
   const tenantDisplayName = companyProfile?.companyName?.trim() || tenantTheme.name;
   const showTenantLogo = !!tenantLogoUrl && failedTenantLogoUrl !== tenantLogoUrl;
   const recruiterJobId = isRecruiterWorkspace ? location.pathname.match(/^\/recruiter\/jobs\/(\d+)(?:\/|$)/)?.[1] : undefined;
+  // Recruitment modules use the selected job.
+  const jobScopedNav = new Set([
+    "/applicants",
+    "/cvs",
+    "/rank",
+    "/pipeline",
+    "/analytics",
+    "/assessments",
+    "/ai-interviews",
+    "/interviews",
+    "/schedules",
+    "/notifications",
+  ]);
   const displayedLinks = isRecruiterWorkspace
     ? accessToken && !user
       ? []
-      : visibleRecruiterNav(user?.permissions).filter((item) => item.to !== "").map((item) => ({
-          ...item,
-          to: recruiterJobId
-            ? item.to === "/jobs" ? `/jobs/${recruiterJobId}` : `/jobs/${recruiterJobId}${item.to}`
-            : "/jobs",
-        }))
+      : visibleRecruiterNav(user?.permissions).filter((item) => item.to !== "" && (!!recruiterJobId || !jobScopedNav.has(item.to))).map((item) => {
+          let to: string = item.to;
+          if (item.to === "/jobs") {
+            to = recruiterJobId ? `/jobs/${recruiterJobId}` : "/jobs";
+          } else if (jobScopedNav.has(item.to)) {
+            if (recruiterJobId) to = `/jobs/${recruiterJobId}${item.to}`;
+            else to = "/jobs";
+          }
+          return { ...item, to };
+        })
     : links;
   const showRecruiterNotifications =
     !isRecruiterWorkspace || hasRecruiterFeature(user?.permissions, "NOTIFICATIONS");
@@ -313,6 +330,12 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
         </div>
       </div>
     );
+  }
+
+  if (isCandidateWorkspace && location.pathname === "/candidate/interviews/demo") {
+    return <div className="tenant-workspace-theme min-h-screen bg-surface-page" style={getTenantThemeStyle(tenantTheme)}>
+      <main id="main-content" className="mx-auto max-w-[1600px] p-4 sm:p-6"><Outlet /></main>
+    </div>;
   }
 
   return (

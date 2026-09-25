@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useRecruitmentJob } from "../../jobs/components/JobRecruitmentWorkspace";
+import { useMemo, useState } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import {
   Archive,
   Bot,
   CheckCircle2,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
   ClipboardList,
@@ -25,7 +25,6 @@ import {
   X,
 } from "lucide-react";
 import { assessmentApi } from "@/api/tenant/assessmentApi";
-import { jobApi } from "@/api/tenant/jobApi";
 import type { Question, TestStatus } from "@/api/types/assessment";
 import { AssessmentError } from "@/components/ux/assessmentUi";
 import { SKILL_CATALOG } from "@/features/tenant/recruiter/jobs/skillCatalog";
@@ -34,7 +33,6 @@ import { getTenantIdFromWindow } from "@/lib/tenant";
 import { getTenantTheme } from "@/lib/tenantTheme";
 import { cn } from "@/lib/utils";
 
-const FETCH_SIZE = 50;
 const FAVORITES_KEY = "smarthire.question-bank.favorites";
 const SKILLS = SKILL_CATALOG.flatMap((group) => group.skills);
 
@@ -134,10 +132,10 @@ function downloadCsv(rows: BankRow[]) {
 }
 
 export function QuestionBankPage() {
+  const job = useRecruitmentJob();
+  const basePath = `/recruiter/jobs/${job.id}/assessments`;
   const workspace = getTenantTheme(getTenantIdFromWindow() ?? "acme").name;
   const [collection, setCollection] = useState<Collection>("all");
-  const [openDepartments, setOpenDepartments] = useState<string[]>([]);
-  const [jobId, setJobId] = useState<number | "">("");
   const [query, setQuery] = useState("");
   const [skill, setSkill] = useState("");
   const [difficulty, setDifficulty] = useState<Difficulty | "">("");
@@ -154,14 +152,9 @@ export function QuestionBankPage() {
   const [notice, setNotice] = useState("");
 
   const tests = useQuery({
-    queryKey: [...queryKeys.assessments.list(0), FETCH_SIZE, "question-bank"],
-    queryFn: () => assessmentApi.list(0, FETCH_SIZE),
+    queryKey: [...queryKeys.assessments.all(), "job", job.id],
+    queryFn: () => assessmentApi.listForJob(job.id),
   });
-  const jobs = useQuery({
-    queryKey: [...queryKeys.assessments.all(), "question-bank-jobs"],
-    queryFn: () => jobApi.search({ page: 0, size: 50 }),
-  });
-
   const items = tests.data?.items ?? [];
   const questionQueries = useQueries({
     queries: items.map((test) => ({
@@ -171,14 +164,8 @@ export function QuestionBankPage() {
     })),
   });
   const loadingQuestions = questionQueries.some((item) => item.isPending);
-
-  const jobMap = useMemo(() => {
-    const map = new Map<number, { title: string; department: string }>();
-    for (const job of jobs.data?.data.items ?? []) {
-      map.set(job.id, { title: job.title, department: job.department?.trim() || "Chưa phân nhóm" });
-    }
-    return map;
-  }, [jobs.data]);
+  const questionError = questionQueries.find((item) => item.isError)?.error;
+  const jobMap = useMemo(() => new Map([[job.id, { title: job.title, department: job.department ?? "" }]]), [job]);
 
   const rows = useMemo<BankRow[]>(() => {
     return items.flatMap((test, index) => {
@@ -206,33 +193,10 @@ export function QuestionBankPage() {
     return [...set].sort((a, b) => a.localeCompare(b, "vi"));
   }, [rows]);
 
-  const tree = useMemo(() => {
-    const groups = new Map<string, Map<number, { title: string; count: number }>>();
-    for (const row of rows) {
-      const jobsInDept = groups.get(row.department) ?? new Map();
-      const current = jobsInDept.get(row.jobId) ?? { title: row.jobTitle, count: 0 };
-      current.count += 1;
-      jobsInDept.set(row.jobId, current);
-      groups.set(row.department, jobsInDept);
-    }
-    return [...groups.entries()]
-      .map(([department, jobsInDept]) => ({
-        department,
-        count: [...jobsInDept.values()].reduce((sum, job) => sum + job.count, 0),
-        jobs: [...jobsInDept.entries()].map(([id, job]) => ({ id, ...job })),
-      }))
-      .sort((a, b) => b.count - a.count);
-  }, [rows]);
-
-  useEffect(() => {
-    if (openDepartments.length === 0 && tree[0]) setOpenDepartments([tree[0].department]);
-  }, [tree, openDepartments.length]);
-
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     const next = rows.filter((row) => {
       if (!matchesCollection(row, collection, favorites)) return false;
-      if (jobId !== "" && row.jobId !== jobId) return false;
       if (skill && !row.skills.includes(skill)) return false;
       if (difficulty && row.difficulty !== difficulty) return false;
       if (status && row.testStatus !== status) return false;
@@ -251,7 +215,7 @@ export function QuestionBankPage() {
       return b.question.id - a.question.id;
     });
     return next;
-  }, [rows, collection, favorites, jobId, skill, difficulty, status, query, sort]);
+  }, [rows, collection, favorites, skill, difficulty, status, query, sort]);
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, pageCount - 1);
@@ -272,7 +236,6 @@ export function QuestionBankPage() {
   };
 
   const chips = [
-    jobId !== "" ? { id: "job", label: jobMap.get(jobId)?.title ?? "Vị trí" } : null,
     skill ? { id: "skill", label: `Kỹ năng: ${skill}` } : null,
     difficulty ? { id: "difficulty", label: `Độ khó: ${difficulty}` } : null,
     status ? { id: "status", label: `Trạng thái: ${statusMeta(status).label}` } : null,
@@ -281,7 +244,6 @@ export function QuestionBankPage() {
 
   const clearChip = (id: string) => {
     setPage(0);
-    if (id === "job") setJobId("");
     if (id === "skill") setSkill("");
     if (id === "difficulty") setDifficulty("");
     if (id === "status") setStatus("");
@@ -289,7 +251,6 @@ export function QuestionBankPage() {
   };
 
   const clearFilters = () => {
-    setJobId("");
     setSkill("");
     setDifficulty("");
     setStatus("");
@@ -323,7 +284,7 @@ export function QuestionBankPage() {
       <header className="flex flex-col gap-4">
         <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-[var(--color-on-surface-variant)]">
           <nav className="flex flex-wrap items-center gap-2" aria-label="Breadcrumb">
-            <Link to="/recruiter/assessments" className="hover:text-[var(--color-primary)]">Kho tài nguyên</Link>
+            <Link to={basePath} className="hover:text-[var(--color-primary)]">Kho tài nguyên</Link>
             <span>/</span>
             <span className="font-semibold text-[var(--color-on-surface)]">Ngân hàng câu hỏi</span>
             <span className="rounded-full bg-[var(--color-surface-container-high)] px-2 py-0.5 text-[11px] font-semibold">
@@ -350,7 +311,7 @@ export function QuestionBankPage() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Link
-              to="/recruiter/ai-interviews"
+              to={`/recruiter/jobs/${job.id}/ai-interviews`}
               className="inline-flex h-10 items-center gap-2 rounded-lg bg-gradient-to-r from-violet-600 via-indigo-600 to-blue-600 px-4 text-sm font-semibold text-white shadow-md"
             >
               <Sparkles className="size-4 text-amber-200" aria-hidden="true" />
@@ -358,7 +319,7 @@ export function QuestionBankPage() {
               <span className="rounded bg-white/20 px-1.5 py-0.5 text-[10px] uppercase tracking-widest">GenAI</span>
             </Link>
             <Link
-              to="/recruiter/assessments/excel-template"
+              to={`${basePath}/excel-template`}
               className="inline-flex h-10 items-center gap-2 rounded-lg bg-[var(--color-surface-card)] px-4 text-sm font-medium shadow-sm ring-1 ring-[var(--color-border-default)] hover:bg-[var(--color-surface-container-low)]"
             >
               <Table2 className="size-4 text-emerald-600" aria-hidden="true" />
@@ -377,6 +338,7 @@ export function QuestionBankPage() {
       </header>
 
       <AssessmentError error={tests.error} retry={() => void tests.refetch()} />
+      <AssessmentError error={questionError} retry={() => void Promise.all(questionQueries.filter(item => item.isError).map(item => item.refetch()))} />
       {notice && <p role="status" className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">{notice}</p>}
 
       <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-12">
@@ -385,12 +347,12 @@ export function QuestionBankPage() {
             <p className="px-2 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-[var(--color-on-surface-variant)]">Bộ sưu tập hệ thống</p>
             {collections.map((item) => {
               const Icon = item.icon;
-              const activeCollection = collection === item.id && jobId === "";
+              const activeCollection = collection === item.id;
               return (
                 <button
                   key={item.id}
                   type="button"
-                  onClick={() => { setCollection(item.id); setJobId(""); setPage(0); }}
+                  onClick={() => { setCollection(item.id); setPage(0); }}
                   className={cn(
                     "flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition-colors",
                     activeCollection
@@ -406,45 +368,6 @@ export function QuestionBankPage() {
                     {counts[item.id]}
                   </span>
                 </button>
-              );
-            })}
-            <div className="my-2 h-px bg-[var(--color-surface-container)]" />
-            <p className="px-2 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-[var(--color-on-surface-variant)]">Nhóm nghề & vị trí</p>
-            {tree.length === 0 && <p className="px-3 py-2 text-xs text-[var(--color-on-surface-variant)]">Chưa có câu hỏi để phân nhóm.</p>}
-            {tree.map((group) => {
-              const open = openDepartments.includes(group.department);
-              return (
-                <div key={group.department}>
-                  <button
-                    type="button"
-                    onClick={() => setOpenDepartments((current) => open ? current.filter((item) => item !== group.department) : [...current, group.department])}
-                    className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm hover:bg-[var(--color-surface-container-low)]"
-                  >
-                    <span className="flex min-w-0 items-center gap-2">
-                      {open ? <ChevronDown className="size-4 text-[var(--color-primary)]" /> : <ChevronRight className="size-4 text-[var(--color-on-surface-variant)]" />}
-                      <span className="truncate font-medium">{group.department}</span>
-                    </span>
-                    <span className="text-xs text-[var(--color-on-surface-variant)]">{group.count}</span>
-                  </button>
-                  {open && (
-                    <div className="mb-1 ml-5 flex flex-col gap-0.5 border-l-2 border-[var(--color-primary-soft)] pl-2">
-                      {group.jobs.map((job) => (
-                        <button
-                          key={job.id}
-                          type="button"
-                          onClick={() => { setJobId(job.id); setCollection("all"); setPage(0); }}
-                          className={cn(
-                            "flex items-center justify-between rounded-md px-2.5 py-1.5 text-left text-sm",
-                            jobId === job.id ? "bg-[var(--color-surface-container-high)] font-semibold text-[var(--color-primary)]" : "text-[var(--color-on-surface-variant)] hover:bg-[var(--color-surface-container)]",
-                          )}
-                        >
-                          <span className="truncate">{job.title}</span>
-                          <span className={cn("rounded px-1.5 text-[11px]", jobId === job.id ? "bg-[var(--color-primary)] text-white" : "text-[var(--color-on-surface-variant)]")}>{job.count}</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
               );
             })}
             <Link to="/recruiter/jobs" className="mt-2 flex items-center justify-center gap-2 rounded-lg bg-[var(--color-surface-container)] px-3 py-2 text-sm font-semibold text-[var(--color-primary)] hover:bg-[var(--color-surface-container-high)]">
@@ -561,10 +484,10 @@ export function QuestionBankPage() {
                 </button>
               </div>
               <div className="flex flex-wrap gap-2">
-                <Link to="/recruiter/assessments" className="inline-flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-1.5 text-xs font-medium hover:bg-white/20">
+                <Link to={basePath} className="inline-flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-1.5 text-xs font-medium hover:bg-white/20">
                   <ClipboardList className="size-3.5" /> Thêm vào Assessment
                 </Link>
-                <Link to="/recruiter/ai-interviews" className="inline-flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-1.5 text-xs font-medium hover:bg-white/20">
+                <Link to={`/recruiter/jobs/${job.id}/ai-interviews`} className="inline-flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-1.5 text-xs font-medium hover:bg-white/20">
                   <Bot className="size-3.5" /> Thêm vào AI Interview
                 </Link>
                 <button type="button" onClick={() => downloadCsv(selectedRows)} className="inline-flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-1.5 text-xs font-medium hover:bg-white/20">
@@ -590,7 +513,7 @@ export function QuestionBankPage() {
                 <FolderOpen className="size-8 text-[var(--color-primary)]" aria-hidden="true" />
                 <p className="font-semibold">Không có câu hỏi phù hợp</p>
                 <p className="text-sm text-[var(--color-on-surface-variant)]">Đổi bộ lọc hoặc tạo câu hỏi trong một bài đánh giá.</p>
-                <Link to="/recruiter/assessments" className="text-sm font-semibold text-[var(--color-primary)] hover:underline">Về danh sách bài đánh giá</Link>
+                <Link to={basePath} className="text-sm font-semibold text-[var(--color-primary)] hover:underline">Về danh sách bài đánh giá</Link>
               </div>
             )}
 
@@ -655,7 +578,7 @@ export function QuestionBankPage() {
                           </td>
                           <td className="px-4 py-3.5 text-right" onClick={(event) => event.stopPropagation()}>
                             <div className="relative flex justify-end gap-1 text-[var(--color-on-surface-variant)]">
-                              <Link to={`/recruiter/assessments/${row.testId}`} aria-label="Chỉnh sửa câu hỏi" className="rounded p-1 hover:bg-[var(--color-surface-container)] hover:text-[var(--color-primary)]">
+                              <Link to={`${basePath}/${row.testId}`} aria-label="Chỉnh sửa câu hỏi" className="rounded p-1 hover:bg-[var(--color-surface-container)] hover:text-[var(--color-primary)]">
                                 <Pencil className="size-4" />
                               </Link>
                               <button type="button" aria-label="Tùy chọn khác" onClick={() => setMenuKey(menuKey === row.key ? null : row.key)} className="rounded p-1 hover:bg-[var(--color-surface-container)]">
@@ -812,7 +735,7 @@ export function QuestionBankPage() {
                   <p className="text-xs text-[var(--color-on-surface-variant)]">Bài đánh giá</p>
                   <p className="mt-1 font-semibold">{active.testTitle}</p>
                   <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">{active.jobTitle}</p>
-                  <Link to={`/recruiter/assessments/${active.testId}`} className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-[var(--color-primary)] hover:underline">
+                  <Link to={`${basePath}/${active.testId}`} className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-[var(--color-primary)] hover:underline">
                     <InfinityIcon className="size-4" /> Mở đề
                   </Link>
                 </div>
@@ -834,10 +757,10 @@ export function QuestionBankPage() {
                 </button>
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <Link to={`/recruiter/assessments/${active.testId}`} className="rounded-lg bg-[var(--color-surface-card)] px-3 py-2.5 text-center text-sm font-semibold shadow-sm">
+                <Link to={`${basePath}/${active.testId}`} className="rounded-lg bg-[var(--color-surface-card)] px-3 py-2.5 text-center text-sm font-semibold shadow-sm">
                   Chỉnh sửa câu hỏi
                 </Link>
-                <Link to="/recruiter/assessments" className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-[var(--color-primary)] px-3 py-2.5 text-sm font-semibold text-white">
+                <Link to={basePath} className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-[var(--color-primary)] px-3 py-2.5 text-sm font-semibold text-white">
                   <ClipboardList className="size-4" /> Về Assessment
                 </Link>
               </div>

@@ -34,27 +34,27 @@ async function main() {
       if (p === '/tenant/auth/me') return ok({ id: role === 'RECRUITER' ? 1 : 2, fullName: 'Assessment Tester', email: 'test@example.test', role, workspace: role, permissions: ['ASSESSMENTS'] });
       if (p === '/jobs/options') return ok([{ id: 1, title: 'Java Developer', status: 'PUBLISHED' }]);
       if (p === '/applications/me') return ok([{ id: 11, jobId: 1, jobTitle: 'Java Developer', status: 'ASSESSMENT', archived: false }]);
-      if (p === '/applications/11/assessments') return ok(paper?.status === 'PUBLISHED' ? [{ ...paper, submissionId: submission?.id ?? null, submissionStatus: submission?.status ?? null }] : []);
-      if (p === '/assessments' && method === 'GET') return ok({ items: paper ? [paper] : [], page: 0, size: 20, total: paper ? 1 : 0 });
-      if (p === '/assessments' && method === 'POST') { paper = { ...body, id: 1, status: 'DRAFT', createdAt: new Date().toISOString() }; return ok(paper); }
-      if (p === '/assessments/1' && method === 'GET') return ok(paper);
-      if (p === '/assessments/1' && method === 'PUT') { paper = { ...paper, ...body }; return ok(paper); }
-      if (p === '/assessments/1/questions' && method === 'GET') return ok(questions);
-      if (p === '/assessments/1/questions' && method === 'POST') {
+      if (p === '/applications/11/list_available_assessments') return ok(paper?.status === 'PUBLISHED' ? [{ ...paper, submissionId: submission?.id ?? null, submissionStatus: submission?.status ?? null }] : []);
+      if (p === '/assessments/list_tenant_tests' && method === 'GET') return ok({ items: paper ? [paper] : [], page: 0, size: 20, total: paper ? 1 : 0 });
+      if (p === '/assessments/create_draft_test' && method === 'POST') { paper = { ...body, id: 1, status: 'DRAFT', createdAt: new Date().toISOString() }; return ok(paper); }
+      if (p === '/assessments/get_test_metadata/1' && method === 'GET') return ok(paper);
+      if (p === '/assessments/update_draft_test/1' && method === 'PUT') { paper = { ...paper, ...body }; return ok(paper); }
+      if (p === '/assessments/1/list_questions' && method === 'GET') return ok(questions);
+      if (p === '/assessments/1/create_question' && method === 'POST') {
         const id = questions.length + 1;
         const q = { ...body, id, questionType: 'MCQ', options: body.options.map((o, i) => ({ ...o, id: id * 10 + i })) };
         questions.push(q); return ok(q);
       }
-      if (p === '/assessments/1/publish') { paper.status = 'PUBLISHED'; return ok(paper); }
-      if (p === '/assessments/1/submissions') {
+      if (p === '/assessments/1/publish_test') { paper.status = 'PUBLISHED'; return ok(paper); }
+      if (p === '/assessments/1/start_submission') {
         submission ??= { id: 71, testId: 1, applicationId: 11, title: paper.title, status: 'IN_PROGRESS',
           startedAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
           submittedAt: null, score: null, totalPoints: questions.reduce((sum, q) => sum + q.points, 0), passed: null,
           questions: questions.map(q => ({ ...q, options: q.options.map(({ id, optionText }) => ({ id, optionText })) })), answers: [] };
         return ok(view());
       }
-      if (p === '/submissions/71' && method === 'GET') return ok(view());
-      if (p === '/submissions/71/answers') {
+      if (p === '/submissions/71/get_submission' && method === 'GET') return ok(view());
+      if (p === '/submissions/71/save_answers') {
         if (failNextSave) { failNextSave = false; failedSaves++; return route.fulfill({ status: 503, json: { success: false, message: 'Không lưu được bài. Thử lại.', code: 'UNAVAILABLE' } }); }
         if (saveDelay) await new Promise(resolve => setTimeout(resolve, saveDelay));
         for (const a of body.answers) {
@@ -63,7 +63,7 @@ async function main() {
         }
         return ok(view());
       }
-      if (p === '/submissions/71/submit') {
+      if (p === '/submissions/71/submit_test') {
         finalSubmits++;
         submission.status = Date.now() >= Date.parse(submission.expiresAt) ? 'EXPIRED' : 'GRADED';
         submission.score = submission.answers.reduce((score, a) => {

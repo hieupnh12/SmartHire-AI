@@ -1,3 +1,5 @@
+import { ExcelImportReview } from "../components/ExcelImportReview";
+import { useRecruitmentJob } from "../../jobs/components/JobRecruitmentWorkspace";
 import { useEffect, useMemo, useState, type ClipboardEvent, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import {
@@ -19,7 +21,6 @@ import {
 import { Button } from "@/components/ux/Button";
 import { cn } from "@/lib/utils";
 import {
-  BANK_QUESTIONS,
   DICTIONARY_ROWS,
   QUESTION_TYPE_OPTIONS,
   blankQuestion,
@@ -31,7 +32,7 @@ import {
   type ViewId,
 } from "../constants/excelTemplateMock";
 
-const COL_LETTERS = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"] as const;
+const COL_LETTERS = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K"] as const;
 const MAX_QUESTIONS = 999;
 
 type TypeFilter = "ALL" | "TRAC_NGHIEM_DON" | "NHIEU_DAP_AN" | "SUBJECTIVE";
@@ -45,6 +46,17 @@ type RowDragState = {
   anchorIndex: number;
   currentIndex: number;
 };
+
+function questionIdForIndex(index: number) {
+  return `Q${String(Math.min(index + 1, MAX_QUESTIONS)).padStart(3, "0")}`;
+}
+
+function withAutoQuestionIds(rows: BankQuestion[]): BankQuestion[] {
+  return rows.map((row, index) => {
+    const id = questionIdForIndex(index);
+    return row.id === id ? row : { ...row, id };
+  });
+}
 
 function difficultyClass(tone: BankQuestion["difficultyTone"]) {
   if (tone === "easy") return "bg-emerald-50 text-emerald-700";
@@ -86,7 +98,7 @@ function parseClipboardMatrix(text: string): string[][] {
 function makeBlankRows(count: number, startFrom: number, kind: QuestionKind): BankQuestion[] {
   return Array.from({ length: count }, (_, offset) => {
     const row = blankQuestion(kind);
-    row.id = `Q${String(Math.min(startFrom + offset + 1, MAX_QUESTIONS)).padStart(3, "0")}`;
+    row.id = questionIdForIndex(startFrom + offset);
     return row;
   });
 }
@@ -226,14 +238,19 @@ function TypeSelect({
 }
 
 export function ExcelQuestionTemplatePage() {
+  const job = useRecruitmentJob();
+  const basePath = `/recruiter/jobs/${job.id}/assessments`;
+  const [reviewingImport, setReviewingImport] = useState(false);
   const [view, setView] = useState<ViewId>("all");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("ALL");
-  const [questions, setQuestions] = useState<BankQuestion[]>(() =>
-    BANK_QUESTIONS.map((row) => ({ ...row, rubric: row.rubric.map((item) => ({ ...item })) })),
-  );
+  const [questions, setQuestions] = useState<BankQuestion[]>(() => {
+    const row = blankQuestion("TRAC_NGHIEM_DON");
+    row.id = questionIdForIndex(0);
+    return [row];
+  });
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [activeEdit, setActiveEdit] = useState<ActiveEdit | null>({ rowIndex: 0, field: "content" });
-  const [activeCell, setActiveCell] = useState("C2");
+  const [activeCell, setActiveCell] = useState("A2");
   const [savedNote, setSavedNote] = useState("");
   const [rowDrag, setRowDrag] = useState<RowDragState | null>(null);
   const [capacityNote, setCapacityNote] = useState("");
@@ -307,7 +324,7 @@ export function ExcelQuestionTemplatePage() {
             setQuestions((rows) => {
               if (rows.length >= needed) {
                 setCapacityNote(`Đã chọn ${Math.abs(prev.currentIndex - prev.anchorIndex) + 1} dòng.`);
-                return rows;
+                return withAutoQuestionIds(rows);
               }
               const kind =
                 typeFilter === "NHIEU_DAP_AN"
@@ -316,7 +333,7 @@ export function ExcelQuestionTemplatePage() {
                     ? "TU_LUAN_CODE"
                     : "TRAC_NGHIEM_DON";
               const added = needed - rows.length;
-              const grown = [...rows, ...makeBlankRows(added, rows.length, kind)];
+              const grown = withAutoQuestionIds([...rows, ...makeBlankRows(added, rows.length, kind)]);
               setCapacityNote(
                 needed >= MAX_QUESTIONS
                   ? `Đã đạt giới hạn ${MAX_QUESTIONS} câu.`
@@ -326,7 +343,7 @@ export function ExcelQuestionTemplatePage() {
             });
             setSelectedIndex(selectedEnd);
             setActiveEdit({ rowIndex: selectedEnd, field: "content" });
-            setActiveCell(`C${selectedEnd + 2}`);
+            setActiveCell(`A${selectedEnd + 2}`);
             return null;
           });
         }
@@ -356,7 +373,9 @@ export function ExcelQuestionTemplatePage() {
   }
 
   function patchQuestion(rowIndex: number, patch: Partial<BankQuestion>) {
-    setQuestions((rows) => rows.map((row, index) => (index === rowIndex ? { ...row, ...patch } : row)));
+    const { id: _ignoredId, ...safePatch } = patch;
+    void _ignoredId;
+    setQuestions((rows) => withAutoQuestionIds(rows.map((row, index) => (index === rowIndex ? { ...row, ...safePatch } : row))));
     setSavedNote("");
   }
 
@@ -371,21 +390,21 @@ export function ExcelQuestionTemplatePage() {
       return {
         ...row,
         ...blankQuestion(kind),
-        id: cells[0]?.trim() || row.id,
+        id: row.id,
         kind,
-        content: cells[2] ?? row.content,
-        score: cells[3] || row.score || blankQuestion(kind).score,
-        difficulty: cells[4] ?? row.difficulty,
-        difficultyTone: toneFromDifficulty(cells[4] ?? row.difficulty),
-        skill: cells[5] ?? row.skill,
-        explanation: isChoiceKind(kind) ? cells[6] ?? row.explanation : row.explanation,
-        snippet: isSubjectiveKind(kind) ? cells[6] ?? row.snippet : row.snippet,
+        content: cells[0] ?? row.content,
+        score: cells[2] || row.score || blankQuestion(kind).score,
+        difficulty: cells[3] ?? row.difficulty,
+        difficultyTone: toneFromDifficulty(cells[3] ?? row.difficulty),
+        skill: cells[4] ?? row.skill,
+        explanation: isChoiceKind(kind) ? cells[5] ?? row.explanation : row.explanation,
+        snippet: isSubjectiveKind(kind) ? cells[5] ?? row.snippet : row.snippet,
       };
     }
 
     if (mode === "SUBJECTIVE") {
       const kind = parseKind(cells[1] ?? "", isSubjectiveKind(fallbackKind) ? fallbackKind : "TU_LUAN_CODE");
-      const rubricText = cells[4] ?? "";
+      const rubricText = cells[3] ?? "";
       const levels = ["excellent", "pass", "fail"] as const;
       const rubric = rubricText
         ? rubricText.split("|").map((text, index) => ({
@@ -396,14 +415,14 @@ export function ExcelQuestionTemplatePage() {
       return {
         ...row,
         ...blankQuestion(kind),
-        id: cells[0]?.trim() || row.id,
+        id: row.id,
         kind,
-        content: cells[2] ?? row.content,
-        snippet: cells[3] ?? row.snippet,
+        content: cells[0] ?? row.content,
+        snippet: cells[2] ?? row.snippet,
         rubric,
-        score: cells[5] || row.score || "10.0",
-        timeLimit: cells[6] ?? row.timeLimit,
-        skill: cells[7] ?? row.skill,
+        score: cells[4] || row.score || "10.0",
+        timeLimit: cells[5] ?? row.timeLimit,
+        skill: cells[6] ?? row.skill,
       };
     }
 
@@ -414,20 +433,20 @@ export function ExcelQuestionTemplatePage() {
     return {
       ...row,
       ...blankQuestion(kind),
-      id: cells[0]?.trim() || row.id,
+      id: row.id,
       kind,
-      content: cells[2] ?? row.content,
-      optionA: cells[3] ?? row.optionA,
-      optionB: cells[4] ?? row.optionB,
-      optionC: cells[5] ?? row.optionC,
-      optionD: cells[6] ?? row.optionD,
-      answer: cells[7] ?? row.answer,
-      score: cells[8] || row.score || "1.0",
-      difficulty: cells[9] ?? row.difficulty,
-      difficultyTone: toneFromDifficulty(cells[9] ?? row.difficulty),
-      skill: cells[10] ?? row.skill,
-      explanation: kind === "TRAC_NGHIEM_DON" ? cells[11] ?? row.explanation : row.explanation,
-      policyNote: kind === "NHIEU_DAP_AN" ? cells[11] ?? row.policyNote : row.policyNote,
+      content: cells[0] ?? row.content,
+      optionA: cells[2] ?? row.optionA,
+      optionB: cells[3] ?? row.optionB,
+      optionC: cells[4] ?? row.optionC,
+      optionD: cells[5] ?? row.optionD,
+      answer: cells[6] ?? row.answer,
+      score: cells[7] || row.score || "1.0",
+      difficulty: cells[8] ?? row.difficulty,
+      difficultyTone: toneFromDifficulty(cells[8] ?? row.difficulty),
+      skill: cells[9] ?? row.skill,
+      explanation: kind === "TRAC_NGHIEM_DON" ? cells[10] ?? row.explanation : row.explanation,
+      policyNote: kind === "NHIEU_DAP_AN" ? cells[10] ?? row.policyNote : row.policyNote,
       policy: kind === "NHIEU_DAP_AN" ? row.policy || "Partial Credit" : "",
     };
   }
@@ -453,12 +472,12 @@ export function ExcelQuestionTemplatePage() {
         if (index >= MAX_QUESTIONS) return;
         next[index] = applyRowFromCells(next[index] ?? blankQuestion(kind), cells, typeFilter);
       });
-      return next;
+      return withAutoQuestionIds(next);
     });
 
     setSelectedIndex(Math.min(start + usable.length - 1, MAX_QUESTIONS - 1));
     setActiveEdit({ rowIndex: start, field: "content" });
-    setActiveCell(`C${start + 2}`);
+    setActiveCell(`A${start + 2}`);
     setCapacityNote(
       needed > MAX_QUESTIONS
         ? `Đã dán ${usable.length} câu (cắt vì giới hạn ${MAX_QUESTIONS}).`
@@ -514,7 +533,7 @@ export function ExcelQuestionTemplatePage() {
     });
     setSelectedIndex(rowIndex);
     setActiveEdit({ rowIndex, field: "content" });
-    setActiveCell(`C${rowIndex + 2}`);
+    setActiveCell(`A${rowIndex + 2}`);
     if (typeFilter !== "ALL") {
       if (isSubjectiveKind(kind)) setTypeFilter("SUBJECTIVE");
       else setTypeFilter(kind);
@@ -527,12 +546,12 @@ export function ExcelQuestionTemplatePage() {
       return;
     }
     const next = blankQuestion(kind);
-    next.id = `Q${String(questions.length + 1).padStart(3, "0")}`;
-    setQuestions((rows) => [...rows, next]);
+    next.id = questionIdForIndex(questions.length);
+    setQuestions((rows) => withAutoQuestionIds([...rows, next]));
     const index = questions.length;
     setSelectedIndex(index);
     setActiveEdit({ rowIndex: index, field: "content" });
-    setActiveCell(`C${index + 2}`);
+    setActiveCell(`A${index + 2}`);
     setTypeFilter("ALL");
     setView("all");
     setCapacityNote("");
@@ -543,18 +562,8 @@ export function ExcelQuestionTemplatePage() {
   }
 
   function handleValidate() {
-    const filled = questions.filter((row) => row.content.trim()).length;
-    const missingChoice = questions.filter(
-      (row) => isChoiceKind(row.kind) && row.content.trim() && !row.answer.trim(),
-    ).length;
-    const missingRubric = questions.filter(
-      (row) => isSubjectiveKind(row.kind) && row.content.trim() && !row.rubric.some((item) => item.text.trim()),
-    ).length;
-    window.alert(
-      missingChoice || missingRubric
-        ? `Đã kiểm tra ${filled} câu. Thiếu đáp án: ${missingChoice}. Thiếu rubric tự luận: ${missingRubric}.`
-        : `Đã kiểm tra ${filled} câu. Nội dung hợp lệ, có thể nhập vào đề thi.`,
-    );
+    setActiveEdit(null);
+    setReviewingImport(true);
   }
 
   const filterTabs: { id: TypeFilter; label: string; count: number }[] = [
@@ -569,21 +578,32 @@ export function ExcelQuestionTemplatePage() {
   const showSubjectiveColumns = typeFilter === "SUBJECTIVE";
 
   const colLetters = showAllColumns
-    ? (["A", "B", "C", "D", "E", "F", "G"] as const)
+    ? (["A", "B", "C", "D", "E", "F"] as const)
     : showChoiceColumns
       ? COL_LETTERS
-      : (["A", "B", "C", "D", "E", "F", "G", "H"] as const);
+      : (["A", "B", "C", "D", "E", "F", "G"] as const);
+
+  if (reviewingImport) return <ExcelImportReview questions={questions} jobId={job.id} jobTitle={job.title}
+    onBack={() => setReviewingImport(false)}
+    onEdit={index => {
+      setReviewingImport(false);
+      setView("all");
+      setTypeFilter("ALL");
+      setSelectedIndex(index);
+      setActiveEdit({ rowIndex: index, field: "content" });
+      setActiveCell(`A${index + 2}`);
+    }} />;
 
   return (
     <section className="flex flex-col gap-3 text-[var(--color-on-surface)]">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-1 text-xs text-[var(--color-on-surface-variant)]">
           <Folder className="size-3.5" aria-hidden="true" />
-          <Link to="/recruiter/assessments" className="hover:text-[var(--color-primary)]">
+          <Link to={basePath} className="hover:text-[var(--color-primary)]">
             Assessment
           </Link>
           <ChevronRight className="size-3 text-[var(--color-outline-variant)]" aria-hidden="true" />
-          <Link to="/recruiter/assessments/question-bank" className="hover:text-[var(--color-primary)]">
+          <Link to={`${basePath}/question-bank`} className="hover:text-[var(--color-primary)]">
             Ngân hàng câu hỏi
           </Link>
           <ChevronRight className="size-3 text-[var(--color-outline-variant)]" aria-hidden="true" />
@@ -598,13 +618,10 @@ export function ExcelQuestionTemplatePage() {
             <Save className="size-3.5" aria-hidden="true" />
             Lưu nội dung
           </Button>
-          <Link
-            to="/recruiter/assessments/new"
-            className="inline-flex min-h-9 items-center gap-1.5 rounded-[var(--radius-md)] bg-[#005a82] px-3 text-xs font-semibold text-white hover:bg-[#004c6e]"
-          >
+          <Button type="button" size="sm" onClick={handleValidate}>
             <CloudUpload className="size-3.5" aria-hidden="true" />
-            Nhập vào đề thi
-          </Link>
+            Tạo bài đánh giá
+          </Button>
         </div>
       </div>
 
@@ -651,7 +668,7 @@ export function ExcelQuestionTemplatePage() {
                     if (first >= 0) {
                       setSelectedIndex(first);
                       setActiveEdit({ rowIndex: first, field: "content" });
-                      setActiveCell("C2");
+                      setActiveCell("A2");
                     }
                   }}
                   className={cn(
@@ -730,8 +747,8 @@ export function ExcelQuestionTemplatePage() {
                         key={letter}
                         className={cn(
                           "bg-[var(--color-surface-container-high)] px-1 text-center font-semibold",
-                          index === 2 && "text-[var(--color-primary)]",
-                          letter === "H" && "bg-[#b4c5ff] text-[var(--color-primary)]",
+                          index === 0 && "text-[var(--color-primary)]",
+                          letter === "G" && showChoiceColumns && "bg-[#b4c5ff] text-[var(--color-primary)]",
                         )}
                       >
                         {letter}
@@ -742,9 +759,8 @@ export function ExcelQuestionTemplatePage() {
                     <th className="bg-[var(--color-surface-container-high)] text-center font-mono text-[10px]">1</th>
                     {showAllColumns && (
                       <>
-                        <HeaderCell label="question_id" />
-                        <HeaderCell label="type *" />
                         <HeaderCell label="content *" highlight="primary" />
+                        <HeaderCell label="type *" />
                         <HeaderCell label="score" highlight="answer" />
                         <HeaderCell label="difficulty" />
                         <HeaderCell label="skill" />
@@ -753,9 +769,8 @@ export function ExcelQuestionTemplatePage() {
                     )}
                     {showChoiceColumns && (
                       <>
-                        <HeaderCell label="question_id" />
-                        <HeaderCell label="type *" />
                         <HeaderCell label="content *" highlight="primary" />
+                        <HeaderCell label="type *" />
                         <HeaderCell label="option_a *" />
                         <HeaderCell label="option_b *" />
                         <HeaderCell label="option_c" />
@@ -769,9 +784,8 @@ export function ExcelQuestionTemplatePage() {
                     )}
                     {showSubjectiveColumns && (
                       <>
-                        <HeaderCell label="question_id" />
-                        <HeaderCell label="type *" />
                         <HeaderCell label="content / scenario *" highlight="primary" />
+                        <HeaderCell label="type *" />
                         <HeaderCell label="starter / yêu cầu" />
                         <HeaderCell label="rubric 3 mức *" />
                         <HeaderCell label="max_score" highlight="answer" />
@@ -857,7 +871,7 @@ export function ExcelQuestionTemplatePage() {
                             setSelectedIndex(rowIndex);
                             setRowDrag({ anchorIndex: rowIndex, currentIndex: rowIndex });
                           }}
-                          onClick={pick("content", "C")}
+                          onClick={pick("content", "A")}
                         >
                           {rowNum}
                           {rowActive && (
@@ -869,35 +883,25 @@ export function ExcelQuestionTemplatePage() {
                         </td>
 
                         <EditCell
-                          selected={isSelected(rowIndex, "id")}
-                          value={row.id}
-                          onSelect={pick("id", "A")}
-                          onChange={applyEdit}
-                          className="font-mono font-semibold text-[var(--color-primary)]"
-                        >
-                          {row.id || <span className="italic text-[var(--color-outline)]">Mã câu</span>}
-                        </EditCell>
-
-                        <td className="px-1.5 py-1.5 align-middle">
-                          <TypeSelect value={row.kind} onChange={(kind) => changeKind(rowIndex, kind)} />
-                        </td>
-
-                        <EditCell
                           selected={isSelected(rowIndex, "content")}
                           value={row.content}
-                          onSelect={pick("content", "C")}
+                          onSelect={pick("content", "A")}
                           onChange={applyEdit}
                           title={row.content}
                         >
                           {row.content || <span className="italic text-[var(--color-outline)]">Nhập câu hỏi...</span>}
                         </EditCell>
 
+                        <td className="px-1.5 py-1.5 align-middle">
+                          <TypeSelect value={row.kind} onChange={(kind) => changeKind(rowIndex, kind)} />
+                        </td>
+
                         {showAllColumns && (
                           <>
                             <EditCell
                               selected={isSelected(rowIndex, "score")}
                               value={row.score}
-                              onSelect={pick("score", "D")}
+                              onSelect={pick("score", "C")}
                               onChange={applyEdit}
                               className="text-center font-mono font-semibold"
                             >
@@ -906,7 +910,7 @@ export function ExcelQuestionTemplatePage() {
                             <EditCell
                               selected={isSelected(rowIndex, "difficulty")}
                               value={row.difficulty}
-                              onSelect={pick("difficulty", "E")}
+                              onSelect={pick("difficulty", "D")}
                               onChange={applyEdit}
                             >
                               {row.difficulty ? (
@@ -920,7 +924,7 @@ export function ExcelQuestionTemplatePage() {
                             <EditCell
                               selected={isSelected(rowIndex, "skill")}
                               value={row.skill}
-                              onSelect={pick("skill", "F")}
+                              onSelect={pick("skill", "E")}
                               onChange={applyEdit}
                             >
                               {row.skill || <span className="italic text-[var(--color-outline)]">--</span>}
@@ -938,7 +942,7 @@ export function ExcelQuestionTemplatePage() {
                                 key={field}
                                 selected={isSelected(rowIndex, field)}
                                 value={row[field]}
-                                onSelect={pick(field, COL_LETTERS[3 + optionIndex])}
+                                onSelect={pick(field, COL_LETTERS[2 + optionIndex])}
                                 onChange={applyEdit}
                                 title={row[field]}
                                 className="font-mono"
@@ -953,7 +957,7 @@ export function ExcelQuestionTemplatePage() {
                             <EditCell
                               selected={isSelected(rowIndex, "answer")}
                               value={row.answer}
-                              onSelect={pick("answer", "H")}
+                              onSelect={pick("answer", "G")}
                               onChange={applyEdit}
                               className="bg-emerald-50 text-center"
                             >
@@ -962,7 +966,7 @@ export function ExcelQuestionTemplatePage() {
                             <EditCell
                               selected={isSelected(rowIndex, "score")}
                               value={row.score}
-                              onSelect={pick("score", "I")}
+                              onSelect={pick("score", "H")}
                               onChange={applyEdit}
                               className="text-center font-mono font-semibold"
                             >
@@ -971,7 +975,7 @@ export function ExcelQuestionTemplatePage() {
                             <EditCell
                               selected={isSelected(rowIndex, "difficulty")}
                               value={row.difficulty}
-                              onSelect={pick("difficulty", "J")}
+                              onSelect={pick("difficulty", "I")}
                               onChange={applyEdit}
                             >
                               {row.difficulty ? (
@@ -985,7 +989,7 @@ export function ExcelQuestionTemplatePage() {
                             <EditCell
                               selected={isSelected(rowIndex, "skill")}
                               value={row.skill}
-                              onSelect={pick("skill", "K")}
+                              onSelect={pick("skill", "J")}
                               onChange={applyEdit}
                             >
                               {row.skill || <span className="italic text-[var(--color-outline)]">--</span>}
@@ -994,7 +998,7 @@ export function ExcelQuestionTemplatePage() {
                               <EditCell
                                 selected={isSelected(rowIndex, "policyNote")}
                                 value={row.policyNote}
-                                onSelect={pick("policyNote", "L")}
+                                onSelect={pick("policyNote", "K")}
                                 onChange={applyEdit}
                                 title={`${row.policy}: ${row.policyNote}`}
                               >
@@ -1005,7 +1009,7 @@ export function ExcelQuestionTemplatePage() {
                               <EditCell
                                 selected={isSelected(rowIndex, "explanation")}
                                 value={row.explanation}
-                                onSelect={pick("explanation", "L")}
+                                onSelect={pick("explanation", "K")}
                                 onChange={applyEdit}
                                 className={cn(warn && "font-medium text-amber-800")}
                               >
@@ -1027,7 +1031,7 @@ export function ExcelQuestionTemplatePage() {
                             <EditCell
                               selected={isSelected(rowIndex, "snippet")}
                               value={row.snippet}
-                              onSelect={pick("snippet", "D")}
+                              onSelect={pick("snippet", "C")}
                               onChange={applyEdit}
                               title={row.snippet}
                               className="font-mono text-[var(--color-primary)]"
@@ -1038,7 +1042,7 @@ export function ExcelQuestionTemplatePage() {
                             <EditCell
                               selected={isSelected(rowIndex, "rubric")}
                               value={row.rubric.map((item) => item.text).join(" | ")}
-                              onSelect={pick("rubric", "E")}
+                              onSelect={pick("rubric", "D")}
                               onChange={applyEdit}
                               title={row.rubric.map((item) => item.text).join(" | ")}
                             >
@@ -1059,7 +1063,7 @@ export function ExcelQuestionTemplatePage() {
                             <EditCell
                               selected={isSelected(rowIndex, "score")}
                               value={row.score}
-                              onSelect={pick("score", "F")}
+                              onSelect={pick("score", "E")}
                               onChange={applyEdit}
                               className="text-center font-mono font-bold text-[var(--color-primary)]"
                             >
@@ -1068,7 +1072,7 @@ export function ExcelQuestionTemplatePage() {
                             <EditCell
                               selected={isSelected(rowIndex, "timeLimit")}
                               value={row.timeLimit}
-                              onSelect={pick("timeLimit", "G")}
+                              onSelect={pick("timeLimit", "F")}
                               onChange={applyEdit}
                               className="text-center font-mono"
                             >
@@ -1077,7 +1081,7 @@ export function ExcelQuestionTemplatePage() {
                             <EditCell
                               selected={isSelected(rowIndex, "skill")}
                               value={row.skill}
-                              onSelect={pick("skill", "H")}
+                              onSelect={pick("skill", "G")}
                               onChange={applyEdit}
                             >
                               {row.skill}
@@ -1097,7 +1101,6 @@ export function ExcelQuestionTemplatePage() {
                   <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-semibold", typeBadgeClass(selectedQuestion.kind))}>
                     Form {typeMeta(selectedQuestion.kind).label}
                   </span>
-                  <span className="font-mono text-xs font-semibold text-[var(--color-primary)]">{selectedQuestion.id}</span>
                   <span className="text-[11px] text-[var(--color-on-surface-variant)]">
                     Đổi type trên dòng để chuyển sang form khác.
                   </span>
@@ -1169,9 +1172,6 @@ export function ExcelQuestionTemplatePage() {
                     <span className="inline-flex items-center gap-1.5 rounded-md bg-[var(--color-primary)] px-2 py-1 text-[11px] font-semibold text-white">
                       <Code2 className="size-3.5" aria-hidden="true" />
                       {selectedQuestion.kind === "TU_LUAN_CODE" ? "Form tự luận code" : "Form tình huống hệ thống"}
-                    </span>
-                    <span className="font-mono text-xs font-semibold text-[var(--color-primary)]">
-                      {selectedQuestion.id || "Mới"}
                     </span>
                   </div>
                   <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
@@ -1346,8 +1346,8 @@ export function ExcelQuestionTemplatePage() {
             </span>
           </div>
           {selectedQuestion && view === "all" && (
-            <span className="font-mono text-[11px]">
-              Đang soạn: {selectedQuestion.id || "mới"} · {typeMeta(selectedQuestion.kind).label}
+            <span className="text-[11px]">
+              Đang soạn: {typeMeta(selectedQuestion.kind).label}
             </span>
           )}
         </div>

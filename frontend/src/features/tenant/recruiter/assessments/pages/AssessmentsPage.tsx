@@ -1,6 +1,7 @@
+import { useRecruitmentJob } from "../../jobs/components/JobRecruitmentWorkspace";
 import { useMemo, useState, type ReactNode } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { Link, useParams } from "react-router-dom";
+import { Link } from "react-router-dom";
 import {
   Archive,
   ArrowUpRight,
@@ -20,7 +21,6 @@ import {
   Target,
 } from "lucide-react";
 import { assessmentApi } from "@/api/tenant/assessmentApi";
-import { jobApi } from "@/api/tenant/jobApi";
 import type { JobTest, TestStatus } from "@/api/types/assessment";
 import { AssessmentError, assessmentStatus } from "@/components/ux/assessmentUi";
 import { Button } from "@/components/ux/Button";
@@ -31,7 +31,6 @@ type StatusTab = "ALL" | TestStatus;
 type SortKey = "latest" | "title" | "duration";
 
 const PAGE_SIZE = 5;
-const FETCH_SIZE = 50;
 
 const tabs: { id: StatusTab; label: string }[] = [
   { id: "ALL", label: "Tất cả bài thi" },
@@ -134,35 +133,22 @@ function MetricCard({
 }
 
 export function AssessmentsPage() {
-  const { id: scopedJobId } = useParams<{ id?: string }>();
-  const scopedJob = Number(scopedJobId);
-  const hasScopedJob = Number.isSafeInteger(scopedJob) && scopedJob > 0;
+  const job = useRecruitmentJob();
+  const basePath = `/recruiter/jobs/${job.id}/assessments`;
   const [tab, setTab] = useState<StatusTab>("ALL");
   const [query, setQuery] = useState("");
-  const [jobFilter, setJobFilter] = useState<number | "">(hasScopedJob ? scopedJob : "");
+  const jobFilter = job.id;
   const [sort, setSort] = useState<SortKey>("latest");
   const [page, setPage] = useState(0);
   const [selected, setSelected] = useState<number[]>([]);
 
   const tests = useQuery({
-    queryKey: [...queryKeys.assessments.list(0), FETCH_SIZE],
-    queryFn: () => assessmentApi.list(0, FETCH_SIZE),
+    queryKey: [...queryKeys.assessments.all(), "job", job.id],
+    queryFn: () => assessmentApi.listForJob(job.id),
   });
-  const jobs = useQuery({
-    queryKey: [...queryKeys.assessments.all(), "jobs-list"],
-    queryFn: () => jobApi.search({ page: 0, size: 50 }),
-  });
-
-  const jobMap = useMemo(() => {
-    const map = new Map<number, { title: string; department: string | null }>();
-    for (const job of jobs.data?.data.items ?? []) {
-      map.set(job.id, { title: job.title, department: job.department ?? null });
-    }
-    return map;
-  }, [jobs.data]);
+  const jobMap = useMemo(() => new Map([[job.id, { title: job.title, department: job.department ?? "" }]]), [job]);
 
   const jobTitle = (jobId: number) => jobMap.get(jobId)?.title ?? `Job #${jobId}`;
-  const jobDepartment = (jobId: number) => jobMap.get(jobId)?.department;
 
   const counts = useMemo(() => {
     const items = tests.data?.items ?? [];
@@ -177,7 +163,7 @@ export function AssessmentsPage() {
   const filtered = useMemo(() => {
     let rows = [...(tests.data?.items ?? [])];
     if (tab !== "ALL") rows = rows.filter((item) => item.status === tab);
-    if (jobFilter !== "") rows = rows.filter((item) => item.jobId === jobFilter);
+    rows = rows.filter((item) => item.jobId === jobFilter);
     const q = query.trim().toLowerCase();
     if (q) {
       rows = rows.filter(
@@ -247,13 +233,13 @@ export function AssessmentsPage() {
         </div>
         <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
           <Link
-            to="/recruiter/assessments/question-bank"
+            to={`${basePath}/question-bank`}
             className="inline-flex min-h-10 items-center justify-center rounded-full border border-[var(--color-primary)] bg-[var(--color-primary-subtle)] px-4 text-sm font-semibold text-[var(--color-primary-hover)] transition-colors hover:bg-[var(--color-primary-soft)]"
           >
             Ngân hàng câu hỏi
           </Link>
           <Link
-            to={hasScopedJob ? "new" : "/recruiter/assessments/excel-template"}
+            to={`${basePath}/excel-template`}
             className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-[var(--radius-md)] bg-[var(--color-primary)] px-4 text-sm font-semibold text-[var(--color-on-primary)] shadow-sm transition-colors hover:bg-[var(--color-primary-hover)]"
           >
             <Plus className="size-4" aria-hidden="true" />
@@ -350,7 +336,7 @@ export function AssessmentsPage() {
           </div>
         </div>
         <Link
-          to="/recruiter/assessments/excel-template"
+          to={`${basePath}/excel-template`}
           className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg bg-[var(--color-primary)] px-4 text-sm font-semibold text-[var(--color-on-primary)] shadow-sm hover:bg-[var(--color-primary-hover)]"
         >
           <Plus className="size-4" aria-hidden="true" />
@@ -396,36 +382,18 @@ export function AssessmentsPage() {
         </div>
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-12">
-          <label className="relative md:col-span-5">
+          <label className="relative md:col-span-9">
             <span className="sr-only">Tìm kiếm bài đánh giá</span>
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--color-outline)]" aria-hidden="true" />
             <input
               className="h-10 w-full rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-low)] pl-10 pr-3 text-sm outline-none transition-[box-shadow,border-color] placeholder:text-[var(--color-outline)] focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20"
-              placeholder="Tìm theo tên bài đánh giá, mã đề, vị trí…"
+              placeholder="Tìm theo tên bài đánh giá, mã đề…"
               value={query}
               onChange={(e) => {
                 setQuery(e.target.value);
                 resetPage();
               }}
             />
-          </label>
-          <label className="md:col-span-4">
-            <span className="sr-only">Lọc theo vị trí</span>
-            <select
-              className="h-10 w-full appearance-none rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-low)] px-3 text-sm outline-none focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20"
-              value={jobFilter}
-              onChange={(e) => {
-                setJobFilter(e.target.value ? Number(e.target.value) : "");
-                resetPage();
-              }}
-            >
-              <option value="">Vị trí: Tất cả ({jobs.data?.data.items.length ?? 0})</option>
-              {(jobs.data?.data.items ?? []).map((job) => (
-                <option key={job.id} value={job.id}>
-                  {job.title}
-                </option>
-              ))}
-            </select>
           </label>
           <label className="md:col-span-3">
             <span className="sr-only">Sắp xếp</span>
@@ -459,13 +427,13 @@ export function AssessmentsPage() {
               <div>
                 <p className="font-semibold">Chưa có bài đánh giá phù hợp</p>
                 <p className="text-sm text-[var(--color-on-surface-variant)]">
-                  {tests.data.items.length === 0 ? "Tạo đề mới rồi gắn với vị trí tuyển dụng." : "Thử đổi bộ lọc hoặc từ khóa tìm kiếm."}
+                  {tests.data.items.length === 0 ? "Tạo đề mới cho vị trí đang mở." : "Thử đổi bộ lọc hoặc từ khóa tìm kiếm."}
                 </p>
               </div>
             </div>
             {tests.data.items.length === 0 && (
               <Link
-                to="/recruiter/assessments/excel-template"
+                to={`${basePath}/excel-template`}
                 className="inline-flex min-h-11 items-center gap-2 rounded-[var(--radius-md)] bg-[var(--color-primary)] px-4 text-sm font-semibold text-[var(--color-on-primary)] hover:bg-[var(--color-primary-hover)]"
               >
                 <Plus className="size-4" aria-hidden="true" />
@@ -491,7 +459,6 @@ export function AssessmentsPage() {
                       />
                     </th>
                     <th className="px-4 py-2">Tên bài đánh giá &amp; Mã đề</th>
-                    <th className="px-4 py-2">Vị trí &amp; Bộ phận</th>
                     <th className="px-4 py-2">Cấu trúc đề</th>
                     <th className="px-4 py-2">Thời lượng</th>
                     <th className="px-4 py-2">Thang điểm / Đạt</th>
@@ -507,8 +474,6 @@ export function AssessmentsPage() {
                       <AssessmentRow
                         key={test.id}
                         test={test}
-                        jobTitle={jobTitle(test.jobId)}
-                        department={jobDepartment(test.jobId)}
                         structure={{
                           count: questions.length,
                           totalPoints: questions.reduce((sum, item) => sum + item.points, 0),
@@ -530,9 +495,7 @@ export function AssessmentsPage() {
                   {filtered.length === 0 ? 0 : safePage * PAGE_SIZE + 1}–{Math.min((safePage + 1) * PAGE_SIZE, filtered.length)}
                 </span>{" "}
                 của <span className="font-semibold text-[var(--color-on-surface)]">{filtered.length}</span> bài đánh giá
-                {(tests.data?.total ?? 0) > FETCH_SIZE && (
-                  <span className="text-[var(--color-outline)]"> · đang xem {FETCH_SIZE}/{tests.data?.total} mới nhất</span>
-                )}
+
               </p>
               <div className="flex items-center gap-1">
                 <Button variant="secondary" size="sm" disabled={safePage === 0} aria-label="Trang đầu" onClick={() => setPage(0)}>
@@ -604,7 +567,7 @@ export function AssessmentsPage() {
         <div className="flex flex-col justify-between rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-5 shadow-[var(--shadow-card)]">
           <div>
             <div className="flex items-center justify-between gap-2">
-              <h3 className="text-base font-semibold">Vị trí có nhiều đề nhất</h3>
+              <h3 className="text-base font-semibold">Đề của vị trí đang mở</h3>
               <ClipboardList className="size-5 text-[var(--color-outline)]" aria-hidden="true" />
             </div>
             <p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">Dựa trên các đề đang hiển thị trong thư viện.</p>
@@ -639,7 +602,7 @@ export function AssessmentsPage() {
               <h3 className="text-base font-semibold">Tạo đề mới nhanh</h3>
             </div>
             <p className="mt-1.5 text-xs leading-5 text-[var(--color-on-surface-variant)]">
-              Chọn vị trí tuyển dụng, đặt thời lượng và điểm đạt, rồi thêm câu hỏi trắc nghiệm trước khi xuất bản.
+              Đặt thời lượng và điểm đạt, rồi thêm câu hỏi trắc nghiệm trước khi xuất bản.
             </p>
             <div className="mt-4 rounded-xl bg-[var(--color-surface-card)] p-4 text-center">
               <ClipboardList className="mx-auto size-8 text-[var(--color-primary)]" aria-hidden="true" />
@@ -648,7 +611,7 @@ export function AssessmentsPage() {
             </div>
           </div>
           <Link
-            to="/recruiter/assessments/excel-template"
+            to={`${basePath}/excel-template`}
             className="mt-4 inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg bg-[var(--color-primary)] px-4 text-sm font-semibold text-[var(--color-on-primary)] shadow-sm hover:bg-[var(--color-primary-hover)]"
           >
             <Plus className="size-4" aria-hidden="true" />
@@ -662,15 +625,11 @@ export function AssessmentsPage() {
 
 function AssessmentRow({
   test,
-  jobTitle,
-  department,
   structure,
   checked,
   onToggle,
 }: {
   test: JobTest;
-  jobTitle: string;
-  department?: string | null;
   structure?: { count: number; totalPoints: number; loading: boolean };
   checked: boolean;
   onToggle: () => void;
@@ -713,12 +672,6 @@ function AssessmentRow({
             </div>
           </div>
         </div>
-      </td>
-      <td className="whitespace-nowrap px-4 py-3.5">
-        <span className="block font-medium">{jobTitle}</span>
-        <span className="mt-0.5 inline-block rounded bg-[var(--color-surface-container)] px-2 py-0.5 text-[11px] text-[var(--color-on-surface-variant)]">
-          {department || "Chưa gán bộ phận"}
-        </span>
       </td>
       <td className="whitespace-nowrap px-4 py-3.5">
         {questionCount === null ? (

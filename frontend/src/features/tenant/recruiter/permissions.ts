@@ -38,7 +38,7 @@ export function featureForRecruiterPath(pathname: string): RecruiterFeatureCode 
     return "RANKING";
   }
   const jobFeature = rest.match(
-    /^\/jobs\/[^/]+\/(applicants|cvs|pipeline|analytics|assessments|interviews|schedules|notifications)(?:\/|$)/,
+    /^\/jobs\/[^/]+\/(applicants|cvs|pipeline|analytics|assessments|ai-interviews|interviews|schedules|notifications)(?:\/|$)/,
   )?.[1];
   const scopedFeature = jobFeature
     ? ({
@@ -47,6 +47,7 @@ export function featureForRecruiterPath(pathname: string): RecruiterFeatureCode 
         pipeline: "PIPELINE",
         analytics: "ANALYTICS",
         assessments: "ASSESSMENTS",
+        "ai-interviews": "AI_INTERVIEWS",
         interviews: "INTERVIEWS",
         schedules: "SCHEDULES",
         notifications: "NOTIFICATIONS",

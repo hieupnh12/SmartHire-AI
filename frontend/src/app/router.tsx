@@ -1,3 +1,4 @@
+import { JobRecruitmentWorkspace } from "@/features/tenant/recruiter/jobs/components/JobRecruitmentWorkspace";
 import { MasterRoute } from "@/app/guards/MasterRoute";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { RootRouteSwitcher } from "@/app/RootRouteSwitcher";
@@ -53,8 +54,11 @@ import { MyApplicationsPage } from "@/features/tenant/candidate/applications/pag
 import { ApplicationDetailPage } from "@/features/tenant/candidate/applications/pages/ApplicationDetailPage";
 import { MyCvPage } from "@/features/tenant/candidate/cv/pages/MyCvPage";
 import { AssessmentsPage as CandidateAssessmentsPage } from "@/features/tenant/candidate/assessments/pages/AssessmentsPage";
+import { AssessmentPrepRoomPage } from "@/features/tenant/candidate/assessments/pages/AssessmentPrepRoomPage";
+import { AssessmentExamRoomPage } from "@/features/tenant/candidate/assessments/pages/AssessmentExamRoomPage";
 import { TakeAssessmentPage } from "@/features/tenant/candidate/assessments/pages/TakeAssessmentPage";
 import { InterviewsPage as CandidateInterviewsPage } from "@/features/tenant/candidate/interviews/pages/InterviewsPage";
+import { AiInterviewRoomPage } from "@/features/tenant/candidate/interviews/pages/AiInterviewRoomPage";
 import { PracticePage } from "@/features/tenant/candidate/practice/pages/PracticePage";
 import { SchedulesPage as CandidateSchedulesPage } from "@/features/tenant/candidate/schedules/pages/SchedulesPage";
 import { NotificationsPage as CandidateNotificationsPage } from "@/features/tenant/candidate/notifications/pages/NotificationsPage";
@@ -143,8 +147,11 @@ export function AppRouter() {
           <Route path="applications/:id" element={<ApplicationDetailPage />} />
           <Route path="cv" element={<MyCvPage />} />
           <Route path="assessments" element={<CandidateAssessmentsPage />} />
+          <Route path="assessments/prep" element={<AssessmentPrepRoomPage />} />
+          <Route path="assessments/exam" element={<AssessmentExamRoomPage />} />
           <Route path="assessments/:submissionId/take" element={<TakeAssessmentPage />} />
           <Route path="interviews" element={<CandidateInterviewsPage />} />
+          <Route path="interviews/demo" element={<AiInterviewRoomPage />} />
           <Route path="practice" element={<PracticePage />} />
           <Route path="schedules" element={<CandidateSchedulesPage />} />
           <Route path="notifications" element={<CandidateNotificationsPage />} />
@@ -193,20 +200,23 @@ export function AppRouter() {
             <Route path="analytics" element={<Navigate to="/recruiter/jobs" replace />} />
           </Route>
           <Route element={<FeatureRoute feature="ASSESSMENTS" />}>
-            <Route path="jobs/:id/assessments" element={<RecruiterAssessmentsPage />} />
-            <Route path="jobs/:id/assessments/new" element={<AssessmentDetailPage />} />
-            <Route path="jobs/:id/assessments/:assessmentId" element={<AssessmentDetailPage />} />
-            <Route path="assessments" element={<RecruiterAssessmentsPage />} />
-            <Route path="assessments/new" element={<AssessmentDetailPage />} />
-            <Route path="assessments/question-bank" element={<QuestionBankPage />} />
-            <Route path="assessments/excel-template" element={<ExcelQuestionTemplatePage />} />
-            <Route path="assessments/:id" element={<AssessmentDetailPage />} />
+            <Route path="jobs/:id/assessments" element={<JobRecruitmentWorkspace><RecruiterAssessmentsPage /></JobRecruitmentWorkspace>} />
+            <Route path="jobs/:id/assessments/new" element={<JobRecruitmentWorkspace><AssessmentDetailPage /></JobRecruitmentWorkspace>} />
+            <Route path="jobs/:id/assessments/:assessmentId" element={<JobRecruitmentWorkspace><AssessmentDetailPage /></JobRecruitmentWorkspace>} />
+            <Route path="assessments" element={<Navigate to="/recruiter/jobs" replace />} />
+            <Route path="assessments/new" element={<Navigate to="/recruiter/jobs" replace />} />
+            <Route path="jobs/:id/assessments/question-bank" element={<JobRecruitmentWorkspace><QuestionBankPage /></JobRecruitmentWorkspace>} />
+            <Route path="assessments/question-bank" element={<Navigate to="/recruiter/jobs" replace />} />
+            <Route path="jobs/:id/assessments/excel-template" element={<JobRecruitmentWorkspace><ExcelQuestionTemplatePage /></JobRecruitmentWorkspace>} />
+            <Route path="assessments/excel-template" element={<Navigate to="/recruiter/jobs" replace />} />
+            <Route path="assessments/:id" element={<Navigate to="/recruiter/jobs" replace />} />
           </Route>
           <Route element={<FeatureRoute feature="AI_INTERVIEWS" />}>
-            <Route path="ai-interviews" element={<RecruiterAiInterviewsPage />} />
+            <Route path="jobs/:id/ai-interviews" element={<JobRecruitmentWorkspace><RecruiterAiInterviewsPage /></JobRecruitmentWorkspace>} />
+            <Route path="ai-interviews" element={<Navigate to="/recruiter/jobs" replace />} />
           </Route>
           <Route element={<FeatureRoute feature="INTERVIEWS" />}>
-            <Route path="jobs/:id/interviews" element={<RecruiterInterviewsPage />} />
+            <Route path="jobs/:id/interviews" element={<JobRecruitmentWorkspace><RecruiterInterviewsPage /></JobRecruitmentWorkspace>} />
             <Route path="interviews" element={<Navigate to="/recruiter/jobs" replace />} />
           </Route>
           <Route element={<FeatureRoute feature="SCHEDULES" />}>

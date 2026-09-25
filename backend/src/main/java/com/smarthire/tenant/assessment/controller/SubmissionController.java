@@ -18,38 +18,42 @@ public class SubmissionController {
 
     public SubmissionController(SubmissionService service) { this.service = service; }
 
-    @GetMapping("/applications/{applicationId}/assessments")
-    @Operation(summary = "List published tests for own eligible application (candidate only)")
+    @GetMapping("/applications/{applicationId}/list_available_assessments")
+    @Operation(summary = "List published JobTests for own eligible application (candidate only)")
     public ApiResponse<java.util.List<com.smarthire.tenant.assessment.dto.response.AvailableAssessmentResponse>> available(@PathVariable long applicationId) {
         return ApiResponse.ok(service.available(applicationId));
     }
 
-    @PostMapping("/assessments/{testId}/submissions")
-    @Operation(summary = "Start or resume own MCQ submission (candidate only)", description = "applicationId must belong to the caller and test job. New starts require ASSESSMENT or INTERVIEW stage. Repeated calls return the existing submission, including completed submissions; no automatic retake.")
+    @PostMapping("/assessments/{testId}/start_submission")
+    @Operation(summary = "Start or resume own MCQ submission (candidate only)",
+            description = "applicationId must belong to the caller and test job. New starts require ASSESSMENT or INTERVIEW stage. Repeated calls return the existing submission, including completed submissions; no automatic retake.")
     public ApiResponse<SubmissionResponse> start(@PathVariable long testId, @Valid @RequestBody StartSubmissionRequest body) {
         return ApiResponse.ok(service.start(testId, body));
     }
 
-    @GetMapping("/submissions/{id}")
-    @Operation(summary = "Get own paper, saved answers and server deadline (candidate only)", description = "Never exposes correct options. Expired active submissions are finalized on access.")
+    @GetMapping("/submissions/{id}/get_submission")
+    @Operation(summary = "Get own paper, saved answers and server deadline (candidate only)",
+            description = "Never exposes correct options. Expired active submissions are finalized on access.")
     public ApiResponse<SubmissionResponse> get(@PathVariable long id) {
         return ApiResponse.ok(service.get(id));
     }
 
-    @PostMapping("/submissions/{id}/answers")
-    @Operation(summary = "Save own answers (candidate only)", description = "Partial upsert by questionId. Null option clears an answer. Late payloads are rejected with 409 SUBMISSION_EXPIRED; previously saved answers are graded. Wrong ownership returns 404.")
+    @PostMapping("/submissions/{id}/save_answers")
+    @Operation(summary = "Save own answers (candidate only)",
+            description = "Partial upsert by questionId. Null option clears an answer. Late payloads are rejected with 409 SUBMISSION_EXPIRED; previously saved answers are graded. Wrong ownership returns 404.")
     public ApiResponse<SubmissionResponse> save(@PathVariable long id, @Valid @RequestBody SaveAnswersRequest body) {
         return ApiResponse.ok(service.save(id, body));
     }
 
-    @PostMapping("/submissions/{id}/submit")
-    @Operation(summary = "Submit and grade saved MCQ answers (candidate only)", description = "No request body. Save answers first. Repeated submit returns the same final score; unanswered questions score zero. Does not advance the application stage.")
+    @PostMapping("/submissions/{id}/submit_test")
+    @Operation(summary = "Submit and grade saved MCQ answers (candidate only)",
+            description = "No request body. Save answers first. Repeated submit returns the same final score; unanswered questions score zero. Does not advance the application stage.")
     public ApiResponse<SubmissionResponse> submit(@PathVariable long id) {
         return ApiResponse.ok(service.submit(id));
     }
 
-    @GetMapping("/submissions/{id}/result")
-    @Operation(summary = "Inspect candidate submission and score (tenant staff only)")
+    @GetMapping("/submissions/{id}/get_result")
+    @Operation(summary = "Inspect candidate submission and score (staff only)")
     public ApiResponse<SubmissionResponse> result(@PathVariable long id) {
         return ApiResponse.ok(service.staffResult(id));
     }

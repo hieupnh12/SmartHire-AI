@@ -39,19 +39,21 @@ Tạo/làm bài trắc nghiệm kỹ thuật gắn job/stage.
 
 | Method | Path |
 |---|---|
-| POST | `/api/v1/assessments` |
-| GET | `/api/v1/assessments?page=0&size=20` |
-| GET | `/api/v1/assessments/{id}` |
-| PUT | `/api/v1/assessments/{id}` |
-| GET, POST | `/api/v1/assessments/{testId}/questions` |
-| PUT, DELETE | `/api/v1/assessments/{testId}/questions/{questionId}` |
-| POST | `/api/v1/assessments/{testId}/publish` |
-| POST | `/api/v1/assessments/{testId}/submissions` |
-| GET | `/api/v1/applications/{applicationId}/assessments` (candidate sở hữu, đơn đủ điều kiện) |
-| GET | `/api/v1/submissions/{id}` |
-| POST | `/api/v1/submissions/{id}/answers` |
-| POST | `/api/v1/submissions/{id}/submit` |
-| GET | `/api/v1/submissions/{id}/result` (staff) |
+| POST | `/api/v1/assessments/create_draft_test` |
+| GET | `/api/v1/assessments/list_tenant_tests?page=0&size=20` |
+| GET | `/api/v1/assessments/get_test_metadata/{id}` |
+| PUT | `/api/v1/assessments/update_draft_test/{id}` |
+| GET | `/api/v1/assessments/{testId}/list_questions` |
+| POST | `/api/v1/assessments/{testId}/create_question` |
+| PUT | `/api/v1/assessments/{testId}/update_question/{questionId}` |
+| DELETE | `/api/v1/assessments/{testId}/delete_question/{questionId}` |
+| POST | `/api/v1/assessments/{testId}/publish_test` |
+| POST | `/api/v1/assessments/{testId}/start_submission` |
+| GET | `/api/v1/applications/{applicationId}/list_available_assessments` (candidate sở hữu, đơn đủ điều kiện) |
+| GET | `/api/v1/submissions/{id}/get_submission` |
+| POST | `/api/v1/submissions/{id}/save_answers` |
+| POST | `/api/v1/submissions/{id}/submit_test` |
+| GET | `/api/v1/submissions/{id}/get_result` (staff) |
 
 Contract chính thức và frontend dùng `submissions`, không cung cấp alias `attempts`. Các API trả `ApiResponse`: tạo đề/câu hỏi HTTP 201; start/resume/save/submit HTTP 200; request không hợp lệ 400; không đủ quyền 403; không tìm thấy/không sở hữu 404; trạng thái không phù hợp hoặc hết hạn 409. Danh sách đề trả `data.items`, `total`, `page`, `size`, sắp xếp ID giảm dần; page âm về 0, size giới hạn 1–50. Danh sách bao gồm metadata đề của job đã xóa để staff tra cứu.
 
@@ -73,7 +75,7 @@ Dùng token staff và `X-Tenant-ID` khớp tenant của token. Thay `jobId` bằ
 
 ### JSON câu hỏi và bài làm
 
-Staff POST `/assessments/{testId}/questions` (PUT câu hỏi dùng cùng body):
+Staff POST `/assessments/{testId}/create_question` (PUT `/update_question/{questionId}` dùng cùng body):
 
 ```json
 {
@@ -87,19 +89,19 @@ Staff POST `/assessments/{testId}/questions` (PUT câu hỏi dùng cùng body):
 }
 ```
 
-Staff POST `/assessments/{testId}/publish` không cần body. Candidate POST `/assessments/{testId}/submissions`:
+Staff POST `/assessments/{testId}/publish_test` không cần body. Candidate POST `/assessments/{testId}/start_submission`:
 
 ```json
 { "applicationId": 1 }
 ```
 
-Candidate POST `/submissions/{id}/answers`, thay ID theo response start:
+Candidate POST `/submissions/{id}/save_answers`, thay ID theo response start:
 
 ```json
 { "answers": [{ "questionId": 1, "selectedOptionId": 2 }] }
 ```
 
-Candidate POST `/submissions/{id}/submit` không cần body, chỉ chấm đáp án đã lưu. Staff GET `/submissions/{id}/result` để xem kết quả. Postman collection có nhóm Technical Assessment và biến `testId`, `questionId`, `optionId`, `submissionId`, `candidateToken`; token staff dùng `accessToken`.
+Candidate POST `/submissions/{id}/submit_test` không cần body, chỉ chấm đáp án đã lưu. Staff GET `/submissions/{id}/get_result` để xem kết quả. Postman collection có nhóm Technical Assessment và biến `testId`, `questionId`, `optionId`, `submissionId`, `candidateToken`; token staff dùng `accessToken`.
 
 Kiểm chứng ngày 2026-09-24: 33 test assessment/multitenancy đạt, trong đó `AssessmentFlowTest` chạy trên MySQL với schema Flyway, không dùng Hibernate tạo bảng. Đã chạy browser test `frontend/tests/assessment.browser.cjs` cho tạo/publish đề, start, lỗi lưu/retry, reload, lưu trước submit và hết giờ; ảnh desktop/mobile không tràn ngang. Browser test dùng API fixture, chưa thay thế E2E đăng nhập qua backend thật hoặc kiểm thử cách ly hai datasource.
 

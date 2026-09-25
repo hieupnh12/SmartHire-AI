@@ -28,8 +28,8 @@ Giới hạn thời gian làm bài; server là nguồn sự thật.
 
 | Method | Path |
 |---|---|
-| GET | `/api/v1/submissions/{id}` |
-| POST | `/api/v1/submissions/{id}/submit` |
+| GET | `/api/v1/submissions/{id}/get_submission` |
+| POST | `/api/v1/submissions/{id}/submit_test` |
 
 ## Database liên quan
 

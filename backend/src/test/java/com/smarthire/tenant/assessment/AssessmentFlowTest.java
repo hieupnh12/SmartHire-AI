@@ -181,9 +181,9 @@ class AssessmentFlowTest {
         assertThatThrownBy(() -> questions.create(id, question("Bad", 1, 0))).hasMessage("Staff access required");
         login(otherEmail, "CANDIDATE");
         assertThatThrownBy(() -> submissions.start(id, new StartSubmissionRequest(applicationId))).hasMessageContaining("not found");
-        mvc.perform(get("/api/v1/submissions/{id}", started.id())).andExpect(status().isNotFound());
-        mvc.perform(post("/api/v1/submissions/{id}/submit", started.id())).andExpect(status().isNotFound());
-        mvc.perform(post("/api/v1/submissions/{id}/answers", started.id()).contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(get("/api/v1/submissions/{id}/get_submission", started.id())).andExpect(status().isNotFound());
+        mvc.perform(post("/api/v1/submissions/{id}/submit_test", started.id())).andExpect(status().isNotFound());
+        mvc.perform(post("/api/v1/submissions/{id}/save_answers", started.id()).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"answers\":[{\"questionId\":1,\"selectedOptionId\":null}]}"))
                 .andExpect(status().isNotFound());
         assertThatThrownBy(() -> submissions.staffResult(started.id())).hasMessage("Staff access required");
@@ -266,10 +266,10 @@ class AssessmentFlowTest {
     @Test
     void httpValidationRejectsNestedInvalidOptionsAndEmptyAnswers() throws Exception {
         long id = draft();
-        mvc.perform(post("/api/v1/assessments/{id}/questions", id).contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/api/v1/assessments/{id}/create_question", id).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"questionText\":\"Question\",\"points\":1,\"questionOrder\":0,\"options\":[null,null]}"))
                 .andExpect(status().isBadRequest());
-        mvc.perform(post("/api/v1/submissions/1/answers").contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/api/v1/submissions/1/save_answers").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"answers\":[]}")).andExpect(status().isBadRequest());
     }
 
