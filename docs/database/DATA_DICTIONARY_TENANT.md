@@ -38,7 +38,7 @@ V11 mở rộng `users.role`, `member_invitations.role` thành VARCHAR(64) NOT N
 > Xem [Database Design & ERD](README.md) và [Data Dictionary Master](DATA_DICTIONARY_MASTER.md).
 
 **Database:** MySQL riêng cho mỗi doanh nghiệp. **Số bảng:** 50 hiện hành + 19 archive, không tính Flyway history.
-**Nguồn:** `backend/src/main/resources/db/migration/tenant/`, V1-V8, V10-V15.
+**Nguồn:** `backend/src/main/resources/db/migration/tenant/`, V1-V17.
 **Entity:** `com.smarthire.domain.tenant.entity`. **Hibernate:** `hbm2ddl.auto = none`.
 
 KÃ½ hiá»‡u: `PK` khoÃ¡ chÃ­nh Â· `FK` khoÃ¡ ngoáº¡i Ä‘Ã£ khai bÃ¡o Â· `UQ` thuá»™c rÃ ng buá»™c unique Â· `IDX` cÃ³ index Â·
@@ -160,8 +160,9 @@ Entity `Job` (káº¿ thá»«a `BaseEntity`). Báº£ng Ä‘Æ°á»£c má»�
 | `deleted_at` | TIMESTAMP | | CÃ³ | NULL | XoÃ¡ má»m (V2); khÃ¡c vá»›i `status` |
 | `department` | VARCHAR(128) | | CÃ³ | NULL | PhÃ²ng ban (V6) |
 | `work_mode` | VARCHAR(32) | | CÃ³ | NULL | Onsite, hybrid, remote (V6) |
+| `screening_mode` | VARCHAR(16) | | Không | `'MANUAL'` | Chế độ sàng lọc CV `AUTO` hoặc `MANUAL` (V17) |
 | `headcount` | INT | | CÃ³ | NULL | Sá»‘ lÆ°á»£ng cáº§n tuyá»ƒn (V6) |
-| `deadline` | DATETIME | | Có | NULL | Hết hạn đăng tin (V6 DATE → V15 DATETIME). Hết giờ này job đóng và tự sàng CV |
+| `deadline` | DATETIME | | Có | NULL | Hết hạn đăng tin (V6 DATE → V15 DATETIME). Hết giờ job đóng; chỉ `AUTO` tự sàng CV |
 | `salary_min` | DECIMAL(12,2) | | CÃ³ | NULL | LÆ°Æ¡ng tá»‘i thiá»ƒu (V6) |
 | `salary_max` | DECIMAL(12,2) | | CÃ³ | NULL | LÆ°Æ¡ng tá»‘i Ä‘a (V6) |
 | `salary_currency` | VARCHAR(8) | | CÃ³ | NULL | ÄÆ¡n vá»‹ tiá»n tá»‡ (V6) |

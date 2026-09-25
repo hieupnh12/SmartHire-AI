@@ -41,7 +41,7 @@ class TenantDataSourceFactoryTest {
                     .filter(name -> name.matches("V[0-9]+__.*\\.sql"))
                     .map(name -> Integer.parseInt(name.substring(1, name.indexOf("__"))))
                     .toList();
-            assertThat(versions).doesNotHaveDuplicates().contains(10, 11, 12);
+            assertThat(versions).doesNotHaveDuplicates().contains(10, 11, 12, 16);
         }
     }
 

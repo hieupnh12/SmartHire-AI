@@ -111,6 +111,8 @@ export const ja: Messages = {
     openShortcuts: "ショートカットヘルプを開く",
     switchLang: "言語切替 (EN → VI → JA)",
     focusSearch: "検索にフォーカス（ある場合）",
+    navigateJobs: "求人カード間を移動",
+    openJob: "選択中の求人ワークスペースを開く",
     close: "ダイアログ / パネルを閉じる",
   },
   toast: {

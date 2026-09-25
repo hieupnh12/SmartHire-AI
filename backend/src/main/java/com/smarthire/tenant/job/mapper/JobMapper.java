@@ -12,6 +12,7 @@ import com.smarthire.tenant.job.dto.JobModels.CvScreeningConfigView;
 import com.smarthire.tenant.job.dto.JobModels.GateScreeningConfigView;
 import com.smarthire.tenant.job.dto.JobModels.JobDetail;
 import com.smarthire.tenant.job.dto.JobModels.JobListItem;
+import com.smarthire.tenant.job.dto.JobModels.FunnelSummary;
 import com.smarthire.tenant.job.dto.JobModels.PublicJob;
 import com.smarthire.tenant.job.dto.JobModels.StageView;
 import java.math.BigDecimal;
@@ -25,7 +26,7 @@ public class JobMapper {
         return new JobOption(job.getId(), job.getTitle(), job.getStatus().name());
     }
 
-    public JobListItem listItem(Job job, long applications) {
+    public JobListItem listItem(Job job, long applications, FunnelSummary funnel) {
         return new JobListItem(
                 job.getId(),
                 job.getTitle(),
@@ -34,9 +35,11 @@ public class JobMapper {
                 job.getEmploymentType(),
                 job.getWorkMode(),
                 job.getDepartment(),
+                job.getScreeningMode(),
                 job.getDeadline(),
                 job.getHeadcount() == null ? 0 : job.getHeadcount(),
                 applications,
+                funnel,
                 job.getPublishedAt(),
                 job.getUpdatedAt());
     }
@@ -53,6 +56,7 @@ public class JobMapper {
                 job.getEmploymentType(),
                 job.getWorkMode(),
                 job.getDepartment(),
+                job.getScreeningMode(),
                 job.getHeadcount(),
                 job.getDeadline(),
                 job.getSalaryMin(),

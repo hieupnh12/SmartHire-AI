@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { getTenantIdFromWindow } from "@/lib/tenant";
@@ -132,6 +132,13 @@ export function TenantCareerPage() {
       job.responsibilities || "",
     ].filter(Boolean),
   }));
+
+  useEffect(() => {
+    const jobId = Number(new URLSearchParams(window.location.search).get("jobId"));
+    if (!jobId || selectedJob) return;
+    const sharedJob = jobsList.find((job) => job.id === jobId);
+    if (sharedJob) setSelectedJob(sharedJob);
+  }, [jobsList, selectedJob]);
 
   const filteredJobs = jobsList.filter((j) => {
     const matchSearch =

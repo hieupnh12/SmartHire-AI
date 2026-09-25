@@ -109,14 +109,25 @@ api.interceptors.response.use(
   },
 );
 
-export function getApiErrorMessage(error: unknown, fallback = "Request failed"): string {
+const FRIENDLY_ERROR_MESSAGES: Record<string, string> = {
+  INTERNAL_ERROR: "Hệ thống đang gặp sự cố tạm thời. Vui lòng thử lại sau ít phút.",
+  VALIDATION_ERROR: "Một số thông tin chưa hợp lệ. Vui lòng kiểm tra lại.",
+  BAD_REQUEST: "Yêu cầu chưa hợp lệ. Vui lòng kiểm tra lại thông tin.",
+};
+
+export function getApiErrorMessage(error: unknown, fallback = "Không thể hoàn tất yêu cầu. Vui lòng thử lại."): string {
   if (axios.isAxiosError(error)) {
     const data = error.response?.data as ApiResponse<unknown> | undefined;
-    if (data?.message) return data.message;
     if (data?.errors) {
       return Object.values(data.errors).join(", ");
     }
+    if (data?.code && FRIENDLY_ERROR_MESSAGES[data.code]) return FRIENDLY_ERROR_MESSAGES[data.code];
+    if (!error.response) return "Không thể kết nối đến hệ thống. Vui lòng kiểm tra mạng và thử lại.";
+    if (error.response.status === 403) return "Bạn không có quyền thực hiện thao tác này.";
+    if (error.response.status === 404) return "Không tìm thấy dữ liệu được yêu cầu.";
+    if (error.response.status >= 500) return FRIENDLY_ERROR_MESSAGES.INTERNAL_ERROR;
+    if (data?.message) return data.message;
   }
-  if (error instanceof Error) return error.message;
+  if (error instanceof Error && import.meta.env.DEV) console.error(error);
   return fallback;
 }

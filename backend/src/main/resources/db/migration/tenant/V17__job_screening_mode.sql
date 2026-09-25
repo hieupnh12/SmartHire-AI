@@ -1,0 +1,2 @@
+ALTER TABLE jobs
+    ADD COLUMN screening_mode VARCHAR(16) NOT NULL DEFAULT 'MANUAL' AFTER work_mode;

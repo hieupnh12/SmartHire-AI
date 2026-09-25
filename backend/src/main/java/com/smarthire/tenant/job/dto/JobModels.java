@@ -2,6 +2,7 @@ package com.smarthire.tenant.job.dto;
 
 import com.smarthire.tenant.cv.dto.CvModels.JobSkillItem;
 import com.smarthire.tenant.cv.dto.CvModels.JobSkillView;
+import com.smarthire.domain.enums.ScreeningMode;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
@@ -21,6 +22,7 @@ public final class JobModels {
             String employmentType,
             String workMode,
             String department,
+            ScreeningMode screeningMode,
             Integer headcount,
             String deadline,
             BigDecimal salaryMin,
@@ -66,11 +68,15 @@ public final class JobModels {
             String employmentType,
             String workMode,
             String department,
+            ScreeningMode screeningMode,
             Instant deadline,
             int headcount,
             long applicationCount,
+            FunnelSummary funnel,
             Instant publishedAt,
             Instant updatedAt) {}
+
+    public record FunnelSummary(long screened, long shortlisted, long testing, long interviewing, long filled) {}
 
     public record JobPage(List<JobListItem> items, long total, int page, int size) {}
 
@@ -84,6 +90,7 @@ public final class JobModels {
             String employmentType,
             String workMode,
             String department,
+            ScreeningMode screeningMode,
             Integer headcount,
             Instant deadline,
             BigDecimal salaryMin,
