@@ -27,15 +27,16 @@ Phân tích xu hướng theo thời gian (applications, hires, scores).
 | Method | Path |
 |---|---|
 | GET | `/api/v1/dashboard/trends` |
+| GET | `/api/v1/analytics/recruiter/quality` |
 
 ## Database liên quan
 
-- time-series aggregates
+- `candidate_quality_snapshots` lưu lịch sử điểm dạng append-only; dữ liệu được giới hạn theo recruiter hiện tại.
 
 ## UI mockup
 
 - Frontend Admin: `/internal/admin/analytics` — xu hướng toàn doanh nghiệp.
-- Frontend Recruiter: `/recruiter/analytics` — xu hướng chất lượng ứng viên và hiệu suất cá nhân.
+- Frontend Recruiter: `/recruiter/jobs/{jobId}/analytics` — xu hướng chất lượng ứng viên và hiệu suất trong Job workspace đã chọn.
 - Google Stitch: **Recruitment Analytics Dashboard / Recruitment Trend Analysis** — _[dán link]_
 - Icons: xem `DESIGN.md`
 

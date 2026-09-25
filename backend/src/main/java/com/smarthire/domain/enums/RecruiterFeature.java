@@ -49,6 +49,9 @@ public enum RecruiterFeature {
         if (path.startsWith("/api/v1/dashboard/charts") || path.startsWith("/api/v1/dashboard/trends")) {
             return ANALYTICS;
         }
+        if (path.startsWith("/api/v1/analytics")) {
+            return ANALYTICS;
+        }
         if (path.startsWith("/api/v1/dashboard")) {
             return DASHBOARD;
         }

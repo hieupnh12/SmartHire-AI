@@ -22,16 +22,16 @@ public class DashboardController {
         this.dashboardService = dashboardService;
     }
 
+    @GetMapping("/summary")
+    @Operation(summary = "Get tenant recruitment dashboard summary")
+    public ResponseEntity<ApiResponse<DashboardSummaryResponse>> summary() {
+        return ResponseEntity.ok(ApiResponse.ok(dashboardService.summary()));
+    }
+
     @GetMapping("/health")
     @Operation(summary = "Analytics Dashboard module scaffold health")
     public ResponseEntity<ApiResponse<Map<String, String>>> health() {
         return ResponseEntity.ok(ApiResponse.ok(dashboardService.health()));
-    }
-
-    @GetMapping("/summary")
-    @Operation(summary = "Tenant recruitment KPI counts")
-    public ResponseEntity<ApiResponse<DashboardSummaryResponse>> summary() {
-        return ResponseEntity.ok(ApiResponse.ok(dashboardService.summary()));
     }
 }
 

@@ -45,6 +45,27 @@ export function InvoiceDetailModal({
             <span className="font-mono text-slate-700">{selectedInvoice.tenantCode || "code"} ({selectedInvoice.tenantSubdomain || "sub"}.smarthire.top)</span>
           </div>
 
+          {selectedInvoice.billingLegalName && (
+            <div className="flex justify-between pb-2 border-b border-slate-200/70">
+              <span className="text-slate-500">Tên Pháp Nhân:</span>
+              <span className="font-semibold text-slate-800 text-right">{selectedInvoice.billingLegalName}</span>
+            </div>
+          )}
+
+          {selectedInvoice.billingTaxCode && (
+            <div className="flex justify-between pb-2 border-b border-slate-200/70">
+              <span className="text-slate-500">Mã Số Thuế (MST):</span>
+              <span className="font-mono text-slate-800">{selectedInvoice.billingTaxCode}</span>
+            </div>
+          )}
+
+          {selectedInvoice.billingAddress && (
+            <div className="flex justify-between pb-2 border-b border-slate-200/70">
+              <span className="text-slate-500">Địa Chỉ Thuế:</span>
+              <span className="text-slate-800 text-right max-w-xs">{selectedInvoice.billingAddress}</span>
+            </div>
+          )}
+
           <div className="flex justify-between pb-2 border-b border-slate-200/70">
             <span className="text-slate-500">Gói Dịch Vụ:</span>
             <span className="font-semibold text-blue-700">{selectedInvoice.planName || "Gói Tùy Biến"}</span>

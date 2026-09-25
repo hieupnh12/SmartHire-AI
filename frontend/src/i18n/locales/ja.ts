@@ -77,6 +77,7 @@ export const ja: Messages = {
     ranking: "ランキング",
     pipeline: "パイプライン",
     assessments: "評価",
+    aiInterview: "AI面接",
     interviews: "面接",
     practice: "練習",
     schedules: "予定",

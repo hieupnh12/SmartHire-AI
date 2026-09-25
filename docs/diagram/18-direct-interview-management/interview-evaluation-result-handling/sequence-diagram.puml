@@ -1,0 +1,124 @@
+@startuml
+skinparam dpi 300
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam sequence {
+    ArrowColor #2D3748
+    ActorBorderColor #2D3748
+    LifeLineBorderColor #2D3748
+    ParticipantBorderColor #2D3748
+    ParticipantBackgroundColor #FFFFFF
+    BoxBorderColor #A0AEC0
+}
+hide footbox
+autonumber
+
+actor "Interviewer / HR" as Evaluator
+boundary "Evaluation UI" as UI
+control "Security +\nTenantWebInterceptor" as Guard
+control "TenantContext" as Context
+boundary "DirectInterviewEvaluationController" as Ctrl
+control "DirectInterviewEvaluationService" as Svc
+control "EvaluationAggregationPolicy" as Policy
+database "Dedicated Tenant DB" as TenantDB
+
+note over Evaluator,TenantDB
+  FE18-F03 — submit human scores by configured criteria.
+  Stores interview_evaluations (+ criterion scores), not AI interview_scores.
+  Interview must be DIRECT and SCHEDULED or IN_PROGRESS.
+end note
+
+Evaluator -> UI: Enter criterion scores, comment, recommendation
+activate UI
+UI -> Guard: POST /api/v1/direct-interviews/{id}/evaluations\nSubmitEvaluationRequest
+activate Guard
+Guard -> Guard: authorize INTERVIEWER / TENANT_ADMIN / RECRUITER
+
+alt unauthorized
+  Guard --> UI: 401 / 403
+  deactivate Guard
+  UI --> Evaluator: Access error
+  deactivate UI
+else authorized
+  Guard -> Context: setCurrentTenant(tenantId)
+  Guard -> Ctrl: forward
+  activate Ctrl
+  Ctrl -> Svc: submitEvaluation(id, request, principal)
+  activate Svc
+  Svc -> TenantDB: load Interview (DIRECT)
+  activate TenantDB
+
+  alt missing / wrong mode / wrong status
+    TenantDB --> Svc: reject
+    deactivate TenantDB
+    Svc --> Ctrl: 404 / 409
+    deactivate Svc
+    Ctrl --> UI: error
+    deactivate Ctrl
+    UI --> Evaluator: Cannot evaluate
+    deactivate UI
+  else interview evaluable
+    TenantDB --> Svc: Interview
+    deactivate TenantDB
+    Svc -> TenantDB: verify principal is assigned participant\n(or TENANT_ADMIN override)
+    activate TenantDB
+
+    alt not assigned evaluator
+      TenantDB --> Svc: empty
+      deactivate TenantDB
+      Svc --> Ctrl: 403 NOT_ASSIGNED
+      deactivate Svc
+      Ctrl --> UI: error
+      deactivate Ctrl
+      UI --> Evaluator: Not a participant
+      deactivate UI
+    else assigned
+      TenantDB --> Svc: InterviewParticipant
+      deactivate TenantDB
+      Svc -> TenantDB: load active EvaluationCriterion\nby interviewType
+      activate TenantDB
+      TenantDB --> Svc: criteria list
+      deactivate TenantDB
+      Svc -> Svc: validate all required criteria present\nand score ranges
+
+      alt criteria incomplete / invalid scores
+        Svc --> Ctrl: 400 CRITERIA_INVALID
+        deactivate Svc
+        Ctrl --> UI: error
+        deactivate Ctrl
+        UI --> Evaluator: Fix scores
+        deactivate UI
+      else valid scores
+        Svc -> Policy: computeOverall(weighted scores)
+        activate Policy
+        Policy --> Svc: overallScore
+        deactivate Policy
+        Svc -> TenantDB: INSERT interview_evaluations\n+ evaluation_criterion_scores
+        activate TenantDB
+        TenantDB --> Svc: evaluation id
+        deactivate TenantDB
+        Svc -> TenantDB: UPDATE interviews SET status=EVALUATED
+        activate TenantDB
+        TenantDB --> Svc: ok
+        deactivate TenantDB
+        Svc --> Ctrl: EvaluationResultResponse
+        deactivate Svc
+        Ctrl --> UI: 200 OK
+        deactivate Ctrl
+        UI --> Evaluator: Show overall + recommendation\n(ready for hiring decision)
+        deactivate UI
+      end
+    end
+  end
+  Guard -> Context: clear() in finally
+  deactivate Guard
+end
+
+note over Svc,TenantDB
+  GET evaluation is read-only for HR/Recruiter after submit.
+  Hiring Decision (WF-03) consumes this result; not drawn here.
+end note
+
+@enduml

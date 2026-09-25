@@ -8,6 +8,7 @@ import { queryKeys } from "@/lib/query-keys";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 import { useUiStore } from "@/stores/uiStore";
 import { button, input, muted, panel } from "@/features/tenant/recruiter/matching/components/rankingUi";
+import { LoadingState, TableSkeleton } from "@/components/ux/Skeleton";
 
 const statuses: { value: "" | JobStatus; label: string }[] = [
   { value: "", label: "Tất cả" },
@@ -63,7 +64,7 @@ export function JobsPage() {
       </div>
       {list.isError && <p role="alert">{getApiErrorMessage(list.error)}</p>}
       <div className={`${panel} overflow-x-auto`}>
-        {list.isPending && <p>Đang tải job…</p>}
+        {list.isPending && <LoadingState label="Đang tải danh sách việc làm"><TableSkeleton /></LoadingState>}
         {data && data.items.length === 0 && (
           <div className="flex flex-col items-start gap-4 py-6">
             <p className={muted}>Chưa có job. Tạo tin mới rồi chọn skill Backend/Frontend để matching CV.</p>
@@ -98,6 +99,7 @@ export function JobsPage() {
                   <td className="font-mono">{job.applicationCount}</td>
                   <td className="space-x-2 whitespace-nowrap">
                     <Link className={button} to={`/recruiter/jobs/${job.id}/edit`}>Sửa</Link>
+                    <Link className={button} to={`/recruiter/applicants?jobId=${job.id}`}>Ứng viên</Link>
                     <button className={button} type="button" onClick={() => clone.mutate(job.id)}>Clone</button>
                     <button className={button} type="button" onClick={() => askConfirm({
                       title: "Xóa job?",

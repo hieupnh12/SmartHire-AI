@@ -8,7 +8,6 @@ import com.smarthire.domain.tenant.entity.User;
 import com.smarthire.domain.tenant.repository.JobAssignmentRepository;
 import com.smarthire.domain.tenant.repository.UserRepository;
 import com.smarthire.multitenancy.context.TenantContext;
-import java.util.Set;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
@@ -17,9 +16,6 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class CvAccess {
-    private static final Set<String> STAFF = Set.of(
-            "ROLE_RECRUITER", "ROLE_HR", "ROLE_ADMIN", "ROLE_TENANT_ADMIN", "ROLE_STAFF");
-
     private final UserRepository users;
     private final JobAssignmentRepository assignments;
 
@@ -45,7 +41,10 @@ public class CvAccess {
     }
 
     public boolean staff() {
-        return auth().getAuthorities().stream().map(GrantedAuthority::getAuthority).anyMatch(STAFF::contains);
+        return auth().getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .map(CvAccess::roleCode)
+                .anyMatch(code -> UserRole.isCompanyAdmin(code) || UserRole.isRecruiterStaff(code));
     }
 
     public boolean candidate() {
@@ -86,9 +85,13 @@ public class CvAccess {
             }
             return;
         }
-        if (cv.getJob() == null) {
-            throw new BusinessException("CV not found", HttpStatus.NOT_FOUND, "CV_NOT_FOUND");
+        if (staff()) {
+            return;
         }
-        requireJob(cv.getJob());
+        throw new BusinessException("CV not found", HttpStatus.NOT_FOUND, "CV_NOT_FOUND");
+    }
+
+    private static String roleCode(String authority) {
+        return authority != null && authority.startsWith("ROLE_") ? authority.substring(5) : authority;
     }
 }

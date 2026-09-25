@@ -29,6 +29,7 @@ import { LanguageSwitcher } from "@/components/ux/LanguageSwitcher";
 import { DashboardTab, SidebarGroupId, SidebarItem } from "./types";
 import { useMasterDashboard } from "./MasterAdminContext";
 import { masterAuthApi } from "@/api/master/masterAuthApi";
+import { useUiStore } from "@/stores/uiStore";
 
 interface MasterSidebarProps {
   activeTab: DashboardTab;
@@ -61,6 +62,7 @@ export function MasterAdminSidebar({
 }: MasterSidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
+  const askConfirm = useUiStore((state) => state.askConfirm);
   const { tenants, plans, logs, leads, invoices, contracts } = useMasterDashboard();
 
   const handleLogout = async () => {
@@ -248,7 +250,9 @@ export function MasterAdminSidebar({
     else if (item.action) item.action();
     else if (item.tab) setActiveTab(item.tab);
   };
-  const notificationCount = tenants.filter((tenant) => tenant.status !== "ACTIVE").length;
+  const pendingLeadsCount = leads.filter((l) => l.status === "PENDING").length;
+  const pendingTenants = tenants.filter((tenant) => tenant.status !== "ACTIVE");
+  const notificationCount = pendingTenants.length + pendingLeadsCount;
   const selectedSidebarGroup = allSidebarGroups.find((group) => group.id === openSidebarGroup)
     ?? allSidebarGroups.find((group) => group.items.some(isItemActive))
     ?? sidebarGroups[0];
@@ -580,7 +584,7 @@ export function MasterAdminSidebar({
             <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
               <div>
                 <h2 className="text-base font-semibold text-slate-950">Thông báo</h2>
-                <p className="mt-0.5 text-xs text-slate-500">Các tenant cần quản trị viên chú ý</p>
+                <p className="mt-0.5 text-xs text-slate-500">Các sự kiện cần quản trị viên xử lý</p>
               </div>
               {notificationCount > 0 && (
                 <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-800">{notificationCount} mới</span>
@@ -592,27 +596,47 @@ export function MasterAdminSidebar({
                 <div className="flex flex-col items-center px-4 py-8 text-center">
                   <span className="flex size-11 items-center justify-center rounded-full bg-emerald-50 text-emerald-600"><ShieldCheck className="size-6" /></span>
                   <p className="mt-3 text-sm font-semibold text-slate-800">Không có thông báo mới</p>
-                  <p className="mt-1 text-xs text-slate-500">Tất cả tenant đang hoạt động bình thường.</p>
+                  <p className="mt-1 text-xs text-slate-500">Hệ thống đang hoạt động ổn định.</p>
                 </div>
               ) : (
-                tenants.filter((tenant) => tenant.status !== "ACTIVE").map((tenant) => (
-                  <button
-                    key={tenant.id}
-                    type="button"
-                    onClick={() => {
-                      setActiveTab("tenants");
-                      setIsNotificationPanelOpen(false);
-                    }}
-                    className="flex w-full items-start gap-3 rounded-2xl p-3 text-left transition-colors hover:bg-amber-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
-                  >
-                    <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700"><Building2 className="size-5" /></span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-semibold text-slate-900">{tenant.name}</span>
-                      <span className="mt-1 block text-xs text-slate-500">Trạng thái: {tenant.status}</span>
-                    </span>
-                    <ChevronRight className="mt-2 size-4 shrink-0 text-slate-400" />
-                  </button>
-                ))
+                <>
+                  {pendingTenants.map((tenant) => (
+                    <button
+                      key={tenant.id}
+                      type="button"
+                      onClick={() => {
+                        setActiveTab("tenants");
+                        setIsNotificationPanelOpen(false);
+                      }}
+                      className="flex w-full items-start gap-3 rounded-2xl p-3 text-left transition-colors hover:bg-amber-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
+                    >
+                      <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700"><Building2 className="size-5" /></span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-semibold text-slate-900">{tenant.name}</span>
+                        <span className="mt-1 block text-xs text-slate-500">Trạng thái: {tenant.status}</span>
+                      </span>
+                      <ChevronRight className="mt-2 size-4 shrink-0 text-slate-400" />
+                    </button>
+                  ))}
+                  {pendingLeadsCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveTab("leads");
+                        setIsNotificationPanelOpen(false);
+                        navigate("/admin/leads");
+                      }}
+                      className="flex w-full items-start gap-3 rounded-2xl p-3 text-left transition-colors hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 mt-2"
+                    >
+                      <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-blue-100 text-blue-700"><PhoneCall className="size-5" /></span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-semibold text-slate-900">Yêu cầu Demo / Báo giá</span>
+                        <span className="mt-1 block text-xs text-slate-500">Có {pendingLeadsCount} yêu cầu đang chờ xử lý</span>
+                      </span>
+                      <ChevronRight className="mt-2 size-4 shrink-0 text-slate-400" />
+                    </button>
+                  )}
+                </>
               )}
             </div>
 
@@ -668,7 +692,7 @@ export function MasterAdminSidebar({
               <button
                 type="button"
                 role="menuitem"
-                onClick={handleLogout}
+                onClick={() => askConfirm({ title: "Đăng xuất khỏi SmartHire?", description: "Phiên quản trị hiện tại sẽ kết thúc trên thiết bị này.", confirmLabel: "Đăng xuất", danger: true, onConfirm: handleLogout })}
                 className="flex min-h-12 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-rose-50 hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
               >
                 <LogOut className="size-5" />

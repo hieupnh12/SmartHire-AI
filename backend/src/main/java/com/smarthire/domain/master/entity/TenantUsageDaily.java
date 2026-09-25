@@ -6,24 +6,20 @@ import java.time.LocalDateTime;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
-@Entity
-@Table(name = "tenant_usage_daily")
+@Getter
+@Setter
 @Builder
-@Data
 @NoArgsConstructor
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
+@Entity
+@Table(name = "tenant_usage_daily")
 public class TenantUsageDaily {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    Long id;
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY) Long id;
 
-    @Column(name = "tenant_id", nullable = false)
-    Long tenantId;
-
-    @Column(name = "usage_date", nullable = false)
-    LocalDate usageDate;
+    @Column(name = "tenant_id", nullable = false) Long tenantId;
+    @Column(name = "usage_date", nullable = false) LocalDate usageDate;
 
     @Builder.Default
     @Column(name = "cv_parses_count", nullable = false)

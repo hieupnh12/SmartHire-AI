@@ -2,6 +2,7 @@ package com.smarthire.multitenancy;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.smarthire.common.exception.BusinessException;
+import com.smarthire.common.storage.FileStorageService;
 import com.smarthire.domain.master.entity.*;
 import com.smarthire.domain.master.repository.*;
 import com.smarthire.domain.tenant.repository.UserRepository;
@@ -15,6 +16,7 @@ import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.*;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.context.*;
 import org.springframework.test.web.servlet.MockMvc;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -35,6 +37,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @Testcontainers
 class MultiDatabaseIntegrationTest {
+    @MockBean FileStorageService fileStorageService;
     private static final String PROVISION_PASSWORD = "a".repeat(48);
     @Container static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine");
     @Container static MySQLContainer<?> mysql = new MySQLContainer<>("mysql:8.4")

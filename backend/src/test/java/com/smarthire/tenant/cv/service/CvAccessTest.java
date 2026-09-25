@@ -1,5 +1,11 @@
 package com.smarthire.tenant.cv.service;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.when;
+
 import com.smarthire.common.exception.BusinessException;
 import com.smarthire.domain.enums.UserStatus;
 import com.smarthire.domain.tenant.entity.Job;
@@ -17,10 +23,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class CvAccessTest {
@@ -88,10 +90,38 @@ class CvAccessTest {
         access.requireJob(job);
     }
 
+    @Test
+    void customRecruiterRoleIsStaff() {
+        authenticate("se36", "ROLE_CV_SCREENING", "ROLE_STAFF");
+        assertTrue(new CvAccess(users, assignments).staff());
+    }
+
+    @Test
+    void builtInRecruiterIsStaff() {
+        authenticate("se36", "ROLE_RECRUITER", "ROLE_STAFF");
+        assertTrue(new CvAccess(users, assignments).staff());
+    }
+
+    @Test
+    void candidateIsNotStaff() {
+        authenticate("se36", "ROLE_CANDIDATE");
+        assertFalse(new CvAccess(users, assignments).staff());
+    }
+
     private static void login(String email, String... roles) {
         var auth = new UsernamePasswordAuthenticationToken(
                 email, null, java.util.Arrays.stream(roles).map(SimpleGrantedAuthority::new).toList());
         auth.setDetails("acme");
         SecurityContextHolder.getContext().setAuthentication(auth);
+    }
+
+    private static void authenticate(String tenant, String... roles) {
+        TenantContext.setCurrentTenant(tenant);
+        UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                "recruiter@se36.com",
+                null,
+                java.util.Arrays.stream(roles).map(SimpleGrantedAuthority::new).toList());
+        authentication.setDetails(tenant);
+        SecurityContextHolder.getContext().setAuthentication(authentication);
     }
 }

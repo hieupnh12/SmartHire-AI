@@ -93,19 +93,19 @@ function SourceSelector({ applicationId, tenantKey, data }: { applicationId: num
     },
   });
   const fields = [
-    { key: "cvId" as const, label: "CV", options: data.cvs },
-    { key: "attemptId" as const, label: "Assessment", options: data.attempts },
-    { key: "interviewId" as const, label: "AI Interview", options: data.interviews },
+    { key: "cvId" as const, label: "CV", options: data.cvs ?? [] },
+    { key: "submissionId" as const, label: "Assessment", options: data.submissions ?? [] },
+    { key: "aiInterviewId" as const, label: "AI Interview", options: data.aiInterviews ?? [] },
   ];
   return <section className={section} aria-labelledby="source-title"><h3 id="source-title" className="text-lg font-semibold">Nguồn dữ liệu xếp hạng</h3><p className={muted}>Chọn nguồn chính thức khi ứng viên có nhiều lần đánh giá.</p><div className="mt-4 space-y-3">{fields.map((field) => <div key={field.key} className="space-y-1.5"><span className="block text-sm font-medium">{field.label}</span><RankingSelect ariaLabel={`Nguồn ${field.label}`} value={selection[field.key] === null ? "" : String(selection[field.key])} placeholder={field.options.length > 1 ? "Chọn nguồn" : "Chưa có nguồn"} options={[{ value: "", label: field.options.length > 1 ? "Chưa chọn nguồn" : "Chưa có nguồn" }, ...field.options.map((option) => ({ value: String(option.id), label: option.label, description: option.status }))]} onChange={(value) => setSelection((current) => ({ ...current, [field.key]: value ? Number(value) : null }))} /></div>)}</div>{mutation.isError && <p role="alert" className="mt-3 text-sm text-red-700">{getApiErrorMessage(mutation.error)}</p>}<button type="button" className={`${primary} mt-4 w-full`} disabled={mutation.isPending} onClick={() => mutation.mutate()}>{mutation.isPending ? "Đang lưu…" : "Lưu nguồn và tính lại"}</button></section>;
 }
 
-function RankingDetailContent({ row, jobTitle, tenantKey, preview = false, onClose }: {
-  row: RankingRow; jobTitle: string; tenantKey: string; preview?: boolean; onClose: () => void;
+function RankingDetailContent({ row, jobId, jobTitle, tenantKey, preview = false, fallback = false, onClose }: {
+  row: RankingRow; jobId: number; jobTitle: string; tenantKey: string; preview?: boolean; fallback?: boolean; onClose: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   useEffect(() => { const element = dialog.current; element?.showModal(); return () => element?.close(); }, []);
-  const sources = useQuery({ queryKey: ["ranking-sources", tenantKey, row.applicationId], queryFn: () => matchingApi.sources(row.applicationId), enabled: !preview });
+  const sources = useQuery({ queryKey: ["ranking-sources", tenantKey, row.applicationId], queryFn: () => matchingApi.sources(row.applicationId), enabled: !preview && !fallback });
   return <dialog ref={dialog} onCancel={(event) => { event.preventDefault(); onClose(); }} aria-labelledby="ranking-detail-title" aria-modal="true" className="fixed inset-0 m-auto h-dvh w-full max-w-6xl overflow-y-auto border-0 bg-[var(--color-surface)] p-0 text-[var(--color-on-surface)] shadow-2xl backdrop:bg-slate-900/45 backdrop:backdrop-blur-sm sm:h-[calc(100dvh-32px)] sm:w-[calc(100%-32px)] sm:rounded-2xl sm:border sm:border-[var(--color-border-default)]">
     <div className="sticky top-0 z-20 flex items-center justify-between gap-4 border-b border-[var(--color-border-default)] bg-[var(--color-surface-card)]/90 px-4 py-3 backdrop-blur-xl sm:px-6">
       <button className={button} onClick={onClose} autoFocus><ArrowLeft className="size-4" aria-hidden="true" /><span className="hidden sm:inline">Quay lại bảng xếp hạng</span><span className="sm:hidden">Quay lại</span></button>
@@ -120,26 +120,28 @@ function RankingDetailContent({ row, jobTitle, tenantKey, preview = false, onClo
           <div className="flex items-center justify-center gap-4 rounded-xl bg-[var(--color-surface-container-low)] p-4"><OverallGauge value={row.result.score} /><div><p className="flex items-center gap-1 text-xs font-bold uppercase tracking-[0.08em] text-[var(--color-primary-hover)]"><Sparkles className="size-4" aria-hidden="true" />Điểm tổng</p><p className="mt-2 text-sm font-semibold">Hạng #{row.rank ?? "—"}</p><p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">{row.result.complete ? "Đã đủ dữ liệu" : `${row.result.completedComponents}/${row.result.requiredComponents} thành phần`}</p></div></div>
         </div>
         <div className="relative mt-5 grid grid-cols-2 gap-2 border-t border-[var(--color-border-default)] pt-5 sm:grid-cols-4">{row.result.components.map((part) => <div key={part.key} className="rounded-lg bg-[var(--color-surface-container-low)] px-3 py-3"><p className="text-xs text-[var(--color-on-surface-variant)]">{labels[part.key]}</p><p className="mt-1 text-lg font-semibold tabular-nums">{scoreText(part.score)}<span className="text-xs font-normal text-[var(--color-outline)]"> / 100</span></p></div>)}</div>
-        <nav className="relative mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3" aria-label="Thao tác với ứng viên"><Link className={`${button} bg-[var(--color-surface-card)]`} to={`/recruiter/assessments?applicationId=${row.applicationId}`}><Code2 className="size-4 text-[var(--color-primary)]" aria-hidden="true" />Xem Assessment</Link><Link className={`${button} bg-[var(--color-surface-card)]`} to={`/recruiter/interviews?applicationId=${row.applicationId}`}><MessageSquareText className="size-4 text-[var(--color-primary)]" aria-hidden="true" />Xem AI Interview</Link><Link className={primary} to={`/recruiter/schedules?applicationId=${row.applicationId}`}><CalendarDays className="size-4" aria-hidden="true" />Đặt lịch tiếp theo</Link></nav>
+        {fallback && <p role="status" className="relative mt-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">Chi tiết bằng chứng chưa tải được. Đang hiển thị dữ liệu tóm tắt từ bảng xếp hạng.</p>}
+        <nav className="relative mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3" aria-label="Thao tác với ứng viên"><Link className={`${button} bg-[var(--color-surface-card)]`} to={`/recruiter/jobs/${jobId}/assessments?applicationId=${row.applicationId}`}><Code2 className="size-4 text-[var(--color-primary)]" aria-hidden="true" />Xem Assessment</Link><Link className={`${button} bg-[var(--color-surface-card)]`} to={`/recruiter/ai-interviews?applicationId=${row.applicationId}`}><MessageSquareText className="size-4 text-[var(--color-primary)]" aria-hidden="true" />Xem AI Interview</Link><Link className={primary} to={`/recruiter/jobs/${jobId}/schedules?applicationId=${row.applicationId}`}><CalendarDays className="size-4" aria-hidden="true" />Đặt lịch tiếp theo</Link></nav>
       </section>
 
       <div className="grid gap-6 lg:grid-cols-12"><div className="space-y-6 lg:col-span-8"><ComponentBreakdown row={row} /><SkillEvidence row={row} /><section className={section}><h3 className="text-lg font-semibold">Kinh nghiệm liên quan</h3><p className="mt-1 text-sm">{row.experienceMonths === null ? "Chưa đủ dữ liệu xác minh" : `${row.experienceMonths} tháng, đã loại trừ thời gian trùng lặp`}</p>{row.experienceEvidence.map((evidence, index) => <blockquote key={index} className="mt-3 rounded-r-lg border-l-2 border-[var(--color-primary)] bg-[var(--color-surface-alt)] p-3 text-sm">{evidence}</blockquote>)}</section><FormulaTable row={row} /></div>
         <aside className="space-y-6 lg:col-span-4"><InsightPanel row={row} preview={preview} />{row.interviewFeedback && <section className={section}><h3 className="flex items-center gap-2 text-lg font-semibold"><MessageSquareText className="size-5 text-[var(--color-primary)]" aria-hidden="true" />Nhận xét AI Interview</h3><p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-[var(--color-on-surface-variant)]">{row.interviewFeedback}</p></section>}<Timeline row={row} />
-          {!preview && sources.isPending && <p role="status" className={section}>Đang tải nguồn đánh giá…</p>}{!preview && sources.isError && <div role="alert" className={section}>{getApiErrorMessage(sources.error)}</div>}{!preview && sources.data && <SourceSelector applicationId={row.applicationId} tenantKey={tenantKey} data={sources.data.data} />}
+          {!preview && !fallback && sources.isPending && <p role="status" className={section}>Đang tải nguồn đánh giá…</p>}{!preview && !fallback && sources.isError && <div role="alert" className={section}>{getApiErrorMessage(sources.error)}</div>}{!preview && !fallback && sources.data && <SourceSelector applicationId={row.applicationId} tenantKey={tenantKey} data={sources.data.data} />}
         </aside></div>
     </div>
-    <div className="sticky bottom-0 z-20 flex flex-col gap-3 border-t border-[var(--color-border-default)] bg-[var(--color-surface-card)]/90 px-4 py-3 backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between sm:px-6"><div><p className="text-sm font-semibold">Điểm chỉ hỗ trợ ra quyết định</p><p className="text-xs text-[var(--color-on-surface-variant)]">Hãy kiểm tra bằng chứng và phỏng vấn trước khi thay đổi trạng thái ứng viên.</p></div><div className="flex gap-2"><button className={`${button} flex-1 sm:flex-none`} onClick={onClose}>Đóng</button><Link className={`${primary} flex-1 sm:flex-none`} to={`/recruiter/interviews?applicationId=${row.applicationId}`}>Xem phỏng vấn</Link></div></div>
+    <div className="sticky bottom-0 z-20 flex flex-col gap-3 border-t border-[var(--color-border-default)] bg-[var(--color-surface-card)]/90 px-4 py-3 backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between sm:px-6"><div><p className="text-sm font-semibold">Điểm chỉ hỗ trợ ra quyết định</p><p className="text-xs text-[var(--color-on-surface-variant)]">Hãy kiểm tra bằng chứng và phỏng vấn trước khi thay đổi trạng thái ứng viên.</p></div><div className="flex gap-2"><button className={`${button} flex-1 sm:flex-none`} onClick={onClose}>Đóng</button><Link className={`${primary} flex-1 sm:flex-none`} to={`/recruiter/ai-interviews?applicationId=${row.applicationId}`}>Xem AI Interview</Link></div></div>
   </dialog>;
 }
 
-export function RankingDetail({ applicationId, previewRow, jobTitle, tenantKey, onClose }: {
-  applicationId: number; previewRow?: RankingRow; jobTitle: string; tenantKey: string; onClose: () => void;
+export function RankingDetail({ applicationId, previewRow, fallbackRow, jobId, jobTitle, tenantKey, onClose }: {
+  applicationId: number; previewRow?: RankingRow; fallbackRow?: RankingRow; jobId: number; jobTitle: string; tenantKey: string; onClose: () => void;
 }) {
   const detail = useQuery({ queryKey: ["ranking-detail", tenantKey, applicationId], queryFn: () => matchingApi.detail(applicationId), enabled: !previewRow });
-  if (previewRow) return <RankingDetailContent row={previewRow} jobTitle={jobTitle} tenantKey={tenantKey} preview onClose={onClose} />;
+  if (previewRow) return <RankingDetailContent row={previewRow} jobId={jobId} jobTitle={jobTitle} tenantKey={tenantKey} preview onClose={onClose} />;
   if (detail.isPending) return <RankingDetailStateDialog status="loading" onClose={onClose} />;
+  if (detail.isError && fallbackRow) return <RankingDetailContent row={fallbackRow} jobId={jobId} jobTitle={jobTitle} tenantKey={tenantKey} fallback onClose={onClose} />;
   if (detail.isError) return <RankingDetailStateDialog status="error" message={getApiErrorMessage(detail.error)} onClose={onClose} />;
-  return <RankingDetailContent row={detail.data.data} jobTitle={jobTitle} tenantKey={tenantKey} onClose={onClose} />;
+  return <RankingDetailContent row={detail.data.data} jobId={jobId} jobTitle={jobTitle} tenantKey={tenantKey} onClose={onClose} />;
 }
 
 function RankingDetailStateDialog({ status, message, onClose }: { status: "loading" | "error"; message?: string; onClose: () => void }) {

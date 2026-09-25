@@ -38,6 +38,7 @@ Luồng tuyển dụng theo job: Apply → sàng lọc CV → phỏng vấn AI �
 
 ## UI mockup
 
+- Frontend `/recruiter/jobs/{jobId}/pipeline`: preview Kanban 7 giai đoạn trong Job workspace, tìm kiếm, ngưỡng AI score, chế độ chi tiết/gọn, summary và drawer lưu trữ. `jobId` lấy từ URL, không chọn lại Job trong màn hình. Dữ liệu hiện là preview; chưa bật kéo-thả hoặc ghi trạng thái backend.
 - Google Stitch: **Recruitment Workflow Management / Recruitment Pipeline** — _[dán link]_
 - Icons: xem `DESIGN.md`
 

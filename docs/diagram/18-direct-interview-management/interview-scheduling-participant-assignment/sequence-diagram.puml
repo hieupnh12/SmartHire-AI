@@ -1,0 +1,124 @@
+@startuml
+skinparam dpi 300
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam sequence {
+    ArrowColor #2D3748
+    ActorBorderColor #2D3748
+    LifeLineBorderColor #2D3748
+    ParticipantBorderColor #2D3748
+    ParticipantBackgroundColor #FFFFFF
+    BoxBorderColor #A0AEC0
+}
+hide footbox
+autonumber
+
+actor "Recruiter / HR" as Staff
+boundary "Scheduling UI" as UI
+control "Security +\nTenantWebInterceptor" as Guard
+control "TenantContext" as Context
+boundary "DirectInterviewScheduleController" as Ctrl
+control "ScheduleAssignmentService" as Svc
+database "Dedicated Tenant DB" as TenantDB
+
+note over Staff,TenantDB
+  FE18-F02 — schedule time/format and assign interviewers.
+  Precondition: DIRECT interview in CREATED (from FE18-F01).
+  Reminder email/WebSocket out of scope.
+end note
+
+Staff -> UI: Set starts/ends, format,\nlocation/URL, participant list
+activate UI
+UI -> Guard: POST /api/v1/direct-interviews/{id}/schedule\nScheduleAssignRequest
+activate Guard
+Guard -> Guard: authorize RECRUITER / TENANT_ADMIN
+
+alt unauthorized
+  Guard --> UI: 401 / 403
+  deactivate Guard
+  UI --> Staff: Access error
+  deactivate UI
+else authorized
+  Guard -> Context: setCurrentTenant(tenantId)
+  Guard -> Ctrl: forward
+  activate Ctrl
+  Ctrl -> Svc: scheduleAndAssign(id, request, principal)
+  activate Svc
+  Svc -> TenantDB: load Interview by id
+  activate TenantDB
+
+  alt not found or not DIRECT / not CREATED
+    TenantDB --> Svc: reject
+    deactivate TenantDB
+    Svc --> Ctrl: 404 / 409 INVALID_STATE
+    deactivate Svc
+    Ctrl --> UI: error
+    deactivate Ctrl
+    UI --> Staff: Cannot schedule
+    deactivate UI
+  else interview ready
+    TenantDB --> Svc: Interview
+    deactivate TenantDB
+    Svc -> Svc: validate window (endsAt > startsAt)\nand format + locationOrUrl rules
+    Svc -> TenantDB: resolve participant users\n(must be staff roles)
+    activate TenantDB
+
+    alt no PRIMARY or invalid users
+      TenantDB --> Svc: invalid participants
+      deactivate TenantDB
+      Svc --> Ctrl: 400 / 409 PARTICIPANTS_INVALID
+      deactivate Svc
+      Ctrl --> UI: error
+      deactivate Ctrl
+      UI --> Staff: Fix participants
+      deactivate UI
+    else participants ok
+      TenantDB --> Svc: User list
+      deactivate TenantDB
+
+      opt conflict policy enabled
+        Svc -> TenantDB: findOverlapping for each participant
+        activate TenantDB
+        TenantDB --> Svc: overlaps [0..*]
+        deactivate TenantDB
+        alt hard conflict
+          Svc --> Ctrl: 409 SCHEDULE_CONFLICT
+          deactivate Svc
+          Ctrl --> UI: error
+          deactivate Ctrl
+          UI --> Staff: Conflict
+          deactivate UI
+        end
+      end
+
+      Svc -> TenantDB: INSERT interview_schedules\n(status=PROPOSED, format, times)
+      activate TenantDB
+      TenantDB --> Svc: schedule id
+      deactivate TenantDB
+      Svc -> TenantDB: INSERT interview_participants
+      activate TenantDB
+      TenantDB --> Svc: participants
+      deactivate TenantDB
+      Svc -> TenantDB: UPDATE interviews SET status=SCHEDULED
+      activate TenantDB
+      TenantDB --> Svc: ok
+      deactivate TenantDB
+      Svc --> Ctrl: ScheduleAssignResponse
+      deactivate Svc
+      Ctrl --> UI: 200 OK
+      deactivate Ctrl
+      UI --> Staff: Show schedule + assignees
+      deactivate UI
+    end
+  end
+  Guard -> Context: clear() in finally
+  deactivate Guard
+end
+
+note over Svc,TenantDB
+  Prefer one transaction: schedule + participants + interview status.
+end note
+
+@enduml

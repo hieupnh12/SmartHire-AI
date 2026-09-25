@@ -177,17 +177,17 @@ public class RankingService {
     public Sources sources(long appId) {
         application(appId);
         return new Sources(data.cvs(appId).stream().map(c -> new SourceOption(c.getId(), c.getOriginalFilename(), c.getStatus().name())).toList(),
-                data.attempts(appId).stream().map(a -> new SourceOption(a.getId(), "Assessment #" + a.getId(), a.getStatus().name())).toList(),
-                data.interviews(appId).stream().map(i -> new SourceOption(i.getId(), "Interview #" + i.getId(), i.getStatus().name())).toList(), selection(appId));
+                data.submissions(appId).stream().map(s -> new SourceOption(s.getId(), "Test #" + s.getId(), s.getStatus().name())).toList(),
+                data.aiInterviews(appId).stream().map(i -> new SourceOption(i.getId(), "AI Interview #" + i.getId(), i.getStatus().name())).toList(), selection(appId));
     }
     public Board select(long appId, Selection selected) {
         Application app = application(appId);
         Job job = authorize(app.getJob().getId(), true);
         choose(data.cvs(appId), selected.cvId(), Cv::getId);
-        choose(data.attempts(appId), selected.attemptId(), Attempt::getId);
-        choose(data.interviews(appId), selected.interviewId(), Interview::getId);
+        choose(data.submissions(appId), selected.submissionId(), Submission::getId);
+        choose(data.aiInterviews(appId), selected.aiInterviewId(), AiInterview::getId);
         RankingSource source = new RankingSource();
-        source.setApplicationId(appId); source.setCvId(selected.cvId()); source.setAttemptId(selected.attemptId()); source.setInterviewId(selected.interviewId());
+        source.setApplicationId(appId); source.setCvId(selected.cvId()); source.setSubmissionId(selected.submissionId()); source.setAiInterviewId(selected.aiInterviewId());
         data.save(source);
         return notifyUpdated(compute(job, true));
     }
@@ -203,7 +203,7 @@ public class RankingService {
     }
     private Selection selection(long appId) {
         RankingSource selected = data.source(appId);
-        return selected == null ? new Selection(null, null, null) : new Selection(selected.getCvId(), selected.getAttemptId(), selected.getInterviewId());
+        return selected == null ? new Selection(null, null, null) : new Selection(selected.getCvId(), selected.getSubmissionId(), selected.getAiInterviewId());
     }
     private <T> T choose(List<T> options, Long selected, Function<T, Long> id) {
         if (selected != null) return options.stream().filter(o -> id.apply(o).equals(selected)).findFirst()
@@ -224,6 +224,7 @@ public class RankingService {
                 OverallScore overall = new OverallScore();
                 overall.setApplication(byId.get(row.applicationId())); overall.setOverall(row.result().score());
                 overall.setBreakdownJson(encode(row)); overall.setRankingVersion(version); data.save(overall);
+                data.saveQualitySnapshot(row.applicationId(), row.result().score(), version, encode(row));
                 if (row.rank() != null) {
                     CandidateRanking rank = new CandidateRanking(); rank.setJob(job); rank.setApplication(byId.get(row.applicationId()));
                     rank.setRankPosition(row.rank()); rank.setScore(row.result().score()); rank.setRankingVersion(version); data.save(rank);
@@ -236,10 +237,10 @@ public class RankingService {
     private Row row(Application app, Config config, List<JobSkill> requirements) {
         long id = app.getId();
         Selection selected = selection(id);
-        List<Cv> cvs = data.cvs(id); List<Attempt> attempts = data.attempts(id); List<Interview> interviews = data.interviews(id);
+        List<Cv> cvs = data.cvs(id); List<Submission> submissions = data.submissions(id); List<AiInterview> aiInterviews = data.aiInterviews(id);
         Cv cv = choose(cvs, selected.cvId(), Cv::getId);
-        Attempt attempt = choose(attempts, selected.attemptId(), Attempt::getId);
-        Interview interview = choose(interviews, selected.interviewId(), Interview::getId);
+        Submission submission = choose(submissions, selected.submissionId(), Submission::getId);
+        AiInterview aiInterview = choose(aiInterviews, selected.aiInterviewId(), AiInterview::getId);
         Map<String, BigDecimal> scores = new HashMap<>(); Map<String, String> states = new HashMap<>();
         List<String> notices = new ArrayList<>(); List<GroupScore> groups = List.of();
         ExperienceScoringService.Result exp = new ExperienceScoringService.Result(null, null, List.of(), "MISSING");
@@ -258,26 +259,26 @@ public class RankingService {
         }
         states.putIfAbsent("skills", "NEEDS_REVIEW");
         if (config.requiredExperienceMonths() == 0 && config.weights().experience() > 0) states.put("experience", "NEEDS_REVIEW");
-        AttemptScore assessment = attempt != null && attempt.getStatus() == AttemptStatus.GRADED ? data.assessment(attempt.getId()) : null;
-        InterviewScore interviewScore = interview != null && interview.getStatus() == InterviewStatus.SCORED ? data.interview(interview.getId()) : null;
-        addScore(scores, states, "assessment", assessment == null ? null : assessment.getTotalScore(),
-                attempt == null ? (attempts.size() > 1 ? "SELECT_SOURCE" : "MISSING") : "PROCESSING");
-        addScore(scores, states, "interview", interviewScore == null ? null : interviewScore.getOverallScore(),
-                interview == null ? (interviews.size() > 1 ? "SELECT_SOURCE" : "MISSING") : interview.getStatus() == InterviewStatus.FAILED ? "FAILED" : "PROCESSING");
+        BigDecimal testScore = submission != null && submission.getStatus() == TestSubmissionStatus.GRADED ? submission.getScore() : null;
+        BigDecimal interviewScore = aiInterview != null && aiInterview.getStatus() == AiInterviewStatus.SCORED ? aiInterview.getOverallScore() : null;
+        addScore(scores, states, "assessment", testScore,
+                submission == null ? (submissions.size() > 1 ? "SELECT_SOURCE" : "MISSING") : "PROCESSING");
+        addScore(scores, states, "interview", interviewScore,
+                aiInterview == null ? (aiInterviews.size() > 1 ? "SELECT_SOURCE" : "MISSING") : aiInterview.getStatus() == AiInterviewStatus.FAILED ? "FAILED" : "PROCESSING");
         List<String> missing = groups.stream().flatMap(g -> g.matches().stream()).filter(m -> m.required() && m.similarity().compareTo(BigDecimal.ONE) < 0)
                 .map(SkillMatch::requiredSkill).toList();
         List<TimelineEvent> timeline = new ArrayList<>();
         timeline.add(new TimelineEvent("APPLICATION_RECEIVED", app.getCreatedAt()));
         data.history(id).forEach(item -> timeline.add(new TimelineEvent("STATUS_" + item.getToStatus(), item.getCreatedAt())));
         if (cv != null && cv.getStatus() == CvStatus.ANALYZED) timeline.add(new TimelineEvent("CV_ANALYZED", cv.getUpdatedAt()));
-        if (assessment != null) timeline.add(new TimelineEvent("ASSESSMENT_GRADED", assessment.getGradedAt()));
-        if (interviewScore != null) timeline.add(new TimelineEvent("INTERVIEW_SCORED", interviewScore.getCreatedAt()));
+        if (testScore != null) timeline.add(new TimelineEvent("ASSESSMENT_GRADED", submission.getSubmittedAt()));
+        if (interviewScore != null) timeline.add(new TimelineEvent("INTERVIEW_SCORED", aiInterview.getCompletedAt()));
         timeline.sort(Comparator.comparing(TimelineEvent::occurredAt, Comparator.nullsLast(Comparator.naturalOrder())));
         if (config.revision() == 0) scores.clear();
         return new Row(id, app.getCandidate().getFullName(), app.getStatus().name(), null,
                 calculator.calculate(config.weights(), scores, states), groups, missing, exp.months(), exp.evidence(), notices,
-                new Selection(cv == null ? null : cv.getId(), attempt == null ? null : attempt.getId(), interview == null ? null : interview.getId()),
-                interviewScore == null ? null : interviewScore.getFeedback(), timeline,
+                new Selection(cv == null ? null : cv.getId(), submission == null ? null : submission.getId(), aiInterview == null ? null : aiInterview.getId()),
+                null, timeline,
                 insight(calculator.calculate(config.weights(), scores, states), missing));
     }
     private Insight insight(Calculation result, List<String> missing) {

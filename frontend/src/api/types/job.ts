@@ -1,4 +1,12 @@
 export type JobStatus = "DRAFT" | "PUBLISHED" | "PAUSED" | "CLOSED" | "ARCHIVED";
+export type ScreeningMode = "AUTO" | "MANUAL";
+export type JobFunnelSummary = {
+  screened: number;
+  shortlisted: number;
+  testing: number;
+  interviewing: number;
+  filled: number;
+};
 
 export type JobSkillInput = {
   name: string;
@@ -32,6 +40,8 @@ export type JobListItem = {
   employmentType?: string | null;
   workMode?: string | null;
   department?: string | null;
+  screeningMode?: ScreeningMode | null;
+  funnel?: JobFunnelSummary | null;
   deadline?: string | null;
   headcount: number;
   applicationCount: number;
@@ -56,6 +66,7 @@ export type JobDetail = {
   employmentType?: string | null;
   workMode?: string | null;
   department?: string | null;
+  screeningMode?: ScreeningMode | null;
   headcount?: number | null;
   deadline?: string | null;
   salaryMin?: number | null;
@@ -75,6 +86,25 @@ export type JobDetail = {
   acceptingApplications: boolean;
   skills: JobSkillView[];
   stages: StageView[];
+  cvScreening?: CvScreeningConfig | null;
+  gateScreening?: GateScreeningConfig | null;
+};
+
+export type CvScreeningConfig = {
+  skillWeight: number;
+  preferredWeight: number;
+  experienceWeight: number;
+  educationWeight: number;
+  jaccardWeight: number;
+  semanticWeight: number;
+  passThreshold: number;
+};
+
+export type GateScreeningConfig = {
+  cvWeight: number;
+  aiInterviewWeight: number;
+  assessmentWeight: number;
+  passThreshold: number;
 };
 
 export type JobUpsertRequest = {
@@ -95,6 +125,8 @@ export type JobUpsertRequest = {
   minYearsExperience?: number | null;
   educationLevel?: string;
   skills?: JobSkillInput[];
+  cvScreening?: CvScreeningConfig;
+  gateScreening?: GateScreeningConfig;
 };
 
 export type PublicJob = {

@@ -23,6 +23,37 @@ export function AddAiKeyModal({ isOpen, onClose, onSuccess, initialKey }: Props)
   const [saving, setSaving] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
+  const getKeyAliasPlaceholder = (p: string) => {
+    switch (p) {
+      case "DEEPSEEK": return "VD: DeepSeek V3 Prod 01";
+      case "OPENAI": return "VD: OpenAI Prod 01";
+      case "ANTHROPIC": return "VD: Claude 3.5 Haiku Key";
+      case "HUGGINGFACE": return "VD: HuggingFace Serverless";
+      default: return "VD: Google Gemini Prod 01";
+    }
+  };
+
+  const getApiKeyPlaceholder = (p: string) => {
+    if (initialKey) return `Hiện tại: ${initialKey.maskedKey || "••••••••"}`;
+    switch (p) {
+      case "DEEPSEEK":
+      case "OPENAI": return "sk-...";
+      case "ANTHROPIC": return "sk-ant-...";
+      case "HUGGINGFACE": return "hf_...";
+      default: return "AIzaSy...";
+    }
+  };
+
+  const getEndpointPlaceholder = (p: string) => {
+    switch (p) {
+      case "DEEPSEEK": return "Mặc định: https://api.deepseek.com/chat/completions";
+      case "OPENAI": return "Mặc định: https://api.openai.com/v1/chat/completions";
+      case "ANTHROPIC": return "Mặc định: https://api.anthropic.com/v1/messages";
+      case "HUGGINGFACE": return "Mặc định: https://router.huggingface.co/hf-inference/models/...";
+      default: return "Mặc định: https://generativelanguage.googleapis.com";
+    }
+  };
+
   if (!isOpen) return null;
 
   const handleTestConnection = async () => {
@@ -128,6 +159,7 @@ export function AddAiKeyModal({ isOpen, onClose, onSuccess, initialKey }: Props)
             >
               <option value="GEMINI">Google Gemini (Khuyên dùng)</option>
               <option value="OPENAI">OpenAI (GPT-4o / mini)</option>
+              <option value="HUGGINGFACE">Hugging Face</option>
               <option value="ANTHROPIC">Anthropic Claude</option>
               <option value="DEEPSEEK">DeepSeek</option>
             </select>
@@ -137,7 +169,7 @@ export function AddAiKeyModal({ isOpen, onClose, onSuccess, initialKey }: Props)
             <label className="block text-xs font-semibold text-slate-700">Tên nhận diện (Key Alias)</label>
             <input
               type="text"
-              placeholder="VD: Google Gemini Prod 01"
+              placeholder={getKeyAliasPlaceholder(provider)}
               value={keyAlias}
               onChange={(e) => setKeyAlias(e.target.value)}
               className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all"
@@ -154,7 +186,7 @@ export function AddAiKeyModal({ isOpen, onClose, onSuccess, initialKey }: Props)
             <div className="relative mt-1.5">
               <input
                 type={showKey ? "text" : "password"}
-                placeholder={initialKey ? `Hiện tại: ${initialKey.maskedKey || "••••••••"}` : "AIzaSy..."}
+                placeholder={getApiKeyPlaceholder(provider)}
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
                 className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 pr-10 text-sm font-mono outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all"
@@ -173,10 +205,10 @@ export function AddAiKeyModal({ isOpen, onClose, onSuccess, initialKey }: Props)
             <label className="block text-xs font-semibold text-slate-700">Endpoint URL (Tùy chọn - Proxy / Custom API)</label>
             <input
               type="text"
-              placeholder="Mặc định: https://generativelanguage.googleapis.com"
+              placeholder={getEndpointPlaceholder(provider)}
               value={endpointUrl}
               onChange={(e) => setEndpointUrl(e.target.value)}
-              className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all"
+              className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-600 font-medium text-slate-700 shadow-2xs"
             />
           </div>
 

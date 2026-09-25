@@ -20,14 +20,14 @@ public class MasterSubscriptionService {
     private final SubscriptionPlanRepository planRepository;
     private final SubscriptionPlanMapper planMapper;
 
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "masterTransactionManager", readOnly = true)
     public List<SubscriptionPlanResponse> getAllPlans() {
         return planRepository.findAll().stream()
                 .map(planMapper::toResponse)
                 .collect(Collectors.toList());
     }
 
-    @Transactional
+    @Transactional("masterTransactionManager")
     public SubscriptionPlanResponse createPlan(CreateSubscriptionPlanRequest request) {
         if (planRepository.findByCode(request.getCode()).isPresent()) {
             throw new IllegalArgumentException("Plan code '" + request.getCode() + "' already exists.");
@@ -37,7 +37,7 @@ public class MasterSubscriptionService {
         return planMapper.toResponse(plan);
     }
 
-    @Transactional
+    @Transactional("masterTransactionManager")
     public SubscriptionPlanResponse updatePlan(Long id, UpdateSubscriptionPlanRequest request) {
         SubscriptionPlan existing = planRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Subscription plan not found: " + id));
@@ -47,7 +47,7 @@ public class MasterSubscriptionService {
         return planMapper.toResponse(existing);
     }
 
-    @Transactional
+    @Transactional("masterTransactionManager")
     public SubscriptionPlanResponse updatePlanStatus(Long id, String status) {
         SubscriptionPlan existing = planRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Subscription plan not found: " + id));

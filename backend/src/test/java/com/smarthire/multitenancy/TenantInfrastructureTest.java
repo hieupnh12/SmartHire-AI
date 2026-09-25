@@ -19,6 +19,33 @@ import static org.mockito.Mockito.*;
 class TenantInfrastructureTest {
     @AfterEach void cleanup() { TenantContext.clear(); }
 
+    @Test void failedMigrationClosesPoolAndDoesNotCacheIt() {
+        var registry = mock(TenantRegistryService.class);
+        @SuppressWarnings("unchecked")
+        ObjectProvider<TenantRegistryService> lookup = mock(ObjectProvider.class);
+        when(lookup.getObject()).thenReturn(registry);
+        var tenant = new TenantInfo(); tenant.setCode("alpha");
+        when(registry.requireActive("alpha")).thenReturn(tenant);
+        var factory = mock(TenantDataSourceFactory.class);
+        var pool = mock(com.zaxxer.hikari.HikariDataSource.class);
+        when(factory.create(tenant)).thenReturn(pool);
+        doThrow(new IllegalStateException("private_database.sql failed")).when(factory).migrate(pool);
+        var provider = new DynamicMultiTenantConnectionProvider(lookup, factory, 2);
+        for (int i = 0; i < 2; i++) {
+            assertThatThrownBy(() -> provider.getConnection("alpha"))
+                    .isInstanceOf(BusinessException.class).hasMessageNotContaining("private_database");
+        }
+        verify(factory, times(2)).create(tenant);
+        verify(pool, times(2)).close();
+    }
+
+    @Test void unexpectedSqlErrorsDoNotExposeDatabaseDetailsToClient() {
+        var handler = new com.smarthire.common.exception.GlobalExceptionHandler();
+        var response = handler.handleGeneric(new RuntimeException(new java.sql.SQLException("private_database.tests does not exist")));
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
+        assertThat(response.getBody().message()).doesNotContain("private_database", "SQLException");
+    }
+
     @Test void credentialsAreRandomizedAuthenticatedAndBoundToTenant() {
         var service = new TenantCredentialService(Base64.getEncoder().encodeToString(new byte[32]));
         String encrypted = service.encrypt("alpha", "private-password");

@@ -137,14 +137,14 @@ export function HomePage() {
           label="Ứng viên mới"
           loading={summary.isLoading}
           value={countText(summary.isLoading, summary.isError, summaryData?.newApplicants)}
-          helper="Trong 30 ngày"
+          helper="Chờ xem xét hồ sơ"
           icon={UserPlus}
         />
         <MetricCard
           label="Phỏng vấn đã lên lịch"
           loading={summary.isLoading}
           value={countText(summary.isLoading, summary.isError, summaryData?.interviewsScheduled)}
-          helper="Đã đề xuất hoặc xác nhận"
+          helper="Đã đề xuất hoặc xác nhận, từ hiện tại"
           icon={CalendarClock}
         />
       </div>

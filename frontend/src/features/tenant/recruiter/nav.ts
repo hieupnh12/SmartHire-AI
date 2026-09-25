@@ -7,6 +7,7 @@ export const recruiterNav = [
   { to: "/pipeline", labelKey: "nav.pipeline", featureCode: "PIPELINE" },
   { to: "/analytics", labelKey: "nav.recruitmentAnalytics", featureCode: "ANALYTICS" },
   { to: "/assessments", labelKey: "nav.assessments", featureCode: "ASSESSMENTS" },
+  { to: "/ai-interviews", labelKey: "nav.aiInterview", featureCode: "AI_INTERVIEWS" },
   { to: "/interviews", labelKey: "nav.interviews", featureCode: "INTERVIEWS" },
   { to: "/schedules", labelKey: "nav.schedules", featureCode: "SCHEDULES" },
   { to: "/notifications", labelKey: "nav.notifications", featureCode: "NOTIFICATIONS" },

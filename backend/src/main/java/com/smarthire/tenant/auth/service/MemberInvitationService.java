@@ -9,13 +9,12 @@ import com.smarthire.domain.tenant.entity.TenantRole;
 import com.smarthire.domain.tenant.entity.User;
 import com.smarthire.domain.tenant.repository.MemberInvitationRepository;
 import com.smarthire.domain.tenant.repository.UserRepository;
-import com.smarthire.multitenancy.context.TenantContext;
+import com.smarthire.multitenancy.service.TenantPublicUrlService;
 import com.smarthire.tenant.auth.dto.AcceptInvitationRequest;
 import com.smarthire.tenant.auth.dto.InviteMemberRequest;
 import com.smarthire.tenant.auth.dto.InviteMemberResponse;
 import com.smarthire.tenant.auth.dto.UserResponse;
 import com.smarthire.tenant.auth.mapper.AuthMapper;
-import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -41,9 +40,7 @@ public class MemberInvitationService {
     private final AuthMapper authMapper;
     private final InviteMailSender inviteMailSender;
     private final TenantRoleService tenantRoleService;
-
-    @Value("${smarthire.invite.public-origin:http://localhost:5173}")
-    private String publicOrigin;
+    private final TenantPublicUrlService publicUrls;
 
     @Value("${smarthire.invite.expire-hours:72}")
     private long expireHours;
@@ -74,7 +71,7 @@ public class MemberInvitationService {
         invitation.setExpiresAt(expiresAt);
         invitationRepository.save(invitation);
 
-        String acceptUrl = acceptUrl(rawToken);
+        String acceptUrl = publicUrls.path("/invite/accept?token=" + rawToken);
         boolean emailSent = inviteMailSender.send(
                 email,
                 "Invitation to SmartHire workspace",
@@ -119,16 +116,6 @@ public class MemberInvitationService {
         UserResponse response = authMapper.toUserResponse(saved);
         response.setWorkspace(UserRole.workspaceOf(saved.getRole()));
         return response;
-    }
-
-    private String acceptUrl(String rawToken) {
-        String tenant = TenantContext.getCurrentTenant();
-        URI origin = URI.create(publicOrigin);
-        String host = origin.getHost() == null ? "localhost" : origin.getHost();
-        String inviteHost = (tenant == null || tenant.isBlank()) ? host : tenant + "." + host;
-        int port = origin.getPort();
-        String portPart = port > 0 ? ":" + port : "";
-        return origin.getScheme() + "://" + inviteHost + portPart + "/invite/accept?token=" + rawToken;
     }
 
     static String sha256(String value) {

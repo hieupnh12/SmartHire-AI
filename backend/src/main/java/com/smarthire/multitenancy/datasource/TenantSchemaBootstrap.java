@@ -83,7 +83,7 @@ public class TenantSchemaBootstrap {
 
     private static final String[] FEATURES = {
             "DASHBOARD", "JOBS", "APPLICANTS", "CV_SCREENING", "RANKING", "PIPELINE",
-            "ANALYTICS", "ASSESSMENTS", "INTERVIEWS", "SCHEDULES", "NOTIFICATIONS"
+            "ANALYTICS", "ASSESSMENTS", "AI_INTERVIEWS", "INTERVIEWS", "SCHEDULES", "NOTIFICATIONS"
     };
 
     public void apply(DataSource dataSource) {

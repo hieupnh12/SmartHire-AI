@@ -1,6 +1,7 @@
 import { api } from "@/lib/axios";
 import type { ApiResponse } from "@/types/api";
 import type { CvDetail, CvSummary, MatchView } from "../types/cv";
+import axios from "axios";
 
 export const cvApi = {
   upload: (form: FormData) =>
@@ -8,8 +9,22 @@ export const cvApi = {
   mine: () => api.get<ApiResponse<CvSummary[]>>("/cvs/me").then((r) => r.data),
   get: (id: number | string) =>
     api.get<ApiResponse<CvDetail>>(`/cvs/${id}`).then((r) => r.data),
-  file: (id: number | string) =>
-    api.get(`/cvs/${id}/file`, { responseType: "blob" }).then((r) => r.data as Blob),
+  file: async (id: number | string) => {
+    try {
+      const response = await api.get(`/cvs/${id}/file`, { responseType: "blob" });
+      return response.data as Blob;
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response?.data instanceof Blob) {
+        try {
+          const payload = JSON.parse(await error.response.data.text()) as ApiResponse<unknown>;
+          if (payload.message) throw new Error(payload.message);
+        } catch (inner) {
+          if (inner instanceof Error && inner.name !== "SyntaxError") throw inner;
+        }
+      }
+      throw error;
+    }
+  },
   remove: (id: number | string) =>
     api.delete<ApiResponse<null>>(`/cvs/${id}`).then((r) => r.data),
   parse: (id: number | string) =>
