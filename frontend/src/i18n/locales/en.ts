@@ -118,6 +118,8 @@ export const en = {
     openShortcuts: "Open shortcuts help",
     switchLang: "Cycle language (EN → VI → JA)",
     focusSearch: "Focus search (when available)",
+    navigateJobs: "Move between job cards",
+    openJob: "Open the focused job workspace",
     close: "Close dialog / panel",
   },
   toast: {

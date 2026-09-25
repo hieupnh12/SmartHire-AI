@@ -29,7 +29,9 @@ function workspaceHome(role?: string | null) {
  * Alt+L       cycle language EN→VI→JA
  * g then h    welcome
  * g then w    role workspace home
- * /           focus [data-search-input]
+ * /           cycle focus through visible [data-search-input] elements
+ * Arrow Up/Down navigate recruiter job cards
+ * Enter       open the focused recruiter job workspace
  */
 export function useAppHotkeys() {
   const navigate = useNavigate();
@@ -58,20 +60,48 @@ export function useAppHotkeys() {
         return;
       }
 
-      if (isTypingTarget(e.target)) return;
-
       if (e.key === "?" || (e.shiftKey && e.key === "/")) {
+        if (isTypingTarget(e.target)) return;
         e.preventDefault();
         toggleShortcuts();
         return;
       }
 
-      if (e.key === "/") {
+      if (e.key === "/" && (!isTypingTarget(e.target) || (e.target instanceof HTMLElement && e.target.matches("[data-search-input]")))) {
         e.preventDefault();
-        const el = document.querySelector<HTMLInputElement>("[data-search-input]");
-        el?.focus();
+        const searchInputs = Array.from(document.querySelectorAll<HTMLInputElement>("[data-search-input]"))
+          .filter((input) => !input.disabled && input.getClientRects().length > 0);
+        const currentIndex = searchInputs.indexOf(document.activeElement as HTMLInputElement);
+        searchInputs[(currentIndex + 1) % searchInputs.length]?.focus();
         return;
       }
+
+      const focusedElement = e.target instanceof HTMLElement ? e.target : null;
+      const jobCards = Array.from(document.querySelectorAll<HTMLElement>("[data-job-card]"))
+        .filter((card) => card.getClientRects().length > 0);
+      const focusedCardIndex = focusedElement ? jobCards.indexOf(focusedElement) : -1;
+
+      if (e.key === "ArrowDown" && focusedElement?.matches("[data-job-list-search]") && jobCards.length > 0) {
+        e.preventDefault();
+        jobCards[0].focus();
+        return;
+      }
+
+      if ((e.key === "ArrowDown" || e.key === "ArrowUp") && focusedCardIndex >= 0) {
+        e.preventDefault();
+        const offset = e.key === "ArrowDown" ? 1 : -1;
+        jobCards[(focusedCardIndex + offset + jobCards.length) % jobCards.length].focus();
+        return;
+      }
+
+      if (e.key === "Enter" && focusedCardIndex >= 0) {
+        e.preventDefault();
+        const workspacePath = jobCards[focusedCardIndex].dataset.jobWorkspacePath;
+        if (workspacePath) navigate(workspacePath);
+        return;
+      }
+
+      if (isTypingTarget(e.target)) return;
 
       if (e.key === "g" || e.key === "G") {
         pendingG = true;

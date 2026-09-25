@@ -84,9 +84,9 @@ Mỗi trang gồm: Mục đích · Actor · Luồng · Business Rules · API · 
 
 | Code | Feature | Doc | Status |
 |---|---|---|---|
-| DASH-01 | Recruitment Statistics | [Recruitment-Statistics](Analytics-Dashboard/Recruitment-Statistics.md) | To Do |
-| DASH-02 | Dashboard Charts | [Dashboard-Charts](Analytics-Dashboard/Dashboard-Charts.md) | To Do |
-| DASH-03 | Recruitment Trend Analysis | [Trend-Analysis](Analytics-Dashboard/Trend-Analysis.md) | To Do |
+| DASH-01 | Recruitment Statistics | [Recruitment-Statistics](Analytics-Dashboard/Recruitment-Statistics.md) | Done |
+| DASH-02 | Dashboard Charts | [Dashboard-Charts](Analytics-Dashboard/Dashboard-Charts.md) | Done |
+| DASH-03 | Recruitment Trend Analysis | [Trend-Analysis](Analytics-Dashboard/Trend-Analysis.md) | Done |
 
 ## 10. Interview Scheduling & Real-time Notifications
 

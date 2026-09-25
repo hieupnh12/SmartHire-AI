@@ -12,8 +12,8 @@
 | Tổng số entity JPA | **59** (8 master + 51 tenant); bảng lưu trữ không có entity |
 | Tổng số khoá ngoại | **65** hiện hành (4 master + 61 tenant); thêm 9 FK của bảng lưu trữ |
 | Ràng buộc UNIQUE | **26** hiện hành (6 master + 20 tenant), không tính PK; thêm 7 UNIQUE lưu trữ |
-| Số file migration đang chạy | **37** (20 master + 17 tenant) |
-| Cập nhật lần cuối | Master `V21`, tenant `V17`; Thêm bảng `landing_page_settings` và `job_assignments` |
+| Số file migration đang chạy | **38** (20 master + 18 tenant) |
+| Cập nhật lần cuối | Master `V21`, tenant `V17`; thêm `landing_page_settings`, `job_assignments` và chế độ sàng lọc CV theo job |
 | Sửa lỗi assessment 2026-09-24 | V10/V11 khớp checksum lịch sử; V12 tạo schema mới và giữ bảng cũ; migration lỗi phải chặn mở tenant pool |
 | Rà soát assessment 2026-09-21 | Bổ sung query/khóa hàng và nghiệp vụ MCQ; không đổi bảng, entity, FK, UNIQUE hay migration |
 
@@ -223,6 +223,7 @@ Không xóa archive trước khi có kế hoạch chuyển đổi và sao lưu �
 | `OAuthProvider` | `oauth_accounts.provider` | `GOOGLE` |
 | `InvitationStatus` | `member_invitations.status` | `PENDING`, `ACCEPTED` |
 | `JobStatus` | `jobs.status` | `DRAFT`, `PUBLISHED`, `PAUSED`, `CLOSED`, `ARCHIVED` |
+| `ScreeningMode` | `jobs.screening_mode` | `AUTO`, `MANUAL` |
 | `ApplicationStatus` | `applications.status` | `NEW`, `IN_REVIEW`, `ASSESSMENT`, `INTERVIEW`, `OFFER`, `HIRED`, `REJECTED`, `WITHDRAWN` |
 | `HiringDecisionType` | `hiring_decisions.decision` | `HIRE`, `REJECT`, `HOLD` |
 | `CvStatus` | `cvs.status` | `UPLOADED`, `PARSING`, `PARSED`, `EXTRACTING`, `ANALYZING`, `ANALYZED`, `FAILED` |
@@ -557,7 +558,7 @@ và chuyển đổi có chủ đích. Không phải nguồn dữ liệu của m�
 
 | Entity | Mục đích | Ghi chú quan trọng |
 |---|---|---|
-| `Job` | Tin tuyển dụng đầy đủ: mô tả, trách nhiệm, phúc lợi, dải lương, headcount, deadline, `work_mode`, học vấn tối thiểu | Vòng đời `DRAFT → PUBLISHED → PAUSED → CLOSED → ARCHIVED`, có `published_at`, `paused_at`, `closed_at` và `deleted_at` để xoá mềm. `salary_visible` điều khiển hiển thị lương ra trang tuyển dụng công khai |
+| `Job` | Tin tuyển dụng đầy đủ: mô tả, trách nhiệm, phúc lợi, dải lương, headcount, deadline, `work_mode`, `screening_mode`, học vấn tối thiểu | Vòng đời `DRAFT → PUBLISHED → PAUSED → CLOSED → ARCHIVED`; `screening_mode` chọn `AUTO` hoặc `MANUAL`; `salary_visible` điều khiển hiển thị lương công khai |
 | `Skill` | Từ điển kỹ năng dùng chung trong một tenant | `aliases_json` gom các biến thể tên về một chuẩn |
 | `JobSkill` | Kỹ năng mà job yêu cầu | Bảng nối N-N, mang thêm `weight`, `required`, `min_level` để phục vụ chấm điểm khớp |
 | `RecruitmentStage` | Các vòng tuyển do recruiter tự định nghĩa cho từng job | `sort_order` quyết định thứ tự, `is_terminal` đánh dấu vòng kết thúc |
@@ -889,6 +890,7 @@ Những quy tắc sau bắt buộc phải kiểm tra ở tầng service, vì kh�
 | BR-12 | Start giữ khóa hàng test; save/submit giữ khóa hàng submission, READ_COMMITTED. Upsert answer theo submission/question; SQL chưa có UNIQUE cho cặp này | `SubmissionService` |
 | BR-13 | Candidate sở hữu application cùng job, ở ASSESSMENT/INTERVIEW mới bắt đầu; không đọc/lưu/nộp bài người khác; không tự chuyển trạng thái application | `SubmissionService`, tenant auth |
 | BR-14 | Lượt quá hạn được chấm từ đáp án đã lưu khi có request tiếp theo; ghi EXPIRED và submitted_at bằng deadline. Chưa có worker quét chủ động | `SubmissionService` |
+| BR-15 | Job `AUTO` tự enqueue CV chưa sàng lọc khi hết hạn; job `MANUAL` chỉ enqueue khi recruiter chủ động đóng job | `JobService`, `JobCloseScreeningService` |
 
 ### 8.5 Hệ quả nghiệp vụ cần biết
 
@@ -997,16 +999,15 @@ Hai pipeline dùng **hai phương ngữ SQL khác nhau** và không thể dùng 
 | V10 | `V10__role_permissions.sql` | Quyền theo role; phục hồi tên version khớp history/checksum ttqt, nội dung không đổi |
 | V11 | `V11__custom_roles.sql` | Role tùy chỉnh và mở rộng cột role; phục hồi tên version khớp history/checksum ttqt |
 | V12 | `V12__preserve_legacy_assessment_interview_schema.sql` | Lưu 19 bảng cũ bằng RENAME; tạo Test/Submission, Direct Interview, AI Interview, cập nhật Practice và nguồn ranking |
-<<<<<<< HEAD
 | V13 | `V13__create_landing_page_settings.sql` | Bảng `landing_page_settings` lưu cấu hình tùy biến toàn diện cho trang Landing Page / Career của từng tenant |
-=======
 | V13 | `V13__job_screening_config.sql` | `job_screening_configs` + `gate_scores`; seed snapshot trọng số CV/gate cho job cũ |
 | V14 | `V14__ai_interview_invite.sql` | `applications.ai_interview_invited_at` — thời điểm đã gửi mail mời phỏng vấn AI |
 | V15 | `V15__job_deadline_datetime.sql` | `jobs.deadline` DATE → DATETIME; job hết hạn tự đóng và sàng CV |
->>>>>>> origin/main
+| V16 | `V16__job_assignments.sql` | `job_assignments`: recruiter phụ trách job, kèm backfill người tạo job |
+| V17 | `V17__job_screening_mode.sql` | Thêm `jobs.screening_mode`; mặc định `MANUAL` để bảo toàn hành vi job cũ |
 
-V9 analytics đã có lại trong pipeline. `job_assignments` dùng V16 để không chiếm version 9.
-Tenant tạo mới chạy V1–V16. Tenant từng có analytics có thể có thêm bảng ngoài con số bảng hiện hành.
+V9 analytics đã có lại trong pipeline. Tenant tạo mới chạy V1–V17.
+Tenant từng có analytics có thể có thêm bảng ngoài con số bảng hiện hành.
 V12 dành cho tenant còn schema `assessments/attempts`. Nếu tenant đã chạy V9 redesign từ nhánh khác,
 **không chạy V12 trực tiếp**: phải kiểm tra schema/history và lập bản nâng cấp riêng.
 V12 bảo toàn dữ liệu bằng đổi tên, không phải chuyển đổi nghiệp vụ: dữ liệu cũ chưa xuất hiện ở UI mới.
@@ -1029,7 +1030,7 @@ sequenceDiagram
     PRV->>MY: CREATE USER + GRANT
     PRV->>PG: UPDATE tenants SET db_url, db_username, db_password (đã mã hoá)
     PRV->>FW: migrate() trên datasource của tenant mới
-    FW->>MY: Áp dụng V1–V16
+    FW->>MY: Áp dụng V1–V17
     PRV-->>API: Tenant sẵn sàng
 ```
 

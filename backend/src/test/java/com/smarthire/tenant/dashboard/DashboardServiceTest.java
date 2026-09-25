@@ -44,7 +44,8 @@ class DashboardServiceTest {
 
     @Test
     void summaryReturnsTenantRecruitmentMetrics() {
-        when(query.getSingleResult()).thenReturn(new Object[] { 4L, 12L, 3L, 5L, 20L, new BigDecimal("82.45") });
+        when(query.getSingleResult()).thenReturn(new Object[] {
+                4L, 12L, 3L, 5L, 20L, new BigDecimal("82.45"), 9L, 2L, 1L, 2L, 7L, 20L });
 
         DashboardSummaryResponse result = service.summary();
 
@@ -53,15 +54,20 @@ class DashboardServiceTest {
         assertThat(result.interviewsScheduled()).isEqualTo(3);
         assertThat(result.hireRate()).isEqualByComparingTo("25.0");
         assertThat(result.avgMatchScore()).isEqualByComparingTo("82.45");
+        assertThat(result.totalJobs()).isEqualTo(9);
+        assertThat(result.totalApplications()).isEqualTo(20);
+        assertThat(result.averageApplicationsPerOpenJob()).isEqualByComparingTo("5.0");
+        assertThat(result.pendingCvScreening()).isEqualTo(7);
     }
 
     @Test
     void summaryOmitsRatesWhenNoApplicationsOrScoresExist() {
-        when(query.getSingleResult()).thenReturn(new Object[] { 0L, 0L, 0L, 0L, 0L, null });
+        when(query.getSingleResult()).thenReturn(new Object[] { 0L, 0L, 0L, 0L, 0L, null, 0L, 0L, 0L, 0L, 0L, 0L });
 
         DashboardSummaryResponse result = service.summary();
 
         assertThat(result.hireRate()).isNull();
         assertThat(result.avgMatchScore()).isNull();
+        assertThat(result.averageApplicationsPerOpenJob()).isEqualByComparingTo("0");
     }
 }

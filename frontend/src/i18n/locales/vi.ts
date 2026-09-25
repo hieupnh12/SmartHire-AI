@@ -111,6 +111,8 @@ export const vi: Messages = {
     openShortcuts: "Mở trợ giúp phím tắt",
     switchLang: "Đổi ngôn ngữ (EN → VI → JA)",
     focusSearch: "Focus ô tìm kiếm (khi có)",
+    navigateJobs: "Di chuyển giữa các card job",
+    openJob: "Mở workspace của card job đang chọn",
     close: "Đóng hộp thoại / panel",
   },
   toast: {
