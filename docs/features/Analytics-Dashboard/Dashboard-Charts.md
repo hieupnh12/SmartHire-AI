@@ -37,7 +37,7 @@ API dữ liệu biểu đồ (funnel, distribution scores, source).
 ## UI mockup
 
 - Frontend Admin: `/internal/admin/analytics` — biểu đồ tổng hợp toàn tenant theo phạm vi quản trị.
-- Frontend Recruiter: `/recruiter/analytics` — biểu đồ vận hành giới hạn theo job được phân công.
+- Frontend Recruiter: `/recruiter/jobs/{jobId}/analytics` — biểu đồ vận hành trong Job workspace đã chọn.
 - Google Stitch: **Recruitment Analytics Dashboard / Dashboard Charts** — _[dán link]_
 - Icons: xem `DESIGN.md`
 

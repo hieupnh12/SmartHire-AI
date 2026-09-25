@@ -1,9 +1,8 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { applicantApi } from "@/api/tenant/applicantApi";
 import { cvApi } from "@/api/tenant/cvApi";
-import { jobApi } from "@/api/tenant/jobApi";
 import { getApiErrorMessage } from "@/lib/axios";
 import { queryKeys } from "@/lib/query-keys";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
@@ -15,19 +14,20 @@ const statuses = ["NEW", "IN_REVIEW", "ASSESSMENT", "INTERVIEW", "OFFER", "HIRED
 
 export function ApplicantsPage() {
   const token = useAuthStore((s) => s.accessToken);
-  const [jobId, setJobId] = useState<number | null>(null);
+  const { id } = useParams<{ id: string }>();
+  const jobId = Number(id);
+  const validJobId = Number.isInteger(jobId) && jobId > 0;
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("");
   const [source, setSource] = useState("");
   const [archived, setArchived] = useState(false);
   const [page, setPage] = useState(0);
-  const jobs = useQuery({ queryKey: ["screening-jobs"], queryFn: jobApi.options, enabled: !!token });
-  const listKey = [...queryKeys.applicants.byJob(jobId ?? 0), q, status, source, archived, page];
+  const listKey = [...queryKeys.applicants.byJob(validJobId ? jobId : 0), q, status, source, archived, page];
   const list = useQuery({
     queryKey: listKey,
-    queryFn: () => applicantApi.listByJob(jobId!, { q: q || undefined, status: status || undefined, source: source || undefined, archived, page, size: 20 }),
-    enabled: jobId !== null && !!token,
+    queryFn: () => applicantApi.listByJob(jobId, { q: q || undefined, status: status || undefined, source: source || undefined, archived, page, size: 20 }),
+    enabled: validJobId && !!token,
   });
   const detail = useQuery({
     queryKey: queryKeys.applicants.detail(selectedId ?? 0),
@@ -36,7 +36,6 @@ export function ApplicantsPage() {
   });
   const rows = list.data?.data.items ?? [];
   const total = list.data?.data.total ?? 0;
-  const jobList = jobs.data?.data ?? [];
   return (
     <section className="space-y-6 text-[var(--color-on-surface)]">
       <header>
@@ -45,14 +44,7 @@ export function ApplicantsPage() {
         <p className={`mt-2 max-w-2xl ${muted}`}>Ứng viên đang apply theo job. Sau sàng lọc CV đạt chuẩn sẽ chuyển phỏng vấn AI, rồi technical test. Hồ sơ đã rút đơn không hiện.</p>
       </header>
       <div className={panel}>
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-          <label className="space-y-1 text-sm">
-            <span>Job</span>
-            <select className={input} value={jobId ?? ""} onChange={(e) => { setJobId(e.target.value ? Number(e.target.value) : null); setSelectedId(null); setPage(0); }}>
-              <option value="">Chọn job</option>
-              {jobList.map((job) => <option key={job.id} value={job.id}>{job.title}</option>)}
-            </select>
-          </label>
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <label className="space-y-1 text-sm">
             <span>Tìm kiếm</span>
             <input className={input} value={q} onChange={(e) => { setQ(e.target.value); setPage(0); }} placeholder="Tên, email, tag, referral" />
@@ -74,7 +66,7 @@ export function ApplicantsPage() {
           </label>
         </div>
       </div>
-      {jobId && (
+      {validJobId && (
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,32rem)]">
           <div className={`${panel} overflow-x-auto`}>
             {list.isPending && <p>Đang tải…</p>}
@@ -107,7 +99,7 @@ export function ApplicantsPage() {
           </div>
           <aside className={panel}>
             {!detail.data?.data && <p className={muted}>Chọn một application để xem hồ sơ.</p>}
-            {detail.data?.data && <ApplicationPanel detail={detail.data.data} onChanged={() => { void detail.refetch(); void list.refetch(); }} />}
+            {detail.data?.data && <ApplicationPanel detail={detail.data.data} jobId={jobId} onChanged={() => { void detail.refetch(); void list.refetch(); }} />}
             {detail.isError && <p role="alert">{getApiErrorMessage(detail.error)}</p>}
           </aside>
         </div>
@@ -116,7 +108,7 @@ export function ApplicantsPage() {
   );
 }
 
-function ApplicationPanel({ detail, onChanged }: { detail: ApplicationDetail; onChanged: () => void }) {
+function ApplicationPanel({ detail, jobId, onChanged }: { detail: ApplicationDetail; jobId: number; onChanged: () => void }) {
   const [notes, setNotes] = useState(detail.notes ?? "");
   const [tags, setTags] = useState(detail.tags ?? "");
   const [assigneeEmail, setAssigneeEmail] = useState("");
@@ -160,8 +152,8 @@ function ApplicationPanel({ detail, onChanged }: { detail: ApplicationDetail; on
           </li>
         </ul>
         <div className="flex flex-wrap gap-2">
-          <Link className={button} to="/recruiter/assessments">Quản lý đề</Link>
-          <Link className={button} to="/recruiter/schedules">Đặt lịch PV</Link>
+          <Link className={button} to={`/recruiter/jobs/${jobId}/assessments`}>Quản lý đề</Link>
+          <Link className={button} to={`/recruiter/jobs/${jobId}/schedules`}>Đặt lịch PV</Link>
         </div>
       </div>
       <div className="space-y-2">

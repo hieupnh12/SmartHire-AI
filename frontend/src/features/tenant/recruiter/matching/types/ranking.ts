@@ -5,7 +5,7 @@ export interface RankingConfig {
   requiredExperienceMonths: number;
   revision: number;
 }
-export interface Selection { cvId: number | null; attemptId: number | null; interviewId: number | null }
+export interface Selection { cvId: number | null; submissionId: number | null; aiInterviewId: number | null }
 export interface ScoreComponent { key: ComponentKey; score: number | null; weight: number; contribution: number | null; state: string }
 export interface RankingRow {
   applicationId: number;
@@ -45,6 +45,6 @@ export interface RankingQuery {
   page: number; size: number; search: string; status: string; cohort: string; minScore?: number; sort: string;
 }
 export interface RankingSources {
-  cvs: SourceOption[]; attempts: SourceOption[]; interviews: SourceOption[]; selected: Selection;
+  cvs: SourceOption[]; submissions: SourceOption[]; aiInterviews: SourceOption[]; selected: Selection;
 }
 export interface SourceOption { id: number; label: string; status: string }

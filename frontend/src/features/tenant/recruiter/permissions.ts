@@ -34,6 +34,9 @@ export function recruiterHomePath(permissions?: string[] | null) {
 export function featureForRecruiterPath(pathname: string): RecruiterFeatureCode | null {
   const rest = pathname.replace(/^\/recruiter/, "") || "";
   if (rest === "/matching" || rest.startsWith("/rank") || /^\/jobs\/[^/]+\/rank(?:\/|$)/.test(rest)) return "RANKING";
+  const jobFeature = rest.match(/^\/jobs\/[^/]+\/(applicants|cvs|pipeline|analytics|assessments|interviews|schedules|notifications)(?:\/|$)/)?.[1];
+  const scopedFeature = jobFeature ? ({ applicants: "APPLICANTS", cvs: "CV_SCREENING", pipeline: "PIPELINE", analytics: "ANALYTICS", assessments: "ASSESSMENTS", interviews: "INTERVIEWS", schedules: "SCHEDULES", notifications: "NOTIFICATIONS" } as const)[jobFeature] : undefined;
+  if (scopedFeature) return scopedFeature;
   const match = recruiterNav.find((item) => item.to === rest || (item.to !== "" && rest.startsWith(item.to)));
   return match?.featureCode ?? null;
 }

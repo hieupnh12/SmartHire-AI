@@ -1,26 +1,26 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
+import { useParams } from "react-router-dom";
 import { cvApi } from "@/api/tenant/cvApi";
 import { jobApi } from "@/api/tenant/jobApi";
 import { getApiErrorMessage } from "@/lib/axios";
 import { queryKeys } from "@/lib/query-keys";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
-import { button, input, muted, panel } from "@/features/tenant/recruiter/matching/components/rankingUi";
+import { button, muted, panel } from "@/features/tenant/recruiter/matching/components/rankingUi";
 import type { CvDetail, MatchBreakdown } from "@/api/types/cv";
 
 const chip = "rounded-full px-2.5 py-0.5 text-xs font-medium";
-const jobOptionsKey = ["screening-jobs"] as const;
-
 export function CvScreeningPage() {
   const token = useAuthStore((s) => s.accessToken);
   const client = useQueryClient();
-  const [jobId, setJobId] = useState<number | null>(null);
+  const { id } = useParams<{ id: string }>();
+  const jobId = Number(id);
+  const validJobId = Number.isInteger(jobId) && jobId > 0;
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const jobs = useQuery({ queryKey: jobOptionsKey, queryFn: jobApi.options, enabled: !!token });
   const list = useQuery({
-    queryKey: queryKeys.cvs.byJob(jobId ?? 0),
-    queryFn: () => cvApi.listByJob(jobId!),
-    enabled: jobId !== null && !!token,
+    queryKey: queryKeys.cvs.byJob(validJobId ? jobId : 0),
+    queryFn: () => cvApi.listByJob(jobId),
+    enabled: validJobId && !!token,
     refetchInterval: 5_000,
   });
   const detail = useQuery({
@@ -29,7 +29,7 @@ export function CvScreeningPage() {
     enabled: selectedId !== null,
     refetchInterval: 4_000,
   });
-  const skills = useQuery({ queryKey: ["job-skills", jobId], queryFn: () => jobApi.skills(jobId!), enabled: jobId !== null });
+  const skills = useQuery({ queryKey: ["job-skills", jobId], queryFn: () => jobApi.skills(jobId), enabled: validJobId });
   const retryParse = useMutation({
     mutationFn: (cvId: number) => cvApi.parse(cvId),
     onSuccess: (response, cvId) => {
@@ -49,7 +49,6 @@ export function CvScreeningPage() {
   const rows = list.data?.data ?? [];
   const cv = detail.data?.data;
   const breakdown = cv?.match?.breakdown;
-  const jobList = jobs.data?.data ?? [];
   return (
     <section className="space-y-6 text-[var(--color-on-surface)]">
       <header>
@@ -59,21 +58,7 @@ export function CvScreeningPage() {
           Chỉ CV ứng viên nộp khi apply mới xuất hiện. Điểm ≥ 60 và không thiếu skill bắt buộc → đạt chuẩn CV, chuyển phỏng vấn AI. Điểm Matching tổng (assessment + interview) ở trang Matching khi đủ vòng.
         </p>
       </header>
-      <div className={panel}>
-        <label className="block max-w-xl space-y-2">
-          <span className="text-sm font-semibold">Vị trí tuyển dụng</span>
-          <select className={input} value={jobId ?? ""} onChange={(e) => { setJobId(e.target.value ? Number(e.target.value) : null); setSelectedId(null); }}>
-            <option value="">Chọn Job</option>
-            {jobList.map((job) => <option key={job.id} value={job.id}>{job.title}</option>)}
-          </select>
-        </label>
-        {jobs.isPending && token && <p className={`mt-3 ${muted}`}>Đang tải danh sách job…</p>}
-        {jobs.isError && <p role="alert" className="mt-3">{getApiErrorMessage(jobs.error)}</p>}
-        {jobs.isSuccess && jobList.length === 0 && (
-          <p className={`mt-3 ${muted}`}>Chưa có job. Tạo tin tuyển ở trang Quản lý job; ứng viên apply rồi nộp CV mới hiện ở đây.</p>
-        )}
-      </div>
-      {jobId && skills.data?.data && skills.data.data.length > 0 && (
+      {validJobId && skills.data?.data && skills.data.data.length > 0 && (
         <div className={panel}>
           <p className="mb-2 text-sm font-semibold">Yêu cầu kỹ năng của job</p>
           <div className="flex flex-wrap gap-2">
@@ -85,7 +70,7 @@ export function CvScreeningPage() {
           </div>
         </div>
       )}
-      {jobId && (
+      {validJobId && (
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,32rem)]">
           <div className={`${panel} overflow-x-auto`}>
             {list.isPending && <p>Đang tải CV…</p>}

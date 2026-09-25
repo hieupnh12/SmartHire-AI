@@ -28,7 +28,7 @@ export function JobNavigationDrawer() {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
-  const currentJobId = location.pathname.match(/^\/recruiter\/jobs\/(\d+)\/?$/)?.[1];
+  const currentJobId = location.pathname.match(/^\/recruiter\/jobs\/(\d+)(?:\/|$)/)?.[1];
   const recentJobs = useQuery({
     queryKey: queryKeys.jobs.list({ page: 0, size: 8, context: "detail-drawer" }),
     queryFn: () => jobApi.search({ page: 0, size: 8 }),

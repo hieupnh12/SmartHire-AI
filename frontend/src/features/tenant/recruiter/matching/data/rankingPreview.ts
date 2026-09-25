@@ -53,7 +53,7 @@ export const rankingPreview: RankingBoard = {
       experienceMonths: Math.round(candidate.experience * 0.6),
       experienceEvidence: ["Kinh nghiệm backend Java và kiến trúc microservices."],
       notices: ["PREVIEW_DATA"],
-      sources: { cvId: candidate.id + 1000, attemptId: candidate.id + 2000, interviewId: candidate.id + 3000 },
+      sources: { cvId: candidate.id + 1000, submissionId: candidate.id + 2000, aiInterviewId: candidate.id + 3000 },
       interviewFeedback: "Giao tiếp rõ ràng, có tư duy hệ thống và xử lý tình huống tốt.",
       timeline: [
         { type: "APPLICATION_RECEIVED", occurredAt: null },

@@ -9,6 +9,7 @@ import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 import { hasRecruiterFeature } from "@/features/tenant/recruiter/permissions";
 import { getApiErrorMessage } from "@/lib/axios";
 import { cn } from "@/lib/utils";
+import { LoadingState, Skeleton } from "@/components/ux/Skeleton";
 
 const statusLabel: Record<JobStatus, string> = { DRAFT: "Bản nháp", PUBLISHED: "Đang tuyển", PAUSED: "Tạm dừng", CLOSED: "Đã đóng", ARCHIVED: "Lưu trữ" };
 const statusStyle: Record<JobStatus, string> = {
@@ -94,6 +95,44 @@ function JobCard({ job, sample = false }: { job: JobListItem; sample?: boolean }
   );
 }
 
+function RecruiterDashboardSkeleton() {
+  return (
+    <LoadingState label="Đang tải tổng quan tuyển dụng" className="space-y-3">
+      <div className="grid grid-cols-2 gap-2 2xl:grid-cols-4">
+        {Array.from({ length: 4 }, (_, index) => (
+          <div key={index} className="rounded-xl border border-[var(--color-border-default)] bg-white p-3 shadow-sm">
+            <div className="flex items-center justify-between gap-3"><Skeleton className="h-3 w-28" /><Skeleton className="size-7 rounded-lg" /></div>
+            <Skeleton className="mt-3 h-6 w-16" />
+            <Skeleton className="mt-2 h-3 w-32 max-w-full" />
+          </div>
+        ))}
+      </div>
+      <div className="flex items-center gap-2 rounded-xl border border-[var(--color-border-default)] bg-white p-2">
+        <Skeleton className="h-9 min-w-[180px] flex-1 rounded-lg" />
+        <Skeleton className="h-9 w-36 rounded-lg" />
+        <Skeleton className="hidden h-9 w-36 rounded-lg sm:block" />
+        <Skeleton className="h-3 w-14" />
+      </div>
+      <div className="space-y-5">
+        {Array.from({ length: 2 }, (_, index) => (
+          <div key={index} className="relative overflow-hidden rounded-2xl border border-[var(--color-outline)]/45 bg-white p-4 pl-5 shadow-[0_8px_24px_-16px_rgba(15,23,42,0.55)]">
+            <span className="absolute inset-y-0 left-0 w-1 bg-[var(--color-surface-container-high)]" aria-hidden="true" />
+            <div className="flex items-start gap-3">
+              <Skeleton className="size-10 shrink-0 rounded-xl" />
+              <div className="min-w-0 flex-1"><div className="flex gap-2"><Skeleton className="h-6 w-24 rounded-full" /><Skeleton className="h-6 w-32 rounded-full" /><Skeleton className="h-6 w-24 rounded-full" /></div><Skeleton className="mt-3 h-6 w-64 max-w-full" /><Skeleton className="mt-2 h-3 w-48 max-w-full" /></div>
+              <Skeleton className="hidden h-9 w-32 rounded-lg sm:block" />
+            </div>
+            <div className="mt-3 rounded-xl bg-[var(--color-surface-alt)] p-3"><Skeleton className="h-3 w-32" /><Skeleton className="mt-2 h-3 w-3/4" /></div>
+            <div className="mt-3 grid grid-cols-2 gap-1.5 sm:grid-cols-3 2xl:grid-cols-6">{Array.from({ length: 6 }, (_, item) => <div key={item} className="rounded-lg bg-[var(--color-surface-alt)] p-2.5"><Skeleton className="h-3 w-16" /><Skeleton className="mt-2 h-6 w-10" /></div>)}</div>
+            <div className="mt-4 flex justify-between"><Skeleton className="h-3 w-28" /><Skeleton className="h-3 w-40" /></div>
+            <Skeleton className="mt-4 h-2 w-full rounded-full" />
+          </div>
+        ))}
+      </div>
+    </LoadingState>
+  );
+}
+
 export function HomePage() {
   const [jobSearch, setJobSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"ALL" | JobStatus>("ALL");
@@ -156,6 +195,7 @@ export function HomePage() {
       </aside>
 
       <div className="min-w-0 px-4 py-4 sm:px-5">
+        {jobsQuery.isPending || summaryQuery.isPending ? <RecruiterDashboardSkeleton /> : <>
         <div className="mb-3 grid grid-cols-2 gap-2 2xl:grid-cols-4">
           <div className="group relative overflow-hidden rounded-xl border border-[var(--color-border-default)] bg-white p-3 shadow-sm transition-[border-color,box-shadow] duration-200 motion-reduce:transition-none hover:border-brand-primary hover:shadow-md"><span className="absolute inset-x-0 top-0 h-0.5 bg-brand-primary opacity-0 transition-opacity duration-200 group-hover:opacity-100 motion-reduce:transition-none" aria-hidden="true" /><div className="flex items-center justify-between"><span className="text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--color-on-surface-variant)]">Vị trí hoạt động</span><span className="grid size-7 place-items-center rounded-lg bg-[var(--color-primary-soft)] text-brand-primary transition-colors duration-200 group-hover:bg-brand-primary group-hover:text-white motion-reduce:transition-none"><Layers3 className="size-3.5" aria-hidden="true" /></span></div><p className="mt-2 text-xl font-semibold transition-transform duration-200 group-hover:-translate-y-0.5 motion-reduce:transform-none motion-reduce:transition-none">{activeJobs}</p><p className="mt-0.5 text-[10px] text-[var(--color-on-surface-variant)]">{totalJobs} vị trí trong danh mục</p></div>
           <div className="group relative overflow-hidden rounded-xl border border-[var(--color-border-default)] bg-white p-3 shadow-sm transition-[border-color,box-shadow] duration-200 motion-reduce:transition-none hover:border-brand-primary hover:shadow-md"><span className="absolute inset-x-0 top-0 h-0.5 bg-brand-primary opacity-0 transition-opacity duration-200 group-hover:opacity-100 motion-reduce:transition-none" aria-hidden="true" /><div className="flex items-center justify-between"><span className="text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--color-on-surface-variant)]">Tốc độ tiếp nhận</span><span className="grid size-7 place-items-center rounded-lg bg-[var(--color-primary-soft)] text-brand-primary transition-colors duration-200 group-hover:bg-brand-primary group-hover:text-white motion-reduce:transition-none"><Gauge className="size-3.5" aria-hidden="true" /></span></div><p className="mt-2 text-xl font-semibold transition-transform duration-200 group-hover:-translate-y-0.5 motion-reduce:transform-none motion-reduce:transition-none">{averageApplications}<span className="ml-1 text-[10px] font-normal text-[var(--color-on-surface-variant)]">CV / job</span></p><p className="mt-0.5 text-[10px] text-[var(--color-on-surface-variant)]">Trung bình job đang tuyển</p></div>
@@ -169,7 +209,8 @@ export function HomePage() {
           <span className="px-2 text-[10px] font-medium text-[var(--color-on-surface-variant)]">{visibleJobs.length} kết quả</span>
         </div>
         {(jobsQuery.isError || summaryQuery.isError) && <div role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{getApiErrorMessage(jobsQuery.error ?? summaryQuery.error)}</div>}
-        {jobsQuery.isPending ? <div className="space-y-5" aria-label="Đang tải danh sách công việc"><div className="h-52 animate-pulse rounded-2xl bg-[var(--color-surface-container)]" /><div className="h-52 animate-pulse rounded-2xl bg-[var(--color-surface-container)]" /></div> : visibleJobs.length > 0 ? <div className="space-y-5">{visibleJobs.map((job) => <JobCard key={job.id} job={job} sample={job.id === automaticScreeningSample.id} />)}</div> : <div className="rounded-2xl border border-dashed border-[var(--color-border-default)] bg-[var(--color-surface-card)] px-6 py-12 text-center"><span className="mx-auto grid size-12 place-items-center rounded-2xl bg-[var(--color-primary-soft)] text-brand-primary"><Search className="size-6" aria-hidden="true" /></span><h2 className="mt-4 text-lg font-semibold">Không tìm thấy vị trí phù hợp</h2><p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">Thử thay đổi từ khóa hoặc bộ lọc.</p></div>}
+        {visibleJobs.length > 0 ? <div className="space-y-5">{visibleJobs.map((job) => <JobCard key={job.id} job={job} sample={job.id === automaticScreeningSample.id} />)}</div> : <div className="rounded-2xl border border-dashed border-[var(--color-border-default)] bg-[var(--color-surface-card)] px-6 py-12 text-center"><span className="mx-auto grid size-12 place-items-center rounded-2xl bg-[var(--color-primary-soft)] text-brand-primary"><Search className="size-6" aria-hidden="true" /></span><h2 className="mt-4 text-lg font-semibold">Không tìm thấy vị trí phù hợp</h2><p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">Thử thay đổi từ khóa hoặc bộ lọc.</p></div>}
+        </>}
       </div>
 
       <aside className="h-full border-t border-[var(--color-border-default)] bg-[var(--color-surface-card)] xl:sticky xl:top-16 xl:h-[calc(100dvh-4rem)] xl:self-start xl:border-l xl:border-t-0" aria-label="Phân tích tuyển dụng của tôi">

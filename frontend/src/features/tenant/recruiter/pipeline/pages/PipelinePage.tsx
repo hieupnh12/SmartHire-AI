@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Archive, ArrowRight, BriefcaseBusiness, CheckCircle2, FilterX, LayoutGrid, List, MoreHorizontal, Search, SlidersHorizontal, Sparkles, UserRoundCheck, Users, Video, X, type LucideIcon } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { cn } from "@/lib/utils";
 
 type ViewMode = "detail" | "compact";
@@ -86,6 +86,7 @@ function CandidateCard({ candidate, compact }: { candidate: Candidate; compact: 
 }
 
 export function PipelinePage() {
+  const { id } = useParams<{ id: string }>();
   const [view, setView] = useState<ViewMode>("detail");
   const [query, setQuery] = useState("");
   const [minimumScore, setMinimumScore] = useState(60);
@@ -100,7 +101,7 @@ export function PipelinePage() {
         <div className="mt-3 flex items-center rounded-xl border border-[var(--color-border-default)] bg-white p-1" role="toolbar" aria-label="Điều khiển hiển thị pipeline">
           <button type="button" onClick={() => setView("detail")} aria-pressed={view === "detail"} className={cn("inline-flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-lg px-2 text-[11px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/30", view === "detail" ? "bg-[var(--color-primary-soft)] text-brand-primary" : "text-[var(--color-on-surface-variant)] hover:bg-[var(--color-surface-alt)] hover:text-brand-primary")}><LayoutGrid className="size-3.5" aria-hidden="true" />Chi tiết</button>
           <button type="button" onClick={() => setView("compact")} aria-pressed={view === "compact"} className={cn("inline-flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-lg px-2 text-[11px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/30", view === "compact" ? "bg-[var(--color-primary-soft)] text-brand-primary" : "text-[var(--color-on-surface-variant)] hover:bg-[var(--color-surface-alt)] hover:text-brand-primary")}><List className="size-3.5" aria-hidden="true" />Thu gọn</button>
-          <Link to="/recruiter/applicants" aria-label="Mở danh sách ứng viên" title="Ứng viên" className="grid size-9 shrink-0 place-items-center rounded-lg bg-brand-primary text-white transition-colors hover:bg-brand-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/30"><Users className="size-3.5" aria-hidden="true" /></Link>
+          <Link to={`/recruiter/jobs/${id}/applicants`} aria-label="Mở danh sách ứng viên" title="Ứng viên" className="grid size-9 shrink-0 place-items-center rounded-lg bg-brand-primary text-white transition-colors hover:bg-brand-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/30"><Users className="size-3.5" aria-hidden="true" /></Link>
         </div>
       </div>
       <div className="flex min-h-0 flex-col gap-5 p-4">
