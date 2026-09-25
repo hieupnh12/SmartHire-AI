@@ -1,10 +1,8 @@
-import React from "react";
 import type { LandingPageConfig } from "../types/landing";
 import {
   Search,
   ArrowRight,
   LogIn,
-  Building2,
   Mail,
   Phone,
   Building,

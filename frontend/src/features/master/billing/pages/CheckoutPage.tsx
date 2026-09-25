@@ -6,7 +6,6 @@ import {
   CheckCircle2,
   Copy,
   Check,
-  ShieldCheck,
   ArrowLeft,
   ArrowRight,
   Loader2,
@@ -18,13 +17,11 @@ import {
   Printer,
   ExternalLink,
   Wallet,
-  Server,
   Users,
   Cpu,
   PackageCheck,
 } from "lucide-react";
 import { checkoutApi, PublicSubscriptionPlan, CheckoutResponseData } from "@/api/master/checkoutApi";
-import { DEFAULT_BANK_CONFIG } from "@/config/paymentConfig";
 import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
 
 export function CheckoutPage() {
@@ -1044,7 +1041,7 @@ export function CheckoutPage() {
                         <PayPalScriptProvider options={{ clientId: import.meta.env.VITE_PAYPAL_CLIENT_ID || "test", currency: "USD" }}>
                           <PayPalButtons
                             style={{ layout: "vertical", color: "blue", shape: "rect", label: "pay" }}
-                            createOrder={(data, actions) => {
+                            createOrder={(_, actions) => {
                               const usdAmount = (orderResult.amountVnd / 25000).toFixed(2);
                               return actions.order.create({
                                 intent: "CAPTURE",
@@ -1358,7 +1355,7 @@ export function CheckoutPage() {
               <div className="mt-6 p-4 rounded-xl bg-blue-50 border border-blue-200 text-blue-800 text-sm text-left flex gap-3">
                  <div className="mt-0.5"><Clock className="w-4 h-4" /></div>
                  <p>
-                   Thông tin tài khoản quản trị viên {paymentMethod === "VIETQR" ? "sẽ" : "đã"} được gửi tới email <strong>{orderResult.contactEmail}</strong>. 
+                   Thông tin tài khoản quản trị viên {paymentMethod === "VIETQR" ? "sẽ" : "đã"} được gửi tới email <strong>{adminEmail}</strong>. 
                    Quý khách vui lòng kiểm tra hộp thư (kể cả thư rác) để đăng nhập và thiết lập lại mật khẩu.
                  </p>
               </div>
