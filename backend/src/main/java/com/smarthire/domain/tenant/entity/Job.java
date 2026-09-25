@@ -4,7 +4,6 @@ import com.smarthire.domain.enums.JobStatus;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.Instant;
-import java.time.LocalDate;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
@@ -43,7 +42,7 @@ public class Job extends BaseEntity {
 
     Integer headcount;
 
-    LocalDate deadline;
+    Instant deadline;
 
     @Column(name = "salary_min", precision = 12, scale = 2) BigDecimal salaryMin;
 

@@ -150,6 +150,11 @@ app:
       notify-email: notify.email.q
       auth-email-otp: auth.email.otp.q
       job-events: job.events.q
+  cv:
+    cloudinary-cloud-name: ${CLOUDINARY_CLOUD_NAME:}
+    cloudinary-api-key: ${CLOUDINARY_API_KEY:}
+    cloudinary-api-secret: ${CLOUDINARY_API_SECRET:}
+    max-file-bytes: ${CV_MAX_FILE_BYTES:10485760}
   ai:
     timeout-seconds: ${CV_AI_TIMEOUT_SECONDS:30}
     gemini:
@@ -166,6 +171,9 @@ smarthire:
   invite:
     public-origin: ${INVITE_PUBLIC_ORIGIN:http://localhost:5173}
     expire-hours: ${INVITE_EXPIRE_HOURS:72}
+  jobs:
+    close-scan-enabled: ${JOB_CLOSE_SCAN_ENABLED:true}
+    close-scan-ms: ${JOB_CLOSE_SCAN_MS:60000}
 
 vnpay:
   tmn-code: ${VNPAY_TMN_CODE:2QXUI4J4}

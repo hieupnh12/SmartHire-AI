@@ -15,7 +15,7 @@ AI phân tích skill/level từ CV so với taxonomy skills.
 ## Luồng hoạt động
 
 1. Queue `cv.analysis`.
-2. Skill list + confidence → `cv_skills` / `cv_analyses`.
+2. Skill list + confidence → `cv_skills` / `cv_analyses` (taxonomy normalize trước Jaccard / hybrid score).
 
 ## Business Rules
 

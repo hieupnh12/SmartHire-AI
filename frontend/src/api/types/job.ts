@@ -75,6 +75,25 @@ export type JobDetail = {
   acceptingApplications: boolean;
   skills: JobSkillView[];
   stages: StageView[];
+  cvScreening?: CvScreeningConfig | null;
+  gateScreening?: GateScreeningConfig | null;
+};
+
+export type CvScreeningConfig = {
+  skillWeight: number;
+  preferredWeight: number;
+  experienceWeight: number;
+  educationWeight: number;
+  jaccardWeight: number;
+  semanticWeight: number;
+  passThreshold: number;
+};
+
+export type GateScreeningConfig = {
+  cvWeight: number;
+  aiInterviewWeight: number;
+  assessmentWeight: number;
+  passThreshold: number;
 };
 
 export type JobUpsertRequest = {
@@ -95,6 +114,8 @@ export type JobUpsertRequest = {
   minYearsExperience?: number | null;
   educationLevel?: string;
   skills?: JobSkillInput[];
+  cvScreening?: CvScreeningConfig;
+  gateScreening?: GateScreeningConfig;
 };
 
 export type PublicJob = {

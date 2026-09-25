@@ -72,4 +72,17 @@ class TenantDataSourceFactoryTest {
         assertThat(factory.resolveJdbcUrl(tenant)).isEqualTo(
                 "jdbc:mysql://customer-db.example:3306/customer_database?sslMode=REQUIRED");
     }
+
+    @Test
+    void quotedEnvOptionsAreNotCopiedIntoJdbcUrl() {
+        var factory = new TenantDataSourceFactory(mock(TenantCredentialService.class),
+                mock(TenantSchemaBootstrap.class), 5,
+                "jdbc:mysql://mysql:3306/", "'sslMode=PREFERRED&allowPublicKeyRetrieval=true'");
+        var tenant = new TenantInfo();
+        tenant.setManagedDatabase(true);
+        tenant.setDbName("smarthire_tenant_ttqt");
+
+        assertThat(factory.resolveJdbcUrl(tenant)).isEqualTo(
+                "jdbc:mysql://mysql:3306/smarthire_tenant_ttqt?sslMode=PREFERRED&allowPublicKeyRetrieval=true");
+    }
 }
