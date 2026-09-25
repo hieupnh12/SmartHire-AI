@@ -36,7 +36,18 @@ async function main() {
       if (p === '/applications/me') return ok([{ id: 11, jobId: 1, jobTitle: 'Java Developer', status: 'ASSESSMENT', archived: false }]);
       if (p === '/applications/11/list_available_assessments') return ok(paper?.status === 'PUBLISHED' ? [{ ...paper, submissionId: submission?.id ?? null, submissionStatus: submission?.status ?? null }] : []);
       if (p === '/assessments/list_tenant_tests' && method === 'GET') return ok({ items: paper ? [paper] : [], page: 0, size: 20, total: paper ? 1 : 0 });
-      if (p === '/assessments/create_draft_test' && method === 'POST') { paper = { ...body, id: 1, status: 'DRAFT', createdAt: new Date().toISOString() }; return ok(paper); }
+      if (p === '/assessments/create_draft_test' && method === 'POST') {
+        paper = {
+          ...body,
+          id: 1,
+          status: 'DRAFT',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          createdById: 1,
+          createdByName: 'Assessment Tester',
+        };
+        return ok(paper);
+      }
       if (p === '/assessments/get_test_metadata/1' && method === 'GET') return ok(paper);
       if (p === '/assessments/update_draft_test/1' && method === 'PUT') { paper = { ...paper, ...body }; return ok(paper); }
       if (p === '/assessments/1/list_questions' && method === 'GET') return ok(questions);

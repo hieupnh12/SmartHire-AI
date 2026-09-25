@@ -4,15 +4,23 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ArrowRight, Check, CheckCircle2, Clock3, Eye, LockKeyhole, Monitor, Pencil, Save, ShieldCheck, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Clock3, Eye, LockKeyhole, Monitor, Pencil, Save, ShieldCheck, X } from "lucide-react";
 import { assessmentApi } from "@/api/tenant/assessmentApi";
 import type { QuestionRequest } from "@/api/types/assessment";
 import { AssessmentError } from "@/components/ux/assessmentUi";
 import { Button } from "@/components/ux/Button";
+import {
+  hasAnswerValue,
+  QuestionAnswerPanel,
+  QUESTION_KIND_LABEL,
+  type AssessmentQuestionKind,
+} from "@/components/ux/QuestionAnswerPanel";
 import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
+import { typeMeta } from "../constants/excelTemplateMock";
 import type { ImportRow } from "../utils/excelImportValidation";
 import { isPersistableQuestion } from "../utils/excelImportValidation";
+import { clearExcelQuestionDraft } from "../utils/excelQuestionDraft";
 
 const card = "rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)]";
 const muted = "text-[var(--color-on-surface-variant)]";
@@ -26,10 +34,16 @@ function toQuestionRequest(item: ImportRow, index: number, defaultScore: number)
       correct: String.fromCharCode(65 + optionIndex) === answer,
     }))
     .filter((option) => option.optionText.length > 0);
+  const difficultyRaw = item.row.difficulty.trim().toLowerCase();
+  const difficulty =
+    difficultyRaw === "easy" ? "Easy" : difficultyRaw === "medium" ? "Medium" : difficultyRaw === "hard" ? "Hard" : null;
   return {
     questionText: item.row.content.trim(),
     points: item.row.score.trim() ? Number(item.row.score) : defaultScore,
     questionOrder: index,
+    difficulty,
+    skill: item.row.skill.trim() || null,
+    explanation: item.row.explanation.trim() || null,
     options,
   };
 }
@@ -69,7 +83,10 @@ export function AssessmentPublishReview({
     else dialog.current?.close();
   }, [showPublish]);
 
-  const total = rows.reduce((sum, item) => sum + (item.row.score.trim() ? Number(item.row.score) : defaultScore), 0);
+  const saveableRows = rows.filter(
+    (item) => item.status !== "INVALID" && isPersistableQuestion(item.row) && item.errors.length === 0,
+  );
+  const total = saveableRows.reduce((sum, item) => sum + (item.row.score.trim() ? Number(item.row.score) : defaultScore), 0);
   const schema = z.object({
     title: z.string().trim().min(1).max(255),
     duration: z.string().regex(/^\d+$/).refine((value) => Number(value) > 0 && Number(value) <= 2147483647),
@@ -87,18 +104,26 @@ export function AssessmentPublishReview({
 
   const checks = [
     { title: "Thông tin chung", value: validTitle && validDuration, detail: "Tên đề tối đa 255 ký tự và thời lượng là số phút nguyên dương." },
-    { title: "Số lượng câu hỏi", value: rows.length > 0 && rows.length <= 100, detail: `${rows.length} / 100 câu trong cấu trúc đề.` },
-    { title: "Nội dung & đáp án", value: rows.every((item) => !item.errors.length && !item.unsupported && isPersistableQuestion(item.row)), detail: "Mỗi câu cần đủ content, độ khó, kỹ năng và đáp án trắc nghiệm hợp lệ." },
+    { title: "Số lượng câu hỏi", value: saveableRows.length > 0 && saveableRows.length <= 100, detail: `${saveableRows.length} câu trắc nghiệm đơn sẽ lưu / ${rows.length} câu đã kiểm tra.` },
+    {
+      title: "Nội dung & đáp án",
+      value: saveableRows.length > 0 && saveableRows.every((item) => item.errors.length === 0),
+      detail: "API hiện lưu câu trắc nghiệm đơn đủ content, độ khó, kỹ năng và đáp án hợp lệ.",
+    },
     {
       title: "Cơ cấu điểm số",
-      value: total > 0 && rows.every((item) => {
+      value: total > 0 && saveableRows.every((item) => {
         const points = Number(item.row.score.trim() || defaultScore);
         return Number.isInteger(points) && points >= 1 && points <= 10000;
       }),
       detail: `Tổng ${total} điểm; giữ nguyên điểm của từng câu hỏi.`,
     },
     { title: "Ngưỡng điểm đạt", value: validPassing, detail: passingScore === "" ? "Không đặt ngưỡng điểm đạt." : `Điểm đạt phải từ 0 đến ${total}.` },
-    { title: "Cấu trúc trắc nghiệm V1", value: rows.every((item) => item.row.kind === "TRAC_NGHIEM_DON"), detail: "Mỗi câu có ít nhất hai lựa chọn và đúng một đáp án chính xác." },
+    {
+      title: "Cấu trúc trắc nghiệm V1",
+      value: saveableRows.every((item) => item.row.kind === "TRAC_NGHIEM_DON"),
+      detail: "Nhiều đáp án / tự luận vẫn hợp lệ ở bước kiểm tra; hiện chỉ đẩy trắc nghiệm đơn vào đề.",
+    },
   ];
   const passed = checks.filter((check) => check.value).length;
   const canSave = passed === checks.length;
@@ -112,9 +137,9 @@ export function AssessmentPublishReview({
 
   const persist = useMutation({
     mutationFn: async () => {
-      const toSave = rows.filter((item) => !item.skipped && isPersistableQuestion(item.row) && !item.errors.length && !item.unsupported);
+      const toSave = saveableRows;
       if (toSave.length === 0) {
-        throw new Error("Không có câu hỏi đủ content, độ khó và kỹ năng để lưu.");
+        throw new Error("Không có câu trắc nghiệm đơn hợp lệ (content + độ khó + kỹ năng) để lưu vào đề.");
       }
       if (toSave.length > 100) {
         throw new Error("Vượt giới hạn 100 câu hỏi.");
@@ -133,6 +158,7 @@ export function AssessmentPublishReview({
       return test;
     },
     onSuccess: async (test) => {
+      clearExcelQuestionDraft(jobId);
       await client.invalidateQueries({ queryKey: queryKeys.assessments.all() });
       navigate(`${listPath}/${test.id}`, { replace: true });
     },
@@ -160,7 +186,7 @@ export function AssessmentPublishReview({
             Quay lại kiểm tra
           </Button>
           <Button
-            disabled={!canSave || busy || saved || !validTitle || !validDuration || !validPassing || rows.length === 0}
+            disabled={!canSave || busy || saved || !validTitle || !validDuration || !validPassing || saveableRows.length === 0}
             onClick={openSaveDialog}
           >
             <Save className="size-4" aria-hidden="true" />
@@ -307,8 +333,8 @@ export function AssessmentPublishReview({
             <p className="flex items-start gap-2 rounded-xl bg-[var(--color-surface-container-low)] p-3 text-xs leading-5">
               <Eye className="mt-0.5 size-4 shrink-0 text-[var(--color-primary)]" aria-hidden="true" />
               {view === "audit"
-                ? "Chế độ kiểm duyệt: hiển thị đáp án đúng và giải thích của người soạn."
-                : "Chế độ ứng viên: đáp án đúng và giải thích được ẩn. Bạn có thể chọn đáp án để thử giao diện."}
+                ? "Chế độ kiểm duyệt: hiển thị đáp án đúng / mẫu và giải thích theo loại câu hỏi."
+                : "Chế độ ứng viên: theo loại câu — trắc nghiệm đơn (1 đáp án), nhiều đáp án (chọn nhiều), tự luận (ghi đáp án)."}
             </p>
             <div>
               <div className="mb-3 flex justify-between gap-2">
@@ -329,7 +355,7 @@ export function AssessmentPublishReview({
                       "grid size-10 place-items-center rounded-lg text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-primary)]",
                       index === current
                         ? "bg-[var(--color-primary)] text-[var(--color-on-primary)]"
-                        : answers[item.line]
+                        : hasAnswerValue(answers[item.line])
                           ? "bg-[var(--color-primary-subtle)] text-[var(--color-primary)]"
                           : "bg-[var(--color-surface-container-low)]",
                     )}
@@ -343,58 +369,44 @@ export function AssessmentPublishReview({
               <article className="space-y-5">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <h3 className="text-lg font-semibold">Câu {current + 1}</h3>
-                  <span className="rounded-full bg-[var(--color-primary-subtle)] px-3 py-1 text-xs font-semibold text-[var(--color-primary)]">
-                    {selected.row.score.trim() || defaultScore} điểm
-                  </span>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-md bg-[var(--color-surface-container)] px-2 py-1 text-[11px] font-medium text-[var(--color-on-surface)]">
+                      {QUESTION_KIND_LABEL[selected.row.kind as AssessmentQuestionKind] ?? typeMeta(selected.row.kind).label}
+                    </span>
+                    <span className="rounded-full bg-[var(--color-primary-subtle)] px-3 py-1 text-xs font-semibold text-[var(--color-primary)]">
+                      {selected.row.score.trim() || defaultScore} điểm
+                    </span>
+                  </div>
                 </div>
                 <p className={cn(muted, "text-xs")}>
                   {selected.row.skill || "Chưa phân loại kỹ năng"} · {selected.row.difficulty || "Chưa phân loại độ khó"}
                 </p>
                 <p className="whitespace-pre-wrap break-words text-base font-medium leading-7">{selected.row.content}</p>
-                <fieldset className="space-y-3">
-                  <legend className="sr-only">Chọn đáp án cho câu {current + 1}</legend>
-                  {[selected.row.optionA, selected.row.optionB, selected.row.optionC, selected.row.optionD].map((option, index) => {
-                    if (!option.trim()) return null;
-                    const letter = String.fromCharCode(65 + index);
-                    const correct = view === "audit" && selected.row.answer.trim().toUpperCase() === letter;
-                    return (
-                      <label
-                        key={letter}
-                        className={cn(
-                          "flex items-start gap-3 rounded-xl border p-4 text-sm",
-                          correct ? "border-[var(--color-primary)] bg-[var(--color-primary-subtle)]" : "border-[var(--color-border-default)]",
-                          view === "candidate" && "cursor-pointer hover:bg-[var(--color-surface-container-low)]",
-                        )}
-                      >
-                        <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-[var(--color-surface-container-low)] text-xs font-semibold">{letter}</span>
-                        <span className="flex-1 whitespace-pre-wrap break-words leading-6">
-                          {option}
-                          {correct && (
-                            <span className="mt-2 flex items-center gap-1 text-xs font-semibold text-[var(--color-primary)]">
-                              <CheckCircle2 className="size-4" aria-hidden="true" />
-                              Đáp án chính xác
-                            </span>
-                          )}
-                        </span>
-                        {view === "candidate" && (
-                          <input
-                            type="radio"
-                            name={`preview-${selected.line}`}
-                            aria-label={`Đáp án ${letter}`}
-                            checked={answers[selected.line] === letter}
-                            onChange={() => setAnswers((previous) => ({ ...previous, [selected.line]: letter }))}
-                            className="mt-1 accent-[var(--color-primary)]"
-                          />
-                        )}
-                      </label>
-                    );
-                  })}
-                </fieldset>
+                <QuestionAnswerPanel
+                  kind={selected.row.kind as AssessmentQuestionKind}
+                  questionKey={selected.line}
+                  mode={view}
+                  value={answers[selected.line] ?? null}
+                  onChange={(next) => setAnswers((previous) => ({ ...previous, [selected.line]: next }))}
+                  correctAnswer={selected.row.answer}
+                  sampleAnswer={selected.row.sample || selected.row.answer}
+                  codeSnippet={selected.row.snippet}
+                  language={selected.row.language}
+                  options={[selected.row.optionA, selected.row.optionB, selected.row.optionC, selected.row.optionD]
+                    .map((body, index) => ({
+                      id: String.fromCharCode(65 + index),
+                      label: String.fromCharCode(65 + index),
+                      body,
+                    }))
+                    .filter((option) => option.body.trim())}
+                />
                 {view === "audit" && (
                   <div className="rounded-xl bg-[var(--color-surface-container-low)] p-4">
                     <h4 className="text-sm font-semibold">Giải thích dành cho giám khảo</h4>
                     <p className={cn(muted, "mt-2 whitespace-pre-wrap break-words text-sm leading-6")}>
-                      {selected.row.explanation.trim() || "Người soạn chưa thêm giải thích cho câu hỏi này."}
+                      {(selected.row.kind === "NHIEU_DAP_AN"
+                        ? selected.row.policyNote.trim() || selected.row.explanation.trim()
+                        : selected.row.explanation.trim()) || "Người soạn chưa thêm giải thích cho câu hỏi này."}
                     </p>
                   </div>
                 )}
@@ -404,7 +416,9 @@ export function AssessmentPublishReview({
                     Câu trước
                   </Button>
                   {view === "candidate" && (
-                    <span className={cn(muted, "text-xs")}>{answers[selected.line] ? "Đã chọn đáp án thử nghiệm" : "Chưa chọn đáp án"}</span>
+                    <span className={cn(muted, "text-xs")}>
+                      {hasAnswerValue(answers[selected.line]) ? "Đã trả lời thử nghiệm" : "Chưa trả lời"}
+                    </span>
                   )}
                   <Button variant="secondary" disabled={current >= rows.length - 1} onClick={() => setCurrent(current + 1)}>
                     Câu tiếp theo

@@ -135,6 +135,34 @@ public class QuestionService {
         question.setQuestionType("MCQ");
         question.setPoints(request.points());
         question.setQuestionOrder(request.questionOrder());
+        question.setDifficulty(normalizeDifficulty(request.difficulty()));
+        question.setSkill(blankToNull(request.skill()));
+        question.setExplanation(blankToNull(request.explanation()));
+    }
+
+    private String normalizeDifficulty(String raw) {
+        String value = blankToNull(raw);
+        if (value == null) {
+            return null;
+        }
+        String normalized = switch (value.toLowerCase()) {
+            case "easy" -> "Easy";
+            case "medium" -> "Medium";
+            case "hard" -> "Hard";
+            default -> null;
+        };
+        if (normalized == null) {
+            throw invalid("Difficulty must be Easy, Medium, or Hard");
+        }
+        return normalized;
+    }
+
+    private String blankToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     private List<Option> replaceOptions(Question question, QuestionRequest request) {

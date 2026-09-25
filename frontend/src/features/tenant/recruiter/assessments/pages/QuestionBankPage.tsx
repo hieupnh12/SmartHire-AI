@@ -82,9 +82,19 @@ function difficultyOf(points: number): Difficulty {
   return "Nâng cao";
 }
 
-function skillsOf(text: string) {
+function difficultyLabel(value: string | null | undefined, points: number): Difficulty {
+  const key = (value ?? "").trim().toLowerCase();
+  if (key === "easy") return "Cơ bản";
+  if (key === "medium") return "Vận dụng";
+  if (key === "hard") return "Nâng cao";
+  return difficultyOf(points);
+}
+
+function skillsOf(text: string, skill: string | null | undefined) {
+  const tagged = (skill ?? "").trim();
+  if (tagged) return [tagged];
   const haystack = text.toLowerCase();
-  const matched = SKILLS.filter((skill) => haystack.includes(skill.toLowerCase()));
+  const matched = SKILLS.filter((item) => haystack.includes(item.toLowerCase()));
   return matched.slice(0, 4);
 }
 
@@ -181,8 +191,8 @@ export function QuestionBankPage() {
         department: job?.department ?? "Chưa phân nhóm",
         question,
         code: questionCode(question.id),
-        skills: skillsOf(question.questionText),
-        difficulty: difficultyOf(question.points),
+        skills: skillsOf(question.questionText, question.skill),
+        difficulty: difficultyLabel(question.difficulty, question.points),
       }));
     });
   }, [items, questionQueries, jobMap]);

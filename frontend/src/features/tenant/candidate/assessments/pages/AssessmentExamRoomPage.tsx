@@ -94,8 +94,8 @@ export function AssessmentExamRoomPage() {
         lastSavedLabel={lastSavedLabel}
         candidateName={candidateName}
         candidateCode={candidateCode}
-        onSelect={(questionId, optionId) => {
-          setAnswers((prev) => ({ ...prev, [questionId]: optionId }));
+        onAnswer={(questionId, value) => {
+          setAnswers((prev) => ({ ...prev, [questionId]: value }));
           touchSave();
         }}
         onClear={(questionId) => {

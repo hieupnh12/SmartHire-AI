@@ -165,7 +165,7 @@ class AssessmentFlowTest {
     @Test
     void validatesCorrectOptionAndPassingThreshold() {
         long id = draft();
-        var bad = new QuestionRequest("Bad", 5, 0, List.of(
+        var bad = new QuestionRequest("Bad", 5, 0, null, null, null, List.of(
                 new QuestionRequest.OptionRequest("A", true), new QuestionRequest.OptionRequest("B", true)));
         assertThatThrownBy(() -> questions.create(id, bad)).hasMessageContaining("Exactly one");
         questions.create(id, question("Low points", 1, 0));
@@ -357,7 +357,8 @@ class AssessmentFlowTest {
     private long draft() { return assessments.create(request()).id(); }
     private long published() { long id = draft(); questions.create(id, question("One", 5, 0)); questions.publish(id); return id; }
     private QuestionRequest question(String text, int points, int order) {
-        return new QuestionRequest(text, points, order, List.of(new QuestionRequest.OptionRequest("Correct", true),
+        return new QuestionRequest(text, points, order, "Easy", "Java", null,
+                List.of(new QuestionRequest.OptionRequest("Correct", true),
                 new QuestionRequest.OptionRequest("Incorrect", false)));
     }
     private SaveAnswersRequest save(Long questionId, Long optionId) {

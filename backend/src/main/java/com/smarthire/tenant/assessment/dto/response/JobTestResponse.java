@@ -5,6 +5,15 @@ import java.math.BigDecimal;
 import java.time.Instant;
 
 public record JobTestResponse(
-        Long id, Long jobId, String title, String description,
-        int durationMinutes, BigDecimal passingScore, TestStatus status, Instant createdAt) {
+        Long id,
+        Long jobId,
+        String title,
+        String description,
+        int durationMinutes,
+        BigDecimal passingScore,
+        TestStatus status,
+        Instant createdAt,
+        Instant updatedAt,
+        Long createdById,
+        String createdByName) {
 }

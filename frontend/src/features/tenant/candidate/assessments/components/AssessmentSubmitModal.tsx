@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ux/Button";
 import { assessmentMuted as muted } from "@/components/ux/assessmentUi";
+import { hasAnswerValue } from "@/components/ux/QuestionAnswerPanel";
 import { MOCK_EXAM_META, formatExamClock, type MockExamQuestion } from "../constants/mockExam";
 
 type Props = {
@@ -40,8 +41,8 @@ export function AssessmentSubmitModal({
 }: Props) {
   if (!open) return null;
 
-  const answeredIds = questions.filter((q) => answers[q.id] != null).map((q) => q.id);
-  const unansweredIds = questions.filter((q) => answers[q.id] == null).map((q) => q.id);
+  const answeredIds = questions.filter((q) => hasAnswerValue(answers[q.id])).map((q) => q.id);
+  const unansweredIds = questions.filter((q) => !hasAnswerValue(answers[q.id])).map((q) => q.id);
   const flaggedIds = questions.filter((q) => bookmarked.has(q.id)).map((q) => q.id);
   const pct = Math.round((answeredIds.length / questions.length) * 100);
 
@@ -165,7 +166,7 @@ export function AssessmentSubmitModal({
             </div>
             <div className="grid grid-cols-5 gap-1.5 sm:grid-cols-10">
               {questions.map((q, index) => {
-                const answered = answers[q.id] != null;
+                const answered = hasAnswerValue(answers[q.id]);
                 const flagged = bookmarked.has(q.id);
                 const empty = !answered;
                 let className =

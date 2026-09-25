@@ -50,6 +50,13 @@ function formatRelative(iso: string) {
   return new Date(iso).toLocaleDateString("vi-VN");
 }
 
+function initials(name: string | null | undefined) {
+  const parts = (name ?? "").trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "—";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0] ?? ""}${parts[parts.length - 1][0] ?? ""}`.toUpperCase();
+}
+
 function statusTone(status: TestStatus) {
   if (status === "PUBLISHED") return "bg-emerald-50 text-emerald-700";
   if (status === "DRAFT") return "bg-amber-50 text-amber-800";
@@ -707,11 +714,13 @@ function AssessmentRow({
       <td className="whitespace-nowrap px-4 py-3.5">
         <div className="flex items-center gap-2">
           <div className="grid size-7 place-items-center rounded-full bg-[var(--color-secondary-container)] text-[10px] font-bold text-[var(--color-on-surface)]">
-            —
+            {initials(test.createdByName)}
           </div>
           <div className="flex flex-col">
-            <span className="text-xs font-semibold">Chưa ghi nhận</span>
-            <span className="text-[11px] text-[var(--color-outline)]">{formatRelative(test.createdAt)}</span>
+            <span className="text-xs font-semibold">{test.createdByName?.trim() || "Chưa ghi nhận"}</span>
+            <span className="text-[11px] text-[var(--color-outline)]">
+              {formatRelative(test.updatedAt ?? test.createdAt)}
+            </span>
           </div>
         </div>
       </td>

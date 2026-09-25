@@ -1,3 +1,5 @@
+import type { AssessmentQuestionKind } from "@/components/ux/QuestionAnswerPanel";
+
 export type MockExamOption = {
   id: string;
   label: string;
@@ -7,6 +9,7 @@ export type MockExamOption = {
 
 export type MockExamQuestion = {
   id: number;
+  kind: AssessmentQuestionKind;
   topic: string;
   points: number;
   stem: string;
@@ -14,7 +17,7 @@ export type MockExamQuestion = {
   code?: string;
   language?: string;
   options: MockExamOption[];
-  /** Pre-selected for UI demo (null = unanswered). */
+  /** Pre-selected for UI demo (null = unanswered). Single = "A"; multi = "A,C"; essay = text. */
   initialAnswer: string | null;
   initiallyBookmarked?: boolean;
 };
@@ -54,6 +57,7 @@ export const mockExamQuestions: MockExamQuestion[] = [
       const answered = true;
     return {
       id: n,
+      kind: "TRAC_NGHIEM_DON",
       topic: topics[i % topics.length],
       points: 5,
       stem: `Câu ${n}: Khái niệm / tình huống kỹ thuật Java Backend số ${n} trong bộ đề TechTrack v2.1?`,
@@ -71,6 +75,7 @@ export const mockExamQuestions: MockExamQuestion[] = [
   }),
   {
     id: 15,
+    kind: "TRAC_NGHIEM_DON",
     topic: "Java Core & Multithreading",
     points: 5,
     stem: "Trong môi trường đa luồng (Multithreading) của Java, từ khóa volatile khi áp dụng cho một biến (variable) có tác dụng kỹ thuật cốt lõi nào sau đây?",
@@ -118,11 +123,54 @@ export const mockExamQuestions: MockExamQuestion[] = [
     initialAnswer: "A",
     initiallyBookmarked: true,
   },
-  ...Array.from({ length: 5 }, (_, i) => {
-    const n = 16 + i;
-    const unanswered = n === 17 || n === 20;
+  {
+    id: 16,
+    kind: "NHIEU_DAP_AN",
+    topic: "Spring Framework & DI",
+    points: 5,
+    stem: "Những annotation nào sau đây thuộc nhóm Dependency Injection / bean wiring trong Spring (chọn tất cả đáp án đúng)?",
+    hint: "Có thể chọn nhiều hơn một phương án.",
+    options: simpleOptions(
+      "A",
+      "@Autowired — tiêm dependency theo type/name.",
+      "@Component — đánh dấu class là Spring-managed bean.",
+      "@Override — annotation Java thuần, không phải Spring DI.",
+      "@Transactional — quản lý transaction, không phải wiring bean.",
+    ),
+    initialAnswer: "A,B",
+    initiallyBookmarked: false,
+  },
+  {
+    id: 17,
+    kind: "TINH_HUONG_SYSTEM",
+    topic: "RESTful API & Exception Handling",
+    points: 10,
+    stem: "Mô tả cách bạn thiết kế error response thống nhất (problem+json hoặc envelope) cho REST API nội bộ khi xảy ra validation lỗi và lỗi nghiệp vụ.",
+    hint: "Viết ngắn gọn: cấu trúc JSON, HTTP status, và cách client phân biệt lỗi.",
+    options: [],
+    initialAnswer: null,
+    initiallyBookmarked: false,
+  },
+  {
+    id: 18,
+    kind: "TU_LUAN_CODE",
+    topic: "Collections Framework & DSA",
+    points: 10,
+    stem: "Viết phương thức Java đếm số lần xuất hiện của mỗi phần tử trong List<String> và trả về Map<String, Long>.",
+    hint: "Ưu tiên Stream API hoặc HashMap rõ ràng.",
+    language: "Java 17",
+    code: `List<String> words = List.of("a", "b", "a", "c", "b", "a");
+// TODO: return frequency map`,
+    options: [],
+    initialAnswer: null,
+    initiallyBookmarked: false,
+  },
+  ...Array.from({ length: 2 }, (_, i) => {
+    const n = 19 + i;
+    const unanswered = n === 20;
     return {
       id: n,
+      kind: "TRAC_NGHIEM_DON" as const,
       topic: topics[n % topics.length],
       points: 5,
       stem: `Câu ${n}: Tình huống Spring Boot / REST / concurrency số ${n}?`,

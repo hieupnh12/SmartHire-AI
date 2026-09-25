@@ -11,20 +11,46 @@ const schema = z.object({
   questionText: z.string().trim().min(1, "Nhập câu hỏi.").max(10000),
   points: z.number().int().min(1, "Tối thiểu 1 điểm.").max(10000),
   questionOrder: z.number().int().min(0).max(2147483647),
+  difficulty: z.enum(["Easy", "Medium", "Hard"]).nullable(),
+  skill: z.string().trim().max(255).nullable(),
+  explanation: z.string().trim().max(10000).nullable(),
   options: z.array(z.object({ optionText: z.string().trim().min(1, "Nhập lựa chọn.").max(5000), correct: z.boolean() }))
     .min(2).max(10).refine(options => options.filter(o => o.correct).length === 1, "Chọn đúng một đáp án đúng."),
 });
+
+function blankDefaults(order: number): QuestionRequest {
+  return {
+    questionText: "",
+    points: 1,
+    questionOrder: order,
+    difficulty: null,
+    skill: null,
+    explanation: null,
+    options: [{ optionText: "", correct: true }, { optionText: "", correct: false }],
+  };
+}
 
 export function QuestionForm({ question, order, busy, onSave, onCancel }: {
   question?: Question; order: number; busy: boolean; onSave: (data: QuestionRequest) => void; onCancel: () => void;
 }) {
   const { register, control, handleSubmit, setValue, watch, formState: { errors } } = useForm<QuestionRequest>({
-    resolver: zodResolver(schema), defaultValues: question ?? { questionText: "", points: 1, questionOrder: order,
-      options: [{ optionText: "", correct: true }, { optionText: "", correct: false }] },
+    resolver: zodResolver(schema),
+    defaultValues: question
+      ? {
+          ...question,
+          difficulty: question.difficulty ?? null,
+          skill: question.skill ?? null,
+          explanation: question.explanation ?? null,
+        }
+      : blankDefaults(order),
   });
   const { fields, append, remove } = useFieldArray({ control, name: "options" });
   const options = watch("options");
-  return <form onSubmit={handleSubmit(onSave)} noValidate className="border-y border-[var(--color-outline-variant)] py-5">
+  return <form onSubmit={handleSubmit((data) => onSave({
+    ...data,
+    skill: data.skill?.trim() ? data.skill.trim() : null,
+    explanation: data.explanation?.trim() ? data.explanation.trim() : null,
+  }))} noValidate className="border-y border-[var(--color-outline-variant)] py-5">
     <fieldset disabled={busy} className="space-y-4">
       <h3 className="text-lg font-semibold">{question ? "Sửa câu hỏi" : "Thêm câu hỏi"}</h3>
       <label className="block space-y-1 text-sm">Nội dung câu hỏi<textarea autoFocus rows={3} className={input} {...register("questionText")} /><FieldError message={errors.questionText?.message} /></label>
@@ -32,6 +58,19 @@ export function QuestionForm({ question, order, busy, onSave, onCancel }: {
         <label className="block text-sm">Điểm<input className={input} type="number" min={1} max={10000} {...register("points", { valueAsNumber: true })} /><FieldError message={errors.points?.message} /></label>
         <label className="block text-sm">Thứ tự (từ 0)<input className={input} type="number" min={0} {...register("questionOrder", { valueAsNumber: true })} /><FieldError message={errors.questionOrder?.message} /></label>
       </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <label className="block text-sm">Độ khó
+          <select className={input} {...register("difficulty", { setValueAs: (v) => (v === "" || v == null ? null : v) })}>
+            <option value="">Không chọn</option>
+            <option value="Easy">Easy</option>
+            <option value="Medium">Medium</option>
+            <option value="Hard">Hard</option>
+          </select>
+          <FieldError message={errors.difficulty?.message} />
+        </label>
+        <label className="block text-sm">Kỹ năng<input className={input} maxLength={255} {...register("skill")} /><FieldError message={errors.skill?.message} /></label>
+      </div>
+      <label className="block space-y-1 text-sm">Giải thích (staff)<textarea rows={2} className={input} {...register("explanation")} /><FieldError message={errors.explanation?.message} /></label>
       <fieldset className="space-y-3"><legend className="mb-2 text-sm font-medium">Các lựa chọn · chọn đáp án đúng</legend>
         {fields.map((field, index) => <div key={field.id} className="flex items-start gap-2">
           <input type="radio" className="mt-3 size-5 shrink-0 accent-[var(--color-primary)]" name="correct-option" aria-label={`Đáp án ${index + 1} đúng`} checked={options[index]?.correct ?? false}

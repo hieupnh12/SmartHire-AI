@@ -6,6 +6,7 @@ import { ArrowLeft, Check, Pencil, Plus, Send, Trash2 } from "lucide-react";
 import { assessmentApi } from "@/api/tenant/assessmentApi";
 import type { Question, QuestionRequest, TestRequest } from "@/api/types/assessment";
 import { queryKeys } from "@/lib/query-keys";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ux/Button";
 import { Tooltip } from "@/components/ux/Tooltip";
 import { AssessmentError, assessmentLink, assessmentMuted as muted, assessmentStatus } from "@/components/ux/assessmentUi";
@@ -64,9 +65,10 @@ export function AssessmentDetailPage() {
       {questions.isPending && !isNew && <p role="status">Đang tải câu hỏi…</p>}
       {editor && <QuestionForm key={editor === "new" ? "new" : editor.id} question={editor === "new" ? undefined : editor} order={Math.max(-1, ...(questions.data ?? []).map(q => q.questionOrder)) + 1} busy={busy} onSave={body => saveQuestion.mutate(body)} onCancel={() => setEditor(null)} />}
       {questions.data?.map((q, index) => <article key={q.id} className="space-y-3 border-t border-[var(--color-border-default)] py-4">
-        <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className={muted}>Câu {index + 1} · {q.points} điểm</p><h3 className="whitespace-pre-wrap break-words font-medium">{q.questionText}</h3></div>
+        <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className={muted}>Câu {index + 1} · {q.points} điểm{[q.difficulty, q.skill].filter(Boolean).length > 0 ? ` · ${[q.difficulty, q.skill].filter(Boolean).join(" · ")}` : ""}</p><h3 className="whitespace-pre-wrap break-words font-medium">{q.questionText}</h3></div>
           {draft && <div className="flex shrink-0"><Tooltip content="Sửa câu hỏi"><Button variant="ghost" disabled={busy || !!editor} aria-label={`Sửa câu ${index + 1}`} onClick={() => { saveQuestion.reset(); setEditor(q); }}><Pencil className="size-4" aria-hidden="true" /></Button></Tooltip><Tooltip content="Xóa câu hỏi"><Button variant="ghost" disabled={busy || !!editor} aria-label={`Xóa câu ${index + 1}`} onClick={() => { if (window.confirm("Xóa câu hỏi này?")) remove.mutate(q.id); }}><Trash2 className="size-4" aria-hidden="true" /></Button></Tooltip></div>}
         </div><ul className="space-y-2">{q.options.map(o => <li key={o.id} className={`flex items-start gap-2 break-words text-sm ${o.correct ? "font-medium text-[var(--color-primary)]" : ""}`}><span className="inline-flex size-5 shrink-0">{o.correct && <Check className="size-4" aria-label="Đáp án đúng" />}</span><span className="min-w-0 whitespace-pre-wrap break-words">{o.optionText}</span></li>)}</ul>
+        {q.explanation?.trim() ? <p className={cn(muted, "whitespace-pre-wrap break-words text-sm")}>Giải thích: {q.explanation}</p> : null}
       </article>)}
       </section>
     </div>}

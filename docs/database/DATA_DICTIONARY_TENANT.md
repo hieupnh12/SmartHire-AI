@@ -481,9 +481,11 @@ Entity `JobTest` (class Java tránh xung đột JUnit `Test`).
 | `duration_minutes` | INT | | Không | — | Thời lượng (phút) |
 | `passing_score` | DECIMAL(10,2) | | Có | NULL | Điểm đạt |
 | `status` | VARCHAR(32) | | Không | `'DRAFT'` | `TestStatus`: DRAFT, PUBLISHED, ARCHIVED |
+| `created_by` | BIGINT | FK → `users.id` | Có | NULL | Người tạo đề (staff); NULL với đề cũ trước V13 |
 | `created_at` | TIMESTAMP | | Không | now | |
+| `updated_at` | TIMESTAMP | | Có | NULL | Cập nhật lần cuối; backfill = `created_at` ở V13 |
 
-**Ràng buộc:** `fk_tests_job`
+**Ràng buộc:** `fk_tests_job`, `fk_tests_created_by`
 
 ### F.2 `questions` — Câu hỏi
 
@@ -494,9 +496,12 @@ Entity `Question`.
 | `id` | BIGINT | PK | Không | auto | |
 | `test_id` | BIGINT | FK → `tests.id` | Không | — | Đề thi |
 | `question_text` | TEXT | | Không | — | Nội dung câu hỏi |
-| `question_type` | VARCHAR(32) | | Không | — | Loại câu hỏi |
+| `question_type` | VARCHAR(32) | | Không | — | Loại câu hỏi (MCQ ở luồng ASSESS-01) |
 | `points` | INT | | Không | 1 | Điểm tối đa |
 | `question_order` | INT | | Không | 0 | Thứ tự |
+| `difficulty` | VARCHAR(16) | | Có | NULL | `Easy` / `Medium` / `Hard` — metadata biên soạn |
+| `skill` | VARCHAR(255) | | Có | NULL | Nhãn kỹ năng từ Excel/UI |
+| `explanation` | TEXT | | Có | NULL | Giải thích đáp án (chỉ staff; không trả candidate) |
 
 **Ràng buộc:** `fk_questions_test`
 

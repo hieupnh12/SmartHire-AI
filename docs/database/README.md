@@ -10,10 +10,11 @@
 | Số database logic | 2 loại (1 Master + N Tenant) |
 | Tổng số bảng hiện hành | **56** (8 master + 48 tenant), chưa tính 19 bảng lưu trữ `legacy_v12_*` và Flyway history |
 | Tổng số entity JPA | **56** (8 master + 48 tenant); bảng lưu trữ không có entity |
-| Tổng số khoá ngoại | **63** hiện hành (4 master + 59 tenant); thêm 9 FK của bảng lưu trữ |
+| Tổng số khoá ngoại | **64** hiện hành (4 master + 60 tenant); thêm 9 FK của bảng lưu trữ |
 | Ràng buộc UNIQUE | **25** hiện hành (6 master + 19 tenant), không tính PK; thêm 7 UNIQUE lưu trữ |
-| Số file migration đang chạy | **19** (8 master + 11 tenant); V9 redesign chỉ còn bản tham khảo ngoài pipeline |
-| Cập nhật lần cuối | Master `V8`, tenant `V12`; đối chiếu schema MySQL ngày 2026-09-24 |
+| Số file migration đang chạy | **20** (8 master + 12 tenant); V9 redesign chỉ còn bản tham khảo ngoài pipeline |
+| Cập nhật lần cuối | Master `V8`, tenant `V13`; đối chiếu schema MySQL ngày 2026-09-25 |
+| Metadata assessment 2026-09-25 | V13: `tests.created_by/updated_at`, `questions.difficulty/skill/explanation` cho Excel/UI authoring |
 | Sửa lỗi assessment 2026-09-24 | V10/V11 khớp checksum lịch sử; V12 tạo schema mới và giữ bảng cũ; migration lỗi phải chặn mở tenant pool |
 | Rà soát assessment 2026-09-21 | Bổ sung query/khóa hàng và nghiệp vụ MCQ; không đổi bảng, entity, FK, UNIQUE hay migration |
 
@@ -436,6 +437,7 @@ Pipeline chạy tuần tự qua RabbitMQ: `cv.parse` ghi `cv_documents` → `cv.
 ```mermaid
 erDiagram
     jobs ||--o{ tests : "đề thi của job"
+    users ||--o{ tests : "created_by"
     tests ||--o{ questions : "câu hỏi"
     questions ||--o{ options : "lựa chọn"
     tests ||--o{ coding_problems : "bài lập trình"
@@ -592,8 +594,8 @@ và chuyển đổi có chủ đích. Không phải nguồn dữ liệu của m�
 
 | Entity | Mục đích | Ghi chú quan trọng |
 |---|---|---|
-| `JobTest` | Đề thi gắn với một job (bảng `tests`) | `duration_minutes`, `passing_score`, `status` — tên class tránh xung đột JUnit `Test` |
-| `Question` | Câu hỏi trắc nghiệm hoặc tự luận | `question_text`, `question_type`, `points`, `question_order` |
+| `JobTest` | Đề thi gắn với một job (bảng `tests`) | `duration_minutes`, `passing_score`, `status`, `created_by`, `updated_at` — tên class tránh xung đột JUnit `Test` |
+| `Question` | Câu hỏi trắc nghiệm hoặc tự luận | `question_text`, `question_type`, `points`, `question_order`, `difficulty`, `skill`, `explanation` |
 | `Option` | Lựa chọn trả lời | `is_correct` — **không được trả cột này ra API cho thí sinh** |
 | `CodingProblem` | Bài lập trình | `time_limit_ms`, `memory_mb`, FK `test_id` |
 | `TestCase` | Bộ test của bài code | `is_sample`, `weight` |
@@ -717,6 +719,7 @@ và chuyển đổi có chủ đích. Không phải nguồn dữ liệu của m�
 | `ranking_sources` | `submission_id` | `submissions` | Có | 1:0..1 | `fk_rank_source_submission` |
 | `ranking_sources` | `ai_interview_id` | `ai_interviews` | Có | 1:0..1 | `fk_rank_source_ai_interview` |
 | `tests` | `job_id` | `jobs` | Không | N:1 | `fk_tests_job` |
+| `tests` | `created_by` | `users` | Có | N:0..1 | `fk_tests_created_by` |
 | `questions` | `test_id` | `tests` | Không | N:1 | `fk_questions_test` |
 | `options` | `question_id` | `questions` | Không | N:1 | `fk_options_question` |
 | `coding_problems` | `test_id` | `tests` | Không | N:1 | `fk_cp_test` |
@@ -913,7 +916,7 @@ Những quy tắc sau bắt buộc phải kiểm tra ở tầng service, vì kh�
 
 ### 9.2 Index do RDBMS tự sinh
 
-- **MySQL (tenant):** tự tạo index cho **mọi** khoá ngoại: 59 FK hiện hành và 9 FK archive sau V12.
+- **MySQL (tenant):** tự tạo index cho **mọi** khoá ngoại: 60 FK hiện hành và 9 FK archive sau V12.
 - **PostgreSQL (master):** **không** tự tạo index cho khoá ngoại. Bốn FK của master DB hiện chưa có index
   đi kèm. `invoices.tenant_id` và `tenant_subscriptions.tenant_id` là hai cột được lọc thường xuyên nhất và
   nên được bổ sung index khi lượng tenant tăng.
@@ -993,9 +996,10 @@ Hai pipeline dùng **hai phương ngữ SQL khác nhau** và không thể dùng 
 | V10 | `V10__role_permissions.sql` | Quyền theo role; phục hồi tên version khớp history/checksum ttqt, nội dung không đổi |
 | V11 | `V11__custom_roles.sql` | Role tùy chỉnh và mở rộng cột role; phục hồi tên version khớp history/checksum ttqt |
 | V12 | `V12__preserve_legacy_assessment_interview_schema.sql` | Lưu 19 bảng cũ bằng RENAME; tạo Test/Submission, Direct Interview, AI Interview, cập nhật Practice và nguồn ranking |
+| V13 | `V13__assessment_authoring_metadata.sql` | Metadata biên soạn đề: `tests.created_by/updated_at`, `questions.difficulty/skill/explanation` |
 
 V9 redesign cũ được giữ nguyên tại `db/migration-archive/`, **ngoài** location Flyway.
-Tenant tạo mới chạy V1–V8, V10–V12: 48 bảng hiện hành + 19 archive, chưa tính history.
+Tenant tạo mới chạy V1–V8, V10–V13: 48 bảng hiện hành + 19 archive, chưa tính history.
 Tenant từng có analytics có thể có thêm bảng ngoài con số này. Không giả mạo file V9 analytics
 hoặc dùng `repair` để che việc thiếu source. `validateOnMigrate(false)` hiện vẫn được giữ vì
 lịch sử này; cần khôi phục đúng source analytics trước khi bật validation đầy đủ.
@@ -1022,7 +1026,7 @@ sequenceDiagram
     PRV->>MY: CREATE USER + GRANT
     PRV->>PG: UPDATE tenants SET db_url, db_username, db_password (đã mã hoá)
     PRV->>FW: migrate() trên datasource của tenant mới
-    FW->>MY: Áp dụng V1–V8, V10–V12 (48 bảng + 19 archive)
+    FW->>MY: Áp dụng V1–V8, V10–V13 (48 bảng + 19 archive)
     PRV-->>API: Tenant sẵn sàng
 ```
 

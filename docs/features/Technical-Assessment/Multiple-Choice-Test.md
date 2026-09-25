@@ -28,6 +28,8 @@ Tạo/làm bài trắc nghiệm kỹ thuật gắn job/stage.
 - Tạo đề luôn ở trạng thái `DRAFT`; chỉ sửa/xóa câu hỏi và sửa thông tin đề trong bản nháp, không đổi job. Publish khóa nội dung và thời lượng. Job đã xóa không được dùng để tạo/sửa đề hoặc bắt đầu lượt mới.
 - `passingScore` tùy chọn, tính theo điểm thô; publish kiểm tra từ 0 đến tổng điểm. Không có ngưỡng thì response `passed` là null.
 - Tối đa 100 câu/đề, mỗi câu 1–10000 điểm, 2–10 options và đúng một option đúng. Option được quản lý cùng Question; PUT thay toàn bộ options và sinh ID mới. Không publish đề có coding ở luồng MCQ này.
+- Metadata biên soạn tùy chọn trên câu hỏi: `difficulty` (`Easy`/`Medium`/`Hard`), `skill`, `explanation`. Excel import bắt buộc difficulty+skill trước khi lưu; API chấp nhận null. `explanation` chỉ trả cho staff, không lộ cho candidate.
+- `tests.created_by` ghi user staff tạo đề; `updated_at` cập nhật khi sửa metadata đề. Danh sách recruiter hiển thị tên người tạo và thời điểm cập nhật.
 - Candidate chỉ đọc/lưu/nộp submission của mình; lấy candidate từ token, không từ request. Trả 404 khi tài nguyên không thuộc ứng viên; không lộ đáp án đúng, kể cả sau khi nộp.
 - Save là upsert từng questionId, không xóa câu ngoài payload; selectedOptionId null để bỏ chọn. Question phải thuộc đề, option phải thuộc question. Payload có questionId lặp bị từ chối; lỗi một câu rollback cả nhóm.
 - Khóa hàng submission và transaction READ_COMMITTED tuần tự hóa save/submit; nộp lại trả cùng kết quả. Bỏ trống/sai được 0 điểm, đúng được toàn bộ điểm câu. Không tin điểm từ client.
@@ -82,6 +84,9 @@ Staff POST `/assessments/{testId}/create_question` (PUT `/update_question/{quest
   "questionText": "Which keyword defines a Java class?",
   "points": 5,
   "questionOrder": 0,
+  "difficulty": "Easy",
+  "skill": "Java",
+  "explanation": "class declares a type.",
   "options": [
     { "optionText": "class", "correct": true },
     { "optionText": "def", "correct": false }
@@ -107,7 +112,7 @@ Kiểm chứng ngày 2026-09-24: 33 test assessment/multitenancy đạt, trong �
 
 ## Database liên quan
 
-- Theo schema V12: `tests`, `questions`, `options`, `submissions`, `answers`. Chống ghi trùng bằng khóa hàng trong service, không tuyên bố có UNIQUE mà SQL chưa định nghĩa.
+- Theo schema V12 + V13: `tests` (+ `created_by`, `updated_at`), `questions` (+ `difficulty`, `skill`, `explanation`), `options`, `submissions`, `answers`. Chống ghi trùng bằng khóa hàng trong service, không tuyên bố có UNIQUE mà SQL chưa định nghĩa.
 - Lỗi thiếu `tests` do migration trùng V5/V6 và V9 bị tái sử dụng cho redesign trong khi history tenant ghi analytics. V10/V11 được phục hồi tên đúng, V12 giữ bảng cũ trong `legacy_v12_*`; xem quy trình nâng cấp tại `docs/database/README.md` §10.7. Chỉ tạo entity/repository không tự tạo bảng tenant (`hbm2ddl=none`).
 
 ## UI mockup
@@ -115,7 +120,7 @@ Kiểm chứng ngày 2026-09-24: 33 test assessment/multitenancy đạt, trong �
 - Google Stitch: **FE-05 Online Technical Assessment / Multiple Choice Test** — _[dán link]_
 - Icons: xem `DESIGN.md`
 - Recruiter: `/recruiter/assessments`, `/new`, `/:id`; danh sách phân trang, thông tin đề, CRUD câu hỏi/options, chọn đáp án đúng, publish khóa sửa.
-- Ngân hàng câu hỏi: `/recruiter/assessments/question-bank` tổng hợp câu MCQ theo bộ sưu tập, vị trí và bộ lọc; mở đề gốc để sửa. Yêu thích lưu trên trình duyệt. Chưa có rubric, cấp độ hay lịch sử phiên bản riêng.
+- Ngân hàng câu hỏi: `/recruiter/assessments/question-bank` tổng hợp câu MCQ theo bộ sưu tập, vị trí và bộ lọc; mở đề gốc để sửa. Độ khó/kỹ năng/giải thích lưu trên `questions` (V13). Yêu thích lưu trên trình duyệt. Coding / nhiều đáp án / tự luận vẫn ngoài phạm vi ASSESS-01.
 - Candidate: `/candidate/assessments` chọn đơn hợp lệ; `/:submissionId/take` có câu hỏi, radio lựa chọn, điều hướng, tiến độ, tự lưu/retry, timer, xác nhận nộp và điểm tổng.
 - Query key assessment phân biệt tenant/user; Axios hiện có gắn token và tenant header. Server state dùng TanStack Query, form dùng React Hook Form + Zod.
 

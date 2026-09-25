@@ -3,7 +3,6 @@ import {
   ArrowLeft,
   ArrowRight,
   Brain,
-  Check,
   CheckCircle2,
   Cloud,
   HelpCircle,
@@ -15,6 +14,12 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ux/Button";
 import { assessmentMuted as muted } from "@/components/ux/assessmentUi";
+import {
+  hasAnswerValue,
+  isSubjectiveKind,
+  QuestionAnswerPanel,
+  QUESTION_KIND_LABEL,
+} from "@/components/ux/QuestionAnswerPanel";
 import {
   MOCK_EXAM_META,
   formatExamClock,
@@ -30,7 +35,7 @@ type Props = {
   lastSavedLabel: string;
   candidateName: string;
   candidateCode: string;
-  onSelect: (questionId: number, optionId: string) => void;
+  onAnswer: (questionId: number, value: string) => void;
   onClear: (questionId: number) => void;
   onToggleBookmark: (questionId: number) => void;
   onGo: (index: number) => void;
@@ -46,14 +51,14 @@ export function AssessmentExamRoomView({
   lastSavedLabel,
   candidateName,
   candidateCode,
-  onSelect,
+  onAnswer,
   onClear,
   onToggleBookmark,
   onGo,
   onSubmitClick,
 }: Props) {
   const question = questions[index];
-  const answeredCount = questions.filter((q) => answers[q.id] != null).length;
+  const answeredCount = questions.filter((q) => hasAnswerValue(answers[q.id])).length;
   const flaggedCount = questions.filter((q) => bookmarked.has(q.id)).length;
   const unansweredCount = questions.length - answeredCount;
   const pct = Math.round((answeredCount / questions.length) * 100);
@@ -161,7 +166,7 @@ export function AssessmentExamRoomView({
                   Câu {index + 1} / {questions.length}
                 </span>
                 <span className={`rounded-md bg-[var(--color-surface-container)] px-2 py-1 text-[11px] font-medium ${muted}`}>
-                  Trắc nghiệm 1 đáp án
+                  {QUESTION_KIND_LABEL[question.kind]}
                 </span>
                 <span className="rounded-md bg-[var(--color-surface-container)] px-2 py-1 text-[11px] font-semibold text-[var(--color-primary)]">
                   Thang điểm: {question.points} điểm
@@ -189,55 +194,35 @@ export function AssessmentExamRoomView({
               {question.hint && <p className={`text-sm ${muted}`}>{question.hint}</p>}
             </div>
 
-            <div className="mt-1 flex flex-col gap-3" role="radiogroup" aria-label="Danh sách phương án trả lời">
-              {question.options.map((option) => {
-                const active = selected === option.id;
-                return (
-                  <label
-                    key={option.id}
-                    className={`group relative flex cursor-pointer items-start gap-4 rounded-xl p-5 shadow-sm transition-all ${
-                      active
-                        ? "bg-[var(--color-surface-container-low)] hover:bg-[var(--color-surface-container)]"
-                        : "bg-[var(--color-surface-card)] hover:bg-[var(--color-surface-container-low)] ring-1 ring-[var(--color-outline-variant)]/30"
-                    }`}
-                  >
-                    <input
-                      className="sr-only"
-                      type="radio"
-                      name={`question-${question.id}`}
-                      checked={active}
-                      onChange={() => onSelect(question.id, option.id)}
-                    />
-                    <div
-                      className={`mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full shadow-sm ${
-                        active
-                          ? "bg-[var(--color-primary)] text-[var(--color-on-primary,#fff)]"
-                          : "bg-[var(--color-surface-container)] text-[var(--color-on-surface-variant)] group-hover:bg-[var(--color-primary-fixed,#d8e2ff)]"
-                      }`}
-                    >
-                      {active ? <Check className="size-4" aria-hidden="true" /> : <span className="text-[11px] font-bold">{option.label}</span>}
-                    </div>
-                    <div className="flex min-w-0 flex-col gap-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className={`text-sm font-bold ${active ? "text-[var(--color-primary)]" : "text-[var(--color-on-surface)]"}`}>
-                          {option.label}.
-                        </span>
-                        <span
-                          className={`text-[11px] font-semibold uppercase tracking-wide ${
-                            active ? "text-[var(--color-primary)]" : muted
-                          }`}
-                        >
-                          {option.subtitle}
-                        </span>
-                      </div>
-                      <p className={`text-base leading-relaxed ${active ? "font-medium text-[var(--color-on-surface)]" : "text-[var(--color-on-surface)]"}`}>
-                        {option.body}
-                      </p>
-                    </div>
-                  </label>
-                );
-              })}
-            </div>
+            <QuestionAnswerPanel
+              kind={question.kind}
+              questionKey={question.id}
+              mode="candidate"
+              value={selected}
+              onChange={(next) => onAnswer(question.id, next)}
+              codeSnippet={isSubjectiveKind(question.kind) ? question.code : undefined}
+              language={question.language}
+              options={question.options.map((option) => ({
+                id: option.id,
+                label: option.label,
+                body: option.body,
+                subtitle: option.subtitle,
+              }))}
+            />
+
+            {!isSubjectiveKind(question.kind) && question.code && (
+              <div className="flex flex-col gap-2 rounded-xl bg-[var(--color-inverse-surface,#213145)] p-5 text-[var(--color-inverse-on-surface,#eaf1ff)] shadow-md">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-mono text-xs font-semibold text-[var(--color-tertiary-fixed,#c9e6ff)]">
+                    Minh họa mã nguồn (Code Context Reference)
+                  </span>
+                  <span className={`font-mono text-[11px] text-[var(--color-outline-variant)]`}>{question.language ?? "Java"}</span>
+                </div>
+                <pre className="overflow-x-auto rounded-lg bg-white/5 p-4 font-mono text-[13px] leading-relaxed text-[var(--color-inverse-on-surface,#eaf1ff)]/90">
+                  <code>{question.code}</code>
+                </pre>
+              </div>
+            )}
 
             <div className="flex flex-wrap items-center justify-between gap-3 pt-4">
               <Button variant="secondary" disabled={index === 0} onClick={() => onGo(index - 1)}>
@@ -245,9 +230,9 @@ export function AssessmentExamRoomView({
                 Câu trước {index > 0 ? `(Câu ${index})` : ""}
               </Button>
               <div className="flex flex-wrap items-center gap-2">
-                <Button variant="ghost" disabled={selected == null} onClick={() => onClear(question.id)}>
+                <Button variant="ghost" disabled={!hasAnswerValue(selected)} onClick={() => onClear(question.id)}>
                   <RotateCcw className="size-[18px]" aria-hidden="true" />
-                  Xóa lựa chọn
+                  {isSubjectiveKind(question.kind) ? "Xóa câu trả lời" : "Xóa lựa chọn"}
                 </Button>
                 <Button disabled={index >= questions.length - 1} onClick={() => onGo(index + 1)}>
                   Câu tiếp theo {index < questions.length - 1 ? `(Câu ${index + 2})` : ""}
@@ -264,25 +249,11 @@ export function AssessmentExamRoomView({
             <div>
               <h4 className="text-sm font-semibold text-[var(--color-on-surface)]">Mẹo làm bài chuyên môn</h4>
               <p className={`text-sm ${muted}`}>
-                Lựa chọn của bạn sẽ được lưu tức thì lên hệ thống đám mây. Bạn có thể thay đổi đáp án hoặc quay lại bất kỳ lúc nào trước khi bấm{" "}
-                <strong>Nộp bài</strong>. Nếu gặp vấn đề kết nối, hệ thống sẽ lưu offline trên trình duyệt và tự động đồng bộ khi khôi phục mạng.
+                Lựa chọn / bài làm của bạn được lưu tức thì. Trắc nghiệm đơn chọn 1 đáp án; nhiều đáp án có thể chọn nhiều; tự luận ghi trực tiếp vào ô trả lời. Bạn có thể quay lại bất kỳ lúc nào trước khi bấm{" "}
+                <strong>Nộp bài</strong>.
               </p>
             </div>
           </div>
-
-          {question.code && (
-            <div className="flex flex-col gap-2 rounded-xl bg-[var(--color-inverse-surface,#213145)] p-5 text-[var(--color-inverse-on-surface,#eaf1ff)] shadow-md">
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-mono text-xs font-semibold text-[var(--color-tertiary-fixed,#c9e6ff)]">
-                  Minh họa mã nguồn (Code Context Reference)
-                </span>
-                <span className={`font-mono text-[11px] text-[var(--color-outline-variant)]`}>{question.language ?? "Java"}</span>
-              </div>
-              <pre className="overflow-x-auto rounded-lg bg-white/5 p-4 font-mono text-[13px] leading-relaxed text-[var(--color-inverse-on-surface,#eaf1ff)]/90">
-                <code>{question.code}</code>
-              </pre>
-            </div>
-          )}
         </div>
 
         <aside className="flex flex-col gap-5 lg:sticky lg:top-4 lg:col-span-4">
@@ -358,7 +329,7 @@ export function AssessmentExamRoomView({
               <span className={`text-[11px] font-semibold uppercase tracking-wider ${muted}`}>Ma trận câu hỏi</span>
               <nav aria-label="Danh sách câu hỏi" className="grid grid-cols-5 gap-2">
                 {questions.map((q, i) => {
-                  const answered = answers[q.id] != null;
+                  const answered = hasAnswerValue(answers[q.id]);
                   const flagged = bookmarked.has(q.id);
                   const current = i === index;
                   let className =

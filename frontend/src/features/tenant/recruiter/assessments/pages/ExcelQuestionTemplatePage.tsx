@@ -1,6 +1,6 @@
 import { ExcelImportReview } from "../components/ExcelImportReview";
 import { useRecruitmentJob } from "../../jobs/components/JobRecruitmentWorkspace";
-import { useEffect, useMemo, useState, type ClipboardEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ClipboardEvent, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import {
   AlertTriangle,
@@ -31,6 +31,12 @@ import {
   type QuestionKind,
   type ViewId,
 } from "../constants/excelTemplateMock";
+import {
+  clearExcelQuestionDraft,
+  hasExcelQuestionDraft,
+  loadExcelQuestionDraft,
+  saveExcelQuestionDraft,
+} from "../utils/excelQuestionDraft";
 
 const COL_LETTERS = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K"] as const;
 const MAX_QUESTIONS = 999;
@@ -72,27 +78,219 @@ function toneFromDifficulty(value: string): BankQuestion["difficultyTone"] {
 }
 
 function parseKind(raw: string, fallback: QuestionKind): QuestionKind {
-  const value = raw.trim().toUpperCase().replace(/\s+/g, "_");
-  if (!value) return fallback;
-  const direct = QUESTION_TYPE_OPTIONS.find((item) => item.value === value);
+  const trimmed = raw.trim();
+  if (!trimmed) return fallback;
+  const byLabel = QUESTION_TYPE_OPTIONS.find((item) => item.label.toUpperCase() === trimmed.toUpperCase());
+  if (byLabel) return byLabel.value;
+  const value = trimmed.toUpperCase().replace(/\s+/g, "_");
+  const ascii = value.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const direct = QUESTION_TYPE_OPTIONS.find((item) => item.value === value || item.value === ascii);
   if (direct) return direct.value;
-  if (value.includes("NHIEU") || value.includes("MULTI") || value === "NHIỀU" || value === "NHIEU") {
+  if (ascii.includes("NHIEU") || ascii.includes("MULTI") || value.includes("NHIỀU")) {
     return "NHIEU_DAP_AN";
   }
-  if (value.includes("SYSTEM") || value.includes("TINH_HUONG")) return "TINH_HUONG_SYSTEM";
-  if (value.includes("CODE") || value.includes("TU_LUAN")) return "TU_LUAN_CODE";
-  if (value.includes("DON") || value.includes("SINGLE") || value === "ĐƠN" || value === "DON") {
+  if (
+    ascii.includes("LY_THUYET") ||
+    ascii.includes("THEORY") ||
+    ascii.includes("TINH_HUONG") ||
+    ascii.includes("SYSTEM")
+  ) {
+    return "TINH_HUONG_SYSTEM";
+  }
+  if (ascii.includes("CODE") || ascii.includes("TU_LUAN_CODE")) return "TU_LUAN_CODE";
+  if (ascii.includes("TU_LUAN")) return "TU_LUAN_CODE";
+  if (ascii.includes("DON") || ascii.includes("SINGLE") || ascii.includes("TRAC_NGHIEM")) {
     return "TRAC_NGHIEM_DON";
   }
-  const byLabel = QUESTION_TYPE_OPTIONS.find((item) => item.label.toUpperCase() === raw.trim().toUpperCase());
-  return byLabel?.value ?? fallback;
+  return fallback;
 }
 
 function parseClipboardMatrix(text: string): string[][] {
   const normalized = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
   const lines = normalized.split("\n");
   while (lines.length > 0 && !lines[lines.length - 1].trim()) lines.pop();
-  return lines.map((line) => line.split("\t"));
+  return lines.map((line) => (line.includes("\t") ? line.split("\t") : [line]));
+}
+
+function parseClipboardHtmlTable(html: string): string[][] | null {
+  const trMatches = html.match(/<tr[\s\S]*?<\/tr>/gi);
+  if (!trMatches?.length) return null;
+  const rows: string[][] = [];
+  for (const tr of trMatches) {
+    const cells = [...tr.matchAll(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi)].map((match) =>
+      (match[1] ?? "")
+        .replace(/<br\s*\/?>/gi, " ")
+        .replace(/<[^>]+>/g, "")
+        .replace(/&nbsp;/gi, " ")
+        .replace(/&amp;/gi, "&")
+        .replace(/&lt;/gi, "<")
+        .replace(/&gt;/gi, ">")
+        .replace(/&quot;/gi, '"')
+        .replace(/\s+/g, " ")
+        .trim(),
+    );
+    if (cells.some((cell) => cell)) rows.push(cells);
+  }
+  return rows.length > 0 ? rows : null;
+}
+
+function isKnownTypeLabel(value: string): boolean {
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+  if (QUESTION_TYPE_OPTIONS.some((item) => item.label.toLowerCase() === trimmed.toLowerCase())) return true;
+  const ascii = trimmed
+    .toUpperCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, "_");
+  if (QUESTION_TYPE_OPTIONS.some((item) => item.value === ascii)) return true;
+  return /TRAC.?NGHIEM|NHIEU.?DAP|TU.?LUAN|LY.?THUYET|TINH.?HUONG|THEORY|^SINGLE$|^MULTI$|CODE|SYSTEM/i.test(ascii);
+}
+
+function isPasteHeaderRow(cells: string[]): boolean {
+  const first = (cells[0] ?? "").trim().toLowerCase();
+  const second = (cells[1] ?? "").trim().toLowerCase();
+  return first === "content" || first === "content *" || (first.startsWith("content") && second.includes("type"));
+}
+
+function isScoreLike(value: string): boolean {
+  return /^\d+(\.\d+)?$/.test(value.trim());
+}
+
+/** User/Excel wide row: content, type, score, difficulty, skill, option_a..d, answer, explanation */
+function isMetaFirstChoiceLayout(cells: string[]): boolean {
+  return cells.length >= 10 && isScoreLike(cells[2] ?? "");
+}
+
+function stripPasteHeader(matrix: string[][]): string[][] {
+  const rows = matrix.filter((row) => row.some((cell) => cell.trim()));
+  if (rows.length > 0 && isPasteHeaderRow(rows[0] ?? [])) return rows.slice(1);
+  return rows;
+}
+
+/**
+ * When a horizontal Excel row loses tabs, each cell becomes its own line.
+ * Detect that pattern and fold back into one row.
+ */
+function coercePasteMatrix(matrix: string[][]): string[][] {
+  const rows = stripPasteHeader(matrix);
+  if (rows.length < 3 || rows.length > 12) return rows;
+  if (!rows.every((row) => row.length <= 1)) return rows;
+
+  const values = rows.map((row) => (row[0] ?? "").trim());
+  const second = values[1] ?? "";
+  const third = values[2] ?? "";
+  const looksLikeOneQuestion =
+    isKnownTypeLabel(second) || (isScoreLike(third) && (values[0] ?? "").length >= 8);
+  return looksLikeOneQuestion ? [values] : rows;
+}
+
+function resolveClipboardMatrix(event: ClipboardEvent<HTMLElement>): string[][] {
+  const plain = event.clipboardData.getData("text/plain");
+  const html = event.clipboardData.getData("text/html");
+  let matrix = parseClipboardMatrix(plain || "");
+  const plainRows = stripPasteHeader(matrix);
+  const plainLooksVertical =
+    plainRows.length > 1 && plainRows.every((row) => row.length <= 1);
+
+  if (plainLooksVertical && html) {
+    const fromHtml = parseClipboardHtmlTable(html);
+    if (fromHtml && fromHtml.some((row) => row.length > 1)) {
+      matrix = fromHtml;
+    }
+  }
+
+  return coercePasteMatrix(matrix);
+}
+
+function looksLikeFullQuestionRow(cells: string[]): boolean {
+  if (cells.length < 5) return false;
+  if (isMetaFirstChoiceLayout(cells)) return true;
+  return isKnownTypeLabel(cells[1] ?? "");
+}
+
+/** One Excel row (tabs) or a column that was meant to be one horizontal option row. */
+function choiceSequenceFromMatrix(matrix: string[][]): string[] | null {
+  if (matrix.length === 0) return null;
+  if (matrix.length === 1 && (matrix[0]?.length ?? 0) > 1) {
+    return (matrix[0] ?? []).map((cell) => cell.trim());
+  }
+  if (matrix.length > 1 && matrix.every((row) => row.length <= 1)) {
+    return matrix.map((row) => (row[0] ?? "").trim());
+  }
+  return null;
+}
+
+function choiceDistributeFields(kind: QuestionKind): Array<"optionA" | "optionB" | "optionC" | "optionD" | "answer" | "explanation" | "policyNote"> {
+  return [
+    "optionA",
+    "optionB",
+    "optionC",
+    "optionD",
+    "answer",
+    kind === "NHIEU_DAP_AN" ? "policyNote" : "explanation",
+  ];
+}
+
+function applyChoiceCellsToRow(
+  row: BankQuestion,
+  cells: string[],
+  fallbackKind: QuestionKind,
+): BankQuestion {
+  const kind = parseKind(cells[1] ?? "", isChoiceKind(fallbackKind) ? fallbackKind : "TRAC_NGHIEM_DON");
+  const base = {
+    ...row,
+    ...blankQuestion(kind),
+    id: row.id,
+    kind,
+    content: cells[0] ?? row.content,
+    policy: kind === "NHIEU_DAP_AN" ? row.policy || "Partial Credit" : "",
+  };
+
+  if (isMetaFirstChoiceLayout(cells)) {
+    const explanation = cells[10] ?? "";
+    return {
+      ...base,
+      score: cells[2] || row.score || blankQuestion(kind).score,
+      difficulty: cells[3] ?? row.difficulty,
+      difficultyTone: toneFromDifficulty(cells[3] ?? row.difficulty),
+      skill: cells[4] ?? row.skill,
+      optionA: cells[5] ?? row.optionA,
+      optionB: cells[6] ?? row.optionB,
+      optionC: cells[7] ?? row.optionC,
+      optionD: cells[8] ?? row.optionD,
+      answer: cells[9] ?? row.answer,
+      explanation: kind === "TRAC_NGHIEM_DON" ? explanation || row.explanation : row.explanation,
+      policyNote: kind === "NHIEU_DAP_AN" ? explanation || row.policyNote : row.policyNote,
+    };
+  }
+
+  return {
+    ...base,
+    optionA: cells[2] ?? row.optionA,
+    optionB: cells[3] ?? row.optionB,
+    optionC: cells[4] ?? row.optionC,
+    optionD: cells[5] ?? row.optionD,
+    answer: cells[6] ?? row.answer,
+    score: cells[7] || row.score || "1.0",
+    difficulty: cells[8] ?? row.difficulty,
+    difficultyTone: toneFromDifficulty(cells[8] ?? row.difficulty),
+    skill: cells[9] ?? row.skill,
+    explanation: kind === "TRAC_NGHIEM_DON" ? cells[10] ?? row.explanation : row.explanation,
+    policyNote: kind === "NHIEU_DAP_AN" ? cells[10] ?? row.policyNote : row.policyNote,
+  };
+}
+
+const CHOICE_FORM_FIELDS = ["optionA", "optionB", "optionC", "optionD", "answer", "detail"] as const;
+type ChoiceFormField = (typeof CHOICE_FORM_FIELDS)[number];
+
+const MAX_UNDO = 40;
+
+function cloneQuestions(rows: BankQuestion[]): BankQuestion[] {
+  return rows.map((row) => ({
+    ...row,
+    rubric: row.rubric.map((item) => ({ ...item })),
+  }));
 }
 
 function makeBlankRows(count: number, startFrom: number, kind: QuestionKind): BankQuestion[] {
@@ -130,10 +328,13 @@ function detailPreview(row: BankQuestion) {
   if (isChoiceKind(row.kind)) {
     return row.answer ? `Đáp án: ${row.answer}` : "Chưa có đáp án";
   }
-  if (row.kind === "TU_LUAN_CODE") {
-    return row.snippet ? `Code: ${row.snippet.split("\n")[0]}…` : "Chưa có starter code";
+  if (row.sample.trim()) {
+    return `Đáp án mẫu: ${row.sample.trim().slice(0, 80)}${row.sample.trim().length > 80 ? "…" : ""}`;
   }
-  return row.snippet ? row.snippet.split("\n")[0] : "Chưa có yêu cầu";
+  if (row.kind === "TU_LUAN_CODE") {
+    return row.snippet ? `Khung code (tuỳ chọn): ${row.snippet.split("\n")[0]}…` : "Thiếu đáp án mẫu";
+  }
+  return row.snippet ? `Khung lý thuyết (tuỳ chọn)` : "Thiếu đáp án mẫu";
 }
 
 function Cell({ children, title, className }: { children: ReactNode; title?: string; className?: string }) {
@@ -244,6 +445,8 @@ export function ExcelQuestionTemplatePage() {
   const [view, setView] = useState<ViewId>("all");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("ALL");
   const [questions, setQuestions] = useState<BankQuestion[]>(() => {
+    const draft = loadExcelQuestionDraft(job.id);
+    if (draft?.length) return withAutoQuestionIds(draft);
     const row = blankQuestion("TRAC_NGHIEM_DON");
     row.id = questionIdForIndex(0);
     return [row];
@@ -251,9 +454,30 @@ export function ExcelQuestionTemplatePage() {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [activeEdit, setActiveEdit] = useState<ActiveEdit | null>({ rowIndex: 0, field: "content" });
   const [activeCell, setActiveCell] = useState("A2");
-  const [savedNote, setSavedNote] = useState("");
+  const [savedNote, setSavedNote] = useState(() =>
+    hasExcelQuestionDraft(job.id) ? "Đã khôi phục bản nháp đã lưu tạm." : "",
+  );
   const [rowDrag, setRowDrag] = useState<RowDragState | null>(null);
   const [capacityNote, setCapacityNote] = useState("");
+  const undoStackRef = useRef<BankQuestion[][]>([]);
+  const editSessionRef = useRef<string | null>(null);
+
+  function pushUndo(rows: BankQuestion[]) {
+    undoStackRef.current.push(cloneQuestions(rows));
+    if (undoStackRef.current.length > MAX_UNDO) undoStackRef.current.shift();
+  }
+
+  function undoQuestions() {
+    const previous = undoStackRef.current.pop();
+    if (!previous) {
+      setCapacityNote("Không còn thao tác để hoàn tác.");
+      return;
+    }
+    editSessionRef.current = null;
+    setQuestions(previous);
+    setSavedNote("");
+    setCapacityNote("Đã hoàn tác (Ctrl+Z).");
+  }
 
   const counts = useMemo(
     () => ({
@@ -326,6 +550,8 @@ export function ExcelQuestionTemplatePage() {
                 setCapacityNote(`Đã chọn ${Math.abs(prev.currentIndex - prev.anchorIndex) + 1} dòng.`);
                 return withAutoQuestionIds(rows);
               }
+              pushUndo(rows);
+              editSessionRef.current = null;
               const kind =
                 typeFilter === "NHIEU_DAP_AN"
                   ? "NHIEU_DAP_AN"
@@ -356,6 +582,17 @@ export function ExcelQuestionTemplatePage() {
     };
   }, [rowDrag, typeFilter]);
 
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      const isUndo = (event.ctrlKey || event.metaKey) && !event.shiftKey && event.key.toLowerCase() === "z";
+      if (!isUndo || undoStackRef.current.length === 0) return;
+      event.preventDefault();
+      undoQuestions();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
   const formula = useMemo(() => {
     if (!activeEdit || !questions[activeEdit.rowIndex]) return "";
     const row = questions[activeEdit.rowIndex];
@@ -365,6 +602,7 @@ export function ExcelQuestionTemplatePage() {
   }, [activeEdit, questions]);
 
   function selectCell(rowIndex: number, field: string, colLetter: string, displayRow: number) {
+    editSessionRef.current = null;
     setSelectedIndex(rowIndex);
     setActiveEdit({ rowIndex, field });
     setActiveCell(`${colLetter}${displayRow}`);
@@ -375,7 +613,15 @@ export function ExcelQuestionTemplatePage() {
   function patchQuestion(rowIndex: number, patch: Partial<BankQuestion>) {
     const { id: _ignoredId, ...safePatch } = patch;
     void _ignoredId;
-    setQuestions((rows) => withAutoQuestionIds(rows.map((row, index) => (index === rowIndex ? { ...row, ...safePatch } : row))));
+    const fields = Object.keys(safePatch);
+    const sessionKey = fields.length === 1 ? `${rowIndex}:${fields[0]}` : null;
+    setQuestions((rows) => {
+      if (!sessionKey || editSessionRef.current !== sessionKey) {
+        pushUndo(rows);
+        editSessionRef.current = sessionKey;
+      }
+      return withAutoQuestionIds(rows.map((row, index) => (index === rowIndex ? { ...row, ...safePatch } : row)));
+    });
     setSavedNote("");
   }
 
@@ -383,23 +629,6 @@ export function ExcelQuestionTemplatePage() {
     const fallbackKind = row.kind || defaultKindForFilter();
     if (cells.length === 1) {
       return { ...row, content: cells[0] ?? row.content };
-    }
-
-    if (mode === "ALL") {
-      const kind = parseKind(cells[1] ?? "", fallbackKind);
-      return {
-        ...row,
-        ...blankQuestion(kind),
-        id: row.id,
-        kind,
-        content: cells[0] ?? row.content,
-        score: cells[2] || row.score || blankQuestion(kind).score,
-        difficulty: cells[3] ?? row.difficulty,
-        difficultyTone: toneFromDifficulty(cells[3] ?? row.difficulty),
-        skill: cells[4] ?? row.skill,
-        explanation: isChoiceKind(kind) ? cells[5] ?? row.explanation : row.explanation,
-        snippet: isSubjectiveKind(kind) ? cells[5] ?? row.snippet : row.snippet,
-      };
     }
 
     if (mode === "SUBJECTIVE") {
@@ -426,48 +655,50 @@ export function ExcelQuestionTemplatePage() {
       };
     }
 
-    const kind = parseKind(
-      cells[1] ?? "",
-      mode === "NHIEU_DAP_AN" ? "NHIEU_DAP_AN" : isChoiceKind(fallbackKind) ? fallbackKind : "TRAC_NGHIEM_DON",
-    );
-    return {
-      ...row,
-      ...blankQuestion(kind),
-      id: row.id,
-      kind,
-      content: cells[0] ?? row.content,
-      optionA: cells[2] ?? row.optionA,
-      optionB: cells[3] ?? row.optionB,
-      optionC: cells[4] ?? row.optionC,
-      optionD: cells[5] ?? row.optionD,
-      answer: cells[6] ?? row.answer,
-      score: cells[7] || row.score || "1.0",
-      difficulty: cells[8] ?? row.difficulty,
-      difficultyTone: toneFromDifficulty(cells[8] ?? row.difficulty),
-      skill: cells[9] ?? row.skill,
-      explanation: kind === "TRAC_NGHIEM_DON" ? cells[10] ?? row.explanation : row.explanation,
-      policyNote: kind === "NHIEU_DAP_AN" ? cells[10] ?? row.policyNote : row.policyNote,
-      policy: kind === "NHIEU_DAP_AN" ? row.policy || "Partial Credit" : "",
-    };
+    // Wide Excel row: content | type | score | difficulty | skill | options | answer | giải thích
+    if (isMetaFirstChoiceLayout(cells)) {
+      return applyChoiceCellsToRow(row, cells, fallbackKind);
+    }
+
+    if (mode === "ALL") {
+      const kind = parseKind(cells[1] ?? "", fallbackKind);
+      if (isChoiceKind(kind) && cells.length >= 10) {
+        return applyChoiceCellsToRow(row, cells, kind);
+      }
+      return {
+        ...row,
+        ...blankQuestion(kind),
+        id: row.id,
+        kind,
+        content: cells[0] ?? row.content,
+        score: cells[2] || row.score || blankQuestion(kind).score,
+        difficulty: cells[3] ?? row.difficulty,
+        difficultyTone: toneFromDifficulty(cells[3] ?? row.difficulty),
+        skill: cells[4] ?? row.skill,
+        explanation: isChoiceKind(kind) ? cells[5] ?? row.explanation : row.explanation,
+        snippet: isSubjectiveKind(kind) ? cells[5] ?? row.snippet : row.snippet,
+      };
+    }
+
+    return applyChoiceCellsToRow(row, cells, fallbackKind);
   }
 
-  function handleTablePaste(event: ClipboardEvent<HTMLElement>) {
-    const text = event.clipboardData.getData("text/plain");
-    if (!text) return;
-    const matrix = parseClipboardMatrix(text);
-    const isMulti = matrix.length > 1 || (matrix[0]?.length ?? 0) > 1;
-    if (!isMulti) return;
+  function ingestClipboardMatrix(matrix: string[][]) {
+    const usable = stripPasteHeader(matrix);
+    if (usable.length === 0) return 0;
 
-    event.preventDefault();
     const start = selectedIndex >= 0 ? selectedIndex : questions.length;
-    const needed = start + matrix.length;
+    const needed = start + usable.length;
     const cappedNeeded = Math.min(needed, MAX_QUESTIONS);
-    const usable = matrix.slice(0, Math.max(0, cappedNeeded - start));
+    const rowsToApply = usable.slice(0, Math.max(0, cappedNeeded - start));
     const kind = defaultKindForFilter();
 
     setQuestions((rows) => {
-      const next = rows.length < cappedNeeded ? [...rows, ...makeBlankRows(cappedNeeded - rows.length, rows.length, kind)] : [...rows];
-      usable.forEach((cells, offset) => {
+      pushUndo(rows);
+      editSessionRef.current = null;
+      const next =
+        rows.length < cappedNeeded ? [...rows, ...makeBlankRows(cappedNeeded - rows.length, rows.length, kind)] : [...rows];
+      rowsToApply.forEach((cells, offset) => {
         const index = start + offset;
         if (index >= MAX_QUESTIONS) return;
         next[index] = applyRowFromCells(next[index] ?? blankQuestion(kind), cells, typeFilter);
@@ -475,16 +706,97 @@ export function ExcelQuestionTemplatePage() {
       return withAutoQuestionIds(next);
     });
 
-    setSelectedIndex(Math.min(start + usable.length - 1, MAX_QUESTIONS - 1));
+    setSelectedIndex(Math.min(start + rowsToApply.length - 1, MAX_QUESTIONS - 1));
     setActiveEdit({ rowIndex: start, field: "content" });
     setActiveCell(`A${start + 2}`);
     setCapacityNote(
       needed > MAX_QUESTIONS
-        ? `Đã dán ${usable.length} câu (cắt vì giới hạn ${MAX_QUESTIONS}).`
-        : `Đã dán ${usable.length} câu từ clipboard.`,
+        ? `Đã dán ${rowsToApply.length} câu (cắt vì giới hạn ${MAX_QUESTIONS}).`
+        : `Đã dán ${rowsToApply.length} câu từ clipboard.`,
     );
     setTypeFilter("ALL");
     setView("all");
+    return rowsToApply.length;
+  }
+
+  function applyChoiceSequenceToRow(
+    rowIndex: number,
+    startField: "optionA" | "optionB" | "optionC" | "optionD" | "answer" | "explanation" | "policyNote" | "detail",
+    values: string[],
+  ) {
+    const row = questions[rowIndex];
+    if (!row || !isChoiceKind(row.kind)) return;
+    const fields = choiceDistributeFields(row.kind);
+    const normalizedStart =
+      startField === "detail" ? (row.kind === "NHIEU_DAP_AN" ? "policyNote" : "explanation") : startField;
+    const startAt = fields.indexOf(normalizedStart);
+    if (startAt < 0) return;
+
+    const patch: Partial<BankQuestion> = {};
+    values.forEach((raw, offset) => {
+      const field = fields[startAt + offset];
+      if (!field) return;
+      const value = raw.trim();
+      if (field === "explanation") {
+        patch.explanation = value;
+        if (value) patch.warning = undefined;
+        return;
+      }
+      patch[field] = value;
+    });
+    patchQuestion(rowIndex, patch);
+  }
+
+  function handleChoiceFormPaste(startField: ChoiceFormField, event: ClipboardEvent<HTMLInputElement>) {
+    if (selectedIndex < 0 || !selectedQuestion || !isChoiceKind(selectedQuestion.kind)) return;
+    if (!event.clipboardData.getData("text/plain") && !event.clipboardData.getData("text/html")) return;
+
+    const matrix = resolveClipboardMatrix(event);
+    const fullRows = matrix.filter((row) => looksLikeFullQuestionRow(row));
+    if (fullRows.length > 0 || (matrix.length > 1 && matrix.some((row) => row.length >= 5))) {
+      event.preventDefault();
+      ingestClipboardMatrix(matrix);
+      return;
+    }
+
+    const values = choiceSequenceFromMatrix(matrix);
+    if (!values || values.length <= 1) return;
+
+    event.preventDefault();
+    applyChoiceSequenceToRow(selectedIndex, startField, values);
+  }
+
+  function handleTablePaste(event: ClipboardEvent<HTMLElement>) {
+    if (!event.clipboardData.getData("text/plain") && !event.clipboardData.getData("text/html")) return;
+    const matrix = resolveClipboardMatrix(event);
+    const isMulti = matrix.length > 1 || (matrix[0]?.length ?? 0) > 1;
+    if (!isMulti) return;
+
+    const optionStartFields = ["optionA", "optionB", "optionC", "optionD", "answer", "explanation", "policyNote"] as const;
+    const startField = activeEdit?.field;
+    const sequence = choiceSequenceFromMatrix(matrix);
+    const canDistributeOptions =
+      selectedIndex >= 0 &&
+      startField &&
+      optionStartFields.includes(startField as (typeof optionStartFields)[number]) &&
+      sequence &&
+      sequence.length > 1 &&
+      !looksLikeFullQuestionRow(sequence) &&
+      !matrix.some((row) => looksLikeFullQuestionRow(row));
+
+    if (canDistributeOptions && sequence && startField) {
+      event.preventDefault();
+      applyChoiceSequenceToRow(
+        selectedIndex,
+        startField as "optionA" | "optionB" | "optionC" | "optionD" | "answer" | "explanation" | "policyNote",
+        sequence,
+      );
+      setCapacityNote(`Đã dán ${sequence.length} ô option/đáp án theo hàng ngang.`);
+      return;
+    }
+
+    event.preventDefault();
+    ingestClipboardMatrix(matrix);
   }
 
   function applyEdit(value: string) {
@@ -547,7 +859,11 @@ export function ExcelQuestionTemplatePage() {
     }
     const next = blankQuestion(kind);
     next.id = questionIdForIndex(questions.length);
-    setQuestions((rows) => withAutoQuestionIds([...rows, next]));
+    setQuestions((rows) => {
+      pushUndo(rows);
+      editSessionRef.current = null;
+      return withAutoQuestionIds([...rows, next]);
+    });
     const index = questions.length;
     setSelectedIndex(index);
     setActiveEdit({ rowIndex: index, field: "content" });
@@ -566,11 +882,17 @@ export function ExcelQuestionTemplatePage() {
     setReviewingImport(true);
   }
 
+  function handleSaveDraft() {
+    saveExcelQuestionDraft(job.id, questions);
+    setSavedNote("Đã lưu tạm. Rời trang hoặc sang trang khác vẫn giữ nội dung đang soạn.");
+    setCapacityNote("");
+  }
+
   const filterTabs: { id: TypeFilter; label: string; count: number }[] = [
     { id: "ALL", label: "Tất cả câu hỏi", count: counts.all },
     { id: "TRAC_NGHIEM_DON", label: "Trắc nghiệm đơn", count: counts.single },
     { id: "NHIEU_DAP_AN", label: "Nhiều đáp án", count: counts.multi },
-    { id: "SUBJECTIVE", label: "Tự luận & Rubric", count: counts.subjective },
+    { id: "SUBJECTIVE", label: "Tự luận code & lý thuyết", count: counts.subjective },
   ];
 
   const showAllColumns = typeFilter === "ALL";
@@ -614,7 +936,7 @@ export function ExcelQuestionTemplatePage() {
             <ListChecks className="size-3.5 text-[var(--color-primary)]" aria-hidden="true" />
             Kiểm tra
           </Button>
-          <Button type="button" size="sm" onClick={() => setSavedNote("Đã lưu nội dung đang soạn trên bảng.")}>
+          <Button type="button" size="sm" onClick={handleSaveDraft}>
             <Save className="size-3.5" aria-hidden="true" />
             Lưu nội dung
           </Button>
@@ -727,7 +1049,7 @@ export function ExcelQuestionTemplatePage() {
                 className="h-7 min-w-0 flex-1 rounded border border-[var(--color-border-default)] bg-[var(--color-surface-card)] px-2 font-mono text-xs outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
                 value={formula}
                 onChange={(event) => applyEdit(event.target.value)}
-                onPaste={handleTablePaste}
+                onPasteCapture={handleTablePaste}
                 disabled={!activeEdit}
                 placeholder="Chọn một ô để sửa · Ctrl+V dán nhiều dòng từ Excel"
                 aria-label="Thanh sửa nội dung ô"
@@ -737,7 +1059,7 @@ export function ExcelQuestionTemplatePage() {
               </span>
             </div>
 
-            <div className="overflow-x-auto" onPaste={handleTablePaste}>
+            <div className="overflow-x-auto" onPasteCapture={handleTablePaste}>
               <table className="w-full min-w-[880px] table-fixed border-collapse text-[11px] leading-snug">
                 <thead className="bg-[var(--color-surface-container-low)]">
                   <tr className="h-5 font-mono text-[10px] uppercase text-[var(--color-on-surface-variant)]">
@@ -786,7 +1108,7 @@ export function ExcelQuestionTemplatePage() {
                       <>
                         <HeaderCell label="content / scenario *" highlight="primary" />
                         <HeaderCell label="type *" />
-                        <HeaderCell label="starter / yêu cầu" />
+                        <HeaderCell label="khung (tuỳ chọn)" />
                         <HeaderCell label="rubric 3 mức *" />
                         <HeaderCell label="max_score" highlight="answer" />
                         <HeaderCell label="time" />
@@ -1124,6 +1446,7 @@ export function ExcelQuestionTemplatePage() {
                             <input
                               value={selectedQuestion[field]}
                               onChange={(event) => patchQuestion(selectedIndex, { [field]: event.target.value })}
+                              onPasteCapture={(event) => handleChoiceFormPaste(field, event)}
                               className="w-full rounded border border-[var(--color-border-default)] bg-[var(--color-surface-container-low)] px-1.5 py-1 font-mono text-[11px] outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
                               placeholder={String.fromCharCode(65 + optionIndex)}
                               aria-label={`Phương án ${String.fromCharCode(65 + optionIndex)}`}
@@ -1134,6 +1457,7 @@ export function ExcelQuestionTemplatePage() {
                           <input
                             value={selectedQuestion.answer}
                             onChange={(event) => patchQuestion(selectedIndex, { answer: event.target.value })}
+                            onPasteCapture={(event) => handleChoiceFormPaste("answer", event)}
                             className="w-full rounded border border-[var(--color-border-default)] bg-white px-1.5 py-1 text-center font-mono text-[11px] outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
                             placeholder={selectedQuestion.kind === "NHIEU_DAP_AN" ? "A,C" : "A"}
                             aria-label="Đáp án đúng"
@@ -1154,6 +1478,7 @@ export function ExcelQuestionTemplatePage() {
                                   : { explanation: event.target.value, warning: undefined },
                               )
                             }
+                            onPasteCapture={(event) => handleChoiceFormPaste("detail", event)}
                             className="w-full rounded border border-[var(--color-border-default)] bg-[var(--color-surface-container-low)] px-1.5 py-1 text-[11px] outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
                             aria-label="Chi tiết chấm điểm"
                           />
@@ -1171,7 +1496,7 @@ export function ExcelQuestionTemplatePage() {
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="inline-flex items-center gap-1.5 rounded-md bg-[var(--color-primary)] px-2 py-1 text-[11px] font-semibold text-white">
                       <Code2 className="size-3.5" aria-hidden="true" />
-                      {selectedQuestion.kind === "TU_LUAN_CODE" ? "Form tự luận code" : "Form tình huống hệ thống"}
+                      {selectedQuestion.kind === "TU_LUAN_CODE" ? "Form tự luận code" : "Form tự luận lý thuyết"}
                     </span>
                   </div>
                   <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
@@ -1236,11 +1561,11 @@ export function ExcelQuestionTemplatePage() {
                     <div className="flex items-center justify-between gap-2">
                       <p className="text-[11px] font-semibold text-slate-300">
                         {selectedQuestion.kind === "TU_LUAN_CODE"
-                          ? "Starter code (ứng viên viết tiếp)"
-                          : "Yêu cầu / ràng buộc kỹ thuật"}
+                          ? "Starter code (tuỳ chọn — có thể để trống)"
+                          : "Khung lý thuyết (tuỳ chọn — có thể để trống)"}
                       </p>
                       <span className="rounded bg-slate-700 px-1.5 py-0.5 font-mono text-[10px] text-emerald-300">
-                        {selectedQuestion.language || "Code"}
+                        {selectedQuestion.language || (selectedQuestion.kind === "TU_LUAN_CODE" ? "Code" : "Theory")}
                       </span>
                     </div>
                     <textarea
@@ -1248,15 +1573,23 @@ export function ExcelQuestionTemplatePage() {
                       onChange={(event) => patchQuestion(selectedIndex, { snippet: event.target.value })}
                       rows={12}
                       spellCheck={false}
-                      className="min-h-48 flex-1 resize-y rounded-md border border-slate-700 bg-[#020617] px-3 py-2 font-mono text-[12px] leading-relaxed text-emerald-200 outline-none focus:ring-2 focus:ring-emerald-500/60"
+                      placeholder={
+                        selectedQuestion.kind === "TU_LUAN_CODE"
+                          ? "// Không bắt buộc — để trống nếu ứng viên tự viết từ đầu"
+                          : "Không bắt buộc — gợi ý khung trả lời cho ứng viên (có thể để trống)"
+                      }
+                      className="min-h-48 flex-1 resize-y rounded-md border border-slate-700 bg-[#020617] px-3 py-2 font-mono text-[12px] leading-relaxed text-emerald-200 outline-none placeholder:text-slate-500 focus:ring-2 focus:ring-emerald-500/60"
                     />
                     <label className="flex flex-col gap-1">
-                      <span className="text-[11px] font-semibold text-slate-300">Đáp án mẫu (ẩn với ứng viên)</span>
+                      <span className="text-[11px] font-semibold text-slate-300">
+                        Đáp án mẫu * (đáp án chính để so sánh — ẩn với ứng viên)
+                      </span>
                       <textarea
                         value={selectedQuestion.sample}
                         onChange={(event) => patchQuestion(selectedIndex, { sample: event.target.value })}
                         rows={3}
-                        className="resize-y rounded-md border border-slate-700 bg-[#020617] px-3 py-2 text-[11px] text-slate-200 outline-none focus:ring-2 focus:ring-emerald-500/60"
+                        placeholder="Bắt buộc — đáp án chuẩn do recruiter đưa ra để đối chiếu khi chấm"
+                        className="resize-y rounded-md border border-slate-700 bg-[#020617] px-3 py-2 text-[11px] text-slate-200 outline-none placeholder:text-slate-500 focus:ring-2 focus:ring-emerald-500/60"
                       />
                     </label>
                   </div>
@@ -1337,7 +1670,7 @@ export function ExcelQuestionTemplatePage() {
               <strong className="text-[var(--color-on-surface)]">
                 {view === "schema"
                   ? "Schema Data Dictionary"
-                  : capacityNote || "Ctrl+V dán nhiều dòng · kéo số dòng để thêm câu"}
+                  : capacityNote || "Ctrl+V dán · Ctrl+Z hoàn tác · kéo số dòng để thêm câu"}
               </strong>
             </span>
             <span>
@@ -1361,8 +1694,11 @@ export function ExcelQuestionTemplatePage() {
           </div>
           <ul className="space-y-1 text-[11px] text-[var(--color-on-surface-variant)]">
             <li>
-              <strong className="text-[var(--color-on-surface)]">Dán Excel:</strong> Ctrl+V nhiều dòng → tự thêm câu (≤
-              {MAX_QUESTIONS})
+              <strong className="text-[var(--color-on-surface)]">Dán Excel:</strong> chọn ô rồi Ctrl+V cả hàng ngang
+              (content → type → score → … → answer → giải thích), có thể kèm dòng header
+            </li>
+            <li>
+              <strong className="text-[var(--color-on-surface)]">Hoàn tác:</strong> Ctrl+Z để đảo ngược dán / sửa gần nhất
             </li>
             <li>
               <strong className="text-[var(--color-on-surface)]">Kéo chuột:</strong> giữ kéo cột số dòng xuống để thêm
