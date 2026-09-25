@@ -1,6 +1,6 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import {
   Archive,
   ArrowUpRight,
@@ -134,9 +134,11 @@ function MetricCard({
 }
 
 export function AssessmentsPage() {
+  const { id: routeJobId } = useParams<{ id?: string }>();
+  const scopedJobId = routeJobId && /^\d+$/.test(routeJobId) ? Number(routeJobId) : null;
   const [tab, setTab] = useState<StatusTab>("ALL");
   const [query, setQuery] = useState("");
-  const [jobFilter, setJobFilter] = useState<number | "">("");
+  const [jobFilter, setJobFilter] = useState<number | "">(scopedJobId ?? "");
   const [sort, setSort] = useState<SortKey>("latest");
   const [page, setPage] = useState(0);
   const [selected, setSelected] = useState<number[]>([]);

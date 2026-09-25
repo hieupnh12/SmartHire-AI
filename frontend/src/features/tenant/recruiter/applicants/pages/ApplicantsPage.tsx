@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import { applicantApi } from "@/api/tenant/applicantApi";
 import { cvApi } from "@/api/tenant/cvApi";
 import { jobApi } from "@/api/tenant/jobApi";
@@ -19,9 +19,10 @@ const statuses = ["NEW", "IN_REVIEW", "ASSESSMENT", "INTERVIEW", "OFFER", "HIRED
 
 export function ApplicantsPage() {
   const token = useAuthStore((s) => s.accessToken);
+  const { id: routeJobId } = useParams<{ id?: string }>();
   const [params, setParams] = useSearchParams();
   const jobIdRaw = params.get("jobId");
-  const jobId = jobIdRaw && /^\d+$/.test(jobIdRaw) ? Number(jobIdRaw) : null;
+  const jobId = routeJobId && /^\d+$/.test(routeJobId) ? Number(routeJobId) : jobIdRaw && /^\d+$/.test(jobIdRaw) ? Number(jobIdRaw) : null;
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("");
@@ -60,13 +61,13 @@ export function ApplicantsPage() {
       </header>
       <div className={panel}>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-          <label className="space-y-1 text-sm">
+          {!routeJobId && <label className="space-y-1 text-sm">
             <span>Job</span>
             <select className={input} value={jobId ?? ""} onChange={(e) => selectJob(e.target.value ? Number(e.target.value) : null)}>
               <option value="">Chọn job</option>
               {jobList.map((job) => <option key={job.id} value={job.id}>{job.title}</option>)}
             </select>
-          </label>
+          </label>}
           <label className="space-y-1 text-sm">
             <span>Tìm kiếm</span>
             <input className={input} value={q} onChange={(e) => { setQ(e.target.value); setPage(0); }} placeholder="Tên, email, tag, referral" />

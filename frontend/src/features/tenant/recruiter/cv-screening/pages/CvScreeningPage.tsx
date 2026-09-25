@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+import { useParams } from "react-router-dom";
 import { cvApi } from "@/api/tenant/cvApi";
 import { jobApi } from "@/api/tenant/jobApi";
 import { getApiErrorMessage } from "@/lib/axios";
@@ -17,7 +18,10 @@ const jobOptionsKey = ["screening-jobs"] as const;
 export function CvScreeningPage() {
   const token = useAuthStore((s) => s.accessToken);
   const client = useQueryClient();
-  const [jobId, setJobId] = useState<number | null>(null);
+  const { id: routeJobId } = useParams<{ id?: string }>();
+  const scopedJobId = routeJobId && /^\d+$/.test(routeJobId) ? Number(routeJobId) : null;
+  const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
+  const jobId = scopedJobId ?? selectedJobId;
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const jobs = useQuery({ queryKey: jobOptionsKey, queryFn: jobApi.options, enabled: !!token });
   const list = useQuery({
@@ -62,10 +66,10 @@ export function CvScreeningPage() {
           Hybrid screening: taxonomy + Jaccard + Gemini semantic. Bấm một CV để mở chi tiết. Khi job hết hạn đăng, hệ thống tự phân tích các CV chưa chấm.
         </p>
       </header>
-      <div className={panel}>
+      {!scopedJobId && <div className={panel}>
         <label className="block max-w-xl space-y-2">
           <span className="text-sm font-semibold">Vị trí tuyển dụng</span>
-          <select className={input} value={jobId ?? ""} onChange={(e) => { setJobId(e.target.value ? Number(e.target.value) : null); setSelectedId(null); }}>
+          <select className={input} value={jobId ?? ""} onChange={(e) => { setSelectedJobId(e.target.value ? Number(e.target.value) : null); setSelectedId(null); }}>
             <option value="">Chọn Job</option>
             {jobList.map((job) => <option key={job.id} value={job.id}>{job.title}</option>)}
           </select>
@@ -75,7 +79,7 @@ export function CvScreeningPage() {
         {jobs.isSuccess && jobList.length === 0 && (
           <p className={`mt-3 ${muted}`}>Chưa có job. Tạo tin tuyển ở trang Quản lý job; ứng viên apply rồi nộp CV mới hiện ở đây.</p>
         )}
-      </div>
+      </div>}
       {jobId && skills.data?.data && skills.data.data.length > 0 && (
         <div className={panel}>
           <p className="mb-2 text-sm font-semibold">Yêu cầu kỹ năng của job</p>

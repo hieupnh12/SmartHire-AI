@@ -55,6 +55,8 @@ export function JobDetailPage() {
               {job.status === "PUBLISHED" || job.status === "PAUSED" ? <button className={button} onClick={() => act.mutate("close")}>Close</button> : null}
               {job.status === "CLOSED" || job.status === "PAUSED" ? <button className={button} onClick={() => act.mutate("reopen")}>Reopen</button> : null}
               <button className={button} onClick={() => act.mutate("clone")}>Clone</button>
+              <Link className={primary} to={`/recruiter/jobs/${job.id}/rank`}>Xếp hạng ứng viên</Link>
+              <Link className={button} to={`/recruiter/jobs/${job.id}/cvs`}>Sàng lọc CV</Link>
             </div>
           </header>
           {act.isError && <p role="alert">{getApiErrorMessage(act.error)}</p>}

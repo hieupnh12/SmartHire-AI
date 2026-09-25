@@ -22,6 +22,7 @@ class RecruiterFeatureTest {
         assertEquals(RecruiterFeature.CV_SCREENING, RecruiterFeature.fromPath("/api/v1/cvs/1"));
         assertEquals(RecruiterFeature.DASHBOARD, RecruiterFeature.fromPath("/api/v1/dashboard/summary"));
         assertEquals(RecruiterFeature.ANALYTICS, RecruiterFeature.fromPath("/api/v1/dashboard/charts"));
+        assertEquals(RecruiterFeature.ANALYTICS, RecruiterFeature.fromPath("/api/v1/analytics/recruiter/workload"));
         assertEquals(RecruiterFeature.PIPELINE, RecruiterFeature.fromPath("/api/v1/workflow/stages"));
         assertNull(RecruiterFeature.fromPath("/api/v1/tenant/auth/me"));
     }

@@ -172,22 +172,32 @@ export function AppRouter() {
             <Route path="jobs/:id/edit" element={<JobFormPage />} />
           </Route>
           <Route element={<FeatureRoute feature="APPLICANTS" />}>
-            <Route path="applicants" element={<ApplicantsPage />} />
+            <Route path="jobs/:id/applicants" element={<ApplicantsPage />} />
+            <Route path="applicants" element={<Navigate to="/recruiter/jobs" replace />} />
           </Route>
           <Route element={<FeatureRoute feature="CV_SCREENING" />}>
-            <Route path="cvs" element={<CvScreeningPage />} />
+            <Route path="jobs/:id/cvs" element={<CvScreeningPage />} />
+            <Route path="cvs" element={<Navigate to="/recruiter/jobs" replace />} />
           </Route>
           <Route element={<FeatureRoute feature="RANKING" />}>
-            <Route path="rank" element={<RankingPage />} />
-            <Route path="matching" element={<Navigate to="/recruiter/rank" replace />} />
+            <Route path="jobs/:id/rank" element={<RankingPage />} />
+            <Route path="rank" element={<Navigate to="/recruiter/jobs" replace />} />
+            <Route path="matching" element={<Navigate to="/recruiter/jobs" replace />} />
           </Route>
           <Route element={<FeatureRoute feature="PIPELINE" />}>
-            <Route path="pipeline" element={<PipelinePage />} />
+            <Route path="jobs/:id/pipeline" element={<PipelinePage />} />
+            <Route path="pipeline" element={<Navigate to="/recruiter/jobs" replace />} />
           </Route>
           <Route element={<FeatureRoute feature="ANALYTICS" />}>
-            <Route path="analytics" element={<RecruiterAnalyticsPage />} />
+            <Route path="jobs/:id/analytics" element={<RecruiterAnalyticsPage />} />
+            <Route path="analytics" element={<Navigate to="/recruiter/jobs" replace />} />
           </Route>
           <Route element={<FeatureRoute feature="ASSESSMENTS" />}>
+            <Route path="jobs/:id/assessments" element={<RecruiterAssessmentsPage />} />
+            <Route path="jobs/:id/assessments/new" element={<AssessmentDetailPage />} />
+            <Route path="jobs/:id/assessments/:assessmentId" element={<AssessmentDetailPage />} />
+            <Route path="jobs/:id/assessments/question-bank" element={<QuestionBankPage />} />
+            <Route path="jobs/:id/assessments/excel-template" element={<ExcelQuestionTemplatePage />} />
             <Route path="assessments" element={<RecruiterAssessmentsPage />} />
             <Route path="assessments/new" element={<AssessmentDetailPage />} />
             <Route path="assessments/question-bank" element={<QuestionBankPage />} />
@@ -198,13 +208,16 @@ export function AppRouter() {
             <Route path="ai-interviews" element={<RecruiterAiInterviewsPage />} />
           </Route>
           <Route element={<FeatureRoute feature="INTERVIEWS" />}>
-            <Route path="interviews" element={<RecruiterInterviewsPage />} />
+            <Route path="jobs/:id/interviews" element={<RecruiterInterviewsPage />} />
+            <Route path="interviews" element={<Navigate to="/recruiter/jobs" replace />} />
           </Route>
           <Route element={<FeatureRoute feature="SCHEDULES" />}>
-            <Route path="schedules" element={<RecruiterSchedulesPage />} />
+            <Route path="jobs/:id/schedules" element={<RecruiterSchedulesPage />} />
+            <Route path="schedules" element={<Navigate to="/recruiter/jobs" replace />} />
           </Route>
           <Route element={<FeatureRoute feature="NOTIFICATIONS" />}>
-            <Route path="notifications" element={<RecruiterNotificationsPage />} />
+            <Route path="jobs/:id/notifications" element={<RecruiterNotificationsPage />} />
+            <Route path="notifications" element={<Navigate to="/recruiter/jobs" replace />} />
           </Route>
         </Route>
       </Route>

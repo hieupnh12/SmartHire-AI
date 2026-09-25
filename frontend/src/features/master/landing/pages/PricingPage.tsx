@@ -2,9 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   CheckCircle2,
-  Sparkles,
   ArrowRight,
-  ChevronRight,
   X
 } from "lucide-react";
 import { useLandingModal } from "../context/LandingModalContext";
