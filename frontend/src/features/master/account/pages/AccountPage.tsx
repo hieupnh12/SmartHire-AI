@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { masterAuthApi } from "@/api/master/masterAuthApi";
+import { useUiStore } from "@/stores/uiStore";
 
 interface AccountPageProps {
   activeTab: string;
@@ -9,6 +10,7 @@ interface AccountPageProps {
 
 export function AccountPage({ activeTab }: AccountPageProps) {
   const navigate = useNavigate();
+  const askConfirm = useUiStore((state) => state.askConfirm);
   const [reducedMotion, setReducedMotion] = useState(() => localStorage.getItem("master_reduced_motion") === "true");
   const [emailNotifications, setEmailNotifications] = useState(() => localStorage.getItem("master_email_notifications") === "true");
 
@@ -76,7 +78,7 @@ export function AccountPage({ activeTab }: AccountPageProps) {
             </div>
             <button
               type="button"
-              onClick={handleLogout}
+              onClick={() => askConfirm({ title: "Đăng xuất khỏi SmartHire?", description: "Phiên quản trị hiện tại sẽ kết thúc trên thiết bị này.", confirmLabel: "Đăng xuất", danger: true, onConfirm: handleLogout })}
               className="flex min-h-12 items-center gap-3 rounded-xl border border-rose-200 px-4 text-sm font-semibold text-rose-700 transition-colors hover:bg-rose-50"
             >
               <LogOut className="size-5" />

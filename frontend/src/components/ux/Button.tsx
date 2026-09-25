@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import type { ButtonHTMLAttributes } from "react";
+import { forwardRef, type ButtonHTMLAttributes } from "react";
 
 type Variant = "primary" | "secondary" | "ghost" | "danger" | "ai";
 type Size = "sm" | "md" | "lg";
@@ -26,16 +26,17 @@ type Props = ButtonHTMLAttributes<HTMLButtonElement> & {
 };
 
 /** Large tap targets, clear focus ring — UX / WCAG friendly. */
-export function Button({
+export const Button = forwardRef<HTMLButtonElement, Props>(function Button({
   className,
   variant = "primary",
   size = "md",
   type = "button",
   ...props
-}: Props) {
+}, ref) {
   return (
     <button
       type={type}
+      ref={ref}
       className={cn(
         "inline-flex items-center justify-center gap-2 rounded-[var(--radius-md)] font-medium transition-colors duration-[var(--motion-fast)]",
         "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-border-focus)]",
@@ -47,4 +48,4 @@ export function Button({
       {...props}
     />
   );
-}
+});

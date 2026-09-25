@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Check, Pencil, Plus, Send, Trash2 } from "lucide-react";
 import { assessmentApi } from "@/api/tenant/assessmentApi";
 import { jobApi } from "@/api/tenant/jobApi";
@@ -13,10 +13,17 @@ import { TestForm } from "../components/TestForm";
 import { QuestionForm } from "../components/QuestionForm";
 
 export function AssessmentDetailPage() {
-  const { id } = useParams();
-  const testId = Number(id);
-  const isNew = !id || id === "new";
+  const { id, assessmentId } = useParams();
+  const { pathname } = useLocation();
+  const jobScoped = /\/jobs\/[^/]+\/assessments(?:\/|$)/.test(pathname);
+  const jobId = jobScoped ? id : undefined;
+  const assessmentParam = jobScoped ? assessmentId : id;
+  const testId = Number(assessmentParam);
+  const isNew = !assessmentParam || assessmentParam === "new";
   const valid = Number.isSafeInteger(testId) && testId > 0;
+  const listPath = jobScoped
+    ? `/recruiter/jobs/${jobId}/assessments`
+    : "/recruiter/assessments";
   const navigate = useNavigate();
   const client = useQueryClient();
   const [dirty, setDirty] = useState(false);
@@ -28,7 +35,14 @@ export function AssessmentDetailPage() {
   const refresh = () => client.invalidateQueries({ queryKey: queryKeys.assessments.all() });
   const metadata = useMutation({ mutationFn: (body: TestRequest) => isNew ? assessmentApi.create(body) : assessmentApi.update(testId, body), onSuccess: async result => {
     client.setQueryData(queryKeys.assessments.detail(result.id), result); setNotice("Đã lưu thông tin đề."); await refresh();
-    if (isNew) navigate(`/recruiter/assessments/${result.id}`, { replace: true });
+    if (isNew) {
+      navigate(
+        jobScoped
+          ? `/recruiter/jobs/${jobId}/assessments/${result.id}`
+          : `/recruiter/assessments/${result.id}`,
+        { replace: true },
+      );
+    }
   } });
   const saveQuestion = useMutation({ mutationFn: (body: QuestionRequest) => editor && editor !== "new" ? assessmentApi.updateQuestion(testId, editor.id, body) : assessmentApi.createQuestion(testId, body), onSuccess: async () => { setEditor(null); setNotice("Đã lưu câu hỏi."); await refresh(); } });
   const remove = useMutation({ mutationFn: (questionId: number) => assessmentApi.deleteQuestion(testId, questionId), onSuccess: refresh });
@@ -38,7 +52,7 @@ export function AssessmentDetailPage() {
   const total = questions.data?.reduce((sum, q) => sum + q.points, 0) ?? 0;
   if (!isNew && !valid) return <p role="alert">Mã đề không hợp lệ.</p>;
   return <section className="space-y-6 text-[var(--color-on-surface)]">
-    <Link className={assessmentLink} to="/recruiter/assessments"><ArrowLeft className="size-4" aria-hidden="true" />Danh sách đề</Link>
+    <Link className={assessmentLink} to={listPath}><ArrowLeft className="size-4" aria-hidden="true" />Danh sách đề</Link>
     <header className="flex flex-wrap items-start justify-between gap-4"><div className="min-w-0"><p className={muted}>{isNew ? "Đề mới" : assessmentStatus[test.data?.status ?? "DRAFT"]}</p><h1 className="break-words text-2xl font-semibold">{isNew ? "Tạo đề kiểm tra" : test.data?.title ?? "Đề kiểm tra"}</h1></div>
       {!isNew && draft && <Button disabled={busy || dirty || !!editor || !questions.data?.length || questions.isError} onClick={() => { if (window.confirm("Xuất bản đề? Nội dung và thời lượng sẽ không thể sửa.")) publish.mutate(); }}><Send className="size-4" aria-hidden="true" />Xuất bản</Button>}
     </header>
@@ -48,7 +62,7 @@ export function AssessmentDetailPage() {
     {!isNew && test.isPending && <p role="status">Đang tải đề…</p>}
     {(isNew || test.data) && <div className="grid gap-8 xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
       <section className="min-w-0 space-y-4"><h2 className="text-lg font-semibold">Thông tin đề</h2>
-        {draft ? <TestForm key={test.data?.id ?? "new"} test={test.data} jobs={jobs.data?.data ?? []} busy={busy || jobs.isPending || jobs.isError}
+        {draft ? <TestForm key={test.data?.id ?? "new"} test={test.data} jobs={jobs.data?.data ?? []} lockedJobId={jobId ? Number(jobId) : undefined} busy={busy || jobs.isPending || jobs.isError}
           onDirty={setDirty} onSave={async body => { await metadata.mutateAsync(body); }} />
           : <dl className="space-y-3 text-sm"><div><dt className={muted}>Vị trí</dt><dd>{jobs.data?.data.find(j => j.id === test.data?.jobId)?.title ?? `Job #${test.data?.jobId}`}</dd></div><div><dt className={muted}>Thời lượng</dt><dd>{test.data?.durationMinutes} phút</dd></div><div><dt className={muted}>Điểm đạt</dt><dd>{test.data?.passingScore ?? "Không đặt"}</dd></div><div><dt className={muted}>Mô tả</dt><dd className="whitespace-pre-wrap break-words">{test.data?.description || "Không có"}</dd></div></dl>}
       </section>

@@ -29,6 +29,7 @@ import { LanguageSwitcher } from "@/components/ux/LanguageSwitcher";
 import { DashboardTab, SidebarGroupId, SidebarItem } from "./types";
 import { useMasterDashboard } from "./MasterAdminContext";
 import { masterAuthApi } from "@/api/master/masterAuthApi";
+import { useUiStore } from "@/stores/uiStore";
 
 interface MasterSidebarProps {
   activeTab: DashboardTab;
@@ -61,6 +62,7 @@ export function MasterAdminSidebar({
 }: MasterSidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
+  const askConfirm = useUiStore((state) => state.askConfirm);
   const { tenants, plans, logs, leads, invoices, contracts } = useMasterDashboard();
 
   const handleLogout = async () => {
@@ -690,7 +692,7 @@ export function MasterAdminSidebar({
               <button
                 type="button"
                 role="menuitem"
-                onClick={handleLogout}
+                onClick={() => askConfirm({ title: "Đăng xuất khỏi SmartHire?", description: "Phiên quản trị hiện tại sẽ kết thúc trên thiết bị này.", confirmLabel: "Đăng xuất", danger: true, onConfirm: handleLogout })}
                 className="flex min-h-12 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-rose-50 hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
               >
                 <LogOut className="size-5" />

@@ -4,6 +4,7 @@ import { jobApi } from "@/api/tenant/jobApi";
 import { getApiErrorMessage } from "@/lib/axios";
 import { queryKeys } from "@/lib/query-keys";
 import { button, muted, panel, primary } from "@/features/tenant/recruiter/matching/components/rankingUi";
+import { PageSkeleton } from "@/components/ux/Skeleton";
 
 export function JobDetailPage() {
   const { id } = useParams();
@@ -36,7 +37,7 @@ export function JobDetailPage() {
   return (
     <section className="space-y-6 text-[var(--color-on-surface)]">
       {detail.isError && <p role="alert">{getApiErrorMessage(detail.error)}</p>}
-      {!job && detail.isPending && <p>Đang tải…</p>}
+      {!job && detail.isPending && <PageSkeleton variant="detail" />}
       {job && (
         <>
           <header className="flex flex-wrap items-start justify-between gap-4">
@@ -53,7 +54,8 @@ export function JobDetailPage() {
               {job.status === "PUBLISHED" || job.status === "PAUSED" ? <button className={button} onClick={() => act.mutate("close")}>Close</button> : null}
               {job.status === "CLOSED" || job.status === "PAUSED" ? <button className={primary} onClick={() => act.mutate("reopen")}>Reopen</button> : null}
               <button className={button} onClick={() => act.mutate("clone")}>Clone</button>
-              <Link className={button} to="/recruiter/cvs">Sàng lọc CV</Link>
+              <Link className={primary} to={`/recruiter/jobs/${job.id}/rank`}>Xếp hạng ứng viên</Link>
+              <Link className={button} to={`/recruiter/jobs/${job.id}/cvs`}>Sàng lọc CV</Link>
             </div>
           </header>
           {act.isError && <p role="alert">{getApiErrorMessage(act.error)}</p>}

@@ -1,6 +1,6 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import {
   Archive,
   ArrowUpRight,
@@ -134,9 +134,12 @@ function MetricCard({
 }
 
 export function AssessmentsPage() {
+  const { id: scopedJobId } = useParams<{ id?: string }>();
+  const scopedJob = Number(scopedJobId);
+  const hasScopedJob = Number.isSafeInteger(scopedJob) && scopedJob > 0;
   const [tab, setTab] = useState<StatusTab>("ALL");
   const [query, setQuery] = useState("");
-  const [jobFilter, setJobFilter] = useState<number | "">("");
+  const [jobFilter, setJobFilter] = useState<number | "">(hasScopedJob ? scopedJob : "");
   const [sort, setSort] = useState<SortKey>("latest");
   const [page, setPage] = useState(0);
   const [selected, setSelected] = useState<number[]>([]);
@@ -244,13 +247,13 @@ export function AssessmentsPage() {
         </div>
         <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
           <Link
-            to="question-bank"
+            to="/recruiter/assessments/question-bank"
             className="inline-flex min-h-10 items-center justify-center rounded-full border border-[var(--color-primary)] bg-[var(--color-primary-subtle)] px-4 text-sm font-semibold text-[var(--color-primary-hover)] transition-colors hover:bg-[var(--color-primary-soft)]"
           >
             Ngân hàng câu hỏi
           </Link>
           <Link
-            to="excel-template"
+            to={hasScopedJob ? "new" : "/recruiter/assessments/excel-template"}
             className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-[var(--radius-md)] bg-[var(--color-primary)] px-4 text-sm font-semibold text-[var(--color-on-primary)] shadow-sm transition-colors hover:bg-[var(--color-primary-hover)]"
           >
             <Plus className="size-4" aria-hidden="true" />
@@ -347,7 +350,7 @@ export function AssessmentsPage() {
           </div>
         </div>
         <Link
-          to="excel-template"
+          to="/recruiter/assessments/excel-template"
           className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg bg-[var(--color-primary)] px-4 text-sm font-semibold text-[var(--color-on-primary)] shadow-sm hover:bg-[var(--color-primary-hover)]"
         >
           <Plus className="size-4" aria-hidden="true" />
@@ -462,7 +465,7 @@ export function AssessmentsPage() {
             </div>
             {tests.data.items.length === 0 && (
               <Link
-                to="excel-template"
+                to="/recruiter/assessments/excel-template"
                 className="inline-flex min-h-11 items-center gap-2 rounded-[var(--radius-md)] bg-[var(--color-primary)] px-4 text-sm font-semibold text-[var(--color-on-primary)] hover:bg-[var(--color-primary-hover)]"
               >
                 <Plus className="size-4" aria-hidden="true" />
@@ -645,7 +648,7 @@ export function AssessmentsPage() {
             </div>
           </div>
           <Link
-            to="excel-template"
+            to="/recruiter/assessments/excel-template"
             className="mt-4 inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg bg-[var(--color-primary)] px-4 text-sm font-semibold text-[var(--color-on-primary)] shadow-sm hover:bg-[var(--color-primary-hover)]"
           >
             <Plus className="size-4" aria-hidden="true" />

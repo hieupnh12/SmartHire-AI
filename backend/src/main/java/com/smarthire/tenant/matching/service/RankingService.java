@@ -207,6 +207,7 @@ public class RankingService {
                 OverallScore overall = new OverallScore();
                 overall.setApplication(byId.get(row.applicationId())); overall.setOverall(row.result().score());
                 overall.setBreakdownJson(encode(row)); overall.setRankingVersion(version); data.save(overall);
+                data.saveQualitySnapshot(row.applicationId(), row.result().score(), version, encode(row));
                 if (row.rank() != null) {
                     CandidateRanking rank = new CandidateRanking(); rank.setJob(job); rank.setApplication(byId.get(row.applicationId()));
                     rank.setRankPosition(row.rank()); rank.setScore(row.result().score()); rank.setRankingVersion(version); data.save(rank);

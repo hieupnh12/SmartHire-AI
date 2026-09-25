@@ -40,7 +40,11 @@ Recruiter quản lý vòng đời tin tuyển dụng: tạo nháp, sửa, clone,
 
 ## UI mockup
 
+- Job feed tại `/recruiter` hiển thị phòng ban và chế độ lọc CV. `AUTO` mô tả thời điểm xử lý sau hạn tuyển; `MANUAL` yêu cầu recruiter cho phép lọc và xác nhận trước khi chuyển giai đoạn. API/schema hiện cần bổ sung `screeningMode` để lưu cấu hình; job cũ được hiển thị theo chế độ thủ công.
+
 - Recruiter: `/recruiter/jobs`, `/recruiter/jobs/new`, `/recruiter/jobs/:id`
+- Khi mở chi tiết từ bảng tin tuyển dụng, thanh điều hướng giữ `Việc làm` là mục chính; không hiển thị `Bảng điều khiển` trong thanh điều hướng của trang chức năng.
+- Trang chi tiết job có nút menu ở đầu header để mở panel điều hướng gồm liên kết chung và các job được tạo gần đây.
 
 ## Phụ thuộc
 
