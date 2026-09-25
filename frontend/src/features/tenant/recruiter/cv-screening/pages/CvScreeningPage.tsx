@@ -1,26 +1,33 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { cvApi } from "@/api/tenant/cvApi";
 import { jobApi } from "@/api/tenant/jobApi";
 import { getApiErrorMessage } from "@/lib/axios";
 import { queryKeys } from "@/lib/query-keys";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
-import { button, muted, panel } from "@/features/tenant/recruiter/matching/components/rankingUi";
+import { button, input, muted, panel } from "@/features/tenant/recruiter/matching/components/rankingUi";
+import { DetailDialog } from "@/components/ux/DetailDialog";
+import { CvFilePreview } from "@/components/shared/CvFilePreview";
+import { ScreeningBreakdown } from "@/features/tenant/recruiter/cv-screening/components/ScreeningBreakdown";
 import type { CvDetail, MatchBreakdown } from "@/api/types/cv";
 
 const chip = "rounded-full px-2.5 py-0.5 text-xs font-medium";
+const jobOptionsKey = ["screening-jobs"] as const;
+
 export function CvScreeningPage() {
   const token = useAuthStore((s) => s.accessToken);
   const client = useQueryClient();
-  const { id } = useParams<{ id: string }>();
-  const jobId = Number(id);
-  const validJobId = Number.isInteger(jobId) && jobId > 0;
+  const { id: routeJobId } = useParams<{ id?: string }>();
+  const scopedJobId = routeJobId && /^\d+$/.test(routeJobId) ? Number(routeJobId) : null;
+  const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
+  const jobId = scopedJobId ?? selectedJobId;
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const jobs = useQuery({ queryKey: jobOptionsKey, queryFn: jobApi.options, enabled: !!token });
   const list = useQuery({
-    queryKey: queryKeys.cvs.byJob(validJobId ? jobId : 0),
-    queryFn: () => cvApi.listByJob(jobId),
-    enabled: validJobId && !!token,
+    queryKey: queryKeys.cvs.byJob(jobId ?? 0),
+    queryFn: () => cvApi.listByJob(jobId!),
+    enabled: jobId !== null && !!token,
     refetchInterval: 5_000,
   });
   const detail = useQuery({
@@ -29,7 +36,7 @@ export function CvScreeningPage() {
     enabled: selectedId !== null,
     refetchInterval: 4_000,
   });
-  const skills = useQuery({ queryKey: ["job-skills", jobId], queryFn: () => jobApi.skills(jobId), enabled: validJobId });
+  const skills = useQuery({ queryKey: ["job-skills", jobId], queryFn: () => jobApi.skills(jobId!), enabled: jobId !== null });
   const retryParse = useMutation({
     mutationFn: (cvId: number) => cvApi.parse(cvId),
     onSuccess: (response, cvId) => {
@@ -49,16 +56,31 @@ export function CvScreeningPage() {
   const rows = list.data?.data ?? [];
   const cv = detail.data?.data;
   const breakdown = cv?.match?.breakdown;
+  const jobList = jobs.data?.data ?? [];
   return (
     <section className="space-y-6 text-[var(--color-on-surface)]">
       <header>
         <p className={muted}>Tuyển dụng / Sàng lọc CV</p>
         <h1 className="mt-1 text-3xl font-semibold tracking-tight">CV Screening</h1>
         <p className={`mt-2 max-w-2xl ${muted}`}>
-          Chỉ CV ứng viên nộp khi apply mới xuất hiện. Điểm ≥ 60 và không thiếu skill bắt buộc → đạt chuẩn CV, chuyển phỏng vấn AI. Điểm Matching tổng (assessment + interview) ở trang Matching khi đủ vòng.
+          Hybrid screening: taxonomy + Jaccard + Gemini semantic. Bấm một CV để mở chi tiết. Khi job hết hạn đăng, hệ thống tự phân tích các CV chưa chấm.
         </p>
       </header>
-      {validJobId && skills.data?.data && skills.data.data.length > 0 && (
+      {!scopedJobId && <div className={panel}>
+        <label className="block max-w-xl space-y-2">
+          <span className="text-sm font-semibold">Vị trí tuyển dụng</span>
+          <select className={input} value={jobId ?? ""} onChange={(e) => { setSelectedJobId(e.target.value ? Number(e.target.value) : null); setSelectedId(null); }}>
+            <option value="">Chọn Job</option>
+            {jobList.map((job) => <option key={job.id} value={job.id}>{job.title}</option>)}
+          </select>
+        </label>
+        {jobs.isPending && token && <p className={`mt-3 ${muted}`}>Đang tải danh sách job…</p>}
+        {jobs.isError && <p role="alert" className="mt-3">{getApiErrorMessage(jobs.error)}</p>}
+        {jobs.isSuccess && jobList.length === 0 && (
+          <p className={`mt-3 ${muted}`}>Chưa có job. Tạo tin tuyển ở trang Quản lý job; ứng viên apply rồi nộp CV mới hiện ở đây.</p>
+        )}
+      </div>}
+      {jobId && skills.data?.data && skills.data.data.length > 0 && (
         <div className={panel}>
           <p className="mb-2 text-sm font-semibold">Yêu cầu kỹ năng của job</p>
           <div className="flex flex-wrap gap-2">
@@ -70,48 +92,52 @@ export function CvScreeningPage() {
           </div>
         </div>
       )}
-      {validJobId && (
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,32rem)]">
-          <div className={`${panel} overflow-x-auto`}>
-            {list.isPending && <p>Đang tải CV…</p>}
-            {list.isError && <p role="alert">{getApiErrorMessage(list.error)}</p>}
-            {rows.length === 0 && list.isSuccess && (
-              <p className={muted}>Chưa có CV cho job này. Recruiter không tải CV hộ — chỉ CV ứng viên apply mới hiện.</p>
-            )}
-            {rows.length > 0 && (
-              <table className="w-full text-left text-sm">
-                <thead><tr className={muted}><th className="py-2">Ứng viên</th><th>File</th><th>Trạng thái</th><th>Điểm sàng lọc</th></tr></thead>
-                <tbody>
-                  {rows.map((row) => (
-                    <tr key={row.id} className={`cursor-pointer border-t border-[var(--color-border-default)] ${selectedId === row.id ? "bg-[var(--color-surface-container-low)]" : ""}`}
-                      onClick={() => setSelectedId(row.id)}>
-                      <td className="py-2 font-medium">{row.candidateName}</td>
-                      <td>{row.originalFilename}</td>
-                      <td>{row.status}</td>
-                      <td className="font-mono">{row.matchScore ?? "—"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-          <aside className={panel}>
-            {!cv && <p className={muted}>Chọn một CV để xem file và đánh giá theo JD.</p>}
-            {cv && <CvDetailPanel
-              cv={cv}
-              breakdown={breakdown}
-              onRetry={() => retryParse.mutate(cv.id)}
-              retryPending={retryParse.isPending}
-              onDelete={() => {
-                if (window.confirm("Xóa CV này khỏi job? Không thể hoàn tác.")) remove.mutate(cv.id);
-              }}
-              deletePending={remove.isPending}
-            />}
-            {retryParse.isError && <p role="alert" className="mt-3">{getApiErrorMessage(retryParse.error)}</p>}
-            {remove.isError && <p role="alert" className="mt-3">{getApiErrorMessage(remove.error)}</p>}
-          </aside>
+      {jobId && (
+        <div className={`${panel} overflow-x-auto`}>
+          {list.isPending && <p>Đang tải CV…</p>}
+          {list.isError && <p role="alert">{getApiErrorMessage(list.error)}</p>}
+          {rows.length === 0 && list.isSuccess && (
+            <p className={muted}>Chưa có CV cho job này. Recruiter không tải CV hộ — chỉ CV ứng viên apply mới hiện.</p>
+          )}
+          {rows.length > 0 && (
+            <table className="w-full text-left text-sm">
+              <thead><tr className={muted}><th className="py-2">Ứng viên</th><th>File</th><th>Trạng thái</th><th>Điểm sàng lọc</th></tr></thead>
+              <tbody>
+                {rows.map((row) => (
+                  <tr key={row.id} className={`cursor-pointer border-t border-[var(--color-border-default)] ${selectedId === row.id ? "bg-[var(--color-surface-container-low)]" : ""}`}
+                    onClick={() => setSelectedId(row.id)}>
+                    <td className="py-2 font-medium">{row.candidateName}</td>
+                    <td>{row.originalFilename}</td>
+                    <td>{row.status}</td>
+                    <td className="font-mono">{row.matchScore ?? "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       )}
+      <DetailDialog
+        open={selectedId != null}
+        title={cv?.candidateName ?? "Chi tiết CV"}
+        onClose={() => setSelectedId(null)}
+      >
+        {detail.isPending && selectedId != null && <p>Đang tải…</p>}
+        {cv && (
+          <CvDetailPanel
+            cv={cv}
+            breakdown={breakdown}
+            onRetry={() => retryParse.mutate(cv.id)}
+            retryPending={retryParse.isPending}
+            onDelete={() => {
+              if (window.confirm("Xóa CV này khỏi job? Không thể hoàn tác.")) remove.mutate(cv.id);
+            }}
+            deletePending={remove.isPending}
+          />
+        )}
+        {retryParse.isError && <p role="alert" className="mt-3">{getApiErrorMessage(retryParse.error)}</p>}
+        {remove.isError && <p role="alert" className="mt-3">{getApiErrorMessage(remove.error)}</p>}
+      </DetailDialog>
     </section>
   );
 }
@@ -145,19 +171,8 @@ function CvDetailPanel({ cv, breakdown, onRetry, retryPending, onDelete, deleteP
           {deletePending ? "Đang xóa…" : "Xóa CV"}
         </button>
       </div>
-      {breakdown?.verdict && <p className="text-sm">{breakdown.verdict}</p>}
       {cv.match && (
-        <div>
-          <p className="text-sm font-semibold">Đánh giá so với yêu cầu job</p>
-          <p className="font-mono text-2xl">{cv.match.score}</p>
-          <p className={muted}>
-            {breakdown?.passed ? "Đạt chuẩn CV → chuyển phỏng vấn AI" : "Chưa đạt ngưỡng sàng lọc"}
-            {breakdown?.passThreshold != null ? ` (ngưỡng ${breakdown.passThreshold})` : ""}
-          </p>
-          <p className={muted}>{cv.match.modelVersion}{breakdown?.source ? ` · ${breakdown.source}` : ""}</p>
-          <SkillGroup title="Khớp JD" items={breakdown?.matched?.map((i) => i.required) ?? []} />
-          <SkillGroup title="Thiếu so với JD" items={breakdown?.missing?.map((i) => i.required) ?? []} />
-        </div>
+        <ScreeningBreakdown score={cv.match.score} modelVersion={cv.match.modelVersion} breakdown={breakdown} />
       )}
       {cv.analysis?.yearsExperience != null && (
         <p className={muted}>{cv.analysis.yearsExperience} năm kinh nghiệm (trích từ CV)</p>
@@ -169,38 +184,3 @@ function CvDetailPanel({ cv, breakdown, onRetry, retryPending, onDelete, deleteP
   );
 }
 
-function CvFilePreview({ cvId, mimeType, filename }: { cvId: number; mimeType: string | null; filename: string }) {
-  const [url, setUrl] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const pdf = (mimeType ?? "").includes("pdf") || filename.toLowerCase().endsWith(".pdf");
-  useEffect(() => {
-    let objectUrl: string | null = null;
-    let cancelled = false;
-    cvApi.file(cvId).then((blob) => {
-      if (cancelled) return;
-      objectUrl = URL.createObjectURL(blob);
-      setUrl(objectUrl);
-    }).catch((err: unknown) => {
-      if (!cancelled) setError(getApiErrorMessage(err, "Không mở được file CV"));
-    });
-    return () => {
-      cancelled = true;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-  }, [cvId]);
-  if (error) return <p role="alert">{error}</p>;
-  if (!url) return <p className={muted}>Đang tải file CV…</p>;
-  return (
-    <div className="space-y-2">
-      <a className={`${button} inline-flex`} href={url} target="_blank" rel="noreferrer">Mở file CV</a>
-      {pdf && <iframe title={filename} src={url} className="h-[28rem] w-full rounded-md border border-[var(--color-border-default)] bg-white" />}
-    </div>
-  );
-}
-
-function SkillGroup({ title, items }: { title: string; items: string[] }) {
-  if (items.length === 0) return null;
-  return (
-    <p className="mt-2 text-sm"><span className="font-semibold">{title}: </span>{items.join(", ")}</p>
-  );
-}

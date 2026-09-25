@@ -99,6 +99,7 @@ export function JobsPage() {
                   <td className="font-mono">{job.applicationCount}</td>
                   <td className="space-x-2 whitespace-nowrap">
                     <Link className={button} to={`/recruiter/jobs/${job.id}/edit`}>Sửa</Link>
+                    <Link className={button} to={`/recruiter/applicants?jobId=${job.id}`}>Ứng viên</Link>
                     <button className={button} type="button" onClick={() => clone.mutate(job.id)}>Clone</button>
                     <button className={button} type="button" onClick={() => askConfirm({
                       title: "Xóa job?",

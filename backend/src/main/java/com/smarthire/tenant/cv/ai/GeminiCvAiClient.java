@@ -24,10 +24,14 @@ public class GeminiCvAiClient implements CvAiClient {
             Extract a JSON object from this CV for recruiter screening against ONE job. Return JSON only with keys:
             contact{email,phone,name}, education[], experience[{startDate YYYY-MM,endDate,current,skills[],evidence}],
             projects[], languages[], certifications[], skills[{name,confidence}],
-            screening{score 0-100, verdict, matched[{requirement,evidence}], missing[{requirement,reason}]}.
-            Do not invent experience or skills. Empty arrays mean not found. Dates must be YYYY-MM.
-            screening.score is how well this CV fits the job requirements (not a ranking after assessment/interview).
-            A CV that lacks the job's required skills must score low. Verdict is 2-4 sentences for the recruiter, Vietnamese preferred.
+            screening{verdict, matched[{requirement,status,evidence,explanation}],
+            partial[{requirement,status,evidence,explanation}], missing[{requirement,status,evidence}]}.
+            status must be MATCH, PARTIAL, MISSING, or UNKNOWN. Do not invent experience or skills.
+            If the CV has no information about a requirement, use MISSING or UNKNOWN — never guess.
+            MATCH only when the CV clearly supports the requirement. PARTIAL when related but incomplete.
+            Evidence must be a short quote or paraphrase from the CV text. Empty arrays mean not found.
+            Dates must be YYYY-MM. Do not output an overall score; the backend computes the score.
+            Verdict is 2-4 sentences for the recruiter, Vietnamese preferred.
             """;
 
     private final HeuristicCvAiClient fallback;
@@ -76,32 +80,85 @@ public class GeminiCvAiClient implements CvAiClient {
         return defaultModel;
     }
 
+    private String getEffectiveProvider() {
+        if (configProvider != null) {
+            String p = configProvider.resolveConfig("CV_PARSING").provider();
+            if (p != null && !p.isBlank()) return p.toUpperCase();
+        }
+        return "GEMINI";
+    }
+
+    private String getEffectiveEndpoint() {
+        if (configProvider != null) {
+            return configProvider.resolveConfig("CV_PARSING").endpointUrl();
+        }
+        return null;
+    }
+
     @Override
     public String extractJson(String rawText, String jobContext) {
         String apiKey = getEffectiveApiKey();
         String model = getEffectiveModel();
+        String provider = getEffectiveProvider();
         if (apiKey == null || apiKey.isBlank()) return fallback.extractJson(rawText, jobContext);
         try {
-            String body = """
-                    {"contents":[{"parts":[{"text":%s}]}]}
-                    """.formatted(mapper.writeValueAsString(prompt(rawText, jobContext)));
-            String response = http.post()
-                    .uri("https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}",
-                            model, apiKey)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(body)
-                    .retrieve()
-                    .body(String.class);
-            String text = readText(response);
+            String promptText = prompt(rawText, jobContext);
+            String text;
+
+            if ("OPENAI".equalsIgnoreCase(provider) || "DEEPSEEK".equalsIgnoreCase(provider)) {
+                String defaultEndpoint = "DEEPSEEK".equalsIgnoreCase(provider)
+                        ? "https://api.deepseek.com/chat/completions"
+                        : "https://api.openai.com/v1/chat/completions";
+                String endpoint = getEffectiveEndpoint();
+                String url = (endpoint != null && !endpoint.isBlank()) ? endpoint.trim() : defaultEndpoint;
+
+                String body = """
+                        {
+                          "model": %s,
+                          "messages": [
+                            {"role": "system", "content": %s},
+                            {"role": "user", "content": %s}
+                          ],
+                          "response_format": {"type": "json_object"}
+                        }
+                        """.formatted(
+                                mapper.writeValueAsString(model),
+                                mapper.writeValueAsString(INSTRUCTION),
+                                mapper.writeValueAsString(promptText)
+                        );
+
+                String response = http.post()
+                        .uri(url)
+                        .header("Authorization", "Bearer " + apiKey.trim())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(body)
+                        .retrieve()
+                        .body(String.class);
+
+                text = readOpenAiText(response);
+            } else {
+                String body = """
+                        {"contents":[{"parts":[{"text":%s}]}]}
+                        """.formatted(mapper.writeValueAsString(promptText));
+                String response = http.post()
+                        .uri("https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}",
+                                model, apiKey.trim())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(body)
+                        .retrieve()
+                        .body(String.class);
+                text = readText(response);
+            }
+
             int start = text.indexOf('{');
             int end = text.lastIndexOf('}');
-            if (start < 0 || end <= start) throw new IllegalStateException("Gemini returned no JSON");
+            if (start < 0 || end <= start) throw new IllegalStateException("AI returned no JSON");
             String json = text.substring(start, end + 1);
             mapper.readTree(json);
             return json;
         } catch (Exception ex) {
-            log.error("Gemini extraction failed: {}", ex.getMessage());
-            throw new IllegalStateException("Gemini CV extraction failed", ex);
+            log.error("AI extraction failed (provider={}), falling back to heuristic: {}", provider, ex.getMessage());
+            return tagHeuristic(fallback.extractJson(rawText, jobContext));
         }
     }
 
@@ -118,6 +175,12 @@ public class GeminiCvAiClient implements CvAiClient {
         return text.isMissingNode() ? "" : text.asText();
     }
 
+    private String readOpenAiText(String response) throws Exception {
+        JsonNode root = mapper.readTree(response);
+        JsonNode content = root.path("choices").path(0).path("message").path("content");
+        return content.isMissingNode() ? "" : content.asText();
+    }
+
     private static String truncate(String text) {
         if (text == null) return "";
         return text.length() <= 20_000 ? text : text.substring(0, 20_000);
@@ -127,12 +190,44 @@ public class GeminiCvAiClient implements CvAiClient {
     public String modelVersion() {
         String apiKey = getEffectiveApiKey();
         String model = getEffectiveModel();
-        return (apiKey == null || apiKey.isBlank()) ? fallback.modelVersion() : "gemini:" + model;
+        String provider = getEffectiveProvider();
+        return (apiKey == null || apiKey.isBlank()) ? fallback.modelVersion() : provider.toLowerCase() + ":" + model;
     }
 
     @Override
     public String promptVersion() {
         String apiKey = getEffectiveApiKey();
-        return (apiKey == null || apiKey.isBlank()) ? fallback.promptVersion() : "screen-v1-job";
+        return (apiKey == null || apiKey.isBlank()) ? fallback.promptVersion() : "screen-v2-hybrid";
+    }
+
+    @Override
+    public String modelVersionFor(String json) {
+        return taggedHeuristic(json) ? fallback.modelVersion() : modelVersion();
+    }
+
+    @Override
+    public String promptVersionFor(String json) {
+        return taggedHeuristic(json) ? fallback.promptVersion() : promptVersion();
+    }
+
+    private String tagHeuristic(String json) {
+        try {
+            var root = mapper.readTree(json);
+            if (root instanceof com.fasterxml.jackson.databind.node.ObjectNode object) {
+                object.put("extractor", HeuristicCvAiClient.MODEL);
+                return object.toString();
+            }
+        } catch (Exception ignored) {
+            // Return untagged heuristic JSON.
+        }
+        return json;
+    }
+
+    private boolean taggedHeuristic(String json) {
+        try {
+            return HeuristicCvAiClient.MODEL.equals(mapper.readTree(json == null ? "{}" : json).path("extractor").asText());
+        } catch (Exception ex) {
+            return false;
+        }
     }
 }

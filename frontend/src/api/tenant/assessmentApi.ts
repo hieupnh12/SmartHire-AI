@@ -3,7 +3,7 @@ import type { ApiResponse } from "@/types/api";
 import type { AvailableAssessment, JobTest, Question, QuestionRequest, SavedAnswer, Submission, TestPage, TestRequest } from "@/api/types/assessment";
 
 export const assessmentApi = {
-  list: (page = 0) => api.get<ApiResponse<TestPage>>("/assessments", { params: { page, size: 20 } }).then(r => r.data.data),
+  list: (page = 0, size = 20) => api.get<ApiResponse<TestPage>>("/assessments", { params: { page, size } }).then(r => r.data.data),
   get: (id: number) => api.get<ApiResponse<JobTest>>(`/assessments/${id}`).then(r => r.data.data),
   create: (body: TestRequest) => api.post<ApiResponse<JobTest>>("/assessments", body).then(r => r.data.data),
   update: (id: number, body: TestRequest) => api.put<ApiResponse<JobTest>>(`/assessments/${id}`, body).then(r => r.data.data),

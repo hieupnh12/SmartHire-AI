@@ -34,12 +34,13 @@ Tự chấm MCQ + coding; tổng điểm assessment.
 
 ## Database liên quan
 
-- `answers`, `submissions`, `questions`, `options` theo V9.
+- `answers`, `submissions`, `questions`, `options` theo V12.
 
 ## UI mockup
 
 - Google Stitch: **FE-05 Online Technical Assessment / Auto Grading** — _[dán link]_
 - Icons: xem `DESIGN.md`
+- Candidate xem điểm thô/tổng điểm, kết quả ngưỡng đạt và thời điểm nộp sau hoàn tất; không hiển thị đáp án đúng.
 
 ## Phụ thuộc
 

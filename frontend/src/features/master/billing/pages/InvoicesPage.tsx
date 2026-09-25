@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Plus, Search, Filter, CheckCircle2, Clock, XCircle, Eye, Check, Inbox } from "lucide-react";
+import { Plus, Search, Filter, CheckCircle2, Clock, XCircle, Eye, Check, Inbox, Loader2 } from "lucide-react";
 import { InvoiceItem, billingApi } from "@/api/master/billingApi";
 import { useMasterDashboard } from "@/features/master/shell/MasterAdminContext";
 
@@ -24,6 +24,7 @@ function InvoicesContent({
 
   const [invoiceSearch, setInvoiceSearch] = useState("");
   const [invoiceStatusFilter, setInvoiceStatusFilter] = useState<string>("ALL");
+  const [approvingId, setApprovingId] = useState<number | null>(null);
 
   const filteredInvoices = useMemo(() => {
     return invoices.filter((i) => {
@@ -51,17 +52,19 @@ function InvoicesContent({
   }, [invoices]);
 
   const handleMarkInvoicePaid = async (inv: InvoiceItem) => {
-    if (!window.confirm("Xác nhận đã nhận thanh toán cho hóa đơn này?")) return;
+    if (!window.confirm(`Xác nhận duyệt thanh toán cho Hóa đơn ${inv.invoiceNumber}?\n\nNếu đây là đơn đăng ký mới, hệ thống sẽ tự động cấp phát Database MySQL riêng và gửi email kích hoạt.`)) {
+      return;
+    }
+    setApprovingId(inv.id);
     try {
-      const updated = await billingApi.updateStatus(inv.id, {
-        status: "PAID",
-        paymentGateway: "BANK_TRANSFER",
-        paidAt: new Date().toISOString(),
-      });
+      const updated = await billingApi.approve(inv.id);
       setInvoices((prev) => prev.map((i) => (i.id === inv.id ? updated : i)));
-      triggerNotification(`Đã ghi nhận thanh toán cho Hóa đơn ${inv.invoiceNumber}`);
-    } catch (err) {
-      alert("Đã xảy ra lỗi khi xác nhận thanh toán.");
+      triggerNotification(`Đã duyệt thanh toán và kích hoạt Workspace cho Hóa đơn ${inv.invoiceNumber}`);
+    } catch (err: any) {
+      const msg = err.response?.data?.message || "Đã xảy ra lỗi khi duyệt hóa đơn và kích hoạt Workspace.";
+      alert(msg);
+    } finally {
+      setApprovingId(null);
     }
   };
 
@@ -269,12 +272,22 @@ function InvoicesContent({
 
                       {inv.status !== "PAID" && (
                         <button
+                          disabled={approvingId === inv.id}
                           onClick={() => handleMarkInvoicePaid(inv)}
-                          className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs transition-colors inline-flex items-center gap-1 shadow-2xs"
-                          title="Xác nhận doanh nghiệp đã chuyển khoản và kích hoạt thời hạn Subscription"
+                          className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-semibold text-xs transition-colors inline-flex items-center gap-1 shadow-2xs"
+                          title="Duyệt thanh toán và tự động cấp phát Workspace"
                         >
-                          <Check className="w-3.5 h-3.5" />
-                          <span>Xác nhận Đã TT</span>
+                          {approvingId === inv.id ? (
+                            <>
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              <span>Đang cấp phát DB...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Check className="w-3.5 h-3.5" />
+                              <span>Duyệt Thanh Toán</span>
+                            </>
+                          )}
                         </button>
                       )}
                     </td>

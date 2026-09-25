@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { getTenantIdFromSubdomain } from "@/lib/tenant";
+import { LandingLayout } from "@/features/master/landing/components/LandingLayout";
 import { SaasLandingPage } from "@/features/master/landing/pages/SaasLandingPage";
 import { TenantCareerPage } from "@/features/tenant/career/pages/TenantCareerPage";
 import { TenantNotFoundPage } from "@/features/tenant/career/pages/TenantNotFoundPage";
@@ -56,6 +57,10 @@ export function RootRouteSwitcher() {
     return <TenantCareerPage />;
   }
 
-  // Otherwise, render Landlord SaaS Landing Page
-  return <SaasLandingPage />;
+  // Otherwise, render Landlord SaaS Landing Page wrapped in LandingLayout
+  return (
+    <LandingLayout>
+      <SaasLandingPage />
+    </LandingLayout>
+  );
 }

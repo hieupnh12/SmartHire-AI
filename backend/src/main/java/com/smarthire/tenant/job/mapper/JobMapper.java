@@ -7,12 +7,15 @@ import com.smarthire.domain.tenant.entity.RecruitmentStage;
 import com.smarthire.tenant.cv.dto.CvModels.JobOption;
 import com.smarthire.tenant.cv.dto.CvModels.JobSkillView;
 import com.smarthire.tenant.job.dto.JobModels.ApplicationView;
+import com.smarthire.domain.tenant.entity.JobScreeningConfig;
+import com.smarthire.tenant.job.dto.JobModels.CvScreeningConfigView;
+import com.smarthire.tenant.job.dto.JobModels.GateScreeningConfigView;
 import com.smarthire.tenant.job.dto.JobModels.JobDetail;
 import com.smarthire.tenant.job.dto.JobModels.JobListItem;
 import com.smarthire.tenant.job.dto.JobModels.PublicJob;
 import com.smarthire.tenant.job.dto.JobModels.StageView;
 import java.math.BigDecimal;
-import java.time.LocalDate;
+import java.time.Instant;
 import java.util.List;
 import org.springframework.stereotype.Component;
 
@@ -38,7 +41,8 @@ public class JobMapper {
                 job.getUpdatedAt());
     }
 
-    public JobDetail detail(Job job, List<JobSkillView> skills, List<StageView> stages, long applications) {
+    public JobDetail detail(Job job, List<JobSkillView> skills, List<StageView> stages, long applications,
+            JobScreeningConfig screening) {
         return new JobDetail(
                 job.getId(),
                 job.getTitle(),
@@ -67,7 +71,30 @@ public class JobMapper {
                 applications,
                 accepting(job),
                 skills,
-                stages);
+                stages,
+                cvScreening(screening),
+                gateScreening(screening));
+    }
+
+    public CvScreeningConfigView cvScreening(JobScreeningConfig config) {
+        if (config == null) return null;
+        return new CvScreeningConfigView(
+                config.getCvSkillWeight(),
+                config.getCvPreferredWeight(),
+                config.getCvExperienceWeight(),
+                config.getCvEducationWeight(),
+                config.getCvJaccardWeight(),
+                config.getCvSemanticWeight(),
+                config.getCvPassThreshold());
+    }
+
+    public GateScreeningConfigView gateScreening(JobScreeningConfig config) {
+        if (config == null) return null;
+        return new GateScreeningConfigView(
+                config.getGateCvWeight(),
+                config.getGateInterviewWeight(),
+                config.getGateAssessmentWeight(),
+                config.getGatePassThreshold());
     }
 
     public PublicJob publicJob(Job job, List<JobSkill> skills) {
@@ -122,7 +149,7 @@ public class JobMapper {
     public boolean accepting(Job job) {
         return job.getDeletedAt() == null
                 && job.getStatus() == com.smarthire.domain.enums.JobStatus.PUBLISHED
-                && (job.getDeadline() == null || !job.getDeadline().isBefore(LocalDate.now()));
+                && (job.getDeadline() == null || job.getDeadline().isAfter(Instant.now()));
     }
 
     private static String ownerName(Job job) {

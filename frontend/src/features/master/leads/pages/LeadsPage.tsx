@@ -4,14 +4,20 @@ import { Plus, Search, Filter, Inbox, Building2, FileSignature, UserPlus } from 
 import { consultationApi, ConsultationResponse } from "@/api/master/consultationApi";
 import { useMasterDashboard } from "@/features/master/shell/MasterAdminContext";
 import { LeadDetailModal } from "../components/LeadDetailModal";
+import React from "react";
 
 export function LeadsPage() {
   const navigate = useNavigate();
-  const { leads, setLeads, triggerNotification } = useMasterDashboard();
+  const { leads, setLeads, triggerNotification, fetchLeads } = useMasterDashboard();
   const [selectedLead, setSelectedLead] = useState<ConsultationResponse | null>(null);
   const [leadStatusEdit, setLeadStatusEdit] = useState<ConsultationResponse["status"]>("PENDING");
   const [leadNotesEdit, setLeadNotesEdit] = useState("");
   const [updatingLead, setUpdatingLead] = useState(false);
+
+  React.useEffect(() => {
+    fetchLeads();
+  }, [fetchLeads]);
+
 
   const [leadSearch, setLeadSearch] = useState("");
   const [leadStatusFilter, setLeadStatusFilter] = useState<string>("ALL");
@@ -50,7 +56,7 @@ export function LeadsPage() {
   };
 
   const handleOpenCreateContractForLead = (lead: ConsultationResponse) => {
-    navigate(`/admin/contracts?leadId=${lead.id}`);
+    navigate(`/admin/contracts/create?leadId=${lead.id}`);
   };
 
   const handleSaveLeadModal = async (event: FormEvent) => {

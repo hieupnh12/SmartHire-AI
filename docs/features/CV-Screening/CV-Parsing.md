@@ -6,7 +6,7 @@
 
 ## Mục đích chức năng
 
-Parse file CV thành text, recruiter xem được PDF đã upload. Nút sàng lọc gọi Gemini (hoặc heuristic) đánh giá so với JD của đúng job đó.
+Parse file CV thành text, recruiter xem được PDF đã upload. Hỗ trợ PDF, DOC (Word 97–2003) và DOCX. Nút sàng lọc gọi Gemini (hoặc heuristic) đánh giá so với JD của đúng job đó.
 
 ## Actor
 
@@ -19,7 +19,7 @@ Parse file CV thành text, recruiter xem được PDF đã upload. Nút sàng l�
 2. Extract text → `cv_documents`.
 3. Status `PARSED` / `FAILED`.
 4. `POST /cvs/{id}/parse` chạy parse → extract → analyze → match trên request và trả `CvDetail`.
-5. Gemini nếu có `GEMINI_API_KEY` (biến môi trường, Spring không tự đọc `.env`); không có key thì `heuristic-v1`.
+5. Gemini nếu có `GEMINI_API_KEY` (biến môi trường, Spring không tự đọc `.env`). Không có key **hoặc Gemini API lỗi** thì `heuristic-v1`; backend vẫn tính điểm hybrid.
 6. Prompt extract gửi kèm title + `job_skills` của tin ứng viên đã nộp; cấm invent skill.
 
 ## Business Rules

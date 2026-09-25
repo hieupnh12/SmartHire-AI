@@ -41,7 +41,20 @@ public class Invoice {
     @Column(name = "transaction_id") String transactionId;
     @Column(name = "paid_at") LocalDateTime paidAt;
 
-    @Column(columnDefinition = "TEXT") String notes;
+    @Column(name = "payment_proof_url", length = 512)
+    String paymentProofUrl;
+
+    @Column(name = "billing_tax_code", length = 50)
+    String billingTaxCode;
+
+    @Column(name = "billing_legal_name", length = 255)
+    String billingLegalName;
+
+    @Column(name = "billing_address", length = 512)
+    String billingAddress;
+
+    @Column(columnDefinition = "TEXT")
+    String notes;
 
     @Builder.Default
     @Column(name = "created_at", nullable = false, updatable = false)

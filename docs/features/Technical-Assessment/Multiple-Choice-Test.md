@@ -21,7 +21,7 @@ Tạo/làm bài trắc nghiệm kỹ thuật gắn job/stage.
 
 ## Business Rules
 
-- Đã triển khai backend JobTest, Question, Option, Submission, Answer cho MCQ một đáp án đúng. Frontend, coding, randomize và cấp quyền thi lại chưa triển khai.
+- Đã triển khai backend và frontend JobTest, Question, Option, Submission, Answer cho MCQ một đáp án đúng. Coding, randomize và cấp quyền thi lại chưa triển khai; đây chưa phải luồng AI tự sinh câu hỏi/phỏng vấn.
 - Start được tuần tự hóa bằng khóa hàng đề; trả lượt gần nhất đã có của cặp test/application, kể cả đã hoàn thành. NOT_STARTED được kích hoạt khi đủ điều kiện; không tự tạo lượt thi lại.
 - Hiện không có API giao đề riêng: mọi đề PUBLISHED của job có thể được bắt đầu bởi chủ đơn đủ điều kiện. Nếu cần giao riêng từng ứng viên, bổ sung chính sách assignment ở bước sau.
 - Staff (`RECRUITER`, `HR`, `ADMIN`, `TENANT_ADMIN`) trong đúng tenant được tạo, xem và sửa đề. Candidate không được gọi các API quản lý đề.
@@ -47,12 +47,13 @@ Tạo/làm bài trắc nghiệm kỹ thuật gắn job/stage.
 | PUT, DELETE | `/api/v1/assessments/{testId}/questions/{questionId}` |
 | POST | `/api/v1/assessments/{testId}/publish` |
 | POST | `/api/v1/assessments/{testId}/submissions` |
+| GET | `/api/v1/applications/{applicationId}/assessments` (candidate sở hữu, đơn đủ điều kiện) |
 | GET | `/api/v1/submissions/{id}` |
 | POST | `/api/v1/submissions/{id}/answers` |
 | POST | `/api/v1/submissions/{id}/submit` |
 | GET | `/api/v1/submissions/{id}/result` (staff) |
 
-Contract chính thức dùng `submissions`, không cung cấp alias `attempts`; FE stub cũ sẽ được cập nhật ở bước frontend. Các API trả `ApiResponse`: tạo đề/câu hỏi HTTP 201; start/resume/save/submit HTTP 200; request không hợp lệ 400; không đủ quyền 403; không tìm thấy/không sở hữu 404; trạng thái không phù hợp hoặc hết hạn 409. Danh sách đề trả `data.items`, `total`, `page`, `size`, sắp xếp ID giảm dần; page âm về 0, size giới hạn 1–50. Danh sách bao gồm metadata đề của job đã xóa để staff tra cứu.
+Contract chính thức và frontend dùng `submissions`, không cung cấp alias `attempts`. Các API trả `ApiResponse`: tạo đề/câu hỏi HTTP 201; start/resume/save/submit HTTP 200; request không hợp lệ 400; không đủ quyền 403; không tìm thấy/không sở hữu 404; trạng thái không phù hợp hoặc hết hạn 409. Danh sách đề trả `data.items`, `total`, `page`, `size`, sắp xếp ID giảm dần; page âm về 0, size giới hạn 1–50. Danh sách bao gồm metadata đề của job đã xóa để staff tra cứu.
 
 Response submission gồm `id`, `testId`, `applicationId`, `title`, `status`, `startedAt`, `expiresAt`, `submittedAt`, `serverTime`, `remainingSeconds`, `score`, `totalPoints`, `passed`, `questions` và `answers`. Options của candidate chỉ chứa `id`, `optionText`; answers chỉ chứa `questionId`, `selectedOptionId`.
 
@@ -100,16 +101,21 @@ Candidate POST `/submissions/{id}/answers`, thay ID theo response start:
 
 Candidate POST `/submissions/{id}/submit` không cần body, chỉ chấm đáp án đã lưu. Staff GET `/submissions/{id}/result` để xem kết quả. Postman collection có nhóm Technical Assessment và biến `testId`, `questionId`, `optionId`, `submissionId`, `candidateToken`; token staff dùng `accessToken`.
 
-Kiểm chứng: `AssessmentServiceTest` (unit/validation) và `AssessmentFlowTest` (JPA/H2, transaction thật, HTTP validation, phân quyền, rollback nhóm đáp án, hết giờ, start/submit đồng thời). H2 không thay thế kiểm thử Flyway/MySQL và cách ly hai datasource thực tế.
+Kiểm chứng ngày 2026-09-24: 33 test assessment/multitenancy đạt, trong đó `AssessmentFlowTest` chạy trên MySQL với schema Flyway, không dùng Hibernate tạo bảng. Đã chạy browser test `frontend/tests/assessment.browser.cjs` cho tạo/publish đề, start, lỗi lưu/retry, reload, lưu trước submit và hết giờ; ảnh desktop/mobile không tràn ngang. Browser test dùng API fixture, chưa thay thế E2E đăng nhập qua backend thật hoặc kiểm thử cách ly hai datasource.
 
 ## Database liên quan
 
-- Theo schema V9: `tests`, `questions`, `options`, `submissions`, `answers`. Không thay đổi schema; chống ghi trùng bằng khóa hàng trong service, không tuyên bố có UNIQUE mà SQL chưa định nghĩa.
+- Theo schema V12: `tests`, `questions`, `options`, `submissions`, `answers`. Chống ghi trùng bằng khóa hàng trong service, không tuyên bố có UNIQUE mà SQL chưa định nghĩa.
+- Lỗi thiếu `tests` do migration trùng V5/V6 và V9 bị tái sử dụng cho redesign trong khi history tenant ghi analytics. V10/V11 được phục hồi tên đúng, V12 giữ bảng cũ trong `legacy_v12_*`; xem quy trình nâng cấp tại `docs/database/README.md` §10.7. Chỉ tạo entity/repository không tự tạo bảng tenant (`hbm2ddl=none`).
 
 ## UI mockup
 
 - Google Stitch: **FE-05 Online Technical Assessment / Multiple Choice Test** — _[dán link]_
 - Icons: xem `DESIGN.md`
+- Recruiter: `/recruiter/assessments`, `/new`, `/:id`; danh sách phân trang, thông tin đề, CRUD câu hỏi/options, chọn đáp án đúng, publish khóa sửa.
+- Ngân hàng câu hỏi: `/recruiter/assessments/question-bank` tổng hợp câu MCQ theo bộ sưu tập, vị trí và bộ lọc; mở đề gốc để sửa. Yêu thích lưu trên trình duyệt. Chưa có rubric, cấp độ hay lịch sử phiên bản riêng.
+- Candidate: `/candidate/assessments` chọn đơn hợp lệ; `/:submissionId/take` có câu hỏi, radio lựa chọn, điều hướng, tiến độ, tự lưu/retry, timer, xác nhận nộp và điểm tổng.
+- Query key assessment phân biệt tenant/user; Axios hiện có gắn token và tenant header. Server state dùng TanStack Query, form dùng React Hook Form + Zod.
 
 ## Phụ thuộc
 
