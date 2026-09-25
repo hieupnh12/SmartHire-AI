@@ -18,6 +18,8 @@ public class SubscriptionPlanResponse {
     String description;
     BigDecimal priceMonthly;
     BigDecimal priceYearly;
+    BigDecimal priceMonthlyVnd;
+    BigDecimal priceYearlyVnd;
     Integer maxJobs;
     Integer maxCvParses;
     Integer maxAiInterviewHours;

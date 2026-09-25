@@ -8,12 +8,13 @@
 |---|---|
 | Kiến trúc | Separate Database per Tenant |
 | Số database logic | 2 loại (1 Master + N Tenant) |
-| Tổng số bảng | **54** (8 master + 46 tenant) |
-| Tổng số entity JPA | **54** (8 master + 46 tenant) — ánh xạ 1:1 với bảng |
-| Tổng số khoá ngoại | **66** (4 master + 62 tenant) |
-| Ràng buộc UNIQUE | **24** (6 master + 18 tenant) |
-| Số file migration | **20** (8 master + 12 tenant versions V1–V9, V13–V15) |
-| Cập nhật lần cuối | Phiên bản schema master `V8`, tenant `V15` |
+| Tổng số bảng hiện hành | **58** (8 master + 50 tenant), chưa tính 19 bảng lưu trữ `legacy_v12_*` và Flyway history |
+| Tổng số entity JPA | **58** (8 master + 50 tenant); bảng lưu trữ không có entity |
+| Tổng số khoá ngoại | **65** hiện hành (4 master + 61 tenant); thêm 9 FK của bảng lưu trữ |
+| Ràng buộc UNIQUE | **26** hiện hành (6 master + 20 tenant), không tính PK; thêm 7 UNIQUE lưu trữ |
+| Số file migration đang chạy | **34** (20 master + 14 tenant V1–V8, V10–V15); V9 redesign chỉ còn bản tham khảo ngoài pipeline |
+| Cập nhật lần cuối | Master `V21`, tenant `V15`; đối chiếu schema MySQL ngày 2026-09-24 rồi bổ sung screening/invite/deadline |
+| Sửa lỗi assessment 2026-09-24 | V10/V11 khớp checksum lịch sử; V12 tạo schema mới và giữ bảng cũ; migration lỗi phải chặn mở tenant pool |
 | Rà soát assessment 2026-09-21 | Bổ sung query/khóa hàng và nghiệp vụ MCQ; không đổi bảng, entity, FK, UNIQUE hay migration |
 
 **Mục lục theo đúng thứ tự đặc tả**
@@ -34,7 +35,7 @@
 | File | Nội dung |
 |---|---|
 | [`DATA_DICTIONARY_MASTER.md`](DATA_DICTIONARY_MASTER.md) | Đặc tả cột chi tiết 8 bảng Master (PostgreSQL) |
-| [`DATA_DICTIONARY_TENANT.md`](DATA_DICTIONARY_TENANT.md) | Đặc tả cột chi tiết 45 bảng Tenant (MySQL) |
+| [`DATA_DICTIONARY_TENANT.md`](DATA_DICTIONARY_TENANT.md) | Schema Tenant: 50 bảng hiện hành + 19 archive V12 |
 | [`MAINTENANCE.md`](MAINTENANCE.md) | Quy trình bắt buộc khi schema hoặc entity thay đổi |
 
 ---
@@ -68,9 +69,9 @@ flowchart TB
     subgraph TENANT["Persistence Unit: tenant"]
         TEMF["tenantEntityManagerFactory<br/>hbm2ddl = none"]
         TDS["HikariCP · 1 pool / tenant<br/>tối đa TENANT_MAX_POOLS"]
-        MY1[("MySQL<br/>tenant_acme<br/>45 bảng")]
-        MY2[("MySQL<br/>tenant_globex<br/>45 bảng")]
-        MYN[("MySQL<br/>tenant_...<br/>45 bảng")]
+        MY1[("MySQL<br/>tenant_acme<br/>50 bảng + 19 archive")]
+        MY2[("MySQL<br/>tenant_globex<br/>50 bảng + 19 archive")]
+        MYN[("MySQL<br/>tenant_...<br/>50 bảng + 19 archive")]
     end
 
     REQ --> ITC --> CTX --> RES --> PRV
@@ -115,7 +116,7 @@ thay vì âm thầm đọc nhầm database của doanh nghiệp khác.
 | # | Database | RDBMS | Số bảng | Instance | Phạm vi dữ liệu | Migration path |
 |---|---|---|---|---|---|---|
 | 01 | `smarthire_master` | PostgreSQL | 8 | Duy nhất toàn nền tảng | Doanh nghiệp, gói cước, hoá đơn, usage, quản trị nền tảng | `db/migration/master` |
-| 02 | `<db_name> theo từng tenant` | MySQL | 45 | N instance, mỗi doanh nghiệp một database | Toàn bộ nghiệp vụ tuyển dụng của một doanh nghiệp | `db/migration/tenant` |
+| 02 | `<db_name> theo từng tenant` | MySQL | 48 + 19 archive | N instance, mỗi doanh nghiệp một database | Toàn bộ nghiệp vụ tuyển dụng của một doanh nghiệp | `db/migration/tenant` |
 
 **Cấu hình kết nối** (`application.yml`, không commit giá trị thật):
 
@@ -146,7 +147,7 @@ thay vì âm thầm đọc nhầm database của doanh nghiệp khác.
 | 07 | `PlatformAuditLog` | `platform_audit_logs` | Audit | Nhật ký cấp nền tảng |
 | 08 | `ConsultationRequest` | `consultation_requests` | Sales | Yêu cầu demo/tư vấn từ landing |
 
-### 3.2 Tenant — 45 entity (`com.smarthire.domain.tenant.entity`)
+### 3.2 Tenant — 50 entity (`com.smarthire.domain.tenant.entity`)
 
 | No | Entity | Bảng | Nhóm nghiệp vụ | Kế thừa `BaseEntity` |
 |---|---|---|---|---|
@@ -196,6 +197,18 @@ thay vì âm thầm đọc nhầm database của doanh nghiệp khác.
 | 44 | `PracticeSession` | `practice_sessions` | Practice | Không |
 | 45 | `PracticeAnswer` | `practice_answers` | Practice | Không |
 | 46 | `PracticeFeedback` | `practice_feedbacks` | Practice | Không |
+| 47 | `RolePermission` | `role_permissions` | Identity | Có |
+| 48 | `TenantRole` | `roles` | Identity | Có |
+| 49 | `JobScreeningConfig` | `job_screening_configs` | CV & AI screening | Không — PK tự nhiên `job_id` |
+| 50 | `GateScore` | `gate_scores` | CV & AI screening | Có |
+
+**Bảng lưu trữ V12 (19 bảng, không có entity):** thêm tiền tố `legacy_v12_` vào các tên
+`assessments`, `questions`, `question_options`, `attempts`, `attempt_answers`, `attempt_scores`,
+`coding_problems`, `test_cases`, `coding_submissions`, `proctor_events`, `proctor_reports`,
+`interviews`, `interview_questions`, `interview_answers`, `interview_answer_analyses`,
+`interview_scores`, `interview_feedbacks`, `interview_schedules`, `practice_feedbacks`.
+Chúng giữ dữ liệu/schema cột trước redesign; không tự chuyển lịch sử sang model hiện hành.
+Không xóa archive trước khi có kế hoạch chuyển đổi và sao lưu được duyệt.
 
 `BaseEntity` (`@MappedSuperclass`, không sinh bảng) cung cấp `id`, `created_at`, `updated_at` cùng callback
 `@PrePersist` / `@PreUpdate`. Các entity không kế thừa nó tự khai báo `@Id` và chỉ có `created_at`.
@@ -489,6 +502,27 @@ erDiagram
 
 ---
 
+### 4.10 Archive V12
+
+ERD phía trên mô tả model hiện hành. Các FK còn tồn tại trong archive được đối chiếu từ SQL/MySQL:
+
+```mermaid
+erDiagram
+    jobs ||--o{ legacy_v12_assessments : job_id
+    jobs ||--o{ legacy_v12_interviews : job_id
+    users ||--o{ legacy_v12_interviews : candidate_id
+    cvs |o--o{ legacy_v12_interviews : cv_id
+    legacy_v12_interviews ||--o{ legacy_v12_interview_questions : interview_id
+    legacy_v12_interview_questions ||--o| legacy_v12_interview_answers : question_id
+    legacy_v12_interview_answers ||--o| legacy_v12_interview_answer_analyses : answer_id
+    legacy_v12_interviews ||--o| legacy_v12_interview_scores : interview_id
+    legacy_v12_interviews ||--o| legacy_v12_interview_feedbacks : interview_id
+```
+
+Các archive khác trong §3.2 không còn FK sau V12; cột ID vẫn giữ nguyên giá trị, không suy ra
+ràng buộc FK từ tên cột. `ranking_sources.legacy_attempt_id/legacy_interview_id` là tham chiếu mềm
+đến archive; không vẽ chúng thành quan hệ được database bảo vệ.
+
 ## 5. Entity Description
 
 ### 5.1 Master
@@ -512,6 +546,11 @@ erDiagram
 | `UserProfile` | Thông tin mở rộng: điện thoại, avatar, bio, headline, `links_json` | 1:1 với `users` |
 | `OauthAccount` | Liên kết tài khoản Google | Unique theo `(provider, provider_user_id)` |
 | `MemberInvitation` | Lời mời nhân sự vào workspace | Lưu `token_hash` chứ **không** lưu token gốc. Không có FK tới `users`; đối chiếu bằng email khi chấp nhận |
+| `RolePermission` | Quyền truy cập tính năng của role | UNIQUE `(role, feature_code)`; không có FK đến roles |
+| `TenantRole` | Role hệ thống và tùy chỉnh | UNIQUE `code`; workspace phân vùng giao diện |
+
+Các bảng `legacy_v12_*` không có entity/service mới: chỉ lưu dữ liệu trước nâng cấp để kiểm tra
+và chuyển đổi có chủ đích. Không phải nguồn dữ liệu của màn assessment hiện tại.
 
 ### 5.3 Tenant — Job & Skill
 
@@ -605,7 +644,7 @@ erDiagram
 | File | Phạm vi | Số bảng |
 |---|---|---|
 | [`DATA_DICTIONARY_MASTER.md`](DATA_DICTIONARY_MASTER.md) | PostgreSQL `smarthire_master` | 8 |
-| [`DATA_DICTIONARY_TENANT.md`](DATA_DICTIONARY_TENANT.md) | MySQL — schema mỗi tenant | 45 |
+| [`DATA_DICTIONARY_TENANT.md`](DATA_DICTIONARY_TENANT.md) | MySQL — schema mỗi tenant | 48 + 19 archive |
 
 ### Quy ước ký hiệu dùng chung
 
@@ -647,7 +686,7 @@ erDiagram
 | `invoices` | `tenant_id` | `tenants` | Không | N:1 | `fk_inv_tenant` |
 | `tenant_usage_daily` | `tenant_id` | `tenants` | Không | N:1 (1:1 theo ngày) | `fk_tud_tenant` |
 
-### 7.2 Tenant — 55 khoá ngoại
+### 7.2 Tenant — 59 khoá ngoại hiện hành
 
 | Bảng con | Cột | Bảng cha | Nullable | Lực lượng | Tên ràng buộc |
 |---|---|---|---|---|---|
@@ -711,6 +750,9 @@ erDiagram
 | `practice_answers` | `session_id` | `practice_sessions` | Không | N:1 | `fk_pa_ps` |
 | `practice_feedbacks` | `practice_answer_id` | `practice_answers` | Không | N:1 | `fk_pf_answer` |
 
+9 FK archive được liệt kê tại §4.10. Các FK đã gỡ để thay model không tự được khôi phục cho archive.
+Hai cột `ranking_sources.legacy_attempt_id` và `legacy_interview_id` là BIGINT nullable, không FK.
+
 ### 7.3 Cột tham chiếu **không** có khoá ngoại
 
 Đây là những cột trông như FK nhưng database không bảo vệ. Mọi kiểm tra toàn vẹn phải nằm ở tầng service.
@@ -753,7 +795,7 @@ kho hồ sơ (talent pool) chưa gắn với tin tuyển dụng nào.
 | `platform_users` | `uk_platform_users_email` | `email` | Email quản trị viên không trùng |
 | `tenant_usage_daily` | `uk_tenant_usage_daily` | `(tenant_id, usage_date)` | Mỗi tenant mỗi ngày đúng một dòng usage |
 
-### 8.2 Ràng buộc UNIQUE — Tenant (18)
+### 8.2 Ràng buộc UNIQUE — Tenant (19, không tính PK)
 
 | Bảng | Ràng buộc | Cột | Ý nghĩa nghiệp vụ |
 |---|---|---|---|
@@ -775,6 +817,8 @@ kho hồ sơ (talent pool) chưa gắn với tin tuyển dụng nào.
 | `ai_answers` | `uk_ai_a_question` | `ai_question_id` | **Mỗi câu hỏi AI chỉ một câu trả lời** |
 | `ai_feedbacks` | `uk_ai_f_answer` | `ai_answer_id` | Mỗi câu trả lời một bản feedback |
 | `ranking_sources` | PK `application_id` | `application_id` | Mỗi đơn một bộ nguồn xếp hạng |
+| `role_permissions` | `uk_role_permissions_role_feature` | `(role, feature_code)` | Không lặp quyền cho một role |
+| `roles` | `uk_roles_code` | `code` | Mã role không trùng |
 
 ### 8.3 Máy trạng thái
 
@@ -871,7 +915,7 @@ Những quy tắc sau bắt buộc phải kiểm tra ở tầng service, vì kh�
 
 ### 9.2 Index do RDBMS tự sinh
 
-- **MySQL (tenant):** tự tạo index cho **mọi** khoá ngoại. 55 FK của tenant DB đều đã được đánh index.
+- **MySQL (tenant):** tự tạo index cho **mọi** khoá ngoại: 59 FK hiện hành và 9 FK archive sau V12.
 - **PostgreSQL (master):** **không** tự tạo index cho khoá ngoại. Bốn FK của master DB hiện chưa có index
   đi kèm. `invoices.tenant_id` và `tenant_subscriptions.tenant_id` là hai cột được lọc thường xuyên nhất và
   nên được bổ sung index khi lượng tenant tăng.
@@ -887,7 +931,8 @@ Những quy tắc sau bắt buộc phải kiểm tra ở tầng service, vì kh�
 | Rò rỉ credential qua API | `TenantInfo.dbPassword` gắn `@JsonIgnore` |
 | Mật khẩu người dùng | Chỉ lưu `password_hash`; `users.password_hash` nullable cho tài khoản chỉ dùng OAuth |
 | Token mời | `member_invitations.token_hash` lưu hash, không lưu token gốc |
-| Đáp án bài thi | `question_options.is_correct` và `test_cases.expected_output` không được đưa vào DTO trả cho thí sinh |
+| Đáp án bài thi | `options.is_correct` và `test_cases.expected_output` không được đưa vào DTO trả cho thí sinh |
+| Migration lỗi | Không tự `repair`, không nuốt lỗi, đóng pool chưa khởi tạo xong; API không trả tên database/SQL nội bộ |
 | Dữ liệu cá nhân trong CV | `cvs.retain_until` đặt mốc xoá; `checksum_sha256` để phát hiện trùng file mà không cần đọc lại nội dung |
 | Truy vết | `platform_audit_logs` (cấp nền tảng) và `application_status_history` (cấp nghiệp vụ) — cả hai chỉ ghi thêm |
 | Secret | Không commit `.env`, `deploy/.env.production`, `TENANT_CREDENTIALS_KEY`, `JWT_SECRET`. Tài liệu này không chứa giá trị thật |
@@ -946,10 +991,25 @@ Hai pipeline dùng **hai phương ngữ SQL khác nhau** và không thể dùng 
 | V6 | `V6__job_management.sql` | 13 cột nghiệp vụ tuyển dụng cho `jobs` |
 | V7 | `V7__application_management.sql` | 6 cột quản lý đơn, 2 index, `cvs.retain_until` + backfill 24 tháng |
 | V8 | `V8__cv_job_optional.sql` | `cvs.job_id` chuyển thành nullable để hỗ trợ kho hồ sơ |
-| V9 | `V9__interview_test_ai_practice_redesign.sql` | Redesign Test/Submission, Direct Interview, AI Interview, Practice theo ERD mới |
+| V9 | `V9__recruiter_analytics.sql` (lịch sử tenant, hiện thiếu source trong repo) | Giữ nguyên history; không tái sử dụng version này cho redesign |
+| V10 | `V10__role_permissions.sql` | Quyền theo role; phục hồi tên version khớp history/checksum ttqt, nội dung không đổi |
+| V11 | `V11__custom_roles.sql` | Role tùy chỉnh và mở rộng cột role; phục hồi tên version khớp history/checksum ttqt |
+| V12 | `V12__preserve_legacy_assessment_interview_schema.sql` | Lưu 19 bảng cũ bằng RENAME; tạo Test/Submission, Direct Interview, AI Interview, cập nhật Practice và nguồn ranking |
 | V13 | `V13__job_screening_config.sql` | `job_screening_configs` + `gate_scores`; seed snapshot trọng số CV/gate cho job cũ |
 | V14 | `V14__ai_interview_invite.sql` | `applications.ai_interview_invited_at` — thời điểm đã gửi mail mời phỏng vấn AI |
 | V15 | `V15__job_deadline_datetime.sql` | `jobs.deadline` DATE → DATETIME; job hết hạn tự đóng và sàng CV |
+
+V9 redesign cũ được giữ nguyên tại `db/migration-archive/`, **ngoài** location Flyway.
+Tenant tạo mới chạy V1–V8, V10–V15: 50 bảng hiện hành + 19 archive, chưa tính history.
+Tenant từng có analytics có thể có thêm bảng ngoài con số này. Không giả mạo file V9 analytics
+hoặc dùng `repair` để che việc thiếu source. `validateOnMigrate(false)` hiện vẫn được giữ vì
+lịch sử này; cần khôi phục đúng source analytics trước khi bật validation đầy đủ.
+
+V12 dành cho tenant còn schema `assessments/attempts`. Nếu tenant đã chạy V9 redesign từ nhánh khác,
+**không chạy V12 trực tiếp**: phải kiểm tra schema/history và lập bản nâng cấp riêng.
+V12 bảo toàn dữ liệu bằng đổi tên, không phải chuyển đổi nghiệp vụ: dữ liệu cũ chưa xuất hiện ở UI mới.
+Các cột `ranking_sources.legacy_attempt_id/legacy_interview_id` giữ ID cũ, không còn FK;
+`submission_id/ai_interview_id` mới bắt đầu NULL và có FK đến model mới.
 
 ### 10.4 Quy trình cấp phát tenant mới
 
@@ -967,14 +1027,14 @@ sequenceDiagram
     PRV->>MY: CREATE USER + GRANT
     PRV->>PG: UPDATE tenants SET db_url, db_username, db_password (đã mã hoá)
     PRV->>FW: migrate() trên datasource của tenant mới
-    FW->>MY: Áp dụng V1 → V8 (45 bảng)
+    FW->>MY: Áp dụng V1–V8, V10–V15 (50 bảng + 19 archive)
     PRV-->>API: Tenant sẵn sàng
 ```
 
 ### 10.5 Quy tắc viết migration mới
 
 1. **Không bao giờ sửa file migration đã được apply.** Luôn tạo version mới.
-2. Đặt tên theo `V<n>__<mô_tả_snake_case>.sql`, tăng dần liên tục trong từng pipeline.
+2. Đặt tên theo `V<n>__<mô_tả_snake_case>.sql`, tăng dần và không trùng trong từng pipeline; không lấp version đã dùng ở tenant khác.
 3. Migration tenant phải chạy được trên **mọi** tenant đang tồn tại, kể cả tenant có dữ liệu cũ. Ưu tiên
    viết idempotent như `V5__cv_screening_pipeline.sql`.
 4. MySQL 5.7 chỉ cho phép **một** cột `TIMESTAMP ... ON UPDATE CURRENT_TIMESTAMP` trên mỗi bảng.
@@ -1001,3 +1061,36 @@ mysql -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = '<
 Master DB chạy `hbm2ddl.auto = validate` nên mọi lệch pha giữa entity và schema sẽ làm ứng dụng **không khởi
 động được**. Tenant DB chạy `none`, nên lệch pha ở tenant chỉ lộ ra khi truy vấn thật sự chạy — đây là lý do
 tài liệu và migration tenant phải được rà soát kỹ hơn.
+
+### 10.7 Kiểm tra và nâng cấp assessment
+
+Ngày 2026-09-24, sau khi sao lưu và được người dùng chấp thuận, tenant `ttqt` đã nâng cấp
+V11 → V12 thành công. Chạy lại không phát sinh migration; đủ `tests`, `questions`, `options`,
+`submissions`, `answers`, đều chưa có bản ghi. `legacy_v12_assessments` và `legacy_v12_questions`
+cũng rỗng. Lịch sử V9 analytics/V10/V11 được giữ nguyên. Chưa xác minh phiên đăng nhập UI thật
+của tenant này sau khi khởi động lại backend.
+
+Chạy từ `backend/` với Java 21+, Maven và thông tin provisioning trong `.env` (không in/commit secret):
+
+```powershell
+.\mvnw.cmd clean "-Dtest=AssessmentServiceTest,AssessmentFlowTest,TenantDataSourceFactoryTest,TenantInfrastructureTest" test
+.\mvnw.cmd dependency:build-classpath "-Dmdep.outputFile=target/assessment-classpath.txt"
+$cp = (Get-Content target/assessment-classpath.txt -Raw).Trim()
+java --class-path $cp scripts/TenantMigrationCheck.java verify smarthire_tenant_assessment_verify_unique_name
+java --class-path $cp scripts/TenantMigrationCheck.java inspect smarthire_tenant_ttqt
+# Chỉ chạy khi đã sao lưu và được người quản trị chấp thuận:
+java --class-path $cp scripts/TenantMigrationCheck.java migrate smarthire_tenant_ttqt
+```
+
+`verify` tạo database kiểm thử riêng, nâng cấp V11 → V12 với dữ liệu legacy mẫu, kiểm tra dữ liệu
+còn nguyên và migrate lần hai không thay đổi. Script không tự drop database kiểm thử.
+`clean` quan trọng sau khi đổi tên migration: tránh file V5/V6/V9 cũ còn trong `target/classes`.
+Build sạch và khởi động lại backend trước khi thử lại UI; pool đang cache không tự chạy lại migration.
+
+`AssessmentFlowTest` mặc định dùng H2. Để chạy service test trên schema Flyway/MySQL, truyền
+`ASSESSMENT_TEST_JDBC_URL`, `ASSESSMENT_TEST_USER`, `ASSESSMENT_TEST_PASSWORD`; URL bắt buộc trỏ
+database có tiền tố `smarthire_tenant_assessment_verify_`. Test không tạo/drop schema bằng Hibernate
+khi dùng MySQL và chỉ thêm dữ liệu fixture trong database kiểm thử.
+
+MySQL DDL không rollback cả file khi một statement lỗi. Nếu V12 thất bại, dừng sử dụng tenant,
+kiểm tra schema/history và bản sao lưu; không chạy `repair` rồi retry một cách tự động.

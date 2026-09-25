@@ -25,10 +25,11 @@ import { cn } from "@/lib/utils";
 const surface = "rounded-2xl border border-slate-200 bg-white shadow-[0_4px_14px_-8px_rgba(15,23,42,0.18)]";
 
 const MODEL_PRESETS: Record<string, string[]> = {
-  GEMINI: ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.5-pro"],
+  GEMINI: ["gemini-3.6-flash", "gemini-2.5-flash", "gemini-3.1-pro-preview", "gemini-2.5-pro"],
   OPENAI: ["gpt-4o-mini", "gpt-4o", "gpt-4-turbo", "o3-mini"],
   ANTHROPIC: ["claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022", "claude-3-opus-20240229"],
   DEEPSEEK: ["deepseek-chat", "deepseek-coder", "deepseek-reasoner"],
+  HUGGINGFACE: ["Qwen/Qwen2.5-7B-Instruct", "meta-llama/Meta-Llama-3-8B-Instruct", "mistralai/Mistral-7B-Instruct-v0.2"],
 };
 
 export function AiEngineConfiguration() {

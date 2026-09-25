@@ -35,6 +35,7 @@ interface MasterDashboardContextType {
   
   actionSuccessMsg: string | null;
   triggerNotification: (msg: string) => void;
+  fetchLeads: () => Promise<void>;
 }
 
 const MasterDashboardContext = createContext<MasterDashboardContextType | undefined>(undefined);
@@ -81,6 +82,15 @@ export const MasterDashboardProvider = ({ children }: { children: ReactNode }) =
     }
   };
 
+  const fetchLeads = async () => {
+    try {
+      const leadsData = await consultationApi.getAll();
+      setLeads(leadsData);
+    } catch (err) {
+      console.error("Error fetching leads:", err);
+    }
+  };
+
   const fetchAnalytics = async (startDate?: string, endDate?: string, groupBy?: string) => {
     try {
       const [revenueData, quotaData] = await Promise.all([
@@ -96,6 +106,13 @@ export const MasterDashboardProvider = ({ children }: { children: ReactNode }) =
 
   useEffect(() => {
     fetchData();
+    
+    // Set up polling to refresh data every 60 seconds
+    const interval = setInterval(() => {
+      fetchData();
+    }, 60000);
+    
+    return () => clearInterval(interval);
   }, []);
 
   const triggerNotification = (msg: string) => {
@@ -117,6 +134,7 @@ export const MasterDashboardProvider = ({ children }: { children: ReactNode }) =
         loading,
         fetchData,
         fetchAnalytics,
+        fetchLeads,
         actionSuccessMsg,
         triggerNotification
       }}

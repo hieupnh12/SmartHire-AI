@@ -5,14 +5,11 @@ import com.smarthire.multitenancy.service.TenantCredentialService;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import org.flywaydb.core.Flyway;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 @Component
 public class TenantDataSourceFactory {
-    private static final Logger log = LoggerFactory.getLogger(TenantDataSourceFactory.class);
     private final TenantCredentialService credentials;
     private final TenantSchemaBootstrap schemaBootstrap;
     private final int poolSize;
@@ -66,17 +63,8 @@ public class TenantDataSourceFactory {
                 .baselineOnMigrate(false)
                 .validateOnMigrate(false)
                 .load();
-        try {
-            flyway.migrate();
-        } catch (Exception ex) {
-            log.error("Tenant Flyway migrate failed; repairing and retrying", ex);
-            try {
-                flyway.repair();
-                flyway.migrate();
-            } catch (Exception retry) {
-                log.error("Tenant Flyway retry failed; applying JDBC role schema anyway", retry);
-            }
-        }
+        // Never admit a partially migrated tenant or rewrite its history automatically.
+        flyway.migrate();
         schemaBootstrap.apply(dataSource);
     }
 
