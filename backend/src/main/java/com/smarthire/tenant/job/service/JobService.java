@@ -3,6 +3,7 @@ package com.smarthire.tenant.job.service;
 import com.smarthire.common.exception.BusinessException;
 import com.smarthire.domain.enums.ApplicationStatus;
 import com.smarthire.domain.enums.JobStatus;
+import com.smarthire.domain.enums.ScreeningMode;
 import com.smarthire.domain.enums.UserRole;
 import com.smarthire.domain.tenant.entity.Application;
 import com.smarthire.domain.tenant.entity.Job;
@@ -24,6 +25,7 @@ import com.smarthire.tenant.cv.service.CvSkillAnalysisService;
 import com.smarthire.tenant.job.dto.JobModels.ApplicationView;
 import com.smarthire.tenant.job.dto.JobModels.JobDetail;
 import com.smarthire.tenant.job.dto.JobModels.JobListItem;
+import com.smarthire.tenant.job.dto.JobModels.FunnelSummary;
 import com.smarthire.tenant.job.dto.JobModels.JobPage;
 import com.smarthire.tenant.job.dto.JobModels.JobUpsertRequest;
 import com.smarthire.tenant.job.dto.JobModels.PublicJob;
@@ -108,14 +110,18 @@ public class JobService {
     }
 
     @Transactional(readOnly = true)
-    public JobPage search(String query, JobStatus status, int page, int size) {
+    public JobPage search(String query, JobStatus status, String department, int page, int size) {
         requireStaff();
         int safeSize = Math.min(Math.max(size, 1), 50);
         int safePage = Math.max(page, 0);
-        var result = jobs.search(status, blankToNull(query), access.jobScopeUserId(), PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "id")));
-        Map<Long, Long> counts = counts(result.getContent().stream().map(Job::getId).toList());
+        var result = jobs.search(status, blankToNull(query), blankToNull(department),
+                access.jobScopeUserId(), PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "id")));
+        List<Long> ids = result.getContent().stream().map(Job::getId).toList();
+        Map<Long, Long> counts = counts(ids);
+        Map<Long, FunnelSummary> funnels = funnels(ids);
         List<JobListItem> items = result.getContent().stream()
-                .map(job -> mapper.listItem(job, counts.getOrDefault(job.getId(), 0L)))
+                .map(job -> mapper.listItem(job, counts.getOrDefault(job.getId(), 0L),
+                        funnels.getOrDefault(job.getId(), emptyFunnel())))
                 .toList();
         return new JobPage(items, result.getTotalElements(), safePage, safeSize);
     }
@@ -177,7 +183,7 @@ public class JobService {
         JobDetail created = create(new JobUpsertRequest(
                 request.title(),
                 request.description(),
-                null, null, null, "FULL_TIME", "HYBRID", null, 1, null,
+                null, null, null, "FULL_TIME", "HYBRID", null, ScreeningMode.MANUAL, 1, null,
                 null, null, "VND", true, null, null,
                 skillsOrDefault(request.skills()), null, null, null));
         JobDetail published = publish(created.id());
@@ -239,6 +245,7 @@ public class JobService {
         copy.setLocation(source.getLocation());
         copy.setEmploymentType(source.getEmploymentType());
         copy.setWorkMode(source.getWorkMode());
+        copy.setScreeningMode(source.getScreeningMode());
         copy.setDepartment(source.getDepartment());
         copy.setHeadcount(source.getHeadcount());
         copy.setDeadline(source.getDeadline());
@@ -337,7 +344,9 @@ public class JobService {
             job.setStatus(JobStatus.CLOSED);
             job.setClosedAt(now);
             jobs.save(job);
-            closeScreening.enqueueUnscreened(job);
+            if (job.getScreeningMode() == ScreeningMode.AUTO) {
+                closeScreening.enqueueUnscreened(job);
+            }
             closed++;
         }
         return closed;
@@ -423,6 +432,7 @@ public class JobService {
         job.setLocation(blankToNull(request.location()));
         job.setEmploymentType(blankToNull(request.employmentType()));
         job.setWorkMode(blankToNull(request.workMode()));
+        job.setScreeningMode(request.screeningMode() == null ? ScreeningMode.MANUAL : request.screeningMode());
         job.setDepartment(blankToNull(request.department()));
         job.setHeadcount(request.headcount());
         job.setDeadline(parseDeadline(request.deadline()));
@@ -544,6 +554,37 @@ public class JobService {
             map.put((Long) row[0], (Long) row[1]);
         }
         return map;
+    }
+
+    @Transactional(readOnly = true)
+    public List<String> departments() {
+        requireStaff();
+        return jobs.findDepartments();
+    }
+
+    private Map<Long, FunnelSummary> funnels(List<Long> ids) {
+        Map<Long, long[]> values = new HashMap<>();
+        if (ids.isEmpty()) return Map.of();
+        for (Object[] row : applications.countStatusesGroupedByJobIds(ids)) {
+            long jobId = ((Number) row[0]).longValue();
+            ApplicationStatus status = (ApplicationStatus) row[1];
+            long count = ((Number) row[2]).longValue();
+            long[] funnel = values.computeIfAbsent(jobId, ignored -> new long[5]);
+            if (status != ApplicationStatus.NEW) funnel[0] += count;
+            if (status == ApplicationStatus.ASSESSMENT || status == ApplicationStatus.INTERVIEW
+                    || status == ApplicationStatus.OFFER || status == ApplicationStatus.HIRED) funnel[1] += count;
+            if (status == ApplicationStatus.ASSESSMENT) funnel[2] += count;
+            if (status == ApplicationStatus.INTERVIEW) funnel[3] += count;
+            if (status == ApplicationStatus.HIRED) funnel[4] += count;
+        }
+        Map<Long, FunnelSummary> result = new HashMap<>();
+        values.forEach((jobId, value) -> result.put(jobId,
+                new FunnelSummary(value[0], value[1], value[2], value[3], value[4])));
+        return result;
+    }
+
+    private static FunnelSummary emptyFunnel() {
+        return new FunnelSummary(0, 0, 0, 0, 0);
     }
 
     private Job managed(long id) {

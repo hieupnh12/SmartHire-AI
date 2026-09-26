@@ -1,7 +1,7 @@
 # Recruitment Statistics
 
 **Epic:** Recruitment Analytics Dashboard  
-**Trạng thái:** `Doing`
+**Trạng thái:** `Done`
 **Code ID:** `DASH-01`
 
 ## Mục đích chức năng
@@ -27,6 +27,7 @@ KPI: open jobs, applicants, hire rate, avg time-to-hire, avg scores.
 | Method | Path |
 |---|---|
 | GET | `/api/v1/dashboard/summary` |
+| GET | `/api/v1/dashboard/action-items` |
 | GET | `/api/v1/analytics/recruiter/workload` |
 | GET | `/api/v1/analytics/recruiter/performance` |
 
@@ -39,6 +40,8 @@ KPI: open jobs, applicants, hire rate, avg time-to-hire, avg scores.
 ## UI mockup
 
 - Frontend Recruiter: `/recruiter` — dashboard ba cột gồm "Việc cần xử lý", job feed và bảng "Phân tích tuyển dụng của tôi". Cột việc cần xử lý và bảng phân tích đều tổng hợp toàn bộ job, không phụ thuộc vào việc chọn một job cụ thể.
+- Điều hướng bàn phím tại job feed: từ ô tìm kiếm job nhấn `↓` để vào card đầu tiên, dùng `↑`/`↓` để chuyển card và `Enter` để mở workspace của job đang focus.
+- Dashboard áp dụng graceful degradation: lỗi action-items, summary, job feed hoặc danh sách phòng ban chỉ ảnh hưởng vùng tương ứng; vùng còn lại tiếp tục hoạt động và mỗi vùng lỗi có thao tác thử lại riêng.
 - Frontend: `/internal/admin/analytics` — giao diện thống kê theo tab ngang, hiện dùng dữ liệu mẫu trong khi chờ API DASH-01/DASH-02.
 - Google Stitch: **Recruitment Analytics Dashboard / Recruitment Statistics** — _[dán link]_
 - Icons: xem `DESIGN.md`

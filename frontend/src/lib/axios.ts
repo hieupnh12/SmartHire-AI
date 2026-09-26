@@ -109,26 +109,25 @@ api.interceptors.response.use(
   },
 );
 
-export function getApiErrorMessage(error: unknown, fallback = "Có lỗi xảy ra, vui lòng thử lại"): string {
+const FRIENDLY_ERROR_MESSAGES: Record<string, string> = {
+  INTERNAL_ERROR: "Hệ thống đang gặp sự cố tạm thời. Vui lòng thử lại sau ít phút.",
+  VALIDATION_ERROR: "Một số thông tin chưa hợp lệ. Vui lòng kiểm tra lại.",
+  BAD_REQUEST: "Yêu cầu chưa hợp lệ. Vui lòng kiểm tra lại thông tin.",
+};
+
+export function getApiErrorMessage(error: unknown, fallback = "Không thể hoàn tất yêu cầu. Vui lòng thử lại."): string {
   if (axios.isAxiosError(error)) {
-    const data = error.response?.data as any;
-    if (data && typeof data === "object") {
-      if (data.message) return data.message;
-      if (data.errors) {
-        return Object.values(data.errors).join(", ");
-      }
+    const data = error.response?.data as ApiResponse<unknown> | undefined;
+    if (data?.errors) {
+      return Object.values(data.errors).join(", ");
     }
-    
-    // Xử lý các mã lỗi phổ biến khi Server không trả về JSON (ví dụ Server sập, DB chết)
-    if (error.response?.status === 503) {
-      return "Dịch vụ đang tạm thời gián đoạn (503). Có thể do Backend đang khởi động lại hoặc mất kết nối Database.";
-    }
-    if (error.response?.status === 502) return "Lỗi kết nối máy chủ (502 Bad Gateway).";
-    if (error.response?.status === 500) return "Lỗi máy chủ nội bộ (500). Vui lòng thử lại sau.";
-    if (error.response?.status === 429) return "Bạn thao tác quá nhanh (429). Vui lòng chờ một chút.";
-    
-    return error.message || fallback;
+    if (data?.code && FRIENDLY_ERROR_MESSAGES[data.code]) return FRIENDLY_ERROR_MESSAGES[data.code];
+    if (!error.response) return "Không thể kết nối đến hệ thống. Vui lòng kiểm tra mạng và thử lại.";
+    if (error.response.status === 403) return "Bạn không có quyền thực hiện thao tác này.";
+    if (error.response.status === 404) return "Không tìm thấy dữ liệu được yêu cầu.";
+    if (error.response.status >= 500) return FRIENDLY_ERROR_MESSAGES.INTERNAL_ERROR;
+    if (data?.message) return data.message;
   }
-  if (error instanceof Error) return error.message;
+  if (error instanceof Error && import.meta.env.DEV) console.error(error);
   return fallback;
 }

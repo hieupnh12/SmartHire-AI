@@ -1,7 +1,7 @@
 # Dashboard Charts
 
 **Epic:** Recruitment Analytics Dashboard  
-**Trạng thái:** `Doing`
+**Trạng thái:** `Done`
 **Code ID:** `DASH-02`
 
 ## Mục đích chức năng

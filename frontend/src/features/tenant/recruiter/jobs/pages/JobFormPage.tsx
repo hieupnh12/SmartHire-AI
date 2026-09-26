@@ -51,6 +51,7 @@ export function JobFormPage() {
     employmentType: "FULL_TIME",
     workMode: "HYBRID",
     department: "",
+    screeningMode: "MANUAL",
     headcount: 1,
     deadline: "",
     salaryMin: undefined,
@@ -76,6 +77,7 @@ export function JobFormPage() {
       employmentType: job.employmentType ?? "FULL_TIME",
       workMode: job.workMode ?? "HYBRID",
       department: job.department ?? "",
+      screeningMode: job.screeningMode ?? "MANUAL",
       headcount: job.headcount ?? 1,
       deadline: toDateTimeLocal(job.deadline),
       salaryMin: job.salaryMin ?? undefined,
@@ -167,6 +169,12 @@ export function JobFormPage() {
           <div className="grid gap-3 sm:grid-cols-2">
             <label className={field}><span>Địa điểm</span><input className={input} value={form.location} onChange={(e) => set("location", e.target.value)} /></label>
             <label className={field}><span>Phòng ban</span><input className={input} value={form.department} onChange={(e) => set("department", e.target.value)} /></label>
+            <label className={field}><span>Chế độ sàng lọc CV</span>
+              <select className={input} value={form.screeningMode ?? "MANUAL"} onChange={(e) => set("screeningMode", e.target.value)}>
+                <option value="MANUAL">Thủ công — recruiter xác nhận</option>
+                <option value="AUTO">Tự động — chạy khi hết hạn</option>
+              </select>
+            </label>
             <label className={field}><span>Employment type</span>
               <select className={input} value={form.employmentType} onChange={(e) => set("employmentType", e.target.value)}>
                 <option value="FULL_TIME">Full-time</option>

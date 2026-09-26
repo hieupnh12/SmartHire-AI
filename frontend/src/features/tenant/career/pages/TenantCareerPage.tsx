@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import React, { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { getTenantIdFromWindow } from "@/lib/tenant";
 import { getTenantTheme, getTenantThemeStyle } from "@/lib/tenantTheme";
@@ -76,8 +76,6 @@ function renderIcon(name: string, className?: string) {
 
 export function TenantCareerPage() {
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = searchParams.get("tab") || "home";
   const rawTenantCode = getTenantIdFromWindow() || "acme";
   const theme = getTenantTheme(rawTenantCode);
 
@@ -135,6 +133,13 @@ export function TenantCareerPage() {
     ].filter(Boolean),
   }));
 
+  useEffect(() => {
+    const jobId = Number(new URLSearchParams(window.location.search).get("jobId"));
+    if (!jobId || selectedJob) return;
+    const sharedJob = jobsList.find((job) => job.id === jobId);
+    if (sharedJob) setSelectedJob(sharedJob);
+  }, [jobsList, selectedJob]);
+
   const filteredJobs = jobsList.filter((j) => {
     const matchSearch =
       j.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -180,17 +185,6 @@ export function TenantCareerPage() {
     });
   };
 
-  if (publicLanding.isPending) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-8 h-8 rounded-full border-4 border-slate-200 border-t-slate-400 animate-spin" />
-          <p className="text-slate-500 text-sm font-medium animate-pulse">Đang tải cấu hình trang...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div
       className="tenant-workspace-theme min-h-screen bg-[#f9f9ff] text-[#191b23] font-sans antialiased flex flex-col justify-between"
@@ -224,17 +218,20 @@ export function TenantCareerPage() {
           </div>
 
           <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-[#475569]">
-            <button onClick={() => setSearchParams({ tab: 'home' })} className={`hover:text-slate-900 transition-colors ${activeTab === 'home' ? 'text-slate-900 font-bold' : ''}`}>
-              Trang Chủ
-            </button>
-            {customLanding?.techStack?.enabled !== false && (
-              <button onClick={() => setSearchParams({ tab: 'techstack' })} className={`hover:text-slate-900 transition-colors ${activeTab === 'techstack' ? 'text-slate-900 font-bold' : ''}`}>
-                Công Nghệ
-              </button>
+            <a href="#about" className="hover:text-slate-900 transition-colors">
+              Về Chúng Tôi
+            </a>
+            {customLanding?.benefits?.enabled && (
+              <a href="#benefits" className="hover:text-slate-900 transition-colors">
+                Đãi Ngộ
+              </a>
             )}
-            <button onClick={() => setSearchParams({ tab: 'jobs' })} className={`hover:text-slate-900 transition-colors ${activeTab === 'jobs' ? 'text-slate-900 font-bold' : ''}`}>
+            <a href="#techstack" className="hover:text-slate-900 transition-colors">
+              Tech Stack
+            </a>
+            <a href="#jobs" className="hover:text-slate-900 transition-colors">
               Vị Trí Tuyển Dụng
-            </button>
+            </a>
           </nav>
 
           <div className="flex items-center gap-3">
@@ -253,8 +250,6 @@ export function TenantCareerPage() {
       </header>
 
       <main className="relative z-10">
-        {activeTab === "home" && (
-          <>
         {/* HERO SECTION WITH DYNAMIC BANNER */}
         <section className="relative pt-12 pb-24 max-w-7xl mx-auto px-6">
           <div
@@ -289,7 +284,6 @@ export function TenantCareerPage() {
                 isDarkHero ? "text-white" : "text-slate-900"
               }`}
             >
-
               <div
                 className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full backdrop-blur-md border text-xs font-semibold mb-6"
                 style={{
@@ -298,7 +292,8 @@ export function TenantCareerPage() {
                   color: isDarkHero ? "#67e8f9" : primaryColor,
                 }}
               >
-                <span>{customLanding?.hero?.badgeText || theme.tagline || "Dẫn đầu Giải pháp Công nghệ"}</span>
+                <Sparkles className="w-4 h-4 text-cyan-400" />
+                <span>{customLanding?.hero?.badgeText || theme.tagline || "Dẫn đầu Giải pháp Công nghệ Enterprise Multi-Tenant & AI"}</span>
               </div>
 
               <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold font-display tracking-tight leading-tight mb-6">
@@ -316,7 +311,7 @@ export function TenantCareerPage() {
                 }`}
               >
                 {customLanding?.hero?.subtitle ||
-                  "Gia nhập đội ngũ kỹ sư tài năng tại môi trường làm việc chuẩn quốc tế. Cùng chúng tôi kiến tạo các sản phẩm công nghệ đột phá và khai phóng tối đa tiềm năng của bạn."}
+                  "Chúng tôi xây dựng môi trường kỹ thuật chuẩn International Enterprise — Nơi các Kỹ sư Phần mềm & AI được phát triển những sản phẩm công nghệ tạo giá trị thực sự."}
               </p>
 
               {/* Job Search Bar */}
@@ -333,34 +328,31 @@ export function TenantCareerPage() {
                     />
                   </div>
 
-                  <button
-                    onClick={() => setSearchParams({ tab: 'jobs' })}
+                  <a
+                    href="#jobs"
                     className="w-full sm:w-auto px-7 py-3 rounded-[10px] text-white font-semibold text-sm transition-all flex items-center justify-center gap-2 shadow-lg"
                     style={{ backgroundColor: primaryColor }}
                   >
                     <span>{customLanding?.hero?.primaryCtaText || "Xem Vị Trí Tuyển Dụng"}</span>
                     <ArrowRight className="w-4 h-4" />
-                  </button>
+                  </a>
                 </div>
               )}
 
               {/* Action Buttons */}
               <div className="flex items-center gap-4">
-                <button
-                  onClick={() => setSearchParams({ tab: 'jobs' })}
+                <a
+                  href="#jobs"
                   className="px-7 py-3 rounded-[10px] text-white font-semibold text-sm transition-all flex items-center gap-2 shadow-lg"
                   style={{ backgroundColor: primaryColor }}
                 >
                   <span>{customLanding?.hero?.primaryCtaText || "Xem Vị Trí Tuyển Dụng"}</span>
                   <ArrowRight className="w-4 h-4" />
-                </button>
+                </a>
 
                 {customLanding?.hero?.secondaryCtaText && (
-                  <button
-                    onClick={() => {
-                      const link = customLanding.hero.secondaryCtaLink || "about";
-                      setSearchParams({ tab: link.replace("#", "") });
-                    }}
+                  <a
+                    href={customLanding.hero.secondaryCtaLink || "#about"}
                     className={`px-6 py-3 rounded-[10px] font-semibold text-sm transition-all border ${
                       isDarkHero
                         ? "border-white/30 text-white hover:bg-white/10"
@@ -368,17 +360,15 @@ export function TenantCareerPage() {
                     }`}
                   >
                     {customLanding.hero.secondaryCtaText}
-                  </button>
+                  </a>
                 )}
               </div>
             </div>
           </div>
         </section>
-        </>
-        )}
 
         {/* COMPANY CULTURE & NUMBERS SHOWCASE */}
-        {activeTab === "home" && customLanding?.about?.enabled !== false && (
+        {customLanding?.about?.enabled !== false && (
           <section id="about" className="py-20 bg-white border-y border-[#e2e8f0]">
             <div className="max-w-7xl mx-auto px-6">
               <div className="grid lg:grid-cols-2 gap-12 items-center">
@@ -453,7 +443,7 @@ export function TenantCareerPage() {
         )}
 
         {/* PERKS & BENEFITS SECTION */}
-        {activeTab === "home" && customLanding?.benefits?.enabled !== false && (
+        {customLanding?.benefits?.enabled !== false && (
           <section id="benefits" className="py-20 bg-[#f8f9ff] border-b border-[#e2e8f0]">
             <div className="max-w-7xl mx-auto px-6">
               <div className="text-center max-w-2xl mx-auto mb-14">
@@ -526,7 +516,7 @@ export function TenantCareerPage() {
         )}
 
         {/* TECH STACK GRID SECTION */}
-        {(activeTab === "home" || activeTab === "techstack") && customLanding?.techStack?.enabled !== false && (
+        {customLanding?.techStack?.enabled !== false && (
           <section id="techstack" className="py-20 bg-white border-b border-[#e2e8f0]">
             <div className="max-w-7xl mx-auto px-6">
               <div className="text-center max-w-2xl mx-auto mb-14">
@@ -618,7 +608,7 @@ export function TenantCareerPage() {
         )}
 
         {/* TESTIMONIALS SECTION */}
-        {(activeTab === "home") && customLanding?.testimonials?.enabled !== false && (
+        {customLanding?.testimonials?.enabled !== false && (
           <section className="py-20 bg-[#f8f9ff] border-b border-[#e2e8f0]">
             <div className="max-w-7xl mx-auto px-6">
               <div className="text-center max-w-2xl mx-auto mb-14">
@@ -691,7 +681,6 @@ export function TenantCareerPage() {
         )}
 
         {/* JOB POSITIONS SECTION */}
-        {(activeTab === "home" || activeTab === "jobs") && (
         <section id="jobs" className="py-20 max-w-7xl mx-auto px-6">
           <div className="flex flex-col md:flex-row md:items-end justify-between mb-10 gap-4">
             <div>
@@ -802,7 +791,6 @@ export function TenantCareerPage() {
             </div>
           )}
         </section>
-        )}
       </main>
 
       {/* JOB DETAIL MODAL */}
@@ -1030,6 +1018,15 @@ export function TenantCareerPage() {
                 )}
               </div>
 
+              <div>
+                <button
+                  onClick={() => navigate("/internal/login")}
+                  className="text-xs text-sky-400 font-semibold hover:underline inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-500/10 border border-sky-500/20"
+                >
+                  <ShieldCheck className="w-4 h-4" />
+                  <span>Portal Quản Trị & Tuyển Dụng</span>
+                </button>
+              </div>
             </div>
           </div>
 

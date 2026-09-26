@@ -7,6 +7,14 @@ public record DashboardSummaryResponse(
         long newApplicants,
         long interviewsScheduled,
         BigDecimal hireRate,
-        BigDecimal avgMatchScore
+        BigDecimal avgMatchScore,
+        long totalJobs,
+        long activeJobs,
+        long pausedJobs,
+        long draftJobs,
+        long jobsNearDeadline,
+        long totalApplications,
+        BigDecimal averageApplicationsPerOpenJob,
+        long pendingCvScreening
 ) {
 }

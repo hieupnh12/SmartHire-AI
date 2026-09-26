@@ -17,6 +17,9 @@ public interface JobRepository extends JpaRepository<Job, Long> {
     long countByStatusAndDeletedAtIsNull(JobStatus status);
     List<Job> findByDeletedAtIsNullOrderByIdDesc();
 
+    @Query("select distinct j.department from Job j where j.deletedAt is null and j.department is not null and j.department <> '' order by j.department")
+    List<String> findDepartments();
+
     @Query("select j from Job j left join fetch j.createdBy where j.id = :id")
     Optional<Job> findWithOwnerById(@Param("id") Long id);
 
@@ -27,6 +30,7 @@ public interface JobRepository extends JpaRepository<Job, Long> {
               and (:assigneeId is null or exists (
                     select 1 from JobAssignment a
                     where a.job = j and a.user.id = :assigneeId))
+              and (:department is null or lower(coalesce(j.department, '')) = lower(:department))
               and (:q is null or :q = '' or lower(j.title) like lower(concat('%', :q, '%'))
                    or lower(coalesce(j.location, '')) like lower(concat('%', :q, '%'))
                    or lower(coalesce(j.department, '')) like lower(concat('%', :q, '%')))
@@ -34,6 +38,7 @@ public interface JobRepository extends JpaRepository<Job, Long> {
     Page<Job> search(
             @Param("status") JobStatus status,
             @Param("q") String q,
+            @Param("department") String department,
             @Param("assigneeId") Long assigneeId,
             Pageable pageable);
 
