@@ -3,17 +3,21 @@
 > **Nguồn sự thật:** Flyway migration trong `backend/src/main/resources/db/migration/` (master + tenant).
 > Entity JPA trong `backend/src/main/java/com/smarthire/domain/` là ánh xạ của schema đó, **không** phải nguồn sự thật.
 > Khi hai bên lệch nhau, SQL migration thắng.
+>
+> **BẮT BUỘC:** Mới tạo bảng gì trong database thì phải tạo luôn entity tương ứng
+> ([`MAINTENANCE.md` §1.1](MAINTENANCE.md#11-bắt-buộc-kèm-entity-khi-tạo-bảng),
+> [`.cursor/rules/migration-entity-sync.mdc`](../../.cursor/rules/migration-entity-sync.mdc)).
 
 | Thông tin | Giá trị |
 |---|---|
 | Kiến trúc | Separate Database per Tenant |
 | Số database logic | 2 loại (1 Master + N Tenant) |
-| Bảng tenant sau V23 | 55 bảng từ pipeline trong repo (gồm 5 bảng analytics V9), không tính Flyway history; không còn bảng `legacy_v12_*` |
-| Entity JPA | 49 tenant; thêm `QuestionSkill`. Thống kê master ở các phần dưới chưa được rà soát trong đợt này |
+| Bảng tenant sau V24 | 55 bảng từ pipeline trong repo (gồm 5 bảng analytics V9), không tính Flyway history; không còn bảng `legacy_v12_*` |
+| Entity JPA | 50 tenant; thêm `QuestionSkill`, `AnswerSelectedOption`. Thống kê master ở các phần dưới chưa được rà soát trong đợt này |
 | Khoá ngoại tenant | 71 theo pipeline repo; V23 thêm 2 FK cho `answer_selected_options` |
 | Ràng buộc UNIQUE tenant | Không thêm UNIQUE riêng ở V22; PK kép `questionskills(question_id, skill_id)` ngăn liên kết trùng |
 | Số file migration trong repo | 36 (20 master + 16 tenant); V9 redesign nằm ngoài pipeline |
-| Cập nhật lần cuối | Tenant `V23`, ngày 2026-09-26; master không thuộc phạm vi rà soát |
+| Cập nhật lần cuối | Tenant `V24`, ngày 2026-09-26; master không thuộc phạm vi rà soát |
 | Dọn legacy V21 | Xóa 19 bảng và dữ liệu legacy, xóa 2 cột ID legacy trong ranking; không chuyển ID cũ sang bản ghi mới |
 | Metadata assessment 2026-09-25 | V13: `tests.created_by/updated_at`, `questions.difficulty/skill/explanation` cho Excel/UI authoring |
 | Sửa lỗi assessment 2026-09-24 | V10/V11 khớp checksum lịch sử; V12 tạo schema mới và giữ bảng cũ; migration lỗi phải chặn mở tenant pool |
@@ -202,9 +206,11 @@ thay vì âm thầm đọc nhầm database của doanh nghiệp khác.
 | 47 | `RolePermission` | `role_permissions` | Identity | Có |
 | 48 | `TenantRole` | `roles` | Identity | Có |
 | 49 | `QuestionSkill` | `questionskills` | Test & Skill | Không |
+| 50 | `AnswerSelectedOption` | `answer_selected_options` | Test & Skill | Không |
 
-V23 thêm bảng nối `answer_selected_options`, không có entity riêng; ánh xạ bằng
-`Answer.selectedOptions` (`@ManyToMany`). Enum API `QuestionType`: `MCQ`, `MULTIPLE_CHOICE`, `ESSAY`;
+V23 thêm bảng nối `answer_selected_options`, entity `AnswerSelectedOption` (`@EmbeddedId` + `@MapsId`);
+`Answer.selectedOptions` là `@OneToMany(mappedBy = "answer", cascade = ALL, orphanRemoval)`.
+Enum API `QuestionType`: `MCQ`, `MULTIPLE_CHOICE`, `ESSAY`;
 `questions.question_type` vẫn là VARCHAR(32), không có CHECK SQL giới hạn giá trị.
 
 **Bảng lưu trữ V12 đã bị V21 xóa (19 bảng, không có entity):** thêm tiền tố `legacy_v12_` vào các tên
@@ -594,12 +600,13 @@ của màn assessment hiện tại.
 | `JobTest` | Đề thi gắn với một job (bảng `tests`) | `duration_minutes`, `passing_score`, `status`, `created_by`, `updated_at` — tên class tránh xung đột JUnit `Test` |
 | `Question` | Câu hỏi trắc nghiệm hoặc tự luận | `question_text`, `question_type`, `points`, `question_order`, `difficulty`, `skill`, `explanation` |
 | `QuestionSkill` | Liên kết N–N câu hỏi và kỹ năng | PK kép `(question_id, skill_id)`; 2 FK NOT NULL, ON DELETE CASCADE |
+| `AnswerSelectedOption` | Lựa chọn đã chọn của câu MULTIPLE_CHOICE | PK kép `(answer_id, option_id)`; FK answer CASCADE, option RESTRICT |
 | `Option` | Lựa chọn trả lời | `is_correct` — **không được trả cột này ra API cho thí sinh** |
 | `CodingProblem` | Bài lập trình | `time_limit_ms`, `memory_mb`, FK `test_id` |
 | `TestCase` | Bộ test của bài code | `is_sample`, `weight` |
 | `Submission` | Một lượt làm bài của ứng viên | Điểm tổng nằm ở cột `score`; cho phép làm lại nhiều lần |
 | `Answer` | Câu trả lời trong lượt làm | `selected_option_id` (có FK), `answer_text`, `is_correct`, `score` |
-| `Answer.selectedOptions` | Các lựa chọn cho MULTIPLE_CHOICE | Bảng nối `answer_selected_options`; MCQ dùng cột đơn cũ, ESSAY dùng `answer_text` |
+| `Answer.selectedOptions` | Các lựa chọn cho MULTIPLE_CHOICE | Entity `AnswerSelectedOption` → bảng `answer_selected_options`; MCQ dùng cột đơn cũ, ESSAY dùng `answer_text` |
 | `CodingSubmission` | Bài nộp code | `language`, `source_code`, `result_json`, `status` |
 | `ProctorEvent` | Sự kiện giám sát thô | FK `submission_id` |
 | `ProctorReport` | Báo cáo rủi ro tổng hợp | 1:1 với `submissions` |
@@ -1015,9 +1022,10 @@ Hai pipeline dùng **hai phương ngữ SQL khác nhau** và không thể dùng 
 | V21 | `V21__drop_legacy_assessment_interview_tables.sql` | Xóa 19 bảng legacy cùng dữ liệu và 2 cột ID legacy trong ranking; giữ FK model mới. Dùng V21 vì DB ttqt đã có lịch sử tới V20 |
 | V22 | `V22__question_skills.sql` | Thêm `questionskills`, PK kép và 2 FK DELETE CASCADE tới questions/skills; index `idx_questionskills_skill` |
 | V23 | `V23__assessment_multiple_answer_types.sql` | Thêm bảng nối lựa chọn nhiều đáp án; giữ selected_option_id và answer_text, không backfill MCQ cũ |
+| V24 | `V24__assessment_authoring_metadata_compat.sql` | Idempotent: bổ sung `tests.created_by/updated_at` + `questions.difficulty/skill/explanation` + FK cho tenant có V13 lịch sử khác checkout (ttqt) |
 
 V9 redesign cũ được giữ nguyên tại `db/migration-archive/`, **ngoài** location Flyway.
-Tenant tạo mới chạy V1–V13 rồi V21–V22: 54 bảng hiện hành (gồm 5 bảng analytics V9), chưa tính history.
+Tenant tạo mới chạy V1–V13 rồi V21–V24: 55 bảng hiện hành (gồm 5 bảng analytics V9), chưa tính history.
 V9 analytics đã có source trong checkout hiện tại. Tuy nhiên DB ttqt có V13–V20 khác checkout;
 không dùng `repair` để đổi checksum hoặc giả mạo lịch sử. Việc đồng bộ lịch sử này là task riêng.
 
@@ -1043,7 +1051,7 @@ sequenceDiagram
     PRV->>MY: CREATE USER + GRANT
     PRV->>PG: UPDATE tenants SET db_url, db_username, db_password (đã mã hoá)
     PRV->>FW: migrate() trên datasource của tenant mới
-    FW->>MY: Áp dụng V1–V13, V21–V22 (54 bảng, không còn archive)
+    FW->>MY: Áp dụng V1–V13, V21–V24 (55 bảng, không còn archive)
     PRV-->>API: Tenant sẵn sàng
 ```
 

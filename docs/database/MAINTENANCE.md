@@ -7,6 +7,8 @@ cập nhật cái gì, và cách kiểm chứng.
 
 Quy tắc cũng được nhắc lại ở [`AGENTS.md`](../../AGENTS.md) mục 12 và
 [`.cursor/rules/database-docs-sync.mdc`](../../.cursor/rules/database-docs-sync.mdc) để AI tự áp dụng.
+Rule **bảng mới ⇒ entity mới**: [`.cursor/rules/migration-entity-sync.mdc`](../../.cursor/rules/migration-entity-sync.mdc)
+(tự đính kèm khi mở file migration / entity).
 
 ---
 
@@ -22,6 +24,14 @@ Cập nhật là **bắt buộc**, không phải tuỳ chọn, khi task chạm v
 | Đổi cấu hình persistence | `config/MasterJpaConfig.java`, `config/MultiTenantJpaConfig.java` |
 | Đổi cơ chế multi-tenant | `backend/src/main/java/com/smarthire/multitenancy/**` |
 | Đổi datasource / Flyway | `backend/src/main/resources/application.yml` |
+
+### 1.1 Bắt buộc kèm entity khi tạo bảng
+
+> **Mới tạo bảng gì trong database thì bạn phải tạo luôn entity tương ứng.**
+
+Mỗi `CREATE TABLE` trong Flyway (master hoặc tenant) **phải** kèm class `@Entity` trong cùng PR/commit,
+`@Table(name = "...")` khớp tên bảng. Bảng nối cũng cần entity (ví dụ `AnswerSelectedOption` cho
+`answer_selected_options`). Không merge migration thiếu entity.
 
 Sửa repository, service, controller hay DTO **không** kích hoạt quy trình này, trừ khi chúng làm đổi
 ràng buộc nghiệp vụ đã ghi ở [mục 8.4](README.md#84-quy-tắc-nghiệp-vụ-mà-database-không-bảo-vệ-được).
@@ -54,6 +64,8 @@ Chạy theo đúng thứ tự này sau khi sửa schema hoặc entity:
 
 - [ ] **Đọc SQL trước.** Migration là nguồn sự thật. Một association JPA hoặc một cột kết thúc bằng `_id`
       **không** chứng minh khoá ngoại tồn tại trong database.
+- [ ] **Nếu có `CREATE TABLE`:** đã có entity `@Entity` + `@Table(name = "...")` khớp tên bảng
+      (xem [mục 1.1](#11-bắt-buộc-kèm-entity-khi-tạo-bảng)).
 - [ ] Cập nhật `DATA_DICTIONARY_MASTER.md` hoặc `DATA_DICTIONARY_TENANT.md` — cột, kiểu, nullable, default,
       ràng buộc, mô tả.
 - [ ] Cập nhật các mục tương ứng trong `README.md` theo [bảng ánh xạ ở mục 2](#2-bảng-ánh-xạ-thay-đổi-nào-sửa-mục-nào).

@@ -17,33 +17,67 @@ import {
 } from "@/components/ux/QuestionAnswerPanel";
 import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
-import { typeMeta } from "../constants/excelTemplateMock";
+import { typeMeta, isSubjectiveKind } from "../constants/excelTemplateMock";
 import type { ImportRow } from "../utils/excelImportValidation";
-import { isPersistableQuestion } from "../utils/excelImportValidation";
+import { hasMinimalContentAndAnswer, isPersistableQuestion } from "../utils/excelImportValidation";
 import { clearExcelQuestionDraft } from "../utils/excelQuestionDraft";
 
 const card = "rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)]";
 const muted = "text-[var(--color-on-surface-variant)]";
 const field = "mt-1 h-10 w-full rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-container-low)] px-3 text-sm outline-none focus:ring-2 focus:ring-[var(--color-primary)] disabled:opacity-70";
 
+function mapDifficulty(raw: string): QuestionRequest["difficulty"] {
+  const value = raw.trim().toLowerCase();
+  if (!value) return null;
+  if (value === "easy" || value.includes("dễ") || value.includes("co ban") || value.includes("cơ bản")) return "Easy";
+  if (value === "hard" || value.includes("khó") || value.includes("nâng cao") || value.includes("nang cao")) return "Hard";
+  if (value === "medium" || value.includes("vận dụng") || value.includes("van dung") || value.includes("trung")) return "Medium";
+  return null;
+}
+
+function selectedLetters(answer: string): Set<string> {
+  return new Set(
+    answer
+      .trim()
+      .toUpperCase()
+      .split(/[,;/|\s]+/)
+      .map((part) => part.trim())
+      .filter((part) => /^[A-D]$/.test(part)),
+  );
+}
+
 function toQuestionRequest(item: ImportRow, index: number, defaultScore: number): QuestionRequest {
-  const answer = item.row.answer.trim().toUpperCase();
-  const options = [item.row.optionA, item.row.optionB, item.row.optionC, item.row.optionD]
+  const row = item.row;
+  const base = {
+    questionText: row.content.trim(),
+    points: row.score.trim() ? Number(row.score) : defaultScore,
+    questionOrder: index,
+    difficulty: mapDifficulty(row.difficulty),
+    skill: row.skill.trim() || null,
+  };
+
+  if (isSubjectiveKind(row.kind)) {
+    return {
+      ...base,
+      questionType: "ESSAY",
+      explanation: row.sample.trim() || row.explanation.trim() || null,
+      options: [],
+    };
+  }
+
+  const letters =
+    row.kind === "NHIEU_DAP_AN" ? selectedLetters(row.answer) : new Set([row.answer.trim().toUpperCase()].filter((l) => /^[A-D]$/.test(l)));
+  const options = [row.optionA, row.optionB, row.optionC, row.optionD]
     .map((optionText, optionIndex) => ({
       optionText: optionText.trim(),
-      correct: String.fromCharCode(65 + optionIndex) === answer,
+      correct: letters.has(String.fromCharCode(65 + optionIndex)),
     }))
     .filter((option) => option.optionText.length > 0);
-  const difficultyRaw = item.row.difficulty.trim().toLowerCase();
-  const difficulty =
-    difficultyRaw === "easy" ? "Easy" : difficultyRaw === "medium" ? "Medium" : difficultyRaw === "hard" ? "Hard" : null;
+
   return {
-    questionText: item.row.content.trim(),
-    points: item.row.score.trim() ? Number(item.row.score) : defaultScore,
-    questionOrder: index,
-    difficulty,
-    skill: item.row.skill.trim() || null,
-    explanation: item.row.explanation.trim() || null,
+    ...base,
+    questionType: row.kind === "NHIEU_DAP_AN" ? "MULTIPLE_CHOICE" : "MCQ",
+    explanation: row.explanation.trim() || row.policyNote.trim() || null,
     options,
   };
 }
@@ -84,8 +118,9 @@ export function AssessmentPublishReview({
   }, [showPublish]);
 
   const saveableRows = rows.filter(
-    (item) => item.status !== "INVALID" && isPersistableQuestion(item.row) && item.errors.length === 0,
+    (item) => !item.skipped && item.status !== "INVALID" && isPersistableQuestion(item.row),
   );
+  const reviewedCount = rows.filter((item) => !item.skipped).length;
   const total = saveableRows.reduce((sum, item) => sum + (item.row.score.trim() ? Number(item.row.score) : defaultScore), 0);
   const schema = z.object({
     title: z.string().trim().min(1).max(255),
@@ -102,28 +137,46 @@ export function AssessmentPublishReview({
   const validDuration = schema.shape.duration.safeParse(duration).success;
   const validPassing = schema.shape.passingScore.safeParse(passingScore).success;
 
+  const kindSummary = [
+    ["đơn", saveableRows.filter((item) => item.row.kind === "TRAC_NGHIEM_DON").length],
+    ["nhiều đáp án", saveableRows.filter((item) => item.row.kind === "NHIEU_DAP_AN").length],
+    ["tự luận", saveableRows.filter((item) => isSubjectiveKind(item.row.kind)).length],
+  ]
+    .filter(([, count]) => Number(count) > 0)
+    .map(([label, count]) => `${count} ${label}`)
+    .join(" · ");
+
   const checks = [
     { title: "Thông tin chung", value: validTitle && validDuration, detail: "Tên đề tối đa 255 ký tự và thời lượng là số phút nguyên dương." },
-    { title: "Số lượng câu hỏi", value: saveableRows.length > 0 && saveableRows.length <= 100, detail: `${saveableRows.length} câu trắc nghiệm đơn sẽ lưu / ${rows.length} câu đã kiểm tra.` },
+    {
+      title: "Số lượng câu hỏi",
+      value: saveableRows.length > 0 && saveableRows.length <= 100,
+      detail:
+        saveableRows.length === 0
+          ? `Chưa có câu đủ nội dung để lưu / ${reviewedCount} câu đã kiểm tra.`
+          : `${saveableRows.length} câu sẽ lưu (${kindSummary || "hỗn hợp"}) / ${reviewedCount} câu đã kiểm tra. Không bắt buộc đủ mọi thể loại.`,
+    },
     {
       title: "Nội dung & đáp án",
-      value: saveableRows.length > 0 && saveableRows.every((item) => item.errors.length === 0),
-      detail: "API hiện lưu câu trắc nghiệm đơn đủ content, độ khó, kỹ năng và đáp án hợp lệ.",
+      value: saveableRows.length > 0 && saveableRows.every((item) => hasMinimalContentAndAnswer(item.row)),
+      detail:
+        "Mỗi câu cần có nội dung; trắc nghiệm cần ≥2 lựa chọn và đáp án. Độ khó / kỹ năng / đáp án mẫu là khuyến nghị, không chặn lưu nháp.",
     },
     {
       title: "Cơ cấu điểm số",
-      value: total > 0 && saveableRows.every((item) => {
-        const points = Number(item.row.score.trim() || defaultScore);
-        return Number.isInteger(points) && points >= 1 && points <= 10000;
-      }),
-      detail: `Tổng ${total} điểm; giữ nguyên điểm của từng câu hỏi.`,
+      value:
+        Math.abs(total - 10) < 1e-9 &&
+        saveableRows.length > 0 &&
+        saveableRows.every((item) => {
+          const points = Number(item.row.score.trim() || defaultScore);
+          return Number.isFinite(points) && points > 0 && points <= 10;
+        }),
+      detail:
+        Math.abs(total - 10) < 1e-9
+          ? `Tổng ${total} điểm — đạt yêu cầu (phải đúng 10).`
+          : `Tổng ${total} điểm — cần điều chỉnh để tổng đúng 10 điểm.`,
     },
     { title: "Ngưỡng điểm đạt", value: validPassing, detail: passingScore === "" ? "Không đặt ngưỡng điểm đạt." : `Điểm đạt phải từ 0 đến ${total}.` },
-    {
-      title: "Cấu trúc trắc nghiệm V1",
-      value: saveableRows.every((item) => item.row.kind === "TRAC_NGHIEM_DON"),
-      detail: "Nhiều đáp án / tự luận vẫn hợp lệ ở bước kiểm tra; hiện chỉ đẩy trắc nghiệm đơn vào đề.",
-    },
   ];
   const passed = checks.filter((check) => check.value).length;
   const canSave = passed === checks.length;
@@ -139,10 +192,17 @@ export function AssessmentPublishReview({
     mutationFn: async () => {
       const toSave = saveableRows;
       if (toSave.length === 0) {
-        throw new Error("Không có câu trắc nghiệm đơn hợp lệ (content + độ khó + kỹ năng) để lưu vào đề.");
+        throw new Error("Không có câu hỏi đủ nội dung để lưu vào đề (cần content; trắc nghiệm cần đáp án + ≥2 lựa chọn).");
       }
       if (toSave.length > 100) {
         throw new Error("Vượt giới hạn 100 câu hỏi.");
+      }
+      const pointsTotal = toSave.reduce(
+        (sum, item) => sum + (item.row.score.trim() ? Number(item.row.score) : defaultScore),
+        0,
+      );
+      if (Math.abs(pointsTotal - 10) >= 1e-9) {
+        throw new Error(`Tổng điểm phải đúng 10 (hiện tại ${pointsTotal}).`);
       }
       // Always create DRAFT — publish is done later from assessment detail.
       const test = await assessmentApi.create({
@@ -177,7 +237,7 @@ export function AssessmentPublishReview({
             Kiểm định & lưu bản nháp
           </h1>
           <p className="mt-2 text-xs text-[var(--color-primary)]">
-            Lưu dưới dạng bản nháp (DRAFT). Chỉ lưu câu hỏi đủ content, độ khó và kỹ năng.
+            Lưu bản nháp (DRAFT). Cho phép trộn loại câu — không bắt buộc đủ mọi thể loại hay đủ độ khó/kỹ năng.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">

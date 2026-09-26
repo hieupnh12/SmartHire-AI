@@ -24,7 +24,7 @@ Phân tích ngữ nghĩa câu trả lời: relevance, depth, soft-skills signals
 
 ## API liên quan
 
-Nội bộ worker + `GET /api/v1/interviews/{id}` gồm analysis.
+Nội bộ worker + `GET /api/v1/ai-interviews/{id}` (session detail; NLP analysis worker chưa gắn).
 
 ## Database liên quan
 

@@ -98,7 +98,9 @@ function parseKind(raw: string, fallback: QuestionKind): QuestionKind {
     return "TINH_HUONG_SYSTEM";
   }
   if (ascii.includes("CODE") || ascii.includes("TU_LUAN_CODE")) return "TU_LUAN_CODE";
-  if (ascii.includes("TU_LUAN")) return "TU_LUAN_CODE";
+  // Bare "Tự luận" / Essay → theory (not code). Prefer longer labels via typeLabelMatchers first.
+  if (ascii === "TU_LUAN" || ascii === "ESSAY" || ascii === "TU_LUAN_LY_THUYET") return "TINH_HUONG_SYSTEM";
+  if (ascii.includes("TU_LUAN")) return "TINH_HUONG_SYSTEM";
   if (ascii.includes("DON") || ascii.includes("SINGLE") || ascii.includes("TRAC_NGHIEM")) {
     return "TRAC_NGHIEM_DON";
   }
@@ -109,7 +111,12 @@ function parseClipboardMatrix(text: string): string[][] {
   const normalized = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
   const lines = normalized.split("\n");
   while (lines.length > 0 && !lines[lines.length - 1].trim()) lines.pop();
-  return lines.map((line) => (line.includes("\t") ? line.split("\t") : [line]));
+  return lines.map((line) => {
+    if (line.includes("\t")) return line.split("\t");
+    // Some apps paste columns separated by 2+ spaces instead of tabs.
+    if (/\s{2,}/.test(line)) return line.split(/\s{2,}/).map((cell) => cell.trim());
+    return [line];
+  });
 }
 
 function parseClipboardHtmlTable(html: string): string[][] | null {
@@ -138,13 +145,306 @@ function isKnownTypeLabel(value: string): boolean {
   const trimmed = value.trim();
   if (!trimmed) return false;
   if (QUESTION_TYPE_OPTIONS.some((item) => item.label.toLowerCase() === trimmed.toLowerCase())) return true;
+  if (/^(tự\s*luận|tu\s*luan|essay)$/i.test(trimmed)) return true;
   const ascii = trimmed
     .toUpperCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/\s+/g, "_");
   if (QUESTION_TYPE_OPTIONS.some((item) => item.value === ascii)) return true;
-  return /TRAC.?NGHIEM|NHIEU.?DAP|TU.?LUAN|LY.?THUYET|TINH.?HUONG|THEORY|^SINGLE$|^MULTI$|CODE|SYSTEM/i.test(ascii);
+  return /TRAC.?NGHIEM|NHIEU.?DAP|TU.?LUAN|LY.?THUYET|TINH.?HUONG|THEORY|^SINGLE$|^MULTI$|CODE|SYSTEM|^ESSAY$/i.test(ascii);
+}
+
+/** Extra aliases users type/paste (matched after longer official labels). */
+const TYPE_LABEL_ALIASES = ["Tự luận lý thuyết", "Tự luận code", "Tự luận", "Tu luan", "Essay", "ESSAY"];
+
+function typeLabelMatchers(): string[] {
+  return [...QUESTION_TYPE_OPTIONS]
+    .flatMap((item) => [item.label, item.value, item.value.replace(/_/g, " "), item.shortLabel])
+    .concat(TYPE_LABEL_ALIASES)
+    .filter(Boolean)
+    .sort((a, b) => b.length - a.length);
+}
+
+/** Strip "Đáp án mẫu:" / "Sample answer:" so paste lands in the sample field cleanly. */
+function stripSamplePrefix(text: string): string {
+  return text.replace(/^(?:đáp\s*án\s*mẫu|sample(?:\s*answer)?)\s*:\s*/i, "").trim();
+}
+
+function peelSampleAnswer(text: string): { body: string; sample: string } {
+  const match = text.match(/^(.*?)(?:đáp\s*án\s*mẫu|sample(?:\s*answer)?)\s*:\s*([\s\S]+)$/i);
+  if (match && ((match[1] ?? "").trim().length > 0 || (match[2] ?? "").trim().length > 0)) {
+    return { body: (match[1] ?? "").trim(), sample: (match[2] ?? "").trim() };
+  }
+  return { body: text.trim(), sample: "" };
+}
+
+function isSampleAnswerOnlyLine(text: string): boolean {
+  return /^(?:đáp\s*án\s*mẫu|sample(?:\s*answer)?)\s*:/i.test(text.trim());
+}
+
+/**
+ * Recover a wide Excel row when tabs were lost and cells were concatenated, e.g.
+ * "JWT...?Nhiều đáp án2.0MediumSecurityA. HeaderB. PayloadC. SignatureD. NoneA,B,C"
+ * → [content, type, score, difficulty, skill, A, B, C, D, answer, explanation]
+ */
+function peelTrailingAnswer(text: string): { body: string; answer: string; explanation: string } {
+  // Prefer multi-select keys first: ...A,B,C + optional explanation (may be stuck without space).
+  const multi = text.match(/^(.*?)([A-D](?:,[A-D])+)\s*(.*)$/i);
+  if (multi && (multi[1] ?? "").trim().length > 0) {
+    return {
+      body: (multi[1] ?? "").trim(),
+      answer: (multi[2] ?? "").toUpperCase(),
+      explanation: (multi[3] ?? "").trim(),
+    };
+  }
+  const single = text.match(/^(.*[^A-Za-zÀ-ỹ0-9])([A-D])\s*(.*)$/i);
+  if (single && (single[1] ?? "").trim().length > 0) {
+    return {
+      body: (single[1] ?? "").trim(),
+      answer: (single[2] ?? "").toUpperCase(),
+      explanation: (single[3] ?? "").trim(),
+    };
+  }
+  // Collapsed single answer after PascalCase token: ...SessionA + explanation
+  const stuck = text.match(/^([A-Za-zÀ-ỹ0-9]*[a-zà-ỹ0-9])([A-D])([A-ZÀ-Ý].*|)$/);
+  if (stuck) {
+    return {
+      body: (stuck[1] ?? "").trim(),
+      answer: (stuck[2] ?? "").toUpperCase(),
+      explanation: (stuck[3] ?? "").trim(),
+    };
+  }
+  return { body: text.trim(), answer: "", explanation: "" };
+}
+
+/** HeaderPayloadSignatureSession → [Header, Payload, Signature, Session] */
+function splitPascalCaseTokens(text: string): string[] {
+  const compact = text.replace(/\s+/g, "").trim();
+  if (!compact) return [];
+  return compact.match(/[A-ZÀ-Ý][a-zà-ỹ0-9]+|[A-ZÀ-Ý]+(?![a-zà-ỹ])/g) ?? [];
+}
+
+function splitCamelCollapsedOptions(body: string): {
+  skill: string;
+  options: [string, string, string, string];
+} | null {
+  const tokens = splitPascalCaseTokens(body);
+  if (tokens.length < 2 || tokens.length > 6) return null;
+  // Typical: 4 options, or skill + 4 options.
+  if (tokens.length <= 4) {
+    return {
+      skill: "",
+      options: [tokens[0] ?? "", tokens[1] ?? "", tokens[2] ?? "", tokens[3] ?? ""],
+    };
+  }
+  return {
+    skill: tokens[0] ?? "",
+    options: [tokens[1] ?? "", tokens[2] ?? "", tokens[3] ?? "", tokens[4] ?? ""],
+  };
+}
+
+function splitLabeledOptions(text: string): {
+  skill: string;
+  options: [string, string, string, string];
+  answer: string;
+  explanation: string;
+} | null {
+  const matches = [...text.matchAll(/([A-D])\s*[.)]\s*/gi)].filter((match) => {
+    const index = match.index ?? 0;
+    if (index === 0) return true;
+    const prev = text[index - 1] ?? "";
+    // Allow "SecurityA." (stuck after a word) or " A." / "|A."
+    return /[\s|]/.test(prev) || /[a-zà-ỹ0-9]/i.test(prev);
+  });
+  if (matches.length < 2) return null;
+
+  const firstIndex = matches[0]?.index ?? 0;
+  const skill = text.slice(0, firstIndex).trim().replace(/\|+$/, "").trim();
+  const options: [string, string, string, string] = ["", "", "", ""];
+
+  for (let i = 0; i < matches.length; i += 1) {
+    const match = matches[i];
+    if (!match || match.index == null) continue;
+    const letter = (match[1] ?? "").toUpperCase();
+    const slot = letter.charCodeAt(0) - 65;
+    if (slot < 0 || slot > 3) continue;
+    const bodyStart = match.index + match[0].length;
+    const bodyEnd = i + 1 < matches.length && matches[i + 1]?.index != null ? matches[i + 1]!.index! : text.length;
+    options[slot] = text.slice(bodyStart, bodyEnd).trim().replace(/\|+$/, "").trim();
+  }
+
+  let answer = "";
+  let explanation = "";
+  const lastSlot = options.reduce((acc, item, index) => (item.trim() ? index : acc), -1);
+  if (lastSlot >= 0) {
+    const peeled = peelTrailingAnswer(options[lastSlot] ?? "");
+    if (peeled.answer) {
+      options[lastSlot] = peeled.body;
+      answer = peeled.answer;
+      explanation = peeled.explanation;
+    }
+  }
+
+  return { skill, options, answer, explanation };
+}
+
+function splitSkillOptionsAnswer(rest: string): {
+  skill: string;
+  options: [string, string, string, string];
+  answer: string;
+  explanation: string;
+} {
+  const empty: [string, string, string, string] = ["", "", "", ""];
+  if (!rest.trim()) return { skill: "", options: empty, answer: "", explanation: "" };
+
+  const labeled = splitLabeledOptions(rest);
+  if (labeled) return labeled;
+
+  // skill | optA | optB | optC | optD | answer [| explanation]
+  if (rest.includes("|")) {
+    const parts = rest.split("|").map((part) => part.trim()).filter(Boolean);
+    if (parts.length >= 5) {
+      const skill = parts[0] ?? "";
+      const options: [string, string, string, string] = [
+        parts[1] ?? "",
+        parts[2] ?? "",
+        parts[3] ?? "",
+        parts[4] ?? "",
+      ];
+      const tail = parts.slice(5).join(" | ");
+      const peeled = peelTrailingAnswer(tail || (parts[5] ?? ""));
+      return {
+        skill,
+        options,
+        answer: peeled.answer || (parts[5] ?? "").replace(/\s+/g, "").toUpperCase(),
+        explanation: peeled.explanation || (peeled.answer ? "" : parts.slice(6).join(" | ")),
+      };
+    }
+  }
+
+  // HeaderPayloadSignatureSessionA,B,CJWT gồm...
+  const peeled = peelTrailingAnswer(rest);
+  if (peeled.answer && peeled.body.length >= 2) {
+    const camel = splitCamelCollapsedOptions(peeled.body);
+    if (camel) {
+      return {
+        skill: camel.skill,
+        options: camel.options,
+        answer: peeled.answer,
+        explanation: peeled.explanation,
+      };
+    }
+    return { skill: peeled.body, options: empty, answer: peeled.answer, explanation: peeled.explanation };
+  }
+
+  // Options-only CamelCase without answer key yet
+  const camelOnly = splitCamelCollapsedOptions(rest);
+  if (camelOnly && camelOnly.options.filter((item) => item.trim()).length >= 2) {
+    return { skill: camelOnly.skill, options: camelOnly.options, answer: "", explanation: "" };
+  }
+
+  return { skill: rest.trim(), options: empty, answer: "", explanation: "" };
+}
+
+function expandCollapsedQuestionLine(line: string): string[] | null {
+  const text = line.trim();
+  if (!text || text.includes("\t")) return null;
+
+  for (const label of typeLabelMatchers()) {
+    const lower = text.toLowerCase();
+    const needle = label.toLowerCase();
+    let from = 0;
+    while (from < text.length) {
+      const idx = lower.indexOf(needle, from);
+      if (idx < 0) break;
+      if (idx === 0) {
+        from = idx + Math.max(label.length, 1);
+        continue;
+      }
+      const after = text.slice(idx + label.length);
+      if (after.length > 0 && !/^\d/.test(after) && !/^\s*\d/.test(after)) {
+        from = idx + 1;
+        continue;
+      }
+      const content = text.slice(0, idx).trim();
+      if (content.length < 3) {
+        from = idx + 1;
+        continue;
+      }
+
+      let rest = after.trim();
+      let score = "";
+      let difficulty = "";
+      const scoreMatch = rest.match(/^(\d+(?:\.\d+)?)([\s\S]*)$/);
+      if (scoreMatch) {
+        score = scoreMatch[1] ?? "";
+        rest = (scoreMatch[2] ?? "").trim();
+      }
+      const diffMatch = rest.match(/^(Easy|Medium|Hard|Cơ bản|Vận dụng|Nâng cao)([\s\S]*)$/i);
+      if (diffMatch) {
+        difficulty = diffMatch[1] ?? "";
+        rest = (diffMatch[2] ?? "").trim();
+      }
+
+      const peeledSample = peelSampleAnswer(rest);
+      rest = peeledSample.body;
+      const inlineSample = peeledSample.sample;
+
+      const kind = parseKind(label, "TRAC_NGHIEM_DON");
+      if (isSubjectiveKind(kind)) {
+        // Essay / theory: content | type | score | difficulty | skill | sample
+        const skill = rest.trim();
+        const cells = [content, label, score, difficulty, skill, inlineSample];
+        while (cells.length > 5 && !(cells[cells.length - 1] ?? "").trim()) cells.pop();
+        if (cells.length >= 2 && isKnownTypeLabel(cells[1] ?? "")) return cells;
+        from = idx + 1;
+        continue;
+      }
+
+      const { skill, options, answer, explanation } = splitSkillOptionsAnswer(rest);
+      const hasOptionsOrAnswer = Boolean(answer || explanation || options.some((item) => item.trim()));
+      const cells = [
+        content,
+        label,
+        score,
+        difficulty,
+        skill,
+        options[0],
+        options[1],
+        options[2],
+        options[3],
+        answer,
+        explanation || inlineSample,
+      ];
+      const minKeep = hasOptionsOrAnswer ? 10 : 5;
+      while (cells.length > minKeep && !(cells[cells.length - 1] ?? "").trim()) cells.pop();
+      while (hasOptionsOrAnswer && cells.length < 10) cells.push("");
+      if (cells.length >= 2 && isKnownTypeLabel(cells[1] ?? "")) return cells;
+      from = idx + 1;
+    }
+  }
+  return null;
+}
+
+/** Attach a following "Đáp án mẫu: …" line to the previous subjective question row. */
+function mergeSampleAnswerRows(matrix: string[][]): string[][] {
+  const out: string[][] = [];
+  for (const row of matrix) {
+    const joined = row.length === 1 ? (row[0] ?? "").trim() : "";
+    if (isSampleAnswerOnlyLine(joined) && out.length > 0) {
+      const prev = [...(out[out.length - 1] ?? [])];
+      const prevKind = parseKind(prev[1] ?? "", "TINH_HUONG_SYSTEM");
+      if (isSubjectiveKind(prevKind) || (prev.length >= 2 && isKnownTypeLabel(prev[1] ?? ""))) {
+        while (prev.length < 6) prev.push("");
+        prev[5] = stripSamplePrefix(joined);
+        out[out.length - 1] = prev;
+        continue;
+      }
+    }
+    out.push(row);
+  }
+  return out;
 }
 
 function isPasteHeaderRow(cells: string[]): boolean {
@@ -160,6 +460,15 @@ function isScoreLike(value: string): boolean {
 /** User/Excel wide row: content, type, score, difficulty, skill, option_a..d, answer, explanation */
 function isMetaFirstChoiceLayout(cells: string[]): boolean {
   return cells.length >= 10 && isScoreLike(cells[2] ?? "");
+}
+
+/** Pad recovered / partial meta rows so options + answer map correctly. */
+function toMetaChoiceCells(cells: string[]): string[] {
+  if (isMetaFirstChoiceLayout(cells)) return cells;
+  if (!(cells.length >= 5 && isScoreLike(cells[2] ?? "") && isKnownTypeLabel(cells[1] ?? ""))) return cells;
+  const next = [...cells];
+  while (next.length < 10) next.push("");
+  return next;
 }
 
 function stripPasteHeader(matrix: string[][]): string[][] {
@@ -185,28 +494,44 @@ function coercePasteMatrix(matrix: string[][]): string[][] {
   return looksLikeOneQuestion ? [values] : rows;
 }
 
+function expandMatrixCollapsedRows(matrix: string[][]): string[][] {
+  return matrix.map((row) => {
+    if (row.length !== 1) return row;
+    const expanded = expandCollapsedQuestionLine(row[0] ?? "");
+    return expanded && expanded.length >= 2 ? expanded : row;
+  });
+}
+
 function resolveClipboardMatrix(event: ClipboardEvent<HTMLElement>): string[][] {
   const plain = event.clipboardData.getData("text/plain");
   const html = event.clipboardData.getData("text/html");
   let matrix = parseClipboardMatrix(plain || "");
-  const plainRows = stripPasteHeader(matrix);
+  const plainMaxCols = Math.max(0, ...matrix.map((row) => row.length));
   const plainLooksVertical =
-    plainRows.length > 1 && plainRows.every((row) => row.length <= 1);
+    stripPasteHeader(matrix).length > 1 && stripPasteHeader(matrix).every((row) => row.length <= 1);
 
-  if (plainLooksVertical && html) {
+  if (html) {
     const fromHtml = parseClipboardHtmlTable(html);
-    if (fromHtml && fromHtml.some((row) => row.length > 1)) {
-      matrix = fromHtml;
+    if (fromHtml?.some((row) => row.length > 1)) {
+      const htmlMaxCols = Math.max(0, ...fromHtml.map((row) => row.length));
+      // Prefer HTML table when plain lost tabs (1 column) or HTML is wider.
+      if (htmlMaxCols > plainMaxCols || (plainLooksVertical && htmlMaxCols > 1)) {
+        matrix = fromHtml;
+      }
     }
   }
 
-  return coercePasteMatrix(matrix);
+  return mergeSampleAnswerRows(expandMatrixCollapsedRows(coercePasteMatrix(matrix)));
 }
 
 function looksLikeFullQuestionRow(cells: string[]): boolean {
-  if (cells.length < 5) return false;
-  if (isMetaFirstChoiceLayout(cells)) return true;
-  return isKnownTypeLabel(cells[1] ?? "");
+  if (cells.length < 2) return false;
+  if (cells.length >= 5) {
+    if (isMetaFirstChoiceLayout(cells)) return true;
+    return isKnownTypeLabel(cells[1] ?? "");
+  }
+  // content + type (+ optional score...) recovered from a collapsed paste
+  return isKnownTypeLabel(cells[1] ?? "") && (cells[0] ?? "").trim().length >= 3;
 }
 
 /** One Excel row (tabs) or a column that was meant to be one horizontal option row. */
@@ -350,6 +675,7 @@ function EditCell({
   value,
   onSelect,
   onChange,
+  onPaste,
   children,
   className,
   title,
@@ -358,6 +684,7 @@ function EditCell({
   value: string;
   onSelect: () => void;
   onChange: (value: string) => void;
+  onPaste?: (event: ClipboardEvent<HTMLInputElement>) => void;
   children: ReactNode;
   className?: string;
   title?: string;
@@ -370,7 +697,7 @@ function EditCell({
         selected && "bg-white ring-2 ring-inset ring-[var(--color-primary)]",
         className,
       )}
-      title={selected ? "Đang sửa ô này" : title}
+      title={selected ? "Đang sửa ô này · Ctrl+V dán · Ctrl+C sao chép" : title}
       onClick={onSelect}
     >
       {selected ? (
@@ -378,6 +705,7 @@ function EditCell({
           autoFocus
           value={value}
           onChange={(event) => onChange(event.target.value)}
+          onPaste={onPaste}
           className="w-full bg-transparent text-[11px] text-[var(--color-on-surface)] outline-none"
           aria-label="Sửa nội dung ô"
         />
@@ -585,13 +913,16 @@ export function ExcelQuestionTemplatePage() {
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       const isUndo = (event.ctrlKey || event.metaKey) && !event.shiftKey && event.key.toLowerCase() === "z";
-      if (!isUndo || undoStackRef.current.length === 0) return;
-      event.preventDefault();
-      undoQuestions();
+      if (isUndo && undoStackRef.current.length > 0) {
+        event.preventDefault();
+        undoQuestions();
+        return;
+      }
+      handleCopyActiveCell(event);
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [activeEdit, questions]);
 
   const formula = useMemo(() => {
     if (!activeEdit || !questions[activeEdit.rowIndex]) return "";
@@ -656,14 +987,39 @@ export function ExcelQuestionTemplatePage() {
     }
 
     // Wide Excel row: content | type | score | difficulty | skill | options | answer | giải thích
-    if (isMetaFirstChoiceLayout(cells)) {
-      return applyChoiceCellsToRow(row, cells, fallbackKind);
+    if (isMetaFirstChoiceLayout(cells) || isMetaFirstChoiceLayout(toMetaChoiceCells(cells))) {
+      return applyChoiceCellsToRow(row, toMetaChoiceCells(cells), fallbackKind);
     }
 
     if (mode === "ALL") {
       const kind = parseKind(cells[1] ?? "", fallbackKind);
-      if (isChoiceKind(kind) && cells.length >= 10) {
-        return applyChoiceCellsToRow(row, cells, kind);
+      if (isSubjectiveKind(kind)) {
+        return {
+          ...row,
+          ...blankQuestion(kind),
+          id: row.id,
+          kind,
+          content: cells[0] ?? row.content,
+          score: cells[2] || row.score || blankQuestion(kind).score,
+          difficulty: cells[3] ?? row.difficulty,
+          difficultyTone: toneFromDifficulty(cells[3] ?? row.difficulty),
+          skill: cells[4] ?? row.skill,
+          sample: stripSamplePrefix(cells[5] ?? "") || row.sample,
+          snippet: cells[6] ?? row.snippet,
+        };
+      }
+      const metaCells = toMetaChoiceCells(cells);
+      if (isChoiceKind(kind) && (cells.length >= 10 || isMetaFirstChoiceLayout(metaCells))) {
+        return applyChoiceCellsToRow(row, metaCells, kind);
+      }
+      // Partial meta with at least one option/answer recovered
+      if (
+        isChoiceKind(kind) &&
+        metaCells.length >= 10 &&
+        isScoreLike(metaCells[2] ?? "") &&
+        (metaCells[5] || metaCells[6] || metaCells[7] || metaCells[8] || metaCells[9])
+      ) {
+        return applyChoiceCellsToRow(row, metaCells, kind);
       }
       return {
         ...row,
@@ -752,29 +1108,57 @@ export function ExcelQuestionTemplatePage() {
     if (!event.clipboardData.getData("text/plain") && !event.clipboardData.getData("text/html")) return;
 
     const matrix = resolveClipboardMatrix(event);
-    const fullRows = matrix.filter((row) => looksLikeFullQuestionRow(row));
-    if (fullRows.length > 0 || (matrix.length > 1 && matrix.some((row) => row.length >= 5))) {
+    const usable = stripPasteHeader(matrix);
+    const fullRows = usable.filter((row) => looksLikeFullQuestionRow(row));
+    if (fullRows.length > 0 || (usable.length > 1 && usable.some((row) => row.length >= 5))) {
       event.preventDefault();
       ingestClipboardMatrix(matrix);
       return;
     }
 
-    const values = choiceSequenceFromMatrix(matrix);
-    if (!values || values.length <= 1) return;
+    const values = choiceSequenceFromMatrix(usable);
+    if (values && values.length > 1) {
+      event.preventDefault();
+      applyChoiceSequenceToRow(selectedIndex, startField, values);
+      setCapacityNote(`Đã dán ${values.length} ô option/đáp án theo hàng ngang.`);
+      return;
+    }
 
+    // Single-value paste into the focused choice field only (do not scatter into other columns).
+    const plain = (values?.[0] ?? usable[0]?.[0] ?? event.clipboardData.getData("text/plain")).trimEnd();
+    if (!plain) return;
     event.preventDefault();
-    applyChoiceSequenceToRow(selectedIndex, startField, values);
+    applyChoiceSequenceToRow(selectedIndex, startField, [plain]);
+    setCapacityNote("Đã dán vào ô đang chọn.");
   }
 
   function handleTablePaste(event: ClipboardEvent<HTMLElement>) {
     if (!event.clipboardData.getData("text/plain") && !event.clipboardData.getData("text/html")) return;
     const matrix = resolveClipboardMatrix(event);
-    const isMulti = matrix.length > 1 || (matrix[0]?.length ?? 0) > 1;
-    if (!isMulti) return;
+    const usable = stripPasteHeader(matrix);
+    if (usable.length === 0) return;
+
+    // Pasting "Đáp án mẫu: …" onto an essay row → sample field only.
+    const plainTrim = event.clipboardData.getData("text/plain").trim();
+    if (
+      isSampleAnswerOnlyLine(plainTrim) &&
+      selectedIndex >= 0 &&
+      selectedQuestion &&
+      isSubjectiveKind(selectedQuestion.kind) &&
+      usable.length === 1 &&
+      (usable[0]?.length ?? 0) <= 1 &&
+      !looksLikeFullQuestionRow(usable[0] ?? [])
+    ) {
+      event.preventDefault();
+      patchQuestion(selectedIndex, { sample: stripSamplePrefix(plainTrim) });
+      setCapacityNote("Đã dán đáp án mẫu.");
+      return;
+    }
 
     const optionStartFields = ["optionA", "optionB", "optionC", "optionD", "answer", "explanation", "policyNote"] as const;
     const startField = activeEdit?.field;
-    const sequence = choiceSequenceFromMatrix(matrix);
+    const sequence = choiceSequenceFromMatrix(usable);
+    const hasFullQuestionRows = usable.some((row) => looksLikeFullQuestionRow(row));
     const canDistributeOptions =
       selectedIndex >= 0 &&
       startField &&
@@ -782,7 +1166,7 @@ export function ExcelQuestionTemplatePage() {
       sequence &&
       sequence.length > 1 &&
       !looksLikeFullQuestionRow(sequence) &&
-      !matrix.some((row) => looksLikeFullQuestionRow(row));
+      !hasFullQuestionRows;
 
     if (canDistributeOptions && sequence && startField) {
       event.preventDefault();
@@ -791,12 +1175,70 @@ export function ExcelQuestionTemplatePage() {
         startField as "optionA" | "optionB" | "optionC" | "optionD" | "answer" | "explanation" | "policyNote",
         sequence,
       );
-      setCapacityNote(`Đã dán ${sequence.length} ô option/đáp án theo hàng ngang.`);
+      setCapacityNote(`Đã dán ${sequence.length} ô option/đáp án theo hàng ngang từ ô đang chọn.`);
       return;
     }
 
+    // Excel-style multi-row / wide-row paste → create or fill questions.
+    if (hasFullQuestionRows || usable.length > 1 || (usable[0]?.length ?? 0) > 1) {
+      // Multi-line plain text into a long-text cell stays in that cell (not new questions).
+      const textFields = new Set(["content", "explanation", "policyNote", "snippet", "sample", "rubric"]);
+      const looksLikePlainParagraph =
+        Boolean(activeEdit && textFields.has(activeEdit.field)) &&
+        !hasFullQuestionRows &&
+        usable.every((row) => row.length <= 1) &&
+        !usable.some((row) => isKnownTypeLabel(row[0] ?? ""));
+      if (looksLikePlainParagraph && activeEdit) {
+        event.preventDefault();
+        const pasted = usable.map((row) => row[0] ?? "").join("\n");
+        applyEdit(activeEdit.field === "sample" ? stripSamplePrefix(pasted) : pasted);
+        setCapacityNote("Đã dán văn bản vào ô đang chọn.");
+        return;
+      }
+
+      // Wide clipboard with multiple columns: only fill the whole question when pasting
+      // from content (or no cell) — never hijack an option/answer cell into a full-row ingest.
+      const editingOptionCell =
+        startField && optionStartFields.includes(startField as (typeof optionStartFields)[number]);
+      if (editingOptionCell && !hasFullQuestionRows) {
+        event.preventDefault();
+        applyEdit((usable[0] ?? []).join("\t"));
+        setCapacityNote("Đã dán vào ô đang chọn.");
+        return;
+      }
+
+      event.preventDefault();
+      ingestClipboardMatrix(matrix);
+      return;
+    }
+
+    // Single-cell paste → only the active cell / formula bar field.
+    if (!activeEdit) return;
+    const value = usable[0]?.[0] ?? "";
     event.preventDefault();
-    ingestClipboardMatrix(matrix);
+    applyEdit(activeEdit.field === "sample" ? stripSamplePrefix(value) : value);
+    setCapacityNote("Đã dán vào ô đang chọn.");
+  }
+
+  function handleCopyActiveCell(event: KeyboardEvent) {
+    const isCopy = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "c";
+    if (!isCopy || !activeEdit || !questions[activeEdit.rowIndex]) return;
+    const target = event.target as HTMLElement | null;
+    if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
+      const input = target as HTMLInputElement | HTMLTextAreaElement;
+      if (typeof input.selectionStart === "number" && input.selectionStart !== input.selectionEnd) return;
+    }
+    const row = questions[activeEdit.rowIndex];
+    const raw =
+      activeEdit.field === "rubric"
+        ? row.rubric.map((item) => item.text).join(" | ")
+        : row[activeEdit.field as keyof BankQuestion];
+    const text = typeof raw === "string" ? raw : "";
+    if (!text) return;
+    event.preventDefault();
+    void navigator.clipboard.writeText(text).then(() => {
+      setCapacityNote("Đã sao chép ô đang chọn.");
+    });
   }
 
   function applyEdit(value: string) {
@@ -1051,7 +1493,7 @@ export function ExcelQuestionTemplatePage() {
                 onChange={(event) => applyEdit(event.target.value)}
                 onPasteCapture={handleTablePaste}
                 disabled={!activeEdit}
-                placeholder="Chọn một ô để sửa · Ctrl+V dán nhiều dòng từ Excel"
+                placeholder="Chọn một ô để sửa · Ctrl+C sao chép · Ctrl+V dán từ Excel"
                 aria-label="Thanh sửa nội dung ô"
               />
               <span className="shrink-0 font-mono text-[10px] text-[var(--color-on-surface-variant)]">
@@ -1587,6 +2029,13 @@ export function ExcelQuestionTemplatePage() {
                       <textarea
                         value={selectedQuestion.sample}
                         onChange={(event) => patchQuestion(selectedIndex, { sample: event.target.value })}
+                        onPaste={(event) => {
+                          const text = event.clipboardData.getData("text/plain");
+                          if (!isSampleAnswerOnlyLine(text) && !/^(?:đáp\s*án\s*mẫu|sample)/i.test(text.trim())) return;
+                          event.preventDefault();
+                          patchQuestion(selectedIndex, { sample: stripSamplePrefix(text) });
+                          setCapacityNote("Đã dán đáp án mẫu.");
+                        }}
                         rows={3}
                         placeholder="Bắt buộc — đáp án chuẩn do recruiter đưa ra để đối chiếu khi chấm"
                         className="resize-y rounded-md border border-slate-700 bg-[#020617] px-3 py-2 text-[11px] text-slate-200 outline-none placeholder:text-slate-500 focus:ring-2 focus:ring-emerald-500/60"
@@ -1670,7 +2119,7 @@ export function ExcelQuestionTemplatePage() {
               <strong className="text-[var(--color-on-surface)]">
                 {view === "schema"
                   ? "Schema Data Dictionary"
-                  : capacityNote || "Ctrl+V dán · Ctrl+Z hoàn tác · kéo số dòng để thêm câu"}
+                  : capacityNote || "Ctrl+C sao chép · Ctrl+V dán · Ctrl+Z hoàn tác · kéo số dòng để thêm câu"}
               </strong>
             </span>
             <span>
@@ -1694,8 +2143,18 @@ export function ExcelQuestionTemplatePage() {
           </div>
           <ul className="space-y-1 text-[11px] text-[var(--color-on-surface-variant)]">
             <li>
-              <strong className="text-[var(--color-on-surface)]">Dán Excel:</strong> chọn ô rồi Ctrl+V cả hàng ngang
-              (content → type → score → … → answer → giải thích), có thể kèm dòng header
+              <strong className="text-[var(--color-on-surface)]">Dán Excel:</strong> dán đúng ô đang chọn. Clipboard
+              có tab/Excel hoặc chuỗi dính liền có type (vd.{" "}
+              <span className="font-mono">…Authorization.Tự luận3.0MediumSecurity</span>) sẽ tách cột content / type /
+              score / difficulty / skill. Option A–D chỉ khi đứng ở cột option/đáp án.
+            </li>
+            <li>
+              <strong className="text-[var(--color-on-surface)]">Tự luận:</strong> dán thêm dòng{" "}
+              <span className="font-mono">Đáp án mẫu: …</span> (cùng lần dán hoặc dán vào ô đáp án mẫu) — hệ thống bỏ
+              tiền tố và ghi vào sample.
+            </li>
+            <li>
+              <strong className="text-[var(--color-on-surface)]">Sao chép:</strong> Ctrl+C sao chép nội dung ô đang chọn
             </li>
             <li>
               <strong className="text-[var(--color-on-surface)]">Hoàn tác:</strong> Ctrl+Z để đảo ngược dán / sửa gần nhất

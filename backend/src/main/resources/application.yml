@@ -156,6 +156,12 @@ app:
       api-key: ${GEMINI_API_KEY:}
     models:
       cv-parsing: ${GEMINI_MODEL:gemini-2.0-flash}
+    # Dedicated Gemini credentials for AI Interview (INT-01..05) — not shared with CV parsing
+    interview:
+      api-key: ${AI_INTERVIEW_GEMINI_API_KEY:}
+      model: ${AI_INTERVIEW_GEMINI_MODEL:gemini-2.0-flash}
+      base-url: ${AI_INTERVIEW_GEMINI_BASE_URL:https://generativelanguage.googleapis.com/v1beta/models}
+      timeout-seconds: ${AI_INTERVIEW_TIMEOUT_SECONDS:60}
 
 smarthire:
   jwt:

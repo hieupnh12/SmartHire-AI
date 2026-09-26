@@ -24,6 +24,7 @@ export type QuestionRequest = {
   skill: string | null;
   explanation: string | null;
   options: { optionText: string; correct: boolean }[];
+  questionType?: "MCQ" | "MULTIPLE_CHOICE" | "ESSAY";
 };
 export type Question = Omit<QuestionRequest, "options"> & {
   id: number;

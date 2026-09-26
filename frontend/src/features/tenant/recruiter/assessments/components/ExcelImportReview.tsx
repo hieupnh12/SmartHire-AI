@@ -559,9 +559,8 @@ export function ExcelImportReview({
               <div className="flex gap-3 rounded-xl bg-[var(--color-surface-container-low)] p-4">
                 <ShieldCheck className="size-5 shrink-0 text-[var(--color-primary)]" aria-hidden="true" />
                 <p className={cn(muted, "text-xs leading-6")}>
-                  Trắc nghiệm đơn / nhiều đáp án / tự luận đều được kiểm tra. API lưu đề hiện chỉ đẩy được câu{" "}
-                  <strong className="text-[var(--color-on-surface)]">trắc nghiệm đơn</strong>. Hàng trống bị bỏ qua. Tối đa
-                  100 câu.
+                  Trắc nghiệm đơn / nhiều đáp án / tự luận đều được kiểm tra và có thể lưu nháp. Không bắt buộc đủ mọi
+                  thể loại. Độ khó / kỹ năng / đáp án mẫu là khuyến nghị. Hàng trống bị bỏ qua. Tối đa 100 câu.
                 </p>
               </div>
             </div>

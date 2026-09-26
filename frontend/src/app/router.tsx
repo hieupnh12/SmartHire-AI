@@ -54,8 +54,6 @@ import { MyApplicationsPage } from "@/features/tenant/candidate/applications/pag
 import { ApplicationDetailPage } from "@/features/tenant/candidate/applications/pages/ApplicationDetailPage";
 import { MyCvPage } from "@/features/tenant/candidate/cv/pages/MyCvPage";
 import { AssessmentsPage as CandidateAssessmentsPage } from "@/features/tenant/candidate/assessments/pages/AssessmentsPage";
-import { AssessmentPrepRoomPage } from "@/features/tenant/candidate/assessments/pages/AssessmentPrepRoomPage";
-import { AssessmentExamRoomPage } from "@/features/tenant/candidate/assessments/pages/AssessmentExamRoomPage";
 import { TakeAssessmentPage } from "@/features/tenant/candidate/assessments/pages/TakeAssessmentPage";
 import { InterviewsPage as CandidateInterviewsPage } from "@/features/tenant/candidate/interviews/pages/InterviewsPage";
 import { AiInterviewRoomPage } from "@/features/tenant/candidate/interviews/pages/AiInterviewRoomPage";
@@ -147,8 +145,6 @@ export function AppRouter() {
           <Route path="applications/:id" element={<ApplicationDetailPage />} />
           <Route path="cv" element={<MyCvPage />} />
           <Route path="assessments" element={<CandidateAssessmentsPage />} />
-          <Route path="assessments/prep" element={<AssessmentPrepRoomPage />} />
-          <Route path="assessments/exam" element={<AssessmentExamRoomPage />} />
           <Route path="assessments/:submissionId/take" element={<TakeAssessmentPage />} />
           <Route path="interviews" element={<CandidateInterviewsPage />} />
           <Route path="interviews/demo" element={<AiInterviewRoomPage />} />

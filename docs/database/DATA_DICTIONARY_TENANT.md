@@ -571,7 +571,7 @@ V23: MCQ lưu `selected_option_id`; ESSAY lưu `answer_text` (API tối đa 10.0
 
 ### F.5.1 `answer_selected_options` — Các lựa chọn của câu trả lời nhiều đáp án
 
-Ánh xạ `Answer.selectedOptions`, không có entity riêng.
+Entity `AnswerSelectedOption` (ánh xạ `Answer.selectedOptions`).
 
 | Cột | Kiểu | Khóa | Null | Default | Ý nghĩa |
 |---|---|---|---|---|---|

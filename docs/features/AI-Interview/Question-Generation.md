@@ -1,7 +1,7 @@
 # AI Question Generation
 
 **Epic:** AI Interview System  
-**Trạng thái:** `To Do`  
+**Trạng thái:** `Doing`  
 **Code ID:** `INT-01`
 
 ## Mục đích chức năng
@@ -26,6 +26,14 @@ Sinh câu hỏi phỏng vấn theo JD + CV + level (RabbitMQ).
 
 | Method | Path |
 |---|---|
+| POST | `/api/v1/ai-interviews` |
+| GET | `/api/v1/ai-interviews` |
+| GET | `/api/v1/ai-interviews/{id}` |
+| PUT | `/api/v1/ai-interviews/{id}` |
+| DELETE | `/api/v1/ai-interviews/{id}` |
+| POST | `/api/v1/ai-interviews/{id}/questions` |
+| PUT | `/api/v1/ai-interviews/{id}/questions/{questionId}` |
+| DELETE | `/api/v1/ai-interviews/{id}/questions/{questionId}` |
 | POST | `/api/v1/interviews/{id}/questions/generate` |
 
 ## Database liên quan

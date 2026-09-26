@@ -27,6 +27,7 @@ Tạo feedback readable cho recruiter/candidate (policy hiển thị).
 
 | Method | Path |
 |---|---|
+| PUT | `/api/v1/ai-interviews/{id}/answers/{answerId}/feedback` |
 | GET | `/api/v1/interviews/{id}/feedback` |
 | POST | `/api/v1/interviews/{id}/feedback/share` |
 

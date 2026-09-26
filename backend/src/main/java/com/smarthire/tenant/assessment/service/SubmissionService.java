@@ -203,7 +203,8 @@ public class SubmissionService {
             if ("MULTIPLE_CHOICE".equals(answer.getQuestion().getQuestionType())) {
                 var expected = options.findByQuestion_IdOrderByIdAsc(answer.getQuestion().getId()).stream()
                         .filter(Option::isCorrect).map(Option::getId).collect(java.util.stream.Collectors.toSet());
-                var selected = answer.getSelectedOptions().stream().map(Option::getId).collect(java.util.stream.Collectors.toSet());
+                var selected = answer.getSelectedOptions().stream()
+                        .map(row -> row.getOption().getId()).collect(java.util.stream.Collectors.toSet());
                 correct = !expected.isEmpty() && expected.equals(selected);
             } else {
                 correct = answer.getSelectedOption() != null && answer.getSelectedOption().isCorrect();
@@ -229,7 +230,7 @@ public class SubmissionService {
         var saved = answers.findBySubmission_IdOrderByQuestion_QuestionOrderAscQuestion_IdAsc(submission.getId()).stream()
                 .map(answer -> new SavedAnswer(answer.getQuestion().getId(),
                         answer.getSelectedOption() == null ? null : answer.getSelectedOption().getId(),
-                        answer.getSelectedOptions().stream().map(Option::getId).sorted().toList(),
+                        answer.getSelectedOptions().stream().map(row -> row.getOption().getId()).sorted().toList(),
                         answer.getAnswerText())).toList();
         BigDecimal threshold = submission.getTest().getPassingScore();
         Boolean passed = threshold == null || submission.getScore() == null ? null : submission.getScore().compareTo(threshold) >= 0;
@@ -260,10 +261,19 @@ public class SubmissionService {
             var selected = ids.stream().map(id -> option(question, id)).toList();
             answer.setSelectedOption(null);
             answer.setAnswerText(null);
-            answer.getSelectedOptions().clear();
-            answer.getSelectedOptions().addAll(selected);
+            replaceSelectedOptions(answer, selected);
         } else {
             throw invalid("Unsupported question type");
+        }
+    }
+
+    private void replaceSelectedOptions(Answer answer, java.util.Collection<Option> options) {
+        answer.getSelectedOptions().clear();
+        for (Option option : options) {
+            answer.getSelectedOptions().add(AnswerSelectedOption.builder()
+                    .answer(answer)
+                    .option(option)
+                    .build());
         }
     }
 

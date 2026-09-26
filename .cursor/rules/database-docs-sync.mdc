@@ -47,3 +47,5 @@ Thay đổi trên buộc sửa 5 chỗ: dòng cột mới trong `DATA_DICTIONARY
 - Bỏ bảng khỏi ERD cho gọn — tách sơ đồ thay vì giấu bảng.
 - Ghi password, connection string thật hoặc giá trị bản ghi vào tài liệu.
 - Bỏ sót cột `ref*` (trông như FK nhưng không có ràng buộc) khỏi `README.md` §7.3.
+- **Tạo bảng mới (`CREATE TABLE`) mà không tạo entity JPA tương ứng trong cùng thay đổi** —
+  xem [`.cursor/rules/migration-entity-sync.mdc`](migration-entity-sync.mdc) và `AGENTS.md` mục 3 / 12.

@@ -53,14 +53,21 @@ export function isBlankQuestion(row: BankQuestion): boolean {
   );
 }
 
-/** Rows that may be persisted via current MCQ draft API. */
+/** Rows that may be persisted — content + type-specific answer; difficulty/skill optional. */
 export function isPersistableQuestion(row: BankQuestion): boolean {
-  return Boolean(
-    row.kind === "TRAC_NGHIEM_DON" &&
-      row.content.trim() &&
-      row.difficulty.trim() &&
-      row.skill.trim(),
-  );
+  if (!row.content.trim()) return false;
+  if (row.kind === "TRAC_NGHIEM_DON" || row.kind === "NHIEU_DAP_AN") {
+    return Boolean(row.optionA.trim() && row.optionB.trim() && row.answer.trim());
+  }
+  if (isSubjectiveKind(row.kind)) {
+    return true;
+  }
+  return false;
+}
+
+/** Soft check for audit step: content + answer shape; does not require difficulty/skill/all types. */
+export function hasMinimalContentAndAnswer(row: BankQuestion): boolean {
+  return isPersistableQuestion(row);
 }
 
 function pushIssue(issues: FieldIssue[], field: string, message: string, level: "error" | "warning" = "error") {
@@ -147,15 +154,15 @@ function validateMultiAnswer(row: BankQuestion, options: string[], issues: Field
 }
 
 function validateSubjective(row: BankQuestion, issues: FieldIssue[]) {
-  // Sample answer is the recruiter's reference answer used for comparison grading.
+  // Sample answer recommended for grading — not a hard blocker for draft save.
   if (!row.sample.trim()) {
     pushIssue(
       issues,
       "sample",
-      "Đáp án mẫu là bắt buộc — đây là đáp án chính do recruiter đưa ra để so sánh khi chấm.",
+      "Khuyến nghị có đáp án mẫu để đối chiếu khi chấm (không bắt buộc để lưu nháp).",
+      "warning",
     );
   }
-  // Starter code / theory frame is optional — no issue when empty.
 }
 
 function validateByType(row: BankQuestion, issues: FieldIssue[]) {
@@ -229,17 +236,18 @@ export function validateExcelQuestions(questions: BankQuestion[], defaultScore =
     }
 
     if (!row.difficulty.trim()) {
-      pushIssue(issues, "difficulty", "Không được để trống.");
+      pushIssue(issues, "difficulty", "Khuyến nghị điền độ khó (Easy / Medium / Hard).", "warning");
     } else if (!isAllowedDifficulty(row.difficulty)) {
       pushIssue(
         issues,
         "difficulty",
-        `"${row.difficulty.trim()}" không hợp lệ. Chỉ chấp nhận Easy, Medium, Hard.`,
+        `"${row.difficulty.trim()}" chưa chuẩn — khuyến nghị Easy, Medium, Hard (vẫn có thể lưu).`,
+        "warning",
       );
     }
 
     if (!row.skill.trim()) {
-      pushIssue(issues, "skill", "Không được để trống.");
+      pushIssue(issues, "skill", "Khuyến nghị điền kỹ năng.", "warning");
     }
 
     validateByType(row, issues);
