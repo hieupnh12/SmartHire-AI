@@ -69,9 +69,9 @@ public class SubmissionService {
         }
         requireEligible(application);
         var paper = questions.findByTest_IdOrderByQuestionOrderAscIdAsc(testId);
-        if (paper.isEmpty() || paper.stream().anyMatch(q -> !"MCQ".equals(q.getQuestionType()))
+        if (paper.isEmpty() || paper.stream().anyMatch(q -> !java.util.Set.of("MCQ", "MULTIPLE_CHOICE", "ESSAY").contains(q.getQuestionType()))
                 || codingProblems.existsByTest_Id(testId)) {
-            throw conflict("Only published MCQ-only tests are supported", "UNSUPPORTED_TEST");
+            throw conflict("Test contains unsupported question types", "UNSUPPORTED_TEST");
         }
         submission.setTest(test);
         submission.setApplication(application);
@@ -121,13 +121,10 @@ public class SubmissionService {
             if (!seen.add(input.questionId())) throw invalid("Duplicate questionId in answers");
             Question question = questions.findByIdAndTest_Id(input.questionId(), submission.getTest().getId())
                     .orElseThrow(() -> invalid("Question does not belong to this test"));
-            Option selected = input.selectedOptionId() == null ? null
-                    : options.findByIdAndQuestion_Id(input.selectedOptionId(), question.getId())
-                            .orElseThrow(() -> invalid("Option does not belong to this question"));
             Answer answer = answers.findBySubmission_IdAndQuestion_Id(id, question.getId()).orElseGet(Answer::new);
             answer.setSubmission(submission);
             answer.setQuestion(question);
-            answer.setSelectedOption(selected);
+            applyAnswer(answer, question, input);
             answer.setCorrect(null);
             answer.setScore(null);
             changed.add(answer);
@@ -143,6 +140,7 @@ public class SubmissionService {
             requireEligible(submission.getApplication());
             grade(submission, false);
         } else if (submission.getStatus() != TestSubmissionStatus.GRADED
+                && submission.getStatus() != TestSubmissionStatus.SUBMITTED
                 && submission.getStatus() != TestSubmissionStatus.EXPIRED) {
             throw conflict("Submission cannot be submitted in its current state", "SUBMISSION_CLOSED");
         }
@@ -192,17 +190,33 @@ public class SubmissionService {
 
     private void grade(Submission submission, boolean expired) {
         BigDecimal total = BigDecimal.ZERO;
+        boolean needsReview = questions.findByTest_IdOrderByQuestionOrderAscIdAsc(submission.getTest().getId())
+                .stream().anyMatch(q -> "ESSAY".equals(q.getQuestionType()));
         var saved = answers.findBySubmission_IdOrderByQuestion_QuestionOrderAscQuestion_IdAsc(submission.getId());
         for (Answer answer : saved) {
-            boolean correct = answer.getSelectedOption() != null && answer.getSelectedOption().isCorrect();
+            if ("ESSAY".equals(answer.getQuestion().getQuestionType())) {
+                answer.setCorrect(null);
+                answer.setScore(null);
+                continue;
+            }
+            boolean correct;
+            if ("MULTIPLE_CHOICE".equals(answer.getQuestion().getQuestionType())) {
+                var expected = options.findByQuestion_IdOrderByIdAsc(answer.getQuestion().getId()).stream()
+                        .filter(Option::isCorrect).map(Option::getId).collect(java.util.stream.Collectors.toSet());
+                var selected = answer.getSelectedOptions().stream().map(Option::getId).collect(java.util.stream.Collectors.toSet());
+                correct = !expected.isEmpty() && expected.equals(selected);
+            } else {
+                correct = answer.getSelectedOption() != null && answer.getSelectedOption().isCorrect();
+            }
             answer.setCorrect(correct);
             answer.setScore(correct ? BigDecimal.valueOf(answer.getQuestion().getPoints()) : BigDecimal.ZERO);
             total = total.add(answer.getScore());
         }
         answers.saveAll(saved);
-        submission.setScore(total);
+        submission.setScore(needsReview ? null : total);
         submission.setSubmittedAt(expired ? deadline(submission) : Instant.now().truncatedTo(ChronoUnit.SECONDS));
-        submission.setStatus(expired ? TestSubmissionStatus.EXPIRED : TestSubmissionStatus.GRADED);
+        submission.setStatus(expired ? TestSubmissionStatus.EXPIRED
+                : needsReview ? TestSubmissionStatus.SUBMITTED : TestSubmissionStatus.GRADED);
         submissions.save(submission);
     }
 
@@ -214,7 +228,9 @@ public class SubmissionService {
                 ? Math.max(0, expiresAt.getEpochSecond() - now.getEpochSecond()) : 0;
         var saved = answers.findBySubmission_IdOrderByQuestion_QuestionOrderAscQuestion_IdAsc(submission.getId()).stream()
                 .map(answer -> new SavedAnswer(answer.getQuestion().getId(),
-                        answer.getSelectedOption() == null ? null : answer.getSelectedOption().getId())).toList();
+                        answer.getSelectedOption() == null ? null : answer.getSelectedOption().getId(),
+                        answer.getSelectedOptions().stream().map(Option::getId).sorted().toList(),
+                        answer.getAnswerText())).toList();
         BigDecimal threshold = submission.getTest().getPassingScore();
         Boolean passed = threshold == null || submission.getScore() == null ? null : submission.getScore().compareTo(threshold) >= 0;
         return new SubmissionResponse(submission.getId(), submission.getTest().getId(), submission.getApplication().getId(),
@@ -222,6 +238,38 @@ public class SubmissionService {
                 submission.getSubmittedAt(), now, remaining, submission.getScore(),
                 paper.stream().mapToInt(Question::getPoints).sum(), passed,
                 paper.stream().map(q -> mapper.candidateQuestion(q, options.findByQuestion_IdOrderByIdAsc(q.getId()))).toList(), saved);
+    }
+
+    private void applyAnswer(Answer answer, Question question, SaveAnswersRequest.AnswerInput input) {
+        var ids = input.selectedOptionIds() == null ? java.util.List.<Long>of() : input.selectedOptionIds();
+        String type = question.getQuestionType();
+        if ("ESSAY".equals(type)) {
+            if (input.selectedOptionId() != null || !ids.isEmpty()) throw invalid("Essay answers cannot select options");
+            if (input.answerText() != null && input.answerText().length() > 10000) throw invalid("Essay answer is too long");
+            answer.setSelectedOption(null);
+            answer.getSelectedOptions().clear();
+            answer.setAnswerText(input.answerText());
+        } else if ("MCQ".equals(type)) {
+            if (!ids.isEmpty() || input.answerText() != null) throw invalid("MCQ requires selectedOptionId only");
+            answer.setSelectedOption(input.selectedOptionId() == null ? null : option(question, input.selectedOptionId()));
+            answer.getSelectedOptions().clear();
+            answer.setAnswerText(null);
+        } else if ("MULTIPLE_CHOICE".equals(type)) {
+            if (input.selectedOptionId() != null || input.answerText() != null) throw invalid("Multiple-choice requires selectedOptionIds only");
+            if (ids.size() > 10 || ids.stream().anyMatch(java.util.Objects::isNull) || new HashSet<>(ids).size() != ids.size()) throw invalid("Invalid or duplicate selectedOptionIds");
+            var selected = ids.stream().map(id -> option(question, id)).toList();
+            answer.setSelectedOption(null);
+            answer.setAnswerText(null);
+            answer.getSelectedOptions().clear();
+            answer.getSelectedOptions().addAll(selected);
+        } else {
+            throw invalid("Unsupported question type");
+        }
+    }
+
+    private Option option(Question question, Long id) {
+        return options.findByIdAndQuestion_Id(id, question.getId())
+                .orElseThrow(() -> invalid("Option does not belong to this question"));
     }
 
     private BusinessException notFound() {

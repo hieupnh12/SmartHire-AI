@@ -44,6 +44,13 @@ public class Answer {
     @JoinColumn(name = "selected_option_id")
     Option selectedOption;
 
+    @Builder.Default
+    @jakarta.persistence.ManyToMany(fetch = FetchType.LAZY)
+    @jakarta.persistence.JoinTable(name = "answer_selected_options",
+            joinColumns = @JoinColumn(name = "answer_id"),
+            inverseJoinColumns = @JoinColumn(name = "option_id"))
+    java.util.Set<Option> selectedOptions = new java.util.HashSet<>();
+
     @Column(name = "answer_text", columnDefinition = "TEXT")
     String answerText;
 

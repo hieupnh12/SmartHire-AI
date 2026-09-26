@@ -28,7 +28,7 @@ Nội bộ worker + `GET /api/v1/interviews/{id}` gồm analysis.
 
 ## Database liên quan
 
-- `interview_answer_analyses`
+- Model hiện hành: câu trả lời ở `ai_answers`, phản hồi ở `ai_feedbacks`. Chưa có bảng phân tích NLP chuyên biệt thay thế `interview_answer_analyses`; bảng legacy đã bị V21 xóa cùng dữ liệu. Cần chốt schema phân tích khi triển khai worker.
 
 ## UI mockup
 

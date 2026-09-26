@@ -21,7 +21,7 @@ Tạo/làm bài trắc nghiệm kỹ thuật gắn job/stage.
 
 ## Business Rules
 
-- Đã triển khai backend và frontend JobTest, Question, Option, Submission, Answer cho MCQ một đáp án đúng. Coding, randomize và cấp quyền thi lại chưa triển khai; đây chưa phải luồng AI tự sinh câu hỏi/phỏng vấn.
+- Backend hỗ trợ `MCQ` (một đáp án, mặc định khi bỏ questionType), `MULTIPLE_CHOICE` (nhiều đáp án), `ESSAY` (tự luận). Frontend hiện vẫn là luồng MCQ; task V23 chưa thay UI. Coding, randomize và cấp quyền thi lại chưa triển khai.
 - Start được tuần tự hóa bằng khóa hàng đề; trả lượt gần nhất đã có của cặp test/application, kể cả đã hoàn thành. NOT_STARTED được kích hoạt khi đủ điều kiện; không tự tạo lượt thi lại.
 - Hiện không có API giao đề riêng: mọi đề PUBLISHED của job có thể được bắt đầu bởi chủ đơn đủ điều kiện. Nếu cần giao riêng từng ứng viên, bổ sung chính sách assignment ở bước sau.
 - Staff (`RECRUITER`, `HR`, `ADMIN`, `TENANT_ADMIN`) trong đúng tenant được tạo, xem và sửa đề. Candidate không được gọi các API quản lý đề.
@@ -112,8 +112,20 @@ Kiểm chứng ngày 2026-09-24: 33 test assessment/multitenancy đạt, trong �
 
 ## Database liên quan
 
+- V23 thêm `answer_selected_options(answer_id, option_id)` với PK kép và FK. MCQ vẫn lưu `answers.selected_option_id`, tự luận lưu `answers.answer_text`. Không chuyển dữ liệu MCQ cũ sang bảng nối.
+
+## Mở rộng loại câu hỏi V23
+
+- POST/PUT question nhận `questionType`: MCQ có 2–10 lựa chọn và đúng 1 đáp án đúng; MULTIPLE_CHOICE có 2–10 lựa chọn và ít nhất 2 đáp án đúng; ESSAY không có options (bỏ trường hoặc gửi []). Type không hợp lệ trả 400.
+- Save MCQ dùng `selectedOptionId`; nhiều đáp án dùng `selectedOptionIds`; tự luận dùng `answerText` tối đa 10.000 ký tự. Không trộn payload giữa các loại. Danh sách ID trùng hoặc option thuộc câu khác bị từ chối, rollback cả nhóm.
+- null ở lựa chọn đơn, []/null ở danh sách, null/chuỗi rỗng ở tự luận dùng để xóa câu trả lời tương ứng. Câu không có trong payload giữ nguyên. GET trả lại các trường tương ứng; không trả rubric/đáp án đúng.
+- Nhiều đáp án chấm theo tập chính xác: chọn thiếu/thừa/sai nhận 0, đúng toàn bộ nhận điểm câu. Không có điểm một phần.
+- Bài có tự luận nộp thành SUBMITTED, score/passed NULL để chờ chấm; hết giờ thành EXPIRED nhưng điểm tổng vẫn NULL. Điểm trắc nghiệm được lưu riêng; chưa có endpoint chấm tự luận. Submit lặp trả kết quả cũ, không sửa bài đã đóng.
+
+- V22 thêm `questionskills(question_id, skill_id)` liên kết N–N `questions`/`skills`, PK kép chống trùng và 2 FK DELETE CASCADE. Entity `QuestionSkill`; chưa đổi API/UI hoặc đồng bộ cột văn bản `questions.skill` sang bảng nối. Trạng thái tính năng vẫn `Doing`.
+
 - Theo schema V12 + V13: `tests` (+ `created_by`, `updated_at`), `questions` (+ `difficulty`, `skill`, `explanation`), `options`, `submissions`, `answers`. Chống ghi trùng bằng khóa hàng trong service, không tuyên bố có UNIQUE mà SQL chưa định nghĩa.
-- Lỗi thiếu `tests` do migration trùng V5/V6 và V9 bị tái sử dụng cho redesign trong khi history tenant ghi analytics. V10/V11 được phục hồi tên đúng, V12 giữ bảng cũ trong `legacy_v12_*`; xem quy trình nâng cấp tại `docs/database/README.md` §10.7. Chỉ tạo entity/repository không tự tạo bảng tenant (`hbm2ddl=none`).
+- V12 tách mô hình mới và lưu bảng cũ trong `legacy_v12_*`; V21 xóa toàn bộ bảng/dữ liệu legacy và hai cột ID legacy trong `ranking_sources` theo yêu cầu bỏ lịch sử cũ. FK của mô hình hiện hành giữ nguyên, không chuyển ID cũ sang submission mới. Xem `docs/database/README.md` §10.7–10.8. Chỉ tạo entity/repository không tự tạo bảng tenant (`hbm2ddl=none`).
 
 ## UI mockup
 

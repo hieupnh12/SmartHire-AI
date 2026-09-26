@@ -30,7 +30,7 @@ Sinh câu hỏi phỏng vấn theo JD + CV + level (RabbitMQ).
 
 ## Database liên quan
 
-- `interviews`, `interview_questions`
+- Model hiện hành: `ai_interviews`, `ai_questions` (FK `ai_interview_id`). Các bảng `legacy_v12_*` của model cũ đã bị V21 xóa cùng dữ liệu; không chuyển câu hỏi cũ sang model mới.
 
 ## UI mockup
 

@@ -14,9 +14,9 @@ Tự chấm MCQ + coding; tổng điểm assessment.
 
 ## Luồng hoạt động
 
-1. MCQ một đáp án đúng được chấm ngay khi submit hoặc khi truy cập lượt đã hết hạn.
+1. MCQ và MULTIPLE_CHOICE được chấm khi submit hoặc khi truy cập lượt hết hạn; nhiều đáp án cần chọn chính xác toàn bộ tập đáp án đúng (không điểm một phần).
 2. Lưu điểm từng câu vào `answers.score`, đúng/sai vào `answers.is_correct`, tổng vào `submissions.score`.
-3. Coding worker, regrade và tích hợp overall chưa triển khai trong bước này.
+3. Bài có ESSAY: lưu nội dung, để điểm câu/đúng-sai tự luận NULL, tổng điểm/passed NULL; SUBMITTED chờ chấm hoặc EXPIRED nếu hết hạn. Chưa có endpoint chấm tự luận, coding worker, regrade và tích hợp overall.
 
 ## Business Rules
 

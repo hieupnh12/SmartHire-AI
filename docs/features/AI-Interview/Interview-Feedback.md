@@ -32,7 +32,7 @@ Tạo feedback readable cho recruiter/candidate (policy hiển thị).
 
 ## Database liên quan
 
-- `interview_feedbacks`
+- Model hiện hành: `ai_feedbacks` (FK UNIQUE `ai_answer_id` → `ai_answers`), chứa score/feedback/strengths/weaknesses theo câu trả lời. Bảng feedback legacy đã bị V21 xóa cùng dữ liệu.
 
 ## UI mockup
 

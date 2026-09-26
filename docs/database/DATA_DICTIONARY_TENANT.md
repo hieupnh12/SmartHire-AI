@@ -1,16 +1,15 @@
 # Data Dictionary - Tenant DB (MySQL)
 
-## Bổ sung V12 (2026-09-24)
+## Dọn legacy V21 (2026-09-26)
 
 V12 tạo model Test/Interview/AI/Practice hiện hành, không dùng lại V9 đã thuộc analytics.
-19 bảng `legacy_v12_*` (README §3.2) giữ toàn bộ cột, kiểu, nullable, default, PK, UNIQUE
-và dữ liệu theo V1/V2; chỉ đổi tên bảng và gỡ các FK được ghi rõ trong V12. Các FK còn lại
-xem README §4.10. Archive không có entity; lịch sử chưa tự chuyển sang màn hình mới.
+V21 xóa 19 bảng `legacy_v12_*` (README §3.2), toàn bộ dữ liệu, PK, UNIQUE và FK trên chúng.
+Không còn archive sau V21. Hai cột `ranking_sources.legacy_attempt_id` và
+`ranking_sources.legacy_interview_id` (BIGINT nullable, không FK) cũng bị xóa.
+ID legacy không được chuyển sang nguồn mới. Các cột nguồn hiện hành bên dưới giữ nguyên.
 
 | Bảng · cột | Kiểu | Null | Default | Khóa | Ý nghĩa |
 |---|---|---|---|---|---|
-| `ranking_sources.legacy_attempt_id` | BIGINT | Có | NULL | Không FK | Đổi tên attempt_id, giữ ID cũ |
-| `ranking_sources.legacy_interview_id` | BIGINT | Có | NULL | Không FK | Đổi tên interview_id, giữ ID cũ |
 | `ranking_sources.submission_id` | BIGINT | Có | NULL | FK → submissions.id | Nguồn mới, không backfill |
 | `ranking_sources.ai_interview_id` | BIGINT | Có | NULL | FK → ai_interviews.id | Nguồn mới, không backfill |
 
@@ -37,8 +36,8 @@ V11 mở rộng `users.role`, `member_invitations.role` thành VARCHAR(64) NOT N
 
 > Xem [Database Design & ERD](README.md) và [Data Dictionary Master](DATA_DICTIONARY_MASTER.md).
 
-**Database:** MySQL riêng cho mỗi doanh nghiệp. **Số bảng:** 48 hiện hành + 19 archive, không tính Flyway history.
-**Nguồn:** `backend/src/main/resources/db/migration/tenant/`, V1-V8, V10-V12.
+**Database:** MySQL riêng cho mỗi doanh nghiệp. **Số bảng:** 54 theo pipeline repo (49 bảng model + 5 analytics V9), không còn archive, không tính Flyway history. DB ttqt có thêm mở rộng từ lịch sử V14–V20 ngoài checkout.
+**Nguồn:** `backend/src/main/resources/db/migration/tenant/`, V1–V13, V21–V23. V23 thêm 1 bảng nối, tổng 55 bảng; 49 entity, 71 FK theo pipeline repo.
 **Entity:** `com.smarthire.domain.tenant.entity`. **Hibernate:** `hbm2ddl.auto = none`.
 
 KÃ½ hiá»‡u: `PK` khoÃ¡ chÃ­nh Â· `FK` khoÃ¡ ngoáº¡i Ä‘Ã£ khai bÃ¡o Â· `UQ` thuá»™c rÃ ng buá»™c unique Â· `IDX` cÃ³ index Â·
@@ -505,6 +504,20 @@ Entity `Question`.
 
 **Ràng buộc:** `fk_questions_test`
 
+### F.2.1 `questionskills` — Kỹ năng của câu hỏi (V22)
+
+Entity `QuestionSkill`; bảng nối N–N giữa `questions` và `skills`.
+
+| Cột | Kiểu | Khóa | Null | Default | Ý nghĩa |
+|---|---|---|---|---|---|
+| `question_id` | BIGINT | PK kép, FK → `questions.id` | Không | — | Câu hỏi |
+| `skill_id` | BIGINT | PK kép, FK → `skills.id`, IDX | Không | — | Kỹ năng |
+
+PK `(question_id, skill_id)` chống liên kết trùng; index `idx_questionskills_skill(skill_id)`
+hỗ trợ tìm câu hỏi theo kỹ năng. FK `fk_questionskills_question` và `fk_questionskills_skill`
+đều `ON DELETE CASCADE`: chỉ xóa dòng nối khi xóa bản ghi cha, không xóa cha còn lại.
+Không có cột id tự tăng. Cột văn bản `questions.skill` vẫn được giữ, không tự backfill hoặc đồng bộ.
+
 ### F.3 `options` — Lựa chọn trả lời
 
 Entity `Option`.
@@ -552,6 +565,22 @@ Entity `Answer`.
 | `score` | DECIMAL(10,2) | | Có | NULL | Điểm câu |
 
 **Ràng buộc:** `fk_answers_submission`, `fk_answers_question`, `fk_answers_option`
+
+V23: MCQ lưu `selected_option_id`; ESSAY lưu `answer_text` (API tối đa 10.000 ký tự),
+điểm/đúng-sai NULL khi chờ chấm. MULTIPLE_CHOICE dùng bảng nối bên dưới, cột lựa chọn đơn NULL.
+
+### F.5.1 `answer_selected_options` — Các lựa chọn của câu trả lời nhiều đáp án
+
+Ánh xạ `Answer.selectedOptions`, không có entity riêng.
+
+| Cột | Kiểu | Khóa | Null | Default | Ý nghĩa |
+|---|---|---|---|---|---|
+| `answer_id` | BIGINT | PK kép, FK → answers.id | Không | — | Câu trả lời; DELETE CASCADE |
+| `option_id` | BIGINT | PK kép, FK → options.id, IDX | Không | — | Lựa chọn; DELETE RESTRICT |
+
+PK `(answer_id, option_id)`, index `idx_answer_selected_options_option`, FK `fk_aso_answer` / `fk_aso_option`.
+Option phải thuộc question của answer: kiểm tra ở service, không phải ràng buộc chéo trong SQL.
+`questions.question_type` nhận MCQ/MULTIPLE_CHOICE/ESSAY qua API; vẫn VARCHAR(32), không SQL CHECK.
 
 ### F.6 `coding_problems` — Bài lập trình
 

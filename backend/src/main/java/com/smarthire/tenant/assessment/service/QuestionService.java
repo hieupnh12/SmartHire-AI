@@ -85,15 +85,12 @@ public class QuestionService {
         JobTest test = draft(testId);
         var items = questions.findByTest_IdOrderByQuestionOrderAscIdAsc(testId);
         if (items.isEmpty() || items.size() > 100) throw invalid("A test requires 1 to 100 questions");
-        if (codingProblems.existsByTest_Id(testId)) throw invalid("Only MCQ-only tests are supported by this flow");
+        if (codingProblems.existsByTest_Id(testId)) throw invalid("Coding tests are not supported by this flow");
         int total = 0;
         for (Question question : items) {
             var choices = options.findByQuestion_IdOrderByIdAsc(question.getId());
-            if (!"MCQ".equals(question.getQuestionType()) || question.getPoints() < 1 || question.getPoints() > 10000
-                    || choices.size() < 2 || choices.size() > 10
-                    || choices.stream().filter(Option::isCorrect).count() != 1) {
-                throw invalid("Every question must be an MCQ with 2-10 options and exactly one correct answer");
-            }
+            validateType(question.getQuestionType(), choices.size(), choices.stream().filter(Option::isCorrect).count());
+            if (question.getPoints() < 1 || question.getPoints() > 10000) throw invalid("Invalid question points");
             total += question.getPoints();
         }
         if (test.getPassingScore() != null && (test.getPassingScore().signum() < 0
@@ -125,14 +122,24 @@ public class QuestionService {
     }
 
     private void validateOptions(QuestionRequest request) {
-        if (request.options().stream().filter(o -> Boolean.TRUE.equals(o.correct())).count() != 1) {
-            throw invalid("Exactly one option must be correct");
+        validateType(request.questionType().name(), request.options().size(),
+                request.options().stream().filter(o -> Boolean.TRUE.equals(o.correct())).count());
+    }
+
+    private void validateType(String type, int count, long correct) {
+        if ("ESSAY".equals(type)) {
+            if (count != 0) throw invalid("Essay questions must not have options");
+            return;
         }
+        if (!"MCQ".equals(type) && !"MULTIPLE_CHOICE".equals(type)) throw invalid("Unsupported question type");
+        if (count < 2 || count > 10) throw invalid("Choice questions require 2-10 options");
+        if ("MCQ".equals(type) && correct != 1) throw invalid("Exactly one option must be correct");
+        if ("MULTIPLE_CHOICE".equals(type) && correct < 2) throw invalid("Multiple-choice questions require at least two correct options");
     }
 
     private void apply(Question question, QuestionRequest request) {
         question.setQuestionText(request.questionText().trim());
-        question.setQuestionType("MCQ");
+        question.setQuestionType(request.questionType().name());
         question.setPoints(request.points());
         question.setQuestionOrder(request.questionOrder());
         question.setDifficulty(normalizeDifficulty(request.difficulty()));

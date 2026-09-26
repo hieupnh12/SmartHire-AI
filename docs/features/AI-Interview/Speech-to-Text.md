@@ -31,7 +31,7 @@ Chuyển audio câu trả lời thành transcript để NLP scoring.
 
 ## Database liên quan
 
-- `interview_answers.audio_url`, `transcript`
+- Model hiện hành: `ai_answers.answer_text`, `answer_duration`, `answered_at`, FK `ai_question_id`. Chưa có cột audio URL/transcript riêng; tích hợp STT cần chốt schema khi triển khai. Bảng câu trả lời legacy đã bị V21 xóa cùng dữ liệu.
 
 ## UI mockup
 

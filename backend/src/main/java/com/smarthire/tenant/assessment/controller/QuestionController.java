@@ -27,7 +27,7 @@ public class QuestionController {
     }
 
     @PostMapping("/create_question")
-    @Operation(summary = "Create an MCQ question with options in a draft JobTest (staff only)")
+    @Operation(summary = "Create an MCQ, MULTIPLE_CHOICE or ESSAY question in a draft JobTest (staff only)")
     public ResponseEntity<ApiResponse<QuestionResponse>> create(@PathVariable long testId, @Valid @RequestBody QuestionRequest body) {
         return ResponseEntity.status(201).body(ApiResponse.ok(service.create(testId, body)));
     }
@@ -47,8 +47,8 @@ public class QuestionController {
     }
 
     @PostMapping("/publish_test")
-    @Operation(summary = "Validate and publish an MCQ-only JobTest (staff only)",
-            description = "Requires 1-100 questions, exactly one correct option per question and a valid passing score. Freezes test metadata and questions.")
+    @Operation(summary = "Validate and publish a JobTest (staff only)",
+            description = "Requires 1-100 questions and valid passing score. MCQ has one correct option, MULTIPLE_CHOICE has at least two, ESSAY has no options. Freezes test metadata and questions.")
     public ApiResponse<JobTestResponse> publish(@PathVariable long testId) {
         return ApiResponse.ok(service.publish(testId));
     }

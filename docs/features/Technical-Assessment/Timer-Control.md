@@ -17,6 +17,7 @@ Giới hạn thời gian làm bài; server là nguồn sự thật.
 1. Start lưu `submissions.started_at`; deadline tính từ thời lượng đề đã publish và không được sửa.
 2. Response start/get/save/submit trả `serverTime`, `expiresAt`, `remainingSeconds`; FE đếm ngược bằng mốc server và `performance.now()`.
 3. GET/start/save/submit/result phát hiện lượt IN_PROGRESS quá hạn thì chấm đáp án đã lưu, chuyển EXPIRED, submitted_at bằng deadline.
+   Với đề có ESSAY, chỉ chấm phần trắc nghiệm; điểm tổng/passed NULL chờ chấm tự luận, kể cả khi tự luận chưa được trả lời.
 4. Payload save muộn bị từ chối 409 nhưng trạng thái EXPIRED vẫn được commit. Frontend tự gọi submit khi hết giờ, có nút thử hoàn tất khi lỗi mạng; chưa có worker chủ động quét khi không phát sinh request.
 
 ## Business Rules

@@ -30,7 +30,7 @@ Chấm điểm session phỏng vấn AI tổng hợp.
 
 ## Database liên quan
 
-- `interview_scores`
+- Model hiện hành: `ai_interviews.overall_score` và `ai_feedbacks.score` (FK qua `ai_answers`). Bảng điểm legacy đã bị V21 xóa cùng dữ liệu; chưa có bảng `interview_scores` trong model mới.
 
 ## UI mockup
 
