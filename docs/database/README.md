@@ -997,16 +997,14 @@ Hai pipeline dùng **hai phương ngữ SQL khác nhau** và không thể dùng 
 | V10 | `V10__role_permissions.sql` | Quyền theo role; phục hồi tên version khớp history/checksum ttqt, nội dung không đổi |
 | V11 | `V11__custom_roles.sql` | Role tùy chỉnh và mở rộng cột role; phục hồi tên version khớp history/checksum ttqt |
 | V12 | `V12__preserve_legacy_assessment_interview_schema.sql` | Lưu 19 bảng cũ bằng RENAME; tạo Test/Submission, Direct Interview, AI Interview, cập nhật Practice và nguồn ranking |
-<<<<<<< HEAD
-| V13 | `V13__create_landing_page_settings.sql` | Bảng `landing_page_settings` lưu cấu hình tùy biến toàn diện cho trang Landing Page / Career của từng tenant |
-=======
 | V13 | `V13__job_screening_config.sql` | `job_screening_configs` + `gate_scores`; seed snapshot trọng số CV/gate cho job cũ |
 | V14 | `V14__ai_interview_invite.sql` | `applications.ai_interview_invited_at` — thời điểm đã gửi mail mời phỏng vấn AI |
 | V15 | `V15__job_deadline_datetime.sql` | `jobs.deadline` DATE → DATETIME; job hết hạn tự đóng và sàng CV |
->>>>>>> origin/main
+| V16 | `V16__job_assignments.sql` | `job_assignments`: recruiter phụ trách job, kèm backfill người tạo job |
+| V17 | `V17__create_landing_page_settings.sql` | Bảng `landing_page_settings` lưu cấu hình tùy biến toàn diện cho trang Landing Page / Career của từng tenant |
 
 V9 analytics đã có lại trong pipeline. `job_assignments` dùng V16 để không chiếm version 9.
-Tenant tạo mới chạy V1–V16. Tenant từng có analytics có thể có thêm bảng ngoài con số bảng hiện hành.
+Tenant tạo mới chạy V1–V17. Tenant từng có analytics có thể có thêm bảng ngoài con số bảng hiện hành.
 V12 dành cho tenant còn schema `assessments/attempts`. Nếu tenant đã chạy V9 redesign từ nhánh khác,
 **không chạy V12 trực tiếp**: phải kiểm tra schema/history và lập bản nâng cấp riêng.
 V12 bảo toàn dữ liệu bằng đổi tên, không phải chuyển đổi nghiệp vụ: dữ liệu cũ chưa xuất hiện ở UI mới.

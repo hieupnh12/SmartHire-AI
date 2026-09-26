@@ -93,7 +93,6 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
   }, [profileQuery.data, setUser]);
   const handleLogout = () => askConfirm({
     title: "Đăng xuất khỏi SmartHire?",
-    description: "Phiên làm việc hiện tại sẽ kết thúc trên thiết bị này.",
     confirmLabel: "Đăng xuất",
     danger: true,
     onConfirm: () => {

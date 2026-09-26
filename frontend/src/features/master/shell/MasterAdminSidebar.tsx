@@ -692,7 +692,7 @@ export function MasterAdminSidebar({
               <button
                 type="button"
                 role="menuitem"
-                onClick={() => askConfirm({ title: "Đăng xuất khỏi SmartHire?", description: "Phiên quản trị hiện tại sẽ kết thúc trên thiết bị này.", confirmLabel: "Đăng xuất", danger: true, onConfirm: handleLogout })}
+                onClick={() => askConfirm({ title: "Đăng xuất khỏi SmartHire?", confirmLabel: "Đăng xuất", danger: true, onConfirm: handleLogout })}
                 className="flex min-h-12 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-rose-50 hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
               >
                 <LogOut className="size-5" />

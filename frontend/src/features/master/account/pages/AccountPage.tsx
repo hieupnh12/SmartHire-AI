@@ -78,7 +78,7 @@ export function AccountPage({ activeTab }: AccountPageProps) {
             </div>
             <button
               type="button"
-              onClick={() => askConfirm({ title: "Đăng xuất khỏi SmartHire?", description: "Phiên quản trị hiện tại sẽ kết thúc trên thiết bị này.", confirmLabel: "Đăng xuất", danger: true, onConfirm: handleLogout })}
+              onClick={() => askConfirm({ title: "Đăng xuất khỏi SmartHire?", confirmLabel: "Đăng xuất", danger: true, onConfirm: handleLogout })}
               className="flex min-h-12 items-center gap-3 rounded-xl border border-rose-200 px-4 text-sm font-semibold text-rose-700 transition-colors hover:bg-rose-50"
             >
               <LogOut className="size-5" />

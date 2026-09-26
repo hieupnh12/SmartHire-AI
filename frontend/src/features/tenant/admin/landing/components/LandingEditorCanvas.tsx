@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   Palette,
   Search,
@@ -18,6 +18,7 @@ import {
   SlidersHorizontal,
   Edit3,
   Sparkles,
+  Copy,
 } from "lucide-react";
 import type { LandingPageConfig, StatItem, BenefitItem, TestimonialItem } from "../types/landing";
 import { BANNER_HEIGHT_OPTIONS } from "../utils/constants";
@@ -26,7 +27,7 @@ import { renderIcon } from "../utils/icons";
 interface LandingEditorCanvasProps {
   config: LandingPageConfig;
   brandName: string;
-  viewMode: "desktop" | "mobile";
+  viewMode: "desktop" | "tablet" | "mobile";
   showVisualControls: boolean;
   openDrawerTab: (tabId: string) => void;
   updateTheme: (patch: Partial<LandingPageConfig["theme"]>) => void;
@@ -66,6 +67,20 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
   const primary = config.theme.primaryColor || "#0058be";
   const isDarkHero = config.theme.darkModeHero !== false;
   const isMobile = viewMode === "mobile";
+  const isTablet = viewMode === "tablet";
+
+  const [contextMenu, setContextMenu] = useState<{
+    isOpen: boolean;
+    x: number;
+    y: number;
+    actions: { label: string; icon: React.ReactNode; onClick: () => void; danger?: boolean }[];
+  }>({ isOpen: false, x: 0, y: 0, actions: [] });
+
+  useEffect(() => {
+    const handleClick = () => setContextMenu((prev) => ({ ...prev, isOpen: false }));
+    window.addEventListener("click", handleClick);
+    return () => window.removeEventListener("click", handleClick);
+  }, []);
 
   const validStats = (config.about.stats || []).filter((s) => s.value?.trim() || s.label?.trim());
   const validBenefits = (config.benefits.items || []).filter((b) => b.title?.trim() || b.description?.trim());
@@ -73,14 +88,20 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
   const validTestimonials = (config.testimonials.items || []).filter((t) => t.name?.trim() || t.quote?.trim());
 
   return (
-    <main className="flex-1 overflow-y-auto overflow-x-hidden bg-slate-950 p-2 sm:p-5 flex justify-center items-start">
+    <main className="flex-1 overflow-y-auto overflow-x-hidden bg-slate-100 p-2 sm:p-5 flex justify-center items-start">
       <div
         className={`transition-all duration-300 bg-white text-slate-900 shadow-2xl relative ${
           isMobile
-            ? "w-[390px] min-h-[844px] rounded-[44px] border-[10px] border-slate-900 ring-4 ring-slate-800 my-4 text-xs overflow-hidden"
-            : "w-full max-w-7xl rounded-2xl border border-slate-800 text-sm overflow-hidden"
+            ? "w-[390px] min-h-[844px] rounded-[44px] border-[10px] border-slate-200 ring-4 ring-slate-100 my-4 text-xs overflow-hidden"
+            : isTablet
+            ? "w-[768px] min-h-[1024px] rounded-[32px] border-[10px] border-slate-200 ring-4 ring-slate-100 my-4 text-sm overflow-hidden"
+            : "w-full max-w-7xl rounded-2xl border border-slate-200 text-sm overflow-hidden"
         }`}
         style={{ fontFamily: config.theme.fontFamily || "Inter" }}
+        onContextMenu={(e) => {
+          // Close menu if right clicked on an empty area
+          if (contextMenu.isOpen) setContextMenu((prev) => ({ ...prev, isOpen: false }));
+        }}
       >
         {/* CANVAS NAV HEADER */}
         <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-100 px-6 py-4 flex items-center justify-between relative group">
@@ -169,60 +190,6 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
               }}
             />
 
-            {showVisualControls && (
-              <div className="absolute top-4 right-4 z-30 flex flex-wrap items-center gap-2 bg-slate-900/90 backdrop-blur-md p-2 rounded-xl border border-slate-700 shadow-2xl text-white text-xs">
-                <span className="text-[11px] font-bold text-cyan-400 flex items-center gap-1">
-                  <SlidersHorizontal className="w-3 h-3" />
-                  Chiều cao:
-                </span>
-                {BANNER_HEIGHT_OPTIONS.map((opt) => (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => updateHero({ bannerHeight: opt.value })}
-                    className={`px-2 py-0.5 rounded text-[11px] font-semibold transition-all ${
-                      (config.hero.bannerHeight || "540px") === opt.value
-                        ? "bg-brand-primary text-white shadow-sm ring-1 ring-white/20"
-                        : "bg-slate-800 text-slate-300 hover:bg-slate-700"
-                    }`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-
-                <div className="h-4 w-px bg-slate-700 mx-1" />
-
-                <label className="cursor-pointer inline-flex items-center gap-1 px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-[11px] font-semibold border border-slate-700">
-                  <Upload className="w-3 h-3 text-cyan-400" />
-                  <span>{isUploading ? "Đang tải..." : "Đổi ảnh banner"}</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    disabled={isUploading}
-                    onChange={(e) => handleFileUpload(e, (url) => updateHero({ bannerImageUrl: url }))}
-                  />
-                </label>
-
-                <button
-                  type="button"
-                  onClick={() => updateTheme({ darkModeHero: !isDarkHero })}
-                  className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-[11px] font-semibold text-slate-300 border border-slate-700"
-                >
-                  {isDarkHero ? "🌙 Nền Tối" : "☀️ Nền Sáng"}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => openDrawerTab("hero")}
-                  className="px-2.5 py-1 rounded bg-cyan-600 hover:bg-cyan-500 text-white font-semibold flex items-center gap-1 shadow"
-                >
-                  <Edit3 className="w-3 h-3" />
-                  <span>Sửa Chữ & Nút</span>
-                </button>
-              </div>
-            )}
-
             <div
               className={`relative z-10 p-6 sm:p-12 md:p-16 flex flex-col justify-center h-full max-w-3xl ${
                 isDarkHero ? "text-white" : "text-slate-900"
@@ -238,7 +205,14 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                   }}
                 >
                   <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
-                  <span>{config.hero.badgeText}</span>
+                  <span
+                    contentEditable={showVisualControls}
+                    suppressContentEditableWarning
+                    onBlur={(e) => updateHero({ badgeText: e.currentTarget.textContent || "" })}
+                    className={`outline-none transition-all ${showVisualControls ? "hover:ring-2 hover:ring-cyan-400/50 focus:ring-2 focus:ring-cyan-400 rounded cursor-text px-1" : ""}`}
+                  >
+                    {config.hero.badgeText}
+                  </span>
                 </div>
               )}
 
@@ -247,9 +221,23 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                   isMobile ? "text-2xl" : "text-3xl sm:text-4xl md:text-5xl"
                 }`}
               >
-                {config.hero.title || `Cơ Hội Nghề Nghiệp Tại ${brandName}`}
+                <span
+                  contentEditable={showVisualControls}
+                  suppressContentEditableWarning
+                  onBlur={(e) => updateHero({ title: e.currentTarget.textContent || "" })}
+                  className={`outline-none transition-all ${showVisualControls ? "hover:ring-2 hover:ring-cyan-400/50 focus:ring-2 focus:ring-cyan-400 rounded cursor-text px-1 -mx-1" : ""}`}
+                >
+                  {config.hero.title || `Cơ Hội Nghề Nghiệp Tại ${brandName}`}
+                </span>
                 {config.hero.highlightWords && (
-                  <span className="block bg-gradient-to-r from-teal-400 via-cyan-400 to-indigo-400 bg-clip-text text-transparent mt-1">
+                  <span
+                    contentEditable={showVisualControls}
+                    suppressContentEditableWarning
+                    onBlur={(e) => updateHero({ highlightWords: e.currentTarget.textContent || "" })}
+                    className={`block bg-gradient-to-r from-teal-400 via-cyan-400 to-indigo-400 bg-clip-text text-transparent mt-1 ${
+                      showVisualControls ? "outline-none hover:ring-2 hover:ring-cyan-400/50 focus:ring-2 focus:ring-cyan-400 rounded cursor-text px-1 -mx-1" : "outline-none"
+                    }`}
+                  >
                     {config.hero.highlightWords}
                   </span>
                 )}
@@ -257,9 +245,14 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
 
               {config.hero.subtitle && (
                 <p
+                  contentEditable={showVisualControls}
+                  suppressContentEditableWarning
+                  onBlur={(e) => updateHero({ subtitle: e.currentTarget.textContent || "" })}
                   className={`mb-6 leading-relaxed ${
                     isMobile ? "text-xs" : "text-sm sm:text-base text-slate-300"
-                  } ${isDarkHero ? "text-slate-300" : "text-slate-600"}`}
+                  } ${isDarkHero ? "text-slate-300" : "text-slate-600"} ${
+                    showVisualControls ? "outline-none hover:ring-2 hover:ring-cyan-400/50 focus:ring-2 focus:ring-cyan-400 rounded cursor-text px-1 -mx-1 transition-all" : "outline-none"
+                  }`}
                 >
                   {config.hero.subtitle}
                 </p>
@@ -291,7 +284,14 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                   className="px-6 py-2.5 rounded-xl text-white font-semibold text-xs sm:text-sm flex items-center gap-2 shadow-lg"
                   style={{ backgroundColor: primary }}
                 >
-                  <span>{config.hero.primaryCtaText || "Xem Vị Trí Tuyển Dụng"}</span>
+                  <span
+                    contentEditable={showVisualControls}
+                    suppressContentEditableWarning
+                    onBlur={(e) => updateHero({ primaryCtaText: e.currentTarget.textContent || "" })}
+                    className={`outline-none transition-all ${showVisualControls ? "hover:ring-2 hover:ring-white/50 focus:ring-2 focus:ring-white rounded cursor-text px-1" : ""}`}
+                  >
+                    {config.hero.primaryCtaText || "Xem Vị Trí Tuyển Dụng"}
+                  </span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
 
@@ -304,7 +304,14 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                         : "border-slate-300 text-slate-700 bg-white hover:bg-slate-50"
                     }`}
                   >
-                    {config.hero.secondaryCtaText}
+                    <span
+                      contentEditable={showVisualControls}
+                      suppressContentEditableWarning
+                      onBlur={(e) => updateHero({ secondaryCtaText: e.currentTarget.textContent || "" })}
+                      className={`outline-none transition-all ${showVisualControls ? "hover:ring-2 hover:ring-cyan-400/50 focus:ring-2 focus:ring-cyan-400 rounded cursor-text px-1" : ""}`}
+                    >
+                      {config.hero.secondaryCtaText}
+                    </span>
                   </button>
                 )}
               </div>
@@ -314,34 +321,48 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
 
         {/* SECTION 2: CULTURE & ABOUT */}
         {config.about.enabled && (
-          <section className="py-12 px-6 bg-white border-y border-slate-100 relative group">
-            {showVisualControls && (
-              <div className="absolute top-4 right-6 z-30 flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => openDrawerTab("about")}
-                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900 text-white text-xs font-semibold shadow hover:bg-slate-800"
-                >
-                  <Edit3 className="w-3 h-3 text-cyan-400" />
-                  <span>Sửa Khối Văn Hóa</span>
-                </button>
-              </div>
-            )}
-
+          <section 
+            className="py-12 px-6 bg-white border-y border-slate-100 relative group"
+            onContextMenu={(e) => {
+              if (!showVisualControls) return;
+              e.preventDefault();
+              setContextMenu({
+                isOpen: true,
+                x: e.clientX,
+                y: e.clientY,
+                actions: [
+                  { label: "Sửa Khối Văn Hóa (Nâng cao)", icon: <Edit3 className="w-4 h-4" />, onClick: () => openDrawerTab("about") },
+                ]
+              });
+            }}
+          >
             <div className="max-w-6xl mx-auto space-y-8">
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
                 <div className="lg:col-span-7 space-y-3">
                   <span
-                    className="text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full"
+                    className={`text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full outline-none transition-all ${showVisualControls ? "hover:ring-2 hover:ring-cyan-400/50 focus:ring-2 focus:ring-cyan-400 cursor-text" : ""}`}
                     style={{ backgroundColor: `${primary}15`, color: primary }}
+                    contentEditable={showVisualControls}
+                    suppressContentEditableWarning
+                    onBlur={(e) => updateAbout({ badge: e.currentTarget.textContent || "" })}
                   >
                     {config.about.badge || "Về Chúng Tôi"}
                   </span>
-                  <h2 className="text-2xl sm:text-3xl font-bold text-slate-900">
+                  <h2 
+                    className={`text-2xl sm:text-3xl font-bold text-slate-900 outline-none transition-all ${showVisualControls ? "hover:ring-2 hover:ring-cyan-400/50 focus:ring-2 focus:ring-cyan-400 cursor-text px-1 -mx-1 rounded" : ""}`}
+                    contentEditable={showVisualControls}
+                    suppressContentEditableWarning
+                    onBlur={(e) => updateAbout({ title: e.currentTarget.textContent || "" })}
+                  >
                     {config.about.title || `Về ${brandName}`}
                   </h2>
                   {config.about.description ? (
-                    <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-line">
+                    <p 
+                      className={`text-sm text-slate-600 leading-relaxed whitespace-pre-line outline-none transition-all ${showVisualControls ? "hover:ring-2 hover:ring-cyan-400/50 focus:ring-2 focus:ring-cyan-400 cursor-text px-1 -mx-1 rounded" : ""}`}
+                      contentEditable={showVisualControls}
+                      suppressContentEditableWarning
+                      onBlur={(e) => updateAbout({ description: e.currentTarget.textContent || "" })}
+                    >
                       {config.about.description}
                     </p>
                   ) : (
@@ -389,22 +410,6 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                   <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
                     Số Liệu Nổi Bật ({validStats.length})
                   </span>
-                  {showVisualControls && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const nextStats: StatItem[] = [
-                          ...(config.about.stats || []),
-                          { icon: "Users", value: "100+", label: "Nhân sự" },
-                        ];
-                        updateAbout({ stats: nextStats });
-                      }}
-                      className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-800 transition-colors"
-                    >
-                      <Plus className="w-3 h-3 text-brand-primary" />
-                      <span>+ Thêm số liệu</span>
-                    </button>
-                  )}
                 </div>
 
                 {validStats.length === 0 ? (
@@ -416,21 +421,33 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                     {config.about.stats.map((st, i) => (
                       <div
                         key={i}
-                        className="p-4 rounded-xl bg-slate-50 border border-slate-100 relative group/stat"
+                        className="p-4 rounded-xl bg-slate-50 border border-slate-100 relative group/stat transition-all hover:border-cyan-200"
+                        onContextMenu={(e) => {
+                          if (!showVisualControls) return;
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setContextMenu({
+                            isOpen: true,
+                            x: e.clientX,
+                            y: e.clientY,
+                            actions: [
+                              { label: "Thêm số liệu", icon: <Plus className="w-4 h-4" />, onClick: () => {
+                                const nextStats = [...(config.about.stats || []), { icon: "Users", value: "100+", label: "Nhân sự mới" }];
+                                updateAbout({ stats: nextStats });
+                              }},
+                              { label: "Nhân bản", icon: <Copy className="w-4 h-4" />, onClick: () => {
+                                const copy = [...config.about.stats];
+                                copy.splice(i + 1, 0, { ...st });
+                                updateAbout({ stats: copy });
+                              }},
+                              { label: "Xóa số liệu này", icon: <Trash2 className="w-4 h-4" />, danger: true, onClick: () => {
+                                const copy = config.about.stats.filter((_, idx) => idx !== i);
+                                updateAbout({ stats: copy });
+                              }}
+                            ]
+                          });
+                        }}
                       >
-                        {showVisualControls && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const copy = config.about.stats.filter((_, idx) => idx !== i);
-                              updateAbout({ stats: copy });
-                            }}
-                            className="absolute top-2 right-2 opacity-0 group-hover/stat:opacity-100 p-1 text-slate-400 hover:text-red-600 transition-opacity"
-                            title="Xóa số liệu này"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
                         <div className="flex items-center gap-2 mb-1">
                           <div
                             className="w-7 h-7 rounded-lg flex items-center justify-center"
@@ -438,9 +455,27 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                           >
                             {renderIcon(st.icon, "w-3.5 h-3.5")}
                           </div>
-                          <span className="font-extrabold text-lg text-slate-900">{st.value}</span>
+                          <span 
+                            className={`font-extrabold text-lg text-slate-900 outline-none transition-all ${showVisualControls ? "hover:ring-2 hover:ring-cyan-400/50 focus:ring-2 focus:ring-cyan-400 cursor-text px-1 -mx-1 rounded" : ""}`}
+                            contentEditable={showVisualControls}
+                            suppressContentEditableWarning
+                            onBlur={(e) => {
+                              const copy = [...config.about.stats];
+                              copy[i] = { ...copy[i], value: e.currentTarget.textContent || "" };
+                              updateAbout({ stats: copy });
+                            }}
+                          >{st.value}</span>
                         </div>
-                        <span className="text-xs text-slate-500 font-medium">{st.label}</span>
+                        <span 
+                          className={`text-xs text-slate-500 font-medium outline-none transition-all ${showVisualControls ? "hover:ring-2 hover:ring-cyan-400/50 focus:ring-2 focus:ring-cyan-400 cursor-text px-1 -mx-1 rounded block" : ""}`}
+                          contentEditable={showVisualControls}
+                          suppressContentEditableWarning
+                          onBlur={(e) => {
+                            const copy = [...config.about.stats];
+                            copy[i] = { ...copy[i], label: e.currentTarget.textContent || "" };
+                            updateAbout({ stats: copy });
+                          }}
+                        >{st.label}</span>
                       </div>
                     ))}
                   </div>
@@ -452,52 +487,56 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
 
         {/* SECTION 3: PERKS & BENEFITS */}
         {config.benefits.enabled && (
-          <section className="py-12 px-6 bg-slate-50/70 border-b border-slate-100 relative group">
-            {showVisualControls && (
-              <div className="absolute top-4 right-6 z-30 flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
+          <section 
+            className="py-12 px-6 bg-slate-50/70 border-b border-slate-100 relative group"
+            onContextMenu={(e) => {
+              if (!showVisualControls) return;
+              e.preventDefault();
+              setContextMenu({
+                isOpen: true,
+                x: e.clientX,
+                y: e.clientY,
+                actions: [
+                  { label: "Sửa Khối Đãi Ngộ (Nâng cao)", icon: <Edit3 className="w-4 h-4" />, onClick: () => openDrawerTab("benefits") },
+                  { label: "Thêm thẻ phúc lợi", icon: <Plus className="w-4 h-4" />, onClick: () => {
                     const nextItems: BenefitItem[] = [
                       ...(config.benefits.items || []),
-                      {
-                        icon: "HeartHandshake",
-                        title: "Chế Độ Mới",
-                        description: "Mô tả chi tiết quyền lợi đãi ngộ...",
-                      },
+                      { icon: "HeartHandshake", title: "Chế Độ Mới", description: "Mô tả chi tiết quyền lợi đãi ngộ..." },
                     ];
                     updateBenefits({ items: nextItems });
                   }}
-                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900 text-white text-xs font-semibold shadow hover:bg-slate-800"
-                >
-                  <Plus className="w-3 h-3 text-cyan-400" />
-                  <span>+ Thêm Thẻ Phúc Lợi</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => openDrawerTab("benefits")}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-200 text-slate-800 text-xs font-semibold hover:bg-slate-300"
-                >
-                  <Edit3 className="w-3 h-3" />
-                  <span>Sửa Tiêu Đề</span>
-                </button>
-              </div>
-            )}
-
+                ]
+              });
+            }}
+          >
             <div className="max-w-6xl mx-auto space-y-8">
               <div className="text-center max-w-xl mx-auto space-y-2">
                 <span
-                  className="text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full"
+                  className={`text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full outline-none transition-all ${showVisualControls ? "hover:ring-2 hover:ring-cyan-400/50 focus:ring-2 focus:ring-cyan-400 cursor-text inline-block" : ""}`}
                   style={{ backgroundColor: `${primary}15`, color: primary }}
+                  contentEditable={showVisualControls}
+                  suppressContentEditableWarning
+                  onBlur={(e) => updateBenefits({ badge: e.currentTarget.textContent || "" })}
                 >
                   {config.benefits.badge || "Đãi Ngộ"}
                 </span>
-                <h2 className="text-2xl sm:text-3xl font-bold text-slate-900">
+                <h2 
+                  className={`text-2xl sm:text-3xl font-bold text-slate-900 outline-none transition-all ${showVisualControls ? "hover:ring-2 hover:ring-cyan-400/50 focus:ring-2 focus:ring-cyan-400 cursor-text px-1 rounded" : ""}`}
+                  contentEditable={showVisualControls}
+                  suppressContentEditableWarning
+                  onBlur={(e) => updateBenefits({ title: e.currentTarget.textContent || "" })}
+                >
                   {config.benefits.title || "Chế Độ Đãi Ngộ & Phúc Lợi"}
                 </h2>
                 {config.benefits.subtitle && (
-                  <p className="text-xs text-slate-500">{config.benefits.subtitle}</p>
+                  <p 
+                    className={`text-xs text-slate-500 outline-none transition-all ${showVisualControls ? "hover:ring-2 hover:ring-cyan-400/50 focus:ring-2 focus:ring-cyan-400 cursor-text px-1 rounded" : ""}`}
+                    contentEditable={showVisualControls}
+                    suppressContentEditableWarning
+                    onBlur={(e) => updateBenefits({ subtitle: e.currentTarget.textContent || "" })}
+                  >
+                    {config.benefits.subtitle}
+                  </p>
                 )}
               </div>
 
@@ -510,29 +549,59 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                   {config.benefits.items.map((b, i) => (
                     <div
                       key={i}
-                      className="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm relative group/card"
+                      className="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm relative group/card transition-all hover:border-cyan-200"
+                      onContextMenu={(e) => {
+                        if (!showVisualControls) return;
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setContextMenu({
+                          isOpen: true,
+                          x: e.clientX,
+                          y: e.clientY,
+                          actions: [
+                            { label: "Thêm thẻ phúc lợi", icon: <Plus className="w-4 h-4" />, onClick: () => {
+                              const nextItems: BenefitItem[] = [...(config.benefits.items || []), { icon: "HeartHandshake", title: "Chế Độ Mới", description: "Mô tả chi tiết quyền lợi đãi ngộ..." }];
+                              updateBenefits({ items: nextItems });
+                            }},
+                            { label: "Nhân bản thẻ này", icon: <Copy className="w-4 h-4" />, onClick: () => {
+                              const copy = [...config.benefits.items];
+                              copy.splice(i + 1, 0, { ...b });
+                              updateBenefits({ items: copy });
+                            }},
+                            { label: "Xóa thẻ này", icon: <Trash2 className="w-4 h-4" />, danger: true, onClick: () => {
+                              const copy = config.benefits.items.filter((_, idx) => idx !== i);
+                              updateBenefits({ items: copy });
+                            }}
+                          ]
+                        });
+                      }}
                     >
-                      {showVisualControls && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const copy = config.benefits.items.filter((_, idx) => idx !== i);
-                            updateBenefits({ items: copy });
-                          }}
-                          className="absolute top-3 right-3 opacity-0 group-hover/card:opacity-100 p-1 text-slate-400 hover:text-red-600 transition-opacity"
-                          title="Xóa thẻ phúc lợi này"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      )}
                       <div
                         className="w-10 h-10 rounded-xl flex items-center justify-center mb-3"
                         style={{ backgroundColor: `${primary}15`, color: primary }}
                       >
                         {renderIcon(b.icon, "w-5 h-5")}
                       </div>
-                      <h3 className="font-bold text-sm text-slate-800 mb-1">{b.title}</h3>
-                      <p className="text-xs text-slate-500 leading-relaxed">{b.description}</p>
+                      <h3 
+                        className={`font-bold text-sm text-slate-800 mb-1 outline-none transition-all ${showVisualControls ? "hover:ring-2 hover:ring-cyan-400/50 focus:ring-2 focus:ring-cyan-400 cursor-text px-1 -mx-1 rounded" : ""}`}
+                        contentEditable={showVisualControls}
+                        suppressContentEditableWarning
+                        onBlur={(e) => {
+                          const copy = [...config.benefits.items];
+                          copy[i] = { ...copy[i], title: e.currentTarget.textContent || "" };
+                          updateBenefits({ items: copy });
+                        }}
+                      >{b.title}</h3>
+                      <p 
+                        className={`text-xs text-slate-500 leading-relaxed outline-none transition-all ${showVisualControls ? "hover:ring-2 hover:ring-cyan-400/50 focus:ring-2 focus:ring-cyan-400 cursor-text px-1 -mx-1 rounded" : ""}`}
+                        contentEditable={showVisualControls}
+                        suppressContentEditableWarning
+                        onBlur={(e) => {
+                          const copy = [...config.benefits.items];
+                          copy[i] = { ...copy[i], description: e.currentTarget.textContent || "" };
+                          updateBenefits({ items: copy });
+                        }}
+                      >{b.description}</p>
                     </div>
                   ))}
                 </div>
@@ -547,16 +616,31 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
             <div className="max-w-5xl mx-auto space-y-6">
               <div className="text-center max-w-xl mx-auto space-y-2">
                 <span
-                  className="text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full"
+                  className={`text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full outline-none transition-all ${showVisualControls ? "hover:ring-2 hover:ring-cyan-400/50 focus:ring-2 focus:ring-cyan-400 cursor-text inline-block" : ""}`}
                   style={{ backgroundColor: `${primary}15`, color: primary }}
+                  contentEditable={showVisualControls}
+                  suppressContentEditableWarning
+                  onBlur={(e) => updateTechStack({ badge: e.currentTarget.textContent || "" })}
                 >
                   {config.techStack.badge || "Tech Stack"}
                 </span>
-                <h2 className="text-2xl font-bold text-slate-900">
+                <h2 
+                  className={`text-2xl font-bold text-slate-900 outline-none transition-all ${showVisualControls ? "hover:ring-2 hover:ring-cyan-400/50 focus:ring-2 focus:ring-cyan-400 cursor-text px-1 rounded" : ""}`}
+                  contentEditable={showVisualControls}
+                  suppressContentEditableWarning
+                  onBlur={(e) => updateTechStack({ title: e.currentTarget.textContent || "" })}
+                >
                   {config.techStack.title || "Công Nghệ & Kỹ Năng"}
                 </h2>
                 {config.techStack.subtitle && (
-                  <p className="text-xs text-slate-500">{config.techStack.subtitle}</p>
+                  <p 
+                    className={`text-xs text-slate-500 outline-none transition-all ${showVisualControls ? "hover:ring-2 hover:ring-cyan-400/50 focus:ring-2 focus:ring-cyan-400 cursor-text px-1 rounded" : ""}`}
+                    contentEditable={showVisualControls}
+                    suppressContentEditableWarning
+                    onBlur={(e) => updateTechStack({ subtitle: e.currentTarget.textContent || "" })}
+                  >
+                    {config.techStack.subtitle}
+                  </p>
                 )}
               </div>
 
@@ -620,40 +704,45 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
 
         {/* SECTION 5: TESTIMONIALS */}
         {config.testimonials.enabled && (
-          <section className="py-12 px-6 bg-slate-50/70 border-b border-slate-100 relative group">
-            {showVisualControls && (
-              <div className="absolute top-4 right-6 z-30 flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
+          <section 
+            className="py-12 px-6 bg-slate-50/70 border-b border-slate-100 relative group"
+            onContextMenu={(e) => {
+              if (!showVisualControls) return;
+              e.preventDefault();
+              setContextMenu({
+                isOpen: true,
+                x: e.clientX,
+                y: e.clientY,
+                actions: [
+                  { label: "Sửa Khối Đánh Giá (Nâng cao)", icon: <Edit3 className="w-4 h-4" />, onClick: () => openDrawerTab("testimonials") },
+                  { label: "Thêm đánh giá", icon: <Plus className="w-4 h-4" />, onClick: () => {
                     const nextItems: TestimonialItem[] = [
                       ...(config.testimonials.items || []),
-                      {
-                        name: "Thành viên mới",
-                        role: "Kỹ sư phần mềm",
-                        avatarUrl: "",
-                        quote: "Môi trường công nghệ chuyên nghiệp và cơ hội thăng tiến rộng mở.",
-                      },
+                      { name: "Thành viên mới", role: "Kỹ sư", avatarUrl: "", quote: "Môi trường công nghệ chuyên nghiệp." },
                     ];
                     updateTestimonials({ items: nextItems });
                   }}
-                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900 text-white text-xs font-semibold shadow hover:bg-slate-800"
-                >
-                  <Plus className="w-3 h-3 text-cyan-400" />
-                  <span>+ Thêm Đánh Giá</span>
-                </button>
-              </div>
-            )}
-
+                ]
+              });
+            }}
+          >
             <div className="max-w-5xl mx-auto space-y-8">
               <div className="text-center max-w-xl mx-auto space-y-1">
                 <span
-                  className="text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full"
+                  className={`text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full outline-none transition-all ${showVisualControls ? "hover:ring-2 hover:ring-cyan-400/50 focus:ring-2 focus:ring-cyan-400 cursor-text inline-block" : ""}`}
                   style={{ backgroundColor: `${primary}15`, color: primary }}
+                  contentEditable={showVisualControls}
+                  suppressContentEditableWarning
+                  onBlur={(e) => updateTestimonials({ badge: e.currentTarget.textContent || "" })}
                 >
                   {config.testimonials.badge || "Đội Ngũ"}
                 </span>
-                <h2 className="text-2xl font-bold text-slate-900">
+                <h2 
+                  className={`text-2xl font-bold text-slate-900 outline-none transition-all ${showVisualControls ? "hover:ring-2 hover:ring-cyan-400/50 focus:ring-2 focus:ring-cyan-400 cursor-text px-1 rounded" : ""}`}
+                  contentEditable={showVisualControls}
+                  suppressContentEditableWarning
+                  onBlur={(e) => updateTestimonials({ title: e.currentTarget.textContent || "" })}
+                >
                   {config.testimonials.title || "Đánh Giá Từ Đội Ngũ Nhân Viên"}
                 </h2>
               </div>
@@ -667,22 +756,43 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                   {config.testimonials.items.map((item, i) => (
                     <div
                       key={i}
-                      className="p-6 rounded-2xl bg-white border border-slate-200 shadow-sm relative group/quote"
+                      className="p-6 rounded-2xl bg-white border border-slate-200 shadow-sm relative group/quote transition-all hover:border-cyan-200"
+                      onContextMenu={(e) => {
+                        if (!showVisualControls) return;
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setContextMenu({
+                          isOpen: true,
+                          x: e.clientX,
+                          y: e.clientY,
+                          actions: [
+                            { label: "Thêm đánh giá", icon: <Plus className="w-4 h-4" />, onClick: () => {
+                              const nextItems: TestimonialItem[] = [...(config.testimonials.items || []), { name: "Thành viên mới", role: "Kỹ sư", avatarUrl: "", quote: "Môi trường tuyệt vời" }];
+                              updateTestimonials({ items: nextItems });
+                            }},
+                            { label: "Nhân bản đánh giá này", icon: <Copy className="w-4 h-4" />, onClick: () => {
+                              const copy = [...config.testimonials.items];
+                              copy.splice(i + 1, 0, { ...item });
+                              updateTestimonials({ items: copy });
+                            }},
+                            { label: "Xóa đánh giá này", icon: <Trash2 className="w-4 h-4" />, danger: true, onClick: () => {
+                              const copy = config.testimonials.items.filter((_, idx) => idx !== i);
+                              updateTestimonials({ items: copy });
+                            }}
+                          ]
+                        });
+                      }}
                     >
-                      {showVisualControls && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const copy = config.testimonials.items.filter((_, idx) => idx !== i);
-                            updateTestimonials({ items: copy });
-                          }}
-                          className="absolute top-3 right-3 opacity-0 group-hover/quote:opacity-100 p-1 text-slate-400 hover:text-red-600 transition-opacity"
-                          title="Xóa đánh giá này"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                      <p className="text-xs text-slate-600 italic mb-4 leading-relaxed">
+                      <p 
+                        className={`text-xs text-slate-600 italic mb-4 leading-relaxed outline-none transition-all ${showVisualControls ? "hover:ring-2 hover:ring-cyan-400/50 focus:ring-2 focus:ring-cyan-400 cursor-text px-1 -mx-1 rounded" : ""}`}
+                        contentEditable={showVisualControls}
+                        suppressContentEditableWarning
+                        onBlur={(e) => {
+                          const copy = [...config.testimonials.items];
+                          copy[i] = { ...copy[i], quote: (e.currentTarget.textContent || "").replace(/^"|"$/g, '') };
+                          updateTestimonials({ items: copy });
+                        }}
+                      >
                         "{item.quote}"
                       </p>
                       <div className="flex items-center gap-3">
@@ -701,8 +811,26 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                           )}
                         </div>
                         <div>
-                          <div className="font-bold text-xs text-slate-900">{item.name}</div>
-                          <div className="text-[10px] text-slate-400">{item.role}</div>
+                          <div 
+                            className={`font-bold text-xs text-slate-900 outline-none transition-all ${showVisualControls ? "hover:ring-2 hover:ring-cyan-400/50 focus:ring-2 focus:ring-cyan-400 cursor-text px-1 -mx-1 rounded" : ""}`}
+                            contentEditable={showVisualControls}
+                            suppressContentEditableWarning
+                            onBlur={(e) => {
+                              const copy = [...config.testimonials.items];
+                              copy[i] = { ...copy[i], name: e.currentTarget.textContent || "" };
+                              updateTestimonials({ items: copy });
+                            }}
+                          >{item.name}</div>
+                          <div 
+                            className={`text-[10px] text-slate-400 outline-none transition-all ${showVisualControls ? "hover:ring-2 hover:ring-cyan-400/50 focus:ring-2 focus:ring-cyan-400 cursor-text px-1 -mx-1 rounded" : ""}`}
+                            contentEditable={showVisualControls}
+                            suppressContentEditableWarning
+                            onBlur={(e) => {
+                              const copy = [...config.testimonials.items];
+                              copy[i] = { ...copy[i], role: e.currentTarget.textContent || "" };
+                              updateTestimonials({ items: copy });
+                            }}
+                          >{item.role}</div>
                         </div>
                       </div>
                     </div>
@@ -714,20 +842,21 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
         )}
 
         {/* SECTION 6: FOOTER */}
-        <footer className="py-10 px-6 bg-slate-900 text-slate-400 text-xs relative group">
-          {showVisualControls && (
-            <div className="absolute top-4 right-6 z-30">
-              <button
-                type="button"
-                onClick={() => openDrawerTab("footer")}
-                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-800 text-white text-xs font-semibold shadow hover:bg-slate-700 border border-slate-700"
-              >
-                <Edit3 className="w-3 h-3 text-cyan-400" />
-                <span>Sửa Chân Trang & Liên Hệ</span>
-              </button>
-            </div>
-          )}
-
+        <footer 
+          className="py-10 px-6 bg-slate-900 text-slate-400 text-xs relative group"
+          onContextMenu={(e) => {
+            if (!showVisualControls) return;
+            e.preventDefault();
+            setContextMenu({
+              isOpen: true,
+              x: e.clientX,
+              y: e.clientY,
+              actions: [
+                { label: "Sửa Chân Trang & Liên Hệ (Nâng cao)", icon: <Edit3 className="w-4 h-4" />, onClick: () => openDrawerTab("footer") },
+              ]
+            });
+          }}
+        >
           <div className="max-w-6xl mx-auto space-y-6">
             <div className="flex flex-col md:flex-row justify-between gap-6">
               <div className="space-y-2 max-w-sm">
@@ -750,13 +879,23 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                 {config.footer.address && (
                   <div className="flex items-center gap-2">
                     <Building className="w-3.5 h-3.5 shrink-0" />
-                    <span>{config.footer.address}</span>
+                    <span
+                      className={`outline-none transition-all ${showVisualControls ? "hover:ring-2 hover:ring-cyan-400/50 focus:ring-2 focus:ring-cyan-400 cursor-text px-1 -mx-1 rounded" : ""}`}
+                      contentEditable={showVisualControls}
+                      suppressContentEditableWarning
+                      onBlur={(e) => updateFooter({ address: e.currentTarget.textContent || "" })}
+                    >{config.footer.address}</span>
                   </div>
                 )}
                 {config.footer.contactEmail && (
                   <div className="flex items-center gap-2">
                     <Mail className="w-3.5 h-3.5 shrink-0" />
-                    <span>{config.footer.contactEmail}</span>
+                    <span
+                      className={`outline-none transition-all ${showVisualControls ? "hover:ring-2 hover:ring-cyan-400/50 focus:ring-2 focus:ring-cyan-400 cursor-text px-1 -mx-1 rounded" : ""}`}
+                      contentEditable={showVisualControls}
+                      suppressContentEditableWarning
+                      onBlur={(e) => updateFooter({ contactEmail: e.currentTarget.textContent || "" })}
+                    >{config.footer.contactEmail}</span>
                   </div>
                 )}
                 {config.footer.contactPhone && (
@@ -787,6 +926,33 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
           </div>
         </footer>
       </div>
+
+      {contextMenu.isOpen && showVisualControls && (
+        <div
+          className="fixed z-[9999] bg-white border border-slate-200 shadow-xl rounded-xl py-1.5 min-w-[200px] text-sm overflow-hidden animate-in fade-in zoom-in duration-150"
+          style={{ top: contextMenu.y, left: contextMenu.x }}
+          onClick={(e) => e.stopPropagation()}
+          onContextMenu={(e) => e.preventDefault()}
+        >
+          {contextMenu.actions.map((action, idx) => (
+            <button
+              key={idx}
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                action.onClick();
+                setContextMenu(prev => ({ ...prev, isOpen: false }));
+              }}
+              className={`w-full text-left px-4 py-2.5 flex items-center gap-2.5 hover:bg-slate-50 transition-colors ${
+                action.danger ? "text-red-600 hover:text-red-700" : "text-slate-700"
+              }`}
+            >
+              {action.icon}
+              <span className="font-medium text-xs">{action.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
     </main>
   );
 }

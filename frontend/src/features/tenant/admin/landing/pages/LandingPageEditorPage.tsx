@@ -19,6 +19,11 @@ import {
   ExternalLink,
   Smartphone,
   Monitor,
+  MonitorSmartphone,
+  Tablet,
+  Maximize,
+  Check,
+  Wand2,
 } from "lucide-react";
 import { LandingEditorDrawer } from "../components/LandingEditorDrawer";
 import { LandingEditorCanvas } from "../components/LandingEditorCanvas";
@@ -32,7 +37,8 @@ export function LandingPageEditorPage() {
   const [isDrawerOpen, setIsDrawerOpen] = useState<boolean>(false);
   const [showVisualControls, setShowVisualControls] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<string>("hero");
-  const [viewMode, setViewMode] = useState<"desktop" | "mobile">("desktop");
+  const [viewMode, setViewMode] = useState<"desktop" | "tablet" | "mobile">("desktop");
+  const [isViewModeMenuOpen, setIsViewModeMenuOpen] = useState(false);
   const [config, setConfig] = useState<LandingPageConfig | null>(null);
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [newTagInput, setNewTagInput] = useState<string>("");
@@ -58,7 +64,7 @@ export function LandingPageEditorPage() {
           highlightWords: c.hero?.highlightWords || brand,
           subtitle:
             c.hero?.subtitle ||
-            "Chúng tôi xây dựng môi trường kỹ thuật chuẩn International Enterprise — Nơi các Kỹ sư Phần mềm & AI được phát triển những sản phẩm công nghệ tạo giá trị thực sự.",
+            "Gia nhập đội ngũ kỹ sư tài năng tại môi trường làm việc chuẩn quốc tế. Cùng chúng tôi kiến tạo các sản phẩm công nghệ đột phá và khai phóng tối đa tiềm năng của bạn.",
         },
         about: {
           ...c.about,
@@ -270,44 +276,44 @@ export function LandingPageEditorPage() {
   const brandName = rawTenantCode.toUpperCase();
 
   return (
-    <div className="fixed inset-0 z-50 bg-[#090d16] text-slate-100 flex flex-col overflow-hidden font-sans select-none">
+    <div className="fixed inset-0 z-50 bg-slate-100 text-slate-900 flex flex-col overflow-hidden font-sans select-none">
       {/* TOP FULLSCREEN TOOLBAR */}
-      <header className="h-14 bg-slate-900 border-b border-slate-800 px-4 flex items-center justify-between gap-3 shrink-0 z-50">
+      <header className="h-14 bg-white border-b border-slate-200 px-4 flex items-center justify-between gap-3 shrink-0 z-50 text-slate-800">
         <div className="flex items-center gap-2.5">
           <button
             type="button"
             onClick={() => setIsDrawerOpen(!isDrawerOpen)}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
+            className={`flex items-center justify-center p-2 rounded-lg transition-all border ${
               isDrawerOpen
                 ? "bg-brand-primary text-white border-brand-primary shadow-sm"
-                : "bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700 hover:border-slate-600"
+                : "bg-white hover:bg-slate-50 text-slate-700 border-slate-200 hover:border-slate-300 shadow-sm"
             }`}
+            title={isDrawerOpen ? "Đóng Cài Đặt" : "Tùy Biến"}
           >
-            <Menu className="w-4 h-4 text-cyan-400" />
-            <span className="hidden sm:inline">{isDrawerOpen ? "Đóng Cài Đặt" : "Tùy Biến (3 Gạch)"}</span>
+            <Menu className="w-4 h-4 text-cyan-600" />
           </button>
 
           <button
             type="button"
             onClick={() => navigate("/internal/admin")}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-all"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-white hover:bg-slate-50 text-slate-600 hover:text-slate-900 border border-slate-200 shadow-sm transition-all"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             <span className="hidden md:inline">Về Admin</span>
           </button>
 
-          <div className="h-4 w-px bg-slate-800 hidden sm:block" />
+          <div className="h-4 w-px bg-slate-200 hidden sm:block" />
 
           <div className="flex items-center gap-2">
-            <span className="font-bold text-sm text-white tracking-tight">{brandName}</span>
-            <span className="hidden lg:inline-block text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+            <span className="font-bold text-sm text-slate-900 tracking-tight">{brandName}</span>
+            <span className="hidden lg:inline-block text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full bg-cyan-50 text-cyan-700 border border-cyan-200">
               Trình Chỉnh Sửa Trực Quan
             </span>
             <span
               className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
                 data?.data?.published
-                  ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                  : "bg-amber-500/10 text-amber-400 border-amber-500/20"
+                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                  : "bg-amber-50 text-amber-700 border-amber-200"
               }`}
             >
               {data?.data?.published ? "Đã Xuất Bản" : "Bản Nháp"}
@@ -316,27 +322,118 @@ export function LandingPageEditorPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1 bg-slate-800/90 p-1 rounded-lg border border-slate-700">
+          {/* DEVICE SIMULATOR TOOLBAR */}
+          <div className="flex items-center gap-2 bg-white rounded-full border border-slate-200 px-2 py-1 shadow-sm relative">
+            {/* View Mode Dropdown Trigger */}
             <button
               type="button"
-              onClick={() => setViewMode("desktop")}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-semibold transition-all ${
-                viewMode === "desktop" ? "bg-slate-700 text-white shadow-sm" : "text-slate-400 hover:text-slate-200"
+              onClick={() => setIsViewModeMenuOpen(!isViewModeMenuOpen)}
+              className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors text-slate-600 hover:text-slate-900 relative group"
+            >
+              {viewMode === "desktop" && <Monitor className="w-4 h-4" />}
+              {viewMode === "tablet" && <Tablet className="w-4 h-4" />}
+              {viewMode === "mobile" && <Smartphone className="w-4 h-4" />}
+
+              {/* Custom Tooltip */}
+              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 px-3 py-1.5 bg-white border border-slate-200 text-slate-600 text-xs rounded-full whitespace-nowrap shadow-sm opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-[120]">
+                Select device preview
+              </div>
+            </button>
+
+            {/* View Mode Dropdown Menu */}
+            <div
+              className={`absolute top-full left-0 mt-2 w-max min-w-[200px] bg-white rounded-2xl border border-slate-200 shadow-xl py-1 z-[100] origin-top-left transition-all duration-200 ease-out ${
+                isViewModeMenuOpen
+                  ? "opacity-100 scale-100 translate-y-0"
+                  : "opacity-0 scale-95 -translate-y-2 pointer-events-none"
               }`}
             >
-              <Monitor className="w-3.5 h-3.5" />
-              <span className="hidden md:inline">Toàn Màn Hình</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setViewMode("desktop");
+                    setIsViewModeMenuOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-slate-50 transition-colors ${
+                    viewMode === "desktop" ? "text-slate-900 font-medium" : "text-slate-600"
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <MonitorSmartphone className="w-4 h-4 text-slate-400" />
+                    <span className="text-xs whitespace-nowrap">Current screen size</span>
+                  </div>
+                  {viewMode === "desktop" && <Check className="w-3.5 h-3.5 text-cyan-600" />}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setViewMode("mobile");
+                    setIsViewModeMenuOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-slate-50 transition-colors ${
+                    viewMode === "mobile" ? "text-slate-900 font-medium" : "text-slate-600"
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Smartphone className="w-4 h-4 text-slate-400" />
+                    <span>Mobile</span>
+                  </div>
+                  {viewMode === "mobile" && <Check className="w-3.5 h-3.5 text-cyan-600" />}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setViewMode("tablet");
+                    setIsViewModeMenuOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-slate-50 transition-colors ${
+                    viewMode === "tablet" ? "text-slate-900 font-medium" : "text-slate-600"
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Tablet className="w-4 h-4 text-slate-400" />
+                    <span>Tablet</span>
+                  </div>
+                  {viewMode === "tablet" && <Check className="w-3.5 h-3.5 text-cyan-600" />}
+                </button>
+              </div>
+
+            <div className="text-slate-300 pointer-events-none mx-1 text-lg font-light">/</div>
+
+            <button
+              type="button"
+              onClick={() => {
+                // Refresh iframe or trigger a visual reload logic if needed
+                // Currently just re-triggers re-render by doing nothing or refetching
+                refetch();
+              }}
+              className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors text-slate-600 hover:text-slate-900 relative group"
+            >
+              <RotateCcw className="w-4 h-4" />
+              
+              {/* Custom Tooltip */}
+              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 px-3 py-1.5 bg-white border border-slate-200 text-slate-600 text-xs rounded-full whitespace-nowrap shadow-sm opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-[120]">
+                Tải lại
+              </div>
             </button>
 
             <button
               type="button"
-              onClick={() => setViewMode("mobile")}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-semibold transition-all ${
-                viewMode === "mobile" ? "bg-slate-700 text-white shadow-sm" : "text-slate-400 hover:text-slate-200"
-              }`}
+              onClick={() => {
+                if (!document.fullscreenElement) {
+                  document.documentElement.requestFullscreen().catch((err) => console.log(err));
+                } else {
+                  document.exitFullscreen().catch((err) => console.log(err));
+                }
+              }}
+              className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors text-slate-600 hover:text-slate-900 relative group"
             >
-              <Smartphone className="w-3.5 h-3.5" />
-              <span className="hidden md:inline">Điện Thoại</span>
+              <Maximize className="w-4 h-4" />
+
+              {/* Custom Tooltip */}
+              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 px-3 py-1.5 bg-white border border-slate-200 text-slate-600 text-xs rounded-full whitespace-nowrap shadow-sm opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-[120]">
+                Toàn màn hình
+              </div>
             </button>
           </div>
 
@@ -345,11 +442,11 @@ export function LandingPageEditorPage() {
             onClick={() => setShowVisualControls(!showVisualControls)}
             className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
               showVisualControls
-                ? "bg-cyan-500/10 text-cyan-400 border-cyan-500/30"
-                : "bg-slate-800 text-slate-400 border-slate-700 hover:text-white"
+                ? "bg-cyan-50 text-cyan-700 border-cyan-200 shadow-sm"
+                : "bg-white text-slate-500 border-slate-200 hover:text-slate-800 shadow-sm"
             }`}
           >
-            {showVisualControls ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+            <Wand2 className={`w-3.5 h-3.5 ${showVisualControls ? "" : "opacity-50 grayscale"}`} />
             <span>{showVisualControls ? "Nút Sửa: Bật" : "Nút Sửa: Tắt"}</span>
           </button>
         </div>
@@ -358,7 +455,7 @@ export function LandingPageEditorPage() {
           <button
             type="button"
             onClick={() => window.open("/career", "_blank")}
-            className="hidden xl:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700"
+            className="hidden xl:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white hover:bg-slate-50 text-slate-600 hover:text-slate-900 border border-slate-200 shadow-sm"
           >
             <ExternalLink className="w-3.5 h-3.5" />
             <span>Mở Trang Thật</span>
@@ -368,7 +465,7 @@ export function LandingPageEditorPage() {
             type="button"
             onClick={handleReset}
             disabled={resetMutation.isPending}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-red-400 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 transition-all"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-500 hover:text-red-600 hover:bg-red-50 border border-transparent hover:border-red-100 transition-all"
           >
             <RotateCcw className="w-3.5 h-3.5" />
             <span className="hidden lg:inline">Khôi Phục</span>
@@ -378,7 +475,7 @@ export function LandingPageEditorPage() {
             type="button"
             onClick={() => handleSave(false)}
             disabled={updateMutation.isPending}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-all"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 shadow-sm transition-all"
           >
             <Save className="w-3.5 h-3.5" />
             <span>Lưu Nháp</span>
