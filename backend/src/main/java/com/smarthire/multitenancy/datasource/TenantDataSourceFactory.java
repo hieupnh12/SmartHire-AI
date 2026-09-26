@@ -62,6 +62,9 @@ public class TenantDataSourceFactory {
                 .cleanDisabled(true)
                 .baselineOnMigrate(false)
                 .validateOnMigrate(false)
+                // Ignore migrations applied in old DB versions that no longer exist in code
+                // (e.g. V21/V22 from a previous schema, superseded by V13-V17 renumbering).
+                .ignoreMigrationPatterns("*:ignored", "*:future")
                 .load();
         // Never admit a partially migrated tenant or rewrite its history automatically.
         flyway.migrate();

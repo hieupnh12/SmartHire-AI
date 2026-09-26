@@ -40,6 +40,7 @@ class JobServiceTest {
     @Mock JobScreeningConfigService screening;
     @Mock JobScreeningConfigRepository screeningConfigs;
     @Mock JobCloseScreeningService closeScreening;
+    @Mock org.springframework.amqp.rabbit.core.RabbitTemplate rabbitTemplate;
 
     JobService service;
     User recruiter;
@@ -48,7 +49,7 @@ class JobServiceTest {
     @BeforeEach
     void setUp() {
         service = new JobService(jobs, jobSkills, stages, applications, access, taxonomy, new JobMapper(),
-                assignments, screening, screeningConfigs, closeScreening);
+                assignments, screening, screeningConfigs, closeScreening, rabbitTemplate);
         recruiter = new User();
         recruiter.setEmail("recruiter@se36.local");
         recruiter.setFullName("Le Cong Cuong");

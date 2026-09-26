@@ -109,13 +109,25 @@ api.interceptors.response.use(
   },
 );
 
-export function getApiErrorMessage(error: unknown, fallback = "Request failed"): string {
+export function getApiErrorMessage(error: unknown, fallback = "Có lỗi xảy ra, vui lòng thử lại"): string {
   if (axios.isAxiosError(error)) {
-    const data = error.response?.data as ApiResponse<unknown> | undefined;
-    if (data?.message) return data.message;
-    if (data?.errors) {
-      return Object.values(data.errors).join(", ");
+    const data = error.response?.data as any;
+    if (data && typeof data === "object") {
+      if (data.message) return data.message;
+      if (data.errors) {
+        return Object.values(data.errors).join(", ");
+      }
     }
+    
+    // Xử lý các mã lỗi phổ biến khi Server không trả về JSON (ví dụ Server sập, DB chết)
+    if (error.response?.status === 503) {
+      return "Dịch vụ đang tạm thời gián đoạn (503). Có thể do Backend đang khởi động lại hoặc mất kết nối Database.";
+    }
+    if (error.response?.status === 502) return "Lỗi kết nối máy chủ (502 Bad Gateway).";
+    if (error.response?.status === 500) return "Lỗi máy chủ nội bộ (500). Vui lòng thử lại sau.";
+    if (error.response?.status === 429) return "Bạn thao tác quá nhanh (429). Vui lòng chờ một chút.";
+    
+    return error.message || fallback;
   }
   if (error instanceof Error) return error.message;
   return fallback;

@@ -136,6 +136,7 @@ app:
       notify-email: notify.email
       auth-email-otp: auth.email.otp
       job-events: job.events
+      job-expiry: job.expiry
     queues:
       cv-parse: cv.parse.q
       cv-extract: cv.extract.q
@@ -150,6 +151,7 @@ app:
       notify-email: notify.email.q
       auth-email-otp: auth.email.otp.q
       job-events: job.events.q
+      job-expiry: job.expiry.q
   cv:
     cloudinary-cloud-name: ${CLOUDINARY_CLOUD_NAME:}
     cloudinary-api-key: ${CLOUDINARY_API_KEY:}

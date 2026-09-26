@@ -184,7 +184,7 @@ export function TenantCareerPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-8 h-8 rounded-full border-4 border-slate-200 border-t-cyan-500 animate-spin" />
+          <div className="w-8 h-8 rounded-full border-4 border-slate-200 border-t-slate-400 animate-spin" />
           <p className="text-slate-500 text-sm font-medium animate-pulse">Đang tải cấu hình trang...</p>
         </div>
       </div>

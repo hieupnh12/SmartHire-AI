@@ -71,6 +71,10 @@ public class JobService {
     private final JobScreeningConfigService screening;
     private final JobScreeningConfigRepository screeningConfigs;
     private final JobCloseScreeningService closeScreening;
+    private final org.springframework.amqp.rabbit.core.RabbitTemplate rabbitTemplate;
+    
+    @org.springframework.beans.factory.annotation.Value("${app.rabbitmq.exchanges.job-expiry}")
+    private String jobExpiryExchange;
 
     public JobService(
             JobRepository jobs,
@@ -83,7 +87,8 @@ public class JobService {
             JobAssignmentService assignments,
             JobScreeningConfigService screening,
             JobScreeningConfigRepository screeningConfigs,
-            JobCloseScreeningService closeScreening) {
+            JobCloseScreeningService closeScreening,
+            org.springframework.amqp.rabbit.core.RabbitTemplate rabbitTemplate) {
         this.jobs = jobs;
         this.jobSkills = jobSkills;
         this.stages = stages;
@@ -95,6 +100,7 @@ public class JobService {
         this.screening = screening;
         this.screeningConfigs = screeningConfigs;
         this.closeScreening = closeScreening;
+        this.rabbitTemplate = rabbitTemplate;
     }
 
     public Map<String, String> health() {
@@ -206,6 +212,9 @@ public class JobService {
         if (request.stages() != null) replaceStagesInternal(job, request.stages());
         jobs.save(job);
         screening.saveForJob(job, request.cvScreening(), request.gateScreening());
+        if (job.getStatus() == JobStatus.PUBLISHED) {
+            scheduleJobExpiry(job);
+        }
         return get(id);
     }
 
@@ -280,6 +289,7 @@ public class JobService {
         job.setPausedAt(null);
         job.setClosedAt(null);
         jobs.save(job);
+        scheduleJobExpiry(job);
         return get(id);
     }
 
@@ -344,6 +354,7 @@ public class JobService {
         job.setPausedAt(null);
         job.setClosedAt(null);
         jobs.save(job);
+        scheduleJobExpiry(job);
         return get(id);
     }
 
@@ -421,6 +432,36 @@ public class JobService {
         job.setSalaryVisible(request.salaryVisible() == null || request.salaryVisible());
         job.setMinYearsExperience(request.minYearsExperience());
         job.setEducationLevel(blankToNull(request.educationLevel()));
+    }
+
+    private void scheduleJobExpiry(Job job) {
+        if (job.getDeadline() == null || job.getStatus() != JobStatus.PUBLISHED) return;
+        long delay = job.getDeadline().toEpochMilli() - Instant.now().toEpochMilli();
+        if (delay <= 0) {
+            closeIfExpired(job.getId());
+            return;
+        }
+        rabbitTemplate.convertAndSend(jobExpiryExchange, com.smarthire.config.RabbitMqConfig.RK, job.getId(), message -> {
+            message.getMessageProperties().setDelay((int) Math.min(delay, Integer.MAX_VALUE));
+            message.getMessageProperties().setHeader("X-Tenant-ID", com.smarthire.multitenancy.context.TenantContext.getCurrentTenant());
+            return message;
+        });
+    }
+
+    @Transactional
+    public void closeIfExpired(long id) {
+        Job job = jobs.findById(id).orElse(null);
+        if (job == null || job.getStatus() != JobStatus.PUBLISHED) return;
+        if (job.getDeadline() != null) {
+            if (!job.getDeadline().isAfter(Instant.now())) {
+                job.setStatus(JobStatus.CLOSED);
+                job.setClosedAt(Instant.now());
+                jobs.save(job);
+                closeScreening.enqueueUnscreened(job);
+            } else {
+                scheduleJobExpiry(job);
+            }
+        }
     }
 
     private void replaceSkillsInternal(Job job, List<JobSkillItem> items) {
