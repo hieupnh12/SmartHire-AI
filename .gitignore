@@ -126,3 +126,7 @@ venv/
 **/blob-report/
 **/cypress/videos/
 **/cypress/screenshots/
+
+# Temporary debug/test scripts
+TestDbConnection.java
+**/tools/ReEncrypt*.java

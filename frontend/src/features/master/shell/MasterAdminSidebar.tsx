@@ -118,9 +118,9 @@ export function MasterAdminSidebar({
       icon: Building2,
       items: [
         {
-          path: "/admin/tenants/create",
-          label: "Khởi tạo Tenant mới",
-          description: "Tạo workspace và cấp phát cơ sở dữ liệu cho doanh nghiệp.",
+          path: "/admin/tenants/onboard-wizard",
+          label: "B2B Deal Wizard (Mới)",
+          description: "Khởi tạo Workspace, gán gói và lên hợp đồng/hóa đơn tự động.",
           icon: Plus,
         },
         {

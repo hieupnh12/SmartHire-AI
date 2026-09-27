@@ -1,21 +1,115 @@
-import { useState, useMemo } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Search, Filter, FileSignature, FileCheck2, Clock, Send, Copy, Eye, Trash2 } from "lucide-react";
+import {
+  Plus, Search, FileSignature, FileCheck2, Clock,
+  Send, Copy, Eye, Trash2, ChevronDown, CheckCircle2,
+  TrendingUp, AlertCircle,
+} from "lucide-react";
 import { ContractItem, contractApi } from "@/api/master/contractApi";
 import { useMasterDashboard } from "@/features/master/shell/MasterAdminContext";
-
 import { ContractDetailModal } from "../components/ContractDetailModal";
 import { SignContractModal } from "../components/SignContractModal";
 
+/* ─────────────────────────────────────────────
+   Reusable CustomDropdown (same style as DemoRequestPage)
+───────────────────────────────────────────── */
+function CustomDropdown({
+  value,
+  onChange,
+  options,
+  placeholder = "Chọn...",
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  options: { value: string; label: string }[];
+  placeholder?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const selected = options.find((o) => o.value === value);
+
+  return (
+    <div ref={ref} className="relative min-w-[220px]">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className={`flex items-center w-full px-3.5 py-2.5 rounded-xl border text-xs font-semibold transition-colors bg-white ${
+          open
+            ? "border-indigo-500 ring-3 ring-indigo-100"
+            : "border-slate-200 hover:border-slate-300"
+        }`}
+      >
+        <span className={`flex-1 text-left ${selected ? "text-slate-800" : "text-slate-400"}`}>
+          {selected ? selected.label : placeholder}
+        </span>
+        <ChevronDown className={`w-3.5 h-3.5 text-slate-400 ml-2 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+
+      {open && (
+        <div className="absolute z-50 mt-1.5 w-full bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden">
+          <ul className="py-1.5">
+            {options.map((opt) => {
+              const isSel = value === opt.value;
+              return (
+                <li
+                  key={opt.value}
+                  onMouseDown={(e) => { e.preventDefault(); onChange(opt.value); setOpen(false); }}
+                  className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer select-none transition-colors ${
+                    isSel ? "bg-slate-50" : "hover:bg-slate-50"
+                  }`}
+                >
+                  <span className={`flex-1 text-xs ${isSel ? "font-semibold text-slate-900" : "font-medium text-slate-700"}`}>
+                    {opt.label}
+                  </span>
+                  {isSel && <CheckCircle2 className="w-3.5 h-3.5 text-teal-500 flex-shrink-0" />}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────
+   Status badge helper
+───────────────────────────────────────────── */
+function StatusBadge({ status }: { status: string }) {
+  const map: Record<string, { label: string; cls: string; icon: React.ReactNode }> = {
+    SIGNED:            { label: "Đã Ký Số",   cls: "bg-emerald-50 text-emerald-700 border-emerald-200", icon: <FileCheck2 className="w-3 h-3" /> },
+    PENDING_SIGNATURE: { label: "Chờ Ký",     cls: "bg-amber-50 text-amber-700 border-amber-200",       icon: <Clock className="w-3 h-3" /> },
+    DRAFT:             { label: "Bản Nháp",   cls: "bg-slate-100 text-slate-600 border-slate-200",      icon: <FileSignature className="w-3 h-3" /> },
+    EXPIRED:           { label: "Hết Hạn",    cls: "bg-rose-50 text-rose-600 border-rose-200",          icon: <AlertCircle className="w-3 h-3" /> },
+    TERMINATED:        { label: "Chấm Dứt",   cls: "bg-rose-50 text-rose-700 border-rose-200",          icon: <AlertCircle className="w-3 h-3" /> },
+  };
+  const { label, cls, icon } = map[status] ?? { label: status, cls: "bg-slate-100 text-slate-600 border-slate-200", icon: null };
+  return (
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border ${cls}`}>
+      {icon}{label}
+    </span>
+  );
+}
+
+/* ─────────────────────────────────────────────
+   Main Page
+───────────────────────────────────────────── */
 export function ContractsPage() {
   const navigate = useNavigate();
   const { contracts, setContracts, triggerNotification } = useMasterDashboard();
 
   const [contractSearch, setContractSearch] = useState("");
-  const [contractStatusFilter, setContractStatusFilter] = useState<string>("ALL");
+  const [contractStatusFilter, setContractStatusFilter] = useState("ALL");
 
-
-  // State cho Detail & Sign
   const [selectedContract, setSelectedContract] = useState<ContractItem | null>(null);
   const [showSignContractModal, setShowSignContractModal] = useState<ContractItem | null>(null);
   const [signMethod, setSignMethod] = useState<"DIGITAL_TOKEN_CA" | "E_SIGN_ONLINE" | "UPLOAD_SIGNED_PDF" | "MANUAL">("DIGITAL_TOKEN_CA");
@@ -25,9 +119,23 @@ export function ContractsPage() {
   const [signNotes, setSignNotes] = useState("");
   const [signingContract, setSigningContract] = useState(false);
 
-  const filteredContracts = useMemo(() => {
+  /* ── derived counts ── */
+  const signedCount   = useMemo(() => contracts.filter((c) => c.status === "SIGNED").length, [contracts]);
+  const pendingCount  = useMemo(() => contracts.filter((c) => c.status === "PENDING_SIGNATURE").length, [contracts]);
+  const totalValue    = useMemo(() => contracts.filter((c) => c.status === "SIGNED").reduce((s, c) => s + (c.totalAmount || c.contractValue || 0), 0), [contracts]);
+
+  const statusOptions = [
+    { value: "ALL",               label: `Tất cả trạng thái (${contracts.length})` },
+    { value: "SIGNED",            label: `Đã ký kết (${signedCount})` },
+    { value: "PENDING_SIGNATURE", label: `Chờ ký (${pendingCount})` },
+    { value: "DRAFT",             label: `Bản nháp (${contracts.filter((c) => c.status === "DRAFT").length})` },
+    { value: "EXPIRED",           label: `Đã hết hạn (${contracts.filter((c) => c.status === "EXPIRED").length})` },
+    { value: "TERMINATED",        label: `Đã chấm dứt (${contracts.filter((c) => c.status === "TERMINATED").length})` },
+  ];
+
+  const filtered = useMemo(() => {
+    const q = contractSearch.toLowerCase();
     return contracts.filter((c) => {
-      const q = contractSearch.toLowerCase();
       const matchSearch =
         c.contractNumber.toLowerCase().includes(q) ||
         c.title.toLowerCase().includes(q) ||
@@ -40,360 +148,284 @@ export function ContractsPage() {
     });
   }, [contracts, contractSearch, contractStatusFilter]);
 
-  const signedContractCount = useMemo(() => {
-    return contracts.filter((c) => c.status === "SIGNED").length;
-  }, [contracts]);
-
-  const pendingContractCount = useMemo(() => {
-    return contracts.filter((c) => c.status === "PENDING_SIGNATURE").length;
-  }, [contracts]);
-
-  const totalContractValue = useMemo(() => {
-    return contracts
-      .filter((c) => c.status === "SIGNED")
-      .reduce((sum, c) => sum + (c.totalAmount || c.contractValue || 0), 0);
-  }, [contracts]);
-
+  /* ── actions ── */
   const handleSendContract = (contract: ContractItem) => {
-    triggerNotification(`Đang tiến hành gửi email mời ký hợp đồng ${contract.contractNumber}...`);
-    
+    triggerNotification(`Đang gửi email mời ký HĐ ${contract.contractNumber}...`);
     contractApi.send(contract.id)
       .then((updated) => {
         setContracts((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
-        const signUrl = `${window.location.origin}/contracts/sign/${updated.signingToken || contract.signingToken}`;
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(signUrl).catch(() => {});
-        }
-        triggerNotification(`Đã gửi thành công email mời ký HĐ ${contract.contractNumber} & Sao chép link ký số!`);
+        const url = `${window.location.origin}/contracts/sign/${updated.signingToken || contract.signingToken}`;
+        navigator.clipboard?.writeText(url).catch(() => {});
+        triggerNotification(`Đã gửi & sao chép link ký số HĐ ${contract.contractNumber}!`);
       })
       .catch((err: any) => {
-        console.error("Send contract error:", err);
-        const errMsg = err.response?.data?.message || err.message || "Unknown error";
-        alert(`Đã xảy ra lỗi khi gửi hợp đồng ${contract.contractNumber}: ${errMsg}`);
+        alert(`Lỗi gửi HĐ ${contract.contractNumber}: ${err.response?.data?.message || err.message}`);
       });
   };
 
   const handleCopySigningLink = (contract: ContractItem) => {
-    const token = contract.signingToken || `CTR-TOKEN-${contract.id}`;
-    const signUrl = `${window.location.origin}/contracts/sign/${token}`;
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(signUrl).then(() => {
-        triggerNotification(`Đã sao chép liên kết ký số của hợp đồng ${contract.contractNumber}!`);
-      }).catch(() => {
-        triggerNotification(`Liên kết ký số: ${signUrl}`);
-      });
-    } else {
-      triggerNotification(`Liên kết ký số: ${signUrl}`);
-    }
+    const url = `${window.location.origin}/contracts/sign/${contract.signingToken || `CTR-TOKEN-${contract.id}`}`;
+    navigator.clipboard?.writeText(url)
+      .then(() => triggerNotification(`Đã sao chép link ký số HĐ ${contract.contractNumber}!`))
+      .catch(() => triggerNotification(`Link: ${url}`));
   };
 
   const handleDeleteContract = async (contract: ContractItem) => {
-    if (!window.confirm("Bạn có chắc chắn muốn xóa hợp đồng này? Thao tác không thể phục hồi!")) return;
+    if (!window.confirm("Xác nhận xóa hợp đồng này? Không thể phục hồi!")) return;
     try {
       await contractApi.delete(contract.id);
       setContracts((prev) => prev.filter((c) => c.id !== contract.id));
-      triggerNotification(`Đã xóa Hợp đồng ${contract.contractNumber}`);
-    } catch (err) {
-      alert("Đã xảy ra lỗi khi xóa hợp đồng.");
-    }
+      triggerNotification(`Đã xóa HĐ ${contract.contractNumber}`);
+    } catch { alert("Lỗi khi xóa hợp đồng."); }
   };
-
-
 
   const handleSignContractSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!showSignContractModal) return;
     setSigningContract(true);
     try {
-      const payload = {
-        signMethod,
-        signatureData: signSignatureData,
-        signedDocumentUrl: signSignedDocUrl,
-        autoCreateInvoice: signAutoInvoice,
-        notes: signNotes,
-      };
-      const res = await contractApi.sign(showSignContractModal.id, payload as any);
+      const res = await contractApi.sign(showSignContractModal.id, {
+        signMethod, signatureData: signSignatureData,
+        signedDocumentUrl: signSignedDocUrl, autoCreateInvoice: signAutoInvoice, notes: signNotes,
+      } as any);
       setContracts((prev) => prev.map((c) => (c.id === res.id ? res : c)));
       setShowSignContractModal(null);
-      triggerNotification(`Ký hợp đồng ${res.contractNumber} thành công!`);
-    } catch (err: any) {
-      alert("Lỗi khi ký hợp đồng");
-    } finally {
-      setSigningContract(false);
-    }
+      triggerNotification(`Ký HĐ ${res.contractNumber} thành công!`);
+    } catch { alert("Lỗi khi ký hợp đồng"); }
+    finally { setSigningContract(false); }
   };
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Header & New Contract CTA */}
+
+      {/* ── Page header ── */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-            <FileSignature className="w-7 h-7 text-indigo-600" />
-            <span>Hợp Đồng & Ký Số Điện Tử B2B (e-Contracts)</span>
+          <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2.5">
+            <span className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+              <FileSignature className="w-4.5 h-4.5" />
+            </span>
+            Hợp Đồng & Ký Số B2B
           </h1>
-          <p className="text-xs text-slate-500 mt-1">
-            Ký kết hợp đồng B2B 100% Online với chữ ký số USB Token / HSM hoặc e-Signature, tự động phát hành hóa đơn và kích hoạt gói dịch vụ.
+          <p className="text-xs text-slate-500 mt-1 ml-10.5">
+            Quản lý & ký kết hợp đồng 100% online — USB Token / OTP / e-Signature
           </p>
         </div>
 
         <button
           onClick={() => navigate("/admin/contracts/create")}
-          className="px-4 py-2.5 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm transition-all flex items-center gap-2"
+          className="flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white shadow-sm shadow-indigo-600/20 transition-all"
         >
           <Plus className="w-4 h-4" />
-          <span>Soạn Hợp Đồng B2B Mới</span>
+          Soạn Hợp Đồng Mới
         </button>
       </div>
 
-      {/* KPI 4 Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-2xs">
-          <span className="text-xs font-semibold text-slate-500 block mb-1">
-            Tổng Số Hợp Đồng
-          </span>
-          <span className="text-2xl font-extrabold text-slate-900">
-            {contracts.length} <span className="text-xs font-normal text-slate-500">Hợp đồng</span>
-          </span>
-          <span className="text-[11px] text-slate-400 mt-1 block">Toàn bộ hợp đồng B2B trên nền tảng</span>
-        </div>
-
-        <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-2xs">
-          <span className="text-xs font-semibold text-slate-500 block mb-1">
-            Đã Ký Số & Kích Hoạt
-          </span>
-          <span className="text-2xl font-extrabold text-emerald-600">
-            {signedContractCount} <span className="text-xs font-normal text-slate-500">Đã ký</span>
-          </span>
-          <span className="text-[11px] text-slate-400 mt-1 block">Có đầy đủ giá trị pháp lý</span>
-        </div>
-
-        <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-2xs">
-          <span className="text-xs font-semibold text-slate-500 block mb-1">
-            Chờ Ký Số (Pending)
-          </span>
-          <span className="text-2xl font-extrabold text-amber-600">
-            {pendingContractCount} <span className="text-xs font-normal text-slate-500">Chờ ký</span>
-          </span>
-          <span className="text-[11px] text-slate-400 mt-1 block">Chờ doanh nghiệp ký số điện tử</span>
-        </div>
-
-        <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-2xs">
-          <span className="text-xs font-semibold text-slate-500 block mb-1">
-            Tổng Giá Trị Hợp Đồng Ký
-          </span>
-          <span className="text-2xl font-extrabold text-indigo-600">
-            ${totalContractValue.toLocaleString()} <span className="text-xs font-normal text-slate-500">USD</span>
-          </span>
-          <span className="text-[11px] text-slate-400 mt-1 block">Doanh thu từ các HĐ đã ký kết</span>
-        </div>
+      {/* ── KPI cards ── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {[
+          { label: "Tổng Hợp Đồng",       value: contracts.length, unit: "hợp đồng",   color: "text-slate-900", icon: <FileSignature className="w-4 h-4 text-slate-400" />, sub: "Toàn bộ trên nền tảng" },
+          { label: "Đã Ký & Kích Hoạt",   value: signedCount,      unit: "đã ký",       color: "text-emerald-600", icon: <FileCheck2 className="w-4 h-4 text-emerald-400" />, sub: "Có giá trị pháp lý" },
+          { label: "Chờ Ký Số",           value: pendingCount,     unit: "chờ ký",      color: "text-amber-600", icon: <Clock className="w-4 h-4 text-amber-400" />, sub: "Doanh nghiệp chưa ký" },
+          { label: "Tổng Giá Trị Ký",     value: `$${totalValue.toLocaleString()}`, unit: "USD", color: "text-indigo-600", icon: <TrendingUp className="w-4 h-4 text-indigo-400" />, sub: "Doanh thu từ HĐ đã ký" },
+        ].map((card, i) => (
+          <div key={i} className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-semibold text-slate-500">{card.label}</span>
+              {card.icon}
+            </div>
+            <div className={`text-2xl font-extrabold ${card.color}`}>
+              {card.value}{" "}
+              <span className="text-xs font-normal text-slate-400">{card.unit}</span>
+            </div>
+            <p className="text-[11px] text-slate-400 mt-1">{card.sub}</p>
+          </div>
+        ))}
       </div>
 
-      {/* Filter & Search */}
+      {/* ── Search + Filter ── */}
       <div className="flex flex-col sm:flex-row items-center gap-3">
         <div className="relative flex-1 w-full">
-          <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+          <Search className="w-3.5 h-3.5 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             type="text"
-            placeholder="Tìm theo Số hợp đồng (CTR-...), Tiêu đề, Tên doanh nghiệp, Người đại diện ký..."
+            placeholder="Tìm theo số HĐ, tiêu đề, tên doanh nghiệp, người ký..."
             value={contractSearch}
             onChange={(e) => setContractSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-600 shadow-2xs"
+            className="w-full pl-9 pr-4 py-2.5 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500 focus:ring-3 focus:ring-indigo-100 shadow-xs transition-colors"
           />
         </div>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <Filter className="w-4 h-4 text-slate-400 shrink-0" />
-          <select
-            value={contractStatusFilter}
-            onChange={(e) => setContractStatusFilter(e.target.value)}
-            className="px-3 py-2.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-600 font-semibold text-slate-700 shadow-2xs"
-          >
-            <option value="ALL">Tất cả trạng thái ({contracts.length})</option>
-            <option value="SIGNED">Đã ký kết ({contracts.filter((c) => c.status === "SIGNED").length})</option>
-            <option value="PENDING_SIGNATURE">Chờ ký ({contracts.filter((c) => c.status === "PENDING_SIGNATURE").length})</option>
-            <option value="DRAFT">Bản nháp ({contracts.filter((c) => c.status === "DRAFT").length})</option>
-            <option value="EXPIRED">Đã hết hạn ({contracts.filter((c) => c.status === "EXPIRED").length})</option>
-            <option value="TERMINATED">Đã chấm dứt ({contracts.filter((c) => c.status === "TERMINATED").length})</option>
-          </select>
-        </div>
+        <CustomDropdown
+          value={contractStatusFilter}
+          onChange={setContractStatusFilter}
+          options={statusOptions}
+          placeholder="Lọc trạng thái..."
+        />
       </div>
 
-      {/* Contracts Table */}
-      <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-2xs">
+      {/* ── Contracts table ── */}
+      <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[860px] border-collapse text-left text-xs text-slate-600">
-            <thead className="bg-slate-50 text-slate-800 font-semibold border-b border-slate-200">
+          <table className="w-full min-w-[860px] text-left text-xs text-slate-600">
+            <thead className="bg-slate-50 border-b border-slate-200 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
               <tr>
-                <th className="p-4">Số Hợp Đồng</th>
-                <th className="p-4">Khách Hàng Doanh Nghiệp</th>
-                <th className="p-4">Nội Dung / Gói Dịch Vụ</th>
-                <th className="p-4">Giá Trị Hợp Đồng</th>
-                <th className="p-4">Thời Hạn Hiệu Lực</th>
-                <th className="p-4">Phương Thức Ký</th>
-                <th className="p-4">Trạng Thái</th>
-                <th className="p-4 text-right">Thao Tác</th>
+                <th className="px-5 py-3.5">Số HĐ / Ngày</th>
+                <th className="px-5 py-3.5">Khách Hàng</th>
+                <th className="px-5 py-3.5">Nội Dung / Gói</th>
+                <th className="px-5 py-3.5">Giá Trị</th>
+                <th className="px-5 py-3.5">Thời Hạn</th>
+                <th className="px-5 py-3.5">Phương Thức Ký</th>
+                <th className="px-5 py-3.5">Trạng Thái</th>
+                <th className="px-5 py-3.5 text-right">Thao Tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredContracts.length > 0 ? (
-                filteredContracts.map((c) => (
-                  <tr key={c.id} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="p-4">
-                      <div className="font-mono font-bold text-indigo-600">{c.contractNumber}</div>
-                      <div className="text-[11px] text-slate-400 mt-0.5">
+              {filtered.length > 0 ? (
+                filtered.map((c) => (
+                  <tr key={c.id} className="hover:bg-slate-50/70 transition-colors group">
+
+                    {/* Contract number */}
+                    <td className="px-5 py-4">
+                      <div className="font-mono font-bold text-indigo-600 text-[12px]">{c.contractNumber}</div>
+                      <div className="text-[10px] text-slate-400 mt-0.5">
                         {new Date(c.createdAt).toLocaleDateString("vi-VN")}
                       </div>
                     </td>
 
-                    <td className="p-4">
-                      <div className="font-bold text-slate-900">{c.partyBName || c.tenantName || `Tenant #${c.tenantId}`}</div>
-                      <div className="text-[11px] text-slate-500 flex items-center gap-1 font-mono mt-0.5">
-                        {c.partyBTaxCode && <span className="font-bold text-slate-700">MST: {c.partyBTaxCode} · </span>}
-                        <span>{c.tenantCode || "code"}</span>
+                    {/* Customer */}
+                    <td className="px-5 py-4">
+                      <div className="font-semibold text-slate-900">{c.partyBName || c.tenantName || `Tenant #${c.tenantId}`}</div>
+                      <div className="text-[10px] text-slate-400 font-mono mt-0.5 flex items-center gap-1 flex-wrap">
+                        {c.partyBTaxCode && <span className="text-slate-600 font-semibold">MST: {c.partyBTaxCode}</span>}
                         {c.tenantSubdomain && <span>· {c.tenantSubdomain}.smarthire.top</span>}
                       </div>
                     </td>
 
-                    <td className="p-4 max-w-[240px]">
-                      <div className="font-semibold text-slate-800 truncate" title={c.title}>{c.title}</div>
-                      <div className="text-[11px] text-indigo-600 mt-0.5 font-medium">
-                        {c.planName || "Gói Tùy Biến B2B"}
+                    {/* Content */}
+                    <td className="px-5 py-4 max-w-[200px]">
+                      <div className="font-medium text-slate-800 truncate" title={c.title}>{c.title}</div>
+                      <div className="text-[10px] text-indigo-500 font-medium mt-0.5">{c.planName || "Gói Tùy Biến B2B"}</div>
+                    </td>
+
+                    {/* Value */}
+                    <td className="px-5 py-4">
+                      <div className="font-bold text-slate-900 font-mono">
+                        ${(c.totalAmount || c.contractValue).toLocaleString()}
+                      </div>
+                      <div className="text-[10px] text-slate-400 mt-0.5">
+                        Gốc: ${c.contractValue.toLocaleString()} + VAT {c.taxRate || 10}%
                       </div>
                     </td>
 
-                    <td className="p-4 font-mono">
-                      <div className="font-bold text-slate-900 text-sm">
-                        ${(c.totalAmount || c.contractValue).toLocaleString()} {c.currency}
-                      </div>
-                      <div className="text-[10px] text-slate-400">
-                        (Gốc: ${c.contractValue.toLocaleString()} + VAT {c.taxRate || 10}%)
-                      </div>
-                    </td>
-
-                    <td className="p-4 text-[11px] text-slate-600">
+                    {/* Period */}
+                    <td className="px-5 py-4 font-mono text-[11px] text-slate-600">
                       {c.startDate && c.endDate ? (
-                        <div className="font-mono">
+                        <>
                           <div>{c.startDate}</div>
                           <div className="text-slate-400">đến {c.endDate}</div>
-                        </div>
+                        </>
                       ) : (
                         <span className="text-slate-400">12 tháng</span>
                       )}
                     </td>
 
-                    <td className="p-4">
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
-                        {c.signMethod === "DIGITAL_TOKEN_CA"
-                          ? "Chữ ký số USB Token/CA"
-                          : c.signMethod === "E_SIGN_ONLINE"
-                          ? "Ký Online (OTP Mail)"
-                          : c.signMethod === "UPLOAD_SIGNED_PDF"
-                          ? "Tải lên PDF đã ký"
-                          : c.signMethod === "MANUAL"
-                          ? "Ký tay trực tiếp"
-                          : "Chưa ký"}
+                    {/* Sign method */}
+                    <td className="px-5 py-4">
+                      <span className="inline-flex px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                        {c.signMethod === "DIGITAL_TOKEN_CA" ? "USB Token / CA"
+                          : c.signMethod === "E_SIGN_ONLINE" ? "OTP Email"
+                          : c.signMethod === "UPLOAD_SIGNED_PDF" ? "Upload PDF"
+                          : c.signMethod === "MANUAL" ? "Ký tay"
+                          : "—"}
                       </span>
                       {(c.partyBRepresentative || c.signerName) && (
-                        <div className="text-[10px] text-slate-400 mt-0.5 truncate max-w-[140px]" title={`${c.partyBRepresentative || c.signerName} (${c.partyBEmail || c.signerEmail})`}>
-                          Ký bởi: {c.partyBRepresentative || c.signerName}
+                        <div className="text-[10px] text-slate-400 mt-0.5 truncate max-w-[130px]">
+                          {c.partyBRepresentative || c.signerName}
                         </div>
                       )}
                     </td>
 
-                    <td className="p-4">
-                      <span
-                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold ${
-                          c.status === "SIGNED"
-                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                            : c.status === "PENDING_SIGNATURE"
-                            ? "bg-amber-50 text-amber-700 border border-amber-200"
-                            : c.status === "DRAFT"
-                            ? "bg-slate-100 text-slate-700 border border-slate-200"
-                            : "bg-rose-50 text-rose-700 border border-rose-200"
-                        }`}
-                      >
-                        {c.status === "SIGNED" ? (
-                          <FileCheck2 className="w-3.5 h-3.5" />
-                        ) : c.status === "PENDING_SIGNATURE" ? (
-                          <Clock className="w-3.5 h-3.5" />
-                        ) : (
-                          <FileSignature className="w-3.5 h-3.5" />
-                        )}
-                        {c.status === "SIGNED"
-                          ? "Đã Ký Số"
-                          : c.status === "PENDING_SIGNATURE"
-                          ? "Chờ Ký Số"
-                          : c.status === "DRAFT"
-                          ? "Bản Nháp"
-                          : c.status === "EXPIRED"
-                          ? "Hết Hạn"
-                          : "Chấm Dứt"}
-                      </span>
+                    {/* Status */}
+                    <td className="px-5 py-4">
+                      <StatusBadge status={c.status} />
                     </td>
 
-                    <td className="p-4 text-right whitespace-nowrap space-x-1.5">
-                      <button
-                        onClick={() => handleSendContract(c)}
-                        className="px-2 py-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 font-semibold text-xs transition-colors inline-flex items-center gap-1"
-                        title="Gửi email mời đại diện Bên B ký hợp đồng điện tử"
-                      >
-                        <Send className="w-3.5 h-3.5" />
-                        <span>Gửi Mời Ký</span>
-                      </button>
-
-                      <button
-                        onClick={() => handleCopySigningLink(c)}
-                        className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors inline-flex items-center"
-                        title="Sao chép liên kết ký số gửi qua Zalo/Email"
-                      >
-                        <Copy className="w-3.5 h-3.5" />
-                      </button>
-
-                      <button
-                        onClick={() => setSelectedContract(c)}
-                        className="px-2 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs transition-colors inline-flex items-center gap-1"
-                        title="Xem chi tiết văn bản hợp đồng"
-                      >
-                        <Eye className="w-3.5 h-3.5 text-slate-500" />
-                        <span>Văn bản</span>
-                      </button>
-
-                      {c.status !== "SIGNED" && (
+                    {/* Actions */}
+                    <td className="px-5 py-4 text-right">
+                      <div className="flex items-center justify-end gap-1.5 opacity-80 group-hover:opacity-100 transition-opacity">
                         <button
-                          onClick={() => setShowSignContractModal(c)}
-                          className="px-2 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs transition-colors inline-flex items-center gap-1 shadow-2xs"
-                          title="Ký số điện tử và tự động phát hành Hóa Đơn B2B"
+                          onClick={() => handleSendContract(c)}
+                          title="Gửi email mời ký"
+                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 font-semibold text-[11px] transition-colors"
                         >
-                          <FileSignature className="w-3.5 h-3.5" />
-                          <span>Ký số</span>
+                          <Send className="w-3 h-3" />
+                          Gửi
                         </button>
-                      )}
 
-                      <button
-                        onClick={() => handleDeleteContract(c)}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors inline-flex items-center"
-                        title="Xóa hợp đồng"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                        <button
+                          onClick={() => handleCopySigningLink(c)}
+                          title="Sao chép link ký số"
+                          className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-500 transition-colors"
+                        >
+                          <Copy className="w-3.5 h-3.5" />
+                        </button>
+
+                        <button
+                          onClick={() => setSelectedContract(c)}
+                          title="Xem văn bản HĐ"
+                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-700 font-semibold text-[11px] transition-colors"
+                        >
+                          <Eye className="w-3 h-3" />
+                          Xem
+                        </button>
+
+                        {c.status !== "SIGNED" && (
+                          <button
+                            onClick={() => setShowSignContractModal(c)}
+                            title="Ký số điện tử"
+                            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-[11px] transition-colors shadow-xs"
+                          >
+                            <FileSignature className="w-3 h-3" />
+                            Ký số
+                          </button>
+                        )}
+
+                        <button
+                          onClick={() => handleDeleteContract(c)}
+                          title="Xóa hợp đồng"
+                          className="p-1.5 rounded-lg hover:bg-rose-50 hover:text-rose-600 text-slate-400 transition-colors"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={8} className="p-10 text-center text-slate-400">
-                    <FileSignature className="w-8 h-8 mx-auto mb-2 text-slate-300" />
-                    <span>Không tìm thấy hợp đồng nào phù hợp với bộ lọc.</span>
+                  <td colSpan={8} className="py-14 text-center">
+                    <FileSignature className="w-8 h-8 mx-auto mb-3 text-slate-300" />
+                    <p className="text-sm text-slate-400 font-medium">Không tìm thấy hợp đồng phù hợp</p>
+                    <p className="text-xs text-slate-300 mt-1">Thử thay đổi bộ lọc hoặc từ khóa tìm kiếm</p>
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
+
+        {/* Table footer count */}
+        {filtered.length > 0 && (
+          <div className="px-5 py-3 border-t border-slate-100 flex items-center justify-between bg-slate-50/50">
+            <span className="text-xs text-slate-400">
+              Hiển thị <span className="font-semibold text-slate-600">{filtered.length}</span> / {contracts.length} hợp đồng
+            </span>
+          </div>
+        )}
       </div>
 
-
+      {/* ── Modals ── */}
       <ContractDetailModal
         selectedContract={selectedContract}
         setSelectedContract={setSelectedContract}

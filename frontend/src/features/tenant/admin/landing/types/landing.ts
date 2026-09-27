@@ -7,6 +7,11 @@ export interface LandingThemeConfig {
   borderRadius: string; // "rounded-none" | "rounded-lg" | "rounded-2xl" | "rounded-3xl"
 }
 
+export interface LandingHeaderConfig {
+  logoImageUrl?: string;
+  slogan: string;
+}
+
 export interface LandingHeroConfig {
   badgeText: string;
   title: string;
@@ -74,6 +79,10 @@ export interface LandingTestimonialsConfig {
 }
 
 export interface LandingFooterConfig {
+  description?: string;
+  contactTitle?: string;
+  socialTitle?: string;
+  bottomText?: string;
   copyrightText: string;
   contactEmail?: string;
   contactPhone?: string;
@@ -91,6 +100,7 @@ export interface LandingSeoConfig {
 }
 
 export interface LandingPageConfig {
+  header: LandingHeaderConfig;
   theme: LandingThemeConfig;
   hero: LandingHeroConfig;
   about: LandingAboutConfig;

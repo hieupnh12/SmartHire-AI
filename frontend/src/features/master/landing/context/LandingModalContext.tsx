@@ -30,13 +30,15 @@ export function LandingModalProvider({ children }: { children: React.ReactNode }
   const [selectedTier, setSelectedTier] = useState<string>("Gói Doanh Nghiệp (Enterprise)");
   const [requestType, setRequestType] = useState<"DEMO" | "CONTRACT_QUOTE">("DEMO");
 
+  // Navigate to the dedicated /demo page instead of opening a popup modal.
   const openDemoModal = (
     tierName: string = "Tư Vấn Giải Pháp Doanh Nghiệp",
     type: "DEMO" | "CONTRACT_QUOTE" = "DEMO"
   ) => {
     setSelectedTier(tierName);
     setRequestType(type);
-    setShowDemoModal(true);
+    const params = new URLSearchParams({ tier: tierName, type });
+    window.location.href = `/demo?${params.toString()}`;
   };
 
   const closeDemoModal = () => {

@@ -46,7 +46,7 @@ export function LeadsPage() {
       email: lead.workEmail,
       adminName: lead.contactName,
     }).toString();
-    navigate(`/onboard?${query}`);
+    navigate(`/admin/tenants/onboard-wizard?${query}`);
   };
 
   const handleOpenLeadModal = (lead: ConsultationResponse) => {
@@ -93,7 +93,7 @@ export function LeadsPage() {
         </div>
 
         <button
-          onClick={() => navigate("/onboard")}
+          onClick={() => navigate("/admin/tenants/onboard-wizard")}
           className="px-4 py-2.5 text-xs font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition-all flex items-center gap-2"
         >
           <Plus className="w-4 h-4" />

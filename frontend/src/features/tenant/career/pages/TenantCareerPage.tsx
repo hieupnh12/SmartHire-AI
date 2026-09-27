@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { getTenantIdFromWindow } from "@/lib/tenant";
 import { getTenantTheme, getTenantThemeStyle } from "@/lib/tenantTheme";
@@ -38,6 +38,7 @@ import {
   Linkedin,
   Facebook,
   Github,
+  Loader2,
 } from "lucide-react";
 
 interface JobPosting {
@@ -76,6 +77,9 @@ function renderIcon(name: string, className?: string) {
 
 export function TenantCareerPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const isJobsPage = location.pathname.endsWith("/jobs");
+  
   const rawTenantCode = getTenantIdFromWindow() || "acme";
   const theme = getTenantTheme(rawTenantCode);
 
@@ -185,6 +189,16 @@ export function TenantCareerPage() {
     });
   };
 
+  if (publicLanding.isPending) {
+    return (
+      <div className="min-h-screen bg-[#f9f9ff] flex items-center justify-center">
+        <div className="animate-spin text-slate-400">
+          <Loader2 className="w-8 h-8" />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       className="tenant-workspace-theme min-h-screen bg-[#f9f9ff] text-[#191b23] font-sans antialiased flex flex-col justify-between"
@@ -194,12 +208,20 @@ export function TenantCareerPage() {
       <header className="sticky top-0 z-40 bg-white/85 backdrop-blur-md border-b border-[#e2e8f0] shadow-sm">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
           <div className="flex items-center gap-3 cursor-pointer" onClick={() => window.location.reload()}>
-            <div
-              className="w-10 h-10 rounded-[12px] text-white flex items-center justify-center shadow-md font-semibold text-lg"
-              style={{ backgroundColor: primaryColor }}
-            >
-              {theme.code.charAt(0).toUpperCase()}
-            </div>
+            {customLanding?.header?.logoImageUrl ? (
+              <img
+                src={customLanding.header.logoImageUrl}
+                alt="Company Logo"
+                className="h-10 w-auto object-contain rounded-[12px]"
+              />
+            ) : (
+              <div
+                className="w-10 h-10 rounded-[12px] text-white flex items-center justify-center shadow-md font-semibold text-lg"
+                style={{ backgroundColor: primaryColor }}
+              >
+                {theme.code.charAt(0).toUpperCase()}
+              </div>
+            )}
             <div>
               <span className="text-xl font-semibold font-display text-[#1e293b] tracking-tight">
                 {theme.name}
@@ -212,26 +234,32 @@ export function TenantCareerPage() {
                   borderColor: `${primaryColor}30`,
                 }}
               >
-                {theme.accentBadge}
+                Careers
               </span>
+              <span className="text-[11px] text-slate-400 block mt-0.5">{customLanding?.header?.slogan || "Cổng Tuyển Dụng Nhân Tài"}</span>
             </div>
           </div>
 
           <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-[#475569]">
-            <a href="#about" className="hover:text-slate-900 transition-colors">
+            <Link to="/jobs" className="hover:opacity-80 transition-opacity flex items-center gap-1.5 group">
+              <span className="font-semibold bg-gradient-to-r from-fuchsia-600 via-blue-500 to-fuchsia-600 bg-[length:200%_auto] animate-text-gradient bg-clip-text text-transparent">
+                Việc làm
+              </span>
+              <span className="relative inline-flex items-center justify-center">
+                <span className="absolute inset-0 bg-gradient-to-r from-orange-500 via-rose-500 to-orange-500 bg-[length:200%_auto] animate-text-gradient blur-md opacity-60 group-hover:opacity-100 transition-opacity"></span>
+                <span className="relative px-2 py-0.5 rounded-full bg-gradient-to-r from-orange-500 via-rose-500 to-orange-500 bg-[length:200%_auto] animate-text-gradient text-white text-[11px] font-bold tracking-wide">
+                  HOT
+                </span>
+              </span>
+            </Link>
+            <a href={isJobsPage ? "/career#about" : "#about"} className="hover:text-slate-900 transition-colors">
               Về Chúng Tôi
             </a>
             {customLanding?.benefits?.enabled && (
-              <a href="#benefits" className="hover:text-slate-900 transition-colors">
+              <a href={isJobsPage ? "/career#benefits" : "#benefits"} className="hover:text-slate-900 transition-colors">
                 Đãi Ngộ
               </a>
             )}
-            <a href="#techstack" className="hover:text-slate-900 transition-colors">
-              Tech Stack
-            </a>
-            <a href="#jobs" className="hover:text-slate-900 transition-colors">
-              Vị Trí Tuyển Dụng
-            </a>
           </nav>
 
           <div className="flex items-center gap-3">
@@ -250,8 +278,10 @@ export function TenantCareerPage() {
       </header>
 
       <main className="relative z-10">
-        {/* HERO SECTION WITH DYNAMIC BANNER */}
-        <section className="relative pt-12 pb-24 max-w-7xl mx-auto px-6">
+        {!isJobsPage ? (
+          <>
+            {/* HERO SECTION WITH DYNAMIC BANNER */}
+            <section className="relative pt-12 pb-24 max-w-7xl mx-auto px-6">
           <div
             className={`relative overflow-hidden border border-[#e2e8f0] shadow-2xl ${
               customLanding?.theme?.borderRadius || "rounded-[32px]"
@@ -328,27 +358,27 @@ export function TenantCareerPage() {
                     />
                   </div>
 
-                  <a
-                    href="#jobs"
+                  <Link
+                    to="/jobs"
                     className="w-full sm:w-auto px-7 py-3 rounded-[10px] text-white font-semibold text-sm transition-all flex items-center justify-center gap-2 shadow-lg"
                     style={{ backgroundColor: primaryColor }}
                   >
                     <span>{customLanding?.hero?.primaryCtaText || "Xem Vị Trí Tuyển Dụng"}</span>
                     <ArrowRight className="w-4 h-4" />
-                  </a>
+                  </Link>
                 </div>
               )}
 
               {/* Action Buttons */}
               <div className="flex items-center gap-4">
-                <a
-                  href="#jobs"
+                <Link
+                  to="/jobs"
                   className="px-7 py-3 rounded-[10px] text-white font-semibold text-sm transition-all flex items-center gap-2 shadow-lg"
                   style={{ backgroundColor: primaryColor }}
                 >
                   <span>{customLanding?.hero?.primaryCtaText || "Xem Vị Trí Tuyển Dụng"}</span>
                   <ArrowRight className="w-4 h-4" />
-                </a>
+                </Link>
 
                 {customLanding?.hero?.secondaryCtaText && (
                   <a
@@ -515,97 +545,6 @@ export function TenantCareerPage() {
           </section>
         )}
 
-        {/* TECH STACK GRID SECTION */}
-        {customLanding?.techStack?.enabled !== false && (
-          <section id="techstack" className="py-20 bg-white border-b border-[#e2e8f0]">
-            <div className="max-w-7xl mx-auto px-6">
-              <div className="text-center max-w-2xl mx-auto mb-14">
-                <span
-                  className="text-xs font-semibold uppercase tracking-wider px-3 py-1 rounded-full border"
-                  style={{
-                    backgroundColor: `${primaryColor}15`,
-                    color: primaryColor,
-                    borderColor: `${primaryColor}30`,
-                  }}
-                >
-                  {customLanding?.techStack?.badge || "Hệ Sinh Thái Core"}
-                </span>
-                <h2 className="text-3xl font-semibold font-display text-[#1e293b] mt-3 mb-2">
-                  {customLanding?.techStack?.title || "Hệ Sinh Thái Công Nghệ Core"}
-                </h2>
-                <p className="text-[#64748b] text-sm">
-                  {customLanding?.techStack?.subtitle ||
-                    "Các công nghệ tiên tiến đang được áp dụng trực tiếp tại các dự án."}
-                </p>
-              </div>
-
-              {/* 4 Iconic Tech Pillars */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
-                <div className="p-6 rounded-[24px] bg-[#f8f9ff] border border-[#e2e8f0] shadow-sm hover:shadow-md transition-all text-center">
-                  <div
-                    className="w-12 h-12 rounded-[14px] flex items-center justify-center mx-auto mb-4"
-                    style={{ backgroundColor: `${primaryColor}15`, color: primaryColor }}
-                  >
-                    <Code className="w-6 h-6" />
-                  </div>
-                  <h3 className="font-semibold text-[#1e293b] text-base mb-1">Backend Microservices</h3>
-                  <p className="text-xs text-[#64748b]">Java 21, Spring Boot 3, Hibernate Multi-Tenancy, MySQL Separate DB.</p>
-                </div>
-
-                <div className="p-6 rounded-[24px] bg-[#f8f9ff] border border-[#e2e8f0] shadow-sm hover:shadow-md transition-all text-center">
-                  <div className="w-12 h-12 rounded-[14px] bg-cyan-50 text-cyan-600 flex items-center justify-center mx-auto mb-4">
-                    <Layers className="w-6 h-6" />
-                  </div>
-                  <h3 className="font-semibold text-[#1e293b] text-base mb-1">Modern Web Frontend</h3>
-                  <p className="text-xs text-[#64748b]">React 19, TypeScript, Vite, Zustand, Tailwind CSS, TanStack Query.</p>
-                </div>
-
-                <div className="p-6 rounded-[24px] bg-[#f8f9ff] border border-[#e2e8f0] shadow-sm hover:shadow-md transition-all text-center">
-                  <div className="w-12 h-12 rounded-[14px] bg-amber-50 text-amber-600 flex items-center justify-center mx-auto mb-4">
-                    <Cpu className="w-6 h-6" />
-                  </div>
-                  <h3 className="font-semibold text-[#1e293b] text-base mb-1">AI CV & Voice Engine</h3>
-                  <p className="text-xs text-[#64748b]">Python PyTorch, Whisper STT, NLP Parsing & Matching Score Model.</p>
-                </div>
-
-                <div className="p-6 rounded-[24px] bg-[#f8f9ff] border border-[#e2e8f0] shadow-sm hover:shadow-md transition-all text-center">
-                  <div className="w-12 h-12 rounded-[14px] bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto mb-4">
-                    <HeartHandshake className="w-6 h-6" />
-                  </div>
-                  <h3 className="font-semibold text-[#1e293b] text-base mb-1">Cloud & Async Queue</h3>
-                  <p className="text-xs text-[#64748b]">Google Cloud VPS, Docker, Kubernetes, Redis, RabbitMQ Worker Pool.</p>
-                </div>
-              </div>
-
-              {/* Dynamic Tech Tags */}
-              <div className="flex flex-wrap items-center justify-center gap-2.5 max-w-4xl mx-auto pt-2">
-                {(customLanding?.techStack?.tags && customLanding.techStack.tags.length > 0
-                  ? customLanding.techStack.tags
-                  : [
-                      "Java 21",
-                      "Spring Boot",
-                      "React 19",
-                      "TypeScript",
-                      "Docker",
-                      "Kubernetes",
-                      "Redis",
-                      "RabbitMQ",
-                      "MySQL",
-                      "Whisper AI",
-                      "Tailwind CSS",
-                    ]
-                ).map((tag, i) => (
-                  <span
-                    key={i}
-                    className="px-3.5 py-1.5 rounded-xl text-xs font-semibold border border-slate-200 bg-white text-slate-700 shadow-sm"
-                  >
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            </div>
-          </section>
-        )}
 
         {/* TESTIMONIALS SECTION */}
         {customLanding?.testimonials?.enabled !== false && (
@@ -679,9 +618,10 @@ export function TenantCareerPage() {
             </div>
           </section>
         )}
-
-        {/* JOB POSITIONS SECTION */}
+        </>
+        ) : (
         <section id="jobs" className="py-20 max-w-7xl mx-auto px-6">
+          {/* JOB POSITIONS SECTION */}
           <div className="flex flex-col md:flex-row md:items-end justify-between mb-10 gap-4">
             <div>
               <span
@@ -791,6 +731,7 @@ export function TenantCareerPage() {
             </div>
           )}
         </section>
+        )}
       </main>
 
       {/* JOB DETAIL MODAL */}
@@ -963,14 +904,12 @@ export function TenantCareerPage() {
                 <span className="font-bold text-white text-base tracking-tight">{theme.name}</span>
               </div>
               <p className="text-slate-400 leading-relaxed text-xs">
-                {customLanding?.about?.description
-                  ? customLanding.about.description.slice(0, 150) + "..."
-                  : `${theme.name} — Cổng thông tin tuyển dụng và phát triển nghề nghiệp.`}
+                {customLanding?.footer?.description || "Cổng thông tin tuyển dụng & cơ hội phát triển nghề nghiệp chuẩn Enterprise."}
               </p>
             </div>
 
             <div className="space-y-2 text-xs">
-              <span className="font-bold text-white uppercase tracking-wider block mb-2">Liên Hệ Tuyển Dụng</span>
+              <span className="font-bold text-white uppercase tracking-wider block mb-2">{customLanding?.footer?.contactTitle || "Liên Hệ Tuyển Dụng"}</span>
               {customLanding?.footer?.address && (
                 <div className="flex items-center gap-2">
                   <Building className="w-4 h-4 text-slate-500 shrink-0" />
@@ -994,7 +933,7 @@ export function TenantCareerPage() {
             </div>
 
             <div className="space-y-3">
-              <span className="font-bold text-white uppercase tracking-wider block">Mạng Xã Hội</span>
+              <span className="font-bold text-white uppercase tracking-wider block">{customLanding?.footer?.socialTitle || "Mạng Xã Hội"}</span>
               <div className="flex items-center gap-3 text-slate-400">
                 {customLanding?.footer?.linkedinUrl && (
                   <a href={customLanding.footer.linkedinUrl} target="_blank" rel="noreferrer" className="hover:text-white">
@@ -1017,16 +956,6 @@ export function TenantCareerPage() {
                   </a>
                 )}
               </div>
-
-              <div>
-                <button
-                  onClick={() => navigate("/internal/login")}
-                  className="text-xs text-sky-400 font-semibold hover:underline inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-500/10 border border-sky-500/20"
-                >
-                  <ShieldCheck className="w-4 h-4" />
-                  <span>Portal Quản Trị & Tuyển Dụng</span>
-                </button>
-              </div>
             </div>
           </div>
 
@@ -1035,7 +964,7 @@ export function TenantCareerPage() {
               {customLanding?.footer?.copyrightText ||
                 `${theme.name} Careers Portal © 2026. Powered by SmartHire AI Multi-Tenant SaaS.`}
             </div>
-            <div>Hệ thống Tuyển dụng Doanh nghiệp Chuẩn hóa</div>
+            <div>{customLanding?.footer?.bottomText || "Hệ Thống Tuyển Dụng Doanh Nghiệp Multi-Tenant"}</div>
           </div>
         </div>
       </footer>

@@ -137,19 +137,12 @@ export function SolutionsPage() {
       <div className="max-w-7xl mx-auto px-6">
         {/* HERO INTRO */}
         <div className="text-center max-w-4xl mx-auto mb-20">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-xs font-semibold mb-6 shadow-2xs">
-            <Sparkles className="w-4 h-4 text-blue-600" />
-            <span>Hệ Sinh Thái Tuyển Dụng AI Toàn Diện</span>
-          </div>
 
-          <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight text-slate-900 leading-[1.15] mb-6">
-            Đột Phá Năng Suất Nhân Sự Với{" "}
-            <span className="text-blue-600 bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-600 bg-clip-text text-transparent">
-              5 Module AI Chuyên Sâu
-            </span>
+          <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight leading-[1.15] mb-6 bg-gradient-to-r from-slate-900 via-violet-600 to-purple-700 bg-clip-text text-transparent">
+            Đột Phá Năng Suất Nhân Sự Với 5 Module AI Chuyên Sâu
           </h1>
 
-          <p className="text-lg sm:text-xl text-slate-600 max-w-3xl mx-auto mb-8 leading-relaxed">
+          <p className="text-sm sm:text-base text-slate-500 max-w-2xl mx-auto mb-8 leading-relaxed">
             Kết hợp sức mạnh của Mô hình Ngôn ngữ Lớn (LLM), Xử lý Giọng nói Realtime (Voice STT/TTS) và Môi trường Sandbox Code độc lập để chuẩn hóa toàn bộ phễu tuyển dụng doanh nghiệp.
           </p>
 
@@ -179,9 +172,8 @@ export function SolutionsPage() {
             return (
               <div
                 key={sol.id}
-                className={`grid lg:grid-cols-12 gap-10 items-center rounded-3xl bg-white border border-slate-200/90 p-8 sm:p-12 shadow-sm hover:shadow-xl hover:border-blue-300 transition-all duration-300 ${
-                  isReversed ? "lg:grid-flow-dense" : ""
-                }`}
+                className={`grid lg:grid-cols-12 gap-10 items-center rounded-3xl bg-white border border-slate-200/90 p-8 sm:p-12 shadow-sm hover:shadow-xl hover:border-blue-300 transition-all duration-300 ${isReversed ? "lg:grid-flow-dense" : ""
+                  }`}
               >
                 {/* Left Description Column */}
                 <div className={`space-y-5 lg:col-span-6 ${isReversed ? "lg:col-start-7" : ""}`}>
