@@ -7,12 +7,14 @@ import { PreviewPage } from "@/features/master/landing/pages/PreviewPage";
 import { RoiPage } from "@/features/master/landing/pages/RoiPage";
 import { SecurityPage } from "@/features/master/landing/pages/SecurityPage";
 import { PricingPage } from "@/features/master/landing/pages/PricingPage";
+import { DemoRequestPage } from "@/features/master/landing/pages/DemoRequestPage";
 import { getTenantIdFromSubdomain } from "@/lib/tenant";
 import { FeatureRoute } from "@/app/guards/FeatureRoute";
 import { RoleRoute } from "@/app/guards/RoleRoute";
 import { TenantSubdomainGuard } from "@/app/guards/TenantSubdomainGuard";
 import { RoleShell } from "@/app/layouts/RoleShell";
 import { TenantOnboardPage } from "@/features/master/onboarding/pages/TenantOnboardPage";
+import { B2bDealWizardPage } from "@/features/master/onboarding/pages/B2bDealWizardPage";
 import { LoginPage } from "@/features/tenant/auth/pages/LoginPage";
 import { RegisterPage } from "@/features/tenant/auth/pages/RegisterPage";
 import { CandidateLoginPage } from "@/features/tenant/auth/pages/CandidateLoginPage";
@@ -112,6 +114,7 @@ export function AppRouter() {
       <Route path="/security" element={<PublicMarketingRoute><SecurityPage /></PublicMarketingRoute>} />
       <Route path="/pricing" element={<PublicMarketingRoute><PricingPage /></PublicMarketingRoute>} />
       <Route path="/packages" element={<Navigate to="/pricing" replace />} />
+      <Route path="/demo" element={<DemoRequestPage />} />
       <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
       <Route path="/checkout/:planCode" element={<CheckoutPage />} />
       <Route path="/checkout/success" element={<CheckoutSuccessPage />} />
@@ -252,6 +255,7 @@ export function AppRouter() {
 
       <Route element={<MasterRoute />}>
         <Route path="/onboard" element={<TenantOnboardPage />} />
+        <Route path="/admin/tenants/onboard-wizard" element={<B2bDealWizardPage />} />
         <Route path="/admin" element={<MasterAdminLayout />}>
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<DashboardPage />} />

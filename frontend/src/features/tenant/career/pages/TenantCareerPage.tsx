@@ -241,25 +241,17 @@ export function TenantCareerPage() {
           </div>
 
           <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-[#475569]">
-            {isJobsPage ? (
-              <Link to="/career" className="hover:opacity-80 transition-opacity flex items-center gap-1.5 group">
-                <span className="font-semibold bg-gradient-to-r from-fuchsia-600 via-blue-500 to-fuchsia-600 bg-[length:200%_auto] animate-text-gradient bg-clip-text text-transparent">
-                  Trang chủ
+            <Link to="/jobs" className="hover:opacity-80 transition-opacity flex items-center gap-1.5 group">
+              <span className="font-semibold bg-gradient-to-r from-fuchsia-600 via-blue-500 to-fuchsia-600 bg-[length:200%_auto] animate-text-gradient bg-clip-text text-transparent">
+                Việc làm
+              </span>
+              <span className="relative inline-flex items-center justify-center">
+                <span className="absolute inset-0 bg-gradient-to-r from-orange-500 via-rose-500 to-orange-500 bg-[length:200%_auto] animate-text-gradient blur-md opacity-60 group-hover:opacity-100 transition-opacity"></span>
+                <span className="relative px-2 py-0.5 rounded-full bg-gradient-to-r from-orange-500 via-rose-500 to-orange-500 bg-[length:200%_auto] animate-text-gradient text-white text-[11px] font-bold tracking-wide">
+                  HOT
                 </span>
-              </Link>
-            ) : (
-              <Link to="/jobs" className="hover:opacity-80 transition-opacity flex items-center gap-1.5 group">
-                <span className="font-semibold bg-gradient-to-r from-fuchsia-600 via-blue-500 to-fuchsia-600 bg-[length:200%_auto] animate-text-gradient bg-clip-text text-transparent">
-                  Việc làm
-                </span>
-                <span className="relative inline-flex items-center justify-center">
-                  <span className="absolute inset-0 bg-gradient-to-r from-orange-500 via-rose-500 to-orange-500 bg-[length:200%_auto] animate-text-gradient blur-md opacity-60 group-hover:opacity-100 transition-opacity"></span>
-                  <span className="relative px-2 py-0.5 rounded-full bg-gradient-to-r from-orange-500 via-rose-500 to-orange-500 bg-[length:200%_auto] animate-text-gradient text-white text-[11px] font-bold tracking-wide">
-                    HOT
-                  </span>
-                </span>
-              </Link>
-            )}
+              </span>
+            </Link>
             <a href={isJobsPage ? "/career#about" : "#about"} className="hover:text-slate-900 transition-colors">
               Về Chúng Tôi
             </a>

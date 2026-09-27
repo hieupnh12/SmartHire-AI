@@ -180,11 +180,7 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
           </div>
 
           {!isMobile && (
-            <div className="flex items-center gap-6 text-xs font-medium text-[#475569]">
-              <span className="hover:text-slate-900 cursor-pointer transition-colors">Về Chúng Tôi</span>
-              {config.benefits.enabled && (
-                <span className="hover:text-slate-900 cursor-pointer transition-colors">Đãi Ngộ</span>
-              )}
+          <div className="flex items-center gap-6 text-xs font-medium text-[#475569]">
               <div className="hover:opacity-80 transition-opacity flex items-center gap-1.5 group cursor-pointer">
                 <span className="font-semibold bg-gradient-to-r from-fuchsia-600 via-blue-500 to-fuchsia-600 bg-[length:200%_auto] animate-text-gradient bg-clip-text text-transparent">
                   Việc làm
@@ -196,6 +192,10 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                   </span>
                 </span>
               </div>
+              <span className="hover:text-slate-900 cursor-pointer transition-colors">Về Chúng Tôi</span>
+              {config.benefits.enabled && (
+                <span className="hover:text-slate-900 cursor-pointer transition-colors">Đãi Ngộ</span>
+              )}
             </div>
           )}
 
