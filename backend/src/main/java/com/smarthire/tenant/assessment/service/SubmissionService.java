@@ -35,10 +35,11 @@ public class SubmissionService {
     private final CodingProblemRepository codingProblems;
     private final CvAccess access;
     private final AssessmentMapper mapper;
+    private final AiInterviewRepository aiInterviews;
 
     public SubmissionService(JobTestRepository tests, ApplicationRepository applications, SubmissionRepository submissions,
             QuestionRepository questions, OptionRepository options, AnswerRepository answers,
-            CodingProblemRepository codingProblems, CvAccess access, AssessmentMapper mapper) {
+            CodingProblemRepository codingProblems, CvAccess access, AssessmentMapper mapper, AiInterviewRepository aiInterviews) {
         this.tests = tests;
         this.applications = applications;
         this.submissions = submissions;
@@ -48,6 +49,7 @@ public class SubmissionService {
         this.codingProblems = codingProblems;
         this.access = access;
         this.mapper = mapper;
+        this.aiInterviews = aiInterviews;
     }
 
     @Transactional(isolation = Isolation.READ_COMMITTED)
@@ -58,6 +60,7 @@ public class SubmissionService {
         Application application = applications.findById(request.applicationId()).orElseThrow(this::notFound);
         if (!application.getCandidate().getId().equals(candidate.getId())
                 || !application.getJob().getId().equals(test.getJob().getId())) throw notFound();
+        requireEligible(application);
         var previous = submissions.findLatestIds(testId, application.getId(), PageRequest.of(0, 1));
         Submission submission = previous.isEmpty() ? new Submission() : owned(previous.getFirst(), candidate);
         if (submission.getId() != null && submission.getStatus() != TestSubmissionStatus.NOT_STARTED) {
@@ -100,6 +103,7 @@ public class SubmissionService {
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public SubmissionResponse get(long id) {
         Submission submission = owned(id, candidate());
+        requireEligible(submission.getApplication());
         expire(submission);
         return response(submission);
     }
@@ -167,10 +171,12 @@ public class SubmissionService {
     }
 
     private void requireEligible(Application application) {
+        if (!aiInterviews.existsByApplication_IdAndStatus(application.getId(), com.smarthire.domain.enums.AiInterviewStatus.PASSED)) {
+            throw conflict("AI interview must be passed before accessing assessment", "AI_INTERVIEW_NOT_PASSED");
+        }
         if (application.getArchivedAt() != null || application.getWithdrawnAt() != null
                 || application.getJob().getDeletedAt() != null
-                || (application.getStatus() != ApplicationStatus.ASSESSMENT
-                    && application.getStatus() != ApplicationStatus.INTERVIEW)) {
+                || application.getStatus() != ApplicationStatus.ASSESSMENT) {
             throw conflict("Application is not eligible for assessment", "APPLICATION_NOT_ELIGIBLE");
         }
     }

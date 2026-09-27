@@ -12,6 +12,10 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface ApplicationRepository extends JpaRepository<Application, Long> {
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("select a from Application a where a.id = :id")
+    Optional<Application> findByIdForUpdate(@Param("id") Long id);
+
     Optional<Application> findByIdAndJob_Id(Long id, Long jobId);
     Optional<Application> findByJob_IdAndCandidate_Id(Long jobId, Long candidateId);
     List<Application> findByJob_IdOrderByIdDesc(Long jobId);

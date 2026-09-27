@@ -1,7 +1,7 @@
 # Interview Feedback
 
 **Epic:** AI Interview System  
-**Trạng thái:** `To Do`  
+**Trạng thái:** `Doing`  
 **Code ID:** `INT-05`
 
 ## Mục đích chức năng
@@ -39,6 +39,7 @@ Tạo feedback readable cho recruiter/candidate (policy hiển thị).
 
 - Google Stitch: **AI Interview System / Interview Feedback** — _[dán link]_
 - Icons: xem `DESIGN.md`
+- Recruiter: drawer chi tiết phiên ở `/recruiter/jobs/:id/ai-interviews` cho nhập/sửa feedback từng câu trả lời (score, nhận xét, điểm mạnh, điểm yếu) qua `PUT .../answers/{answerId}/feedback`. Chưa có approve/share cho candidate.
 
 ## Phụ thuộc
 

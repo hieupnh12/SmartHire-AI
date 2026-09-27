@@ -16,6 +16,7 @@ import { getTenantIdFromWindow } from "@/lib/tenant";
 import { getTenantTheme, getTenantThemeStyle } from "@/lib/tenantTheme";
 import { cn } from "@/lib/utils";
 import { useUiStore } from "@/stores/uiStore";
+import { useNotifications } from "@/hooks/useNotifications";
 
 type NavItem = {
   to: string;
@@ -50,6 +51,8 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
   const [failedTenantLogoUrl, setFailedTenantLogoUrl] = useState<string | null>(null);
   const userInitial = user?.fullName.trim().charAt(0).toLocaleUpperCase();
   const isCandidateWorkspace = basePath === "/candidate";
+  const inbox = useNotifications(isCandidateWorkspace);
+  const unreadCount = inbox.data?.filter(item => !item.readAt).length ?? 0;
   const isRecruiterWorkspace = basePath === "/recruiter";
   const isRecruiterDashboard = isRecruiterWorkspace && location.pathname === "/recruiter";
   const isRecruiterPipeline = isRecruiterWorkspace && /\/pipeline\/?$/.test(location.pathname);
@@ -397,10 +400,10 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
                 <NavLink
                   to={isRecruiterWorkspace ? recruiterJobId ? `/recruiter/jobs/${recruiterJobId}/notifications` : "/recruiter/jobs" : `${basePath}/notifications`}
                   className="relative grid size-10 place-items-center rounded-[var(--radius-default)] text-[var(--color-on-surface-variant)] transition-colors hover:bg-[var(--color-primary-subtle)] hover:text-brand-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary"
-                  aria-label={t("nav.notifications")}
+                  aria-label={isCandidateWorkspace && unreadCount ? `${t("nav.notifications")} (${unreadCount} chưa đọc)` : t("nav.notifications")}
                 >
                   <Bell className="size-[18px]" aria-hidden="true" />
-                  <span className="absolute right-2 top-2 size-2 rounded-full bg-amber-500 ring-2 ring-white" aria-hidden="true" />
+                  {isCandidateWorkspace && unreadCount > 0 && <span className="absolute right-1 top-1 rounded-full bg-brand-primary px-1 text-[10px] text-[var(--color-on-primary)]" aria-hidden="true">{unreadCount}</span>}
                 </NavLink>
               </Tooltip>
             )}

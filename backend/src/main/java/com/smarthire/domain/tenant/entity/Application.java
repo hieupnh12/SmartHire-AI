@@ -14,6 +14,10 @@ import lombok.experimental.FieldDefaults;
 @Entity
 @Table(name = "applications")
 public class Application extends BaseEntity {
+    @Enumerated(EnumType.STRING)
+    @Column(name = "cv_screening_status", nullable = false, length = 16)
+    com.smarthire.domain.enums.CvScreeningStatus cvScreeningStatus = com.smarthire.domain.enums.CvScreeningStatus.PENDING;
+
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "job_id", nullable = false) Job job;

@@ -61,6 +61,36 @@ public class AiInterviewController {
         return ApiResponse.ok(aiInterviewService.get(id));
     }
 
+    @GetMapping("/me")
+    @Operation(summary = "List AI interview invitations for the current candidate")
+    public ApiResponse<java.util.List<AiInterviewResponse>> mine() {
+        return ApiResponse.ok(aiInterviewService.mine());
+    }
+
+    @PostMapping("/{id}/start")
+    @Operation(summary = "Start an owned interview with ready questions (candidate)")
+    public ApiResponse<AiInterviewResponse> start(@PathVariable long id) {
+        return ApiResponse.ok(aiInterviewService.start(id));
+    }
+
+    @PostMapping("/{id}/questions/generate")
+    @Operation(summary = "Queue real AI questions or retry failed generation (staff)")
+    public ApiResponse<AiInterviewResponse> generate(@PathVariable long id) {
+        return ApiResponse.ok(aiInterviewService.generate(id));
+    }
+
+    @PostMapping("/{id}/score")
+    @Operation(summary = "Retry a failed AI evaluation without creating another attempt (staff)")
+    public ApiResponse<AiInterviewResponse> score(@PathVariable long id) {
+        return ApiResponse.ok(aiInterviewService.retryScore(id));
+    }
+
+    @PostMapping("/{id}/complete")
+    @Operation(summary = "Submit all answers in an owned interview (candidate)")
+    public ApiResponse<AiInterviewResponse> complete(@PathVariable long id) {
+        return ApiResponse.ok(aiInterviewService.complete(id));
+    }
+
     @PutMapping("/{id}")
     @Operation(summary = "Update AI interview session (staff)")
     public ApiResponse<AiInterviewResponse> update(

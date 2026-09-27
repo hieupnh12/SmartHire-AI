@@ -5,6 +5,9 @@
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
+    {"key":"aiInterviewId","value":"1"},
+    {"key":"aiQuestionId","value":"1"},
+    {"key":"notificationId","value":"1"},
     { "key": "candidateToken", "value": "" },
     { "key": "questionId", "value": "1" },
     { "key": "optionId", "value": "1" },
@@ -59,6 +62,233 @@
     }
   ],
   "item": [
+    {
+      "name": "AI Interview candidate invitations",
+      "item": [
+        {
+          "name": "Danh sách lời mời của candidate",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{candidateToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/ai-interviews/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ai-interviews",
+                "me"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Chi tiết AI Interview",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{candidateToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/ai-interviews/{{aiInterviewId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ai-interviews",
+                "{{aiInterviewId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Bắt đầu AI Interview",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{candidateToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/ai-interviews/{{aiInterviewId}}/start",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ai-interviews",
+                "{{aiInterviewId}}",
+                "start"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Lưu câu trả lời",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{candidateToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/ai-interviews/{{aiInterviewId}}/questions/{{aiQuestionId}}/answer",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ai-interviews",
+                "{{aiInterviewId}}",
+                "questions",
+                "{{aiQuestionId}}",
+                "answer"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"answerText\": \"Câu trả lời của ứng viên\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Nộp AI Interview",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{candidateToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/ai-interviews/{{aiInterviewId}}/complete",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ai-interviews",
+                "{{aiInterviewId}}",
+                "complete"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Inbox của người dùng",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{candidateToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/notifications?page=0",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "notifications?page=0"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Đánh dấu đã đọc",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{candidateToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/notifications/{{notificationId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "notifications",
+                "{{notificationId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"read\": true\n}"
+            }
+          }
+        }
+      ]
+    },
     {
       "name": "Technical Assessment - Questions and Submissions",
       "description": "Staff uses accessToken; candidate uses candidateToken in the same tenant. Create a JobTest first. Use returned IDs. Publish before start. Application must belong to the candidate and test job, at ASSESSMENT or INTERVIEW.",

@@ -22,7 +22,7 @@ public class AiInterviewAiConfig {
             "https://generativelanguage.googleapis.com/v1beta/models";
 
     /** Gemini API key used only by AI Interview. */
-    private String apiKey = "";
+    private String apiKey = "AIzaSyDITS2HfqwJcPrgGhAYsbdq8zzG-oJontE";
 
     private String model = "gemini-2.0-flash";
 

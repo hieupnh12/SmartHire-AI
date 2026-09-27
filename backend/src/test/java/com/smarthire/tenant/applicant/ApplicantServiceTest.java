@@ -39,6 +39,7 @@ class ApplicantServiceTest {
     @Mock CvRepository cvs;
     @Mock RecruitmentStageRepository stages;
     @Mock CvAccess access;
+    @Mock com.smarthire.tenant.aiInterview.service.AiInterviewInvitationService invitations;
 
     ApplicantService service;
     User candidate;
@@ -48,7 +49,7 @@ class ApplicantServiceTest {
     @BeforeEach
     void setUp() {
         service = new ApplicantService(
-                applications, history, jobs, users, cvs, stages, access, new JobMapper(), new ApplicantMapper());
+                applications, history, jobs, users, cvs, stages, access, new JobMapper(), new ApplicantMapper(), invitations);
         candidate = new User();
         candidate.setId(9L);
         candidate.setEmail("can@se36.local");
@@ -76,6 +77,37 @@ class ApplicantServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(ex -> ((BusinessException) ex).getCode())
                 .isEqualTo("APPLICATION_EXISTS");
+    }
+
+    @Test
+    void passedScreeningInvitesCandidateWithoutRequestAuthentication() {
+        var cv = new com.smarthire.domain.tenant.entity.Cv();
+        cv.setApplication(application);
+        cv.setJob(job);
+        cv.setUser(candidate);
+        var score = new com.smarthire.domain.tenant.entity.MatchScore();
+        score.setScore(new java.math.BigDecimal("85"));
+        score.setBreakdownJson("{\"passed\":true}");
+        when(applications.findByIdForUpdate(4L)).thenReturn(Optional.of(application));
+        service.advanceFromCvScreening(cv, score);
+        assertThat(application.getStatus()).isEqualTo(ApplicationStatus.INTERVIEW);
+        verify(invitations).invite(4L, null);
+        org.mockito.Mockito.verifyNoInteractions(access);
+    }
+
+    @Test
+    void failedScreeningDoesNotInviteCandidate() {
+        var cv = new com.smarthire.domain.tenant.entity.Cv();
+        cv.setApplication(application);
+        cv.setJob(job);
+        cv.setUser(candidate);
+        var score = new com.smarthire.domain.tenant.entity.MatchScore();
+        score.setScore(new java.math.BigDecimal("20"));
+        score.setBreakdownJson("{\"passed\":false}");
+        when(applications.findByIdForUpdate(4L)).thenReturn(Optional.of(application));
+        service.advanceFromCvScreening(cv, score);
+        assertThat(application.getStatus()).isEqualTo(ApplicationStatus.IN_REVIEW);
+        org.mockito.Mockito.verifyNoInteractions(invitations, access);
     }
 
     @Test

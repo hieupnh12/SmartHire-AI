@@ -8,6 +8,7 @@ export { cvApi } from "./tenant/cvApi";
 export { matchingApi } from "./tenant/matchingApi";
 export { assessmentApi } from "./tenant/assessmentApi";
 export { interviewApi } from "./tenant/interviewApi";
+export { aiInterviewApi } from "./tenant/aiInterviewApi";
 export { practiceApi } from "./tenant/practiceApi";
 export { workflowApi } from "./tenant/workflowApi";
 export { scheduleApi } from "./tenant/scheduleApi";

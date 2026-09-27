@@ -51,6 +51,7 @@ public class AiInterviewService {
     private final RecruitmentStageRepository stages;
     private final AiInterviewMapper mapper;
     private final CvAccess access;
+    private final AiInterviewInvitationService invitations;
 
     public AiInterviewService(
             AiInterviewRepository interviews,
@@ -60,7 +61,7 @@ public class AiInterviewService {
             ApplicationRepository applications,
             RecruitmentStageRepository stages,
             AiInterviewMapper mapper,
-            CvAccess access) {
+            CvAccess access, AiInterviewInvitationService invitations) {
         this.interviews = interviews;
         this.questions = questions;
         this.answers = answers;
@@ -69,6 +70,7 @@ public class AiInterviewService {
         this.stages = stages;
         this.mapper = mapper;
         this.access = access;
+        this.invitations = invitations;
     }
 
     @Transactional
@@ -78,12 +80,63 @@ public class AiInterviewService {
                 .orElseThrow(() -> new BusinessException("Application not found", HttpStatus.NOT_FOUND, "APPLICATION_NOT_FOUND"));
         RecruitmentStage stage = resolveStage(request.workflowStageId(), application);
 
-        AiInterview interview = AiInterview.builder()
-                .application(application)
-                .workflowStage(stage)
-                .status(AiInterviewStatus.CREATED)
-                .build();
-        return mapper.toResponse(interviews.save(interview));
+        return mapper.toResponse(invitations.invite(application.getId(), stage));
+    }
+
+    @Transactional(readOnly = true)
+    public List<AiInterviewResponse> mine() {
+        User actor = access.actor();
+        if (!access.candidate()) {
+            throw new BusinessException("Candidate access required", HttpStatus.FORBIDDEN, "AI_INTERVIEW_FORBIDDEN");
+        }
+        return interviews.findByApplication_Candidate_IdOrderByIdDesc(actor.getId()).stream()
+                .map(mapper::toResponse).toList();
+    }
+
+    @Transactional
+    public AiInterviewResponse start(long id) {
+        AiInterview interview = loadAccessibleForUpdate(id);
+        requireCandidateOwns(interview);
+        requireActiveApplication(interview);
+        if (interview.getStatus() == AiInterviewStatus.IN_PROGRESS) {
+            return mapper.toResponse(interview, loadQuestionResponses(id));
+        }
+        if (interview.getStatus() != AiInterviewStatus.QUESTIONS_READY
+                || questions.findByAiInterview_IdOrderByQuestionOrderAscIdAsc(id).isEmpty()) {
+            throw new BusinessException("Interview questions are not ready", HttpStatus.CONFLICT, "AI_INTERVIEW_NOT_READY");
+        }
+        interview.setStatus(AiInterviewStatus.IN_PROGRESS);
+        interview.setPassingScoreSnapshot(interview.getApplication().getJob().getAiInterviewPassingScore());
+        interview.setStartedAt(Instant.now());
+        return mapper.toResponse(interview, loadQuestionResponses(id));
+    }
+
+    @Transactional
+    public AiInterviewResponse complete(long id) {
+        AiInterview interview = loadAccessibleForUpdate(id);
+        requireCandidateOwns(interview);
+        requireActiveApplication(interview);
+        if (interview.getCompletedAt() != null) return mapper.toResponse(interview, loadQuestionResponses(id));
+        if (interview.getStatus() != AiInterviewStatus.IN_PROGRESS) {
+            throw new BusinessException("Interview is not in progress", HttpStatus.CONFLICT, "AI_INTERVIEW_BAD_STATUS");
+        }
+        var responses = loadQuestionResponses(id);
+        if (responses.isEmpty() || responses.stream().anyMatch(q -> q.answer() == null
+                || q.answer().answerText() == null || q.answer().answerText().isBlank())) {
+            throw new BusinessException("Answer all questions before submitting", HttpStatus.CONFLICT, "AI_INTERVIEW_INCOMPLETE");
+        }
+        interview.setCompletedAt(Instant.now());
+        interview.setStatus(AiInterviewStatus.SCORING);
+        return mapper.toResponse(interview, responses);
+    }
+
+    private void requireActiveApplication(AiInterview interview) {
+        AiInterviewEligibility.require(interview.getApplication());
+        var application = interview.getApplication();
+        if (application.getStatus() != com.smarthire.domain.enums.ApplicationStatus.INTERVIEW
+                || application.getArchivedAt() != null || application.getWithdrawnAt() != null) {
+            throw new BusinessException("Application is no longer in the interview round", HttpStatus.CONFLICT, "AI_INTERVIEW_NOT_ELIGIBLE");
+        }
     }
 
     @Transactional(readOnly = true)
@@ -119,21 +172,21 @@ public class AiInterviewService {
     @Transactional
     public AiInterviewResponse update(long id, UpdateAiInterviewRequest request) {
         requireStaff();
-        AiInterview interview = load(id);
+        AiInterview interview = loadAccessibleForUpdate(id);
+        requireEditable(interview);
+        if (request.overallScore() != null || request.startedAt() != null || request.completedAt() != null
+                || request.status() != null && request.status() != AiInterviewStatus.QUESTIONS_READY) {
+            throw new BusinessException("Interview outcomes are computed by the system", HttpStatus.CONFLICT, "AI_INTERVIEW_SYSTEM_MANAGED");
+        }
+        if (request.status() == AiInterviewStatus.QUESTIONS_READY
+                && questions.findByAiInterview_IdOrderByQuestionOrderAscIdAsc(id).isEmpty()) {
+            throw new BusinessException("Add questions before marking ready", HttpStatus.CONFLICT, "AI_INTERVIEW_NOT_READY");
+        }
         if (request.workflowStageId() != null) {
             interview.setWorkflowStage(resolveStage(request.workflowStageId(), interview.getApplication()));
         }
         if (request.status() != null) {
             interview.setStatus(request.status());
-        }
-        if (request.startedAt() != null) {
-            interview.setStartedAt(request.startedAt());
-        }
-        if (request.completedAt() != null) {
-            interview.setCompletedAt(request.completedAt());
-        }
-        if (request.overallScore() != null) {
-            interview.setOverallScore(request.overallScore());
         }
         return mapper.toResponse(interviews.save(interview), loadQuestionResponses(id));
     }
@@ -141,7 +194,8 @@ public class AiInterviewService {
     @Transactional
     public void delete(long id) {
         requireStaff();
-        AiInterview interview = load(id);
+        AiInterview interview = loadAccessibleForUpdate(id);
+        requireEditable(interview);
         feedbacks.deleteByAiAnswer_AiQuestion_AiInterview_Id(id);
         answers.deleteByAiQuestion_AiInterview_Id(id);
         questions.deleteByAiInterview_Id(id);
@@ -151,7 +205,8 @@ public class AiInterviewService {
     @Transactional
     public AiQuestionResponse addQuestion(long interviewId, AiQuestionRequest request) {
         requireStaff();
-        AiInterview interview = load(interviewId);
+        AiInterview interview = loadAccessibleForUpdate(interviewId);
+        requireEditable(interview);
         AiQuestion question = AiQuestion.builder()
                 .aiInterview(interview)
                 .questionText(request.questionText().trim())
@@ -164,6 +219,7 @@ public class AiInterviewService {
     @Transactional
     public AiQuestionResponse updateQuestion(long interviewId, long questionId, AiQuestionRequest request) {
         requireStaff();
+        requireEditable(loadAccessibleForUpdate(interviewId));
         AiQuestion question = loadQuestion(interviewId, questionId);
         question.setQuestionText(request.questionText().trim());
         question.setQuestionType(request.questionType().trim().toUpperCase());
@@ -176,6 +232,7 @@ public class AiInterviewService {
     @Transactional
     public void deleteQuestion(long interviewId, long questionId) {
         requireStaff();
+        requireEditable(loadAccessibleForUpdate(interviewId));
         AiQuestion question = loadQuestion(interviewId, questionId);
         answers.findByAiQuestion_Id(questionId).ifPresent(answer -> {
             feedbacks.findByAiAnswer_Id(answer.getId()).ifPresent(feedbacks::delete);
@@ -186,17 +243,25 @@ public class AiInterviewService {
 
     @Transactional
     public AiAnswerResponse upsertAnswer(long interviewId, long questionId, UpsertAiAnswerRequest request) {
-        AiInterview interview = loadAccessible(interviewId);
+        AiInterview interview = loadAccessibleForUpdate(interviewId);
+        requireCandidateOwns(interview);
         AiQuestion question = loadQuestion(interviewId, questionId);
         if (!access.staff()) {
             requireCandidateOwns(interview);
+            requireActiveApplication(interview);
+            if (interview.getStatus() != AiInterviewStatus.IN_PROGRESS || interview.getCompletedAt() != null) {
+                throw new BusinessException("Interview is not in progress", HttpStatus.CONFLICT, "AI_INTERVIEW_BAD_STATUS");
+            }
+            if (request.answerText() == null || request.answerText().isBlank()) {
+                throw new BusinessException("Answer is required", HttpStatus.BAD_REQUEST, "AI_ANSWER_REQUIRED");
+            }
         }
 
         AiAnswer answer = answers.findByAiQuestion_Id(questionId).orElseGet(() ->
                 AiAnswer.builder().aiQuestion(question).build());
         answer.setAnswerText(request.answerText());
         answer.setAnswerDuration(request.answerDuration());
-        answer.setAnsweredAt(request.answeredAt() != null ? request.answeredAt() : Instant.now());
+        answer.setAnsweredAt(access.staff() && request.answeredAt() != null ? request.answeredAt() : Instant.now());
         AiAnswer saved = answers.save(answer);
         AiFeedback feedback = feedbacks.findByAiAnswer_Id(saved.getId()).orElse(null);
         return mapper.toAnswer(saved, feedback);
@@ -205,21 +270,7 @@ public class AiInterviewService {
     @Transactional
     public AiFeedbackResponse upsertFeedback(long interviewId, long answerId, UpsertAiFeedbackRequest request) {
         requireStaff();
-        AiAnswer answer = answers.findById(answerId)
-                .orElseThrow(() -> new BusinessException("Answer not found", HttpStatus.NOT_FOUND, "AI_ANSWER_NOT_FOUND"));
-        if (answer.getAiQuestion() == null
-                || answer.getAiQuestion().getAiInterview() == null
-                || !answer.getAiQuestion().getAiInterview().getId().equals(interviewId)) {
-            throw new BusinessException("Answer not found", HttpStatus.NOT_FOUND, "AI_ANSWER_NOT_FOUND");
-        }
-
-        AiFeedback feedback = feedbacks.findByAiAnswer_Id(answerId).orElseGet(() ->
-                AiFeedback.builder().aiAnswer(answer).build());
-        feedback.setScore(request.score());
-        feedback.setFeedbackText(request.feedbackText());
-        feedback.setStrengths(request.strengths());
-        feedback.setWeaknesses(request.weaknesses());
-        return mapper.toFeedback(feedbacks.save(feedback));
+        throw new BusinessException("Feedback is generated by AI evaluation", HttpStatus.CONFLICT, "AI_FEEDBACK_SYSTEM_MANAGED");
     }
 
     private List<AiQuestionResponse> loadQuestionResponses(long interviewId) {
@@ -266,6 +317,50 @@ public class AiInterviewService {
         }
         requireCandidateOwns(interview);
         return interview;
+    }
+
+    private AiInterview loadAccessibleForUpdate(long id) {
+        access.actor();
+        AiInterview interview = interviews.findByIdForUpdate(id)
+                .orElseThrow(() -> new BusinessException("AI interview not found", HttpStatus.NOT_FOUND, "AI_INTERVIEW_NOT_FOUND"));
+        if (!access.staff()) requireCandidateOwns(interview);
+        return interview;
+    }
+
+    private void requireEditable(AiInterview interview) {
+        if (interview.getStartedAt() != null || interview.getStatus() != AiInterviewStatus.CREATED
+                && interview.getStatus() != AiInterviewStatus.QUESTIONS_READY && interview.getStatus() != AiInterviewStatus.ERROR) {
+            throw new BusinessException("Interview content is locked", HttpStatus.CONFLICT, "AI_INTERVIEW_LOCKED");
+        }
+    }
+
+    @Transactional
+    public AiInterviewResponse generate(long id) {
+        requireStaff();
+        var interview = loadAccessibleForUpdate(id);
+        requireActiveApplication(interview);
+        if (interview.getStatus() == AiInterviewStatus.GENERATING) return mapper.toResponse(interview);
+        requireEditable(interview);
+        if (!questions.findByAiInterview_IdOrderByQuestionOrderAscIdAsc(id).isEmpty()) {
+            throw new BusinessException("Remove draft questions before generating", HttpStatus.CONFLICT, "AI_QUESTIONS_EXIST");
+        }
+        interview.setErrorMessage(null);
+        interview.setStatus(AiInterviewStatus.GENERATING);
+        return mapper.toResponse(interview);
+    }
+
+    @Transactional
+    public AiInterviewResponse retryScore(long id) {
+        requireStaff();
+        var interview = loadAccessibleForUpdate(id);
+        requireActiveApplication(interview);
+        if (interview.getStatus() == AiInterviewStatus.SCORING) return mapper.toResponse(interview);
+        if (interview.getStatus() != AiInterviewStatus.ERROR || interview.getCompletedAt() == null) {
+            throw new BusinessException("Only failed evaluations can be retried", HttpStatus.CONFLICT, "AI_INTERVIEW_BAD_STATUS");
+        }
+        interview.setStatus(AiInterviewStatus.SCORING);
+        interview.setErrorMessage(null);
+        return mapper.toResponse(interview);
     }
 
     private AiQuestion loadQuestion(long interviewId, long questionId) {

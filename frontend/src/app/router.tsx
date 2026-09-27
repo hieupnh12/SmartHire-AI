@@ -147,7 +147,7 @@ export function AppRouter() {
           <Route path="assessments" element={<CandidateAssessmentsPage />} />
           <Route path="assessments/:submissionId/take" element={<TakeAssessmentPage />} />
           <Route path="interviews" element={<CandidateInterviewsPage />} />
-          <Route path="interviews/demo" element={<AiInterviewRoomPage />} />
+          <Route path="interviews/:id" element={<AiInterviewRoomPage />} />
           <Route path="practice" element={<PracticePage />} />
           <Route path="schedules" element={<CandidateSchedulesPage />} />
           <Route path="notifications" element={<CandidateNotificationsPage />} />

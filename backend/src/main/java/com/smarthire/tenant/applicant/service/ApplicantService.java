@@ -48,6 +48,7 @@ public class ApplicantService {
     private final CvAccess access;
     private final JobMapper jobsMapper;
     private final ApplicantMapper mapper;
+    private final com.smarthire.tenant.aiInterview.service.AiInterviewInvitationService invitations;
 
     public ApplicantService(
             ApplicationRepository applications,
@@ -58,7 +59,8 @@ public class ApplicantService {
             RecruitmentStageRepository stages,
             CvAccess access,
             JobMapper jobsMapper,
-            ApplicantMapper mapper) {
+            ApplicantMapper mapper,
+            com.smarthire.tenant.aiInterview.service.AiInterviewInvitationService invitations) {
         this.applications = applications;
         this.history = history;
         this.jobs = jobs;
@@ -68,6 +70,7 @@ public class ApplicantService {
         this.access = access;
         this.jobsMapper = jobsMapper;
         this.mapper = mapper;
+        this.invitations = invitations;
     }
 
     public Map<String, String> health() {
@@ -269,15 +272,19 @@ public class ApplicantService {
             application = applications.findByJob_IdAndCandidate_Id(cv.getJob().getId(), cv.getUser().getId()).orElse(null);
         }
         if (application == null) return;
+        application = applications.findByIdForUpdate(application.getId()).orElse(null);
+        if (application == null || application.getArchivedAt() != null || application.getWithdrawnAt() != null) return;
         ApplicationStatus current = application.getStatus();
         if (current != ApplicationStatus.NEW && current != ApplicationStatus.IN_REVIEW) return;
         boolean passed = com.smarthire.tenant.cv.service.CvMatchingService.passed(score);
+        application.setCvScreeningStatus(passed ? com.smarthire.domain.enums.CvScreeningStatus.PASSED
+                : com.smarthire.domain.enums.CvScreeningStatus.FAILED);
         if (passed) {
-            record(application, ApplicationStatus.INTERVIEW, "CV passed screening; moved to AI interview");
+            record(application, ApplicationStatus.INTERVIEW, "CV passed screening; moved to AI interview", null);
             return;
         }
         if (current == ApplicationStatus.NEW) {
-            record(application, ApplicationStatus.IN_REVIEW, "CV screening completed; not passed yet");
+            record(application, ApplicationStatus.IN_REVIEW, "CV screening completed; not passed yet", null);
         }
     }
 
@@ -296,14 +303,24 @@ public class ApplicantService {
     }
 
     private void record(Application application, ApplicationStatus next, String note) {
+        record(application, next, note, access.actor().getId());
+    }
+
+    private void record(Application application, ApplicationStatus next, String note, Long actorId) {
         ApplicationStatusHistory row = new ApplicationStatusHistory();
         row.setApplication(application);
         row.setFromStatus(application.getStatus() == null ? null : application.getStatus().name());
         row.setToStatus(next.name());
-        row.setChangedBy(access.actor().getId());
+        row.setChangedBy(actorId);
         row.setNote(blankToNull(note));
         application.setStatus(next);
         history.save(row);
+        if (next == ApplicationStatus.INTERVIEW && application.getArchivedAt() == null
+                && application.getWithdrawnAt() == null
+                && application.getCvScreeningStatus() == com.smarthire.domain.enums.CvScreeningStatus.PASSED
+                && application.getJob().isAiInterviewEnabled()) {
+            invitations.invite(application.getId(), null);
+        }
     }
 
     private Application load(long id) {

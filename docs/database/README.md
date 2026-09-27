@@ -10,6 +10,7 @@
 
 | Thông tin | Giá trị |
 |---|---|
+| Tích hợp AI Interview 2026-09-27 | Không đổi schema, entity, FK, UNIQUE hay migration; thêm khóa hàng application/session và notification lời mời |
 | Kiến trúc | Separate Database per Tenant |
 | Số database logic | 2 loại (1 Master + N Tenant) |
 | Bảng tenant sau V24 | 55 bảng từ pipeline trong repo (gồm 5 bảng analytics V9), không tính Flyway history; không còn bảng `legacy_v12_*` |
@@ -917,6 +918,12 @@ Những quy tắc sau bắt buộc phải kiểm tra ở tầng service, vì kh�
   và `applications` dùng `archived_at` để xoá mềm.
 
 ---
+
+### Lời mời AI Interview (2026-09-27)
+
+- Service khóa application trước khi tạo phiên và notification trong cùng transaction tenant, tránh lặp do screening retry. Đây là quy tắc service, không phải UNIQUE trong database.
+- Candidate chỉ đọc phiên/notification của mình. Start/answer/complete khóa phiên; chỉ trả lời khi IN_PROGRESS và không được sửa sau khi nộp.
+- Không có thay đổi schema; dùng ai_interviews, ai_questions, ai_answers, notifications và application_status_history hiện hữu.
 
 ## 9. Index & Security
 

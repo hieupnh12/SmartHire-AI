@@ -16,5 +16,8 @@ public record AiInterviewResponse(
         BigDecimal overallScore,
         AiInterviewStatus status,
         Instant createdAt,
-        List<AiQuestionResponse> questions) {
+        List<AiQuestionResponse> questions,
+        String jobTitle,
+        BigDecimal passingScore,
+        String errorMessage) {
 }

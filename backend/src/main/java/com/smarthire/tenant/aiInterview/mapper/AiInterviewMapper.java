@@ -33,7 +33,11 @@ public class AiInterviewMapper {
                 interview.getOverallScore(),
                 interview.getStatus(),
                 interview.getCreatedAt(),
-                questions);
+                questions,
+                app != null && app.getJob() != null ? app.getJob().getTitle() : null,
+                interview.getPassingScoreSnapshot() != null ? interview.getPassingScoreSnapshot()
+                        : app != null && app.getJob() != null ? app.getJob().getAiInterviewPassingScore() : null,
+                interview.getErrorMessage());
     }
 
     public AiQuestionResponse toQuestion(

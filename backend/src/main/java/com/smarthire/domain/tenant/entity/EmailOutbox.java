@@ -20,6 +20,7 @@ public class EmailOutbox {
 
     @Column(name = "to_email", nullable = false) String toEmail;
     @Column(nullable = false) String subject;
+    @Column(length = 64) String purpose;
     @Column(nullable = false, columnDefinition = "TEXT") String body;
 
     @Builder.Default
