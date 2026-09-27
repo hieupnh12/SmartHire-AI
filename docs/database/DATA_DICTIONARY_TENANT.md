@@ -1,5 +1,22 @@
 # Data Dictionary - Tenant DB (MySQL)
 
+## AI Interview workflow V25–V26 (2026-09-27)
+
+V25 thêm cấu hình AI Interview theo job, trạng thái CV screening của đơn và cột phục vụ worker.
+V26 đặt số câu hỏi 30–40 (mặc định 30; dữ liệu cũ < 30 nâng lên 30, > 40 hạ xuống 40) và thêm
+bảng nhật ký `ai_interview_logs` (chi tiết ở [H.5](#h5-ai_interview_logs--nhật-ký-hoạt-động-ai-interview)).
+
+| Bảng · cột | Kiểu | Null | Default | Khóa | Ý nghĩa |
+|---|---|---|---|---|---|
+| `jobs.ai_interview_enabled` | BOOLEAN | Không | FALSE | — | Job có bật vòng AI Interview |
+| `jobs.ai_interview_passing_score` | DECIMAL(5,2) | Không | 70.00 | — | Ngưỡng đạt `aiInterviewPassingScore` (0–100) |
+| `jobs.ai_interview_question_count` | INT | Không | 30 (V26; V25 là 5) | — | Số câu AI tự sinh, service giới hạn 30–40 |
+| `jobs.ai_interview_available_until` | TIMESTAMP | Có | NULL | — | Hạn cuối được bắt đầu AI Interview; NULL = không giới hạn |
+| `applications.cv_screening_status` | VARCHAR(16) | Không | `'PENDING'` | — | `CvScreeningStatus`: `PENDING`, `PASSED`, `FAILED` |
+| `ai_interviews.passing_score_snapshot` | DECIMAL(5,2) | Có | NULL | — | Ngưỡng đạt chốt lúc candidate bắt đầu |
+| `ai_interviews.error_message` | VARCHAR(255) | Có | NULL | — | Thông báo lỗi đã làm sạch khi sinh câu/chấm lỗi |
+| `email_outbox.purpose` | VARCHAR(64) | Có | NULL | IDX | Mục đích email, ví dụ `AI_INTERVIEW_RESULT` |
+
 ## Dọn legacy V21 (2026-09-26)
 
 V12 tạo model Test/Interview/AI/Practice hiện hành, không dùng lại V9 đã thuộc analytics.
@@ -759,6 +776,8 @@ Entity `AiInterview`.
 | `started_at` | TIMESTAMP | | Có | NULL | |
 | `completed_at` | TIMESTAMP | | Có | NULL | |
 | `overall_score` | DECIMAL(10,2) | | Có | NULL | Điểm tổng phiên |
+| `passing_score_snapshot` | DECIMAL(5,2) | | Có | NULL | Ngưỡng đạt chốt khi bắt đầu (V25) |
+| `error_message` | VARCHAR(255) | | Có | NULL | Lỗi đã làm sạch (V25) |
 | `status` | VARCHAR(32) | | Không | `'CREATED'` | `AiInterviewStatus` |
 | `created_at` | TIMESTAMP | | Không | now | |
 
@@ -808,6 +827,23 @@ Entity `AiFeedback`.
 | `created_at` | TIMESTAMP | | Không | now | |
 
 **Ràng buộc:** `fk_ai_f_answer`, `uk_ai_f_answer (ai_answer_id)`
+
+### H.5 `ai_interview_logs` — Nhật ký hoạt động AI Interview
+
+Entity `AiInterviewLog`. Bảng chỉ ghi thêm (V26): mỗi bước hệ thống/candidate/recruiter thực hiện trên
+một phiên (mời, sinh câu theo lô, bắt đầu, lưu câu trả lời, nộp, chấm theo lô, PASSED/FAILED, đổi trạng thái
+đơn, mở Assessment, notification, email, lỗi). `detail` không chứa nội dung câu trả lời hay dữ liệu cá nhân.
+
+| Cột | Kiểu | Khoá | Null | Default | Mô tả |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | Không | auto | |
+| `ai_interview_id` | BIGINT | FK → `ai_interviews.id`, IDX | Không | — | Phiên; xoá phiên xoá log (ON DELETE CASCADE) |
+| `event` | VARCHAR(64) | | Không | — | Mã sự kiện, ví dụ `INVITED`, `QUESTIONS_BATCH_GENERATED`, `PASSED` |
+| `status` | VARCHAR(32) | | Có | NULL | `AiInterviewStatus` của phiên tại thời điểm ghi |
+| `detail` | VARCHAR(1000) | | Có | NULL | Mô tả ngắn (số câu, điểm, trạng thái đơn) |
+| `created_at` | TIMESTAMP | | Không | now | |
+
+**Ràng buộc:** `fk_ai_log_interview` (ON DELETE CASCADE), index `idx_ai_interview_logs_interview (ai_interview_id, id)`
 
 ---
 

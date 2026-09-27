@@ -1,10 +1,13 @@
 package com.smarthire.tenant.aiInterview;
 
 import com.smarthire.common.exception.BusinessException;
+import com.smarthire.domain.enums.AiInterviewStatus;
 import com.smarthire.domain.enums.ApplicationStatus;
+import com.smarthire.domain.enums.CvScreeningStatus;
 import com.smarthire.domain.tenant.entity.*;
 import com.smarthire.domain.tenant.repository.*;
 import com.smarthire.multitenancy.context.TenantContext;
+import com.smarthire.tenant.aiInterview.service.AiInterviewActivityLog;
 import com.smarthire.tenant.aiInterview.service.AiInterviewInvitationService;
 import java.util.List;
 import java.util.Optional;
@@ -17,6 +20,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import static org.assertj.core.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -24,6 +28,7 @@ class AiInterviewInvitationServiceTest {
     @Mock ApplicationRepository applications;
     @Mock AiInterviewRepository interviews;
     @Mock NotificationRepository notifications;
+    @Mock AiInterviewActivityLog activity;
     @InjectMocks AiInterviewInvitationService service;
     Application application;
 
@@ -35,13 +40,15 @@ class AiInterviewInvitationServiceTest {
         var job = new Job();
         job.setId(13L);
         job.setTitle("Java Backend Developer");
+        job.setAiInterviewEnabled(true);
         application.setJob(job);
         application.setStatus(ApplicationStatus.INTERVIEW);
+        application.setCvScreeningStatus(CvScreeningStatus.PASSED);
     }
 
     @AfterEach void cleanup() { TenantContext.clear(); }
 
-    @Test void createsInvitationAndInboxForCandidate() {
+    @Test void createsGeneratingAttemptInboxAndActivityLog() {
         when(applications.findByIdForUpdate(7L)).thenReturn(Optional.of(application));
         when(interviews.save(any())).thenAnswer(call -> {
             AiInterview interview = call.getArgument(0);
@@ -50,11 +57,13 @@ class AiInterviewInvitationServiceTest {
         });
         var result = service.invite(7L, null);
         assertThat(result.getApplication()).isSameAs(application);
+        assertThat(result.getStatus()).isEqualTo(AiInterviewStatus.GENERATING);
         var notification = ArgumentCaptor.forClass(Notification.class);
         verify(notifications).save(notification.capture());
         assertThat(notification.getValue().getUser().getId()).isEqualTo(9L);
         assertThat(notification.getValue().getPayloadJson()).contains("/candidate/interviews/11");
         assertThat(notification.getValue().getBody()).contains("Java Backend Developer");
+        verify(activity).record(eq(result), eq("INVITED"), contains("30 questions"));
     }
 
     @Test void retryDoesNotDuplicateSessionOrNotification() {
@@ -63,7 +72,7 @@ class AiInterviewInvitationServiceTest {
         when(interviews.findByApplication_IdOrderByIdDesc(7L)).thenReturn(List.of(existing));
         assertThat(service.invite(7L, null)).isSameAs(existing);
         verify(interviews, never()).save(any());
-        verifyNoInteractions(notifications);
+        verifyNoInteractions(notifications, activity);
     }
 
     @Test void rejectsUnscreenedApplication() {

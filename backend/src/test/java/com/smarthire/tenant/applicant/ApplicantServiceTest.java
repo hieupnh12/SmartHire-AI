@@ -88,6 +88,7 @@ class ApplicantServiceTest {
         var score = new com.smarthire.domain.tenant.entity.MatchScore();
         score.setScore(new java.math.BigDecimal("85"));
         score.setBreakdownJson("{\"passed\":true}");
+        job.setAiInterviewEnabled(true);
         when(applications.findByIdForUpdate(4L)).thenReturn(Optional.of(application));
         service.advanceFromCvScreening(cv, score);
         assertThat(application.getStatus()).isEqualTo(ApplicationStatus.INTERVIEW);

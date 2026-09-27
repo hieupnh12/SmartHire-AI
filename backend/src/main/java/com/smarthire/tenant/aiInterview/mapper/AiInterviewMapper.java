@@ -3,10 +3,12 @@ package com.smarthire.tenant.aiInterview.mapper;
 import com.smarthire.domain.tenant.entity.AiAnswer;
 import com.smarthire.domain.tenant.entity.AiFeedback;
 import com.smarthire.domain.tenant.entity.AiInterview;
+import com.smarthire.domain.tenant.entity.AiInterviewLog;
 import com.smarthire.domain.tenant.entity.AiQuestion;
 import com.smarthire.domain.tenant.entity.Application;
 import com.smarthire.tenant.aiInterview.dto.response.AiAnswerResponse;
 import com.smarthire.tenant.aiInterview.dto.response.AiFeedbackResponse;
+import com.smarthire.tenant.aiInterview.dto.response.AiInterviewLogResponse;
 import com.smarthire.tenant.aiInterview.dto.response.AiInterviewResponse;
 import com.smarthire.tenant.aiInterview.dto.response.AiQuestionResponse;
 import java.util.List;
@@ -73,6 +75,16 @@ public class AiInterviewMapper {
                 feedback.getStrengths(),
                 feedback.getWeaknesses(),
                 feedback.getCreatedAt());
+    }
+
+    public AiInterviewLogResponse toLog(AiInterviewLog log) {
+        return new AiInterviewLogResponse(
+                log.getId(),
+                log.getAiInterview() != null ? log.getAiInterview().getId() : null,
+                log.getEvent(),
+                log.getStatus(),
+                log.getDetail(),
+                log.getCreatedAt());
     }
 
     public List<AiQuestionResponse> toQuestions(

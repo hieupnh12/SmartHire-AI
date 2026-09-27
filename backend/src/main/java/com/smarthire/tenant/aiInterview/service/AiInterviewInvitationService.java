@@ -19,12 +19,14 @@ public class AiInterviewInvitationService {
     private final ApplicationRepository applications;
     private final AiInterviewRepository interviews;
     private final NotificationRepository notifications;
+    private final AiInterviewActivityLog activity;
 
     public AiInterviewInvitationService(ApplicationRepository applications, AiInterviewRepository interviews,
-                                        NotificationRepository notifications) {
+                                        NotificationRepository notifications, AiInterviewActivityLog activity) {
         this.applications = applications;
         this.interviews = interviews;
         this.notifications = notifications;
+        this.activity = activity;
     }
 
     @Transactional
@@ -45,16 +47,19 @@ public class AiInterviewInvitationService {
         if (!existing.isEmpty()) return existing.get(0);
         AiInterview interview = interviews.save(AiInterview.builder()
                 .application(application).workflowStage(stage).status(AiInterviewStatus.GENERATING).build());
+        activity.record(interview, "INVITED", "Attempt created for application " + applicationId
+                + "; generation of " + application.getJob().getAiInterviewQuestionCount() + " questions queued");
         notifications.save(Notification.builder()
                 .user(application.getCandidate())
                 .type("AI_INTERVIEW_INVITATION")
                 .title("Lời mời phỏng vấn AI")
                 .body("Bộ phận tuyển dụng mời bạn tham gia vòng AI Interview cho vị trí "
                         + application.getJob().getTitle() + ". CV của bạn đã qua vòng sàng lọc."
-                        + " Bạn sẽ có thể bắt đầu khi nhà tuyển dụng chuẩn bị xong câu hỏi.")
+                        + " Hệ thống đang tự động tạo bộ câu hỏi; bạn có thể bắt đầu khi câu hỏi sẵn sàng.")
                 .payloadJson("{\"aiInterviewId\":" + interview.getId() + ",\"applicationId\":" + applicationId
                         + ",\"path\":\"/candidate/interviews/" + interview.getId() + "\"}")
                 .build());
+        activity.record(interview, "NOTIFICATION_SENT", "AI_INTERVIEW_INVITATION");
         return interview;
     }
 }

@@ -10,15 +10,15 @@
 
 | Thông tin | Giá trị |
 |---|---|
-| Tích hợp AI Interview 2026-09-27 | Không đổi schema, entity, FK, UNIQUE hay migration; thêm khóa hàng application/session và notification lời mời |
+| AI Interview workflow 2026-09-27 | V25: cấu hình AI Interview theo job, `applications.cv_screening_status`, cột worker; V26: 30–40 câu hỏi, bảng `ai_interview_logs` + entity `AiInterviewLog` |
 | Kiến trúc | Separate Database per Tenant |
 | Số database logic | 2 loại (1 Master + N Tenant) |
-| Bảng tenant sau V24 | 55 bảng từ pipeline trong repo (gồm 5 bảng analytics V9), không tính Flyway history; không còn bảng `legacy_v12_*` |
-| Entity JPA | 50 tenant; thêm `QuestionSkill`, `AnswerSelectedOption`. Thống kê master ở các phần dưới chưa được rà soát trong đợt này |
-| Khoá ngoại tenant | 71 theo pipeline repo; V23 thêm 2 FK cho `answer_selected_options` |
-| Ràng buộc UNIQUE tenant | Không thêm UNIQUE riêng ở V22; PK kép `questionskills(question_id, skill_id)` ngăn liên kết trùng |
-| Số file migration trong repo | 36 (20 master + 16 tenant); V9 redesign nằm ngoài pipeline |
-| Cập nhật lần cuối | Tenant `V24`, ngày 2026-09-26; master không thuộc phạm vi rà soát |
+| Bảng tenant sau V26 | 56 bảng từ pipeline trong repo (gồm 5 bảng analytics V9), không tính Flyway history; không còn bảng `legacy_v12_*` |
+| Entity JPA | 51 tenant; V26 thêm `AiInterviewLog`. Thống kê master ở các phần dưới chưa được rà soát trong đợt này |
+| Khoá ngoại tenant | 72 theo pipeline repo; V26 thêm `fk_ai_log_interview` (ON DELETE CASCADE) |
+| Ràng buộc UNIQUE tenant | Không thêm UNIQUE ở V25/V26; một phiên AI Interview mỗi đơn do service khóa hàng application bảo đảm |
+| Số file migration trong repo | 38 (20 master + 18 tenant); V9 redesign nằm ngoài pipeline |
+| Cập nhật lần cuối | Tenant `V26`, ngày 2026-09-27; master không thuộc phạm vi rà soát |
 | Dọn legacy V21 | Xóa 19 bảng và dữ liệu legacy, xóa 2 cột ID legacy trong ranking; không chuyển ID cũ sang bản ghi mới |
 | Metadata assessment 2026-09-25 | V13: `tests.created_by/updated_at`, `questions.difficulty/skill/explanation` cho Excel/UI authoring |
 | Sửa lỗi assessment 2026-09-24 | V10/V11 khớp checksum lịch sử; V12 tạo schema mới và giữ bảng cũ; migration lỗi phải chặn mở tenant pool |
@@ -154,7 +154,7 @@ thay vì âm thầm đọc nhầm database của doanh nghiệp khác.
 | 07 | `PlatformAuditLog` | `platform_audit_logs` | Audit | Nhật ký cấp nền tảng |
 | 08 | `ConsultationRequest` | `consultation_requests` | Sales | Yêu cầu demo/tư vấn từ landing |
 
-### 3.2 Tenant — 48 entity (`com.smarthire.domain.tenant.entity`)
+### 3.2 Tenant — 51 entity (`com.smarthire.domain.tenant.entity`)
 
 | No | Entity | Bảng | Nhóm nghiệp vụ | Kế thừa `BaseEntity` |
 |---|---|---|---|---|
@@ -208,6 +208,7 @@ thay vì âm thầm đọc nhầm database của doanh nghiệp khác.
 | 48 | `TenantRole` | `roles` | Identity | Có |
 | 49 | `QuestionSkill` | `questionskills` | Test & Skill | Không |
 | 50 | `AnswerSelectedOption` | `answer_selected_options` | Test & Skill | Không |
+| 51 | `AiInterviewLog` | `ai_interview_logs` | AI Interview | Không |
 
 V23 thêm bảng nối `answer_selected_options`, entity `AnswerSelectedOption` (`@EmbeddedId` + `@MapsId`);
 `Answer.selectedOptions` là `@OneToMany(mappedBy = "answer", cascade = ALL, orphanRemoval)`.
@@ -234,14 +235,15 @@ sang model hiện hành. Các bảng hiện hành và entity không thay đổi.
 | `OAuthProvider` | `oauth_accounts.provider` | `GOOGLE` |
 | `InvitationStatus` | `member_invitations.status` | `PENDING`, `ACCEPTED` |
 | `JobStatus` | `jobs.status` | `DRAFT`, `PUBLISHED`, `PAUSED`, `CLOSED`, `ARCHIVED` |
-| `ApplicationStatus` | `applications.status` | `NEW`, `IN_REVIEW`, `ASSESSMENT`, `INTERVIEW`, `OFFER`, `HIRED`, `REJECTED`, `WITHDRAWN` |
+| `ApplicationStatus` | `applications.status` | `NEW`, `IN_REVIEW`, `ASSESSMENT`, `INTERVIEW`, `OFFER`, `HIRED`, `REJECTED`, `FAILED`, `WITHDRAWN` |
+| `CvScreeningStatus` | `applications.cv_screening_status` | `PENDING`, `PASSED`, `FAILED` |
 | `HiringDecisionType` | `hiring_decisions.decision` | `HIRE`, `REJECT`, `HOLD` |
 | `CvStatus` | `cvs.status` | `UPLOADED`, `PARSING`, `PARSED`, `EXTRACTING`, `ANALYZING`, `ANALYZED`, `FAILED` |
 | `TestStatus` | `tests.status` | `DRAFT`, `PUBLISHED`, `ARCHIVED` |
 | `TestSubmissionStatus` | `submissions.status` | `NOT_STARTED`, `IN_PROGRESS`, `SUBMITTED`, `GRADED`, `EXPIRED` |
 | `SubmissionStatus` | `coding_submissions.status` | `QUEUED`, `RUNNING`, `PASSED`, … |
 | `InterviewStatus` | `interviews.status` | `CREATED`, `SCHEDULED`, `IN_PROGRESS`, `EVALUATED`, `CANCELLED` |
-| `AiInterviewStatus` | `ai_interviews.status` | `CREATED`, `QUESTIONS_READY`, `IN_PROGRESS`, `SCORING`, `SCORED`, `FAILED` |
+| `AiInterviewStatus` | `ai_interviews.status`, `ai_interview_logs.status` | `CREATED`, `GENERATING`, `QUESTIONS_READY`, `IN_PROGRESS`, `SCORING`, `SCORED`, `PASSED`, `ERROR`, `FAILED` |
 | `ScheduleStatus` | `interview_schedules.status` | `PROPOSED`, `CONFIRMED`, `CANCELLED`, `DONE` |
 | `PracticeStatus` | `practice_sessions.status` | `CREATED`, `IN_PROGRESS`, `COMPLETED`, `FAILED` |
 | `NotificationStatus` | **chưa dùng** | `PENDING`, `SENT`, `FAILED` |
@@ -370,6 +372,7 @@ flowchart LR
         ai_questions
         ai_answers
         ai_feedbacks
+        ai_interview_logs
     end
     subgraph OTHER["Notification & Practice"]
         notifications
@@ -497,6 +500,7 @@ erDiagram
     ai_interviews ||--o{ ai_questions : "câu hỏi AI"
     ai_questions ||--o| ai_answers : "câu trả lời 1:1"
     ai_answers ||--o| ai_feedbacks : "feedback 1:1"
+    ai_interviews ||--o{ ai_interview_logs : "nhật ký hoạt động"
     ai_interviews |o--o| ranking_sources : "ai_interview_id"
     submissions |o--o| ranking_sources : "submission_id"
 ```
@@ -693,7 +697,7 @@ của màn assessment hiện tại.
 | `invoices` | `tenant_id` | `tenants` | Không | N:1 | `fk_inv_tenant` |
 | `tenant_usage_daily` | `tenant_id` | `tenants` | Không | N:1 (1:1 theo ngày) | `fk_tud_tenant` |
 
-### 7.2 Tenant — 59 khoá ngoại hiện hành
+### 7.2 Tenant — 60 khoá ngoại hiện hành
 
 | Bảng con | Cột | Bảng cha | Nullable | Lực lượng | Tên ràng buộc |
 |---|---|---|---|---|---|
@@ -757,6 +761,7 @@ của màn assessment hiện tại.
 | `ai_questions` | `ai_interview_id` | `ai_interviews` | Không | N:1 | `fk_ai_q_interview` |
 | `ai_answers` | `ai_question_id` | `ai_questions` | Không | 1:1 (UQ) | `fk_ai_a_question` |
 | `ai_feedbacks` | `ai_answer_id` | `ai_answers` | Không | 1:1 (UQ) | `fk_ai_f_answer` |
+| `ai_interview_logs` | `ai_interview_id` | `ai_interviews` | Không | N:1 | `fk_ai_log_interview`, DELETE CASCADE |
 | `notifications` | `user_id` | `users` | Không | N:1 | `fk_notif_user` |
 | `practice_sessions` | `candidate_id` | `users` | Không | N:1 | `fk_ps_user` |
 | `practice_answers` | `session_id` | `practice_sessions` | Không | N:1 | `fk_pa_ps` |
@@ -882,9 +887,11 @@ CREATED ──▶ SCHEDULED ──▶ IN_PROGRESS ──▶ EVALUATED
 
 **AI Interview** — `ai_interviews.status`
 ```
-CREATED ──▶ QUESTIONS_READY ──▶ IN_PROGRESS ──▶ SCORING ──▶ SCORED
-    └───────────┴──────────────────┴─────────────┴──▶ FAILED
+GENERATING ──▶ QUESTIONS_READY ──▶ IN_PROGRESS ──▶ SCORING ──▶ PASSED (application → ASSESSMENT)
+    │                                                 └──────▶ FAILED (application → FAILED)
+    └──▶ ERROR ──▶ GENERATING (retry, không tạo phiên mới)      SCORING ──▶ ERROR ──▶ SCORING (retry)
 ```
+`CREATED`/`SCORED` chỉ còn cho dữ liệu cũ; phiên mới bắt đầu ở `GENERATING`.
 
 ### 8.4 Quy tắc nghiệp vụ mà database **không** bảo vệ được
 
@@ -923,7 +930,8 @@ Những quy tắc sau bắt buộc phải kiểm tra ở tầng service, vì kh�
 
 - Service khóa application trước khi tạo phiên và notification trong cùng transaction tenant, tránh lặp do screening retry. Đây là quy tắc service, không phải UNIQUE trong database.
 - Candidate chỉ đọc phiên/notification của mình. Start/answer/complete khóa phiên; chỉ trả lời khi IN_PROGRESS và không được sửa sau khi nộp.
-- Không có thay đổi schema; dùng ai_interviews, ai_questions, ai_answers, notifications và application_status_history hiện hữu.
+- V25/V26 bổ sung schema (xem §10.3). Mỗi bước pipeline ghi một dòng vào `ai_interview_logs` trong cùng transaction với thay đổi trạng thái; không ghi nội dung câu trả lời.
+- Mỗi application chỉ có một phiên AI Interview: service khóa hàng application trước khi tạo; phiên đã `PASSED`/`FAILED` trả 409 `AI_INTERVIEW_ALREADY_COMPLETED` khi candidate yêu cầu bắt đầu lại.
 
 ## 9. Index & Security
 
@@ -938,6 +946,9 @@ V22 thêm `idx_questionskills_skill(skill_id)` trên `questionskills`. PK kép h
 |---|---|---|---|---|
 | Tenant | `applications` | `idx_app_job_status` | `(job_id, status)` | Lọc danh sách ứng viên theo job và trạng thái |
 | Tenant | `applications` | `idx_app_archived` | `(job_id, archived_at)` | Tách đơn đang hoạt động khỏi đơn đã lưu trữ |
+| Tenant | `ai_interviews` | `idx_ai_interview_work_status` | `(status, id)` | Worker quét phiên `GENERATING`/`SCORING` (V25) |
+| Tenant | `email_outbox` | `idx_email_outbox_delivery` | `(purpose, status, attempts, id)` | Worker gửi email kết quả (V25) |
+| Tenant | `ai_interview_logs` | `idx_ai_interview_logs_interview` | `(ai_interview_id, id)` | Đọc nhật ký theo phiên đúng thứ tự (V26) |
 | Master | `consultation_requests` | `idx_consultation_requests_status` | `status` | Lọc lead theo trạng thái xử lý |
 | Master | `consultation_requests` | `idx_consultation_requests_email` | `work_email` | Tra cứu lead trùng |
 | Master | `consultation_requests` | `idx_consultation_requests_created_at` | `created_at DESC` | Danh sách lead mới nhất |
@@ -1030,9 +1041,11 @@ Hai pipeline dùng **hai phương ngữ SQL khác nhau** và không thể dùng 
 | V22 | `V22__question_skills.sql` | Thêm `questionskills`, PK kép và 2 FK DELETE CASCADE tới questions/skills; index `idx_questionskills_skill` |
 | V23 | `V23__assessment_multiple_answer_types.sql` | Thêm bảng nối lựa chọn nhiều đáp án; giữ selected_option_id và answer_text, không backfill MCQ cũ |
 | V24 | `V24__assessment_authoring_metadata_compat.sql` | Idempotent: bổ sung `tests.created_by/updated_at` + `questions.difficulty/skill/explanation` + FK cho tenant có V13 lịch sử khác checkout (ttqt) |
+| V25 | `V25__ai_interview_workflow.sql` | Cấu hình AI Interview trên `jobs`, `applications.cv_screening_status` (backfill từ `match_scores`), `ai_interviews.passing_score_snapshot/error_message`, `email_outbox.purpose`, 2 index worker |
+| V26 | `V26__ai_interview_activity_logs.sql` | `jobs.ai_interview_question_count` mặc định 30, dữ liệu cũ kẹp về 30–40; bảng `ai_interview_logs` + FK DELETE CASCADE + index |
 
 V9 redesign cũ được giữ nguyên tại `db/migration-archive/`, **ngoài** location Flyway.
-Tenant tạo mới chạy V1–V13 rồi V21–V24: 55 bảng hiện hành (gồm 5 bảng analytics V9), chưa tính history.
+Tenant tạo mới chạy V1–V13 rồi V21–V26: 56 bảng hiện hành (gồm 5 bảng analytics V9), chưa tính history.
 V9 analytics đã có source trong checkout hiện tại. Tuy nhiên DB ttqt có V13–V20 khác checkout;
 không dùng `repair` để đổi checksum hoặc giả mạo lịch sử. Việc đồng bộ lịch sử này là task riêng.
 

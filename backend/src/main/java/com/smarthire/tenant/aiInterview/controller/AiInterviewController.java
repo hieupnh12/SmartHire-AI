@@ -9,6 +9,7 @@ import com.smarthire.tenant.aiInterview.dto.request.UpsertAiAnswerRequest;
 import com.smarthire.tenant.aiInterview.dto.request.UpsertAiFeedbackRequest;
 import com.smarthire.tenant.aiInterview.dto.response.AiAnswerResponse;
 import com.smarthire.tenant.aiInterview.dto.response.AiFeedbackResponse;
+import com.smarthire.tenant.aiInterview.dto.response.AiInterviewLogResponse;
 import com.smarthire.tenant.aiInterview.dto.response.AiInterviewPage;
 import com.smarthire.tenant.aiInterview.dto.response.AiInterviewResponse;
 import com.smarthire.tenant.aiInterview.dto.response.AiQuestionResponse;
@@ -65,6 +66,21 @@ public class AiInterviewController {
     @Operation(summary = "List AI interview invitations for the current candidate")
     public ApiResponse<java.util.List<AiInterviewResponse>> mine() {
         return ApiResponse.ok(aiInterviewService.mine());
+    }
+
+    @PostMapping("/applications/{applicationId}/start")
+    @Operation(summary = "Request to begin the AI interview round of an owned application (candidate)",
+            description = "Requires CV screening PASSED, AI interview enabled/available on the job and the application in"
+                    + " the INTERVIEW round. Creates the single attempt and queues generation of 30-40 questions;"
+                    + " once questions are ready the same call starts the attempt. Completed attempts return 409.")
+    public ApiResponse<AiInterviewResponse> requestStart(@PathVariable long applicationId) {
+        return ApiResponse.ok(aiInterviewService.requestStart(applicationId));
+    }
+
+    @GetMapping("/{id}/logs")
+    @Operation(summary = "Activity log of every AI interview pipeline step (staff)")
+    public ApiResponse<java.util.List<AiInterviewLogResponse>> logs(@PathVariable long id) {
+        return ApiResponse.ok(aiInterviewService.logs(id));
     }
 
     @PostMapping("/{id}/start")
