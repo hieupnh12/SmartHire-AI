@@ -22,6 +22,7 @@ interface LandingEditorDrawerProps {
   activeTab: string;
   setActiveTab: (val: string) => void;
   config: LandingPageConfig;
+  updateHeader: (patch: Partial<LandingPageConfig["header"]>) => void;
   updateTheme: (patch: Partial<LandingPageConfig["theme"]>) => void;
   updateHero: (patch: Partial<LandingPageConfig["hero"]>) => void;
   updateAbout: (patch: Partial<LandingPageConfig["about"]>) => void;
@@ -43,6 +44,7 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
     activeTab,
     setActiveTab,
     config,
+    updateHeader,
     updateTheme,
     updateHero,
     updateAbout,
@@ -58,6 +60,7 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
   } = props;
 
   const tabs = [
+    { id: "header", label: "Menu Trên", icon: SlidersHorizontal },
     { id: "theme", label: "Màu & Font", icon: Palette },
     { id: "hero", label: "Hero Banner", icon: LayoutTemplate },
     { id: "about", label: "Văn Hóa", icon: Building2 },
@@ -115,6 +118,48 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
 
           {/* Tab Content Panel (Scrollable) */}
           <div className="flex-1 overflow-y-auto p-4 space-y-5 text-xs text-slate-800">
+            {/* TAB: HEADER */}
+            {activeTab === "header" && (
+              <div className="space-y-4">
+                <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-slate-800">Ảnh Logo Công Ty</label>
+                    <label className="cursor-pointer inline-flex items-center gap-1 px-2.5 py-1 rounded bg-brand-primary text-white text-[11px] font-semibold hover:opacity-95">
+                      <Upload className="w-3 h-3" />
+                      <span>{isUploading ? "Đang tải..." : "Tải ảnh lên"}</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        disabled={isUploading}
+                        onChange={(e) => handleFileUpload(e, (url) => updateHeader({ logoImageUrl: url }))}
+                      />
+                    </label>
+                  </div>
+
+                  <input
+                    type="text"
+                    value={config.header?.logoImageUrl || ""}
+                    onChange={(e) => updateHeader({ logoImageUrl: e.target.value })}
+                    placeholder="Để trống sẽ dùng chữ cái đầu của tên cty"
+                    className={inputClass}
+                  />
+                  <p className="text-[10px] text-slate-400">Nên dùng ảnh PNG nền trong suốt, tỉ lệ ngang.</p>
+                </div>
+
+                <div>
+                  <label className={labelClass}>Câu Slogan (Dưới tên công ty)</label>
+                  <input
+                    type="text"
+                    value={config.header?.slogan || ""}
+                    onChange={(e) => updateHeader({ slogan: e.target.value })}
+                    placeholder="Ví dụ: Cổng Tuyển Dụng Nhân Tài"
+                    className={inputClass}
+                  />
+                </div>
+              </div>
+            )}
+
             {/* TAB: THEME */}
             {activeTab === "theme" && (
               <div className="space-y-5">
@@ -544,6 +589,29 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-3">
                   <div>
+                    <label className={labelClass}>Tiêu Đề Cột 1</label>
+                    <input
+                      type="text"
+                      value={config.footer.contactTitle || ""}
+                      onChange={(e) => updateFooter({ contactTitle: e.target.value })}
+                      placeholder="Liên Hệ Tuyển Dụng"
+                      className={inputClass}
+                    />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Tiêu Đề Cột 2</label>
+                    <input
+                      type="text"
+                      value={config.footer.socialTitle || ""}
+                      onChange={(e) => updateFooter({ socialTitle: e.target.value })}
+                      placeholder="Mạng Xã Hội"
+                      className={inputClass}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
                     <label className={labelClass}>Email Tuyển Dụng</label>
                     <input
                       type="email"
@@ -598,8 +666,30 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
                   <label className={labelClass}>Dòng Bản Quyền</label>
                   <input
                     type="text"
-                    value={config.footer.copyrightText}
+                    value={config.footer.copyrightText || ""}
                     onChange={(e) => updateFooter({ copyrightText: e.target.value })}
+                    className={inputClass}
+                  />
+                </div>
+
+                <div>
+                  <label className={labelClass}>Dòng Phụ Chú Cuối Cùng</label>
+                  <input
+                    type="text"
+                    value={config.footer.bottomText || ""}
+                    onChange={(e) => updateFooter({ bottomText: e.target.value })}
+                    placeholder="Hệ Thống Tuyển Dụng Doanh Nghiệp Multi-Tenant"
+                    className={inputClass}
+                  />
+                </div>
+
+                <div>
+                  <label className={labelClass}>Mô Tả Chân Trang (Dưới Logo)</label>
+                  <textarea
+                    rows={2}
+                    value={config.footer.description || ""}
+                    onChange={(e) => updateFooter({ description: e.target.value })}
+                    placeholder="Cổng thông tin tuyển dụng & cơ hội phát triển nghề nghiệp chuẩn Enterprise."
                     className={inputClass}
                   />
                 </div>

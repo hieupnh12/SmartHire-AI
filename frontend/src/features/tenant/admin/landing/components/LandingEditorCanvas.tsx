@@ -15,7 +15,7 @@ import {
   Facebook,
   Github,
   Globe,
-  SlidersHorizontal,
+  Settings,
   Edit3,
   Sparkles,
   Copy,
@@ -30,6 +30,7 @@ interface LandingEditorCanvasProps {
   viewMode: "desktop" | "tablet" | "mobile";
   showVisualControls: boolean;
   openDrawerTab: (tabId: string) => void;
+  updateHeader: (patch: Partial<LandingPageConfig["header"]>) => void;
   updateTheme: (patch: Partial<LandingPageConfig["theme"]>) => void;
   updateHero: (patch: Partial<LandingPageConfig["hero"]>) => void;
   updateAbout: (patch: Partial<LandingPageConfig["about"]>) => void;
@@ -51,17 +52,15 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
     viewMode,
     showVisualControls,
     openDrawerTab,
+    updateHeader,
     updateTheme,
     updateHero,
     updateAbout,
     updateBenefits,
     updateTechStack,
     updateTestimonials,
+    updateFooter,
     handleFileUpload,
-    isUploading,
-    inlineNewTag,
-    setInlineNewTag,
-    handleAddInlineTag,
   } = props;
 
   const primary = config.theme.primaryColor || "#0058be";
@@ -98,7 +97,7 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
             : "w-full max-w-7xl rounded-2xl border border-slate-200 text-sm overflow-hidden"
         }`}
         style={{ fontFamily: config.theme.fontFamily || "Inter" }}
-        onContextMenu={(e) => {
+        onContextMenu={() => {
           // Close menu if right clicked on an empty area
           if (contextMenu.isOpen) setContextMenu((prev) => ({ ...prev, isOpen: false }));
         }}
@@ -119,12 +118,46 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
           )}
 
           <div className="flex items-center gap-3">
-            <div
-              className="w-10 h-10 rounded-xl text-white font-bold flex items-center justify-center text-base shadow-sm"
-              style={{ backgroundColor: primary }}
-            >
-              {brandName.charAt(0)}
-            </div>
+            {config.header.logoImageUrl ? (
+              <div className="relative group/logo">
+                <img
+                  src={config.header.logoImageUrl}
+                  alt="Company Logo"
+                  className="h-10 w-auto object-contain rounded"
+                />
+                {showVisualControls && (
+                  <label className="absolute inset-0 bg-black/50 text-white opacity-0 group-hover/logo:opacity-100 transition-opacity flex items-center justify-center rounded cursor-pointer">
+                    <Upload className="w-4 h-4" />
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => handleFileUpload(e, (url) => updateHeader({ logoImageUrl: url }))}
+                    />
+                  </label>
+                )}
+              </div>
+            ) : (
+              <div className="relative group/logo">
+                <div
+                  className="w-10 h-10 rounded-xl text-white font-bold flex items-center justify-center text-base shadow-sm"
+                  style={{ backgroundColor: primary }}
+                >
+                  {brandName.charAt(0)}
+                </div>
+                {showVisualControls && (
+                  <label className="absolute inset-0 bg-black/50 text-white opacity-0 group-hover/logo:opacity-100 transition-opacity flex items-center justify-center rounded-xl cursor-pointer">
+                    <Upload className="w-4 h-4" />
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => handleFileUpload(e, (url) => updateHeader({ logoImageUrl: url }))}
+                    />
+                  </label>
+                )}
+              </div>
+            )}
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-bold text-slate-900 text-base tracking-tight">{brandName}</span>
@@ -135,16 +168,34 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                   Careers
                 </span>
               </div>
-              <span className="text-[11px] text-slate-400">Cổng Tuyển Dụng Nhân Tài</span>
+              <span
+                contentEditable={showVisualControls}
+                suppressContentEditableWarning
+                onBlur={(e) => updateHeader({ slogan: e.currentTarget.textContent || "" })}
+                className={`text-[11px] text-slate-400 outline-none transition-all ${showVisualControls ? "hover:ring-2 hover:ring-cyan-400/50 focus:ring-2 focus:ring-cyan-400 rounded cursor-text px-1 -mx-1 block" : "block"}`}
+              >
+                {config.header.slogan}
+              </span>
             </div>
           </div>
 
           {!isMobile && (
-            <div className="flex items-center gap-6 text-xs font-semibold text-slate-600">
-              <span className="hover:text-slate-900 cursor-pointer">Về Chúng Tôi</span>
-              {config.benefits.enabled && <span className="hover:text-slate-900 cursor-pointer">Đãi Ngộ</span>}
-              <span className="hover:text-slate-900 cursor-pointer">Tech Stack</span>
-              <span className="hover:text-slate-900 cursor-pointer">Việc Làm</span>
+            <div className="flex items-center gap-6 text-xs font-medium text-[#475569]">
+              <span className="hover:text-slate-900 cursor-pointer transition-colors">Về Chúng Tôi</span>
+              {config.benefits.enabled && (
+                <span className="hover:text-slate-900 cursor-pointer transition-colors">Đãi Ngộ</span>
+              )}
+              <div className="hover:opacity-80 transition-opacity flex items-center gap-1.5 group cursor-pointer">
+                <span className="font-semibold bg-gradient-to-r from-fuchsia-600 via-blue-500 to-fuchsia-600 bg-[length:200%_auto] animate-text-gradient bg-clip-text text-transparent">
+                  Việc làm
+                </span>
+                <span className="relative inline-flex items-center justify-center">
+                  <span className="absolute inset-0 bg-gradient-to-r from-orange-500 via-rose-500 to-orange-500 bg-[length:200%_auto] animate-text-gradient blur-md opacity-60 group-hover:opacity-100 transition-opacity"></span>
+                  <span className="relative px-2 py-0.5 rounded-full bg-gradient-to-r from-orange-500 via-rose-500 to-orange-500 bg-[length:200%_auto] animate-text-gradient text-white text-[10px] font-bold tracking-wide">
+                    HOT
+                  </span>
+                </span>
+              </div>
             </div>
           )}
 
@@ -610,97 +661,7 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
           </section>
         )}
 
-        {/* SECTION 4: TECH STACK */}
-        {config.techStack.enabled && (
-          <section className="py-12 px-6 bg-white border-b border-slate-100 relative group">
-            <div className="max-w-5xl mx-auto space-y-6">
-              <div className="text-center max-w-xl mx-auto space-y-2">
-                <span
-                  className={`text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full outline-none transition-all ${showVisualControls ? "hover:ring-2 hover:ring-cyan-400/50 focus:ring-2 focus:ring-cyan-400 cursor-text inline-block" : ""}`}
-                  style={{ backgroundColor: `${primary}15`, color: primary }}
-                  contentEditable={showVisualControls}
-                  suppressContentEditableWarning
-                  onBlur={(e) => updateTechStack({ badge: e.currentTarget.textContent || "" })}
-                >
-                  {config.techStack.badge || "Tech Stack"}
-                </span>
-                <h2 
-                  className={`text-2xl font-bold text-slate-900 outline-none transition-all ${showVisualControls ? "hover:ring-2 hover:ring-cyan-400/50 focus:ring-2 focus:ring-cyan-400 cursor-text px-1 rounded" : ""}`}
-                  contentEditable={showVisualControls}
-                  suppressContentEditableWarning
-                  onBlur={(e) => updateTechStack({ title: e.currentTarget.textContent || "" })}
-                >
-                  {config.techStack.title || "Công Nghệ & Kỹ Năng"}
-                </h2>
-                {config.techStack.subtitle && (
-                  <p 
-                    className={`text-xs text-slate-500 outline-none transition-all ${showVisualControls ? "hover:ring-2 hover:ring-cyan-400/50 focus:ring-2 focus:ring-cyan-400 cursor-text px-1 rounded" : ""}`}
-                    contentEditable={showVisualControls}
-                    suppressContentEditableWarning
-                    onBlur={(e) => updateTechStack({ subtitle: e.currentTarget.textContent || "" })}
-                  >
-                    {config.techStack.subtitle}
-                  </p>
-                )}
-              </div>
 
-              {showVisualControls && (
-                <div className="flex items-center justify-center gap-2 max-w-md mx-auto">
-                  <input
-                    type="text"
-                    value={inlineNewTag}
-                    onChange={(e) => setInlineNewTag(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        handleAddInlineTag();
-                      }
-                    }}
-                    placeholder="Gõ tên công nghệ (vd: Java 21) rồi ấn Enter"
-                    className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs flex-1 outline-none focus:border-brand-primary"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleAddInlineTag}
-                    className="px-3 py-1.5 rounded-lg bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800"
-                  >
-                    Thêm Thẻ
-                  </button>
-                </div>
-              )}
-
-              {validTags.length === 0 ? (
-                <div className="text-center py-6 border border-dashed border-slate-200 rounded-xl bg-slate-50 text-slate-400 text-xs">
-                  Chưa gắn thẻ công nghệ nào. Nhập tên ở trên để thêm vào trang.
-                </div>
-              ) : (
-                <div className="flex flex-wrap items-center justify-center gap-2">
-                  {config.techStack.tags.map((tag, i) => (
-                    <span
-                      key={i}
-                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold border border-slate-200 bg-slate-50 text-slate-800 shadow-sm"
-                    >
-                      <span>{tag}</span>
-                      {showVisualControls && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const next = config.techStack.tags.filter((t) => t !== tag);
-                            updateTechStack({ tags: next });
-                          }}
-                          className="text-slate-400 hover:text-red-600 font-bold ml-1"
-                          title="Xóa thẻ này"
-                        >
-                          ×
-                        </button>
-                      )}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-          </section>
-        )}
 
         {/* SECTION 5: TESTIMONIALS */}
         {config.testimonials.enabled && (
@@ -869,13 +830,25 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                   </div>
                   <span className="font-bold text-white text-sm">{brandName}</span>
                 </div>
-                <p className="text-[11px] text-slate-400 leading-relaxed">
-                  Cổng thông tin tuyển dụng & cơ hội phát triển nghề nghiệp chuẩn Enterprise.
+                <p
+                  className={`text-[11px] text-slate-400 leading-relaxed outline-none transition-all ${showVisualControls ? "hover:ring-2 hover:ring-cyan-400/50 focus:ring-2 focus:ring-cyan-400 cursor-text px-1 -mx-1 rounded" : ""}`}
+                  contentEditable={showVisualControls}
+                  suppressContentEditableWarning
+                  onBlur={(e) => updateFooter({ description: e.currentTarget.textContent || "" })}
+                >
+                  {config.footer.description}
                 </p>
               </div>
 
               <div className="space-y-1.5 text-[11px]">
-                <span className="font-bold text-white uppercase tracking-wider block mb-2">Liên Hệ Tuyển Dụng</span>
+                <span
+                  className={`font-bold text-white uppercase tracking-wider block mb-2 outline-none transition-all ${showVisualControls ? "hover:ring-2 hover:ring-cyan-400/50 focus:ring-2 focus:ring-cyan-400 cursor-text px-1 -mx-1 rounded" : ""}`}
+                  contentEditable={showVisualControls}
+                  suppressContentEditableWarning
+                  onBlur={(e) => updateFooter({ contactTitle: e.currentTarget.textContent || "" })}
+                >
+                  {config.footer.contactTitle}
+                </span>
                 {config.footer.address && (
                   <div className="flex items-center gap-2">
                     <Building className="w-3.5 h-3.5 shrink-0" />
@@ -907,7 +880,14 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
               </div>
 
               <div className="space-y-2">
-                <span className="font-bold text-white uppercase tracking-wider block text-[11px]">Mạng Xã Hội</span>
+                <span
+                  className={`font-bold text-white uppercase tracking-wider block text-[11px] outline-none transition-all ${showVisualControls ? "hover:ring-2 hover:ring-cyan-400/50 focus:ring-2 focus:ring-cyan-400 cursor-text px-1 -mx-1 rounded" : ""}`}
+                  contentEditable={showVisualControls}
+                  suppressContentEditableWarning
+                  onBlur={(e) => updateFooter({ socialTitle: e.currentTarget.textContent || "" })}
+                >
+                  {config.footer.socialTitle}
+                </span>
                 <div className="flex items-center gap-3 text-slate-300">
                   {config.footer.linkedinUrl && <Linkedin className="w-4 h-4 cursor-pointer hover:text-white" />}
                   {config.footer.facebookUrl && <Facebook className="w-4 h-4 cursor-pointer hover:text-white" />}
@@ -921,7 +901,14 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
               <div>
                 {config.footer.copyrightText || `© 2026 ${brandName}. Powered by SmartHire AI.`}
               </div>
-              <div>Hệ Thống Tuyển Dụng Doanh Nghiệp Multi-Tenant</div>
+              <div
+                className={`outline-none transition-all ${showVisualControls ? "hover:ring-2 hover:ring-cyan-400/50 focus:ring-2 focus:ring-cyan-400 cursor-text px-1 -mx-1 rounded" : ""}`}
+                contentEditable={showVisualControls}
+                suppressContentEditableWarning
+                onBlur={(e) => updateFooter({ bottomText: e.currentTarget.textContent || "" })}
+              >
+                {config.footer.bottomText}
+              </div>
             </div>
           </div>
         </footer>

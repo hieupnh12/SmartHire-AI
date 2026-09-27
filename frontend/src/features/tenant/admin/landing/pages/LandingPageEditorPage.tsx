@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { landingApi } from "@/api/tenant/landingApi";
 import type { LandingPageConfig } from "../types/landing";
 import { Button } from "@/components/ux/Button";
@@ -39,7 +39,6 @@ export function LandingPageEditorPage() {
   const [activeTab, setActiveTab] = useState<string>("hero");
   const [viewMode, setViewMode] = useState<"desktop" | "tablet" | "mobile">("desktop");
   const [isViewModeMenuOpen, setIsViewModeMenuOpen] = useState(false);
-  const [config, setConfig] = useState<LandingPageConfig | null>(null);
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [newTagInput, setNewTagInput] = useState<string>("");
   const [inlineNewTag, setInlineNewTag] = useState<string>("");
@@ -47,133 +46,110 @@ export function LandingPageEditorPage() {
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["tenant-landing-page"],
     queryFn: landingApi.getAdminLandingPage,
+    // Keep previous data visible while background-refetch runs → no flash of skeleton
+    placeholderData: keepPreviousData,
   });
 
-  useEffect(() => {
-    if (data?.data?.config) {
-      const c = data.data.config;
-      const brand = rawTenantCode.toUpperCase();
-      const enrichedConfig: LandingPageConfig = {
-        ...c,
-        hero: {
-          ...c.hero,
-          bannerImageUrl: c.hero?.bannerImageUrl || "/acme_tech_hero.png",
-          bannerHeight: c.hero?.bannerHeight || "540px",
-          title: c.hero?.title || `Chinh Phục Tương Lai Công Nghệ Cùng ${brand}`,
-          badgeText: c.hero?.badgeText || "Dẫn đầu Giải pháp Công nghệ Enterprise Multi-Tenant & AI",
-          highlightWords: c.hero?.highlightWords || brand,
-          subtitle:
-            c.hero?.subtitle ||
-            "Gia nhập đội ngũ kỹ sư tài năng tại môi trường làm việc chuẩn quốc tế. Cùng chúng tôi kiến tạo các sản phẩm công nghệ đột phá và khai phóng tối đa tiềm năng của bạn.",
-        },
-        about: {
-          ...c.about,
-          cultureImageUrl: c.about?.cultureImageUrl || "/acme_culture.png",
-          badge: c.about?.badge || "Về Chúng Tôi",
-          title: c.about?.title || `Vì Sao Bạn Nên Chọn ${brand}?`,
-          description:
-            c.about?.description ||
-            `Tại ${brand}, chúng tôi tin rằng con người là tài sản quý giá nhất. Đội ngũ Kỹ sư làm việc trong môi trường cởi mở, áp dụng quy trình Agile/Scrum tiêu chuẩn toàn cầu, liên tục tiếp cận các bài toán Enterprise thách thức.`,
-          stats:
-            c.about?.stats && c.about.stats.length > 0
-              ? c.about.stats
-              : [
-                  { icon: "Users", value: "500+", label: "Kỹ Sư Phần Mềm & AI" },
-                  { icon: "Zap", value: "99.99%", label: "SLA Enterprise High Availability" },
-                  { icon: "Award", value: "100%", label: "Tài Trợ Chứng Chỉ AWS/GCP" },
-                  { icon: "Globe", value: "Global", label: "Dự Án Enterprise Quốc Tế" },
-                ],
-        },
-        benefits: {
-          ...c.benefits,
-          enabled: c.benefits?.enabled ?? true,
-          badge: c.benefits?.badge || "Đãi Ngộ",
-          title: c.benefits?.title || "Chế Độ Đãi Ngộ & Phúc Lợi Toàn Diện",
-          subtitle:
-            c.benefits?.subtitle ||
-            "Chúng tôi chăm sóc toàn diện cho sức khỏe, sự nghiệp và đời sống tinh thần của bạn",
-          items:
-            c.benefits?.items && c.benefits.items.length > 0
-              ? c.benefits.items
-              : [
-                  {
-                    icon: "HeartHandshake",
-                    title: "Chăm Sóc Sức Khỏe Toàn Diện",
-                    description:
-                      "Bảo hiểm sức khỏe cao cấp cho nhân viên và người thân, khám sức khỏe định kỳ hàng năm.",
-                  },
-                  {
-                    icon: "Laptop",
-                    title: "Thiết Bị Làm Việc Hiện Đại",
-                    description:
-                      "Trang bị Macbook Pro / Laptop cấu hình cao cùng màn hình 4K và trợ cấp setup góc làm việc.",
-                  },
-                  {
-                    icon: "TrendingUp",
-                    title: "Đào Tạo & Phát Triển Chuyên Sâu",
-                    description:
-                      "Ngân sách học tập cá nhân, hỗ trợ thi chứng chỉ quốc tế và các buổi tech-talk chia sẻ nội bộ.",
-                  },
-                  {
-                    icon: "Coffee",
-                    title: "Cân Bằng Cuộc Sống & Thưởng Hiệu Suất",
-                    description:
-                      "Lương tháng 13, thưởng dự án, ngày nghỉ phép linh hoạt và tiệc teambuilding định kỳ.",
-                  },
-                ],
-        },
-        techStack: {
-          ...c.techStack,
-          enabled: c.techStack?.enabled ?? true,
-          badge: c.techStack?.badge || "Tech Stack",
-          title: c.techStack?.title || "Hệ Sinh Thái Công Nghệ & Kỹ Năng",
-          subtitle:
-            c.techStack?.subtitle ||
-            "Ứng dụng các công nghệ hiện đại và kiến trúc vi dịch vụ mở rộng cao",
-          tags:
-            c.techStack?.tags && c.techStack.tags.length > 0
-              ? c.techStack.tags
-              : [
-                  "Java 21",
-                  "Spring Boot",
-                  "React",
-                  "TypeScript",
-                  "Docker",
-                  "Kubernetes",
-                  "Redis",
-                  "RabbitMQ",
-                  "MySQL",
-                  "AI / Machine Learning",
-                ],
-        },
-        testimonials: {
-          ...c.testimonials,
-          enabled: c.testimonials?.enabled ?? true,
-          badge: c.testimonials?.badge || "Đội Ngũ",
-          title: c.testimonials?.title || "Cảm Nhận Từ Các Kỹ Sư Thành Viên",
-          items:
-            c.testimonials?.items && c.testimonials.items.length > 0
-              ? c.testimonials.items
-              : [
-                  {
-                    name: "Minh Quân",
-                    role: "Senior Software Engineer",
-                    avatarUrl: "",
-                    quote: `Môi trường tại ${brand} mang lại cho tôi cơ hội làm việc với các hệ thống phân tán lớn và học hỏi liên tục từ các đồng nghiệp tài năng.`,
-                  },
-                  {
-                    name: "Thu Hà",
-                    role: "Tech Lead / Architect",
-                    avatarUrl: "",
-                    quote:
-                      "Văn hóa trao quyền và tôn trọng ý tưởng mới là điều tôi yêu thích nhất ở đây. Bạn luôn có không gian để tạo ra đột phá và nâng tầm giải pháp.",
-                  },
-                ],
-        },
-      };
-      setConfig(enrichedConfig);
-    }
+  // Compute enrichedConfig synchronously from API data (no useEffect → no double-render flash)
+  const initialConfig = useMemo<LandingPageConfig | null>(() => {
+    if (!data?.data?.config) return null;
+    const c = data.data.config;
+    const brand = rawTenantCode.toUpperCase();
+    return {
+      ...c,
+      header: {
+        ...c.header,
+        slogan: c.header?.slogan || "Cổng Tuyển Dụng Nhân Tài",
+      },
+      hero: {
+        ...c.hero,
+        bannerImageUrl: c.hero?.bannerImageUrl || "/acme_tech_hero.png",
+        bannerHeight: c.hero?.bannerHeight || "540px",
+        title: c.hero?.title || `Chinh Phục Tương Lai Công Nghệ Cùng ${brand}`,
+        badgeText: c.hero?.badgeText || "Dẫn đầu Giải pháp Công nghệ Enterprise Multi-Tenant & AI",
+        highlightWords: c.hero?.highlightWords || brand,
+        subtitle:
+          c.hero?.subtitle ||
+          "Gia nhập đội ngũ kỹ sư tài năng tại môi trường làm việc chuẩn quốc tế. Cùng chúng tôi kiến tạo các sản phẩm công nghệ đột phá và khai phóng tối đa tiềm năng của bạn.",
+      },
+      about: {
+        ...c.about,
+        cultureImageUrl: c.about?.cultureImageUrl || "/acme_culture.png",
+        badge: c.about?.badge || "Về Chúng Tôi",
+        title: c.about?.title || `Vì Sao Bạn Nên Chọn ${brand}?`,
+        description:
+          c.about?.description ||
+          `Tại ${brand}, chúng tôi tin rằng con người là tài sản quý giá nhất. Đội ngũ Kỹ sư làm việc trong môi trường cởi mở, áp dụng quy trình Agile/Scrum tiêu chuẩn toàn cầu, liên tục tiếp cận các bài toán Enterprise thách thức.`,
+        stats:
+          c.about?.stats && c.about.stats.length > 0
+            ? c.about.stats
+            : [
+                { icon: "Users", value: "500+", label: "Kỹ Sư Phần Mềm & AI" },
+                { icon: "Zap", value: "99.99%", label: "SLA Enterprise High Availability" },
+                { icon: "Award", value: "100%", label: "Tài Trợ Chứng Chỉ AWS/GCP" },
+                { icon: "Globe", value: "Global", label: "Dự Án Enterprise Quốc Tế" },
+              ],
+      },
+      benefits: {
+        ...c.benefits,
+        enabled: c.benefits?.enabled ?? true,
+        badge: c.benefits?.badge || "Đãi Ngộ",
+        title: c.benefits?.title || "Chế Độ Đãi Ngộ & Phúc Lợi Toàn Diện",
+        subtitle:
+          c.benefits?.subtitle ||
+          "Chúng tôi chăm sóc toàn diện cho sức khỏe, sự nghiệp và đời sống tinh thần của bạn",
+        items:
+          c.benefits?.items && c.benefits.items.length > 0
+            ? c.benefits.items
+            : [
+                { icon: "HeartHandshake", title: "Chăm Sóc Sức Khỏe Toàn Diện", description: "Bảo hiểm sức khỏe cao cấp cho nhân viên và người thân, khám sức khỏe định kỳ hàng năm." },
+                { icon: "Laptop", title: "Thiết Bị Làm Việc Hiện Đại", description: "Trang bị Macbook Pro / Laptop cấu hình cao cùng màn hình 4K và trợ cấp setup góc làm việc." },
+                { icon: "TrendingUp", title: "Đào Tạo & Phát Triển Chuyên Sâu", description: "Ngân sách học tập cá nhân, hỗ trợ thi chứng chỉ quốc tế và các buổi tech-talk chia sẻ nội bộ." },
+                { icon: "Coffee", title: "Cân Bằng Cuộc Sống & Thưởng Hiệu Suất", description: "Lương tháng 13, thưởng dự án, ngày nghỉ phép linh hoạt và tiệc teambuilding định kỳ." },
+              ],
+      },
+      techStack: {
+        ...c.techStack,
+        enabled: c.techStack?.enabled ?? true,
+        badge: c.techStack?.badge || "Tech Stack",
+        title: c.techStack?.title || "Hệ Sinh Thái Công Nghệ & Kỹ Năng",
+        subtitle:
+          c.techStack?.subtitle ||
+          "Ứng dụng các công nghệ hiện đại và kiến trúc vi dịch vụ mở rộng cao",
+        tags:
+          c.techStack?.tags && c.techStack.tags.length > 0
+            ? c.techStack.tags
+            : ["Java 21", "Spring Boot", "React", "TypeScript", "Docker", "Kubernetes", "Redis", "RabbitMQ", "MySQL", "AI / Machine Learning"],
+      },
+      testimonials: {
+        ...c.testimonials,
+        enabled: c.testimonials?.enabled ?? true,
+        badge: c.testimonials?.badge || "Đội Ngũ",
+        title: c.testimonials?.title || "Cảm Nhận Từ Các Kỹ Sư Thành Viên",
+        items:
+          c.testimonials?.items && c.testimonials.items.length > 0
+            ? c.testimonials.items
+            : [
+                { name: "Minh Quân", role: "Senior Software Engineer", avatarUrl: "", quote: `Môi trường tại ${brand} mang lại cho tôi cơ hội làm việc với các hệ thống phân tán lớn và học hỏi liên tục từ các đồng nghiệp tài năng.` },
+                { name: "Thu Hà", role: "Tech Lead / Architect", avatarUrl: "", quote: "Văn hóa trao quyền và tôn trọng ý tưởng mới là điều tôi yêu thích nhất ở đây. Bạn luôn có không gian để tạo ra đột phá và nâng tầm giải pháp." },
+              ],
+      },
+      footer: {
+        ...c.footer,
+        description: c.footer?.description || "Cổng thông tin tuyển dụng & cơ hội phát triển nghề nghiệp chuẩn Enterprise.",
+        contactTitle: c.footer?.contactTitle || "Liên Hệ Tuyển Dụng",
+        socialTitle: c.footer?.socialTitle || "Mạng Xã Hội",
+        bottomText: c.footer?.bottomText || "Hệ Thống Tuyển Dụng Doanh Nghiệp Multi-Tenant",
+      },
+    };
   }, [data, rawTenantCode]);
+
+  // Local editable state — null until user makes first edit (initial render uses initialConfig directly)
+  const [config, setConfig] = useState<LandingPageConfig | null>(null);
+
+  // Merge: prefer local user edits (config), fall back to server data (initialConfig)
+  // This eliminates the useEffect → setState → re-render flash entirely
+  const effectiveConfig = config ?? initialConfig;
 
   const updateMutation = useMutation({
     mutationFn: landingApi.updateLandingPage,
@@ -202,7 +178,7 @@ export function LandingPageEditorPage() {
     },
   });
 
-  if (isLoading || !config) {
+  if (isLoading || !effectiveConfig) {
     return <PageSkeleton />;
   }
 
@@ -219,14 +195,16 @@ export function LandingPageEditorPage() {
   }
 
   // --- Handlers for Deep Nested Updates ---
-  const updateTheme = (patch: Partial<LandingPageConfig["theme"]>) => setConfig((prev) => (prev ? { ...prev, theme: { ...prev.theme, ...patch } } : prev));
-  const updateHero = (patch: Partial<LandingPageConfig["hero"]>) => setConfig((prev) => (prev ? { ...prev, hero: { ...prev.hero, ...patch } } : prev));
-  const updateAbout = (patch: Partial<LandingPageConfig["about"]>) => setConfig((prev) => (prev ? { ...prev, about: { ...prev.about, ...patch } } : prev));
-  const updateBenefits = (patch: Partial<LandingPageConfig["benefits"]>) => setConfig((prev) => (prev ? { ...prev, benefits: { ...prev.benefits, ...patch } } : prev));
-  const updateTechStack = (patch: Partial<LandingPageConfig["techStack"]>) => setConfig((prev) => (prev ? { ...prev, techStack: { ...prev.techStack, ...patch } } : prev));
-  const updateTestimonials = (patch: Partial<LandingPageConfig["testimonials"]>) => setConfig((prev) => (prev ? { ...prev, testimonials: { ...prev.testimonials, ...patch } } : prev));
-  const updateFooter = (patch: Partial<LandingPageConfig["footer"]>) => setConfig((prev) => (prev ? { ...prev, footer: { ...prev.footer, ...patch } } : prev));
-  const updateSeo = (patch: Partial<LandingPageConfig["seo"]>) => setConfig((prev) => (prev ? { ...prev, seo: { ...prev.seo, ...patch } } : prev));
+  // Use `prev ?? initialConfig!` so edits work even before user has made any change (config still null)
+  const updateHeader = (patch: Partial<LandingPageConfig["header"]>) => setConfig((prev) => { const base = prev ?? initialConfig!; return { ...base, header: { ...base.header, ...patch } }; });
+  const updateTheme = (patch: Partial<LandingPageConfig["theme"]>) => setConfig((prev) => { const base = prev ?? initialConfig!; return { ...base, theme: { ...base.theme, ...patch } }; });
+  const updateHero = (patch: Partial<LandingPageConfig["hero"]>) => setConfig((prev) => { const base = prev ?? initialConfig!; return { ...base, hero: { ...base.hero, ...patch } }; });
+  const updateAbout = (patch: Partial<LandingPageConfig["about"]>) => setConfig((prev) => { const base = prev ?? initialConfig!; return { ...base, about: { ...base.about, ...patch } }; });
+  const updateBenefits = (patch: Partial<LandingPageConfig["benefits"]>) => setConfig((prev) => { const base = prev ?? initialConfig!; return { ...base, benefits: { ...base.benefits, ...patch } }; });
+  const updateTechStack = (patch: Partial<LandingPageConfig["techStack"]>) => setConfig((prev) => { const base = prev ?? initialConfig!; return { ...base, techStack: { ...base.techStack, ...patch } }; });
+  const updateTestimonials = (patch: Partial<LandingPageConfig["testimonials"]>) => setConfig((prev) => { const base = prev ?? initialConfig!; return { ...base, testimonials: { ...base.testimonials, ...patch } }; });
+  const updateFooter = (patch: Partial<LandingPageConfig["footer"]>) => setConfig((prev) => { const base = prev ?? initialConfig!; return { ...base, footer: { ...base.footer, ...patch } }; });
+  const updateSeo = (patch: Partial<LandingPageConfig["seo"]>) => setConfig((prev) => { const base = prev ?? initialConfig!; return { ...base, seo: { ...base.seo, ...patch } }; });
 
   // Image Upload Handler
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, onUploaded: (url: string) => void) => {
@@ -248,8 +226,8 @@ export function LandingPageEditorPage() {
   };
 
   const handleSave = (publish: boolean) => {
-    if (!config) return;
-    updateMutation.mutate({ config, publish });
+    if (!effectiveConfig) return;
+    updateMutation.mutate({ config: effectiveConfig, publish });
   };
 
   const handleReset = () => {
@@ -266,13 +244,13 @@ export function LandingPageEditorPage() {
   const handleAddInlineTag = () => {
     const tag = inlineNewTag.trim();
     if (!tag) return;
-    if (!config.techStack.tags.includes(tag)) {
-      updateTechStack({ tags: [...config.techStack.tags, tag] });
+    if (!effectiveConfig.techStack.tags.includes(tag)) {
+      updateTechStack({ tags: [...effectiveConfig.techStack.tags, tag] });
     }
     setInlineNewTag("");
   };
 
-  const primary = config.theme.primaryColor || "#0058be";
+  const primary = effectiveConfig.theme.primaryColor || "#0058be";
   const brandName = rawTenantCode.toUpperCase();
 
   return (
@@ -306,9 +284,7 @@ export function LandingPageEditorPage() {
 
           <div className="flex items-center gap-2">
             <span className="font-bold text-sm text-slate-900 tracking-tight">{brandName}</span>
-            <span className="hidden lg:inline-block text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full bg-cyan-50 text-cyan-700 border border-cyan-200">
-              Trình Chỉnh Sửa Trực Quan
-            </span>
+
             <span
               className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
                 data?.data?.published
@@ -501,7 +477,8 @@ export function LandingPageEditorPage() {
           setIsDrawerOpen={setIsDrawerOpen}
           activeTab={activeTab}
           setActiveTab={setActiveTab}
-          config={config}
+          config={effectiveConfig}
+          updateHeader={updateHeader}
           updateTheme={updateTheme}
           updateHero={updateHero}
           updateAbout={updateAbout}
@@ -517,11 +494,12 @@ export function LandingPageEditorPage() {
         />
 
         <LandingEditorCanvas
-          config={config}
+          config={effectiveConfig}
           brandName={brandName}
           viewMode={viewMode}
           showVisualControls={showVisualControls}
           openDrawerTab={openDrawerTab}
+          updateHeader={updateHeader}
           updateTheme={updateTheme}
           updateHero={updateHero}
           updateAbout={updateAbout}
