@@ -388,59 +388,35 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
             }}
           >
             <div className="max-w-6xl mx-auto space-y-8">
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-                <div className="lg:col-span-7 space-y-3">
-                  <span
-                    className={`text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full outline-none transition-all ${showVisualControls ? "hover:ring-2 hover:ring-cyan-400/50 focus:ring-2 focus:ring-cyan-400 cursor-text" : ""}`}
-                    style={{ backgroundColor: `${primary}15`, color: primary }}
-                    contentEditable={showVisualControls}
-                    suppressContentEditableWarning
-                    onBlur={(e) => updateAbout({ badge: e.currentTarget.textContent || "" })}
-                  >
-                    {config.about.badge || "Về Chúng Tôi"}
-                  </span>
-                  <h2 
-                    className={`text-2xl sm:text-3xl font-bold text-slate-900 outline-none transition-all ${showVisualControls ? "hover:ring-2 hover:ring-cyan-400/50 focus:ring-2 focus:ring-cyan-400 cursor-text px-1 -mx-1 rounded" : ""}`}
-                    contentEditable={showVisualControls}
-                    suppressContentEditableWarning
-                    onBlur={(e) => updateAbout({ title: e.currentTarget.textContent || "" })}
-                  >
-                    {config.about.title || `Về ${brandName}`}
-                  </h2>
-                  {config.about.description ? (
-                    <p 
-                      className={`text-sm text-slate-600 leading-relaxed whitespace-pre-line outline-none transition-all ${showVisualControls ? "hover:ring-2 hover:ring-cyan-400/50 focus:ring-2 focus:ring-cyan-400 cursor-text px-1 -mx-1 rounded" : ""}`}
-                      contentEditable={showVisualControls}
-                      suppressContentEditableWarning
-                      onBlur={(e) => updateAbout({ description: e.currentTarget.textContent || "" })}
-                    >
-                      {config.about.description}
-                    </p>
-                  ) : (
-                    <p className="text-xs text-slate-400 italic">
-                      Chưa nhập lời giới thiệu văn hóa. Bấm "Sửa Khối Văn Hóa" để cập nhật.
-                    </p>
-                  )}
-                </div>
-
-                <div className="lg:col-span-5 relative group/img">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
+                {/* Culture Image (Left) */}
+                <div className="relative rounded-[28px] overflow-hidden border border-slate-200 shadow-xl group/img">
                   {config.about.cultureImageUrl ? (
-                    <div className="rounded-2xl overflow-hidden border border-slate-200 shadow-md max-h-[300px]">
-                      <img
-                        src={config.about.cultureImageUrl}
-                        alt="Văn hóa công ty"
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
+                    <img
+                      src={config.about.cultureImageUrl}
+                      alt="Văn hóa công ty"
+                      className="w-full h-[420px] object-cover transition-transform duration-700 hover:scale-105"
+                    />
                   ) : (
-                    <div className="h-48 rounded-2xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center p-4 bg-slate-50 text-slate-400 text-xs text-center">
-                      <Building2 className="w-8 h-8 mb-2 opacity-50" />
-                      <span>Chưa có ảnh hoạt động</span>
+                    <div className="w-full h-[420px] bg-slate-50 flex flex-col items-center justify-center text-slate-400">
+                      <Building2 className="w-10 h-10 mb-3 opacity-50" />
+                      <span className="text-sm">Chưa có ảnh hoạt động</span>
                     </div>
                   )}
+
+                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent flex items-end p-8 pointer-events-none">
+                    <div className="text-white space-y-1">
+                      <span className="text-xs font-semibold text-cyan-400 uppercase tracking-wider block">
+                        Văn Hóa Làm Việc Agile
+                      </span>
+                      <h3 className="text-xl font-semibold font-display">
+                        Tự Do Sáng Tạo & Phát Triển Sự Nghiệp IT
+                      </h3>
+                    </div>
+                  </div>
 
                   {showVisualControls && (
-                    <div className="absolute bottom-3 right-3">
+                    <div className="absolute bottom-3 right-3 z-10">
                       <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900/90 text-white text-xs font-semibold shadow hover:bg-slate-800">
                         <Upload className="w-3.5 h-3.5 text-cyan-400" />
                         <span>Đổi ảnh văn hóa</span>
@@ -454,26 +430,54 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                     </div>
                   )}
                 </div>
-              </div>
 
-              <div className="pt-4 border-t border-slate-100">
-                <div className="flex items-center justify-between mb-4">
-                  <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                    Số Liệu Nổi Bật ({validStats.length})
-                  </span>
-                </div>
-
-                {validStats.length === 0 ? (
-                  <div className="text-center py-6 border border-dashed border-slate-200 rounded-xl bg-slate-50/50 text-slate-400 text-xs">
-                    Chưa có số liệu nổi bật. Bấm "+ Thêm số liệu" để tạo mới.
+                {/* Content & Stats (Right) */}
+                <div className="space-y-6">
+                  <div>
+                    <span
+                      className={`text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full outline-none transition-all inline-block mb-3 ${showVisualControls ? "hover:ring-2 hover:ring-cyan-400/50 focus:ring-2 focus:ring-cyan-400 cursor-text" : ""}`}
+                      style={{ backgroundColor: `${primary}15`, color: primary, border: `1px solid ${primary}30` }}
+                      contentEditable={showVisualControls}
+                      suppressContentEditableWarning
+                      onBlur={(e) => updateAbout({ badge: e.currentTarget.textContent || "" })}
+                    >
+                      {config.about.badge || "Về Chúng Tôi"}
+                    </span>
+                    <h2 
+                      className={`text-3xl sm:text-4xl font-semibold font-display text-slate-900 outline-none transition-all mb-4 ${showVisualControls ? "hover:ring-2 hover:ring-cyan-400/50 focus:ring-2 focus:ring-cyan-400 cursor-text px-1 -mx-1 rounded" : ""}`}
+                      contentEditable={showVisualControls}
+                      suppressContentEditableWarning
+                      onBlur={(e) => updateAbout({ title: e.currentTarget.textContent || "" })}
+                    >
+                      {config.about.title || `Về ${brandName}`}
+                    </h2>
+                    {config.about.description ? (
+                      <p 
+                        className={`text-sm text-slate-500 leading-relaxed whitespace-pre-line outline-none transition-all ${showVisualControls ? "hover:ring-2 hover:ring-cyan-400/50 focus:ring-2 focus:ring-cyan-400 cursor-text px-1 -mx-1 rounded" : ""}`}
+                        contentEditable={showVisualControls}
+                        suppressContentEditableWarning
+                        onBlur={(e) => updateAbout({ description: e.currentTarget.textContent || "" })}
+                      >
+                        {config.about.description}
+                      </p>
+                    ) : (
+                      <p className="text-xs text-slate-400 italic">
+                        Chưa nhập lời giới thiệu văn hóa. Bấm "Sửa Khối Văn Hóa" để cập nhật.
+                      </p>
+                    )}
                   </div>
-                ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    {config.about.stats.map((st, i) => (
-                      <div
-                        key={i}
-                        className="p-4 rounded-xl bg-slate-50 border border-slate-100 relative group/stat transition-all hover:border-cyan-200"
-                        onContextMenu={(e) => {
+
+                  {validStats.length === 0 ? (
+                    <div className="text-center py-6 border border-dashed border-slate-200 rounded-xl bg-slate-50/50 text-slate-400 text-xs mt-4">
+                      Chưa có số liệu nổi bật.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-4 pt-4">
+                      {config.about.stats.map((st, i) => (
+                        <div
+                          key={i}
+                          className="p-5 rounded-[16px] bg-slate-50 border border-slate-200 relative group/stat transition-all hover:border-cyan-200"
+                          onContextMenu={(e) => {
                           if (!showVisualControls) return;
                           e.preventDefault();
                           e.stopPropagation();
@@ -533,7 +537,8 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
                 )}
               </div>
             </div>
-          </section>
+          </div>
+        </section>
         )}
 
         {/* SECTION 3: PERKS & BENEFITS */}
