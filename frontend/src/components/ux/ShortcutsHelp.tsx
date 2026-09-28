@@ -8,6 +8,8 @@ const rows = [
   { keys: "g then w", descKey: "shortcuts.goWorkspace" },
   { keys: "Alt + L", descKey: "shortcuts.switchLang" },
   { keys: "/", descKey: "shortcuts.focusSearch" },
+  { keys: "↑ / ↓", descKey: "shortcuts.navigateJobs" },
+  { keys: "Enter", descKey: "shortcuts.openJob" },
   { keys: "Esc", descKey: "shortcuts.close" },
 ] as const;
 

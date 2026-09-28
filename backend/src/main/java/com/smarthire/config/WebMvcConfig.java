@@ -18,6 +18,6 @@ public class WebMvcConfig implements WebMvcConfigurer {
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(tenantWebInterceptor)
                 .addPathPatterns("/api/v1/**")
-                .excludePathPatterns("/api/v1/master/**", "/api/v1/public/checkout/**");
+                .excludePathPatterns("/api/v1/master/**", "/api/v1/public/checkout/**", "/api/v1/public/contracts/**");
     }
 }

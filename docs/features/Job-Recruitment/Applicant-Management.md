@@ -16,10 +16,12 @@ Quản lý application theo job: apply từ candidate, lọc/phân trang, hồ s
 ## Luồng hoạt động
 
 1. Candidate apply `POST /jobs/{id}/applications` (career hoặc `/candidate/jobs`). Trùng job+email → `409 APPLICATION_EXISTS` (WITHDRAWN thì reopen).
-2. Recruiter xem `GET /jobs/{id}/applications?q&status&source&archived&page&size` — không gồm hồ sơ đã rút đơn (`WITHDRAWN`).
+2. Recruiter xem `GET /api/v1/applications?jobId&q&status&source&archived&page&size`. Không chọn job thì trả mọi hồ sơ trong phạm vi job được phân công (admin thấy toàn tenant). Không gồm hồ sơ đã rút đơn (`WITHDRAWN`).
 3. Chi tiết `GET /applications/{id}`: profile, mọi phiên bản CV, lịch sử.
 4. PATCH notes/tags/assignee/source/referral; reject/archive/restore; candidate withdraw.
-5. Candidate theo dõi `GET /applications/me` (không gồm `WITHDRAWN`). Upload PDF/DOCX (≤10MB) tại `/candidate/cv`; recruiter xem/tải nếu chưa hết hạn lưu.
+5. Candidate theo dõi `GET /applications/me` (không gồm `WITHDRAWN`). Upload PDF/DOCX (≤10MB) tại `/candidate/cv`; recruiter chọn job → chọn ứng viên → xem file CV và `POST /cvs/{id}/parse` để phân tích AI theo JD.
+6. Chi tiết application trả `rounds` (CV / phỏng vấn AI / bài kiểm tra) từ dữ liệu thật. CV đạt ngưỡng → chuyển `INTERVIEW` và gửi mail mời `/candidate/interviews`.
+7. Recruiter bấm ứng viên trên danh sách → dialog hồ sơ (không còn panel chung trang). Sàng lọc CV cũng mở dialog.
 
 ## Business Rules
 
@@ -28,12 +30,14 @@ Quản lý application theo job: apply từ candidate, lọc/phân trang, hồ s
 - CV `retain_until` = 24 tháng; sau hạn `410 CV_EXPIRED`.
 - Recruiter không `POST /cvs`.
 - Recruiter không tạo ứng viên thủ công trên UI. List quản lý ứng viên không hiện `WITHDRAWN`.
+- CV screening đạt → gửi một lần email mời phỏng vấn AI; không gửi lại nếu `ai_interview_invited_at` đã có.
 
 ## API liên quan
 
 | Method | Path |
 |---|---|
 | POST | `/api/v1/jobs/{id}/applications` |
+| GET | `/api/v1/applications` |
 | GET | `/api/v1/jobs/{id}/applications` |
 | GET | `/api/v1/applications/me` |
 | GET | `/api/v1/applications/{id}` |
@@ -43,12 +47,14 @@ Quản lý application theo job: apply từ candidate, lọc/phân trang, hồ s
 
 ## Database liên quan
 
-- `applications` (+ referral, tags, assignee, archived_at, reject_reason, withdrawn_at)
+- `applications` (+ referral, tags, assignee, archived_at, reject_reason, withdrawn_at, ai_interview_invited_at)
 - `application_status_history`
+- `email_outbox` (audit lời mời phỏng vấn AI)
 - `cvs.retain_until`
 
 ## UI mockup
 
+- Tenant Admin xem job `PUBLISHED` và danh sách ứng viên tại `/internal/admin/recruitment` (chỉ xem).
 - Google Stitch: **Job Recruitment Management / Applicant Management** — _[dán link]_
 - Icons: xem `DESIGN.md`
 

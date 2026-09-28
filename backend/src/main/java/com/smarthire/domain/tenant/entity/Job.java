@@ -1,10 +1,10 @@
 package com.smarthire.domain.tenant.entity;
 
 import com.smarthire.domain.enums.JobStatus;
+import com.smarthire.domain.enums.ScreeningMode;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.Instant;
-import java.time.LocalDate;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
@@ -41,9 +41,13 @@ public class Job extends BaseEntity {
 
     @Column(name = "work_mode", length = 32) String workMode;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "screening_mode", nullable = false, length = 16)
+    ScreeningMode screeningMode = ScreeningMode.MANUAL;
+
     Integer headcount;
 
-    LocalDate deadline;
+    Instant deadline;
 
     @Column(name = "salary_min", precision = 12, scale = 2) BigDecimal salaryMin;
 

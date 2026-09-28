@@ -1,5 +1,6 @@
 package com.smarthire.config;
 
+import com.smarthire.domain.enums.UserRole;
 import com.smarthire.security.JwtTokenProvider;
 import com.smarthire.tenant.matching.realtime.RankingWebSocketHandler;
 import java.util.Map;
@@ -29,7 +30,9 @@ public class RankingWebSocketConfig implements WebSocketConfigurer {
             @Override public boolean beforeHandshake(ServerHttpRequest request, ServerHttpResponse response,
                     WebSocketHandler wsHandler, Map<String, Object> attributes) {
                 String token = UriComponentsBuilder.fromUri(request.getURI()).build().getQueryParams().getFirst("token");
-                if (token == null || !tokens.validateToken(token) || !"RECRUITER".equals(tokens.getRoleFromToken(token))) return false;
+                if (token == null || !tokens.validateToken(token)) return false;
+                String role = tokens.getRoleFromToken(token);
+                if (role == null || UserRole.isCandidate(role)) return false;
                 attributes.put("tenant", tokens.getTenantIdFromToken(token));
                 attributes.put("email", tokens.getEmailFromToken(token));
                 return true;

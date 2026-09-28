@@ -9,6 +9,8 @@ import com.smarthire.tenant.auth.dto.UpdateUserRoleRequest;
 import com.smarthire.tenant.auth.dto.UserResponse;
 import com.smarthire.tenant.auth.service.MemberInvitationService;
 import com.smarthire.tenant.auth.service.TenantUserService;
+import com.smarthire.tenant.job.dto.JobAssignmentModels.StaffAssignmentResponse;
+import com.smarthire.tenant.job.service.JobAssignmentService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -27,6 +29,7 @@ public class TenantUserController {
 
     private final TenantUserService tenantUserService;
     private final MemberInvitationService memberInvitationService;
+    private final JobAssignmentService jobAssignmentService;
 
     @PostMapping
     @Operation(summary = "Create Employee & Assign Role", description = "Creates a new employee in the Tenant DB with a specified role (TENANT_ADMIN, HR, CANDIDATE).")
@@ -41,6 +44,12 @@ public class TenantUserController {
     public ResponseEntity<ApiResponse<List<UserResponse>>> getEmployees() {
         List<UserResponse> employees = tenantUserService.getEmployees();
         return ResponseEntity.ok(ApiResponse.ok(employees));
+    }
+
+    @GetMapping("/{id}/assignments")
+    @Operation(summary = "Jobs assigned to a staff member")
+    public ResponseEntity<ApiResponse<List<StaffAssignmentResponse>>> assignments(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.ok(jobAssignmentService.listForUser(id)));
     }
 
     @PutMapping("/{id}/role")

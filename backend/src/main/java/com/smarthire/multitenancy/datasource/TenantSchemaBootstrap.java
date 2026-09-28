@@ -51,16 +51,60 @@ public class TenantSchemaBootstrap {
             )
             """;
 
+    private static final String CREATE_JOB_ASSIGNMENTS = """
+            CREATE TABLE IF NOT EXISTS job_assignments (
+                id               BIGINT PRIMARY KEY AUTO_INCREMENT,
+                job_id           BIGINT NOT NULL,
+                user_id          BIGINT NOT NULL,
+                assignment_role  VARCHAR(32) NOT NULL,
+                assigned_by      BIGINT NOT NULL,
+                created_at       TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at       TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                CONSTRAINT fk_ja_job FOREIGN KEY (job_id) REFERENCES jobs (id),
+                CONSTRAINT fk_ja_user FOREIGN KEY (user_id) REFERENCES users (id),
+                CONSTRAINT fk_ja_assigned_by FOREIGN KEY (assigned_by) REFERENCES users (id),
+                UNIQUE KEY uk_job_assignments_job_user (job_id, user_id),
+                KEY idx_job_assignments_user (user_id)
+            )
+            """;
+
+    private static final String BACKFILL_JOB_ASSIGNMENTS = """
+            INSERT INTO job_assignments (job_id, user_id, assignment_role, assigned_by, created_at, updated_at)
+            SELECT j.id, j.created_by, 'PRIMARY_RECRUITER', j.created_by,
+                   COALESCE(j.created_at, CURRENT_TIMESTAMP), CURRENT_TIMESTAMP
+            FROM jobs j
+            INNER JOIN users u ON u.id = j.created_by
+            WHERE u.role NOT IN ('TENANT_ADMIN', 'ADMIN', 'CANDIDATE')
+              AND j.deleted_at IS NULL
+              AND NOT EXISTS (
+                  SELECT 1 FROM job_assignments a WHERE a.job_id = j.id AND a.user_id = j.created_by
+              )
+            """;
+
     private static final String[] FEATURES = {
             "DASHBOARD", "JOBS", "APPLICANTS", "CV_SCREENING", "RANKING", "PIPELINE",
             "ANALYTICS", "ASSESSMENTS", "AI_INTERVIEWS", "INTERVIEWS", "SCHEDULES", "NOTIFICATIONS"
     };
+
+    private static final String CREATE_LANDING_PAGE_SETTINGS = """
+            CREATE TABLE IF NOT EXISTS landing_page_settings (
+                id         BIGINT PRIMARY KEY AUTO_INCREMENT,
+                config_json JSON NOT NULL,
+                is_published BOOLEAN NOT NULL DEFAULT TRUE,
+                published_at TIMESTAMP NULL,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            )
+            """;
 
     public void apply(DataSource dataSource) {
         try (Connection connection = dataSource.getConnection(); Statement statement = connection.createStatement()) {
             statement.execute(CREATE_ROLES);
             statement.execute(SEED_ROLES);
             statement.execute(CREATE_PERMISSIONS);
+            statement.execute(CREATE_LANDING_PAGE_SETTINGS);
+            statement.execute(CREATE_JOB_ASSIGNMENTS);
+            backfillJobAssignments(statement);
             widenRoleColumn(statement, "users", "role");
             widenRoleColumn(statement, "member_invitations", "role");
             widenRoleColumn(statement, "role_permissions", "role");
@@ -80,6 +124,13 @@ public class TenantSchemaBootstrap {
             return;
         }
         statement.execute("ALTER TABLE `" + table + "` MODIFY COLUMN `" + column + "` VARCHAR(64) NOT NULL");
+    }
+
+    private static void backfillJobAssignments(Statement statement) throws SQLException {
+        if (!tableExists(statement, "jobs") || !tableExists(statement, "users")) {
+            return;
+        }
+        statement.execute(BACKFILL_JOB_ASSIGNMENTS);
     }
 
     private static void seedDefaultFeatures(Statement statement) throws SQLException {

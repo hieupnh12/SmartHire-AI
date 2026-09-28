@@ -56,5 +56,9 @@ public final class RedisKeys {
     public static String masterLoginFailedAttempts(String email) {
         return "ratelimit:master:login:failed:" + (email == null ? "" : email.trim().toLowerCase());
     }
+
+    public static String landingPage(String tenantCode) {
+        return "cache:landing:" + (tenantCode == null ? "default" : tenantCode.trim().toLowerCase());
+    }
 }
 

@@ -16,8 +16,11 @@ import com.smarthire.master.contract.dto.ContractSignatureResponse;
 import com.smarthire.master.contract.dto.CreateContractRequest;
 import com.smarthire.master.contract.dto.SignContractRequest;
 import com.smarthire.master.contract.dto.UpdateContractStatusRequest;
+import com.smarthire.master.notification.dto.MasterEmailPayload;
+import com.smarthire.master.notification.messaging.MasterNotificationPublisher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -47,6 +50,10 @@ public class MasterContractService {
     private final TenantInfoRepository tenantRepository;
     private final SubscriptionPlanRepository planRepository;
     private final MasterBillingService billingService;
+    private final MasterNotificationPublisher notificationPublisher;
+
+    @Value("${smarthire.invite.public-origin:http://localhost:5173}")
+    private String publicOrigin;
 
     @Transactional(transactionManager = "masterTransactionManager", readOnly = true)
     public List<ContractResponse> getAllContracts(String statusFilter, Long tenantId) {
@@ -173,6 +180,32 @@ public class MasterContractService {
 
         TenantInfo tenant = saved.getTenantId() != null ? tenantRepository.findById(saved.getTenantId()).orElse(null) : null;
         SubscriptionPlan plan = saved.getPlanId() != null ? planRepository.findById(saved.getPlanId()).orElse(null) : null;
+
+        if (StringUtils.hasText(saved.getPartyBEmail())) {
+            try {
+                String signUrl = publicOrigin + "/contracts/sign/" + saved.getSigningToken();
+                MasterEmailPayload emailPayload = MasterEmailPayload.builder()
+                        .tenantCode(tenant != null ? tenant.getCode() : "MASTER")
+                        .toEmail(saved.getPartyBEmail())
+                        .subject("Yêu cầu Ký số Hợp đồng B2B - " + saved.getContractNumber())
+                        .templateName("contract-invitation")
+                        .notificationType("CONTRACT_INVITATION")
+                        .templateVariables(Map.of(
+                                "contractNumber", saved.getContractNumber(),
+                                "planName", plan != null ? plan.getName() : "Gói Tùy Biến B2B",
+                                "contractValue", saved.getContractValue() != null ? saved.getContractValue() : 0,
+                                "currency", saved.getCurrency() != null ? saved.getCurrency() : "USD",
+                                "partyBName", saved.getPartyBName() != null ? saved.getPartyBName() : "Khách hàng",
+                                "signUrl", signUrl
+                        ))
+                        .build();
+                notificationPublisher.publishEmail(emailPayload);
+                log.info("Published email notification for Contract {}", saved.getContractNumber());
+            } catch (Exception e) {
+                log.error("Failed to publish contract invitation email for contract {}", saved.getContractNumber(), e);
+            }
+        }
+
         return enrichContractResponse(saved, tenant, plan);
     }
 
@@ -214,6 +247,25 @@ public class MasterContractService {
         signatureRepository.save(signature);
 
         log.info("Generated e-Sign OTP [{}] for contract {} sent to {}", otp, contract.getContractNumber(), contract.getPartyBEmail());
+
+        if (StringUtils.hasText(contract.getPartyBEmail())) {
+            try {
+                MasterEmailPayload emailPayload = MasterEmailPayload.builder()
+                        .tenantCode("MASTER")
+                        .toEmail(contract.getPartyBEmail())
+                        .subject("Mã OTP Xác thực Ký số Hợp đồng B2B - " + contract.getContractNumber())
+                        .templateName("contract-otp")
+                        .notificationType("CONTRACT_OTP")
+                        .templateVariables(Map.of(
+                                "contractNumber", contract.getContractNumber(),
+                                "otpCode", otp
+                        ))
+                        .build();
+                notificationPublisher.publishEmail(emailPayload);
+            } catch (Exception e) {
+                log.error("Failed to publish OTP email for contract {}", contract.getContractNumber(), e);
+            }
+        }
 
         return Map.of(
                 "success", true,

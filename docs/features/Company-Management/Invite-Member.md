@@ -34,6 +34,7 @@ Company admin mời nhân viên qua email. Người được mời mở link, đ
 | Method | Path | Quyền |
 |---|---|---|
 | GET | `/api/v1/tenant/users` | `TENANT_ADMIN`, `ADMIN` (không gồm `CANDIDATE`) |
+| GET | `/api/v1/tenant/users/{id}/assignments` | `TENANT_ADMIN`, `ADMIN` — job chưa xóa mà nhân viên đang được phân công |
 | PUT | `/api/v1/tenant/users/{id}/role` | `TENANT_ADMIN`, `ADMIN` |
 | POST | `/api/v1/tenant/users/invitations/accept` | Public + tenant context |
 
@@ -44,7 +45,7 @@ Migration: `backend/src/main/resources/db/migration/tenant/V4__member_invitation
 
 ## UI mockup
 
-- Admin: `/internal/admin/users` — form mời bên trái, bảng nhân viên bên phải (dropdown gắn vai trò)
+- Admin: `/internal/admin/users` — form mời bên trái, bảng nhân viên bên phải (dropdown gắn vai trò). Nút Xem mở hộp thoại chi tiết: email, vai trò, workspace, trạng thái, ngày tham gia, và các job đang phụ trách.
 - Accept: `/invite/accept?token=`
 - Nav: `nav.users`
 

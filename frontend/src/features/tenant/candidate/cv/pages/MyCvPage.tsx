@@ -1,10 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { cvApi } from "@/api/tenant/cvApi";
 import { getApiErrorMessage } from "@/lib/axios";
 import { queryKeys } from "@/lib/query-keys";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 import { button, muted, panel } from "@/features/tenant/recruiter/matching/components/rankingUi";
+import { CvFilePreview } from "@/components/shared/CvFilePreview";
 import type { CvDetail } from "@/api/types/cv";
 
 const chip = "rounded-full px-2.5 py-0.5 text-xs font-medium bg-[var(--color-primary-container)] text-[var(--color-on-primary)]";
@@ -56,7 +57,7 @@ export function MyCvPage() {
     <section className="space-y-6 text-[var(--color-on-surface)]">
       <header>
         <h1 className="text-3xl font-semibold tracking-tight">CV của tôi</h1>
-        <p className={`mt-2 max-w-2xl ${muted}`}>Tải PDF/DOCX, xem file và thông tin hệ thống trích xuất. Nộp CV khi apply việc, không gắn sẵn với một job.</p>
+        <p className={`mt-2 max-w-2xl ${muted}`}>Tải PDF, DOC hoặc DOCX, xem file và thông tin hệ thống trích xuất. Nộp CV khi apply việc, không gắn sẵn với một job.</p>
       </header>
       <div className={panel}>
         <label className={button}>
@@ -64,7 +65,7 @@ export function MyCvPage() {
           <input
             type="file"
             className="hidden"
-            accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
             onChange={(e) => {
               const file = e.target.files?.[0];
               if (file) upload.mutate(file);
@@ -83,11 +84,23 @@ export function MyCvPage() {
             {rows.map((row) => (
               <li
                 key={row.id}
-                className={`cursor-pointer rounded-xl border border-[var(--color-border-default)] p-3 ${selectedId === row.id ? "bg-[var(--color-surface-container-low)]" : ""}`}
-                onClick={() => setSelectedId(row.id)}
+                className={`flex items-start justify-between gap-3 rounded-xl border border-[var(--color-border-default)] p-3 ${selectedId === row.id ? "bg-[var(--color-surface-container-low)]" : ""}`}
               >
-                <p className="font-medium">{row.originalFilename}</p>
-                <p className={muted}>{row.status} · {new Date(row.createdAt).toLocaleString("vi-VN")}</p>
+                <button type="button" className="min-w-0 flex-1 text-left" onClick={() => setSelectedId(row.id)}>
+                  <p className="font-medium">{row.originalFilename}</p>
+                  <p className={muted}>{row.status} · {new Date(row.createdAt).toLocaleString("vi-VN")}</p>
+                </button>
+                <button
+                  className={button}
+                  type="button"
+                  disabled={remove.isPending}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    if (window.confirm("Xóa CV này? Không thể hoàn tác.")) remove.mutate(row.id);
+                  }}
+                >
+                  Xóa
+                </button>
               </li>
             ))}
           </ul>
@@ -166,33 +179,4 @@ function ExtractionFacts({ extraction }: { extraction: Record<string, unknown> |
 
 function text(value: unknown) {
   return typeof value === "string" && value.trim() ? value : null;
-}
-
-function CvFilePreview({ cvId, mimeType, filename }: { cvId: number; mimeType: string | null; filename: string }) {
-  const [url, setUrl] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const pdf = (mimeType ?? "").includes("pdf") || filename.toLowerCase().endsWith(".pdf");
-  useEffect(() => {
-    let objectUrl: string | null = null;
-    let cancelled = false;
-    cvApi.file(cvId).then((blob) => {
-      if (cancelled) return;
-      objectUrl = URL.createObjectURL(blob);
-      setUrl(objectUrl);
-    }).catch((err: unknown) => {
-      if (!cancelled) setError(getApiErrorMessage(err, "Không mở được file CV"));
-    });
-    return () => {
-      cancelled = true;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-  }, [cvId]);
-  if (error) return <p role="alert">{error}</p>;
-  if (!url) return <p className={muted}>Đang tải file CV…</p>;
-  return (
-    <div className="space-y-2">
-      <a className={`${button} inline-flex`} href={url} target="_blank" rel="noreferrer">Mở file CV</a>
-      {pdf && <iframe title={filename} src={url} className="h-[28rem] w-full rounded-md border border-[var(--color-border-default)] bg-white" />}
-    </div>
-  );
 }

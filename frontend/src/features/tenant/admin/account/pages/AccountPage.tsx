@@ -28,7 +28,7 @@ export function AccountPage() {
   const displayName = user?.fullName ?? "Quản trị viên doanh nghiệp";
   const initial = displayName.trim().charAt(0).toLocaleUpperCase() || "A";
 
-  const handleLogout = () => askConfirm({ title: "Đăng xuất khỏi SmartHire?", description: "Phiên làm việc hiện tại sẽ kết thúc trên thiết bị này.", confirmLabel: "Đăng xuất", danger: true, onConfirm: () => { logout(); navigate("/", { replace: true }); } });
+  const handleLogout = () => askConfirm({ title: "Đăng xuất khỏi SmartHire?", confirmLabel: "Đăng xuất", danger: true, onConfirm: () => { logout(); navigate("/", { replace: true }); } });
 
   return (
     <div className="grid min-h-[calc(100vh-3rem)] gap-8 lg:grid-cols-[18rem_minmax(0,1fr)]">

@@ -10,6 +10,7 @@ import com.smarthire.domain.tenant.entity.User;
 import com.smarthire.domain.tenant.repository.MemberInvitationRepository;
 import com.smarthire.domain.tenant.repository.UserRepository;
 import com.smarthire.multitenancy.context.TenantContext;
+import com.smarthire.multitenancy.service.TenantPublicUrlService;
 import com.smarthire.tenant.auth.dto.AcceptInvitationRequest;
 import com.smarthire.tenant.auth.dto.InviteMemberRequest;
 import com.smarthire.tenant.auth.dto.InviteMemberResponse;
@@ -53,6 +54,8 @@ class MemberInvitationServiceTest {
     private InviteMailSender inviteMailSender;
     @Mock
     private TenantRoleService tenantRoleService;
+    @Mock
+    private TenantPublicUrlService publicUrls;
     @Spy
     private AuthMapper authMapper = Mappers.getMapper(AuthMapper.class);
 
@@ -62,8 +65,9 @@ class MemberInvitationServiceTest {
     @BeforeEach
     void setUp() {
         TenantContext.setCurrentTenant("se36");
-        ReflectionTestUtils.setField(memberInvitationService, "publicOrigin", "http://localhost:5173");
         ReflectionTestUtils.setField(memberInvitationService, "expireHours", 72L);
+        org.mockito.Mockito.lenient().when(publicUrls.path(org.mockito.ArgumentMatchers.startsWith("/invite/accept")))
+                .thenAnswer(invocation -> "http://se36.localhost:5173" + invocation.getArgument(0));
     }
 
     @AfterEach

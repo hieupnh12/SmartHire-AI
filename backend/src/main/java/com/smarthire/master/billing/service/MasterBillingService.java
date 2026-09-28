@@ -225,14 +225,18 @@ public class MasterBillingService {
         SubscriptionPlan plan = planRepository.findByCode(request.getPlanCode().toUpperCase())
                 .orElseThrow(() -> new BusinessException("Gói cước không tồn tại: " + request.getPlanCode(), HttpStatus.NOT_FOUND, "PLAN_NOT_FOUND"));
 
-        BigDecimal amountVnd = "YEARLY".equalsIgnoreCase(request.getBillingCycle()) 
+        int quantity = request.getQuantity() != null && request.getQuantity() > 0 ? request.getQuantity() : 1;
+        
+        BigDecimal unitPriceVnd = "YEARLY".equalsIgnoreCase(request.getBillingCycle()) 
                 ? plan.getPriceYearlyVnd() 
                 : plan.getPriceMonthlyVnd();
 
-        if (amountVnd == null || amountVnd.compareTo(BigDecimal.ZERO) <= 0) {
+        if (unitPriceVnd == null || unitPriceVnd.compareTo(BigDecimal.ZERO) <= 0) {
             BigDecimal baseUsd = "YEARLY".equalsIgnoreCase(request.getBillingCycle()) ? plan.getPriceYearly() : plan.getPriceMonthly();
-            amountVnd = baseUsd.multiply(BigDecimal.valueOf(25400));
+            unitPriceVnd = baseUsd != null ? baseUsd.multiply(BigDecimal.valueOf(25400)) : BigDecimal.ZERO;
         }
+        
+        BigDecimal amountVnd = unitPriceVnd.multiply(BigDecimal.valueOf(quantity));
 
         // 1. Register pending tenant
         TenantInfo tenant = masterTenantService.registerPendingTenant(
@@ -250,8 +254,8 @@ public class MasterBillingService {
         // 2. Create pending tenant subscription
         LocalDateTime startsAt = LocalDateTime.now();
         LocalDateTime endsAt = "YEARLY".equalsIgnoreCase(request.getBillingCycle())
-                ? startsAt.plusYears(1)
-                : startsAt.plusMonths(1);
+                ? startsAt.plusYears(quantity)
+                : startsAt.plusMonths(quantity);
 
         TenantSubscription sub = TenantSubscription.builder()
                 .tenantId(tenant.getId())
@@ -281,29 +285,29 @@ public class MasterBillingService {
                 .billingTaxCode(request.getTaxCode())
                 .billingLegalName(request.getCompanyLegalName())
                 .billingAddress(request.getBillingAddress())
-                .notes("Self-Service Checkout - " + plan.getName() + " (" + request.getBillingCycle() + ")")
+                .notes("Self-Service Checkout - " + plan.getName() + " (" + quantity + " " + request.getBillingCycle() + ")")
                 .build();
         Invoice savedInvoice = invoiceRepository.save(invoice);
 
         // 4. Create line item
         InvoiceLineItem lineItem = InvoiceLineItem.builder()
                 .invoiceId(savedInvoice.getId())
-                .description("Thuê bao " + plan.getName() + " (" + ("YEARLY".equalsIgnoreCase(request.getBillingCycle()) ? "1 năm" : "1 tháng") + ")")
-                .quantity(1)
-                .unitPrice(amountVnd)
+                .description("Thuê bao " + plan.getName() + " (" + quantity + ("YEARLY".equalsIgnoreCase(request.getBillingCycle()) ? " năm" : " tháng") + ")")
+                .quantity(quantity)
+                .unitPrice(unitPriceVnd)
                 .totalPrice(amountVnd)
                 .itemType("SUBSCRIPTION")
                 .build();
         invoiceLineItemRepository.save(lineItem);
 
         // 5. Bank Info and VietQR
-        String bankName = "Techcombank (TCB)";
-        String accountNumber = "190388889999";
-        String accountName = "CONG TY CP CONG NGHE SMARTHIRE VIET NAM";
+        String bankName = "Vietcombank (VCB)";
+        String accountNumber = "1028935315";
+        String accountName = "NGUYEN NHAT SINH";
         String transferSyntax = "SH " + savedInvoice.getInvoiceNumber();
         String encodedSyntax = URLEncoder.encode(transferSyntax, StandardCharsets.UTF_8);
         String encodedAccount = URLEncoder.encode(accountName, StandardCharsets.UTF_8);
-        String qrUrl = "https://img.vietqr.io/image/TCB-190388889999-compact2.png?amount=" 
+        String qrUrl = "https://img.vietqr.io/image/VCB-1028935315-compact2.png?amount=" 
                 + amountVnd.toBigInteger() 
                 + "&addInfo=" + encodedSyntax 
                 + "&accountName=" + encodedAccount;

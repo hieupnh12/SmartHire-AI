@@ -113,7 +113,6 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
   }, [profileQuery.data, setUser]);
   const handleLogout = () => askConfirm({
     title: "Đăng xuất khỏi SmartHire?",
-    description: "Phiên làm việc hiện tại sẽ kết thúc trên thiết bị này.",
     confirmLabel: "Đăng xuất",
     danger: true,
     onConfirm: () => {
@@ -368,6 +367,7 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
             >
               <Search className="pointer-events-none absolute left-3.5 top-1/2 size-[18px] -translate-y-1/2 text-[var(--color-outline)]" aria-hidden="true" />
               <input
+                data-search-input
                 name="workspace-search"
                 type="search"
                 placeholder={isCandidateWorkspace ? `${t("common.search")} việc làm, kỹ năng...` : `${t("common.search")} ứng viên, kỹ năng...`}

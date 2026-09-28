@@ -1,16 +1,34 @@
 package com.smarthire.tenant.cv;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.smarthire.common.redis.RedisService;
-import com.smarthire.domain.tenant.entity.*;
-import com.smarthire.domain.tenant.repository.*;
+import com.smarthire.domain.tenant.entity.Cv;
+import com.smarthire.domain.tenant.entity.CvAnalysis;
+import com.smarthire.domain.tenant.entity.CvExtraction;
+import com.smarthire.domain.tenant.entity.CvSkill;
+import com.smarthire.domain.tenant.entity.Job;
+import com.smarthire.domain.tenant.entity.JobSkill;
+import com.smarthire.domain.tenant.entity.MatchScore;
+import com.smarthire.domain.tenant.entity.Skill;
+import com.smarthire.domain.tenant.repository.CvAnalysisRepository;
+import com.smarthire.domain.tenant.repository.CvExtractionRepository;
+import com.smarthire.domain.tenant.repository.CvSkillRepository;
+import com.smarthire.domain.tenant.repository.JobSkillRepository;
+import com.smarthire.domain.tenant.repository.MatchScoreRepository;
+import com.smarthire.domain.tenant.repository.SkillRepository;
 import com.smarthire.tenant.cv.ai.HeuristicCvAiClient;
+import com.smarthire.domain.tenant.entity.JobScreeningConfig;
 import com.smarthire.tenant.cv.service.CvMatchingService;
 import com.smarthire.tenant.cv.service.CvSkillAnalysisService;
+import com.smarthire.tenant.job.screening.JobScreeningConfigService;
 import com.smarthire.tenant.matching.service.SkillScoringService;
 import java.math.BigDecimal;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -18,7 +36,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class CvMatchingServiceTest {
@@ -29,6 +49,21 @@ class CvMatchingServiceTest {
     @Mock CvExtractionRepository extractionRepository;
     @Mock MatchScoreRepository matchScoreRepository;
     @Mock RedisService redis;
+    @Mock JobScreeningConfigService screening;
+
+    @BeforeEach
+    void defaultJobWeights() {
+        org.mockito.Mockito.lenient().when(screening.require(org.mockito.ArgumentMatchers.anyLong()))
+                .thenReturn(JobScreeningConfigService.snapshot());
+    }
+
+    @Test
+    void jaccardIsIntersectionOverUnion() {
+        Set<String> job = new LinkedHashSet<>(List.of("java", "spring boot", "postgresql", "docker"));
+        Set<String> cv = new LinkedHashSet<>(List.of("java", "spring boot", "postgresql", "react"));
+        assertThat(CvMatchingService.jaccard(job, cv)).isEqualByComparingTo("0.6000");
+        assertThat(CvMatchingService.jaccard(Set.of(), Set.of())).isEqualByComparingTo("0");
+    }
 
     @Test
     void mapsTaxonomyAndScreensAgainstJobSkills() {
@@ -78,7 +113,9 @@ class CvMatchingServiceTest {
         MatchScore score = matching(mapper, scoring).score(cv);
         assertThat(score.getModelVersion()).isEqualTo(CvMatchingService.HEURISTIC_SCREEN);
         assertThat(score.getScore()).isEqualByComparingTo("100.00");
-        assertThat(score.getBreakdownJson()).contains("verdict").contains("React").contains("\"passed\":true");
+        assertThat(score.getBreakdownJson()).contains("verdict").contains("React")
+                .contains("\"passed\":true").contains("\"jaccardSimilarity\":1")
+                .contains("TAXONOMY").doesNotContain("\"skills\":35");
     }
 
     @Test
@@ -92,7 +129,7 @@ class CvMatchingServiceTest {
         cv.setId(2L);
         cv.setJob(job);
 
-        when(jobSkillRepository.findByJob_IdOrderByIdAsc(4L)).thenReturn(List.of(jobSkill("Java", "backend")));
+        when(jobSkillRepository.findByJob_IdOrderByIdAsc(4L)).thenReturn(List.of(jobSkill("Java", "backend", true)));
         Skill extractedSkill = new Skill();
         extractedSkill.setName("strategic planning");
         CvSkill cvSkill = new CvSkill();
@@ -101,16 +138,18 @@ class CvMatchingServiceTest {
         when(cvSkillRepository.findByCv_Id(2L)).thenReturn(List.of(cvSkill));
         when(extractionRepository.findByCv_Id(2L)).thenReturn(Optional.of(extraction(cv,
                 "{\"skills\":[{\"name\":\"Strategic Planning\"}],\"education\":[{\"degree\":\"Master\"}]}")));
+        when(analysisRepository.findByCv_Id(2L)).thenReturn(Optional.empty());
         when(matchScoreRepository.findByJob_IdAndCv_Id(4L, 2L)).thenReturn(Optional.empty());
         when(matchScoreRepository.save(any(MatchScore.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         MatchScore score = matching(mapper, scoring).score(cv);
         assertThat(score.getScore()).isEqualByComparingTo("0.00");
-        assertThat(score.getBreakdownJson()).contains("khớp 0/1").contains("\"passed\":false").doesNotContain("\"skills\":35");
+        assertThat(score.getBreakdownJson()).contains("khớp 0/1").contains("\"passed\":false")
+                .contains("MISSING").doesNotContain("\"skills\":35");
     }
 
     @Test
-    void usesGeminiScreeningScoreWhenPresent() {
+    void ignoresGeminiOverallScoreAndUsesHybridFormula() {
         var mapper = new ObjectMapper();
         var scoring = new SkillScoringService();
         Job job = new Job();
@@ -119,36 +158,210 @@ class CvMatchingServiceTest {
         Cv cv = new Cv();
         cv.setId(3L);
         cv.setJob(job);
-        when(jobSkillRepository.findByJob_IdOrderByIdAsc(4L)).thenReturn(List.of(jobSkill("Java", "backend")));
+        when(jobSkillRepository.findByJob_IdOrderByIdAsc(4L)).thenReturn(List.of(jobSkill("Java", "backend", true)));
         when(cvSkillRepository.findByCv_Id(3L)).thenReturn(List.of());
         CvExtraction extraction = extraction(cv, """
                 {"skills":[],"screening":{"score":18,"verdict":"Consultant CV does not meet Java requirements."}}
                 """);
         extraction.setModelVersion("gemini:gemini-2.0-flash");
         when(extractionRepository.findByCv_Id(3L)).thenReturn(Optional.of(extraction));
+        when(analysisRepository.findByCv_Id(3L)).thenReturn(Optional.empty());
         when(matchScoreRepository.findByJob_IdAndCv_Id(4L, 3L)).thenReturn(Optional.empty());
         when(matchScoreRepository.save(any(MatchScore.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         MatchScore score = matching(mapper, scoring).score(cv);
-        assertThat(score.getScore()).isEqualByComparingTo("18.00");
-        assertThat(score.getModelVersion()).isEqualTo("gemini:gemini-2.0-flash");
-        assertThat(score.getBreakdownJson()).contains("does not meet Java");
+        assertThat(score.getScore()).isNotEqualByComparingTo("18.00");
+        assertThat(score.getScore()).isEqualByComparingTo("0.00");
+        assertThat(score.getModelVersion()).isEqualTo(CvMatchingService.HYBRID_SCREEN);
+        assertThat(score.getBreakdownJson()).contains("does not meet Java").contains("\"source\":\"hybrid\"");
+    }
+
+    @Test
+    void semanticMatchCountsWhenTaxonomyMisses() {
+        var mapper = new ObjectMapper();
+        var scoring = new SkillScoringService();
+        Job job = new Job();
+        job.setId(5L);
+        job.setTitle("Backend");
+        Cv cv = new Cv();
+        cv.setId(8L);
+        cv.setJob(job);
+        when(jobSkillRepository.findByJob_IdOrderByIdAsc(5L)).thenReturn(List.of(jobSkill("Spring Boot", "backend", true)));
+        when(cvSkillRepository.findByCv_Id(8L)).thenReturn(List.of());
+        CvExtraction extraction = extraction(cv, """
+                {"skills":[],"screening":{"matched":[{"requirement":"Spring Boot","status":"MATCH",
+                "evidence":"Developed REST APIs using Spring Boot for 2 years."}]}}
+                """);
+        extraction.setModelVersion("gemini:gemini-2.0-flash");
+        when(extractionRepository.findByCv_Id(8L)).thenReturn(Optional.of(extraction));
+        when(analysisRepository.findByCv_Id(8L)).thenReturn(Optional.empty());
+        when(matchScoreRepository.findByJob_IdAndCv_Id(5L, 8L)).thenReturn(Optional.empty());
+        when(matchScoreRepository.save(any(MatchScore.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        MatchScore score = matching(mapper, scoring).score(cv);
+        JsonNode breakdown = read(mapper, score.getBreakdownJson());
+        assertThat(breakdown.path("matched").get(0).path("status").asText()).isEqualTo("MATCH");
+        assertThat(breakdown.path("matched").get(0).path("matchType").asText()).isEqualTo("SEMANTIC");
+        assertThat(breakdown.path("matched").get(0).path("evidence").asText()).contains("Spring Boot");
+        assertThat(breakdown.path("jaccardSimilarity").decimalValue()).isEqualByComparingTo("0");
+        assertThat(score.getScore()).isEqualByComparingTo("85.00");
+        assertThat(breakdown.path("passed").asBoolean()).isTrue();
+    }
+
+    @Test
+    void hybridScoreUsesJaccardAndKeepsRequiredMissingFromPassing() throws Exception {
+        var mapper = new ObjectMapper();
+        var scoring = new SkillScoringService();
+        Job job = new Job();
+        job.setId(6L);
+        job.setTitle("Backend");
+        Cv cv = new Cv();
+        cv.setId(9L);
+        cv.setJob(job);
+        when(jobSkillRepository.findByJob_IdOrderByIdAsc(6L)).thenReturn(List.of(
+                jobSkill("Java", "backend", true),
+                jobSkill("Spring Boot", "backend", true),
+                jobSkill("PostgreSQL", "database", true),
+                jobSkill("Docker", "devops", true)));
+        when(cvSkillRepository.findByCv_Id(9L)).thenReturn(List.of(
+                cvSkill("Java"), cvSkill("Spring Boot"), cvSkill("PostgreSQL"), cvSkill("React")));
+        when(extractionRepository.findByCv_Id(9L)).thenReturn(Optional.of(extraction(cv, "{\"skills\":[]}")));
+        when(analysisRepository.findByCv_Id(9L)).thenReturn(Optional.empty());
+        when(matchScoreRepository.findByJob_IdAndCv_Id(6L, 9L)).thenReturn(Optional.empty());
+        when(matchScoreRepository.save(any(MatchScore.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        MatchScore score = matching(mapper, scoring).score(cv);
+        JsonNode breakdown = mapper.readTree(score.getBreakdownJson());
+        assertThat(breakdown.path("jaccardSimilarity").decimalValue()).isEqualByComparingTo("0.6000");
+        assertThat(breakdown.path("requiredMissing").toString()).contains("Docker");
+        assertThat(breakdown.path("passed").asBoolean()).isFalse();
+        assertThat(score.getScore()).isEqualByComparingTo("72.75");
+    }
+
+    @Test
+    void experienceComponentUsesJobMinimumYears() {
+        var mapper = new ObjectMapper();
+        var scoring = new SkillScoringService();
+        Job job = new Job();
+        job.setId(7L);
+        job.setTitle("Backend");
+        job.setMinYearsExperience(new BigDecimal("2.0"));
+        Cv cv = new Cv();
+        cv.setId(10L);
+        cv.setJob(job);
+        CvAnalysis analysis = new CvAnalysis();
+        analysis.setYearsExperience(new BigDecimal("3.0"));
+        when(jobSkillRepository.findByJob_IdOrderByIdAsc(7L)).thenReturn(List.of(jobSkill("Java", "backend", true)));
+        when(cvSkillRepository.findByCv_Id(10L)).thenReturn(List.of(cvSkill("Java")));
+        when(extractionRepository.findByCv_Id(10L)).thenReturn(Optional.of(extraction(cv, "{\"skills\":[{\"name\":\"Java\"}]}")));
+        when(analysisRepository.findByCv_Id(10L)).thenReturn(Optional.of(analysis));
+        when(matchScoreRepository.findByJob_IdAndCv_Id(7L, 10L)).thenReturn(Optional.empty());
+        when(matchScoreRepository.save(any(MatchScore.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        MatchScore score = matching(mapper, scoring).score(cv);
+        JsonNode breakdown = read(mapper, score.getBreakdownJson());
+        assertThat(breakdown.path("experienceAnalysis").path("match").asBoolean()).isTrue();
+        assertThat(breakdown.path("components").path("experience").decimalValue()).isEqualByComparingTo("100.00");
+        assertThat(score.getScore()).isEqualByComparingTo("100.00");
+    }
+
+    @Test
+    void cvScoreUsesJobScreeningWeightsNotHardcodedFormula() {
+        var mapper = new ObjectMapper();
+        var scoring = new SkillScoringService();
+        Job job = new Job();
+        job.setId(20L);
+        job.setTitle("Backend");
+        Cv cv = new Cv();
+        cv.setId(20L);
+        cv.setJob(job);
+        stubHybridCoverage(job.getId(), cv);
+        when(screening.require(20L)).thenReturn(config(
+                "0", "0", "0", "0", "100", "0", "60"));
+
+        MatchScore jaccardOnly = matching(mapper, scoring).score(cv);
+        assertThat(jaccardOnly.getScore()).isEqualByComparingTo("60.00");
+
+        when(screening.require(20L)).thenReturn(config(
+                "100", "0", "0", "0", "0", "0", "60"));
+        MatchScore skillOnly = matching(mapper, scoring).score(cv);
+        assertThat(skillOnly.getScore()).isEqualByComparingTo("75.00");
+        assertThat(skillOnly.getScore()).isNotEqualByComparingTo(jaccardOnly.getScore());
+        assertThat(skillOnly.getBreakdownJson()).contains("\"jaccard\":0");
+    }
+
+    @Test
+    void changingGateWeightsDoesNotChangeCvComponentScores() {
+        var mapper = new ObjectMapper();
+        var scoring = new SkillScoringService();
+        Job job = new Job();
+        job.setId(21L);
+        job.setTitle("Backend");
+        Cv cv = new Cv();
+        cv.setId(21L);
+        cv.setJob(job);
+        stubHybridCoverage(21L, cv);
+        JobScreeningConfig config = config("40", "8", "12", "0", "15", "25", "60");
+        config.setGateCvWeight(new BigDecimal("10.00"));
+        config.setGateInterviewWeight(new BigDecimal("10.00"));
+        config.setGateAssessmentWeight(new BigDecimal("80.00"));
+        when(screening.require(21L)).thenReturn(config);
+
+        MatchScore score = matching(mapper, scoring).score(cv);
+        assertThat(score.getScore()).isEqualByComparingTo("72.75");
+    }
+
+    private void stubHybridCoverage(long jobId, Cv cv) {
+        when(jobSkillRepository.findByJob_IdOrderByIdAsc(jobId)).thenReturn(List.of(
+                jobSkill("Java", "backend", true),
+                jobSkill("Spring Boot", "backend", true),
+                jobSkill("PostgreSQL", "database", true),
+                jobSkill("Docker", "devops", true)));
+        when(cvSkillRepository.findByCv_Id(cv.getId())).thenReturn(List.of(
+                cvSkill("Java"), cvSkill("Spring Boot"), cvSkill("PostgreSQL"), cvSkill("React")));
+        when(extractionRepository.findByCv_Id(cv.getId())).thenReturn(Optional.of(extraction(cv, "{\"skills\":[]}")));
+        when(analysisRepository.findByCv_Id(cv.getId())).thenReturn(Optional.empty());
+        when(matchScoreRepository.findByJob_IdAndCv_Id(jobId, cv.getId())).thenReturn(Optional.empty());
+        when(matchScoreRepository.save(any(MatchScore.class))).thenAnswer(invocation -> invocation.getArgument(0));
+    }
+
+    private static JobScreeningConfig config(
+            String skill, String preferred, String experience, String education,
+            String jaccard, String semantic, String threshold) {
+        JobScreeningConfig config = JobScreeningConfigService.snapshot();
+        config.setCvSkillWeight(new BigDecimal(skill));
+        config.setCvPreferredWeight(new BigDecimal(preferred));
+        config.setCvExperienceWeight(new BigDecimal(experience));
+        config.setCvEducationWeight(new BigDecimal(education));
+        config.setCvJaccardWeight(new BigDecimal(jaccard));
+        config.setCvSemanticWeight(new BigDecimal(semantic));
+        config.setCvPassThreshold(new BigDecimal(threshold));
+        return config;
     }
 
     private CvMatchingService matching(ObjectMapper mapper, SkillScoringService scoring) {
         return new CvMatchingService(
-                jobSkillRepository, cvSkillRepository, extractionRepository, matchScoreRepository,
-                scoring, mapper, redis, 1800);
+                jobSkillRepository, cvSkillRepository, extractionRepository, analysisRepository, matchScoreRepository,
+                scoring, screening, mapper, redis, 1800);
     }
 
-    private static JobSkill jobSkill(String name, String category) {
+    private static JobSkill jobSkill(String name, String category, boolean required) {
         Skill skill = new Skill();
         skill.setName(name);
         skill.setCategory(category);
         JobSkill row = new JobSkill();
         row.setSkill(skill);
-        row.setRequired(true);
+        row.setRequired(required);
         row.setWeight(BigDecimal.ONE);
+        return row;
+    }
+
+    private static CvSkill cvSkill(String name) {
+        Skill skill = new Skill();
+        skill.setName(name);
+        CvSkill row = new CvSkill();
+        row.setSkillName(name);
+        row.setSkill(skill);
         return row;
     }
 
@@ -157,5 +370,13 @@ class CvMatchingServiceTest {
         extraction.setCv(cv);
         extraction.setExtractionJson(json);
         return extraction;
+    }
+
+    private static JsonNode read(ObjectMapper mapper, String json) {
+        try {
+            return mapper.readTree(json);
+        } catch (Exception ex) {
+            throw new IllegalStateException(ex);
+        }
     }
 }

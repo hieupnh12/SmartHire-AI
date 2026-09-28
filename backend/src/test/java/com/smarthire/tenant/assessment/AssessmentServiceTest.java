@@ -5,6 +5,7 @@ import com.smarthire.domain.enums.TestStatus;
 import com.smarthire.domain.tenant.entity.Job;
 import com.smarthire.domain.tenant.entity.JobTest;
 import com.smarthire.domain.tenant.entity.User;
+import com.smarthire.domain.tenant.repository.JobAssignmentRepository;
 import com.smarthire.domain.tenant.repository.JobRepository;
 import com.smarthire.domain.tenant.repository.JobTestRepository;
 import com.smarthire.domain.tenant.repository.UserRepository;
@@ -127,7 +128,7 @@ class AssessmentServiceTest {
     @Test
     void realCandidateRoleCannotManageTests() {
         authenticate("tenant_a", "tenant_a", "ROLE_CANDIDATE");
-        service = new AssessmentService(tests, jobs, new CvAccess(mock(UserRepository.class)), new AssessmentMapper());
+        service = new AssessmentService(tests, jobs, new CvAccess(mock(UserRepository.class), mock(JobAssignmentRepository.class)), new AssessmentMapper());
         assertThatThrownBy(() -> service.create(request)).hasMessage("Staff access required");
         assertThatThrownBy(() -> service.update(2L, request)).hasMessage("Staff access required");
         assertThatThrownBy(() -> service.list(0, 20)).hasMessage("Staff access required");
@@ -138,7 +139,7 @@ class AssessmentServiceTest {
     @Test
     void mismatchedTenantIsRejectedBeforeQueries() {
         authenticate("tenant_a", "tenant_b", "ROLE_RECRUITER");
-        service = new AssessmentService(tests, jobs, new CvAccess(mock(UserRepository.class)), new AssessmentMapper());
+        service = new AssessmentService(tests, jobs, new CvAccess(mock(UserRepository.class), mock(JobAssignmentRepository.class)), new AssessmentMapper());
         assertThatThrownBy(() -> service.create(request)).hasMessage("Tenant access required");
         verifyNoInteractions(tests, jobs);
     }

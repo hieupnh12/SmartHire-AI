@@ -6,7 +6,7 @@
 
 ## Mục đích chức năng
 
-Ứng viên nộp CV (PDF/DOCX) khi apply job đang tuyển. Recruiter không upload hộ; trang Sàng lọc CV chỉ đọc CV đã nộp.
+Ứng viên nộp CV (PDF, DOC, DOCX) khi apply job đang tuyển. Recruiter không upload hộ; trang Sàng lọc CV chỉ đọc CV đã nộp.
 
 ## Actor
 
@@ -19,7 +19,7 @@
 2. Candidate tải CV ở **CV của tôi** (không chọn job). Khi apply: Xem chi tiết JD → Apply (chọn CV đã có, tải từ máy, hoặc sang trang CV của tôi).
 3. Status `UPLOADED`.
 4. Auto-enqueue parse; nếu RabbitMQ không chạy thì xử lý ngay trên request.
-5. Recruiter/candidate có thể `DELETE /cvs/{id}` để gỡ CV test hoặc rút CV.
+5. Recruiter/candidate có thể `DELETE /cvs/{id}` để gỡ CV test hoặc rút CV. Candidate xóa ngay trên danh sách **CV của tôi**.
 
 ## Business Rules
 
@@ -39,7 +39,12 @@
 
 ## Database liên quan
 
-- `cvs`
+- `cvs` (`storage_key`, `file_url`)
+
+## Lưu file
+
+- Chỉ **Cloudinary**. PDF: `resource_type=image`, public id `cv_{subdomain}_{cvId}`. DOC/DOCX: `raw`. Lưu `secure_url`. Xem qua `GET /api/v1/cvs/{id}/file` (URL public, nếu 401 thì tải bằng API có chữ ký). Xóa trên web gọi Cloudinary `destroy`. Gói Free: bật **Allow delivery of PDF and ZIP files** trong Cloudinary Security.
+- Bắt buộc `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` trong `backend/.env`. Không ghi file CV xuống đĩa máy.
 
 ## UI mockup
 

@@ -66,6 +66,36 @@ export type ApplicationDetail = ApplicationSummary & {
   candidateApplicationCount: number;
   cvs: CvRef[];
   history: HistoryView[];
+  gateScore?: GateScoreView | null;
+  rounds?: ScreeningRoundsView | null;
+};
+
+export type RoundItemView = {
+  status: string;
+  score: number | null;
+  threshold: number | null;
+  passed: boolean | null;
+  weight: number | null;
+};
+
+export type ScreeningRoundsView = {
+  cv: RoundItemView;
+  aiInterview: RoundItemView;
+  assessment: RoundItemView;
+  aiInterviewInvitedAt: string | null;
+};
+
+export type GateScoreView = {
+  score: number;
+  passed: boolean;
+  complete: boolean;
+  cvScore: number | null;
+  aiInterviewScore: number | null;
+  assessmentScore: number | null;
+  cvWeight: number | null;
+  aiInterviewWeight: number | null;
+  assessmentWeight: number | null;
+  passThreshold: number | null;
 };
 
 export type ApplicationPage = {

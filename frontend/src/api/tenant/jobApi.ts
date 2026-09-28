@@ -12,7 +12,7 @@ import type {
 } from "../types/job";
 
 export const jobApi = {
-  search: (params?: { q?: string; status?: JobStatus | ""; page?: number; size?: number }) =>
+  search: (params?: { q?: string; status?: JobStatus | ""; department?: string; page?: number; size?: number }) =>
     api.get<ApiResponse<JobPage>>("/jobs", { params }).then((r) => r.data),
   list: (params?: Record<string, unknown>) =>
     api.get<ApiResponse<JobPage>>("/jobs", { params }).then((r) => r.data),
@@ -46,6 +46,8 @@ export const jobApi = {
     api.get<ApiResponse<{ id: number; title: string; status: string }[]>>("/jobs/published").then((r) => r.data),
   options: () =>
     api.get<ApiResponse<{ id: number; title: string; status: string }[]>>("/jobs/options").then((r) => r.data),
+  departments: () =>
+    api.get<ApiResponse<string[]>>("/jobs/departments").then((r) => r.data),
   stages: (id: number | string) =>
     api.get<ApiResponse<StageView[]>>(`/jobs/${id}/stages`).then((r) => r.data),
   publicList: (q?: string) =>

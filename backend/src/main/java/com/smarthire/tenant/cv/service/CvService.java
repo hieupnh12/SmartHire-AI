@@ -20,6 +20,7 @@ import com.smarthire.domain.tenant.repository.RankingDataRepository;
 import com.smarthire.domain.tenant.repository.UserRepository;
 import com.smarthire.messaging.JobPublisher;
 import com.smarthire.multitenancy.context.TenantContext;
+import com.smarthire.multitenancy.service.TenantRegistryService;
 import com.smarthire.tenant.cv.dto.CvModels.CvDetail;
 import com.smarthire.tenant.cv.dto.CvModels.CvSummary;
 import com.smarthire.tenant.cv.dto.CvModels.MatchView;
@@ -46,6 +47,8 @@ public class CvService {
     private static final Logger log = LoggerFactory.getLogger(CvService.class);
     private static final Set<String> ALLOWED_MIME = Set.of(
             "application/pdf",
+            "application/msword",
+            "application/vnd.ms-word",
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
     private final CvRepository cvs;
     private final JobRepository jobs;
@@ -63,6 +66,7 @@ public class CvService {
     private final CvMapper mapper;
     private final CvMatchingService matching;
     private final CvPipelineService pipeline;
+    private final TenantRegistryService tenants;
     private final long maxBytes;
 
     public CvService(
@@ -82,6 +86,7 @@ public class CvService {
             CvMapper mapper,
             CvMatchingService matching,
             CvPipelineService pipeline,
+            TenantRegistryService tenants,
             @Value("${app.cv.max-file-bytes:10485760}") long maxBytes) {
         this.cvs = cvs;
         this.jobs = jobs;
@@ -99,6 +104,7 @@ public class CvService {
         this.mapper = mapper;
         this.matching = matching;
         this.pipeline = pipeline;
+        this.tenants = tenants;
         this.maxBytes = maxBytes;
     }
 
@@ -142,7 +148,8 @@ public class CvService {
             cv.setRetainUntil(java.time.Instant.now().plus(730, java.time.temporal.ChronoUnit.DAYS));
             cvs.save(cv);
             try {
-                var stored = storage.store(TenantContext.getCurrentTenant(), String.valueOf(cv.getId()), filename, bytes);
+                var stored = storage.store(tenants.requireActive(TenantContext.getCurrentTenant()).getSubdomain(),
+                        String.valueOf(cv.getId()), filename, bytes);
                 cv.setStorageKey(stored.storageKey());
                 cv.setFileUrl(stored.url());
                 cvs.save(cv);
@@ -155,6 +162,7 @@ public class CvService {
         } catch (BusinessException ex) {
             throw ex;
         } catch (Exception ex) {
+            log.error("Failed to store CV", ex);
             throw new BusinessException("Failed to store CV", HttpStatus.INTERNAL_SERVER_ERROR, "CV_STORE_FAILED");
         }
     }
@@ -175,6 +183,7 @@ public class CvService {
                     : cv.getMimeType();
             return new StoredCvFile(storage.read(cv.getStorageKey()), name, mime);
         } catch (Exception ex) {
+            log.error("Cannot read CV file {}", id, ex);
             throw new BusinessException("Cannot read CV file", HttpStatus.NOT_FOUND, "CV_FILE_MISSING");
         }
     }
@@ -192,6 +201,7 @@ public class CvService {
         extractions.deleteByCv_Id(id);
         documents.deleteByCv_Id(id);
         rankingData.detachCv(id);
+        cvs.flush();
         cvs.delete(cv);
         try {
             storage.delete(storageKey);
@@ -346,8 +356,11 @@ public class CvService {
         }
         String mime = file.getContentType() == null ? "" : file.getContentType().toLowerCase(Locale.ROOT);
         String name = file.getOriginalFilename() == null ? "" : file.getOriginalFilename().toLowerCase(Locale.ROOT);
-        boolean allowed = ALLOWED_MIME.contains(mime) || name.endsWith(".pdf") || name.endsWith(".docx");
-        if (!allowed) throw new BusinessException("Only PDF and DOCX are allowed", HttpStatus.BAD_REQUEST, "CV_TYPE_REJECTED");
+        boolean allowed = ALLOWED_MIME.contains(mime)
+                || name.endsWith(".pdf")
+                || name.endsWith(".doc")
+                || name.endsWith(".docx");
+        if (!allowed) throw new BusinessException("Only PDF, DOC, and DOCX are allowed", HttpStatus.BAD_REQUEST, "CV_TYPE_REJECTED");
     }
 
     private static String safeName(String original) {

@@ -1,7 +1,7 @@
 # Recruitment Trend Analysis
 
 **Epic:** Recruitment Analytics Dashboard  
-**Trạng thái:** `Doing`
+**Trạng thái:** `Done`
 **Code ID:** `DASH-03`
 
 ## Mục đích chức năng

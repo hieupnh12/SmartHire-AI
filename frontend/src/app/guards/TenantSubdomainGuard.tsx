@@ -22,9 +22,9 @@ export function TenantSubdomainGuard() {
     return (
       <main
         aria-busy="true"
-        className="grid min-h-screen place-items-center bg-[var(--color-surface)] px-6 text-center text-sm text-[var(--color-on-surface-variant)]"
+        className="grid min-h-screen place-items-center bg-[var(--color-surface)] px-6 text-center"
       >
-        <p role="status">Đang xác thực subdomain “{subdomain}”…</p>
+        {/* Empty loading state to avoid flashing text */}
       </main>
     );
   }

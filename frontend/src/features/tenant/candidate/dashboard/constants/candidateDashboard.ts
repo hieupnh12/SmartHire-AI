@@ -32,7 +32,7 @@ export const candidateTasks: CandidateTask[] = [
   },
   {
     title: "Cập nhật CV mới nhất",
-    meta: "PDF hoặc DOCX · hệ thống sẽ phân tích lại kỹ năng",
+    meta: "PDF, DOC hoặc DOCX · hệ thống sẽ phân tích lại kỹ năng",
     icon: "cv",
     to: "/candidate/cv",
   },

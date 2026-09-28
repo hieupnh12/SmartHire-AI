@@ -10,7 +10,7 @@ const variants: Record<Variant, string> = {
   secondary:
     "bg-surface-card text-[var(--color-text-primary)] border border-[var(--color-border-default)] hover:bg-surface-muted",
   ghost: "bg-transparent text-[var(--color-text-secondary)] hover:bg-surface-muted",
-  danger: "bg-[var(--color-status-danger)] text-[var(--color-text-inverse)] hover:opacity-90",
+  danger: "bg-red-600 text-white hover:bg-red-700 shadow-sm",
   ai: "bg-brand-accent text-[var(--color-text-inverse)] hover:opacity-90",
 };
 

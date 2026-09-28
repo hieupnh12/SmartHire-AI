@@ -17,12 +17,14 @@ Chuyển job giữa DRAFT → PUBLISHED → PAUSED/CLOSED; kiểm soát visibili
 1. Recruiter lưu nháp, hoặc bấm **Đăng tuyển** trên form (create/update rồi publish).
 2. `POST /api/v1/jobs/{id}/publish` (từ DRAFT hoặc PAUSED).
 3. `unpublish` → DRAFT; `pause` → PAUSED; `close` → CLOSED; `reopen` → PUBLISHED.
-4. Public list chỉ job `PUBLISHED` chưa quá deadline.
+4. Public list chỉ job `PUBLISHED` chưa quá `deadline` (ngày giờ).
+5. Scheduler mỗi phút đóng job `PUBLISHED`/`PAUSED` đã hết hạn, rồi enqueue phân tích Gemini cho mọi CV chưa `ANALYZED`. Đóng thủ công cũng chạy cùng bước.
 
 ## Business Rules
 
 - Publish cần title, description và ít nhất 1 skill.
-- Chỉ PUBLISHED (và chưa deadline) nhận application / CV candidate.
+- Chỉ PUBLISHED (và `deadline` còn sau thời điểm hiện tại, hoặc null) nhận application / CV candidate.
+- Recruiter set `deadline` datetime trên form job. Job cũ kiểu DATE được đưa về 23:59:59 UTC.
 
 ## API liên quan
 
@@ -39,7 +41,7 @@ Chuyển job giữa DRAFT → PUBLISHED → PAUSED/CLOSED; kiểm soát visibili
 
 ## Database liên quan
 
-- `jobs.status`, `published_at`, `paused_at`, `closed_at`
+- `jobs.status`, `published_at`, `paused_at`, `closed_at`, `deadline` (DATETIME, V15)
 
 ## UI mockup
 

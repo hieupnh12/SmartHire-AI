@@ -56,14 +56,9 @@ export function SaasLandingPage() {
       {/* HERO SECTION */}
       <section className="pt-16 pb-12 md:pt-24 md:pb-20 max-w-7xl mx-auto px-6">
         <div className="text-center max-w-4xl mx-auto">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-xs font-semibold mb-6 shadow-2xs">
-            <Sparkles className="w-4 h-4 text-blue-600 animate-spin" style={{ animationDuration: "8s" }} />
-            <span>Nền Tảng Quản Trị Tuyển Dụng Thông Minh Thế Hệ Mới</span>
-          </div>
-
           <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight text-slate-900 leading-[1.15] mb-6">
             Nâng Tầm Hiệu Suất Tuyển Dụng Với{" "}
-            <span className="text-blue-600 bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-600 bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 bg-clip-text text-transparent drop-shadow-sm">
               Trí Tuệ Nhân Tạo
             </span>
           </h1>

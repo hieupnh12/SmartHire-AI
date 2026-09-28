@@ -1,7 +1,7 @@
 # Email Notification
 
 **Epic:** Interview Scheduling & Real-time Notifications  
-**Trạng thái:** `To Do`  
+**Trạng thái:** `Doing`  
 **Code ID:** `SCHED-03`
 
 ## Mục đích chức năng
@@ -14,13 +14,14 @@ Gửi email (OTP, schedule, decision, feedback) qua RabbitMQ mail worker.
 
 ## Luồng hoạt động
 
-1. Publish `notify.email`.
-2. Worker template + SMTP/provider.
-3. Log delivery status.
+1. Publish `notify.email` (OTP, schedule — chưa đủ worker).
+2. CV screening đạt → `InviteMailSender` gửi mail mời phỏng vấn AI, ghi `email_outbox` + `applications.ai_interview_invited_at`.
+3. Worker template + SMTP/provider cho các loại mail còn lại.
 
 ## Business Rules
 
-- Retry + DLQ.
+- Retry + DLQ (hàng đợi SCHED-03).
+- Lời mời AI interview: một lần / application; SMTP lỗi thì chưa set `ai_interview_invited_at`.
 - Unsubscribe/preference (optional).
 
 ## API liên quan

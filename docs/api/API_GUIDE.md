@@ -30,6 +30,8 @@ Envelope chuẩn: xem phiên bản trước — `success`, `message`, `data`, `e
 | POST | `/jobs/quick` | JOB-01 (screening) |
 | GET/PUT | `/jobs/{id}/skills` | JOB-03 |
 | GET/PUT | `/jobs/{id}/stages` | JOB-04 |
+| GET/POST | `/jobs/{id}/assignments` | JOB-06 |
+| PATCH/DELETE | `/jobs/{id}/assignments/{userId}` | JOB-06 |
 | POST/GET | `/jobs/{id}/applications` | JOB-05 |
 | POST | `/jobs/{id}/applications/manual` | JOB-05 |
 | GET | `/applications/me` | JOB-05 |

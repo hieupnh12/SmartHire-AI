@@ -22,6 +22,8 @@ public class CheckoutRequest {
     @Pattern(regexp = "MONTHLY|YEARLY", message = "Chu kỳ thanh toán phải là MONTHLY hoặc YEARLY")
     private String billingCycle;
 
+    private Integer quantity;
+
     @NotBlank(message = "Tên không gian làm việc không được để trống")
     @Size(max = 255)
     private String workspaceName;

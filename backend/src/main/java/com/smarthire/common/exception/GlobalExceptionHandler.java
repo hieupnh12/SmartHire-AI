@@ -69,7 +69,7 @@ public class GlobalExceptionHandler {
         }
         log.error("Unhandled exception {}: {}", ex.getClass().getName(), ex.getMessage(), ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponse.error("An internal error occurred. Please try again later.", "INTERNAL_ERROR"));
+                .body(ApiResponse.error("An internal error occurred. Please try again later. Error: " + ex.getMessage(), "INTERNAL_ERROR"));
     }
 }
 

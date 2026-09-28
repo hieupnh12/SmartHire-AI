@@ -8,12 +8,14 @@ import { PreviewPage } from "@/features/master/landing/pages/PreviewPage";
 import { RoiPage } from "@/features/master/landing/pages/RoiPage";
 import { SecurityPage } from "@/features/master/landing/pages/SecurityPage";
 import { PricingPage } from "@/features/master/landing/pages/PricingPage";
+import { DemoRequestPage } from "@/features/master/landing/pages/DemoRequestPage";
 import { getTenantIdFromSubdomain } from "@/lib/tenant";
 import { FeatureRoute } from "@/app/guards/FeatureRoute";
 import { RoleRoute } from "@/app/guards/RoleRoute";
 import { TenantSubdomainGuard } from "@/app/guards/TenantSubdomainGuard";
 import { RoleShell } from "@/app/layouts/RoleShell";
 import { TenantOnboardPage } from "@/features/master/onboarding/pages/TenantOnboardPage";
+import { B2bDealWizardPage } from "@/features/master/onboarding/pages/B2bDealWizardPage";
 import { LoginPage } from "@/features/tenant/auth/pages/LoginPage";
 import { RegisterPage } from "@/features/tenant/auth/pages/RegisterPage";
 import { CandidateLoginPage } from "@/features/tenant/auth/pages/CandidateLoginPage";
@@ -40,10 +42,12 @@ import { TenantAdminDashboardPage } from "@/features/tenant/admin/workspace/page
 import { adminNav } from "@/features/tenant/admin/nav";
 import { HomePage as TenantAdminHomePage } from "@/features/tenant/admin/overview/pages/HomePage";
 import { CompanyProfilePage } from "@/features/tenant/admin/company/pages/CompanyProfilePage";
+import { LandingPageEditorPage } from "@/features/tenant/admin/landing/pages/LandingPageEditorPage";
 import { SystemPage } from "@/features/tenant/admin/system/pages/SystemPage";
 import { UsersPage } from "@/features/tenant/admin/users/pages/UsersPage";
 import { AccountPage as TenantAdminAccountPage } from "@/features/tenant/admin/account/pages/AccountPage";
 import { AnalyticsPage } from "@/features/tenant/admin/analytics/pages/AnalyticsPage";
+import { RecruitmentPage } from "@/features/tenant/admin/recruitment/pages/RecruitmentPage";
 import { AcceptInvitationPage } from "@/features/tenant/auth/pages/AcceptInvitationPage";
 import { PublicContractSigningPage } from "@/features/master/contract/pages/PublicContractSigningPage";
 import { candidateNav } from "@/features/tenant/candidate/nav";
@@ -79,6 +83,7 @@ import { SchedulesPage as RecruiterSchedulesPage } from "@/features/tenant/recru
 import { NotificationsPage as RecruiterNotificationsPage } from "@/features/tenant/recruiter/notifications/pages/NotificationsPage";
 import { RecruiterAnalyticsPage } from "@/features/tenant/recruiter/analytics/pages/RecruiterAnalyticsPage";
 import { RolesPage } from "@/features/tenant/admin/roles/pages/RolesPage";
+import { AssignmentsPage } from "@/features/tenant/admin/assignments/pages/AssignmentsPage";
 
 function LegacyTenantAdminRedirect() {
   const location = useLocation();
@@ -111,10 +116,14 @@ export function AppRouter() {
       <Route path="/security" element={<PublicMarketingRoute><SecurityPage /></PublicMarketingRoute>} />
       <Route path="/pricing" element={<PublicMarketingRoute><PricingPage /></PublicMarketingRoute>} />
       <Route path="/packages" element={<Navigate to="/pricing" replace />} />
+      <Route path="/demo" element={<DemoRequestPage />} />
       <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
       <Route path="/checkout/:planCode" element={<CheckoutPage />} />
       <Route path="/checkout/success" element={<CheckoutSuccessPage />} />
       <Route path="/checkout/vnpay-return" element={<VnPayReturnPage />} />
+
+      <Route path="/contracts/sign/:token" element={<PublicContractSigningPage />} />
+      <Route path="/contracts/view/:token" element={<PublicContractSigningPage />} />
 
       <Route element={<TenantSubdomainGuard />}>
       <Route path="/career" element={<TenantCareerPage />} />
@@ -124,8 +133,6 @@ export function AppRouter() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/invite/accept" element={<AcceptInvitationPage />} />
-      <Route path="/contracts/sign/:token" element={<PublicContractSigningPage />} />
-      <Route path="/contracts/view/:token" element={<PublicContractSigningPage />} />
 
       <Route element={<RoleRoute workspaces={["CANDIDATE"]} />}>
         <Route
@@ -235,8 +242,11 @@ export function AppRouter() {
         >
           <Route index element={<TenantAdminHomePage />} />
           <Route path="company" element={<CompanyProfilePage />} />
+          <Route path="landing-page" element={<LandingPageEditorPage />} />
           <Route path="users" element={<UsersPage />} />
           <Route path="roles" element={<RolesPage />} />
+          <Route path="recruiter-assignments" element={<AssignmentsPage />} />
+          <Route path="recruitment" element={<RecruitmentPage />} />
           <Route path="analytics" element={<AnalyticsPage />} />
           <Route path="system" element={<SystemPage />} />
           <Route path="account" element={<TenantAdminAccountPage />} />
@@ -249,6 +259,7 @@ export function AppRouter() {
 
       <Route element={<MasterRoute />}>
         <Route path="/onboard" element={<TenantOnboardPage />} />
+        <Route path="/admin/tenants/onboard-wizard" element={<B2bDealWizardPage />} />
         <Route path="/admin" element={<MasterAdminLayout />}>
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<DashboardPage />} />

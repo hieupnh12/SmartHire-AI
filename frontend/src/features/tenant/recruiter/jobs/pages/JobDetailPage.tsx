@@ -4,16 +4,16 @@ import { jobApi } from "@/api/tenant/jobApi";
 import { getApiErrorMessage } from "@/lib/axios";
 import { queryKeys } from "@/lib/query-keys";
 import { button, muted, panel, primary } from "@/features/tenant/recruiter/matching/components/rankingUi";
-import { PageSkeleton } from "@/components/ux/Skeleton";
 
 export function JobDetailPage() {
   const { id } = useParams();
+  const jobId = id && /^\d+$/.test(id) ? id : undefined;
   const navigate = useNavigate();
   const client = useQueryClient();
   const detail = useQuery({
-    queryKey: queryKeys.jobs.detail(id ?? 0),
-    queryFn: () => jobApi.get(id!),
-    enabled: Boolean(id),
+    queryKey: queryKeys.jobs.detail(jobId ?? 0),
+    queryFn: () => jobApi.get(jobId!),
+    enabled: Boolean(jobId),
   });
   const refresh = () => void client.invalidateQueries({ queryKey: queryKeys.jobs.detail(id ?? 0) });
   const act = useMutation({
@@ -37,7 +37,7 @@ export function JobDetailPage() {
   return (
     <section className="space-y-6 text-[var(--color-on-surface)]">
       {detail.isError && <p role="alert">{getApiErrorMessage(detail.error)}</p>}
-      {!job && detail.isPending && <PageSkeleton variant="detail" />}
+      {!job && detail.isPending && <p>Đang tải…</p>}
       {job && (
         <>
           <header className="flex flex-wrap items-start justify-between gap-4">
@@ -48,11 +48,12 @@ export function JobDetailPage() {
             </div>
             <div className="flex flex-wrap gap-2">
               <Link className={button} to={`/recruiter/jobs/${job.id}/edit`}>Sửa</Link>
-              {job.status === "DRAFT" || job.status === "PAUSED" ? <button className={primary} onClick={() => act.mutate("publish")}>Publish</button> : null}
+              <Link className={primary} to={`/recruiter/applicants?jobId=${job.id}`}>Ứng viên</Link>
+              {job.status === "DRAFT" || job.status === "PAUSED" ? <button className={button} onClick={() => act.mutate("publish")}>Publish</button> : null}
               {job.status === "PUBLISHED" ? <button className={button} onClick={() => act.mutate("unpublish")}>Unpublish</button> : null}
               {job.status === "PUBLISHED" ? <button className={button} onClick={() => act.mutate("pause")}>Pause</button> : null}
               {job.status === "PUBLISHED" || job.status === "PAUSED" ? <button className={button} onClick={() => act.mutate("close")}>Close</button> : null}
-              {job.status === "CLOSED" || job.status === "PAUSED" ? <button className={primary} onClick={() => act.mutate("reopen")}>Reopen</button> : null}
+              {job.status === "CLOSED" || job.status === "PAUSED" ? <button className={button} onClick={() => act.mutate("reopen")}>Reopen</button> : null}
               <button className={button} onClick={() => act.mutate("clone")}>Clone</button>
               <Link className={primary} to={`/recruiter/jobs/${job.id}/rank`}>Xếp hạng ứng viên</Link>
               <Link className={button} to={`/recruiter/jobs/${job.id}/cvs`}>Sàng lọc CV</Link>
@@ -69,7 +70,7 @@ export function JobDetailPage() {
             <aside className={`${panel} space-y-2 text-sm`}>
               <p><span className={muted}>Ứng viên: </span>{job.applicationCount}</p>
               <p><span className={muted}>Headcount: </span>{job.headcount ?? "—"}</p>
-              <p><span className={muted}>Deadline: </span>{job.deadline ?? "—"}</p>
+              <p><span className={muted}>Hết hạn đăng: </span>{job.deadline ? new Date(job.deadline).toLocaleString("vi-VN") : "—"}</p>
               <p><span className={muted}>KN: </span>{job.minYearsExperience ?? "—"} năm</p>
               <p><span className={muted}>Học vấn: </span>{job.educationLevel ?? "—"}</p>
               <p><span className={muted}>Phụ trách: </span>{job.ownerName ?? "—"}</p>
@@ -86,6 +87,35 @@ export function JobDetailPage() {
               ))}
             </div>
           </div>
+          {(job.cvScreening || job.gateScreening) && (
+            <div className="grid gap-6 lg:grid-cols-2">
+              {job.cvScreening && (
+                <div className={panel}>
+                  <h2 className="mb-3 font-semibold">CV Screening Weights</h2>
+                  <ul className="space-y-1 text-sm">
+                    <li>Skill bắt buộc: {job.cvScreening.skillWeight}%</li>
+                    <li>Skill tùy chọn: {job.cvScreening.preferredWeight}%</li>
+                    <li>Kinh nghiệm: {job.cvScreening.experienceWeight}%</li>
+                    <li>Học vấn: {job.cvScreening.educationWeight}%</li>
+                    <li>Jaccard: {job.cvScreening.jaccardWeight}%</li>
+                    <li>Gemini semantic: {job.cvScreening.semanticWeight}%</li>
+                    <li>Ngưỡng đạt CV: {job.cvScreening.passThreshold}</li>
+                  </ul>
+                </div>
+              )}
+              {job.gateScreening && (
+                <div className={panel}>
+                  <h2 className="mb-3 font-semibold">Gate Screening Weights</h2>
+                  <ul className="space-y-1 text-sm">
+                    <li>CV score: {job.gateScreening.cvWeight}%</li>
+                    <li>AI Interview: {job.gateScreening.aiInterviewWeight}%</li>
+                    <li>Assessment: {job.gateScreening.assessmentWeight}%</li>
+                    <li>Ngưỡng vòng gửi xe: {job.gateScreening.passThreshold}</li>
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
           <div className={panel}>
             <h2 className="mb-3 font-semibold">Pipeline</h2>
             <ol className="flex flex-wrap gap-2 text-sm">

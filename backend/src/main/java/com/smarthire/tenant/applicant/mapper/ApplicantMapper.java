@@ -6,6 +6,8 @@ import com.smarthire.domain.tenant.entity.Cv;
 import com.smarthire.tenant.applicant.dto.ApplicantModels.ApplicationDetail;
 import com.smarthire.tenant.applicant.dto.ApplicantModels.ApplicationSummary;
 import com.smarthire.tenant.applicant.dto.ApplicantModels.CvRef;
+import com.smarthire.tenant.applicant.dto.ApplicantModels.GateScoreView;
+import com.smarthire.tenant.applicant.dto.ApplicantModels.ScreeningRoundsView;
 import com.smarthire.tenant.applicant.dto.ApplicantModels.HistoryView;
 import java.time.Instant;
 import java.util.List;
@@ -44,7 +46,9 @@ public class ApplicantMapper {
             Application application,
             long candidateApplicationCount,
             List<Cv> cvs,
-            List<ApplicationStatusHistory> history) {
+            List<ApplicationStatusHistory> history,
+            GateScoreView gateScore,
+            ScreeningRoundsView rounds) {
         var job = application.getJob();
         var candidate = application.getCandidate();
         var assignee = application.getAssignee();
@@ -74,7 +78,9 @@ public class ApplicantMapper {
                 job.getLocation(),
                 job.getDepartment(),
                 job.getWorkMode(),
-                job.getEmploymentType());
+                job.getEmploymentType(),
+                gateScore,
+                rounds);
     }
 
     public CvRef cv(Cv cv) {

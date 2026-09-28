@@ -35,6 +35,7 @@ WS endpoint `/ws` + REST `GET /api/v1/notifications`
 
 - Google Stitch: **Interview Scheduling & Real-time Notifications / WebSocket Notification** — _[dán link]_
 - Icons: xem `DESIGN.md`
+- Header Recruiter: nút chuông mở panel thông báo tại chỗ, không điều hướng khỏi workspace; panel đóng khi nhấn `Esc` hoặc click ra ngoài.
 
 ## Phụ thuộc
 

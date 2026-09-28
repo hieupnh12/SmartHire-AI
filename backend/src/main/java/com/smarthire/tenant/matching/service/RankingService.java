@@ -7,6 +7,7 @@ import com.smarthire.domain.enums.*;
 import com.smarthire.domain.tenant.entity.*;
 import com.smarthire.domain.tenant.repository.RankingDataRepository;
 import com.smarthire.multitenancy.context.TenantContext;
+import com.smarthire.tenant.cv.service.CvAccess;
 import com.smarthire.tenant.matching.dto.RankingModels.*;
 import com.smarthire.tenant.matching.realtime.RankingWebSocketHandler;
 import java.math.BigDecimal;
@@ -30,16 +31,19 @@ public class RankingService {
     private final ExperienceScoringService experience;
     private final ObjectMapper mapper;
     private final RankingWebSocketHandler realtime;
+    private final CvAccess access;
     @org.springframework.beans.factory.annotation.Autowired
     public RankingService(RankingDataRepository data, RankingCalculator calculator, SkillScoringService skills,
                           ExperienceScoringService experience, ObjectMapper mapper,
-                          org.springframework.beans.factory.ObjectProvider<RankingWebSocketHandler> realtime) {
+                          org.springframework.beans.factory.ObjectProvider<RankingWebSocketHandler> realtime,
+                          org.springframework.beans.factory.ObjectProvider<CvAccess> access) {
         this.data = data; this.calculator = calculator; this.skills = skills; this.experience = experience; this.mapper = mapper;
         this.realtime = realtime.getIfAvailable();
+        this.access = access.getIfAvailable();
     }
     public RankingService(RankingDataRepository data, RankingCalculator calculator, SkillScoringService skills,
                           ExperienceScoringService experience, ObjectMapper mapper) {
-        this.data = data; this.calculator = calculator; this.skills = skills; this.experience = experience; this.mapper = mapper; this.realtime = null;
+        this.data = data; this.calculator = calculator; this.skills = skills; this.experience = experience; this.mapper = mapper; this.realtime = null; this.access = null;
     }
     private static final Set<String> STAFF = Set.of(
             "ROLE_STAFF", "ROLE_RECRUITER", "ROLE_HR", "ROLE_ADMIN", "ROLE_TENANT_ADMIN");
@@ -54,9 +58,15 @@ public class RankingService {
         return auth.getName();
     }
     private Job authorize(long jobId, boolean lock) {
-        String email = actor();
+        actor();
         Job job = data.job(jobId, lock);
-        if (job == null || job.getDeletedAt() != null || !job.getCreatedBy().getEmail().equalsIgnoreCase(email))
+        if (job == null || job.getDeletedAt() != null)
+            throw new BusinessException("Job not found", HttpStatus.NOT_FOUND, "JOB_NOT_FOUND");
+        if (access != null) {
+            access.requireJob(job);
+            return job;
+        }
+        if (!job.getCreatedBy().getEmail().equalsIgnoreCase(actor()))
             throw new BusinessException("Job not found", HttpStatus.NOT_FOUND, "JOB_NOT_FOUND");
         return job;
     }
@@ -69,7 +79,14 @@ public class RankingService {
     }
     @Transactional(readOnly = true)
     public List<JobOption> jobs() {
-        return data.jobs(actor()).stream().map(j -> new JobOption(j.getId(), j.getTitle())).toList();
+        String email = actor();
+        if (access != null && UserRole.isCompanyAdmin(access.actor().getRole())) {
+            return data.activeJobs().stream().map(j -> new JobOption(j.getId(), j.getTitle())).toList();
+        }
+        if (access != null) {
+            return data.assignedJobs(access.actor().getId()).stream().map(j -> new JobOption(j.getId(), j.getTitle())).toList();
+        }
+        return data.jobs(email).stream().map(j -> new JobOption(j.getId(), j.getTitle())).toList();
     }
     private Config configuration(long jobId, List<JobSkill> requirements) {
         RankingConfig stored = data.config(jobId);
