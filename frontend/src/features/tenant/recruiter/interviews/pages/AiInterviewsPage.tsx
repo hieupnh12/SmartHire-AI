@@ -20,7 +20,6 @@ import {
   ListFilter,
   MoreVertical,
   PlusCircle,
-  RotateCcw,
   Search,
   SlidersHorizontal,
   Sparkles,
@@ -33,17 +32,15 @@ import {
 import { aiInterviewApi } from "@/api/tenant/aiInterviewApi";
 import type { AiInterviewStatus } from "@/api/types/aiInterview";
 import { AssessmentError } from "@/components/ux/assessmentUi";
-import { PrototypeBanner } from "@/components/ux/PrototypeBanner";
+import { AiInterviewConfigPanel } from "../components/AiInterviewConfigPanel";
 import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
 import { toast } from "@/stores/toastStore";
 import { useUiStore } from "@/stores/uiStore";
 import { AiInterviewDetailDrawer } from "../components/AiInterviewDetailDrawer";
 import {
-  AI_INTERVIEW_MOCK,
   AI_INTERVIEW_STATUSES,
   AiStatusBadge,
-  MockTag,
   aiStatusLabel,
   formatDateTime,
 } from "../components/aiInterviewUi";
@@ -105,11 +102,11 @@ function ScoreCell({ row }: { row: AiInterviewRow }) {
   if (row.overallScore == null) {
     return <span className="text-xs italic text-[var(--color-outline)]">Chưa có điểm</span>;
   }
-  const pct = Math.min(Math.max(row.overallScore * 10, 0), 100);
+  const pct = Math.min(Math.max(row.overallScore, 0), 100);
   return (
     <div className="flex w-36 flex-col gap-1.5">
       <span className="text-base font-bold text-[var(--color-on-surface)]">
-        {row.overallScore.toFixed(1)} <span className="text-xs font-normal text-[var(--color-on-surface-variant)]">/10</span>
+        {row.overallScore.toFixed(1)} <span className="text-xs font-normal text-[var(--color-on-surface-variant)]">/100</span>
       </span>
       <div className="h-2 w-full overflow-hidden rounded-full bg-[var(--color-surface-container-high)]">
         <div className="h-full rounded-full bg-[var(--color-primary-container)]" style={{ width: `${pct}%` }} />
@@ -125,7 +122,7 @@ function ActionMenu({
 }: {
   open: boolean;
   onClose: () => void;
-  items: { label: string; icon: typeof Copy; danger?: boolean; mock?: boolean; onClick: () => void }[];
+  items: { label: string; icon: typeof Copy; danger?: boolean; onClick: () => void }[];
 }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -157,7 +154,6 @@ function ActionMenu({
           >
             <Icon className="size-[18px]" aria-hidden="true" />
             {item.label}
-            {item.mock && <MockTag title="Chưa có API" />}
           </button>
         );
       })}
@@ -179,6 +175,7 @@ export function AiInterviewsPage() {
   const [pageSize, setPageSize] = useState(20);
   const [page, setPage] = useState(0);
   const [creating, setCreating] = useState(false);
+  const [configOpen, setConfigOpen] = useState(false);
   const [detailId, setDetailId] = useState<number | null>(null);
 
   const counts = useMemo(() => {
@@ -188,7 +185,7 @@ export function AiInterviewsPage() {
       ready: by("QUESTIONS_READY"),
       live: by("IN_PROGRESS"),
       scoring: by("SCORING"),
-      scored: by("SCORED"),
+      scored: by("SCORED") + by("PASSED") + by("FAILED"),
     };
   }, [rows]);
   const completionRate = counts.all ? Math.round((counts.scored / counts.all) * 100) : 0;
@@ -197,7 +194,7 @@ export function AiInterviewsPage() {
     const q = query.trim().toLowerCase();
     const since = timeRange === "all" ? 0 : Date.now() - Number(timeRange) * DAY_MS;
     return rows.filter((row) => {
-      if (tab !== "ALL" && row.status !== tab) return false;
+      if (tab !== "ALL" && (tab === "SCORED" ? !["SCORED", "PASSED", "FAILED"].includes(row.status) : row.status !== tab)) return false;
       if (statusFilter !== "all" && row.status !== statusFilter) return false;
       if (since && new Date(row.createdAt).getTime() < since) return false;
       if (!q) return true;
@@ -236,7 +233,6 @@ export function AiInterviewsPage() {
       },
     });
 
-  const notAvailable = (feature: string) => toast.info(`Chưa có API cho "${feature}"`, "Tính năng đang hiển thị dạng mock.");
 
   const pills: { id: QuickTab; label: string; dot?: "live" }[] = [
     { id: "ALL", label: `Tất cả (${counts.all})` },
@@ -261,12 +257,11 @@ export function AiInterviewsPage() {
         <div className="flex flex-wrap items-center gap-2 self-start lg:self-auto">
           <button
             type="button"
-            onClick={() => notAvailable("Cấu hình Rubric AI")}
+            onClick={() => setConfigOpen(open => !open)} aria-expanded={configOpen} aria-controls="ai-interview-config"
             className="inline-flex h-10 items-center gap-2 rounded-lg bg-[var(--color-surface-container-low)] px-4 text-sm font-medium text-[var(--color-on-surface)] shadow-sm transition-colors hover:bg-[var(--color-surface-container)]"
           >
             <SlidersHorizontal className="size-[19px] text-[var(--color-on-surface-variant)]" aria-hidden="true" />
-            Cấu hình Rubric AI
-            <MockTag title="Chưa có API rubric" />
+            Cấu hình AI Interview
           </button>
           <button
             type="button"
@@ -279,7 +274,7 @@ export function AiInterviewsPage() {
         </div>
       </div>
 
-      <PrototypeBanner note="Đã nối API /ai-interviews. Các trường gắn nhãn MOCK (hình thức AI, rubric, lời mời, sinh câu hỏi AI, chấm điểm tự động) chưa có trong backend." />
+      {configOpen && <AiInterviewConfigPanel jobId={job.id} />}
 
       <AssessmentError error={interviews.error} retry={() => void interviews.refetch()} />
       <AssessmentError error={applicants.error} retry={() => void applicants.refetch()} />
@@ -371,12 +366,11 @@ export function AiInterviewsPage() {
             </button>
             <button
               type="button"
-              onClick={() => notAvailable("Cài đặt tự động hóa")}
+              onClick={() => setConfigOpen(open => !open)} aria-expanded={configOpen} aria-controls="ai-interview-config"
               className="inline-flex h-10 items-center gap-2 rounded-xl bg-[var(--color-surface-container-low)] px-3.5 text-xs font-medium text-[var(--color-on-surface)] transition-colors hover:bg-[var(--color-surface-container)]"
             >
               <Bot className="size-[18px] text-[var(--color-primary)]" aria-hidden="true" />
               Cài đặt tự động hóa
-              <MockTag title="Chưa có API" />
             </button>
           </div>
         </div>
@@ -399,14 +393,6 @@ export function AiInterviewsPage() {
             {AI_INTERVIEW_STATUSES.map((s) => (
               <option key={s} value={s}>{aiStatusLabel[s]}</option>
             ))}
-          </select>
-          <select
-            aria-label="Lọc theo hình thức"
-            disabled
-            title="Backend chưa lưu hình thức phỏng vấn"
-            className="h-9 cursor-not-allowed rounded-lg bg-[var(--color-surface-container-low)] pl-3.5 pr-8 text-xs font-medium text-[var(--color-on-surface-variant)] opacity-70"
-          >
-            <option>Hình thức: Tất cả (mock)</option>
           </select>
           <select
             aria-label="Khung thời gian"
@@ -497,8 +483,7 @@ export function AiInterviewsPage() {
                             <Tag className="size-3.5" aria-hidden="true" />
                             <span>#AI-{row.id}</span>
                             <span>•</span>
-                            <span>{AI_INTERVIEW_MOCK.rubric}</span>
-                            <MockTag title="Chưa có rubric trong API" />
+                            <span>Ngưỡng đạt {row.passingScore ?? "—"}/100</span>
                           </div>
                         </div>
                       </td>
@@ -529,9 +514,8 @@ export function AiInterviewsPage() {
                       <td className="px-4 py-4">
                         <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--color-surface-container)] px-2.5 py-1 text-xs font-semibold text-[var(--color-on-surface-variant)]">
                           <Type className="size-3.5" aria-hidden="true" />
-                          {AI_INTERVIEW_MOCK.mode}
+                          Văn bản
                         </span>
-                        <MockTag title="Chưa có cột hình thức trong API" />
                       </td>
                       <td className="px-4 py-4">
                         <div className="flex flex-col">
@@ -575,7 +559,6 @@ export function AiInterviewsPage() {
                                   toast.success("Đã sao chép mã phiên");
                                 },
                               },
-                              { label: "Gửi lại lời mời", icon: RotateCcw, mock: true, onClick: () => notAvailable("Gửi lại lời mời") },
                               { label: "Xoá phiên này", icon: Ban, danger: true, onClick: () => confirmDelete(row) },
                             ]}
                           />
@@ -660,15 +643,15 @@ export function AiInterviewsPage() {
               <h3 className="text-xl font-bold tracking-tight">Quy trình thiết lập phỏng vấn AI</h3>
             </div>
             <p className="text-sm leading-[22px] text-[var(--color-on-surface-variant)]">
-              Tạo phiên cho đơn ứng tuyển, thêm câu hỏi, chờ ứng viên trả lời rồi nhập feedback và điểm.
+              Tạo phiên cho hồ sơ đạt CV, sinh câu hỏi và tự cập nhật trạng thái. AI chấm bài, trả feedback và chuyển vòng theo ngưỡng của Job.
             </p>
           </div>
           <div className="grid w-full flex-1 grid-cols-2 gap-3 md:grid-cols-4 lg:w-auto lg:max-w-3xl">
             {[
               { n: 1, icon: Upload, title: "Chọn đơn ứng tuyển", desc: job.title },
-              { n: 2, icon: SlidersHorizontal, title: "Thêm câu hỏi", desc: "Thủ công trong màn chi tiết" },
+              { n: 2, icon: SlidersHorizontal, title: "Thêm câu hỏi", desc: "Sinh bằng AI hoặc bổ sung thủ công" },
               { n: 3, icon: Inbox, title: "Ứng viên trả lời", desc: "Câu trả lời lưu theo từng câu" },
-              { n: 4, icon: Verified, title: "Feedback & điểm", desc: "Nhập feedback, cập nhật điểm tổng" },
+              { n: 4, icon: Verified, title: "Feedback & điểm", desc: "AI đánh giá, tự chuyển vòng" },
             ].map((step) => {
               const StepIcon = step.icon;
               return (

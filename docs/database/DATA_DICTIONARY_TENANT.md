@@ -10,7 +10,7 @@ bảng nhật ký `ai_interview_logs` (chi tiết ở [H.5](#h5-ai_interview_log
 |---|---|---|---|---|---|
 | `jobs.ai_interview_enabled` | BOOLEAN | Không | FALSE | — | Job có bật vòng AI Interview |
 | `jobs.ai_interview_passing_score` | DECIMAL(5,2) | Không | 70.00 | — | Ngưỡng đạt `aiInterviewPassingScore` (0–100) |
-| `jobs.ai_interview_question_count` | INT | Không | 30 (V26; V25 là 5) | — | Số câu AI tự sinh, service giới hạn 30–40 |
+| `jobs.ai_interview_question_count` | INT | Không | 5 (V33; V26 là 30, V25 là 5) | — | Số câu AI tự sinh, service cố định 5 |
 | `jobs.ai_interview_available_until` | TIMESTAMP | Có | NULL | — | Hạn cuối được bắt đầu AI Interview; NULL = không giới hạn |
 | `applications.cv_screening_status` | VARCHAR(16) | Không | `'PENDING'` | — | `CvScreeningStatus`: `PENDING`, `PASSED`, `FAILED` |
 | `ai_interviews.passing_score_snapshot` | DECIMAL(5,2) | Có | NULL | — | Ngưỡng đạt chốt lúc candidate bắt đầu |

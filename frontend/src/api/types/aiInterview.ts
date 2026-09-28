@@ -1,4 +1,4 @@
-export type AiInterviewStatus = "CREATED" | "QUESTIONS_READY" | "IN_PROGRESS" | "SCORING" | "SCORED" | "FAILED";
+export type AiInterviewStatus = "CREATED" | "GENERATING" | "QUESTIONS_READY" | "IN_PROGRESS" | "SCORING" | "SCORED" | "PASSED" | "FAILED" | "ERROR";
 
 export type AiFeedback = {
   id: number;
@@ -30,6 +30,10 @@ export type AiQuestion = {
 };
 
 export type AiInterview = {
+  jobTitle: string | null;
+  passingScore: number | null;
+  errorMessage: string | null;
+  questionCount: number;
   id: number;
   applicationId: number;
   jobId: number | null;
@@ -44,6 +48,9 @@ export type AiInterview = {
 };
 
 export type AiInterviewPage = { items: AiInterview[]; total: number; page: number; size: number };
+
+export type AiInterviewLog = { id: number; aiInterviewId: number; event: string; status: AiInterviewStatus; detail: string | null; createdAt: string };
+export type AiInterviewConfig = { enabled: boolean; passingScore: number; questionCount: number; availableUntil: string | null };
 
 export type CreateAiInterviewRequest = { applicationId: number; workflowStageId?: number | null };
 

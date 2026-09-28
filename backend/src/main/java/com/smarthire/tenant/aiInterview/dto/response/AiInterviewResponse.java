@@ -19,5 +19,6 @@ public record AiInterviewResponse(
         List<AiQuestionResponse> questions,
         String jobTitle,
         BigDecimal passingScore,
-        String errorMessage) {
+        String errorMessage,
+        int questionCount) {
 }

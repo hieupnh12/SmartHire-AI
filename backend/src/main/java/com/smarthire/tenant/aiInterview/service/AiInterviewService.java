@@ -240,18 +240,11 @@ public class AiInterviewService {
         AiInterview interview = loadAccessibleForUpdate(id);
         requireEditable(interview);
         if (request.overallScore() != null || request.startedAt() != null || request.completedAt() != null
-                || request.status() != null && request.status() != AiInterviewStatus.QUESTIONS_READY) {
+                || request.status() != null) {
             throw new BusinessException("Interview outcomes are computed by the system", HttpStatus.CONFLICT, "AI_INTERVIEW_SYSTEM_MANAGED");
-        }
-        if (request.status() == AiInterviewStatus.QUESTIONS_READY
-                && questions.findByAiInterview_IdOrderByQuestionOrderAscIdAsc(id).isEmpty()) {
-            throw new BusinessException("Add questions before marking ready", HttpStatus.CONFLICT, "AI_INTERVIEW_NOT_READY");
         }
         if (request.workflowStageId() != null) {
             interview.setWorkflowStage(resolveStage(request.workflowStageId(), interview.getApplication()));
-        }
-        if (request.status() != null) {
-            interview.setStatus(request.status());
         }
         activity.record(interview, "UPDATED_BY_STAFF", "Stage " + request.workflowStageId() + ", status " + request.status());
         return mapper.toResponse(interviews.save(interview), loadQuestionResponses(id));
@@ -280,6 +273,7 @@ public class AiInterviewService {
                 .questionOrder(request.questionOrder())
                 .build();
         AiQuestion saved = questions.save(question);
+        syncQuestionStatus(interview);
         activity.record(interview, "QUESTION_ADDED", "Question " + saved.getId() + " at order " + saved.getQuestionOrder());
         return mapper.toQuestion(saved, null, null);
     }
@@ -293,6 +287,7 @@ public class AiInterviewService {
         question.setQuestionText(request.questionText().trim());
         question.setQuestionType(request.questionType().trim().toUpperCase());
         question.setQuestionOrder(request.questionOrder());
+        syncQuestionStatus(interview);
         activity.record(interview, "QUESTION_UPDATED", "Question " + questionId);
         AiAnswer answer = answers.findByAiQuestion_Id(questionId).orElse(null);
         AiFeedback feedback = answer == null ? null : feedbacks.findByAiAnswer_Id(answer.getId()).orElse(null);
@@ -310,6 +305,7 @@ public class AiInterviewService {
             answers.delete(answer);
         });
         questions.delete(question);
+        syncQuestionStatus(interview);
         activity.record(interview, "QUESTION_DELETED", "Question " + questionId);
     }
 
@@ -405,6 +401,18 @@ public class AiInterviewService {
         if (interview.getStartedAt() != null || interview.getStatus() != AiInterviewStatus.CREATED
                 && interview.getStatus() != AiInterviewStatus.QUESTIONS_READY && interview.getStatus() != AiInterviewStatus.ERROR) {
             throw new BusinessException("Interview content is locked", HttpStatus.CONFLICT, "AI_INTERVIEW_LOCKED");
+        }
+    }
+
+    private void syncQuestionStatus(AiInterview interview) {
+        long count = questions.countByAiInterview_Id(interview.getId());
+        int required = Math.clamp(interview.getApplication().getJob().getAiInterviewQuestionCount(),
+                AiInterviewEvaluationService.MIN_QUESTIONS, AiInterviewEvaluationService.MAX_QUESTIONS);
+        AiInterviewStatus next = count >= required ? AiInterviewStatus.QUESTIONS_READY : AiInterviewStatus.CREATED;
+        if (interview.getStatus() != next) {
+            interview.setStatus(next);
+            interview.setErrorMessage(null);
+            activity.record(interview, "QUESTION_STATUS_UPDATED", count + "/" + required + " questions; " + next);
         }
     }
 

@@ -26,6 +26,7 @@ export function useJobAiInterviews(jobId: number) {
   const interviews = useQuery({
     queryKey: queryKeys.aiInterviews.byJob(jobId),
     queryFn: () => aiInterviewApi.listForJob(jobId),
+    refetchInterval: 5000,
   });
   const applicants = useQuery({
     queryKey: [...queryKeys.applicants.byJob(jobId), "all"],

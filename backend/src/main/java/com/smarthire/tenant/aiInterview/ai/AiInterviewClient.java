@@ -8,9 +8,13 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 
 @Component
 public class AiInterviewClient {
+    public static class ProviderException extends IllegalStateException {
+        public ProviderException(String message) { super(message); }
+    }
     private final AiInterviewAiConfig config;
     private final RestClient http;
     private final ObjectMapper mapper;
@@ -39,6 +43,16 @@ public class AiInterviewClient {
             JsonNode result = mapper.readTree(text.toString());
             if (result == null || !result.isObject()) throw new IllegalStateException("Invalid AI response");
             return result;
+        } catch (RestClientResponseException ex) {
+            int status = ex.getStatusCode().value();
+            String message = switch (status) {
+                case 429 -> "Dịch vụ AI đang giới hạn lượt gọi (HTTP 429). Vui lòng thử lại sau.";
+                case 503, 502, 504 -> "Dịch vụ AI tạm thời không khả dụng (HTTP " + status + "). Vui lòng thử lại sau.";
+                case 401, 403 -> "Dịch vụ AI từ chối xác thực. Kiểm tra cấu hình API key.";
+                case 404 -> "Không tìm thấy model AI đã cấu hình.";
+                default -> "Dịch vụ AI trả lỗi HTTP " + status + ". Kiểm tra cấu hình và thử lại.";
+            };
+            throw new ProviderException(message);
         } catch (Exception ex) {
             // Provider exceptions can contain credentials or candidate content; do not propagate them.
             throw new IllegalStateException("AI interview provider unavailable or returned invalid data");

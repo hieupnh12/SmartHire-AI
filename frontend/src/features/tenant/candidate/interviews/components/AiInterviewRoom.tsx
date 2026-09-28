@@ -33,10 +33,14 @@ export function AiInterviewRoom({ id }: { id: number }) {
     {session.isError && <div role="alert"><p>{getApiErrorMessage(session.error)}</p><Button onClick={() => void session.refetch()}>Thử lại</Button></div>}
     {data && <>
       <header className="space-y-3 rounded-xl bg-surface-card p-6 shadow-sm"><h1 className="text-2xl font-semibold">{data.jobTitle ?? "AI Interview"}</h1><p>Phiên #{data.id} · {interviewStatus[data.status]}</p>
+        {data.status === "GENERATING" && <p role="status">AI đang chuẩn bị câu hỏi. Trang sẽ tự cập nhật khi sẵn sàng.</p>}
+        {data.status === "ERROR" && <p role="alert">{data.errorMessage ?? "Phiên gặp lỗi xử lý. Nhà tuyển dụng có thể thử lại."}</p>}
+        {data.overallScore != null && <p>Điểm AI: {data.overallScore}/100 · Ngưỡng đạt: {data.passingScore ?? "—"}/100</p>}
+        {data.status === "PASSED" && <Link className="inline-flex min-h-11 items-center text-brand-primary underline" to="/candidate/assessments">Đến vòng Assessment</Link>}
         {data.status === "CREATED" && <p>Nhà tuyển dụng đang chuẩn bị câu hỏi. Lời mời này sẽ cập nhật khi phiên phỏng vấn sẵn sàng.</p>}
         {data.status === "QUESTIONS_READY" && <><p>Trả lời bằng văn bản và lưu từng câu trước khi nộp bài.</p><Button disabled={busy} onClick={() => start.mutate()}>Bắt đầu phỏng vấn</Button></>}
         {data.status === "IN_PROGRESS" && <p>Đã lưu {answered}/{data.questions.length} câu trả lời. Bạn có thể tiếp tục các câu đã lưu khi mở lại phiên.</p>}
-        {data.completedAt && <p>Đã nộp lúc {new Date(data.completedAt).toLocaleString("vi-VN")}. Câu trả lời đã được lưu{data.status === "SCORED" ? " và đã có kết quả." : " và đang chờ đánh giá."}</p>}
+        {data.completedAt && <p>Đã nộp lúc {new Date(data.completedAt).toLocaleString("vi-VN")}. Câu trả lời đã được lưu{["SCORED", "PASSED", "FAILED"].includes(data.status) ? " và đã có kết quả." : " và đang chờ đánh giá."}</p>}
       </header>
       {error && <p role="alert">{getApiErrorMessage(error)}</p>}
       {(data.status === "IN_PROGRESS" || data.completedAt) && data.questions.map((question, index) => <article key={question.id} className="space-y-4 rounded-xl bg-surface-card p-6 shadow-sm">

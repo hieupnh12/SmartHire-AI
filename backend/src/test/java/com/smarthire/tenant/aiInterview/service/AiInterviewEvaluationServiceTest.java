@@ -50,7 +50,7 @@ class AiInterviewEvaluationServiceTest {
         job.setId(13L);
         job.setTitle("Java Backend Developer");
         job.setAiInterviewEnabled(true);
-        job.setAiInterviewQuestionCount(30);
+        job.setAiInterviewQuestionCount(5);
         var candidate = new User();
         candidate.setId(9L);
         candidate.setEmail("candidate@example.com");
@@ -70,7 +70,7 @@ class AiInterviewEvaluationServiceTest {
         return root;
     }
 
-    @Test void generatesThirtyUniqueQuestionsInBatches() {
+    @Test void generatesFiveUniqueQuestionsInOneCall() {
         when(interviews.findByIdForUpdate(11L)).thenReturn(Optional.of(interview));
         var counter = new AtomicInteger();
         when(ai.generate(anyString(), any())).thenAnswer(call -> questionBatch(counter.getAndAdd(10), 10));
@@ -78,26 +78,26 @@ class AiInterviewEvaluationServiceTest {
         service.process(11L);
 
         assertThat(interview.getStatus()).isEqualTo(AiInterviewStatus.QUESTIONS_READY);
-        verify(ai, times(3)).generate(anyString(), any());
+        verify(ai, times(1)).generate(anyString(), any());
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<AiQuestion>> saved = ArgumentCaptor.forClass(List.class);
         verify(questions).saveAll(saved.capture());
-        assertThat(saved.getValue()).hasSize(30);
+        assertThat(saved.getValue()).hasSize(5);
         assertThat(saved.getValue()).extracting(AiQuestion::getQuestionOrder).containsExactlyElementsOf(
-                java.util.stream.IntStream.range(0, 30).boxed().toList());
-        verify(activity).record(eq(interview), eq("QUESTIONS_GENERATED"), contains("30"));
+                java.util.stream.IntStream.range(0, 5).boxed().toList());
+        verify(activity).record(eq(interview), eq("QUESTIONS_GENERATED"), contains("5"));
         verify(notifications).save(any());
     }
 
     @Test void duplicateQuestionsFromProviderEndInErrorWithoutSaving() {
         when(interviews.findByIdForUpdate(11L)).thenReturn(Optional.of(interview));
-        when(ai.generate(anyString(), any())).thenAnswer(call -> questionBatch(0, 10));
+        when(ai.generate(anyString(), any())).thenAnswer(call -> questionBatch(0, 3));
 
         service.process(11L);
 
         assertThat(interview.getStatus()).isEqualTo(AiInterviewStatus.ERROR);
         verify(questions, never()).saveAll(any());
-        verify(activity).record(eq(interview), eq("GENERATION_FAILED"), contains("10/30"));
+        verify(activity).record(eq(interview), eq("GENERATION_FAILED"), contains("3/5"));
     }
 
     @Test void passingScoreMovesApplicationToAssessment() {

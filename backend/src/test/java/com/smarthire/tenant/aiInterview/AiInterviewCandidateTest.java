@@ -208,4 +208,47 @@ class AiInterviewCandidateTest {
         user.setId(id);
         return user;
     }
+
+    private void staffEditsQuestions() {
+        when(access.actor()).thenReturn(candidate);
+        when(access.staff()).thenReturn(true);
+        when(interviews.findByIdForUpdate(11L)).thenReturn(Optional.of(interview));
+        application.getJob().setAiInterviewQuestionCount(5);
+    }
+
+    @Test void addingLastRequiredQuestionAutomaticallyMakesSessionReady() {
+        staffEditsQuestions();
+        interview.setStatus(AiInterviewStatus.CREATED);
+        when(questions.save(any())).thenAnswer(call -> call.getArgument(0));
+        when(questions.countByAiInterview_Id(11L)).thenReturn(5L);
+        service.addQuestion(11L, new com.smarthire.tenant.aiInterview.dto.request.AiQuestionRequest("Explain isolation", "TECHNICAL", 4));
+        assertThat(interview.getStatus()).isEqualTo(AiInterviewStatus.QUESTIONS_READY);
+        verify(activity).record(eq(interview), eq("QUESTION_STATUS_UPDATED"), anyString());
+    }
+
+    @Test void incompleteQuestionSetRemainsPreparing() {
+        staffEditsQuestions();
+        interview.setStatus(AiInterviewStatus.CREATED);
+        when(questions.save(any())).thenAnswer(call -> call.getArgument(0));
+        when(questions.countByAiInterview_Id(11L)).thenReturn(4L);
+        service.addQuestion(11L, new com.smarthire.tenant.aiInterview.dto.request.AiQuestionRequest("Explain locks", "TECHNICAL", 3));
+        assertThat(interview.getStatus()).isEqualTo(AiInterviewStatus.CREATED);
+    }
+
+    @Test void deletingQuestionAutomaticallyRevokesReadiness() {
+        staffEditsQuestions();
+        when(questions.findByIdAndAiInterview_Id(20L, 11L)).thenReturn(Optional.of(question));
+        when(questions.countByAiInterview_Id(11L)).thenReturn(4L);
+        service.deleteQuestion(11L, 20L);
+        assertThat(interview.getStatus()).isEqualTo(AiInterviewStatus.CREATED);
+    }
+
+    @Test void cannotManuallyChangeSessionStatus() {
+        staffEditsQuestions();
+        var request = new com.smarthire.tenant.aiInterview.dto.request.UpdateAiInterviewRequest(
+                null, AiInterviewStatus.QUESTIONS_READY, null, null, null);
+        assertThatThrownBy(() -> service.update(11L, request)).isInstanceOfSatisfying(BusinessException.class,
+                ex -> assertThat(ex.getCode()).isEqualTo("AI_INTERVIEW_SYSTEM_MANAGED"));
+        verifyNoInteractions(questions);
+    }
 }

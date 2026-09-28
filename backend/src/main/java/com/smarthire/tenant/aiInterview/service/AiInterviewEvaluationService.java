@@ -10,13 +10,16 @@ import com.smarthire.tenant.aiInterview.ai.AiInterviewClient;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class AiInterviewEvaluationService {
-    static final int MIN_QUESTIONS = 30;
-    static final int MAX_QUESTIONS = 40;
+    private static final Logger log = LoggerFactory.getLogger(AiInterviewEvaluationService.class);
+    static final int MIN_QUESTIONS = 5;
+    static final int MAX_QUESTIONS = 5;
     // Small batches keep every provider response well inside the model output limit.
     static final int QUESTION_BATCH = 10;
     static final int EVALUATION_BATCH = 10;
@@ -71,7 +74,8 @@ public class AiInterviewEvaluationService {
             interview.setErrorMessage(null);
         } catch (IllegalStateException | com.smarthire.common.exception.BusinessException ex) {
             interview.setStatus(AiInterviewStatus.ERROR);
-            interview.setErrorMessage("Không thể xử lý AI Interview. Kiểm tra cấu hình, điều kiện hồ sơ và thử lại.");
+            interview.setErrorMessage(ex instanceof AiInterviewClient.ProviderException ? ex.getMessage()
+                    : "Không thể xử lý AI Interview. Kiểm tra cấu hình và thử lại.");
             // Messages here are our own validation texts; provider errors are already sanitized by AiInterviewClient.
             activity.record(interview, phase == AiInterviewStatus.GENERATING ? "GENERATION_FAILED" : "EVALUATION_FAILED",
                     ex.getMessage());
@@ -117,7 +121,9 @@ public class AiInterviewEvaluationService {
             var asked = request.putArray("alreadyAskedQuestions");
             generated.forEach(q -> asked.add(q.getQuestionText()));
             int added = 0;
-            for (JsonNode row : ai.generate(GENERATE_INSTRUCTION, request).path("questions")) {
+            JsonNode output = ai.generate(GENERATE_INSTRUCTION, request);
+            log.info("AI interview {} generation call {} returned JSON:\n{}", interview.getId(), call, output.toPrettyString());
+            for (JsonNode row : output.path("questions")) {
                 if (added == need) break;
                 String text = row.path("questionText").asText("").trim();
                 if (text.isEmpty() || text.length() > 10000 || !seen.add(text.toLowerCase(Locale.ROOT))) continue;

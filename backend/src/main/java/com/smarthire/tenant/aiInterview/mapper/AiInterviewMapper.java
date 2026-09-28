@@ -39,7 +39,8 @@ public class AiInterviewMapper {
                 app != null && app.getJob() != null ? app.getJob().getTitle() : null,
                 interview.getPassingScoreSnapshot() != null ? interview.getPassingScoreSnapshot()
                         : app != null && app.getJob() != null ? app.getJob().getAiInterviewPassingScore() : null,
-                interview.getErrorMessage());
+                interview.getErrorMessage(),
+                app != null && app.getJob() != null ? app.getJob().getAiInterviewQuestionCount() : 0);
     }
 
     public AiQuestionResponse toQuestion(

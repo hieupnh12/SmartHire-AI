@@ -10,6 +10,7 @@
 
 | Thông tin | Giá trị |
 |---|---|
+| AI Interview API 2026-09-28 | Thêm truy vấn đếm câu hỏi theo phiên để tự cập nhật trạng thái; không đổi schema, entity, FK hay migration |
 | AI Interview workflow 2026-09-27 | V25: cấu hình AI Interview theo job, `applications.cv_screening_status`, cột worker; V26: 30–40 câu hỏi, bảng `ai_interview_logs` + entity `AiInterviewLog` |
 | Kiến trúc | Separate Database per Tenant |
 | Số database logic | 2 loại (1 Master + N Tenant) |
@@ -17,8 +18,8 @@
 | Entity JPA tenant | 55; V26 thêm `AiInterviewLog`; V27–V32 thêm `JobScreeningConfig`, `GateScore`, `JobAssignment`, `LandingPageSetting` |
 | Khoá ngoại tenant | 77 theo pipeline repo (72 sau V26; V27 thêm 2 FK screening/gate; V30 thêm 3 FK `job_assignments`) |
 | Ràng buộc UNIQUE tenant | V25/V26 không thêm UNIQUE. V27 thêm UNIQUE `gate_scores.application_id`. V30 thêm `uk_job_assignments_job_user` |
-| Số file migration trong repo | 44 (20 master + 24 tenant); V9 redesign nằm ngoài pipeline |
-| Cập nhật lần cuối | Tenant `V32`, ngày 2026-09-28. Screening, assignment và landing từ main được đánh số V27–V32 để không trùng V13 và V21–V26 của nhánh này |
+| Số file migration trong repo | 45 (20 master + 25 tenant); V9 redesign nằm ngoài pipeline |
+| Cập nhật lần cuối | Tenant `V33` (AI Interview cố định 5 câu), ngày 2026-09-28. Screening, assignment và landing từ main được đánh số V27–V32 để không trùng V13 và V21–V26 của nhánh này |
 | Dọn legacy V21 | Xóa 19 bảng và dữ liệu legacy, xóa 2 cột ID legacy trong ranking; không chuyển ID cũ sang bản ghi mới |
 | Metadata assessment 2026-09-25 | V13: `tests.created_by/updated_at`, `questions.difficulty/skill/explanation` cho Excel/UI authoring |
 | Sửa lỗi assessment 2026-09-24 | V10/V11 khớp checksum lịch sử; V12 tạo schema mới và giữ bảng cũ; migration lỗi phải chặn mở tenant pool |
@@ -248,6 +249,8 @@ sang model hiện hành. Các bảng hiện hành và entity không thay đổi.
 | `SubmissionStatus` | `coding_submissions.status` | `QUEUED`, `RUNNING`, `PASSED`, … |
 | `InterviewStatus` | `interviews.status` | `CREATED`, `SCHEDULED`, `IN_PROGRESS`, `EVALUATED`, `CANCELLED` |
 | `AiInterviewStatus` | `ai_interviews.status`, `ai_interview_logs.status` | `CREATED`, `GENERATING`, `QUESTIONS_READY`, `IN_PROGRESS`, `SCORING`, `SCORED`, `PASSED`, `ERROR`, `FAILED` |
+
+Với phiên chưa bắt đầu, service tự chuyển `QUESTIONS_READY` khi số câu hỏi đạt `jobs.ai_interview_question_count` (cố định 5); thêm/sửa/xóa khiến số câu chưa đủ thì chuyển `CREATED`. Đây là quy tắc service, không phải CHECK constraint SQL. API cập nhật phiên không cho sửa trạng thái hoặc điểm thủ công.
 | `ScheduleStatus` | `interview_schedules.status` | `PROPOSED`, `CONFIRMED`, `CANCELLED`, `DONE` |
 | `PracticeStatus` | `practice_sessions.status` | `CREATED`, `IN_PROGRESS`, `COMPLETED`, `FAILED` |
 | `NotificationStatus` | **chưa dùng** | `PENDING`, `SENT`, `FAILED` |
@@ -1058,9 +1061,10 @@ Hai pipeline dùng **hai phương ngữ SQL khác nhau** và không thể dùng 
 | V30 | `V30__job_assignments.sql` | `job_assignments`: recruiter phụ trách job, kèm backfill người tạo job. Đánh lại từ V16 của main |
 | V31 | `V31__job_screening_mode.sql` | `jobs.screening_mode` `AUTO` hoặc `MANUAL`. Đánh lại từ V17 của main |
 | V32 | `V32__create_landing_page_settings.sql` | Bảng `landing_page_settings`. Đánh lại từ V18 của main |
+| V33 | `V33__ai_interview_five_questions.sql` | `jobs.ai_interview_question_count` mặc định 5, dữ liệu cũ đưa về 5 |
 
 V9 redesign cũ được giữ nguyên tại `db/migration-archive/`, **ngoài** location Flyway.
-Tenant tạo mới chạy V1–V13 rồi V21–V32: 60 bảng hiện hành (gồm 5 bảng analytics V9), chưa tính history.
+Tenant tạo mới chạy V1–V13 rồi V21–V33: 60 bảng hiện hành (gồm 5 bảng analytics V9), chưa tính history.
 V9 analytics đã có source trong checkout hiện tại. Tuy nhiên DB ttqt có V13–V20 khác checkout;
 không dùng `repair` để đổi checksum hoặc giả mạo lịch sử. Việc đồng bộ lịch sử này là task riêng.
 V27–V32 là schema screening, assignment và landing lấy từ main, đánh số sau V26 để không đè V13 và không lấp V14–V20.
@@ -1086,7 +1090,7 @@ sequenceDiagram
     PRV->>MY: CREATE USER + GRANT
     PRV->>PG: UPDATE tenants SET db_url, db_username, db_password (đã mã hoá)
     PRV->>FW: migrate() trên datasource của tenant mới
-    FW->>MY: Áp dụng V1–V13, V21–V32 (60 bảng, không còn archive)
+    FW->>MY: Áp dụng V1–V13, V21–V33 (60 bảng, không còn archive)
     PRV-->>API: Tenant sẵn sàng
 ```
 
