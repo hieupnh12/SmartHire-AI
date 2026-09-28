@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, FileSignature, Building2, ShieldCheck, CreditCard, Loader2, Plus } from "lucide-react";
-import { useMasterDashboard } from "@/features/master/shell/MasterAdminContext";
+import { useTenants, useSubscriptions, useRevenueAnalytics, useAiQuotaUsage, useAuditLogs, useLeads, useInvoices, useContracts, masterQueryKeys } from "@/api/master/queries";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "@/stores/toastStore";
 import { contractApi } from "@/api/master/contractApi";
 import { consultationApi } from "@/api/master/consultationApi";
 
@@ -10,7 +12,11 @@ export function CreateContractPage() {
   const [searchParams] = useSearchParams();
   const leadId = searchParams.get("leadId");
 
-  const { tenants, plans, setContracts, triggerNotification } = useMasterDashboard();
+  const queryClient = useQueryClient();
+  const { data: tenants = [] } = useTenants();
+  const { data: plans = [] } = useSubscriptions();
+  const setContracts = (updater: any) => queryClient.setQueryData(masterQueryKeys.contracts(), updater);
+  const triggerNotification = (msg: string) => toast.success(msg);
 
   const [contractTenantId, setContractTenantId] = useState<number | "">("");
   const [contractPlanId, setContractPlanId] = useState<number | "">("");
@@ -227,7 +233,7 @@ export function CreateContractPage() {
                 required
                 value={contractTitle}
                 onChange={(e) => setContractTitle(e.target.value)}
-                placeholder="VD: Hợp Đồng Cung Cấp Dịch Vụ Tuyển Dụng AI & Dedicated DB SmartHire-AI"
+                placeholder="Hợp Đồng Cung Cấp Dịch Vụ Tuyển Dụng AI & Dedicated DB SmartHire-AI"
                 className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-slate-800 focus:outline-none focus:border-indigo-600 font-medium"
               />
             </div>

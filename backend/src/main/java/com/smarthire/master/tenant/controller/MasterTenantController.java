@@ -61,6 +61,15 @@ public class MasterTenantController {
         return ResponseEntity.ok(ApiResponse.ok(TenantResponse.from(masterTenantService.retryProvisioning(id, request))));
     }
 
+    @PutMapping("/{id}")
+    @Operation(summary = "Update Tenant Information", description = "Updates tenant metadata such as company name, contact info, and domains.")
+    public ResponseEntity<ApiResponse<TenantResponse>> updateTenant(
+            @PathVariable Long id,
+            @Valid @RequestBody com.smarthire.master.tenant.dto.UpdateTenantRequest request) {
+        TenantResponse tenant = TenantResponse.from(masterTenantService.updateTenant(id, request));
+        return ResponseEntity.ok(ApiResponse.ok("Tenant information updated successfully", tenant));
+    }
+
     @PostMapping("/onboard")
     @Operation(summary = "Onboard a new Enterprise Tenant", description = "Registers tenant metadata in Master DB and automatically provisions dedicated Tenant DB & runs Flyway migrations.")
     public ResponseEntity<ApiResponse<TenantResponse>> onboardTenant(@Valid @RequestBody OnboardTenantRequest request) {

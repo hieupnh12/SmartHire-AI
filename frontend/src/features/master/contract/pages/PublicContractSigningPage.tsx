@@ -579,7 +579,7 @@ export function PublicContractSigningPage() {
                     maxLength={6}
                     value={otpCode}
                     onChange={(e) => setOtpCode(e.target.value)}
-                    placeholder="VD: 859302"
+                    placeholder="859302"
                     className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 font-mono font-bold text-lg text-center tracking-widest text-indigo-700 focus:outline-none focus:border-indigo-600"
                   />
                   {otpMessage && <p className="text-[11px] text-indigo-700 mt-1">{otpMessage}</p>}
@@ -591,7 +591,7 @@ export function PublicContractSigningPage() {
                     type="text"
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
-                    placeholder="VD: Đã đối soát thông tin gói cước và đồng ý các điều khoản."
+                    placeholder="Đã đối soát thông tin gói cước và đồng ý các điều khoản."
                     className="w-full px-3 py-2 rounded-lg border border-slate-300 text-slate-800 focus:outline-none focus:border-indigo-600 text-xs"
                   />
                 </div>
@@ -642,7 +642,7 @@ export function PublicContractSigningPage() {
                     required
                     value={tokenSerial}
                     onChange={(e) => setTokenSerial(e.target.value)}
-                    placeholder="VD: 54:02:FA:99:BC:11:00:88"
+                    placeholder="54:02:FA:99:BC:11:00:88"
                     className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 font-mono text-slate-800 focus:outline-none focus:border-indigo-600"
                   />
                 </div>
@@ -678,7 +678,7 @@ export function PublicContractSigningPage() {
                     type="text"
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
-                    placeholder="VD: Đã đối soát thông tin gói cước và đồng ý các điều khoản."
+                    placeholder="Đã đối soát thông tin gói cước và đồng ý các điều khoản."
                     className="w-full px-3 py-2 rounded-lg border border-slate-300 text-slate-800 focus:outline-none focus:border-indigo-600 text-xs"
                   />
                 </div>

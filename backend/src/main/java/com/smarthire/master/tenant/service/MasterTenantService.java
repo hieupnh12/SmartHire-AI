@@ -73,6 +73,22 @@ public class MasterTenantService {
         return tenant;
     }
 
+    public TenantInfo updateTenant(Long id, com.smarthire.master.tenant.dto.UpdateTenantRequest request) {
+        TenantInfo tenant = getTenantById(id);
+        if (request.getCompanyName() != null) tenant.setName(request.getCompanyName());
+        if (request.getIndustry() != null) tenant.setIndustry(request.getIndustry());
+        if (request.getCompanySize() != null) tenant.setCompanySize(request.getCompanySize());
+        if (request.getContactName() != null) tenant.setContactName(request.getContactName());
+        if (request.getContactEmail() != null) tenant.setContactEmail(request.getContactEmail());
+        if (request.getContactPhone() != null) tenant.setContactPhone(request.getContactPhone());
+        if (request.getSubdomain() != null) tenant.setSubdomain(request.getSubdomain());
+        if (request.getWebsite() != null) tenant.setWebsite(request.getWebsite());
+        if (request.getAddress() != null) tenant.setAddress(request.getAddress());
+        if (request.getTaxCode() != null) tenant.setTaxCode(request.getTaxCode());
+
+        return tenants.save(tenant);
+    }
+
     public TenantInfo onboardTenant(OnboardTenantRequest request) {
         TenantInfo tenant = registration.execute(status -> {
             masterJdbc.execute("SELECT pg_advisory_xact_lock(-1)");
@@ -113,6 +129,11 @@ public class MasterTenantService {
         tenant.setDbUsername(username);
         tenant.setDbPassword(credentials.encrypt(code, password));
         tenant.setManagedDatabase(managed);
+        tenant.setCompanyLegalName(request.getCompanyLegalName());
+        tenant.setTaxCode(request.getTaxCode());
+        tenant.setBillingAddress(request.getBillingAddress());
+        tenant.setBillingEmail(request.getBillingEmail());
+        
         String envType = (request.getEnvironmentType() != null && !request.getEnvironmentType().isBlank())
                 ? request.getEnvironmentType().toUpperCase() : "PRODUCTION";
         tenant.setEnvironmentType(envType);

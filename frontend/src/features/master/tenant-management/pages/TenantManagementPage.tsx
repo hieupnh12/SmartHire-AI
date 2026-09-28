@@ -1,7 +1,9 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { masterAdminApi, type TenantInfo } from "@/api/master/masterAdminApi";
 import { TenantManagementHub, type TenantHubTab } from "../components/TenantManagementHub";
-import { useMasterDashboard } from "@/features/master/shell/MasterAdminContext";
+import { useTenants, useSubscriptions, useRevenueAnalytics, useAiQuotaUsage, useAuditLogs, useLeads, useInvoices, useContracts, masterQueryKeys } from "@/api/master/queries";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "@/stores/toastStore";
 
 function currentTab(pathname: string): TenantHubTab {
   const value = pathname.split("/")[3];
@@ -13,7 +15,10 @@ function currentTab(pathname: string): TenantHubTab {
 export function TenantManagementPage() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { tenants, setTenants, triggerNotification } = useMasterDashboard();
+  const queryClient = useQueryClient();
+  const { data: tenants = [] } = useTenants();
+  const setTenants = (updater: any) => queryClient.setQueryData(masterQueryKeys.tenants(), updater);
+  const triggerNotification = (msg: string) => toast.success(msg);
 
   const toggleStatus = async (tenant: TenantInfo) => {
     if (tenant.status === "FAILED" || tenant.status === "PROVISIONING") {

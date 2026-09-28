@@ -1,10 +1,12 @@
 import { useState, useMemo } from "react";
 import { AuditLog } from "@/api/master/masterAdminApi";
-import { useMasterDashboard } from "@/features/master/shell/MasterAdminContext";
+import { useTenants, useSubscriptions, useRevenueAnalytics, useAiQuotaUsage, useAuditLogs, useLeads, useInvoices, useContracts, masterQueryKeys } from "@/api/master/queries";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "@/stores/toastStore";
 import { LogDetailModal } from "../components/modals/LogDetailModal";
 
 export function AuditLogsPage() {
-  const { logs } = useMasterDashboard();
+  const { data: logs = [] } = useAuditLogs();
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
   const [logLevelFilter, setLogLevelFilter] = useState<string>("ALL");
 
