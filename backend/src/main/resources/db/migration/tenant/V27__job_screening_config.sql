@@ -1,8 +1,9 @@
 -- Per-job CV Screening weights and independent Gate Screening weights.
--- Live tenant flyway_schema_history already has V9–V12 (analytics, roles, interview/test redesign).
+-- Renumbered from main V13 so it does not collide with V13 assessment authoring on this branch.
 -- Recruiter can change both groups later; they are never shared with ranking_configs (RANK-03).
+-- Idempotent: tenants migrated under the old numbering (V13/V17) already have these tables.
 
-CREATE TABLE job_screening_configs (
+CREATE TABLE IF NOT EXISTS job_screening_configs (
     job_id BIGINT PRIMARY KEY,
     cv_skill_weight DECIMAL(5,2) NOT NULL,
     cv_preferred_weight DECIMAL(5,2) NOT NULL,
@@ -38,9 +39,10 @@ SELECT
     40.00, 8.00, 12.00, 0.00, 15.00, 25.00,
     60.00,
     40.00, 35.00, 25.00, 70.00
-FROM jobs;
+FROM jobs j
+WHERE NOT EXISTS (SELECT 1 FROM job_screening_configs c WHERE c.job_id = j.id);
 
-CREATE TABLE gate_scores (
+CREATE TABLE IF NOT EXISTS gate_scores (
     id BIGINT PRIMARY KEY AUTO_INCREMENT,
     application_id BIGINT NOT NULL UNIQUE,
     score DECIMAL(5,2) NOT NULL,

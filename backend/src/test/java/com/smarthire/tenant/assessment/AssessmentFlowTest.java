@@ -165,7 +165,7 @@ class AssessmentFlowTest {
     @Test
     void validatesCorrectOptionAndPassingThreshold() {
         long id = draft();
-        var bad = new QuestionRequest("Bad", 5, 0, List.of(
+        var bad = new QuestionRequest("Bad", 5, 0, null, null, null, List.of(
                 new QuestionRequest.OptionRequest("A", true), new QuestionRequest.OptionRequest("B", true)));
         assertThatThrownBy(() -> questions.create(id, bad)).hasMessageContaining("Exactly one");
         questions.create(id, question("Low points", 1, 0));
@@ -181,9 +181,9 @@ class AssessmentFlowTest {
         assertThatThrownBy(() -> questions.create(id, question("Bad", 1, 0))).hasMessage("Staff access required");
         login(otherEmail, "CANDIDATE");
         assertThatThrownBy(() -> submissions.start(id, new StartSubmissionRequest(applicationId))).hasMessageContaining("not found");
-        mvc.perform(get("/api/v1/submissions/{id}", started.id())).andExpect(status().isNotFound());
-        mvc.perform(post("/api/v1/submissions/{id}/submit", started.id())).andExpect(status().isNotFound());
-        mvc.perform(post("/api/v1/submissions/{id}/answers", started.id()).contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(get("/api/v1/submissions/{id}/get_submission", started.id())).andExpect(status().isNotFound());
+        mvc.perform(post("/api/v1/submissions/{id}/submit_test", started.id())).andExpect(status().isNotFound());
+        mvc.perform(post("/api/v1/submissions/{id}/save_answers", started.id()).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"answers\":[{\"questionId\":1,\"selectedOptionId\":null}]}"))
                 .andExpect(status().isNotFound());
         assertThatThrownBy(() -> submissions.staffResult(started.id())).hasMessage("Staff access required");
@@ -266,10 +266,10 @@ class AssessmentFlowTest {
     @Test
     void httpValidationRejectsNestedInvalidOptionsAndEmptyAnswers() throws Exception {
         long id = draft();
-        mvc.perform(post("/api/v1/assessments/{id}/questions", id).contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/api/v1/assessments/{id}/create_question", id).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"questionText\":\"Question\",\"points\":1,\"questionOrder\":0,\"options\":[null,null]}"))
                 .andExpect(status().isBadRequest());
-        mvc.perform(post("/api/v1/submissions/1/answers").contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/api/v1/submissions/1/save_answers").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"answers\":[]}")).andExpect(status().isBadRequest());
     }
 
@@ -332,6 +332,95 @@ class AssessmentFlowTest {
         assertThatThrownBy(() -> submissions.start(id, new StartSubmissionRequest(foreignApplication))).hasMessageContaining("not found");
     }
 
+    @Test
+    void multipleChoicePersistsSelectionsAndRequiresExactCorrectSet() {
+        long id = draft();
+        var q = questions.create(id, multiQuestion());
+        questions.publish(id);
+        login(candidateEmail, "CANDIDATE");
+        long submission = submissions.start(id, new StartSubmissionRequest(applicationId)).id();
+        var correct = q.options().stream().filter(QuestionResponse.OptionResponse::correct).map(QuestionResponse.OptionResponse::id).toList();
+        submissions.save(submission, multiSave(q.id(), correct));
+        assertThat(submissions.get(submission).answers().getFirst().selectedOptionIds()).containsExactlyElementsOf(correct);
+        submissions.save(submission, multiSave(q.id(), List.of()));
+        assertThat(submissions.get(submission).answers().getFirst().selectedOptionIds()).isEmpty();
+        submissions.save(submission, multiSave(q.id(), correct));
+        assertThatThrownBy(() -> submissions.save(submission, multiSave(q.id(), List.of(correct.getFirst(), correct.getFirst()))))
+                .hasMessageContaining("duplicate");
+        assertThatThrownBy(() -> submissions.save(submission, multiSave(q.id(), List.of(Long.MAX_VALUE))))
+                .hasMessageContaining("Option does not belong");
+        assertThat(submissions.submit(submission).score()).isEqualByComparingTo("5");
+
+        login(recruiterEmail, "RECRUITER");
+        long partialTest = draft();
+        var partial = questions.create(partialTest, multiQuestion());
+        questions.publish(partialTest);
+        login(candidateEmail, "CANDIDATE");
+        long partialSubmission = submissions.start(partialTest, new StartSubmissionRequest(applicationId)).id();
+        submissions.save(partialSubmission, multiSave(partial.id(), List.of(partial.options().getFirst().id())));
+        assertThat(submissions.submit(partialSubmission).score()).isEqualByComparingTo("0");
+    }
+
+    @Test
+    void essayAndMixedPaperPersistTextAndWaitForReviewIncludingExpiration() throws Exception {
+        long id = draft();
+        var essay = questions.create(id, new QuestionRequest("Explain", 5, 0, null, null, "Staff rubric",
+                List.of(), QuestionType.ESSAY));
+        var mcq = questions.create(id, question("Choice", 5, 1));
+        questions.publish(id);
+        login(candidateEmail, "CANDIDATE");
+        long submission = submissions.start(id, new StartSubmissionRequest(applicationId)).id();
+        mvc.perform(post("/api/v1/submissions/{id}/save_answers", submission).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"answers\":[{\"questionId\":" + essay.id() + ",\"answerText\":\"My reasoning\"}]}"))
+                .andExpect(status().isOk());
+        assertThat(submissions.get(submission).answers().getFirst().answerText()).isEqualTo("My reasoning");
+        assertThatThrownBy(() -> submissions.save(submission, save(essay.id(), mcq.options().getFirst().id())))
+                .hasMessageContaining("Essay answers cannot select");
+        submissions.save(submission, save(mcq.id(), mcq.options().getFirst().id()));
+        var result = submissions.submit(submission);
+        assertThat(result.status()).isEqualTo(TestSubmissionStatus.SUBMITTED);
+        assertThat(result.score()).isNull();
+        assertThat(result.passed()).isNull();
+        assertThat(submissions.submit(submission).submittedAt()).isEqualTo(result.submittedAt());
+        assertThatThrownBy(() -> submissions.save(submission, new SaveAnswersRequest(List.of(
+                new SaveAnswersRequest.AnswerInput(essay.id(), null, null, "Changed")))))
+                .hasMessage("Submission is closed");
+        tx.executeWithoutResult(status -> {
+            var stored = em.find(Submission.class, submission);
+            stored.setStatus(TestSubmissionStatus.IN_PROGRESS);
+            stored.setStartedAt(Instant.now().minusSeconds(1900));
+        });
+        var expired = submissions.get(submission);
+        assertThat(expired.status()).isEqualTo(TestSubmissionStatus.EXPIRED);
+        assertThat(expired.score()).isNull();
+        assertThat(expired.answers().getFirst().answerText()).isEqualTo("My reasoning");
+    }
+
+    @Test
+    void validatesTypeSpecificAuthoringAndRejectsUnknownTypesOverHttp() throws Exception {
+        long id = draft();
+        assertThatThrownBy(() -> questions.create(id, new QuestionRequest("Bad", 5, 0, null, null, null,
+                multiQuestion().options(), QuestionType.ESSAY))).hasMessageContaining("must not have options");
+        assertThatThrownBy(() -> questions.create(id, new QuestionRequest("Bad", 5, 0, null, null, null,
+                question("Q", 5, 0).options(), QuestionType.MULTIPLE_CHOICE))).hasMessageContaining("at least two");
+        mvc.perform(post("/api/v1/assessments/{id}/create_question", id).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"questionText\":\"Explain\",\"points\":5,\"questionOrder\":0,\"questionType\":\"ESSAY\"}"))
+                .andExpect(status().isCreated());
+        mvc.perform(post("/api/v1/assessments/{id}/create_question", id).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"questionText\":\"Bad\",\"points\":5,\"questionOrder\":0,\"questionType\":\"UNKNOWN\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    private QuestionRequest multiQuestion() {
+        return new QuestionRequest("Choose both", 5, 0, null, null, null, List.of(
+                new QuestionRequest.OptionRequest("A", true), new QuestionRequest.OptionRequest("B", true),
+                new QuestionRequest.OptionRequest("C", false)), QuestionType.MULTIPLE_CHOICE);
+    }
+
+    private SaveAnswersRequest multiSave(Long questionId, List<Long> ids) {
+        return new SaveAnswersRequest(List.of(new SaveAnswersRequest.AnswerInput(questionId, null, ids, null)));
+    }
+
     private List<SubmissionResponse> parallel(Callable<SubmissionResponse> action) throws Exception {
         try (var executor = Executors.newFixedThreadPool(2)) {
             var gate = new CountDownLatch(2);
@@ -357,7 +446,8 @@ class AssessmentFlowTest {
     private long draft() { return assessments.create(request()).id(); }
     private long published() { long id = draft(); questions.create(id, question("One", 5, 0)); questions.publish(id); return id; }
     private QuestionRequest question(String text, int points, int order) {
-        return new QuestionRequest(text, points, order, List.of(new QuestionRequest.OptionRequest("Correct", true),
+        return new QuestionRequest(text, points, order, "Easy", "Java", null,
+                List.of(new QuestionRequest.OptionRequest("Correct", true),
                 new QuestionRequest.OptionRequest("Incorrect", false)));
     }
     private SaveAnswersRequest save(Long questionId, Long optionId) {

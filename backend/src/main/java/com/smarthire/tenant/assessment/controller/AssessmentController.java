@@ -30,37 +30,37 @@ public class AssessmentController {
         this.assessmentService = assessmentService;
     }
 
-    @PostMapping
-    @Operation(summary = "Create a draft test (tenant staff only)",
+    @PostMapping("/create_draft_test")
+    @Operation(summary = "Create a draft JobTest (staff only)",
             description = "Requires a staff JWT and its matching tenant. Does not create questions or candidate submissions.")
     public ResponseEntity<ApiResponse<JobTestResponse>> create(@Valid @RequestBody JobTestRequest request) {
         return ResponseEntity.status(201).body(ApiResponse.ok(assessmentService.create(request)));
     }
 
-    @GetMapping
-    @Operation(summary = "List tenant tests (staff only)", description = "Newest first. Zero-based page; size limited to 1-50.")
+    @GetMapping("/list_tenant_tests")
+    @Operation(summary = "List JobTests in tenant (staff only)",
+            description = "Newest first. Zero-based page; size limited to 1-50.")
     public ApiResponse<JobTestPage> list(@RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         return ApiResponse.ok(assessmentService.list(page, size));
     }
 
-    @GetMapping("/{id}")
-    @Operation(summary = "Get test metadata (tenant staff only)")
+    @GetMapping("/get_test_metadata/{id}")
+    @Operation(summary = "Get JobTest metadata by id (staff only)")
     public ApiResponse<JobTestResponse> get(@PathVariable long id) {
         return ApiResponse.ok(assessmentService.get(id));
     }
 
-    @PutMapping("/{id}")
-    @Operation(summary = "Replace draft test metadata (tenant staff only)",
+    @PutMapping("/update_draft_test/{id}")
+    @Operation(summary = "Update draft JobTest metadata (staff only)",
             description = "The jobId must remain unchanged. Published or archived tests return 409.")
     public ApiResponse<JobTestResponse> update(@PathVariable long id, @Valid @RequestBody JobTestRequest request) {
         return ApiResponse.ok(assessmentService.update(id, request));
     }
 
     @GetMapping("/health")
-    @Operation(summary = "Technical Assessment module scaffold health")
+    @Operation(summary = "Assessment module health check")
     public ResponseEntity<ApiResponse<Map<String, String>>> health() {
         return ResponseEntity.ok(ApiResponse.ok(assessmentService.health()));
     }
 }
-

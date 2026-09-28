@@ -1,19 +1,39 @@
 export type TestStatus = "DRAFT" | "PUBLISHED" | "ARCHIVED";
 export type SubmissionStatus = "NOT_STARTED" | "IN_PROGRESS" | "SUBMITTED" | "GRADED" | "EXPIRED";
+export type QuestionDifficulty = "Easy" | "Medium" | "Hard";
 export type JobTest = {
-  id: number; jobId: number; title: string; description: string | null;
-  durationMinutes: number; passingScore: number | null; status: TestStatus; createdAt: string;
+  id: number;
+  jobId: number;
+  title: string;
+  description: string | null;
+  durationMinutes: number;
+  passingScore: number | null;
+  status: TestStatus;
+  createdAt: string;
+  updatedAt: string | null;
+  createdById: number | null;
+  createdByName: string | null;
 };
 export type TestRequest = Pick<JobTest, "jobId" | "title" | "description" | "durationMinutes" | "passingScore">;
 export type TestPage = { items: JobTest[]; total: number; page: number; size: number };
 export type QuestionRequest = {
-  questionText: string; points: number; questionOrder: number;
+  questionText: string;
+  points: number;
+  questionOrder: number;
+  difficulty: QuestionDifficulty | null;
+  skill: string | null;
+  explanation: string | null;
   options: { optionText: string; correct: boolean }[];
+  questionType?: "MCQ" | "MULTIPLE_CHOICE" | "ESSAY";
 };
 export type Question = Omit<QuestionRequest, "options"> & {
-  id: number; questionType: string; options: { id: number; optionText: string; correct: boolean }[];
+  id: number;
+  questionType: string;
+  options: { id: number; optionText: string; correct: boolean }[];
 };
-export type CandidateQuestion = Omit<Question, "options"> & { options: { id: number; optionText: string }[] };
+export type CandidateQuestion = Omit<Question, "options" | "difficulty" | "skill" | "explanation"> & {
+  options: { id: number; optionText: string }[];
+};
 export type SavedAnswer = { questionId: number; selectedOptionId: number | null };
 export type Submission = {
   id: number; testId: number; applicationId: number; title: string; status: SubmissionStatus;

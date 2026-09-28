@@ -21,13 +21,15 @@ Tạo/làm bài trắc nghiệm kỹ thuật gắn job/stage.
 
 ## Business Rules
 
-- Đã triển khai backend và frontend JobTest, Question, Option, Submission, Answer cho MCQ một đáp án đúng. Coding, randomize và cấp quyền thi lại chưa triển khai; đây chưa phải luồng AI tự sinh câu hỏi/phỏng vấn.
+- Backend hỗ trợ `MCQ` (một đáp án, mặc định khi bỏ questionType), `MULTIPLE_CHOICE` (nhiều đáp án), `ESSAY` (tự luận). Frontend hiện vẫn là luồng MCQ; task V23 chưa thay UI. Coding, randomize và cấp quyền thi lại chưa triển khai.
 - Start được tuần tự hóa bằng khóa hàng đề; trả lượt gần nhất đã có của cặp test/application, kể cả đã hoàn thành. NOT_STARTED được kích hoạt khi đủ điều kiện; không tự tạo lượt thi lại.
 - Hiện không có API giao đề riêng: mọi đề PUBLISHED của job có thể được bắt đầu bởi chủ đơn đủ điều kiện. Nếu cần giao riêng từng ứng viên, bổ sung chính sách assignment ở bước sau.
 - Staff (`RECRUITER`, `HR`, `ADMIN`, `TENANT_ADMIN`) trong đúng tenant được tạo, xem và sửa đề. Candidate không được gọi các API quản lý đề.
 - Tạo đề luôn ở trạng thái `DRAFT`; chỉ sửa/xóa câu hỏi và sửa thông tin đề trong bản nháp, không đổi job. Publish khóa nội dung và thời lượng. Job đã xóa không được dùng để tạo/sửa đề hoặc bắt đầu lượt mới.
 - `passingScore` tùy chọn, tính theo điểm thô; publish kiểm tra từ 0 đến tổng điểm. Không có ngưỡng thì response `passed` là null.
 - Tối đa 100 câu/đề, mỗi câu 1–10000 điểm, 2–10 options và đúng một option đúng. Option được quản lý cùng Question; PUT thay toàn bộ options và sinh ID mới. Không publish đề có coding ở luồng MCQ này.
+- Metadata biên soạn tùy chọn trên câu hỏi: `difficulty` (`Easy`/`Medium`/`Hard`), `skill`, `explanation`. Excel import bắt buộc difficulty+skill trước khi lưu; API chấp nhận null. `explanation` chỉ trả cho staff, không lộ cho candidate.
+- `tests.created_by` ghi user staff tạo đề; `updated_at` cập nhật khi sửa metadata đề. Danh sách recruiter hiển thị tên người tạo và thời điểm cập nhật.
 - Candidate chỉ đọc/lưu/nộp submission của mình; lấy candidate từ token, không từ request. Trả 404 khi tài nguyên không thuộc ứng viên; không lộ đáp án đúng, kể cả sau khi nộp.
 - Save là upsert từng questionId, không xóa câu ngoài payload; selectedOptionId null để bỏ chọn. Question phải thuộc đề, option phải thuộc question. Payload có questionId lặp bị từ chối; lỗi một câu rollback cả nhóm.
 - Khóa hàng submission và transaction READ_COMMITTED tuần tự hóa save/submit; nộp lại trả cùng kết quả. Bỏ trống/sai được 0 điểm, đúng được toàn bộ điểm câu. Không tin điểm từ client.
@@ -39,19 +41,21 @@ Tạo/làm bài trắc nghiệm kỹ thuật gắn job/stage.
 
 | Method | Path |
 |---|---|
-| POST | `/api/v1/assessments` |
-| GET | `/api/v1/assessments?page=0&size=20` |
-| GET | `/api/v1/assessments/{id}` |
-| PUT | `/api/v1/assessments/{id}` |
-| GET, POST | `/api/v1/assessments/{testId}/questions` |
-| PUT, DELETE | `/api/v1/assessments/{testId}/questions/{questionId}` |
-| POST | `/api/v1/assessments/{testId}/publish` |
-| POST | `/api/v1/assessments/{testId}/submissions` |
-| GET | `/api/v1/applications/{applicationId}/assessments` (candidate sở hữu, đơn đủ điều kiện) |
-| GET | `/api/v1/submissions/{id}` |
-| POST | `/api/v1/submissions/{id}/answers` |
-| POST | `/api/v1/submissions/{id}/submit` |
-| GET | `/api/v1/submissions/{id}/result` (staff) |
+| POST | `/api/v1/assessments/create_draft_test` |
+| GET | `/api/v1/assessments/list_tenant_tests?page=0&size=20` |
+| GET | `/api/v1/assessments/get_test_metadata/{id}` |
+| PUT | `/api/v1/assessments/update_draft_test/{id}` |
+| GET | `/api/v1/assessments/{testId}/list_questions` |
+| POST | `/api/v1/assessments/{testId}/create_question` |
+| PUT | `/api/v1/assessments/{testId}/update_question/{questionId}` |
+| DELETE | `/api/v1/assessments/{testId}/delete_question/{questionId}` |
+| POST | `/api/v1/assessments/{testId}/publish_test` |
+| POST | `/api/v1/assessments/{testId}/start_submission` |
+| GET | `/api/v1/applications/{applicationId}/list_available_assessments` (candidate sở hữu, đơn đủ điều kiện) |
+| GET | `/api/v1/submissions/{id}/get_submission` |
+| POST | `/api/v1/submissions/{id}/save_answers` |
+| POST | `/api/v1/submissions/{id}/submit_test` |
+| GET | `/api/v1/submissions/{id}/get_result` (staff) |
 
 Contract chính thức và frontend dùng `submissions`, không cung cấp alias `attempts`. Các API trả `ApiResponse`: tạo đề/câu hỏi HTTP 201; start/resume/save/submit HTTP 200; request không hợp lệ 400; không đủ quyền 403; không tìm thấy/không sở hữu 404; trạng thái không phù hợp hoặc hết hạn 409. Danh sách đề trả `data.items`, `total`, `page`, `size`, sắp xếp ID giảm dần; page âm về 0, size giới hạn 1–50. Danh sách bao gồm metadata đề của job đã xóa để staff tra cứu.
 
@@ -73,13 +77,16 @@ Dùng token staff và `X-Tenant-ID` khớp tenant của token. Thay `jobId` bằ
 
 ### JSON câu hỏi và bài làm
 
-Staff POST `/assessments/{testId}/questions` (PUT câu hỏi dùng cùng body):
+Staff POST `/assessments/{testId}/create_question` (PUT `/update_question/{questionId}` dùng cùng body):
 
 ```json
 {
   "questionText": "Which keyword defines a Java class?",
   "points": 5,
   "questionOrder": 0,
+  "difficulty": "Easy",
+  "skill": "Java",
+  "explanation": "class declares a type.",
   "options": [
     { "optionText": "class", "correct": true },
     { "optionText": "def", "correct": false }
@@ -87,33 +94,45 @@ Staff POST `/assessments/{testId}/questions` (PUT câu hỏi dùng cùng body):
 }
 ```
 
-Staff POST `/assessments/{testId}/publish` không cần body. Candidate POST `/assessments/{testId}/submissions`:
+Staff POST `/assessments/{testId}/publish_test` không cần body. Candidate POST `/assessments/{testId}/start_submission`:
 
 ```json
 { "applicationId": 1 }
 ```
 
-Candidate POST `/submissions/{id}/answers`, thay ID theo response start:
+Candidate POST `/submissions/{id}/save_answers`, thay ID theo response start:
 
 ```json
 { "answers": [{ "questionId": 1, "selectedOptionId": 2 }] }
 ```
 
-Candidate POST `/submissions/{id}/submit` không cần body, chỉ chấm đáp án đã lưu. Staff GET `/submissions/{id}/result` để xem kết quả. Postman collection có nhóm Technical Assessment và biến `testId`, `questionId`, `optionId`, `submissionId`, `candidateToken`; token staff dùng `accessToken`.
+Candidate POST `/submissions/{id}/submit_test` không cần body, chỉ chấm đáp án đã lưu. Staff GET `/submissions/{id}/get_result` để xem kết quả. Postman collection có nhóm Technical Assessment và biến `testId`, `questionId`, `optionId`, `submissionId`, `candidateToken`; token staff dùng `accessToken`.
 
 Kiểm chứng ngày 2026-09-24: 33 test assessment/multitenancy đạt, trong đó `AssessmentFlowTest` chạy trên MySQL với schema Flyway, không dùng Hibernate tạo bảng. Đã chạy browser test `frontend/tests/assessment.browser.cjs` cho tạo/publish đề, start, lỗi lưu/retry, reload, lưu trước submit và hết giờ; ảnh desktop/mobile không tràn ngang. Browser test dùng API fixture, chưa thay thế E2E đăng nhập qua backend thật hoặc kiểm thử cách ly hai datasource.
 
 ## Database liên quan
 
-- Theo schema V12: `tests`, `questions`, `options`, `submissions`, `answers`. Chống ghi trùng bằng khóa hàng trong service, không tuyên bố có UNIQUE mà SQL chưa định nghĩa.
-- Lỗi thiếu `tests` do migration trùng V5/V6 và V9 bị tái sử dụng cho redesign trong khi history tenant ghi analytics. V10/V11 được phục hồi tên đúng, V12 giữ bảng cũ trong `legacy_v12_*`; xem quy trình nâng cấp tại `docs/database/README.md` §10.7. Chỉ tạo entity/repository không tự tạo bảng tenant (`hbm2ddl=none`).
+- V23 thêm `answer_selected_options(answer_id, option_id)` với PK kép và FK. MCQ vẫn lưu `answers.selected_option_id`, tự luận lưu `answers.answer_text`. Không chuyển dữ liệu MCQ cũ sang bảng nối.
+
+## Mở rộng loại câu hỏi V23
+
+- POST/PUT question nhận `questionType`: MCQ có 2–10 lựa chọn và đúng 1 đáp án đúng; MULTIPLE_CHOICE có 2–10 lựa chọn và ít nhất 2 đáp án đúng; ESSAY không có options (bỏ trường hoặc gửi []). Type không hợp lệ trả 400.
+- Save MCQ dùng `selectedOptionId`; nhiều đáp án dùng `selectedOptionIds`; tự luận dùng `answerText` tối đa 10.000 ký tự. Không trộn payload giữa các loại. Danh sách ID trùng hoặc option thuộc câu khác bị từ chối, rollback cả nhóm.
+- null ở lựa chọn đơn, []/null ở danh sách, null/chuỗi rỗng ở tự luận dùng để xóa câu trả lời tương ứng. Câu không có trong payload giữ nguyên. GET trả lại các trường tương ứng; không trả rubric/đáp án đúng.
+- Nhiều đáp án chấm theo tập chính xác: chọn thiếu/thừa/sai nhận 0, đúng toàn bộ nhận điểm câu. Không có điểm một phần.
+- Bài có tự luận nộp thành SUBMITTED, score/passed NULL để chờ chấm; hết giờ thành EXPIRED nhưng điểm tổng vẫn NULL. Điểm trắc nghiệm được lưu riêng; chưa có endpoint chấm tự luận. Submit lặp trả kết quả cũ, không sửa bài đã đóng.
+
+- V22 thêm `questionskills(question_id, skill_id)` liên kết N–N `questions`/`skills`, PK kép chống trùng và 2 FK DELETE CASCADE. Entity `QuestionSkill`; chưa đổi API/UI hoặc đồng bộ cột văn bản `questions.skill` sang bảng nối. Trạng thái tính năng vẫn `Doing`.
+
+- Theo schema V12 + V13: `tests` (+ `created_by`, `updated_at`), `questions` (+ `difficulty`, `skill`, `explanation`), `options`, `submissions`, `answers`. Chống ghi trùng bằng khóa hàng trong service, không tuyên bố có UNIQUE mà SQL chưa định nghĩa.
+- V12 tách mô hình mới và lưu bảng cũ trong `legacy_v12_*`; V21 xóa toàn bộ bảng/dữ liệu legacy và hai cột ID legacy trong `ranking_sources` theo yêu cầu bỏ lịch sử cũ. FK của mô hình hiện hành giữ nguyên, không chuyển ID cũ sang submission mới. Xem `docs/database/README.md` §10.7–10.8. Chỉ tạo entity/repository không tự tạo bảng tenant (`hbm2ddl=none`).
 
 ## UI mockup
 
 - Google Stitch: **FE-05 Online Technical Assessment / Multiple Choice Test** — _[dán link]_
 - Icons: xem `DESIGN.md`
 - Recruiter: `/recruiter/assessments`, `/new`, `/:id`; danh sách phân trang, thông tin đề, CRUD câu hỏi/options, chọn đáp án đúng, publish khóa sửa.
-- Ngân hàng câu hỏi: `/recruiter/assessments/question-bank` tổng hợp câu MCQ theo bộ sưu tập, vị trí và bộ lọc; mở đề gốc để sửa. Yêu thích lưu trên trình duyệt. Chưa có rubric, cấp độ hay lịch sử phiên bản riêng.
+- Ngân hàng câu hỏi: `/recruiter/assessments/question-bank` tổng hợp câu MCQ theo bộ sưu tập, vị trí và bộ lọc; mở đề gốc để sửa. Độ khó/kỹ năng/giải thích lưu trên `questions` (V13). Yêu thích lưu trên trình duyệt. Coding / nhiều đáp án / tự luận vẫn ngoài phạm vi ASSESS-01.
 - Candidate: `/candidate/assessments` chọn đơn hợp lệ; `/:submissionId/take` có câu hỏi, radio lựa chọn, điều hướng, tiến độ, tự lưu/retry, timer, xác nhận nộp và điểm tổng.
 - Query key assessment phân biệt tenant/user; Axios hiện có gắn token và tenant header. Server state dùng TanStack Query, form dùng React Hook Form + Zod.
 

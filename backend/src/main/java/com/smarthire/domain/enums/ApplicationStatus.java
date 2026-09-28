@@ -8,5 +8,6 @@ public enum ApplicationStatus {
     OFFER,
     HIRED,
     REJECTED,
+    FAILED,
     WITHDRAWN;
 }

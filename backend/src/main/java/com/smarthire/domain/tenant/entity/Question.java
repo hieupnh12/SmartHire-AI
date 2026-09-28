@@ -49,4 +49,14 @@ public class Question {
     @Builder.Default
     @Column(name = "question_order", nullable = false)
     int questionOrder = 0;
+
+    /** Easy | Medium | Hard — authoring metadata from Excel/UI; nullable for legacy rows. */
+    @Column(length = 16)
+    String difficulty;
+
+    @Column(length = 255)
+    String skill;
+
+    @Column(columnDefinition = "TEXT")
+    String explanation;
 }

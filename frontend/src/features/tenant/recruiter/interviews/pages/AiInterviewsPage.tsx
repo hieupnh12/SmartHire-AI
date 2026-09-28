@@ -1,544 +1,766 @@
-import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { useRecruitmentJob } from "../../jobs/components/JobRecruitmentWorkspace";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
+  ArrowRight,
+  ArrowUpRight,
+  AudioLines,
+  Ban,
   Bot,
-  CheckCircle2,
-  Clock3,
-  Eye,
-  MessageSquareText,
-  PlayCircle,
-  Plus,
+  Building2,
+  ChevronLeft,
+  ChevronRight,
+  Copy,
+  Download,
+  FileText,
+  Filter,
+  Inbox,
+  Kanban,
+  LayoutList,
+  ListFilter,
+  MoreVertical,
+  PlusCircle,
+  RotateCcw,
   Search,
+  SlidersHorizontal,
   Sparkles,
-  TrendingUp,
-  Users,
+  Tag,
+  Type,
+  Upload,
+  Verified,
+  X,
 } from "lucide-react";
+import { aiInterviewApi } from "@/api/tenant/aiInterviewApi";
+import type { AiInterviewStatus } from "@/api/types/aiInterview";
+import { AssessmentError } from "@/components/ux/assessmentUi";
 import { PrototypeBanner } from "@/components/ux/PrototypeBanner";
+import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
+import { toast } from "@/stores/toastStore";
+import { useUiStore } from "@/stores/uiStore";
+import { AiInterviewDetailDrawer } from "../components/AiInterviewDetailDrawer";
+import {
+  AI_INTERVIEW_MOCK,
+  AI_INTERVIEW_STATUSES,
+  AiStatusBadge,
+  MockTag,
+  aiStatusLabel,
+  formatDateTime,
+} from "../components/aiInterviewUi";
+import { CreateAiInterviewDialog } from "../components/CreateAiInterviewDialog";
+import { useJobAiInterviews, type AiInterviewRow } from "../hooks/useJobAiInterviews";
 
-type SessionStatus = "SCHEDULED" | "IN_PROGRESS" | "COMPLETED" | "NEEDS_REVIEW";
+type QuickTab = "ALL" | "QUESTIONS_READY" | "IN_PROGRESS" | "SCORING" | "SCORED";
+type TimeRange = "all" | "7" | "30" | "90";
 
-type AiSession = {
-  id: string;
-  candidate: string;
-  job: string;
-  status: SessionStatus;
-  score: number | null;
-  durationMin: number;
-  questions: number;
-  answered: number;
-  scheduledAt: string;
-  strengths: string[];
-};
-
-const sessions: AiSession[] = [
-  {
-    id: "AI-INT-1042",
-    candidate: "Nguyễn Minh Anh",
-    job: "Java Backend Developer",
-    status: "COMPLETED",
-    score: 86,
-    durationMin: 28,
-    questions: 8,
-    answered: 8,
-    scheduledAt: "2026-09-24T09:30:00+07:00",
-    strengths: ["System design", "SQL", "Communication"],
-  },
-  {
-    id: "AI-INT-1041",
-    candidate: "Trần Hoàng Long",
-    job: "Frontend React & TypeScript",
-    status: "NEEDS_REVIEW",
-    score: 74,
-    durationMin: 32,
-    questions: 7,
-    answered: 7,
-    scheduledAt: "2026-09-23T15:00:00+07:00",
-    strengths: ["React hooks", "UI polish"],
-  },
-  {
-    id: "AI-INT-1040",
-    candidate: "Lê Thu Hà",
-    job: "Data Engineer",
-    status: "IN_PROGRESS",
-    score: null,
-    durationMin: 25,
-    questions: 6,
-    answered: 3,
-    scheduledAt: "2026-09-24T20:15:00+07:00",
-    strengths: [],
-  },
-  {
-    id: "AI-INT-1039",
-    candidate: "Phạm Quốc Bảo",
-    job: "DevOps & Cloud Engineer",
-    status: "SCHEDULED",
-    score: null,
-    durationMin: 30,
-    questions: 8,
-    answered: 0,
-    scheduledAt: "2026-09-25T10:00:00+07:00",
-    strengths: [],
-  },
-  {
-    id: "AI-INT-1038",
-    candidate: "Võ Gia Hân",
-    job: "Product Manager",
-    status: "COMPLETED",
-    score: 91,
-    durationMin: 26,
-    questions: 6,
-    answered: 6,
-    scheduledAt: "2026-09-22T14:20:00+07:00",
-    strengths: ["Prioritization", "Stakeholder clarity"],
-  },
-];
-
-const statusLabel: Record<SessionStatus, string> = {
-  SCHEDULED: "Đã lên lịch",
-  IN_PROGRESS: "Đang diễn ra",
-  COMPLETED: "Hoàn thành",
-  NEEDS_REVIEW: "Cần xem xét",
-};
-
-function statusTone(status: SessionStatus) {
-  if (status === "COMPLETED") return "bg-emerald-50 text-emerald-700";
-  if (status === "NEEDS_REVIEW") return "bg-amber-50 text-amber-800";
-  if (status === "IN_PROGRESS") return "bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)]";
-  return "bg-[var(--color-surface-container)] text-[var(--color-on-surface-variant)]";
-}
-
-function formatWhen(iso: string) {
-  return new Date(iso).toLocaleString("vi-VN", {
-    day: "2-digit",
-    month: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
+const DAY_MS = 86_400_000;
 
 function initials(name: string) {
   return name
     .split(" ")
+    .filter(Boolean)
     .slice(-2)
     .map((part) => part[0])
     .join("")
     .toUpperCase();
 }
 
-type Tab = "ALL" | SessionStatus;
+function candidateName(row: AiInterviewRow) {
+  return row.application?.candidateName ?? `Ứng viên #${row.candidateId ?? "?"}`;
+}
 
-/** Sample recruiter AI Interview workspace (AI ↔ candidate) — mock data, not wired to API yet. */
-export function AiInterviewsPage() {
-  const [tab, setTab] = useState<Tab>("ALL");
-  const [query, setQuery] = useState("");
-  const [selectedId, setSelectedId] = useState(sessions[0]?.id ?? "");
+function scheduleOf(row: AiInterviewRow) {
+  if (row.completedAt) return { label: formatDateTime(row.completedAt), hint: "Hoàn tất phiên" };
+  if (row.startedAt) return { label: formatDateTime(row.startedAt), hint: "Đã bắt đầu" };
+  return { label: formatDateTime(row.createdAt), hint: "Ngày tạo phiên" };
+}
 
-  const counts = useMemo(
-    () => ({
-      all: sessions.length,
-      scheduled: sessions.filter((s) => s.status === "SCHEDULED").length,
-      live: sessions.filter((s) => s.status === "IN_PROGRESS").length,
-      review: sessions.filter((s) => s.status === "NEEDS_REVIEW").length,
-      done: sessions.filter((s) => s.status === "COMPLETED").length,
-    }),
-    [],
+function downloadCsv(rows: AiInterviewRow[], jobTitle: string) {
+  const header = ["Ma phien", "Ung vien", "Email", "Don", "Trang thai", "Diem", "Tao luc", "Bat dau", "Hoan tat"];
+  const escape = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const lines = rows.map((r) => [
+    `AI-${r.id}`,
+    candidateName(r),
+    r.application?.candidateEmail ?? "",
+    r.applicationId,
+    aiStatusLabel[r.status],
+    r.overallScore ?? "",
+    r.createdAt,
+    r.startedAt ?? "",
+    r.completedAt ?? "",
+  ].map(escape).join(","));
+  const blob = new Blob(["\uFEFF" + [header.join(","), ...lines].join("\n")], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `ai-interviews-${jobTitle.replace(/\s+/g, "-").toLowerCase()}.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function ScoreCell({ row }: { row: AiInterviewRow }) {
+  if (row.status === "SCORING") {
+    return <span className="text-xs italic text-[var(--color-on-surface-variant)]">Đang tổng hợp điểm...</span>;
+  }
+  if (row.overallScore == null) {
+    return <span className="text-xs italic text-[var(--color-outline)]">Chưa có điểm</span>;
+  }
+  const pct = Math.min(Math.max(row.overallScore * 10, 0), 100);
+  return (
+    <div className="flex w-36 flex-col gap-1.5">
+      <span className="text-base font-bold text-[var(--color-on-surface)]">
+        {row.overallScore.toFixed(1)} <span className="text-xs font-normal text-[var(--color-on-surface-variant)]">/10</span>
+      </span>
+      <div className="h-2 w-full overflow-hidden rounded-full bg-[var(--color-surface-container-high)]">
+        <div className="h-full rounded-full bg-[var(--color-primary-container)]" style={{ width: `${pct}%` }} />
+      </div>
+    </div>
   );
+}
+
+function ActionMenu({
+  open,
+  onClose,
+  items,
+}: {
+  open: boolean;
+  onClose: () => void;
+  items: { label: string; icon: typeof Copy; danger?: boolean; mock?: boolean; onClick: () => void }[];
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open, onClose]);
+
+  if (!open) return null;
+  return (
+    <div ref={ref} className="absolute right-0 top-10 z-30 flex w-52 flex-col rounded-xl bg-[var(--color-surface-card)] py-1.5 shadow-xl">
+      {items.map((item) => {
+        const Icon = item.icon;
+        return (
+          <button
+            key={item.label}
+            type="button"
+            className={cn(
+              "flex items-center gap-2 px-3.5 py-2 text-left text-sm font-medium hover:bg-[var(--color-surface-container)]",
+              item.danger ? "text-[#ba1a1a] hover:bg-[#ffdad6]" : "text-[var(--color-on-surface)]",
+            )}
+            onClick={() => {
+              item.onClick();
+              onClose();
+            }}
+          >
+            <Icon className="size-[18px]" aria-hidden="true" />
+            {item.label}
+            {item.mock && <MockTag title="Chưa có API" />}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+export function AiInterviewsPage() {
+  const job = useRecruitmentJob();
+  const client = useQueryClient();
+  const askConfirm = useUiStore((s) => s.askConfirm);
+  const { interviews, applicants, rows } = useJobAiInterviews(job.id);
+  const [tab, setTab] = useState<QuickTab>("ALL");
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<AiInterviewStatus | "all">("all");
+  const [timeRange, setTimeRange] = useState<TimeRange>("all");
+  const [viewMode, setViewMode] = useState<"table" | "kanban">("table");
+  const [menuId, setMenuId] = useState<number | null>(null);
+  const [pageSize, setPageSize] = useState(20);
+  const [page, setPage] = useState(0);
+  const [creating, setCreating] = useState(false);
+  const [detailId, setDetailId] = useState<number | null>(null);
+
+  const counts = useMemo(() => {
+    const by = (s: AiInterviewStatus) => rows.filter((r) => r.status === s).length;
+    return {
+      all: rows.length,
+      ready: by("QUESTIONS_READY"),
+      live: by("IN_PROGRESS"),
+      scoring: by("SCORING"),
+      scored: by("SCORED"),
+    };
+  }, [rows]);
+  const completionRate = counts.all ? Math.round((counts.scored / counts.all) * 100) : 0;
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return sessions.filter((session) => {
-      if (tab !== "ALL" && session.status !== tab) return false;
+    const since = timeRange === "all" ? 0 : Date.now() - Number(timeRange) * DAY_MS;
+    return rows.filter((row) => {
+      if (tab !== "ALL" && row.status !== tab) return false;
+      if (statusFilter !== "all" && row.status !== statusFilter) return false;
+      if (since && new Date(row.createdAt).getTime() < since) return false;
       if (!q) return true;
       return (
-        session.candidate.toLowerCase().includes(q) ||
-        session.job.toLowerCase().includes(q) ||
-        session.id.toLowerCase().includes(q)
+        candidateName(row).toLowerCase().includes(q) ||
+        (row.application?.candidateEmail ?? "").toLowerCase().includes(q) ||
+        `ai-${row.id}`.includes(q.replace("#", "")) ||
+        String(row.applicationId) === q
       );
     });
-  }, [tab, query]);
+  }, [rows, tab, statusFilter, timeRange, query]);
 
-  const selected = sessions.find((s) => s.id === selectedId) ?? filtered[0] ?? null;
-  const avgScore =
-    sessions.filter((s) => s.score != null).reduce((sum, s) => sum + (s.score ?? 0), 0) /
-    Math.max(1, sessions.filter((s) => s.score != null).length);
+  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const safePage = Math.min(page, pageCount - 1);
+  const pageRows = filtered.slice(safePage * pageSize, safePage * pageSize + pageSize);
+  const detailRow = rows.find((r) => r.id === detailId);
 
-  const tabs: { id: Tab; label: string; count: number }[] = [
-    { id: "ALL", label: "Tất cả phiên", count: counts.all },
-    { id: "IN_PROGRESS", label: "Đang diễn ra", count: counts.live },
-    { id: "NEEDS_REVIEW", label: "Cần xem xét", count: counts.review },
-    { id: "COMPLETED", label: "Hoàn thành", count: counts.done },
-    { id: "SCHEDULED", label: "Đã lên lịch", count: counts.scheduled },
+  const resetFilters = () => {
+    setTab("ALL");
+    setQuery("");
+    setStatusFilter("all");
+    setTimeRange("all");
+    setPage(0);
+  };
+
+  const confirmDelete = (row: AiInterviewRow) =>
+    askConfirm({
+      title: `Xoá phiên #AI-${row.id}?`,
+      description: "Toàn bộ câu hỏi, câu trả lời và feedback của phiên sẽ bị xoá vĩnh viễn.",
+      confirmLabel: "Xoá phiên",
+      danger: true,
+      onConfirm: async () => {
+        await aiInterviewApi.remove(row.id);
+        await client.invalidateQueries({ queryKey: queryKeys.aiInterviews.byJob(job.id) });
+        toast.success("Đã xoá phiên phỏng vấn AI");
+      },
+    });
+
+  const notAvailable = (feature: string) => toast.info(`Chưa có API cho "${feature}"`, "Tính năng đang hiển thị dạng mock.");
+
+  const pills: { id: QuickTab; label: string; dot?: "live" }[] = [
+    { id: "ALL", label: `Tất cả (${counts.all})` },
+    { id: "QUESTIONS_READY", label: `Đã có câu hỏi (${counts.ready})` },
+    { id: "IN_PROGRESS", label: `Đang diễn ra (${counts.live})`, dot: "live" },
+    { id: "SCORING", label: `Đang chấm (${counts.scoring})` },
+    { id: "SCORED", label: `Đã chấm xong (${counts.scored})` },
   ];
 
   return (
-    <section className="flex flex-col gap-8 text-[var(--color-on-surface)]">
-      <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div className="min-w-0">
-          <nav className="flex flex-wrap items-center gap-1 text-xs text-[var(--color-on-surface-variant)]" aria-label="Breadcrumb">
-            <span>Tuyển dụng</span>
-            <span className="text-[var(--color-outline)]">/</span>
-            <span className="font-semibold text-[var(--color-primary)]">AI Interview</span>
-          </nav>
-          <div className="mt-2 flex flex-wrap items-center gap-3">
-            <h1 className="text-3xl font-semibold tracking-tight">Phỏng vấn AI đầu vào</h1>
-            <span className="inline-flex items-center rounded-full border border-[var(--color-primary)] bg-[var(--color-primary-subtle)] px-3.5 py-1 text-sm font-semibold text-[var(--color-primary-hover)]">
-              AI Interview
-            </span>
+    <section className="mx-auto flex w-full max-w-[1440px] flex-col gap-6 text-[var(--color-on-surface)]">
+      <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
+        <div className="flex flex-col gap-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="h-7 w-2.5 rounded-full bg-[var(--color-primary-container)]" />
+            <h1 className="text-[30px] font-semibold leading-[38px] tracking-tight">Phỏng vấn AI</h1>
           </div>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--color-on-surface-variant)]">
-            Theo dõi phiên phỏng vấn AI: câu hỏi sinh theo job, ghi nhận câu trả lời, điểm NLP và báo cáo gợi ý cho recruiter.
+          <p className="max-w-2xl pl-4 text-sm leading-[22px] text-[var(--color-on-surface-variant)]">
+            Quản lý phiên phỏng vấn AI của vị trí, câu hỏi, câu trả lời và feedback của ứng viên.
           </p>
         </div>
-        <button
-          type="button"
-          className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 self-start rounded-[var(--radius-md)] bg-[var(--color-primary)] px-4 text-sm font-semibold text-[var(--color-on-primary)] shadow-sm hover:bg-[var(--color-primary-hover)] md:self-auto"
-        >
-          <Plus className="size-4" aria-hidden="true" />
-          Tạo phiên AI
-        </button>
-      </header>
+        <div className="flex flex-wrap items-center gap-2 self-start lg:self-auto">
+          <button
+            type="button"
+            onClick={() => notAvailable("Cấu hình Rubric AI")}
+            className="inline-flex h-10 items-center gap-2 rounded-lg bg-[var(--color-surface-container-low)] px-4 text-sm font-medium text-[var(--color-on-surface)] shadow-sm transition-colors hover:bg-[var(--color-surface-container)]"
+          >
+            <SlidersHorizontal className="size-[19px] text-[var(--color-on-surface-variant)]" aria-hidden="true" />
+            Cấu hình Rubric AI
+            <MockTag title="Chưa có API rubric" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setCreating(true)}
+            className="inline-flex h-10 items-center gap-2 rounded-lg bg-[var(--color-primary-container)] px-5 text-sm font-semibold text-[var(--color-on-primary)] shadow-md transition-all hover:bg-[var(--color-primary-hover)] active:scale-95"
+          >
+            <PlusCircle className="size-5" aria-hidden="true" />
+            Tạo phỏng vấn mới
+          </button>
+        </div>
+      </div>
 
-      <PrototypeBanner note="giao diện mẫu · dữ liệu giả · chưa nối API scoring/STT" />
+      <PrototypeBanner note="Đã nối API /ai-interviews. Các trường gắn nhãn MOCK (hình thức AI, rubric, lời mời, sinh câu hỏi AI, chấm điểm tự động) chưa có trong backend." />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Metric
-          label="Phiên hôm nay"
-          value={String(counts.all)}
-          hint="+2 so với hôm qua"
-          icon={Users}
-          tone="primary"
-        />
-        <Metric
+      <AssessmentError error={interviews.error} retry={() => void interviews.refetch()} />
+      <AssessmentError error={applicants.error} retry={() => void applicants.refetch()} />
+
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-4">
+        <KpiCard label="Tổng số phiên" value={String(counts.all)} trend="Trong vị trí đang mở" hint={job.title} icon={LayoutList} blob="primary" />
+        <KpiCard
           label="Đang diễn ra"
           value={String(counts.live)}
-          hint="Realtime session"
-          icon={PlayCircle}
-          tone="live"
+          trend="Trạng thái IN_PROGRESS"
+          trendTone="tertiary"
+          hint="Phiên của vị trí đang mở"
+          icon={AudioLines}
+          blob="secondary"
+          live={counts.live > 0}
         />
-        <Metric
-          label="Cần xem xét"
-          value={String(counts.review)}
-          hint="Chờ recruiter duyệt"
-          icon={MessageSquareText}
-          tone="warning"
+        <KpiCard
+          label="Đã chấm điểm"
+          value={String(counts.scored)}
+          trend="Chờ recruiter xem"
+          trendTone="error"
+          hint="Chưa có cờ đã duyệt trong API"
+          icon={FileText}
+          blob="error"
         />
-        <Metric
-          label="Điểm AI trung bình"
-          value={avgScore.toFixed(0)}
-          hint="Trên phiên đã chấm"
-          icon={Sparkles}
-          tone="success"
-        />
-      </div>
-
-      <div className="flex flex-col items-start justify-between gap-4 rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-gradient-to-r from-[var(--color-surface-container-low)] via-[var(--color-surface-card)] to-[var(--color-surface-container-low)] p-5 shadow-[var(--shadow-card)] lg:flex-row lg:items-center">
-        <div className="flex items-start gap-4">
-          <div className="grid size-12 shrink-0 place-items-center rounded-xl bg-[var(--color-primary)] text-[var(--color-on-primary)] shadow-sm">
-            <Bot className="size-6" aria-hidden="true" />
-          </div>
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-base font-semibold">Luồng AI Interview chuẩn</h2>
-              <span className="rounded-full bg-[var(--color-primary-soft)] px-2 py-0.5 text-[11px] font-semibold text-[var(--color-primary-hover)]">
-                INT-01 → INT-04
+        <div className="group relative flex items-center justify-between overflow-hidden rounded-2xl bg-[var(--color-surface-card)] p-4 shadow-sm transition-shadow hover:shadow-md">
+          <div className="z-10 flex flex-col gap-1">
+            <span className="text-xs font-medium uppercase tracking-wider text-[var(--color-on-surface-variant)]">Tỷ lệ hoàn tất phiên</span>
+            <div className="flex items-baseline gap-2">
+              <span className="text-4xl font-bold tracking-tight">{completionRate}%</span>
+              <span className="inline-flex items-center text-[11px] font-semibold text-[var(--color-primary)]">
+                <ArrowUpRight className="size-3.5" aria-hidden="true" /> {counts.scored} phiên
               </span>
             </div>
-            <p className="mt-1 max-w-2xl text-sm leading-6 text-[var(--color-on-surface-variant)]">
-              <strong className="text-[var(--color-on-surface)]">1. Gắn đơn & job</strong>
-              {" → "}
-              <strong className="text-[var(--color-on-surface)]">2. AI sinh câu hỏi</strong>
-              {" → "}
-              <strong className="text-[var(--color-on-surface)]">3. Ứng viên trả lời (text/voice)</strong>
-              {" → "}
-              <strong className="text-[var(--color-on-surface)]">4. NLP + scoring + báo cáo</strong>
-            </p>
+            <span className="text-xs text-[var(--color-on-surface-variant)]">Đã chấm / tổng số phiên</span>
+          </div>
+          <div className="relative z-10 flex size-12 items-center justify-center">
+            <svg className="size-12 -rotate-90" viewBox="0 0 36 36" aria-hidden="true">
+              <path className="text-[var(--color-surface-container-high)]" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeWidth="3.5" />
+              <path className="text-[var(--color-primary-container)]" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeDasharray={`${completionRate}, 100`} strokeLinecap="round" strokeWidth="3.5" />
+            </svg>
+            <span className="absolute text-[11px] font-bold">{completionRate}%</span>
           </div>
         </div>
-        <Link
-          to="/recruiter/interviews"
-          className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-card)] px-4 text-sm font-semibold text-[var(--color-on-surface)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]"
-        >
-          Interview người–người
-        </Link>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(18rem,0.85fr)]">
-        <div className="flex flex-col gap-4">
-          <div className="rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-4 shadow-[var(--shadow-card)]">
-            <div className="flex flex-wrap items-center gap-1 rounded-xl bg-[var(--color-surface-container-low)]/80 p-1">
-              {tabs.map((item) => {
-                const active = tab === item.id;
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => setTab(item.id)}
-                    className={cn(
-                      "inline-flex items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-sm transition-colors",
-                      active
-                        ? "bg-[var(--color-surface-card)] font-semibold text-[var(--color-primary)] shadow-sm"
-                        : "text-[var(--color-on-surface-variant)] hover:bg-[var(--color-surface-container)]",
-                    )}
-                  >
-                    {item.label}
-                    <span
-                      className={cn(
-                        "rounded-full px-2 py-0.5 text-[11px] font-semibold",
-                        active
-                          ? "bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)]"
-                          : "bg-[var(--color-surface-container-high)] text-[var(--color-on-surface-variant)]",
-                      )}
-                    >
-                      {item.count}
-                    </span>
-                  </button>
-                );
-              })}
+      <div className="flex flex-col gap-4 rounded-2xl bg-[var(--color-surface-card)] p-4 shadow-sm">
+        <div className="flex flex-col items-stretch justify-between gap-4 lg:flex-row lg:items-center">
+          <label className="relative flex max-w-2xl flex-1 items-center">
+            <span className="sr-only">Tìm phiên phỏng vấn AI</span>
+            <Search className="pointer-events-none absolute left-3.5 size-5 text-[var(--color-outline)]" aria-hidden="true" />
+            <input
+              className="h-11 w-full rounded-xl bg-[var(--color-surface)] pl-11 pr-4 text-sm text-[var(--color-on-surface)] shadow-[0_0_0_1px_var(--color-outline-variant)] outline-none transition-all placeholder:text-[var(--color-outline)] focus:shadow-[0_0_0_2px_var(--color-primary-hover)]"
+              placeholder="Tìm theo ứng viên, email, mã phiên (#AI-...) hoặc mã đơn"
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setPage(0);
+              }}
+            />
+          </label>
+          <div className="flex flex-wrap items-center justify-end gap-1">
+            <div className="flex items-center rounded-xl bg-[var(--color-surface-container-low)] p-1 shadow-sm">
+              {(["table", "kanban"] as const).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setViewMode(mode)}
+                  className={cn(
+                    "inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-xs font-medium transition-colors",
+                    viewMode === mode
+                      ? "bg-[var(--color-surface-card)] text-[var(--color-on-surface)] shadow-sm"
+                      : "text-[var(--color-on-surface-variant)] hover:bg-[var(--color-surface-container)]",
+                  )}
+                >
+                  {mode === "table" ? <LayoutList className="size-4 text-[var(--color-primary)]" aria-hidden="true" /> : <Kanban className="size-4" aria-hidden="true" />}
+                  {mode === "table" ? "Bảng" : "Kanban"}
+                </button>
+              ))}
             </div>
-            <label className="relative mt-3 block">
-              <span className="sr-only">Tìm phiên AI Interview</span>
-              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--color-outline)]" aria-hidden="true" />
-              <input
-                className="h-10 w-full rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-low)] pl-10 pr-3 text-sm outline-none focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20"
-                placeholder="Tìm theo ứng viên, vị trí, mã phiên…"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-              />
-            </label>
+            <button
+              type="button"
+              disabled={filtered.length === 0}
+              onClick={() => downloadCsv(filtered, job.title)}
+              className="inline-flex h-10 items-center gap-2 rounded-xl bg-[var(--color-surface-container-low)] px-3.5 text-xs font-medium text-[var(--color-on-surface)] transition-colors hover:bg-[var(--color-surface-container)] disabled:opacity-50"
+            >
+              <Download className="size-[18px] text-[var(--color-on-surface-variant)]" aria-hidden="true" />
+              Xuất CSV
+            </button>
+            <button
+              type="button"
+              onClick={() => notAvailable("Cài đặt tự động hóa")}
+              className="inline-flex h-10 items-center gap-2 rounded-xl bg-[var(--color-surface-container-low)] px-3.5 text-xs font-medium text-[var(--color-on-surface)] transition-colors hover:bg-[var(--color-surface-container)]"
+            >
+              <Bot className="size-[18px] text-[var(--color-primary)]" aria-hidden="true" />
+              Cài đặt tự động hóa
+              <MockTag title="Chưa có API" />
+            </button>
           </div>
+        </div>
 
-          <div className="overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-[var(--color-surface-card)] shadow-[var(--shadow-card)]">
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[720px] border-collapse text-left text-sm">
-                <thead>
-                  <tr className="h-11 bg-[var(--color-surface-container-low)] text-[11px] font-semibold uppercase tracking-wider text-[var(--color-outline)]">
-                    <th className="px-4 py-2">Ứng viên & mã phiên</th>
-                    <th className="px-4 py-2">Vị trí</th>
-                    <th className="px-4 py-2">Tiến độ</th>
-                    <th className="px-4 py-2">Điểm AI</th>
-                    <th className="px-4 py-2">Trạng thái</th>
-                    <th className="px-4 py-2 text-right">Thao tác</th>
+        <div className="flex flex-wrap items-center gap-2 pt-1">
+          <div className="flex items-center gap-1 pr-2 text-[11px] font-semibold uppercase tracking-wider text-[var(--color-on-surface-variant)]">
+            <Filter className="size-4" aria-hidden="true" />
+            Bộ lọc:
+          </div>
+          <select
+            aria-label="Lọc theo trạng thái"
+            className="h-9 cursor-pointer rounded-lg bg-[var(--color-surface-container-low)] pl-3.5 pr-8 text-xs font-medium text-[var(--color-on-surface)] outline-none focus:shadow-[0_0_0_2px_var(--color-primary-hover)]"
+            value={statusFilter}
+            onChange={(e) => {
+              setStatusFilter(e.target.value as AiInterviewStatus | "all");
+              setPage(0);
+            }}
+          >
+            <option value="all">Trạng thái: Tất cả ({counts.all})</option>
+            {AI_INTERVIEW_STATUSES.map((s) => (
+              <option key={s} value={s}>{aiStatusLabel[s]}</option>
+            ))}
+          </select>
+          <select
+            aria-label="Lọc theo hình thức"
+            disabled
+            title="Backend chưa lưu hình thức phỏng vấn"
+            className="h-9 cursor-not-allowed rounded-lg bg-[var(--color-surface-container-low)] pl-3.5 pr-8 text-xs font-medium text-[var(--color-on-surface-variant)] opacity-70"
+          >
+            <option>Hình thức: Tất cả (mock)</option>
+          </select>
+          <select
+            aria-label="Khung thời gian"
+            className="h-9 cursor-pointer rounded-lg bg-[var(--color-surface-container-low)] pl-3.5 pr-8 text-xs font-medium text-[var(--color-on-surface)] outline-none focus:shadow-[0_0_0_2px_var(--color-primary-hover)]"
+            value={timeRange}
+            onChange={(e) => {
+              setTimeRange(e.target.value as TimeRange);
+              setPage(0);
+            }}
+          >
+            <option value="all">Thời gian tạo: Tất cả</option>
+            <option value="7">7 ngày qua</option>
+            <option value="30">30 ngày qua</option>
+            <option value="90">90 ngày qua</option>
+          </select>
+          <button
+            type="button"
+            onClick={resetFilters}
+            className="inline-flex h-9 items-center gap-1 rounded-lg px-3 text-xs font-medium text-[var(--color-on-surface-variant)] transition-colors hover:bg-[#ffdad6]/30 hover:text-[#ba1a1a]"
+          >
+            <X className="size-4" aria-hidden="true" />
+            Đặt lại
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2 overflow-x-auto pb-1">
+          {pills.map((pill) => (
+            <button
+              key={pill.id}
+              type="button"
+              onClick={() => {
+                setTab(pill.id);
+                setPage(0);
+              }}
+              className={cn(
+                "inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-medium transition-all",
+                tab === pill.id
+                  ? "bg-[var(--color-primary-container)] font-semibold text-[var(--color-on-primary)]"
+                  : "bg-[var(--color-surface-container-low)] text-[var(--color-on-surface-variant)] hover:text-[var(--color-on-surface)]",
+              )}
+            >
+              {pill.dot === "live" && <span className="size-1.5 rounded-full bg-[var(--color-tertiary-container)]" />}
+              {pill.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {viewMode === "table" ? (
+        <div className="flex flex-col overflow-hidden rounded-3xl bg-[var(--color-surface-card)] shadow-sm">
+          <div className="w-full overflow-x-auto">
+            <table className="w-full min-w-[1180px] border-collapse text-left text-sm">
+              <thead>
+                <tr className="h-12 select-none bg-[var(--color-surface-container-low)] text-[11px] font-semibold uppercase tracking-wider text-[var(--color-on-surface-variant)]">
+                  <th className="py-3 pl-6 pr-4">Phiên &amp; Mã</th>
+                  <th className="px-4 py-3">Ứng viên</th>
+                  <th className="px-4 py-3">Vị trí</th>
+                  <th className="px-4 py-3">Hình thức AI</th>
+                  <th className="px-4 py-3">Thời gian</th>
+                  <th className="px-4 py-3">Trạng thái</th>
+                  <th className="px-4 py-3">Đánh giá AI</th>
+                  <th className="py-3 pr-4 text-right">Thao tác</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[var(--color-surface-container-low)]">
+                {interviews.isPending && (
+                  <tr>
+                    <td colSpan={8} className="px-4 py-10 text-center text-sm text-[var(--color-on-surface-variant)]" role="status">
+                      Đang tải phiên phỏng vấn AI…
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-[var(--color-surface-container-low)]">
-                  {filtered.map((session) => {
-                    const active = selected?.id === session.id;
-                    return (
-                      <tr
-                        key={session.id}
-                        className={cn(
-                          "cursor-pointer transition-colors hover:bg-[var(--color-primary-subtle)]",
-                          active && "bg-[var(--color-primary-subtle)]",
-                        )}
-                        onClick={() => setSelectedId(session.id)}
-                      >
-                        <td className="px-4 py-3.5">
-                          <div className="flex items-center gap-3">
-                            <div className="grid size-9 place-items-center rounded-full bg-[var(--color-primary-soft)] text-xs font-bold text-[var(--color-primary-hover)]">
-                              {initials(session.candidate)}
-                            </div>
-                            <div>
-                              <p className="font-semibold">{session.candidate}</p>
-                              <p className="font-mono text-[11px] text-[var(--color-outline)]">{session.id}</p>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3.5">
-                          <span className="font-medium">{session.job}</span>
-                          <p className="mt-0.5 text-[11px] text-[var(--color-outline)]">{formatWhen(session.scheduledAt)}</p>
-                        </td>
-                        <td className="whitespace-nowrap px-4 py-3.5">
-                          <span className="font-semibold">
-                            {session.answered}/{session.questions}
-                          </span>
-                          <p className="text-[11px] text-[var(--color-outline)]">{session.durationMin} phút</p>
-                        </td>
-                        <td className="whitespace-nowrap px-4 py-3.5">
-                          {session.score == null ? (
-                            <span className="text-[var(--color-outline)]">—</span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 font-bold text-[var(--color-primary)]">
-                              <Sparkles className="size-3.5" aria-hidden="true" />
-                              {session.score}
-                            </span>
-                          )}
-                        </td>
-                        <td className="whitespace-nowrap px-4 py-3.5">
-                          <span className={cn("inline-flex rounded-full px-2.5 py-1 text-xs font-semibold", statusTone(session.status))}>
-                            {statusLabel[session.status]}
-                          </span>
-                        </td>
-                        <td className="whitespace-nowrap px-4 py-3.5 text-right">
+                )}
+                {pageRows.map((row) => {
+                  const schedule = scheduleOf(row);
+                  const name = candidateName(row);
+                  return (
+                    <tr key={row.id} className="group transition-colors hover:bg-[var(--color-surface-container-low)]/60">
+                      <td className="py-4 pl-6 pr-4">
+                        <div className="flex flex-col gap-0.5">
                           <button
                             type="button"
-                            className="inline-flex h-8 items-center gap-1 rounded-lg bg-[var(--color-primary-soft)] px-2.5 text-xs font-medium text-[var(--color-primary)] hover:bg-[var(--color-primary)]/20"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedId(session.id);
-                            }}
+                            onClick={() => setDetailId(row.id)}
+                            className="text-left text-base font-semibold tracking-tight transition-colors hover:text-[var(--color-primary)]"
                           >
-                            <Eye className="size-3.5" aria-hidden="true" />
-                            Xem
+                            AI Interview · {job.title}
                           </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                  {filtered.length === 0 && (
-                    <tr>
-                      <td colSpan={6} className="px-4 py-8 text-center text-sm text-[var(--color-on-surface-variant)]">
-                        Không có phiên phù hợp bộ lọc.
+                          <div className="flex items-center gap-2 font-mono text-[13px] text-[var(--color-on-surface-variant)]">
+                            <Tag className="size-3.5" aria-hidden="true" />
+                            <span>#AI-{row.id}</span>
+                            <span>•</span>
+                            <span>{AI_INTERVIEW_MOCK.rubric}</span>
+                            <MockTag title="Chưa có rubric trong API" />
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="flex items-center gap-2">
+                          <div className="flex size-10 items-center justify-center rounded-full bg-[var(--color-primary-soft)] text-xs font-bold text-[var(--color-primary-hover)] shadow-sm">
+                            {initials(name)}
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="font-semibold leading-tight">{name}</span>
+                            <span className="text-xs leading-tight text-[var(--color-on-surface-variant)]">{row.application?.candidateEmail ?? "—"}</span>
+                            <span className="mt-0.5 inline-flex items-center gap-0.5 text-[11px] font-semibold text-[var(--color-primary)]">
+                              <FileText className="size-3" aria-hidden="true" />
+                              Đơn #{row.applicationId}
+                            </span>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="flex flex-col">
+                          <span className="font-semibold">{row.application?.jobTitle ?? job.title}</span>
+                          <span className="inline-flex items-center gap-1 text-xs text-[var(--color-on-surface-variant)]">
+                            <Building2 className="size-3.5" aria-hidden="true" />
+                            {[row.application?.jobDepartment, row.application?.jobLocation].filter(Boolean).join(" · ") || "—"}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--color-surface-container)] px-2.5 py-1 text-xs font-semibold text-[var(--color-on-surface-variant)]">
+                          <Type className="size-3.5" aria-hidden="true" />
+                          {AI_INTERVIEW_MOCK.mode}
+                        </span>
+                        <MockTag title="Chưa có cột hình thức trong API" />
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="flex flex-col">
+                          <span className="text-xs font-medium">{schedule.label}</span>
+                          <span className="text-xs text-[var(--color-on-surface-variant)]">{schedule.hint}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <AiStatusBadge status={row.status} />
+                      </td>
+                      <td className="px-4 py-4">
+                        <ScoreCell row={row} />
+                      </td>
+                      <td className="py-4 pr-4 text-right">
+                        <div className="relative flex items-center justify-end gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setDetailId(row.id)}
+                            className="inline-flex h-9 items-center gap-1 rounded-lg bg-[var(--color-primary-container)] px-3 text-xs font-semibold text-[var(--color-on-primary)] shadow-sm transition-colors hover:bg-[var(--color-primary-hover)]"
+                          >
+                            {row.status === "SCORED" ? "Xem feedback" : "Chi tiết"}
+                            <ArrowRight className="size-4" aria-hidden="true" />
+                          </button>
+                          <button
+                            type="button"
+                            className="flex size-9 items-center justify-center rounded-lg text-[var(--color-on-surface-variant)] transition-colors hover:bg-[var(--color-surface-container)]"
+                            aria-label="Thêm thao tác"
+                            onClick={() => setMenuId(menuId === row.id ? null : row.id)}
+                          >
+                            <MoreVertical className="size-5" aria-hidden="true" />
+                          </button>
+                          <ActionMenu
+                            open={menuId === row.id}
+                            onClose={() => setMenuId(null)}
+                            items={[
+                              {
+                                label: "Sao chép mã phiên",
+                                icon: Copy,
+                                onClick: () => {
+                                  void navigator.clipboard.writeText(`AI-${row.id}`);
+                                  toast.success("Đã sao chép mã phiên");
+                                },
+                              },
+                              { label: "Gửi lại lời mời", icon: RotateCcw, mock: true, onClick: () => notAvailable("Gửi lại lời mời") },
+                              { label: "Xoá phiên này", icon: Ban, danger: true, onClick: () => confirmDelete(row) },
+                            ]}
+                          />
+                        </div>
                       </td>
                     </tr>
-                  )}
-                </tbody>
-              </table>
+                  );
+                })}
+                {interviews.isSuccess && filtered.length === 0 && (
+                  <tr>
+                    <td colSpan={8} className="px-4 py-10 text-center text-sm text-[var(--color-on-surface-variant)]">
+                      {rows.length === 0 ? "Vị trí này chưa có phiên phỏng vấn AI. Bấm “Tạo phỏng vấn mới” để bắt đầu." : "Không có phiên phù hợp bộ lọc."}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="flex flex-col items-center justify-between gap-2 px-4 py-3.5 sm:flex-row">
+            <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--color-on-surface-variant)]">
+              <span>
+                Hiển thị{" "}
+                <span className="font-semibold text-[var(--color-on-surface)]">
+                  {filtered.length === 0 ? 0 : safePage * pageSize + 1} - {safePage * pageSize + pageRows.length}
+                </span>{" "}
+                trên <span className="font-semibold text-[var(--color-on-surface)]">{filtered.length}</span> phiên
+              </span>
+              <span className="text-[var(--color-outline-variant)]">•</span>
+              <label className="flex items-center gap-1.5">
+                <span>Dòng mỗi trang:</span>
+                <select
+                  className="h-8 rounded-md bg-[var(--color-surface-container-low)] px-2 text-[11px] font-medium text-[var(--color-on-surface)] outline-none"
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setPage(0);
+                  }}
+                >
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
+                </select>
+              </label>
+            </div>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                disabled={safePage === 0}
+                onClick={() => setPage(safePage - 1)}
+                className="flex size-8 items-center justify-center rounded-lg bg-[var(--color-surface-container-low)] text-[var(--color-on-surface)] disabled:opacity-50"
+                aria-label="Trang trước"
+              >
+                <ChevronLeft className="size-[18px]" aria-hidden="true" />
+              </button>
+              <span className="px-2 text-sm font-medium">{safePage + 1} / {pageCount}</span>
+              <button
+                type="button"
+                disabled={safePage >= pageCount - 1}
+                onClick={() => setPage(safePage + 1)}
+                className="flex size-8 items-center justify-center rounded-lg bg-[var(--color-surface-container-low)] text-[var(--color-on-surface)] disabled:opacity-50"
+                aria-label="Trang sau"
+              >
+                <ChevronRight className="size-[18px]" aria-hidden="true" />
+              </button>
             </div>
           </div>
         </div>
+      ) : (
+        <div className="rounded-3xl bg-[var(--color-surface-card)] p-8 text-center shadow-sm">
+          <ListFilter className="mx-auto size-8 text-[var(--color-outline)]" aria-hidden="true" />
+          <p className="mt-3 text-sm font-semibold">Kanban view</p>
+          <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">Chế độ Kanban đang được chuẩn bị — hãy dùng Bảng để quản lý phiên.</p>
+        </div>
+      )}
 
-        <aside className="flex flex-col gap-4">
-          <div className="rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-5 shadow-[var(--shadow-card)]">
-            {selected ? (
-              <>
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wider text-[var(--color-outline)]">Chi tiết phiên</p>
-                    <h2 className="mt-1 text-lg font-semibold">{selected.candidate}</h2>
-                    <p className="text-sm text-[var(--color-on-surface-variant)]">{selected.job}</p>
-                  </div>
-                  <span className={cn("rounded-full px-2.5 py-1 text-xs font-semibold", statusTone(selected.status))}>
-                    {statusLabel[selected.status]}
-                  </span>
-                </div>
-
-                <dl className="mt-5 grid grid-cols-2 gap-3 text-sm">
-                  <div className="rounded-xl bg-[var(--color-surface-container-low)] p-3">
-                    <dt className="text-[11px] text-[var(--color-outline)]">Mã phiên</dt>
-                    <dd className="mt-1 font-mono font-semibold">{selected.id}</dd>
-                  </div>
-                  <div className="rounded-xl bg-[var(--color-surface-container-low)] p-3">
-                    <dt className="text-[11px] text-[var(--color-outline)]">Thời lượng</dt>
-                    <dd className="mt-1 flex items-center gap-1 font-semibold">
-                      <Clock3 className="size-3.5 text-[var(--color-outline)]" aria-hidden="true" />
-                      {selected.durationMin} phút
-                    </dd>
-                  </div>
-                  <div className="rounded-xl bg-[var(--color-surface-container-low)] p-3">
-                    <dt className="text-[11px] text-[var(--color-outline)]">Câu hỏi</dt>
-                    <dd className="mt-1 font-semibold">
-                      {selected.answered}/{selected.questions}
-                    </dd>
-                  </div>
-                  <div className="rounded-xl bg-[var(--color-surface-container-low)] p-3">
-                    <dt className="text-[11px] text-[var(--color-outline)]">Điểm AI</dt>
-                    <dd className="mt-1 font-semibold text-[var(--color-primary)]">
-                      {selected.score ?? "Chưa chấm"}
-                    </dd>
-                  </div>
-                </dl>
-
-                {selected.strengths.length > 0 && (
-                  <div className="mt-4">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-[var(--color-outline)]">Điểm mạnh (AI)</p>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {selected.strengths.map((item) => (
-                        <span
-                          key={item}
-                          className="rounded-full bg-[var(--color-primary-soft)] px-2.5 py-1 text-xs font-medium text-[var(--color-primary-hover)]"
-                        >
-                          {item}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                <div className="mt-5 space-y-2 rounded-xl border border-dashed border-[var(--color-outline-variant)] bg-[var(--color-surface-container-low)]/50 p-4 text-sm text-[var(--color-on-surface-variant)]">
-                  <p className="flex items-center gap-2 font-semibold text-[var(--color-on-surface)]">
-                    <TrendingUp className="size-4 text-[var(--color-primary)]" aria-hidden="true" />
-                    Gợi ý mẫu
-                  </p>
-                  <p>
-                    {selected.status === "NEEDS_REVIEW"
-                      ? "Điểm giao tiếp ổn nhưng cần xác minh kinh nghiệm cloud trên vòng người thật."
-                      : selected.status === "COMPLETED"
-                        ? "Ứng viên đạt ngưỡng kỹ thuật — có thể chuyển lịch phỏng vấn chính thức."
-                        : "Phiên chưa có báo cáo đầy đủ. Dữ liệu STT/NLP sẽ hiện sau khi hoàn tất."}
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  className="mt-4 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg bg-[var(--color-primary)] text-sm font-semibold text-[var(--color-on-primary)] hover:bg-[var(--color-primary-hover)]"
-                >
-                  <CheckCircle2 className="size-4" aria-hidden="true" />
-                  Mở báo cáo chi tiết
-                </button>
-              </>
-            ) : (
-              <p className="text-sm text-[var(--color-on-surface-variant)]">Chọn một phiên để xem chi tiết.</p>
-            )}
-          </div>
-
-          <div className="rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-gradient-to-br from-[var(--color-surface-card)] to-[var(--color-surface-container-low)] p-5 shadow-[var(--shadow-card)]">
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-[var(--color-surface-container-low)] via-[var(--color-surface-card)] to-[var(--color-surface-container-low)] p-6 shadow-sm">
+        <div className="flex flex-col items-start justify-between gap-6 lg:flex-row lg:items-center">
+          <div className="flex max-w-xl flex-col gap-1">
             <div className="flex items-center gap-2">
-              <Sparkles className="size-5 text-[var(--color-primary)]" aria-hidden="true" />
-              <h3 className="text-base font-semibold">Năng lực AI đang theo dõi</h3>
+              <Sparkles className="size-[22px] text-[var(--color-primary)]" aria-hidden="true" />
+              <h3 className="text-xl font-bold tracking-tight">Quy trình thiết lập phỏng vấn AI</h3>
             </div>
-            <ul className="mt-4 space-y-3 text-sm">
-              {[
-                ["Sinh câu hỏi theo JD", "Question Generation"],
-                ["Speech-to-Text", "INT-02"],
-                ["Phân tích NLP", "INT-03"],
-                ["Chấm điểm tổng hợp", "INT-04"],
-              ].map(([label, code]) => (
-                <li key={code} className="flex items-center justify-between gap-2 rounded-lg bg-[var(--color-surface-card)] px-3 py-2">
-                  <span className="font-medium">{label}</span>
-                  <span className="text-[11px] font-semibold text-[var(--color-outline)]">{code}</span>
-                </li>
-              ))}
-            </ul>
+            <p className="text-sm leading-[22px] text-[var(--color-on-surface-variant)]">
+              Tạo phiên cho đơn ứng tuyển, thêm câu hỏi, chờ ứng viên trả lời rồi nhập feedback và điểm.
+            </p>
           </div>
-        </aside>
+          <div className="grid w-full flex-1 grid-cols-2 gap-3 md:grid-cols-4 lg:w-auto lg:max-w-3xl">
+            {[
+              { n: 1, icon: Upload, title: "Chọn đơn ứng tuyển", desc: job.title },
+              { n: 2, icon: SlidersHorizontal, title: "Thêm câu hỏi", desc: "Thủ công trong màn chi tiết" },
+              { n: 3, icon: Inbox, title: "Ứng viên trả lời", desc: "Câu trả lời lưu theo từng câu" },
+              { n: 4, icon: Verified, title: "Feedback & điểm", desc: "Nhập feedback, cập nhật điểm tổng" },
+            ].map((step) => {
+              const StepIcon = step.icon;
+              return (
+                <div key={step.n} className="flex flex-col gap-1 rounded-xl bg-[var(--color-surface-card)]/80 p-3 shadow-sm backdrop-blur-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="flex size-6 items-center justify-center rounded-full bg-[var(--color-primary-container)] text-[11px] font-bold text-[var(--color-on-primary)]">{step.n}</span>
+                    <StepIcon className="size-4 text-[var(--color-primary)]" aria-hidden="true" />
+                  </div>
+                  <span className="mt-1 text-xs font-semibold text-[var(--color-on-surface)]">{step.title}</span>
+                  <span className="text-xs leading-tight text-[var(--color-on-surface-variant)]">{step.desc}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </div>
+
+      {creating && (
+        <CreateAiInterviewDialog
+          jobId={job.id}
+          applicants={applicants.data ?? []}
+          existingApplicationIds={new Set(rows.map((r) => r.applicationId))}
+          onClose={() => setCreating(false)}
+          onCreated={(created) => {
+            setCreating(false);
+            setDetailId(created.id);
+          }}
+        />
+      )}
+      {detailId != null && (
+        <AiInterviewDetailDrawer
+          interviewId={detailId}
+          jobId={job.id}
+          candidateName={detailRow ? candidateName(detailRow) : `Phiên #AI-${detailId}`}
+          onClose={() => setDetailId(null)}
+        />
+      )}
     </section>
   );
 }
 
-function Metric({
+function KpiCard({
   label,
   value,
+  trend,
+  trendTone = "primary",
   hint,
   icon: Icon,
-  tone,
+  blob,
+  live,
 }: {
   label: string;
   value: string;
+  trend: string;
+  trendTone?: "primary" | "tertiary" | "error";
   hint: string;
-  icon: typeof Users;
-  tone: "primary" | "live" | "warning" | "success";
+  icon: typeof LayoutList;
+  blob: "primary" | "secondary" | "error";
+  live?: boolean;
 }) {
-  const tones = {
-    primary: "bg-[var(--color-primary-soft)] text-[var(--color-primary)]",
-    live: "bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)]",
-    warning: "bg-amber-50 text-amber-700",
-    success: "bg-emerald-50 text-emerald-700",
-  }[tone];
+  const trendClass =
+    trendTone === "error" ? "text-[#ba1a1a]" : trendTone === "tertiary" ? "text-[var(--color-tertiary)]" : "text-[var(--color-primary)]";
+  const iconClass =
+    blob === "error" ? "text-[#ba1a1a]" : blob === "secondary" ? "text-[var(--color-tertiary-container)]" : "text-[var(--color-primary)]";
+  const blobClass =
+    blob === "error" ? "bg-[#ffdad6]/20" : blob === "secondary" ? "bg-[var(--color-secondary-container)]/30" : "bg-[var(--color-surface-container-low)]";
 
   return (
-    <div className="rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-5 shadow-[var(--shadow-card)]">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-outline)]">{label}</p>
-          <p className="mt-1 text-3xl font-semibold tracking-tight">{value}</p>
+    <div className="group relative flex items-center justify-between overflow-hidden rounded-2xl bg-[var(--color-surface-card)] p-4 shadow-sm transition-shadow hover:shadow-md">
+      <div className={cn("absolute -bottom-4 -right-4 size-24 rounded-full opacity-40 transition-transform group-hover:scale-110", blobClass)} />
+      <div className="z-10 flex flex-col gap-1">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-medium uppercase tracking-wider text-[var(--color-on-surface-variant)]">{label}</span>
+          {live && (
+            <span className="relative flex size-2">
+              <span className="absolute inline-flex size-full animate-ping rounded-full bg-[var(--color-tertiary-container)] opacity-75" />
+              <span className="relative inline-flex size-2 rounded-full bg-[var(--color-tertiary-container)]" />
+            </span>
+          )}
         </div>
-        <div className={cn("grid size-11 place-items-center rounded-xl", tones)}>
-          <Icon className="size-5" aria-hidden="true" />
+        <div className="flex items-baseline gap-2">
+          <span className="text-4xl font-bold tracking-tight">{value}</span>
+          <span className={cn("inline-flex items-center text-[11px] font-semibold", trendClass)}>
+            {trendTone === "primary" && <ArrowUpRight className="size-3.5" aria-hidden="true" />}
+            {trend}
+          </span>
         </div>
+        <span className="text-xs text-[var(--color-on-surface-variant)]">{hint}</span>
       </div>
-      <p className="mt-3 text-xs text-[var(--color-on-surface-variant)]">{hint}</p>
+      <div className={cn("z-10 flex size-12 items-center justify-center rounded-xl bg-[var(--color-surface-container-low)]", iconClass)}>
+        <Icon className="size-6" aria-hidden="true" />
+      </div>
     </div>
   );
 }

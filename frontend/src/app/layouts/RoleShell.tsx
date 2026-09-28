@@ -1,5 +1,5 @@
 import { Bell, CircleHelp, Home, LogOut, Search, Sparkles, type LucideIcon } from "lucide-react";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ux/Button";
@@ -16,6 +16,7 @@ import { getTenantIdFromWindow } from "@/lib/tenant";
 import { getTenantTheme, getTenantThemeStyle } from "@/lib/tenantTheme";
 import { cn } from "@/lib/utils";
 import { useUiStore } from "@/stores/uiStore";
+import { useNotifications } from "@/hooks/useNotifications";
 
 type NavItem = {
   to: string;
@@ -46,12 +47,12 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
   const openShortcuts = useUiStore((s) => s.openShortcuts);
   const askConfirm = useUiStore((s) => s.askConfirm);
   const [isAdminNotificationsOpen, setIsAdminNotificationsOpen] = useState(false);
-  const [isRecruiterNotificationsOpen, setIsRecruiterNotificationsOpen] = useState(false);
-  const recruiterNotificationsRef = useRef<HTMLDivElement>(null);
   const [openAdminGroup, setOpenAdminGroup] = useState<string | null>(null);
   const [failedTenantLogoUrl, setFailedTenantLogoUrl] = useState<string | null>(null);
   const userInitial = user?.fullName.trim().charAt(0).toLocaleUpperCase();
   const isCandidateWorkspace = basePath === "/candidate";
+  const inbox = useNotifications(isCandidateWorkspace);
+  const unreadCount = inbox.data?.filter(item => !item.readAt).length ?? 0;
   const isRecruiterWorkspace = basePath === "/recruiter";
   const isRecruiterDashboard = isRecruiterWorkspace && location.pathname === "/recruiter";
   const isRecruiterPipeline = isRecruiterWorkspace && /\/pipeline\/?$/.test(location.pathname);
@@ -78,37 +79,38 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
   const tenantDisplayName = companyProfile?.companyName?.trim() || tenantTheme.name;
   const showTenantLogo = !!tenantLogoUrl && failedTenantLogoUrl !== tenantLogoUrl;
   const recruiterJobId = isRecruiterWorkspace ? location.pathname.match(/^\/recruiter\/jobs\/(\d+)(?:\/|$)/)?.[1] : undefined;
+  // Recruitment modules use the selected job.
+  const jobScopedNav = new Set([
+    "/applicants",
+    "/cvs",
+    "/rank",
+    "/pipeline",
+    "/analytics",
+    "/assessments",
+    "/ai-interviews",
+    "/interviews",
+    "/schedules",
+    "/notifications",
+  ]);
   const displayedLinks = isRecruiterWorkspace
     ? accessToken && !user
       ? []
-      : visibleRecruiterNav(user?.permissions).filter((item) => item.to !== "").map((item) => ({
-          ...item,
-          to: recruiterJobId
-            ? item.to === "/jobs" ? `/jobs/${recruiterJobId}` : `/jobs/${recruiterJobId}${item.to}`
-            : "/jobs",
-        }))
+      : visibleRecruiterNav(user?.permissions).filter((item) => item.to !== "" && (!!recruiterJobId || !jobScopedNav.has(item.to))).map((item) => {
+          let to: string = item.to;
+          if (item.to === "/jobs") {
+            to = recruiterJobId ? `/jobs/${recruiterJobId}` : "/jobs";
+          } else if (jobScopedNav.has(item.to)) {
+            if (recruiterJobId) to = `/jobs/${recruiterJobId}${item.to}`;
+            else to = "/jobs";
+          }
+          return { ...item, to };
+        })
     : links;
   const showRecruiterNotifications =
     !isRecruiterWorkspace || hasRecruiterFeature(user?.permissions, "NOTIFICATIONS");
   useEffect(() => {
     if (profileQuery.data?.success && profileQuery.data.data) setUser(profileQuery.data.data);
   }, [profileQuery.data, setUser]);
-  useEffect(() => {
-    if (!isRecruiterNotificationsOpen) return;
-
-    const closePanel = (event: MouseEvent | KeyboardEvent) => {
-      if (event instanceof KeyboardEvent && event.key !== "Escape") return;
-      if (event instanceof MouseEvent && recruiterNotificationsRef.current?.contains(event.target as Node)) return;
-      setIsRecruiterNotificationsOpen(false);
-    };
-
-    document.addEventListener("mousedown", closePanel);
-    document.addEventListener("keydown", closePanel);
-    return () => {
-      document.removeEventListener("mousedown", closePanel);
-      document.removeEventListener("keydown", closePanel);
-    };
-  }, [isRecruiterNotificationsOpen]);
   const handleLogout = () => askConfirm({
     title: "Đăng xuất khỏi SmartHire?",
     confirmLabel: "Đăng xuất",
@@ -332,6 +334,12 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
     );
   }
 
+  if (isCandidateWorkspace && location.pathname === "/candidate/interviews/demo") {
+    return <div className="tenant-workspace-theme min-h-screen bg-surface-page" style={getTenantThemeStyle(tenantTheme)}>
+      <main id="main-content" className="mx-auto max-w-[1600px] p-4 sm:p-6"><Outlet /></main>
+    </div>;
+  }
+
   return (
     <div className={cn("tenant-workspace-theme min-h-screen bg-surface-page", isRecruiterBoard && "xl:h-dvh xl:overflow-hidden")} style={getTenantThemeStyle(tenantTheme)}>
       <header className="sticky top-0 z-40 border-b border-[var(--color-border-default)] bg-white/85 shadow-sm backdrop-blur-md">
@@ -388,47 +396,16 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
               </Button>
             </Tooltip>
             {useWorkspaceHeader && showRecruiterNotifications && (
-              isRecruiterWorkspace ? (
-                <div ref={recruiterNotificationsRef} className="relative">
-                  <Tooltip content={t("nav.notifications")} side="bottom" disabled={isRecruiterNotificationsOpen}>
-                    <button
-                      type="button"
-                      onClick={() => setIsRecruiterNotificationsOpen((open) => !open)}
-                      className="relative grid size-10 place-items-center rounded-[var(--radius-default)] text-[var(--color-on-surface-variant)] transition-colors hover:bg-[var(--color-primary-subtle)] hover:text-brand-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary"
-                      aria-label={t("nav.notifications")}
-                      aria-haspopup="dialog"
-                      aria-expanded={isRecruiterNotificationsOpen}
-                    >
-                      <Bell className="size-[18px]" aria-hidden="true" />
-                      <span className="absolute right-2 top-2 size-2 rounded-full bg-amber-500 ring-2 ring-white" aria-hidden="true" />
-                    </button>
-                  </Tooltip>
-                  {isRecruiterNotificationsOpen && (
-                    <div role="dialog" aria-label={t("nav.notifications")} className="absolute right-0 top-[calc(100%+10px)] z-50 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-[var(--color-border-default)] bg-white shadow-[0_20px_40px_-12px_var(--color-primary-shadow)]">
-                      <div className="border-b border-[var(--color-border-default)] px-5 py-4">
-                        <h2 className="text-base font-semibold text-[var(--color-on-surface)]">{t("nav.notifications")}</h2>
-                        <p className="mt-0.5 text-xs text-[var(--color-on-surface-variant)]">Cập nhật mới trong workspace tuyển dụng</p>
-                      </div>
-                      <div className="px-5 py-8 text-center">
-                        <span className="mx-auto grid size-11 place-items-center rounded-full bg-[var(--color-primary-subtle)] text-brand-primary"><Bell className="size-5" aria-hidden="true" /></span>
-                        <p className="mt-3 text-sm font-semibold text-[var(--color-on-surface)]">Không có thông báo mới</p>
-                        <p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">Các cập nhật về ứng viên và lịch phỏng vấn sẽ xuất hiện tại đây.</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <Tooltip content={t("nav.notifications")} side="bottom">
-                  <NavLink
-                    to={`${basePath}/notifications`}
-                    className="relative grid size-10 place-items-center rounded-[var(--radius-default)] text-[var(--color-on-surface-variant)] transition-colors hover:bg-[var(--color-primary-subtle)] hover:text-brand-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary"
-                    aria-label={t("nav.notifications")}
-                  >
-                    <Bell className="size-[18px]" aria-hidden="true" />
-                    <span className="absolute right-2 top-2 size-2 rounded-full bg-amber-500 ring-2 ring-white" aria-hidden="true" />
-                  </NavLink>
-                </Tooltip>
-              )
+              <Tooltip content={t("nav.notifications")} side="bottom">
+                <NavLink
+                  to={isRecruiterWorkspace ? recruiterJobId ? `/recruiter/jobs/${recruiterJobId}/notifications` : "/recruiter/jobs" : `${basePath}/notifications`}
+                  className="relative grid size-10 place-items-center rounded-[var(--radius-default)] text-[var(--color-on-surface-variant)] transition-colors hover:bg-[var(--color-primary-subtle)] hover:text-brand-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary"
+                  aria-label={isCandidateWorkspace && unreadCount ? `${t("nav.notifications")} (${unreadCount} chưa đọc)` : t("nav.notifications")}
+                >
+                  <Bell className="size-[18px]" aria-hidden="true" />
+                  {isCandidateWorkspace && unreadCount > 0 && <span className="absolute right-1 top-1 rounded-full bg-brand-primary px-1 text-[10px] text-[var(--color-on-primary)]" aria-hidden="true">{unreadCount}</span>}
+                </NavLink>
+              </Tooltip>
             )}
             {user && !useWorkspaceHeader && (
               <span

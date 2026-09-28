@@ -3,17 +3,24 @@
 > **Nguồn sự thật:** Flyway migration trong `backend/src/main/resources/db/migration/` (master + tenant).
 > Entity JPA trong `backend/src/main/java/com/smarthire/domain/` là ánh xạ của schema đó, **không** phải nguồn sự thật.
 > Khi hai bên lệch nhau, SQL migration thắng.
+>
+> **BẮT BUỘC:** Mới tạo bảng gì trong database thì phải tạo luôn entity tương ứng
+> ([`MAINTENANCE.md` §1.1](MAINTENANCE.md#11-bắt-buộc-kèm-entity-khi-tạo-bảng),
+> [`.cursor/rules/migration-entity-sync.mdc`](../../.cursor/rules/migration-entity-sync.mdc)).
 
 | Thông tin | Giá trị |
 |---|---|
+| AI Interview workflow 2026-09-27 | V25: cấu hình AI Interview theo job, `applications.cv_screening_status`, cột worker; V26: 30–40 câu hỏi, bảng `ai_interview_logs` + entity `AiInterviewLog` |
 | Kiến trúc | Separate Database per Tenant |
 | Số database logic | 2 loại (1 Master + N Tenant) |
-| Tổng số bảng hiện hành | **59** (8 master + 51 tenant), chưa tính 19 bảng lưu trữ `legacy_v12_*` và Flyway history |
-| Tổng số entity JPA | **59** (8 master + 51 tenant); bảng lưu trữ không có entity |
-| Tổng số khoá ngoại | **65** hiện hành (4 master + 61 tenant); thêm 9 FK của bảng lưu trữ |
-| Ràng buộc UNIQUE | **26** hiện hành (6 master + 20 tenant), không tính PK; thêm 7 UNIQUE lưu trữ |
-| Số file migration đang chạy | **37** (20 master + 17 tenant) |
-| Cập nhật lần cuối | Master `V21`, tenant `V17`; Thêm bảng `landing_page_settings` và `job_assignments` |
+| Bảng tenant sau V32 | 60 bảng từ pipeline trong repo (56 sau V26 + `job_screening_configs`, `gate_scores`, `job_assignments`, `landing_page_settings`), không tính Flyway history; không còn bảng `legacy_v12_*` |
+| Entity JPA tenant | 55; V26 thêm `AiInterviewLog`; V27–V32 thêm `JobScreeningConfig`, `GateScore`, `JobAssignment`, `LandingPageSetting` |
+| Khoá ngoại tenant | 77 theo pipeline repo (72 sau V26; V27 thêm 2 FK screening/gate; V30 thêm 3 FK `job_assignments`) |
+| Ràng buộc UNIQUE tenant | V25/V26 không thêm UNIQUE. V27 thêm UNIQUE `gate_scores.application_id`. V30 thêm `uk_job_assignments_job_user` |
+| Số file migration trong repo | 44 (20 master + 24 tenant); V9 redesign nằm ngoài pipeline |
+| Cập nhật lần cuối | Tenant `V32`, ngày 2026-09-28. Screening, assignment và landing từ main được đánh số V27–V32 để không trùng V13 và V21–V26 của nhánh này |
+| Dọn legacy V21 | Xóa 19 bảng và dữ liệu legacy, xóa 2 cột ID legacy trong ranking; không chuyển ID cũ sang bản ghi mới |
+| Metadata assessment 2026-09-25 | V13: `tests.created_by/updated_at`, `questions.difficulty/skill/explanation` cho Excel/UI authoring |
 | Sửa lỗi assessment 2026-09-24 | V10/V11 khớp checksum lịch sử; V12 tạo schema mới và giữ bảng cũ; migration lỗi phải chặn mở tenant pool |
 | Rà soát assessment 2026-09-21 | Bổ sung query/khóa hàng và nghiệp vụ MCQ; không đổi bảng, entity, FK, UNIQUE hay migration |
 
@@ -35,7 +42,7 @@
 | File | Nội dung |
 |---|---|
 | [`DATA_DICTIONARY_MASTER.md`](DATA_DICTIONARY_MASTER.md) | Đặc tả cột chi tiết 8 bảng Master (PostgreSQL) |
-| [`DATA_DICTIONARY_TENANT.md`](DATA_DICTIONARY_TENANT.md) | Schema Tenant: 50 bảng hiện hành + 19 archive V12 |
+| [`DATA_DICTIONARY_TENANT.md`](DATA_DICTIONARY_TENANT.md) | Schema Tenant: mô hình hiện hành; V21 đã loại bỏ archive V12; V27–V32 thêm screening, assignment, landing |
 | [`MAINTENANCE.md`](MAINTENANCE.md) | Quy trình bắt buộc khi schema hoặc entity thay đổi |
 
 ---
@@ -69,9 +76,9 @@ flowchart TB
     subgraph TENANT["Persistence Unit: tenant"]
         TEMF["tenantEntityManagerFactory<br/>hbm2ddl = none"]
         TDS["HikariCP · 1 pool / tenant<br/>tối đa TENANT_MAX_POOLS"]
-        MY1[("MySQL<br/>tenant_acme<br/>50 bảng + 19 archive")]
-        MY2[("MySQL<br/>tenant_globex<br/>50 bảng + 19 archive")]
-        MYN[("MySQL<br/>tenant_...<br/>50 bảng + 19 archive")]
+        MY1[("MySQL<br/>tenant_acme<br/>60 tables")]
+        MY2[("MySQL<br/>tenant_globex<br/>60 tables")]
+        MYN[("MySQL<br/>tenant_...<br/>60 tables")]
     end
 
     REQ --> ITC --> CTX --> RES --> PRV
@@ -116,7 +123,7 @@ thay vì âm thầm đọc nhầm database của doanh nghiệp khác.
 | # | Database | RDBMS | Số bảng | Instance | Phạm vi dữ liệu | Migration path |
 |---|---|---|---|---|---|---|
 | 01 | `smarthire_master` | PostgreSQL | 8 | Duy nhất toàn nền tảng | Doanh nghiệp, gói cước, hoá đơn, usage, quản trị nền tảng | `db/migration/master` |
-| 02 | `<db_name> theo từng tenant` | MySQL | 48 + 19 archive | N instance, mỗi doanh nghiệp một database | Toàn bộ nghiệp vụ tuyển dụng của một doanh nghiệp | `db/migration/tenant` |
+| 02 | `<db_name> theo từng tenant` | MySQL | 54 theo pipeline repo | N instance, mỗi doanh nghiệp một database | Toàn bộ nghiệp vụ tuyển dụng của một doanh nghiệp | `db/migration/tenant` |
 
 **Cấu hình kết nối** (`application.yml`, không commit giá trị thật):
 
@@ -199,17 +206,26 @@ thay vì âm thầm đọc nhầm database của doanh nghiệp khác.
 | 46 | `PracticeFeedback` | `practice_feedbacks` | Practice | Không |
 | 47 | `RolePermission` | `role_permissions` | Identity | Có |
 | 48 | `TenantRole` | `roles` | Identity | Có |
-| 49 | `JobScreeningConfig` | `job_screening_configs` | CV & AI screening | Không — PK tự nhiên `job_id` |
-| 50 | `GateScore` | `gate_scores` | CV & AI screening | Có |
-| 51 | `LandingPageSetting` | `landing_page_settings` | Branding | Có |
+| 49 | `QuestionSkill` | `questionskills` | Test & Skill | Không |
+| 50 | `AnswerSelectedOption` | `answer_selected_options` | Test & Skill | Không |
+| 51 | `AiInterviewLog` | `ai_interview_logs` | AI Interview | Không |
+| 52 | `JobScreeningConfig` | `job_screening_configs` | CV & AI screening | Không — PK tự nhiên `job_id` |
+| 53 | `GateScore` | `gate_scores` | CV & AI screening | Có |
+| 54 | `JobAssignment` | `job_assignments` | Job & Skill | Có |
+| 55 | `LandingPageSetting` | `landing_page_settings` | Branding | Có |
 
-**Bảng lưu trữ V12 (19 bảng, không có entity):** thêm tiền tố `legacy_v12_` vào các tên
+V23 thêm bảng nối `answer_selected_options`, entity `AnswerSelectedOption` (`@EmbeddedId` + `@MapsId`);
+`Answer.selectedOptions` là `@OneToMany(mappedBy = "answer", cascade = ALL, orphanRemoval)`.
+Enum API `QuestionType`: `MCQ`, `MULTIPLE_CHOICE`, `ESSAY`;
+`questions.question_type` vẫn là VARCHAR(32), không có CHECK SQL giới hạn giá trị.
+
+**Bảng lưu trữ V12 đã bị V21 xóa (19 bảng, không có entity):** thêm tiền tố `legacy_v12_` vào các tên
 `assessments`, `questions`, `question_options`, `attempts`, `attempt_answers`, `attempt_scores`,
 `coding_problems`, `test_cases`, `coding_submissions`, `proctor_events`, `proctor_reports`,
 `interviews`, `interview_questions`, `interview_answers`, `interview_answer_analyses`,
 `interview_scores`, `interview_feedbacks`, `interview_schedules`, `practice_feedbacks`.
-Chúng giữ dữ liệu/schema cột trước redesign; không tự chuyển lịch sử sang model hiện hành.
-Không xóa archive trước khi có kế hoạch chuyển đổi và sao lưu được duyệt.
+V21 xóa toàn bộ dữ liệu trong các bảng này theo yêu cầu bỏ lịch sử cũ, không chuyển dữ liệu
+sang model hiện hành. Các bảng hiện hành và entity không thay đổi.
 
 `BaseEntity` (`@MappedSuperclass`, không sinh bảng) cung cấp `id`, `created_at`, `updated_at` cùng callback
 `@PrePersist` / `@PreUpdate`. Các entity không kế thừa nó tự khai báo `@Id` và chỉ có `created_at`.
@@ -223,14 +239,15 @@ Không xóa archive trước khi có kế hoạch chuyển đổi và sao lưu �
 | `OAuthProvider` | `oauth_accounts.provider` | `GOOGLE` |
 | `InvitationStatus` | `member_invitations.status` | `PENDING`, `ACCEPTED` |
 | `JobStatus` | `jobs.status` | `DRAFT`, `PUBLISHED`, `PAUSED`, `CLOSED`, `ARCHIVED` |
-| `ApplicationStatus` | `applications.status` | `NEW`, `IN_REVIEW`, `ASSESSMENT`, `INTERVIEW`, `OFFER`, `HIRED`, `REJECTED`, `WITHDRAWN` |
+| `ApplicationStatus` | `applications.status` | `NEW`, `IN_REVIEW`, `ASSESSMENT`, `INTERVIEW`, `OFFER`, `HIRED`, `REJECTED`, `FAILED`, `WITHDRAWN` |
+| `CvScreeningStatus` | `applications.cv_screening_status` | `PENDING`, `PASSED`, `FAILED` |
 | `HiringDecisionType` | `hiring_decisions.decision` | `HIRE`, `REJECT`, `HOLD` |
 | `CvStatus` | `cvs.status` | `UPLOADED`, `PARSING`, `PARSED`, `EXTRACTING`, `ANALYZING`, `ANALYZED`, `FAILED` |
 | `TestStatus` | `tests.status` | `DRAFT`, `PUBLISHED`, `ARCHIVED` |
 | `TestSubmissionStatus` | `submissions.status` | `NOT_STARTED`, `IN_PROGRESS`, `SUBMITTED`, `GRADED`, `EXPIRED` |
 | `SubmissionStatus` | `coding_submissions.status` | `QUEUED`, `RUNNING`, `PASSED`, … |
 | `InterviewStatus` | `interviews.status` | `CREATED`, `SCHEDULED`, `IN_PROGRESS`, `EVALUATED`, `CANCELLED` |
-| `AiInterviewStatus` | `ai_interviews.status` | `CREATED`, `QUESTIONS_READY`, `IN_PROGRESS`, `SCORING`, `SCORED`, `FAILED` |
+| `AiInterviewStatus` | `ai_interviews.status`, `ai_interview_logs.status` | `CREATED`, `GENERATING`, `QUESTIONS_READY`, `IN_PROGRESS`, `SCORING`, `SCORED`, `PASSED`, `ERROR`, `FAILED` |
 | `ScheduleStatus` | `interview_schedules.status` | `PROPOSED`, `CONFIRMED`, `CANCELLED`, `DONE` |
 | `PracticeStatus` | `practice_sessions.status` | `CREATED`, `IN_PROGRESS`, `COMPLETED`, `FAILED` |
 | `NotificationStatus` | **chưa dùng** | `PENDING`, `SENT`, `FAILED` |
@@ -359,6 +376,7 @@ flowchart LR
         ai_questions
         ai_answers
         ai_feedbacks
+        ai_interview_logs
     end
     subgraph OTHER["Notification & Practice"]
         notifications
@@ -439,7 +457,10 @@ Pipeline chạy tuần tự qua RabbitMQ: `cv.parse` ghi `cv_documents` → `cv.
 ```mermaid
 erDiagram
     jobs ||--o{ tests : "đề thi của job"
+    users ||--o{ tests : "created_by"
     tests ||--o{ questions : "câu hỏi"
+    questions ||--o{ questionskills : "question_id"
+    skills ||--o{ questionskills : "skill_id"
     questions ||--o{ options : "lựa chọn"
     tests ||--o{ coding_problems : "bài lập trình"
     coding_problems ||--o{ test_cases : "bộ test"
@@ -451,6 +472,8 @@ erDiagram
     submissions ||--o{ answers : "câu trả lời"
     questions ||--o{ answers : "thuộc câu hỏi"
     options |o--o{ answers : "selected_option_id"
+    answers ||--o{ answer_selected_options : "answer_id"
+    options ||--o{ answer_selected_options : "option_id"
 
     submissions ||--o{ coding_submissions : "bài nộp code"
     coding_problems ||--o{ coding_submissions : "của bài tập"
@@ -481,6 +504,7 @@ erDiagram
     ai_interviews ||--o{ ai_questions : "câu hỏi AI"
     ai_questions ||--o| ai_answers : "câu trả lời 1:1"
     ai_answers ||--o| ai_feedbacks : "feedback 1:1"
+    ai_interviews ||--o{ ai_interview_logs : "nhật ký hoạt động"
     ai_interviews |o--o| ranking_sources : "ai_interview_id"
     submissions |o--o| ranking_sources : "submission_id"
 ```
@@ -503,26 +527,13 @@ erDiagram
 
 ---
 
-### 4.10 Archive V12
+### 4.10 Loại bỏ archive ở V21
 
-ERD phía trên mô tả model hiện hành. Các FK còn tồn tại trong archive được đối chiếu từ SQL/MySQL:
-
-```mermaid
-erDiagram
-    jobs ||--o{ legacy_v12_assessments : job_id
-    jobs ||--o{ legacy_v12_interviews : job_id
-    users ||--o{ legacy_v12_interviews : candidate_id
-    cvs |o--o{ legacy_v12_interviews : cv_id
-    legacy_v12_interviews ||--o{ legacy_v12_interview_questions : interview_id
-    legacy_v12_interview_questions ||--o| legacy_v12_interview_answers : question_id
-    legacy_v12_interview_answers ||--o| legacy_v12_interview_answer_analyses : answer_id
-    legacy_v12_interviews ||--o| legacy_v12_interview_scores : interview_id
-    legacy_v12_interviews ||--o| legacy_v12_interview_feedbacks : interview_id
-```
-
-Các archive khác trong §3.2 không còn FK sau V12; cột ID vẫn giữ nguyên giá trị, không suy ra
-ràng buộc FK từ tên cột. `ranking_sources.legacy_attempt_id/legacy_interview_id` là tham chiếu mềm
-đến archive; không vẽ chúng thành quan hệ được database bảo vệ.
+Sau V21 không còn bảng hoặc quan hệ legacy trong ERD. Các quan hệ hiện hành ở trên giữ nguyên.
+Trước khi dọn `ttqt`, DB có 10 FK trên bảng legacy, không có FK từ bảng hiện hành trỏ vào legacy.
+V21 drop bảng con trước bảng cha, không tắt `FOREIGN_KEY_CHECKS`; FK bất ngờ trỏ vào legacy
+sẽ chặn thao tác thay vì bị gỡ âm thầm. Hai cột `ranking_sources.legacy_attempt_id` và
+`legacy_interview_id` cũng bị xóa; chỉ giữ nguồn `submission_id`/`ai_interview_id` của model mới.
 
 ## 5. Entity Description
 
@@ -550,8 +561,8 @@ ràng buộc FK từ tên cột. `ranking_sources.legacy_attempt_id/legacy_inter
 | `RolePermission` | Quyền truy cập tính năng của role | UNIQUE `(role, feature_code)`; không có FK đến roles |
 | `TenantRole` | Role hệ thống và tùy chỉnh | UNIQUE `code`; workspace phân vùng giao diện |
 
-Các bảng `legacy_v12_*` không có entity/service mới: chỉ lưu dữ liệu trước nâng cấp để kiểm tra
-và chuyển đổi có chủ đích. Không phải nguồn dữ liệu của màn assessment hiện tại.
+Các bảng `legacy_v12_*` không có entity/service và đã bị V21 xóa; không phải nguồn dữ liệu
+của màn assessment hiện tại.
 
 ### 5.3 Tenant — Job & Skill
 
@@ -566,7 +577,7 @@ và chuyển đổi có chủ đích. Không phải nguồn dữ liệu của m�
 
 | Entity | Mục đích | Ghi chú quan trọng |
 |---|---|---|
-| `Application` | **Bảng trung tâm của toàn bộ tenant schema.** Một ứng viên nộp vào một job | Test submission, lịch phỏng vấn, AI interview, điểm tổng và thứ hạng đều neo vào đây. Mang `status`, `stage_id`, `assignee_id`, `tags`, `referral_code`, `reject_reason`, `withdrawn_at`, `archived_at`, `ai_interview_invited_at` (V14) |
+| `Application` | **Bảng trung tâm của toàn bộ tenant schema.** Một ứng viên nộp vào một job | Test submission, lịch phỏng vấn, AI interview, điểm tổng và thứ hạng đều neo vào đây. Mang `status`, `stage_id`, `assignee_id`, `tags`, `referral_code`, `reject_reason`, `withdrawn_at`, `archived_at`, `ai_interview_invited_at` (V28) |
 | `ApplicationStatusHistory` | Nhật ký mỗi lần đổi trạng thái | `from_status → to_status`, `changed_by`, `note`. `changed_by` là số thô, không có FK |
 | `HiringDecision` | Quyết định cuối cùng của đơn | `HIRE` / `REJECT` / `HOLD` kèm `reason`. `decided_by` không có FK |
 
@@ -595,13 +606,16 @@ và chuyển đổi có chủ đích. Không phải nguồn dữ liệu của m�
 
 | Entity | Mục đích | Ghi chú quan trọng |
 |---|---|---|
-| `JobTest` | Đề thi gắn với một job (bảng `tests`) | `duration_minutes`, `passing_score`, `status` — tên class tránh xung đột JUnit `Test` |
-| `Question` | Câu hỏi trắc nghiệm hoặc tự luận | `question_text`, `question_type`, `points`, `question_order` |
+| `JobTest` | Đề thi gắn với một job (bảng `tests`) | `duration_minutes`, `passing_score`, `status`, `created_by`, `updated_at` — tên class tránh xung đột JUnit `Test` |
+| `Question` | Câu hỏi trắc nghiệm hoặc tự luận | `question_text`, `question_type`, `points`, `question_order`, `difficulty`, `skill`, `explanation` |
+| `QuestionSkill` | Liên kết N–N câu hỏi và kỹ năng | PK kép `(question_id, skill_id)`; 2 FK NOT NULL, ON DELETE CASCADE |
+| `AnswerSelectedOption` | Lựa chọn đã chọn của câu MULTIPLE_CHOICE | PK kép `(answer_id, option_id)`; FK answer CASCADE, option RESTRICT |
 | `Option` | Lựa chọn trả lời | `is_correct` — **không được trả cột này ra API cho thí sinh** |
 | `CodingProblem` | Bài lập trình | `time_limit_ms`, `memory_mb`, FK `test_id` |
 | `TestCase` | Bộ test của bài code | `is_sample`, `weight` |
 | `Submission` | Một lượt làm bài của ứng viên | Điểm tổng nằm ở cột `score`; cho phép làm lại nhiều lần |
 | `Answer` | Câu trả lời trong lượt làm | `selected_option_id` (có FK), `answer_text`, `is_correct`, `score` |
+| `Answer.selectedOptions` | Các lựa chọn cho MULTIPLE_CHOICE | Entity `AnswerSelectedOption` → bảng `answer_selected_options`; MCQ dùng cột đơn cũ, ESSAY dùng `answer_text` |
 | `CodingSubmission` | Bài nộp code | `language`, `source_code`, `result_json`, `status` |
 | `ProctorEvent` | Sự kiện giám sát thô | FK `submission_id` |
 | `ProctorReport` | Báo cáo rủi ro tổng hợp | 1:1 với `submissions` |
@@ -645,7 +659,7 @@ và chuyển đổi có chủ đích. Không phải nguồn dữ liệu của m�
 | File | Phạm vi | Số bảng |
 |---|---|---|
 | [`DATA_DICTIONARY_MASTER.md`](DATA_DICTIONARY_MASTER.md) | PostgreSQL `smarthire_master` | 8 |
-| [`DATA_DICTIONARY_TENANT.md`](DATA_DICTIONARY_TENANT.md) | MySQL — schema mỗi tenant | 48 + 19 archive |
+| [`DATA_DICTIONARY_TENANT.md`](DATA_DICTIONARY_TENANT.md) | MySQL — schema mỗi tenant | 54 theo pipeline repo, không còn archive |
 
 ### Quy ước ký hiệu dùng chung
 
@@ -687,13 +701,18 @@ và chuyển đổi có chủ đích. Không phải nguồn dữ liệu của m�
 | `invoices` | `tenant_id` | `tenants` | Không | N:1 | `fk_inv_tenant` |
 | `tenant_usage_daily` | `tenant_id` | `tenants` | Không | N:1 (1:1 theo ngày) | `fk_tud_tenant` |
 
-### 7.2 Tenant — 59 khoá ngoại hiện hành
+### 7.2 Tenant — 60 khoá ngoại hiện hành
 
 | Bảng con | Cột | Bảng cha | Nullable | Lực lượng | Tên ràng buộc |
 |---|---|---|---|---|---|
 | `oauth_accounts` | `user_id` | `users` | Không | N:1 | `fk_oauth_user` |
 | `user_profiles` | `user_id` | `users` | Không | 1:1 (UQ) | `fk_profile_user` |
 | `jobs` | `created_by` | `users` | Không | N:1 | `fk_jobs_user` |
+| `job_screening_configs` | `job_id` | `jobs` | Không | 1:1 (PK) | `fk_job_screening_job` (V27) |
+| `gate_scores` | `application_id` | `applications` | Không | 1:1 (UQ) | `fk_gate_score_application` (V27) |
+| `job_assignments` | `job_id` | `jobs` | Không | N:1 | `fk_ja_job` (V30) |
+| `job_assignments` | `user_id` | `users` | Không | N:1 | `fk_ja_user` (V30) |
+| `job_assignments` | `assigned_by` | `users` | Không | N:1 | `fk_ja_assigned_by` (V30) |
 | `job_skills` | `job_id` | `jobs` | Không | N:1 | `fk_js_job` |
 | `job_skills` | `skill_id` | `skills` | Không | N:1 | `fk_js_skill` |
 | `recruitment_stages` | `job_id` | `jobs` | Không | N:1 | `fk_rs_job` |
@@ -720,7 +739,12 @@ và chuyển đổi có chủ đích. Không phải nguồn dữ liệu của m�
 | `ranking_sources` | `submission_id` | `submissions` | Có | 1:0..1 | `fk_rank_source_submission` |
 | `ranking_sources` | `ai_interview_id` | `ai_interviews` | Có | 1:0..1 | `fk_rank_source_ai_interview` |
 | `tests` | `job_id` | `jobs` | Không | N:1 | `fk_tests_job` |
+| `tests` | `created_by` | `users` | Có | N:0..1 | `fk_tests_created_by` |
 | `questions` | `test_id` | `tests` | Không | N:1 | `fk_questions_test` |
+| `questionskills` | `question_id` | `questions` | Không | N:1 | `fk_questionskills_question`, DELETE CASCADE |
+| `questionskills` | `skill_id` | `skills` | Không | N:1 | `fk_questionskills_skill`, DELETE CASCADE |
+| `answer_selected_options` | `answer_id` | `answers` | Không | N:1 | `fk_aso_answer`, DELETE CASCADE |
+| `answer_selected_options` | `option_id` | `options` | Không | N:1 | `fk_aso_option`, mặc định RESTRICT |
 | `options` | `question_id` | `questions` | Không | N:1 | `fk_options_question` |
 | `coding_problems` | `test_id` | `tests` | Không | N:1 | `fk_cp_test` |
 | `test_cases` | `coding_problem_id` | `coding_problems` | Không | N:1 | `fk_tc_cp` |
@@ -746,13 +770,15 @@ và chuyển đổi có chủ đích. Không phải nguồn dữ liệu của m�
 | `ai_questions` | `ai_interview_id` | `ai_interviews` | Không | N:1 | `fk_ai_q_interview` |
 | `ai_answers` | `ai_question_id` | `ai_questions` | Không | 1:1 (UQ) | `fk_ai_a_question` |
 | `ai_feedbacks` | `ai_answer_id` | `ai_answers` | Không | 1:1 (UQ) | `fk_ai_f_answer` |
+| `ai_interview_logs` | `ai_interview_id` | `ai_interviews` | Không | N:1 | `fk_ai_log_interview`, DELETE CASCADE |
 | `notifications` | `user_id` | `users` | Không | N:1 | `fk_notif_user` |
 | `practice_sessions` | `candidate_id` | `users` | Không | N:1 | `fk_ps_user` |
 | `practice_answers` | `session_id` | `practice_sessions` | Không | N:1 | `fk_pa_ps` |
 | `practice_feedbacks` | `practice_answer_id` | `practice_answers` | Không | N:1 | `fk_pf_answer` |
 
-9 FK archive được liệt kê tại §4.10. Các FK đã gỡ để thay model không tự được khôi phục cho archive.
-Hai cột `ranking_sources.legacy_attempt_id` và `legacy_interview_id` là BIGINT nullable, không FK.
+V21 bỏ các FK cùng 19 bảng archive và xóa hai cột `ranking_sources.legacy_attempt_id` /
+`legacy_interview_id`. Không tạo FK thay thế dựa trên ID cũ; nguồn ranking hiện hành vẫn dùng
+FK `submission_id` → `submissions` và `ai_interview_id` → `ai_interviews`.
 
 ### 7.3 Cột tham chiếu **không** có khoá ngoại
 
@@ -797,6 +823,8 @@ kho hồ sơ (talent pool) chưa gắn với tin tuyển dụng nào.
 | `tenant_usage_daily` | `uk_tenant_usage_daily` | `(tenant_id, usage_date)` | Mỗi tenant mỗi ngày đúng một dòng usage |
 
 ### 8.2 Ràng buộc UNIQUE — Tenant (19, không tính PK)
+
+V22 thêm PK kép `questionskills(question_id, skill_id)` để ngăn gắn trùng kỹ năng cho câu hỏi; không thêm UNIQUE riêng.
 
 | Bảng | Ràng buộc | Cột | Ý nghĩa nghiệp vụ |
 |---|---|---|---|
@@ -855,7 +883,10 @@ NOT_STARTED ──▶ IN_PROGRESS ──▶ SUBMITTED ──▶ GRADED
                      └──▶ EXPIRED
 ```
 
-Luồng MCQ hiện chấm đồng bộ nên chuyển thẳng `IN_PROGRESS → GRADED` khi submit; `EXPIRED` cũng lưu điểm phần đã trả lời. `SUBMITTED` còn trong enum cho xử lý bất đồng bộ về sau, chưa được dùng bởi API MCQ hiện tại.
+Đề chỉ có MCQ/MULTIPLE_CHOICE chấm đồng bộ: `IN_PROGRESS → GRADED`; hết hạn thành `EXPIRED`.
+Đề có ESSAY chuyển `SUBMITTED` chờ chấm (hoặc `EXPIRED` khi hết hạn); tổng điểm và passed = NULL,
+kể cả chưa trả lời câu tự luận. Điểm các câu trắc nghiệm đã lưu vẫn được tính riêng trong answers.
+Chưa có endpoint chấm tay/AI cho tự luận trong thay đổi V23.
 
 **Interview (direct)** — `interviews.status`
 ```
@@ -865,9 +896,11 @@ CREATED ──▶ SCHEDULED ──▶ IN_PROGRESS ──▶ EVALUATED
 
 **AI Interview** — `ai_interviews.status`
 ```
-CREATED ──▶ QUESTIONS_READY ──▶ IN_PROGRESS ──▶ SCORING ──▶ SCORED
-    └───────────┴──────────────────┴─────────────┴──▶ FAILED
+GENERATING ──▶ QUESTIONS_READY ──▶ IN_PROGRESS ──▶ SCORING ──▶ PASSED (application → ASSESSMENT)
+    │                                                 └──────▶ FAILED (application → FAILED)
+    └──▶ ERROR ──▶ GENERATING (retry, không tạo phiên mới)      SCORING ──▶ ERROR ──▶ SCORING (retry)
 ```
+`CREATED`/`SCORED` chỉ còn cho dữ liệu cũ; phiên mới bắt đầu ở `GENERATING`.
 
 ### 8.4 Quy tắc nghiệp vụ mà database **không** bảo vệ được
 
@@ -902,21 +935,37 @@ Những quy tắc sau bắt buộc phải kiểm tra ở tầng service, vì kh�
 
 ---
 
+### Lời mời AI Interview (2026-09-27)
+
+- Service khóa application trước khi tạo phiên và notification trong cùng transaction tenant, tránh lặp do screening retry. Đây là quy tắc service, không phải UNIQUE trong database.
+- Candidate chỉ đọc phiên/notification của mình. Start/answer/complete khóa phiên; chỉ trả lời khi IN_PROGRESS và không được sửa sau khi nộp.
+- V25/V26 bổ sung schema (xem §10.3). Mỗi bước pipeline ghi một dòng vào `ai_interview_logs` trong cùng transaction với thay đổi trạng thái; không ghi nội dung câu trả lời.
+- Mỗi application chỉ có một phiên AI Interview: service khóa hàng application trước khi tạo; phiên đã `PASSED`/`FAILED` trả 409 `AI_INTERVIEW_ALREADY_COMPLETED` khi candidate yêu cầu bắt đầu lại.
+
 ## 9. Index & Security
 
 ### 9.1 Index được khai báo tường minh
+
+V23 thêm `idx_answer_selected_options_option(option_id)`; PK kép `(answer_id, option_id)`
+ngăn chọn trùng. Service kiểm tra option thuộc đúng question; SQL FK không bảo vệ điều kiện chéo này.
+
+V22 thêm `idx_questionskills_skill(skill_id)` trên `questionskills`. PK kép hỗ trợ truy vấn theo `question_id`.
 
 | DB | Bảng | Index | Cột | Mục đích |
 |---|---|---|---|---|
 | Tenant | `applications` | `idx_app_job_status` | `(job_id, status)` | Lọc danh sách ứng viên theo job và trạng thái |
 | Tenant | `applications` | `idx_app_archived` | `(job_id, archived_at)` | Tách đơn đang hoạt động khỏi đơn đã lưu trữ |
+| Tenant | `ai_interviews` | `idx_ai_interview_work_status` | `(status, id)` | Worker quét phiên `GENERATING`/`SCORING` (V25) |
+| Tenant | `email_outbox` | `idx_email_outbox_delivery` | `(purpose, status, attempts, id)` | Worker gửi email kết quả (V25) |
+| Tenant | `ai_interview_logs` | `idx_ai_interview_logs_interview` | `(ai_interview_id, id)` | Đọc nhật ký theo phiên đúng thứ tự (V26) |
 | Master | `consultation_requests` | `idx_consultation_requests_status` | `status` | Lọc lead theo trạng thái xử lý |
 | Master | `consultation_requests` | `idx_consultation_requests_email` | `work_email` | Tra cứu lead trùng |
 | Master | `consultation_requests` | `idx_consultation_requests_created_at` | `created_at DESC` | Danh sách lead mới nhất |
 
 ### 9.2 Index do RDBMS tự sinh
 
-- **MySQL (tenant):** tự tạo index cho **mọi** khoá ngoại: 59 FK hiện hành và 9 FK archive sau V12.
+- **MySQL (tenant):** tự tạo index cho **mọi** khoá ngoại; V21 loại bỏ index thuộc bảng legacy,
+  giữ các index/FK hiện hành. V9 analytics bổ sung FK ngoài mô hình 48 entity nêu trên.
 - **PostgreSQL (master):** **không** tự tạo index cho khoá ngoại. Bốn FK của master DB hiện chưa có index
   đi kèm. `invoices.tenant_id` và `tenant_subscriptions.tenant_id` là hai cột được lọc thường xuyên nhất và
   nên được bổ sung index khi lượng tenant tăng.
@@ -992,24 +1041,34 @@ Hai pipeline dùng **hai phương ngữ SQL khác nhau** và không thể dùng 
 | V6 | `V6__job_management.sql` | 13 cột nghiệp vụ tuyển dụng cho `jobs` |
 | V7 | `V7__application_management.sql` | 6 cột quản lý đơn, 2 index, `cvs.retain_until` + backfill 24 tháng |
 | V8 | `V8__cv_job_optional.sql` | `cvs.job_id` chuyển thành nullable để hỗ trợ kho hồ sơ |
-| V9 | `V9__recruiter_analytics.sql` | Analytics recruiter; giữ đúng version đã apply, không dùng version này cho bảng khác |
-| V16 | `V16__job_assignments.sql` | `job_assignments`: recruiter phụ trách job, kèm backfill người tạo job |
+| V9 | `V9__recruiter_analytics.sql` | 5 bảng analytics và FK người review attempt cũ; FK này bị bỏ cùng bảng legacy ở V21 |
 | V10 | `V10__role_permissions.sql` | Quyền theo role; phục hồi tên version khớp history/checksum ttqt, nội dung không đổi |
 | V11 | `V11__custom_roles.sql` | Role tùy chỉnh và mở rộng cột role; phục hồi tên version khớp history/checksum ttqt |
 | V12 | `V12__preserve_legacy_assessment_interview_schema.sql` | Lưu 19 bảng cũ bằng RENAME; tạo Test/Submission, Direct Interview, AI Interview, cập nhật Practice và nguồn ranking |
-| V13 | `V13__job_screening_config.sql` | `job_screening_configs` + `gate_scores`; seed snapshot trọng số CV/gate cho job cũ |
-| V14 | `V14__ai_interview_invite.sql` | `applications.ai_interview_invited_at` — thời điểm đã gửi mail mời phỏng vấn AI |
-| V15 | `V15__job_deadline_datetime.sql` | `jobs.deadline` DATE → DATETIME; job hết hạn tự đóng và sàng CV |
-| V16 | `V16__job_assignments.sql` | `job_assignments`: recruiter phụ trách job, kèm backfill người tạo job |
-| V17 | `V17__create_landing_page_settings.sql` | Bảng `landing_page_settings` lưu cấu hình tùy biến toàn diện cho trang Landing Page / Career của từng tenant |
+| V13 | `V13__assessment_authoring_metadata.sql` | Metadata biên soạn đề: `tests.created_by/updated_at`, `questions.difficulty/skill/explanation` |
+| V21 | `V21__drop_legacy_assessment_interview_tables.sql` | Xóa 19 bảng legacy cùng dữ liệu và 2 cột ID legacy trong ranking; giữ FK model mới. Dùng V21 vì DB ttqt đã có lịch sử tới V20 |
+| V22 | `V22__question_skills.sql` | Thêm `questionskills`, PK kép và 2 FK DELETE CASCADE tới questions/skills; index `idx_questionskills_skill` |
+| V23 | `V23__assessment_multiple_answer_types.sql` | Thêm bảng nối lựa chọn nhiều đáp án; giữ selected_option_id và answer_text, không backfill MCQ cũ |
+| V24 | `V24__assessment_authoring_metadata_compat.sql` | Idempotent: bổ sung `tests.created_by/updated_at` + `questions.difficulty/skill/explanation` + FK cho tenant có V13 lịch sử khác checkout (ttqt) |
+| V25 | `V25__ai_interview_workflow.sql` | Cấu hình AI Interview trên `jobs`, `applications.cv_screening_status` (backfill từ `match_scores`), `ai_interviews.passing_score_snapshot/error_message`, `email_outbox.purpose`, 2 index worker |
+| V26 | `V26__ai_interview_activity_logs.sql` | `jobs.ai_interview_question_count` mặc định 30, dữ liệu cũ kẹp về 30–40; bảng `ai_interview_logs` + FK DELETE CASCADE + index |
+| V27 | `V27__job_screening_config.sql` | `job_screening_configs` + `gate_scores`; seed snapshot trọng số CV/gate cho job cũ. Đánh lại từ V13 của main vì V13 nhánh này là metadata assessment |
+| V28 | `V28__ai_interview_invite.sql` | `applications.ai_interview_invited_at` — thời điểm đã gửi mail mời phỏng vấn AI. Đánh lại từ V14 của main |
+| V29 | `V29__job_deadline_datetime.sql` | `jobs.deadline` DATE → DATETIME; job hết hạn tự đóng và sàng CV. Đánh lại từ V15 của main |
+| V30 | `V30__job_assignments.sql` | `job_assignments`: recruiter phụ trách job, kèm backfill người tạo job. Đánh lại từ V16 của main |
+| V31 | `V31__job_screening_mode.sql` | `jobs.screening_mode` `AUTO` hoặc `MANUAL`. Đánh lại từ V17 của main |
+| V32 | `V32__create_landing_page_settings.sql` | Bảng `landing_page_settings`. Đánh lại từ V18 của main |
 
-V9 analytics đã có lại trong pipeline. `job_assignments` dùng V16 để không chiếm version 9.
-Tenant tạo mới chạy V1–V17. Tenant từng có analytics có thể có thêm bảng ngoài con số bảng hiện hành.
+V9 redesign cũ được giữ nguyên tại `db/migration-archive/`, **ngoài** location Flyway.
+Tenant tạo mới chạy V1–V13 rồi V21–V32: 60 bảng hiện hành (gồm 5 bảng analytics V9), chưa tính history.
+V9 analytics đã có source trong checkout hiện tại. Tuy nhiên DB ttqt có V13–V20 khác checkout;
+không dùng `repair` để đổi checksum hoặc giả mạo lịch sử. Việc đồng bộ lịch sử này là task riêng.
+V27–V32 là schema screening, assignment và landing lấy từ main, đánh số sau V26 để không đè V13 và không lấp V14–V20.
 V12 dành cho tenant còn schema `assessments/attempts`. Nếu tenant đã chạy V9 redesign từ nhánh khác,
 **không chạy V12 trực tiếp**: phải kiểm tra schema/history và lập bản nâng cấp riêng.
 V12 bảo toàn dữ liệu bằng đổi tên, không phải chuyển đổi nghiệp vụ: dữ liệu cũ chưa xuất hiện ở UI mới.
-Các cột `ranking_sources.legacy_attempt_id/legacy_interview_id` giữ ID cũ, không còn FK;
-`submission_id/ai_interview_id` mới bắt đầu NULL và có FK đến model mới.
+Ở bước V12, `ranking_sources.legacy_attempt_id/legacy_interview_id` giữ ID cũ, không còn FK;
+V21 xóa hai cột đó. `submission_id/ai_interview_id` có FK đến model mới và không bị đổi giá trị.
 
 ### 10.4 Quy trình cấp phát tenant mới
 
@@ -1027,7 +1086,7 @@ sequenceDiagram
     PRV->>MY: CREATE USER + GRANT
     PRV->>PG: UPDATE tenants SET db_url, db_username, db_password (đã mã hoá)
     PRV->>FW: migrate() trên datasource của tenant mới
-    FW->>MY: Áp dụng V1–V16
+    FW->>MY: Áp dụng V1–V13, V21–V32 (60 bảng, không còn archive)
     PRV-->>API: Tenant sẵn sàng
 ```
 
@@ -1082,8 +1141,10 @@ java --class-path $cp scripts/TenantMigrationCheck.java inspect smarthire_tenant
 java --class-path $cp scripts/TenantMigrationCheck.java migrate smarthire_tenant_ttqt
 ```
 
-`verify` tạo database kiểm thử riêng, nâng cấp V11 → V12 với dữ liệu legacy mẫu, kiểm tra dữ liệu
-còn nguyên và migrate lần hai không thay đổi. Script không tự drop database kiểm thử.
+`verify` tạo database kiểm thử riêng, nâng cấp V11 → V13 với dữ liệu legacy mẫu, kiểm tra dữ liệu
+còn nguyên trước khi dọn, thêm dữ liệu model mới rồi chạy V21. Kiểm tra legacy biến mất,
+dữ liệu mẫu model mới và định nghĩa FK hiện hành còn nguyên; migrate lần hai không thay đổi.
+Script không tự drop database kiểm thử.
 `clean` quan trọng sau khi đổi tên migration: tránh file V5/V6/V9 cũ còn trong `target/classes`.
 Build sạch và khởi động lại backend trước khi thử lại UI; pool đang cache không tự chạy lại migration.
 
@@ -1094,3 +1155,87 @@ khi dùng MySQL và chỉ thêm dữ liệu fixture trong database kiểm thử.
 
 MySQL DDL không rollback cả file khi một statement lỗi. Nếu V12 thất bại, dừng sử dụng tenant,
 kiểm tra schema/history và bản sao lưu; không chạy `repair` rồi retry một cách tự động.
+
+### 10.8 Dọn legacy V21 — kiểm chứng ngày 2026-09-26
+
+Đã áp dụng V21 trên `smarthire_tenant_ttqt` theo yêu cầu xóa legacy và dữ liệu cũ:
+
+- Trước khi chạy: 19 bảng legacy đều rỗng, 10 FK trên bảng legacy; không có FK từ bảng hiện hành
+  hoặc schema khác trỏ vào legacy trong phạm vi metadata tài khoản kết nối có thể đọc.
+- Sau khi chạy: không còn 19 bảng legacy và 2 cột ID legacy trong `ranking_sources`.
+- 57 bảng hiện hành, số bản ghi từng bảng và 71 định nghĩa FK hiện hành (gồm quy tắc UPDATE/DELETE)
+  giữ nguyên. Con số này bao gồm mở rộng V14–V20 trên ttqt, khác 53 bảng/67 FK từ pipeline repo.
+- Flyway ghi V21 thành công, chạy lần hai không có thay đổi. Không sửa/repair lịch sử V1–V20.
+- Kiểm thử riêng nâng cấp V11 → V13 → V21 xác nhận dữ liệu legacy mẫu bị bỏ, dữ liệu model mới
+  còn nguyên và tập FK hiện hành không đổi. Không chạy kiểm thử giao diện trong task này.
+
+DB ttqt có V13–V20 khác checkout, nên chỉ resolve migration V21 khi rollout; không dùng toàn bộ
+pipeline checkout để nâng cấp DB này. Script không xác nhận checksum các migration cũ bị loại khỏi
+location; việc đồng bộ lịch sử vẫn phải xử lý riêng. Phạm vi rollout toàn bộ tenant được cập nhật bên dưới.
+
+Chạy từ `backend/`, dùng classpath đã tạo ở §10.7 và secret trong `.env`:
+
+```powershell
+java --class-path $cp scripts/LegacyCleanupCheck.java inspect smarthire_tenant_ttqt
+# migrate xóa vĩnh viễn bảng/dữ liệu legacy; chỉ dùng khi đã được yêu cầu dọn tenant này:
+java --class-path $cp scripts/LegacyCleanupCheck.java migrate smarthire_tenant_ttqt
+```
+
+Script kiểm tra FK trỏ vào legacy trước khi chạy, chỉ nạp V21, bật validation cho V21 và so sánh
+số bản ghi/tập FK hiện hành trước-sau. Các bảng legacy có FK con được xóa trước bảng cha;
+không tắt kiểm tra FK. Nếu một tenant có quan hệ khác dự kiến, dừng để đánh giá thay vì chuyển
+ID legacy sang bản ghi mới theo suy đoán.
+
+### 10.9 Phạm vi toàn bộ tenant hiện tại và tương lai
+
+V21 là migration chung trong `db/migration/tenant`, không có điều kiện riêng cho `ttqt`.
+`TenantProvisioningService.provision` gọi `TenantDataSourceFactory.migrate` trước khi chuyển tenant
+sang ACTIVE; `DynamicMultiTenantConnectionProvider` cũng gọi cùng hàm khi tạo pool tenant.
+Backend chạy bản có V21 sẽ tự áp dụng migration cho tenant mới và tenant chưa được nâng cấp
+khi mở pool. Pool đã cache không tự chạy lại, nên rollout tenant hiện tại thực hiện bằng script.
+Phải đưa file V21 vào bản build/deploy backend; việc sửa source không cập nhật một bản deploy cũ.
+
+Ngày 2026-09-26 đã đối chiếu 30 tenant trong master registry (đều managed database) với các schema
+trên provisioning server. `hllo`, `koko`, `ttqt` đã chạy V21; `se37` được nâng V3 → V13 → V21
+để tạo model mới trước khi xóa model cũ. Không sửa checksum/lịch sử cũ của các tenant lệch version.
+Tenant chờ thanh toán hoặc provisioning dở chưa có model cũ/legacy không bị tự kích hoạt hoặc
+ghi khống V21; chúng sẽ chạy pipeline chung khi được cấp phát bằng backend đã cập nhật.
+
+Kết quả quét cuối: 19 database tenant hiện hữu trên server (15 DB có trong registry + 4 DB kiểm thử).
+8 DB đã provision/kiểm thử đều có V21, không còn bảng legacy hoặc cột ID legacy; số bản ghi và
+định nghĩa FK hiện hành giữ nguyên qua bước cleanup. 11 DB còn lại chưa provision và không có
+model cũ/legacy. 15 tenant khác trong registry chưa có database trên server. Kiểm thử tạo mới từ
+DB trống chạy đủ pipeline lên V21 thành công, không còn legacy; chạy lại không phát sinh migration.
+
+```powershell
+# Quét mọi smarthire_tenant_* trên provisioning server, kể cả DB kiểm thử.
+java --class-path $cp scripts/LegacyCleanupCheck.java inspect all
+java --class-path $cp scripts/LegacyCleanupCheck.java migrate all
+# Kiểm chứng pipeline từ DB hoàn toàn trống (tên mới, không trùng DB hiện có).
+java --class-path $cp scripts/TenantMigrationCheck.java fresh smarthire_tenant_assessment_verify_fresh_unique_name
+```
+
+Chế độ `all` báo riêng DB chưa provision, tiếp tục kiểm tra tenant khác khi có lỗi, rồi trả lỗi nếu
+còn tenant chưa xử lý. DB có model cũ nhưng chưa V12 bị chặn để kiểm tra migration tiền đề;
+không chạy V21 trực tiếp rồi bỏ qua các migration tạo model mới. Tenant external/unmanaged hoặc
+MySQL server khác cần rollout qua kết nối tương ứng; danh sách hiện tại không có loại này.
+
+### 10.10 Quan hệ câu hỏi–kỹ năng V22
+
+`questionskills` liên kết N–N câu hỏi assessment và kỹ năng, entity `QuestionSkill` dùng `IdClass`
+với `questionId`/`skillId`. Khi persist entity, gán hai trường ID; association `question`/`skill`
+là LAZY và chỉ đọc cột FK, theo mẫu `InterviewParticipant`. Không cascade JPA REMOVE tới cha.
+SQL có DELETE CASCADE từ cả hai cha xuống dòng nối. Không tự chuyển giá trị văn bản
+`questions.skill` hoặc thay đổi API/UI trong thay đổi này.
+
+Đã rollout V22 ngày 2026-09-26 cho cả 8 DB đã provision/kiểm thử trên server; 11 DB chưa provision
+chạy V22 qua pipeline chung khi được cấp phát. Đã kiểm thử MySQL: liên kết nhiều–nhiều, chống trùng
+PK, từ chối cả hai FK không tồn tại, xóa dây chuyền từ cả hai cha. Dữ liệu fixture rollback sau test.
+`AssessmentFlowTest` cũng chạy thành công với entity mới được Hibernate nạp.
+
+```powershell
+java --class-path $cp scripts/QuestionSkillsCheck.java smarthire_tenant_assessment_verify_fresh_20260926
+java --class-path $cp scripts/QuestionSkillsCheck.java all
+```
+
+Script chỉ resolve V22 để giữ lịch sử khác nhau của các tenant; không repair checksum migration cũ.

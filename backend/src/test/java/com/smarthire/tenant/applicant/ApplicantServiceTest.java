@@ -17,6 +17,7 @@ import com.smarthire.domain.tenant.repository.RecruitmentStageRepository;
 import com.smarthire.domain.tenant.repository.UserRepository;
 import com.smarthire.tenant.applicant.mapper.ApplicantMapper;
 import com.smarthire.messaging.JobPublisher;
+import com.smarthire.tenant.aiInterview.service.AiInterviewInvitationService;
 import com.smarthire.tenant.applicant.service.ApplicantService;
 import com.smarthire.tenant.cv.service.CvAccess;
 import com.smarthire.tenant.job.mapper.JobMapper;
@@ -49,6 +50,7 @@ class ApplicantServiceTest {
     @Mock CvRepository cvs;
     @Mock RecruitmentStageRepository stages;
     @Mock CvAccess access;
+    @Mock AiInterviewInvitationService invitations;
     @Mock JobPublisher publisher;
     @Mock GateScreeningService gateScreening;
     @Mock AiInterviewInviteService aiInterviewInvites;
@@ -62,7 +64,7 @@ class ApplicantServiceTest {
     void setUp() {
         service = new ApplicantService(
                 applications, history, jobs, users, cvs, stages, access, new JobMapper(), new ApplicantMapper(),
-                publisher, gateScreening, aiInterviewInvites);
+                invitations, publisher, gateScreening, aiInterviewInvites);
         candidate = new User();
         candidate.setId(9L);
         candidate.setEmail("can@se36.local");
@@ -90,6 +92,38 @@ class ApplicantServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(ex -> ((BusinessException) ex).getCode())
                 .isEqualTo("APPLICATION_EXISTS");
+    }
+
+    @Test
+    void passedScreeningInvitesCandidateWithoutRequestAuthentication() {
+        var cv = new com.smarthire.domain.tenant.entity.Cv();
+        cv.setApplication(application);
+        cv.setJob(job);
+        cv.setUser(candidate);
+        var score = new com.smarthire.domain.tenant.entity.MatchScore();
+        score.setScore(new java.math.BigDecimal("85"));
+        score.setBreakdownJson("{\"passed\":true}");
+        job.setAiInterviewEnabled(true);
+        when(applications.findByIdForUpdate(4L)).thenReturn(Optional.of(application));
+        service.advanceFromCvScreening(cv, score);
+        assertThat(application.getStatus()).isEqualTo(ApplicationStatus.INTERVIEW);
+        verify(invitations).invite(4L, null);
+        org.mockito.Mockito.verifyNoInteractions(access);
+    }
+
+    @Test
+    void failedScreeningDoesNotInviteCandidate() {
+        var cv = new com.smarthire.domain.tenant.entity.Cv();
+        cv.setApplication(application);
+        cv.setJob(job);
+        cv.setUser(candidate);
+        var score = new com.smarthire.domain.tenant.entity.MatchScore();
+        score.setScore(new java.math.BigDecimal("20"));
+        score.setBreakdownJson("{\"passed\":false}");
+        when(applications.findByIdForUpdate(4L)).thenReturn(Optional.of(application));
+        service.advanceFromCvScreening(cv, score);
+        assertThat(application.getStatus()).isEqualTo(ApplicationStatus.IN_REVIEW);
+        org.mockito.Mockito.verifyNoInteractions(invitations, access);
     }
 
     @Test
@@ -197,7 +231,7 @@ class ApplicantServiceTest {
         MatchScore score = new MatchScore();
         score.setScore(new java.math.BigDecimal("80.00"));
         score.setBreakdownJson("{\"passed\":true}");
-        when(access.actor()).thenReturn(candidate);
+        when(applications.findByIdForUpdate(4L)).thenReturn(Optional.of(application));
 
         service.advanceFromCvScreening(cv, score);
 
@@ -215,7 +249,7 @@ class ApplicantServiceTest {
         MatchScore score = new MatchScore();
         score.setScore(new java.math.BigDecimal("40.00"));
         score.setBreakdownJson("{\"passed\":false}");
-        when(access.actor()).thenReturn(candidate);
+        when(applications.findByIdForUpdate(4L)).thenReturn(Optional.of(application));
 
         service.advanceFromCvScreening(cv, score);
 
@@ -233,6 +267,7 @@ class ApplicantServiceTest {
         MatchScore score = new MatchScore();
         score.setScore(new java.math.BigDecimal("80.00"));
         score.setBreakdownJson("{\"passed\":true}");
+        when(applications.findByIdForUpdate(4L)).thenReturn(Optional.of(application));
 
         service.advanceFromCvScreening(cv, score);
 
