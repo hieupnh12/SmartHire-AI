@@ -24,6 +24,10 @@ public class RolePermissionService {
 
     static final List<String> DEFAULT_ASSIGNABLE_ROLES = List.of(UserRole.HR.name(), UserRole.RECRUITER.name());
 
+    /** Always-on recruiter modules; cannot be removed from HR/Recruiter/custom staff roles. */
+    public static final List<String> CORE_RECRUITER_FEATURES =
+            List.of(RecruiterFeature.JOBS.name(), RecruiterFeature.APPLICANTS.name(), RecruiterFeature.PIPELINE.name());
+
     private static final String CREATE_TABLE_SQL = """
             CREATE TABLE IF NOT EXISTS role_permissions (
                 id           BIGINT PRIMARY KEY AUTO_INCREMENT,
@@ -196,6 +200,11 @@ public class RolePermissionService {
             }
             if (!codes.contains(feature.name())) {
                 codes.add(feature.name());
+            }
+        }
+        for (String core : CORE_RECRUITER_FEATURES) {
+            if (!codes.contains(core)) {
+                codes.add(core);
             }
         }
         return codes;

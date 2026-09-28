@@ -1,5 +1,16 @@
 import { recruiterNav, type RecruiterFeatureCode } from "@/features/tenant/recruiter/nav";
 
+/** Always enabled for HR/Recruiter roles; tenant admin configures optional modules only. */
+export const CORE_RECRUITER_FEATURES = ["JOBS", "APPLICANTS", "PIPELINE"] as const satisfies readonly RecruiterFeatureCode[];
+
+export function isCoreRecruiterFeature(code: RecruiterFeatureCode) {
+  return (CORE_RECRUITER_FEATURES as readonly string[]).includes(code);
+}
+
+export function isRecruiterReadOnlyUser(user?: { recruiterReadOnly?: boolean } | null) {
+  return user?.recruiterReadOnly === true;
+}
+
 export function hasRecruiterFeature(
   permissions: string[] | null | undefined,
   code: RecruiterFeatureCode,

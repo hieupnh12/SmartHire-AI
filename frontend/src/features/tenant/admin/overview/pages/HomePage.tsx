@@ -11,7 +11,7 @@ import { Skeleton } from "@/components/ux/Skeleton";
 import { getApiErrorMessage } from "@/lib/axios";
 
 const shortcuts: Array<{ to: string; label: string; icon: ComponentType<{ className?: string }> }> = [
-  { to: "/internal/admin/recruitment", label: "Job và ứng viên", icon: BriefcaseBusiness },
+  { to: "/recruiter", label: "Workspace tuyển dụng", icon: BriefcaseBusiness },
   { to: "/internal/admin/users", label: "Người dùng", icon: Users },
   { to: "/internal/admin/roles", label: "Phân quyền", icon: ShieldCheck },
   { to: "/internal/admin/recruiter-assignments", label: "Phân công", icon: UserRoundCog },

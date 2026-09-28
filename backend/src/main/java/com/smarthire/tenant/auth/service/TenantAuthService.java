@@ -80,6 +80,7 @@ public class TenantAuthService {
         UserResponse response = authMapper.toUserResponse(user);
         response.setWorkspace(UserRole.workspaceOf(user.getRole()));
         response.setPermissions(rolePermissionService.permissionsFor(user.getRole()));
+        response.setRecruiterReadOnly(false);
         return response;
     }
 }

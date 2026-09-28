@@ -1,6 +1,7 @@
 package com.smarthire.tenant.cv.service;
 
 import com.smarthire.common.exception.BusinessException;
+import com.smarthire.domain.enums.AssignmentRole;
 import com.smarthire.domain.enums.UserRole;
 import com.smarthire.domain.tenant.entity.Cv;
 import com.smarthire.domain.tenant.entity.Job;
@@ -75,6 +76,38 @@ public class CvAccess {
             return;
         }
         throw new BusinessException("Recruiter access required", HttpStatus.FORBIDDEN, "CV_FORBIDDEN");
+    }
+
+    public void requireRecruiterWrite() {
+        if (!staff()) {
+            throw new BusinessException("Recruiter access required", HttpStatus.FORBIDDEN, "CV_FORBIDDEN");
+        }
+    }
+
+    public boolean canEditRecruitmentWorkflow(Job job) {
+        if (companyAdmin()) {
+            return true;
+        }
+        if (!staff()) {
+            return false;
+        }
+        User user = actor();
+        return assignments.findByJob_IdAndUser_Id(job.getId(), user.getId())
+                .map(row -> row.getAssignmentRole() == AssignmentRole.PRIMARY_RECRUITER)
+                .orElse(false);
+    }
+
+    public void requirePrimaryRecruiter(Job job) {
+        requireRecruiterWrite();
+        if (companyAdmin()) {
+            return;
+        }
+        if (!canEditRecruitmentWorkflow(job)) {
+            throw new BusinessException(
+                    "Only the primary recruiter can change the recruitment workflow",
+                    HttpStatus.FORBIDDEN,
+                    "WORKFLOW_PRIMARY_ONLY");
+        }
     }
 
     public void requireCv(Cv cv) {

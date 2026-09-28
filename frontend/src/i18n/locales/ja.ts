@@ -92,6 +92,7 @@ export const ja: Messages = {
     pipelineSettings: "パイプライン設定",
     recruiterAssignments: "担当者割当",
     publishedJobs: "求人と応募者",
+    viewRecruitmentReadOnly: "採用ワークスペース",
     recruitmentAnalytics: "採用分析",
     auditLogs: "監査ログ",
     adminCompany: "企業",

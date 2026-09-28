@@ -91,8 +91,8 @@ class RolePermissionServiceTest {
 
         ArgumentCaptor<RolePermission> captor = ArgumentCaptor.forClass(RolePermission.class);
         verify(rolePermissionRepository).deleteByRole("HR");
-        verify(rolePermissionRepository, times(2)).save(captor.capture());
-        assertEquals(List.of("JOBS", "APPLICANTS"),
+        verify(rolePermissionRepository, times(3)).save(captor.capture());
+        assertEquals(List.of("JOBS", "APPLICANTS", "PIPELINE"),
                 captor.getAllValues().stream().map(RolePermission::getFeatureCode).toList());
         assertTrue(response.getAssignableRoles().contains("HR"));
     }

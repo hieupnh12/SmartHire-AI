@@ -25,6 +25,7 @@
 
 - MIME/size whitelist.
 - Job phải PUBLISHED khi candidate apply.
+- Apply bằng CV đã có: hệ thống tạo **bản sao CV riêng cho đơn đó** (`cvs.is_application_copy = TRUE`, file riêng), rồi parse → match theo JD của job. CV gốc trong kho và CV của các đơn trước không bị đổi, nên một CV nộp nhiều job thì mỗi job giữ điểm sàng lọc riêng. Bản sao không hiện trong **CV của tôi**.
 - Recruiter/HR/Admin gọi `POST /cvs` → `403 CV_UPLOAD_CANDIDATE_ONLY`.
 - Xóa: candidate chỉ CV của mình; recruiter xóa CV thuộc job mình quản lý (gỡ document/extraction/analysis/skills/match_score, tách interview/ranking_source).
 

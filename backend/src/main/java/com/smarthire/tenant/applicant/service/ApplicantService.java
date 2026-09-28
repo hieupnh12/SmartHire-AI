@@ -10,6 +10,7 @@ import com.smarthire.domain.tenant.entity.ApplicationStatusHistory;
 import com.smarthire.domain.tenant.entity.Cv;
 import com.smarthire.domain.tenant.entity.Job;
 import com.smarthire.domain.tenant.entity.MatchScore;
+import com.smarthire.domain.tenant.entity.RecruitmentStage;
 import com.smarthire.domain.tenant.entity.User;
 import com.smarthire.domain.tenant.repository.ApplicationRepository;
 import com.smarthire.domain.tenant.repository.ApplicationStatusHistoryRepository;
@@ -27,6 +28,7 @@ import com.smarthire.messaging.JobPublisher;
 import com.smarthire.tenant.aiInterview.service.AiInterviewInvitationService;
 import com.smarthire.tenant.applicant.mapper.ApplicantMapper;
 import com.smarthire.tenant.cv.service.CvAccess;
+import com.smarthire.tenant.cv.service.CvApplicationCopyService;
 import com.smarthire.tenant.job.mapper.JobMapper;
 import com.smarthire.tenant.job.screening.GateScreeningService;
 import java.time.Instant;
@@ -61,6 +63,7 @@ public class ApplicantService {
     private final JobPublisher publisher;
     private final GateScreeningService gateScreening;
     private final AiInterviewInviteService aiInterviewInvites;
+    private final CvApplicationCopyService cvCopies;
 
     public ApplicantService(
             ApplicationRepository applications,
@@ -75,7 +78,8 @@ public class ApplicantService {
             AiInterviewInvitationService invitations,
             JobPublisher publisher,
             GateScreeningService gateScreening,
-            AiInterviewInviteService aiInterviewInvites) {
+            AiInterviewInviteService aiInterviewInvites,
+            CvApplicationCopyService cvCopies) {
         this.applications = applications;
         this.history = history;
         this.jobs = jobs;
@@ -89,6 +93,7 @@ public class ApplicantService {
         this.publisher = publisher;
         this.gateScreening = gateScreening;
         this.aiInterviewInvites = aiInterviewInvites;
+        this.cvCopies = cvCopies;
     }
 
     public Map<String, String> health() {
@@ -128,7 +133,7 @@ public class ApplicantService {
         application.setStatus(ApplicationStatus.NEW);
         application.setSource(blankToValue(source, "CAREER"));
         application.setReferralCode(blankToNull(referralCode));
-        application.setStage(stages.findByJob_IdOrderBySortOrderAsc(jobId).stream().findFirst().orElse(null));
+        application.setStage(firstActiveStage(jobId));
         applications.save(application);
         attachCv(cvId, job, application, actor);
         record(application, ApplicationStatus.NEW, "Applied");
@@ -164,7 +169,7 @@ public class ApplicantService {
         application.setNotes(blankToNull(request.notes()));
         application.setTags(blankToNull(request.tags()));
         application.setAssignee(access.actor());
-        application.setStage(stages.findByJob_IdOrderBySortOrderAsc(jobId).stream().findFirst().orElse(null));
+        application.setStage(firstActiveStage(jobId));
         applications.save(application);
         record(application, ApplicationStatus.NEW, "Created by recruiter");
         return mapper.summary(application, false);
@@ -409,10 +414,9 @@ public class ApplicantService {
         if (!cv.getUser().getId().equals(actor.getId())) {
             throw new BusinessException("CV not found", HttpStatus.NOT_FOUND, "CV_NOT_FOUND");
         }
-        cv.setJob(job);
-        cv.setApplication(application);
-        cvs.save(cv);
-        enqueueScreening(cv);
+        boolean alreadyThisApplication = cv.getApplication() != null
+                && cv.getApplication().getId().equals(application.getId());
+        enqueueScreening(alreadyThisApplication ? cv : cvCopies.copyFor(cv, job, application));
     }
 
     /** Personal CVs are parsed without a job; attach must re-run extract/match against this JD. */
@@ -448,6 +452,13 @@ public class ApplicantService {
         } catch (Exception ex) {
             throw new BusinessException("Invalid application status", HttpStatus.BAD_REQUEST, "APPLICATION_BAD_STATUS");
         }
+    }
+
+    private RecruitmentStage firstActiveStage(long jobId) {
+        return stages.findByJob_IdOrderBySortOrderAsc(jobId).stream()
+                .filter(RecruitmentStage::isActive)
+                .findFirst()
+                .orElse(null);
     }
 
     private static String blankToNull(String value) {

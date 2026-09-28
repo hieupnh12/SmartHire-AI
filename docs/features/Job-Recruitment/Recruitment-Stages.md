@@ -14,13 +14,16 @@
 
 ## Luồng hoạt động
 
-1. Template stages mặc định khi tạo job.
-2. Recruiter xem pipeline trên job detail; `PUT /jobs/{id}/stages` để đổi order/name.
+1. Mỗi job có đúng 6 giai đoạn catalog (mã `stage_code`: APPLIED … HIRED).
+2. Primary Recruiter / Tenant Admin kéo thả sắp xếp 4 giai đoạn giữa; ẩn/hiện bằng `active` (không xóa bản ghi).
+3. APPLIED và HIRED luôn cố định, luôn `active`.
 
 ## Business Rules
 
-- Ít nhất 1 stage đầu/cuối.
-- Không xóa stage đang có candidate (archive).
+- Không thêm/xóa/đổi tên giai đoạn ngoài catalog.
+- Không ẩn APPLIED/HIRED.
+- Không ẩn giai đoạn đang còn ứng viên (`applications.stage_id`).
+- Ứng viên mới vào giai đoạn active đầu tiên theo `sort_order`.
 
 ## API liên quan
 
@@ -34,7 +37,8 @@
 
 ## UI mockup
 
-- Google Stitch: **Job Recruitment Management / Recruitment Stage Management** — _[dán link]_
+- **Thiết lập quy trình:** `/recruiter/jobs/:id` — khối **Quy trình tuyển dụng** (Primary Recruiter hoặc Tenant Admin được sửa; co-recruiter chỉ xem).
+- **Pipeline kanban:** `/recruiter/jobs/:id/pipeline` — vận hành board (demo); hiển thị link về thiết lập stage thật.
 - Icons: xem `DESIGN.md`
 
 ## Phụ thuộc
