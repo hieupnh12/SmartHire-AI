@@ -135,7 +135,7 @@ export type JobUpsertRequest = {
   department?: string;
   screeningMode?: ScreeningMode;
   headcount?: number;
-  deadline?: string;
+  deadline?: string | null;
   salaryMin?: number;
   salaryMax?: number;
   salaryCurrency?: string;

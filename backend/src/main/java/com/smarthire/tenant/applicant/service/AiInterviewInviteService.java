@@ -39,10 +39,21 @@ public class AiInterviewInviteService {
 
     @Transactional
     public void sendIfNeeded(Application application, MatchScore score) {
+        if (!CvMatchingService.passed(score)) return;
+        String reason = "đã đạt ngưỡng sàng lọc (%s)".formatted(
+                score.getScore() == null ? "—" : score.getScore().toPlainString());
+        send(application, reason);
+    }
+
+    @Transactional
+    public void sendOnRecruiterPass(Application application) {
+        send(application, "đã được nhà tuyển dụng chọn qua vòng sàng lọc CV");
+    }
+
+    private void send(Application application, String reason) {
         if (application == null || application.getId() == null || application.getAiInterviewInvitedAt() != null) {
             return;
         }
-        if (!CvMatchingService.passed(score)) return;
         User candidate = application.getCandidate();
         Job job = application.getJob();
         if (candidate == null || candidate.getEmail() == null || candidate.getEmail().isBlank() || job == null) {
@@ -53,7 +64,7 @@ public class AiInterviewInviteService {
         String body = """
                 Xin chào %s,
 
-                CV của bạn cho vị trí %s đã đạt ngưỡng sàng lọc (%s).
+                CV của bạn cho vị trí %s %s.
                 Vui lòng đăng nhập và bắt đầu vòng phỏng vấn AI:
 
                 %s
@@ -62,7 +73,7 @@ public class AiInterviewInviteService {
                 """.formatted(
                 candidate.getFullName() == null ? candidate.getEmail() : candidate.getFullName(),
                 job.getTitle(),
-                score.getScore() == null ? "—" : score.getScore().toPlainString(),
+                reason,
                 publicUrls.path("/candidate/interviews"));
 
         boolean sent = mail.send(candidate.getEmail(), subject, body);

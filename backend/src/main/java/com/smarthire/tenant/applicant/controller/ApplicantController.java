@@ -4,6 +4,7 @@ import com.smarthire.common.api.ApiResponse;
 import com.smarthire.domain.enums.ApplicationStatus;
 import com.smarthire.tenant.applicant.dto.ApplicantModels.ApplicationDetail;
 import com.smarthire.tenant.applicant.dto.ApplicantModels.ApplicationSummary;
+import com.smarthire.tenant.applicant.dto.ApplicantModels.CvScreeningDecisionRequest;
 import com.smarthire.tenant.applicant.dto.ApplicantModels.HistoryView;
 import com.smarthire.tenant.applicant.dto.ApplicantModels.ManualCreateRequest;
 import com.smarthire.tenant.applicant.dto.ApplicantModels.PageResult;
@@ -108,6 +109,15 @@ public class ApplicantController {
     @Operation(summary = "Change application status")
     public ApiResponse<ApplicationDetail> status(@PathVariable long id, @RequestBody StatusRequest body) {
         return ApiResponse.ok(applicants.changeStatus(id, body.status(), body.note()));
+    }
+
+    @PostMapping("/applications/{id}/cv-screening-decision")
+    @Operation(summary = "Recruiter decides whether the application passes the CV screening round",
+            description = "Used by MANUAL screening jobs (AI only scores). passed=true moves the application to INTERVIEW "
+                    + "and sends the AI interview invite; passed=false keeps it in IN_REVIEW. Only NEW/IN_REVIEW applications.")
+    public ApiResponse<ApplicationDetail> cvScreeningDecision(
+            @PathVariable long id, @Valid @RequestBody CvScreeningDecisionRequest body) {
+        return ApiResponse.ok(applicants.decideCvScreening(id, body.passed(), body.note()));
     }
 
     @PostMapping("/applications/{id}/reject")

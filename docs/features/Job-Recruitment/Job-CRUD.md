@@ -19,7 +19,7 @@ Recruiter quản lý vòng đời tin tuyển dụng: tạo nháp, sửa, clone,
 3. Recruiter cấu hình **CV Screening Weights** và **Gate Screening Weights** theo từng job (hai nhóm độc lập, mỗi nhóm tổng 100%).
 4. Clone copy nội dung/skill/stage/screening config, không copy application.
 5. Soft delete `deleted_at` + `ARCHIVED`.
-6. Form job có `deadline` datetime và `screeningMode`; `AUTO` chạy sàng lọc khi hết hạn, `MANUAL` chờ recruiter xác nhận.
+6. Form job có `deadline` datetime và `screeningMode`. Cả hai chế độ: khi job đóng (hết hạn hoặc đóng tay), AI chấm mọi CV chưa chấm. `AUTO`: hệ thống cho CV đạt yêu cầu qua vòng CV (chuyển `INTERVIEW` + mời AI interview). `MANUAL`: AI chỉ chấm điểm, recruiter bấm **Cho qua vòng CV / Không đạt** (`POST /api/v1/applications/{id}/cv-screening-decision`).
 
 ## Business Rules
 
@@ -49,7 +49,7 @@ Recruiter set `deadline` (ngày giờ). Hết hạn → job đóng, tự phân t
 
 ## UI mockup
 
-- Job feed tại `/recruiter` hiển thị dữ liệu thật về phòng ban, chế độ lọc CV và funnel theo trạng thái ứng viên. `AUTO` xử lý sau hạn tuyển; `MANUAL` yêu cầu recruiter xác nhận. Job cũ mặc định `MANUAL`.
+- Job feed tại `/recruiter` hiển thị dữ liệu thật về phòng ban, chế độ lọc CV và funnel theo trạng thái ứng viên. `AUTO`: hệ thống quyết định qua vòng CV; `MANUAL`: AI chấm điểm, recruiter quyết định. Job cũ mặc định `MANUAL`.
 
 - Recruiter: `/recruiter/jobs`, `/recruiter/jobs/new`, `/recruiter/jobs/:id`
 - Khi mở chi tiết từ bảng tin tuyển dụng, thanh điều hướng giữ `Việc làm` là mục chính; không hiển thị `Bảng điều khiển` trong thanh điều hướng của trang chức năng.

@@ -50,6 +50,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.amqp.AmqpException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
@@ -115,9 +116,10 @@ public class JobService {
         return Map.of("module", "job", "status", "ready");
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public JobPage search(String query, JobStatus status, String department, int page, int size) {
         requireStaff();
+        closeExpiredJobs();
         int safeSize = Math.min(Math.max(size, 1), 50);
         int safePage = Math.max(page, 0);
         var result = jobs.search(status, blankToNull(query), blankToNull(department),
@@ -136,6 +138,11 @@ public class JobService {
     public JobDetail get(long id) {
         try {
             Job job = job(id);
+            Instant now = Instant.now();
+            if ((job.getStatus() == JobStatus.PUBLISHED || job.getStatus() == JobStatus.PAUSED)
+                    && job.getDeadline() != null && !job.getDeadline().isAfter(now)) {
+                closeExpired(job, now);
+            }
             if (access.candidate()) {
                 if (!mapper.accepting(job)) throw notFound();
                 return mapper.detail(job, skillViews(id), stageViews(id), applications.countByJob_Id(id),
@@ -349,15 +356,17 @@ public class JobService {
         Instant now = Instant.now();
         int closed = 0;
         for (Job job : jobs.dueToClose(now, List.of(JobStatus.PUBLISHED, JobStatus.PAUSED))) {
-            job.setStatus(JobStatus.CLOSED);
-            job.setClosedAt(now);
-            jobs.save(job);
-            if (job.getScreeningMode() == ScreeningMode.AUTO) {
-                closeScreening.enqueueUnscreened(job);
-            }
+            closeExpired(job, now);
             closed++;
         }
         return closed;
+    }
+
+    private void closeExpired(Job job, Instant now) {
+        job.setStatus(JobStatus.CLOSED);
+        job.setClosedAt(now);
+        jobs.save(job);
+        closeScreening.enqueueUnscreened(job);
     }
 
     @Transactional
@@ -460,11 +469,16 @@ public class JobService {
             closeIfExpired(job.getId());
             return;
         }
-        rabbitTemplate.convertAndSend(jobExpiryExchange, com.smarthire.config.RabbitMqConfig.RK, job.getId(), message -> {
-            message.getMessageProperties().setDelay((int) Math.min(delay, Integer.MAX_VALUE));
-            message.getMessageProperties().setHeader("X-Tenant-ID", com.smarthire.multitenancy.context.TenantContext.getCurrentTenant());
-            return message;
-        });
+        try {
+            rabbitTemplate.convertAndSend(jobExpiryExchange, com.smarthire.config.RabbitMqConfig.RK, job.getId(), message -> {
+                message.getMessageProperties().setDelay((int) Math.min(delay, Integer.MAX_VALUE));
+                message.getMessageProperties().setHeader("X-Tenant-ID", com.smarthire.multitenancy.context.TenantContext.getCurrentTenant());
+                return message;
+            });
+        } catch (AmqpException ex) {
+            // Expired jobs are still closed lazily when recruiters load the job list, job detail or dashboard.
+            log.warn("Could not schedule expiry for job {} via RabbitMQ: {}", job.getId(), ex.getMessage());
+        }
     }
 
     @Transactional

@@ -3,7 +3,9 @@ package com.smarthire.tenant.applicant;
 import com.smarthire.common.exception.BusinessException;
 import com.smarthire.domain.enums.ApplicationStatus;
 import com.smarthire.domain.enums.CvStatus;
+import com.smarthire.domain.enums.CvScreeningStatus;
 import com.smarthire.domain.enums.JobStatus;
+import com.smarthire.domain.enums.ScreeningMode;
 import com.smarthire.domain.enums.UserRole;
 import com.smarthire.domain.tenant.entity.Application;
 import com.smarthire.domain.tenant.entity.Cv;
@@ -76,6 +78,7 @@ class ApplicantServiceTest {
         job.setId(1L);
         job.setTitle("Backend Java");
         job.setStatus(JobStatus.PUBLISHED);
+        job.setScreeningMode(ScreeningMode.AUTO);
         application = new Application();
         application.setId(4L);
         application.setJob(job);
@@ -287,5 +290,77 @@ class ApplicantServiceTest {
 
         verify(aiInterviewInvites).sendIfNeeded(application, score);
         verify(gateScreening).recalculate(application);
+    }
+
+    @Test
+    void manualModeScoresButLeavesDecisionToRecruiter() {
+        job.setScreeningMode(ScreeningMode.MANUAL);
+        Cv cv = new Cv();
+        cv.setJob(job);
+        cv.setUser(candidate);
+        cv.setApplication(application);
+        MatchScore score = new MatchScore();
+        score.setScore(new java.math.BigDecimal("90.00"));
+        score.setBreakdownJson("{\"passed\":true}");
+        when(applications.findByIdForUpdate(4L)).thenReturn(Optional.of(application));
+
+        service.advanceFromCvScreening(cv, score);
+
+        assertThat(application.getStatus()).isEqualTo(ApplicationStatus.IN_REVIEW);
+        assertThat(application.getCvScreeningStatus()).isEqualTo(CvScreeningStatus.PENDING);
+        org.mockito.Mockito.verifyNoInteractions(aiInterviewInvites, invitations);
+        verify(gateScreening).recalculate(application);
+    }
+
+    @Test
+    void recruiterPassMovesToInterviewAndSendsInvite() {
+        job.setScreeningMode(ScreeningMode.MANUAL);
+        application.setStatus(ApplicationStatus.IN_REVIEW);
+        stubStaffDetail();
+
+        var detail = service.decideCvScreening(4L, true, null);
+
+        assertThat(detail.status()).isEqualTo("INTERVIEW");
+        assertThat(detail.cvScreeningStatus()).isEqualTo("PASSED");
+        verify(aiInterviewInvites).sendOnRecruiterPass(application);
+    }
+
+    @Test
+    void recruiterFailKeepsApplicationInReview() {
+        job.setScreeningMode(ScreeningMode.MANUAL);
+        application.setStatus(ApplicationStatus.IN_REVIEW);
+        stubStaffDetail();
+
+        var detail = service.decideCvScreening(4L, false, null);
+
+        assertThat(detail.status()).isEqualTo("IN_REVIEW");
+        assertThat(detail.cvScreeningStatus()).isEqualTo("FAILED");
+        org.mockito.Mockito.verifyNoInteractions(aiInterviewInvites);
+    }
+
+    @Test
+    void recruiterDecisionRejectedOutsideCvRound() {
+        application.setStatus(ApplicationStatus.OFFER);
+        when(applications.findById(4L)).thenReturn(Optional.of(application));
+        when(access.candidate()).thenReturn(false);
+        when(applications.findByIdForUpdate(4L)).thenReturn(Optional.of(application));
+
+        assertThatThrownBy(() -> service.decideCvScreening(4L, true, null))
+                .isInstanceOf(BusinessException.class)
+                .extracting(ex -> ((BusinessException) ex).getCode())
+                .isEqualTo("APPLICATION_NOT_IN_CV_ROUND");
+    }
+
+    private void stubStaffDetail() {
+        User recruiter = new User();
+        recruiter.setId(2L);
+        recruiter.setRole(UserRole.RECRUITER.name());
+        when(applications.findById(4L)).thenReturn(Optional.of(application));
+        when(access.candidate()).thenReturn(false);
+        when(access.actor()).thenReturn(recruiter);
+        when(applications.findByIdForUpdate(4L)).thenReturn(Optional.of(application));
+        when(cvs.findByUser_IdAndJob_IdOrderByIdDesc(9L, 1L)).thenReturn(List.of());
+        when(history.findByApplication_IdOrderByIdDesc(4L)).thenReturn(List.of());
+        when(applications.countByCandidate_Id(9L)).thenReturn(1L);
     }
 }

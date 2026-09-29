@@ -68,6 +68,8 @@ export type ApplicationDetail = ApplicationSummary & {
   history: HistoryView[];
   gateScore?: GateScoreView | null;
   rounds?: ScreeningRoundsView | null;
+  cvScreeningStatus?: "PENDING" | "PASSED" | "FAILED" | null;
+  screeningMode?: "AUTO" | "MANUAL" | null;
 };
 
 export type RoundItemView = {

@@ -2,7 +2,9 @@ package com.smarthire.tenant.applicant.service;
 
 import com.smarthire.common.exception.BusinessException;
 import com.smarthire.domain.enums.ApplicationStatus;
+import com.smarthire.domain.enums.CvScreeningStatus;
 import com.smarthire.domain.enums.CvStatus;
+import com.smarthire.domain.enums.ScreeningMode;
 import com.smarthire.domain.enums.UserRole;
 import com.smarthire.domain.enums.UserStatus;
 import com.smarthire.domain.tenant.entity.Application;
@@ -306,7 +308,10 @@ public class ApplicantService {
         return toDetail(application);
     }
 
-    /** After CV screening: pass → AI interview; otherwise stay in CV review. Does not auto-reject. */
+    /**
+     * After CV screening. AUTO: pass → AI interview; otherwise stay in CV review. MANUAL: the score is only a
+     * recommendation; the recruiter decides via {@link #decideCvScreening}. Never auto-rejects.
+     */
     @Transactional
     public void advanceFromCvScreening(Cv cv, MatchScore score) {
         if (cv.getJob() == null || cv.getUser() == null) return;
@@ -318,6 +323,13 @@ public class ApplicantService {
         application = applications.findByIdForUpdate(application.getId()).orElse(null);
         if (application == null || application.getArchivedAt() != null || application.getWithdrawnAt() != null) return;
         ApplicationStatus current = application.getStatus();
+        if (application.getJob().getScreeningMode() != ScreeningMode.AUTO) {
+            if (current == ApplicationStatus.NEW) {
+                record(application, ApplicationStatus.IN_REVIEW, "CV scored by AI; awaiting recruiter decision", null);
+            }
+            gateScreening.recalculate(application);
+            return;
+        }
         boolean passed = com.smarthire.tenant.cv.service.CvMatchingService.passed(score);
         application.setCvScreeningStatus(passed ? com.smarthire.domain.enums.CvScreeningStatus.PASSED
                 : com.smarthire.domain.enums.CvScreeningStatus.FAILED);
@@ -335,6 +347,33 @@ public class ApplicantService {
             record(application, ApplicationStatus.IN_REVIEW, "CV screening completed; not passed yet", null);
         }
         gateScreening.recalculate(application);
+    }
+
+    /** Recruiter decision on the CV round: pass → AI interview (with invite); fail → stay in CV review. */
+    @Transactional
+    public ApplicationDetail decideCvScreening(long id, boolean passed, String note) {
+        Application application = loadForStaff(id);
+        application = applications.findByIdForUpdate(application.getId()).orElseThrow();
+        ApplicationStatus current = application.getStatus();
+        if (application.getArchivedAt() != null || application.getWithdrawnAt() != null
+                || (current != ApplicationStatus.NEW && current != ApplicationStatus.IN_REVIEW)) {
+            throw new BusinessException("Application is not in the CV screening round", HttpStatus.CONFLICT,
+                    "APPLICATION_NOT_IN_CV_ROUND");
+        }
+        if (passed) {
+            application.setCvScreeningStatus(CvScreeningStatus.PASSED);
+            record(application, ApplicationStatus.INTERVIEW, noteOr(note, "Recruiter passed CV screening"));
+            aiInterviewInvites.sendOnRecruiterPass(application);
+        } else {
+            application.setCvScreeningStatus(CvScreeningStatus.FAILED);
+            record(application, ApplicationStatus.IN_REVIEW, noteOr(note, "Recruiter marked CV screening as not passed"));
+        }
+        gateScreening.recalculate(application);
+        return toDetail(application);
+    }
+
+    private static String noteOr(String note, String fallback) {
+        return note == null || note.isBlank() ? fallback : note.trim();
     }
 
     @Transactional(readOnly = true)
