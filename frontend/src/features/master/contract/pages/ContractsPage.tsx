@@ -6,7 +6,9 @@ import {
   TrendingUp, AlertCircle,
 } from "lucide-react";
 import { ContractItem, contractApi } from "@/api/master/contractApi";
-import { useMasterDashboard } from "@/features/master/shell/MasterAdminContext";
+import { useTenants, useSubscriptions, useRevenueAnalytics, useAiQuotaUsage, useAuditLogs, useLeads, useInvoices, useContracts, masterQueryKeys } from "@/api/master/queries";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "@/stores/toastStore";
 import { ContractDetailModal } from "../components/ContractDetailModal";
 import { SignContractModal } from "../components/SignContractModal";
 
@@ -105,7 +107,10 @@ function StatusBadge({ status }: { status: string }) {
 ───────────────────────────────────────────── */
 export function ContractsPage() {
   const navigate = useNavigate();
-  const { contracts, setContracts, triggerNotification } = useMasterDashboard();
+  const queryClient = useQueryClient();
+  const { data: contracts = [] } = useContracts();
+  const setContracts = (updater: any) => queryClient.setQueryData(masterQueryKeys.contracts(), updater);
+  const triggerNotification = (msg: string) => toast.success(msg);
 
   const [contractSearch, setContractSearch] = useState("");
   const [contractStatusFilter, setContractStatusFilter] = useState("ALL");
@@ -199,17 +204,11 @@ export function ContractsPage() {
     <div className="space-y-6 animate-fade-in">
 
       {/* ── Page header ── */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <header className="sticky top-16 md:top-0 z-10 bg-[#f8fafc]/95 backdrop-blur-md px-4 py-4 sm:px-6 lg:px-8 -mx-4 -mt-5 sm:-mx-6 sm:-mt-6 lg:-mx-8 lg:-mt-8 mb-6 border-b border-slate-200/50 shadow-sm flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2.5">
-            <span className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
-              <FileSignature className="w-4.5 h-4.5" />
-            </span>
-            Hợp Đồng & Ký Số B2B
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight bg-gradient-to-r from-blue-600 to-cyan-500 bg-clip-text text-transparent flex items-center gap-3">
+            Hợp Đồng & Ký Số
           </h1>
-          <p className="text-xs text-slate-500 mt-1 ml-10.5">
-            Quản lý & ký kết hợp đồng 100% online — USB Token / OTP / e-Signature
-          </p>
         </div>
 
         <button
@@ -219,7 +218,7 @@ export function ContractsPage() {
           <Plus className="w-4 h-4" />
           Soạn Hợp Đồng Mới
         </button>
-      </div>
+      </header>
 
       {/* ── KPI cards ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">

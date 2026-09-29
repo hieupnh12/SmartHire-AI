@@ -1,6 +1,8 @@
 import { Plus, Check, Sliders } from "lucide-react";
 import { SubscriptionPlan, masterAdminApi } from "@/api/master/masterAdminApi";
-import { useMasterDashboard } from "@/features/master/shell/MasterAdminContext";
+import { useTenants, useSubscriptions, useRevenueAnalytics, useAiQuotaUsage, useAuditLogs, useLeads, useInvoices, useContracts, masterQueryKeys } from "@/api/master/queries";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "@/stores/toastStore";
 
 interface SubscriptionsTabProps {
   setIsNewPlan: (val: boolean) => void;
@@ -16,7 +18,10 @@ interface SubscriptionsTabProps {
 }
 
 export function SubscriptionsTab(_props: SubscriptionsTabProps) {
-  const { plans, setPlans, triggerNotification } = useMasterDashboard();
+  const queryClient = useQueryClient();
+  const { data: plans = [] } = useSubscriptions();
+  const setPlans = (updater: any) => queryClient.setQueryData(masterQueryKeys.subscriptions(), updater);
+  const triggerNotification = (msg: string) => toast.success(msg);
 
   const handleTogglePlanStatus = async (plan: SubscriptionPlan) => {
     if (!plan.id) return;

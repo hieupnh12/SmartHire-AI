@@ -162,6 +162,42 @@ public class MasterContractService {
     }
 
     @Transactional(transactionManager = "masterTransactionManager")
+    public ContractResponse updateContract(Long id, com.smarthire.master.contract.dto.UpdateContractRequest request) {
+        Contract contract = contractRepository.findById(id)
+                .orElseThrow(() -> new BusinessException("Hợp đồng không tồn tại", HttpStatus.NOT_FOUND, "CONTRACT_NOT_FOUND"));
+
+        if (!"DRAFT".equals(contract.getStatus())) {
+            throw new BusinessException("Chỉ có thể cập nhật hợp đồng ở trạng thái DRAFT", HttpStatus.BAD_REQUEST, "CONTRACT_NOT_DRAFT");
+        }
+
+        if (request.getContractNumber() != null) contract.setContractNumber(request.getContractNumber());
+        if (request.getTenantName() != null) contract.setPartyBName(request.getTenantName());
+        if (request.getTenantTaxCode() != null) contract.setPartyBTaxCode(request.getTenantTaxCode());
+        if (request.getTenantAddress() != null) contract.setPartyBAddress(request.getTenantAddress());
+        if (request.getTenantRepresentative() != null) contract.setPartyBRepresentative(request.getTenantRepresentative());
+        if (request.getTenantEmail() != null) contract.setPartyBEmail(request.getTenantEmail());
+        if (request.getTenantPhone() != null) contract.setPartyBPhone(request.getTenantPhone());
+        if (request.getTotalValue() != null) {
+            contract.setContractValue(request.getTotalValue());
+            BigDecimal taxRate = contract.getTaxRate() != null ? contract.getTaxRate() : BigDecimal.valueOf(10.00);
+            BigDecimal taxAmount = request.getTotalValue().multiply(taxRate).divide(BigDecimal.valueOf(100), 2, java.math.RoundingMode.HALF_UP);
+            BigDecimal totalAmount = request.getTotalValue().add(taxAmount);
+            contract.setTaxAmount(taxAmount);
+            contract.setTotalAmount(totalAmount);
+            contract.setAmountInWords(convertMoneyToVietnameseWords(totalAmount, contract.getCurrency()));
+        }
+        if (request.getCurrency() != null) contract.setCurrency(request.getCurrency());
+        if (request.getPaymentTerms() != null) contract.setTermsAndConditions(request.getPaymentTerms()); // mapped to termsAndConditions since it seems to be closest
+        if (request.getValidFrom() != null) contract.setStartDate(request.getValidFrom());
+        if (request.getValidUntil() != null) contract.setEndDate(request.getValidUntil());
+
+        Contract saved = contractRepository.save(contract);
+        TenantInfo tenant = saved.getTenantId() != null ? tenantRepository.findById(saved.getTenantId()).orElse(null) : null;
+        SubscriptionPlan plan = saved.getPlanId() != null ? planRepository.findById(saved.getPlanId()).orElse(null) : null;
+        return enrichContractResponse(saved, tenant, plan);
+    }
+
+    @Transactional(transactionManager = "masterTransactionManager")
     public ContractResponse sendContract(Long id) {
         Contract contract = contractRepository.findById(id)
                 .orElseThrow(() -> new BusinessException("Hợp đồng không tồn tại", HttpStatus.NOT_FOUND, "CONTRACT_NOT_FOUND"));

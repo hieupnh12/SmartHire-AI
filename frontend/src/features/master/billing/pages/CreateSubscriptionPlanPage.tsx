@@ -1,12 +1,16 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, CreditCard, Save, Box, Zap, Settings, HardDrive, Shield, Video } from "lucide-react";
-import { useMasterDashboard } from "@/features/master/shell/MasterAdminContext";
+import { useTenants, useSubscriptions, useRevenueAnalytics, useAiQuotaUsage, useAuditLogs, useLeads, useInvoices, useContracts, masterQueryKeys } from "@/api/master/queries";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "@/stores/toastStore";
 import { masterAdminApi } from "@/api/master/masterAdminApi";
 
 export function CreateSubscriptionPlanPage() {
   const navigate = useNavigate();
-  const { setPlans, triggerNotification } = useMasterDashboard();
+  const queryClient = useQueryClient();
+  const setPlans = (updater: any) => queryClient.setQueryData(masterQueryKeys.subscriptions(), updater);
+  const triggerNotification = (msg: string) => toast.success(msg);
 
   const [planCode, setPlanCode] = useState("");
   const [planName, setPlanName] = useState("");
@@ -113,7 +117,7 @@ export function CreateSubscriptionPlanPage() {
                 required
                 value={planCode}
                 onChange={(e) => setPlanCode(e.target.value.toUpperCase())}
-                placeholder="VD: ENTERPRISE_PLUS"
+                placeholder="ENTERPRISE_PLUS"
                 className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 font-mono text-slate-900 focus:outline-none focus:border-indigo-600"
               />
             </div>

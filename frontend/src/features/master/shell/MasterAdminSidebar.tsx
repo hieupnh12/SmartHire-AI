@@ -11,7 +11,6 @@ import {
   BarChart3,
   House,
   FileText,
-  Plus,
   ShieldCheck,
   Eye,
   Bell,
@@ -27,7 +26,7 @@ import {
 import { Tooltip } from "@/components/ux/Tooltip";
 import { LanguageSwitcher } from "@/components/ux/LanguageSwitcher";
 import { DashboardTab, SidebarGroupId, SidebarItem } from "./types";
-import { useMasterDashboard } from "./MasterAdminContext";
+import { useTenants, useSubscriptions, useRevenueAnalytics, useAiQuotaUsage, useAuditLogs, useLeads, useInvoices, useContracts } from "@/api/master/queries";
 import { masterAuthApi } from "@/api/master/masterAuthApi";
 import { useUiStore } from "@/stores/uiStore";
 
@@ -63,7 +62,12 @@ export function MasterAdminSidebar({
   const navigate = useNavigate();
   const location = useLocation();
   const askConfirm = useUiStore((state) => state.askConfirm);
-  const { tenants, plans, logs, leads, invoices, contracts } = useMasterDashboard();
+  const { data: tenants = [] } = useTenants();
+  const { data: plans = [] } = useSubscriptions();
+  const { data: logs = [] } = useAuditLogs();
+  const { data: leads = [] } = useLeads();
+  const { data: invoices = [] } = useInvoices();
+  const { data: contracts = [] } = useContracts();
 
   const handleLogout = async () => {
     try {
@@ -117,12 +121,6 @@ export function MasterAdminSidebar({
       label: "Doanh nghiệp",
       icon: Building2,
       items: [
-        {
-          path: "/admin/tenants/onboard-wizard",
-          label: "B2B Deal Wizard (Mới)",
-          description: "Khởi tạo Workspace, gán gói và lên hợp đồng/hóa đơn tự động.",
-          icon: Plus,
-        },
         {
           tab: "tenants",
           path: "/admin/tenants/directory",
@@ -464,7 +462,7 @@ export function MasterAdminSidebar({
                   aria-haspopup={isDirectGroup ? undefined : "menu"}
                 >
                   <GroupIcon className="h-6 w-6" />
-                  <span className="max-w-full truncate">{group.label}</span>
+                  <span className="max-w-full text-center leading-[1.1] line-clamp-2 whitespace-normal break-words px-0.5">{group.label}</span>
                 </button>
 
                 {!isDirectGroup && isSidebarCollapsed && openSidebarGroup === group.id && (

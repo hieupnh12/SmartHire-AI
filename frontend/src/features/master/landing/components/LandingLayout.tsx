@@ -49,7 +49,7 @@ export function LandingLayout({ children }: { children?: React.ReactNode }) {
         <LandingHeader />
 
         {/* MAIN CONTENT */}
-        <main className="relative z-10">{children ?? <Outlet />}</main>
+        <main className="relative z-10 pt-[80px] sm:pt-[84px]">{children ?? <Outlet />}</main>
 
         {/* FOOTER */}
         <LandingFooter />

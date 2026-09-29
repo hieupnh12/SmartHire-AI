@@ -49,6 +49,15 @@ public class MasterContractController {
                 .body(ApiResponse.ok("Hợp đồng B2B đã được tạo thành công", contract));
     }
 
+    @PutMapping("/{id}")
+    @Operation(summary = "Update B2B Contract", description = "Updates a draft B2B contract details.")
+    public ResponseEntity<ApiResponse<ContractResponse>> updateContract(
+            @PathVariable Long id,
+            @Valid @RequestBody com.smarthire.master.contract.dto.UpdateContractRequest request) {
+        ContractResponse contract = contractService.updateContract(id, request);
+        return ResponseEntity.ok(ApiResponse.ok("Cập nhật hợp đồng B2B thành công", contract));
+    }
+
     @PostMapping("/{id}/send")
     @Operation(summary = "Send Contract to Client", description = "Generates secure signing token and sends invitation email to party B signer.")
     public ResponseEntity<ApiResponse<Object>> sendContract(@PathVariable Long id) {

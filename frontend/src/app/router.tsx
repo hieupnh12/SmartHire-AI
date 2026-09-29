@@ -261,10 +261,10 @@ export function AppRouter() {
 
       <Route element={<MasterRoute />}>
         <Route path="/onboard" element={<TenantOnboardPage />} />
-        <Route path="/admin/tenants/onboard-wizard" element={<B2bDealWizardPage />} />
         <Route path="/admin" element={<MasterAdminLayout />}>
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<DashboardPage />} />
+          <Route path="tenants/create" element={<B2bDealWizardPage />} />
           <Route path="analytics" element={<MasterAnalyticsPage />} />
           <Route path="leads" element={<LeadsPage />} />
           <Route path="tenants" element={<Navigate to="/admin/tenants/directory" replace />} />

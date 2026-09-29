@@ -1,6 +1,8 @@
 import { useNavigate } from "react-router-dom";
 import { PlatformHomeDashboard } from "../components/PlatformHomeDashboard";
-import { useMasterDashboard } from "@/features/master/shell/MasterAdminContext";
+import { useTenants, useSubscriptions, useRevenueAnalytics, useAiQuotaUsage, useAuditLogs, useLeads, useInvoices, useContracts, masterQueryKeys } from "@/api/master/queries";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "@/stores/toastStore";
 
 const destinationPaths = {
   analytics: "/admin/analytics",
@@ -11,7 +13,10 @@ const destinationPaths = {
 
 export function DashboardPage() {
   const navigate = useNavigate();
-  const { revenue, aiQuota, tenants, logs } = useMasterDashboard();
+  const { data: tenants = [] } = useTenants();
+  const { data: revenue } = useRevenueAnalytics();
+  const { data: aiQuota } = useAiQuotaUsage();
+  const { data: logs = [] } = useAuditLogs();
 
   return (
     <PlatformHomeDashboard

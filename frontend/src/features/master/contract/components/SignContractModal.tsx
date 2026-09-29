@@ -158,7 +158,7 @@ export function SignContractModal({
                 type="text"
                 value={signSignedDocUrl}
                 onChange={(e) => setSignSignedDocUrl(e.target.value)}
-                placeholder="VD: /contracts/signed/CTR-202609-0001_signed.pdf"
+                placeholder="/contracts/signed/CTR-202609-0001_signed.pdf"
                 className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 font-mono text-slate-800 focus:outline-none focus:border-indigo-600"
               />
             </div>
@@ -171,7 +171,7 @@ export function SignContractModal({
                 type="text"
                 value={signSignatureData}
                 onChange={(e) => setSignSignatureData(e.target.value)}
-                placeholder="VD: VNPT-CA Token Serial 54:02:FA:99:BC:11"
+                placeholder="VNPT-CA Token Serial 54:02:FA:99:BC:11"
                 className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 font-mono text-slate-800 focus:outline-none focus:border-indigo-600"
               />
             </div>
@@ -184,7 +184,7 @@ export function SignContractModal({
                 type="text"
                 value={signSignatureData}
                 onChange={(e) => setSignSignatureData(e.target.value)}
-                placeholder="VD: Nguyễn Văn A - Ký số ngày 19/09/2026"
+                placeholder="Nguyễn Văn A - Ký số ngày 19/09/2026"
                 className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-slate-800 focus:outline-none focus:border-indigo-600"
               />
             </div>
