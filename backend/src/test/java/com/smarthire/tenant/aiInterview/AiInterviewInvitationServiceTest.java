@@ -63,7 +63,9 @@ class AiInterviewInvitationServiceTest {
         assertThat(notification.getValue().getUser().getId()).isEqualTo(9L);
         assertThat(notification.getValue().getPayloadJson()).contains("/candidate/interviews/11");
         assertThat(notification.getValue().getBody()).contains("Java Backend Developer");
-        verify(activity).record(eq(result), eq("INVITED"), contains("30 questions"));
+        verify(activity).record(eq(result), eq("INVITED"), contains("5 questions"));
+        assertThat(result.getConfigSnapshotJson()).isNotBlank();
+        assertThat(result.getAttemptNumber()).isEqualTo(1);
     }
 
     @Test void retryDoesNotDuplicateSessionOrNotification() {

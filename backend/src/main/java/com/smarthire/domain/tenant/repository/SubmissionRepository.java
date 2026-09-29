@@ -18,6 +18,9 @@ public interface SubmissionRepository extends JpaRepository<Submission, Long> {
     @Query("select s from Submission s where s.id = :id and s.candidate.id = :candidateId")
     Optional<Submission> findOwnedLocked(@Param("id") Long id, @Param("candidateId") Long candidateId);
 
+    @Query("select s from Submission s join fetch s.test t join fetch s.candidate where t.job.id = :jobId order by s.id desc")
+    List<Submission> findByJobId(@Param("jobId") Long jobId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select s from Submission s where s.id = :id")
     Optional<Submission> findLockedById(@Param("id") Long id);

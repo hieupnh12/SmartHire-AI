@@ -71,8 +71,9 @@ public class AiInterviewController {
     @PostMapping("/applications/{applicationId}/start")
     @Operation(summary = "Request to begin the AI interview round of an owned application (candidate)",
             description = "Requires CV screening PASSED, AI interview enabled/available on the job and the application in"
-                    + " the INTERVIEW round. Creates the single attempt and queues generation of 30-40 questions;"
-                    + " once questions are ready the same call starts the attempt. Completed attempts return 409.")
+                    + " the INTERVIEW round. Creates an attempt from the job snapshot and queues question generation."
+                    + " A failed attempt can start another one only while retries and the deadline remain."
+                    + " A provider failure retries the same attempt and does not consume an attempt.")
     public ApiResponse<AiInterviewResponse> requestStart(@PathVariable long applicationId) {
         return ApiResponse.ok(aiInterviewService.requestStart(applicationId));
     }

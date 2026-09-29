@@ -15,15 +15,19 @@ Tạo/làm bài trắc nghiệm kỹ thuật gắn job/stage.
 ## Luồng hoạt động
 
 1. Staff tạo đề nháp, thêm/sửa/xóa câu hỏi kèm options, publish đề hợp lệ.
-2. Candidate dùng applicationId của mình để start/resume đề thuộc cùng job, khi đơn ở ASSESSMENT hoặc INTERVIEW.
-3. Candidate lưu từng nhóm đáp án, tải lại tiến độ, submit để chấm trắc nghiệm và xem điểm.
-4. Staff xem bài làm và kết quả; hệ thống không tự đổi trạng thái đơn ứng tuyển.
+2. Staff mở hồ sơ ứng viên (Quản lý ứng viên), chọn đề đã publish của job và bấm "Gửi cho ứng viên": đơn ở INTERVIEW được chuyển sang ASSESSMENT (ghi lịch sử trạng thái, gắn stage "Assessment" nếu job có), ứng viên nhận thông báo `ASSESSMENT_INVITATION` và email kèm link `/candidate/assessments?applicationId=...`.
+3. Candidate dùng applicationId của mình để start/resume đề thuộc cùng job, khi đơn ở ASSESSMENT hoặc INTERVIEW.
+4. Candidate lưu từng nhóm đáp án, tải lại tiến độ, submit để chấm trắc nghiệm và xem điểm.
+5. Staff xem bài làm và kết quả; hệ thống không tự đổi trạng thái đơn ứng tuyển.
 
 ## Business Rules
 
-- Backend hỗ trợ `MCQ` (một đáp án, mặc định khi bỏ questionType), `MULTIPLE_CHOICE` (nhiều đáp án), `ESSAY` (tự luận). Frontend hiện vẫn là luồng MCQ; task V23 chưa thay UI. Coding, randomize và cấp quyền thi lại chưa triển khai.
+- Backend và màn hình làm bài Candidate hỗ trợ `MCQ` (một đáp án, mặc định khi bỏ questionType), `MULTIPLE_CHOICE` (nhiều đáp án), `ESSAY` (tự luận). Candidate dùng radio/checkbox/textarea theo loại câu hỏi; lưu, khôi phục và tính tiến độ theo dữ liệu tương ứng. Form biên soạn thủ công của recruiter vẫn là MCQ. Coding, randomize và cấp quyền thi lại chưa triển khai.
 - Start được tuần tự hóa bằng khóa hàng đề; trả lượt gần nhất đã có của cặp test/application, kể cả đã hoàn thành. NOT_STARTED được kích hoạt khi đủ điều kiện; không tự tạo lượt thi lại.
-- Hiện không có API giao đề riêng: mọi đề PUBLISHED của job có thể được bắt đầu bởi chủ đơn đủ điều kiện. Nếu cần giao riêng từng ứng viên, bổ sung chính sách assignment ở bước sau.
+- Gửi assessment (`send_assessment`) là lời mời + chuyển trạng thái, không phải assignment: mọi đề PUBLISHED của job vẫn có thể được bắt đầu bởi chủ đơn đủ điều kiện. Nếu cần giao riêng từng ứng viên, bổ sung chính sách assignment ở bước sau.
+- Điều kiện gửi: staff được gán job; đề PUBLISHED, job chưa xóa; đơn cùng job, chưa lưu trữ/rút, trạng thái INTERVIEW hoặc ASSESSMENT; AI Interview của đơn đã PASSED. Lỗi: 403 `ASSESSMENT_FORBIDDEN`, 404 `ASSESSMENT_NOT_FOUND`, 409 `TEST_UNAVAILABLE` / `APPLICATION_JOB_MISMATCH` / `APPLICATION_NOT_ELIGIBLE` / `AI_INTERVIEW_NOT_PASSED` / `ASSESSMENT_ALREADY_COMPLETED`.
+- Được gửi lại (nhắc) khi ứng viên chưa hoàn thành đề; lượt gần nhất đã SUBMITTED/GRADED/EXPIRED thì từ chối. Đơn đã ở ASSESSMENT không ghi thêm lịch sử trạng thái.
+- Email gửi trực tiếp qua SMTP và ghi `email_outbox` (`purpose = ASSESSMENT_INVITATION`, SENT/FAILED, không retry). Email lỗi không làm hỏng request; thông báo trong hệ thống vẫn được tạo, response trả `emailSent = false`.
 - Staff (`RECRUITER`, `HR`, `ADMIN`, `TENANT_ADMIN`) trong đúng tenant được tạo, xem và sửa đề. Candidate không được gọi các API quản lý đề.
 - Tạo đề luôn ở trạng thái `DRAFT`; chỉ sửa/xóa câu hỏi và sửa thông tin đề trong bản nháp, không đổi job. Publish khóa nội dung và thời lượng. Job đã xóa không được dùng để tạo/sửa đề hoặc bắt đầu lượt mới.
 - `passingScore` tùy chọn, tính theo điểm thô; publish kiểm tra từ 0 đến tổng điểm. Không có ngưỡng thì response `passed` là null.
@@ -31,7 +35,7 @@ Tạo/làm bài trắc nghiệm kỹ thuật gắn job/stage.
 - Metadata biên soạn tùy chọn trên câu hỏi: `difficulty` (`Easy`/`Medium`/`Hard`), `skill`, `explanation`. Excel import bắt buộc difficulty+skill trước khi lưu; API chấp nhận null. `explanation` chỉ trả cho staff, không lộ cho candidate.
 - `tests.created_by` ghi user staff tạo đề; `updated_at` cập nhật khi sửa metadata đề. Danh sách recruiter hiển thị tên người tạo và thời điểm cập nhật.
 - Candidate chỉ đọc/lưu/nộp submission của mình; lấy candidate từ token, không từ request. Trả 404 khi tài nguyên không thuộc ứng viên; không lộ đáp án đúng, kể cả sau khi nộp.
-- Save là upsert từng questionId, không xóa câu ngoài payload; selectedOptionId null để bỏ chọn. Question phải thuộc đề, option phải thuộc question. Payload có questionId lặp bị từ chối; lỗi một câu rollback cả nhóm.
+- Save là upsert từng questionId, không xóa câu ngoài payload; MCQ gửi `selectedOptionId`, nhiều đáp án gửi `selectedOptionIds`, tự luận gửi `answerText` (tối đa 10.000 ký tự), không trộn trường giữa các loại. null/[]/chuỗi rỗng dùng để xóa đáp án tương ứng. Question phải thuộc đề, option phải thuộc question. Payload có questionId lặp bị từ chối; lỗi một câu rollback cả nhóm.
 - Khóa hàng submission và transaction READ_COMMITTED tuần tự hóa save/submit; nộp lại trả cùng kết quả. Bỏ trống/sai được 0 điểm, đúng được toàn bộ điểm câu. Không tin điểm từ client.
 - Deadline = startedAt + durationMinutes, dùng giờ server. Lưu sau hạn trả 409 SUBMISSION_EXPIRED và vẫn commit EXPIRED/điểm của đáp án đã lưu. GET/start/submit/result cũng hoàn tất lượt quá hạn khi được truy cập; chưa có worker quét hết hạn chủ động.
 - Start mới và save/submit khi đang làm yêu cầu đơn còn ở ASSESSMENT/INTERVIEW, chưa lưu trữ/rút, job chưa xóa. Điểm tổng được trả candidate sau hoàn tất; thay đổi chính sách công bố cần cập nhật contract.
@@ -50,16 +54,20 @@ Tạo/làm bài trắc nghiệm kỹ thuật gắn job/stage.
 | PUT | `/api/v1/assessments/{testId}/update_question/{questionId}` |
 | DELETE | `/api/v1/assessments/{testId}/delete_question/{questionId}` |
 | POST | `/api/v1/assessments/{testId}/publish_test` |
+| POST | `/api/v1/assessments/{testId}/send_assessment` (staff, body `{ "applicationId": 7 }` → `testId`, `applicationId`, `applicationStatus`, `emailSent`) |
 | POST | `/api/v1/assessments/{testId}/start_submission` |
 | GET | `/api/v1/applications/{applicationId}/list_available_assessments` (candidate sở hữu, đơn đủ điều kiện) |
 | GET | `/api/v1/submissions/{id}/get_submission` |
 | POST | `/api/v1/submissions/{id}/save_answers` |
 | POST | `/api/v1/submissions/{id}/submit_test` |
 | GET | `/api/v1/submissions/{id}/get_result` (staff) |
+| GET | `/api/v1/jobs/{jobId}/list_assessment_submissions` (staff được phân công job hoặc company admin) |
+
+Danh sách bài làm theo job trả mảng gồm `id`, `testId`, `testTitle`, `applicationId`, `candidateId`, `candidateName`, `candidateEmail`, `status`, `startedAt`, `expiresAt`, `submittedAt`, `remainingSeconds`, `score`, `totalPoints`, `passingScore`, `passed`, sắp xếp ID giảm dần. API chỉ đọc: lượt IN_PROGRESS đã quá hạn được trả về EXPIRED với `score`/`submittedAt` NULL, và chỉ được chốt khi candidate/staff truy cập lượt đó lần sau.
 
 Contract chính thức và frontend dùng `submissions`, không cung cấp alias `attempts`. Các API trả `ApiResponse`: tạo đề/câu hỏi HTTP 201; start/resume/save/submit HTTP 200; request không hợp lệ 400; không đủ quyền 403; không tìm thấy/không sở hữu 404; trạng thái không phù hợp hoặc hết hạn 409. Danh sách đề trả `data.items`, `total`, `page`, `size`, sắp xếp ID giảm dần; page âm về 0, size giới hạn 1–50. Danh sách bao gồm metadata đề của job đã xóa để staff tra cứu.
 
-Response submission gồm `id`, `testId`, `applicationId`, `title`, `status`, `startedAt`, `expiresAt`, `submittedAt`, `serverTime`, `remainingSeconds`, `score`, `totalPoints`, `passed`, `questions` và `answers`. Options của candidate chỉ chứa `id`, `optionText`; answers chỉ chứa `questionId`, `selectedOptionId`.
+Response submission gồm `id`, `testId`, `applicationId`, `title`, `status`, `startedAt`, `expiresAt`, `submittedAt`, `serverTime`, `remainingSeconds`, `score`, `totalPoints`, `passed`, `questions` và `answers`. Options của candidate chỉ chứa `id`, `optionText`; answers chứa `questionId`, `selectedOptionId`, `selectedOptionIds` và `answerText` khi có.
 
 ### JSON kiểm tra bước 1
 
@@ -129,11 +137,14 @@ Kiểm chứng ngày 2026-09-24: 33 test assessment/multitenancy đạt, trong �
 
 ## UI mockup
 
+Kiểm chứng bản sửa Candidate ngày 2026-09-29: `frontend/tests/assessment-types.browser.cjs` đạt với API fixture cho đề trộn MCQ/MULTIPLE_CHOICE/ESSAY: đúng trường payload, lỗi lưu và retry, bỏ chọn, khôi phục sau reload, tự luận, mobile không tràn ngang và lưu đáp án mới nhất trước nộp. Chưa kiểm thử E2E backend thật. Build toàn frontend còn bị chặn bởi lỗi TypeScript ngoài phần sửa.
+
 - Google Stitch: **FE-05 Online Technical Assessment / Multiple Choice Test** — _[dán link]_
 - Icons: xem `DESIGN.md`
 - Recruiter: `/recruiter/assessments`, `/new`, `/:id`; danh sách phân trang, thông tin đề, CRUD câu hỏi/options, chọn đáp án đúng, publish khóa sửa.
+- Theo dõi bài làm: `/recruiter/jobs/:id/assessments/submissions` (nút "Theo dõi bài làm" trên trang bài đánh giá) liệt kê lượt làm của mọi đề trong job với tab Đang làm bài / Đã nộp / Hết thời gian, tìm theo ứng viên, lọc theo đề, thời gian còn lại và điểm; tự làm mới mỗi 15 giây.
 - Ngân hàng câu hỏi: `/recruiter/assessments/question-bank` tổng hợp câu MCQ theo bộ sưu tập, vị trí và bộ lọc; mở đề gốc để sửa. Độ khó/kỹ năng/giải thích lưu trên `questions` (V13). Yêu thích lưu trên trình duyệt. Coding / nhiều đáp án / tự luận vẫn ngoài phạm vi ASSESS-01.
-- Candidate: `/candidate/assessments` chọn đơn hợp lệ; `/:submissionId/take` có câu hỏi, radio lựa chọn, điều hướng, tiến độ, tự lưu/retry, timer, xác nhận nộp và điểm tổng.
+- Candidate: `/candidate/assessments` chọn đơn hợp lệ; `/:submissionId/take` có radio cho MCQ, checkbox cho nhiều đáp án, ô tự luận với bộ đếm ký tự, điều hướng, tiến độ, tự lưu/retry, timer, xác nhận nộp và điểm tổng (bài tự luận hiển thị đang chấm). Tự luận chỉ có khoảng trắng không được tính là đã trả lời.
 - Query key assessment phân biệt tenant/user; Axios hiện có gắn token và tenant header. Server state dùng TanStack Query, form dùng React Hook Form + Zod.
 
 ## Phụ thuộc

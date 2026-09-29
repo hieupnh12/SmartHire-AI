@@ -17,7 +17,7 @@ export function InterviewsPage() {
         <div className="flex min-w-0 items-center gap-3"><Bot className="size-6 shrink-0 text-brand-primary" aria-hidden="true" /><div><p className="text-sm text-brand-primary">AI Interview · #{interview.id}</p><h2 className="mt-1 break-words text-xl font-semibold">{interview.jobTitle ?? `Hồ sơ #${interview.applicationId}`}</h2></div></div>
         <span className="rounded-full bg-[var(--color-primary-soft)] px-3 py-2 text-sm text-brand-primary">{interviewStatus[interview.status]}</span>
       </div>
-      <p className="my-4 text-sm text-[var(--color-on-surface-variant)]">Nhận lời mời: {new Date(interview.createdAt).toLocaleString("vi-VN")}</p>
+      <p className="my-4 text-sm text-[var(--color-on-surface-variant)]">Nhận lời mời: {new Date(interview.createdAt).toLocaleString("vi-VN")}{interview.attemptNumber && interview.attemptNumber > 1 ? ` · Lần làm thứ ${interview.attemptNumber}` : ""}{interview.status === "FAILED" && interview.canRetry ? " · Còn lượt làm lại trước hạn" : ""}</p>
       <Link to={`/candidate/interviews/${interview.id}`} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-brand-primary px-5 py-3 text-sm font-medium text-[var(--color-on-primary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary">Xem lời mời<ArrowRight className="size-4" aria-hidden="true" /></Link>
     </article>)}
   </section>;

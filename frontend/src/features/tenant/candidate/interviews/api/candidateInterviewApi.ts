@@ -9,6 +9,7 @@ export const candidateInterviewApi = {
   get: (id: number) => api.get<ApiResponse<CandidateInterview>>(`/ai-interviews/${id}`).then(r => r.data.data),
   start: (id: number) => api.post<ApiResponse<CandidateInterview>>(`/ai-interviews/${id}/start`).then(r => r.data.data),
   complete: (id: number) => api.post<ApiResponse<CandidateInterview>>(`/ai-interviews/${id}/complete`).then(r => r.data.data),
-  answer: (id: number, questionId: number, answerText: string) =>
-    api.put<ApiResponse<AiAnswer>>(`/ai-interviews/${id}/questions/${questionId}/answer`, { answerText }).then(r => r.data.data),
+  requestStart: (applicationId: number) => api.post<ApiResponse<CandidateInterview>>(`/ai-interviews/applications/${applicationId}/start`).then(r => r.data.data),
+  answer: (id: number, questionId: number, answerText: string, answerDuration: number) =>
+    api.put<ApiResponse<AiAnswer>>(`/ai-interviews/${id}/questions/${questionId}/answer`, { answerText, answerDuration }).then(r => r.data.data),
 };

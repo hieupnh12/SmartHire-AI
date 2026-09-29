@@ -15,6 +15,11 @@ public class AiInterviewConfigController {
     @GetMapping
     @Operation(summary = "Get the job AI interview configuration (staff)")
     public ApiResponse<AiInterviewConfigRequest> get(@PathVariable long jobId) { return ApiResponse.ok(service.get(jobId)); }
+    @PostMapping("/suggest-roadmap")
+    @Operation(summary = "Suggest a job-specific interview roadmap without saving (staff)")
+    public ApiResponse<AiInterviewConfigRequest> suggest(@PathVariable long jobId, @Valid @RequestBody AiInterviewConfigRequest request) {
+        return ApiResponse.ok(service.suggest(jobId, request));
+    }
     @PutMapping
     @Operation(summary = "Configure AI interview availability and passing score (staff)")
     public ApiResponse<AiInterviewConfigRequest> update(@PathVariable long jobId, @Valid @RequestBody AiInterviewConfigRequest request) {

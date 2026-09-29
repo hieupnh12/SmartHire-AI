@@ -1,6 +1,6 @@
 import { api } from "@/lib/axios";
 import type { ApiResponse } from "@/types/api";
-import type { AvailableAssessment, JobTest, Question, QuestionRequest, SavedAnswer, Submission, TestPage, TestRequest } from "@/api/types/assessment";
+import type { AvailableAssessment, JobTest, Question, QuestionRequest, SavedAnswer, SendAssessmentResult, Submission, SubmissionSummary, TestPage, TestRequest } from "@/api/types/assessment";
 
 export const assessmentApi = {
   list: (page = 0, size = 20) => api.get<ApiResponse<TestPage>>("/assessments/list_tenant_tests", { params: { page, size } }).then(r => r.data.data),
@@ -23,10 +23,12 @@ export const assessmentApi = {
   updateQuestion: (id: number, questionId: number, body: QuestionRequest) => api.put<ApiResponse<Question>>(`/assessments/${id}/update_question/${questionId}`, body).then(r => r.data.data),
   deleteQuestion: (id: number, questionId: number) => api.delete(`/assessments/${id}/delete_question/${questionId}`),
   publish: (id: number) => api.post<ApiResponse<JobTest>>(`/assessments/${id}/publish_test`).then(r => r.data.data),
+  send: (id: number, applicationId: number) => api.post<ApiResponse<SendAssessmentResult>>(`/assessments/${id}/send_assessment`, { applicationId }).then(r => r.data.data),
   available: (applicationId: number) => api.get<ApiResponse<AvailableAssessment[]>>(`/applications/${applicationId}/list_available_assessments`).then(r => r.data.data),
   start: (id: number, applicationId: number) => api.post<ApiResponse<Submission>>(`/assessments/${id}/start_submission`, { applicationId }).then(r => r.data.data),
   submission: (id: number, signal?: AbortSignal) => api.get<ApiResponse<Submission>>(`/submissions/${id}/get_submission`, { signal }).then(r => r.data.data),
   saveAnswers: (id: number, answers: SavedAnswer[]) => api.post<ApiResponse<Submission>>(`/submissions/${id}/save_answers`, { answers }).then(r => r.data.data),
   submit: (id: number) => api.post<ApiResponse<Submission>>(`/submissions/${id}/submit_test`).then(r => r.data.data),
   result: (id: number) => api.get<ApiResponse<Submission>>(`/submissions/${id}/get_result`).then(r => r.data.data),
+  jobSubmissions: (jobId: number) => api.get<ApiResponse<SubmissionSummary[]>>(`/jobs/${jobId}/list_assessment_submissions`).then(r => r.data.data),
 };

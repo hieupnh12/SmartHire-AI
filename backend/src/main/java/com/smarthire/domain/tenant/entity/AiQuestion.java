@@ -50,6 +50,15 @@ public class AiQuestion {
     @Column(name = "created_at", nullable = false, updatable = false)
     Instant createdAt;
 
+    @Column(name = "rubric_json", columnDefinition = "JSON")
+    String rubricJson;
+    @Column(name = "options_json", columnDefinition = "JSON")
+    String optionsJson;
+    @Column(name = "correct_option")
+    Integer correctOption;
+    @Column(columnDefinition = "TEXT")
+    String explanation;
+
     @PrePersist
     void onCreate() {
         createdAt = Instant.now();

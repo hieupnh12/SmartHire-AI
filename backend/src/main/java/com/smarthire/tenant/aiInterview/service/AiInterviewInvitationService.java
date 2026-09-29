@@ -45,21 +45,56 @@ public class AiInterviewInvitationService {
         var existing = interviews.findByApplication_IdOrderByIdDesc(applicationId);
         AiInterviewEligibility.require(application);
         if (!existing.isEmpty()) return existing.get(0);
-        AiInterview interview = interviews.save(AiInterview.builder()
-                .application(application).workflowStage(stage).status(AiInterviewStatus.GENERATING).build());
-        activity.record(interview, "INVITED", "Attempt created for application " + applicationId
+        return createAttempt(application, stage, 1);
+    }
+
+    @Transactional
+    public AiInterview openNextAttempt(long applicationId) {
+        requireTenant();
+        var application = applications.findByIdForUpdate(applicationId)
+                .orElseThrow(() -> new BusinessException("Application not found", HttpStatus.NOT_FOUND, "APPLICATION_NOT_FOUND"));
+        if (application.getStatus() != ApplicationStatus.INTERVIEW || application.getArchivedAt() != null
+                || application.getWithdrawnAt() != null) {
+            throw new BusinessException("Application must be in the interview round", HttpStatus.CONFLICT, "AI_INTERVIEW_NOT_ELIGIBLE");
+        }
+        AiInterviewEligibility.require(application);
+        var existing = interviews.findByApplication_IdOrderByIdDesc(applicationId);
+        if (existing.isEmpty()) return createAttempt(application, null, 1);
+        var latest = existing.get(0);
+        if (latest.getStatus() != AiInterviewStatus.FAILED || !InterviewPolicies.canRetry(latest, java.time.Instant.now())) {
+            if (latest.getStatus() != AiInterviewStatus.PASSED && latest.getStatus() != AiInterviewStatus.FAILED
+                    && latest.getStatus() != AiInterviewStatus.SCORED) return latest;
+            throw new BusinessException("AI interview attempt already completed", HttpStatus.CONFLICT, "AI_INTERVIEW_ALREADY_COMPLETED");
+        }
+        return createAttempt(application, latest.getWorkflowStage(), latest.getAttemptNumber() + 1);
+    }
+
+    private AiInterview createAttempt(com.smarthire.domain.tenant.entity.Application application, RecruitmentStage stage, int attemptNumber) {
+        AiInterview interview = AiInterview.builder()
+                .application(application).workflowStage(stage).status(AiInterviewStatus.GENERATING)
+                .attemptNumber(attemptNumber).build();
+        InterviewPolicies.snapshot(interview);
+        interview = interviews.save(interview);
+        activity.record(interview, "INVITED", "Attempt " + attemptNumber + " created for application " + application.getId()
                 + "; generation of " + application.getJob().getAiInterviewQuestionCount() + " questions queued");
         notifications.save(Notification.builder()
                 .user(application.getCandidate())
                 .type("AI_INTERVIEW_INVITATION")
-                .title("Lời mời phỏng vấn AI")
+                .title(attemptNumber == 1 ? "Lời mời phỏng vấn AI" : "Lượt làm lại AI Interview")
                 .body("Bộ phận tuyển dụng mời bạn tham gia vòng AI Interview cho vị trí "
                         + application.getJob().getTitle() + ". CV của bạn đã qua vòng sàng lọc."
                         + " Hệ thống đang tự động tạo bộ câu hỏi; bạn có thể bắt đầu khi câu hỏi sẵn sàng.")
-                .payloadJson("{\"aiInterviewId\":" + interview.getId() + ",\"applicationId\":" + applicationId
+                .payloadJson("{\"aiInterviewId\":" + interview.getId() + ",\"applicationId\":" + application.getId()
                         + ",\"path\":\"/candidate/interviews/" + interview.getId() + "\"}")
                 .build());
         activity.record(interview, "NOTIFICATION_SENT", "AI_INTERVIEW_INVITATION");
         return interview;
+    }
+
+    private void requireTenant() {
+        String tenant = com.smarthire.multitenancy.context.TenantContext.getCurrentTenant();
+        if (tenant == null || tenant.isBlank() || "smarthire_master".equals(tenant)) {
+            throw new BusinessException("Tenant access required", HttpStatus.FORBIDDEN, "AI_INTERVIEW_FORBIDDEN");
+        }
     }
 }

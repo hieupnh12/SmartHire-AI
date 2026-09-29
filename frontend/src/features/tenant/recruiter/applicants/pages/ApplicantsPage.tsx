@@ -10,6 +10,7 @@ import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 import { button, input, labels, muted, panel, primary } from "@/features/tenant/recruiter/matching/components/rankingUi";
 import { ApplicationPipeline } from "@/features/tenant/recruiter/matching/components/recruitmentFlow";
 import { ApplicantRounds } from "@/features/tenant/recruiter/applicants/components/ApplicantRounds";
+import { SendAssessmentPanel } from "@/features/tenant/recruiter/applicants/components/SendAssessmentPanel";
 import { DetailDialog } from "@/components/ux/DetailDialog";
 import { CvFilePreview } from "@/components/shared/CvFilePreview";
 import { ScreeningBreakdown } from "@/features/tenant/recruiter/cv-screening/components/ScreeningBreakdown";
@@ -174,6 +175,7 @@ function ApplicationPanel({ detail, onChanged }: { detail: ApplicationDetail; on
       <ApplicationPipeline status={detail.status} />
       <ApplicantRounds rounds={detail.rounds} gate={detail.gateScore} />
       <AppliedCvReview cvs={detail.cvs} />
+      {!detail.archived && ["INTERVIEW", "ASSESSMENT"].includes(detail.status) && <SendAssessmentPanel detail={detail} onSent={onChanged} />}
       <label className="block space-y-1"><span>Ghi chú</span><textarea className={input} value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} /></label>
       <label className="block space-y-1"><span>Tag</span><input className={input} value={tags} onChange={(e) => setTags(e.target.value)} placeholder="java, referral" /></label>
       <label className="block space-y-1"><span>Người phụ trách (email)</span><input className={input} value={assigneeEmail} onChange={(e) => setAssigneeEmail(e.target.value)} placeholder="recruiter@company.com" /></label>

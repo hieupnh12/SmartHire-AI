@@ -544,6 +544,23 @@
             ],
             "url": "{{baseUrl}}/submissions/{{submissionId}}/get_result"
           }
+        },
+        {
+          "name": "List job submissions (staff)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/jobs/{{jobId}}/list_assessment_submissions"
+          }
         }
       ]
     },
@@ -803,6 +820,87 @@
     {
       "name": "AI Interview",
       "item": [
+        {
+          "name": "Get job interview configuration",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/jobs/{{jobId}}/ai-interview-config"
+          }
+        },
+        {
+          "name": "Save job interview roadmap (replace Java with a Job Skill)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/jobs/{{jobId}}/ai-interview-config",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"enabled\": true,\n  \"passingScore\": 70,\n  \"questionCount\": 1,\n  \"availableUntil\": null,\n  \"policy\": {\n    \"durationMinutes\": 30,\n    \"maxAttempts\": 1,\n    \"miniAssessmentEnabled\": true,\n    \"miniQuestionCount\": 3,\n    \"miniWeight\": 30,\n    \"miniAfterStage\": 1,\n    \"weights\": {\n      \"TECHNICAL_KNOWLEDGE\": 35,\n      \"PROBLEM_SOLVING\": 25,\n      \"PRACTICAL_EXPERIENCE\": 20,\n      \"COMMUNICATION\": 10,\n      \"BEHAVIORAL_SITUATIONAL\": 10\n    },\n    \"selectedSkills\": [\n      \"Java\"\n    ],\n    \"stages\": [\n      {\n        \"title\": \"Java and practical scenarios\",\n        \"questionCount\": 1,\n        \"competencies\": [\n          \"TECHNICAL_KNOWLEDGE\",\n          \"PROBLEM_SOLVING\",\n          \"PRACTICAL_EXPERIENCE\",\n          \"BEHAVIORAL_SITUATIONAL\"\n        ],\n        \"skills\": [\n          \"Java\"\n        ]\n      }\n    ]\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Suggest roadmap without saving",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/jobs/{{jobId}}/ai-interview-config/suggest-roadmap",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"enabled\": true,\n  \"passingScore\": 70,\n  \"questionCount\": 1,\n  \"availableUntil\": null,\n  \"policy\": {\n    \"durationMinutes\": 30,\n    \"maxAttempts\": 1,\n    \"miniAssessmentEnabled\": true,\n    \"miniQuestionCount\": 3,\n    \"miniWeight\": 30,\n    \"miniAfterStage\": 0,\n    \"weights\": {\n      \"TECHNICAL_KNOWLEDGE\": 35,\n      \"PROBLEM_SOLVING\": 25,\n      \"PRACTICAL_EXPERIENCE\": 20,\n      \"COMMUNICATION\": 10,\n      \"BEHAVIORAL_SITUATIONAL\": 10\n    },\n    \"selectedSkills\": [\n      \"Java\"\n    ],\n    \"stages\": []\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
         {
           "name": "Generate Questions (async RabbitMQ)",
           "request": {
