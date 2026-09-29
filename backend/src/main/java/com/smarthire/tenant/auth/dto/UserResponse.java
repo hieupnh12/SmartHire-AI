@@ -25,6 +25,8 @@ public class UserResponse {
     private String status;
     private Instant createdAt;
     private List<String> permissions;
+    /** True for tenant/company admins viewing the recruiter workspace in read-only mode. */
+    private boolean recruiterReadOnly;
 
     public static UserResponse fromEntity(User user) {
         if (user == null) {

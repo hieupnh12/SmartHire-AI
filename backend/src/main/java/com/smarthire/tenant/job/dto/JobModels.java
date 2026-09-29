@@ -52,11 +52,12 @@ public final class JobModels {
             BigDecimal passThreshold) {}
 
     public record StageItem(
-            @NotBlank String name,
+            @NotBlank String stageCode,
             int sortOrder,
-            boolean terminal) {}
+            boolean active) {}
 
-    public record StageView(long id, String name, int sortOrder, boolean terminal) {}
+    public record StageView(
+            long id, String stageCode, String name, int sortOrder, boolean terminal, boolean active) {}
 
     public record StagesRequest(@NotEmpty @Valid List<StageItem> stages) {}
 
@@ -111,7 +112,8 @@ public final class JobModels {
             List<JobSkillView> skills,
             List<StageView> stages,
             CvScreeningConfigView cvScreening,
-            GateScreeningConfigView gateScreening) {}
+            GateScreeningConfigView gateScreening,
+            boolean canEditRecruitmentWorkflow) {}
 
     public record PublicJob(
             long id,

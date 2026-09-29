@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { jobApi } from "@/api/tenant/jobApi";
 import { getApiErrorMessage } from "@/lib/axios";
 import { queryKeys } from "@/lib/query-keys";
+import { JobRecruitmentStagesPanel } from "@/features/tenant/recruiter/jobs/components/JobRecruitmentStagesPanel";
 import { button, muted, panel, primary } from "@/features/tenant/recruiter/matching/components/rankingUi";
 
 export function JobDetailPage() {
@@ -57,6 +58,7 @@ export function JobDetailPage() {
               <button className={button} onClick={() => act.mutate("clone")}>Clone</button>
               <Link className={primary} to={`/recruiter/jobs/${job.id}/rank`}>Xếp hạng ứng viên</Link>
               <Link className={button} to={`/recruiter/jobs/${job.id}/cvs`}>Sàng lọc CV</Link>
+              <Link className={button} to={`/recruiter/jobs/${job.id}/pipeline`}>Pipeline</Link>
             </div>
           </header>
           {act.isError && <p role="alert">{getApiErrorMessage(act.error)}</p>}
@@ -116,15 +118,17 @@ export function JobDetailPage() {
               )}
             </div>
           )}
-          <div className={panel}>
-            <h2 className="mb-3 font-semibold">Pipeline</h2>
-            <ol className="flex flex-wrap gap-2 text-sm">
-              {job.stages.map((stage) => (
-                <li key={stage.id} className="rounded-lg border border-[var(--color-border-default)] px-3 py-1">
-                  {stage.sortOrder + 1}. {stage.name}{stage.terminal ? " (end)" : ""}
-                </li>
-              ))}
-            </ol>
+          <div id="recruitment-stages" className={panel}>
+            <h2 className="mb-1 font-semibold">Quy trình tuyển dụng</h2>
+            <p className={`mb-4 text-sm ${muted}`}>
+              Thiết lập các giai đoạn pipeline cho vị trí này (mặc định được tạo khi mở job mới).
+            </p>
+            <JobRecruitmentStagesPanel
+              jobId={job.id}
+              stages={job.stages}
+              editable={job.canEditRecruitmentWorkflow === true}
+              onSaved={refresh}
+            />
           </div>
         </>
       )}

@@ -5,6 +5,7 @@ import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ux/Button";
 import { Card } from "@/components/ux/Card";
 import { recruiterNav, type RecruiterFeatureCode } from "@/features/tenant/recruiter/nav";
+import { isCoreRecruiterFeature } from "@/features/tenant/recruiter/permissions";
 import { useT } from "@/i18n";
 import { getApiErrorMessage } from "@/lib/axios";
 import { useUiStore } from "@/stores/uiStore";
@@ -106,6 +107,7 @@ export function RolesPage() {
   });
 
   const toggle = (feature: RecruiterFeatureCode) => {
+    if (isCoreRecruiterFeature(feature)) return;
     setFeatures((current) =>
       current.includes(feature) ? current.filter((item) => item !== feature) : [...current, feature],
     );
@@ -202,16 +204,21 @@ export function RolesPage() {
               <fieldset className="space-y-2">
                 <legend className="text-sm font-medium">Tính năng</legend>
                 {recruiterNav.map((item) => {
-                  const checked = features.includes(item.featureCode);
+                  const core = isCoreRecruiterFeature(item.featureCode);
+                  const checked = core || features.includes(item.featureCode);
                   return (
                     <label key={item.featureCode} className="flex min-h-10 items-center gap-3 text-sm">
                       <input
                         type="checkbox"
                         checked={checked}
+                        disabled={core}
                         onChange={() => toggle(item.featureCode)}
-                        className="size-4 accent-[var(--color-primary)]"
+                        className="size-4 accent-[var(--color-primary)] disabled:opacity-70"
                       />
-                      {t(item.labelKey)}
+                      <span className={core ? "text-[var(--color-text-secondary)]" : undefined}>
+                        {t(item.labelKey)}
+                        {core ? " (lõi — không tắt)" : ""}
+                      </span>
                     </label>
                   );
                 })}

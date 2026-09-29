@@ -229,11 +229,13 @@ Entity `RecruitmentStage`. Báº£ng khÃ´ng cÃ³ cá»™t thá»i gian.
 |---|---|---|---|---|---|
 | `id` | BIGINT | PK | KhÃ´ng | auto | |
 | `job_id` | BIGINT | FK â†’ `jobs.id` | KhÃ´ng | â€” | Tin tuyá»ƒn dá»¥ng sá»Ÿ há»¯u vÃ²ng nÃ y |
-| `name` | VARCHAR(128) | | KhÃ´ng | â€” | TÃªn vÃ²ng |
+| `stage_code` | VARCHAR(32) | UQ (job_id, stage_code) | KhÃ´ng | â€” | MÃ£ catalog: APPLIED, SCREENING, â€¦, HIRED |
+| `name` | VARCHAR(128) | | KhÃ´ng | â€” | TÃªn hiá»ƒn thá»‹ (máº·c Ä‘á»‹nh theo catalog) |
 | `sort_order` | INT | | KhÃ´ng | â€” | Thá»© tá»± trong pipeline |
 | `is_terminal` | BOOLEAN | | KhÃ´ng | FALSE | ÄÃ¡nh dáº¥u vÃ²ng káº¿t thÃºc |
+| `active` | BOOLEAN | | KhÃ´ng | TRUE | FALSE = áº©n khá»i pipeline, khÃ´ng xÃ³a báº£n ghi |
 
-**RÃ ng buá»™c:** `fk_rs_job`
+**RÃ ng buá»™c:** `fk_rs_job`, `uk_recruitment_stages_job_code (job_id, stage_code)`
 
 ---
 
@@ -311,6 +313,7 @@ Entity `Cv` (káº¿ thá»«a `BaseEntity`). Má»Ÿ rá»™ng qua V2, V5, V7,
 | `job_id` | BIGINT | FK â†’ `jobs.id` | **CÃ³** (tá»« V8) | NULL | Tin tuyá»ƒn dá»¥ng; Ä‘á»ƒ trá»‘ng khi CV thuá»™c kho há»“ sÆ¡ |
 | `user_id` | BIGINT | FK â†’ `users.id` | KhÃ´ng | â€” | Chá»§ sá»Ÿ há»¯u CV |
 | `application_id` | BIGINT | ref* | CÃ³ | NULL | ÄÆ¡n á»©ng tuyá»ƒn â€” **khÃ´ng cÃ³ khoÃ¡ ngoáº¡i** (V2) |
+| `is_application_copy` | BOOLEAN | | Không | FALSE | TRUE = bản sao CV riêng cho một đơn ứng tuyển (file riêng, sàng lọc riêng); không hiện trong kho "CV của tôi" (V34) |
 | `original_filename` | VARCHAR(255) | | KhÃ´ng | â€” | TÃªn file gá»‘c do ngÆ°á»i dÃ¹ng táº£i lÃªn |
 | `file_url` | VARCHAR(512) | | KhÃ´ng | â€” | URL truy cáº­p file |
 | `storage_key` | VARCHAR(512) | | CÃ³ | NULL | KhoÃ¡ lÆ°u trá»¯ ná»™i bá»™ (V5) |

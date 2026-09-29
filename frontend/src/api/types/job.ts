@@ -25,11 +25,31 @@ export type JobSkillView = {
   minLevel: string | null;
 };
 
+export type RecruitmentStageCode =
+  | "APPLIED"
+  | "SCREENING"
+  | "ASSESSMENT"
+  | "INTERVIEW"
+  | "OFFER"
+  | "HIRED";
+
 export type StageView = {
   id: number;
+  stageCode: RecruitmentStageCode;
   name: string;
   sortOrder: number;
   terminal: boolean;
+  active: boolean;
+};
+
+export type StageItemInput = {
+  stageCode: RecruitmentStageCode;
+  sortOrder: number;
+  active: boolean;
+};
+
+export type StagesReplaceRequest = {
+  stages: StageItemInput[];
 };
 
 export type JobListItem = {
@@ -40,21 +60,34 @@ export type JobListItem = {
   employmentType?: string | null;
   workMode?: string | null;
   department?: string | null;
-  screeningMode?: ScreeningMode | null;
-  funnel?: JobFunnelSummary | null;
+  screeningMode?: ScreeningMode;
   deadline?: string | null;
-  headcount: number;
-  applicationCount: number;
+  headcount?: number;
+  applicationCount?: number;
+  funnel?: JobFunnelSummary;
   publishedAt?: string | null;
   updatedAt?: string | null;
 };
 
-export type JobPage = {
-  items: JobListItem[];
-  total: number;
-  page: number;
-  size: number;
+export type CvScreeningConfig = {
+  skillWeight: number;
+  preferredWeight: number;
+  experienceWeight: number;
+  educationWeight: number;
+  jaccardWeight: number;
+  semanticWeight: number;
+  passThreshold: number;
 };
+
+export type GateScreeningConfig = {
+  cvWeight: number;
+  aiInterviewWeight: number;
+  assessmentWeight: number;
+  passThreshold: number;
+};
+
+export type CvScreeningConfigView = CvScreeningConfig;
+export type GateScreeningConfigView = GateScreeningConfig;
 
 export type JobDetail = {
   id: number;
@@ -66,7 +99,7 @@ export type JobDetail = {
   employmentType?: string | null;
   workMode?: string | null;
   department?: string | null;
-  screeningMode?: ScreeningMode | null;
+  screeningMode: ScreeningMode;
   headcount?: number | null;
   deadline?: string | null;
   salaryMin?: number | null;
@@ -88,23 +121,7 @@ export type JobDetail = {
   stages: StageView[];
   cvScreening?: CvScreeningConfig | null;
   gateScreening?: GateScreeningConfig | null;
-};
-
-export type CvScreeningConfig = {
-  skillWeight: number;
-  preferredWeight: number;
-  experienceWeight: number;
-  educationWeight: number;
-  jaccardWeight: number;
-  semanticWeight: number;
-  passThreshold: number;
-};
-
-export type GateScreeningConfig = {
-  cvWeight: number;
-  aiInterviewWeight: number;
-  assessmentWeight: number;
-  passThreshold: number;
+  canEditRecruitmentWorkflow?: boolean;
 };
 
 export type JobUpsertRequest = {
@@ -117,17 +134,25 @@ export type JobUpsertRequest = {
   workMode?: string;
   department?: string;
   screeningMode?: ScreeningMode;
-  headcount?: number | null;
+  headcount?: number;
   deadline?: string | null;
-  salaryMin?: number | null;
-  salaryMax?: number | null;
+  salaryMin?: number;
+  salaryMax?: number;
   salaryCurrency?: string;
   salaryVisible?: boolean;
-  minYearsExperience?: number | null;
+  minYearsExperience?: number;
   educationLevel?: string;
   skills?: JobSkillInput[];
+  stages?: StageItemInput[];
   cvScreening?: CvScreeningConfig;
   gateScreening?: GateScreeningConfig;
+};
+
+export type JobPage = {
+  items: JobListItem[];
+  total: number;
+  page: number;
+  size: number;
 };
 
 export type PublicJob = {

@@ -26,6 +26,7 @@ Tính điểm khớp CV ↔ Job **sau khi đủ bước parse / extract / taxono
 - Cần CV analyzed + `job_skills` của đúng job.
 - Score 0–100 + breakdown giải thích được.
 - Pass: `score ≥ cvPassThreshold của Job` **và** không thiếu skill bắt buộc (`requiredMissing == 0`). Không auto-reject, không auto-hire.
+- Job `AUTO`: kết quả Pass của AI quyết định qua vòng CV. Job `MANUAL`: Pass chỉ là đề xuất; `applications.cv_screening_status` giữ `PENDING` tới khi recruiter gọi `POST /api/v1/applications/{id}/cv-screening-decision` (`passed=true` → `INTERVIEW` + email mời AI interview; `false` → `FAILED`, vẫn `IN_REVIEW`).
 - PARTIAL = 0.5 credit. UNKNOWN/MISSING = 0. Required UNKNOWN/MISSING đưa vào `requiredMissing`.
 - Gemini API lỗi hoặc không có key → heuristic extract; trọng số semantic gộp vào required (theo weight của Job).
 - Trọng số CV **không hard-code** trong scoring. Đọc `job_screening_configs` của Job. Rank-v1 35/15/30/20 và Gate Screening là hệ thống khác.

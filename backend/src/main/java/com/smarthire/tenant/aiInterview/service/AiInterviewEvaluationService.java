@@ -370,7 +370,9 @@ public class AiInterviewEvaluationService {
         history.save(row);
         application.setStatus(next);
         if (passed) stages.findByJob_IdOrderBySortOrderAsc(application.getJob().getId()).stream()
-                .filter(stage -> "Assessment".equalsIgnoreCase(stage.getName())).findFirst().ifPresent(application::setStage);
+                .filter(stage -> "ASSESSMENT".equalsIgnoreCase(stage.getStageCode()))
+                .findFirst()
+                .ifPresent(application::setStage);
         activity.record(interview, "APPLICATION_STATUS_CHANGED", previous + " -> " + next + "; stage history saved");
         boolean assessmentReady = passed && !tests.findByJob_IdAndStatusOrderByIdDesc(application.getJob().getId(), TestStatus.PUBLISHED).isEmpty();
         if (passed) {

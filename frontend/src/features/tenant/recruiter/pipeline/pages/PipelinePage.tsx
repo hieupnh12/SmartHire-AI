@@ -1,6 +1,9 @@
 import { useMemo, useState } from "react";
 import { Archive, ArrowRight, BriefcaseBusiness, CheckCircle2, FilterX, LayoutGrid, List, MoreHorizontal, Search, SlidersHorizontal, Sparkles, UserRoundCheck, Users, Video, X, type LucideIcon } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "react-router-dom";
+import { jobApi } from "@/api/tenant/jobApi";
+import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
 
 type ViewMode = "detail" | "compact";
@@ -87,6 +90,13 @@ function CandidateCard({ candidate, compact }: { candidate: Candidate; compact: 
 
 export function PipelinePage() {
   const { id } = useParams<{ id: string }>();
+  const jobId = id && /^\d+$/.test(id) ? id : undefined;
+  const jobQuery = useQuery({
+    queryKey: queryKeys.jobs.detail(jobId ?? 0),
+    queryFn: () => jobApi.get(jobId!),
+    enabled: Boolean(jobId),
+  });
+  const jobStages = jobQuery.data?.data?.stages ?? [];
   const [view, setView] = useState<ViewMode>("detail");
   const [query, setQuery] = useState("");
   const [minimumScore, setMinimumScore] = useState(60);
@@ -115,6 +125,26 @@ export function PipelinePage() {
     </aside>
 
     <div className="min-w-0 py-4 sm:py-6 xl:col-start-2 xl:h-full xl:min-h-0">
+    {jobId && (
+      <div className="mb-4 rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-alt)]/80 px-4 py-3 text-sm">
+        <p className="font-semibold">Quy trình thật của job</p>
+        <p className="mt-1 text-[var(--color-on-surface-variant)]">
+          {jobStages.length > 0
+            ? [...jobStages]
+                .sort((a, b) => a.sortOrder - b.sortOrder)
+                .map((s) => s.name)
+                .join(" → ")
+            : "Đang tải…"}
+        </p>
+        <p className="mt-2 text-[var(--color-on-surface-variant)]">
+          Bảng kanban bên dưới đang dùng dữ liệu demo. Chỉnh giai đoạn tại{" "}
+          <Link to={`/recruiter/jobs/${jobId}#recruitment-stages`} className="font-semibold text-brand-primary hover:underline">
+            Thiết lập quy trình
+          </Link>
+          .
+        </p>
+      </div>
+    )}
     <div className="-mr-4 overflow-x-auto overflow-y-hidden overscroll-contain sm:-mr-6 lg:-mr-10 xl:h-full [scrollbar-color:var(--color-outline-variant)_transparent] [scrollbar-width:thin]"><div className="flex h-[calc(100dvh-9rem)] min-h-[480px] min-w-max items-stretch gap-3 pb-3 xl:h-full xl:min-h-0">{stages.map((stage) => { const StageIcon = stage.icon; const rows = filtered.filter((candidate) => candidate.stage === stage.id); return <section key={stage.id} className={cn("flex h-full w-[276px] flex-col overflow-hidden rounded-xl border border-[var(--color-border-default)] p-2.5 last:rounded-r-none", stage.id === "hired" ? "bg-[var(--color-primary-soft)]/55" : "bg-[var(--color-surface-container-low)]/75")}><header className="mb-2 flex shrink-0 items-center gap-2 px-1 py-1"><span className={cn("grid size-7 place-items-center rounded-lg text-white", stage.color)}><StageIcon className="size-3.5" /></span><h2 className="flex-1 text-sm font-semibold">{stage.label}</h2><span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold">{rows.length}/{stage.count}</span><button type="button" className="grid size-7 place-items-center rounded-md text-[var(--color-outline)] hover:bg-white" aria-label={`Tùy chọn ${stage.label}`}><MoreHorizontal className="size-4" /></button></header><div className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain pr-1 [scrollbar-color:var(--color-outline-variant)_transparent] [scrollbar-width:thin]">{rows.map((candidate) => <CandidateCard key={candidate.id} candidate={candidate} compact={view === "compact"} />)}{rows.length === 0 && <div className="grid min-h-28 place-items-center rounded-xl border border-dashed border-[var(--color-outline-variant)] bg-white/55 px-4 text-center text-[11px] text-[var(--color-on-surface-variant)]">Không có ứng viên phù hợp</div>}</div></section>; })}</div></div>
     </div>
 

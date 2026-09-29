@@ -43,6 +43,7 @@ Quản lý application theo job: apply từ candidate, lọc/phân trang, hồ s
 | GET | `/api/v1/applications/{id}` |
 | PATCH | `/api/v1/applications/{id}` |
 | POST | `/api/v1/applications/{id}/status` · `/reject` · `/archive` · `/restore` · `/withdraw` |
+| POST | `/api/v1/applications/{id}/cv-screening-decision` — recruiter cho qua / không đạt vòng CV (job `MANUAL`) |
 | GET | `/api/v1/applications/{id}/history` |
 
 ## Database liên quan

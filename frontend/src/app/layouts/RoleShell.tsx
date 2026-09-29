@@ -2,6 +2,7 @@ import { Bell, CircleHelp, Clock3, Home, LogOut, Search, Sparkles, type LucideIc
 import { useEffect, useState, type FormEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { workspaceOf } from "@/features/tenant/auth/workspace";
 import { Button } from "@/components/ux/Button";
 import { HeaderActionsMenu } from "@/components/ux/HeaderActionsMenu";
 import { LanguageSwitcher } from "@/components/ux/LanguageSwitcher";
@@ -119,6 +120,8 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
     : links;
   const showRecruiterNotifications =
     !isRecruiterWorkspace || hasRecruiterFeature(user?.permissions, "NOTIFICATIONS");
+  const showAdminBackBanner =
+    isRecruiterWorkspace && !!user && workspaceOf(user.role, user.workspace) === "ADMIN";
   useEffect(() => {
     if (profileQuery.data?.success && profileQuery.data.data) setUser(profileQuery.data.data);
   }, [profileQuery.data, setUser]);
@@ -210,7 +213,13 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
 
             {adminGroups.map((group, index) => {
               const GroupIcon = group.icon;
-              const groupIsActive = openAdminGroup === group.id || group.items.some((item) => location.pathname === `${basePath}${item.to}`);
+              const groupIsActive =
+                openAdminGroup === group.id ||
+                group.items.some((item) =>
+                  item.to.startsWith("/recruiter")
+                    ? location.pathname === "/recruiter" || location.pathname.startsWith("/recruiter/")
+                    : location.pathname === `${basePath}${item.to}`,
+                );
               return (
                 <div key={group.id} className="relative" style={{ order: index < 2 ? index + 1 : index + 2 }}>
                   <Tooltip content={`${t(group.labelKey)} · ${t(group.descriptionKey ?? group.labelKey)}`} side="right" disabled={openAdminGroup === group.id} className="w-full">
@@ -246,7 +255,7 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
                             );
                           }
                           return (
-                            <NavLink key={item.to} to={`${basePath}${item.to}`} role="menuitem" onClick={() => setOpenAdminGroup(null)} className={({ isActive }) => cn("flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-primary", isActive ? "border-brand-primary/30 bg-[var(--color-primary-soft)] text-brand-primary" : "border-transparent hover:border-[var(--color-border-default)] hover:bg-[var(--color-surface-alt)]")}>
+                            <NavLink key={item.to} to={item.to.startsWith("/recruiter") ? item.to : `${basePath}${item.to}`} role="menuitem" onClick={() => setOpenAdminGroup(null)} className={({ isActive }) => cn("flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-primary", isActive ? "border-brand-primary/30 bg-[var(--color-primary-soft)] text-brand-primary" : "border-transparent hover:border-[var(--color-border-default)] hover:bg-[var(--color-surface-alt)]")}>
                               {ItemIcon && <span className="grid size-10 shrink-0 place-items-center rounded-xl border border-[var(--color-border-default)] bg-white"><ItemIcon className="size-5" aria-hidden="true" /></span>}
                               <span className="truncate text-sm font-semibold">{label}</span>
                             </NavLink>
@@ -495,6 +504,20 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
           </nav>}
         </div>}
       </header>
+      {showAdminBackBanner && (
+        <div
+          className="border-b border-[var(--color-border-default)] bg-[var(--color-primary-soft)]/60 px-4 py-2 text-center text-sm text-[var(--color-on-surface)] sm:px-6 lg:px-10"
+          role="status"
+        >
+          Bạn đang ở workspace tuyển dụng.{" "}
+          <Link
+            to="/internal/admin"
+            className="font-semibold text-brand-primary underline underline-offset-2 hover:text-brand-primary-hover"
+          >
+            Quay lại bảng điều khiển quản trị
+          </Link>
+        </div>
+      )}
       <main id="main-content" className={cn("mx-auto", isRecruiterDashboard ? "w-full max-w-none p-0" : isRecruiterBoard ? "w-full max-w-none px-4 sm:px-6 lg:px-10 xl:h-[calc(100dvh-7.5rem)] xl:overflow-hidden" : "max-w-[1440px] px-4 py-6 sm:px-6 sm:py-8 lg:px-10")}>
         <Outlet />
       </main>

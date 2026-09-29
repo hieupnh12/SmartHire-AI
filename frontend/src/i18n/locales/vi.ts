@@ -92,6 +92,7 @@ export const vi: Messages = {
     pipelineSettings: "Quy trình",
     recruiterAssignments: "Phân công",
     publishedJobs: "Job và ứng viên",
+    viewRecruitmentReadOnly: "Workspace tuyển dụng",
     recruitmentAnalytics: "Phân tích",
     auditLogs: "Kiểm toán",
     adminCompany: "Doanh nghiệp",
