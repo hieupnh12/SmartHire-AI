@@ -35,6 +35,9 @@ public class RecruitmentStage {
     @JoinColumn(name = "job_id", nullable = false)
     Job job;
 
+    @Column(name = "stage_code", nullable = false, length = 32)
+    String stageCode;
+
     @Column(nullable = false, length = 128)
     String name;
 
@@ -43,4 +46,7 @@ public class RecruitmentStage {
 
     @Column(name = "is_terminal", nullable = false)
     boolean terminal;
+
+    @Column(name = "active", nullable = false)
+    boolean active = true;
 }

@@ -161,7 +161,7 @@ export function AppRouter() {
         </Route>
       </Route>
 
-      <Route element={<RoleRoute workspaces={["RECRUITER"]} />}>
+      <Route element={<RoleRoute workspaces={["RECRUITER", "ADMIN"]} />}>
         <Route
           path="/recruiter"
           element={

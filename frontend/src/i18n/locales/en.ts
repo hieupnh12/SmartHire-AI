@@ -99,6 +99,7 @@ export const en = {
     pipelineSettings: "Pipeline setup",
     recruiterAssignments: "Assignments",
     publishedJobs: "Jobs and applicants",
+    viewRecruitmentReadOnly: "Recruitment workspace",
     recruitmentAnalytics: "Analytics",
     auditLogs: "Audit logs",
     adminCompany: "Company",

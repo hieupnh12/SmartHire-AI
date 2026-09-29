@@ -33,6 +33,7 @@ export type UserProfile = {
   bio?: string | null;
   headline?: string | null;
   permissions?: string[];
+  recruiterReadOnly?: boolean;
 };
 
 export type CandidateProfile = {

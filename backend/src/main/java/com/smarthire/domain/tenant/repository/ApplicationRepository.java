@@ -23,6 +23,7 @@ public interface ApplicationRepository extends JpaRepository<Application, Long> 
     List<Application> findByCandidate_IdOrderByIdDesc(Long candidateId);
     long countByJob_Id(Long jobId);
     long countByCandidate_Id(Long candidateId);
+    long countByStage_Id(Long stageId);
 
     @Query("""
             select count(a) from Application a

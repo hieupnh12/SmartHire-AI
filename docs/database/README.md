@@ -18,7 +18,7 @@
 | Khoá ngoại tenant | 77 theo pipeline repo (72 sau V26; V27 thêm 2 FK screening/gate; V30 thêm 3 FK `job_assignments`) |
 | Ràng buộc UNIQUE tenant | V25/V26 không thêm UNIQUE. V27 thêm UNIQUE `gate_scores.application_id`. V30 thêm `uk_job_assignments_job_user` |
 | Số file migration trong repo | 44 (20 master + 24 tenant); V9 redesign nằm ngoài pipeline |
-| Cập nhật lần cuối | Tenant `V32`, ngày 2026-09-28. Screening, assignment và landing từ main được đánh số V27–V32 để không trùng V13 và V21–V26 của nhánh này |
+| Cập nhật lần cuối | Tenant `V34`, ngày 2026-09-28. V33 thêm `stage_code` + `active` trên `recruitment_stages`; V34 thêm `cvs.is_application_copy` |
 | Dọn legacy V21 | Xóa 19 bảng và dữ liệu legacy, xóa 2 cột ID legacy trong ranking; không chuyển ID cũ sang bản ghi mới |
 | Metadata assessment 2026-09-25 | V13: `tests.created_by/updated_at`, `questions.difficulty/skill/explanation` cho Excel/UI authoring |
 | Sửa lỗi assessment 2026-09-24 | V10/V11 khớp checksum lịch sử; V12 tạo schema mới và giữ bảng cũ; migration lỗi phải chặn mở tenant pool |
@@ -571,7 +571,7 @@ của màn assessment hiện tại.
 | `Job` | Tin tuyển dụng đầy đủ: mô tả, trách nhiệm, phúc lợi, dải lương, headcount, deadline, `work_mode`, học vấn tối thiểu | Vòng đời `DRAFT → PUBLISHED → PAUSED → CLOSED → ARCHIVED`, có `published_at`, `paused_at`, `closed_at` và `deleted_at` để xoá mềm. `salary_visible` điều khiển hiển thị lương ra trang tuyển dụng công khai |
 | `Skill` | Từ điển kỹ năng dùng chung trong một tenant | `aliases_json` gom các biến thể tên về một chuẩn |
 | `JobSkill` | Kỹ năng mà job yêu cầu | Bảng nối N-N, mang thêm `weight`, `required`, `min_level` để phục vụ chấm điểm khớp |
-| `RecruitmentStage` | Các vòng tuyển do recruiter tự định nghĩa cho từng job | `sort_order` quyết định thứ tự, `is_terminal` đánh dấu vòng kết thúc |
+| `RecruitmentStage` | Sáu vòng catalog cố định mỗi job (Applied→Hired); recruiter sắp xếp/ẩn vòng giữa | `stage_code`, `sort_order`, `active`, `is_terminal` |
 
 ### 5.4 Tenant — Application pipeline
 
@@ -1058,9 +1058,11 @@ Hai pipeline dùng **hai phương ngữ SQL khác nhau** và không thể dùng 
 | V30 | `V30__job_assignments.sql` | `job_assignments`: recruiter phụ trách job, kèm backfill người tạo job. Đánh lại từ V16 của main |
 | V31 | `V31__job_screening_mode.sql` | `jobs.screening_mode` `AUTO` hoặc `MANUAL`. Đánh lại từ V17 của main |
 | V32 | `V32__create_landing_page_settings.sql` | Bảng `landing_page_settings`. Đánh lại từ V18 của main |
+| V33 | `V33__recruitment_stage_catalog.sql` | `recruitment_stages.stage_code`, `active`; unique `(job_id, stage_code)` |
+| V34 | `V34__cv_application_copy.sql` | `cvs.is_application_copy`: mỗi đơn ứng tuyển có bản sao CV riêng, nộp job khác không kéo CV của đơn cũ |
 
 V9 redesign cũ được giữ nguyên tại `db/migration-archive/`, **ngoài** location Flyway.
-Tenant tạo mới chạy V1–V13 rồi V21–V32: 60 bảng hiện hành (gồm 5 bảng analytics V9), chưa tính history.
+Tenant tạo mới chạy V1–V13 rồi V21–V34: 60 bảng hiện hành (gồm 5 bảng analytics V9), chưa tính history.
 V9 analytics đã có source trong checkout hiện tại. Tuy nhiên DB ttqt có V13–V20 khác checkout;
 không dùng `repair` để đổi checksum hoặc giả mạo lịch sử. Việc đồng bộ lịch sử này là task riêng.
 V27–V32 là schema screening, assignment và landing lấy từ main, đánh số sau V26 để không đè V13 và không lấp V14–V20.

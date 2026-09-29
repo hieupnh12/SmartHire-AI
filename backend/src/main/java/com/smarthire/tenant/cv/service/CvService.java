@@ -229,7 +229,7 @@ public class CvService {
     @Transactional(readOnly = true)
     public List<CvSummary> mine() {
         User actor = access.actor();
-        return cvs.findByUser_IdOrderByIdDesc(actor.getId()).stream()
+        return cvs.findByUser_IdAndApplicationCopyFalseOrderByIdDesc(actor.getId()).stream()
                 .map(cv -> mapper.summary(cv, null))
                 .toList();
     }

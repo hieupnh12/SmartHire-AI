@@ -45,7 +45,7 @@ public class JobMapper {
     }
 
     public JobDetail detail(Job job, List<JobSkillView> skills, List<StageView> stages, long applications,
-            JobScreeningConfig screening) {
+            JobScreeningConfig screening, boolean canEditRecruitmentWorkflow) {
         return new JobDetail(
                 job.getId(),
                 job.getTitle(),
@@ -77,7 +77,8 @@ public class JobMapper {
                 skills,
                 stages,
                 cvScreening(screening),
-                gateScreening(screening));
+                gateScreening(screening),
+                canEditRecruitmentWorkflow);
     }
 
     public CvScreeningConfigView cvScreening(JobScreeningConfig config) {
@@ -122,7 +123,18 @@ public class JobMapper {
     }
 
     public StageView stage(RecruitmentStage stage) {
-        return new StageView(stage.getId(), stage.getName(), stage.getSortOrder(), stage.isTerminal());
+        String name = stage.getName();
+        var code = com.smarthire.domain.enums.RecruitmentStageCode.fromCode(stage.getStageCode());
+        if (code.isPresent()) {
+            name = code.get().defaultName();
+        }
+        return new StageView(
+                stage.getId(),
+                stage.getStageCode(),
+                name,
+                stage.getSortOrder(),
+                stage.isTerminal(),
+                stage.isActive());
     }
 
     public JobSkillView skill(JobSkill row) {

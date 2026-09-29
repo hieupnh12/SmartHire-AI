@@ -97,6 +97,29 @@ public class TenantSchemaBootstrap {
             )
             """;
 
+    private static final String BACKFILL_STAGE_CODES = """
+            UPDATE recruitment_stages rs
+                INNER JOIN (
+                    SELECT id,
+                           CASE rn
+                               WHEN 1 THEN 'APPLIED'
+                               WHEN 2 THEN 'SCREENING'
+                               WHEN 3 THEN 'ASSESSMENT'
+                               WHEN 4 THEN 'INTERVIEW'
+                               WHEN 5 THEN 'OFFER'
+                               WHEN 6 THEN 'HIRED'
+                               ELSE CONCAT('LEGACY_', rn)
+                           END AS mapped_code
+                    FROM (
+                        SELECT id,
+                               ROW_NUMBER() OVER (PARTITION BY job_id ORDER BY sort_order, id) AS rn
+                        FROM recruitment_stages
+                    ) ranked
+                ) mapped ON rs.id = mapped.id
+            SET rs.stage_code = mapped.mapped_code
+            WHERE rs.stage_code IS NULL
+            """;
+
     public void apply(DataSource dataSource) {
         try (Connection connection = dataSource.getConnection(); Statement statement = connection.createStatement()) {
             statement.execute(CREATE_ROLES);
@@ -109,6 +132,8 @@ public class TenantSchemaBootstrap {
             widenRoleColumn(statement, "member_invitations", "role");
             widenRoleColumn(statement, "role_permissions", "role");
             seedDefaultFeatures(statement);
+            ensureRecruitmentStageCatalog(statement);
+            ensureCvApplicationCopy(statement);
         } catch (SQLException ex) {
             log.error("Failed to ensure tenant role tables", ex);
             throw new IllegalStateException("Failed to ensure tenant role tables", ex);
@@ -124,6 +149,39 @@ public class TenantSchemaBootstrap {
             return;
         }
         statement.execute("ALTER TABLE `" + table + "` MODIFY COLUMN `" + column + "` VARCHAR(64) NOT NULL");
+    }
+
+    /** Mirrors V33 for tenants whose Flyway history skipped it (ignored/future versions). */
+    private static void ensureRecruitmentStageCatalog(Statement statement) throws SQLException {
+        if (!tableExists(statement, "recruitment_stages")) {
+            return;
+        }
+        if (!columnExists(statement, "recruitment_stages", "stage_code")) {
+            statement.execute("ALTER TABLE recruitment_stages ADD COLUMN stage_code VARCHAR(32) NULL AFTER job_id");
+            statement.execute(BACKFILL_STAGE_CODES);
+        }
+        if (!columnExists(statement, "recruitment_stages", "active")) {
+            statement.execute(
+                    "ALTER TABLE recruitment_stages ADD COLUMN active TINYINT(1) NOT NULL DEFAULT 1 AFTER is_terminal");
+        }
+        if (columnNullable(statement, "recruitment_stages", "stage_code")) {
+            statement.execute(
+                    "UPDATE recruitment_stages SET stage_code = CONCAT('LEGACY_', id) WHERE stage_code IS NULL");
+            statement.execute("ALTER TABLE recruitment_stages MODIFY COLUMN stage_code VARCHAR(32) NOT NULL");
+        }
+        if (!indexExists(statement, "recruitment_stages", "uk_recruitment_stages_job_code")) {
+            statement.execute(
+                    "ALTER TABLE recruitment_stages ADD UNIQUE KEY uk_recruitment_stages_job_code (job_id, stage_code)");
+        }
+    }
+
+    /** Mirrors V34 for tenants whose Flyway history skipped it. */
+    private static void ensureCvApplicationCopy(Statement statement) throws SQLException {
+        if (!tableExists(statement, "cvs") || columnExists(statement, "cvs", "is_application_copy")) {
+            return;
+        }
+        statement.execute(
+                "ALTER TABLE cvs ADD COLUMN is_application_copy TINYINT(1) NOT NULL DEFAULT 0 AFTER application_id");
     }
 
     private static void backfillJobAssignments(Statement statement) throws SQLException {
@@ -152,6 +210,30 @@ public class TenantSchemaBootstrap {
         try (ResultSet rs = statement.executeQuery(
                 "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = '"
                         + table + "'")) {
+            return rs.next() && rs.getLong(1) > 0;
+        }
+    }
+
+    private static boolean columnExists(Statement statement, String table, String column) throws SQLException {
+        try (ResultSet rs = statement.executeQuery(
+                "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE()"
+                        + " AND table_name = '" + table + "' AND column_name = '" + column + "'")) {
+            return rs.next() && rs.getLong(1) > 0;
+        }
+    }
+
+    private static boolean columnNullable(Statement statement, String table, String column) throws SQLException {
+        try (ResultSet rs = statement.executeQuery(
+                "SELECT IS_NULLABLE FROM information_schema.columns WHERE table_schema = DATABASE()"
+                        + " AND table_name = '" + table + "' AND column_name = '" + column + "'")) {
+            return rs.next() && "YES".equalsIgnoreCase(rs.getString(1));
+        }
+    }
+
+    private static boolean indexExists(Statement statement, String table, String index) throws SQLException {
+        try (ResultSet rs = statement.executeQuery(
+                "SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema = DATABASE()"
+                        + " AND table_name = '" + table + "' AND index_name = '" + index + "'")) {
             return rs.next() && rs.getLong(1) > 0;
         }
     }
