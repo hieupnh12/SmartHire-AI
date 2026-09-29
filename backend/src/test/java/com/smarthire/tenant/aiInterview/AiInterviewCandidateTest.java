@@ -8,9 +8,12 @@ import com.smarthire.domain.tenant.entity.*;
 import com.smarthire.domain.tenant.repository.*;
 import com.smarthire.tenant.aiInterview.dto.request.UpsertAiAnswerRequest;
 import com.smarthire.tenant.aiInterview.mapper.AiInterviewMapper;
+import com.smarthire.tenant.aiInterview.dto.request.AiInterviewConfigRequest;
+import com.smarthire.tenant.aiInterview.dto.request.InterviewPolicy;
 import com.smarthire.tenant.aiInterview.service.AiInterviewActivityLog;
 import com.smarthire.tenant.aiInterview.service.AiInterviewService;
 import com.smarthire.tenant.aiInterview.service.AiInterviewInvitationService;
+import com.smarthire.tenant.aiInterview.service.InterviewPolicies;
 import com.smarthire.tenant.cv.service.CvAccess;
 import java.math.BigDecimal;
 import java.util.List;
@@ -166,6 +169,33 @@ class AiInterviewCandidateTest {
         verifyNoInteractions(invitations);
     }
 
+    @Test void existingSnapshotSurvivesJobConfigurationChanges() {
+        ownsApplicationAndInterview();
+        InterviewPolicies.snapshot(interview);
+        application.getJob().setAiInterviewEnabled(false);
+        application.getJob().setAiInterviewPassingScore(new BigDecimal("99"));
+        when(interviews.findByApplication_IdOrderByIdDesc(7L)).thenReturn(List.of(interview));
+        when(questions.findByAiInterview_IdOrderByQuestionOrderAscIdAsc(11L)).thenReturn(List.of(question));
+        var response = service.requestStart(7L);
+        assertThat(response.status()).isEqualTo(AiInterviewStatus.IN_PROGRESS);
+        assertThat(response.passingScore()).isEqualByComparingTo("70");
+        assertThat(response.expiresAt()).isNotNull();
+    }
+
+    @Test void lateAnswerSubmitsSavedPaperAndRejectsNewContent() {
+        owned();
+        InterviewPolicies.snapshot(interview);
+        interview.setStatus(AiInterviewStatus.IN_PROGRESS);
+        interview.setExpiresAt(java.time.Instant.now().minusSeconds(1));
+        when(questions.findByIdAndAiInterview_Id(20L, 11L)).thenReturn(Optional.of(question));
+        when(questions.findByAiInterview_IdOrderByQuestionOrderAscIdAsc(11L)).thenReturn(List.of(question));
+        assertThatThrownBy(() -> service.upsertAnswer(11L, 20L, new UpsertAiAnswerRequest("Late content", null, null)))
+                .isInstanceOfSatisfying(BusinessException.class, ex -> assertThat(ex.getCode()).isEqualTo("AI_INTERVIEW_EXPIRED"));
+        assertThat(interview.getStatus()).isEqualTo(AiInterviewStatus.SCORING);
+        assertThat(interview.getCompletedAt()).isNotNull();
+        verify(answers).save(argThat(answer -> "".equals(answer.getAnswerText())));
+    }
+
     @Test void requestStartRejectsJobWithoutAiInterview() {
         ownsApplication();
         application.getJob().setAiInterviewEnabled(false);
@@ -191,6 +221,29 @@ class AiInterviewCandidateTest {
         assertThatThrownBy(() -> service.requestStart(7L))
                 .isInstanceOfSatisfying(BusinessException.class, ex -> assertThat(ex.getCode()).isEqualTo("AI_INTERVIEW_ALREADY_COMPLETED"));
         verifyNoInteractions(invitations);
+    }
+
+    @Test void plannedAttemptAcceptsBlankAnswersAsZero() {
+        owned();
+        interview.setStatus(AiInterviewStatus.IN_PROGRESS);
+        interview.setConfigSnapshotJson(InterviewPolicies.json(new AiInterviewConfigRequest(
+                true, new BigDecimal("70"), 1, null, InterviewPolicies.defaults())));
+        when(questions.findByAiInterview_IdOrderByQuestionOrderAscIdAsc(11L)).thenReturn(List.of(question));
+        when(answers.save(any())).thenAnswer(call -> call.getArgument(0));
+        assertThat(service.complete(11L).status()).isEqualTo(AiInterviewStatus.SCORING);
+        verify(answers).save(argThat(answer -> "".equals(answer.getAnswerText())));
+    }
+
+    @Test void failedAttemptWithinLimitOpensAnotherAttempt() {
+        ownsApplication();
+        interview.setStatus(AiInterviewStatus.FAILED);
+        interview.setAttemptNumber(1);
+        var policy = new InterviewPolicy(30, 2, false, 3, 30, 0, InterviewPolicies.defaults().weights(), List.of(), List.of());
+        interview.setConfigSnapshotJson(InterviewPolicies.json(new AiInterviewConfigRequest(true, new BigDecimal("70"), 1, null, policy)));
+        var next = AiInterview.builder().id(12L).application(application).status(AiInterviewStatus.GENERATING).attemptNumber(2).build();
+        when(interviews.findByApplication_IdOrderByIdDesc(7L)).thenReturn(List.of(interview));
+        when(invitations.openNextAttempt(7L)).thenReturn(next);
+        assertThat(service.requestStart(7L).id()).isEqualTo(12L);
     }
 
     @Test void requestStartRequeuesFailedGenerationWithoutNewAttempt() {
@@ -241,6 +294,43 @@ class AiInterviewCandidateTest {
         when(questions.countByAiInterview_Id(11L)).thenReturn(4L);
         service.deleteQuestion(11L, 20L);
         assertThat(interview.getStatus()).isEqualTo(AiInterviewStatus.CREATED);
+    }
+
+    @Test void candidateCannotReadQuestionsBeforeStartingButSeesRoadmap() {
+        asCandidate();
+        var policy = new InterviewPolicy(25, 1, true, 3, 30, 1, InterviewPolicies.defaults().weights(), List.of("Java"),
+                List.of(new InterviewPolicy.Stage("Java Core", 2, List.of("TECHNICAL_KNOWLEDGE", "PROBLEM_SOLVING",
+                        "PRACTICAL_EXPERIENCE", "BEHAVIORAL_SITUATIONAL"), List.of("Java"))));
+        interview.setConfigSnapshotJson(InterviewPolicies.json(new AiInterviewConfigRequest(true, new BigDecimal("70"), 2, null, policy)));
+        when(interviews.findById(11L)).thenReturn(Optional.of(interview));
+        var response = service.get(11L);
+        assertThat(response.questions()).isEmpty();
+        verifyNoInteractions(questions);
+        assertThat(response.durationMinutes()).isEqualTo(25);
+        assertThat(response.roadmap()).extracting(r -> r.title() + ":" + r.kind() + ":" + r.questionCount())
+                .containsExactly("Java Core:OPEN:2", "Mini Assessment:MCQ:3");
+    }
+
+    @Test void miniAssessmentAnswerMustBeAnOptionIndex() {
+        owned();
+        interview.setStatus(AiInterviewStatus.IN_PROGRESS);
+        question.setCorrectOption(2);
+        when(questions.findByIdAndAiInterview_Id(20L, 11L)).thenReturn(Optional.of(question));
+        assertThatThrownBy(() -> service.upsertAnswer(11L, 20L, new UpsertAiAnswerRequest("C", null, null)))
+                .isInstanceOfSatisfying(BusinessException.class, ex -> assertThat(ex.getCode()).isEqualTo("AI_ANSWER_BAD_OPTION"));
+        verify(answers, never()).save(any());
+    }
+
+    @Test void plannedSessionRejectsManualQuestionStructureChanges() {
+        staffEditsQuestions();
+        interview.setConfigSnapshotJson(InterviewPolicies.json(new AiInterviewConfigRequest(
+                true, new BigDecimal("70"), 1, null, InterviewPolicies.defaults())));
+        assertThatThrownBy(() -> service.addQuestion(11L, new com.smarthire.tenant.aiInterview.dto.request.AiQuestionRequest("Extra", "TECHNICAL", 9)))
+                .isInstanceOfSatisfying(BusinessException.class, ex -> assertThat(ex.getCode()).isEqualTo("AI_INTERVIEW_PLANNED"));
+        assertThatThrownBy(() -> service.deleteQuestion(11L, 20L))
+                .isInstanceOfSatisfying(BusinessException.class, ex -> assertThat(ex.getCode()).isEqualTo("AI_INTERVIEW_PLANNED"));
+        verify(questions, never()).save(any());
+        verify(questions, never()).delete(any());
     }
 
     @Test void cannotManuallyChangeSessionStatus() {

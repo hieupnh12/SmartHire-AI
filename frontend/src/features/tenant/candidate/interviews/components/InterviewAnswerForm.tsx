@@ -16,14 +16,16 @@ type Props = {
   disabled: boolean;
   onSaved: (answer: AiAnswer) => void;
   onDirty: (id: number, dirty: boolean) => void;
+  answerDuration: () => number;
+  submitLabel?: string;
 };
 
-export function InterviewAnswerForm({ interviewId, question, disabled, onSaved, onDirty }: Props) {
+export function InterviewAnswerForm({ interviewId, question, disabled, onSaved, onDirty, answerDuration, submitLabel = "Lưu câu trả lời" }: Props) {
   const { register, handleSubmit, reset, formState: { errors, isDirty } } = useForm<z.infer<typeof answerSchema>>({
     resolver: zodResolver(answerSchema), defaultValues: { answerText: question.answer?.answerText ?? "" },
   });
   const save = useMutation({
-    mutationFn: ({ answerText }: z.infer<typeof answerSchema>) => candidateInterviewApi.answer(interviewId, question.id, answerText),
+    mutationFn: ({ answerText }: z.infer<typeof answerSchema>) => candidateInterviewApi.answer(interviewId, question.id, answerText, answerDuration()),
     onSuccess: answer => { reset({ answerText: answer.answerText ?? "" }); onSaved(answer); },
   });
   useEffect(() => { onDirty(question.id, isDirty || save.isPending); }, [question.id, isDirty, save.isPending, onDirty]);
@@ -34,7 +36,7 @@ export function InterviewAnswerForm({ interviewId, question, disabled, onSaved, 
       className="min-h-40 w-full rounded-lg border border-[var(--color-border-default)] bg-surface-muted p-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-primary" />
     {errors.answerText && <p id={`answer-error-${question.id}`} role="alert">{errors.answerText.message}</p>}
     {save.isError && <p role="alert">{getApiErrorMessage(save.error)}</p>}
-    <Button type="submit" disabled={disabled || save.isPending}>{save.isPending ? "Đang lưu…" : "Lưu câu trả lời"}</Button>
+    <Button type="submit" disabled={disabled || save.isPending}>{save.isPending ? "Đang lưu…" : submitLabel}</Button>
     <p role="status" className="text-sm text-[var(--color-on-surface-variant)]">{isDirty ? "Có thay đổi chưa lưu" : question.answer ? "Đã lưu câu trả lời trên hệ thống" : ""}</p>
   </form>;
 }

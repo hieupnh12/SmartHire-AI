@@ -19,6 +19,7 @@ import {
   Plus,
   Search,
   Target,
+  Users,
 } from "lucide-react";
 import { assessmentApi } from "@/api/tenant/assessmentApi";
 import type { JobTest, TestStatus } from "@/api/types/assessment";
@@ -239,6 +240,13 @@ export function AssessmentsPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
+          <Link
+            to={`${basePath}/submissions`}
+            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-[var(--color-primary)] bg-[var(--color-primary-subtle)] px-4 text-sm font-semibold text-[var(--color-primary-hover)] transition-colors hover:bg-[var(--color-primary-soft)]"
+          >
+            <Users className="size-4" aria-hidden="true" />
+            Theo dõi bài làm
+          </Link>
           <Link
             to={`${basePath}/question-bank`}
             className="inline-flex min-h-10 items-center justify-center rounded-full border border-[var(--color-primary)] bg-[var(--color-primary-subtle)] px-4 text-sm font-semibold text-[var(--color-primary-hover)] transition-colors hover:bg-[var(--color-primary-soft)]"

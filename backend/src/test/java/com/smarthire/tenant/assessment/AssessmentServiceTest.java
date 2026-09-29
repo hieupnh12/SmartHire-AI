@@ -13,6 +13,7 @@ import com.smarthire.multitenancy.context.TenantContext;
 import com.smarthire.tenant.assessment.controller.AssessmentController;
 import com.smarthire.tenant.assessment.dto.request.JobTestRequest;
 import com.smarthire.tenant.assessment.mapper.AssessmentMapper;
+import com.smarthire.tenant.assessment.service.AssessmentInvitationService;
 import com.smarthire.tenant.assessment.service.AssessmentService;
 import com.smarthire.tenant.cv.service.CvAccess;
 import java.math.BigDecimal;
@@ -147,7 +148,7 @@ class AssessmentServiceTest {
     @Test
     void controllerRejectsInvalidRequestBeforeService() throws Exception {
         AssessmentService mockService = mock(AssessmentService.class);
-        MockMvcBuilders.standaloneSetup(new AssessmentController(mockService)).build()
+        MockMvcBuilders.standaloneSetup(new AssessmentController(mockService, mock(AssessmentInvitationService.class))).build()
                 .perform(post("/api/v1/assessments/create_draft_test").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"jobId\":0,\"title\":\" \",\"durationMinutes\":0,\"passingScore\":-1}"))
                 .andExpect(status().isBadRequest());

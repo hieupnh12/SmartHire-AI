@@ -18,8 +18,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class AiInterviewEvaluationService {
     private static final Logger log = LoggerFactory.getLogger(AiInterviewEvaluationService.class);
-    static final int MIN_QUESTIONS = 5;
-    static final int MAX_QUESTIONS = 5;
+    static final int MIN_QUESTIONS = 1;
+    static final int MAX_QUESTIONS = 30;
     // Small batches keep every provider response well inside the model output limit.
     static final int QUESTION_BATCH = 10;
     static final int EVALUATION_BATCH = 10;
@@ -30,9 +30,21 @@ public class AiInterviewEvaluationService {
             + " applying them in this role are allowed. Never repeat or paraphrase any item of alreadyAskedQuestions."
             + " Return {\"questions\":[{\"questionText\":\"...\",\"questionType\":\"TECHNICAL|SITUATIONAL|BEHAVIORAL\"}]}."
             + " Do not include answers.";
-    private static final String EVALUATE_INSTRUCTION = "Evaluate each answer using correctness (50%), job relevance (30%),"
-            + " clarity and reasoning (20%). Use score 0-100 for each answer. Return exactly one evaluation for every answerId:"
-            + " {\"evaluations\":[{\"answerId\":1,\"score\":78,\"feedback\":\"...\",\"strengths\":\"...\",\"weaknesses\":\"...\"}]}.";
+    private static final String REFERENCE_FORMAT = "referenceAnswer: a concise correct model answer in Vietnamese; keyPoints: 3-6 items"
+            + " {\"point\":\"one specific idea a correct answer must contain\",\"target\":\"...\"}. When the question has a rubric,"
+            + " target must be exactly one of its competencies or skills and every competency and skill needs at least one key point;"
+            + " without a rubric omit target.";
+    private static final String REFERENCE_INSTRUCTION = "Write the answer key for every supplied interview question before any"
+            + " candidate answer is seen. " + REFERENCE_FORMAT
+            + " Return {\"references\":[{\"questionId\":1,\"referenceAnswer\":\"...\",\"keyPoints\":[{\"point\":\"...\",\"target\":\"...\"}]}]}.";
+    private static final String EVALUATE_INSTRUCTION = "Grade each answer strictly against its rubric.referenceAnswer and"
+            + " rubric.keyPoints (index = 0-based position in rubric.keyPoints). For every key point give score 0-100 for how"
+            + " correctly and completely the answer covers it, and evidence: an exact quote copied verbatim from the answer."
+            + " A key point the answer does not cover scores 0 with empty evidence; an empty, off-topic or meaningless answer"
+            + " scores 0 on every key point. Never credit content that is not written in the answer. Do not judge accent,"
+            + " personality or untested skills. Return exactly one evaluation for every answerId:"
+            + " {\"evaluations\":[{\"answerId\":1,\"keyPoints\":[{\"index\":0,\"score\":80,\"evidence\":\"...\"}],"
+            + "\"feedback\":\"compare with the reference answer\",\"strengths\":\"...\",\"weaknesses\":\"...\"}]}.";
 
     private final AiInterviewRepository interviews;
     private final AiQuestionRepository questions;
@@ -68,7 +80,8 @@ public class AiInterviewEvaluationService {
                 && interview.getStatus() != AiInterviewStatus.SCORING) return;
         AiInterviewStatus phase = interview.getStatus();
         try {
-            AiInterviewEligibility.require(interview.getApplication());
+            if (interview.getConfigSnapshotJson() == null) AiInterviewEligibility.require(interview.getApplication());
+            else AiInterviewEligibility.requireExisting(interview);
             if (phase == AiInterviewStatus.GENERATING) generate(interview);
             else evaluate(interview);
             interview.setErrorMessage(null);
@@ -106,6 +119,7 @@ public class AiInterviewEvaluationService {
     }
 
     private void generate(AiInterview interview) {
+        if (interview.getConfigSnapshotJson() != null) { generatePlanned(interview); return; }
         if (!questions.findByAiInterview_IdOrderByQuestionOrderAscIdAsc(interview.getId()).isEmpty()) {
             throw new IllegalStateException("Questions already exist");
         }
@@ -122,7 +136,7 @@ public class AiInterviewEvaluationService {
             generated.forEach(q -> asked.add(q.getQuestionText()));
             int added = 0;
             JsonNode output = ai.generate(GENERATE_INSTRUCTION, request);
-            log.info("AI interview {} generation call {} returned JSON:\n{}", interview.getId(), call, output.toPrettyString());
+            log.info("AI interview {} generation call {} completed", interview.getId(), call);
             for (JsonNode row : output.path("questions")) {
                 if (added == need) break;
                 String text = row.path("questionText").asText("").trim();
@@ -148,6 +162,7 @@ public class AiInterviewEvaluationService {
     }
 
     private void evaluate(AiInterview interview) {
+        if (interview.getConfigSnapshotJson() != null) { evaluatePlanned(interview); return; }
         var paper = questions.findByAiInterview_IdOrderByQuestionOrderAscIdAsc(interview.getId());
         var saved = new ArrayList<>(answers.findByAiQuestion_IdIn(paper.stream().map(AiQuestion::getId).toList()));
         if (paper.isEmpty() || saved.size() != paper.size() || interview.getPassingScoreSnapshot() == null
@@ -156,14 +171,11 @@ public class AiInterviewEvaluationService {
         }
         saved.sort(Comparator.comparingInt(a -> a.getAiQuestion().getQuestionOrder()));
         var data = context(interview.getApplication());
+        ensureReferences(interview, saved, data);
         List<AiFeedback> validated = new ArrayList<>();
         for (int from = 0; from < saved.size(); from += EVALUATION_BATCH) {
             var chunk = saved.subList(from, Math.min(from + EVALUATION_BATCH, saved.size()));
-            var request = data.deepCopy();
-            var payload = request.putArray("answers");
-            for (var answer : chunk) payload.addObject().put("answerId", answer.getId())
-                    .put("question", answer.getAiQuestion().getQuestionText()).put("answer", answer.getAnswerText());
-            validated.addAll(validate(ai.generate(EVALUATE_INSTRUCTION, request).path("evaluations"), chunk));
+            validated.addAll(grade(ai.generate(EVALUATE_INSTRUCTION, gradingRequest(data, chunk)).path("evaluations"), chunk));
             activity.record(interview, "ANSWERS_BATCH_EVALUATED", validated.size() + "/" + saved.size() + " answers evaluated");
         }
         BigDecimal total = validated.stream().map(AiFeedback::getScore).reduce(BigDecimal.ZERO, BigDecimal::add)
@@ -174,21 +186,163 @@ public class AiInterviewEvaluationService {
         finish(interview, total);
     }
 
-    List<AiFeedback> validate(JsonNode output, List<AiAnswer> saved) {
+
+    private void generatePlanned(AiInterview interview) {
+        if (!questions.findByAiInterview_IdOrderByQuestionOrderAscIdAsc(interview.getId()).isEmpty())
+            throw new IllegalStateException("Questions already exist");
+        var config = InterviewPolicies.config(interview);
+        var data = interview.getContextSnapshotJson() == null ? context(interview.getApplication())
+                : (ObjectNode) InterviewPolicies.tree(interview.getContextSnapshotJson());
+        var policy = config.policy();
+        if (policy.stages().isEmpty()) {
+            var names = new ArrayList<String>();
+            data.path("jobSkills").forEach(skill -> names.add(skill.path("name").asText()));
+            var weights = policy.weights();
+            var active = InterviewPolicies.COMPETENCIES.stream().filter(k -> weights.get(k) > 0).toList();
+            policy = new com.smarthire.tenant.aiInterview.dto.request.InterviewPolicy(policy.durationMinutes(), policy.maxAttempts(),
+                    policy.miniAssessmentEnabled() && !names.isEmpty(), policy.miniQuestionCount(), policy.miniWeight(), 1,
+                    policy.weights(), names, List.of(new com.smarthire.tenant.aiInterview.dto.request.InterviewPolicy.Stage(
+                            "Năng lực và kỹ năng theo Job", config.questionCount(), active, names)));
+            config = new com.smarthire.tenant.aiInterview.dto.request.AiInterviewConfigRequest(config.enabled(), config.passingScore(),
+                    config.questionCount(), config.availableUntil(), policy);
+            interview.setConfigSnapshotJson(InterviewPolicies.json(config));
+        }
+        interview.setContextSnapshotJson(data.toString());
+        var plan = InterviewRubric.plan(policy);
+        List<AiQuestion> generated = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
+        // All MCQs share one provider call; open questions are batched independently.
+        for (String kind : List.of("OPEN", "MCQ")) {
+            var slots = plan.stream().filter(n -> kind.equals(n.path("kind").asText())).toList();
+            for (int from = 0; from < slots.size(); from += QUESTION_BATCH) {
+                var chunk = slots.subList(from, Math.min(from + QUESTION_BATCH, slots.size()));
+                var request = data.deepCopy();
+                request.set("slots", mapper.valueToTree(chunk));
+                request.set("alreadyAskedQuestions", mapper.valueToTree(generated.stream().map(AiQuestion::getQuestionText).toList()));
+                var output = ai.generate("Generate one Vietnamese job interview question for every supplied slot. Respect its stage, skills and competencies. "
+                        + "Return {\"questions\":[{\"slot\":0,\"questionText\":\"...\",\"options\":[\"...\",\"...\",\"...\",\"...\"],\"correctOption\":0,\"explanation\":\"...\","
+                        + "\"referenceAnswer\":\"...\",\"keyPoints\":[{\"point\":\"...\",\"target\":\"...\"}]}]}. "
+                        + "For OPEN omit options/correctOption/explanation and give the answer key, the slot being its rubric: " + REFERENCE_FORMAT + " "
+                        + "For MCQ give four distinct options, exactly one correctOption index 0-3 and explanation, and omit referenceAnswer/keyPoints. "
+                        + "Do not embed answers in the question. Never repeat existing questions.", request).path("questions");
+                if (!output.isArray() || output.size() != chunk.size()) throw new IllegalStateException("Invalid planned question count");
+                Map<Integer, ObjectNode> expected = new HashMap<>();
+                chunk.forEach(slot -> expected.put(slot.path("slot").asInt(), slot));
+                for (var row : output) {
+                    if (!row.path("slot").isIntegralNumber()) throw new IllegalStateException("Invalid question slot");
+                    var slot = expected.remove(row.path("slot").asInt());
+                    if (slot == null) throw new IllegalStateException("Duplicate or unknown question slot");
+                    String text = requiredText(row, "questionText", 10000);
+                    if (!seen.add(text.trim().toLowerCase(Locale.ROOT))) throw new IllegalStateException("Duplicate question");
+                    var question = AiQuestion.builder().aiInterview(interview).questionText(text).questionType(kind)
+                            .questionOrder(slot.path("slot").asInt()).rubricJson(slot.toString()).build();
+                    if (kind.equals("MCQ")) {
+                        var options = row.path("options");
+                        if (!options.isArray() || options.size() != 4 || !row.path("correctOption").isIntegralNumber()
+                                || row.path("correctOption").asInt() < 0 || row.path("correctOption").asInt() > 3)
+                            throw new IllegalStateException("Invalid MCQ answer key");
+                        Set<String> unique = new HashSet<>();
+                        for (var option : options) if (!option.isTextual() || option.asText().isBlank() || option.asText().length() > 2000
+                                || !unique.add(option.asText().trim().toLowerCase(Locale.ROOT))) throw new IllegalStateException("Invalid MCQ options");
+                        question.setOptionsJson(options.toString()); question.setCorrectOption(row.path("correctOption").asInt());
+                        question.setExplanation(requiredText(row, "explanation", 10000));
+                    } else question.setRubricJson(InterviewRubric.withReference(slot.toString(), row));
+                    generated.add(question);
+                }
+            }
+        }
+        generated.sort(Comparator.comparingInt(AiQuestion::getQuestionOrder));
+        questions.saveAll(generated);
+        interview.setStatus(AiInterviewStatus.QUESTIONS_READY);
+        activity.record(interview, "QUESTIONS_GENERATED", generated.size() + " planned questions saved");
+        notify(interview, "AI_INTERVIEW_READY", "AI Interview đã sẵn sàng", "Lộ trình phỏng vấn đã sẵn sàng. Bạn có thể bắt đầu.", false);
+    }
+
+    private void evaluatePlanned(AiInterview interview) {
+        var paper = questions.findByAiInterview_IdOrderByQuestionOrderAscIdAsc(interview.getId());
+        var saved = answers.findByAiQuestion_IdIn(paper.stream().map(AiQuestion::getId).toList());
+        if (paper.isEmpty() || saved.size() != paper.size()) throw new IllegalStateException("Incomplete submitted paper");
+        List<AiFeedback> validated = new ArrayList<>();
+        List<AiAnswer> open = new ArrayList<>();
+        for (var answer : saved) {
+            var question = answer.getAiQuestion();
+            if (answer.getAnswerText() == null || answer.getAnswerText().isBlank() || question.getCorrectOption() != null) {
+                boolean blank = answer.getAnswerText() == null || answer.getAnswerText().isBlank();
+                int score = !blank && question.getCorrectOption() != null && answer.getAnswerText().equals(question.getCorrectOption().toString()) ? 100 : 0;
+                var feedback = AiFeedback.builder().aiAnswer(answer).score(BigDecimal.valueOf(score))
+                        .feedbackText(blank ? "Chưa trả lời: 0 điểm." : question.getExplanation())
+                        .strengths(score == 100 ? "Chọn đúng đáp án." : "Chưa có bằng chứng đạt.")
+                        .weaknesses(score == 100 ? "Không có." : "Cần kiểm chứng thêm kỹ năng của câu hỏi.")
+                        .evaluationJson(InterviewRubric.fixedEvaluation(question, score)).build();
+                validated.add(feedback);
+            } else open.add(answer);
+        }
+        var data = (ObjectNode) InterviewPolicies.tree(interview.getContextSnapshotJson());
+        ensureReferences(interview, open, data);
+        for (int from = 0; from < open.size(); from += EVALUATION_BATCH) {
+            var chunk = open.subList(from, Math.min(from + EVALUATION_BATCH, open.size()));
+            validated.addAll(grade(ai.generate(EVALUATE_INSTRUCTION, gradingRequest(data, chunk)).path("evaluations"), chunk));
+        }
+        var report = InterviewRubric.report(InterviewPolicies.config(interview).policy(), validated);
+        feedbacks.saveAll(validated);
+        interview.setReportJson(report.toString());
+        finish(interview, report.path("overallScore").decimalValue());
+    }
+
+    /** Answer keys are written without seeing candidate answers and reused on every later scoring retry. */
+    private void ensureReferences(AiInterview interview, List<AiAnswer> open, ObjectNode context) {
+        var missing = open.stream().map(AiAnswer::getAiQuestion).filter(q -> !InterviewRubric.hasReference(q)).toList();
+        for (int from = 0; from < missing.size(); from += QUESTION_BATCH) {
+            var chunk = missing.subList(from, Math.min(from + QUESTION_BATCH, missing.size()));
+            var request = context.deepCopy();
+            var rows = request.putArray("questions");
+            for (var question : chunk) {
+                var item = rows.addObject().put("questionId", question.getId()).put("question", question.getQuestionText());
+                if (question.getRubricJson() != null) item.set("rubric", InterviewPolicies.tree(question.getRubricJson()));
+            }
+            var output = ai.generate(REFERENCE_INSTRUCTION, request).path("references");
+            if (!output.isArray() || output.size() != chunk.size()) throw new IllegalStateException("Invalid reference answer count");
+            Map<Long, AiQuestion> byId = new HashMap<>();
+            chunk.forEach(question -> byId.put(question.getId(), question));
+            Map<AiQuestion, String> keys = new HashMap<>();
+            for (var row : output) {
+                var question = byId.remove(row.path("questionId").asLong());
+                if (question == null) throw new IllegalStateException("Duplicate or unknown reference answer");
+                keys.put(question, InterviewRubric.withReference(question.getRubricJson(), row));
+            }
+            keys.forEach(AiQuestion::setRubricJson);
+            questions.saveAll(chunk);
+            activity.record(interview, "REFERENCE_ANSWERS_GENERATED", chunk.size() + " reference answers saved");
+        }
+    }
+
+    private ObjectNode gradingRequest(ObjectNode context, List<AiAnswer> chunk) {
+        var request = context.deepCopy();
+        // CV claims are not evidence that a candidate answered this interview question correctly.
+        request.remove("candidateEvidence");
+        var payload = request.putArray("answers");
+        for (var answer : chunk) payload.addObject().put("answerId", answer.getId())
+                .put("question", answer.getAiQuestion().getQuestionText()).put("answer", answer.getAnswerText())
+                .set("rubric", InterviewPolicies.tree(answer.getAiQuestion().getRubricJson()));
+        return request;
+    }
+
+    List<AiFeedback> grade(JsonNode output, List<AiAnswer> saved) {
         if (!output.isArray() || output.size() != saved.size()) throw new IllegalStateException("Invalid evaluation count");
         Map<Long, AiAnswer> byId = new HashMap<>();
         saved.forEach(answer -> byId.put(answer.getId(), answer));
         List<AiFeedback> result = new ArrayList<>();
         for (JsonNode row : output) {
-            if (!row.path("answerId").isIntegralNumber() || !row.path("score").isNumber()) throw new IllegalStateException("Invalid evaluation");
+            if (!row.path("answerId").isIntegralNumber()) throw new IllegalStateException("Invalid evaluation");
             var answer = byId.remove(row.path("answerId").longValue());
-            var score = row.path("score").decimalValue();
-            if (answer == null || score.signum() < 0 || score.compareTo(new BigDecimal("100")) > 0) throw new IllegalStateException("Invalid evaluation");
+            if (answer == null) throw new IllegalStateException("Invalid evaluation");
+            var evaluation = InterviewRubric.referenceEvaluation(row, answer.getAiQuestion(), answer.getAnswerText());
             var feedback = feedbacks.findByAiAnswer_Id(answer.getId()).orElseGet(() -> AiFeedback.builder().aiAnswer(answer).build());
-            feedback.setScore(score.setScale(2, RoundingMode.HALF_UP));
+            feedback.setScore(evaluation.path("score").decimalValue());
             feedback.setFeedbackText(requiredText(row, "feedback", 10000));
             feedback.setStrengths(requiredText(row, "strengths", 10000));
             feedback.setWeaknesses(requiredText(row, "weaknesses", 10000));
+            feedback.setEvaluationJson(evaluation.toString());
             result.add(feedback);
         }
         return result;
@@ -208,7 +362,8 @@ public class AiInterviewEvaluationService {
                 "Score " + score + "/100; passing score " + interview.getPassingScoreSnapshot());
         var application = interview.getApplication();
         ApplicationStatus previous = application.getStatus();
-        ApplicationStatus next = passed ? ApplicationStatus.ASSESSMENT : ApplicationStatus.FAILED;
+        boolean retry = !passed && InterviewPolicies.canRetry(interview, java.time.Instant.now());
+        ApplicationStatus next = passed ? ApplicationStatus.ASSESSMENT : retry ? ApplicationStatus.INTERVIEW : ApplicationStatus.FAILED;
         var row = new ApplicationStatusHistory();
         row.setApplication(application); row.setFromStatus(previous.name()); row.setToStatus(next.name());
         row.setNote("AI Interview " + interview.getStatus() + ": " + score + "/100; passing score " + interview.getPassingScoreSnapshot());
@@ -225,8 +380,30 @@ public class AiInterviewEvaluationService {
         String body = "Kết quả AI Interview cho vị trí " + application.getJob().getTitle() + ": " + score + "/100. "
                 + (passed ? assessmentReady ? "Bạn đã vượt qua AI Interview. Assessment đã sẵn sàng."
                         : "Bạn đã vượt qua AI Interview. Vòng Assessment đã được mở; nhà tuyển dụng đang chuẩn bị đề."
+                        : retry ? "Bạn chưa đạt ngưỡng " + interview.getPassingScoreSnapshot() + "/100. Bạn còn lượt làm lại trước hạn."
                         : "Bạn chưa đạt ngưỡng " + interview.getPassingScoreSnapshot() + "/100. Hồ sơ kết thúc ở vòng AI Interview.");
         notify(interview, passed ? "AI_INTERVIEW_PASSED" : "AI_INTERVIEW_FAILED", "Kết quả AI Interview", body, true);
+    }
+
+    /** A failed attempt keeps the application open only while a retry is still allowed. */
+    @Transactional
+    public void closeExhaustedRetries() {
+        var now = java.time.Instant.now();
+        for (var interview : interviews.findByStatusAndApplication_StatusOrderByIdAsc(AiInterviewStatus.FAILED, ApplicationStatus.INTERVIEW)) {
+            var application = interview.getApplication();
+            if (interview.getConfigSnapshotJson() == null || application.getArchivedAt() != null || application.getWithdrawnAt() != null
+                    || InterviewPolicies.canRetry(interview, now)) continue;
+            var latest = interviews.findByApplication_IdOrderByIdDesc(application.getId());
+            if (latest.isEmpty() || !latest.get(0).getId().equals(interview.getId())) continue;
+            var row = new ApplicationStatusHistory();
+            row.setApplication(application); row.setFromStatus(ApplicationStatus.INTERVIEW.name()); row.setToStatus(ApplicationStatus.FAILED.name());
+            row.setNote("AI Interview retry window closed; latest score " + interview.getOverallScore() + "/100");
+            history.save(row);
+            application.setStatus(ApplicationStatus.FAILED);
+            activity.record(interview, "APPLICATION_STATUS_CHANGED", "INTERVIEW -> FAILED; retry window closed");
+            notify(interview, "AI_INTERVIEW_FAILED", "Kết quả AI Interview", "Hạn làm lại AI Interview cho vị trí "
+                    + application.getJob().getTitle() + " đã kết thúc. Hồ sơ kết thúc ở vòng AI Interview.", true);
+        }
     }
 
     private void notify(AiInterview interview, String type, String title, String body, boolean email) {

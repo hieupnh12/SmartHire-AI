@@ -18,6 +18,9 @@ import jakarta.validation.Valid;
 import com.smarthire.tenant.assessment.dto.request.JobTestRequest;
 import com.smarthire.tenant.assessment.dto.response.JobTestResponse;
 import com.smarthire.tenant.assessment.dto.response.JobTestPage;
+import com.smarthire.tenant.assessment.dto.request.SendAssessmentRequest;
+import com.smarthire.tenant.assessment.dto.response.SendAssessmentResponse;
+import com.smarthire.tenant.assessment.service.AssessmentInvitationService;
 
 @RestController
 @RequestMapping("/api/v1/assessments")
@@ -25,9 +28,11 @@ import com.smarthire.tenant.assessment.dto.response.JobTestPage;
 public class AssessmentController {
 
     private final AssessmentService assessmentService;
+    private final AssessmentInvitationService invitationService;
 
-    public AssessmentController(AssessmentService assessmentService) {
+    public AssessmentController(AssessmentService assessmentService, AssessmentInvitationService invitationService) {
         this.assessmentService = assessmentService;
+        this.invitationService = invitationService;
     }
 
     @PostMapping("/create_draft_test")
@@ -56,6 +61,15 @@ public class AssessmentController {
             description = "The jobId must remain unchanged. Published or archived tests return 409.")
     public ApiResponse<JobTestResponse> update(@PathVariable long id, @Valid @RequestBody JobTestRequest request) {
         return ApiResponse.ok(assessmentService.update(id, request));
+    }
+
+    @PostMapping("/{testId}/send_assessment")
+    @Operation(summary = "Send a published JobTest to one application (staff only)",
+            description = "Application must belong to the test job, have a PASSED AI interview and be in INTERVIEW or ASSESSMENT. "
+                    + "Moves INTERVIEW to ASSESSMENT with status history, then sends an in-app notification and email. "
+                    + "Resending is allowed until the candidate completes the test (409 ASSESSMENT_ALREADY_COMPLETED).")
+    public ApiResponse<SendAssessmentResponse> send(@PathVariable long testId, @Valid @RequestBody SendAssessmentRequest request) {
+        return ApiResponse.ok(invitationService.send(testId, request));
     }
 
     @GetMapping("/health")

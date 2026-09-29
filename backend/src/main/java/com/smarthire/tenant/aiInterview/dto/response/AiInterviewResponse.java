@@ -20,5 +20,11 @@ public record AiInterviewResponse(
         String jobTitle,
         BigDecimal passingScore,
         String errorMessage,
-        int questionCount) {
+        int questionCount,
+        Instant expiresAt,
+        int attemptNumber,
+        boolean canRetry,
+        String reportJson,
+        Integer durationMinutes,
+        List<RoadmapStep> roadmap) {
 }

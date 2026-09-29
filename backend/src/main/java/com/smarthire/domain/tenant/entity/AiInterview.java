@@ -68,6 +68,18 @@ public class AiInterview {
     @Column(name = "created_at", nullable = false, updatable = false)
     Instant createdAt;
 
+    @Column(name = "config_snapshot_json", columnDefinition = "JSON")
+    String configSnapshotJson;
+    @Column(name = "context_snapshot_json", columnDefinition = "JSON")
+    String contextSnapshotJson;
+    @Column(name = "report_json", columnDefinition = "JSON")
+    String reportJson;
+    @Builder.Default
+    @Column(name = "attempt_number", nullable = false)
+    int attemptNumber = 1;
+    @Column(name = "expires_at")
+    Instant expiresAt;
+
     @PrePersist
     void onCreate() {
         createdAt = Instant.now();

@@ -10,7 +10,8 @@ bảng nhật ký `ai_interview_logs` (chi tiết ở [H.5](#h5-ai_interview_log
 |---|---|---|---|---|---|
 | `jobs.ai_interview_enabled` | BOOLEAN | Không | FALSE | — | Job có bật vòng AI Interview |
 | `jobs.ai_interview_passing_score` | DECIMAL(5,2) | Không | 70.00 | — | Ngưỡng đạt `aiInterviewPassingScore` (0–100) |
-| `jobs.ai_interview_question_count` | INT | Không | 5 (V33; V26 là 30, V25 là 5) | — | Số câu AI tự sinh, service cố định 5 |
+| `jobs.ai_interview_question_count` | INT | Không | 5 (V33; V26 là 30, V25 là 5) | — | Số câu hỏi–đáp AI sinh; service cho 1–30 (từ V35, trước đó cố định 5) |
+| `jobs.ai_interview_policy_json` | JSON | Có | NULL | — | V35. Cấu hình `InterviewPolicy`: thời gian, số lần làm, trọng số 5 nhóm năng lực, Job Skills, lộ trình chặng, Mini Assessment. NULL = mặc định |
 | `jobs.ai_interview_available_until` | TIMESTAMP | Có | NULL | — | Hạn cuối được bắt đầu AI Interview; NULL = không giới hạn |
 | `applications.cv_screening_status` | VARCHAR(16) | Không | `'PENDING'` | — | `CvScreeningStatus`: `PENDING`, `PASSED`, `FAILED` |
 | `ai_interviews.passing_score_snapshot` | DECIMAL(5,2) | Có | NULL | — | Ngưỡng đạt chốt lúc candidate bắt đầu |
@@ -817,10 +818,15 @@ Entity `AiInterview`.
 | `overall_score` | DECIMAL(10,2) | | Có | NULL | Điểm tổng phiên |
 | `passing_score_snapshot` | DECIMAL(5,2) | | Có | NULL | Ngưỡng đạt chốt khi bắt đầu (V25) |
 | `error_message` | VARCHAR(255) | | Có | NULL | Lỗi đã làm sạch (V25) |
+| `config_snapshot_json` | JSON | | Có | NULL | V35. Cấu hình Job chốt khi tạo lần làm; NULL = phiên cũ trước V35 |
+| `context_snapshot_json` | JSON | | Có | NULL | V35. Ngữ cảnh Job/Job Skills/CV đã gửi AI khi sinh câu, dùng lại khi chấm |
+| `report_json` | JSON | | Có | NULL | V35. Báo cáo: điểm tổng, điểm nhóm năng lực, trọng số đã áp dụng, điểm Job Skill (null = chưa đủ dữ liệu), bằng chứng |
+| `attempt_number` | INT | | Không | 1 | V35. Số thứ tự lần làm của application |
+| `expires_at` | TIMESTAMP | | Có | NULL | V35. Hạn nộp = min(bắt đầu + thời lượng, `availableUntil`); quá hạn backend tự nộp |
 | `status` | VARCHAR(32) | | Không | `'CREATED'` | `AiInterviewStatus` |
 | `created_at` | TIMESTAMP | | Không | now | |
 
-**Ràng buộc:** `fk_ai_int_application`, `fk_ai_int_stage`
+**Ràng buộc:** `fk_ai_int_application`, `fk_ai_int_stage`; index `idx_ai_interview_expiry (status, expires_at, id)` (V35). Không có UNIQUE trên `application_id`: một application có nhiều lần làm.
 
 ### H.2 `ai_questions` — Câu hỏi AI
 
@@ -834,6 +840,10 @@ Entity `AiQuestion`.
 | `question_type` | VARCHAR(32) | | Không | — | Loại |
 | `question_order` | INT | | Không | 0 | Thứ tự |
 | `created_at` | TIMESTAMP | | Không | now | |
+| `rubric_json` | JSON | | Có | NULL | V35. Slot kế hoạch: chặng, loại `OPEN`/`MCQ`, nhóm năng lực, Job Skills. Câu hỏi–đáp thêm đáp án mẫu `referenceAnswer` + `keyPoints` (`point`, `target`); câu phiên cũ chỉ có đáp án mẫu, tạo lúc chấm. Chỉ backend giữ, không trả cho candidate |
+| `options_json` | JSON | | Có | NULL | V35. 4 lựa chọn của câu trắc nghiệm |
+| `correct_option` | INT | | Có | NULL | V35. Chỉ số đáp án đúng 0–3; chỉ backend giữ, không trả cho candidate |
+| `explanation` | TEXT | | Có | NULL | V35. Giải thích đáp án trắc nghiệm |
 
 **Ràng buộc:** `fk_ai_q_interview`
 
@@ -864,6 +874,7 @@ Entity `AiFeedback`.
 | `strengths` | TEXT | | Có | NULL | Điểm mạnh |
 | `weaknesses` | TEXT | | Có | NULL | Điểm yếu |
 | `created_at` | TIMESTAMP | | Không | now | |
+| `evaluation_json` | JSON | | Có | NULL | V35. Điểm 0–100 theo từng nhóm năng lực và Job Skill của câu; câu hỏi–đáp thêm `keyPoints` (điểm + trích dẫn từng ý của đáp án mẫu) và `score` |
 
 **Ràng buộc:** `fk_ai_f_answer`, `uk_ai_f_answer (ai_answer_id)`
 

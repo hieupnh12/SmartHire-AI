@@ -29,6 +29,7 @@ import com.smarthire.tenant.aiInterview.dto.response.AiInterviewResponse;
 import com.smarthire.tenant.aiInterview.dto.response.AiQuestionResponse;
 import com.smarthire.tenant.aiInterview.mapper.AiInterviewMapper;
 import com.smarthire.tenant.cv.service.CvAccess;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
@@ -81,7 +82,7 @@ public class AiInterviewService {
     }
 
     /**
-     * Candidate asks to begin the AI Interview round of an application. Creates the single attempt
+     * Candidate asks to begin the AI Interview round of an application. Creates the next allowed attempt
      * (questions are generated asynchronously) or starts it once questions are ready.
      */
     @Transactional
@@ -95,16 +96,20 @@ public class AiInterviewService {
                 .orElseThrow(() -> new BusinessException("Application not found", HttpStatus.NOT_FOUND, "APPLICATION_NOT_FOUND"));
         var existing = interviews.findByApplication_IdOrderByIdDesc(applicationId);
         if (!existing.isEmpty() && isFinished(existing.get(0).getStatus())) {
+            if (InterviewPolicies.canRetry(existing.get(0), Instant.now())) {
+                return mapper.toResponse(invitations.openNextAttempt(applicationId));
+            }
             throw new BusinessException("AI interview attempt already completed", HttpStatus.CONFLICT, "AI_INTERVIEW_ALREADY_COMPLETED");
         }
-        AiInterviewEligibility.require(application);
         if (existing.isEmpty()) {
+            AiInterviewEligibility.require(application);
             return mapper.toResponse(invitations.invite(applicationId, null));
         }
         AiInterview current = existing.get(0);
+        requireActiveApplication(current);
         return switch (current.getStatus()) {
             case QUESTIONS_READY -> start(current.getId());
-            case IN_PROGRESS -> mapper.toResponse(current, loadQuestionResponses(current.getId()));
+            case IN_PROGRESS -> start(current.getId());
             case CREATED, ERROR -> requeueGeneration(current.getId());
             default -> mapper.toResponse(current);
         };
@@ -160,16 +165,29 @@ public class AiInterviewService {
         requireCandidateOwns(interview);
         requireActiveApplication(interview);
         if (interview.getStatus() == AiInterviewStatus.IN_PROGRESS) {
-            return mapper.toResponse(interview, loadQuestionResponses(id));
+            if (InterviewPolicies.expired(interview)) return submitExpired(interview);
+            return mapper.toResponse(interview, loadQuestionResponses(interview));
         }
         if (interview.getStatus() != AiInterviewStatus.QUESTIONS_READY
                 || questions.findByAiInterview_IdOrderByQuestionOrderAscIdAsc(id).isEmpty()) {
             throw new BusinessException("Interview questions are not ready", HttpStatus.CONFLICT, "AI_INTERVIEW_NOT_READY");
         }
+        var now = Instant.now();
+        if (interview.getConfigSnapshotJson() != null) {
+            var config = InterviewPolicies.config(interview);
+            if (config.availableUntil() != null && !now.isBefore(config.availableUntil())) {
+                throw new BusinessException("AI interview is not available for this job", HttpStatus.CONFLICT, "AI_INTERVIEW_UNAVAILABLE");
+            }
+            interview.setPassingScoreSnapshot(config.passingScore());
+            var end = now.plus(Duration.ofMinutes(config.policy().durationMinutes()));
+            if (config.availableUntil() != null && config.availableUntil().isBefore(end)) end = config.availableUntil();
+            interview.setExpiresAt(end);
+        } else {
+            interview.setPassingScoreSnapshot(interview.getApplication().getJob().getAiInterviewPassingScore());
+        }
         interview.setStatus(AiInterviewStatus.IN_PROGRESS);
-        interview.setPassingScoreSnapshot(interview.getApplication().getJob().getAiInterviewPassingScore());
-        interview.setStartedAt(Instant.now());
-        var responses = loadQuestionResponses(id);
+        interview.setStartedAt(now);
+        var responses = loadQuestionResponses(interview);
         activity.record(interview, "STARTED", responses.size() + " questions; passing score "
                 + interview.getPassingScoreSnapshot());
         return mapper.toResponse(interview, responses);
@@ -180,23 +198,63 @@ public class AiInterviewService {
         AiInterview interview = loadAccessibleForUpdate(id);
         requireCandidateOwns(interview);
         requireActiveApplication(interview);
-        if (interview.getCompletedAt() != null) return mapper.toResponse(interview, loadQuestionResponses(id));
+        if (interview.getCompletedAt() != null) return mapper.toResponse(interview, loadQuestionResponses(interview));
         if (interview.getStatus() != AiInterviewStatus.IN_PROGRESS) {
             throw new BusinessException("Interview is not in progress", HttpStatus.CONFLICT, "AI_INTERVIEW_BAD_STATUS");
         }
-        var responses = loadQuestionResponses(id);
-        if (responses.isEmpty() || responses.stream().anyMatch(q -> q.answer() == null
-                || q.answer().answerText() == null || q.answer().answerText().isBlank())) {
-            throw new BusinessException("Answer all questions before submitting", HttpStatus.CONFLICT, "AI_INTERVIEW_INCOMPLETE");
-        }
-        interview.setCompletedAt(Instant.now());
-        interview.setStatus(AiInterviewStatus.SCORING);
-        activity.record(interview, "SUBMITTED", responses.size() + " answers submitted; evaluation queued");
+        if (InterviewPolicies.expired(interview)) return submitExpired(interview);
+        boolean allowBlank = interview.getConfigSnapshotJson() != null;
+        ensureAnswers(interview, allowBlank);
+        markSubmitted(interview);
+        var responses = loadQuestionResponses(interview);
         return mapper.toResponse(interview, responses);
     }
 
+    @Transactional
+    public void expireDue() {
+        for (var row : interviews.findTop50ByStatusAndExpiresAtLessThanEqualOrderByIdAsc(AiInterviewStatus.IN_PROGRESS, Instant.now())) {
+            var interview = interviews.findByIdForUpdate(row.getId()).orElse(null);
+            if (interview == null || interview.getStatus() != AiInterviewStatus.IN_PROGRESS || !InterviewPolicies.expired(interview)) continue;
+            ensureAnswers(interview, true);
+            markSubmitted(interview);
+        }
+    }
+
+    private AiInterviewResponse submitExpired(AiInterview interview) {
+        ensureAnswers(interview, true);
+        markSubmitted(interview);
+        return mapper.toResponse(interview, loadQuestionResponses(interview));
+    }
+
+    private void ensureAnswers(AiInterview interview, boolean allowBlank) {
+        var paper = questions.findByAiInterview_IdOrderByQuestionOrderAscIdAsc(interview.getId());
+        var ids = paper.stream().map(AiQuestion::getId).toList();
+        var saved = ids.isEmpty() ? java.util.List.<AiAnswer>of() : answers.findByAiQuestion_IdIn(ids);
+        var byQuestion = saved.stream().collect(java.util.stream.Collectors.toMap(a -> a.getAiQuestion().getId(), java.util.function.Function.identity(), (a, b) -> a));
+        boolean missing = paper.isEmpty() || paper.stream().anyMatch(q -> {
+            var answer = byQuestion.get(q.getId());
+            return answer == null || answer.getAnswerText() == null || answer.getAnswerText().isBlank();
+        });
+        if (missing && !allowBlank) {
+            throw new BusinessException("Answer all questions before submitting", HttpStatus.CONFLICT, "AI_INTERVIEW_INCOMPLETE");
+        }
+        if (!allowBlank) return;
+        for (var question : paper) {
+            if (byQuestion.containsKey(question.getId())) continue;
+            answers.save(AiAnswer.builder().aiQuestion(question).answerText("").answeredAt(Instant.now()).build());
+        }
+    }
+
+    private void markSubmitted(AiInterview interview) {
+        if (interview.getCompletedAt() != null || interview.getStatus() != AiInterviewStatus.IN_PROGRESS) return;
+        interview.setCompletedAt(Instant.now());
+        interview.setStatus(AiInterviewStatus.SCORING);
+        activity.record(interview, "SUBMITTED", "Answers submitted; evaluation queued");
+    }
+
     private void requireActiveApplication(AiInterview interview) {
-        AiInterviewEligibility.require(interview.getApplication());
+        if (interview.getConfigSnapshotJson() == null) AiInterviewEligibility.require(interview.getApplication());
+        else AiInterviewEligibility.requireExisting(interview);
         var application = interview.getApplication();
         if (application.getStatus() != com.smarthire.domain.enums.ApplicationStatus.INTERVIEW
                 || application.getArchivedAt() != null || application.getWithdrawnAt() != null) {
@@ -228,10 +286,17 @@ public class AiInterviewService {
         return new AiInterviewPage(items, result.getTotalElements(), safePage, safeSize);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public AiInterviewResponse get(long id) {
         AiInterview interview = loadAccessible(id);
-        return mapper.toResponse(interview, loadQuestionResponses(id));
+        if (interview.getStatus() == AiInterviewStatus.IN_PROGRESS && InterviewPolicies.expired(interview)) {
+            interview = loadAccessibleForUpdate(id);
+            if (interview.getStatus() == AiInterviewStatus.IN_PROGRESS && InterviewPolicies.expired(interview)) {
+                ensureAnswers(interview, true);
+                markSubmitted(interview);
+            }
+        }
+        return mapper.toResponse(interview, loadQuestionResponses(interview));
     }
 
     @Transactional
@@ -247,7 +312,7 @@ public class AiInterviewService {
             interview.setWorkflowStage(resolveStage(request.workflowStageId(), interview.getApplication()));
         }
         activity.record(interview, "UPDATED_BY_STAFF", "Stage " + request.workflowStageId() + ", status " + request.status());
-        return mapper.toResponse(interviews.save(interview), loadQuestionResponses(id));
+        return mapper.toResponse(interviews.save(interview), loadQuestionResponses(interview));
     }
 
     @Transactional
@@ -266,6 +331,7 @@ public class AiInterviewService {
         requireStaff();
         AiInterview interview = loadAccessibleForUpdate(interviewId);
         requireEditable(interview);
+        requireUnplanned(interview);
         AiQuestion question = AiQuestion.builder()
                 .aiInterview(interview)
                 .questionText(request.questionText().trim())
@@ -284,9 +350,21 @@ public class AiInterviewService {
         AiInterview interview = loadAccessibleForUpdate(interviewId);
         requireEditable(interview);
         AiQuestion question = loadQuestion(interviewId, questionId);
-        question.setQuestionText(request.questionText().trim());
-        question.setQuestionType(request.questionType().trim().toUpperCase());
-        question.setQuestionOrder(request.questionOrder());
+        if (question.getRubricJson() != null) {
+            // Planned slots keep their rubric, order and answer key; only open-question wording may change.
+            if (question.getCorrectOption() != null || !question.getQuestionType().equalsIgnoreCase(request.questionType().trim())
+                    || question.getQuestionOrder() != request.questionOrder()) {
+                throw new BusinessException("Only the wording of planned open questions can be edited", HttpStatus.CONFLICT, "AI_INTERVIEW_PLANNED");
+            }
+            if (!question.getQuestionText().equals(request.questionText().trim())) {
+                question.setRubricJson(InterviewRubric.withoutReference(question.getRubricJson()));
+            }
+            question.setQuestionText(request.questionText().trim());
+        } else {
+            question.setQuestionText(request.questionText().trim());
+            question.setQuestionType(request.questionType().trim().toUpperCase());
+            question.setQuestionOrder(request.questionOrder());
+        }
         syncQuestionStatus(interview);
         activity.record(interview, "QUESTION_UPDATED", "Question " + questionId);
         AiAnswer answer = answers.findByAiQuestion_Id(questionId).orElse(null);
@@ -299,6 +377,7 @@ public class AiInterviewService {
         requireStaff();
         AiInterview interview = loadAccessibleForUpdate(interviewId);
         requireEditable(interview);
+        requireUnplanned(interview);
         AiQuestion question = loadQuestion(interviewId, questionId);
         answers.findByAiQuestion_Id(questionId).ifPresent(answer -> {
             feedbacks.findByAiAnswer_Id(answer.getId()).ifPresent(feedbacks::delete);
@@ -309,7 +388,8 @@ public class AiInterviewService {
         activity.record(interview, "QUESTION_DELETED", "Question " + questionId);
     }
 
-    @Transactional
+    // Expiration submits the saved paper before returning a conflict for the late answer.
+    @Transactional(noRollbackFor = BusinessException.class)
     public AiAnswerResponse upsertAnswer(long interviewId, long questionId, UpsertAiAnswerRequest request) {
         AiInterview interview = loadAccessibleForUpdate(interviewId);
         requireCandidateOwns(interview);
@@ -317,11 +397,19 @@ public class AiInterviewService {
         if (!access.staff()) {
             requireCandidateOwns(interview);
             requireActiveApplication(interview);
+            if (interview.getStatus() == AiInterviewStatus.IN_PROGRESS && InterviewPolicies.expired(interview)) {
+                ensureAnswers(interview, true);
+                markSubmitted(interview);
+                throw new BusinessException("Interview time is over", HttpStatus.CONFLICT, "AI_INTERVIEW_EXPIRED");
+            }
             if (interview.getStatus() != AiInterviewStatus.IN_PROGRESS || interview.getCompletedAt() != null) {
                 throw new BusinessException("Interview is not in progress", HttpStatus.CONFLICT, "AI_INTERVIEW_BAD_STATUS");
             }
             if (request.answerText() == null || request.answerText().isBlank()) {
                 throw new BusinessException("Answer is required", HttpStatus.BAD_REQUEST, "AI_ANSWER_REQUIRED");
+            }
+            if (question.getCorrectOption() != null && !request.answerText().matches("[0-3]")) {
+                throw new BusinessException("Choose one of the four options", HttpStatus.BAD_REQUEST, "AI_ANSWER_BAD_OPTION");
             }
         }
 
@@ -343,7 +431,12 @@ public class AiInterviewService {
         throw new BusinessException("Feedback is generated by AI evaluation", HttpStatus.CONFLICT, "AI_FEEDBACK_SYSTEM_MANAGED");
     }
 
-    private List<AiQuestionResponse> loadQuestionResponses(long interviewId) {
+    private List<AiQuestionResponse> loadQuestionResponses(AiInterview interview) {
+        long interviewId = interview.getId();
+        // Candidates must not read the paper before the timer starts.
+        if (!access.staff() && interview.getStartedAt() == null) return List.of();
+        boolean revealKey = access.staff() && (interview.getStatus() == AiInterviewStatus.PASSED
+                || interview.getStatus() == AiInterviewStatus.FAILED || interview.getStatus() == AiInterviewStatus.SCORED);
         List<AiQuestion> questionList = questions.findByAiInterview_IdOrderByQuestionOrderAscIdAsc(interviewId);
         if (questionList.isEmpty()) {
             return List.of();
@@ -356,7 +449,7 @@ public class AiInterviewService {
                 ? Map.of()
                 : feedbacks.findByAiAnswer_IdIn(answerIds).stream()
                         .collect(Collectors.toMap(f -> f.getAiAnswer().getId(), Function.identity(), (a, b) -> a, HashMap::new));
-        return mapper.toQuestions(questionList, answersByQuestion, feedbackByAnswer);
+        return mapper.toQuestions(questionList, answersByQuestion, feedbackByAnswer, revealKey);
     }
 
     private RecruitmentStage resolveStage(Long workflowStageId, Application application) {
@@ -404,10 +497,24 @@ public class AiInterviewService {
         }
     }
 
+    private void requireUnplanned(AiInterview interview) {
+        if (interview.getConfigSnapshotJson() != null) {
+            throw new BusinessException("Planned interview questions follow the job roadmap", HttpStatus.CONFLICT, "AI_INTERVIEW_PLANNED");
+        }
+    }
+
     private void syncQuestionStatus(AiInterview interview) {
         long count = questions.countByAiInterview_Id(interview.getId());
-        int required = Math.clamp(interview.getApplication().getJob().getAiInterviewQuestionCount(),
-                AiInterviewEvaluationService.MIN_QUESTIONS, AiInterviewEvaluationService.MAX_QUESTIONS);
+        int required;
+        if (interview.getConfigSnapshotJson() != null) {
+            var policy = InterviewPolicies.config(interview).policy();
+            required = policy.stages() == null || policy.stages().isEmpty()
+                    ? InterviewPolicies.config(interview).questionCount()
+                    : InterviewRubric.plan(policy).size();
+        } else {
+            required = Math.clamp(interview.getApplication().getJob().getAiInterviewQuestionCount(),
+                    AiInterviewEvaluationService.MIN_QUESTIONS, AiInterviewEvaluationService.MAX_QUESTIONS);
+        }
         AiInterviewStatus next = count >= required ? AiInterviewStatus.QUESTIONS_READY : AiInterviewStatus.CREATED;
         if (interview.getStatus() != next) {
             interview.setStatus(next);

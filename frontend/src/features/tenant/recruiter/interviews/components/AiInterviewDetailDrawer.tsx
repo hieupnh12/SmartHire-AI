@@ -5,13 +5,14 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Pencil, Plus, RefreshCw, Sparkles, Trash2, X } from "lucide-react";
 import { aiInterviewApi } from "@/api/tenant/aiInterviewApi";
-import type { AiFeedback, AiQuestion, AiQuestionRequest } from "@/api/types/aiInterview";
+import { COMPETENCY_LABELS, type AiFeedback, type AiQuestion, type AiQuestionRequest, type CompetencyKey } from "@/api/types/aiInterview";
 import { Button } from "@/components/ux/Button";
 import { AssessmentError, FieldError, assessmentInput } from "@/components/ux/assessmentUi";
 import { queryKeys } from "@/lib/query-keys";
 import { toast } from "@/stores/toastStore";
 import { useUiStore } from "@/stores/uiStore";
 import { AI_QUESTION_TYPES, AiStatusBadge, formatDateTime } from "./aiInterviewUi";
+import { AiInterviewReportView } from "./AiInterviewReportView";
 
 type Props = { interviewId: number; jobId: number; candidateName: string; onClose: () => void };
 
@@ -32,6 +33,8 @@ export function AiInterviewDetailDrawer({ interviewId, jobId, candidateName, onC
   const score = useMutation({ mutationFn: () => aiInterviewApi.retryScore(interviewId), onSuccess: refresh });
   const interview = detail.data;
   const editable = !!interview && !interview.startedAt && ["CREATED", "QUESTIONS_READY", "ERROR"].includes(interview.status);
+  // Roadmap-based sessions keep their generated slots; only open-question wording can be edited.
+  const planned = !!interview?.questions.some(q => q.stageTitle);
   const busy = generate.isPending || score.isPending;
   return <div className="fixed inset-0 z-[60] flex justify-end bg-slate-950/40 backdrop-blur-sm" role="presentation" onClick={onClose}>
     <aside role="dialog" aria-modal="true" aria-labelledby="ai-interview-detail-title" className="flex h-full w-full max-w-2xl flex-col overflow-y-auto bg-surface-card shadow-2xl" onClick={e => e.stopPropagation()}>
@@ -52,6 +55,8 @@ export function AiInterviewDetailDrawer({ interviewId, jobId, candidateName, onC
               <div><dt>Ngưỡng đạt</dt><dd>{interview.passingScore ?? "—"}/100</dd></div>
               <div><dt>Điểm AI</dt><dd className="font-semibold">{interview.overallScore == null ? "Chưa có điểm" : `${interview.overallScore}/100`}</dd></div>
               <div><dt>Câu hỏi đã chuẩn bị</dt><dd>{interview.questions.length}/{interview.questionCount}</dd></div>
+              <div><dt>Lần làm</dt><dd>{interview.attemptNumber ?? 1}{interview.canRetry ? " · còn lượt làm lại" : ""}</dd></div>
+              {interview.expiresAt && <div><dt>Hạn nộp bài</dt><dd>{formatDateTime(interview.expiresAt)}</dd></div>}
             </dl>
             <p className="text-sm text-[var(--color-on-surface-variant)]">Trạng thái tự cập nhật theo câu hỏi, bài làm và kết quả AI. Bộ câu hỏi sẵn sàng khi đủ số lượng đã cấu hình cho Job.</p>
             {interview.errorMessage && <p role="alert">{interview.errorMessage}</p>}
@@ -59,13 +64,14 @@ export function AiInterviewDetailDrawer({ interviewId, jobId, candidateName, onC
             {interview.status === "ERROR" && interview.completedAt && <Button disabled={score.isPending} onClick={() => score.mutate()}><RefreshCw className="size-4" aria-hidden="true" />Thử chấm điểm lại</Button>}
           </section>
           <AssessmentError error={generate.error ?? score.error} />
+          <AiInterviewReportView reportJson={interview.reportJson} questions={interview.questions} />
           <section className="space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3"><h3 className="font-semibold">Câu hỏi ({interview.questions.length})</h3>
               {editable && interview.questions.length === 0 && <Button variant="secondary" disabled={busy} onClick={() => generate.mutate()}><Sparkles className="size-4" aria-hidden="true" />{generate.isPending ? "Đang gửi yêu cầu…" : "Sinh câu hỏi bằng AI"}</Button>}
             </div>
             {!interview.questions.length && interview.status !== "GENERATING" && <p className="text-sm">Chưa có câu hỏi.</p>}
             <ol className="space-y-3">{interview.questions.map((question, index) => <QuestionItem key={question.id} index={index} interviewId={interviewId} question={question} editable={editable && !busy} onChanged={refresh} />)}</ol>
-            {editable && !busy && <AddQuestionForm interviewId={interviewId} nextOrder={Math.max(-1, ...interview.questions.map(q => q.questionOrder)) + 1} onAdded={refresh} />}
+            {editable && !busy && !planned && <AddQuestionForm interviewId={interviewId} nextOrder={Math.max(-1, ...interview.questions.map(q => q.questionOrder)) + 1} onAdded={refresh} />}
           </section>
           <details onToggle={event => setShowLogs(event.currentTarget.open)} className="rounded-xl border border-[var(--color-border-default)] p-4">
             <summary className="cursor-pointer font-medium">Lịch sử xử lý AI Interview</summary>
@@ -92,12 +98,14 @@ function QuestionFields({
   submitLabel,
   onSubmit,
   onCancel,
+  lockStructure = false,
 }: {
   defaults: QuestionValues;
   pending: boolean;
   submitLabel: string;
   onSubmit: (values: AiQuestionRequest) => Promise<unknown>;
   onCancel?: () => void;
+  lockStructure?: boolean;
 }) {
   const { register, handleSubmit, reset, formState: { errors } } = useForm<QuestionValues>({
     resolver: zodResolver(questionSchema),
@@ -115,7 +123,7 @@ function QuestionFields({
         <textarea className={`${assessmentInput} min-h-24`} {...register("questionText")} disabled={pending} />
         <FieldError message={errors.questionText?.message} />
       </label>
-      <div className="grid grid-cols-2 gap-3">
+      {!lockStructure && <div className="grid grid-cols-2 gap-3">
         <label className="space-y-1 text-sm">
           <span className="font-medium">Loại</span>
           <select className={assessmentInput} {...register("questionType")} disabled={pending}>
@@ -127,7 +135,7 @@ function QuestionFields({
           <input type="number" min={0} className={assessmentInput} {...register("questionOrder")} disabled={pending} />
           <FieldError message={errors.questionOrder?.message} />
         </label>
-      </div>
+      </div>}
       <div className="flex justify-end gap-2">
         {onCancel && <Button variant="secondary" size="sm" onClick={onCancel} disabled={pending}>Huỷ</Button>}
         <Button type="submit" size="sm" disabled={pending}>{pending ? "Đang lưu…" : submitLabel}</Button>
@@ -179,6 +187,9 @@ function QuestionItem({ index, interviewId, question, editable, onChanged }: { i
     },
   });
   const answer = question.answer;
+  const planned = !!question.stageTitle;
+  const mcq = !!question.options?.length;
+  const tags = [...(question.competencies ?? []).map(key => COMPETENCY_LABELS[key as CompetencyKey] ?? key), ...(question.skills ?? [])];
 
   return (
     <li className="space-y-3 rounded-xl border border-[var(--color-border-default)] p-4">
@@ -191,19 +202,24 @@ function QuestionItem({ index, interviewId, question, editable, onChanged }: { i
             submitLabel="Lưu"
             onSubmit={(body) => update.mutateAsync(body)}
             onCancel={() => setEditing(false)}
+            lockStructure={planned}
           />
         </>
       ) : (
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-xs text-[var(--color-on-surface-variant)]">Câu {index + 1} · {question.questionType} · thứ tự {question.questionOrder}</p>
+            <p className="text-xs text-[var(--color-on-surface-variant)]">Câu {index + 1} · {planned ? question.stageTitle : `${question.questionType} · thứ tự ${question.questionOrder}`}{mcq ? " · Trắc nghiệm" : ""}</p>
             <p className="mt-1 whitespace-pre-wrap break-words text-sm font-medium">{question.questionText}</p>
+            {tags.length > 0 && <ul className="mt-2 flex flex-wrap gap-1" aria-label="Tiêu chí đánh giá">{tags.map(tag => <li key={tag} className="rounded-full bg-[var(--color-surface-container-low)] px-2 py-0.5 text-xs">{tag}</li>)}</ul>}
+            {mcq && <ol className="mt-2 space-y-1 text-sm">{question.options!.map((option, i) => <li key={i} className={question.correctOption === i ? "font-semibold text-brand-primary" : ""}>
+              {String.fromCharCode(65 + i)}. {option}{question.correctOption === i ? " (đáp án đúng)" : ""}{answer?.answerText === String(i) ? " · ứng viên chọn" : ""}</li>)}</ol>}
+            {mcq && question.explanation && <p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">Giải thích: {question.explanation}</p>}
           </div>
-          {editable && <div className="flex shrink-0 gap-1">
+          {editable && !(planned && mcq) && <div className="flex shrink-0 gap-1">
             <button type="button" className="grid size-8 place-items-center rounded-lg hover:bg-surface-muted" aria-label="Sửa câu hỏi" onClick={() => setEditing(true)}>
               <Pencil className="size-4" aria-hidden="true" />
             </button>
-            <button
+            {!planned && <button
               type="button"
               className="grid size-8 place-items-center rounded-lg text-[#ba1a1a] hover:bg-[#ffdad6]"
               aria-label="Xoá câu hỏi"
@@ -219,7 +235,7 @@ function QuestionItem({ index, interviewId, question, editable, onChanged }: { i
               })}
             >
               <Trash2 className="size-4" aria-hidden="true" />
-            </button>
+            </button>}
           </div>}
         </div>
       )}
@@ -230,7 +246,7 @@ function QuestionItem({ index, interviewId, question, editable, onChanged }: { i
             <p className="text-xs text-[var(--color-on-surface-variant)]">
               Câu trả lời · {formatDateTime(answer.answeredAt)}{answer.answerDuration != null ? ` · ${answer.answerDuration}s` : ""}
             </p>
-            <p className="mt-1 whitespace-pre-wrap break-words text-sm">{answer.answerText || "—"}</p>
+            <p className="mt-1 whitespace-pre-wrap break-words text-sm">{!answer.answerText ? "Bỏ trống (0 điểm)" : mcq ? `Chọn ${String.fromCharCode(65 + Number(answer.answerText))}` : answer.answerText}</p>
           </div>
           <FeedbackView feedback={answer.feedback} />
         </div>

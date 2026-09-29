@@ -53,6 +53,9 @@ public class AiFeedback {
     @Column(name = "created_at", nullable = false, updatable = false)
     Instant createdAt;
 
+    @Column(name = "evaluation_json", columnDefinition = "JSON")
+    String evaluationJson;
+
     @PrePersist
     void onCreate() {
         createdAt = Instant.now();

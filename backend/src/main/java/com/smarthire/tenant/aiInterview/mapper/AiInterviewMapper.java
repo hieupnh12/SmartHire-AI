@@ -11,6 +11,11 @@ import com.smarthire.tenant.aiInterview.dto.response.AiFeedbackResponse;
 import com.smarthire.tenant.aiInterview.dto.response.AiInterviewLogResponse;
 import com.smarthire.tenant.aiInterview.dto.response.AiInterviewResponse;
 import com.smarthire.tenant.aiInterview.dto.response.AiQuestionResponse;
+import com.smarthire.tenant.aiInterview.dto.response.RoadmapStep;
+import com.smarthire.tenant.aiInterview.service.InterviewPolicies;
+import com.smarthire.tenant.aiInterview.service.InterviewRubric;
+import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.springframework.stereotype.Component;
@@ -40,13 +45,61 @@ public class AiInterviewMapper {
                 interview.getPassingScoreSnapshot() != null ? interview.getPassingScoreSnapshot()
                         : app != null && app.getJob() != null ? app.getJob().getAiInterviewPassingScore() : null,
                 interview.getErrorMessage(),
-                app != null && app.getJob() != null ? app.getJob().getAiInterviewQuestionCount() : 0);
+                expectedQuestions(interview),
+                interview.getExpiresAt(),
+                interview.getAttemptNumber(),
+                InterviewPolicies.canRetry(interview, Instant.now()),
+                interview.getReportJson(),
+                interview.getConfigSnapshotJson() == null ? null : InterviewPolicies.config(interview).policy().durationMinutes(),
+                roadmap(interview));
     }
 
-    public AiQuestionResponse toQuestion(
-            AiQuestion question,
-            AiAnswer answer,
-            AiFeedback feedback) {
+    private static List<RoadmapStep> roadmap(AiInterview interview) {
+        if (interview.getConfigSnapshotJson() == null) return null;
+        var policy = InterviewPolicies.config(interview).policy();
+        if (policy.stages() == null || policy.stages().isEmpty()) return null;
+        List<RoadmapStep> steps = new ArrayList<>();
+        String current = null;
+        for (var slot : InterviewRubric.plan(policy)) {
+            String stageId = slot.path("stageId").asText();
+            if (stageId.equals(current)) {
+                var last = steps.removeLast();
+                steps.add(new RoadmapStep(last.title(), last.kind(), last.questionCount() + 1));
+            } else {
+                steps.add(new RoadmapStep(slot.path("stageTitle").asText(), slot.path("kind").asText(), 1));
+                current = stageId;
+            }
+        }
+        return steps;
+    }
+
+    private static int expectedQuestions(AiInterview interview) {
+        if (interview.getConfigSnapshotJson() != null) {
+            var policy = InterviewPolicies.config(interview).policy();
+            if (policy.stages() != null && !policy.stages().isEmpty()) return InterviewRubric.plan(policy).size();
+            return InterviewPolicies.config(interview).questionCount();
+        }
+        var app = interview.getApplication();
+        return app != null && app.getJob() != null ? app.getJob().getAiInterviewQuestionCount() : 0;
+    }
+
+    public AiQuestionResponse toQuestion(AiQuestion question, AiAnswer answer, AiFeedback feedback) {
+        return toQuestion(question, answer, feedback, false);
+    }
+
+    public AiQuestionResponse toQuestion(AiQuestion question, AiAnswer answer, AiFeedback feedback, boolean revealKey) {
+        List<String> options = texts(question.getOptionsJson() == null ? null : InterviewPolicies.tree(question.getOptionsJson()));
+        String stageTitle = null;
+        List<String> competencies = List.of();
+        List<String> skills = List.of();
+        if (question.getRubricJson() != null) {
+            var rubric = InterviewPolicies.tree(question.getRubricJson());
+            if (rubric != null) {
+                if (rubric.path("stageTitle").isTextual()) stageTitle = rubric.path("stageTitle").asText();
+                competencies = texts(rubric.path("competencies"));
+                skills = texts(rubric.path("skills"));
+            }
+        }
         return new AiQuestionResponse(
                 question.getId(),
                 question.getAiInterview() != null ? question.getAiInterview().getId() : null,
@@ -54,7 +107,20 @@ public class AiInterviewMapper {
                 question.getQuestionType(),
                 question.getQuestionOrder(),
                 question.getCreatedAt(),
-                answer == null ? null : toAnswer(answer, feedback));
+                answer == null ? null : toAnswer(answer, feedback),
+                options.isEmpty() ? null : options,
+                stageTitle,
+                competencies.isEmpty() ? null : competencies,
+                skills.isEmpty() ? null : skills,
+                revealKey ? question.getCorrectOption() : null,
+                revealKey ? question.getExplanation() : null);
+    }
+
+    private static List<String> texts(com.fasterxml.jackson.databind.JsonNode node) {
+        if (node == null || !node.isArray()) return List.of();
+        var values = new ArrayList<String>();
+        node.forEach(item -> { if (item.isTextual()) values.add(item.asText()); });
+        return values;
     }
 
     public AiAnswerResponse toAnswer(AiAnswer answer, AiFeedback feedback) {
@@ -91,12 +157,13 @@ public class AiInterviewMapper {
     public List<AiQuestionResponse> toQuestions(
             List<AiQuestion> questions,
             Map<Long, AiAnswer> answersByQuestionId,
-            Map<Long, AiFeedback> feedbackByAnswerId) {
+            Map<Long, AiFeedback> feedbackByAnswerId,
+            boolean revealKey) {
         return questions.stream()
                 .map(q -> {
                     AiAnswer answer = answersByQuestionId.get(q.getId());
                     AiFeedback feedback = answer == null ? null : feedbackByAnswerId.get(answer.getId());
-                    return toQuestion(q, answer, feedback);
+                    return toQuestion(q, answer, feedback, revealKey);
                 })
                 .toList();
     }

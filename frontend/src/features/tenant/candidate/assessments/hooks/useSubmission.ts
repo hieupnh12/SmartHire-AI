@@ -1,21 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { assessmentApi } from "@/api/tenant/assessmentApi";
-import type { Submission } from "@/api/types/assessment";
+import type { SavedAnswer, Submission } from "@/api/types/assessment";
 import { queryKeys } from "@/lib/query-keys";
 
 export function useSubmission(id: number) {
   const client = useQueryClient();
   const query = useQuery({ queryKey: queryKeys.assessments.submission(id), queryFn: ({ signal }) => assessmentApi.submission(id, signal),
     enabled: Number.isSafeInteger(id) && id > 0, refetchOnWindowFocus: false, retry: false });
-  const [choices, setChoices] = useState<Record<number, number | null>>({});
+  const [choices, setChoices] = useState<Record<number, SavedAnswer>>({});
   const [revision, setRevision] = useState(0);
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [remaining, setRemaining] = useState<number | null>(null);
   const initialized = useRef(false);
-  const pending = useRef(new Map<number, number | null>());
+  const pending = useRef(new Map<number, SavedAnswer>());
   const inFlight = useRef<Promise<void> | null>(null);
   const closing = useRef(false);
   const deadline = useRef(0);
@@ -31,7 +31,7 @@ export function useSubmission(id: number) {
     if (!query.data) return;
     if (query.data.status !== "IN_PROGRESS") { pending.current.clear(); setError(null); }
     if (!initialized.current) {
-      setChoices(Object.fromEntries(query.data.answers.map(a => [a.questionId, a.selectedOptionId])));
+      setChoices(Object.fromEntries(query.data.answers.map(a => [a.questionId, a])));
       initialized.current = true;
     }
     const seconds = query.data.expiresAt ? Math.max(0, (Date.parse(query.data.expiresAt) - Date.parse(query.data.serverTime)) / 1000) : 0;
@@ -47,7 +47,7 @@ export function useSubmission(id: number) {
     setSaving(true);
     const request = (async () => {
       try {
-        await store(await assessmentApi.saveAnswers(id, [...snapshot].map(([questionId, selectedOptionId]) => ({ questionId, selectedOptionId }))));
+        await store(await assessmentApi.saveAnswers(id, [...snapshot.values()]));
         setError(null);
       } catch (failure) {
         // Preserve newer local selections when an older save fails.
@@ -106,10 +106,10 @@ export function useSubmission(id: number) {
     return () => { window.removeEventListener("beforeunload", beforeUnload); document.removeEventListener("click", leaving, true); };
   }, []);
 
-  const choose = (questionId: number, selectedOptionId: number | null) => {
+  const choose = (answer: SavedAnswer) => {
     if (!active || closing.current || remaining === 0) return;
-    setChoices(previous => ({ ...previous, [questionId]: selectedOptionId }));
-    pending.current.set(questionId, selectedOptionId); setRevision(v => v + 1);
+    setChoices(previous => ({ ...previous, [answer.questionId]: answer }));
+    pending.current.set(answer.questionId, answer); setRevision(v => v + 1);
   };
   return { query, choices, choose, saving, submitting, error, remaining, finish,
     unsaved: pending.current.size > 0, retrySave: () => void flush().catch(() => undefined) };
