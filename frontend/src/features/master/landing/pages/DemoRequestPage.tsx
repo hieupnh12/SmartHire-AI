@@ -381,7 +381,7 @@ export function DemoRequestPage() {
     <div className="min-h-screen bg-slate-50 flex flex-col">
       <LandingHeader />
 
-      <main className="flex-1 flex items-start justify-center py-12 px-4 sm:px-6">
+      <main className="flex-1 flex items-start justify-center py-12 px-4 sm:px-6 mt-[80px] sm:mt-[84px]">
         <div className="w-full max-w-2xl">
           {!demoSubmitted ? (
             <div className="bg-white border border-slate-200 rounded-2xl shadow-xl p-8 sm:p-10">

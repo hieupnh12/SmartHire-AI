@@ -23,20 +23,16 @@ import {
 } from "lucide-react";
 import { checkoutApi, PublicSubscriptionPlan, CheckoutResponseData } from "@/api/master/checkoutApi";
 import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
-
 export function CheckoutPage() {
   const { planCode } = useParams<{ planCode: string }>();
-
   // Wizard Step: 1 = Đặt hàng, 2 = Thanh toán, 3 = Kích hoạt
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
-
   const [plans, setPlans] = useState<PublicSubscriptionPlan[]>([]);
   const [selectedPlanCode, setSelectedPlanCode] = useState<string>(
     (planCode || "PROFESSIONAL").toUpperCase()
   );
   const [billingCycle, setBillingCycle] = useState<"MONTHLY" | "YEARLY">("YEARLY");
   const [quantity, setQuantity] = useState<number>(1);
-
   // Step 1 Form States
   const [workspaceName, setWorkspaceName] = useState("");
   const [subdomain, setSubdomain] = useState("");
@@ -44,37 +40,29 @@ export function CheckoutPage() {
   const [adminFullName, setAdminFullName] = useState("");
   const [adminEmail, setAdminEmail] = useState("");
   const [adminPhone, setAdminPhone] = useState("");
-
   // Invoice & VAT info
   const [needVatInvoice, setNeedVatInvoice] = useState(false);
   const [companyLegalName, setCompanyLegalName] = useState("");
   const [taxCode, setTaxCode] = useState("");
   const [billingAddress, setBillingAddress] = useState("");
   const [notes, setNotes] = useState("");
-
   // Selected payment method on Step 1
   const [selectedPaymentType, setSelectedPaymentType] = useState<
     "TRANSFER" | "ATM" | "INTERNATIONAL" | "E_WALLET"
   >("TRANSFER");
-
   // Step 2 & 3: Order Result from Backend
   const [orderResult, setOrderResult] = useState<CheckoutResponseData | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<"VIETQR" | "ATM_CARD" | "E_WALLET">("VIETQR");
-
   // Countdown timer for Step 2 (15 minutes = 900 seconds)
   const [countdown, setCountdown] = useState<number>(15 * 60);
-
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-
   // VNPay state
   const [vnpayLoading, setVnpayLoading] = useState(false);
   const selectedBankCode = "VNBANK";
-
   // PayPal state
   const [paypalVerifying, setPaypalVerifying] = useState(false);
-
   // Fetch public plans
   useEffect(() => {
     checkoutApi.getPublicPlans()
@@ -89,7 +77,6 @@ export function CheckoutPage() {
         console.warn("Could not fetch dynamic plans, using defaults", err);
       });
   }, [planCode]);
-
   // Countdown effect during Step 2
   useEffect(() => {
     if (currentStep !== 2 || countdown <= 0) return;
@@ -98,7 +85,6 @@ export function CheckoutPage() {
     }, 1000);
     return () => clearInterval(timer);
   }, [currentStep, countdown]);
-
   const defaultFallbackPlans: PublicSubscriptionPlan[] = [
     {
       id: 1,
@@ -140,12 +126,10 @@ export function CheckoutPage() {
       status: "ACTIVE",
     },
   ];
-
   const currentPlan = useMemo(() => {
     const pool = plans.length > 0 ? plans : defaultFallbackPlans;
     return pool.find((p) => p.code.toUpperCase() === selectedPlanCode) || pool[1];
   }, [plans, selectedPlanCode]);
-
   const currentAmountVnd = useMemo(() => {
     if (!currentPlan) return 0;
     const basePrice = billingCycle === "YEARLY"
@@ -153,7 +137,6 @@ export function CheckoutPage() {
       : currentPlan.priceMonthlyVnd || 3600000;
     return basePrice * quantity;
   }, [currentPlan, billingCycle, quantity]);
-
   // Realtime Subdomain Check
   const handleCheckSubdomain = async () => {
     const cleanSub = subdomain.trim().toLowerCase().replace(/[^a-z0-9-]/g, "");
@@ -169,24 +152,20 @@ export function CheckoutPage() {
       setSubdomainStatus("AVAILABLE");
     }
   };
-
   const handleCopy = (text: string, field: string) => {
     navigator.clipboard.writeText(text);
     setCopiedField(field);
     setTimeout(() => setCopiedField(null), 2000);
   };
-
   const formatCountdown = (totalSeconds: number) => {
     const mins = Math.floor(totalSeconds / 60).toString().padStart(2, "0");
     const secs = (totalSeconds % 60).toString().padStart(2, "0");
     return `${mins}:${secs}`;
   };
-
   // Step 1: Submit to generate invoice & order
   const handleProceedToPayment = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
-
     const cleanSub = subdomain.trim().toLowerCase().replace(/[^a-z0-9-]/g, "");
     if (!cleanSub || cleanSub.length < 2) {
       setErrorMsg("Vui lòng nhập Subdomain hợp lệ (ví dụ: mycompany).");
@@ -200,7 +179,6 @@ export function CheckoutPage() {
       setErrorMsg("Vui lòng điền đầy đủ Họ tên, Email và Số điện thoại quản trị viên.");
       return;
     }
-
     setLoading(true);
     try {
       const response = await checkoutApi.submitCheckout({
@@ -217,7 +195,6 @@ export function CheckoutPage() {
         notes: notes.trim() || undefined,
         quantity: quantity,
       });
-
       setOrderResult(response);
       setCountdown(15 * 60); // reset 15 minutes timer
       if (selectedPaymentType === "ATM") {
@@ -236,7 +213,6 @@ export function CheckoutPage() {
       setLoading(false);
     }
   };
-
   // Step 2: Handle VNPay Domestic ATM payment redirect
   const handlePayWithVnPay = async () => {
     if (!orderResult) return;
@@ -259,20 +235,17 @@ export function CheckoutPage() {
       setVnpayLoading(false);
     }
   };
-
   // Step 2: Confirm transfer completed -> Move to Step 3
   const handleConfirmPaid = () => {
     setCurrentStep(3);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
-
   const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
   const baseDomain = isLocalhost ? "localhost:5173" : "smarthire.top";
   const protocol = isLocalhost ? "http" : "https";
   const workspaceUrl = orderResult?.subdomain
     ? `${protocol}://${orderResult.subdomain}.${baseDomain}/internal/login`
     : "#";
-
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-800 font-sans antialiased pb-24">
       {/* Top Header */}
@@ -286,11 +259,8 @@ export function CheckoutPage() {
               SmartHire<span className="text-blue-600">.AI</span>
             </span>
           </Link>
-
-
         </div>
       </header>
-
       {/* 3-STEP PROGRESS WIZARD STEPPER */}
       <div className="bg-white border-b border-slate-200 shadow-2xs">
         <div className="max-w-3xl mx-auto px-4 py-4 sm:py-5">
@@ -298,11 +268,10 @@ export function CheckoutPage() {
             {/* Step 1 */}
             <div className="flex items-center gap-2.5">
               <div
-                className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
-                  currentStep === 1
-                    ? "bg-blue-600 text-white ring-4 ring-blue-100 shadow-sm"
-                    : "bg-emerald-600 text-white"
-                }`}
+                className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${currentStep === 1
+                  ? "bg-blue-600 text-white ring-4 ring-blue-100 shadow-sm"
+                  : "bg-emerald-600 text-white"
+                  }`}
               >
                 {currentStep > 1 ? <Check className="w-4 h-4 stroke-[3]" /> : "1"}
               </div>
@@ -311,31 +280,27 @@ export function CheckoutPage() {
                   currentStep === 1
                     ? "text-blue-600 font-bold"
                     : currentStep > 1
-                    ? "text-slate-800"
-                    : "text-slate-400"
+                      ? "text-slate-800"
+                      : "text-slate-400"
                 }
               >
                 Đặt hàng
               </span>
             </div>
-
             {/* Connector 1-2 */}
             <div
-              className={`flex-1 mx-3 sm:mx-6 h-[2px] rounded transition-colors ${
-                currentStep >= 2 ? "bg-emerald-500" : "bg-slate-200"
-              }`}
+              className={`flex-1 mx-3 sm:mx-6 h-[2px] rounded transition-colors ${currentStep >= 2 ? "bg-emerald-500" : "bg-slate-200"
+                }`}
             />
-
             {/* Step 2 */}
             <div className="flex items-center gap-2.5">
               <div
-                className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
-                  currentStep === 2
-                    ? "bg-blue-600 text-white ring-4 ring-blue-100 shadow-sm"
-                    : currentStep > 2
+                className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${currentStep === 2
+                  ? "bg-blue-600 text-white ring-4 ring-blue-100 shadow-sm"
+                  : currentStep > 2
                     ? "bg-emerald-600 text-white"
                     : "border-2 border-slate-300 text-slate-400 bg-white"
-                }`}
+                  }`}
               >
                 {currentStep > 2 ? <Check className="w-4 h-4 stroke-[3]" /> : "2"}
               </div>
@@ -344,29 +309,25 @@ export function CheckoutPage() {
                   currentStep === 2
                     ? "text-blue-600 font-bold"
                     : currentStep > 2
-                    ? "text-slate-800"
-                    : "text-slate-400"
+                      ? "text-slate-800"
+                      : "text-slate-400"
                 }
               >
                 Thanh toán
               </span>
             </div>
-
             {/* Connector 2-3 */}
             <div
-              className={`flex-1 mx-3 sm:mx-6 h-[2px] rounded transition-colors ${
-                currentStep >= 3 ? "bg-emerald-500" : "bg-slate-200"
-              }`}
+              className={`flex-1 mx-3 sm:mx-6 h-[2px] rounded transition-colors ${currentStep >= 3 ? "bg-emerald-500" : "bg-slate-200"
+                }`}
             />
-
             {/* Step 3 */}
             <div className="flex items-center gap-2.5">
               <div
-                className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
-                  currentStep === 3
-                    ? "bg-emerald-600 text-white ring-4 ring-emerald-100 shadow-sm"
-                    : "border-2 border-slate-300 text-slate-400 bg-white"
-                }`}
+                className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${currentStep === 3
+                  ? "bg-emerald-600 text-white ring-4 ring-emerald-100 shadow-sm"
+                  : "border-2 border-slate-300 text-slate-400 bg-white"
+                  }`}
               >
                 3
               </div>
@@ -383,7 +344,6 @@ export function CheckoutPage() {
           </div>
         </div>
       </div>
-
       {/* Main Content Area */}
       <main className="max-w-6xl mx-auto px-4 sm:px-6 pt-8">
         {errorMsg && (
@@ -392,41 +352,28 @@ export function CheckoutPage() {
             <span>{errorMsg}</span>
           </div>
         )}
-
         {/* ======================================================== */}
         {/* BƯỚC 1: THÔNG TIN ĐẶT HÀNG                               */}
         {/* ======================================================== */}
         {currentStep === 1 && (
           <div className="animate-fade-in">
-            <div className="mb-6">
-              <Link
-                to="/pricing"
-                className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-blue-600 transition-colors mb-2"
-              >
-                <ArrowLeft className="w-3.5 h-3.5" />
-                <span>Quay lại Bảng giá</span>
-              </Link>
-              <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+            <div className="mb-5">
+              <h1 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">
                 Thông tin đặt hàng
               </h1>
-              <p className="text-xs sm:text-sm text-slate-500 mt-1">
-                Khai báo thông tin gói mua, đơn vị sử dụng và lựa chọn phương thức thanh toán.
-              </p>
             </div>
-
-            <form onSubmit={handleProceedToPayment} className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-              {/* Left Column: Gói hàng, Đơn vị sử dụng, Xuất hóa đơn (7 cols) */}
-              <div className="lg:col-span-7 space-y-6">
+            <form onSubmit={handleProceedToPayment} className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+              {/* Left Column: Gói hàng, Đơn vị sử dụng, Xuất hóa đơn (8 cols) */}
+              <div className="lg:col-span-8 space-y-6">
                 {/* 1. GÓI HÀNG (Thông tin gói mua) */}
                 <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-2xs space-y-5">
                   <div className="flex items-center gap-2.5 pb-4 border-b border-slate-100 mb-4">
                     <PackageCheck className="w-5 h-5 text-blue-600" />
                     <h2 className="text-base font-bold text-slate-900">Gói Hàng & Dịch Vụ Đã Chọn</h2>
                   </div>
-
                   {/* Two columns layout for a more compact design */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    
+
                     {/* Left Column: Plan Info & Quotas */}
                     <div className="space-y-4">
                       {/* Current Plan Display */}
@@ -447,7 +394,6 @@ export function CheckoutPage() {
                           Đổi
                         </Link>
                       </div>
-
                       {/* Quota Specs */}
                       <div>
                         <div className="flex items-center justify-between mb-2">
@@ -465,7 +411,7 @@ export function CheckoutPage() {
                               {currentPlan.maxJobs > 0 ? `${currentPlan.maxJobs} vị trí` : "Không giới hạn"}
                             </span>
                           </div>
-                          
+
                           <div className="flex items-center justify-between p-2.5 bg-slate-50/80 rounded-lg border border-slate-100">
                             <div className="flex items-center gap-2 text-slate-600 text-[11px] font-medium">
                               <Cpu className="w-3.5 h-3.5 text-slate-400" /> Sàng lọc CV AI
@@ -474,7 +420,7 @@ export function CheckoutPage() {
                               {currentPlan.maxCvParses > 0 ? `${currentPlan.maxCvParses.toLocaleString()} CVs/tháng` : "Không giới hạn"}
                             </span>
                           </div>
-                          
+
                           <div className="flex items-center justify-between p-2.5 bg-slate-50/80 rounded-lg border border-slate-100">
                             <div className="flex items-center gap-2 text-slate-600 text-[11px] font-medium">
                               <Users className="w-3.5 h-3.5 text-slate-400" /> Phỏng vấn AI
@@ -483,11 +429,10 @@ export function CheckoutPage() {
                               {currentPlan.maxAiInterviewHours && currentPlan.maxAiInterviewHours > 0 ? `${currentPlan.maxAiInterviewHours} giờ` : "Không giới hạn"}
                             </span>
                           </div>
-                          
+
                         </div>
                       </div>
                     </div>
-
                     {/* Right Column: Billing Configuration */}
                     <div>
                       <div className="bg-blue-50/30 p-4 rounded-xl border border-blue-100/50 h-full">
@@ -496,22 +441,20 @@ export function CheckoutPage() {
                           <button
                             type="button"
                             onClick={() => setBillingCycle("MONTHLY")}
-                            className={`flex-1 py-2 text-xs font-bold rounded-md transition-all ${
-                              billingCycle === "MONTHLY"
-                                ? "bg-white text-slate-900 shadow-sm border border-slate-200/50"
-                                : "text-slate-500 hover:text-slate-900"
-                            }`}
+                            className={`flex-1 py-2 text-xs font-bold rounded-md transition-all ${billingCycle === "MONTHLY"
+                              ? "bg-white text-slate-900 shadow-sm border border-slate-200/50"
+                              : "text-slate-500 hover:text-slate-900"
+                              }`}
                           >
                             Hàng Tháng
                           </button>
                           <button
                             type="button"
                             onClick={() => setBillingCycle("YEARLY")}
-                            className={`flex-1 py-2 text-xs font-bold rounded-md transition-all flex items-center justify-center gap-1 ${
-                              billingCycle === "YEARLY"
-                                ? "bg-blue-600 text-white shadow-sm border border-blue-700/50"
-                                : "text-slate-500 hover:text-slate-900"
-                            }`}
+                            className={`flex-1 py-2 text-xs font-bold rounded-md transition-all flex items-center justify-center gap-1 ${billingCycle === "YEARLY"
+                              ? "bg-blue-600 text-white shadow-sm border border-blue-700/50"
+                              : "text-slate-500 hover:text-slate-900"
+                              }`}
                           >
                             <span>Hàng Năm</span>
                             <span className="text-[9px] px-1 py-0.5 rounded-sm bg-amber-400 text-slate-900 font-extrabold leading-none">
@@ -519,7 +462,7 @@ export function CheckoutPage() {
                             </span>
                           </button>
                         </div>
-                        
+
                         <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3">Số Lượng</label>
                         <div className="flex items-center h-[38px] border border-slate-200 rounded-lg bg-white overflow-hidden shadow-2xs">
                           <button
@@ -542,20 +485,17 @@ export function CheckoutPage() {
                         </div>
                       </div>
                     </div>
-
                   </div>
                 </div>
-
                 {/* 2. THÔNG TIN ĐƠN VỊ SỬ DỤNG */}
                 <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-2xs space-y-4">
                   <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100">
                     <Building2 className="w-5 h-5 text-blue-600" />
                     <h2 className="text-base font-bold text-slate-900">Thông Tin Đơn Vị Sử Dụng</h2>
                   </div>
-
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                      Tên Doanh Nghiệp / Tổ Chức <span className="text-rose-500">*</span>
+                      Tên Doanh Nghiệp / Tổ Chức
                     </label>
                     <input
                       type="text"
@@ -563,13 +503,12 @@ export function CheckoutPage() {
                       placeholder="Ví dụ: Công Ty Cổ Phần Công Nghệ Acme"
                       value={workspaceName}
                       onChange={(e) => setWorkspaceName(e.target.value)}
-                      className="w-full px-3.5 py-2.5 text-xs bg-slate-50/50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:border-blue-600 transition-all font-medium text-slate-800"
+                      className="w-full px-4 py-3 text-sm bg-slate-50/50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:border-blue-600 transition-all font-medium text-slate-800"
                     />
                   </div>
-
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                      Địa Chỉ Subdomain Độc Lập <span className="text-rose-500">*</span>
+                      Địa Chỉ Subdomain Độc Lập
                     </label>
                     <div className="flex items-center gap-2">
                       <div className="relative flex-1">
@@ -583,22 +522,21 @@ export function CheckoutPage() {
                             setSubdomain(val);
                             setSubdomainStatus("IDLE");
                           }}
-                          className="w-full px-3.5 py-2.5 text-xs bg-slate-50/50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:border-blue-600 font-mono font-medium text-slate-800"
+                          className="w-full px-4 py-3 text-sm bg-slate-50/50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:border-blue-600 font-mono font-medium text-slate-800"
                         />
                       </div>
-                      <span className="text-xs font-bold text-slate-500 select-none">
+                      <span className="text-sm font-bold text-slate-500 select-none">
                         .smarthire.top
                       </span>
                       <button
                         type="button"
                         onClick={handleCheckSubdomain}
                         disabled={!subdomain || subdomainStatus === "CHECKING"}
-                        className="px-3.5 py-2.5 text-xs font-semibold rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors shrink-0 disabled:opacity-50"
+                        className="px-4 py-3 text-sm font-semibold rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors shrink-0 disabled:opacity-50"
                       >
                         {subdomainStatus === "CHECKING" ? "Đang check..." : "Kiểm tra"}
                       </button>
                     </div>
-
                     {subdomainStatus === "AVAILABLE" && (
                       <p className="text-[11px] font-semibold text-emerald-600 mt-1.5 flex items-center gap-1">
                         <CheckCircle2 className="w-3.5 h-3.5" />
@@ -612,11 +550,10 @@ export function CheckoutPage() {
                       </p>
                     )}
                   </div>
-
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
                     <div>
                       <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                        Họ và Tên Admin Quản Trị <span className="text-rose-500">*</span>
+                        Họ và Tên Admin Quản Trị
                       </label>
                       <input
                         type="text"
@@ -624,12 +561,12 @@ export function CheckoutPage() {
                         placeholder="Nguyễn Văn A"
                         value={adminFullName}
                         onChange={(e) => setAdminFullName(e.target.value)}
-                        className="w-full px-3.5 py-2.5 text-xs bg-slate-50/50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:border-blue-600 font-medium text-slate-800"
+                        className="w-full px-4 py-3 text-sm bg-slate-50/50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:border-blue-600 font-medium text-slate-800"
                       />
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                        Số Điện Thoại Liên Hệ <span className="text-rose-500">*</span>
+                        Số Điện Thoại Liên Hệ
                       </label>
                       <input
                         type="tel"
@@ -637,14 +574,13 @@ export function CheckoutPage() {
                         placeholder="0912 345 678"
                         value={adminPhone}
                         onChange={(e) => setAdminPhone(e.target.value)}
-                        className="w-full px-3.5 py-2.5 text-xs bg-slate-50/50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:border-blue-600 font-medium text-slate-800"
+                        className="w-full px-4 py-3 text-sm bg-slate-50/50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:border-blue-600 font-medium text-slate-800"
                       />
                     </div>
                   </div>
-
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                      Email Nhận Link Kích Hoạt & Mật Khẩu <span className="text-rose-500">*</span>
+                      Email Nhận Link Kích Hoạt & Mật Khẩu
                     </label>
                     <input
                       type="email"
@@ -652,14 +588,13 @@ export function CheckoutPage() {
                       placeholder="admin@acmecorp.vn"
                       value={adminEmail}
                       onChange={(e) => setAdminEmail(e.target.value)}
-                      className="w-full px-3.5 py-2.5 text-xs bg-slate-50/50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:border-blue-600 font-medium text-slate-800"
+                      className="w-full px-4 py-3 text-sm bg-slate-50/50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:border-blue-600 font-medium text-slate-800"
                     />
-                    <p className="text-[11px] text-slate-400 mt-1">
+                    <p className="text-xs text-slate-500 mt-1.5">
                       💡 Mật khẩu đăng nhập sẽ được gửi tới email này sau khi hoàn tất đối soát thanh toán.
                     </p>
                   </div>
                 </div>
-
                 {/* 3. THÔNG TIN XUẤT HÓA ĐƠN VAT */}
                 <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-2xs space-y-4">
                   <div className="flex items-center justify-between pb-3 border-b border-slate-100">
@@ -677,11 +612,10 @@ export function CheckoutPage() {
                       <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
                     </label>
                   </div>
-
                   {needVatInvoice && (
                     <div className="space-y-4 pt-1 animate-fade-in">
                       <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                        <label className="block text-sm font-bold text-slate-700 mb-1.5">
                           Tên Pháp Nhân Doanh Nghiệp
                         </label>
                         <input
@@ -689,13 +623,12 @@ export function CheckoutPage() {
                           placeholder="CÔNG TY CỔ PHẦN CÔNG NGHỆ ACME VIỆT NAM"
                           value={companyLegalName}
                           onChange={(e) => setCompanyLegalName(e.target.value)}
-                          className="w-full px-3.5 py-2.5 text-xs bg-slate-50/50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:border-blue-600 font-medium text-slate-800"
+                          className="w-full px-4 py-3 text-sm bg-slate-50/50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:border-blue-600 font-medium text-slate-800"
                         />
                       </div>
-
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                          <label className="block text-sm font-bold text-slate-700 mb-1.5">
                             Mã Số Thuế (MST)
                           </label>
                           <input
@@ -703,11 +636,11 @@ export function CheckoutPage() {
                             placeholder="0101234567"
                             value={taxCode}
                             onChange={(e) => setTaxCode(e.target.value)}
-                            className="w-full px-3.5 py-2.5 text-xs bg-slate-50/50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:border-blue-600 font-medium text-slate-800"
+                            className="w-full px-4 py-3 text-sm bg-slate-50/50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:border-blue-600 font-medium text-slate-800"
                           />
                         </div>
                         <div>
-                          <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                          <label className="block text-sm font-bold text-slate-700 mb-1.5">
                             Địa Chỉ Trụ Sở ĐKKD
                           </label>
                           <input
@@ -715,34 +648,31 @@ export function CheckoutPage() {
                             placeholder="Số 10 Phạm Hùng, Cầu Giấy, Hà Nội"
                             value={billingAddress}
                             onChange={(e) => setBillingAddress(e.target.value)}
-                            className="w-full px-3.5 py-2.5 text-xs bg-slate-50/50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:border-blue-600 font-medium text-slate-800"
+                            className="w-full px-4 py-3 text-sm bg-slate-50/50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:border-blue-600 font-medium text-slate-800"
                           />
                         </div>
                       </div>
                     </div>
                   )}
-
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    <label className="block text-sm font-bold text-slate-700 mb-1.5">
                       Ghi chú đơn hàng (nếu có)
                     </label>
                     <textarea
-                      rows={2}
+                      rows={3}
                       placeholder="Lưu ý khi xuất hóa đơn hoặc triển khai..."
                       value={notes}
                       onChange={(e) => setNotes(e.target.value)}
-                      className="w-full px-3.5 py-2 text-xs bg-slate-50/50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:border-blue-600 font-medium text-slate-800 resize-none"
+                      className="w-full px-4 py-3 text-sm bg-slate-50/50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:border-blue-600 font-medium text-slate-800 resize-none"
                     />
                   </div>
                 </div>
               </div>
-
-              {/* Right Column: Phương thức thanh toán & Tóm tắt chi phí (5 cols) */}
-              <div className="lg:col-span-5 space-y-6 lg:sticky lg:top-24">
-                {/* 1. PHƯƠNG THỨC THANH TOÁN (khớp 100% hình ảnh người dùng) */}
-                <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm space-y-4">
+              {/* Right Column: Phương thức thanh toán & Tóm tắt chi phí (4 cols) */}
+              <div className="lg:col-span-4 space-y-6">
+                {/* 1. PHƯƠNG THỨC THANH TOÁN (Cuộn bình thường) */}
+                <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-2xs space-y-4">
                   <h2 className="text-base font-bold text-slate-900">Phương thức thanh toán</h2>
-
                   <div className="space-y-2.5 pt-1">
                     {/* Chuyển khoản */}
                     <div
@@ -750,178 +680,138 @@ export function CheckoutPage() {
                         setSelectedPaymentType("TRANSFER");
                         setPaymentMethod("VIETQR");
                       }}
-                      className={`flex items-center gap-3.5 p-3 rounded-xl border transition-all cursor-pointer select-none ${
-                        selectedPaymentType === "TRANSFER"
-                          ? "border-blue-600 bg-blue-50/40 shadow-2xs"
-                          : "border-slate-200 hover:bg-slate-50/70"
-                      }`}
+                      className={`flex items-center gap-3.5 p-3 rounded-xl border transition-all cursor-pointer select-none ${selectedPaymentType === "TRANSFER"
+                        ? "border-blue-600 bg-blue-50/40 shadow-2xs"
+                        : "border-slate-200 hover:bg-slate-50/70"
+                        }`}
                     >
                       <div className="relative flex items-center justify-center">
                         <div
-                          className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
-                            selectedPaymentType === "TRANSFER" ? "border-blue-600 bg-white" : "border-slate-300"
-                          }`}
+                          className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${selectedPaymentType === "TRANSFER" ? "border-blue-600 bg-white" : "border-slate-300"
+                            }`}
                         >
                           {selectedPaymentType === "TRANSFER" && (
                             <div className="w-2.5 h-2.5 rounded-full bg-blue-600" />
                           )}
                         </div>
                       </div>
-
                       <div className="w-6 h-6 rounded-full border-2 border-amber-500 text-amber-500 flex items-center justify-center font-bold text-xs select-none">
                         $
                       </div>
-
                       <span
-                        className={`text-sm ${
-                          selectedPaymentType === "TRANSFER"
-                            ? "text-blue-600 font-semibold"
-                            : "text-slate-800 font-medium"
-                        }`}
+                        className={`text-sm ${selectedPaymentType === "TRANSFER"
+                          ? "text-blue-600 font-semibold"
+                          : "text-slate-800 font-medium"
+                          }`}
                       >
-                        Chuyển khoản
+                        Chuyển khoản VietQR
                       </span>
                     </div>
-
                     {/* Thẻ ATM nội địa */}
                     <div
                       onClick={() => {
                         setSelectedPaymentType("ATM");
                         setPaymentMethod("ATM_CARD");
                       }}
-                      className={`flex items-center gap-3.5 p-3 rounded-xl border transition-all cursor-pointer select-none ${
-                        selectedPaymentType === "ATM"
-                          ? "border-blue-600 bg-blue-50/40 shadow-2xs"
-                          : "border-slate-200 hover:bg-slate-50/70"
-                      }`}
+                      className={`flex items-center gap-3.5 p-3 rounded-xl border transition-all cursor-pointer select-none ${selectedPaymentType === "ATM"
+                        ? "border-blue-600 bg-blue-50/40 shadow-2xs"
+                        : "border-slate-200 hover:bg-slate-50/70"
+                        }`}
                     >
                       <div className="relative flex items-center justify-center">
                         <div
-                          className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
-                            selectedPaymentType === "ATM" ? "border-blue-600 bg-white" : "border-slate-300"
-                          }`}
+                          className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${selectedPaymentType === "ATM" ? "border-blue-600 bg-white" : "border-slate-300"
+                            }`}
                         >
                           {selectedPaymentType === "ATM" && (
                             <div className="w-2.5 h-2.5 rounded-full bg-blue-600" />
                           )}
                         </div>
                       </div>
-
                       <CreditCard className="w-5 h-5 text-slate-600" />
-
                       <span
-                        className={`text-sm ${
-                          selectedPaymentType === "ATM"
-                            ? "text-blue-600 font-semibold"
-                            : "text-slate-800 font-medium"
-                        }`}
+                        className={`text-sm ${selectedPaymentType === "ATM"
+                          ? "text-blue-600 font-semibold"
+                          : "text-slate-800 font-medium"
+                          }`}
                       >
                         Thẻ ATM nội địa
                       </span>
                     </div>
-
                     {/* Thẻ quốc tế */}
                     <div
                       onClick={() => {
                         setSelectedPaymentType("INTERNATIONAL");
                         setPaymentMethod("ATM_CARD");
                       }}
-                      className={`flex items-center gap-3.5 p-3 rounded-xl border transition-all cursor-pointer select-none ${
-                        selectedPaymentType === "INTERNATIONAL"
-                          ? "border-blue-600 bg-blue-50/40 shadow-2xs"
-                          : "border-slate-200 hover:bg-slate-50/70"
-                      }`}
+                      className={`flex items-center gap-3.5 p-3 rounded-xl border transition-all cursor-pointer select-none ${selectedPaymentType === "INTERNATIONAL"
+                        ? "border-blue-600 bg-blue-50/40 shadow-2xs"
+                        : "border-slate-200 hover:bg-slate-50/70"
+                        }`}
                     >
                       <div className="relative flex items-center justify-center">
                         <div
-                          className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
-                            selectedPaymentType === "INTERNATIONAL"
-                              ? "border-blue-600 bg-white"
-                              : "border-slate-300"
-                          }`}
+                          className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${selectedPaymentType === "INTERNATIONAL"
+                            ? "border-blue-600 bg-white"
+                            : "border-slate-300"
+                            }`}
                         >
                           {selectedPaymentType === "INTERNATIONAL" && (
                             <div className="w-2.5 h-2.5 rounded-full bg-blue-600" />
                           )}
                         </div>
                       </div>
-
                       <CreditCard className="w-5 h-5 text-slate-600" />
-
                       <span
-                        className={`text-sm ${
-                          selectedPaymentType === "INTERNATIONAL"
-                            ? "text-blue-600 font-semibold"
-                            : "text-slate-800 font-medium"
-                        }`}
+                        className={`text-sm ${selectedPaymentType === "INTERNATIONAL"
+                          ? "text-blue-600 font-semibold"
+                          : "text-slate-800 font-medium"
+                          }`}
                       >
-                        Thẻ quốc tế
+                        Thẻ quốc tế (Visa/Master)
                       </span>
                     </div>
-
                     {/* Ví điện tử */}
                     <div
                       onClick={() => {
                         setSelectedPaymentType("E_WALLET");
                         setPaymentMethod("E_WALLET");
                       }}
-                      className={`flex items-center gap-3.5 p-3 rounded-xl border transition-all cursor-pointer select-none ${
-                        selectedPaymentType === "E_WALLET"
-                          ? "border-blue-600 bg-blue-50/40 shadow-2xs"
-                          : "border-slate-200 hover:bg-slate-50/70"
-                      }`}
+                      className={`flex items-center gap-3.5 p-3 rounded-xl border transition-all cursor-pointer select-none ${selectedPaymentType === "E_WALLET"
+                        ? "border-blue-600 bg-blue-50/40 shadow-2xs"
+                        : "border-slate-200 hover:bg-slate-50/70"
+                        }`}
                     >
                       <div className="relative flex items-center justify-center">
                         <div
-                          className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
-                            selectedPaymentType === "E_WALLET" ? "border-blue-600 bg-white" : "border-slate-300"
-                          }`}
+                          className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${selectedPaymentType === "E_WALLET" ? "border-blue-600 bg-white" : "border-slate-300"
+                            }`}
                         >
                           {selectedPaymentType === "E_WALLET" && (
                             <div className="w-2.5 h-2.5 rounded-full bg-blue-600" />
                           )}
                         </div>
                       </div>
-
                       <Wallet className="w-5 h-5 text-slate-600" />
-
                       <span
-                        className={`text-sm ${
-                          selectedPaymentType === "E_WALLET"
-                            ? "text-blue-600 font-semibold"
-                            : "text-slate-800 font-medium"
-                        }`}
+                        className={`text-sm ${selectedPaymentType === "E_WALLET"
+                          ? "text-blue-600 font-semibold"
+                          : "text-slate-800 font-medium"
+                          }`}
                       >
                         Ví điện tử
                       </span>
                     </div>
                   </div>
-
-                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 text-[11px] text-slate-600 leading-relaxed">
-                    {selectedPaymentType === "TRANSFER" && (
-                      <span>💡 Hệ thống tự động tạo mã VietQR Napas 24/7 có sẵn số tiền và nội dung chuyển khoản, kích hoạt tức thì.</span>
-                    )}
-                    {selectedPaymentType === "ATM" && (
-                      <span>💡 Hỗ trợ thanh toán qua thẻ ATM nội địa có đăng ký Internet Banking của hơn 40 ngân hàng tại Việt Nam.</span>
-                    )}
-                    {selectedPaymentType === "INTERNATIONAL" && (
-                      <span>💡 Hỗ trợ thanh toán qua thẻ tín dụng & ghi nợ quốc tế Visa, Mastercard, JCB bảo mật chuẩn 3D-Secure.</span>
-                    )}
-                    {selectedPaymentType === "E_WALLET" && (
-                      <span>💡 Quét mã thanh toán qua các ví điện tử phổ biến (VNPAY-QR, MoMo, ZaloPay, Viettel Money).</span>
-                    )}
-                  </div>
                 </div>
-
-                {/* 2. TÓM TẮT ĐƠN HÀNG & NÚT TIẾP TỤC */}
-                <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm space-y-4">
+                {/* 2. CHI TIẾT ĐƠN HÀNG (CẮT TÁCH: Phần chi tiết cuộn bình thường, Chỉ khối Tổng Tiền & Nút Thanh Toán là Sticky) */}
+                <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-2xs space-y-4">
                   <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                     <h2 className="text-base font-bold text-slate-900">Chi Tiết Đơn Hàng</h2>
                     <span className="text-xs font-semibold text-slate-500">
                       {billingCycle === "YEARLY" ? "Gói 12 Tháng" : "Gói 1 Tháng"}
                     </span>
                   </div>
-
                   <div className="space-y-2 text-xs">
                     <div className="flex justify-between text-slate-500">
                       <span>Gói dịch vụ:</span>
@@ -943,14 +833,16 @@ export function CheckoutPage() {
                       <span>Thuế GTGT (VAT):</span>
                       <span className="font-medium text-emerald-600">Đã bao gồm</span>
                     </div>
-                    <div className="flex justify-between items-baseline text-base font-extrabold text-slate-900 pt-3 border-t border-slate-200/70">
-                      <span>Tổng thanh toán:</span>
-                      <span className="text-blue-600 text-xl font-black">
-                        {currentAmountVnd.toLocaleString("vi-VN")} <span className="text-xs font-bold text-slate-600">VNĐ</span>
-                      </span>
-                    </div>
                   </div>
-
+                </div>
+                {/* KHỐI TỔNG TIỀN & NÚT THANH TOÁN (STICKY ĐÁY MÀN HÌNH CHỈ RIÊNG PHẦN NÀY) */}
+                <div className="bg-white/95 backdrop-blur-md rounded-2xl border border-slate-200/90 p-5 shadow-xl space-y-3.5 sticky bottom-4 z-30 ring-1 ring-slate-900/5">
+                  <div className="flex justify-between items-baseline text-base font-extrabold text-slate-900">
+                    <span>Tổng thanh toán:</span>
+                    <span className="text-blue-600 text-xl font-black">
+                      {currentAmountVnd.toLocaleString("vi-VN")} <span className="text-xs font-bold text-slate-600">VNĐ</span>
+                    </span>
+                  </div>
                   <button
                     type="submit"
                     disabled={loading}
@@ -963,19 +855,15 @@ export function CheckoutPage() {
                       </>
                     ) : (
                       <>
-                        <span>Tiến Hành Thanh Toán</span>
-                        <ArrowRight className="w-4 h-4" />
+                        <span>Thanh Toán</span>
                       </>
                     )}
                   </button>
-
-
                 </div>
               </div>
             </form>
           </div>
         )}
-
         {/* ======================================================== */}
         {/* BƯỚC 2: THANH TOÁN (CỔNG THANH TOÁN & VIETQR CHÍNH THỨC) */}
         {/* ======================================================== */}
@@ -993,7 +881,6 @@ export function CheckoutPage() {
                   Đơn hàng của bạn đã được ghi nhận. Vui lòng hoàn tất thanh toán để giữ chỗ Subdomain.
                 </p>
               </div>
-
               {/* Countdown Timer Badge */}
               <div className="flex items-center gap-2.5 px-4 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 shrink-0">
                 <Clock className="w-5 h-5 text-amber-600 animate-pulse" />
@@ -1005,7 +892,6 @@ export function CheckoutPage() {
                 </div>
               </div>
             </div>
-
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
               {/* Payment Methods & VietQR (7 cols) */}
               <div className="lg:col-span-7 space-y-6">
@@ -1026,7 +912,6 @@ export function CheckoutPage() {
                       Thay đổi
                     </button>
                   </div>
-
                   {/* Payment Details Container */}
                   {paymentMethod === "E_WALLET" ? (
                     <div className="p-5 rounded-2xl bg-white border border-slate-200 space-y-5">
@@ -1036,7 +921,7 @@ export function CheckoutPage() {
                           <span>Thanh Toán Bằng PayPal</span>
                         </span>
                       </div>
-                      
+
                       <div className="flex justify-center w-full z-0 relative min-h-[200px]">
                         <PayPalScriptProvider options={{ clientId: import.meta.env.VITE_PAYPAL_CLIENT_ID || "test", currency: "USD" }}>
                           <PayPalButtons
@@ -1099,7 +984,6 @@ export function CheckoutPage() {
                           Napas 247
                         </span>
                       </div>
-
                       <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
                         {/* Left: QR Code */}
                         <div className="md:col-span-5 flex flex-col items-center justify-center p-4 bg-white rounded-xl border border-blue-100 shadow-sm">
@@ -1114,7 +998,6 @@ export function CheckoutPage() {
                             Mở App Ngân hàng quét QR
                           </span>
                         </div>
-
                         {/* Right: Bank Details */}
                         <div className="md:col-span-7 space-y-4">
                           <div className="grid grid-cols-2 gap-4">
@@ -1124,7 +1007,6 @@ export function CheckoutPage() {
                                 {orderResult.bankName}
                               </span>
                             </div>
-
                             <div className="space-y-1">
                               <span className="text-[11px] font-medium text-slate-500 block uppercase tracking-wider">Số tài khoản</span>
                               <div className="flex items-center gap-2">
@@ -1141,14 +1023,12 @@ export function CheckoutPage() {
                               </div>
                             </div>
                           </div>
-
                           <div className="space-y-1">
                             <span className="text-[11px] font-medium text-slate-500 block uppercase tracking-wider">Chủ tài khoản</span>
                             <span className="font-bold text-slate-800 text-sm block">
                               {orderResult.accountName}
                             </span>
                           </div>
-
                           <div className="space-y-1 pb-4 border-b border-blue-200/50">
                             <span className="text-[11px] font-medium text-slate-500 block uppercase tracking-wider">Số tiền thanh toán</span>
                             <div className="flex items-center gap-2">
@@ -1164,7 +1044,6 @@ export function CheckoutPage() {
                               </button>
                             </div>
                           </div>
-
                           {/* Transfer Syntax Box */}
                           <div className="p-3.5 rounded-xl bg-amber-50/80 border border-amber-200/70 shadow-2xs">
                             <span className="text-[11px] font-bold text-amber-800 block mb-1.5 uppercase tracking-wider">
@@ -1190,7 +1069,6 @@ export function CheckoutPage() {
                   )}
                 </div>
               </div>
-
               {/* Order Summary & Confirm Paid (5 cols) */}
               <div className="lg:col-span-5 space-y-6">
                 <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm space-y-5">
@@ -1200,7 +1078,6 @@ export function CheckoutPage() {
                       #{orderResult.invoiceNumber}
                     </span>
                   </div>
-
                   <div className="space-y-3 text-xs">
                     <div className="flex justify-between text-slate-600">
                       <span>Gói phần mềm:</span>
@@ -1231,7 +1108,6 @@ export function CheckoutPage() {
                         <span>Chờ Thanh Toán</span>
                       </span>
                     </div>
-
                     <div className="pt-3 border-t border-slate-100 flex justify-between items-baseline">
                       <span className="font-bold text-slate-700 text-sm">Tổng cần thanh toán:</span>
                       <span className="font-extrabold text-blue-600 text-lg">
@@ -1239,7 +1115,6 @@ export function CheckoutPage() {
                       </span>
                     </div>
                   </div>
-
                   {/* Confirm CTA */}
                   <div className="space-y-3 pt-2">
                     {paymentMethod === "ATM_CARD" && (
@@ -1263,7 +1138,7 @@ export function CheckoutPage() {
                         )}
                       </button>
                     )}
-                    
+
                     {paymentMethod === "VIETQR" && (
                       <button
                         type="button"
@@ -1274,20 +1149,18 @@ export function CheckoutPage() {
                         <span>Tôi Đã Hoàn Tất Chuyển Khoản</span>
                       </button>
                     )}
-
                     {paymentMethod === "E_WALLET" && (
                       <div className="w-full py-3.5 px-4 rounded-xl bg-slate-100 text-slate-500 font-bold text-sm text-center flex items-center justify-center gap-2">
                         {paypalVerifying ? (
-                           <>
-                             <Loader2 className="w-4 h-4 animate-spin" />
-                             <span>Đang xác thực giao dịch PayPal...</span>
-                           </>
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            <span>Đang xác thực giao dịch PayPal...</span>
+                          </>
                         ) : (
-                           <span>Hoàn tất thanh toán trên cửa sổ PayPal</span>
+                          <span>Hoàn tất thanh toán trên cửa sổ PayPal</span>
                         )}
                       </div>
                     )}
-
                     <button
                       type="button"
                       onClick={() => setCurrentStep(1)}
@@ -1297,7 +1170,6 @@ export function CheckoutPage() {
                       <span>Quay lại chỉnh sửa thông tin</span>
                     </button>
                   </div>
-
                   <p className="text-[11px] text-slate-400 text-center">
                     Sau khi quý khách bấm xác nhận, hệ thống sẽ chuyển sang màn hình tiếp nhận và bàn giao tài nguyên.
                   </p>
@@ -1306,7 +1178,6 @@ export function CheckoutPage() {
             </div>
           </div>
         )}
-
         {/* ======================================================== */}
         {/* BƯỚC 3: KÍCH HOẠT (THÔNG BÁO, BẢN QUYỀN & TÀI NGUYÊN)    */}
         {/* ======================================================== */}
@@ -1316,34 +1187,31 @@ export function CheckoutPage() {
               <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-sm">
                 <CheckCircle2 className="w-10 h-10" />
               </div>
-
               <span className="text-xs font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200 inline-block mb-3">
                 {paymentMethod === "VIETQR" ? "Đã Ghi Nhận Thanh Toán" : "Thanh Toán Thành Công"}
               </span>
-              
+
               <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-                {paymentMethod === "VIETQR" 
-                  ? "Yêu Cầu Đang Chờ Đối Soát!" 
+                {paymentMethod === "VIETQR"
+                  ? "Yêu Cầu Đang Chờ Đối Soát!"
                   : "Không Gian Làm Việc Đã Kích Hoạt!"}
               </h1>
-              
+
               <p className="text-sm text-slate-600 mt-3 max-w-md mx-auto">
                 {paymentMethod === "VIETQR"
                   ? "Cảm ơn quý doanh nghiệp. Hệ thống đang tiến hành đối soát uỷ nhiệm chi và sẽ tự động cấp phát tài nguyên trong 1-2 giờ làm việc."
                   : "Cảm ơn quý doanh nghiệp. Hệ thống đã tự động cấp phát cơ sở dữ liệu và kích hoạt dịch vụ thành công."}
               </p>
-
               <div className="mt-8 p-6 rounded-2xl bg-slate-50 border border-slate-200/80 text-left space-y-4">
                 <div className="flex items-center justify-between pb-4 border-b border-slate-200/80">
                   <span className="text-sm font-semibold text-slate-700">Mã đơn hàng</span>
                   <span className="font-mono font-bold text-slate-900">{orderResult.invoiceNumber}</span>
                 </div>
-                
+
                 <div className="flex items-center justify-between pb-4 border-b border-slate-200/80">
                   <span className="text-sm font-semibold text-slate-700">Gói dịch vụ</span>
                   <span className="font-bold text-blue-600">{orderResult.planName}</span>
                 </div>
-
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-semibold text-slate-700">Địa chỉ truy cập</span>
                   <span className="font-mono font-bold text-blue-600">
@@ -1351,15 +1219,13 @@ export function CheckoutPage() {
                   </span>
                 </div>
               </div>
-
               <div className="mt-6 p-4 rounded-xl bg-blue-50 border border-blue-200 text-blue-800 text-sm text-left flex gap-3">
-                 <div className="mt-0.5"><Clock className="w-4 h-4" /></div>
-                 <p>
-                   Thông tin tài khoản quản trị viên {paymentMethod === "VIETQR" ? "sẽ" : "đã"} được gửi tới email <strong>{adminEmail}</strong>. 
-                   Quý khách vui lòng kiểm tra hộp thư (kể cả thư rác) để đăng nhập và thiết lập lại mật khẩu.
-                 </p>
+                <div className="mt-0.5"><Clock className="w-4 h-4" /></div>
+                <p>
+                  Thông tin tài khoản quản trị viên {paymentMethod === "VIETQR" ? "sẽ" : "đã"} được gửi tới email <strong>{adminEmail}</strong>.
+                  Quý khách vui lòng kiểm tra hộp thư (kể cả thư rác) để đăng nhập và thiết lập lại mật khẩu.
+                </p>
               </div>
-
               <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
                 {paymentMethod !== "VIETQR" && (
                   <a
@@ -1372,7 +1238,6 @@ export function CheckoutPage() {
                     <ExternalLink className="w-4 h-4" />
                   </a>
                 )}
-
                 <button
                   type="button"
                   onClick={() => window.print()}
@@ -1381,7 +1246,6 @@ export function CheckoutPage() {
                   <Printer className="w-4 h-4 text-slate-500" />
                   <span>In Hóa Đơn</span>
                 </button>
-
                 <a
                   href="/"
                   className="w-full sm:w-auto px-5 py-3.5 rounded-xl text-slate-600 hover:text-slate-900 font-bold text-sm transition-colors block"
@@ -1396,5 +1260,4 @@ export function CheckoutPage() {
     </div>
   );
 }
-
 export default CheckoutPage;
