@@ -184,11 +184,11 @@ export function AppRouter() {
           </Route>
           <Route element={<FeatureRoute feature="APPLICANTS" />}>
             <Route path="jobs/:id/applicants" element={<ApplicantsPage />} />
-            <Route path="applicants" element={<Navigate to="/recruiter/jobs" replace />} />
+            <Route path="applicants" element={<ApplicantsPage />} />
           </Route>
           <Route element={<FeatureRoute feature="CV_SCREENING" />}>
             <Route path="jobs/:id/cvs" element={<CvScreeningPage />} />
-            <Route path="cvs" element={<Navigate to="/recruiter/jobs" replace />} />
+            <Route path="cvs" element={<CvScreeningPage />} />
           </Route>
           <Route element={<FeatureRoute feature="RANKING" />}>
             <Route path="jobs/:id/rank" element={<RankingPage />} />
@@ -226,7 +226,7 @@ export function AppRouter() {
           </Route>
           <Route element={<FeatureRoute feature="SCHEDULES" />}>
             <Route path="jobs/:id/schedules" element={<RecruiterSchedulesPage />} />
-            <Route path="schedules" element={<Navigate to="/recruiter/jobs" replace />} />
+            <Route path="schedules" element={<RecruiterSchedulesPage />} />
           </Route>
           <Route element={<FeatureRoute feature="NOTIFICATIONS" />}>
             <Route path="jobs/:id/notifications" element={<RecruiterNotificationsPage />} />

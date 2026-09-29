@@ -55,6 +55,7 @@ Quản lý application theo job: apply từ candidate, lọc/phân trang, hồ s
 ## UI mockup
 
 - Tenant Admin xem job `PUBLISHED` và danh sách ứng viên tại `/internal/admin/recruitment` (chỉ xem).
+- Recruiter mở `/recruiter/applicants?status=new` từ Dashboard để xem hàng đợi ứng viên mới của mọi job: tổng số hồ sơ, lọc nhanh hồ sơ chờ quá 24 giờ, tìm kiếm, lọc thời gian chờ/người phụ trách, sắp xếp theo thời gian, xem hồ sơ và chuyển một hoặc nhiều hồ sơ sang `IN_REVIEW`. Hàng đợi không yêu cầu chọn job trước; mỗi dòng vẫn hiển thị vị trí ứng tuyển. UI desktop dùng command bar ngang gộp tiêu đề, chỉ số, bộ lọc và bulk action ngay trên bảng; không hiển thị cột nguồn khi chưa có đủ nguồn tuyển dụng hữu ích.
 - Google Stitch: **Job Recruitment Management / Applicant Management** — _[dán link]_
 - Icons: xem `DESIGN.md`
 

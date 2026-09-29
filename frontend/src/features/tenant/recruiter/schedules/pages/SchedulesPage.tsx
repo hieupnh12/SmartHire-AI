@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { CalendarPlus, Link2, MapPin, Video } from "lucide-react";
 import { PrototypeBanner } from "@/components/ux/PrototypeBanner";
 import { StatusPill } from "@/components/ux/StatusPill";
@@ -12,6 +13,7 @@ import {
 } from "@/features/tenant/recruiter/schedules/constants/mockInterviews";
 
 export function SchedulesPage() {
+  const [params] = useSearchParams();
   const [rows, setRows] = useState<MockInterview[]>(mockInterviews);
   const [applicationId, setApplicationId] = useState("501");
   const [candidateName, setCandidateName] = useState("Nguyễn An");
@@ -24,6 +26,10 @@ export function SchedulesPage() {
   const [location, setLocation] = useState("");
   const [note, setNote] = useState("");
   const [toast, setToast] = useState<string | null>(null);
+  const upcomingOnly = params.get("status")?.toLowerCase() === "upcoming";
+  const visibleRows = upcomingOnly
+    ? rows.filter((row) => row.status !== "CANCELLED" && row.status !== "DONE" && new Date(row.startsAt).getTime() >= Date.now())
+    : rows;
 
   const flash = (message: string) => {
     setToast(message);
@@ -65,12 +71,9 @@ export function SchedulesPage() {
 
   return (
     <section className="space-y-6 text-[var(--color-on-surface)]">
-      <header>
-        <p className={muted}>Tuyển dụng / Lịch phỏng vấn</p>
-        <h1 className="mt-1 text-3xl font-semibold tracking-tight">Interview chính thức</h1>
-        <p className={`mt-2 max-w-2xl ${muted}`}>
-          Đặt lịch online/offline, phân công interviewer, gửi thông báo. Online bắt đầu bằng nhập link meeting.
-        </p>
+      <header className="flex flex-wrap items-center gap-3">
+        <h1 className="text-2xl font-semibold tracking-tight">Lịch phỏng vấn</h1>
+        {upcomingOnly && <span className="rounded-full bg-[var(--color-primary-soft)] px-3 py-1 text-xs font-semibold text-brand-primary">Bộ lọc: Sắp tới</span>}
       </header>
 
       <PrototypeBanner note="lịch Interview người–người · AI Interview nằm ở menu AI Interview" />
@@ -84,7 +87,8 @@ export function SchedulesPage() {
         <div className={`${panel} space-y-4`}>
           <h2 className="text-lg font-semibold">Lịch sắp tới</h2>
           <ul className="space-y-3">
-            {rows.map((row) => (
+            {visibleRows.length === 0 && <li className={muted}>Không có lịch phỏng vấn sắp tới.</li>}
+            {visibleRows.map((row) => (
               <li key={row.id} className="rounded-2xl border border-[var(--color-border-default)] p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>

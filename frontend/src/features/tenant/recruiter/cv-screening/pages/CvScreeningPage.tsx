@@ -1,6 +1,6 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import { cvApi } from "@/api/tenant/cvApi";
 import { jobApi } from "@/api/tenant/jobApi";
 import { getApiErrorMessage } from "@/lib/axios";
@@ -19,6 +19,8 @@ export function CvScreeningPage() {
   const token = useAuthStore((s) => s.accessToken);
   const client = useQueryClient();
   const { id: routeJobId } = useParams<{ id?: string }>();
+  const [params] = useSearchParams();
+  const pendingOnly = params.get("status")?.toLowerCase() === "pending";
   const scopedJobId = routeJobId && /^\d+$/.test(routeJobId) ? Number(routeJobId) : null;
   const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
   const jobId = scopedJobId ?? selectedJobId;
@@ -29,6 +31,14 @@ export function CvScreeningPage() {
     queryFn: () => cvApi.listByJob(jobId!),
     enabled: jobId !== null && !!token,
     refetchInterval: 5_000,
+  });
+  const allJobLists = useQueries({
+    queries: (jobs.data?.data ?? []).map((job) => ({
+      queryKey: queryKeys.cvs.byJob(job.id),
+      queryFn: () => cvApi.listByJob(job.id),
+      enabled: jobId === null && !!token,
+      refetchInterval: 5_000,
+    })),
   });
   const detail = useQuery({
     queryKey: queryKeys.cvs.detail(selectedId ?? 0),
@@ -53,24 +63,28 @@ export function CvScreeningPage() {
       void list.refetch();
     },
   });
-  const rows = list.data?.data ?? [];
+  const sourceRows = jobId === null
+    ? allJobLists.flatMap((query) => query.data?.data ?? [])
+    : list.data?.data ?? [];
+  const rows = pendingOnly
+    ? sourceRows.filter((row) => row.status === "UPLOADED" || row.status === "PARSED")
+    : sourceRows;
+  const rowsPending = jobId === null ? jobs.isPending || allJobLists.some((query) => query.isPending) : list.isPending;
+  const rowsError = jobId === null ? jobs.error ?? allJobLists.find((query) => query.error)?.error : list.error;
   const cv = detail.data?.data;
   const breakdown = cv?.match?.breakdown;
   const jobList = jobs.data?.data ?? [];
   return (
     <section className="space-y-6 text-[var(--color-on-surface)]">
-      <header>
-        <p className={muted}>Tuyển dụng / Sàng lọc CV</p>
-        <h1 className="mt-1 text-3xl font-semibold tracking-tight">CV Screening</h1>
-        <p className={`mt-2 max-w-2xl ${muted}`}>
-          Hybrid screening: taxonomy + Jaccard + Gemini semantic. Bấm một CV để mở chi tiết. Khi job hết hạn đăng, hệ thống tự phân tích các CV chưa chấm.
-        </p>
+      <header className="flex flex-wrap items-center gap-3">
+        <h1 className="text-2xl font-semibold tracking-tight">CV cần sàng lọc</h1>
+        {pendingOnly && <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">Bộ lọc: Đang chờ</span>}
       </header>
-      {!scopedJobId && <div className={panel}>
+      {!scopedJobId && !pendingOnly && <div className={panel}>
         <label className="block max-w-xl space-y-2">
           <span className="text-sm font-semibold">Vị trí tuyển dụng</span>
           <select className={input} value={jobId ?? ""} onChange={(e) => { setSelectedJobId(e.target.value ? Number(e.target.value) : null); setSelectedId(null); }}>
-            <option value="">Chọn Job</option>
+            <option value="">Tất cả job</option>
             {jobList.map((job) => <option key={job.id} value={job.id}>{job.title}</option>)}
           </select>
         </label>
@@ -92,12 +106,12 @@ export function CvScreeningPage() {
           </div>
         </div>
       )}
-      {jobId && (
+      {(jobId || (!jobs.isPending && jobList.length > 0)) && (
         <div className={`${panel} overflow-x-auto`}>
-          {list.isPending && <p>Đang tải CV…</p>}
-          {list.isError && <p role="alert">{getApiErrorMessage(list.error)}</p>}
-          {rows.length === 0 && list.isSuccess && (
-            <p className={muted}>Chưa có CV cho job này. Recruiter không tải CV hộ — chỉ CV ứng viên apply mới hiện.</p>
+          {rowsPending && <p>Đang tải CV…</p>}
+          {rowsError && <p role="alert">{getApiErrorMessage(rowsError)}</p>}
+          {rows.length === 0 && !rowsPending && !rowsError && (
+            <p className={muted}>{pendingOnly ? "Không có CV nào đang chờ sàng lọc." : "Chưa có CV phù hợp bộ lọc."}</p>
           )}
           {rows.length > 0 && (
             <table className="w-full text-left text-sm">

@@ -1,6 +1,7 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { useParams, useSearchParams } from "react-router-dom";
+import { AlertTriangle, ArrowRight, Clock3, Search, Users } from "lucide-react";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { applicantApi } from "@/api/tenant/applicantApi";
 import { cvApi } from "@/api/tenant/cvApi";
 import { jobApi } from "@/api/tenant/jobApi";
@@ -14,9 +15,20 @@ import { SendAssessmentPanel } from "@/features/tenant/recruiter/applicants/comp
 import { DetailDialog } from "@/components/ux/DetailDialog";
 import { CvFilePreview } from "@/components/shared/CvFilePreview";
 import { ScreeningBreakdown } from "@/features/tenant/recruiter/cv-screening/components/ScreeningBreakdown";
-import type { ApplicationDetail, CvRef } from "@/api/types/applicant";
+import type { ApplicationDetail, ApplicationSummary, CvRef } from "@/api/types/applicant";
 
 const statuses = ["NEW", "IN_REVIEW", "ASSESSMENT", "INTERVIEW", "OFFER", "HIRED", "REJECTED"];
+
+function waitingTime(createdAt: string) {
+  const hours = Math.max(0, Math.floor((Date.now() - new Date(createdAt).getTime()) / 3_600_000));
+  if (hours < 1) return "Vừa nộp";
+  if (hours < 24) return `Chờ ${hours} giờ`;
+  return `Chờ ${Math.floor(hours / 24)} ngày`;
+}
+
+function isWaitingOver24Hours(row: ApplicationSummary) {
+  return Date.now() - new Date(row.createdAt).getTime() >= 24 * 3_600_000;
+}
 
 export function ApplicantsPage() {
   const token = useAuthStore((s) => s.accessToken);
@@ -26,11 +38,18 @@ export function ApplicantsPage() {
   const jobId = routeJobId && /^\d+$/.test(routeJobId) ? Number(routeJobId) : jobIdRaw && /^\d+$/.test(jobIdRaw) ? Number(jobIdRaw) : null;
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [q, setQ] = useState("");
-  const [status, setStatus] = useState("");
+  const requestedStatus = params.get("status")?.toUpperCase() ?? "";
+  const [status, setStatus] = useState(statuses.includes(requestedStatus) ? requestedStatus : "");
+  const isNewApplicantQueue = requestedStatus === "NEW";
   const [source, setSource] = useState("");
   const [archived, setArchived] = useState(false);
+  const [sort, setSort] = useState<"oldest" | "newest">("oldest");
+  const [waitingFilter, setWaitingFilter] = useState<"all" | "24" | "72" | "168">("all");
+  const [assigneeFilter, setAssigneeFilter] = useState<"all" | "unassigned">("all");
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [reviewedCount, setReviewedCount] = useState(0);
   const [page, setPage] = useState(0);
-  const jobs = useQuery({ queryKey: ["screening-jobs"], queryFn: jobApi.options, enabled: !!token });
+  const jobs = useQuery({ queryKey: ["screening-jobs"], queryFn: jobApi.options, enabled: !!token && !routeJobId && !isNewApplicantQueue });
   const listKey = [...queryKeys.applicants.byJob(jobId ?? "all"), q, status, source, archived, page];
   const list = useQuery({
     queryKey: listKey,
@@ -51,7 +70,15 @@ export function ApplicantsPage() {
     enabled: selectedId !== null,
   });
   const rows = list.data?.data.items ?? [];
+  const visibleRows = useMemo(() => rows
+    .filter((row) => waitingFilter === "all" || Date.now() - new Date(row.createdAt).getTime() >= Number(waitingFilter) * 3_600_000)
+    .filter((row) => assigneeFilter === "all" || !row.assigneeName)
+    .sort((left, right) => {
+      const difference = new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime();
+      return sort === "oldest" ? difference : -difference;
+    }), [assigneeFilter, rows, sort, waitingFilter]);
   const total = list.data?.data.total ?? 0;
+  const overdueCount = rows.filter(isWaitingOver24Hours).length;
   const jobList = jobs.data?.data ?? [];
   const selectJob = (next: number | null) => {
     const nextParams = new URLSearchParams(params);
@@ -61,15 +88,30 @@ export function ApplicantsPage() {
     setSelectedId(null);
     setPage(0);
   };
+  const review = useMutation({
+    mutationFn: (ids: number[]) => Promise.all(ids.map((id) => applicantApi.changeStatus(id, "IN_REVIEW"))),
+    onSuccess: (_responses, ids) => {
+      setReviewedCount(ids.length);
+      setSelectedIds([]);
+      void list.refetch();
+    },
+  });
+  const toggleSelected = (id: number) => setSelectedIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
+  const allVisibleSelected = visibleRows.length > 0 && visibleRows.every((row) => selectedIds.includes(row.id));
   return (
-    <section className="space-y-6 text-[var(--color-on-surface)]">
-      <header>
-        <p className={muted}>Tuyển dụng / Ứng viên</p>
-        <h1 className="mt-1 text-3xl font-semibold tracking-tight">Quản lý ứng viên</h1>
-        <p className={`mt-2 max-w-2xl ${muted}`}>Danh sách hiện mọi ứng viên. Các ô phía trên chỉ để lọc. Bấm một dòng để mở hồ sơ.</p>
-      </header>
-      <div className={panel}>
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+    <section className="space-y-4 text-[var(--color-on-surface)]">
+      {isNewApplicantQueue ? <div className={`${panel} space-y-3`}>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          {selectedIds.length > 0 ? <><p className="text-sm font-semibold text-brand-primary">Đã chọn {selectedIds.length} hồ sơ</p><div className="flex gap-2"><button type="button" className={button} onClick={() => setSelectedIds([])}>Bỏ chọn</button><button type="button" className={primary} disabled={review.isPending} onClick={() => review.mutate(selectedIds)}>{review.isPending ? "Đang chuyển…" : "Chuyển sang xem xét"}</button></div></> : <><div className="flex flex-wrap items-center gap-3"><h1 className="text-2xl font-semibold tracking-tight">Ứng viên mới</h1><span className="rounded-full bg-[var(--color-primary-soft)] px-3 py-1 text-xs font-semibold text-brand-primary" role="status" aria-atomic="true">{list.isPending ? "Đang tải" : `${total} hồ sơ`}</span>{overdueCount > 0 && <button type="button" onClick={() => setWaitingFilter("24")} aria-pressed={waitingFilter === "24"} className="inline-flex min-h-8 items-center gap-1.5 rounded-full bg-amber-50 px-3 text-xs font-semibold text-amber-700 transition-colors hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"><AlertTriangle className="size-3.5" aria-hidden="true" />{overdueCount} quá 24 giờ</button>}</div><p className="text-xs text-[var(--color-on-surface-variant)]">Tổng hợp mọi vị trí</p></>}
+        </div>
+        <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[minmax(16rem,1fr)_11rem_11rem_11rem]">
+          <label className="relative"><span className="sr-only">Tìm kiếm ứng viên</span><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--color-outline)]" aria-hidden="true" /><input className={`${input} pl-9`} value={q} onChange={(event) => { setQ(event.target.value); setPage(0); }} placeholder="Tìm tên hoặc email" /></label>
+          <label><span className="sr-only">Thời gian chờ</span><select className={input} value={waitingFilter} onChange={(event) => setWaitingFilter(event.target.value as "all" | "24" | "72" | "168")}><option value="all">Mọi thời gian</option><option value="24">Quá 24 giờ</option><option value="72">Quá 3 ngày</option><option value="168">Quá 7 ngày</option></select></label>
+          <label><span className="sr-only">Người phụ trách</span><select className={input} value={assigneeFilter} onChange={(event) => setAssigneeFilter(event.target.value as "all" | "unassigned")}><option value="all">Mọi phụ trách</option><option value="unassigned">Chưa phân công</option></select></label>
+          <label><span className="sr-only">Sắp xếp</span><select className={input} value={sort} onChange={(event) => setSort(event.target.value as "oldest" | "newest")}><option value="oldest">Cũ nhất trước</option><option value="newest">Mới nhất trước</option></select></label>
+        </div>
+      </div> : <><header><h1 className="text-2xl font-semibold tracking-tight">Ứng viên</h1></header><div className={panel}>
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           {!routeJobId && <label className="space-y-1 text-sm">
             <span>Job</span>
             <select className={input} value={jobId ?? ""} onChange={(e) => selectJob(e.target.value ? Number(e.target.value) : null)}>
@@ -79,11 +121,19 @@ export function ApplicantsPage() {
           </label>}
           <label className="space-y-1 text-sm">
             <span>Tìm kiếm</span>
-            <input className={input} value={q} onChange={(e) => { setQ(e.target.value); setPage(0); }} placeholder="Tên, email, tag, referral" />
+            <span className="relative block"><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--color-outline)]" aria-hidden="true" /><input className={`${input} pl-9`} value={q} onChange={(e) => { setQ(e.target.value); setPage(0); }} placeholder="Tên, email, tag, referral" /></span>
           </label>
           <label className="space-y-1 text-sm">
             <span>Trạng thái</span>
-            <select className={input} value={status} onChange={(e) => { setStatus(e.target.value); setPage(0); }}>
+            <select className={input} value={status} onChange={(e) => {
+              const nextStatus = e.target.value;
+              const nextParams = new URLSearchParams(params);
+              if (nextStatus) nextParams.set("status", nextStatus.toLowerCase());
+              else nextParams.delete("status");
+              setParams(nextParams, { replace: true });
+              setStatus(nextStatus);
+              setPage(0);
+            }}>
               <option value="">Tất cả</option>
               {statuses.map((item) => <option key={item} value={item}>{labels[item] ?? item}</option>)}
             </select>
@@ -97,25 +147,30 @@ export function ApplicantsPage() {
             <span>Hồ sơ đã lưu trữ</span>
           </label>
         </div>
-      </div>
+      </div></>}
+      {review.isSuccess && reviewedCount > 0 && <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">Đã chuyển {reviewedCount} hồ sơ sang trạng thái đang xem xét.</p>}
+      {review.isError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{getApiErrorMessage(review.error)}</p>}
       <div className={`${panel} overflow-x-auto`}>
         {list.isPending && <p>Đang tải…</p>}
         {list.isError && <p role="alert">{getApiErrorMessage(list.error)}</p>}
-        {rows.length === 0 && list.isSuccess && <p className={muted}>Chưa có ứng viên.</p>}
-        {rows.length > 0 && (
-          <table className="w-full text-left text-sm">
-            <thead><tr className={muted}><th className="py-2">Ứng viên</th><th>Job</th><th>Nguồn</th><th>Trạng thái</th><th>Phụ trách</th></tr></thead>
+        {visibleRows.length === 0 && list.isSuccess && (isNewApplicantQueue ? <div className="flex flex-col items-center py-10 text-center"><span className="grid size-12 place-items-center rounded-2xl bg-[var(--color-primary-soft)] text-brand-primary"><Users className="size-6" aria-hidden="true" /></span><h2 className="mt-4 text-lg font-semibold">Đã xử lý hết ứng viên mới</h2><p className={`mt-1 ${muted}`}>Hiện không còn hồ sơ nào đang chờ xem xét.</p><Link to="/recruiter" className={`${button} mt-4`}>Quay lại Dashboard</Link></div> : <p className={muted}>Chưa có ứng viên.</p>)}
+        {visibleRows.length > 0 && (
+          <table className="w-full min-w-[920px] text-left text-sm">
+            <thead><tr className={muted}>{isNewApplicantQueue && <th className="w-10 py-2"><input type="checkbox" aria-label="Chọn tất cả hồ sơ trên trang" checked={allVisibleSelected} onChange={() => setSelectedIds(allVisibleSelected ? [] : visibleRows.map((row) => row.id))} /></th>}<th className="py-2">Ứng viên</th><th>Vị trí ứng tuyển</th>{isNewApplicantQueue && <th>Thời gian chờ</th>}{!isNewApplicantQueue && <th>Nguồn</th>}<th>Phụ trách</th>{!isNewApplicantQueue && <th>Trạng thái</th>}{isNewApplicantQueue && <th><span className="sr-only">Thao tác</span></th>}</tr></thead>
             <tbody>
-              {rows.map((row) => (
-                <tr key={row.id} className={`cursor-pointer border-t border-[var(--color-border-default)] ${selectedId === row.id ? "bg-[var(--color-surface-container-low)]" : ""}`} onClick={() => setSelectedId(row.id)}>
-                  <td className="py-2">
+              {visibleRows.map((row) => (
+                <tr key={row.id} className={`cursor-pointer border-t border-[var(--color-border-default)] transition-colors hover:bg-[var(--color-primary-subtle)] ${selectedId === row.id ? "bg-[var(--color-surface-container-low)]" : ""}`} onClick={() => setSelectedId(row.id)}>
+                  {isNewApplicantQueue && <td className="py-3" onClick={(event) => event.stopPropagation()}><input type="checkbox" aria-label={`Chọn hồ sơ ${row.candidateName}`} checked={selectedIds.includes(row.id)} onChange={() => toggleSelected(row.id)} /></td>}
+                  <td className="py-3">
                     <p className="font-medium">{row.candidateName}</p>
                     <p className={muted}>{row.candidateEmail}{row.duplicate ? " · trùng hồ sơ" : ""}</p>
                   </td>
-                  <td>{row.jobTitle}</td>
-                  <td>{row.source ?? "—"}{row.referralCode ? ` / ${row.referralCode}` : ""}</td>
-                  <td>{labels[row.status] ?? row.status}</td>
-                  <td>{row.assigneeName ?? "—"}</td>
+                  <td><p className="font-medium">{row.jobTitle}</p><p className={muted}>{[row.jobDepartment, row.jobLocation].filter(Boolean).join(" · ") || "—"}</p></td>
+                  {isNewApplicantQueue && <td><span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium ${isWaitingOver24Hours(row) ? "bg-amber-50 text-amber-700" : "bg-[var(--color-surface-alt)] text-[var(--color-on-surface-variant)]"}`}><Clock3 className="size-3.5" aria-hidden="true" />{waitingTime(row.createdAt)}</span></td>}
+                  {!isNewApplicantQueue && <td>{row.source ?? "—"}{row.referralCode ? ` / ${row.referralCode}` : ""}</td>}
+                  <td>{row.assigneeName ?? "Chưa phân công"}</td>
+                  {!isNewApplicantQueue && <td>{labels[row.status] ?? row.status}</td>}
+                  {isNewApplicantQueue && <td onClick={(event) => event.stopPropagation()}><div className="flex justify-end gap-2"><button type="button" className={button} onClick={() => setSelectedId(row.id)}>Xem hồ sơ</button><button type="button" className={primary} disabled={review.isPending} onClick={() => review.mutate([row.id])}>Xem xét<ArrowRight className="size-3.5" aria-hidden="true" /></button></div></td>}
                 </tr>
               ))}
             </tbody>

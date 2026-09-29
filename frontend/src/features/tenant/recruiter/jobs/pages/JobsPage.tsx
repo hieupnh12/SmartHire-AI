@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { jobApi } from "@/api/tenant/jobApi";
 import type { JobStatus } from "@/api/types/job";
 import { getApiErrorMessage } from "@/lib/axios";
@@ -23,8 +23,11 @@ export function JobsPage() {
   const navigate = useNavigate();
   const client = useQueryClient();
   const askConfirm = useUiStore((s) => s.askConfirm);
+  const [params, setParams] = useSearchParams();
+  const requestedStatus = params.get("status")?.toLowerCase();
+  const initialStatus: "" | JobStatus = requestedStatus === "draft" ? "DRAFT" : requestedStatus === "expiring" ? "PUBLISHED" : "";
   const [q, setQ] = useState("");
-  const [status, setStatus] = useState<"" | JobStatus>("");
+  const [status, setStatus] = useState<"" | JobStatus>(initialStatus);
   const [page, setPage] = useState(0);
   const list = useQuery({
     queryKey: queryKeys.jobs.list({ q, status, page }),
@@ -40,13 +43,18 @@ export function JobsPage() {
     onSuccess: (response) => navigate(`/recruiter/jobs/${response.data.id}/edit`),
   });
   const data = list.data?.data;
+  const expiringOnly = requestedStatus === "expiring";
+  const visibleItems = data?.items.filter((job) => {
+    if (!expiringOnly || !job.deadline) return !expiringOnly;
+    const remaining = new Date(job.deadline).getTime() - Date.now();
+    return remaining >= 0 && remaining <= 7 * 24 * 60 * 60 * 1000;
+  }) ?? [];
   return (
     <section className="space-y-6 text-[var(--color-on-surface)]">
       <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className={muted}>Tuyển dụng / Việc làm</p>
-          <h1 className="mt-1 text-3xl font-semibold tracking-tight">Quản lý tin tuyển dụng</h1>
-          <p className={`mt-2 max-w-2xl ${muted}`}>Tạo nháp, chọn skill theo catalog, publish để nhận CV và chấm matching.</p>
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="text-2xl font-semibold tracking-tight">{expiringOnly ? "Job sắp hết hạn" : status === "DRAFT" ? "Job nháp" : "Việc làm"}</h1>
+          {(expiringOnly || status === "DRAFT") && <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">Bộ lọc: {expiringOnly ? "Hết hạn trong 7 ngày" : "Bản nháp"}</span>}
         </div>
         <Link
           to="new"
@@ -58,16 +66,26 @@ export function JobsPage() {
       <div className={`${panel} flex flex-wrap gap-3`}>
         <input className={`${input} max-w-sm`} value={q} placeholder="Tìm theo title, location, phòng ban"
           onChange={(e) => { setQ(e.target.value); setPage(0); }} />
-        <select className={`${input} max-w-xs`} value={status} onChange={(e) => { setStatus(e.target.value as "" | JobStatus); setPage(0); }}>
+        <select className={`${input} max-w-xs`} value={expiringOnly ? "EXPIRING" : status} onChange={(e) => {
+          const nextStatus = e.target.value;
+          const nextParams = new URLSearchParams(params);
+          if (nextStatus === "EXPIRING") nextParams.set("status", "expiring");
+          else if (nextStatus) nextParams.set("status", nextStatus.toLowerCase());
+          else nextParams.delete("status");
+          setParams(nextParams, { replace: true });
+          setStatus(nextStatus === "EXPIRING" ? "PUBLISHED" : nextStatus as "" | JobStatus);
+          setPage(0);
+        }}>
           {statuses.map((item) => <option key={item.value || "all"} value={item.value}>{item.label}</option>)}
+          <option value="EXPIRING">Sắp hết hạn</option>
         </select>
       </div>
       {list.isError && <p role="alert">{getApiErrorMessage(list.error)}</p>}
       <div className={`${panel} overflow-x-auto`}>
         {list.isPending && <LoadingState label="Đang tải danh sách việc làm"><TableSkeleton /></LoadingState>}
-        {data && data.items.length === 0 && (
+        {data && visibleItems.length === 0 && (
           <div className="flex flex-col items-start gap-4 py-6">
-            <p className={muted}>Chưa có job. Tạo tin mới rồi chọn skill Backend/Frontend để matching CV.</p>
+            <p className={muted}>{expiringOnly ? "Không có job nào sắp hết hạn trong 7 ngày tới." : "Chưa có job phù hợp bộ lọc."}</p>
             <Link
               to="new"
               className="inline-flex min-h-11 items-center justify-center rounded-[var(--radius-md)] bg-brand-primary px-4 text-sm font-semibold text-white shadow-sm hover:bg-brand-primary-hover"
@@ -76,7 +94,7 @@ export function JobsPage() {
             </Link>
           </div>
         )}
-        {data && data.items.length > 0 && (
+        {data && visibleItems.length > 0 && (
           <table className="w-full text-left text-sm">
             <thead>
               <tr className={muted}>
@@ -88,7 +106,7 @@ export function JobsPage() {
               </tr>
             </thead>
             <tbody>
-              {data.items.map((job) => (
+              {visibleItems.map((job) => (
                 <tr key={job.id} className="border-t border-[var(--color-border-default)]">
                   <td className="py-3">
                     <Link className="font-semibold hover:underline" to={`/recruiter/jobs/${job.id}`}>{job.title}</Link>

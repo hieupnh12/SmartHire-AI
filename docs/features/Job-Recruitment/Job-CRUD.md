@@ -49,7 +49,7 @@ Recruiter set `deadline` (ngày giờ). Hết hạn → job đóng, tự phân t
 
 ## UI mockup
 
-- Job feed tại `/recruiter` hiển thị dữ liệu thật về phòng ban, chế độ lọc CV và funnel theo trạng thái ứng viên. `AUTO` xử lý sau hạn tuyển; `MANUAL` yêu cầu recruiter xác nhận. Job cũ mặc định `MANUAL`.
+- Job feed tại `/recruiter` hiển thị cố định dạng bảng với dữ liệu thật về phòng ban, chế độ lọc CV và tiến độ ứng viên. Recruiter có thể chọn số job mỗi trang và điều hướng trực tiếp giữa các trang. `AUTO` xử lý sau hạn tuyển; `MANUAL` yêu cầu recruiter xác nhận. Job cũ mặc định `MANUAL`.
 
 - Recruiter: `/recruiter/jobs`, `/recruiter/jobs/new`, `/recruiter/jobs/:id`
 - Khi mở chi tiết từ bảng tin tuyển dụng, thanh điều hướng giữ `Việc làm` là mục chính; không hiển thị `Bảng điều khiển` trong thanh điều hướng của trang chức năng.

@@ -35,6 +35,8 @@ spring:
       port: ${REDIS_PORT}
       password: ${REDIS_PASSWORD:}
       timeout: 3s
+      repositories:
+        enabled: false
   rabbitmq:
     host: ${RABBITMQ_HOST}
     port: ${RABBITMQ_PORT}
@@ -65,9 +67,9 @@ management:
         include: health,info
   health:
     redis:
-      enabled: true
+      enabled: ${REDIS_HEALTH_ENABLED:true}
     rabbit:
-      enabled: true
+      enabled: ${RABBIT_HEALTH_ENABLED:true}
     db:
       enabled: true
 
