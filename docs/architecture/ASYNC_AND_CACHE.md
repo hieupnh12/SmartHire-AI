@@ -72,6 +72,7 @@ FE nhận "hoàn thành"
 | CV Parse / Extract / Matching | `cv.parse`, `cv.extract`, `cv.matching` | ⭐⭐⭐⭐⭐ |
 | AI Interview Scoring (+ STT/NLP) | `interview.stt`, `interview.nlp`, `interview.score` | ⭐⭐⭐⭐⭐ |
 | AI sinh câu hỏi | `interview.questions` | ⭐⭐⭐⭐ |
+| Email kết quả AI Interview | `tenant.interview.email` | ⭐⭐⭐⭐ |
 | Coding auto-grade | `assessment.code.grade` | ⭐⭐⭐⭐ |
 | Practice feedback | `practice.feedback` | ⭐⭐⭐ |
 | Email (OTP, schedule, decision) | `notify.email`, `auth.email.otp` | ⭐⭐⭐⭐ |
@@ -173,6 +174,7 @@ Candidate Approved → RabbitMQ → Notification Worker → WebSocket + optional
 | Nginx | `frontend/nginx.conf`, `deploy/nginx/smarthire.conf` |
 
 Consumers (`@RabbitListener`) implement dần trong `com.smarthire.messaging` khi làm từng feature CV/Interview/Email.
+Queue `tenant.interview.email` được khai báo durable tại `RabbitMqConfig`; publisher và listener cùng đọc `app.rabbitmq.queues.interview-email` để RabbitAdmin tự tạo queue trước khi worker khởi động.
 
 ## Cách ly tenant trong worker
 
