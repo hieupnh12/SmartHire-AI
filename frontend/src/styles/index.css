@@ -4,6 +4,29 @@
 @tailwind components;
 @tailwind utilities;
 
+.recruiter-job-detail-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  align-items: start;
+  gap: 1.5rem;
+}
+
+.recruiter-job-detail-sidebar {
+  position: sticky;
+  top: 8rem;
+  min-width: 0;
+}
+
+@media (max-width: 1023px) {
+  .recruiter-job-detail-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .recruiter-job-detail-sidebar {
+    position: static;
+  }
+}
+
 @layer components {
   .skeleton-shimmer {
     position: relative;

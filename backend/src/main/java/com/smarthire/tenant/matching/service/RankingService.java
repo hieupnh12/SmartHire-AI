@@ -11,6 +11,7 @@ import com.smarthire.tenant.cv.service.CvAccess;
 import com.smarthire.tenant.matching.dto.RankingModels.*;
 import com.smarthire.tenant.matching.realtime.RankingWebSocketHandler;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.YearMonth;
 import java.time.ZoneOffset;
@@ -88,15 +89,24 @@ public class RankingService {
         }
         return data.jobs(email).stream().map(j -> new JobOption(j.getId(), j.getTitle())).toList();
     }
-    private Config configuration(long jobId, List<JobSkill> requirements) {
-        RankingConfig stored = data.config(jobId);
+    private Config configuration(Job job, List<JobSkill> requirements) {
+        RankingConfig stored = data.config(job.getId());
         if (stored != null) return decode(stored.getConfigJson(), Config.class);
         List<String> categories = requirements.stream().map(r -> skills.category(r.getSkill())).distinct().sorted().toList();
         if (categories.isEmpty()) categories = List.of("other");
         Map<String, Integer> groups = new TreeMap<>();
         for (int i = 0; i < categories.size(); i++) groups.put(categories.get(i), 100 / categories.size() + (i < 100 % categories.size() ? 1 : 0));
-        // Unsaved defaults require the recruiter to supply the job's experience requirement.
-        return new Config(new Weights(35, 15, 30, 20), groups, 0, 0);
+        int requiredExperienceMonths = job.getMinYearsExperience() == null ? 0
+                : job.getMinYearsExperience().multiply(BigDecimal.valueOf(12))
+                        .setScale(0, RoundingMode.HALF_UP).intValueExact();
+        JobScreeningConfig screening = data.screeningConfig(job.getId());
+        Weights weights = screening == null ? new Weights(40, 0, 25, 35) : gateWeights(screening);
+        return new Config(weights, groups, requiredExperienceMonths, 0);
+    }
+    private Weights gateWeights(JobScreeningConfig screening) {
+        int cv = screening.getGateCvWeight().setScale(0, RoundingMode.HALF_UP).intValue();
+        int assessment = screening.getGateAssessmentWeight().setScale(0, RoundingMode.HALF_UP).intValue();
+        return new Weights(cv, 0, assessment, 100 - cv - assessment);
     }
     public Board configure(long jobId, Config request) {
         Job job = authorize(jobId, true);
@@ -212,7 +222,7 @@ public class RankingService {
     }
     private Board compute(Job job, boolean persist) {
         List<JobSkill> requirements = data.requirements(job.getId());
-        Config config = configuration(job.getId(), requirements);
+        Config config = configuration(job, requirements);
         List<Application> applications = data.applications(job.getId());
         List<Row> rows = calculator.rank(applications.stream().map(a -> row(a, config, requirements)).toList());
         String version = RankingCalculator.VERSION + ":" + config.revision();
@@ -244,12 +254,13 @@ public class RankingService {
         Map<String, BigDecimal> scores = new HashMap<>(); Map<String, String> states = new HashMap<>();
         List<String> notices = new ArrayList<>(); List<GroupScore> groups = List.of();
         ExperienceScoringService.Result exp = new ExperienceScoringService.Result(null, null, List.of(), "MISSING");
-        if (config.revision() == 0) notices.add("CONFIGURATION_REQUIRED");
         boolean configurationCurrent = config.groups().keySet().equals(requirements.stream().map(r -> skills.category(r.getSkill())).collect(Collectors.toSet()));
         if (!configurationCurrent) notices.add("JOB_SKILLS_CHANGED");
         if (cv != null && cv.getStatus() == CvStatus.ANALYZED) {
             groups = skills.score(requirements, data.skills(cv.getId()), config.groups());
-            if (configurationCurrent && !requirements.isEmpty()) scores.put("skills", skills.overall(groups));
+            BigDecimal screeningScore = data.matchScore(app.getJob().getId(), cv.getId());
+            if (screeningScore != null) scores.put("skills", screeningScore);
+            else if (configurationCurrent && !requirements.isEmpty()) scores.put("skills", skills.overall(groups));
             exp = experience.score(data.extraction(cv.getId()), requirements.stream().map(r -> skills.normalize(r.getSkill().getName())).collect(Collectors.toSet()),
                     config.requiredExperienceMonths(), YearMonth.now(ZoneOffset.UTC));
             scores.put("experience", exp.score()); states.put("experience", exp.state());
@@ -274,7 +285,6 @@ public class RankingService {
         if (testScore != null) timeline.add(new TimelineEvent("ASSESSMENT_GRADED", submission.getSubmittedAt()));
         if (interviewScore != null) timeline.add(new TimelineEvent("INTERVIEW_SCORED", aiInterview.getCompletedAt()));
         timeline.sort(Comparator.comparing(TimelineEvent::occurredAt, Comparator.nullsLast(Comparator.naturalOrder())));
-        if (config.revision() == 0) scores.clear();
         return new Row(id, app.getCandidate().getFullName(), app.getStatus().name(), null,
                 calculator.calculate(config.weights(), scores, states), groups, missing, exp.months(), exp.evidence(), notices,
                 new Selection(cv == null ? null : cv.getId(), submission == null ? null : submission.getId(), aiInterview == null ? null : aiInterview.getId()),

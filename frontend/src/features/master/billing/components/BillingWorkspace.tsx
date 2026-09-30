@@ -110,15 +110,9 @@ export function BillingWorkspace({
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+      <header className="sticky top-16 md:top-0 z-10 bg-[#f8fafc]/95 backdrop-blur-md px-4 py-4 sm:px-6 lg:px-8 -mx-4 -mt-5 sm:-mx-6 sm:-mt-6 lg:-mx-8 lg:-mt-8 mb-6 border-b border-slate-200/50 shadow-sm flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-blue-700">
-            <span>Nền tảng</span><ChevronRight className="size-3" aria-hidden="true" /><span>Gói & thanh toán</span>
-          </div>
-          <h1 className="text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl">Gói dịch vụ & thanh toán</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-            Theo dõi doanh thu định kỳ, quản lý gói SaaS và xử lý hóa đơn của toàn bộ doanh nghiệp.
-          </p>
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight bg-gradient-to-r from-blue-600 to-cyan-500 bg-clip-text text-transparent">Gói & Thanh Toán</h1>
         </div>
         <div className="flex flex-wrap gap-2">
           <button type="button" onClick={downloadInvoices} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50">

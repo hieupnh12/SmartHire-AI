@@ -1,153 +1,198 @@
 import { useMemo, useState } from "react";
-import { Archive, ArrowRight, BriefcaseBusiness, CheckCircle2, FilterX, LayoutGrid, List, MoreHorizontal, Search, SlidersHorizontal, Sparkles, UserRoundCheck, Users, Video, X, type LucideIcon } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
-import { Link, useParams } from "react-router-dom";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ArrowRight, BriefcaseBusiness, CircleAlert, Clock3, FilterX, Search, UserRound } from "lucide-react";
+import { Link, Navigate, useParams, useSearchParams } from "react-router-dom";
+import { applicantApi } from "@/api/tenant/applicantApi";
 import { jobApi } from "@/api/tenant/jobApi";
+import type { ApplicationStatus, ApplicationSummary } from "@/api/types/applicant";
+import { DetailDialog } from "@/components/ux/DetailDialog";
+import { getApiErrorMessage } from "@/lib/axios";
 import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
 
-type ViewMode = "detail" | "compact";
-type StageId = "applied" | "screening" | "shortlisted" | "testing" | "interviewing" | "accepted" | "hired";
-type Candidate = { id: number; name: string; role: string; score: number; stage: StageId; meta: string; note: string; action: string };
-type Stage = { id: StageId; label: string; count: number; color: string; icon: LucideIcon };
+type PipelineColumn = { status: ApplicationStatus; label: string; description: string; accent: string };
 
-const stages: Stage[] = [
-  { id: "applied", label: "Đã ứng tuyển", count: 22, color: "bg-slate-400", icon: Users },
-  { id: "screening", label: "Sàng lọc", count: 18, color: "bg-blue-600", icon: Sparkles },
-  { id: "shortlisted", label: "Danh sách chọn", count: 14, color: "bg-cyan-600", icon: UserRoundCheck },
-  { id: "testing", label: "Bài đánh giá", count: 12, color: "bg-amber-600", icon: SlidersHorizontal },
-  { id: "interviewing", label: "Phỏng vấn", count: 8, color: "bg-indigo-600", icon: Video },
-  { id: "accepted", label: "Đã nhận offer", count: 3, color: "bg-sky-300", icon: CheckCircle2 },
-  { id: "hired", label: "Đã tuyển", count: 2, color: "bg-brand-primary", icon: BriefcaseBusiness },
+const PIPELINE_COLUMNS: PipelineColumn[] = [
+  { status: "NEW", label: "Mới", description: "Hồ sơ vừa nhận", accent: "bg-blue-500" },
+  { status: "IN_REVIEW", label: "Đang xem xét", description: "Đang sàng lọc", accent: "bg-violet-500" },
+  { status: "ASSESSMENT", label: "Bài đánh giá", description: "Đang làm bài", accent: "bg-amber-500" },
+  { status: "INTERVIEW", label: "Phỏng vấn", description: "Đang phỏng vấn", accent: "bg-cyan-600" },
+  { status: "OFFER", label: "Đề nghị", description: "Đang xử lý offer", accent: "bg-orange-500" },
+  { status: "HIRED", label: "Đã tuyển", description: "Tuyển thành công", accent: "bg-emerald-600" },
+  { status: "REJECTED", label: "Từ chối", description: "Không tiếp tục", accent: "bg-red-500" },
+  { status: "WITHDRAWN", label: "Đã rút", description: "Ứng viên chủ động rút", accent: "bg-slate-500" },
 ];
 
-const candidates: Candidate[] = [
-  { id: 1, name: "Nguyễn Minh Anh", role: "Backend Developer · 4 năm", score: 91, stage: "applied", meta: "Ứng tuyển 2 giờ trước", note: "Java, Spring Boot, Kafka", action: "Xem hồ sơ" },
-  { id: 2, name: "Trần Quốc Bảo", role: "Java Engineer · Fintech", score: 86, stage: "applied", meta: "Nguồn: LinkedIn", note: "Thiếu thông tin mức lương", action: "Xem hồ sơ" },
-  { id: 3, name: "Lê Thanh Hà", role: "Software Engineer · 5 năm", score: 89, stage: "screening", meta: "AI đang phân tích", note: "8/10 kỹ năng phù hợp", action: "Xem kết quả AI" },
-  { id: 4, name: "Phạm Gia Huy", role: "Backend Engineer · 3 năm", score: 77, stage: "screening", meta: "Cần recruiter xác minh", note: "Kinh nghiệm cloud chưa rõ", action: "Kiểm tra bằng chứng" },
-  { id: 5, name: "Đỗ Khánh Linh", role: "Senior Java Developer", score: 94, stage: "shortlisted", meta: "Top 5% ứng viên", note: "Đề xuất chuyển technical test", action: "Chuyển vòng" },
-  { id: 6, name: "Vũ Hoàng Long", role: "Platform Engineer", score: 88, stage: "shortlisted", meta: "Đã được duyệt", note: "Có kinh nghiệm hệ thống lớn", action: "Chuyển vòng" },
-  { id: 7, name: "Bùi Ngọc Mai", role: "Java Core Engineer", score: 85, stage: "testing", meta: "Hạn nộp: hôm nay 18:00", note: "Coding 72/100 · MCQ 18/20", action: "Xem bài làm" },
-  { id: 8, name: "Đặng Đức Nam", role: "Backend Developer", score: 79, stage: "testing", meta: "Đang làm bài", note: "Còn 42 phút", action: "Theo dõi bài thi" },
-  { id: 9, name: "Nguyễn Thu Trang", role: "Tech Lead · OneMount", score: 84, stage: "interviewing", meta: "Hôm nay · 14:00", note: "Vòng 2 · Technical", action: "Vào phòng" },
-  { id: 10, name: "Trần Tuấn Kiệt", role: "Java Core Engineer", score: 81, stage: "interviewing", meta: "Ngày mai · 10:30", note: "Cultural fit", action: "Xem bộ câu hỏi" },
-  { id: 11, name: "Đặng Hữu Phúc", role: "Staff Java Backend", score: 92, stage: "accepted", meta: "Offer 3.200 USD net", note: "Đã ký và gửi lại", action: "Đánh dấu đã tuyển" },
-  { id: 12, name: "Nguyễn Minh Trí", role: "Staff Java Backend", score: 96, stage: "hired", meta: "Bắt đầu: 02/10/2026", note: "Đã gửi onboarding", action: "Xem onboarding" },
-  { id: 13, name: "Vũ Mỹ Duyên", role: "Mid Java Backend", score: 90, stage: "hired", meta: "Bắt đầu: 12/10/2026", note: "Sẵn sàng ngày đầu", action: "Xem onboarding" },
-  ...(["applied", "screening", "shortlisted", "testing"] as const).flatMap((stage, stageIndex) =>
-    [
-      ["Đinh Tuấn Anh", "Java Developer · 3 năm", 82],
-      ["Phan Ngọc Bích", "Backend Engineer · E-commerce", 88],
-      ["Lương Quốc Cường", "Spring Boot Developer · 4 năm", 76],
-      ["Tạ Minh Đức", "Software Engineer · Fintech", 91],
-      ["Đỗ Thu Hương", "Java Engineer · 5 năm", 85],
-      ["Ngô Hoàng Khang", "Platform Developer · Cloud", 79],
-      ["Bùi Hải Yến", "Backend Developer · Banking", 87],
-    ].map(([name, role, score], candidateIndex) => ({
-      id: 100 + stageIndex * 10 + candidateIndex,
-      name: name as string,
-      role: role as string,
-      score: score as number,
-      stage,
-      meta: stage === "applied" ? "Ứng tuyển trong hôm nay" : stage === "screening" ? "Đang chờ xác minh hồ sơ" : stage === "shortlisted" ? "Được đề xuất vào vòng tiếp theo" : "Đang thực hiện bài đánh giá",
-      note: "Java · Spring Boot · Microservices",
-      action: stage === "testing" ? "Xem bài đánh giá" : "Xem hồ sơ",
-    })),
-  ),
-  ...[
-    ["Nguyễn Hải Nam", "Senior Backend Engineer", 89],
-    ["Trịnh Lan Phương", "Java Technical Lead", 93],
-    ["Hà Anh Quân", "Backend Developer · 5 năm", 84],
-    ["Võ Thanh Tâm", "Software Engineer · Banking", 81],
-    ["Mai Đức Thịnh", "Java Platform Engineer", 86],
-  ].map(([name, role, score], index) => ({
-    id: 200 + index,
-    name: name as string,
-    role: role as string,
-    score: score as number,
-    stage: "interviewing" as const,
-    meta: `Lịch phỏng vấn · ${9 + index}:30`,
-    note: "Vòng Technical · Phỏng vấn trực tuyến",
-    action: "Xem lịch phỏng vấn",
-  })),
-];
+const movableStatuses = PIPELINE_COLUMNS.filter((column) => column.status !== "WITHDRAWN");
 
-const archived = [
-  ["Hoàng Nam", "Điểm technical thấp", "Coding 41/100 · concurrency chưa đạt"],
-  ["Lê Thành Đạt", "Ứng viên rút hồ sơ", "Đã nhận offer khác tại Singapore"],
-  ["Phan Bảo Châu", "Không phù hợp thời gian", "Không thể đáp ứng lịch onboard"],
-];
+function initials(name: string) {
+  return name.split(" ").filter(Boolean).slice(-2).map((part) => part[0]).join("").toLocaleUpperCase();
+}
 
-const initials = (name: string) => name.split(" ").slice(-2).map((part) => part[0]).join("");
+function relativeDate(value: string) {
+  const days = Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 86_400_000));
+  if (days === 0) return "Hôm nay";
+  if (days === 1) return "Hôm qua";
+  return `${days} ngày trước`;
+}
 
-function CandidateCard({ candidate, compact }: { candidate: Candidate; compact: boolean }) {
-  return <article className="group rounded-xl border border-[var(--color-border-default)] bg-white p-3 shadow-sm transition-[border-color,box-shadow,transform] duration-200 motion-reduce:transition-none hover:-translate-y-0.5 hover:border-brand-primary/45 hover:shadow-md motion-reduce:hover:transform-none">
-    <div className="flex items-start gap-2.5"><span className="grid size-9 shrink-0 place-items-center rounded-full bg-[var(--color-primary-soft)] text-[11px] font-bold text-brand-primary">{initials(candidate.name)}</span><div className="min-w-0 flex-1"><h3 className="truncate text-sm font-semibold">{candidate.name}</h3><p className="mt-0.5 truncate text-[11px] text-[var(--color-on-surface-variant)]">{candidate.role}</p></div><span className="shrink-0 rounded-full bg-[var(--color-primary-soft)] px-2 py-1 text-[10px] font-bold text-brand-primary">{candidate.score}%</span></div>
-    {!compact && <div className="mt-3 space-y-2"><div className="rounded-lg bg-[var(--color-surface-alt)] p-2 text-[11px]"><p className="font-semibold">{candidate.meta}</p><p className="mt-0.5 text-[var(--color-on-surface-variant)]">{candidate.note}</p></div><button type="button" className="inline-flex min-h-8 w-full items-center justify-center gap-1.5 rounded-lg border border-[var(--color-border-default)] text-[11px] font-semibold text-brand-primary hover:bg-[var(--color-primary-subtle)]">{candidate.action}<ArrowRight className="size-3" aria-hidden="true" /></button></div>}
-  </article>;
+function CandidateCard({ application, pending, onOpen, onMove }: {
+  application: ApplicationSummary;
+  pending: boolean;
+  onOpen: () => void;
+  onMove: (status: ApplicationStatus) => void;
+}) {
+  const withdrawn = application.status === "WITHDRAWN";
+  const terminal = application.status === "HIRED" || application.status === "REJECTED";
+  const availableStatuses = terminal
+    ? movableStatuses.filter((column) => column.status === application.status || column.status === "IN_REVIEW")
+    : movableStatuses;
+  return (
+    <article className="rounded-xl border border-[var(--color-border-default)] bg-white p-3 shadow-sm transition-[border-color,box-shadow] hover:border-brand-primary/35 hover:shadow-md">
+      <button type="button" onClick={onOpen} className="w-full rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/30">
+        <div className="flex items-start gap-2.5">
+          <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[var(--color-primary-soft)] text-[11px] font-semibold text-brand-primary">{initials(application.candidateName)}</span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-semibold">{application.candidateName}</span>
+            <span className="mt-0.5 block truncate text-[11px] text-[var(--color-on-surface-variant)]">{application.candidateEmail}</span>
+          </span>
+          {application.duplicate && <span className="rounded-full bg-amber-100 px-2 py-1 text-[10px] font-semibold text-amber-800">Trùng</span>}
+        </div>
+        <div className="mt-3 flex items-center justify-between gap-2 text-[11px] text-[var(--color-on-surface-variant)]">
+          <span className="inline-flex min-w-0 items-center gap-1.5 truncate"><UserRound className="size-3.5 shrink-0" aria-hidden="true" />{application.assigneeName ?? "Chưa phân công"}</span>
+          <span className="inline-flex shrink-0 items-center gap-1"><Clock3 className="size-3.5" aria-hidden="true" />{relativeDate(application.createdAt)}</span>
+        </div>
+      </button>
+      <div className="mt-3 border-t border-[var(--color-border-default)] pt-3">
+        {withdrawn ? <p className="text-[11px] leading-4 text-[var(--color-on-surface-variant)]">Chỉ ứng viên mới có thể rút hồ sơ.</p> : (
+          <label className="block">
+            <span className="sr-only">Chuyển {application.candidateName} sang giai đoạn</span>
+            <select value={application.status} disabled={pending} onChange={(event) => onMove(event.target.value as ApplicationStatus)} className="min-h-9 w-full rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-alt)] px-2 text-xs font-medium outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/15 disabled:cursor-wait disabled:opacity-60">
+              {availableStatuses.map((column) => <option key={column.status} value={column.status}>{column.label}</option>)}
+            </select>
+          </label>
+        )}
+      </div>
+    </article>
+  );
+}
+
+export function PipelineBoard() {
+  const { id } = useParams<{ id: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const jobId = id && /^\d+$/.test(id) ? id : undefined;
+  const queryClient = useQueryClient();
+  const [query, setQuery] = useState("");
+  const [selectedId, setSelectedId] = useState<number | null>(() => {
+    const value = Number(searchParams.get("applicationId"));
+    return Number.isInteger(value) && value > 0 ? value : null;
+  });
+  const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
+
+  const jobQuery = useQuery({ queryKey: queryKeys.jobs.detail(jobId ?? 0), queryFn: () => jobApi.get(jobId!), enabled: Boolean(jobId) });
+  const applicationsQuery = useQuery({
+    queryKey: [...queryKeys.applicants.byJob(jobId ?? 0), "pipeline"],
+    queryFn: async () => {
+      const first = await applicantApi.listByJob(jobId!, { page: 0, size: 50, includeWithdrawn: true });
+      const pageCount = Math.ceil(first.data.total / 50);
+      if (pageCount <= 1) return first.data.items;
+      const remaining = await Promise.all(Array.from({ length: pageCount - 1 }, (_, index) => applicantApi.listByJob(jobId!, { page: index + 1, size: 50, includeWithdrawn: true })));
+      return [first, ...remaining].flatMap((response) => response.data.items);
+    },
+    enabled: Boolean(jobId),
+  });
+  const detailQuery = useQuery({ queryKey: queryKeys.applicants.detail(selectedId ?? 0), queryFn: () => applicantApi.get(selectedId!), enabled: selectedId != null });
+  const moveMutation = useMutation({
+    mutationFn: ({ applicationId, status }: { applicationId: number; status: ApplicationStatus }) => applicantApi.changeStatus(applicationId, status),
+    onSuccess: async () => {
+      setFeedback({ type: "success", message: "Đã cập nhật giai đoạn của ứng viên." });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.applicants.byJob(jobId ?? 0) });
+      if (selectedId) await queryClient.invalidateQueries({ queryKey: queryKeys.applicants.detail(selectedId) });
+    },
+    onError: (error) => setFeedback({ type: "error", message: getApiErrorMessage(error, "Không thể chuyển giai đoạn ứng viên.") }),
+  });
+
+  const applications = applicationsQuery.data ?? [];
+  const normalizedQuery = query.trim().toLocaleLowerCase();
+  const filtered = useMemo(() => applications.filter((application) => !normalizedQuery || `${application.candidateName} ${application.candidateEmail} ${application.tags ?? ""}`.toLocaleLowerCase().includes(normalizedQuery)), [applications, normalizedQuery]);
+  const detail = detailQuery.data?.data;
+
+  const openDetail = (applicationId: number) => {
+    setSelectedId(applicationId);
+    const next = new URLSearchParams(searchParams);
+    next.set("applicationId", String(applicationId));
+    setSearchParams(next, { replace: true });
+  };
+  const closeDetail = () => {
+    setSelectedId(null);
+    const next = new URLSearchParams(searchParams);
+    next.delete("applicationId");
+    setSearchParams(next, { replace: true });
+  };
+
+  if (!jobId) return <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">Không xác định được job cho pipeline.</div>;
+
+  return (
+    <section className="flex h-full min-h-0 flex-col gap-4 py-4 text-[var(--color-on-surface)] sm:py-6">
+      <header className="flex shrink-0 flex-col gap-3 rounded-2xl border border-[var(--color-border-default)] bg-white p-4 shadow-sm lg:flex-row lg:items-center lg:justify-between">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 text-xs font-medium text-brand-primary"><BriefcaseBusiness className="size-4" aria-hidden="true" />Bảng quy trình tuyển dụng</div>
+          <h1 className="mt-1 truncate text-lg font-semibold sm:text-xl">{jobQuery.data?.data.title ?? "Đang tải vị trí…"}</h1>
+          <p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">{applications.length} ứng viên · cập nhật trực tiếp theo trạng thái hồ sơ</p>
+        </div>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <label className="relative block min-w-[240px]">
+            <span className="sr-only">Tìm ứng viên trong pipeline</span>
+            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--color-outline)]" aria-hidden="true" />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm tên, email, kỹ năng…" className="min-h-10 w-full rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-alt)] pl-9 pr-3 text-sm outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/15" />
+          </label>
+          {query && <button type="button" onClick={() => setQuery("")} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-[var(--color-border-default)] px-3 text-xs font-semibold hover:bg-[var(--color-surface-alt)]"><FilterX className="size-4" aria-hidden="true" />Xóa lọc</button>}
+          <Link to={`/recruiter/jobs/${jobId}/applicants?view=list`} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-brand-primary px-4 text-xs font-semibold text-white hover:bg-brand-primary-hover">Xem dạng danh sách<ArrowRight className="size-4" aria-hidden="true" /></Link>
+        </div>
+      </header>
+
+      {feedback && <div role="status" className={cn("flex shrink-0 items-center gap-2 rounded-xl border px-4 py-2.5 text-xs", feedback.type === "error" ? "border-red-200 bg-red-50 text-red-800" : "border-emerald-200 bg-emerald-50 text-emerald-800")}><CircleAlert className="size-4 shrink-0" aria-hidden="true" />{feedback.message}<button type="button" onClick={() => setFeedback(null)} className="ml-auto font-semibold underline">Đóng</button></div>}
+
+      {applicationsQuery.isError ? <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{getApiErrorMessage(applicationsQuery.error, "Không tải được pipeline.")}</div> : (
+        <div className="min-h-0 flex-1 overflow-x-auto overscroll-contain [scrollbar-color:var(--color-outline-variant)_transparent] [scrollbar-width:thin]">
+          <div className="flex h-full min-h-[480px] min-w-max gap-3 pb-3">
+            {PIPELINE_COLUMNS.map((column) => {
+              const rows = filtered.filter((application) => application.status === column.status);
+              return <section key={column.status} className="flex h-full w-[286px] flex-col overflow-hidden rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-container-low)]/75 p-2.5" aria-labelledby={`pipeline-${column.status}`}>
+                <header className="mb-2 flex shrink-0 items-center gap-2 rounded-xl bg-white px-3 py-2.5">
+                  <span className={cn("size-2.5 rounded-full", column.accent)} aria-hidden="true" />
+                  <div className="min-w-0 flex-1"><h2 id={`pipeline-${column.status}`} className="text-sm font-semibold">{column.label}</h2><p className="truncate text-[10px] text-[var(--color-on-surface-variant)]">{column.description}</p></div>
+                  <span className="rounded-full bg-[var(--color-surface-alt)] px-2 py-1 text-[11px] font-semibold">{rows.length}</span>
+                </header>
+                <div className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain pr-1 [scrollbar-color:var(--color-outline-variant)_transparent] [scrollbar-width:thin]">
+                  {rows.map((application) => <CandidateCard key={application.id} application={application} pending={moveMutation.isPending && moveMutation.variables?.applicationId === application.id} onOpen={() => openDetail(application.id)} onMove={(status) => status !== application.status && moveMutation.mutate({ applicationId: application.id, status })} />)}
+                  {!applicationsQuery.isLoading && rows.length === 0 && <div className="grid min-h-28 place-items-center rounded-xl border border-dashed border-[var(--color-outline-variant)] bg-white/60 px-5 text-center text-[11px] leading-4 text-[var(--color-on-surface-variant)]">Chưa có ứng viên ở giai đoạn này</div>}
+                  {applicationsQuery.isLoading && <div className="h-28 animate-pulse rounded-xl bg-white" />}
+                </div>
+              </section>;
+            })}
+          </div>
+        </div>
+      )}
+
+      <DetailDialog open={selectedId != null} title={detail?.candidateName ?? "Chi tiết ứng viên"} onClose={closeDetail}>
+        {detailQuery.isLoading ? <p className="text-sm text-[var(--color-on-surface-variant)]">Đang tải hồ sơ…</p> : detail ? <div className="space-y-4">
+          <div className="grid gap-3 rounded-xl bg-[var(--color-surface-alt)] p-4 sm:grid-cols-2">
+            <div><p className="text-xs text-[var(--color-on-surface-variant)]">Email</p><p className="mt-1 text-sm font-medium">{detail.candidateEmail}</p></div>
+            <div><p className="text-xs text-[var(--color-on-surface-variant)]">Người phụ trách</p><p className="mt-1 text-sm font-medium">{detail.assigneeName ?? "Chưa phân công"}</p></div>
+            <div><p className="text-xs text-[var(--color-on-surface-variant)]">Nguồn</p><p className="mt-1 text-sm font-medium">{detail.source ?? "Không ghi nhận"}</p></div>
+            <div><p className="text-xs text-[var(--color-on-surface-variant)]">Ngày ứng tuyển</p><p className="mt-1 text-sm font-medium">{new Intl.DateTimeFormat("vi-VN", { dateStyle: "medium" }).format(new Date(detail.createdAt))}</p></div>
+          </div>
+          {detail.tags && <div><p className="text-xs font-semibold">Kỹ năng / nhãn</p><p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">{detail.tags}</p></div>}
+          {detail.notes && <div><p className="text-xs font-semibold">Ghi chú</p><p className="mt-1 whitespace-pre-wrap text-sm text-[var(--color-on-surface-variant)]">{detail.notes}</p></div>}
+          <Link to={`/recruiter/jobs/${jobId}/applicants?view=list&applicationId=${detail.id}`} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-brand-primary px-4 text-sm font-semibold text-white hover:bg-brand-primary-hover">Mở hồ sơ đầy đủ<ArrowRight className="size-4" aria-hidden="true" /></Link>
+        </div> : <p className="text-sm text-red-700">{getApiErrorMessage(detailQuery.error, "Không tải được chi tiết ứng viên.")}</p>}
+      </DetailDialog>
+    </section>
+  );
 }
 
 export function PipelinePage() {
   const { id } = useParams<{ id: string }>();
-  const jobId = id && /^\d+$/.test(id) ? id : undefined;
-  const jobQuery = useQuery({
-    queryKey: queryKeys.jobs.detail(jobId ?? 0),
-    queryFn: () => jobApi.get(jobId!),
-    enabled: Boolean(jobId),
-  });
-  const jobStages = jobQuery.data?.data?.stages ?? [];
-  const [view, setView] = useState<ViewMode>("detail");
-  const [query, setQuery] = useState("");
-  const [minimumScore, setMinimumScore] = useState(60);
-  const [stageFilter, setStageFilter] = useState<"all" | StageId>("all");
-  const [archiveOpen, setArchiveOpen] = useState(false);
-  const filtered = useMemo(() => candidates.filter((candidate) => candidate.score >= minimumScore && (stageFilter === "all" || candidate.stage === stageFilter) && (!query.trim() || `${candidate.name} ${candidate.role}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()))), [minimumScore, query, stageFilter]);
-
-  return <section className="grid items-start gap-4 text-[var(--color-on-surface)] xl:h-full xl:min-h-0 xl:grid-cols-[260px_minmax(0,1fr)] xl:overflow-hidden">
-    <aside className="-ml-4 w-[calc(100%+1rem)] overflow-hidden rounded-r-2xl border border-l-0 border-[var(--color-border-default)] bg-white shadow-sm sm:-ml-6 sm:w-[calc(100%+1.5rem)] xl:fixed xl:bottom-0 xl:left-0 xl:top-[7.5rem] xl:z-30 xl:grid xl:h-auto xl:w-[300px] xl:ml-0 xl:grid-rows-[auto_minmax(0,1fr)_auto] xl:rounded-r-none" aria-label="Tìm kiếm và bộ lọc pipeline">
-      <div className="border-b border-[var(--color-border-default)] bg-[var(--color-surface-alt)]/65 p-4">
-        <div className="flex items-start gap-3"><span className="grid size-9 shrink-0 place-items-center rounded-xl bg-[var(--color-primary-soft)] text-brand-primary"><SlidersHorizontal className="size-4" aria-hidden="true" /></span><div><h2 className="text-sm font-semibold">Tìm kiếm và bộ lọc</h2><p className="mt-1 text-[11px] leading-4 text-[var(--color-on-surface-variant)]">Áp dụng trên toàn bộ pipeline.</p></div></div>
-        <div className="mt-3 flex items-center rounded-xl border border-[var(--color-border-default)] bg-white p-1" role="toolbar" aria-label="Điều khiển hiển thị pipeline">
-          <button type="button" onClick={() => setView("detail")} aria-pressed={view === "detail"} className={cn("inline-flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-lg px-2 text-[11px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/30", view === "detail" ? "bg-[var(--color-primary-soft)] text-brand-primary" : "text-[var(--color-on-surface-variant)] hover:bg-[var(--color-surface-alt)] hover:text-brand-primary")}><LayoutGrid className="size-3.5" aria-hidden="true" />Chi tiết</button>
-          <button type="button" onClick={() => setView("compact")} aria-pressed={view === "compact"} className={cn("inline-flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-lg px-2 text-[11px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/30", view === "compact" ? "bg-[var(--color-primary-soft)] text-brand-primary" : "text-[var(--color-on-surface-variant)] hover:bg-[var(--color-surface-alt)] hover:text-brand-primary")}><List className="size-3.5" aria-hidden="true" />Thu gọn</button>
-          <Link to={`/recruiter/jobs/${id}/applicants`} aria-label="Mở danh sách ứng viên" title="Ứng viên" className="grid size-9 shrink-0 place-items-center rounded-lg bg-brand-primary text-white transition-colors hover:bg-brand-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/30"><Users className="size-3.5" aria-hidden="true" /></Link>
-        </div>
-      </div>
-      <div className="flex min-h-0 flex-col gap-5 p-4">
-        <label className="block"><span className="mb-1.5 block text-xs font-semibold">Tìm ứng viên</span><span className="relative block"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--color-outline)]" aria-hidden="true" /><input value={query} onChange={(event) => setQuery(event.target.value)} className="min-h-10 w-full rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-alt)] pl-9 pr-3 text-sm outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/15" placeholder="Tên, chức danh..." /></span></label>
-        <label className="block"><span className="mb-1.5 block text-xs font-semibold">Giai đoạn</span><select value={stageFilter} onChange={(event) => setStageFilter(event.target.value as "all" | StageId)} className="min-h-10 w-full rounded-lg border border-[var(--color-border-default)] bg-white px-3 text-sm outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/15"><option value="all">Tất cả giai đoạn</option>{stages.map((stage) => <option key={stage.id} value={stage.id}>{stage.label}</option>)}</select></label>
-        <label className="block"><span className="flex items-center justify-between text-xs font-semibold"><span>Điểm AI tối thiểu</span><strong className="rounded-md bg-[var(--color-primary-soft)] px-2 py-1 text-brand-primary">{minimumScore}+</strong></span><input className="mt-3 w-full accent-[var(--color-primary)]" type="range" min="0" max="100" value={minimumScore} onChange={(event) => setMinimumScore(Number(event.target.value))} /><span className="mt-1 flex justify-between text-[10px] text-[var(--color-outline)]"><span>0</span><span>50</span><span>100</span></span></label>
-        <div className="mt-auto rounded-xl border border-brand-primary/15 bg-[var(--color-primary-subtle)] p-3"><div className="flex items-end justify-between gap-3"><div><p className="text-[11px] font-medium text-[var(--color-on-surface-variant)]">Kết quả phù hợp</p><p className="mt-1 text-2xl font-semibold text-brand-primary">{filtered.length}</p></div><Users className="mb-1 size-5 text-brand-primary/65" aria-hidden="true" /></div></div>
-        <button type="button" onClick={() => { setQuery(""); setMinimumScore(60); setStageFilter("all"); }} className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-[var(--color-border-default)] text-xs font-semibold text-[var(--color-on-surface-variant)] transition-colors hover:border-brand-primary/35 hover:bg-[var(--color-primary-subtle)] hover:text-brand-primary"><FilterX className="size-4" aria-hidden="true" />Xóa toàn bộ bộ lọc</button>
-      </div>
-      <div className="border-t border-[var(--color-border-default)] p-3"><button type="button" onClick={() => setArchiveOpen(true)} className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg bg-red-50 px-3 text-xs font-semibold text-red-700 transition-colors hover:bg-red-100"><Archive className="size-4" aria-hidden="true" />Lưu trữ / Đã loại <span className="rounded-full bg-white px-1.5 py-0.5 text-[10px]">15</span></button></div>
-    </aside>
-
-    <div className="min-w-0 py-4 sm:py-6 xl:col-start-2 xl:h-full xl:min-h-0">
-    {jobId && (
-      <div className="mb-4 rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-alt)]/80 px-4 py-3 text-sm">
-        <p className="font-semibold">Quy trình thật của job</p>
-        <p className="mt-1 text-[var(--color-on-surface-variant)]">
-          {jobStages.length > 0
-            ? [...jobStages]
-                .sort((a, b) => a.sortOrder - b.sortOrder)
-                .map((s) => s.name)
-                .join(" → ")
-            : "Đang tải…"}
-        </p>
-        <p className="mt-2 text-[var(--color-on-surface-variant)]">
-          Bảng kanban bên dưới đang dùng dữ liệu demo. Chỉnh giai đoạn tại{" "}
-          <Link to={`/recruiter/jobs/${jobId}#recruitment-stages`} className="font-semibold text-brand-primary hover:underline">
-            Thiết lập quy trình
-          </Link>
-          .
-        </p>
-      </div>
-    )}
-    <div className="-mr-4 overflow-x-auto overflow-y-hidden overscroll-contain sm:-mr-6 lg:-mr-10 xl:h-full [scrollbar-color:var(--color-outline-variant)_transparent] [scrollbar-width:thin]"><div className="flex h-[calc(100dvh-9rem)] min-h-[480px] min-w-max items-stretch gap-3 pb-3 xl:h-full xl:min-h-0">{stages.map((stage) => { const StageIcon = stage.icon; const rows = filtered.filter((candidate) => candidate.stage === stage.id); return <section key={stage.id} className={cn("flex h-full w-[276px] flex-col overflow-hidden rounded-xl border border-[var(--color-border-default)] p-2.5 last:rounded-r-none", stage.id === "hired" ? "bg-[var(--color-primary-soft)]/55" : "bg-[var(--color-surface-container-low)]/75")}><header className="mb-2 flex shrink-0 items-center gap-2 px-1 py-1"><span className={cn("grid size-7 place-items-center rounded-lg text-white", stage.color)}><StageIcon className="size-3.5" /></span><h2 className="flex-1 text-sm font-semibold">{stage.label}</h2><span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold">{rows.length}/{stage.count}</span><button type="button" className="grid size-7 place-items-center rounded-md text-[var(--color-outline)] hover:bg-white" aria-label={`Tùy chọn ${stage.label}`}><MoreHorizontal className="size-4" /></button></header><div className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain pr-1 [scrollbar-color:var(--color-outline-variant)_transparent] [scrollbar-width:thin]">{rows.map((candidate) => <CandidateCard key={candidate.id} candidate={candidate} compact={view === "compact"} />)}{rows.length === 0 && <div className="grid min-h-28 place-items-center rounded-xl border border-dashed border-[var(--color-outline-variant)] bg-white/55 px-4 text-center text-[11px] text-[var(--color-on-surface-variant)]">Không có ứng viên phù hợp</div>}</div></section>; })}</div></div>
-    </div>
-
-    {archiveOpen && <div className="fixed inset-0 z-50 bg-slate-950/25 backdrop-blur-[2px]" onMouseDown={() => setArchiveOpen(false)}><aside role="dialog" aria-modal="true" aria-labelledby="archive-title" className="absolute inset-y-0 right-0 flex w-[min(390px,100vw)] flex-col bg-white p-5 shadow-2xl" onMouseDown={(event) => event.stopPropagation()}><header className="flex items-start justify-between gap-3 border-b border-[var(--color-border-default)] pb-4"><div><div className="flex items-center gap-2"><Archive className="size-5 text-red-600" /><h2 id="archive-title" className="font-semibold">Đã loại và lưu trữ</h2></div><p className="mt-1 text-xs leading-5 text-[var(--color-on-surface-variant)]">Ứng viên không phù hợp hoặc chủ động rút hồ sơ.</p></div><button type="button" onClick={() => setArchiveOpen(false)} className="grid size-9 place-items-center rounded-lg hover:bg-[var(--color-surface-alt)]" aria-label="Đóng"><X className="size-4" /></button></header><div className="mt-4 space-y-3 overflow-y-auto">{archived.map(([name, reason, detail]) => <article key={name} className="rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-alt)] p-3"><div className="flex items-start justify-between gap-2"><h3 className="text-sm font-semibold">{name}</h3><span className="rounded-full bg-red-100 px-2 py-1 text-[10px] font-semibold text-red-700">{reason}</span></div><p className="mt-2 text-xs text-[var(--color-on-surface-variant)]">{detail}</p><button type="button" className="mt-2 text-xs font-semibold text-brand-primary hover:underline">Khôi phục vào pipeline</button></article>)}</div></aside></div>}
-  </section>;
+  return <Navigate to={id ? `/recruiter/jobs/${id}/applicants?view=board` : "/recruiter/jobs"} replace />;
 }

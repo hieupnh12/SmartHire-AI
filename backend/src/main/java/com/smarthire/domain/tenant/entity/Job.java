@@ -67,9 +67,11 @@ public class Job extends BaseEntity {
 
     @Column(name = "paused_at") Instant pausedAt;
 
+    @Column(name = "ai_interview_policy_json", columnDefinition = "JSON") String aiInterviewPolicyJson;
+
     @Column(name = "ai_interview_enabled", nullable = false) boolean aiInterviewEnabled;
     @Column(name = "ai_interview_passing_score", nullable = false, precision = 5, scale = 2)
     BigDecimal aiInterviewPassingScore = new BigDecimal("70.00");
-    @Column(name = "ai_interview_question_count", nullable = false) int aiInterviewQuestionCount = 30;
+    @Column(name = "ai_interview_question_count", nullable = false) int aiInterviewQuestionCount = 5;
     @Column(name = "ai_interview_available_until") Instant aiInterviewAvailableUntil;
 }

@@ -1,13 +1,13 @@
 import { muted } from "@/features/tenant/recruiter/matching/components/rankingUi";
 
-export const PIPELINE_STEPS = [
+const PIPELINE_STEPS = [
   { id: "cv", label: "Sàng lọc CV", statuses: ["NEW", "IN_REVIEW"] },
   { id: "ai", label: "Phỏng vấn AI", statuses: ["INTERVIEW"] },
   { id: "test", label: "Technical test", statuses: ["ASSESSMENT"] },
   { id: "decision", label: "Đánh giá chung", statuses: ["OFFER", "HIRED"] },
 ] as const;
 
-export function pipelineIndex(status: string) {
+function pipelineIndex(status: string) {
   if (status === "REJECTED" || status === "WITHDRAWN") return -1;
   const index = PIPELINE_STEPS.findIndex((step) => (step.statuses as readonly string[]).includes(status));
   return index < 0 ? 0 : index;

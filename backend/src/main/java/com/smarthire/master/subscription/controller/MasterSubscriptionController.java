@@ -29,6 +29,12 @@ public class MasterSubscriptionController {
         return ResponseEntity.ok(ApiResponse.ok("Plans fetched successfully", subscriptionService.getAllPlans()));
     }
 
+    @GetMapping("/{id}")
+    @Operation(summary = "Get Subscription Plan Details", description = "Returns details for a specific subscription plan by ID.")
+    public ResponseEntity<ApiResponse<SubscriptionPlanResponse>> getPlanById(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.ok("Plan details fetched successfully", subscriptionService.getPlanById(id)));
+    }
+
     @PostMapping
     @Operation(summary = "Create New Subscription Plan", description = "Adds a new subscription plan to Master DB.")
     public ResponseEntity<ApiResponse<SubscriptionPlanResponse>> createPlan(@Valid @RequestBody CreateSubscriptionPlanRequest request) {

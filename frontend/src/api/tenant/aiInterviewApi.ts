@@ -5,6 +5,8 @@ import type {
   AiInterview,
   AiInterviewPage,
   AiInterviewStatus,
+  AiInterviewLog,
+  AiInterviewConfig,
   AiQuestion,
   AiQuestionRequest,
   CreateAiInterviewRequest,
@@ -15,6 +17,12 @@ import type {
 type ListParams = { applicationId?: number; status?: AiInterviewStatus; page?: number; size?: number };
 
 export const aiInterviewApi = {
+  generate: (id: number) => api.post<ApiResponse<AiInterview>>(`/ai-interviews/${id}/questions/generate`).then(r => r.data.data),
+  retryScore: (id: number) => api.post<ApiResponse<AiInterview>>(`/ai-interviews/${id}/score`).then(r => r.data.data),
+  logs: (id: number) => api.get<ApiResponse<AiInterviewLog[]>>(`/ai-interviews/${id}/logs`).then(r => r.data.data),
+  config: (jobId: number) => api.get<ApiResponse<AiInterviewConfig>>(`/jobs/${jobId}/ai-interview-config`).then(r => r.data.data),
+  saveConfig: (jobId: number, body: AiInterviewConfig) => api.put<ApiResponse<AiInterviewConfig>>(`/jobs/${jobId}/ai-interview-config`, body).then(r => r.data.data),
+  suggestRoadmap: (jobId: number, body: AiInterviewConfig) => api.post<ApiResponse<AiInterviewConfig>>(`/jobs/${jobId}/ai-interview-config/suggest-roadmap`, body).then(r => r.data.data),
   list: (params: ListParams = {}) =>
     api.get<ApiResponse<AiInterviewPage>>("/ai-interviews", { params }).then((r) => r.data.data),
   // Backend has no jobId filter yet, so pages are scanned and filtered client-side.

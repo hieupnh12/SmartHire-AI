@@ -34,13 +34,25 @@ export type Question = Omit<QuestionRequest, "options"> & {
 export type CandidateQuestion = Omit<Question, "options" | "difficulty" | "skill" | "explanation"> & {
   options: { id: number; optionText: string }[];
 };
-export type SavedAnswer = { questionId: number; selectedOptionId: number | null };
+export type SavedAnswer = {
+  questionId: number;
+  selectedOptionId?: number | null;
+  selectedOptionIds?: number[] | null;
+  answerText?: string | null;
+};
 export type Submission = {
   id: number; testId: number; applicationId: number; title: string; status: SubmissionStatus;
   startedAt: string | null; expiresAt: string | null; submittedAt: string | null; serverTime: string;
   remainingSeconds: number; score: number | null; totalPoints: number; passed: boolean | null;
   questions: CandidateQuestion[]; answers: SavedAnswer[];
 };
+export type SubmissionSummary = {
+  id: number; testId: number; testTitle: string; applicationId: number;
+  candidateId: number; candidateName: string; candidateEmail: string; status: SubmissionStatus;
+  startedAt: string | null; expiresAt: string | null; submittedAt: string | null; remainingSeconds: number;
+  score: number | null; totalPoints: number; passingScore: number | null; passed: boolean | null;
+};
+export type SendAssessmentResult = { testId: number; applicationId: number; applicationStatus: string; emailSent: boolean };
 export type AvailableAssessment = Pick<JobTest, "id" | "title" | "description" | "durationMinutes" | "passingScore"> & {
   submissionId: number | null; submissionStatus: SubmissionStatus | null;
 };

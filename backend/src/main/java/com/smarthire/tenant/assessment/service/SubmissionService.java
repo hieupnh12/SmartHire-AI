@@ -11,6 +11,7 @@ import com.smarthire.tenant.assessment.dto.request.StartSubmissionRequest;
 import com.smarthire.tenant.assessment.dto.response.SubmissionResponse;
 import com.smarthire.tenant.assessment.dto.response.AvailableAssessmentResponse;
 import com.smarthire.tenant.assessment.dto.response.SubmissionResponse.SavedAnswer;
+import com.smarthire.tenant.assessment.dto.response.SubmissionSummaryResponse;
 import com.smarthire.tenant.assessment.mapper.AssessmentMapper;
 import com.smarthire.tenant.cv.service.CvAccess;
 import java.math.BigDecimal;
@@ -36,10 +37,12 @@ public class SubmissionService {
     private final CvAccess access;
     private final AssessmentMapper mapper;
     private final AiInterviewRepository aiInterviews;
+    private final JobRepository jobs;
 
     public SubmissionService(JobTestRepository tests, ApplicationRepository applications, SubmissionRepository submissions,
             QuestionRepository questions, OptionRepository options, AnswerRepository answers,
-            CodingProblemRepository codingProblems, CvAccess access, AssessmentMapper mapper, AiInterviewRepository aiInterviews) {
+            CodingProblemRepository codingProblems, CvAccess access, AssessmentMapper mapper, AiInterviewRepository aiInterviews,
+            JobRepository jobs) {
         this.tests = tests;
         this.applications = applications;
         this.submissions = submissions;
@@ -50,6 +53,7 @@ public class SubmissionService {
         this.access = access;
         this.mapper = mapper;
         this.aiInterviews = aiInterviews;
+        this.jobs = jobs;
     }
 
     @Transactional(isolation = Isolation.READ_COMMITTED)
@@ -159,6 +163,36 @@ public class SubmissionService {
         access.requireJob(submission.getTest().getJob());
         expire(submission);
         return response(submission);
+    }
+
+    @Transactional(readOnly = true)
+    public java.util.List<SubmissionSummaryResponse> staffList(long jobId) {
+        if (!access.staff()) throw new BusinessException("Staff access required", HttpStatus.FORBIDDEN, "ASSESSMENT_FORBIDDEN");
+        Job job = jobs.findById(jobId).orElseThrow(() ->
+                new BusinessException("Job not found", HttpStatus.NOT_FOUND, "JOB_NOT_FOUND"));
+        access.requireJob(job);
+        Instant now = Instant.now();
+        var totals = new java.util.HashMap<Long, Integer>();
+        return submissions.findByJobId(jobId).stream().map(submission -> {
+            JobTest test = submission.getTest();
+            int totalPoints = totals.computeIfAbsent(test.getId(), id ->
+                    questions.findByTest_IdOrderByQuestionOrderAscIdAsc(id).stream().mapToInt(Question::getPoints).sum());
+            Instant expiresAt = submission.getStartedAt() == null ? null : deadline(submission);
+            // Read-only view: overdue papers are reported as EXPIRED; they are finalized on the next locked access.
+            boolean overdue = submission.getStatus() == TestSubmissionStatus.IN_PROGRESS
+                    && expiresAt != null && !now.isBefore(expiresAt);
+            TestSubmissionStatus status = overdue ? TestSubmissionStatus.EXPIRED : submission.getStatus();
+            long remaining = status == TestSubmissionStatus.IN_PROGRESS && expiresAt != null
+                    ? Math.max(0, expiresAt.getEpochSecond() - now.getEpochSecond()) : 0;
+            BigDecimal score = overdue ? null : submission.getScore();
+            BigDecimal threshold = test.getPassingScore();
+            Boolean passed = threshold == null || score == null ? null : score.compareTo(threshold) >= 0;
+            User candidate = submission.getCandidate();
+            return new SubmissionSummaryResponse(submission.getId(), test.getId(), test.getTitle(),
+                    submission.getApplication().getId(), candidate.getId(), candidate.getFullName(), candidate.getEmail(),
+                    status, submission.getStartedAt(), expiresAt, overdue ? null : submission.getSubmittedAt(),
+                    remaining, score, totalPoints, threshold, passed);
+        }).toList();
     }
 
     private User candidate() {
@@ -274,8 +308,14 @@ public class SubmissionService {
     }
 
     private void replaceSelectedOptions(Answer answer, java.util.Collection<Option> options) {
-        answer.getSelectedOptions().clear();
+        // Diff instead of clear+re-add: Hibernate flushes inserts before orphan deletes,
+        // so re-adding a kept (answer_id, option_id) row would collide with its own primary key.
+        var wanted = options.stream().map(Option::getId).collect(java.util.stream.Collectors.toSet());
+        answer.getSelectedOptions().removeIf(row -> !wanted.contains(row.getOption().getId()));
+        var kept = answer.getSelectedOptions().stream()
+                .map(row -> row.getOption().getId()).collect(java.util.stream.Collectors.toSet());
         for (Option option : options) {
+            if (kept.contains(option.getId())) continue;
             answer.getSelectedOptions().add(AnswerSelectedOption.builder()
                     .answer(answer)
                     .option(option)

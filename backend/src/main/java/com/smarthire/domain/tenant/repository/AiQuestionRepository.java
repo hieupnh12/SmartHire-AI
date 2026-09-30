@@ -6,6 +6,7 @@ import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface AiQuestionRepository extends JpaRepository<AiQuestion, Long> {
+    long countByAiInterview_Id(Long interviewId);
     List<AiQuestion> findByAiInterview_IdOrderByQuestionOrderAscIdAsc(Long aiInterviewId);
 
     Optional<AiQuestion> findByIdAndAiInterview_Id(Long id, Long aiInterviewId);

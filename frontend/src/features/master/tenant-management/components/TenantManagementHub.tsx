@@ -165,5 +165,5 @@ export function TenantManagementHub(props: Props) {
     verification: <VerificationPanel />,
     provisioning: <div className="space-y-5"><ProvisioningPanel tenants={props.tenants} onRetryProvisioning={props.onRetryProvisioning} /><SagaRecoveryConsole tenants={props.tenants} /><ResourcesPanel tenants={props.tenants} /><RecoveryPanel /></div>,
   };
-  return <div className="space-y-5 animate-fade-in"><header><p className="text-sm font-semibold text-blue-600">Tenant management</p><h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">Cụm quản lý doanh nghiệp</h1><p className="mt-2 max-w-3xl text-sm text-slate-500">Quản lý toàn bộ vòng đời tenant từ đăng ký, cấp phát database riêng, xác thực đến vận hành.</p></header><div>{panels[props.activeTab]}</div></div>;
+  return <div className="space-y-6 animate-fade-in"><header className="sticky top-16 md:top-0 z-10 bg-[#f8fafc]/95 backdrop-blur-md px-4 py-4 sm:px-6 lg:px-8 -mx-4 -mt-5 sm:-mx-6 sm:-mt-6 lg:-mx-8 lg:-mt-8 mb-6 border-b border-slate-200/50 shadow-sm flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight bg-gradient-to-r from-blue-600 to-cyan-500 bg-clip-text text-transparent flex items-center gap-3">Quản Lý Doanh Nghiệp</h1></div></header><div>{panels[props.activeTab]}</div></div>;
 }

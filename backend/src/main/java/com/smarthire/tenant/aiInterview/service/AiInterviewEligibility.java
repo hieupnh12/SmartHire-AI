@@ -24,4 +24,13 @@ public final class AiInterviewEligibility {
             throw new BusinessException("Application is not in the interview round", HttpStatus.CONFLICT, "AI_INTERVIEW_NOT_ELIGIBLE");
         }
     }
+
+    /** In-flight sessions keep the snapshot taken when questions were created. */
+    public static void requireExisting(com.smarthire.domain.tenant.entity.AiInterview interview) {
+        var application = interview.getApplication();
+        if (application.getCvScreeningStatus() != CvScreeningStatus.PASSED || application.getArchivedAt() != null
+                || application.getWithdrawnAt() != null) {
+            throw new BusinessException("Application is not in the interview round", HttpStatus.CONFLICT, "AI_INTERVIEW_NOT_ELIGIBLE");
+        }
+    }
 }

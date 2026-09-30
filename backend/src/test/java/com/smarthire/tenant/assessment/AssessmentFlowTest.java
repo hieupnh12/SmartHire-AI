@@ -340,6 +340,7 @@ class AssessmentFlowTest {
         login(candidateEmail, "CANDIDATE");
         long submission = submissions.start(id, new StartSubmissionRequest(applicationId)).id();
         var correct = q.options().stream().filter(QuestionResponse.OptionResponse::correct).map(QuestionResponse.OptionResponse::id).toList();
+        submissions.save(submission, multiSave(q.id(), List.of(correct.getFirst())));
         submissions.save(submission, multiSave(q.id(), correct));
         assertThat(submissions.get(submission).answers().getFirst().selectedOptionIds()).containsExactlyElementsOf(correct);
         submissions.save(submission, multiSave(q.id(), List.of()));

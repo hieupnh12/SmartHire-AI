@@ -151,7 +151,7 @@ public class TenantSchemaBootstrap {
         statement.execute("ALTER TABLE `" + table + "` MODIFY COLUMN `" + column + "` VARCHAR(64) NOT NULL");
     }
 
-    /** Mirrors V33 for tenants whose Flyway history skipped it (ignored/future versions). */
+    /** Mirrors V36 for tenants whose Flyway history skipped it (ignored/future versions). */
     private static void ensureRecruitmentStageCatalog(Statement statement) throws SQLException {
         if (!tableExists(statement, "recruitment_stages")) {
             return;

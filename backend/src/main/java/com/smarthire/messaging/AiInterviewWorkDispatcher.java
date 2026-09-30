@@ -2,6 +2,8 @@ package com.smarthire.messaging;
 
 import com.smarthire.domain.master.repository.TenantInfoRepository;
 import com.smarthire.multitenancy.context.TenantContext;
+import com.smarthire.tenant.aiInterview.service.AiInterviewEvaluationService;
+import com.smarthire.tenant.aiInterview.service.AiInterviewService;
 import com.smarthire.tenant.aiInterview.service.AiInterviewWorkService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,13 +25,17 @@ public class AiInterviewWorkDispatcher {
     private final TenantInfoRepository tenants;
     private final TenantJobExecutor executor;
     private final AiInterviewWorkService work;
+    private final AiInterviewService interviews;
+    private final AiInterviewEvaluationService evaluation;
     private final RabbitTemplate rabbit;
     private final String questionsQueue;
     private final String scoringQueue;
     public AiInterviewWorkDispatcher(TenantInfoRepository tenants, TenantJobExecutor executor, AiInterviewWorkService work,
-            RabbitTemplate rabbit, @Value("${app.rabbitmq.queues.interview-questions}") String questionsQueue,
+            AiInterviewService interviews, AiInterviewEvaluationService evaluation, RabbitTemplate rabbit,
+            @Value("${app.rabbitmq.queues.interview-questions}") String questionsQueue,
             @Value("${app.rabbitmq.queues.interview-score}") String scoringQueue) {
-        this.tenants = tenants; this.executor = executor; this.work = work; this.rabbit = rabbit;
+        this.tenants = tenants; this.executor = executor; this.work = work; this.interviews = interviews;
+        this.evaluation = evaluation; this.rabbit = rabbit;
         this.questionsQueue = questionsQueue; this.scoringQueue = scoringQueue;
     }
     @Bean public Queue tenantInterviewEmailQueue() { return QueueBuilder.durable(EMAIL_QUEUE).build(); }
@@ -40,6 +46,8 @@ public class AiInterviewWorkDispatcher {
             if (!"ACTIVE".equals(tenant.getStatus())) continue;
             try {
                 executor.execute(tenant.getCode(), () -> {
+                    interviews.expireDue();
+                    evaluation.closeExhaustedRetries();
                     for (var item : work.pending()) {
                         String queue = switch (item.kind()) {
                             case "GENERATING" -> questionsQueue;

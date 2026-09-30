@@ -43,6 +43,7 @@ Quản lý application theo job: apply từ candidate, lọc/phân trang, hồ s
 | GET | `/api/v1/applications/{id}` |
 | PATCH | `/api/v1/applications/{id}` |
 | POST | `/api/v1/applications/{id}/status` · `/reject` · `/archive` · `/restore` · `/withdraw` |
+| POST | `/api/v1/applications/{id}/cv-screening-decision` — recruiter cho qua / không đạt vòng CV (job `MANUAL`) |
 | GET | `/api/v1/applications/{id}/history` |
 
 ## Database liên quan
@@ -55,6 +56,7 @@ Quản lý application theo job: apply từ candidate, lọc/phân trang, hồ s
 ## UI mockup
 
 - Tenant Admin xem job `PUBLISHED` và danh sách ứng viên tại `/internal/admin/recruitment` (chỉ xem).
+- Từ Dashboard, recruiter bấm **Ứng viên mới** để mở panel nhóm hồ sơ `NEW` theo job. Chọn job mở `/recruiter/jobs/{jobId}/applicants?view=board`; chọn ứng viên thêm `applicationId` để mở đúng hồ sơ trên Bảng quy trình. Trang `/recruiter/applicants` vẫn là danh sách tổng hợp khi recruiter chủ động mở module Ứng viên, không còn là đích điều hướng của thẻ việc cần xử lý.
 - Google Stitch: **Job Recruitment Management / Applicant Management** — _[dán link]_
 - Icons: xem `DESIGN.md`
 

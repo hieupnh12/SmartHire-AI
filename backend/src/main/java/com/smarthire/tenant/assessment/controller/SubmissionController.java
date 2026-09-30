@@ -4,6 +4,7 @@ import com.smarthire.common.api.ApiResponse;
 import com.smarthire.tenant.assessment.dto.request.SaveAnswersRequest;
 import com.smarthire.tenant.assessment.dto.request.StartSubmissionRequest;
 import com.smarthire.tenant.assessment.dto.response.SubmissionResponse;
+import com.smarthire.tenant.assessment.dto.response.SubmissionSummaryResponse;
 import com.smarthire.tenant.assessment.service.SubmissionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -50,6 +51,14 @@ public class SubmissionController {
             description = "Save first. Choice answers are graded; multiple choice requires the exact correct set. Papers with essays await review (SUBMITTED, score/passed null); expired papers remain EXPIRED with null score. Repeated submit is idempotent. Does not advance the application stage.")
     public ApiResponse<SubmissionResponse> submit(@PathVariable long id) {
         return ApiResponse.ok(service.submit(id));
+    }
+
+    @GetMapping("/jobs/{jobId}/list_assessment_submissions")
+    @Operation(summary = "List candidate submissions for all tests of a job (staff only)",
+            description = "Newest first. Requires job assignment (company admin sees all). Read-only: an IN_PROGRESS paper past its "
+                    + "deadline is reported as EXPIRED with null score/submittedAt and is finalized on the next candidate/staff access.")
+    public ApiResponse<java.util.List<SubmissionSummaryResponse>> listForJob(@PathVariable long jobId) {
+        return ApiResponse.ok(service.staffList(jobId));
     }
 
     @GetMapping("/submissions/{id}/get_result")

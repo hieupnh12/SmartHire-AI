@@ -1,7 +1,9 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { masterAdminApi, type SubscriptionPlan } from "@/api/master/masterAdminApi";
 import { BillingWorkspace, type BillingView } from "../components/BillingWorkspace";
-import { useMasterDashboard } from "@/features/master/shell/MasterAdminContext";
+import { useTenants, useSubscriptions, useRevenueAnalytics, useAiQuotaUsage, useAuditLogs, useLeads, useInvoices, useContracts, masterQueryKeys } from "@/api/master/queries";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "@/stores/toastStore";
 function currentView(pathname: string): BillingView {
   const value = pathname.split("/")[3];
   return value === "plans" || value === "allocations" || value === "invoices" ? value : "overview";
@@ -10,7 +12,12 @@ function currentView(pathname: string): BillingView {
 export function BillingPage() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { plans, setPlans, tenants, revenue, triggerNotification } = useMasterDashboard();
+  const queryClient = useQueryClient();
+  const { data: tenants = [] } = useTenants();
+  const { data: plans = [] } = useSubscriptions();
+  const { data: revenue } = useRevenueAnalytics();
+  const setPlans = (updater: any) => queryClient.setQueryData(masterQueryKeys.subscriptions(), updater);
+  const triggerNotification = (msg: string) => toast.success(msg);
 
   // Removed modal states
 

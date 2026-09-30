@@ -6,6 +6,7 @@ import com.smarthire.tenant.dashboard.dto.DashboardActionItemsResponse;
 import com.smarthire.tenant.dashboard.dto.DashboardChartsResponse;
 import com.smarthire.tenant.dashboard.dto.DashboardTrendPoint;
 import com.smarthire.tenant.dashboard.service.DashboardService;
+import com.smarthire.tenant.job.service.JobService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.Map;
@@ -24,14 +25,17 @@ import org.springframework.web.bind.annotation.RestController;
 public class DashboardController {
 
     private final DashboardService dashboardService;
+    private final JobService jobService;
 
-    public DashboardController(DashboardService dashboardService) {
+    public DashboardController(DashboardService dashboardService, JobService jobService) {
         this.dashboardService = dashboardService;
+        this.jobService = jobService;
     }
 
     @GetMapping("/summary")
     @Operation(summary = "Get tenant recruitment dashboard summary")
     public ResponseEntity<ApiResponse<DashboardSummaryResponse>> summary() {
+        jobService.closeExpiredJobs();
         return ResponseEntity.ok(ApiResponse.ok(dashboardService.summary()));
     }
 

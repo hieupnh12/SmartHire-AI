@@ -27,6 +27,13 @@ public class MasterSubscriptionService {
                 .collect(Collectors.toList());
     }
 
+    @Transactional(transactionManager = "masterTransactionManager", readOnly = true)
+    public SubscriptionPlanResponse getPlanById(Long id) {
+        SubscriptionPlan plan = planRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Subscription plan not found: " + id));
+        return planMapper.toResponse(plan);
+    }
+
     @Transactional("masterTransactionManager")
     public SubscriptionPlanResponse createPlan(CreateSubscriptionPlanRequest request) {
         if (planRepository.findByCode(request.getCode()).isPresent()) {

@@ -1,7 +1,9 @@
 import { useState, useMemo } from "react";
 import { Plus, Search, Filter, CheckCircle2, Clock, XCircle, Eye, Check, Inbox, Loader2 } from "lucide-react";
 import { InvoiceItem, billingApi } from "@/api/master/billingApi";
-import { useMasterDashboard } from "@/features/master/shell/MasterAdminContext";
+import { useTenants, useSubscriptions, useRevenueAnalytics, useAiQuotaUsage, useAuditLogs, useLeads, useInvoices, useContracts, masterQueryKeys } from "@/api/master/queries";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "@/stores/toastStore";
 
 interface InvoicesTabProps {
   setInvoiceTenantId: (val: number | "") => void;
@@ -20,7 +22,12 @@ function InvoicesContent({
   setShowCreateInvoiceModal,
   setSelectedInvoice,
 }: InvoicesTabProps) {
-  const { invoices, setInvoices, tenants, plans, triggerNotification } = useMasterDashboard();
+  const queryClient = useQueryClient();
+  const { data: tenants = [] } = useTenants();
+  const { data: plans = [] } = useSubscriptions();
+  const { data: invoices = [] } = useInvoices();
+  const setInvoices = (updater: any) => queryClient.setQueryData(masterQueryKeys.invoices(), updater);
+  const triggerNotification = (msg: string) => toast.success(msg);
 
   const [invoiceSearch, setInvoiceSearch] = useState("");
   const [invoiceStatusFilter, setInvoiceStatusFilter] = useState<string>("ALL");
@@ -70,14 +77,11 @@ function InvoicesContent({
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <header className="sticky top-16 md:top-0 z-10 bg-[#f8fafc]/95 backdrop-blur-md px-4 py-4 sm:px-6 lg:px-8 -mx-4 -mt-5 sm:-mx-6 sm:-mt-6 lg:-mx-8 lg:-mt-8 mb-6 border-b border-slate-200/50 shadow-sm flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">
-            Hóa Đơn & Quản Lý Thu Phí B2B (Invoices & Billing)
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight bg-gradient-to-r from-blue-600 to-cyan-500 bg-clip-text text-transparent">
+            Hóa Đơn & Thu Phí
           </h1>
-          <p className="text-xs text-slate-500 mt-1">
-            Theo dõi hóa đơn định kỳ, quản lý công nợ doanh nghiệp và tự động kích hoạt gói dịch vụ khi xác nhận thanh toán.
-          </p>
         </div>
 
         <button
@@ -96,7 +100,7 @@ function InvoicesContent({
           <Plus className="w-4 h-4" />
           <span>Lập Hóa Đơn Doanh Nghiệp Mới</span>
         </button>
-      </div>
+      </header>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-2xs">
