@@ -1,16 +1,14 @@
-import React, { useState, useMemo, useRef } from "react";
+import React, { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { CheckCircle2, Building2, CreditCard, FileSignature, Loader2, ShieldCheck, ReceiptText, Plus, X, ChevronDown, BrainCircuit } from "lucide-react";
+import { CheckCircle2, Building2, CreditCard, FileSignature, Loader2, ShieldCheck, ReceiptText, Plus, X, ChevronDown } from "lucide-react";
 import { masterTenantApi } from "@/api/master/tenantApi";
 import { billingApi } from "@/api/master/billingApi";
 import { contractApi } from "@/api/master/contractApi";
-import { masterAdminApi } from "@/api/master/masterAdminApi";
-import { useTenants, useSubscriptions, useRevenueAnalytics, useAiQuotaUsage, useAuditLogs, useLeads, useInvoices, useContracts, masterQueryKeys, useCreateSubscription } from "@/api/master/queries";
+import { useSubscriptions, masterQueryKeys, useCreateSubscription } from "@/api/master/queries";
 import { useQueryClient } from "@tanstack/react-query";
-import { toast } from "@/stores/toastStore";
 import { getApiErrorMessage } from "@/lib/axios";
 
 

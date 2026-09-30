@@ -1,7 +1,7 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { masterAdminApi, type TenantInfo } from "@/api/master/masterAdminApi";
 import { TenantManagementHub, type TenantHubTab } from "../components/TenantManagementHub";
-import { useTenants, useSubscriptions, useRevenueAnalytics, useAiQuotaUsage, useAuditLogs, useLeads, useInvoices, useContracts, masterQueryKeys } from "@/api/master/queries";
+import { useTenants, masterQueryKeys } from "@/api/master/queries";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/stores/toastStore";
 
@@ -27,7 +27,7 @@ export function TenantManagementPage() {
     }
     const status = tenant.status === "ACTIVE" ? "SUSPENDED" : "ACTIVE";
     const updated = await masterAdminApi.updateTenantStatus(tenant.id, status);
-    setTenants((items) => items.map((item) => item.id === updated.id ? updated : item));
+    setTenants((items: TenantInfo[]) => items.map((item) => item.id === updated.id ? updated : item));
     triggerNotification(`Đã cập nhật trạng thái tenant ${tenant.code} sang ${status}`);
   };
 
@@ -36,7 +36,7 @@ export function TenantManagementPage() {
       activeTab={currentTab(location.pathname)}
       onTabChange={(tab) => navigate(`/admin/tenants/${tab}`)}
       tenants={tenants}
-      onTenantCreated={(tenant) => setTenants((items) => [{
+      onTenantCreated={(tenant) => setTenants((items: TenantInfo[]) => [{
         ...tenant,
         environmentType: tenant.environmentType === "POC_SANDBOX" ? "POC_SANDBOX" : "PRODUCTION",
       }, ...items])}

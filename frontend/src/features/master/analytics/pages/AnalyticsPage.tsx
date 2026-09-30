@@ -1,21 +1,13 @@
-import { useState, useEffect } from "react";
 import { PlatformAnalyticsDashboard } from "@/features/master/analytics/components/PlatformAnalyticsDashboard";
-import { useTenants, useSubscriptions, useRevenueAnalytics, useAiQuotaUsage, useAuditLogs, useLeads, useInvoices, useContracts, masterQueryKeys } from "@/api/master/queries";
-import { useQueryClient } from "@tanstack/react-query";
+import { useTenants, useRevenueAnalytics, useAiQuotaUsage, useAuditLogs } from "@/api/master/queries";
 import { toast } from "@/stores/toastStore";
 
 export function AnalyticsPage() {
-  const queryClient = useQueryClient();
   const { data: tenants = [] } = useTenants();
   const { data: revenue } = useRevenueAnalytics();
   const { data: aiQuota } = useAiQuotaUsage();
   const { data: logs = [] } = useAuditLogs();
   const triggerNotification = (msg: string) => toast.success(msg);
-  const fetchAnalytics = () => queryClient.invalidateQueries({ queryKey: masterQueryKeys.revenue(undefined) });
-
-  useEffect(() => {
-    fetchAnalytics(undefined, undefined, "MONTH");
-  }, [fetchAnalytics]);
 
   const handleExportReport = () => {
     const report = {
@@ -38,8 +30,8 @@ export function AnalyticsPage() {
 
   return (
     <PlatformAnalyticsDashboard
-      revenue={revenue}
-      aiQuota={aiQuota}
+      revenue={revenue ?? null}
+      aiQuota={aiQuota ?? null}
       tenants={tenants}
       logs={logs}
       onExport={handleExportReport}

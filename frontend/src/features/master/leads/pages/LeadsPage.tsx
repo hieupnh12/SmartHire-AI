@@ -2,7 +2,7 @@ import { useState, useMemo, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, Search, Filter, Inbox, Building2, FileSignature, UserPlus } from "lucide-react";
 import { consultationApi, ConsultationResponse } from "@/api/master/consultationApi";
-import { useTenants, useSubscriptions, useRevenueAnalytics, useAiQuotaUsage, useAuditLogs, useLeads, useInvoices, useContracts, masterQueryKeys } from "@/api/master/queries";
+import { useLeads, masterQueryKeys } from "@/api/master/queries";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/stores/toastStore";
 import { LeadDetailModal } from "../components/LeadDetailModal";
@@ -71,7 +71,7 @@ export function LeadsPage() {
     setUpdatingLead(true);
     try {
       const updated = await consultationApi.updateStatus(selectedLead.id, { status: leadStatusEdit, notes: leadNotesEdit });
-      setLeads((items) => items.map((item) => item.id === updated.id ? updated : item));
+      setLeads((items: ConsultationResponse[]) => items.map((item) => item.id === updated.id ? updated : item));
       setSelectedLead(null);
       triggerNotification(`Đã cập nhật yêu cầu của ${updated.companyName}`);
     } finally {

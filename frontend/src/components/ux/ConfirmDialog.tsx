@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { AlertTriangle, LoaderCircle, X } from "lucide-react";
+import { AlertTriangle, LoaderCircle } from "lucide-react";
 import { useUiStore } from "@/stores/uiStore";
 import { useT } from "@/i18n";
 import { Button } from "@/components/ux/Button";

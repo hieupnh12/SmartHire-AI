@@ -15,13 +15,11 @@ import {
   Facebook,
   Github,
   Globe,
-  Settings,
   Edit3,
   Sparkles,
   Copy,
 } from "lucide-react";
-import type { LandingPageConfig, StatItem, BenefitItem, TestimonialItem } from "../types/landing";
-import { BANNER_HEIGHT_OPTIONS } from "../utils/constants";
+import type { LandingPageConfig, BenefitItem, TestimonialItem } from "../types/landing";
 import { renderIcon } from "../utils/icons";
 
 interface LandingEditorCanvasProps {
@@ -53,11 +51,9 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
     showVisualControls,
     openDrawerTab,
     updateHeader,
-    updateTheme,
     updateHero,
     updateAbout,
     updateBenefits,
-    updateTechStack,
     updateTestimonials,
     updateFooter,
     handleFileUpload,
@@ -83,7 +79,6 @@ export function LandingEditorCanvas(props: LandingEditorCanvasProps) {
 
   const validStats = (config.about.stats || []).filter((s) => s.value?.trim() || s.label?.trim());
   const validBenefits = (config.benefits.items || []).filter((b) => b.title?.trim() || b.description?.trim());
-  const validTags = (config.techStack.tags || []).filter((t) => t?.trim());
   const validTestimonials = (config.testimonials.items || []).filter((t) => t.name?.trim() || t.quote?.trim());
 
   return (

@@ -4,8 +4,6 @@ import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { MasterAdminSidebar } from "./MasterAdminSidebar";
 import { MasterAdminHeader } from "./MasterAdminHeader";
 import { DashboardTab, SidebarGroupId } from "./types";
-import { useTenants, useSubscriptions, useRevenueAnalytics, useAiQuotaUsage, useAuditLogs, useLeads, useInvoices, useContracts } from "@/api/master/queries";
-import { CheckCircle2 } from "lucide-react";
 import { BrainCircuit, Menu, X } from "lucide-react";
 
 const paths: Record<DashboardTab, string> = {

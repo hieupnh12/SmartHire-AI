@@ -6,7 +6,7 @@ import {
   TrendingUp, AlertCircle,
 } from "lucide-react";
 import { ContractItem, contractApi } from "@/api/master/contractApi";
-import { useTenants, useSubscriptions, useRevenueAnalytics, useAiQuotaUsage, useAuditLogs, useLeads, useInvoices, useContracts, masterQueryKeys } from "@/api/master/queries";
+import { useContracts, masterQueryKeys } from "@/api/master/queries";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/stores/toastStore";
 import { ContractDetailModal } from "../components/ContractDetailModal";
@@ -158,7 +158,7 @@ export function ContractsPage() {
     triggerNotification(`Đang gửi email mời ký HĐ ${contract.contractNumber}...`);
     contractApi.send(contract.id)
       .then((updated) => {
-        setContracts((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+        setContracts((prev: ContractItem[]) => prev.map((c) => (c.id === updated.id ? updated : c)));
         const url = `${window.location.origin}/contracts/sign/${updated.signingToken || contract.signingToken}`;
         navigator.clipboard?.writeText(url).catch(() => {});
         triggerNotification(`Đã gửi & sao chép link ký số HĐ ${contract.contractNumber}!`);
@@ -179,7 +179,7 @@ export function ContractsPage() {
     if (!window.confirm("Xác nhận xóa hợp đồng này? Không thể phục hồi!")) return;
     try {
       await contractApi.delete(contract.id);
-      setContracts((prev) => prev.filter((c) => c.id !== contract.id));
+      setContracts((prev: ContractItem[]) => prev.filter((c) => c.id !== contract.id));
       triggerNotification(`Đã xóa HĐ ${contract.contractNumber}`);
     } catch { alert("Lỗi khi xóa hợp đồng."); }
   };
@@ -193,7 +193,7 @@ export function ContractsPage() {
         signMethod, signatureData: signSignatureData,
         signedDocumentUrl: signSignedDocUrl, autoCreateInvoice: signAutoInvoice, notes: signNotes,
       } as any);
-      setContracts((prev) => prev.map((c) => (c.id === res.id ? res : c)));
+      setContracts((prev: ContractItem[]) => prev.map((c) => (c.id === res.id ? res : c)));
       setShowSignContractModal(null);
       triggerNotification(`Ký HĐ ${res.contractNumber} thành công!`);
     } catch { alert("Lỗi khi ký hợp đồng"); }
