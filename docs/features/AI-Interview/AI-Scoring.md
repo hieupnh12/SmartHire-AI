@@ -36,7 +36,7 @@ Chấm điểm phiên AI Interview sau khi candidate nộp bài và quyết đ�
    - **FAILED hết quyền:** phiên `FAILED`; application → `FAILED`; không truy cập Assessment; notification `AI_INTERVIEW_FAILED` + email kết quả.
 5. Dispatcher (`closeExhaustedRetries`) đóng hồ sơ `INTERVIEW` có lần làm gần nhất `FAILED` khi hạn làm lại đã qua: application → `FAILED` + lịch sử + thông báo.
 6. Cả hai nhánh lưu `application_status_history` và ghi `ai_interview_logs` (điểm, đổi trạng thái đơn, mở Assessment, notification, email).
-7. Email nằm trong `email_outbox` (`purpose = AI_INTERVIEW_RESULT`) và được worker gửi, tối đa 3 lần.
+7. Email nằm trong `email_outbox` (`purpose = AI_INTERVIEW_RESULT`) và được worker qua queue durable `tenant.interview.email` gửi, tối đa 3 lần. Queue được `RabbitMqConfig` khai báo tự động khi backend khởi động.
 
 ## Business Rules
 

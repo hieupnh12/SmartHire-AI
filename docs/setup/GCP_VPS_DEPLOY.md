@@ -204,6 +204,8 @@ docker compose -f docker-compose.prod.yml --env-file deploy/.env.production logs
 
 RabbitMQ Management (không public):
 
+Production build RabbitMQ từ `deploy/rabbitmq/Dockerfile` để bật plugin `rabbitmq_delayed_message_exchange`. Plugin này bắt buộc cho exchange `job.expiry` loại `x-delayed-message`; thiếu plugin sẽ làm RabbitAdmin không tạo được `job.expiry.q` và backend dừng khi khởi động listener. `deploy/scripts/deploy.sh` tự build image này trước khi khởi động stack.
+
 ```bash
 ssh -L 15672:127.0.0.1:15672 USER@VM_IP
 # rồi mở http://localhost:15672 — cần map port tạm:
@@ -214,6 +216,7 @@ ssh -L 15672:127.0.0.1:15672 USER@VM_IP
 
 ```bash
 docker compose -f docker-compose.prod.yml --env-file deploy/.env.production exec rabbitmq rabbitmq-diagnostics status
+docker compose -f docker-compose.prod.yml --env-file deploy/.env.production exec rabbitmq rabbitmq-plugins list -e
 ```
 
 Hoặc thêm profile debug publish `127.0.0.1:15672:15672` khi cần.
