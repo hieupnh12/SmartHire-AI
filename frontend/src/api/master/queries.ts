@@ -103,7 +103,7 @@ export const useAuditLogs = () => {
 export const useLeads = () => {
   return useQuery({
     queryKey: masterQueryKeys.leads(),
-    queryFn: consultationApi.getAll,
+    queryFn: () => consultationApi.getAll(),
     staleTime: 5 * 60 * 1000,
   });
 };
@@ -112,7 +112,7 @@ export const useLeads = () => {
 export const useInvoices = () => {
   return useQuery({
     queryKey: masterQueryKeys.invoices(),
-    queryFn: billingApi.getAll,
+    queryFn: () => billingApi.getAll(),
     staleTime: 5 * 60 * 1000,
   });
 };
@@ -121,7 +121,7 @@ export const useInvoices = () => {
 export const useContracts = () => {
   return useQuery({
     queryKey: masterQueryKeys.contracts(),
-    queryFn: contractApi.getAll,
+    queryFn: () => contractApi.getAll(),
     staleTime: 5 * 60 * 1000,
   });
 };

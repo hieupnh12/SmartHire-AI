@@ -1,8 +1,6 @@
 import { useState, useMemo } from "react";
 import { AuditLog } from "@/api/master/masterAdminApi";
-import { useTenants, useSubscriptions, useRevenueAnalytics, useAiQuotaUsage, useAuditLogs, useLeads, useInvoices, useContracts, masterQueryKeys } from "@/api/master/queries";
-import { useQueryClient } from "@tanstack/react-query";
-import { toast } from "@/stores/toastStore";
+import { useAuditLogs } from "@/api/master/queries";
 import { LogDetailModal } from "../components/modals/LogDetailModal";
 
 export function AuditLogsPage() {

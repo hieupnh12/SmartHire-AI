@@ -32,7 +32,6 @@ import {
   type ViewId,
 } from "../constants/excelTemplateMock";
 import {
-  clearExcelQuestionDraft,
   hasExcelQuestionDraft,
   loadExcelQuestionDraft,
   saveExcelQuestionDraft,
@@ -563,7 +562,7 @@ function applyChoiceCellsToRow(
   fallbackKind: QuestionKind,
 ): BankQuestion {
   const kind = parseKind(cells[1] ?? "", isChoiceKind(fallbackKind) ? fallbackKind : "TRAC_NGHIEM_DON");
-  const base = {
+  const base: BankQuestion = {
     ...row,
     ...blankQuestion(kind),
     id: row.id,

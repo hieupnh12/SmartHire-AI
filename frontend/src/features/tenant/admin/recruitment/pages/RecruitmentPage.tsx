@@ -98,7 +98,7 @@ export function RecruitmentPage() {
                       <span className="mt-1 block text-xs text-[var(--color-text-secondary)]">
                         {[job.department, job.location].filter(Boolean).join(" · ") || "Không có địa điểm"}
                         {" · "}
-                        {job.applicationCount.toLocaleString("vi-VN")} ứng viên
+                        {(job.applicationCount ?? 0).toLocaleString("vi-VN")} ứng viên
                       </span>
                     </button>
                   </li>

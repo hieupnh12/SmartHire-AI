@@ -16,16 +16,11 @@ import { workspaceOf } from "@/features/tenant/auth/workspace";
 import type { RoleWorkspace } from "@/types/api";
 import { getTenantTheme, getTenantThemeStyle } from "@/lib/tenantTheme";
 import {
-  ShieldCheck,
   Mail,
   Lock,
   Eye,
   EyeOff,
   ArrowRight,
-  BrainCircuit,
-  Database,
-  Cpu,
-  Layers
 } from "lucide-react";
 
 const loginSchema = z.object({

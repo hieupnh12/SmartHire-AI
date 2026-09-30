@@ -7,7 +7,6 @@ import {
   Copy,
   Check,
   ArrowLeft,
-  ArrowRight,
   Loader2,
   AlertCircle,
   QrCode,

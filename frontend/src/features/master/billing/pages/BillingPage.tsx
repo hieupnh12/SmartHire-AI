@@ -1,7 +1,7 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { masterAdminApi, type SubscriptionPlan } from "@/api/master/masterAdminApi";
 import { BillingWorkspace, type BillingView } from "../components/BillingWorkspace";
-import { useTenants, useSubscriptions, useRevenueAnalytics, useAiQuotaUsage, useAuditLogs, useLeads, useInvoices, useContracts, masterQueryKeys } from "@/api/master/queries";
+import { useTenants, useSubscriptions, useRevenueAnalytics, masterQueryKeys } from "@/api/master/queries";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/stores/toastStore";
 function currentView(pathname: string): BillingView {
@@ -26,7 +26,7 @@ export function BillingPage() {
     const status = plan.status === "ACTIVE" ? "INACTIVE" : "ACTIVE";
     try {
       const updated = await masterAdminApi.updateSubscriptionStatus(plan.id, status);
-      setPlans((items) => items.map((item) => item.id === updated.id ? updated : item));
+      setPlans((items: SubscriptionPlan[]) => items.map((item) => item.id === updated.id ? updated : item));
       triggerNotification(`Đã cập nhật trạng thái gói ${plan.name}`);
     } catch (e) {
       triggerNotification("Lỗi khi cập nhật trạng thái gói");
