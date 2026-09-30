@@ -18,7 +18,7 @@ public class AiInterviewWorker {
     public void process(Long id, @Header(value = "X-Tenant-ID", required = false) String tenant) {
         executor.execute(tenant, () -> evaluation.process(id));
     }
-    @RabbitListener(queues = AiInterviewWorkDispatcher.EMAIL_QUEUE)
+    @RabbitListener(queues = "${app.rabbitmq.queues.interview-email}")
     public void email(Long id, @Header(value = "X-Tenant-ID", required = false) String tenant) {
         executor.execute(tenant, () -> work.sendEmail(id));
     }

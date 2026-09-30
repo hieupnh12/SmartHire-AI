@@ -148,6 +148,7 @@ app:
       interview-stt: interview.stt.q
       interview-nlp: interview.nlp.q
       interview-score: interview.score.q
+      interview-email: tenant.interview.email
       assessment-code-grade: assessment.code.grade.q
       practice-feedback: practice.feedback.q
       notify-email: notify.email.q

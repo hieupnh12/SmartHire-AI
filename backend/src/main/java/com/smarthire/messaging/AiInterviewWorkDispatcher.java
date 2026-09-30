@@ -7,11 +7,8 @@ import com.smarthire.tenant.aiInterview.service.AiInterviewService;
 import com.smarthire.tenant.aiInterview.service.AiInterviewWorkService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.amqp.core.Queue;
-import org.springframework.amqp.core.QueueBuilder;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Bean;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -20,7 +17,6 @@ import org.springframework.stereotype.Component;
 @Component
 @EnableScheduling
 public class AiInterviewWorkDispatcher {
-    public static final String EMAIL_QUEUE = "tenant.interview.email";
     private static final Logger log = LoggerFactory.getLogger(AiInterviewWorkDispatcher.class);
     private final TenantInfoRepository tenants;
     private final TenantJobExecutor executor;
@@ -30,15 +26,16 @@ public class AiInterviewWorkDispatcher {
     private final RabbitTemplate rabbit;
     private final String questionsQueue;
     private final String scoringQueue;
+    private final String emailQueue;
     public AiInterviewWorkDispatcher(TenantInfoRepository tenants, TenantJobExecutor executor, AiInterviewWorkService work,
             AiInterviewService interviews, AiInterviewEvaluationService evaluation, RabbitTemplate rabbit,
             @Value("${app.rabbitmq.queues.interview-questions}") String questionsQueue,
-            @Value("${app.rabbitmq.queues.interview-score}") String scoringQueue) {
+            @Value("${app.rabbitmq.queues.interview-score}") String scoringQueue,
+            @Value("${app.rabbitmq.queues.interview-email}") String emailQueue) {
         this.tenants = tenants; this.executor = executor; this.work = work; this.interviews = interviews;
         this.evaluation = evaluation; this.rabbit = rabbit;
-        this.questionsQueue = questionsQueue; this.scoringQueue = scoringQueue;
+        this.questionsQueue = questionsQueue; this.scoringQueue = scoringQueue; this.emailQueue = emailQueue;
     }
-    @Bean public Queue tenantInterviewEmailQueue() { return QueueBuilder.durable(EMAIL_QUEUE).build(); }
 
     @Scheduled(fixedDelayString = "${app.ai.interview.dispatch-delay-ms:15000}", initialDelay = 15000)
     public void dispatch() {
@@ -52,7 +49,7 @@ public class AiInterviewWorkDispatcher {
                         String queue = switch (item.kind()) {
                             case "GENERATING" -> questionsQueue;
                             case "SCORING" -> scoringQueue;
-                            default -> EMAIL_QUEUE;
+                            default -> emailQueue;
                         };
                         rabbit.convertAndSend(queue, item.id(), message -> {
                             message.getMessageProperties().setHeader("X-Tenant-ID", TenantContext.getCurrentTenant());
