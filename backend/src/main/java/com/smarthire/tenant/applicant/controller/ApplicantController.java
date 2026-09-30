@@ -69,9 +69,10 @@ public class ApplicantController {
             @RequestParam(required = false) ApplicationStatus status,
             @RequestParam(required = false) String source,
             @RequestParam(defaultValue = "false") boolean archived,
+            @RequestParam(defaultValue = "false") boolean includeWithdrawn,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        return ApiResponse.ok(applicants.list(jobId, q, status, source, archived, page, size));
+        return ApiResponse.ok(applicants.list(jobId, q, status, source, archived, includeWithdrawn, page, size));
     }
 
     @PostMapping("/jobs/{jobId}/applications")

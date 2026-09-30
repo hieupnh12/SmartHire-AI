@@ -11,13 +11,11 @@ import {
   CalendarClock,
   Check,
   CheckCircle2,
-  ChevronLeft,
   Circle,
   Eye,
   FileText,
   GraduationCap,
   Laptop,
-  Lightbulb,
   MapPin,
   Pencil,
   Plus,
@@ -33,23 +31,15 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { jobApi } from "@/api/tenant/jobApi";
-import type { CvScreeningConfig, GateScreeningConfig, JobStatus, JobUpsertRequest } from "@/api/types/job";
+import type { CvScreeningConfig, GateScreeningConfig, JobUpsertRequest } from "@/api/types/job";
 import { getApiErrorMessage } from "@/lib/axios";
 import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ux/Button";
-import { StatusPill } from "@/components/ux/StatusPill";
 import { PageSkeleton } from "@/components/ux/Skeleton";
-import { input, muted, panel } from "@/features/tenant/recruiter/matching/components/rankingUi";
+import { input, panel } from "@/features/tenant/recruiter/matching/components/rankingUi";
 import { SKILL_CATALOG } from "@/features/tenant/recruiter/jobs/skillCatalog";
 
-const STATUS_LABEL: Record<JobStatus, string> = {
-  DRAFT: "Bản nháp",
-  PUBLISHED: "Đang tuyển",
-  PAUSED: "Tạm dừng",
-  CLOSED: "Đã đóng",
-  ARCHIVED: "Lưu trữ",
-};
 const CURRENCIES = ["VND", "USD", "EUR", "JPY"];
 const EDUCATION_LEVELS = ["Trung học phổ thông", "Cao đẳng", "Đại học", "Thạc sĩ", "Tiến sĩ"];
 const EMPLOYMENT_TYPES = [
@@ -208,7 +198,9 @@ export function JobFormPage() {
   }, [existing.data]);
 
   useEffect(() => {
-    topRef.current?.scrollIntoView({ block: "start" });
+    if (!topRef.current) return;
+    if (topRef.current.scrollHeight > topRef.current.clientHeight) topRef.current.scrollTo({ top: 0, behavior: "smooth" });
+    else topRef.current.scrollIntoView({ block: "start", behavior: "smooth" });
   }, [step]);
 
   const status = existing.data?.data?.status;
@@ -331,63 +323,30 @@ export function JobFormPage() {
     && !SKILL_CATALOG.some((group) => group.skills.some((name) => name.toLowerCase() === query));
   const current = STEPS[step];
   const CurrentIcon = current.icon;
-  const backTo = editing ? `/recruiter/jobs/${id}` : "/recruiter/jobs";
-
+  const cancelTo = editing ? `/recruiter/jobs/${id}` : "/recruiter/jobs";
   return (
-    <section className="mx-auto flex w-full max-w-[1440px] scroll-mt-24 flex-col gap-6 text-[var(--color-on-surface)]">
-      <div ref={topRef} className="flex flex-wrap items-end justify-between gap-4 scroll-mt-24">
-        <header className="flex flex-col gap-2">
-          <Link
-            to={backTo}
-            className="inline-flex w-fit items-center gap-1 text-sm font-medium text-[var(--color-on-surface-variant)] transition-colors hover:text-[var(--color-primary)]"
-          >
-            <ChevronLeft className="size-4" aria-hidden="true" />
-            {editing ? "Về chi tiết job" : "Quản lý việc làm"}
-          </Link>
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="h-7 w-2.5 rounded-full bg-[var(--color-primary)]" />
-            <h1 className="text-[30px] font-semibold leading-[38px] tracking-tight">{editing ? "Sửa tin tuyển dụng" : "Đăng tin tuyển dụng"}</h1>
-            {status && <StatusPill status={status} label={STATUS_LABEL[status] ?? status} />}
-          </div>
-          <p className="max-w-2xl pl-4 text-sm leading-[22px] text-[var(--color-on-surface-variant)]">
-            Hoàn thành {STEPS.length} bước để đăng tin. Có thể lưu nháp bất cứ lúc nào.
-          </p>
-        </header>
-        <div className="flex flex-wrap gap-2">
-          <Link
-            to={backTo}
-            className="inline-flex min-h-11 items-center justify-center rounded-[var(--radius-md)] px-4 text-sm font-medium text-[var(--color-on-surface-variant)] transition-colors hover:bg-[var(--color-surface-container-low)] hover:text-[var(--color-on-surface)]"
-          >
-            Hủy
-          </Link>
-          <Button variant="secondary" disabled={save.isPending} onClick={() => submit(false)}>
-            <Save className="size-4" aria-hidden="true" />
-            {alreadyPublished ? "Lưu thay đổi" : "Lưu nháp"}
-          </Button>
-        </div>
-      </div>
-
+    <section className="mx-auto flex w-full max-w-[1440px] scroll-mt-24 flex-col gap-6 text-[var(--color-on-surface)] xl:h-full xl:min-h-0 xl:overflow-hidden">
       {existing.isError && <ErrorBox>{getApiErrorMessage(existing.error)}</ErrorBox>}
 
-      <div className="grid items-start gap-6 lg:grid-cols-[256px_minmax(0,1fr)] xl:grid-cols-[256px_minmax(0,1fr)_320px]">
+      <div className="grid items-start gap-6 lg:grid-cols-[256px_minmax(0,1fr)] xl:min-h-0 xl:flex-1 xl:grid-cols-[256px_minmax(0,1fr)_320px] xl:items-stretch">
         <Stepper step={step} complete={stepComplete} issues={activeIssues} onSelect={setStep} />
         <form
           noValidate
-          className={cn(panel, "flex min-w-0 flex-col gap-6 p-0")}
+          className={cn(panel, "flex min-w-0 flex-col p-0 xl:h-full xl:min-h-0 xl:overflow-hidden")}
           onSubmit={(e) => { e.preventDefault(); if (step < LAST_STEP) goNext(); }}
         >
-          <div className="flex items-start gap-4 border-b border-[var(--color-border-default)] px-6 py-5">
-            <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-[var(--color-primary-soft)] text-[var(--color-primary)]">
-              <CurrentIcon className="size-5" aria-hidden="true" />
+          <div className="flex shrink-0 items-center gap-3 border-b border-[var(--color-border-default)] bg-[var(--color-surface-alt)]/55 px-5 py-3">
+            <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-[var(--color-primary-soft)] text-[var(--color-primary)]">
+              <CurrentIcon className="size-4" aria-hidden="true" />
             </span>
-            <div className="min-w-0">
-              <p className="text-xs font-semibold uppercase tracking-wider text-[var(--color-primary)]">Bước {step + 1}/{STEPS.length}</p>
-              <h2 className="text-lg font-semibold">{current.label}</h2>
-              <p className={muted}>{current.description}</p>
+            <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3 gap-y-0.5">
+              <span className="shrink-0 rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-primary)] shadow-sm">Bước {step + 1}/{STEPS.length}</span>
+              <h2 className="text-base font-semibold leading-6">{current.label}</h2>
+              <p className="min-w-0 flex-1 truncate text-xs text-[var(--color-on-surface-variant)] sm:text-right">{current.description}</p>
             </div>
           </div>
 
-          <div className="flex flex-col gap-6 px-6">
+          <div ref={topRef} className="flex min-h-0 flex-1 scroll-mt-24 flex-col gap-6 px-6 py-5 xl:overflow-y-auto">
             {stepIssues.length > 0 && (
               <div role="alert" className="rounded-xl bg-[var(--color-error-container)] p-4 text-sm text-[var(--color-on-error-container)]">
                 <p className="flex items-center gap-2 font-semibold">
@@ -658,12 +617,25 @@ export function JobFormPage() {
             {step === 4 && <ReviewStep form={form} onEdit={setStep} />}
           </div>
 
-          <div className="sticky bottom-0 z-10 flex flex-wrap items-center justify-between gap-3 rounded-b-3xl border-t border-[var(--color-border-default)] bg-[var(--color-surface-card)]/95 px-6 py-4 backdrop-blur">
-            <Button variant="ghost" disabled={step === 0} onClick={() => setStep((s) => Math.max(s - 1, 0))}>
-              <ArrowLeft className="size-4" aria-hidden="true" />
-              Quay lại
-            </Button>
+          <div className="z-10 flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-b-3xl border-t border-[var(--color-border-default)] bg-[var(--color-surface-card)]/95 px-6 py-4 backdrop-blur">
             <div className="flex flex-wrap items-center gap-2">
+              <Link to={cancelTo} className="inline-flex min-h-10 items-center justify-center rounded-[var(--radius-md)] px-3 text-sm font-medium text-[var(--color-on-surface-variant)] transition-colors hover:bg-[var(--color-surface-container-low)] hover:text-[var(--color-on-surface)]">
+                Hủy
+              </Link>
+              {step < LAST_STEP && (
+                <Button variant="secondary" disabled={save.isPending} onClick={() => submit(false)}>
+                  <Save className="size-4" aria-hidden="true" />
+                  {editing ? "Lưu thay đổi" : "Lưu nháp"}
+                </Button>
+              )}
+            </div>
+            <div className="ml-auto flex flex-wrap items-center gap-2">
+              {step > 0 && (
+                <Button variant="ghost" onClick={() => setStep((s) => Math.max(s - 1, 0))}>
+                  <ArrowLeft className="size-4" aria-hidden="true" />
+                  Quay lại
+                </Button>
+              )}
               {save.isError && (
                 <span role="alert" className="flex items-center gap-1.5 text-sm text-[var(--color-error)]">
                   <AlertTriangle className="size-4 shrink-0" aria-hidden="true" />
@@ -675,10 +647,10 @@ export function JobFormPage() {
                   Tiếp tục
                   <ArrowRight className="size-4" aria-hidden="true" />
                 </Button>
-              ) : alreadyPublished ? (
+              ) : editing && status !== "DRAFT" ? (
                 <Button disabled={save.isPending} onClick={() => submit(false)}>
                   <Save className="size-4" aria-hidden="true" />
-                  {save.isPending ? "Đang lưu…" : "Lưu tin đăng"}
+                  {save.isPending ? "Đang lưu…" : "Lưu thay đổi"}
                 </Button>
               ) : (
                 <Button disabled={save.isPending} onClick={() => submit(true)}>
@@ -690,7 +662,7 @@ export function JobFormPage() {
           </div>
         </form>
 
-        <aside className="flex flex-col gap-4 lg:col-start-2 xl:sticky xl:top-24 xl:col-start-3 xl:row-start-1">
+        <aside className="flex flex-col gap-4 lg:col-start-2 xl:col-start-3 xl:row-start-1 xl:h-full xl:overflow-hidden">
           <PreviewCard form={form} />
           <div className={cn(panel, "space-y-3 p-5")}>
             <div className="flex items-center justify-between gap-2">
@@ -713,10 +685,6 @@ export function JobFormPage() {
                 </li>
               ))}
             </ul>
-          </div>
-          <div className="flex gap-3 rounded-2xl bg-[var(--color-primary-subtle)] p-4 text-sm">
-            <Lightbulb className="mt-0.5 size-4 shrink-0 text-[var(--color-primary)]" aria-hidden="true" />
-            <p className="leading-5 text-[var(--color-on-surface-variant)]">{current.tip}</p>
           </div>
         </aside>
       </div>

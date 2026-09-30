@@ -1,8 +1,12 @@
 import { useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { useParams, useSearchParams } from "react-router-dom";
 import { CalendarPlus, Link2, MapPin, Video } from "lucide-react";
 import { PrototypeBanner } from "@/components/ux/PrototypeBanner";
 import { StatusPill } from "@/components/ux/StatusPill";
+import { jobApi } from "@/api/tenant/jobApi";
+import { queryKeys } from "@/lib/query-keys";
+import { cn } from "@/lib/utils";
 import { button, input, muted, panel, primary } from "@/features/tenant/recruiter/matching/components/rankingUi";
 import {
   interviewModeLabel,
@@ -14,6 +18,10 @@ import {
 
 export function SchedulesPage() {
   const [params] = useSearchParams();
+  const { id: routeJobId } = useParams<{ id?: string }>();
+  const jobId = routeJobId && /^\d+$/.test(routeJobId) ? Number(routeJobId) : null;
+  const jobQuery = useQuery({ queryKey: queryKeys.jobs.detail(jobId ?? 0), queryFn: () => jobApi.get(jobId!), enabled: jobId != null });
+  const selectedScheduleId = Number(params.get("scheduleId"));
   const [rows, setRows] = useState<MockInterview[]>(mockInterviews);
   const [applicationId, setApplicationId] = useState("501");
   const [candidateName, setCandidateName] = useState("Nguyễn An");
@@ -27,9 +35,10 @@ export function SchedulesPage() {
   const [note, setNote] = useState("");
   const [toast, setToast] = useState<string | null>(null);
   const upcomingOnly = params.get("status")?.toLowerCase() === "upcoming";
-  const visibleRows = upcomingOnly
-    ? rows.filter((row) => row.status !== "CANCELLED" && row.status !== "DONE" && new Date(row.startsAt).getTime() >= Date.now())
-    : rows;
+  const scopedRows = jobQuery.data?.data.title ? rows.filter((row) => row.jobTitle === jobQuery.data.data.title) : rows;
+  const visibleRows = (upcomingOnly
+    ? scopedRows.filter((row) => row.status !== "CANCELLED" && row.status !== "DONE" && new Date(row.startsAt).getTime() >= Date.now())
+    : scopedRows).sort((a, b) => Number(b.id === selectedScheduleId) - Number(a.id === selectedScheduleId));
 
   const flash = (message: string) => {
     setToast(message);
@@ -72,7 +81,7 @@ export function SchedulesPage() {
   return (
     <section className="space-y-6 text-[var(--color-on-surface)]">
       <header className="flex flex-wrap items-center gap-3">
-        <h1 className="text-2xl font-semibold tracking-tight">Lịch phỏng vấn</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Lịch phỏng vấn{jobQuery.data?.data.title ? ` · ${jobQuery.data.data.title}` : ""}</h1>
         {upcomingOnly && <span className="rounded-full bg-[var(--color-primary-soft)] px-3 py-1 text-xs font-semibold text-brand-primary">Bộ lọc: Sắp tới</span>}
       </header>
 
@@ -89,7 +98,7 @@ export function SchedulesPage() {
           <ul className="space-y-3">
             {visibleRows.length === 0 && <li className={muted}>Không có lịch phỏng vấn sắp tới.</li>}
             {visibleRows.map((row) => (
-              <li key={row.id} className="rounded-2xl border border-[var(--color-border-default)] p-4">
+              <li key={row.id} className={cn("rounded-2xl border p-4", row.id === selectedScheduleId ? "border-brand-primary bg-[var(--color-primary-subtle)]" : "border-[var(--color-border-default)]")}>
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <p className="font-semibold">

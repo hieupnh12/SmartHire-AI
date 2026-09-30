@@ -7,6 +7,7 @@ export type ApplicationListParams = {
   status?: string;
   source?: string;
   archived?: boolean;
+  includeWithdrawn?: boolean;
   page?: number;
   size?: number;
 };

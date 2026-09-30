@@ -44,6 +44,7 @@ import { ScreeningBreakdown } from "@/features/tenant/recruiter/cv-screening/com
 import { CvScreeningDecision } from "@/features/tenant/recruiter/cv-screening/components/CvScreeningDecision";
 import type { ApplicationDetail, ApplicationSummary, CvRef } from "@/api/types/applicant";
 import type { JobStatus } from "@/api/types/job";
+import { PipelineBoard } from "@/features/tenant/recruiter/pipeline/pages/PipelinePage";
 
 const PAGE_SIZE = 20;
 const STATUS_TABS = ["", "NEW", "IN_REVIEW", "ASSESSMENT", "INTERVIEW", "OFFER", "HIRED", "REJECTED"];
@@ -77,7 +78,9 @@ export function ApplicantsPage() {
   const [params, setParams] = useSearchParams();
   const jobIdRaw = params.get("jobId");
   const jobId = routeJobId && /^\d+$/.test(routeJobId) ? Number(routeJobId) : jobIdRaw && /^\d+$/.test(jobIdRaw) ? Number(jobIdRaw) : null;
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const boardView = routeJobId != null && params.get("view") === "board";
+  const requestedApplicationId = Number(params.get("applicationId"));
+  const [selectedId, setSelectedId] = useState<number | null>(Number.isInteger(requestedApplicationId) && requestedApplicationId > 0 ? requestedApplicationId : null);
   const [q, setQ] = useState("");
   const requestedStatus = params.get("status")?.toUpperCase() ?? "";
   const [status, setStatus] = useState(STATUS_TABS.includes(requestedStatus) ? requestedStatus : "");
@@ -103,12 +106,12 @@ export function ApplicantsPage() {
       size: PAGE_SIZE,
     }),
     placeholderData: keepPreviousData,
-    enabled: !!token,
+    enabled: !!token && !boardView,
   });
   const detail = useQuery({
     queryKey: queryKeys.applicants.detail(selectedId ?? 0),
     queryFn: () => applicantApi.get(selectedId!),
-    enabled: selectedId !== null,
+    enabled: selectedId !== null && !boardView,
   });
   const data = list.data?.data;
   const rows = data?.items ?? [];
@@ -128,6 +131,8 @@ export function ApplicantsPage() {
     setSelectedId(null);
     setPage(0);
   };
+
+  if (boardView) return <PipelineBoard />;
 
   return (
     <section className="mx-auto flex w-full max-w-[1440px] flex-col gap-6 text-[var(--color-on-surface)]">
@@ -162,9 +167,9 @@ export function ApplicantsPage() {
               <FileSearch className="size-4" aria-hidden="true" />
               Sàng lọc CV
             </Link>
-            <Link to={`/recruiter/jobs/${jobId}/pipeline`} className={secondaryLink}>
-              <Workflow className="size-4" aria-hidden="true" />
-              Pipeline
+            <Link to={`/recruiter/jobs/${jobId}/applicants?view=board`} className={secondaryLink}>
+              <Users className="size-4" aria-hidden="true" />
+              Bảng quy trình
             </Link>
             <Link to={`/recruiter/jobs/${jobId}`} className={primaryLink}>
               <ExternalLink className="size-4" aria-hidden="true" />

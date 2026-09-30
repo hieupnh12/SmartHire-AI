@@ -82,7 +82,8 @@ export function CvScreeningPage() {
   const scopedJobId = routeJobId && /^\d+$/.test(routeJobId) ? Number(routeJobId) : null;
   const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
   const jobId = scopedJobId ?? selectedJobId;
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const requestedCvId = Number(params.get("cvId"));
+  const [selectedId, setSelectedId] = useState<number | null>(Number.isInteger(requestedCvId) && requestedCvId > 0 ? requestedCvId : null);
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState<Tab>("ALL");
   const [sort, setSort] = useState<Sort>("newest");

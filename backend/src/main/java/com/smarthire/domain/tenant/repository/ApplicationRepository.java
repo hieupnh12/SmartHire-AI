@@ -49,7 +49,7 @@ public interface ApplicationRepository extends JpaRepository<Application, Long> 
             select a from Application a
             join a.candidate c
             where a.job.id = :jobId
-              and a.status <> com.smarthire.domain.enums.ApplicationStatus.WITHDRAWN
+              and (:includeWithdrawn = true or a.status <> com.smarthire.domain.enums.ApplicationStatus.WITHDRAWN)
               and (:status is null or a.status = :status)
               and (:source is null or lower(a.source) = lower(:source))
               and ((:archived = true and a.archivedAt is not null) or (:archived = false and a.archivedAt is null))
@@ -65,6 +65,7 @@ public interface ApplicationRepository extends JpaRepository<Application, Long> 
             @Param("status") ApplicationStatus status,
             @Param("source") String source,
             @Param("archived") boolean archived,
+            @Param("includeWithdrawn") boolean includeWithdrawn,
             Pageable pageable);
 
     @Query("""

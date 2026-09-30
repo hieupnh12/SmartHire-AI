@@ -56,9 +56,11 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
   const unreadCount = inbox.data?.filter(item => !item.readAt).length ?? 0;
   const isRecruiterWorkspace = basePath === "/recruiter";
   const isRecruiterDashboard = isRecruiterWorkspace && /^\/recruiter\/?$/.test(location.pathname);
-  const isRecruiterPipeline = isRecruiterWorkspace && /\/pipeline\/?$/.test(location.pathname);
+  const isRecruiterJobCreate = isRecruiterWorkspace && /^\/recruiter\/jobs\/new\/?$/.test(location.pathname);
+  const isRecruiterJobEdit = isRecruiterWorkspace && /^\/recruiter\/jobs\/\d+\/edit\/?$/.test(location.pathname);
+  const isRecruiterJobForm = isRecruiterJobCreate || isRecruiterJobEdit;
   const isRecruiterRanking = isRecruiterWorkspace && /\/rank\/?$/.test(location.pathname);
-  const isRecruiterBoard = isRecruiterPipeline || isRecruiterRanking;
+  const isRecruiterBoard = isRecruiterRanking || (isRecruiterWorkspace && /\/jobs\/\d+\/applicants\/?$/.test(location.pathname) && new URLSearchParams(location.search).get("view") === "board");
   const isTenantAdminWorkspace = basePath === "/internal/admin";
   const useWorkspaceHeader = isCandidateWorkspace || isRecruiterWorkspace;
   const tenantTheme = getTenantTheme(getTenantIdFromWindow() ?? "acme");
@@ -96,7 +98,6 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
     "/applicants",
     "/cvs",
     "/rank",
-    "/pipeline",
     "/analytics",
     "/assessments",
     "/ai-interviews",
@@ -105,7 +106,7 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
     "/notifications",
   ]);
   const displayedLinks = isRecruiterWorkspace
-    ? accessToken && !user
+    ? isRecruiterJobForm || (accessToken && !user)
       ? []
       : visibleRecruiterNav(user?.permissions).filter((item) => item.to !== "" && (!!recruiterJobId || !jobScopedNav.has(item.to))).map((item) => {
           let to: string = item.to;
@@ -361,7 +362,7 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
   }
 
   return (
-    <div className={cn("tenant-workspace-theme min-h-screen bg-surface-page", isRecruiterBoard && "xl:h-dvh xl:overflow-hidden")} style={getTenantThemeStyle(tenantTheme)}>
+    <div className={cn("tenant-workspace-theme min-h-screen bg-surface-page", (isRecruiterBoard || isRecruiterJobForm) && "xl:h-dvh xl:overflow-hidden")} style={getTenantThemeStyle(tenantTheme)}>
       <header className="sticky top-0 z-40 border-b border-[var(--color-border-default)] bg-white/85 shadow-sm backdrop-blur-md">
         <div className="mx-auto flex min-h-16 max-w-[1440px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-10">
           <div className="flex min-w-0 items-center gap-3">
@@ -479,7 +480,7 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
                 })}
               </nav>
             </div>
-          ) : <nav
+          ) : displayedLinks.length > 0 ? <nav
             className="mx-auto flex max-w-[1440px] gap-1 overflow-x-auto px-4 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:px-6 lg:px-10"
             aria-label={t("a11y.mainNav")}
           >
@@ -501,7 +502,7 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
                 {t(l.labelKey)}
               </NavLink>
             ))}
-          </nav>}
+          </nav> : null}
         </div>}
       </header>
       {showAdminBackBanner && (
@@ -518,7 +519,7 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
           </Link>
         </div>
       )}
-      <main id="main-content" className={cn("mx-auto", isRecruiterDashboard ? "w-full max-w-none p-0" : isRecruiterBoard ? "w-full max-w-none px-4 sm:px-6 lg:px-10 xl:h-[calc(100dvh-7.5rem)] xl:overflow-hidden" : "max-w-[1440px] px-4 py-6 sm:px-6 sm:py-8 lg:px-10")}>
+      <main id="main-content" className={cn("mx-auto", isRecruiterDashboard ? "w-full max-w-none p-0" : isRecruiterJobForm ? "w-full max-w-[1440px] px-4 py-4 sm:px-5 sm:py-5 lg:px-6 xl:h-[calc(100dvh-4rem)] xl:overflow-hidden" : isRecruiterBoard ? "w-full max-w-none px-4 sm:px-6 lg:px-10 xl:h-[calc(100dvh-7.5rem)] xl:overflow-hidden" : "max-w-[1440px] px-4 py-6 sm:px-6 sm:py-8 lg:px-10")}>
         <Outlet />
       </main>
     </div>

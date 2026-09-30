@@ -178,7 +178,8 @@ public class ApplicantService {
     }
 
     @Transactional(readOnly = true)
-    public PageResult<ApplicationSummary> list(long jobId, String q, ApplicationStatus status, String source, boolean archived, int page, int size) {
+    public PageResult<ApplicationSummary> list(long jobId, String q, ApplicationStatus status, String source,
+                                                boolean archived, boolean includeWithdrawn, int page, int size) {
         access.requireJob(job(jobId));
         var result = applications.search(
                 jobId,
@@ -186,6 +187,7 @@ public class ApplicantService {
                 status,
                 blankToNull(source),
                 archived,
+                includeWithdrawn,
                 PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 50), Sort.by(Sort.Direction.DESC, "id")));
         List<ApplicationSummary> items = result.getContent().stream()
                 .map(app -> mapper.summary(app, applications.countByCandidate_Id(app.getCandidate().getId()) > 1))
