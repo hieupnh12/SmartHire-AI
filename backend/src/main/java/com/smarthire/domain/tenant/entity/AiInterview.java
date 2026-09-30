@@ -1,0 +1,87 @@
+package com.smarthire.domain.tenant.entity;
+
+import com.smarthire.domain.enums.AiInterviewStatus;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.Table;
+import java.math.BigDecimal;
+import java.time.Instant;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+import lombok.experimental.FieldDefaults;
+
+@Getter
+@Setter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+@FieldDefaults(level = AccessLevel.PRIVATE)
+@Entity
+@Table(name = "ai_interviews")
+public class AiInterview {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    Long id;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "application_id", nullable = false)
+    Application application;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "workflow_stage_id")
+    RecruitmentStage workflowStage;
+
+    @Column(name = "started_at")
+    Instant startedAt;
+
+    @Column(name = "completed_at")
+    Instant completedAt;
+
+    @Column(name = "overall_score", precision = 10, scale = 2)
+    BigDecimal overallScore;
+
+    @Column(name = "passing_score_snapshot", precision = 5, scale = 2)
+    BigDecimal passingScoreSnapshot;
+
+    @Column(name = "error_message", length = 255)
+    String errorMessage;
+
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 32)
+    AiInterviewStatus status = AiInterviewStatus.CREATED;
+
+    @Column(name = "created_at", nullable = false, updatable = false)
+    Instant createdAt;
+
+    @Column(name = "config_snapshot_json", columnDefinition = "JSON")
+    String configSnapshotJson;
+    @Column(name = "context_snapshot_json", columnDefinition = "JSON")
+    String contextSnapshotJson;
+    @Column(name = "report_json", columnDefinition = "JSON")
+    String reportJson;
+    @Builder.Default
+    @Column(name = "attempt_number", nullable = false)
+    int attemptNumber = 1;
+    @Column(name = "expires_at")
+    Instant expiresAt;
+
+    @PrePersist
+    void onCreate() {
+        createdAt = Instant.now();
+    }
+}

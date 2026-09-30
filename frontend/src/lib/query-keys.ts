@@ -1,3 +1,8 @@
+import { getTenantIdFromWindow } from "@/lib/tenant";
+import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
+
+const assessmentScope = () => ["assessments", getTenantIdFromWindow(), useAuthStore.getState().user?.id ?? "session"] as const;
+
 export const queryKeys = {
   auth: {
     me: ["auth", "me"] as const,
@@ -6,6 +11,7 @@ export const queryKeys = {
     all: ["jobs"] as const,
     list: (params?: unknown) => ["jobs", "list", params] as const,
     detail: (id: number | string) => ["jobs", "detail", id] as const,
+    assignments: (jobId: number | string) => ["jobs", "assignments", jobId] as const,
   },
   applicants: {
     byJob: (jobId: number | string) => ["applicants", "job", jobId] as const,
@@ -22,11 +28,22 @@ export const queryKeys = {
     overall: (appId: number | string) => ["matching", "overall", appId] as const,
   },
   assessments: {
-    list: (jobId?: number | string) => ["assessments", jobId] as const,
-    attempt: (id: number | string) => ["attempts", id] as const,
+    all: assessmentScope,
+    list: (page: number) => [...assessmentScope(), "list", page] as const,
+    detail: (id: number) => [...assessmentScope(), "detail", id] as const,
+    questions: (id: number) => [...assessmentScope(), "questions", id] as const,
+    available: (id: number) => [...assessmentScope(), "available", id] as const,
+    submission: (id: number) => [...assessmentScope(), "submission", id] as const,
+    result: (id: number) => [...assessmentScope(), "result", id] as const,
+    jobSubmissions: (jobId: number) => [...assessmentScope(), "job-submissions", jobId] as const,
   },
   interviews: {
     detail: (id: number | string) => ["interviews", id] as const,
+  },
+  aiInterviews: {
+    all: ["ai-interviews"] as const,
+    byJob: (jobId: number) => ["ai-interviews", "job", jobId] as const,
+    detail: (id: number) => ["ai-interviews", "detail", id] as const,
   },
   practice: {
     list: ["practice", "list"] as const,

@@ -1,0 +1,42 @@
+---
+description: Bắt buộc — tạo bảng DB mới thì phải tạo luôn entity JPA tương ứng trong cùng thay đổi
+globs: backend/src/main/resources/db/migration/**/*.sql,backend/src/main/java/com/smarthire/domain/**/entity/**/*.java
+alwaysApply: false
+---
+
+# Bảng mới ⇒ Entity mới (bắt buộc)
+
+> **Mới tạo bảng gì trong database thì bạn phải tạo luôn entity tương ứng.**
+
+Khi task tạo hoặc sửa Flyway migration có `CREATE TABLE` (master hoặc tenant),
+**cùng thay đổi đó** phải có entity JPA ánh xạ bảng — không để “làm entity sau”.
+
+## Phải làm
+
+1. Đọc SQL migration trước — đó là nguồn sự thật cho tên bảng, cột, PK, FK.
+2. Tạo class `@Entity` trong:
+   - Master: `com.smarthire.domain.master.entity`
+   - Tenant: `com.smarthire.domain.tenant.entity`
+3. `@Table(name = "...")` **snake_case đúng tên bảng** trong SQL (không PascalCase).
+4. Bảng nối (join table, PK kép) cũng cần entity riêng — theo mẫu `QuestionSkill`,
+   `AnswerSelectedOption`, `InterviewParticipant` (`@IdClass` hoặc `@EmbeddedId` + `@MapsId`).
+5. Cập nhật `docs/database/` (Entity List, Data Dictionary, ERD, thống kê) theo
+   [`.cursor/rules/database-docs-sync.mdc`](database-docs-sync.mdc).
+
+## Không được làm
+
+- Chỉ thêm migration `CREATE TABLE` mà không có `@Entity`.
+- Map cùng một bảng bằng cả `@JoinTable` và entity riêng cùng lúc (trùng mapping).
+- Đặt `@Table(name = "...")` lệch tên bảng Flyway.
+- Coi “chỉ cần `@ManyToMany` JoinTable” là đủ khi team yêu cầu entity cho mọi bảng
+  (trừ khi đã ghi ngoại lệ rõ trong `docs/database/`).
+
+## Checklist nhanh
+
+- [ ] `CREATE TABLE foo_bars` → có `FooBar` (hoặc tên domain rõ) với `@Table(name = "foo_bars")`
+- [ ] Cột / FK trong entity khớp SQL
+- [ ] Đã cập nhật `docs/database/README.md` + Data Dictionary
+- [ ] Không còn ghi “không có entity riêng” cho bảng vừa tạo (trừ ngoại lệ đã duyệt)
+
+Tham chiếu: [`AGENTS.md`](../../AGENTS.md) mục 3 và mục 12;
+[`docs/database/MAINTENANCE.md`](../../docs/database/MAINTENANCE.md).

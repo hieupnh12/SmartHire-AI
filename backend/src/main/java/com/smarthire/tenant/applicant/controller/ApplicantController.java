@@ -4,6 +4,7 @@ import com.smarthire.common.api.ApiResponse;
 import com.smarthire.domain.enums.ApplicationStatus;
 import com.smarthire.tenant.applicant.dto.ApplicantModels.ApplicationDetail;
 import com.smarthire.tenant.applicant.dto.ApplicantModels.ApplicationSummary;
+import com.smarthire.tenant.applicant.dto.ApplicantModels.CvScreeningDecisionRequest;
 import com.smarthire.tenant.applicant.dto.ApplicantModels.HistoryView;
 import com.smarthire.tenant.applicant.dto.ApplicantModels.ManualCreateRequest;
 import com.smarthire.tenant.applicant.dto.ApplicantModels.PageResult;
@@ -47,6 +48,19 @@ public class ApplicantController {
         return ApiResponse.ok(applicants.mine());
     }
 
+    @GetMapping("/applications")
+    @Operation(summary = "List applications visible to the current staff member")
+    public ApiResponse<PageResult<ApplicationSummary>> listVisible(
+            @RequestParam(required = false) Long jobId,
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) ApplicationStatus status,
+            @RequestParam(required = false) String source,
+            @RequestParam(defaultValue = "false") boolean archived,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ApiResponse.ok(applicants.listVisible(jobId, q, status, source, archived, page, size));
+    }
+
     @GetMapping("/jobs/{jobId}/applications")
     @Operation(summary = "Search applications for a job")
     public ApiResponse<PageResult<ApplicationSummary>> list(
@@ -55,9 +69,10 @@ public class ApplicantController {
             @RequestParam(required = false) ApplicationStatus status,
             @RequestParam(required = false) String source,
             @RequestParam(defaultValue = "false") boolean archived,
+            @RequestParam(defaultValue = "false") boolean includeWithdrawn,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        return ApiResponse.ok(applicants.list(jobId, q, status, source, archived, page, size));
+        return ApiResponse.ok(applicants.list(jobId, q, status, source, archived, includeWithdrawn, page, size));
     }
 
     @PostMapping("/jobs/{jobId}/applications")
@@ -95,6 +110,15 @@ public class ApplicantController {
     @Operation(summary = "Change application status")
     public ApiResponse<ApplicationDetail> status(@PathVariable long id, @RequestBody StatusRequest body) {
         return ApiResponse.ok(applicants.changeStatus(id, body.status(), body.note()));
+    }
+
+    @PostMapping("/applications/{id}/cv-screening-decision")
+    @Operation(summary = "Recruiter decides whether the application passes the CV screening round",
+            description = "Used by MANUAL screening jobs (AI only scores). passed=true moves the application to INTERVIEW "
+                    + "and sends the AI interview invite; passed=false keeps it in IN_REVIEW. Only NEW/IN_REVIEW applications.")
+    public ApiResponse<ApplicationDetail> cvScreeningDecision(
+            @PathVariable long id, @Valid @RequestBody CvScreeningDecisionRequest body) {
+        return ApiResponse.ok(applicants.decideCvScreening(id, body.passed(), body.note()));
     }
 
     @PostMapping("/applications/{id}/reject")

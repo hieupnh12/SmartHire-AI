@@ -1,4 +1,5 @@
 import { useState, type ComponentType } from "react";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
 import {
   Activity,
   AlertTriangle,
@@ -55,13 +56,25 @@ function Overview({ revenue, aiQuota, tenants, logs }: Omit<Props, "onExport">) 
   return <div className="space-y-5">
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
       <MetricCard label="MRR" value={`$${(revenue?.mrr ?? 0).toLocaleString()}`} change={revenue?.growthRate ?? "+0%"} helper="so với tháng trước" icon={CircleDollarSign} />
-      <MetricCard label="Tenant hoạt động" value={`${revenue?.activeTenants ?? 0}`} change="+3" helper="tenant mới kỳ này" icon={Building2} />
+      <MetricCard label="Tổng số Tenant" value={`${revenue?.totalTenants ?? 0}`} change={`${revenue?.activeTenants ?? 0} hoạt động`} helper="trên toàn hệ thống" icon={Building2} />
       <MetricCard label="AI gross margin" value="68,4%" change="+4,2%" helper="sau chi phí mô hình" icon={Sparkles} />
       <MetricCard label="System uptime" value="99,98%" change="Ổn định" helper="trong 30 ngày" icon={Activity} />
       <MetricCard label="Churn rate" value="2,1%" change="-0,7%" helper="thấp hơn kỳ trước" icon={Users} direction="down" />
     </div>
     <div className="grid gap-5 xl:grid-cols-[1.35fr_0.65fr]">
-      <section className={cn(cardClass, "overflow-hidden")}><div className="flex items-start justify-between border-b border-slate-100 p-5"><div><h2 className="font-semibold text-slate-950">Tăng trưởng nền tảng</h2><p className="mt-1 text-xs text-slate-500">MRR thực tế và dự báo trong 8 tháng</p></div><span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">Dự báo +14,8%</span></div><div className="p-5"><div className="mb-4 flex gap-5 text-xs text-slate-500"><span className="flex items-center gap-2"><i className="size-2.5 rounded-full bg-blue-600" />MRR thực tế</span><span className="flex items-center gap-2"><i className="h-0.5 w-4 border-t-2 border-dashed border-amber-500" />Dự báo</span></div><svg viewBox="0 0 700 235" className="w-full" role="img" aria-labelledby="platform-growth-title platform-growth-desc"><title id="platform-growth-title">Biểu đồ tăng trưởng MRR</title><desc id="platform-growth-desc">MRR tăng từ 29 nghìn lên 48,5 nghìn đô la và dự báo đạt 56 nghìn đô la.</desc>{[35,85,135,185].map((y) => <line key={y} x1="38" x2="675" y1={y} y2={y} stroke="#e2e8f0" strokeDasharray="4 5" />)}<path d="M38 178 C100 166 118 156 170 150 S260 127 310 132 S400 91 450 98 S520 66 565 72" fill="none" stroke="#2563eb" strokeWidth="4" strokeLinecap="round" /><path d="M565 72 C610 63 640 45 675 38" fill="none" stroke="#f59e0b" strokeWidth="4" strokeDasharray="8 7" strokeLinecap="round" />{["T2","T3","T4","T5","T6","T7","T8","T9"].map((label,index) => <text key={label} x={38 + index * 91} y="225" fill="#64748b" fontSize="12" textAnchor={index === 0 ? "start" : index === 7 ? "end" : "middle"}>{label}</text>)}</svg></div></section>
+      <section className={cn(cardClass, "overflow-hidden")}><div className="flex items-start justify-between border-b border-slate-100 p-5"><div><h2 className="font-semibold text-slate-950">Biểu đồ doanh thu</h2><p className="mt-1 text-xs text-slate-500">Doanh thu thực tế theo chu kỳ</p></div><span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">{revenue?.growthRate || "+0%"}</span></div><div className="p-5">
+        <div className="h-[235px] w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={revenue?.revenueTrend || []} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+              <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} dy={10} />
+              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} dx={-10} tickFormatter={(v) => `$${v}`} />
+              <Tooltip contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+              <Line type="monotone" dataKey="value" stroke="#2563eb" strokeWidth={3} dot={{ r: 4, fill: "#fff", strokeWidth: 2 }} activeDot={{ r: 6 }} name="Doanh thu" />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      </div></section>
       <section className={cn(cardClass, "p-5")}><h2 className="font-semibold text-slate-950">Cần xử lý</h2><p className="mt-1 text-xs text-slate-500">Ưu tiên vận hành toàn nền tảng</p><div className="mt-5 space-y-3">{[
         [attentionTenants || 2, "tenant cần chú ý", "Provisioning hoặc tạm ngưng", "amber"],
         [3, "hóa đơn quá hạn", "$2.940 cần thu hồi", "rose"],
@@ -98,8 +111,22 @@ function AiUsagePanel({ aiQuota }: { aiQuota: AiQuotaUsage | null }) {
   const cvPercent = Math.round(((aiQuota?.totalCvParsesUsed ?? 0) / (aiQuota?.totalCvParsesLimit || 1)) * 100);
   const voicePercent = Math.round(((aiQuota?.totalVoiceHoursUsed ?? 0) / (aiQuota?.totalVoiceHoursLimit || 1)) * 100);
   return <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
-    <section className={cn(cardClass, "p-5")}><h2 className="font-semibold">Tiêu thụ tài nguyên AI</h2><p className="mt-1 text-xs text-slate-500">Toàn nền tảng trong chu kỳ hiện tại</p><div className="mt-6 space-y-6">{[["CV parsing & screening", aiQuota?.totalCvParsesUsed ?? 0, aiQuota?.totalCvParsesLimit ?? 0, cvPercent],["AI interview voice hours", aiQuota?.totalVoiceHoursUsed ?? 0, aiQuota?.totalVoiceHoursLimit ?? 0, voicePercent]].map(([label,used,limit,percent]) => <div key={String(label)}><div className="mb-2 flex flex-wrap justify-between gap-2 text-sm"><span className="font-medium">{label}</span><strong>{Number(used).toLocaleString()} / {Number(limit).toLocaleString()} ({percent}%)</strong></div><div className="h-3 rounded-full bg-slate-100"><div className="h-full rounded-full bg-blue-600" style={{ width: `${percent}%` }} /></div></div>)}</div><div className="mt-7 grid grid-cols-2 gap-3"><div className="rounded-xl bg-slate-50 p-4"><p className="text-xs text-slate-500">Chi phí AI</p><p className="mt-1 text-xl font-bold">$8.420</p></div><div className="rounded-xl bg-emerald-50 p-4"><p className="text-xs text-emerald-700">AI gross margin</p><p className="mt-1 text-xl font-bold text-emerald-900">68,4%</p></div></div></section>
-    <section className={cn(cardClass, "p-5")}><h2 className="font-semibold">Dịch vụ AI đang hoạt động</h2><p className="mt-1 text-xs text-slate-500">Trạng thái và tỷ trọng chi phí ước tính</p><div className="mt-5 space-y-3">{(aiQuota?.activeModels ?? ["CV Screening Model","Speech-to-Text","Semantic Matching"]).map((model,index) => <div key={model} className="flex items-center gap-3 rounded-xl border border-slate-200 p-3"><span className="grid size-9 place-items-center rounded-lg bg-blue-50 text-blue-600"><Bot className="size-4" /></span><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{model}</p><p className="text-xs text-slate-500">{["42% chi phí AI","26% chi phí AI","18% chi phí AI","14% chi phí AI"][index] ?? "Đang hoạt động"}</p></div><span className="size-2.5 rounded-full bg-emerald-500" aria-label="Đang hoạt động" /></div>)}</div></section>
+    <section className={cn(cardClass, "p-5")}><h2 className="font-semibold">Tiêu thụ tài nguyên AI</h2><p className="mt-1 text-xs text-slate-500">Toàn nền tảng trong chu kỳ hiện tại</p><div className="mt-6 space-y-6">{[["CV parsing & screening", aiQuota?.totalCvParsesUsed ?? 0, 50000, cvPercent],["AI interview voice seconds", aiQuota?.totalVoiceSecondsUsed ?? 0, 100000, voicePercent]].map(([label,used,_limit,percent]) => <div key={String(label)}><div className="mb-2 flex flex-wrap justify-between gap-2 text-sm"><span className="font-medium">{label}</span><strong>{Number(used).toLocaleString()}</strong></div><div className="h-3 rounded-full bg-slate-100"><div className="h-full rounded-full bg-blue-600" style={{ width: `${Math.min(percent as number, 100)}%` }} /></div></div>)}</div>
+    
+      <h3 className="mt-8 font-semibold text-sm">Xu hướng sử dụng (Tokens)</h3>
+      <div className="h-40 w-full mt-4">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={aiQuota?.usageTrend || []} margin={{ top: 0, right: 0, bottom: 0, left: -20 }}>
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+            <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b' }} dy={10} />
+            <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b' }} />
+            <Tooltip cursor={{ fill: '#f1f5f9' }} contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0' }} />
+            <Bar dataKey="value" fill="#3b82f6" radius={[4, 4, 0, 0]} name="Tokens" />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </section>
+    <section className={cn(cardClass, "p-5")}><h2 className="font-semibold">Dịch vụ AI đang hoạt động</h2><p className="mt-1 text-xs text-slate-500">Trạng thái mô hình AI</p><div className="mt-5 space-y-3">{(aiQuota?.activeModels ?? ["Gemini 1.5 Pro","Whisper STT","FastText Matching"]).map((model) => <div key={model} className="flex items-center gap-3 rounded-xl border border-slate-200 p-3"><span className="grid size-9 place-items-center rounded-lg bg-blue-50 text-blue-600"><Bot className="size-4" /></span><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{model}</p><p className="text-xs text-slate-500">Đang hoạt động</p></div><span className="size-2.5 rounded-full bg-emerald-500" aria-label="Đang hoạt động" /></div>)}</div></section>
   </div>;
 }
 
@@ -129,7 +156,7 @@ export function PlatformAnalyticsDashboard({ revenue, aiQuota, tenants, logs, on
     operations: <OperationsPanel />,
   };
   return <div className="space-y-5 animate-fade-in">
-    <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-sm font-semibold text-blue-600">Platform intelligence</p><h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">Trung tâm điều hành SmartHire AI</h1><p className="mt-2 max-w-3xl text-sm text-slate-500">Theo dõi tăng trưởng SaaS, sức khỏe tenant, chi phí AI và vận hành hệ thống mà không truy cập dữ liệu tuyển dụng chi tiết của khách hàng.</p></div><button type="button" onClick={onExport} className="inline-flex min-h-10 items-center justify-center gap-2 self-start rounded-xl border border-slate-200 bg-white px-3.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50"><Download className="size-4" />Xuất báo cáo</button></header>
+    <header className="sticky top-16 md:top-0 z-10 bg-[#f8fafc]/95 backdrop-blur-md px-4 py-4 sm:px-6 lg:px-8 -mx-4 -mt-5 sm:-mx-6 sm:-mt-6 lg:-mx-8 lg:-mt-8 mb-6 border-b border-slate-200/50 shadow-sm flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight bg-gradient-to-r from-blue-600 to-cyan-500 bg-clip-text text-transparent">Thống Kê Nền Tảng</h1></div><button type="button" onClick={onExport} className="inline-flex min-h-10 items-center justify-center gap-2 self-start rounded-xl border border-slate-200 bg-white px-3.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50"><Download className="size-4" />Xuất báo cáo</button></header>
     <nav className="overflow-x-auto rounded-2xl border border-slate-200 bg-white p-1 shadow-sm" aria-label="Các nhóm thống kê nền tảng"><div className="flex min-w-max gap-1" role="tablist">{tabs.map((tab) => { const Icon = tab.icon; const selected = activeTab === tab.id; return <button key={tab.id} type="button" role="tab" id={`platform-tab-${tab.id}`} aria-selected={selected} aria-controls={`platform-panel-${tab.id}`} onClick={() => setActiveTab(tab.id)} className={cn("inline-flex min-h-10 items-center gap-2 rounded-xl px-3.5 text-sm font-medium transition-colors", selected ? "bg-blue-50 text-blue-700" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900")}><Icon className="size-4" aria-hidden="true" />{tab.label}</button>; })}</div></nav>
     <div role="tabpanel" tabIndex={0} id={`platform-panel-${activeTab}`} aria-labelledby={`platform-tab-${activeTab}`}>{panels[activeTab]}</div>
   </div>;

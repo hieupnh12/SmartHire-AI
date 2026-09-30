@@ -1,0 +1,148 @@
+@startuml
+!include ../class-style.puml
+
+package "Controller Layer" {
+  class PracticeController <<Controller>> {
+    - practiceService: PracticeService
+    + generateQuestions(sessionId: Long): ApiResponse<GenerateAcceptedResponse>
+  }
+}
+
+package "DTO Layer" {
+  class GenerateAcceptedResponse <<Response>> {
+    + sessionId: Long
+    + accepted: boolean
+  }
+  class PracticeQuestionJob <<Domain Event>> {
+    + sessionId: Long
+    + types: List<PracticeQuestionType>
+    + correlationId: String
+  }
+}
+
+package "Service Layer" {
+  interface PracticeService <<Service>> {
+    + requestQuestionGeneration(sessionId: Long, principal: Principal): GenerateAcceptedResponse
+  }
+  class PracticeServiceImpl <<Service>> {
+    - sessionRepository: PracticeSessionRepository
+    - questionPublisher: PracticeQuestionPublisher
+    - tenantContext: TenantContext
+    + requestQuestionGeneration(sessionId: Long, principal: Principal): GenerateAcceptedResponse
+  }
+  interface PracticeQuestionGenerator <<Service>> {
+    + generate(job: PracticeQuestionJob): List<PracticeAnswer>
+  }
+  class PracticeQuestionGeneratorImpl <<Service>> {
+    - sessionRepository: PracticeSessionRepository
+    - answerRepository: PracticeAnswerRepository
+    - aiQuestionPort: AiQuestionPort
+    - bankPort: PracticeQuestionBankPort
+    + generate(job: PracticeQuestionJob): List<PracticeAnswer>
+  }
+  class PracticeQuestionConsumer <<Service>> {
+    - generator: PracticeQuestionGenerator
+    + onGenerate(job: PracticeQuestionJob, tenantId: String): void
+  }
+}
+
+package "Repository Layer" {
+  interface PracticeSessionRepository <<Repository>> {
+    + findByIdAndCandidate(id: Long, candidateId: Long): Optional<PracticeSession>
+  }
+  interface PracticeAnswerRepository <<Repository>> {
+    + replaceQuestions(sessionId: Long, rows: List<PracticeAnswer>): void
+  }
+}
+
+package "Domain Entity Layer" {
+  class PracticeSession <<Entity>> {
+    - id: Long
+    - topic: String
+    - targetRole: String [0..1]
+    - status: PracticeStatus
+  }
+  class PracticeAnswer <<Entity>> {
+    - id: Long
+    - questionText: String
+    - questionType: PracticeQuestionType
+    - answerText: String [0..1]
+  }
+  enum PracticeQuestionType <<Enum>> {
+    GENERAL
+    TECHNICAL
+    BEHAVIORAL
+    JAPANESE
+  }
+  enum PracticeStatus <<Enum>> {
+    CREATED
+    IN_PROGRESS
+    COMPLETED
+    FAILED
+  }
+}
+
+package "Infrastructure & Persistence" {
+  interface AiQuestionPort <<DataSource>> {
+    + generatePractice(topic: String, role: String, types: List<PracticeQuestionType>): List<GeneratedQuestion>
+  }
+  interface PracticeQuestionBankPort <<DataSource>> {
+    + pick(topic: String, types: List<PracticeQuestionType>, limit: int): List<GeneratedQuestion>
+  }
+  class PracticeQuestionPublisher <<Queue>> {
+    + publish(job: PracticeQuestionJob, tenantId: String): void
+  }
+  class QuestionQueue <<Queue>> {
+    .. RabbitMQ practice.questions ..
+  }
+  class TenantMySQL <<Database>> {
+    .. Dedicated Tenant DB ..
+    + practice_sessions
+    + practice_answers
+  }
+  class TenantContext <<DataSource>> {
+    + {static} getCurrentTenant(): String
+    + {static} clear(): void
+  }
+}
+
+PracticeController ..> GenerateAcceptedResponse : returns >
+PracticeController --> PracticeService : delegates >
+PracticeService <|.. PracticeServiceImpl : implements
+PracticeServiceImpl ..> GenerateAcceptedResponse : creates >
+PracticeServiceImpl ..> PracticeQuestionJob : emits >
+PracticeServiceImpl --> PracticeSessionRepository : queries >
+PracticeServiceImpl --> PracticeQuestionPublisher : publishes event >
+PracticeServiceImpl --> TenantContext : caches / evicts >
+
+PracticeQuestionPublisher --> QuestionQueue : publishes event >
+QuestionQueue ..> PracticeQuestionConsumer : delivers >
+PracticeQuestionConsumer --> PracticeQuestionGenerator : delegates >
+PracticeQuestionConsumer --> TenantContext : caches / evicts >
+PracticeQuestionGenerator <|.. PracticeQuestionGeneratorImpl : implements
+PracticeQuestionGeneratorImpl --> AiQuestionPort : queries >
+PracticeQuestionGeneratorImpl --> PracticeQuestionBankPort : queries >
+PracticeQuestionGeneratorImpl --> PracticeAnswerRepository : persists through >
+PracticeQuestionGeneratorImpl ..> PracticeQuestionJob : processes >
+
+PracticeSessionRepository --> PracticeSession : manages >
+PracticeAnswerRepository --> PracticeAnswer : manages >
+PracticeSessionRepository --> TenantMySQL : persists to >
+PracticeAnswerRepository --> TenantMySQL : persists to >
+
+PracticeSession "1" *-- "0..*" PracticeAnswer
+PracticeAnswer ..> PracticeQuestionType : typed by >
+PracticeSession ..> PracticeStatus : typed by >
+
+note right of PracticeQuestionGeneratorImpl
+  Mix AI generation and/or question bank
+  for TECHNICAL, BEHAVIORAL, JAPANESE
+  (+ optional GENERAL) from candidate
+  topic/target role. Writes practice_* only.
+end note
+
+note bottom of QuestionQueue
+  Target queue practice.questions
+  (mirrors interview.questions; not in yml yet).
+end note
+@enduml

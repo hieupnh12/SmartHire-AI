@@ -4,7 +4,7 @@ import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { MasterAdminSidebar } from "./MasterAdminSidebar";
 import { MasterAdminHeader } from "./MasterAdminHeader";
 import { DashboardTab, SidebarGroupId } from "./types";
-import { MasterDashboardProvider, useMasterDashboard } from "./MasterAdminContext";
+import { useTenants, useSubscriptions, useRevenueAnalytics, useAiQuotaUsage, useAuditLogs, useLeads, useInvoices, useContracts } from "@/api/master/queries";
 import { CheckCircle2 } from "lucide-react";
 import { BrainCircuit, Menu, X } from "lucide-react";
 
@@ -13,6 +13,7 @@ const paths: Record<DashboardTab, string> = {
   tenants: "/admin/tenants/directory", subscriptions: "/admin/subscriptions/plans",
   invoices: "/admin/invoices", contracts: "/admin/contracts", logs: "/admin/system/logs",
   "ai-usage": "/admin/system/ai-usage", "ai-quotas": "/admin/system/ai-quotas",
+  "ai-config": "/admin/system/ai-config",
   "account-profile": "/admin/account/profile", "account-security": "/admin/account/security",
   "account-accessibility": "/admin/account/accessibility", "account-notifications": "/admin/account/notifications",
 };
@@ -24,7 +25,6 @@ function activeTabFromPath(pathname: string): DashboardTab {
 }
 
 function MasterAdminLayoutContent() {
-  const { actionSuccessMsg } = useMasterDashboard();
   const location = useLocation();
   const navigate = useNavigate();
   const activeTab = activeTabFromPath(location.pathname);
@@ -69,13 +69,6 @@ function MasterAdminLayoutContent() {
 
   return (
     <div className="flex min-h-dvh min-w-0 flex-col bg-[#f8fafc] font-sans text-slate-800 antialiased selection:bg-blue-600 selection:text-white">
-      {/* Toast Notification Banner */}
-      {actionSuccessMsg && (
-        <div className="fixed top-22 right-6 z-50 bg-emerald-600 text-white px-4 py-2.5 rounded-xl shadow-lg flex items-center gap-2 text-xs font-semibold animate-fade-in">
-          <CheckCircle2 className="w-4 h-4" />
-          <span>{actionSuccessMsg}</span>
-        </div>
-      )}
 
       <MasterAdminHeader isSidebarCollapsed={isSidebarCollapsed} />
 
@@ -144,5 +137,5 @@ function MasterAdminLayoutContent() {
 }
 
 export function MasterAdminLayout() {
-  return <MasterDashboardProvider><MasterAdminLayoutContent /></MasterDashboardProvider>;
+  return <MasterAdminLayoutContent />;
 }

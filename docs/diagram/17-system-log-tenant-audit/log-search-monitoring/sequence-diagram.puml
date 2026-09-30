@@ -1,0 +1,105 @@
+@startuml
+skinparam dpi 300
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam sequence {
+    ArrowColor #2D3748
+    ActorBorderColor #2D3748
+    LifeLineBorderColor #2D3748
+    ParticipantBorderColor #2D3748
+    ParticipantBackgroundColor #FFFFFF
+    BoxBorderColor #A0AEC0
+}
+hide footbox
+autonumber
+
+actor "Workspace Admin" as Admin
+boundary "Master Admin Dashboard" as UI
+control "Spring Security" as Sec
+boundary "MasterLogSearchController" as Ctrl
+control "LogSearchService" as Svc
+control "TenantContext" as Context
+database "Master PostgreSQL" as MasterDB
+database "Dedicated Tenant DB" as TenantDB
+
+note over Admin,TenantDB
+  FE17-F03 Log Search & Monitoring — WORKSPACE_ADMIN only.
+  Filters: tenant, user, action, time range, event level/category.
+  System logs → Master. Tenant audit → resolve tenant then Tenant DB.
+end note
+
+Admin -> UI: Open Logs / Monitoring
+activate UI
+UI -> Sec: GET /api/v1/master/logs/system\n?level&tenantCode&from&to&page
+activate Sec
+
+alt unauthenticated or not WORKSPACE_ADMIN
+  Sec --> UI: 401 / 403
+  deactivate Sec
+  UI --> Admin: Access denied
+  deactivate UI
+else authorized
+  Sec -> Ctrl: forward SystemLogSearchRequest
+  deactivate Sec
+  activate Ctrl
+  Ctrl -> Svc: searchSystemLogs(query)
+  activate Svc
+  Svc -> MasterDB: SELECT system_logs WHERE filters ORDER BY occurred_at DESC
+  activate MasterDB
+  MasterDB --> Svc: page of SystemLog
+  deactivate MasterDB
+  Svc --> Ctrl: PageResponse<SystemLogResponse>
+  deactivate Svc
+  Ctrl --> UI: 200 OK
+  deactivate Ctrl
+  UI --> Admin: Render system log table
+
+  opt Admin searches tenant audit history
+    Admin -> UI: Set tenantCode + optional actor/action/time
+    UI -> Sec: GET /api/v1/master/logs/audit\n?tenantCode&actorUserId&action&from&to
+    activate Sec
+    Sec -> Ctrl: forward TenantAuditSearchRequest
+    deactivate Sec
+    activate Ctrl
+    Ctrl -> Svc: searchTenantAuditLogs(query)
+    activate Svc
+    Svc -> MasterDB: find TenantInfo by code
+    activate MasterDB
+
+    alt tenant not found or not usable
+      MasterDB --> Svc: empty / SUSPENDED
+      deactivate MasterDB
+      Svc --> Ctrl: 404 TENANT_NOT_FOUND\nor 409 TENANT_NOT_USABLE
+      deactivate Svc
+      Ctrl --> UI: error
+      deactivate Ctrl
+      UI --> Admin: Show tenant error
+    else tenant resolved
+      MasterDB --> Svc: TenantInfo
+      deactivate MasterDB
+      Svc -> Context: setCurrentTenant(tenantCode)
+      Svc -> TenantDB: SELECT audit_logs WHERE filters
+      activate TenantDB
+      TenantDB --> Svc: page of AuditLog
+      deactivate TenantDB
+      Svc -> Context: clear() in finally
+      Svc --> Ctrl: PageResponse<TenantAuditLogResponse>
+      deactivate Svc
+      Ctrl --> UI: 200 OK
+      deactivate Ctrl
+      UI --> Admin: Render tenant audit rows\n(flag anomalies if level/action matches rules)
+    end
+  end
+
+  deactivate UI
+end
+
+note over Svc,TenantDB
+  Never return DB credentials or raw secrets in log payloads.
+  Cross-tenant fan-out (query all tenants at once) is out of scope;
+  admin must select a tenantCode for audit search.
+end note
+
+@enduml

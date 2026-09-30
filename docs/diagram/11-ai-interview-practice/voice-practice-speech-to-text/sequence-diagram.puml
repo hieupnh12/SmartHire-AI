@@ -1,0 +1,101 @@
+@startuml
+title FE11-F03 — Voice Practice & Speech-to-Text\nUpload practice audio and transcribe
+skinparam dpi 300
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam sequenceArrowThickness 1
+skinparam sequenceMessageAlign center
+skinparam ArrowColor #64748B
+skinparam ParticipantBorderColor #CBD5E1
+skinparam ParticipantBackgroundColor #F8FAFC
+hide footbox
+autonumber
+
+actor "Candidate" as Candidate
+boundary "Practice Voice UI" as FE
+control "Security + TenantWebInterceptor" as Guard
+control "TenantContext" as Context
+boundary "PracticeController" as Controller
+control "PracticeService" as Service
+control "ObjectStoragePort" as Storage
+queue "RabbitMQ\npractice.stt" as MQ
+control "PracticeSttConsumer" as Consumer
+control "PracticeSttService" as Stt
+control "SpeechToTextPort" as STT
+database "Dedicated Tenant DB" as TenantDB
+
+note over Candidate,TenantDB
+  Scope: one audio per practice answer row → 202 → STT → answerText transcript.
+  Sandbox only; official interview voice is FE08-F02.
+end note
+
+Candidate -> FE: Submit voice answer
+activate FE
+FE -> Guard: POST /api/v1/practice/sessions/{id}/voice\nmultipart + answerId + language
+activate Guard
+Guard -> Context: setCurrentTenant(tenantId)
+Guard -> Controller: forward
+activate Controller
+Controller -> Service: submitVoiceAnswer(...)
+activate Service
+Service -> TenantDB: load owned session + answer
+activate TenantDB
+alt invalid
+  TenantDB --> Service: reject
+  deactivate TenantDB
+  Service --> Controller: 404 / 403 / 409
+  deactivate Service
+  Controller --> FE: error
+  deactivate Controller
+  FE --> Candidate: Cannot submit
+  deactivate FE
+else valid
+  TenantDB --> Service: ok
+  deactivate TenantDB
+  Service -> Storage: storeAudio(...)
+  activate Storage
+  Storage --> Service: audioUrl
+  deactivate Storage
+  Service -> TenantDB: save audioUrl, status=TRANSCRIBING\nsession IN_PROGRESS
+  activate TenantDB
+  deactivate TenantDB
+  Service -> MQ: publish PracticeSttJob + X-Tenant-ID
+  activate MQ
+  deactivate MQ
+  Service --> Controller: 202 Accepted
+  deactivate Service
+  Controller --> FE: Transcribing…
+  deactivate Controller
+  FE --> Candidate: Uploaded
+  deactivate FE
+
+  MQ -> Consumer: deliver
+  activate Consumer
+  Consumer -> Context: setCurrentTenant(X-Tenant-ID)
+  Consumer -> Stt: transcribe(job)
+  activate Stt
+  Stt -> STT: transcribe(audioUrl, language)
+  activate STT
+  alt STT fail
+    STT --> Stt: error
+    deactivate STT
+    Stt -> TenantDB: status=STT_FAILED
+    activate TenantDB
+    deactivate TenantDB
+    Stt --> Consumer: failure
+    deactivate Stt
+  else success
+    STT --> Stt: transcript
+    deactivate STT
+    Stt -> TenantDB: answerText=transcript,\nstatus=TRANSCRIBED
+    activate TenantDB
+    deactivate TenantDB
+    Stt --> Consumer: ready
+    deactivate Stt
+  end
+  Consumer -> Context: clear() in finally
+  deactivate Consumer
+end
+Guard -> Context: clear() in finally
+deactivate Guard
+@enduml

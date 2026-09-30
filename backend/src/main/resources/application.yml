@@ -19,10 +19,10 @@ spring:
     locations: classpath:db/migration/master
     validate-on-migrate: false
   mail:
-    host: ${MAIL_HOST:}
-    port: ${MAIL_PORT:587}
-    username: ${MAIL_USERNAME:}
-    password: ${MAIL_PASSWORD:}
+    host: ${MAIL_HOST}
+    port: ${MAIL_PORT}
+    username: ${MAIL_USERNAME}
+    password: ${MAIL_PASSWORD}
     properties:
       mail:
         smtp:
@@ -31,21 +31,23 @@ spring:
             enable: true
   data:
     redis:
-      host: ${REDIS_HOST:127.0.0.1}
-      port: ${REDIS_PORT:6379}
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
       password: ${REDIS_PASSWORD:}
       timeout: 3s
+      repositories:
+        enabled: false
   rabbitmq:
-    host: ${RABBITMQ_HOST:127.0.0.1}
-    port: ${RABBITMQ_PORT:5672}
-    username: ${RABBITMQ_USER:guest}
-    password: ${RABBITMQ_PASSWORD:guest}
+    host: ${RABBITMQ_HOST}
+    port: ${RABBITMQ_PORT}
+    username: ${RABBITMQ_USER}
+    password: ${RABBITMQ_PASSWORD}
     listener:
       simple:
         auto-startup: ${RABBIT_LISTENERS_ENABLED:true}
         # Worker pool per backend/consumer instance
-        concurrency: ${RABBIT_CONCURRENCY:3}
-        max-concurrency: ${RABBIT_MAX_CONCURRENCY:10}
+        concurrency: ${RABBIT_CONCURRENCY}
+        max-concurrency: ${RABBIT_MAX_CONCURRENCY}
         prefetch: 1
         default-requeue-rejected: false
     template:
@@ -65,9 +67,9 @@ management:
         include: health,info
   health:
     redis:
-      enabled: true
+      enabled: ${REDIS_HEALTH_ENABLED:true}
     rabbit:
-      enabled: true
+      enabled: ${RABBIT_HEALTH_ENABLED:true}
     db:
       enabled: true
 
@@ -91,33 +93,29 @@ app:
   datasource:
     master:
       driver-class-name: org.postgresql.Driver
-      url: ${MASTER_DB_URL:jdbc:postgresql://127.0.0.1:5432/smarthire_master}
-      username: ${MASTER_DB_USERNAME:smarthire_master}
-      password: ${MASTER_DB_PASSWORD:smarthire_master_secret}
+      url: ${MASTER_DB_URL}
+      username: ${MASTER_DB_USERNAME}
+      password: ${MASTER_DB_PASSWORD}
       hikari:
-        maximum-pool-size: ${MASTER_DB_POOL_SIZE:10}
+        maximum-pool-size: ${MASTER_DB_POOL_SIZE}
         minimum-idle: 1
   tenant:
     credentials-key: ${TENANT_CREDENTIALS_KEY}
-    base-domain: ${TENANT_BASE_DOMAIN:smarthire.top}
-    mysql-base-url: ${TENANT_MYSQL_BASE_URL:jdbc:mysql://127.0.0.1:3306}
-    mysql-options: ${TENANT_MYSQL_OPTIONS:sslMode=PREFERRED&allowPublicKeyRetrieval=true}
-    pool-size: ${TENANT_DB_POOL_SIZE:5}
-    max-pools: ${TENANT_MAX_POOLS:20}
+    base-domain: ${TENANT_BASE_DOMAIN}
+    mysql-base-url: ${TENANT_MYSQL_BASE_URL}
+    mysql-options: ${TENANT_MYSQL_OPTIONS}
+    pool-size: ${TENANT_DB_POOL_SIZE}
+    max-pools: ${TENANT_MAX_POOLS}
     provisioning:
-      url: ${TENANT_PROVISIONING_URL:jdbc:mysql://127.0.0.1:3306/}
-      username: ${TENANT_PROVISIONING_USERNAME:smarthire_provisioner}
-      password: ${TENANT_PROVISIONING_PASSWORD:}
+      url: ${TENANT_PROVISIONING_URL}
+      username: ${TENANT_PROVISIONING_USERNAME}
+      password: ${TENANT_PROVISIONING_PASSWORD}
   bootstrap:
-    admin-enabled: ${BOOTSTRAP_ADMIN_ENABLED:false}
-    admin-email: ${BOOTSTRAP_ADMIN_EMAIL:}
-    admin-password: ${BOOTSTRAP_ADMIN_PASSWORD:}
+    admin-enabled: ${BOOTSTRAP_ADMIN_ENABLED}
+    admin-email: ${BOOTSTRAP_ADMIN_EMAIL}
+    admin-password: ${BOOTSTRAP_ADMIN_PASSWORD}
   cors:
-    allowed-origins: ${CORS_ORIGINS:http://localhost:5173}
-  jwt:
-    secret: ${JWT_SECRET}
-    access-token-minutes: 30
-    refresh-token-days: 7
+    allowed-origins: ${CORS_ORIGINS}
   redis:
     ttl:
       job-list-seconds: 120
@@ -140,6 +138,7 @@ app:
       notify-email: notify.email
       auth-email-otp: auth.email.otp
       job-events: job.events
+      job-expiry: job.expiry
     queues:
       cv-parse: cv.parse.q
       cv-extract: cv.extract.q
@@ -154,20 +153,47 @@ app:
       notify-email: notify.email.q
       auth-email-otp: auth.email.otp.q
       job-events: job.events.q
+      job-expiry: job.expiry.q
   cv:
-    storage-dir: ${CV_STORAGE_DIR:./storage/cvs}
+    cloudinary-cloud-name: ${CLOUDINARY_CLOUD_NAME}
+    cloudinary-api-key: ${CLOUDINARY_API_KEY}
+    cloudinary-api-secret: ${CLOUDINARY_API_SECRET}
     max-file-bytes: ${CV_MAX_FILE_BYTES:10485760}
-    gemini-api-key: ${GEMINI_API_KEY:}
-    gemini-model: ${GEMINI_MODEL:gemini-2.0-flash}
+  ai:
     timeout-seconds: ${CV_AI_TIMEOUT_SECONDS:30}
+    gemini:
+      api-key: ${GEMINI_API_KEY:}
+    models:
+      cv-parsing: ${GEMINI_MODEL:gemini-2.0-flash}
+    # Dedicated Gemini credentials for AI Interview (INT-01..05) — not shared with CV parsing
+    interview:
+      api-key: ${AI_INTERVIEW_GEMINI_API_KEY:}
+      model: ${AI_INTERVIEW_GEMINI_MODEL:gemini-2.0-flash}
+      base-url: ${AI_INTERVIEW_GEMINI_BASE_URL:https://generativelanguage.googleapis.com/v1beta/models}
+      timeout-seconds: ${AI_INTERVIEW_TIMEOUT_SECONDS:60}
 
 smarthire:
   jwt:
     secret: ${JWT_SECRET}
     expiration-ms: ${JWT_EXPIRATION:86400000}
   google:
-    client-id: ${GOOGLE_CLIENT_ID:}
+    client-id: ${GOOGLE_CLIENT_ID}
   invite:
     public-origin: ${INVITE_PUBLIC_ORIGIN:http://localhost:5173}
     expire-hours: ${INVITE_EXPIRE_HOURS:72}
+  jobs:
+    close-scan-enabled: ${JOB_CLOSE_SCAN_ENABLED:true}
+    close-scan-ms: ${JOB_CLOSE_SCAN_MS:60000}
 
+vnpay:
+  tmn-code: ${VNPAY_TMN_CODE}
+  hash-secret: ${VNPAY_HASH_SECRET}
+  pay-url: ${VNPAY_PAY_URL}
+  return-url: ${VNPAY_RETURN_URL}
+  version: "2.1.0"
+  command: "pay"
+
+paypal:
+  client-id: ${PAYPAL_CLIENT_ID}
+  client-secret: ${PAYPAL_SECRET}
+  mode: ${PAYPAL_MODE}

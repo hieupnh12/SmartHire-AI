@@ -11,6 +11,7 @@ export type DashboardTab =
   | "logs" 
   | "ai-usage"
   | "ai-quotas"
+  | "ai-config"
   | "account-profile" 
   | "account-security" 
   | "account-accessibility" 

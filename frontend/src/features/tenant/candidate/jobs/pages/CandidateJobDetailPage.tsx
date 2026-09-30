@@ -119,7 +119,7 @@ function ApplyCvModal({ jobId, jobTitle, onClose }: { jobId: number; jobTitle: s
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" role="dialog" aria-modal="true" aria-labelledby="apply-title">
       <div className={`${panel} max-h-[90vh] w-full max-w-lg overflow-y-auto`}>
         <h2 id="apply-title" className="text-xl font-semibold">Nộp CV cho {jobTitle}</h2>
-        <p className={`mt-2 ${muted}`}>Chọn CV đã có trên trang CV của tôi, hoặc tải file PDF/DOCX từ máy.</p>
+        <p className={`mt-2 ${muted}`}>Chọn CV đã có trên trang CV của tôi, hoặc tải file PDF, DOC hoặc DOCX từ máy.</p>
         {mine.isPending && <p className="mt-4">Đang tải CV của bạn…</p>}
         {cvs.length > 0 && (
           <ul className="mt-4 space-y-2">
@@ -157,7 +157,7 @@ function ApplyCvModal({ jobId, jobTitle, onClose }: { jobId: number; jobTitle: s
             <input
               type="file"
               className="hidden"
-              accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (file) apply.mutate({ file });

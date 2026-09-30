@@ -17,12 +17,14 @@ Chuyển job giữa DRAFT → PUBLISHED → PAUSED/CLOSED; kiểm soát visibili
 1. Recruiter lưu nháp, hoặc bấm **Đăng tuyển** trên form (create/update rồi publish).
 2. `POST /api/v1/jobs/{id}/publish` (từ DRAFT hoặc PAUSED).
 3. `unpublish` → DRAFT; `pause` → PAUSED; `close` → CLOSED; `reopen` → PUBLISHED.
-4. Public list chỉ job `PUBLISHED` chưa quá deadline.
+4. Public list chỉ job `PUBLISHED` chưa quá `deadline` (ngày giờ).
+5. Khi đăng/sửa/mở lại job, hệ thống hẹn giờ đóng qua RabbitMQ delayed message; đến hạn, job `PUBLISHED` chuyển `CLOSED` rồi enqueue phân tích Gemini cho mọi CV chưa `ANALYZED` (cả `AUTO` lẫn `MANUAL`). Đóng thủ công cũng chạy cùng bước. Nếu RabbitMQ không khả dụng thì chỉ log cảnh báo, thao tác vẫn lưu thành công. Không có scheduler quét định kỳ (tránh mở connection tới mọi tenant DB); thay vào đó job `PUBLISHED`/`PAUSED` quá hạn được đóng "lazy" ngay trong request của tenant hiện tại khi recruiter mở danh sách job, chi tiết job hoặc dashboard summary. Phía ứng viên luôn ẩn job quá hạn nhờ điều kiện `deadline > now` lúc truy vấn.
 
 ## Business Rules
 
 - Publish cần title, description và ít nhất 1 skill.
-- Chỉ PUBLISHED (và chưa deadline) nhận application / CV candidate.
+- Chỉ PUBLISHED (và `deadline` còn sau thời điểm hiện tại, hoặc null) nhận application / CV candidate.
+- Recruiter set `deadline` datetime trên form job. Job cũ kiểu DATE được đưa về 23:59:59 UTC.
 
 ## API liên quan
 
@@ -39,7 +41,7 @@ Chuyển job giữa DRAFT → PUBLISHED → PAUSED/CLOSED; kiểm soát visibili
 
 ## Database liên quan
 
-- `jobs.status`, `published_at`, `paused_at`, `closed_at`
+- `jobs.status`, `published_at`, `paused_at`, `closed_at`, `deadline` (DATETIME, V15)
 
 ## UI mockup
 

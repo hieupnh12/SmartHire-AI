@@ -4,5 +4,6 @@ import com.smarthire.domain.tenant.entity.CodingProblem;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface CodingProblemRepository extends JpaRepository<CodingProblem, Long> {
+    boolean existsByTest_Id(Long testId);
 }
 

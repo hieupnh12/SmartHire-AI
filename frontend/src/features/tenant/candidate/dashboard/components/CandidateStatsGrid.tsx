@@ -1,25 +1,27 @@
-import { Bot, BriefcaseBusiness, FileText } from "lucide-react";
+import { BriefcaseBusiness, CalendarClock, ClipboardCheck, FileSearch } from "lucide-react";
 import { Card } from "@/components/ux/Card";
 import type { CandidateStat, CandidateStatIcon } from "@/features/tenant/candidate/dashboard/types/dashboard";
 
 const STAT_ICONS: Record<CandidateStatIcon, typeof BriefcaseBusiness> = {
   applications: BriefcaseBusiness,
-  cv: FileText,
-  practice: Bot,
+  reviewing: FileSearch,
+  assessments: ClipboardCheck,
+  interviews: CalendarClock,
 };
 
 const STAT_ICON_TONES: Record<CandidateStatIcon, string> = {
   applications: "bg-teal-50 text-teal-600",
-  cv: "bg-emerald-50 text-emerald-600",
-  practice: "bg-amber-50 text-amber-600",
+  reviewing: "bg-blue-50 text-blue-600",
+  assessments: "bg-amber-50 text-amber-600",
+  interviews: "bg-violet-50 text-violet-600",
 };
 
 type CandidateStatsGridProps = { stats: CandidateStat[] };
 
 export function CandidateStatsGrid({ stats }: CandidateStatsGridProps) {
   return (
-    <section className="min-w-0 rounded-xl border border-[var(--color-border-default)] bg-white p-5 shadow-sm sm:p-6" aria-label="Tổng quan hồ sơ">
-      <h2 className="mb-4 text-lg font-semibold">Tổng quan hồ sơ</h2>
+    <section className="min-w-0 rounded-xl border border-[var(--color-border-default)] bg-white p-5 shadow-sm sm:p-6" aria-label="Tổng quan hành trình ứng tuyển">
+      <h2 className="mb-4 text-lg font-semibold">Tổng quan hành trình</h2>
       {stats.map((item) => {
         const Icon = STAT_ICONS[item.icon];
         return (

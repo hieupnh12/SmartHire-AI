@@ -23,7 +23,7 @@ public class Contract {
     @Column(name = "contract_number", nullable = false, unique = true)
     String contractNumber;
 
-    @Column(name = "tenant_id", nullable = false)
+    @Column(name = "tenant_id")
     Long tenantId;
 
     @Column(name = "plan_id")
@@ -180,7 +180,8 @@ public class Contract {
     }
 
 
-    void preUpdate() {
-        updatedAt = LocalDateTime.now();
-    }
+   @PreUpdate
+void preUpdate() {
+    updatedAt = LocalDateTime.now();
+}
 }

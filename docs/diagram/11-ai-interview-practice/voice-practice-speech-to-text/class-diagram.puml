@@ -1,0 +1,149 @@
+@startuml
+!include ../class-style.puml
+
+package "Controller Layer" {
+  class PracticeController <<Controller>> {
+    - practiceService: PracticeService
+    + submitVoice(sessionId: Long, request: PracticeVoiceRequest): ApiResponse<VoiceAcceptedResponse>
+  }
+}
+
+package "DTO Layer" {
+  class PracticeVoiceRequest <<Request>> {
+    + answerId: Long
+    + audio: MultipartFile
+    + language: String
+  }
+  class VoiceAcceptedResponse <<Response>> {
+    + sessionId: Long
+    + answerId: Long
+    + accepted: boolean
+  }
+  class PracticeSttJob <<Domain Event>> {
+    + sessionId: Long
+    + answerId: Long
+    + language: String
+  }
+}
+
+package "Service Layer" {
+  interface PracticeService <<Service>> {
+    + submitVoiceAnswer(sessionId: Long, request: PracticeVoiceRequest, principal: Principal): VoiceAcceptedResponse
+  }
+  class PracticeServiceImpl <<Service>> {
+    - sessionRepository: PracticeSessionRepository
+    - answerRepository: PracticeAnswerRepository
+    - objectStorage: ObjectStoragePort
+    - sttPublisher: PracticeSttPublisher
+    - tenantContext: TenantContext
+    + submitVoiceAnswer(sessionId: Long, request: PracticeVoiceRequest, principal: Principal): VoiceAcceptedResponse
+  }
+  interface PracticeSttService <<Service>> {
+    + transcribe(job: PracticeSttJob): PracticeAnswer
+  }
+  class PracticeSttServiceImpl <<Service>> {
+    - answerRepository: PracticeAnswerRepository
+    - sttPort: SpeechToTextPort
+    - tenantContext: TenantContext
+    + transcribe(job: PracticeSttJob): PracticeAnswer
+  }
+  class PracticeSttConsumer <<Service>> {
+    - sttService: PracticeSttService
+    + onStt(job: PracticeSttJob, tenantId: String): void
+  }
+}
+
+package "Repository Layer" {
+  interface PracticeSessionRepository <<Repository>> {
+    + findByIdAndCandidate(id: Long, candidateId: Long): Optional<PracticeSession>
+  }
+  interface PracticeAnswerRepository <<Repository>> {
+    + findByIdAndSession(id: Long, sessionId: Long): Optional<PracticeAnswer>
+    + save(answer: PracticeAnswer): PracticeAnswer
+  }
+}
+
+package "Domain Entity Layer" {
+  class PracticeSession <<Entity>> {
+    - id: Long
+    - status: PracticeStatus
+  }
+  class PracticeAnswer <<Entity>> {
+    - id: Long
+    - questionText: String
+    - answerText: String [0..1]
+    - audioUrl: String [0..1]
+    - status: String
+  }
+  enum PracticeStatus <<Enum>> {
+    CREATED
+    IN_PROGRESS
+    COMPLETED
+    FAILED
+  }
+}
+
+package "Infrastructure & Persistence" {
+  interface ObjectStoragePort <<DataSource>> {
+    + storeAudio(tenantId: String, sessionId: Long, file: MultipartFile): String
+  }
+  interface SpeechToTextPort <<DataSource>> {
+    + transcribe(audioUrl: String, language: String): String
+  }
+  class PracticeSttPublisher <<Queue>> {
+    + publish(job: PracticeSttJob, tenantId: String): void
+  }
+  class SttQueue <<Queue>> {
+    .. RabbitMQ practice.stt ..
+  }
+  class TenantMySQL <<Database>> {
+    .. Dedicated Tenant DB ..
+    + practice_sessions
+    + practice_answers
+  }
+  class TenantContext <<DataSource>> {
+    + {static} getCurrentTenant(): String
+    + {static} clear(): void
+  }
+}
+
+PracticeController ..> PracticeVoiceRequest : consumes >
+PracticeController ..> VoiceAcceptedResponse : returns >
+PracticeController --> PracticeService : delegates >
+PracticeService <|.. PracticeServiceImpl : implements
+PracticeServiceImpl ..> PracticeVoiceRequest : processes >
+PracticeServiceImpl ..> VoiceAcceptedResponse : creates >
+PracticeServiceImpl ..> PracticeSttJob : emits >
+PracticeServiceImpl --> ObjectStoragePort : persists through >
+PracticeServiceImpl --> PracticeSessionRepository : queries >
+PracticeServiceImpl --> PracticeAnswerRepository : persists through >
+PracticeServiceImpl --> PracticeSttPublisher : publishes event >
+PracticeServiceImpl --> TenantContext : caches / evicts >
+
+PracticeSttPublisher --> SttQueue : publishes event >
+SttQueue ..> PracticeSttConsumer : delivers >
+PracticeSttConsumer --> PracticeSttService : delegates >
+PracticeSttConsumer --> TenantContext : caches / evicts >
+PracticeSttService <|.. PracticeSttServiceImpl : implements
+PracticeSttServiceImpl --> SpeechToTextPort : queries >
+PracticeSttServiceImpl --> PracticeAnswerRepository : persists through >
+PracticeSttServiceImpl ..> PracticeSttJob : processes >
+
+PracticeSessionRepository --> PracticeSession : manages >
+PracticeAnswerRepository --> PracticeAnswer : manages >
+PracticeSessionRepository --> TenantMySQL : persists to >
+PracticeAnswerRepository --> TenantMySQL : persists to >
+
+PracticeSession "1" *-- "0..*" PracticeAnswer
+PracticeSession ..> PracticeStatus : typed by >
+
+note right of PracticeSttServiceImpl
+  Reuses SpeechToTextPort (pattern FE08-F02).
+  Writes practice_answers only.
+  Analysis/feedback is FE11-F04.
+end note
+
+note bottom of SttQueue
+  Target queue practice.stt (not in yml yet).
+end note
+@enduml

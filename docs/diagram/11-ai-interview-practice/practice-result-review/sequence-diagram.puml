@@ -1,0 +1,102 @@
+@startuml
+title FE11-F05 — Practice Result Review\nList, detail, feedback and soft delete
+skinparam dpi 300
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam sequenceArrowThickness 1
+skinparam sequenceMessageAlign center
+skinparam ArrowColor #64748B
+skinparam ParticipantBorderColor #CBD5E1
+skinparam ParticipantBackgroundColor #F8FAFC
+hide footbox
+autonumber
+
+actor "Candidate" as Candidate
+boundary "Practice History UI" as FE
+control "Security + TenantWebInterceptor" as Guard
+control "TenantContext" as Context
+boundary "PracticeController" as Controller
+control "PracticeService" as Service
+database "Dedicated Tenant DB" as TenantDB
+
+note over Candidate,TenantDB
+  PRACT-03: owner-only read of sessions, per-answer results,
+  score/feedback/sections. Soft delete history. No ranking impact.
+end note
+
+Candidate -> FE: Open practice history / session detail
+activate FE
+FE -> Guard: GET /api/v1/practice/sessions\nor GET /sessions/{id} (+ /feedback)
+activate Guard
+Guard -> Guard: authenticate CANDIDATE
+alt unauthorized
+  Guard --> FE: 401 / 403
+  deactivate Guard
+  FE --> Candidate: Access error
+  deactivate FE
+else authorized
+  Guard -> Context: setCurrentTenant(tenantId)
+  Guard -> Controller: forward
+  activate Controller
+  Controller -> Service: listMine / getDetail / getFeedback
+  activate Service
+  Service -> TenantDB: query owned non-deleted sessions\n(+ answers + feedback)
+  activate TenantDB
+  alt not found / not owner
+    TenantDB --> Service: empty
+    deactivate TenantDB
+    Service --> Controller: 404
+    deactivate Service
+    Controller --> FE: error
+    deactivate Controller
+    FE --> Candidate: Not found
+    deactivate FE
+  else found
+    TenantDB --> Service: rows
+    deactivate TenantDB
+    Service --> Controller: summary / detail / feedback DTO
+    deactivate Service
+    Controller --> FE: 200 OK
+    deactivate Controller
+    FE --> Candidate: Show scores, feedback, sections
+    deactivate FE
+  end
+  Guard -> Context: clear() in finally
+  deactivate Guard
+end
+
+opt soft delete session
+  Candidate -> FE: Delete practice session
+  activate FE
+  FE -> Guard: DELETE /api/v1/practice/sessions/{id}
+  activate Guard
+  Guard -> Context: setCurrentTenant(tenantId)
+  Guard -> Controller: forward
+  activate Controller
+  Controller -> Service: softDelete(id, principal)
+  activate Service
+  Service -> TenantDB: set deletedAt (owner only)
+  activate TenantDB
+  alt not owner
+    TenantDB --> Service: reject
+    deactivate TenantDB
+    Service --> Controller: 404 / 403
+    deactivate Service
+    Controller --> FE: error
+    deactivate Controller
+    FE --> Candidate: Cannot delete
+    deactivate FE
+  else deleted
+    TenantDB --> Service: ok
+    deactivate TenantDB
+    Service --> Controller: 204 No Content
+    deactivate Service
+    Controller --> FE: removed from history
+    deactivate Controller
+    FE --> Candidate: Updated list
+    deactivate FE
+  end
+  Guard -> Context: clear() in finally
+  deactivate Guard
+end
+@enduml

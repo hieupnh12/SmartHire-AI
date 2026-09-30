@@ -8,25 +8,20 @@ import lombok.experimental.FieldDefaults;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
-@Entity
-@Table(name = "subscription_plans")
+@Getter
+@Setter
 @Builder
-@Data
 @NoArgsConstructor
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
+@Entity
+@Table(name = "subscription_plans")
 public class SubscriptionPlan {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    Long id;
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY) Long id;
 
-    @Column(nullable = false, unique = true, length = 64)
-    String code;
-
-    @Column(nullable = false, length = 128)
-    String name;
-
+    @Column(nullable = false, unique = true, length = 64) String code;
+    @Column(nullable = false, length = 128) String name;
     String description;
 
     @Builder.Default
@@ -38,6 +33,14 @@ public class SubscriptionPlan {
     BigDecimal priceYearly = BigDecimal.ZERO;
 
     @Builder.Default
+    @Column(name = "price_monthly_vnd", nullable = false)
+    BigDecimal priceMonthlyVnd = BigDecimal.ZERO;
+
+    @Builder.Default
+    @Column(name = "price_yearly_vnd", nullable = false)
+    BigDecimal priceYearlyVnd = BigDecimal.ZERO;
+
+    @Builder.Default
     @Column(name = "max_jobs", nullable = false)
     Integer maxJobs = 5;
 
@@ -45,21 +48,17 @@ public class SubscriptionPlan {
     @Column(name = "max_cv_parses", nullable = false)
     Integer maxCvParses = 100;
 
-    @Builder.Default
-    @Column(name = "max_ai_interview_hours", nullable = false)
-    Integer maxAiInterviewHours = 10;
+    @Column(name = "max_ai_interview_hours")
+    Integer maxAiInterviewHours;
 
-    @Builder.Default
-    @Column(name = "max_storage_gb", nullable = false)
-    Integer maxStorageGb = 5;
+    @Column(name = "max_storage_gb")
+    Integer maxStorageGb;
 
-    @Builder.Default
-    @Column(name = "max_proctoring_hours", nullable = false)
-    Integer maxProctoringHours = 0;
+    @Column(name = "max_proctoring_hours")
+    Integer maxProctoringHours;
 
-    @Builder.Default
-    @Column(name = "video_retention_days", nullable = false)
-    Integer videoRetentionDays = 30;
+    @Column(name = "video_retention_days")
+    Integer videoRetentionDays;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "features_json", columnDefinition = "jsonb")
@@ -69,8 +68,7 @@ public class SubscriptionPlan {
     @Column(name = "is_deleted", nullable = false)
     boolean deleted = false;
 
-    @Column(name = "deleted_at")
-    LocalDateTime deletedAt;
+    @Column(name = "deleted_at") LocalDateTime deletedAt;
 
     @Builder.Default
     @Column(nullable = false, length = 32)

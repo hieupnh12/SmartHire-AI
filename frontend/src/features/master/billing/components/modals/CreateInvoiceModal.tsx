@@ -150,7 +150,7 @@ export function CreateInvoiceModal({
               rows={3}
               value={invoiceNotes}
               onChange={(e) => setInvoiceNotes(e.target.value)}
-              placeholder="VD: Hợp đồng B2B gói Enterprise 12 tháng, triển khai Dedicated DB và hỗ trợ 24/7..."
+              placeholder="Hợp đồng B2B gói Enterprise 12 tháng, triển khai Dedicated DB và hỗ trợ 24/7..."
               className="w-full px-3.5 py-2 rounded-lg border border-slate-300 focus:outline-none focus:border-blue-600 resize-none"
             />
           </div>

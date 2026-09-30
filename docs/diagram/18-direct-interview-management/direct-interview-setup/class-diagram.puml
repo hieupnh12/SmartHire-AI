@@ -1,0 +1,174 @@
+@startuml
+!include ../class-style.puml
+
+package "Controller Layer" {
+  class DirectInterviewController <<Controller>> {
+    - directInterviewService: DirectInterviewService
+    + createDirectInterview(request: CreateDirectInterviewRequest): ApiResponse<DirectInterviewResponse>
+  }
+}
+
+package "DTO Layer" {
+  class CreateDirectInterviewRequest <<Request>> {
+    + applicationId: Long
+    + candidateId: Long
+    + jobId: Long
+    + interviewType: DirectInterviewType
+    + cvId: Long [0..1]
+    + notes: String [0..1]
+  }
+  class DirectInterviewResponse <<Response>> {
+    + id: Long
+    + applicationId: Long
+    + jobId: Long
+    + candidateId: Long
+    + mode: InterviewMode
+    + interviewType: DirectInterviewType
+    + status: InterviewStatus
+    + createdAt: Instant
+  }
+}
+
+package "Service Layer" {
+  interface DirectInterviewService <<Service>> {
+    + createDirectInterview(request: CreateDirectInterviewRequest, principal: Principal): DirectInterviewResponse
+  }
+  class DirectInterviewServiceImpl <<Service>> {
+    - interviewRepository: InterviewRepository
+    - applicationRepository: ApplicationRepository
+    - jobRepository: JobRepository
+    - userRepository: UserRepository
+    - cvRepository: CvRepository
+    - tenantContext: TenantContext
+    + createDirectInterview(request: CreateDirectInterviewRequest, principal: Principal): DirectInterviewResponse
+  }
+}
+
+package "Repository Layer" {
+  interface InterviewRepository <<Repository>> {
+    + save(interview: Interview): Interview
+  }
+  interface ApplicationRepository <<Repository>> {
+    + findById(id: Long): Optional<Application>
+  }
+  interface JobRepository <<Repository>> {
+    + findById(id: Long): Optional<Job>
+  }
+  interface UserRepository <<Repository>> {
+    + findById(id: Long): Optional<User>
+  }
+  interface CvRepository <<Repository>> {
+    + findById(id: Long): Optional<Cv>
+  }
+}
+
+package "Domain Entity Layer" {
+  class Interview <<Entity>> {
+    - id: Long
+    - job: Job
+    - candidate: User
+    - application: Application
+    - cv: Cv [0..1]
+    - mode: InterviewMode
+    - interviewType: DirectInterviewType
+    - status: InterviewStatus
+    - notes: String [0..1]
+    - createdBy: Long
+    - createdAt: Instant
+  }
+  class Application <<Entity>> {
+    - id: Long
+    - job: Job
+    - candidate: User
+    - status: String
+  }
+  class Job <<Entity>> {
+    - id: Long
+    - title: String
+    - status: String
+  }
+  class User <<Entity>> {
+    - id: Long
+    - fullName: String
+    - role: String
+    - status: String
+  }
+  class Cv <<Entity>> {
+    - id: Long
+    - job: Job
+    - user: User
+  }
+  enum InterviewMode <<Enum>> {
+    AI_VOICE
+    AI_TEXT
+    DIRECT
+  }
+  enum DirectInterviewType <<Enum>> {
+    TECHNICAL
+    HR
+    BEHAVIORAL
+    FINAL
+  }
+  enum InterviewStatus <<Enum>> {
+    CREATED
+    SCHEDULED
+    IN_PROGRESS
+    EVALUATED
+    CANCELLED
+  }
+}
+
+package "Infrastructure & Persistence" {
+  class TenantMySQL <<Database>> {
+    .. Dedicated Tenant DB ..
+    + interviews
+    + applications
+    + jobs
+    + users
+    + cvs
+  }
+  class TenantContext <<DataSource>> {
+    + {static} getCurrentTenant(): String
+    + {static} setCurrentTenant(tenantId: String): void
+    + {static} clear(): void
+  }
+}
+
+DirectInterviewController ..> CreateDirectInterviewRequest : consumes >
+DirectInterviewController ..> DirectInterviewResponse : returns >
+DirectInterviewController --> DirectInterviewService : delegates >
+
+DirectInterviewService <|.. DirectInterviewServiceImpl : implements
+DirectInterviewServiceImpl ..> CreateDirectInterviewRequest : processes >
+DirectInterviewServiceImpl ..> DirectInterviewResponse : creates >
+DirectInterviewServiceImpl --> InterviewRepository : persists through >
+DirectInterviewServiceImpl --> ApplicationRepository : queries >
+DirectInterviewServiceImpl --> JobRepository : queries >
+DirectInterviewServiceImpl --> UserRepository : queries >
+DirectInterviewServiceImpl --> CvRepository : queries >
+DirectInterviewServiceImpl --> TenantContext : caches / evicts >
+
+InterviewRepository --> Interview : manages >
+ApplicationRepository --> Application : manages >
+JobRepository --> Job : manages >
+UserRepository --> User : manages >
+CvRepository --> Cv : manages >
+InterviewRepository --> TenantMySQL : persists to >
+
+Interview "0..*" --> "1" Job
+Interview "0..*" --> "1" User
+Interview "0..*" --> "1" Application
+Interview "0..*" --> "0..1" Cv
+Interview ..> InterviewMode : typed by >
+Interview ..> DirectInterviewType : typed by >
+Interview ..> InterviewStatus : typed by >
+Application "0..*" --> "1" Job
+Application "0..*" --> "1" User
+
+note right of DirectInterviewServiceImpl
+  mode forced to DIRECT.
+  Scheduling and participants are FE18-F02.
+  Human evaluation is FE18-F03.
+end note
+
+@enduml

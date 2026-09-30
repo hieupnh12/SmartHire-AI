@@ -1,0 +1,138 @@
+@startuml
+!include ../class-style.puml
+
+package "Controller Layer" {
+  class PracticeController <<Controller>> {
+    - practiceService: PracticeService
+    + createSession(request: CreatePracticeSessionRequest): ApiResponse<PracticeSessionResponse>
+    + submitAnswer(sessionId: Long, request: SubmitPracticeAnswerRequest): ApiResponse<PracticeAnswerResponse>
+  }
+}
+
+package "DTO Layer" {
+  class CreatePracticeSessionRequest <<Request>> {
+    + topic: String
+    + targetRole: String [0..1]
+    + questionTypes: List<PracticeQuestionType> [0..*]
+  }
+  class SubmitPracticeAnswerRequest <<Request>> {
+    + answerId: Long
+    + answerText: String
+  }
+  class PracticeSessionResponse <<Response>> {
+    + id: Long
+    + topic: String
+    + status: PracticeStatus
+    + createdAt: Instant
+  }
+  class PracticeAnswerResponse <<Response>> {
+    + id: Long
+    + questionText: String
+    + answerText: String [0..1]
+    + status: String
+  }
+}
+
+package "Service Layer" {
+  interface PracticeService <<Service>> {
+    + createSession(request: CreatePracticeSessionRequest, principal: Principal): PracticeSessionResponse
+    + submitTextAnswer(sessionId: Long, request: SubmitPracticeAnswerRequest, principal: Principal): PracticeAnswerResponse
+  }
+  class PracticeServiceImpl <<Service>> {
+    - sessionRepository: PracticeSessionRepository
+    - answerRepository: PracticeAnswerRepository
+    - tenantContext: TenantContext
+    + createSession(request: CreatePracticeSessionRequest, principal: Principal): PracticeSessionResponse
+    + submitTextAnswer(sessionId: Long, request: SubmitPracticeAnswerRequest, principal: Principal): PracticeAnswerResponse
+  }
+}
+
+package "Repository Layer" {
+  interface PracticeSessionRepository <<Repository>> {
+    + save(session: PracticeSession): PracticeSession
+    + findByIdAndCandidate(id: Long, candidateId: Long): Optional<PracticeSession>
+  }
+  interface PracticeAnswerRepository <<Repository>> {
+    + findByIdAndSession(id: Long, sessionId: Long): Optional<PracticeAnswer>
+    + save(answer: PracticeAnswer): PracticeAnswer
+  }
+}
+
+package "Domain Entity Layer" {
+  class PracticeSession <<Entity>> {
+    - id: Long
+    - candidate: User
+    - topic: String
+    - targetRole: String [0..1]
+    - status: PracticeStatus
+    - createdAt: Instant
+  }
+  class PracticeAnswer <<Entity>> {
+    - id: Long
+    - questionText: String
+    - questionType: PracticeQuestionType [0..1]
+    - answerText: String [0..1]
+    - audioUrl: String [0..1]
+    - status: String
+  }
+  class User <<Entity>> {
+    - id: Long
+    - role: UserRole
+  }
+  enum PracticeStatus <<Enum>> {
+    CREATED
+    IN_PROGRESS
+    COMPLETED
+    FAILED
+  }
+  enum PracticeQuestionType <<Enum>> {
+    GENERAL
+    TECHNICAL
+    BEHAVIORAL
+    JAPANESE
+  }
+}
+
+package "Infrastructure & Persistence" {
+  class TenantMySQL <<Database>> {
+    .. Dedicated Tenant DB ..
+    + practice_sessions
+    + practice_answers
+    + users
+  }
+  class TenantContext <<DataSource>> {
+    + {static} getCurrentTenant(): String
+    + {static} clear(): void
+  }
+}
+
+PracticeController ..> CreatePracticeSessionRequest : consumes >
+PracticeController ..> SubmitPracticeAnswerRequest : consumes >
+PracticeController ..> PracticeSessionResponse : returns >
+PracticeController ..> PracticeAnswerResponse : returns >
+PracticeController --> PracticeService : delegates >
+PracticeService <|.. PracticeServiceImpl : implements
+PracticeServiceImpl ..> CreatePracticeSessionRequest : processes >
+PracticeServiceImpl ..> SubmitPracticeAnswerRequest : processes >
+PracticeServiceImpl --> PracticeSessionRepository : persists through >
+PracticeServiceImpl --> PracticeAnswerRepository : persists through >
+PracticeServiceImpl --> TenantContext : caches / evicts >
+
+PracticeSessionRepository --> PracticeSession : manages >
+PracticeAnswerRepository --> PracticeAnswer : manages >
+PracticeSessionRepository --> TenantMySQL : persists to >
+PracticeAnswerRepository --> TenantMySQL : persists to >
+
+PracticeSession "0..*" --> "1" User
+PracticeSession "1" *-- "0..*" PracticeAnswer
+PracticeSession ..> PracticeStatus : typed by >
+PracticeAnswer ..> PracticeQuestionType : typed by >
+
+note right of PracticeServiceImpl
+  Sandbox only: never writes interviews
+  or ranking tables. Question generation
+  and voice STT are FE11-F02/F03.
+  Text answer path updates answerText
+  and moves session to IN_PROGRESS.
+end note
+@enduml

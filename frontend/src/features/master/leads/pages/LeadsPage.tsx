@@ -2,16 +2,28 @@ import { useState, useMemo, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, Search, Filter, Inbox, Building2, FileSignature, UserPlus } from "lucide-react";
 import { consultationApi, ConsultationResponse } from "@/api/master/consultationApi";
-import { useMasterDashboard } from "@/features/master/shell/MasterAdminContext";
+import { useTenants, useSubscriptions, useRevenueAnalytics, useAiQuotaUsage, useAuditLogs, useLeads, useInvoices, useContracts, masterQueryKeys } from "@/api/master/queries";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "@/stores/toastStore";
 import { LeadDetailModal } from "../components/LeadDetailModal";
+import React from "react";
 
 export function LeadsPage() {
   const navigate = useNavigate();
-  const { leads, setLeads, triggerNotification } = useMasterDashboard();
+  const queryClient = useQueryClient();
+  const { data: leads = [] } = useLeads();
+  const setLeads = (updater: any) => queryClient.setQueryData(masterQueryKeys.leads(), updater);
+  const triggerNotification = (msg: string) => toast.success(msg);
+  const fetchLeads = () => queryClient.invalidateQueries({ queryKey: masterQueryKeys.leads() });
   const [selectedLead, setSelectedLead] = useState<ConsultationResponse | null>(null);
   const [leadStatusEdit, setLeadStatusEdit] = useState<ConsultationResponse["status"]>("PENDING");
   const [leadNotesEdit, setLeadNotesEdit] = useState("");
   const [updatingLead, setUpdatingLead] = useState(false);
+
+  React.useEffect(() => {
+    fetchLeads();
+  }, [fetchLeads]);
+
 
   const [leadSearch, setLeadSearch] = useState("");
   const [leadStatusFilter, setLeadStatusFilter] = useState<string>("ALL");
@@ -40,7 +52,7 @@ export function LeadsPage() {
       email: lead.workEmail,
       adminName: lead.contactName,
     }).toString();
-    navigate(`/onboard?${query}`);
+    navigate(`/admin/tenants/create?${query}`);
   };
 
   const handleOpenLeadModal = (lead: ConsultationResponse) => {
@@ -50,7 +62,7 @@ export function LeadsPage() {
   };
 
   const handleOpenCreateContractForLead = (lead: ConsultationResponse) => {
-    navigate(`/admin/contracts?leadId=${lead.id}`);
+    navigate(`/admin/contracts/create?leadId=${lead.id}`);
   };
 
   const handleSaveLeadModal = async (event: FormEvent) => {
@@ -71,29 +83,26 @@ export function LeadsPage() {
     <>
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <header className="sticky top-16 md:top-0 z-10 bg-[#f8fafc]/95 backdrop-blur-md px-4 py-4 sm:px-6 lg:px-8 -mx-4 -mt-5 sm:-mx-6 sm:-mt-6 lg:-mx-8 lg:-mt-8 mb-6 border-b border-slate-200/50 shadow-sm flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2.5">
-            <span>Yêu Cầu Demo & Báo Giá Hợp Đồng</span>
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight bg-gradient-to-r from-blue-600 to-cyan-500 bg-clip-text text-transparent flex items-center gap-3">
+            <span>Yêu Cầu Demo & Báo Giá</span>
             {pendingLeadsCount > 0 && (
-              <span className="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 text-xs font-bold border border-amber-300">
+              <span className="px-3 py-1 rounded-full bg-amber-100 text-amber-800 text-xs font-bold border border-amber-300">
                 {pendingLeadsCount} yêu cầu mới
               </span>
             )}
           </h1>
-          <p className="text-xs text-slate-500 mt-1">
-            Khách hàng doanh nghiệp quan tâm từ Landing Page. Trao đổi nhu cầu và trực tiếp Cấp phát Workspace riêng khi chốt hợp đồng.
-          </p>
         </div>
 
         <button
-          onClick={() => navigate("/onboard")}
+          onClick={() => navigate("/admin/tenants/create")}
           className="px-4 py-2.5 text-xs font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition-all flex items-center gap-2"
         >
           <Plus className="w-4 h-4" />
           <span>Cấp phát Workspace thủ công</span>
         </button>
-      </div>
+      </header>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

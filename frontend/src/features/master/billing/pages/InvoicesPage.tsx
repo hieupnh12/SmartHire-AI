@@ -1,7 +1,9 @@
 import { useState, useMemo } from "react";
-import { Plus, Search, Filter, CheckCircle2, Clock, XCircle, Eye, Check, Inbox } from "lucide-react";
+import { Plus, Search, Filter, CheckCircle2, Clock, XCircle, Eye, Check, Inbox, Loader2 } from "lucide-react";
 import { InvoiceItem, billingApi } from "@/api/master/billingApi";
-import { useMasterDashboard } from "@/features/master/shell/MasterAdminContext";
+import { useTenants, useSubscriptions, useRevenueAnalytics, useAiQuotaUsage, useAuditLogs, useLeads, useInvoices, useContracts, masterQueryKeys } from "@/api/master/queries";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "@/stores/toastStore";
 
 interface InvoicesTabProps {
   setInvoiceTenantId: (val: number | "") => void;
@@ -20,10 +22,16 @@ function InvoicesContent({
   setShowCreateInvoiceModal,
   setSelectedInvoice,
 }: InvoicesTabProps) {
-  const { invoices, setInvoices, tenants, plans, triggerNotification } = useMasterDashboard();
+  const queryClient = useQueryClient();
+  const { data: tenants = [] } = useTenants();
+  const { data: plans = [] } = useSubscriptions();
+  const { data: invoices = [] } = useInvoices();
+  const setInvoices = (updater: any) => queryClient.setQueryData(masterQueryKeys.invoices(), updater);
+  const triggerNotification = (msg: string) => toast.success(msg);
 
   const [invoiceSearch, setInvoiceSearch] = useState("");
   const [invoiceStatusFilter, setInvoiceStatusFilter] = useState<string>("ALL");
+  const [approvingId, setApprovingId] = useState<number | null>(null);
 
   const filteredInvoices = useMemo(() => {
     return invoices.filter((i) => {
@@ -51,30 +59,29 @@ function InvoicesContent({
   }, [invoices]);
 
   const handleMarkInvoicePaid = async (inv: InvoiceItem) => {
-    if (!window.confirm("Xác nhận đã nhận thanh toán cho hóa đơn này?")) return;
+    if (!window.confirm(`Xác nhận duyệt thanh toán cho Hóa đơn ${inv.invoiceNumber}?\n\nNếu đây là đơn đăng ký mới, hệ thống sẽ tự động cấp phát Database MySQL riêng và gửi email kích hoạt.`)) {
+      return;
+    }
+    setApprovingId(inv.id);
     try {
-      const updated = await billingApi.updateStatus(inv.id, {
-        status: "PAID",
-        paymentGateway: "BANK_TRANSFER",
-        paidAt: new Date().toISOString(),
-      });
+      const updated = await billingApi.approve(inv.id);
       setInvoices((prev) => prev.map((i) => (i.id === inv.id ? updated : i)));
-      triggerNotification(`Đã ghi nhận thanh toán cho Hóa đơn ${inv.invoiceNumber}`);
-    } catch (err) {
-      alert("Đã xảy ra lỗi khi xác nhận thanh toán.");
+      triggerNotification(`Đã duyệt thanh toán và kích hoạt Workspace cho Hóa đơn ${inv.invoiceNumber}`);
+    } catch (err: any) {
+      const msg = err.response?.data?.message || "Đã xảy ra lỗi khi duyệt hóa đơn và kích hoạt Workspace.";
+      alert(msg);
+    } finally {
+      setApprovingId(null);
     }
   };
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <header className="sticky top-16 md:top-0 z-10 bg-[#f8fafc]/95 backdrop-blur-md px-4 py-4 sm:px-6 lg:px-8 -mx-4 -mt-5 sm:-mx-6 sm:-mt-6 lg:-mx-8 lg:-mt-8 mb-6 border-b border-slate-200/50 shadow-sm flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">
-            Hóa Đơn & Quản Lý Thu Phí B2B (Invoices & Billing)
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight bg-gradient-to-r from-blue-600 to-cyan-500 bg-clip-text text-transparent">
+            Hóa Đơn & Thu Phí
           </h1>
-          <p className="text-xs text-slate-500 mt-1">
-            Theo dõi hóa đơn định kỳ, quản lý công nợ doanh nghiệp và tự động kích hoạt gói dịch vụ khi xác nhận thanh toán.
-          </p>
         </div>
 
         <button
@@ -93,7 +100,7 @@ function InvoicesContent({
           <Plus className="w-4 h-4" />
           <span>Lập Hóa Đơn Doanh Nghiệp Mới</span>
         </button>
-      </div>
+      </header>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-2xs">
@@ -269,12 +276,22 @@ function InvoicesContent({
 
                       {inv.status !== "PAID" && (
                         <button
+                          disabled={approvingId === inv.id}
                           onClick={() => handleMarkInvoicePaid(inv)}
-                          className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs transition-colors inline-flex items-center gap-1 shadow-2xs"
-                          title="Xác nhận doanh nghiệp đã chuyển khoản và kích hoạt thời hạn Subscription"
+                          className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-semibold text-xs transition-colors inline-flex items-center gap-1 shadow-2xs"
+                          title="Duyệt thanh toán và tự động cấp phát Workspace"
                         >
-                          <Check className="w-3.5 h-3.5" />
-                          <span>Xác nhận Đã TT</span>
+                          {approvingId === inv.id ? (
+                            <>
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              <span>Đang cấp phát DB...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Check className="w-3.5 h-3.5" />
+                              <span>Duyệt Thanh Toán</span>
+                            </>
+                          )}
                         </button>
                       )}
                     </td>

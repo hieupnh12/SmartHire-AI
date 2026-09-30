@@ -9,4 +9,5 @@ import java.util.Optional;
 @Repository
 public interface SubscriptionPlanRepository extends JpaRepository<SubscriptionPlan, Long> {
     Optional<SubscriptionPlan> findByCode(String code);
+    java.util.List<SubscriptionPlan> findByStatusOrderByPriceMonthlyVndAsc(String status);
 }

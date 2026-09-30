@@ -1,0 +1,66 @@
+@startuml
+skinparam dpi 300
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam sequence {
+    ArrowColor #2D3748
+    ActorBorderColor #2D3748
+    LifeLineBorderColor #2D3748
+    ParticipantBorderColor #2D3748
+    ParticipantBackgroundColor #FFFFFF
+    BoxBorderColor #A0AEC0
+}
+hide footbox
+autonumber
+
+actor "Platform / Infra Producer" as Producer
+control "AuthEventLogAdapter\nor InfraEventLogAdapter" as Adapter
+control "SystemLogService" as Svc
+entity "SystemLogRepository" as Repo
+database "Master PostgreSQL" as MasterDB
+
+note over Producer,MasterDB
+  FE17-F01 System Log Tracking — ingest only.
+  Producers: master auth success/failure, tenant provisioning,
+  Hikari pool pressure, unhandled application errors.
+  Persistence: Master DB table system_logs (append-only).
+  Search UI is FE17-F03. Tenant user-action audit is FE17-F02.
+end note
+
+Producer -> Adapter: Emit technical / auth / infra event
+activate Adapter
+Adapter -> Adapter: Map to SystemLogRecordCommand\n(sanitize message, no secrets)
+Adapter -> Svc: record(command)
+activate Svc
+
+alt invalid or empty action/message
+  Svc --> Adapter: reject (no persistence)
+  deactivate Svc
+  Adapter --> Producer: drop / local warn only
+  deactivate Adapter
+else valid command
+  Svc -> Svc: Build SystemLog\nlevel, category, optional tenantCode,\nsource, correlationId, occurredAt=now
+  Svc -> Repo: save(systemLog)
+  activate Repo
+  Repo -> MasterDB: INSERT system_logs
+  activate MasterDB
+  MasterDB --> Repo: id
+  deactivate MasterDB
+  Repo --> Svc: SystemLog
+  deactivate Repo
+  Svc --> Adapter: recorded
+  deactivate Svc
+  Adapter --> Producer: ack (best-effort; fail-open for business path)
+  deactivate Adapter
+end
+
+note over Svc,MasterDB
+  Logging must not break the primary business transaction.
+  Prefer fail-open after local warn if Master write fails,
+  except when the producer itself is a security-critical audit path
+  that product policy marks as fail-closed.
+end note
+
+@enduml

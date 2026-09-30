@@ -40,6 +40,7 @@ public class CvController {
 
     @PostMapping(value = "/cvs", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "Candidate upload of a personal CV, or a CV attached to a published job")
+    @com.smarthire.multitenancy.quota.RequireMeteredQuota(type = com.smarthire.multitenancy.quota.QuotaType.CV_PARSE)
     public ResponseEntity<ApiResponse<CvDetail>> upload(
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "jobId", required = false) Long jobId,
@@ -56,14 +57,16 @@ public class CvController {
     }
 
     @GetMapping("/cvs/{id}/file")
-    @Operation(summary = "Download or preview the uploaded CV file")
+    @Operation(summary = "Preview the uploaded CV inline in the browser")
     public ResponseEntity<byte[]> file(@PathVariable long id) {
         var file = cvs.file(id);
+        boolean pdf = file.filename() != null && file.filename().toLowerCase().endsWith(".pdf");
         return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + file.filename().replace("\"", "") + "\"")
-                .contentType(MediaType.parseMediaType(file.mimeType()))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline")
+                .contentType(pdf ? MediaType.APPLICATION_PDF : MediaType.APPLICATION_OCTET_STREAM)
                 .body(file.content());
     }
+
     @DeleteMapping("/cvs/{id}")
     @Operation(summary = "Delete a CV (candidate own, or recruiter for the job)")
     public ApiResponse<Void> delete(@PathVariable long id) {

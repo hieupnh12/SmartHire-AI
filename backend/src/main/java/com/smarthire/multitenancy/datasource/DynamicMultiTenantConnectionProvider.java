@@ -58,7 +58,7 @@ public class DynamicMultiTenantConnectionProvider implements MultiTenantConnecti
                 if (created != null) created.close();
                 log.error("Failed to open tenant database [{}]", tenant.getCode(), ex);
                 throw new BusinessException(
-                        "Tenant database is unavailable: " + brief(ex),
+                        "Tenant database is temporarily unavailable. Please contact your administrator.",
                         HttpStatus.SERVICE_UNAVAILABLE,
                         "TENANT_DATABASE_UNAVAILABLE",
                         ex);
@@ -69,20 +69,11 @@ public class DynamicMultiTenantConnectionProvider implements MultiTenantConnecti
         } catch (SQLException ex) {
             log.error("Failed to borrow tenant connection [{}]", tenant.getCode(), ex);
             throw new BusinessException(
-                    "Tenant database is unavailable: " + brief(ex),
+                    "Tenant database is temporarily unavailable. Please contact your administrator.",
                     HttpStatus.SERVICE_UNAVAILABLE,
                     "TENANT_DATABASE_UNAVAILABLE",
                     ex);
         }
-    }
-
-    private static String brief(Throwable ex) {
-        Throwable current = ex;
-        while (current.getCause() != null && current.getCause() != current) {
-            current = current.getCause();
-        }
-        String message = current.getMessage() == null ? current.getClass().getSimpleName() : current.getMessage();
-        return message.length() > 180 ? message.substring(0, 180) : message;
     }
 
     private void evictIdlePoolIfFull() {

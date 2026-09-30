@@ -1,0 +1,101 @@
+@startuml
+skinparam dpi 300
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam sequence {
+    ArrowColor #2D3748
+    ActorBorderColor #2D3748
+    LifeLineBorderColor #2D3748
+    ParticipantBorderColor #2D3748
+    ParticipantBackgroundColor #FFFFFF
+    BoxBorderColor #A0AEC0
+}
+hide footbox
+autonumber
+
+actor "Recruiter / Tenant Admin" as User
+boundary "Tenant Workspace UI" as UI
+control "Security +\nTenantWebInterceptor" as Guard
+control "TenantContext" as Context
+boundary "JobController" as Ctrl
+control "JobService" as JobSvc
+control "TenantAuditService" as AuditSvc
+database "Dedicated Tenant DB" as TenantDB
+
+note over User,TenantDB
+  FE17-F02 Tenant Audit Tracking — representative flow: update job.
+  After a successful business write, append audit_logs in the same tenant DB.
+  Actor, action, time, resource type/id are required.
+  System technical logs stay in Master DB (FE17-F01).
+end note
+
+User -> UI: Edit and save job
+activate UI
+UI -> Guard: PUT /api/v1/jobs/{id}\nX-Tenant-ID + JWT
+activate Guard
+Guard -> Guard: authenticate + authorize role
+
+alt unauthenticated or unauthorized
+  Guard --> UI: 401 / 403
+  deactivate Guard
+  UI --> User: Access error
+  deactivate UI
+else authorized
+  Guard -> Context: setCurrentTenant(tenantId)
+  Guard -> Ctrl: forward request + principal
+  activate Ctrl
+  Ctrl -> JobSvc: updateJob(id, request, principal)
+  activate JobSvc
+  JobSvc -> Context: getCurrentTenant()
+  JobSvc -> TenantDB: load Job for update
+  activate TenantDB
+
+  alt job not found
+    TenantDB --> JobSvc: empty
+    deactivate TenantDB
+    JobSvc --> Ctrl: 404 JOB_NOT_FOUND
+    deactivate JobSvc
+    Ctrl --> UI: 404
+    deactivate Ctrl
+    UI --> User: Not found
+    deactivate UI
+  else job found
+    TenantDB --> JobSvc: Job
+    deactivate TenantDB
+    JobSvc -> JobSvc: apply changes
+    JobSvc -> TenantDB: UPDATE jobs
+    activate TenantDB
+    TenantDB --> JobSvc: saved Job
+    deactivate TenantDB
+
+    JobSvc -> AuditSvc: record(actor, UPDATE, JOB, id, summary, ip)
+    activate AuditSvc
+    AuditSvc -> Context: assert tenant present
+    AuditSvc -> TenantDB: INSERT audit_logs
+    activate TenantDB
+    TenantDB --> AuditSvc: audit id
+    deactivate TenantDB
+    AuditSvc --> JobSvc: recorded
+    deactivate AuditSvc
+
+    JobSvc --> Ctrl: JobResponse
+    deactivate JobSvc
+    Ctrl --> UI: 200 OK
+    deactivate Ctrl
+    UI --> User: Show updated job
+    deactivate UI
+  end
+
+  Guard -> Context: clear() in finally
+  deactivate Guard
+end
+
+note over JobSvc,TenantDB
+  Prefer recording audit in the same transaction as the business write
+  so a failed audit rolls back the change when policy requires evidence.
+  No Master DB write in this flow.
+end note
+
+@enduml

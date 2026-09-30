@@ -12,6 +12,10 @@ export interface OnboardTenantRequest extends TenantAdminRequest {
   name: string;
   subdomain: string;
   environmentType?: "PRODUCTION" | "POC_SANDBOX";
+  companyLegalName?: string;
+  taxCode?: string;
+  billingAddress?: string;
+  billingEmail?: string;
 }
 
 export interface OnboardTenantResponse {

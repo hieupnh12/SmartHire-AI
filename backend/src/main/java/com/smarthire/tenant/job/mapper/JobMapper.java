@@ -7,12 +7,16 @@ import com.smarthire.domain.tenant.entity.RecruitmentStage;
 import com.smarthire.tenant.cv.dto.CvModels.JobOption;
 import com.smarthire.tenant.cv.dto.CvModels.JobSkillView;
 import com.smarthire.tenant.job.dto.JobModels.ApplicationView;
+import com.smarthire.domain.tenant.entity.JobScreeningConfig;
+import com.smarthire.tenant.job.dto.JobModels.CvScreeningConfigView;
+import com.smarthire.tenant.job.dto.JobModels.GateScreeningConfigView;
 import com.smarthire.tenant.job.dto.JobModels.JobDetail;
 import com.smarthire.tenant.job.dto.JobModels.JobListItem;
+import com.smarthire.tenant.job.dto.JobModels.FunnelSummary;
 import com.smarthire.tenant.job.dto.JobModels.PublicJob;
 import com.smarthire.tenant.job.dto.JobModels.StageView;
 import java.math.BigDecimal;
-import java.time.LocalDate;
+import java.time.Instant;
 import java.util.List;
 import org.springframework.stereotype.Component;
 
@@ -22,7 +26,7 @@ public class JobMapper {
         return new JobOption(job.getId(), job.getTitle(), job.getStatus().name());
     }
 
-    public JobListItem listItem(Job job, long applications) {
+    public JobListItem listItem(Job job, long applications, FunnelSummary funnel) {
         return new JobListItem(
                 job.getId(),
                 job.getTitle(),
@@ -31,14 +35,17 @@ public class JobMapper {
                 job.getEmploymentType(),
                 job.getWorkMode(),
                 job.getDepartment(),
+                job.getScreeningMode(),
                 job.getDeadline(),
                 job.getHeadcount() == null ? 0 : job.getHeadcount(),
                 applications,
+                funnel,
                 job.getPublishedAt(),
                 job.getUpdatedAt());
     }
 
-    public JobDetail detail(Job job, List<JobSkillView> skills, List<StageView> stages, long applications) {
+    public JobDetail detail(Job job, List<JobSkillView> skills, List<StageView> stages, long applications,
+            JobScreeningConfig screening, boolean canEditRecruitmentWorkflow) {
         return new JobDetail(
                 job.getId(),
                 job.getTitle(),
@@ -49,6 +56,7 @@ public class JobMapper {
                 job.getEmploymentType(),
                 job.getWorkMode(),
                 job.getDepartment(),
+                job.getScreeningMode(),
                 job.getHeadcount(),
                 job.getDeadline(),
                 job.getSalaryMin(),
@@ -67,7 +75,31 @@ public class JobMapper {
                 applications,
                 accepting(job),
                 skills,
-                stages);
+                stages,
+                cvScreening(screening),
+                gateScreening(screening),
+                canEditRecruitmentWorkflow);
+    }
+
+    public CvScreeningConfigView cvScreening(JobScreeningConfig config) {
+        if (config == null) return null;
+        return new CvScreeningConfigView(
+                config.getCvSkillWeight(),
+                config.getCvPreferredWeight(),
+                config.getCvExperienceWeight(),
+                config.getCvEducationWeight(),
+                config.getCvJaccardWeight(),
+                config.getCvSemanticWeight(),
+                config.getCvPassThreshold());
+    }
+
+    public GateScreeningConfigView gateScreening(JobScreeningConfig config) {
+        if (config == null) return null;
+        return new GateScreeningConfigView(
+                config.getGateCvWeight(),
+                config.getGateInterviewWeight(),
+                config.getGateAssessmentWeight(),
+                config.getGatePassThreshold());
     }
 
     public PublicJob publicJob(Job job, List<JobSkill> skills) {
@@ -91,7 +123,18 @@ public class JobMapper {
     }
 
     public StageView stage(RecruitmentStage stage) {
-        return new StageView(stage.getId(), stage.getName(), stage.getSortOrder(), stage.isTerminal());
+        String name = stage.getName();
+        var code = com.smarthire.domain.enums.RecruitmentStageCode.fromCode(stage.getStageCode());
+        if (code.isPresent()) {
+            name = code.get().defaultName();
+        }
+        return new StageView(
+                stage.getId(),
+                stage.getStageCode(),
+                name,
+                stage.getSortOrder(),
+                stage.isTerminal(),
+                stage.isActive());
     }
 
     public JobSkillView skill(JobSkill row) {
@@ -122,7 +165,7 @@ public class JobMapper {
     public boolean accepting(Job job) {
         return job.getDeletedAt() == null
                 && job.getStatus() == com.smarthire.domain.enums.JobStatus.PUBLISHED
-                && (job.getDeadline() == null || !job.getDeadline().isBefore(LocalDate.now()));
+                && (job.getDeadline() == null || job.getDeadline().isAfter(Instant.now()));
     }
 
     private static String ownerName(Job job) {

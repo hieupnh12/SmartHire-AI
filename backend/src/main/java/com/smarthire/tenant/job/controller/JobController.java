@@ -56,14 +56,21 @@ public class JobController {
         return ApiResponse.ok(jobService.options());
     }
 
+    @GetMapping("/departments")
+    @Operation(summary = "List departments used by tenant jobs")
+    public ApiResponse<List<String>> departments() {
+        return ApiResponse.ok(jobService.departments());
+    }
+
     @GetMapping
     @Operation(summary = "Search recruiter jobs")
     public ApiResponse<JobPage> search(
             @RequestParam(required = false) String q,
             @RequestParam(required = false) JobStatus status,
+            @RequestParam(required = false) String department,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        return ApiResponse.ok(jobService.search(q, status, page, size));
+        return ApiResponse.ok(jobService.search(q, status, department, page, size));
     }
 
     @PostMapping

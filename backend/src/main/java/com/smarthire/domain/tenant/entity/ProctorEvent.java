@@ -11,41 +11,46 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+import lombok.experimental.FieldDefaults;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
+@Getter
+@Setter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+@FieldDefaults(level = AccessLevel.PRIVATE)
 @Entity
 @Table(name = "proctor_events")
 public class ProctorEvent {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "attempt_id", nullable = false)
-    private Attempt attempt;
+    @JoinColumn(name = "submission_id", nullable = false)
+    Submission submission;
 
     @Column(name = "event_type", nullable = false, length = 64)
-    private String eventType;
+    String eventType;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "payload_json", columnDefinition = "json")
-    private String payloadJson;
+    String payloadJson;
 
     @Column(name = "created_at", nullable = false, updatable = false)
-    private Instant createdAt;
+    Instant createdAt;
 
     @PrePersist
-    void onCreate() { createdAt = Instant.now(); }
-
-    public Long getId() { return id; }
-    public Attempt getAttempt() { return attempt; }
-    public void setAttempt(Attempt attempt) { this.attempt = attempt; }
-    public String getEventType() { return eventType; }
-    public void setEventType(String eventType) { this.eventType = eventType; }
-    public String getPayloadJson() { return payloadJson; }
-    public void setPayloadJson(String payloadJson) { this.payloadJson = payloadJson; }
-    public Instant getCreatedAt() { return createdAt; }
+    void onCreate() {
+        createdAt = Instant.now();
+    }
 }
-

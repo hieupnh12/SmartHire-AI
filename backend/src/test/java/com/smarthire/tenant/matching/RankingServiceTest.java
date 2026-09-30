@@ -7,6 +7,7 @@ import com.smarthire.domain.tenant.repository.RankingDataRepository;
 import com.smarthire.multitenancy.context.TenantContext;
 import com.smarthire.tenant.matching.dto.RankingModels.*;
 import com.smarthire.tenant.matching.service.*;
+import java.math.BigDecimal;
 import java.util.*;
 import org.junit.jupiter.api.*;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -50,12 +51,39 @@ class RankingServiceTest {
     @Test void returnsEmptyBoardWithUnsavedDefaults() {
         when(data.job(1, false)).thenReturn(job());
         var board = service.board(1);
-        assertThat(board.rows()).isEmpty(); assertThat(board.config().weights()).isEqualTo(new Weights(35, 15, 30, 20));
+        assertThat(board.rows()).isEmpty(); assertThat(board.config().weights()).isEqualTo(new Weights(40, 0, 25, 35));
         assertThat(board.config().revision()).isZero();
         var page = service.page(1, 0, 20, "", "ACTIVE", "ALL", null, "score");
         assertThat(page.rows()).isEmpty();
         assertThat(page.summary().totalCandidates()).isZero();
         assertThat(page.page().totalPages()).isZero();
+    }
+    @Test void calculatesRankingFromJobDefaultsWithoutSavedRankingConfig() {
+        Job job = job();
+        job.setMinYearsExperience(new BigDecimal("2.0"));
+        Skill skill = new Skill(); skill.setName("Java"); skill.setCategory("backend");
+        JobSkill requirement = new JobSkill(); requirement.setSkill(skill); requirement.setWeight(BigDecimal.ONE);
+        Application app = new Application(); app.setId(2L); app.setJob(job); app.setCandidate(job.getCreatedBy());
+        Cv cv = new Cv(); cv.setId(10L); cv.setStatus(com.smarthire.domain.enums.CvStatus.ANALYZED);
+        CvSkill cvSkill = new CvSkill(); cvSkill.setSkillName("Java");
+        JobScreeningConfig screening = new JobScreeningConfig();
+        screening.setGateCvWeight(new BigDecimal("40"));
+        screening.setGateAssessmentWeight(new BigDecimal("25"));
+        screening.setGateInterviewWeight(new BigDecimal("35"));
+        when(data.job(1, false)).thenReturn(job);
+        when(data.requirements(1)).thenReturn(List.of(requirement));
+        when(data.screeningConfig(1)).thenReturn(screening);
+        when(data.applications(1)).thenReturn(List.of(app));
+        when(data.cvs(2)).thenReturn(List.of(cv));
+        when(data.skills(10)).thenReturn(List.of(cvSkill));
+        when(data.matchScore(1, 10)).thenReturn(new BigDecimal("72"));
+
+        var board = service.board(1);
+
+        assertThat(board.config().requiredExperienceMonths()).isEqualTo(24);
+        assertThat(board.config().weights()).isEqualTo(new Weights(40, 0, 25, 35));
+        assertThat(board.rows().getFirst().result().score()).isEqualByComparingTo("72");
+        assertThat(board.rows().getFirst().result().components().getFirst().score()).isEqualByComparingTo("72");
     }
     @Test void rejectsStaleConfigurationAndForeignSource() {
         Job job = job(); when(data.job(1, true)).thenReturn(job);

@@ -15,7 +15,6 @@ import lombok.*;
 @Builder
 public class CreateContractRequest {
 
-    @NotNull(message = "Doanh nghiệp (Tenant) không được để trống")
     private Long tenantId;
 
     private Long planId;

@@ -14,9 +14,26 @@ public class RankingDataRepository {
         return em.createQuery("select j from Job j where lower(j.createdBy.email) = lower(:email) and j.deletedAt is null order by j.id desc", Job.class)
                 .setParameter("email", email).getResultList();
     }
+    public List<Job> activeJobs() {
+        return em.createQuery("select j from Job j where j.deletedAt is null order by j.id desc", Job.class).getResultList();
+    }
+    public List<Job> assignedJobs(long userId) {
+        return em.createQuery(
+                        "select a.job from JobAssignment a where a.user.id = :userId and a.job.deletedAt is null order by a.job.id desc",
+                        Job.class)
+                .setParameter("userId", userId)
+                .getResultList();
+    }
     public Job job(long id, boolean lock) { return em.find(Job.class, id, lock ? LockModeType.PESSIMISTIC_WRITE : LockModeType.NONE); }
     public Application application(long id) { return em.find(Application.class, id); }
     public RankingConfig config(long jobId) { return em.find(RankingConfig.class, jobId); }
+    public JobScreeningConfig screeningConfig(long jobId) { return em.find(JobScreeningConfig.class, jobId); }
+    public java.math.BigDecimal matchScore(long jobId, long cvId) {
+        return em.createQuery("select m.score from MatchScore m where m.job.id = :jobId and m.cv.id = :cvId", java.math.BigDecimal.class)
+                .setParameter("jobId", jobId)
+                .setParameter("cvId", cvId)
+                .getResultStream().findFirst().orElse(null);
+    }
     public RankingSource source(long appId) { return em.find(RankingSource.class, appId); }
     public List<Application> applications(long jobId) {
         return em.createQuery("select a from Application a join fetch a.candidate where a.job.id = :id order by a.id", Application.class).setParameter("id", jobId).getResultList();
@@ -38,17 +55,13 @@ public class RankingDataRepository {
         return em.createQuery("select e.extractionJson from CvExtraction e where e.cv.id = :id", String.class)
                 .setParameter("id", cvId).getResultStream().findFirst().orElse(null);
     }
-    public List<Attempt> attempts(long appId) {
-        return em.createQuery("select a from Attempt a where a.application.id = :id and a.assessment.job = a.application.job order by a.id", Attempt.class).setParameter("id", appId).getResultList();
+    public List<Submission> submissions(long appId) {
+        return em.createQuery("select s from Submission s where s.application.id = :id and s.test.job = s.application.job order by s.id", Submission.class)
+                .setParameter("id", appId).getResultList();
     }
-    public List<Interview> interviews(long appId) {
-        return em.createQuery("select i from Interview i where i.cv.application.id = :id and i.job = i.cv.application.job and i.candidate = i.cv.application.candidate order by i.id", Interview.class).setParameter("id", appId).getResultList();
-    }
-    public AttemptScore assessment(long attemptId) {
-        return em.createQuery("select s from AttemptScore s where s.attempt.id = :id", AttemptScore.class).setParameter("id", attemptId).getResultStream().findFirst().orElse(null);
-    }
-    public InterviewScore interview(long interviewId) {
-        return em.createQuery("select s from InterviewScore s where s.interview.id = :id", InterviewScore.class).setParameter("id", interviewId).getResultStream().findFirst().orElse(null);
+    public List<AiInterview> aiInterviews(long appId) {
+        return em.createQuery("select i from AiInterview i where i.application.id = :id order by i.id", AiInterview.class)
+                .setParameter("id", appId).getResultList();
     }
     public void detachCv(long cvId) {
         em.createQuery("update RankingSource s set s.cvId = null where s.cvId = :id")
@@ -57,6 +70,18 @@ public class RankingDataRepository {
     }
 
     public void save(Object entity) { em.merge(entity); }
+    public void saveQualitySnapshot(long applicationId, java.math.BigDecimal score, String version, String componentsJson) {
+        em.createNativeQuery("""
+                insert into candidate_quality_snapshots
+                    (application_id, score, components_json, model_version, calculated_at)
+                values (:applicationId, :score, :components, :version, current_timestamp)
+                """)
+                .setParameter("applicationId", applicationId)
+                .setParameter("score", score)
+                .setParameter("components", componentsJson)
+                .setParameter("version", version)
+                .executeUpdate();
+    }
     public void replaceSnapshots(long jobId) {
         em.createQuery("delete from CandidateRanking r where r.job.id = :id").setParameter("id", jobId).executeUpdate();
         em.createQuery("delete from OverallScore s where s.application.job.id = :id").setParameter("id", jobId).executeUpdate();

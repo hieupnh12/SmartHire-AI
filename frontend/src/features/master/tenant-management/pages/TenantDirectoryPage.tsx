@@ -2,7 +2,9 @@ import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, Search, Filter, ExternalLink, CheckCircle2, XCircle, Clock, FileSignature, ReceiptText, Eye } from "lucide-react";
 import { TenantInfo, masterAdminApi } from "@/api/master/masterAdminApi";
-import { useMasterDashboard } from "@/features/master/shell/MasterAdminContext";
+import { useTenants, useSubscriptions, useRevenueAnalytics, useAiQuotaUsage, useAuditLogs, useLeads, useInvoices, useContracts, masterQueryKeys } from "@/api/master/queries";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "@/stores/toastStore";
 
 interface TenantsTabProps {
   handleOpenCreateContractForTenant: (tenant: TenantInfo) => void;
@@ -16,7 +18,10 @@ export function TenantsTab({
   setSelectedTenant,
 }: TenantsTabProps) {
   const navigate = useNavigate();
-  const { tenants, setTenants, triggerNotification } = useMasterDashboard();
+  const queryClient = useQueryClient();
+  const { data: tenants = [] } = useTenants();
+  const setTenants = (updater: any) => queryClient.setQueryData(masterQueryKeys.tenants(), updater);
+  const triggerNotification = (msg: string) => toast.success(msg);
 
   const [tenantSearch, setTenantSearch] = useState("");
   const [tenantStatusFilter, setTenantStatusFilter] = useState<string>("ALL");

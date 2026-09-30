@@ -83,6 +83,36 @@ class RecruiterFeatureFilterTest {
         verifyNoInteractions(filterChain);
     }
 
+    @Test
+    void recruiterCanDownloadCvFileWithoutScreeningFeature() throws Exception {
+        authenticate("ROLE_RECRUITER");
+        RecruiterFeatureFilter filter = new RecruiterFeatureFilter(rolePermissionService, objectMapper);
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/cvs/19/file");
+        request.setServletPath("/api/v1/cvs/19/file");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, filterChain);
+
+        assertEquals(200, response.getStatus());
+        verify(filterChain).doFilter(request, response);
+        verifyNoInteractions(rolePermissionService);
+    }
+
+    @Test
+    void recruiterCanAnalyzeAppliedCvWithoutScreeningFeature() throws Exception {
+        authenticate("ROLE_RECRUITER");
+        RecruiterFeatureFilter filter = new RecruiterFeatureFilter(rolePermissionService, objectMapper);
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/v1/cvs/19/parse");
+        request.setServletPath("/api/v1/cvs/19/parse");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, filterChain);
+
+        assertEquals(200, response.getStatus());
+        verify(filterChain).doFilter(request, response);
+        verifyNoInteractions(rolePermissionService);
+    }
+
     private static void authenticate(String... roles) {
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken(

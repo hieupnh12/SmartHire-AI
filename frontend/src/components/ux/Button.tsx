@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import type { ButtonHTMLAttributes } from "react";
+import { forwardRef, type ButtonHTMLAttributes } from "react";
 
 type Variant = "primary" | "secondary" | "ghost" | "danger" | "ai";
 type Size = "sm" | "md" | "lg";
@@ -10,7 +10,7 @@ const variants: Record<Variant, string> = {
   secondary:
     "bg-surface-card text-[var(--color-text-primary)] border border-[var(--color-border-default)] hover:bg-surface-muted",
   ghost: "bg-transparent text-[var(--color-text-secondary)] hover:bg-surface-muted",
-  danger: "bg-[var(--color-status-danger)] text-[var(--color-text-inverse)] hover:opacity-90",
+  danger: "bg-red-600 text-white hover:bg-red-700 shadow-sm",
   ai: "bg-brand-accent text-[var(--color-text-inverse)] hover:opacity-90",
 };
 
@@ -26,16 +26,17 @@ type Props = ButtonHTMLAttributes<HTMLButtonElement> & {
 };
 
 /** Large tap targets, clear focus ring — UX / WCAG friendly. */
-export function Button({
+export const Button = forwardRef<HTMLButtonElement, Props>(function Button({
   className,
   variant = "primary",
   size = "md",
   type = "button",
   ...props
-}: Props) {
+}, ref) {
   return (
     <button
       type={type}
+      ref={ref}
       className={cn(
         "inline-flex items-center justify-center gap-2 rounded-[var(--radius-md)] font-medium transition-colors duration-[var(--motion-fast)]",
         "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-border-focus)]",
@@ -47,4 +48,4 @@ export function Button({
       {...props}
     />
   );
-}
+});

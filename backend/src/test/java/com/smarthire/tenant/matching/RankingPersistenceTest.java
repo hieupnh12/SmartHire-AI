@@ -61,24 +61,28 @@ class RankingPersistenceTest {
         CvExtraction extraction = new CvExtraction(); extraction.setCv(cv); extraction.setExtractionJson("""
                 {"experience":[{"startDate":"2024-01","endDate":"2024-12","skills":["Java"],"evidence":"Java developer"}]}
                 """); em.persist(extraction);
-        Assessment assessment = new Assessment(); assessment.setJob(job); assessment.setTitle("Java"); em.persist(assessment);
-        Attempt attempt = new Attempt(); attempt.setApplication(app); attempt.setAssessment(assessment); attempt.setStatus(AttemptStatus.GRADED); em.persist(attempt);
-        AttemptScore attemptScore = new AttemptScore(); attemptScore.setAttempt(attempt); attemptScore.setTotalScore(new BigDecimal("85")); em.persist(attemptScore);
-        Interview interview = new Interview(); interview.setJob(job); interview.setCandidate(candidate); interview.setCv(cv); interview.setStatus(InterviewStatus.SCORED); em.persist(interview);
-        InterviewScore interviewScore = new InterviewScore(); interviewScore.setInterview(interview); interviewScore.setOverallScore(new BigDecimal("81")); em.persist(interviewScore);
+        com.smarthire.domain.tenant.entity.JobTest test = com.smarthire.domain.tenant.entity.JobTest.builder()
+                .job(job).title("Java").durationMinutes(60).status(TestStatus.PUBLISHED).build();
+        em.persist(test);
+        Submission submission = Submission.builder().test(test).candidate(candidate).application(app)
+                .status(TestSubmissionStatus.GRADED).score(new BigDecimal("85")).build();
+        em.persist(submission);
+        AiInterview aiInterview = AiInterview.builder().application(app).status(AiInterviewStatus.SCORED)
+                .overallScore(new BigDecimal("81")).build();
+        em.persist(aiInterview);
         em.flush();
         var board = service.configure(job.getId(), new Config(new Weights(35,15,30,20), Map.of("backend",100),24,0));
         assertThat(board.rows()).hasSize(1);
         assertThat(board.rows().getFirst().result().score()).isEqualByComparingTo("84.20");
         assertThat(board.rows().getFirst().rank()).isEqualTo(1);
-        assertThat(service.sources(app.getId()).attempts()).hasSize(1);
-        service.select(app.getId(), new Selection(cv.getId(), attempt.getId(), interview.getId()));
+        assertThat(service.sources(app.getId()).submissions()).hasSize(1);
+        service.select(app.getId(), new Selection(cv.getId(), submission.getId(), aiInterview.getId()));
         service.recompute(job.getId()); em.flush(); em.clear();
         assertThat(em.createQuery("select count(r) from CandidateRanking r", Long.class).getSingleResult()).isEqualTo(1L);
         assertThat(em.createQuery("select count(s) from OverallScore s", Long.class).getSingleResult()).isEqualTo(1L);
         assertThat(service.overall(app.getId()).result().score()).isEqualByComparingTo("84.20");
-        AttemptScore updated = em.find(AttemptScore.class, attemptScore.getId());
-        updated.setTotalScore(BigDecimal.ZERO); em.flush();
+        Submission updated = em.find(Submission.class, submission.getId());
+        updated.setScore(BigDecimal.ZERO); em.flush();
         var fresh = service.board(job.getId()).rows().getFirst();
         assertThat(fresh.result().score()).isEqualByComparingTo("58.70");
         assertThat(fresh.result().complete()).isTrue();

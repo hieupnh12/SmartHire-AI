@@ -8,7 +8,7 @@ type UiState = {
     description?: string;
     confirmLabel?: string;
     danger?: boolean;
-    onConfirm?: () => void;
+    onConfirm?: () => void | Promise<void>;
   };
   openShortcuts: () => void;
   closeShortcuts: () => void;
@@ -18,7 +18,7 @@ type UiState = {
     description?: string;
     confirmLabel?: string;
     danger?: boolean;
-    onConfirm: () => void;
+    onConfirm: () => void | Promise<void>;
   }) => void;
   closeConfirm: () => void;
 };

@@ -63,7 +63,9 @@ ehthumbs.db
 __MACOSX/
 
 # === Tooling / local agent ===
-.cursor/
+# Shared project rules are versioned; the rest of .cursor/ stays local
+.cursor/*
+!.cursor/rules/
 .codegraph/
 .scannerwork/
 .sonar/
@@ -124,3 +126,7 @@ venv/
 **/blob-report/
 **/cypress/videos/
 **/cypress/screenshots/
+
+# Temporary debug/test scripts
+TestDbConnection.java
+**/tools/ReEncrypt*.java

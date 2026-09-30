@@ -16,10 +16,10 @@ public final class RankingModels {
                          @NotEmpty Map<@NotBlank String, @NotNull @Min(0) @Max(100) Integer> groups,
                          @Min(0) @Max(1200) int requiredExperienceMonths,
                          @Min(0) long revision) {}
-    public record Selection(@Positive Long cvId, @Positive Long attemptId, @Positive Long interviewId) {}
+    public record Selection(@Positive Long cvId, @Positive Long submissionId, @Positive Long aiInterviewId) {}
     public record JobOption(long id, String title) {}
     public record SourceOption(long id, String label, String status) {}
-    public record Sources(List<SourceOption> cvs, List<SourceOption> attempts, List<SourceOption> interviews,
+    public record Sources(List<SourceOption> cvs, List<SourceOption> submissions, List<SourceOption> aiInterviews,
                           Selection selected) {}
     public record SkillMatch(String requiredSkill, String candidateSkill, BigDecimal similarity,
                              boolean required, String evidence) {}

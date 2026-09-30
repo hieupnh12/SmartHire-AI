@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
+import { Loader2 } from "lucide-react";
 import { getTenantIdFromSubdomain } from "@/lib/tenant";
+import { LandingLayout } from "@/features/master/landing/components/LandingLayout";
 import { SaasLandingPage } from "@/features/master/landing/pages/SaasLandingPage";
 import { TenantCareerPage } from "@/features/tenant/career/pages/TenantCareerPage";
 import { TenantNotFoundPage } from "@/features/tenant/career/pages/TenantNotFoundPage";
@@ -35,8 +37,10 @@ export function RootRouteSwitcher() {
   if (tenantId) {
     if (checking) {
       return (
-        <div className="min-h-screen bg-[#f9f9ff] flex items-center justify-center text-xs text-[#64748b] font-mono">
-          <span>Đang xác thực Subdomain "{tenantId}" trên Master DB...</span>
+        <div className="min-h-screen bg-[#f9f9ff] flex items-center justify-center">
+          <div className="animate-spin text-slate-400">
+            <Loader2 className="w-8 h-8" />
+          </div>
         </div>
       );
     }
@@ -56,6 +60,10 @@ export function RootRouteSwitcher() {
     return <TenantCareerPage />;
   }
 
-  // Otherwise, render Landlord SaaS Landing Page
-  return <SaasLandingPage />;
+  // Otherwise, render Landlord SaaS Landing Page wrapped in LandingLayout
+  return (
+    <LandingLayout>
+      <SaasLandingPage />
+    </LandingLayout>
+  );
 }

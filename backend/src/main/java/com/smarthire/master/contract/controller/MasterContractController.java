@@ -21,7 +21,6 @@ import java.util.List;
 @RequestMapping("/api/v1/master/contracts")
 @RequiredArgsConstructor
 @Tag(name = "Master B2B Contracts & Digital Signing", description = "Endpoints for managing B2B e-Contracts and digital signatures")
-@PreAuthorize("hasRole('WORKSPACE_ADMIN')")
 public class MasterContractController {
 
     private final MasterContractService contractService;
@@ -50,11 +49,30 @@ public class MasterContractController {
                 .body(ApiResponse.ok("Hợp đồng B2B đã được tạo thành công", contract));
     }
 
+    @PutMapping("/{id}")
+    @Operation(summary = "Update B2B Contract", description = "Updates a draft B2B contract details.")
+    public ResponseEntity<ApiResponse<ContractResponse>> updateContract(
+            @PathVariable Long id,
+            @Valid @RequestBody com.smarthire.master.contract.dto.UpdateContractRequest request) {
+        ContractResponse contract = contractService.updateContract(id, request);
+        return ResponseEntity.ok(ApiResponse.ok("Cập nhật hợp đồng B2B thành công", contract));
+    }
+
     @PostMapping("/{id}/send")
     @Operation(summary = "Send Contract to Client", description = "Generates secure signing token and sends invitation email to party B signer.")
-    public ResponseEntity<ApiResponse<ContractResponse>> sendContract(@PathVariable Long id) {
-        ContractResponse contract = contractService.sendContract(id);
-        return ResponseEntity.ok(ApiResponse.ok("Đã gửi liên kết ký hợp đồng điện tử đến khách hàng", contract));
+    public ResponseEntity<ApiResponse<Object>> sendContract(@PathVariable Long id) {
+        try {
+            ContractResponse contract = contractService.sendContract(id);
+            return ResponseEntity.ok(ApiResponse.ok("Đã gửi liên kết ký hợp đồng điện tử đến khách hàng", contract));
+        } catch (Exception e) {
+            e.printStackTrace();
+            String stackTrace = java.util.Arrays.stream(e.getStackTrace())
+                    .limit(5)
+                    .map(StackTraceElement::toString)
+                    .collect(java.util.stream.Collectors.joining(" | "));
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("DEBUG_ERROR", "DEBUG: " + e.getClass().getName() + " - " + e.getMessage() + " | " + stackTrace));
+        }
     }
 
     @PostMapping("/{id}/sign")

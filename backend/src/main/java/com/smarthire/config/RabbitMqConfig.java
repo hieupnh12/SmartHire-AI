@@ -4,6 +4,7 @@ import org.springframework.amqp.core.Binding;
 import org.springframework.amqp.core.BindingBuilder;
 import org.springframework.amqp.core.Queue;
 import org.springframework.amqp.core.QueueBuilder;
+import org.springframework.amqp.core.CustomExchange;
 import org.springframework.amqp.core.TopicExchange;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.amqp.support.converter.MessageConverter;
@@ -88,6 +89,11 @@ public class RabbitMqConfig {
     }
 
     @Bean
+    public TopicExchange notifyEmailDlx(@Value("${app.rabbitmq.queues.notify-email}") String name) {
+        return new TopicExchange(name + ".dlx", true, false);
+    }
+
+    @Bean
     public TopicExchange authEmailOtpExchange(
             @Value("${app.rabbitmq.exchanges.auth-email-otp}") String name) {
         return new TopicExchange(name, true, false);
@@ -96,6 +102,11 @@ public class RabbitMqConfig {
     @Bean
     public TopicExchange jobEventsExchange(@Value("${app.rabbitmq.exchanges.job-events}") String name) {
         return new TopicExchange(name, true, false);
+    }
+
+    @Bean
+    public CustomExchange jobExpiryExchange(@Value("${app.rabbitmq.exchanges.job-expiry}") String name) {
+        return new CustomExchange(name, "x-delayed-message", true, false, java.util.Map.of("x-delayed-type", "topic"));
     }
 
     // --- Queues (durable) ---
@@ -155,7 +166,15 @@ public class RabbitMqConfig {
 
     @Bean
     public Queue notifyEmailQueue(@Value("${app.rabbitmq.queues.notify-email}") String name) {
-        return QueueBuilder.durable(name).build();
+        return QueueBuilder.durable(name)
+                .withArgument("x-dead-letter-exchange", name + ".dlx")
+                .withArgument("x-dead-letter-routing-key", RK)
+                .build();
+    }
+
+    @Bean
+    public Queue notifyEmailDlq(@Value("${app.rabbitmq.queues.notify-email}") String name) {
+        return QueueBuilder.durable(name + ".dlq").build();
     }
 
     @Bean
@@ -165,6 +184,11 @@ public class RabbitMqConfig {
 
     @Bean
     public Queue jobEventsQueue(@Value("${app.rabbitmq.queues.job-events}") String name) {
+        return QueueBuilder.durable(name).build();
+    }
+
+    @Bean
+    public Queue jobExpiryQueue(@Value("${app.rabbitmq.queues.job-expiry}") String name) {
         return QueueBuilder.durable(name).build();
     }
 
@@ -230,6 +254,11 @@ public class RabbitMqConfig {
     }
 
     @Bean
+    public Binding notifyEmailDlqBinding(Queue notifyEmailDlq, TopicExchange notifyEmailDlx) {
+        return BindingBuilder.bind(notifyEmailDlq).to(notifyEmailDlx).with(RK);
+    }
+
+    @Bean
     public Binding authEmailOtpBinding(Queue authEmailOtpQueue, TopicExchange authEmailOtpExchange) {
         return BindingBuilder.bind(authEmailOtpQueue).to(authEmailOtpExchange).with(RK);
     }
@@ -237,6 +266,11 @@ public class RabbitMqConfig {
     @Bean
     public Binding jobEventsBinding(Queue jobEventsQueue, TopicExchange jobEventsExchange) {
         return BindingBuilder.bind(jobEventsQueue).to(jobEventsExchange).with(RK);
+    }
+
+    @Bean
+    public Binding jobExpiryBinding(Queue jobExpiryQueue, CustomExchange jobExpiryExchange) {
+        return BindingBuilder.bind(jobExpiryQueue).to(jobExpiryExchange).with(RK).noargs();
     }
 }
 

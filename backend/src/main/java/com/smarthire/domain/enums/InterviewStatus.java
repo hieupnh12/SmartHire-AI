@@ -2,9 +2,8 @@ package com.smarthire.domain.enums;
 
 public enum InterviewStatus {
     CREATED,
-    QUESTIONS_READY,
+    SCHEDULED,
     IN_PROGRESS,
-    SCORING,
-    SCORED,
-    FAILED;
+    EVALUATED,
+    CANCELLED;
 }

@@ -1,0 +1,194 @@
+@startuml
+!include ../class-style.puml
+
+package "Controller Layer" {
+  class DirectInterviewEvaluationController <<Controller>> {
+    - evaluationService: DirectInterviewEvaluationService
+    + submitEvaluation(interviewId: Long, request: SubmitEvaluationRequest): ApiResponse<EvaluationResultResponse>
+    + getEvaluationResult(interviewId: Long): ApiResponse<EvaluationResultResponse>
+  }
+}
+
+package "DTO Layer" {
+  class SubmitEvaluationRequest <<Request>> {
+    + criterionScores: List<CriterionScoreInput>
+    + overallComment: String [0..1]
+    + recommendation: HireRecommendation
+  }
+  class CriterionScoreInput <<DTO>> {
+    + criterionCode: String
+    + score: Decimal
+    + comment: String [0..1]
+  }
+  class EvaluationResultResponse <<Response>> {
+    + interviewId: Long
+    + evaluationId: Long
+    + overallScore: Decimal
+    + recommendation: HireRecommendation
+    + status: InterviewStatus
+    + criterionScores: List<CriterionScoreView>
+    + overallComment: String [0..1]
+    + evaluatedAt: Instant
+  }
+  class CriterionScoreView <<DTO>> {
+    + criterionCode: String
+    + criterionName: String
+    + weight: Decimal
+    + score: Decimal
+    + comment: String [0..1]
+  }
+}
+
+package "Service Layer" {
+  interface DirectInterviewEvaluationService <<Service>> {
+    + submitEvaluation(interviewId: Long, request: SubmitEvaluationRequest, principal: Principal): EvaluationResultResponse
+    + getEvaluationResult(interviewId: Long, principal: Principal): EvaluationResultResponse
+  }
+  class DirectInterviewEvaluationServiceImpl <<Service>> {
+    - interviewRepository: InterviewRepository
+    - participantRepository: InterviewParticipantRepository
+    - criteriaRepository: EvaluationCriteriaRepository
+    - evaluationRepository: InterviewEvaluationRepository
+    - criterionScoreRepository: EvaluationCriterionScoreRepository
+    - tenantContext: TenantContext
+    + submitEvaluation(interviewId: Long, request: SubmitEvaluationRequest, principal: Principal): EvaluationResultResponse
+    + getEvaluationResult(interviewId: Long, principal: Principal): EvaluationResultResponse
+  }
+  class EvaluationAggregationPolicy <<Service>> {
+    + computeOverall(scores: List<EvaluationCriterionScore>, criteria: List<EvaluationCriterion>): Decimal
+  }
+}
+
+package "Repository Layer" {
+  interface InterviewRepository <<Repository>> {
+    + findById(id: Long): Optional<Interview>
+    + save(interview: Interview): Interview
+  }
+  interface InterviewParticipantRepository <<Repository>> {
+    + findByInterviewIdAndUserId(interviewId: Long, userId: Long): Optional<InterviewParticipant>
+  }
+  interface EvaluationCriteriaRepository <<Repository>> {
+    + findActiveByInterviewType(type: DirectInterviewType): List<EvaluationCriterion>
+  }
+  interface InterviewEvaluationRepository <<Repository>> {
+    + save(evaluation: InterviewEvaluation): InterviewEvaluation
+    + findByInterviewId(interviewId: Long): Optional<InterviewEvaluation>
+  }
+  interface EvaluationCriterionScoreRepository <<Repository>> {
+    + saveAll(scores: List<EvaluationCriterionScore>): List<EvaluationCriterionScore>
+  }
+}
+
+package "Domain Entity Layer" {
+  class Interview <<Entity>> {
+    - id: Long
+    - mode: InterviewMode
+    - interviewType: DirectInterviewType
+    - status: InterviewStatus
+  }
+  class EvaluationCriterion <<Entity>> {
+    - id: Long
+    - code: String
+    - name: String
+    - weight: Decimal
+    - interviewType: DirectInterviewType
+    - active: boolean
+  }
+  class InterviewEvaluation <<Entity>> {
+    - id: Long
+    - interview: Interview
+    - evaluator: User
+    - overallScore: Decimal
+    - overallComment: String [0..1]
+    - recommendation: HireRecommendation
+    - evaluatedAt: Instant
+  }
+  class EvaluationCriterionScore <<Entity>> {
+    - id: Long
+    - evaluation: InterviewEvaluation
+    - criterion: EvaluationCriterion
+    - score: Decimal
+    - comment: String [0..1]
+  }
+  class InterviewParticipant <<Entity>> {
+    - id: Long
+    - interview: Interview
+    - user: User
+    - role: ParticipantRole
+  }
+  class User <<Entity>> {
+    - id: Long
+  }
+  enum HireRecommendation <<Enum>> {
+    STRONG_HIRE
+    HIRE
+    HOLD
+    NO_HIRE
+  }
+  enum InterviewStatus <<Enum>> {
+    SCHEDULED
+    IN_PROGRESS
+    EVALUATED
+  }
+  enum InterviewMode <<Enum>> {
+    DIRECT
+  }
+  enum DirectInterviewType <<Enum>> {
+    TECHNICAL
+    HR
+    BEHAVIORAL
+    FINAL
+  }
+}
+
+package "Infrastructure & Persistence" {
+  class TenantMySQL <<Database>> {
+    .. Dedicated Tenant DB ..
+    + interviews
+    + evaluation_criteria
+    + interview_evaluations
+    + evaluation_criterion_scores
+    + interview_participants
+  }
+  class TenantContext <<DataSource>> {
+    + {static} getCurrentTenant(): String
+    + {static} setCurrentTenant(tenantId: String): void
+    + {static} clear(): void
+  }
+}
+
+DirectInterviewEvaluationController ..> SubmitEvaluationRequest : consumes >
+DirectInterviewEvaluationController ..> EvaluationResultResponse : returns >
+DirectInterviewEvaluationController --> DirectInterviewEvaluationService : delegates >
+
+DirectInterviewEvaluationService <|.. DirectInterviewEvaluationServiceImpl : implements
+DirectInterviewEvaluationServiceImpl ..> SubmitEvaluationRequest : processes >
+DirectInterviewEvaluationServiceImpl ..> EvaluationResultResponse : creates >
+DirectInterviewEvaluationServiceImpl --> InterviewRepository : manages >
+DirectInterviewEvaluationServiceImpl --> InterviewParticipantRepository : queries >
+DirectInterviewEvaluationServiceImpl --> EvaluationCriteriaRepository : queries >
+DirectInterviewEvaluationServiceImpl --> InterviewEvaluationRepository : persists through >
+DirectInterviewEvaluationServiceImpl --> EvaluationCriterionScoreRepository : persists through >
+DirectInterviewEvaluationServiceImpl --> EvaluationAggregationPolicy : uses >
+DirectInterviewEvaluationServiceImpl --> TenantContext : caches / evicts >
+
+InterviewEvaluationRepository --> InterviewEvaluation : manages >
+EvaluationCriterionScoreRepository --> EvaluationCriterionScore : manages >
+EvaluationCriteriaRepository --> EvaluationCriterion : manages >
+InterviewEvaluationRepository --> TenantMySQL : persists to >
+EvaluationCriterionScoreRepository --> TenantMySQL : persists to >
+
+InterviewEvaluation "0..1" --> "1" Interview
+InterviewEvaluation "0..*" --> "1" User
+EvaluationCriterionScore "0..*" --> "1" InterviewEvaluation
+EvaluationCriterionScore "0..*" --> "1" EvaluationCriterion
+InterviewEvaluation ..> HireRecommendation : typed by >
+Interview ..> InterviewStatus : typed by >
+Interview ..> InterviewMode : typed by >
+
+note right of DirectInterviewEvaluationServiceImpl
+  Human evaluation only — does NOT write AI interview_scores.
+  Result is available for WF-03 hiring decision.
+end note
+
+@enduml

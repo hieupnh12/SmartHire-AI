@@ -2,6 +2,8 @@ package com.smarthire.tenant.applicant.dto;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 
@@ -26,6 +28,8 @@ public final class ApplicantModels {
             String referralCode) {}
 
     public record StatusRequest(String status, String note) {}
+
+    public record CvScreeningDecisionRequest(@NotNull Boolean passed, String note) {}
 
     public record PageResult<T>(List<T> items, int page, int size, long total) {}
 
@@ -86,5 +90,34 @@ public final class ApplicantModels {
             String jobLocation,
             String jobDepartment,
             String jobWorkMode,
-            String jobEmploymentType) {}
+            String jobEmploymentType,
+            GateScoreView gateScore,
+            ScreeningRoundsView rounds,
+            String cvScreeningStatus,
+            String screeningMode) {}
+
+    public record ScreeningRoundsView(
+            RoundItemView cv,
+            RoundItemView aiInterview,
+            RoundItemView assessment,
+            Instant aiInterviewInvitedAt) {}
+
+    public record RoundItemView(
+            String status,
+            BigDecimal score,
+            BigDecimal threshold,
+            Boolean passed,
+            BigDecimal weight) {}
+
+    public record GateScoreView(
+            BigDecimal score,
+            boolean passed,
+            boolean complete,
+            BigDecimal cvScore,
+            BigDecimal aiInterviewScore,
+            BigDecimal assessmentScore,
+            BigDecimal cvWeight,
+            BigDecimal aiInterviewWeight,
+            BigDecimal assessmentWeight,
+            BigDecimal passThreshold) {}
 }

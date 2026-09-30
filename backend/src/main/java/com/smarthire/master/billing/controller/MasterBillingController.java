@@ -57,4 +57,11 @@ public class MasterBillingController {
         InvoiceResponse response = billingService.updateInvoiceStatus(id, request);
         return ResponseEntity.ok(ApiResponse.ok("Cập nhật trạng thái thanh toán thành công", response));
     }
+
+    @PostMapping("/{id}/approve")
+    @Operation(summary = "Approve Invoice & Activate Workspace", description = "Marks invoice as PAID, activates subscription, provisions tenant database and sends activation email if pending.")
+    public ResponseEntity<ApiResponse<InvoiceResponse>> approveInvoice(@PathVariable Long id) {
+        InvoiceResponse response = billingService.approveInvoice(id);
+        return ResponseEntity.ok(ApiResponse.ok("Duyệt hóa đơn và kích hoạt không gian làm việc thành công", response));
+    }
 }

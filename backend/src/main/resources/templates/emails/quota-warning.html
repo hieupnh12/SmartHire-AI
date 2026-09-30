@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Cảnh báo tài nguyên</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #fef2f2; padding: 20px; }
+        .container { background-color: #ffffff; padding: 30px; border-radius: 8px; max-width: 600px; margin: 0 auto; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border-top: 4px solid #ef4444; }
+        h2 { color: #b91c1c; }
+        .details { margin: 20px 0; padding: 15px; background-color: #f9fafb; border-radius: 6px; }
+        .progress-bar { width: 100%; background-color: #e5e7eb; border-radius: 4px; overflow: hidden; margin-top: 10px; }
+        .progress-fill { height: 10px; background-color: #ef4444; }
+        .btn { display: inline-block; padding: 12px 24px; background-color: #ef4444; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: bold; margin-top: 20px; }
+        .footer { margin-top: 30px; font-size: 12px; color: #6b7280; text-align: center; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h2>Cảnh báo giới hạn tài nguyên</h2>
+    <p>Xin chào <span th:text="${tenantName}">Khách hàng</span>,</p>
+    <p>Tài nguyên <strong><span th:text="${quotaType}">Tài nguyên</span></strong> của bạn sắp đạt đến ngưỡng tối đa trong gói cước hiện tại.</p>
+    
+    <div class="details">
+        <p>Đã sử dụng: <strong th:text="${used}">80</strong> / <strong th:text="${limit}">100</strong> (<span th:text="${percentage}">80</span>%)</p>
+        <div class="progress-bar">
+            <div class="progress-fill" th:style="'width: ' + ${percentage} + '%'"></div>
+        </div>
+    </div>
+    
+    <p>Hệ thống SmartHire hỗ trợ tính năng <strong>Pay-as-you-go</strong>. Bạn vẫn có thể tiếp tục sử dụng vượt mức, nhưng phần vượt mức sẽ được tính phí vào cuối tháng theo đơn giá quy định.</p>
+    
+    <div style="text-align: center;">
+        <a href="https://smarthire.top/admin/subscription" class="btn">Nâng cấp gói cước</a>
+    </div>
+    
+    <div class="footer">
+        <p>Email này được gửi tự động từ hệ thống SmartHire-AI.</p>
+    </div>
+</div>
+</body>
+</html>

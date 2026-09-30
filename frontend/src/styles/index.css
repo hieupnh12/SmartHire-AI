@@ -4,6 +4,50 @@
 @tailwind components;
 @tailwind utilities;
 
+.recruiter-job-detail-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  align-items: start;
+  gap: 1.5rem;
+}
+
+.recruiter-job-detail-sidebar {
+  position: sticky;
+  top: 8rem;
+  min-width: 0;
+}
+
+@media (max-width: 1023px) {
+  .recruiter-job-detail-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .recruiter-job-detail-sidebar {
+    position: static;
+  }
+}
+
+@layer components {
+  .skeleton-shimmer {
+    position: relative;
+    overflow: hidden;
+    background: var(--color-surface-container);
+  }
+
+  .skeleton-shimmer::after {
+    position: absolute;
+    inset: 0;
+    content: "";
+    background: linear-gradient(90deg, transparent 0%, color-mix(in srgb, var(--color-surface-card) 72%, transparent) 50%, transparent 100%);
+    transform: translateX(-100%);
+    animation: skeleton-shimmer 1.6s ease-in-out infinite;
+  }
+}
+
+@keyframes skeleton-shimmer {
+  100% { transform: translateX(100%); }
+}
+
 @layer base {
   html {
     scroll-behavior: smooth;
@@ -49,4 +93,14 @@
 
 .animate-pulse-glow {
   animation: pulse-glow 7s ease-in-out infinite;
+}
+
+@keyframes text-gradient {
+  to {
+    background-position: 200% center;
+  }
+}
+
+.animate-text-gradient {
+  animation: text-gradient 2s linear infinite;
 }

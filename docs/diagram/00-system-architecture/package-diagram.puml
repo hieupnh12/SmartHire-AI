@@ -1,156 +1,143 @@
 @startuml
-title SmartHire-AI — Package Diagram
+title SmartHire-AI - Package Diagram (FrontEnd / BackEnd Layers)
 
 skinparam dpi 300
-skinparam backgroundColor #F9F9FF
-skinparam defaultFontName Arial
-skinparam defaultFontColor #191B23
+skinparam backgroundColor #FFFFFF
 skinparam shadowing false
-skinparam roundcorner 12
-skinparam packageStyle rectangle
-skinparam ArrowColor #505F76
-skinparam package {
-  BorderColor #727785
-  BackgroundColor #FFFFFF
+skinparam packageStyle rect
+skinparam defaultFontName Arial
+skinparam ArrowColor #34475B
+
+left to right direction
+
+package "Users" as users #E5EAF0
+
+package "FrontEnd\n(frontend/src)" as FE #F1FAF5 {
+  package "Presentation layer" as FE_Pres #D9F3F6 {
+    package "main.tsx" as feMain
+    package "app" as feApp
+    package "features/master" as feMaster #DDF2E8
+    package "features/tenant" as feTenant #F0E3FA
+    package "components" as feComp
+    package "pages (in features)" as fePages #DFEBFF
+    package "routes / guards" as feRoutes #DFEBFF
+  }
+  package "State layer" as FE_State #F0E3FA {
+    package "hooks" as feHooks
+    package "stores" as feStores
+  }
+  package "Shared utilities" as FE_Shared #E5EAF0 {
+    package "lib" as feLib #FFE9CE
+    package "styles" as feStyles
+    package "i18n" as feI18n
+    package "types" as feTypes
+  }
+  package "Api / Data access layer" as FE_Api #DFEBFF {
+    package "api/master" as apiMaster #DDF2E8
+    package "api/tenant" as apiTenant #F0E3FA
+  }
 }
 
-top to bottom direction
-
-package "frontend/src" as fe #F2F3FD {
-  package "app" as feApp
-  package "features.master" as feMaster
-  package "features.tenant" as feTenant
-  package "api.master" as apiMaster
-  package "api.tenant" as apiTenant
-  package "components" as feComponents
-  package "hooks + stores" as feState
-  package "lib" as feLib
-  package "styles + i18n + types" as feSupport
+package "BackEnd\n(com.smarthire)" as BE #F8FAFC {
+  package "Controller layer" as BE_Ctrl #DFEBFF {
+    package "config" as beConfig
+    package "security" as beSec #E7F4D9
+    package "multitenancy" as beMt #FFE9CE
+    package "master.*.controller" as beMasterCtrl #DDF2E8
+    package "tenant.*.controller" as beTenantCtrl #F0E3FA
+  }
+  package "Service layer" as BE_Svc #F0E3FA {
+    package "master.*.service" as beMasterSvc #DDF2E8
+    package "tenant.*.service" as beTenantSvc #F0E3FA
+    package "messaging" as beMsg #FCE2E0
+    package "common.exception" as beEx
+    package "common.api" as beApi
+  }
+  package "Data Access layer" as BE_Dal #DAF2ED {
+    package "domain.master" as domMaster #DDF2E8
+    package "domain.tenant" as domTenant #F0E3FA
+    package "domain.enums" as domEnums
+    package "dto + mapper" as beDto #DFEBFF
+    package "multitenancy.datasource" as beDs #FFE9CE
+    package "common.redis" as beRedis #FCE2E0
+  }
 }
 
-package "backend — com.smarthire" as be #E6E7F2 {
-  package "config" as config
-  package "security" as security
-  package "common" as common {
-    package "api" as commonApi
-    package "exception" as commonException
-    package "redis" as commonRedis
-  }
-
-  package "master" as master #D3E4FE {
-    package "admin" as masterAdmin
-    package "tenant" as masterTenant
-    package "subscription" as masterSubscription
-    package "analytics" as masterAnalytics
-  }
-
-  package "tenant" as tenant #D8E2FF {
-    package "auth" as tenantAuth
-    package "job" as tenantJob
-    package "applicant" as tenantApplicant
-    package "cv" as tenantCv
-    package "matching" as tenantMatching
-    package "assessment" as tenantAssessment
-    package "interview" as tenantInterview
-    package "practice" as tenantPractice
-    package "workflow" as tenantWorkflow
-    package "schedule" as tenantSchedule
-    package "notification" as tenantNotification
-    package "dashboard" as tenantDashboard
-  }
-
-  package "domain" as domain #FFFFFF {
-    package "master.entity + repository" as domainMaster
-    package "tenant.entity + repository" as domainTenant
-    package "enums" as domainEnums
-  }
-
-  package "multitenancy" as multitenancy #FFDCC6 {
-    package "context" as mtContext
-    package "interceptor" as mtInterceptor
-    package "resolver" as mtResolver
-    package "datasource" as mtDatasource
-    package "service" as mtService
-  }
-
-  package "messaging" as messaging #FFE9DA
-}
-
-package "Infrastructure" as infra #FFFFFF {
-  database "PostgreSQL\nMaster DB" as postgres
-  database "MySQL\nTenant DB per company" as mysql
+package "Stores" as STORES #E0EAFE {
+  database "PostgreSQL\nMaster DB" as pg
+  database "MySQL\nTenant DB" as my
   database "Redis" as redis
   queue "RabbitMQ" as rabbit
 }
 
-feApp --> feMaster : routes / providers
-feApp --> feTenant : role-protected routes
-feMaster --> apiMaster
-feTenant --> apiTenant
-feMaster --> feComponents
-feTenant --> feComponents
-feMaster --> feState
-feTenant --> feState
-apiMaster --> feLib : Axios base client
-apiTenant --> feLib : Axios + X-Tenant-ID
-feApp --> feSupport
-feComponents --> feSupport
+' =========================
+' FrontEnd
+' =========================
 
-apiMaster ..> master : HTTPS / platform API
-apiTenant ..> tenant : HTTPS / tenant API
+users ..> FE_Pres : <<Use>>
 
-config --> security
-config --> multitenancy
-config --> commonRedis
-config --> messaging
+feMain ..> feApp : <<access>>
+feApp ..> feComp : <<access>>
+feRoutes ..> fePages : <<access>>
 
-security --> commonException
-security --> mtContext : validates token tenant
+FE_Pres ..> FE_State : <<usage>>
+FE_Pres ..> FE_Shared : <<usage>>
+FE_Pres ..> FE_Api : <<dependency>>
 
-master --> domainMaster
-master --> commonApi
-master --> commonException
-masterTenant --> mtService : provision / registry
-masterTenant --> mtDatasource : evict tenant pool
+apiMaster ..> feLib
+apiTenant ..> feLib
 
-tenant --> domainTenant
-tenant --> domainEnums
-tenant --> commonApi
-tenant --> commonException
-tenant --> commonRedis
-tenant --> messaging : publish async work
-tenant --> mtContext : current tenant
+apiMaster ..> beMasterCtrl : <<HTTPS / JSON>>
+apiTenant ..> beTenantCtrl : <<HTTPS / JSON>>\nJWT + Tenant Context
 
-mtInterceptor --> mtService : require active tenant
-mtInterceptor --> mtContext : set / clear
-mtResolver --> mtContext : resolve identifier
-mtDatasource --> mtService : load DB credentials
-messaging --> mtService : validate job tenant
-messaging --> mtContext : restore / clear
-messaging --> tenantCv : worker callback
 
-domainMaster --> postgres : master JPA
-mtService --> domainMaster : tenant registry
-mtDatasource --> mysql : dynamic HikariCP pools
-domainTenant --> mysql : tenant JPA
-commonRedis --> redis
-messaging --> rabbit
+' =========================
+' Backend Layers
+' =========================
 
-note right of domainMaster
-  Master and tenant persistence use separate
-  entity managers and transaction managers.
-end note
+beMasterCtrl ..> beMasterSvc : <<calls>>
+beTenantCtrl ..> beTenantSvc : <<calls>>
 
-note right of mtDatasource
-  Selects one physical MySQL database from
-  TenantContext; packages must not bypass it.
-end note
+BE_Ctrl ..> beDto : <<request / response>>
+
+beConfig ..> beSec : <<configuration>>
+
+beMasterSvc ..> beEx : <<uses>>
+beTenantSvc ..> beEx : <<uses>>
+
+beTenantSvc ..> beMsg : <<publishes events>>
+
+beSec ..> beMt : <<tenant context>>
+beMt ..> beDs : <<resolve datasource>>
+
+
+' =========================
+' Domain / DTO
+' =========================
+
+beMasterSvc ..> domMaster : <<uses>>
+beTenantSvc ..> domTenant : <<uses>>
+
+beDto ..> domMaster : <<mapping>>
+beDto ..> domTenant : <<mapping>>
+
+
+' =========================
+' Databases
+' =========================
+
+BE_Dal ..> pg : <<Master DB>>
+BE_Dal ..> beDs : <<Tenant DataSource>>
+
+beRedis ..> redis
+beMsg ..> rabbit
 
 legend right
-  |= Relation |= Meaning |
-  | solid arrow | compile-time/runtime dependency |
-  | dashed arrow | network/API dependency |
-  | blue package | master or tenant business boundary |
-  | orange package | tenant isolation / async boundary |
+  |= Color |= Meaning |
+  | green | Master / platform |
+  | purple | Tenant / recruiting |
+  | orange | Multi-tenant / async |
+  Layout mirrors Users | FrontEnd layers | BackEnd layers | Stores.
+  Selected dependencies only.
 endlegend
 @enduml

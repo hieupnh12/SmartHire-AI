@@ -1,0 +1,65 @@
+skinparam dpi 300
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam roundcorner 6
+skinparam linetype ortho
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam classFontSize 11
+skinparam classAttributeFontSize 10
+skinparam classAttributeIconSize 10
+skinparam ArrowThickness 1
+skinparam ClassBorderThickness 1
+skinparam PackageBorderThickness 1
+skinparam BackgroundColor #FFFFFF
+
+skinparam class {
+    BackgroundColor #FFFFFF
+    BorderColor #2D3748
+    ArrowColor #2D3748
+}
+
+skinparam class<<Controller>> {
+    BackgroundColor #F7FAFC
+    BorderColor #2D3748
+}
+skinparam class<<Request>> {
+    BackgroundColor #FFFFFF
+    BorderColor #4A5568
+}
+skinparam class<<Response>> {
+    BackgroundColor #FFFFFF
+    BorderColor #4A5568
+}
+skinparam class<<Domain Event>> {
+    BackgroundColor #FFFFFF
+    BorderColor #4A5568
+}
+skinparam class<<DTO>> {
+    BackgroundColor #FFFFFF
+    BorderColor #4A5568
+}
+skinparam class<<Enum>> {
+    BackgroundColor #EDF2F7
+    BorderColor #718096
+}
+skinparam class<<Database>> {
+    BackgroundColor #F7FAFC
+    BorderColor #2D3748
+}
+skinparam class<<Cache>> {
+    BackgroundColor #F7FAFC
+    BorderColor #2D3748
+}
+skinparam class<<Queue>> {
+    BackgroundColor #F7FAFC
+    BorderColor #2D3748
+}
+
+<style>
+classDiagram {
+  class {
+    Padding 5
+  }
+}
+</style>

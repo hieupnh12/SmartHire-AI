@@ -13,39 +13,56 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
+import java.math.BigDecimal;
 import java.time.Instant;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+import lombok.experimental.FieldDefaults;
 
+@Getter
+@Setter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+@FieldDefaults(level = AccessLevel.PRIVATE)
 @Entity
 @Table(name = "practice_sessions")
 public class PracticeSession {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "candidate_id", nullable = false)
-    private User candidate;
+    User candidate;
 
-    private String topic;
+    @Column(length = 255)
+    String topic;
 
+    @Column(name = "started_at")
+    Instant startedAt;
+
+    @Column(name = "completed_at")
+    Instant completedAt;
+
+    @Column(name = "overall_score", precision = 10, scale = 2)
+    BigDecimal overallScore;
+
+    @Builder.Default
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)
-    private PracticeStatus status = PracticeStatus.CREATED;
+    PracticeStatus status = PracticeStatus.CREATED;
 
     @Column(name = "created_at", nullable = false, updatable = false)
-    private Instant createdAt;
+    Instant createdAt;
 
     @PrePersist
-    void onCreate() { createdAt = Instant.now(); }
-
-    public Long getId() { return id; }
-    public User getCandidate() { return candidate; }
-    public void setCandidate(User candidate) { this.candidate = candidate; }
-    public String getTopic() { return topic; }
-    public void setTopic(String topic) { this.topic = topic; }
-    public PracticeStatus getStatus() { return status; }
-    public void setStatus(PracticeStatus status) { this.status = status; }
-    public Instant getCreatedAt() { return createdAt; }
+    void onCreate() {
+        createdAt = Instant.now();
+    }
 }
-

@@ -1,0 +1,179 @@
+@startuml
+!include ../class-style.puml
+
+package "Controller Layer" {
+  class MasterLogSearchController <<Controller>> {
+    - logSearchService: LogSearchService
+    + searchSystemLogs(query: SystemLogSearchRequest): ApiResponse<PageResponse<SystemLogResponse>>
+    + searchTenantAuditLogs(query: TenantAuditSearchRequest): ApiResponse<PageResponse<TenantAuditLogResponse>>
+  }
+}
+
+package "DTO Layer" {
+  class SystemLogSearchRequest <<Request>> {
+    + tenantCode: String [0..1]
+    + level: LogLevel [0..1]
+    + category: SystemEventCategory [0..1]
+    + action: String [0..1]
+    + from: Instant [0..1]
+    + to: Instant [0..1]
+    + page: int
+    + size: int
+  }
+  class TenantAuditSearchRequest <<Request>> {
+    + tenantCode: String
+    + actorUserId: Long [0..1]
+    + action: String [0..1]
+    + resourceType: String [0..1]
+    + from: Instant [0..1]
+    + to: Instant [0..1]
+    + page: int
+    + size: int
+  }
+  class SystemLogResponse <<Response>> {
+    + id: Long
+    + tenantCode: String [0..1]
+    + category: SystemEventCategory
+    + level: LogLevel
+    + action: String
+    + message: String
+    + source: String
+    + occurredAt: Instant
+  }
+  class TenantAuditLogResponse <<Response>> {
+    + id: Long
+    + tenantCode: String
+    + actorUserId: Long
+    + action: String
+    + resourceType: String
+    + resourceId: String [0..1]
+    + summary: String
+    + occurredAt: Instant
+  }
+  class PageResponse <<Response>> {
+    + items: List
+    + page: int
+    + size: int
+    + totalElements: long
+  }
+}
+
+package "Service Layer" {
+  interface LogSearchService <<Service>> {
+    + searchSystemLogs(query: SystemLogSearchRequest): PageResponse<SystemLogResponse>
+    + searchTenantAuditLogs(query: TenantAuditSearchRequest): PageResponse<TenantAuditLogResponse>
+  }
+  class LogSearchServiceImpl <<Service>> {
+    - systemLogRepository: SystemLogRepository
+    - auditLogRepository: AuditLogRepository
+    - tenantInfoRepository: TenantInfoRepository
+    - tenantContext: TenantContext
+    + searchSystemLogs(query: SystemLogSearchRequest): PageResponse<SystemLogResponse>
+    + searchTenantAuditLogs(query: TenantAuditSearchRequest): PageResponse<TenantAuditLogResponse>
+  }
+}
+
+package "Repository Layer" {
+  interface SystemLogRepository <<Repository>> {
+    + search(filter: SystemLogSearchRequest): Page<SystemLog>
+  }
+  interface AuditLogRepository <<Repository>> {
+    + search(filter: TenantAuditSearchRequest): Page<AuditLog>
+  }
+  interface TenantInfoRepository <<Repository>> {
+    + findByCode(code: String): Optional<TenantInfo>
+  }
+}
+
+package "Domain Entity Layer" {
+  class SystemLog <<Entity>> {
+    - id: Long
+    - tenantCode: String [0..1]
+    - category: SystemEventCategory
+    - level: LogLevel
+    - action: String
+    - message: String
+    - occurredAt: Instant
+  }
+  class AuditLog <<Entity>> {
+    - id: Long
+    - actorUserId: Long
+    - action: String
+    - resourceType: String
+    - resourceId: String [0..1]
+    - summary: String
+    - occurredAt: Instant
+  }
+  class TenantInfo <<Entity>> {
+    - id: Long
+    - code: String
+    - name: String
+    - status: String
+    - dbName: String
+  }
+  enum LogLevel <<Enum>> {
+    INFO
+    WARN
+    ERROR
+  }
+  enum SystemEventCategory <<Enum>> {
+    AUTH
+    INFRA
+    PROVISIONING
+    APPLICATION_ERROR
+    SECURITY
+  }
+}
+
+package "Infrastructure & Persistence" {
+  class MasterPostgreSQL <<Database>> {
+    .. Master Landlord DB ..
+    + system_logs
+    + tenants
+  }
+  class TenantMySQL <<Database>> {
+    .. Dedicated Tenant DB ..
+    + audit_logs
+  }
+  class TenantContext <<DataSource>> {
+    + {static} getCurrentTenant(): String
+    + {static} setCurrentTenant(tenantId: String): void
+    + {static} clear(): void
+  }
+}
+
+MasterLogSearchController --> LogSearchService : delegates >
+MasterLogSearchController ..> SystemLogSearchRequest : consumes >
+MasterLogSearchController ..> TenantAuditSearchRequest : consumes >
+MasterLogSearchController ..> SystemLogResponse : returns >
+MasterLogSearchController ..> TenantAuditLogResponse : returns >
+MasterLogSearchController ..> PageResponse : returns >
+
+LogSearchService <|.. LogSearchServiceImpl : implements
+LogSearchServiceImpl ..> SystemLogSearchRequest : processes >
+LogSearchServiceImpl ..> TenantAuditSearchRequest : processes >
+LogSearchServiceImpl ..> SystemLogResponse : creates >
+LogSearchServiceImpl ..> TenantAuditLogResponse : creates >
+LogSearchServiceImpl --> SystemLogRepository : queries >
+LogSearchServiceImpl --> AuditLogRepository : queries >
+LogSearchServiceImpl --> TenantInfoRepository : queries >
+LogSearchServiceImpl --> TenantContext : caches / evicts >
+
+SystemLogRepository --> SystemLog : manages >
+AuditLogRepository --> AuditLog : manages >
+TenantInfoRepository --> TenantInfo : manages >
+SystemLogRepository --> MasterPostgreSQL : reads from >
+TenantInfoRepository --> MasterPostgreSQL : reads from >
+AuditLogRepository --> TenantMySQL : reads from >
+
+SystemLog ..> LogLevel : typed by >
+SystemLog ..> SystemEventCategory : typed by >
+
+note right of LogSearchServiceImpl
+  System search reads Master only.
+  Tenant audit search: resolve tenant in Master,
+  set TenantContext, query that tenant DB, clear in finally.
+  WORKSPACE_ADMIN only — no Tenant Admin API in this function.
+end note
+
+@enduml

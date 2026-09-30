@@ -39,8 +39,8 @@ export function getTenantTheme(code: string): TenantThemeConfig {
   const preset = COLOR_PRESETS[Math.abs(hash) % COLOR_PRESETS.length];
   return {
     code: cleanCode,
-    name: `${cleanCode.toUpperCase()} Enterprise IT`,
-    tagline: "Dẫn đầu Giải pháp Công nghệ Enterprise Multi-Tenant & AI",
+    name: `${cleanCode.toUpperCase()}`,
+    tagline: "Dẫn đầu Giải pháp Công nghệ",
     ...preset,
   };
 }

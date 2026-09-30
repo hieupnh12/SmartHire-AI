@@ -29,6 +29,10 @@ export interface InvoiceItem {
   billingPeriodStart?: string;
   billingPeriodEnd?: string;
   paymentGateway?: string;
+  paymentProofUrl?: string;
+  billingTaxCode?: string;
+  billingLegalName?: string;
+  billingAddress?: string;
   transactionId?: string;
   paidAt?: string;
   notes?: string;
@@ -80,6 +84,11 @@ export const billingApi = {
 
   updateStatus: async (id: number, data: UpdateInvoiceStatusPayload): Promise<InvoiceItem> => {
     const res = await masterClient.patch<ApiResponse<InvoiceItem>>(`/master/invoices/${id}/status`, data);
+    return res.data.data;
+  },
+
+  approve: async (id: number): Promise<InvoiceItem> => {
+    const res = await masterClient.post<ApiResponse<InvoiceItem>>(`/master/invoices/${id}/approve`);
     return res.data.data;
   },
 };

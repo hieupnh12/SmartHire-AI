@@ -1,0 +1,144 @@
+@startuml
+title FE08-F02 — Voice Interview & Speech-to-Text\nUpload answer audio and transcribe
+skinparam dpi 300
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam sequenceArrowThickness 1
+skinparam sequenceMessageAlign center
+skinparam ArrowColor #64748B
+skinparam ParticipantBorderColor #CBD5E1
+skinparam ParticipantBackgroundColor #F8FAFC
+hide footbox
+autonumber
+
+actor "Candidate" as Candidate
+boundary "Voice Interview UI" as FE
+control "Security + TenantWebInterceptor" as Guard
+control "TenantContext" as Context
+boundary "InterviewController" as Controller
+control "InterviewService" as Service
+control "ObjectStoragePort" as Storage
+queue "RabbitMQ\ninterview.stt" as MQ
+control "InterviewSttConsumer" as Consumer
+control "InterviewSttService" as SttService
+control "SpeechToTextPort" as STT
+database "Dedicated Tenant DB" as TenantDB
+
+note over Candidate,TenantDB
+  Preconditions: authenticated CANDIDATE owning the session;
+  interview IN_PROGRESS (or started); question belongs to interview.
+  Scope I: multipart upload per question → 202 → worker STT → transcript.
+  Languages: configured (vi/en; ja when answering Japanese questions).
+  NLP + scoring: FE07-F02 (choice A).
+end note
+
+Candidate -> FE: Record and submit voice answer for a question
+activate FE
+FE -> Guard: POST /api/v1/interviews/{id}/voice\nmultipart audio + questionId + language\nX-Tenant-ID
+activate Guard
+Guard -> Guard: authenticate and authorize CANDIDATE
+
+alt unauthenticated or unauthorized
+  Guard --> FE: 401 / 403
+  deactivate Guard
+  FE --> Candidate: Show access error
+  deactivate FE
+else authorized
+  Guard -> Context: setCurrentTenant(tenantId)
+  Guard -> Controller: forward request
+  activate Controller
+  Controller -> Controller: validate multipart + questionId
+
+  alt invalid upload
+    Controller --> FE: 400 Bad Request
+    deactivate Controller
+    FE --> Candidate: Show validation error
+    deactivate FE
+  else valid upload
+    Controller -> Service: submitVoiceAnswer(id, request, principal)
+    activate Service
+    Service -> TenantDB: load Interview + Question
+    activate TenantDB
+
+    alt session/question invalid\nor not owned by candidate
+      TenantDB --> Service: missing / forbidden
+      deactivate TenantDB
+      Service --> Controller: 404 / 403 / 409
+      deactivate Service
+      Controller --> FE: error response
+      deactivate Controller
+      FE --> Candidate: Show cannot submit
+      deactivate FE
+    else valid session question
+      TenantDB --> Service: Interview + Question
+      deactivate TenantDB
+      Service -> Storage: storeAudio(tenant, interview, file)
+      activate Storage
+      Storage --> Service: audioUrl
+      deactivate Storage
+      Service -> TenantDB: upsert InterviewAnswer\n(audioUrl, status=TRANSCRIBING)
+      activate TenantDB
+      TenantDB --> Service: answerId
+      deactivate TenantDB
+      Service -> TenantDB: ensure status IN_PROGRESS
+      activate TenantDB
+      TenantDB --> Service: updated
+      deactivate TenantDB
+      Service -> MQ: publish SttJob\nheader X-Tenant-ID
+      activate MQ
+      MQ --> Service: accepted
+      deactivate MQ
+      Service --> Controller: VoiceAcceptedResponse
+      deactivate Service
+      Controller --> FE: 202 Accepted
+      deactivate Controller
+      FE --> Candidate: Uploaded — transcribing
+      deactivate FE
+
+      MQ -> Consumer: deliver SttJob
+      activate Consumer
+      Consumer -> Context: setCurrentTenant(X-Tenant-ID)
+      Consumer -> SttService: transcribe(job)
+      activate SttService
+      SttService -> TenantDB: load answer by answerId
+      activate TenantDB
+      TenantDB --> SttService: InterviewAnswer
+      deactivate TenantDB
+      SttService -> STT: transcribe(audioUrl, language)
+      activate STT
+
+      alt STT failure
+        STT --> SttService: error
+        deactivate STT
+        SttService -> TenantDB: answer status = STT_FAILED
+        activate TenantDB
+        TenantDB --> SttService: updated
+        deactivate TenantDB
+        SttService --> Consumer: failure
+        deactivate SttService
+      else STT success
+        STT --> SttService: transcript text
+        deactivate STT
+        SttService -> TenantDB: save transcript,\nstatus = TRANSCRIBED
+        activate TenantDB
+        TenantDB --> SttService: updated
+        deactivate TenantDB
+        SttService --> Consumer: answer ready for analysis
+        deactivate SttService
+      end
+
+      Consumer -> Context: clear() in finally
+      deactivate Consumer
+    end
+  end
+
+  Guard -> Context: clear() in finally
+  deactivate Guard
+end
+
+note over Storage,TenantDB
+  Audio URL + transcript stay in tenant scope.
+  Do not return raw audio bytes or full transcript in the 202 response.
+  Downstream NLP/scoring is FE07-F02 after answers are ready.
+end note
+@enduml

@@ -4,7 +4,7 @@
 
 - Phạm vi: toàn bộ hệ thống SmartHire-AI.
 - Sơ đồ 1: [System Architecture](system-architecture.png) mô tả triển khai, các lớp xử lý và hạ tầng của hệ thống.
-- Sơ đồ 2: [Package Diagram](package-diagram.png) mô tả cấu trúc package frontend/backend và các quan hệ phụ thuộc chính.
+- Sơ đồ 2: [Package Diagram](package-diagram.png) bố cục **Users | FrontEnd layers | BackEnd layers | Stores** (giống package layering FE/BE).
 - Nội dung dưới đây giải thích hai ảnh PNG hiện tại. Các file `.puml` là nguồn sơ đồ ban đầu; bố cục và mức chi tiết không hoàn toàn trùng với bản PNG đã thiết kế lại.
 - Ngoài phạm vi: chi tiết class, bảng, endpoint và sequence của từng feature.
 
@@ -122,48 +122,82 @@ Nền màu giúp phân biệt thành phần: deployment xanh lá, các lớp ứ
 
 ## Giải thích Package Diagram
 
-Frontend được chia thành application shell, feature Master/Tenant, API client, component dùng chung, state/hook, thư viện và tài nguyên hỗ trợ. Backend giữ các bounded context nghiệp vụ trong `master` và `tenant`; entity/repository nằm ở `domain`; `multitenancy` chịu trách nhiệm định tuyến database; `messaging`, `security`, `config` và `common` là các package hạ tầng/cross-cutting. Mũi tên chỉ dependency quan trọng, không nhằm liệt kê mọi import.
+Sơ đồ tách **FrontEnd** và **BackEnd** thành hai khung lớn; mỗi khung chứa các **layer xếp dọc**. Bên trái là **Users**, bên phải là **Stores**. Phụ thuộc trong từng hệ thống đi từ lớp trên xuống lớp dưới; FE gọi BE qua HTTP.
+
+| Khung | Layer | Nội dung chính |
+| --- | --- | --- |
+| FrontEnd | Presentation | `main.tsx`, `app`, `features/*`, `components`, pages/routes |
+| FrontEnd | State | `hooks`, `stores` |
+| FrontEnd | Shared utilities | `lib`, `styles`, `i18n`, `types` |
+| FrontEnd | Api / Data access | `api/master`, `api/tenant` |
+| BackEnd | Controller | `config`, `security`, `multitenancy`, `*.controller` |
+| BackEnd | Service | `*.service`, `messaging`, `common.exception`, `common.api` |
+| BackEnd | Data Access | `domain.*`, dto/mapper, `multitenancy.datasource`, `common.redis` |
+| Stores | - | PostgreSQL, MySQL, Redis, RabbitMQ |
 
 ![Package Diagram](package-diagram.png)
 
 ### ***Package Descriptions***
 
-Các tên có dấu `/` là đường dẫn frontend; tên có dấu `.` là package Java. Những ô ghép nhiều tên trong ảnh được tách thành từng dòng để giải thích rõ. Tên package Java dưới đây được hiểu là nằm trong `com.smarthire`.
+Các tên có dấu `/` là đường dẫn frontend; tên có dấu `.` là package Java (thuộc `com.smarthire`). Ô ghép nhiều tên trên sơ đồ được tách thành từng dòng dưới đây.
 
 | **No** | **Package** | **Description** |
 | ------ | ----------- | --------------- |
-| 01 | `frontend/src` | Thư mục gốc mã nguồn frontend; chứa application shell, feature, API client và tài nguyên dùng chung. |
-| 02 | `app` | Khởi tạo ứng dụng, provider, router, layout và route guard theo vai trò/ngữ cảnh Master hoặc Tenant. |
-| 03 | `features/master` | Giao diện cấp nền tảng: auth, dashboard, landing và onboarding doanh nghiệp. |
-| 04 | `features/tenant` | Giao diện của doanh nghiệp: auth, admin, career, candidate và recruiter; gom các trang tuyển dụng theo vai trò. |
-| 05 | `api/master` | Module gọi API cấp nền tảng; `client.ts` tạo Axios client riêng và gắn token Master. |
-| 06 | `api/tenant` | Module gọi API tuyển dụng, như job, CV, assessment và matching; sử dụng tenant HTTP client từ `lib`. |
-| 07 | `components` | Component tái sử dụng: `ui` chứa primitive giao diện, `shared` chứa component dùng chung, `ux` chứa hỗ trợ trải nghiệm. |
-| 08 | `lib` | Tiện ích dùng chung; `axios.ts` quản lý tenant HTTP client, `tenant.ts` xác định tenant, `utils.ts` cung cấp hàm hỗ trợ. |
-| 09 | `hooks` | Custom React hooks dùng chung để tái sử dụng logic và tích hợp với trạng thái/ngữ cảnh ứng dụng. |
-| 10 | `stores` | Kho trạng thái dùng chung phía client theo Zustand; không thay thế TanStack Query để chứa toàn bộ dữ liệu server. |
-| 11 | `styles` | CSS và design tokens dùng cho màu sắc, typography và giao diện nhất quán. |
-| 12 | `i18n` | Cấu hình đa ngôn ngữ và các bộ bản dịch trong `locales`. |
-| 13 | `types` | Kiểu TypeScript dùng chung, bao gồm cấu trúc dữ liệu và response API được dùng giữa các module. |
-| 14 | `com.smarthire` | Package gốc backend; chứa các module nghiệp vụ, persistence, bảo mật, cấu hình và hạ tầng. |
-| 15 | `master` | Nghiệp vụ cấp SaaS: `admin` quản trị/xác thực nền tảng, `tenant` quản lý doanh nghiệp, `subscription` quản lý gói dịch vụ, `analytics` thống kê nền tảng. |
-| 16 | `tenant` | Nghiệp vụ doanh nghiệp: `auth` xác thực/người dùng; `job` tin tuyển dụng; `applicant` hồ sơ ứng tuyển; `cv` xử lý CV; `matching` chấm điểm/xếp hạng; `assessment` bài đánh giá; `interview` phỏng vấn; `practice` luyện tập; `workflow` pipeline; `schedule` lịch; `notification` thông báo; `dashboard` tổng quan. Một số module còn ở mức scaffold. |
-| 17 | `domain.master` | `entity` và `repository` của Master DB; lưu/truy vấn dữ liệu nền tảng và registry tenant qua persistence unit Master. |
-| 18 | `domain.tenant` | `entity` và `repository` của Tenant DB; lưu/truy vấn dữ liệu tuyển dụng qua persistence unit Tenant, với database được chọn theo context. |
-| 19 | `multitenancy` | Cơ chế cách ly doanh nghiệp: `context` giữ tenant hiện tại; `interceptor` kiểm tra tenant request; `resolver` cung cấp identifier cho Hibernate; `datasource` quản lý pool; `service` tra registry, xử lý credential và provisioning. |
-| 20 | `messaging` | Phát hành/tiêu thụ RabbitMQ job: `JobPublisher` gắn tenant header, `CvAnalysisWorker` nhận job CV, `TenantJobExecutor` bảo đảm context hợp lệ và được dọn sau xử lý. Các tên này là class trong package, không phải package con. |
-| 21 | `config` | Cấu hình Spring cho JPA Master/Tenant, Security, MVC, Redis, RabbitMQ, CORS và OpenAPI; liên kết các thành phần hạ tầng. |
-| 22 | `security` | Xử lý JWT, xác thực request và principal; phối hợp cấu hình security và tenant context để bảo vệ API. |
-| 23 | `common` | Thành phần dùng chung: `api` chứa response contract, `exception` chứa lỗi/handler, `redis` chứa tiện ích và quy ước key Redis. |
-| 24 | `domain.enums` | Các enum nghiệp vụ dùng chung, biểu diễn tập giá trị hữu hạn như vai trò và trạng thái. |
+| 01 | `Users` | Actor ngoài hệ thống: Candidate, Recruiter / Tenant Admin, Workspace Admin; tương tác với Presentation layer qua `<<Use>>`. |
+| 02 | `FrontEnd` (`frontend/src`) | Khung chứa toàn bộ mã nguồn React; gồm Presentation, State, Shared utilities và Api / Data access. |
+| 03 | `Presentation layer` | Lớp giao diện: entry, app shell, feature UI, component dùng chung, pages và route guard. |
+| 04 | `main.tsx` | Điểm vào ứng dụng Vite/React; gắn root và khởi chạy `App`. |
+| 05 | `app` | Shell ứng dụng: `App.tsx`, providers, router, layout (`RoleShell`) và guards theo role/context. |
+| 06 | `features/master` | UI cấp nền tảng: auth, dashboard, landing và onboarding doanh nghiệp. |
+| 07 | `features/tenant` | UI doanh nghiệp theo vai trò: auth, admin, career, candidate, recruiter. |
+| 08 | `components` | Component tái sử dụng: `ui` (primitive), `shared`, `ux`. |
+| 09 | `pages (in features)` | Các trang nghiệp vụ nằm trong feature modules (dashboard, form, list…). |
+| 10 | `routes / guards` | Định tuyến và bảo vệ route: `RoleRoute`, `MasterRoute`, `RoleShell`. |
+| 11 | `State layer` | Lớp trạng thái phía client: hooks và stores. |
+| 12 | `hooks` | Custom React hooks dùng chung (ví dụ hotkeys, helper UI). |
+| 13 | `stores` | Zustand store cho UI/auth phía client; không thay thế server state. |
+| 14 | `Shared utilities` | Tiện ích và tài nguyên dùng chung cho Presentation và Api. |
+| 15 | `lib` | HTTP/tenant helpers: `axios.ts`, `tenant.ts`, `utils`, WebSocket helper. |
+| 16 | `styles` | CSS và design tokens (`tokens.css`) theo `DESIGN.md`. |
+| 17 | `i18n` | Đa ngôn ngữ EN / VI / JA và cấu hình locale. |
+| 18 | `types` | Kiểu TypeScript dùng chung giữa các module frontend. |
+| 19 | `Api / Data access layer` | Lớp client gọi backend qua HTTPS/JSON. |
+| 20 | `api/master` | Module gọi API nền tảng; `client.ts` gắn Master token. |
+| 21 | `api/tenant` | Module gọi API tuyển dụng; Axios gắn JWT và `X-Tenant-ID` / tenant context. |
+| 22 | `BackEnd` (`com.smarthire`) | Khung Spring Boot: Controller, Service và Data Access. |
+| 23 | `Controller layer` | Điểm nhận HTTP: config, security, multitenancy và các `*.controller`. |
+| 24 | `config` | Cấu hình Spring: JPA Master/Tenant, Security, MVC, Redis, RabbitMQ, CORS, OpenAPI. |
+| 25 | `security` | JWT filter, principal và RBAC; cung cấp tenant context cho request. |
+| 26 | `multitenancy` | Cách ly tenant ở biên request: interceptor, context, resolver Hibernate. |
+| 27 | `master.*.controller` | REST controller nền tảng: admin, tenant, subscription, analytics. |
+| 28 | `tenant.*.controller` | REST controller doanh nghiệp: auth, job, CV, matching, assessment, interview… |
+| 29 | `Service layer` | Nghiệp vụ và xử lý bất đồng bộ: `*.service`, messaging, common. |
+| 30 | `master.*.service` | Use-case SaaS: quản trị tenant, gói dịch vụ, analytics nền tảng. |
+| 31 | `tenant.*.service` | Use-case tuyển dụng trong phạm vi một tenant; publish async khi cần. |
+| 32 | `messaging` | RabbitMQ: `JobPublisher`, worker (ví dụ `CvAnalysisWorker`), `TenantJobExecutor`. |
+| 33 | `common.exception` | Domain exception và `GlobalExceptionHandler`. |
+| 34 | `common.api` | Contract phản hồi API dùng chung (`ApiResponse`…). |
+| 35 | `Data Access layer` | Persistence, DTO/mapper, datasource tenant và Redis helpers. |
+| 36 | `domain.master` | Entity + repository Master DB (registry tenant, plans, platform users). |
+| 37 | `domain.tenant` | Entity + repository Tenant DB (User, Job, CV, Application, Assessment, Interview…). |
+| 38 | `domain.enums` | Enum nghiệp vụ dùng chung (role, status…). |
+| 39 | `dto + mapper` | Request/response DTO và mapper (MapStruct hoặc manual) trong feature packages. |
+| 40 | `multitenancy.datasource` | HikariCP động theo tenant; chọn MySQL DB từ tenant context. |
+| 41 | `common.redis` | Key convention và tiện ích Redis (cache, OTP, rate-limit…). |
+| 42 | `Stores` | Hạ tầng dữ liệu/messaging ngoài process ứng dụng. |
+| 43 | `PostgreSQL` | Master DB — dữ liệu nền tảng và registry tenant. |
+| 44 | `MySQL` | Tenant DB riêng theo từng doanh nghiệp (qua datasource động). |
+| 45 | `Redis` | Cache ngắn hạn, OTP, session/rate-limit. |
+| 46 | `RabbitMQ` | Hàng đợi job bất đồng bộ mang header tenant. |
 
 ### Cách đọc quan hệ package
 
-- Khung ngoài `frontend/src` và `com.smarthire` biểu thị phạm vi chứa package; các ô có tab là ký hiệu package. Các dòng tên bên trong ô là package con hoặc thành phần tiêu biểu theo bảng mô tả.
-- Mũi tên nét đứt đi từ package sử dụng đến package được sử dụng: `app` dùng feature, feature dùng API client, `api/tenant` dùng `lib`, `master` dùng `domain.master`, `tenant` dùng `domain.tenant` và `multitenancy`.
-- Mũi tên nét liền `platform API` và `tenant API` biểu thị lời gọi HTTP từ frontend đến backend, không phải import Java/TypeScript xuyên ứng dụng.
-- `multitenancy → domain.master` là phụ thuộc để tra registry; `messaging → multitenancy` phục vụ kiểm tra và phục hồi tenant context.
-- Các package shared/configuration vẫn được sử dụng dù không vẽ tất cả mũi tên. Sơ đồ chọn các phụ thuộc chính để giữ độ rõ; không phải đồ thị import đầy đủ và không thể dùng để khẳng định hệ thống không có phụ thuộc ngược.
+- Hai khung lớn **FrontEnd** / **BackEnd** chứa các layer; ô có tab là package. Dependency trong mỗi khung đi **xuống** (lớp trên dùng lớp dưới).
+- `<<Use>>`: Users dùng Presentation. `<<access>>` / `<<usage>>` / `<<dependency>>`: phụ thuộc package (nét đứt).
+- Mũi tên xanh FE Api -> BE Controller: lời gọi HTTP (HTTPS/JSON, JWT + X-Tenant-ID), không phải import xuyên runtime.
+- Data Access -> Stores: persistence / cache / queue.
+- `package-diagram-detailed.png` giữ bản package chi tiết kiểu cũ để đối chiếu.
+- Chỉ vẽ cạnh chính; không phải đồ thị import đầy đủ.
 
 ## Quyết định bảo mật, giao dịch và vận hành
 
@@ -186,7 +220,8 @@ Các tên có dấu `/` là đường dẫn frontend; tên có dấu `.` là pac
 | File | Kích thước | Ghi chú |
 | --- | --- | --- |
 | [system-architecture.png](system-architecture.png) | 3600 × 2160 px; ít nhất 300 DPI | Nền màu phân biệt thành phần; khung và đường nối đã tăng độ đậm. |
-| [package-diagram.png](package-diagram.png) | 3600 × 2400 px; ít nhất 300 DPI | Nền trắng, khung package mảnh và các phụ thuộc được chọn lọc. |
+| [package-diagram.png](package-diagram.png) | 4960 × 2960 px; ít nhất 300 DPI | Bố cục Users \| FrontEnd layers \| BackEnd layers \| Stores. |
+| [package-diagram-detailed.png](package-diagram-detailed.png) | (bản trước) | Package diagram chi tiết kiểu cũ, giữ để đối chiếu. |
 
 Hai ảnh được dựng bằng System.Drawing từ script PowerShell và đã kiểm tra trực quan cùng metadata DPI. Chỉ xuất PNG theo yêu cầu; không tạo SVG. Nguồn PlantUML ban đầu chưa được validate bằng PlantUML vì môi trường không có renderer tương ứng; render lại `.puml` sẽ không tái tạo chính xác bố cục PNG hiện tại.
 

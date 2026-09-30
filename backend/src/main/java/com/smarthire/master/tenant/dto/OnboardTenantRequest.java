@@ -19,6 +19,15 @@ public class OnboardTenantRequest extends TenantAdminRequest {
     private String dbPassword;
     private String environmentType;
 
+    @Size(max = 255)
+    private String companyLegalName;
+    @Size(max = 50)
+    private String taxCode;
+    @Size(max = 512)
+    private String billingAddress;
+    @Email @Size(max = 255)
+    private String billingEmail;
+
     public String getCode() { return code; }
     public void setCode(String value) { code = value; }
     public String getName() { return name; }
@@ -33,4 +42,13 @@ public class OnboardTenantRequest extends TenantAdminRequest {
     public void setDbPassword(String value) { dbPassword = value; }
     public String getEnvironmentType() { return environmentType; }
     public void setEnvironmentType(String value) { environmentType = value; }
+    
+    public String getCompanyLegalName() { return companyLegalName; }
+    public void setCompanyLegalName(String value) { companyLegalName = value; }
+    public String getTaxCode() { return taxCode; }
+    public void setTaxCode(String value) { taxCode = value; }
+    public String getBillingAddress() { return billingAddress; }
+    public void setBillingAddress(String value) { billingAddress = value; }
+    public String getBillingEmail() { return billingEmail; }
+    public void setBillingEmail(String value) { billingEmail = value; }
 }

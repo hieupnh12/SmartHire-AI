@@ -42,3 +42,9 @@ Status ứng viên: NEW, IN_REVIEW, ASSESSMENT, INTERVIEW, OFFER, HIRED, REJECTE
 ## Phụ thuộc
 
 WF-01
+
+## Tích hợp AI Interview (2026-09-27)
+
+- Chuyển sang `INTERVIEW` tạo lời mời AI Interview và notification cho candidate trong cùng transaction, không lặp lại nếu đã có phiên.
+- CV screening tự động ghi lịch sử với `changed_by = NULL` (system); không yêu cầu SecurityContext của người dùng trong RabbitMQ worker. TenantContext vẫn bắt buộc.
+- Thao tác chuyển vòng thủ công của recruiter sử dụng `POST /api/v1/applications/{id}/status`; API này cũng có thể tạo lời mời còn thiếu cho hồ sơ đã ở `INTERVIEW`.

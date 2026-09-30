@@ -1,0 +1,155 @@
+@startuml
+title FE07-F02 — Interview Evaluation & Scoring\nEvaluate answers and score session
+skinparam dpi 300
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam sequenceArrowThickness 1
+skinparam sequenceMessageAlign center
+skinparam ArrowColor #64748B
+skinparam ParticipantBorderColor #CBD5E1
+skinparam ParticipantBackgroundColor #F8FAFC
+hide footbox
+autonumber
+
+actor "Recruiter / HR" as Recruiter
+boundary "Interview Score UI" as FE
+control "Security + TenantWebInterceptor" as Guard
+control "TenantContext" as Context
+boundary "InterviewController" as Controller
+control "InterviewService" as Service
+queue "RabbitMQ\ninterview.score" as MQ
+control "InterviewScoreConsumer" as Consumer
+control "InterviewScoringService" as Scoring
+control "ScoringRubricPolicy" as Rubric
+database "Dedicated Tenant DB" as TenantDB
+
+note over Recruiter,TenantDB
+  Preconditions: authenticated RECRUITER or TENANT_ADMIN;
+  active tenant; interview has answered questions with usable transcripts;
+  NLP/STT completion of live interview is out of scope (assumed ready).
+  Scope A: per-answer evaluation + overall session score.
+  Rubric 1: fixed relevance, depth, soft-skills (+ question competency).
+end note
+
+Recruiter -> FE: Request score for interview session
+activate FE
+FE -> Guard: POST /api/v1/interviews/{id}/score\nX-Tenant-ID
+activate Guard
+Guard -> Guard: authenticate and authorize role
+
+alt unauthenticated or unauthorized
+  Guard --> FE: 401 / 403
+  deactivate Guard
+  FE --> Recruiter: Show access error
+  deactivate FE
+else authorized
+  Guard -> Context: setCurrentTenant(tenantId)
+  Guard -> Controller: forward request
+  activate Controller
+  Controller -> Service: requestScore(interviewId, principal)
+  activate Service
+  Service -> TenantDB: load Interview + answers + answers
+  activate TenantDB
+
+  alt interview missing
+    TenantDB --> Service: empty
+    deactivate TenantDB
+    Service --> Controller: 404 INTERVIEW_NOT_FOUND
+    deactivate Service
+    Controller --> FE: error response
+    deactivate Controller
+    FE --> Recruiter: Show not found
+    deactivate FE
+  else interview loaded
+    TenantDB --> Service: Interview aggregate
+    deactivate TenantDB
+
+    alt not ready to score\n(no answers / incomplete transcripts /\ninvalid status)
+      Service --> Controller: 409 SCORING_NOT_READY
+      deactivate Service
+      Controller --> FE: error response
+      deactivate Controller
+      FE --> Recruiter: Show not ready
+      deactivate FE
+    else ready
+      Service -> TenantDB: status = SCORING
+      activate TenantDB
+      TenantDB --> Service: updated
+      deactivate TenantDB
+      Service -> MQ: publish InterviewScoreJob\nheader X-Tenant-ID
+      activate MQ
+      MQ --> Service: accepted
+      deactivate MQ
+      Service --> Controller: ScoreAcceptedResponse
+      deactivate Service
+      Controller --> FE: 202 Accepted (SCORING)
+      deactivate Controller
+      FE --> Recruiter: Scoring in progress
+      deactivate FE
+
+      MQ -> Consumer: deliver InterviewScoreJob
+      activate Consumer
+      Consumer -> Context: setCurrentTenant(X-Tenant-ID)
+      Consumer -> Scoring: scoreInterview(job)
+      activate Scoring
+      Scoring -> TenantDB: load interview answers + questions
+      activate TenantDB
+      TenantDB --> Scoring: answers ready
+      deactivate TenantDB
+
+      loop each answered question
+        Scoring -> Rubric: evaluate(answer, question)
+        activate Rubric
+        Rubric --> Scoring: QuestionEvaluation\n(relevance, depth, softSkills, questionScore)
+        deactivate Rubric
+        Scoring -> TenantDB: upsert interview_answer_analyses
+        activate TenantDB
+        TenantDB --> Scoring: analysis saved
+        deactivate TenantDB
+      end
+
+      Scoring -> Rubric: aggregate(evaluations)
+      activate Rubric
+      Rubric --> Scoring: OverallScoreResult\n(overall + breakdown_json)
+      deactivate Rubric
+      Scoring -> TenantDB: upsert interview_scores
+      activate TenantDB
+      TenantDB --> Scoring: InterviewScore
+      deactivate TenantDB
+
+      alt scoring failed
+        Scoring -> TenantDB: status = FAILED
+        activate TenantDB
+        TenantDB --> Scoring: updated
+        deactivate TenantDB
+        Scoring --> Consumer: failure
+        deactivate Scoring
+      else scoring succeeded
+        Scoring -> TenantDB: status = SCORED
+        activate TenantDB
+        TenantDB --> Scoring: updated
+        deactivate TenantDB
+        Scoring --> Consumer: InterviewScore
+        deactivate Scoring
+        note right of Scoring
+          May emit ranking-source changed
+          for overall candidate score (INT-04).
+          Feedback share is INT-05 / out of scope.
+        end note
+      end
+
+      Consumer -> Context: clear() in finally
+      deactivate Consumer
+    end
+  end
+
+  Guard -> Context: clear() in finally
+  deactivate Guard
+end
+
+note over MQ,TenantDB
+  Async worker must restore and clear TenantContext.
+  Re-score is idempotent via upsert of analyses and interview_scores.
+  Raw prompts, transcripts and secrets are not returned to the client here.
+end note
+@enduml

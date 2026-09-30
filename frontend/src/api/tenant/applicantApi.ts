@@ -7,11 +7,14 @@ export type ApplicationListParams = {
   status?: string;
   source?: string;
   archived?: boolean;
+  includeWithdrawn?: boolean;
   page?: number;
   size?: number;
 };
 
 export const applicantApi = {
+  list: (params: ApplicationListParams & { jobId?: number } = {}) =>
+    api.get<ApiResponse<ApplicationPage>>("/applications", { params }).then((r) => r.data),
   listByJob: (jobId: number | string, params: ApplicationListParams = {}) =>
     api.get<ApiResponse<ApplicationPage>>(`/jobs/${jobId}/applications`, { params }).then((r) => r.data),
   apply: (jobId: number | string, body?: Record<string, unknown>) =>
@@ -22,6 +25,8 @@ export const applicantApi = {
     api.patch<ApiResponse<ApplicationDetail>>(`/applications/${id}`, body).then((r) => r.data),
   changeStatus: (id: number | string, status: string, note?: string) =>
     api.post<ApiResponse<ApplicationDetail>>(`/applications/${id}/status`, { status, note }).then((r) => r.data),
+  decideCvScreening: (id: number | string, passed: boolean, note?: string) =>
+    api.post<ApiResponse<ApplicationDetail>>(`/applications/${id}/cv-screening-decision`, { passed, note }).then((r) => r.data),
   reject: (id: number | string, note?: string) =>
     api.post<ApiResponse<ApplicationDetail>>(`/applications/${id}/reject`, { note }).then((r) => r.data),
   archive: (id: number | string) =>

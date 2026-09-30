@@ -1,0 +1,66 @@
+import { AlertTriangle, CheckCircle2, CircleDashed, ListChecks, RefreshCw } from "lucide-react";
+import type { AiInterviewStatus } from "@/api/types/aiInterview";
+import { cn } from "@/lib/utils";
+
+export const AI_INTERVIEW_STATUSES: AiInterviewStatus[] = [
+  "CREATED",
+  "GENERATING",
+  "PASSED",
+  "ERROR",
+  "QUESTIONS_READY",
+  "IN_PROGRESS",
+  "SCORING",
+  "SCORED",
+  "FAILED",
+];
+
+export const aiStatusLabel: Record<AiInterviewStatus, string> = {
+  CREATED: "Đang chuẩn bị",
+  GENERATING: "Đang sinh câu hỏi",
+  PASSED: "Đạt",
+  ERROR: "Lỗi xử lý",
+  QUESTIONS_READY: "Đã có câu hỏi",
+  IN_PROGRESS: "Đang diễn ra",
+  SCORING: "Đang chấm điểm",
+  SCORED: "Đã chấm xong",
+  FAILED: "Không đạt",
+};
+
+export const AI_QUESTION_TYPES = ["TECHNICAL", "BEHAVIORAL", "SITUATIONAL", "GENERAL"] as const;
+
+export function formatDateTime(value: string | null | undefined) {
+  if (!value) return "—";
+  return new Date(value).toLocaleString("vi-VN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+}
+
+export function AiStatusBadge({ status }: { status: AiInterviewStatus }) {
+  const tone: Record<AiInterviewStatus, string> = {
+    GENERATING: "bg-[var(--color-surface-container-high)] text-brand-primary",
+    PASSED: "bg-[var(--color-surface-container-low)] text-brand-primary",
+    ERROR: "bg-[var(--color-error-container)] text-[var(--color-on-error-container)]",
+    CREATED: "bg-[var(--color-surface-container)] text-[var(--color-on-surface-variant)]",
+    QUESTIONS_READY: "bg-[var(--color-surface-container-high)] text-[var(--color-primary)]",
+    IN_PROGRESS: "bg-[#c9e6ff] text-[#001e2f]",
+    SCORING: "bg-[var(--color-surface-container-high)] text-[var(--color-primary)]",
+    SCORED: "bg-[var(--color-surface-container-low)] text-[var(--color-primary)]",
+    FAILED: "bg-[#ffdad6] text-[#93000a]",
+  };
+  const Icon =
+    (status === "SCORING" || status === "GENERATING") ? RefreshCw
+      : (status === "SCORED" || status === "PASSED") ? CheckCircle2
+        : (status === "FAILED" || status === "ERROR") ? AlertTriangle
+          : status === "QUESTIONS_READY" ? ListChecks
+            : CircleDashed;
+  return (
+    <span className={cn("inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold shadow-sm", tone[status])}>
+      <Icon className={cn("size-3.5", status === "SCORING" && "animate-spin")} aria-hidden="true" />
+      {aiStatusLabel[status]}
+    </span>
+  );
+}

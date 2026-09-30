@@ -1,0 +1,1027 @@
+# Data Dictionary - Tenant DB (MySQL)
+
+## AI Interview workflow V25–V26 (2026-09-27)
+
+V25 thêm cấu hình AI Interview theo job, trạng thái CV screening của đơn và cột phục vụ worker.
+V26 đặt số câu hỏi 30–40 (mặc định 30; dữ liệu cũ < 30 nâng lên 30, > 40 hạ xuống 40) và thêm
+bảng nhật ký `ai_interview_logs` (chi tiết ở [H.5](#h5-ai_interview_logs--nhật-ký-hoạt-động-ai-interview)).
+
+| Bảng · cột | Kiểu | Null | Default | Khóa | Ý nghĩa |
+|---|---|---|---|---|---|
+| `jobs.ai_interview_enabled` | BOOLEAN | Không | FALSE | — | Job có bật vòng AI Interview |
+| `jobs.ai_interview_passing_score` | DECIMAL(5,2) | Không | 70.00 | — | Ngưỡng đạt `aiInterviewPassingScore` (0–100) |
+| `jobs.ai_interview_question_count` | INT | Không | 5 (V33; V26 là 30, V25 là 5) | — | Số câu hỏi–đáp AI sinh; service cho 1–30 (từ V35, trước đó cố định 5) |
+| `jobs.ai_interview_policy_json` | JSON | Có | NULL | — | V35. Cấu hình `InterviewPolicy`: thời gian, số lần làm, trọng số 5 nhóm năng lực, Job Skills, lộ trình chặng, Mini Assessment. NULL = mặc định |
+| `jobs.ai_interview_available_until` | TIMESTAMP | Có | NULL | — | Hạn cuối được bắt đầu AI Interview; NULL = không giới hạn |
+| `applications.cv_screening_status` | VARCHAR(16) | Không | `'PENDING'` | — | `CvScreeningStatus`: `PENDING`, `PASSED`, `FAILED` |
+| `ai_interviews.passing_score_snapshot` | DECIMAL(5,2) | Có | NULL | — | Ngưỡng đạt chốt lúc candidate bắt đầu |
+| `ai_interviews.error_message` | VARCHAR(255) | Có | NULL | — | Thông báo lỗi đã làm sạch khi sinh câu/chấm lỗi |
+| `email_outbox.purpose` | VARCHAR(64) | Có | NULL | IDX | Mục đích email, ví dụ `AI_INTERVIEW_RESULT` |
+
+## Dọn legacy V21 (2026-09-26)
+
+V12 tạo model Test/Interview/AI/Practice hiện hành, không dùng lại V9 đã thuộc analytics.
+V21 xóa 19 bảng `legacy_v12_*` (README §3.2), toàn bộ dữ liệu, PK, UNIQUE và FK trên chúng.
+Không còn archive sau V21. Hai cột `ranking_sources.legacy_attempt_id` và
+`ranking_sources.legacy_interview_id` (BIGINT nullable, không FK) cũng bị xóa.
+ID legacy không được chuyển sang nguồn mới. Các cột nguồn hiện hành bên dưới giữ nguyên.
+
+| Bảng · cột | Kiểu | Null | Default | Khóa | Ý nghĩa |
+|---|---|---|---|---|---|
+| `ranking_sources.submission_id` | BIGINT | Có | NULL | FK → submissions.id | Nguồn mới, không backfill |
+| `ranking_sources.ai_interview_id` | BIGINT | Có | NULL | FK → ai_interviews.id | Nguồn mới, không backfill |
+
+Hai bảng quyền V10/V11 đã có, được phục hồi đúng version, không sửa nội dung SQL:
+
+| Bảng · cột | Kiểu | Null | Default | Khóa |
+|---|---|---|---|---|
+| `role_permissions.id` | BIGINT AUTO_INCREMENT | Không | — | PK |
+| `role_permissions.role` | VARCHAR(64) | Không | — | UQ cùng feature_code |
+| `role_permissions.feature_code` | VARCHAR(64) | Không | — | UQ cùng role |
+| `role_permissions.created_at` | TIMESTAMP | Không | CURRENT_TIMESTAMP | — |
+| `role_permissions.updated_at` | TIMESTAMP | Không | CURRENT_TIMESTAMP, ON UPDATE | — |
+| `roles.id` | BIGINT AUTO_INCREMENT | Không | — | PK |
+| `roles.code` | VARCHAR(64) | Không | — | UQ |
+| `roles.name` | VARCHAR(128) | Không | — | — |
+| `roles.workspace` | VARCHAR(32) | Không | — | — |
+| `roles.is_system` | TINYINT(1) | Không | 0 | — |
+| `roles.created_at` | TIMESTAMP | Không | CURRENT_TIMESTAMP | — |
+| `roles.updated_at` | TIMESTAMP | Không | CURRENT_TIMESTAMP, ON UPDATE | — |
+
+V11 mở rộng `users.role`, `member_invitations.role` thành VARCHAR(64) NOT NULL, không FK đến roles.
+
+## Các bảng hiện hành
+
+> Xem [Database Design & ERD](README.md) và [Data Dictionary Master](DATA_DICTIONARY_MASTER.md).
+
+**Database:** MySQL riêng cho mỗi doanh nghiệp. **Số bảng:** 60 theo pipeline repo sau V32, không còn archive, không tính Flyway history. DB ttqt có thêm mở rộng từ lịch sử V14–V20 ngoài checkout.
+**Nguồn:** `backend/src/main/resources/db/migration/tenant/`, V1–V13, V21–V32. V27–V32 là screening, assignment và landing, đánh số lại để không trùng V13 và V21–V26.
+**Entity:** `com.smarthire.domain.tenant.entity`. **Hibernate:** `hbm2ddl.auto = none`.
+
+KÃ½ hiá»‡u: `PK` khoÃ¡ chÃ­nh Â· `FK` khoÃ¡ ngoáº¡i Ä‘Ã£ khai bÃ¡o Â· `UQ` thuá»™c rÃ ng buá»™c unique Â· `IDX` cÃ³ index Â·
+`ref*` trÃ´ng nhÆ° khoÃ¡ ngoáº¡i nhÆ°ng **khÃ´ng** cÃ³ rÃ ng buá»™c trong database.
+
+**Quy Æ°á»›c Ã¡p dá»¥ng cho má»i báº£ng trong file nÃ y**
+
+- `id` luÃ´n lÃ  `BIGINT AUTO_INCREMENT PRIMARY KEY`, trá»« `ranking_configs` vÃ  `ranking_sources` dÃ¹ng khoÃ¡ tá»± nhiÃªn, vÃ  `interview_participants` dÃ¹ng PK kÃ©p.
+- `created_at` lÃ  `TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`.
+- `updated_at` lÃ  `TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP` (chá»‰ cÃ³ á»Ÿ má»™t sá»‘ báº£ng).
+- Cá»™t tráº¡ng thÃ¡i lÆ°u `VARCHAR(32)`, Ã¡nh xáº¡ báº±ng `@Enumerated(EnumType.STRING)`, **khÃ´ng** cÃ³ `CHECK` constraint.
+- Entity dÃ¹ng `Instant` cho cá»™t thá»i gian vÃ  `@ManyToOne(fetch = LAZY)` cho khoÃ¡ ngoáº¡i.
+- **KhÃ´ng báº£ng nÃ o cÃ³ cá»™t `tenant_id`** â€” cÃ¡ch ly dá»¯ liá»‡u do viá»‡c chá»n datasource Ä‘áº£m nhiá»‡m.
+
+**Má»¥c lá»¥c**
+
+- [A. Identity & Access](#a-identity--access) â€” 4 báº£ng
+- [B. Job & Skill](#b-job--skill) â€” 4 báº£ng
+- [C. Application pipeline](#c-application-pipeline) â€” 3 báº£ng
+- [D. CV & AI screening](#d-cv--ai-screening) â€” 6 báº£ng
+- [E. Ranking](#e-ranking) â€” 5 báº£ng
+- [F. Test & Proctoring](#f-test--proctoring) â€” 10 báº£ng
+- [G. Direct Interview](#g-direct-interview) â€” 5 báº£ng
+- [H. AI Interview](#h-ai-interview) â€” 4 báº£ng
+- [I. Notification](#i-notification) â€” 2 báº£ng
+- [J. Practice](#j-practice) â€” 3 báº£ng
+
+---
+
+## A. Identity & Access
+
+### A.1 `users` â€” NgÆ°á»i dÃ¹ng cá»§a doanh nghiá»‡p
+
+Entity `User` (káº¿ thá»«a `BaseEntity`). Má»i vai trÃ² dÃ¹ng chung má»™t báº£ng, phÃ¢n biá»‡t báº±ng `role`.
+
+| Cá»™t | Kiá»ƒu | KhoÃ¡ | Null | Default | MÃ´ táº£ |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | KhÃ´ng | auto | |
+| `email` | VARCHAR(255) | UQ | KhÃ´ng | â€” | Email Ä‘Äƒng nháº­p, unique trong pháº¡m vi tenant |
+| `password_hash` | VARCHAR(255) | | CÃ³ | NULL | NULL vá»›i tÃ i khoáº£n chá»‰ Ä‘Äƒng nháº­p báº±ng OAuth |
+| `full_name` | VARCHAR(255) | | KhÃ´ng | â€” | Há» tÃªn |
+| `role` | VARCHAR(32) | | KhÃ´ng | â€” | `UserRole`: TENANT_ADMIN, ADMIN, HR, RECRUITER, CANDIDATE |
+| `status` | VARCHAR(32) | | KhÃ´ng | `'ACTIVE'` | `UserStatus`: ACTIVE, LOCKED, DISABLED |
+| `created_at` | TIMESTAMP | | KhÃ´ng | now | |
+| `updated_at` | TIMESTAMP | | KhÃ´ng | now on update | |
+
+**RÃ ng buá»™c:** `uk_users_email`
+
+### A.2 `oauth_accounts` â€” LiÃªn káº¿t Ä‘Äƒng nháº­p ngoÃ i
+
+Entity `OauthAccount`.
+
+| Cá»™t | Kiá»ƒu | KhoÃ¡ | Null | Default | MÃ´ táº£ |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | KhÃ´ng | auto | |
+| `user_id` | BIGINT | FK â†’ `users.id` | KhÃ´ng | â€” | TÃ i khoáº£n Ä‘Æ°á»£c liÃªn káº¿t |
+| `provider` | VARCHAR(32) | UQ | KhÃ´ng | â€” | `OAuthProvider`: hiá»‡n chá»‰ `GOOGLE` |
+| `provider_user_id` | VARCHAR(255) | UQ | KhÃ´ng | â€” | Äá»‹nh danh ngÆ°á»i dÃ¹ng phÃ­a provider |
+| `created_at` | TIMESTAMP | | KhÃ´ng | now | |
+
+**RÃ ng buá»™c:** `fk_oauth_user`, `uk_oauth_provider_user (provider, provider_user_id)`
+
+### A.3 `user_profiles` â€” Há»“ sÆ¡ má»Ÿ rá»™ng
+
+Entity `UserProfile` (káº¿ thá»«a `BaseEntity`).
+
+| Cá»™t | Kiá»ƒu | KhoÃ¡ | Null | Default | MÃ´ táº£ |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | KhÃ´ng | auto | |
+| `user_id` | BIGINT | FK â†’ `users.id`, UQ | KhÃ´ng | â€” | 1:1 vá»›i tÃ i khoáº£n |
+| `phone` | VARCHAR(32) | | CÃ³ | NULL | Äiá»‡n thoáº¡i |
+| `avatar_url` | VARCHAR(512) | | CÃ³ | NULL | áº¢nh Ä‘áº¡i diá»‡n |
+| `bio` | TEXT | | CÃ³ | NULL | Giá»›i thiá»‡u báº£n thÃ¢n |
+| `headline` | VARCHAR(255) | | CÃ³ | NULL | DÃ²ng tiÃªu Ä‘á» nghá» nghiá»‡p |
+| `links_json` | JSON | | CÃ³ | NULL | LiÃªn káº¿t máº¡ng xÃ£ há»™i, portfolio |
+| `created_at` | TIMESTAMP | | KhÃ´ng | now | |
+| `updated_at` | TIMESTAMP | | KhÃ´ng | now on update | |
+
+**RÃ ng buá»™c:** `fk_profile_user`, `uk_profile_user (user_id)`
+
+### A.4 `member_invitations` â€” Lá»i má»i nhÃ¢n sá»±
+
+Entity `MemberInvitation` (káº¿ thá»«a `BaseEntity`). KhÃ´ng cÃ³ khoÃ¡ ngoáº¡i tá»›i `users`.
+
+| Cá»™t | Kiá»ƒu | KhoÃ¡ | Null | Default | MÃ´ táº£ |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | KhÃ´ng | auto | |
+| `email` | VARCHAR(255) | | KhÃ´ng | â€” | Email ngÆ°á»i Ä‘Æ°á»£c má»i |
+| `full_name` | VARCHAR(255) | | KhÃ´ng | â€” | Há» tÃªn ngÆ°á»i Ä‘Æ°á»£c má»i |
+| `role` | VARCHAR(32) | | KhÃ´ng | â€” | Vai trÃ² sáº½ Ä‘Æ°á»£c cáº¥p khi cháº¥p nháº­n |
+| `token_hash` | VARCHAR(64) | UQ | KhÃ´ng | â€” | **Hash** cá»§a token má»i; token gá»‘c khÃ´ng bao giá» Ä‘Æ°á»£c lÆ°u hay log |
+| `status` | VARCHAR(32) | | KhÃ´ng | `'PENDING'` | `InvitationStatus`: PENDING, ACCEPTED |
+| `expires_at` | TIMESTAMP | | KhÃ´ng | â€” | Háº¡n dÃ¹ng cá»§a lá»i má»i |
+| `created_at` | TIMESTAMP | | KhÃ´ng | now | |
+| `updated_at` | TIMESTAMP | | KhÃ´ng | now on update | |
+
+**RÃ ng buá»™c:** `uk_member_invitations_token_hash`
+
+---
+
+## B. Job & Skill
+
+### B.1 `jobs` â€” Tin tuyá»ƒn dá»¥ng
+
+Entity `Job` (káº¿ thá»«a `BaseEntity`). Báº£ng Ä‘Æ°á»£c má»Ÿ rá»™ng qua V2 vÃ  V6.
+
+| Cá»™t | Kiá»ƒu | KhoÃ¡ | Null | Default | MÃ´ táº£ |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | KhÃ´ng | auto | |
+| `title` | VARCHAR(255) | | KhÃ´ng | â€” | TiÃªu Ä‘á» tin |
+| `description` | TEXT | | KhÃ´ng | â€” | MÃ´ táº£ cÃ´ng viá»‡c |
+| `location` | VARCHAR(255) | | CÃ³ | NULL | Äá»‹a Ä‘iá»ƒm lÃ m viá»‡c |
+| `employment_type` | VARCHAR(32) | | CÃ³ | NULL | ToÃ n thá»i gian, bÃ¡n thá»i gian, há»£p Ä‘á»“ngâ€¦ |
+| `status` | VARCHAR(32) | | KhÃ´ng | `'DRAFT'` | `JobStatus`: DRAFT, PUBLISHED, PAUSED, CLOSED, ARCHIVED |
+| `created_by` | BIGINT | FK â†’ `users.id` | KhÃ´ng | â€” | Recruiter táº¡o tin |
+| `published_at` | TIMESTAMP | | CÃ³ | NULL | Thá»i Ä‘iá»ƒm Ä‘Äƒng cÃ´ng khai (V2) |
+| `paused_at` | TIMESTAMP | | CÃ³ | NULL | Thá»i Ä‘iá»ƒm táº¡m dá»«ng (V6) |
+| `closed_at` | TIMESTAMP | | CÃ³ | NULL | Thá»i Ä‘iá»ƒm Ä‘Ã³ng tin |
+| `deleted_at` | TIMESTAMP | | CÃ³ | NULL | XoÃ¡ má»m (V2); khÃ¡c vá»›i `status` |
+| `department` | VARCHAR(128) | | CÃ³ | NULL | PhÃ²ng ban (V6) |
+| `work_mode` | VARCHAR(32) | | CÃ³ | NULL | Onsite, hybrid, remote (V6) |
+| `screening_mode` | VARCHAR(16) | | Không | `'MANUAL'` | Chế độ sàng lọc CV `AUTO` hoặc `MANUAL` (V31) |
+| `headcount` | INT | | CÃ³ | NULL | Sá»‘ lÆ°á»£ng cáº§n tuyá»ƒn (V6) |
+| `deadline` | DATETIME | | Có | NULL | Hết hạn đăng tin (V6 DATE → V29 DATETIME). Hết giờ job đóng; chỉ `AUTO` tự sàng CV |
+| `salary_min` | DECIMAL(12,2) | | CÃ³ | NULL | LÆ°Æ¡ng tá»‘i thiá»ƒu (V6) |
+| `salary_max` | DECIMAL(12,2) | | CÃ³ | NULL | LÆ°Æ¡ng tá»‘i Ä‘a (V6) |
+| `salary_currency` | VARCHAR(8) | | CÃ³ | NULL | ÄÆ¡n vá»‹ tiá»n tá»‡ (V6) |
+| `salary_visible` | BOOLEAN | | KhÃ´ng | TRUE | CÃ³ hiá»ƒn thá»‹ lÆ°Æ¡ng ra trang cÃ´ng khai khÃ´ng (V6) |
+| `responsibilities` | TEXT | | CÃ³ | NULL | TrÃ¡ch nhiá»‡m cÃ´ng viá»‡c (V6) |
+| `benefits` | TEXT | | CÃ³ | NULL | PhÃºc lá»£i (V6) |
+| `min_years_experience` | DECIMAL(4,1) | | CÃ³ | NULL | Sá»‘ nÄƒm kinh nghiá»‡m tá»‘i thiá»ƒu (V6) |
+| `education_level` | VARCHAR(64) | | CÃ³ | NULL | TrÃ¬nh Ä‘á»™ há»c váº¥n tá»‘i thiá»ƒu (V6) |
+| `created_at` | TIMESTAMP | | KhÃ´ng | now | |
+| `updated_at` | TIMESTAMP | | KhÃ´ng | now on update | |
+
+**RÃ ng buá»™c:** `fk_jobs_user`
+
+### B.2 `skills` â€” Tá»« Ä‘iá»ƒn ká»¹ nÄƒng
+
+Entity `Skill`. Báº£ng khÃ´ng cÃ³ cá»™t thá»i gian.
+
+| Cá»™t | Kiá»ƒu | KhoÃ¡ | Null | Default | MÃ´ táº£ |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | KhÃ´ng | auto | |
+| `name` | VARCHAR(128) | UQ | KhÃ´ng | â€” | TÃªn ká»¹ nÄƒng chuáº©n |
+| `category` | VARCHAR(64) | | CÃ³ | NULL | NhÃ³m ká»¹ nÄƒng |
+| `aliases_json` | JSON | | CÃ³ | NULL | CÃ¡c biáº¿n thá»ƒ tÃªn gom vá» ká»¹ nÄƒng nÃ y (V5) |
+
+**RÃ ng buá»™c:** `uk_skills_name`
+
+### B.3 `job_skills` â€” Ká»¹ nÄƒng yÃªu cáº§u cá»§a tin tuyá»ƒn dá»¥ng
+
+Entity `JobSkill`. Báº£ng ná»‘i N-N cÃ³ thuá»™c tÃ­nh.
+
+| Cá»™t | Kiá»ƒu | KhoÃ¡ | Null | Default | MÃ´ táº£ |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | KhÃ´ng | auto | |
+| `job_id` | BIGINT | FK â†’ `jobs.id`, UQ | KhÃ´ng | â€” | Tin tuyá»ƒn dá»¥ng |
+| `skill_id` | BIGINT | FK â†’ `skills.id`, UQ | KhÃ´ng | â€” | Ká»¹ nÄƒng |
+| `required` | BOOLEAN | | KhÃ´ng | TRUE | Báº¯t buá»™c hay chá»‰ lÃ  Ä‘iá»ƒm cá»™ng |
+| `weight` | DECIMAL(5,2) | | KhÃ´ng | 1.00 | Trá»ng sá»‘ khi cháº¥m Ä‘iá»ƒm khá»›p |
+| `min_level` | VARCHAR(32) | | CÃ³ | NULL | Cáº¥p Ä‘á»™ tá»‘i thiá»ƒu |
+
+**RÃ ng buá»™c:** `fk_js_job`, `fk_js_skill`, `uk_job_skill (job_id, skill_id)`
+
+### B.4 `recruitment_stages` â€” VÃ²ng tuyá»ƒn cá»§a tin tuyá»ƒn dá»¥ng
+
+Entity `RecruitmentStage`. Báº£ng khÃ´ng cÃ³ cá»™t thá»i gian.
+
+| Cá»™t | Kiá»ƒu | KhoÃ¡ | Null | Default | MÃ´ táº£ |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | KhÃ´ng | auto | |
+| `job_id` | BIGINT | FK â†’ `jobs.id` | KhÃ´ng | â€” | Tin tuyá»ƒn dá»¥ng sá»Ÿ há»¯u vÃ²ng nÃ y |
+| `stage_code` | VARCHAR(32) | UQ (job_id, stage_code) | KhÃ´ng | â€” | MÃ£ catalog: APPLIED, SCREENING, â€¦, HIRED |
+| `name` | VARCHAR(128) | | KhÃ´ng | â€” | TÃªn hiá»ƒn thá»‹ (máº·c Ä‘á»‹nh theo catalog) |
+| `sort_order` | INT | | KhÃ´ng | â€” | Thá»© tá»± trong pipeline |
+| `is_terminal` | BOOLEAN | | KhÃ´ng | FALSE | ÄÃ¡nh dáº¥u vÃ²ng káº¿t thÃºc |
+| `active` | BOOLEAN | | KhÃ´ng | TRUE | FALSE = áº©n khá»i pipeline, khÃ´ng xÃ³a báº£n ghi |
+
+**RÃ ng buá»™c:** `fk_rs_job`, `uk_recruitment_stages_job_code (job_id, stage_code)`
+
+---
+
+## C. Application pipeline
+
+### C.1 `applications` â€” ÄÆ¡n á»©ng tuyá»ƒn (báº£ng trung tÃ¢m)
+
+Entity `Application` (káº¿ thá»«a `BaseEntity`). Má»Ÿ rá»™ng qua V7.
+
+| Cá»™t | Kiá»ƒu | KhoÃ¡ | Null | Default | MÃ´ táº£ |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | KhÃ´ng | auto | |
+| `job_id` | BIGINT | FK â†’ `jobs.id`, UQ, IDX | KhÃ´ng | â€” | Tin á»©ng tuyá»ƒn |
+| `candidate_id` | BIGINT | FK â†’ `users.id`, UQ | KhÃ´ng | â€” | á»¨ng viÃªn |
+| `stage_id` | BIGINT | FK â†’ `recruitment_stages.id` | CÃ³ | NULL | VÃ²ng tuyá»ƒn hiá»‡n táº¡i |
+| `status` | VARCHAR(32) | IDX | KhÃ´ng | `'NEW'` | `ApplicationStatus` â€” 8 giÃ¡ trá»‹ |
+| `source` | VARCHAR(64) | | CÃ³ | NULL | Nguá»“n á»©ng tuyá»ƒn |
+| `notes` | TEXT | | CÃ³ | NULL | Ghi chÃº ná»™i bá»™ cá»§a recruiter |
+| `referral_code` | VARCHAR(64) | | CÃ³ | NULL | MÃ£ giá»›i thiá»‡u (V7) |
+| `tags` | VARCHAR(512) | | CÃ³ | NULL | NhÃ£n phÃ¢n loáº¡i, lÆ°u dáº¡ng chuá»—i (V7) |
+| `assignee_id` | BIGINT | FK â†’ `users.id` | CÃ³ | NULL | NgÆ°á»i phá»¥ trÃ¡ch Ä‘Æ¡n (V7) |
+| `archived_at` | TIMESTAMP | IDX | CÃ³ | NULL | LÆ°u trá»¯ Ä‘Æ¡n, tÃ¡ch khá»i danh sÃ¡ch hoáº¡t Ä‘á»™ng (V7) |
+| `reject_reason` | TEXT | | CÃ³ | NULL | LÃ½ do tá»« chá»‘i (V7) |
+| `withdrawn_at` | TIMESTAMP | | CÃ³ | NULL | Thá»i Ä‘iá»ƒm á»©ng viÃªn rÃºt Ä‘Æ¡n (V7) |
+| `ai_interview_invited_at` | TIMESTAMP | | Có | NULL | Thời điểm đã gửi mail mời phỏng vấn AI sau khi CV đạt (V28) |
+| `created_at` | TIMESTAMP | | KhÃ´ng | now | |
+| `updated_at` | TIMESTAMP | | KhÃ´ng | now on update | |
+
+**RÃ ng buá»™c:** `fk_app_job`, `fk_app_candidate`, `fk_app_stage`, `fk_app_assignee`,
+`uk_app_job_candidate (job_id, candidate_id)`
+**Index:** `idx_app_job_status (job_id, status)`, `idx_app_archived (job_id, archived_at)`
+
+### C.2 `application_status_history` â€” Nháº­t kÃ½ Ä‘á»•i tráº¡ng thÃ¡i
+
+Entity `ApplicationStatusHistory`.
+
+| Cá»™t | Kiá»ƒu | KhoÃ¡ | Null | Default | MÃ´ táº£ |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | KhÃ´ng | auto | |
+| `application_id` | BIGINT | FK â†’ `applications.id` | KhÃ´ng | â€” | ÄÆ¡n liÃªn quan |
+| `from_status` | VARCHAR(32) | | CÃ³ | NULL | Tráº¡ng thÃ¡i trÆ°á»›c; NULL á»Ÿ láº§n ghi Ä‘áº§u tiÃªn |
+| `to_status` | VARCHAR(32) | | KhÃ´ng | â€” | Tráº¡ng thÃ¡i sau |
+| `changed_by` | BIGINT | ref* | CÃ³ | NULL | NgÆ°á»i thá»±c hiá»‡n â€” **khÃ´ng cÃ³ khoÃ¡ ngoáº¡i** |
+| `note` | TEXT | | CÃ³ | NULL | Ghi chÃº kÃ¨m theo |
+| `created_at` | TIMESTAMP | | KhÃ´ng | now | |
+
+**RÃ ng buá»™c:** `fk_ash_app`
+
+### C.3 `hiring_decisions` â€” Quyáº¿t Ä‘á»‹nh tuyá»ƒn dá»¥ng
+
+Entity `HiringDecision`.
+
+| Cá»™t | Kiá»ƒu | KhoÃ¡ | Null | Default | MÃ´ táº£ |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | KhÃ´ng | auto | |
+| `application_id` | BIGINT | FK â†’ `applications.id` | KhÃ´ng | â€” | ÄÆ¡n Ä‘Æ°á»£c quyáº¿t Ä‘á»‹nh |
+| `decision` | VARCHAR(32) | | KhÃ´ng | â€” | `HiringDecisionType`: HIRE, REJECT, HOLD |
+| `reason` | TEXT | | CÃ³ | NULL | LÃ½ do |
+| `decided_by` | BIGINT | ref* | KhÃ´ng | â€” | NgÆ°á»i quyáº¿t Ä‘á»‹nh â€” **khÃ´ng cÃ³ khoÃ¡ ngoáº¡i** |
+| `created_at` | TIMESTAMP | | KhÃ´ng | now | |
+
+**RÃ ng buá»™c:** `fk_hd_app`
+
+---
+
+## D. CV & AI screening
+
+### D.1 `cvs` â€” Há»“ sÆ¡ CV
+
+Entity `Cv` (káº¿ thá»«a `BaseEntity`). Má»Ÿ rá»™ng qua V2, V5, V7, V8.
+
+| Cá»™t | Kiá»ƒu | KhoÃ¡ | Null | Default | MÃ´ táº£ |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | KhÃ´ng | auto | |
+| `job_id` | BIGINT | FK â†’ `jobs.id` | **CÃ³** (tá»« V8) | NULL | Tin tuyá»ƒn dá»¥ng; Ä‘á»ƒ trá»‘ng khi CV thuá»™c kho há»“ sÆ¡ |
+| `user_id` | BIGINT | FK â†’ `users.id` | KhÃ´ng | â€” | Chá»§ sá»Ÿ há»¯u CV |
+| `application_id` | BIGINT | ref* | CÃ³ | NULL | ÄÆ¡n á»©ng tuyá»ƒn â€” **khÃ´ng cÃ³ khoÃ¡ ngoáº¡i** (V2) |
+| `is_application_copy` | BOOLEAN | | Không | FALSE | TRUE = bản sao CV riêng cho một đơn ứng tuyển (file riêng, sàng lọc riêng); không hiện trong kho "CV của tôi" (V34) |
+| `original_filename` | VARCHAR(255) | | KhÃ´ng | â€” | TÃªn file gá»‘c do ngÆ°á»i dÃ¹ng táº£i lÃªn |
+| `file_url` | VARCHAR(512) | | KhÃ´ng | â€” | URL truy cáº­p file |
+| `storage_key` | VARCHAR(512) | | CÃ³ | NULL | KhoÃ¡ lÆ°u trá»¯ ná»™i bá»™ (V5) |
+| `mime_type` | VARCHAR(128) | | CÃ³ | NULL | Kiá»ƒu MIME Ä‘Ã£ xÃ¡c thá»±c (V5) |
+| `file_size` | BIGINT | | CÃ³ | NULL | Dung lÆ°á»£ng byte (V5) |
+| `checksum_sha256` | CHAR(64) | | CÃ³ | NULL | Checksum Ä‘á»ƒ phÃ¡t hiá»‡n file trÃ¹ng (V5) |
+| `retain_until` | TIMESTAMP | | CÃ³ | NULL | Má»‘c háº¿t háº¡n lÆ°u trá»¯; V7 backfill 24 thÃ¡ng tá»« `created_at` |
+| `status` | VARCHAR(32) | | KhÃ´ng | `'UPLOADED'` | `CvStatus` â€” 7 giÃ¡ trá»‹ theo cháº·ng pipeline |
+| `error_code` | VARCHAR(64) | | CÃ³ | NULL | MÃ£ lá»—i khi pipeline há»ng (V5) |
+| `error_message` | VARCHAR(512) | | CÃ³ | NULL | ThÃ´ng Ä‘iá»‡p lá»—i, bá»‹ cáº¯t cÃ²n tá»‘i Ä‘a 512 kÃ½ tá»± (V5) |
+| `created_at` | TIMESTAMP | | KhÃ´ng | now | |
+| `updated_at` | TIMESTAMP | | KhÃ´ng | now on update | |
+
+**RÃ ng buá»™c:** `fk_cvs_job`, `fk_cvs_user`
+
+### D.2 `cv_documents` â€” VÄƒn báº£n thÃ´ (cháº·ng 1)
+
+Entity `CvDocument`.
+
+| Cá»™t | Kiá»ƒu | KhoÃ¡ | Null | Default | MÃ´ táº£ |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | KhÃ´ng | auto | |
+| `cv_id` | BIGINT | FK â†’ `cvs.id`, UQ | KhÃ´ng | â€” | CV nguá»“n |
+| `raw_text` | LONGTEXT | | CÃ³ | NULL | ToÃ n bá»™ vÄƒn báº£n bÃ³c tá»« file |
+| `page_count` | INT | | CÃ³ | NULL | Sá»‘ trang |
+| `parser_version` | VARCHAR(64) | | CÃ³ | NULL | PhiÃªn báº£n bá»™ parser (V5) |
+| `ocr_used` | BOOLEAN | | KhÃ´ng | FALSE | ÄÃ£ pháº£i dÃ¹ng OCR hay khÃ´ng (V5) |
+| `created_at` | TIMESTAMP | | KhÃ´ng | now | |
+
+**RÃ ng buá»™c:** `fk_cvdoc_cv`, `uk_cvdoc_cv (cv_id)`
+
+### D.3 `cv_extractions` â€” BÃ³c tÃ¡ch cÃ³ cáº¥u trÃºc (cháº·ng 2)
+
+Entity `CvExtraction`.
+
+| Cá»™t | Kiá»ƒu | KhoÃ¡ | Null | Default | MÃ´ táº£ |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | KhÃ´ng | auto | |
+| `cv_id` | BIGINT | FK â†’ `cvs.id`, UQ | KhÃ´ng | â€” | CV nguá»“n |
+| `extraction_json` | JSON | | KhÃ´ng | â€” | Há»c váº¥n, kinh nghiá»‡m, dá»± Ã¡nâ€¦ dáº¡ng cÃ³ cáº¥u trÃºc |
+| `model_version` | VARCHAR(64) | | CÃ³ | NULL | PhiÃªn báº£n model AI |
+| `prompt_version` | VARCHAR(64) | | CÃ³ | NULL | PhiÃªn báº£n prompt (V5) |
+| `created_at` | TIMESTAMP | | KhÃ´ng | now | |
+| `updated_at` | DATETIME | | CÃ³ | NULL | Kiá»ƒu `DATETIME` chá»© khÃ´ng pháº£i `TIMESTAMP` â€” MySQL 5.7 chá»‰ cho má»™t cá»™t `ON UPDATE` má»—i báº£ng (V5) |
+
+**RÃ ng buá»™c:** `fk_cvext_cv`, `uk_cvext_cv (cv_id)`
+
+### D.4 `cv_analyses` â€” PhÃ¢n tÃ­ch vÃ  tÃ³m táº¯t (cháº·ng 3)
+
+Entity `CvAnalysis`.
+
+| Cá»™t | Kiá»ƒu | KhoÃ¡ | Null | Default | MÃ´ táº£ |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | KhÃ´ng | auto | |
+| `cv_id` | BIGINT | FK â†’ `cvs.id`, UQ | KhÃ´ng | â€” | CV nguá»“n |
+| `summary` | TEXT | | CÃ³ | NULL | TÃ³m táº¯t á»©ng viÃªn |
+| `skills_json` | JSON | | CÃ³ | NULL | Ká»¹ nÄƒng tá»•ng há»£p |
+| `years_experience` | DECIMAL(4,1) | | CÃ³ | NULL | Sá»‘ nÄƒm kinh nghiá»‡m Æ°á»›c tÃ­nh |
+| `raw_json` | JSON | | CÃ³ | NULL | Pháº£n há»“i thÃ´ cá»§a model, Ä‘á»ƒ truy váº¿t |
+| `model_version` | VARCHAR(64) | | CÃ³ | NULL | PhiÃªn báº£n model AI |
+| `prompt_version` | VARCHAR(64) | | CÃ³ | NULL | PhiÃªn báº£n prompt (V5) |
+| `created_at` | TIMESTAMP | | KhÃ´ng | now | |
+
+**RÃ ng buá»™c:** `fk_cv_analyses_cv`, `uk_cv_analyses_cv (cv_id)`
+
+### D.5 `cv_skills` â€” Ká»¹ nÄƒng phÃ¡t hiá»‡n trong CV
+
+Entity `CvSkill`. Báº£ng khÃ´ng cÃ³ cá»™t thá»i gian.
+
+| Cá»™t | Kiá»ƒu | KhoÃ¡ | Null | Default | MÃ´ táº£ |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | KhÃ´ng | auto | |
+| `cv_id` | BIGINT | FK â†’ `cvs.id` | KhÃ´ng | â€” | CV nguá»“n |
+| `skill_id` | BIGINT | ref* | CÃ³ | NULL | Ká»¹ nÄƒng trong tá»« Ä‘iá»ƒn â€” **khÃ´ng cÃ³ khoÃ¡ ngoáº¡i**, Ä‘á»ƒ trá»‘ng khi chÆ°a map Ä‘Æ°á»£c |
+| `skill_name` | VARCHAR(128) | | KhÃ´ng | â€” | TÃªn ká»¹ nÄƒng nhÆ° AI Ä‘á»c Ä‘Æ°á»£c |
+| `confidence` | DECIMAL(5,2) | | CÃ³ | NULL | Äá»™ tin cáº­y cá»§a phÃ¡t hiá»‡n |
+| `level` | VARCHAR(32) | | CÃ³ | NULL | Cáº¥p Ä‘á»™ Æ°á»›c tÃ­nh |
+
+**RÃ ng buá»™c:** `fk_cvsk_cv`
+
+### D.6 `match_scores` â€” Äiá»ƒm khá»›p job â†” CV
+
+Entity `MatchScore`.
+
+| Cá»™t | Kiá»ƒu | KhoÃ¡ | Null | Default | MÃ´ táº£ |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | KhÃ´ng | auto | |
+| `job_id` | BIGINT | FK â†’ `jobs.id`, UQ | KhÃ´ng | â€” | Tin tuyá»ƒn dá»¥ng |
+| `cv_id` | BIGINT | FK â†’ `cvs.id`, UQ | KhÃ´ng | â€” | CV Ä‘Æ°á»£c cháº¥m |
+| `score` | DECIMAL(5,2) | | KhÃ´ng | â€” | Äiá»ƒm khá»›p |
+| `breakdown_json` | JSON | | CÃ³ | NULL | Chi tiáº¿t cÃ¡ch tÃ­nh Ä‘iá»ƒm |
+| `model_version` | VARCHAR(64) | | CÃ³ | NULL | PhiÃªn báº£n model cháº¥m |
+| `created_at` | TIMESTAMP | | KhÃ´ng | now | |
+| `updated_at` | TIMESTAMP | | KhÃ´ng | now on update | |
+
+**RÃ ng buá»™c:** `fk_match_job`, `fk_match_cv`, `uk_match_job_cv (job_id, cv_id)`
+
+### D.7 `job_screening_configs` — Trọng số sàng CV và Gate theo job (V27)
+
+Entity `JobScreeningConfig`. PK tự nhiên `job_id`, không kế thừa `BaseEntity`.
+
+| Cột | Kiểu | Khoá | Null | Default | Mô tả |
+|---|---|---|---|---|---|
+| `job_id` | BIGINT | PK, FK → `jobs.id` | Không | — | Một cấu hình / job |
+| `cv_skill_weight` | DECIMAL(5,2) | | Không | — | Trọng số skill bắt buộc |
+| `cv_preferred_weight` | DECIMAL(5,2) | | Không | — | Trọng số skill ưu tiên |
+| `cv_experience_weight` | DECIMAL(5,2) | | Không | — | Trọng số kinh nghiệm |
+| `cv_education_weight` | DECIMAL(5,2) | | Không | — | Trọng số học vấn |
+| `cv_jaccard_weight` | DECIMAL(5,2) | | Không | — | Trọng số Jaccard |
+| `cv_semantic_weight` | DECIMAL(5,2) | | Không | — | Trọng số semantic / Gemini |
+| `cv_pass_threshold` | DECIMAL(5,2) | | Không | — | Ngưỡng đậu CV (0–100) |
+| `gate_cv_weight` | DECIMAL(5,2) | | Không | — | Trọng số CV trong Gate |
+| `gate_interview_weight` | DECIMAL(5,2) | | Không | — | Trọng số AI interview trong Gate |
+| `gate_assessment_weight` | DECIMAL(5,2) | | Không | — | Trọng số assessment trong Gate |
+| `gate_pass_threshold` | DECIMAL(5,2) | | Không | — | Ngưỡng đậu Gate (0–100) |
+
+**Ràng buộc:** `fk_job_screening_job`; CHECK trọng số ≥ 0; CHECK ngưỡng 0–100.
+
+### D.8 `gate_scores` — Điểm Gate theo đơn (V27)
+
+Entity `GateScore` (kế thừa `BaseEntity`).
+
+| Cột | Kiểu | Khoá | Null | Default | Mô tả |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | Không | auto | |
+| `application_id` | BIGINT | FK → `applications.id`, UQ | Không | — | Một điểm Gate / đơn |
+| `score` | DECIMAL(5,2) | | Không | — | Điểm Gate |
+| `breakdown_json` | JSON | | Không | — | Chi tiết CV / interview / assessment |
+| `passed` | BOOLEAN | | Không | — | Đậu ngưỡng Gate |
+| `created_at` | TIMESTAMP | | Không | now | |
+| `updated_at` | TIMESTAMP | | Có | NULL | |
+
+**Ràng buộc:** `fk_gate_score_application`
+
+---
+
+## E. Ranking
+
+### E.1 `overall_scores` â€” Äiá»ƒm tá»•ng há»£p cá»§a Ä‘Æ¡n
+
+Entity `OverallScore`. Báº£ng chá»‰ cÃ³ `updated_at`, khÃ´ng cÃ³ `created_at`.
+
+| Cá»™t | Kiá»ƒu | KhoÃ¡ | Null | Default | MÃ´ táº£ |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | KhÃ´ng | auto | |
+| `application_id` | BIGINT | FK â†’ `applications.id`, UQ | KhÃ´ng | â€” | ÄÆ¡n Ä‘Æ°á»£c cháº¥m |
+| `overall` | DECIMAL(5,2) | | KhÃ´ng | â€” | Äiá»ƒm tá»•ng há»£p cuá»‘i cÃ¹ng |
+| `breakdown_json` | JSON | | CÃ³ | NULL | ÄÃ³ng gÃ³p cá»§a tá»«ng nguá»“n Ä‘iá»ƒm |
+| `ranking_version` | VARCHAR(32) | | CÃ³ | NULL | PhiÃªn báº£n thuáº­t toÃ¡n Ä‘Ã£ dÃ¹ng |
+| `updated_at` | TIMESTAMP | | KhÃ´ng | now on update | |
+
+**RÃ ng buá»™c:** `fk_os_app`, `uk_os_app (application_id)`
+
+### E.2 `candidate_rankings` â€” Thá»© háº¡ng á»©ng viÃªn trong job
+
+Entity `CandidateRanking`. Báº£ng chá»‰ cÃ³ `updated_at`.
+
+| Cá»™t | Kiá»ƒu | KhoÃ¡ | Null | Default | MÃ´ táº£ |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | KhÃ´ng | auto | |
+| `job_id` | BIGINT | FK â†’ `jobs.id`, UQ | KhÃ´ng | â€” | Pháº¡m vi xáº¿p háº¡ng |
+| `application_id` | BIGINT | FK â†’ `applications.id`, UQ | KhÃ´ng | â€” | ÄÆ¡n Ä‘Æ°á»£c xáº¿p háº¡ng |
+| `rank_position` | INT | | KhÃ´ng | â€” | Vá»‹ trÃ­ trong báº£ng xáº¿p háº¡ng |
+| `score` | DECIMAL(5,2) | | KhÃ´ng | â€” | Äiá»ƒm dÃ¹ng Ä‘á»ƒ xáº¿p háº¡ng |
+| `ranking_version` | VARCHAR(32) | | CÃ³ | NULL | PhiÃªn báº£n thuáº­t toÃ¡n |
+| `updated_at` | TIMESTAMP | | KhÃ´ng | now on update | |
+
+**RÃ ng buá»™c:** `fk_cr_job`, `fk_cr_app`, `uk_cr_job_app (job_id, application_id)`
+
+### E.3 `ranking_configs` â€” Cáº¥u hÃ¬nh trá»ng sá»‘ cháº¥m Ä‘iá»ƒm
+
+Entity `RankingConfig`. **KhoÃ¡ chÃ­nh tá»± nhiÃªn** lÃ  `job_id`, Ã©p quan há»‡ 1:1 vá»›i `jobs`.
+
+| Cá»™t | Kiá»ƒu | KhoÃ¡ | Null | Default | MÃ´ táº£ |
+|---|---|---|---|---|---|
+| `job_id` | BIGINT | PK, FK â†’ `jobs.id` | KhÃ´ng | â€” | Tin tuyá»ƒn dá»¥ng sá»Ÿ há»¯u cáº¥u hÃ¬nh |
+| `config_json` | JSON | | KhÃ´ng | â€” | Bá»™ trá»ng sá»‘ cho tá»«ng nguá»“n Ä‘iá»ƒm |
+| `revision` | BIGINT | | KhÃ´ng | 1 | TÄƒng má»—i láº§n cáº¥u hÃ¬nh thay Ä‘á»•i |
+
+**RÃ ng buá»™c:** `fk_rank_config_job`
+
+### E.4 `ranking_sources` â€” Nguá»“n Ä‘iá»ƒm Ä‘Ã£ dÃ¹ng Ä‘á»ƒ xáº¿p háº¡ng
+
+Entity `RankingSource`. **KhoÃ¡ chÃ­nh tá»± nhiÃªn** lÃ  `application_id`. Cáº£ ba cá»™t nguá»“n Ä‘á»u cÃ³ khoÃ¡ ngoáº¡i tháº­t.
+
+| Cá»™t | Kiá»ƒu | KhoÃ¡ | Null | Default | MÃ´ táº£ |
+|---|---|---|---|---|---|
+| `application_id` | BIGINT | PK, FK â†’ `applications.id` | KhÃ´ng | â€” | ÄÆ¡n Ä‘Æ°á»£c xáº¿p háº¡ng |
+| `cv_id` | BIGINT | FK â†’ `cvs.id` | CÃ³ | NULL | CV Ä‘Ã£ dÃ¹ng Ä‘á»ƒ tÃ­nh Ä‘iá»ƒm |
+| `submission_id` | BIGINT | FK â†’ `submissions.id` | CÃ³ | NULL | LÆ°á»£t thi Ä‘Ã£ dÃ¹ng |
+| `ai_interview_id` | BIGINT | FK â†’ `ai_interviews.id` | CÃ³ | NULL | PhiÃªn AI Ä‘Ã£ dÃ¹ng |
+
+**RÃ ng buá»™c:** `fk_rank_source_app`, `fk_rank_source_cv`, `fk_rank_source_submission`, `fk_rank_source_ai_interview`
+
+### E.5 `recommendations` â€” Gá»£i Ã½ Ä‘a hÃ¬nh
+
+Entity `Recommendation`. **KhÃ´ng cÃ³ khoÃ¡ ngoáº¡i nÃ o** â€” toÃ n váº¹n phá»¥ thuá»™c hoÃ n toÃ n vÃ o táº§ng service.
+
+| Cá»™t | Kiá»ƒu | KhoÃ¡ | Null | Default | MÃ´ táº£ |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | KhÃ´ng | auto | |
+| `subject_type` | VARCHAR(32) | | KhÃ´ng | â€” | Loáº¡i Ä‘á»‘i tÆ°á»£ng nháº­n gá»£i Ã½ |
+| `subject_id` | BIGINT | ref* | KhÃ´ng | â€” | Id Ä‘á»‘i tÆ°á»£ng nháº­n, diá»…n giáº£i theo `subject_type` |
+| `target_type` | VARCHAR(32) | | KhÃ´ng | â€” | Loáº¡i Ä‘á»‘i tÆ°á»£ng Ä‘Æ°á»£c gá»£i Ã½ |
+| `target_id` | BIGINT | ref* | KhÃ´ng | â€” | Id Ä‘á»‘i tÆ°á»£ng Ä‘Æ°á»£c gá»£i Ã½ |
+| `score` | DECIMAL(5,2) | | KhÃ´ng | â€” | Äá»™ phÃ¹ há»£p |
+| `reason_json` | JSON | | CÃ³ | NULL | LÃ½ do gá»£i Ã½ |
+| `created_at` | TIMESTAMP | | KhÃ´ng | now | |
+
+---
+
+## F. Test & Proctoring
+
+### F.1 `tests` — Đề thi
+
+Entity `JobTest` (class Java tránh xung đột JUnit `Test`).
+
+| Cột | Kiểu | Khoá | Null | Default | Mô tả |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | Không | auto | |
+| `job_id` | BIGINT | FK → `jobs.id` | Không | — | Tin tuyển dụng sở hữu đề |
+| `title` | VARCHAR(255) | | Không | — | Tên đề thi |
+| `description` | TEXT | | Có | NULL | Mô tả |
+| `duration_minutes` | INT | | Không | — | Thời lượng (phút) |
+| `passing_score` | DECIMAL(10,2) | | Có | NULL | Điểm đạt |
+| `status` | VARCHAR(32) | | Không | `'DRAFT'` | `TestStatus`: DRAFT, PUBLISHED, ARCHIVED |
+| `created_by` | BIGINT | FK → `users.id` | Có | NULL | Người tạo đề (staff); NULL với đề cũ trước V13 |
+| `created_at` | TIMESTAMP | | Không | now | |
+| `updated_at` | TIMESTAMP | | Có | NULL | Cập nhật lần cuối; backfill = `created_at` ở V13 |
+
+**Ràng buộc:** `fk_tests_job`, `fk_tests_created_by`
+
+### F.2 `questions` — Câu hỏi
+
+Entity `Question`.
+
+| Cột | Kiểu | Khoá | Null | Default | Mô tả |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | Không | auto | |
+| `test_id` | BIGINT | FK → `tests.id` | Không | — | Đề thi |
+| `question_text` | TEXT | | Không | — | Nội dung câu hỏi |
+| `question_type` | VARCHAR(32) | | Không | — | Loại câu hỏi (MCQ ở luồng ASSESS-01) |
+| `points` | INT | | Không | 1 | Điểm tối đa |
+| `question_order` | INT | | Không | 0 | Thứ tự |
+| `difficulty` | VARCHAR(16) | | Có | NULL | `Easy` / `Medium` / `Hard` — metadata biên soạn |
+| `skill` | VARCHAR(255) | | Có | NULL | Nhãn kỹ năng từ Excel/UI |
+| `explanation` | TEXT | | Có | NULL | Giải thích đáp án (chỉ staff; không trả candidate) |
+
+**Ràng buộc:** `fk_questions_test`
+
+### F.2.1 `questionskills` — Kỹ năng của câu hỏi (V22)
+
+Entity `QuestionSkill`; bảng nối N–N giữa `questions` và `skills`.
+
+| Cột | Kiểu | Khóa | Null | Default | Ý nghĩa |
+|---|---|---|---|---|---|
+| `question_id` | BIGINT | PK kép, FK → `questions.id` | Không | — | Câu hỏi |
+| `skill_id` | BIGINT | PK kép, FK → `skills.id`, IDX | Không | — | Kỹ năng |
+
+PK `(question_id, skill_id)` chống liên kết trùng; index `idx_questionskills_skill(skill_id)`
+hỗ trợ tìm câu hỏi theo kỹ năng. FK `fk_questionskills_question` và `fk_questionskills_skill`
+đều `ON DELETE CASCADE`: chỉ xóa dòng nối khi xóa bản ghi cha, không xóa cha còn lại.
+Không có cột id tự tăng. Cột văn bản `questions.skill` vẫn được giữ, không tự backfill hoặc đồng bộ.
+
+### F.3 `options` — Lựa chọn trả lời
+
+Entity `Option`.
+
+| Cột | Kiểu | Khoá | Null | Default | Mô tả |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | Không | auto | |
+| `question_id` | BIGINT | FK → `questions.id` | Không | — | Câu hỏi |
+| `option_text` | TEXT | | Không | — | Nội dung lựa chọn |
+| `is_correct` | BOOLEAN | | Không | FALSE | **Không lộ cho thí sinh** |
+
+**Ràng buộc:** `fk_options_question`
+
+### F.4 `submissions` — Lượt làm bài
+
+Entity `Submission`. Điểm tổng nằm ngay trên bảng (không còn `attempt_scores`).
+
+| Cột | Kiểu | Khoá | Null | Default | Mô tả |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | Không | auto | |
+| `test_id` | BIGINT | FK → `tests.id` | Không | — | Đề thi |
+| `candidate_id` | BIGINT | FK → `users.id` | Không | — | Ứng viên |
+| `application_id` | BIGINT | FK → `applications.id` | Không | — | Đơn ứng tuyển |
+| `started_at` | TIMESTAMP | | Có | NULL | Bắt đầu |
+| `submitted_at` | TIMESTAMP | | Có | NULL | Nộp bài |
+| `score` | DECIMAL(10,2) | | Có | NULL | Điểm tổng |
+| `notes` | TEXT | | Có | NULL | Ghi chú |
+| `status` | VARCHAR(32) | | Không | `'NOT_STARTED'` | `TestSubmissionStatus` |
+| `created_at` | TIMESTAMP | | Không | now | |
+
+**Ràng buộc:** `fk_submissions_test`, `fk_submissions_candidate`, `fk_submissions_application`
+
+### F.5 `answers` — Câu trả lời trong lượt làm
+
+Entity `Answer`.
+
+| Cột | Kiểu | Khoá | Null | Default | Mô tả |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | Không | auto | |
+| `submission_id` | BIGINT | FK → `submissions.id` | Không | — | Lượt làm |
+| `question_id` | BIGINT | FK → `questions.id` | Không | — | Câu hỏi |
+| `selected_option_id` | BIGINT | FK → `options.id` | Có | NULL | Lựa chọn đã chọn |
+| `answer_text` | TEXT | | Có | NULL | Tự luận |
+| `is_correct` | BOOLEAN | | Có | NULL | Đúng/sai sau chấm |
+| `score` | DECIMAL(10,2) | | Có | NULL | Điểm câu |
+
+**Ràng buộc:** `fk_answers_submission`, `fk_answers_question`, `fk_answers_option`
+
+V23: MCQ lưu `selected_option_id`; ESSAY lưu `answer_text` (API tối đa 10.000 ký tự),
+điểm/đúng-sai NULL khi chờ chấm. MULTIPLE_CHOICE dùng bảng nối bên dưới, cột lựa chọn đơn NULL.
+
+### F.5.1 `answer_selected_options` — Các lựa chọn của câu trả lời nhiều đáp án
+
+Entity `AnswerSelectedOption` (ánh xạ `Answer.selectedOptions`).
+
+| Cột | Kiểu | Khóa | Null | Default | Ý nghĩa |
+|---|---|---|---|---|---|
+| `answer_id` | BIGINT | PK kép, FK → answers.id | Không | — | Câu trả lời; DELETE CASCADE |
+| `option_id` | BIGINT | PK kép, FK → options.id, IDX | Không | — | Lựa chọn; DELETE RESTRICT |
+
+PK `(answer_id, option_id)`, index `idx_answer_selected_options_option`, FK `fk_aso_answer` / `fk_aso_option`.
+Option phải thuộc question của answer: kiểm tra ở service, không phải ràng buộc chéo trong SQL.
+`questions.question_type` nhận MCQ/MULTIPLE_CHOICE/ESSAY qua API; vẫn VARCHAR(32), không SQL CHECK.
+
+### F.6 `coding_problems` — Bài lập trình
+
+Entity `CodingProblem`.
+
+| Cột | Kiểu | Khoá | Null | Default | Mô tả |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | Không | auto | |
+| `test_id` | BIGINT | FK → `tests.id` | Không | — | Đề thi |
+| `title` | VARCHAR(255) | | Không | — | Tên bài |
+| `prompt` | TEXT | | Không | — | Đề bài |
+| `time_limit_ms` | INT | | Không | 2000 | Giới hạn thời gian |
+| `memory_mb` | INT | | Không | 256 | Giới hạn bộ nhớ |
+
+**Ràng buộc:** `fk_cp_test`
+
+### F.7 `test_cases` — Bộ test
+
+Entity `TestCase`.
+
+| Cột | Kiểu | Khoá | Null | Default | Mô tả |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | Không | auto | |
+| `coding_problem_id` | BIGINT | FK → `coding_problems.id` | Không | — | Bài lập trình |
+| `input_data` | TEXT | | Không | — | Input |
+| `expected_output` | TEXT | | Không | — | Output mong đợi |
+| `is_sample` | BOOLEAN | | Không | FALSE | Test mẫu công khai |
+| `weight` | DECIMAL(5,2) | | Không | 1 | Trọng số |
+
+**Ràng buộc:** `fk_tc_cp`
+
+### F.8 `coding_submissions` — Bài nộp code
+
+Entity `CodingSubmission`.
+
+| Cột | Kiểu | Khoá | Null | Default | Mô tả |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | Không | auto | |
+| `submission_id` | BIGINT | FK → `submissions.id` | Không | — | Lượt làm bài |
+| `coding_problem_id` | BIGINT | FK → `coding_problems.id` | Không | — | Bài lập trình |
+| `language` | VARCHAR(32) | | Không | — | Ngôn ngữ |
+| `source_code` | LONGTEXT | | Không | — | Mã nguồn |
+| `status` | VARCHAR(32) | | Không | `'QUEUED'` | `SubmissionStatus` |
+| `result_json` | JSON | | Có | NULL | Kết quả chấm |
+| `created_at` | TIMESTAMP | | Không | now | |
+
+**Ràng buộc:** `fk_cs_submission`, `fk_cs_cp`
+
+### F.9 `proctor_events` — Sự kiện giám sát
+
+Entity `ProctorEvent`.
+
+| Cột | Kiểu | Khoá | Null | Default | Mô tả |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | Không | auto | |
+| `submission_id` | BIGINT | FK → `submissions.id` | Không | — | Lượt làm đang giám sát |
+| `event_type` | VARCHAR(64) | | Không | — | Loại sự kiện |
+| `payload_json` | JSON | | Có | NULL | Payload |
+| `created_at` | TIMESTAMP | | Không | now | |
+
+**Ràng buộc:** `fk_pe_submission`
+
+### F.10 `proctor_reports` — Báo cáo rủi ro
+
+Entity `ProctorReport`.
+
+| Cột | Kiểu | Khoá | Null | Default | Mô tả |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | Không | auto | |
+| `submission_id` | BIGINT | FK → `submissions.id`, UQ | Không | — | Lượt làm |
+| `risk_score` | DECIMAL(5,2) | | Không | — | Điểm rủi ro |
+| `summary_json` | JSON | | Có | NULL | Tổng hợp |
+| `created_at` | TIMESTAMP | | Không | now | |
+
+**Ràng buộc:** `fk_pr_submission`, `uk_pr_submission (submission_id)`
+
+---
+
+## G. Direct Interview
+
+### G.1 `interviews` — Phỏng vấn trực tiếp
+
+Entity `Interview` (kế thừa `BaseEntity`).
+
+| Cột | Kiểu | Khoá | Null | Default | Mô tả |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | Không | auto | |
+| `application_id` | BIGINT | FK → `applications.id` | Không | — | Đơn ứng tuyển |
+| `interview_type` | VARCHAR(64) | | Không | — | TECHNICAL, HR, BEHAVIORAL… |
+| `mode` | VARCHAR(64) | | Không | — | DIRECT / ONLINE / … |
+| `status` | VARCHAR(32) | | Không | `'CREATED'` | `InterviewStatus` |
+| `created_at` | TIMESTAMP | | Không | now | |
+| `updated_at` | TIMESTAMP | | Không | now on update | |
+
+**Ràng buộc:** `fk_interviews_application`
+
+### G.2 `interview_schedules` — Lịch phỏng vấn
+
+Entity `InterviewSchedule`.
+
+| Cột | Kiểu | Khoá | Null | Default | Mô tả |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | Không | auto | |
+| `interview_id` | BIGINT | FK → `interviews.id` | Không | — | Phiên phỏng vấn |
+| `scheduled_start` | TIMESTAMP | | Không | — | Bắt đầu |
+| `scheduled_end` | TIMESTAMP | | Không | — | Kết thúc |
+| `location` | VARCHAR(255) | | Có | NULL | Địa điểm |
+| `meeting_url` | VARCHAR(512) | | Có | NULL | Link họp |
+| `status` | VARCHAR(32) | | Không | `'PROPOSED'` | `ScheduleStatus` |
+
+**Ràng buộc:** `fk_isched_interview`
+
+### G.3 `interview_participants` — Người tham gia
+
+Entity `InterviewParticipant`. PK kép.
+
+| Cột | Kiểu | Khoá | Null | Default | Mô tả |
+|---|---|---|---|---|---|
+| `interview_id` | BIGINT | PK, FK → `interviews.id` | Không | — | Phiên |
+| `user_id` | BIGINT | PK, FK → `users.id` | Không | — | Người tham gia |
+| `participant_role` | VARCHAR(64) | | Không | — | PRIMARY / SECONDARY / OBSERVER… |
+| `joined_at` | TIMESTAMP | | Có | NULL | Thời điểm tham gia |
+
+**Ràng buộc:** `fk_ip_interview`, `fk_ip_user`
+
+### G.4 `interview_security_settings` — Cấu hình bảo mật phiên
+
+Entity `InterviewSecuritySetting` (kế thừa `BaseEntity`).
+
+| Cột | Kiểu | Khoá | Null | Default | Mô tả |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | Không | auto | |
+| `interview_id` | BIGINT | FK → `interviews.id`, UQ | Không | — | Phiên |
+| `camera_required` | BOOLEAN | | Không | FALSE | |
+| `microphone_required` | BOOLEAN | | Không | FALSE | |
+| `screen_share_required` | BOOLEAN | | Không | FALSE | |
+| `fullscreen_required` | BOOLEAN | | Không | FALSE | |
+| `browser_restriction` | BOOLEAN | | Không | FALSE | |
+| `created_at` | TIMESTAMP | | Không | now | |
+| `updated_at` | TIMESTAMP | | Không | now on update | |
+
+**Ràng buộc:** `fk_iss_interview`, `uk_iss_interview (interview_id)`
+
+### G.5 `interview_evaluations` — Đánh giá người phỏng vấn
+
+Entity `InterviewEvaluation`.
+
+| Cột | Kiểu | Khoá | Null | Default | Mô tả |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | Không | auto | |
+| `interview_id` | BIGINT | FK → `interviews.id` | Không | — | Phiên |
+| `evaluator_id` | BIGINT | FK → `users.id` | Không | — | Người đánh giá |
+| `technical_score` | DECIMAL(10,2) | | Có | NULL | |
+| `communication_score` | DECIMAL(10,2) | | Có | NULL | |
+| `culture_score` | DECIMAL(10,2) | | Có | NULL | |
+| `overall_score` | DECIMAL(10,2) | | Có | NULL | |
+| `comments` | TEXT | | Có | NULL | |
+| `recommendation` | VARCHAR(64) | | Có | NULL | |
+| `created_at` | TIMESTAMP | | Không | now | |
+
+**Ràng buộc:** `fk_ie_interview`, `fk_ie_evaluator`
+
+---
+
+## H. AI Interview
+
+### H.1 `ai_interviews` — Phiên phỏng vấn AI
+
+Entity `AiInterview`.
+
+| Cột | Kiểu | Khoá | Null | Default | Mô tả |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | Không | auto | |
+| `application_id` | BIGINT | FK → `applications.id` | Không | — | Đơn ứng tuyển |
+| `workflow_stage_id` | BIGINT | FK → `recruitment_stages.id` | Có | NULL | Vòng workflow |
+| `started_at` | TIMESTAMP | | Có | NULL | |
+| `completed_at` | TIMESTAMP | | Có | NULL | |
+| `overall_score` | DECIMAL(10,2) | | Có | NULL | Điểm tổng phiên |
+| `passing_score_snapshot` | DECIMAL(5,2) | | Có | NULL | Ngưỡng đạt chốt khi bắt đầu (V25) |
+| `error_message` | VARCHAR(255) | | Có | NULL | Lỗi đã làm sạch (V25) |
+| `config_snapshot_json` | JSON | | Có | NULL | V35. Cấu hình Job chốt khi tạo lần làm; NULL = phiên cũ trước V35 |
+| `context_snapshot_json` | JSON | | Có | NULL | V35. Ngữ cảnh Job/Job Skills/CV đã gửi AI khi sinh câu, dùng lại khi chấm |
+| `report_json` | JSON | | Có | NULL | V35. Báo cáo: điểm tổng, điểm nhóm năng lực, trọng số đã áp dụng, điểm Job Skill (null = chưa đủ dữ liệu), bằng chứng |
+| `attempt_number` | INT | | Không | 1 | V35. Số thứ tự lần làm của application |
+| `expires_at` | TIMESTAMP | | Có | NULL | V35. Hạn nộp = min(bắt đầu + thời lượng, `availableUntil`); quá hạn backend tự nộp |
+| `status` | VARCHAR(32) | | Không | `'CREATED'` | `AiInterviewStatus` |
+| `created_at` | TIMESTAMP | | Không | now | |
+
+**Ràng buộc:** `fk_ai_int_application`, `fk_ai_int_stage`; index `idx_ai_interview_expiry (status, expires_at, id)` (V35). Không có UNIQUE trên `application_id`: một application có nhiều lần làm.
+
+### H.2 `ai_questions` — Câu hỏi AI
+
+Entity `AiQuestion`.
+
+| Cột | Kiểu | Khoá | Null | Default | Mô tả |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | Không | auto | |
+| `ai_interview_id` | BIGINT | FK → `ai_interviews.id` | Không | — | Phiên |
+| `question_text` | TEXT | | Không | — | Nội dung |
+| `question_type` | VARCHAR(32) | | Không | — | Loại |
+| `question_order` | INT | | Không | 0 | Thứ tự |
+| `created_at` | TIMESTAMP | | Không | now | |
+| `rubric_json` | JSON | | Có | NULL | V35. Slot kế hoạch: chặng, loại `OPEN`/`MCQ`, nhóm năng lực, Job Skills. Câu hỏi–đáp thêm đáp án mẫu `referenceAnswer` + `keyPoints` (`point`, `target`); câu phiên cũ chỉ có đáp án mẫu, tạo lúc chấm. Chỉ backend giữ, không trả cho candidate |
+| `options_json` | JSON | | Có | NULL | V35. 4 lựa chọn của câu trắc nghiệm |
+| `correct_option` | INT | | Có | NULL | V35. Chỉ số đáp án đúng 0–3; chỉ backend giữ, không trả cho candidate |
+| `explanation` | TEXT | | Có | NULL | V35. Giải thích đáp án trắc nghiệm |
+
+**Ràng buộc:** `fk_ai_q_interview`
+
+### H.3 `ai_answers` — Câu trả lời AI interview
+
+Entity `AiAnswer`.
+
+| Cột | Kiểu | Khoá | Null | Default | Mô tả |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | Không | auto | |
+| `ai_question_id` | BIGINT | FK → `ai_questions.id`, UQ | Không | — | Câu hỏi |
+| `answer_text` | TEXT | | Có | NULL | Nội dung trả lời |
+| `answer_duration` | INT | | Có | NULL | Thời lượng (giây) |
+| `answered_at` | TIMESTAMP | | Có | NULL | Thời điểm trả lời |
+
+**Ràng buộc:** `fk_ai_a_question`, `uk_ai_a_question (ai_question_id)`
+
+### H.4 `ai_feedbacks` — Feedback AI theo câu trả lời
+
+Entity `AiFeedback`.
+
+| Cột | Kiểu | Khoá | Null | Default | Mô tả |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | Không | auto | |
+| `ai_answer_id` | BIGINT | FK → `ai_answers.id`, UQ | Không | — | Câu trả lời |
+| `score` | DECIMAL(10,2) | | Có | NULL | Điểm câu |
+| `feedback_text` | TEXT | | Có | NULL | Nhận xét |
+| `strengths` | TEXT | | Có | NULL | Điểm mạnh |
+| `weaknesses` | TEXT | | Có | NULL | Điểm yếu |
+| `created_at` | TIMESTAMP | | Không | now | |
+| `evaluation_json` | JSON | | Có | NULL | V35. Điểm 0–100 theo từng nhóm năng lực và Job Skill của câu; câu hỏi–đáp thêm `keyPoints` (điểm + trích dẫn từng ý của đáp án mẫu) và `score` |
+
+**Ràng buộc:** `fk_ai_f_answer`, `uk_ai_f_answer (ai_answer_id)`
+
+### H.5 `ai_interview_logs` — Nhật ký hoạt động AI Interview
+
+Entity `AiInterviewLog`. Bảng chỉ ghi thêm (V26): mỗi bước hệ thống/candidate/recruiter thực hiện trên
+một phiên (mời, sinh câu theo lô, bắt đầu, lưu câu trả lời, nộp, chấm theo lô, PASSED/FAILED, đổi trạng thái
+đơn, mở Assessment, notification, email, lỗi). `detail` không chứa nội dung câu trả lời hay dữ liệu cá nhân.
+
+| Cột | Kiểu | Khoá | Null | Default | Mô tả |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | Không | auto | |
+| `ai_interview_id` | BIGINT | FK → `ai_interviews.id`, IDX | Không | — | Phiên; xoá phiên xoá log (ON DELETE CASCADE) |
+| `event` | VARCHAR(64) | | Không | — | Mã sự kiện, ví dụ `INVITED`, `QUESTIONS_BATCH_GENERATED`, `PASSED` |
+| `status` | VARCHAR(32) | | Có | NULL | `AiInterviewStatus` của phiên tại thời điểm ghi |
+| `detail` | VARCHAR(1000) | | Có | NULL | Mô tả ngắn (số câu, điểm, trạng thái đơn) |
+| `created_at` | TIMESTAMP | | Không | now | |
+
+**Ràng buộc:** `fk_ai_log_interview` (ON DELETE CASCADE), index `idx_ai_interview_logs_interview (ai_interview_id, id)`
+
+---
+
+## I. Notification
+
+### I.1 `notifications` — Thông báo in-app
+
+Entity `Notification`.
+
+| Cột | Kiểu | Khoá | Null | Default | Mô tả |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | Không | auto | |
+| `user_id` | BIGINT | FK → `users.id` | Không | — | Người nhận |
+| `type` | VARCHAR(64) | | Không | — | Loại |
+| `title` | VARCHAR(255) | | Không | — | Tiêu đề |
+| `body` | TEXT | | Có | NULL | Nội dung |
+| `payload_json` | JSON | | Có | NULL | Payload điều hướng |
+| `read_at` | TIMESTAMP | | Có | NULL | NULL = chưa đọc |
+| `created_at` | TIMESTAMP | | Không | now | |
+
+**Ràng buộc:** `fk_notif_user`
+
+### I.2 `email_outbox` — Hàng đợi email
+
+Entity `EmailOutbox`.
+
+| Cột | Kiểu | Khoá | Null | Default | Mô tả |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | Không | auto | |
+| `to_email` | VARCHAR(255) | | Không | — | Địa chỉ nhận |
+| `subject` | VARCHAR(255) | | Không | — | Tiêu đề |
+| `body` | TEXT | | Không | — | Nội dung |
+| `status` | VARCHAR(32) | | Không | `'PENDING'` | |
+| `attempts` | INT | | Không | 0 | Số lần thử gửi |
+| `created_at` | TIMESTAMP | | Không | now | |
+| `sent_at` | TIMESTAMP | | Có | NULL | |
+
+---
+
+## J. Practice
+
+### J.1 `practice_sessions` — Phiên tự luyện
+
+Entity `PracticeSession`.
+
+| Cột | Kiểu | Khoá | Null | Default | Mô tả |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | Không | auto | |
+| `candidate_id` | BIGINT | FK → `users.id` | Không | — | Ứng viên |
+| `topic` | VARCHAR(255) | | Có | NULL | Chủ đề |
+| `started_at` | TIMESTAMP | | Có | NULL | |
+| `completed_at` | TIMESTAMP | | Có | NULL | |
+| `overall_score` | DECIMAL(10,2) | | Có | NULL | Điểm phiên |
+| `status` | VARCHAR(32) | | Không | `'CREATED'` | `PracticeStatus` |
+| `created_at` | TIMESTAMP | | Không | now | |
+
+**Ràng buộc:** `fk_ps_user`
+
+### J.2 `practice_answers` — Câu hỏi/trả lời luyện
+
+Entity `PracticeAnswer`.
+
+| Cột | Kiểu | Khoá | Null | Default | Mô tả |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | Không | auto | |
+| `session_id` | BIGINT | FK → `practice_sessions.id` | Không | — | Phiên |
+| `question_text` | TEXT | | Không | — | Câu hỏi |
+| `question_type` | VARCHAR(32) | | Có | NULL | Loại |
+| `question_order` | INT | | Có | NULL | Thứ tự |
+| `answer_text` | TEXT | | Có | NULL | Trả lời |
+| `answer_duration` | INT | | Có | NULL | Thời lượng |
+| `audio_url` | VARCHAR(512) | | Có | NULL | File ghi âm |
+| `answered_at` | TIMESTAMP | | Có | NULL | |
+| `created_at` | TIMESTAMP | | Không | now | |
+
+**Ràng buộc:** `fk_pa_ps`
+
+### J.3 `practice_feedbacks` — Feedback từng câu luyện
+
+Entity `PracticeFeedback`.
+
+| Cột | Kiểu | Khoá | Null | Default | Mô tả |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | Không | auto | |
+| `practice_answer_id` | BIGINT | FK → `practice_answers.id` | Không | — | Câu trả lời |
+| `score` | DECIMAL(10,2) | | Có | NULL | Điểm |
+| `feedback_text` | TEXT | | Có | NULL | Nhận xét |
+| `strengths` | TEXT | | Có | NULL | Điểm mạnh |
+| `weaknesses` | TEXT | | Có | NULL | Điểm yếu |
+| `created_at` | TIMESTAMP | | Không | now | |
+
+**Ràng buộc:** `fk_pf_answer`
+
+---
+
+## J.1 `job_assignments` — Recruiter phụ trách job (V30)
+
+Entity `JobAssignment`.
+
+| Cột | Kiểu | Khoá | Null | Default | Mô tả |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | Không | auto | |
+| `job_id` | BIGINT | FK → `jobs.id` | Không | — | Tin tuyển dụng |
+| `user_id` | BIGINT | FK → `users.id` | Không | — | Recruiter được giao |
+| `assignment_role` | VARCHAR(32) | | Không | — | `PRIMARY_RECRUITER` hoặc vai trò phụ |
+| `assigned_by` | BIGINT | FK → `users.id` | Không | — | Người giao việc |
+| `created_at` | TIMESTAMP | | Không | now | |
+| `updated_at` | TIMESTAMP | | Không | now on update | |
+
+**Ràng buộc:** `fk_ja_job`, `fk_ja_user`, `fk_ja_assigned_by`, `uk_job_assignments_job_user (job_id, user_id)`, index `idx_job_assignments_user`.
+
+## K. Landing Page & Employer Branding
+
+### K.1 `landing_page_settings` — Cấu hình tùy biến Landing Page của Tenant (V32)
+
+Entity `LandingPageSetting` (`com.smarthire.domain.tenant.entity.LandingPageSetting`).
+
+| Cột | Kiểu | Khoá | Null | Default | Mô tả |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | Không | auto | Mã định danh bản ghi |
+| `config_json` | JSON | | Không | — | Cấu hình toàn diện: theme, hero, about, benefits, techStack, testimonials, footer, seo |
+| `is_published` | BOOLEAN | | Không | `TRUE` | Cờ trạng thái đã xuất bản hay đang là bản nháp |
+| `published_at` | TIMESTAMP | | Có | NULL | Thời điểm xuất bản lần cuối |
+| `created_at` | TIMESTAMP | | Không | `CURRENT_TIMESTAMP` | Thời điểm tạo |
+| `updated_at` | TIMESTAMP | | Không | `CURRENT_TIMESTAMP` | Thời điểm cập nhật cuối |
+
+**Ràng buộc:** Mỗi tenant database chứa 1 bản ghi cấu hình tùy biến duy nhất phục vụ trang Career công khai.
+

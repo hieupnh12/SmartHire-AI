@@ -2,7 +2,7 @@ import { Check, ChevronDown, Search, X } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
 
-export type RankingSelectOption = {
+type RankingSelectOption = {
   value: string;
   label: string;
   description?: string;
@@ -94,7 +94,7 @@ export function RankingSelect({ value, options, onChange, ariaLabel, placeholder
       disabled={disabled}
       onClick={() => setOpen((current) => !current)}
       onKeyDown={handleKeyDown}
-      className={`flex w-full cursor-pointer items-center justify-between gap-3 rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] text-left font-medium shadow-sm transition-[border-color,box-shadow] hover:border-[var(--color-primary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-primary)] disabled:cursor-not-allowed disabled:opacity-50 ${compact ? "min-h-11 px-3 py-2 text-xs" : "min-h-12 px-4 py-3 text-sm"}`}
+      className={`flex w-full cursor-pointer items-center justify-between gap-3 rounded-xl border border-[var(--color-outline)]/55 bg-[var(--color-surface-card)] text-left font-medium transition-[border-color,background-color,box-shadow] hover:border-[var(--color-on-surface)]/65 hover:bg-[var(--color-surface-alt)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-primary)] disabled:cursor-not-allowed disabled:opacity-50 ${compact ? "min-h-11 px-3 py-2 text-xs" : "min-h-12 px-4 py-3 text-sm"}`}
     >
       <span className={`min-w-0 flex-1 truncate ${selected ? "text-[var(--color-on-surface)]" : "text-[var(--color-on-surface-variant)]"}`}>{selected?.label ?? placeholder}</span>
       {selected?.badge && <span className="shrink-0 rounded-full bg-[var(--color-primary-soft)] px-2 py-0.5 text-[10px] font-semibold text-[var(--color-primary-hover)]">{selected.badge}</span>}

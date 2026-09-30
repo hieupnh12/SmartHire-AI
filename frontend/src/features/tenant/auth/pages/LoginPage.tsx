@@ -98,7 +98,7 @@ export function LoginPage() {
   });
 
   return (
-    <div className="tenant-workspace-theme min-h-screen bg-[#f9f9ff] text-[#191b23] font-sans antialiased flex flex-col justify-between" style={getTenantThemeStyle(theme)}>
+    <div className="tenant-workspace-theme min-h-screen bg-slate-100 text-slate-900 font-sans antialiased flex flex-col justify-between" style={getTenantThemeStyle(theme)}>
       {/* Background Glows */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
         <div className="absolute -top-40 -left-40 w-96 h-96 bg-[var(--color-primary-soft)] rounded-full blur-3xl" />
@@ -106,166 +106,102 @@ export function LoginPage() {
       </div>
 
       {/* Main Container */}
-      <main className="relative z-10 max-w-6xl mx-auto px-6 py-10 w-full flex-grow flex items-center justify-center">
-        <div className="w-full grid lg:grid-cols-12 gap-8 items-center bg-white border border-[#e2e8f0] rounded-[32px] overflow-hidden shadow-[0_25px_50px_-12px_rgba(59,130,246,0.08)]">
-          {/* LEFT COLUMN: HIGH-TECH HERO SHOWCASE */}
-          <div className="lg:col-span-6 relative p-8 sm:p-12 bg-slate-950 text-white min-h-[560px] flex flex-col justify-between overflow-hidden">
-            {/* Background Generated Hero Image */}
-            <img
-              src={theme.heroImage}
-              alt="High Tech Office"
-              className="absolute inset-0 w-full h-full object-cover object-center opacity-30 mix-blend-luminosity scale-105"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/80 to-slate-950/40" />
+      <main className="relative z-10 w-full flex-grow flex flex-col items-center justify-center px-6 py-10">
+        <div className="w-full max-w-[420px] bg-white border border-slate-200 rounded-[24px] p-8 shadow-xl shadow-slate-200/50 mb-6">
 
-            <div className="relative z-10">
-              <div className="flex items-center gap-3 cursor-pointer mb-8" onClick={() => navigate("/")}>
-                <div className={`w-10 h-10 rounded-[12px] ${theme.primaryColorBtn} text-white flex items-center justify-center shadow-md font-bold text-lg`}>
-                  {theme.code.charAt(0).toUpperCase()}
-                </div>
-                <div>
-                  <span className="text-xl font-bold font-display tracking-tight text-white">
-                    {theme.name}
-                  </span>
-                  <span className="block text-[11px] font-semibold text-cyan-400">
-                    Enterprise Staff Portal
-                  </span>
-                </div>
-              </div>
-
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-xs font-semibold text-cyan-300 mb-4">
-                <ShieldCheck className="w-4 h-4 text-cyan-400" />
-                <span>Separate Database per Tenant</span>
-              </div>
-
-              <h2 className="text-3xl font-extrabold font-display leading-tight mb-4 text-white">
-                Không Gian Làm Việc Nội Bộ & Quản Trị Tuyển Dụng AI
-              </h2>
-
-              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed font-normal mb-8">
-                Hệ thống tích hợp AI Screening, STT Voice Interview và Quy trình Đánh giá Ứng viên Enterprise dành riêng cho {theme.name}.
-              </p>
+          {/* Title */}
+          <div className="flex flex-col items-center text-center mb-8">
+            <div className={`w-12 h-12 rounded-[14px] ${theme.primaryColorBtn} text-white flex items-center justify-center shadow-md font-bold text-xl mb-4`}>
+              {theme.code.charAt(0).toUpperCase()}
             </div>
-
-            {/* Features Bullet List */}
-            <div className="relative z-10 space-y-3 font-mono text-xs text-slate-300 pt-6 border-t border-white/15">
-              <div className="flex items-center gap-3">
-                <Database className="w-4 h-4 text-brand-primary flex-shrink-0" />
-                <span>Độc lập dữ liệu tuyệt đối (Database Isolated)</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <Cpu className="w-4 h-4 text-cyan-400 flex-shrink-0" />
-                <span>AI CV Parsing & Matching Score Engine</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <Layers className="w-4 h-4 text-indigo-400 flex-shrink-0" />
-                <span>Realtime RabbitMQ Queue & Redis Cache</span>
-              </div>
-            </div>
+            <h1 className="text-2xl font-bold font-display text-[#1e293b]">
+              Đăng Nhập Admin
+            </h1>
           </div>
 
-          {/* RIGHT COLUMN: LUMINOUS FORM PANEL */}
-          <div className="lg:col-span-6 p-8 sm:p-12 flex flex-col justify-between h-full">
+          {/* Login Form */}
+          <form onSubmit={handleSubmit((data) => mutation.mutate(data))} className="space-y-4 text-xs" noValidate>
+            {/* Email Input */}
             <div>
-              {/* Header Top Bar */}
-              <div className="flex items-center justify-between mb-8">
-                <div className="flex items-center gap-2 text-xs font-bold text-[#3b82f6]">
-                  <BrainCircuit className="w-5 h-5 text-[#3b82f6]" />
-                  <span>SmartHire AI SaaS</span>
-                </div>
-                <LanguageSwitcher />
+              <label className="block font-semibold text-[#1e293b] mb-1.5" htmlFor="email">
+                Email *
+              </label>
+              <div className="relative">
+                <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  id="email"
+                  type="email"
+                  autoComplete="email"
+                  aria-invalid={!!errors.email}
+                  {...register("email")}
+                  className="w-full pl-10 pr-4 py-3 rounded-[10px] bg-slate-50 border border-slate-300 text-slate-900 font-sans text-sm placeholder:text-slate-400 hover:bg-white hover:border-slate-400 focus:bg-white focus:border-[#3b82f6] focus:ring-4 focus:ring-[#3b82f6]/10 outline-none transition-all shadow-sm"
+                />
               </div>
+              {errors.email && (
+                <p className="mt-1 text-[11px] text-red-600 font-semibold" role="alert">
+                  {errors.email.message}
+                </p>
+              )}
+            </div>
 
-              {/* Title */}
-              <h1 className="text-2xl sm:text-3xl font-bold font-display text-[#1e293b] mb-2">
-                Đăng Nhập HR & Quản Trị
-              </h1>
-              <p className="text-xs text-[#64748b] mb-8">
-                Truy cập không gian quản trị công ty <strong>{theme.name}</strong>
-              </p>
-
-              {/* Login Form */}
-              <form onSubmit={handleSubmit((data) => mutation.mutate(data))} className="space-y-4 text-xs" noValidate>
-                {/* Email Input */}
-                <div>
-                  <label className="block font-semibold text-[#1e293b] mb-1.5" htmlFor="email">
-                    Email Công Vụ (Corporate Email) *
-                  </label>
-                  <div className="relative">
-                    <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                    <input
-                      id="email"
-                      type="email"
-                      placeholder={`admin@${theme.code}.com`}
-                      autoComplete="email"
-                      aria-invalid={!!errors.email}
-                      {...register("email")}
-                      className="w-full pl-10 pr-4 py-3 rounded-[10px] bg-[#f8f9ff] border border-[#e2e8f0] text-[#1e293b] font-mono text-xs focus:border-[#3b82f6] focus:outline-none"
-                    />
-                  </div>
-                  {errors.email && (
-                    <p className="mt-1 text-[11px] text-red-600 font-semibold" role="alert">
-                      {errors.email.message}
-                    </p>
-                  )}
-                </div>
-
-                {/* Password Input */}
-                <div>
-                  <div className="flex justify-between items-center mb-1.5">
-                    <label className="block font-semibold text-[#1e293b]" htmlFor="password">
-                      Mật Khẩu *
-                    </label>
-                  </div>
-                  <div className="relative">
-                    <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                    <input
-                      id="password"
-                      type={showPassword ? "text" : "password"}
-                      placeholder="••••••••"
-                      autoComplete="current-password"
-                      aria-invalid={!!errors.password}
-                      {...register("password")}
-                      className="w-full pl-10 pr-10 py-3 rounded-[10px] bg-[#f8f9ff] border border-[#e2e8f0] text-[#1e293b] font-mono text-xs focus:border-[#3b82f6] focus:outline-none"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                    >
-                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                  {errors.password && (
-                    <p className="mt-1 text-[11px] text-red-600 font-semibold" role="alert">
-                      {errors.password.message}
-                    </p>
-                  )}
-                </div>
-
-                {/* Submit Button */}
+            {/* Password Input */}
+            <div>
+              <div className="flex justify-between items-center mb-1.5">
+                <label className="block font-semibold text-[#1e293b]" htmlFor="password">
+                  Mật Khẩu *
+                </label>
+              </div>
+              <div className="relative">
+                <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="••••••••"
+                  autoComplete="current-password"
+                  aria-invalid={!!errors.password}
+                  {...register("password")}
+                  className="w-full pl-10 pr-10 py-3 rounded-[10px] bg-slate-50 border border-slate-300 text-slate-900 font-sans text-sm placeholder:text-slate-400 hover:bg-white hover:border-slate-400 focus:bg-white focus:border-[#3b82f6] focus:ring-4 focus:ring-[#3b82f6]/10 outline-none transition-all shadow-sm"
+                />
                 <button
-                  type="submit"
-                  disabled={mutation.isPending}
-                  className={`w-full py-3.5 rounded-[10px] ${theme.primaryColorBtn} text-white font-bold text-xs shadow-md shadow-[#3b82f6]/20 transition-all flex items-center justify-center gap-2 mt-4 disabled:opacity-50`}
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                 >
-                  {mutation.isPending ? (
-                    <span>Đang Xác Thực JWT...</span>
-                  ) : (
-                    <>
-                      <span>Đăng Nhập Workspace</span>
-                      <ArrowRight className="w-4 h-4" />
-                    </>
-                  )}
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
-              </form>
-
+              </div>
+              {errors.password && (
+                <p className="mt-1 text-[11px] text-red-600 font-semibold" role="alert">
+                  {errors.password.message}
+                </p>
+              )}
             </div>
 
-            {/* Footer Notice */}
-            <div className="mt-8 text-center text-[11px] text-[#64748b]">
-              SmartHire AI SaaS Platform © 2026. Separate DB Isolation Strategy.
-            </div>
+            {/* Submit Button */}
+            <button
+              type="submit"
+              disabled={mutation.isPending}
+              className={`w-full py-3.5 rounded-[10px] ${theme.primaryColorBtn} text-white font-bold text-xs shadow-md shadow-[#3b82f6]/20 transition-all flex items-center justify-center gap-2 mt-4 disabled:opacity-50`}
+            >
+              {mutation.isPending ? (
+                <span>Đang đăng nhập...</span>
+              ) : (
+                <>
+                  <span>Đăng Nhập Workspace</span>
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
+            </button>
+          </form>
+        </div>
+
+        {/* Footer Links & Actions */}
+        <div className="w-full max-w-[420px] flex items-center justify-between px-4">
+          <span onClick={() => navigate("/")} className="text-[12px] font-semibold text-slate-500 hover:text-slate-800 transition-colors cursor-pointer flex items-center gap-1">
+            &larr; Về Trang Chủ
+          </span>
+          <div className="scale-90 origin-right opacity-80 hover:opacity-100 transition-opacity">
+            <LanguageSwitcher />
           </div>
         </div>
       </main>

@@ -1,7 +1,8 @@
-import { Bell, CircleHelp, Home, LogOut, Search, Sparkles, type LucideIcon } from "lucide-react";
+import { Bell, CircleHelp, Clock3, Home, LogOut, Search, Sparkles, type LucideIcon } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { workspaceOf } from "@/features/tenant/auth/workspace";
 import { Button } from "@/components/ux/Button";
 import { HeaderActionsMenu } from "@/components/ux/HeaderActionsMenu";
 import { LanguageSwitcher } from "@/components/ux/LanguageSwitcher";
@@ -10,11 +11,13 @@ import { authApi } from "@/api/tenant/authApi";
 import { companyApi } from "@/api/tenant/companyApi";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 import { hasRecruiterFeature, recruiterHomePath, visibleRecruiterNav } from "@/features/tenant/recruiter/permissions";
+import { JobNavigationDrawer } from "@/features/tenant/recruiter/jobs/components/JobNavigationDrawer";
 import { useT } from "@/i18n";
 import { getTenantIdFromWindow } from "@/lib/tenant";
 import { getTenantTheme, getTenantThemeStyle } from "@/lib/tenantTheme";
 import { cn } from "@/lib/utils";
 import { useUiStore } from "@/stores/uiStore";
+import { useNotifications } from "@/hooks/useNotifications";
 
 type NavItem = {
   to: string;
@@ -43,20 +46,30 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
   const setUser = useAuthStore((s) => s.setUser);
   const logout = useAuthStore((s) => s.logout);
   const openShortcuts = useUiStore((s) => s.openShortcuts);
+  const askConfirm = useUiStore((s) => s.askConfirm);
   const [isAdminNotificationsOpen, setIsAdminNotificationsOpen] = useState(false);
   const [openAdminGroup, setOpenAdminGroup] = useState<string | null>(null);
   const [failedTenantLogoUrl, setFailedTenantLogoUrl] = useState<string | null>(null);
   const userInitial = user?.fullName.trim().charAt(0).toLocaleUpperCase();
   const isCandidateWorkspace = basePath === "/candidate";
+  const inbox = useNotifications(isCandidateWorkspace);
+  const unreadCount = inbox.data?.filter(item => !item.readAt).length ?? 0;
   const isRecruiterWorkspace = basePath === "/recruiter";
+  const isRecruiterDashboard = isRecruiterWorkspace && /^\/recruiter\/?$/.test(location.pathname);
+  const isRecruiterJobCreate = isRecruiterWorkspace && /^\/recruiter\/jobs\/new\/?$/.test(location.pathname);
+  const isRecruiterJobEdit = isRecruiterWorkspace && /^\/recruiter\/jobs\/\d+\/edit\/?$/.test(location.pathname);
+  const isRecruiterJobForm = isRecruiterJobCreate || isRecruiterJobEdit;
+  const isRecruiterRanking = isRecruiterWorkspace && /\/rank\/?$/.test(location.pathname);
+  const isRecruiterBoard = isRecruiterRanking || (isRecruiterWorkspace && /\/jobs\/\d+\/applicants\/?$/.test(location.pathname) && new URLSearchParams(location.search).get("view") === "board");
   const isTenantAdminWorkspace = basePath === "/internal/admin";
   const useWorkspaceHeader = isCandidateWorkspace || isRecruiterWorkspace;
   const tenantTheme = getTenantTheme(getTenantIdFromWindow() ?? "acme");
   const profileQuery = useQuery({
     queryKey: ["tenant-auth-profile", accessToken],
     queryFn: authApi.me,
-    enabled: !!accessToken && !user,
+    enabled: !!accessToken,
     retry: false,
+    staleTime: 60_000,
   });
   const companyProfileQuery = useQuery({
     queryKey: ["tenant", "company", "profile"],
@@ -68,27 +81,67 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
   const tenantLogoUrl = companyProfile?.logoUrl?.trim() || null;
   const tenantDisplayName = companyProfile?.companyName?.trim() || tenantTheme.name;
   const showTenantLogo = !!tenantLogoUrl && failedTenantLogoUrl !== tenantLogoUrl;
+  const recruiterJobId = isRecruiterWorkspace ? location.pathname.match(/^\/recruiter\/jobs\/(\d+)(?:\/|$)/)?.[1] : undefined;
+  const recruiterActionQueue = isRecruiterWorkspace && (
+    /^\/recruiter\/(applicants|cvs|schedules)\/?$/.test(location.pathname)
+    || (/^\/recruiter\/jobs\/?$/.test(location.pathname) && ["draft", "expiring"].includes(new URLSearchParams(location.search).get("status") ?? ""))
+  );
+  const actionQueueLinks = ([
+    { to: "/recruiter/applicants?status=new", label: "Ứng viên mới", feature: "APPLICANTS" },
+    { to: "/recruiter/cvs?status=pending", label: "CV cần sàng lọc", feature: "CV_SCREENING" },
+    { to: "/recruiter/schedules?status=upcoming", label: "Lịch phỏng vấn", feature: "SCHEDULES" },
+    { to: "/recruiter/jobs?status=draft", label: "Job nháp", feature: "JOBS" },
+    { to: "/recruiter/jobs?status=expiring", label: "Sắp hết hạn", feature: "JOBS" },
+  ] as const).filter((item) => hasRecruiterFeature(user?.permissions, item.feature));
+  // Recruitment modules use the selected job.
+  const jobScopedNav = new Set([
+    "/applicants",
+    "/cvs",
+    "/rank",
+    "/analytics",
+    "/assessments",
+    "/ai-interviews",
+    "/interviews",
+    "/schedules",
+    "/notifications",
+  ]);
   const displayedLinks = isRecruiterWorkspace
-    ? accessToken && !user
+    ? isRecruiterJobForm || (accessToken && !user)
       ? []
-      : visibleRecruiterNav(user?.permissions)
+      : visibleRecruiterNav(user?.permissions).filter((item) => item.to !== "" && (!!recruiterJobId || !jobScopedNav.has(item.to))).map((item) => {
+          let to: string = item.to;
+          if (item.to === "/jobs") {
+            to = recruiterJobId ? `/jobs/${recruiterJobId}` : "/jobs";
+          } else if (jobScopedNav.has(item.to)) {
+            if (recruiterJobId) to = `/jobs/${recruiterJobId}${item.to}`;
+            else to = "/jobs";
+          }
+          return { ...item, to };
+        })
     : links;
   const showRecruiterNotifications =
     !isRecruiterWorkspace || hasRecruiterFeature(user?.permissions, "NOTIFICATIONS");
+  const showAdminBackBanner =
+    isRecruiterWorkspace && !!user && workspaceOf(user.role, user.workspace) === "ADMIN";
   useEffect(() => {
     if (profileQuery.data?.success && profileQuery.data.data) setUser(profileQuery.data.data);
   }, [profileQuery.data, setUser]);
-  const handleLogout = () => {
-    logout();
-    navigate("/", { replace: true });
-  };
+  const handleLogout = () => askConfirm({
+    title: "Đăng xuất khỏi SmartHire?",
+    confirmLabel: "Đăng xuất",
+    danger: true,
+    onConfirm: () => {
+      logout();
+      navigate("/", { replace: true });
+    },
+  });
   const submitWorkspaceSearch = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const query = new FormData(event.currentTarget).get("workspace-search")?.toString().trim();
     const target = isCandidateWorkspace
       ? "/candidate/jobs"
       : hasRecruiterFeature(user?.permissions, "APPLICANTS")
-        ? "/recruiter/applicants"
+        ? recruiterJobId ? `/recruiter/jobs/${recruiterJobId}/applicants` : "/recruiter/jobs"
         : recruiterHomePath(user?.permissions);
     navigate(query ? `${target}?q=${encodeURIComponent(query)}` : target);
   };
@@ -161,7 +214,13 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
 
             {adminGroups.map((group, index) => {
               const GroupIcon = group.icon;
-              const groupIsActive = openAdminGroup === group.id || group.items.some((item) => location.pathname === `${basePath}${item.to}`);
+              const groupIsActive =
+                openAdminGroup === group.id ||
+                group.items.some((item) =>
+                  item.to.startsWith("/recruiter")
+                    ? location.pathname === "/recruiter" || location.pathname.startsWith("/recruiter/")
+                    : location.pathname === `${basePath}${item.to}`,
+                );
               return (
                 <div key={group.id} className="relative" style={{ order: index < 2 ? index + 1 : index + 2 }}>
                   <Tooltip content={`${t(group.labelKey)} · ${t(group.descriptionKey ?? group.labelKey)}`} side="right" disabled={openAdminGroup === group.id} className="w-full">
@@ -197,7 +256,7 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
                             );
                           }
                           return (
-                            <NavLink key={item.to} to={`${basePath}${item.to}`} role="menuitem" onClick={() => setOpenAdminGroup(null)} className={({ isActive }) => cn("flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-primary", isActive ? "border-brand-primary/30 bg-[var(--color-primary-soft)] text-brand-primary" : "border-transparent hover:border-[var(--color-border-default)] hover:bg-[var(--color-surface-alt)]")}>
+                            <NavLink key={item.to} to={item.to.startsWith("/recruiter") ? item.to : `${basePath}${item.to}`} role="menuitem" onClick={() => setOpenAdminGroup(null)} className={({ isActive }) => cn("flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-primary", isActive ? "border-brand-primary/30 bg-[var(--color-primary-soft)] text-brand-primary" : "border-transparent hover:border-[var(--color-border-default)] hover:bg-[var(--color-surface-alt)]")}>
                               {ItemIcon && <span className="grid size-10 shrink-0 place-items-center rounded-xl border border-[var(--color-border-default)] bg-white"><ItemIcon className="size-5" aria-hidden="true" /></span>}
                               <span className="truncate text-sm font-semibold">{label}</span>
                             </NavLink>
@@ -296,11 +355,18 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
     );
   }
 
+  if (isCandidateWorkspace && location.pathname === "/candidate/interviews/demo") {
+    return <div className="tenant-workspace-theme min-h-screen bg-surface-page" style={getTenantThemeStyle(tenantTheme)}>
+      <main id="main-content" className="mx-auto max-w-[1600px] p-4 sm:p-6"><Outlet /></main>
+    </div>;
+  }
+
   return (
-    <div className="tenant-workspace-theme min-h-screen bg-surface-page" style={getTenantThemeStyle(tenantTheme)}>
+    <div className={cn("tenant-workspace-theme min-h-screen bg-surface-page", (isRecruiterBoard || isRecruiterJobForm) && "xl:h-dvh xl:overflow-hidden")} style={getTenantThemeStyle(tenantTheme)}>
       <header className="sticky top-0 z-40 border-b border-[var(--color-border-default)] bg-white/85 shadow-sm backdrop-blur-md">
         <div className="mx-auto flex min-h-16 max-w-[1440px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-10">
           <div className="flex min-w-0 items-center gap-3">
+            {isRecruiterWorkspace && <JobNavigationDrawer />}
             <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-brand-primary text-[var(--color-on-primary)] shadow-[0_10px_20px_-10px_var(--color-primary-shadow)]">
               <Sparkles className="size-[18px]" aria-hidden="true" />
             </span>
@@ -322,6 +388,7 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
             >
               <Search className="pointer-events-none absolute left-3.5 top-1/2 size-[18px] -translate-y-1/2 text-[var(--color-outline)]" aria-hidden="true" />
               <input
+                data-search-input
                 name="workspace-search"
                 type="search"
                 placeholder={isCandidateWorkspace ? `${t("common.search")} việc làm, kỹ năng...` : `${t("common.search")} ứng viên, kỹ năng...`}
@@ -352,12 +419,12 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
             {useWorkspaceHeader && showRecruiterNotifications && (
               <Tooltip content={t("nav.notifications")} side="bottom">
                 <NavLink
-                  to={`${basePath}/notifications`}
+                  to={isRecruiterWorkspace ? recruiterJobId ? `/recruiter/jobs/${recruiterJobId}/notifications` : "/recruiter/jobs" : `${basePath}/notifications`}
                   className="relative grid size-10 place-items-center rounded-[var(--radius-default)] text-[var(--color-on-surface-variant)] transition-colors hover:bg-[var(--color-primary-subtle)] hover:text-brand-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary"
-                  aria-label={t("nav.notifications")}
+                  aria-label={isCandidateWorkspace && unreadCount ? `${t("nav.notifications")} (${unreadCount} chưa đọc)` : t("nav.notifications")}
                 >
                   <Bell className="size-[18px]" aria-hidden="true" />
-                  <span className="absolute right-2 top-2 size-2 rounded-full bg-amber-500 ring-2 ring-white" aria-hidden="true" />
+                  {isCandidateWorkspace && unreadCount > 0 && <span className="absolute right-1 top-1 rounded-full bg-brand-primary px-1 text-[10px] text-[var(--color-on-primary)]" aria-hidden="true">{unreadCount}</span>}
                 </NavLink>
               </Tooltip>
             )}
@@ -388,16 +455,40 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
           </div>
         </div>
 
-        <div className="border-t border-[var(--color-border-default)] bg-white/85">
-          <nav
+        {!isRecruiterDashboard && <div className="border-t border-[var(--color-border-default)] bg-white/85">
+          {recruiterActionQueue ? (
+            <div className="mx-auto flex max-w-[1440px] items-center gap-3 overflow-hidden px-4 py-2 sm:px-6 lg:px-10">
+              <div className="hidden shrink-0 items-center gap-2 lg:flex"><Clock3 className="size-4 text-brand-primary" aria-hidden="true" /><p className="text-sm font-semibold text-[var(--color-on-surface)]">Việc cần xử lý</p></div>
+              <nav className="flex min-w-0 flex-1 gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label="Các việc tuyển dụng cần xử lý">
+                {actionQueueLinks.map((item) => {
+                  const active = `${location.pathname}${location.search}` === item.to;
+                  return (
+                    <Link
+                      key={item.to}
+                      to={item.to}
+                      aria-current={active ? "page" : undefined}
+                      className={cn(
+                        "inline-flex min-h-10 shrink-0 items-center whitespace-nowrap rounded-[var(--radius-md)] px-3 text-sm font-medium transition-colors duration-[var(--motion-fast)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-primary)]",
+                        active
+                          ? "bg-[var(--color-primary-soft)] text-brand-primary ring-1 ring-inset ring-brand-primary/20"
+                          : "text-[var(--color-on-surface-variant)] hover:bg-[var(--color-primary-subtle)] hover:text-brand-primary",
+                      )}
+                    >
+                      {item.label}
+                    </Link>
+                  );
+                })}
+              </nav>
+            </div>
+          ) : displayedLinks.length > 0 ? <nav
             className="mx-auto flex max-w-[1440px] gap-1 overflow-x-auto px-4 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:px-6 lg:px-10"
             aria-label={t("a11y.mainNav")}
           >
             {displayedLinks.map((l) => (
               <NavLink
-                key={l.to}
+                key={`${l.labelKey}:${l.to}`}
                 to={`${basePath}${l.to}`}
-                end={l.to === ""}
+                end={l.to === "" || (isRecruiterWorkspace && !!recruiterJobId && l.to === `/jobs/${recruiterJobId}`)}
                 className={({ isActive }) =>
                   cn(
                     "relative inline-flex min-h-10 shrink-0 items-center whitespace-nowrap rounded-[var(--radius-md)] px-3 text-sm font-medium transition-colors duration-[var(--motion-fast)]",
@@ -411,10 +502,24 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
                 {t(l.labelKey)}
               </NavLink>
             ))}
-          </nav>
-        </div>
+          </nav> : null}
+        </div>}
       </header>
-      <main id="main-content" className="mx-auto max-w-[1440px] px-4 py-6 sm:px-6 sm:py-8 lg:px-10">
+      {showAdminBackBanner && (
+        <div
+          className="border-b border-[var(--color-border-default)] bg-[var(--color-primary-soft)]/60 px-4 py-2 text-center text-sm text-[var(--color-on-surface)] sm:px-6 lg:px-10"
+          role="status"
+        >
+          Bạn đang ở workspace tuyển dụng.{" "}
+          <Link
+            to="/internal/admin"
+            className="font-semibold text-brand-primary underline underline-offset-2 hover:text-brand-primary-hover"
+          >
+            Quay lại bảng điều khiển quản trị
+          </Link>
+        </div>
+      )}
+      <main id="main-content" className={cn("mx-auto", isRecruiterDashboard ? "w-full max-w-none p-0" : isRecruiterJobForm ? "w-full max-w-[1440px] px-4 py-4 sm:px-5 sm:py-5 lg:px-6 xl:h-[calc(100dvh-4rem)] xl:overflow-hidden" : isRecruiterBoard ? "w-full max-w-none px-4 sm:px-6 lg:px-10 xl:h-[calc(100dvh-7.5rem)] xl:overflow-hidden" : "max-w-[1440px] px-4 py-6 sm:px-6 sm:py-8 lg:px-10")}>
         <Outlet />
       </main>
     </div>

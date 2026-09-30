@@ -1,24 +1,37 @@
 package com.smarthire.domain.tenant.entity;
 
-import jakarta.persistence.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+import lombok.experimental.FieldDefaults;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
+@Getter
+@Setter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+@FieldDefaults(level = AccessLevel.PRIVATE)
 @Entity
 @Table(name = "ranking_configs")
 public class RankingConfig {
+
     @Id
     @Column(name = "job_id")
-    private Long jobId;
+    Long jobId;
+
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "config_json", nullable = false, columnDefinition = "json")
-    private String configJson;
+    String configJson;
+
     @Column(nullable = false)
-    private long revision;
-    public Long getJobId() { return jobId; }
-    public void setJobId(Long value) { jobId = value; }
-    public String getConfigJson() { return configJson; }
-    public void setConfigJson(String value) { configJson = value; }
-    public long getRevision() { return revision; }
-    public void setRevision(long value) { revision = value; }
+    long revision;
 }

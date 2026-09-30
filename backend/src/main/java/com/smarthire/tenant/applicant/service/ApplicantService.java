@@ -2,6 +2,9 @@ package com.smarthire.tenant.applicant.service;
 
 import com.smarthire.common.exception.BusinessException;
 import com.smarthire.domain.enums.ApplicationStatus;
+import com.smarthire.domain.enums.CvScreeningStatus;
+import com.smarthire.domain.enums.CvStatus;
+import com.smarthire.domain.enums.ScreeningMode;
 import com.smarthire.domain.enums.UserRole;
 import com.smarthire.domain.enums.UserStatus;
 import com.smarthire.domain.tenant.entity.Application;
@@ -9,6 +12,7 @@ import com.smarthire.domain.tenant.entity.ApplicationStatusHistory;
 import com.smarthire.domain.tenant.entity.Cv;
 import com.smarthire.domain.tenant.entity.Job;
 import com.smarthire.domain.tenant.entity.MatchScore;
+import com.smarthire.domain.tenant.entity.RecruitmentStage;
 import com.smarthire.domain.tenant.entity.User;
 import com.smarthire.domain.tenant.repository.ApplicationRepository;
 import com.smarthire.domain.tenant.repository.ApplicationStatusHistoryRepository;
@@ -22,22 +26,31 @@ import com.smarthire.tenant.applicant.dto.ApplicantModels.HistoryView;
 import com.smarthire.tenant.applicant.dto.ApplicantModels.ManualCreateRequest;
 import com.smarthire.tenant.applicant.dto.ApplicantModels.PageResult;
 import com.smarthire.tenant.applicant.dto.ApplicantModels.PatchRequest;
+import com.smarthire.messaging.JobPublisher;
+import com.smarthire.tenant.aiInterview.service.AiInterviewInvitationService;
 import com.smarthire.tenant.applicant.mapper.ApplicantMapper;
 import com.smarthire.tenant.cv.service.CvAccess;
+import com.smarthire.tenant.cv.service.CvApplicationCopyService;
 import com.smarthire.tenant.job.mapper.JobMapper;
+import com.smarthire.tenant.job.screening.GateScreeningService;
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Service
 public class ApplicantService {
+    private static final Logger log = LoggerFactory.getLogger(ApplicantService.class);
     private static final Set<ApplicationStatus> TERMINAL = Set.of(ApplicationStatus.HIRED);
     private final ApplicationRepository applications;
     private final ApplicationStatusHistoryRepository history;
@@ -48,6 +61,11 @@ public class ApplicantService {
     private final CvAccess access;
     private final JobMapper jobsMapper;
     private final ApplicantMapper mapper;
+    private final AiInterviewInvitationService invitations;
+    private final JobPublisher publisher;
+    private final GateScreeningService gateScreening;
+    private final AiInterviewInviteService aiInterviewInvites;
+    private final CvApplicationCopyService cvCopies;
 
     public ApplicantService(
             ApplicationRepository applications,
@@ -58,7 +76,12 @@ public class ApplicantService {
             RecruitmentStageRepository stages,
             CvAccess access,
             JobMapper jobsMapper,
-            ApplicantMapper mapper) {
+            ApplicantMapper mapper,
+            AiInterviewInvitationService invitations,
+            JobPublisher publisher,
+            GateScreeningService gateScreening,
+            AiInterviewInviteService aiInterviewInvites,
+            CvApplicationCopyService cvCopies) {
         this.applications = applications;
         this.history = history;
         this.jobs = jobs;
@@ -68,6 +91,11 @@ public class ApplicantService {
         this.access = access;
         this.jobsMapper = jobsMapper;
         this.mapper = mapper;
+        this.invitations = invitations;
+        this.publisher = publisher;
+        this.gateScreening = gateScreening;
+        this.aiInterviewInvites = aiInterviewInvites;
+        this.cvCopies = cvCopies;
     }
 
     public Map<String, String> health() {
@@ -107,7 +135,7 @@ public class ApplicantService {
         application.setStatus(ApplicationStatus.NEW);
         application.setSource(blankToValue(source, "CAREER"));
         application.setReferralCode(blankToNull(referralCode));
-        application.setStage(stages.findByJob_IdOrderBySortOrderAsc(jobId).stream().findFirst().orElse(null));
+        application.setStage(firstActiveStage(jobId));
         applications.save(application);
         attachCv(cvId, job, application, actor);
         record(application, ApplicationStatus.NEW, "Applied");
@@ -143,17 +171,38 @@ public class ApplicantService {
         application.setNotes(blankToNull(request.notes()));
         application.setTags(blankToNull(request.tags()));
         application.setAssignee(access.actor());
-        application.setStage(stages.findByJob_IdOrderBySortOrderAsc(jobId).stream().findFirst().orElse(null));
+        application.setStage(firstActiveStage(jobId));
         applications.save(application);
         record(application, ApplicationStatus.NEW, "Created by recruiter");
         return mapper.summary(application, false);
     }
 
     @Transactional(readOnly = true)
-    public PageResult<ApplicationSummary> list(long jobId, String q, ApplicationStatus status, String source, boolean archived, int page, int size) {
+    public PageResult<ApplicationSummary> list(long jobId, String q, ApplicationStatus status, String source,
+                                                boolean archived, boolean includeWithdrawn, int page, int size) {
         access.requireJob(job(jobId));
         var result = applications.search(
                 jobId,
+                q == null ? null : q.trim(),
+                status,
+                blankToNull(source),
+                archived,
+                includeWithdrawn,
+                PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 50), Sort.by(Sort.Direction.DESC, "id")));
+        List<ApplicationSummary> items = result.getContent().stream()
+                .map(app -> mapper.summary(app, applications.countByCandidate_Id(app.getCandidate().getId()) > 1))
+                .toList();
+        return new PageResult<>(items, result.getNumber(), result.getSize(), result.getTotalElements());
+    }
+
+    @Transactional(readOnly = true)
+    public PageResult<ApplicationSummary> listVisible(Long jobId, String q, ApplicationStatus status, String source, boolean archived, int page, int size) {
+        if (!access.staff()) {
+            throw new BusinessException("Recruiter access required", HttpStatus.FORBIDDEN, "APPLICATION_FORBIDDEN");
+        }
+        var result = applications.searchVisible(
+                jobId,
+                access.jobScopeUserId(),
                 q == null ? null : q.trim(),
                 status,
                 blankToNull(source),
@@ -174,9 +223,10 @@ public class ApplicantService {
                 .toList();
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public ApplicationDetail get(long id) {
         Application application = load(id);
+        gateScreening.recalculate(application);
         return toDetail(application);
     }
 
@@ -260,7 +310,10 @@ public class ApplicantService {
         return toDetail(application);
     }
 
-    /** After CV screening: pass → AI interview; otherwise stay in CV review. Does not auto-reject. */
+    /**
+     * After CV screening. AUTO: pass → AI interview; otherwise stay in CV review. MANUAL: the score is only a
+     * recommendation; the recruiter decides via {@link #decideCvScreening}. Never auto-rejects.
+     */
     @Transactional
     public void advanceFromCvScreening(Cv cv, MatchScore score) {
         if (cv.getJob() == null || cv.getUser() == null) return;
@@ -269,16 +322,60 @@ public class ApplicantService {
             application = applications.findByJob_IdAndCandidate_Id(cv.getJob().getId(), cv.getUser().getId()).orElse(null);
         }
         if (application == null) return;
+        application = applications.findByIdForUpdate(application.getId()).orElse(null);
+        if (application == null || application.getArchivedAt() != null || application.getWithdrawnAt() != null) return;
         ApplicationStatus current = application.getStatus();
-        if (current != ApplicationStatus.NEW && current != ApplicationStatus.IN_REVIEW) return;
-        boolean passed = com.smarthire.tenant.cv.service.CvMatchingService.passed(score);
-        if (passed) {
-            record(application, ApplicationStatus.INTERVIEW, "CV passed screening; moved to AI interview");
+        if (application.getJob().getScreeningMode() != ScreeningMode.AUTO) {
+            if (current == ApplicationStatus.NEW) {
+                record(application, ApplicationStatus.IN_REVIEW, "CV scored by AI; awaiting recruiter decision", null);
+            }
+            gateScreening.recalculate(application);
             return;
         }
-        if (current == ApplicationStatus.NEW) {
-            record(application, ApplicationStatus.IN_REVIEW, "CV screening completed; not passed yet");
+        boolean passed = com.smarthire.tenant.cv.service.CvMatchingService.passed(score);
+        application.setCvScreeningStatus(passed ? com.smarthire.domain.enums.CvScreeningStatus.PASSED
+                : com.smarthire.domain.enums.CvScreeningStatus.FAILED);
+        if (current != ApplicationStatus.NEW && current != ApplicationStatus.IN_REVIEW) {
+            if (passed && current == ApplicationStatus.INTERVIEW) {
+                aiInterviewInvites.sendIfNeeded(application, score);
+            }
+            gateScreening.recalculate(application);
+            return;
         }
+        if (passed) {
+            record(application, ApplicationStatus.INTERVIEW, "CV passed screening; moved to AI interview", null);
+            aiInterviewInvites.sendIfNeeded(application, score);
+        } else if (current == ApplicationStatus.NEW) {
+            record(application, ApplicationStatus.IN_REVIEW, "CV screening completed; not passed yet", null);
+        }
+        gateScreening.recalculate(application);
+    }
+
+    /** Recruiter decision on the CV round: pass → AI interview (with invite); fail → stay in CV review. */
+    @Transactional
+    public ApplicationDetail decideCvScreening(long id, boolean passed, String note) {
+        Application application = loadForStaff(id);
+        application = applications.findByIdForUpdate(application.getId()).orElseThrow();
+        ApplicationStatus current = application.getStatus();
+        if (application.getArchivedAt() != null || application.getWithdrawnAt() != null
+                || (current != ApplicationStatus.NEW && current != ApplicationStatus.IN_REVIEW)) {
+            throw new BusinessException("Application is not in the CV screening round", HttpStatus.CONFLICT,
+                    "APPLICATION_NOT_IN_CV_ROUND");
+        }
+        if (passed) {
+            application.setCvScreeningStatus(CvScreeningStatus.PASSED);
+            record(application, ApplicationStatus.INTERVIEW, noteOr(note, "Recruiter passed CV screening"));
+            aiInterviewInvites.sendOnRecruiterPass(application);
+        } else {
+            application.setCvScreeningStatus(CvScreeningStatus.FAILED);
+            record(application, ApplicationStatus.IN_REVIEW, noteOr(note, "Recruiter marked CV screening as not passed"));
+        }
+        gateScreening.recalculate(application);
+        return toDetail(application);
+    }
+
+    private static String noteOr(String note, String fallback) {
+        return note == null || note.isBlank() ? fallback : note.trim();
     }
 
     @Transactional(readOnly = true)
@@ -292,18 +389,36 @@ public class ApplicantService {
                 application,
                 applications.countByCandidate_Id(application.getCandidate().getId()),
                 cvs.findByUser_IdAndJob_IdOrderByIdDesc(application.getCandidate().getId(), application.getJob().getId()),
-                history.findByApplication_IdOrderByIdDesc(application.getId()));
+                history.findByApplication_IdOrderByIdDesc(application.getId()),
+                gateScreening.view(application),
+                gateScreening.rounds(application));
     }
 
     private void record(Application application, ApplicationStatus next, String note) {
+        Long actorId = null;
+        try {
+            actorId = access.actor().getId();
+        } catch (RuntimeException ignored) {
+            // Rabbit / job-close scanner has tenant context but no logged-in recruiter.
+        }
+        record(application, next, note, actorId);
+    }
+
+    private void record(Application application, ApplicationStatus next, String note, Long actorId) {
         ApplicationStatusHistory row = new ApplicationStatusHistory();
         row.setApplication(application);
         row.setFromStatus(application.getStatus() == null ? null : application.getStatus().name());
         row.setToStatus(next.name());
-        row.setChangedBy(access.actor().getId());
+        row.setChangedBy(actorId);
         row.setNote(blankToNull(note));
         application.setStatus(next);
         history.save(row);
+        if (next == ApplicationStatus.INTERVIEW && application.getArchivedAt() == null
+                && application.getWithdrawnAt() == null
+                && application.getCvScreeningStatus() == com.smarthire.domain.enums.CvScreeningStatus.PASSED
+                && application.getJob().isAiInterviewEnabled()) {
+            invitations.invite(application.getId(), null);
+        }
     }
 
     private Application load(long id) {
@@ -340,9 +455,36 @@ public class ApplicantService {
         if (!cv.getUser().getId().equals(actor.getId())) {
             throw new BusinessException("CV not found", HttpStatus.NOT_FOUND, "CV_NOT_FOUND");
         }
-        cv.setJob(job);
-        cv.setApplication(application);
-        cvs.save(cv);
+        boolean alreadyThisApplication = cv.getApplication() != null
+                && cv.getApplication().getId().equals(application.getId());
+        enqueueScreening(alreadyThisApplication ? cv : cvCopies.copyFor(cv, job, application));
+    }
+
+    /** Personal CVs are parsed without a job; attach must re-run extract/match against this JD. */
+    private void enqueueScreening(Cv cv) {
+        long cvId = cv.getId();
+        CvStatus status = cv.getStatus();
+        Runnable run = () -> {
+            try {
+                if (status == null || status == CvStatus.UPLOADED || status == CvStatus.FAILED) {
+                    publisher.publishParse(cvId);
+                } else {
+                    publisher.publishExtract(cvId);
+                }
+            } catch (Exception ex) {
+                log.warn("Could not enqueue CV screening for application CV {}", cvId, ex);
+            }
+        };
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    run.run();
+                }
+            });
+            return;
+        }
+        run.run();
     }
 
     private static ApplicationStatus parseStatus(String status) {
@@ -351,6 +493,13 @@ public class ApplicantService {
         } catch (Exception ex) {
             throw new BusinessException("Invalid application status", HttpStatus.BAD_REQUEST, "APPLICATION_BAD_STATUS");
         }
+    }
+
+    private RecruitmentStage firstActiveStage(long jobId) {
+        return stages.findByJob_IdOrderBySortOrderAsc(jobId).stream()
+                .filter(RecruitmentStage::isActive)
+                .findFirst()
+                .orElse(null);
     }
 
     private static String blankToNull(String value) {

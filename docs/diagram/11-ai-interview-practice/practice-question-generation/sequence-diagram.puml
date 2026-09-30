@@ -1,0 +1,95 @@
+@startuml
+title FE11-F02 — Practice Question Generation\nGenerate or pick practice questions
+skinparam dpi 300
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam sequenceArrowThickness 1
+skinparam sequenceMessageAlign center
+skinparam ArrowColor #64748B
+skinparam ParticipantBorderColor #CBD5E1
+skinparam ParticipantBackgroundColor #F8FAFC
+hide footbox
+autonumber
+
+actor "Candidate" as Candidate
+boundary "Practice UI" as FE
+control "Security + TenantWebInterceptor" as Guard
+control "TenantContext" as Context
+boundary "PracticeController" as Controller
+control "PracticeService" as Service
+queue "RabbitMQ\npractice.questions" as MQ
+control "PracticeQuestionConsumer" as Consumer
+control "PracticeQuestionGenerator" as Generator
+control "AiQuestionPort /\nQuestionBankPort" as AI
+database "Dedicated Tenant DB" as TenantDB
+
+note over Candidate,TenantDB
+  Types X: GENERAL, TECHNICAL, BEHAVIORAL, JAPANESE.
+  Pattern 1: async + reusable AI/bank ports; persist only practice tables.
+end note
+
+Candidate -> FE: Request practice questions for session
+activate FE
+FE -> Guard: POST /api/v1/practice/sessions/{id}/questions/generate\nX-Tenant-ID
+activate Guard
+Guard -> Context: setCurrentTenant(tenantId)
+Guard -> Controller: forward
+activate Controller
+Controller -> Service: requestQuestionGeneration(id, principal)
+activate Service
+Service -> TenantDB: load owned CREATED/IN_PROGRESS session
+activate TenantDB
+alt missing / not owner / not allowed
+  TenantDB --> Service: reject
+  deactivate TenantDB
+  Service --> Controller: 404 / 403 / 409
+  deactivate Service
+  Controller --> FE: error
+  deactivate Controller
+  FE --> Candidate: Cannot generate
+  deactivate FE
+else allowed
+  TenantDB --> Service: PracticeSession
+  deactivate TenantDB
+  Service -> MQ: publish PracticeQuestionJob\nX-Tenant-ID
+  activate MQ
+  MQ --> Service: accepted
+  deactivate MQ
+  Service --> Controller: 202 Accepted
+  deactivate Service
+  Controller --> FE: Generating…
+  deactivate Controller
+  FE --> Candidate: Wait for questions
+  deactivate FE
+
+  MQ -> Consumer: deliver
+  activate Consumer
+  Consumer -> Context: setCurrentTenant(X-Tenant-ID)
+  Consumer -> Generator: generate(job)
+  activate Generator
+  Generator -> AI: generatePractice and/or pick bank\n(TECHNICAL, BEHAVIORAL, JAPANESE, GENERAL?)
+  activate AI
+  alt provider/bank failure
+    AI --> Generator: error
+    deactivate AI
+    Generator -> TenantDB: status=FAILED (optional)
+    activate TenantDB
+    deactivate TenantDB
+    Generator --> Consumer: failure
+    deactivate Generator
+  else success
+    AI --> Generator: bounded question set
+    deactivate AI
+    Generator -> TenantDB: replace PracticeAnswer rows\n(questionText only)
+    activate TenantDB
+    TenantDB --> Generator: saved
+    deactivate TenantDB
+    Generator --> Consumer: questions ready
+    deactivate Generator
+  end
+  Consumer -> Context: clear() in finally
+  deactivate Consumer
+end
+Guard -> Context: clear() in finally
+deactivate Guard
+@enduml

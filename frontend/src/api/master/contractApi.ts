@@ -15,7 +15,7 @@ export interface ContractSignature {
 export interface ContractItem {
   id: number;
   contractNumber: string;
-  tenantId: number;
+  tenantId?: number;
   tenantName?: string;
   tenantCode?: string;
   tenantSubdomain?: string;
@@ -79,7 +79,7 @@ export interface ContractItem {
 }
 
 export interface CreateContractPayload {
-  tenantId: number;
+  tenantId?: number;
   planId?: number;
   consultationRequestId?: number;
   title: string;

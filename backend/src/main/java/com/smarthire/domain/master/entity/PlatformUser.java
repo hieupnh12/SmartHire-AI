@@ -5,27 +5,21 @@ import java.time.LocalDateTime;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
-@Entity
-@Table(name = "platform_users")
+@Getter
+@Setter
 @Builder
-@Data
 @NoArgsConstructor
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
+@Entity
+@Table(name = "platform_users")
 public class PlatformUser {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    Long id;
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY) Long id;
 
-    @Column(nullable = false, unique = true)
-    String email;
-
-    @Column(name = "password_hash", nullable = false)
-    String passwordHash;
-
-    @Column(name = "full_name", nullable = false)
-    String fullName;
+    @Column(nullable = false, unique = true) String email;
+    @Column(name = "password_hash", nullable = false) String passwordHash;
+    @Column(name = "full_name", nullable = false) String fullName;
 
     @Builder.Default
     @Column(nullable = false, length = 32)

@@ -16,8 +16,11 @@ import com.smarthire.master.contract.dto.ContractSignatureResponse;
 import com.smarthire.master.contract.dto.CreateContractRequest;
 import com.smarthire.master.contract.dto.SignContractRequest;
 import com.smarthire.master.contract.dto.UpdateContractStatusRequest;
+import com.smarthire.master.notification.dto.MasterEmailPayload;
+import com.smarthire.master.notification.messaging.MasterNotificationPublisher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -47,6 +50,10 @@ public class MasterContractService {
     private final TenantInfoRepository tenantRepository;
     private final SubscriptionPlanRepository planRepository;
     private final MasterBillingService billingService;
+    private final MasterNotificationPublisher notificationPublisher;
+
+    @Value("${smarthire.invite.public-origin:http://localhost:5173}")
+    private String publicOrigin;
 
     @Transactional(transactionManager = "masterTransactionManager", readOnly = true)
     public List<ContractResponse> getAllContracts(String statusFilter, Long tenantId) {
@@ -72,7 +79,7 @@ public class MasterContractService {
         Contract contract = contractRepository.findById(id)
                 .orElseThrow(() -> new BusinessException("Hợp đồng không tồn tại", HttpStatus.NOT_FOUND, "CONTRACT_NOT_FOUND"));
 
-        TenantInfo tenant = tenantRepository.findById(contract.getTenantId()).orElse(null);
+        TenantInfo tenant = contract.getTenantId() != null ? tenantRepository.findById(contract.getTenantId()).orElse(null) : null;
         SubscriptionPlan plan = contract.getPlanId() != null ? planRepository.findById(contract.getPlanId()).orElse(null) : null;
 
         return enrichContractResponse(contract, tenant, plan);
@@ -80,8 +87,11 @@ public class MasterContractService {
 
     @Transactional(transactionManager = "masterTransactionManager")
     public ContractResponse createContract(CreateContractRequest request) {
-        TenantInfo tenant = tenantRepository.findById(request.getTenantId())
-                .orElseThrow(() -> new BusinessException("Doanh nghiệp không tồn tại", HttpStatus.NOT_FOUND, "TENANT_NOT_FOUND"));
+        TenantInfo tenant = null;
+        if (request.getTenantId() != null) {
+            tenant = tenantRepository.findById(request.getTenantId())
+                    .orElseThrow(() -> new BusinessException("Doanh nghiệp không tồn tại", HttpStatus.NOT_FOUND, "TENANT_NOT_FOUND"));
+        }
 
         SubscriptionPlan plan = null;
         if (request.getPlanId() != null) {
@@ -105,7 +115,7 @@ public class MasterContractService {
 
         Contract contract = Contract.builder()
                 .contractNumber(contractNumber)
-                .tenantId(tenant.getId())
+                .tenantId(tenant != null ? tenant.getId() : null)
                 .planId(plan != null ? plan.getId() : null)
                 .consultationRequestId(request.getConsultationRequestId())
                 .title(request.getTitle().trim())
@@ -125,7 +135,7 @@ public class MasterContractService {
                 .partyABankAccount(StringUtils.hasText(request.getPartyABankAccount()) ? request.getPartyABankAccount().trim() : "190388889999")
                 .partyABankBranch(StringUtils.hasText(request.getPartyABankBranch()) ? request.getPartyABankBranch().trim() : "Chi nhánh Hà Nội")
                 // Party B
-                .partyBName(StringUtils.hasText(request.getPartyBName()) ? request.getPartyBName().trim() : tenant.getName())
+                .partyBName(StringUtils.hasText(request.getPartyBName()) ? request.getPartyBName().trim() : (tenant != null ? tenant.getName() : "Không xác định"))
                 .partyBTaxCode(StringUtils.hasText(request.getPartyBTaxCode()) ? request.getPartyBTaxCode().trim() : null)
                 .partyBAddress(StringUtils.hasText(request.getPartyBAddress()) ? request.getPartyBAddress().trim() : null)
                 .partyBRepresentative(StringUtils.hasText(request.getPartyBRepresentative()) ? request.getPartyBRepresentative().trim() : null)
@@ -146,8 +156,44 @@ public class MasterContractService {
                 .build();
 
         Contract saved = contractRepository.save(contract);
-        log.info("Created Vietnam Legal B2B Contract: {} for tenant: {} ({}) with token: {}", saved.getContractNumber(), tenant.getName(), tenant.getCode(), signingToken);
+        log.info("Created Vietnam Legal B2B Contract: {} for tenant: {} ({}) with token: {}", saved.getContractNumber(), tenant != null ? tenant.getName() : "Draft", tenant != null ? tenant.getCode() : "N/A", signingToken);
 
+        return enrichContractResponse(saved, tenant, plan);
+    }
+
+    @Transactional(transactionManager = "masterTransactionManager")
+    public ContractResponse updateContract(Long id, com.smarthire.master.contract.dto.UpdateContractRequest request) {
+        Contract contract = contractRepository.findById(id)
+                .orElseThrow(() -> new BusinessException("Hợp đồng không tồn tại", HttpStatus.NOT_FOUND, "CONTRACT_NOT_FOUND"));
+
+        if (!"DRAFT".equals(contract.getStatus())) {
+            throw new BusinessException("Chỉ có thể cập nhật hợp đồng ở trạng thái DRAFT", HttpStatus.BAD_REQUEST, "CONTRACT_NOT_DRAFT");
+        }
+
+        if (request.getContractNumber() != null) contract.setContractNumber(request.getContractNumber());
+        if (request.getTenantName() != null) contract.setPartyBName(request.getTenantName());
+        if (request.getTenantTaxCode() != null) contract.setPartyBTaxCode(request.getTenantTaxCode());
+        if (request.getTenantAddress() != null) contract.setPartyBAddress(request.getTenantAddress());
+        if (request.getTenantRepresentative() != null) contract.setPartyBRepresentative(request.getTenantRepresentative());
+        if (request.getTenantEmail() != null) contract.setPartyBEmail(request.getTenantEmail());
+        if (request.getTenantPhone() != null) contract.setPartyBPhone(request.getTenantPhone());
+        if (request.getTotalValue() != null) {
+            contract.setContractValue(request.getTotalValue());
+            BigDecimal taxRate = contract.getTaxRate() != null ? contract.getTaxRate() : BigDecimal.valueOf(10.00);
+            BigDecimal taxAmount = request.getTotalValue().multiply(taxRate).divide(BigDecimal.valueOf(100), 2, java.math.RoundingMode.HALF_UP);
+            BigDecimal totalAmount = request.getTotalValue().add(taxAmount);
+            contract.setTaxAmount(taxAmount);
+            contract.setTotalAmount(totalAmount);
+            contract.setAmountInWords(convertMoneyToVietnameseWords(totalAmount, contract.getCurrency()));
+        }
+        if (request.getCurrency() != null) contract.setCurrency(request.getCurrency());
+        if (request.getPaymentTerms() != null) contract.setTermsAndConditions(request.getPaymentTerms()); // mapped to termsAndConditions since it seems to be closest
+        if (request.getValidFrom() != null) contract.setStartDate(request.getValidFrom());
+        if (request.getValidUntil() != null) contract.setEndDate(request.getValidUntil());
+
+        Contract saved = contractRepository.save(contract);
+        TenantInfo tenant = saved.getTenantId() != null ? tenantRepository.findById(saved.getTenantId()).orElse(null) : null;
+        SubscriptionPlan plan = saved.getPlanId() != null ? planRepository.findById(saved.getPlanId()).orElse(null) : null;
         return enrichContractResponse(saved, tenant, plan);
     }
 
@@ -168,8 +214,34 @@ public class MasterContractService {
         Contract saved = contractRepository.save(contract);
         log.info("Contract {} sent to client email: {} with signing token: {}", saved.getContractNumber(), saved.getPartyBEmail(), saved.getSigningToken());
 
-        TenantInfo tenant = tenantRepository.findById(saved.getTenantId()).orElse(null);
+        TenantInfo tenant = saved.getTenantId() != null ? tenantRepository.findById(saved.getTenantId()).orElse(null) : null;
         SubscriptionPlan plan = saved.getPlanId() != null ? planRepository.findById(saved.getPlanId()).orElse(null) : null;
+
+        if (StringUtils.hasText(saved.getPartyBEmail())) {
+            try {
+                String signUrl = publicOrigin + "/contracts/sign/" + saved.getSigningToken();
+                MasterEmailPayload emailPayload = MasterEmailPayload.builder()
+                        .tenantCode(tenant != null ? tenant.getCode() : "MASTER")
+                        .toEmail(saved.getPartyBEmail())
+                        .subject("Yêu cầu Ký số Hợp đồng B2B - " + saved.getContractNumber())
+                        .templateName("contract-invitation")
+                        .notificationType("CONTRACT_INVITATION")
+                        .templateVariables(Map.of(
+                                "contractNumber", saved.getContractNumber(),
+                                "planName", plan != null ? plan.getName() : "Gói Tùy Biến B2B",
+                                "contractValue", saved.getContractValue() != null ? saved.getContractValue() : 0,
+                                "currency", saved.getCurrency() != null ? saved.getCurrency() : "USD",
+                                "partyBName", saved.getPartyBName() != null ? saved.getPartyBName() : "Khách hàng",
+                                "signUrl", signUrl
+                        ))
+                        .build();
+                notificationPublisher.publishEmail(emailPayload);
+                log.info("Published email notification for Contract {}", saved.getContractNumber());
+            } catch (Exception e) {
+                log.error("Failed to publish contract invitation email for contract {}", saved.getContractNumber(), e);
+            }
+        }
+
         return enrichContractResponse(saved, tenant, plan);
     }
 
@@ -182,7 +254,7 @@ public class MasterContractService {
             throw new BusinessException("Liên kết ký số hợp đồng này đã hết hạn. Vui lòng liên hệ SmartHire-AI để nhận liên kết mới.", HttpStatus.GONE, "SIGNING_TOKEN_EXPIRED");
         }
 
-        TenantInfo tenant = tenantRepository.findById(contract.getTenantId()).orElse(null);
+        TenantInfo tenant = contract.getTenantId() != null ? tenantRepository.findById(contract.getTenantId()).orElse(null) : null;
         SubscriptionPlan plan = contract.getPlanId() != null ? planRepository.findById(contract.getPlanId()).orElse(null) : null;
         return enrichContractResponse(contract, tenant, plan);
     }
@@ -211,6 +283,25 @@ public class MasterContractService {
         signatureRepository.save(signature);
 
         log.info("Generated e-Sign OTP [{}] for contract {} sent to {}", otp, contract.getContractNumber(), contract.getPartyBEmail());
+
+        if (StringUtils.hasText(contract.getPartyBEmail())) {
+            try {
+                MasterEmailPayload emailPayload = MasterEmailPayload.builder()
+                        .tenantCode("MASTER")
+                        .toEmail(contract.getPartyBEmail())
+                        .subject("Mã OTP Xác thực Ký số Hợp đồng B2B - " + contract.getContractNumber())
+                        .templateName("contract-otp")
+                        .notificationType("CONTRACT_OTP")
+                        .templateVariables(Map.of(
+                                "contractNumber", contract.getContractNumber(),
+                                "otpCode", otp
+                        ))
+                        .build();
+                notificationPublisher.publishEmail(emailPayload);
+            } catch (Exception e) {
+                log.error("Failed to publish OTP email for contract {}", contract.getContractNumber(), e);
+            }
+        }
 
         return Map.of(
                 "success", true,
@@ -264,7 +355,7 @@ public class MasterContractService {
 
         autoCreateInvoiceForSignedContract(saved);
 
-        TenantInfo tenant = tenantRepository.findById(saved.getTenantId()).orElse(null);
+        TenantInfo tenant = saved.getTenantId() != null ? tenantRepository.findById(saved.getTenantId()).orElse(null) : null;
         SubscriptionPlan plan = saved.getPlanId() != null ? planRepository.findById(saved.getPlanId()).orElse(null) : null;
         return enrichContractResponse(saved, tenant, plan);
     }
@@ -291,14 +382,14 @@ public class MasterContractService {
 
         autoCreateInvoiceForSignedContract(saved);
 
-        TenantInfo tenant = tenantRepository.findById(saved.getTenantId()).orElse(null);
+        TenantInfo tenant = saved.getTenantId() != null ? tenantRepository.findById(saved.getTenantId()).orElse(null) : null;
         SubscriptionPlan plan = saved.getPlanId() != null ? planRepository.findById(saved.getPlanId()).orElse(null) : null;
         return enrichContractResponse(saved, tenant, plan);
     }
 
     private void autoCreateInvoiceForSignedContract(Contract contract) {
         try {
-            TenantInfo tenant = tenantRepository.findById(contract.getTenantId()).orElse(null);
+            TenantInfo tenant = contract.getTenantId() != null ? tenantRepository.findById(contract.getTenantId()).orElse(null) : null;
             if (tenant != null) {
                 CreateInvoiceRequest invoiceReq = CreateInvoiceRequest.builder()
                         .tenantId(tenant.getId())
@@ -355,7 +446,7 @@ public class MasterContractService {
             autoCreateInvoiceForSignedContract(saved);
         }
 
-        TenantInfo tenant = tenantRepository.findById(saved.getTenantId()).orElse(null);
+        TenantInfo tenant = saved.getTenantId() != null ? tenantRepository.findById(saved.getTenantId()).orElse(null) : null;
         SubscriptionPlan plan = saved.getPlanId() != null ? planRepository.findById(saved.getPlanId()).orElse(null) : null;
         return enrichContractResponse(saved, tenant, plan);
     }
@@ -378,7 +469,7 @@ public class MasterContractService {
         Contract saved = contractRepository.save(contract);
         log.info("Updated status of Contract {} to {}", saved.getContractNumber(), nextStatus);
 
-        TenantInfo tenant = tenantRepository.findById(saved.getTenantId()).orElse(null);
+        TenantInfo tenant = saved.getTenantId() != null ? tenantRepository.findById(saved.getTenantId()).orElse(null) : null;
         SubscriptionPlan plan = saved.getPlanId() != null ? planRepository.findById(saved.getPlanId()).orElse(null) : null;
 
         return enrichContractResponse(saved, tenant, plan);

@@ -33,6 +33,11 @@
   --color-tertiary: #924700;
   --color-tertiary-container: #b75b00;
 
+  --color-error: #ba1a1a;
+  --color-on-error: #ffffff;
+  --color-error-container: #ffdad6;
+  --color-on-error-container: #93000a;
+
   --color-background: #f9f9ff;
   --color-on-background: #191b23;
   --color-surface-alt: #f8f9ff;
@@ -51,6 +56,7 @@
   --color-text-secondary: var(--color-on-surface-variant);
   --color-text-inverse: var(--color-on-primary);
   --color-border-focus: var(--color-primary);
+  --color-status-danger: var(--color-error);
 
   /* Radius */
   --radius-sm: 0.25rem;

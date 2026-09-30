@@ -1,5 +1,16 @@
 import { recruiterNav, type RecruiterFeatureCode } from "@/features/tenant/recruiter/nav";
 
+/** Always enabled for HR/Recruiter roles; tenant admin configures optional modules only. */
+export const CORE_RECRUITER_FEATURES = ["JOBS", "APPLICANTS", "PIPELINE"] as const satisfies readonly RecruiterFeatureCode[];
+
+export function isCoreRecruiterFeature(code: RecruiterFeatureCode) {
+  return (CORE_RECRUITER_FEATURES as readonly string[]).includes(code);
+}
+
+export function isRecruiterReadOnlyUser(user?: { recruiterReadOnly?: boolean } | null) {
+  return user?.recruiterReadOnly === true;
+}
+
 export function hasRecruiterFeature(
   permissions: string[] | null | undefined,
   code: RecruiterFeatureCode,
@@ -21,8 +32,29 @@ export function recruiterHomePath(permissions?: string[] | null) {
 
 export function featureForRecruiterPath(pathname: string): RecruiterFeatureCode | null {
   const rest = pathname.replace(/^\/recruiter/, "") || "";
-  if (rest === "/matching" || rest.startsWith("/rank")) return "RANKING";
-  const match = recruiterNav.find((item) => item.to === rest || (item.to !== "" && rest.startsWith(item.to)));
+  if (rest === "/matching" || rest.startsWith("/rank") || /^\/jobs\/[^/]+\/rank(?:\/|$)/.test(rest)) {
+    return "RANKING";
+  }
+  const jobFeature = rest.match(
+    /^\/jobs\/[^/]+\/(applicants|cvs|pipeline|analytics|assessments|ai-interviews|interviews|schedules|notifications)(?:\/|$)/,
+  )?.[1];
+  const scopedFeature = jobFeature
+    ? ({
+        applicants: "APPLICANTS",
+        cvs: "CV_SCREENING",
+        pipeline: "PIPELINE",
+        analytics: "ANALYTICS",
+        assessments: "ASSESSMENTS",
+        "ai-interviews": "AI_INTERVIEWS",
+        interviews: "INTERVIEWS",
+        schedules: "SCHEDULES",
+        notifications: "NOTIFICATIONS",
+      } as const)[jobFeature]
+    : undefined;
+  if (scopedFeature) return scopedFeature;
+  const match = [...recruiterNav]
+    .sort((a, b) => b.to.length - a.to.length)
+    .find((item) => item.to === rest || (item.to !== "" && rest.startsWith(item.to)));
   return match?.featureCode ?? null;
 }
 

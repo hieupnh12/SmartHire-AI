@@ -3,6 +3,9 @@ package com.smarthire.tenant.job.service;
 import com.smarthire.common.exception.BusinessException;
 import com.smarthire.domain.enums.ApplicationStatus;
 import com.smarthire.domain.enums.JobStatus;
+import com.smarthire.domain.enums.RecruitmentStageCode;
+import com.smarthire.domain.enums.ScreeningMode;
+import com.smarthire.domain.enums.UserRole;
 import com.smarthire.domain.tenant.entity.Application;
 import com.smarthire.domain.tenant.entity.Job;
 import com.smarthire.domain.tenant.entity.JobSkill;
@@ -11,6 +14,7 @@ import com.smarthire.domain.tenant.entity.Skill;
 import com.smarthire.domain.tenant.repository.ApplicationRepository;
 import com.smarthire.domain.tenant.repository.JobRepository;
 import com.smarthire.domain.tenant.repository.JobSkillRepository;
+import com.smarthire.domain.tenant.repository.JobScreeningConfigRepository;
 import com.smarthire.domain.tenant.repository.RecruitmentStageRepository;
 import com.smarthire.tenant.cv.dto.CvModels.JobCreateRequest;
 import com.smarthire.tenant.cv.dto.CvModels.JobOption;
@@ -22,6 +26,7 @@ import com.smarthire.tenant.cv.service.CvSkillAnalysisService;
 import com.smarthire.tenant.job.dto.JobModels.ApplicationView;
 import com.smarthire.tenant.job.dto.JobModels.JobDetail;
 import com.smarthire.tenant.job.dto.JobModels.JobListItem;
+import com.smarthire.tenant.job.dto.JobModels.FunnelSummary;
 import com.smarthire.tenant.job.dto.JobModels.JobPage;
 import com.smarthire.tenant.job.dto.JobModels.JobUpsertRequest;
 import com.smarthire.tenant.job.dto.JobModels.PublicJob;
@@ -29,15 +34,23 @@ import com.smarthire.tenant.job.dto.JobModels.StageItem;
 import com.smarthire.tenant.job.dto.JobModels.StageView;
 import com.smarthire.tenant.job.dto.JobModels.StagesRequest;
 import com.smarthire.tenant.job.mapper.JobMapper;
+import com.smarthire.tenant.job.screening.JobScreeningConfigService;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.amqp.AmqpException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
@@ -47,13 +60,14 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class JobService {
     private static final Logger log = LoggerFactory.getLogger(JobService.class);
-    private static final List<StageItem> DEFAULT_STAGES = List.of(
-            new StageItem("Applied", 0, false),
-            new StageItem("Screening", 1, false),
-            new StageItem("Assessment", 2, false),
-            new StageItem("Interview", 3, false),
-            new StageItem("Offer", 4, false),
-            new StageItem("Hired", 5, true));
+    private static List<StageItem> defaultCatalogStages() {
+        List<StageItem> items = new ArrayList<>();
+        int order = 0;
+        for (RecruitmentStageCode code : RecruitmentStageCode.catalogOrder()) {
+            items.add(new StageItem(code.name(), order++, true));
+        }
+        return items;
+    }
 
     private final JobRepository jobs;
     private final JobSkillRepository jobSkills;
@@ -62,6 +76,14 @@ public class JobService {
     private final CvAccess access;
     private final CvSkillAnalysisService taxonomy;
     private final JobMapper mapper;
+    private final JobAssignmentService assignments;
+    private final JobScreeningConfigService screening;
+    private final JobScreeningConfigRepository screeningConfigs;
+    private final JobCloseScreeningService closeScreening;
+    private final org.springframework.amqp.rabbit.core.RabbitTemplate rabbitTemplate;
+    
+    @org.springframework.beans.factory.annotation.Value("${app.rabbitmq.exchanges.job-expiry}")
+    private String jobExpiryExchange;
 
     public JobService(
             JobRepository jobs,
@@ -70,7 +92,12 @@ public class JobService {
             ApplicationRepository applications,
             CvAccess access,
             CvSkillAnalysisService taxonomy,
-            JobMapper mapper) {
+            JobMapper mapper,
+            JobAssignmentService assignments,
+            JobScreeningConfigService screening,
+            JobScreeningConfigRepository screeningConfigs,
+            JobCloseScreeningService closeScreening,
+            org.springframework.amqp.rabbit.core.RabbitTemplate rabbitTemplate) {
         this.jobs = jobs;
         this.jobSkills = jobSkills;
         this.stages = stages;
@@ -78,35 +105,52 @@ public class JobService {
         this.access = access;
         this.taxonomy = taxonomy;
         this.mapper = mapper;
+        this.assignments = assignments;
+        this.screening = screening;
+        this.screeningConfigs = screeningConfigs;
+        this.closeScreening = closeScreening;
+        this.rabbitTemplate = rabbitTemplate;
     }
 
     public Map<String, String> health() {
         return Map.of("module", "job", "status", "ready");
     }
 
-    @Transactional(readOnly = true)
-    public JobPage search(String query, JobStatus status, int page, int size) {
+    @Transactional
+    public JobPage search(String query, JobStatus status, String department, int page, int size) {
         requireStaff();
+        closeExpiredJobs();
         int safeSize = Math.min(Math.max(size, 1), 50);
         int safePage = Math.max(page, 0);
-        var result = jobs.search(status, blankToNull(query), PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "id")));
-        Map<Long, Long> counts = counts(result.getContent().stream().map(Job::getId).toList());
+        var result = jobs.search(status, blankToNull(query), blankToNull(department),
+                access.jobScopeUserId(), PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "id")));
+        List<Long> ids = result.getContent().stream().map(Job::getId).toList();
+        Map<Long, Long> counts = counts(ids);
+        Map<Long, FunnelSummary> funnels = funnels(ids);
         List<JobListItem> items = result.getContent().stream()
-                .map(job -> mapper.listItem(job, counts.getOrDefault(job.getId(), 0L)))
+                .map(job -> mapper.listItem(job, counts.getOrDefault(job.getId(), 0L),
+                        funnels.getOrDefault(job.getId(), emptyFunnel())))
                 .toList();
         return new JobPage(items, result.getTotalElements(), safePage, safeSize);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public JobDetail get(long id) {
         try {
             Job job = job(id);
+            Instant now = Instant.now();
+            if ((job.getStatus() == JobStatus.PUBLISHED || job.getStatus() == JobStatus.PAUSED)
+                    && job.getDeadline() != null && !job.getDeadline().isAfter(now)) {
+                closeExpired(job, now);
+            }
             if (access.candidate()) {
                 if (!mapper.accepting(job)) throw notFound();
-                return mapper.detail(job, skillViews(id), stageViews(id), applications.countByJob_Id(id));
+                return mapper.detail(job, skillViews(id), stageViews(id), applications.countByJob_Id(id),
+                        screeningConfigs.findById(id).orElse(null), false);
             }
             access.requireJob(job);
-            return mapper.detail(job, skillViews(id), stageViews(id), applications.countByJob_Id(id));
+            return mapper.detail(job, skillViews(id), stageViews(id), applications.countByJob_Id(id),
+                    screeningConfigs.findById(id).orElse(null), access.canEditRecruitmentWorkflow(job));
         } catch (BusinessException ex) {
             throw ex;
         } catch (RuntimeException ex) {
@@ -120,7 +164,7 @@ public class JobService {
 
     @Transactional(readOnly = true)
     public List<PublicJob> publicList(String query) {
-        return jobs.publicOpen(LocalDate.now(), blankToNull(query), JobStatus.PUBLISHED).stream()
+        return jobs.publicOpen(Instant.now(), blankToNull(query), JobStatus.PUBLISHED).stream()
                 .map(job -> mapper.publicJob(job, jobSkills.findByJob_IdOrderByIdAsc(job.getId())))
                 .toList();
     }
@@ -134,8 +178,9 @@ public class JobService {
 
     @Transactional(readOnly = true)
     public List<JobOption> published() {
-        access.actor();
-        return jobs.findByStatusAndDeletedAtIsNullOrderByIdDesc(JobStatus.PUBLISHED).stream()
+        var actor = access.actor();
+        Long scope = UserRole.isRecruiterStaff(actor.getRole()) ? actor.getId() : null;
+        return jobs.findVisible(JobStatus.PUBLISHED, scope).stream()
                 .map(mapper::option)
                 .toList();
     }
@@ -143,7 +188,7 @@ public class JobService {
     @Transactional(readOnly = true)
     public List<JobOption> options() {
         requireStaff();
-        return jobs.findByDeletedAtIsNullOrderByIdDesc().stream().map(mapper::option).toList();
+        return jobs.findVisible(null, access.jobScopeUserId()).stream().map(mapper::option).toList();
     }
 
     @Transactional
@@ -151,9 +196,9 @@ public class JobService {
         JobDetail created = create(new JobUpsertRequest(
                 request.title(),
                 request.description(),
-                null, null, null, "FULL_TIME", "HYBRID", null, 1, null,
+                null, null, null, "FULL_TIME", "HYBRID", null, ScreeningMode.MANUAL, 1, null,
                 null, null, "VND", true, null, null,
-                skillsOrDefault(request.skills()), null));
+                skillsOrDefault(request.skills()), null, null, null));
         JobDetail published = publish(created.id());
         return new JobOption(published.id(), published.title(), published.status());
     }
@@ -165,11 +210,13 @@ public class JobService {
         job.setCreatedBy(access.actor());
         job.setStatus(JobStatus.DRAFT);
         apply(job, request);
-        jobs.save(job);
+        jobs.saveAndFlush(job);
+        assignments.assignCreator(job);
         if (request.skills() != null && !request.skills().isEmpty()) {
             replaceSkillsInternal(job, request.skills());
         }
         replaceStagesInternal(job, stagesOrDefault(request.stages()));
+        screening.saveForJob(job, request.cvScreening(), request.gateScreening());
         return get(job.getId());
     }
 
@@ -181,8 +228,15 @@ public class JobService {
         }
         apply(job, request);
         if (request.skills() != null) replaceSkillsInternal(job, request.skills());
-        if (request.stages() != null) replaceStagesInternal(job, request.stages());
+        if (request.stages() != null) {
+            access.requirePrimaryRecruiter(job);
+            replaceStagesInternal(job, request.stages());
+        }
         jobs.save(job);
+        screening.saveForJob(job, request.cvScreening(), request.gateScreening());
+        if (job.getStatus() == JobStatus.PUBLISHED) {
+            scheduleJobExpiry(job);
+        }
         return get(id);
     }
 
@@ -207,6 +261,7 @@ public class JobService {
         copy.setLocation(source.getLocation());
         copy.setEmploymentType(source.getEmploymentType());
         copy.setWorkMode(source.getWorkMode());
+        copy.setScreeningMode(source.getScreeningMode());
         copy.setDepartment(source.getDepartment());
         copy.setHeadcount(source.getHeadcount());
         copy.setDeadline(source.getDeadline());
@@ -216,7 +271,8 @@ public class JobService {
         copy.setSalaryVisible(source.isSalaryVisible());
         copy.setMinYearsExperience(source.getMinYearsExperience());
         copy.setEducationLevel(source.getEducationLevel());
-        jobs.save(copy);
+        jobs.saveAndFlush(copy);
+        assignments.assignCreator(copy);
         replaceSkillsInternal(copy, jobSkills.findViewRowsByJobId(id).stream()
                 .map(row -> new JobSkillItem(
                         (String) row[1],
@@ -225,9 +281,8 @@ public class JobService {
                         row[4] instanceof BigDecimal weight ? weight : BigDecimal.ONE,
                         (String) row[5]))
                 .toList());
-        replaceStagesInternal(copy, stages.findByJob_IdOrderBySortOrderAsc(id).stream()
-                .map(row -> new StageItem(row.getName(), row.getSortOrder(), row.isTerminal()))
-                .toList());
+        copyStagesFromJob(source, copy);
+        screening.copyTo(copy, screeningConfigs.findById(id).orElse(null));
         return get(copy.getId());
     }
 
@@ -248,13 +303,15 @@ public class JobService {
             throw new BusinessException("Add at least one skill before publishing", HttpStatus.UNPROCESSABLE_ENTITY, "JOB_SKILLS_REQUIRED");
         }
         if (stages.findByJob_IdOrderBySortOrderAsc(id).isEmpty()) {
-            replaceStagesInternal(job, DEFAULT_STAGES);
+            access.requirePrimaryRecruiter(job);
         }
+        ensureCatalogStages(job);
         job.setStatus(JobStatus.PUBLISHED);
         job.setPublishedAt(job.getPublishedAt() == null ? Instant.now() : job.getPublishedAt());
         job.setPausedAt(null);
         job.setClosedAt(null);
         jobs.save(job);
+        scheduleJobExpiry(job);
         return get(id);
     }
 
@@ -290,7 +347,26 @@ public class JobService {
         job.setStatus(JobStatus.CLOSED);
         job.setClosedAt(Instant.now());
         jobs.save(job);
+        closeScreening.enqueueUnscreened(job);
         return get(id);
+    }
+
+    @Transactional
+    public int closeExpiredJobs() {
+        Instant now = Instant.now();
+        int closed = 0;
+        for (Job job : jobs.dueToClose(now, List.of(JobStatus.PUBLISHED, JobStatus.PAUSED))) {
+            closeExpired(job, now);
+            closed++;
+        }
+        return closed;
+    }
+
+    private void closeExpired(Job job, Instant now) {
+        job.setStatus(JobStatus.CLOSED);
+        job.setClosedAt(now);
+        jobs.save(job);
+        closeScreening.enqueueUnscreened(job);
     }
 
     @Transactional
@@ -304,6 +380,7 @@ public class JobService {
         job.setPausedAt(null);
         job.setClosedAt(null);
         jobs.save(job);
+        scheduleJobExpiry(job);
         return get(id);
     }
 
@@ -321,7 +398,7 @@ public class JobService {
         return skillViews(jobId);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public List<StageView> listStages(long jobId) {
         Job job = job(jobId);
         if (!access.candidate()) access.requireJob(job);
@@ -331,6 +408,7 @@ public class JobService {
     @Transactional
     public List<StageView> replaceStages(long jobId, StagesRequest request) {
         Job job = managed(jobId);
+        access.requirePrimaryRecruiter(job);
         replaceStagesInternal(job, request.stages());
         return stageViews(jobId);
     }
@@ -352,7 +430,7 @@ public class JobService {
         application.setCandidate(actor);
         application.setStatus(ApplicationStatus.NEW);
         application.setSource(source == null || source.isBlank() ? "CAREER" : source);
-        var first = stages.findByJob_IdOrderBySortOrderAsc(jobId).stream().findFirst().orElse(null);
+        var first = firstActiveStage(jobId);
         application.setStage(first);
         applications.save(application);
         return mapper.application(application);
@@ -372,15 +450,51 @@ public class JobService {
         job.setLocation(blankToNull(request.location()));
         job.setEmploymentType(blankToNull(request.employmentType()));
         job.setWorkMode(blankToNull(request.workMode()));
+        job.setScreeningMode(request.screeningMode() == null ? ScreeningMode.MANUAL : request.screeningMode());
         job.setDepartment(blankToNull(request.department()));
         job.setHeadcount(request.headcount());
-        job.setDeadline(request.deadline());
+        job.setDeadline(parseDeadline(request.deadline()));
         job.setSalaryMin(request.salaryMin());
         job.setSalaryMax(request.salaryMax());
         job.setSalaryCurrency(blankToNull(request.salaryCurrency()));
         job.setSalaryVisible(request.salaryVisible() == null || request.salaryVisible());
         job.setMinYearsExperience(request.minYearsExperience());
         job.setEducationLevel(blankToNull(request.educationLevel()));
+    }
+
+    private void scheduleJobExpiry(Job job) {
+        if (job.getDeadline() == null || job.getStatus() != JobStatus.PUBLISHED) return;
+        long delay = job.getDeadline().toEpochMilli() - Instant.now().toEpochMilli();
+        if (delay <= 0) {
+            closeIfExpired(job.getId());
+            return;
+        }
+        try {
+            rabbitTemplate.convertAndSend(jobExpiryExchange, com.smarthire.config.RabbitMqConfig.RK, job.getId(), message -> {
+                message.getMessageProperties().setDelay((int) Math.min(delay, Integer.MAX_VALUE));
+                message.getMessageProperties().setHeader("X-Tenant-ID", com.smarthire.multitenancy.context.TenantContext.getCurrentTenant());
+                return message;
+            });
+        } catch (AmqpException ex) {
+            // Expired jobs are still closed lazily when recruiters load the job list, job detail or dashboard.
+            log.warn("Could not schedule expiry for job {} via RabbitMQ: {}", job.getId(), ex.getMessage());
+        }
+    }
+
+    @Transactional
+    public void closeIfExpired(long id) {
+        Job job = jobs.findById(id).orElse(null);
+        if (job == null || job.getStatus() != JobStatus.PUBLISHED) return;
+        if (job.getDeadline() != null) {
+            if (!job.getDeadline().isAfter(Instant.now())) {
+                job.setStatus(JobStatus.CLOSED);
+                job.setClosedAt(Instant.now());
+                jobs.save(job);
+                closeScreening.enqueueUnscreened(job);
+            } else {
+                scheduleJobExpiry(job);
+            }
+        }
     }
 
     private void replaceSkillsInternal(Job job, List<JobSkillItem> items) {
@@ -406,18 +520,147 @@ public class JobService {
     }
 
     private void replaceStagesInternal(Job job, List<StageItem> items) {
-        stages.deleteAll(stages.findByJob_IdOrderBySortOrderAsc(job.getId()));
-        stages.flush();
-        int order = 0;
-        for (StageItem item : items) {
-            RecruitmentStage stage = new RecruitmentStage();
-            stage.setJob(job);
-            stage.setName(item.name().trim());
-            stage.setSortOrder(item.sortOrder() == 0 ? order : item.sortOrder());
-            stage.setTerminal(item.terminal());
+        ensureCatalogStages(job);
+        Map<String, StageItem> requested = validateStageConfig(items);
+        Map<String, RecruitmentStage> existing = stages.findByJob_IdOrderBySortOrderAsc(job.getId()).stream()
+                .collect(Collectors.toMap(
+                        row -> row.getStageCode().trim().toUpperCase(Locale.ROOT),
+                        Function.identity(),
+                        (left, right) -> left,
+                        LinkedHashMap::new));
+        for (RecruitmentStageCode code : RecruitmentStageCode.catalogOrder()) {
+            StageItem item = requested.get(code.name());
+            RecruitmentStage stage = existing.get(code.name());
+            if (stage == null || item == null) {
+                throw new BusinessException(
+                        "Missing recruitment stage " + code.name(),
+                        HttpStatus.UNPROCESSABLE_ENTITY,
+                        "STAGE_CATALOG_INCOMPLETE");
+            }
+            if (code.locked() && !item.active()) {
+                throw new BusinessException(
+                        code.defaultName() + " cannot be hidden",
+                        HttpStatus.UNPROCESSABLE_ENTITY,
+                        "STAGE_LOCKED");
+            }
+            if (!item.active() && stage.isActive() && applications.countByStage_Id(stage.getId()) > 0) {
+                throw new BusinessException(
+                        "Cannot hide a stage that still has applicants",
+                        HttpStatus.CONFLICT,
+                        "STAGE_HAS_APPLICANTS");
+            }
+            stage.setSortOrder(item.sortOrder());
+            stage.setActive(item.active());
+            stage.setName(code.defaultName());
+            stage.setTerminal(code.terminal());
             stages.save(stage);
+        }
+        validateStageOrder(job.getId());
+    }
+
+    private void ensureCatalogStages(Job job) {
+        Map<String, RecruitmentStage> byCode = stages.findByJob_IdOrderBySortOrderAsc(job.getId()).stream()
+                .filter(row -> row.getStageCode() != null && !row.getStageCode().isBlank())
+                .collect(Collectors.toMap(
+                        row -> row.getStageCode().trim().toUpperCase(Locale.ROOT),
+                        Function.identity(),
+                        (left, right) -> left));
+        int order = 0;
+        for (RecruitmentStageCode code : RecruitmentStageCode.catalogOrder()) {
+            RecruitmentStage stage = byCode.get(code.name());
+            if (stage == null) {
+                stage = new RecruitmentStage();
+                stage.setJob(job);
+                stage.setStageCode(code.name());
+                stage.setName(code.defaultName());
+                stage.setSortOrder(order);
+                stage.setTerminal(code.terminal());
+                stage.setActive(true);
+                stages.save(stage);
+            } else {
+                stage.setStageCode(code.name());
+                if (stage.getName() == null || stage.getName().isBlank()) {
+                    stage.setName(code.defaultName());
+                }
+                stage.setTerminal(code.terminal());
+                stages.save(stage);
+            }
             order++;
         }
+    }
+
+    private void copyStagesFromJob(Job source, Job target) {
+        ensureCatalogStages(target);
+        Map<String, RecruitmentStage> targetByCode = stages.findByJob_IdOrderBySortOrderAsc(target.getId()).stream()
+                .collect(Collectors.toMap(
+                        row -> row.getStageCode().trim().toUpperCase(Locale.ROOT),
+                        Function.identity()));
+        for (RecruitmentStage src : stages.findByJob_IdOrderBySortOrderAsc(source.getId())) {
+            if (src.getStageCode() == null || src.getStageCode().isBlank()) continue;
+            RecruitmentStage dst = targetByCode.get(src.getStageCode().trim().toUpperCase(Locale.ROOT));
+            if (dst == null) continue;
+            dst.setSortOrder(src.getSortOrder());
+            dst.setActive(src.isActive());
+            dst.setName(src.getName());
+            dst.setTerminal(src.isTerminal());
+            stages.save(dst);
+        }
+    }
+
+    private Map<String, StageItem> validateStageConfig(List<StageItem> items) {
+        if (items == null || items.isEmpty()) {
+            throw new BusinessException("Stages are required", HttpStatus.UNPROCESSABLE_ENTITY, "STAGES_REQUIRED");
+        }
+        Map<String, StageItem> map = new LinkedHashMap<>();
+        for (StageItem item : items) {
+            RecruitmentStageCode code = RecruitmentStageCode.fromCode(item.stageCode())
+                    .orElseThrow(() -> new BusinessException(
+                            "Unknown stage code: " + item.stageCode(),
+                            HttpStatus.UNPROCESSABLE_ENTITY,
+                            "STAGE_UNKNOWN"));
+            map.put(code.name(), new StageItem(code.name(), item.sortOrder(), item.active()));
+        }
+        if (map.size() != RecruitmentStageCode.catalogOrder().size()) {
+            throw new BusinessException(
+                    "All catalog stages must be present",
+                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    "STAGE_CATALOG_INCOMPLETE");
+        }
+        return map;
+    }
+
+    private void validateStageOrder(long jobId) {
+        List<RecruitmentStage> ordered = stages.findByJob_IdOrderBySortOrderAsc(jobId);
+        if (ordered.isEmpty()) return;
+        int minOrder = ordered.stream().mapToInt(RecruitmentStage::getSortOrder).min().orElse(0);
+        int maxOrder = ordered.stream().mapToInt(RecruitmentStage::getSortOrder).max().orElse(0);
+        RecruitmentStage applied = ordered.stream()
+                .filter(row -> RecruitmentStageCode.APPLIED.name().equalsIgnoreCase(row.getStageCode()))
+                .findFirst()
+                .orElse(null);
+        RecruitmentStage hired = ordered.stream()
+                .filter(row -> RecruitmentStageCode.HIRED.name().equalsIgnoreCase(row.getStageCode()))
+                .findFirst()
+                .orElse(null);
+        if (applied == null || applied.getSortOrder() != minOrder) {
+            throw new BusinessException(
+                    "Applied must remain the first stage",
+                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    "STAGE_ORDER_INVALID");
+        }
+        if (hired == null || hired.getSortOrder() != maxOrder) {
+            throw new BusinessException(
+                    "Hired must remain the last stage",
+                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    "STAGE_ORDER_INVALID");
+        }
+    }
+
+    private RecruitmentStage firstActiveStage(long jobId) {
+        return stages.findByJob_IdOrderBySortOrderAsc(jobId).stream()
+                .filter(RecruitmentStage::isActive)
+                .findFirst()
+                .orElse(null);
     }
 
     private List<JobSkillItem> skillsOrDefault(List<JobSkillItem> skills) {
@@ -430,7 +673,7 @@ public class JobService {
     }
 
     private List<StageItem> stagesOrDefault(List<StageItem> items) {
-        return items == null || items.isEmpty() ? DEFAULT_STAGES : items;
+        return items == null || items.isEmpty() ? defaultCatalogStages() : items;
     }
 
     private List<JobSkillView> skillViews(long jobId) {
@@ -453,6 +696,7 @@ public class JobService {
     }
 
     private List<StageView> stageViews(long jobId) {
+        ensureCatalogStages(job(jobId));
         return stages.findByJob_IdOrderBySortOrderAsc(jobId).stream().map(mapper::stage).toList();
     }
 
@@ -463,6 +707,37 @@ public class JobService {
             map.put((Long) row[0], (Long) row[1]);
         }
         return map;
+    }
+
+    @Transactional(readOnly = true)
+    public List<String> departments() {
+        requireStaff();
+        return jobs.findDepartments();
+    }
+
+    private Map<Long, FunnelSummary> funnels(List<Long> ids) {
+        Map<Long, long[]> values = new HashMap<>();
+        if (ids.isEmpty()) return Map.of();
+        for (Object[] row : applications.countStatusesGroupedByJobIds(ids)) {
+            long jobId = ((Number) row[0]).longValue();
+            ApplicationStatus status = (ApplicationStatus) row[1];
+            long count = ((Number) row[2]).longValue();
+            long[] funnel = values.computeIfAbsent(jobId, ignored -> new long[5]);
+            if (status != ApplicationStatus.NEW) funnel[0] += count;
+            if (status == ApplicationStatus.ASSESSMENT || status == ApplicationStatus.INTERVIEW
+                    || status == ApplicationStatus.OFFER || status == ApplicationStatus.HIRED) funnel[1] += count;
+            if (status == ApplicationStatus.ASSESSMENT) funnel[2] += count;
+            if (status == ApplicationStatus.INTERVIEW) funnel[3] += count;
+            if (status == ApplicationStatus.HIRED) funnel[4] += count;
+        }
+        Map<Long, FunnelSummary> result = new HashMap<>();
+        values.forEach((jobId, value) -> result.put(jobId,
+                new FunnelSummary(value[0], value[1], value[2], value[3], value[4])));
+        return result;
+    }
+
+    private static FunnelSummary emptyFunnel() {
+        return new FunnelSummary(0, 0, 0, 0, 0);
     }
 
     private Job managed(long id) {
@@ -486,6 +761,24 @@ public class JobService {
 
     private BusinessException notFound() {
         return new BusinessException("Job not found", HttpStatus.NOT_FOUND, "JOB_NOT_FOUND");
+    }
+
+    public static Instant parseDeadline(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        String value = raw.trim();
+        if (value.length() == 10) {
+            return LocalDate.parse(value).atTime(23, 59, 59).toInstant(ZoneOffset.UTC);
+        }
+        if (value.length() == 16) {
+            return LocalDateTime.parse(value).toInstant(ZoneOffset.UTC);
+        }
+        if (value.length() == 19 && !value.contains("T")) {
+            return LocalDateTime.parse(value.replace(" ", "T")).toInstant(ZoneOffset.UTC);
+        }
+        if (value.length() == 19 && value.contains("T") && !value.endsWith("Z") && !value.contains("+")) {
+            return LocalDateTime.parse(value).toInstant(ZoneOffset.UTC);
+        }
+        return Instant.parse(value);
     }
 
     private static String blankToNull(String value) {

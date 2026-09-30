@@ -1,6 +1,8 @@
 import { Plus, Check, Sliders } from "lucide-react";
 import { SubscriptionPlan, masterAdminApi } from "@/api/master/masterAdminApi";
-import { useMasterDashboard } from "@/features/master/shell/MasterAdminContext";
+import { useTenants, useSubscriptions, useRevenueAnalytics, useAiQuotaUsage, useAuditLogs, useLeads, useInvoices, useContracts, masterQueryKeys } from "@/api/master/queries";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "@/stores/toastStore";
 
 interface SubscriptionsTabProps {
   setIsNewPlan: (val: boolean) => void;
@@ -15,19 +17,11 @@ interface SubscriptionsTabProps {
   setShowPlanModal: (plan: SubscriptionPlan | null) => void;
 }
 
-export function SubscriptionsTab({
-  setIsNewPlan,
-  setPlanCode,
-  setPlanName,
-  setPlanDesc,
-  setPriceMonthly,
-  setPriceYearly,
-  setMaxJobs,
-  setMaxCvParses,
-  setMaxAiHours,
-  setShowPlanModal,
-}: SubscriptionsTabProps) {
-  const { plans, setPlans, triggerNotification } = useMasterDashboard();
+export function SubscriptionsTab(_props: SubscriptionsTabProps) {
+  const queryClient = useQueryClient();
+  const { data: plans = [] } = useSubscriptions();
+  const setPlans = (updater: any) => queryClient.setQueryData(masterQueryKeys.subscriptions(), updater);
+  const triggerNotification = (msg: string) => toast.success(msg);
 
   const handleTogglePlanStatus = async (plan: SubscriptionPlan) => {
     if (!plan.id) return;
@@ -55,16 +49,7 @@ export function SubscriptionsTab({
 
         <button
           onClick={() => {
-            setIsNewPlan(true);
-            setPlanCode("");
-            setPlanName("");
-            setPlanDesc("");
-            setPriceMonthly(49);
-            setPriceYearly(490);
-            setMaxJobs(10);
-            setMaxCvParses(500);
-            setMaxAiHours(20);
-            setShowPlanModal({} as SubscriptionPlan);
+            window.location.href = "/admin/subscriptions/create";
           }}
           className="px-4 py-2.5 text-xs font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition-all flex items-center gap-2"
         >
@@ -117,7 +102,29 @@ export function SubscriptionsTab({
                 <li className="flex items-center gap-2">
                   <Check className="w-4 h-4 text-blue-600" />
                   <span>
-                    <strong>{plan.maxAiInterviewHours} Giờ</strong> Phỏng vấn AI Voice
+                    {plan.maxAiInterviewHours === null ? (
+                      <strong>Phỏng vấn AI Voice Không Giới Hạn</strong>
+                    ) : plan.maxAiInterviewHours === 0 ? (
+                      <span className="text-slate-400">Không hỗ trợ Phỏng vấn AI</span>
+                    ) : (
+                      <>
+                        <strong>{plan.maxAiInterviewHours} Giờ</strong> Phỏng vấn AI Voice
+                      </>
+                    )}
+                  </span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <Check className="w-4 h-4 text-blue-600" />
+                  <span>
+                    {plan.maxStorageGb === null ? (
+                      <strong>Lưu trữ Không Giới Hạn</strong>
+                    ) : plan.maxStorageGb === 0 ? (
+                      <span className="text-slate-400">Không cấp phát lưu trữ</span>
+                    ) : (
+                      <>
+                        <strong>{plan.maxStorageGb} GB</strong> Lưu trữ dữ liệu
+                      </>
+                    )}
                   </span>
                 </li>
               </ul>
@@ -126,16 +133,7 @@ export function SubscriptionsTab({
             <div className="flex items-center gap-2 pt-4 border-t border-slate-100">
               <button
                 onClick={() => {
-                  setIsNewPlan(false);
-                  setPlanCode(plan.code);
-                  setPlanName(plan.name);
-                  setPlanDesc(plan.description);
-                  setPriceMonthly(plan.priceMonthly);
-                  setPriceYearly(plan.priceYearly);
-                  setMaxJobs(plan.maxJobs);
-                  setMaxCvParses(plan.maxCvParses);
-                  setMaxAiHours(plan.maxAiInterviewHours);
-                  setShowPlanModal(plan);
+                  alert("Tính năng sửa đang được phát triển, vui lòng sử dụng chức năng thêm mới.");
                 }}
                 className="flex-1 py-2 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs transition-colors flex items-center justify-center gap-1.5"
               >

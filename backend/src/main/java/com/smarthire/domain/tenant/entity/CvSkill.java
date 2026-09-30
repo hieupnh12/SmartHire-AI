@@ -1,51 +1,31 @@
 package com.smarthire.domain.tenant.entity;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import java.math.BigDecimal;
+import lombok.*;
+import lombok.experimental.FieldDefaults;
 
+@Getter
+@Setter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+@FieldDefaults(level = AccessLevel.PRIVATE)
 @Entity
 @Table(name = "cv_skills")
 public class CvSkill {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY) Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "cv_id", nullable = false)
-    private Cv cv;
+    Cv cv;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "skill_id")
-    private Skill skill;
+    Skill skill;
 
-    @Column(name = "skill_name", nullable = false, length = 128)
-    private String skillName;
-
-    @Column(precision = 5, scale = 2)
-    private BigDecimal confidence;
-
-    @Column(length = 32)
-    private String level;
-
-    public Long getId() { return id; }
-    public Cv getCv() { return cv; }
-    public void setCv(Cv cv) { this.cv = cv; }
-    public Skill getSkill() { return skill; }
-    public void setSkill(Skill skill) { this.skill = skill; }
-    public String getSkillName() { return skillName; }
-    public void setSkillName(String skillName) { this.skillName = skillName; }
-    public BigDecimal getConfidence() { return confidence; }
-    public void setConfidence(BigDecimal confidence) { this.confidence = confidence; }
-    public String getLevel() { return level; }
-    public void setLevel(String level) { this.level = level; }
+    @Column(name = "skill_name", nullable = false, length = 128) String skillName;
+    @Column(precision = 5, scale = 2) BigDecimal confidence;
+    @Column(length = 32) String level;
 }
-
