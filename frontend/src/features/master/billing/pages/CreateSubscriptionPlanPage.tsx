@@ -1,10 +1,10 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, CreditCard, Save, Box, Zap, Settings, HardDrive, Shield, Video } from "lucide-react";
-import { useTenants, useSubscriptions, useRevenueAnalytics, useAiQuotaUsage, useAuditLogs, useLeads, useInvoices, useContracts, masterQueryKeys } from "@/api/master/queries";
+import { masterQueryKeys } from "@/api/master/queries";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/stores/toastStore";
-import { masterAdminApi } from "@/api/master/masterAdminApi";
+import { masterAdminApi, type SubscriptionPlan } from "@/api/master/masterAdminApi";
 
 export function CreateSubscriptionPlanPage() {
   const navigate = useNavigate();
@@ -53,7 +53,7 @@ export function CreateSubscriptionPlanPage() {
       };
 
       const res = await masterAdminApi.createSubscription(payload);
-      setPlans((prev) => [res, ...prev]);
+      setPlans((prev: SubscriptionPlan[]) => [res, ...prev]);
       triggerNotification("Đã lưu gói dịch vụ mới.");
       navigate("/admin/subscriptions/plans");
     } catch (error) {

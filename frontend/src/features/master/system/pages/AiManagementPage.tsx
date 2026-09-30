@@ -1,8 +1,6 @@
 import { useLocation } from "react-router-dom";
 import { SystemManagementWorkspace, type SystemManagementView } from "../components/SystemManagementWorkspace";
-import { useTenants, useSubscriptions, useRevenueAnalytics, useAiQuotaUsage, useAuditLogs, useLeads, useInvoices, useContracts, masterQueryKeys } from "@/api/master/queries";
-import { useQueryClient } from "@tanstack/react-query";
-import { toast } from "@/stores/toastStore";
+import { useTenants } from "@/api/master/queries";
 
 export function AiManagementPage() {
   const location = useLocation();

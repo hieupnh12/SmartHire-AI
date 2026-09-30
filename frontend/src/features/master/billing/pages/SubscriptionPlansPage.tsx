@@ -1,6 +1,6 @@
 import { Plus, Check, Sliders } from "lucide-react";
 import { SubscriptionPlan, masterAdminApi } from "@/api/master/masterAdminApi";
-import { useTenants, useSubscriptions, useRevenueAnalytics, useAiQuotaUsage, useAuditLogs, useLeads, useInvoices, useContracts, masterQueryKeys } from "@/api/master/queries";
+import { useSubscriptions, masterQueryKeys } from "@/api/master/queries";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/stores/toastStore";
 

@@ -26,7 +26,7 @@ import {
 import { Tooltip } from "@/components/ux/Tooltip";
 import { LanguageSwitcher } from "@/components/ux/LanguageSwitcher";
 import { DashboardTab, SidebarGroupId, SidebarItem } from "./types";
-import { useTenants, useSubscriptions, useRevenueAnalytics, useAiQuotaUsage, useAuditLogs, useLeads, useInvoices, useContracts } from "@/api/master/queries";
+import { useTenants, useSubscriptions, useAuditLogs, useLeads, useInvoices, useContracts } from "@/api/master/queries";
 import { masterAuthApi } from "@/api/master/masterAuthApi";
 import { useUiStore } from "@/stores/uiStore";
 
