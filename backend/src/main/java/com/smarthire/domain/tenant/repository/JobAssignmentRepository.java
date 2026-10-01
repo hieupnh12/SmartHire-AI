@@ -13,6 +13,8 @@ public interface JobAssignmentRepository extends JpaRepository<JobAssignment, Lo
     Optional<JobAssignment> findByJob_IdAndUser_Id(Long jobId, Long userId);
     Optional<JobAssignment> findByJob_IdAndAssignmentRole(Long jobId, AssignmentRole assignmentRole);
     boolean existsByJob_IdAndUser_Id(Long jobId, Long userId);
+    boolean existsByJob_IdAndUser_IdAndCanViewTrue(Long jobId, Long userId);
+    boolean existsByJob_IdAndUser_IdAndCanEditTrue(Long jobId, Long userId);
 
     @Query("""
             select a from JobAssignment a

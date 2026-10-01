@@ -39,6 +39,8 @@ import { Button } from "@/components/ux/Button";
 import { PageSkeleton } from "@/components/ux/Skeleton";
 import { input, panel } from "@/features/tenant/recruiter/matching/components/rankingUi";
 import { SKILL_CATALOG } from "@/features/tenant/recruiter/jobs/skillCatalog";
+import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
+import { toast } from "@/stores/toastStore";
 
 const CURRENCIES = ["VND", "USD", "EUR", "JPY"];
 const EDUCATION_LEVELS = ["Trung học phổ thông", "Cao đẳng", "Đại học", "Thạc sĩ", "Tiến sĩ"];
@@ -132,6 +134,17 @@ export function JobFormPage() {
   const editing = Boolean(jobId);
   const navigate = useNavigate();
   const client = useQueryClient();
+  const user = useAuthStore((s) => s.user);
+  const isAdmin = user?.role === "TENANT_ADMIN" || user?.role === "ADMIN" || user?.role === "SUPER_ADMIN";
+  const canCreateJob = isAdmin || (user?.permissions?.includes("JOBS_CREATE") ?? false) || (user?.permissions?.includes("JOBS") ?? false);
+
+  useEffect(() => {
+    if (!editing && user && !canCreateJob) {
+      toast.danger("Bạn không có quyền tạo tin tuyển dụng mới");
+      navigate("/recruiter/jobs", { replace: true });
+    }
+  }, [editing, user, canCreateJob, navigate]);
+
   const topRef = useRef<HTMLDivElement>(null);
   const [step, setStep] = useState(0);
   const [showErrors, setShowErrors] = useState<"draft" | "publish" | null>(null);
@@ -224,6 +237,9 @@ export function JobFormPage() {
     onSuccess: (response) => {
       void client.invalidateQueries({ queryKey: queryKeys.jobs.all });
       navigate(`/recruiter/jobs/${response.data.id}`);
+    },
+    onError: (err) => {
+      toast.danger(getApiErrorMessage(err, "Không thể lưu tin tuyển dụng"));
     },
   });
 

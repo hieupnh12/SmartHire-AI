@@ -6,12 +6,14 @@ import java.util.List;
 public enum RecruiterFeature {
     DASHBOARD,
     JOBS,
+    JOBS_ALL,
     APPLICANTS,
     CV_SCREENING,
     RANKING,
     PIPELINE,
     ANALYTICS,
     ASSESSMENTS,
+    AI_INTERVIEWS,
     INTERVIEWS,
     SCHEDULES,
     NOTIFICATIONS;
@@ -69,6 +71,9 @@ public enum RecruiterFeature {
         }
         if (path.startsWith("/api/v1/assessments")) {
             return ASSESSMENTS;
+        }
+        if (path.startsWith("/api/v1/ai-interviews")) {
+            return AI_INTERVIEWS;
         }
         if (path.startsWith("/api/v1/interviews")) {
             return INTERVIEWS;

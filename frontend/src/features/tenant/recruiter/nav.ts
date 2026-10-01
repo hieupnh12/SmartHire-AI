@@ -12,4 +12,15 @@ export const recruiterNav = [
   { to: "/notifications", labelKey: "nav.notifications", featureCode: "NOTIFICATIONS" },
 ] as const;
 
-export type RecruiterFeatureCode = (typeof recruiterNav)[number]["featureCode"] | "PIPELINE";
+export const extraRoleFeatures = [
+  {
+    featureCode: "JOBS_ALL",
+    labelKey: "nav.jobsAll",
+    description: "Xem tất cả tin tuyển dụng toàn công ty (không chỉ tin phụ trách/tạo)",
+  },
+] as const;
+
+export type RecruiterFeatureCode =
+  | (typeof recruiterNav)[number]["featureCode"]
+  | (typeof extraRoleFeatures)[number]["featureCode"]
+  | "PIPELINE";

@@ -122,6 +122,10 @@ export type JobDetail = {
   cvScreening?: CvScreeningConfig | null;
   gateScreening?: GateScreeningConfig | null;
   canEditRecruitmentWorkflow?: boolean;
+  /** Role of the current user on this job; null = admin (full access). */
+  currentUserRole?: string | null;
+  canEdit?: boolean;
+  canManagePermissions?: boolean;
 };
 
 export type JobUpsertRequest = {

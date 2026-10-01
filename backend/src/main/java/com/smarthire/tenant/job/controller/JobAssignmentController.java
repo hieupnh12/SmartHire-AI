@@ -3,6 +3,7 @@ package com.smarthire.tenant.job.controller;
 import com.smarthire.common.api.ApiResponse;
 import com.smarthire.tenant.job.dto.JobAssignmentModels.AssignRecruiterRequest;
 import com.smarthire.tenant.job.dto.JobAssignmentModels.JobAssignmentResponse;
+import com.smarthire.tenant.job.dto.JobAssignmentModels.TransferOwnerRequest;
 import com.smarthire.tenant.job.dto.JobAssignmentModels.UpdateAssignmentRequest;
 import com.smarthire.tenant.job.service.JobAssignmentService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -22,8 +23,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/v1/jobs/{jobId}/assignments")
-@Tag(name = "Job Assignments", description = "Company admin assigns recruiter staff to a job")
+@Tag(name = "Job Assignments", description = "Manage team members of a job (Job Role Matrix)")
 public class JobAssignmentController {
+
     private final JobAssignmentService jobAssignmentService;
 
     public JobAssignmentController(JobAssignmentService jobAssignmentService) {
@@ -31,13 +33,13 @@ public class JobAssignmentController {
     }
 
     @GetMapping
-    @Operation(summary = "List recruiters assigned to a job")
+    @Operation(summary = "List team members of a job (any assigned user or admin)")
     public ApiResponse<List<JobAssignmentResponse>> list(@PathVariable long jobId) {
         return ApiResponse.ok(jobAssignmentService.list(jobId));
     }
 
     @PostMapping
-    @Operation(summary = "Assign a recruiter to a job")
+    @Operation(summary = "Assign a recruiter to a job (Admin or OWNER)")
     public ResponseEntity<ApiResponse<JobAssignmentResponse>> assign(
             @PathVariable long jobId,
             @Valid @RequestBody AssignRecruiterRequest request) {
@@ -46,7 +48,7 @@ public class JobAssignmentController {
     }
 
     @PatchMapping("/{userId}")
-    @Operation(summary = "Change assignment role on a job")
+    @Operation(summary = "Change the job role of an existing team member (Admin or OWNER)")
     public ApiResponse<JobAssignmentResponse> updateRole(
             @PathVariable long jobId,
             @PathVariable long userId,
@@ -55,9 +57,22 @@ public class JobAssignmentController {
     }
 
     @DeleteMapping("/{userId}")
-    @Operation(summary = "Remove a recruiter from a job")
+    @Operation(summary = "Remove a team member from a job (Admin or OWNER)")
     public ApiResponse<Void> remove(@PathVariable long jobId, @PathVariable long userId) {
         jobAssignmentService.remove(jobId, userId);
         return ApiResponse.ok("Assignment removed", null);
+    }
+
+    /**
+     * Transfer job ownership to another recruiter.
+     * The current OWNER becomes COLLABORATOR; the target user becomes the new OWNER.
+     * Accessible by the current OWNER or an admin.
+     */
+    @PostMapping("/transfer-owner")
+    @Operation(summary = "Transfer job ownership to another recruiter (Admin or current OWNER)")
+    public ApiResponse<JobAssignmentResponse> transferOwner(
+            @PathVariable long jobId,
+            @Valid @RequestBody TransferOwnerRequest request) {
+        return ApiResponse.ok("Ownership transferred", jobAssignmentService.transferOwnership(jobId, request));
     }
 }

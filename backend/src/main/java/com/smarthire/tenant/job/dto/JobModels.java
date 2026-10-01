@@ -113,7 +113,11 @@ public final class JobModels {
             List<StageView> stages,
             CvScreeningConfigView cvScreening,
             GateScreeningConfigView gateScreening,
-            boolean canEditRecruitmentWorkflow) {}
+            boolean canEditRecruitmentWorkflow,
+            /** Role of the currently authenticated user on this job; null for admins (always full access). */
+            String currentUserRole,
+            boolean canEdit,
+            boolean canManagePermissions) {}
 
     public record PublicJob(
             long id,
