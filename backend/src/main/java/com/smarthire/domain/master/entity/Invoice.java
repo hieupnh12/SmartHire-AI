@@ -22,6 +22,7 @@ public class Invoice {
 
     @Column(name = "tenant_id", nullable = false) Long tenantId;
     @Column(name = "subscription_id") Long subscriptionId;
+    @Column(name = "contract_id") Long contractId;
 
     BigDecimal amount;
     BigDecimal subtotal;
@@ -30,7 +31,7 @@ public class Invoice {
     @Column(name = "tax_rate")
     BigDecimal taxRate = BigDecimal.ZERO;
 
-    @Builder.Default String currency = "USD";
+    @Builder.Default String currency = "VND";
     @Builder.Default String status = "PENDING";
 
     @Column(name = "due_date") LocalDateTime dueDate;
@@ -59,4 +60,13 @@ public class Invoice {
     @Builder.Default
     @Column(name = "created_at", nullable = false, updatable = false)
     LocalDateTime createdAt = LocalDateTime.now();
+
+    @Builder.Default
+    @Column(name = "updated_at", nullable = false)
+    LocalDateTime updatedAt = LocalDateTime.now();
+
+    @PreUpdate
+    public void onUpdate() {
+        this.updatedAt = LocalDateTime.now();
+    }
 }

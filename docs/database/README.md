@@ -19,8 +19,8 @@
 | Entity JPA tenant | 55; V26 thêm `AiInterviewLog`; V27–V32 thêm `JobScreeningConfig`, `GateScore`, `JobAssignment`, `LandingPageSetting` |
 | Khoá ngoại tenant | 77 theo pipeline repo (72 sau V26; V27 thêm 2 FK screening/gate; V30 thêm 3 FK `job_assignments`) |
 | Ràng buộc UNIQUE tenant | V25/V26 không thêm UNIQUE. V27 thêm UNIQUE `gate_scores.application_id`. V30 thêm `uk_job_assignments_job_user` |
-| Số file migration trong repo | 50 (21 master + 29 tenant); V9 redesign nằm ngoài pipeline |
-| Cập nhật lần cuối | Master `V22`, tenant `V36`. Master V22 chuẩn hoá giá gói cước sang `price_yearly` (VNĐ); tenant V34 tạo bản sao CV theo application, V35 bổ sung lộ trình AI Interview, V36 bổ sung catalog recruitment stage; screening, assignment và landing từ main được đánh số V27–V32 để không trùng V13 và V21–V26 của nhánh này |
+| Số file migration trong repo | 52 (22 master + 30 tenant); V9 redesign nằm ngoài pipeline |
+| Cập nhật lần cuối | Master `V23`, tenant `V37`. Master V23 tối ưu liên kết hợp đồng–hóa đơn, độ chính xác tiền tệ VND và index log; tenant V34 tạo bản sao CV theo application, V35 bổ sung lộ trình AI Interview, V36 bổ sung catalog recruitment stage, V37 bổ sung ma trận vai trò công việc |
 | Dọn legacy V21 | Xóa 19 bảng và dữ liệu legacy, xóa 2 cột ID legacy trong ranking; không chuyển ID cũ sang bản ghi mới |
 | Metadata assessment 2026-09-25 | V13: `tests.created_by/updated_at`, `questions.difficulty/skill/explanation` cho Excel/UI authoring |
 | Sửa lỗi assessment 2026-09-24 | V10/V11 khớp checksum lịch sử; V12 tạo schema mới và giữ bảng cũ; migration lỗi phải chặn mở tenant pool |
