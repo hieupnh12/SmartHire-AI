@@ -40,22 +40,8 @@ public class MasterSubscriptionService {
             throw new IllegalArgumentException("Plan code '" + request.getCode() + "' already exists.");
         }
         SubscriptionPlan plan = planMapper.toEntity(request);
-        if (plan.getPriceYearlyVnd() == null || plan.getPriceYearlyVnd().compareTo(java.math.BigDecimal.ZERO) <= 0) {
-            if (plan.getPriceYearly() != null) {
-                plan.setPriceYearlyVnd(plan.getPriceYearly().multiply(java.math.BigDecimal.valueOf(25400)));
-            } else {
-                plan.setPriceYearlyVnd(java.math.BigDecimal.ZERO);
-            }
-        }
-        if (plan.getPriceMonthly() == null) {
-            plan.setPriceMonthly(plan.getPriceYearly() != null 
-                    ? plan.getPriceYearly().divide(java.math.BigDecimal.valueOf(12), 2, java.math.RoundingMode.HALF_UP) 
-                    : java.math.BigDecimal.ZERO);
-        }
-        if (plan.getPriceMonthlyVnd() == null) {
-            plan.setPriceMonthlyVnd(plan.getPriceYearlyVnd() != null 
-                    ? plan.getPriceYearlyVnd().divide(java.math.BigDecimal.valueOf(12), 2, java.math.RoundingMode.HALF_UP) 
-                    : java.math.BigDecimal.ZERO);
+        if (plan.getPriceYearly() == null) {
+            plan.setPriceYearly(java.math.BigDecimal.ZERO);
         }
         plan = planRepository.save(plan);
         return planMapper.toResponse(plan);
@@ -67,19 +53,6 @@ public class MasterSubscriptionService {
                 .orElseThrow(() -> new IllegalArgumentException("Subscription plan not found: " + id));
         
         planMapper.updateEntity(request, existing);
-        if (request.getPriceYearlyVnd() != null) {
-            existing.setPriceYearlyVnd(request.getPriceYearlyVnd());
-        }
-        if (existing.getPriceMonthly() == null) {
-            existing.setPriceMonthly(existing.getPriceYearly() != null 
-                    ? existing.getPriceYearly().divide(java.math.BigDecimal.valueOf(12), 2, java.math.RoundingMode.HALF_UP) 
-                    : java.math.BigDecimal.ZERO);
-        }
-        if (existing.getPriceMonthlyVnd() == null) {
-            existing.setPriceMonthlyVnd(existing.getPriceYearlyVnd() != null 
-                    ? existing.getPriceYearlyVnd().divide(java.math.BigDecimal.valueOf(12), 2, java.math.RoundingMode.HALF_UP) 
-                    : java.math.BigDecimal.ZERO);
-        }
         existing = planRepository.save(existing);
         return planMapper.toResponse(existing);
     }

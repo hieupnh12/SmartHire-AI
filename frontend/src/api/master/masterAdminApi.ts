@@ -30,7 +30,6 @@ export interface SubscriptionPlan {
   code: string;
   name: string;
   description: string;
-  priceMonthly: number;
   priceYearly: number;
   maxJobs: number;
   maxCvParses: number;
@@ -38,8 +37,6 @@ export interface SubscriptionPlan {
   maxStorageGb?: number | null;
   maxProctoringHours?: number | null;
   videoRetentionDays?: number | null;
-  priceMonthlyVnd?: number;
-  priceYearlyVnd?: number;
   status?: string;
 }
 

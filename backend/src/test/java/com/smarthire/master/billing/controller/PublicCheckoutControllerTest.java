@@ -144,10 +144,7 @@ class PublicCheckoutControllerTest {
                 .id(1L)
                 .code("STARTER")
                 .name("Gói Khởi Động")
-                .priceMonthly(new BigDecimal("49.00"))
-                .priceYearly(new BigDecimal("490.00"))
-                .priceMonthlyVnd(new BigDecimal("1200000"))
-                .priceYearlyVnd(new BigDecimal("12000000"))
+                .priceYearly(new BigDecimal("12000000"))
                 .maxJobs(5)
                 .maxCvParses(100)
                 .status("ACTIVE")
@@ -157,23 +154,19 @@ class PublicCheckoutControllerTest {
                 .id(1L)
                 .code("STARTER")
                 .name("Gói Khởi Động")
-                .priceMonthly(new BigDecimal("49.00"))
-                .priceYearly(new BigDecimal("490.00"))
-                .priceMonthlyVnd(new BigDecimal("1200000"))
-                .priceYearlyVnd(new BigDecimal("12000000"))
+                .priceYearly(new BigDecimal("12000000"))
                 .maxJobs(5)
                 .maxCvParses(100)
                 .status("ACTIVE")
                 .build();
 
-        when(planRepository.findByStatusOrderByPriceMonthlyVndAsc("ACTIVE")).thenReturn(List.of(plan));
+        when(planRepository.findByStatusOrderByPriceYearlyAsc("ACTIVE")).thenReturn(List.of(plan));
         when(planMapper.toResponse(plan)).thenReturn(planResp);
 
         mockMvc.perform(get("/api/v1/public/checkout/plans"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data[0].code").value("STARTER"))
-                .andExpect(jsonPath("$.data[0].priceMonthlyVnd").value(1200000))
-                .andExpect(jsonPath("$.data[0].priceYearlyVnd").value(12000000));
+                .andExpect(jsonPath("$.data[0].priceYearly").value(12000000));
     }
 }

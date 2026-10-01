@@ -9,7 +9,6 @@ interface SubscriptionsTabProps {
   setPlanCode: (val: string) => void;
   setPlanName: (val: string) => void;
   setPlanDesc: (val: string) => void;
-  setPriceMonthly: (val: number) => void;
   setPriceYearly: (val: number) => void;
   setMaxJobs: (val: number) => void;
   setMaxCvParses: (val: number) => void;
@@ -83,7 +82,7 @@ export function SubscriptionsTab(_props: SubscriptionsTabProps) {
 
               <div className="flex items-baseline gap-1 mb-6 pb-4 border-b border-slate-100">
                 <span className="text-2xl font-extrabold text-blue-600">
-                  {plan.priceYearlyVnd ? `${plan.priceYearlyVnd.toLocaleString("vi-VN")} đ` : `$${plan.priceYearly}`}
+                  {plan.priceYearly ? `${plan.priceYearly.toLocaleString("vi-VN")} đ` : "0 đ"}
                 </span>
                 <span className="text-xs text-slate-500">/ năm</span>
               </div>

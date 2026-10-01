@@ -238,9 +238,9 @@ function StatusLegend({ color, label, value }: { color: string; label: string; v
 }
 
 function CompactPlan({ plan, tenants }: { plan: SubscriptionPlan; tenants: number }) {
-  const displayPrice = plan.priceYearlyVnd 
-    ? `${plan.priceYearlyVnd.toLocaleString("vi-VN")} đ` 
-    : money.format(plan.priceYearly);
+  const displayPrice = plan.priceYearly 
+    ? `${plan.priceYearly.toLocaleString("vi-VN")} đ` 
+    : "0 đ";
   return (
     <article className="p-5 sm:p-6">
       <div className="flex items-center justify-between">
@@ -258,9 +258,9 @@ function CompactPlan({ plan, tenants }: { plan: SubscriptionPlan; tenants: numbe
 }
 
 function PlanCard({ plan, tenants, onEdit, onToggle }: { plan: SubscriptionPlan; tenants: number; onEdit: () => void; onToggle: () => void }) {
-  const displayPrice = plan.priceYearlyVnd 
-    ? `${plan.priceYearlyVnd.toLocaleString("vi-VN")} đ` 
-    : money.format(plan.priceYearly);
+  const displayPrice = plan.priceYearly 
+    ? `${plan.priceYearly.toLocaleString("vi-VN")} đ` 
+    : "0 đ";
   return (
     <article className={cn(surface, "flex flex-col overflow-hidden")}>
       <div className="border-b border-slate-100 p-6">

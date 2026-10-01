@@ -232,14 +232,8 @@ public class MasterBillingService {
 
         int quantity = request.getQuantity() != null && request.getQuantity() > 0 ? request.getQuantity() : 1;
         
-        // Mô hình bản quyền theo năm (Yearly Only)
-        BigDecimal unitPriceVnd = plan.getPriceYearlyVnd();
-
-        if (unitPriceVnd == null || unitPriceVnd.compareTo(BigDecimal.ZERO) <= 0) {
-            BigDecimal baseUsd = plan.getPriceYearly();
-            unitPriceVnd = baseUsd != null ? baseUsd.multiply(BigDecimal.valueOf(25400)) : BigDecimal.ZERO;
-        }
-        
+        // Mô hình bản quyền theo năm (Yearly Only) - giá lưu trực tiếp bằng VNĐ tại priceYearly
+        BigDecimal unitPriceVnd = plan.getPriceYearly() != null ? plan.getPriceYearly() : BigDecimal.ZERO;
         BigDecimal amountVnd = unitPriceVnd.multiply(BigDecimal.valueOf(quantity));
 
         // 1. Register pending tenant

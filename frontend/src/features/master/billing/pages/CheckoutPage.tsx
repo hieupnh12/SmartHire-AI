@@ -88,10 +88,7 @@ export function CheckoutPage() {
       id: 1,
       code: "STARTER",
       name: "Gói Khởi Đầu (Starter)",
-      priceMonthly: 49,
-      priceYearly: 490,
-      priceMonthlyVnd: 1200000,
-      priceYearlyVnd: 12000000,
+      priceYearly: 12000000,
       maxJobs: 5,
       maxCvParses: 200,
       maxAiInterviewHours: 5,
@@ -101,10 +98,7 @@ export function CheckoutPage() {
       id: 2,
       code: "PROFESSIONAL",
       name: "Gói Chuyên Nghiệp (Professional)",
-      priceMonthly: 149,
-      priceYearly: 1490,
-      priceMonthlyVnd: 3600000,
-      priceYearlyVnd: 36000000,
+      priceYearly: 36000000,
       maxJobs: 25,
       maxCvParses: 2500,
       maxAiInterviewHours: 30,
@@ -114,10 +108,7 @@ export function CheckoutPage() {
       id: 3,
       code: "ENTERPRISE",
       name: "Gói Doanh Nghiệp (Enterprise)",
-      priceMonthly: 399,
-      priceYearly: 3990,
-      priceMonthlyVnd: 9900000,
-      priceYearlyVnd: 99000000,
+      priceYearly: 99000000,
       maxJobs: 100,
       maxCvParses: 15000,
       maxAiInterviewHours: 150,
@@ -130,7 +121,7 @@ export function CheckoutPage() {
   }, [plans, selectedPlanCode]);
   const currentAmountVnd = useMemo(() => {
     if (!currentPlan) return 0;
-    const basePrice = currentPlan.priceYearlyVnd || 36000000;
+    const basePrice = currentPlan.priceYearly || 36000000;
     return basePrice * quantity;
   }, [currentPlan, quantity]);
   // Realtime Subdomain Check
@@ -406,7 +397,7 @@ export function CheckoutPage() {
                     <div className="flex items-center justify-between py-2">
                       <span className="text-slate-500">Đơn giá niêm yết:</span>
                       <span className="font-semibold text-slate-900">
-                        {(currentPlan.priceYearlyVnd || 36000000).toLocaleString('vi-VN')} đ / năm
+                        {(currentPlan.priceYearly || 36000000).toLocaleString('vi-VN')} đ / năm
                       </span>
                     </div>
 
@@ -465,7 +456,7 @@ export function CheckoutPage() {
                     {/* Right: Phép tính & Thành tiền */}
                     <div className="flex items-center gap-1.5 sm:justify-end">
                       <span className="text-slate-500 text-[11px]">
-                        {quantity > 1 ? `${quantity} x ${(currentPlan.priceYearlyVnd || 36000000).toLocaleString('vi-VN')} đ =` : "Thành tiền:"}
+                        {quantity > 1 ? `${quantity} x ${(currentPlan.priceYearly || 36000000).toLocaleString('vi-VN')} đ =` : "Thành tiền:"}
                       </span>
                       <span className="text-base font-extrabold text-slate-900">
                         {currentAmountVnd.toLocaleString('vi-VN')}
@@ -815,7 +806,7 @@ export function CheckoutPage() {
                     <div className="flex justify-between text-slate-500">
                       <span>Đơn giá niêm yết:</span>
                       <span className="font-medium text-slate-700">
-                        {(currentPlan.priceYearlyVnd || 0).toLocaleString("vi-VN")} đ / năm
+                        {(currentPlan.priceYearly || 0).toLocaleString("vi-VN")} đ / năm
                       </span>
                     </div>
                     <div className="flex justify-between text-slate-500">

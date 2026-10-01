@@ -115,7 +115,7 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: { onCancel: () => void, o
     const nameInput = containerRef.current.querySelector<HTMLInputElement>('input[name="name"]');
     const codeInput = containerRef.current.querySelector<HTMLInputElement>('input[name="code"]');
     const descInput = containerRef.current.querySelector<HTMLInputElement>('input[name="description"]');
-    const priceYInput = containerRef.current.querySelector<HTMLInputElement>('input[name="priceYearlyVnd"]');
+    const priceYInput = containerRef.current.querySelector<HTMLInputElement>('input[name="priceYearly"]');
     const priceYVal = Number(priceYInput?.value || 0);
 
     if (!nameInput?.value || !codeInput?.value) {
@@ -127,10 +127,7 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: { onCancel: () => void, o
       name: nameInput.value,
       code: codeInput.value,
       description: descInput?.value || "Gói tạo từ Wizard",
-      priceYearlyVnd: priceYVal,
-      priceMonthlyVnd: Math.round(priceYVal / 12),
-      priceYearly: Math.round(priceYVal / 25400),
-      priceMonthly: Math.round(priceYVal / (25400 * 12)),
+      priceYearly: priceYVal,
       maxJobs: maxJobs,
       maxCvParses: maxCvParses,
       maxAiInterviewHours: maxAiInterviewHours,
@@ -180,7 +177,7 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: { onCancel: () => void, o
 
         <div className="col-span-2 sm:col-span-4">
           <label className={labelClass}>Giá bản quyền năm (VNĐ) <span className="text-red-500">*</span></label>
-          <input name="priceYearlyVnd" type="number" required defaultValue={36000000} className={inputClass} />
+          <input name="priceYearly" type="number" required defaultValue={36000000} className={inputClass} />
         </div>
 
         <div className="col-span-2 sm:col-span-1">
@@ -381,7 +378,7 @@ export function B2bDealWizardPageContent() {
       if (!plan) throw new Error("Không tìm thấy thông tin gói cước");
 
       const isYearly = values.billingCycle === "YEARLY";
-      const amountVnd = isYearly ? (plan.priceYearlyVnd || 0) : (plan.priceMonthlyVnd || 0);
+      const amountVnd = isYearly ? (plan.priceYearly || 0) : Math.round((plan.priceYearly || 0) / 12);
 
       // 3. Xử lý hình thức chốt sale
       if (values.closingMethod === "INVOICE") {
@@ -562,7 +559,7 @@ export function B2bDealWizardPageContent() {
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 mt-6">
                   {plans.map((plan) => {
                     const isSelected = form.watch("planId") === plan.id;
-                    const price = plan.priceYearlyVnd || (plan.priceYearly ? plan.priceYearly * 25400 : 0);
+                    const price = plan.priceYearly || 0;
                     return (
                       <div
                         key={plan.id}
