@@ -69,8 +69,9 @@ public class JobController {
             @RequestParam(required = false) JobStatus status,
             @RequestParam(required = false) String department,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
-        return ApiResponse.ok(jobService.search(q, status, department, page, size));
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false, defaultValue = "my") String scope) {
+        return ApiResponse.ok(jobService.search(q, status, department, page, size, scope));
     }
 
     @PostMapping

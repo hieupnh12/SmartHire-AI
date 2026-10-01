@@ -89,12 +89,12 @@ public class RolePermissionService {
         rolePermissionRepository.flush();
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     public List<String> permissionsFor(UserRole role) {
         return permissionsFor(role == null ? null : role.name());
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     public List<String> permissionsFor(String role) {
         if (role == null || role.isBlank()) {
             return List.of();
@@ -110,12 +110,12 @@ public class RolePermissionService {
                 .toList();
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     public boolean hasFeature(UserRole role, RecruiterFeature feature) {
         return hasFeature(role == null ? null : role.name(), feature);
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     public boolean hasFeature(String role, RecruiterFeature feature) {
         if (role == null || feature == null) {
             return false;
@@ -126,7 +126,29 @@ public class RolePermissionService {
         if (!UserRole.isRecruiterStaff(role)) {
             return true;
         }
-        return rolePermissionRepository.existsByRoleAndFeatureCode(role, feature.name());
+        String name = feature.name();
+        return rolePermissionRepository.existsByRoleAndFeatureCode(role, name)
+                || rolePermissionRepository.existsByRoleAndFeatureCode(role, name + "_VIEW")
+                || rolePermissionRepository.existsByRoleAndFeatureCode(role, name + "_CREATE")
+                || rolePermissionRepository.existsByRoleAndFeatureCode(role, name + "_EDIT")
+                || rolePermissionRepository.existsByRoleAndFeatureCode(role, name + "_DELETE");
+    }
+
+    @Transactional(readOnly = true)
+    public boolean hasAction(String role, RecruiterFeature feature, String action) {
+        if (role == null || feature == null) {
+            return false;
+        }
+        if (UserRole.isCompanyAdmin(role)) {
+            return true;
+        }
+        if (!UserRole.isRecruiterStaff(role)) {
+            return true;
+        }
+        String fullFeature = feature.name();
+        String granular = fullFeature + "_" + action.toUpperCase(Locale.ROOT);
+        return rolePermissionRepository.existsByRoleAndFeatureCode(role, fullFeature)
+                || rolePermissionRepository.existsByRoleAndFeatureCode(role, granular);
     }
 
     public void ensureSchema() {
@@ -188,23 +210,39 @@ public class RolePermissionService {
         return role;
     }
 
+    public static boolean isValidPermissionCode(String code) {
+        if (code == null || code.isBlank()) return false;
+        String trimmed = code.trim().toUpperCase(Locale.ROOT);
+        if (RecruiterFeature.fromCode(trimmed) != null) {
+            return true;
+        }
+        int lastUnderscore = trimmed.lastIndexOf('_');
+        if (lastUnderscore > 0) {
+            String module = trimmed.substring(0, lastUnderscore);
+            String action = trimmed.substring(lastUnderscore + 1);
+            if ((action.equals("VIEW") || action.equals("CREATE") || action.equals("EDIT") || action.equals("DELETE"))
+                    && RecruiterFeature.fromCode(module) != null) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static List<String> normalizeFeatures(List<String> raw) {
         if (raw == null || raw.isEmpty()) {
             return List.of();
         }
         List<String> codes = new ArrayList<>();
         for (String item : raw) {
-            RecruiterFeature feature = RecruiterFeature.fromCode(item);
-            if (feature == null) {
+            if (item == null || item.isBlank()) {
+                continue;
+            }
+            String code = item.trim().toUpperCase(Locale.ROOT);
+            if (!isValidPermissionCode(code)) {
                 throw new BusinessException("Unknown feature: " + item, HttpStatus.BAD_REQUEST, "INVALID_FEATURE");
             }
-            if (!codes.contains(feature.name())) {
-                codes.add(feature.name());
-            }
-        }
-        for (String core : CORE_RECRUITER_FEATURES) {
-            if (!codes.contains(core)) {
-                codes.add(core);
+            if (!codes.contains(code)) {
+                codes.add(code);
             }
         }
         return codes;

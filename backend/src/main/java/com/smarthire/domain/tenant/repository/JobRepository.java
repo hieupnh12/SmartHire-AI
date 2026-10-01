@@ -27,9 +27,9 @@ public interface JobRepository extends JpaRepository<Job, Long> {
             select j from Job j
             where j.deletedAt is null
               and (:status is null or j.status = :status)
-              and (:assigneeId is null or exists (
+              and (:assigneeId is null or (j.createdBy is not null and j.createdBy.id = :assigneeId) or exists (
                     select 1 from JobAssignment a
-                    where a.job = j and a.user.id = :assigneeId))
+                    where a.job = j and a.user.id = :assigneeId and (a.canView = true or a.canView is null)))
               and (:department is null or lower(coalesce(j.department, '')) = lower(:department))
               and (:q is null or :q = '' or lower(j.title) like lower(concat('%', :q, '%'))
                    or lower(coalesce(j.location, '')) like lower(concat('%', :q, '%'))
@@ -46,9 +46,9 @@ public interface JobRepository extends JpaRepository<Job, Long> {
             select j from Job j
             where j.deletedAt is null
               and (:status is null or j.status = :status)
-              and (:assigneeId is null or exists (
+              and (:assigneeId is null or (j.createdBy is not null and j.createdBy.id = :assigneeId) or exists (
                     select 1 from JobAssignment a
-                    where a.job = j and a.user.id = :assigneeId))
+                    where a.job = j and a.user.id = :assigneeId and (a.canView = true or a.canView is null)))
             order by j.id desc
             """)
     List<Job> findVisible(@Param("status") JobStatus status, @Param("assigneeId") Long assigneeId);

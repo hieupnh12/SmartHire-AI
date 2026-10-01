@@ -16,13 +16,31 @@ export function hasRecruiterFeature(
   code: RecruiterFeatureCode,
 ) {
   if (permissions == null) return true;
-  return permissions.includes(code);
+  return (
+    permissions.includes(code) ||
+    permissions.includes(`${code}_VIEW`) ||
+    permissions.includes(`${code}_EDIT`) ||
+    permissions.includes(`${code}_DELETE`)
+  );
+}
+
+export function hasFeatureAction(
+  permissions: string[] | null | undefined,
+  code: string,
+  action: "VIEW" | "EDIT" | "DELETE" = "VIEW",
+) {
+  if (permissions == null) return true;
+  return (
+    permissions.includes(code) ||
+    permissions.includes(`${code}_${action}`) ||
+    (action === "VIEW" &&
+      (permissions.includes(`${code}_EDIT`) || permissions.includes(`${code}_DELETE`)))
+  );
 }
 
 export function visibleRecruiterNav(permissions?: string[] | null) {
   if (permissions == null) return [...recruiterNav];
-  const allowed = new Set(permissions);
-  return recruiterNav.filter((item) => allowed.has(item.featureCode));
+  return recruiterNav.filter((item) => hasRecruiterFeature(permissions, item.featureCode));
 }
 
 export function recruiterHomePath(permissions?: string[] | null) {

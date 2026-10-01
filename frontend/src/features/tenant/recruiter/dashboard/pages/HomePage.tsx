@@ -166,7 +166,10 @@ export function HomePage() {
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(5);
   const token = useAuthStore((state) => state.accessToken);
-  const permissions = useAuthStore((state) => state.user?.permissions);
+  const user = useAuthStore((state) => state.user);
+  const isAdmin = user?.role === "TENANT_ADMIN" || user?.role === "ADMIN" || user?.role === "SUPER_ADMIN";
+  const canCreateJob = isAdmin || (user?.permissions?.includes("JOBS_CREATE") ?? false) || (user?.permissions?.includes("JOBS") ?? false);
+  const permissions = user?.permissions;
   const jobsQuery = useQuery({
     queryKey: ["recruiter-dashboard", "jobs", jobSearch, statusFilter, departmentFilter, page, pageSize],
     queryFn: () => jobApi.search({
@@ -268,7 +271,7 @@ export function HomePage() {
           <div className="border-t border-[var(--color-border-default)] p-3">
             <p className="px-1 pb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--color-outline)]">Thao tác nhanh</p>
             <div className="grid grid-cols-2 gap-2">
-              {hasRecruiterFeature(permissions, "JOBS") && <Link to="/recruiter/jobs/new" aria-label="Tạo việc làm — Mở một vị trí mới" className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl bg-brand-primary px-2 text-xs font-semibold text-white transition-colors hover:bg-brand-primary-hover"><Plus className="size-3.5" aria-hidden="true" />Tạo tin</Link>}
+              {canCreateJob && <Link to="/recruiter/jobs/new" aria-label="Tạo việc làm — Mở một vị trí mới" className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl bg-brand-primary px-2 text-xs font-semibold text-white transition-colors hover:bg-brand-primary-hover"><Plus className="size-3.5" aria-hidden="true" />Tạo tin</Link>}
               {hasRecruiterFeature(permissions, "SCHEDULES") && <Link to="/recruiter/schedules" className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-[var(--color-border-default)] px-2 text-xs font-semibold transition-colors hover:bg-[var(--color-primary-subtle)] hover:text-brand-primary"><CalendarDays className="size-3.5" aria-hidden="true" />Xem lịch</Link>}
             </div>
           </div>
