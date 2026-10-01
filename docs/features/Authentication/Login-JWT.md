@@ -53,6 +53,7 @@ AUTH-01
 - Login thực tế: `POST /api/v1/master/auth/login` cho Workspace Admin, `POST /api/v1/tenant/auth/login` cho doanh nghiệp.
 - Profile: `/api/v1/master/auth/me`, `/api/v1/tenant/auth/me`.
 - Frontend khôi phục hồ sơ từ `/api/v1/tenant/auth/me` khi còn access token nhưng state người dùng bị mất sau reload; header hiển thị tên người dùng, không dùng ngôn ngữ hiện tại làm tên thay thế.
+- Candidate đăng nhập thành công quay lại tenant career page `/`; trạng thái xác thực và menu quản lý được hiển thị trực tiếp trên header thay vì bắt buộc chuyển vào `/candidate`.
 - Login tenant bắt buộc mã tenant hoặc subdomain hợp lệ; registry nằm trên PostgreSQL và dữ liệu người dùng nằm trên MySQL tenant.
 - JWT chứa mã tenant chuẩn; tenant thiếu, bị khóa hoặc khác header sẽ bị từ chối.
 - Response đăng nhập trả riêng `tenantId` (mã tenant dùng cho JWT/database context) và `subdomain` lấy từ Master DB; frontend chỉ dùng `subdomain` để dựng hostname workspace sau đăng nhập.

@@ -34,7 +34,7 @@ function homeForRole(role?: string, workspace?: RoleWorkspace, permissions?: str
   const ws = workspaceOf(role, workspace);
   if (ws === "ADMIN") return "/internal/admin";
   if (ws === "RECRUITER") return recruiterHomePath(permissions);
-  return "/candidate";
+  return "/";
 }
 
 function resumePath(from: string | undefined, role?: string, workspace?: RoleWorkspace, permissions?: string[]) {

@@ -47,6 +47,7 @@ Chuyển job giữa DRAFT → PUBLISHED → PAUSED/CLOSED; kiểm soát visibili
 
 - Job detail: Publish / Pause / Close / Reopen
 - Career page `/career` đọc public jobs
+- Public job card/detail hiển thị `deadline`, salary, skills và `acceptingApplications` khi API cung cấp. Job còn không quá 7 ngày được gắn nhãn sắp hết hạn theo timezone `Asia/Ho_Chi_Minh`; deadline null, không hợp lệ hoặc đã qua hạn không xuất hiện trong nhóm này.
 
 ## Phụ thuộc
 
