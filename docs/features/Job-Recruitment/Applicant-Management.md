@@ -55,6 +55,8 @@ Quản lý application theo job: apply từ candidate, lọc/phân trang, hồ s
 
 ## UI mockup
 
+- Public viewer được xem danh sách và chi tiết job không cần đăng nhập; khi bấm ứng tuyển, người chưa đăng nhập được chuyển tới candidate login trước khi mở form CV.
+- Candidate job list dùng `/applications/me` để hiển thị trạng thái đơn thật. Job detail cho phép chọn CV đã có hoặc tải CV mới theo flow hiện hành, không tạo trạng thái ứng tuyển phía frontend.
 - Tenant Admin xem job `PUBLISHED` và danh sách ứng viên tại `/internal/admin/recruitment` (chỉ xem).
 - Từ Dashboard, recruiter bấm **Ứng viên mới** để mở panel nhóm hồ sơ `NEW` theo job. Chọn job mở `/recruiter/jobs/{jobId}/applicants?view=board`; chọn ứng viên thêm `applicationId` để mở đúng hồ sơ trên Bảng quy trình. Trang `/recruiter/applicants` vẫn là danh sách tổng hợp khi recruiter chủ động mở module Ứng viên, không còn là đích điều hướng của thẻ việc cần xử lý.
 - Google Stitch: **Job Recruitment Management / Applicant Management** — _[dán link]_

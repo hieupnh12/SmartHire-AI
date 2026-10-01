@@ -7,7 +7,7 @@ import { toast } from "@/stores/toastStore";
 
 function currentTab(pathname: string): TenantHubTab {
   const value = pathname.split("/")[3];
-  return value === "overview" || value === "create" || value === "verification" || value === "provisioning"
+  return value === "overview" || value === "create" || value === "provisioning"
     ? value
     : "directory";
 }
@@ -31,6 +31,19 @@ export function TenantManagementPage() {
     triggerNotification(`Đã cập nhật trạng thái tenant ${tenant.code} sang ${status}`);
   };
 
+  const deleteTenant = async (tenant: TenantInfo) => {
+    if (!confirm(`Bạn có chắc muốn xoá sạch tenant ${tenant.code}? Hành động này KHÔNG THỂ PHỤC HỒI.`)) {
+      return;
+    }
+    try {
+      await masterAdminApi.deleteTenant(tenant.id);
+      setTenants((items: TenantInfo[]) => items.filter((item) => item.id !== tenant.id));
+      triggerNotification(`Đã xoá tenant ${tenant.code} và database thành công.`);
+    } catch (error) {
+      toast.danger("Lỗi khi xoá tenant.");
+    }
+  };
+
   return (
     <TenantManagementHub
       activeTab={currentTab(location.pathname)}
@@ -41,6 +54,7 @@ export function TenantManagementPage() {
         environmentType: tenant.environmentType === "POC_SANDBOX" ? "POC_SANDBOX" : "PRODUCTION",
       }, ...items])}
       onToggleStatus={toggleStatus}
+      onDeleteTenant={deleteTenant}
       onRetryProvisioning={(tenant) => navigate(`/onboard?retry=${tenant.id}`)}
     />
   );

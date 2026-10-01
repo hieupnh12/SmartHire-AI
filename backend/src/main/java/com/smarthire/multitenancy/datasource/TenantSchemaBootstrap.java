@@ -57,6 +57,8 @@ public class TenantSchemaBootstrap {
                 job_id           BIGINT NOT NULL,
                 user_id          BIGINT NOT NULL,
                 assignment_role  VARCHAR(32) NOT NULL,
+                can_view         BOOLEAN NOT NULL DEFAULT TRUE,
+                can_edit         BOOLEAN NOT NULL DEFAULT FALSE,
                 assigned_by      BIGINT NOT NULL,
                 created_at       TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at       TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -134,10 +136,26 @@ public class TenantSchemaBootstrap {
             seedDefaultFeatures(statement);
             ensureRecruitmentStageCatalog(statement);
             ensureCvApplicationCopy(statement);
+            ensureJobAssignmentPermissions(statement);
         } catch (SQLException ex) {
             log.error("Failed to ensure tenant role tables", ex);
             throw new IllegalStateException("Failed to ensure tenant role tables", ex);
         }
+    }
+
+    /** Mirrors V37 for tenants whose Flyway history skipped it. */
+    private static void ensureJobAssignmentPermissions(Statement statement) throws SQLException {
+        if (!tableExists(statement, "job_assignments")) {
+            return;
+        }
+        if (!columnExists(statement, "job_assignments", "can_view")) {
+            statement.execute("ALTER TABLE job_assignments ADD COLUMN can_view BOOLEAN NOT NULL DEFAULT TRUE AFTER assignment_role");
+        }
+        if (!columnExists(statement, "job_assignments", "can_edit")) {
+            statement.execute("ALTER TABLE job_assignments ADD COLUMN can_edit BOOLEAN NOT NULL DEFAULT FALSE AFTER can_view");
+        }
+        statement.execute("UPDATE job_assignments SET can_view = TRUE, can_edit = TRUE WHERE assignment_role IN ('OWNER', 'COLLABORATOR', 'PRIMARY_RECRUITER', 'CO_RECRUITER')");
+        statement.execute("UPDATE job_assignments SET can_view = TRUE, can_edit = FALSE WHERE assignment_role IN ('VIEWER', 'HIRING_MANAGER')");
     }
 
     private static void widenRoleColumn(Statement statement, String table, String column) throws SQLException {

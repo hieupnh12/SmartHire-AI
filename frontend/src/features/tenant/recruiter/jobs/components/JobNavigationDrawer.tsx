@@ -9,6 +9,7 @@ import type { JobStatus } from "@/api/types/job";
 import { getApiErrorMessage } from "@/lib/axios";
 import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
+import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 
 const statusLabel: Record<JobStatus, string> = {
   DRAFT: "Bản nháp",
@@ -23,6 +24,9 @@ const generalLinks = [
 ] as const;
 
 export function JobNavigationDrawer() {
+  const user = useAuthStore((s) => s.user);
+  const isAdmin = user?.role === "TENANT_ADMIN" || user?.role === "ADMIN" || user?.role === "SUPER_ADMIN";
+  const canCreateJob = isAdmin || (user?.permissions?.includes("JOBS_CREATE") ?? false) || (user?.permissions?.includes("JOBS") ?? false);
   const location = useLocation();
   const triggerRef = useRef<HTMLButtonElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -112,11 +116,13 @@ export function JobNavigationDrawer() {
                     <span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-[var(--color-on-surface)]">Việc cần xử lý</span><span className="block text-xs text-[var(--color-on-surface-variant)]">Tổng hợp mọi vị trí</span></span>
                     <ChevronRight className="size-4 text-[var(--color-outline)]" aria-hidden="true" />
                   </button>
-                  <Link to="/recruiter/jobs/new" onClick={close} className="group flex min-h-14 items-center gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-[var(--color-primary-soft)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-primary">
-                    <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[var(--color-surface-alt)] text-[var(--color-on-surface-variant)] group-hover:text-brand-primary"><Plus className="size-[18px]" aria-hidden="true" /></span>
-                    <span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-[var(--color-on-surface)]">Tạo việc làm</span><span className="block text-xs text-[var(--color-on-surface-variant)]">Mở một vị trí mới</span></span>
-                    <ChevronRight className="size-4 text-[var(--color-outline)]" aria-hidden="true" />
-                  </Link>
+                  {canCreateJob && (
+                    <Link to="/recruiter/jobs/new" onClick={close} className="group flex min-h-14 items-center gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-[var(--color-primary-soft)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-primary">
+                      <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[var(--color-surface-alt)] text-[var(--color-on-surface-variant)] group-hover:text-brand-primary"><Plus className="size-[18px]" aria-hidden="true" /></span>
+                      <span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-[var(--color-on-surface)]">Tạo việc làm</span><span className="block text-xs text-[var(--color-on-surface-variant)]">Mở một vị trí mới</span></span>
+                      <ChevronRight className="size-4 text-[var(--color-outline)]" aria-hidden="true" />
+                    </Link>
+                  )}
                 </div>
               </section>
 

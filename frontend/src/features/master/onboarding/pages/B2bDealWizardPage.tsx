@@ -7,7 +7,7 @@ import { CheckCircle2, Building2, CreditCard, FileSignature, Loader2, ShieldChec
 import { masterTenantApi } from "@/api/master/tenantApi";
 import { billingApi } from "@/api/master/billingApi";
 import { contractApi } from "@/api/master/contractApi";
-import { useSubscriptions, masterQueryKeys, useCreateSubscription } from "@/api/master/queries";
+import { useSubscriptions, useCreateSubscription, masterQueryKeys } from "@/api/master/queries";
 import { useQueryClient } from "@tanstack/react-query";
 import { getApiErrorMessage } from "@/lib/axios";
 
@@ -113,8 +113,8 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: { onCancel: () => void, o
     const nameInput = containerRef.current.querySelector<HTMLInputElement>('input[name="name"]');
     const codeInput = containerRef.current.querySelector<HTMLInputElement>('input[name="code"]');
     const descInput = containerRef.current.querySelector<HTMLInputElement>('input[name="description"]');
-    const priceMInput = containerRef.current.querySelector<HTMLInputElement>('input[name="priceMonthlyVnd"]');
-    const priceYInput = containerRef.current.querySelector<HTMLInputElement>('input[name="priceYearlyVnd"]');
+    const priceYInput = containerRef.current.querySelector<HTMLInputElement>('input[name="priceYearly"]');
+    const priceYVal = Number(priceYInput?.value || 0);
 
     if (!nameInput?.value || !codeInput?.value) {
       setError("Vui lòng nhập Tên gói và Mã code");
@@ -125,10 +125,7 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: { onCancel: () => void, o
       name: nameInput.value,
       code: codeInput.value,
       description: descInput?.value || "Gói tạo từ Wizard",
-      priceMonthlyVnd: Number(priceMInput?.value || 0),
-      priceYearlyVnd: Number(priceYInput?.value || 0),
-      priceMonthly: 0,
-      priceYearly: 0,
+      priceYearly: priceYVal,
       maxJobs: maxJobs,
       maxCvParses: maxCvParses,
       maxAiInterviewHours: maxAiInterviewHours,
@@ -176,13 +173,9 @@ function CreatePlanInlineForm({ onCancel, onSuccess }: { onCancel: () => void, o
           <input name="description" className={inputClass} placeholder="Mô tả ngắn gọn về gói dịch vụ..." />
         </div>
 
-        <div className="col-span-2">
-          <label className={labelClass}>Giá tháng (VNĐ) <span className="text-red-500">*</span></label>
-          <input name="priceMonthlyVnd" type="number" required defaultValue={0} className={inputClass} />
-        </div>
-        <div className="col-span-2">
-          <label className={labelClass}>Giá năm (VNĐ) <span className="text-red-500">*</span></label>
-          <input name="priceYearlyVnd" type="number" required defaultValue={0} className={inputClass} />
+        <div className="col-span-2 sm:col-span-4">
+          <label className={labelClass}>Giá bản quyền năm (VNĐ) <span className="text-red-500">*</span></label>
+          <input name="priceYearly" type="number" required defaultValue={36000000} className={inputClass} />
         </div>
 
         <div className="col-span-2 sm:col-span-1">
@@ -383,7 +376,7 @@ export function B2bDealWizardPageContent() {
       if (!plan) throw new Error("Không tìm thấy thông tin gói cước");
 
       const isYearly = values.billingCycle === "YEARLY";
-      const amountVnd = isYearly ? (plan.priceYearlyVnd || 0) : (plan.priceMonthlyVnd || 0);
+      const amountVnd = isYearly ? (plan.priceYearly || 0) : Math.round((plan.priceYearly || 0) / 12);
 
       // 3. Xử lý hình thức chốt sale
       if (values.closingMethod === "INVOICE") {
@@ -467,11 +460,6 @@ export function B2bDealWizardPageContent() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <header className="sticky top-16 md:top-0 z-10 bg-[#f8fafc]/95 backdrop-blur-md px-4 py-4 sm:px-6 lg:px-8 -mx-4 -mt-5 sm:-mx-6 sm:-mt-6 lg:-mx-8 lg:-mt-8 mb-6 border-b border-slate-200/50 shadow-sm flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight bg-gradient-to-r from-blue-600 to-cyan-500 bg-clip-text text-transparent">Khởi Tạo Doanh Nghiệp</h1>
-        </div>
-      </header>
 
       <main className="mx-auto max-w-5xl">
           <section className="rounded-3xl border border-slate-200 bg-white p-6 sm:p-10 shadow-xl shadow-slate-200/40">
@@ -554,22 +542,17 @@ export function B2bDealWizardPageContent() {
                   <p className="text-sm text-slate-500 mt-1">Phân bổ tài nguyên và tính năng cho Doanh nghiệp.</p>
                 </div>
 
-                <div className="space-y-4">
-                  <label className={labelClass}>Chu kỳ thanh toán</label>
-                  <div className="flex bg-slate-100 p-1 rounded-xl w-full max-w-sm">
-                    <button type="button" onClick={() => form.setValue("billingCycle", "MONTHLY")} className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all ${form.watch("billingCycle") === "MONTHLY" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
-                      Hàng Tháng
-                    </button>
-                    <button type="button" onClick={() => form.setValue("billingCycle", "YEARLY")} className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all ${form.watch("billingCycle") === "YEARLY" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
-                      Hàng Năm (-20%)
-                    </button>
+                <div className="space-y-2">
+                  <label className={labelClass}>Chu kỳ bản quyền</label>
+                  <div className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-blue-50 border border-blue-200 text-blue-800 text-xs font-bold">
+                    <span>Hàng Năm (Yearly License Only)</span>
                   </div>
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 mt-6">
                   {plans.map((plan) => {
                     const isSelected = form.watch("planId") === plan.id;
-                    const price = form.watch("billingCycle") === "YEARLY" ? plan.priceYearlyVnd : plan.priceMonthlyVnd;
+                    const price = plan.priceYearly || 0;
                     return (
                       <div
                         key={plan.id}
@@ -578,6 +561,7 @@ export function B2bDealWizardPageContent() {
                             form.setValue("planId", 0, { shouldValidate: true });
                           } else {
                             form.setValue("planId", plan.id as number, { shouldValidate: true });
+                            form.setValue("billingCycle", "YEARLY");
                           }
                         }}
                         className={`cursor-pointer rounded-2xl border-2 p-5 transition-all ${isSelected ? "border-blue-600 bg-blue-50/30 shadow-lg shadow-blue-500/10" : "border-slate-200 bg-white hover:border-blue-300 hover:shadow-md"
@@ -591,7 +575,7 @@ export function B2bDealWizardPageContent() {
                           {price?.toLocaleString("vi-VN")} ₫
                         </div>
                         <div className="text-xs text-slate-500 font-medium pb-4 border-b border-slate-100">
-                          /{form.watch("billingCycle") === "YEARLY" ? "năm" : "tháng"}
+                          /năm
                         </div>
 
                         <ul className="mt-4 space-y-2 text-sm text-slate-600">

@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import type { TenantInfo } from "@/api/master/masterAdminApi";
 import { cn } from "@/lib/utils";
+import { HeaderActions } from "@/features/master/shell/HeaderActions";
 import { AiEngineConfiguration } from "./AiEngineConfiguration";
 
 export type SystemManagementView = "ai-usage" | "ai-quotas" | "ai-config";
@@ -44,8 +45,18 @@ const monthlyUsage = [
 
 const surface = "rounded-2xl border border-slate-200 bg-white shadow-[0_4px_14px_-8px_rgba(15,23,42,0.18)]";
 
-function PageHeader({ title, action }: { eyebrow: string; title: string; description: string; action?: React.ReactNode }) {
-  return <header className="sticky top-16 md:top-0 z-10 bg-[#f8fafc]/95 backdrop-blur-md px-4 py-4 sm:px-6 lg:px-8 -mx-4 -mt-5 sm:-mx-6 sm:-mt-6 lg:-mx-8 lg:-mt-8 mb-6 border-b border-slate-200/50 shadow-sm flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between"><div><h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight bg-gradient-to-r from-blue-600 to-cyan-500 bg-clip-text text-transparent">{title}</h1></div>{action}</header>;
+function PageHeader({ eyebrow, description, action }: { eyebrow?: string; title?: string; description?: string; action?: React.ReactNode }) {
+  return (
+    <>
+      {action && <HeaderActions>{action}</HeaderActions>}
+      {(eyebrow || description) && (
+        <div className="mb-4">
+          {eyebrow && <p className="text-xs font-semibold uppercase tracking-wider text-blue-600 mb-0.5">{eyebrow}</p>}
+          {description && <p className="text-xs text-slate-500">{description}</p>}
+        </div>
+      )}
+    </>
+  );
 }
 
 function MetricCard({ icon: Icon, label, value, detail, tone = "blue" }: { icon: ComponentType<{ className?: string }>; label: string; value: string; detail: string; tone?: "blue" | "violet" | "amber" | "emerald" }) {

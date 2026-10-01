@@ -19,8 +19,8 @@
 | Entity JPA tenant | 55; V26 thêm `AiInterviewLog`; V27–V32 thêm `JobScreeningConfig`, `GateScore`, `JobAssignment`, `LandingPageSetting` |
 | Khoá ngoại tenant | 77 theo pipeline repo (72 sau V26; V27 thêm 2 FK screening/gate; V30 thêm 3 FK `job_assignments`) |
 | Ràng buộc UNIQUE tenant | V25/V26 không thêm UNIQUE. V27 thêm UNIQUE `gate_scores.application_id`. V30 thêm `uk_job_assignments_job_user` |
-| Số file migration trong repo | 49 (20 master + 29 tenant, tính đến V35); V9 redesign nằm ngoài pipeline |
-| Cập nhật lần cuối | Tenant `V36`, ngày 2026-09-28. V34 tạo bản sao CV theo application, V35 bổ sung lộ trình AI Interview, V36 bổ sung catalog recruitment stage; screening, assignment và landing từ main được đánh số V27–V32 để không trùng V13 và V21–V26 của nhánh này |
+| Số file migration trong repo | 52 (22 master + 30 tenant); V9 redesign nằm ngoài pipeline |
+| Cập nhật lần cuối | Master `V23`, tenant `V37`. Master V23 tối ưu liên kết hợp đồng–hóa đơn, độ chính xác tiền tệ VND và index log; tenant V34 tạo bản sao CV theo application, V35 bổ sung lộ trình AI Interview, V36 bổ sung catalog recruitment stage, V37 bổ sung ma trận vai trò công việc |
 | Dọn legacy V21 | Xóa 19 bảng và dữ liệu legacy, xóa 2 cột ID legacy trong ranking; không chuyển ID cũ sang bản ghi mới |
 | Metadata assessment 2026-09-25 | V13: `tests.created_by/updated_at`, `questions.difficulty/skill/explanation` cho Excel/UI authoring |
 | Sửa lỗi assessment 2026-09-24 | V10/V11 khớp checksum lịch sử; V12 tạo schema mới và giữ bảng cũ; migration lỗi phải chặn mở tenant pool |
@@ -288,7 +288,7 @@ erDiagram
     subscription_plans {
         bigint id PK
         varchar code UK
-        decimal price_monthly
+        decimal price_yearly
         int max_jobs
         int max_cv_parses
     }
@@ -546,7 +546,7 @@ sẽ chặn thao tác thay vì bị gỡ âm thầm. Hai cột `ranking_sources.
 | Entity | Mục đích | Thuộc tính then chốt | Vòng đời |
 |---|---|---|---|
 | `TenantInfo` | Đại diện một doanh nghiệp khách hàng và cách kết nối tới database riêng của họ | `code`, `subdomain`, `db_name`, `db_url`, `db_username`, `db_password` (mã hoá, `@JsonIgnore`), `managed_database`, hồ sơ công ty, `is_verified` | Tạo khi onboarding → `ACTIVE` → có thể khoá/xoá |
-| `SubscriptionPlan` | Định nghĩa gói dịch vụ và hạn mức tiêu thụ | `price_monthly`, `price_yearly`, `max_jobs`, `max_cv_parses`, `max_ai_interview_hours`, `max_storage_gb`, `max_proctoring_hours`, `video_retention_days`, `features_json` | Bảng tra cứu, ít thay đổi |
+| `SubscriptionPlan` | Định nghĩa gói dịch vụ và hạn mức tiêu thụ | `price_yearly`, `max_jobs`, `max_cv_parses`, `max_ai_interview_hours`, `max_storage_gb`, `max_proctoring_hours`, `video_retention_days`, `features_json` | Bảng tra cứu, ít thay đổi |
 | `TenantSubscription` | Gói mà một tenant đang dùng trong một khoảng thời gian | `tenant_id`, `plan_id`, `starts_at`, `ends_at`, `auto_renew` | `ACTIVE` → hết hạn hoặc gia hạn |
 | `Invoice` | Hoá đơn phát sinh cho tenant | `amount`, `currency`, `payment_gateway`, `transaction_id`, `paid_at` | `PENDING` → thanh toán |
 | `TenantUsageDaily` | Số liệu tiêu thụ theo ngày để đối chiếu hạn mức | `usage_date`, `cv_parses_count`, `ai_voice_seconds`, `proctoring_seconds`, `storage_bytes`, `active_jobs_count`, `ai_tokens_consumed` | Một dòng/tenant/ngày, cập nhật tăng dần |
@@ -1033,6 +1033,19 @@ Hai pipeline dùng **hai phương ngữ SQL khác nhau** và không thể dùng 
 | V6 | `V6__tenant_usage_and_platform_audit_logs.sql` | Thêm `tenant_usage_daily` và `platform_audit_logs` |
 | V7 | `V7__add_missing_subscription_plan_fields.sql` | Hạn mức bổ sung: storage, proctoring, video retention, `features_json` |
 | V8 | `V8__enterprise_consultation_requests.sql` | Thêm `consultation_requests` + 3 index |
+| V9 | `V9__seed_subscription_plans.sql` | Seed các gói cước mặc định |
+| V10 | `V10__enhance_invoices_and_tenants.sql` | Cập nhật cấu trúc invoices và tenants |
+| V11 | `V11__b2b_contracts.sql` | Quản lý hợp đồng B2B |
+| V12 | `V12__vietnam_legal_contracts.sql` | Mẫu hợp đồng pháp lý Việt Nam |
+| V13 | `V13__enhance_master_schema_for_scale.sql` | Mở rộng schema master cho enterprise scale |
+| V14 | `V14__system_settings_and_ai_configs.sql` | Cấu hình hệ thống và tham số AI |
+| V15 | `V15__master_notification_logs.sql` | Nhật ký thông báo master |
+| V17 | `V17__allow_null_tenant_in_contracts.sql` | Cho phép null tenant trong contracts tiền trạm |
+| V18 | `V18__allow_null_subscription_quotas.sql` | Cho phép null quotas đại diện cho unlimited |
+| V19 | `V19__drop_obsolete_signer_columns.sql` | Dọn dẹp cột người ký dư thừa |
+| V20 | `V20__add_billing_info.sql` | Thêm mã số thuế, địa chỉ hóa đơn, thông tin thanh toán |
+| V21 | `V21__payment_transactions_and_amount_scale.sql` | Bảng payment_transactions và mở rộng quy mô tiền tệ |
+| V22 | `V22__consolidate_subscription_plan_pricing_to_vnd.sql` | Chuẩn hoá lưu giá gói duy nhất bằng `price_yearly` (VNĐ), xoá `price_monthly`, `price_monthly_vnd`, `price_yearly_vnd` |
 
 ### 10.3 Lịch sử migration — Tenant
 

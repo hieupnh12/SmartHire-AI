@@ -45,7 +45,13 @@ public class JobMapper {
     }
 
     public JobDetail detail(Job job, List<JobSkillView> skills, List<StageView> stages, long applications,
-            JobScreeningConfig screening, boolean canEditRecruitmentWorkflow) {
+            JobScreeningConfig screening, boolean canEditRecruitmentWorkflow, String currentUserRole) {
+        return detail(job, skills, stages, applications, screening, canEditRecruitmentWorkflow, currentUserRole, true, false);
+    }
+
+    public JobDetail detail(Job job, List<JobSkillView> skills, List<StageView> stages, long applications,
+            JobScreeningConfig screening, boolean canEditRecruitmentWorkflow, String currentUserRole,
+            boolean canEdit, boolean canManagePermissions) {
         return new JobDetail(
                 job.getId(),
                 job.getTitle(),
@@ -78,7 +84,10 @@ public class JobMapper {
                 stages,
                 cvScreening(screening),
                 gateScreening(screening),
-                canEditRecruitmentWorkflow);
+                canEditRecruitmentWorkflow,
+                currentUserRole,
+                canEdit,
+                canManagePermissions);
     }
 
     public CvScreeningConfigView cvScreening(JobScreeningConfig config) {

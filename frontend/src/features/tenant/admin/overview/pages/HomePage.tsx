@@ -14,7 +14,7 @@ const shortcuts: Array<{ to: string; label: string; icon: ComponentType<{ classN
   { to: "/recruiter", label: "Workspace tuyển dụng", icon: BriefcaseBusiness },
   { to: "/internal/admin/users", label: "Người dùng", icon: Users },
   { to: "/internal/admin/roles", label: "Phân quyền", icon: ShieldCheck },
-  { to: "/internal/admin/recruiter-assignments", label: "Phân công", icon: UserRoundCog },
+  { to: "/internal/admin/recruiter-assignments", label: "Quản lý công việc", icon: UserRoundCog },
   { to: "/internal/admin/system", label: "Hệ thống", icon: Settings },
 ];
 

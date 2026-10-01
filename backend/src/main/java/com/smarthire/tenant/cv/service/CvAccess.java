@@ -9,6 +9,9 @@ import com.smarthire.domain.tenant.entity.User;
 import com.smarthire.domain.tenant.repository.JobAssignmentRepository;
 import com.smarthire.domain.tenant.repository.UserRepository;
 import com.smarthire.multitenancy.context.TenantContext;
+import com.smarthire.domain.enums.RecruiterFeature;
+import com.smarthire.tenant.auth.service.RolePermissionService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
@@ -19,10 +22,20 @@ import org.springframework.stereotype.Component;
 public class CvAccess {
     private final UserRepository users;
     private final JobAssignmentRepository assignments;
+    private final RolePermissionService rolePermissionService;
 
     public CvAccess(UserRepository users, JobAssignmentRepository assignments) {
+        this(users, assignments, null);
+    }
+
+    @Autowired
+    public CvAccess(
+            UserRepository users,
+            JobAssignmentRepository assignments,
+            RolePermissionService rolePermissionService) {
         this.users = users;
         this.assignments = assignments;
+        this.rolePermissionService = rolePermissionService;
     }
 
     public Authentication auth() {
@@ -58,7 +71,13 @@ public class CvAccess {
 
     public Long jobScopeUserId() {
         User user = actor();
-        return UserRole.isCompanyAdmin(user.getRole()) ? null : user.getId();
+        if (UserRole.isCompanyAdmin(user.getRole())) {
+            return null;
+        }
+        if (rolePermissionService != null && rolePermissionService.hasFeature(user.getRole(), RecruiterFeature.JOBS_ALL)) {
+            return null;
+        }
+        return user.getId();
     }
 
     public void requireJob(Job job) {
@@ -66,14 +85,18 @@ public class CvAccess {
         if (job.getDeletedAt() != null) {
             throw new BusinessException("Job not found", HttpStatus.NOT_FOUND, "JOB_NOT_FOUND");
         }
-        if (UserRole.isCompanyAdmin(user.getRole())) {
+        if (UserRole.isCompanyAdmin(user.getRole())
+                || (rolePermissionService != null && rolePermissionService.hasFeature(user.getRole(), RecruiterFeature.JOBS_ALL))) {
             return;
         }
         if (staff()) {
-            if (!assignments.existsByJob_IdAndUser_Id(job.getId(), user.getId())) {
-                throw new BusinessException("Not assigned to this job", HttpStatus.FORBIDDEN, "JOB_NOT_ASSIGNED");
+            if (job.getCreatedBy() != null && user.getId().equals(job.getCreatedBy().getId())) {
+                return;
             }
-            return;
+            if (assignments.existsByJob_IdAndUser_IdAndCanViewTrue(job.getId(), user.getId())) {
+                return;
+            }
+            throw new BusinessException("Not assigned to this job", HttpStatus.FORBIDDEN, "JOB_NOT_ASSIGNED");
         }
         throw new BusinessException("Recruiter access required", HttpStatus.FORBIDDEN, "CV_FORBIDDEN");
     }
@@ -93,7 +116,9 @@ public class CvAccess {
         }
         User user = actor();
         return assignments.findByJob_IdAndUser_Id(job.getId(), user.getId())
-                .map(row -> row.getAssignmentRole() == AssignmentRole.PRIMARY_RECRUITER)
+                // OWNER (new) and PRIMARY_RECRUITER (legacy, backfilled) both grant workflow edit.
+                .map(row -> row.getAssignmentRole() == AssignmentRole.OWNER
+                        || row.getAssignmentRole() == AssignmentRole.PRIMARY_RECRUITER)
                 .orElse(false);
     }
 
@@ -104,7 +129,7 @@ public class CvAccess {
         }
         if (!canEditRecruitmentWorkflow(job)) {
             throw new BusinessException(
-                    "Only the primary recruiter can change the recruitment workflow",
+                    "Only the job OWNER can change the recruitment workflow",
                     HttpStatus.FORBIDDEN,
                     "WORKFLOW_PRIMARY_ONLY");
         }

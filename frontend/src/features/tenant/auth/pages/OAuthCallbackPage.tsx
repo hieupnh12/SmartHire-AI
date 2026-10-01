@@ -39,7 +39,7 @@ export function OAuthCallbackPage() {
         const rawState = params.get("state");
 
         let targetTenant = "acme";
-        let redirectUrl = "/candidate";
+        let redirectUrl = "/";
 
         if (rawState) {
           try {

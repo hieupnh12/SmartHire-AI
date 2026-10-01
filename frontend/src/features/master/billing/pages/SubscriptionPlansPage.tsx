@@ -9,7 +9,6 @@ interface SubscriptionsTabProps {
   setPlanCode: (val: string) => void;
   setPlanName: (val: string) => void;
   setPlanDesc: (val: string) => void;
-  setPriceMonthly: (val: number) => void;
   setPriceYearly: (val: number) => void;
   setMaxJobs: (val: number) => void;
   setMaxCvParses: (val: number) => void;
@@ -82,8 +81,10 @@ export function SubscriptionsTab(_props: SubscriptionsTabProps) {
               <p className="text-xs text-slate-500 mb-4 min-h-[32px]">{plan.description}</p>
 
               <div className="flex items-baseline gap-1 mb-6 pb-4 border-b border-slate-100">
-                <span className="text-3xl font-extrabold text-blue-600">${plan.priceMonthly}</span>
-                <span className="text-xs text-slate-500">/tháng (${plan.priceYearly}/năm)</span>
+                <span className="text-2xl font-extrabold text-blue-600">
+                  {plan.priceYearly ? `${plan.priceYearly.toLocaleString("vi-VN")} đ` : "0 đ"}
+                </span>
+                <span className="text-xs text-slate-500">/ năm</span>
               </div>
 
               <ul className="space-y-3 text-xs text-slate-600 mb-6 font-medium">
@@ -96,7 +97,7 @@ export function SubscriptionsTab(_props: SubscriptionsTabProps) {
                 <li className="flex items-center gap-2">
                   <Check className="w-4 h-4 text-blue-600" />
                   <span>
-                    Sàng lọc <strong>{plan.maxCvParses.toLocaleString()} CVs</strong> / tháng
+                    Sàng lọc <strong>{plan.maxCvParses.toLocaleString()} CVs</strong> / năm
                   </span>
                 </li>
                 <li className="flex items-center gap-2">

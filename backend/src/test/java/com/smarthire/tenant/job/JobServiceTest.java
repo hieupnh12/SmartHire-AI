@@ -14,6 +14,7 @@ import com.smarthire.tenant.cv.service.CvSkillAnalysisService;
 import com.smarthire.tenant.job.dto.JobModels.JobUpsertRequest;
 import com.smarthire.tenant.job.mapper.JobMapper;
 import com.smarthire.tenant.job.screening.JobScreeningConfigService;
+import com.smarthire.tenant.job.service.JobAccess;
 import com.smarthire.tenant.job.service.JobAssignmentService;
 import com.smarthire.tenant.job.service.JobCloseScreeningService;
 import com.smarthire.tenant.job.service.JobService;
@@ -35,6 +36,7 @@ class JobServiceTest {
     @Mock RecruitmentStageRepository stages;
     @Mock ApplicationRepository applications;
     @Mock CvAccess access;
+    @Mock JobAccess jobAccess;
     @Mock CvSkillAnalysisService taxonomy;
     @Mock JobAssignmentService assignments;
     @Mock JobScreeningConfigService screening;
@@ -48,7 +50,7 @@ class JobServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new JobService(jobs, jobSkills, stages, applications, access, taxonomy, new JobMapper(),
+        service = new JobService(jobs, jobSkills, stages, applications, access, jobAccess, taxonomy, new JobMapper(),
                 assignments, screening, screeningConfigs, closeScreening, rabbitTemplate);
         recruiter = new User();
         recruiter.setEmail("recruiter@se36.local");

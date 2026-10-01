@@ -25,20 +25,8 @@ public class SubscriptionPlan {
     String description;
 
     @Builder.Default
-    @Column(name = "price_monthly", nullable = false)
-    BigDecimal priceMonthly = BigDecimal.ZERO;
-
-    @Builder.Default
     @Column(name = "price_yearly", nullable = false)
     BigDecimal priceYearly = BigDecimal.ZERO;
-
-    @Builder.Default
-    @Column(name = "price_monthly_vnd", nullable = false)
-    BigDecimal priceMonthlyVnd = BigDecimal.ZERO;
-
-    @Builder.Default
-    @Column(name = "price_yearly_vnd", nullable = false)
-    BigDecimal priceYearlyVnd = BigDecimal.ZERO;
 
     @Builder.Default
     @Column(name = "max_jobs", nullable = false)

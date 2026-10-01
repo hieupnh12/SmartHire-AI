@@ -198,3 +198,7 @@ paypal:
   client-id: ${PAYPAL_CLIENT_ID}
   client-secret: ${PAYPAL_SECRET}
   mode: ${PAYPAL_MODE}
+
+sepay:
+  webhook-secret: ${SEPAY_WEBHOOK_SECRET}
+  require-signature: ${SEPAY_REQUIRE_SIGNATURE:true}

@@ -1001,12 +1001,22 @@ Entity `JobAssignment`.
 | `id` | BIGINT | PK | Không | auto | |
 | `job_id` | BIGINT | FK → `jobs.id` | Không | — | Tin tuyển dụng |
 | `user_id` | BIGINT | FK → `users.id` | Không | — | Recruiter được giao |
-| `assignment_role` | VARCHAR(32) | | Không | — | `PRIMARY_RECRUITER` hoặc vai trò phụ |
+| `assignment_role` | VARCHAR(32) | | Không | — | **Job Role Matrix** (V37): `OWNER` · `COLLABORATOR` · `VIEWER` · `HIRING_MANAGER`. *(Deprecated: `PRIMARY_RECRUITER` → `OWNER`, `CO_RECRUITER` → `COLLABORATOR`)* |
+| `can_view` | BOOLEAN | | Không | TRUE | Quyền xem job và ứng viên (V37) |
+| `can_edit` | BOOLEAN | | Không | FALSE | Quyền chỉnh sửa nội dung job và pipeline (V37) |
 | `assigned_by` | BIGINT | FK → `users.id` | Không | — | Người giao việc |
 | `created_at` | TIMESTAMP | | Không | now | |
 | `updated_at` | TIMESTAMP | | Không | now on update | |
 
 **Ràng buộc:** `fk_ja_job`, `fk_ja_user`, `fk_ja_assigned_by`, `uk_job_assignments_job_user (job_id, user_id)`, index `idx_job_assignments_user`.
+
+**Business rules (V37):**
+- **Phân quyền chi tiết trên từng Job:** Mỗi phân quyền quy định rõ cờ `can_view` (xem) và `can_edit` (sửa).
+- `TENANT_ADMIN` / `ADMIN` hoặc Role có tính năng `JOBS_ALL` luôn bypass — xem và quản trị mọi tin tuyển dụng.
+- Người tạo tin (`jobs.created_by`) luôn có toàn quyền xem và sửa trên job của mình (không thể gỡ bỏ quyền của người tạo).
+- Mỗi job có thể có `OWNER` hoặc gán quyền chi tiết (`can_view`, `can_edit`) cho các nhân viên khác.
+- `can_manage_permissions` (quản trị phân quyền trên job) dành cho Admin hoặc Người tạo tin.
+
 
 ## K. Landing Page & Employer Branding
 

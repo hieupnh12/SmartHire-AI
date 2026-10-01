@@ -91,7 +91,7 @@ export function CreateInvoiceModal({
                 setInvoicePlanId(planIdVal);
                 const selectedP = plans.find((p) => String(p.id) === String(planIdVal));
                 if (selectedP) {
-                  setInvoiceAmount(selectedP.priceYearly || 3990);
+                  setInvoiceAmount(selectedP.priceYearly || 36000000);
                 }
               }}
               className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-slate-800 focus:outline-none focus:border-blue-600 bg-white"
@@ -99,7 +99,7 @@ export function CreateInvoiceModal({
               <option value="">-- Chọn gói cước (hoặc Tùy biến) --</option>
               {plans.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.name} - ${p.priceMonthly}/tháng (${p.priceYearly}/năm)
+                  {p.name} - {p.priceYearly ? `${p.priceYearly.toLocaleString("vi-VN")} đ/năm` : "0 đ/năm"}
                 </option>
               ))}
             </select>

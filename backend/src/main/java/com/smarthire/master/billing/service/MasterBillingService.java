@@ -136,10 +136,11 @@ public class MasterBillingService {
                 .invoiceNumber(invoiceNumber)
                 .tenantId(tenant.getId())
                 .subscriptionId(subscriptionId)
+                .contractId(request.getContractId())
                 .amount(request.getAmount())
                 .subtotal(request.getSubtotal() != null ? request.getSubtotal() : request.getAmount())
                 .taxRate(request.getTaxRate())
-                .currency(StringUtils.hasText(request.getCurrency()) ? request.getCurrency().toUpperCase() : "USD")
+                .currency(StringUtils.hasText(request.getCurrency()) ? request.getCurrency().toUpperCase() : "VND")
                 .status("PENDING")
                 .dueDate(request.getDueDate() != null ? request.getDueDate() : LocalDateTime.now().plusDays(14))
                 .billingPeriodStart(request.getBillingPeriodStart() != null ? request.getBillingPeriodStart() : LocalDateTime.now())
@@ -200,6 +201,11 @@ public class MasterBillingService {
                     subscriptionRepository.save(sub);
                 });
             }
+            TenantInfo pendingTenant = tenantRepository.findById(invoice.getTenantId()).orElse(null);
+            if (pendingTenant != null && ("PENDING_PAYMENT".equals(pendingTenant.getStatus()) || "FAILED".equals(pendingTenant.getStatus()))) {
+                log.info("Auto-provisioning workspace for tenant: {}", pendingTenant.getCode());
+                masterTenantService.provisionPendingTenant(pendingTenant.getId());
+            }
         }
 
         Invoice saved = invoiceRepository.save(invoice);
@@ -227,15 +233,8 @@ public class MasterBillingService {
 
         int quantity = request.getQuantity() != null && request.getQuantity() > 0 ? request.getQuantity() : 1;
         
-        BigDecimal unitPriceVnd = "YEARLY".equalsIgnoreCase(request.getBillingCycle()) 
-                ? plan.getPriceYearlyVnd() 
-                : plan.getPriceMonthlyVnd();
-
-        if (unitPriceVnd == null || unitPriceVnd.compareTo(BigDecimal.ZERO) <= 0) {
-            BigDecimal baseUsd = "YEARLY".equalsIgnoreCase(request.getBillingCycle()) ? plan.getPriceYearly() : plan.getPriceMonthly();
-            unitPriceVnd = baseUsd != null ? baseUsd.multiply(BigDecimal.valueOf(25400)) : BigDecimal.ZERO;
-        }
-        
+        // Mô hình bản quyền theo năm (Yearly Only) - giá lưu trực tiếp bằng VNĐ tại priceYearly
+        BigDecimal unitPriceVnd = plan.getPriceYearly() != null ? plan.getPriceYearly() : BigDecimal.ZERO;
         BigDecimal amountVnd = unitPriceVnd.multiply(BigDecimal.valueOf(quantity));
 
         // 1. Register pending tenant
@@ -253,9 +252,7 @@ public class MasterBillingService {
 
         // 2. Create pending tenant subscription
         LocalDateTime startsAt = LocalDateTime.now();
-        LocalDateTime endsAt = "YEARLY".equalsIgnoreCase(request.getBillingCycle())
-                ? startsAt.plusYears(quantity)
-                : startsAt.plusMonths(quantity);
+        LocalDateTime endsAt = startsAt.plusYears(quantity);
 
         TenantSubscription sub = TenantSubscription.builder()
                 .tenantId(tenant.getId())
@@ -285,14 +282,15 @@ public class MasterBillingService {
                 .billingTaxCode(request.getTaxCode())
                 .billingLegalName(request.getCompanyLegalName())
                 .billingAddress(request.getBillingAddress())
-                .notes("Self-Service Checkout - " + plan.getName() + " (" + quantity + " " + request.getBillingCycle() + ")")
+                .notes("Self-Service Checkout - " + plan.getName() + " (" + quantity + " Năm)"
+                        + (StringUtils.hasText(request.getNotes()) ? " | Ghi chú khách hàng: " + request.getNotes().trim() : ""))
                 .build();
         Invoice savedInvoice = invoiceRepository.save(invoice);
 
         // 4. Create line item
         InvoiceLineItem lineItem = InvoiceLineItem.builder()
                 .invoiceId(savedInvoice.getId())
-                .description("Thuê bao " + plan.getName() + " (" + quantity + ("YEARLY".equalsIgnoreCase(request.getBillingCycle()) ? " năm" : " tháng") + ")")
+                .description("Bản quyền " + plan.getName() + " (" + quantity + " năm)")
                 .quantity(quantity)
                 .unitPrice(unitPriceVnd)
                 .totalPrice(amountVnd)
@@ -300,14 +298,14 @@ public class MasterBillingService {
                 .build();
         invoiceLineItemRepository.save(lineItem);
 
-        // 5. Bank Info and VietQR
-        String bankName = "Vietcombank (VCB)";
-        String accountNumber = "1028935315";
+        // 5. Bank Info and SePay VietQR (TPBank)
+        String bankName = "Ngân hàng TMCP Tiên Phong (TPBank)";
+        String accountNumber = "07744348801";
         String accountName = "NGUYEN NHAT SINH";
         String transferSyntax = "SH " + savedInvoice.getInvoiceNumber();
         String encodedSyntax = URLEncoder.encode(transferSyntax, StandardCharsets.UTF_8);
         String encodedAccount = URLEncoder.encode(accountName, StandardCharsets.UTF_8);
-        String qrUrl = "https://img.vietqr.io/image/VCB-1028935315-compact2.png?amount=" 
+        String qrUrl = "https://img.vietqr.io/image/TPBank-07744348801-compact2.png?amount="
                 + amountVnd.toBigInteger() 
                 + "&addInfo=" + encodedSyntax 
                 + "&accountName=" + encodedAccount;
@@ -367,8 +365,7 @@ public class MasterBillingService {
         if (tenant != null && ("PENDING_PAYMENT".equals(tenant.getStatus()) || "FAILED".equals(tenant.getStatus()))) {
             log.info("Auto-provisioning workspace for tenant: {}", tenant.getCode());
             String tempPassword = masterTenantService.provisionPendingTenant(tenant.getId());
-            log.info(">>> THÔNG TIN ĐĂNG NHẬP (DÀNH CHO DEV/TEST) <<<");
-            log.info(">>> Workspace: {} | Admin Email: {} | Password: {} <<<", tenant.getSubdomain(), tenant.getContactEmail(), tempPassword);
+            log.info("Temporary workspace administrator credentials generated for tenant '{}'", tenant.getCode());
             tenant = tenantRepository.findById(tenant.getId()).orElse(tenant);
 
             String workspaceUrl = "https://" + tenant.getSubdomain() + "." + baseDomain;
@@ -413,6 +410,25 @@ public class MasterBillingService {
         List<InvoiceLineItem> items = invoiceLineItemRepository.findByInvoiceId(saved.getId());
         response.setLineItems(items.stream().map(InvoiceLineItemResponse::from).toList());
         return response;
+    }
+
+    @Transactional(readOnly = true, transactionManager = "masterTransactionManager")
+    public InvoiceStatusResponse getPublicInvoiceStatus(Long invoiceId) {
+        Invoice invoice = invoiceRepository.findById(invoiceId)
+                .orElseThrow(() -> new BusinessException("Hóa đơn không tồn tại: " + invoiceId, HttpStatus.NOT_FOUND, "INVOICE_NOT_FOUND"));
+
+        TenantInfo tenant = tenantRepository.findById(invoice.getTenantId()).orElse(null);
+
+        return new InvoiceStatusResponse(
+                invoice.getId(),
+                invoice.getInvoiceNumber(),
+                invoice.getStatus(),
+                invoice.getAmount(),
+                invoice.getPaymentGateway(),
+                invoice.getPaidAt(),
+                tenant != null ? tenant.getSubdomain() : null,
+                tenant != null ? tenant.getStatus() : null
+        );
     }
 
     private String generateInvoiceNumber() {

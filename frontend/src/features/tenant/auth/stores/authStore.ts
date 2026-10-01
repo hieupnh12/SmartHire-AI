@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { Role } from "@/types/api";
 import type { UserProfile } from "../types";
+import { authApi } from "@/api/tenant/authApi";
 
 type AuthState = {
   accessToken: string | null;
@@ -32,6 +33,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
   setUser: (user) => set({ user }),
   logout: () => {
+    const refreshToken = get().refreshToken ?? read("refreshToken") ?? undefined;
+    authApi.logout({ refreshToken }).catch(() => {});
     localStorage.removeItem("accessToken");
     localStorage.removeItem("refreshToken");
     set({ accessToken: null, refreshToken: null, user: null });

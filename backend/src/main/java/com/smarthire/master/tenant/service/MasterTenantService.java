@@ -73,6 +73,31 @@ public class MasterTenantService {
         return tenant;
     }
 
+    public void deleteTenant(Long id) {
+        TenantInfo tenant = getTenantById(id);
+        // Remove from connection pool
+        pools.evict(tenant.getCode());
+        
+        try {
+            // Drop database and user
+            provisioning.deleteDatabaseAndUser(tenant);
+        } catch (java.sql.SQLException ex) {
+            throw new BusinessException("Failed to drop database: " + ex.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR, "DROP_DB_FAILED");
+        }
+        
+        // Cascade delete related records in Master DB
+        masterJdbc.update("DELETE FROM invoice_line_items WHERE invoice_id IN (SELECT id FROM invoices WHERE tenant_id = ?)", id);
+        masterJdbc.update("DELETE FROM invoices WHERE tenant_id = ?", id);
+        masterJdbc.update("DELETE FROM payment_transactions WHERE tenant_id = ?", id);
+        masterJdbc.update("DELETE FROM contract_signatures WHERE contract_id IN (SELECT id FROM contracts WHERE tenant_id = ?)", id);
+        masterJdbc.update("DELETE FROM contracts WHERE tenant_id = ?", id);
+        masterJdbc.update("DELETE FROM tenant_subscriptions WHERE tenant_id = ?", id);
+        masterJdbc.update("DELETE FROM tenant_usage_daily WHERE tenant_id = ?", id);
+        
+        // Delete from registry (cascade delete happens via JPA if configured, or just deletes TenantInfo)
+        tenants.delete(tenant);
+    }
+
     public TenantInfo updateTenant(Long id, com.smarthire.master.tenant.dto.UpdateTenantRequest request) {
         TenantInfo tenant = getTenantById(id);
         if (request.getCompanyName() != null) tenant.setName(request.getCompanyName());
