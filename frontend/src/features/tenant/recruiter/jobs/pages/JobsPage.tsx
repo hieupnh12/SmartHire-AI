@@ -32,6 +32,7 @@ import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 import { useUiStore } from "@/stores/uiStore";
 import { toast } from "@/stores/toastStore";
 import { LoadingState, TableSkeleton } from "@/components/ux/Skeleton";
+import { JOB_ROLE_LABELS, JOB_ROLE_COLORS, parseJobRole, canDeleteJob } from "@/features/tenant/recruiter/jobPermissions";
 
 const PAGE_SIZE = 10;
 const STATUS_TABS: { value: "" | JobStatus; label: string }[] = [
@@ -55,6 +56,10 @@ const iconButton = "grid size-9 place-items-center rounded-lg text-[var(--color-
 
 export function JobsPage() {
   const token = useAuthStore((s) => s.accessToken);
+  const user = useAuthStore((s) => s.user);
+  const isAdmin = user?.role === "TENANT_ADMIN" || user?.role === "ADMIN" || user?.role === "SUPER_ADMIN";
+  const canViewAll = isAdmin || (user?.permissions?.includes("JOBS_ALL") ?? false);
+  const canCreateJob = isAdmin || (user?.permissions?.includes("JOBS_CREATE") ?? false) || (user?.permissions?.includes("JOBS") ?? false);
   const navigate = useNavigate();
   const client = useQueryClient();
   const askConfirm = useUiStore((s) => s.askConfirm);
@@ -65,9 +70,11 @@ export function JobsPage() {
   const [status, setStatus] = useState<"" | JobStatus>(initialStatus);
   const [department, setDepartment] = useState("");
   const [page, setPage] = useState(0);
+  // scope: "my" = only assigned jobs (default for staff); "all" = admin-only
+  const [scope, setScope] = useState<"my" | "all">("my");
   const list = useQuery({
-    queryKey: queryKeys.jobs.list({ q, status, department, page }),
-    queryFn: () => jobApi.search({ q: q.trim() || undefined, status: status || undefined, department: department || undefined, page, size: PAGE_SIZE }),
+    queryKey: queryKeys.jobs.list({ q, status, department, page, scope }),
+    queryFn: () => jobApi.search({ q: q.trim() || undefined, status: status || undefined, department: department || undefined, page, size: PAGE_SIZE, scope }),
     placeholderData: keepPreviousData,
     enabled: !!token,
   });
@@ -123,14 +130,37 @@ export function JobsPage() {
             Tạo, đăng và theo dõi các vị trí đang tuyển. Mở từng tin để xem ứng viên, sàng lọc CV và pipeline.
           </p>
         </div>
-        <Link
-          to="new"
-          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-brand-primary px-5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-primary-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary"
-        >
-          <Plus className="size-4" aria-hidden="true" />
-          Tạo tin tuyển dụng
-        </Link>
+        {canCreateJob && (
+          <Link
+            to="new"
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-brand-primary px-5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-primary-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary"
+          >
+            <Plus className="size-4" aria-hidden="true" />
+            Tạo tin tuyển dụng
+          </Link>
+        )}
       </header>
+
+      {/* Scope tabs — visible to admins or users with JOBS_ALL */}
+      {canViewAll && (
+        <div role="tablist" aria-label="Phạm vi hiển thị" className="flex gap-1 self-start rounded-xl bg-[var(--color-surface-alt)] p-1">
+          {(["my", "all"] as const).map((s) => (
+            <button
+              key={s}
+              type="button"
+              role="tab"
+              aria-selected={scope === s}
+              onClick={() => { setScope(s); setPage(0); }}
+              className={cn(
+                "min-h-8 rounded-lg px-3 text-xs font-semibold transition-colors",
+                scope === s ? "bg-white text-brand-primary shadow-sm" : "text-[var(--color-on-surface-variant)] hover:text-[var(--color-on-surface)]",
+              )}
+            >
+              {s === "my" ? "Việc làm của tôi" : "Tất cả"}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <KpiCard label="Tổng tin tuyển dụng" value={metric(stats?.totalJobs)} hint="Không tính tin đã lưu trữ" icon={Layers3} />
         <KpiCard label="Đang tuyển" value={metric(stats?.openJobs ?? stats?.activeJobs)} hint={`${metric(stats?.pausedJobs)} tin tạm dừng`} icon={BriefcaseBusiness} />
@@ -222,7 +252,7 @@ export function JobsPage() {
             <p className="mt-1 max-w-md text-sm text-[var(--color-on-surface-variant)]">
               {filtered ? "Thử đổi từ khóa, trạng thái hoặc phòng ban." : "Tạo tin đầu tiên, chọn kỹ năng yêu cầu rồi đăng tuyển để bắt đầu nhận CV."}
             </p>
-            {!filtered && (
+            {!filtered && canCreateJob && (
               <Link to="new" className="mt-5 inline-flex min-h-10 items-center gap-2 rounded-xl bg-brand-primary px-4 text-sm font-semibold text-white shadow-sm hover:bg-brand-primary-hover">
                 <Plus className="size-4" aria-hidden="true" />
                 Tạo tin tuyển dụng
@@ -245,7 +275,7 @@ export function JobsPage() {
               </thead>
               <tbody className="divide-y divide-[var(--color-border-default)]">
                 {rows.map((job) => (
-                  <JobRow key={job.id} job={job} onClone={() => clone.mutate(job.id)} onRemove={() => confirmRemove(job)} cloning={clone.isPending} />
+                  <JobRow key={job.id} job={job} onClone={() => clone.mutate(job.id)} onRemove={() => confirmRemove(job)} cloning={clone.isPending} isAdmin={isAdmin} />
                 ))}
               </tbody>
             </table>
@@ -287,10 +317,14 @@ export function JobsPage() {
   );
 }
 
-function JobRow({ job, onClone, onRemove, cloning }: { job: JobListItem; onClone: () => void; onRemove: () => void; cloning: boolean }) {
+function JobRow({ job, onClone, onRemove, cloning, isAdmin }: { job: JobListItem & { currentUserRole?: string | null }; onClone: () => void; onRemove: () => void; cloning: boolean; isAdmin: boolean }) {
   const auto = job.screeningMode === "AUTO";
   const applications = job.applicationCount ?? 0;
   const headcount = job.headcount ?? 1;
+  const role = parseJobRole((job as { currentUserRole?: string | null }).currentUserRole);
+  const roleColor = role ? JOB_ROLE_COLORS[role] : null;
+  const roleLabel = role ? JOB_ROLE_LABELS[role] : null;
+  const showDelete = isAdmin || canDeleteJob(role);
   return (
     <tr className="group transition-colors hover:bg-[var(--color-primary-subtle)]/60">
       <td className="px-5 py-4">
@@ -303,14 +337,21 @@ function JobRow({ job, onClone, onRemove, cloning }: { job: JobListItem; onClone
               {job.title}
             </Link>
             <p className="mt-0.5 text-xs text-[var(--color-on-surface-variant)]">
-              <span className="text-[var(--color-outline)]">#{String(job.id).padStart(4, "0")}</span>
+              <span className="text-[var(--color-outline)]">{"#" + String(job.id).padStart(4, "0")}</span>
               {" · "}{job.department || "Chưa phân phòng ban"}
               {" · "}{EMPLOYMENT_LABEL[job.employmentType ?? ""] ?? job.employmentType ?? "—"}
             </p>
-            <span className={cn("mt-1.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold", auto ? "bg-violet-50 text-violet-700" : "bg-sky-50 text-sky-700")}>
-              {auto ? <Bot className="size-3" aria-hidden="true" /> : <UserCheck className="size-3" aria-hidden="true" />}
-              {auto ? "Lọc CV tự động" : "Lọc CV thủ công"}
-            </span>
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+              <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold", auto ? "bg-violet-50 text-violet-700" : "bg-sky-50 text-sky-700")}>
+                {auto ? <Bot className="size-3" aria-hidden="true" /> : <UserCheck className="size-3" aria-hidden="true" />}
+                {auto ? "Lọc CV tự động" : "Lọc CV thủ công"}
+              </span>
+              {roleLabel && roleColor && (
+                <span className={cn("inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold", roleColor.bg, roleColor.text, roleColor.border)}>
+                  {roleLabel}
+                </span>
+              )}
+            </div>
           </div>
         </div>
       </td>
@@ -345,15 +386,17 @@ function JobRow({ job, onClone, onRemove, cloning }: { job: JobListItem; onClone
           <button type="button" onClick={onClone} disabled={cloning} aria-label={`Nhân bản ${job.title}`} title="Nhân bản" className={cn(iconButton, "disabled:opacity-50")}>
             <Copy className="size-4" aria-hidden="true" />
           </button>
-          <button
-            type="button"
-            onClick={onRemove}
-            aria-label={`Lưu trữ ${job.title}`}
-            title="Lưu trữ"
-            className={cn(iconButton, "hover:bg-red-50 hover:text-red-600")}
-          >
-            <Trash2 className="size-4" aria-hidden="true" />
-          </button>
+          {showDelete && (
+            <button
+              type="button"
+              onClick={onRemove}
+              aria-label={`Lưu trữ ${job.title}`}
+              title="Lưu trữ"
+              className={cn(iconButton, "hover:bg-red-50 hover:text-red-600")}
+            >
+              <Trash2 className="size-4" aria-hidden="true" />
+            </button>
+          )}
           <Link
             to={`/recruiter/jobs/${job.id}`}
             className="ml-1 inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-brand-primary px-3 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-brand-primary-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary"

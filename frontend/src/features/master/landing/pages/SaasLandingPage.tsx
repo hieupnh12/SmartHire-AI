@@ -1,8 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
-  ShieldCheck,
-  Lock,
   CheckCircle2,
   ArrowRight,
   Sparkles,

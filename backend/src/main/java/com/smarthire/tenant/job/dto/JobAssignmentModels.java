@@ -1,6 +1,5 @@
 package com.smarthire.tenant.job.dto;
 
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.time.Instant;
 import java.util.List;
@@ -10,9 +9,25 @@ public final class JobAssignmentModels {
 
     public record AssignRecruiterRequest(
             @NotNull Long userId,
-            @NotBlank String assignmentRole) {}
+            Boolean canView,
+            Boolean canEdit,
+            String assignmentRole) {
+        public AssignRecruiterRequest(Long userId, String assignmentRole) {
+            this(userId, true, "COLLABORATOR".equalsIgnoreCase(assignmentRole) || "OWNER".equalsIgnoreCase(assignmentRole), assignmentRole);
+        }
+    }
 
-    public record UpdateAssignmentRequest(@NotBlank String assignmentRole) {}
+    public record UpdateAssignmentRequest(
+            Boolean canView,
+            Boolean canEdit,
+            String assignmentRole) {
+        public UpdateAssignmentRequest(String assignmentRole) {
+            this(true, "COLLABORATOR".equalsIgnoreCase(assignmentRole) || "OWNER".equalsIgnoreCase(assignmentRole), assignmentRole);
+        }
+    }
+
+    /** Request body for POST /jobs/{id}/transfer-owner */
+    public record TransferOwnerRequest(@NotNull Long newOwnerId) {}
 
     public record JobAssignmentResponse(
             long id,
@@ -21,6 +36,9 @@ public final class JobAssignmentModels {
             String fullName,
             String email,
             String role,
+            boolean canView,
+            boolean canEdit,
+            boolean isCreator,
             String assignmentRole,
             Instant assignedAt,
             String assignedByName) {}
@@ -31,5 +49,7 @@ public final class JobAssignmentModels {
             long jobId,
             String title,
             String status,
+            boolean canView,
+            boolean canEdit,
             String assignmentRole) {}
 }

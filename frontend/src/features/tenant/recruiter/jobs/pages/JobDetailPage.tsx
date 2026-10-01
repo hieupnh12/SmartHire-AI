@@ -1,17 +1,26 @@
+import { useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { ReactNode } from "react";
 import {
   BriefcaseBusiness, Building2, CalendarDays, ChevronRight, ClipboardCheck, Copy,
-  FileSearch, GraduationCap, MapPin, Pause, Pencil, Play, RotateCcw,
-  Sparkles, Users, XCircle, type LucideIcon,
+  Crown, FileSearch, GraduationCap, MapPin, Pause, Pencil, Play, RotateCcw,
+  Settings2, Shield, ShieldCheck, Sparkles, Trash2, UserCheck, Users, XCircle, type LucideIcon,
 } from "lucide-react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import type { JobStatus } from "@/api/types/job";
+import type { ApiResponse } from "@/types/api";
+import type { JobDetail, JobStatus } from "@/api/types/job";
+import { JobPermissionsModal } from "../components/JobPermissionsModal";
 import { jobApi } from "@/api/tenant/jobApi";
 import { Button } from "@/components/ux/Button";
 import { StatusPill } from "@/components/ux/StatusPill";
 import { getApiErrorMessage } from "@/lib/axios";
 import { queryKeys } from "@/lib/query-keys";
+import { cn } from "@/lib/utils";
+import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
+import { useUiStore } from "@/stores/uiStore";
+import {
+  JOB_ROLE_LABELS, JOB_ROLE_COLORS, parseJobRole,
+  canEditJob, canPublishJob, canDeleteJob, canManageTeam,
+} from "@/features/tenant/recruiter/jobPermissions";
 
 const STATUS_LABEL: Record<JobStatus, string> = { DRAFT: "Bản nháp", PUBLISHED: "Đang tuyển", PAUSED: "Tạm dừng", CLOSED: "Đã đóng", ARCHIVED: "Lưu trữ" };
 const EMPLOYMENT: Record<string, string> = { FULL_TIME: "Toàn thời gian", PART_TIME: "Bán thời gian", CONTRACT: "Hợp đồng", INTERNSHIP: "Thực tập" };
@@ -35,13 +44,53 @@ export function JobDetailPage() {
   const jobId = id && /^\d+$/.test(id) ? id : undefined;
   const navigate = useNavigate();
   const client = useQueryClient();
-  const detail = useQuery({ queryKey: queryKeys.jobs.detail(jobId ?? 0), queryFn: () => jobApi.get(jobId!), enabled: Boolean(jobId) });
-  const refresh = () => void client.invalidateQueries({ queryKey: queryKeys.jobs.detail(id ?? 0) });
-  const act = useMutation({
-    mutationFn: (action: "publish" | "unpublish" | "pause" | "close" | "reopen" | "clone") => ({ publish: jobApi.publish, unpublish: jobApi.unpublish, pause: jobApi.pause, close: jobApi.close, reopen: jobApi.reopen, clone: jobApi.clone })[action](id!),
-    onSuccess: (response, action) => action === "clone" ? navigate(`/recruiter/jobs/${response.data.id}/edit`) : refresh(),
+  const askConfirm = useUiStore((s) => s.askConfirm);
+  const user = useAuthStore((s) => s.user);
+  const isAdmin = user?.role === "TENANT_ADMIN" || user?.role === "ADMIN" || user?.role === "SUPER_ADMIN";
+  const [permissionsModalOpen, setPermissionsModalOpen] = useState(false);
+
+  const detail = useQuery({
+    queryKey: queryKeys.jobs.detail(jobId ?? 0),
+    queryFn: () => jobApi.get(jobId!),
+    enabled: Boolean(jobId),
   });
+  const refresh = () => void client.invalidateQueries({ queryKey: queryKeys.jobs.detail(id ?? 0) });
+
+  const act = useMutation<
+    ApiResponse<JobDetail | null>,
+    Error,
+    "publish" | "unpublish" | "pause" | "close" | "reopen" | "clone" | "delete"
+  >({
+    mutationFn: (action) => {
+      if (action === "delete") return jobApi.remove(Number(id!));
+      return ({ publish: jobApi.publish, unpublish: jobApi.unpublish, pause: jobApi.pause, close: jobApi.close, reopen: jobApi.reopen, clone: jobApi.clone })[action](id!);
+    },
+    onSuccess: (response, action) => {
+      if (action === "clone" && response.data) return navigate(`/recruiter/jobs/${(response.data as JobDetail).id}/edit`);
+      if (action === "delete") return navigate("/recruiter/jobs");
+      refresh();
+    },
+  });
+
   const job = detail.data?.data;
+
+  // Derive permissions from job's canEdit/canManage flags, or fallback to currentUserRole
+  const role = parseJobRole(job?.currentUserRole);
+  const canEdit = job?.canEdit ?? (isAdmin || canEditJob(role));
+  const canPublish = job?.canEdit ?? (isAdmin || canPublishJob(role));
+  const canDelete = job?.canManagePermissions ?? (isAdmin || canDeleteJob(role));
+  const canManage = job?.canManagePermissions ?? (isAdmin || canManageTeam(role));
+  const roleLabel = role ? JOB_ROLE_LABELS[role] : null;
+  const roleColor = role ? JOB_ROLE_COLORS[role] : null;
+
+  const confirmDelete = () =>
+    askConfirm({
+      title: "Lưu trữ tin tuyển dụng?",
+      description: `"${job?.title}" sẽ bị ẩn khỏi danh sách. Hồ sơ ứng viên vẫn được giữ lại.`,
+      danger: true,
+      confirmLabel: "Lưu trữ",
+      onConfirm: async () => { await act.mutateAsync("delete"); },
+    });
 
   if (detail.isPending) return <p className="py-12 text-center text-sm text-[var(--color-on-surface-variant)]">Đang tải thông tin việc làm…</p>;
   if (detail.isError) return <Alert>{getApiErrorMessage(detail.error)}</Alert>;
@@ -53,7 +102,27 @@ export function JobDetailPage() {
         <main className="min-w-0 flex-1 space-y-6">
           <article className={`${card} overflow-hidden p-0`}>
             <div className="px-6 py-6 lg:px-7">
-              <div className="flex flex-wrap items-center gap-2"><StatusPill status={job.status} label={STATUS_LABEL[job.status]} /><span className="text-xs text-[var(--color-on-surface-variant)]">Mã vị trí #{job.id}</span></div>
+              {/* Status + role badge */}
+              <div className="flex flex-wrap items-center gap-2">
+                <StatusPill status={job.status} label={STATUS_LABEL[job.status]} />
+                <span className="text-xs text-[var(--color-on-surface-variant)]">Mã vị trí #{job.id}</span>
+                {/* Job role badge for the current user */}
+                {roleLabel && roleColor && (
+                  <span className={cn("inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold", roleColor.bg, roleColor.text, roleColor.border)}>
+                    {role === "OWNER" ? <Crown className="size-3" aria-hidden="true" /> :
+                     role === "HIRING_MANAGER" ? <Shield className="size-3" aria-hidden="true" /> :
+                     role === "COLLABORATOR" ? <UserCheck className="size-3" aria-hidden="true" /> : null}
+                    {roleLabel}
+                  </span>
+                )}
+                {isAdmin && !role && (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-blue-700">
+                    <Settings2 className="size-3" aria-hidden="true" />
+                    Quản trị viên
+                  </span>
+                )}
+              </div>
+
               <h1 className="mt-3 text-2xl font-semibold leading-8 tracking-tight lg:text-[28px] lg:leading-9">{job.title}</h1>
               <p className="mt-3 text-xl font-semibold text-[var(--color-primary)]">{job.salaryVisible ? salary(job.salaryMin, job.salaryMax, job.salaryCurrency ?? "VND") : "Mức lương không công khai"}</p>
               <div className="mt-6 grid gap-5 sm:grid-cols-3">
@@ -62,8 +131,14 @@ export function JobDetailPage() {
                 <HeroFact icon={CalendarDays} label="Hạn ứng tuyển" value={date(job.deadline)} />
               </div>
               <div className="mt-6 flex gap-3">
-                <Link className={`${linkBase} flex-1 bg-[var(--color-primary)] text-white hover:bg-[var(--color-primary-hover)]`} to={`/recruiter/jobs/${job.id}/applicants`}><Users className="size-4" aria-hidden="true" />Xem ứng viên ({job.applicationCount})</Link>
-                <Link className={`${linkBase} border border-[var(--color-primary)] text-[var(--color-primary)] hover:bg-[var(--color-primary-subtle)]`} to={`/recruiter/jobs/${job.id}/edit`}><Pencil className="size-4" aria-hidden="true" />Sửa tin</Link>
+                <Link className={`${linkBase} flex-1 bg-[var(--color-primary)] text-white hover:bg-[var(--color-primary-hover)]`} to={`/recruiter/jobs/${job.id}/applicants`}>
+                  <Users className="size-4" aria-hidden="true" />Xem ứng viên ({job.applicationCount})
+                </Link>
+                {canEdit && (
+                  <Link className={`${linkBase} border border-[var(--color-primary)] text-[var(--color-primary)] hover:bg-[var(--color-primary-subtle)]`} to={`/recruiter/jobs/${job.id}/edit`}>
+                    <Pencil className="size-4" aria-hidden="true" />Sửa tin
+                  </Link>
+                )}
               </div>
             </div>
           </article>
@@ -92,15 +167,22 @@ export function JobDetailPage() {
         </main>
 
         <aside className="recruiter-job-detail-sidebar space-y-5">
+          {/* Status actions — shown based on role */}
           <div className={card}>
             <h2 className="font-semibold">Trạng thái tin tuyển dụng</h2>
             <div className="mt-4 flex flex-wrap gap-2">
-              {(job.status === "DRAFT" || job.status === "PAUSED") && <Button size="sm" disabled={act.isPending} onClick={() => act.mutate("publish")}><Play className="size-4" aria-hidden="true" />Đăng tuyển</Button>}
-              {job.status === "PUBLISHED" && <Button size="sm" variant="secondary" disabled={act.isPending} onClick={() => act.mutate("pause")}><Pause className="size-4" aria-hidden="true" />Tạm dừng</Button>}
-              {job.status === "PUBLISHED" && <Button size="sm" variant="ghost" disabled={act.isPending} onClick={() => act.mutate("unpublish")}><RotateCcw className="size-4" aria-hidden="true" />Về bản nháp</Button>}
-              {(job.status === "PUBLISHED" || job.status === "PAUSED") && <Button size="sm" variant="ghost" disabled={act.isPending} onClick={() => act.mutate("close")}><XCircle className="size-4" aria-hidden="true" />Đóng tin</Button>}
-              {(job.status === "CLOSED" || job.status === "PAUSED") && <Button size="sm" disabled={act.isPending} onClick={() => act.mutate("reopen")}><Play className="size-4" aria-hidden="true" />Mở lại</Button>}
+              {canPublish && (job.status === "DRAFT" || job.status === "PAUSED") && <Button size="sm" disabled={act.isPending} onClick={() => act.mutate("publish")}><Play className="size-4" aria-hidden="true" />Đăng tuyển</Button>}
+              {canPublish && job.status === "PUBLISHED" && <Button size="sm" variant="secondary" disabled={act.isPending} onClick={() => act.mutate("pause")}><Pause className="size-4" aria-hidden="true" />Tạm dừng</Button>}
+              {canPublish && job.status === "PUBLISHED" && <Button size="sm" variant="ghost" disabled={act.isPending} onClick={() => act.mutate("unpublish")}><RotateCcw className="size-4" aria-hidden="true" />Về bản nháp</Button>}
+              {canPublish && (job.status === "PUBLISHED" || job.status === "PAUSED") && <Button size="sm" variant="ghost" disabled={act.isPending} onClick={() => act.mutate("close")}><XCircle className="size-4" aria-hidden="true" />Đóng tin</Button>}
+              {canPublish && (job.status === "CLOSED" || job.status === "PAUSED") && <Button size="sm" disabled={act.isPending} onClick={() => act.mutate("reopen")}><Play className="size-4" aria-hidden="true" />Mở lại</Button>}
               <Button size="sm" variant="ghost" disabled={act.isPending} onClick={() => act.mutate("clone")}><Copy className="size-4" aria-hidden="true" />Nhân bản</Button>
+              {canDelete && (
+                <Button size="sm" variant="ghost" disabled={act.isPending} onClick={confirmDelete}
+                  className="text-red-600 hover:bg-red-50 hover:text-red-700">
+                  <Trash2 className="size-4" aria-hidden="true" />Lưu trữ
+                </Button>
+              )}
             </div>
           </div>
 
@@ -118,16 +200,47 @@ export function JobDetailPage() {
           <div className={card}>
             <h2 className="font-semibold">Quản lý tuyển dụng</h2>
             <div className="mt-4 grid grid-cols-2 gap-3"><Metric label="Ứng viên" value={job.applicationCount} /><Metric label="Chỉ tiêu" value={job.headcount ?? "—"} /></div>
-            <dl className="mt-5 space-y-3 border-t border-[var(--color-border-default)] pt-4 text-sm"><Row label="Phụ trách" value={job.ownerName || "Chưa phân công"} /><Row label="Nhận hồ sơ" value={job.acceptingApplications ? "Đang mở" : "Đã dừng"} /><Row label="Cập nhật" value={date(job.updatedAt)} /></dl>
+            <dl className="mt-5 space-y-3 border-t border-[var(--color-border-default)] pt-4 text-sm">
+              <Row label="Phụ trách" value={job.ownerName || "Chưa phân công"} />
+              <Row label="Nhận hồ sơ" value={job.acceptingApplications ? "Đang mở" : "Đã dừng"} />
+              <Row label="Cập nhật" value={date(job.updatedAt)} />
+            </dl>
           </div>
 
           <div className={card}>
             <h2 className="font-semibold">Công cụ tuyển dụng</h2>
-            <nav className="mt-3 space-y-1" aria-label="Công cụ của vị trí"><Tool to={`/recruiter/jobs/${job.id}/applicants?view=board`} icon={ClipboardCheck}>Bảng quy trình</Tool><Tool to={`/recruiter/jobs/${job.id}/rank`} icon={Sparkles}>Xếp hạng ứng viên</Tool><Tool to={`/recruiter/jobs/${job.id}/cvs`} icon={FileSearch}>Sàng lọc CV</Tool></nav>
+            <nav className="mt-3 space-y-1" aria-label="Công cụ của vị trí">
+              <Tool to={`/recruiter/jobs/${job.id}/applicants?view=board`} icon={ClipboardCheck}>Bảng quy trình</Tool>
+              <Tool to={`/recruiter/jobs/${job.id}/rank`} icon={Sparkles}>Xếp hạng ứng viên</Tool>
+              <Tool to={`/recruiter/jobs/${job.id}/cvs`} icon={FileSearch}>Sàng lọc CV</Tool>
+              {/* Job permissions modal button — creator and admin only */}
+              {canManage && (
+                <button
+                  type="button"
+                  onClick={() => setPermissionsModalOpen(true)}
+                  className="flex w-full items-center gap-2 rounded-[var(--radius-md)] px-3 py-2 text-sm font-medium text-[var(--color-on-surface)] transition-colors hover:bg-[var(--color-surface-container-low)]"
+                >
+                  <ShieldCheck className="size-4 text-[var(--color-primary)]" aria-hidden="true" />
+                  <span>Phân quyền tin tuyển dụng</span>
+                </button>
+              )}
+            </nav>
           </div>
 
         </aside>
       </div>
+
+      {job && (
+        <JobPermissionsModal
+          jobId={job.id}
+          jobTitle={job.title}
+          isOpen={permissionsModalOpen}
+          onClose={() => {
+            setPermissionsModalOpen(false);
+            refresh();
+          }}
+        />
+      )}
     </section>
   );
 }

@@ -13,7 +13,7 @@ import type {
 } from "../types/job";
 
 export const jobApi = {
-  search: (params?: { q?: string; status?: JobStatus | ""; department?: string; page?: number; size?: number }) =>
+  search: (params?: { q?: string; status?: JobStatus | ""; department?: string; page?: number; size?: number; scope?: "my" | "all" }) =>
     api.get<ApiResponse<JobPage>>("/jobs", { params }).then((r) => r.data),
   list: (params?: Record<string, unknown>) =>
     api.get<ApiResponse<JobPage>>("/jobs", { params }).then((r) => r.data),

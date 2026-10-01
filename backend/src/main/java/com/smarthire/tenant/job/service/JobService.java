@@ -22,6 +22,7 @@ import com.smarthire.tenant.cv.dto.CvModels.JobSkillItem;
 import com.smarthire.tenant.cv.dto.CvModels.JobSkillView;
 import com.smarthire.tenant.cv.dto.CvModels.JobSkillsRequest;
 import com.smarthire.tenant.cv.service.CvAccess;
+import com.smarthire.domain.enums.AssignmentRole;
 import com.smarthire.tenant.cv.service.CvSkillAnalysisService;
 import com.smarthire.tenant.job.dto.JobModels.ApplicationView;
 import com.smarthire.tenant.job.dto.JobModels.JobDetail;
@@ -74,6 +75,7 @@ public class JobService {
     private final RecruitmentStageRepository stages;
     private final ApplicationRepository applications;
     private final CvAccess access;
+    private final JobAccess jobAccess;
     private final CvSkillAnalysisService taxonomy;
     private final JobMapper mapper;
     private final JobAssignmentService assignments;
@@ -91,6 +93,7 @@ public class JobService {
             RecruitmentStageRepository stages,
             ApplicationRepository applications,
             CvAccess access,
+            JobAccess jobAccess,
             CvSkillAnalysisService taxonomy,
             JobMapper mapper,
             JobAssignmentService assignments,
@@ -103,6 +106,7 @@ public class JobService {
         this.stages = stages;
         this.applications = applications;
         this.access = access;
+        this.jobAccess = jobAccess;
         this.taxonomy = taxonomy;
         this.mapper = mapper;
         this.assignments = assignments;
@@ -117,13 +121,20 @@ public class JobService {
     }
 
     @Transactional
-    public JobPage search(String query, JobStatus status, String department, int page, int size) {
+    public JobPage search(String query, JobStatus status, String department, int page, int size, String scope) {
         requireStaff();
         closeExpiredJobs();
         int safeSize = Math.min(Math.max(size, 1), 50);
         int safePage = Math.max(page, 0);
+        // scope=all: admin only — returns every non-deleted job regardless of assignment.
+        // scope=my (default): staff see only jobs they are assigned to; admins see all.
+        boolean scopeAll = "all".equalsIgnoreCase(scope) || jobAccess.canViewAllJobs();
+        if ("all".equalsIgnoreCase(scope) && !jobAccess.canViewAllJobs()) {
+            throw new BusinessException("scope=all requires admin or all-jobs access", HttpStatus.FORBIDDEN, "FORBIDDEN");
+        }
+        Long scopeUserId = scopeAll ? null : access.jobScopeUserId();
         var result = jobs.search(status, blankToNull(query), blankToNull(department),
-                access.jobScopeUserId(), PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "id")));
+                scopeUserId, PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "id")));
         List<Long> ids = result.getContent().stream().map(Job::getId).toList();
         Map<Long, Long> counts = counts(ids);
         Map<Long, FunnelSummary> funnels = funnels(ids);
@@ -146,11 +157,18 @@ public class JobService {
             if (access.candidate()) {
                 if (!mapper.accepting(job)) throw notFound();
                 return mapper.detail(job, skillViews(id), stageViews(id), applications.countByJob_Id(id),
-                        screeningConfigs.findById(id).orElse(null), false);
+                        screeningConfigs.findById(id).orElse(null), false, null, false, false);
             }
             access.requireJob(job);
+            // Resolve currentUserRole: null means admin (always full access)
+            AssignmentRole roleEnum = jobAccess.currentRole(id);
+            String currentUserRole = roleEnum == null ? null : roleEnum.name();
+            boolean canEditWorkflow = jobAccess.isAdmin() || roleEnum == AssignmentRole.OWNER;
+            boolean canEdit = jobAccess.canEditJob(id);
+            boolean canManage = jobAccess.canManagePermissions(id);
             return mapper.detail(job, skillViews(id), stageViews(id), applications.countByJob_Id(id),
-                    screeningConfigs.findById(id).orElse(null), access.canEditRecruitmentWorkflow(job));
+                    screeningConfigs.findById(id).orElse(null), canEditWorkflow, currentUserRole,
+                    canEdit, canManage);
         } catch (BusinessException ex) {
             throw ex;
         } catch (RuntimeException ex) {
@@ -206,6 +224,7 @@ public class JobService {
     @Transactional
     public JobDetail create(JobUpsertRequest request) {
         requireStaff();
+        jobAccess.requireCreateJob();
         Job job = new Job();
         job.setCreatedBy(access.actor());
         job.setStatus(JobStatus.DRAFT);
@@ -222,6 +241,7 @@ public class JobService {
 
     @Transactional
     public JobDetail update(long id, JobUpsertRequest request) {
+        jobAccess.requireOwnerOrCollaborator(id);
         Job job = managed(id);
         if (job.getStatus() == JobStatus.CLOSED || job.getStatus() == JobStatus.ARCHIVED) {
             throw new BusinessException("Closed jobs cannot be edited", HttpStatus.CONFLICT, "JOB_LOCKED");
@@ -229,7 +249,8 @@ public class JobService {
         apply(job, request);
         if (request.skills() != null) replaceSkillsInternal(job, request.skills());
         if (request.stages() != null) {
-            access.requirePrimaryRecruiter(job);
+            // Only OWNER (or admin) may reconfigure recruitment stages.
+            jobAccess.requireOwner(id);
             replaceStagesInternal(job, request.stages());
         }
         jobs.save(job);
@@ -242,6 +263,8 @@ public class JobService {
 
     @Transactional
     public void delete(long id) {
+        // Only OWNER or admin can delete.
+        jobAccess.requireOwner(id);
         Job job = managed(id);
         job.setDeletedAt(Instant.now());
         job.setStatus(JobStatus.ARCHIVED);
@@ -250,6 +273,7 @@ public class JobService {
 
     @Transactional
     public JobDetail cloneJob(long id) {
+        jobAccess.requireCreateJob();
         Job source = managed(id);
         Job copy = new Job();
         copy.setCreatedBy(access.actor());
@@ -288,6 +312,7 @@ public class JobService {
 
     @Transactional
     public JobDetail publish(long id) {
+        jobAccess.requireOwnerOrCollaborator(id);
         Job job = managed(id);
         if (job.getStatus() == JobStatus.PUBLISHED) {
             return get(id);
@@ -303,7 +328,8 @@ public class JobService {
             throw new BusinessException("Add at least one skill before publishing", HttpStatus.UNPROCESSABLE_ENTITY, "JOB_SKILLS_REQUIRED");
         }
         if (stages.findByJob_IdOrderBySortOrderAsc(id).isEmpty()) {
-            access.requirePrimaryRecruiter(job);
+            // Ensure stages before first publish; only OWNER (or admin) can implicitly init them.
+            jobAccess.requireOwner(id);
         }
         ensureCatalogStages(job);
         job.setStatus(JobStatus.PUBLISHED);
@@ -407,8 +433,9 @@ public class JobService {
 
     @Transactional
     public List<StageView> replaceStages(long jobId, StagesRequest request) {
+        // Only OWNER (or admin) may replace the full stage configuration.
+        jobAccess.requireOwner(jobId);
         Job job = managed(jobId);
-        access.requirePrimaryRecruiter(job);
         replaceStagesInternal(job, request.stages());
         return stageViews(jobId);
     }
@@ -742,7 +769,11 @@ public class JobService {
 
     private Job managed(long id) {
         Job job = job(id);
-        access.requireJob(job);
+        // Any assignment (OWNER / COLLABORATOR / VIEWER / HIRING_MANAGER) or admin is allowed to load the job.
+        // Finer-grained checks are done in each operation before calling managed().
+        if (!access.companyAdmin() && !access.candidate()) {
+            access.requireJob(job);
+        }
         return job;
     }
 

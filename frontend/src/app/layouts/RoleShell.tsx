@@ -217,7 +217,7 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
               const groupIsActive =
                 openAdminGroup === group.id ||
                 group.items.some((item) =>
-                  item.to.startsWith("/recruiter")
+                  item.to === "/recruiter" || item.to.startsWith("/recruiter/")
                     ? location.pathname === "/recruiter" || location.pathname.startsWith("/recruiter/")
                     : location.pathname === `${basePath}${item.to}`,
                 );
@@ -255,8 +255,10 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
                               </button>
                             );
                           }
+                          const isRecruiterWorkspace = item.to === "/recruiter" || item.to.startsWith("/recruiter/");
+                          const targetTo = isRecruiterWorkspace ? item.to : `${basePath}${item.to}`;
                           return (
-                            <NavLink key={item.to} to={item.to.startsWith("/recruiter") ? item.to : `${basePath}${item.to}`} role="menuitem" onClick={() => setOpenAdminGroup(null)} className={({ isActive }) => cn("flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-primary", isActive ? "border-brand-primary/30 bg-[var(--color-primary-soft)] text-brand-primary" : "border-transparent hover:border-[var(--color-border-default)] hover:bg-[var(--color-surface-alt)]")}>
+                            <NavLink key={item.to} to={targetTo} role="menuitem" onClick={() => setOpenAdminGroup(null)} className={({ isActive }) => cn("flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-primary", isActive ? "border-brand-primary/30 bg-[var(--color-primary-soft)] text-brand-primary" : "border-transparent hover:border-[var(--color-border-default)] hover:bg-[var(--color-surface-alt)]")}>
                               {ItemIcon && <span className="grid size-10 shrink-0 place-items-center rounded-xl border border-[var(--color-border-default)] bg-white"><ItemIcon className="size-5" aria-hidden="true" /></span>}
                               <span className="truncate text-sm font-semibold">{label}</span>
                             </NavLink>
