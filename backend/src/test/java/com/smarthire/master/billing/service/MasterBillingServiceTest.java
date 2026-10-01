@@ -71,10 +71,7 @@ class MasterBillingServiceTest {
                 .id(1L)
                 .code("STARTER")
                 .name("Gói Khởi Động")
-                .priceMonthly(new BigDecimal("49"))
-                .priceYearly(new BigDecimal("490"))
-                .priceMonthlyVnd(new BigDecimal("1200000"))
-                .priceYearlyVnd(new BigDecimal("12000000"))
+                .priceYearly(new BigDecimal("12000000"))
                 .status("ACTIVE")
                 .build();
 
@@ -121,14 +118,14 @@ class MasterBillingServiceTest {
 
         assertThat(response).isNotNull();
         assertThat(response.getInvoiceId()).isEqualTo(30L);
-        assertThat(response.getAmountVnd()).isEqualByComparingTo("1200000");
+        assertThat(response.getAmountVnd()).isEqualByComparingTo("12000000");
         assertThat(response.getCurrency()).isEqualTo("VND");
         assertThat(response.getStatus()).isEqualTo("PENDING");
-        assertThat(response.getBankName()).isEqualTo("Techcombank (TCB)");
-        assertThat(response.getAccountNumber()).isEqualTo("190388889999");
+        assertThat(response.getBankName()).isEqualTo("Vietcombank (VCB)");
+        assertThat(response.getAccountNumber()).isEqualTo("1028935315");
         assertThat(response.getTransferSyntax()).startsWith("SH ");
-        assertThat(response.getQrUrl()).contains("190388889999");
-        assertThat(response.getQrUrl()).contains("1200000");
+        assertThat(response.getQrUrl()).contains("1028935315");
+        assertThat(response.getQrUrl()).contains("12000000");
 
         verify(invoiceLineItemRepository).save(any(InvoiceLineItem.class));
     }
@@ -139,8 +136,7 @@ class MasterBillingServiceTest {
                 .id(2L)
                 .code("PROFESSIONAL")
                 .name("Gói Chuyên Nghiệp")
-                .priceMonthlyVnd(new BigDecimal("3600000"))
-                .priceYearlyVnd(new BigDecimal("36000000"))
+                .priceYearly(new BigDecimal("36000000"))
                 .status("ACTIVE")
                 .build();
 

@@ -20,11 +20,11 @@ export function PricingPage() {
         const standardPlans = ["STARTER", "PROFESSIONAL", "ENTERPRISE"];
         let fetchedPlans = data
           .filter(p => p.status === "ACTIVE" && standardPlans.includes(p.code))
-          .sort((a, b) => a.priceMonthlyVnd - b.priceMonthlyVnd);
+          .sort((a, b) => (a.priceYearly || 0) - (b.priceYearly || 0));
           
         if (fetchedPlans.length === 0) {
-           fetchedPlans = data.filter(p => p.status === "ACTIVE" && p.priceMonthlyVnd > 0)
-              .sort((a, b) => a.priceMonthlyVnd - b.priceMonthlyVnd)
+           fetchedPlans = data.filter(p => p.status === "ACTIVE" && p.priceYearly > 0)
+              .sort((a, b) => (a.priceYearly || 0) - (b.priceYearly || 0))
               .slice(0, 3);
         }
         setPlans(fetchedPlans);
@@ -162,19 +162,24 @@ export function PricingPage() {
                       </span>
                     </div>
 
-                    <div className="flex items-baseline gap-1 mb-6">
-                      {plan.priceMonthlyVnd > 0 ? (
-                        <>
+                    <div className="mb-6">
+                      <div className="flex items-baseline gap-1.5">
+                        {plan.priceYearly > 0 ? (
+                          <>
+                            <span className={`text-3xl font-extrabold ${isHighlighted ? "text-blue-600" : "text-slate-900"}`}>
+                              {plan.priceYearly.toLocaleString('vi-VN')} đ
+                            </span>
+                            <span className="text-xs text-slate-500 font-medium">/ năm</span>
+                          </>
+                        ) : (
                           <span className={`text-3xl font-extrabold ${isHighlighted ? "text-blue-600" : "text-slate-900"}`}>
-                            {plan.priceMonthlyVnd.toLocaleString('vi-VN')} đ
+                            Liên hệ báo giá
                           </span>
-                          <span className="text-xs text-slate-500 font-medium">/ tháng</span>
-                        </>
-                      ) : (
-                        <span className={`text-3xl font-extrabold ${isHighlighted ? "text-blue-600" : "text-slate-900"}`}>
-                          Liên hệ báo giá
-                        </span>
-                      )}
+                        )}
+                      </div>
+                      <div className="mt-1.5 text-xs text-slate-500 font-medium">
+                        Bản quyền sử dụng trọn gói theo năm
+                      </div>
                     </div>
 
                     <ul className="space-y-3 text-sm text-slate-600 mb-8">
@@ -210,7 +215,7 @@ export function PricingPage() {
                     >
                       Tư vấn báo giá 1:1
                     </button>
-                    {plan.priceMonthlyVnd > 0 && (
+                    {plan.priceYearly > 0 && (
                       <button
                         onClick={() => navigate(`/checkout/${plan.code}`)}
                         className="flex-1 py-3.5 px-2 rounded-full bg-gradient-to-r from-blue-600 to-blue-400 hover:from-blue-700 hover:to-blue-500 active:scale-95 text-white font-bold text-[13px] transition-all flex items-center justify-center gap-1.5 shadow-md whitespace-nowrap"

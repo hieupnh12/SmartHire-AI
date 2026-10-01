@@ -90,7 +90,7 @@ function InvoicesContent({
             const defaultPlan = plans[0];
             if (defaultPlan) {
               setInvoicePlanId(defaultPlan.id || "");
-              setInvoiceAmount(defaultPlan.priceYearly || 3990);
+              setInvoiceAmount(defaultPlan.priceYearly || 36000000);
             }
             setInvoiceNotes("");
             setShowCreateInvoiceModal(true);

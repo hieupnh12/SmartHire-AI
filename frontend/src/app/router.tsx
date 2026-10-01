@@ -119,6 +119,7 @@ export function AppRouter() {
       <Route path="/packages" element={<Navigate to="/pricing" replace />} />
       <Route path="/demo" element={<DemoRequestPage />} />
       <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
+      <Route path="/checkout" element={<CheckoutPage />} />
       <Route path="/checkout/:planCode" element={<CheckoutPage />} />
       <Route path="/checkout/success" element={<CheckoutSuccessPage />} />
       <Route path="/checkout/vnpay-return" element={<VnPayReturnPage />} />

@@ -43,10 +43,7 @@ export interface PublicSubscriptionPlan {
   code: string;
   name: string;
   description?: string;
-  priceMonthly: number;
   priceYearly: number;
-  priceMonthlyVnd: number;
-  priceYearlyVnd: number;
   maxJobs: number;
   maxCvParses: number;
   maxAiInterviewHours?: number;

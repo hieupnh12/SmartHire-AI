@@ -77,4 +77,11 @@ public class MasterTenantController {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.ok("Enterprise Tenant onboarded and database provisioned successfully", tenant));
     }
+
+    @DeleteMapping("/{id}")
+    @Operation(summary = "Delete Tenant", description = "Deletes tenant metadata and drops tenant database. (For testing)")
+    public ResponseEntity<ApiResponse<Void>> deleteTenant(@PathVariable Long id) {
+        masterTenantService.deleteTenant(id);
+        return ResponseEntity.ok(ApiResponse.ok("Tenant and database deleted successfully", null));
+    }
 }
