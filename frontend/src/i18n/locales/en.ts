@@ -36,6 +36,7 @@ export const en = {
     required: "This field is required",
     saving: "Saving…",
     undo: "Undo",
+    edit: "Edit",
   },
   welcome: {
     title: "Hire smarter with AI screening & interviews",
