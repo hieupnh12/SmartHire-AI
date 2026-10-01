@@ -16,10 +16,7 @@ public class SubscriptionPlanResponse {
     String code;
     String name;
     String description;
-    BigDecimal priceMonthly;
     BigDecimal priceYearly;
-    BigDecimal priceMonthlyVnd;
-    BigDecimal priceYearlyVnd;
     Integer maxJobs;
     Integer maxCvParses;
     Integer maxAiInterviewHours;

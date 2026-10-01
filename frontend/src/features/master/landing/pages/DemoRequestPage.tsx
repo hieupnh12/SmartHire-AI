@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
   PhoneCall,
   FileText,
@@ -7,10 +7,10 @@ import {
   Send,
   CheckCircle2,
   ChevronDown,
+  ArrowLeft,
+  BrainCircuit,
 } from "lucide-react";
 import { consultationApi } from "@/api/master/consultationApi";
-import { LandingHeader } from "../components/LandingHeader";
-import { LandingFooter } from "../components/LandingFooter";
 
 /* ─────────────────────────────────────────────
    Job-title options
@@ -31,7 +31,7 @@ const JOB_TITLE_OPTIONS = [
 ];
 
 /* ─────────────────────────────────────────────
-   Custom Combobox component (styled like screenshot)
+   Custom Combobox component
 ───────────────────────────────────────────── */
 function JobTitleCombobox({
   value,
@@ -45,7 +45,7 @@ function JobTitleCombobox({
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Close on outside click — restore query to committed value
+  // Close on outside click
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       if (
@@ -53,14 +53,14 @@ function JobTitleCombobox({
         !containerRef.current.contains(e.target as Node)
       ) {
         setOpen(false);
-        setQuery(value); // restore displayed text when closing without selecting
+        setQuery(value);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [value]);
 
-  // Sync query when value changes from outside
+  // Sync query when value changes
   useEffect(() => {
     setQuery(value);
   }, [value]);
@@ -86,14 +86,13 @@ function JobTitleCombobox({
 
   return (
     <div ref={containerRef} className="relative">
-      {/* Trigger input */}
       <div
-        className={`flex items-center w-full px-4 py-3 rounded-xl bg-slate-50 border text-sm text-slate-900 transition-colors cursor-text ${open
-            ? "border-blue-500 bg-white ring-3 ring-blue-100"
+        className={`flex items-center w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border text-xs sm:text-sm text-slate-900 transition-colors cursor-text ${open
+            ? "border-blue-500 bg-white ring-2 ring-blue-100"
             : "border-slate-300 hover:border-slate-400"
           }`}
         onClick={() => {
-          setQuery(""); // clear so all options show
+          setQuery("");
           setOpen(true);
           inputRef.current?.focus();
         }}
@@ -101,57 +100,46 @@ function JobTitleCombobox({
         <input
           ref={inputRef}
           type="text"
-          required
-          autoComplete="off"
-          placeholder="Chọn hoặc nhập chức vụ của bạn..."
           value={query}
           onChange={handleInputChange}
           onFocus={() => {
-            setQuery(""); // clear filter so all options are visible
+            setQuery("");
             setOpen(true);
           }}
-          className="flex-1 bg-transparent outline-none text-slate-900 placeholder-slate-400 text-sm"
+          placeholder="Chọn hoặc nhập chức vụ..."
+          className="flex-1 bg-transparent border-none outline-none text-xs sm:text-sm text-slate-900 placeholder:text-slate-400"
         />
         <ChevronDown
-          className={`w-4 h-4 text-slate-400 transition-transform flex-shrink-0 ml-2 ${open ? "rotate-180" : ""
+          className={`w-4 h-4 text-slate-400 transition-transform flex-shrink-0 ml-1.5 ${open ? "rotate-180" : ""
             }`}
         />
       </div>
 
-      {/* Dropdown popover */}
       {open && (
-        <div className="absolute z-50 mt-1.5 w-full bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden animate-fade-in">
-          <ul className="py-1.5 max-h-60 overflow-y-auto">
+        <div className="absolute z-50 mt-1.5 w-full bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden max-h-48 overflow-y-auto">
+          <ul className="py-1">
             {filtered.length === 0 ? (
-              <li className="px-4 py-3 text-sm text-slate-400 text-center">
-                Không tìm thấy chức vụ phù hợp
+              <li
+                onMouseDown={() => handleSelect(query.trim())}
+                className="px-3.5 py-2 text-xs text-blue-600 hover:bg-blue-50 cursor-pointer font-medium"
+              >
+                Sử dụng &quot;{query.trim()}&quot;
               </li>
             ) : (
-              filtered.map((opt) => {
-                const isSelected = value === opt;
+              filtered.map((title) => {
+                const isSelected = value === title;
                 return (
                   <li
-                    key={opt}
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      handleSelect(opt);
-                    }}
-                    className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors select-none ${isSelected ? "bg-slate-50" : "hover:bg-slate-50"
+                    key={title}
+                    onMouseDown={() => handleSelect(title)}
+                    className={`flex items-center gap-2 px-3.5 py-2 cursor-pointer transition-colors text-xs ${isSelected
+                        ? "bg-blue-50 text-blue-700 font-semibold"
+                        : "hover:bg-slate-50 text-slate-700"
                       }`}
                   >
-                    {/* Label */}
-                    <span
-                      className={`flex-1 text-sm ${isSelected
-                          ? "font-semibold text-slate-900"
-                          : "font-medium text-slate-700"
-                        }`}
-                    >
-                      {opt}
-                    </span>
-
-                    {/* Right checkmark — only when selected */}
+                    <span className="flex-1 truncate">{title}</span>
                     {isSelected && (
-                      <CheckCircle2 className="w-4 h-4 text-teal-500 flex-shrink-0" />
+                      <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" />
                     )}
                   </li>
                 );
@@ -203,28 +191,26 @@ function CustomDropdown({
 
   return (
     <div ref={containerRef} className="relative">
-      {/* Trigger button */}
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className={`flex items-center w-full px-4 py-3 rounded-xl bg-slate-50 border text-sm transition-colors ${open
-            ? "border-blue-500 bg-white ring-3 ring-blue-100"
+        className={`flex items-center w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border text-xs sm:text-sm transition-colors ${open
+            ? "border-blue-500 bg-white ring-2 ring-blue-100"
             : "border-slate-300 hover:border-slate-400"
           }`}
       >
-        <span className={`flex-1 text-left ${selected ? "text-slate-900" : "text-slate-400"}`}>
+        <span className={`flex-1 text-left truncate ${selected ? "text-slate-900" : "text-slate-400"}`}>
           {selected ? selected.label : placeholder}
         </span>
         <ChevronDown
-          className={`w-4 h-4 text-slate-400 transition-transform flex-shrink-0 ml-2 ${open ? "rotate-180" : ""
+          className={`w-4 h-4 text-slate-400 transition-transform flex-shrink-0 ml-1.5 ${open ? "rotate-180" : ""
             }`}
         />
       </button>
 
-      {/* Popover */}
       {open && (
-        <div className="absolute z-50 mt-1.5 w-full bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden animate-fade-in">
-          <ul className="py-1.5">
+        <div className="absolute z-50 mt-1.5 w-full bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden max-h-48 overflow-y-auto">
+          <ul className="py-1">
             {options.map((opt) => {
               const isSelected = value === opt.value;
               return (
@@ -235,17 +221,14 @@ function CustomDropdown({
                     onChange(opt.value);
                     setOpen(false);
                   }}
-                  className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors select-none ${isSelected ? "bg-slate-50" : "hover:bg-slate-50"
+                  className={`flex items-center gap-2 px-3.5 py-2 cursor-pointer transition-colors text-xs select-none ${isSelected
+                      ? "bg-blue-50 text-blue-700 font-semibold"
+                      : "hover:bg-slate-50 text-slate-700"
                     }`}
                 >
-                  <span
-                    className={`flex-1 text-sm ${isSelected ? "font-semibold text-slate-900" : "font-medium text-slate-700"
-                      }`}
-                  >
-                    {opt.label}
-                  </span>
+                  <span className="flex-1 truncate">{opt.label}</span>
                   {isSelected && (
-                    <CheckCircle2 className="w-4 h-4 text-teal-500 flex-shrink-0" />
+                    <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" />
                   )}
                 </li>
               );
@@ -378,254 +361,264 @@ export function DemoRequestPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
-      <LandingHeader />
-
-      <main className="flex-1 flex items-start justify-center py-12 px-4 sm:px-6 mt-[80px] sm:mt-[84px]">
-        <div className="w-full max-w-2xl">
-          {!demoSubmitted ? (
-            <div className="bg-white border border-slate-200 rounded-2xl shadow-xl p-8 sm:p-10">
-              {/* Header */}
-              <div className="flex items-center gap-4 mb-6">
-                <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0">
-                  {requestType === "DEMO" ? (
-                    <PhoneCall className="w-6 h-6" />
-                  ) : (
-                    <FileText className="w-6 h-6" />
-                  )}
+    <div className="h-screen w-screen bg-slate-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto sm:overflow-hidden">
+      <div className="w-full max-w-2xl my-auto">
+        {!demoSubmitted ? (
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-xl p-5 sm:p-6 lg:p-7">
+            {/* Top Navigation & Brand Header */}
+            <div className="flex items-center justify-between pb-3 mb-3.5 border-b border-slate-100">
+              <Link
+                to="/"
+                className="inline-flex items-center gap-2 text-slate-600 hover:text-blue-600 transition-colors group"
+              >
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-blue-700 via-blue-600 to-indigo-500 text-white flex items-center justify-center shadow-xs group-hover:scale-105 transition-transform">
+                  <BrainCircuit className="w-4 h-4 text-white" />
                 </div>
-                <div>
-                  <h1 className="text-2xl font-bold text-slate-900">
+                <span className="text-base font-bold tracking-tight text-slate-900 font-display">
+                  SmartHire<span className="text-blue-600">.AI</span>
+                </span>
+              </Link>
+
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-semibold text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200/80">
+                  {selectedTier}
+                </span>
+                <Link
+                  to="/"
+                  className="text-xs text-slate-400 hover:text-slate-600 inline-flex items-center gap-1 transition-colors ml-1"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Trang chủ</span>
+                </Link>
+              </div>
+            </div>
+
+            {/* Title & Subtitle */}
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <div>
+                <h1 className="text-lg sm:text-xl font-bold text-slate-900 flex items-center gap-2">
+                  {requestType === "DEMO" ? (
+                    <PhoneCall className="w-5 h-5 text-blue-600 shrink-0" />
+                  ) : (
+                    <FileText className="w-5 h-5 text-blue-600 shrink-0" />
+                  )}
+                  <span>
                     {requestType === "DEMO"
                       ? "Đăng Ký Trải Nghiệm Demo 1:1"
                       : "Tư Vấn Báo Giá & Hợp Đồng"}
-                  </h1>
-                  <span className="text-sm font-medium text-blue-600">
-                    {selectedTier}
                   </span>
-                </div>
+                </h1>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {requestType === "DEMO"
+                    ? "Chuyên viên giải pháp sẽ liên hệ trong 2h để chuẩn bị nội dung demo phù hợp."
+                    : "Đội ngũ chuyên trách Enterprise sẽ liên hệ chi tiết bảng giá và thỏa thuận SLA."}
+                </p>
               </div>
+            </div>
 
-              {/* Tab switcher */}
-              <div className="flex rounded-xl bg-slate-100 p-1 mb-6 text-sm font-semibold">
-                <button
-                  type="button"
-                  onClick={() => setRequestType("DEMO")}
-                  className={`flex-1 py-2 rounded-lg transition-all ${requestType === "DEMO"
-                      ? "bg-white text-blue-600 shadow"
-                      : "text-slate-500 hover:text-slate-900"
-                    }`}
-                >
-                  Đặt Lịch Demo 1:1
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setRequestType("CONTRACT_QUOTE")}
-                  className={`flex-1 py-2 rounded-lg transition-all ${requestType === "CONTRACT_QUOTE"
-                      ? "bg-white text-blue-600 shadow"
-                      : "text-slate-500 hover:text-slate-900"
-                    }`}
-                >
-                  Báo Giá & Hợp Đồng Enterprise
-                </button>
+            {/* Tab switcher */}
+            <div className="flex rounded-lg bg-slate-100 p-1 mb-3.5 text-xs font-semibold">
+              <button
+                type="button"
+                onClick={() => setRequestType("DEMO")}
+                className={`flex-1 py-1.5 rounded-md transition-all ${requestType === "DEMO"
+                    ? "bg-white text-blue-600 shadow-xs"
+                    : "text-slate-500 hover:text-slate-900"
+                  }`}
+              >
+                Đặt Lịch Demo 1:1
+              </button>
+              <button
+                type="button"
+                onClick={() => setRequestType("CONTRACT_QUOTE")}
+                className={`flex-1 py-1.5 rounded-md transition-all ${requestType === "CONTRACT_QUOTE"
+                    ? "bg-white text-blue-600 shadow-xs"
+                    : "text-slate-500 hover:text-slate-900"
+                  }`}
+              >
+                Báo Giá & Hợp Đồng Enterprise
+              </button>
+            </div>
+
+            {submitError && (
+              <div className="mb-3 p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-red-600">
+                {submitError}
               </div>
+            )}
 
-              {submitError && (
-                <div className="mb-5 p-4 rounded-xl bg-red-50 border border-red-200 text-sm text-red-600">
-                  {submitError}
-                </div>
-              )}
-
-              <p className="text-sm text-slate-500 mb-6 leading-relaxed">
-                {requestType === "DEMO"
-                  ? "Chuyên viên giải pháp của SmartHire-AI sẽ liên hệ trong 2 giờ làm việc để chuẩn bị nội dung demo phù hợp với doanh nghiệp của bạn."
-                  : "Đội ngũ chuyên trách Enterprise sẽ liên hệ để trao đổi chi tiết bảng giá, thỏa thuận SLA và quy trình ký kết hợp đồng."}
-              </p>
-
-              <form onSubmit={handleDemoSubmit} className="space-y-4">
-                {/* Company name */}
+            <form onSubmit={handleDemoSubmit} className="space-y-3">
+              {/* Row 1: Tên Doanh Nghiệp + Quy Mô Nhân Sự */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-semibold text-slate-900 mb-1.5">
-                    Tên Doanh Nghiệp / Tổ Chức{" "}
-                    <span className="text-red-500">*</span>
+                  <label className="block text-xs font-semibold text-slate-800 mb-1">
+                    Tên Doanh Nghiệp / Tổ Chức <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
                     required
-                    placeholder="Ví dụ: Tập đoàn Công nghệ VNP..."
+                    placeholder="Tập đoàn Công nghệ..."
                     value={formData.companyName}
                     onChange={(e) =>
                       setFormData({ ...formData, companyName: e.target.value })
                     }
-                    className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-300 text-sm text-slate-900 focus:border-blue-500 focus:bg-white focus:ring-3 focus:ring-blue-100 focus:outline-none transition-colors"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-xs sm:text-sm text-slate-900 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100 focus:outline-none transition-colors"
                   />
                 </div>
 
-                {/* Contact name + Job title (combobox) */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-semibold text-slate-900 mb-1.5">
-                      Họ và Tên Người Liên Hệ{" "}
-                      <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="Nguyễn Văn A"
-                      value={formData.contactName}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          contactName: e.target.value,
-                        })
-                      }
-                      className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-300 text-sm text-slate-900 focus:border-blue-500 focus:bg-white focus:ring-3 focus:ring-blue-100 focus:outline-none transition-colors"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-semibold text-slate-900 mb-1.5">
-                      Chức Vụ <span className="text-red-500">*</span>
-                    </label>
-                    <JobTitleCombobox
-                      value={formData.jobTitle}
-                      onChange={(v) =>
-                        setFormData({ ...formData, jobTitle: v })
-                      }
-                    />
-                  </div>
-                </div>
-
-                {/* Email + Phone */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-semibold text-slate-900 mb-1.5">
-                      Email Doanh Nghiệp{" "}
-                      <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="email"
-                      required
-                      placeholder="name@company.com"
-                      value={formData.workEmail}
-                      onChange={(e) =>
-                        setFormData({ ...formData, workEmail: e.target.value })
-                      }
-                      className={`w-full px-4 py-3 rounded-xl bg-slate-50 border text-sm text-slate-900 focus:bg-white focus:ring-3 focus:outline-none transition-colors ${isPersonalEmail(formData.workEmail)
-                          ? "border-amber-500 focus:border-amber-500 focus:ring-amber-100"
-                          : "border-slate-300 focus:border-blue-500 focus:ring-blue-100"
-                        }`}
-                    />
-                    {isPersonalEmail(formData.workEmail) && (
-                      <span className="text-xs text-amber-600 mt-1 block">
-                        * Yêu cầu email công ty (domain riêng, không dùng
-                        @gmail/@yahoo)
-                      </span>
-                    )}
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-slate-900 mb-1.5">
-                      Số Điện Thoại Liên Hệ{" "}
-                      <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="tel"
-                      required
-                      placeholder="0912 345 678"
-                      value={formData.phoneNumber}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          phoneNumber: e.target.value,
-                        })
-                      }
-                      className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-300 text-sm text-slate-900 focus:border-blue-500 focus:bg-white focus:ring-3 focus:ring-blue-100 focus:outline-none transition-colors"
-                    />
-                  </div>
-                </div>
-
-                {/* Company size */}
                 <div>
-                  <label className="block text-sm font-semibold text-slate-900 mb-1.5">
+                  <label className="block text-xs font-semibold text-slate-800 mb-1">
                     Quy Mô Nhân Sự Doanh Nghiệp
                   </label>
                   <CustomDropdown
                     value={formData.companySize}
                     onChange={(v) => setFormData({ ...formData, companySize: v })}
                     options={COMPANY_SIZE_OPTIONS}
-                    placeholder="Chọn quy mô doanh nghiệp..."
+                    placeholder="Chọn quy mô..."
                   />
                 </div>
-
-                {/* Notes */}
-                <div>
-                  <label className="block text-sm font-semibold text-slate-900 mb-1.5">
-                    Nhu Cầu hoặc Ghi Chú Cụ Thể (Tùy chọn)
-                  </label>
-                  <textarea
-                    rows={3}
-                    placeholder="Ví dụ: Mong muốn tích hợp đánh giá code tự động và phỏng vấn AI cho khối IT..."
-                    value={formData.notes}
-                    onChange={(e) =>
-                      setFormData({ ...formData, notes: e.target.value })
-                    }
-                    className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-300 text-sm text-slate-900 focus:border-blue-500 focus:bg-white focus:ring-3 focus:ring-blue-100 focus:outline-none transition-colors resize-none"
-                  />
-                </div>
-
-                {/* Submit */}
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="w-full mt-2 py-4 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white font-semibold text-sm shadow-lg shadow-blue-600/20 transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:pointer-events-none"
-                >
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Đang gửi thông tin...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Send className="w-4 h-4" />
-                      <span>
-                        {requestType === "DEMO"
-                          ? "Gửi Yêu Cầu Đặt Lịch Demo"
-                          : "Gửi Yêu Cầu Báo Giá & Ký Hợp Đồng"}
-                      </span>
-                    </>
-                  )}
-                </button>
-              </form>
-            </div>
-          ) : (
-            /* Success */
-            <div className="bg-white border border-slate-200 rounded-2xl shadow-xl p-10 text-center">
-              <div className="w-20 h-20 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-6 border border-emerald-200">
-                <CheckCircle2 className="w-10 h-10" />
               </div>
-              <h2 className="text-2xl font-bold text-slate-900 mb-3">
-                Đã Tiếp Nhận Thông Tin!
-              </h2>
-              <p className="text-sm text-slate-600 mb-8 leading-relaxed max-w-md mx-auto">
-                Cảm ơn Quý doanh nghiệp{" "}
-                <strong>{formData.companyName}</strong>. Chuyên viên giải pháp
-                của SmartHire-AI sẽ liên hệ trực tiếp qua email{" "}
-                <strong>{formData.workEmail}</strong> và số điện thoại{" "}
-                <strong>{formData.phoneNumber}</strong> trong vòng 2 giờ làm
-                việc.
-              </p>
-              <button
-                onClick={() => navigate("/")}
-                className="px-8 py-3 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors"
-              >
-                Về Trang Chủ
-              </button>
-            </div>
-          )}
-        </div>
-      </main>
 
-      <LandingFooter />
+              {/* Row 2: Họ và Tên + Chức Vụ */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-800 mb-1">
+                    Họ và Tên Người Liên Hệ <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Nguyễn Văn A"
+                    value={formData.contactName}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        contactName: e.target.value,
+                      })
+                    }
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-xs sm:text-sm text-slate-900 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100 focus:outline-none transition-colors"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-800 mb-1">
+                    Chức Vụ <span className="text-red-500">*</span>
+                  </label>
+                  <JobTitleCombobox
+                    value={formData.jobTitle}
+                    onChange={(v) =>
+                      setFormData({ ...formData, jobTitle: v })
+                    }
+                  />
+                </div>
+              </div>
+
+              {/* Row 3: Email + Số Điện Thoại */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-800 mb-1">
+                    Email Doanh Nghiệp <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    placeholder="name@company.com"
+                    value={formData.workEmail}
+                    onChange={(e) =>
+                      setFormData({ ...formData, workEmail: e.target.value })
+                    }
+                    className={`w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border text-xs sm:text-sm text-slate-900 focus:bg-white focus:ring-2 focus:outline-none transition-colors ${isPersonalEmail(formData.workEmail)
+                        ? "border-amber-500 focus:border-amber-500 focus:ring-amber-100"
+                        : "border-slate-300 focus:border-blue-500 focus:ring-blue-100"
+                      }`}
+                  />
+                  {isPersonalEmail(formData.workEmail) && (
+                    <span className="text-[11px] text-amber-600 mt-1 block">
+                      * Yêu cầu email tên miền công ty (không dùng @gmail/@yahoo)
+                    </span>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-800 mb-1">
+                    Số Điện Thoại Liên Hệ <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="tel"
+                    required
+                    placeholder="0912 345 678"
+                    value={formData.phoneNumber}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        phoneNumber: e.target.value,
+                      })
+                    }
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-xs sm:text-sm text-slate-900 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100 focus:outline-none transition-colors"
+                  />
+                </div>
+              </div>
+
+              {/* Row 4: Nhu cầu / Ghi chú */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-800 mb-1">
+                  Nhu Cầu hoặc Ghi Chú Cụ Thể (Tùy chọn)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ví dụ: Tích hợp đánh giá code tự động và phỏng vấn AI cho khối IT..."
+                  value={formData.notes}
+                  onChange={(e) =>
+                    setFormData({ ...formData, notes: e.target.value })
+                  }
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-300 text-xs sm:text-sm text-slate-900 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100 focus:outline-none transition-colors"
+                />
+              </div>
+
+              {/* Submit */}
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full mt-1.5 py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white font-semibold text-xs sm:text-sm shadow-md shadow-blue-600/20 transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:pointer-events-none cursor-pointer"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Đang gửi thông tin...</span>
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-4 h-4" />
+                    <span>
+                      {requestType === "DEMO"
+                        ? "Gửi Yêu Cầu Đặt Lịch Demo"
+                        : "Gửi Yêu Cầu Báo Giá & Ký Hợp Đồng"}
+                    </span>
+                  </>
+                )}
+              </button>
+            </form>
+          </div>
+        ) : (
+          /* Success Card */
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-xl p-8 sm:p-10 text-center max-w-lg mx-auto">
+            <div className="w-16 h-16 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-4 border border-emerald-200">
+              <CheckCircle2 className="w-8 h-8" />
+            </div>
+            <h2 className="text-xl sm:text-2xl font-bold text-slate-900 mb-2">
+              Đã Tiếp Nhận Thông Tin!
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-600 mb-6 leading-relaxed max-w-md mx-auto">
+              Cảm ơn Quý doanh nghiệp <strong>{formData.companyName}</strong>. Chuyên viên giải pháp của SmartHire-AI sẽ liên hệ trực tiếp qua email <strong>{formData.workEmail}</strong> và số điện thoại <strong>{formData.phoneNumber}</strong> trong vòng 2 giờ làm việc.
+            </p>
+            <button
+              onClick={() => navigate("/")}
+              className="px-6 py-2.5 rounded-xl bg-blue-600 text-white text-xs sm:text-sm font-semibold hover:bg-blue-700 transition-colors cursor-pointer"
+            >
+              Về Trang Chủ
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

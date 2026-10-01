@@ -40,6 +40,9 @@ public class MasterSubscriptionService {
             throw new IllegalArgumentException("Plan code '" + request.getCode() + "' already exists.");
         }
         SubscriptionPlan plan = planMapper.toEntity(request);
+        if (plan.getPriceYearly() == null) {
+            plan.setPriceYearly(java.math.BigDecimal.ZERO);
+        }
         plan = planRepository.save(plan);
         return planMapper.toResponse(plan);
     }

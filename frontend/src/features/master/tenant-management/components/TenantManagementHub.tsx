@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { z } from "zod";
 import {
   AlertTriangle,
@@ -26,9 +26,17 @@ import {
   Trash2,
   UserRoundCog,
   X,
+  Receipt,
+  FileSignature,
+  MapPin,
+  Phone,
+  Mail,
+  Globe,
 } from "lucide-react";
 import { masterAdminApi, type TenantInfo } from "@/api/master/masterAdminApi";
 import { masterTenantApi, type OnboardTenantResponse } from "@/api/master/tenantApi";
+import { billingApi } from "@/api/master/billingApi";
+import { contractApi } from "@/api/master/contractApi";
 import { getApiErrorMessage } from "@/lib/axios";
 import { cn } from "@/lib/utils";
 
@@ -39,6 +47,7 @@ type Props = {
   tenants: TenantInfo[];
   onTenantCreated: (tenant: OnboardTenantResponse) => void;
   onToggleStatus: (tenant: TenantInfo) => void;
+  onDeleteTenant?: (tenant: TenantInfo) => void;
   onRetryProvisioning: (tenant: TenantInfo) => void;
 };
 
@@ -77,7 +86,7 @@ function OverviewPanel({ tenants, onNavigate }: { tenants: TenantInfo[]; onNavig
   </div>;
 }
 
-function DirectoryPanel({ tenants, onToggleStatus, onRetryProvisioning }: Pick<Props, "tenants" | "onToggleStatus" | "onRetryProvisioning">) {
+function DirectoryPanel({ tenants, onToggleStatus, onDeleteTenant, onRetryProvisioning }: Pick<Props, "tenants" | "onToggleStatus" | "onDeleteTenant" | "onRetryProvisioning">) {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("ALL");
   const [selected, setSelected] = useState<TenantInfo | null>(null);
@@ -88,7 +97,7 @@ function DirectoryPanel({ tenants, onToggleStatus, onRetryProvisioning }: Pick<P
     setSelected(tenant);
     try { setSelected(await masterAdminApi.getTenantById(tenant.id)); } catch { setSelected(tenant); } finally { setDetailLoading(false); }
   };
-  return <div className="relative"><section className={cn(cardClass, "overflow-hidden")}><div className="flex flex-col gap-3 border-b border-slate-100 p-5 lg:flex-row lg:items-center lg:justify-between"><div><h2 className="font-semibold text-slate-950">Danh bạ doanh nghiệp</h2><p className="mt-1 text-xs text-slate-500">Dữ liệu an toàn từ Master Tenant Registry</p></div><div className="flex flex-col gap-2 sm:flex-row"><label className="relative"><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Tên, mã hoặc subdomain" className={cn(inputClass, "pl-9 sm:w-64")} /></label><select value={status} onChange={(event) => setStatus(event.target.value)} className={cn(inputClass, "sm:w-40")}><option value="ALL">Tất cả trạng thái</option><option value="ACTIVE">Active</option><option value="PROVISIONING">Provisioning</option><option value="FAILED">Failed</option><option value="SUSPENDED">Suspended</option></select></div></div><div className="overflow-x-auto"><table className="w-full min-w-[850px] text-left text-sm"><thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr><th className="px-5 py-3">Doanh nghiệp</th><th className="px-3 py-3">Subdomain</th><th className="px-3 py-3">Database</th><th className="px-3 py-3">Trạng thái</th><th className="px-3 py-3">Ngày tạo</th><th className="px-5 py-3 text-right">Thao tác</th></tr></thead><tbody>{filtered.map((tenant) => <tr key={tenant.id} className="border-t border-slate-100 hover:bg-blue-50/30"><td className="px-5 py-4"><strong className="block text-slate-900">{tenant.name}</strong><span className="text-xs text-slate-500">{tenant.code}</span></td><td className="px-3 py-4 font-mono text-xs">{tenant.subdomain}.smarthire.top</td><td className="px-3 py-4 font-mono text-xs text-slate-500">{tenant.dbName}</td><td className="px-3 py-4"><span className={cn("rounded-full px-2.5 py-1 text-xs font-semibold", statusStyle(tenant.status))}>{tenant.status}</span></td><td className="px-3 py-4 text-slate-500">{new Date(tenant.createdAt).toLocaleDateString("vi-VN")}</td><td className="px-5 py-4"><div className="flex justify-end gap-2"><button type="button" onClick={() => openDetail(tenant)} className="grid size-9 place-items-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50" aria-label={`Xem ${tenant.name}`}><Eye className="size-4" /></button>{tenant.status === "FAILED" || tenant.status === "PROVISIONING" ? <button type="button" onClick={() => onRetryProvisioning(tenant)} className="inline-flex min-h-9 items-center gap-1 rounded-lg bg-amber-50 px-3 text-xs font-semibold text-amber-700"><RefreshCw className="size-3.5" />Retry</button> : <button type="button" onClick={() => onToggleStatus(tenant)} className="min-h-9 rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50">{tenant.status === "ACTIVE" ? "Tạm ngưng" : "Kích hoạt"}</button>}</div></td></tr>)}{filtered.length === 0 && <tr><td colSpan={6} className="px-5 py-12 text-center text-slate-500">Không tìm thấy tenant phù hợp.</td></tr>}</tbody></table></div></section>{selected && <><button type="button" className="fixed inset-0 z-40 bg-slate-950/20" onClick={() => setSelected(null)} aria-label="Đóng chi tiết tenant" /><aside role="dialog" aria-modal="true" aria-label={`Chi tiết ${selected.name}`} className="fixed inset-y-0 right-0 z-50 w-full max-w-md overflow-y-auto bg-white p-6 shadow-2xl"><div className="flex items-start justify-between"><div><p className="text-xs font-semibold uppercase tracking-wide text-blue-600">Tenant detail</p><h2 className="mt-1 text-xl font-bold">{selected.name}</h2></div><button type="button" onClick={() => setSelected(null)} className="grid size-9 place-items-center rounded-lg hover:bg-slate-100" aria-label="Đóng"><X className="size-5" /></button></div>{detailLoading ? <div className="grid min-h-48 place-items-center"><LoaderCircle className="size-6 animate-spin text-blue-600" /></div> : <dl className="mt-7 space-y-4 text-sm">{[["Tenant ID",selected.id],["Mã doanh nghiệp",selected.code],["Subdomain",`${selected.subdomain}.smarthire.top`],["Database",selected.dbName],["Trạng thái",selected.status],["Ngày tạo",new Date(selected.createdAt).toLocaleString("vi-VN")]].map(([label,value]) => <div key={label as string} className="border-b border-slate-100 pb-3"><dt className="text-xs text-slate-500">{label}</dt><dd className="mt-1 break-all font-medium text-slate-900">{String(value)}</dd></div>)}</dl>}<div className="mt-6 rounded-xl bg-blue-50 p-4 text-xs leading-5 text-blue-900"><ShieldCheck className="mb-2 size-5 text-blue-700" />Chỉ hiển thị metadata an toàn. Credential và dữ liệu trong tenant database không được trả về.</div></aside></>}</div>;
+  return <div className="relative"><section className={cn(cardClass, "overflow-hidden")}><div className="flex flex-col gap-3 border-b border-slate-100 p-5 lg:flex-row lg:items-center lg:justify-between"><div><h2 className="font-semibold text-slate-950">Danh bạ doanh nghiệp</h2><p className="mt-1 text-xs text-slate-500">Dữ liệu an toàn từ Master Tenant Registry</p></div><div className="flex flex-col gap-2 sm:flex-row"><label className="relative"><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Tên, mã hoặc subdomain" className={cn(inputClass, "pl-9 sm:w-64")} /></label><select value={status} onChange={(event) => setStatus(event.target.value)} className={cn(inputClass, "sm:w-40")}><option value="ALL">Tất cả trạng thái</option><option value="ACTIVE">Active</option><option value="PROVISIONING">Provisioning</option><option value="FAILED">Failed</option><option value="SUSPENDED">Suspended</option></select></div></div><div className="overflow-x-auto"><table className="w-full min-w-[850px] text-left text-sm"><thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr><th className="px-5 py-3">Doanh nghiệp</th><th className="px-3 py-3">Subdomain</th><th className="px-3 py-3">Database</th><th className="px-3 py-3">Trạng thái</th><th className="px-3 py-3">Ngày tạo</th><th className="px-5 py-3 text-right">Thao tác</th></tr></thead><tbody>{filtered.map((tenant) => <tr key={tenant.id} className="border-t border-slate-100 hover:bg-blue-50/30"><td className="px-5 py-4"><strong className="block text-slate-900">{tenant.name}</strong><span className="text-xs text-slate-500">{tenant.code}</span></td><td className="px-3 py-4 font-mono text-xs">{tenant.subdomain}.smarthire.top</td><td className="px-3 py-4 font-mono text-xs text-slate-500">{tenant.dbName}</td><td className="px-3 py-4"><span className={cn("rounded-full px-2.5 py-1 text-xs font-semibold", statusStyle(tenant.status))}>{tenant.status}</span></td><td className="px-3 py-4 text-slate-500">{new Date(tenant.createdAt).toLocaleDateString("vi-VN")}</td><td className="px-5 py-4"><div className="flex justify-end gap-2"><button type="button" onClick={() => openDetail(tenant)} className="grid size-9 place-items-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50" aria-label={`Xem ${tenant.name}`}><Eye className="size-4" /></button>{tenant.status === "FAILED" || tenant.status === "PROVISIONING" ? <button type="button" onClick={() => onRetryProvisioning(tenant)} className="inline-flex min-h-9 items-center gap-1 rounded-lg bg-amber-50 px-3 text-xs font-semibold text-amber-700"><RefreshCw className="size-3.5" />Retry</button> : <button type="button" onClick={() => onToggleStatus(tenant)} className="min-h-9 rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50">{tenant.status === "ACTIVE" ? "Tạm ngưng" : "Kích hoạt"}</button>}{onDeleteTenant && <button type="button" onClick={() => onDeleteTenant(tenant)} className="grid size-9 place-items-center rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50" aria-label={`Xóa ${tenant.name}`}><Trash2 className="size-4" /></button>}</div></td></tr>)}{filtered.length === 0 && <tr><td colSpan={6} className="px-5 py-12 text-center text-slate-500">Không tìm thấy tenant phù hợp.</td></tr>}</tbody></table></div></section>{selected && <TenantDetailPanel tenant={selected} detailLoading={detailLoading} onClose={() => setSelected(null)} />}</div>;
 }
 
 function CreatePanel({ onTenantCreated, onNavigate }: { onTenantCreated: Props["onTenantCreated"]; onNavigate: (tab: TenantHubTab) => void }) {
@@ -157,10 +166,123 @@ function RecoveryPanel() {
 
 function Policy({ title, value, detail }: { title: string; value: string; detail: string }) { return <div className="flex items-start justify-between gap-4 rounded-xl bg-slate-50 p-4"><div><p className="text-sm font-semibold">{title}</p><p className="mt-1 text-xs text-slate-500">{detail}</p></div><span className="shrink-0 text-xs font-semibold text-blue-700">{value}</span></div>; }
 
+function TenantDetailPanel({ tenant, detailLoading, onClose }: { tenant: TenantInfo; detailLoading: boolean; onClose: () => void }) {
+  const { data: contracts } = useQuery({
+    queryKey: ["master", "contracts", tenant.id],
+    queryFn: () => contractApi.getAll("ALL", tenant.id),
+  });
+  const { data: invoices } = useQuery({
+    queryKey: ["master", "invoices", tenant.id],
+    queryFn: () => billingApi.getAll("ALL", tenant.id),
+  });
+
+  return (
+    <>
+      <button type="button" className="fixed inset-0 z-40 bg-slate-950/20" onClick={onClose} aria-label="Đóng chi tiết tenant" />
+      <aside role="dialog" aria-modal="true" aria-label={`Chi tiết ${tenant.name}`} className="fixed inset-y-0 right-0 z-50 w-full max-w-2xl overflow-y-auto bg-white p-6 shadow-2xl">
+        <div className="flex items-start justify-between border-b border-slate-100 pb-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">Thông tin chi tiết doanh nghiệp</p>
+            <h2 className="mt-1 text-xl font-bold flex items-center gap-3">
+              {tenant.name}
+              <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider", statusStyle(tenant.status))}>{tenant.status}</span>
+            </h2>
+          </div>
+          <button type="button" onClick={onClose} className="grid size-9 place-items-center rounded-lg hover:bg-slate-100" aria-label="Đóng"><X className="size-5" /></button>
+        </div>
+
+        {detailLoading ? (
+          <div className="grid min-h-48 place-items-center"><LoaderCircle className="size-6 animate-spin text-blue-600" /></div>
+        ) : (
+          <div className="mt-6 space-y-8">
+            <section>
+              <h3 className="flex items-center gap-2 font-semibold text-slate-900 mb-4"><Building2 className="size-4 text-blue-600" /> Hồ sơ doanh nghiệp</h3>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div><span className="text-slate-500 block text-xs mb-1">Mã doanh nghiệp</span><strong className="font-mono font-medium">{tenant.code}</strong></div>
+                <div><span className="text-slate-500 block text-xs mb-1">Tên pháp lý</span><strong className="font-medium">{tenant.companyLegalName || "-"}</strong></div>
+                <div><span className="text-slate-500 block text-xs mb-1">Mã số thuế</span><strong className="font-mono font-medium">{tenant.taxCode || "-"}</strong></div>
+                <div><span className="text-slate-500 block text-xs mb-1">Ngành nghề</span><strong className="font-medium">{tenant.industry || "-"}</strong></div>
+                <div className="col-span-2"><span className="text-slate-500 block text-xs mb-1 flex items-center gap-1"><MapPin className="size-3" /> Địa chỉ</span><strong className="font-medium">{tenant.address || "-"}</strong></div>
+                <div><span className="text-slate-500 block text-xs mb-1 flex items-center gap-1"><Globe className="size-3" /> Website</span><strong className="font-medium">{tenant.website || "-"}</strong></div>
+                <div><span className="text-slate-500 block text-xs mb-1">Quy mô</span><strong className="font-medium">{tenant.companySize || "-"}</strong></div>
+              </div>
+            </section>
+            
+            <section className="rounded-xl border border-slate-100 bg-slate-50/50 p-5">
+              <h3 className="flex items-center gap-2 font-semibold text-slate-900 mb-4"><UserRoundCog className="size-4 text-blue-600" /> Thông tin liên hệ</h3>
+              <div className="grid grid-cols-2 gap-y-4 gap-x-6 text-sm">
+                <div><span className="text-slate-500 block text-xs mb-1">Người đại diện</span><strong className="font-medium">{tenant.contactName || "-"}</strong></div>
+                <div><span className="text-slate-500 block text-xs mb-1 flex items-center gap-1"><Phone className="size-3" /> Số điện thoại</span><strong className="font-medium">{tenant.contactPhone || "-"}</strong></div>
+                <div><span className="text-slate-500 block text-xs mb-1 flex items-center gap-1"><Mail className="size-3" /> Email liên hệ</span><strong className="font-medium">{tenant.contactEmail || "-"}</strong></div>
+                <div><span className="text-slate-500 block text-xs mb-1 flex items-center gap-1"><Mail className="size-3" /> Email nhận hóa đơn</span><strong className="font-medium">{tenant.billingEmail || "-"}</strong></div>
+              </div>
+            </section>
+
+            <section>
+              <h3 className="flex items-center gap-2 font-semibold text-slate-900 mb-4"><ServerCog className="size-4 text-blue-600" /> Hệ thống & Kỹ thuật</h3>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div><span className="text-slate-500 block text-xs mb-1">Subdomain</span><strong className="font-mono font-medium text-blue-600">{tenant.subdomain}.smarthire.top</strong></div>
+                <div><span className="text-slate-500 block text-xs mb-1">Database Name</span><strong className="font-mono font-medium">{tenant.dbName}</strong></div>
+                <div><span className="text-slate-500 block text-xs mb-1">Môi trường</span><strong className="font-medium">{tenant.environmentType || "PRODUCTION"}</strong></div>
+                <div><span className="text-slate-500 block text-xs mb-1">Managed DB</span><strong className="font-medium">{tenant.managedDatabase ? "Có" : "Không"}</strong></div>
+                <div><span className="text-slate-500 block text-xs mb-1">Ngày tham gia</span><strong className="font-medium">{new Date(tenant.createdAt).toLocaleString("vi-VN")}</strong></div>
+              </div>
+            </section>
+
+            <section>
+              <h3 className="flex items-center gap-2 font-semibold text-slate-900 mb-4"><FileSignature className="size-4 text-blue-600" /> Hợp đồng liên kết ({contracts?.length || 0})</h3>
+              {contracts && contracts.length > 0 ? (
+                <div className="space-y-3">
+                  {contracts.map(contract => (
+                    <div key={contract.id} className="flex justify-between items-center rounded-xl border border-slate-100 p-3 hover:bg-slate-50 transition-colors">
+                      <div>
+                        <div className="flex items-center gap-2"><strong className="text-sm font-semibold">{contract.title}</strong><span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-mono">{contract.contractNumber}</span></div>
+                        <p className="text-xs text-slate-500 mt-1">{new Date(contract.startDate).toLocaleDateString("vi-VN")} - {new Date(contract.endDate).toLocaleDateString("vi-VN")}</p>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-sm font-bold text-slate-900">{contract.contractValue.toLocaleString("vi-VN")} {contract.currency}</div>
+                        <div className="text-[10px] font-semibold mt-1 text-emerald-600 uppercase tracking-wider">{contract.status}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : <p className="text-xs text-slate-500 italic">Chưa có hợp đồng nào.</p>}
+            </section>
+
+            <section>
+              <h3 className="flex items-center gap-2 font-semibold text-slate-900 mb-4"><Receipt className="size-4 text-blue-600" /> Hóa đơn thanh toán ({invoices?.length || 0})</h3>
+              {invoices && invoices.length > 0 ? (
+                <div className="space-y-3">
+                  {invoices.map(invoice => (
+                    <div key={invoice.id} className="flex justify-between items-center rounded-xl border border-slate-100 p-3 hover:bg-slate-50 transition-colors">
+                      <div>
+                        <div className="flex items-center gap-2"><strong className="text-sm font-semibold">{invoice.planName || "Dịch vụ SmartHire"}</strong><span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-mono">{invoice.invoiceNumber}</span></div>
+                        <p className="text-xs text-slate-500 mt-1">{invoice.dueDate ? `Hạn: ${new Date(invoice.dueDate).toLocaleDateString("vi-VN")}` : "-"}</p>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-sm font-bold text-slate-900">{invoice.amount.toLocaleString("vi-VN")} {invoice.currency}</div>
+                        <div className={cn("text-[10px] font-semibold mt-1 uppercase tracking-wider", invoice.status === "PAID" ? "text-emerald-600" : invoice.status === "OVERDUE" ? "text-rose-600" : "text-amber-600")}>{invoice.status}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : <p className="text-xs text-slate-500 italic">Chưa có hóa đơn nào.</p>}
+            </section>
+          </div>
+        )}
+        <div className="mt-8 rounded-xl bg-blue-50/50 p-4 text-xs leading-5 text-blue-900 flex items-start gap-3">
+          <ShieldCheck className="mt-0.5 size-5 shrink-0 text-blue-700" />
+          <p>Chỉ hiển thị metadata an toàn từ Registry. Credential truy cập và dữ liệu lưu trong database riêng của doanh nghiệp không được phép hiển thị trên màn hình này.</p>
+        </div>
+      </aside>
+    </>
+  );
+}
+
 export function TenantManagementHub(props: Props) {
   const panels: Record<TenantHubTab, React.ReactNode> = {
     overview: <OverviewPanel tenants={props.tenants} onNavigate={props.onTabChange} />,
-    directory: <DirectoryPanel tenants={props.tenants} onToggleStatus={props.onToggleStatus} onRetryProvisioning={props.onRetryProvisioning} />,
+    directory: <DirectoryPanel tenants={props.tenants} onToggleStatus={props.onToggleStatus} onDeleteTenant={props.onDeleteTenant} onRetryProvisioning={props.onRetryProvisioning} />,
     create: <CreatePanel onTenantCreated={props.onTenantCreated} onNavigate={props.onTabChange} />,
     verification: <VerificationPanel />,
     provisioning: <div className="space-y-5"><ProvisioningPanel tenants={props.tenants} onRetryProvisioning={props.onRetryProvisioning} /><SagaRecoveryConsole tenants={props.tenants} /><ResourcesPanel tenants={props.tenants} /><RecoveryPanel /></div>,

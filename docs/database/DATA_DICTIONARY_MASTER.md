@@ -59,8 +59,7 @@ Entity `SubscriptionPlan`. Bảng tra cứu định nghĩa giá và hạn mức 
 | `code` | VARCHAR(64) | UQ | Không | — | Mã gói, ví dụ `STARTER`, `PRO` |
 | `name` | VARCHAR(128) | | Không | — | Tên hiển thị |
 | `description` | TEXT | | Có | NULL | Mô tả gói |
-| `price_monthly` | DECIMAL(10,2) | | Không | 0.00 | Giá theo tháng |
-| `price_yearly` | DECIMAL(10,2) | | Không | 0.00 | Giá theo năm |
+| `price_yearly` | DECIMAL(15,2) | | Không | 0.00 | Giá gói theo năm (VNĐ) |
 | `max_jobs` | INT | | Không | 5 | Hạn mức tin tuyển dụng đang mở |
 | `max_cv_parses` | INT | | Không | 100 | Hạn mức số lần parse CV |
 | `max_ai_interview_hours` | INT | | Không | 10 | Hạn mức giờ phỏng vấn AI |

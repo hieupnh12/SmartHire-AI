@@ -119,6 +119,26 @@ public class TenantProvisioningService {
         }
     }
 
+    public void deleteDatabaseAndUser(TenantInfo tenant) throws SQLException {
+        if (!tenant.isManagedDatabase()) return;
+        String database = tenant.getDbName();
+        String username = tenant.getDbUsername();
+        var properties = new java.util.Properties();
+        properties.setProperty("user", provisionUser);
+        properties.setProperty("password", provisionPassword);
+        properties.setProperty("connectTimeout", "10000");
+        properties.setProperty("socketTimeout", "120000");
+        try (Connection connection = DriverManager.getConnection(provisionUrl, properties);
+             Statement statement = connection.createStatement()) {
+            if (database != null && database.matches("[a-z0-9_]{1,64}")) {
+                statement.executeUpdate("DROP DATABASE IF EXISTS `" + database + "`");
+            }
+            if (username != null && username.matches("[a-z0-9_]{1,32}")) {
+                statement.executeUpdate("DROP USER IF EXISTS '" + username + "'@'%'");
+            }
+        }
+    }
+
     private void seedAdmin(DataSource dataSource, TenantAdminRequest admin) throws SQLException {
         try (Connection connection = dataSource.getConnection()) {
             connection.setAutoCommit(false);
