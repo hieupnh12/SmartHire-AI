@@ -24,6 +24,7 @@ public class ConsultationRequest {
     @Column(name = "work_email", nullable = false) String workEmail;
     @Column(name = "phone_number") String phoneNumber;
     @Column(name = "company_size") String companySize;
+    @Column(name = "tenant_id") Long tenantId;
 
     @Builder.Default
     @Column(name = "request_type", nullable = false, length = 64)

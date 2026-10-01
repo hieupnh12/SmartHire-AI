@@ -7,7 +7,7 @@ import { toast } from "@/stores/toastStore";
 
 function currentTab(pathname: string): TenantHubTab {
   const value = pathname.split("/")[3];
-  return value === "overview" || value === "create" || value === "verification" || value === "provisioning"
+  return value === "overview" || value === "create" || value === "provisioning"
     ? value
     : "directory";
 }

@@ -129,6 +129,7 @@ public class CandidateAuthService {
         try {
             String redisKey = RedisKeys.refreshSession(user.getId(), refreshToken);
             redisService.set(redisKey, user.getEmail(), Duration.ofDays(7));
+            redisService.set(RedisKeys.tenantRefreshSession(refreshToken), currentTenant + ":" + user.getEmail(), Duration.ofDays(7));
         } catch (Exception ex) {
             log.warn("Could not cache candidate refresh token to Redis: {}", ex.getMessage());
         }

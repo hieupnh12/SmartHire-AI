@@ -1,6 +1,8 @@
 package com.smarthire.tenant.company.service;
 
 import com.smarthire.common.exception.BusinessException;
+import com.smarthire.common.redis.RedisKeys;
+import com.smarthire.common.redis.RedisService;
 import com.smarthire.domain.master.entity.TenantInfo;
 import com.smarthire.domain.master.repository.TenantInfoRepository;
 import com.smarthire.multitenancy.context.TenantContext;
@@ -31,6 +33,9 @@ class CompanyProfileServiceTest {
 
     @Spy
     private CompanyProfileMapper companyProfileMapper = Mappers.getMapper(CompanyProfileMapper.class);
+
+    @Mock
+    private RedisService redisService;
 
     @InjectMocks
     private CompanyProfileServiceImpl companyProfileService;
@@ -95,6 +100,7 @@ class CompanyProfileServiceTest {
         assertEquals("super-secret", tenant.getDbPassword());
         assertTrue(tenant.isVerified());
         verify(tenantInfoRepository, times(1)).save(tenant);
+        verify(redisService).delete(RedisKeys.landingPage("acme"));
     }
 
     @Test
