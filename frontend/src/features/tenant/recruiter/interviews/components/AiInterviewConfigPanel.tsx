@@ -10,10 +10,14 @@ import { Button } from "@/components/ux/Button";
 import { AssessmentError, FieldError, assessmentInput, assessmentMuted } from "@/components/ux/assessmentUi";
 import { queryKeys } from "@/lib/query-keys";
 import { COMPETENCY_KEYS, configSchema, toFormValues, toRequest, type ConfigValues } from "../utils/aiInterviewConfigSchema";
+import { InterviewConfigurationTabs } from "./InterviewConfigurationTabs";
 
 const PRESET_LABELS = { default: "Mặc định", junior: "Mẫu Junior", senior: "Mẫu Senior" } as const;
 const card = "space-y-4 rounded-xl border border-[var(--color-border-default)] p-4";
 const chip = "inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-[var(--color-border-default)] px-3 text-sm has-[:checked]:border-brand-primary has-[:checked]:bg-[var(--color-primary-soft)] has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50";
+
+// Kept while the original roadmap editor remains available for a later migration of saved V1 configurations.
+void ConfigForm;
 
 export function AiInterviewConfigPanel({ jobId }: { jobId: number }) {
   const config = useQuery({ queryKey: ["ai-interview-config", jobId], queryFn: () => aiInterviewApi.config(jobId) });
@@ -22,7 +26,7 @@ export function AiInterviewConfigPanel({ jobId }: { jobId: number }) {
     <h2 className="text-lg font-semibold">Cấu hình AI Interview của Job</h2>
     <AssessmentError error={config.error ?? skills.error} retry={() => { void config.refetch(); void skills.refetch(); }} />
     {(config.isPending || skills.isPending) && <p role="status">Đang tải cấu hình…</p>}
-    {config.data && skills.data && <ConfigForm key={jobId} jobId={jobId} config={config.data} jobSkills={skills.data} />}
+    {config.data && skills.data && <InterviewConfigurationTabs key={jobId} jobId={jobId} config={config.data} jobSkills={skills.data} />}
   </section>;
 }
 

@@ -78,6 +78,18 @@ export type InterviewPolicy = {
   weights: Record<CompetencyKey, number>;
   selectedSkills: string[];
   stages: InterviewStage[];
+  schemaVersion?: number | null;
+  interviewMode?: "TEXT" | "VOICE" | null;
+  review?: { showCorrectAnswer: boolean; showExplanationAfterInterview: boolean } | null;
+  processes?: InterviewProcessConfig[] | null;
+};
+
+export type InterviewProcessConfig = {
+  key: "TECHNICAL_KNOWLEDGE" | "PROBLEM_SOLVING" | "PRACTICAL_EXPERIENCE" | "TECHNICAL_REASONING" | "BEHAVIORAL_SITUATIONAL" | "COMMUNICATION";
+  enabled: boolean;
+  order: number;
+  weight: number;
+  config: Record<string, unknown>;
 };
 
 export type AiInterviewConfig = {

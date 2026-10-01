@@ -57,8 +57,21 @@ public final class InterviewPolicies {
     public static boolean expired(AiInterview interview) {
         return interview.getExpiresAt() != null && !Instant.now().isBefore(interview.getExpiresAt());
     }
+    public static boolean isV2(AiInterview interview) { return isV2(config(interview).policy()); }
+    public static boolean isV2(InterviewPolicy policy) {
+        return policy != null && policy.schemaVersion() != null && policy.schemaVersion() >= 2
+                && policy.processes() != null && !policy.processes().isEmpty();
+    }
+    public static boolean voiceEnabled(AiInterview interview) {
+        var voice = config(interview).policy().voice();
+        return voice != null && voice.enabled();
+    }
     public static void validate(AiInterviewConfigRequest c, Set<String> jobSkills, boolean requireRoadmap) {
         var p = c.policy();
+        if (isV2(p)) {
+            validateV2(p, jobSkills);
+            return;
+        }
         if (p == null || p.weights() == null || !p.weights().keySet().equals(new HashSet<>(COMPETENCIES))
                 || p.weights().values().stream().anyMatch(w -> w == null || w < 0 || w > 100)
                 || p.weights().values().stream().mapToInt(Integer::intValue).sum() != 100) fail("Tổng trọng số phải bằng 100%.");
@@ -82,6 +95,20 @@ public final class InterviewPolicies {
         }
         if (!skills.containsAll(p.selectedSkills()) || p.weights().entrySet().stream().anyMatch(e -> e.getValue() > 0 && !covered.contains(e.getKey())))
             fail("Lộ trình phải bao phủ mọi năng lực có trọng số và kỹ năng đã chọn.");
+    }
+    private static void validateV2(InterviewPolicy p, Set<String> jobSkills) {
+        if (p.processes().size() > 6 || p.processes().stream().map(InterviewPolicy.Process::key).distinct().count() != p.processes().size()
+                || p.processes().stream().mapToInt(InterviewPolicy.Process::order).distinct().count() != p.processes().size()) {
+            fail("Mỗi quy trình AI Interview phải có khóa và thứ tự duy nhất.");
+        }
+        for (var process : p.processes()) {
+            if (!COMPETENCIES.contains(process.key()) && !"TECHNICAL_REASONING".equals(process.key())) fail("Quy trình AI Interview không hợp lệ.");
+            if (process.enabled() && process.config().isEmpty()) fail("Quy trình bật phải có cấu hình.");
+            Object selected = process.config().get("selectedSkills");
+            if (selected instanceof Collection<?> values && values.stream().map(String::valueOf).anyMatch(skill -> !jobSkills.contains(skill))) {
+                fail("Chỉ chọn kỹ năng thuộc Job.");
+            }
+        }
     }
     private static void fail(String message) { throw new BusinessException(message, HttpStatus.BAD_REQUEST, "AI_INTERVIEW_BAD_CONFIG"); }
 }

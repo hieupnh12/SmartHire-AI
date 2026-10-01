@@ -61,16 +61,17 @@ public class AiInterviewEvaluationService {
     private final AiInterviewClient ai;
     private final ObjectMapper mapper;
     private final AiInterviewActivityLog activity;
+    private final AiInterviewProcessEngine processEngine;
 
     public AiInterviewEvaluationService(AiInterviewRepository interviews, AiQuestionRepository questions,
             AiAnswerRepository answers, AiFeedbackRepository feedbacks, JobSkillRepository skills, CvRepository cvs,
             CvExtractionRepository extractions, ApplicationStatusHistoryRepository history, RecruitmentStageRepository stages,
             NotificationRepository notifications, EmailOutboxRepository emails, JobTestRepository tests,
-            AiInterviewClient ai, ObjectMapper mapper, AiInterviewActivityLog activity) {
+            AiInterviewClient ai, ObjectMapper mapper, AiInterviewActivityLog activity, AiInterviewProcessEngine processEngine) {
         this.interviews = interviews; this.questions = questions; this.answers = answers; this.feedbacks = feedbacks;
         this.skills = skills; this.cvs = cvs; this.extractions = extractions; this.history = history; this.stages = stages;
         this.notifications = notifications; this.emails = emails; this.tests = tests; this.ai = ai; this.mapper = mapper;
-        this.activity = activity;
+        this.activity = activity; this.processEngine = processEngine;
     }
 
     @Transactional
@@ -119,6 +120,12 @@ public class AiInterviewEvaluationService {
     }
 
     private void generate(AiInterview interview) {
+        if (InterviewPolicies.isV2(interview)) {
+            processEngine.initializeAndGenerateFirst(interview);
+            interview.setStatus(AiInterviewStatus.QUESTIONS_READY);
+            activity.record(interview, "PROCESS_FIRST_READY", "First process questions are ready");
+            return;
+        }
         if (interview.getConfigSnapshotJson() != null) { generatePlanned(interview); return; }
         if (!questions.findByAiInterview_IdOrderByQuestionOrderAscIdAsc(interview.getId()).isEmpty()) {
             throw new IllegalStateException("Questions already exist");
@@ -162,6 +169,7 @@ public class AiInterviewEvaluationService {
     }
 
     private void evaluate(AiInterview interview) {
+        if (InterviewPolicies.isV2(interview)) { evaluateV2(interview); return; }
         if (interview.getConfigSnapshotJson() != null) { evaluatePlanned(interview); return; }
         var paper = questions.findByAiInterview_IdOrderByQuestionOrderAscIdAsc(interview.getId());
         var saved = new ArrayList<>(answers.findByAiQuestion_IdIn(paper.stream().map(AiQuestion::getId).toList()));
@@ -184,6 +192,19 @@ public class AiInterviewEvaluationService {
         feedbacks.saveAll(validated);
         activity.record(interview, "FEEDBACK_SAVED", validated.size() + " AI feedbacks saved; interview score " + total + "/100");
         finish(interview, total);
+    }
+
+    private void evaluateV2(AiInterview interview) {
+        var paper = questions.findByAiInterview_IdOrderByQuestionOrderAscIdAsc(interview.getId());
+        var saved = answers.findByAiQuestion_IdIn(paper.stream().map(AiQuestion::getId).toList());
+        if (paper.isEmpty() || saved.size() != paper.size()) throw new IllegalStateException("Incomplete process interview");
+        var allFeedback = feedbacks.findByAiAnswer_IdIn(saved.stream().map(AiAnswer::getId).toList());
+        if (allFeedback.size() != saved.size()) throw new IllegalStateException("Missing process evaluations");
+        BigDecimal score = allFeedback.stream().map(AiFeedback::getScore).reduce(BigDecimal.ZERO, BigDecimal::add)
+                .divide(BigDecimal.valueOf(allFeedback.size()), 2, RoundingMode.HALF_UP);
+        var report = mapper.createObjectNode(); report.put("schemaVersion", 2); report.put("overallScore", score);
+        interview.setReportJson(report.toString());
+        finish(interview, score);
     }
 
 

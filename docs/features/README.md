@@ -71,6 +71,7 @@ Mỗi trang gồm: Mục đích · Actor · Luồng · Business Rules · API · 
 | INT-03 | NLP Response Analysis | [NLP-Response-Analysis](AI-Interview/NLP-Response-Analysis.md) | To Do |
 | INT-04 | AI Interview Scoring | [AI-Scoring](AI-Interview/AI-Scoring.md) | To Do |
 | INT-05 | Interview Feedback | [Interview-Feedback](AI-Interview/Interview-Feedback.md) | To Do |
+| Guide | Hướng dẫn sử dụng & cấu hình AI Interview | [AI-Interview-Configuration-Guide](AI-Interview/AI-Interview-Configuration-Guide.md) | Doing |
 
 ## 8. Recruitment Workflow Management
 

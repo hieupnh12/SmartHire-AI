@@ -27,6 +27,7 @@ export const configSchema = z.object({
     weights: z.object(Object.fromEntries(COMPETENCY_KEYS.map(key => [key, int(0, 100, "0–100%")])) as Record<CompetencyKey, ReturnType<typeof int>>),
     selectedSkills: z.array(z.string()).max(30, "Tối đa 30 kỹ năng"),
     stages: z.array(stageSchema).max(20, "Tối đa 20 chặng"),
+    schemaVersion: z.number().int().optional(),
   }),
 }).superRefine((value, ctx) => {
   const p = value.policy;
@@ -36,6 +37,9 @@ export const configSchema = z.object({
   if (p.miniAssessmentEnabled && (p.weights.TECHNICAL_KNOWLEDGE === 0 || p.selectedSkills.length === 0)) {
     issue(["policy", "miniAssessmentEnabled"], "Mini Assessment cần Technical Knowledge > 0% và ít nhất một Job Skill.");
   }
+  // Process Engine V2 validates its process configuration on the backend; it does
+  // not use the legacy roadmap fields below.
+  if (p.schemaVersion != null && p.schemaVersion >= 2) return;
   if (p.miniAfterStage > p.stages.length) issue(["policy", "miniAfterStage"], "Vị trí Mini Assessment không hợp lệ.");
   if (!value.enabled && p.stages.length === 0) return;
   if (p.stages.length === 0) { issue(["policy", "stages"], "Cần ít nhất một chặng phỏng vấn."); return; }
@@ -61,7 +65,7 @@ export type ConfigValues = z.infer<typeof configSchema>;
 export function toFormValues(config: AiInterviewConfig): ConfigValues {
   const date = config.availableUntil ? new Date(config.availableUntil) : null;
   const local = date ? new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16) : "";
-  return { ...config, availableUntil: local };
+  return { ...config, availableUntil: local, policy: { ...config.policy, schemaVersion: 2 } };
 }
 
 export function toRequest(values: ConfigValues): AiInterviewConfig {

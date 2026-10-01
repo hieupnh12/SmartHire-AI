@@ -1,5 +1,18 @@
 # Data Dictionary - Tenant DB (MySQL)
 
+## AI Interview Process Engine & Voice V39-V40 (2026-10-01)
+
+V39 adds `ai_interview_process_runs` so a session creates and completes one process at a time. `ai_questions` gains
+`process_run_id`, `parent_question_id`, `question_role`, and `sequence_no`. V40 adds consent and private audio metadata.
+`storage_key` is never a public URL; candidate-facing responses never include a reference answer, rubric, correct option, or audio URL.
+
+| Table | Purpose | Constraints |
+|---|---|---|
+| `ai_interview_process_runs` | Process key/order/status, counters, snapshot and process report | FK cascade; unique interview/process key and order |
+| `ai_questions` V39 fields | Current process, follow-up parent, role and sequence | FK process cascade; parent uses `SET NULL` |
+| `ai_interview_consents` | Candidate recording consent and policy audit | one consent per interview |
+| `ai_answer_recordings` | Private object key, audio/STT state and transcript metadata | one recording per answer |
+
 ## AI Interview workflow V25–V26 (2026-09-27)
 
 V25 thêm cấu hình AI Interview theo job, trạng thái CV screening của đơn và cột phục vụ worker.
@@ -13,6 +26,7 @@ bảng nhật ký `ai_interview_logs` (chi tiết ở [H.5](#h5-ai_interview_log
 | `jobs.ai_interview_question_count` | INT | Không | 5 (V33; V26 là 30, V25 là 5) | — | Số câu hỏi–đáp AI sinh; service cho 1–30 (từ V35, trước đó cố định 5) |
 | `jobs.ai_interview_policy_json` | JSON | Có | NULL | — | V35. Cấu hình `InterviewPolicy`: thời gian, số lần làm, trọng số 5 nhóm năng lực, Job Skills, lộ trình chặng, Mini Assessment. NULL = mặc định |
 | `jobs.ai_interview_available_until` | TIMESTAMP | Có | NULL | — | Hạn cuối được bắt đầu AI Interview; NULL = không giới hạn |
+| `jobs.ai_interview_available_from` | TIMESTAMP | Có | NULL | — | Thời điểm sớm nhất được bắt đầu AI Interview; NULL = mở ngay |
 | `applications.cv_screening_status` | VARCHAR(16) | Không | `'PENDING'` | — | `CvScreeningStatus`: `PENDING`, `PASSED`, `FAILED` |
 | `ai_interviews.passing_score_snapshot` | DECIMAL(5,2) | Có | NULL | — | Ngưỡng đạt chốt lúc candidate bắt đầu |
 | `ai_interviews.error_message` | VARCHAR(255) | Có | NULL | — | Thông báo lỗi đã làm sạch khi sinh câu/chấm lỗi |

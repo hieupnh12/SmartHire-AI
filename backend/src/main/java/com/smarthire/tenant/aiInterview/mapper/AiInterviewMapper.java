@@ -88,6 +88,11 @@ public class AiInterviewMapper {
     }
 
     public AiQuestionResponse toQuestion(AiQuestion question, AiAnswer answer, AiFeedback feedback, boolean revealKey) {
+        return toQuestion(question, answer, feedback, revealKey, revealKey);
+    }
+
+    public AiQuestionResponse toQuestion(AiQuestion question, AiAnswer answer, AiFeedback feedback,
+            boolean revealCorrectOption, boolean revealExplanation) {
         List<String> options = texts(question.getOptionsJson() == null ? null : InterviewPolicies.tree(question.getOptionsJson()));
         String stageTitle = null;
         List<String> competencies = List.of();
@@ -112,8 +117,8 @@ public class AiInterviewMapper {
                 stageTitle,
                 competencies.isEmpty() ? null : competencies,
                 skills.isEmpty() ? null : skills,
-                revealKey ? question.getCorrectOption() : null,
-                revealKey ? question.getExplanation() : null);
+                revealCorrectOption ? question.getCorrectOption() : null,
+                revealExplanation ? question.getExplanation() : null);
     }
 
     private static List<String> texts(com.fasterxml.jackson.databind.JsonNode node) {
@@ -166,5 +171,15 @@ public class AiInterviewMapper {
                     return toQuestion(q, answer, feedback, revealKey);
                 })
                 .toList();
+    }
+
+    public List<AiQuestionResponse> toQuestions(
+            List<AiQuestion> questions, Map<Long, AiAnswer> answersByQuestionId,
+            Map<Long, AiFeedback> feedbackByAnswerId, boolean revealCorrectOption, boolean revealExplanation) {
+        return questions.stream().map(q -> {
+            AiAnswer answer = answersByQuestionId.get(q.getId());
+            AiFeedback feedback = answer == null ? null : feedbackByAnswerId.get(answer.getId());
+            return toQuestion(q, answer, feedback, revealCorrectOption, revealExplanation);
+        }).toList();
     }
 }
