@@ -39,9 +39,6 @@ export function LandingHeader() {
             <span className="text-xl font-semibold tracking-tight text-slate-900 font-display min-[420px]:inline sm:text-2xl">
               SmartHire<span className="text-blue-600">.AI</span>
             </span>
-            <span className="hidden text-[11px] font-semibold tracking-wider uppercase px-2.5 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200/80 lg:inline-flex">
-              Enterprise
-            </span>
           </div>
         </Link>
 

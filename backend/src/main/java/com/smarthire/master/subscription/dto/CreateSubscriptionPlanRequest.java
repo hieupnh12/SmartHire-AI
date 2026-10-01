@@ -22,10 +22,6 @@ public class CreateSubscriptionPlanRequest {
     
     String description;
     
-    @NotNull(message = "Monthly price is required")
-    @Min(0)
-    BigDecimal priceMonthly;
-    
     @NotNull(message = "Yearly price is required")
     @Min(0)
     BigDecimal priceYearly;

@@ -57,7 +57,7 @@ export function CreateContractPage() {
     if (plans.length > 0 && contractPlanId === "") {
       const defaultPlan = plans[0];
       setContractPlanId(defaultPlan.id || "");
-      setContractValue(defaultPlan.priceYearly || 3990);
+      setContractValue(defaultPlan.priceYearly || 36000000);
     }
   }, [tenants, plans, contractTenantId, contractPlanId]);
 
@@ -210,8 +210,8 @@ export function CreateContractPage() {
                     setContractPlanId(planIdVal);
                     const selectedP = plans.find((p) => String(p.id) === String(planIdVal));
                     if (selectedP) {
-                      const basePrice = selectedP.priceYearly || 3990;
-                      setContractValue(contractCurrency === "VND" ? basePrice * 25000 : basePrice);
+                      const basePrice = selectedP.priceYearly || 36000000;
+                      setContractValue(contractCurrency === "USD" ? Math.round(basePrice / 25400) : basePrice);
                     }
                   }}
                   className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-slate-800 focus:outline-none focus:border-indigo-600 bg-white"
@@ -219,7 +219,7 @@ export function CreateContractPage() {
                   <option value="">-- Chọn gói cước (hoặc Tùy biến) --</option>
                   {plans.map((p) => (
                     <option key={p.id} value={p.id}>
-                      {p.name} - ${p.priceMonthly}/tháng (${p.priceYearly}/năm)
+                      {p.name} - {p.priceYearly ? `${p.priceYearly.toLocaleString('vi-VN')} đ/năm` : '0 đ/năm'}
                     </option>
                   ))}
                 </select>
