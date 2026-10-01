@@ -27,8 +27,21 @@ export function TenantManagementPage() {
     }
     const status = tenant.status === "ACTIVE" ? "SUSPENDED" : "ACTIVE";
     const updated = await masterAdminApi.updateTenantStatus(tenant.id, status);
-    setTenants((items) => items.map((item) => item.id === updated.id ? updated : item));
+    setTenants((items: TenantInfo[]) => items.map((item) => item.id === updated.id ? updated : item));
     triggerNotification(`Đã cập nhật trạng thái tenant ${tenant.code} sang ${status}`);
+  };
+
+  const deleteTenant = async (tenant: TenantInfo) => {
+    if (!confirm(`Bạn có chắc muốn xoá sạch tenant ${tenant.code}? Hành động này KHÔNG THỂ PHỤC HỒI.`)) {
+      return;
+    }
+    try {
+      await masterAdminApi.deleteTenant(tenant.id);
+      setTenants((items: TenantInfo[]) => items.filter((item) => item.id !== tenant.id));
+      triggerNotification(`Đã xoá tenant ${tenant.code} và database thành công.`);
+    } catch (error) {
+      toast.danger("Lỗi khi xoá tenant.");
+    }
   };
 
   return (
@@ -41,6 +54,7 @@ export function TenantManagementPage() {
         environmentType: tenant.environmentType === "POC_SANDBOX" ? "POC_SANDBOX" : "PRODUCTION",
       }, ...items])}
       onToggleStatus={toggleStatus}
+      onDeleteTenant={deleteTenant}
       onRetryProvisioning={(tenant) => navigate(`/onboard?retry=${tenant.id}`)}
     />
   );

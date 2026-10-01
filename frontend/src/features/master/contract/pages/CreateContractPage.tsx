@@ -219,7 +219,7 @@ export function CreateContractPage() {
                   <option value="">-- Chọn gói cước (hoặc Tùy biến) --</option>
                   {plans.map((p) => (
                     <option key={p.id} value={p.id}>
-                      {p.name} - ${p.priceMonthly}/tháng (${p.priceYearly}/năm)
+                      {p.name} - {p.priceYearlyVnd ? `${p.priceYearlyVnd.toLocaleString('vi-VN')} đ/năm` : `$${p.priceYearly}/năm`}
                     </option>
                   ))}
                 </select>

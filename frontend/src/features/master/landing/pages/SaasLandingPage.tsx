@@ -404,84 +404,101 @@ export function SaasLandingPage() {
         </div>
       </section>
 
-      {/* SECURITY TEASER SECTION */}
-      <section className="py-20 bg-white border-y border-slate-200/80">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="grid md:grid-cols-2 gap-12 items-center">
-            <div>
-              <span className="text-xs font-semibold text-blue-600 uppercase tracking-wider px-3 py-1 rounded-full bg-blue-50 border border-blue-200">
-                An Toàn & Bảo Mật Doanh Nghiệp
-              </span>
-              <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900 mt-4 mb-6">
-                Bảo Vệ Dữ Liệu Nhân Sự & Danh Tiếng Doanh Nghiệp
+      {/* SECURITY TEASER SECTION - STYLE REFINED PER SHOWCASE CARD (IMAGE 2) */}
+      <section className="py-12 sm:py-16 max-w-7xl mx-auto px-6">
+        <div className="relative rounded-[32px] sm:rounded-[36px] overflow-hidden bg-white border border-slate-200/80 p-8 sm:p-12 lg:p-14 shadow-xl shadow-slate-200/40">
+          {/* Ambient Warm Gradient (Top-Right per Image 2) */}
+          <div className="absolute -top-24 -right-24 w-96 h-96 bg-gradient-to-br from-orange-300/30 via-rose-200/20 to-transparent rounded-full blur-3xl pointer-events-none" />
+
+          {/* Ambient Lavender/Cool Tint (Bottom-Left per Image 2) */}
+          <div className="absolute -bottom-24 -left-24 w-80 h-80 bg-gradient-to-tr from-blue-200/25 via-indigo-100/20 to-transparent rounded-full blur-2xl pointer-events-none" />
+
+          {/* Faint Tech Ring Watermark (Bottom-Left per Image 2) */}
+          <svg
+            className="absolute -bottom-12 -left-12 w-72 h-72 text-indigo-900/[0.035] pointer-events-none"
+            viewBox="0 0 200 200"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <circle cx="100" cy="100" r="25" stroke="currentColor" strokeWidth="1" strokeDasharray="3 3" />
+            <circle cx="100" cy="100" r="50" stroke="currentColor" strokeWidth="1" />
+            <circle cx="100" cy="100" r="75" stroke="currentColor" strokeWidth="1" strokeDasharray="4 4" />
+            <circle cx="100" cy="100" r="100" stroke="currentColor" strokeWidth="1" />
+            <circle cx="100" cy="100" r="125" stroke="currentColor" strokeWidth="1" strokeDasharray="2 4" />
+            <circle cx="100" cy="100" r="150" stroke="currentColor" strokeWidth="1" />
+          </svg>
+
+          <div className="relative grid lg:grid-cols-12 gap-10 lg:gap-12 items-center">
+            {/* Left Column: Heading + Checklist + Buttons */}
+            <div className="lg:col-span-6 xl:col-span-6">
+              <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-slate-900 leading-tight mb-6">
+                <span className="text-[#f05123] font-bold">Bảo Vệ Dữ Liệu Nhân Sự</span>{" "}
+                <br className="hidden sm:inline" />
+                & Danh Tiếng Doanh Nghiệp
               </h2>
-              <p className="text-slate-600 text-base leading-relaxed mb-8">
-                Hồ sơ nhân sự và thông tin ứng viên là tài sản chiến lược của mỗi công ty. Chúng tôi cam kết bảo vệ dữ liệu của bạn bằng các chuẩn mực an ninh thông tin nghiêm ngặt nhất.
-              </p>
 
-              <div className="space-y-4 mb-8">
-                <div className="flex items-start gap-3">
-                  <CheckCircle2 className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
-                  <div>
-                    <h4 className="text-sm font-bold text-slate-900">Cô Lập Dữ Liệu Tuyệt Đối (Separate Database)</h4>
-                    <p className="text-xs text-slate-600">Mỗi công ty sở hữu một không gian lưu trữ dữ liệu độc lập hoàn toàn, triệt tiêu mọi rủi ro thất thoát thông tin.</p>
-                  </div>
+              <div className="space-y-3 mb-8">
+                <div className="flex items-center gap-2.5">
+                  <Check className="w-4 h-4 text-[#f05123] shrink-0 stroke-[2.5]" />
+                  <span className="text-sm text-slate-700">
+                    Cô lập dữ liệu tuyệt đối cho từng doanh nghiệp
+                  </span>
                 </div>
 
-                <div className="flex items-start gap-3">
-                  <CheckCircle2 className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
-                  <div>
-                    <h4 className="text-sm font-bold text-slate-900">Tuân Thủ Nghị Định 13/2023/NĐ-CP</h4>
-                    <p className="text-xs text-slate-600">Đảm bảo trọn vẹn quyền riêng tư dữ liệu cá nhân của ứng viên theo đúng quy định pháp luật Việt Nam.</p>
-                  </div>
+                <div className="flex items-center gap-2.5">
+                  <Check className="w-4 h-4 text-[#f05123] shrink-0 stroke-[2.5]" />
+                  <span className="text-sm text-slate-700">
+                    Mã hóa toàn diện chuẩn AES-256 & TLS 1.3
+                  </span>
                 </div>
 
-                <div className="flex items-start gap-3">
-                  <CheckCircle2 className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
-                  <div>
-                    <h4 className="text-sm font-bold text-slate-900">Tích Hợp Đăng Nhập Một Lần (SSO)</h4>
-                    <p className="text-xs text-slate-600">Đồng bộ thuận tiện và bảo mật với tài khoản doanh nghiệp qua Google Workspace, Microsoft 365, Okta.</p>
-                  </div>
+                <div className="flex items-center gap-2.5">
+                  <Check className="w-4 h-4 text-[#f05123] shrink-0 stroke-[2.5]" />
+                  <span className="text-sm text-slate-700">
+                    Tuân thủ Nghị định 13/2023/NĐ-CP & cam kết NDA
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2.5">
+                  <Check className="w-4 h-4 text-[#f05123] shrink-0 stroke-[2.5]" />
+                  <span className="text-sm text-slate-700">
+                    Tích hợp SSO doanh nghiệp & cam kết SLA 99.9%
+                  </span>
                 </div>
               </div>
 
-              <Link
-                to="/security"
-                className="inline-flex items-center gap-2 text-xs sm:text-sm font-semibold text-blue-600 hover:text-blue-700"
-              >
-                <span>Tìm hiểu thêm về tiêu chuẩn an ninh & pháp lý</span>
-                <ChevronRight className="w-4 h-4" />
-              </Link>
+              {/* Action Buttons styled exactly per Image 2 */}
+              <div className="flex flex-wrap items-center gap-4">
+                <Link
+                  to="/demo?tier=T%C6%B0+V%E1%BA%A5n+Gi%E1%BA%A3i+Ph%C3%A1p+Doanh+Nghi%E1%BB%87p&type=DEMO"
+                  className="px-6 py-3 rounded-xl bg-gradient-to-r from-[#ff4d2e] to-[#f05123] hover:from-[#f04121] hover:to-[#e03a18] text-white font-semibold text-sm shadow-md shadow-orange-500/20 active:scale-98 transition-all inline-flex items-center justify-center cursor-pointer"
+                >
+                  Dùng thử miễn phí
+                </Link>
+                <Link
+                  to="/security"
+                  className="px-5 py-3 rounded-xl border border-[#f05123] text-[#f05123] hover:bg-orange-50/60 font-semibold text-sm inline-flex items-center gap-1.5 active:scale-98 transition-all"
+                >
+                  <span>Tìm hiểu thêm</span>
+                  <ArrowRight className="w-4 h-4" />
+                </Link>
+              </div>
             </div>
 
-            <div className="bg-slate-50 rounded-2xl p-8 border border-slate-200 shadow-inner space-y-6">
-              <div className="flex items-center gap-4 p-4 rounded-xl bg-white border border-slate-200 hover:border-blue-400/50 hover:shadow-md transition-all">
-                <div className="w-12 h-12 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-semibold">
-                  <Lock className="w-6 h-6" />
-                </div>
-                <div>
-                  <span className="text-xs font-semibold text-slate-500">Tiêu chuẩn bảo mật</span>
-                  <h4 className="text-base font-bold text-slate-900">Mã Hóa Toàn Diện AES-256 & TLS 1.3</h4>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-4 p-4 rounded-xl bg-white border border-slate-200 hover:border-blue-400/50 hover:shadow-md transition-all">
-                <div className="w-12 h-12 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-semibold">
-                  <Award className="w-6 h-6" />
-                </div>
-                <div>
-                  <span className="text-xs font-semibold text-slate-500">Cam kết vận hành</span>
-                  <h4 className="text-base font-bold text-slate-900">Độ Sẵn Sàng Dịch Vụ Ổn Định 99.9%</h4>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-4 p-4 rounded-xl bg-white border border-slate-200 hover:border-blue-400/50 hover:shadow-md transition-all">
-                <div className="w-12 h-12 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-semibold">
-                  <ShieldCheck className="w-6 h-6" />
-                </div>
-                <div>
-                  <span className="text-xs font-semibold text-slate-500">Pháp lý vững chắc</span>
-                  <h4 className="text-base font-bold text-slate-900">Ký Kết Thỏa Thuận Bảo Mật Thông Tin (NDA)</h4>
+            {/* Right Column: White framed media card per Image 2 */}
+            <div className="lg:col-span-6 xl:col-span-6">
+              <div className="bg-white rounded-3xl p-3 sm:p-4 shadow-xl shadow-slate-200/60 border border-slate-100">
+                <div className="relative overflow-hidden rounded-2xl aspect-[4/3] bg-slate-100">
+                  <img
+                    src="/security_showcase.jpg"
+                    alt="Bảo mật an toàn SmartHire-AI"
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                  />
+                  {/* Translucent Dark Badge per Image 2 */}
+                  <div className="absolute bottom-3 sm:bottom-4 left-1/2 -translate-x-1/2 px-4 sm:px-5 py-2 rounded-lg bg-black/75 backdrop-blur-md text-white text-xs sm:text-sm font-medium shadow-lg whitespace-nowrap">
+                    Trải nghiệm ngay SmartHire-AI Security
+                  </div>
                 </div>
               </div>
             </div>

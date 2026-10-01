@@ -12,6 +12,17 @@ export interface TenantInfo {
   status: string;
   environmentType?: "PRODUCTION" | "POC_SANDBOX";
   createdAt: string;
+  contactName?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  billingEmail?: string;
+  companyLegalName?: string;
+  taxCode?: string;
+  address?: string;
+  website?: string;
+  industry?: string;
+  companySize?: string;
+  managedDatabase?: boolean;
 }
 
 export interface SubscriptionPlan {
@@ -79,6 +90,9 @@ export const masterAdminApi = {
   getTenantById: async (id: number): Promise<TenantInfo> => {
     const res = await masterClient.get(`${API_BASE}/master/tenants/${id}`);
     return res.data.data;
+  },
+  deleteTenant: async (id: number): Promise<void> => {
+    await masterClient.delete(`${API_BASE}/master/tenants/${id}`);
   },
   updateTenantStatus: async (id: number, status: "ACTIVE" | "SUSPENDED"): Promise<TenantInfo> => {
     const res = await masterClient.patch(`${API_BASE}/master/tenants/${id}/status?status=${status}`);

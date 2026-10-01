@@ -200,6 +200,11 @@ public class MasterBillingService {
                     subscriptionRepository.save(sub);
                 });
             }
+            TenantInfo pendingTenant = tenantRepository.findById(invoice.getTenantId()).orElse(null);
+            if (pendingTenant != null && ("PENDING_PAYMENT".equals(pendingTenant.getStatus()) || "FAILED".equals(pendingTenant.getStatus()))) {
+                log.info("Auto-provisioning workspace for tenant: {}", pendingTenant.getCode());
+                masterTenantService.provisionPendingTenant(pendingTenant.getId());
+            }
         }
 
         Invoice saved = invoiceRepository.save(invoice);
@@ -227,12 +232,11 @@ public class MasterBillingService {
 
         int quantity = request.getQuantity() != null && request.getQuantity() > 0 ? request.getQuantity() : 1;
         
-        BigDecimal unitPriceVnd = "YEARLY".equalsIgnoreCase(request.getBillingCycle()) 
-                ? plan.getPriceYearlyVnd() 
-                : plan.getPriceMonthlyVnd();
+        // Mô hình bản quyền theo năm (Yearly Only)
+        BigDecimal unitPriceVnd = plan.getPriceYearlyVnd();
 
         if (unitPriceVnd == null || unitPriceVnd.compareTo(BigDecimal.ZERO) <= 0) {
-            BigDecimal baseUsd = "YEARLY".equalsIgnoreCase(request.getBillingCycle()) ? plan.getPriceYearly() : plan.getPriceMonthly();
+            BigDecimal baseUsd = plan.getPriceYearly();
             unitPriceVnd = baseUsd != null ? baseUsd.multiply(BigDecimal.valueOf(25400)) : BigDecimal.ZERO;
         }
         
@@ -253,9 +257,7 @@ public class MasterBillingService {
 
         // 2. Create pending tenant subscription
         LocalDateTime startsAt = LocalDateTime.now();
-        LocalDateTime endsAt = "YEARLY".equalsIgnoreCase(request.getBillingCycle())
-                ? startsAt.plusYears(quantity)
-                : startsAt.plusMonths(quantity);
+        LocalDateTime endsAt = startsAt.plusYears(quantity);
 
         TenantSubscription sub = TenantSubscription.builder()
                 .tenantId(tenant.getId())
@@ -285,14 +287,15 @@ public class MasterBillingService {
                 .billingTaxCode(request.getTaxCode())
                 .billingLegalName(request.getCompanyLegalName())
                 .billingAddress(request.getBillingAddress())
-                .notes("Self-Service Checkout - " + plan.getName() + " (" + quantity + " " + request.getBillingCycle() + ")")
+                .notes("Self-Service Checkout - " + plan.getName() + " (" + quantity + " Năm)"
+                        + (StringUtils.hasText(request.getNotes()) ? " | Ghi chú khách hàng: " + request.getNotes().trim() : ""))
                 .build();
         Invoice savedInvoice = invoiceRepository.save(invoice);
 
         // 4. Create line item
         InvoiceLineItem lineItem = InvoiceLineItem.builder()
                 .invoiceId(savedInvoice.getId())
-                .description("Thuê bao " + plan.getName() + " (" + quantity + ("YEARLY".equalsIgnoreCase(request.getBillingCycle()) ? " năm" : " tháng") + ")")
+                .description("Bản quyền " + plan.getName() + " (" + quantity + " năm)")
                 .quantity(quantity)
                 .unitPrice(unitPriceVnd)
                 .totalPrice(amountVnd)

@@ -15,8 +15,8 @@ export function CreateSubscriptionPlanPage() {
   const [planCode, setPlanCode] = useState("");
   const [planName, setPlanName] = useState("");
   const [planDesc, setPlanDesc] = useState("");
-  const [priceMonthly, setPriceMonthly] = useState(0);
-  const [priceYearly, setPriceYearly] = useState(0);
+  const [priceYearlyVnd, setPriceYearlyVnd] = useState(36000000);
+  const [priceYearly, setPriceYearly] = useState(1490);
   const [maxJobs, setMaxJobs] = useState(5);
   const [maxCvParses, setMaxCvParses] = useState(100);
 
@@ -42,8 +42,10 @@ export function CreateSubscriptionPlanPage() {
         code: planCode,
         name: planName,
         description: planDesc,
-        priceMonthly,
         priceYearly,
+        priceYearlyVnd,
+        priceMonthly: Math.round(priceYearly / 12),
+        priceMonthlyVnd: Math.round(priceYearlyVnd / 12),
         maxJobs,
         maxCvParses,
         maxStorageGb: enableStorage ? (maxStorageGb === "" ? null : maxStorageGb) : 0,
@@ -145,26 +147,34 @@ export function CreateSubscriptionPlanPage() {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block font-semibold text-slate-700 mb-1.5">Giá Trọn Gói / Tháng (USD) *</label>
+              <label className="block font-semibold text-slate-700 mb-1.5">
+                Giá Bản Quyền / Năm (VNĐ) *
+              </label>
               <input
                 type="number"
                 min={0}
                 required
-                value={priceMonthly}
-                onChange={(e) => setPriceMonthly(Number(e.target.value))}
+                value={priceYearlyVnd}
+                onChange={(e) => setPriceYearlyVnd(Number(e.target.value))}
+                placeholder="36000000"
                 className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 font-mono text-slate-900 focus:outline-none focus:border-indigo-600"
               />
+              <p className="text-[11px] text-slate-500 mt-1">Đơn giá niêm yết tính theo chu kỳ năm (VNĐ)</p>
             </div>
             <div>
-              <label className="block font-semibold text-slate-700 mb-1.5">Giá Trọn Gói / Năm (USD) *</label>
+              <label className="block font-semibold text-slate-700 mb-1.5">
+                Giá Bản Quyền / Năm (USD) *
+              </label>
               <input
                 type="number"
                 min={0}
                 required
                 value={priceYearly}
                 onChange={(e) => setPriceYearly(Number(e.target.value))}
+                placeholder="1490"
                 className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 font-mono text-slate-900 focus:outline-none focus:border-indigo-600"
               />
+              <p className="text-[11px] text-slate-500 mt-1">Đơn giá tương đương quốc tế theo năm (USD)</p>
             </div>
           </div>
         </div>

@@ -22,13 +22,18 @@ public class CreateSubscriptionPlanRequest {
     
     String description;
     
-    @NotNull(message = "Monthly price is required")
     @Min(0)
     BigDecimal priceMonthly;
     
     @NotNull(message = "Yearly price is required")
     @Min(0)
     BigDecimal priceYearly;
+
+    @Min(0)
+    BigDecimal priceMonthlyVnd;
+
+    @Min(0)
+    BigDecimal priceYearlyVnd;
     
     @NotNull(message = "Max jobs is required")
     @Min(0)
