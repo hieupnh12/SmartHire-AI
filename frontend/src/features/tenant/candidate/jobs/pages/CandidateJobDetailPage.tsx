@@ -10,6 +10,8 @@ import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 import { button, labels, muted, panel, primary } from "@/features/tenant/recruiter/matching/components/rankingUi";
 import { ApplicationPipeline } from "@/features/tenant/recruiter/matching/components/recruitmentFlow";
 import type { CvSummary } from "@/api/types/cv";
+import { getDeadlineInfo } from "@/features/tenant/career/utils/jobDeadline";
+import { PageSkeleton } from "@/components/ux/Skeleton";
 
 const chip = "rounded-full px-2.5 py-0.5 text-xs font-medium bg-[var(--color-surface-container-low)]";
 
@@ -20,7 +22,7 @@ export function CandidateJobDetailPage() {
   const [applyOpen, setApplyOpen] = useState(false);
   const job = useQuery({
     queryKey: queryKeys.jobs.detail(id ?? 0),
-    queryFn: () => jobApi.get(id!),
+    queryFn: () => jobApi.publicGet(id!),
     enabled: Boolean(id) && !!token,
   });
   const mine = useQuery({ queryKey: queryKeys.applicants.mine, queryFn: applicantApi.mine, enabled: !!token });
@@ -30,14 +32,14 @@ export function CandidateJobDetailPage() {
     <section className="space-y-6 text-[var(--color-on-surface)]">
       <button className={button} type="button" onClick={() => navigate("/candidate/jobs")}>Quay lại danh sách</button>
       {job.isError && <p role="alert">{getApiErrorMessage(job.error)}</p>}
-      {job.isPending && <p>Đang tải…</p>}
+      {job.isPending && <PageSkeleton variant="detail" />}
       {data && (
         <>
           <header className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <p className={muted}>{data.department || "Tuyển dụng"}</p>
               <h1 className="mt-1 text-3xl font-semibold tracking-tight">{data.title}</h1>
-              <p className={`mt-2 ${muted}`}>{[data.location, data.workMode, data.employmentType].filter(Boolean).join(" · ") || "—"}</p>
+              <p className={`mt-2 ${muted}`}>{[data.location, data.workMode, data.employmentType].filter(Boolean).join(" · ")}</p>
             </div>
             {application ? (
               <div className="space-y-2 text-right">
@@ -68,10 +70,10 @@ export function CandidateJobDetailPage() {
               )}
             </div>
             <aside className={`${panel} space-y-2 text-sm`}>
-              <p><span className={muted}>Kinh nghiệm: </span>{data.minYearsExperience != null ? `${data.minYearsExperience}+ năm` : "—"}</p>
-              <p><span className={muted}>Học vấn: </span>{data.educationLevel || "—"}</p>
-              <p><span className={muted}>Hạn nộp: </span>{data.deadline || "—"}</p>
-              <p><span className={muted}>Số lượng: </span>{data.headcount ?? "—"}</p>
+              {data.salary && <p><span className={muted}>Mức lương: </span>{data.salary}</p>}
+              {data.minYearsExperience != null && <p><span className={muted}>Kinh nghiệm: </span>{data.minYearsExperience}+ năm</p>}
+              {data.educationLevel && <p><span className={muted}>Học vấn: </span>{data.educationLevel}</p>}
+              {getDeadlineInfo(data.deadline) && <p><span className={muted}>Hạn nộp: </span>{getDeadlineInfo(data.deadline)?.dateLabel}{getDeadlineInfo(data.deadline)?.urgent ? ` · Còn ${getDeadlineInfo(data.deadline)?.daysRemaining} ngày` : ""}</p>}
             </aside>
           </div>
           {data.skills.length > 0 && (
@@ -79,7 +81,7 @@ export function CandidateJobDetailPage() {
               <h2 className="mb-3 font-semibold">Kỹ năng yêu cầu</h2>
               <div className="flex flex-wrap gap-2">
                 {data.skills.map((skill) => (
-                  <span key={skill.skillId} className={chip}>{skill.name}{skill.required ? " · bắt buộc" : ""}</span>
+                  <span key={skill} className={chip}>{skill}</span>
                 ))}
               </div>
             </div>
@@ -108,6 +110,13 @@ function ApplyCvModal({ jobId, jobTitle, onClose }: { jobId: number; jobTitle: s
   useEffect(() => {
     if (selectedCvId == null && cvs.length > 0) setSelectedCvId(cvs[0].id);
   }, [cvs, selectedCvId]);
+  useEffect(() => {
+    const previousFocus = document.activeElement as HTMLElement | null;
+    const handleKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); };
+    document.addEventListener("keydown", handleKeyDown);
+    document.querySelector<HTMLElement>("[data-apply-dialog] button, [data-apply-dialog] input")?.focus();
+    return () => { document.removeEventListener("keydown", handleKeyDown); previousFocus?.focus(); };
+  }, [onClose]);
   const apply = useMutation({
     mutationFn: (input: { file?: File; cvId?: number }) => submitApplication(jobId, input.file, input.cvId),
     onSuccess: () => {
@@ -116,8 +125,8 @@ function ApplyCvModal({ jobId, jobTitle, onClose }: { jobId: number; jobTitle: s
     },
   });
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" role="dialog" aria-modal="true" aria-labelledby="apply-title">
-      <div className={`${panel} max-h-[90vh] w-full max-w-lg overflow-y-auto`}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+      <div data-apply-dialog className={`${panel} max-h-[90vh] w-full max-w-lg overflow-y-auto`} role="dialog" aria-modal="true" aria-labelledby="apply-title">
         <h2 id="apply-title" className="text-xl font-semibold">Nộp CV cho {jobTitle}</h2>
         <p className={`mt-2 ${muted}`}>Chọn CV đã có trên trang CV của tôi, hoặc tải file PDF, DOC hoặc DOCX từ máy.</p>
         {mine.isPending && <p className="mt-4">Đang tải CV của bạn…</p>}

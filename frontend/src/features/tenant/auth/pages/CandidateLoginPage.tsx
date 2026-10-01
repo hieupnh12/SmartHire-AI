@@ -53,7 +53,7 @@ export function CandidateLoginPage() {
     // Store state with target tenant & return path
     const stateObj = {
       tenant: currentTenant,
-      redirectUrl: "/candidate",
+      redirectUrl: "/",
       timestamp: Date.now(),
     };
     const state = btoa(JSON.stringify(stateObj));

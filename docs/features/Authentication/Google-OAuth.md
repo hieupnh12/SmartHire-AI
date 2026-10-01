@@ -19,6 +19,7 @@
 3. BE xác thực chữ ký token qua JWKS của Google (`GoogleTokenVerifierService`).
 4. BE thực hiện JIT Provisioning (khởi tạo User với role `CANDIDATE`, lưu `UserProfile` và liên kết `oauth_accounts` trong Tenant DB).
 5. BE cấp phát JWT Access Token & Refresh Token (lưu session vào Redis) và trả về thông tin Candidate.
+6. FE quay về tenant career page `/`, hiển thị avatar/thông tin candidate trong header; candidate workspace `/candidate` vẫn truy cập được từ menu tài khoản.
 
 ## Business Rules
 
