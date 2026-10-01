@@ -18,6 +18,7 @@ public class CreateInvoiceRequest {
     private Long tenantId;
 
     private Long planId;
+    private Long contractId;
 
     @NotNull(message = "amount is required")
     @DecimalMin(value = "0.00", message = "amount must be non-negative")

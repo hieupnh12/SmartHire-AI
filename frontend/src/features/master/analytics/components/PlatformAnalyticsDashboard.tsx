@@ -19,6 +19,7 @@ import {
   Users,
 } from "lucide-react";
 import type { AiQuotaUsage, AuditLog, RevenueAnalytics, TenantInfo } from "@/api/master/masterAdminApi";
+import { HeaderActions } from "@/features/master/shell/HeaderActions";
 import { cn } from "@/lib/utils";
 
 type PlatformTab = "overview" | "revenue" | "tenants" | "ai" | "system" | "security" | "operations";
@@ -155,9 +156,20 @@ export function PlatformAnalyticsDashboard({ revenue, aiQuota, tenants, logs, on
     security: <SecurityPanel logs={logs} />,
     operations: <OperationsPanel />,
   };
-  return <div className="space-y-5 animate-fade-in">
-    <header className="sticky top-16 md:top-0 z-10 bg-[#f8fafc]/95 backdrop-blur-md px-4 py-4 sm:px-6 lg:px-8 -mx-4 -mt-5 sm:-mx-6 sm:-mt-6 lg:-mx-8 lg:-mt-8 mb-6 border-b border-slate-200/50 shadow-sm flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight bg-gradient-to-r from-blue-600 to-cyan-500 bg-clip-text text-transparent">Thống Kê Nền Tảng</h1></div><button type="button" onClick={onExport} className="inline-flex min-h-10 items-center justify-center gap-2 self-start rounded-xl border border-slate-200 bg-white px-3.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50"><Download className="size-4" />Xuất báo cáo</button></header>
+  return (
+    <div className="space-y-5 animate-fade-in">
+      <HeaderActions>
+        <button
+          type="button"
+          onClick={onExport}
+          className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-700 shadow-2xs transition-colors hover:bg-slate-50"
+        >
+          <Download className="size-3.5" />
+          <span>Xuất báo cáo</span>
+        </button>
+      </HeaderActions>
     <nav className="overflow-x-auto rounded-2xl border border-slate-200 bg-white p-1 shadow-sm" aria-label="Các nhóm thống kê nền tảng"><div className="flex min-w-max gap-1" role="tablist">{tabs.map((tab) => { const Icon = tab.icon; const selected = activeTab === tab.id; return <button key={tab.id} type="button" role="tab" id={`platform-tab-${tab.id}`} aria-selected={selected} aria-controls={`platform-panel-${tab.id}`} onClick={() => setActiveTab(tab.id)} className={cn("inline-flex min-h-10 items-center gap-2 rounded-xl px-3.5 text-sm font-medium transition-colors", selected ? "bg-blue-50 text-blue-700" : "text-slate-500 hover:bg-slate-50 hover:text-slate-900")}><Icon className="size-4" aria-hidden="true" />{tab.label}</button>; })}</div></nav>
     <div role="tabpanel" tabIndex={0} id={`platform-panel-${activeTab}`} aria-labelledby={`platform-tab-${activeTab}`}>{panels[activeTab]}</div>
-  </div>;
+    </div>
+  );
 }

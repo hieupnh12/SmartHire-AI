@@ -20,6 +20,7 @@ public class InvoiceResponse {
     private String tenantCode;
     private String tenantSubdomain;
     private Long subscriptionId;
+    private Long contractId;
     private String planName;
     private String planCode;
     private BigDecimal amount;
@@ -39,6 +40,7 @@ public class InvoiceResponse {
     private LocalDateTime paidAt;
     private String notes;
     private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
     private List<InvoiceLineItemResponse> lineItems;
 
     public static InvoiceResponse from(Invoice invoice, TenantInfo tenant, SubscriptionPlan plan) {
@@ -50,6 +52,7 @@ public class InvoiceResponse {
                 .tenantCode(tenant != null ? tenant.getCode() : null)
                 .tenantSubdomain(tenant != null ? tenant.getSubdomain() : null)
                 .subscriptionId(invoice.getSubscriptionId())
+                .contractId(invoice.getContractId())
                 .planName(plan != null ? plan.getName() : null)
                 .planCode(plan != null ? plan.getCode() : null)
                 .amount(invoice.getAmount())
@@ -69,6 +72,7 @@ public class InvoiceResponse {
                 .paidAt(invoice.getPaidAt())
                 .notes(invoice.getNotes())
                 .createdAt(invoice.getCreatedAt())
+                .updatedAt(invoice.getUpdatedAt())
                 .lineItems(java.util.Collections.emptyList()) // Default empty, populated in service
                 .build();
     }

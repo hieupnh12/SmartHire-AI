@@ -121,10 +121,10 @@ class MasterBillingServiceTest {
         assertThat(response.getAmountVnd()).isEqualByComparingTo("12000000");
         assertThat(response.getCurrency()).isEqualTo("VND");
         assertThat(response.getStatus()).isEqualTo("PENDING");
-        assertThat(response.getBankName()).isEqualTo("Vietcombank (VCB)");
-        assertThat(response.getAccountNumber()).isEqualTo("1028935315");
+        assertThat(response.getBankName()).isEqualTo("Ngân hàng TMCP Tiên Phong (TPBank)");
+        assertThat(response.getAccountNumber()).isEqualTo("07744348801");
         assertThat(response.getTransferSyntax()).startsWith("SH ");
-        assertThat(response.getQrUrl()).contains("1028935315");
+        assertThat(response.getQrUrl()).contains("07744348801");
         assertThat(response.getQrUrl()).contains("12000000");
 
         verify(invoiceLineItemRepository).save(any(InvoiceLineItem.class));

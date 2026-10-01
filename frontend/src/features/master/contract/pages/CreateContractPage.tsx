@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, FileSignature, Building2, ShieldCheck, CreditCard, Loader2, Plus } from "lucide-react";
-import { useTenants, useSubscriptions, useRevenueAnalytics, useAiQuotaUsage, useAuditLogs, useLeads, useInvoices, useContracts, masterQueryKeys } from "@/api/master/queries";
+import { useTenants, useSubscriptions, masterQueryKeys } from "@/api/master/queries";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/stores/toastStore";
 import { contractApi } from "@/api/master/contractApi";
@@ -116,7 +116,7 @@ export function CreateContractPage() {
         notes: contractNotes,
       };
       const res = await contractApi.create(payload as any);
-      setContracts((prev) => [res, ...prev]);
+      setContracts((prev: any[] = []) => [res, ...prev]);
       triggerNotification("Tạo hợp đồng B2B thành công!");
       navigate("/admin/contracts"); // go back to list
     } catch (err: any) {

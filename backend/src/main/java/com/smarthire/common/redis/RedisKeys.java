@@ -60,5 +60,21 @@ public final class RedisKeys {
     public static String landingPage(String tenantCode) {
         return "cache:landing:" + (tenantCode == null ? "default" : tenantCode.trim().toLowerCase());
     }
+
+    public static String tenantRefreshSession(String tokenId) {
+        return "auth:tenant:refresh:" + tokenId;
+    }
+
+    public static String tenantLoginFailedAttempts(String tenantId, String email) {
+        String t = (tenantId == null ? "default" : tenantId.trim().toLowerCase());
+        String e = (email == null ? "" : email.trim().toLowerCase());
+        return "ratelimit:tenant:" + t + ":login:failed:" + e;
+    }
+
+    public static String tenantPasswordResetOtp(String tenantId, String email) {
+        String t = (tenantId == null ? "default" : tenantId.trim().toLowerCase());
+        String e = (email == null ? "" : email.trim().toLowerCase());
+        return "otp:tenant:" + t + ":password-reset:" + e;
+    }
 }
 

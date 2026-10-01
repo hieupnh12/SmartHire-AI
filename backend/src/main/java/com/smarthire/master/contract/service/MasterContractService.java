@@ -394,6 +394,7 @@ public class MasterContractService {
                 CreateInvoiceRequest invoiceReq = CreateInvoiceRequest.builder()
                         .tenantId(tenant.getId())
                         .planId(contract.getPlanId())
+                        .contractId(contract.getId())
                         .amount(contract.getTotalAmount() != null && contract.getTotalAmount().compareTo(BigDecimal.ZERO) > 0 ? contract.getTotalAmount() : contract.getContractValue())
                         .subtotal(contract.getContractValue())
                         .currency(contract.getCurrency())

@@ -6,11 +6,12 @@ import {
   TrendingUp, AlertCircle,
 } from "lucide-react";
 import { ContractItem, contractApi } from "@/api/master/contractApi";
-import { useTenants, useSubscriptions, useRevenueAnalytics, useAiQuotaUsage, useAuditLogs, useLeads, useInvoices, useContracts, masterQueryKeys } from "@/api/master/queries";
+import { useTenants, useContracts, masterQueryKeys } from "@/api/master/queries";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/stores/toastStore";
 import { ContractDetailModal } from "../components/ContractDetailModal";
 import { SignContractModal } from "../components/SignContractModal";
+import { HeaderActions } from "@/features/master/shell/HeaderActions";
 
 /* ─────────────────────────────────────────────
    Reusable CustomDropdown (same style as DemoRequestPage)
@@ -114,6 +115,8 @@ export function ContractsPage() {
 
   const [contractSearch, setContractSearch] = useState("");
   const [contractStatusFilter, setContractStatusFilter] = useState("ALL");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   const [selectedContract, setSelectedContract] = useState<ContractItem | null>(null);
   const [showSignContractModal, setShowSignContractModal] = useState<ContractItem | null>(null);
@@ -153,12 +156,19 @@ export function ContractsPage() {
     });
   }, [contracts, contractSearch, contractStatusFilter]);
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [contractSearch, contractStatusFilter]);
+
+  const totalPages = Math.ceil(filtered.length / itemsPerPage) || 1;
+  const paginatedContracts = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
   /* ── actions ── */
   const handleSendContract = (contract: ContractItem) => {
     triggerNotification(`Đang gửi email mời ký HĐ ${contract.contractNumber}...`);
     contractApi.send(contract.id)
       .then((updated) => {
-        setContracts((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+        setContracts((prev: ContractItem[]) => (prev || []).map((c: ContractItem) => (c.id === updated.id ? updated : c)));
         const url = `${window.location.origin}/contracts/sign/${updated.signingToken || contract.signingToken}`;
         navigator.clipboard?.writeText(url).catch(() => {});
         triggerNotification(`Đã gửi & sao chép link ký số HĐ ${contract.contractNumber}!`);
@@ -179,7 +189,7 @@ export function ContractsPage() {
     if (!window.confirm("Xác nhận xóa hợp đồng này? Không thể phục hồi!")) return;
     try {
       await contractApi.delete(contract.id);
-      setContracts((prev) => prev.filter((c) => c.id !== contract.id));
+      setContracts((prev: ContractItem[]) => (prev || []).filter((c: ContractItem) => c.id !== contract.id));
       triggerNotification(`Đã xóa HĐ ${contract.contractNumber}`);
     } catch { alert("Lỗi khi xóa hợp đồng."); }
   };
@@ -193,7 +203,7 @@ export function ContractsPage() {
         signMethod, signatureData: signSignatureData,
         signedDocumentUrl: signSignedDocUrl, autoCreateInvoice: signAutoInvoice, notes: signNotes,
       } as any);
-      setContracts((prev) => prev.map((c) => (c.id === res.id ? res : c)));
+      setContracts((prev: ContractItem[]) => (prev || []).map((c: ContractItem) => (c.id === res.id ? res : c)));
       setShowSignContractModal(null);
       triggerNotification(`Ký HĐ ${res.contractNumber} thành công!`);
     } catch { alert("Lỗi khi ký hợp đồng"); }
@@ -202,42 +212,34 @@ export function ContractsPage() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-
-      {/* ── Page header ── */}
-      <header className="sticky top-16 md:top-0 z-10 bg-[#f8fafc]/95 backdrop-blur-md px-4 py-4 sm:px-6 lg:px-8 -mx-4 -mt-5 sm:-mx-6 sm:-mt-6 lg:-mx-8 lg:-mt-8 mb-6 border-b border-slate-200/50 shadow-sm flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight bg-gradient-to-r from-blue-600 to-cyan-500 bg-clip-text text-transparent flex items-center gap-3">
-            Hợp Đồng & Ký Số
-          </h1>
-        </div>
-
+      <HeaderActions>
         <button
           onClick={() => navigate("/admin/contracts/create")}
-          className="flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white shadow-sm shadow-indigo-600/20 transition-all"
+          className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl bg-blue-600 px-3.5 text-xs font-semibold text-white shadow-xs transition-colors hover:bg-blue-700"
         >
-          <Plus className="w-4 h-4" />
-          Soạn Hợp Đồng Mới
+          <Plus className="size-3.5" />
+          <span>Soạn Hợp Đồng Mới</span>
         </button>
-      </header>
+      </HeaderActions>
 
       {/* ── KPI cards ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[
-          { label: "Tổng Hợp Đồng",       value: contracts.length, unit: "hợp đồng",   color: "text-slate-900", icon: <FileSignature className="w-4 h-4 text-slate-400" />, sub: "Toàn bộ trên nền tảng" },
-          { label: "Đã Ký & Kích Hoạt",   value: signedCount,      unit: "đã ký",       color: "text-emerald-600", icon: <FileCheck2 className="w-4 h-4 text-emerald-400" />, sub: "Có giá trị pháp lý" },
-          { label: "Chờ Ký Số",           value: pendingCount,     unit: "chờ ký",      color: "text-amber-600", icon: <Clock className="w-4 h-4 text-amber-400" />, sub: "Doanh nghiệp chưa ký" },
-          { label: "Tổng Giá Trị Ký",     value: `$${totalValue.toLocaleString()}`, unit: "USD", color: "text-indigo-600", icon: <TrendingUp className="w-4 h-4 text-indigo-400" />, sub: "Doanh thu từ HĐ đã ký" },
+          { label: "Tổng Hợp Đồng",       value: contracts.length, unit: "hợp đồng",   color: "text-slate-900", icon: <FileSignature className="w-3.5 h-3.5 text-slate-400" />, sub: "Toàn bộ trên nền tảng" },
+          { label: "Đã Ký & Kích Hoạt",   value: signedCount,      unit: "đã ký",       color: "text-emerald-600", icon: <FileCheck2 className="w-3.5 h-3.5 text-emerald-400" />, sub: "Có giá trị pháp lý" },
+          { label: "Chờ Ký Số",           value: pendingCount,     unit: "chờ ký",      color: "text-amber-600", icon: <Clock className="w-3.5 h-3.5 text-amber-400" />, sub: "Doanh nghiệp chưa ký" },
+          { label: "Tổng Giá Trị Ký",     value: `$${totalValue.toLocaleString()}`, unit: "USD", color: "text-indigo-600", icon: <TrendingUp className="w-3.5 h-3.5 text-indigo-400" />, sub: "Doanh thu từ HĐ đã ký" },
         ].map((card, i) => (
-          <div key={i} className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-semibold text-slate-500">{card.label}</span>
+          <div key={i} className="bg-white border border-slate-200/80 rounded-xl p-3 shadow-xs">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-[11px] font-semibold text-slate-500">{card.label}</span>
               {card.icon}
             </div>
-            <div className={`text-2xl font-extrabold ${card.color}`}>
+            <div className={`text-lg font-extrabold ${card.color}`}>
               {card.value}{" "}
-              <span className="text-xs font-normal text-slate-400">{card.unit}</span>
+              <span className="text-[10px] font-medium text-slate-400">{card.unit}</span>
             </div>
-            <p className="text-[11px] text-slate-400 mt-1">{card.sub}</p>
+            <p className="text-[10px] text-slate-400 mt-0.5">{card.sub}</p>
           </div>
         ))}
       </div>
@@ -265,27 +267,27 @@ export function ContractsPage() {
 
       {/* ── Contracts table ── */}
       <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[860px] text-left text-xs text-slate-600">
+        <div className="overflow-x-auto pb-2 [scrollbar-width:thin] [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-300 [&::-webkit-scrollbar-track]:bg-slate-50">
+          <table className="w-full min-w-[1000px] text-left text-xs text-slate-600">
             <thead className="bg-slate-50 border-b border-slate-200 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
               <tr>
-                <th className="px-5 py-3.5">Số HĐ / Ngày</th>
-                <th className="px-5 py-3.5">Khách Hàng</th>
-                <th className="px-5 py-3.5">Nội Dung / Gói</th>
-                <th className="px-5 py-3.5">Giá Trị</th>
-                <th className="px-5 py-3.5">Thời Hạn</th>
-                <th className="px-5 py-3.5">Phương Thức Ký</th>
-                <th className="px-5 py-3.5">Trạng Thái</th>
-                <th className="px-5 py-3.5 text-right">Thao Tác</th>
+                <th className="px-5 py-3.5 whitespace-nowrap">Số HĐ / Ngày</th>
+                <th className="px-5 py-3.5 min-w-[200px]">Khách Hàng</th>
+                <th className="px-5 py-3.5 min-w-[200px]">Nội Dung / Gói</th>
+                <th className="px-5 py-3.5 whitespace-nowrap">Giá Trị</th>
+                <th className="px-5 py-3.5 whitespace-nowrap">Thời Hạn</th>
+                <th className="px-5 py-3.5 whitespace-nowrap">Phương Thức Ký</th>
+                <th className="px-5 py-3.5 whitespace-nowrap">Trạng Thái</th>
+                <th className="px-5 py-3.5 text-right whitespace-nowrap">Thao Tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filtered.length > 0 ? (
-                filtered.map((c) => (
+                paginatedContracts.map((c) => (
                   <tr key={c.id} className="hover:bg-slate-50/70 transition-colors group">
 
                     {/* Contract number */}
-                    <td className="px-5 py-4">
+                    <td className="px-5 py-4 whitespace-nowrap">
                       <div className="font-mono font-bold text-indigo-600 text-[12px]">{c.contractNumber}</div>
                       <div className="text-[10px] text-slate-400 mt-0.5">
                         {new Date(c.createdAt).toLocaleDateString("vi-VN")}
@@ -293,8 +295,8 @@ export function ContractsPage() {
                     </td>
 
                     {/* Customer */}
-                    <td className="px-5 py-4">
-                      <div className="font-semibold text-slate-900">{c.partyBName || c.tenantName || `Tenant #${c.tenantId}`}</div>
+                    <td className="px-5 py-4 min-w-[200px]">
+                      <div className="font-semibold text-slate-900 leading-relaxed break-words">{c.partyBName || c.tenantName || `Tenant #${c.tenantId}`}</div>
                       <div className="text-[10px] text-slate-400 font-mono mt-0.5 flex items-center gap-1 flex-wrap">
                         {c.partyBTaxCode && <span className="text-slate-600 font-semibold">MST: {c.partyBTaxCode}</span>}
                         {c.tenantSubdomain && <span>· {c.tenantSubdomain}.smarthire.top</span>}
@@ -302,13 +304,13 @@ export function ContractsPage() {
                     </td>
 
                     {/* Content */}
-                    <td className="px-5 py-4 max-w-[200px]">
-                      <div className="font-medium text-slate-800 truncate" title={c.title}>{c.title}</div>
-                      <div className="text-[10px] text-indigo-500 font-medium mt-0.5">{c.planName || "Gói Tùy Biến B2B"}</div>
+                    <td className="px-5 py-4 min-w-[200px]">
+                      <div className="font-medium text-slate-800 leading-relaxed break-words">{c.title}</div>
+                      <div className="text-[10px] text-indigo-500 font-medium mt-0.5 leading-relaxed break-words">{c.planName || "Gói Tùy Biến B2B"}</div>
                     </td>
 
                     {/* Value */}
-                    <td className="px-5 py-4">
+                    <td className="px-5 py-4 whitespace-nowrap">
                       <div className="font-bold text-slate-900 font-mono">
                         ${(c.totalAmount || c.contractValue).toLocaleString()}
                       </div>
@@ -318,7 +320,7 @@ export function ContractsPage() {
                     </td>
 
                     {/* Period */}
-                    <td className="px-5 py-4 font-mono text-[11px] text-slate-600">
+                    <td className="px-5 py-4 font-mono text-[11px] text-slate-600 whitespace-nowrap">
                       {c.startDate && c.endDate ? (
                         <>
                           <div>{c.startDate}</div>
@@ -330,7 +332,7 @@ export function ContractsPage() {
                     </td>
 
                     {/* Sign method */}
-                    <td className="px-5 py-4">
+                    <td className="px-5 py-4 whitespace-nowrap">
                       <span className="inline-flex px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
                         {c.signMethod === "DIGITAL_TOKEN_CA" ? "USB Token / CA"
                           : c.signMethod === "E_SIGN_ONLINE" ? "OTP Email"
@@ -346,12 +348,12 @@ export function ContractsPage() {
                     </td>
 
                     {/* Status */}
-                    <td className="px-5 py-4">
+                    <td className="px-5 py-4 whitespace-nowrap">
                       <StatusBadge status={c.status} />
                     </td>
 
                     {/* Actions */}
-                    <td className="px-5 py-4 text-right">
+                    <td className="px-5 py-4 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-1.5 opacity-80 group-hover:opacity-100 transition-opacity">
                         <button
                           onClick={() => handleSendContract(c)}
@@ -414,12 +416,31 @@ export function ContractsPage() {
           </table>
         </div>
 
-        {/* Table footer count */}
+        {/* Pagination & Footer */}
         {filtered.length > 0 && (
-          <div className="px-5 py-3 border-t border-slate-100 flex items-center justify-between bg-slate-50/50">
-            <span className="text-xs text-slate-400">
-              Hiển thị <span className="font-semibold text-slate-600">{filtered.length}</span> / {contracts.length} hợp đồng
+          <div className="px-5 py-3 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-50/50">
+            <span className="text-[11px] text-slate-500">
+              Hiển thị <span className="font-semibold text-slate-700">{(currentPage - 1) * itemsPerPage + 1}</span> - <span className="font-semibold text-slate-700">{Math.min(currentPage * itemsPerPage, filtered.length)}</span> trong số <span className="font-semibold text-slate-700">{filtered.length}</span> hợp đồng
             </span>
+            <div className="flex items-center gap-1">
+              <button
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed text-[11px] font-semibold transition-colors"
+              >
+                Trước
+              </button>
+              <span className="px-3 py-1.5 text-[11px] font-semibold text-slate-700">
+                {currentPage} / {totalPages}
+              </span>
+              <button
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed text-[11px] font-semibold transition-colors"
+              >
+                Sau
+              </button>
+            </div>
           </div>
         )}
       </div>

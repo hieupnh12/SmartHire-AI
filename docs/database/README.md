@@ -8,12 +8,12 @@
 |---|---|
 | Kiến trúc | Separate Database per Tenant |
 | Số database logic | 2 loại (1 Master + N Tenant) |
-| Tổng số bảng hiện hành | **59** (8 master + 51 tenant), chưa tính 19 bảng lưu trữ `legacy_v12_*` và Flyway history |
-| Tổng số entity JPA | **59** (8 master + 51 tenant); bảng lưu trữ không có entity |
-| Tổng số khoá ngoại | **65** hiện hành (4 master + 61 tenant); thêm 9 FK của bảng lưu trữ |
-| Ràng buộc UNIQUE | **26** hiện hành (6 master + 20 tenant), không tính PK; thêm 7 UNIQUE lưu trữ |
-| Số file migration đang chạy | **38** (21 master + 17 tenant) |
-| Cập nhật lần cuối | Master `V22`, tenant `V17`; Chuẩn hoá gói cước sang `price_yearly` (VNĐ) |
+| Tổng số bảng hiện hành | **67** (16 master + 51 tenant), chưa tính 19 bảng lưu trữ `legacy_v12_*` và Flyway history |
+| Tổng số entity JPA | **67** (16 master + 51 tenant); bảng lưu trữ không có entity |
+| Tổng số khoá ngoại | **71** hiện hành (10 master + 61 tenant); thêm 9 FK của bảng lưu trữ |
+| Ràng buộc UNIQUE | **29** hiện hành (9 master + 20 tenant), không tính PK; thêm 7 UNIQUE lưu trữ |
+| Số file migration đang chạy | **40** (22 master + 18 tenant) |
+| Cập nhật lần cuối | Master `V23`, tenant `V18`; Tối ưu Master Schema: liên kết HĐ - Hóa đơn, độ chính xác tiền tệ VND, index logs |
 | Sửa lỗi assessment 2026-09-24 | V10/V11 khớp checksum lịch sử; V12 tạo schema mới và giữ bảng cũ; migration lỗi phải chặn mở tenant pool |
 | Rà soát assessment 2026-09-21 | Bổ sung query/khóa hàng và nghiệp vụ MCQ; không đổi bảng, entity, FK, UNIQUE hay migration |
 
@@ -134,18 +134,26 @@ thay vì âm thầm đọc nhầm database của doanh nghiệp khác.
 
 ## 3. Entity List
 
-### 3.1 Master — 8 entity (`com.smarthire.domain.master.entity`)
+### 3.1 Master — 16 entity (`com.smarthire.domain.master.entity`)
 
 | No | Entity | Bảng | Nhóm | Ghi chú |
 |---|---|---|---|---|
 | 01 | `TenantInfo` | `tenants` | Tenant | Gốc của Master DB |
 | 02 | `SubscriptionPlan` | `subscription_plans` | Subscription | Bảng tra cứu gói + hạn mức |
 | 03 | `TenantSubscription` | `tenant_subscriptions` | Subscription | Gói đang áp dụng cho tenant |
-| 04 | `Invoice` | `invoices` | Billing | Hoá đơn |
-| 05 | `TenantUsageDaily` | `tenant_usage_daily` | Analytics | Usage tổng hợp theo ngày |
-| 06 | `PlatformUser` | `platform_users` | Admin | Tài khoản quản trị nền tảng |
-| 07 | `PlatformAuditLog` | `platform_audit_logs` | Audit | Nhật ký cấp nền tảng |
-| 08 | `ConsultationRequest` | `consultation_requests` | Sales | Yêu cầu demo/tư vấn từ landing |
+| 04 | `Invoice` | `invoices` | Billing | Hoá đơn thanh toán |
+| 05 | `InvoiceLineItem` | `invoice_line_items` | Billing | Chi tiết dòng hàng hóa đơn |
+| 06 | `PaymentTransaction` | `payment_transactions` | Billing | Lịch sử đối soát cổng thanh toán |
+| 07 | `Contract` | `contracts` | Billing | Hợp đồng B2B điện tử |
+| 08 | `ContractSignature` | `contract_signatures` | Billing | Chữ ký số trên hợp đồng |
+| 09 | `TenantUsageDaily` | `tenant_usage_daily` | Analytics | Usage tổng hợp theo ngày |
+| 10 | `PlatformUser` | `platform_users` | Admin | Tài khoản quản trị nền tảng |
+| 11 | `PlatformAuditLog` | `platform_audit_logs` | Audit | Nhật ký cấp nền tảng |
+| 12 | `ConsultationRequest` | `consultation_requests` | Sales | Yêu cầu demo/tư vấn từ landing |
+| 13 | `SystemSetting` | `system_settings` | Admin | Cấu hình tham số hệ thống toàn sàn |
+| 14 | `AiProviderKey` | `ai_provider_keys` | AI Engine | Quản lý API Key nhà cung cấp AI |
+| 15 | `AiModelConfig` | `ai_model_configs` | AI Engine | Định tuyến cấu hình model AI theo tác vụ |
+| 16 | `MasterNotificationLog` | `master_notification_logs` | Notification | Nhật ký gửi email/thông báo nền tảng |
 
 ### 3.2 Tenant — 51 entity (`com.smarthire.domain.tenant.entity`)
 
@@ -254,7 +262,16 @@ erDiagram
     tenants ||--o{ tenant_subscriptions : "đăng ký gói"
     subscription_plans ||--o{ tenant_subscriptions : "được áp dụng bởi"
     tenants ||--o{ invoices : "phát sinh hoá đơn"
+    tenants ||--o{ contracts : "ký hợp đồng"
     tenants ||--o{ tenant_usage_daily : "ghi nhận usage theo ngày"
+    tenants ||--o{ payment_transactions : "giao dịch thanh toán"
+    subscription_plans ||--o{ contracts : "áp dụng gói"
+    invoices ||--|{ invoice_line_items : "chi tiết dòng hàng"
+    invoices ||--o{ payment_transactions : "đối soát cổng thanh toán"
+    contracts ||--o{ invoices : "phát sinh hóa đơn (fk_inv_contract)"
+    contracts ||--|{ contract_signatures : "chữ ký số đối tác (CASCADE)"
+    consultation_requests ||--o{ contracts : "chuyển đổi lead (fk_contract_lead)"
+    tenants ||--o{ consultation_requests : "tenant tạo từ lead (fk_cr_tenant)"
 
     tenants {
         bigint id PK
@@ -263,6 +280,7 @@ erDiagram
         varchar db_name UK
         varchar db_password "đã mã hoá"
         varchar status
+        boolean is_deleted
     }
     subscription_plans {
         bigint id PK
@@ -270,6 +288,7 @@ erDiagram
         decimal price_yearly
         int max_jobs
         int max_cv_parses
+        jsonb features_json
     }
     tenant_subscriptions {
         bigint id PK
@@ -279,9 +298,47 @@ erDiagram
     }
     invoices {
         bigint id PK
+        varchar invoice_number UK
         bigint tenant_id FK
-        bigint subscription_id "không có FK"
+        bigint subscription_id FK
+        bigint contract_id FK
         decimal amount
+        decimal subtotal
+        varchar currency
+        varchar status
+        timestamp updated_at
+    }
+    invoice_line_items {
+        bigint id PK
+        bigint invoice_id FK
+        decimal unit_price
+        decimal total_price
+    }
+    payment_transactions {
+        bigint id PK
+        bigint invoice_id FK
+        bigint tenant_id FK
+        varchar txn_ref
+        decimal amount
+        varchar transaction_status
+    }
+    contracts {
+        bigint id PK
+        varchar contract_number UK
+        bigint tenant_id FK
+        bigint plan_id FK
+        bigint consultation_request_id FK
+        decimal contract_value
+        decimal total_amount
+        varchar signing_token UK
+        varchar status
+    }
+    contract_signatures {
+        bigint id PK
+        bigint contract_id FK
+        varchar signer_email
+        varchar status
+        timestamp created_at
     }
     tenant_usage_daily {
         bigint id PK
@@ -297,16 +354,41 @@ erDiagram
         bigint id PK
         varchar tenant_code "tham chiếu mềm"
         bigint platform_user_id "không có FK"
+        jsonb metadata_json
     }
     consultation_requests {
         bigint id PK
         varchar work_email
+        bigint tenant_id FK
         varchar status
+    }
+    system_settings {
+        varchar setting_key PK
+        text setting_value
+        boolean is_encrypted
+    }
+    ai_provider_keys {
+        bigint id PK
+        varchar provider
+        text api_key_encrypted
+        boolean is_default
+    }
+    ai_model_configs {
+        bigint id PK
+        varchar task_type UK
+        varchar model_name
+        decimal temperature
+    }
+    master_notification_logs {
+        bigint id PK
+        varchar tenant_code
+        varchar status
+        timestamp sent_at
     }
 ```
 
-`platform_users`, `platform_audit_logs` và `consultation_requests` **không** có khoá ngoại nào — đây là lựa
-chọn cố ý để log và lead sống lâu hơn vòng đời của tenant.
+`platform_users`, `platform_audit_logs` cố ý **không** có khoá ngoại cứng để log sống lâu hơn vòng đời của tenant.
+`consultation_requests` và `invoices` được liên kết chặt chẽ với `tenants` và `contracts` qua FK từ `V23`.
 
 ### 4.2 Tenant DB — bản đồ tổng quan theo nhóm nghiệp vụ
 
@@ -992,6 +1074,7 @@ Hai pipeline dùng **hai phương ngữ SQL khác nhau** và không thể dùng 
 | V20 | `V20__add_billing_info.sql` | Thêm mã số thuế, địa chỉ hóa đơn, thông tin thanh toán |
 | V21 | `V21__payment_transactions_and_amount_scale.sql` | Bảng payment_transactions và mở rộng quy mô tiền tệ |
 | V22 | `V22__consolidate_subscription_plan_pricing_to_vnd.sql` | Chuẩn hoá lưu giá gói duy nhất bằng `price_yearly` (VNĐ), xoá `price_monthly`, `price_monthly_vnd`, `price_yearly_vnd` |
+| V23 | `V23__optimize_master_schema.sql` | Mở rộng scale `invoice_line_items`, liên kết `contracts` ➔ `invoices`, `consultation_requests` ➔ `tenants`, bổ sung timestamps và index logs |
 
 ### 10.3 Lịch sử migration — Tenant
 

@@ -1,13 +1,13 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { masterAdminApi, type TenantInfo } from "@/api/master/masterAdminApi";
 import { TenantManagementHub, type TenantHubTab } from "../components/TenantManagementHub";
-import { useTenants, useSubscriptions, useRevenueAnalytics, useAiQuotaUsage, useAuditLogs, useLeads, useInvoices, useContracts, masterQueryKeys } from "@/api/master/queries";
+import { useTenants, masterQueryKeys } from "@/api/master/queries";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/stores/toastStore";
 
 function currentTab(pathname: string): TenantHubTab {
   const value = pathname.split("/")[3];
-  return value === "overview" || value === "create" || value === "verification" || value === "provisioning"
+  return value === "overview" || value === "create" || value === "provisioning"
     ? value
     : "directory";
 }
@@ -49,7 +49,7 @@ export function TenantManagementPage() {
       activeTab={currentTab(location.pathname)}
       onTabChange={(tab) => navigate(`/admin/tenants/${tab}`)}
       tenants={tenants}
-      onTenantCreated={(tenant) => setTenants((items) => [{
+      onTenantCreated={(tenant) => setTenants((items: TenantInfo[]) => [{
         ...tenant,
         environmentType: tenant.environmentType === "POC_SANDBOX" ? "POC_SANDBOX" : "PRODUCTION",
       }, ...items])}

@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { masterAuthApi } from "@/api/master/masterAuthApi";
-import { LanguageSwitcher } from "@/components/ux/LanguageSwitcher";
 import {
   BrainCircuit,
   Lock,
@@ -76,9 +75,7 @@ export function MasterLoginPage() {
               <span className="text-xl font-bold tracking-tight text-slate-900 font-display">
                 SmartHire<span className="text-blue-600">.AI</span>
               </span>
-              <span className="text-[10px] font-semibold tracking-wider uppercase px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200">
-                Workspace Admin
-              </span>
+
             </div>
           </div>
 
@@ -91,22 +88,16 @@ export function MasterLoginPage() {
               <ArrowLeft className="w-4 h-4" />
               <span>Về trang chủ</span>
             </button>
-            <LanguageSwitcher />
           </div>
         </div>
       </header>
 
       {/* Main Login Section */}
-      <main className="relative z-10 max-w-4xl mx-auto px-4 sm:px-6 py-10 w-full flex-grow flex items-center justify-center">
+      <main className="relative z-10 max-w-3xl mx-auto px-4 sm:px-6 py-10 w-full flex-grow flex items-center justify-center">
         <div className="w-full bg-white border border-slate-200/90 rounded-2xl shadow-xl shadow-slate-900/5 overflow-hidden grid md:grid-cols-12 transition-all">
           {/* Left Column: Visual Illustration Banner */}
           <div className="md:col-span-5 bg-gradient-to-b from-blue-50/70 via-slate-50/50 to-indigo-50/40 p-8 flex flex-col justify-between border-b md:border-b-0 md:border-r border-slate-100 text-center relative">
-            <div className="flex items-center justify-center">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white text-blue-700 text-xs font-semibold shadow-2xs border border-blue-100">
-                <ShieldCheck className="w-3.5 h-3.5 text-blue-600" />
-                <span>Bảo mật Master Database</span>
-              </span>
-            </div>
+
 
             {/* Clean 3D Illustration */}
             <div className="my-6 flex justify-center">
@@ -114,26 +105,20 @@ export function MasterLoginPage() {
                 <img
                   src="/master_admin_shield.jpg"
                   alt="SmartHire Security Illustration"
-                  className="w-56 h-56 object-contain rounded-2xl drop-shadow-md group-hover:scale-105 transition-transform duration-300"
+                  className="w-48 h-48 object-contain rounded-2xl drop-shadow-md group-hover:scale-105 transition-transform duration-300"
                 />
               </div>
             </div>
 
-            <div className="text-slate-500 text-xs leading-relaxed">
-              <p className="font-semibold text-slate-700">Trung Tâm Điều Hành Nền Tảng</p>
-              <p className="text-[11px] text-slate-400 mt-0.5">Dành riêng cho Ban Quản Trị SmartHire-AI</p>
-            </div>
+
           </div>
 
           {/* Right Column: Clean & Compact Login Form */}
-          <div className="md:col-span-7 p-8 sm:p-10 flex flex-col justify-center">
+          <div className="md:col-span-7 p-6 sm:p-8 flex flex-col justify-center">
             <div className="mb-6">
               <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-                Đăng Nhập Workspace Admin
+                Đăng Nhập
               </h1>
-              <p className="text-xs text-slate-500 mt-1">
-                Vui lòng nhập tài khoản quản trị hệ thống để tiếp tục
-              </p>
             </div>
 
             {/* Error Message Alert */}
@@ -211,12 +196,7 @@ export function MasterLoginPage() {
               </button>
             </form>
 
-            <div className="mt-6 pt-5 border-t border-slate-100 text-center">
-              <span className="text-[11px] text-slate-400 flex items-center justify-center gap-1">
-                <Lock className="w-3 h-3 text-slate-400" />
-                <span>Xác thực bảo mật kết nối trực tiếp Master Database</span>
-              </span>
-            </div>
+
           </div>
         </div>
       </main>

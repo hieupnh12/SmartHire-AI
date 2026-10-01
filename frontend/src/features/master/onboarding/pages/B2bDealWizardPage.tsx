@@ -1,16 +1,14 @@
-import React, { useState, useMemo, useRef } from "react";
+import React, { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { CheckCircle2, Building2, CreditCard, FileSignature, Loader2, ShieldCheck, ReceiptText, Plus, X, ChevronDown, BrainCircuit } from "lucide-react";
+import { CheckCircle2, Building2, CreditCard, FileSignature, Loader2, ShieldCheck, ReceiptText, Plus, X, ChevronDown } from "lucide-react";
 import { masterTenantApi } from "@/api/master/tenantApi";
 import { billingApi } from "@/api/master/billingApi";
 import { contractApi } from "@/api/master/contractApi";
-import { masterAdminApi } from "@/api/master/masterAdminApi";
-import { useTenants, useSubscriptions, useRevenueAnalytics, useAiQuotaUsage, useAuditLogs, useLeads, useInvoices, useContracts, masterQueryKeys, useCreateSubscription } from "@/api/master/queries";
+import { useSubscriptions, useCreateSubscription, masterQueryKeys } from "@/api/master/queries";
 import { useQueryClient } from "@tanstack/react-query";
-import { toast } from "@/stores/toastStore";
 import { getApiErrorMessage } from "@/lib/axios";
 
 
@@ -462,11 +460,6 @@ export function B2bDealWizardPageContent() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <header className="sticky top-16 md:top-0 z-10 bg-[#f8fafc]/95 backdrop-blur-md px-4 py-4 sm:px-6 lg:px-8 -mx-4 -mt-5 sm:-mx-6 sm:-mt-6 lg:-mx-8 lg:-mt-8 mb-6 border-b border-slate-200/50 shadow-sm flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight bg-gradient-to-r from-blue-600 to-cyan-500 bg-clip-text text-transparent">Khởi Tạo Doanh Nghiệp</h1>
-        </div>
-      </header>
 
       <main className="mx-auto max-w-5xl">
           <section className="rounded-3xl border border-slate-200 bg-white p-6 sm:p-10 shadow-xl shadow-slate-200/40">

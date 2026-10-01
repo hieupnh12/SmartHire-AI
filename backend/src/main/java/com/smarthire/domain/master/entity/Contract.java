@@ -40,7 +40,7 @@ public class Contract {
 
     @Builder.Default
     @Column(nullable = false)
-    String currency = "USD";
+    String currency = "VND";
 
     @Column(name = "start_date", nullable = false)
     LocalDate startDate;

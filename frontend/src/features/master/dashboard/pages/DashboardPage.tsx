@@ -1,8 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { PlatformHomeDashboard } from "../components/PlatformHomeDashboard";
-import { useTenants, useSubscriptions, useRevenueAnalytics, useAiQuotaUsage, useAuditLogs, useLeads, useInvoices, useContracts, masterQueryKeys } from "@/api/master/queries";
-import { useQueryClient } from "@tanstack/react-query";
-import { toast } from "@/stores/toastStore";
+import { useTenants, useRevenueAnalytics, useAiQuotaUsage, useAuditLogs } from "@/api/master/queries";
 
 const destinationPaths = {
   analytics: "/admin/analytics",
@@ -20,8 +18,8 @@ export function DashboardPage() {
 
   return (
     <PlatformHomeDashboard
-      revenue={revenue}
-      aiQuota={aiQuota}
+      revenue={revenue ?? null}
+      aiQuota={aiQuota ?? null}
       tenants={tenants}
       logs={logs}
       onNavigate={(destination) => navigate(destinationPaths[destination])}

@@ -16,7 +16,7 @@ function requestUrl(config: InternalAxiosRequestConfig) {
 }
 
 function isPublicTenantAuth(url: string) {
-  return /\/tenant\/auth\/(login|google|register|refresh)(?:\?|$)/.test(url);
+  return /\/tenant\/auth\/(login|google|register|refresh|forgot-password|reset-password)(?:\?|$)/.test(url);
 }
 
 function shouldSkipLoginRedirect(pathname: string, url = "") {
@@ -65,10 +65,12 @@ let refreshing: Promise<string | null> | null = null;
 async function refreshAccessToken(): Promise<string | null> {
   const refreshToken = localStorage.getItem("refreshToken");
   if (!refreshToken) return null;
+  const tenantId = getTenantIdFromWindow() || localStorage.getItem("tenantId");
   try {
     const { data } = await axios.post<ApiResponse<{ accessToken: string; refreshToken?: string }>>(
       `${baseURL}/tenant/auth/refresh`,
       { refreshToken },
+      tenantId ? { headers: { "X-Tenant-ID": tenantId } } : undefined,
     );
     if (!data.success || !data.data?.accessToken) return null;
     localStorage.setItem("accessToken", data.data.accessToken);

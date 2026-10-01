@@ -136,10 +136,11 @@ public class MasterBillingService {
                 .invoiceNumber(invoiceNumber)
                 .tenantId(tenant.getId())
                 .subscriptionId(subscriptionId)
+                .contractId(request.getContractId())
                 .amount(request.getAmount())
                 .subtotal(request.getSubtotal() != null ? request.getSubtotal() : request.getAmount())
                 .taxRate(request.getTaxRate())
-                .currency(StringUtils.hasText(request.getCurrency()) ? request.getCurrency().toUpperCase() : "USD")
+                .currency(StringUtils.hasText(request.getCurrency()) ? request.getCurrency().toUpperCase() : "VND")
                 .status("PENDING")
                 .dueDate(request.getDueDate() != null ? request.getDueDate() : LocalDateTime.now().plusDays(14))
                 .billingPeriodStart(request.getBillingPeriodStart() != null ? request.getBillingPeriodStart() : LocalDateTime.now())
@@ -297,14 +298,14 @@ public class MasterBillingService {
                 .build();
         invoiceLineItemRepository.save(lineItem);
 
-        // 5. Bank Info and VietQR
-        String bankName = "Vietcombank (VCB)";
-        String accountNumber = "1028935315";
+        // 5. Bank Info and SePay VietQR (TPBank)
+        String bankName = "Ngân hàng TMCP Tiên Phong (TPBank)";
+        String accountNumber = "07744348801";
         String accountName = "NGUYEN NHAT SINH";
         String transferSyntax = "SH " + savedInvoice.getInvoiceNumber();
         String encodedSyntax = URLEncoder.encode(transferSyntax, StandardCharsets.UTF_8);
         String encodedAccount = URLEncoder.encode(accountName, StandardCharsets.UTF_8);
-        String qrUrl = "https://img.vietqr.io/image/VCB-1028935315-compact2.png?amount=" 
+        String qrUrl = "https://img.vietqr.io/image/TPBank-07744348801-compact2.png?amount=" 
                 + amountVnd.toBigInteger() 
                 + "&addInfo=" + encodedSyntax 
                 + "&accountName=" + encodedAccount;
@@ -410,6 +411,25 @@ public class MasterBillingService {
         List<InvoiceLineItem> items = invoiceLineItemRepository.findByInvoiceId(saved.getId());
         response.setLineItems(items.stream().map(InvoiceLineItemResponse::from).toList());
         return response;
+    }
+
+    @Transactional(readOnly = true, transactionManager = "masterTransactionManager")
+    public InvoiceStatusResponse getPublicInvoiceStatus(Long invoiceId) {
+        Invoice invoice = invoiceRepository.findById(invoiceId)
+                .orElseThrow(() -> new BusinessException("Hóa đơn không tồn tại: " + invoiceId, HttpStatus.NOT_FOUND, "INVOICE_NOT_FOUND"));
+
+        TenantInfo tenant = tenantRepository.findById(invoice.getTenantId()).orElse(null);
+
+        return new InvoiceStatusResponse(
+                invoice.getId(),
+                invoice.getInvoiceNumber(),
+                invoice.getStatus(),
+                invoice.getAmount(),
+                invoice.getPaymentGateway(),
+                invoice.getPaidAt(),
+                tenant != null ? tenant.getSubdomain() : null,
+                tenant != null ? tenant.getStatus() : null
+        );
     }
 
     private String generateInvoiceNumber() {
