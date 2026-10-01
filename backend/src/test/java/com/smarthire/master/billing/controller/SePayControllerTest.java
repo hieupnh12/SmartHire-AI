@@ -31,7 +31,7 @@ class SePayControllerTest {
 
     private MockMvc mockMvc;
     private final ObjectMapper objectMapper = new ObjectMapper();
-    private static final String SECRET_KEY = "whsec_FCttq8liLKbcEqXeQ3i6Ddjwk6ZN9cCP";
+    private static final String SECRET_KEY = "test-hmac-key-for-sepay-webhook";
 
     @BeforeEach
     void setUp() {
