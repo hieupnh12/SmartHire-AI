@@ -147,7 +147,7 @@ export function TenantsTab({
                   <td className="p-4 font-mono font-bold text-blue-600">{tenant.code}</td>
                   <td className="p-4 font-mono text-slate-500">
                     <a
-                      href={`http://${tenant.subdomain}.localhost:5173/login`}
+                      href={`http://${tenant.subdomain}.localhost:5173/internal/login`}
                       target="_blank"
                       rel="noreferrer"
                       className="hover:text-blue-600 hover:underline inline-flex items-center gap-1"

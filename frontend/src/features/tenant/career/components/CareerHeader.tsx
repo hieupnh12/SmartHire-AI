@@ -46,7 +46,7 @@ const menus: Record<MenuKey, MenuConfig> = {
     label: "Về doanh nghiệp",
     groups: [
       { title: "Tìm hiểu doanh nghiệp", items: [{ label: "Giới thiệu", to: "/career#about", icon: Building2 }, { label: "Đãi ngộ", to: "/career#benefits", icon: Gift }] },
-      { title: "Bắt đầu", items: [{ label: "Xem vị trí đang tuyển", to: "/jobs", icon: BriefcaseBusiness }, { label: "Đăng nhập ứng viên", to: "/candidate/login", icon: UserRound }] },
+      { title: "Bắt đầu", items: [{ label: "Xem vị trí đang tuyển", to: "/jobs", icon: BriefcaseBusiness }, { label: "Đăng nhập ứng viên", to: "/login", icon: UserRound }] },
     ],
   },
 };
@@ -100,7 +100,7 @@ export function CareerHeader({ tenantName, tenantCode, logoUrl, slogan, primaryC
   return (
     <header className="sticky top-0 z-50 border-b border-[var(--color-border-default)] bg-white shadow-sm">
       <div className="mx-auto flex h-[76px] max-w-[1536px] items-center gap-5 px-4 sm:px-6 lg:px-8">
-        <Link to="/career" className="flex min-w-0 shrink-0 items-center gap-3" aria-label={`${tenantName} Careers`}>
+        <Link to="/" className="flex min-w-0 shrink-0 items-center gap-3" aria-label={`${tenantName} Careers`}>
           {logoUrl ? <img src={logoUrl} alt="" className="h-11 max-w-36 object-contain" /> : <span className="grid size-11 place-items-center rounded-xl text-lg font-semibold text-white" style={{ backgroundColor: primaryColor }}>{tenantCode.charAt(0).toUpperCase()}</span>}
           <span className="hidden min-w-0 xl:block"><span className="block max-w-44 truncate text-lg font-semibold text-slate-800">{tenantName}</span><span className="block max-w-44 truncate text-[11px] text-slate-500">{slogan || "Cổng tuyển dụng nhân tài"}</span></span>
         </Link>
@@ -126,7 +126,7 @@ export function CareerHeader({ tenantName, tenantCode, logoUrl, slogan, primaryC
               </button>
               {profileOpen && <AccountPanel user={user} onClose={() => setProfileOpen(false)} onLogout={() => void signOut()} />}
             </div>
-          </> : <button type="button" onClick={() => navigate("/candidate/login", { state: { from: { pathname: "/career" } } })} className="hidden min-h-10 rounded-lg px-4 text-sm font-semibold text-white shadow-sm sm:inline-flex sm:items-center" style={{ backgroundColor: primaryColor }}>Đăng nhập</button>}
+          </> : <button type="button" onClick={() => navigate("/login", { state: { from: { pathname: "/" } } })} className="hidden min-h-10 rounded-lg px-4 text-sm font-semibold text-white shadow-sm sm:inline-flex sm:items-center" style={{ backgroundColor: primaryColor }}>Đăng nhập</button>}
           <a href={recruiterUrl} className="hidden min-h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 text-sm font-semibold text-slate-700 transition-colors hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] lg:inline-flex"><Building2 className="size-4" aria-hidden="true" />Nhà tuyển dụng</a>
           <button type="button" aria-expanded={mobileOpen} aria-label={mobileOpen ? "Đóng menu" : "Mở menu"} onClick={() => setMobileOpen((value) => !value)} className="grid size-11 place-items-center rounded-full text-slate-700 hover:bg-slate-100 lg:hidden">{mobileOpen ? <X className="size-5" /> : <Menu className="size-5" />}</button>
         </div>
@@ -212,5 +212,5 @@ function AccountSection({ icon: Icon, title, links, onClose }: { icon: ElementTy
 }
 
 function MobileMenu({ loggedIn, onNavigate }: { loggedIn: boolean; onNavigate: () => void }) {
-  return <nav aria-label="Điều hướng di động" className="max-h-[calc(100vh-76px)] overflow-y-auto border-t border-slate-100 bg-white p-4 lg:hidden">{(Object.keys(menus) as MenuKey[]).map((key) => <section key={key} className="border-b border-slate-100 py-3"><h2 className="px-2 text-sm font-semibold text-slate-800">{menus[key].label}</h2><div className="mt-2 grid gap-1">{menus[key].groups.flatMap((group) => group.items).map((item) => item.to ? <Link key={`${key}-${item.to}-${item.label}`} to={item.to} onClick={onNavigate} className="min-h-11 rounded-lg px-4 py-3 text-sm text-slate-600 hover:bg-slate-50">{item.label}</Link> : <button key={`${key}-${item.label}`} type="button" onClick={onNavigate} className="min-h-11 rounded-lg px-4 py-3 text-left text-sm text-slate-600 hover:bg-slate-50">{item.label}</button>)}</div></section>)}{!loggedIn && <Link to="/candidate/login" onClick={onNavigate} className="mt-4 flex min-h-11 items-center justify-center rounded-lg bg-[var(--color-primary)] px-4 text-sm font-semibold text-white">Đăng nhập</Link>}</nav>;
+  return <nav aria-label="Điều hướng di động" className="max-h-[calc(100vh-76px)] overflow-y-auto border-t border-slate-100 bg-white p-4 lg:hidden">{(Object.keys(menus) as MenuKey[]).map((key) => <section key={key} className="border-b border-slate-100 py-3"><h2 className="px-2 text-sm font-semibold text-slate-800">{menus[key].label}</h2><div className="mt-2 grid gap-1">{menus[key].groups.flatMap((group) => group.items).map((item) => item.to ? <Link key={`${key}-${item.to}-${item.label}`} to={item.to} onClick={onNavigate} className="min-h-11 rounded-lg px-4 py-3 text-sm text-slate-600 hover:bg-slate-50">{item.label}</Link> : <button key={`${key}-${item.label}`} type="button" onClick={onNavigate} className="min-h-11 rounded-lg px-4 py-3 text-left text-sm text-slate-600 hover:bg-slate-50">{item.label}</button>)}</div></section>)}{!loggedIn && <Link to="/login" onClick={onNavigate} className="mt-4 flex min-h-11 items-center justify-center rounded-lg bg-[var(--color-primary)] px-4 text-sm font-semibold text-white">Đăng nhập</Link>}</nav>;
 }

@@ -130,9 +130,10 @@ export function AppRouter() {
       <Route element={<TenantSubdomainGuard />}>
       <Route path="/career" element={<TenantCareerPage />} />
       <Route path="/jobs" element={<TenantCareerPage />} />
-      <Route path="/candidate/login" element={<CandidateLoginPage />} />
+      <Route path="/jobs/:jobId" element={<TenantCareerPage />} />
+      <Route path="/candidate/login" element={<Navigate to="/login" replace />} />
       <Route path="/internal/login" element={<LoginPage />} />
-      <Route path="/login" element={<LoginPage />} />
+      <Route path="/login" element={<CandidateLoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/invite/accept" element={<AcceptInvitationPage />} />
 
