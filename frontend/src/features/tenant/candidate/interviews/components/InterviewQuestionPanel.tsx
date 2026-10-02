@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { ArrowLeft, ArrowRight, Bot, CloudUpload, Volume2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Bot, CheckCircle2, CloudUpload, Lightbulb, Timer, Volume2 } from "lucide-react";
 import type { AiAnswer, AiQuestion } from "@/api/types/aiInterview";
 import { Button } from "@/components/ux/Button";
 import { InterviewAnswerForm } from "./InterviewAnswerForm";
@@ -25,11 +25,14 @@ export function InterviewQuestionPanel({ interviewId, questions, index, disabled
   useEffect(() => () => window.speechSynthesis?.cancel(), [question.id]);
   const mcq = !!question.options?.length;
   const last = index === questions.length - 1;
-  return <>
-    <div className="flex flex-col justify-between gap-4 rounded-xl bg-surface-card p-6 shadow-sm sm:flex-row sm:items-center">
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-wider text-brand-primary">Tiến độ câu hỏi</p>
-        <h2 className="mt-0.5 text-xl font-semibold">Câu hỏi {pad(index + 1)} <span className="font-normal text-[var(--color-on-surface-variant)]">/ {pad(questions.length)}</span></h2>
+  return <section className="overflow-hidden rounded-2xl border border-[var(--color-border-default)] bg-surface-card shadow-[var(--shadow-card)]" aria-label={`Câu hỏi ${index + 1} trên ${questions.length}`}>
+    <div className="flex flex-col justify-between gap-4 border-b border-[var(--color-border-default)] bg-[var(--color-surface-container-low)]/45 p-4 sm:flex-row sm:items-center">
+      <div className="flex items-center gap-3">
+        <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-[var(--color-primary)] text-base font-bold text-[var(--color-on-primary)]">Q{index + 1}</span>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wider text-brand-primary">{question.stageTitle ?? "AI Interview"}</p>
+          <h2 className="mt-0.5 text-base font-semibold">Câu hỏi {pad(index + 1)} <span className="font-normal text-[var(--color-on-surface-variant)]">/ {pad(questions.length)}</span></h2>
+        </div>
       </div>
       <ul className="flex flex-wrap items-center gap-2" aria-label="Chủ đề câu hỏi">
         {question.stageTitle && <li className="rounded-full bg-[var(--color-primary-soft)] px-3 py-1 text-xs font-medium text-brand-primary">{question.stageTitle}</li>}
@@ -38,20 +41,21 @@ export function InterviewQuestionPanel({ interviewId, questions, index, disabled
       </ul>
     </div>
 
-    <section className="space-y-4 rounded-xl bg-surface-card p-6 shadow-sm sm:p-8" aria-labelledby={`question-${question.id}`}>
+    <div className="space-y-4 border-b border-[var(--color-border-default)] p-5 sm:p-6" aria-labelledby={`question-${question.id}`}>
       <div className="flex items-center gap-3">
         <span className="grid size-8 place-items-center rounded-full bg-brand-primary text-[var(--color-on-primary)] shadow-sm"><Bot className="size-4" aria-hidden="true" /></span>
         <div>
-          <p className="text-sm font-semibold text-brand-primary">AI Interviewer · {mcq ? "Mini Assessment" : "Câu hỏi phỏng vấn"}</p>
-          <p className="text-xs text-[var(--color-on-surface-variant)]">{mcq ? question.multipleChoice ? "Chọn tất cả đáp án đúng" : "Chọn một đáp án đúng nhất" : question.questionRole === "FOLLOW_UP" ? "Câu hỏi bồi dựa trên câu trả lời vừa lưu" : "Trả lời theo yêu cầu của bài tập"}</p>
+          <p className="text-sm font-semibold text-brand-primary">SmartHire AI · {mcq ? "Mini Assessment" : "Câu hỏi phỏng vấn"}</p>
+          <p className="text-xs text-[var(--color-on-surface-variant)]">{mcq ? question.multipleChoice ? "Chọn tất cả đáp án đúng" : "Chọn một đáp án đúng nhất" : question.responseMode === "speech" ? "Trả lời bằng giọng nói hoặc nhập văn bản" : "Trả lời bằng văn bản, nêu ví dụ thực tế nếu có"}</p>
         </div>
       </div>
-      <div className="rounded-lg bg-[var(--color-surface-container-low)] p-5">
-        <p id={`question-${question.id}`} className="whitespace-pre-wrap text-base font-semibold leading-relaxed">{question.questionText}</p>
+      <div className="rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-container-low)] p-5 sm:p-6">
+        <p id={`question-${question.id}`} className="whitespace-pre-wrap text-base font-semibold leading-7 sm:text-lg">{question.questionText}</p>
+        {!mcq && <p className="mt-4 flex items-start gap-2 border-t border-[var(--color-border-default)] pt-3 text-xs text-[var(--color-on-surface-variant)]"><Lightbulb className="mt-0.5 size-4 shrink-0 text-brand-primary" aria-hidden="true" />Gợi ý: Trình bày bối cảnh, cách bạn xử lý và kết quả cụ thể. Không chia sẻ thông tin mật của công ty cũ.</p>}
         {question.difficulty && <p className="mt-2 text-xs">Độ khó: {question.difficulty}</p>}
         {question.hint && <details className="mt-3 text-sm"><summary className="cursor-pointer">Xem gợi ý</summary><p className="mt-2 whitespace-pre-wrap">{question.hint}</p></details>}
       </div>
-    </section>
+    </div>
 
     {question.responseMode === "speech" && "speechSynthesis" in window && <Button variant="secondary" onClick={() => {
       window.speechSynthesis.cancel(); const speech = new SpeechSynthesisUtterance(question.questionText);
@@ -59,7 +63,11 @@ export function InterviewQuestionPanel({ interviewId, questions, index, disabled
       window.speechSynthesis.speak(speech);
     }}><Volume2 className="size-4" aria-hidden="true" />Nghe câu hỏi</Button>}
 
-    <section className="space-y-5 rounded-xl bg-surface-card p-6 shadow-sm sm:p-8">
+    <div className="space-y-5 p-5 sm:p-6">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div><p className="text-sm font-semibold">Câu trả lời của bạn</p><p className="text-xs text-[var(--color-on-surface-variant)]">Nội dung chỉ được ghi nhận sau khi bạn bấm lưu.</p></div>
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--color-primary-soft)] px-3 py-1 text-xs font-medium text-brand-primary"><Timer className="size-3.5" aria-hidden="true" />Tự tính thời gian</span>
+      </div>
       {mcq
         ? <McqAnswerForm key={question.id} interviewId={interviewId} question={question} disabled={disabled} onDirty={onDirty} answerDuration={answerDuration} onSaved={answer => onSaved(question.id, answer)} />
         : <InterviewAnswerForm recordingEnabled={recordingEnabled} key={question.id} interviewId={interviewId} question={question} disabled={disabled} onDirty={onDirty} answerDuration={answerDuration}
@@ -71,9 +79,9 @@ export function InterviewQuestionPanel({ interviewId, questions, index, disabled
         <Button variant="secondary" disabled={last || dirty} onClick={() => onSelect(index + 1)}>Câu tiếp theo<ArrowRight className="size-4" aria-hidden="true" /></Button>
       </div>
       <div className="flex items-center gap-2 rounded-lg bg-[color-mix(in_srgb,var(--color-secondary-container)_40%,transparent)] p-3 text-sm">
-        <CloudUpload className="size-5 shrink-0 text-brand-primary" aria-hidden="true" />
-        <p>Câu trả lời được lưu trên hệ thống sau mỗi lần lưu. Nếu mất kết nối, mở lại phiên để tiếp tục các câu đã lưu.</p>
+        {question.answer ? <CheckCircle2 className="size-5 shrink-0 text-emerald-600" aria-hidden="true" /> : <CloudUpload className="size-5 shrink-0 text-brand-primary" aria-hidden="true" />}
+        <p>{question.answer ? "Câu trả lời này đã được lưu trên hệ thống." : "Hãy lưu câu trả lời trước khi chuyển sang câu khác."} Nếu mất kết nối, bạn có thể mở lại phiên để tiếp tục.</p>
       </div>
-    </section>
-  </>;
+    </div>
+  </section>;
 }

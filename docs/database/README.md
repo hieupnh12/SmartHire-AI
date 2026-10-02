@@ -10,17 +10,18 @@
 
 | Thông tin | Giá trị |
 |---|---|
+| Ngân hàng câu hỏi chung 2026-10-02 | Tenant V41: `questions.test_id` nullable, thêm `authoring_metadata` JSON và `bank_archived` BOOLEAN; không thêm bảng, entity, FK, UNIQUE hoặc index. Ngân hàng chung đọc cả câu độc lập và câu từ assessment; chỉ sửa/lưu trữ câu độc lập qua API ngân hàng |
 | AI Interview lộ trình 2026-09-28 | V35 (đánh lại từ V34 vì trùng V34 `cv application copy` của nhánh khác): cột JSON cấu hình/lộ trình trên `jobs`, snapshot + báo cáo + `attempt_number` + `expires_at` trên `ai_interviews`, rubric/trắc nghiệm trên `ai_questions`, `ai_feedbacks.evaluation_json`, index `idx_ai_interview_expiry`. Không thêm bảng, FK hay UNIQUE |
 | AI Interview API 2026-09-28 | Thêm truy vấn đếm câu hỏi theo phiên để tự cập nhật trạng thái; không đổi schema, entity, FK hay migration |
 | AI Interview workflow 2026-09-27 | V25: cấu hình AI Interview theo job, `applications.cv_screening_status`, cột worker; V26: 30–40 câu hỏi, bảng `ai_interview_logs` + entity `AiInterviewLog` |
 | Kiến trúc | Separate Database per Tenant |
 | Số database logic | 2 loại (1 Master + N Tenant) |
-| Bảng tenant sau V32 | 60 bảng từ pipeline trong repo (56 sau V26 + `job_screening_configs`, `gate_scores`, `job_assignments`, `landing_page_settings`), không tính Flyway history; không còn bảng `legacy_v12_*` |
-| Entity JPA tenant | 55; V26 thêm `AiInterviewLog`; V27–V32 thêm `JobScreeningConfig`, `GateScore`, `JobAssignment`, `LandingPageSetting` |
-| Khoá ngoại tenant | 77 theo pipeline repo (72 sau V26; V27 thêm 2 FK screening/gate; V30 thêm 3 FK `job_assignments`) |
+| Bảng tenant sau V41 | 63 bảng (60 sau V32 + 3 bảng process/consent/recording của V39/V40); V41 không thêm bảng; không tính Flyway history |
+| Entity JPA tenant | 58 theo checkout hiện tại; V39/V40 bổ sung entity process/consent/recording; V41 chỉ mở rộng entity `Question` |
+| Khoá ngoại tenant | 84 theo mốc tài liệu (77 sau V32 + 3 FK V39 + 4 FK V40); V41 giữ nguyên FK hiện có |
 | Ràng buộc UNIQUE tenant | V25/V26 không thêm UNIQUE. V27 thêm UNIQUE `gate_scores.application_id`. V30 thêm `uk_job_assignments_job_user` |
-| Số file migration trong repo | 50 (21 master + 29 tenant); V9 redesign nằm ngoài pipeline |
-| Cập nhật lần cuối | Master `V22`, tenant `V36`. Master V22 chuẩn hoá giá gói cước sang `price_yearly` (VNĐ); tenant V34 tạo bản sao CV theo application, V35 bổ sung lộ trình AI Interview, V36 bổ sung catalog recruitment stage; screening, assignment và landing từ main được đánh số V27–V32 để không trùng V13 và V21–V26 của nhánh này |
+| Số file migration trong repo | 56 (22 master + 34 tenant); V9 redesign nằm ngoài pipeline |
+| Cập nhật lần cuối | Master `V23`, tenant `V41` (ngân hàng câu hỏi chung). Master V23 tối ưu liên kết hợp đồng–hóa đơn, độ chính xác tiền tệ VND và index log; tenant V34 tạo bản sao CV theo application, V35 bổ sung lộ trình AI Interview, V36 bổ sung catalog recruitment stage, V37 bổ sung ma trận vai trò công việc |
 | Dọn legacy V21 | Xóa 19 bảng và dữ liệu legacy, xóa 2 cột ID legacy trong ranking; không chuyển ID cũ sang bản ghi mới |
 | Metadata assessment 2026-09-25 | V13: `tests.created_by/updated_at`, `questions.difficulty/skill/explanation` cho Excel/UI authoring |
 | Sửa lỗi assessment 2026-09-24 | V10/V11 khớp checksum lịch sử; V12 tạo schema mới và giữ bảng cũ; migration lỗi phải chặn mở tenant pool |
@@ -462,7 +463,7 @@ Pipeline chạy tuần tự qua RabbitMQ: `cv.parse` ghi `cv_documents` → `cv.
 erDiagram
     jobs ||--o{ tests : "đề thi của job"
     users ||--o{ tests : "created_by"
-    tests ||--o{ questions : "câu hỏi"
+    tests |o--o{ questions : "câu hỏi (NULL = ngân hàng chung)"
     questions ||--o{ questionskills : "question_id"
     skills ||--o{ questionskills : "skill_id"
     questions ||--o{ options : "lựa chọn"
@@ -611,7 +612,7 @@ của màn assessment hiện tại.
 | Entity | Mục đích | Ghi chú quan trọng |
 |---|---|---|
 | `JobTest` | Đề thi gắn với một job (bảng `tests`) | `duration_minutes`, `passing_score`, `status`, `created_by`, `updated_at` — tên class tránh xung đột JUnit `Test` |
-| `Question` | Câu hỏi trắc nghiệm hoặc tự luận | `question_text`, `question_type`, `points`, `question_order`, `difficulty`, `skill`, `explanation` |
+| `Question` | Câu hỏi trắc nghiệm hoặc tự luận, độc lập hoặc thuộc đề | V41: `test_id` nullable; `authoring_metadata` giữ nội dung bảng soạn/rubric/đáp án mẫu; `bank_archived` lưu trữ câu độc lập. Dữ liệu câu gốc của assessment không bị thay đổi khi xem ngân hàng |
 | `QuestionSkill` | Liên kết N–N câu hỏi và kỹ năng | PK kép `(question_id, skill_id)`; 2 FK NOT NULL, ON DELETE CASCADE |
 | `AnswerSelectedOption` | Lựa chọn đã chọn của câu MULTIPLE_CHOICE | PK kép `(answer_id, option_id)`; FK answer CASCADE, option RESTRICT |
 | `Option` | Lựa chọn trả lời | `is_correct` — **không được trả cột này ra API cho thí sinh** |
@@ -744,7 +745,7 @@ của màn assessment hiện tại.
 | `ranking_sources` | `ai_interview_id` | `ai_interviews` | Có | 1:0..1 | `fk_rank_source_ai_interview` |
 | `tests` | `job_id` | `jobs` | Không | N:1 | `fk_tests_job` |
 | `tests` | `created_by` | `users` | Có | N:0..1 | `fk_tests_created_by` |
-| `questions` | `test_id` | `tests` | Không | N:1 | `fk_questions_test` |
+| `questions` | `test_id` | `tests` | Có | N:0..1 | `fk_questions_test`; V41 cho phép câu độc lập |
 | `questionskills` | `question_id` | `questions` | Không | N:1 | `fk_questionskills_question`, DELETE CASCADE |
 | `questionskills` | `skill_id` | `skills` | Không | N:1 | `fk_questionskills_skill`, DELETE CASCADE |
 | `answer_selected_options` | `answer_id` | `answers` | Không | N:1 | `fk_aso_answer`, DELETE CASCADE |
@@ -927,6 +928,8 @@ Những quy tắc sau bắt buộc phải kiểm tra ở tầng service, vì kh�
 | BR-13 | Candidate sở hữu application cùng job, ở ASSESSMENT/INTERVIEW mới bắt đầu; không đọc/lưu/nộp bài người khác; không tự chuyển trạng thái application | `SubmissionService`, tenant auth |
 | BR-14 | Lượt quá hạn được chấm từ đáp án đã lưu khi có request tiếp theo; ghi EXPIRED và submitted_at bằng deadline. Chưa có worker quét chủ động | `SubmissionService` |
 
+- Ngân hàng chung V41: câu hỏi có `test_id = NULL` được thêm/sửa/lưu trữ độc lập; câu có `test_id` chỉ được sửa qua assessment gốc ở trạng thái DRAFT. API ngân hàng yêu cầu staff, xác thực tenant trước truy vấn; cả lô câu hỏi được lưu trong một transaction.
+
 ### 8.5 Hệ quả nghiệp vụ cần biết
 
 - **Không nộp lại đơn:** ràng buộc `uk_app_job_candidate` khiến ứng viên đã rút đơn (`withdrawn_at`) không
@@ -1084,6 +1087,7 @@ Hai pipeline dùng **hai phương ngữ SQL khác nhau** và không thể dùng 
 | V38 | `V38__ai_interview_availability_start.sql` | `jobs.ai_interview_available_from`; NULL nghĩa là mở AI Interview ngay |
 | V39 | `V39__ai_interview_process_engine.sql` | `ai_interview_process_runs`; liên kết process/follow-up trên `ai_questions`; index current process/question sequence |
 | V40 | `V40__ai_interview_voice_support.sql` | `ai_interview_consents`, `ai_answer_recordings`; audit consent và metadata audio/STT private |
+| V41 | `V41__general_question_bank.sql` | `questions.test_id` nullable; `authoring_metadata` JSON; `bank_archived` BOOLEAN DEFAULT FALSE. Giữ FK test cũ, không thêm bảng/index/FK |
 
 V9 redesign cũ được giữ nguyên tại `db/migration-archive/`, **ngoài** location Flyway.
 Tenant tạo mới chạy V1–V13 rồi V21–V36: 60 bảng hiện hành (gồm 5 bảng analytics V9), chưa tính history.

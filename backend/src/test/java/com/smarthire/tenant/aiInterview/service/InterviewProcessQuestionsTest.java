@@ -27,6 +27,22 @@ class InterviewProcessQuestionsTest {
         }
         return row;
     }
+    @Test void communicationAcceptsEmptyOptionalChoiceFieldsButRejectsActualChoices() {
+        var config = Map.<String, Object>of("difficulty", "adaptive");
+        var communicationRun = AiInterviewProcessRun.builder().processKey("COMMUNICATION").build();
+        var slots = InterviewProcessQuestions.slots(mapper, "COMMUNICATION", config, List.of("Java"), 1);
+        var row = row("COMMUNICATION", 0);
+        row.putArray("options"); row.putNull("correctOptions");
+        var generated = InterviewProcessQuestions.validate(mapper, interview, communicationRun, config, slots,
+                mapper.createArrayNode().add(row), 0);
+        assertThat(generated).hasSize(1);
+        assertThat(generated.getFirst().getOptionsJson()).isNull();
+        assertThat(InterviewPolicies.tree(generated.getFirst().getRubricJson()).path("referenceAnswer").asText()).isNotBlank();
+        row.putArray("options").add("Leaked choice");
+        assertThatThrownBy(() -> InterviewProcessQuestions.validate(mapper, interview, communicationRun, config, slots,
+                mapper.createArrayNode().add(row), 0)).hasMessage("Open exercise contains choice data");
+    }
+
     Map<String, Object> config(String format) {
         return Map.of("questionFormat", format, "difficulty", "hard", "randomizeOptions", false,
                 "explanationRequired", true, "allowMultipleCorrectAnswers", true);

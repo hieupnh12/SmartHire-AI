@@ -44,4 +44,11 @@ public class PublicCheckoutController {
                 .toList();
         return ResponseEntity.ok(ApiResponse.ok("Danh sách gói cước", plans));
     }
+
+    @GetMapping("/status/{invoiceId}")
+    @Operation(summary = "Check Invoice Payment Status", description = "Returns payment and workspace provisioning status for a given invoice (used for real-time frontend polling).")
+    public ResponseEntity<ApiResponse<com.smarthire.master.billing.dto.InvoiceStatusResponse>> checkInvoiceStatus(@PathVariable Long invoiceId) {
+        com.smarthire.master.billing.dto.InvoiceStatusResponse status = billingService.getPublicInvoiceStatus(invoiceId);
+        return ResponseEntity.ok(ApiResponse.ok("Trạng thái hóa đơn", status));
+    }
 }

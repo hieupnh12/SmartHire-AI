@@ -15,7 +15,7 @@ Tạo/làm bài trắc nghiệm kỹ thuật gắn job/stage.
 ## Luồng hoạt động
 
 1. Staff tạo đề nháp, thêm/sửa/xóa câu hỏi kèm options, publish đề hợp lệ.
-2. Staff mở hồ sơ ứng viên (Quản lý ứng viên), chọn đề đã publish của job và bấm "Gửi cho ứng viên": đơn ở INTERVIEW được chuyển sang ASSESSMENT (ghi lịch sử trạng thái, gắn stage "Assessment" nếu job có), ứng viên nhận thông báo `ASSESSMENT_INVITATION` và email kèm link `/candidate/assessments?applicationId=...`.
+2. Staff mở hồ sơ ứng viên (Quản lý ứng viên), chọn đề đã publish của job và bấm "Gửi cho ứng viên": đơn ở INTERVIEW được chuyển sang ASSESSMENT (ghi lịch sử trạng thái, gắn stage "Assessment" nếu job có), ứng viên nhận thông báo `ASSESSMENT_INVITATION` và email kèm link `/assessments?applicationId=...`.
 3. Candidate dùng applicationId của mình để start/resume đề thuộc cùng job, khi đơn ở ASSESSMENT hoặc INTERVIEW.
 4. Candidate lưu từng nhóm đáp án, tải lại tiến độ, submit để chấm trắc nghiệm và xem điểm.
 5. Staff xem bài làm và kết quả; hệ thống không tự đổi trạng thái đơn ứng tuyển.
@@ -144,9 +144,32 @@ Kiểm chứng bản sửa Candidate ngày 2026-09-29: `frontend/tests/assessmen
 - Recruiter: `/recruiter/assessments`, `/new`, `/:id`; danh sách phân trang, thông tin đề, CRUD câu hỏi/options, chọn đáp án đúng, publish khóa sửa.
 - Theo dõi bài làm: `/recruiter/jobs/:id/assessments/submissions` (nút "Theo dõi bài làm" trên trang bài đánh giá) liệt kê lượt làm của mọi đề trong job với tab Đang làm bài / Đã nộp / Hết thời gian, tìm theo ứng viên, lọc theo đề, thời gian còn lại và điểm; tự làm mới mỗi 15 giây.
 - Ngân hàng câu hỏi: `/recruiter/assessments/question-bank` tổng hợp câu MCQ theo bộ sưu tập, vị trí và bộ lọc; mở đề gốc để sửa. Độ khó/kỹ năng/giải thích lưu trên `questions` (V13). Yêu thích lưu trên trình duyệt. Coding / nhiều đáp án / tự luận vẫn ngoài phạm vi ASSESS-01.
-- Candidate: `/candidate/assessments` chọn đơn hợp lệ; `/:submissionId/take` có radio cho MCQ, checkbox cho nhiều đáp án, ô tự luận với bộ đếm ký tự, điều hướng, tiến độ, tự lưu/retry, timer, xác nhận nộp và điểm tổng (bài tự luận hiển thị đang chấm). Tự luận chỉ có khoảng trắng không được tính là đã trả lời.
+- Candidate: `/assessments` chọn đơn hợp lệ; `/assessments/:submissionId/take` có radio cho MCQ, checkbox cho nhiều đáp án, ô tự luận với bộ đếm ký tự, điều hướng, tiến độ, tự lưu/retry, timer, xác nhận nộp và điểm tổng (bài tự luận hiển thị đang chấm). Tự luận chỉ có khoảng trắng không được tính là đã trả lời.
 - Query key assessment phân biệt tenant/user; Axios hiện có gắn token và tenant header. Server state dùng TanStack Query, form dùng React Hook Form + Zod.
 
 ## Phụ thuộc
 
 JOB-04
+
+### Ngân hàng câu hỏi chung recruiter
+
+- Trạng thái: `Doing` (API thêm/sửa/đọc/lưu trữ đã triển khai; tự tạo assessment theo skill và chọn câu chung vào assessment chưa triển khai).
+- Route `/recruiter/question-bank`: đọc câu độc lập và toàn bộ câu của các assessment trong cùng tenant. Không tạo bài assessment để lưu câu độc lập. Câu thêm trong assessment/job hiện có tự xuất hiện trong danh sách chung qua truy vấn, không sao chép.
+- Staff cùng tenant được đọc ngân hàng chung; candidate và token sai tenant bị từ chối trước truy vấn. Quyền assessment/job và khóa bài đã xuất bản vẫn giữ nguyên. API chung không sửa hoặc lưu trữ câu có `test_id`; UI dẫn tới assessment gốc để sửa.
+- Thêm câu hỏi / Nhập Excel mở `/recruiter/question-bank/new`; `/recruiter/question-bank/:questionId/edit` mở câu độc lập đã lưu trong bảng soạn. Bản nháp chưa gửi lưu tạm trong `sessionStorage` theo tenant/user; câu đã lưu được tải lại từ API.
+- Nút Kiểm tra dùng cùng `ExcelImportReview`: phân loại VALID/INVALID/WARNING, bỏ dòng trống, chọn chỉ lưu dòng hợp lệ hoặc yêu cầu tất cả hợp lệ, báo nội dung trùng trong lô là WARNING, xem trước giám khảo/ứng viên bằng cùng `AssessmentPublishReview` và `QuestionAnswerPanel`.
+- Kiểm định ngân hàng yêu cầu skill (tối đa 128 ký tự), difficulty Easy/Medium/Hard, điểm nguyên 1–10.000 và đáp án đúng theo loại. Không cần tên bài, thời lượng, điểm đạt hoặc tổng điểm bằng 10. Không kiểm tra trùng với toàn bộ dữ liệu DB; quy tắc cảnh báo trùng trong lô giống luồng riêng hiện có.
+- Lưu 1–999 câu trong một transaction; một câu lỗi hoặc lỗi DB làm rollback cả lô, không tạo bài nháp dở dang. Lỗi API hiển thị tại màn xem trước, có thể thử lưu lại. Câu được đồng bộ nhãn `questions.skill` vào `skills`/`questionskills` khi thêm/sửa từ API chung; không backfill câu cũ.
+- V41 cho phép `questions.test_id` NULL, thêm `authoring_metadata` JSON để giữ rubric/đáp án mẫu/snippet/ngôn ngữ và `bank_archived`. Không thêm bảng hay bỏ FK; metadata biên soạn không trả candidate.
+
+| Method | API ngân hàng chung | Chức năng |
+|---|---|---|
+| GET | `/api/v1/question-bank/list_questions?page=0&size=100` | Danh sách phân trang; size 1–100 |
+| GET | `/api/v1/question-bank/get_question/{id}` | Chi tiết staff, gồm options và metadata biên soạn |
+| POST | `/api/v1/question-bank/create_questions` | Body `{ questions: [{ question: QuestionRequest, authoringMetadata: object }] }`, trả 201 |
+| PUT | `/api/v1/question-bank/update_question/{id}` | Thay toàn bộ câu độc lập và options, trả 200 |
+| PUT | `/api/v1/question-bank/archive_questions` | Body `{ questionIds: [id], archived: true/false }`; chỉ câu độc lập |
+
+Response đều bọc `ApiResponse`; item gồm `question`, `testId/testTitle/testStatus`, `jobId/jobTitle`, `archived`, `authoringMetadata`. Lỗi: 400 dữ liệu không hợp lệ, 403 role/tenant sai, 404 `BANK_QUESTION_NOT_FOUND`, 409 `BANK_QUESTION_IN_TEST`. Không đổi API hoặc luồng assessment riêng hiện có.
+
+Kiểm chứng ngày 2026-10-02: build frontend đạt; 36 test assessment/ngân hàng đạt, gồm HTTP thêm/đọc/sửa/lưu trữ, không tạo assessment khi thêm câu chung, giữ metadata và skill, rollback lô lỗi, từ chối candidate/sai tenant và bảo vệ câu thuộc assessment. Các integration test lần này dùng H2 + MockMvc; chưa chạy migration V41 trên MySQL thực tế hoặc kiểm thử giao diện qua trình duyệt.

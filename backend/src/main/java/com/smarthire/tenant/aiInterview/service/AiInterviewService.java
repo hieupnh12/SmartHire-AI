@@ -21,6 +21,7 @@ import com.smarthire.tenant.aiInterview.dto.request.CreateAiInterviewRequest;
 import com.smarthire.tenant.aiInterview.dto.request.UpdateAiInterviewRequest;
 import com.smarthire.tenant.aiInterview.dto.request.UpsertAiAnswerRequest;
 import com.smarthire.tenant.aiInterview.dto.request.UpsertAiFeedbackRequest;
+import com.smarthire.tenant.aiInterview.dto.request.ProctorEventRequest;
 import com.smarthire.tenant.aiInterview.dto.response.AiAnswerResponse;
 import com.smarthire.tenant.aiInterview.dto.response.AiFeedbackResponse;
 import com.smarthire.tenant.aiInterview.dto.response.AiInterviewLogResponse;
@@ -221,6 +222,18 @@ public class AiInterviewService {
         markSubmitted(interview);
         var responses = loadQuestionResponses(interview);
         return mapper.toResponse(interview, responses);
+    }
+
+    @Transactional
+    public void recordProctorEvent(long id, ProctorEventRequest request) {
+        AiInterview interview = loadAccessibleForUpdate(id);
+        requireCandidateOwns(interview);
+        if (interview.getStatus() != AiInterviewStatus.IN_PROGRESS) {
+            throw new BusinessException("Interview is not in progress", HttpStatus.CONFLICT, "AI_INTERVIEW_NOT_ACTIVE");
+        }
+        String detail = request.detail() == null ? "browser event" : request.detail();
+        if (request.durationSeconds() != null) detail += "; durationSeconds=" + request.durationSeconds();
+        activity.record(interview, "PROCTOR_" + request.event(), detail);
     }
 
     @Transactional

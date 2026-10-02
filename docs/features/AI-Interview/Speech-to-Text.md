@@ -49,6 +49,13 @@ Không thêm bảng/cột/migration: `ai_answers.answer_text`, `ai_interview_con
 
 Candidate: consent → bắt đầu → ghi âm/STT → dừng và kiểm tra transcript → gửi. Recruiter: chi tiết Communication → đánh giá AI/tín hiệu lời nói → nghe bản ghi và mở transcript.
 
+### Phòng demo (tách biệt phiên thật)
+
+- Candidate: `/interviews` hiển thị lịch AI Interview mẫu; nút **Vào AI Interview** mở `/interviews/demo` trong phòng riêng, kế thừa theme tenant.
+- Phòng mẫu theo thiết kế được cung cấp: đồng hồ 18:45/25:00, mở từ câu 03/06, câu hỏi, transcript, lộ trình, mức micro và hồ sơ ứng viên minh họa. Hai câu đầu có câu trả lời mẫu sẵn.
+- Có tạm dừng/tiếp tục mô phỏng, đọc câu hỏi/transcript bằng giọng trình duyệt (nếu hỗ trợ), nhập văn bản, gửi sang câu tiếp theo và kết thúc/xem lại câu đã gửi. Hết giờ tự kết thúc phiên mẫu.
+- Dữ liệu demo chỉ giữ trong bộ nhớ của phiên; tải lại sẽ đặt lại. Demo không thu âm, truy cập camera, gọi STT/API, đồng bộ hoặc chấm điểm thực tế. Phiên thật vẫn có luồng STT/ghi âm như mô tả ở trên.
+
 ## Trạng thái
 
 `Doing` — code và kiểm thử đã có; cần kiểm thử micro/STT trên trình duyệt và Cloudinary/LLM thật ở môi trường có cấu hình. Streaming hai chiều nằm trong phạm vi mở rộng tương lai.

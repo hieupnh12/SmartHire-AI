@@ -1317,6 +1317,135 @@
           }
         }
       ]
+    },
+    {
+      "name": "General Question Bank",
+      "item": [
+        {
+          "name": "List bank",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/question-bank/list_questions?page=0&size=100"
+          }
+        },
+        {
+          "name": "Get bank question",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/question-bank/get_question/{{questionId}}"
+          }
+        },
+        {
+          "name": "Create standalone questions",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/question-bank/create_questions",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"questions\": [\n    {\n      \"question\": {\n        \"questionText\": \"Which keyword defines a Java class?\",\n        \"points\": 5,\n        \"questionOrder\": 0,\n        \"difficulty\": \"Easy\",\n        \"skill\": \"Java\",\n        \"questionType\": \"MCQ\",\n        \"options\": [\n          {\n            \"optionText\": \"class\",\n            \"correct\": true\n          },\n          {\n            \"optionText\": \"def\",\n            \"correct\": false\n          }\n        ]\n      },\n      \"authoringMetadata\": null\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Update standalone question",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/question-bank/update_question/{{questionId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": {\n    \"questionText\": \"Which keyword defines a Java class?\",\n    \"points\": 5,\n    \"questionOrder\": 0,\n    \"difficulty\": \"Easy\",\n    \"skill\": \"Java\",\n    \"questionType\": \"MCQ\",\n    \"options\": [\n      {\n        \"optionText\": \"class\",\n        \"correct\": true\n      },\n      {\n        \"optionText\": \"def\",\n        \"correct\": false\n      }\n    ]\n  },\n  \"authoringMetadata\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Archive standalone questions",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/question-bank/archive_questions",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"questionIds\": [\n    1\n  ],\n  \"archived\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
     }
   ]
 }

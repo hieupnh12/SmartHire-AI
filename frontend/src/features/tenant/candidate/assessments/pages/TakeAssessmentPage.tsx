@@ -22,7 +22,7 @@ function SubmissionRoom({ id }: { id: number }) {
   const locked = room.submitting || room.remaining === 0;
   const answered = submission?.questions.filter(q => hasAnswer(room.choices[q.id])).length ?? 0;
   const seconds = room.remaining ?? submission?.remainingSeconds ?? 0;
-  const back = `/candidate/assessments${submission ? `?applicationId=${submission.applicationId}` : ""}`;
+  const back = `/assessments${submission ? `?applicationId=${submission.applicationId}` : ""}`;
   return <section className="space-y-6 text-[var(--color-on-surface)]">
     <Link className={assessmentLink} to={back}><ArrowLeft className="size-4" aria-hidden="true" />Bài kiểm tra</Link>
     <AssessmentError error={room.query.error} retry={() => void room.query.refetch()} />

@@ -46,8 +46,12 @@ class AssessmentFlowTest {
     @Configuration
     @EnableTransactionManagement
     @EnableJpaRepositories(basePackages = "com.smarthire.domain.tenant.repository")
-    @Import({AssessmentService.class, QuestionService.class, SubmissionService.class, AssessmentMapper.class, CvAccess.class})
+    @Import({AssessmentService.class, QuestionService.class, QuestionBankService.class, SubmissionService.class, AssessmentMapper.class})
     static class Config {
+        @Bean ObjectMapper objectMapper() { return new ObjectMapper(); }
+        @Bean CvAccess cvAccess(UserRepository users, JobAssignmentRepository assignments) {
+            return new CvAccess(users, assignments);
+        }
         @Bean DataSource dataSource() {
             String mysql = System.getenv("ASSESSMENT_TEST_JDBC_URL");
             if (mysql != null) {
@@ -77,6 +81,7 @@ class AssessmentFlowTest {
     @PersistenceContext EntityManager em;
     @Autowired AssessmentService assessments;
     @Autowired QuestionService questions;
+    @Autowired QuestionBankService bank;
     @Autowired SubmissionService submissions;
     @Autowired PlatformTransactionManager transactionManager;
     TransactionTemplate tx;
@@ -105,15 +110,95 @@ class AssessmentFlowTest {
             Application application = new Application();
             application.setJob(job); application.setCandidate(candidate); application.setStatus(ApplicationStatus.ASSESSMENT);
             em.persist(application); em.flush();
+            AiInterview passedInterview = new AiInterview();
+            passedInterview.setApplication(application);
+            passedInterview.setStatus(AiInterviewStatus.PASSED);
+            em.persist(passedInterview);
             jobId = job.getId(); applicationId = application.getId(); candidateId = candidate.getId();
         });
         login(recruiterEmail, "RECRUITER");
-        mvc = MockMvcBuilders.standaloneSetup(new QuestionController(questions), new SubmissionController(submissions))
+        mvc = MockMvcBuilders.standaloneSetup(new QuestionController(questions), new QuestionBankController(bank), new SubmissionController(submissions))
                 .setControllerAdvice(new GlobalExceptionHandler()).build();
     }
 
     @AfterEach
     void cleanup() { TenantContext.clear(); SecurityContextHolder.clearContext(); }
+
+    @Test
+    void bankCreatesStandaloneQuestionsAndPreservesMetadataAndSkillLinks() {
+        var authoring = new ObjectMapper().createObjectNode().put("kind", "TU_LUAN_CODE")
+                .put("sample", "Reference solution").put("snippet", "class Queue {}");
+        var input = new QuestionRequest("Implement a queue", 10, 0, "Hard", "Java", "Explanation",
+                List.of(), QuestionType.ESSAY);
+        var created = bank.create(List.of(new BankQuestionRequest(input, authoring))).getFirst();
+        assertThat(created.testId()).isNull();
+        assertThat(created.question().questionType()).isEqualTo("ESSAY");
+        assertThat(bank.get(created.question().id()).authoringMetadata().get("sample").asText()).isEqualTo("Reference solution");
+        tx.executeWithoutResult(status -> {
+            var stored = em.find(Question.class, created.question().id());
+            assertThat(stored.getTest()).isNull();
+            assertThat(em.createQuery("select count(q) from QuestionSkill q where q.questionId = :id", Long.class)
+                    .setParameter("id", stored.getId()).getSingleResult()).isEqualTo(1);
+        });
+        bank.archive(List.of(created.question().id()), true);
+        assertThat(bank.get(created.question().id()).archived()).isTrue();
+        bank.archive(List.of(created.question().id()), false);
+        assertThat(bank.get(created.question().id()).archived()).isFalse();
+    }
+
+    @Test
+    void bankUpdatesStandaloneAndCannotModifyPublishedAssessmentQuestions() {
+        var created = bank.create(List.of(new BankQuestionRequest(question("Bank question", 5, 0), null))).getFirst();
+        bank.update(created.question().id(), new BankQuestionRequest(question("Updated bank question", 3, 0), null));
+        assertThat(bank.get(created.question().id()).question().questionText()).isEqualTo("Updated bank question");
+        long testId = draft();
+        var attached = questions.create(testId, question("Frozen question", 5, 0));
+        questions.publish(testId);
+        assertThat(bank.list(0, 100).items()).anyMatch(item -> item.question().id().equals(attached.id()) && item.testId().equals(testId));
+        assertThatThrownBy(() -> bank.update(attached.id(), new BankQuestionRequest(question("Changed", 5, 0), null)))
+                .isInstanceOf(BusinessException.class).hasMessageContaining("original draft test");
+        assertThatThrownBy(() -> bank.archive(List.of(created.question().id(), attached.id()), true)).isInstanceOf(BusinessException.class);
+        assertThat(bank.get(created.question().id()).archived()).isFalse();
+        assertThat(questions.list(testId).getFirst().questionText()).isEqualTo("Frozen question");
+    }
+
+    @Test
+    void bankHttpCreatesUpdatesAndArchivesWithoutCreatingAssessment() throws Exception {
+        long before = tx.execute(status -> em.createQuery("select count(t) from JobTest t", Long.class).getSingleResult());
+        ObjectMapper json = new ObjectMapper();
+        String body = json.writeValueAsString(new BankQuestionRequest(question("HTTP bank question", 5, 0), null));
+        var result = mvc.perform(post("/api/v1/question-bank/create_questions").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"questions\":[" + body + "]}")).andExpect(status().isCreated()).andReturn();
+        long id = json.readTree(result.getResponse().getContentAsString()).path("data").get(0).path("question").path("id").asLong();
+        mvc.perform(get("/api/v1/question-bank/get_question/{id}", id)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.question.questionText").value("HTTP bank question"));
+        mvc.perform(put("/api/v1/question-bank/update_question/{id}", id).contentType(MediaType.APPLICATION_JSON)
+                .content(json.writeValueAsString(new BankQuestionRequest(question("HTTP updated", 3, 0), null))))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.question.questionText").value("HTTP updated"));
+        mvc.perform(put("/api/v1/question-bank/archive_questions").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"questionIds\":[" + id + "],\"archived\":true}")).andExpect(status().isOk());
+        assertThat(bank.get(id).archived()).isTrue();
+        Long after = tx.execute(status -> em.createQuery("select count(t) from JobTest t", Long.class).getSingleResult());
+        assertThat(after).isEqualTo(before);
+        mvc.perform(get("/api/v1/question-bank/get_question/9223372036854775807")).andExpect(status().isNotFound());
+    }
+
+    @Test
+    void bankRejectsInvalidBatchCandidatesAndMismatchedTenants() throws Exception {
+        long before = bank.list(0, 1).total();
+        var invalid = new QuestionRequest("Invalid", 5, 0, "Easy", "Java", null,
+                List.of(new QuestionRequest.OptionRequest("A", false), new QuestionRequest.OptionRequest("B", false)));
+        assertThatThrownBy(() -> bank.create(List.of(new BankQuestionRequest(question("Valid", 5, 0), null),
+                new BankQuestionRequest(invalid, null)))).isInstanceOf(BusinessException.class);
+        assertThat(bank.list(0, 1).total()).isEqualTo(before);
+        mvc.perform(post("/api/v1/question-bank/create_questions").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"questions\":[]}")).andExpect(status().isBadRequest());
+        login(candidateEmail, "CANDIDATE");
+        mvc.perform(get("/api/v1/question-bank/list_questions")).andExpect(status().isForbidden());
+        login(recruiterEmail, "RECRUITER");
+        TenantContext.setCurrentTenant("different-tenant");
+        mvc.perform(get("/api/v1/question-bank/list_questions")).andExpect(status().isForbidden());
+    }
 
     @Test
     void completeFlowSavesOnceGradesAndNeverLeaksCorrectOptions() throws Exception {

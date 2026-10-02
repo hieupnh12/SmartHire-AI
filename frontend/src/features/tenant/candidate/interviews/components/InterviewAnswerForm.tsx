@@ -39,10 +39,11 @@ export function InterviewAnswerForm({ interviewId, question, disabled, onSaved, 
     {question.responseMode === "speech" && <SpeechAnswerControl language={question.language} disabled={disabled || save.isPending || !!question.answer}
       onBusy={setRecording} onCapture={setCapture} onReset={() => { setCapture(null); setValue("answerText", "", { shouldDirty: true }); }}
       onTranscript={text => setValue("answerText", `${getValues("answerText")} ${text}`.trim(), { shouldDirty: true, shouldValidate: true })} />}
-    <label htmlFor={`answer-${question.id}`} className="block text-sm">Câu trả lời của bạn</label>
+    <label htmlFor={`answer-${question.id}`} className="sr-only">Câu trả lời của bạn</label>
     <textarea id={`answer-${question.id}`} {...register("answerText")} maxLength={50000} disabled={disabled || recording || save.isPending || !!question.difficulty && !!question.answer}
       aria-invalid={!!errors.answerText} aria-describedby={errors.answerText ? `answer-error-${question.id}` : undefined}
-      className="min-h-40 w-full rounded-lg border border-[var(--color-border-default)] bg-surface-muted p-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-primary" />
+      placeholder="Nhập câu trả lời chi tiết của bạn tại đây…"
+      className="min-h-52 w-full resize-y rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-container-low)] p-4 leading-7 placeholder:text-[var(--color-outline)] focus:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-primary" />
     {capture && <p className="text-xs text-[var(--color-on-surface-variant)]">Đã ghi {(capture.metrics.durationMs / 1000).toFixed(1)} giây. {recordingEnabled ? "Audio và transcript sẽ gửi cùng câu trả lời." : "Chỉ gửi transcript và tín hiệu lời nói; audio không lưu trên server."}</p>}
     {errors.answerText && <p id={`answer-error-${question.id}`} role="alert">{errors.answerText.message}</p>}
     {save.isError && <p role="alert">{getApiErrorMessage(save.error)}</p>}

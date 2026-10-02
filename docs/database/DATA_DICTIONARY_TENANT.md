@@ -567,7 +567,7 @@ Entity `Question`.
 | Cột | Kiểu | Khoá | Null | Default | Mô tả |
 |---|---|---|---|---|---|
 | `id` | BIGINT | PK | Không | auto | |
-| `test_id` | BIGINT | FK → `tests.id` | Không | — | Đề thi |
+| `test_id` | BIGINT | FK → `tests.id` | Có | NULL | V41: NULL cho câu hỏi ngân hàng chung; có giá trị khi thuộc đề thi |
 | `question_text` | TEXT | | Không | — | Nội dung câu hỏi |
 | `question_type` | VARCHAR(32) | | Không | — | Loại câu hỏi (MCQ ở luồng ASSESS-01) |
 | `points` | INT | | Không | 1 | Điểm tối đa |
@@ -575,6 +575,8 @@ Entity `Question`.
 | `difficulty` | VARCHAR(16) | | Có | NULL | `Easy` / `Medium` / `Hard` — metadata biên soạn |
 | `skill` | VARCHAR(255) | | Có | NULL | Nhãn kỹ năng từ Excel/UI |
 | `explanation` | TEXT | | Có | NULL | Giải thích đáp án (chỉ staff; không trả candidate) |
+| `authoring_metadata` | JSON | | Có | NULL | V41: metadata bảng soạn, gồm loại tự luận, rubric, đáp án mẫu, snippet/ngôn ngữ và chính sách chấm; chỉ staff |
+| `bank_archived` | BOOLEAN | | Không | FALSE | V41: trạng thái lưu trữ câu hỏi độc lập trong ngân hàng chung |
 
 **Ràng buộc:** `fk_questions_test`
 
@@ -590,7 +592,7 @@ Entity `QuestionSkill`; bảng nối N–N giữa `questions` và `skills`.
 PK `(question_id, skill_id)` chống liên kết trùng; index `idx_questionskills_skill(skill_id)`
 hỗ trợ tìm câu hỏi theo kỹ năng. FK `fk_questionskills_question` và `fk_questionskills_skill`
 đều `ON DELETE CASCADE`: chỉ xóa dòng nối khi xóa bản ghi cha, không xóa cha còn lại.
-Không có cột id tự tăng. Cột văn bản `questions.skill` vẫn được giữ, không tự backfill hoặc đồng bộ.
+Không có cột id tự tăng. Cột văn bản `questions.skill` vẫn được giữ. Từ API ngân hàng chung V41, thêm/sửa câu hỏi độc lập đồng bộ một nhãn skill vào `skills` và `questionskills` trong cùng transaction. Không backfill dữ liệu cũ; luồng assessment gốc chưa đổi cách ghi skill.
 
 ### F.3 `options` — Lựa chọn trả lời
 

@@ -45,5 +45,17 @@ public class ContractSignature {
 
     @Column(name = "client_ip", length = 64)
     String clientIp;
-    
+
+    @Builder.Default
+    @Column(name = "created_at", nullable = false, updatable = false)
+    LocalDateTime createdAt = LocalDateTime.now();
+
+    @Builder.Default
+    @Column(name = "updated_at", nullable = false)
+    LocalDateTime updatedAt = LocalDateTime.now();
+
+    @PreUpdate
+    public void onUpdate() {
+        this.updatedAt = LocalDateTime.now();
+    }
 }

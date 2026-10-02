@@ -93,7 +93,7 @@ export function SchedulesPage() {
                     Đề nghị đổi giờ
                   </button>
                 )}
-                <Link className={button} to={`/candidate/applications/${row.applicationId}`}>
+                <Link className={button} to={`/applications/${row.applicationId}`}>
                   Chi tiết đơn
                 </Link>
               </div>

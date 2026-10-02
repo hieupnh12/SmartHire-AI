@@ -17,18 +17,18 @@ export function WorkspaceModal() {
 
     const currentHost = window.location.host;
     if (currentHost.includes("localhost")) {
-      window.location.href = `http://${code}.localhost:${window.location.port || 5173}/login`;
+      window.location.href = `http://${code}.localhost:${window.location.port || 5173}/internal/login`;
     } else {
-      window.location.href = `https://${code}.smarthire.top/login`;
+      window.location.href = `https://${code}.smarthire.top/internal/login`;
     }
   };
 
   const handleDirectTenantJump = (code: string) => {
     const currentHost = window.location.host;
     if (currentHost.includes("localhost")) {
-      window.location.href = `http://${code}.localhost:${window.location.port || 5173}/login`;
+      window.location.href = `http://${code}.localhost:${window.location.port || 5173}/`;
     } else {
-      window.location.href = `https://${code}.smarthire.top/login`;
+      window.location.href = `https://${code}.smarthire.top/`;
     }
   };
 

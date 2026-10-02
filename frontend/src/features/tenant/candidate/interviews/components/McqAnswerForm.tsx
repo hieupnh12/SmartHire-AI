@@ -31,7 +31,7 @@ export function McqAnswerForm({ interviewId, question, disabled, onSaved, onDirt
   return <fieldset className="space-y-2" disabled={disabled || save.isPending || structured && !!question.answer}>
     <legend className="text-sm">{question.multipleChoice ? "Chọn tất cả đáp án đúng" : "Chọn một đáp án đúng"}</legend>
     {(question.options ?? []).map((option, index) => <label key={index}
-      className="flex min-h-11 cursor-pointer items-start gap-3 rounded-lg border border-[var(--color-border-default)] p-3 text-sm has-[:checked]:border-brand-primary has-[:checked]:bg-[var(--color-primary-soft)]">
+      className="flex min-h-12 cursor-pointer items-start gap-3 rounded-xl border border-[var(--color-border-default)] bg-white p-4 text-sm transition-colors hover:bg-[var(--color-primary-subtle)] has-[:checked]:border-brand-primary has-[:checked]:bg-[var(--color-primary-soft)] has-[:checked]:ring-1 has-[:checked]:ring-brand-primary/20">
       <input type={question.multipleChoice ? "checkbox" : "radio"} name={`mcq-${question.id}`} className="mt-1" checked={chosen.includes(index)} onChange={() => {
         if (!structured) save.mutate(String(index));
         else setSelected(current => question.multipleChoice ? current.includes(index) ? current.filter(item => item !== index) : [...current, index] : [index]);

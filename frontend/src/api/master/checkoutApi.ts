@@ -92,6 +92,17 @@ export interface PayPalVerifyReturnData {
   transactionNo?: string;
 }
 
+export interface InvoiceStatusResponse {
+  invoiceId: number;
+  invoiceNumber: string;
+  status: string;
+  amount: number;
+  tenantId?: number;
+  subdomain?: string;
+  paidAt?: string;
+  isPaid: boolean;
+}
+
 export const checkoutApi = {
   submitCheckout: async (payload: CheckoutRequestData): Promise<CheckoutResponseData> => {
     const res = await axios.post<ApiResponse<CheckoutResponseData>>(`${baseURL}/public/checkout`, payload);
@@ -105,6 +116,11 @@ export const checkoutApi = {
 
   checkSubdomain: async (subdomain: string): Promise<boolean> => {
     const res = await axios.get<ApiResponse<boolean>>(`${baseURL}/master/tenants/check-subdomain/${subdomain}`);
+    return res.data.data;
+  },
+
+  checkInvoiceStatus: async (invoiceId: number): Promise<InvoiceStatusResponse> => {
+    const res = await axios.get<ApiResponse<InvoiceStatusResponse>>(`${baseURL}/public/checkout/status/${invoiceId}`);
     return res.data.data;
   },
 

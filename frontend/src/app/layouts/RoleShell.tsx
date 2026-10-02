@@ -1,4 +1,4 @@
-import { Bell, CircleHelp, Clock3, Home, LogOut, Search, Sparkles, type LucideIcon } from "lucide-react";
+import { Bell, CircleHelp, Library, Home, LogOut, Search, Sparkles, type LucideIcon } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
@@ -51,7 +51,7 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
   const [openAdminGroup, setOpenAdminGroup] = useState<string | null>(null);
   const [failedTenantLogoUrl, setFailedTenantLogoUrl] = useState<string | null>(null);
   const userInitial = user?.fullName.trim().charAt(0).toLocaleUpperCase();
-  const isCandidateWorkspace = basePath === "/candidate";
+  const isCandidateWorkspace = brandKey === "roles.candidate";
   const inbox = useNotifications(isCandidateWorkspace);
   const unreadCount = inbox.data?.filter(item => !item.readAt).length ?? 0;
   const isRecruiterWorkspace = basePath === "/recruiter";
@@ -139,7 +139,7 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
     event.preventDefault();
     const query = new FormData(event.currentTarget).get("workspace-search")?.toString().trim();
     const target = isCandidateWorkspace
-      ? "/candidate/jobs"
+      ? "/jobs"
       : hasRecruiterFeature(user?.permissions, "APPLICANTS")
         ? recruiterJobId ? `/recruiter/jobs/${recruiterJobId}/applicants` : "/recruiter/jobs"
         : recruiterHomePath(user?.permissions);
@@ -357,7 +357,7 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
     );
   }
 
-  if (isCandidateWorkspace && location.pathname === "/candidate/interviews/demo") {
+  if (isCandidateWorkspace && location.pathname === "/interviews/demo") {
     return <div className="tenant-workspace-theme min-h-screen bg-surface-page" style={getTenantThemeStyle(tenantTheme)}>
       <main id="main-content" className="mx-auto max-w-[1600px] p-4 sm:p-6"><Outlet /></main>
     </div>;
@@ -460,7 +460,7 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
         {!isRecruiterDashboard && <div className="border-t border-[var(--color-border-default)] bg-white/85">
           {recruiterActionQueue ? (
             <div className="mx-auto flex max-w-[1440px] items-center gap-3 overflow-hidden px-4 py-2 sm:px-6 lg:px-10">
-              <div className="hidden shrink-0 items-center gap-2 lg:flex"><Clock3 className="size-4 text-brand-primary" aria-hidden="true" /><p className="text-sm font-semibold text-[var(--color-on-surface)]">Việc cần xử lý</p></div>
+              <Link to="/recruiter/question-bank" className="hidden shrink-0 items-center gap-2 rounded-lg lg:flex hover:text-brand-primary"><Library className="size-4 text-brand-primary" aria-hidden="true" /><p className="text-sm font-semibold">Ngân hàng câu hỏi</p></Link>
               <nav className="flex min-w-0 flex-1 gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label="Các việc tuyển dụng cần xử lý">
                 {actionQueueLinks.map((item) => {
                   const active = `${location.pathname}${location.search}` === item.to;

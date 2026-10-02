@@ -49,7 +49,7 @@ export function InterviewRoadmap({ steps, questions, current, openedAt, duration
   const percent = questions.length ? Math.round((done / questions.length) * 100) : 0;
   const estimate = durationMinutes && questions.length ? Math.max(1, Math.round(durationMinutes / questions.length)) : null;
   let openNumber = 0;
-  return <section className="space-y-4 rounded-xl bg-surface-card p-6 shadow-sm" aria-labelledby="roadmap-title">
+  return <section className="space-y-4 rounded-2xl border border-[var(--color-border-default)] bg-surface-card p-5 shadow-[var(--shadow-card)]" aria-labelledby="roadmap-title">
     <div className="flex items-center justify-between gap-2">
       <h2 id="roadmap-title" className="text-lg font-semibold">Lộ trình phỏng vấn</h2>
       {questions.length > 0 && <span className="rounded bg-[var(--color-primary-soft)] px-2 py-0.5 text-xs font-semibold text-brand-primary">{percent}% Hoàn thành</span>}
@@ -102,10 +102,10 @@ function QuestionItem({ number, title, state, onClick, children }: {
       ? <Loader2 className="mt-0.5 size-5 shrink-0 animate-spin text-brand-primary" aria-hidden="true" />
       : <Circle className={cn("mt-0.5 size-5 shrink-0", muted)} aria-hidden="true" />;
   return <button type="button" onClick={onClick} disabled={!onClick} aria-current={state === "current" ? "step" : undefined}
-    className={cn("flex min-h-11 w-full items-start justify-between gap-2 rounded-lg p-3 text-left transition-colors disabled:cursor-default",
+    className={cn("flex min-h-11 w-full items-start justify-between gap-2 rounded-xl border p-3 text-left transition-colors disabled:cursor-default",
       state === "current"
-        ? "bg-[var(--color-primary-soft)] ring-1 ring-brand-primary/30"
-        : "bg-[var(--color-surface-container-low)] enabled:hover:bg-[var(--color-surface-container)]")}>
+        ? "border-[var(--color-primary)] bg-[var(--color-primary-soft)] ring-1 ring-brand-primary/20"
+        : "border-transparent bg-[var(--color-surface-container-low)] enabled:hover:border-[var(--color-border-default)] enabled:hover:bg-[var(--color-surface-container)]")}>
     <span className="flex min-w-0 items-start gap-3">
       {icon}
       <span className="min-w-0">
@@ -124,7 +124,7 @@ function QuestionItem({ number, title, state, onClick, children }: {
 
 function MiniBlock({ count, after, done, active, onClick }: { count: number; after: number; done?: number; active?: boolean; onClick?: () => void }) {
   return <button type="button" onClick={onClick} disabled={!onClick} aria-current={active ? "step" : undefined}
-    className={cn("flex min-h-11 w-full items-start gap-3 rounded-lg bg-[var(--color-primary-soft)] p-3 text-left disabled:cursor-default",
+    className={cn("flex min-h-11 w-full items-start gap-3 rounded-xl border border-transparent bg-[var(--color-primary-soft)] p-3 text-left disabled:cursor-default",
       active && "ring-2 ring-brand-primary")}>
     <FileQuestion className="mt-0.5 size-5 shrink-0 text-brand-primary" aria-hidden="true" />
     <span className="min-w-0">

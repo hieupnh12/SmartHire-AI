@@ -1,6 +1,8 @@
 package com.smarthire.tenant.company.service;
 
 import com.smarthire.common.exception.BusinessException;
+import com.smarthire.common.redis.RedisKeys;
+import com.smarthire.common.redis.RedisService;
 import com.smarthire.domain.master.entity.TenantInfo;
 import com.smarthire.domain.master.repository.TenantInfoRepository;
 import com.smarthire.multitenancy.context.TenantContext;
@@ -22,6 +24,7 @@ public class CompanyProfileServiceImpl implements CompanyProfileService {
 
     private final TenantInfoRepository tenantInfoRepository;
     private final CompanyProfileMapper companyProfileMapper;
+    private final RedisService redisService;
 
     @Override
     @Transactional(transactionManager = "masterTransactionManager", readOnly = true)
@@ -35,6 +38,7 @@ public class CompanyProfileServiceImpl implements CompanyProfileService {
         TenantInfo tenant = currentTenant();
         companyProfileMapper.updateEntity(request, tenant);
         TenantInfo saved = tenantInfoRepository.save(tenant);
+        redisService.delete(RedisKeys.landingPage(saved.getCode()));
         log.info("Company profile updated for tenant '{}'", saved.getCode());
         return companyProfileMapper.toCompanyProfileResponse(saved);
     }

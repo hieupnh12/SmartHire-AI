@@ -44,14 +44,16 @@ users/jobs → recommendations
 ## Assessment (FE-05)
 
 ```
-jobs 1──* assessments
-assessments 1──* questions 1──* question_options
-assessments 1──* coding_problems 1──* test_cases
-applications 1──* attempts
-attempts 1──* attempt_answers
-attempts 1──* coding_submissions
-attempts 1──0..1 attempt_scores
-attempts 1──* proctor_events → proctor_reports
+jobs 1──* tests
+questions *──0..1 tests (NULL = câu hỏi ngân hàng chung)
+questions 1──* options
+questions 1──* questionskills ──▷ skills
+tests 1──* coding_problems 1──* test_cases
+applications 1──* submissions ──▷ tests
+submissions 1──* answers ──▷ questions
+answers 1──* answer_selected_options ──▷ options
+submissions 1──* coding_submissions
+submissions 1──* proctor_events → proctor_reports
 ```
 
 ## AI interview & practice

@@ -11,14 +11,14 @@ final class InterviewProcessQuestions {
     static final String INSTRUCTION = "Generate exactly one job-related exercise per supplied slot, preserving slot.index, "
             + "slot.kind, slot.questionType, slot.difficulty and slot.skills. Use commonConfiguration and configuration, "
             + "jobDescription, responsibilities, requirements, jobSkills and candidateEvidence when provided. "
-            + "Adaptive difficulty must fit minimumYearsExperience and job level. Use the requested language. "
+            + "Resolve adaptive difficulty to exactly easy, medium or hard based on minimumYearsExperience and job level; never return adaptive as difficulty. Use the requested language. "
             + "Honor enabled requirement flags (solution/explanation/real example/role/challenges/result/reflection/justification/alternatives/trade-offs). "
             + "For coding/debugging/code review provide concrete code and the requested task inside questionText. "
             + "Never invent CV claims when evidence is missing. Communication must match the configured technical/non-technical audience and test job knowledge, problem solving, reasoning and clarity. When previousAnswer is supplied, adapt the next main question to it and the job requirements. "
             + "Return {\"questions\":[{\"index\":0,\"questionText\":\"...\",\"questionType\":\"...\",\"difficulty\":\"...\","
-            + "\"referenceAnswer\":\"...\",\"keyPoints\":[\"...\"],\"options\":[\"...\"],\"correctOptions\":[0],\"explanation\":\"...\",\"hint\":\"...\"}]}. "
+            + "\"referenceAnswer\":\"...\",\"keyPoints\":[\"...\"]}]}. "
             + "OPEN needs a private referenceAnswer and 3-6 nonempty scoring keyPoints, and no options/correctOptions. "
-            + "SINGLE_CHOICE needs exactly 4 distinct options and exactly 1 correctOptions index 0-3. "
+            + "Only for choice kinds add options, correctOptions and explanation fields. SINGLE_CHOICE needs exactly 4 distinct options and exactly 1 correctOptions index 0-3. "
             + "MULTIPLE_CHOICE needs exactly 4 distinct options and 2-3 distinct correctOptions indices 0-3. "
             + "Both choice kinds need a private explanation and referenceAnswer plus 3-6 keyPoints for evaluating a candidate explanation. "
             + "Only provide a hint when configuration.allowHint is true. Never reveal answers in questionText or hint. "
@@ -113,12 +113,17 @@ final class InterviewProcessQuestions {
                 question.setOptionsJson(InterviewPolicies.json(values));
                 question.setCorrectOption(single ? indices.iterator().next() : null);
                 question.setExplanation(text(row, "explanation", 10000));
-            } else if (row.has("options") || row.has("correctOptions")) throw new IllegalStateException("Open exercise contains choice data");
+            } else if (hasChoiceData(row.path("options")) || hasChoiceData(row.path("correctOptions")))
+                throw new IllegalStateException("Open exercise contains choice data");
             if (InterviewProcessSettings.bool(config, "allowHint", false)) rubric.put("hint", text(row, "hint", 2000));
             question.setRubricJson(rubric.toString()); generated.add(question);
         }
         return generated;
     }
+    private static boolean hasChoiceData(JsonNode value) {
+        return !value.isMissingNode() && !value.isNull() && !(value.isArray() && value.isEmpty());
+    }
+
     static String text(JsonNode node, String key, int max) {
         var value = node.path(key);
         if (!value.isTextual() || value.asText().isBlank() || value.asText().length() > max) throw new IllegalStateException("Invalid exercise text: " + key);

@@ -175,3 +175,7 @@ Không gọi API user tenant để bootstrap admin. Response chỉ chứa metada
 Chế độ thủ công bổ sung `customDbUrl`, `dbUsername`, `dbPassword`; backend chạy migration trên DB đã chuẩn bị.
 Trạng thái provisioning là `PROVISIONING` → `ACTIVE` hoặc `FAILED`; trạng thái vận hành là `ACTIVE` ↔ `SUSPENDED`. Không kích hoạt trực tiếp tenant `FAILED`.
 Xem [contract và business rules](../features/Authentication/Tenant-Onboarding.md).
+
+## Ngân hàng câu hỏi chung
+
+API `/question-bank/*` dành cho staff trong đúng tenant, dùng token và `X-Tenant-ID`. Xem contract, body và lỗi tại [ASSESS-01](../features/Technical-Assessment/Multiple-Choice-Test.md#ngân-hàng-câu-hỏi-chung-recruiter). Cần tenant migration V41 trước khi sử dụng; câu đã thuộc assessment chỉ được sửa ở assessment gốc.

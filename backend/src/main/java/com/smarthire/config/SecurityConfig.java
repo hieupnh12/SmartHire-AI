@@ -46,7 +46,11 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**", "/ws/**",
                                 "/actuator/health", "/actuator/health/**").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/v1/master/auth/login", "/api/v1/master/auth/refresh", "/api/v1/master/auth/logout", "/api/v1/tenant/auth/login", "/api/v1/tenant/auth/google").permitAll()
+                        .requestMatchers(HttpMethod.POST,
+                                "/api/v1/master/auth/login", "/api/v1/master/auth/refresh", "/api/v1/master/auth/logout",
+                                "/api/v1/tenant/auth/login", "/api/v1/tenant/auth/refresh", "/api/v1/tenant/auth/logout",
+                                "/api/v1/tenant/auth/forgot-password", "/api/v1/tenant/auth/reset-password",
+                                "/api/v1/tenant/auth/google").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/master/consultations").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/master/tenants/check-subdomain/*").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/master/tenants/check/*").permitAll()
@@ -54,7 +58,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/v1/tenant/users/invitations/accept").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/public/jobs", "/api/v1/public/jobs/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/public/landing", "/api/v1/public/landing/**").permitAll()
-                        .requestMatchers("/api/v1/public/checkout", "/api/v1/public/checkout/**").permitAll()
+                        .requestMatchers("/api/v1/public/**").permitAll()
                         .requestMatchers("/api/v1/master/**").hasRole("WORKSPACE_ADMIN")
                         .requestMatchers("/api/v1/tenant/role-permissions/**").hasAnyRole("TENANT_ADMIN", "ADMIN")
                         .requestMatchers("/api/v1/tenant/roles/**").hasAnyRole("TENANT_ADMIN", "ADMIN")
