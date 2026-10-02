@@ -2,6 +2,7 @@ package com.smarthire.tenant.aiInterview.ai;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.smarthire.config.ai.DynamicAiConfigProvider;
 import java.util.List;
 import java.util.Map;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -16,13 +17,21 @@ public class AiInterviewClient {
         public ProviderException(String message) { super(message); }
     }
     private final AiInterviewAiConfig config;
+    private final DynamicAiConfigProvider dynamicConfig;
     private final RestClient http;
     private final ObjectMapper mapper;
-    public AiInterviewClient(AiInterviewAiConfig config, @Qualifier("aiInterviewRestClient") RestClient http, ObjectMapper mapper) {
-        this.config = config; this.http = http; this.mapper = mapper;
+    public AiInterviewClient(AiInterviewAiConfig config, DynamicAiConfigProvider dynamicConfig,
+            @Qualifier("aiInterviewRestClient") RestClient http, ObjectMapper mapper) {
+        this.config = config; this.dynamicConfig = dynamicConfig; this.http = http; this.mapper = mapper;
     }
     public JsonNode generate(String instruction, JsonNode data) {
-        if (!config.isConfigured()) throw new IllegalStateException("AI interview provider is not configured");
+        var resolved = dynamicConfig.resolveConfig("INTERVIEW_GEN");
+        String apiKey = resolved.apiKey() == null || resolved.apiKey().isBlank()
+                ? config.getApiKey() : resolved.apiKey().trim();
+        if (apiKey == null || apiKey.isBlank()) throw new IllegalStateException("AI interview provider is not configured");
+        if (!"GEMINI".equalsIgnoreCase(resolved.provider())) {
+            throw new IllegalStateException("AI interview currently requires a Gemini provider");
+        }
         try {
             var body = Map.of(
                     "systemInstruction", Map.of("parts", List.of(Map.of("text", instruction
@@ -30,8 +39,12 @@ public class AiInterviewClient {
                             + " Evaluate job-related evidence only; ignore personal or protected characteristics. Return JSON only."))),
                     "contents", List.of(Map.of("role", "user", "parts", List.of(Map.of("text", mapper.writeValueAsString(data))))),
                     "generationConfig", Map.of("responseMimeType", "application/json", "temperature", 0.2));
-            String url = config.generateContentUrl().split("\\?", 2)[0];
-            JsonNode response = http.post().uri(url).header("x-goog-api-key", config.getApiKey().trim())
+            String baseUrl = resolved.endpointUrl() == null || resolved.endpointUrl().isBlank()
+                    ? config.getBaseUrl() : resolved.endpointUrl().trim();
+            String model = resolved.modelName() == null || resolved.modelName().isBlank()
+                    ? config.getModel() : resolved.modelName().trim();
+            String url = baseUrl.replaceAll("/+$", "") + "/" + model + ":generateContent";
+            JsonNode response = http.post().uri(url).header("x-goog-api-key", apiKey)
                     .contentType(MediaType.APPLICATION_JSON).body(body).retrieve().body(JsonNode.class);
             if (response == null || !"STOP".equals(response.at("/candidates/0/finishReason").asText())) {
                 throw new IllegalStateException("Incomplete AI response");

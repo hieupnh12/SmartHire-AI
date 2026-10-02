@@ -1080,6 +1080,10 @@ Hai pipeline dùng **hai phương ngữ SQL khác nhau** và không thể dùng 
 | V34 | `V34__cv_application_copy.sql` | `cvs.is_application_copy`: mỗi đơn ứng tuyển có bản sao CV riêng, nộp job khác không kéo CV của đơn cũ |
 | V35 | `V35__ai_interview_rubric_and_roadmap.sql` | `jobs.ai_interview_policy_json`; `ai_interviews.config_snapshot_json/context_snapshot_json/report_json/attempt_number/expires_at`; `ai_questions.rubric_json/options_json/correct_option/explanation`; `ai_feedbacks.evaluation_json`; index `idx_ai_interview_expiry`. Chỉ thêm cột nullable/có default, không đổi dữ liệu cũ |
 | V36 | `V36__recruitment_stage_catalog.sql` | `recruitment_stages.stage_code`, `active`; unique `(job_id, stage_code)` |
+| V37 | `V37__job_role_matrix.sql` | `job_assignments.can_view`, `can_edit`; backfill role assignment legacy |
+| V38 | `V38__ai_interview_availability_start.sql` | `jobs.ai_interview_available_from`; NULL nghĩa là mở AI Interview ngay |
+| V39 | `V39__ai_interview_process_engine.sql` | `ai_interview_process_runs`; liên kết process/follow-up trên `ai_questions`; index current process/question sequence |
+| V40 | `V40__ai_interview_voice_support.sql` | `ai_interview_consents`, `ai_answer_recordings`; audit consent và metadata audio/STT private |
 
 V9 redesign cũ được giữ nguyên tại `db/migration-archive/`, **ngoài** location Flyway.
 Tenant tạo mới chạy V1–V13 rồi V21–V36: 60 bảng hiện hành (gồm 5 bảng analytics V9), chưa tính history.
@@ -1261,3 +1265,8 @@ java --class-path $cp scripts/QuestionSkillsCheck.java all
 ```
 
 Script chỉ resolve V22 để giữ lịch sử khác nhau của các tenant; không repair checksum migration cũ.
+# AI Interview Process & Voice — V39/V40
+
+V39 adds `ai_interview_process_runs`, sequential process state, and question-to-process/follow-up links. V40 adds
+candidate recording consent and private voice/STT metadata. New tenant entities are `AiInterviewProcessRun`,
+`AiInterviewConsent`, and `AiAnswerRecording`. Reference answers and storage object keys are not candidate-facing data.

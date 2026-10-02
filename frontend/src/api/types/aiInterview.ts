@@ -45,6 +45,9 @@ export type AiInterview = {
   canRetry?: boolean;
   reportJson?: string | null;
   durationMinutes?: number | null;
+  maxAttempts?: number | null;
+  availableFrom?: string | null;
+  availableUntil?: string | null;
   roadmap?: RoadmapStep[] | null;
   id: number;
   applicationId: number;
@@ -78,12 +81,25 @@ export type InterviewPolicy = {
   weights: Record<CompetencyKey, number>;
   selectedSkills: string[];
   stages: InterviewStage[];
+  schemaVersion?: number | null;
+  interviewMode?: "TEXT" | "VOICE" | null;
+  review?: { showCorrectAnswer: boolean; showExplanationAfterInterview: boolean } | null;
+  processes?: InterviewProcessConfig[] | null;
+};
+
+export type InterviewProcessConfig = {
+  key: "TECHNICAL_KNOWLEDGE" | "PROBLEM_SOLVING" | "PRACTICAL_EXPERIENCE" | "TECHNICAL_REASONING" | "BEHAVIORAL_SITUATIONAL" | "COMMUNICATION";
+  enabled: boolean;
+  order: number;
+  weight: number;
+  config: Record<string, unknown>;
 };
 
 export type AiInterviewConfig = {
   enabled: boolean;
   passingScore: number;
   questionCount: number;
+  availableFrom: string | null;
   availableUntil: string | null;
   policy: InterviewPolicy;
 };

@@ -37,6 +37,14 @@ public class AiQuestion {
     @JoinColumn(name = "ai_interview_id", nullable = false)
     AiInterview aiInterview;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "process_run_id")
+    AiInterviewProcessRun processRun;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "parent_question_id")
+    AiQuestion parentQuestion;
+
     @Column(name = "question_text", nullable = false, columnDefinition = "TEXT")
     String questionText;
 
@@ -46,6 +54,14 @@ public class AiQuestion {
     @Builder.Default
     @Column(name = "question_order", nullable = false)
     int questionOrder = 0;
+
+    @Builder.Default
+    @Column(name = "question_role", nullable = false, length = 16)
+    String questionRole = "MAIN";
+
+    @Builder.Default
+    @Column(name = "sequence_no", nullable = false)
+    int sequenceNo = 0;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     Instant createdAt;

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
-import { Bot, Info, LogOut, RotateCcw, Timer } from "lucide-react";
+import { Bot, CheckCircle2, Info, LockKeyhole, LogOut, RotateCcw, Timer } from "lucide-react";
 import { Button } from "@/components/ux/Button";
 import { getApiErrorMessage } from "@/lib/axios";
 import { useUiStore } from "@/stores/uiStore";
@@ -13,6 +13,7 @@ import { interviewStatus } from "../constants/interviewStatus";
 import { INTERVIEW_RULES } from "../constants/interviewRules";
 import { InterviewQuestionPanel } from "./InterviewQuestionPanel";
 import { InterviewRoadmap } from "./InterviewRoadmap";
+import { InterviewProcessNavigator } from "./InterviewProcessNavigator";
 
 const card = "rounded-xl bg-surface-card p-6 shadow-sm";
 const answered = (q: AiQuestion) => !!q.answer?.answerText?.trim();
@@ -75,12 +76,12 @@ export function AiInterviewRoom({ id }: { id: number }) {
     });
   }
 
-  return <section className="mx-auto max-w-7xl space-y-6 text-[var(--color-on-surface)]">
+  return <section className="mx-auto max-w-[1720px] space-y-4 text-[var(--color-on-surface)]">
     <Link to="/candidate/interviews" className="inline-flex min-h-11 items-center text-brand-primary">← Về AI Interview</Link>
     {session.isPending && <p role="status">Đang tải phiên phỏng vấn…</p>}
     {session.isError && <div role="alert"><p>{getApiErrorMessage(session.error)}</p><Button onClick={() => void session.refetch()}>Thử lại</Button></div>}
     {data && <>
-      <header className={`${card} ${inProgress ? "sticky top-2 z-10" : ""} flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between`}>
+      <header className={`${card} ${inProgress ? "sticky top-2 z-10" : ""} flex flex-col gap-4 border border-[var(--color-border-default)] bg-[var(--color-surface-card)] lg:flex-row lg:items-center lg:justify-between`}>
         <div className="flex flex-wrap items-center gap-4">
           <span className="inline-flex items-center gap-2 rounded-lg bg-[var(--color-primary-soft)] px-3 py-1.5 text-sm font-semibold text-brand-primary"><Bot className="size-5" aria-hidden="true" />AI Interview</span>
           <div className="min-w-0">
@@ -107,6 +108,14 @@ export function AiInterviewRoom({ id }: { id: number }) {
         </div>}
       </header>
       {error && <p role="alert">{getApiErrorMessage(error)}</p>}
+
+      {inProgress && <section className="grid gap-3 rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-4 md:grid-cols-3" aria-label="Tiến trình tuyển dụng">
+        <div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-3"><CheckCircle2 className="size-5 shrink-0 text-emerald-600" aria-hidden="true" /><div><p className="text-xs font-bold">VÒNG 1: CV SCREENING</p><p className="text-[11px] text-[var(--color-on-surface-variant)]">Đã hoàn tất · bạn đã được mời phỏng vấn</p></div></div>
+        <div className="flex items-center gap-3 rounded-xl border-2 border-[var(--color-primary)] bg-[var(--color-primary-soft)] p-3"><Bot className="size-5 shrink-0 text-[var(--color-primary)]" aria-hidden="true" /><div><p className="text-xs font-bold text-[var(--color-primary)]">VÒNG 2: AI INTERVIEW</p><p className="text-[11px] text-[var(--color-on-surface-variant)]">Đang thực hiện · câu trả lời được lưu theo từng câu</p></div></div>
+        <div className="flex items-center gap-3 rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-container-low)] p-3"><LockKeyhole className="size-5 shrink-0 text-[var(--color-outline)]" aria-hidden="true" /><div><p className="text-xs font-semibold text-[var(--color-on-surface-variant)]">VÒNG 3: ASSESSMENT</p><p className="text-[11px] text-[var(--color-on-surface-variant)]">Mở theo kết quả của AI Interview</p></div></div>
+      </section>}
+
+      {inProgress && <InterviewProcessNavigator steps={data.roadmap} questions={questions} current={index} onSelect={!dirty && !timeUp ? setSelected : undefined} />}
 
       <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-12">
         <div className="flex flex-col gap-6 lg:col-span-8">

@@ -38,6 +38,7 @@ class AiInterviewEvaluationServiceTest {
     @Mock JobTestRepository tests;
     @Mock AiInterviewClient ai;
     @Mock AiInterviewActivityLog activity;
+    @Mock AiInterviewProcessEngine processEngine;
     final ObjectMapper mapper = new ObjectMapper();
     AiInterviewEvaluationService service;
     Application application;
@@ -45,7 +46,7 @@ class AiInterviewEvaluationServiceTest {
 
     @BeforeEach void setup() {
         service = new AiInterviewEvaluationService(interviews, questions, answers, feedbacks, skills, cvs, extractions,
-                history, stages, notifications, emails, tests, ai, mapper, activity);
+                history, stages, notifications, emails, tests, ai, mapper, activity, processEngine);
         var job = new Job();
         job.setId(13L);
         job.setTitle("Java Backend Developer");

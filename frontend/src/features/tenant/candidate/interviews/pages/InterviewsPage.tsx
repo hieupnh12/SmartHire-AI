@@ -18,6 +18,12 @@ export function InterviewsPage() {
         <span className="rounded-full bg-[var(--color-primary-soft)] px-3 py-2 text-sm text-brand-primary">{interviewStatus[interview.status]}</span>
       </div>
       <p className="my-4 text-sm text-[var(--color-on-surface-variant)]">Nhận lời mời: {new Date(interview.createdAt).toLocaleString("vi-VN")}{interview.attemptNumber && interview.attemptNumber > 1 ? ` · Lần làm thứ ${interview.attemptNumber}` : ""}{interview.status === "FAILED" && interview.canRetry ? " · Còn lượt làm lại trước hạn" : ""}</p>
+      <dl className="mb-4 grid gap-2 text-sm sm:grid-cols-2">
+        <div><dt className="text-[var(--color-on-surface-variant)]">Có thể bắt đầu</dt><dd>{interview.availableFrom ? new Date(interview.availableFrom).toLocaleString("vi-VN") : "Ngay khi câu hỏi sẵn sàng"}</dd></div>
+        <div><dt className="text-[var(--color-on-surface-variant)]">Hạn hoàn thành</dt><dd>{interview.availableUntil ? new Date(interview.availableUntil).toLocaleString("vi-VN") : "Không giới hạn"}</dd></div>
+        <div><dt className="text-[var(--color-on-surface-variant)]">Thời lượng</dt><dd>{interview.durationMinutes ?? 30} phút</dd></div>
+        <div><dt className="text-[var(--color-on-surface-variant)]">Số lần thực hiện</dt><dd>{interview.maxAttempts ?? 1}</dd></div>
+      </dl>
       <Link to={`/candidate/interviews/${interview.id}`} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-brand-primary px-5 py-3 text-sm font-medium text-[var(--color-on-primary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary">Xem lời mời<ArrowRight className="size-4" aria-hidden="true" /></Link>
     </article>)}
   </section>;
