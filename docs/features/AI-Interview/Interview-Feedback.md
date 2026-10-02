@@ -1,7 +1,7 @@
 # Interview Feedback
 
 **Epic:** AI Interview System  
-**Trạng thái:** `To Do`  
+**Trạng thái:** `Doing`  
 **Code ID:** `INT-05`
 
 ## Mục đích chức năng
@@ -27,17 +27,19 @@ Tạo feedback readable cho recruiter/candidate (policy hiển thị).
 
 | Method | Path |
 |---|---|
+| PUT | `/api/v1/ai-interviews/{id}/answers/{answerId}/feedback` |
 | GET | `/api/v1/interviews/{id}/feedback` |
 | POST | `/api/v1/interviews/{id}/feedback/share` |
 
 ## Database liên quan
 
-- `interview_feedbacks`
+- Model hiện hành: `ai_feedbacks` (FK UNIQUE `ai_answer_id` → `ai_answers`), chứa score/feedback/strengths/weaknesses theo câu trả lời. Bảng feedback legacy đã bị V21 xóa cùng dữ liệu.
 
 ## UI mockup
 
 - Google Stitch: **AI Interview System / Interview Feedback** — _[dán link]_
 - Icons: xem `DESIGN.md`
+- Recruiter: drawer chi tiết phiên ở `/recruiter/jobs/:id/ai-interviews` cho nhập/sửa feedback từng câu trả lời (score, nhận xét, điểm mạnh, điểm yếu) qua `PUT .../answers/{answerId}/feedback`. Chưa có approve/share cho candidate.
 
 ## Phụ thuộc
 

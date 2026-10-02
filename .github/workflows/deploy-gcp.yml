@@ -86,7 +86,7 @@ jobs:
           host: ${{ secrets.GCP_VPS_HOST }}
           username: ${{ secrets.GCP_VPS_USER }}
           key: ${{ secrets.GCP_VPS_SSH_KEY }}
-          source: "docker-compose.prod.yml,deploy/.env.production.example,deploy/scripts/deploy.sh,deploy/scripts/setup-tls.sh,deploy/nginx/smarthire.conf,deploy/mysql/init-provisioner.sh"
+          source: "docker-compose.prod.yml,deploy/.env.production.example,deploy/scripts/deploy.sh,deploy/scripts/setup-tls.sh,deploy/nginx/smarthire.conf,deploy/mysql/init-provisioner.sh,deploy/rabbitmq/Dockerfile"
           target: ${{ secrets.GCP_VPS_DEPLOY_PATH || '/opt/smarthire' }}
           overwrite: true
 

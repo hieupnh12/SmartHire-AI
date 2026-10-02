@@ -96,4 +96,14 @@ class RolePermissionServiceTest {
                 captor.getAllValues().stream().map(RolePermission::getFeatureCode).toList());
         assertTrue(response.getAssignableRoles().contains("HR"));
     }
+
+    @Test
+    void isValidPermissionCodeRecognizesActions() {
+        assertTrue(RolePermissionService.isValidPermissionCode("JOBS_CREATE"));
+        assertTrue(RolePermissionService.isValidPermissionCode("JOBS_VIEW"));
+        assertTrue(RolePermissionService.isValidPermissionCode("JOBS_EDIT"));
+        assertTrue(RolePermissionService.isValidPermissionCode("JOBS_DELETE"));
+        assertTrue(RolePermissionService.isValidPermissionCode("JOBS"));
+        assertFalse(RolePermissionService.isValidPermissionCode("JOBS_UNKNOWN"));
+    }
 }

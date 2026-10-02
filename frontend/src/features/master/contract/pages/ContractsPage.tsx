@@ -6,7 +6,7 @@ import {
   TrendingUp, AlertCircle,
 } from "lucide-react";
 import { ContractItem, contractApi } from "@/api/master/contractApi";
-import { useTenants, useContracts, masterQueryKeys } from "@/api/master/queries";
+import { useContracts, masterQueryKeys } from "@/api/master/queries";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/stores/toastStore";
 import { ContractDetailModal } from "../components/ContractDetailModal";

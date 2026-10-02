@@ -39,7 +39,7 @@ export function OAuthCallbackPage() {
         const rawState = params.get("state");
 
         let targetTenant = "acme";
-        let redirectUrl = "/candidate";
+        let redirectUrl = "/";
 
         if (rawState) {
           try {
@@ -166,7 +166,7 @@ export function OAuthCallbackPage() {
             </div>
             <button
               type="button"
-              onClick={() => navigate("/candidate/login", { replace: true })}
+              onClick={() => navigate("/login", { replace: true })}
               className="inline-flex items-center justify-center gap-2 rounded-[8px] bg-[#1e293b] px-4 py-2.5 text-sm font-semibold text-white shadow transition-colors hover:bg-[#0f172a]"
             >
               <ArrowLeft className="h-4 w-4" />

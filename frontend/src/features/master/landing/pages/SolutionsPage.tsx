@@ -4,7 +4,6 @@ import {
   Code2,
   Mic,
   TrendingUp,
-  Sparkles,
   CheckCircle2,
   XCircle,
   ArrowRight,

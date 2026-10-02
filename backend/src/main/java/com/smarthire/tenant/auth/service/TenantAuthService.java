@@ -215,7 +215,7 @@ public class TenantAuthService {
             String otpKey = RedisKeys.tenantPasswordResetOtp(currentTenant, email);
             try {
                 redisService.set(otpKey, otp, OTP_TTL);
-                log.info("Generated password reset OTP for {} in tenant {}: {}", email, currentTenant, otp);
+                log.info("Generated password reset OTP for tenant '{}'", currentTenant);
             } catch (Exception ex) {
                 log.warn("Could not save OTP to Redis: {}", ex.getMessage());
             }
@@ -309,6 +309,7 @@ public class TenantAuthService {
         UserResponse response = authMapper.toUserResponse(user);
         response.setWorkspace(UserRole.workspaceOf(user.getRole()));
         response.setPermissions(rolePermissionService.permissionsFor(user.getRole()));
+        response.setRecruiterReadOnly(false);
         return response;
     }
 }

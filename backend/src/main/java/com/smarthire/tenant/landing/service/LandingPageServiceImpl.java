@@ -43,13 +43,14 @@ public class LandingPageServiceImpl implements LandingPageService {
         String tenantCode = requireTenantCode();
         String cacheKey = RedisKeys.landingPage(tenantCode);
 
-        Optional<String> cachedJson = redisService.get(cacheKey);
+        Optional<String> cachedJson = getCachedConfig(cacheKey, tenantCode);
         if (cachedJson.isPresent() && !cachedJson.get().isBlank()) {
             try {
-                return objectMapper.readValue(cachedJson.get(), LandingPageConfigDto.class);
+                return applyCompanyBranding(
+                        objectMapper.readValue(cachedJson.get(), LandingPageConfigDto.class), tenantCode);
             } catch (JsonProcessingException e) {
                 log.warn("Corrupted landing cache for tenant '{}', invalidating", tenantCode, e);
-                redisService.delete(cacheKey);
+                deleteCachedConfig(cacheKey, tenantCode);
             }
         }
 
@@ -61,10 +62,11 @@ public class LandingPageServiceImpl implements LandingPageService {
         } else {
             config = createDefaultConfig(tenantCode);
         }
+        config = applyCompanyBranding(config, tenantCode);
 
         try {
             String json = objectMapper.writeValueAsString(config);
-            redisService.set(cacheKey, json, CACHE_TTL);
+            cacheConfig(cacheKey, json, tenantCode);
         } catch (JsonProcessingException e) {
             log.error("Failed to serialize landing config for cache", e);
         }
@@ -102,9 +104,9 @@ public class LandingPageServiceImpl implements LandingPageService {
         setting.setPublished(publish);
         if (publish) {
             setting.setPublishedAt(Instant.now());
-            redisService.set(RedisKeys.landingPage(tenantCode), json, CACHE_TTL);
+            cacheConfig(RedisKeys.landingPage(tenantCode), json, tenantCode);
         } else {
-            redisService.delete(RedisKeys.landingPage(tenantCode));
+            deleteCachedConfig(RedisKeys.landingPage(tenantCode), tenantCode);
         }
 
         LandingPageSetting saved = settingRepository.save(setting);
@@ -133,7 +135,7 @@ public class LandingPageServiceImpl implements LandingPageService {
         setting.setPublishedAt(Instant.now());
 
         LandingPageSetting saved = settingRepository.save(setting);
-        redisService.set(RedisKeys.landingPage(tenantCode), json, CACHE_TTL);
+        cacheConfig(RedisKeys.landingPage(tenantCode), json, tenantCode);
         log.info("Tenant '{}' reset landing page to default template", tenantCode);
 
         return toResponse(saved);
@@ -168,6 +170,9 @@ public class LandingPageServiceImpl implements LandingPageService {
             TenantInfo info = tenantInfo.get();
             if (info.getName() != null && !info.getName().isBlank()) {
                 brandName = info.getName();
+            }
+            if (info.getLogoUrl() != null && !info.getLogoUrl().isBlank()) {
+                config.getHeader().setLogoImageUrl(info.getLogoUrl());
             }
             if (info.getDescription() != null && !info.getDescription().isBlank()) {
                 customDesc = info.getDescription();
@@ -253,12 +258,24 @@ public class LandingPageServiceImpl implements LandingPageService {
     private LandingPageResponse toResponse(LandingPageSetting setting) {
         return LandingPageResponse.builder()
                 .id(setting.getId())
-                .config(parseConfig(setting.getConfigJson()))
+                .config(applyCompanyBranding(parseConfig(setting.getConfigJson()), requireTenantCode()))
                 .published(setting.isPublished())
                 .publishedAt(setting.getPublishedAt())
                 .createdAt(setting.getCreatedAt())
                 .updatedAt(setting.getUpdatedAt())
                 .build();
+    }
+
+    private LandingPageConfigDto applyCompanyBranding(LandingPageConfigDto config, String tenantCode) {
+        if (config.getHeader() == null) {
+            config.setHeader(new LandingPageConfigDto.HeaderConfig());
+        }
+        tenantInfoRepository.findByCode(tenantCode)
+                .or(() -> tenantInfoRepository.findBySubdomain(tenantCode))
+                .map(TenantInfo::getLogoUrl)
+                .filter(logoUrl -> !logoUrl.isBlank())
+                .ifPresent(config.getHeader()::setLogoImageUrl);
+        return config;
     }
 
     private LandingPageConfigDto parseConfig(String json) {
@@ -279,5 +296,30 @@ public class LandingPageServiceImpl implements LandingPageService {
             throw new BusinessException("Tenant context is required", HttpStatus.BAD_REQUEST, "TENANT_REQUIRED");
         }
         return tenantCode.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private Optional<String> getCachedConfig(String cacheKey, String tenantCode) {
+        try {
+            return redisService.get(cacheKey);
+        } catch (RuntimeException exception) {
+            log.warn("Landing cache unavailable for tenant '{}'; falling back to database", tenantCode);
+            return Optional.empty();
+        }
+    }
+
+    private void cacheConfig(String cacheKey, String json, String tenantCode) {
+        try {
+            redisService.set(cacheKey, json, CACHE_TTL);
+        } catch (RuntimeException exception) {
+            log.warn("Unable to cache landing config for tenant '{}'; continuing without cache", tenantCode);
+        }
+    }
+
+    private void deleteCachedConfig(String cacheKey, String tenantCode) {
+        try {
+            redisService.delete(cacheKey);
+        } catch (RuntimeException exception) {
+            log.warn("Unable to invalidate landing cache for tenant '{}'; continuing without cache", tenantCode);
+        }
     }
 }

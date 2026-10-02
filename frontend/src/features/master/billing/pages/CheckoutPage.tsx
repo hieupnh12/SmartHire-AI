@@ -48,7 +48,7 @@ export function CheckoutPage() {
   >("TRANSFER");
   // Step 2 & 3: Order Result from Backend
   const [orderResult, setOrderResult] = useState<CheckoutResponseData | null>(null);
-  const [_paymentMethod, setPaymentMethod] = useState<"VIETQR" | "ATM_CARD" | "E_WALLET">("VIETQR");
+  const [, setPaymentMethod] = useState<"VIETQR" | "ATM_CARD" | "E_WALLET">("VIETQR");
   const [activePaymentTab, setActivePaymentTab] = useState<"TRANSFER" | "DOMESTIC_CARD" | "INTL_CARD" | "QR_CODE">("TRANSFER");
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -911,7 +911,7 @@ export function CheckoutPage() {
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start">
-                
+
                 {/* CỘT TRÁI: PHƯƠNG THỨC & THÔNG TIN THANH TOÁN (7 cols) */}
                 <div className="lg:col-span-7 space-y-4">
                   {/* Dòng Phương thức thanh toán - Số tiền */}

@@ -68,7 +68,9 @@ services:
       retries: 10
 
   rabbitmq:
-    image: rabbitmq:3.13-management-alpine
+    build:
+      context: ./deploy/rabbitmq
+    image: smarthire-rabbitmq:3.13-delayed
     container_name: smarthire-rabbitmq
     restart: unless-stopped
     environment:

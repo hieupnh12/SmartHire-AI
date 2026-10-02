@@ -13,12 +13,17 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface ApplicationRepository extends JpaRepository<Application, Long> {
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("select a from Application a where a.id = :id")
+    Optional<Application> findByIdForUpdate(@Param("id") Long id);
+
     Optional<Application> findByIdAndJob_Id(Long id, Long jobId);
     Optional<Application> findByJob_IdAndCandidate_Id(Long jobId, Long candidateId);
     List<Application> findByJob_IdOrderByIdDesc(Long jobId);
     List<Application> findByCandidate_IdOrderByIdDesc(Long candidateId);
     long countByJob_Id(Long jobId);
     long countByCandidate_Id(Long candidateId);
+    long countByStage_Id(Long stageId);
 
     @Query("""
             select count(a) from Application a
@@ -44,7 +49,7 @@ public interface ApplicationRepository extends JpaRepository<Application, Long> 
             select a from Application a
             join a.candidate c
             where a.job.id = :jobId
-              and a.status <> com.smarthire.domain.enums.ApplicationStatus.WITHDRAWN
+              and (:includeWithdrawn = true or a.status <> com.smarthire.domain.enums.ApplicationStatus.WITHDRAWN)
               and (:status is null or a.status = :status)
               and (:source is null or lower(a.source) = lower(:source))
               and ((:archived = true and a.archivedAt is not null) or (:archived = false and a.archivedAt is null))
@@ -60,6 +65,7 @@ public interface ApplicationRepository extends JpaRepository<Application, Long> 
             @Param("status") ApplicationStatus status,
             @Param("source") String source,
             @Param("archived") boolean archived,
+            @Param("includeWithdrawn") boolean includeWithdrawn,
             Pageable pageable);
 
     @Query("""

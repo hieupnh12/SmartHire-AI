@@ -22,19 +22,19 @@ export const candidateTasks: CandidateTask[] = [
     title: "Hoàn thành bài Technical Assessment",
     meta: "Senior Java Backend Engineer · hạn 06/09/2026",
     icon: "assessment",
-    to: "/candidate/assessments",
+    to: "/assessments",
   },
   {
     title: "Chuẩn bị phiên AI Interview",
     meta: "30 phút · ghi âm câu trả lời và nhận phân tích",
     icon: "interview",
-    to: "/candidate/interviews",
+    to: "/interviews",
   },
   {
     title: "Cập nhật CV mới nhất",
     meta: "PDF, DOC hoặc DOCX · hệ thống sẽ phân tích lại kỹ năng",
     icon: "cv",
-    to: "/candidate/cv",
+    to: "/cv",
   },
 ];
 

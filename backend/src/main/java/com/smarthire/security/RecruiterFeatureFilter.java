@@ -46,13 +46,34 @@ public class RecruiterFeatureFilter extends OncePerRequestFilter {
             return;
         }
         RecruiterFeature feature = RecruiterFeature.fromPath(request.getServletPath());
-        if (feature == null || rolePermissionService.hasFeature(role, feature)) {
-            filterChain.doFilter(request, response);
-            return;
+        if (feature != null) {
+            String method = request.getMethod();
+            String path = request.getServletPath();
+            String action = "VIEW";
+            if ("DELETE".equalsIgnoreCase(method)) {
+                action = "DELETE";
+            } else if ("POST".equalsIgnoreCase(method)) {
+                if (feature == RecruiterFeature.JOBS && "/api/v1/jobs".equals(path)) {
+                    action = "CREATE";
+                } else {
+                    action = "EDIT";
+                }
+            } else if ("PUT".equalsIgnoreCase(method) || "PATCH".equalsIgnoreCase(method)) {
+                action = "EDIT";
+            }
+            boolean hasPermission = rolePermissionService.hasAction(role, feature, action);
+            if (!hasPermission && "CREATE".equals(action)) {
+                hasPermission = rolePermissionService.hasAction(role, feature, "EDIT")
+                        || rolePermissionService.hasFeature(role, feature);
+            }
+            if (!hasPermission) {
+                response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+                objectMapper.writeValue(response.getOutputStream(), ApiResponse.error("Access denied: " + action + " permission required for " + feature.name(), "FORBIDDEN"));
+                return;
+            }
         }
-        response.setStatus(HttpServletResponse.SC_FORBIDDEN);
-        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        objectMapper.writeValue(response.getOutputStream(), ApiResponse.error("Access denied", "FORBIDDEN"));
+        filterChain.doFilter(request, response);
     }
 
     private static String currentRoleCode() {

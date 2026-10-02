@@ -9,10 +9,11 @@ import type {
   JobUpsertRequest,
   PublicJob,
   StageView,
+  StagesReplaceRequest,
 } from "../types/job";
 
 export const jobApi = {
-  search: (params?: { q?: string; status?: JobStatus | ""; department?: string; page?: number; size?: number }) =>
+  search: (params?: { q?: string; status?: JobStatus | ""; department?: string; page?: number; size?: number; scope?: "my" | "all" }) =>
     api.get<ApiResponse<JobPage>>("/jobs", { params }).then((r) => r.data),
   list: (params?: Record<string, unknown>) =>
     api.get<ApiResponse<JobPage>>("/jobs", { params }).then((r) => r.data),
@@ -50,6 +51,8 @@ export const jobApi = {
     api.get<ApiResponse<string[]>>("/jobs/departments").then((r) => r.data),
   stages: (id: number | string) =>
     api.get<ApiResponse<StageView[]>>(`/jobs/${id}/stages`).then((r) => r.data),
+  updateStages: (id: number | string, body: StagesReplaceRequest) =>
+    api.put<ApiResponse<StageView[]>>(`/jobs/${id}/stages`, body).then((r) => r.data),
   publicList: (q?: string) =>
     api.get<ApiResponse<PublicJob[]>>("/public/jobs", { params: q ? { q } : undefined }).then((r) => r.data),
   publicGet: (id: number | string) =>

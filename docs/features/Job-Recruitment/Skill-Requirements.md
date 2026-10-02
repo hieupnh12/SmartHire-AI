@@ -6,7 +6,7 @@
 
 ## Mục đích chức năng
 
-Gắn skill bắt buộc/ưu tiên + weight cho job để matching/assessment.
+Gắn skill bắt buộc/tùy chọn + weight cho job để matching/assessment.
 
 ## Actor
 

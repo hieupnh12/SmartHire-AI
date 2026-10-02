@@ -12,5 +12,7 @@ public record SubmissionResponse(Long id, Long testId, Long applicationId, Strin
     public record CandidateQuestion(Long id, String questionText, String questionType, int points,
             int questionOrder, List<CandidateOption> options) {}
     public record CandidateOption(Long id, String optionText) {}
-    public record SavedAnswer(Long questionId, Long selectedOptionId) {}
+    public record SavedAnswer(Long questionId, Long selectedOptionId, List<Long> selectedOptionIds,
+            @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+            String answerText) {}
 }

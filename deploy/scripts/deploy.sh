@@ -16,7 +16,10 @@ fi
 
 
 echo "==> Pulling Docker images (tag: ${IMAGE_TAG:-latest})"
-docker compose -f docker-compose.prod.yml --env-file "${ENV_FILE}" pull
+docker compose -f docker-compose.prod.yml --env-file "${ENV_FILE}" pull postgres mysql redis backend frontend
+
+echo "==> Building RabbitMQ with delayed-message exchange plugin"
+docker compose -f docker-compose.prod.yml --env-file "${ENV_FILE}" build --pull rabbitmq
 
 echo "==> Starting stack"
 docker compose -f docker-compose.prod.yml --env-file "${ENV_FILE}" up -d --remove-orphans

@@ -6,7 +6,6 @@ import {
   Building2,
   CheckCircle2,
   CircleDollarSign,
-  Clock3,
   CreditCard,
   FileClock,
   Plus,

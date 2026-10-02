@@ -1,13 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
-import { BriefcaseBusiness, ChevronRight, House, List, Menu, Plus, X } from "lucide-react";
+import { BriefcaseBusiness, CalendarDays, ChevronRight, Clock3, FileSearch, House, Menu, Plus, Users, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link, useLocation } from "react-router-dom";
 import { jobApi } from "@/api/tenant/jobApi";
+import { dashboardApi } from "@/api/tenant/dashboardApi";
 import type { JobStatus } from "@/api/types/job";
 import { getApiErrorMessage } from "@/lib/axios";
 import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
+import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 
 const statusLabel: Record<JobStatus, string> = {
   DRAFT: "Bản nháp",
@@ -19,21 +21,29 @@ const statusLabel: Record<JobStatus, string> = {
 
 const generalLinks = [
   { to: "/recruiter", label: "Trang tuyển dụng", description: "Tổng quan tất cả vị trí", icon: House },
-  { to: "/recruiter/jobs", label: "Tất cả việc làm", description: "Quản lý danh sách job", icon: List },
-  { to: "/recruiter/jobs/new", label: "Tạo việc làm", description: "Mở một vị trí mới", icon: Plus },
 ] as const;
 
 export function JobNavigationDrawer() {
+  const user = useAuthStore((s) => s.user);
+  const isAdmin = user?.role === "TENANT_ADMIN" || user?.role === "ADMIN" || user?.role === "SUPER_ADMIN";
+  const canCreateJob = isAdmin || (user?.permissions?.includes("JOBS_CREATE") ?? false) || (user?.permissions?.includes("JOBS") ?? false);
   const location = useLocation();
   const triggerRef = useRef<HTMLButtonElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
+  const [tasksOpen, setTasksOpen] = useState(false);
   const currentJobId = location.pathname.match(/^\/recruiter\/jobs\/(\d+)(?:\/|$)/)?.[1];
   const recentJobs = useQuery({
     queryKey: queryKeys.jobs.list({ page: 0, size: 8, context: "detail-drawer" }),
     queryFn: () => jobApi.search({ page: 0, size: 8 }),
     enabled: open,
     staleTime: 60_000,
+  });
+  const actionItems = useQuery({
+    queryKey: ["recruiter-job-navigation", "action-items"],
+    queryFn: dashboardApi.actionItems,
+    enabled: open && tasksOpen,
+    staleTime: 30_000,
   });
 
   useEffect(() => {
@@ -58,6 +68,7 @@ export function JobNavigationDrawer() {
 
   const close = () => {
     setOpen(false);
+    setTasksOpen(false);
     triggerRef.current?.focus();
   };
 
@@ -100,6 +111,18 @@ export function JobNavigationDrawer() {
                       <ChevronRight className="size-4 text-[var(--color-outline)]" aria-hidden="true" />
                     </Link>
                   ))}
+                  <button type="button" onMouseEnter={() => setTasksOpen(true)} onFocus={() => setTasksOpen(true)} onClick={() => setTasksOpen(true)} aria-haspopup="dialog" aria-expanded={tasksOpen} className={cn("group flex min-h-14 w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-primary", tasksOpen ? "bg-[var(--color-primary-soft)]" : "hover:bg-[var(--color-primary-soft)]")}>
+                    <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[var(--color-surface-alt)] text-[var(--color-on-surface-variant)] group-hover:text-brand-primary"><Clock3 className="size-[18px]" aria-hidden="true" /></span>
+                    <span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-[var(--color-on-surface)]">Việc cần xử lý</span><span className="block text-xs text-[var(--color-on-surface-variant)]">Tổng hợp mọi vị trí</span></span>
+                    <ChevronRight className="size-4 text-[var(--color-outline)]" aria-hidden="true" />
+                  </button>
+                  {canCreateJob && (
+                    <Link to="/recruiter/jobs/new" onClick={close} className="group flex min-h-14 items-center gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-[var(--color-primary-soft)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-primary">
+                      <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[var(--color-surface-alt)] text-[var(--color-on-surface-variant)] group-hover:text-brand-primary"><Plus className="size-[18px]" aria-hidden="true" /></span>
+                      <span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-[var(--color-on-surface)]">Tạo việc làm</span><span className="block text-xs text-[var(--color-on-surface-variant)]">Mở một vị trí mới</span></span>
+                      <ChevronRight className="size-4 text-[var(--color-outline)]" aria-hidden="true" />
+                    </Link>
+                  )}
                 </div>
               </section>
 
@@ -128,6 +151,30 @@ export function JobNavigationDrawer() {
               </section>
             </div>
           </aside>
+          {tasksOpen && (
+            <aside role="dialog" aria-label="Việc cần xử lý" onMouseEnter={() => setTasksOpen(true)} onMouseLeave={() => setTasksOpen(false)} className="absolute bottom-6 left-[min(92vw,24rem)] top-20 z-10 flex w-[min(22rem,calc(100vw-1rem))] flex-col overflow-hidden rounded-r-2xl border border-l-0 border-[var(--color-border-default)] bg-white shadow-[18px_24px_50px_-24px_rgba(15,23,42,0.4)]">
+              <header className="border-b border-[var(--color-border-default)] px-5 py-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.08em] text-brand-primary">Việc cần xử lý</p>
+                <h2 className="mt-1 text-lg font-semibold">Tổng hợp mọi vị trí</h2>
+                <p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">Chọn một nhóm để xem chi tiết theo từng job.</p>
+              </header>
+              <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-3">
+                {actionItems.isPending && Array.from({ length: 3 }, (_, index) => <div key={index} className="h-20 animate-pulse rounded-xl bg-[var(--color-surface-container)]" />)}
+                {actionItems.isError && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{getApiErrorMessage(actionItems.error, "Chưa tải được việc cần xử lý.")}</p>}
+                {actionItems.data && ([
+                  { key: "applicants", label: "Ứng viên mới", description: "Xem theo từng vị trí", count: actionItems.data.data.newApplicants, icon: Users },
+                  { key: "cvs", label: "CV cần sàng lọc", description: "Xem theo từng vị trí", count: actionItems.data.data.pendingCvScreening, icon: FileSearch },
+                  { key: "schedules", label: "Lịch phỏng vấn", description: "Xem theo từng vị trí", count: actionItems.data.data.upcomingInterviews, icon: CalendarDays },
+                ] as const).map(({ key, label, description, count, icon: Icon }) => (
+                  <Link key={key} to={`/recruiter?task=${key}`} onClick={close} className="group flex min-h-20 items-center gap-3 rounded-xl border border-transparent px-3 transition-colors hover:border-brand-primary/20 hover:bg-[var(--color-primary-soft)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-primary">
+                    <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[var(--color-surface-alt)] text-[var(--color-on-surface-variant)] group-hover:text-brand-primary"><Icon className="size-[18px]" aria-hidden="true" /></span>
+                    <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">{label}</span><span className="mt-0.5 block text-xs text-[var(--color-on-surface-variant)]">{description}</span></span>
+                    <strong className="text-base tabular-nums text-brand-primary">{count}</strong><ChevronRight className="size-4 text-[var(--color-outline)]" aria-hidden="true" />
+                  </Link>
+                ))}
+              </div>
+            </aside>
+          )}
         </div>,
         document.body,
       )}

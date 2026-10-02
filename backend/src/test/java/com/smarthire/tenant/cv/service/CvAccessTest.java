@@ -7,7 +7,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
 
 import com.smarthire.common.exception.BusinessException;
+import com.smarthire.domain.enums.AssignmentRole;
 import com.smarthire.domain.enums.UserStatus;
+import com.smarthire.domain.tenant.entity.JobAssignment;
 import com.smarthire.domain.tenant.entity.Job;
 import com.smarthire.domain.tenant.entity.User;
 import com.smarthire.domain.tenant.repository.JobAssignmentRepository;
@@ -68,6 +70,46 @@ class CvAccessTest {
         when(assignments.existsByJob_IdAndUser_Id(9L, 2L)).thenReturn(false);
         BusinessException ex = assertThrows(BusinessException.class, () -> access.requireJob(job));
         assertEquals("JOB_NOT_ASSIGNED", ex.getCode());
+    }
+
+    @Test
+    void requireRecruiterWriteAllowsCompanyAdmin() {
+        User admin = new User();
+        admin.setId(1L);
+        admin.setEmail("admin@acme.test");
+        admin.setRole("TENANT_ADMIN");
+        login("admin@acme.test", "ROLE_TENANT_ADMIN");
+        access.requireRecruiterWrite();
+    }
+
+    @Test
+    void requirePrimaryRecruiterAllowsCompanyAdmin() {
+        User admin = new User();
+        admin.setId(1L);
+        admin.setEmail("admin@acme.test");
+        admin.setRole("TENANT_ADMIN");
+        login("admin@acme.test", "ROLE_TENANT_ADMIN");
+        when(users.findByEmailIgnoreCase("admin@acme.test")).thenReturn(Optional.of(admin));
+        access.requirePrimaryRecruiter(job);
+    }
+
+    @Test
+    void requirePrimaryRecruiterAllowsPrimaryAssignment() {
+        when(users.findByEmailIgnoreCase("recruiter@acme.test")).thenReturn(Optional.of(recruiter));
+        JobAssignment row = new JobAssignment();
+        row.setAssignmentRole(AssignmentRole.PRIMARY_RECRUITER);
+        when(assignments.findByJob_IdAndUser_Id(9L, 2L)).thenReturn(Optional.of(row));
+        access.requirePrimaryRecruiter(job);
+    }
+
+    @Test
+    void requirePrimaryRecruiterRejectsCoRecruiter() {
+        when(users.findByEmailIgnoreCase("recruiter@acme.test")).thenReturn(Optional.of(recruiter));
+        JobAssignment row = new JobAssignment();
+        row.setAssignmentRole(AssignmentRole.CO_RECRUITER);
+        when(assignments.findByJob_IdAndUser_Id(9L, 2L)).thenReturn(Optional.of(row));
+        BusinessException ex = assertThrows(BusinessException.class, () -> access.requirePrimaryRecruiter(job));
+        assertEquals("WORKFLOW_PRIMARY_ONLY", ex.getCode());
     }
 
     @Test

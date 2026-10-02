@@ -41,6 +41,7 @@ public class AssessmentService {
         JobTest test = new JobTest();
         test.setJob(job);
         test.setStatus(TestStatus.DRAFT);
+        test.setCreatedBy(access.actor());
         apply(test, request);
         return mapper.response(tests.save(test));
     }

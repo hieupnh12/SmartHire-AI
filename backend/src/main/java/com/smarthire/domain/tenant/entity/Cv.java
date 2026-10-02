@@ -24,6 +24,8 @@ public class Cv extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "application_id") Application application;
 
+    @Column(name = "is_application_copy", nullable = false) boolean applicationCopy;
+
     @Column(name = "original_filename", nullable = false) String originalFilename;
 
     @Column(name = "file_url", nullable = false, length = 512) String fileUrl;

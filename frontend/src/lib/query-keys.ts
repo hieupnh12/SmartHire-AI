@@ -35,9 +35,15 @@ export const queryKeys = {
     available: (id: number) => [...assessmentScope(), "available", id] as const,
     submission: (id: number) => [...assessmentScope(), "submission", id] as const,
     result: (id: number) => [...assessmentScope(), "result", id] as const,
+    jobSubmissions: (jobId: number) => [...assessmentScope(), "job-submissions", jobId] as const,
   },
   interviews: {
     detail: (id: number | string) => ["interviews", id] as const,
+  },
+  aiInterviews: {
+    all: ["ai-interviews"] as const,
+    byJob: (jobId: number) => ["ai-interviews", "job", jobId] as const,
+    detail: (id: number) => ["ai-interviews", "detail", id] as const,
   },
   practice: {
     list: ["practice", "list"] as const,

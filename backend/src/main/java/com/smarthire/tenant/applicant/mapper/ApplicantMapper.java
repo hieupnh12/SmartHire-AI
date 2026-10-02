@@ -80,7 +80,9 @@ public class ApplicantMapper {
                 job.getWorkMode(),
                 job.getEmploymentType(),
                 gateScore,
-                rounds);
+                rounds,
+                application.getCvScreeningStatus() == null ? null : application.getCvScreeningStatus().name(),
+                job.getScreeningMode() == null ? null : job.getScreeningMode().name());
     }
 
     public CvRef cv(Cv cv) {

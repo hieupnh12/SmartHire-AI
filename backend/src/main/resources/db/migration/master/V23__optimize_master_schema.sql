@@ -16,11 +16,11 @@ ALTER TABLE invoices
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_inv_contract') THEN
-        ALTER TABLE invoices ADD CONSTRAINT fk_inv_contract 
+        ALTER TABLE invoices ADD CONSTRAINT fk_inv_contract
             FOREIGN KEY (contract_id) REFERENCES contracts(id) ON DELETE SET NULL;
     END IF;
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_inv_subscription') THEN
-        ALTER TABLE invoices ADD CONSTRAINT fk_inv_subscription 
+        ALTER TABLE invoices ADD CONSTRAINT fk_inv_subscription
             FOREIGN KEY (subscription_id) REFERENCES tenant_subscriptions(id) ON DELETE SET NULL;
     END IF;
 END $$;
@@ -35,7 +35,7 @@ ALTER TABLE consultation_requests
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_cr_tenant') THEN
-        ALTER TABLE consultation_requests ADD CONSTRAINT fk_cr_tenant 
+        ALTER TABLE consultation_requests ADD CONSTRAINT fk_cr_tenant
             FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE SET NULL;
     END IF;
 END $$;
@@ -46,7 +46,7 @@ CREATE INDEX IF NOT EXISTS idx_consultation_requests_tenant_id ON consultation_r
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_pt_tenant') THEN
-        ALTER TABLE payment_transactions ADD CONSTRAINT fk_pt_tenant 
+        ALTER TABLE payment_transactions ADD CONSTRAINT fk_pt_tenant
             FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE SET NULL;
     END IF;
 END $$;

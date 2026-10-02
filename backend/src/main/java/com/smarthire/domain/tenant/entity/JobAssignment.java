@@ -29,6 +29,12 @@ public class JobAssignment extends BaseEntity {
     @Column(name = "assignment_role", nullable = false, length = 32)
     private AssignmentRole assignmentRole;
 
+    @Column(name = "can_view", nullable = false)
+    private boolean canView = true;
+
+    @Column(name = "can_edit", nullable = false)
+    private boolean canEdit = false;
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "assigned_by", nullable = false)
     private User assignedBy;
@@ -39,6 +45,10 @@ public class JobAssignment extends BaseEntity {
     public void setUser(User user) { this.user = user; }
     public AssignmentRole getAssignmentRole() { return assignmentRole; }
     public void setAssignmentRole(AssignmentRole assignmentRole) { this.assignmentRole = assignmentRole; }
+    public boolean isCanView() { return canView; }
+    public void setCanView(boolean canView) { this.canView = canView; }
+    public boolean isCanEdit() { return canEdit; }
+    public void setCanEdit(boolean canEdit) { this.canEdit = canEdit; }
     public User getAssignedBy() { return assignedBy; }
     public void setAssignedBy(User assignedBy) { this.assignedBy = assignedBy; }
 }

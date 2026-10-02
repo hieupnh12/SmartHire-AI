@@ -11,6 +11,7 @@ import com.smarthire.tenant.assessment.dto.request.StartSubmissionRequest;
 import com.smarthire.tenant.assessment.dto.response.SubmissionResponse;
 import com.smarthire.tenant.assessment.dto.response.AvailableAssessmentResponse;
 import com.smarthire.tenant.assessment.dto.response.SubmissionResponse.SavedAnswer;
+import com.smarthire.tenant.assessment.dto.response.SubmissionSummaryResponse;
 import com.smarthire.tenant.assessment.mapper.AssessmentMapper;
 import com.smarthire.tenant.cv.service.CvAccess;
 import java.math.BigDecimal;
@@ -35,10 +36,13 @@ public class SubmissionService {
     private final CodingProblemRepository codingProblems;
     private final CvAccess access;
     private final AssessmentMapper mapper;
+    private final AiInterviewRepository aiInterviews;
+    private final JobRepository jobs;
 
     public SubmissionService(JobTestRepository tests, ApplicationRepository applications, SubmissionRepository submissions,
             QuestionRepository questions, OptionRepository options, AnswerRepository answers,
-            CodingProblemRepository codingProblems, CvAccess access, AssessmentMapper mapper) {
+            CodingProblemRepository codingProblems, CvAccess access, AssessmentMapper mapper, AiInterviewRepository aiInterviews,
+            JobRepository jobs) {
         this.tests = tests;
         this.applications = applications;
         this.submissions = submissions;
@@ -48,6 +52,8 @@ public class SubmissionService {
         this.codingProblems = codingProblems;
         this.access = access;
         this.mapper = mapper;
+        this.aiInterviews = aiInterviews;
+        this.jobs = jobs;
     }
 
     @Transactional(isolation = Isolation.READ_COMMITTED)
@@ -58,6 +64,7 @@ public class SubmissionService {
         Application application = applications.findById(request.applicationId()).orElseThrow(this::notFound);
         if (!application.getCandidate().getId().equals(candidate.getId())
                 || !application.getJob().getId().equals(test.getJob().getId())) throw notFound();
+        requireEligible(application);
         var previous = submissions.findLatestIds(testId, application.getId(), PageRequest.of(0, 1));
         Submission submission = previous.isEmpty() ? new Submission() : owned(previous.getFirst(), candidate);
         if (submission.getId() != null && submission.getStatus() != TestSubmissionStatus.NOT_STARTED) {
@@ -69,9 +76,9 @@ public class SubmissionService {
         }
         requireEligible(application);
         var paper = questions.findByTest_IdOrderByQuestionOrderAscIdAsc(testId);
-        if (paper.isEmpty() || paper.stream().anyMatch(q -> !"MCQ".equals(q.getQuestionType()))
+        if (paper.isEmpty() || paper.stream().anyMatch(q -> !java.util.Set.of("MCQ", "MULTIPLE_CHOICE", "ESSAY").contains(q.getQuestionType()))
                 || codingProblems.existsByTest_Id(testId)) {
-            throw conflict("Only published MCQ-only tests are supported", "UNSUPPORTED_TEST");
+            throw conflict("Test contains unsupported question types", "UNSUPPORTED_TEST");
         }
         submission.setTest(test);
         submission.setApplication(application);
@@ -100,6 +107,7 @@ public class SubmissionService {
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public SubmissionResponse get(long id) {
         Submission submission = owned(id, candidate());
+        requireEligible(submission.getApplication());
         expire(submission);
         return response(submission);
     }
@@ -121,13 +129,10 @@ public class SubmissionService {
             if (!seen.add(input.questionId())) throw invalid("Duplicate questionId in answers");
             Question question = questions.findByIdAndTest_Id(input.questionId(), submission.getTest().getId())
                     .orElseThrow(() -> invalid("Question does not belong to this test"));
-            Option selected = input.selectedOptionId() == null ? null
-                    : options.findByIdAndQuestion_Id(input.selectedOptionId(), question.getId())
-                            .orElseThrow(() -> invalid("Option does not belong to this question"));
             Answer answer = answers.findBySubmission_IdAndQuestion_Id(id, question.getId()).orElseGet(Answer::new);
             answer.setSubmission(submission);
             answer.setQuestion(question);
-            answer.setSelectedOption(selected);
+            applyAnswer(answer, question, input);
             answer.setCorrect(null);
             answer.setScore(null);
             changed.add(answer);
@@ -143,6 +148,7 @@ public class SubmissionService {
             requireEligible(submission.getApplication());
             grade(submission, false);
         } else if (submission.getStatus() != TestSubmissionStatus.GRADED
+                && submission.getStatus() != TestSubmissionStatus.SUBMITTED
                 && submission.getStatus() != TestSubmissionStatus.EXPIRED) {
             throw conflict("Submission cannot be submitted in its current state", "SUBMISSION_CLOSED");
         }
@@ -159,6 +165,36 @@ public class SubmissionService {
         return response(submission);
     }
 
+    @Transactional(readOnly = true)
+    public java.util.List<SubmissionSummaryResponse> staffList(long jobId) {
+        if (!access.staff()) throw new BusinessException("Staff access required", HttpStatus.FORBIDDEN, "ASSESSMENT_FORBIDDEN");
+        Job job = jobs.findById(jobId).orElseThrow(() ->
+                new BusinessException("Job not found", HttpStatus.NOT_FOUND, "JOB_NOT_FOUND"));
+        access.requireJob(job);
+        Instant now = Instant.now();
+        var totals = new java.util.HashMap<Long, Integer>();
+        return submissions.findByJobId(jobId).stream().map(submission -> {
+            JobTest test = submission.getTest();
+            int totalPoints = totals.computeIfAbsent(test.getId(), id ->
+                    questions.findByTest_IdOrderByQuestionOrderAscIdAsc(id).stream().mapToInt(Question::getPoints).sum());
+            Instant expiresAt = submission.getStartedAt() == null ? null : deadline(submission);
+            // Read-only view: overdue papers are reported as EXPIRED; they are finalized on the next locked access.
+            boolean overdue = submission.getStatus() == TestSubmissionStatus.IN_PROGRESS
+                    && expiresAt != null && !now.isBefore(expiresAt);
+            TestSubmissionStatus status = overdue ? TestSubmissionStatus.EXPIRED : submission.getStatus();
+            long remaining = status == TestSubmissionStatus.IN_PROGRESS && expiresAt != null
+                    ? Math.max(0, expiresAt.getEpochSecond() - now.getEpochSecond()) : 0;
+            BigDecimal score = overdue ? null : submission.getScore();
+            BigDecimal threshold = test.getPassingScore();
+            Boolean passed = threshold == null || score == null ? null : score.compareTo(threshold) >= 0;
+            User candidate = submission.getCandidate();
+            return new SubmissionSummaryResponse(submission.getId(), test.getId(), test.getTitle(),
+                    submission.getApplication().getId(), candidate.getId(), candidate.getFullName(), candidate.getEmail(),
+                    status, submission.getStartedAt(), expiresAt, overdue ? null : submission.getSubmittedAt(),
+                    remaining, score, totalPoints, threshold, passed);
+        }).toList();
+    }
+
     private User candidate() {
         if (!access.candidate()) throw new BusinessException("Candidate access required", HttpStatus.FORBIDDEN, "ASSESSMENT_FORBIDDEN");
         return access.actor();
@@ -169,10 +205,12 @@ public class SubmissionService {
     }
 
     private void requireEligible(Application application) {
+        if (!aiInterviews.existsByApplication_IdAndStatus(application.getId(), com.smarthire.domain.enums.AiInterviewStatus.PASSED)) {
+            throw conflict("AI interview must be passed before accessing assessment", "AI_INTERVIEW_NOT_PASSED");
+        }
         if (application.getArchivedAt() != null || application.getWithdrawnAt() != null
                 || application.getJob().getDeletedAt() != null
-                || (application.getStatus() != ApplicationStatus.ASSESSMENT
-                    && application.getStatus() != ApplicationStatus.INTERVIEW)) {
+                || application.getStatus() != ApplicationStatus.ASSESSMENT) {
             throw conflict("Application is not eligible for assessment", "APPLICATION_NOT_ELIGIBLE");
         }
     }
@@ -192,17 +230,34 @@ public class SubmissionService {
 
     private void grade(Submission submission, boolean expired) {
         BigDecimal total = BigDecimal.ZERO;
+        boolean needsReview = questions.findByTest_IdOrderByQuestionOrderAscIdAsc(submission.getTest().getId())
+                .stream().anyMatch(q -> "ESSAY".equals(q.getQuestionType()));
         var saved = answers.findBySubmission_IdOrderByQuestion_QuestionOrderAscQuestion_IdAsc(submission.getId());
         for (Answer answer : saved) {
-            boolean correct = answer.getSelectedOption() != null && answer.getSelectedOption().isCorrect();
+            if ("ESSAY".equals(answer.getQuestion().getQuestionType())) {
+                answer.setCorrect(null);
+                answer.setScore(null);
+                continue;
+            }
+            boolean correct;
+            if ("MULTIPLE_CHOICE".equals(answer.getQuestion().getQuestionType())) {
+                var expected = options.findByQuestion_IdOrderByIdAsc(answer.getQuestion().getId()).stream()
+                        .filter(Option::isCorrect).map(Option::getId).collect(java.util.stream.Collectors.toSet());
+                var selected = answer.getSelectedOptions().stream()
+                        .map(row -> row.getOption().getId()).collect(java.util.stream.Collectors.toSet());
+                correct = !expected.isEmpty() && expected.equals(selected);
+            } else {
+                correct = answer.getSelectedOption() != null && answer.getSelectedOption().isCorrect();
+            }
             answer.setCorrect(correct);
             answer.setScore(correct ? BigDecimal.valueOf(answer.getQuestion().getPoints()) : BigDecimal.ZERO);
             total = total.add(answer.getScore());
         }
         answers.saveAll(saved);
-        submission.setScore(total);
+        submission.setScore(needsReview ? null : total);
         submission.setSubmittedAt(expired ? deadline(submission) : Instant.now().truncatedTo(ChronoUnit.SECONDS));
-        submission.setStatus(expired ? TestSubmissionStatus.EXPIRED : TestSubmissionStatus.GRADED);
+        submission.setStatus(expired ? TestSubmissionStatus.EXPIRED
+                : needsReview ? TestSubmissionStatus.SUBMITTED : TestSubmissionStatus.GRADED);
         submissions.save(submission);
     }
 
@@ -214,7 +269,9 @@ public class SubmissionService {
                 ? Math.max(0, expiresAt.getEpochSecond() - now.getEpochSecond()) : 0;
         var saved = answers.findBySubmission_IdOrderByQuestion_QuestionOrderAscQuestion_IdAsc(submission.getId()).stream()
                 .map(answer -> new SavedAnswer(answer.getQuestion().getId(),
-                        answer.getSelectedOption() == null ? null : answer.getSelectedOption().getId())).toList();
+                        answer.getSelectedOption() == null ? null : answer.getSelectedOption().getId(),
+                        answer.getSelectedOptions().stream().map(row -> row.getOption().getId()).sorted().toList(),
+                        answer.getAnswerText())).toList();
         BigDecimal threshold = submission.getTest().getPassingScore();
         Boolean passed = threshold == null || submission.getScore() == null ? null : submission.getScore().compareTo(threshold) >= 0;
         return new SubmissionResponse(submission.getId(), submission.getTest().getId(), submission.getApplication().getId(),
@@ -222,6 +279,53 @@ public class SubmissionService {
                 submission.getSubmittedAt(), now, remaining, submission.getScore(),
                 paper.stream().mapToInt(Question::getPoints).sum(), passed,
                 paper.stream().map(q -> mapper.candidateQuestion(q, options.findByQuestion_IdOrderByIdAsc(q.getId()))).toList(), saved);
+    }
+
+    private void applyAnswer(Answer answer, Question question, SaveAnswersRequest.AnswerInput input) {
+        var ids = input.selectedOptionIds() == null ? java.util.List.<Long>of() : input.selectedOptionIds();
+        String type = question.getQuestionType();
+        if ("ESSAY".equals(type)) {
+            if (input.selectedOptionId() != null || !ids.isEmpty()) throw invalid("Essay answers cannot select options");
+            if (input.answerText() != null && input.answerText().length() > 10000) throw invalid("Essay answer is too long");
+            answer.setSelectedOption(null);
+            answer.getSelectedOptions().clear();
+            answer.setAnswerText(input.answerText());
+        } else if ("MCQ".equals(type)) {
+            if (!ids.isEmpty() || input.answerText() != null) throw invalid("MCQ requires selectedOptionId only");
+            answer.setSelectedOption(input.selectedOptionId() == null ? null : option(question, input.selectedOptionId()));
+            answer.getSelectedOptions().clear();
+            answer.setAnswerText(null);
+        } else if ("MULTIPLE_CHOICE".equals(type)) {
+            if (input.selectedOptionId() != null || input.answerText() != null) throw invalid("Multiple-choice requires selectedOptionIds only");
+            if (ids.size() > 10 || ids.stream().anyMatch(java.util.Objects::isNull) || new HashSet<>(ids).size() != ids.size()) throw invalid("Invalid or duplicate selectedOptionIds");
+            var selected = ids.stream().map(id -> option(question, id)).toList();
+            answer.setSelectedOption(null);
+            answer.setAnswerText(null);
+            replaceSelectedOptions(answer, selected);
+        } else {
+            throw invalid("Unsupported question type");
+        }
+    }
+
+    private void replaceSelectedOptions(Answer answer, java.util.Collection<Option> options) {
+        // Diff instead of clear+re-add: Hibernate flushes inserts before orphan deletes,
+        // so re-adding a kept (answer_id, option_id) row would collide with its own primary key.
+        var wanted = options.stream().map(Option::getId).collect(java.util.stream.Collectors.toSet());
+        answer.getSelectedOptions().removeIf(row -> !wanted.contains(row.getOption().getId()));
+        var kept = answer.getSelectedOptions().stream()
+                .map(row -> row.getOption().getId()).collect(java.util.stream.Collectors.toSet());
+        for (Option option : options) {
+            if (kept.contains(option.getId())) continue;
+            answer.getSelectedOptions().add(AnswerSelectedOption.builder()
+                    .answer(answer)
+                    .option(option)
+                    .build());
+        }
+    }
+
+    private Option option(Question question, Long id) {
+        return options.findByIdAndQuestion_Id(id, question.getId())
+                .orElseThrow(() -> invalid("Option does not belong to this question"));
     }
 
     private BusinessException notFound() {

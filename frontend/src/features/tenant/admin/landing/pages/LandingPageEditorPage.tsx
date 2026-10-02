@@ -11,8 +11,6 @@ import { getTenantIdFromWindow } from "@/lib/tenant";
 import {
   Menu,
   ArrowLeft,
-  Eye,
-  EyeOff,
   RotateCcw,
   Save,
   Send,

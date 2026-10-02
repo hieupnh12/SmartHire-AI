@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { Plus, Search, Filter, CheckCircle2, Clock, XCircle, Eye, Check, Inbox, Loader2 } from "lucide-react";
 import { InvoiceItem, billingApi } from "@/api/master/billingApi";
-import { useTenants, useSubscriptions, useRevenueAnalytics, useAiQuotaUsage, useAuditLogs, useLeads, useInvoices, useContracts, masterQueryKeys } from "@/api/master/queries";
+import { useTenants, useSubscriptions, useInvoices, masterQueryKeys } from "@/api/master/queries";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/stores/toastStore";
 import { HeaderActions } from "@/features/master/shell/HeaderActions";
@@ -75,7 +75,7 @@ function InvoicesContent({
     setApprovingId(inv.id);
     try {
       const updated = await billingApi.approve(inv.id);
-      setInvoices((prev) => prev.map((i) => (i.id === inv.id ? updated : i)));
+      setInvoices((prev: InvoiceItem[]) => prev.map((i) => (i.id === inv.id ? updated : i)));
       triggerNotification(`Đã duyệt thanh toán và kích hoạt Workspace cho Hóa đơn ${inv.invoiceNumber}`);
     } catch (err: any) {
       const msg = err.response?.data?.message || "Đã xảy ra lỗi khi duyệt hóa đơn và kích hoạt Workspace.";

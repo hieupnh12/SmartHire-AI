@@ -54,6 +54,12 @@ public class AiInterview {
     @Column(name = "overall_score", precision = 10, scale = 2)
     BigDecimal overallScore;
 
+    @Column(name = "passing_score_snapshot", precision = 5, scale = 2)
+    BigDecimal passingScoreSnapshot;
+
+    @Column(name = "error_message", length = 255)
+    String errorMessage;
+
     @Builder.Default
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)
@@ -61,6 +67,18 @@ public class AiInterview {
 
     @Column(name = "created_at", nullable = false, updatable = false)
     Instant createdAt;
+
+    @Column(name = "config_snapshot_json", columnDefinition = "JSON")
+    String configSnapshotJson;
+    @Column(name = "context_snapshot_json", columnDefinition = "JSON")
+    String contextSnapshotJson;
+    @Column(name = "report_json", columnDefinition = "JSON")
+    String reportJson;
+    @Builder.Default
+    @Column(name = "attempt_number", nullable = false)
+    int attemptNumber = 1;
+    @Column(name = "expires_at")
+    Instant expiresAt;
 
     @PrePersist
     void onCreate() {

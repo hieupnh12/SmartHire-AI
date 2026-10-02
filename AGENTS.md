@@ -78,6 +78,13 @@ com.smarthire
 - Migration DB Dual-Pipeline:
   - Master DB Migration: `backend/src/main/resources/db/migration/master`
   - Tenant DB Migration: `backend/src/main/resources/db/migration/tenant`
+- **BẮT BUỘC — bảng mới ⇒ entity mới:** Mỗi khi tạo bảng mới trong database (Flyway `CREATE TABLE`
+  ở master hoặc tenant), **phải tạo luôn** entity JPA tương ứng trong
+  `backend/src/main/java/com/smarthire/domain/master/entity/` hoặc
+  `.../domain/tenant/entity/` trong **cùng một thay đổi**. `@Table(name = "...")` khớp đúng tên bảng
+  snake_case. Bảng nối (join table) cũng cần entity riêng (ví dụ `QuestionSkill`, `AnswerSelectedOption`),
+  trừ khi team ghi rõ ngoại lệ trong `docs/database/`. Không để migration đi một mình mà thiếu entity.
+  Chi tiết: mục 12 và [`.cursor/rules/migration-entity-sync.mdc`](.cursor/rules/migration-entity-sync.mdc).
 - Entity `@Table(name = "...")` **bắt buộc chữ thường** (snake_case), khớp tên bảng Flyway — ví dụ `@Table(name = "users")`, `@Table(name = "interview_answers")`, `@Table(name = "attempt_answers")`. Không dùng PascalCase/camelCase trong `name`.
 - Cache/OTP/session/rate-limit: **Redis** (`RedisKeys`, `RedisService`). Job bất đồng bộ (CV AI, grading, STT/NLP, email): **RabbitMQ** Queue + Worker Pool (`JobPublisher`, `@RabbitListener`, concurrency 3→10, có header `X-Tenant-ID`). Realtime: **WebSocket**.
 - Connection pool: **HikariCP** per Tenant — managed by `DynamicMultiTenantConnectionProvider`.
@@ -160,6 +167,7 @@ Khi AI implement xong một phần: đổi status tương ứng và ghi chú com
 - [ ] Đúng layer / package / folder convention
 - [ ] Validation + exception handling (BE) hoặc Zod + error UI (FE)
 - [ ] Không phá DESIGN tokens / icon set
+- [ ] Nếu có `CREATE TABLE` mới: đã có entity JPA tương ứng (xem mục 3 / 12)
 - [ ] Cập nhật feature doc + status nếu đổi hành vi
 - [ ] Cập nhật `docs/database/` nếu đổi schema / entity / enum (xem mục 12)
 - [ ] Test hoặc bước verify thủ công đã nêu rõ
@@ -193,6 +201,10 @@ Khi viết, review, hoặc refactor code, đọc và áp dụng skill [karpathy-
 Tài liệu database là **một nguồn sự thật** cho schema: [`docs/database/`](docs/database/README.md) — gồm Database Architecture, Database List, Entity List, ERD, Entity Description, Data Dictionary, Relationships, Business Rules & Constraints, Index/Security, Physical Database/Migration.
 
 **Nguyên tắc:** Flyway migration là nguồn sự thật, entity JPA chỉ là ánh xạ. Một `@ManyToOne` hoặc một cột kết thúc bằng `_id` **không** chứng minh khoá ngoại tồn tại trong database — luôn đọc SQL trước khi ghi tài liệu.
+
+**BẮT BUỘC — mới tạo bảng gì trong database thì phải tạo luôn entity tương ứng.**
+Không merge / không coi task xong nếu có `CREATE TABLE` mà thiếu class `@Entity` ánh xạ bảng đó.
+Cursor rule tự đính kèm khi mở file migration: [`.cursor/rules/migration-entity-sync.mdc`](.cursor/rules/migration-entity-sync.mdc).
 
 **Trigger bắt buộc cập nhật** — khi task chạm vào bất kỳ đường dẫn nào sau đây:
 

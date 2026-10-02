@@ -20,7 +20,7 @@ export function UpcomingInterviewCard() {
           <p className="flex min-w-0 items-center gap-2"><Video className="size-4 shrink-0 text-brand-primary" aria-hidden="true" /><span className="break-words">Phòng mở trước 10 phút</span></p>
         </div>
       </div>
-      <Link to="/candidate/schedules" className="inline-flex min-h-11 items-center justify-center rounded-[var(--radius-default)] bg-brand-primary px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-primary-hover">Xem lịch phỏng vấn</Link>
+      <Link to="/schedules" className="inline-flex min-h-11 items-center justify-center rounded-[var(--radius-default)] bg-brand-primary px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-primary-hover">Xem lịch phỏng vấn</Link>
     </Card>
   );
 }

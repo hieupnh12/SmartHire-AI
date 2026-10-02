@@ -1,7 +1,7 @@
 # Login & JWT Authentication
 
 **Epic:** Authentication & User Management  
-**Trạng thái:** `Done`  
+**Trạng thái:** `Done`
 **Code ID:** `AUTH-02`
 
 ## Mục đích chức năng
@@ -68,7 +68,9 @@ Xác thực email/password, cấp access token và refresh token JWT, quản lý
 
 ## UI mockup
 
-- Màn hình đăng nhập doanh nghiệp: `LoginPage.tsx` (tích hợp nút "Quên mật khẩu?" mở modal nhập email và nhập mã OTP 6 chữ số để đặt lại mật khẩu).
+- Ứng viên đăng nhập tại `/login` bằng `CandidateLoginPage.tsx`; URL cũ `/candidate/login` chỉ chuyển hướng tương thích sang `/login`.
+- Trang đăng nhập ứng viên dùng bố cục responsive hai vùng: phần giới thiệu lợi ích và bảo mật theo màu thương hiệu tenant ở desktop, thẻ đăng nhập Google tập trung ở bên phải; mobile rút gọn thành một cột. Logo lấy từ cấu hình landing public của tenant và fallback về chữ cái đầu nếu chưa cấu hình hoặc ảnh lỗi. Khối đăng nhập dùng một tiêu đề ngắn và hiệu ứng xuất hiện nhẹ có hỗ trợ `prefers-reduced-motion`. Giao diện có trạng thái loading, lỗi cấu hình, focus rõ ràng và không hiển thị số liệu ứng viên giả.
+- Quản trị viên và nhân sự tenant đăng nhập tại `/internal/login` bằng `LoginPage.tsx` (tích hợp nút "Quên mật khẩu?" mở modal nhập email và nhập mã OTP 6 chữ số để đặt lại mật khẩu).
 - Quản trị viên/Nhân viên: Header menu hỗ trợ Đăng xuất với cơ chế thu hồi token toàn diện.
 
 ## Phụ thuộc

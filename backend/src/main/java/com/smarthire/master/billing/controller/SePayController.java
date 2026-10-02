@@ -34,7 +34,7 @@ public class SePayController {
     private final SePayService sePayService;
     private final ObjectMapper objectMapper;
 
-    @Value("${sepay.webhook-secret}")
+    @Value("${sepay.webhook-secret:}")
     private String webhookSecret;
 
     @Value("${sepay.require-signature}")

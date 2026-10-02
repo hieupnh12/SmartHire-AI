@@ -9,8 +9,7 @@ import {
   AlertCircle,
   Mail,
   Eye,
-  EyeOff,
-  ShieldCheck
+  EyeOff
 } from "lucide-react";
 
 export function MasterLoginPage() {

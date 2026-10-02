@@ -4,6 +4,7 @@ import com.smarthire.common.exception.BusinessException;
 import com.smarthire.domain.enums.TestStatus;
 import com.smarthire.domain.tenant.entity.Job;
 import com.smarthire.domain.tenant.entity.JobTest;
+import com.smarthire.domain.tenant.entity.User;
 import com.smarthire.domain.tenant.repository.JobAssignmentRepository;
 import com.smarthire.domain.tenant.repository.JobRepository;
 import com.smarthire.domain.tenant.repository.JobTestRepository;
@@ -12,6 +13,7 @@ import com.smarthire.multitenancy.context.TenantContext;
 import com.smarthire.tenant.assessment.controller.AssessmentController;
 import com.smarthire.tenant.assessment.dto.request.JobTestRequest;
 import com.smarthire.tenant.assessment.mapper.AssessmentMapper;
+import com.smarthire.tenant.assessment.service.AssessmentInvitationService;
 import com.smarthire.tenant.assessment.service.AssessmentService;
 import com.smarthire.tenant.cv.service.CvAccess;
 import java.math.BigDecimal;
@@ -64,12 +66,18 @@ class AssessmentServiceTest {
     @Test
     void createDraft() {
         when(access.staff()).thenReturn(true);
+        User creator = new User();
+        creator.setId(9L);
+        creator.setFullName("Recruiter One");
+        when(access.actor()).thenReturn(creator);
         when(jobs.findById(1L)).thenReturn(Optional.of(draft.getJob()));
         when(tests.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         var result = service.create(request);
         assertThat(result.title()).isEqualTo("Java basics");
         assertThat(result.status()).isEqualTo(TestStatus.DRAFT);
         assertThat(result.jobId()).isEqualTo(1L);
+        assertThat(result.createdById()).isEqualTo(9L);
+        assertThat(result.createdByName()).isEqualTo("Recruiter One");
         verify(access).requireJob(draft.getJob());
     }
 
@@ -140,8 +148,8 @@ class AssessmentServiceTest {
     @Test
     void controllerRejectsInvalidRequestBeforeService() throws Exception {
         AssessmentService mockService = mock(AssessmentService.class);
-        MockMvcBuilders.standaloneSetup(new AssessmentController(mockService)).build()
-                .perform(post("/api/v1/assessments").contentType(MediaType.APPLICATION_JSON)
+        MockMvcBuilders.standaloneSetup(new AssessmentController(mockService, mock(AssessmentInvitationService.class))).build()
+                .perform(post("/api/v1/assessments/create_draft_test").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"jobId\":0,\"title\":\" \",\"durationMinutes\":0,\"passingScore\":-1}"))
                 .andExpect(status().isBadRequest());
         verifyNoInteractions(mockService);

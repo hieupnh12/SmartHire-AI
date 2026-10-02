@@ -2,9 +2,9 @@ import { ArrowUpRight, BriefcaseBusiness, FileText, Mic } from "lucide-react";
 import { Link } from "react-router-dom";
 
 const links = [
-  { to: "/candidate/cv", title: "Hồ sơ & CV", description: "Chuẩn bị hồ sơ cho cơ hội tiếp theo.", icon: FileText },
-  { to: "/candidate/jobs", title: "Khám phá việc làm", description: "Tìm vị trí phù hợp với định hướng của bạn.", icon: BriefcaseBusiness },
-  { to: "/candidate/practice", title: "Luyện phỏng vấn", description: "Chuẩn bị câu trả lời và luyện tập cùng AI.", icon: Mic },
+  { to: "/cv", title: "Hồ sơ & CV", description: "Chuẩn bị hồ sơ cho cơ hội tiếp theo.", icon: FileText },
+  { to: "/jobs", title: "Khám phá việc làm", description: "Tìm vị trí phù hợp với định hướng của bạn.", icon: BriefcaseBusiness },
+  { to: "/interviews", title: "Phỏng vấn AI", description: "Xem lời mời và tham gia phiên phỏng vấn AI.", icon: Mic },
 ];
 
 export function CandidateQuickLinks() {

@@ -18,7 +18,7 @@ Chuyển job giữa DRAFT → PUBLISHED → PAUSED/CLOSED; kiểm soát visibili
 2. `POST /api/v1/jobs/{id}/publish` (từ DRAFT hoặc PAUSED).
 3. `unpublish` → DRAFT; `pause` → PAUSED; `close` → CLOSED; `reopen` → PUBLISHED.
 4. Public list chỉ job `PUBLISHED` chưa quá `deadline` (ngày giờ).
-5. Scheduler mỗi phút đóng job `PUBLISHED`/`PAUSED` đã hết hạn, rồi enqueue phân tích Gemini cho mọi CV chưa `ANALYZED`. Đóng thủ công cũng chạy cùng bước.
+5. Khi đăng/sửa/mở lại job, hệ thống hẹn giờ đóng qua RabbitMQ delayed message; đến hạn, job `PUBLISHED` chuyển `CLOSED` rồi enqueue phân tích Gemini cho mọi CV chưa `ANALYZED` (cả `AUTO` lẫn `MANUAL`). Đóng thủ công cũng chạy cùng bước. Nếu RabbitMQ không khả dụng thì chỉ log cảnh báo, thao tác vẫn lưu thành công. Không có scheduler quét định kỳ (tránh mở connection tới mọi tenant DB); thay vào đó job `PUBLISHED`/`PAUSED` quá hạn được đóng "lazy" ngay trong request của tenant hiện tại khi recruiter mở danh sách job, chi tiết job hoặc dashboard summary. Phía ứng viên luôn ẩn job quá hạn nhờ điều kiện `deadline > now` lúc truy vấn.
 
 ## Business Rules
 
@@ -47,6 +47,8 @@ Chuyển job giữa DRAFT → PUBLISHED → PAUSED/CLOSED; kiểm soát visibili
 
 - Job detail: Publish / Pause / Close / Reopen
 - Career page `/career` đọc public jobs
+- Public job card/detail hiển thị `deadline`, salary, skills và `acceptingApplications` khi API cung cấp. Job còn không quá 7 ngày được gắn nhãn sắp hết hạn theo timezone `Asia/Ho_Chi_Minh`; deadline null, không hợp lệ hoặc đã qua hạn không xuất hiện trong nhóm này.
+- Lương VND trên các màn recruiter, candidate, public job và các khối xem trước liên quan được rút gọn theo đơn vị `triệu` (ví dụ `12 – 30 triệu`); giá trị lưu và gửi API vẫn là VND.
 
 ## Phụ thuộc
 

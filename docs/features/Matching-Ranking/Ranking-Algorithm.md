@@ -15,8 +15,8 @@ Xếp hạng hồ sơ ứng tuyển của một Job bằng hai tầng trọng s�
 ## Luồng hoạt động
 
 1. Recruiter chọn Job thuộc quyền quản lý, mở chi tiết Job rồi truy cập `/recruiter/jobs/{jobId}/rank`. Màn hình lấy `jobId` từ URL và không cho chọn lại Job.
-2. Cấu hình trọng số bốn thành phần (mặc định 35/15/30/20), trọng số nhóm kỹ năng và số tháng kinh nghiệm liên quan yêu cầu. Cấu hình chưa lưu không tạo điểm rank.
-3. Backend đọc yêu cầu từ `job_skills`, kỹ năng từ `cv_skills`, kinh nghiệm từ `cv_extractions`, điểm chính thức từ `attempt_scores` và `interview_scores`.
+2. Khi chưa có cấu hình Rank ghi đè, hệ thống lấy cấu hình đã lưu cùng Job: điểm CV từ `match_scores`, trọng số tổng hợp từ `job_screening_configs.gate_*_weight`, nhóm kỹ năng từ yêu cầu kỹ năng và số tháng kinh nghiệm từ `minYearsExperience`. Công thức tự động là CV Screening + Assessment + AI Interview; thành phần kinh nghiệm đã nằm trong điểm CV nên không tính lặp.
+3. Backend đọc điểm CV theo đúng Job từ `match_scores`, bằng chứng kỹ năng từ `cv_skills`, kinh nghiệm từ `cv_extractions`, điểm chính thức từ `attempt_scores` và `interview_scores`.
 4. Nếu chỉ có một nguồn liên kết hồ sơ, tự chọn nguồn đó. Khi có nhiều CV/lần đánh giá, hiển thị `SELECT_SOURCE`; Recruiter chọn nguồn chính thức trong panel chi tiết. Không tự chọn lần cao điểm nhất.
 5. GET tính điểm từ dữ liệu hiện tại, không ghi DB. Màn hình làm mới mỗi 30 giây khi đang mở. POST recompute, lưu cấu hình hoặc chọn nguồn sẽ tính lại và thay snapshot của toàn bộ Job trong một transaction.
 6. Recruiter lọc nhóm thành phần, trạng thái, tên và điểm tối thiểu; xem chi tiết và mở module assessment/interview/lịch hẹn tương ứng.

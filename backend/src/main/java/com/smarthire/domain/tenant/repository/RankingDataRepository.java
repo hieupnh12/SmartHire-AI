@@ -27,6 +27,13 @@ public class RankingDataRepository {
     public Job job(long id, boolean lock) { return em.find(Job.class, id, lock ? LockModeType.PESSIMISTIC_WRITE : LockModeType.NONE); }
     public Application application(long id) { return em.find(Application.class, id); }
     public RankingConfig config(long jobId) { return em.find(RankingConfig.class, jobId); }
+    public JobScreeningConfig screeningConfig(long jobId) { return em.find(JobScreeningConfig.class, jobId); }
+    public java.math.BigDecimal matchScore(long jobId, long cvId) {
+        return em.createQuery("select m.score from MatchScore m where m.job.id = :jobId and m.cv.id = :cvId", java.math.BigDecimal.class)
+                .setParameter("jobId", jobId)
+                .setParameter("cvId", cvId)
+                .getResultStream().findFirst().orElse(null);
+    }
     public RankingSource source(long appId) { return em.find(RankingSource.class, appId); }
     public List<Application> applications(long jobId) {
         return em.createQuery("select a from Application a join fetch a.candidate where a.job.id = :id order by a.id", Application.class).setParameter("id", jobId).getResultList();

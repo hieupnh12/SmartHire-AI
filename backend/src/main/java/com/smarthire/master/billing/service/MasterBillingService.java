@@ -329,7 +329,7 @@ public class MasterBillingService {
         String transferSyntax = "SH " + savedInvoice.getInvoiceNumber();
         String encodedSyntax = URLEncoder.encode(transferSyntax, StandardCharsets.UTF_8);
         String encodedAccount = URLEncoder.encode(accountName, StandardCharsets.UTF_8);
-        String qrUrl = "https://img.vietqr.io/image/TPBank-07744348801-compact2.png?amount=" 
+        String qrUrl = "https://img.vietqr.io/image/TPBank-07744348801-compact2.png?amount="
                 + amountVnd.toBigInteger() 
                 + "&addInfo=" + encodedSyntax 
                 + "&accountName=" + encodedAccount;
@@ -425,8 +425,7 @@ public class MasterBillingService {
         if (tenant != null && ("PENDING_PAYMENT".equals(tenant.getStatus()) || "FAILED".equals(tenant.getStatus()))) {
             log.info("Auto-provisioning workspace for tenant: {}", tenant.getCode());
             String tempPassword = masterTenantService.provisionPendingTenant(tenant.getId());
-            log.info(">>> THÔNG TIN ĐĂNG NHẬP (DÀNH CHO DEV/TEST) <<<");
-            log.info(">>> Workspace: {} | Admin Email: {} | Password: {} <<<", tenant.getSubdomain(), tenant.getContactEmail(), tempPassword);
+            log.info("Temporary workspace administrator credentials generated for tenant '{}'", tenant.getCode());
             tenant = tenantRepository.findById(tenant.getId()).orElse(tenant);
 
             String workspaceUrl = "https://" + tenant.getSubdomain() + "." + baseDomain;

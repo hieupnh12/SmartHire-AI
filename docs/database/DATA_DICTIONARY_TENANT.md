@@ -1,16 +1,47 @@
 # Data Dictionary - Tenant DB (MySQL)
 
-## Bổ sung V12 (2026-09-24)
+## AI Interview Process Engine & Voice V39-V40 (2026-10-01)
 
-V12 tạo model Test/Interview/AI/Practice hiện hành, không dùng lại V9 đã thuộc analytics.
-19 bảng `legacy_v12_*` (README §3.2) giữ toàn bộ cột, kiểu, nullable, default, PK, UNIQUE
-và dữ liệu theo V1/V2; chỉ đổi tên bảng và gỡ các FK được ghi rõ trong V12. Các FK còn lại
-xem README §4.10. Archive không có entity; lịch sử chưa tự chuyển sang màn hình mới.
+V39 adds `ai_interview_process_runs` so a session creates and completes one process at a time. `ai_questions` gains
+`process_run_id`, `parent_question_id`, `question_role`, and `sequence_no`. V40 adds consent and private audio metadata.
+`storage_key` is never a public URL; candidate-facing responses never include a reference answer, rubric, correct option, or audio URL.
+
+| Table | Purpose | Constraints |
+|---|---|---|
+| `ai_interview_process_runs` | Process key/order/status, counters, snapshot and process report | FK cascade; unique interview/process key and order |
+| `ai_questions` V39 fields | Current process, follow-up parent, role and sequence | FK process cascade; parent uses `SET NULL` |
+| `ai_interview_consents` | Candidate recording consent and policy audit | one consent per interview |
+| `ai_answer_recordings` | Private object key, audio/STT state and transcript metadata | one recording per answer |
+
+## AI Interview workflow V25–V26 (2026-09-27)
+
+V25 thêm cấu hình AI Interview theo job, trạng thái CV screening của đơn và cột phục vụ worker.
+V26 đặt số câu hỏi 30–40 (mặc định 30; dữ liệu cũ < 30 nâng lên 30, > 40 hạ xuống 40) và thêm
+bảng nhật ký `ai_interview_logs` (chi tiết ở [H.5](#h5-ai_interview_logs--nhật-ký-hoạt-động-ai-interview)).
 
 | Bảng · cột | Kiểu | Null | Default | Khóa | Ý nghĩa |
 |---|---|---|---|---|---|
-| `ranking_sources.legacy_attempt_id` | BIGINT | Có | NULL | Không FK | Đổi tên attempt_id, giữ ID cũ |
-| `ranking_sources.legacy_interview_id` | BIGINT | Có | NULL | Không FK | Đổi tên interview_id, giữ ID cũ |
+| `jobs.ai_interview_enabled` | BOOLEAN | Không | FALSE | — | Job có bật vòng AI Interview |
+| `jobs.ai_interview_passing_score` | DECIMAL(5,2) | Không | 70.00 | — | Ngưỡng đạt `aiInterviewPassingScore` (0–100) |
+| `jobs.ai_interview_question_count` | INT | Không | 5 (V33; V26 là 30, V25 là 5) | — | Số câu hỏi–đáp AI sinh; service cho 1–30 (từ V35, trước đó cố định 5) |
+| `jobs.ai_interview_policy_json` | JSON | Có | NULL | — | V35. Cấu hình `InterviewPolicy`: thời gian, số lần làm, trọng số 5 nhóm năng lực, Job Skills, lộ trình chặng, Mini Assessment. NULL = mặc định |
+| `jobs.ai_interview_available_until` | TIMESTAMP | Có | NULL | — | Hạn cuối được bắt đầu AI Interview; NULL = không giới hạn |
+| `jobs.ai_interview_available_from` | TIMESTAMP | Có | NULL | — | Thời điểm sớm nhất được bắt đầu AI Interview; NULL = mở ngay |
+| `applications.cv_screening_status` | VARCHAR(16) | Không | `'PENDING'` | — | `CvScreeningStatus`: `PENDING`, `PASSED`, `FAILED` |
+| `ai_interviews.passing_score_snapshot` | DECIMAL(5,2) | Có | NULL | — | Ngưỡng đạt chốt lúc candidate bắt đầu |
+| `ai_interviews.error_message` | VARCHAR(255) | Có | NULL | — | Thông báo lỗi đã làm sạch khi sinh câu/chấm lỗi |
+| `email_outbox.purpose` | VARCHAR(64) | Có | NULL | IDX | Mục đích email, ví dụ `AI_INTERVIEW_RESULT` |
+
+## Dọn legacy V21 (2026-09-26)
+
+V12 tạo model Test/Interview/AI/Practice hiện hành, không dùng lại V9 đã thuộc analytics.
+V21 xóa 19 bảng `legacy_v12_*` (README §3.2), toàn bộ dữ liệu, PK, UNIQUE và FK trên chúng.
+Không còn archive sau V21. Hai cột `ranking_sources.legacy_attempt_id` và
+`ranking_sources.legacy_interview_id` (BIGINT nullable, không FK) cũng bị xóa.
+ID legacy không được chuyển sang nguồn mới. Các cột nguồn hiện hành bên dưới giữ nguyên.
+
+| Bảng · cột | Kiểu | Null | Default | Khóa | Ý nghĩa |
+|---|---|---|---|---|---|
 | `ranking_sources.submission_id` | BIGINT | Có | NULL | FK → submissions.id | Nguồn mới, không backfill |
 | `ranking_sources.ai_interview_id` | BIGINT | Có | NULL | FK → ai_interviews.id | Nguồn mới, không backfill |
 
@@ -37,8 +68,8 @@ V11 mở rộng `users.role`, `member_invitations.role` thành VARCHAR(64) NOT N
 
 > Xem [Database Design & ERD](README.md) và [Data Dictionary Master](DATA_DICTIONARY_MASTER.md).
 
-**Database:** MySQL riêng cho mỗi doanh nghiệp. **Số bảng:** 50 hiện hành + 19 archive, không tính Flyway history.
-**Nguồn:** `backend/src/main/resources/db/migration/tenant/`, V1-V17.
+**Database:** MySQL riêng cho mỗi doanh nghiệp. **Số bảng:** 60 theo pipeline repo sau V32, không còn archive, không tính Flyway history. DB ttqt có thêm mở rộng từ lịch sử V14–V20 ngoài checkout.
+**Nguồn:** `backend/src/main/resources/db/migration/tenant/`, V1–V13, V21–V32. V27–V32 là screening, assignment và landing, đánh số lại để không trùng V13 và V21–V26.
 **Entity:** `com.smarthire.domain.tenant.entity`. **Hibernate:** `hbm2ddl.auto = none`.
 
 KÃ½ hiá»‡u: `PK` khoÃ¡ chÃ­nh Â· `FK` khoÃ¡ ngoáº¡i Ä‘Ã£ khai bÃ¡o Â· `UQ` thuá»™c rÃ ng buá»™c unique Â· `IDX` cÃ³ index Â·
@@ -160,9 +191,9 @@ Entity `Job` (káº¿ thá»«a `BaseEntity`). Báº£ng Ä‘Æ°á»£c má»�
 | `deleted_at` | TIMESTAMP | | CÃ³ | NULL | XoÃ¡ má»m (V2); khÃ¡c vá»›i `status` |
 | `department` | VARCHAR(128) | | CÃ³ | NULL | PhÃ²ng ban (V6) |
 | `work_mode` | VARCHAR(32) | | CÃ³ | NULL | Onsite, hybrid, remote (V6) |
-| `screening_mode` | VARCHAR(16) | | Không | `'MANUAL'` | Chế độ sàng lọc CV `AUTO` hoặc `MANUAL` (V17) |
+| `screening_mode` | VARCHAR(16) | | Không | `'MANUAL'` | Chế độ sàng lọc CV `AUTO` hoặc `MANUAL` (V31) |
 | `headcount` | INT | | CÃ³ | NULL | Sá»‘ lÆ°á»£ng cáº§n tuyá»ƒn (V6) |
-| `deadline` | DATETIME | | Có | NULL | Hết hạn đăng tin (V6 DATE → V15 DATETIME). Hết giờ job đóng; chỉ `AUTO` tự sàng CV |
+| `deadline` | DATETIME | | Có | NULL | Hết hạn đăng tin (V6 DATE → V29 DATETIME). Hết giờ job đóng; chỉ `AUTO` tự sàng CV |
 | `salary_min` | DECIMAL(12,2) | | CÃ³ | NULL | LÆ°Æ¡ng tá»‘i thiá»ƒu (V6) |
 | `salary_max` | DECIMAL(12,2) | | CÃ³ | NULL | LÆ°Æ¡ng tá»‘i Ä‘a (V6) |
 | `salary_currency` | VARCHAR(8) | | CÃ³ | NULL | ÄÆ¡n vá»‹ tiá»n tá»‡ (V6) |
@@ -212,11 +243,13 @@ Entity `RecruitmentStage`. Báº£ng khÃ´ng cÃ³ cá»™t thá»i gian.
 |---|---|---|---|---|---|
 | `id` | BIGINT | PK | KhÃ´ng | auto | |
 | `job_id` | BIGINT | FK â†’ `jobs.id` | KhÃ´ng | â€” | Tin tuyá»ƒn dá»¥ng sá»Ÿ há»¯u vÃ²ng nÃ y |
-| `name` | VARCHAR(128) | | KhÃ´ng | â€” | TÃªn vÃ²ng |
+| `stage_code` | VARCHAR(32) | UQ (job_id, stage_code) | KhÃ´ng | â€” | MÃ£ catalog: APPLIED, SCREENING, â€¦, HIRED |
+| `name` | VARCHAR(128) | | KhÃ´ng | â€” | TÃªn hiá»ƒn thá»‹ (máº·c Ä‘á»‹nh theo catalog) |
 | `sort_order` | INT | | KhÃ´ng | â€” | Thá»© tá»± trong pipeline |
 | `is_terminal` | BOOLEAN | | KhÃ´ng | FALSE | ÄÃ¡nh dáº¥u vÃ²ng káº¿t thÃºc |
+| `active` | BOOLEAN | | KhÃ´ng | TRUE | FALSE = áº©n khá»i pipeline, khÃ´ng xÃ³a báº£n ghi |
 
-**RÃ ng buá»™c:** `fk_rs_job`
+**RÃ ng buá»™c:** `fk_rs_job`, `uk_recruitment_stages_job_code (job_id, stage_code)`
 
 ---
 
@@ -241,7 +274,7 @@ Entity `Application` (káº¿ thá»«a `BaseEntity`). Má»Ÿ rá»™ng qua V7
 | `archived_at` | TIMESTAMP | IDX | CÃ³ | NULL | LÆ°u trá»¯ Ä‘Æ¡n, tÃ¡ch khá»i danh sÃ¡ch hoáº¡t Ä‘á»™ng (V7) |
 | `reject_reason` | TEXT | | CÃ³ | NULL | LÃ½ do tá»« chá»‘i (V7) |
 | `withdrawn_at` | TIMESTAMP | | CÃ³ | NULL | Thá»i Ä‘iá»ƒm á»©ng viÃªn rÃºt Ä‘Æ¡n (V7) |
-| `ai_interview_invited_at` | TIMESTAMP | | Có | NULL | Thời điểm đã gửi mail mời phỏng vấn AI sau khi CV đạt (V14) |
+| `ai_interview_invited_at` | TIMESTAMP | | Có | NULL | Thời điểm đã gửi mail mời phỏng vấn AI sau khi CV đạt (V28) |
 | `created_at` | TIMESTAMP | | KhÃ´ng | now | |
 | `updated_at` | TIMESTAMP | | KhÃ´ng | now on update | |
 
@@ -294,6 +327,7 @@ Entity `Cv` (káº¿ thá»«a `BaseEntity`). Má»Ÿ rá»™ng qua V2, V5, V7,
 | `job_id` | BIGINT | FK â†’ `jobs.id` | **CÃ³** (tá»« V8) | NULL | Tin tuyá»ƒn dá»¥ng; Ä‘á»ƒ trá»‘ng khi CV thuá»™c kho há»“ sÆ¡ |
 | `user_id` | BIGINT | FK â†’ `users.id` | KhÃ´ng | â€” | Chá»§ sá»Ÿ há»¯u CV |
 | `application_id` | BIGINT | ref* | CÃ³ | NULL | ÄÆ¡n á»©ng tuyá»ƒn â€” **khÃ´ng cÃ³ khoÃ¡ ngoáº¡i** (V2) |
+| `is_application_copy` | BOOLEAN | | Không | FALSE | TRUE = bản sao CV riêng cho một đơn ứng tuyển (file riêng, sàng lọc riêng); không hiện trong kho "CV của tôi" (V34) |
 | `original_filename` | VARCHAR(255) | | KhÃ´ng | â€” | TÃªn file gá»‘c do ngÆ°á»i dÃ¹ng táº£i lÃªn |
 | `file_url` | VARCHAR(512) | | KhÃ´ng | â€” | URL truy cáº­p file |
 | `storage_key` | VARCHAR(512) | | CÃ³ | NULL | KhoÃ¡ lÆ°u trá»¯ ná»™i bá»™ (V5) |
@@ -391,7 +425,7 @@ Entity `MatchScore`.
 
 **RÃ ng buá»™c:** `fk_match_job`, `fk_match_cv`, `uk_match_job_cv (job_id, cv_id)`
 
-### D.7 `job_screening_configs` — Trọng số sàng CV và Gate theo job (V13)
+### D.7 `job_screening_configs` — Trọng số sàng CV và Gate theo job (V27)
 
 Entity `JobScreeningConfig`. PK tự nhiên `job_id`, không kế thừa `BaseEntity`.
 
@@ -412,7 +446,7 @@ Entity `JobScreeningConfig`. PK tự nhiên `job_id`, không kế thừa `BaseEn
 
 **Ràng buộc:** `fk_job_screening_job`; CHECK trọng số ≥ 0; CHECK ngưỡng 0–100.
 
-### D.8 `gate_scores` — Điểm Gate theo đơn (V13)
+### D.8 `gate_scores` — Điểm Gate theo đơn (V27)
 
 Entity `GateScore` (kế thừa `BaseEntity`).
 
@@ -520,9 +554,11 @@ Entity `JobTest` (class Java tránh xung đột JUnit `Test`).
 | `duration_minutes` | INT | | Không | — | Thời lượng (phút) |
 | `passing_score` | DECIMAL(10,2) | | Có | NULL | Điểm đạt |
 | `status` | VARCHAR(32) | | Không | `'DRAFT'` | `TestStatus`: DRAFT, PUBLISHED, ARCHIVED |
+| `created_by` | BIGINT | FK → `users.id` | Có | NULL | Người tạo đề (staff); NULL với đề cũ trước V13 |
 | `created_at` | TIMESTAMP | | Không | now | |
+| `updated_at` | TIMESTAMP | | Có | NULL | Cập nhật lần cuối; backfill = `created_at` ở V13 |
 
-**Ràng buộc:** `fk_tests_job`
+**Ràng buộc:** `fk_tests_job`, `fk_tests_created_by`
 
 ### F.2 `questions` — Câu hỏi
 
@@ -533,11 +569,28 @@ Entity `Question`.
 | `id` | BIGINT | PK | Không | auto | |
 | `test_id` | BIGINT | FK → `tests.id` | Không | — | Đề thi |
 | `question_text` | TEXT | | Không | — | Nội dung câu hỏi |
-| `question_type` | VARCHAR(32) | | Không | — | Loại câu hỏi |
+| `question_type` | VARCHAR(32) | | Không | — | Loại câu hỏi (MCQ ở luồng ASSESS-01) |
 | `points` | INT | | Không | 1 | Điểm tối đa |
 | `question_order` | INT | | Không | 0 | Thứ tự |
+| `difficulty` | VARCHAR(16) | | Có | NULL | `Easy` / `Medium` / `Hard` — metadata biên soạn |
+| `skill` | VARCHAR(255) | | Có | NULL | Nhãn kỹ năng từ Excel/UI |
+| `explanation` | TEXT | | Có | NULL | Giải thích đáp án (chỉ staff; không trả candidate) |
 
 **Ràng buộc:** `fk_questions_test`
+
+### F.2.1 `questionskills` — Kỹ năng của câu hỏi (V22)
+
+Entity `QuestionSkill`; bảng nối N–N giữa `questions` và `skills`.
+
+| Cột | Kiểu | Khóa | Null | Default | Ý nghĩa |
+|---|---|---|---|---|---|
+| `question_id` | BIGINT | PK kép, FK → `questions.id` | Không | — | Câu hỏi |
+| `skill_id` | BIGINT | PK kép, FK → `skills.id`, IDX | Không | — | Kỹ năng |
+
+PK `(question_id, skill_id)` chống liên kết trùng; index `idx_questionskills_skill(skill_id)`
+hỗ trợ tìm câu hỏi theo kỹ năng. FK `fk_questionskills_question` và `fk_questionskills_skill`
+đều `ON DELETE CASCADE`: chỉ xóa dòng nối khi xóa bản ghi cha, không xóa cha còn lại.
+Không có cột id tự tăng. Cột văn bản `questions.skill` vẫn được giữ, không tự backfill hoặc đồng bộ.
 
 ### F.3 `options` — Lựa chọn trả lời
 
@@ -586,6 +639,22 @@ Entity `Answer`.
 | `score` | DECIMAL(10,2) | | Có | NULL | Điểm câu |
 
 **Ràng buộc:** `fk_answers_submission`, `fk_answers_question`, `fk_answers_option`
+
+V23: MCQ lưu `selected_option_id`; ESSAY lưu `answer_text` (API tối đa 10.000 ký tự),
+điểm/đúng-sai NULL khi chờ chấm. MULTIPLE_CHOICE dùng bảng nối bên dưới, cột lựa chọn đơn NULL.
+
+### F.5.1 `answer_selected_options` — Các lựa chọn của câu trả lời nhiều đáp án
+
+Entity `AnswerSelectedOption` (ánh xạ `Answer.selectedOptions`).
+
+| Cột | Kiểu | Khóa | Null | Default | Ý nghĩa |
+|---|---|---|---|---|---|
+| `answer_id` | BIGINT | PK kép, FK → answers.id | Không | — | Câu trả lời; DELETE CASCADE |
+| `option_id` | BIGINT | PK kép, FK → options.id, IDX | Không | — | Lựa chọn; DELETE RESTRICT |
+
+PK `(answer_id, option_id)`, index `idx_answer_selected_options_option`, FK `fk_aso_answer` / `fk_aso_option`.
+Option phải thuộc question của answer: kiểm tra ở service, không phải ràng buộc chéo trong SQL.
+`questions.question_type` nhận MCQ/MULTIPLE_CHOICE/ESSAY qua API; vẫn VARCHAR(32), không SQL CHECK.
 
 ### F.6 `coding_problems` — Bài lập trình
 
@@ -764,10 +833,17 @@ Entity `AiInterview`.
 | `started_at` | TIMESTAMP | | Có | NULL | |
 | `completed_at` | TIMESTAMP | | Có | NULL | |
 | `overall_score` | DECIMAL(10,2) | | Có | NULL | Điểm tổng phiên |
+| `passing_score_snapshot` | DECIMAL(5,2) | | Có | NULL | Ngưỡng đạt chốt khi bắt đầu (V25) |
+| `error_message` | VARCHAR(255) | | Có | NULL | Lỗi đã làm sạch (V25) |
+| `config_snapshot_json` | JSON | | Có | NULL | V35. Cấu hình Job chốt khi tạo lần làm; NULL = phiên cũ trước V35 |
+| `context_snapshot_json` | JSON | | Có | NULL | V35. Ngữ cảnh Job/Job Skills/CV đã gửi AI khi sinh câu, dùng lại khi chấm |
+| `report_json` | JSON | | Có | NULL | V35. Báo cáo: điểm tổng, điểm nhóm năng lực, trọng số đã áp dụng, điểm Job Skill (null = chưa đủ dữ liệu), bằng chứng |
+| `attempt_number` | INT | | Không | 1 | V35. Số thứ tự lần làm của application |
+| `expires_at` | TIMESTAMP | | Có | NULL | V35. Hạn nộp = min(bắt đầu + thời lượng, `availableUntil`); quá hạn backend tự nộp |
 | `status` | VARCHAR(32) | | Không | `'CREATED'` | `AiInterviewStatus` |
 | `created_at` | TIMESTAMP | | Không | now | |
 
-**Ràng buộc:** `fk_ai_int_application`, `fk_ai_int_stage`
+**Ràng buộc:** `fk_ai_int_application`, `fk_ai_int_stage`; index `idx_ai_interview_expiry (status, expires_at, id)` (V35). Không có UNIQUE trên `application_id`: một application có nhiều lần làm.
 
 ### H.2 `ai_questions` — Câu hỏi AI
 
@@ -781,6 +857,10 @@ Entity `AiQuestion`.
 | `question_type` | VARCHAR(32) | | Không | — | Loại |
 | `question_order` | INT | | Không | 0 | Thứ tự |
 | `created_at` | TIMESTAMP | | Không | now | |
+| `rubric_json` | JSON | | Có | NULL | V35. Slot kế hoạch: chặng, loại `OPEN`/`MCQ`, nhóm năng lực, Job Skills. Câu hỏi–đáp thêm đáp án mẫu `referenceAnswer` + `keyPoints` (`point`, `target`); câu phiên cũ chỉ có đáp án mẫu, tạo lúc chấm. Chỉ backend giữ, không trả cho candidate |
+| `options_json` | JSON | | Có | NULL | V35. 4 lựa chọn của câu trắc nghiệm |
+| `correct_option` | INT | | Có | NULL | V35. Chỉ số đáp án đúng 0–3; chỉ backend giữ, không trả cho candidate |
+| `explanation` | TEXT | | Có | NULL | V35. Giải thích đáp án trắc nghiệm |
 
 **Ràng buộc:** `fk_ai_q_interview`
 
@@ -811,8 +891,26 @@ Entity `AiFeedback`.
 | `strengths` | TEXT | | Có | NULL | Điểm mạnh |
 | `weaknesses` | TEXT | | Có | NULL | Điểm yếu |
 | `created_at` | TIMESTAMP | | Không | now | |
+| `evaluation_json` | JSON | | Có | NULL | V35. Điểm 0–100 theo từng nhóm năng lực và Job Skill của câu; câu hỏi–đáp thêm `keyPoints` (điểm + trích dẫn từng ý của đáp án mẫu) và `score` |
 
 **Ràng buộc:** `fk_ai_f_answer`, `uk_ai_f_answer (ai_answer_id)`
+
+### H.5 `ai_interview_logs` — Nhật ký hoạt động AI Interview
+
+Entity `AiInterviewLog`. Bảng chỉ ghi thêm (V26): mỗi bước hệ thống/candidate/recruiter thực hiện trên
+một phiên (mời, sinh câu theo lô, bắt đầu, lưu câu trả lời, nộp, chấm theo lô, PASSED/FAILED, đổi trạng thái
+đơn, mở Assessment, notification, email, lỗi). `detail` không chứa nội dung câu trả lời hay dữ liệu cá nhân.
+
+| Cột | Kiểu | Khoá | Null | Default | Mô tả |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | Không | auto | |
+| `ai_interview_id` | BIGINT | FK → `ai_interviews.id`, IDX | Không | — | Phiên; xoá phiên xoá log (ON DELETE CASCADE) |
+| `event` | VARCHAR(64) | | Không | — | Mã sự kiện, ví dụ `INVITED`, `QUESTIONS_BATCH_GENERATED`, `PASSED` |
+| `status` | VARCHAR(32) | | Có | NULL | `AiInterviewStatus` của phiên tại thời điểm ghi |
+| `detail` | VARCHAR(1000) | | Có | NULL | Mô tả ngắn (số câu, điểm, trạng thái đơn) |
+| `created_at` | TIMESTAMP | | Không | now | |
+
+**Ràng buộc:** `fk_ai_log_interview` (ON DELETE CASCADE), index `idx_ai_interview_logs_interview (ai_interview_id, id)`
 
 ---
 
@@ -908,9 +1006,35 @@ Entity `PracticeFeedback`.
 
 ---
 
+## J.1 `job_assignments` — Recruiter phụ trách job (V30)
+
+Entity `JobAssignment`.
+
+| Cột | Kiểu | Khoá | Null | Default | Mô tả |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | Không | auto | |
+| `job_id` | BIGINT | FK → `jobs.id` | Không | — | Tin tuyển dụng |
+| `user_id` | BIGINT | FK → `users.id` | Không | — | Recruiter được giao |
+| `assignment_role` | VARCHAR(32) | | Không | — | **Job Role Matrix** (V37): `OWNER` · `COLLABORATOR` · `VIEWER` · `HIRING_MANAGER`. *(Deprecated: `PRIMARY_RECRUITER` → `OWNER`, `CO_RECRUITER` → `COLLABORATOR`)* |
+| `can_view` | BOOLEAN | | Không | TRUE | Quyền xem job và ứng viên (V37) |
+| `can_edit` | BOOLEAN | | Không | FALSE | Quyền chỉnh sửa nội dung job và pipeline (V37) |
+| `assigned_by` | BIGINT | FK → `users.id` | Không | — | Người giao việc |
+| `created_at` | TIMESTAMP | | Không | now | |
+| `updated_at` | TIMESTAMP | | Không | now on update | |
+
+**Ràng buộc:** `fk_ja_job`, `fk_ja_user`, `fk_ja_assigned_by`, `uk_job_assignments_job_user (job_id, user_id)`, index `idx_job_assignments_user`.
+
+**Business rules (V37):**
+- **Phân quyền chi tiết trên từng Job:** Mỗi phân quyền quy định rõ cờ `can_view` (xem) và `can_edit` (sửa).
+- `TENANT_ADMIN` / `ADMIN` hoặc Role có tính năng `JOBS_ALL` luôn bypass — xem và quản trị mọi tin tuyển dụng.
+- Người tạo tin (`jobs.created_by`) luôn có toàn quyền xem và sửa trên job của mình (không thể gỡ bỏ quyền của người tạo).
+- Mỗi job có thể có `OWNER` hoặc gán quyền chi tiết (`can_view`, `can_edit`) cho các nhân viên khác.
+- `can_manage_permissions` (quản trị phân quyền trên job) dành cho Admin hoặc Người tạo tin.
+
+
 ## K. Landing Page & Employer Branding
 
-### K.1 `landing_page_settings` — Cấu hình tùy biến Landing Page của Tenant
+### K.1 `landing_page_settings` — Cấu hình tùy biến Landing Page của Tenant (V32)
 
 Entity `LandingPageSetting` (`com.smarthire.domain.tenant.entity.LandingPageSetting`).
 

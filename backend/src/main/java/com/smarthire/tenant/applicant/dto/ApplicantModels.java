@@ -2,6 +2,7 @@ package com.smarthire.tenant.applicant.dto;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
@@ -27,6 +28,8 @@ public final class ApplicantModels {
             String referralCode) {}
 
     public record StatusRequest(String status, String note) {}
+
+    public record CvScreeningDecisionRequest(@NotNull Boolean passed, String note) {}
 
     public record PageResult<T>(List<T> items, int page, int size, long total) {}
 
@@ -89,7 +92,9 @@ public final class ApplicantModels {
             String jobWorkMode,
             String jobEmploymentType,
             GateScoreView gateScore,
-            ScreeningRoundsView rounds) {}
+            ScreeningRoundsView rounds,
+            String cvScreeningStatus,
+            String screeningMode) {}
 
     public record ScreeningRoundsView(
             RoundItemView cv,

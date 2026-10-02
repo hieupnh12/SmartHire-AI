@@ -153,6 +153,11 @@ public class RabbitMqConfig {
     }
 
     @Bean
+    public Queue interviewEmailQueue(@Value("${app.rabbitmq.queues.interview-email}") String name) {
+        return QueueBuilder.durable(name).build();
+    }
+
+    @Bean
     public Queue assessmentCodeGradeQueue(
             @Value("${app.rabbitmq.queues.assessment-code-grade}") String name) {
         return QueueBuilder.durable(name).build();
