@@ -172,6 +172,7 @@ Ví dụ: Backend giải thích REST API cho khách hàng không kỹ thuật; D
 ## UI mockup
 
 - Recruiter: `/recruiter/jobs/:id/ai-interviews` → **Cấu hình AI Interview**.
+- Candidate: `/interviews` hiển thị lời mời; lời mời gắn nhãn **Bản xem trước** mở `/interviews/demo` để duyệt luồng Voice Interview: AI đọc câu hỏi, ứng viên thu âm câu trả lời, nghe lại và chuyển câu. Âm thanh demo chỉ giữ cục bộ, không gọi API backend.
 - Panel gồm hai tab: **Cấu hình chung** và **Cấu hình bài tập**.
 - Mỗi quy trình có tab riêng, control cấu hình và khối **Mẫu AI giao** cập nhật theo lựa chọn hiện tại.
 
