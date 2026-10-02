@@ -6,7 +6,7 @@ UI is organized by actor boundary first, then by feature inside each actor.
 |---|---|---|
 | `master/landing/` | Guest / Tenant prospect | `/`, `/career`, `/jobs`, `/onboard` |
 | `master/admin/` | Platform admin | `/admin/*` |
-| `tenant/auth/` | Tenant users / candidate auth | `/login`, `/internal/login`, `/candidate/login` |
+| `tenant/auth/` | Tenant users / candidate auth | `/login`, `/internal/login` |
 | `tenant/career/` | Public tenant career page | `/career`, `/jobs` |
 | `tenant/candidate/` | Candidate | `/candidate/*` |
 | `tenant/recruiter/` | Recruiter | `/recruiter/*` |

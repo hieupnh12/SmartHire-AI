@@ -1,7 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { AlertCircle, ArrowLeft, Loader2 } from "lucide-react";
-import { LanguageSwitcher } from "@/components/ux/LanguageSwitcher";
+import { AlertCircle, Loader2 } from "lucide-react";
 import { getTenantTheme, getTenantThemeStyle } from "@/lib/tenantTheme";
 import { getTenantIdFromWindow, getCentralOAuthRedirectUri } from "@/lib/tenant";
 
@@ -31,7 +29,6 @@ function GoogleIcon() {
 }
 
 export function CandidateLoginPage() {
-  const navigate = useNavigate();
   const rawTenantCode = getTenantIdFromWindow() || "acme";
   const theme = getTenantTheme(rawTenantCode);
 
@@ -75,43 +72,8 @@ export function CandidateLoginPage() {
   };
 
   return (
-    <div className="tenant-workspace-theme flex min-h-screen flex-col bg-[var(--color-surface)] text-[var(--color-on-surface)]" style={getTenantThemeStyle(theme)}>
-      <header className="relative z-10 border-b border-[var(--color-border-default)] bg-white/90 backdrop-blur-md">
-        <div className="mx-auto flex min-h-20 max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-6">
-          <button
-            type="button"
-            onClick={() => navigate("/")}
-            className="flex min-w-0 items-center gap-3 text-left"
-            aria-label="Về trang tuyển dụng"
-          >
-            <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] ${theme.primaryColorBtn} text-lg font-bold text-white shadow-md`}>
-              {theme.code.charAt(0).toUpperCase()}
-            </span>
-            <span className="min-w-0">
-              <span className="block truncate font-display text-lg font-bold tracking-tight text-[#1e293b] sm:text-xl">
-                {theme.name}
-              </span>
-              <span className={`mt-1 inline-flex rounded-full border px-2.5 py-0.5 text-xs font-semibold ${theme.badgeBg}`}>
-                Candidate Portal
-              </span>
-            </span>
-          </button>
-
-          <div className="flex items-center gap-3 text-xs">
-            <LanguageSwitcher />
-            <button
-              type="button"
-              onClick={() => navigate("/")}
-              className="inline-flex min-h-10 items-center gap-1.5 rounded-[8px] px-3 font-medium text-[#64748b] transition-colors hover:bg-[#f1f5f9] hover:text-[#1e293b]"
-            >
-              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-              <span>Quay lại</span>
-            </button>
-          </div>
-        </div>
-      </header>
-
-      <main className="relative z-10 mx-auto flex w-full max-w-6xl flex-1 items-center px-4 py-10 sm:px-6 lg:py-16">
+    <div className="tenant-workspace-theme flex min-h-[calc(100vh-76px)] flex-col bg-[var(--color-surface)] text-[var(--color-on-surface)]" style={getTenantThemeStyle(theme)}>
+      <div className="relative z-10 mx-auto flex w-full max-w-6xl flex-1 items-center px-4 py-10 sm:px-6 lg:py-16">
         <div className="grid w-full items-center gap-8 lg:grid-cols-[1.1fr_0.9fr]">
           <section className="space-y-6">
             <div className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${theme.badgeBg}`}>
@@ -181,7 +143,7 @@ export function CandidateLoginPage() {
             )}
           </section>
         </div>
-      </main>
+      </div>
 
       <footer className="border-t border-[#e2e8f0] bg-white py-6 text-center text-xs text-[#64748b]">
         {theme.name} Candidate Authentication Portal © 2026.
