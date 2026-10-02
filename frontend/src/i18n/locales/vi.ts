@@ -40,7 +40,7 @@ export const vi: Messages = {
     forCandidate: "Cho ứng viên",
     forRecruiter: "Cho nhà tuyển dụng",
     forAdmin: "Cho quản trị",
-    candidateBlurb: "Ứng tuyển, tải CV, làm bài test, luyện phỏng vấn AI.",
+    candidateBlurb: "Ứng tuyển, tải CV, làm bài test và tham gia phỏng vấn AI.",
     recruiterBlurb: "Tin tuyển dụng, pipeline, matching CV, phỏng vấn, phân tích.",
     adminBlurb: "Người dùng, phân quyền, sức khỏe hệ thống.",
   },

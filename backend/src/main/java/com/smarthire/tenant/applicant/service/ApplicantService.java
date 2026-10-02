@@ -64,7 +64,6 @@ public class ApplicantService {
     private final AiInterviewInvitationService invitations;
     private final JobPublisher publisher;
     private final GateScreeningService gateScreening;
-    private final AiInterviewInviteService aiInterviewInvites;
     private final CvApplicationCopyService cvCopies;
 
     public ApplicantService(
@@ -80,7 +79,6 @@ public class ApplicantService {
             AiInterviewInvitationService invitations,
             JobPublisher publisher,
             GateScreeningService gateScreening,
-            AiInterviewInviteService aiInterviewInvites,
             CvApplicationCopyService cvCopies) {
         this.applications = applications;
         this.history = history;
@@ -94,7 +92,6 @@ public class ApplicantService {
         this.invitations = invitations;
         this.publisher = publisher;
         this.gateScreening = gateScreening;
-        this.aiInterviewInvites = aiInterviewInvites;
         this.cvCopies = cvCopies;
     }
 
@@ -336,15 +333,14 @@ public class ApplicantService {
         application.setCvScreeningStatus(passed ? com.smarthire.domain.enums.CvScreeningStatus.PASSED
                 : com.smarthire.domain.enums.CvScreeningStatus.FAILED);
         if (current != ApplicationStatus.NEW && current != ApplicationStatus.IN_REVIEW) {
-            if (passed && current == ApplicationStatus.INTERVIEW) {
-                aiInterviewInvites.sendIfNeeded(application, score);
+            if (passed && current == ApplicationStatus.INTERVIEW && application.getJob().isAiInterviewEnabled()) {
+                invitations.invite(application.getId(), null);
             }
             gateScreening.recalculate(application);
             return;
         }
         if (passed) {
             record(application, ApplicationStatus.INTERVIEW, "CV passed screening; moved to AI interview", null);
-            aiInterviewInvites.sendIfNeeded(application, score);
         } else if (current == ApplicationStatus.NEW) {
             record(application, ApplicationStatus.IN_REVIEW, "CV screening completed; not passed yet", null);
         }
@@ -365,7 +361,6 @@ public class ApplicantService {
         if (passed) {
             application.setCvScreeningStatus(CvScreeningStatus.PASSED);
             record(application, ApplicationStatus.INTERVIEW, noteOr(note, "Recruiter passed CV screening"));
-            aiInterviewInvites.sendOnRecruiterPass(application);
         } else {
             application.setCvScreeningStatus(CvScreeningStatus.FAILED);
             record(application, ApplicationStatus.IN_REVIEW, noteOr(note, "Recruiter marked CV screening as not passed"));

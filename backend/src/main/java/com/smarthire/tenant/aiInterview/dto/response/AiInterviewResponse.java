@@ -26,5 +26,8 @@ public record AiInterviewResponse(
         boolean canRetry,
         String reportJson,
         Integer durationMinutes,
+        Integer maxAttempts,
+        Instant availableFrom,
+        Instant availableUntil,
         List<RoadmapStep> roadmap) {
 }

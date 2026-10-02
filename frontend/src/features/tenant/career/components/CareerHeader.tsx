@@ -7,6 +7,7 @@ import {
   FileText, Gift, LogOut, Menu, MessageCircle, PenTool, Search, Settings,
   ShieldCheck, Sparkles, Star, Upload, UserRound, X,
 } from "lucide-react";
+import type { Notification } from "@/api/types/notification";
 import { authApi } from "@/api/tenant/authApi";
 import { LanguageSwitcher } from "@/components/ux/LanguageSwitcher";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
@@ -22,24 +23,24 @@ const menus: Record<MenuKey, MenuConfig> = {
   jobs: {
     label: "Việc làm",
     groups: [
-      { title: "Khám phá việc làm", items: [{ label: "Tìm việc làm", to: "/jobs", icon: Search }, { label: "Việc làm đang tuyển", to: "/candidate/jobs", icon: BriefcaseBusiness }, { label: "Đơn đã ứng tuyển", to: "/candidate/applications", icon: ClipboardCheck }] },
-      { title: "Theo dõi tiến trình", items: [{ label: "Bài đánh giá", to: "/candidate/assessments", icon: ClipboardCheck }, { label: "Phỏng vấn", to: "/candidate/interviews", icon: MessageCircle }, { label: "Lịch của tôi", to: "/candidate/schedules", icon: CalendarDays }] },
+      { title: "Khám phá việc làm", items: [{ label: "Tìm việc làm", to: "/jobs", icon: Search }, { label: "Việc làm đang tuyển", to: "/jobs", icon: BriefcaseBusiness }, { label: "Đơn đã ứng tuyển", to: "/applications", icon: ClipboardCheck }] },
+      { title: "Theo dõi tiến trình", items: [{ label: "Bài đánh giá", to: "/assessments", icon: ClipboardCheck }, { label: "Phỏng vấn", to: "/interviews", icon: MessageCircle }, { label: "Lịch của tôi", to: "/schedules", icon: CalendarDays }] },
     ],
   },
   profile: {
     label: "Tạo CV",
     layout: "cv",
     groups: [
-      { title: "Mẫu CV theo style", items: [{ label: "Mẫu CV Đơn giản", icon: Box }, { label: "Mẫu CV Ấn tượng", icon: DraftingCompass }, { label: "Mẫu CV Chuyên nghiệp", icon: Star }, { label: "Mẫu CV Harvard", icon: PenTool }] },
-      { title: "Mẫu CV theo vị trí ứng tuyển", items: [{ label: "Nhân viên kinh doanh", icon: BriefcaseBusiness }, { label: "Lập trình viên", icon: BriefcaseBusiness }, { label: "Nhân viên kế toán", icon: BriefcaseBusiness }, { label: "Chuyên viên marketing", icon: BriefcaseBusiness }] },
-      { title: "Công cụ CV", items: [{ label: "Quản lý CV", to: "/candidate/cv", icon: FileText }, { label: "Tải CV lên", to: "/candidate/cv", icon: Upload }, { label: "Hướng dẫn viết CV", icon: FilePenLine }, { label: "Quản lý Cover Letter", icon: Feather }, { label: "Mẫu Cover Letter", icon: Feather }] },
+      { title: "Mẫu CV theo style", items: [{ label: "Mẫu CV Đơn giản", to: "/cv", icon: Box }, { label: "Mẫu CV Ấn tượng", to: "/cv", icon: DraftingCompass }, { label: "Mẫu CV Chuyên nghiệp", to: "/cv", icon: Star }, { label: "Mẫu CV Harvard", to: "/cv", icon: PenTool }] },
+      { title: "Mẫu CV theo vị trí ứng tuyển", items: [{ label: "Nhân viên kinh doanh", to: "/cv", icon: BriefcaseBusiness }, { label: "Lập trình viên", to: "/cv", icon: BriefcaseBusiness }, { label: "Nhân viên kế toán", to: "/cv", icon: BriefcaseBusiness }, { label: "Chuyên viên marketing", to: "/cv", icon: BriefcaseBusiness }] },
+      { title: "Công cụ CV", items: [{ label: "Quản lý CV", to: "/cv", icon: FileText }, { label: "Tải CV lên", to: "/cv", icon: Upload }, { label: "Hướng dẫn viết CV", to: "/cv", icon: FilePenLine }, { label: "Quản lý Cover Letter", to: "/cv", icon: Feather }, { label: "Mẫu Cover Letter", to: "/cv", icon: Feather }] },
     ],
   },
   tools: {
     label: "Công cụ",
     groups: [
-      { title: "Công cụ ứng viên", items: [{ label: "Quản lý CV", to: "/candidate/cv", icon: FileText }, { label: "Luyện phỏng vấn", to: "/candidate/practice", icon: Sparkles }, { label: "Lịch phỏng vấn", to: "/candidate/schedules", icon: CalendarDays }] },
-      { title: "Cập nhật", items: [{ label: "Thông báo", to: "/candidate/notifications", icon: Bell }, { label: "Theo dõi hồ sơ", to: "/candidate/applications", icon: ClipboardCheck }] },
+      { title: "Công cụ ứng viên", items: [{ label: "Quản lý CV", to: "/cv", icon: FileText }, { label: "Phỏng vấn AI", to: "/interviews", icon: Sparkles }, { label: "Lịch phỏng vấn", to: "/schedules", icon: CalendarDays }] },
+      { title: "Cập nhật", items: [{ label: "Thông báo", to: "/notifications", icon: Bell }, { label: "Theo dõi hồ sơ", to: "/applications", icon: ClipboardCheck }] },
     ],
   },
   company: {
@@ -65,6 +66,7 @@ export function CareerHeader({ tenantName, tenantCode, logoUrl, slogan, primaryC
   const [activeMenu, setActiveMenu] = useState<MenuKey | null>(null);
   const [menuArrowLeft, setMenuArrowLeft] = useState(48);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const token = useAuthStore((state) => state.accessToken);
   const storedUser = useAuthStore((state) => state.user);
@@ -78,7 +80,7 @@ export function CareerHeader({ tenantName, tenantCode, logoUrl, slogan, primaryC
 
   useEffect(() => { if (!storedUser && profile.data?.data) setUser(profile.data.data); }, [profile.data, setUser, storedUser]);
   useEffect(() => {
-    const close = () => { setActiveMenu(null); setProfileOpen(false); };
+    const close = () => { setActiveMenu(null); setProfileOpen(false); setNotificationsOpen(false); };
     window.addEventListener("scroll", close, { passive: true });
     return () => window.removeEventListener("scroll", close);
   }, []);
@@ -118,10 +120,13 @@ export function CareerHeader({ tenantName, tenantCode, logoUrl, slogan, primaryC
         <div className="ml-auto flex items-center gap-2">
           <LanguageSwitcher variant="icon" />
           {token ? <>
-            <HeaderIcon to="/candidate/notifications" label="Thông báo" icon={Bell} count={unreadCount} />
-            <HeaderIcon to="/candidate/applications" label="Hồ sơ ứng tuyển" icon={MessageCircle} />
+            <div className="relative hidden sm:block" onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setNotificationsOpen(false); }}>
+              <button type="button" aria-label={unreadCount ? `Thông báo, ${unreadCount} chưa đọc` : "Thông báo"} aria-expanded={notificationsOpen} aria-haspopup="dialog" onClick={() => { setNotificationsOpen((value) => !value); setProfileOpen(false); setActiveMenu(null); }} className="relative grid size-11 place-items-center rounded-full bg-slate-50 text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]/30"><Bell className="size-5" aria-hidden="true" />{Boolean(unreadCount) && <span className="absolute right-0 top-0 grid min-w-5 place-items-center rounded-full bg-[var(--color-error)] px-1 text-[10px] font-semibold leading-5 text-white">{unreadCount > 9 ? "9+" : unreadCount}</span>}</button>
+              {notificationsOpen && <NotificationPreview items={notifications.data ?? []} loading={notifications.isPending} unreadCount={unreadCount} onClose={() => setNotificationsOpen(false)} />}
+            </div>
+            <HeaderIcon to="/applications" label="Hồ sơ ứng tuyển" icon={MessageCircle} />
             <div className="relative" onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setProfileOpen(false); }}>
-              <button type="button" aria-expanded={profileOpen} aria-label="Mở menu tài khoản" onClick={() => { setProfileOpen((value) => !value); setActiveMenu(null); }} className="flex min-h-11 items-center gap-2 rounded-full p-1.5 pr-2 hover:bg-slate-100">
+              <button type="button" aria-expanded={profileOpen} aria-label="Mở menu tài khoản" onClick={() => { setProfileOpen((value) => !value); setNotificationsOpen(false); setActiveMenu(null); }} className="flex min-h-11 items-center gap-2 rounded-full p-1.5 pr-2 hover:bg-slate-100">
                 <Avatar name={user?.fullName} src={user?.avatarUrl} /><ChevronDown className={`size-4 text-slate-500 transition-transform ${profileOpen ? "rotate-180" : ""}`} aria-hidden="true" />
               </button>
               {profileOpen && <AccountPanel user={user} onClose={() => setProfileOpen(false)} onLogout={() => void signOut()} />}
@@ -195,6 +200,24 @@ function HeaderIcon({ to, label, icon: Icon, count }: { to: string; label: strin
   return <Link to={to} aria-label={count ? `${label}, ${count} chưa đọc` : label} className="relative hidden size-11 place-items-center rounded-full bg-slate-50 text-slate-700 hover:bg-slate-100 sm:grid"><Icon className="size-5" aria-hidden="true" />{Boolean(count) && <span className="absolute right-0 top-0 grid min-w-5 place-items-center rounded-full bg-[var(--color-error)] px-1 text-[10px] font-semibold leading-5 text-white">{count! > 9 ? "9+" : count}</span>}</Link>;
 }
 
+function NotificationPreview({ items, loading, unreadCount, onClose }: { items: Notification[]; loading: boolean; unreadCount: number; onClose: () => void }) {
+  const recent = items.slice(0, 5);
+  return <div role="dialog" aria-label="Thông báo gần đây" className="absolute right-0 top-[calc(100%+10px)] w-[min(390px,calc(100vw-24px))] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_18px_48px_rgba(15,23,42,0.18)]">
+    <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4"><div><h2 className="font-semibold text-slate-900">Thông báo</h2><p className="mt-0.5 text-xs text-slate-500">{unreadCount > 0 ? `${unreadCount} thông báo chưa đọc` : "Bạn đã xem hết thông báo mới"}</p></div><span className="grid size-9 place-items-center rounded-full bg-[var(--color-primary-subtle)] text-[var(--color-primary)]"><Bell className="size-4" aria-hidden="true" /></span></div>
+    <div className="max-h-[min(60vh,420px)] overflow-y-auto">
+      {loading && <p className="p-5 text-sm text-slate-500" role="status">Đang tải thông báo…</p>}
+      {!loading && recent.length === 0 && <div className="px-5 py-10 text-center"><Bell className="mx-auto size-7 text-slate-300" aria-hidden="true" /><p className="mt-3 text-sm font-semibold text-slate-700">Chưa có thông báo</p><p className="mt-1 text-xs text-slate-500">Cập nhật về hồ sơ và phỏng vấn sẽ xuất hiện tại đây.</p></div>}
+      {recent.map((item) => <article key={item.id} className={`relative border-b border-slate-100 px-5 py-4 last:border-b-0 ${item.readAt ? "bg-white" : "bg-[var(--color-primary-subtle)]/45"}`}><div className="flex gap-3">{!item.readAt && <span className="mt-2 size-2 shrink-0 rounded-full bg-[var(--color-primary)]" aria-label="Chưa đọc" />}<div className="min-w-0 flex-1"><h3 className="line-clamp-1 text-sm font-semibold text-slate-800">{item.title}</h3>{item.body && <p className="mt-1 line-clamp-2 whitespace-pre-line text-xs leading-5 text-slate-600">{item.body}</p>}<time className="mt-2 block text-[11px] text-slate-400" dateTime={item.createdAt}>{formatNotificationTime(item.createdAt)}</time></div></div></article>)}
+    </div>
+    <div className="border-t border-slate-100 p-3"><Link to="/notifications" onClick={onClose} className="flex min-h-10 items-center justify-center gap-2 rounded-xl text-sm font-semibold text-[var(--color-primary)] hover:bg-[var(--color-primary-subtle)]">Xem tất cả thông báo<ArrowRight className="size-4" aria-hidden="true" /></Link></div>
+  </div>;
+}
+
+function formatNotificationTime(value: string) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString("vi-VN", { dateStyle: "short", timeStyle: "short" });
+}
+
 function Avatar({ name, src }: { name?: string; src?: string | null }) {
   return src ? <img src={src} alt="" className="size-10 rounded-full border border-slate-200 object-cover" /> : <span className="grid size-10 place-items-center rounded-full bg-slate-200 text-sm font-semibold text-slate-600">{name?.split(/\s+/).slice(-2).map((part) => part[0]).join("").toUpperCase() || <CircleUserRound className="size-6" aria-hidden="true" />}</span>;
 }
@@ -202,7 +225,7 @@ function Avatar({ name, src }: { name?: string; src?: string | null }) {
 function AccountPanel({ user, onClose, onLogout }: { user: ReturnType<typeof useAuthStore.getState>["user"]; onClose: () => void; onLogout: () => void }) {
   return <div className="absolute right-0 top-[calc(100%+10px)] w-[min(390px,calc(100vw-24px))] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_18px_48px_rgba(15,23,42,0.18)]">
     <div className="flex gap-4 border-b border-slate-100 p-5"><Avatar name={user?.fullName} src={user?.avatarUrl} /><div className="min-w-0"><p className="truncate text-base font-semibold text-slate-800">{user?.fullName || "Ứng viên"}</p><p className="mt-1 truncate text-sm text-slate-500">{user?.email}</p><p className="mt-1 text-xs text-[var(--color-primary)]">Tài khoản đã xác thực</p></div></div>
-    <div className="max-h-[65vh] overflow-y-auto p-3"><AccountSection icon={BriefcaseBusiness} title="Quản lý tìm việc" links={[{ label: "Tìm việc làm", to: "/jobs" }, { label: "Việc làm đã ứng tuyển", to: "/candidate/applications" }, { label: "Theo dõi tiến trình", to: "/candidate" }]} onClose={onClose} /><AccountSection icon={FileText} title="Quản lý CV" links={[{ label: "CV của tôi", to: "/candidate/cv" }, { label: "Bài đánh giá", to: "/candidate/assessments" }, { label: "Phỏng vấn", to: "/candidate/interviews" }]} onClose={onClose} /><AccountSection icon={Settings} title="Thông báo & lịch" links={[{ label: "Thông báo", to: "/candidate/notifications" }, { label: "Lịch của tôi", to: "/candidate/schedules" }]} onClose={onClose} /><Link to="/candidate" onClick={onClose} className="flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"><ShieldCheck className="size-5 text-slate-400" aria-hidden="true" />Không gian ứng viên</Link></div>
+    <div className="max-h-[65vh] overflow-y-auto p-3"><AccountSection icon={BriefcaseBusiness} title="Quản lý tìm việc" links={[{ label: "Tìm việc làm", to: "/jobs" }, { label: "Việc làm đã ứng tuyển", to: "/applications" }, { label: "Theo dõi tiến trình", to: "/workspace" }]} onClose={onClose} /><AccountSection icon={FileText} title="Quản lý CV" links={[{ label: "CV của tôi", to: "/cv" }, { label: "Bài đánh giá", to: "/assessments" }, { label: "Phỏng vấn", to: "/interviews" }]} onClose={onClose} /><AccountSection icon={Settings} title="Thông báo & lịch" links={[{ label: "Thông báo", to: "/notifications" }, { label: "Lịch của tôi", to: "/schedules" }]} onClose={onClose} /><Link to="/workspace" onClick={onClose} className="flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"><ShieldCheck className="size-5 text-slate-400" aria-hidden="true" />Không gian ứng viên</Link></div>
     <div className="border-t border-slate-100 p-3"><button type="button" onClick={onLogout} className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-sm font-semibold text-slate-600 hover:bg-red-50 hover:text-red-700"><LogOut className="size-5" aria-hidden="true" />Đăng xuất</button></div>
   </div>;
 }

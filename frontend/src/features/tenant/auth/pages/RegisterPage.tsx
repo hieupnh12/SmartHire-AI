@@ -58,7 +58,7 @@ export function RegisterPage() {
             role: vars.role,
           });
         }
-        navigate(vars.role === "RECRUITER" ? "/recruiter" : "/candidate", {
+        navigate(vars.role === "RECRUITER" ? "/recruiter" : "/workspace", {
           replace: true,
         });
         return;

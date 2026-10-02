@@ -27,7 +27,7 @@ Company admin tạo vai trò tùy ý, tick **tính năng** workspace nhà tuyể
 
 - Role hệ thống (không bao giờ xóa): `TENANT_ADMIN`, `ADMIN`, `HR`, `RECRUITER`, `CANDIDATE`. Chỉ xóa được role custom khi chưa gán cho nhân viên / lời mời PENDING.
 - Role custom luôn thuộc workspace `RECRUITER`. Tên tự đặt; `code` sinh từ tên (uppercase, unique).
-- Sau login: workspace `ADMIN` → `/internal/admin`; `RECRUITER` → tính năng đầu tiên còn quyền trong `/recruiter`; `CANDIDATE` → `/candidate`.
+- Sau login: workspace `ADMIN` → `/internal/admin`; `RECRUITER` → tính năng đầu tiên còn quyền trong `/recruiter`; `CANDIDATE` → `/workspace`.
 - Chỉ role workspace `RECRUITER` bị cắt tính năng. Không cấu hình `TENANT_ADMIN` / `ADMIN` / `CANDIDATE`.
 - Chỉ `TENANT_ADMIN` và `ADMIN` được CRUD vai trò.
 - Catalog **tính năng** cố định trong code:

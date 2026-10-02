@@ -7,12 +7,14 @@ import com.smarthire.domain.enums.CvScreeningStatus;
 import com.smarthire.domain.tenant.entity.*;
 import com.smarthire.domain.tenant.repository.*;
 import com.smarthire.tenant.aiInterview.dto.request.UpsertAiAnswerRequest;
+import com.smarthire.tenant.aiInterview.dto.request.ProctorEventRequest;
 import com.smarthire.tenant.aiInterview.mapper.AiInterviewMapper;
 import com.smarthire.tenant.aiInterview.dto.request.AiInterviewConfigRequest;
 import com.smarthire.tenant.aiInterview.dto.request.InterviewPolicy;
 import com.smarthire.tenant.aiInterview.service.AiInterviewActivityLog;
 import com.smarthire.tenant.aiInterview.service.AiInterviewService;
 import com.smarthire.tenant.aiInterview.service.AiInterviewInvitationService;
+import com.smarthire.tenant.aiInterview.service.AiInterviewProcessEngine;
 import com.smarthire.tenant.aiInterview.service.InterviewPolicies;
 import com.smarthire.tenant.cv.service.CvAccess;
 import java.math.BigDecimal;
@@ -39,6 +41,9 @@ class AiInterviewCandidateTest {
     @Mock AiInterviewInvitationService invitations;
     @Mock AiInterviewActivityLog activity;
     @Mock AiInterviewLogRepository logs;
+    @Mock AiInterviewProcessEngine processEngine;
+    @Mock AiInterviewProcessRunRepository processRuns;
+    @Mock AiInterviewConsentRepository consents;
     AiInterviewService service;
     User candidate;
     Application application;
@@ -47,7 +52,7 @@ class AiInterviewCandidateTest {
 
     @BeforeEach void setup() {
         service = new AiInterviewService(interviews, questions, answers, feedbacks, applications, stages,
-                new AiInterviewMapper(), access, invitations, activity, logs);
+                new AiInterviewMapper(), access, invitations, activity, logs, processEngine, processRuns, consents);
         candidate = user(9L);
         var job = new Job();
         job.setId(13L);
@@ -108,10 +113,41 @@ class AiInterviewCandidateTest {
         verify(activity).record(eq(interview), eq("STARTED"), anyString());
     }
 
+    @Test void candidateCanAppendValidatedProctorEventDuringActiveInterview() {
+        owned();
+        interview.setStatus(AiInterviewStatus.IN_PROGRESS);
+
+        service.recordProctorEvent(11L, new ProctorEventRequest("PAGE_HIDDEN", "Tab hidden", 4L));
+
+        verify(activity).record(interview, "PROCTOR_PAGE_HIDDEN", "Tab hidden; durationSeconds=4");
+    }
+
+    @Test void proctorEventIsRejectedOutsideActiveInterview() {
+        owned();
+        assertThatThrownBy(() -> service.recordProctorEvent(
+                11L, new ProctorEventRequest("PAGE_HIDDEN", null, null)))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        ex -> assertThat(ex.getCode()).isEqualTo("AI_INTERVIEW_NOT_ACTIVE"));
+        verifyNoInteractions(activity);
+    }
+
     @Test void cannotStartWithoutReadyQuestions() {
         owned();
         interview.setStatus(AiInterviewStatus.CREATED);
         assertThatThrownBy(() -> service.start(11L)).isInstanceOf(BusinessException.class);
+        assertThat(interview.getStartedAt()).isNull();
+    }
+
+    @Test void cannotStartBeforeAvailabilityWindow() {
+        owned();
+        interview.setConfigSnapshotJson(InterviewPolicies.json(new AiInterviewConfigRequest(
+                true, new BigDecimal("70"), 1, java.time.Instant.now().plusSeconds(3600),
+                java.time.Instant.now().plusSeconds(7200), InterviewPolicies.defaults())));
+        when(questions.findByAiInterview_IdOrderByQuestionOrderAscIdAsc(11L)).thenReturn(List.of(question));
+
+        assertThatThrownBy(() -> service.start(11L))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        ex -> assertThat(ex.getCode()).isEqualTo("AI_INTERVIEW_NOT_STARTED"));
         assertThat(interview.getStartedAt()).isNull();
     }
 
@@ -309,6 +345,35 @@ class AiInterviewCandidateTest {
         assertThat(response.durationMinutes()).isEqualTo(25);
         assertThat(response.roadmap()).extracting(r -> r.title() + ":" + r.kind() + ":" + r.questionCount())
                 .containsExactly("Java Core:OPEN:2", "Mini Assessment:MCQ:3");
+    }
+
+    @Test void processEngineSessionExposesAllConfiguredProcessesAsRoadmap() {
+        asCandidate();
+        var processes = List.of(
+                process("TECHNICAL_KNOWLEDGE", 1, 10), process("PROBLEM_SOLVING", 2, 2),
+                process("PRACTICAL_EXPERIENCE", 3, 3), process("TECHNICAL_REASONING", 4, 3),
+                process("BEHAVIORAL_SITUATIONAL", 5, 4), process("COMMUNICATION", 6, 3));
+        var defaults = InterviewPolicies.defaults();
+        var policy = new InterviewPolicy(30, 1, false, 3, 30, 0, defaults.weights(), List.of(), List.of(),
+                2, "TEXT", null, null, processes);
+        interview.setConfigSnapshotJson(InterviewPolicies.json(new AiInterviewConfigRequest(true, new BigDecimal("70"), 25, null, policy)));
+        when(interviews.findById(11L)).thenReturn(Optional.of(interview));
+
+        var response = service.get(11L);
+
+        assertThat(response.roadmap()).extracting(r -> r.title() + ":" + r.questionCount()).containsExactly(
+                "Technical Knowledge:10", "Problem Solving:2", "Practical Experience:3",
+                "Technical Reasoning:3", "Behavioral / Situational:4", "Communication:3");
+    }
+
+    private static InterviewPolicy.Process process(String key, int order, int questionCount) {
+        return new InterviewPolicy.Process(key, true, order, 10, java.util.Map.of("questionCount", questionCount));
+    }
+
+    @Test void processQuestionIsMappedBackToItsRoadmapStage() {
+        question.setRubricJson("{\"processKey\":\"PROBLEM_SOLVING\"}");
+        var response = new AiInterviewMapper().toQuestion(question, null, null);
+        assertThat(response.stageTitle()).isEqualTo("Problem Solving");
     }
 
     @Test void miniAssessmentAnswerMustBeAnOptionIndex() {

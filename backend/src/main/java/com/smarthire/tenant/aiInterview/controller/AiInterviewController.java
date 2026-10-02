@@ -7,6 +7,7 @@ import com.smarthire.tenant.aiInterview.dto.request.CreateAiInterviewRequest;
 import com.smarthire.tenant.aiInterview.dto.request.UpdateAiInterviewRequest;
 import com.smarthire.tenant.aiInterview.dto.request.UpsertAiAnswerRequest;
 import com.smarthire.tenant.aiInterview.dto.request.UpsertAiFeedbackRequest;
+import com.smarthire.tenant.aiInterview.dto.request.ProctorEventRequest;
 import com.smarthire.tenant.aiInterview.dto.response.AiAnswerResponse;
 import com.smarthire.tenant.aiInterview.dto.response.AiFeedbackResponse;
 import com.smarthire.tenant.aiInterview.dto.response.AiInterviewLogResponse;
@@ -14,6 +15,9 @@ import com.smarthire.tenant.aiInterview.dto.response.AiInterviewPage;
 import com.smarthire.tenant.aiInterview.dto.response.AiInterviewResponse;
 import com.smarthire.tenant.aiInterview.dto.response.AiQuestionResponse;
 import com.smarthire.tenant.aiInterview.service.AiInterviewService;
+import com.smarthire.tenant.aiInterview.service.AiInterviewVoiceService;
+import com.smarthire.tenant.aiInterview.dto.request.AiInterviewConsentRequest;
+import com.smarthire.tenant.aiInterview.dto.request.AiVoiceRecordingRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -34,9 +38,10 @@ import org.springframework.web.bind.annotation.RestController;
 public class AiInterviewController {
 
     private final AiInterviewService aiInterviewService;
+    private final AiInterviewVoiceService voiceService;
 
-    public AiInterviewController(AiInterviewService aiInterviewService) {
-        this.aiInterviewService = aiInterviewService;
+    public AiInterviewController(AiInterviewService aiInterviewService, AiInterviewVoiceService voiceService) {
+        this.aiInterviewService = aiInterviewService; this.voiceService = voiceService;
     }
 
     @PostMapping
@@ -90,6 +95,18 @@ public class AiInterviewController {
         return ApiResponse.ok(aiInterviewService.start(id));
     }
 
+    @PostMapping("/{id}/voice/consent")
+    @Operation(summary = "Record the candidate's consent before a voice AI interview")
+    public ApiResponse<Void> consent(@PathVariable long id, @Valid @RequestBody AiInterviewConsentRequest request) {
+        voiceService.consent(id, request); return ApiResponse.ok(null);
+    }
+
+    @PostMapping("/{id}/answers/{answerId}/recording")
+    @Operation(summary = "Attach private voice recording metadata to an owned answer")
+    public ApiResponse<Void> recording(@PathVariable long id, @PathVariable long answerId, @Valid @RequestBody AiVoiceRecordingRequest request) {
+        voiceService.saveRecording(id, answerId, request); return ApiResponse.ok(null);
+    }
+
     @PostMapping("/{id}/questions/generate")
     @Operation(summary = "Queue real AI questions or retry failed generation (staff)")
     public ApiResponse<AiInterviewResponse> generate(@PathVariable long id) {
@@ -106,6 +123,15 @@ public class AiInterviewController {
     @Operation(summary = "Submit all answers in an owned interview (candidate)")
     public ApiResponse<AiInterviewResponse> complete(@PathVariable long id) {
         return ApiResponse.ok(aiInterviewService.complete(id));
+    }
+
+    @PostMapping("/{id}/proctor-events")
+    @Operation(summary = "Append a browser proctoring event for an active owned interview (candidate)")
+    public ApiResponse<Void> proctorEvent(
+            @PathVariable long id,
+            @Valid @RequestBody ProctorEventRequest request) {
+        aiInterviewService.recordProctorEvent(id, request);
+        return ApiResponse.ok(null);
     }
 
     @PutMapping("/{id}")

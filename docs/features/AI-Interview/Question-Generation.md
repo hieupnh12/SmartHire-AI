@@ -16,7 +16,7 @@ Job Skills và bằng chứng CV đã trích xuất (nếu có); sau đó candid
 
 ## Luồng hoạt động
 
-1. Recruiter cấu hình job qua `PUT /api/v1/jobs/{jobId}/ai-interview-config`: bật AI Interview, `passingScore`, `questionCount` (1–30 câu hỏi–đáp), hạn `availableUntil` và `policy`:
+1. Recruiter cấu hình job qua `PUT /api/v1/jobs/{jobId}/ai-interview-config`: bật AI Interview, `passingScore`, `questionCount` (1–30 câu hỏi–đáp), cửa sổ `availableFrom`–`availableUntil` và `policy`:
    - `durationMinutes` (1–180, tổng thời gian, gồm cả trắc nghiệm), `maxAttempts` (1–5, mặc định 1);
    - `weights` 5 nhóm năng lực, tổng = 100%. Mặc định: Technical Knowledge 35, Problem Solving 25, Practical Experience 20, Communication 10, Behavioral / Situational 10. UI có mẫu Junior/Senior để điền nhanh;
    - `selectedSkills` (chỉ Job Skills của Job), `stages` (chủ đề, số câu, nhóm năng lực, Job Skills);
@@ -26,16 +26,20 @@ Job Skills và bằng chứng CV đã trích xuất (nếu có); sau đó candid
 3. Candidate gọi `POST /api/v1/ai-interviews/applications/{applicationId}/start`. Backend kiểm tra:
    - application tồn tại và candidate hiện tại là owner (khác owner trả 404);
    - `cv_screening_status = PASSED`;
-   - job bật AI Interview, chưa xoá, chưa quá `availableUntil`;
+   - job bật AI Interview, chưa xoá và thời điểm hiện tại nằm trong cửa sổ `availableFrom`–`availableUntil`;
    - application đang ở `INTERVIEW`, chưa lưu trữ/rút;
    - không tạo phiên trùng: đã có phiên thì dùng lại; phiên `FAILED` còn lượt và còn hạn thì tạo lần làm mới (`attempt_number + 1`), ngược lại trả 409 `AI_INTERVIEW_ALREADY_COMPLETED`.
-4. Tạo phiên `GENERATING` và chốt toàn bộ cấu hình vào `ai_interviews.config_snapshot_json`. Dispatcher (15 giây) đẩy id phiên vào RabbitMQ `interview.questions.q` kèm header `X-Tenant-ID`; worker gọi Gemini (key riêng `AI_INTERVIEW_GEMINI_API_KEY`).
+4. Tạo phiên `GENERATING` và chốt toàn bộ cấu hình vào `ai_interviews.config_snapshot_json`. Dispatcher (15 giây) đẩy id phiên vào RabbitMQ `interview.questions.q` kèm header `X-Tenant-ID`; worker gọi Gemini. Key và model được quản trị tập trung tại `/admin/system/ai-config` cho task `INTERVIEW_GEN`; biến môi trường `AI_INTERVIEW_GEMINI_API_KEY` chỉ là phương án dự phòng khi Master DB chưa có key hoạt động.
 5. Worker dựng kế hoạch câu hỏi (`InterviewRubric.plan`): mỗi câu có chặng, nhóm năng lực, Job Skills; Communication được gắn vào mọi câu hỏi–đáp. Câu hỏi–đáp sinh theo lô 10 câu, mỗi câu kèm đáp án mẫu (`referenceAnswer` + 3–6 `keyPoints`, mỗi ý gắn một nhóm năng lực hoặc Job Skill của slot; gắn ngoài rubric → `ERROR`) để chấm ở INT-04; toàn bộ câu trắc nghiệm sinh trong **một lần gọi** (câu hỏi, 4 lựa chọn, 1 đáp án đúng, giải thích). Kết quả sai số lượng/slot, trùng câu hoặc đáp án không hợp lệ → `ERROR`, không lưu câu nào. Đủ câu thì lưu `ai_questions` (kèm `rubric_json`, `options_json`, `correct_option`, `explanation`), chụp ngữ cảnh Job/CV vào `context_snapshot_json`, chuyển `QUESTIONS_READY` và gửi notification `AI_INTERVIEW_READY`.
-6. Candidate gọi lại endpoint ở bước 3 (hoặc `POST /api/v1/ai-interviews/{id}/start`) → `IN_PROGRESS`, dùng `passing_score_snapshot` đã chốt khi tạo phiên, đặt `expires_at = min(bắt đầu + durationMinutes, availableUntil)`.
+6. Candidate gọi lại endpoint ở bước 3 (hoặc `POST /api/v1/ai-interviews/{id}/start`). Trước `availableFrom` trả `409 AI_INTERVIEW_NOT_STARTED`; từ `availableUntil` trở đi trả `409 AI_INTERVIEW_UNAVAILABLE`. Trong cửa sổ hợp lệ, phiên chuyển `IN_PROGRESS`, dùng `passing_score_snapshot` đã chốt khi tạo phiên và đặt `expires_at = min(bắt đầu + durationMinutes, availableUntil)`.
 7. Candidate lưu từng câu `PUT .../questions/{questionId}/answer` (trắc nghiệm lưu chỉ số lựa chọn `0`–`3`), rồi nộp `POST .../complete` → `SCORING` (xem INT-04). Hết giờ hoặc đến hạn, backend tự nộp các câu đã lưu (dispatcher và mọi lần đọc/ghi phiên đều kiểm tra `expires_at`); câu bỏ trống lưu rỗng và tính 0 điểm.
 8. Mọi bước ghi một dòng vào `ai_interview_logs`; recruiter xem qua `GET /api/v1/ai-interviews/{id}/logs`.
 
+- API chi tiết phiên trả `roadmap` cho cả cấu hình lộ trình cũ (`policy.stages`) và Process Engine V2 (`policy.processes`). Với V2, từng câu hỏi dùng `processKey` trong rubric để ánh xạ về đúng lộ trình, nên recruiter vẫn xem đủ các chặng khi câu hỏi chưa được sinh hoặc phiên đang lỗi.
+
 ## Business Rules
+
+- Ngay khi CV Screening `PASSED`, hệ thống chuyển Application sang `INTERVIEW`, tự tạo phiên và sinh câu hỏi theo snapshot cấu hình Job. Notification và Email phải nêu thời gian có thể bắt đầu, hạn hoàn thành, thời lượng và số lần thực hiện.
 
 - Cấu hình hợp lệ khi: tổng trọng số = 100%; kỹ năng chọn thuộc Job; tổng số câu các chặng = `questionCount`; mỗi chặng chỉ dùng nhóm năng lực có trọng số > 0 và kỹ năng đã chọn; lộ trình bao phủ mọi nhóm năng lực có trọng số và mọi kỹ năng đã chọn (Communication luôn được coi là bao phủ). Mini Assessment cần Technical Knowledge > 0% và ít nhất một Job Skill. Một kỹ năng có thể nằm ở nhiều chặng.
 - Số câu trắc nghiệm cấu hình riêng với số câu hỏi–đáp. Giai đoạn thử nghiệm dùng 3 câu (có thể chọn 4); cấu hình hỗ trợ 3–10.
@@ -59,6 +63,7 @@ Job Skills và bằng chứng CV đã trích xuất (nếu có); sau đó candid
 | POST | `/api/v1/ai-interviews/{id}/start` | Candidate |
 | PUT | `/api/v1/ai-interviews/{id}/questions/{questionId}/answer` | Candidate |
 | POST | `/api/v1/ai-interviews/{id}/complete` | Candidate |
+| POST | `/api/v1/ai-interviews/{id}/proctor-events` | Candidate (owner, phiên đang làm) |
 | GET | `/api/v1/ai-interviews/{id}` | Candidate (owner) / Recruiter |
 | GET | `/api/v1/ai-interviews/{id}/logs` | Recruiter |
 | POST | `/api/v1/ai-interviews` | Recruiter |
@@ -78,10 +83,12 @@ Job Skills và bằng chứng CV đã trích xuất (nếu có); sau đó candid
 
 - Google Stitch: **AI Interview System / AI Question Generation** — _[dán link]_
 - Icons: xem `DESIGN.md`
-- Recruiter: `/recruiter/jobs/:id/ai-interviews`. Candidate: `/candidate/interviews/:id`.
+- Recruiter: `/recruiter/jobs/:id/ai-interviews`. Candidate: `/interviews` và `/interviews/:id`.
 - Recruiter đã nối API cấu hình, sinh lại câu hỏi, thử chấm lại và lịch sử xử lý; trang chi tiết tự tải lại mỗi 5 giây. Các trạng thái `GENERATING`, `PASSED`, `ERROR` được hiển thị đúng. Điểm và trạng thái chỉ đọc, không có dữ liệu giả.
 - Panel "Cấu hình AI Interview": thiết lập phiên, trọng số (mẫu Mặc định/Junior/Senior, hiển thị tổng), Job Skills, Mini Assessment (số câu, tỷ trọng, vị trí) và trình chỉnh lộ trình (thêm/xoá/đổi thứ tự chặng, nút "AI đề xuất lộ trình"). Validation phía FE khớp backend.
-- Candidate `/candidate/interviews/:id` (bố cục 2 cột theo mockup phòng phỏng vấn): header có mã phiên, đồng hồ "còn lại / tổng" theo `expiresAt` + `durationMinutes` của backend và nút "Kết thúc" (nộp bài, xác nhận "câu trống tính 0 điểm"); cột trái hiện **từng câu một** (tiến độ "Câu hỏi 03 / 06", chip chặng/kỹ năng, thẻ AI Interviewer, ô trả lời văn bản "Lưu & tiếp tục" hoặc trắc nghiệm lưu ngay, nút câu trước/sau); cột phải là **Lộ trình phỏng vấn** (% hoàn thành; mỗi chặng hiển thị "01. Tên chặng" (gộp các câu trong cùng chặng, kèm số câu đã lưu) với trạng thái Đã nộp + "Thời lượng" (`answerDuration`, frontend gửi số giây cộng dồn mỗi lần lưu) / Hiện tại + "Đang trả lời (mm:ss)" / Chưa làm + "Ước tính ~N phút" (`durationMinutes` chia đều số câu); khối Mini Assessment không đánh số, ghi "N câu hỏi nhanh ngay sau chặng X", đặt đúng vị trí trong lộ trình; bấm để chuyển câu) và quy định phòng thi. Trước khi bắt đầu, trang hiển thị thẻ lời mời (số câu hỏi–đáp, số câu trắc nghiệm, thời gian, ngưỡng đạt) và lộ trình từ `roadmap`. Sau khi nộp: kết quả, nút "Làm lại" khi `canRetry`, danh sách câu trả lời.
+- Candidate `/interviews`: danh sách lời mời dùng dữ liệu thật từ `GET /api/v1/ai-interviews/me`, có thống kê tổng lời mời/cần thực hiện/đã hoàn thành; mỗi thẻ hiển thị vị trí, trạng thái, cửa sổ thực hiện, thời lượng, số câu, lần làm và điểm nếu có. CTA thay đổi theo trạng thái (`Bắt đầu`, `Tiếp tục`, `Xem kết quả`); trang có skeleton, lỗi tải lại, trạng thái hết hạn và empty state dẫn sang `/applications`.
+- CTA phiên chưa hoàn tất dùng nhãn `Bắt đầu`; trước khi backend bắt đầu tính giờ, candidate phải đồng ý và bật fullscreen, camera/microphone cùng chia sẻ toàn bộ màn hình. Phiên đang làm sau khi tải lại cũng khóa nội dung cho đến khi khôi phục giám sát.
+- Candidate `/interviews/:id` (bố cục 2 cột theo mockup phòng phỏng vấn): header sticky có mã phiên, trạng thái kết nối, đồng hồ "còn lại / tổng" theo `expiresAt` + `durationMinutes` của backend và nút "Kết thúc" (nộp bài, xác nhận "câu trống tính 0 điểm"); bên dưới là pipeline 3 vòng và navigator các chặng. Cột trái hiện **từng câu một** (tiến độ "Câu hỏi 03 / 06", chip chặng/kỹ năng, thẻ AI Interviewer, gợi ý trả lời an toàn, ô trả lời văn bản "Lưu & tiếp tục" hoặc trắc nghiệm lưu ngay, nút câu trước/sau); cột phải có thẻ **SmartHire AI Interviewer** (tiến độ, hình thức văn bản, trạng thái bảo toàn câu trả lời, trọng tâm câu hiện tại) và **Lộ trình phỏng vấn** (% hoàn thành; mỗi chặng hiển thị "01. Tên chặng" (gộp các câu trong cùng chặng, kèm số câu đã lưu) với trạng thái Đã nộp + "Thời lượng" (`answerDuration`, frontend gửi số giây cộng dồn mỗi lần lưu) / Hiện tại + "Đang trả lời (mm:ss)" / Chưa làm + "Ước tính ~N phút" (`durationMinutes` chia đều số câu); khối Mini Assessment không đánh số, ghi "N câu hỏi nhanh ngay sau chặng X", đặt đúng vị trí trong lộ trình; bấm để chuyển câu) và quy định phòng thi. Trước khi bắt đầu, trang hiển thị thẻ lời mời (số câu hỏi–đáp, số câu trắc nghiệm, thời gian, ngưỡng đạt) và lộ trình từ `roadmap`. Sau khi nộp: kết quả, nút "Làm lại" khi `canRetry`, danh sách câu trả lời.
 - Mockup có ghi âm/nhận diện giọng nói, đọc câu hỏi (TTS), đo micro, xác minh camera/CCCD: **chưa triển khai** vì backend chưa có Speech-to-Text (INT-02); phiên hiện trả lời bằng văn bản.
 - Sau mỗi lần thêm/sửa/xóa câu hỏi, backend đếm số câu: đủ số lượng cấu hình thì tự chuyển `QUESTIONS_READY`, chưa đủ thì `CREATED`. API cập nhật phiên từ chối sửa trạng thái/điểm thủ công.
 - Lỗi provider được hiển thị bằng thông báo an toàn theo HTTP status (ví dụ 503: tạm thời không khả dụng), không lộ nội dung phản hồi hoặc API key.

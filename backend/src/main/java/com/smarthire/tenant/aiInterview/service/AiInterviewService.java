@@ -21,6 +21,7 @@ import com.smarthire.tenant.aiInterview.dto.request.CreateAiInterviewRequest;
 import com.smarthire.tenant.aiInterview.dto.request.UpdateAiInterviewRequest;
 import com.smarthire.tenant.aiInterview.dto.request.UpsertAiAnswerRequest;
 import com.smarthire.tenant.aiInterview.dto.request.UpsertAiFeedbackRequest;
+import com.smarthire.tenant.aiInterview.dto.request.ProctorEventRequest;
 import com.smarthire.tenant.aiInterview.dto.response.AiAnswerResponse;
 import com.smarthire.tenant.aiInterview.dto.response.AiFeedbackResponse;
 import com.smarthire.tenant.aiInterview.dto.response.AiInterviewLogResponse;
@@ -57,6 +58,9 @@ public class AiInterviewService {
     private final AiInterviewInvitationService invitations;
     private final AiInterviewActivityLog activity;
     private final AiInterviewLogRepository logs;
+    private final AiInterviewProcessEngine processEngine;
+    private final com.smarthire.domain.tenant.repository.AiInterviewProcessRunRepository processRuns;
+    private final com.smarthire.domain.tenant.repository.AiInterviewConsentRepository consents;
 
     public AiInterviewService(
             AiInterviewRepository interviews,
@@ -67,7 +71,9 @@ public class AiInterviewService {
             RecruitmentStageRepository stages,
             AiInterviewMapper mapper,
             CvAccess access, AiInterviewInvitationService invitations,
-            AiInterviewActivityLog activity, AiInterviewLogRepository logs) {
+            AiInterviewActivityLog activity, AiInterviewLogRepository logs, AiInterviewProcessEngine processEngine,
+            com.smarthire.domain.tenant.repository.AiInterviewProcessRunRepository processRuns,
+            com.smarthire.domain.tenant.repository.AiInterviewConsentRepository consents) {
         this.interviews = interviews;
         this.questions = questions;
         this.answers = answers;
@@ -78,7 +84,7 @@ public class AiInterviewService {
         this.access = access;
         this.invitations = invitations;
         this.activity = activity;
-        this.logs = logs;
+        this.logs = logs; this.processEngine = processEngine; this.processRuns = processRuns; this.consents = consents;
     }
 
     /**
@@ -172,9 +178,16 @@ public class AiInterviewService {
                 || questions.findByAiInterview_IdOrderByQuestionOrderAscIdAsc(id).isEmpty()) {
             throw new BusinessException("Interview questions are not ready", HttpStatus.CONFLICT, "AI_INTERVIEW_NOT_READY");
         }
+        if (InterviewPolicies.voiceEnabled(interview) && !consents.findByAiInterview_Id(id).map(c -> c.isAccepted()).orElse(false)) {
+            throw new BusinessException("Voice recording consent is required before starting", HttpStatus.CONFLICT, "AI_VOICE_CONSENT_REQUIRED");
+        }
         var now = Instant.now();
         if (interview.getConfigSnapshotJson() != null) {
             var config = InterviewPolicies.config(interview);
+            if (config.availableFrom() != null && now.isBefore(config.availableFrom())) {
+                throw new BusinessException("AI interview is not available yet", HttpStatus.CONFLICT,
+                        "AI_INTERVIEW_NOT_STARTED");
+            }
             if (config.availableUntil() != null && !now.isBefore(config.availableUntil())) {
                 throw new BusinessException("AI interview is not available for this job", HttpStatus.CONFLICT, "AI_INTERVIEW_UNAVAILABLE");
             }
@@ -187,6 +200,7 @@ public class AiInterviewService {
         }
         interview.setStatus(AiInterviewStatus.IN_PROGRESS);
         interview.setStartedAt(now);
+        processEngine.start(interview);
         var responses = loadQuestionResponses(interview);
         activity.record(interview, "STARTED", responses.size() + " questions; passing score "
                 + interview.getPassingScoreSnapshot());
@@ -208,6 +222,18 @@ public class AiInterviewService {
         markSubmitted(interview);
         var responses = loadQuestionResponses(interview);
         return mapper.toResponse(interview, responses);
+    }
+
+    @Transactional
+    public void recordProctorEvent(long id, ProctorEventRequest request) {
+        AiInterview interview = loadAccessibleForUpdate(id);
+        requireCandidateOwns(interview);
+        if (interview.getStatus() != AiInterviewStatus.IN_PROGRESS) {
+            throw new BusinessException("Interview is not in progress", HttpStatus.CONFLICT, "AI_INTERVIEW_NOT_ACTIVE");
+        }
+        String detail = request.detail() == null ? "browser event" : request.detail();
+        if (request.durationSeconds() != null) detail += "; durationSeconds=" + request.durationSeconds();
+        activity.record(interview, "PROCTOR_" + request.event(), detail);
     }
 
     @Transactional
@@ -419,6 +445,7 @@ public class AiInterviewService {
         answer.setAnswerDuration(request.answerDuration());
         answer.setAnsweredAt(access.staff() && request.answeredAt() != null ? request.answeredAt() : Instant.now());
         AiAnswer saved = answers.save(answer);
+        processEngine.answerSaved(interview, question, saved);
         activity.record(interview, "ANSWER_SAVED", "Question order " + question.getQuestionOrder()
                 + ", duration " + saved.getAnswerDuration() + "s");
         AiFeedback feedback = feedbacks.findByAiAnswer_Id(saved.getId()).orElse(null);
@@ -435,9 +462,22 @@ public class AiInterviewService {
         long interviewId = interview.getId();
         // Candidates must not read the paper before the timer starts.
         if (!access.staff() && interview.getStartedAt() == null) return List.of();
-        boolean revealKey = access.staff() && (interview.getStatus() == AiInterviewStatus.PASSED
-                || interview.getStatus() == AiInterviewStatus.FAILED || interview.getStatus() == AiInterviewStatus.SCORED);
+        boolean completed = interview.getStatus() == AiInterviewStatus.PASSED
+                || interview.getStatus() == AiInterviewStatus.FAILED || interview.getStatus() == AiInterviewStatus.SCORED;
+        boolean revealCorrect = access.staff() && completed;
+        boolean revealExplanation = access.staff() && completed;
+        if (!access.staff() && completed && InterviewPolicies.isV2(interview)) {
+            var review = InterviewPolicies.config(interview).policy().review();
+            revealCorrect = review != null && review.showCorrectAnswer();
+            revealExplanation = review != null && review.showExplanationAfterInterview();
+        }
         List<AiQuestion> questionList = questions.findByAiInterview_IdOrderByQuestionOrderAscIdAsc(interviewId);
+        if (!access.staff() && InterviewPolicies.isV2(interview)) {
+            questionList = processRuns.findFirstByAiInterview_IdAndStatusOrderByProcessOrderAsc(interviewId,
+                    com.smarthire.domain.enums.AiInterviewProcessStatus.IN_PROGRESS)
+                    .map(run -> questions.findByProcessRun_IdOrderBySequenceNoAscIdAsc(run.getId()))
+                    .orElse(List.of());
+        }
         if (questionList.isEmpty()) {
             return List.of();
         }
@@ -449,7 +489,7 @@ public class AiInterviewService {
                 ? Map.of()
                 : feedbacks.findByAiAnswer_IdIn(answerIds).stream()
                         .collect(Collectors.toMap(f -> f.getAiAnswer().getId(), Function.identity(), (a, b) -> a, HashMap::new));
-        return mapper.toQuestions(questionList, answersByQuestion, feedbackByAnswer, revealKey);
+        return mapper.toQuestions(questionList, answersByQuestion, feedbackByAnswer, revealCorrect, revealExplanation);
     }
 
     private RecruitmentStage resolveStage(Long workflowStageId, Application application) {

@@ -15,7 +15,7 @@ Tạo/làm bài trắc nghiệm kỹ thuật gắn job/stage.
 ## Luồng hoạt động
 
 1. Staff tạo đề nháp, thêm/sửa/xóa câu hỏi kèm options, publish đề hợp lệ.
-2. Staff mở hồ sơ ứng viên (Quản lý ứng viên), chọn đề đã publish của job và bấm "Gửi cho ứng viên": đơn ở INTERVIEW được chuyển sang ASSESSMENT (ghi lịch sử trạng thái, gắn stage "Assessment" nếu job có), ứng viên nhận thông báo `ASSESSMENT_INVITATION` và email kèm link `/candidate/assessments?applicationId=...`.
+2. Staff mở hồ sơ ứng viên (Quản lý ứng viên), chọn đề đã publish của job và bấm "Gửi cho ứng viên": đơn ở INTERVIEW được chuyển sang ASSESSMENT (ghi lịch sử trạng thái, gắn stage "Assessment" nếu job có), ứng viên nhận thông báo `ASSESSMENT_INVITATION` và email kèm link `/assessments?applicationId=...`.
 3. Candidate dùng applicationId của mình để start/resume đề thuộc cùng job, khi đơn ở ASSESSMENT hoặc INTERVIEW.
 4. Candidate lưu từng nhóm đáp án, tải lại tiến độ, submit để chấm trắc nghiệm và xem điểm.
 5. Staff xem bài làm và kết quả; hệ thống không tự đổi trạng thái đơn ứng tuyển.
@@ -144,7 +144,7 @@ Kiểm chứng bản sửa Candidate ngày 2026-09-29: `frontend/tests/assessmen
 - Recruiter: `/recruiter/assessments`, `/new`, `/:id`; danh sách phân trang, thông tin đề, CRUD câu hỏi/options, chọn đáp án đúng, publish khóa sửa.
 - Theo dõi bài làm: `/recruiter/jobs/:id/assessments/submissions` (nút "Theo dõi bài làm" trên trang bài đánh giá) liệt kê lượt làm của mọi đề trong job với tab Đang làm bài / Đã nộp / Hết thời gian, tìm theo ứng viên, lọc theo đề, thời gian còn lại và điểm; tự làm mới mỗi 15 giây.
 - Ngân hàng câu hỏi: `/recruiter/assessments/question-bank` tổng hợp câu MCQ theo bộ sưu tập, vị trí và bộ lọc; mở đề gốc để sửa. Độ khó/kỹ năng/giải thích lưu trên `questions` (V13). Yêu thích lưu trên trình duyệt. Coding / nhiều đáp án / tự luận vẫn ngoài phạm vi ASSESS-01.
-- Candidate: `/candidate/assessments` chọn đơn hợp lệ; `/:submissionId/take` có radio cho MCQ, checkbox cho nhiều đáp án, ô tự luận với bộ đếm ký tự, điều hướng, tiến độ, tự lưu/retry, timer, xác nhận nộp và điểm tổng (bài tự luận hiển thị đang chấm). Tự luận chỉ có khoảng trắng không được tính là đã trả lời.
+- Candidate: `/assessments` chọn đơn hợp lệ; `/assessments/:submissionId/take` có radio cho MCQ, checkbox cho nhiều đáp án, ô tự luận với bộ đếm ký tự, điều hướng, tiến độ, tự lưu/retry, timer, xác nhận nộp và điểm tổng (bài tự luận hiển thị đang chấm). Tự luận chỉ có khoảng trắng không được tính là đã trả lời.
 - Query key assessment phân biệt tenant/user; Axios hiện có gắn token và tenant header. Server state dùng TanStack Query, form dùng React Hook Form + Zod.
 
 ## Phụ thuộc
