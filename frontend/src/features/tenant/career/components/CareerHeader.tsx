@@ -30,9 +30,9 @@ const menus: Record<MenuKey, MenuConfig> = {
     label: "Tạo CV",
     layout: "cv",
     groups: [
-      { title: "Mẫu CV theo style", items: [{ label: "Mẫu CV Đơn giản", icon: Box }, { label: "Mẫu CV Ấn tượng", icon: DraftingCompass }, { label: "Mẫu CV Chuyên nghiệp", icon: Star }, { label: "Mẫu CV Harvard", icon: PenTool }] },
-      { title: "Mẫu CV theo vị trí ứng tuyển", items: [{ label: "Nhân viên kinh doanh", icon: BriefcaseBusiness }, { label: "Lập trình viên", icon: BriefcaseBusiness }, { label: "Nhân viên kế toán", icon: BriefcaseBusiness }, { label: "Chuyên viên marketing", icon: BriefcaseBusiness }] },
-      { title: "Công cụ CV", items: [{ label: "Quản lý CV", to: "/candidate/cv", icon: FileText }, { label: "Tải CV lên", to: "/candidate/cv", icon: Upload }, { label: "Hướng dẫn viết CV", icon: FilePenLine }, { label: "Quản lý Cover Letter", icon: Feather }, { label: "Mẫu Cover Letter", icon: Feather }] },
+      { title: "Mẫu CV theo style", items: [{ label: "Mẫu CV Đơn giản", to: "/candidate/cv", icon: Box }, { label: "Mẫu CV Ấn tượng", to: "/candidate/cv", icon: DraftingCompass }, { label: "Mẫu CV Chuyên nghiệp", to: "/candidate/cv", icon: Star }, { label: "Mẫu CV Harvard", to: "/candidate/cv", icon: PenTool }] },
+      { title: "Mẫu CV theo vị trí ứng tuyển", items: [{ label: "Nhân viên kinh doanh", to: "/candidate/cv", icon: BriefcaseBusiness }, { label: "Lập trình viên", to: "/candidate/cv", icon: BriefcaseBusiness }, { label: "Nhân viên kế toán", to: "/candidate/cv", icon: BriefcaseBusiness }, { label: "Chuyên viên marketing", to: "/candidate/cv", icon: BriefcaseBusiness }] },
+      { title: "Công cụ CV", items: [{ label: "Quản lý CV", to: "/candidate/cv", icon: FileText }, { label: "Tải CV lên", to: "/candidate/cv", icon: Upload }, { label: "Hướng dẫn viết CV", to: "/candidate/cv", icon: FilePenLine }, { label: "Quản lý Cover Letter", to: "/candidate/cv", icon: Feather }, { label: "Mẫu Cover Letter", to: "/candidate/cv", icon: Feather }] },
     ],
   },
   tools: {

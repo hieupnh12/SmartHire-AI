@@ -38,6 +38,7 @@ import { AuditLogsPage } from "@/features/master/system/pages/AuditLogsPage";
 import { AiManagementPage } from "@/features/master/system/pages/AiManagementPage";
 import { AccountPage as MasterAccountPage } from "@/features/master/account/pages/AccountPage";
 import { TenantCareerPage } from "@/features/tenant/career/pages/TenantCareerPage";
+import { CareerNavigationLayout } from "@/features/tenant/career/components/CareerNavigationLayout";
 import { TenantAdminDashboardPage } from "@/features/tenant/admin/workspace/pages/TenantAdminDashboardPage";
 import { adminNav } from "@/features/tenant/admin/nav";
 import { HomePage as TenantAdminHomePage } from "@/features/tenant/admin/overview/pages/HomePage";
@@ -98,6 +99,14 @@ function LegacyTenantAdminRedirect() {
   );
 }
 
+function ShortCandidateRedirect() {
+  const location = useLocation();
+  const target = location.pathname === "/workspace"
+    ? "/candidate"
+    : `/candidate${location.pathname}`;
+
+  return <Navigate to={`${target}${location.search}${location.hash}`} replace />;
+}
 function PublicMarketingRoute({ children }: { children: React.ReactNode }) {
   const tenantId = getTenantIdFromSubdomain();
   if (tenantId) {
@@ -132,12 +141,34 @@ export function AppRouter() {
       <Route path="/jobs" element={<TenantCareerPage />} />
       <Route path="/jobs/:jobId" element={<TenantCareerPage />} />
       <Route path="/candidate/login" element={<Navigate to="/login" replace />} />
+      <Route path="/workspace" element={<ShortCandidateRedirect />} />
+      <Route path="/applications/*" element={<ShortCandidateRedirect />} />
+      <Route path="/cv" element={<ShortCandidateRedirect />} />
+      <Route path="/assessments/*" element={<ShortCandidateRedirect />} />
+      <Route path="/interviews/*" element={<ShortCandidateRedirect />} />
+      <Route path="/practice" element={<ShortCandidateRedirect />} />
+      <Route path="/schedules" element={<ShortCandidateRedirect />} />
+      <Route path="/notifications" element={<ShortCandidateRedirect />} />
       <Route path="/internal/login" element={<LoginPage />} />
-      <Route path="/login" element={<CandidateLoginPage />} />
+      <Route element={<CareerNavigationLayout />}>
+        <Route path="/login" element={<CandidateLoginPage />} />
+      </Route>
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/invite/accept" element={<AcceptInvitationPage />} />
 
       <Route element={<RoleRoute workspaces={["CANDIDATE"]} />}>
+        <Route element={<CareerNavigationLayout />}>
+          <Route path="/candidate/jobs" element={<BrowseJobsPage />} />
+          <Route path="/candidate/jobs/:id" element={<CandidateJobDetailPage />} />
+          <Route path="/candidate/applications" element={<MyApplicationsPage />} />
+          <Route path="/candidate/applications/:id" element={<ApplicationDetailPage />} />
+          <Route path="/candidate/cv" element={<MyCvPage />} />
+          <Route path="/candidate/assessments" element={<CandidateAssessmentsPage />} />
+          <Route path="/candidate/interviews" element={<CandidateInterviewsPage />} />
+          <Route path="/candidate/practice" element={<PracticePage />} />
+          <Route path="/candidate/schedules" element={<CandidateSchedulesPage />} />
+          <Route path="/candidate/notifications" element={<CandidateNotificationsPage />} />
+        </Route>
         <Route
           path="/candidate"
           element={
@@ -149,18 +180,8 @@ export function AppRouter() {
           }
         >
           <Route index element={<CandidateHomePage />} />
-          <Route path="jobs" element={<BrowseJobsPage />} />
-          <Route path="jobs/:id" element={<CandidateJobDetailPage />} />
-          <Route path="applications" element={<MyApplicationsPage />} />
-          <Route path="applications/:id" element={<ApplicationDetailPage />} />
-          <Route path="cv" element={<MyCvPage />} />
-          <Route path="assessments" element={<CandidateAssessmentsPage />} />
           <Route path="assessments/:submissionId/take" element={<TakeAssessmentPage />} />
-          <Route path="interviews" element={<CandidateInterviewsPage />} />
           <Route path="interviews/:id" element={<AiInterviewRoomPage />} />
-          <Route path="practice" element={<PracticePage />} />
-          <Route path="schedules" element={<CandidateSchedulesPage />} />
-          <Route path="notifications" element={<CandidateNotificationsPage />} />
         </Route>
       </Route>
 
