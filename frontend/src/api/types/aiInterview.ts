@@ -45,6 +45,9 @@ export type AiInterview = {
   canRetry?: boolean;
   reportJson?: string | null;
   durationMinutes?: number | null;
+  maxAttempts?: number | null;
+  availableFrom?: string | null;
+  availableUntil?: string | null;
   roadmap?: RoadmapStep[] | null;
   id: number;
   applicationId: number;
@@ -96,6 +99,7 @@ export type AiInterviewConfig = {
   enabled: boolean;
   passingScore: number;
   questionCount: number;
+  availableFrom: string | null;
   availableUntil: string | null;
   policy: InterviewPolicy;
 };

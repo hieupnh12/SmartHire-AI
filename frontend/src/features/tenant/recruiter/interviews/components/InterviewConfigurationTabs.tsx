@@ -65,7 +65,8 @@ export function InterviewConfigurationTabs({ jobId, config, jobSkills }: { jobId
           <Field label="Passing Score (/100)" error={form.formState.errors.passingScore?.message}><input className={assessmentInput} type="number" min={0} max={100} {...form.register("passingScore")} /></Field>
           <Field label="Số câu hỏi phỏng vấn" error={form.formState.errors.questionCount?.message}><input className={assessmentInput} type="number" min={1} max={30} {...form.register("questionCount")} /></Field>
           <Field label="Tổng thời gian (phút)" error={form.formState.errors.policy?.durationMinutes?.message}><input className={assessmentInput} type="number" min={1} max={180} {...form.register("policy.durationMinutes")} /></Field>
-          <Field label="Hạn hoàn thành"><input className={assessmentInput} type="datetime-local" {...form.register("availableUntil")} /></Field>
+          <Field label="Thời gian có thể bắt đầu" error={form.formState.errors.availableFrom?.message}><input className={assessmentInput} type="datetime-local" {...form.register("availableFrom")} /></Field>
+          <Field label="Hạn hoàn thành" error={form.formState.errors.availableUntil?.message}><input className={assessmentInput} type="datetime-local" {...form.register("availableUntil")} /></Field>
           <Field label="Số lần được phép làm"><input className={assessmentInput} type="number" min={1} max={5} {...form.register("policy.maxAttempts")} /></Field>
         </div>
       </fieldset>

@@ -51,12 +51,22 @@ public class AiInterviewMapper {
                 InterviewPolicies.canRetry(interview, Instant.now()),
                 interview.getReportJson(),
                 interview.getConfigSnapshotJson() == null ? null : InterviewPolicies.config(interview).policy().durationMinutes(),
+                interview.getConfigSnapshotJson() == null ? null : InterviewPolicies.config(interview).policy().maxAttempts(),
+                interview.getConfigSnapshotJson() == null ? null : InterviewPolicies.config(interview).availableFrom(),
+                interview.getConfigSnapshotJson() == null ? null : InterviewPolicies.config(interview).availableUntil(),
                 roadmap(interview));
     }
 
     private static List<RoadmapStep> roadmap(AiInterview interview) {
         if (interview.getConfigSnapshotJson() == null) return null;
         var policy = InterviewPolicies.config(interview).policy();
+        if (policy.processes() != null && !policy.processes().isEmpty()) {
+            return policy.processes().stream()
+                    .filter(com.smarthire.tenant.aiInterview.dto.request.InterviewPolicy.Process::enabled)
+                    .sorted(java.util.Comparator.comparingInt(com.smarthire.tenant.aiInterview.dto.request.InterviewPolicy.Process::order))
+                    .map(process -> new RoadmapStep(processTitle(process.key()), "OPEN", processQuestionCount(process.config())))
+                    .toList();
+        }
         if (policy.stages() == null || policy.stages().isEmpty()) return null;
         List<RoadmapStep> steps = new ArrayList<>();
         String current = null;
@@ -101,6 +111,7 @@ public class AiInterviewMapper {
             var rubric = InterviewPolicies.tree(question.getRubricJson());
             if (rubric != null) {
                 if (rubric.path("stageTitle").isTextual()) stageTitle = rubric.path("stageTitle").asText();
+                else if (rubric.path("processKey").isTextual()) stageTitle = processTitle(rubric.path("processKey").asText());
                 competencies = texts(rubric.path("competencies"));
                 skills = texts(rubric.path("skills"));
             }
@@ -119,6 +130,23 @@ public class AiInterviewMapper {
                 skills.isEmpty() ? null : skills,
                 revealCorrectOption ? question.getCorrectOption() : null,
                 revealExplanation ? question.getExplanation() : null);
+    }
+
+    private static int processQuestionCount(Map<String, Object> config) {
+        Object value = config == null ? null : config.get("questionCount");
+        return value instanceof Number number ? Math.max(1, number.intValue()) : 1;
+    }
+
+    private static String processTitle(String key) {
+        return switch (key == null ? "" : key) {
+            case "TECHNICAL_KNOWLEDGE" -> "Technical Knowledge";
+            case "PROBLEM_SOLVING" -> "Problem Solving";
+            case "PRACTICAL_EXPERIENCE" -> "Practical Experience";
+            case "TECHNICAL_REASONING" -> "Technical Reasoning";
+            case "BEHAVIORAL_SITUATIONAL" -> "Behavioral / Situational";
+            case "COMMUNICATION" -> "Communication";
+            default -> key == null || key.isBlank() ? "Interview Process" : key.replace('_', ' ');
+        };
     }
 
     private static List<String> texts(com.fasterxml.jackson.databind.JsonNode node) {

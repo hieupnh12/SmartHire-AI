@@ -16,6 +16,7 @@ export const configSchema = z.object({
   enabled: z.boolean(),
   passingScore: z.coerce.number().min(0, "0–100").max(100, "0–100"),
   questionCount: int(1, 30, "1–30 câu"),
+  availableFrom: z.string().refine(value => !value || Number.isFinite(new Date(value).getTime()), "Thời gian không hợp lệ"),
   availableUntil: z.string().refine(value => !value || Number.isFinite(new Date(value).getTime()), "Thời gian không hợp lệ"),
   policy: z.object({
     durationMinutes: int(1, 180, "1–180 phút"),
@@ -33,6 +34,9 @@ export const configSchema = z.object({
   const p = value.policy;
   const issue = (path: (string | number)[], message: string) => ctx.addIssue({ code: z.ZodIssueCode.custom, path, message });
   const total = COMPETENCY_KEYS.reduce((sum, key) => sum + p.weights[key], 0);
+  if (value.availableFrom && value.availableUntil && new Date(value.availableFrom) >= new Date(value.availableUntil)) {
+    issue(["availableUntil"], "Hạn hoàn thành phải sau thời gian bắt đầu.");
+  }
   if (total !== 100) issue(["policy", "weights"], `Tổng trọng số phải bằng 100% (hiện tại ${total}%).`);
   if (p.miniAssessmentEnabled && (p.weights.TECHNICAL_KNOWLEDGE === 0 || p.selectedSkills.length === 0)) {
     issue(["policy", "miniAssessmentEnabled"], "Mini Assessment cần Technical Knowledge > 0% và ít nhất một Job Skill.");
@@ -63,11 +67,17 @@ export const configSchema = z.object({
 export type ConfigValues = z.infer<typeof configSchema>;
 
 export function toFormValues(config: AiInterviewConfig): ConfigValues {
-  const date = config.availableUntil ? new Date(config.availableUntil) : null;
-  const local = date ? new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16) : "";
-  return { ...config, availableUntil: local, policy: { ...config.policy, schemaVersion: 2 } };
+  const local = (value: string | null) => {
+    const date = value ? new Date(value) : null;
+    return date ? new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16) : "";
+  };
+  return { ...config, availableFrom: local(config.availableFrom), availableUntil: local(config.availableUntil), policy: { ...config.policy, schemaVersion: 2 } };
 }
 
 export function toRequest(values: ConfigValues): AiInterviewConfig {
-  return { ...values, availableUntil: values.availableUntil ? new Date(values.availableUntil).toISOString() : null };
+  return {
+    ...values,
+    availableFrom: values.availableFrom ? new Date(values.availableFrom).toISOString() : null,
+    availableUntil: values.availableUntil ? new Date(values.availableUntil).toISOString() : null,
+  };
 }

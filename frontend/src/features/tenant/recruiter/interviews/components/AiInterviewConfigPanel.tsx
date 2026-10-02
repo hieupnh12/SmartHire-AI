@@ -77,7 +77,8 @@ function ConfigForm({ jobId, config, jobSkills }: { jobId: number; config: AiInt
         <NumberField label="Passing Score (/100)" error={errors.passingScore?.message} input={<input className={assessmentInput} type="number" min={0} max={100} step="0.01" {...register("passingScore")} />} />
         <NumberField label="Số câu hỏi phỏng vấn" error={errors.questionCount?.message} input={<input className={assessmentInput} type="number" min={1} max={30} {...register("questionCount")} />} />
         <NumberField label="Tổng thời gian (phút)" error={errors.policy?.durationMinutes?.message} input={<input className={assessmentInput} type="number" min={1} max={180} {...register("policy.durationMinutes")} />} />
-        <NumberField label="Hạn hoàn thành (không bắt buộc)" error={errors.availableUntil?.message} input={<input className={assessmentInput} type="datetime-local" {...register("availableUntil")} />} />
+        <NumberField label="Thời gian có thể bắt đầu" error={errors.availableFrom?.message} input={<input className={assessmentInput} type="datetime-local" {...register("availableFrom")} />} />
+        <NumberField label="Hạn hoàn thành" error={errors.availableUntil?.message} input={<input className={assessmentInput} type="datetime-local" {...register("availableUntil")} />} />
         <NumberField label="Số lần được phép làm" error={errors.policy?.maxAttempts?.message} input={<input className={assessmentInput} type="number" min={1} max={5} {...register("policy.maxAttempts")} />} />
       </div>
       <p className={assessmentMuted}>Cấu hình và lộ trình được chốt khi tạo bộ câu hỏi; chỉnh sửa Job chỉ áp dụng cho phiên mới. Chỉ được làm lại khi chưa đạt, còn lượt và còn hạn.</p>

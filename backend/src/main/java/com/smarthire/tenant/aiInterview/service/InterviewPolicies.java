@@ -34,7 +34,7 @@ public final class InterviewPolicies {
     }
     public static AiInterviewConfigRequest config(Job job) {
         return new AiInterviewConfigRequest(job.isAiInterviewEnabled(), job.getAiInterviewPassingScore(),
-                job.getAiInterviewQuestionCount(), job.getAiInterviewAvailableUntil(),
+                job.getAiInterviewQuestionCount(), job.getAiInterviewAvailableFrom(), job.getAiInterviewAvailableUntil(),
                 job.getAiInterviewPolicyJson() == null ? defaults() : read(job.getAiInterviewPolicyJson(), InterviewPolicy.class));
     }
     public static AiInterviewConfigRequest config(AiInterview interview) {

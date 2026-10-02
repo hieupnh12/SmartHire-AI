@@ -80,12 +80,6 @@ function configKey(label: string) {
   return words.map((word, index) => index === 0 ? word.toLowerCase() : word[0].toUpperCase() + word.slice(1)).join("");
 }
 
-function processKey(id: ExerciseId): InterviewProcessConfig["key"] {
-  const keys: Record<ExerciseId, InterviewProcessConfig["key"]> = { conceptual: "TECHNICAL_KNOWLEDGE", scenario: "PROBLEM_SOLVING",
-    experience: "PRACTICAL_EXPERIENCE", code: "TECHNICAL_REASONING", behavioral: "BEHAVIORAL_SITUATIONAL", communication: "COMMUNICATION" };
-  return keys[id];
-}
-
 function Card({ title, icon: Icon, children }: { title: string; icon: typeof ClipboardCheck; children: ReactNode }) { return <section className="rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-4"><h4 className="mb-3 flex items-center gap-2 text-sm font-semibold"><Icon className="size-[18px] text-[var(--color-primary)]" aria-hidden="true" />{title}</h4>{children}</section>; }
 function Metric({ label, value }: { label: string; value: string }) { return <div className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-container-low)] p-3"><span className="block text-[11px] text-[var(--color-on-surface-variant)]">{label}</span><span className="mt-1 block text-sm font-bold text-[var(--color-on-surface)]">{value}</span></div>; }
 function Note({ children }: { children: ReactNode }) { return <p className="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-container-low)] p-3 text-xs leading-5 text-[var(--color-on-surface-variant)]">{children}</p>; }

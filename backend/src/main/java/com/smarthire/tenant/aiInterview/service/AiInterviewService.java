@@ -183,6 +183,10 @@ public class AiInterviewService {
         var now = Instant.now();
         if (interview.getConfigSnapshotJson() != null) {
             var config = InterviewPolicies.config(interview);
+            if (config.availableFrom() != null && now.isBefore(config.availableFrom())) {
+                throw new BusinessException("AI interview is not available yet", HttpStatus.CONFLICT,
+                        "AI_INTERVIEW_NOT_STARTED");
+            }
             if (config.availableUntil() != null && !now.isBefore(config.availableUntil())) {
                 throw new BusinessException("AI interview is not available for this job", HttpStatus.CONFLICT, "AI_INTERVIEW_UNAVAILABLE");
             }
@@ -446,7 +450,7 @@ public class AiInterviewService {
         // Candidates must not read the paper before the timer starts.
         if (!access.staff() && interview.getStartedAt() == null) return List.of();
         boolean completed = interview.getStatus() == AiInterviewStatus.PASSED
-                || interview.getStatus() == AiInterviewStatus.FAILED || interview.getStatus() == AiInterviewStatus.SCORED);
+                || interview.getStatus() == AiInterviewStatus.FAILED || interview.getStatus() == AiInterviewStatus.SCORED;
         boolean revealCorrect = access.staff() && completed;
         boolean revealExplanation = access.staff() && completed;
         if (!access.staff() && completed && InterviewPolicies.isV2(interview)) {

@@ -45,6 +45,8 @@ class AiInterviewInviteServiceTest {
         candidate.setFullName("Candidate");
         Job job = new Job();
         job.setTitle("Backend Java");
+        job.setAiInterviewAvailableFrom(Instant.parse("2026-10-10T01:00:00Z"));
+        job.setAiInterviewAvailableUntil(Instant.parse("2026-10-12T16:59:00Z"));
         application = new Application();
         application.setId(4L);
         application.setCandidate(candidate);
@@ -61,6 +63,10 @@ class AiInterviewInviteServiceTest {
         service.sendIfNeeded(application, passed);
 
         verify(mail).send(eq("can@se36.local"), contains("phỏng vấn AI"), contains("http://se36.localhost:5173/candidate/interviews"));
+        verify(mail).send(eq("can@se36.local"), anyString(), contains("08:00 10/10/2026"));
+        verify(mail).send(eq("can@se36.local"), anyString(), contains("23:59 12/10/2026"));
+        verify(mail).send(eq("can@se36.local"), anyString(), contains("Thời lượng: 30 phút"));
+        verify(mail).send(eq("can@se36.local"), anyString(), contains("Số lần thực hiện: 1"));
         verify(outbox).save(any());
         verify(applications).save(application);
     }
