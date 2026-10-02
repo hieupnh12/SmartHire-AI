@@ -11,5 +11,9 @@ import java.time.Instant;
 public record UpsertAiAnswerRequest(
         @Size(max = 50000) String answerText,
         @Min(0) Integer answerDuration,
-        Instant answeredAt) {
+        Instant answeredAt,
+        @jakarta.validation.Valid SpeechMetrics speechMetrics) {
+    public UpsertAiAnswerRequest(String answerText, Integer answerDuration, Instant answeredAt) {
+        this(answerText, answerDuration, answeredAt, null);
+    }
 }

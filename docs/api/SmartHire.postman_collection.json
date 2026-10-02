@@ -7,6 +7,7 @@
   "variable": [
     {"key":"aiInterviewId","value":"1"},
     {"key":"aiQuestionId","value":"1"},
+    {"key":"aiAnswerId","value":"1"},
     {"key":"notificationId","value":"1"},
     { "key": "candidateToken", "value": "" },
     { "key": "questionId", "value": "1" },
@@ -1216,6 +1217,104 @@
               }
             }
           ]
+        }
+      ]
+    },
+    {
+      "name": "Communication voice interview",
+      "item": [
+        {
+          "name": "Consent Communication",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/ai-interviews/{{aiInterviewId}}/voice/consent",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"accepted\":true,\"policyVersion\":\"communication-voice-v1\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Gửi câu trả lời audio và transcript",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/ai-interviews/{{aiInterviewId}}/questions/{{aiQuestionId}}/audio-answer",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": []
+                },
+                {
+                  "key": "answer",
+                  "type": "text",
+                  "contentType": "application/json",
+                  "value": "{\"answerText\":\"My solution...\",\"answerDuration\":5,\"speechMetrics\":{\"durationMs\":5000,\"voicedMs\":4000,\"silenceMs\":1000,\"pauseCount\":1,\"responseLatencyMs\":1000}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Metadata recording (Recruiter sau phiên)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/ai-interviews/{{aiInterviewId}}/answers/{{aiAnswerId}}/recording/info"
+          }
+        },
+        {
+          "name": "Audio riêng tư (Recruiter sau phiên)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/ai-interviews/{{aiInterviewId}}/answers/{{aiAnswerId}}/recording/audio"
+          }
         }
       ]
     }

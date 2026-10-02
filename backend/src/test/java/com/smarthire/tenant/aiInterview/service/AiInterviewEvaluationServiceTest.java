@@ -1,7 +1,6 @@
 package com.smarthire.tenant.aiInterview.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.smarthire.domain.enums.AiInterviewStatus;
 import com.smarthire.domain.enums.ApplicationStatus;
 import com.smarthire.domain.enums.CvScreeningStatus;
@@ -11,7 +10,6 @@ import com.smarthire.tenant.aiInterview.ai.AiInterviewClient;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -64,13 +62,6 @@ class AiInterviewEvaluationServiceTest {
         interview = AiInterview.builder().id(11L).application(application).status(AiInterviewStatus.GENERATING).build();
     }
 
-    private ObjectNode questionBatch(int from, int count) {
-        var root = mapper.createObjectNode();
-        var rows = root.putArray("questions");
-        for (int i = 0; i < count; i++) rows.addObject().put("questionText", "Question " + (from + i)).put("questionType", "TECHNICAL");
-        return root;
-    }
-
     private void plannedInterview() {
         var policy = new com.smarthire.tenant.aiInterview.dto.request.InterviewPolicy(30, 1, true, 3, 30, 1,
                 java.util.Map.of("TECHNICAL_KNOWLEDGE", 100, "PROBLEM_SOLVING", 0, "PRACTICAL_EXPERIENCE", 0,
@@ -83,145 +74,46 @@ class AiInterviewEvaluationServiceTest {
         when(interviews.findByIdForUpdate(11L)).thenReturn(Optional.of(interview));
     }
 
-    @Test void plannedGenerationUsesOneCallForAllMiniQuestionsAndPreservesSlots() {
+    @Test void miniAssessmentGenerationIsBlocked() {
         plannedInterview();
-        when(ai.generate(anyString(), any())).thenAnswer(call -> {
-            com.fasterxml.jackson.databind.JsonNode request = call.getArgument(1);
-            var output = mapper.createObjectNode();
-            var rows = output.putArray("questions");
-            for (var slot : request.path("slots")) {
-                var row = rows.addObject().put("slot", slot.path("slot").asInt())
-                        .put("questionText", "Question " + slot.path("slot").asInt());
-                if (slot.path("kind").asText().equals("MCQ")) {
-                    row.putArray("options").add("A").add("B").add("C").add("D");
-                    row.put("correctOption", 1).put("explanation", "B is correct");
-                } else {
-                    row.put("referenceAnswer", "Model answer");
-                    var points = row.putArray("keyPoints");
-                    points.addObject().put("point", "JVM memory").put("target", "TECHNICAL_KNOWLEDGE");
-                    points.addObject().put("point", "Java collections").put("target", "Java");
-                }
-            }
-            return output;
-        });
-        service.process(11L);
-        assertThat(interview.getStatus()).isEqualTo(AiInterviewStatus.QUESTIONS_READY);
-        verify(ai, times(2)).generate(anyString(), any());
-        verify(questions).saveAll(argThat(paper -> {
-            var list = (List<AiQuestion>) paper;
-            return list.size() == 4 && list.getFirst().getCorrectOption() == null
-                    && InterviewRubric.hasReference(list.getFirst())
-                    && list.subList(1, 4).stream().allMatch(q -> q.getCorrectOption() == 1 && !InterviewRubric.hasReference(q));
-        }));
-    }
-
-    @Test void legacyAnswersAreGradedAgainstAKeyWrittenBeforeSeeingThem() {
-        interview.setStatus(AiInterviewStatus.SCORING);
-        interview.setPassingScoreSnapshot(new BigDecimal("70"));
-        when(interviews.findByIdForUpdate(11L)).thenReturn(Optional.of(interview));
-        var question = AiQuestion.builder().id(20L).aiInterview(interview).questionOrder(0).questionType("TECHNICAL")
-                .questionText("Spring IoC hoạt động thế nào?").build();
-        when(questions.findByAiInterview_IdOrderByQuestionOrderAscIdAsc(11L)).thenReturn(List.of(question));
-        when(answers.findByAiQuestion_IdIn(any())).thenReturn(List.of(
-                AiAnswer.builder().id(30L).aiQuestion(question).answerText("adsfasdf").build()));
-        when(ai.generate(anyString(), any())).thenAnswer(call -> {
-            com.fasterxml.jackson.databind.JsonNode request = call.getArgument(1);
-            var output = mapper.createObjectNode();
-            if (request.has("questions")) {
-                assertThat(request.toString()).doesNotContain("adsfasdf");
-                var ref = output.putArray("references").addObject().put("questionId", 20).put("referenceAnswer", "Container quản lý bean");
-                ref.putArray("keyPoints").add(mapper.createObjectNode().put("point", "Container tạo bean"))
-                        .add(mapper.createObjectNode().put("point", "Inject dependency"));
-            } else {
-                // The provider claims credit with a quote the candidate never wrote.
-                var row = output.putArray("evaluations").addObject().put("answerId", 30)
-                        .put("feedback", "f").put("strengths", "s").put("weaknesses", "w");
-                row.putArray("keyPoints").add(mapper.createObjectNode().put("index", 0).put("score", 90).put("evidence", "container tạo bean"));
-            }
-            return output;
-        });
-
-        service.process(11L);
-
-        verify(ai, times(2)).generate(anyString(), any());
-        assertThat(InterviewRubric.hasReference(question)).isTrue();
-        assertThat(interview.getOverallScore()).isEqualByComparingTo("0");
-        assertThat(interview.getStatus()).isEqualTo(AiInterviewStatus.FAILED);
-    }
-
-    @Test void providerFailureDoesNotBecomeACandidateZero() {
-        interview.setStatus(AiInterviewStatus.SCORING);
-        interview.setPassingScoreSnapshot(new BigDecimal("70"));
-        when(interviews.findByIdForUpdate(11L)).thenReturn(Optional.of(interview));
-        var question = AiQuestion.builder().id(20L).aiInterview(interview).questionText("Explain IoC").build();
-        when(questions.findByAiInterview_IdOrderByQuestionOrderAscIdAsc(11L)).thenReturn(List.of(question));
-        when(answers.findByAiQuestion_IdIn(any())).thenReturn(List.of(
-                AiAnswer.builder().id(30L).aiQuestion(question).answerText("answer").build()));
-        when(ai.generate(anyString(), any())).thenThrow(new AiInterviewClient.ProviderException("HTTP 503"));
         service.process(11L);
         assertThat(interview.getStatus()).isEqualTo(AiInterviewStatus.ERROR);
         assertThat(interview.getOverallScore()).isNull();
-        assertThat(application.getStatus()).isEqualTo(ApplicationStatus.INTERVIEW);
-        verify(feedbacks, never()).saveAll(any());
-        verifyNoInteractions(history, notifications, emails);
+        verifyNoInteractions(ai, questions, answers, feedbacks, history, notifications, emails);
     }
 
-    @Test void blankOpenAnswerAndMiniQuestionsAreScoredWithoutAiCall() {
-        plannedInterview();
+    @Test void legacyScoringIsBlocked() {
+        when(interviews.findByIdForUpdate(11L)).thenReturn(Optional.of(interview));
         interview.setStatus(AiInterviewStatus.SCORING);
-        var plan = InterviewRubric.plan(InterviewPolicies.config(interview).policy());
-        var paper = java.util.stream.IntStream.range(0, 4).mapToObj(i -> AiQuestion.builder()
-                .id(20L + i).aiInterview(interview).questionOrder(i).rubricJson(plan.get(i).toString())
-                .correctOption(i == 0 ? null : 1).explanation("B is correct").build()).toList();
-        var saved = java.util.stream.IntStream.range(0, 4).mapToObj(i -> AiAnswer.builder()
-                .id(30L + i).aiQuestion(paper.get(i)).answerText(i == 0 ? "" : "1").build()).toList();
-        when(questions.findByAiInterview_IdOrderByQuestionOrderAscIdAsc(11L)).thenReturn(paper);
-        when(answers.findByAiQuestion_IdIn(any())).thenReturn(saved);
-        service.process(11L);
-        assertThat(interview.getOverallScore()).isEqualByComparingTo("30");
-        assertThat(interview.getStatus()).isEqualTo(AiInterviewStatus.FAILED);
-        verifyNoInteractions(ai);
-        verify(feedbacks).saveAll(argThat(rows -> ((List<?>) rows).size() == 4));
-    }
-
-    @Test void incompletePlannedGenerationDoesNotSavePartialPaper() {
-        plannedInterview();
-        when(ai.generate(anyString(), any())).thenReturn(mapper.createObjectNode().putArray("questions").addObject());
         service.process(11L);
         assertThat(interview.getStatus()).isEqualTo(AiInterviewStatus.ERROR);
-        verify(questions, never()).saveAll(any());
-        verifyNoInteractions(feedbacks);
+        assertThat(interview.getOverallScore()).isNull();
+        verifyNoInteractions(ai, questions, answers, feedbacks, history, notifications, emails);
     }
 
-    @Test void generatesFiveUniqueQuestionsInOneCall() {
+    @Test void communicationProviderFailureDoesNotBecomeACandidateZero() {
+        InterviewPolicies.snapshot(interview);
         when(interviews.findByIdForUpdate(11L)).thenReturn(Optional.of(interview));
-        var counter = new AtomicInteger();
-        when(ai.generate(anyString(), any())).thenAnswer(call -> questionBatch(counter.getAndAdd(10), 10));
-
+        doThrow(new AiInterviewClient.ProviderException("HTTP 503")).when(processEngine).initializeAndGenerateFirst(interview);
         service.process(11L);
-
-        assertThat(interview.getStatus()).isEqualTo(AiInterviewStatus.QUESTIONS_READY);
-        verify(ai, times(1)).generate(anyString(), any());
-        @SuppressWarnings("unchecked")
-        ArgumentCaptor<List<AiQuestion>> saved = ArgumentCaptor.forClass(List.class);
-        verify(questions).saveAll(saved.capture());
-        assertThat(saved.getValue()).hasSize(5);
-        assertThat(saved.getValue()).extracting(AiQuestion::getQuestionOrder).containsExactlyElementsOf(
-                java.util.stream.IntStream.range(0, 5).boxed().toList());
-        verify(activity).record(eq(interview), eq("QUESTIONS_GENERATED"), contains("5"));
-        verify(notifications).save(any());
-    }
-
-    @Test void duplicateQuestionsFromProviderEndInErrorWithoutSaving() {
-        when(interviews.findByIdForUpdate(11L)).thenReturn(Optional.of(interview));
-        when(ai.generate(anyString(), any())).thenAnswer(call -> questionBatch(0, 3));
-
-        service.process(11L);
-
         assertThat(interview.getStatus()).isEqualTo(AiInterviewStatus.ERROR);
-        verify(questions, never()).saveAll(any());
-        verify(activity).record(eq(interview), eq("GENERATION_FAILED"), contains("3/5"));
+        assertThat(interview.getOverallScore()).isNull();
+        verifyNoInteractions(feedbacks, history, notifications, emails);
     }
+
+
+
+
+
+    @Test void unsnapshottedGenerationIsBlocked() {
+        when(interviews.findByIdForUpdate(11L)).thenReturn(Optional.of(interview));
+        service.process(11L);
+        assertThat(interview.getStatus()).isEqualTo(AiInterviewStatus.ERROR);
+        assertThat(interview.getOverallScore()).isNull();
+        verifyNoInteractions(ai, questions, answers, feedbacks, history, notifications, emails);
+    }
+
+
 
     @Test void passingScoreMovesApplicationToAssessment() {
         interview.setStatus(AiInterviewStatus.SCORING);
@@ -274,5 +166,49 @@ class AiInterviewEvaluationServiceTest {
         service.closeExhaustedRetries();
         assertThat(application.getStatus()).isEqualTo(ApplicationStatus.FAILED);
         verify(history, times(2)).save(any());
+    }
+
+    @Test void communicationScoringUsesFullWeight() {
+        var weights = java.util.Map.of("TECHNICAL_KNOWLEDGE", 0, "PROBLEM_SOLVING", 0,
+                "PRACTICAL_EXPERIENCE", 0, "COMMUNICATION", 100, "BEHAVIORAL_SITUATIONAL", 0);
+        var processes = List.of(new com.smarthire.tenant.aiInterview.dto.request.InterviewPolicy.Process("COMMUNICATION", true, 1, 100, java.util.Map.of("questionCount", 1)));
+        var policy = new com.smarthire.tenant.aiInterview.dto.request.InterviewPolicy(30, 1, false, 3, 30, 0,
+                weights, List.of(), List.of(), 2, "TEXT", null, null, processes);
+        interview.setConfigSnapshotJson(InterviewPolicies.json(new com.smarthire.tenant.aiInterview.dto.request.AiInterviewConfigRequest(true, new BigDecimal("70"), 2, null, policy)));
+        interview.setPassingScoreSnapshot(new BigDecimal("70")); interview.setStatus(AiInterviewStatus.SCORING);
+        var run = AiInterviewProcessRun.builder().processKey("COMMUNICATION").build();
+        var question = AiQuestion.builder().id(1L).processRun(run).build();
+        var answer = AiAnswer.builder().id(10L).aiQuestion(question).answerText("Answer").build();
+        var feedback = AiFeedback.builder().aiAnswer(answer).score(new BigDecimal("100")).build();
+        when(interviews.findByIdForUpdate(11L)).thenReturn(Optional.of(interview));
+        when(questions.findByAiInterview_IdOrderByQuestionOrderAscIdAsc(11L)).thenReturn(List.of(question));
+        when(answers.findByAiQuestion_IdIn(List.of(1L))).thenReturn(List.of(answer));
+        when(feedbacks.findByAiAnswer_IdIn(List.of(10L))).thenReturn(List.of(feedback));
+        service.process(11L);
+        assertThat(interview.getOverallScore()).isEqualByComparingTo("100");
+        assertThat(InterviewPolicies.tree(interview.getReportJson()).at("/competencies/PROBLEM_SOLVING").decimalValue()).isEqualByComparingTo("0");
+        verifyNoInteractions(ai);
+    }
+
+    @Test void unaskedAdaptiveTopicsCountAsZeroWhenSubmittedEarly() {
+        var weights = java.util.Map.of("TECHNICAL_KNOWLEDGE", 0, "PROBLEM_SOLVING", 0,
+                "PRACTICAL_EXPERIENCE", 0, "COMMUNICATION", 100, "BEHAVIORAL_SITUATIONAL", 0);
+        var processes = List.of(new com.smarthire.tenant.aiInterview.dto.request.InterviewPolicy.Process("COMMUNICATION", true, 1, 100, java.util.Map.of("questionCount", 2)));
+        var policy = new com.smarthire.tenant.aiInterview.dto.request.InterviewPolicy(30, 1, false, 3, 30, 0,
+                weights, List.of(), List.of(), 2, "TEXT", null, null, processes);
+        interview.setConfigSnapshotJson(InterviewPolicies.json(new com.smarthire.tenant.aiInterview.dto.request.AiInterviewConfigRequest(true, new BigDecimal("70"), 2, null, policy)));
+        interview.setPassingScoreSnapshot(new BigDecimal("70")); interview.setStatus(AiInterviewStatus.SCORING);
+        var run = AiInterviewProcessRun.builder().processKey("COMMUNICATION").build();
+        var question = AiQuestion.builder().id(1L).processRun(run).build();
+        var answer = AiAnswer.builder().id(10L).aiQuestion(question).answerText("Answer").build();
+        var feedback = AiFeedback.builder().aiAnswer(answer).score(new BigDecimal("100")).build();
+        when(interviews.findByIdForUpdate(11L)).thenReturn(Optional.of(interview));
+        when(questions.findByAiInterview_IdOrderByQuestionOrderAscIdAsc(11L)).thenReturn(List.of(question));
+        when(answers.findByAiQuestion_IdIn(List.of(1L))).thenReturn(List.of(answer));
+        when(feedbacks.findByAiAnswer_IdIn(List.of(10L))).thenReturn(List.of(feedback));
+        service.process(11L);
+        assertThat(interview.getOverallScore()).isEqualByComparingTo("50");
+        assertThat(InterviewPolicies.tree(interview.getReportJson()).at("/competencies/PROBLEM_SOLVING").decimalValue()).isEqualByComparingTo("0");
+        verifyNoInteractions(ai);
     }
 }

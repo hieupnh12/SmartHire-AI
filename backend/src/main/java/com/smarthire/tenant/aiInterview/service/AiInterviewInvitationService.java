@@ -53,7 +53,10 @@ public class AiInterviewInvitationService {
         }
         var existing = interviews.findByApplication_IdOrderByIdDesc(applicationId);
         AiInterviewEligibility.require(application);
-        if (!existing.isEmpty()) return existing.get(0);
+        if (!existing.isEmpty()) {
+            var latest = existing.get(0);
+            if (latest.getCompletedAt() != null || latest.getConfigSnapshotJson() != null && InterviewPolicies.communicationOnly(InterviewPolicies.config(latest).policy())) return latest;
+        }
         return createAttempt(application, stage, 1);
     }
 
@@ -86,7 +89,7 @@ public class AiInterviewInvitationService {
         interview = interviews.save(interview);
         var config = InterviewPolicies.config(interview);
         activity.record(interview, "INVITED", "Attempt " + attemptNumber + " created for application " + application.getId()
-                + "; generation of " + application.getJob().getAiInterviewQuestionCount() + " questions queued");
+                + "; generation of " + config.questionCount() + " Communication questions queued");
         notifications.save(Notification.builder()
                 .user(application.getCandidate())
                 .type("AI_INTERVIEW_INVITATION")

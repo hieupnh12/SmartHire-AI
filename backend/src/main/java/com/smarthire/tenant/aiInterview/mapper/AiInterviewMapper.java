@@ -14,6 +14,7 @@ import com.smarthire.tenant.aiInterview.dto.response.AiQuestionResponse;
 import com.smarthire.tenant.aiInterview.dto.response.RoadmapStep;
 import com.smarthire.tenant.aiInterview.service.InterviewPolicies;
 import com.smarthire.tenant.aiInterview.service.InterviewRubric;
+import com.smarthire.tenant.aiInterview.service.InterviewProcessSettings;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -54,7 +55,8 @@ public class AiInterviewMapper {
                 interview.getConfigSnapshotJson() == null ? null : InterviewPolicies.config(interview).policy().maxAttempts(),
                 interview.getConfigSnapshotJson() == null ? null : InterviewPolicies.config(interview).availableFrom(),
                 interview.getConfigSnapshotJson() == null ? null : InterviewPolicies.config(interview).availableUntil(),
-                roadmap(interview));
+                roadmap(interview), InterviewPolicies.isV2(interview), InterviewPolicies.voiceEnabled(interview),
+                InterviewPolicies.voiceEnabled(interview) && InterviewPolicies.config(interview).policy().voice().recordAudio());
     }
 
     private static List<RoadmapStep> roadmap(AiInterview interview) {
@@ -64,7 +66,7 @@ public class AiInterviewMapper {
             return policy.processes().stream()
                     .filter(com.smarthire.tenant.aiInterview.dto.request.InterviewPolicy.Process::enabled)
                     .sorted(java.util.Comparator.comparingInt(com.smarthire.tenant.aiInterview.dto.request.InterviewPolicy.Process::order))
-                    .map(process -> new RoadmapStep(processTitle(process.key()), "OPEN", processQuestionCount(process.config())))
+                    .map(process -> new RoadmapStep(processTitle(process.key()), process.key().equals("TECHNICAL_KNOWLEDGE") ? "MCQ" : "OPEN", InterviewProcessSettings.questionCount(process.config())))
                     .toList();
         }
         if (policy.stages() == null || policy.stages().isEmpty()) return null;
@@ -86,6 +88,8 @@ public class AiInterviewMapper {
     private static int expectedQuestions(AiInterview interview) {
         if (interview.getConfigSnapshotJson() != null) {
             var policy = InterviewPolicies.config(interview).policy();
+            if (InterviewPolicies.isV2(policy)) return policy.processes().stream().filter(com.smarthire.tenant.aiInterview.dto.request.InterviewPolicy.Process::enabled)
+                    .mapToInt(process -> InterviewProcessSettings.questionCount(process.config())).sum();
             if (policy.stages() != null && !policy.stages().isEmpty()) return InterviewRubric.plan(policy).size();
             return InterviewPolicies.config(interview).questionCount();
         }
@@ -107,8 +111,24 @@ public class AiInterviewMapper {
         String stageTitle = null;
         List<String> competencies = List.of();
         List<String> skills = List.of();
+        var rubric = question.getRubricJson() == null ? null : InterviewPolicies.tree(question.getRubricJson());
+        List<Integer> correctOptions = null;
+        String difficulty = rubric == null ? null : rubric.path("difficulty").asText(null);
+        String hint = rubric == null ? null : rubric.path("hint").asText(null);
+        boolean multiple = rubric != null && "MULTIPLE_CHOICE".equals(rubric.path("kind").asText());
+        boolean explanationRequired = rubric != null && rubric.path("explanationRequired").asBoolean(false);
+        if (revealCorrectOption && rubric != null && rubric.path("correctOptions").isArray()) {
+            var indices = new ArrayList<Integer>(); rubric.path("correctOptions").forEach(item -> indices.add(item.asInt())); correctOptions = indices;
+        }
+        String responseMode = "text", language = "Vietnamese";
+        if (question.getProcessRun() != null) {
+            var process = InterviewPolicies.read(question.getProcessRun().getConfigSnapshotJson(), com.smarthire.tenant.aiInterview.dto.request.InterviewPolicy.Process.class);
+            var config = InterviewProcessSettings.config(process);
+            responseMode = config.getOrDefault("responseMode", "text").toString();
+            language = config.getOrDefault("language", "Vietnamese").toString();
+            if ("COMMUNICATION".equals(process.key()) && !InterviewProcessSettings.bool(config, "generateTranscript", false)) responseMode = "text";
+        }
         if (question.getRubricJson() != null) {
-            var rubric = InterviewPolicies.tree(question.getRubricJson());
             if (rubric != null) {
                 if (rubric.path("stageTitle").isTextual()) stageTitle = rubric.path("stageTitle").asText();
                 else if (rubric.path("processKey").isTextual()) stageTitle = processTitle(rubric.path("processKey").asText());
@@ -129,12 +149,8 @@ public class AiInterviewMapper {
                 competencies.isEmpty() ? null : competencies,
                 skills.isEmpty() ? null : skills,
                 revealCorrectOption ? question.getCorrectOption() : null,
-                revealExplanation ? question.getExplanation() : null);
-    }
-
-    private static int processQuestionCount(Map<String, Object> config) {
-        Object value = config == null ? null : config.get("questionCount");
-        return value instanceof Number number ? Math.max(1, number.intValue()) : 1;
+                revealExplanation ? question.getExplanation() : null,
+                correctOptions, multiple, explanationRequired, difficulty, hint, question.getQuestionRole(), responseMode, language);
     }
 
     private static String processTitle(String key) {
@@ -174,7 +190,7 @@ public class AiInterviewMapper {
                 feedback.getFeedbackText(),
                 feedback.getStrengths(),
                 feedback.getWeaknesses(),
-                feedback.getCreatedAt());
+                feedback.getCreatedAt(), feedback.getEvaluationJson());
     }
 
     public AiInterviewLogResponse toLog(AiInterviewLog log) {

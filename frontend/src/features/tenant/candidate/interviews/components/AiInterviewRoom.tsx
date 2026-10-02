@@ -14,6 +14,7 @@ import { INTERVIEW_RULES } from "../constants/interviewRules";
 import { InterviewQuestionPanel } from "./InterviewQuestionPanel";
 import { InterviewRoadmap } from "./InterviewRoadmap";
 import { InterviewProcessNavigator } from "./InterviewProcessNavigator";
+import { parseChoiceAnswer } from "@/lib/interview-choice-answer";
 
 const card = "rounded-xl bg-surface-card p-6 shadow-sm";
 const answered = (q: AiQuestion) => !!q.answer?.answerText?.trim();
@@ -38,8 +39,10 @@ export function AiInterviewRoom({ id }: { id: number }) {
     onDirty(questionId, false);
     setOpenedAt(Date.now());
     client.setQueryData<CandidateInterview>(key, previous => previous && ({ ...previous, questions: previous.questions.map(q => q.id === questionId ? { ...q, answer } : q) }));
+    setSelected(null);
+    void client.invalidateQueries({ queryKey: key });
   }
-  const start = useMutation({ mutationFn: () => candidateInterviewApi.start(id), onSuccess: updated });
+  const start = useMutation({ mutationFn: async () => { if (session.data?.voiceEnabled) await candidateInterviewApi.consent(id); return candidateInterviewApi.start(id); }, onSuccess: updated });
   const complete = useMutation({ mutationFn: () => candidateInterviewApi.complete(id), onSuccess: updated });
   const retry = useMutation({
     mutationFn: (applicationId: number) => candidateInterviewApi.requestStart(applicationId),
@@ -56,7 +59,8 @@ export function AiInterviewRoom({ id }: { id: number }) {
   const error = start.error ?? complete.error ?? retry.error;
   const questions = data?.questions ?? [];
   const done = questions.filter(answered).length;
-  const unanswered = questions.length - done;
+  const unaskedMain = data?.processBased ? Math.max(0, data.questionCount - questions.filter(question => question.questionRole !== "FOLLOW_UP").length) : 0;
+  const unanswered = questions.length - done + unaskedMain;
   const dirty = Object.values(dirtyQuestions).some(Boolean);
   const planned = !!data?.expiresAt || !!data?.roadmap || questions.some(q => q.stageTitle);
   const firstOpen = questions.findIndex(q => !answered(q));
@@ -75,6 +79,13 @@ export function AiInterviewRoom({ id }: { id: number }) {
       onConfirm: async () => { await complete.mutateAsync(); },
     });
   }
+
+  const unavailable = data && !data.completedAt && (!data.processBased || data.roadmap?.some(step => step.title !== "Communication"));
+  if (unavailable) return <section className={card}>
+    <Link to="/candidate/interviews" className="inline-flex min-h-11 items-center text-brand-primary">← Về AI Interview</Link>
+    <h1 className="text-lg font-semibold">Quy trình sẽ được mở rộng trong tương lai</h1>
+    <p className="mt-2 text-sm text-[var(--color-on-surface-variant)]">Hiện chỉ Communication đang hoạt động. Phiên này dùng quy trình cũ và không thể tiếp tục; vui lòng liên hệ nhà tuyển dụng để nhận phiên Communication mới.</p>
+  </section>;
 
   return <section className="mx-auto max-w-[1720px] space-y-4 text-[var(--color-on-surface)]">
     <Link to="/candidate/interviews" className="inline-flex min-h-11 items-center text-brand-primary">← Về AI Interview</Link>
@@ -120,7 +131,7 @@ export function AiInterviewRoom({ id }: { id: number }) {
       <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-12">
         <div className="flex flex-col gap-6 lg:col-span-8">
           {inProgress && questions.length > 0 && <>
-            <InterviewQuestionPanel interviewId={id} questions={questions} index={index} disabled={busy || timeUp} dirty={dirty}
+            <InterviewQuestionPanel recordingEnabled={data.recordingEnabled} interviewId={id} questions={questions} index={index} disabled={busy || timeUp} dirty={dirty}
               onSelect={setSelected} onSaved={saved} onDirty={onDirty} answerDuration={answerDuration} />
             <div className={`${card} flex flex-wrap items-center justify-between gap-3`}>
               <p className="text-sm">Đã lưu {done}/{questions.length} câu.{unanswered > 0 && planned ? ` Còn ${unanswered} câu chưa trả lời sẽ tính 0 điểm nếu nộp.` : ""}{!planned && unanswered > 0 ? " Cần trả lời đủ các câu trước khi nộp." : ""}</p>
@@ -133,6 +144,8 @@ export function AiInterviewRoom({ id }: { id: number }) {
             <p className="text-xs text-[var(--color-on-surface-variant)]">Câu {i + 1}{question.stageTitle ? ` · ${question.stageTitle}` : ""}</p>
             <h3 className="font-semibold">{question.questionText}</h3>
             <p className="whitespace-pre-wrap rounded-lg bg-[var(--color-surface-container-low)] p-3 text-sm">{submittedAnswer(question)}</p>
+            {question.correctOptions?.length ? <p className="text-sm">Đáp án đúng: {question.correctOptions.map(option => String.fromCharCode(65 + option)).join(", ")}</p> : question.correctOption != null && <p className="text-sm">Đáp án đúng: {String.fromCharCode(65 + question.correctOption)}</p>}
+            {question.explanation && <p className="whitespace-pre-wrap text-sm">Giải thích: {question.explanation}</p>}
           </article>)}
         </div>
         <aside className="flex flex-col gap-6 lg:col-span-4">
@@ -149,6 +162,7 @@ export function AiInterviewRoom({ id }: { id: number }) {
 }
 
 function InvitationCard({ data, busy, onStart }: { data: CandidateInterview; busy: boolean; onStart: () => void }) {
+  const [accepted, setAccepted] = useState(false);
   const count = (kind: "OPEN" | "MCQ") => data.roadmap?.filter(s => s.kind === kind).reduce((sum, s) => sum + s.questionCount, 0) ?? 0;
   const facts = [
     data.roadmap ? ["Câu hỏi phỏng vấn", `${count("OPEN")} câu`] : ["Số câu hỏi", `${data.questionCount} câu`],
@@ -160,7 +174,7 @@ function InvitationCard({ data, busy, onStart }: { data: CandidateInterview; bus
     <div>
       <p className="text-xs font-semibold uppercase tracking-wider text-brand-primary">Lời mời phỏng vấn</p>
       <h2 id="invitation-title" className="mt-1 text-xl font-semibold">Vòng AI Interview · {data.jobTitle ?? `Hồ sơ #${data.applicationId}`}</h2>
-      <p className="mt-2 text-sm text-[var(--color-on-surface-variant)]">CV của bạn đã qua vòng sàng lọc. Phiên phỏng vấn đi theo lộ trình bên cạnh; bạn trả lời bằng văn bản và có thể quay lại các câu trước khi nộp.</p>
+      <p className="mt-2 text-sm text-[var(--color-on-surface-variant)]">CV đã qua vòng sàng lọc. AI hỏi theo lượt và điều chỉnh câu tiếp theo dựa trên câu trả lời; bạn có thể nói hoặc nhập văn bản. Câu đã được đánh giá không thể sửa.</p>
     </div>
     <dl className="grid gap-3 sm:grid-cols-2">{facts.map(([label, value]) => <div key={label} className="rounded-lg bg-[var(--color-surface-container-low)] p-3">
       <dt className="text-xs text-[var(--color-on-surface-variant)]">{label}</dt><dd className="font-semibold">{value}</dd></div>)}</dl>
@@ -169,7 +183,8 @@ function InvitationCard({ data, busy, onStart }: { data: CandidateInterview; bus
     {data.status === "ERROR" && <p role="alert">{data.errorMessage ?? "Phiên gặp lỗi xử lý. Nhà tuyển dụng có thể thử lại."} Lỗi hệ thống không tính vào số lần làm.</p>}
     {data.status === "QUESTIONS_READY" && <div className="space-y-3">
       <p className="text-sm">Thời gian bắt đầu tính khi bạn bấm “Bắt đầu phỏng vấn”. Hãy chuẩn bị trước khi bắt đầu.</p>
-      <Button size="lg" disabled={busy} onClick={onStart}>{busy ? "Đang bắt đầu…" : "Bắt đầu phỏng vấn"}</Button>
+      {data.voiceEnabled && <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={accepted} onChange={event => setAccepted(event.target.checked)} />Tôi đồng ý dùng micro, chuyển giọng nói thành transcript và phân tích tín hiệu lời nói{data.recordingEnabled ? ", lưu bản ghi âm riêng tư cho nhà tuyển dụng xem xét sau phiên" : ""}.</label>}
+      <Button size="lg" disabled={busy || !!data.voiceEnabled && !accepted} onClick={onStart}>{busy ? "Đang bắt đầu…" : "Bắt đầu phỏng vấn"}</Button>
     </div>}
   </section>;
 }
@@ -193,8 +208,8 @@ function submittedAnswer(question: AiQuestion) {
   const text = question.answer?.answerText?.trim();
   if (!text) return "Chưa trả lời (0 điểm)";
   if (question.options?.length) {
-    const i = Number(text);
-    return question.options[i] ? `${String.fromCharCode(65 + i)}. ${question.options[i]}` : text;
+    const answer = parseChoiceAnswer(text);
+    return answer.selectedOptions.map(i => `${String.fromCharCode(65 + i)}. ${question.options![i]}`).join("\n") + (answer.explanation ? `\nGiải thích: ${answer.explanation}` : "");
   }
   return text;
 }

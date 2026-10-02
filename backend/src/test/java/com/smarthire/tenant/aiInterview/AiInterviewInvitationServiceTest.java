@@ -71,7 +71,7 @@ class AiInterviewInvitationServiceTest {
         assertThat(notification.getValue().getBody()).contains("23:59 12/10/2026");
         assertThat(notification.getValue().getBody()).contains("Thời lượng: 30 phút");
         assertThat(notification.getValue().getBody()).contains("Số lần thực hiện: 1");
-        verify(activity).record(eq(result), eq("INVITED"), contains("5 questions"));
+        verify(activity).record(eq(result), eq("INVITED"), contains("3 Communication questions"));
         verify(emailInvites).sendForInterview(application);
         assertThat(result.getConfigSnapshotJson()).isNotBlank();
         assertThat(result.getAttemptNumber()).isEqualTo(1);
@@ -80,10 +80,25 @@ class AiInterviewInvitationServiceTest {
     @Test void retryDoesNotDuplicateSessionOrNotification() {
         when(applications.findByIdForUpdate(7L)).thenReturn(Optional.of(application));
         var existing = AiInterview.builder().id(11L).application(application).build();
+        com.smarthire.tenant.aiInterview.service.InterviewPolicies.snapshot(existing);
         when(interviews.findByApplication_IdOrderByIdDesc(7L)).thenReturn(List.of(existing));
         assertThat(service.invite(7L, null)).isSameAs(existing);
         verify(interviews, never()).save(any());
         verifyNoInteractions(notifications, activity, emailInvites);
+    }
+
+    @Test void createsCommunicationReplacementWithoutDeletingLegacySession() {
+        when(applications.findByIdForUpdate(7L)).thenReturn(Optional.of(application));
+        var legacy = AiInterview.builder().id(10L).application(application).status(AiInterviewStatus.QUESTIONS_READY).build();
+        when(interviews.findByApplication_IdOrderByIdDesc(7L)).thenReturn(List.of(legacy));
+        when(interviews.save(any())).thenAnswer(call -> { AiInterview next = call.getArgument(0); next.setId(11L); return next; });
+        var replacement = service.invite(7L, null);
+        assertThat(replacement).isNotSameAs(legacy);
+        assertThat(com.smarthire.tenant.aiInterview.service.InterviewPolicies.communicationOnly(
+                com.smarthire.tenant.aiInterview.service.InterviewPolicies.config(replacement).policy())).isTrue();
+        assertThat(legacy.getStatus()).isEqualTo(AiInterviewStatus.QUESTIONS_READY);
+        verify(interviews, never()).delete(any());
+        verify(notifications).save(any());
     }
 
     @Test void rejectsUnscreenedApplication() {

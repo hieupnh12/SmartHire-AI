@@ -53,9 +53,9 @@ export function CreateAiInterviewDialog({ jobId, applicants, existingApplication
         <button type="button" onClick={onClose} className="absolute right-4 top-4 grid size-9 place-items-center rounded-lg text-[var(--color-text-secondary)] hover:bg-surface-muted" aria-label="Đóng">
           <X className="size-4" aria-hidden="true" />
         </button>
-        <h2 id="create-ai-interview-title" className="pr-8 text-xl font-semibold">Tạo phỏng vấn AI</h2>
+        <h2 id="create-ai-interview-title" className="pr-8 text-xl font-semibold">Tạo phiên Communication</h2>
         <p className="text-sm text-[var(--color-on-surface-variant)]">
-          Tạo phiên cho một đơn ứng tuyển của vị trí này. Câu hỏi được thêm trong màn chi tiết sau khi tạo.
+          Tạo phiên Communication cho một đơn ứng tuyển. AI tạo câu hỏi theo cấu hình Communication của vị trí; ứng viên trả lời bằng văn bản hoặc Speech-to-Text. Các quy trình khác sẽ được mở rộng trong tương lai.
         </p>
         <label className="block space-y-1 text-sm">
           <span className="font-medium">Đơn ứng tuyển</span>

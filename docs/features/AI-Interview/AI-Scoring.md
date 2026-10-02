@@ -1,5 +1,17 @@
 # AI Interview Scoring
 
+## Communication hiện hành (2026-10-02)
+
+Communication tích hợp bốn tiêu chí nội dung: kiến thức chuyên môn, giải quyết vấn đề, lập luận và giao tiếp. Các tiêu chí này thuộc cùng một phiên Communication; năm quy trình đã hoãn vẫn không được bật.
+
+Mặc định Adaptive Questions bật: chỉ sinh một câu chính trước; khi câu trả lời được chấm và hết hỏi bồi, sinh câu chính kế tiếp từ Job, snapshot và câu trả lời vừa gửi. Bật hỏi bồi tối đa 1/chủ đề theo mặc định (cho phép 0–3). Nếu tắt thích ứng thì sinh trước bộ câu chính.
+
+Chấm điểm yêu cầu evidence là đoạn có thật trong transcript; evidence không tồn tại nhận 0. Điểm câu trung bình bốn tiêu chí, report tổng hợp `communicationCriteria`. `speechMetrics` và tốc độ từ/phút là chỉ số hỗ trợ Recruiter, không tự cộng vào điểm nội dung. Audio/transcript xem qua API có xác thực sau khi hoàn tất. Chủ đề chưa sinh vì nộp sớm hoặc hết giờ được tính 0 khi tổng hợp, không làm tăng điểm vì giảm số câu.
+
+
+> **Phạm vi hiện tại (2026-10-02):** Chỉ Communication đang hoạt động. Năm quy trình còn lại và Mini Assessment được khóa để phát triển trong tương lai. Phiên mới chỉ sinh/chấm Communication (100% trọng số); snapshot cũ không được viết lại. Xem [hướng dẫn cấu hình](AI-Interview-Configuration-Guide.md).
+
+
 **Epic:** AI Interview System  
 **Trạng thái:** `Doing`  
 **Code ID:** `INT-04`
@@ -13,6 +25,17 @@ Chấm điểm phiên AI Interview sau khi candidate nộp bài và quyết đ�
 - System (chấm điểm), Recruiter (retry khi lỗi)
 
 ## Luồng hoạt động
+
+### Phiên Process V2 (`schemaVersion = 2`)
+
+- Chấm từng câu khi ứng viên lưu câu trả lời; câu đã chấm bị khóa sửa. Chỉ mở quy trình tiếp theo sau khi hoàn thành câu chính và chuỗi câu hỏi phụ của quy trình hiện tại.
+- Trắc nghiệm một/nhiều đáp án: so tập `selectedOptions` với khóa `correctOptions` trong rubric. Không yêu cầu giải thích thì đúng hoàn toàn = 100, còn lại = 0, không gọi AI. Khi `explanationRequired = true`, điểm câu = 70% độ chính xác lựa chọn + 30% điểm giải thích theo đáp án mẫu và các ý chính.
+- Tự luận: điểm là trung bình 3–6 ý chính. Ý không có trích dẫn nguyên văn từ câu trả lời nhận 0. Sai cấu trúc/điểm ngoài 0–100 hoặc lỗi provider không được quy thành lỗi năng lực ứng viên.
+- `verifyAgainstCV` chỉ bổ sung đối chiếu tính nhất quán cho Practical Experience; không cộng điểm từ nội dung CV mà ứng viên chưa trả lời.
+- Điểm cuối dùng trọng số **cấu hình chung đã chốt theo phiên**, chuẩn hóa trên các nhóm năng lực đang bật. Technical Reasoning thuộc nhóm Problem Solving; không dùng trọng số process để thay trọng số chung. Nhóm đang bật nhưng chưa thực hiện khi nộp sớm nhận 0; câu đã sinh nhưng bỏ trống nhận 0.
+- Báo cáo lưu điểm nhóm, trọng số thực dùng, điểm kỹ năng, số bằng chứng và ID câu hỏi; kỹ năng chưa được kiểm tra có điểm `null`. Feedback/khóa đáp án không lộ trong lúc làm bài. Sau khi hoàn tất, hiển thị khóa và giải thích theo cờ review của từng process.
+
+### Phiên legacy / lộ trình V1
 
 1. Candidate `POST /api/v1/ai-interviews/{id}/complete` → phiên `SCORING`. Phiên theo lộ trình cho nộp khi còn câu trống; hết giờ/đến hạn backend tự nộp. Phiên cũ (không có snapshot) vẫn yêu cầu trả lời đủ.
 2. Dispatcher đẩy id phiên vào `interview.score.q` (header `X-Tenant-ID`); worker xử lý:

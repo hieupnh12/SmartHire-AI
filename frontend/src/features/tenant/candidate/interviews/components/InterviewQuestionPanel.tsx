@@ -1,4 +1,5 @@
-import { ArrowLeft, ArrowRight, Bot, CloudUpload } from "lucide-react";
+import { useEffect } from "react";
+import { ArrowLeft, ArrowRight, Bot, CloudUpload, Volume2 } from "lucide-react";
 import type { AiAnswer, AiQuestion } from "@/api/types/aiInterview";
 import { Button } from "@/components/ux/Button";
 import { InterviewAnswerForm } from "./InterviewAnswerForm";
@@ -14,12 +15,14 @@ type Props = {
   onSaved: (questionId: number, answer: AiAnswer) => void;
   onDirty: (id: number, dirty: boolean) => void;
   answerDuration: () => number;
+  recordingEnabled?: boolean;
 };
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
-export function InterviewQuestionPanel({ interviewId, questions, index, disabled, dirty, onSelect, onSaved, onDirty, answerDuration }: Props) {
+export function InterviewQuestionPanel({ interviewId, questions, index, disabled, dirty, onSelect, onSaved, onDirty, answerDuration, recordingEnabled }: Props) {
   const question = questions[index];
+  useEffect(() => () => window.speechSynthesis?.cancel(), [question.id]);
   const mcq = !!question.options?.length;
   const last = index === questions.length - 1;
   return <>
@@ -40,18 +43,26 @@ export function InterviewQuestionPanel({ interviewId, questions, index, disabled
         <span className="grid size-8 place-items-center rounded-full bg-brand-primary text-[var(--color-on-primary)] shadow-sm"><Bot className="size-4" aria-hidden="true" /></span>
         <div>
           <p className="text-sm font-semibold text-brand-primary">AI Interviewer · {mcq ? "Mini Assessment" : "Câu hỏi phỏng vấn"}</p>
-          <p className="text-xs text-[var(--color-on-surface-variant)]">{mcq ? "Chọn một đáp án đúng nhất" : "Trả lời bằng văn bản, nêu ví dụ thực tế nếu có"}</p>
+          <p className="text-xs text-[var(--color-on-surface-variant)]">{mcq ? question.multipleChoice ? "Chọn tất cả đáp án đúng" : "Chọn một đáp án đúng nhất" : question.questionRole === "FOLLOW_UP" ? "Câu hỏi bồi dựa trên câu trả lời vừa lưu" : "Trả lời theo yêu cầu của bài tập"}</p>
         </div>
       </div>
       <div className="rounded-lg bg-[var(--color-surface-container-low)] p-5">
         <p id={`question-${question.id}`} className="whitespace-pre-wrap text-base font-semibold leading-relaxed">{question.questionText}</p>
+        {question.difficulty && <p className="mt-2 text-xs">Độ khó: {question.difficulty}</p>}
+        {question.hint && <details className="mt-3 text-sm"><summary className="cursor-pointer">Xem gợi ý</summary><p className="mt-2 whitespace-pre-wrap">{question.hint}</p></details>}
       </div>
     </section>
+
+    {question.responseMode === "speech" && "speechSynthesis" in window && <Button variant="secondary" onClick={() => {
+      window.speechSynthesis.cancel(); const speech = new SpeechSynthesisUtterance(question.questionText);
+      speech.lang = question.language === "English" ? "en-US" : question.language === "Japanese" ? "ja-JP" : "vi-VN";
+      window.speechSynthesis.speak(speech);
+    }}><Volume2 className="size-4" aria-hidden="true" />Nghe câu hỏi</Button>}
 
     <section className="space-y-5 rounded-xl bg-surface-card p-6 shadow-sm sm:p-8">
       {mcq
         ? <McqAnswerForm key={question.id} interviewId={interviewId} question={question} disabled={disabled} onDirty={onDirty} answerDuration={answerDuration} onSaved={answer => onSaved(question.id, answer)} />
-        : <InterviewAnswerForm key={question.id} interviewId={interviewId} question={question} disabled={disabled} onDirty={onDirty} answerDuration={answerDuration}
+        : <InterviewAnswerForm recordingEnabled={recordingEnabled} key={question.id} interviewId={interviewId} question={question} disabled={disabled} onDirty={onDirty} answerDuration={answerDuration}
             submitLabel={last ? "Lưu câu trả lời" : "Lưu & tiếp tục"}
             onSaved={answer => { onSaved(question.id, answer); if (!last) onSelect(index + 1); }} />}
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--color-border-default)] pt-4">

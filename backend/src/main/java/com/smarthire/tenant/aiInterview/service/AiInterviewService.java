@@ -266,6 +266,7 @@ public class AiInterviewService {
     }
 
     private void requireActiveApplication(AiInterview interview) {
+        InterviewPolicies.requireCommunicationOnly(interview);
         if (interview.getConfigSnapshotJson() == null) AiInterviewEligibility.require(interview.getApplication());
         else AiInterviewEligibility.requireExisting(interview);
         var application = interview.getApplication();
@@ -421,22 +422,29 @@ public class AiInterviewService {
             if (request.answerText() == null || request.answerText().isBlank()) {
                 throw new BusinessException("Answer is required", HttpStatus.BAD_REQUEST, "AI_ANSWER_REQUIRED");
             }
-            if (question.getCorrectOption() != null && !request.answerText().matches("[0-3]")) {
+            if (InterviewChoiceAnswers.isV2Choice(question)) InterviewChoiceAnswers.parse(question, request.answerText());
+            else if (question.getCorrectOption() != null && !request.answerText().matches("[0-3]")) {
                 throw new BusinessException("Choose one of the four options", HttpStatus.BAD_REQUEST, "AI_ANSWER_BAD_OPTION");
             }
         }
 
+        if (InterviewPolicies.isV2(interview) && question.getProcessRun() != null) {
+            var next = questions.findByProcessRun_IdOrderBySequenceNoAscIdAsc(question.getProcessRun().getId()).stream()
+                    .filter(q -> answers.findByAiQuestion_Id(q.getId()).isEmpty()).findFirst();
+            if (next.isPresent() && !next.get().getId().equals(questionId))
+                throw new BusinessException("Trả lời câu hiện tại trước khi chuyển câu tiếp theo.", HttpStatus.CONFLICT, "AI_INTERVIEW_QUESTION_ORDER");
+        }
         AiAnswer answer = answers.findByAiQuestion_Id(questionId).orElseGet(() ->
                 AiAnswer.builder().aiQuestion(question).build());
         answer.setAnswerText(request.answerText());
         answer.setAnswerDuration(request.answerDuration());
         answer.setAnsweredAt(access.staff() && request.answeredAt() != null ? request.answeredAt() : Instant.now());
         AiAnswer saved = answers.save(answer);
-        processEngine.answerSaved(interview, question, saved);
+        processEngine.answerSaved(interview, question, saved, request.speechMetrics());
         activity.record(interview, "ANSWER_SAVED", "Question order " + question.getQuestionOrder()
                 + ", duration " + saved.getAnswerDuration() + "s");
         AiFeedback feedback = feedbacks.findByAiAnswer_Id(saved.getId()).orElse(null);
-        return mapper.toAnswer(saved, feedback);
+        return mapper.toAnswer(saved, !access.staff() && InterviewPolicies.isV2(interview) ? null : feedback);
     }
 
     @Transactional
@@ -459,11 +467,10 @@ public class AiInterviewService {
             revealExplanation = review != null && review.showExplanationAfterInterview();
         }
         List<AiQuestion> questionList = questions.findByAiInterview_IdOrderByQuestionOrderAscIdAsc(interviewId);
-        if (!access.staff() && InterviewPolicies.isV2(interview)) {
-            questionList = processRuns.findFirstByAiInterview_IdAndStatusOrderByProcessOrderAsc(interviewId,
-                    com.smarthire.domain.enums.AiInterviewProcessStatus.IN_PROGRESS)
-                    .map(run -> questions.findByProcessRun_IdOrderBySequenceNoAscIdAsc(run.getId()))
-                    .orElse(List.of());
+        if (!access.staff() && !completed && InterviewPolicies.isV2(interview)) {
+            questionList = questionList.stream().filter(q -> q.getProcessRun() != null
+                    && (q.getProcessRun().getStatus() == com.smarthire.domain.enums.AiInterviewProcessStatus.IN_PROGRESS
+                    || q.getProcessRun().getStatus() == com.smarthire.domain.enums.AiInterviewProcessStatus.COMPLETED)).toList();
         }
         if (questionList.isEmpty()) {
             return List.of();
@@ -476,6 +483,18 @@ public class AiInterviewService {
                 ? Map.of()
                 : feedbacks.findByAiAnswer_IdIn(answerIds).stream()
                         .collect(Collectors.toMap(f -> f.getAiAnswer().getId(), Function.identity(), (a, b) -> a, HashMap::new));
+        if (!access.staff() && !completed && InterviewPolicies.isV2(interview)) feedbackByAnswer = Map.of();
+        if (!access.staff() && completed && InterviewPolicies.isV2(interview)) {
+            var review = InterviewPolicies.config(interview).policy().review();
+            var feedbackMap = feedbackByAnswer;
+            return questionList.stream().map(q -> {
+                var answer = answersByQuestion.get(q.getId()); var feedback = answer == null ? null : feedbackMap.get(answer.getId());
+                var config = q.getProcessRun() == null ? Map.<String, Object>of() : InterviewProcessSettings.config(
+                        InterviewPolicies.read(q.getProcessRun().getConfigSnapshotJson(), com.smarthire.tenant.aiInterview.dto.request.InterviewPolicy.Process.class));
+                return mapper.toQuestion(q, answer, feedback, InterviewProcessSettings.bool(config, "showCorrectAnswer", review != null && review.showCorrectAnswer()),
+                        InterviewProcessSettings.bool(config, "showExplanationAfterInterview", review != null && review.showExplanationAfterInterview()));
+            }).toList();
+        }
         return mapper.toQuestions(questionList, answersByQuestion, feedbackByAnswer, revealCorrect, revealExplanation);
     }
 
@@ -525,6 +544,7 @@ public class AiInterviewService {
     }
 
     private void requireUnplanned(AiInterview interview) {
+        InterviewPolicies.requireCommunicationOnly(interview);
         if (interview.getConfigSnapshotJson() != null) {
             throw new BusinessException("Planned interview questions follow the job roadmap", HttpStatus.CONFLICT, "AI_INTERVIEW_PLANNED");
         }
@@ -557,8 +577,10 @@ public class AiInterviewService {
         requireActiveApplication(interview);
         if (interview.getStatus() == AiInterviewStatus.GENERATING) return mapper.toResponse(interview);
         requireEditable(interview);
-        if (!questions.findByAiInterview_IdOrderByQuestionOrderAscIdAsc(id).isEmpty()) {
-            throw new BusinessException("Remove draft questions before generating", HttpStatus.CONFLICT, "AI_QUESTIONS_EXIST");
+        var draft = questions.findByAiInterview_IdOrderByQuestionOrderAscIdAsc(id);
+        if (!draft.isEmpty() && (!InterviewPolicies.isV2(interview)
+                || !answers.findByAiQuestion_IdIn(draft.stream().map(AiQuestion::getId).toList()).isEmpty())) {
+            throw new BusinessException("Only unanswered process drafts can be regenerated", HttpStatus.CONFLICT, "AI_QUESTIONS_EXIST");
         }
         interview.setErrorMessage(null);
         interview.setStatus(AiInterviewStatus.GENERATING);

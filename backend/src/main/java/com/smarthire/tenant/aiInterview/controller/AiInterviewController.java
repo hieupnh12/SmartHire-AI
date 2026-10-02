@@ -106,6 +106,26 @@ public class AiInterviewController {
         voiceService.saveRecording(id, answerId, request); return ApiResponse.ok(null);
     }
 
+    @PostMapping(value = "/{id}/questions/{questionId}/audio-answer", consumes = "multipart/form-data")
+    @Operation(summary = "Submit a recorded answer and transcript (owning candidate)")
+    public ApiResponse<AiAnswerResponse> audioAnswer(@PathVariable long id, @PathVariable long questionId,
+            @org.springframework.web.bind.annotation.RequestPart("file") org.springframework.web.multipart.MultipartFile file,
+            @Valid @org.springframework.web.bind.annotation.RequestPart("answer") UpsertAiAnswerRequest answer) {
+        return ApiResponse.ok(voiceService.submitAudio(id, questionId, file, answer));
+    }
+    @GetMapping("/{id}/answers/{answerId}/recording/info")
+    @Operation(summary = "Recording metadata after completion (authorized recruiter)")
+    public ApiResponse<AiInterviewVoiceService.RecordingInfo> recordingInfo(@PathVariable long id, @PathVariable long answerId) {
+        return ApiResponse.ok(voiceService.recordingInfo(id, answerId));
+    }
+    @GetMapping("/{id}/answers/{answerId}/recording/audio")
+    @Operation(summary = "Private audio after completion (authorized recruiter)")
+    public ResponseEntity<byte[]> audio(@PathVariable long id, @PathVariable long answerId) {
+        var file = voiceService.audio(id, answerId);
+        return ResponseEntity.ok().header("Cache-Control", "no-store").header("Content-Disposition", "inline")
+                .contentType(org.springframework.http.MediaType.parseMediaType(file.mimeType())).body(file.content());
+    }
+
     @PostMapping("/{id}/questions/generate")
     @Operation(summary = "Queue real AI questions or retry failed generation (staff)")
     public ApiResponse<AiInterviewResponse> generate(@PathVariable long id) {

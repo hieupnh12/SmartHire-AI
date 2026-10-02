@@ -9,9 +9,11 @@ function buildProcesses(steps: RoadmapStep[] | null | undefined, questions: AiQu
   if (steps?.length) {
     let offset = 0;
     return steps.map(step => {
-      const indices = Array.from({ length: step.questionCount }, (_, index) => offset + index).filter(index => index < questions.length);
+      const titled = questions.some(question => question.stageTitle);
+      const indices = titled ? questions.flatMap((question, index) => question.stageTitle === step.title ? [index] : [])
+        : Array.from({ length: step.questionCount }, (_, index) => offset + index).filter(index => index < questions.length);
       offset += step.questionCount;
-      return { title: step.title || (step.kind === "MCQ" ? "Technical Knowledge" : "AI Interview"), questionCount: step.questionCount, indices };
+      return { title: step.title || (step.kind === "MCQ" ? "Technical Knowledge" : "AI Interview"), questionCount: Math.max(step.questionCount, indices.length), indices };
     });
   }
   const groups: Process[] = [];

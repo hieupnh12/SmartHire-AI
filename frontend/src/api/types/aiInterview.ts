@@ -1,8 +1,12 @@
 export type AiInterviewStatus = "CREATED" | "GENERATING" | "QUESTIONS_READY" | "IN_PROGRESS" | "SCORING" | "SCORED" | "PASSED" | "FAILED" | "ERROR";
 
+export type SpeechMetrics = { durationMs: number; voicedMs: number; silenceMs: number; pauseCount: number; responseLatencyMs: number | null };
+export type SpeechCapture = { blob: Blob; metrics: SpeechMetrics };
+
 export type AiFeedback = {
   id: number;
   aiAnswerId: number;
+  evaluationJson?: string | null;
   score: number | null;
   feedbackText: string | null;
   strengths: string | null;
@@ -33,6 +37,14 @@ export type AiQuestion = {
   skills?: string[] | null;
   correctOption?: number | null;
   explanation?: string | null;
+  correctOptions?: number[] | null;
+  multipleChoice?: boolean;
+  explanationRequired?: boolean;
+  difficulty?: string | null;
+  hint?: string | null;
+  questionRole?: "MAIN" | "FOLLOW_UP";
+  responseMode?: string;
+  language?: string;
 };
 
 export type AiInterview = {
@@ -49,6 +61,9 @@ export type AiInterview = {
   availableFrom?: string | null;
   availableUntil?: string | null;
   roadmap?: RoadmapStep[] | null;
+  processBased?: boolean;
+  voiceEnabled?: boolean;
+  recordingEnabled?: boolean;
   id: number;
   applicationId: number;
   jobId: number | null;
@@ -106,6 +121,7 @@ export type AiInterviewConfig = {
 
 export type AiInterviewReport = {
   overallScore: number;
+  communicationCriteria?: Record<string, number>;
   weights?: Partial<Record<CompetencyKey, number>>;
   miniAssessmentScore?: number;
   competencies: Partial<Record<CompetencyKey, number>>;

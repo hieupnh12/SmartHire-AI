@@ -1,5 +1,17 @@
 # AI Question Generation
 
+## Communication hiện hành (2026-10-02)
+
+Communication tích hợp bốn tiêu chí nội dung: kiến thức chuyên môn, giải quyết vấn đề, lập luận và giao tiếp. Các tiêu chí này thuộc cùng một phiên Communication; năm quy trình đã hoãn vẫn không được bật.
+
+Mặc định Adaptive Questions bật: chỉ sinh một câu chính trước; khi câu trả lời được chấm và hết hỏi bồi, sinh câu chính kế tiếp từ Job, snapshot và câu trả lời vừa gửi. Bật hỏi bồi tối đa 1/chủ đề theo mặc định (cho phép 0–3). Nếu tắt thích ứng thì sinh trước bộ câu chính.
+
+Chấm điểm yêu cầu evidence là đoạn có thật trong transcript; evidence không tồn tại nhận 0. Điểm câu trung bình bốn tiêu chí, report tổng hợp `communicationCriteria`. `speechMetrics` và tốc độ từ/phút là chỉ số hỗ trợ Recruiter, không tự cộng vào điểm nội dung. Audio/transcript xem qua API có xác thực sau khi hoàn tất.
+
+
+> **Phạm vi hiện tại (2026-10-02):** Chỉ Communication đang hoạt động. Năm quy trình còn lại và Mini Assessment được khóa để phát triển trong tương lai. Phiên mới chỉ sinh/chấm Communication (100% trọng số); snapshot cũ không được viết lại. Xem [hướng dẫn cấu hình](AI-Interview-Configuration-Guide.md).
+
+
 **Epic:** AI Interview System  
 **Trạng thái:** `Doing`  
 **Code ID:** `INT-01`
@@ -39,6 +51,14 @@ Job Skills và bằng chứng CV đã trích xuất (nếu có); sau đó candid
 
 ## Business Rules
 
+- **Process V2 — cấu hình là hợp đồng sinh bài:** tổng câu hỏi chính lấy từ các process bật (1–30 toàn phiên, 1–10/process), không chỉnh số tổng độc lập. Cấu hình chuẩn hóa loại bỏ metadata DOM/UI (`__fields`, nhãn form), chuyển số/boolean về đúng kiểu; giữ snapshot của phiên. Technical Knowledge dùng `single`/`multiple`/`mixed` thực sự: 4 phương án, Single có 1 đáp án đúng, Multiple có 2–3, Mixed luân phiên; tắt Multiple Correct Answers thì Mixed chỉ sinh Single, chọn Multiple mà tắt quyền này bị từ chối. Xáo trộn phương án phải ánh xạ lại đáp án chuẩn.
+- Mỗi slot có chỉ số, loại bài, độ khó và Job Skills đã chọn (phân bổ bao phủ danh sách). Context Job/CV được chốt vào `context_snapshot_json`; AI nhận JD, trách nhiệm, kinh nghiệm tối thiểu, cấu hình chung và cấu hình process đã chuẩn hóa. `verifyAgainstCV=false` ở Practical Experience loại bằng chứng CV khỏi yêu cầu sinh/chấm. Communication dùng ngôn ngữ đã chọn; các yêu cầu solution/explanation/STAR/role/result/alternatives/trade-offs được gửi trong hợp đồng. Kết quả sai slot, loại bài, độ khó, số đáp án, trùng phương án/câu hỏi hoặc thiếu rubric bị từ chối trước khi lưu.
+- Đáp án lựa chọn V2 gửi trong `answerText` dưới dạng JSON `{"selectedOptions":[0,2],"explanation":"..."}`; V1 giữ chuỗi chỉ số `0`–`3`. Backend kiểm tra Single chỉ chọn 1, không trùng/ngoài 0–3, có giải thích khi yêu cầu. Không bắt buộc giải thích: đúng toàn bộ tập đáp án = 100, khác = 0, không gọi AI. Có giải thích: 70% độ chính xác lựa chọn + 30% rubric giải thích; chỉ chấm điểm cho bằng chứng trích đúng văn bản ứng viên.
+- Hỏi bồi V2 sinh theo câu trả lời đã lưu, theo `followUpEnabled`, `maxFollowUp`/`followUpDepth` (0–3 mỗi câu chính). Hỏi bồi gắn `parent_question_id`, nằm ngay sau câu chính và không tăng số câu chính; chỉ kết thúc process sau chuỗi hỏi bồi cuối. Câu đã chấm không được sửa, ứng viên trả lời theo thứ tự. Backend trả các chặng đã hoàn thành và chặng hiện tại; chặng tương lai chưa mở vẫn kín.
+- Điểm V2 dùng trọng số năng lực trong cấu hình chung; Technical Reasoning thuộc Problem Solving. Trọng số chuẩn hóa theo các năng lực có process bật, không dùng `process.weight` cũ làm nguồn thứ hai. Process bật chưa làm = 0 điểm. Quyền xem đáp án/giải thích Technical Knowledge lấy từ snapshot process, các bài còn lại dùng review chung; không trả feedback/đáp án chuẩn cho candidate khi đang làm.
+- API câu hỏi bổ sung `correctOptions` (chỉ trả khi có quyền sau kết quả), `multipleChoice`, `explanationRequired`, `difficulty`, `hint`, `questionRole`, `responseMode`, `language`. Các trường đáp án nhiều lựa chọn nằm trong `rubric_json`; không đổi schema/entity.
+- UI hiển thị rõ **ví dụ minh họa**, không coi preview tĩnh là bài AI đã sinh. Thời lượng áp dụng là thời lượng chung của phiên; các mốc 15/20/3 phút trong mockup không phải timer riêng. Speech dùng nhận dạng giọng nói của trình duyệt thành văn bản để ứng viên kiểm tra và lưu; không lưu audio. Lưu file audio và hội thoại realtime chưa khả dụng: UI khóa, backend từ chối cấu hình bật; không cho lưu setting không thực hiện được.
+
 - Ngay khi CV Screening `PASSED`, hệ thống chuyển Application sang `INTERVIEW`, tự tạo phiên và sinh câu hỏi theo snapshot cấu hình Job. Notification và Email phải nêu thời gian có thể bắt đầu, hạn hoàn thành, thời lượng và số lần thực hiện.
 
 - Cấu hình hợp lệ khi: tổng trọng số = 100%; kỹ năng chọn thuộc Job; tổng số câu các chặng = `questionCount`; mỗi chặng chỉ dùng nhóm năng lực có trọng số > 0 và kỹ năng đã chọn; lộ trình bao phủ mọi nhóm năng lực có trọng số và mọi kỹ năng đã chọn (Communication luôn được coi là bao phủ). Mini Assessment cần Technical Knowledge > 0% và ít nhất một Job Skill. Một kỹ năng có thể nằm ở nhiều chặng.
@@ -49,6 +69,7 @@ Job Skills và bằng chứng CV đã trích xuất (nếu có); sau đó candid
 - Phiên theo lộ trình không cho thêm/xoá câu thủ công và chỉ cho sửa câu chữ của câu hỏi–đáp (`AI_INTERVIEW_PLANNED`), để không phá rubric. Sửa câu chữ sẽ xoá đáp án mẫu cũ; lúc chấm AI viết lại đáp án mẫu theo câu mới.
 - Mỗi application có thể có nhiều lần làm (lịch sử giữ đủ); retry sinh câu/chấm điểm do lỗi hệ thống dùng lại phiên, **không** tiêu hao lượt.
 - Phiên `ERROR` chưa có câu hỏi: candidate gọi lại bước 3 hoặc recruiter gọi `POST .../questions/generate` để sinh lại.
+- Process Engine V2 giữ chặng ở `PENDING` cho đến khi bộ câu hỏi được kiểm tra và lưu thành công. Lỗi provider/validation không rollback trạng thái `ERROR` do worker ghi; retry khôi phục chặng bị kẹt `GENERATING` và dùng lại snapshot của chặng, không tạo thêm lượt làm.
 - Nội dung job/CV/câu trả lời gửi cho AI được coi là dữ liệu không tin cậy; lỗi provider được làm sạch, không lộ key hay nội dung.
 - Log không chứa nội dung câu trả lời hay dữ liệu cá nhân.
 
@@ -91,6 +112,15 @@ Job Skills và bằng chứng CV đã trích xuất (nếu có); sau đó candid
 - Lỗi provider được hiển thị bằng thông báo an toàn theo HTTP status (ví dụ 503: tạm thời không khả dụng), không lộ nội dung phản hồi hoặc API key.
 
 ## Kiểm chứng triển khai
+
+- 2026-10-02 (bản đồng bộ cấu hình V2): 73 test backend pass và build frontend (`tsc --noEmit` + Vite) pass. Bao phủ đúng loại một/nhiều đáp án, giải thích bắt buộc, số câu dạng chuỗi, kỹ năng, giới hạn follow-up, điểm trọng số, và sinh lại bản nháp an toàn. Hai lần thử provider thật ở bước chẩn đoán trả HTTP 503; chưa xác minh toàn phiên bằng Gemini và trình duyệt.
+- Recruiter được **Sinh lại theo cấu hình** cho phiên Process V2 chưa bắt đầu/chưa có câu trả lời. API giữ snapshot và lượt; bộ cũ chỉ được thay trong transaction sau khi toàn bộ đầu ra chặng mới hợp lệ. Lỗi provider giữ bộ cũ để kiểm tra nhưng phiên không được coi sẵn sàng. Phiên đã bắt đầu hoặc có đáp án bị chặn. Response phiên thêm `processBased` để hiển thị đúng thao tác.
+
+- 2026-10-02: Kiểm chứng sinh câu hỏi thực tế trên backend local sau khi khởi động lại với code hiện tại và RabbitMQ hoạt động: Gemini sinh/lưu 4 câu cho chặng đầu đúng số lượng snapshot, phiên chuyển `QUESTIONS_READY`, `error_message` được xóa, `attempt_number` giữ nguyên. Các chặng sau vẫn `PENDING` theo Process V2. Chỉ kiểm chứng bước sinh chặng đầu; chưa kiểm chứng trả lời/chấm điểm toàn phiên và mọi tùy chọn cấu hình.
+
+- 2026-10-02: 57 test AI Interview pass (client, cấu hình, rubric, worker, Process Engine và candidate). Test retry mô phỏng provider lỗi rồi thành công, kiểm tra giữ snapshot/số câu/kỹ năng và khôi phục chặng `GENERATING`; kiểm tra transaction cho phép worker lưu lỗi. Chưa xác minh phiên thực tế với Gemini.
+
+- 2026-10-02: Snapshot Process Engine V2 chấp nhận metadata UI dư trong cấu hình process; log lỗi parse ghi rõ thao tác và loại exception nhưng không ghi payload/PII.
 
 - Sửa lỗi nút nộp bị khóa sau khi lưu đủ câu: xóa trạng thái chưa lưu của câu ngay trong callback lưu thành công, trước khi tự chuyển sang câu tiếp theo. Lưu thất bại hoặc còn thay đổi chưa lưu vẫn khóa nộp bài.
 

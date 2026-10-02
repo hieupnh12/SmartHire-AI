@@ -73,6 +73,28 @@ public class FileStorageService {
         }
     }
 
+    public String storeInterviewAudio(String tenantId, byte[] content, String extension) throws IOException {
+        String id = "interview_" + safeSegment(tenantId, "tenantId") + "_" + java.util.UUID.randomUUID();
+        try {
+            cloudinary.uploader().upload(content, ObjectUtils.asMap("resource_type", "video", "type", "authenticated",
+                    "public_id", id, "overwrite", false, "format", extension));
+            return id;
+        } catch (Exception ex) { throw new IOException("Cannot store private interview audio", ex); }
+    }
+    public byte[] readInterviewAudio(String key) throws IOException {
+        if (key == null || !key.matches("interview_[a-z0-9_-]+")) throw new IOException("Invalid audio key");
+        try {
+            String url = cloudinary.privateDownload(key, null, ObjectUtils.asMap("resource_type", "video", "type", "authenticated"));
+            var response = http.send(HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(30)).GET().build(), HttpResponse.BodyHandlers.ofByteArray());
+            if (response.statusCode() != 200) throw new IOException("Cannot load private audio");
+            return response.body();
+        } catch (InterruptedException ex) { Thread.currentThread().interrupt(); throw new IOException("Audio download interrupted", ex); }
+        catch (Exception ex) { throw new IOException("Cannot load private audio", ex); }
+    }
+    public void deleteInterviewAudio(String key) throws IOException {
+        cloudinary.uploader().destroy(key, ObjectUtils.asMap("resource_type", "video", "type", "authenticated"));
+    }
+
     public byte[] read(String storageKey) throws IOException {
         if (storageKey == null || storageKey.isBlank()) {
             throw new IOException("storageKey is required");
