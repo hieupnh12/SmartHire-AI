@@ -5,6 +5,7 @@ import { applicantApi } from "@/api/tenant/applicantApi";
 import { cvApi } from "@/api/tenant/cvApi";
 import { jobApi } from "@/api/tenant/jobApi";
 import { getApiErrorMessage } from "@/lib/axios";
+import { formatSalaryText } from "@/lib/formatSalary";
 import { queryKeys } from "@/lib/query-keys";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 import { button, labels, muted, panel, primary } from "@/features/tenant/recruiter/matching/components/rankingUi";
@@ -30,7 +31,7 @@ export function CandidateJobDetailPage() {
   const data = job.data?.data;
   return (
     <section className="space-y-6 text-[var(--color-on-surface)]">
-      <button className={button} type="button" onClick={() => navigate("/candidate/jobs")}>Quay lại danh sách</button>
+      <button className={button} type="button" onClick={() => navigate("/jobs")}>Quay lại danh sách</button>
       {job.isError && <p role="alert">{getApiErrorMessage(job.error)}</p>}
       {job.isPending && <PageSkeleton variant="detail" />}
       {data && (
@@ -44,7 +45,7 @@ export function CandidateJobDetailPage() {
             {application ? (
               <div className="space-y-2 text-right">
                 <p className="text-sm font-semibold text-[var(--color-primary)]">Đã apply · {labels[application.status] ?? application.status}</p>
-                <Link className={button} to="/candidate/applications">Xem đơn của tôi</Link>
+                <Link className={button} to="/applications">Xem đơn của tôi</Link>
               </div>
             ) : data.acceptingApplications ? (
               <button className={primary} type="button" onClick={() => setApplyOpen(true)}>Apply</button>
@@ -70,7 +71,7 @@ export function CandidateJobDetailPage() {
               )}
             </div>
             <aside className={`${panel} space-y-2 text-sm`}>
-              {data.salary && <p><span className={muted}>Mức lương: </span>{data.salary}</p>}
+              {data.salary && <p><span className={muted}>Mức lương: </span>{formatSalaryText(data.salary)}</p>}
               {data.minYearsExperience != null && <p><span className={muted}>Kinh nghiệm: </span>{data.minYearsExperience}+ năm</p>}
               {data.educationLevel && <p><span className={muted}>Học vấn: </span>{data.educationLevel}</p>}
               {getDeadlineInfo(data.deadline) && <p><span className={muted}>Hạn nộp: </span>{getDeadlineInfo(data.deadline)?.dateLabel}{getDeadlineInfo(data.deadline)?.urgent ? ` · Còn ${getDeadlineInfo(data.deadline)?.daysRemaining} ngày` : ""}</p>}
@@ -174,7 +175,7 @@ function ApplyCvModal({ jobId, jobTitle, onClose }: { jobId: number; jobTitle: s
               }}
             />
           </label>
-          <Link className={button} to="/candidate/cv">Tải CV trên trang của tôi</Link>
+          <Link className={button} to="/cv">Tải CV trên trang của tôi</Link>
           <button className={button} type="button" onClick={onClose}>Đóng</button>
         </div>
         {apply.isError && <p role="alert" className="mt-3">{getApiErrorMessage(apply.error)}</p>}

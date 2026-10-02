@@ -36,7 +36,7 @@ export function RoleRoute({ roles, workspaces }: Props) {
       (allowedRoles.length > 0 && allowedRoles.includes(user.role));
     if (!allowed && (allowedWorkspaces.length > 0 || allowedRoles.length > 0)) {
       const home =
-        workspace === "ADMIN" ? "/internal/admin" : workspace === "RECRUITER" ? "/recruiter" : "/candidate";
+        workspace === "ADMIN" ? "/internal/admin" : workspace === "RECRUITER" ? "/recruiter" : "/workspace";
       return <Navigate to={home} replace />;
     }
   }

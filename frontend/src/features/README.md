@@ -8,7 +8,7 @@ UI is organized by actor boundary first, then by feature inside each actor.
 | `master/admin/` | Platform admin | `/admin/*` |
 | `tenant/auth/` | Tenant users / candidate auth | `/login`, `/internal/login` |
 | `tenant/career/` | Public tenant career page | `/career`, `/jobs` |
-| `tenant/candidate/` | Candidate | `/candidate/*` |
+| `tenant/candidate/` | Candidate | `/workspace`, `/applications`, `/cv`, `/assessments`, `/interviews`, ... |
 | `tenant/recruiter/` | Recruiter | `/recruiter/*` |
 | `tenant/admin/`, `tenant/dashboard/` | Tenant admin / workspace | `/internal/admin`, `/company/workspace` |
 
@@ -47,4 +47,4 @@ src/
     guards/RoleRoute.tsx
 ```
 
-Login redirects: `CANDIDATE` -> `/candidate`, `RECRUITER` -> `/recruiter`, `ADMIN` -> `/admin`.
+Login redirects: `CANDIDATE` -> `/workspace`, `RECRUITER` -> `/recruiter`, `ADMIN` -> `/internal/admin`.

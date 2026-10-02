@@ -51,7 +51,7 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
   const [openAdminGroup, setOpenAdminGroup] = useState<string | null>(null);
   const [failedTenantLogoUrl, setFailedTenantLogoUrl] = useState<string | null>(null);
   const userInitial = user?.fullName.trim().charAt(0).toLocaleUpperCase();
-  const isCandidateWorkspace = basePath === "/candidate";
+  const isCandidateWorkspace = brandKey === "roles.candidate";
   const inbox = useNotifications(isCandidateWorkspace);
   const unreadCount = inbox.data?.filter(item => !item.readAt).length ?? 0;
   const isRecruiterWorkspace = basePath === "/recruiter";
@@ -139,7 +139,7 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
     event.preventDefault();
     const query = new FormData(event.currentTarget).get("workspace-search")?.toString().trim();
     const target = isCandidateWorkspace
-      ? "/candidate/jobs"
+      ? "/jobs"
       : hasRecruiterFeature(user?.permissions, "APPLICANTS")
         ? recruiterJobId ? `/recruiter/jobs/${recruiterJobId}/applicants` : "/recruiter/jobs"
         : recruiterHomePath(user?.permissions);
@@ -357,7 +357,7 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
     );
   }
 
-  if (isCandidateWorkspace && location.pathname === "/candidate/interviews/demo") {
+  if (isCandidateWorkspace && location.pathname === "/interviews/demo") {
     return <div className="tenant-workspace-theme min-h-screen bg-surface-page" style={getTenantThemeStyle(tenantTheme)}>
       <main id="main-content" className="mx-auto max-w-[1600px] p-4 sm:p-6"><Outlet /></main>
     </div>;

@@ -16,7 +16,7 @@ Status ứng viên: NEW, IN_REVIEW, ASSESSMENT, INTERVIEW, OFFER, HIRED, REJECTE
 
 1. PATCH/POST status (`/applications/{id}/status`, `/reject`, `/withdraw`).
 2. Ghi `application_status_history`.
-3. Recruiter archive/restore; candidate theo dõi trên `/candidate/applications` (không gồm đơn đã rút).
+3. Recruiter archive/restore; candidate theo dõi trên `/applications` (không gồm đơn đã rút).
 
 ## Business Rules
 

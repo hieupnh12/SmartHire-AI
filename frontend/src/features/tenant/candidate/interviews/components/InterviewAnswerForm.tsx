@@ -30,10 +30,11 @@ export function InterviewAnswerForm({ interviewId, question, disabled, onSaved, 
   });
   useEffect(() => { onDirty(question.id, isDirty || save.isPending); }, [question.id, isDirty, save.isPending, onDirty]);
   return <form className="space-y-3" onSubmit={handleSubmit(values => save.mutate(values))}>
-    <label htmlFor={`answer-${question.id}`} className="block text-sm">Câu trả lời của bạn</label>
+    <label htmlFor={`answer-${question.id}`} className="sr-only">Câu trả lời của bạn</label>
     <textarea id={`answer-${question.id}`} {...register("answerText")} maxLength={50000} disabled={disabled || save.isPending}
       aria-invalid={!!errors.answerText} aria-describedby={errors.answerText ? `answer-error-${question.id}` : undefined}
-      className="min-h-40 w-full rounded-lg border border-[var(--color-border-default)] bg-surface-muted p-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-primary" />
+      placeholder="Nhập câu trả lời chi tiết của bạn tại đây…"
+      className="min-h-52 w-full resize-y rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-container-low)] p-4 leading-7 placeholder:text-[var(--color-outline)] focus:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-primary" />
     {errors.answerText && <p id={`answer-error-${question.id}`} role="alert">{errors.answerText.message}</p>}
     {save.isError && <p role="alert">{getApiErrorMessage(save.error)}</p>}
     <Button type="submit" disabled={disabled || save.isPending}>{save.isPending ? "Đang lưu…" : submitLabel}</Button>

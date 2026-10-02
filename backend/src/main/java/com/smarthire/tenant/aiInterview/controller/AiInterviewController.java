@@ -7,6 +7,7 @@ import com.smarthire.tenant.aiInterview.dto.request.CreateAiInterviewRequest;
 import com.smarthire.tenant.aiInterview.dto.request.UpdateAiInterviewRequest;
 import com.smarthire.tenant.aiInterview.dto.request.UpsertAiAnswerRequest;
 import com.smarthire.tenant.aiInterview.dto.request.UpsertAiFeedbackRequest;
+import com.smarthire.tenant.aiInterview.dto.request.ProctorEventRequest;
 import com.smarthire.tenant.aiInterview.dto.response.AiAnswerResponse;
 import com.smarthire.tenant.aiInterview.dto.response.AiFeedbackResponse;
 import com.smarthire.tenant.aiInterview.dto.response.AiInterviewLogResponse;
@@ -122,6 +123,15 @@ public class AiInterviewController {
     @Operation(summary = "Submit all answers in an owned interview (candidate)")
     public ApiResponse<AiInterviewResponse> complete(@PathVariable long id) {
         return ApiResponse.ok(aiInterviewService.complete(id));
+    }
+
+    @PostMapping("/{id}/proctor-events")
+    @Operation(summary = "Append a browser proctoring event for an active owned interview (candidate)")
+    public ApiResponse<Void> proctorEvent(
+            @PathVariable long id,
+            @Valid @RequestBody ProctorEventRequest request) {
+        aiInterviewService.recordProctorEvent(id, request);
+        return ApiResponse.ok(null);
     }
 
     @PutMapping("/{id}")

@@ -7,6 +7,7 @@ import com.smarthire.domain.enums.CvScreeningStatus;
 import com.smarthire.domain.tenant.entity.*;
 import com.smarthire.domain.tenant.repository.*;
 import com.smarthire.tenant.aiInterview.dto.request.UpsertAiAnswerRequest;
+import com.smarthire.tenant.aiInterview.dto.request.ProctorEventRequest;
 import com.smarthire.tenant.aiInterview.mapper.AiInterviewMapper;
 import com.smarthire.tenant.aiInterview.dto.request.AiInterviewConfigRequest;
 import com.smarthire.tenant.aiInterview.dto.request.InterviewPolicy;
@@ -110,6 +111,24 @@ class AiInterviewCandidateTest {
         assertThat(interview.getStartedAt()).isNotNull();
         assertThat(interview.getPassingScoreSnapshot()).isEqualByComparingTo("70");
         verify(activity).record(eq(interview), eq("STARTED"), anyString());
+    }
+
+    @Test void candidateCanAppendValidatedProctorEventDuringActiveInterview() {
+        owned();
+        interview.setStatus(AiInterviewStatus.IN_PROGRESS);
+
+        service.recordProctorEvent(11L, new ProctorEventRequest("PAGE_HIDDEN", "Tab hidden", 4L));
+
+        verify(activity).record(interview, "PROCTOR_PAGE_HIDDEN", "Tab hidden; durationSeconds=4");
+    }
+
+    @Test void proctorEventIsRejectedOutsideActiveInterview() {
+        owned();
+        assertThatThrownBy(() -> service.recordProctorEvent(
+                11L, new ProctorEventRequest("PAGE_HIDDEN", null, null)))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        ex -> assertThat(ex.getCode()).isEqualTo("AI_INTERVIEW_NOT_ACTIVE"));
+        verifyNoInteractions(activity);
     }
 
     @Test void cannotStartWithoutReadyQuestions() {

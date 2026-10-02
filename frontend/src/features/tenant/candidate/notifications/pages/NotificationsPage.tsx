@@ -10,7 +10,7 @@ function invitationPath(payload: string | null): string | null {
   try {
     const value: unknown = JSON.parse(payload ?? "{}");
     if (typeof value === "object" && value !== null && "path" in value
-        && typeof value.path === "string" && /^\/candidate\/interviews\/\d+$/.test(value.path)) return value.path;
+        && typeof value.path === "string" && /^\/(?:candidate\/)?interviews\/\d+$/.test(value.path)) return value.path.replace(/^\/candidate/, "");
   } catch { /* Notifications without a valid link remain readable. */ }
   return null;
 }

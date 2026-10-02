@@ -1,6 +1,6 @@
 # Candidate Actor Module
 
-`candidate/` là boundary theo actor Ứng viên. Bên trong actor này có nhiều feature riêng như dashboard, jobs, applications, CV, assessments, interviews, practice, schedules và notifications.
+`candidate/` là boundary theo actor Ứng viên. Bên trong actor này có nhiều feature riêng như dashboard, jobs, applications, CV, assessments, interviews, schedules và notifications.
 
 Vì vậy không chia root theo kỹ thuật kiểu `candidate/pages`, `candidate/components`, `candidate/api` cho mọi thứ. Cách đó làm module phình nhanh và reviewer khó biết file thuộc tính năng nào.
 
@@ -44,7 +44,7 @@ Mỗi tính năng lớn của ứng viên là một folder cấp 1 dưới `cand
 - `cv/`: quản lý CV, upload, AI parsing, CV score.
 - `assessments/`: bài test kỹ thuật.
 - `interviews/`: AI interview hoặc interview được mời.
-- `practice/`: luyện phỏng vấn AI chủ động.
+- `practice/`: mã tương thích cũ, không còn được expose qua navigation; `/practice` chuyển sang `/interviews`.
 - `schedules/`: lịch phỏng vấn/lịch hẹn.
 - `notifications/`: thông báo dành cho ứng viên.
 

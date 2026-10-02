@@ -11,6 +11,7 @@ import { landingApi } from "@/api/tenant/landingApi";
 import { cvApi } from "@/api/tenant/cvApi";
 import type { PublicJob } from "@/api/types/job";
 import { getApiErrorMessage } from "@/lib/axios";
+import { formatSalaryText } from "@/lib/formatSalary";
 import { getDeadlineInfo } from "@/features/tenant/career/utils/jobDeadline";
 import { CareerHeader } from "@/features/tenant/career/components/CareerHeader";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
@@ -116,14 +117,18 @@ function salaryInMillions(salary?: string | null) {
   return Number.isFinite(value) ? value / 1_000_000 : null;
 }
 
-function formatSalary(salary?: string | null) {
-  if (!salary || !/VND|₫|đồng/i.test(salary)) return salary;
-  const amounts = [...salary.matchAll(/\d[\d.,\s]*/g)]
-    .map((match) => Number(match[0].replace(/\D/g, "")) / 1_000_000)
-    .filter(Number.isFinite);
-  if (amounts.length === 0) return salary;
-  const formatted = amounts.map((amount) => new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 1 }).format(amount));
-  return `${formatted.join(" - ")} triệu`;
+const formatSalary = formatSalaryText;
+
+function cvStatusLabel(status: string) {
+  return ({
+    UPLOADED: "Đã tải lên",
+    PARSING: "Đang đọc CV",
+    PARSED: "Đã đọc CV",
+    EXTRACTING: "Đang trích xuất",
+    ANALYZING: "Đang phân tích",
+    ANALYZED: "Đã phân tích",
+    FAILED: "Cần tải lại",
+  } as Record<string, string>)[status] ?? status;
 }
 
 function normalizedSearchValue(value: string) {
@@ -381,7 +386,7 @@ function FeaturedJobCard({ job, tenantName, primaryColor, matchedSkills }: {
       </div>
       {matchedSkills && matchedSkills.length > 0 && <p className="mt-3 text-xs leading-5 text-[var(--color-primary)]">Phù hợp: {matchedSkills.slice(0, 3).join(", ")}{matchedSkills.length > 3 ? ` +${matchedSkills.length - 3}` : ""}</p>}
       <div className="mt-5 flex items-end justify-between gap-4 border-t border-[var(--color-border-default)] pt-4">
-        <div>{job.salary ? <p className="text-lg font-semibold text-emerald-700">{formatSalary(job.salary)}</p> : <p className="text-sm font-medium text-[var(--color-on-surface-variant)]">Lương thỏa thuận</p>}{deadline?.urgent && <p className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-amber-700"><Clock className="size-3.5" aria-hidden="true" />Còn {deadline.daysRemaining} ngày</p>}</div>
+        <div>{job.salary ? <p className="text-lg font-semibold text-emerald-700">{formatSalaryText(job.salary)}</p> : <p className="text-sm font-medium text-[var(--color-on-surface-variant)]">Lương thỏa thuận</p>}{deadline?.urgent && <p className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-amber-700"><Clock className="size-3.5" aria-hidden="true" />Còn {deadline.daysRemaining} ngày</p>}</div>
         <Link to={`/jobs/${job.id}`} className="inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-lg bg-[var(--color-primary-subtle)] px-4 text-sm font-semibold text-[var(--color-primary)] transition-colors hover:bg-[var(--color-primary)] hover:text-white">Xem chi tiết <ArrowRight className="size-3.5" aria-hidden="true" /></Link>
       </div>
     </article>
@@ -422,6 +427,8 @@ export function TenantCareerPage() {
 
   // Apply Form State
   const [cvFile, setCvFile] = useState<File | null>(null);
+  const [selectedCvId, setSelectedCvId] = useState<number | null>(null);
+  const [applyPending, setApplyPending] = useState(false);
   const [applySubmitted, setApplySubmitted] = useState(false);
   const [applyError, setApplyError] = useState<string | null>(null);
 
@@ -565,6 +572,8 @@ export function TenantCareerPage() {
       return;
     }
     setApplyError(null);
+    setCvFile(null);
+    setSelectedCvId(candidateCvs.data?.data[0]?.id ?? null);
     setShowApplyModal(job);
   };
 
@@ -594,37 +603,44 @@ export function TenantCareerPage() {
     setSearchParams({});
   };
 
-  const handleApplySubmit = (e: React.FormEvent) => {
+  const handleApplySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!showApplyModal) return;
     if (!token) {
       navigate("/login");
       return;
     }
+    if (!selectedCvId && !cvFile) {
+      setApplyError("Vui lòng chọn một CV đã lưu hoặc tải CV mới.");
+      return;
+    }
     const jobId = showApplyModal.id;
-    const file = cvFile;
-    void applicantApi.apply(jobId, { source: "CAREER" }).catch((err: unknown) => {
-      const code = (err as { response?: { data?: { code?: string } } })?.response?.data?.code;
-      if (code !== "APPLICATION_EXISTS") throw err;
-    }).then(async () => {
-      if (file) {
+    setApplyPending(true);
+    setApplyError(null);
+    try {
+      let cvId = selectedCvId;
+      if (cvFile) {
         const form = new FormData();
-        form.append("file", file);
-        form.append("jobId", String(jobId));
-        await cvApi.upload(form);
+        form.append("file", cvFile);
+        const uploaded = await cvApi.upload(form);
+        cvId = uploaded.data.id;
       }
+      await applicantApi.apply(jobId, { source: "CAREER", cvId: String(cvId) });
       setApplySubmitted(true);
       setTimeout(() => {
         setApplySubmitted(false);
         setShowApplyModal(null);
         setCvFile(null);
-        navigate("/candidate/cv");
+        setSelectedCvId(null);
+        navigate("/applications");
       }, 1200);
-    }).catch((err: unknown) => {
+    } catch (err: unknown) {
       const code = (err as { response?: { data?: { code?: string } } })?.response?.data?.code;
-      if (code === "APPLICATION_EXISTS") navigate("/candidate/cv");
+      if (code === "APPLICATION_EXISTS") navigate("/applications");
       else setApplyError(getApiErrorMessage(err));
-    });
+    } finally {
+      setApplyPending(false);
+    }
   };
 
   useEffect(() => {
@@ -857,7 +873,7 @@ export function TenantCareerPage() {
               : !analyzedCv ? <div className="rounded-2xl border border-[var(--color-border-default)] bg-white p-7 text-center shadow-sm sm:p-10"><span className="mx-auto grid size-14 place-items-center rounded-2xl bg-[var(--color-primary-subtle)] text-[var(--color-primary)]"><Settings className="size-6" aria-hidden="true" /></span><h3 className="mt-4 text-xl font-semibold">Thiết lập thông tin nghề nghiệp</h3><p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-[var(--color-on-surface-variant)]">Tải lên và phân tích CV để hệ thống nhận diện kỹ năng, sau đó mới có thể gợi ý các vị trí phù hợp với bạn.</p><Link to="/cv" className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-lg bg-[var(--color-primary)] px-5 text-sm font-semibold text-white hover:bg-[var(--color-primary-hover)]"><FileText className="size-4" aria-hidden="true" />Cài đặt thông tin</Link></div>
               : candidateCvDetail.isPending ? <p role="status" className="rounded-xl bg-white p-6 text-sm text-slate-600">Đang phân tích mức độ phù hợp…</p>
               : recommendedJobs.length > 0 ? <><div className="mb-5 rounded-lg border border-[var(--color-primary)]/30 bg-[var(--color-primary-subtle)] px-4 py-3 text-sm text-[var(--color-on-surface-variant)]">Gợi ý dựa trên kỹ năng trong CV <strong className="text-[var(--color-on-surface)]">{analyzedCv.originalFilename}</strong>. Đây là đối chiếu kỹ năng trực tiếp, không phải quyết định tuyển dụng.</div><div className="grid gap-5 md:grid-cols-2">{recommendedJobs.map(({ job, matchedSkills }) => <FeaturedJobCard key={job.id} job={job} tenantName={theme.name} primaryColor={primaryColor} matchedSkills={matchedSkills} />)}</div></>
-              : <div className="rounded-2xl border border-[var(--color-border-default)] bg-white p-8 text-center"><h3 className="text-lg font-semibold">Chưa tìm thấy vị trí trùng kỹ năng</h3><p className="mt-2 text-sm text-[var(--color-on-surface-variant)]">Bạn vẫn có thể xem toàn bộ việc làm hoặc cập nhật CV để nhận gợi ý mới.</p><div className="mt-5 flex flex-wrap justify-center gap-3"><button type="button" onClick={() => setJobView("featured")} className="min-h-11 rounded-lg bg-[var(--color-primary)] px-5 text-sm font-semibold text-white">Xem tất cả việc làm</button><Link to="/candidate/cv" className="inline-flex min-h-11 items-center rounded-lg border border-[var(--color-border-default)] px-5 text-sm font-semibold">Cập nhật CV</Link></div></div>
+              : <div className="rounded-2xl border border-[var(--color-border-default)] bg-white p-8 text-center"><h3 className="text-lg font-semibold">Chưa tìm thấy vị trí trùng kỹ năng</h3><p className="mt-2 text-sm text-[var(--color-on-surface-variant)]">Bạn vẫn có thể xem toàn bộ việc làm hoặc cập nhật CV để nhận gợi ý mới.</p><div className="mt-5 flex flex-wrap justify-center gap-3"><button type="button" onClick={() => setJobView("featured")} className="min-h-11 rounded-lg bg-[var(--color-primary)] px-5 text-sm font-semibold text-white">Xem tất cả việc làm</button><Link to="/cv" className="inline-flex min-h-11 items-center rounded-lg border border-[var(--color-border-default)] px-5 text-sm font-semibold">Cập nhật CV</Link></div></div>
             )}
           </div>
         </section>
@@ -1174,33 +1190,47 @@ export function TenantCareerPage() {
                 <h3 id="apply-title" className="text-lg font-semibold text-slate-900 mb-1">Ứng tuyển vị trí</h3>
                 <p className="text-xs text-slate-500 mb-6">{showApplyModal.title}</p>
 
-                <form onSubmit={handleApplySubmit} className="space-y-4 text-xs">
-                  <div>
-                    <label className="block font-semibold text-[#1e293b] mb-1">Đính kèm CV (PDF/Word) *</label>
-                    <div className="border-2 border-dashed border-[#e2e8f0] p-4 rounded-[12px] bg-[#f8f9ff] text-center cursor-pointer transition-colors relative">
-                      <input
-                        type="file"
-                        accept=".pdf,.doc,.docx"
-                        required
-                        onChange={(e) => setCvFile(e.target.files?.[0] || null)}
-                        className="absolute inset-0 opacity-0 cursor-pointer"
-                      />
-                      <Upload className="w-6 h-6 mx-auto mb-1 text-slate-400" aria-hidden="true" />
-                      <span className="text-xs text-[#64748b] block font-medium">
-                        {cvFile ? cvFile.name : "Kéo thả file CV hoặc bấm để tải lên"}
-                      </span>
-                    </div>
-                  </div>
+                <form onSubmit={handleApplySubmit} className="space-y-5 text-sm">
+                  <fieldset>
+                    <legend className="font-semibold text-slate-800">Chọn CV để ứng tuyển <span className="text-[var(--color-error)]">*</span></legend>
+                    <p className="mt-1 text-xs text-slate-500">Chọn một CV đã lưu hoặc tải lên bản mới dành cho vị trí này.</p>
+
+                    {candidateCvs.isPending && <p className="mt-3 rounded-xl bg-slate-50 p-3 text-xs text-slate-500">Đang tải danh sách CV…</p>}
+                    {candidateCvs.isError && <p role="alert" className="mt-3 rounded-xl bg-[var(--color-error-container)] p-3 text-xs text-[var(--color-on-error-container)]">Không thể tải CV đã lưu. Bạn vẫn có thể tải file mới bên dưới.</p>}
+                    {(candidateCvs.data?.data.length ?? 0) > 0 && (
+                      <div className="mt-3 max-h-52 space-y-2 overflow-y-auto pr-1">
+                        {candidateCvs.data!.data.map((cv) => {
+                          const selected = selectedCvId === cv.id && !cvFile;
+                          return (
+                            <label key={cv.id} className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition-colors ${selected ? "border-[var(--color-primary)] bg-[var(--color-primary-subtle)] ring-1 ring-[var(--color-primary)]/20" : "border-[var(--color-border-default)] hover:border-[var(--color-primary)]/40"}`}>
+                              <input type="radio" name="saved-cv" checked={selected} onChange={() => { setSelectedCvId(cv.id); setCvFile(null); setApplyError(null); }} className="mt-1 accent-[var(--color-primary)]" />
+                              <FileText className="mt-0.5 size-5 shrink-0 text-[var(--color-primary)]" aria-hidden="true" />
+                              <span className="min-w-0 flex-1"><span className="block break-words font-semibold text-slate-800">{cv.originalFilename}</span><span className="mt-1 block text-xs text-slate-500">{cvStatusLabel(cv.status)} · Tải lên {new Date(cv.createdAt).toLocaleDateString("vi-VN")}</span></span>
+                              {selected && <CheckCircle2 className="size-5 shrink-0 text-[var(--color-primary)]" aria-hidden="true" />}
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    <div className="my-4 flex items-center gap-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400"><span className="h-px flex-1 bg-slate-200" /><span>hoặc tải CV mới</span><span className="h-px flex-1 bg-slate-200" /></div>
+                    <label className={`relative block cursor-pointer rounded-xl border-2 border-dashed p-4 text-center transition-colors ${cvFile ? "border-[var(--color-primary)] bg-[var(--color-primary-subtle)]" : "border-slate-200 bg-slate-50 hover:border-[var(--color-primary)]/50"}`}>
+                      <input type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={(event) => { const file = event.target.files?.[0] ?? null; setCvFile(file); if (file) setSelectedCvId(null); setApplyError(null); }} className="sr-only" />
+                      <Upload className="mx-auto size-6 text-slate-400" aria-hidden="true" />
+                      <span className="mt-2 block break-words text-xs font-semibold text-slate-700">{cvFile ? cvFile.name : "Bấm để chọn file PDF, DOC hoặc DOCX"}</span>
+                      <span className="mt-1 block text-[11px] text-slate-500">Tối đa 10 MB</span>
+                    </label>
+                  </fieldset>
 
                   {applyError && <p role="alert" className="rounded-[var(--radius-default)] bg-[var(--color-error-container)] p-3 text-sm text-[var(--color-on-error-container)]">{applyError}</p>}
 
                   <button
                     type="submit"
-                    className="w-full py-3 rounded-[8px] text-white font-semibold text-xs shadow-md transition-all flex items-center justify-center gap-2 mt-4"
+                    disabled={applyPending || candidateCvs.isPending || (!selectedCvId && !cvFile)}
+                    className="mt-4 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold text-white shadow-md transition-colors disabled:cursor-not-allowed disabled:opacity-50"
                     style={{ backgroundColor: primaryColor }}
                   >
-                    <span>Gửi Hồ Sơ Ứng Tuyển</span>
-                    <ArrowRight className="w-4 h-4" />
+                    {applyPending ? <><Loader2 className="size-4 animate-spin" aria-hidden="true" /><span>Đang gửi hồ sơ…</span></> : <><span>Gửi hồ sơ ứng tuyển</span><ArrowRight className="size-4" aria-hidden="true" /></>}
                   </button>
                 </form>
               </>
