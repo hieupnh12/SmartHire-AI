@@ -68,7 +68,8 @@ Xác thực email/password, cấp access token và refresh token JWT, quản lý
 
 ## UI mockup
 
-- Màn hình đăng nhập doanh nghiệp: `LoginPage.tsx` (tích hợp nút "Quên mật khẩu?" mở modal nhập email và nhập mã OTP 6 chữ số để đặt lại mật khẩu).
+- Ứng viên đăng nhập tại `/login` bằng `CandidateLoginPage.tsx`; URL cũ `/candidate/login` chỉ chuyển hướng tương thích sang `/login`.
+- Quản trị viên và nhân sự tenant đăng nhập tại `/internal/login` bằng `LoginPage.tsx` (tích hợp nút "Quên mật khẩu?" mở modal nhập email và nhập mã OTP 6 chữ số để đặt lại mật khẩu).
 - Quản trị viên/Nhân viên: Header menu hỗ trợ Đăng xuất với cơ chế thu hồi token toàn diện.
 
 ## Phụ thuộc

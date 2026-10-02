@@ -25,7 +25,7 @@
 
 - Chỉ chấp nhận email Google đã được `email_verified == true`.
 - Tự động liên kết `oauth_accounts` nếu tài khoản email đã tồn tại trong Tenant DB.
-- 401 Axios trên luồng ứng viên (`/candidate`, `/oauth/callback`) chuyển về `/candidate/login`, không về `/internal/login`.
+- 401 Axios trên luồng ứng viên (`/candidate`, `/oauth/callback`, `/career`, `/jobs`) chuyển về `/login`; tài khoản quản trị và nhân sự nội bộ tiếp tục dùng `/internal/login`.
 - Google callback local: Google trả về `localhost` rồi FE hop sang `{tenant}.localhost` trước khi gọi API, để giữ `X-Tenant-ID`.
 - Frontend nhận `VITE_GOOGLE_CLIENT_ID` tại thời điểm build image từ GitHub Actions Repository Variables; backend nhận `GOOGLE_CLIENT_ID` lúc runtime từ `deploy/.env.production`.
 

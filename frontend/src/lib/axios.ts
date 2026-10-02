@@ -24,7 +24,6 @@ function shouldSkipLoginRedirect(pathname: string, url = "") {
   return (
     pathname.startsWith("/login") ||
     pathname.startsWith("/internal/login") ||
-    pathname.startsWith("/candidate/login") ||
     pathname.startsWith("/oauth/callback") ||
     pathname.startsWith("/invite/accept") ||
     pathname.startsWith("/admin/login")
@@ -38,7 +37,7 @@ function loginPathFor(pathname: string) {
     pathname.startsWith("/career") ||
     pathname.startsWith("/jobs")
   ) {
-    return "/candidate/login";
+    return "/login";
   }
   return "/internal/login";
 }
