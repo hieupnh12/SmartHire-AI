@@ -34,10 +34,10 @@ public class SePayController {
     private final SePayService sePayService;
     private final ObjectMapper objectMapper;
 
-    @Value("${sepay.webhook-secret:whsec_FCttq8liLKbcEqXeQ3i6Ddjwk6ZN9cCP}")
+    @Value("${sepay.webhook-secret}")
     private String webhookSecret;
 
-    @Value("${sepay.require-signature:true}")
+    @Value("${sepay.require-signature}")
     private boolean requireSignature;
 
     @PostMapping({"/sepay/webhook", "/checkout/sepay-webhook"})

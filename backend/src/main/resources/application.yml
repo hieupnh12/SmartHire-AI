@@ -191,5 +191,5 @@ paypal:
   mode: ${PAYPAL_MODE}
 
 sepay:
-  webhook-secret: ${SEPAY_WEBHOOK_SECRET:whsec_FCttq8liLKbcEqXeQ3i6Ddjwk6ZN9cCP}
-  require-signature: ${SEPAY_REQUIRE_SIGNATURE:true}
+  webhook-secret: ${SEPAY_WEBHOOK_SECRET}
+  require-signature: ${SEPAY_REQUIRE_SIGNATURE}
