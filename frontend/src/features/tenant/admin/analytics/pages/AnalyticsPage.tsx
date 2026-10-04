@@ -31,7 +31,6 @@ import { dashboardApi } from "@/api/tenant/dashboardApi";
 import { jobApi } from "@/api/tenant/jobApi";
 import { recruiterAnalyticsApi } from "@/api/tenant/recruiterAnalyticsApi";
 import { usersApi } from "@/api/tenant/usersApi";
-import type { DashboardTrendPoint } from "@/api/types/dashboard";
 
 type AnalyticsTab = "overview" | "pipeline" | "talent" | "team" | "usage";
 type TimeRange = "30_DAYS" | "CURRENT_QUARTER" | "12_MONTHS";
@@ -126,7 +125,6 @@ function InteractiveTrendChart({
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
 
   const pointsCount = trendsData.length;
-  const svgWidth = 620;
   const svgHeight = 235;
   const leftX = 35;
   const rightX = 595;
@@ -136,7 +134,7 @@ function InteractiveTrendChart({
   // Compute max for dynamic scaling
   const maxCandidates = Math.max(...trendsData.map((d) => d.candidates), 10);
   const maxInterviews = Math.max(...trendsData.map((d) => d.interviews), 5);
-  const scaleMax = Math.max(maxCandidates * 1.15, 50);
+  const scaleMax = Math.max(maxCandidates * 1.15, maxInterviews * 1.15, 50);
 
   // Generate SVG points
   const candidatePoints = trendsData.map((d, i) => {
@@ -1149,8 +1147,9 @@ function TalentPanel({ range }: { range: TimeRange }) {
 
   // Average matching score (from real dashboard summary or 82 benchmark)
   const avgMatch = useMemo(() => {
-    if (summaryQuery.data?.avgMatchScore != null) {
-      return Math.round(Number(summaryQuery.data.avgMatchScore));
+    const summary = summaryQuery.data?.data;
+    if (summary?.avgMatchScore != null) {
+      return Math.round(Number(summary.avgMatchScore));
     }
     return 82;
   }, [summaryQuery.data]);
