@@ -286,6 +286,22 @@ Entity `RecruitmentStage`. Báº£ng khÃ´ng cÃ³ cá»™t thá»i gian.
 
 ---
 
+### B.5 `company_directory_entries` — Danh mục công ty (V45)
+
+Entity `CompanyDirectoryEntry` (kế thừa `BaseEntity`).
+
+| Cột | Kiểu | Khoá | Null | Default | Mô tả |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | Không | auto | Định danh mục |
+| `entry_type` | VARCHAR(32) | UQ | Không | — | `DEPARTMENT` hoặc `LOCATION` |
+| `name` | VARCHAR(255) | UQ | Không | — | Tên phòng ban hoặc địa chỉ/địa điểm hiển thị |
+| `created_at` | TIMESTAMP | | Không | CURRENT_TIMESTAMP | Thời điểm tạo |
+| `updated_at` | TIMESTAMP | | Không | CURRENT_TIMESTAMP on update | Thời điểm cập nhật |
+
+**Ràng buộc:** `uk_company_directory_type_name (entry_type, name)`. Không có FK; `jobs.department` và `jobs.location` lưu snapshot chuỗi và được service kiểm tra với danh mục.
+
+---
+
 ## C. Application pipeline
 
 ### C.1 `applications` â€” ÄÆ¡n á»©ng tuyá»ƒn (báº£ng trung tÃ¢m)

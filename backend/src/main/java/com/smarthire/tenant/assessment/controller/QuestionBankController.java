@@ -25,8 +25,17 @@ public class QuestionBankController {
     @GetMapping("/list_questions")
     @Operation(summary = "List standalone and assessment questions in the current tenant (staff only)")
     public ApiResponse<BankQuestionPage> list(@RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "50") int size) {
-        return ApiResponse.ok(service.list(page, size));
+            @RequestParam(defaultValue = "50") int size,
+            @RequestParam(required = false) String collection,
+            @RequestParam(required = false) String query,
+            @RequestParam(required = false) String skill,
+            @RequestParam(required = false) String difficulty,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String questionType,
+            @RequestParam(defaultValue = "latest") String sort,
+            @RequestParam(required = false) List<Long> favoriteIds) {
+        return ApiResponse.ok(service.list(page, size, collection, query, skill, difficulty, status,
+                questionType, sort, favoriteIds));
     }
 
     @GetMapping("/get_question/{id}")

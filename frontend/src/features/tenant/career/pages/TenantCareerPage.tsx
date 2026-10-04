@@ -118,7 +118,6 @@ function salaryInMillions(salary?: string | null) {
 }
 
 const formatSalary = formatSalaryText;
-
 function cvStatusLabel(status: string) {
   return ({
     UPLOADED: "Đã tải lên",

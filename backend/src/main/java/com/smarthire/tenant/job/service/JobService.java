@@ -11,6 +11,7 @@ import com.smarthire.domain.tenant.entity.Job;
 import com.smarthire.domain.tenant.entity.JobSkill;
 import com.smarthire.domain.tenant.entity.RecruitmentStage;
 import com.smarthire.domain.tenant.entity.Skill;
+import com.smarthire.domain.tenant.entity.CompanyDirectoryEntry.EntryType;
 import com.smarthire.domain.tenant.repository.ApplicationRepository;
 import com.smarthire.domain.tenant.repository.JobRepository;
 import com.smarthire.domain.tenant.repository.JobSkillRepository;
@@ -36,6 +37,7 @@ import com.smarthire.tenant.job.dto.JobModels.StageView;
 import com.smarthire.tenant.job.dto.JobModels.StagesRequest;
 import com.smarthire.tenant.job.mapper.JobMapper;
 import com.smarthire.tenant.job.screening.JobScreeningConfigService;
+import com.smarthire.tenant.company.service.CompanyDirectoryService;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -82,6 +84,7 @@ public class JobService {
     private final JobScreeningConfigService screening;
     private final JobScreeningConfigRepository screeningConfigs;
     private final JobCloseScreeningService closeScreening;
+    private final CompanyDirectoryService companyDirectory;
     private final org.springframework.amqp.rabbit.core.RabbitTemplate rabbitTemplate;
     
     @org.springframework.beans.factory.annotation.Value("${app.rabbitmq.exchanges.job-expiry}")
@@ -100,6 +103,7 @@ public class JobService {
             JobScreeningConfigService screening,
             JobScreeningConfigRepository screeningConfigs,
             JobCloseScreeningService closeScreening,
+            CompanyDirectoryService companyDirectory,
             org.springframework.amqp.rabbit.core.RabbitTemplate rabbitTemplate) {
         this.jobs = jobs;
         this.jobSkills = jobSkills;
@@ -113,6 +117,7 @@ public class JobService {
         this.screening = screening;
         this.screeningConfigs = screeningConfigs;
         this.closeScreening = closeScreening;
+        this.companyDirectory = companyDirectory;
         this.rabbitTemplate = rabbitTemplate;
     }
 
@@ -470,6 +475,8 @@ public class JobService {
     }
 
     private void apply(Job job, JobUpsertRequest request) {
+        companyDirectory.requireEntry(EntryType.DEPARTMENT, request.department());
+        companyDirectory.requireEntry(EntryType.LOCATION, request.location());
         job.setTitle(request.title().trim());
         job.setDescription(blankToValue(request.description(), request.title().trim()));
         job.setResponsibilities(blankToNull(request.responsibilities()));

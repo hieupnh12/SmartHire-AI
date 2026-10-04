@@ -1,9 +1,9 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { BadgeCheck, Building2, Globe, ImageOff, MapPin } from "lucide-react";
+import { BadgeCheck, Building2, Globe, ImageOff, MapPin, Plus, Trash2 } from "lucide-react";
 import { companyApi } from "@/api/tenant/companyApi";
 import { Button } from "@/components/ux/Button";
 import { Card } from "@/components/ux/Card";
@@ -312,6 +312,123 @@ export function CompanyProfilePage() {
           </Button>
         </div>
       </form>
+      <CompanyDirectoryCard />
+    </section>
+  );
+}
+
+function CompanyDirectoryCard() {
+  const queryClient = useQueryClient();
+  const directoryQuery = useQuery({
+    queryKey: ["tenant", "company", "directory"],
+    queryFn: companyApi.getDirectory,
+  });
+  const [departments, setDepartments] = useState<string[]>([]);
+  const [locations, setLocations] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!directoryQuery.data?.data) return;
+    setDepartments(directoryQuery.data.data.departments);
+    setLocations(directoryQuery.data.data.locations);
+  }, [directoryQuery.data]);
+
+  const mutation = useMutation({
+    mutationFn: companyApi.updateDirectory,
+    onSuccess: (response) => {
+      queryClient.setQueryData(["tenant", "company", "directory"], response);
+      toast.success("Đã cập nhật danh mục công ty");
+    },
+    onError: (error) => toast.danger(getApiErrorMessage(error, "Không thể cập nhật danh mục công ty")),
+  });
+
+  if (directoryQuery.isLoading) return <PageSkeleton variant="list" />;
+
+  return (
+    <Card className="space-y-5">
+      <div>
+        <h2 className="text-base font-semibold text-[var(--color-text-primary)]">Danh mục phòng ban và địa điểm</h2>
+        <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
+          Recruiter chỉ có thể chọn các giá trị trong danh mục này khi tạo hoặc chỉnh sửa tin tuyển dụng.
+        </p>
+      </div>
+      {directoryQuery.isError && <p role="alert" className="text-sm text-status-danger">{getApiErrorMessage(directoryQuery.error)}</p>}
+      <div className="grid gap-5 lg:grid-cols-2">
+        <DirectoryList
+          id="company-departments"
+          title="Phòng ban"
+          placeholder="VD: Engineering"
+          maxLength={128}
+          values={departments}
+          onChange={setDepartments}
+        />
+        <DirectoryList
+          id="company-locations"
+          title="Địa điểm công ty"
+          placeholder="VD: Tầng 5, 123 Cầu Giấy, Hà Nội"
+          maxLength={255}
+          values={locations}
+          onChange={setLocations}
+        />
+      </div>
+      <Button
+        type="button"
+        disabled={mutation.isPending || directoryQuery.isError}
+        onClick={() => mutation.mutate({ departments, locations })}
+      >
+        {mutation.isPending ? "Đang lưu…" : "Lưu danh mục"}
+      </Button>
+    </Card>
+  );
+}
+
+function DirectoryList({ id, title, placeholder, maxLength, values, onChange }: {
+  id: string;
+  title: string;
+  placeholder: string;
+  maxLength: number;
+  values: string[];
+  onChange: (values: string[]) => void;
+}) {
+  const [draft, setDraft] = useState("");
+  const add = () => {
+    const value = draft.trim();
+    if (!value || values.some((item) => item.toLocaleLowerCase() === value.toLocaleLowerCase())) return;
+    onChange([...values, value]);
+    setDraft("");
+  };
+
+  return (
+    <section className="space-y-3 rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-surface-muted p-4">
+      <h3 className="text-sm font-semibold text-[var(--color-text-primary)]">{title}</h3>
+      <div className="flex gap-2">
+        <label htmlFor={id} className="sr-only">Thêm {title.toLocaleLowerCase()}</label>
+        <input
+          id={id}
+          className={inputClass}
+          maxLength={maxLength}
+          placeholder={placeholder}
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); add(); } }}
+        />
+        <Button type="button" variant="secondary" disabled={!draft.trim()} onClick={add} aria-label={`Thêm ${title.toLocaleLowerCase()}`}>
+          <Plus className="size-4" aria-hidden="true" />
+        </Button>
+      </div>
+      {values.length === 0 ? (
+        <p className="text-sm text-[var(--color-text-secondary)]">Chưa có mục nào.</p>
+      ) : (
+        <ul className="space-y-2">
+          {values.map((value) => (
+            <li key={value.toLocaleLowerCase()} className="flex items-center justify-between gap-3 rounded-[var(--radius-md)] bg-surface-card px-3 py-2 text-sm">
+              <span className="min-w-0 break-words">{value}</span>
+              <button type="button" className="shrink-0 rounded-md p-1.5 text-status-danger hover:bg-red-50" aria-label={`Xóa ${value}`} onClick={() => onChange(values.filter((item) => item !== value))}>
+                <Trash2 className="size-4" aria-hidden="true" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   );
 }
