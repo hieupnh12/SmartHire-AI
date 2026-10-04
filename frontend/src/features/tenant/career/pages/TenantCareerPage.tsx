@@ -690,7 +690,7 @@ export function TenantCareerPage() {
       smoothWheel: true,
       syncTouch: false,
       wheelMultiplier: 0.9,
-      prevent: (node) => Boolean(node.closest("[role='listbox'], [data-career-modal]")),
+      prevent: (node: HTMLElement) => Boolean(node.closest("[role='listbox'], [data-career-modal]")),
     });
     return () => lenis.destroy();
   }, [isJobsPage]);

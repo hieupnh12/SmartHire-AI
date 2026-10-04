@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useParams, Link } from "react-router-dom";
 import {
-  BrainCircuit,
   CheckCircle2,
   Copy,
   Check,
@@ -155,14 +154,22 @@ export function CheckoutPage() {
     setCopiedField(field);
     setTimeout(() => setCopiedField(null), 2000);
   };
-  const handleDownloadQr = () => {
-    const link = document.createElement("a");
-    link.href = "/sepay_qr.png";
-    link.download = `VietQR-SePay-${orderResult?.invoiceNumber || "order"}.png`;
-    link.target = "_blank";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const handleDownloadQr = async () => {
+    const qrSource = orderResult?.qrUrl || "/sepay_qr.png";
+    try {
+      const res = await fetch(qrSource);
+      const blob = await res.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = `VietQR-SePay-${orderResult?.invoiceNumber || "order"}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch {
+      window.open(qrSource, "_blank");
+    }
   };
   // Step 1: Submit to generate invoice & order
   const handleProceedToPayment = async (e: React.FormEvent) => {
@@ -251,12 +258,7 @@ export function CheckoutPage() {
       <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-2xs">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-3 group">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-700 via-blue-600 to-indigo-500 text-white flex items-center justify-center shadow-md shadow-blue-600/20 group-hover:scale-105 transition-transform">
-              <BrainCircuit className="w-5 h-5 text-white" />
-            </div>
-            <span className="text-xl font-bold tracking-tight text-slate-900">
-              SmartHire<span className="text-blue-600">.AI</span>
-            </span>
+            <img src="/logo-smarthrie.png" alt="SmartHire AI" className="h-9 sm:h-10 w-auto object-contain transition-transform group-hover:scale-105" />
           </Link>
         </div>
       </header>
@@ -1002,7 +1004,7 @@ export function CheckoutPage() {
                         <div className="sm:col-span-6 flex flex-col items-center justify-center shrink-0">
                           <div className="border border-slate-200/90 rounded-2xl p-2.5 bg-white shadow-xs">
                             <img
-                              src="/sepay_qr.png"
+                              src={orderResult?.qrUrl || "/sepay_qr.png"}
                               alt="VietQR Chuyển Khoản SePay"
                               className="w-52 h-52 sm:w-60 sm:h-60 object-contain"
                             />
@@ -1244,7 +1246,7 @@ export function CheckoutPage() {
                     <div className="flex flex-col sm:flex-row items-center gap-6 p-5 rounded-2xl bg-blue-50/40 border border-blue-100 pt-6">
                       <div className="flex flex-col items-center shrink-0">
                         <img
-                          src="/sepay_qr.png"
+                          src={orderResult?.qrUrl || "/sepay_qr.png"}
                           alt="VietQR Chuyển Khoản SePay"
                           className="w-44 h-44 object-contain rounded-lg border border-slate-200 bg-white p-2"
                         />
