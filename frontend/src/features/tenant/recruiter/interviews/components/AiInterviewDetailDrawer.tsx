@@ -1,3 +1,4 @@
+import { ConversationTranscript } from "./ConversationTranscript";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -5,7 +6,7 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Bot, CalendarClock, CheckCircle2, ChevronRight, CircleAlert, Gauge, LockKeyhole, Network, Pencil, Plus, RefreshCw, ShieldCheck, Sparkles, Timer, Trash2, X, type LucideIcon } from "lucide-react";
 import { aiInterviewApi } from "@/api/tenant/aiInterviewApi";
-import { COMPETENCY_LABELS, type AiFeedback, type AiInterview, type AiQuestion, type AiQuestionRequest, type CompetencyKey } from "@/api/types/aiInterview";
+import { COMPETENCY_LABELS, type AiAnswer, type AiFeedback, type AiInterview, type AiQuestion, type AiQuestionRequest, type CompetencyKey } from "@/api/types/aiInterview";
 import { Button } from "@/components/ux/Button";
 import { AssessmentError, FieldError, assessmentInput } from "@/components/ux/assessmentUi";
 import { queryKeys } from "@/lib/query-keys";
@@ -86,11 +87,12 @@ export function AiInterviewDetailDrawer({ interviewId, jobId, candidateName, onC
             </div>
           </section>
           <AssessmentError error={generate.error ?? score.error} />
+          {interview.conversational && interview.completedAt && <ConversationTranscript interviewId={interviewId} />}
           <AiInterviewReportView reportJson={interview.reportJson} questions={interview.questions} />
           <div className="grid items-start gap-6 lg:grid-cols-12">
-          <section className="space-y-4 rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-4 shadow-sm sm:p-6 lg:col-span-8">
+          {!interview.conversational && <section className="space-y-4 rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-4 shadow-sm sm:p-6 lg:col-span-8">
             <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-lg font-semibold tracking-tight">Câu hỏi ({interview.questions.length})</h3><p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">Nội dung, câu trả lời và đánh giá theo từng câu hỏi.</p></div>
-              {editable && (interview.questions.length === 0 || interview.processBased) && <Button variant="secondary" disabled={busy} onClick={() => {
+              {editable && !interview.conversational && (interview.questions.length === 0 || interview.processBased) && <Button variant="secondary" disabled={busy} onClick={() => {
                 if (!interview.questions.length) { generate.mutate(); return; }
                 askConfirm({ title: "Sinh lại bộ câu hỏi nháp?", description: "AI sẽ dùng cấu hình đã lưu của phiên. Chỉ thay câu hỏi nháp chưa trả lời khi bộ mới hợp lệ; giữ nguyên lượt phỏng vấn.", confirmLabel: "Sinh lại", onConfirm: async () => { await generate.mutateAsync(); } });
               }}><Sparkles className="size-4" aria-hidden="true" />{generate.isPending ? "Đang gửi yêu cầu…" : interview.questions.length ? "Sinh lại theo cấu hình" : "Sinh câu hỏi bằng AI"}</Button>}
@@ -109,8 +111,8 @@ export function AiInterviewDetailDrawer({ interviewId, jobId, candidateName, onC
               />)}
             </ol>
             {editable && !busy && !planned && <AddQuestionForm interviewId={interviewId} nextOrder={Math.max(-1, ...interview.questions.map(q => q.questionOrder)) + 1} onAdded={refresh} />}
-          </section>
-          <div className="space-y-5 lg:sticky lg:top-28 lg:col-span-4">
+          </section>}
+          <div className={`space-y-5 ${interview.conversational ? "lg:col-span-12" : "lg:sticky lg:top-28 lg:col-span-4"}`}>
           <SessionGovernance interview={interview} />
           <details onToggle={event => setShowLogs(event.currentTarget.open)} className="group rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-4 shadow-sm sm:p-5">
             <summary className="cursor-pointer list-none rounded-lg font-semibold outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]/30 [&::-webkit-details-marker]:hidden"><span className="inline-flex items-center gap-2"><ChevronRight className="size-4 text-[var(--color-primary)] transition-transform group-open:rotate-90 motion-reduce:transition-none" aria-hidden="true" />Lịch sử xử lý AI Interview</span></summary>
@@ -399,7 +401,7 @@ function QuestionItem({ index, interviewId, question, editable, completed, onCha
             </p>
             <p className="mt-1 whitespace-pre-wrap break-words text-sm">{!answer.answerText ? "Bỏ trống (0 điểm)" : mcq ? `Chọn ${String.fromCharCode(65 + Number(answer.answerText))}` : answer.answerText}</p>
           </div>
-          <FeedbackView feedback={answer.feedback} />
+          <FeedbackView feedback={answer.feedback} answer={answer} />
           {completed && <InterviewRecordingReview interviewId={interviewId} answerId={answer.id} />}
         </div>
       ) : (
@@ -409,19 +411,25 @@ function QuestionItem({ index, interviewId, question, editable, completed, onCha
   );
 }
 
-function FeedbackView({ feedback }: { feedback: AiFeedback | null }) {
-  if (!feedback) return <p className="text-sm text-[var(--color-on-surface-variant)]">Chưa có đánh giá AI.</p>;
-  let metrics: { durationMs?: number; voicedMs?: number; pauseCount?: number; responseLatencyMs?: number | null } | undefined;
+function FeedbackView({ feedback, answer }: { feedback: AiFeedback | null; answer: AiAnswer }) {
+  let metrics: { durationMs?: number; voicedMs?: number; silenceMs?: number; pauseCount?: number; responseLatencyMs?: number | null } | undefined;
   let wordsPerMinute: number | undefined;
-  try { const evaluation = JSON.parse(feedback.evaluationJson ?? "{}"); metrics = evaluation.speechMetrics; wordsPerMinute = evaluation.wordsPerMinute; } catch { /* Historical feedback may have no structured evaluation. */ }
+  try { const evaluation = JSON.parse(feedback?.evaluationJson ?? "{}"); metrics = evaluation.speechMetrics; wordsPerMinute = evaluation.wordsPerMinute; } catch { /* Historical feedback may have no structured evaluation. */ }
+  if (answer.speechMetrics) {
+    metrics = answer.speechMetrics;
+    wordsPerMinute = metrics.voicedMs && answer.answerText?.trim() ? answer.answerText.trim().split(/\s+/).length * 60000 / metrics.voicedMs : undefined;
+  }
   return <div className="space-y-2 text-sm">
+    {feedback ? <>
     <p className="font-semibold">Đánh giá AI · {feedback.score ?? "—"}/100</p>
     <p className="whitespace-pre-wrap">{feedback.feedbackText}</p>
     {feedback.strengths && <p><strong>Điểm mạnh:</strong> {feedback.strengths}</p>}
     {feedback.weaknesses && <p><strong>Cần cải thiện:</strong> {feedback.weaknesses}</p>}
+    </> : <p className="text-[var(--color-on-surface-variant)]">Chưa có đánh giá AI.</p>}
     {metrics && <div className="rounded-lg border border-[var(--color-border-default)] p-3">
       <p className="font-medium">Tín hiệu lời nói (tham khảo)</p>
       <p>Thời lượng: {((metrics.durationMs ?? 0) / 1000).toFixed(1)}s · Thời gian nói: {((metrics.voicedMs ?? 0) / 1000).toFixed(1)}s · Khoảng dừng ≥ 0,6s: {metrics.pauseCount ?? 0}</p>
+      <p>Im lặng: {((metrics.silenceMs ?? 0) / 1000).toFixed(1)}s · Tỷ lệ có tiếng nói: {metrics.durationMs ? `${Math.round((metrics.voicedMs ?? 0) * 100 / metrics.durationMs)}%` : "Chưa đủ dữ liệu"}</p>
       <p>Phản hồi: {metrics.responseLatencyMs == null ? "Chưa đủ dữ liệu" : `${(metrics.responseLatencyMs / 1000).toFixed(1)}s`}{wordsPerMinute != null && ` · Tốc độ: ${Math.round(wordsPerMinute)} từ/phút nói`}</p>
       <p className="text-xs text-[var(--color-on-surface-variant)]">Ước lượng từ tín hiệu micro của trình duyệt; môi trường và chất lượng micro có thể ảnh hưởng. Không cộng tự động vào điểm nội dung.</p>
     </div>}

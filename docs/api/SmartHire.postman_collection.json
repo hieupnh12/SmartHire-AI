@@ -5,14 +5,38 @@
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
-    {"key":"aiInterviewId","value":"1"},
-    {"key":"aiQuestionId","value":"1"},
-    {"key":"aiAnswerId","value":"1"},
-    {"key":"notificationId","value":"1"},
-    { "key": "candidateToken", "value": "" },
-    { "key": "questionId", "value": "1" },
-    { "key": "optionId", "value": "1" },
-    { "key": "submissionId", "value": "1" },
+    {
+      "key": "aiInterviewId",
+      "value": "1"
+    },
+    {
+      "key": "aiQuestionId",
+      "value": "1"
+    },
+    {
+      "key": "aiAnswerId",
+      "value": "1"
+    },
+    {
+      "key": "notificationId",
+      "value": "1"
+    },
+    {
+      "key": "candidateToken",
+      "value": ""
+    },
+    {
+      "key": "questionId",
+      "value": "1"
+    },
+    {
+      "key": "optionId",
+      "value": "1"
+    },
+    {
+      "key": "submissionId",
+      "value": "1"
+    },
     {
       "key": "baseUrl",
       "value": "http://localhost:8080/api/v1"
@@ -190,7 +214,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"answerText\": \"Câu trả lời của ứng viên\"\n}"
+              "raw": "{\n  \"answerText\": \"Câu trả lời của ứng viên\",\n  \"answerDuration\": 5,\n  \"speechMetrics\": {\n    \"durationMs\": 5000,\n    \"voicedMs\": 4000,\n    \"silenceMs\": 1000,\n    \"pauseCount\": 1,\n    \"responseLatencyMs\": 1200\n  }\n}"
             }
           }
         },
@@ -1442,6 +1466,227 @@
                   "language": "json"
                 }
               }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Assessment Generation",
+      "item": [
+        {
+          "name": "Read configuration",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/assessments/jobs/{{jobId}}/configuration"
+          }
+        },
+        {
+          "name": "Save structure",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/assessments/jobs/{{jobId}}/configuration",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"durationMinutes\": 30,\n  \"passingPercent\": 70,\n  \"autoAssign\": false,\n  \"sections\": [\n    {\n      \"skill\": \"Java\",\n      \"questionType\": \"MCQ\",\n      \"difficulty\": \"Easy\",\n      \"count\": 5,\n      \"points\": 2\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Generate draft",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/assessments/jobs/{{jobId}}/generate"
+          }
+        },
+        {
+          "name": "Automation status",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/assessments/jobs/{{jobId}}/automation_status"
+          }
+        }
+      ]
+    },
+    {
+      "name": "AI Conversation",
+      "description": "V44: streaming dialogue, post-session evaluation and native STT/TTS. WebSocket: /ws/interview-voice?ticket=<single-use ticket>; start, binary chunks, end. Reuse requestId only for retries.",
+      "item": [
+        {
+          "name": "Conversation transcript",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/ai-interviews/{{aiInterviewId}}/conversation"
+          }
+        },
+        {
+          "name": "Send conversation turn (SSE)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "text/event-stream"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/ai-interviews/{{aiInterviewId}}/conversation/turns",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"requestId\": \"12345678-1234-1234-1234-123456789012\",\n  \"content\": \"I would use dependency injection.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Voice WebSocket ticket",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/ai-interviews/{{aiInterviewId}}/conversation/voice-ticket"
+          }
+        },
+        {
+          "name": "Generate message speech",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/ai-interviews/{{aiInterviewId}}/conversation/messages/{{messageId}}/speech"
+          }
+        },
+        {
+          "name": "Read private message recording",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/ai-interviews/{{aiInterviewId}}/conversation/messages/{{messageId}}/recording"
+          }
+        },
+        {
+          "name": "Attach private message recording",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/ai-interviews/{{aiInterviewId}}/conversation/messages/{{messageId}}/recording",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": ""
+                }
+              ]
             }
           }
         }

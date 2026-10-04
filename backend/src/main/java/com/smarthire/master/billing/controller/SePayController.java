@@ -37,7 +37,7 @@ public class SePayController {
     @Value("${sepay.webhook-secret:}")
     private String webhookSecret;
 
-    @Value("${sepay.require-signature}")
+    @Value("${sepay.require-signature:true}")
     private boolean requireSignature;
 
     @PostMapping({"/sepay/webhook", "/checkout/sepay-webhook"})
@@ -45,7 +45,6 @@ public class SePayController {
     public ResponseEntity<?> handleSePayWebhook(
             @RequestHeader(value = "X-SePay-Signature", required = false) String signatureHeader,
             @RequestHeader(value = "X-SePay-Timestamp", required = false) String timestampHeader,
-            @RequestHeader(value = "X-Test-Simulation", required = false) String testSimulation,
             @RequestBody String rawBody
     ) {
         log.info("Received SePay webhook: Signature={}, Timestamp={}, RawLength={}",
@@ -67,9 +66,7 @@ public class SePayController {
             log.info("SePay webhook HMAC-SHA256 signature verified successfully.");
         } else {
             // Không có signature
-            if ("true".equalsIgnoreCase(testSimulation)) {
-                log.info("SePay webhook accepted via internal test simulation.");
-            } else if (requireSignature && StringUtils.hasText(webhookSecret)) {
+            if (requireSignature) {
                 log.warn("SePay webhook rejected: Missing required X-SePay-Signature header");
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                         .body(Map.of("success", false, "message", "Missing X-SePay-Signature header"));
@@ -118,6 +115,7 @@ public class SePayController {
                 }
             } catch (NumberFormatException e) {
                 log.warn("SePay webhook invalid timestamp format: {}", timestampHeader);
+                return false;
             }
         }
 

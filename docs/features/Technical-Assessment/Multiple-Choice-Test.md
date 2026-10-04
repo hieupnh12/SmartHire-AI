@@ -153,8 +153,9 @@ JOB-04
 
 ### Ngân hàng câu hỏi chung recruiter
 
-- Trạng thái: `Doing` (API thêm/sửa/đọc/lưu trữ đã triển khai; tự tạo assessment theo skill và chọn câu chung vào assessment chưa triển khai).
+- Trạng thái: `Doing` (API ngân hàng, cấu hình và tạo assessment tự động từ câu theo skill đã triển khai; cần kiểm chứng rollout MySQL/RabbitMQ và E2E).
 - Route `/recruiter/question-bank`: đọc câu độc lập và toàn bộ câu của các assessment trong cùng tenant. Không tạo bài assessment để lưu câu độc lập. Câu thêm trong assessment/job hiện có tự xuất hiện trong danh sách chung qua truy vấn, không sao chép.
+- Ngân hàng riêng `/recruiter/jobs/:id/assessments/question-bank` dùng cùng nguồn API chung: giữ các câu đã thuộc job và bổ sung câu có nhãn skill khớp ít nhất một skill của job (trim, không phân biệt hoa/thường, khớp nguyên tên; không suy đoán từ nội dung). Câu chung/câu của job khác đã lưu trữ không được bổ sung. Job chưa có skill chỉ hiển thị câu đã thuộc job. Không sao chép câu hoặc tự tạo assessment; liên kết sửa dẫn tới câu chung hoặc assessment gốc đúng job. Cache dùng chung theo tenant/user, được invalidate sau khi lưu câu hỏi; thay đổi skill job lọc lại danh sách theo dữ liệu job mới.
 - Staff cùng tenant được đọc ngân hàng chung; candidate và token sai tenant bị từ chối trước truy vấn. Quyền assessment/job và khóa bài đã xuất bản vẫn giữ nguyên. API chung không sửa hoặc lưu trữ câu có `test_id`; UI dẫn tới assessment gốc để sửa.
 - Thêm câu hỏi / Nhập Excel mở `/recruiter/question-bank/new`; `/recruiter/question-bank/:questionId/edit` mở câu độc lập đã lưu trong bảng soạn. Bản nháp chưa gửi lưu tạm trong `sessionStorage` theo tenant/user; câu đã lưu được tải lại từ API.
 - Nút Kiểm tra dùng cùng `ExcelImportReview`: phân loại VALID/INVALID/WARNING, bỏ dòng trống, chọn chỉ lưu dòng hợp lệ hoặc yêu cầu tất cả hợp lệ, báo nội dung trùng trong lô là WARNING, xem trước giám khảo/ứng viên bằng cùng `AssessmentPublishReview` và `QuestionAnswerPanel`.
@@ -173,3 +174,30 @@ JOB-04
 Response đều bọc `ApiResponse`; item gồm `question`, `testId/testTitle/testStatus`, `jobId/jobTitle`, `archived`, `authoringMetadata`. Lỗi: 400 dữ liệu không hợp lệ, 403 role/tenant sai, 404 `BANK_QUESTION_NOT_FOUND`, 409 `BANK_QUESTION_IN_TEST`. Không đổi API hoặc luồng assessment riêng hiện có.
 
 Kiểm chứng ngày 2026-10-02: build frontend đạt; 36 test assessment/ngân hàng đạt, gồm HTTP thêm/đọc/sửa/lưu trữ, không tạo assessment khi thêm câu chung, giữ metadata và skill, rollback lô lỗi, từ chối candidate/sai tenant và bảo vệ câu thuộc assessment. Các integration test lần này dùng H2 + MockMvc; chưa chạy migration V41 trên MySQL thực tế hoặc kiểm thử giao diện qua trình duyệt.
+
+### Tạo assessment thủ công / tự động (2026-10-03)
+
+- Actor: recruiter/staff có quyền trên job; candidate chỉ nhận và làm đề của hồ sơ mình.
+- `/recruiter/jobs/:id/assessments/new` chọn **Tạo thủ công** hoặc **Tạo tự động**. Thủ công: soạn câu hỏi bằng bảng hiện có → kiểm tra/xem trước → nhập metadata đề → lưu DRAFT → xuất bản ở trang chi tiết. Không tạo đề rỗng trước bước thêm câu hỏi.
+- Tự động: cấu hình từng nhóm `skill`, `questionType` MCQ/MULTIPLE_CHOICE/ESSAY, `difficulty` Easy/Medium/Hard, số câu và điểm/câu; thời lượng 1–480 phút, ngưỡng đạt 0–100%. Skill phải thuộc job; tổng 1–100 câu. ESSAY gồm tự luận lý thuyết/code theo dữ liệu ngân hàng hiện có.
+- UI cấu hình gồm hai tab cùng một form như AI Interview: **Cấu hình chung** (tự tạo cho ứng viên, ngưỡng đạt, số câu theo bài tập, thời lượng, trọng số nhóm tính từ điểm, Job Skills) và **Cấu hình bài tập** (skill/type/difficulty/count/points). Chuyển tab giữ dữ liệu; một lần lưu gửi cả hai phần. Chọn/bỏ skill thêm/xóa nhóm tương ứng. Hai luồng tạo đề đều đọc cùng `assessment_config_json`, không có cấu hình riêng cho ứng viên. Lỗi validation mở tab chứa trường sai.
+- Job chưa lưu cấu hình: API trả success với dữ liệu null; do `ApiResponse` bỏ trường null, frontend chuẩn hóa `data` bị bỏ thành null để mở form mặc định, không trả undefined cho TanStack Query.
+- **Tạo bài assessment tự động** lưu cấu hình rồi chọn ngẫu nhiên câu hợp lệ từ ngân hàng theo skill/type/difficulty, tự đặt tên theo job + thời điểm, copy nội dung/options/metadata sang đề DRAFT. Recruiter kiểm tra và xuất bản. Câu nguồn giữ nguyên. Câu lưu trữ và bản copy của đề riêng ứng viên không được dùng làm nguồn; loại trùng nội dung trong cùng đề. Thiếu câu trả 409 `ASSESSMENT_BANK_INSUFFICIENT`, rollback không để lại đề tạo dở.
+- **Tự động tạo đề riêng khi ứng viên vượt AI Interview**: cấu hình `autoAssign=true` áp dụng cả hồ sơ đạt trước khi bật và các hồ sơ đạt sau này. Chỉ hồ sơ ASSESSMENT, có AI Interview PASSED, không rút/lưu trữ, job chưa bị xóa. Bật cấu hình yêu cầu ngân hàng đáp ứng cấu trúc hiện tại.
+- Dispatcher tenant hiện có quét mỗi 15 giây mặc định, đưa application ID vào RabbitMQ `smarthire.assessment.generate` với header `X-Tenant-ID`; worker concurrency 3–10 dùng `TenantJobExecutor` để set/clear tenant. Khóa hồ sơ và UNIQUE `tests.assigned_application_id` ngăn tạo lặp. Transaction tạo PUBLISHED + notification `ASSESSMENT_INVITATION` + email outbox; email dùng worker/retry hiện có tối đa 3 lần. Không tạo nhiều đề nếu AI Interview được xử lý lại hoặc cấu hình được lưu lại.
+- Đề gán riêng chỉ xuất hiện trong danh sách available và start với đúng application; staff không thể gửi đề đó cho application khác. Các đề dùng chung (`assigned_application_id=NULL`) giữ luồng hiện có. Hệ thống không tự sửa đề đã tạo khi cấu hình/ngân hàng thay đổi.
+- Nếu ngân hàng/skill thay đổi khiến không đủ câu, hồ sơ vẫn chờ, kết quả AI Interview giữ nguyên. Giao diện cấu hình hiển thị số hồ sơ đủ điều kiện/đã có đề/chưa có đề và lỗi ngân hàng; cập nhật 15 giây. Khi bổ sung câu hoặc sửa cấu hình, dispatcher xử lý lại. Tắt `autoAssign` dừng tạo mới, không xóa đề đã tạo.
+- DB V43 mở rộng `Job`, `JobTest`, không tạo bảng mới; xem dictionary và ERD. Bật backend mới cần chạy migration V43 và RabbitMQ.
+
+| Method | API | Chức năng |
+|---|---|---|
+| GET | `/api/v1/assessments/jobs/{jobId}/configuration` | Cấu hình đã lưu hoặc null |
+| PUT | `/api/v1/assessments/jobs/{jobId}/configuration` | Lưu `{durationMinutes,passingPercent,autoAssign,sections:[{skill,questionType,difficulty,count,points}]}` |
+| POST | `/api/v1/assessments/jobs/{jobId}/generate` | Tạo đề DRAFT tự đặt tên từ cấu hình đã lưu |
+| GET | `/api/v1/assessments/jobs/{jobId}/automation_status` | `{eligible,generated,pending,bankReady,bankError}` cho job |
+
+Tất cả API trên bọc `ApiResponse`, staff cùng tenant và có quyền job; 400 dữ liệu/skill sai, 403 quyền/tenant sai, 404 job không tồn tại, 409 ngân hàng thiếu câu.
+
+Kiểm chứng ngày 2026-10-03: build frontend đạt; 51 test backend assessment/AI Interview/email đạt. Bao gồm tạo DRAFT từ ngân hàng, backfill hồ sơ đã PASSED, tạo PUBLISHED riêng, thông báo, chặn ứng viên khác, thiếu ngân hàng rollback, skill bị đổi, hồ sơ failed/withdrawn, hai lượt xử lý đồng thời chỉ tạo một đề và email retry tối đa 3 lần. Integration dùng H2 + MockMvc; chưa kiểm chứng migration V43 trên MySQL, RabbitMQ thực hoặc E2E trình duyệt (Playwright chưa có trong môi trường).
+
+Kiểm chứng bản sửa cấu hình cùng ngày: build frontend đạt, test API client cho response bỏ `data`/null/cấu hình đã lưu đạt; 25 test `AssessmentFlowTest` đạt. Regression test so sánh đề DRAFT tạo bằng nút và đề PUBLISHED tạo cho hồ sơ với cùng cấu hình 2 câu MCQ, skill, độ khó, 3 điểm/câu, 17 phút và ngưỡng 60%; cả hai dùng cùng cấu trúc đã lưu. Chưa kiểm chứng giao diện trên trình duyệt thực.

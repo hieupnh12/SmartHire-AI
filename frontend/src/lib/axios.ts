@@ -119,6 +119,7 @@ api.interceptors.response.use(
 );
 
 const FRIENDLY_ERROR_MESSAGES: Record<string, string> = {
+  AI_INTERVIEW_LOCKED: "Phiên đã bị khóa. Chỉ được xóa phiên chưa bắt đầu ở trạng thái mới tạo, sẵn sàng hoặc lỗi; không thể xóa khi đang sinh câu hỏi hoặc đã bắt đầu.",
   INTERNAL_ERROR: "Hệ thống đang gặp sự cố tạm thời. Vui lòng thử lại sau ít phút.",
   VALIDATION_ERROR: "Một số thông tin chưa hợp lệ. Vui lòng kiểm tra lại.",
   BAD_REQUEST: "Yêu cầu chưa hợp lệ. Vui lòng kiểm tra lại thông tin.",

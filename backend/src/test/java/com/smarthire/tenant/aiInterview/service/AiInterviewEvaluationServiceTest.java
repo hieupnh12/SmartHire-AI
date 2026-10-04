@@ -37,6 +37,7 @@ class AiInterviewEvaluationServiceTest {
     @Mock AiInterviewClient ai;
     @Mock AiInterviewActivityLog activity;
     @Mock AiInterviewProcessEngine processEngine;
+    @Mock InterviewConversationService conversation;
     final ObjectMapper mapper = new ObjectMapper();
     AiInterviewEvaluationService service;
     Application application;
@@ -44,7 +45,7 @@ class AiInterviewEvaluationServiceTest {
 
     @BeforeEach void setup() {
         service = new AiInterviewEvaluationService(interviews, questions, answers, feedbacks, skills, cvs, extractions,
-                history, stages, notifications, emails, tests, ai, mapper, activity, processEngine);
+                history, stages, notifications, emails, tests, ai, mapper, activity, processEngine, conversation);
         var job = new Job();
         job.setId(13L);
         job.setTitle("Java Backend Developer");
@@ -92,7 +93,7 @@ class AiInterviewEvaluationServiceTest {
     }
 
     @Test void communicationProviderFailureDoesNotBecomeACandidateZero() {
-        InterviewPolicies.snapshot(interview);
+        legacySnapshot(interview);
         when(interviews.findByIdForUpdate(11L)).thenReturn(Optional.of(interview));
         doThrow(new AiInterviewClient.ProviderException("HTTP 503")).when(processEngine).initializeAndGenerateFirst(interview);
         service.process(11L);
@@ -211,4 +212,81 @@ class AiInterviewEvaluationServiceTest {
         assertThat(InterviewPolicies.tree(interview.getReportJson()).at("/competencies/PROBLEM_SOLVING").decimalValue()).isEqualByComparingTo("0");
         verifyNoInteractions(ai);
     }
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.NullAndEmptySource
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"   ", "\t\n", "Answer"})
+    void communicationSubmissionHandlesBlankAndMissingEvaluation(String text) {
+        legacySnapshot(interview);
+        interview.setStatus(AiInterviewStatus.SCORING);
+        var run = AiInterviewProcessRun.builder().processKey("COMMUNICATION").build();
+        var question = AiQuestion.builder().id(1L).processRun(run).build();
+        var answer = AiAnswer.builder().id(10L).aiQuestion(question).answerText(text).build();
+        when(interviews.findByIdForUpdate(11L)).thenReturn(Optional.of(interview));
+        when(questions.findByAiInterview_IdOrderByQuestionOrderAscIdAsc(11L)).thenReturn(List.of(question));
+        when(answers.findByAiQuestion_IdIn(List.of(1L))).thenReturn(List.of(answer));
+
+        service.process(11L);
+
+        if (text != null && !text.isBlank()) {
+            assertThat(interview.getStatus()).isEqualTo(AiInterviewStatus.ERROR);
+            assertThat(interview.getOverallScore()).isNull();
+            verify(feedbacks, never()).save(any());
+        } else {
+            assertThat(interview.getStatus()).isEqualTo(AiInterviewStatus.FAILED);
+            assertThat(interview.getOverallScore()).isEqualByComparingTo("0");
+            assertThat(interview.getErrorMessage()).isNull();
+            verify(feedbacks).save(argThat(f -> f.getScore().signum() == 0));
+        }
+        verifyNoInteractions(ai);
+    }
+
+    @Test void missingCommunicationAnswerScoresZeroWithoutProvider() {
+        legacySnapshot(interview);
+        interview.setStatus(AiInterviewStatus.SCORING);
+        var run = AiInterviewProcessRun.builder().processKey("COMMUNICATION").build();
+        var question = AiQuestion.builder().id(1L).processRun(run).build();
+        when(interviews.findByIdForUpdate(11L)).thenReturn(Optional.of(interview));
+        when(questions.findByAiInterview_IdOrderByQuestionOrderAscIdAsc(11L)).thenReturn(List.of(question));
+        when(answers.save(any())).thenAnswer(call -> {
+            AiAnswer answer = call.getArgument(0);
+            answer.setId(10L);
+            return answer;
+        });
+
+        service.process(11L);
+
+        assertThat(interview.getStatus()).isEqualTo(AiInterviewStatus.FAILED);
+        assertThat(interview.getOverallScore()).isEqualByComparingTo("0");
+        verify(answers).save(argThat(a -> a.getAiQuestion() == question && a.getAnswerText().isEmpty()));
+        verify(feedbacks).save(argThat(f -> f.getScore().signum() == 0));
+        verifyNoInteractions(ai);
+    }
+
+    @Test void newConversationPreparationDoesNotGenerateAPaper() {
+        InterviewPolicies.snapshot(interview);
+        when(interviews.findByIdForUpdate(11L)).thenReturn(Optional.of(interview));
+        service.process(11L);
+        assertThat(interview.getStatus()).isEqualTo(AiInterviewStatus.QUESTIONS_READY);
+        assertThat(interview.getContextSnapshotJson()).contains("Java Backend Developer");
+        verifyNoInteractions(ai, processEngine, conversation, questions, answers, feedbacks);
+    }
+
+    @Test void postSessionProviderErrorIsRetryableAndNeverCandidateZero() {
+        InterviewPolicies.snapshot(interview); interview.setStatus(AiInterviewStatus.SCORING);
+        interview.setCompletedAt(java.time.Instant.now());
+        when(interviews.findByIdForUpdate(11L)).thenReturn(Optional.of(interview));
+        when(conversation.evaluate(interview)).thenThrow(new AiInterviewClient.ProviderException("HTTP 503"));
+        service.process(11L);
+        assertThat(interview.getStatus()).isEqualTo(AiInterviewStatus.ERROR);
+        assertThat(interview.getOverallScore()).isNull();
+        verifyNoInteractions(feedbacks, history, notifications, emails, ai, processEngine);
+    }
+
+    private static void legacySnapshot(AiInterview interview) {
+        InterviewPolicies.snapshot(interview);
+        var snapshot = (com.fasterxml.jackson.databind.node.ObjectNode) InterviewPolicies.tree(interview.getConfigSnapshotJson());
+        snapshot.remove("conversationVersion");
+        interview.setConfigSnapshotJson(snapshot.toString());
+    }
+
 }

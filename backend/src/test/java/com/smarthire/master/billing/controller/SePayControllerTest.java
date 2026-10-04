@@ -19,6 +19,7 @@ import java.nio.charset.StandardCharsets;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -98,16 +99,36 @@ class SePayControllerTest {
     }
 
     @Test
-    void webhook_TestSimulationHeader_ReturnsOk() throws Exception {
+    void webhook_TestSimulationHeader_DoesNotBypassSignature() throws Exception {
         String rawBody = "{\"id\":92704,\"gateway\":\"TPBank\",\"transferType\":\"in\",\"transferAmount\":12000000,\"content\":\"SH INV-202610-0001\"}";
-
-        when(sePayService.processWebhook(any())).thenReturn(SePayWebhookResponse.ok());
 
         mockMvc.perform(post("/api/v1/public/sepay/webhook")
                         .contentType(MediaType.APPLICATION_JSON)
                         .header("X-Test-Simulation", "true")
                         .content(rawBody))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true));
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.success").value(false));
+        verifyNoInteractions(sePayService);
+    }
+
+    @Test
+    void webhook_MissingSignature_ReturnsUnauthorized() throws Exception {
+        mockMvc.perform(post("/api/v1/public/sepay/webhook")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"id\":92704}"))
+                .andExpect(status().isUnauthorized());
+        verifyNoInteractions(sePayService);
+    }
+
+    @Test
+    void webhook_InvalidTimestamp_ReturnsUnauthorized() throws Exception {
+        String rawBody = "{\"id\":92704}";
+        mockMvc.perform(post("/api/v1/public/sepay/webhook")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("X-SePay-Signature", calculateHmac(rawBody, SECRET_KEY))
+                        .header("X-SePay-Timestamp", "invalid")
+                        .content(rawBody))
+                .andExpect(status().isUnauthorized());
+        verifyNoInteractions(sePayService);
     }
 }

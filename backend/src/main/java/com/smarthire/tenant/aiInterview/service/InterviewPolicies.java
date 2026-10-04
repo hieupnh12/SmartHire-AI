@@ -82,7 +82,9 @@ public final class InterviewPolicies {
     public static void snapshot(AiInterview interview) {
         if (interview.getConfigSnapshotJson() == null) {
             var config = config(interview.getApplication().getJob());
-            interview.setConfigSnapshotJson(json(config));
+            var snapshot = (com.fasterxml.jackson.databind.node.ObjectNode) tree(json(config));
+            snapshot.put("conversationVersion", 1);
+            interview.setConfigSnapshotJson(snapshot.toString());
             interview.setPassingScoreSnapshot(config.passingScore());
         }
     }
@@ -94,6 +96,9 @@ public final class InterviewPolicies {
     }
     public static boolean expired(AiInterview interview) {
         return interview.getExpiresAt() != null && !Instant.now().isBefore(interview.getExpiresAt());
+    }
+    public static boolean isConversation(AiInterview interview) {
+        return interview.getConfigSnapshotJson() != null && tree(interview.getConfigSnapshotJson()).path("conversationVersion").asInt() == 1;
     }
     public static boolean isV2(AiInterview interview) { return interview.getConfigSnapshotJson() != null && isV2(config(interview).policy()); }
     public static boolean isV2(InterviewPolicy policy) {

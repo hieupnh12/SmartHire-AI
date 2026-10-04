@@ -1,5 +1,15 @@
 # Hướng dẫn sử dụng và cấu hình AI Interview
 
+## Phiên AI Conversation mới (2026-10-03)
+
+Attempt mới có `conversationVersion=1`: phòng chat lưu InterviewSession/InterviewMessage; không sinh đề/đáp án mẫu hoặc chấm từng câu. Mỗi lượt nhận phản hồi SSE thích ứng; complete/hết giờ → worker chấm toàn transcript. Ngân sách lượt = chủ đề × (1 + hỏi bồi), tối đa 40; thời lượng, consent, ngưỡng đạt, retries vẫn theo snapshot. Attempt cũ giữ engine và dữ liệu cũ.
+
+Voice: MediaRecorder gửi audio chunk qua WebSocket, Gemini STT backend chuyển ngữ sau khi dừng; candidate kiểm tra transcript trước khi gửi. Nghe AI dùng TTS API; audio USER được lưu riêng tư nếu Record Audio bật, lỗi upload có nút thử lại. Streaming là text response, chưa bật Live Audio hai chiều hoặc nhận dạng từng fragment độc lập.
+
+Native config: `AI_INTERVIEW_NATIVE_BASE_URL=https://generativelanguage.googleapis.com/v1beta`; `AI_INTERVIEW_CONVERSATION_MODEL` override model dialogue/STT/evaluation (trống thì dùng model task Master DB/env); `AI_INTERVIEW_TTS_MODEL` riêng cho voice. Key vẫn ưu tiên Master DB rồi env Interview. Kiểm tra Google ngày 2026-10-03: 2.5-flash trả 404 (không còn mở cho người dùng mới), 3.8-flash trả 503 quá tải; 3.7-flash streaming/STT và 3.8-flash-tts trả 200. `.env` local chọn model đã kiểm chứng, không commit key. Có tên trong list models không chứng minh gọi generateContent được.
+
+Native HTTP connect 5s/read 45s; SSE tối đa 90s, không tự retry stream để tránh lặp lượt. Proxy tắt buffering SSE và hỗ trợ WebSocket upgrade. Trạng thái `Doing`: cần migrate V44 và E2E candidate/tenant thật trước Done. Mô tả Process V2/Web Speech API bên dưới chỉ áp dụng legacy.
+
 **Epic:** AI Interview System  
 **Đối tượng:** Recruiter, Hiring Manager  
 **Trạng thái:** `Doing`
@@ -33,7 +43,16 @@ API từ chối cấu hình bật quy trình khác hoặc Mini Assessment, và k
 
 Chi tiết phiên recruiter chỉ hiển thị quy trình còn hoạt động trong cấu hình bài tập: hiện là Communication. Các chặng, câu hỏi và nhóm điểm của quy trình đã khóa không xuất hiện, kể cả trong phiên cũ; số chặng/câu hiển thị tính từ phần được phép xem. Mini Assessment cũng không hiển thị trong báo cáo. Dữ liệu snapshot gốc vẫn được giữ nguyên.
 
-Không đổi schema database. Dùng bảng consent/recording của V40 và `ai_feedbacks.evaluation_json`. Ghi âm riêng tư được bật trong Communication khi cấu hình cho phép; streaming giọng nói hai chiều vẫn thuộc phạm vi tương lai.
+V42 bổ sung `ai_answers.speech_metrics_json`; tiếp tục dùng consent/recording V40 và `ai_feedbacks.evaluation_json`. Ghi âm riêng tư được bật trong Communication khi cấu hình cho phép; streaming giọng nói hai chiều vẫn thuộc phạm vi tương lai.
+
+### Kết nối Spring AI và Gemini
+
+- Backend dùng Spring AI 1.0.3 (module model/client, cấu hình thủ công) trên Spring Boot 3.3.2, gọi Gemini qua endpoint tương thích OpenAI. Không cần OpenAI key hoặc Vertex AI credentials.
+- Key Gemini do admin quản lý trong Master DB được ưu tiên; nếu chưa có key DB, hai tác vụ Interview dùng `AI_INTERVIEW_GEMINI_API_KEY`, không mượn key CV. Model lấy theo từng tác vụ `INTERVIEW_GEN` và `INTERVIEW_NLP`; khi chưa có cấu hình DB, dùng `AI_INTERVIEW_GEMINI_MODEL`.
+- Endpoint mặc định: `https://generativelanguage.googleapis.com/v1beta/openai`. Biến `AI_INTERVIEW_GEMINI_BASE_URL` cũ kết thúc bằng `/models` được chuyển sang `/openai` khi gọi.
+- Timeout HTTP dùng `AI_INTERVIEW_TIMEOUT_SECONDS` (mặc định 60s); temperature/max tokens lấy theo task. Fallback Interview mặc định 8192 token. Model và quota thực tế cần kiểm tra trên AI Studio; không cam kết miễn phí/độ trễ cố định.
+- Master migration V24 thay riêng các seed Gemini Interview 1.5/2.0 đã lỗi thời bằng `gemini-2.5-flash`; model admin đã chọn khác được giữ. Tenant migration V42 thêm cột metrics nullable, không backfill dữ liệu giả. Cấu hình Interview dùng namespace cache mới để tránh đọc lại cấu hình transport cũ.
+- Gemini trả JSON; backend kiểm tra rubric, evidence, điểm và tự tổng hợp. Không tự chuyển sang provider failover hoặc câu dự phòng chưa có rubric.
 
 ## Cấu hình chung
 
@@ -165,7 +184,7 @@ Ví dụ: Backend giải thích REST API cho khách hàng không kỹ thuật; D
 - Cấu hình mới chỉ áp dụng khi tạo phiên mới; phiên đã tạo dùng snapshot tại thời điểm sinh câu hỏi.
 - Candidate chỉ xem đáp án/giải thích sau bài khi recruiter đã bật quyền tương ứng.
 - Technical Knowledge áp dụng Single/Multiple/Mixed, 4 phương án và xáo trộn đáp án thật. Multiple yêu cầu bật Allow Multiple Correct Answers; Explanation Required bắt buộc nhập giải thích khi lưu lựa chọn. Không giải thích thì tự chấm tập đáp án; có giải thích thì 70% lựa chọn + 30% rubric giải thích.
-- Backend từ chối kết quả AI sai loại bài, độ khó, slot/số lượng hoặc rubric; không lưu thành tự luận thay cho trắc nghiệm. Metadata form cũ được loại khỏi cấu hình canonical.
+- Backend từ chối kết quả AI sai loại bài, độ khó được cung cấp nhưng không hợp lệ, slot/số lượng hoặc nội dung thiết yếu; không lưu thành tự luận thay cho trắc nghiệm. Từ hotfix 2026-10-03, index thiếu lấy theo vị trí, difficulty thiếu mặc định medium, keyPoints thiếu/rỗng lấy từ referenceAnswer; trường thừa được bỏ qua. Metadata form cũ được loại khỏi cấu hình canonical.
 - Các bài có hỏi bồi thực thi giới hạn theo câu chính và trả lời tuần tự. Quyền review của Technical Knowledge áp dụng theo process; các chặng đã hoàn thành được xem lại nhưng câu đã chấm không được sửa.
 - Nội dung AI tạo từ Job/CV là dữ liệu hỗ trợ đánh giá; recruiter vẫn là người chịu trách nhiệm quyết định tuyển dụng.
 - Không đưa API key, dữ liệu nhạy cảm hoặc nội dung câu trả lời đầy đủ vào log.

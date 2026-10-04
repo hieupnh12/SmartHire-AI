@@ -2,6 +2,7 @@ package com.smarthire.messaging;
 
 import com.smarthire.tenant.job.service.JobService;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -10,6 +11,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import static org.mockito.Mockito.*;
 
 @SpringBootTest
+@EnabledIfEnvironmentVariable(named = "RUN_EXTERNAL_INTEGRATION_TESTS", matches = "true")
 public class JobExpiryRabbitMQIntegrationTest {
 
     @Autowired

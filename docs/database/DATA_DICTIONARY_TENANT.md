@@ -1,5 +1,37 @@
 # Data Dictionary - Tenant DB (MySQL)
 
+## AI Conversation V44 (2026-10-03)
+
+Nguồn: `V44__interview_conversation.sql`. Hai bảng mới có entity `InterviewSession`/`InterviewMessage` cùng thay đổi; không backfill lịch sử cũ.
+
+### interview_sessions
+
+| Cột | Kiểu SQL | NULL | Default | Ý nghĩa |
+|---|---|---|---|---|
+| id | BIGINT | Không | AUTO_INCREMENT | PK |
+| ai_interview_id | BIGINT | Không | Không | UNIQUE + FK tới ai_interviews.id, DELETE CASCADE |
+| max_turns | INT | Không | Không | Ngân sách lượt candidate, service giới hạn 1–40 |
+| candidate_turns | INT | Không | 0 | Số lượt user đã commit |
+| ended_at | TIMESTAMP | Có | NULL | Chốt khi nộp, khóa hội thoại |
+| created_at | TIMESTAMP | Không | CURRENT_TIMESTAMP | Entity dùng callback Instant.now |
+
+### interview_messages
+
+| Cột | Kiểu SQL | NULL | Default | Ý nghĩa |
+|---|---|---|---|---|
+| id | BIGINT | Không | AUTO_INCREMENT | PK |
+| session_id | BIGINT | Không | Không | FK tới interview_sessions.id, DELETE CASCADE |
+| sequence_no | INT | Không | Không | Thứ tự 0-based, UNIQUE(session_id, sequence_no) |
+| role | VARCHAR(16) | Không | Không | USER / ASSISTANT, kiểm tra bởi service, không SQL CHECK |
+| content | TEXT | Không | Không | USER tối đa 10.000 ký tự; AI tối đa 12.000; plain text |
+| client_request_id | VARCHAR(36) | Có | NULL | UUID của USER, UNIQUE(session_id, client_request_id); AI để NULL |
+| recording_key | VARCHAR(512) | Có | NULL | Key audio authenticated, không trả qua DTO |
+| recording_mime | VARCHAR(128) | Có | NULL | audio/webm, audio/ogg hoặc audio/mp4 |
+| recording_size | BIGINT | Có | NULL | Byte, tối đa 9 MB theo service |
+| created_at | TIMESTAMP | Không | CURRENT_TIMESTAMP | Thời gian lưu message |
+
+Không thêm cột ai_interviews: JSON snapshot có `conversationVersion=1` cho phiên mới; `report_json` schemaVersion 3 chứa POST_SESSION, bốn tiêu chí, evidence(messageId/quote), summary/strengths/weaknesses và điểm backend tổng hợp. Phiên không có marker tiếp tục xử lý legacy.
+
 ## AI Interview Process Engine & Voice V39-V40 (2026-10-01)
 
 V39 adds `ai_interview_process_runs` so a session creates and completes one process at a time. `ai_questions` gains
@@ -178,6 +210,7 @@ Entity `Job` (káº¿ thá»«a `BaseEntity`). Báº£ng Ä‘Æ°á»£c má»�
 
 | Cá»™t | Kiá»ƒu | KhoÃ¡ | Null | Default | MÃ´ táº£ |
 |---|---|---|---|---|---|
+| `assessment_config_json` | JSON | | Có | NULL | V43: cấu hình durationMinutes, passingPercent, autoAssign, sections(skill/type/difficulty/count/points) |
 | `id` | BIGINT | PK | KhÃ´ng | auto | |
 | `title` | VARCHAR(255) | | KhÃ´ng | â€” | TiÃªu Ä‘á» tin |
 | `description` | TEXT | | KhÃ´ng | â€” | MÃ´ táº£ cÃ´ng viá»‡c |
@@ -549,6 +582,7 @@ Entity `JobTest` (class Java tránh xung đột JUnit `Test`).
 |---|---|---|---|---|---|
 | `id` | BIGINT | PK | Không | auto | |
 | `job_id` | BIGINT | FK → `jobs.id` | Không | — | Tin tuyển dụng sở hữu đề |
+| `assigned_application_id` | BIGINT | FK → `applications.id`, UQ | Có | NULL | V43: đề tự động riêng cho hồ sơ; NULL là đề chung trong job. FK RESTRICT, UNIQUE `uk_tests_assigned_application` |
 | `title` | VARCHAR(255) | | Không | — | Tên đề thi |
 | `description` | TEXT | | Có | NULL | Mô tả |
 | `duration_minutes` | INT | | Không | — | Thời lượng (phút) |
@@ -558,7 +592,7 @@ Entity `JobTest` (class Java tránh xung đột JUnit `Test`).
 | `created_at` | TIMESTAMP | | Không | now | |
 | `updated_at` | TIMESTAMP | | Có | NULL | Cập nhật lần cuối; backfill = `created_at` ở V13 |
 
-**Ràng buộc:** `fk_tests_job`, `fk_tests_created_by`
+**Ràng buộc:** `fk_tests_job`, `fk_tests_created_by`, V43 `fk_tests_assigned_application`, `uk_tests_assigned_application`.
 
 ### F.2 `questions` — Câu hỏi
 
@@ -876,6 +910,7 @@ Entity `AiAnswer`.
 | `ai_question_id` | BIGINT | FK → `ai_questions.id`, UQ | Không | — | Câu hỏi |
 | `answer_text` | TEXT | | Có | NULL | Nội dung trả lời |
 | `answer_duration` | INT | | Có | NULL | Thời lượng (giây) |
+| `speech_metrics_json` | JSON | | Có | NULL | V42: `durationMs`, `voicedMs`, `silenceMs`, `pauseCount`, `responseLatencyMs`; chỉ lưu khi Communication bật Speech Signals, không cộng vào điểm nội dung |
 | `answered_at` | TIMESTAMP | | Có | NULL | Thời điểm trả lời |
 
 **Ràng buộc:** `fk_ai_a_question`, `uk_ai_a_question (ai_question_id)`

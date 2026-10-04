@@ -82,7 +82,7 @@ class AiInterviewProcessEngineTest {
         when(questions.save(any())).thenAnswer(call -> { AiQuestion q = call.getArgument(0); q.setId(10L + paper.size()); paper.add(q); return q; });
         when(feedbacks.findByAiAnswer_Id(anyLong())).thenAnswer(call -> Optional.ofNullable(graded.get(call.getArgument(0))));
         when(feedbacks.save(any())).thenAnswer(call -> { AiFeedback f = call.getArgument(0); graded.put(f.getAiAnswer().getId(), f); return f; });
-        when(ai.generate(anyString(), any())).thenAnswer(call -> {
+        org.mockito.stubbing.Answer<com.fasterxml.jackson.databind.JsonNode> response = call -> {
             com.fasterxml.jackson.databind.JsonNode data = call.getArgument(1);
             if (data.has("answer")) return mapper.readTree("""
                 {"keyPoints":[{"index":0,"score":80,"evidence":"constructor"},{"index":1,"score":80,"evidence":"constructor"},
@@ -93,7 +93,9 @@ class AiInterviewProcessEngineTest {
             row.put("index", 0).put("questionType", "SCENARIO").put("difficulty", "medium")
                     .put("questionText", "Follow-up " + paper.size()).put("referenceAnswer", "Constructor injection");
             row.putArray("keyPoints").add("one").add("two").add("three"); return output;
-        });
+        };
+        when(ai.generate(anyString(), any())).thenAnswer(response);
+        when(ai.evaluate(anyString(), any())).thenAnswer(response);
         for (int index = 0; index < 3; index++) engine.answerSaved(interview, paper.get(index),
                 AiAnswer.builder().id(100L + index).aiQuestion(paper.get(index)).answerText("I use constructor injection").build());
         assertThat(paper).hasSize(3); assertThat(run.getFollowUpCount()).isEqualTo(2);
