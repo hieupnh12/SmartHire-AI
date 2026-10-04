@@ -42,6 +42,7 @@ import {
   AI_INTERVIEW_STATUSES,
   AiStatusBadge,
   aiStatusLabel,
+  aiStatusTone,
   formatDateTime,
 } from "../components/aiInterviewUi";
 import { CreateAiInterviewDialog } from "../components/CreateAiInterviewDialog";
@@ -122,7 +123,7 @@ function ActionMenu({
 }: {
   open: boolean;
   onClose: () => void;
-  items: { label: string; icon: typeof Copy; danger?: boolean; onClick: () => void }[];
+  items: { label: string; icon: typeof Copy; danger?: boolean; disabled?: boolean; title?: string; onClick: () => void }[];
 }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -143,8 +144,10 @@ function ActionMenu({
           <button
             key={item.label}
             type="button"
+            disabled={item.disabled}
+            title={item.title}
             className={cn(
-              "flex items-center gap-2 px-3.5 py-2 text-left text-sm font-medium hover:bg-[var(--color-surface-container)]",
+              "flex items-center gap-2 px-3.5 py-2 text-left text-sm font-medium hover:bg-[var(--color-surface-container)] disabled:cursor-not-allowed disabled:opacity-50",
               item.danger ? "text-[#ba1a1a] hover:bg-[#ffdad6]" : "text-[var(--color-on-surface)]",
             )}
             onClick={() => {
@@ -423,18 +426,22 @@ export function AiInterviewsPage() {
             <button
               key={pill.id}
               type="button"
+              aria-pressed={tab === pill.id}
               onClick={() => {
                 setTab(pill.id);
                 setPage(0);
               }}
               className={cn(
                 "inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-medium transition-all",
+                pill.id === "ALL"
+                  ? "bg-[var(--color-surface-container-low)] text-[var(--color-on-surface-variant)]"
+                  : aiStatusTone[pill.id],
                 tab === pill.id
-                  ? "bg-[var(--color-primary-container)] font-semibold text-[var(--color-on-primary)]"
-                  : "bg-[var(--color-surface-container-low)] text-[var(--color-on-surface-variant)] hover:text-[var(--color-on-surface)]",
+                  ? "font-semibold ring-2 ring-current ring-offset-2 ring-offset-[var(--color-surface-card)]"
+                  : "hover:brightness-95",
               )}
             >
-              {pill.dot === "live" && <span className="size-1.5 rounded-full bg-[var(--color-tertiary-container)]" />}
+              {pill.dot === "live" && <span className="size-1.5 rounded-full bg-current" />}
               {pill.label}
             </button>
           ))}
@@ -559,7 +566,12 @@ export function AiInterviewsPage() {
                                   toast.success("Đã sao chép mã phiên");
                                 },
                               },
-                              { label: "Xoá phiên này", icon: Ban, danger: true, onClick: () => confirmDelete(row) },
+                              {
+                                label: "Xoá phiên này", icon: Ban, danger: true,
+                                disabled: !!row.startedAt || !["CREATED", "QUESTIONS_READY", "ERROR"].includes(row.status),
+                                title: "Chỉ được xóa phiên chưa bắt đầu ở trạng thái mới tạo, sẵn sàng hoặc lỗi.",
+                                onClick: () => confirmDelete(row),
+                              },
                             ]}
                           />
                         </div>

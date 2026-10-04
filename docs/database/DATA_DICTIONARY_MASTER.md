@@ -398,9 +398,9 @@ Entity `AiModelConfig`. Cấu hình model, nhiệt độ (temperature), token v�
 | `task_type` | VARCHAR(60) | UQ, IDX | Không | — | Tác vụ AI (`CV_PARSING`, `INTERVIEW_GEN`, `INTERVIEW_NLP`, `CODE_GRADING`, `MATCHING`) |
 | `task_name` | VARCHAR(100) | | Không | — | Tên hiển thị nghiệp vụ |
 | `provider` | VARCHAR(50) | | Không | `'GEMINI'` | Nhà cung cấp chính |
-| `model_name` | VARCHAR(100) | | Không | — | Tên model chính (vd: `gemini-2.0-flash`) |
+| `model_name` | VARCHAR(100) | | Không | — | Tên model chính; V24 thay model Interview Gemini 1.5/2.0 mặc định bằng `gemini-2.5-flash`, giữ model admin đã chọn khác |
 | `temperature` | DECIMAL(3,2) | | Không | 0.20 | Độ sáng tạo |
-| `max_tokens` | INT | | Không | 2048 | Số token tối đa phản hồi |
+| `max_tokens` | INT | | Không | 2048 | Số token tối đa phản hồi; V24 tăng các cấu hình Interview được chuyển model lên tối thiểu 8192, không đổi default của cột |
 | `timeout_seconds` | INT | | Không | 30 | Thời gian chờ tối đa (giây) |
 | `failover_provider` | VARCHAR(50) | | Có | NULL | Nhà cung cấp dự phòng khi model chính lỗi |
 | `failover_model` | VARCHAR(100) | | Có | NULL | Model dự phòng |

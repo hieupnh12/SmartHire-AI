@@ -160,7 +160,7 @@ public class MasterBillingService {
         log.info("New B2B Invoice created: #{} for Tenant: {}", saved.getInvoiceNumber(), tenant.getCode());
 
         if (request.getLineItems() != null && !request.getLineItems().isEmpty()) {
-            List<InvoiceLineItem> lineItems = request.getLineItems().stream().map(itemReq -> 
+            List<InvoiceLineItem> lineItems = request.getLineItems().stream().map(itemReq ->
                 InvoiceLineItem.builder()
                         .invoiceId(saved.getId())
                         .description(itemReq.getDescription())
@@ -256,7 +256,7 @@ public class MasterBillingService {
                 .orElseThrow(() -> new BusinessException("Gói cước không tồn tại: " + request.getPlanCode(), HttpStatus.NOT_FOUND, "PLAN_NOT_FOUND"));
 
         int quantity = request.getQuantity() != null && request.getQuantity() > 0 ? request.getQuantity() : 1;
-        
+
         // Mô hình bản quyền theo năm (Yearly Only) - giá lưu trực tiếp bằng VNĐ tại priceYearly
         BigDecimal unitPriceVnd = plan.getPriceYearly() != null ? plan.getPriceYearly() : BigDecimal.ZERO;
         BigDecimal amountVnd = unitPriceVnd.multiply(BigDecimal.valueOf(quantity));
@@ -330,18 +330,18 @@ public class MasterBillingService {
         String encodedSyntax = URLEncoder.encode(transferSyntax, StandardCharsets.UTF_8);
         String encodedAccount = URLEncoder.encode(accountName, StandardCharsets.UTF_8);
         String qrUrl = "https://img.vietqr.io/image/TPBank-07744348801-compact2.png?amount="
-                + amountVnd.toBigInteger() 
-                + "&addInfo=" + encodedSyntax 
+                + amountVnd.toBigInteger()
+                + "&addInfo=" + encodedSyntax
                 + "&accountName=" + encodedAccount;
 
         // 6. Asynchronously generate PDF and send Order Confirmation Email
         CompletableFuture.runAsync(() -> {
             try {
-                String customerName = StringUtils.hasText(request.getCompanyLegalName()) 
-                        ? request.getCompanyLegalName() 
+                String customerName = StringUtils.hasText(request.getCompanyLegalName())
+                        ? request.getCompanyLegalName()
                         : (StringUtils.hasText(request.getWorkspaceName()) ? request.getWorkspaceName() : request.getAdminFullName());
-                String orderDate = savedInvoice.getCreatedAt() != null 
-                        ? savedInvoice.getCreatedAt().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) 
+                String orderDate = savedInvoice.getCreatedAt() != null
+                        ? savedInvoice.getCreatedAt().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
                         : LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
 
                 OrderPdfData pdfData = OrderPdfData.builder()

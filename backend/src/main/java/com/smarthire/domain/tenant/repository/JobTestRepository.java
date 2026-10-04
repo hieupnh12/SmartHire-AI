@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface JobTestRepository extends JpaRepository<JobTest, Long> {
+    boolean existsByAssignedApplication_Id(Long applicationId);
     java.util.List<JobTest> findByJob_IdAndStatusOrderByIdDesc(Long jobId, com.smarthire.domain.enums.TestStatus status);
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select t from JobTest t where t.id = :id")

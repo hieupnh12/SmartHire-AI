@@ -28,6 +28,9 @@ Provisioning hiện chạy đồng bộ trong request. Nếu HTTP bị gián đo
 
 ## Business Rules
 
+- Webhook thanh toán SePay mặc định bắt buộc chữ ký HMAC; header `X-Test-Simulation` không được bỏ qua xác thực. Timestamp được gửi kèm phải là số và nằm trong khoảng lệch cho phép 5 phút. Muốn chạy mô phỏng không chữ ký trên môi trường kiểm thử riêng phải cấu hình `SEPAY_REQUIRE_SIGNATURE=false`.
+- Lỗi nội bộ trả thông báo chung; chi tiết exception và tên database chỉ ghi ở log server, không đưa vào response API.
+
 - API master quản trị chỉ nhận `WORKSPACE_ADMIN`; chỉ login và kiểm tra tenant đang ACTIVE được công khai.
 - API tạo user tenant yêu cầu `TENANT_ADMIN` hoặc `ADMIN`.
 - JWT, header và subdomain phải quy về cùng mã tenant. Subdomain chỉ được lấy dưới domain cấu hình hoặc `.localhost`.

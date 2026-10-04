@@ -21,7 +21,6 @@ import {
   JOB_ROLE_LABELS, JOB_ROLE_COLORS, parseJobRole,
   canEditJob, canPublishJob, canDeleteJob, canManageTeam,
 } from "@/features/tenant/recruiter/jobPermissions";
-import { formatSalaryRange } from "@/lib/formatSalary";
 
 const STATUS_LABEL: Record<JobStatus, string> = { DRAFT: "Bản nháp", PUBLISHED: "Đang tuyển", PAUSED: "Tạm dừng", CLOSED: "Đã đóng", ARCHIVED: "Lưu trữ" };
 const EMPLOYMENT: Record<string, string> = { FULL_TIME: "Toàn thời gian", PART_TIME: "Bán thời gian", CONTRACT: "Hợp đồng", INTERNSHIP: "Thực tập" };
@@ -31,6 +30,13 @@ const linkBase = "inline-flex min-h-11 items-center justify-center gap-2 rounded
 
 function date(value?: string | null) {
   return value ? new Intl.DateTimeFormat("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(value)) : "Chưa đặt";
+}
+
+function salary(min?: number | null, max?: number | null, currency = "VND") {
+  if (min == null && max == null) return "Thỏa thuận";
+  const f = new Intl.NumberFormat("vi-VN", { style: "currency", currency, maximumFractionDigits: 0 });
+  if (min != null && max != null) return `${f.format(min)} – ${f.format(max)}`;
+  return min != null ? `Từ ${f.format(min)}` : `Đến ${f.format(max!)}`;
 }
 
 export function JobDetailPage() {
@@ -118,7 +124,7 @@ export function JobDetailPage() {
               </div>
 
               <h1 className="mt-3 text-2xl font-semibold leading-8 tracking-tight lg:text-[28px] lg:leading-9">{job.title}</h1>
-              <p className="mt-3 text-xl font-semibold text-[var(--color-primary)]">{job.salaryVisible ? formatSalaryRange(job.salaryMin, job.salaryMax, job.salaryCurrency ?? "VND") : "Mức lương không công khai"}</p>
+              <p className="mt-3 text-xl font-semibold text-[var(--color-primary)]">{job.salaryVisible ? salary(job.salaryMin, job.salaryMax, job.salaryCurrency ?? "VND") : "Mức lương không công khai"}</p>
               <div className="mt-6 grid gap-5 sm:grid-cols-3">
                 <HeroFact icon={MapPin} label="Địa điểm" value={job.location || "Chưa cập nhật"} />
                 <HeroFact icon={BriefcaseBusiness} label="Kinh nghiệm" value={job.minYearsExperience != null ? `${job.minYearsExperience} năm` : "Không yêu cầu"} />

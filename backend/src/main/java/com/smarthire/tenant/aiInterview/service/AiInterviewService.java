@@ -59,6 +59,8 @@ public class AiInterviewService {
     private final AiInterviewActivityLog activity;
     private final AiInterviewLogRepository logs;
     private final AiInterviewProcessEngine processEngine;
+    private final AiInterviewEvaluationService evaluation;
+    private final InterviewConversationService conversation;
     private final com.smarthire.domain.tenant.repository.AiInterviewProcessRunRepository processRuns;
     private final com.smarthire.domain.tenant.repository.AiInterviewConsentRepository consents;
 
@@ -73,7 +75,7 @@ public class AiInterviewService {
             CvAccess access, AiInterviewInvitationService invitations,
             AiInterviewActivityLog activity, AiInterviewLogRepository logs, AiInterviewProcessEngine processEngine,
             com.smarthire.domain.tenant.repository.AiInterviewProcessRunRepository processRuns,
-            com.smarthire.domain.tenant.repository.AiInterviewConsentRepository consents) {
+            com.smarthire.domain.tenant.repository.AiInterviewConsentRepository consents, AiInterviewEvaluationService evaluation, InterviewConversationService conversation) {
         this.interviews = interviews;
         this.questions = questions;
         this.answers = answers;
@@ -84,12 +86,13 @@ public class AiInterviewService {
         this.access = access;
         this.invitations = invitations;
         this.activity = activity;
+        this.evaluation = evaluation; this.conversation = conversation;
         this.logs = logs; this.processEngine = processEngine; this.processRuns = processRuns; this.consents = consents;
     }
 
     /**
      * Candidate asks to begin the AI Interview round of an application. Creates the next allowed attempt
-     * (questions are generated asynchronously) or starts it once questions are ready.
+     * (first questions are generated directly) or starts it once questions are ready.
      */
     @Transactional
     public AiInterviewResponse requestStart(long applicationId) {
@@ -103,22 +106,32 @@ public class AiInterviewService {
         var existing = interviews.findByApplication_IdOrderByIdDesc(applicationId);
         if (!existing.isEmpty() && isFinished(existing.get(0).getStatus())) {
             if (InterviewPolicies.canRetry(existing.get(0), Instant.now())) {
-                return mapper.toResponse(invitations.openNextAttempt(applicationId));
+                return generateForStart(invitations.openNextAttempt(applicationId));
             }
             throw new BusinessException("AI interview attempt already completed", HttpStatus.CONFLICT, "AI_INTERVIEW_ALREADY_COMPLETED");
         }
         if (existing.isEmpty()) {
             AiInterviewEligibility.require(application);
-            return mapper.toResponse(invitations.invite(applicationId, null));
+            return generateForStart(invitations.invite(applicationId, null));
         }
         AiInterview current = existing.get(0);
         requireActiveApplication(current);
         return switch (current.getStatus()) {
             case QUESTIONS_READY -> start(current.getId());
             case IN_PROGRESS -> start(current.getId());
-            case CREATED, ERROR -> requeueGeneration(current.getId());
+            case CREATED, ERROR -> {
+                requeueGeneration(current.getId());
+                yield generateForStart(current);
+            }
+            case GENERATING -> generateForStart(current);
             default -> mapper.toResponse(current);
         };
+    }
+
+    private AiInterviewResponse generateForStart(AiInterview interview) {
+        // Uses the existing tenant context and locked, idempotent generation path.
+        if (interview.getStatus() == AiInterviewStatus.GENERATING) evaluation.process(interview.getId());
+        return mapper.toResponse(interview);
     }
 
     @Transactional(readOnly = true)
@@ -175,7 +188,7 @@ public class AiInterviewService {
             return mapper.toResponse(interview, loadQuestionResponses(interview));
         }
         if (interview.getStatus() != AiInterviewStatus.QUESTIONS_READY
-                || questions.findByAiInterview_IdOrderByQuestionOrderAscIdAsc(id).isEmpty()) {
+                || !InterviewPolicies.isConversation(interview) && questions.findByAiInterview_IdOrderByQuestionOrderAscIdAsc(id).isEmpty()) {
             throw new BusinessException("Interview questions are not ready", HttpStatus.CONFLICT, "AI_INTERVIEW_NOT_READY");
         }
         if (InterviewPolicies.voiceEnabled(interview) && !consents.findByAiInterview_Id(id).map(c -> c.isAccepted()).orElse(false)) {
@@ -200,7 +213,8 @@ public class AiInterviewService {
         }
         interview.setStatus(AiInterviewStatus.IN_PROGRESS);
         interview.setStartedAt(now);
-        processEngine.start(interview);
+        if (InterviewPolicies.isConversation(interview)) conversation.initialize(interview);
+        else processEngine.start(interview);
         var responses = loadQuestionResponses(interview);
         activity.record(interview, "STARTED", responses.size() + " questions; passing score "
                 + interview.getPassingScoreSnapshot());
@@ -253,6 +267,7 @@ public class AiInterviewService {
     }
 
     private void ensureAnswers(AiInterview interview, boolean allowBlank) {
+        if (InterviewPolicies.isConversation(interview)) return;
         var paper = questions.findByAiInterview_IdOrderByQuestionOrderAscIdAsc(interview.getId());
         var ids = paper.stream().map(AiQuestion::getId).toList();
         var saved = ids.isEmpty() ? java.util.List.<AiAnswer>of() : answers.findByAiQuestion_IdIn(ids);
@@ -275,10 +290,12 @@ public class AiInterviewService {
         if (interview.getCompletedAt() != null || interview.getStatus() != AiInterviewStatus.IN_PROGRESS) return;
         interview.setCompletedAt(Instant.now());
         interview.setStatus(AiInterviewStatus.SCORING);
+        if (InterviewPolicies.isConversation(interview)) conversation.end(interview);
         activity.record(interview, "SUBMITTED", "Answers submitted; evaluation queued");
     }
 
     private void requireActiveApplication(AiInterview interview) {
+        InterviewPolicies.requireCommunicationOnly(interview);
         if (interview.getConfigSnapshotJson() == null) AiInterviewEligibility.require(interview.getApplication());
         else AiInterviewEligibility.requireExisting(interview);
         var application = interview.getApplication();
@@ -356,6 +373,7 @@ public class AiInterviewService {
     public AiQuestionResponse addQuestion(long interviewId, AiQuestionRequest request) {
         requireStaff();
         AiInterview interview = loadAccessibleForUpdate(interviewId);
+        if (InterviewPolicies.isConversation(interview)) throw new BusinessException("Use the conversation endpoint", HttpStatus.CONFLICT, "AI_CONVERSATION_REQUIRED");
         requireEditable(interview);
         requireUnplanned(interview);
         AiQuestion question = AiQuestion.builder()
@@ -374,6 +392,7 @@ public class AiInterviewService {
     public AiQuestionResponse updateQuestion(long interviewId, long questionId, AiQuestionRequest request) {
         requireStaff();
         AiInterview interview = loadAccessibleForUpdate(interviewId);
+        if (InterviewPolicies.isConversation(interview)) throw new BusinessException("Use the conversation endpoint", HttpStatus.CONFLICT, "AI_CONVERSATION_REQUIRED");
         requireEditable(interview);
         AiQuestion question = loadQuestion(interviewId, questionId);
         if (question.getRubricJson() != null) {
@@ -402,6 +421,7 @@ public class AiInterviewService {
     public void deleteQuestion(long interviewId, long questionId) {
         requireStaff();
         AiInterview interview = loadAccessibleForUpdate(interviewId);
+        if (InterviewPolicies.isConversation(interview)) throw new BusinessException("Use the conversation endpoint", HttpStatus.CONFLICT, "AI_CONVERSATION_REQUIRED");
         requireEditable(interview);
         requireUnplanned(interview);
         AiQuestion question = loadQuestion(interviewId, questionId);
@@ -418,6 +438,7 @@ public class AiInterviewService {
     @Transactional(noRollbackFor = BusinessException.class)
     public AiAnswerResponse upsertAnswer(long interviewId, long questionId, UpsertAiAnswerRequest request) {
         AiInterview interview = loadAccessibleForUpdate(interviewId);
+        if (InterviewPolicies.isConversation(interview)) throw new BusinessException("Use the conversation endpoint", HttpStatus.CONFLICT, "AI_CONVERSATION_REQUIRED");
         requireCandidateOwns(interview);
         AiQuestion question = loadQuestion(interviewId, questionId);
         if (!access.staff()) {
@@ -434,22 +455,36 @@ public class AiInterviewService {
             if (request.answerText() == null || request.answerText().isBlank()) {
                 throw new BusinessException("Answer is required", HttpStatus.BAD_REQUEST, "AI_ANSWER_REQUIRED");
             }
-            if (question.getCorrectOption() != null && !request.answerText().matches("[0-3]")) {
+            if (InterviewChoiceAnswers.isV2Choice(question)) InterviewChoiceAnswers.parse(question, request.answerText());
+            else if (question.getCorrectOption() != null && !request.answerText().matches("[0-3]")) {
                 throw new BusinessException("Choose one of the four options", HttpStatus.BAD_REQUEST, "AI_ANSWER_BAD_OPTION");
             }
         }
 
+        if (InterviewPolicies.isV2(interview) && question.getProcessRun() != null) {
+            var next = questions.findByProcessRun_IdOrderBySequenceNoAscIdAsc(question.getProcessRun().getId()).stream()
+                    .filter(q -> answers.findByAiQuestion_Id(q.getId()).isEmpty()).findFirst();
+            if (next.isPresent() && !next.get().getId().equals(questionId))
+                throw new BusinessException("Trả lời câu hiện tại trước khi chuyển câu tiếp theo.", HttpStatus.CONFLICT, "AI_INTERVIEW_QUESTION_ORDER");
+        }
         AiAnswer answer = answers.findByAiQuestion_Id(questionId).orElseGet(() ->
                 AiAnswer.builder().aiQuestion(question).build());
         answer.setAnswerText(request.answerText());
         answer.setAnswerDuration(request.answerDuration());
+        boolean signalsEnabled = question.getProcessRun() != null
+                && "COMMUNICATION".equals(question.getProcessRun().getProcessKey())
+                && InterviewProcessSettings.bool(InterviewProcessSettings.config(InterviewPolicies.read(
+                        question.getProcessRun().getConfigSnapshotJson(),
+                        com.smarthire.tenant.aiInterview.dto.request.InterviewPolicy.Process.class)), "speechSignals", true);
+        answer.setSpeechMetricsJson(signalsEnabled && request.speechMetrics() != null
+                ? InterviewPolicies.json(request.speechMetrics()) : null);
         answer.setAnsweredAt(access.staff() && request.answeredAt() != null ? request.answeredAt() : Instant.now());
         AiAnswer saved = answers.save(answer);
-        processEngine.answerSaved(interview, question, saved);
+        processEngine.answerSaved(interview, question, saved, request.speechMetrics());
         activity.record(interview, "ANSWER_SAVED", "Question order " + question.getQuestionOrder()
                 + ", duration " + saved.getAnswerDuration() + "s");
         AiFeedback feedback = feedbacks.findByAiAnswer_Id(saved.getId()).orElse(null);
-        return mapper.toAnswer(saved, feedback);
+        return mapper.toAnswer(saved, !access.staff() && InterviewPolicies.isV2(interview) ? null : feedback);
     }
 
     @Transactional
@@ -472,11 +507,10 @@ public class AiInterviewService {
             revealExplanation = review != null && review.showExplanationAfterInterview();
         }
         List<AiQuestion> questionList = questions.findByAiInterview_IdOrderByQuestionOrderAscIdAsc(interviewId);
-        if (!access.staff() && InterviewPolicies.isV2(interview)) {
-            questionList = processRuns.findFirstByAiInterview_IdAndStatusOrderByProcessOrderAsc(interviewId,
-                    com.smarthire.domain.enums.AiInterviewProcessStatus.IN_PROGRESS)
-                    .map(run -> questions.findByProcessRun_IdOrderBySequenceNoAscIdAsc(run.getId()))
-                    .orElse(List.of());
+        if (!access.staff() && !completed && InterviewPolicies.isV2(interview)) {
+            questionList = questionList.stream().filter(q -> q.getProcessRun() != null
+                    && (q.getProcessRun().getStatus() == com.smarthire.domain.enums.AiInterviewProcessStatus.IN_PROGRESS
+                    || q.getProcessRun().getStatus() == com.smarthire.domain.enums.AiInterviewProcessStatus.COMPLETED)).toList();
         }
         if (questionList.isEmpty()) {
             return List.of();
@@ -489,6 +523,18 @@ public class AiInterviewService {
                 ? Map.of()
                 : feedbacks.findByAiAnswer_IdIn(answerIds).stream()
                         .collect(Collectors.toMap(f -> f.getAiAnswer().getId(), Function.identity(), (a, b) -> a, HashMap::new));
+        if (!access.staff() && !completed && InterviewPolicies.isV2(interview)) feedbackByAnswer = Map.of();
+        if (!access.staff() && completed && InterviewPolicies.isV2(interview)) {
+            var review = InterviewPolicies.config(interview).policy().review();
+            var feedbackMap = feedbackByAnswer;
+            return questionList.stream().map(q -> {
+                var answer = answersByQuestion.get(q.getId()); var feedback = answer == null ? null : feedbackMap.get(answer.getId());
+                var config = q.getProcessRun() == null ? Map.<String, Object>of() : InterviewProcessSettings.config(
+                        InterviewPolicies.read(q.getProcessRun().getConfigSnapshotJson(), com.smarthire.tenant.aiInterview.dto.request.InterviewPolicy.Process.class));
+                return mapper.toQuestion(q, answer, feedback, InterviewProcessSettings.bool(config, "showCorrectAnswer", review != null && review.showCorrectAnswer()),
+                        InterviewProcessSettings.bool(config, "showExplanationAfterInterview", review != null && review.showExplanationAfterInterview()));
+            }).toList();
+        }
         return mapper.toQuestions(questionList, answersByQuestion, feedbackByAnswer, revealCorrect, revealExplanation);
     }
 
@@ -538,6 +584,7 @@ public class AiInterviewService {
     }
 
     private void requireUnplanned(AiInterview interview) {
+        InterviewPolicies.requireCommunicationOnly(interview);
         if (interview.getConfigSnapshotJson() != null) {
             throw new BusinessException("Planned interview questions follow the job roadmap", HttpStatus.CONFLICT, "AI_INTERVIEW_PLANNED");
         }
@@ -570,8 +617,10 @@ public class AiInterviewService {
         requireActiveApplication(interview);
         if (interview.getStatus() == AiInterviewStatus.GENERATING) return mapper.toResponse(interview);
         requireEditable(interview);
-        if (!questions.findByAiInterview_IdOrderByQuestionOrderAscIdAsc(id).isEmpty()) {
-            throw new BusinessException("Remove draft questions before generating", HttpStatus.CONFLICT, "AI_QUESTIONS_EXIST");
+        var draft = questions.findByAiInterview_IdOrderByQuestionOrderAscIdAsc(id);
+        if (!draft.isEmpty() && (!InterviewPolicies.isV2(interview)
+                || !answers.findByAiQuestion_IdIn(draft.stream().map(AiQuestion::getId).toList()).isEmpty())) {
+            throw new BusinessException("Only unanswered process drafts can be regenerated", HttpStatus.CONFLICT, "AI_QUESTIONS_EXIST");
         }
         interview.setErrorMessage(null);
         interview.setStatus(AiInterviewStatus.GENERATING);

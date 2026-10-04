@@ -35,7 +35,6 @@ import type { CvScreeningConfig, GateScreeningConfig, JobUpsertRequest } from "@
 import { getApiErrorMessage } from "@/lib/axios";
 import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
-import { formatSalaryRange } from "@/lib/formatSalary";
 import { Button } from "@/components/ux/Button";
 import { PageSkeleton } from "@/components/ux/Skeleton";
 import { input, panel } from "@/features/tenant/recruiter/matching/components/rankingUi";
@@ -1171,7 +1170,12 @@ function labelOf(options: { value: string; label: string }[], value?: string) {
 
 function salaryText(form: JobUpsertRequest) {
   if (!form.salaryVisible) return "Thỏa thuận";
-  return formatSalaryRange(form.salaryMin, form.salaryMax, form.salaryCurrency ?? "VND");
+  const currency = form.salaryCurrency ?? "";
+  const fmt = (value: number) => Number(value).toLocaleString("vi-VN");
+  if (form.salaryMin != null && form.salaryMax != null) return `${fmt(form.salaryMin)} – ${fmt(form.salaryMax)} ${currency}`;
+  if (form.salaryMin != null) return `Từ ${fmt(form.salaryMin)} ${currency}`;
+  if (form.salaryMax != null) return `Đến ${fmt(form.salaryMax)} ${currency}`;
+  return "Thỏa thuận";
 }
 
 function formatDateTime(value: string) {

@@ -62,16 +62,17 @@ public class AiInterviewEvaluationService {
     private final ObjectMapper mapper;
     private final AiInterviewActivityLog activity;
     private final AiInterviewProcessEngine processEngine;
+    private final InterviewConversationService conversation;
 
     public AiInterviewEvaluationService(AiInterviewRepository interviews, AiQuestionRepository questions,
             AiAnswerRepository answers, AiFeedbackRepository feedbacks, JobSkillRepository skills, CvRepository cvs,
             CvExtractionRepository extractions, ApplicationStatusHistoryRepository history, RecruitmentStageRepository stages,
             NotificationRepository notifications, EmailOutboxRepository emails, JobTestRepository tests,
-            AiInterviewClient ai, ObjectMapper mapper, AiInterviewActivityLog activity, AiInterviewProcessEngine processEngine) {
+            AiInterviewClient ai, ObjectMapper mapper, AiInterviewActivityLog activity, AiInterviewProcessEngine processEngine, InterviewConversationService conversation) {
         this.interviews = interviews; this.questions = questions; this.answers = answers; this.feedbacks = feedbacks;
         this.skills = skills; this.cvs = cvs; this.extractions = extractions; this.history = history; this.stages = stages;
         this.notifications = notifications; this.emails = emails; this.tests = tests; this.ai = ai; this.mapper = mapper;
-        this.activity = activity; this.processEngine = processEngine;
+        this.activity = activity; this.processEngine = processEngine; this.conversation = conversation;
     }
 
     @Transactional
@@ -81,6 +82,7 @@ public class AiInterviewEvaluationService {
                 && interview.getStatus() != AiInterviewStatus.SCORING) return;
         AiInterviewStatus phase = interview.getStatus();
         try {
+            InterviewPolicies.requireCommunicationOnly(interview);
             if (interview.getConfigSnapshotJson() == null) AiInterviewEligibility.require(interview.getApplication());
             else AiInterviewEligibility.requireExisting(interview);
             if (phase == AiInterviewStatus.GENERATING) generate(interview);
@@ -120,7 +122,14 @@ public class AiInterviewEvaluationService {
     }
 
     private void generate(AiInterview interview) {
+        if (InterviewPolicies.isConversation(interview)) {
+            if (interview.getContextSnapshotJson() == null) interview.setContextSnapshotJson(context(interview.getApplication()).toString());
+            interview.setStatus(AiInterviewStatus.QUESTIONS_READY);
+            activity.record(interview, "CONVERSATION_READY", "Conversation context captured; greeting generated on start");
+            return;
+        }
         if (InterviewPolicies.isV2(interview)) {
+            if (interview.getContextSnapshotJson() == null) interview.setContextSnapshotJson(context(interview.getApplication()).toString());
             processEngine.initializeAndGenerateFirst(interview);
             interview.setStatus(AiInterviewStatus.QUESTIONS_READY);
             activity.record(interview, "PROCESS_FIRST_READY", "First process questions are ready");
@@ -169,6 +178,7 @@ public class AiInterviewEvaluationService {
     }
 
     private void evaluate(AiInterview interview) {
+        if (InterviewPolicies.isConversation(interview)) { finish(interview, conversation.evaluate(interview)); return; }
         if (InterviewPolicies.isV2(interview)) { evaluateV2(interview); return; }
         if (interview.getConfigSnapshotJson() != null) { evaluatePlanned(interview); return; }
         var paper = questions.findByAiInterview_IdOrderByQuestionOrderAscIdAsc(interview.getId());
@@ -183,7 +193,7 @@ public class AiInterviewEvaluationService {
         List<AiFeedback> validated = new ArrayList<>();
         for (int from = 0; from < saved.size(); from += EVALUATION_BATCH) {
             var chunk = saved.subList(from, Math.min(from + EVALUATION_BATCH, saved.size()));
-            validated.addAll(grade(ai.generate(EVALUATE_INSTRUCTION, gradingRequest(data, chunk)).path("evaluations"), chunk));
+            validated.addAll(grade(ai.evaluate(EVALUATE_INSTRUCTION, gradingRequest(data, chunk)).path("evaluations"), chunk));
             activity.record(interview, "ANSWERS_BATCH_EVALUATED", validated.size() + "/" + saved.size() + " answers evaluated");
         }
         BigDecimal total = validated.stream().map(AiFeedback::getScore).reduce(BigDecimal.ZERO, BigDecimal::add)
@@ -196,13 +206,72 @@ public class AiInterviewEvaluationService {
 
     private void evaluateV2(AiInterview interview) {
         var paper = questions.findByAiInterview_IdOrderByQuestionOrderAscIdAsc(interview.getId());
-        var saved = answers.findByAiQuestion_IdIn(paper.stream().map(AiQuestion::getId).toList());
-        if (paper.isEmpty() || saved.size() != paper.size()) throw new IllegalStateException("Incomplete process interview");
+        var saved = new ArrayList<>(answers.findByAiQuestion_IdIn(paper.stream().map(AiQuestion::getId).toList()));
+        if (paper.isEmpty()) throw new IllegalStateException("Incomplete process interview");
+        Set<Long> answeredQuestions = saved.stream().map(a -> a.getAiQuestion().getId())
+                .collect(java.util.stream.Collectors.toSet());
+        for (var question : paper) if (!answeredQuestions.contains(question.getId())) {
+            saved.add(answers.save(AiAnswer.builder().aiQuestion(question).answerText("")
+                    .answeredAt(interview.getCompletedAt()).build()));
+        }
         var allFeedback = feedbacks.findByAiAnswer_IdIn(saved.stream().map(AiAnswer::getId).toList());
-        if (allFeedback.size() != saved.size()) throw new IllegalStateException("Missing process evaluations");
-        BigDecimal score = allFeedback.stream().map(AiFeedback::getScore).reduce(BigDecimal.ZERO, BigDecimal::add)
-                .divide(BigDecimal.valueOf(allFeedback.size()), 2, RoundingMode.HALF_UP);
-        var report = mapper.createObjectNode(); report.put("schemaVersion", 2); report.put("overallScore", score);
+        var evaluated = new ArrayList<>(allFeedback);
+        Set<Long> scored = allFeedback.stream().map(f -> f.getAiAnswer().getId()).collect(java.util.stream.Collectors.toSet());
+        for (var answer : saved) if (!scored.contains(answer.getId())) {
+            if (answer.getAnswerText() != null && !answer.getAnswerText().isBlank()) throw new IllegalStateException("Missing process evaluations");
+            var zero = AiFeedback.builder().aiAnswer(answer).score(BigDecimal.ZERO).feedbackText("Chưa trả lời: 0 điểm.")
+                    .strengths("Chưa có bằng chứng đạt.").weaknesses("Chưa trả lời.").build();
+            evaluated.add(zero); feedbacks.save(zero);
+        }
+        var policy = InterviewPolicies.config(interview).policy();
+        var groups = evaluated.stream().collect(java.util.stream.Collectors.groupingBy(f ->
+                InterviewProcessSettings.competency(f.getAiAnswer().getAiQuestion().getProcessRun().getProcessKey())));
+        var report = mapper.createObjectNode(); report.put("schemaVersion", 2);
+        var competencies = report.putObject("competencies"); var effectiveWeights = report.putObject("weights"); var skillReport = report.putObject("skills");
+        for (String skill : policy.selectedSkills()) {
+            var tested = evaluated.stream().filter(f -> {
+                var question = f.getAiAnswer().getAiQuestion();
+                if (question.getRubricJson() == null) return false;
+                for (var target : InterviewPolicies.tree(question.getRubricJson()).path("skills")) if (skill.equals(target.asText())) return true;
+                return false;
+            }).toList();
+            var row = skillReport.putObject(skill);
+            row.put("evidenceCount", tested.stream().filter(f -> f.getAiAnswer().getAnswerText() != null && !f.getAiAnswer().getAnswerText().isBlank()).count());
+            row.set("questionIds", mapper.valueToTree(tested.stream().map(f -> f.getAiAnswer().getAiQuestion().getId()).toList()));
+            if (tested.isEmpty()) row.putNull("score"); else row.put("score", tested.stream().map(AiFeedback::getScore).reduce(BigDecimal.ZERO, BigDecimal::add)
+                    .divide(BigDecimal.valueOf(tested.size()), 2, RoundingMode.HALF_UP));
+        }
+        Set<String> enabledGroups = policy.processes().stream().filter(com.smarthire.tenant.aiInterview.dto.request.InterviewPolicy.Process::enabled)
+                .map(process -> InterviewProcessSettings.competency(process.key())).collect(java.util.stream.Collectors.toSet());
+        int totalWeight = enabledGroups.stream().mapToInt(key -> policy.weights().getOrDefault(key, 0)).sum();
+        if (totalWeight <= 0) throw new IllegalStateException("No enabled competency has a positive weight");
+        BigDecimal total = BigDecimal.ZERO;
+        for (var key : enabledGroups) {
+            var evidence = groups.getOrDefault(key, List.of());
+            int configuredMain = policy.processes().stream().filter(process -> process.enabled() && InterviewProcessSettings.competency(process.key()).equals(key))
+                    .mapToInt(process -> InterviewProcessSettings.questionCount(process.config())).sum();
+            long generatedMain = paper.stream().filter(q -> q.getProcessRun() != null && InterviewProcessSettings.competency(q.getProcessRun().getProcessKey()).equals(key)
+                    && !"FOLLOW_UP".equals(q.getQuestionRole())).count();
+            long missingMain = Math.max(0, configuredMain - generatedMain);
+            BigDecimal average = evidence.isEmpty() ? BigDecimal.ZERO : evidence.stream().map(AiFeedback::getScore).reduce(BigDecimal.ZERO, BigDecimal::add)
+                    .divide(BigDecimal.valueOf(evidence.size() + missingMain), 2, RoundingMode.HALF_UP);
+            int weight = policy.weights().getOrDefault(key, 0);
+            competencies.put(key, average); effectiveWeights.put(key, BigDecimal.valueOf(weight * 100L)
+                    .divide(BigDecimal.valueOf(totalWeight), 2, RoundingMode.HALF_UP));
+            total = total.add(average.multiply(BigDecimal.valueOf(weight)));
+        }
+        BigDecimal score = total.divide(BigDecimal.valueOf(totalWeight), 2, RoundingMode.HALF_UP);
+        long unaskedMain = Math.max(0, policy.processes().stream().filter(com.smarthire.tenant.aiInterview.dto.request.InterviewPolicy.Process::enabled)
+                .mapToInt(process -> InterviewProcessSettings.questionCount(process.config())).sum()
+                - paper.stream().filter(q -> !"FOLLOW_UP".equals(q.getQuestionRole())).count());
+        var contentCriteria = report.putObject("communicationCriteria");
+        for (String key : List.of("TECHNICAL_KNOWLEDGE", "PROBLEM_SOLVING", "REASONING", "COMMUNICATION")) {
+            var values = evaluated.stream().filter(f -> f.getEvaluationJson() != null)
+                    .map(f -> InterviewPolicies.tree(f.getEvaluationJson()).path("criteria").path(key)).filter(com.fasterxml.jackson.databind.JsonNode::isNumber).toList();
+            if (!values.isEmpty()) contentCriteria.put(key, values.stream().map(com.fasterxml.jackson.databind.JsonNode::decimalValue)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add).divide(BigDecimal.valueOf(evaluated.size() + unaskedMain), 2, RoundingMode.HALF_UP));
+        }
+        report.put("overallScore", score);
         interview.setReportJson(report.toString());
         finish(interview, score);
     }
@@ -302,7 +371,7 @@ public class AiInterviewEvaluationService {
         ensureReferences(interview, open, data);
         for (int from = 0; from < open.size(); from += EVALUATION_BATCH) {
             var chunk = open.subList(from, Math.min(from + EVALUATION_BATCH, open.size()));
-            validated.addAll(grade(ai.generate(EVALUATE_INSTRUCTION, gradingRequest(data, chunk)).path("evaluations"), chunk));
+            validated.addAll(grade(ai.evaluate(EVALUATE_INSTRUCTION, gradingRequest(data, chunk)).path("evaluations"), chunk));
         }
         var report = InterviewRubric.report(InterviewPolicies.config(interview).policy(), validated);
         feedbacks.saveAll(validated);
@@ -395,7 +464,8 @@ public class AiInterviewEvaluationService {
                 .findFirst()
                 .ifPresent(application::setStage);
         activity.record(interview, "APPLICATION_STATUS_CHANGED", previous + " -> " + next + "; stage history saved");
-        boolean assessmentReady = passed && !tests.findByJob_IdAndStatusOrderByIdDesc(application.getJob().getId(), TestStatus.PUBLISHED).isEmpty();
+        boolean assessmentReady = passed && tests.findByJob_IdAndStatusOrderByIdDesc(application.getJob().getId(), TestStatus.PUBLISHED).stream()
+                .anyMatch(test -> test.getAssignedApplication() == null || test.getAssignedApplication().getId().equals(application.getId()));
         if (passed) {
             activity.record(interview, "ASSESSMENT_UNLOCKED", assessmentReady
                     ? "Published assessment available to candidate" : "Assessment round opened; no published test yet");

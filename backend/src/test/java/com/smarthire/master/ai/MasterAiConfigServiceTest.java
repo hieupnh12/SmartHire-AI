@@ -37,6 +37,15 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 @ExtendWith(MockitoExtension.class)
 class MasterAiConfigServiceTest {
 
+    @Test
+    void interviewFallbackDoesNotReuseCvCredentialsOrModel() {
+        when(modelConfigRepository.findByTaskType("INTERVIEW_NLP")).thenReturn(java.util.Optional.empty());
+        var result = configProvider.resolveConfig("INTERVIEW_NLP");
+        assertThat(result.apiKey()).isEqualTo("interview-key");
+        assertThat(result.modelName()).isEqualTo("gemini-2.5-flash");
+        assertThat(result.maxTokens()).isEqualTo(8192);
+    }
+
     @Mock
     private AiProviderKeyRepository providerKeyRepository;
 
@@ -67,7 +76,7 @@ class MasterAiConfigServiceTest {
                 mapper,
                 "fallback-gemini-key",
                 "gemini-2.0-flash",
-                30
+                30, "interview-key", "gemini-2.5-flash", 60
         );
         aiConfigService = new MasterAiConfigService(
                 providerKeyRepository,

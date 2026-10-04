@@ -40,27 +40,22 @@ class AiInterviewConfigServiceTest {
         when(jobs.findById(1L)).thenReturn(Optional.of(job));
     }
 
-    @Test void suggestsReplacementWhenPreviousRoadmapHasDifferentQuestionCount() throws Exception {
-        var request = request(100);
-        when(ai.generate(anyString(), any())).thenReturn(new ObjectMapper().readTree("""
-                {"stages":[{"title":"Technical", "questionCount":2,
-                "competencies":["TECHNICAL_KNOWLEDGE"], "skills":[]}]}
-                """));
-        var result = service.suggest(1L, request);
-        assertThat(result.policy().stages().getFirst().questionCount()).isEqualTo(2);
+    @Test void roadmapSuggestionIsReservedForFutureDevelopment() {
+        assertThatThrownBy(() -> service.suggest(1L, request(100)))
+                .isInstanceOfSatisfying(BusinessException.class, ex -> assertThat(ex.getCode()).isEqualTo("AI_INTERVIEW_PROCESS_UNAVAILABLE"));
         assertThat(job.getAiInterviewPolicyJson()).isNull();
-        verifyNoInteractions(invitations, applications);
+        verifyNoInteractions(ai, invitations, applications);
     }
 
     @Test void rejectsInvalidWeightsBeforeCallingProvider() {
         assertThatThrownBy(() -> service.suggest(1L, request(90)))
-                .isInstanceOf(BusinessException.class).hasMessageContaining("100%");
+                .isInstanceOf(BusinessException.class).hasMessageContaining("Communication");
         verifyNoInteractions(ai);
     }
 
     @Test void rejectsSavingRoadmapWithDifferentQuestionCount() {
         assertThatThrownBy(() -> service.update(1L, request(100)))
-                .isInstanceOf(BusinessException.class).hasMessageContaining("Tổng số câu");
+                .isInstanceOf(BusinessException.class).hasMessageContaining("Communication");
         assertThat(job.getAiInterviewPolicyJson()).isNull();
         verifyNoInteractions(invitations);
     }
@@ -86,7 +81,7 @@ class AiInterviewConfigServiceTest {
                 Map.of("TECHNICAL_KNOWLEDGE", 35, "PROBLEM_SOLVING", 25,
                         "PRACTICAL_EXPERIENCE", 20, "COMMUNICATION", 10, "BEHAVIORAL_SITUATIONAL", 10),
                 List.of(), List.of(), 2, null, null, null,
-                List.of(new InterviewPolicy.Process("TECHNICAL_KNOWLEDGE", true, 1, 100,
+                List.of(new InterviewPolicy.Process("COMMUNICATION", true, 1, 100,
                         Map.of("questionCount", questionCount))));
         return new AiInterviewConfigRequest(true, new BigDecimal("70"), questionCount, null, policy);
     }

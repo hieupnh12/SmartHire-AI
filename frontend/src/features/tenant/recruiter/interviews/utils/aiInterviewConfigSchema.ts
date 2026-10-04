@@ -71,7 +71,7 @@ export function toFormValues(config: AiInterviewConfig): ConfigValues {
     const date = value ? new Date(value) : null;
     return date ? new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16) : "";
   };
-  return { ...config, availableFrom: local(config.availableFrom), availableUntil: local(config.availableUntil), policy: { ...config.policy, schemaVersion: 2 } };
+  return { ...config, availableFrom: local(config.availableFrom), availableUntil: local(config.availableUntil), policy: { ...config.policy, weights: Object.fromEntries(COMPETENCY_KEYS.map(key => [key, key === "COMMUNICATION" ? 100 : 0])) as Record<CompetencyKey, number>, miniAssessmentEnabled: false, stages: [], schemaVersion: 2 } };
 }
 
 export function toRequest(values: ConfigValues): AiInterviewConfig {

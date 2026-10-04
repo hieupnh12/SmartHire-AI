@@ -65,6 +65,18 @@ class FileStorageServiceTest {
     }
 
     @Test
+    void storesInterviewAudioAsAuthenticatedVideoWithoutPublicUrl() throws Exception {
+        when(cloudinary.uploader()).thenReturn(uploader);
+        when(uploader.upload(any(byte[].class), anyMap())).thenReturn(Map.of());
+        var storage = new FileStorageService(cloudinary, null);
+        String key = storage.storeInterviewAudio("tenant_a", new byte[]{1,2,3}, "webm");
+        assertThat(key).startsWith("interview_tenant_a_").doesNotContain("http");
+        @SuppressWarnings("unchecked") ArgumentCaptor<Map<String,Object>> options = ArgumentCaptor.forClass(Map.class);
+        verify(uploader).upload(any(byte[].class), options.capture());
+        assertThat(options.getValue()).containsEntry("resource_type", "video").containsEntry("type", "authenticated").containsEntry("overwrite", false);
+    }
+
+    @Test
     void publicIdFromStripsVersionPrefix() {
         assertThat(FileStorageService.publicIdFrom(
                 "https://res.cloudinary.com/gduy2tfn/image/upload/v1758/cv_se36_12.pdf"))
