@@ -4,7 +4,7 @@ import { Link, useNavigate } from "react-router-dom";
 import {
   ArrowRight, Bell, Box, BriefcaseBusiness, Building2, CalendarDays, ChevronDown,
   CircleUserRound, ClipboardCheck, DraftingCompass, Feather, FilePenLine,
-  FileText, Gift, LogOut, Menu, MessageCircle, Search, Settings,
+  FileText, Gift, Lock, LogOut, Menu, MessageCircle, Search, Settings,
   ShieldCheck, Sparkles, Star, Upload, UserRound, X,
 } from "lucide-react";
 import type { Notification } from "@/api/types/notification";
@@ -18,7 +18,7 @@ import { cvRoleKeys, cvRoles, cvStyleKeys, cvStyles, type CvStyleKey } from "@/f
 const styleIcons: Record<CvStyleKey, ElementType> = { simple: Box, impressive: DraftingCompass, professional: Star };
 
 type MenuKey = "jobs" | "profile" | "tools" | "company";
-type MenuItem = { label: string; to?: string; icon?: ElementType };
+type MenuItem = { label: string; to?: string; icon?: ElementType; requiresAuth?: boolean };
 type MenuGroup = { title: string; to?: string; items: MenuItem[] };
 type MenuConfig = { label: string; groups: MenuGroup[]; layout?: "cv" };
 
@@ -36,13 +36,13 @@ const menus: Record<MenuKey, MenuConfig> = {
     groups: [
       { title: "Mẫu CV theo style", to: "/cv-templates", items: cvStyleKeys.map((key) => ({ label: `Mẫu CV ${cvStyles[key].label}`, to: `/cv-templates?style=${key}`, icon: styleIcons[key] })) },
       { title: "Mẫu CV theo vị trí IT", to: "/cv-templates", items: cvRoleKeys.map((key) => ({ label: cvRoles[key].label, to: `/cv-templates?position=${key}`, icon: BriefcaseBusiness })) },
-      { title: "Công cụ CV", items: [{ label: "Quản lý CV", to: "/cv", icon: FileText }, { label: "Tải CV lên", to: "/cv", icon: Upload }, { label: "Hướng dẫn viết CV", to: "/cv", icon: FilePenLine }, { label: "Quản lý Cover Letter", to: "/cv", icon: Feather }, { label: "Mẫu Cover Letter", to: "/cv", icon: Feather }] },
+      { title: "Công cụ CV", items: [{ label: "Quản lý CV", to: "/cv", icon: FileText, requiresAuth: true }, { label: "Tải CV lên", to: "/cv", icon: Upload, requiresAuth: true }, { label: "Hướng dẫn viết CV", to: "/cv-guide", icon: FilePenLine }, { label: "Quản lý Cover Letter", to: "/cv", icon: Feather, requiresAuth: true }, { label: "Mẫu Cover Letter", to: "/cv", icon: Feather, requiresAuth: true }] },
     ],
   },
   tools: {
     label: "Công cụ",
     groups: [
-      { title: "Công cụ ứng viên", items: [{ label: "Quản lý CV", to: "/cv", icon: FileText }, { label: "Phỏng vấn AI", to: "/interviews", icon: Sparkles }, { label: "Lịch phỏng vấn", to: "/schedules", icon: CalendarDays }] },
+      { title: "Công cụ ứng viên", items: [{ label: "Quản lý CV", to: "/cv", icon: FileText, requiresAuth: true }, { label: "Phỏng vấn AI", to: "/interviews", icon: Sparkles }, { label: "Lịch phỏng vấn", to: "/schedules", icon: CalendarDays }] },
       { title: "Cập nhật", items: [{ label: "Thông báo", to: "/notifications", icon: Bell }, { label: "Theo dõi hồ sơ", to: "/applications", icon: ClipboardCheck }] },
     ],
   },
@@ -117,7 +117,7 @@ export function CareerHeader({ tenantName, tenantCode, logoUrl, slogan, primaryC
               <button type="button" aria-expanded={open} aria-controls={`career-menu-${key}`} onClick={() => setActiveMenu(open ? null : key)} className={`flex items-center gap-1.5 border-b-2 px-4 text-sm font-semibold transition-colors ${open ? "border-[var(--color-primary)] text-[var(--color-primary)]" : "border-transparent text-slate-700 hover:text-[var(--color-primary)]"}`}>{menu.label}<ChevronDown className={`size-4 transition-transform ${open ? "rotate-180" : ""}`} aria-hidden="true" /></button>
             </div>;
           })}
-          {activeMenu && <MegaMenu menuKey={activeMenu} menu={menus[activeMenu]} arrowLeft={menuArrowLeft} onNavigate={() => setActiveMenu(null)} />}
+          {activeMenu && <MegaMenu menuKey={activeMenu} menu={menus[activeMenu]} arrowLeft={menuArrowLeft} loggedIn={Boolean(token)} onNavigate={() => setActiveMenu(null)} />}
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
@@ -146,7 +146,11 @@ export function CareerHeader({ tenantName, tenantCode, logoUrl, slogan, primaryC
 
 const panelWidths: Record<MenuKey, number> = { jobs: 680, profile: 760, tools: 680, company: 640 };
 
-function MegaMenu({ menuKey, menu, arrowLeft, onNavigate }: { menuKey: MenuKey; menu: MenuConfig; arrowLeft: number; onNavigate: () => void }) {
+function LoginBadge() {
+  return <span className="ml-auto inline-flex shrink-0 items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-500"><Lock className="size-3" aria-hidden="true" />Cần đăng nhập</span>;
+}
+
+function MegaMenu({ menuKey, menu, arrowLeft, loggedIn, onNavigate }: { menuKey: MenuKey; menu: MenuConfig; arrowLeft: number; loggedIn: boolean; onNavigate: () => void }) {
   const contentRef = useRef<HTMLDivElement>(null);
   const previousMenuKey = useRef(menuKey);
   const [panelHeight, setPanelHeight] = useState(0);
@@ -172,7 +176,7 @@ function MegaMenu({ menuKey, menu, arrowLeft, onNavigate }: { menuKey: MenuKey; 
 
   const menuItem = (item: MenuItem) => {
     const Icon = item.icon;
-    const content = <>{Icon && <Icon className="size-5 shrink-0 text-slate-500 transition-colors group-hover:text-[var(--color-primary)]" aria-hidden="true" />}<span>{item.label}</span></>;
+    const content = <>{Icon && <Icon className="size-5 shrink-0 text-slate-500 transition-colors group-hover:text-[var(--color-primary)]" aria-hidden="true" />}<span>{item.label}</span>{item.requiresAuth && !loggedIn && <LoginBadge />}</>;
     const className = "group flex min-h-10 w-full items-center gap-3 rounded-md px-2.5 py-1.5 text-left text-[15px] font-medium leading-6 text-slate-700 transition-colors hover:bg-[var(--color-primary-subtle)] hover:text-[var(--color-primary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--color-primary)]";
     return item.to
       ? <Link key={`${item.to}-${item.label}`} to={item.to} onClick={onNavigate} className={className}>{content}</Link>
@@ -238,5 +242,5 @@ function AccountSection({ icon: Icon, title, links, onClose }: { icon: ElementTy
 }
 
 function MobileMenu({ loggedIn, onNavigate }: { loggedIn: boolean; onNavigate: () => void }) {
-  return <nav aria-label="Điều hướng di động" className="max-h-[calc(100vh-76px)] overflow-y-auto border-t border-slate-100 bg-white p-4 lg:hidden">{(Object.keys(menus) as MenuKey[]).map((key) => <section key={key} className="border-b border-slate-100 py-3"><h2 className="px-2 text-sm font-semibold text-slate-800">{menus[key].label}</h2><div className="mt-2 grid gap-1">{menus[key].groups.flatMap((group) => group.items).map((item) => item.to ? <Link key={`${key}-${item.to}-${item.label}`} to={item.to} onClick={onNavigate} className="min-h-11 rounded-lg px-4 py-3 text-sm text-slate-600 hover:bg-slate-50">{item.label}</Link> : <button key={`${key}-${item.label}`} type="button" onClick={onNavigate} className="min-h-11 rounded-lg px-4 py-3 text-left text-sm text-slate-600 hover:bg-slate-50">{item.label}</button>)}</div></section>)}{!loggedIn && <Link to="/login" onClick={onNavigate} className="mt-4 flex min-h-11 items-center justify-center rounded-lg bg-[var(--color-primary)] px-4 text-sm font-semibold text-white">Đăng nhập</Link>}</nav>;
+  return <nav aria-label="Điều hướng di động" className="max-h-[calc(100vh-76px)] overflow-y-auto border-t border-slate-100 bg-white p-4 lg:hidden">{(Object.keys(menus) as MenuKey[]).map((key) => <section key={key} className="border-b border-slate-100 py-3"><h2 className="px-2 text-sm font-semibold text-slate-800">{menus[key].label}</h2><div className="mt-2 grid gap-1">{menus[key].groups.flatMap((group) => group.items).map((item) => item.to ? <Link key={`${key}-${item.to}-${item.label}`} to={item.to} onClick={onNavigate} className="flex min-h-11 items-center gap-2 rounded-lg px-4 py-3 text-sm text-slate-600 hover:bg-slate-50">{item.label}{item.requiresAuth && !loggedIn && <LoginBadge />}</Link> : <button key={`${key}-${item.label}`} type="button" onClick={onNavigate} className="min-h-11 rounded-lg px-4 py-3 text-left text-sm text-slate-600 hover:bg-slate-50">{item.label}</button>)}</div></section>)}{!loggedIn && <Link to="/login" onClick={onNavigate} className="mt-4 flex min-h-11 items-center justify-center rounded-lg bg-[var(--color-primary)] px-4 text-sm font-semibold text-white">Đăng nhập</Link>}</nav>;
 }

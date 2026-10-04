@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
-import { AlertCircle, ArrowLeft, ArrowRight, CheckCircle2, Loader2, ShieldCheck, Sparkles } from "lucide-react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { AlertCircle, ArrowLeft, ArrowRight, CheckCircle2, Loader2, Lock, ShieldCheck, Sparkles } from "lucide-react";
 import { landingApi } from "@/api/tenant/landingApi";
 import { LanguageSwitcher } from "@/components/ux/LanguageSwitcher";
 import { getTenantTheme, getTenantThemeStyle } from "@/lib/tenantTheme";
@@ -21,8 +21,17 @@ function GoogleIcon() {
   );
 }
 
+function resumePathFrom(state: unknown) {
+  const from = (state as { from?: { pathname?: string; search?: string } } | null)?.from;
+  const path = from?.pathname ? `${from.pathname}${from.search ?? ""}` : "/";
+  return path.startsWith("/") && !path.startsWith("//") ? path : "/";
+}
+
 export function CandidateLoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const redirectUrl = resumePathFrom(location.state);
+  const loginRequired = redirectUrl !== "/";
   const theme = getTenantTheme(getTenantIdFromWindow() || "acme");
   const [redirecting, setRedirecting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -49,7 +58,7 @@ export function CandidateLoginPage() {
     googleAuthUrl.searchParams.set("redirect_uri", getCentralOAuthRedirectUri());
     googleAuthUrl.searchParams.set("response_type", "id_token");
     googleAuthUrl.searchParams.set("scope", "openid email profile");
-    googleAuthUrl.searchParams.set("state", btoa(JSON.stringify({ tenant: currentTenant, redirectUrl: "/", timestamp: Date.now() })));
+    googleAuthUrl.searchParams.set("state", btoa(JSON.stringify({ tenant: currentTenant, redirectUrl, timestamp: Date.now() })));
     googleAuthUrl.searchParams.set("nonce", Math.random().toString(36).substring(2) + Date.now().toString(36));
     googleAuthUrl.searchParams.set("prompt", "select_account");
     localStorage.setItem("tenantId", currentTenant);
@@ -91,6 +100,7 @@ export function CandidateLoginPage() {
                   <h2 className="text-2xl font-semibold tracking-tight text-slate-900">Đăng nhập vào {theme.name}</h2>
                   <p className="mt-2 text-sm leading-6 text-slate-600">Dùng tài khoản Google để tiếp tục.</p>
                 </div>
+                {loginRequired && <p className="mt-5 flex items-start gap-2 rounded-xl border border-[var(--color-border-default)] bg-[var(--color-primary-subtle)] p-3 text-sm leading-6 text-slate-700" role="status"><Lock className="mt-1 size-4 shrink-0 text-[var(--color-primary)]" aria-hidden="true" />Vui lòng đăng nhập để tiếp tục. Sau khi đăng nhập, bạn sẽ được đưa về đúng trang đang mở.</p>}
                 <button type="button" onClick={handleGoogleLogin} disabled={redirecting} className="candidate-login-reveal candidate-login-reveal-delay mt-6 flex min-h-12 w-full items-center justify-center gap-3 rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-800 shadow-sm transition-[border-color,background-color,box-shadow] duration-200 hover:border-[var(--color-primary)]/50 hover:bg-slate-50 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]/30 disabled:cursor-wait disabled:opacity-60">
                   {redirecting ? <><Loader2 className="size-5 animate-spin text-[var(--color-primary)]" aria-hidden="true" />Đang kết nối...</> : <><GoogleIcon />Tiếp tục với Google<ArrowRight className="size-4 text-slate-400" aria-hidden="true" /></>}
                 </button>
