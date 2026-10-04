@@ -142,9 +142,7 @@ export function AppRouter() {
       <Route path="/candidate/login" element={<Navigate to="/login" replace />} />
       <Route path="/candidate/*" element={<ShortCandidateRedirect />} />
       <Route path="/internal/login" element={<LoginPage />} />
-      <Route element={<CareerNavigationLayout />}>
-        <Route path="/login" element={<CandidateLoginPage />} />
-      </Route>
+      <Route path="/login" element={<CandidateLoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/invite/accept" element={<AcceptInvitationPage />} />
 

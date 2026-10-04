@@ -2,13 +2,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { questionBankApi } from "@/api/tenant/questionBankApi";
 import { queryKeys } from "@/lib/query-keys";
 import { AssessmentError } from "@/components/ux/assessmentUi";
+import { LoadingState, Skeleton, TableSkeleton } from "@/components/ux/Skeleton";
 import { bankQuestionAuthoring } from "../utils/bankQuestionAuthoring";
 import { typeMeta, type BankQuestion } from "../constants/excelTemplateMock";
 import { questionBankLocalKeys } from "../utils/generalQuestionDraft";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
 import {
   Archive,
   CheckCircle2,
@@ -66,7 +67,7 @@ const collections: { id: Collection; label: string; icon: typeof FolderOpen }[] 
   { id: "all", label: "Tất cả câu hỏi", icon: FolderOpen },
   { id: "favorites", label: "Yêu thích của tôi", icon: Star },
   { id: "ready", label: "Câu hỏi phụ trách", icon: UserRound },
-  { id: "pending", label: "Câu hỏi đang lưu", icon: ClipboardList },
+  { id: "pending", label: "Chưa xuất bản", icon: ClipboardList },
   { id: "archived", label: "Đã lưu trữ", icon: Archive },
 ];
 
@@ -105,24 +106,28 @@ function skillsOf(text: string, skill: string | null | undefined) {
   return matched.slice(0, 4);
 }
 
-function statusMeta(status: TestStatus) {
+function statusMeta(status: TestStatus, standalone = false) {
   if (status === "PUBLISHED") return { label: "Sẵn sàng", dot: "bg-emerald-600", chip: "bg-emerald-100 text-emerald-800" };
-  if (status === "DRAFT") return { label: "Đang lưu", dot: "bg-amber-600", chip: "bg-amber-100 text-amber-900" };
+  if (status === "DRAFT") return { label: standalone ? "Câu độc lập" : "Bản nháp", dot: "bg-amber-600", chip: "bg-amber-100 text-amber-900" };
   return { label: "Đã lưu trữ", dot: "bg-[var(--color-outline)]", chip: "bg-[var(--color-surface-container)] text-[var(--color-on-surface-variant)]" };
+}
+
+function paginationItems(current: number, total: number): (number | "start-ellipsis" | "end-ellipsis")[] {
+  if (total <= 7) return Array.from({ length: total }, (_, index) => index);
+  const pages = new Set([0, total - 1, current - 1, current, current + 1]);
+  const visible = [...pages].filter((item) => item >= 0 && item < total).sort((a, b) => a - b);
+  const items: (number | "start-ellipsis" | "end-ellipsis")[] = [];
+  visible.forEach((item, index) => {
+    if (index > 0 && item - visible[index - 1] > 1) items.push(index === 1 ? "start-ellipsis" : "end-ellipsis");
+    items.push(item);
+  });
+  return items;
 }
 
 function difficultyClass(level: Difficulty) {
   if (level === "Cơ bản") return "bg-emerald-50 text-emerald-700";
   if (level === "Nâng cao") return "bg-rose-50 text-rose-700";
   return "bg-amber-50 text-amber-700";
-}
-
-function matchesCollection(row: BankRow, collection: Collection, favorites: Set<string>) {
-  if (collection === "favorites") return favorites.has(row.key);
-  if (collection === "ready") return row.testStatus === "PUBLISHED";
-  if (collection === "pending") return row.testStatus === "DRAFT";
-  if (collection === "archived") return row.testStatus === "ARCHIVED";
-  return true;
 }
 
 function downloadCsv(rows: BankRow[]) {
@@ -133,7 +138,7 @@ function downloadCsv(rows: BankRow[]) {
     row.testTitle,
     row.jobTitle,
     String(row.question.points),
-    statusMeta(row.testStatus).label,
+    statusMeta(row.testStatus, !row.testId).label,
     row.skills.join("; "),
   ]);
   const csv = [header, ...body]
@@ -157,6 +162,7 @@ export function GeneralQuestionBankPage() {
 function GeneralQuestionBankView({ localKeys }: { localKeys: ReturnType<typeof questionBankLocalKeys> }) {
   const basePath = "/recruiter/question-bank";
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [questionType, setQuestionType] = useState("");
   const workspace = getTenantTheme(getTenantIdFromWindow() ?? "acme").name;
   const [collection, setCollection] = useState<Collection>("all");
@@ -166,8 +172,11 @@ function GeneralQuestionBankView({ localKeys }: { localKeys: ReturnType<typeof q
   const [status, setStatus] = useState<TestStatus | "">("");
   const [sort, setSort] = useState<"latest" | "points" | "text">("latest");
   const [view, setView] = useState<ViewMode>("table");
-  const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(10);
+  const initialPage = Math.max(0, Number(searchParams.get("page") ?? 1) - 1 || 0);
+  const requestedSize = Number(searchParams.get("size"));
+  const [page, setPage] = useState(initialPage);
+  const [pageSize, setPageSize] = useState([10, 25, 50].includes(requestedSize) ? requestedSize : 10);
+  const pageTransition = useRef(false);
   const [selected, setSelected] = useState<string[]>([]);
   const [favorites, setFavorites] = useState<Set<string>>(() => loadFavorites(`${FAVORITES_KEY}:${localKeys.scope}`));
   const [activeKey, setActiveKey] = useState<string | null>(null);
@@ -176,9 +185,15 @@ function GeneralQuestionBankView({ localKeys }: { localKeys: ReturnType<typeof q
   const [notice, setNotice] = useState(location.state?.savedQuestions ? `Đã lưu ${location.state.savedQuestions} câu hỏi vào ngân hàng chung.` : "");
 
   const client = useQueryClient();
-  const bankQuery = useQuery({ queryKey: [...queryKeys.assessments.all(), "general-bank"],
-    queryFn: ({ signal }) => questionBankApi.listAll(signal) });
-  const rows = useMemo<BankRow[]>(() => (bankQuery.data ?? []).map(item => {
+  const favoriteIds = useMemo(() => [...favorites].map(key => Number(key.replace("bank-", ""))).filter(Number.isFinite).sort((a, b) => a - b), [favorites]);
+  const apiDifficulty = difficulty === "Cơ bản" ? "Easy" : difficulty === "Vận dụng" ? "Medium" : difficulty === "Nâng cao" ? "Hard" : undefined;
+  const bankQuery = useQuery({
+    queryKey: [...queryKeys.assessments.all(), "general-bank", page, pageSize, collection, query, skill, apiDifficulty, status, questionType, sort, favoriteIds],
+    queryFn: ({ signal }) => questionBankApi.list({ page, size: pageSize, collection, query: query.trim() || undefined,
+      skill: skill || undefined, difficulty: apiDifficulty, status: status || undefined,
+      questionType: questionType || undefined, sort, favoriteIds }, signal),
+  });
+  const rows = useMemo<BankRow[]>(() => (bankQuery.data?.items ?? []).map(item => {
     const question = item.question;
     return { key: `bank-${question.id}`, testId: item.testId ?? 0, testTitle: item.testTitle ?? "Câu hỏi độc lập",
       testStatus: item.archived ? "ARCHIVED" : item.testStatus ?? "DRAFT",
@@ -191,54 +206,43 @@ function GeneralQuestionBankView({ localKeys }: { localKeys: ReturnType<typeof q
     onSuccess: async () => { setSelected([]); setNotice("Đã cập nhật trạng thái câu hỏi."); await client.invalidateQueries({ queryKey: queryKeys.assessments.all() }); } });
   const editPath = (row: BankRow) => row.testId ? `/recruiter/jobs/${row.jobId}/assessments/${row.testId}` : `${basePath}/${row.question.id}/edit`;
 
-  const skillOptions = useMemo(() => {
-    const set = new Set<string>();
-    for (const row of rows) row.skills.forEach((item) => set.add(item));
-    return [...set].sort((a, b) => a.localeCompare(b, "vi"));
-  }, [rows]);
-
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    const next = rows.filter((row) => {
-      if (!matchesCollection(row, collection, favorites)) return false;
-      if (skill && !row.skills.includes(skill)) return false;
-      if (questionType && row.question.questionType !== questionType) return false;
-      if (difficulty && row.difficulty !== difficulty) return false;
-      if (status && row.testStatus !== status) return false;
-      if (!q) return true;
-      return (
-        row.question.questionText.toLowerCase().includes(q) ||
-        row.code.toLowerCase().includes(q) ||
-        row.testTitle.toLowerCase().includes(q) ||
-        row.jobTitle.toLowerCase().includes(q) ||
-        row.skills.some((item) => item.toLowerCase().includes(q))
-      );
-    });
-    next.sort((a, b) => {
-      if (sort === "points") return b.question.points - a.question.points;
-      if (sort === "text") return a.question.questionText.localeCompare(b.question.questionText, "vi");
-      return b.question.id - a.question.id;
-    });
-    return next;
-  }, [rows, collection, favorites, skill, difficulty, status, query, sort, questionType]);
-
-  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const skillOptions = bankQuery.data?.skills ?? [];
+  const total = bankQuery.data?.total ?? 0;
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
   const safePage = Math.min(page, pageCount - 1);
-  const pageRows = filtered.slice(safePage * pageSize, safePage * pageSize + pageSize);
-  const readyCount = rows.filter((row) => row.testStatus === "PUBLISHED").length;
-  const coverage = rows.length ? Math.round((readyCount / rows.length) * 100) : 0;
+  const pageRows = rows;
+  const visiblePages = paginationItems(safePage, pageCount);
+  const isTableLoading = bankQuery.isPending || bankQuery.isFetching;
+  const readyCount = bankQuery.data?.counts.ready ?? 0;
+  const allCount = bankQuery.data?.counts.all ?? 0;
+  const coverage = allCount ? Math.round((readyCount / allCount) * 100) : 0;
   const active = rows.find((row) => row.key === activeKey) ?? null;
   const selectedRows = rows.filter((row) => selected.includes(row.key));
   const pageKeys = pageRows.map((row) => row.key);
   const allPageSelected = pageKeys.length > 0 && pageKeys.every((key) => selected.includes(key));
 
-  const counts: Record<Collection, number> = {
-    all: rows.length,
-    favorites: rows.filter((row) => favorites.has(row.key)).length,
-    ready: readyCount,
-    pending: rows.filter((row) => row.testStatus === "DRAFT").length,
-    archived: rows.filter((row) => row.testStatus === "ARCHIVED").length,
+  useEffect(() => {
+    if (!bankQuery.isFetching) pageTransition.current = false;
+  }, [bankQuery.isFetching]);
+
+  const goToPage = (nextPage: number) => {
+    if (pageTransition.current || bankQuery.isFetching || nextPage === safePage) return;
+    pageTransition.current = true;
+    setPage(nextPage);
   };
+
+  useEffect(() => {
+    if (page !== safePage) {
+      setPage(safePage);
+      return;
+    }
+    const next = new URLSearchParams(searchParams);
+    next.set("page", String(safePage + 1));
+    next.set("size", String(pageSize));
+    if (next.toString() !== searchParams.toString()) setSearchParams(next, { replace: true });
+  }, [page, pageSize, safePage, searchParams, setSearchParams]);
+
+  const counts: Record<Collection, number> = bankQuery.data?.counts ?? { all: 0, favorites: 0, ready: 0, pending: 0, archived: 0 };
 
   const chips = [
     questionType ? { id: "type", label: `Loại câu: ${questionType === "MCQ" ? "Trắc nghiệm đơn" : questionType === "MULTIPLE_CHOICE" ? "Nhiều đáp án" : "Tự luận"}` } : null,
@@ -293,45 +297,35 @@ function GeneralQuestionBankView({ localKeys }: { localKeys: ReturnType<typeof q
   };
 
   return (
-    <section className="flex flex-col gap-5 text-[var(--color-on-surface)]">
-      <header className="flex flex-col gap-4">
-        <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-[var(--color-on-surface-variant)]">
+    <section className="flex flex-col gap-4 text-[var(--color-on-surface)]">
+      <header className="flex flex-col gap-2.5">
+        <div className="text-xs text-[var(--color-on-surface-variant)]">
           <nav className="flex flex-wrap items-center gap-2" aria-label="Breadcrumb">
-            <Link to={basePath} className="hover:text-[var(--color-primary)]">Kho tài nguyên</Link>
+            <Link to="/recruiter" className="hover:text-[var(--color-primary)]">Kho tài nguyên</Link>
             <span>/</span>
             <span className="font-semibold text-[var(--color-on-surface)]">Ngân hàng câu hỏi</span>
             <span className="rounded-full bg-[var(--color-surface-container-high)] px-2 py-0.5 text-[11px] font-semibold">
               Workspace: {workspace}
             </span>
           </nav>
-          <p className="inline-flex items-center gap-1.5">
-            <span className="size-2 rounded-full bg-emerald-500" />
-            {rows.length} câu hỏi trong ngân hàng chung
-          </p>
         </div>
-        <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
-          <div className="max-w-3xl">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-3xl font-semibold tracking-tight">Ngân hàng câu hỏi</h1>
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--color-primary-subtle)] px-3 py-1 text-xs font-semibold text-[var(--color-primary)]">
-                <ClipboardList className="size-3.5" aria-hidden="true" />
-                {rows.length.toLocaleString("vi-VN")} câu hỏi đang lưu hành
-              </span>
-            </div>
-            <p className="mt-2 text-sm leading-6 text-[var(--color-on-surface-variant)]">
-              Ngân hàng chung chứa câu hỏi độc lập và câu hỏi từ các job. Câu hỏi được lưu trong ngân hàng của doanh nghiệp, không cần tạo bài đánh giá.
+        <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-center">
+          <div className="min-w-0 max-w-3xl">
+            <h1 className="text-2xl font-semibold tracking-tight">Ngân hàng câu hỏi</h1>
+            <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">
+              Quản lý câu hỏi độc lập và câu hỏi từ các vị trí tuyển dụng trong cùng workspace.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Link to={`${basePath}/new`} className="inline-flex h-10 items-center gap-2 rounded-lg bg-[var(--color-surface-card)] px-4 text-sm font-medium ring-1 ring-[var(--color-border-default)]"><Table2 className="size-4 text-[var(--color-primary)]" />Nhập Excel</Link>
-            <Link to={`${basePath}/new`} className="inline-flex h-10 items-center gap-2 rounded-lg bg-[var(--color-primary)] px-4 text-sm font-semibold text-white hover:bg-[var(--color-primary-hover)]">Thêm câu hỏi</Link>
+            <Link to={`${basePath}/new`} className="inline-flex h-9 items-center gap-2 rounded-lg bg-[var(--color-surface-card)] px-3 text-sm font-medium ring-1 ring-[var(--color-border-default)]"><Table2 className="size-4 text-[var(--color-primary)]" aria-hidden="true" />Nhập Excel</Link>
+            <Link to={`${basePath}/new`} className="inline-flex h-9 items-center gap-2 rounded-lg bg-[var(--color-primary)] px-3 text-sm font-semibold text-white hover:bg-[var(--color-primary-hover)]">Thêm câu hỏi</Link>
             <button
               type="button"
-              onClick={() => downloadCsv(filtered)}
-              className="inline-flex h-10 items-center gap-2 rounded-lg bg-[var(--color-primary)] px-4 text-sm font-semibold text-white shadow-sm hover:bg-[var(--color-primary-hover)]"
+              onClick={() => downloadCsv(pageRows)}
+              className="inline-flex h-9 items-center gap-2 rounded-lg bg-[var(--color-surface-card)] px-3 text-sm font-medium ring-1 ring-[var(--color-border-default)] hover:bg-[var(--color-surface-container-low)]"
             >
-              <Download className="size-4" aria-hidden="true" />
-              Xuất ngân hàng
+              <Download className="size-4 text-[var(--color-primary)]" aria-hidden="true" />
+              Xuất trang hiện tại
             </button>
           </div>
         </div>
@@ -388,7 +382,7 @@ function GeneralQuestionBankView({ localKeys }: { localKeys: ReturnType<typeof q
             </div>
             <p className="mt-2 flex justify-between text-[11px] text-[var(--color-on-surface-variant)]">
               <span>Sẵn sàng</span>
-              <span className="font-semibold text-[var(--color-primary)]">{readyCount} / {rows.length}</span>
+              <span className="font-semibold text-[var(--color-primary)]">{readyCount} / {allCount}</span>
             </p>
           </div>
         </aside>
@@ -405,7 +399,7 @@ function GeneralQuestionBankView({ localKeys }: { localKeys: ReturnType<typeof q
                 aria-label="Tìm câu hỏi"
               />
               {query && (
-                <button type="button" aria-label="Xóa nội dung tìm kiếm" onClick={() => setQuery("")} className="text-[var(--color-on-surface-variant)]">
+                <button type="button" aria-label="Xóa nội dung tìm kiếm" onClick={() => { setQuery(""); setPage(0); }} className="text-[var(--color-on-surface-variant)]">
                   <X className="size-4" />
                 </button>
               )}
@@ -435,7 +429,7 @@ function GeneralQuestionBankView({ localKeys }: { localKeys: ReturnType<typeof q
                 <select aria-label="Lọc trạng thái" value={status} onChange={(event) => { setStatus(event.target.value as TestStatus | ""); setPage(0); }} className="min-w-0 flex-1 bg-transparent font-semibold text-emerald-700 outline-none">
                   <option value="">Tất cả</option>
                   <option value="PUBLISHED">Sẵn sàng</option>
-                  <option value="DRAFT">Đang lưu</option>
+                  <option value="DRAFT">Chưa xuất bản</option>
                   <option value="ARCHIVED">Đã lưu trữ</option>
                 </select>
               </label>
@@ -465,7 +459,7 @@ function GeneralQuestionBankView({ localKeys }: { localKeys: ReturnType<typeof q
                 </div>
                 <label className="flex items-center gap-1 text-xs text-[var(--color-on-surface-variant)]">
                   Sắp xếp:
-                  <select value={sort} onChange={(event) => setSort(event.target.value as typeof sort)} className="bg-transparent font-medium text-[var(--color-on-surface)] outline-none">
+                  <select value={sort} onChange={(event) => { setSort(event.target.value as typeof sort); setPage(0); }} className="bg-transparent font-medium text-[var(--color-on-surface)] outline-none">
                     <option value="latest">Mới cập nhật gần nhất</option>
                     <option value="points">Điểm cao nhất</option>
                     <option value="text">Nội dung A-Z</option>
@@ -480,8 +474,8 @@ function GeneralQuestionBankView({ localKeys }: { localKeys: ReturnType<typeof q
               <div className="flex flex-wrap items-center gap-3 text-sm">
                 <span className="grid size-6 place-items-center rounded-full bg-[var(--color-primary)] text-xs font-bold">{selected.length}</span>
                 Đã chọn {selected.length} câu hỏi
-                <button type="button" className="text-xs text-sky-200 hover:underline" onClick={() => setSelected(filtered.map((row) => row.key))}>
-                  Chọn toàn bộ {filtered.length} câu
+                <button type="button" className="text-xs text-sky-200 hover:underline" onClick={() => setSelected(pageRows.map((row) => row.key))}>
+                  Chọn toàn bộ {pageRows.length} câu trên trang
                 </button>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -495,16 +489,22 @@ function GeneralQuestionBankView({ localKeys }: { localKeys: ReturnType<typeof q
             </div>
           )}
 
-          <div className="overflow-hidden rounded-xl bg-[var(--color-surface-card)] shadow-[var(--shadow-card)]">
+          <div className="overflow-hidden rounded-xl bg-[var(--color-surface-card)] shadow-[var(--shadow-card)]" aria-busy={isTableLoading}>
             <div className="flex flex-wrap items-center justify-between gap-2 bg-[var(--color-surface-container-low)] px-4 py-2.5 text-xs text-[var(--color-on-surface-variant)]">
-              <p>
-                {bankQuery.isPending && <span role="status">Đang tải câu hỏi… </span>}
-                Hiển thị <span className="font-semibold text-[var(--color-on-surface)]">{filtered.length === 0 ? 0 : safePage * pageSize + 1} - {Math.min(filtered.length, safePage * pageSize + pageRows.length)}</span> trên <span className="font-semibold text-[var(--color-on-surface)]">{filtered.length}</span> câu hỏi
-              </p>
+              {bankQuery.isPending ? <Skeleton className="h-4 w-52" /> : <p>
+                Hiển thị <span className="font-semibold text-[var(--color-on-surface)]">{total === 0 ? 0 : safePage * pageSize + 1} - {Math.min(total, safePage * pageSize + pageRows.length)}</span> trên <span className="font-semibold text-[var(--color-on-surface)]">{total}</span> câu hỏi
+                {bankQuery.isFetching && <span role="status"> · Đang cập nhật…</span>}
+              </p>}
               
             </div>
 
-            {bankQuery.isSuccess && filtered.length === 0 && (
+            {isTableLoading && (
+              <LoadingState label="Đang tải danh sách câu hỏi" className="overflow-x-auto p-4">
+                <TableSkeleton columns={6} rows={Math.min(pageSize, 10)} />
+              </LoadingState>
+            )}
+
+            {!isTableLoading && bankQuery.isSuccess && total === 0 && (
               <div className="flex flex-col items-start gap-2 p-8">
                 <FolderOpen className="size-8 text-[var(--color-primary)]" aria-hidden="true" />
                 <p className="font-semibold">Không có câu hỏi phù hợp</p>
@@ -513,66 +513,60 @@ function GeneralQuestionBankView({ localKeys }: { localKeys: ReturnType<typeof q
               </div>
             )}
 
-            {view === "table" && pageRows.length > 0 && (
+            {!isTableLoading && view === "table" && pageRows.length > 0 && (
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[980px] border-collapse text-left text-sm">
+                <table className="w-full min-w-[860px] table-fixed border-collapse text-left text-sm">
                   <thead>
                     <tr className="bg-[var(--color-surface-container-high)]/40 text-[11px] font-semibold uppercase tracking-wider text-[var(--color-on-surface-variant)]">
-                      <th className="w-10 px-4 py-3">
+                      <th className="w-10 px-3 py-2.5">
                         <input type="checkbox" checked={allPageSelected} aria-label="Chọn các câu trên trang" onChange={() => setSelected((current) => allPageSelected ? current.filter((key) => !pageKeys.includes(key)) : [...new Set([...current, ...pageKeys])])} className="size-4 accent-[var(--color-primary)]" />
                       </th>
-                      <th className="px-2 py-3">Mã & trạng thái</th>
-                      <th className="min-w-72 px-4 py-3">Nội dung câu hỏi</th>
-                      <th className="px-4 py-3">Kỹ năng</th>
-                      <th className="px-4 py-3">Phân loại</th>
-                      <th className="px-4 py-3">Mục đích</th>
-                      <th className="px-4 py-3">Nơi dùng</th>
-                      <th className="px-4 py-3 text-right">Thao tác</th>
+                      <th className="w-[42%] px-2 py-2.5">Câu hỏi</th>
+                      <th className="w-[16%] px-3 py-2.5">Kỹ năng</th>
+                      <th className="w-[16%] px-3 py-2.5">Phân loại</th>
+                      <th className="w-[20%] px-3 py-2.5">Nơi dùng</th>
+                      <th className="w-20 px-3 py-2.5 text-right">Thao tác</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--color-surface-container)]">
                     {pageRows.map((row) => {
-                      const meta = statusMeta(row.testStatus);
+                      const meta = statusMeta(row.testStatus, !row.testId);
                       const inspected = activeKey === row.key;
                       return (
                         <tr key={row.key} onClick={() => openRow(row.key)} className={cn("cursor-pointer", inspected ? "bg-[var(--color-primary-subtle)]" : "hover:bg-[var(--color-surface-container-low)]")}>
-                          <td className="px-4 py-3.5" onClick={(event) => event.stopPropagation()}>
+                          <td className="px-3 py-2.5" onClick={(event) => event.stopPropagation()}>
                             <input type="checkbox" checked={selected.includes(row.key)} aria-label={`Chọn ${row.code}`} onChange={() => toggleOne(row.key)} className="size-4 accent-[var(--color-primary)]" />
                           </td>
-                          <td className="px-2 py-3.5">
-                            <p className="font-mono text-xs font-bold text-[var(--color-primary)]">{row.code}</p>
-                            <span className={cn("mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold", meta.chip)}>
-                              <span className={cn("size-1.5 rounded-full", meta.dot)} />
-                              {meta.label}
-                            </span>
+                          <td className="px-2 py-2.5">
+                            <div className="mb-1 flex min-w-0 items-center gap-2">
+                              <span className="shrink-0 font-mono text-[11px] font-bold text-[var(--color-primary)]">{row.code}</span>
+                              <span className={cn("inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold", meta.chip)}>
+                                <span className={cn("size-1.5 rounded-full", meta.dot)} />
+                                {meta.label}
+                              </span>
+                              <span className="truncate text-[11px] text-[var(--color-on-surface-variant)]">
+                                {row.question.options.length} phương án · {row.question.points} điểm
+                              </span>
+                            </div>
+                            <p className="truncate font-medium" title={row.question.questionText}>{row.question.questionText}</p>
                           </td>
-                          <td className="px-4 py-3.5">
-                            <p className="line-clamp-2 font-semibold">{row.question.questionText}</p>
-                            <p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">
-                              {row.question.options.length} phương án · {row.question.points} điểm
-                            </p>
-                          </td>
-                          <td className="px-4 py-3.5">
-                            <div className="flex flex-wrap gap-1">
-                              {(row.skills.length ? row.skills : ["MCQ"]).slice(0, 3).map((item) => (
-                                <span key={item} className="rounded bg-[var(--color-surface-container)] px-2 py-0.5 text-[11px] font-medium text-[var(--color-on-surface-variant)]">{item}</span>
+                          <td className="px-3 py-2.5">
+                            <div className="flex min-w-0 items-center gap-1 overflow-hidden">
+                              {(row.skills.length ? row.skills : ["MCQ"]).slice(0, 2).map((item) => (
+                                <span key={item} className="max-w-24 truncate rounded bg-[var(--color-surface-container)] px-1.5 py-0.5 text-[11px] font-medium text-[var(--color-on-surface-variant)]" title={item}>{item}</span>
                               ))}
+                              {row.skills.length > 2 && <span className="shrink-0 text-[11px] text-[var(--color-on-surface-variant)]">+{row.skills.length - 2}</span>}
                             </div>
                           </td>
-                          <td className="px-4 py-3.5">
-                            <p className="font-medium">{row.content ? typeMeta(row.content.kind).label : "Trắc nghiệm đơn"}</p>
-                            <span className={cn("mt-1 inline-flex rounded px-2 py-0.5 text-[11px] font-medium", difficultyClass(row.difficulty))}>{row.difficulty}</span>
+                          <td className="px-3 py-2.5">
+                            <p className="truncate text-xs font-medium">{row.content ? typeMeta(row.content.kind).label : "Trắc nghiệm đơn"}</p>
+                            <span className={cn("mt-0.5 inline-flex rounded px-1.5 py-0.5 text-[10px] font-medium", difficultyClass(row.difficulty))}>{row.difficulty}</span>
                           </td>
-                          <td className="px-4 py-3.5">
-                            <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700">
-                              <ClipboardList className="size-3.5" /> Assessment
-                            </span>
+                          <td className="px-3 py-2.5 text-xs text-[var(--color-on-surface-variant)]">
+                            <p className="truncate font-medium text-[var(--color-on-surface)]" title={row.testTitle}>{row.testTitle}</p>
+                            <p className="mt-0.5 truncate" title={row.jobTitle}>{row.jobTitle}</p>
                           </td>
-                          <td className="px-4 py-3.5 text-xs text-[var(--color-on-surface-variant)]">
-                            <p className="font-medium text-[var(--color-on-surface)]">{row.testTitle}</p>
-                            <p>{row.jobTitle}</p>
-                          </td>
-                          <td className="px-4 py-3.5 text-right" onClick={(event) => event.stopPropagation()}>
+                          <td className="px-3 py-2.5 text-right" onClick={(event) => event.stopPropagation()}>
                             <div className="relative flex justify-end gap-1 text-[var(--color-on-surface-variant)]">
                               <Link to={editPath(row)} aria-label="Chỉnh sửa câu hỏi" className="rounded p-1 hover:bg-[var(--color-surface-container)] hover:text-[var(--color-primary)]">
                                 <Pencil className="size-4" />
@@ -600,10 +594,10 @@ function GeneralQuestionBankView({ localKeys }: { localKeys: ReturnType<typeof q
               </div>
             )}
 
-            {view === "cards" && pageRows.length > 0 && (
+            {!isTableLoading && view === "cards" && pageRows.length > 0 && (
               <div className="grid gap-3 p-4 md:grid-cols-2">
                 {pageRows.map((row) => {
-                  const meta = statusMeta(row.testStatus);
+                  const meta = statusMeta(row.testStatus, !row.testId);
                   return (
                     <button key={row.key} type="button" onClick={() => openRow(row.key)} className="rounded-xl bg-[var(--color-surface-container-low)] p-4 text-left hover:bg-[var(--color-primary-subtle)]">
                       <div className="flex items-center justify-between gap-2">
@@ -618,30 +612,30 @@ function GeneralQuestionBankView({ localKeys }: { localKeys: ReturnType<typeof q
               </div>
             )}
 
-            <div className="flex flex-col items-center justify-between gap-3 bg-[var(--color-surface-container-low)] px-4 py-3 text-sm text-[var(--color-on-surface-variant)] sm:flex-row">
+            {!bankQuery.isPending && <div className="flex flex-col items-center justify-between gap-3 bg-[var(--color-surface-container-low)] px-4 py-3 text-sm text-[var(--color-on-surface-variant)] sm:flex-row">
               <label className="flex items-center gap-2">
                 Hiển thị
-                <select value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(0); }} className="rounded bg-[var(--color-surface-card)] px-2 py-1 font-semibold text-[var(--color-on-surface)] outline-none">
+                <select value={pageSize} disabled={bankQuery.isFetching} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(0); }} className="rounded bg-[var(--color-surface-card)] px-2 py-1 font-semibold text-[var(--color-on-surface)] outline-none disabled:cursor-not-allowed disabled:opacity-50">
                   <option value={10}>10 hàng / trang</option>
                   <option value={25}>25 hàng / trang</option>
                   <option value={50}>50 hàng / trang</option>
                 </select>
-                trên {filtered.length} kết quả
+                trên {total} kết quả
               </label>
               <div className="flex items-center gap-1">
-                <button type="button" aria-label="Trang trước" disabled={safePage === 0} onClick={() => setPage(safePage - 1)} className="rounded bg-[var(--color-surface-card)] p-1.5 disabled:opacity-40">
+                <button type="button" aria-label="Trang trước" disabled={bankQuery.isFetching || safePage === 0} onClick={() => goToPage(safePage - 1)} className="rounded bg-[var(--color-surface-card)] p-1.5 disabled:cursor-not-allowed disabled:opacity-40">
                   <ChevronLeft className="size-4" />
                 </button>
-                {Array.from({ length: pageCount }, (_, index) => index).slice(0, 5).map((index) => (
-                  <button key={index} type="button" onClick={() => setPage(index)} className={cn("size-8 rounded font-semibold", index === safePage ? "bg-[var(--color-primary)] text-white" : "bg-[var(--color-surface-card)]")}>
-                    {index + 1}
+                {visiblePages.map((item) => typeof item === "number" ? (
+                  <button key={item} type="button" aria-label={`Trang ${item + 1}`} aria-current={item === safePage ? "page" : undefined} disabled={bankQuery.isFetching || item === safePage} onClick={() => goToPage(item)} className={cn("size-8 rounded font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)] disabled:cursor-not-allowed disabled:opacity-50", item === safePage ? "bg-[var(--color-primary)] text-white" : "bg-[var(--color-surface-card)]")}>
+                    {item + 1}
                   </button>
-                ))}
-                <button type="button" aria-label="Trang tiếp" disabled={safePage >= pageCount - 1} onClick={() => setPage(safePage + 1)} className="rounded bg-[var(--color-surface-card)] p-1.5 disabled:opacity-40">
+                ) : <span key={item} className="grid size-8 place-items-center" aria-hidden="true">…</span>)}
+                <button type="button" aria-label="Trang tiếp" disabled={bankQuery.isFetching || safePage >= pageCount - 1} onClick={() => goToPage(safePage + 1)} className="rounded bg-[var(--color-surface-card)] p-1.5 disabled:cursor-not-allowed disabled:opacity-40">
                   <ChevronRight className="size-4" />
                 </button>
               </div>
-            </div>
+            </div>}
           </div>
         </div>
       </div>
@@ -653,9 +647,9 @@ function GeneralQuestionBankView({ localKeys }: { localKeys: ReturnType<typeof q
             <div className="flex items-center justify-between gap-2 bg-[var(--color-surface-container-low)] px-5 py-4">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="font-mono text-sm font-bold text-[var(--color-primary)]">{active.code}</span>
-                <span className={cn("inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold", statusMeta(active.testStatus).chip)}>
-                  <span className={cn("size-1.5 rounded-full", statusMeta(active.testStatus).dot)} />
-                  {statusMeta(active.testStatus).label}
+                <span className={cn("inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold", statusMeta(active.testStatus, !active.testId).chip)}>
+                  <span className={cn("size-1.5 rounded-full", statusMeta(active.testStatus, !active.testId).dot)} />
+                  {statusMeta(active.testStatus, !active.testId).label}
                 </span>
               </div>
               <button type="button" aria-label="Đóng panel" onClick={() => setActiveKey(null)} className="rounded-lg p-1.5 text-[var(--color-on-surface-variant)] hover:bg-[var(--color-surface-container)]">

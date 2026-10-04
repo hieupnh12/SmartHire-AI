@@ -10,7 +10,9 @@ import com.smarthire.domain.tenant.repository.OptionRepository;
 import com.smarthire.domain.tenant.repository.QuestionRepository;
 import com.smarthire.domain.tenant.repository.QuestionSkillRepository;
 import com.smarthire.domain.tenant.repository.SkillRepository;
+import com.smarthire.domain.enums.TestStatus;
 import com.smarthire.tenant.assessment.dto.request.BankQuestionRequest;
+import com.smarthire.tenant.assessment.dto.response.BankQuestionCounts;
 import com.smarthire.tenant.assessment.dto.response.BankQuestionPage;
 import com.smarthire.tenant.assessment.dto.response.BankQuestionResponse;
 import com.smarthire.tenant.assessment.mapper.AssessmentMapper;
@@ -18,6 +20,7 @@ import com.smarthire.tenant.cv.service.CvAccess;
 import java.util.List;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
@@ -44,11 +47,63 @@ public class QuestionBankService {
 
     @Transactional(readOnly = true)
     public BankQuestionPage list(int page, int size) {
+        return list(page, size, null, null, null, null, null, null, "latest", List.of());
+    }
+
+    @Transactional(readOnly = true)
+    public BankQuestionPage list(int page, int size, String collection, String query, String skill,
+            String difficulty, String status, String questionType, String sort, List<Long> favoriteIds) {
         staff();
-        var result = questions.findAll(PageRequest.of(Math.max(0, page), Math.max(1, Math.min(100, size)),
-                Sort.by(Sort.Direction.DESC, "id")));
+        List<Long> safeFavoriteIds = favoriteIds == null ? List.of() : favoriteIds;
+        var result = questions.findAll(filters(collection, query, skill, difficulty, status, questionType,
+                        safeFavoriteIds),
+                PageRequest.of(Math.max(0, page), Math.max(1, Math.min(100, size)), sorting(sort)));
+        var counts = new BankQuestionCounts(questions.count(), safeFavoriteIds.isEmpty() ? 0 : questions.countByIdIn(safeFavoriteIds),
+                questions.countByTest_Status(TestStatus.PUBLISHED), questions.countByTest_Status(TestStatus.DRAFT),
+                questions.countByBankArchivedTrue());
         return new BankQuestionPage(result.getContent().stream().map(this::response).toList(),
-                result.getTotalElements(), result.getNumber(), result.getSize());
+                result.getTotalElements(), result.getNumber(), result.getSize(), counts, questions.findDistinctSkills());
+    }
+
+    private Specification<Question> filters(String collection, String query, String skill, String difficulty,
+            String status, String questionType, List<Long> favoriteIds) {
+        return (root, criteria, cb) -> {
+            var predicates = new java.util.ArrayList<jakarta.persistence.criteria.Predicate>();
+            var test = root.join("test", jakarta.persistence.criteria.JoinType.LEFT);
+            if ("favorites".equalsIgnoreCase(collection)) {
+                predicates.add(favoriteIds.isEmpty() ? cb.disjunction() : root.get("id").in(favoriteIds));
+            } else if ("ready".equalsIgnoreCase(collection)) {
+                predicates.add(cb.equal(test.get("status"), TestStatus.PUBLISHED));
+            } else if ("pending".equalsIgnoreCase(collection)) {
+                predicates.add(cb.equal(test.get("status"), TestStatus.DRAFT));
+            } else if ("archived".equalsIgnoreCase(collection)) {
+                predicates.add(cb.isTrue(root.get("bankArchived")));
+            }
+            if (query != null && !query.isBlank()) {
+                String term = "%" + query.trim().toLowerCase() + "%";
+                var job = test.join("job", jakarta.persistence.criteria.JoinType.LEFT);
+                predicates.add(cb.or(cb.like(cb.lower(root.get("questionText")), term),
+                        cb.like(cb.lower(root.get("skill")), term), cb.like(cb.lower(test.get("title")), term),
+                        cb.like(cb.lower(job.get("title")), term)));
+            }
+            if (skill != null && !skill.isBlank()) predicates.add(cb.equal(root.get("skill"), skill));
+            if (difficulty != null && !difficulty.isBlank()) predicates.add(cb.equal(root.get("difficulty"), difficulty));
+            if (questionType != null && !questionType.isBlank()) predicates.add(cb.equal(root.get("questionType"), questionType));
+            if ("ARCHIVED".equalsIgnoreCase(status)) predicates.add(cb.isTrue(root.get("bankArchived")));
+            else if ("DRAFT".equalsIgnoreCase(status)) predicates.add(cb.equal(test.get("status"), TestStatus.DRAFT));
+            else if ("PUBLISHED".equalsIgnoreCase(status)) predicates.add(cb.equal(test.get("status"), TestStatus.PUBLISHED));
+            return cb.and(predicates.toArray(jakarta.persistence.criteria.Predicate[]::new));
+        };
+    }
+
+    private Sort sorting(String sort) {
+        if ("points".equalsIgnoreCase(sort)) {
+            return Sort.by(Sort.Direction.DESC, "points").and(Sort.by(Sort.Direction.DESC, "id"));
+        }
+        if ("text".equalsIgnoreCase(sort)) {
+            return Sort.by(Sort.Direction.ASC, "questionText").and(Sort.by(Sort.Direction.DESC, "id"));
+        }
+        return Sort.by(Sort.Direction.DESC, "id");
     }
 
     @Transactional(readOnly = true)

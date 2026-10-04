@@ -56,6 +56,7 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
   const unreadCount = inbox.data?.filter(item => !item.readAt).length ?? 0;
   const isRecruiterWorkspace = basePath === "/recruiter";
   const isRecruiterDashboard = isRecruiterWorkspace && /^\/recruiter\/?$/.test(location.pathname);
+  const isRecruiterQuestionBank = isRecruiterWorkspace && /^\/recruiter\/question-bank(?:\/|$)/.test(location.pathname);
   const isRecruiterJobCreate = isRecruiterWorkspace && /^\/recruiter\/jobs\/new\/?$/.test(location.pathname);
   const isRecruiterJobEdit = isRecruiterWorkspace && /^\/recruiter\/jobs\/\d+\/edit\/?$/.test(location.pathname);
   const isRecruiterJobForm = isRecruiterJobCreate || isRecruiterJobEdit;
@@ -365,7 +366,7 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
 
   return (
     <div className={cn("tenant-workspace-theme min-h-screen bg-surface-page", (isRecruiterBoard || isRecruiterJobForm) && "xl:h-dvh xl:overflow-hidden")} style={getTenantThemeStyle(tenantTheme)}>
-      <header className="sticky top-0 z-40 border-b border-[var(--color-border-default)] bg-white/85 shadow-sm backdrop-blur-md">
+      {!isRecruiterQuestionBank && <header className="sticky top-0 z-40 border-b border-[var(--color-border-default)] bg-white/85 shadow-sm backdrop-blur-md">
         <div className="mx-auto flex min-h-16 max-w-[1440px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-10">
           <div className="flex min-w-0 items-center gap-3">
             {isRecruiterWorkspace && <JobNavigationDrawer />}
@@ -506,8 +507,8 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
             ))}
           </nav> : null}
         </div>}
-      </header>
-      {showAdminBackBanner && (
+      </header>}
+      {showAdminBackBanner && !isRecruiterQuestionBank && (
         <div
           className="border-b border-[var(--color-border-default)] bg-[var(--color-primary-soft)]/60 px-4 py-2 text-center text-sm text-[var(--color-on-surface)] sm:px-6 lg:px-10"
           role="status"

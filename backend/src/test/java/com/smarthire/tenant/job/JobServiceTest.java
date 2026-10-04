@@ -9,6 +9,7 @@ import com.smarthire.domain.tenant.repository.JobRepository;
 import com.smarthire.domain.tenant.repository.JobSkillRepository;
 import com.smarthire.domain.tenant.repository.JobScreeningConfigRepository;
 import com.smarthire.domain.tenant.repository.RecruitmentStageRepository;
+import com.smarthire.tenant.company.service.CompanyDirectoryService;
 import com.smarthire.tenant.cv.service.CvAccess;
 import com.smarthire.tenant.cv.service.CvSkillAnalysisService;
 import com.smarthire.tenant.job.dto.JobModels.JobUpsertRequest;
@@ -42,6 +43,7 @@ class JobServiceTest {
     @Mock JobScreeningConfigService screening;
     @Mock JobScreeningConfigRepository screeningConfigs;
     @Mock JobCloseScreeningService closeScreening;
+    @Mock CompanyDirectoryService companyDirectory;
     @Mock org.springframework.amqp.rabbit.core.RabbitTemplate rabbitTemplate;
 
     JobService service;
@@ -51,7 +53,7 @@ class JobServiceTest {
     @BeforeEach
     void setUp() {
         service = new JobService(jobs, jobSkills, stages, applications, access, jobAccess, taxonomy, new JobMapper(),
-                assignments, screening, screeningConfigs, closeScreening, rabbitTemplate);
+                assignments, screening, screeningConfigs, closeScreening, companyDirectory, rabbitTemplate);
         recruiter = new User();
         recruiter.setEmail("recruiter@se36.local");
         recruiter.setFullName("Le Cong Cuong");

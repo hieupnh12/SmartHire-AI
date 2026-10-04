@@ -156,6 +156,11 @@ JOB-04
 - Trạng thái: `Doing` (API ngân hàng, cấu hình và tạo assessment tự động từ câu theo skill đã triển khai; cần kiểm chứng rollout MySQL/RabbitMQ và E2E).
 - Route `/recruiter/question-bank`: đọc câu độc lập và toàn bộ câu của các assessment trong cùng tenant. Không tạo bài assessment để lưu câu độc lập. Câu thêm trong assessment/job hiện có tự xuất hiện trong danh sách chung qua truy vấn, không sao chép.
 - Ngân hàng riêng `/recruiter/jobs/:id/assessments/question-bank` dùng cùng nguồn API chung: giữ các câu đã thuộc job và bổ sung câu có nhãn skill khớp ít nhất một skill của job (trim, không phân biệt hoa/thường, khớp nguyên tên; không suy đoán từ nội dung). Câu chung/câu của job khác đã lưu trữ không được bổ sung. Job chưa có skill chỉ hiển thị câu đã thuộc job. Không sao chép câu hoặc tự tạo assessment; liên kết sửa dẫn tới câu chung hoặc assessment gốc đúng job. Cache dùng chung theo tenant/user, được invalidate sau khi lưu câu hỏi; thay đổi skill job lọc lại danh sách theo dữ liệu job mới.
+- Nhóm route `/recruiter/question-bank/**` dùng không gian làm việc tập trung, không hiển thị header và thanh điều hướng của recruiter; nội dung trang vẫn kế thừa tenant theme từ `RoleShell`.
+- Bảng danh sách dùng mật độ compact: gộp mã/trạng thái vào cột câu hỏi, nội dung dài hiển thị một dòng và mở drawer để xem đầy đủ; kỹ năng dư được thu gọn thành bộ đếm.
+- Header ngân hàng chung dùng bố cục compact gồm breadcrumb, tiêu đề/mô tả ngắn và nhóm thao tác; không lặp tổng số câu hỏi ở phần đầu trang. Tổng số chỉ hiển thị trong vùng kết quả/phân trang.
+- Phân trang ngân hàng chung hỗ trợ 10/25/50 hàng, giữ `page` và `size` trên URL khi tải lại, hiển thị cửa sổ số trang quanh trang hiện tại và cho phép về trang đầu/cuối. Client chỉ gọi đúng trang đang dùng; tìm kiếm, bộ lọc và sắp xếp được gửi lên API trước khi phân trang. Khi tải trang kế tiếp, bảng bỏ dữ liệu trang cũ và hiện `LoadingState` + `TableSkeleton` với hiệu ứng shimmer dùng chung toàn dự án; các nút phân trang và chọn số hàng bị khóa/ẩn cho đến khi request hoàn tất để không phát sinh chuyển trang chồng nhau. Xuất CSV và chọn tất cả áp dụng cho trang hiện tại, không tải ngầm toàn bộ ngân hàng.
+- Trạng thái hiển thị phân biệt dữ liệu và tiến trình: câu không thuộc assessment là `Câu độc lập`, câu thuộc đề `DRAFT` là `Bản nháp`, `PUBLISHED` là `Sẵn sàng`, `ARCHIVED` là `Đã lưu trữ`; `Đang lưu…` chỉ dùng khi request ghi dữ liệu đang chạy. Bộ lọc `Chưa xuất bản` chỉ gồm câu thuộc đề nháp, không gồm câu độc lập.
 - Staff cùng tenant được đọc ngân hàng chung; candidate và token sai tenant bị từ chối trước truy vấn. Quyền assessment/job và khóa bài đã xuất bản vẫn giữ nguyên. API chung không sửa hoặc lưu trữ câu có `test_id`; UI dẫn tới assessment gốc để sửa.
 - Thêm câu hỏi / Nhập Excel mở `/recruiter/question-bank/new`; `/recruiter/question-bank/:questionId/edit` mở câu độc lập đã lưu trong bảng soạn. Bản nháp chưa gửi lưu tạm trong `sessionStorage` theo tenant/user; câu đã lưu được tải lại từ API.
 - Nút Kiểm tra dùng cùng `ExcelImportReview`: phân loại VALID/INVALID/WARNING, bỏ dòng trống, chọn chỉ lưu dòng hợp lệ hoặc yêu cầu tất cả hợp lệ, báo nội dung trùng trong lô là WARNING, xem trước giám khảo/ứng viên bằng cùng `AssessmentPublishReview` và `QuestionAnswerPanel`.
@@ -165,13 +170,13 @@ JOB-04
 
 | Method | API ngân hàng chung | Chức năng |
 |---|---|---|
-| GET | `/api/v1/question-bank/list_questions?page=0&size=100` | Danh sách phân trang; size 1–100 |
+| GET | `/api/v1/question-bank/list_questions?page=0&size=10&collection=all&query=&skill=&difficulty=&status=&questionType=&sort=latest` | Danh sách phân trang phía server; size 1–100, trả thêm tổng số theo bộ sưu tập và danh sách kỹ năng |
 | GET | `/api/v1/question-bank/get_question/{id}` | Chi tiết staff, gồm options và metadata biên soạn |
 | POST | `/api/v1/question-bank/create_questions` | Body `{ questions: [{ question: QuestionRequest, authoringMetadata: object }] }`, trả 201 |
 | PUT | `/api/v1/question-bank/update_question/{id}` | Thay toàn bộ câu độc lập và options, trả 200 |
 | PUT | `/api/v1/question-bank/archive_questions` | Body `{ questionIds: [id], archived: true/false }`; chỉ câu độc lập |
 
-Response đều bọc `ApiResponse`; item gồm `question`, `testId/testTitle/testStatus`, `jobId/jobTitle`, `archived`, `authoringMetadata`. Lỗi: 400 dữ liệu không hợp lệ, 403 role/tenant sai, 404 `BANK_QUESTION_NOT_FOUND`, 409 `BANK_QUESTION_IN_TEST`. Không đổi API hoặc luồng assessment riêng hiện có.
+Response đều bọc `ApiResponse`; trang danh sách gồm `items`, `total`, `page`, `size`, `counts`, `skills`; mỗi item gồm `question`, `testId/testTitle/testStatus`, `jobId/jobTitle`, `archived`, `authoringMetadata`. Lỗi: 400 dữ liệu không hợp lệ, 403 role/tenant sai, 404 `BANK_QUESTION_NOT_FOUND`, 409 `BANK_QUESTION_IN_TEST`. Không đổi luồng assessment riêng hiện có.
 
 Kiểm chứng ngày 2026-10-02: build frontend đạt; 36 test assessment/ngân hàng đạt, gồm HTTP thêm/đọc/sửa/lưu trữ, không tạo assessment khi thêm câu chung, giữ metadata và skill, rollback lô lỗi, từ chối candidate/sai tenant và bảo vệ câu thuộc assessment. Các integration test lần này dùng H2 + MockMvc; chưa chạy migration V41 trên MySQL thực tế hoặc kiểm thử giao diện qua trình duyệt.
 
