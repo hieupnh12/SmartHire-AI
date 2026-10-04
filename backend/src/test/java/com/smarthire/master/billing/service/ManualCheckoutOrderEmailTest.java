@@ -104,8 +104,8 @@ class ManualCheckoutOrderEmailTest {
         JavaMailSenderImpl mailSender = new JavaMailSenderImpl();
         mailSender.setHost("smtp-relay.brevo.com");
         mailSender.setPort(587);
-        mailSender.setUsername("bc3f84001@smtp-brevo.com");
-        mailSender.setPassword("YOUR_BREVO_SMTP_KEY"); // TODO: Thay bằng key thật khi chạy test, KHÔNG COMMIT key lên Git!
+        mailSender.setUsername("YOUR_BREVO_SMTP_USERNAME"); // VD: xxx@smtp-brevo.com
+        mailSender.setPassword("YOUR_BREVO_SMTP_KEY"); // KHÔNG COMMIT key lên Git!
 
         Properties props = mailSender.getJavaMailProperties();
         props.put("mail.transport.protocol", "smtp");
@@ -144,7 +144,7 @@ class ManualCheckoutOrderEmailTest {
         String workspaceName = "Công ty Cổ phần Công nghệ Alpha";
         String subdomain = "alpha-corp";
         String workspaceLoginUrl = "https://alpha-corp.smarthire.top/internal/login";
-        String tempPassword = "Sh!Alpha2026@Secure";
+        String tempPassword = "DUMMY_PASSWORD_123"; // Mật khẩu giả định cho nội dung email
         String planName = "Gói Chuyên Nghiệp (Professional)";
         String activatedDate = LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
 
@@ -176,8 +176,8 @@ class ManualCheckoutOrderEmailTest {
         JavaMailSenderImpl mailSender = new JavaMailSenderImpl();
         mailSender.setHost("smtp-relay.brevo.com");
         mailSender.setPort(587);
-        mailSender.setUsername("bc3f84001@smtp-brevo.com");
-        mailSender.setPassword("YOUR_BREVO_SMTP_KEY"); // TODO: Thay bằng key thật khi chạy test, KHÔNG COMMIT key lên Git!
+        mailSender.setUsername("YOUR_BREVO_SMTP_USERNAME"); // VD: xxx@smtp-brevo.com
+        mailSender.setPassword("YOUR_BREVO_SMTP_KEY"); // KHÔNG COMMIT key lên Git!
 
         Properties props = mailSender.getJavaMailProperties();
         props.put("mail.transport.protocol", "smtp");
