@@ -41,6 +41,7 @@ import { TenantCareerPage } from "@/features/tenant/candidate/jobs/pages/TenantC
 import { CareerNavigationLayout } from "@/features/tenant/candidate/jobs/components/CareerNavigationLayout";
 import { CvTemplatesPage } from "@/features/tenant/candidate/cv/pages/CvTemplatesPage";
 import { SharedCvPage } from "@/features/tenant/candidate/cv/pages/SharedCvPage";
+import { CvGuidePage } from "@/features/tenant/candidate/cv/pages/CvGuidePage";
 import { TenantAdminDashboardPage } from "@/features/tenant/admin/workspace/pages/TenantAdminDashboardPage";
 import { adminNav } from "@/features/tenant/admin/nav";
 import { HomePage as TenantAdminHomePage } from "@/features/tenant/admin/overview/pages/HomePage";
@@ -145,6 +146,14 @@ export function AppRouter() {
       <Route element={<CareerNavigationLayout />}>
         <Route path="/cv-templates" element={<CvTemplatesPage />} />
         <Route path="/cv/share/:token" element={<SharedCvPage />} />
+        <Route path="/cv-guide" element={<CvGuidePage />} />
+      </Route>
+      <Route element={<RoleRoute workspaces={["CANDIDATE"]} authRequired />}>
+        <Route element={<CareerNavigationLayout />}>
+          <Route path="/cv" element={<MyCvPage />} />
+          <Route path="/cv/builder" element={<CvBuilderPage />} />
+          <Route path="/cv/builder/:cvId" element={<CvBuilderPage />} />
+        </Route>
       </Route>
       <Route path="/candidate/login" element={<Navigate to="/login" replace />} />
       <Route path="/candidate/*" element={<ShortCandidateRedirect />} />
@@ -157,9 +166,6 @@ export function AppRouter() {
         <Route element={<CareerNavigationLayout />}>
           <Route path="/applications" element={<MyApplicationsPage />} />
           <Route path="/applications/:id" element={<ApplicationDetailPage />} />
-          <Route path="/cv" element={<MyCvPage />} />
-          <Route path="/cv/builder" element={<CvBuilderPage />} />
-          <Route path="/cv/builder/:cvId" element={<CvBuilderPage />} />
           <Route path="/assessments" element={<CandidateAssessmentsPage />} />
           <Route path="/interviews" element={<CandidateInterviewsPage />} />
           <Route path="/practice" element={<Navigate to="/interviews" replace />} />

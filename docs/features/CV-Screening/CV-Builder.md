@@ -14,7 +14,7 @@
 
 ## Luồng hoạt động
 
-1. Candidate bấm **Dùng mẫu này** ở `/cv-templates` (`/cv/builder?template=<id>`) hoặc **Tạo CV mới** ở `/cv`.
+1. Candidate bấm **Dùng mẫu này** ở `/cv-templates` (`/cv/builder?template=<id>`) hoặc **Tạo CV mới** ở `/cv`. Khách chưa đăng nhập thấy nút **Đăng nhập để dùng mẫu**; bấm vào sẽ chuyển sang `/login`, đăng nhập Google xong quay lại đúng `/cv/builder?template=<id>`.
 2. Trang builder nạp: bản nháp trên trình duyệt (nếu có) → dữ liệu đã lưu (khi sửa `/cv/builder/:cvId`) → CV mẫu điền sẵn họ tên/email/điện thoại từ tài khoản.
 3. Candidate sửa trực tiếp (inline). Mỗi mục có thanh công cụ nổi: tay nắm kéo thả, lên/xuống, ẩn/hiện khi xuất, thêm nội dung, xóa (có `ConfirmDialog`). Mỗi nội dung có: kéo thả (chỉ trong cùng mục), lên/xuống, nhân bản, xóa. Mô tả hỗ trợ in đậm, in nghiêng, danh sách.
    - 11 loại mục: Kinh nghiệm, Học vấn, Dự án, Kỹ năng, Ngoại ngữ, Chứng chỉ, Giải thưởng, Hoạt động, Sở thích, Người tham chiếu, Tùy chỉnh. Ngoại ngữ có thang mức độ 1–5 chấm (bấm lại chấm hiện tại để bỏ). Kỹ năng dùng nhãn chữ thay cho chấm/%: bấm để đổi Chưa chọn → Biết → Khá → Thành thạo (EN: Familiar/Intermediate/Proficient).
@@ -59,9 +59,11 @@
 15. **Chấm theo tin**: nút trên thanh công cụ → chọn tin tuyển dụng đang mở → `POST /cvs/builder/job-match?jobId=` → % kỹ năng khớp, danh sách kỹ năng đã có/chưa thấy, yêu cầu kinh nghiệm/trình độ của tin.
 16. **Đánh giá CV** (chỉ FE, tính lại mỗi lần sửa): nút "Đánh giá CV · điểm" mở panel bên phải với điểm 0–100, số chỉ số định lượng, số trang/giới hạn, số năm kinh nghiệm ước tính, danh sách lỗi/nhắc nhở. Bấm một mục để cuộn và đặt con trỏ vào đúng ô (viền vàng nhấp nháy). Không chặn lưu.
 17. **Mẹo viết CV IT**: hộp thoại từ thanh công cụ (cấu trúc, 1/2 trang, mới nhất lên đầu, công thức XYZ kèm ví dụ, Tech Stack theo nhóm, tránh thanh %/sao). Placeholder các ô Kinh nghiệm/Dự án/Kỹ năng gợi ý theo cùng quy tắc; AI gợi ý mô tả theo công thức XYZ và tránh động từ yếu.
+18. **Trang Hướng dẫn viết CV** `/cv-guide` (công khai, menu header "Tạo CV → Hướng dẫn viết CV"): mục lục dính, 9 phần (cách nhà tuyển dụng đọc CV, cấu trúc chuẩn, công thức X-Y-Z kèm ví dụ trước/sau, trình bày dự án IT, động từ hành động, định dạng & ATS, lỗi thường gặp, checklist tương tác trước khi gửi, nguồn tham khảo). Nội dung trích dẫn có số nguồn: Ladders Eye-Tracking Study 2018, Laszlo Bock (Google), Harvard Mignone Center / Harvard Extension School, ITviec Blog. Code: `pages/CvGuidePage.tsx`, `constants/cvGuide.ts`.
 
 ## Business Rules
 
+- `/cv`, `/cv/builder`, `/cv/builder/:cvId` luôn bắt đăng nhập (`RoleRoute authRequired`), kể cả khi `VITE_REQUIRE_AUTH=false`. Menu header (Quản lý CV, Tải CV lên, Cover Letter) hiện nhãn "Cần đăng nhập" khi chưa đăng nhập. `/cv-templates`, `/cv-guide`, `/cv/share/:token` vẫn công khai.
 - Chỉ candidate tạo/sửa; staff gọi → `403 CV_UPLOAD_CANDIDATE_ONLY`. Sửa CV người khác → `403 CV_FORBIDDEN`.
 - Chỉ CV có `builder_data` và không phải bản sao đơn ứng tuyển mới sửa được bằng builder → `409 CV_NOT_BUILDER`.
 - Xuất PDF: chỉ người dùng đăng nhập; `html` bắt buộc, `html`/`css` mỗi trường ≤ 5.000.000 ký tự.

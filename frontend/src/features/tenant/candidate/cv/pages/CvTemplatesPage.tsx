@@ -1,5 +1,6 @@
 import { Link, useSearchParams } from "react-router-dom";
-import { ArrowRight, Check, ChevronRight, Code2, FileSearch, FolderGit2, LayoutTemplate, Mail, RotateCcw, Sparkles } from "lucide-react";
+import { ArrowRight, Check, ChevronRight, Code2, FileSearch, FolderGit2, LayoutTemplate, Lock, Mail, RotateCcw, Sparkles } from "lucide-react";
+import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 import {
   cvRoleKeys, cvRoles, cvStyleKeys, cvStyles, cvTemplates, isCvRole, isCvStyle,
   type CvLayout, type CvRoleKey,
@@ -8,6 +9,7 @@ import {
 const tint = (percent: number) => `color-mix(in srgb, var(--color-primary) ${percent}%, white)`;
 
 export function CvTemplatesPage() {
+  const loggedIn = Boolean(useAuthStore((s) => s.accessToken));
   const [params, setParams] = useSearchParams();
   const styleParam = params.get("style");
   const roleParam = params.get("position");
@@ -70,7 +72,7 @@ export function CvTemplatesPage() {
                 <div className="relative p-4" style={{ backgroundColor: tint(6) }}>
                   <CvPreview layout={item.layout} role={role ?? item.roles[0] ?? "backend"} />
                   <div className="absolute inset-0 flex items-center justify-center bg-slate-900/40 opacity-0 transition-opacity duration-200 group-focus-within:opacity-100 group-hover:opacity-100">
-                    <Link to={`/cv/builder?template=${item.id}`} aria-label={`Dùng mẫu ${item.name}`} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[var(--color-primary)] px-5 text-sm font-semibold text-white shadow-lg hover:bg-[var(--color-primary-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">Dùng mẫu này</Link>
+                    <Link to={`/cv/builder?template=${item.id}`} aria-label={loggedIn ? `Dùng mẫu ${item.name}` : `Đăng nhập để dùng mẫu ${item.name}`} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[var(--color-primary)] px-5 text-sm font-semibold text-white shadow-lg hover:bg-[var(--color-primary-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">{loggedIn ? "Dùng mẫu này" : <><Lock className="size-4" aria-hidden="true" />Đăng nhập để dùng mẫu</>}</Link>
                   </div>
                 </div>
                 <div className="flex flex-1 flex-col gap-2 border-t border-slate-100 p-4">

@@ -7,14 +7,16 @@ import { Outlet } from "react-router-dom";
 type Props = {
   roles?: Role[];
   workspaces?: RoleWorkspace[];
+  /** Require login even when VITE_REQUIRE_AUTH=false (pages that only work with a real account). */
+  authRequired?: boolean;
 };
 
 /**
  * Role gate. When VITE_REQUIRE_AUTH=false, allows browse for UI scaffolding
  * but still redirects if a logged-in user has the wrong role.
  */
-export function RoleRoute({ roles, workspaces }: Props) {
-  const requireAuth = import.meta.env.VITE_REQUIRE_AUTH === "true";
+export function RoleRoute({ roles, workspaces, authRequired = false }: Props) {
+  const requireAuth = authRequired || import.meta.env.VITE_REQUIRE_AUTH === "true";
   const token = useAuthStore((s) => s.accessToken);
   const user = useAuthStore((s) => s.user);
   const location = useLocation();
