@@ -60,14 +60,14 @@ class CvAccessTest {
     @Test
     void requireJobAllowsAssignedRecruiter() {
         when(users.findByEmailIgnoreCase("recruiter@acme.test")).thenReturn(Optional.of(recruiter));
-        when(assignments.existsByJob_IdAndUser_Id(9L, 2L)).thenReturn(true);
+        when(assignments.existsByJob_IdAndUser_IdAndCanViewTrue(9L, 2L)).thenReturn(true);
         access.requireJob(job);
     }
 
     @Test
     void requireJobRejectsUnassignedRecruiter() {
         when(users.findByEmailIgnoreCase("recruiter@acme.test")).thenReturn(Optional.of(recruiter));
-        when(assignments.existsByJob_IdAndUser_Id(9L, 2L)).thenReturn(false);
+        when(assignments.existsByJob_IdAndUser_IdAndCanViewTrue(9L, 2L)).thenReturn(false);
         BusinessException ex = assertThrows(BusinessException.class, () -> access.requireJob(job));
         assertEquals("JOB_NOT_ASSIGNED", ex.getCode());
     }
@@ -128,7 +128,7 @@ class CvAccessTest {
     void staffIncludesCustomRoleAuthority() {
         login("recruiter@acme.test", "ROLE_STAFF", "ROLE_CV_SCREENING");
         when(users.findByEmailIgnoreCase("recruiter@acme.test")).thenReturn(Optional.of(recruiter));
-        when(assignments.existsByJob_IdAndUser_Id(9L, 2L)).thenReturn(true);
+        when(assignments.existsByJob_IdAndUser_IdAndCanViewTrue(9L, 2L)).thenReturn(true);
         access.requireJob(job);
     }
 

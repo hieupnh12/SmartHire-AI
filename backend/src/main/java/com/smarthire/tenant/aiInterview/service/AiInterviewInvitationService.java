@@ -10,23 +10,32 @@ import com.smarthire.domain.tenant.repository.AiInterviewRepository;
 import com.smarthire.domain.tenant.repository.ApplicationRepository;
 import com.smarthire.domain.tenant.repository.NotificationRepository;
 import com.smarthire.multitenancy.context.TenantContext;
+import com.smarthire.tenant.applicant.service.AiInterviewInviteService;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class AiInterviewInvitationService {
+    private static final DateTimeFormatter INVITATION_TIME = DateTimeFormatter.ofPattern("HH:mm dd/MM/yyyy")
+            .withZone(ZoneId.of("Asia/Bangkok"));
     private final ApplicationRepository applications;
     private final AiInterviewRepository interviews;
     private final NotificationRepository notifications;
     private final AiInterviewActivityLog activity;
+    private final AiInterviewInviteService emailInvites;
 
     public AiInterviewInvitationService(ApplicationRepository applications, AiInterviewRepository interviews,
-                                        NotificationRepository notifications, AiInterviewActivityLog activity) {
+                                        NotificationRepository notifications, AiInterviewActivityLog activity,
+                                        AiInterviewInviteService emailInvites) {
         this.applications = applications;
         this.interviews = interviews;
         this.notifications = notifications;
         this.activity = activity;
+        this.emailInvites = emailInvites;
     }
 
     @Transactional
@@ -44,7 +53,10 @@ public class AiInterviewInvitationService {
         }
         var existing = interviews.findByApplication_IdOrderByIdDesc(applicationId);
         AiInterviewEligibility.require(application);
-        if (!existing.isEmpty()) return existing.get(0);
+        if (!existing.isEmpty()) {
+            var latest = existing.get(0);
+            if (latest.getCompletedAt() != null || latest.getConfigSnapshotJson() != null && InterviewPolicies.communicationOnly(InterviewPolicies.config(latest).policy())) return latest;
+        }
         return createAttempt(application, stage, 1);
     }
 
@@ -75,20 +87,36 @@ public class AiInterviewInvitationService {
                 .attemptNumber(attemptNumber).build();
         InterviewPolicies.snapshot(interview);
         interview = interviews.save(interview);
+        var config = InterviewPolicies.config(interview);
         activity.record(interview, "INVITED", "Attempt " + attemptNumber + " created for application " + application.getId()
-                + "; generation of " + application.getJob().getAiInterviewQuestionCount() + " questions queued");
+                + "; generation of " + config.questionCount() + " Communication questions queued");
         notifications.save(Notification.builder()
                 .user(application.getCandidate())
                 .type("AI_INTERVIEW_INVITATION")
                 .title(attemptNumber == 1 ? "Lời mời phỏng vấn AI" : "Lượt làm lại AI Interview")
-                .body("Bộ phận tuyển dụng mời bạn tham gia vòng AI Interview cho vị trí "
-                        + application.getJob().getTitle() + ". CV của bạn đã qua vòng sàng lọc."
-                        + " Hệ thống đang tự động tạo bộ câu hỏi; bạn có thể bắt đầu khi câu hỏi sẵn sàng.")
+                .body(invitationBody(application.getJob().getTitle(), config.availableFrom(), config.availableUntil(),
+                        config.policy().durationMinutes(), config.policy().maxAttempts()))
                 .payloadJson("{\"aiInterviewId\":" + interview.getId() + ",\"applicationId\":" + application.getId()
                         + ",\"path\":\"/candidate/interviews/" + interview.getId() + "\"}")
                 .build());
         activity.record(interview, "NOTIFICATION_SENT", "AI_INTERVIEW_INVITATION");
+        emailInvites.sendForInterview(application);
         return interview;
+    }
+
+    private static String invitationBody(String jobTitle, Instant availableFrom, Instant availableUntil,
+            int durationMinutes, int maxAttempts) {
+        return "Chúc mừng, bạn đã vượt qua vòng CV Screening cho vị trí " + jobTitle + ".\n"
+                + "Vòng tiếp theo là AI Interview.\n"
+                + "Thời gian có thể bắt đầu: " + formatTime(availableFrom, "Ngay khi câu hỏi sẵn sàng") + "\n"
+                + "Hạn hoàn thành: " + formatTime(availableUntil, "Không giới hạn") + "\n"
+                + "Thời lượng: " + durationMinutes + " phút\n"
+                + "Số lần thực hiện: " + maxAttempts + "\n"
+                + "Bạn có thể bắt đầu AI Interview bất kỳ lúc nào trong khoảng thời gian trên.";
+    }
+
+    private static String formatTime(Instant value, String fallback) {
+        return value == null ? fallback : INVITATION_TIME.format(value);
     }
 
     private void requireTenant() {

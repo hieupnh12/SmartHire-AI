@@ -11,6 +11,7 @@ import com.smarthire.domain.tenant.repository.JobAssignmentRepository;
 import com.smarthire.domain.tenant.repository.JobRepository;
 import com.smarthire.domain.tenant.repository.UserRepository;
 import com.smarthire.tenant.cv.service.CvAccess;
+import com.smarthire.tenant.auth.service.RolePermissionService;
 import com.smarthire.tenant.job.dto.JobAssignmentModels.AssignRecruiterRequest;
 import com.smarthire.tenant.job.dto.JobAssignmentModels.JobAssignmentResponse;
 import com.smarthire.tenant.job.dto.JobAssignmentModels.StaffAssignmentResponse;
@@ -21,7 +22,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -38,8 +38,10 @@ class JobAssignmentServiceTest {
     @Mock JobRepository jobs;
     @Mock UserRepository users;
     @Mock CvAccess access;
+    @Mock RolePermissionService rolePermissionService;
+    JobAccess jobAccess;
 
-    @InjectMocks JobAssignmentService service;
+    JobAssignmentService service;
 
     User admin;
     User recruiter;
@@ -53,18 +55,16 @@ class JobAssignmentServiceTest {
         job.setId(9L);
         job.setTitle("Backend");
         job.setCreatedBy(admin);
+        jobAccess = new JobAccess(access, assignments, jobs, rolePermissionService);
+        service = new JobAssignmentService(assignments, jobs, users, access, jobAccess, rolePermissionService);
     }
 
     @Test
-    void assignCreatesPrimaryAndDemotesExisting() {
-        User previous = staff(3L, "HR", "Minh");
-        JobAssignment currentPrimary = assignment(11L, previous, AssignmentRole.PRIMARY_RECRUITER);
+    void assignGrantsCollaboratorPermissions() {
         when(access.actor()).thenReturn(admin);
         when(jobs.findById(9L)).thenReturn(Optional.of(job));
         when(users.findById(2L)).thenReturn(Optional.of(recruiter));
         when(assignments.existsByJob_IdAndUser_Id(9L, 2L)).thenReturn(false);
-        when(assignments.findByJob_IdAndAssignmentRole(9L, AssignmentRole.PRIMARY_RECRUITER))
-                .thenReturn(Optional.of(currentPrimary));
         when(assignments.save(any(JobAssignment.class))).thenAnswer(call -> {
             JobAssignment row = call.getArgument(0);
             if (row.getId() == null) {
@@ -73,11 +73,12 @@ class JobAssignmentServiceTest {
             return row;
         });
 
-        JobAssignmentResponse response = service.assign(9L, new AssignRecruiterRequest(2L, "PRIMARY_RECRUITER"));
+        JobAssignmentResponse response = service.assign(9L, new AssignRecruiterRequest(2L, "COLLABORATOR"));
 
         assertEquals(2L, response.userId());
-        assertEquals("PRIMARY_RECRUITER", response.assignmentRole());
-        assertEquals(AssignmentRole.CO_RECRUITER, currentPrimary.getAssignmentRole());
+        assertEquals("COLLABORATOR", response.assignmentRole());
+        assertEquals(true, response.canView());
+        assertEquals(true, response.canEdit());
     }
 
     @Test
@@ -88,7 +89,7 @@ class JobAssignmentServiceTest {
         when(assignments.existsByJob_IdAndUser_Id(9L, 2L)).thenReturn(true);
 
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> service.assign(9L, new AssignRecruiterRequest(2L, "CO_RECRUITER")));
+                () -> service.assign(9L, new AssignRecruiterRequest(2L, "VIEWER")));
         assertEquals("ALREADY_ASSIGNED", ex.getCode());
         verify(assignments, never()).save(any());
     }
@@ -101,38 +102,38 @@ class JobAssignmentServiceTest {
         when(users.findById(8L)).thenReturn(Optional.of(candidate));
 
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> service.assign(9L, new AssignRecruiterRequest(8L, "CO_RECRUITER")));
+                () -> service.assign(9L, new AssignRecruiterRequest(8L, "VIEWER")));
         assertEquals("INVALID_RECRUITER", ex.getCode());
     }
 
     @Test
     void assignRejectsNonAdmin() {
         when(access.actor()).thenReturn(recruiter);
+        when(jobs.findById(9L)).thenReturn(Optional.of(job));
 
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> service.assign(9L, new AssignRecruiterRequest(2L, "CO_RECRUITER")));
-        assertEquals("FORBIDDEN", ex.getCode());
+                () -> service.assign(9L, new AssignRecruiterRequest(2L, "VIEWER")));
+        assertEquals("JOB_FORBIDDEN", ex.getCode());
     }
 
     @Test
-    void updateRoleChangesCoToPrimary() {
-        JobAssignment row = assignment(11L, recruiter, AssignmentRole.CO_RECRUITER);
+    void updateRoleChangesViewerToCollaborator() {
+        JobAssignment row = assignment(11L, recruiter, AssignmentRole.VIEWER);
         when(access.actor()).thenReturn(admin);
         when(jobs.findById(9L)).thenReturn(Optional.of(job));
         when(assignments.findByJob_IdAndUser_Id(9L, 2L)).thenReturn(Optional.of(row));
-        when(assignments.findByJob_IdAndAssignmentRole(9L, AssignmentRole.PRIMARY_RECRUITER))
-                .thenReturn(Optional.empty());
         when(assignments.save(row)).thenReturn(row);
 
-        JobAssignmentResponse response = service.updateRole(9L, 2L, new UpdateAssignmentRequest("PRIMARY_RECRUITER"));
+        JobAssignmentResponse response = service.updateRole(9L, 2L, new UpdateAssignmentRequest("COLLABORATOR"));
 
-        assertEquals("PRIMARY_RECRUITER", response.assignmentRole());
-        assertEquals(AssignmentRole.PRIMARY_RECRUITER, row.getAssignmentRole());
+        assertEquals("COLLABORATOR", response.assignmentRole());
+        assertEquals(AssignmentRole.COLLABORATOR, row.getAssignmentRole());
+        assertEquals(true, row.isCanEdit());
     }
 
     @Test
     void removeDeletesAssignment() {
-        JobAssignment row = assignment(11L, recruiter, AssignmentRole.CO_RECRUITER);
+        JobAssignment row = assignment(11L, recruiter, AssignmentRole.VIEWER);
         when(access.actor()).thenReturn(admin);
         when(jobs.findById(9L)).thenReturn(Optional.of(job));
         when(assignments.findByJob_IdAndUser_Id(9L, 2L)).thenReturn(Optional.of(row));
@@ -149,7 +150,7 @@ class JobAssignmentServiceTest {
     }
 
     @Test
-    void assignCreatorSavesPrimaryForRecruiter() {
+    void assignCreatorSavesOwnerForRecruiter() {
         job.setCreatedBy(recruiter);
         job.setId(9L);
         when(assignments.existsByJob_IdAndUser_Id(9L, 2L)).thenReturn(false);
@@ -158,17 +159,18 @@ class JobAssignmentServiceTest {
 
         ArgumentCaptor<JobAssignment> captor = ArgumentCaptor.forClass(JobAssignment.class);
         verify(assignments).save(captor.capture());
-        assertEquals(AssignmentRole.PRIMARY_RECRUITER, captor.getValue().getAssignmentRole());
+        assertEquals(AssignmentRole.OWNER, captor.getValue().getAssignmentRole());
         assertEquals(recruiter, captor.getValue().getUser());
     }
 
     @Test
     void listRequiresJobAccess() {
+        when(access.actor()).thenReturn(admin);
         when(jobs.findById(9L)).thenReturn(Optional.of(job));
         when(assignments.findByJob_IdOrderByIdAsc(9L)).thenReturn(List.of());
 
         assertEquals(0, service.list(9L).size());
-        verify(access).requireJob(job);
+        verify(access).actor();
     }
 
     @Test
@@ -203,7 +205,7 @@ class JobAssignmentServiceTest {
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.listForUser(8L));
 
-        assertEquals("FORBIDDEN", ex.getCode());
+        assertEquals("JOB_FORBIDDEN", ex.getCode());
         verify(users, never()).findById(any());
     }
 

@@ -27,9 +27,14 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import com.smarthire.master.billing.dto.OrderPdfData;
+import com.smarthire.master.notification.service.MasterNotificationService;
+
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -48,6 +53,8 @@ public class MasterBillingService {
     private final TenantSubscriptionRepository subscriptionRepository;
     private final MasterTenantService masterTenantService;
     private final InviteMailSender mailSender;
+    private final OrderPdfGeneratorService orderPdfGeneratorService;
+    private final MasterNotificationService masterNotificationService;
 
     @Value("${app.tenant.base-domain:smarthire.top}")
     private String baseDomain;
@@ -136,10 +143,11 @@ public class MasterBillingService {
                 .invoiceNumber(invoiceNumber)
                 .tenantId(tenant.getId())
                 .subscriptionId(subscriptionId)
+                .contractId(request.getContractId())
                 .amount(request.getAmount())
                 .subtotal(request.getSubtotal() != null ? request.getSubtotal() : request.getAmount())
                 .taxRate(request.getTaxRate())
-                .currency(StringUtils.hasText(request.getCurrency()) ? request.getCurrency().toUpperCase() : "USD")
+                .currency(StringUtils.hasText(request.getCurrency()) ? request.getCurrency().toUpperCase() : "VND")
                 .status("PENDING")
                 .dueDate(request.getDueDate() != null ? request.getDueDate() : LocalDateTime.now().plusDays(14))
                 .billingPeriodStart(request.getBillingPeriodStart() != null ? request.getBillingPeriodStart() : LocalDateTime.now())
@@ -152,7 +160,7 @@ public class MasterBillingService {
         log.info("New B2B Invoice created: #{} for Tenant: {}", saved.getInvoiceNumber(), tenant.getCode());
 
         if (request.getLineItems() != null && !request.getLineItems().isEmpty()) {
-            List<InvoiceLineItem> lineItems = request.getLineItems().stream().map(itemReq -> 
+            List<InvoiceLineItem> lineItems = request.getLineItems().stream().map(itemReq ->
                 InvoiceLineItem.builder()
                         .invoiceId(saved.getId())
                         .description(itemReq.getDescription())
@@ -203,7 +211,24 @@ public class MasterBillingService {
             TenantInfo pendingTenant = tenantRepository.findById(invoice.getTenantId()).orElse(null);
             if (pendingTenant != null && ("PENDING_PAYMENT".equals(pendingTenant.getStatus()) || "FAILED".equals(pendingTenant.getStatus()))) {
                 log.info("Auto-provisioning workspace for tenant: {}", pendingTenant.getCode());
-                masterTenantService.provisionPendingTenant(pendingTenant.getId());
+                String tempPassword = masterTenantService.provisionPendingTenant(pendingTenant.getId());
+                pendingTenant = tenantRepository.findById(pendingTenant.getId()).orElse(pendingTenant);
+                String workspaceUrl = "https://" + pendingTenant.getSubdomain() + "." + baseDomain;
+
+                SubscriptionPlan plan = null;
+                if (invoice.getSubscriptionId() != null) {
+                    TenantSubscription sub = subscriptionRepository.findById(invoice.getSubscriptionId()).orElse(null);
+                    if (sub != null) {
+                        plan = planRepository.findById(sub.getPlanId()).orElse(null);
+                    }
+                }
+                String planName = plan != null ? plan.getName() : null;
+
+                try {
+                    masterNotificationService.sendWorkspaceActivated(pendingTenant, planName, tempPassword, workspaceUrl);
+                } catch (Exception ex) {
+                    log.warn("Could not deliver workspace activation email: {}", ex.getMessage());
+                }
             }
         }
 
@@ -231,7 +256,7 @@ public class MasterBillingService {
                 .orElseThrow(() -> new BusinessException("Gói cước không tồn tại: " + request.getPlanCode(), HttpStatus.NOT_FOUND, "PLAN_NOT_FOUND"));
 
         int quantity = request.getQuantity() != null && request.getQuantity() > 0 ? request.getQuantity() : 1;
-        
+
         // Mô hình bản quyền theo năm (Yearly Only) - giá lưu trực tiếp bằng VNĐ tại priceYearly
         BigDecimal unitPriceVnd = plan.getPriceYearly() != null ? plan.getPriceYearly() : BigDecimal.ZERO;
         BigDecimal amountVnd = unitPriceVnd.multiply(BigDecimal.valueOf(quantity));
@@ -297,17 +322,53 @@ public class MasterBillingService {
                 .build();
         invoiceLineItemRepository.save(lineItem);
 
-        // 5. Bank Info and VietQR
-        String bankName = "Vietcombank (VCB)";
-        String accountNumber = "1028935315";
+        // 5. Bank Info and SePay VietQR (TPBank)
+        String bankName = "Ngân hàng TMCP Tiên Phong (TPBank)";
+        String accountNumber = "07744348801";
         String accountName = "NGUYEN NHAT SINH";
         String transferSyntax = "SH " + savedInvoice.getInvoiceNumber();
         String encodedSyntax = URLEncoder.encode(transferSyntax, StandardCharsets.UTF_8);
         String encodedAccount = URLEncoder.encode(accountName, StandardCharsets.UTF_8);
-        String qrUrl = "https://img.vietqr.io/image/VCB-1028935315-compact2.png?amount=" 
-                + amountVnd.toBigInteger() 
-                + "&addInfo=" + encodedSyntax 
+        String qrUrl = "https://img.vietqr.io/image/TPBank-07744348801-compact2.png?amount="
+                + amountVnd.toBigInteger()
+                + "&addInfo=" + encodedSyntax
                 + "&accountName=" + encodedAccount;
+
+        // 6. Asynchronously generate PDF and send Order Confirmation Email
+        CompletableFuture.runAsync(() -> {
+            try {
+                String customerName = StringUtils.hasText(request.getCompanyLegalName())
+                        ? request.getCompanyLegalName()
+                        : (StringUtils.hasText(request.getWorkspaceName()) ? request.getWorkspaceName() : request.getAdminFullName());
+                String orderDate = savedInvoice.getCreatedAt() != null
+                        ? savedInvoice.getCreatedAt().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+                        : LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+
+                OrderPdfData pdfData = OrderPdfData.builder()
+                        .invoiceNumber(savedInvoice.getInvoiceNumber())
+                        .orderDate(orderDate)
+                        .customerName(customerName)
+                        .taxCode(request.getTaxCode())
+                        .companyLegalName(request.getCompanyLegalName())
+                        .billingAddress(request.getBillingAddress())
+                        .adminEmail(request.getAdminEmail())
+                        .planName(plan.getName())
+                        .quantity(quantity)
+                        .unitPrice(unitPriceVnd)
+                        .totalPrice(amountVnd)
+                        .bankName(bankName)
+                        .accountNumber(accountNumber)
+                        .accountName(accountName)
+                        .transferSyntax(transferSyntax)
+                        .qrUrl(qrUrl)
+                        .build();
+
+                byte[] pdfBytes = orderPdfGeneratorService.generateOrderPdf(pdfData);
+                masterNotificationService.sendCheckoutOrderCreated(pdfData, pdfBytes, request.getAdminEmail());
+            } catch (Exception ex) {
+                log.warn("Could not dispatch checkout order confirmation email for #{}: {}", savedInvoice.getInvoiceNumber(), ex.getMessage());
+            }
+        });
 
         return CheckoutResponse.builder()
                 .invoiceId(savedInvoice.getId())
@@ -364,8 +425,7 @@ public class MasterBillingService {
         if (tenant != null && ("PENDING_PAYMENT".equals(tenant.getStatus()) || "FAILED".equals(tenant.getStatus()))) {
             log.info("Auto-provisioning workspace for tenant: {}", tenant.getCode());
             String tempPassword = masterTenantService.provisionPendingTenant(tenant.getId());
-            log.info(">>> THÔNG TIN ĐĂNG NHẬP (DÀNH CHO DEV/TEST) <<<");
-            log.info(">>> Workspace: {} | Admin Email: {} | Password: {} <<<", tenant.getSubdomain(), tenant.getContactEmail(), tempPassword);
+            log.info("Temporary workspace administrator credentials generated for tenant '{}'", tenant.getCode());
             tenant = tenantRepository.findById(tenant.getId()).orElse(tenant);
 
             String workspaceUrl = "https://" + tenant.getSubdomain() + "." + baseDomain;
@@ -381,6 +441,22 @@ public class MasterBillingService {
                 mailSender.send(tenant.getContactEmail(), "Kích hoạt không gian làm việc SmartHire-AI", emailBody);
             } catch (Exception ex) {
                 log.warn("Could not deliver workspace activation email to: {}", tenant.getContactEmail());
+            }
+
+            SubscriptionPlan plan = null;
+            if (saved.getSubscriptionId() != null) {
+                TenantSubscription sub = subscriptionRepository.findById(saved.getSubscriptionId()).orElse(null);
+                if (sub != null) {
+                    plan = planRepository.findById(sub.getPlanId()).orElse(null);
+                }
+            }
+            String planName = plan != null ? plan.getName() : null;
+
+            // Gửi email thông báo kích hoạt thành công với giao diện HTML chuẩn thương hiệu qua Brevo SMTP
+            try {
+                masterNotificationService.sendWorkspaceActivated(tenant, planName, tempPassword, workspaceUrl);
+            } catch (Exception ex) {
+                log.warn("Could not deliver workspace activation HTML email to: {}", tenant.getContactEmail(), ex);
             }
         }
         return saved;
@@ -410,6 +486,25 @@ public class MasterBillingService {
         List<InvoiceLineItem> items = invoiceLineItemRepository.findByInvoiceId(saved.getId());
         response.setLineItems(items.stream().map(InvoiceLineItemResponse::from).toList());
         return response;
+    }
+
+    @Transactional(readOnly = true, transactionManager = "masterTransactionManager")
+    public InvoiceStatusResponse getPublicInvoiceStatus(Long invoiceId) {
+        Invoice invoice = invoiceRepository.findById(invoiceId)
+                .orElseThrow(() -> new BusinessException("Hóa đơn không tồn tại: " + invoiceId, HttpStatus.NOT_FOUND, "INVOICE_NOT_FOUND"));
+
+        TenantInfo tenant = tenantRepository.findById(invoice.getTenantId()).orElse(null);
+
+        return new InvoiceStatusResponse(
+                invoice.getId(),
+                invoice.getInvoiceNumber(),
+                invoice.getStatus(),
+                invoice.getAmount(),
+                invoice.getPaymentGateway(),
+                invoice.getPaidAt(),
+                tenant != null ? tenant.getSubdomain() : null,
+                tenant != null ? tenant.getStatus() : null
+        );
     }
 
     private String generateInvoiceNumber() {

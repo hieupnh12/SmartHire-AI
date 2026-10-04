@@ -45,6 +45,8 @@ public final class RedisKeys {
         return "auth:master:refresh:" + tokenId;
     }
 
+    public static String interviewVoiceTicket(String ticket) { return "interview:voice:ticket:" + ticket; }
+
     public static String aiTaskConfig(String taskType) {
         return "cache:ai:config:" + (taskType == null ? "DEFAULT" : taskType.trim().toUpperCase());
     }
@@ -59,6 +61,22 @@ public final class RedisKeys {
 
     public static String landingPage(String tenantCode) {
         return "cache:landing:" + (tenantCode == null ? "default" : tenantCode.trim().toLowerCase());
+    }
+
+    public static String tenantRefreshSession(String tokenId) {
+        return "auth:tenant:refresh:" + tokenId;
+    }
+
+    public static String tenantLoginFailedAttempts(String tenantId, String email) {
+        String t = (tenantId == null ? "default" : tenantId.trim().toLowerCase());
+        String e = (email == null ? "" : email.trim().toLowerCase());
+        return "ratelimit:tenant:" + t + ":login:failed:" + e;
+    }
+
+    public static String tenantPasswordResetOtp(String tenantId, String email) {
+        String t = (tenantId == null ? "default" : tenantId.trim().toLowerCase());
+        String e = (email == null ? "" : email.trim().toLowerCase());
+        return "otp:tenant:" + t + ":password-reset:" + e;
     }
 }
 

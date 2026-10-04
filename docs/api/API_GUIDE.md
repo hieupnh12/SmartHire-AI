@@ -82,6 +82,24 @@ Envelope chuẩn: xem phiên bản trước — `success`, `message`, `data`, `e
 
 ## AI interview
 
+Phiên mới có `conversational=true` trong AiInterviewResponse, dùng V44 InterviewSession/InterviewMessage. Start không yêu cầu AiQuestion; lời chào/câu đầu tạo khi start. Complete gửi toàn transcript cho worker chấm sau phiên; lifecycle/retry-score giữ nguyên.
+
+| Method | Endpoint | Contract |
+|---|---|---|
+| GET | `/ai-interviews/{id}/conversation` | sessionId, candidateTurns, maxTurns, dialogueComplete, language, messages(id/sequenceNo/role/content/requestId/hasRecording/createdAt); owner hoặc staff có quyền Job sau complete |
+| POST | `/ai-interviews/{id}/conversation/turns` | `{requestId: UUID, content: string(1–10000)}`; SSE delta{text}, done{ConversationResponse}, error{message}; retry giữ UUID/content |
+| POST | `/ai-interviews/{id}/conversation/voice-ticket` | `{ticket}` trong ApiResponse; Redis single-use 60s, owner + consent + active |
+| WebSocket | `/ws/interview-voice?ticket=...` | Server ready; client start{mimeType}, binary≤256KB/tổng9MB, end; server recording/transcript{text}/error{message} |
+| POST | `/ai-interviews/{id}/conversation/messages/{messageId}/speech` | WAV ASSISTANT message; owner + active/consent |
+| POST multipart | `/ai-interviews/{id}/conversation/messages/{messageId}/recording` | Part file, USER đã commit, owner + active/consent + Record Audio |
+| GET | `/ai-interviews/{id}/conversation/messages/{messageId}/recording` | Audio authenticated sau complete; không trả storage key |
+
+User+assistant là một transaction; done chỉ gửi sau commit. Reply lỗi chưa hoàn tất không lưu. Client giữ draft/requestId để retry; không tự retry stream. Grading provider lỗi không phải candidate 0 điểm. Report schemaVersion3 có communicationCriteria, evidence(messageId/quote), summary/strengths/weaknesses; backend xác minh evidence/tính tổng.
+
+Communication dùng Spring AI + Gemini, giữ nguyên endpoint và format phiên Process V2. `PUT /ai-interviews/{id}/questions/{questionId}/answer` nhận `answerText`, `answerDuration` và `speechMetrics` tùy chọn; multipart `POST .../audio-answer` nhận `file` + phần JSON `answer` cùng cấu trúc. `speechMetrics` gồm `durationMs`, `voicedMs`, `silenceMs`, `pauseCount`, `responseLatencyMs` (có thể null). Không âm; tổng voiced/silence không vượt duration quá 200ms. API câu trả lời bổ sung object `speechMetrics` hoặc null khi không đo/tắt Speech Signals; không trả feedback hoặc đáp án mẫu cho candidate trong lúc làm bài.
+
+Backend cần master V24 và tenant V42. Chấm nội dung gọi cấu hình `INTERVIEW_NLP`, sinh câu/đáp án mẫu gọi `INTERVIEW_GEN`; kiểm tra evidence và tự tính điểm. Xem [cấu hình Gemini](../features/AI-Interview/AI-Interview-Configuration-Guide.md#kết-nối-spring-ai-và-gemini) và [STT/ghi âm](../features/AI-Interview/Speech-to-Text.md).
+
 | Method | Path | Feature |
 |---|---|---|
 | POST | `/interviews` | INT-* |
@@ -175,3 +193,11 @@ Không gọi API user tenant để bootstrap admin. Response chỉ chứa metada
 Chế độ thủ công bổ sung `customDbUrl`, `dbUsername`, `dbPassword`; backend chạy migration trên DB đã chuẩn bị.
 Trạng thái provisioning là `PROVISIONING` → `ACTIVE` hoặc `FAILED`; trạng thái vận hành là `ACTIVE` ↔ `SUSPENDED`. Không kích hoạt trực tiếp tenant `FAILED`.
 Xem [contract và business rules](../features/Authentication/Tenant-Onboarding.md).
+
+## Ngân hàng câu hỏi chung
+
+API `/question-bank/*` dành cho staff trong đúng tenant, dùng token và `X-Tenant-ID`. Xem contract, body và lỗi tại [ASSESS-01](../features/Technical-Assessment/Multiple-Choice-Test.md#ngân-hàng-câu-hỏi-chung-recruiter). Cần tenant migration V41 trước khi sử dụng; câu đã thuộc assessment chỉ được sửa ở assessment gốc.
+
+## Tạo assessment tự động theo cấu hình job
+
+Staff có quyền job dùng GET/PUT `/assessments/jobs/{jobId}/configuration`, POST `/assessments/jobs/{jobId}/generate` và GET `/assessments/jobs/{jobId}/automation_status`. Body, luồng thủ công/tự động và điều kiện ứng viên xem [ASSESS-01](../features/Technical-Assessment/Multiple-Choice-Test.md#tạo-assessment-thủ-công--tự-động-2026-10-03). Cần migration tenant V43. Bật `autoAssign` cần RabbitMQ; hồ sơ đạt trước/sau khi bật được xử lý nền, đề riêng không dùng được bởi hồ sơ khác.

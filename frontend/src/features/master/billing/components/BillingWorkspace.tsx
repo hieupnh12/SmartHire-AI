@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import type { SubscriptionPlan, TenantInfo } from "@/api/master/masterAdminApi";
 import { cn } from "@/lib/utils";
+import { HeaderActions } from "@/features/master/shell/HeaderActions";
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -110,19 +111,24 @@ export function BillingWorkspace({
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <header className="sticky top-16 md:top-0 z-10 bg-[#f8fafc]/95 backdrop-blur-md px-4 py-4 sm:px-6 lg:px-8 -mx-4 -mt-5 sm:-mx-6 sm:-mt-6 lg:-mx-8 lg:-mt-8 mb-6 border-b border-slate-200/50 shadow-sm flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight bg-gradient-to-r from-blue-600 to-cyan-500 bg-clip-text text-transparent">Gói & Thanh Toán</h1>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={downloadInvoices} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50">
-            <Download className="size-4" aria-hidden="true" />Xuất báo cáo
-          </button>
-          <button type="button" onClick={onCreatePlan} className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700">
-            <Plus className="size-4" aria-hidden="true" />Tạo gói mới
-          </button>
-        </div>
-      </header>
+      <HeaderActions>
+        <button
+          type="button"
+          onClick={downloadInvoices}
+          className="inline-flex min-h-9 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-700 shadow-2xs transition-colors hover:bg-slate-50"
+        >
+          <Download className="size-3.5" aria-hidden="true" />
+          <span>Xuất báo cáo</span>
+        </button>
+        <button
+          type="button"
+          onClick={onCreatePlan}
+          className="inline-flex min-h-9 items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 text-xs font-semibold text-white shadow-xs transition-colors hover:bg-blue-700"
+        >
+          <Plus className="size-3.5" aria-hidden="true" />
+          <span>Tạo gói mới</span>
+        </button>
+      </HeaderActions>
 
       <nav className="flex w-full gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1 sm:w-fit" aria-label="Điều hướng gói và thanh toán">
         {([['overview', 'Tổng quan'], ['plans', `Gói dịch vụ (${plans.length})`], ['allocations', 'Phân bổ gói'], ['invoices', 'Hóa đơn']] as const).map(([id, label]) => (

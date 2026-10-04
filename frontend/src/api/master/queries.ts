@@ -109,19 +109,19 @@ export const useLeads = () => {
 };
 
 // --- Invoices ---
-export const useInvoices = () => {
+export const useInvoices = (status?: string, tenantId?: number) => {
   return useQuery({
-    queryKey: masterQueryKeys.invoices(),
-    queryFn: () => billingApi.getAll(),
+    queryKey: [...masterQueryKeys.invoices(), status, tenantId],
+    queryFn: () => billingApi.getAll(status, tenantId),
     staleTime: 5 * 60 * 1000,
   });
 };
 
 // --- Contracts ---
-export const useContracts = () => {
+export const useContracts = (status?: string, tenantId?: number) => {
   return useQuery({
-    queryKey: masterQueryKeys.contracts(),
-    queryFn: () => contractApi.getAll(),
+    queryKey: [...masterQueryKeys.contracts(), status, tenantId],
+    queryFn: () => contractApi.getAll(status, tenantId),
     staleTime: 5 * 60 * 1000,
   });
 };

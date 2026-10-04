@@ -7,6 +7,7 @@ import com.smarthire.master.billing.dto.CheckoutRequest;
 import com.smarthire.master.billing.dto.CheckoutResponse;
 import com.smarthire.master.billing.dto.InvoiceResponse;
 import com.smarthire.master.tenant.service.MasterTenantService;
+import com.smarthire.master.notification.service.MasterNotificationService;
 import com.smarthire.tenant.auth.service.InviteMailSender;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -49,6 +50,12 @@ class MasterBillingServiceTest {
     @Mock
     private InviteMailSender mailSender;
 
+    @Mock
+    private OrderPdfGeneratorService orderPdfGeneratorService;
+
+    @Mock
+    private MasterNotificationService masterNotificationService;
+
     private MasterBillingService billingService;
 
     @BeforeEach
@@ -60,7 +67,9 @@ class MasterBillingServiceTest {
                 planRepository,
                 subscriptionRepository,
                 masterTenantService,
-                mailSender
+                mailSender,
+                orderPdfGeneratorService,
+                masterNotificationService
         );
         ReflectionTestUtils.setField(billingService, "baseDomain", "smarthire.top");
     }
@@ -121,10 +130,10 @@ class MasterBillingServiceTest {
         assertThat(response.getAmountVnd()).isEqualByComparingTo("12000000");
         assertThat(response.getCurrency()).isEqualTo("VND");
         assertThat(response.getStatus()).isEqualTo("PENDING");
-        assertThat(response.getBankName()).isEqualTo("Vietcombank (VCB)");
-        assertThat(response.getAccountNumber()).isEqualTo("1028935315");
+        assertThat(response.getBankName()).isEqualTo("Ngân hàng TMCP Tiên Phong (TPBank)");
+        assertThat(response.getAccountNumber()).isEqualTo("07744348801");
         assertThat(response.getTransferSyntax()).startsWith("SH ");
-        assertThat(response.getQrUrl()).contains("1028935315");
+        assertThat(response.getQrUrl()).contains("07744348801");
         assertThat(response.getQrUrl()).contains("12000000");
 
         verify(invoiceLineItemRepository).save(any(InvoiceLineItem.class));

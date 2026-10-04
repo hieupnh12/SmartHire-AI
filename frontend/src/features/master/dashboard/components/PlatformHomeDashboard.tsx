@@ -6,13 +6,13 @@ import {
   Building2,
   CheckCircle2,
   CircleDollarSign,
-  Clock3,
   CreditCard,
   FileClock,
   Plus,
   ShieldCheck,
 } from "lucide-react";
 import type { AiQuotaUsage, AuditLog, RevenueAnalytics, TenantInfo } from "@/api/master/masterAdminApi";
+import { HeaderActions } from "@/features/master/shell/HeaderActions";
 import { cn } from "@/lib/utils";
 
 type Destination = "analytics" | "tenants" | "subscriptions" | "logs";
@@ -42,8 +42,18 @@ export function PlatformHomeDashboard({ revenue, aiQuota, tenants, logs, onNavig
     { title: `${warnings.length} cảnh báo audit mới`, detail: "Kiểm tra hệ thống và bảo mật", icon: ShieldCheck, tone: "blue", destination: "logs" as const },
   ];
 
-  return <div className="space-y-6 animate-fade-in">
-    <header className="sticky top-16 md:top-0 z-10 bg-[#f8fafc]/95 backdrop-blur-md px-4 py-4 sm:px-6 lg:px-8 -mx-4 -mt-5 sm:-mx-6 sm:-mt-6 lg:-mx-8 lg:-mt-8 mb-6 border-b border-slate-200/50 shadow-sm flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight bg-gradient-to-r from-blue-600 to-cyan-500 bg-clip-text text-transparent">SmartHire AI</h1></div><button type="button" onClick={onCreateTenant} className="inline-flex min-h-10 items-center justify-center gap-2 self-start rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700"><Plus className="size-4" />Khởi tạo tenant</button></header>
+  return (
+    <div className="space-y-6 animate-fade-in">
+      <HeaderActions>
+        <button
+          type="button"
+          onClick={onCreateTenant}
+          className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl bg-blue-600 px-3.5 text-xs font-semibold text-white shadow-xs transition-colors hover:bg-blue-700"
+        >
+          <Plus className="size-3.5" />
+          <span>Khởi tạo tenant</span>
+        </button>
+      </HeaderActions>
 
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
       <QuickMetric label="Tenant hoạt động" value={`${revenue?.activeTenants ?? tenants.filter((tenant) => tenant.status === "ACTIVE").length}`} helper={`${attentionTenants.length} tenant cần chú ý`} icon={Building2} />
@@ -60,9 +70,9 @@ export function PlatformHomeDashboard({ revenue, aiQuota, tenants, logs, onNavig
     <div className="grid gap-5 lg:grid-cols-3">
       <SummaryCard icon={Activity} title="Hệ thống ổn định" subtitle="Cập nhật vài phút trước" rows={[["API latency","142 ms"],["Jobs đang chờ","18"],["Cache hit rate","92%"]]} />
       <SummaryCard icon={FileClock} title="Hoạt động hôm nay" subtitle="Tóm tắt toàn nền tảng" rows={[["Tenant mới","2"],["CV đã xử lý","1.842"],["Phiên AI interview","126"]]} />
-      <SummaryCard icon={Clock3} title="Vận hành & hỗ trợ" subtitle="SLA đội ngũ platform" rows={[["Ticket đang mở","14"],["Ticket quá SLA","3"],["Phản hồi trung bình","2,4 giờ"]]} />
     </div>
-  </div>;
+  </div>
+  );
 }
 
 function SummaryCard({ icon: Icon, title, subtitle, rows }: { icon: typeof Activity; title: string; subtitle: string; rows: string[][] }) {

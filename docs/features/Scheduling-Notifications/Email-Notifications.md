@@ -15,13 +15,14 @@ Gửi email (OTP, schedule, decision, feedback) qua RabbitMQ mail worker.
 ## Luồng hoạt động
 
 1. Publish `notify.email` (OTP, schedule — chưa đủ worker).
-2. CV screening đạt → `InviteMailSender` gửi mail mời phỏng vấn AI, ghi `email_outbox` + `applications.ai_interview_invited_at`.
+2. Khi `AiInterviewInvitationService` tạo phiên mới (CV screening đạt hoặc tạo bù sau khi bật cấu hình), hệ thống tạo notification trong app, gửi mail qua `InviteMailSender`, ghi `email_outbox` + `applications.ai_interview_invited_at`. Nội dung gồm thời gian có thể bắt đầu, hạn hoàn thành, thời lượng, số lần thực hiện và liên kết đến danh sách phiên của candidate.
 3. Worker template + SMTP/provider cho các loại mail còn lại.
 
 ## Business Rules
 
 - Retry + DLQ (hàng đợi SCHED-03).
 - Lời mời AI interview: một lần / application; SMTP lỗi thì chưa set `ai_interview_invited_at`.
+- Thời gian trong lời mời hiển thị theo múi giờ `Asia/Bangkok` (`HH:mm dd/MM/yyyy`), đồng nhất với múi giờ vận hành hiện tại của hệ thống.
 - Unsubscribe/preference (optional).
 
 ## API liên quan

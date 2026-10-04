@@ -18,6 +18,9 @@ import lombok.NoArgsConstructor;
 public class LandingPageConfigDto {
 
     @Builder.Default
+    private HeaderConfig header = new HeaderConfig();
+
+    @Builder.Default
     private ThemeConfig theme = new ThemeConfig();
 
     @Builder.Default
@@ -40,6 +43,17 @@ public class LandingPageConfigDto {
 
     @Builder.Default
     private SeoConfig seo = new SeoConfig();
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class HeaderConfig {
+        private String logoImageUrl;
+        @Builder.Default
+        private String slogan = "";
+    }
 
     @Data
     @Builder

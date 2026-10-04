@@ -9,8 +9,41 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class InterviewRubricTest {
+
+    @Test
+    void processV2SnapshotAcceptsUiMetadataInProcessConfiguration() {
+        String snapshot = """
+                {"enabled":true,"passingScore":70,"questionCount":5,"availableFrom":null,"availableUntil":null,
+                 "policy":{"durationMinutes":30,"maxAttempts":1,"miniAssessmentEnabled":true,
+                 "miniQuestionCount":3,"miniWeight":30,"miniAfterStage":0,
+                 "weights":{"TECHNICAL_KNOWLEDGE":35,"PROBLEM_SOLVING":25,"PRACTICAL_EXPERIENCE":20,
+                 "COMMUNICATION":10,"BEHAVIORAL_SITUATIONAL":10},"selectedSkills":["java","sql","docker"],
+                 "stages":[],"schemaVersion":2,"interviewMode":null,"review":null,"voice":null,
+                 "processes":[{"key":"TECHNICAL_KNOWLEDGE","enabled":true,"order":1,"weight":35,
+                 "config":{"questionCount":"4","__fields":[{"value":"on","checked":true}],
+                 "Question Count3 câu4 câu":"3"}}]}}
+                """;
+
+        var config = InterviewPolicies.read(snapshot,
+                com.smarthire.tenant.aiInterview.dto.request.AiInterviewConfigRequest.class);
+
+        assertThat(config.policy().schemaVersion()).isEqualTo(2);
+        assertThat(config.policy().processes()).hasSize(1);
+        assertThat(config.policy().processes().getFirst().config()).containsEntry("questionCount", "4");
+    }
+
+    @Test
+    void invalidSnapshotReportsTheFailedOperationWithoutIncludingPayload() {
+        assertThatThrownBy(() -> InterviewPolicies.read("{not-json}",
+                com.smarthire.tenant.aiInterview.dto.request.AiInterviewConfigRequest.class))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("deserialize AiInterviewConfigRequest")
+                .hasMessageContaining("JsonParseException")
+                .hasMessageNotContaining("not-json");
+    }
     @Test void technicalScoreBlendsAnswersAndMiniAssessment() {
         var policy = policy(true, 30);
         var open = feedback(question(false, "TECHNICAL_KNOWLEDGE", "Java"), "{\"competencies\":{\"TECHNICAL_KNOWLEDGE\":80},\"skills\":{\"Java\":80}}");

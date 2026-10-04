@@ -6,6 +6,7 @@ import { useLeads, masterQueryKeys } from "@/api/master/queries";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/stores/toastStore";
 import { LeadDetailModal } from "../components/LeadDetailModal";
+import { HeaderActions } from "@/features/master/shell/HeaderActions";
 import React from "react";
 
 export function LeadsPage() {
@@ -71,7 +72,7 @@ export function LeadsPage() {
     setUpdatingLead(true);
     try {
       const updated = await consultationApi.updateStatus(selectedLead.id, { status: leadStatusEdit, notes: leadNotesEdit });
-      setLeads((items: ConsultationResponse[]) => items.map((item) => item.id === updated.id ? updated : item));
+      setLeads((items: ConsultationResponse[]) => (items || []).map((item: ConsultationResponse) => item.id === updated.id ? updated : item));
       setSelectedLead(null);
       triggerNotification(`Đã cập nhật yêu cầu của ${updated.companyName}`);
     } finally {
@@ -82,27 +83,20 @@ export function LeadsPage() {
   return (
     <>
     <div className="space-y-6 animate-fade-in">
-      {/* Header */}
-      <header className="sticky top-16 md:top-0 z-10 bg-[#f8fafc]/95 backdrop-blur-md px-4 py-4 sm:px-6 lg:px-8 -mx-4 -mt-5 sm:-mx-6 sm:-mt-6 lg:-mx-8 lg:-mt-8 mb-6 border-b border-slate-200/50 shadow-sm flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight bg-gradient-to-r from-blue-600 to-cyan-500 bg-clip-text text-transparent flex items-center gap-3">
-            <span>Yêu Cầu Demo & Báo Giá</span>
-            {pendingLeadsCount > 0 && (
-              <span className="px-3 py-1 rounded-full bg-amber-100 text-amber-800 text-xs font-bold border border-amber-300">
-                {pendingLeadsCount} yêu cầu mới
-              </span>
-            )}
-          </h1>
-        </div>
-
+      <HeaderActions>
+        {pendingLeadsCount > 0 && (
+          <span className="hidden sm:inline-flex px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 text-xs font-bold border border-amber-300">
+            {pendingLeadsCount} yêu cầu mới
+          </span>
+        )}
         <button
           onClick={() => navigate("/admin/tenants/create")}
-          className="px-4 py-2.5 text-xs font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition-all flex items-center gap-2"
+          className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl bg-blue-600 px-3.5 text-xs font-semibold text-white shadow-xs transition-colors hover:bg-blue-700"
         >
-          <Plus className="w-4 h-4" />
-          <span>Cấp phát Workspace thủ công</span>
+          <Plus className="size-3.5" />
+          <span>Cấp phát Workspace</span>
         </button>
-      </header>
+      </HeaderActions>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

@@ -40,7 +40,7 @@ import { contractApi } from "@/api/master/contractApi";
 import { getApiErrorMessage } from "@/lib/axios";
 import { cn } from "@/lib/utils";
 
-export type TenantHubTab = "overview" | "directory" | "create" | "verification" | "provisioning";
+export type TenantHubTab = "overview" | "directory" | "create" | "provisioning";
 type Props = {
   activeTab: TenantHubTab;
   onTabChange: (tab: TenantHubTab) => void;
@@ -114,11 +114,6 @@ function CreatePanel({ onTenantCreated, onNavigate }: { onTenantCreated: Props["
 function FormField({ field, form, wide }: { field: { name: keyof FormValues; label: string; placeholder: string; type?: string }; form: ReturnType<typeof useForm<FormValues>>; wide?: boolean }) {
   const error = form.formState.errors[field.name];
   return <div className={wide ? "sm:col-span-2" : undefined}><label htmlFor={`tenant-${field.name}`} className="mb-1.5 block text-sm font-medium text-slate-700">{field.label}</label><input id={`tenant-${field.name}`} type={field.type ?? "text"} placeholder={field.placeholder} {...form.register(field.name)} className={inputClass} aria-invalid={Boolean(error)} aria-describedby={error ? `tenant-${field.name}-error` : undefined} />{error && <p id={`tenant-${field.name}-error`} role="alert" className="mt-1 text-xs text-rose-700">{error.message}</p>}</div>;
-}
-
-function VerificationPanel() {
-  const rows = [["GreenField Logistics","GCN đăng ký doanh nghiệp","Đang chờ","18/09/2026"],["Nova Retail Group","Giấy phép kinh doanh","Cần bổ sung","17/09/2026"],["MediCare Systems","MST và người đại diện","Đã xác thực","16/09/2026"]];
-  return <section className={cn(cardClass, "overflow-hidden")}><div className="flex flex-col gap-3 border-b border-slate-100 p-5 sm:flex-row sm:items-center sm:justify-between"><div><div className="flex items-center gap-2"><h2 className="font-semibold">Hàng đợi xác thực doanh nghiệp</h2><span className="rounded-full bg-amber-50 px-2 py-1 text-[10px] font-bold uppercase text-amber-700">UI mẫu · chưa có API</span></div><p className="mt-1 text-xs text-slate-500">Chuẩn bị giao diện cho quy trình thẩm định hồ sơ pháp lý.</p></div></div><div className="overflow-x-auto"><table className="w-full min-w-[680px] text-sm"><thead className="bg-slate-50 text-left text-xs uppercase text-slate-500"><tr><th className="px-5 py-3">Doanh nghiệp</th><th className="px-3 py-3">Hồ sơ</th><th className="px-3 py-3">Trạng thái</th><th className="px-5 py-3 text-right">Ngày gửi</th></tr></thead><tbody>{rows.map((row) => <tr key={row[0]} className="border-t border-slate-100"><td className="px-5 py-4 font-semibold">{row[0]}</td><td className="px-3 py-4 text-slate-600">{row[1]}</td><td className="px-3 py-4"><span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold">{row[2]}</span></td><td className="px-5 py-4 text-right text-slate-500">{row[3]}</td></tr>)}</tbody></table></div></section>;
 }
 
 function ProvisioningPanel({ tenants, onRetryProvisioning }: Pick<Props, "tenants" | "onRetryProvisioning">) {
@@ -284,8 +279,7 @@ export function TenantManagementHub(props: Props) {
     overview: <OverviewPanel tenants={props.tenants} onNavigate={props.onTabChange} />,
     directory: <DirectoryPanel tenants={props.tenants} onToggleStatus={props.onToggleStatus} onDeleteTenant={props.onDeleteTenant} onRetryProvisioning={props.onRetryProvisioning} />,
     create: <CreatePanel onTenantCreated={props.onTenantCreated} onNavigate={props.onTabChange} />,
-    verification: <VerificationPanel />,
     provisioning: <div className="space-y-5"><ProvisioningPanel tenants={props.tenants} onRetryProvisioning={props.onRetryProvisioning} /><SagaRecoveryConsole tenants={props.tenants} /><ResourcesPanel tenants={props.tenants} /><RecoveryPanel /></div>,
   };
-  return <div className="space-y-6 animate-fade-in"><header className="sticky top-16 md:top-0 z-10 bg-[#f8fafc]/95 backdrop-blur-md px-4 py-4 sm:px-6 lg:px-8 -mx-4 -mt-5 sm:-mx-6 sm:-mt-6 lg:-mx-8 lg:-mt-8 mb-6 border-b border-slate-200/50 shadow-sm flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight bg-gradient-to-r from-blue-600 to-cyan-500 bg-clip-text text-transparent flex items-center gap-3">Quản Lý Doanh Nghiệp</h1></div></header><div>{panels[props.activeTab]}</div></div>;
+  return <div className="space-y-6 animate-fade-in"><div>{panels[props.activeTab]}</div></div>;
 }

@@ -4,7 +4,7 @@ import { ArrowLeft, FileSignature, Building2, ShieldCheck, CreditCard, Loader2, 
 import { useTenants, useSubscriptions, masterQueryKeys } from "@/api/master/queries";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/stores/toastStore";
-import { contractApi, type ContractItem } from "@/api/master/contractApi";
+import { contractApi } from "@/api/master/contractApi";
 import { consultationApi } from "@/api/master/consultationApi";
 
 export function CreateContractPage() {
@@ -116,7 +116,7 @@ export function CreateContractPage() {
         notes: contractNotes,
       };
       const res = await contractApi.create(payload as any);
-      setContracts((prev: ContractItem[]) => [res, ...prev]);
+      setContracts((prev: any[] = []) => [res, ...prev]);
       triggerNotification("Tạo hợp đồng B2B thành công!");
       navigate("/admin/contracts"); // go back to list
     } catch (err: any) {

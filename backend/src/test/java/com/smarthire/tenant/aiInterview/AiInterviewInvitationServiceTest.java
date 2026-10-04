@@ -9,6 +9,7 @@ import com.smarthire.domain.tenant.repository.*;
 import com.smarthire.multitenancy.context.TenantContext;
 import com.smarthire.tenant.aiInterview.service.AiInterviewActivityLog;
 import com.smarthire.tenant.aiInterview.service.AiInterviewInvitationService;
+import com.smarthire.tenant.applicant.service.AiInterviewInviteService;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.AfterEach;
@@ -29,6 +30,7 @@ class AiInterviewInvitationServiceTest {
     @Mock AiInterviewRepository interviews;
     @Mock NotificationRepository notifications;
     @Mock AiInterviewActivityLog activity;
+    @Mock AiInterviewInviteService emailInvites;
     @InjectMocks AiInterviewInvitationService service;
     Application application;
 
@@ -41,6 +43,8 @@ class AiInterviewInvitationServiceTest {
         job.setId(13L);
         job.setTitle("Java Backend Developer");
         job.setAiInterviewEnabled(true);
+        job.setAiInterviewAvailableFrom(java.time.Instant.parse("2026-10-10T01:00:00Z"));
+        job.setAiInterviewAvailableUntil(java.time.Instant.parse("2026-10-12T16:59:00Z"));
         application.setJob(job);
         application.setStatus(ApplicationStatus.INTERVIEW);
         application.setCvScreeningStatus(CvScreeningStatus.PASSED);
@@ -63,7 +67,12 @@ class AiInterviewInvitationServiceTest {
         assertThat(notification.getValue().getUser().getId()).isEqualTo(9L);
         assertThat(notification.getValue().getPayloadJson()).contains("/candidate/interviews/11");
         assertThat(notification.getValue().getBody()).contains("Java Backend Developer");
-        verify(activity).record(eq(result), eq("INVITED"), contains("5 questions"));
+        assertThat(notification.getValue().getBody()).contains("08:00 10/10/2026");
+        assertThat(notification.getValue().getBody()).contains("23:59 12/10/2026");
+        assertThat(notification.getValue().getBody()).contains("Thời lượng: 30 phút");
+        assertThat(notification.getValue().getBody()).contains("Số lần thực hiện: 1");
+        verify(activity).record(eq(result), eq("INVITED"), contains("3 Communication questions"));
+        verify(emailInvites).sendForInterview(application);
         assertThat(result.getConfigSnapshotJson()).isNotBlank();
         assertThat(result.getAttemptNumber()).isEqualTo(1);
     }
@@ -71,10 +80,25 @@ class AiInterviewInvitationServiceTest {
     @Test void retryDoesNotDuplicateSessionOrNotification() {
         when(applications.findByIdForUpdate(7L)).thenReturn(Optional.of(application));
         var existing = AiInterview.builder().id(11L).application(application).build();
+        com.smarthire.tenant.aiInterview.service.InterviewPolicies.snapshot(existing);
         when(interviews.findByApplication_IdOrderByIdDesc(7L)).thenReturn(List.of(existing));
         assertThat(service.invite(7L, null)).isSameAs(existing);
         verify(interviews, never()).save(any());
-        verifyNoInteractions(notifications, activity);
+        verifyNoInteractions(notifications, activity, emailInvites);
+    }
+
+    @Test void createsCommunicationReplacementWithoutDeletingLegacySession() {
+        when(applications.findByIdForUpdate(7L)).thenReturn(Optional.of(application));
+        var legacy = AiInterview.builder().id(10L).application(application).status(AiInterviewStatus.QUESTIONS_READY).build();
+        when(interviews.findByApplication_IdOrderByIdDesc(7L)).thenReturn(List.of(legacy));
+        when(interviews.save(any())).thenAnswer(call -> { AiInterview next = call.getArgument(0); next.setId(11L); return next; });
+        var replacement = service.invite(7L, null);
+        assertThat(replacement).isNotSameAs(legacy);
+        assertThat(com.smarthire.tenant.aiInterview.service.InterviewPolicies.communicationOnly(
+                com.smarthire.tenant.aiInterview.service.InterviewPolicies.config(replacement).policy())).isTrue();
+        assertThat(legacy.getStatus()).isEqualTo(AiInterviewStatus.QUESTIONS_READY);
+        verify(interviews, never()).delete(any());
+        verify(notifications).save(any());
     }
 
     @Test void rejectsUnscreenedApplication() {

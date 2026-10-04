@@ -1,7 +1,7 @@
 # Anti-cheating Detection
 
 **Epic:** FE-05 Online Technical Assessment  
-**Trạng thái:** `To Do`  
+**Trạng thái:** `Doing`
 **Code ID:** `ASSESS-05`
 
 ## Mục đích chức năng
@@ -42,3 +42,10 @@ Ghi nhận tín hiệu gian lận (tab blur, paste, multi-focus) và gắn risk 
 ## Phụ thuộc
 
 ASSESS-01
+
+## Ghi chú triển khai 2026-10-02
+
+- Không gian AI Interview đã có bước kiểm tra bắt buộc camera, microphone, chia sẻ toàn bộ màn hình và fullscreen trước khi bắt đầu/tiếp tục.
+- Trong phiên, frontend chặn copy/paste/menu chuột phải/các phím tắt phổ biến, gắn watermark theo ứng viên, theo dõi fullscreen, visibility, blur và trạng thái media track. Mỗi 20 giây gửi heartbeat.
+- Vi phạm được ghi append-only vào `ai_interview_logs` qua `POST /api/v1/ai-interviews/{id}/proctor-events`; sau 3 vi phạm frontend yêu cầu backend nộp bài. Đồng hồ và hạn nộp vẫn lấy từ backend.
+- Browser không thể chặn `Alt+Tab` hoặc DevTools một cách tuyệt đối. Hệ thống phát hiện mất focus/ẩn trang và chặn các phím tắt trong phạm vi trang; chưa có nhận diện khuôn mặt, gaze, phân tích âm thanh hoặc snapshot AI vì chưa tích hợp model/dịch vụ lưu trữ tương ứng.

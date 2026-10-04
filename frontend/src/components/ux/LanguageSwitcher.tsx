@@ -117,11 +117,11 @@ export function LanguageSwitcher({ variant = "default", menuSide = "bottom", ope
         ) : (
           <Languages className="size-[18px] shrink-0" aria-hidden="true" />
         )}
-        <span className={cn("hidden whitespace-nowrap sm:inline", variant === "sidebar" && "inline", variant === "icon" && "hidden")}>{localeLabels[locale]}</span>
-        <ChevronDown
-          className={cn("size-4 shrink-0 transition-transform duration-[var(--motion-fast)]", open && "rotate-180", variant === "icon" && "hidden")}
+        {variant !== "icon" && <span className={cn("hidden whitespace-nowrap sm:inline", variant === "sidebar" && "inline")}>{localeLabels[locale]}</span>}
+        {variant !== "icon" && <ChevronDown
+          className={cn("size-4 shrink-0 transition-transform duration-[var(--motion-fast)]", open && "rotate-180")}
           aria-hidden="true"
-        />
+        />}
       </button>
 
       {open && (
@@ -134,7 +134,6 @@ export function LanguageSwitcher({ variant = "default", menuSide = "bottom", ope
             menuSide === "top" && "bottom-[calc(100%+8px)]",
             menuSide === "bottom" && "top-[calc(100%+8px)]",
             menuSide === "right" && "bottom-0 left-[calc(100%+12px)] right-auto top-auto min-w-56 rounded-2xl border-slate-200 bg-white shadow-[0_20px_50px_-18px_rgba(15,23,42,0.32)] before:absolute before:-left-3 before:bottom-0 before:h-full before:w-3",
-            variant === "icon" && menuSide !== "right" && "left-[calc(100%+8px)] right-auto",
           )}
         >
           <div className="px-2.5 pb-1.5 pt-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--color-on-surface-variant)]/70">

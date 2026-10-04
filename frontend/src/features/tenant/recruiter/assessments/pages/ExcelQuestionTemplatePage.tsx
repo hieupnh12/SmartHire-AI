@@ -767,12 +767,34 @@ function TypeSelect({
 
 export function ExcelQuestionTemplatePage() {
   const job = useRecruitmentJob();
-  const basePath = `/recruiter/jobs/${job.id}/assessments`;
+  return <ExcelQuestionEditor job={job} />;
+}
+
+type GeneralBankEditor = {
+  initialQuestions: BankQuestion[] | null;
+  onSaveDraft: (questions: BankQuestion[]) => void;
+  onSave: (questions: BankQuestion[]) => Promise<void>;
+  busy: boolean;
+  error: unknown;
+};
+
+export function ExcelQuestionEditor({ job, generalBank }: {
+  job?: { id: number; title: string };
+  generalBank?: GeneralBankEditor;
+}) {
+  const jobId = job?.id ?? 0;
+  const basePath = generalBank ? "/recruiter" : `/recruiter/jobs/${jobId}/assessments`;
+  const bankPath = generalBank ? "/recruiter/question-bank" : `${basePath}/question-bank`;
+  const [validation, setValidation] = useState<string[]>([]);
+  const validationRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (validation.length) validationRef.current?.focus();
+  }, [validation]);
   const [reviewingImport, setReviewingImport] = useState(false);
   const [view, setView] = useState<ViewId>("all");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("ALL");
   const [questions, setQuestions] = useState<BankQuestion[]>(() => {
-    const draft = loadExcelQuestionDraft(job.id);
+    const draft = generalBank ? generalBank.initialQuestions : loadExcelQuestionDraft(jobId);
     if (draft?.length) return withAutoQuestionIds(draft);
     const row = blankQuestion("TRAC_NGHIEM_DON");
     row.id = questionIdForIndex(0);
@@ -782,7 +804,7 @@ export function ExcelQuestionTemplatePage() {
   const [activeEdit, setActiveEdit] = useState<ActiveEdit | null>({ rowIndex: 0, field: "content" });
   const [activeCell, setActiveCell] = useState("A2");
   const [savedNote, setSavedNote] = useState(() =>
-    hasExcelQuestionDraft(job.id) ? "Đã khôi phục bản nháp đã lưu tạm." : "",
+    (generalBank ? generalBank.initialQuestions?.length : hasExcelQuestionDraft(jobId)) ? "Đã khôi phục bản nháp đã lưu tạm." : "",
   );
   const [rowDrag, setRowDrag] = useState<RowDragState | null>(null);
   const [capacityNote, setCapacityNote] = useState("");
@@ -1320,14 +1342,24 @@ export function ExcelQuestionTemplatePage() {
 
   function handleValidate() {
     setActiveEdit(null);
+    if (generalBank) {
+      setReviewingImport(true);
+      return;
+    }
     setReviewingImport(true);
   }
 
   function handleSaveDraft() {
-    saveExcelQuestionDraft(job.id, questions);
-    setSavedNote("Đã lưu tạm. Rời trang hoặc sang trang khác vẫn giữ nội dung đang soạn.");
+    try {
+      if (generalBank) generalBank.onSaveDraft(questions);
+      else saveExcelQuestionDraft(jobId, questions);
+      setSavedNote("Đã lưu tạm. Rời trang hoặc sang trang khác vẫn giữ nội dung đang soạn.");
+    } catch {
+      setValidation(["Chưa lưu được trên trình duyệt. Nội dung đang soạn vẫn giữ trên trang."]);
+    }
     setCapacityNote("");
   }
+
 
   const filterTabs: { id: TypeFilter; label: string; count: number }[] = [
     { id: "ALL", label: "Tất cả câu hỏi", count: counts.all },
@@ -1346,7 +1378,8 @@ export function ExcelQuestionTemplatePage() {
       ? COL_LETTERS
       : (["A", "B", "C", "D", "E", "F", "G"] as const);
 
-  if (reviewingImport) return <ExcelImportReview questions={questions} jobId={job.id} jobTitle={job.title}
+  if (reviewingImport && (job || generalBank)) return <ExcelImportReview questions={questions} jobId={job?.id ?? 0} jobTitle={job?.title ?? "Ngân hàng câu hỏi chung"}
+    generalBank={generalBank}
     onBack={() => setReviewingImport(false)}
     onEdit={index => {
       setReviewingImport(false);
@@ -1363,10 +1396,10 @@ export function ExcelQuestionTemplatePage() {
         <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-1 text-xs text-[var(--color-on-surface-variant)]">
           <Folder className="size-3.5" aria-hidden="true" />
           <Link to={basePath} className="hover:text-[var(--color-primary)]">
-            Assessment
+            {generalBank ? "Trang tuyển dụng" : "Assessment"}
           </Link>
           <ChevronRight className="size-3 text-[var(--color-outline-variant)]" aria-hidden="true" />
-          <Link to={`${basePath}/question-bank`} className="hover:text-[var(--color-primary)]">
+          <Link to={bankPath} className="hover:text-[var(--color-primary)]">
             Ngân hàng câu hỏi
           </Link>
           <ChevronRight className="size-3 text-[var(--color-outline-variant)]" aria-hidden="true" />
@@ -1383,10 +1416,18 @@ export function ExcelQuestionTemplatePage() {
           </Button>
           <Button type="button" size="sm" onClick={handleValidate}>
             <CloudUpload className="size-3.5" aria-hidden="true" />
-            Tạo bài đánh giá
+            {generalBank ? "Lưu vào ngân hàng" : "Tạo bài đánh giá"}
           </Button>
         </div>
       </div>
+
+      {generalBank && <p className="text-xs text-[var(--color-on-surface-variant)]">Tạo câu hỏi dùng chung theo kỹ năng. Kiểm tra và xem trước câu hỏi trước khi lưu vào ngân hàng của doanh nghiệp.</p>}
+      {validation.length > 0 && <div ref={validationRef} tabIndex={-1} role="alert" className="rounded-lg border border-[var(--color-error)] bg-[var(--color-error-container)] p-3 text-sm text-[var(--color-on-error-container)]"><p className="font-semibold">Kiểm tra lại nội dung</p><ul className="mt-2 list-inside list-disc">{validation.map((message, index) => <li key={index}>{message}{/^Dòng \d+:/.test(message) && <button type="button" className="ml-2 underline" onClick={() => {
+        const rowIndex = Number(message.match(/^Dòng (\d+):/)?.[1]) - 2;
+        const field = message.includes("kỹ năng") ? "skill" : message.includes("Độ khó") ? "difficulty" : "content";
+        setView("all"); setTypeFilter("ALL"); setSelectedIndex(rowIndex);
+        setActiveEdit({ rowIndex, field }); setActiveCell(`${field === "skill" ? "E" : field === "difficulty" ? "D" : "A"}${rowIndex + 2}`);
+      }}>Sửa dòng này</button>}</li>)}</ul></div>}
 
       <div className="flex flex-wrap items-center gap-3 rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-[var(--color-surface-card)] px-3 py-2 shadow-[var(--shadow-card)]">
         <div className="flex min-w-0 flex-1 items-center gap-2">

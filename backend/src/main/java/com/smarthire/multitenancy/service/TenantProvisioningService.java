@@ -108,7 +108,7 @@ public class TenantProvisioningService {
         properties.setProperty("password", provisionPassword);
         properties.setProperty("connectTimeout", "10000");
         properties.setProperty("socketTimeout", "120000");
-        try (Connection connection = DriverManager.getConnection(provisionUrl, properties);
+        try (Connection connection = DriverManager.getConnection(serverJdbcUrl(provisionUrl), properties);
              Statement statement = connection.createStatement()) {
             statement.executeUpdate("CREATE DATABASE IF NOT EXISTS `" + database
                     + "` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
@@ -128,7 +128,7 @@ public class TenantProvisioningService {
         properties.setProperty("password", provisionPassword);
         properties.setProperty("connectTimeout", "10000");
         properties.setProperty("socketTimeout", "120000");
-        try (Connection connection = DriverManager.getConnection(provisionUrl, properties);
+        try (Connection connection = DriverManager.getConnection(serverJdbcUrl(provisionUrl), properties);
              Statement statement = connection.createStatement()) {
             if (database != null && database.matches("[a-z0-9_]{1,64}")) {
                 statement.executeUpdate("DROP DATABASE IF EXISTS `" + database + "`");
@@ -167,5 +167,24 @@ public class TenantProvisioningService {
                 throw ex;
             }
         }
+    }
+
+    static String serverJdbcUrl(String jdbcUrl) {
+        final String prefix = "jdbc:mysql://";
+        if (jdbcUrl == null || !jdbcUrl.startsWith(prefix)) {
+            throw new IllegalArgumentException("Provisioning URL must be a MySQL JDBC URL");
+        }
+
+        int queryStart = jdbcUrl.indexOf('?', prefix.length());
+        String authorityAndPath = queryStart < 0 ? jdbcUrl : jdbcUrl.substring(0, queryStart);
+        String query = queryStart < 0 ? "" : jdbcUrl.substring(queryStart);
+        int pathStart = authorityAndPath.indexOf('/', prefix.length());
+        String authority = pathStart < 0
+                ? authorityAndPath.substring(prefix.length())
+                : authorityAndPath.substring(prefix.length(), pathStart);
+        if (authority.isBlank()) {
+            throw new IllegalArgumentException("Provisioning URL must include a MySQL server");
+        }
+        return prefix + authority + "/" + query;
     }
 }

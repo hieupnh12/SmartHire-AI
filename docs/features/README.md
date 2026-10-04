@@ -11,8 +11,8 @@ Mỗi trang gồm: Mục đích · Actor · Luồng · Business Rules · API · 
 | Code | Feature | Doc | Status |
 |---|---|---|---|
 | AUTH-01 | User Registration | [User-Registration](Authentication/User-Registration.md) | To Do |
-| AUTH-02 | Login & JWT Authentication | [Login-JWT](Authentication/Login-JWT.md) | To Do |
-| AUTH-03 | Google OAuth Login | [Google-OAuth](Authentication/Google-OAuth.md) | To Do |
+| AUTH-02 | Login & JWT Authentication | [Login-JWT](Authentication/Login-JWT.md) | Done |
+| AUTH-03 | Google OAuth Login | [Google-OAuth](Authentication/Google-OAuth.md) | Done |
 | AUTH-04 | Role-Based Access Control (RBAC) | [RBAC](Authentication/RBAC.md) | Done |
 | AUTH-05 | User Profile Management | [User-Profile](Authentication/User-Profile.md) | To Do |
 
@@ -71,6 +71,7 @@ Mỗi trang gồm: Mục đích · Actor · Luồng · Business Rules · API · 
 | INT-03 | NLP Response Analysis | [NLP-Response-Analysis](AI-Interview/NLP-Response-Analysis.md) | To Do |
 | INT-04 | AI Interview Scoring | [AI-Scoring](AI-Interview/AI-Scoring.md) | To Do |
 | INT-05 | Interview Feedback | [Interview-Feedback](AI-Interview/Interview-Feedback.md) | To Do |
+| Guide | Hướng dẫn sử dụng & cấu hình AI Interview | [AI-Interview-Configuration-Guide](AI-Interview/AI-Interview-Configuration-Guide.md) | Doing |
 
 ## 8. Recruitment Workflow Management
 

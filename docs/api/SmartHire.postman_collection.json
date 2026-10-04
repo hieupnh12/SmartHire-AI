@@ -5,13 +5,38 @@
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
-    {"key":"aiInterviewId","value":"1"},
-    {"key":"aiQuestionId","value":"1"},
-    {"key":"notificationId","value":"1"},
-    { "key": "candidateToken", "value": "" },
-    { "key": "questionId", "value": "1" },
-    { "key": "optionId", "value": "1" },
-    { "key": "submissionId", "value": "1" },
+    {
+      "key": "aiInterviewId",
+      "value": "1"
+    },
+    {
+      "key": "aiQuestionId",
+      "value": "1"
+    },
+    {
+      "key": "aiAnswerId",
+      "value": "1"
+    },
+    {
+      "key": "notificationId",
+      "value": "1"
+    },
+    {
+      "key": "candidateToken",
+      "value": ""
+    },
+    {
+      "key": "questionId",
+      "value": "1"
+    },
+    {
+      "key": "optionId",
+      "value": "1"
+    },
+    {
+      "key": "submissionId",
+      "value": "1"
+    },
     {
       "key": "baseUrl",
       "value": "http://localhost:8080/api/v1"
@@ -189,7 +214,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"answerText\": \"Câu trả lời của ứng viên\"\n}"
+              "raw": "{\n  \"answerText\": \"Câu trả lời của ứng viên\",\n  \"answerDuration\": 5,\n  \"speechMetrics\": {\n    \"durationMs\": 5000,\n    \"voicedMs\": 4000,\n    \"silenceMs\": 1000,\n    \"pauseCount\": 1,\n    \"responseLatencyMs\": 1200\n  }\n}"
             }
           }
         },
@@ -1216,6 +1241,454 @@
               }
             }
           ]
+        }
+      ]
+    },
+    {
+      "name": "Communication voice interview",
+      "item": [
+        {
+          "name": "Consent Communication",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/ai-interviews/{{aiInterviewId}}/voice/consent",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"accepted\":true,\"policyVersion\":\"communication-voice-v1\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Gửi câu trả lời audio và transcript",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/ai-interviews/{{aiInterviewId}}/questions/{{aiQuestionId}}/audio-answer",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": []
+                },
+                {
+                  "key": "answer",
+                  "type": "text",
+                  "contentType": "application/json",
+                  "value": "{\"answerText\":\"My solution...\",\"answerDuration\":5,\"speechMetrics\":{\"durationMs\":5000,\"voicedMs\":4000,\"silenceMs\":1000,\"pauseCount\":1,\"responseLatencyMs\":1000}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Metadata recording (Recruiter sau phiên)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/ai-interviews/{{aiInterviewId}}/answers/{{aiAnswerId}}/recording/info"
+          }
+        },
+        {
+          "name": "Audio riêng tư (Recruiter sau phiên)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/ai-interviews/{{aiInterviewId}}/answers/{{aiAnswerId}}/recording/audio"
+          }
+        }
+      ]
+    },
+    {
+      "name": "General Question Bank",
+      "item": [
+        {
+          "name": "List bank",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/question-bank/list_questions?page=0&size=100"
+          }
+        },
+        {
+          "name": "Get bank question",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/question-bank/get_question/{{questionId}}"
+          }
+        },
+        {
+          "name": "Create standalone questions",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/question-bank/create_questions",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"questions\": [\n    {\n      \"question\": {\n        \"questionText\": \"Which keyword defines a Java class?\",\n        \"points\": 5,\n        \"questionOrder\": 0,\n        \"difficulty\": \"Easy\",\n        \"skill\": \"Java\",\n        \"questionType\": \"MCQ\",\n        \"options\": [\n          {\n            \"optionText\": \"class\",\n            \"correct\": true\n          },\n          {\n            \"optionText\": \"def\",\n            \"correct\": false\n          }\n        ]\n      },\n      \"authoringMetadata\": null\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Update standalone question",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/question-bank/update_question/{{questionId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": {\n    \"questionText\": \"Which keyword defines a Java class?\",\n    \"points\": 5,\n    \"questionOrder\": 0,\n    \"difficulty\": \"Easy\",\n    \"skill\": \"Java\",\n    \"questionType\": \"MCQ\",\n    \"options\": [\n      {\n        \"optionText\": \"class\",\n        \"correct\": true\n      },\n      {\n        \"optionText\": \"def\",\n        \"correct\": false\n      }\n    ]\n  },\n  \"authoringMetadata\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Archive standalone questions",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/question-bank/archive_questions",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"questionIds\": [\n    1\n  ],\n  \"archived\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Assessment Generation",
+      "item": [
+        {
+          "name": "Read configuration",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/assessments/jobs/{{jobId}}/configuration"
+          }
+        },
+        {
+          "name": "Save structure",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/assessments/jobs/{{jobId}}/configuration",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"durationMinutes\": 30,\n  \"passingPercent\": 70,\n  \"autoAssign\": false,\n  \"sections\": [\n    {\n      \"skill\": \"Java\",\n      \"questionType\": \"MCQ\",\n      \"difficulty\": \"Easy\",\n      \"count\": 5,\n      \"points\": 2\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Generate draft",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/assessments/jobs/{{jobId}}/generate"
+          }
+        },
+        {
+          "name": "Automation status",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/assessments/jobs/{{jobId}}/automation_status"
+          }
+        }
+      ]
+    },
+    {
+      "name": "AI Conversation",
+      "description": "V44: streaming dialogue, post-session evaluation and native STT/TTS. WebSocket: /ws/interview-voice?ticket=<single-use ticket>; start, binary chunks, end. Reuse requestId only for retries.",
+      "item": [
+        {
+          "name": "Conversation transcript",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/ai-interviews/{{aiInterviewId}}/conversation"
+          }
+        },
+        {
+          "name": "Send conversation turn (SSE)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "text/event-stream"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/ai-interviews/{{aiInterviewId}}/conversation/turns",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"requestId\": \"12345678-1234-1234-1234-123456789012\",\n  \"content\": \"I would use dependency injection.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Voice WebSocket ticket",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/ai-interviews/{{aiInterviewId}}/conversation/voice-ticket"
+          }
+        },
+        {
+          "name": "Generate message speech",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/ai-interviews/{{aiInterviewId}}/conversation/messages/{{messageId}}/speech"
+          }
+        },
+        {
+          "name": "Read private message recording",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/ai-interviews/{{aiInterviewId}}/conversation/messages/{{messageId}}/recording"
+          }
+        },
+        {
+          "name": "Attach private message recording",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/ai-interviews/{{aiInterviewId}}/conversation/messages/{{messageId}}/recording",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": ""
+                }
+              ]
+            }
+          }
         }
       ]
     }

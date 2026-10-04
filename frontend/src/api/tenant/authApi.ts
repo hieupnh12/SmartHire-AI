@@ -11,7 +11,14 @@ export const authApi = {
     api.post<ApiResponse<CandidateLoginResponse>>("/tenant/auth/google", { idToken }).then((r) => r.data),
   refresh: (refreshToken: string) =>
     api.post<ApiResponse<AuthTokens>>("/tenant/auth/refresh", { refreshToken }).then((r) => r.data),
-  logout: () => api.post<ApiResponse<null>>("/tenant/auth/logout").then((r) => r.data),
+  logout: (body?: { refreshToken?: string }) =>
+    api.post<ApiResponse<null>>("/tenant/auth/logout", body ?? { refreshToken: localStorage.getItem("refreshToken") || undefined }).then((r) => r.data),
+  forgotPassword: (email: string) =>
+    api.post<ApiResponse<null>>("/tenant/auth/forgot-password", { email }).then((r) => r.data),
+  resetPassword: (body: { email: string; otp: string; newPassword: string }) =>
+    api.post<ApiResponse<null>>("/tenant/auth/reset-password", body).then((r) => r.data),
+  changePassword: (body: { currentPassword: string; newPassword: string }) =>
+    api.post<ApiResponse<null>>("/tenant/auth/change-password", body).then((r) => r.data),
   me: () => api.get<ApiResponse<UserProfile>>("/tenant/auth/me").then((r) => r.data),
   updateMe: (body: Partial<UserProfile>) =>
     api.put<ApiResponse<UserProfile>>("/tenant/users/me", body).then((r) => r.data),
