@@ -51,7 +51,7 @@ public class OrderPdfGeneratorService {
             // Kích thước logo thực tế scale xuống chiều cao 52px thì bề ngang chỉ khoảng 95.4px
             // 95.4 / 523 = 18.25%. Ta dùng 18.25f để cột ôm sát logo.
             headerTable.setWidths(new float[]{18.25f, 81.75f});
-            
+
             PdfPCell logoCell = new PdfPCell();
             logoCell.setBorder(Rectangle.NO_BORDER);
             logoCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
@@ -72,12 +72,12 @@ public class OrderPdfGeneratorService {
                 log.warn("Lỗi load logo /images/logo-smarthrie-email.png: {}", e.getMessage());
             }
             headerTable.addCell(logoCell);
-            
+
             PdfPCell textCell = new PdfPCell();
             textCell.setBorder(Rectangle.NO_BORDER);
             textCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
             textCell.setPaddingLeft(5f);
-            
+
             Paragraph companyName = new Paragraph("CÔNG TY CỔ PHẦN CÔNG NGHỆ SMARTHIRE VIỆT NAM", fontCompanyHeader);
             companyName.setSpacingAfter(2f);
             textCell.addElement(companyName);
@@ -88,7 +88,7 @@ public class OrderPdfGeneratorService {
 
             Paragraph companyAddress = new Paragraph("Địa chỉ: Tầng 13, Tòa nhà FPT, Trường Đại học FPT Đà Nẵng, Khu đô thị Công nghệ FPT, Phường Hòa Hải, Quận Ngũ Hành Sơn, TP. Đà Nẵng", fontCompanyMeta);
             textCell.addElement(companyAddress);
-            
+
             headerTable.addCell(textCell);
             headerTable.setSpacingAfter(18f);
             document.add(headerTable);
@@ -388,7 +388,7 @@ public class OrderPdfGeneratorService {
         public void onEndPage(PdfWriter writer, Document document) {
             try {
                 PdfContentByte canvas = writer.getDirectContentUnder();
-                
+
                 // 1. Vẽ hình nền (Background pattern) nếu có
                 try {
                     java.net.URL bgUrl = getClass().getResource("/images/bg-pattern.png");
@@ -410,13 +410,13 @@ public class OrderPdfGeneratorService {
                         PdfGState gstate = new PdfGState();
                         gstate.setFillOpacity(0.08f);
                         canvas.setGState(gstate);
-                        
+
                         Image wmImage = Image.getInstance(wmUrl);
                         wmImage.scaleToFit(350, 350);
                         float x = (document.getPageSize().getWidth() - wmImage.getScaledWidth()) / 2;
                         float y = (document.getPageSize().getHeight() - wmImage.getScaledHeight()) / 2;
                         wmImage.setAbsolutePosition(x, y);
-                        
+
                         canvas.addImage(wmImage);
                         canvas.restoreState();
                     } else {
@@ -429,7 +429,7 @@ public class OrderPdfGeneratorService {
                 log.warn("Could not draw PDF background/watermark: {}", e.getMessage());
             }
         }
-        
+
         private void drawTextWatermark(PdfContentByte canvas, Document document) {
             canvas.saveState();
             PdfGState gstate = new PdfGState();

@@ -44,6 +44,17 @@ class RankingPersistenceTest {
     @PersistenceContext EntityManager em;
     @Autowired RankingService service;
     @BeforeEach void login() {
+        // Hibernate does not create this native-SQL analytics table from migration V9.
+        em.createNativeQuery("""
+                create table if not exists candidate_quality_snapshots (
+                    id bigint primary key auto_increment,
+                    application_id bigint not null references applications(id),
+                    score decimal(5,2) not null,
+                    components_json json,
+                    model_version varchar(64),
+                    calculated_at timestamp not null default current_timestamp
+                )
+                """).executeUpdate();
         TenantContext.setCurrentTenant("acme");
         var auth = new UsernamePasswordAuthenticationToken("recruiter@example.test", null, List.of(new SimpleGrantedAuthority("ROLE_RECRUITER")));
         auth.setDetails("acme"); SecurityContextHolder.getContext().setAuthentication(auth);
