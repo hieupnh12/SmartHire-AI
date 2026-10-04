@@ -160,6 +160,7 @@ app:
     cloudinary-api-key: ${CLOUDINARY_API_KEY}
     cloudinary-api-secret: ${CLOUDINARY_API_SECRET}
     max-file-bytes: ${CV_MAX_FILE_BYTES:10485760}
+    gotenberg-url: ${GOTENBERG_URL:http://localhost:3000}
   ai:
     timeout-seconds: ${CV_AI_TIMEOUT_SECONDS:30}
     gemini:

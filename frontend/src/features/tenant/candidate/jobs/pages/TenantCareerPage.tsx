@@ -12,8 +12,8 @@ import { cvApi } from "@/api/tenant/cvApi";
 import type { PublicJob } from "@/api/types/job";
 import { getApiErrorMessage } from "@/lib/axios";
 import { formatSalaryText } from "@/lib/formatSalary";
-import { getDeadlineInfo } from "@/features/tenant/career/utils/jobDeadline";
-import { CareerHeader } from "@/features/tenant/career/components/CareerHeader";
+import { getDeadlineInfo } from "@/features/tenant/candidate/jobs/utils/jobDeadline";
+import { CareerHeader } from "@/features/tenant/candidate/jobs/components/CareerHeader";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 import "../career-page.css";
 import {

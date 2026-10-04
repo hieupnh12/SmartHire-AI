@@ -7,7 +7,6 @@
 ```text
 tenant/
 ├── auth/
-├── career/
 ├── candidate/
 ├── recruiter/
 ├── admin/
@@ -18,8 +17,7 @@ tenant/
 ## Actor / Feature Boundaries
 
 - `auth/`: tenant authentication shared by internal users and candidate login entry points.
-- `career/`: public tenant career site and tenant-not-found page.
-- `candidate/`: candidate actor workspace.
+- `candidate/`: candidate actor workspace, including the public career site (`candidate/jobs/`).
 - `recruiter/`: recruiter actor workspace.
 - `admin/`: tenant admin/company workspace.
 
@@ -59,7 +57,6 @@ candidate/applications
 candidate/cv
 candidate/assessments
 candidate/interviews
-candidate/practice
 candidate/schedules
 candidate/notifications
 ```

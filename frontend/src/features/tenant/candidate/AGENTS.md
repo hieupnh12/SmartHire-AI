@@ -18,7 +18,6 @@ candidate/
 ├── cv/
 ├── assessments/
 ├── interviews/
-├── practice/
 ├── schedules/
 ├── notifications/
 └── nav.ts

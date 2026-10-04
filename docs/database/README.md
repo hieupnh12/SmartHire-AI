@@ -10,6 +10,9 @@
 
 | Thông tin | Giá trị |
 |---|---|
+| CV Builder đợt 3 2026-10-05 | `builder_data` có thêm `sections[].items[].rows[]` (≤ 8 dòng `{label, value}`, bảng 2 cột mẫu Enterprise; `description` đồng bộ từ rows), `personalInfo.avatarCrop` và `theme.avatar` (khung ảnh tùy chỉnh). Không có migration, không thêm bảng/entity/FK/index |
+| CV Builder đợt 2 2026-10-04 | Tenant V47 thêm `cvs.share_token` VARCHAR(64) nullable + UNIQUE `uk_cvs_share_token` (entity `Cv.shareToken`) cho link chia sẻ công khai chỉ đọc. `builder_data` có thêm `personalInfo.avatarUrl`, `language`. Không thêm bảng/entity/FK |
+| CV Builder 2026-10-04 | Tenant V46 thêm `cvs.builder_data` JSON nullable (entity `Cv.builderData`); CV tạo bằng trình tạo CV được render PDF và đi qua pipeline CV hiện có. Không thêm bảng/entity/FK/UNIQUE/index |
 | Danh mục công ty 2026-10-04 | Tenant V45 (đánh lại từ V42 vì trùng `V42__ai_answer_speech_metrics`) tạo `company_directory_entries` cho phòng ban/địa điểm; UNIQUE `(entry_type, name)`; backfill giá trị đang dùng từ `jobs`. Job service chỉ nhận phòng ban/địa điểm có trong danh mục. Không thêm FK |
 | AI Conversation 2026-10-03 | Tenant V44 thêm `interview_sessions`/`interview_messages` và 2 entity; 2 FK CASCADE, 3 UNIQUE; lịch sử chat và metadata audio riêng tư. Phiên mới có `conversationVersion=1` trong JSON snapshot; báo cáo toàn phiên schemaVersion 3 |
 | Assessment tự động 2026-10-03 | Tenant V43: `jobs.assessment_config_json` JSON nullable; `tests.assigned_application_id` nullable + UNIQUE + FK RESTRICT tới `applications`. Không thêm bảng/entity; thêm 1 FK và 1 UNIQUE |
@@ -23,9 +26,9 @@
 | Bảng tenant sau V45 | 66 bảng (65 sau V44 + `company_directory_entries`); không tính Flyway history |
 | Entity JPA tenant | 61 class `@Entity` theo checkout hiện tại; V44 bổ sung `InterviewSession`, `InterviewMessage`; V45 bổ sung `CompanyDirectoryEntry` |
 | Khoá ngoại tenant | 87 theo mốc tài liệu (85 sau V43 + 2 FK V44); V45 không thêm FK |
-| Ràng buộc UNIQUE tenant | V25/V26 không thêm UNIQUE. V27 thêm UNIQUE `gate_scores.application_id`. V30 thêm `uk_job_assignments_job_user`. V45 thêm `uk_company_directory_type_name` |
-| Số file migration trong repo | 61 (23 master + 38 tenant); V9 redesign nằm ngoài pipeline |
-| Cập nhật lần cuối | Master `V24`, tenant `V45`: danh mục phòng ban/địa điểm công ty |
+| Ràng buộc UNIQUE tenant | V25/V26 không thêm UNIQUE. V27 thêm UNIQUE `gate_scores.application_id`. V30 thêm `uk_job_assignments_job_user`. V45 thêm `uk_company_directory_type_name`. V47 thêm `uk_cvs_share_token` |
+| Số file migration trong repo | 63 (23 master + 40 tenant); V9 redesign nằm ngoài pipeline |
+| Cập nhật lần cuối | Master `V24`, tenant `V47`: cột `cvs.share_token` cho link chia sẻ CV Builder |
 | Dọn legacy V21 | Xóa 19 bảng và dữ liệu legacy, xóa 2 cột ID legacy trong ranking; không chuyển ID cũ sang bản ghi mới |
 | Metadata assessment 2026-09-25 | V13: `tests.created_by/updated_at`, `questions.difficulty/skill/explanation` cho Excel/UI authoring |
 | Sửa lỗi assessment 2026-09-24 | V10/V11 khớp checksum lịch sử; V12 tạo schema mới và giữ bảng cũ; migration lỗi phải chặn mở tenant pool |
@@ -607,7 +610,7 @@ của màn assessment hiện tại.
 
 | Entity | Mục đích | Ghi chú quan trọng |
 |---|---|---|
-| `Cv` | File CV và trạng thái pipeline | `storage_key`, `mime_type`, `file_size`, `checksum_sha256` (chống trùng file), `retain_until` (vòng đời lưu trữ), `error_code` / `error_message` khi pipeline hỏng. Có method `mark()` và `fail()` để chuyển trạng thái an toàn |
+| `Cv` | File CV và trạng thái pipeline | `storage_key`, `mime_type`, `file_size`, `checksum_sha256` (chống trùng file), `retain_until` (vòng đời lưu trữ), `error_code` / `error_message` khi pipeline hỏng, `builder_data` (JSON CV Builder, V46), `share_token` (link chia sẻ công khai, UNIQUE, V47). Có method `mark()` và `fail()` để chuyển trạng thái an toàn |
 | `CvDocument` | Chặng 1 — văn bản thô bóc từ file | `raw_text` kiểu `LONGTEXT`, `page_count`, `ocr_used`, `parser_version` |
 | `CvExtraction` | Chặng 2 — JSON có cấu trúc do AI bóc tách | `extraction_json`, `model_version`, `prompt_version` |
 | `CvAnalysis` | Chặng 3 — tóm tắt và đánh giá | `summary`, `years_experience`, `skills_json`, `raw_json`, `model_version`, `prompt_version` |
@@ -849,7 +852,9 @@ kho hồ sơ (talent pool) chưa gắn với tin tuyển dụng nào.
 | `platform_users` | `uk_platform_users_email` | `email` | Email quản trị viên không trùng |
 | `tenant_usage_daily` | `uk_tenant_usage_daily` | `(tenant_id, usage_date)` | Mỗi tenant mỗi ngày đúng một dòng usage |
 
-### 8.2 Ràng buộc UNIQUE — Tenant (20, không tính PK)
+### 8.2 Ràng buộc UNIQUE — Tenant (21, không tính PK)
+
+V47 thêm `uk_cvs_share_token(share_token)`: token ngẫu nhiên 24 byte (base64url) định danh link chia sẻ CV; NULL khi chưa chia sẻ, MySQL cho phép nhiều NULL.
 
 V45 thêm `uk_company_directory_type_name(entry_type, name)`: mỗi loại danh mục (`DEPARTMENT`/`LOCATION`) không có tên trùng.
 
@@ -1134,6 +1139,8 @@ Hai pipeline dùng **hai phương ngữ SQL khác nhau** và không thể dùng 
 | V43 | `V43__assessment_automation.sql` | Cấu hình JSON trên `jobs`; FK + UNIQUE `tests.assigned_application_id` nullable cho đề riêng. Không thêm bảng hoặc entity |
 | V44 | `V44__interview_conversation.sql` | 2 bảng `interview_sessions`/`interview_messages`, entity tương ứng; 2 FK CASCADE + 3 UNIQUE; cột counter/history/request ID/metadata recording. Không backfill hoặc chuyển đổi phiên legacy |
 | V45 | `V45__company_directory.sql` | Tạo `company_directory_entries`, unique `(entry_type, name)` và backfill phòng ban/địa điểm từ job hiện có. Đánh lại từ V42 vì trùng version |
+| V46 | `V46__cv_builder_data.sql` | Thêm `cvs.builder_data` JSON nullable lưu nội dung CV Builder để chỉnh sửa lại; không backfill, không thêm bảng/FK/UNIQUE/index |
+| V47 | `V47__cv_share_token.sql` | Thêm `cvs.share_token` VARCHAR(64) nullable + UNIQUE `uk_cvs_share_token` cho link chia sẻ CV công khai; không thêm bảng/FK |
 
 V9 redesign cũ được giữ nguyên tại `db/migration-archive/`, **ngoài** location Flyway.
 Tenant tạo mới chạy V1–V13 rồi V21–V36: 60 bảng hiện hành (gồm 5 bảng analytics V9), chưa tính history.

@@ -815,6 +815,186 @@
           }
         },
         {
+          "name": "Save CV from Builder",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/cvs/builder",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"templateId\": \"basic\",\n  \"accentColor\": \"#2563eb\",\n  \"personalInfo\": {\n    \"fullName\": \"Nguyễn Văn A\",\n    \"title\": \"Backend Developer\",\n    \"email\": \"a@example.com\",\n    \"phone\": \"0901234567\",\n    \"address\": \"Hà Nội\",\n    \"website\": \"\",\n    \"summary\": \"<p>3 năm kinh nghiệm Java</p>\"\n  },\n  \"sections\": [\n    {\n      \"id\": \"s1\",\n      \"type\": \"experience\",\n      \"title\": \"Kinh nghiệm làm việc\",\n      \"visible\": true,\n      \"items\": [\n        { \"id\": \"i1\", \"title\": \"Công ty ABC\", \"subtitle\": \"Backend Developer\", \"date\": \"2022 - nay\", \"description\": \"<ul><li>Xây dựng REST API</li></ul>\" }\n      ]\n    }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "Update CV from Builder",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/cvs/1/builder",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"templateId\": \"cascade\",\n  \"accentColor\": null,\n  \"personalInfo\": { \"fullName\": \"Nguyễn Văn A\", \"title\": \"\", \"email\": \"\", \"phone\": \"\", \"address\": \"\", \"website\": \"\", \"summary\": \"\" },\n  \"sections\": []\n}"
+            }
+          }
+        },
+        {
+          "name": "Upload CV Builder Avatar",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/cvs/builder/avatar",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": ""
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "CV Builder AI Writing Suggestions",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/cvs/builder/suggestions",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"kind\": \"description\",\n  \"language\": \"vi\",\n  \"headline\": \"Backend Developer\",\n  \"sectionType\": \"experience\",\n  \"itemTitle\": \"Công ty ABC\",\n  \"itemSubtitle\": \"Backend Developer\",\n  \"text\": \"Làm API bằng Spring Boot\"\n}"
+            }
+          }
+        },
+        {
+          "name": "CV Builder Job Match",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/cvs/builder/job-match?jobId=1",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"templateId\": \"cascade\",\n  \"accentColor\": null,\n  \"personalInfo\": { \"fullName\": \"Nguyễn Văn A\", \"title\": \"\", \"email\": \"\", \"phone\": \"\", \"address\": \"\", \"website\": \"\", \"summary\": \"\" },\n  \"sections\": [{ \"id\": \"s1\", \"type\": \"skills\", \"title\": \"Kỹ năng\", \"visible\": true, \"items\": [{ \"id\": \"i1\", \"title\": \"Java\", \"subtitle\": \"\", \"date\": \"\", \"description\": \"\", \"level\": 0 }] }]\n}"
+            }
+          }
+        },
+        {
+          "name": "Duplicate Builder CV",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/cvs/1/duplicate"
+          }
+        },
+        {
+          "name": "Rename CV",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/cvs/1/name",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"CV Backend Developer\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Share Builder CV",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/cvs/1/share"
+          }
+        },
+        {
+          "name": "Unshare Builder CV",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/cvs/1/share"
+          }
+        },
+        {
+          "name": "Get Shared CV (public)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/public/cvs/{{shareToken}}"
+          }
+        },
+        {
           "name": "Delete CV",
           "request": {
             "method": "DELETE",
