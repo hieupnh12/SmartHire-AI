@@ -12,7 +12,7 @@ export type ProctorEvent = {
 export const candidateInterviewApi = {
   mine: () => api.get<ApiResponse<CandidateInterview[]>>("/ai-interviews/me").then(r => r.data.data),
   get: (id: number) => api.get<ApiResponse<CandidateInterview>>(`/ai-interviews/${id}`).then(r => r.data.data),
-  start: (id: number) => api.post<ApiResponse<CandidateInterview>>(`/ai-interviews/${id}/start`).then(r => r.data.data),
+  start: (id: number) => api.post<ApiResponse<CandidateInterview>>(`/ai-interviews/${id}/start`, null, { timeout: 60000 }).then(r => r.data.data),
   complete: (id: number) => api.post<ApiResponse<CandidateInterview>>(`/ai-interviews/${id}/complete`).then(r => r.data.data),
   proctorEvent: (id: number, body: ProctorEvent) =>
     api.post<ApiResponse<void>>(`/ai-interviews/${id}/proctor-events`, body).then(r => r.data.data),

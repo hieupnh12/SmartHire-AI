@@ -16,7 +16,7 @@ export function AiInterviewReportView({ reportJson, questions }: { reportJson: s
       <h3 id="ai-report-title" className="font-semibold">Báo cáo AI Interview</h3>
       <p className="text-sm">Điểm tổng <strong className="text-lg">{report.overallScore}/100</strong></p>
     </div>
-    {report.communicationCriteria && Object.keys(report.communicationCriteria).length > 0 && <div className="space-y-2">
+    {report.evaluationMode !== "POST_SESSION" && report.communicationCriteria && Object.keys(report.communicationCriteria).length > 0 && <div className="space-y-2">
       <h4 className="text-sm font-medium">Tiêu chí nội dung trong Communication</h4>
       <ul className="grid gap-2 sm:grid-cols-2">{Object.entries(report.communicationCriteria).map(([key, score]) => <li key={key} className="flex justify-between gap-3 rounded-lg bg-[var(--color-surface-container-low)] p-3 text-sm">
         <span>{{ TECHNICAL_KNOWLEDGE: "Kiến thức chuyên môn", PROBLEM_SOLVING: "Giải quyết vấn đề", REASONING: "Lập luận", COMMUNICATION: "Kỹ năng giao tiếp" }[key] ?? key}</span><strong>{score}/100</strong>
@@ -29,6 +29,14 @@ export function AiInterviewReportView({ reportJson, questions }: { reportJson: s
         <div className="h-2 rounded-full bg-[var(--color-surface-container)]" aria-hidden="true"><div className="h-2 rounded-full bg-brand-primary" style={{ width: `${Math.min(100, Math.max(0, score))}%` }} /></div>
       </li>)}</ul>
     </div>
+    {report.evaluationMode === "POST_SESSION" && <div className="space-y-3 text-sm">
+      <p className="whitespace-pre-wrap">{report.summary}</p>
+      <p><strong>Điểm mạnh:</strong> {report.strengths}</p><p><strong>Cần cải thiện:</strong> {report.weaknesses}</p>
+      <dl className="grid gap-3 sm:grid-cols-2">{Object.entries(report.communicationCriteria ?? {}).map(([criterion, score]) => <div key={criterion} className="rounded-xl bg-[var(--color-surface-container-low)] p-3">
+        <dt className="font-medium">{{ TECHNICAL_KNOWLEDGE: "Kiến thức chuyên môn", PROBLEM_SOLVING: "Giải quyết vấn đề", REASONING: "Lập luận", COMMUNICATION: "Kỹ năng giao tiếp" }[criterion] ?? criterion}</dt><dd className="font-semibold">{score}/100</dd>
+        {(report.criteriaEvidence?.[criterion] ?? []).map((evidence, index) => <dd key={index} className="mt-2 whitespace-pre-wrap text-xs text-[var(--color-on-surface-variant)]">Tin #{evidence.messageId}: “{evidence.quote}”</dd>)}
+      </div>)}</dl>
+    </div>}
     {visibleSkills.length > 0 && <div className="space-y-2">
       <h4 className="text-sm font-medium">Điểm theo Job Skill <span className="font-normal text-[var(--color-on-surface-variant)]">(tham khảo, không cộng vào điểm tổng)</span></h4>
       <ul className="divide-y divide-[var(--color-border-default)] text-sm">{visibleSkills.map(([skill, entry]) => {

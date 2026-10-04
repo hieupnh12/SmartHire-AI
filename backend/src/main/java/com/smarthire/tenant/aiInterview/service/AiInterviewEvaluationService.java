@@ -62,16 +62,17 @@ public class AiInterviewEvaluationService {
     private final ObjectMapper mapper;
     private final AiInterviewActivityLog activity;
     private final AiInterviewProcessEngine processEngine;
+    private final InterviewConversationService conversation;
 
     public AiInterviewEvaluationService(AiInterviewRepository interviews, AiQuestionRepository questions,
             AiAnswerRepository answers, AiFeedbackRepository feedbacks, JobSkillRepository skills, CvRepository cvs,
             CvExtractionRepository extractions, ApplicationStatusHistoryRepository history, RecruitmentStageRepository stages,
             NotificationRepository notifications, EmailOutboxRepository emails, JobTestRepository tests,
-            AiInterviewClient ai, ObjectMapper mapper, AiInterviewActivityLog activity, AiInterviewProcessEngine processEngine) {
+            AiInterviewClient ai, ObjectMapper mapper, AiInterviewActivityLog activity, AiInterviewProcessEngine processEngine, InterviewConversationService conversation) {
         this.interviews = interviews; this.questions = questions; this.answers = answers; this.feedbacks = feedbacks;
         this.skills = skills; this.cvs = cvs; this.extractions = extractions; this.history = history; this.stages = stages;
         this.notifications = notifications; this.emails = emails; this.tests = tests; this.ai = ai; this.mapper = mapper;
-        this.activity = activity; this.processEngine = processEngine;
+        this.activity = activity; this.processEngine = processEngine; this.conversation = conversation;
     }
 
     @Transactional
@@ -121,6 +122,12 @@ public class AiInterviewEvaluationService {
     }
 
     private void generate(AiInterview interview) {
+        if (InterviewPolicies.isConversation(interview)) {
+            if (interview.getContextSnapshotJson() == null) interview.setContextSnapshotJson(context(interview.getApplication()).toString());
+            interview.setStatus(AiInterviewStatus.QUESTIONS_READY);
+            activity.record(interview, "CONVERSATION_READY", "Conversation context captured; greeting generated on start");
+            return;
+        }
         if (InterviewPolicies.isV2(interview)) {
             if (interview.getContextSnapshotJson() == null) interview.setContextSnapshotJson(context(interview.getApplication()).toString());
             processEngine.initializeAndGenerateFirst(interview);
@@ -171,6 +178,7 @@ public class AiInterviewEvaluationService {
     }
 
     private void evaluate(AiInterview interview) {
+        if (InterviewPolicies.isConversation(interview)) { finish(interview, conversation.evaluate(interview)); return; }
         if (InterviewPolicies.isV2(interview)) { evaluateV2(interview); return; }
         if (interview.getConfigSnapshotJson() != null) { evaluatePlanned(interview); return; }
         var paper = questions.findByAiInterview_IdOrderByQuestionOrderAscIdAsc(interview.getId());
@@ -185,7 +193,7 @@ public class AiInterviewEvaluationService {
         List<AiFeedback> validated = new ArrayList<>();
         for (int from = 0; from < saved.size(); from += EVALUATION_BATCH) {
             var chunk = saved.subList(from, Math.min(from + EVALUATION_BATCH, saved.size()));
-            validated.addAll(grade(ai.generate(EVALUATE_INSTRUCTION, gradingRequest(data, chunk)).path("evaluations"), chunk));
+            validated.addAll(grade(ai.evaluate(EVALUATE_INSTRUCTION, gradingRequest(data, chunk)).path("evaluations"), chunk));
             activity.record(interview, "ANSWERS_BATCH_EVALUATED", validated.size() + "/" + saved.size() + " answers evaluated");
         }
         BigDecimal total = validated.stream().map(AiFeedback::getScore).reduce(BigDecimal.ZERO, BigDecimal::add)
@@ -198,8 +206,14 @@ public class AiInterviewEvaluationService {
 
     private void evaluateV2(AiInterview interview) {
         var paper = questions.findByAiInterview_IdOrderByQuestionOrderAscIdAsc(interview.getId());
-        var saved = answers.findByAiQuestion_IdIn(paper.stream().map(AiQuestion::getId).toList());
-        if (paper.isEmpty() || saved.size() != paper.size()) throw new IllegalStateException("Incomplete process interview");
+        var saved = new ArrayList<>(answers.findByAiQuestion_IdIn(paper.stream().map(AiQuestion::getId).toList()));
+        if (paper.isEmpty()) throw new IllegalStateException("Incomplete process interview");
+        Set<Long> answeredQuestions = saved.stream().map(a -> a.getAiQuestion().getId())
+                .collect(java.util.stream.Collectors.toSet());
+        for (var question : paper) if (!answeredQuestions.contains(question.getId())) {
+            saved.add(answers.save(AiAnswer.builder().aiQuestion(question).answerText("")
+                    .answeredAt(interview.getCompletedAt()).build()));
+        }
         var allFeedback = feedbacks.findByAiAnswer_IdIn(saved.stream().map(AiAnswer::getId).toList());
         var evaluated = new ArrayList<>(allFeedback);
         Set<Long> scored = allFeedback.stream().map(f -> f.getAiAnswer().getId()).collect(java.util.stream.Collectors.toSet());
@@ -357,7 +371,7 @@ public class AiInterviewEvaluationService {
         ensureReferences(interview, open, data);
         for (int from = 0; from < open.size(); from += EVALUATION_BATCH) {
             var chunk = open.subList(from, Math.min(from + EVALUATION_BATCH, open.size()));
-            validated.addAll(grade(ai.generate(EVALUATE_INSTRUCTION, gradingRequest(data, chunk)).path("evaluations"), chunk));
+            validated.addAll(grade(ai.evaluate(EVALUATE_INSTRUCTION, gradingRequest(data, chunk)).path("evaluations"), chunk));
         }
         var report = InterviewRubric.report(InterviewPolicies.config(interview).policy(), validated);
         feedbacks.saveAll(validated);
@@ -450,7 +464,8 @@ public class AiInterviewEvaluationService {
                 .findFirst()
                 .ifPresent(application::setStage);
         activity.record(interview, "APPLICATION_STATUS_CHANGED", previous + " -> " + next + "; stage history saved");
-        boolean assessmentReady = passed && !tests.findByJob_IdAndStatusOrderByIdDesc(application.getJob().getId(), TestStatus.PUBLISHED).isEmpty();
+        boolean assessmentReady = passed && tests.findByJob_IdAndStatusOrderByIdDesc(application.getJob().getId(), TestStatus.PUBLISHED).stream()
+                .anyMatch(test -> test.getAssignedApplication() == null || test.getAssignedApplication().getId().equals(application.getId()));
         if (passed) {
             activity.record(interview, "ASSESSMENT_UNLOCKED", assessmentReady
                     ? "Published assessment available to candidate" : "Assessment round opened; no published test yet");

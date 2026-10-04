@@ -56,7 +56,7 @@ public class AiInterviewMapper {
                 interview.getConfigSnapshotJson() == null ? null : InterviewPolicies.config(interview).availableFrom(),
                 interview.getConfigSnapshotJson() == null ? null : InterviewPolicies.config(interview).availableUntil(),
                 roadmap(interview), InterviewPolicies.isV2(interview), InterviewPolicies.voiceEnabled(interview),
-                InterviewPolicies.voiceEnabled(interview) && InterviewPolicies.config(interview).policy().voice().recordAudio());
+                InterviewPolicies.voiceEnabled(interview) && InterviewPolicies.config(interview).policy().voice().recordAudio(), InterviewPolicies.isConversation(interview));
     }
 
     private static List<RoadmapStep> roadmap(AiInterview interview) {
@@ -179,7 +179,9 @@ public class AiInterviewMapper {
                 answer.getAnswerText(),
                 answer.getAnswerDuration(),
                 answer.getAnsweredAt(),
-                feedback == null ? null : toFeedback(feedback));
+                feedback == null ? null : toFeedback(feedback),
+                answer.getSpeechMetricsJson() == null ? null : InterviewPolicies.read(answer.getSpeechMetricsJson(),
+                        com.smarthire.tenant.aiInterview.dto.request.SpeechMetrics.class));
     }
 
     public AiFeedbackResponse toFeedback(AiFeedback feedback) {

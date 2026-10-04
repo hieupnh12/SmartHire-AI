@@ -27,13 +27,16 @@ public class AiInterviewWorkDispatcher {
     private final String questionsQueue;
     private final String scoringQueue;
     private final String emailQueue;
+    private final com.smarthire.tenant.assessment.service.AssessmentGenerationService assessmentGeneration;
     public AiInterviewWorkDispatcher(TenantInfoRepository tenants, TenantJobExecutor executor, AiInterviewWorkService work,
             AiInterviewService interviews, AiInterviewEvaluationService evaluation, RabbitTemplate rabbit,
+            com.smarthire.tenant.assessment.service.AssessmentGenerationService assessmentGeneration,
             @Value("${app.rabbitmq.queues.interview-questions}") String questionsQueue,
             @Value("${app.rabbitmq.queues.interview-score}") String scoringQueue,
             @Value("${app.rabbitmq.queues.interview-email}") String emailQueue) {
         this.tenants = tenants; this.executor = executor; this.work = work; this.interviews = interviews;
         this.evaluation = evaluation; this.rabbit = rabbit;
+        this.assessmentGeneration = assessmentGeneration;
         this.questionsQueue = questionsQueue; this.scoringQueue = scoringQueue; this.emailQueue = emailQueue;
     }
 
@@ -45,6 +48,12 @@ public class AiInterviewWorkDispatcher {
                 executor.execute(tenant.getCode(), () -> {
                     interviews.expireDue();
                     evaluation.closeExhaustedRetries();
+                    for (var id : assessmentGeneration.pending()) {
+                        rabbit.convertAndSend(AssessmentGenerationWorker.QUEUE, id, message -> {
+                            message.getMessageProperties().setHeader("X-Tenant-ID", TenantContext.getCurrentTenant());
+                            return message;
+                        });
+                    }
                     for (var item : work.pending()) {
                         String queue = switch (item.kind()) {
                             case "GENERATING" -> questionsQueue;

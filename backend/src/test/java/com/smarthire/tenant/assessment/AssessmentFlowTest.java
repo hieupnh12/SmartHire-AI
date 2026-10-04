@@ -46,7 +46,7 @@ class AssessmentFlowTest {
     @Configuration
     @EnableTransactionManagement
     @EnableJpaRepositories(basePackages = "com.smarthire.domain.tenant.repository")
-    @Import({AssessmentService.class, QuestionService.class, QuestionBankService.class, SubmissionService.class, AssessmentMapper.class})
+    @Import({AssessmentService.class, QuestionService.class, QuestionBankService.class, AssessmentGenerationService.class, SubmissionService.class, AssessmentMapper.class})
     static class Config {
         @Bean ObjectMapper objectMapper() { return new ObjectMapper(); }
         @Bean CvAccess cvAccess(UserRepository users, JobAssignmentRepository assignments) {
@@ -82,6 +82,7 @@ class AssessmentFlowTest {
     @Autowired AssessmentService assessments;
     @Autowired QuestionService questions;
     @Autowired QuestionBankService bank;
+    @Autowired AssessmentGenerationService generation;
     @Autowired SubmissionService submissions;
     @Autowired PlatformTransactionManager transactionManager;
     TransactionTemplate tx;
@@ -117,12 +118,158 @@ class AssessmentFlowTest {
             jobId = job.getId(); applicationId = application.getId(); candidateId = candidate.getId();
         });
         login(recruiterEmail, "RECRUITER");
-        mvc = MockMvcBuilders.standaloneSetup(new QuestionController(questions), new QuestionBankController(bank), new SubmissionController(submissions))
+        mvc = MockMvcBuilders.standaloneSetup(new QuestionController(questions), new QuestionBankController(bank), new AssessmentGenerationController(generation), new SubmissionController(submissions))
                 .setControllerAdvice(new GlobalExceptionHandler()).build();
     }
 
     @AfterEach
     void cleanup() { TenantContext.clear(); SecurityContextHolder.clearContext(); }
+
+    private AssessmentConfigRequest generationConfig(boolean automatic) {
+        String skillName = "Skill-" + jobId;
+        tx.executeWithoutResult(status -> {
+            Skill skill = new Skill(); skill.setName(skillName); em.persist(skill);
+            JobSkill link = new JobSkill(); link.setJob(em.find(Job.class, jobId)); link.setSkill(skill);
+            em.persist(link);
+        });
+        bank.create(List.of(new BankQuestionRequest(new QuestionRequest("Bank source " + jobId, 3, 0,
+                "Easy", skillName, "Explanation", List.of(new QuestionRequest.OptionRequest("Yes", true),
+                new QuestionRequest.OptionRequest("No", false)), QuestionType.MCQ), null)));
+        return new AssessmentConfigRequest(30, 70, automatic, List.of(
+                new AssessmentConfigRequest.Section(skillName, QuestionType.MCQ, "Easy", 1, 10)));
+    }
+
+    @Test
+    void missingConfigurationIsSuccessfulAndBothGenerationPathsUseSavedExerciseStructure() throws Exception {
+        mvc.perform(get("/api/v1/assessments/jobs/" + jobId + "/configuration"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.success").value(true));
+        assertThat(generation.config(jobId)).isNull();
+        generationConfig(false);
+        String skill = "Skill-" + jobId;
+        bank.create(List.of(new BankQuestionRequest(new QuestionRequest("Second source " + jobId, 1, 0,
+                "Easy", skill, null, List.of(new QuestionRequest.OptionRequest("Yes", true),
+                new QuestionRequest.OptionRequest("No", false)), QuestionType.MCQ), null)));
+        var config = new AssessmentConfigRequest(17, 60, true, List.of(
+                new AssessmentConfigRequest.Section(skill, QuestionType.MCQ, "Easy", 2, 3)));
+        generation.saveConfig(jobId, config);
+        var draft = generation.generate(jobId);
+        assertThat(generation.generateForApplication(applicationId)).isTrue();
+        var assigned = tx.execute(status -> em.createQuery("select t from JobTest t where t.assignedApplication.id = :id", JobTest.class)
+                .setParameter("id", applicationId).getSingleResult());
+        assertThat(draft.durationMinutes()).isEqualTo(17);
+        assertThat(assigned.getDurationMinutes()).isEqualTo(17);
+        assertThat(draft.passingScore()).isEqualByComparingTo("3.60");
+        assertThat(assigned.getPassingScore()).isEqualByComparingTo("3.60");
+        var manualQuestions = questions.list(draft.id());
+        var assignedQuestions = questions.list(assigned.getId());
+        assertThat(manualQuestions).hasSize(2);
+        assertThat(assignedQuestions).hasSize(2);
+        assertThat(assignedQuestions).allSatisfy(question -> {
+            assertThat(question.skill()).isEqualTo(skill);
+            assertThat(question.difficulty()).isEqualTo("Easy");
+            assertThat(question.questionType()).isEqualTo("MCQ");
+            assertThat(question.points()).isEqualTo(3);
+        });
+        assertThat(assignedQuestions).extracting(QuestionResponse::questionText)
+                .containsExactlyInAnyOrderElementsOf(manualQuestions.stream().map(QuestionResponse::questionText).toList());
+    }
+
+    @Test
+    void automaticallyGeneratesAssignedPaperOnceAndNotifiesOnlyItsCandidate() {
+        var config = generationConfig(true);
+        generation.saveConfig(jobId, config);
+        assertThat(generation.pending()).contains(applicationId);
+        assertThat(generation.generateForApplication(applicationId)).isTrue();
+        assertThat(generation.generateForApplication(applicationId)).isFalse();
+        long testId = tx.execute(status -> {
+            var test = em.createQuery("select t from JobTest t where t.assignedApplication.id = :id", JobTest.class)
+                    .setParameter("id", applicationId).getSingleResult();
+            assertThat(test.getStatus()).isEqualTo(TestStatus.PUBLISHED);
+            assertThat(test.getPassingScore()).isEqualByComparingTo("7.00");
+            assertThat(test.getTitle()).contains("Java job", "HS " + applicationId);
+            assertThat(em.createQuery("select count(n) from Notification n where n.user.id = :id and n.type = 'ASSESSMENT_INVITATION'", Long.class)
+                    .setParameter("id", candidateId).getSingleResult()).isEqualTo(1);
+            return test.getId();
+        });
+        assertThat(questions.list(testId)).hasSize(1);
+        assertThat(questions.list(testId).getFirst().options()).hasSize(2);
+        login(candidateEmail, "CANDIDATE");
+        assertThat(submissions.available(applicationId)).extracting(AvailableAssessmentResponse::id).contains(testId);
+        long otherApplication = tx.execute(status -> {
+            var other = em.createQuery("select u from User u where u.email = :email", User.class).setParameter("email", otherEmail).getSingleResult();
+            Application app = new Application(); app.setJob(em.find(Job.class, jobId)); app.setCandidate(other); app.setStatus(ApplicationStatus.ASSESSMENT); em.persist(app);
+            var interview = new AiInterview(); interview.setApplication(app); interview.setStatus(AiInterviewStatus.PASSED); em.persist(interview);
+            em.flush(); return app.getId();
+        });
+        login(otherEmail, "CANDIDATE");
+        assertThat(submissions.available(otherApplication)).extracting(AvailableAssessmentResponse::id).doesNotContain(testId);
+        assertThatThrownBy(() -> submissions.start(testId, new StartSubmissionRequest(otherApplication))).isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    void generationCreatesDraftAndRejectsMissingPoolWithoutPartialTest() throws Exception {
+        var config = generationConfig(false);
+        generation.saveConfig(jobId, config);
+        var created = generation.generate(jobId);
+        assertThat(created.status()).isEqualTo(TestStatus.DRAFT);
+        assertThat(questions.list(created.id())).hasSize(1);
+        assertThat(generation.generateForApplication(applicationId)).isFalse();
+        var insufficient = new AssessmentConfigRequest(30, 70, false, List.of(
+                new AssessmentConfigRequest.Section("Skill-" + jobId, QuestionType.MCQ, "Easy", 2, 5)));
+        generation.saveConfig(jobId, insufficient);
+        Long before = tx.execute(status -> em.createQuery("select count(t) from JobTest t", Long.class).getSingleResult());
+        assertThatThrownBy(() -> generation.generate(jobId)).isInstanceOf(BusinessException.class).hasMessageContaining("Not enough questions");
+        Long after = tx.execute(status -> em.createQuery("select count(t) from JobTest t", Long.class).getSingleResult());
+        assertThat(after).isEqualTo(before);
+        mvc.perform(put("/api/v1/assessments/jobs/" + jobId + "/configuration").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"durationMinutes\":0,\"passingPercent\":101,\"autoAssign\":false,\"sections\":[]}"))
+                .andExpect(status().isBadRequest());
+        login(candidateEmail, "CANDIDATE");
+        mvc.perform(get("/api/v1/assessments/jobs/" + jobId + "/configuration")).andExpect(status().isForbidden());
+    }
+
+    @Test
+    void automationSkipsFailedWithdrawnAndChangedSkills() {
+        var config = generationConfig(true);
+        generation.saveConfig(jobId, config);
+        tx.executeWithoutResult(status -> em.createQuery("update AiInterview i set i.status = :state where i.application.id = :id")
+                .setParameter("state", AiInterviewStatus.FAILED).setParameter("id", applicationId).executeUpdate());
+        assertThat(generation.generateForApplication(applicationId)).isFalse();
+        tx.executeWithoutResult(status -> {
+            em.createQuery("update AiInterview i set i.status = :state where i.application.id = :id")
+                    .setParameter("state", AiInterviewStatus.PASSED).setParameter("id", applicationId).executeUpdate();
+            em.find(Application.class, applicationId).setWithdrawnAt(Instant.now());
+        });
+        assertThat(generation.generateForApplication(applicationId)).isFalse();
+        tx.executeWithoutResult(status -> {
+            em.find(Application.class, applicationId).setWithdrawnAt(null);
+            em.createQuery("delete from JobSkill s where s.job.id = :id").setParameter("id", jobId).executeUpdate();
+        });
+        assertThatThrownBy(() -> generation.generateForApplication(applicationId)).isInstanceOf(BusinessException.class).hasMessageContaining("Skill does not belong");
+    }
+
+    @Test
+    void simultaneousAutomaticDeliveriesCreateOnePaperAndOneNotification() throws Exception {
+        generation.saveConfig(jobId, generationConfig(true));
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var gate = new CountDownLatch(2);
+            Callable<Boolean> action = () -> {
+                TenantContext.setCurrentTenant("assessment_tenant");
+                try {
+                    gate.countDown();
+                    if (!gate.await(5, TimeUnit.SECONDS)) throw new IllegalStateException("Timeout");
+                    return generation.generateForApplication(applicationId);
+                } finally { TenantContext.clear(); }
+            };
+            var first = executor.submit(action); var second = executor.submit(action);
+            assertThat(List.of(first.get(15, TimeUnit.SECONDS), second.get(15, TimeUnit.SECONDS)))
+                    .containsExactlyInAnyOrder(true, false);
+        }
+        var status = generation.status(jobId);
+        assertThat(status.generated()).isEqualTo(1);
+        assertThat(status.pending()).isZero();
+        assertThat(status.bankReady()).isTrue();
+    }
 
     @Test
     void bankCreatesStandaloneQuestionsAndPreservesMetadataAndSkillLinks() {

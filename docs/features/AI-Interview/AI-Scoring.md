@@ -1,6 +1,18 @@
 # AI Interview Scoring
 
+## Quy tắc bỏ trống (2026-10-03)
+
+Phiên Communication theo câu hỏi: thiếu bản ghi `AiAnswer`, nội dung `null`, rỗng hoặc chỉ có khoảng trắng đều nhận 0 điểm, không gọi provider. Tổng điểm tính cả câu bỏ trống; trạng thái PASSED/FAILED theo ngưỡng snapshot. Câu đã trả lời nhưng thiếu kết quả chấm vẫn báo lỗi để retry. Trạng thái `Doing`: 41 kiểm thử cấu hình/rubric, chấm điểm và hội thoại đã qua. Đã xác minh phiên thực tế #3 tại tenant `ttqt`: câu trả lời rỗng được RabbitMQ worker chấm 0/100, phiên FAILED và không còn ERROR sau khi nạp bản sửa vào backend local. Các worker dùng chung database cần chạy cùng phiên bản mã xử lý snapshot.
+
+## Post-Session Evaluation (2026-10-03)
+
+Phiên mới `conversationVersion=1` không chấm từng câu hoặc sinh rubric trước. Khi complete/hết hạn, lifecycle chuyển SCORING; RabbitMQ worker có tenant context gửi toàn bộ history InterviewMessage + snapshot Job/CV cho Gemini native theo INTERVIEW_NLP. Backend kiểm tra đủ bốn tiêu chí TECHNICAL_KNOWLEDGE/PROBLEM_SOLVING/REASONING/COMMUNICATION, điểm 0–100 và trích dẫn đúng USER message; evidence giả, thuộc ASSISTANT hoặc thiếu nhận 0. Điểm tổng là trung bình bốn tiêu chí; AI không tự tính tổng. Không có USER answer → 0 mà không gọi provider.
+
+Report schemaVersion 3/evaluationMode POST_SESSION nằm trong ai_interviews.report_json, gồm communicationCriteria, criteriaEvidence(messageId/quote), summary/strengths/weaknesses. Ngưỡng snapshot và logic PASSED/FAILED → Assessment/notification/email giữ nguyên. Provider/JSON lỗi → ERROR, không coi là candidate 0; recruiter retry cùng phiên qua endpoint score. V44 lưu session/message; không tạo feedback mỗi câu cho phiên mới. Các phần rubric/AiAnswer dưới đây áp dụng legacy. Trạng thái `Doing`: test backend pass, chưa E2E scoring trên tenant thật.
+
 ## Communication hiện hành (2026-10-02)
+
+Spring AI `ChatClient` gọi Gemini theo cấu hình riêng `INTERVIEW_NLP`; sinh câu hỏi/đáp án mẫu dùng `INTERVIEW_GEN`. Retry tối đa 3 lượt gọi với backoff 1s/2s khi HTTP 429/502/503/504; không retry lỗi xác thực, JSON hỏng hoặc điểm/rubric sai. Lỗi hệ thống không chuyển thành điểm 0 của ứng viên. Speech Signals được lưu thêm tại `ai_answers.speech_metrics_json` (V42), độc lập với feedback; các phiên cũ có thể chỉ có metrics trong `evaluation_json`.
 
 Communication tích hợp bốn tiêu chí nội dung: kiến thức chuyên môn, giải quyết vấn đề, lập luận và giao tiếp. Các tiêu chí này thuộc cùng một phiên Communication; năm quy trình đã hoãn vẫn không được bật.
 
@@ -88,6 +100,8 @@ Chấm điểm phiên AI Interview sau khi candidate nộp bài và quyết đ�
 - Bảng điểm legacy đã bị V21 xóa cùng dữ liệu; chưa có bảng `interview_scores` trong model mới.
 
 ## UI mockup
+
+- Đã cập nhật màu nhãn và bộ lọc trạng thái (2026-10-04): chuẩn bị xám, sinh câu hỏi tím, có câu hỏi xanh dương, đang diễn ra xanh trời, đang chấm vàng, chấm xong xanh ngọc, đạt xanh lá, không đạt cam, lỗi xử lý đỏ. Dùng token trong `DESIGN.md`, giữ chữ/biểu tượng và viền cho bộ lọc được chọn.
 
 - Google Stitch: **AI Interview System / AI Interview Scoring** — _[dán link]_
 - Icons: xem `DESIGN.md`

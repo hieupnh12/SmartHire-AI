@@ -21,6 +21,7 @@ export type AiAnswer = {
   answerDuration: number | null;
   answeredAt: string | null;
   feedback: AiFeedback | null;
+  speechMetrics?: SpeechMetrics | null;
 };
 
 export type AiQuestion = {
@@ -64,6 +65,7 @@ export type AiInterview = {
   processBased?: boolean;
   voiceEnabled?: boolean;
   recordingEnabled?: boolean;
+  conversational?: boolean;
   id: number;
   applicationId: number;
   jobId: number | null;
@@ -120,6 +122,11 @@ export type AiInterviewConfig = {
 };
 
 export type AiInterviewReport = {
+  evaluationMode?: "POST_SESSION";
+  summary?: string;
+  strengths?: string;
+  weaknesses?: string;
+  criteriaEvidence?: Record<string, { messageId: number; quote: string }[]>;
   overallScore: number;
   communicationCriteria?: Record<string, number>;
   weights?: Partial<Record<CompetencyKey, number>>;

@@ -30,5 +30,5 @@ public record AiInterviewResponse(
         Instant availableFrom,
         Instant availableUntil,
         List<RoadmapStep> roadmap,
-        boolean processBased, boolean voiceEnabled, boolean recordingEnabled) {
+        boolean processBased, boolean voiceEnabled, boolean recordingEnabled, boolean conversational) {
 }

@@ -10,18 +10,21 @@
 
 | Thông tin | Giá trị |
 |---|---|
+| AI Conversation 2026-10-03 | Tenant V44 thêm `interview_sessions`/`interview_messages` và 2 entity; 2 FK CASCADE, 3 UNIQUE; lịch sử chat và metadata audio riêng tư. Phiên mới có `conversationVersion=1` trong JSON snapshot; báo cáo toàn phiên schemaVersion 3 |
+| Assessment tự động 2026-10-03 | Tenant V43: `jobs.assessment_config_json` JSON nullable; `tests.assigned_application_id` nullable + UNIQUE + FK RESTRICT tới `applications`. Không thêm bảng/entity; thêm 1 FK và 1 UNIQUE |
+| Spring AI Communication 2026-10-02 | Master V24 cập nhật model mặc định Interview đã lỗi thời sang `gemini-2.5-flash` và ngân sách tối thiểu 8192 token; giữ model admin đã chọn khác. Tenant V42 thêm `ai_answers.speech_metrics_json` nullable; không thêm bảng/entity/FK/UNIQUE/index |
 | Ngân hàng câu hỏi chung 2026-10-02 | Tenant V41: `questions.test_id` nullable, thêm `authoring_metadata` JSON và `bank_archived` BOOLEAN; không thêm bảng, entity, FK, UNIQUE hoặc index. Ngân hàng chung đọc cả câu độc lập và câu từ assessment; chỉ sửa/lưu trữ câu độc lập qua API ngân hàng |
 | AI Interview lộ trình 2026-09-28 | V35 (đánh lại từ V34 vì trùng V34 `cv application copy` của nhánh khác): cột JSON cấu hình/lộ trình trên `jobs`, snapshot + báo cáo + `attempt_number` + `expires_at` trên `ai_interviews`, rubric/trắc nghiệm trên `ai_questions`, `ai_feedbacks.evaluation_json`, index `idx_ai_interview_expiry`. Không thêm bảng, FK hay UNIQUE |
 | AI Interview API 2026-09-28 | Thêm truy vấn đếm câu hỏi theo phiên để tự cập nhật trạng thái; không đổi schema, entity, FK hay migration |
 | AI Interview workflow 2026-09-27 | V25: cấu hình AI Interview theo job, `applications.cv_screening_status`, cột worker; V26: 30–40 câu hỏi, bảng `ai_interview_logs` + entity `AiInterviewLog` |
 | Kiến trúc | Separate Database per Tenant |
 | Số database logic | 2 loại (1 Master + N Tenant) |
-| Bảng tenant sau V41 | 63 bảng (60 sau V32 + 3 bảng process/consent/recording của V39/V40); V41 không thêm bảng; không tính Flyway history |
-| Entity JPA tenant | 58 theo checkout hiện tại; V39/V40 bổ sung entity process/consent/recording; V41 chỉ mở rộng entity `Question` |
-| Khoá ngoại tenant | 84 theo mốc tài liệu (77 sau V32 + 3 FK V39 + 4 FK V40); V41 giữ nguyên FK hiện có |
+| Bảng tenant sau V44 | 65 bảng (63 sau V43 + 2 bảng hội thoại); không tính Flyway history |
+| Entity JPA tenant | 60 class `@Entity` theo checkout hiện tại; V44 bổ sung `InterviewSession`, `InterviewMessage` |
+| Khoá ngoại tenant | 87 theo mốc tài liệu (85 sau V43 + 2 FK V44) |
 | Ràng buộc UNIQUE tenant | V25/V26 không thêm UNIQUE. V27 thêm UNIQUE `gate_scores.application_id`. V30 thêm `uk_job_assignments_job_user` |
-| Số file migration trong repo | 56 (22 master + 34 tenant); V9 redesign nằm ngoài pipeline |
-| Cập nhật lần cuối | Master `V23`, tenant `V41` (ngân hàng câu hỏi chung). Master V23 tối ưu liên kết hợp đồng–hóa đơn, độ chính xác tiền tệ VND và index log; tenant V34 tạo bản sao CV theo application, V35 bổ sung lộ trình AI Interview, V36 bổ sung catalog recruitment stage, V37 bổ sung ma trận vai trò công việc |
+| Số file migration trong repo | 60 (23 master + 37 tenant); V9 redesign nằm ngoài pipeline |
+| Cập nhật lần cuối | Master `V24`, tenant `V44`: session/message hội thoại, FK/UNIQUE và metadata recording; giữ dữ liệu phiên cũ |
 | Dọn legacy V21 | Xóa 19 bảng và dữ liệu legacy, xóa 2 cột ID legacy trong ranking; không chuyển ID cũ sang bản ghi mới |
 | Metadata assessment 2026-09-25 | V13: `tests.created_by/updated_at`, `questions.difficulty/skill/explanation` cho Excel/UI authoring |
 | Sửa lỗi assessment 2026-09-24 | V10/V11 khớp checksum lịch sử; V12 tạo schema mới và giữ bảng cũ; migration lỗi phải chặn mở tenant pool |
@@ -157,7 +160,7 @@ thay vì âm thầm đọc nhầm database của doanh nghiệp khác.
 | 07 | `PlatformAuditLog` | `platform_audit_logs` | Audit | Nhật ký cấp nền tảng |
 | 08 | `ConsultationRequest` | `consultation_requests` | Sales | Yêu cầu demo/tư vấn từ landing |
 
-### 3.2 Tenant — 51 entity (`com.smarthire.domain.tenant.entity`)
+### 3.2 Tenant — 60 entity (`com.smarthire.domain.tenant.entity`)
 
 | No | Entity | Bảng | Nhóm nghiệp vụ | Kế thừa `BaseEntity` |
 |---|---|---|---|---|
@@ -216,6 +219,11 @@ thay vì âm thầm đọc nhầm database của doanh nghiệp khác.
 | 53 | `GateScore` | `gate_scores` | CV & AI screening | Có |
 | 54 | `JobAssignment` | `job_assignments` | Job & Skill | Có |
 | 55 | `LandingPageSetting` | `landing_page_settings` | Branding | Có |
+| 56 | `AiInterviewProcessRun` | `ai_interview_process_runs` | AI Interview legacy V2 | Không |
+| 57 | `AiInterviewConsent` | `ai_interview_consents` | AI Interview consent | Không |
+| 58 | `AiAnswerRecording` | `ai_answer_recordings` | AI Interview legacy audio | Không |
+| 59 | `InterviewSession` | `interview_sessions` | AI Conversation V44 | Không |
+| 60 | `InterviewMessage` | `interview_messages` | AI Conversation V44 | Không |
 
 V23 thêm bảng nối `answer_selected_options`, entity `AnswerSelectedOption` (`@EmbeddedId` + `@MapsId`);
 `Answer.selectedOptions` là `@OneToMany(mappedBy = "answer", cascade = ALL, orphanRemoval)`.
@@ -234,6 +242,8 @@ sang model hiện hành. Các bảng hiện hành và entity không thay đổi.
 `@PrePersist` / `@PreUpdate`. Các entity không kế thừa nó tự khai báo `@Id` và chỉ có `created_at`.
 
 ### 3.3 Enum dùng cho cột trạng thái (`com.smarthire.domain.enums`)
+
+V44 không thêm enum hoặc trạng thái lifecycle: session dùng lifecycle của `ai_interviews`, `ended_at` khóa transcript; `interview_messages.role` là VARCHAR(16), service chỉ ghi `USER`/`ASSISTANT` (SQL không có CHECK role).
 
 | Enum | Bảng · cột sử dụng | Giá trị |
 |---|---|---|
@@ -462,6 +472,7 @@ Pipeline chạy tuần tự qua RabbitMQ: `cv.parse` ghi `cv_documents` → `cv.
 ```mermaid
 erDiagram
     jobs ||--o{ tests : "đề thi của job"
+    applications |o--o| tests : "đề riêng assigned_application_id"
     users ||--o{ tests : "created_by"
     tests |o--o{ questions : "câu hỏi (NULL = ngân hàng chung)"
     questions ||--o{ questionskills : "question_id"
@@ -507,6 +518,8 @@ erDiagram
     applications ||--o{ ai_interviews : "phiên AI"
     recruitment_stages |o--o{ ai_interviews : "workflow_stage_id"
     ai_interviews ||--o{ ai_questions : "câu hỏi AI"
+    ai_interviews ||--o| interview_sessions : "new conversation attempt"
+    interview_sessions ||--o{ interview_messages : "ordered chat history"
     ai_questions ||--o| ai_answers : "câu trả lời 1:1"
     ai_answers ||--o| ai_feedbacks : "feedback 1:1"
     ai_interviews ||--o{ ai_interview_logs : "nhật ký hoạt động"
@@ -611,7 +624,7 @@ của màn assessment hiện tại.
 
 | Entity | Mục đích | Ghi chú quan trọng |
 |---|---|---|
-| `JobTest` | Đề thi gắn với một job (bảng `tests`) | `duration_minutes`, `passing_score`, `status`, `created_by`, `updated_at` — tên class tránh xung đột JUnit `Test` |
+| `JobTest` | Đề thi gắn với một job (bảng `tests`) | V43: `assigned_application_id` nullable + UNIQUE + FK, tối đa một đề tự động cho mỗi hồ sơ; NULL là đề dùng chung trong job. Tên class tránh xung đột JUnit `Test` |
 | `Question` | Câu hỏi trắc nghiệm hoặc tự luận, độc lập hoặc thuộc đề | V41: `test_id` nullable; `authoring_metadata` giữ nội dung bảng soạn/rubric/đáp án mẫu; `bank_archived` lưu trữ câu độc lập. Dữ liệu câu gốc của assessment không bị thay đổi khi xem ngân hàng |
 | `QuestionSkill` | Liên kết N–N câu hỏi và kỹ năng | PK kép `(question_id, skill_id)`; 2 FK NOT NULL, ON DELETE CASCADE |
 | `AnswerSelectedOption` | Lựa chọn đã chọn của câu MULTIPLE_CHOICE | PK kép `(answer_id, option_id)`; FK answer CASCADE, option RESTRICT |
@@ -639,9 +652,11 @@ của màn assessment hiện tại.
 
 | Entity | Mục đích | Ghi chú quan trọng |
 |---|---|---|
+| `InterviewSession` | Phiên hội thoại của một lượt AI Interview mới | UNIQUE attempt; tổng lượt tối đa, số lượt candidate; ended_at khóa hội thoại |
+| `InterviewMessage` | Tin nhắn candidate/AI theo thứ tự | UNIQUE session/sequence và session/request ID; key recording riêng tư không ra DTO |
 | `AiInterview` | Phiên phỏng vấn AI | Neo vào `applications`, tùy chọn `workflow_stage_id`; `overall_score` trên phiên |
 | `AiQuestion` | Câu hỏi do AI sinh | `question_order`, `question_type` |
-| `AiAnswer` | Câu trả lời ứng viên | 1:1 với `ai_questions`; `answer_duration`, `answered_at` |
+| `AiAnswer` | Câu trả lời ứng viên | 1:1 với `ai_questions`; `answer_duration`, `answered_at`; V42 lưu `speech_metrics_json` từ trình duyệt độc lập với feedback |
 | `AiFeedback` | Feedback AI theo từng câu trả lời | 1:1 với `ai_answers`; `score`, `strengths`, `weaknesses` |
 
 ### 5.10 Tenant — Notification & Practice
@@ -708,6 +723,8 @@ của màn assessment hiện tại.
 
 ### 7.2 Tenant — 60 khoá ngoại hiện hành
 
+V44 bổ sung hai FK NOT NULL `ON DELETE CASCADE`: `interview_sessions.ai_interview_id` → `ai_interviews.id` (mỗi attempt 0..1 session nhờ UNIQUE), `interview_messages.session_id` → `interview_sessions.id` (1:N). Các bảng legacy vẫn giữ quan hệ cũ.
+
 | Bảng con | Cột | Bảng cha | Nullable | Lực lượng | Tên ràng buộc |
 |---|---|---|---|---|---|
 | `oauth_accounts` | `user_id` | `users` | Không | N:1 | `fk_oauth_user` |
@@ -745,6 +762,7 @@ của màn assessment hiện tại.
 | `ranking_sources` | `ai_interview_id` | `ai_interviews` | Có | 1:0..1 | `fk_rank_source_ai_interview` |
 | `tests` | `job_id` | `jobs` | Không | N:1 | `fk_tests_job` |
 | `tests` | `created_by` | `users` | Có | N:0..1 | `fk_tests_created_by` |
+| `tests` | `assigned_application_id` | `applications` | Có | 0..1:0..1 | `fk_tests_assigned_application`, UNIQUE `uk_tests_assigned_application`; RESTRICT khi xóa hồ sơ |
 | `questions` | `test_id` | `tests` | Có | N:0..1 | `fk_questions_test`; V41 cho phép câu độc lập |
 | `questionskills` | `question_id` | `questions` | Không | N:1 | `fk_questionskills_question`, DELETE CASCADE |
 | `questionskills` | `skill_id` | `skills` | Không | N:1 | `fk_questionskills_skill`, DELETE CASCADE |
@@ -827,7 +845,11 @@ kho hồ sơ (talent pool) chưa gắn với tin tuyển dụng nào.
 | `platform_users` | `uk_platform_users_email` | `email` | Email quản trị viên không trùng |
 | `tenant_usage_daily` | `uk_tenant_usage_daily` | `(tenant_id, usage_date)` | Mỗi tenant mỗi ngày đúng một dòng usage |
 
-### 8.2 Ràng buộc UNIQUE — Tenant (19, không tính PK)
+### 8.2 Ràng buộc UNIQUE — Tenant (20, không tính PK)
+
+V44 thêm 3 UNIQUE: `uk_interview_session_attempt(ai_interview_id)`, `uk_interview_message_sequence(session_id, sequence_no)`, `uk_interview_message_request(session_id, client_request_id)`. Request ID nullable cho tin AI; MySQL cho phép nhiều NULL. Candidate dùng UUID và gửi lại cùng ID/nội dung để nhận lượt đã commit, không gọi AI thêm.
+
+V43 thêm `uk_tests_assigned_application(tests.assigned_application_id)`; MySQL cho phép nhiều NULL cho đề dùng chung, mỗi hồ sơ có tối đa một đề riêng. UNIQUE đồng thời tạo index trên cột này.
 
 V22 thêm PK kép `questionskills(question_id, skill_id)` để ngăn gắn trùng kỹ năng cho câu hỏi; không thêm UNIQUE riêng.
 
@@ -907,7 +929,11 @@ GENERATING ──▶ QUESTIONS_READY ──▶ IN_PROGRESS ──▶ SCORING ─
 ```
 `CREATED`/`SCORED` chỉ còn cho dữ liệu cũ; phiên mới bắt đầu ở `GENERATING`.
 
+Phiên `conversationVersion=1`: GENERATING chỉ chốt context, QUESTIONS_READY nghĩa là phòng hội thoại sẵn sàng, không yêu cầu AiQuestion. Khi start tạo session + lời chào/câu đầu; lượt chat không chấm điểm. Complete hoặc hết hạn → SCORING, worker đánh giá toàn transcript → PASSED/FAILED. Lỗi provider khi chat rollback lượt đó, giữ IN_PROGRESS để gửi lại; lỗi chấm → ERROR và retry cùng phiên. `ended_at` được chốt khi nộp.
+
 ### 8.4 Quy tắc nghiệp vụ mà database **không** bảo vệ được
+
+- Hội thoại V44 khóa hàng `ai_interviews` để tuần tự hóa start/turn/complete; user + assistant lưu cùng transaction. Service kiểm tra tenant/ownership, consent, hạn giờ và ngân sách tối đa 40 lượt. Evidence chấm phải trích đúng USER message; evidence sai/thuộc AI cho điểm 0. TTS chỉ nhận message AI đã lưu. Audio chunk tối đa 9 MB, kiểm tra MIME/container; STT transcript được candidate kiểm tra trước khi gửi.
 
 Những quy tắc sau bắt buộc phải kiểm tra ở tầng service, vì không có constraint nào ép được.
 
@@ -929,6 +955,7 @@ Những quy tắc sau bắt buộc phải kiểm tra ở tầng service, vì kh�
 | BR-14 | Lượt quá hạn được chấm từ đáp án đã lưu khi có request tiếp theo; ghi EXPIRED và submitted_at bằng deadline. Chưa có worker quét chủ động | `SubmissionService` |
 
 - Ngân hàng chung V41: câu hỏi có `test_id = NULL` được thêm/sửa/lưu trữ độc lập; câu có `test_id` chỉ được sửa qua assessment gốc ở trạng thái DRAFT. API ngân hàng yêu cầu staff, xác thực tenant trước truy vấn; cả lô câu hỏi được lưu trong một transaction.
+- Assessment tự động V43: cấu hình theo job chỉ chọn skill của job, tối đa 100 câu, khớp skill/type/difficulty và không trùng nội dung; copy câu/options/metadata để đóng băng đề. Đề riêng chỉ hiển thị và mở được với hồ sơ được gán. Worker RabbitMQ có `X-Tenant-ID`, khóa hồ sơ trước khi tạo; đề, thông báo và email outbox cùng transaction. Áp dụng cho hồ sơ ASSESSMENT, đã PASSED AI Interview, không rút/lưu trữ, cả trước và sau khi bật. Thiếu câu thì rollback và chờ cấu hình/ngân hàng được sửa, không ảnh hưởng kết quả AI Interview.
 
 ### 8.5 Hệ quả nghiệp vụ cần biết
 
@@ -952,6 +979,11 @@ Những quy tắc sau bắt buộc phải kiểm tra ở tầng service, vì kh�
 ## 9. Index & Security
 
 ### 9.1 Index được khai báo tường minh
+
+V44 tạo index qua UNIQUE (không có CREATE INDEX riêng): `uk_interview_session_attempt` tra cứu session theo attempt; `uk_interview_message_sequence` đọc history đúng thứ tự; `uk_interview_message_request` chống gửi trùng. Redis ticket WebSocket dùng GETDEL, TTL 60s, gắn tenant/actor/attempt; query ticket không chứa JWT và proxy không ghi access log trên `/ws/`.
+
+V43: UNIQUE index `uk_tests_assigned_application` trên `tests.assigned_application_id` hỗ trợ tra cứu và chống tạo lặp đề riêng.
+
 
 V23 thêm `idx_answer_selected_options_option(option_id)`; PK kép `(answer_id, option_id)`
 ngăn chọn trùng. Service kiểm tra option thuộc đúng question; SQL FK không bảo vệ điều kiện chéo này.
@@ -1049,6 +1081,8 @@ Hai pipeline dùng **hai phương ngữ SQL khác nhau** và không thể dùng 
 | V20 | `V20__add_billing_info.sql` | Thêm mã số thuế, địa chỉ hóa đơn, thông tin thanh toán |
 | V21 | `V21__payment_transactions_and_amount_scale.sql` | Bảng payment_transactions và mở rộng quy mô tiền tệ |
 | V22 | `V22__consolidate_subscription_plan_pricing_to_vnd.sql` | Chuẩn hoá lưu giá gói duy nhất bằng `price_yearly` (VNĐ), xoá `price_monthly`, `price_monthly_vnd`, `price_yearly_vnd` |
+| V23 | `V23__optimize_master_schema.sql` | Tối ưu schema master: liên kết hợp đồng–hóa đơn, độ chính xác tiền tệ VND và index log |
+| V24 | `V24__spring_ai_interview_defaults.sql` | Thay riêng seed model Gemini Interview 1.5/2.0 bằng `gemini-2.5-flash`, tăng ngân sách tối thiểu 8192 token; giữ model khác do admin chọn, không đổi schema |
 
 ### 10.3 Lịch sử migration — Tenant
 
@@ -1088,6 +1122,9 @@ Hai pipeline dùng **hai phương ngữ SQL khác nhau** và không thể dùng 
 | V39 | `V39__ai_interview_process_engine.sql` | `ai_interview_process_runs`; liên kết process/follow-up trên `ai_questions`; index current process/question sequence |
 | V40 | `V40__ai_interview_voice_support.sql` | `ai_interview_consents`, `ai_answer_recordings`; audit consent và metadata audio/STT private |
 | V41 | `V41__general_question_bank.sql` | `questions.test_id` nullable; `authoring_metadata` JSON; `bank_archived` BOOLEAN DEFAULT FALSE. Giữ FK test cũ, không thêm bảng/index/FK |
+| V42 | `V42__ai_answer_speech_metrics.sql` | Thêm `ai_answers.speech_metrics_json` JSON nullable, không backfill tín hiệu chưa từng đo; giữ nguyên FK/UNIQUE/index |
+| V43 | `V43__assessment_automation.sql` | Cấu hình JSON trên `jobs`; FK + UNIQUE `tests.assigned_application_id` nullable cho đề riêng. Không thêm bảng hoặc entity |
+| V44 | `V44__interview_conversation.sql` | 2 bảng `interview_sessions`/`interview_messages`, entity tương ứng; 2 FK CASCADE + 3 UNIQUE; cột counter/history/request ID/metadata recording. Không backfill hoặc chuyển đổi phiên legacy |
 
 V9 redesign cũ được giữ nguyên tại `db/migration-archive/`, **ngoài** location Flyway.
 Tenant tạo mới chạy V1–V13 rồi V21–V36: 60 bảng hiện hành (gồm 5 bảng analytics V9), chưa tính history.

@@ -61,7 +61,12 @@ final class InterviewProcessQuestions {
         if (!rows.isArray() || rows.size() != slots.size()) throw new IllegalStateException("Invalid process question count");
         Map<Integer, JsonNode> bySlot = new HashMap<>();
         Set<String> seen = new HashSet<>();
-        for (var row : rows) {
+        int rowPosition = 0;
+        for (var original : rows) {
+            if (!original.isObject()) throw new IllegalStateException("Invalid process question object");
+            var row = ((ObjectNode) original).deepCopy();
+            if (row.path("index").isMissingNode() || row.path("index").isNull()) row.put("index", rowPosition);
+            rowPosition++;
             if (!row.path("index").isIntegralNumber() || row.path("index").asInt() < 0
                     || row.path("index").asInt() >= slots.size() || bySlot.put(row.path("index").asInt(), row) != null)
                 throw new IllegalStateException("Invalid process question slot");
@@ -72,12 +77,22 @@ final class InterviewProcessQuestions {
             String text = text(row, "questionText", 10000), reference = text(row, "referenceAnswer", 10000);
             if (!seen.add(text.toLowerCase(Locale.ROOT)) || !slot.path("questionType").asText().equals(row.path("questionType").asText()))
                 throw new IllegalStateException("Duplicate question or incorrect exercise format");
-            String difficulty = text(row, "difficulty", 32);
+            boolean missingDifficulty = row.path("difficulty").isMissingNode() || row.path("difficulty").isNull()
+                    || row.path("difficulty").asText().isBlank();
+            String difficulty = missingDifficulty ? "medium" : text(row, "difficulty", 32).toLowerCase(Locale.ROOT);
             if (!List.of("easy", "medium", "hard").contains(difficulty)
-                    || !slot.path("difficulty").asText().equals("adaptive") && !slot.path("difficulty").asText().equals(difficulty))
+                    || !missingDifficulty && !slot.path("difficulty").asText().equals("adaptive") && !slot.path("difficulty").asText().equals(difficulty))
                 throw new IllegalStateException("Incorrect exercise difficulty");
             var points = row.path("keyPoints");
-            if (!points.isArray() || points.size() < 3 || points.size() > 6) throw new IllegalStateException("Invalid process question rubric");
+            if (points.isMissingNode() || points.isNull() || points.isArray() && points.isEmpty()) {
+                var fallback = mapper.createArrayNode();
+                for (String part : reference.split("(?<=[.!?;])\\s+|\\R")) {
+                    if (!part.isBlank()) fallback.add(part.trim().substring(0, Math.min(part.trim().length(), 2000)));
+                    if (fallback.size() == 6) break;
+                }
+                points = fallback;
+            }
+            if (!points.isArray() || points.isEmpty() || points.size() > 6) throw new IllegalStateException("Invalid process question rubric");
             for (var point : points) if (!point.isTextual() || point.asText().isBlank() || point.asText().length() > 2000)
                 throw new IllegalStateException("Invalid scoring key point");
             var rubric = mapper.createObjectNode().put("processKey", run.getProcessKey()).put("referenceAnswer", reference)
@@ -113,17 +128,12 @@ final class InterviewProcessQuestions {
                 question.setOptionsJson(InterviewPolicies.json(values));
                 question.setCorrectOption(single ? indices.iterator().next() : null);
                 question.setExplanation(text(row, "explanation", 10000));
-            } else if (hasChoiceData(row.path("options")) || hasChoiceData(row.path("correctOptions")))
-                throw new IllegalStateException("Open exercise contains choice data");
+            }
             if (InterviewProcessSettings.bool(config, "allowHint", false)) rubric.put("hint", text(row, "hint", 2000));
             question.setRubricJson(rubric.toString()); generated.add(question);
         }
         return generated;
     }
-    private static boolean hasChoiceData(JsonNode value) {
-        return !value.isMissingNode() && !value.isNull() && !(value.isArray() && value.isEmpty());
-    }
-
     static String text(JsonNode node, String key, int max) {
         var value = node.path(key);
         if (!value.isTextual() || value.asText().isBlank() || value.asText().length() > max) throw new IllegalStateException("Invalid exercise text: " + key);

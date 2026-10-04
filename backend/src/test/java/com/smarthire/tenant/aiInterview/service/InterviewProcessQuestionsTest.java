@@ -27,7 +27,7 @@ class InterviewProcessQuestionsTest {
         }
         return row;
     }
-    @Test void communicationAcceptsEmptyOptionalChoiceFieldsButRejectsActualChoices() {
+    @Test void communicationDiscardsOptionalChoiceFields() {
         var config = Map.<String, Object>of("difficulty", "adaptive");
         var communicationRun = AiInterviewProcessRun.builder().processKey("COMMUNICATION").build();
         var slots = InterviewProcessQuestions.slots(mapper, "COMMUNICATION", config, List.of("Java"), 1);
@@ -39,8 +39,28 @@ class InterviewProcessQuestionsTest {
         assertThat(generated.getFirst().getOptionsJson()).isNull();
         assertThat(InterviewPolicies.tree(generated.getFirst().getRubricJson()).path("referenceAnswer").asText()).isNotBlank();
         row.putArray("options").add("Leaked choice");
-        assertThatThrownBy(() -> InterviewProcessQuestions.validate(mapper, interview, communicationRun, config, slots,
-                mapper.createArrayNode().add(row), 0)).hasMessage("Open exercise contains choice data");
+        assertThat(InterviewProcessQuestions.validate(mapper, interview, communicationRun, config, slots,
+                mapper.createArrayNode().add(row), 0).getFirst().getOptionsJson()).isNull();
+    }
+
+    @Test void missingMetadataUsesPositionMediumAndReferenceRubric() {
+        var config = Map.<String, Object>of("difficulty", "hard");
+        var slots = InterviewProcessQuestions.slots(mapper, "COMMUNICATION", config, List.of(), 2);
+        var rows = mapper.createArrayNode();
+        for (int i = 0; i < 2; i++) {
+            var value = row("COMMUNICATION", i);
+            value.remove(List.of("index", "difficulty", "keyPoints"));
+            value.put("extra", "ignored");
+            rows.add(value);
+        }
+        var generated = InterviewProcessQuestions.validate(mapper, interview, run, config, slots, rows, 0);
+        assertThat(generated).extracting(AiQuestion::getQuestionOrder).containsExactly(0, 10);
+        var rubric = InterviewPolicies.tree(generated.getFirst().getRubricJson());
+        assertThat(rubric.path("difficulty").asText()).isEqualTo("medium");
+        assertThat(rubric.path("keyPoints").get(0).asText()).isEqualTo("Explain constructor injection");
+        ((ObjectNode) rows.get(0)).remove("referenceAnswer");
+        assertThatThrownBy(() -> InterviewProcessQuestions.validate(mapper, interview, run, config, slots, rows, 0))
+                .hasMessageContaining("referenceAnswer");
     }
 
     Map<String, Object> config(String format) {

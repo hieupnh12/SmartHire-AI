@@ -170,6 +170,8 @@ public class AiInterviewProcessEngine {
     }
 
     private void evaluate(AiQuestion question, AiAnswer answer, com.smarthire.tenant.aiInterview.dto.request.SpeechMetrics speechMetrics) {
+        if (speechMetrics == null && answer.getSpeechMetricsJson() != null)
+            speechMetrics = InterviewPolicies.read(answer.getSpeechMetricsJson(), com.smarthire.tenant.aiInterview.dto.request.SpeechMetrics.class);
         if (feedbacks.findByAiAnswer_Id(answer.getId()).isPresent()) return;
         JsonNode rubric = InterviewPolicies.tree(question.getRubricJson());
         boolean choice = InterviewChoiceAnswers.isV2Choice(question);
@@ -188,7 +190,7 @@ public class AiInterviewProcessEngine {
                 if (evidence.isObject()) data.set("candidateEvidence", evidence);
             }
             boolean communication = "COMMUNICATION".equals(question.getProcessRun().getProcessKey());
-            var graded = ai.generate((communication ? "Also return criteria with exactly TECHNICAL_KNOWLEDGE, PROBLEM_SOLVING, REASONING, COMMUNICATION. Each is {score:0-100,evidence:exact answer quote}. Assess job knowledge, feasible solutions, reasoning and clarity. Empty evidence means zero. " : "") + "Grade the written answer strictly against rubric.referenceAnswer and rubric.keyPoints. "
+            var graded = ai.evaluate((communication ? "Also return criteria with exactly TECHNICAL_KNOWLEDGE, PROBLEM_SOLVING, REASONING, COMMUNICATION. Each is {score:0-100,evidence:exact answer quote}. Assess job knowledge, feasible solutions, reasoning and clarity. Empty evidence means zero. " : "") + "Grade the written answer strictly against rubric.referenceAnswer and rubric.keyPoints. "
                     + "For each key point return its 0-based index, score 0-100 and evidence copied exactly from the answer. "
                     + "Missing/off-topic content scores 0 with empty evidence. Return {\"keyPoints\":[{\"index\":0,\"score\":80,\"evidence\":\"...\"}],"
                     + "\"feedback\":\"...\",\"strengths\":\"...\",\"weaknesses\":\"...\"}. When candidateEvidence is present, compare actual claims with it "

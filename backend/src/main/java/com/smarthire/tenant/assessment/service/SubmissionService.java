@@ -64,6 +64,7 @@ public class SubmissionService {
         Application application = applications.findById(request.applicationId()).orElseThrow(this::notFound);
         if (!application.getCandidate().getId().equals(candidate.getId())
                 || !application.getJob().getId().equals(test.getJob().getId())) throw notFound();
+        if (test.getAssignedApplication() != null && !test.getAssignedApplication().getId().equals(application.getId())) throw notFound();
         requireEligible(application);
         var previous = submissions.findLatestIds(testId, application.getId(), PageRequest.of(0, 1));
         Submission submission = previous.isEmpty() ? new Submission() : owned(previous.getFirst(), candidate);
@@ -95,6 +96,7 @@ public class SubmissionService {
         if (!application.getCandidate().getId().equals(candidate.getId())) throw notFound();
         requireEligible(application);
         return tests.findByJob_IdAndStatusOrderByIdDesc(application.getJob().getId(), TestStatus.PUBLISHED).stream()
+                .filter(test -> test.getAssignedApplication() == null || test.getAssignedApplication().getId().equals(applicationId))
                 .map(test -> {
                     var ids = submissions.findLatestIds(test.getId(), applicationId, PageRequest.of(0, 1));
                     Submission latest = ids.isEmpty() ? null : submissions.findById(ids.getFirst()).orElse(null);

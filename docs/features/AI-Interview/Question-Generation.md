@@ -1,6 +1,36 @@
 # AI Question Generation
 
+## AI Conversation triển khai ngày 2026-10-03
+
+Phiên mới có `conversationVersion=1` trong snapshot; lưu InterviewSession/InterviewMessage, không tạo AiQuestion hoặc đáp án/rubric trước. GENERATING chốt Job/CV context; QUESTIONS_READY mở phòng. Start tạo lời chào và câu hỏi đầu. Mỗi lượt USER gửi lịch sử đầy đủ → Gemini native streamGenerateContent → phản hồi SSE thích ứng. Khi kết thúc hoặc hết thời gian, worker mới đánh giá toàn transcript. Phiên cũ không có marker giữ engine cũ.
+
+Ngân sách lượt = số chủ đề × (1 + hỏi bồi), tối đa 40; thời lượng/ngôn ngữ/consent/ngưỡng đạt vẫn theo snapshot. AI hỏi một câu mỗi reply, lượt cuối chỉ kết thúc. Không có Next/Previous hoặc điểm từng câu ở phòng mới. API `POST .../{id}/conversation/turns` nhận `{requestId: UUID, content}`; event `delta{text}`, `done{ConversationResponse}`, `error{message}`. Khóa hàng attempt để tuần tự hóa; user + AI cùng transaction. Lỗi trước commit rollback lượt; retry cùng UUID nhận lượt đã commit nếu mất event done. Không gọi chấm điểm trong đường đối thoại.
+
+Database: V44 có hai bảng/entity, FK CASCADE, UNIQUE thứ tự/request. UI chat giữ draft khi lỗi, micro qua WebSocket, nghe AI qua TTS API; Recruiter xem transcript/bản ghi theo quyền Job sau complete. Trạng thái `Doing`: đã kiểm chứng code/build và provider streaming/STT/TTS bằng nội dung tổng hợp; chưa E2E tài khoản candidate thật trên tenant migrate V44. Các phần Process V2/Spring AI dưới đây áp dụng snapshot legacy.
+
+## Hotfix ổn định (2026-10-03)
+
+- Xóa phiên: backend chỉ cho staff xóa phiên chưa có `startedAt`, trạng thái `CREATED`, `QUESTIONS_READY` hoặc `ERROR`; các trường hợp còn lại trả `409 / AI_INTERVIEW_LOCKED`. Menu Recruiter khóa nút xóa theo cùng điều kiện và có mô tả lý do. Hộp xác nhận hiển thị lỗi API, bao gồm lý do khóa bằng tiếng Việt nếu trạng thái thay đổi trong lúc thao tác. Không thay đổi quyền hoặc điều kiện xóa backend.
+
+- Camera tạm thời tùy chọn: mặc định không yêu cầu quyền camera; ứng viên có thể chọn bật. Không có camera, từ chối quyền hoặc không mở được camera vẫn tiếp tục nếu microphone và chia sẻ toàn màn hình hợp lệ. Camera dừng không tính vi phạm. Microphone, chia sẻ toàn màn hình và fullscreen vẫn bắt buộc. Test giả lập bao gồm không bật camera và fallback khi camera lỗi; chưa E2E thiết bị thật, trạng thái `Doing`.
+
+- Kiểm tra thiết bị candidate gồm hai thao tác: `Kiểm tra thiết bị` yêu cầu chia sẻ toàn bộ màn hình ngay từ click, rồi mở camera và microphone riêng để xác định thiết bị lỗi; `Bắt đầu phỏng vấn` vào fullscreen và mới gọi luồng start hiện có. Thu hồi stream khi kiểm tra thất bại, bỏ consent hoặc rời bước chuẩn bị. Lỗi thiết bị hiển thị hướng dẫn tiếng Việt kèm loại lỗi trình duyệt. Test giả lập kiểm tra thứ tự mở, phân biệt lỗi, cleanup, màn hình không hợp lệ và HTTPS; chưa xác nhận camera thật/E2E do phiên làm việc chưa kết nối trình duyệt. Trạng thái phần E2E: `Doing`.
+
+- Candidate gọi API bắt đầu theo application: sinh câu đầu trực tiếp qua service xử lý hiện có, không đợi scheduler 15 giây; worker vẫn là cơ chế phục hồi cho phiên đang chờ. Trả `QUESTIONS_READY` khi sinh xong, hoặc `ERROR` khi lỗi; thao tác bắt đầu tiếp theo vẫn kiểm tra consent và thời gian khả dụng.
+- Parser Process V2 gán index thiếu theo vị trí, difficulty thiếu thành `medium`, keyPoints thiếu/rỗng lấy các đoạn từ referenceAnswer (tối đa 6, mỗi đoạn tối đa 2000 ký tự). Bỏ trường thừa và dữ liệu lựa chọn ở câu OPEN. Không sửa JSON nguồn; vẫn chặn số lượng/index trùng, câu trống/trùng, thiếu referenceAnswer, loại bài sai và đáp án trắc nghiệm sai.
+- Log client có task, HTTP status, loại exception và stack trace đã lọc; không ghi response body, key hoặc nội dung ứng viên. Lỗi timeout có loại exception/cause để phân biệt với lỗi parse.
+- `.env` backend dùng `gemini-2.5-flash`, read timeout 10 giây mỗi lần gọi. Retry 429/502/503/504 tối đa 3 lần nên tổng thời gian có thể vượt 10 giây; không cam kết SLA 10 giây cho toàn request. Key hiện có được giữ, chưa xác minh bằng cuộc gọi Google thực tế. Cấu hình Master DB/cache vẫn được ưu tiên hơn env.
+- Kiểm chứng: 59 test thuộc parser, candidate, client, process engine và Communication pass; `git diff --check` không có lỗi whitespace trong phần hotfix. Key env hiện có không khớp định dạng Google API key thông thường; cần thay key hợp lệ trong môi trường chạy rồi kiểm chứng phiên thật, bao gồm cấu hình Master DB/cache ưu tiên.
+
+## Phạm vi còn lại của AI Conversation
+
+- Nhịp hỏi (2026-10-03): mở đầu bằng một câu dễ về dự án/công việc quen thuộc do ứng viên chọn; sau câu trả lời đầu chỉ hỏi một chi tiết cơ bản từ ví dụ đó. Từ câu trả lời thứ hai mới mở rộng dần sang kiến thức, lập luận và tình huống chuyên sâu khi ứng viên thể hiện sẵn sàng; nếu lúng túng thì làm rõ hoặc đơn giản hóa. Mỗi lượt một câu, không ghép nhiều câu hỏi con. Không thêm lượt/thời lượng; lượt cuối vẫn chỉ kết thúc. Phiên đã lưu lời mở đầu giữ nguyên nội dung đó, các lượt tiếp theo áp dụng nhịp mới. Đây là chỉ dẫn cho AI, chưa xác minh chất lượng hội thoại với provider thật; trạng thái `Doing`.
+
+Chat session/message, streaming text, chấm toàn phiên và STT/TTS backend đã triển khai. Audio chunk được ghép thành một lượt thu âm hoàn chỉnh rồi chuyển ngữ; chưa có Live Audio hai chiều/barge-in/nhận dạng tức thời từng fragment. Cần E2E tenant thật và vận hành quota trước Done.
+
 ## Communication hiện hành (2026-10-02)
+
+Spring AI `ChatClient` gọi Gemini qua endpoint tương thích OpenAI (`/v1beta/openai/chat/completions`) bằng Gemini API key. Sinh câu đầu, câu thích ứng, hỏi bồi và đáp án mẫu dùng cấu hình `INTERVIEW_GEN`; chấm câu trả lời dùng `INTERVIEW_NLP`. Giữ nguyên snapshot, thứ tự và format Communication. Phản hồi phải hoàn tất (`finish_reason = stop`) và là JSON object trước khi kiểm tra rubric.
 
 Communication tích hợp bốn tiêu chí nội dung: kiến thức chuyên môn, giải quyết vấn đề, lập luận và giao tiếp. Các tiêu chí này thuộc cùng một phiên Communication; năm quy trình đã hoãn vẫn không được bật.
 
@@ -108,7 +138,7 @@ Job Skills và bằng chứng CV đã trích xuất (nếu có); sau đó candid
 - Recruiter đã nối API cấu hình, sinh lại câu hỏi, thử chấm lại và lịch sử xử lý; trang chi tiết tự tải lại mỗi 5 giây. Các trạng thái `GENERATING`, `PASSED`, `ERROR` được hiển thị đúng. Điểm và trạng thái chỉ đọc, không có dữ liệu giả.
 - Panel "Cấu hình AI Interview": thiết lập phiên, trọng số (mẫu Mặc định/Junior/Senior, hiển thị tổng), Job Skills, Mini Assessment (số câu, tỷ trọng, vị trí) và trình chỉnh lộ trình (thêm/xoá/đổi thứ tự chặng, nút "AI đề xuất lộ trình"). Validation phía FE khớp backend.
 - Candidate `/interviews`: danh sách lời mời dùng dữ liệu thật từ `GET /api/v1/ai-interviews/me`, có thống kê tổng lời mời/cần thực hiện/đã hoàn thành; mỗi thẻ hiển thị vị trí, trạng thái, cửa sổ thực hiện, thời lượng, số câu, lần làm và điểm nếu có. CTA thay đổi theo trạng thái (`Bắt đầu`, `Tiếp tục`, `Xem kết quả`); trang có skeleton, lỗi tải lại, trạng thái hết hạn và empty state dẫn sang `/applications`.
-- CTA phiên chưa hoàn tất dùng nhãn `Bắt đầu`; trước khi backend bắt đầu tính giờ, candidate phải đồng ý và bật fullscreen, camera/microphone cùng chia sẻ toàn bộ màn hình. Phiên đang làm sau khi tải lại cũng khóa nội dung cho đến khi khôi phục giám sát.
+- CTA phiên chưa hoàn tất dùng nhãn `Bắt đầu`; trước khi backend bắt đầu tính giờ, candidate phải đồng ý và bật fullscreen, microphone cùng chia sẻ toàn bộ màn hình; camera tạm thời tùy chọn. Phiên đang làm sau khi tải lại cũng khóa nội dung cho đến khi khôi phục giám sát.
 - Phiên lỗi khi sinh câu hỏi hiển thị nút `Thử chuẩn bị lại câu hỏi`; candidate có thể yêu cầu backend đưa chính phiên đó về hàng đợi sinh câu hỏi mà không mất lượt. Bước kiểm tra thiết bị chỉ xuất hiện sau khi phiên chuyển sang `QUESTIONS_READY`.
 - Route chi tiết luôn dùng khung phòng thi: header trạng thái, thời lượng/đồng hồ và pipeline được hiển thị cả trước khi bắt đầu hoặc khi sinh câu hỏi lỗi. Countdown chỉ chạy khi backend đã chuyển phiên sang `IN_PROGRESS`; không giả lập thời gian hay câu hỏi khi đề chưa được sinh.
 - Trạng thái tải route có skeleton toàn trang; lỗi API có màn hình `Không thể tải phòng thi` với tải lại/quay về danh sách. Lỗi sinh đề có màn hình khôi phục riêng, nêu rõ đồng hồ chưa chạy và lượt thi chưa bị trừ; CTA ở danh sách đổi thành `Khôi phục phòng thi` thay vì giả là bắt đầu được ngay.

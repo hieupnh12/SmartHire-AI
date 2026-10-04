@@ -1,6 +1,6 @@
 import { useRecruitmentJob } from "../../jobs/components/JobRecruitmentWorkspace";
 import { useMemo, useState } from "react";
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import {
   Archive,
@@ -24,7 +24,8 @@ import {
   UserRound,
   X,
 } from "lucide-react";
-import { assessmentApi } from "@/api/tenant/assessmentApi";
+import { questionBankApi } from "@/api/tenant/questionBankApi";
+import { matchesJobBank } from "../utils/jobQuestionBank";
 import type { Question, TestStatus } from "@/api/types/assessment";
 import { AssessmentError } from "@/components/ux/assessmentUi";
 import { SKILL_CATALOG } from "@/features/tenant/recruiter/jobs/skillCatalog";
@@ -43,10 +44,10 @@ type Difficulty = "Cơ bản" | "Vận dụng" | "Nâng cao";
 
 type BankRow = {
   key: string;
-  testId: number;
+  testId: number | null;
   testTitle: string;
   testStatus: TestStatus;
-  jobId: number;
+  jobId: number | null;
   jobTitle: string;
   department: string;
   question: Question;
@@ -162,40 +163,28 @@ export function QuestionBankPage() {
   const [notice, setNotice] = useState("");
 
   const tests = useQuery({
-    queryKey: [...queryKeys.assessments.all(), "job", job.id],
-    queryFn: () => assessmentApi.listForJob(job.id),
+    queryKey: [...queryKeys.assessments.all(), "general-bank"],
+    queryFn: ({ signal }) => questionBankApi.listAll(signal),
+    refetchOnMount: "always",
   });
-  const items = tests.data?.items ?? [];
-  const questionQueries = useQueries({
-    queries: items.map((test) => ({
-      queryKey: queryKeys.assessments.questions(test.id),
-      queryFn: () => assessmentApi.questions(test.id),
-      enabled: tests.isSuccess,
-    })),
-  });
-  const loadingQuestions = questionQueries.some((item) => item.isPending);
-  const questionError = questionQueries.find((item) => item.isError)?.error;
-  const jobMap = useMemo(() => new Map([[job.id, { title: job.title, department: job.department ?? "" }]]), [job]);
-
   const rows = useMemo<BankRow[]>(() => {
-    return items.flatMap((test, index) => {
-      const questions = questionQueries[index]?.data ?? [];
-      const job = jobMap.get(test.jobId);
-      return questions.map((question) => ({
-        key: `${test.id}-${question.id}`,
-        testId: test.id,
-        testTitle: test.title,
-        testStatus: test.status,
-        jobId: test.jobId,
-        jobTitle: job?.title ?? `Vị trí #${test.jobId}`,
-        department: job?.department ?? "Chưa phân nhóm",
-        question,
-        code: questionCode(question.id),
-        skills: skillsOf(question.questionText, question.skill),
-        difficulty: difficultyLabel(question.difficulty, question.points),
-      }));
-    });
-  }, [items, questionQueries, jobMap]);
+    return (tests.data ?? []).filter(item => matchesJobBank(item, job)).map(item => ({
+      key: item.testId ? `${item.testId}-${item.question.id}` : `bank-${item.question.id}`,
+      testId: item.testId,
+      testTitle: item.testTitle ?? "Ngân hàng chung",
+      testStatus: item.archived ? "ARCHIVED" : item.testStatus ?? "DRAFT",
+      jobId: item.jobId,
+      jobTitle: item.jobTitle ?? "Tất cả vị trí",
+      department: item.jobId === job.id ? job.department ?? "" : "",
+      question: item.question,
+      code: questionCode(item.question.id),
+      skills: skillsOf(item.question.questionText, item.question.skill),
+      difficulty: difficultyLabel(item.question.difficulty, item.question.points),
+    }));
+  }, [tests.data, job]);
+  const questionPath = (row: BankRow) => row.testId && row.jobId
+    ? `/recruiter/jobs/${row.jobId}/assessments/${row.testId}`
+    : `/recruiter/question-bank/${row.question.id}/edit`;
 
   const skillOptions = useMemo(() => {
     const set = new Set<string>();
@@ -348,7 +337,6 @@ export function QuestionBankPage() {
       </header>
 
       <AssessmentError error={tests.error} retry={() => void tests.refetch()} />
-      <AssessmentError error={questionError} retry={() => void Promise.all(questionQueries.filter(item => item.isError).map(item => item.refetch()))} />
       {notice && <p role="status" className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">{notice}</p>}
 
       <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-12">
@@ -515,14 +503,14 @@ export function QuestionBankPage() {
               <p>
                 Hiển thị <span className="font-semibold text-[var(--color-on-surface)]">{filtered.length === 0 ? 0 : safePage * pageSize + 1} - {Math.min(filtered.length, safePage * pageSize + pageRows.length)}</span> trên <span className="font-semibold text-[var(--color-on-surface)]">{filtered.length}</span> câu hỏi
               </p>
-              {(tests.isPending || loadingQuestions) && <span role="status">Đang tải câu hỏi…</span>}
+              {tests.isPending && <span role="status">Đang tải câu hỏi…</span>}
             </div>
 
-            {tests.isSuccess && !loadingQuestions && filtered.length === 0 && (
+            {tests.isSuccess && filtered.length === 0 && (
               <div className="flex flex-col items-start gap-2 p-8">
                 <FolderOpen className="size-8 text-[var(--color-primary)]" aria-hidden="true" />
                 <p className="font-semibold">Không có câu hỏi phù hợp</p>
-                <p className="text-sm text-[var(--color-on-surface-variant)]">Đổi bộ lọc hoặc tạo câu hỏi trong một bài đánh giá.</p>
+                <p className="text-sm text-[var(--color-on-surface-variant)]">{job.skills.length ? "Đổi bộ lọc hoặc thêm câu hỏi vào ngân hàng chung với skill phù hợp với job." : "Job chưa có skill. Thêm skill cho job để hiển thị câu hỏi phù hợp từ ngân hàng chung."}</p>
                 <Link to={basePath} className="text-sm font-semibold text-[var(--color-primary)] hover:underline">Về danh sách bài đánh giá</Link>
               </div>
             )}
@@ -588,7 +576,7 @@ export function QuestionBankPage() {
                           </td>
                           <td className="px-4 py-3.5 text-right" onClick={(event) => event.stopPropagation()}>
                             <div className="relative flex justify-end gap-1 text-[var(--color-on-surface-variant)]">
-                              <Link to={`${basePath}/${row.testId}`} aria-label="Chỉnh sửa câu hỏi" className="rounded p-1 hover:bg-[var(--color-surface-container)] hover:text-[var(--color-primary)]">
+                              <Link to={questionPath(row)} aria-label="Chỉnh sửa câu hỏi" className="rounded p-1 hover:bg-[var(--color-surface-container)] hover:text-[var(--color-primary)]">
                                 <Pencil className="size-4" />
                               </Link>
                               <button type="button" aria-label="Tùy chọn khác" onClick={() => setMenuKey(menuKey === row.key ? null : row.key)} className="rounded p-1 hover:bg-[var(--color-surface-container)]">
@@ -745,8 +733,8 @@ export function QuestionBankPage() {
                   <p className="text-xs text-[var(--color-on-surface-variant)]">Bài đánh giá</p>
                   <p className="mt-1 font-semibold">{active.testTitle}</p>
                   <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">{active.jobTitle}</p>
-                  <Link to={`${basePath}/${active.testId}`} className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-[var(--color-primary)] hover:underline">
-                    <InfinityIcon className="size-4" /> Mở đề
+                  <Link to={questionPath(active)} className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-[var(--color-primary)] hover:underline">
+                    <InfinityIcon className="size-4" /> {active.testId ? "Mở đề" : "Mở câu hỏi chung"}
                   </Link>
                 </div>
               )}
@@ -767,7 +755,7 @@ export function QuestionBankPage() {
                 </button>
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <Link to={`${basePath}/${active.testId}`} className="rounded-lg bg-[var(--color-surface-card)] px-3 py-2.5 text-center text-sm font-semibold shadow-sm">
+                <Link to={questionPath(active)} className="rounded-lg bg-[var(--color-surface-card)] px-3 py-2.5 text-center text-sm font-semibold shadow-sm">
                   Chỉnh sửa câu hỏi
                 </Link>
                 <Link to={basePath} className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-[var(--color-primary)] px-3 py-2.5 text-sm font-semibold text-white">

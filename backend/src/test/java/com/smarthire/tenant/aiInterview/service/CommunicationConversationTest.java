@@ -28,7 +28,7 @@ class CommunicationConversationTest {
                 .questionText("Explain your solution").rubricJson("{\"referenceAnswer\":\"solution\",\"keyPoints\":[\"one\",\"two\",\"three\"]}").build();
         when(questions.findByAiInterview_IdOrderByQuestionOrderAscIdAsc(1L)).thenReturn(List.of(root));
         when(questions.findByProcessRun_IdOrderBySequenceNoAscIdAsc(2L)).thenReturn(List.of(root));
-        when(ai.generate(anyString(), any())).thenAnswer(call -> {
+        org.mockito.stubbing.Answer<com.fasterxml.jackson.databind.JsonNode> response = call -> {
             com.fasterxml.jackson.databind.JsonNode data = call.getArgument(1);
             if (data.has("answer")) return mapper.readTree("""
                 {"keyPoints":[{"index":0,"score":100,"evidence":"solution"},{"index":1,"score":100,"evidence":"solution"},{"index":2,"score":100,"evidence":"solution"}],
@@ -42,14 +42,17 @@ class CommunicationConversationTest {
                 {"questions":[{"index":0,"questionType":"COMMUNICATION","difficulty":"medium","questionText":"Explain a trade-off of your solution",
                 "referenceAnswer":"A trade-off","keyPoints":["one","two","three"]}]}
                 """);
-        });
-        engine.answerSaved(interview, root, AiAnswer.builder().id(100L).aiQuestion(root).answerText("My solution").build(),
-                new SpeechMetrics(5000, 4000, 1000, 1, 1200L));
+        };
+        when(ai.generate(anyString(), any())).thenAnswer(response);
+        when(ai.evaluate(anyString(), any())).thenAnswer(response);
+        engine.answerSaved(interview, root, AiAnswer.builder().id(100L).aiQuestion(root).answerText("My solution")
+                .speechMetricsJson(InterviewPolicies.json(new SpeechMetrics(5000, 4000, 1000, 1, 1200L))).build());
         verify(feedbacks).save(argThat(f -> f.getScore().compareTo(java.math.BigDecimal.valueOf(75)) == 0
                 && InterviewPolicies.tree(f.getEvaluationJson()).at("/speechMetrics/pauseCount").asInt() == 1));
         assertThat(run.getMainQuestionGenerated()).isEqualTo(2);
         assertThat(run.getMainQuestionCompleted()).isEqualTo(1);
         assertThat(run.getStatus()).isEqualTo(AiInterviewProcessStatus.IN_PROGRESS);
         verify(questions).saveAll(argThat(rows -> ((List<?>) rows).size() == 1));
+        verify(ai).evaluate(anyString(), any());
     }
 }

@@ -11,6 +11,7 @@ import { useCandidateInterviewScope } from "../hooks/useCandidateInterviews";
 import { formatRemaining, useCountdown } from "../hooks/useCountdown";
 import { interviewStatus } from "../constants/interviewStatus";
 import { INTERVIEW_RULES } from "../constants/interviewRules";
+import { ConversationRoom } from "./ConversationRoom";
 import { InterviewQuestionPanel } from "./InterviewQuestionPanel";
 import { InterviewRoadmap } from "./InterviewRoadmap";
 import { InterviewProcessNavigator } from "./InterviewProcessNavigator";
@@ -27,6 +28,9 @@ export function AiInterviewRoom({ id }: { id: number }) {
   const askConfirm = useUiStore(s => s.askConfirm);
   const key = [...scope, id];
   const session = useQuery({ queryKey: key, queryFn: () => candidateInterviewApi.get(id), enabled: !!scope[2], refetchInterval: 15000 });
+  const [conversationBusy, setConversationBusy] = useState(false);
+  const [conversationDirty, setConversationDirty] = useState(false);
+  const onConversationActivity = useCallback((pending: boolean, draft: boolean) => { setConversationBusy(pending); setConversationDirty(draft); }, []);
   const [selected, setSelected] = useState<number | null>(null);
   const [openedAt, setOpenedAt] = useState(() => Date.now());
   const [dirtyQuestions, setDirtyQuestions] = useState<Record<number, boolean>>({});
@@ -72,7 +76,7 @@ export function AiInterviewRoom({ id }: { id: number }) {
   const planned = !!data?.expiresAt || !!data?.roadmap || questions.some(q => q.stageTitle);
   const firstOpen = questions.findIndex(q => !answered(q));
   const index = Math.min(selected ?? (firstOpen >= 0 ? firstOpen : 0), Math.max(0, questions.length - 1));
-  const canSubmit = !busy && !dirty && !timeUp && questions.length > 0 && (planned || done === questions.length);
+  const canSubmit = !busy && !dirty && !timeUp && (data?.conversational ? !conversationBusy && !conversationDirty : questions.length > 0 && (planned || done === questions.length));
   const currentId = inProgress ? questions[index]?.id : undefined;
   useEffect(() => { setOpenedAt(Date.now()); }, [currentId]);
   useEffect(() => {
@@ -85,9 +89,9 @@ export function AiInterviewRoom({ id }: { id: number }) {
   function submit() {
     askConfirm({
       title: "Kết thúc và nộp bài?",
-      description: `${unanswered > 0 ? `Còn ${unanswered} câu chưa trả lời sẽ được tính 0 điểm. ` : ""}Sau khi nộp, bạn không thể sửa câu trả lời.`,
+      description: data?.conversational ? "Toàn bộ hội thoại sẽ được gửi đánh giá. Bạn không thể gửi thêm tin nhắn sau khi kết thúc." : `${unanswered > 0 ? `Còn ${unanswered} câu chưa trả lời sẽ được tính 0 điểm. ` : ""}Sau khi nộp, bạn không thể sửa câu trả lời.`,
       confirmLabel: "Nộp bài",
-      danger: unanswered > 0,
+      danger: !data?.conversational && unanswered > 0,
       onConfirm: async () => { await complete.mutateAsync(); },
     });
   }
@@ -149,11 +153,12 @@ export function AiInterviewRoom({ id }: { id: number }) {
         <div className="flex items-center gap-3 rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-container-low)] p-3"><LockKeyhole className="size-5 shrink-0 text-[var(--color-outline)]" aria-hidden="true" /><div><p className="text-xs font-semibold text-[var(--color-on-surface-variant)]">VÒNG 3: ASSESSMENT</p><p className="text-[11px] text-[var(--color-on-surface-variant)]">Mở theo kết quả của AI Interview</p></div></div>
       </section>
 
-      {inProgress && <InterviewProcessNavigator steps={data.roadmap} questions={questions} current={index} onSelect={!dirty && !timeUp ? setSelected : undefined} />}
+      {inProgress && !data.conversational && <InterviewProcessNavigator steps={data.roadmap} questions={questions} current={index} onSelect={!dirty && !timeUp ? setSelected : undefined} />}
 
       <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-12">
         <div className="flex flex-col gap-6 lg:col-span-8">
-          {inProgress && questions.length > 0 && <>
+          {data.conversational && (inProgress || !!data.completedAt) && <ConversationRoom id={id} active={!!inProgress} disabled={busy || timeUp} voiceEnabled={!!data.voiceEnabled} recordingEnabled={!!data.recordingEnabled} onActivity={onConversationActivity} />}
+          {inProgress && !data.conversational && questions.length > 0 && <>
             <InterviewQuestionPanel recordingEnabled={data.recordingEnabled} interviewId={id} questions={questions} index={index} disabled={busy || timeUp} dirty={dirty}
               onSelect={setSelected} onSaved={saved} onDirty={onDirty} answerDuration={answerDuration} />
             <div className={`${card} flex flex-wrap items-center justify-between gap-3`}>
@@ -179,9 +184,9 @@ export function AiInterviewRoom({ id }: { id: number }) {
           </article>)}
         </div>
         <aside className="flex flex-col gap-4 lg:sticky lg:top-32 lg:col-span-4">
-          {inProgress && <InterviewerCard question={questions[index]} done={done} total={questions.length} />}
-          <InterviewRoadmap steps={data.roadmap} questions={questions} current={inProgress ? index : null} openedAt={openedAt}
-            durationMinutes={data.durationMinutes} onSelect={inProgress && !dirty && !timeUp ? setSelected : undefined} />
+          {inProgress && !data.conversational && <InterviewerCard question={questions[index]} done={done} total={questions.length} />}
+          {!data.conversational && <InterviewRoadmap steps={data.roadmap} questions={questions} current={inProgress ? index : null} openedAt={openedAt}
+            durationMinutes={data.durationMinutes} onSelect={inProgress && !dirty && !timeUp ? setSelected : undefined} />}
           <section className={`${card} space-y-2`} aria-labelledby="interview-rules">
             <h2 id="interview-rules" className="flex items-center gap-2 font-semibold"><Info className="size-5 text-brand-primary" aria-hidden="true" />Quy định AI Interview</h2>
             <ul className="list-disc space-y-1 pl-5 text-sm text-[var(--color-on-surface-variant)]">{INTERVIEW_RULES.map(rule => <li key={rule}>{rule}</li>)}</ul>
@@ -264,7 +269,7 @@ function InvitationCard({ data, busy, onReady }: {
   const [accepted, setAccepted] = useState(false);
   const count = (kind: "OPEN" | "MCQ") => data.roadmap?.filter(s => s.kind === kind).reduce((sum, s) => sum + s.questionCount, 0) ?? 0;
   const facts = [
-    data.roadmap ? ["Câu hỏi phỏng vấn", `${count("OPEN")} câu`] : ["Số câu hỏi", `${data.questionCount} câu`],
+    data.conversational ? ["Chủ đề hội thoại", `${data.questionCount} chủ đề`] : data.roadmap ? ["Câu hỏi phỏng vấn", `${count("OPEN")} câu`] : ["Số câu hỏi", `${data.questionCount} câu`],
     ...(data.roadmap && count("MCQ") > 0 ? [["Mini Assessment", `${count("MCQ")} câu trắc nghiệm`]] : []),
     ...(data.durationMinutes ? [["Tổng thời gian", `${data.durationMinutes} phút`]] : []),
     ["Ngưỡng đạt", `${data.passingScore ?? "—"}/100`],

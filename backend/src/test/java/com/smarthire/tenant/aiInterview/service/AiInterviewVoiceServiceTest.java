@@ -39,7 +39,7 @@ class AiInterviewVoiceServiceTest {
     @Test void uploadsPrivateAudioAndStoresTranscriptForTheOwnedAnswer() throws Exception {
         when(consents.findByAiInterview_Id(1L)).thenReturn(Optional.of(AiInterviewConsent.builder().accepted(true).build()));
         when(storage.storeInterviewAudio(eq("tenant_a"), any(), eq("webm"))).thenReturn("interview_tenant_a_test");
-        when(sessions.upsertAnswer(1L,20L,request)).thenReturn(new AiAnswerResponse(10L,20L,"My solution",5,null,null));
+        when(sessions.upsertAnswer(1L,20L,request)).thenReturn(new AiAnswerResponse(10L,20L,"My solution",5,null,null,null));
         when(answers.findById(10L)).thenReturn(Optional.of(answer));
         service.submitAudio(1L,20L,file,request);
         verify(recordings).saveAndFlush(argThat(r -> r.getStorageKey().equals("interview_tenant_a_test") && r.getTranscriptRaw().equals("My solution")));

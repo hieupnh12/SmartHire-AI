@@ -32,7 +32,7 @@ export function InterviewAnswerForm({ interviewId, question, disabled, onSaved, 
     mutationFn: ({ answerText }: z.infer<typeof answerSchema>) => capture && recordingEnabled
       ? candidateInterviewApi.audioAnswer(interviewId, question.id, answerText, answerDuration(), capture)
       : candidateInterviewApi.answer(interviewId, question.id, answerText, answerDuration(), capture?.metrics),
-    onSuccess: answer => { reset({ answerText: answer.answerText ?? "" }); onSaved(answer); },
+    onSuccess: answer => { setCapture(null); reset({ answerText: answer.answerText ?? "" }); onSaved(answer); },
   });
   useEffect(() => { onDirty(question.id, isDirty || save.isPending || recording); }, [question.id, isDirty, save.isPending, recording, onDirty]);
   return <form className="space-y-3" onSubmit={handleSubmit(values => save.mutate(values))}>
@@ -47,7 +47,7 @@ export function InterviewAnswerForm({ interviewId, question, disabled, onSaved, 
     {capture && <p className="text-xs text-[var(--color-on-surface-variant)]">Đã ghi {(capture.metrics.durationMs / 1000).toFixed(1)} giây. {recordingEnabled ? "Audio và transcript sẽ gửi cùng câu trả lời." : "Chỉ gửi transcript và tín hiệu lời nói; audio không lưu trên server."}</p>}
     {errors.answerText && <p id={`answer-error-${question.id}`} role="alert">{errors.answerText.message}</p>}
     {save.isError && <p role="alert">{getApiErrorMessage(save.error)}</p>}
-    <Button type="submit" disabled={disabled || recording || save.isPending || !!question.difficulty && !!question.answer}>{save.isPending ? "Đang lưu…" : submitLabel}</Button>
+    <Button type="submit" disabled={disabled || recording || save.isPending || !!question.difficulty && !!question.answer}>{save.isPending ? "Đang đánh giá và chuẩn bị câu tiếp theo…" : submitLabel}</Button>
     <p role="status" className="text-sm text-[var(--color-on-surface-variant)]">{isDirty ? "Có thay đổi chưa lưu" : question.answer ? "Đã lưu câu trả lời trên hệ thống" : ""}</p>
   </form>;
 }

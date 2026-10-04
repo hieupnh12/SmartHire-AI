@@ -45,6 +45,8 @@ users/jobs → recommendations
 
 ```
 jobs 1──* tests
+jobs.assessment_config_json = cấu trúc và tùy chọn tự tạo đề (V43)
+applications 0..1──0..1 tests (assigned_application_id; NULL = đề chung)
 questions *──0..1 tests (NULL = câu hỏi ngân hàng chung)
 questions 1──* options
 questions 1──* questionskills ──▷ skills
@@ -57,6 +59,8 @@ submissions 1──* proctor_events → proctor_reports
 ```
 
 ## AI interview & practice
+
+Phiên Conversation mới (V44, snapshot `conversationVersion=1`): `ai_interviews 1──0..1 interview_sessions 1──* interview_messages`. Session có ngân sách lượt/count và ended_at; message có USER/ASSISTANT, sequence, UUID chống gửi trùng và metadata audio riêng tư. Streaming dialogue không grading; worker sau complete chấm toàn transcript vào report_json schemaVersion3. Quan hệ AiQuestion/AiAnswer bên dưới chỉ dùng cho snapshot legacy.
 
 ```
 applications 1──* interviews
