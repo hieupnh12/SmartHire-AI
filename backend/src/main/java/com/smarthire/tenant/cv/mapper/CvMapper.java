@@ -36,7 +36,8 @@ public class CvMapper {
                 cv.getStatus().name(),
                 score == null ? null : score.getScore(),
                 cv.getErrorCode(),
-                cv.getCreatedAt());
+                cv.getCreatedAt(),
+                cv.getBuilderData() != null);
     }
 
     public CvDetail detail(Cv cv, CvExtraction extraction, List<CvSkill> skillRows, CvAnalysis analysis,
@@ -63,7 +64,9 @@ public class CvMapper {
                 includeMatch && score != null
                         ? new MatchView(score.getJob().getId(), score.getCv().getId(), score.getScore(),
                         json(score.getBreakdownJson()), score.getModelVersion())
-                        : null);
+                        : null,
+                json(cv.getBuilderData()),
+                cv.getShareToken());
     }
 
     private SkillView skill(CvSkill row) {

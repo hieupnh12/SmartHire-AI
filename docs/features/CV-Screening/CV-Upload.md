@@ -51,6 +51,7 @@
 
 - Google Stitch: **AI-Powered CV Screening & Analysis / CV Upload** — _[dán link]_
 - Icons: xem `DESIGN.md`
+- Trang candidate `/cv` (**Quản lý CV**, `candidate/cv/pages/MyCvPage.tsx`) dùng màu tenant từ career layout: header có thống kê tổng CV / đã phân tích / đang xử lý và liên kết `/cv-templates`; cột trái gồm vùng kéo thả hoặc chọn file (PDF, DOC, DOCX) và danh sách CV có badge trạng thái tiếng Việt; cột phải hiển thị chi tiết CV (xem trước file, thông tin trích xuất, tóm tắt AI, kỹ năng), banner khi đang xử lý hoặc lỗi, nút Phân tích/Phân tích lại và Xóa. CV đầu tiên được chọn tự động; xóa CV dùng `ConfirmDialog` dùng chung thay cho hộp thoại trình duyệt. Nút **Tạo CV mới** mở trình tạo CV; CV tạo bằng builder có thêm nút **Chỉnh sửa** (xem [CV-Builder](CV-Builder.md)).
 
 ## Phụ thuộc
 

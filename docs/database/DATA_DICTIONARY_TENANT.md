@@ -387,10 +387,12 @@ Entity `Cv` (káº¿ thá»«a `BaseEntity`). Má»Ÿ rá»™ng qua V2, V5, V7,
 | `status` | VARCHAR(32) | | KhÃ´ng | `'UPLOADED'` | `CvStatus` â€” 7 giÃ¡ trá»‹ theo cháº·ng pipeline |
 | `error_code` | VARCHAR(64) | | CÃ³ | NULL | MÃ£ lá»—i khi pipeline há»ng (V5) |
 | `error_message` | VARCHAR(512) | | CÃ³ | NULL | ThÃ´ng Ä‘iá»‡p lá»—i, bá»‹ cáº¯t cÃ²n tá»‘i Ä‘a 512 kÃ½ tá»± (V5) |
+| `builder_data` | JSON | | Có | NULL | JSON nội dung CV tạo bằng CV Builder (`templateId`, `accentColor`, `theme`, `language` vi/en, `personalInfo` gồm `avatarUrl`, `avatarCrop {x, y, zoom, aspect}`, `github`, `linkedin`, `details[]` ≤ 12 dòng `{label, value}`, `logoUrl` (Cloudinary hoặc `/cv-assets/*`), `theme.font` modern/classic/compact/tahoma, `theme.avatar {shape, sizeMm}`, `sections[]` với `items[].level`, `items[].rows[]` ≤ 8 dòng `{label, value}` cho bảng 2 cột mẫu Enterprise) để mở lại chỉnh sửa; NULL = CV tải lên từ file (V46) |
+| `share_token` | VARCHAR(64) | UQ | Có | NULL | Token ngẫu nhiên của link chia sẻ công khai chỉ đọc `/cv/share/{token}`; NULL = chưa chia sẻ (V47) |
 | `created_at` | TIMESTAMP | | KhÃ´ng | now | |
 | `updated_at` | TIMESTAMP | | KhÃ´ng | now on update | |
 
-**RÃ ng buá»™c:** `fk_cvs_job`, `fk_cvs_user`
+**RÃ ng buá»™c:** `fk_cvs_job`, `fk_cvs_user`, `uk_cvs_share_token` (V47)
 
 ### D.2 `cv_documents` â€” VÄƒn báº£n thÃ´ (cháº·ng 1)
 

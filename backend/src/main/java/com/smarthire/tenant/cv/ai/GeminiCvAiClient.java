@@ -22,8 +22,9 @@ public class GeminiCvAiClient implements CvAiClient {
     private static final Logger log = LoggerFactory.getLogger(GeminiCvAiClient.class);
     static final String INSTRUCTION = """
             Extract a JSON object from this CV for recruiter screening against ONE job. Return JSON only with keys:
-            contact{email,phone,name}, education[], experience[{startDate YYYY-MM,endDate,current,skills[],evidence}],
-            projects[], languages[], certifications[], skills[{name,confidence}],
+            contact{email,phone,name}, education[{degree,school,startDate,endDate}],
+            experience[{title,company,startDate YYYY-MM,endDate,current,skills[],evidence}],
+            projects[{name,description}], languages[{name,level}], certifications[{name,issuer,date}], skills[{name,confidence}],
             screening{verdict, matched[{requirement,status,evidence,explanation}],
             partial[{requirement,status,evidence,explanation}], missing[{requirement,status,evidence}]}.
             status must be MATCH, PARTIAL, MISSING, or UNKNOWN. Do not invent experience or skills.
@@ -97,69 +98,79 @@ public class GeminiCvAiClient implements CvAiClient {
 
     @Override
     public String extractJson(String rawText, String jobContext) {
+        if (!configured()) return fallback.extractJson(rawText, jobContext);
+        try {
+            return completeJson(INSTRUCTION, prompt(rawText, jobContext));
+        } catch (Exception ex) {
+            log.error("AI extraction failed (provider={}), falling back to heuristic: {}", getEffectiveProvider(), ex.getMessage());
+            return tagHeuristic(fallback.extractJson(rawText, jobContext));
+        }
+    }
+
+    public boolean configured() {
+        String apiKey = getEffectiveApiKey();
+        return apiKey != null && !apiKey.isBlank();
+    }
+
+    /** Sends one JSON-mode request; {@code system} is only used by OpenAI-compatible providers, Gemini gets {@code promptText}. */
+    public String completeJson(String system, String promptText) throws Exception {
         String apiKey = getEffectiveApiKey();
         String model = getEffectiveModel();
         String provider = getEffectiveProvider();
-        if (apiKey == null || apiKey.isBlank()) return fallback.extractJson(rawText, jobContext);
-        try {
-            String promptText = prompt(rawText, jobContext);
-            String text;
+        if (apiKey == null || apiKey.isBlank()) throw new IllegalStateException("AI provider is not configured");
+        String text;
 
-            if ("OPENAI".equalsIgnoreCase(provider) || "DEEPSEEK".equalsIgnoreCase(provider)) {
-                String defaultEndpoint = "DEEPSEEK".equalsIgnoreCase(provider)
-                        ? "https://api.deepseek.com/chat/completions"
-                        : "https://api.openai.com/v1/chat/completions";
-                String endpoint = getEffectiveEndpoint();
-                String url = (endpoint != null && !endpoint.isBlank()) ? endpoint.trim() : defaultEndpoint;
+        if ("OPENAI".equalsIgnoreCase(provider) || "DEEPSEEK".equalsIgnoreCase(provider)) {
+            String defaultEndpoint = "DEEPSEEK".equalsIgnoreCase(provider)
+                    ? "https://api.deepseek.com/chat/completions"
+                    : "https://api.openai.com/v1/chat/completions";
+            String endpoint = getEffectiveEndpoint();
+            String url = (endpoint != null && !endpoint.isBlank()) ? endpoint.trim() : defaultEndpoint;
 
-                String body = """
-                        {
-                          "model": %s,
-                          "messages": [
-                            {"role": "system", "content": %s},
-                            {"role": "user", "content": %s}
-                          ],
-                          "response_format": {"type": "json_object"}
-                        }
-                        """.formatted(
-                                mapper.writeValueAsString(model),
-                                mapper.writeValueAsString(INSTRUCTION),
-                                mapper.writeValueAsString(promptText)
-                        );
+            String body = """
+                    {
+                      "model": %s,
+                      "messages": [
+                        {"role": "system", "content": %s},
+                        {"role": "user", "content": %s}
+                      ],
+                      "response_format": {"type": "json_object"}
+                    }
+                    """.formatted(
+                            mapper.writeValueAsString(model),
+                            mapper.writeValueAsString(system),
+                            mapper.writeValueAsString(promptText)
+                    );
 
-                String response = http.post()
-                        .uri(url)
-                        .header("Authorization", "Bearer " + apiKey.trim())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .body(body)
-                        .retrieve()
-                        .body(String.class);
+            String response = http.post()
+                    .uri(url)
+                    .header("Authorization", "Bearer " + apiKey.trim())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(body)
+                    .retrieve()
+                    .body(String.class);
 
-                text = readOpenAiText(response);
-            } else {
-                String body = """
-                        {"contents":[{"parts":[{"text":%s}]}]}
-                        """.formatted(mapper.writeValueAsString(promptText));
-                String response = http.post()
-                        .uri("https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}",
-                                model, apiKey.trim())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .body(body)
-                        .retrieve()
-                        .body(String.class);
-                text = readText(response);
-            }
-
-            int start = text.indexOf('{');
-            int end = text.lastIndexOf('}');
-            if (start < 0 || end <= start) throw new IllegalStateException("AI returned no JSON");
-            String json = text.substring(start, end + 1);
-            mapper.readTree(json);
-            return json;
-        } catch (Exception ex) {
-            log.error("AI extraction failed (provider={}), falling back to heuristic: {}", provider, ex.getMessage());
-            return tagHeuristic(fallback.extractJson(rawText, jobContext));
+            text = readOpenAiText(response);
+        } else {
+            String body = """
+                    {"contents":[{"parts":[{"text":%s}]}]}
+                    """.formatted(mapper.writeValueAsString(promptText));
+            String response = http.post()
+                    .uri("https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}",
+                            model, apiKey.trim())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(body)
+                    .retrieve()
+                    .body(String.class);
+            text = readText(response);
         }
+
+        int start = text.indexOf('{');
+        int end = text.lastIndexOf('}');
+        if (start < 0 || end <= start) throw new IllegalStateException("AI returned no JSON");
+        String json = text.substring(start, end + 1);
+        mapper.readTree(json);
+        return json;
     }
 
     static String prompt(String rawText, String jobContext) {

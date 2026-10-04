@@ -14,16 +14,18 @@ candidate/
 │   ├── pages/
 │   └── types/
 ├── jobs/
-│   └── pages/
+│   ├── components/
+│   ├── pages/
+│   └── utils/
 ├── applications/
 │   └── pages/
 ├── cv/
 │   └── pages/
+├── shared/
+│   └── constants/
 ├── assessments/
 │   └── pages/
 ├── interviews/
-│   └── pages/
-├── practice/
 │   └── pages/
 ├── schedules/
 │   └── pages/
@@ -39,12 +41,12 @@ candidate/
 Mỗi tính năng lớn của ứng viên là một folder cấp 1 dưới `candidate/`:
 
 - `dashboard/`: trang tổng quan sau đăng nhập.
-- `jobs/`: tìm việc, xem job, ứng tuyển.
+- `jobs/`: career site public của tenant (`/career`, `/jobs`, `/jobs/:jobId`): danh sách và chi tiết job, ứng tuyển; header/mega-menu và layout dùng chung cho các trang candidate; trang tenant không tồn tại.
 - `applications/`: quản lý đơn ứng tuyển và pipeline trạng thái.
-- `cv/`: quản lý CV, upload, AI parsing, CV score.
+- `cv/`: quản lý CV, upload, AI parsing, CV score; thư viện mẫu CV `/cv-templates`.
+- `shared/`: code dùng chung giữa nhiều feature candidate, ví dụ `shared/constants/cvTemplates.ts` (trang mẫu CV và mega-menu `Tạo CV`).
 - `assessments/`: bài test kỹ thuật.
 - `interviews/`: AI interview hoặc interview được mời.
-- `practice/`: mã tương thích cũ, không còn được expose qua navigation; `/practice` chuyển sang `/interviews`.
 - `schedules/`: lịch phỏng vấn/lịch hẹn.
 - `notifications/`: thông báo dành cho ứng viên.
 

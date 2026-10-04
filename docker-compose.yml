@@ -63,6 +63,21 @@ services:
       timeout: 5s
       retries: 10
 
+  # CV Builder PDF export (headless Chromium). JS off + URL allow-list: the HTML comes from users.
+  # Optional extra fonts (e.g. tahoma.ttf for the enterprise template): drop them into deploy/gotenberg/fonts.
+  gotenberg:
+    image: gotenberg/gotenberg:8
+    container_name: smarthire-gotenberg
+    restart: unless-stopped
+    command:
+      - gotenberg
+      - --chromium-disable-javascript=true
+      - --chromium-allow-list=^(file:///tmp/|data:|https://(res\.cloudinary\.com|fonts\.googleapis\.com|fonts\.gstatic\.com)/).*
+    volumes:
+      - ./deploy/gotenberg/fonts:/usr/local/share/fonts/custom:ro
+    ports:
+      - "127.0.0.1:3000:3000"
+
   backend:
     profiles: ["apps"]
     build: ./backend
@@ -100,6 +115,7 @@ services:
       RABBITMQ_PORT: 5672
       RABBITMQ_USER: guest
       RABBITMQ_PASSWORD: guest
+      GOTENBERG_URL: http://gotenberg:3000
       CORS_ORIGINS: http://localhost:5173,http://localhost:80
     ports:
       - "8080:8080"

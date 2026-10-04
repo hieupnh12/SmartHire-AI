@@ -4,7 +4,7 @@ import { Link, useNavigate } from "react-router-dom";
 import {
   ArrowRight, Bell, Box, BriefcaseBusiness, Building2, CalendarDays, ChevronDown,
   CircleUserRound, ClipboardCheck, DraftingCompass, Feather, FilePenLine,
-  FileText, Gift, LogOut, Menu, MessageCircle, PenTool, Search, Settings,
+  FileText, Gift, LogOut, Menu, MessageCircle, Search, Settings,
   ShieldCheck, Sparkles, Star, Upload, UserRound, X,
 } from "lucide-react";
 import type { Notification } from "@/api/types/notification";
@@ -13,10 +13,13 @@ import { LanguageSwitcher } from "@/components/ux/LanguageSwitcher";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 import { useNotifications } from "@/hooks/useNotifications";
 import { buildPlatformUrl } from "@/lib/tenant";
+import { cvRoleKeys, cvRoles, cvStyleKeys, cvStyles, type CvStyleKey } from "@/features/tenant/candidate/shared/constants/cvTemplates";
+
+const styleIcons: Record<CvStyleKey, ElementType> = { simple: Box, impressive: DraftingCompass, professional: Star };
 
 type MenuKey = "jobs" | "profile" | "tools" | "company";
 type MenuItem = { label: string; to?: string; icon?: ElementType };
-type MenuGroup = { title: string; items: MenuItem[] };
+type MenuGroup = { title: string; to?: string; items: MenuItem[] };
 type MenuConfig = { label: string; groups: MenuGroup[]; layout?: "cv" };
 
 const menus: Record<MenuKey, MenuConfig> = {
@@ -31,8 +34,8 @@ const menus: Record<MenuKey, MenuConfig> = {
     label: "Tạo CV",
     layout: "cv",
     groups: [
-      { title: "Mẫu CV theo style", items: [{ label: "Mẫu CV Đơn giản", to: "/cv", icon: Box }, { label: "Mẫu CV Ấn tượng", to: "/cv", icon: DraftingCompass }, { label: "Mẫu CV Chuyên nghiệp", to: "/cv", icon: Star }, { label: "Mẫu CV Harvard", to: "/cv", icon: PenTool }] },
-      { title: "Mẫu CV theo vị trí ứng tuyển", items: [{ label: "Nhân viên kinh doanh", to: "/cv", icon: BriefcaseBusiness }, { label: "Lập trình viên", to: "/cv", icon: BriefcaseBusiness }, { label: "Nhân viên kế toán", to: "/cv", icon: BriefcaseBusiness }, { label: "Chuyên viên marketing", to: "/cv", icon: BriefcaseBusiness }] },
+      { title: "Mẫu CV theo style", to: "/cv-templates", items: cvStyleKeys.map((key) => ({ label: `Mẫu CV ${cvStyles[key].label}`, to: `/cv-templates?style=${key}`, icon: styleIcons[key] })) },
+      { title: "Mẫu CV theo vị trí IT", to: "/cv-templates", items: cvRoleKeys.map((key) => ({ label: cvRoles[key].label, to: `/cv-templates?position=${key}`, icon: BriefcaseBusiness })) },
       { title: "Công cụ CV", items: [{ label: "Quản lý CV", to: "/cv", icon: FileText }, { label: "Tải CV lên", to: "/cv", icon: Upload }, { label: "Hướng dẫn viết CV", to: "/cv", icon: FilePenLine }, { label: "Quản lý Cover Letter", to: "/cv", icon: Feather }, { label: "Mẫu Cover Letter", to: "/cv", icon: Feather }] },
     ],
   },
@@ -180,7 +183,7 @@ function MegaMenu({ menuKey, menu, arrowLeft, onNavigate }: { menuKey: MenuKey; 
     if (config.layout === "cv") {
       const [styles, positions, tools] = config.groups;
       return <div className="grid grid-cols-[1fr_1.08fr]">
-        <div className="space-y-3 p-4 pr-5">{[styles, positions].map((group) => <section key={group.title}><h2 className="mb-1 flex items-center gap-1 text-[15px] font-semibold text-[var(--color-primary)]">{group.title}<ArrowRight className="size-4" aria-hidden="true" /></h2><div>{group.items.map(menuItem)}</div></section>)}</div>
+        <div className="space-y-3 p-4 pr-5">{[styles, positions].map((group) => <section key={group.title}><h2 className="mb-1 text-[15px] font-semibold text-[var(--color-primary)]">{group.to ? <Link to={group.to} onClick={onNavigate} className="inline-flex items-center gap-1 hover:underline">{group.title}<ArrowRight className="size-4" aria-hidden="true" /></Link> : <span className="flex items-center gap-1">{group.title}<ArrowRight className="size-4" aria-hidden="true" /></span>}</h2><div>{group.items.map(menuItem)}</div></section>)}</div>
         <section className="border-l border-slate-200 p-4 pl-7"><h2 className="sr-only">{tools.title}</h2><div className="space-y-1">{tools.items.map(menuItem)}</div></section>
       </div>;
     }

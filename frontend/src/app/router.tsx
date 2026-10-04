@@ -37,8 +37,10 @@ import { BillingPage } from "@/features/master/billing/pages/BillingPage";
 import { AuditLogsPage } from "@/features/master/system/pages/AuditLogsPage";
 import { AiManagementPage } from "@/features/master/system/pages/AiManagementPage";
 import { AccountPage as MasterAccountPage } from "@/features/master/account/pages/AccountPage";
-import { TenantCareerPage } from "@/features/tenant/career/pages/TenantCareerPage";
-import { CareerNavigationLayout } from "@/features/tenant/career/components/CareerNavigationLayout";
+import { TenantCareerPage } from "@/features/tenant/candidate/jobs/pages/TenantCareerPage";
+import { CareerNavigationLayout } from "@/features/tenant/candidate/jobs/components/CareerNavigationLayout";
+import { CvTemplatesPage } from "@/features/tenant/candidate/cv/pages/CvTemplatesPage";
+import { SharedCvPage } from "@/features/tenant/candidate/cv/pages/SharedCvPage";
 import { TenantAdminDashboardPage } from "@/features/tenant/admin/workspace/pages/TenantAdminDashboardPage";
 import { adminNav } from "@/features/tenant/admin/nav";
 import { HomePage as TenantAdminHomePage } from "@/features/tenant/admin/overview/pages/HomePage";
@@ -56,6 +58,7 @@ import { HomePage as CandidateHomePage } from "@/features/tenant/candidate/dashb
 import { MyApplicationsPage } from "@/features/tenant/candidate/applications/pages/MyApplicationsPage";
 import { ApplicationDetailPage } from "@/features/tenant/candidate/applications/pages/ApplicationDetailPage";
 import { MyCvPage } from "@/features/tenant/candidate/cv/pages/MyCvPage";
+import { CvBuilderPage } from "@/features/tenant/candidate/cv/pages/CvBuilderPage";
 import { AssessmentsPage as CandidateAssessmentsPage } from "@/features/tenant/candidate/assessments/pages/AssessmentsPage";
 import { TakeAssessmentPage } from "@/features/tenant/candidate/assessments/pages/TakeAssessmentPage";
 import { InterviewsPage as CandidateInterviewsPage } from "@/features/tenant/candidate/interviews/pages/InterviewsPage";
@@ -139,6 +142,10 @@ export function AppRouter() {
       <Route path="/career" element={<TenantCareerPage />} />
       <Route path="/jobs" element={<TenantCareerPage />} />
       <Route path="/jobs/:jobId" element={<TenantCareerPage />} />
+      <Route element={<CareerNavigationLayout />}>
+        <Route path="/cv-templates" element={<CvTemplatesPage />} />
+        <Route path="/cv/share/:token" element={<SharedCvPage />} />
+      </Route>
       <Route path="/candidate/login" element={<Navigate to="/login" replace />} />
       <Route path="/candidate/*" element={<ShortCandidateRedirect />} />
       <Route path="/internal/login" element={<LoginPage />} />
@@ -151,6 +158,8 @@ export function AppRouter() {
           <Route path="/applications" element={<MyApplicationsPage />} />
           <Route path="/applications/:id" element={<ApplicationDetailPage />} />
           <Route path="/cv" element={<MyCvPage />} />
+          <Route path="/cv/builder" element={<CvBuilderPage />} />
+          <Route path="/cv/builder/:cvId" element={<CvBuilderPage />} />
           <Route path="/assessments" element={<CandidateAssessmentsPage />} />
           <Route path="/interviews" element={<CandidateInterviewsPage />} />
           <Route path="/practice" element={<Navigate to="/interviews" replace />} />

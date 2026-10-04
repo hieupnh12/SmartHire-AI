@@ -43,6 +43,7 @@ Mỗi trang gồm: Mục đích · Actor · Luồng · Business Rules · API · 
 | CV-03 | Information Extraction | [Information-Extraction](CV-Screening/Information-Extraction.md) | Done |
 | CV-04 | AI Skill Analysis | [AI-Skill-Analysis](CV-Screening/AI-Skill-Analysis.md) | Done |
 | CV-05 | Candidate Matching Score | [Matching-Score](CV-Screening/Matching-Score.md) | Done |
+| CV-06 | CV Builder | [CV-Builder](CV-Screening/CV-Builder.md) | Done |
 
 ## 5. Candidate-Job Matching & Ranking
 

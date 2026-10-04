@@ -73,6 +73,23 @@ public class FileStorageService {
         }
     }
 
+    /** Public image (e.g. CV avatar); returns the Cloudinary secure URL. */
+    public String storeImage(String tenantId, byte[] content) throws IOException {
+        String publicId = "cvavatar_" + safeSegment(tenantId, "tenantId") + "_" + java.util.UUID.randomUUID();
+        try {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> result = cloudinary.uploader().upload(content, ObjectUtils.asMap(
+                    "resource_type", "image", "type", "upload", "public_id", publicId, "overwrite", false));
+            Object url = result.get("secure_url");
+            if (url == null || url.toString().isBlank()) throw new IOException("Cloudinary did not return an image URL");
+            return url.toString();
+        } catch (IOException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new IOException("Failed to store image on Cloudinary", ex);
+        }
+    }
+
     public String storeInterviewAudio(String tenantId, byte[] content, String extension) throws IOException {
         String id = "interview_" + safeSegment(tenantId, "tenantId") + "_" + java.util.UUID.randomUUID();
         try {

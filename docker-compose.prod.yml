@@ -88,6 +88,21 @@ services:
     # Management UI not published publicly — tunnel via SSH if needed:
     #   ssh -L 15672:localhost:15672 user@VM_IP
 
+  # CV Builder PDF export (headless Chromium). JS off + URL allow-list: the HTML comes from users.
+  gotenberg:
+    image: gotenberg/gotenberg:8
+    container_name: smarthire-gotenberg
+    restart: unless-stopped
+    command:
+      - gotenberg
+      - --chromium-disable-javascript=true
+      - --chromium-allow-list=^(file:///tmp/|data:|https://(res\.cloudinary\.com|fonts\.googleapis\.com|fonts\.gstatic\.com)/).*
+    volumes:
+      - ./deploy/gotenberg/fonts:/usr/local/share/fonts/custom:ro
+    networks:
+      - internal
+    # No host ports — only the backend calls it
+
   backend:
     image: ${BACKEND_IMAGE:-hieupnh12/smarthire-backend}:${IMAGE_TAG:-latest}
     container_name: smarthire-backend
@@ -113,6 +128,7 @@ services:
       REDIS_PORT: 6379
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_PORT: 5672
+      GOTENBERG_URL: http://gotenberg:3000
       SPRING_PROFILES_ACTIVE: prod
     depends_on:
       postgres:
