@@ -164,7 +164,7 @@ export function QuestionBankPage() {
 
   const tests = useQuery({
     queryKey: [...queryKeys.assessments.all(), "general-bank"],
-    queryFn: ({ signal }) => questionBankApi.listAll(signal),
+    queryFn: ({ signal }) => questionBankApi.list({ page: 0, size: 2000 }, signal).then(res => res.items),
     refetchOnMount: "always",
   });
   const rows = useMemo<BankRow[]>(() => {
