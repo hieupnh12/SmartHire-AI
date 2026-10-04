@@ -9,7 +9,10 @@ import org.springframework.amqp.AmqpRejectAndDontRequeueException;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
 
@@ -20,6 +23,15 @@ public class MasterNotificationWorker {
     private final JavaMailSender mailSender;
     private final TemplateEngine templateEngine;
     private final MasterNotificationLogRepository logRepository;
+
+    @Value("${app.mail.from:noreply@smarthire.top}")
+    private String mailFrom;
+
+    @Value("${app.mail.from-name:SmartHire-AI Platform}")
+    private String mailFromName;
+
+    @Value("${app.mail.reply-to:support@smarthire.top}")
+    private String mailReplyTo;
 
     public MasterNotificationWorker(JavaMailSender mailSender, 
                                     TemplateEngine templateEngine,
@@ -52,8 +64,25 @@ public class MasterNotificationWorker {
             helper.setText(htmlContent, true);
             
             // Set sender and reply-to
-            helper.setFrom("procuong.110193@gmail.com", "SmartHire Platform");
-            helper.setReplyTo("support@smarthire.vn");
+            helper.setFrom(mailFrom, mailFromName);
+            helper.setReplyTo(mailReplyTo);
+
+            // Add inline company logo if referenced in template
+            if (htmlContent.contains("cid:companyLogo")) {
+                try {
+                    org.springframework.core.io.ClassPathResource logoRes = new org.springframework.core.io.ClassPathResource("/images/logo-smarthrie.png");
+                    if (logoRes.exists()) {
+                        helper.addInline("companyLogo", logoRes, "image/png");
+                    }
+                } catch (Exception ex) {
+                    log.warn("Could not attach inline company logo: {}", ex.getMessage());
+                }
+            }
+
+            // Add attachment if provided
+            if (payload.getAttachmentData() != null && StringUtils.hasText(payload.getAttachmentFilename())) {
+                helper.addAttachment(payload.getAttachmentFilename(), new ByteArrayResource(payload.getAttachmentData()));
+            }
 
             // Send Email
             mailSender.send(message);

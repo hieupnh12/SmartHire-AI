@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kích hoạt không gian làm việc thành công - SmartHire-AI</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #f1f5f9;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            color: #1e293b;
+            line-height: 1.6;
+        }
+
+        .wrapper {
+            width: 100%;
+            background-color: #f1f5f9;
+            padding: 30px 10px;
+        }
+
+        .container {
+            max-width: 640px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+            border: 1px solid #e2e8f0;
+        }
+
+        .header {
+            padding: 28px 32px 20px;
+            text-align: center;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .logo-text {
+            font-size: 24px;
+            font-weight: 800;
+            color: #0f172a;
+            letter-spacing: -0.5px;
+            text-decoration: none;
+        }
+
+        .logo-accent {
+            color: #2563eb;
+        }
+
+        .content {
+            padding: 28px 32px;
+        }
+
+        .badge-success {
+            display: inline-block;
+            background-color: #ecfdf5;
+            color: #047857;
+            font-size: 11px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 4px 12px;
+            border-radius: 9999px;
+            border: 1px solid #a7f3d0;
+            margin-bottom: 12px;
+        }
+
+        .main-title {
+            font-size: 22px;
+            font-weight: 800;
+            color: #0f172a;
+            margin: 0 0 10px;
+            letter-spacing: -0.3px;
+        }
+
+        .salutation {
+            font-size: 15px;
+            color: #334155;
+            margin-bottom: 14px;
+        }
+
+        .section-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: #0f172a;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin: 24px 0 10px;
+        }
+
+        /* Access Credentials Box */
+        .access-box {
+            background-color: #f8fafc;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            padding: 18px 20px;
+            margin-bottom: 22px;
+        }
+
+        .access-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13.5px;
+        }
+
+        .access-table td {
+            padding: 8px 6px;
+            vertical-align: middle;
+        }
+
+        .access-label {
+            color: #475569;
+            width: 150px;
+            font-weight: 500;
+        }
+
+        .access-value {
+            font-weight: 700;
+            color: #0f172a;
+        }
+
+        .password-badge {
+            font-family: "Courier New", Courier, monospace;
+            font-size: 14px;
+            font-weight: 800;
+            background-color: #f1f5f9;
+            color: #0f172a;
+            padding: 4px 10px;
+            border-radius: 4px;
+            border: 1px dashed #94a3b8;
+            letter-spacing: 0.5px;
+            display: inline-block;
+        }
+
+        /* Workspace Info Table */
+        .info-table {
+            width: 100%;
+            border-collapse: collapse;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            margin-bottom: 24px;
+            font-size: 13px;
+        }
+
+        .info-table td {
+            padding: 9px 14px;
+            border: 1px solid #cbd5e1;
+        }
+
+        .info-table td.label-col {
+            background-color: #f8fafc;
+            color: #475569;
+            font-weight: 600;
+            width: 180px;
+        }
+
+        .info-table td.val-col {
+            color: #0f172a;
+            font-weight: 700;
+        }
+
+        /* CTA Button */
+        .btn-container {
+            text-align: center;
+            margin: 28px 0;
+        }
+
+        .btn-primary {
+            display: inline-block;
+            background-color: #2563eb;
+            color: #ffffff !important;
+            font-size: 14.5px;
+            font-weight: 700;
+            padding: 13px 36px;
+            text-decoration: none;
+            border-radius: 6px;
+            box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
+        }
+
+        /* Guide Steps */
+        .guide-box {
+            background-color: #eff6ff;
+            border: 1px solid #bfdbfe;
+            border-radius: 8px;
+            padding: 16px 20px;
+            margin-bottom: 22px;
+            font-size: 13px;
+            color: #1e3a8a;
+        }
+
+        .guide-box ol {
+            margin: 8px 0 0;
+            padding-left: 18px;
+        }
+
+        .guide-box li {
+            margin-bottom: 6px;
+        }
+
+        .security-note {
+            font-size: 12px;
+            color: #64748b;
+            font-style: italic;
+            border-left: 3px solid #cbd5e1;
+            padding-left: 12px;
+            margin: 16px 0;
+        }
+
+        /* Footer */
+        .footer {
+            background-color: #f8fafc;
+            padding: 24px 32px;
+            border-top: 1px solid #e2e8f0;
+            font-size: 11px;
+            color: #64748b;
+            text-align: center;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="wrapper">
+        <div class="container">
+            <!-- Header -->
+            <div class="header">
+                <span class="logo-text">SmartHire<span class="logo-accent">.AI</span></span>
+            </div>
+
+            <!-- Content -->
+            <div class="content">
+                <div style="text-align: center; margin-bottom: 16px;">
+                    <span class="badge-success">Thanh toán &amp; Kích hoạt thành công</span>
+                    <h1 class="main-title">Không Gian Làm Việc Đã Kích Hoạt!</h1>
+                </div>
+
+                <p class="salutation">
+                    Kính gửi Quý khách <strong th:text="${customerName}">Quý khách</strong>,
+                </p>
+                <p style="margin: 0 0 16px; font-size: 14px; color: #334155;">
+                    Công ty Cổ phần Công nghệ SmartHire Việt Nam xin chúc mừng Quý doanh nghiệp! Giao dịch thanh toán
+                    bản quyền phần mềm đã được ghi nhận thành công và <strong>Không gian làm việc (Workspace)</strong>
+                    độc lập của Quý khách đã sẵn sàng sử dụng.
+                </p>
+
+                <!-- 1. THÔNG TIN TRUY CẬP HỆ THỐNG -->
+                <div class="section-title">Thông tin tài khoản &amp; Truy cập hệ thống:</div>
+                <div class="access-box">
+                    <table class="access-table">
+                        <tr>
+                            <td class="access-label">Đường dẫn đăng nhập:</td>
+                            <td class="access-value">
+                                <a th:href="${workspaceLoginUrl}" target="_blank"
+                                    style="color: #2563eb; text-decoration: none; font-weight: 700;"
+                                    th:text="${workspaceLoginUrl}">
+                                    https://congty.smarthire.top/internal/login
+                                </a>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="access-label">Tài khoản quản trị (Email):</td>
+                            <td class="access-value" th:text="${adminEmail}">admin@company.com</td>
+                        </tr>
+                        <tr>
+                            <td class="access-label">Mật khẩu khởi tạo:</td>
+                            <td class="access-value">
+                                <span class="password-badge" th:text="${tempPassword}">Sh!random123</span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="access-label">Vai trò quản trị:</td>
+                            <td class="access-value">Quản trị viên cấp cao (Workspace Owner)</td>
+                        </tr>
+                    </table>
+                </div>
+
+                <!-- CTA Button -->
+                <div class="btn-container">
+                    <a th:href="${workspaceLoginUrl}" class="btn-primary" target="_blank">
+                        Đăng Nhập Ngay Vào Workspace
+                    </a>
+                </div>
+
+                <!-- 2. THÔNG TIN BẢN QUYỀN WORKSPACE -->
+                <div class="section-title">Chi tiết không gian tuyển dụng:</div>
+                <table class="info-table">
+                    <tr>
+                        <td class="label-col">Tên không gian (Workspace):</td>
+                        <td class="val-col" th:text="${workspaceName}">Công ty TNHH SmartHire</td>
+                    </tr>
+                    <tr>
+                        <td class="label-col">Tên miền phụ (Subdomain):</td>
+                        <td class="val-col" th:text="${subdomain} + '.smarthire.top'">congty.smarthire.top</td>
+                    </tr>
+                    <tr>
+                        <td class="label-col">Gói dịch vụ đã đăng ký:</td>
+                        <td class="val-col" style="color: #2563eb;" th:text="${planName}">Gói Chuyên Nghiệp
+                            (Professional)</td>
+                    </tr>
+                    <tr>
+                        <td class="label-col">Ngày kích hoạt dịch vụ:</td>
+                        <td class="val-col" th:text="${activatedDate}">02/10/2026</td>
+                    </tr>
+                    <tr>
+                        <td class="label-col">Trạng thái cơ sở dữ liệu:</td>
+                        <td class="val-col" style="color: #047857;">Hoạt động độc lập</td>
+                    </tr>
+                </table>
+
+                <!-- 3. HƯỚNG DẪN KHỞI ĐẦU -->
+                <div class="guide-box">
+                    <strong>Các bước thiết lập ban đầu được khuyến nghị:</strong>
+                    <ol>
+                        <li>Đăng nhập vào hệ thống theo đường dẫn và mật khẩu khởi tạo ở trên.</li>
+                        <li>Vào mục <strong>Cài đặt tài khoản &gt; Đổi mật khẩu</strong> để cập nhật mật khẩu riêng của
+                            bạn.</li>
+                        <li>Hoàn tất cấu hình thông tin doanh nghiệp, bộ phận tuyển dụng và tạo tin tuyển dụng đầu tiên.
+                        </li>
+                    </ol>
+                </div>
+
+                <div class="security-note">
+                    * <strong>Lưu ý bảo mật:</strong> Đây là thông tin bảo mật chứa mật khẩu đăng nhập ban đầu của Quý
+                    khách. Vui lòng không chia sẻ email này cho bất kỳ ai không có phận sự.
+                </div>
+
+                <p style="font-size: 13px; color: #475569; margin-top: 20px;">
+                    Nếu Quý khách cần hỗ trợ trong quá trình bắt đầu sử dụng, xin vui lòng liên hệ đội ngũ chuyên gia
+                    của chúng tôi qua hotline <strong th:text="${supportHotline}">0988.888.888</strong> hoặc email
+                    <strong th:text="${supportEmail}">support@smarthire.top</strong>.
+                </p>
+            </div>
+
+            <!-- Footer -->
+            <div class="footer">
+                <div>&copy; 2026 SmartHire-AI JSC. All rights reserved.</div>
+                <div style="margin-top: 4px;">Tầng 13, Tòa nhà FPT, ĐH FPT Đà Nẵng, KĐT Công nghệ FPT,
+                    P. Hòa Hải, TP. Đà Nẵng</div>
+                <div style="margin-top: 4px;">Hotline: 0988.888.888 &nbsp;|&nbsp; Website: <a
+                        href="https://smarthire.top" style="color: #2563eb; text-decoration: none;">smarthire.top</a>
+                    &nbsp;|&nbsp; Email: support@smarthire.top</div>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>

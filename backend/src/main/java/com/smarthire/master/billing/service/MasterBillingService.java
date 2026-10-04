@@ -27,9 +27,14 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import com.smarthire.master.billing.dto.OrderPdfData;
+import com.smarthire.master.notification.service.MasterNotificationService;
+
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -48,6 +53,8 @@ public class MasterBillingService {
     private final TenantSubscriptionRepository subscriptionRepository;
     private final MasterTenantService masterTenantService;
     private final InviteMailSender mailSender;
+    private final OrderPdfGeneratorService orderPdfGeneratorService;
+    private final MasterNotificationService masterNotificationService;
 
     @Value("${app.tenant.base-domain:smarthire.top}")
     private String baseDomain;
@@ -204,7 +211,24 @@ public class MasterBillingService {
             TenantInfo pendingTenant = tenantRepository.findById(invoice.getTenantId()).orElse(null);
             if (pendingTenant != null && ("PENDING_PAYMENT".equals(pendingTenant.getStatus()) || "FAILED".equals(pendingTenant.getStatus()))) {
                 log.info("Auto-provisioning workspace for tenant: {}", pendingTenant.getCode());
-                masterTenantService.provisionPendingTenant(pendingTenant.getId());
+                String tempPassword = masterTenantService.provisionPendingTenant(pendingTenant.getId());
+                pendingTenant = tenantRepository.findById(pendingTenant.getId()).orElse(pendingTenant);
+                String workspaceUrl = "https://" + pendingTenant.getSubdomain() + "." + baseDomain;
+
+                SubscriptionPlan plan = null;
+                if (invoice.getSubscriptionId() != null) {
+                    TenantSubscription sub = subscriptionRepository.findById(invoice.getSubscriptionId()).orElse(null);
+                    if (sub != null) {
+                        plan = planRepository.findById(sub.getPlanId()).orElse(null);
+                    }
+                }
+                String planName = plan != null ? plan.getName() : null;
+
+                try {
+                    masterNotificationService.sendWorkspaceActivated(pendingTenant, planName, tempPassword, workspaceUrl);
+                } catch (Exception ex) {
+                    log.warn("Could not deliver workspace activation email: {}", ex.getMessage());
+                }
             }
         }
 
@@ -310,6 +334,42 @@ public class MasterBillingService {
                 + "&addInfo=" + encodedSyntax 
                 + "&accountName=" + encodedAccount;
 
+        // 6. Asynchronously generate PDF and send Order Confirmation Email
+        CompletableFuture.runAsync(() -> {
+            try {
+                String customerName = StringUtils.hasText(request.getCompanyLegalName()) 
+                        ? request.getCompanyLegalName() 
+                        : (StringUtils.hasText(request.getWorkspaceName()) ? request.getWorkspaceName() : request.getAdminFullName());
+                String orderDate = savedInvoice.getCreatedAt() != null 
+                        ? savedInvoice.getCreatedAt().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) 
+                        : LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+
+                OrderPdfData pdfData = OrderPdfData.builder()
+                        .invoiceNumber(savedInvoice.getInvoiceNumber())
+                        .orderDate(orderDate)
+                        .customerName(customerName)
+                        .taxCode(request.getTaxCode())
+                        .companyLegalName(request.getCompanyLegalName())
+                        .billingAddress(request.getBillingAddress())
+                        .adminEmail(request.getAdminEmail())
+                        .planName(plan.getName())
+                        .quantity(quantity)
+                        .unitPrice(unitPriceVnd)
+                        .totalPrice(amountVnd)
+                        .bankName(bankName)
+                        .accountNumber(accountNumber)
+                        .accountName(accountName)
+                        .transferSyntax(transferSyntax)
+                        .qrUrl(qrUrl)
+                        .build();
+
+                byte[] pdfBytes = orderPdfGeneratorService.generateOrderPdf(pdfData);
+                masterNotificationService.sendCheckoutOrderCreated(pdfData, pdfBytes, request.getAdminEmail());
+            } catch (Exception ex) {
+                log.warn("Could not dispatch checkout order confirmation email for #{}: {}", savedInvoice.getInvoiceNumber(), ex.getMessage());
+            }
+        });
+
         return CheckoutResponse.builder()
                 .invoiceId(savedInvoice.getId())
                 .invoiceNumber(savedInvoice.getInvoiceNumber())
@@ -381,6 +441,22 @@ public class MasterBillingService {
                 mailSender.send(tenant.getContactEmail(), "Kích hoạt không gian làm việc SmartHire-AI", emailBody);
             } catch (Exception ex) {
                 log.warn("Could not deliver workspace activation email to: {}", tenant.getContactEmail());
+            }
+
+            SubscriptionPlan plan = null;
+            if (saved.getSubscriptionId() != null) {
+                TenantSubscription sub = subscriptionRepository.findById(saved.getSubscriptionId()).orElse(null);
+                if (sub != null) {
+                    plan = planRepository.findById(sub.getPlanId()).orElse(null);
+                }
+            }
+            String planName = plan != null ? plan.getName() : null;
+
+            // Gửi email thông báo kích hoạt thành công với giao diện HTML chuẩn thương hiệu qua Brevo SMTP
+            try {
+                masterNotificationService.sendWorkspaceActivated(tenant, planName, tempPassword, workspaceUrl);
+            } catch (Exception ex) {
+                log.warn("Could not deliver workspace activation HTML email to: {}", tenant.getContactEmail(), ex);
             }
         }
         return saved;

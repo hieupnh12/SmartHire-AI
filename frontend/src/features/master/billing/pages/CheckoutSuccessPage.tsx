@@ -5,7 +5,6 @@ import {
   Copy,
   Check,
   Building2,
-  BrainCircuit,
   ArrowRight,
   Clock,
   ShieldCheck,
@@ -33,13 +32,12 @@ export function CheckoutSuccessPage() {
       {/* Header */}
       <header className="bg-white border-b border-slate-200/80 shadow-2xs py-4">
         <div className="max-w-4xl mx-auto px-4 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-700 via-blue-600 to-indigo-500 text-white flex items-center justify-center shadow-md shadow-blue-600/20">
-              <BrainCircuit className="w-5 h-5 text-white" />
-            </div>
-            <span className="text-xl font-bold tracking-tight text-slate-900">
-              SmartHire<span className="text-blue-600">.AI</span>
-            </span>
+          <Link to="/" className="flex items-center gap-3 group">
+            <img
+              src="/logo-smarthrie.png"
+              alt="SmartHire AI"
+              className="h-9 sm:h-10 w-auto object-contain transition-transform group-hover:scale-105"
+            />
           </Link>
           <div className="flex items-center gap-1.5 text-xs text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-200">
             <ShieldCheck className="w-4 h-4" />

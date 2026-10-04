@@ -7,6 +7,7 @@ import com.smarthire.master.billing.dto.CheckoutRequest;
 import com.smarthire.master.billing.dto.CheckoutResponse;
 import com.smarthire.master.billing.dto.InvoiceResponse;
 import com.smarthire.master.tenant.service.MasterTenantService;
+import com.smarthire.master.notification.service.MasterNotificationService;
 import com.smarthire.tenant.auth.service.InviteMailSender;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -49,6 +50,12 @@ class MasterBillingServiceTest {
     @Mock
     private InviteMailSender mailSender;
 
+    @Mock
+    private OrderPdfGeneratorService orderPdfGeneratorService;
+
+    @Mock
+    private MasterNotificationService masterNotificationService;
+
     private MasterBillingService billingService;
 
     @BeforeEach
@@ -60,7 +67,9 @@ class MasterBillingServiceTest {
                 planRepository,
                 subscriptionRepository,
                 masterTenantService,
-                mailSender
+                mailSender,
+                orderPdfGeneratorService,
+                masterNotificationService
         );
         ReflectionTestUtils.setField(billingService, "baseDomain", "smarthire.top");
     }

@@ -37,7 +37,7 @@ public class SePayController {
     @Value("${sepay.webhook-secret:}")
     private String webhookSecret;
 
-    @Value("${sepay.require-signature:true}")
+    @Value("${sepay.require-signature}")
     private boolean requireSignature;
 
     @PostMapping({"/sepay/webhook", "/checkout/sepay-webhook"})
