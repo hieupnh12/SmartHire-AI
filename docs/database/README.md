@@ -10,6 +10,7 @@
 
 | Thông tin | Giá trị |
 |---|---|
+| Cấu hình Gmail công ty 2026-10-06 | Tenant V46 tạo bảng `company_email_settings` lưu thông tin Gmail gửi thư và mật khẩu ứng dụng mã hóa; thêm entity `CompanyEmailSetting`. Bắt buộc có Gmail mới gửi được email |
 | Danh mục công ty 2026-10-04 | Tenant V45 (đánh lại từ V42 vì trùng `V42__ai_answer_speech_metrics`) tạo `company_directory_entries` cho phòng ban/địa điểm; UNIQUE `(entry_type, name)`; backfill giá trị đang dùng từ `jobs`. Job service chỉ nhận phòng ban/địa điểm có trong danh mục. Không thêm FK |
 | AI Conversation 2026-10-03 | Tenant V44 thêm `interview_sessions`/`interview_messages` và 2 entity; 2 FK CASCADE, 3 UNIQUE; lịch sử chat và metadata audio riêng tư. Phiên mới có `conversationVersion=1` trong JSON snapshot; báo cáo toàn phiên schemaVersion 3 |
 | Assessment tự động 2026-10-03 | Tenant V43: `jobs.assessment_config_json` JSON nullable; `tests.assigned_application_id` nullable + UNIQUE + FK RESTRICT tới `applications`. Không thêm bảng/entity; thêm 1 FK và 1 UNIQUE |
@@ -20,12 +21,12 @@
 | AI Interview workflow 2026-09-27 | V25: cấu hình AI Interview theo job, `applications.cv_screening_status`, cột worker; V26: 30–40 câu hỏi, bảng `ai_interview_logs` + entity `AiInterviewLog` |
 | Kiến trúc | Separate Database per Tenant |
 | Số database logic | 2 loại (1 Master + N Tenant) |
-| Bảng tenant sau V45 | 66 bảng (65 sau V44 + `company_directory_entries`); không tính Flyway history |
-| Entity JPA tenant | 61 class `@Entity` theo checkout hiện tại; V44 bổ sung `InterviewSession`, `InterviewMessage`; V45 bổ sung `CompanyDirectoryEntry` |
-| Khoá ngoại tenant | 87 theo mốc tài liệu (85 sau V43 + 2 FK V44); V45 không thêm FK |
+| Bảng tenant sau V46 | 67 bảng (66 sau V45 + `company_email_settings`); không tính Flyway history |
+| Entity JPA tenant | 62 class `@Entity` theo checkout hiện tại; V44 bổ sung `InterviewSession`, `InterviewMessage`; V45 bổ sung `CompanyDirectoryEntry`; V46 bổ sung `CompanyEmailSetting` |
+| Khoá ngoại tenant | 87 theo mốc tài liệu (85 sau V43 + 2 FK V44); V45, V46 không thêm FK |
 | Ràng buộc UNIQUE tenant | V25/V26 không thêm UNIQUE. V27 thêm UNIQUE `gate_scores.application_id`. V30 thêm `uk_job_assignments_job_user`. V45 thêm `uk_company_directory_type_name` |
-| Số file migration trong repo | 61 (23 master + 38 tenant); V9 redesign nằm ngoài pipeline |
-| Cập nhật lần cuối | Master `V24`, tenant `V45`: danh mục phòng ban/địa điểm công ty |
+| Số file migration trong repo | 62 (23 master + 39 tenant); V9 redesign nằm ngoài pipeline |
+| Cập nhật lần cuối | Master `V24`, tenant `V46`: Cấu hình Gmail công ty gửi thư |
 | Dọn legacy V21 | Xóa 19 bảng và dữ liệu legacy, xóa 2 cột ID legacy trong ranking; không chuyển ID cũ sang bản ghi mới |
 | Metadata assessment 2026-09-25 | V13: `tests.created_by/updated_at`, `questions.difficulty/skill/explanation` cho Excel/UI authoring |
 | Sửa lỗi assessment 2026-09-24 | V10/V11 khớp checksum lịch sử; V12 tạo schema mới và giữ bảng cũ; migration lỗi phải chặn mở tenant pool |
@@ -226,6 +227,7 @@ thay vì âm thầm đọc nhầm database của doanh nghiệp khác.
 | 59 | `InterviewSession` | `interview_sessions` | AI Conversation V44 | Không |
 | 60 | `InterviewMessage` | `interview_messages` | AI Conversation V44 | Không |
 | 61 | `CompanyDirectoryEntry` | `company_directory_entries` | Job & Skill | Có |
+| 62 | `CompanyEmailSetting` | `company_email_settings` | Branding / Mail | Có |
 
 V23 thêm bảng nối `answer_selected_options`, entity `AnswerSelectedOption` (`@EmbeddedId` + `@MapsId`);
 `Answer.selectedOptions` là `@OneToMany(mappedBy = "answer", cascade = ALL, orphanRemoval)`.
@@ -1320,3 +1322,8 @@ Script chỉ resolve V22 để giữ lịch sử khác nhau của các tenant; k
 V39 adds `ai_interview_process_runs`, sequential process state, and question-to-process/follow-up links. V40 adds
 candidate recording consent and private voice/STT metadata. New tenant entities are `AiInterviewProcessRun`,
 `AiInterviewConsent`, and `AiAnswerRecording`. Reference answers and storage object keys are not candidate-facing data.
+
+### 10.11 Cấu hình Gmail công ty V46
+
+Tenant V46 tạo bảng `company_email_settings` để cho phép từng doanh nghiệp cấu hình tài khoản Gmail và Google App Password gửi thư riêng biệt. Entity JPA tương ứng là `CompanyEmailSetting`. Mật khẩu ứng dụng được mã hóa AES-256 GCM bằng `TenantCredentialService`. Khi công ty chưa cấu hình Gmail, hệ thống chặn gửi email mời nhân viên và yêu cầu cấu hình trên giao diện Company.
+
