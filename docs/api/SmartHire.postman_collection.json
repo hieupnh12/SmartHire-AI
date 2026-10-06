@@ -84,6 +84,14 @@
     {
       "key": "masterPassword",
       "value": ""
+    },
+    {
+      "key": "humanInterviewId",
+      "value": "1"
+    },
+    {
+      "key": "interviewerId",
+      "value": "1"
     }
   ],
   "item": [
@@ -1868,6 +1876,395 @@
                 }
               ]
             }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Human Interview",
+      "item": [
+        {
+          "name": "List",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/interviews?jobId={{jobId}}&page=0&size=20"
+          }
+        },
+        {
+          "name": "Summary",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/interviews/summary?jobId={{jobId}}&timezone=Asia/Bangkok"
+          }
+        },
+        {
+          "name": "Options",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/interviews/options?jobId={{jobId}}"
+          }
+        },
+        {
+          "name": "Mine (candidate)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/interviews/mine"
+          }
+        },
+        {
+          "name": "Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/interviews/{{humanInterviewId}}"
+          }
+        },
+        {
+          "name": "Availability",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/interviews/availability",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jobId\": \"{{jobId}}\",\n  \"start\": \"2030-01-02T03:00:00Z\",\n  \"end\": \"2030-01-02T04:00:00Z\",\n  \"userIds\": [\n    \"{{interviewerId}}\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Create",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/interviews",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jobId\": \"{{jobId}}\",\n  \"applicationId\": \"{{applicationId}}\",\n  \"round\": \"TECHNICAL\",\n  \"mode\": \"ONLINE\",\n  \"start\": \"2030-01-02T03:00:00Z\",\n  \"end\": \"2030-01-02T04:00:00Z\",\n  \"meetingUrl\": \"https://meet.example.com/interview\",\n  \"location\": \"\",\n  \"provider\": \"GOOGLE_MEET\",\n  \"rubric\": \"TECHNICAL\",\n  \"emailTemplate\": \"STANDARD\",\n  \"notes\": \"Bring your portfolio\",\n  \"attachCalendar\": true,\n  \"smsReminder\": false,\n  \"draft\": false,\n  \"participants\": [\n    {\n      \"userId\": \"{{interviewerId}}\",\n      \"role\": \"LEAD\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Edit",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/interviews/{{humanInterviewId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jobId\": \"{{jobId}}\",\n  \"applicationId\": \"{{applicationId}}\",\n  \"round\": \"TECHNICAL\",\n  \"mode\": \"ONLINE\",\n  \"start\": \"2030-01-02T03:00:00Z\",\n  \"end\": \"2030-01-02T04:00:00Z\",\n  \"meetingUrl\": \"https://meet.example.com/interview\",\n  \"location\": \"\",\n  \"provider\": \"GOOGLE_MEET\",\n  \"rubric\": \"TECHNICAL\",\n  \"emailTemplate\": \"STANDARD\",\n  \"notes\": \"Bring your portfolio\",\n  \"attachCalendar\": true,\n  \"smsReminder\": false,\n  \"draft\": false,\n  \"participants\": [\n    {\n      \"userId\": \"{{interviewerId}}\",\n      \"role\": \"LEAD\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Confirm",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/interviews/{{humanInterviewId}}/confirm"
+          }
+        },
+        {
+          "name": "Cancel",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/interviews/{{humanInterviewId}}/cancel"
+          }
+        },
+        {
+          "name": "Complete",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/interviews/{{humanInterviewId}}/complete"
+          }
+        },
+        {
+          "name": "Remind",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/interviews/{{humanInterviewId}}/remind"
+          }
+        },
+        {
+          "name": "Request reschedule",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/interviews/{{humanInterviewId}}/reschedule-request",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"start\": \"2030-01-03T03:00:00Z\",\n  \"end\": \"2030-01-03T04:00:00Z\",\n  \"reason\": \"Unavailable\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Scorecard",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/interviews/{{humanInterviewId}}/evaluations",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"technicalScore\": 80,\n  \"communicationScore\": 85,\n  \"cultureScore\": 90,\n  \"comments\": \"Strong problem solving\",\n  \"recommendation\": \"HIRE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Bulk",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/interviews/bulk",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ids\": [\n    \"{{humanInterviewId}}\"\n  ],\n  \"action\": \"RESCHEDULE\",\n  \"shiftMinutes\": 60\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Email preview",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/interviews/{{humanInterviewId}}/email-preview"
+          }
+        },
+        {
+          "name": "Export ICS",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/interviews/export?jobId={{jobId}}"
+          }
+        },
+        {
+          "name": "Calendar ICS",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/interviews/{{humanInterviewId}}/calendar"
           }
         }
       ]

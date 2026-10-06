@@ -58,7 +58,7 @@ function ConfigurationForm({ initial }: { initial: AssessmentConfiguration | nul
   const status = useQuery({ queryKey: [...queryKeys.assessments.all(), "automation-status", job.id],
     queryFn: () => assessmentGenerationApi.status(job.id), refetchInterval: 15000 });
   const { register, control, handleSubmit, watch, formState: { errors } } = useForm<AssessmentConfiguration>({ resolver: zodResolver(schema), defaultValues: initial ?? {
-    durationMinutes: 30, passingPercent: 70, autoAssign: false,
+    durationMinutes: 30, passingPercent: 70, autoAssign: true,
     sections: [{ skill: job.skills[0]?.name ?? "", questionType: "MCQ", difficulty: "Easy", count: 5, points: 2 }],
   } });
   const { fields, append, remove } = useFieldArray({ control, name: "sections" });

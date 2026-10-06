@@ -15,7 +15,7 @@ public final class AiInterviewEligibility {
             throw new BusinessException("CV screening must be passed first", HttpStatus.CONFLICT, "CV_SCREENING_NOT_PASSED");
         }
         var job = application.getJob();
-        if (!job.isAiInterviewEnabled() || job.getDeletedAt() != null
+        if (!InterviewPolicies.enabled(job) || job.getDeletedAt() != null
                 || job.getAiInterviewAvailableUntil() != null && !Instant.now().isBefore(job.getAiInterviewAvailableUntil())) {
             throw new BusinessException("AI interview is not available for this job", HttpStatus.CONFLICT, "AI_INTERVIEW_UNAVAILABLE");
         }

@@ -34,10 +34,13 @@ public final class InterviewPolicies {
                 Map.of(COMPETENCIES.get(0), 35, COMPETENCIES.get(1), 25, COMPETENCIES.get(2), 20,
                         COMPETENCIES.get(3), 10, COMPETENCIES.get(4), 10), List.of(), List.of());
     }
+    public static boolean enabled(Job job) {
+        return job.getAiInterviewPolicyJson() == null || job.isAiInterviewEnabled();
+    }
     public static AiInterviewConfigRequest config(Job job) {
         var policy = communicationPolicy(job.getAiInterviewPolicyJson() == null ? defaults() : read(job.getAiInterviewPolicyJson(), InterviewPolicy.class));
         int count = policy.processes().stream().filter(InterviewPolicy.Process::enabled).mapToInt(process -> InterviewProcessSettings.questionCount(process.config())).sum();
-        return new AiInterviewConfigRequest(job.isAiInterviewEnabled(), job.getAiInterviewPassingScore(),
+        return new AiInterviewConfigRequest(enabled(job), job.getAiInterviewPassingScore(),
                 count, job.getAiInterviewAvailableFrom(), job.getAiInterviewAvailableUntil(),
                 policy);
     }

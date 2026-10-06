@@ -77,6 +77,17 @@ class AiInterviewInvitationServiceTest {
         assertThat(result.getAttemptNumber()).isEqualTo(1);
     }
 
+    @Test void invitesWithDefaultConfigurationWithoutRecruiterEnablingIt() {
+        application.getJob().setAiInterviewEnabled(false);
+        application.getJob().setAiInterviewPolicyJson(null);
+        when(applications.findByIdForUpdate(7L)).thenReturn(Optional.of(application));
+        when(interviews.save(any())).thenAnswer(call -> { AiInterview next = call.getArgument(0); next.setId(11L); return next; });
+
+        assertThat(service.invite(7L, null).getStatus()).isEqualTo(AiInterviewStatus.GENERATING);
+        verify(notifications).save(any());
+        verify(emailInvites).sendForInterview(application);
+    }
+
     @Test void retryDoesNotDuplicateSessionOrNotification() {
         when(applications.findByIdForUpdate(7L)).thenReturn(Optional.of(application));
         var existing = AiInterview.builder().id(11L).application(application).build();

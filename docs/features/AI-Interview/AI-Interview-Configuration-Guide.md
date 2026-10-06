@@ -29,6 +29,7 @@ Mục tiêu là tái sử dụng cùng một bộ cấu hình cho nhiều Job, t
 ## Luồng sử dụng
 
 1. Recruiter mở Job → **Phỏng vấn AI** → **Cấu hình AI Interview**.
+   Job chưa lưu cấu hình mặc định bật **Cho phép AI Interview và tự tạo lời mời khi CV đạt**, áp dụng cả backend. Recruiter có thể bỏ tích và lưu để tắt; Job đã lưu giữ lựa chọn hiện có.
 2. Thiết lập ngưỡng đạt, thời lượng, số lần làm và Job Skills. Communication có trọng số 100%; các năng lực khác 0% và không chỉnh được.
 3. Mở **Cấu hình bài tập**: chỉ Communication có thể chọn. Năm quy trình còn lại hiển thị **Sẽ mở rộng**, khóa thao tác và không tải control cấu hình.
 4. Lưu cấu hình Communication: số chủ đề, ngôn ngữ và hỏi bồi. Mặc định mới có 3 chủ đề, sinh thích ứng từng câu và tối đa 1 hỏi bồi/chủ đề. Recruiter có thể tắt hỏi bồi để giảm số lượt gọi API.

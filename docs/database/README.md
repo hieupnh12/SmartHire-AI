@@ -10,6 +10,7 @@
 
 | Thông tin | Giá trị |
 |---|---|
+| Human Interview 2026-10-06 | Tenant V48 thêm `interviews.configuration_json` JSON nullable (entity `Interview.configurationJson`), index `idx_human_schedule_window(status, scheduled_start, scheduled_end)` và `idx_interview_participant_user(user_id, interview_id)`. Không thêm bảng/entity/FK/UNIQUE. ScheduleStatus bổ sung DRAFT và RESCHEDULE_REQUESTED |
 | CV Builder đợt 3 2026-10-05 | `builder_data` có thêm `sections[].items[].rows[]` (≤ 8 dòng `{label, value}`, bảng 2 cột mẫu Enterprise; `description` đồng bộ từ rows), `personalInfo.avatarCrop` và `theme.avatar` (khung ảnh tùy chỉnh). Không có migration, không thêm bảng/entity/FK/index |
 | CV Builder đợt 2 2026-10-04 | Tenant V47 thêm `cvs.share_token` VARCHAR(64) nullable + UNIQUE `uk_cvs_share_token` (entity `Cv.shareToken`) cho link chia sẻ công khai chỉ đọc. `builder_data` có thêm `personalInfo.avatarUrl`, `language`. Không thêm bảng/entity/FK |
 | CV Builder 2026-10-04 | Tenant V46 thêm `cvs.builder_data` JSON nullable (entity `Cv.builderData`); CV tạo bằng trình tạo CV được render PDF và đi qua pipeline CV hiện có. Không thêm bảng/entity/FK/UNIQUE/index |
@@ -27,8 +28,8 @@
 | Entity JPA tenant | 61 class `@Entity` theo checkout hiện tại; V44 bổ sung `InterviewSession`, `InterviewMessage`; V45 bổ sung `CompanyDirectoryEntry` |
 | Khoá ngoại tenant | 87 theo mốc tài liệu (85 sau V43 + 2 FK V44); V45 không thêm FK |
 | Ràng buộc UNIQUE tenant | V25/V26 không thêm UNIQUE. V27 thêm UNIQUE `gate_scores.application_id`. V30 thêm `uk_job_assignments_job_user`. V45 thêm `uk_company_directory_type_name`. V47 thêm `uk_cvs_share_token` |
-| Số file migration trong repo | 63 (23 master + 40 tenant); V9 redesign nằm ngoài pipeline |
-| Cập nhật lần cuối | Master `V24`, tenant `V47`: cột `cvs.share_token` cho link chia sẻ CV Builder |
+| Số file migration trong repo | 64 (23 master + 41 tenant); V9 redesign nằm ngoài pipeline |
+| Cập nhật lần cuối | Master `V24`, tenant `V48`: cấu hình JSON cho phỏng vấn trực tiếp và index kiểm tra trùng lịch |
 | Dọn legacy V21 | Xóa 19 bảng và dữ liệu legacy, xóa 2 cột ID legacy trong ranking; không chuyển ID cũ sang bản ghi mới |
 | Metadata assessment 2026-09-25 | V13: `tests.created_by/updated_at`, `questions.difficulty/skill/explanation` cho Excel/UI authoring |
 | Sửa lỗi assessment 2026-09-24 | V10/V11 khớp checksum lịch sử; V12 tạo schema mới và giữ bảng cũ; migration lỗi phải chặn mở tenant pool |
@@ -268,7 +269,7 @@ V44 không thêm enum hoặc trạng thái lifecycle: session dùng lifecycle c�
 | `AiInterviewStatus` | `ai_interviews.status`, `ai_interview_logs.status` | `CREATED`, `GENERATING`, `QUESTIONS_READY`, `IN_PROGRESS`, `SCORING`, `SCORED`, `PASSED`, `ERROR`, `FAILED` |
 
 Với phiên chưa bắt đầu, service tự chuyển `QUESTIONS_READY` khi số câu hỏi đạt số câu của kế hoạch trong `config_snapshot_json` (câu hỏi–đáp + trắc nghiệm; phiên cũ dùng `jobs.ai_interview_question_count`); thêm/sửa/xóa khiến số câu chưa đủ thì chuyển `CREATED`. `FAILED` chỉ kết thúc hồ sơ khi hết lượt hoặc quá hạn làm lại; còn quyền thì application giữ `INTERVIEW` và lần làm mới là một dòng `ai_interviews` mới (`attempt_number + 1`). `IN_PROGRESS` quá `expires_at` được backend tự chuyển `SCORING`. Đây là quy tắc service, không phải CHECK constraint SQL. API cập nhật phiên không cho sửa trạng thái hoặc điểm thủ công.
-| `ScheduleStatus` | `interview_schedules.status` | `PROPOSED`, `CONFIRMED`, `CANCELLED`, `DONE` |
+| `ScheduleStatus` | `interview_schedules.status` | `DRAFT`, `PROPOSED`, `CONFIRMED`, `RESCHEDULE_REQUESTED`, `CANCELLED`, `DONE` |
 | `PracticeStatus` | `practice_sessions.status` | `CREATED`, `IN_PROGRESS`, `COMPLETED`, `FAILED` |
 | `NotificationStatus` | **chưa dùng** | `PENDING`, `SENT`, `FAILED` |
 
@@ -927,6 +928,8 @@ NOT_STARTED ──▶ IN_PROGRESS ──▶ SUBMITTED ──▶ GRADED
 kể cả chưa trả lời câu tự luận. Điểm các câu trắc nghiệm đã lưu vẫn được tính riêng trong answers.
 Chưa có endpoint chấm tay/AI cho tự luận trong thay đổi V23.
 
+**Lịch phỏng vấn trực tiếp V48** — `interview_schedules.status`: DRAFT → PROPOSED → CONFIRMED → DONE; PROPOSED/CONFIRMED → RESCHEDULE_REQUESTED → PROPOSED; lịch nháp/đang hoạt động → CANCELLED. Điểm 0–100; mỗi người chấm có một đánh giá, tuần tự hóa bằng khóa hàng interview; không thêm UNIQUE trong database.
+
 **Interview (direct)** — `interviews.status`
 ```
 CREATED ──▶ SCHEDULED ──▶ IN_PROGRESS ──▶ EVALUATED
@@ -1007,6 +1010,8 @@ V22 thêm `idx_questionskills_skill(skill_id)` trên `questionskills`. PK kép h
 |---|---|---|---|---|
 | Tenant | `applications` | `idx_app_job_status` | `(job_id, status)` | Lọc danh sách ứng viên theo job và trạng thái |
 | Tenant | `applications` | `idx_app_archived` | `(job_id, archived_at)` | Tách đơn đang hoạt động khỏi đơn đã lưu trữ |
+| Tenant | `interview_schedules` | `idx_human_schedule_window` | `(status, scheduled_start, scheduled_end)` | Kiểm tra giao thời gian (V48) |
+| Tenant | `interview_participants` | `idx_interview_participant_user` | `(user_id, interview_id)` | Kiểm tra lịch hội đồng (V48) |
 | Tenant | `ai_interviews` | `idx_ai_interview_work_status` | `(status, id)` | Worker quét phiên `GENERATING`/`SCORING` (V25) |
 | Tenant | `ai_interviews` | `idx_ai_interview_expiry` | `(status, expires_at, id)` | Dispatcher tự nộp phiên `IN_PROGRESS` quá hạn (V35) |
 | Tenant | `email_outbox` | `idx_email_outbox_delivery` | `(purpose, status, attempts, id)` | Worker gửi email kết quả (V25) |
@@ -1141,6 +1146,7 @@ Hai pipeline dùng **hai phương ngữ SQL khác nhau** và không thể dùng 
 | V45 | `V45__company_directory.sql` | Tạo `company_directory_entries`, unique `(entry_type, name)` và backfill phòng ban/địa điểm từ job hiện có. Đánh lại từ V42 vì trùng version |
 | V46 | `V46__cv_builder_data.sql` | Thêm `cvs.builder_data` JSON nullable lưu nội dung CV Builder để chỉnh sửa lại; không backfill, không thêm bảng/FK/UNIQUE/index |
 | V47 | `V47__cv_share_token.sql` | Thêm `cvs.share_token` VARCHAR(64) nullable + UNIQUE `uk_cvs_share_token` cho link chia sẻ CV công khai; không thêm bảng/FK |
+| V48 | `V48__human_interview_configuration.sql` | `interviews.configuration_json` JSON nullable; `idx_human_schedule_window` và `idx_interview_participant_user`; không thêm bảng/FK/UNIQUE |
 
 V9 redesign cũ được giữ nguyên tại `db/migration-archive/`, **ngoài** location Flyway.
 Tenant tạo mới chạy V1–V13 rồi V21–V36: 60 bảng hiện hành (gồm 5 bảng analytics V9), chưa tính history.

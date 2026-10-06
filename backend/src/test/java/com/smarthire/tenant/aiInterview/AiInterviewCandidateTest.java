@@ -277,6 +277,7 @@ class AiInterviewCandidateTest {
 
     @Test void requestStartRejectsJobWithoutAiInterview() {
         ownsApplication();
+        application.getJob().setAiInterviewPolicyJson(InterviewPolicies.json(InterviewPolicies.defaults()));
         application.getJob().setAiInterviewEnabled(false);
         when(interviews.findByApplication_IdOrderByIdDesc(7L)).thenReturn(List.of());
         assertThatThrownBy(() -> service.requestStart(7L))

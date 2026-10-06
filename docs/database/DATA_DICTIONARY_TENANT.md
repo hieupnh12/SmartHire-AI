@@ -798,6 +798,7 @@ Entity `Interview` (kế thừa `BaseEntity`).
 | `id` | BIGINT | PK | Không | auto | |
 | `application_id` | BIGINT | FK → `applications.id` | Không | — | Đơn ứng tuyển |
 | `interview_type` | VARCHAR(64) | | Không | — | TECHNICAL, HR, BEHAVIORAL… |
+| `configuration_json` | JSON | | Có | NULL | V48: rubric, provider, emailTemplate, notes, attachCalendar, rescheduleReason, requestedStart, requestedEnd |
 | `mode` | VARCHAR(64) | | Không | — | DIRECT / ONLINE / … |
 | `status` | VARCHAR(32) | | Không | `'CREATED'` | `InterviewStatus` |
 | `created_at` | TIMESTAMP | | Không | now | |
@@ -817,7 +818,7 @@ Entity `InterviewSchedule`.
 | `scheduled_end` | TIMESTAMP | | Không | — | Kết thúc |
 | `location` | VARCHAR(255) | | Có | NULL | Địa điểm |
 | `meeting_url` | VARCHAR(512) | | Có | NULL | Link họp |
-| `status` | VARCHAR(32) | | Không | `'PROPOSED'` | `ScheduleStatus` |
+| `status` | VARCHAR(32) | | Không | `'PROPOSED'` | `ScheduleStatus`: DRAFT, PROPOSED, CONFIRMED, RESCHEDULE_REQUESTED, CANCELLED, DONE |
 
 **Ràng buộc:** `fk_isched_interview`
 

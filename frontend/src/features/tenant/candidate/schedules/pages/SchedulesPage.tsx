@@ -1,106 +1,24 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { MapPin, Video } from "lucide-react";
-import { PrototypeBanner } from "@/components/ux/PrototypeBanner";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { humanInterviewApi as api } from "@/api/tenant/humanInterviewApi";
+import { getApiErrorMessage } from "@/lib/axios";
+import { DetailDialog } from "@/components/ux/DetailDialog";
 import { StatusPill } from "@/components/ux/StatusPill";
 import { button, muted, panel, primary } from "@/features/tenant/recruiter/matching/components/rankingUi";
-import {
-  interviewModeLabel,
-  interviewStatusLabel,
-  mockCandidateInterviews,
-  type MockCandidateInterview,
-} from "@/features/tenant/candidate/schedules/constants/mockInterviews";
-
+import { downloadInterview, statusLabels } from "@/components/ux/humanInterviewUtilities";
+const schema = z.object({ start: z.string().min(1), end: z.string().min(1), reason: z.string().trim().min(1).max(2000) }).refine(v => { const start = new Date(v.start).getTime(), end = new Date(v.end).getTime(); return start > Date.now() && end-start >= 900000 && end-start <= 14400000; }, { message: "Chọn lịch tương lai dài 15–240 phút.", path: ["start"] });
 export function SchedulesPage() {
-  const [rows, setRows] = useState<MockCandidateInterview[]>(mockCandidateInterviews);
-  const [toast, setToast] = useState<string | null>(null);
-
-  const flash = (message: string) => {
-    setToast(message);
-    window.setTimeout(() => setToast(null), 2500);
-  };
-
-  return (
-    <section className="space-y-6 text-[var(--color-on-surface)]">
-      <header>
-        <h1 className="text-3xl font-semibold tracking-tight">Lịch phỏng vấn</h1>
-        <p className={`mt-2 max-w-2xl ${muted}`}>
-          Xem và xác nhận lịch interview chính thức (online/offline). Link meeting do recruiter cung cấp.
-        </p>
-      </header>
-
-      <PrototypeBanner note="xác nhận / đổi lịch chỉ cập nhật mock local" />
-      {toast && (
-        <p className="rounded-xl bg-[var(--color-primary-subtle)] px-4 py-2 text-sm text-[var(--color-primary-hover)]" role="status">
-          {toast}
-        </p>
-      )}
-
-      <div className={`${panel} space-y-4`}>
-        {rows.length === 0 && <p className={muted}>Chưa có lịch phỏng vấn.</p>}
-        <ul className="space-y-4">
-          {rows.map((row) => (
-            <li key={row.id} className="rounded-2xl border border-[var(--color-border-default)] p-4">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="text-lg font-semibold">{row.jobTitle}</p>
-                  <p className={muted}>
-                    {new Date(row.startsAt).toLocaleString("vi-VN")} · {row.durationMinutes} phút
-                  </p>
-                  <p className={muted}>Interviewer: {row.interviewerName}</p>
-                  <p className={`mt-2 flex items-start gap-1.5 text-sm`}>
-                    {row.mode === "ONLINE" ? (
-                      <Video className="mt-0.5 size-4 shrink-0 text-[var(--color-primary)]" aria-hidden="true" />
-                    ) : (
-                      <MapPin className="mt-0.5 size-4 shrink-0 text-[var(--color-primary)]" aria-hidden="true" />
-                    )}
-                    <span>
-                      {interviewModeLabel[row.mode]} —{" "}
-                      {row.mode === "ONLINE" ? (
-                        <a className="font-medium text-[var(--color-primary)] underline" href={row.locationOrLink} target="_blank" rel="noreferrer">
-                          Mở link meeting
-                        </a>
-                      ) : (
-                        row.locationOrLink
-                      )}
-                    </span>
-                  </p>
-                  {row.note && <p className={`mt-1 ${muted}`}>{row.note}</p>}
-                </div>
-                <StatusPill status={row.status} label={interviewStatusLabel[row.status]} />
-              </div>
-              <div className="mt-4 flex flex-wrap gap-2">
-                {row.status === "PENDING" && (
-                  <button
-                    type="button"
-                    className={primary}
-                    onClick={() => {
-                      setRows((prev) =>
-                        prev.map((item) => (item.id === row.id ? { ...item, status: "CONFIRMED" } : item)),
-                      );
-                      flash("Đã xác nhận lịch (mock).");
-                    }}
-                  >
-                    Xác nhận tham dự
-                  </button>
-                )}
-                {row.status !== "CANCELLED" && row.status !== "DONE" && (
-                  <button
-                    type="button"
-                    className={button}
-                    onClick={() => flash("Yêu cầu đổi lịch đã ghi nhận (mock). Recruiter sẽ phản hồi.")}
-                  >
-                    Đề nghị đổi giờ
-                  </button>
-                )}
-                <Link className={button} to={`/applications/${row.applicationId}`}>
-                  Chi tiết đơn
-                </Link>
-              </div>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </section>
-  );
+  const client = useQueryClient(); const [message,setMessage] = useState(""); const [editing,setEditing] = useState<number | null>(null);
+  const rows = useQuery({ queryKey: ["human-interviews","mine"], queryFn: api.mine });
+  const form = useForm<z.infer<typeof schema>>({ resolver: zodResolver(schema), defaultValues: { start:"",end:"",reason:"" } });
+  const mutation = useMutation({ mutationFn: (fn:()=>Promise<unknown>)=>fn(), onSuccess:()=>{void client.invalidateQueries({queryKey:["human-interviews"]});setEditing(null);setMessage("Đã cập nhật lịch phỏng vấn.");}, onError:e=>setMessage(getApiErrorMessage(e)) });
+  return <section className="space-y-6 text-[var(--color-on-surface)]"><header><h1 className="text-3xl font-semibold">Lịch phỏng vấn</h1><p className={`mt-2 ${muted}`}>Xác nhận lịch phỏng vấn trực tiếp và đề nghị đổi giờ với nhà tuyển dụng.</p></header>
+    {message && <p role="status">{message}</p>}{rows.isPending && <p role="status">Đang tải lịch…</p>}{rows.error && <p role="alert">{getApiErrorMessage(rows.error)} <button onClick={()=>void rows.refetch()}>Thử lại</button></p>}
+    <div className={`${panel} space-y-4`}>{rows.data?.length === 0 && <p>Chưa có lịch phỏng vấn.</p>}{rows.data?.map(row=><article key={row.id} className="space-y-3 rounded-2xl border border-[var(--color-border-default)] p-4"><div className="flex justify-between gap-3"><h2 className="text-lg font-semibold">{row.jobTitle}</h2><StatusPill status={row.status} label={statusLabels[row.status]}/></div><p>{new Date(row.start).toLocaleString("vi-VN")} – {new Date(row.end).toLocaleTimeString("vi-VN")}</p><p className={muted}>Hội đồng: {row.participants.map(p=>p.name).join(", ")}</p>{row.mode === "ONLINE" && row.meetingUrl ? <a className="underline text-[var(--color-primary)]" href={row.meetingUrl} target="_blank" rel="noreferrer">Mở link meeting</a> : <p>{row.location}</p>}<p>{row.configuration.notes}</p>{row.status === "RESCHEDULE_REQUESTED" && <p>Đã đề nghị đổi giờ: {row.configuration.rescheduleReason}</p>}<div className="flex flex-wrap gap-2">{row.status === "PROPOSED" && new Date(row.start).getTime()>Date.now() && <button className={primary} disabled={mutation.isPending} onClick={()=>mutation.mutate(()=>api.confirm(row.id))}>Xác nhận tham dự</button>}{["PROPOSED","CONFIRMED","RESCHEDULE_REQUESTED"].includes(row.status) && new Date(row.start).getTime()>Date.now() && <button className={button} onClick={()=>{form.reset();setEditing(row.id);}}>Đề nghị đổi giờ</button>}<button className={button} onClick={()=>void api.calendar(row.id).then(blob=>downloadInterview(blob,`interview-${row.id}.ics`)).catch(e=>setMessage(getApiErrorMessage(e)))}>Tải lịch ICS</button><Link className={button} to={`/applications/${row.applicationId}`}>Chi tiết đơn</Link></div></article>)}</div>
+    <DetailDialog open={editing !== null} title="Đề nghị đổi lịch" onClose={()=>setEditing(null)}><form className="space-y-4" onSubmit={form.handleSubmit(v=>mutation.mutate(()=>api.requestChange(editing!,{start:new Date(v.start).toISOString(),end:new Date(v.end).toISOString(),reason:v.reason})))}><label className="block">Bắt đầu<input className="ml-3 rounded border p-2" type="datetime-local" {...form.register("start")}/></label><label className="block">Kết thúc<input className="ml-3 rounded border p-2" type="datetime-local" {...form.register("end")}/></label><textarea className="w-full rounded border p-2" placeholder="Lý do đổi lịch" {...form.register("reason")}/>{Object.values(form.formState.errors).map((e,i)=><p key={i} role="alert">{e.message}</p>)}<button className={primary} disabled={mutation.isPending}>Gửi đề nghị</button><p className={muted}>Lịch hiện tại được giữ cho đến khi nhà tuyển dụng duyệt và dời lịch.</p></form></DetailDialog>
+  </section>;
 }

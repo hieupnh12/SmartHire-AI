@@ -28,6 +28,7 @@ import com.smarthire.tenant.applicant.dto.ApplicantModels.PageResult;
 import com.smarthire.tenant.applicant.dto.ApplicantModels.PatchRequest;
 import com.smarthire.messaging.JobPublisher;
 import com.smarthire.tenant.aiInterview.service.AiInterviewInvitationService;
+import com.smarthire.tenant.aiInterview.service.InterviewPolicies;
 import com.smarthire.tenant.applicant.mapper.ApplicantMapper;
 import com.smarthire.tenant.cv.service.CvAccess;
 import com.smarthire.tenant.cv.service.CvApplicationCopyService;
@@ -333,7 +334,7 @@ public class ApplicantService {
         application.setCvScreeningStatus(passed ? com.smarthire.domain.enums.CvScreeningStatus.PASSED
                 : com.smarthire.domain.enums.CvScreeningStatus.FAILED);
         if (current != ApplicationStatus.NEW && current != ApplicationStatus.IN_REVIEW) {
-            if (passed && current == ApplicationStatus.INTERVIEW && application.getJob().isAiInterviewEnabled()) {
+            if (passed && current == ApplicationStatus.INTERVIEW && InterviewPolicies.enabled(application.getJob())) {
                 invitations.invite(application.getId(), null);
             }
             gateScreening.recalculate(application);
@@ -411,7 +412,7 @@ public class ApplicantService {
         if (next == ApplicationStatus.INTERVIEW && application.getArchivedAt() == null
                 && application.getWithdrawnAt() == null
                 && application.getCvScreeningStatus() == com.smarthire.domain.enums.CvScreeningStatus.PASSED
-                && application.getJob().isAiInterviewEnabled()) {
+                && InterviewPolicies.enabled(application.getJob())) {
             invitations.invite(application.getId(), null);
         }
     }
