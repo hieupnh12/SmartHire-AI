@@ -6,6 +6,7 @@ import jakarta.validation.constraints.NotNull;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 public final class ApplicantModels {
     private ApplicantModels() {}
@@ -120,4 +121,45 @@ public final class ApplicantModels {
             BigDecimal aiInterviewWeight,
             BigDecimal assessmentWeight,
             BigDecimal passThreshold) {}
+
+    public record CandidateEvaluationView(
+            CvEvaluationView cv,
+            List<AiInterviewEvaluationView> aiInterviews,
+            List<AssessmentEvaluationView> assessments) {}
+
+    public record CvEvaluationView(
+            BigDecimal score,
+            BigDecimal threshold,
+            boolean passed,
+            String explanation,
+            List<String> matchedSkills,
+            List<String> partialSkills,
+            List<String> missingSkills,
+            List<String> requiredMissingSkills,
+            BigDecimal requiredYears,
+            BigDecimal candidateYears,
+            String requiredEducation,
+            String candidateEducation) {}
+
+    public record AiInterviewEvaluationView(
+            long id,
+            int attemptNumber,
+            String status,
+            BigDecimal score,
+            BigDecimal passingScore,
+            Boolean passed,
+            Instant completedAt,
+            String summary,
+            String strengths,
+            String weaknesses,
+            Map<String, BigDecimal> criteria) {}
+
+    public record AssessmentEvaluationView(
+            long id,
+            String testTitle,
+            String status,
+            BigDecimal score,
+            BigDecimal passingScore,
+            Boolean passed,
+            Instant submittedAt) {}
 }

@@ -6,8 +6,7 @@ import { EmptyState } from "@/components/ux/EmptyState";
 import { LoadingState, SkeletonCard } from "@/components/ux/Skeleton";
 import { getApiErrorMessage } from "@/lib/axios";
 import { cn } from "@/lib/utils";
-import { CalendarMonth, dayKey } from "../components/CalendarMonth";
-import { HumanInterviewActions } from "../components/HumanInterviewActions";
+import { CalendarMonth, coversDay, isMultiDay, newestFirst } from "../components/CalendarMonth";
 import { eventKinds } from "../constants/calendarEvents";
 import { useCandidateCalendar } from "../hooks/useCandidateCalendar";
 import type { CalendarEvent } from "../types/calendar";
@@ -21,7 +20,7 @@ export function SchedulesPage() {
   const [jobId, setJobId] = useState<number | "ALL">("ALL");
 
   const events = calendar.events.filter((event) => jobId === "ALL" || event.jobId === jobId);
-  const dayEvents = events.filter((event) => dayKey(event.at) === dayKey(selected));
+  const dayEvents = events.filter((event) => coversDay(event, selected)).sort(newestFirst);
   const upcoming = events.filter((event) => event.at.getTime() >= Date.now() && event.kind !== "CANCELLED").slice(0, 5);
   const shiftMonth = (offset: number) => setMonth((value) => new Date(value.getFullYear(), value.getMonth() + offset, 1));
   const goToday = () => { const now = new Date(); setMonth(new Date(now.getFullYear(), now.getMonth(), 1)); setSelected(now); };
@@ -65,8 +64,6 @@ export function SchedulesPage() {
         </aside>
       </div>
     </>}
-
-    <HumanInterviewActions />
   </section>;
 }
 
@@ -81,7 +78,10 @@ function EventList({ title, events, empty, showDate = false }: { title: string; 
             <span className={cn("block text-sm font-semibold", event.kind === "CANCELLED" && "line-through")}>{event.title}</span>
             <span className="block truncate text-xs text-[var(--color-on-surface-variant)]">{event.jobTitle}</span>
             <span className="block text-xs text-[var(--color-on-surface-variant)]">
-              {showDate && `${event.at.toLocaleDateString("vi-VN")} · `}{event.at.toLocaleTimeString("vi-VN", timeFormat)}{event.end && ` – ${event.end.toLocaleTimeString("vi-VN", timeFormat)}`}{event.detail && ` · ${event.detail}`}
+              {isMultiDay(event)
+                ? `${event.at.toLocaleDateString("vi-VN")} – ${event.end!.toLocaleDateString("vi-VN")}`
+                : <>{showDate && `${event.at.toLocaleDateString("vi-VN")} · `}{event.at.toLocaleTimeString("vi-VN", timeFormat)}{event.end && ` – ${event.end.toLocaleTimeString("vi-VN", timeFormat)}`}</>}
+              {event.detail && ` · ${event.detail}`}
             </span>
           </span>
         </Link>

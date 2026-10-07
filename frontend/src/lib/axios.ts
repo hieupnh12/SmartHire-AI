@@ -39,6 +39,7 @@ function loginPathFor(pathname: string) {
     pathname.startsWith("/interviews") ||
     pathname.startsWith("/practice") ||
     pathname.startsWith("/schedules") ||
+    pathname.startsWith("/interview-schedules") ||
     pathname.startsWith("/notifications") ||
     pathname.startsWith("/oauth") ||
     pathname.startsWith("/career") ||

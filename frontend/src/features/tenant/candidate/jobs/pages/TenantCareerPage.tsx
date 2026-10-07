@@ -471,6 +471,22 @@ export function TenantCareerPage() {
   });
 
   const customLanding = publicLanding.data?.data;
+
+  useEffect(() => {
+    if (!location.hash || isJobsPage || isJobDetailPage || !publicLanding.isFetched) return;
+    const timer = window.setTimeout(() => {
+      const target = document.getElementById(decodeURIComponent(location.hash.slice(1)));
+      if (target) window.scrollTo({ top: target.getBoundingClientRect().top + window.scrollY - 88, behavior: "smooth" });
+    }, 60);
+    return () => window.clearTimeout(timer);
+  }, [location.hash, location.key, isJobsPage, isJobDetailPage, publicLanding.isFetched]);
+
+  useEffect(() => {
+    if (!isJobsPage) return;
+    setSelectedDepartment(searchParams.get("department") || "ALL");
+    setSelectedLocation(searchParams.get("location") || "ALL");
+  }, [isJobsPage, searchParams]);
+
   const buildJobsHref = (overrides?: { query?: string; department?: string; location?: string }) => {
     const params = new URLSearchParams();
     const query = overrides?.query ?? searchTerm.trim();

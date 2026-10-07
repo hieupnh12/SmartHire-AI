@@ -155,7 +155,7 @@ public class GateScreeningService {
                 config == null ? null : config.getGatePassThreshold());
     }
 
-    private MatchScore latestMatch(Application application) {
+    public MatchScore latestMatch(Application application) {
         List<Cv> cvs = ranking.cvs(application.getId());
         for (int i = cvs.size() - 1; i >= 0; i--) {
             Cv cv = cvs.get(i);

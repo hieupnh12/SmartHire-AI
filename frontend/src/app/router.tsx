@@ -63,6 +63,7 @@ import { TakeAssessmentPage } from "@/features/tenant/candidate/assessments/page
 import { InterviewsPage as CandidateInterviewsPage } from "@/features/tenant/candidate/interviews/pages/InterviewsPage";
 import { AiInterviewRoomPage } from "@/features/tenant/candidate/interviews/pages/AiInterviewRoomPage";
 import { SchedulesPage as CandidateSchedulesPage } from "@/features/tenant/candidate/schedules/pages/SchedulesPage";
+import { InterviewSchedulesPage as CandidateInterviewSchedulesPage } from "@/features/tenant/candidate/schedules/pages/InterviewSchedulesPage";
 import { NotificationsPage as CandidateNotificationsPage } from "@/features/tenant/candidate/notifications/pages/NotificationsPage";
 import { recruiterNav } from "@/features/tenant/recruiter/nav";
 import { HomePage as RecruiterHomePage } from "@/features/tenant/recruiter/dashboard/pages/HomePage";
@@ -160,7 +161,7 @@ export function AppRouter() {
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/invite/accept" element={<AcceptInvitationPage />} />
 
-      <Route element={<RoleRoute workspaces={["CANDIDATE"]} />}>
+      <Route element={<RoleRoute workspaces={["CANDIDATE"]} authRequired />}>
         <Route element={<CareerNavigationLayout />}>
           <Route path="/applications" element={<MyApplicationsPage />} />
           <Route path="/applications/:id" element={<ApplicationDetailPage />} />
@@ -168,6 +169,7 @@ export function AppRouter() {
           <Route path="/interviews" element={<CandidateInterviewsPage />} />
           <Route path="/practice" element={<Navigate to="/interviews" replace />} />
           <Route path="/schedules" element={<CandidateSchedulesPage />} />
+          <Route path="/interview-schedules" element={<CandidateInterviewSchedulesPage />} />
           <Route path="/notifications" element={<CandidateNotificationsPage />} />
         </Route>
         <Route path="/assessments/:submissionId/take" element={<TakeAssessmentPage />} />

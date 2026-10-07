@@ -4,6 +4,7 @@ import com.smarthire.common.api.ApiResponse;
 import com.smarthire.domain.enums.ApplicationStatus;
 import com.smarthire.tenant.applicant.dto.ApplicantModels.ApplicationDetail;
 import com.smarthire.tenant.applicant.dto.ApplicantModels.ApplicationSummary;
+import com.smarthire.tenant.applicant.dto.ApplicantModels.CandidateEvaluationView;
 import com.smarthire.tenant.applicant.dto.ApplicantModels.CvScreeningDecisionRequest;
 import com.smarthire.tenant.applicant.dto.ApplicantModels.HistoryView;
 import com.smarthire.tenant.applicant.dto.ApplicantModels.ManualCreateRequest;
@@ -11,6 +12,7 @@ import com.smarthire.tenant.applicant.dto.ApplicantModels.PageResult;
 import com.smarthire.tenant.applicant.dto.ApplicantModels.PatchRequest;
 import com.smarthire.tenant.applicant.dto.ApplicantModels.StatusRequest;
 import com.smarthire.tenant.applicant.service.ApplicantService;
+import com.smarthire.tenant.applicant.service.CandidateEvaluationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -31,9 +33,11 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "Applicant Management")
 public class ApplicantController {
     private final ApplicantService applicants;
+    private final CandidateEvaluationService evaluations;
 
-    public ApplicantController(ApplicantService applicants) {
+    public ApplicantController(ApplicantService applicants, CandidateEvaluationService evaluations) {
         this.applicants = applicants;
+        this.evaluations = evaluations;
     }
 
     @GetMapping("/applications/health")
@@ -98,6 +102,15 @@ public class ApplicantController {
     @Operation(summary = "Application detail, CV versions and profile")
     public ApiResponse<ApplicationDetail> get(@PathVariable long id) {
         return ApiResponse.ok(applicants.get(id));
+    }
+
+    @GetMapping("/applications/{id}/evaluation")
+    @Operation(summary = "Evaluation reasons per round for the owning candidate",
+            description = "Candidate only. CV score vs. threshold with AI explanation and matched/missing skills; every AI interview"
+                    + " attempt and assessment submission (newest first) with score, pass mark and outcome. AI interview attempts add"
+                    + " summary/strengths/weaknesses and criterion scores when available. No per-question detail or internal weights.")
+    public ApiResponse<CandidateEvaluationView> evaluation(@PathVariable long id) {
+        return ApiResponse.ok(evaluations.evaluation(id));
     }
 
     @PatchMapping("/applications/{id}")

@@ -73,6 +73,51 @@ export type ApplicationDetail = ApplicationSummary & {
   screeningMode?: "AUTO" | "MANUAL" | null;
 };
 
+export type CvEvaluationView = {
+  score: number;
+  threshold: number | null;
+  passed: boolean;
+  explanation: string | null;
+  matchedSkills: string[];
+  partialSkills: string[];
+  missingSkills: string[];
+  requiredMissingSkills: string[];
+  requiredYears: number | null;
+  candidateYears: number | null;
+  requiredEducation: string | null;
+  candidateEducation: string | null;
+};
+
+export type AiInterviewEvaluationView = {
+  id: number;
+  attemptNumber: number;
+  status: string;
+  score: number | null;
+  passingScore: number | null;
+  passed: boolean | null;
+  completedAt: string | null;
+  summary: string | null;
+  strengths: string | null;
+  weaknesses: string | null;
+  criteria: Record<string, number>;
+};
+
+export type AssessmentEvaluationView = {
+  id: number;
+  testTitle: string;
+  status: string;
+  score: number | null;
+  passingScore: number | null;
+  passed: boolean | null;
+  submittedAt: string | null;
+};
+
+export type CandidateEvaluationView = {
+  cv: CvEvaluationView | null;
+  aiInterviews: AiInterviewEvaluationView[];
+  assessments: AssessmentEvaluationView[];
+};
+
 export type RoundItemView = {
   status: string;
   score: number | null;

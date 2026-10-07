@@ -99,6 +99,19 @@ public class TenantSchemaBootstrap {
             )
             """;
 
+    private static final String CREATE_COMPANY_EMAIL_SETTINGS = """
+            CREATE TABLE IF NOT EXISTS company_email_settings (
+                id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                provider VARCHAR(32) NOT NULL DEFAULT 'GMAIL',
+                mail_username VARCHAR(255) NOT NULL,
+                mail_password_encrypted VARCHAR(512) NOT NULL,
+                from_name VARCHAR(128) NULL,
+                is_active BOOLEAN NOT NULL DEFAULT TRUE,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            )
+            """;
+
     private static final String BACKFILL_STAGE_CODES = """
             UPDATE recruitment_stages rs
                 INNER JOIN (
@@ -128,6 +141,7 @@ public class TenantSchemaBootstrap {
             statement.execute(SEED_ROLES);
             statement.execute(CREATE_PERMISSIONS);
             statement.execute(CREATE_LANDING_PAGE_SETTINGS);
+            statement.execute(CREATE_COMPANY_EMAIL_SETTINGS);
             statement.execute(CREATE_JOB_ASSIGNMENTS);
             backfillJobAssignments(statement);
             widenRoleColumn(statement, "users", "role");

@@ -1,13 +1,11 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
-import { BriefcaseBusiness, CalendarDays, ChevronRight, MapPin, Search, XCircle } from "lucide-react";
+import { Search } from "lucide-react";
 import type { ApplicationStatus } from "@/api/types/applicant";
 import { applicantApi } from "@/api/tenant/applicantApi";
 import { EmptyState } from "@/components/ux/EmptyState";
 import { LoadingState, SkeletonCard } from "@/components/ux/Skeleton";
-import { StatusPill } from "@/components/ux/StatusPill";
-import { ApplicationPipeline } from "@/features/tenant/recruiter/matching/components/recruitmentFlow";
+import { ApplicationCard } from "../components/ApplicationCard";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 import { getApiErrorMessage } from "@/lib/axios";
 import { queryKeys } from "@/lib/query-keys";
@@ -79,16 +77,9 @@ export function MyApplicationsPage() {
       {mine.isSuccess && activeRows.length === 0 && <EmptyState title="Bạn chưa có đơn ứng tuyển" description="Khám phá các vị trí đang tuyển và nộp CV cho công việc phù hợp với bạn." />}
       {mine.isSuccess && activeRows.length > 0 && rows.length === 0 && <EmptyState title="Không tìm thấy đơn phù hợp" description="Thử thay đổi từ khóa hoặc chọn trạng thái khác." />}
 
-      {rows.length > 0 && <ul className="grid gap-4 lg:grid-cols-2">{rows.map((row) => {
-        const meta = [row.jobDepartment, row.jobLocation, row.jobWorkMode, row.jobEmploymentType].filter(Boolean);
-        const canWithdraw = !["HIRED", "REJECTED"].includes(row.status);
-        return <li key={row.id} className="flex min-w-0 flex-col overflow-hidden rounded-2xl border border-[var(--color-border-default)] bg-white shadow-[var(--shadow-card)] transition-[border-color,box-shadow] hover:border-[var(--color-primary)]/30 hover:shadow-[var(--shadow-ambient)]"><div className="flex-1 p-5 sm:p-6"><div className="flex items-start gap-4"><span className="grid size-12 shrink-0 place-items-center rounded-xl bg-[var(--color-primary-subtle)] text-[var(--color-primary)]"><BriefcaseBusiness className="size-5" aria-hidden="true" /></span><div className="min-w-0 flex-1"><div className="flex flex-wrap items-start justify-between gap-2"><div className="min-w-0"><h2 className="break-words text-lg font-semibold leading-6">{row.jobTitle}</h2><p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">Mã đơn #{row.id}</p></div><StatusPill status={row.status} label={STATUS_LABELS[row.status]} /></div></div></div><div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-sm text-[var(--color-on-surface-variant)]">{meta.length > 0 && <span className="inline-flex items-center gap-1.5"><MapPin className="size-4 shrink-0" aria-hidden="true" />{meta.join(" · ")}</span>}<span className="inline-flex items-center gap-1.5"><CalendarDays className="size-4 shrink-0" aria-hidden="true" />Ứng tuyển {formatDate(row.createdAt)}</span></div><div className="mt-5"><ApplicationPipeline status={row.status} /></div></div><div className="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--color-border-default)] bg-[var(--color-surface-alt)] px-5 py-3 sm:px-6">{canWithdraw ? <button type="button" onClick={() => confirmWithdraw(row.id, row.jobTitle)} disabled={withdraw.isPending} className="inline-flex min-h-10 items-center gap-1.5 rounded-lg px-3 text-sm font-medium text-[var(--color-error)] hover:bg-[var(--color-error-container)] disabled:opacity-50"><XCircle className="size-4" aria-hidden="true" />Rút đơn</button> : <span />}<div className="flex gap-2"><Link to={`/jobs/${row.jobId}`} className="inline-flex min-h-10 items-center rounded-lg px-3 text-sm font-semibold text-[var(--color-on-surface-variant)] hover:bg-white">Xem việc</Link><Link to={`/applications/${row.id}`} className="inline-flex min-h-10 items-center gap-1 rounded-lg bg-[var(--color-primary)] px-4 text-sm font-semibold text-white hover:bg-[var(--color-primary-hover)]">Xem tiến trình<ChevronRight className="size-4" aria-hidden="true" /></Link></div></div></li>;
-      })}</ul>}
+      {rows.length > 0 && <ul className="grid gap-4 lg:grid-cols-2">{rows.map((row) =>
+        <ApplicationCard key={row.id} row={row} statusLabel={STATUS_LABELS[row.status]} withdrawing={withdraw.isPending} onWithdraw={() => confirmWithdraw(row.id, row.jobTitle)} />,
+      )}</ul>}
     </section>
   );
-}
-
-function formatDate(value: string) {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
 }

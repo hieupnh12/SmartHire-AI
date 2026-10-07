@@ -40,7 +40,7 @@ public class HumanInterviewNotificationService {
         for(var p:r.participants()) recipients.put(p.userId(),users.getReferenceById(p.userId()));
         var preview=preview(r);
         for(var user:recipients.values()) {
-            String path=user.getId().equals(candidate.getId())?"/schedules":"/recruiter/jobs/"+r.jobId()+"/interviews";
+            String path=user.getId().equals(candidate.getId())?"/interview-schedules":"/recruiter/jobs/"+r.jobId()+"/interviews";
             if(!preferences.webOff(user,NotificationCategory.HUMAN_INTERVIEW)) notifications.save(Notification.builder().user(user).type(type).title(title).body(r.jobTitle()).payloadJson("{\"interviewId\":"+r.id()+",\"path\":\""+path+"\"}").build());
             if(preferences.emailOff(user,NotificationCategory.HUMAN_INTERVIEW)) continue;
             try {

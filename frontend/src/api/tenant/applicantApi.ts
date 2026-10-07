@@ -1,6 +1,6 @@
 import { api } from "@/lib/axios";
 import type { ApiResponse } from "@/types/api";
-import type { ApplicationDetail, ApplicationPage, ApplicationSummary, HistoryView } from "../types/applicant";
+import type { ApplicationDetail, ApplicationPage, ApplicationSummary, CandidateEvaluationView, HistoryView } from "../types/applicant";
 
 export type ApplicationListParams = {
   q?: string;
@@ -37,4 +37,6 @@ export const applicantApi = {
     api.post<ApiResponse<ApplicationDetail>>(`/applications/${id}/withdraw`).then((r) => r.data),
   history: (id: number | string) =>
     api.get<ApiResponse<HistoryView[]>>(`/applications/${id}/history`).then((r) => r.data),
+  evaluation: (id: number | string) =>
+    api.get<ApiResponse<CandidateEvaluationView>>(`/applications/${id}/evaluation`).then((r) => r.data),
 };

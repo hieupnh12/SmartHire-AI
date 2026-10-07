@@ -1120,3 +1120,26 @@ Entity `LandingPageSetting` (`com.smarthire.domain.tenant.entity.LandingPageSett
 
 **Ràng buộc:** Mỗi tenant database chứa 1 bản ghi cấu hình tùy biến duy nhất phục vụ trang Career công khai.
 
+---
+
+## L. Company Email Settings (V50)
+
+### L.1 `company_email_settings` — Cấu hình tài khoản Gmail gửi thư của Tenant (V50)
+
+Entity `CompanyEmailSetting` (`com.smarthire.domain.tenant.entity.CompanyEmailSetting`), kế thừa `BaseEntity`.
+
+| Cột | Kiểu | Khoá | Null | Default | Mô tả |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | Không | auto | Mã định danh bản ghi |
+| `provider` | VARCHAR(32) | | Không | `'GMAIL'` | Nhà cung cấp dịch vụ gửi thư |
+| `mail_username` | VARCHAR(255) | | Không | — | Địa chỉ Gmail của công ty dùng để gửi thư |
+| `mail_password_encrypted` | VARCHAR(512) | | Không | — | Mật khẩu ứng dụng (Google App Password) mã hóa AES-256 GCM |
+| `from_name` | VARCHAR(128) | | Có | NULL | Tên người gửi hiển thị (Sender Display Name) |
+| `is_active` | BOOLEAN | | Không | `TRUE` | Trạng thái kích hoạt cấu hình |
+| `created_at` | TIMESTAMP | | Không | `CURRENT_TIMESTAMP` | Thời điểm tạo |
+| `updated_at` | TIMESTAMP | | Không | `CURRENT_TIMESTAMP` | Thời điểm cập nhật cuối |
+
+**Ràng buộc & Nghiệp vụ:**
+- Mỗi tenant cấu hình tài khoản Gmail riêng. Mật khẩu ứng dụng 16 ký tự được mã hóa AES-256 GCM bằng `TenantCredentialService` với AAD là `tenantCode`.
+- Bắt buộc phải có Gmail được cấu hình thành công thì công ty mới có thể gửi thư mời nhân viên và các email thông báo. Nếu chưa cấu hình, hệ thống sẽ chặn gửi và thông báo yêu cầu cấu hình trên giao diện Company.
+
