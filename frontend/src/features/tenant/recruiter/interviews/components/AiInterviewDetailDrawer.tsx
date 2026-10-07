@@ -1,23 +1,28 @@
-import { useState } from "react";
+import { ConversationTranscript } from "./ConversationTranscript";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Pencil, Plus, RefreshCw, Sparkles, Trash2, X } from "lucide-react";
+import { Bot, CalendarClock, CheckCircle2, ChevronRight, CircleAlert, Gauge, LockKeyhole, Network, Pencil, Plus, RefreshCw, ShieldCheck, Sparkles, Timer, Trash2, X, type LucideIcon } from "lucide-react";
 import { aiInterviewApi } from "@/api/tenant/aiInterviewApi";
-import { COMPETENCY_LABELS, type AiFeedback, type AiQuestion, type AiQuestionRequest, type CompetencyKey } from "@/api/types/aiInterview";
+import { COMPETENCY_LABELS, type AiAnswer, type AiFeedback, type AiInterview, type AiQuestion, type AiQuestionRequest, type CompetencyKey } from "@/api/types/aiInterview";
 import { Button } from "@/components/ux/Button";
 import { AssessmentError, FieldError, assessmentInput } from "@/components/ux/assessmentUi";
 import { queryKeys } from "@/lib/query-keys";
 import { toast } from "@/stores/toastStore";
 import { useUiStore } from "@/stores/uiStore";
 import { AI_QUESTION_TYPES, AiStatusBadge, formatDateTime } from "./aiInterviewUi";
+import { InterviewRecordingReview } from "./InterviewRecordingReview";
 import { AiInterviewReportView } from "./AiInterviewReportView";
+import { AVAILABLE_INTERVIEW_PROCESS, visibleInterviewDetails } from "../utils/interviewProcessSettings";
+import { parseChoiceAnswer } from "@/lib/interview-choice-answer";
 
 type Props = { interviewId: number; jobId: number; candidateName: string; onClose: () => void };
 
 export function AiInterviewDetailDrawer({ interviewId, jobId, candidateName, onClose }: Props) {
   const client = useQueryClient();
+  const askConfirm = useUiStore(s => s.askConfirm);
   const [showLogs, setShowLogs] = useState(false);
   const detail = useQuery({
     queryKey: queryKeys.aiInterviews.detail(interviewId),
@@ -31,58 +36,205 @@ export function AiInterviewDetailDrawer({ interviewId, jobId, candidateName, onC
   };
   const generate = useMutation({ mutationFn: () => aiInterviewApi.generate(interviewId), onSuccess: refresh });
   const score = useMutation({ mutationFn: () => aiInterviewApi.retryScore(interviewId), onSuccess: refresh });
-  const interview = detail.data;
-  const editable = !!interview && !interview.startedAt && ["CREATED", "QUESTIONS_READY", "ERROR"].includes(interview.status);
+  const interview = useMemo(() => detail.data ? visibleInterviewDetails(detail.data) : undefined, [detail.data]);
+  const availableSession = !!detail.data?.processBased && !!detail.data.roadmap?.length
+    && detail.data.roadmap.every(step => step.title.trim().toUpperCase() === AVAILABLE_INTERVIEW_PROCESS);
+  const editable = availableSession && !!interview && !interview.startedAt && ["CREATED", "QUESTIONS_READY", "ERROR"].includes(interview.status);
   // Roadmap-based sessions keep their generated slots; only open-question wording can be edited.
   const planned = !!interview?.questions.some(q => q.stageTitle);
+  const stageGroups = useMemo(() => interview ? groupQuestionsByStage(interview) : [], [interview]);
   const busy = generate.isPending || score.isPending;
-  return <div className="fixed inset-0 z-[60] flex justify-end bg-slate-950/40 backdrop-blur-sm" role="presentation" onClick={onClose}>
-    <aside role="dialog" aria-modal="true" aria-labelledby="ai-interview-detail-title" className="flex h-full w-full max-w-2xl flex-col overflow-y-auto bg-surface-card shadow-2xl" onClick={e => e.stopPropagation()}>
-      <header className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-[var(--color-border-default)] bg-surface-card px-6 py-4">
-        <div className="min-w-0"><p className="font-mono text-xs text-[var(--color-on-surface-variant)]">#AI-{interviewId}</p><h2 id="ai-interview-detail-title" className="truncate text-xl font-semibold">{candidateName}</h2></div>
-        <Button variant="ghost" aria-label="Đóng" onClick={onClose}><X className="size-4" aria-hidden="true" /></Button>
+  return <div className="fixed inset-0 z-[60] flex justify-end bg-slate-950/45 backdrop-blur-[2px]" role="presentation" onClick={onClose}>
+    <aside role="dialog" aria-modal="true" aria-labelledby="ai-interview-detail-title" className="flex h-full w-full max-w-[min(1440px,calc(100vw-24px))] flex-col overflow-y-auto bg-[var(--color-surface)] shadow-2xl" onClick={e => e.stopPropagation()}>
+      <header className="sticky top-0 z-20 flex min-h-[96px] items-center justify-between gap-4 border-b border-[var(--color-border-default)] bg-[var(--color-surface-card)]/95 px-5 py-4 backdrop-blur-xl sm:px-8">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--color-primary-soft)] px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-[var(--color-primary)]"><span className="size-1.5 rounded-full bg-[var(--color-primary)]" />AI Interview Session</span>
+            <span className="font-mono text-xs text-[var(--color-on-surface-variant)]">#AI-{interviewId}</span>
+            {interview && <AiStatusBadge status={interview.status} />}
+            {interview?.jobTitle && <span className="hidden rounded-full bg-[var(--color-surface-container)] px-2.5 py-1 text-xs text-[var(--color-on-surface-variant)] sm:inline-flex">{interview.jobTitle}</span>}
+          </div>
+          <h2 id="ai-interview-detail-title" className="mt-2 truncate text-xl font-semibold tracking-tight sm:text-2xl">Chi tiết phiên · <span className="text-[var(--color-primary)]">{candidateName}</span></h2>
+        </div>
+        <button type="button" aria-label="Đóng chi tiết phiên" onClick={onClose} className="grid size-11 shrink-0 place-items-center rounded-xl text-[var(--color-on-surface-variant)] transition-colors hover:bg-[var(--color-surface-container-low)] hover:text-[var(--color-on-surface)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]/30">
+          <X className="size-5" aria-hidden="true" />
+        </button>
       </header>
-      <div className="space-y-6 p-6">
+      <div className="mx-auto w-full max-w-[1440px] space-y-6 p-4 sm:p-8">
         <AssessmentError error={detail.error} retry={() => void detail.refetch()} />
         {detail.isPending && <p role="status">Đang tải phiên phỏng vấn…</p>}
         {interview && <>
-          <section className="space-y-4 rounded-2xl bg-[var(--color-surface-container-low)] p-4">
-            <div className="flex flex-wrap items-center gap-3" role="status"><AiStatusBadge status={interview.status} /><span className="text-xs text-[var(--color-on-surface-variant)]">Tạo {formatDateTime(interview.createdAt)}</span></div>
-            <dl className="grid grid-cols-2 gap-4 text-sm">
-              <div><dt>Bắt đầu</dt><dd>{formatDateTime(interview.startedAt)}</dd></div>
-              <div><dt>Hoàn tất</dt><dd>{formatDateTime(interview.completedAt)}</dd></div>
-              <div><dt>Đơn ứng tuyển</dt><dd>#{interview.applicationId}</dd></div>
-              <div><dt>Ngưỡng đạt</dt><dd>{interview.passingScore ?? "—"}/100</dd></div>
-              <div><dt>Điểm AI</dt><dd className="font-semibold">{interview.overallScore == null ? "Chưa có điểm" : `${interview.overallScore}/100`}</dd></div>
-              <div><dt>Câu hỏi đã chuẩn bị</dt><dd>{interview.questions.length}/{interview.questionCount}</dd></div>
-              <div><dt>Lần làm</dt><dd>{interview.attemptNumber ?? 1}{interview.canRetry ? " · còn lượt làm lại" : ""}</dd></div>
-              {interview.expiresAt && <div><dt>Hạn nộp bài</dt><dd>{formatDateTime(interview.expiresAt)}</dd></div>}
+          <PipelineStrip passed={interview.status === "PASSED"} />
+
+          <section className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-5 shadow-sm sm:p-6">
+            <div className="flex flex-col gap-3 border-b border-[var(--color-border-default)] pb-5 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-[var(--color-primary-soft)] text-[var(--color-primary)]"><Gauge className="size-5" aria-hidden="true" /></span><div><h3 className="text-lg font-semibold">Thông số phiên AI Interview</h3><p className="text-sm text-[var(--color-on-surface-variant)]">Cấu hình snapshot và trạng thái vận hành của phiên ứng viên.</p></div></div>
+              <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-[var(--color-secondary-container)] px-3 py-1.5 text-xs font-semibold text-[var(--color-on-secondary-container)]"><ShieldCheck className="size-4" aria-hidden="true" />Snapshot Policy Active</span>
+            </div>
+            <dl className="grid gap-3 pt-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+              <Metric icon={Network} label="Quy trình & câu hỏi" value={`${interview.roadmap?.length ?? 0} chặng / ${interview.questions.length}/${interview.questionCount} câu`} hint="Phân bổ theo từng chặng độc lập" />
+              <Metric icon={Timer} label="Thời lượng phiên" value={`${interview.durationMinutes ?? "—"} phút`} hint="Đếm ngược theo snapshot duration" />
+              <Metric icon={Gauge} label="Điểm đạt" value={`${interview.passingScore ?? "—"}/100`} hint="Đạt ngưỡng để mở vòng Assessment" emphasized />
+              <Metric icon={RefreshCw} label="Lượt thi tối đa" value={`${interview.maxAttempts ?? interview.attemptNumber ?? 1} lần`} hint={`Đang ở lần ${interview.attemptNumber ?? 1}`} />
+              <Metric icon={CalendarClock} label="Khung mở phòng" value={`${formatDateTime(interview.availableFrom)} → ${formatDateTime(interview.availableUntil)}`} hint="Thời gian ứng viên được phép bắt đầu" />
+              <Metric icon={Bot} label="Trạng thái phiên" value={interview.status} hint={`Tạo ${formatDateTime(interview.createdAt)}`} />
             </dl>
-            <p className="text-sm text-[var(--color-on-surface-variant)]">Trạng thái tự cập nhật theo câu hỏi, bài làm và kết quả AI. Bộ câu hỏi sẵn sàng khi đủ số lượng đã cấu hình cho Job.</p>
-            {interview.errorMessage && <p role="alert">{interview.errorMessage}</p>}
-            {interview.status === "GENERATING" && <p role="status">Đang sinh câu hỏi từ yêu cầu và kỹ năng của Job…</p>}
-            {interview.status === "ERROR" && interview.completedAt && <Button disabled={score.isPending} onClick={() => score.mutate()}><RefreshCw className="size-4" aria-hidden="true" />Thử chấm điểm lại</Button>}
+
+            <div className="mt-5 space-y-3">
+              {interview.errorMessage && <div role="alert" className="flex items-start gap-2 rounded-xl border border-[#ba1a1a]/20 bg-[#ffdad6]/55 p-3 text-sm text-[#93000a]"><CircleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" /><span>{interview.errorMessage}</span></div>}
+              {interview.status === "GENERATING" && <div role="status" className="flex items-center gap-2 rounded-xl bg-[var(--color-primary-soft)] p-3 text-sm font-medium text-[var(--color-primary)]"><Sparkles className="size-4 animate-pulse motion-reduce:animate-none" aria-hidden="true" />Đang sinh câu hỏi từ yêu cầu và kỹ năng của Job…</div>}
+              {availableSession && interview.status === "ERROR" && interview.completedAt && <Button disabled={score.isPending} onClick={() => score.mutate()}><RefreshCw className="size-4" aria-hidden="true" />Thử chấm điểm lại</Button>}
+            </div>
           </section>
           <AssessmentError error={generate.error ?? score.error} />
+          {interview.conversational && interview.completedAt && <ConversationTranscript interviewId={interviewId} />}
           <AiInterviewReportView reportJson={interview.reportJson} questions={interview.questions} />
-          <section className="space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3"><h3 className="font-semibold">Câu hỏi ({interview.questions.length})</h3>
-              {editable && interview.questions.length === 0 && <Button variant="secondary" disabled={busy} onClick={() => generate.mutate()}><Sparkles className="size-4" aria-hidden="true" />{generate.isPending ? "Đang gửi yêu cầu…" : "Sinh câu hỏi bằng AI"}</Button>}
+          <div className="grid items-start gap-6 lg:grid-cols-12">
+          {!interview.conversational && <section className="space-y-4 rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-4 shadow-sm sm:p-6 lg:col-span-8">
+            <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-lg font-semibold tracking-tight">Câu hỏi ({interview.questions.length})</h3><p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">Nội dung, câu trả lời và đánh giá theo từng câu hỏi.</p></div>
+              {editable && !interview.conversational && (interview.questions.length === 0 || interview.processBased) && <Button variant="secondary" disabled={busy} onClick={() => {
+                if (!interview.questions.length) { generate.mutate(); return; }
+                askConfirm({ title: "Sinh lại bộ câu hỏi nháp?", description: "AI sẽ dùng cấu hình đã lưu của phiên. Chỉ thay câu hỏi nháp chưa trả lời khi bộ mới hợp lệ; giữ nguyên lượt phỏng vấn.", confirmLabel: "Sinh lại", onConfirm: async () => { await generate.mutateAsync(); } });
+              }}><Sparkles className="size-4" aria-hidden="true" />{generate.isPending ? "Đang gửi yêu cầu…" : interview.questions.length ? "Sinh lại theo cấu hình" : "Sinh câu hỏi bằng AI"}</Button>}
             </div>
-            {!interview.questions.length && interview.status !== "GENERATING" && <p className="text-sm">Chưa có câu hỏi.</p>}
-            <ol className="space-y-3">{interview.questions.map((question, index) => <QuestionItem key={question.id} index={index} interviewId={interviewId} question={question} editable={editable && !busy} onChanged={refresh} />)}</ol>
+            {!interview.questions.length && !stageGroups.length && interview.status !== "GENERATING" && <p className="text-sm">Chưa có lộ trình hoặc câu hỏi Communication.</p>}
+            <ol className="space-y-5" aria-label="Lộ trình và câu hỏi phỏng vấn">
+              {stageGroups.map((stage, stageIndex) => <StageQuestionGroup
+                key={`${stage.title}-${stageIndex}`}
+                stage={stage}
+                stageIndex={stageIndex}
+                interviewId={interviewId}
+                allQuestions={interview.questions}
+                completed={!!interview.completedAt}
+                editable={editable && !busy}
+                onChanged={refresh}
+              />)}
+            </ol>
             {editable && !busy && !planned && <AddQuestionForm interviewId={interviewId} nextOrder={Math.max(-1, ...interview.questions.map(q => q.questionOrder)) + 1} onAdded={refresh} />}
-          </section>
-          <details onToggle={event => setShowLogs(event.currentTarget.open)} className="rounded-xl border border-[var(--color-border-default)] p-4">
-            <summary className="cursor-pointer font-medium">Lịch sử xử lý AI Interview</summary>
+          </section>}
+          <div className={`space-y-5 ${interview.conversational ? "lg:col-span-12" : "lg:sticky lg:top-28 lg:col-span-4"}`}>
+          <SessionGovernance interview={interview} />
+          <details onToggle={event => setShowLogs(event.currentTarget.open)} className="group rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-4 shadow-sm sm:p-5">
+            <summary className="cursor-pointer list-none rounded-lg font-semibold outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]/30 [&::-webkit-details-marker]:hidden"><span className="inline-flex items-center gap-2"><ChevronRight className="size-4 text-[var(--color-primary)] transition-transform group-open:rotate-90 motion-reduce:transition-none" aria-hidden="true" />Lịch sử xử lý AI Interview</span></summary>
             <AssessmentError error={logs.error} retry={() => void logs.refetch()} />
             {showLogs && logs.isPending && <p role="status">Đang tải lịch sử…</p>}
             <ol className="mt-3 space-y-3">{logs.data?.map(log => <li key={log.id} className="text-sm"><p className="font-medium">{log.event} · {formatDateTime(log.createdAt)}</p><p className="break-words text-[var(--color-on-surface-variant)]">{log.detail}</p></li>)}</ol>
           </details>
+          </div>
+          </div>
         </>}
       </div>
     </aside>
   </div>;
+}
+
+type StageGroup = {
+  title: string;
+  kind: "OPEN" | "MCQ" | "MIXED";
+  configuredCount: number;
+  questions: AiQuestion[];
+};
+
+function groupQuestionsByStage(interview: AiInterview): StageGroup[] {
+  const normalize = (value: string | null | undefined) => value?.trim().toLocaleLowerCase() ?? "";
+  const assigned = new Set<number>();
+  const groups: StageGroup[] = (interview.roadmap ?? []).map(step => {
+    const questions = interview.questions.filter(question => normalize(question.stageTitle) === normalize(step.title));
+    questions.forEach(question => assigned.add(question.id));
+    return { title: step.title, kind: step.kind, configuredCount: step.questionCount, questions };
+  });
+
+  const namedStages = new Map<string, AiQuestion[]>();
+  interview.questions.filter(question => !assigned.has(question.id) && question.stageTitle).forEach(question => {
+    const title = question.stageTitle!.trim();
+    namedStages.set(title, [...(namedStages.get(title) ?? []), question]);
+    assigned.add(question.id);
+  });
+  namedStages.forEach((questions, title) => groups.push({ title, kind: stageKind(questions), configuredCount: questions.length, questions }));
+
+  const unassigned = interview.questions.filter(question => !assigned.has(question.id));
+  if (unassigned.length > 0) groups.push({ title: "Câu hỏi bổ sung", kind: stageKind(unassigned), configuredCount: unassigned.length, questions: unassigned });
+  return groups;
+}
+
+function stageKind(questions: AiQuestion[]): StageGroup["kind"] {
+  const mcqCount = questions.filter(question => question.options?.length).length;
+  if (mcqCount === 0) return "OPEN";
+  if (mcqCount === questions.length) return "MCQ";
+  return "MIXED";
+}
+
+function StageQuestionGroup({ stage, stageIndex, interviewId, allQuestions, editable, completed, onChanged }: {
+  stage: StageGroup;
+  stageIndex: number;
+  interviewId: number;
+  allQuestions: AiQuestion[];
+  completed: boolean;
+  editable: boolean;
+  onChanged: () => void;
+}) {
+  const kindLabel = stage.kind === "MCQ" ? "Trắc nghiệm" : stage.kind === "OPEN" ? "Tự luận" : "Kết hợp";
+  const complete = stage.questions.length >= stage.configuredCount && stage.configuredCount > 0;
+  return <li className="overflow-hidden rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] shadow-sm transition-shadow hover:shadow-md">
+    <header className="flex flex-col gap-4 border-b border-[var(--color-border-default)] bg-[var(--color-surface-container-low)]/70 p-4 sm:flex-row sm:items-start sm:justify-between sm:p-5">
+      <div className="flex min-w-0 items-start gap-3">
+        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[var(--color-primary)] text-sm font-bold text-white">{String(stageIndex + 1).padStart(2, "0")}</span>
+        <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><span className="rounded-full bg-[var(--color-primary-soft)] px-2.5 py-1 font-mono text-[10px] font-bold uppercase tracking-wider text-[var(--color-primary)]">Lộ trình {String(stageIndex + 1).padStart(2, "0")}</span><span className="rounded-md bg-[var(--color-surface-container)] px-2 py-1 text-[10px] font-semibold uppercase text-[var(--color-on-surface-variant)]">{kindLabel}</span></div><h4 className="mt-2 text-base font-semibold leading-6 sm:text-lg">{stage.title}</h4><p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">Chặng đánh giá độc lập · câu hỏi và rubric được AI tạo theo cấu hình snapshot.</p></div>
+      </div>
+      <span className={`inline-flex w-fit shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold ${complete ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}><span className="size-1.5 rounded-full bg-current" />{stage.questions.length}/{stage.configuredCount} câu đã tạo</span>
+    </header>
+    <div className="space-y-3 p-3 sm:p-5">
+      {stage.questions.length > 0 ? <ol className="space-y-3">{stage.questions.map(question => <QuestionItem key={question.id} index={allQuestions.findIndex(item => item.id === question.id)} interviewId={interviewId} question={question} completed={completed} editable={editable} onChanged={onChanged} />)}</ol> : <div className="rounded-xl border border-dashed border-[var(--color-outline-variant)] bg-[var(--color-surface-container-low)]/40 px-4 py-8 text-center"><Sparkles className="mx-auto size-5 text-[var(--color-primary)]" aria-hidden="true" /><p className="mt-2 text-sm font-medium">AI chưa tạo câu hỏi cho lộ trình này</p><p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">Dự kiến {stage.configuredCount} câu · {kindLabel}</p></div>}
+    </div>
+  </li>;
+}
+
+function PipelineStrip({ passed }: { passed: boolean }) {
+  const steps = [
+    { label: "CV Screening", meta: "Vòng 1 · Đã vượt qua", icon: CheckCircle2, state: "done" },
+    { label: "AI Interview", meta: "Vòng 2 · Đang theo dõi", icon: Bot, state: "active" },
+    { label: "Assessment Lab", meta: passed ? "Vòng 3 · Đã mở khóa" : "Mở khóa khi đạt AI Interview", icon: passed ? CheckCircle2 : LockKeyhole, state: passed ? "done" : "locked" },
+    { label: "Tuyển dụng & Offer", meta: "Giai đoạn cuối", icon: LockKeyhole, state: "locked" },
+  ] as const;
+  return (
+    <section aria-label="Tiến trình tuyển dụng" className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-container-low)]/75 p-4">
+      <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between"><h3 className="flex items-center gap-2 text-sm font-semibold"><Network className="size-4 text-[var(--color-primary)]" aria-hidden="true" />Tiến trình Pipeline tuyển dụng</h3><p className="text-xs text-[var(--color-on-surface-variant)]">Vòng sau chỉ mở khi ứng viên đạt vòng trước.</p></div>
+      <ol className="grid gap-2 md:grid-cols-4">
+        {steps.map((step, index) => {
+          const Icon = step.icon;
+          const active = step.state === "active";
+          return <li key={step.label} className={`flex min-h-20 items-center gap-3 rounded-xl border p-3 ${active ? "border-2 border-[var(--color-primary)] bg-[var(--color-primary-soft)] shadow-sm" : "border-[var(--color-border-default)] bg-[var(--color-surface-card)]"}`}>
+            <span className={`grid size-8 shrink-0 place-items-center rounded-full text-xs font-bold ${active ? "bg-[var(--color-primary)] text-white" : step.state === "done" ? "bg-[var(--color-primary-soft)] text-[var(--color-primary)]" : "bg-[var(--color-surface-container)] text-[var(--color-outline)]"}`}>{active ? index + 1 : <Icon className="size-4" aria-hidden="true" />}</span>
+            <span className="min-w-0"><span className={`block text-[10px] font-semibold uppercase tracking-wider ${active ? "text-[var(--color-primary)]" : "text-[var(--color-on-surface-variant)]"}`}>{step.meta}</span><span className="mt-0.5 block truncate text-sm font-semibold">{step.label}</span></span>
+          </li>;
+        })}
+      </ol>
+    </section>
+  );
+}
+
+function SessionGovernance({ interview }: { interview: AiInterview }) {
+  const rows = [
+    ["Đơn ứng tuyển", `#${interview.applicationId}`],
+    ["Ứng viên", interview.candidateId ? `#${interview.candidateId}` : "—"],
+    ["Điểm AI", interview.overallScore == null ? "Chưa có điểm" : `${interview.overallScore}/100`],
+    ["Bắt đầu thực tế", formatDateTime(interview.startedAt)],
+    ["Hoàn tất", formatDateTime(interview.completedAt)],
+    ["Hạn nộp bài", formatDateTime(interview.expiresAt)],
+  ];
+  return <section className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-5 shadow-sm">
+    <div className="flex items-center gap-3"><span className="grid size-9 place-items-center rounded-xl bg-[var(--color-surface-container)] text-[var(--color-primary)]"><ShieldCheck className="size-5" aria-hidden="true" /></span><div><h3 className="font-semibold">Quản trị phiên</h3><p className="text-xs text-[var(--color-on-surface-variant)]">Dữ liệu thực tế và điều kiện khóa phiên.</p></div></div>
+    <dl className="mt-4 space-y-2 rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-container-low)]/60 p-3 text-xs">{rows.map(([label, value]) => <div key={label} className="flex items-start justify-between gap-3"><dt className="text-[var(--color-on-surface-variant)]">{label}</dt><dd className="text-right font-semibold text-[var(--color-on-surface)]">{value}</dd></div>)}</dl>
+  </section>;
+}
+
+function Metric({ icon: Icon, label, value, hint, emphasized = false }: { icon: LucideIcon; label: string; value: string; hint: string; emphasized?: boolean }) {
+  return (
+    <div className="flex min-h-32 flex-col justify-between rounded-xl bg-[var(--color-surface-container-low)] p-4">
+      <div><dt className="flex items-center justify-between gap-1.5 text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--color-on-surface-variant)]"><span>{label}</span><Icon className="size-4 text-[var(--color-primary)]" aria-hidden="true" /></dt><dd className={`mt-2 break-words text-base font-bold leading-5 ${emphasized ? "text-[var(--color-primary)]" : "text-[var(--color-on-surface)]"}`}>{value}</dd></div>
+      <p className="mt-3 text-[11px] leading-4 text-[var(--color-on-surface-variant)]">{hint}</p>
+    </div>
+  );
 }
 
 const questionSchema = z.object({
@@ -176,7 +328,7 @@ function AddQuestionForm({ interviewId, nextOrder, onAdded }: { interviewId: num
   );
 }
 
-function QuestionItem({ index, interviewId, question, editable, onChanged }: { index: number; interviewId: number; question: AiQuestion; editable: boolean; onChanged: () => void }) {
+function QuestionItem({ index, interviewId, question, editable, completed, onChanged }: { completed: boolean; index: number; interviewId: number; question: AiQuestion; editable: boolean; onChanged: () => void }) {
   const askConfirm = useUiStore((s) => s.askConfirm);
   const [editing, setEditing] = useState(false);
   const update = useMutation({
@@ -189,10 +341,10 @@ function QuestionItem({ index, interviewId, question, editable, onChanged }: { i
   const answer = question.answer;
   const planned = !!question.stageTitle;
   const mcq = !!question.options?.length;
-  const tags = [...(question.competencies ?? []).map(key => COMPETENCY_LABELS[key as CompetencyKey] ?? key), ...(question.skills ?? [])];
+  const tags = [...(question.competencies ?? []).filter(key => key === AVAILABLE_INTERVIEW_PROCESS).map(key => COMPETENCY_LABELS[key as CompetencyKey] ?? key), ...(question.skills ?? [])];
 
   return (
-    <li className="space-y-3 rounded-xl border border-[var(--color-border-default)] p-4">
+    <li className="space-y-4 rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-4 transition-[border-color,box-shadow] hover:border-[var(--color-primary)]/25 hover:shadow-sm sm:p-5">
       {editing && editable ? (
         <>
           <AssessmentError error={update.error} />
@@ -208,11 +360,12 @@ function QuestionItem({ index, interviewId, question, editable, onChanged }: { i
       ) : (
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-xs text-[var(--color-on-surface-variant)]">Câu {index + 1} · {planned ? question.stageTitle : `${question.questionType} · thứ tự ${question.questionOrder}`}{mcq ? " · Trắc nghiệm" : ""}</p>
-            <p className="mt-1 whitespace-pre-wrap break-words text-sm font-medium">{question.questionText}</p>
+            <p className="inline-flex flex-wrap items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-[var(--color-primary)]"><span className="grid size-6 place-items-center rounded-lg bg-[var(--color-primary-soft)]">{index + 1}</span>{planned ? question.stageTitle : `${question.questionType} · thứ tự ${question.questionOrder}`}{mcq ? " · Trắc nghiệm" : ""}</p>
+            <p className="mt-3 whitespace-pre-wrap break-words text-sm font-semibold leading-6">{question.questionText}</p>
             {tags.length > 0 && <ul className="mt-2 flex flex-wrap gap-1" aria-label="Tiêu chí đánh giá">{tags.map(tag => <li key={tag} className="rounded-full bg-[var(--color-surface-container-low)] px-2 py-0.5 text-xs">{tag}</li>)}</ul>}
-            {mcq && <ol className="mt-2 space-y-1 text-sm">{question.options!.map((option, i) => <li key={i} className={question.correctOption === i ? "font-semibold text-brand-primary" : ""}>
-              {String.fromCharCode(65 + i)}. {option}{question.correctOption === i ? " (đáp án đúng)" : ""}{answer?.answerText === String(i) ? " · ứng viên chọn" : ""}</li>)}</ol>}
+            {mcq && <ol className="mt-2 space-y-1 text-sm">{question.options!.map((option, i) => <li key={i} className={question.correctOption === i || question.correctOptions?.includes(i) ? "font-semibold text-brand-primary" : ""}>
+              {String.fromCharCode(65 + i)}. {option}{question.correctOption === i || question.correctOptions?.includes(i) ? " (đáp án đúng)" : ""}{parseChoiceAnswer(answer?.answerText).selectedOptions.includes(i) ? " · ứng viên chọn" : ""}</li>)}</ol>}
+            {mcq && parseChoiceAnswer(answer?.answerText).explanation && <p className="mt-2 whitespace-pre-wrap text-sm">Ứng viên giải thích: {parseChoiceAnswer(answer?.answerText).explanation}</p>}
             {mcq && question.explanation && <p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">Giải thích: {question.explanation}</p>}
           </div>
           {editable && !(planned && mcq) && <div className="flex shrink-0 gap-1">
@@ -248,7 +401,8 @@ function QuestionItem({ index, interviewId, question, editable, onChanged }: { i
             </p>
             <p className="mt-1 whitespace-pre-wrap break-words text-sm">{!answer.answerText ? "Bỏ trống (0 điểm)" : mcq ? `Chọn ${String.fromCharCode(65 + Number(answer.answerText))}` : answer.answerText}</p>
           </div>
-          <FeedbackView feedback={answer.feedback} />
+          <FeedbackView feedback={answer.feedback} answer={answer} />
+          {completed && <InterviewRecordingReview interviewId={interviewId} answerId={answer.id} />}
         </div>
       ) : (
         <p className="text-xs italic text-[var(--color-on-surface-variant)]">Ứng viên chưa trả lời.</p>
@@ -257,12 +411,27 @@ function QuestionItem({ index, interviewId, question, editable, onChanged }: { i
   );
 }
 
-function FeedbackView({ feedback }: { feedback: AiFeedback | null }) {
-  if (!feedback) return <p className="text-sm text-[var(--color-on-surface-variant)]">Chưa có đánh giá AI.</p>;
+function FeedbackView({ feedback, answer }: { feedback: AiFeedback | null; answer: AiAnswer }) {
+  let metrics: { durationMs?: number; voicedMs?: number; silenceMs?: number; pauseCount?: number; responseLatencyMs?: number | null } | undefined;
+  let wordsPerMinute: number | undefined;
+  try { const evaluation = JSON.parse(feedback?.evaluationJson ?? "{}"); metrics = evaluation.speechMetrics; wordsPerMinute = evaluation.wordsPerMinute; } catch { /* Historical feedback may have no structured evaluation. */ }
+  if (answer.speechMetrics) {
+    metrics = answer.speechMetrics;
+    wordsPerMinute = metrics.voicedMs && answer.answerText?.trim() ? answer.answerText.trim().split(/\s+/).length * 60000 / metrics.voicedMs : undefined;
+  }
   return <div className="space-y-2 text-sm">
+    {feedback ? <>
     <p className="font-semibold">Đánh giá AI · {feedback.score ?? "—"}/100</p>
     <p className="whitespace-pre-wrap">{feedback.feedbackText}</p>
     {feedback.strengths && <p><strong>Điểm mạnh:</strong> {feedback.strengths}</p>}
     {feedback.weaknesses && <p><strong>Cần cải thiện:</strong> {feedback.weaknesses}</p>}
+    </> : <p className="text-[var(--color-on-surface-variant)]">Chưa có đánh giá AI.</p>}
+    {metrics && <div className="rounded-lg border border-[var(--color-border-default)] p-3">
+      <p className="font-medium">Tín hiệu lời nói (tham khảo)</p>
+      <p>Thời lượng: {((metrics.durationMs ?? 0) / 1000).toFixed(1)}s · Thời gian nói: {((metrics.voicedMs ?? 0) / 1000).toFixed(1)}s · Khoảng dừng ≥ 0,6s: {metrics.pauseCount ?? 0}</p>
+      <p>Im lặng: {((metrics.silenceMs ?? 0) / 1000).toFixed(1)}s · Tỷ lệ có tiếng nói: {metrics.durationMs ? `${Math.round((metrics.voicedMs ?? 0) * 100 / metrics.durationMs)}%` : "Chưa đủ dữ liệu"}</p>
+      <p>Phản hồi: {metrics.responseLatencyMs == null ? "Chưa đủ dữ liệu" : `${(metrics.responseLatencyMs / 1000).toFixed(1)}s`}{wordsPerMinute != null && ` · Tốc độ: ${Math.round(wordsPerMinute)} từ/phút nói`}</p>
+      <p className="text-xs text-[var(--color-on-surface-variant)]">Ước lượng từ tín hiệu micro của trình duyệt; môi trường và chất lượng micro có thể ảnh hưởng. Không cộng tự động vào điểm nội dung.</p>
+    </div>}
   </div>;
 }

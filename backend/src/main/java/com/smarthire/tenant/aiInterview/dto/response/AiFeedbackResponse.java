@@ -10,5 +10,5 @@ public record AiFeedbackResponse(
         String feedbackText,
         String strengths,
         String weaknesses,
-        Instant createdAt) {
+        Instant createdAt, String evaluationJson) {
 }

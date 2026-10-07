@@ -15,7 +15,7 @@ Tạo/làm bài trắc nghiệm kỹ thuật gắn job/stage.
 ## Luồng hoạt động
 
 1. Staff tạo đề nháp, thêm/sửa/xóa câu hỏi kèm options, publish đề hợp lệ.
-2. Staff mở hồ sơ ứng viên (Quản lý ứng viên), chọn đề đã publish của job và bấm "Gửi cho ứng viên": đơn ở INTERVIEW được chuyển sang ASSESSMENT (ghi lịch sử trạng thái, gắn stage "Assessment" nếu job có), ứng viên nhận thông báo `ASSESSMENT_INVITATION` và email kèm link `/candidate/assessments?applicationId=...`.
+2. Staff mở hồ sơ ứng viên (Quản lý ứng viên), chọn đề đã publish của job và bấm "Gửi cho ứng viên": đơn ở INTERVIEW được chuyển sang ASSESSMENT (ghi lịch sử trạng thái, gắn stage "Assessment" nếu job có), ứng viên nhận thông báo `ASSESSMENT_INVITATION` và email kèm link `/assessments?applicationId=...`.
 3. Candidate dùng applicationId của mình để start/resume đề thuộc cùng job, khi đơn ở ASSESSMENT hoặc INTERVIEW.
 4. Candidate lưu từng nhóm đáp án, tải lại tiến độ, submit để chấm trắc nghiệm và xem điểm.
 5. Staff xem bài làm và kết quả; hệ thống không tự đổi trạng thái đơn ứng tuyển.
@@ -137,6 +137,7 @@ Kiểm chứng ngày 2026-09-24: 33 test assessment/multitenancy đạt, trong �
 
 ## UI mockup
 
+- Màn hình recruiter **Xem đề**: thẻ tổng quan trạng thái, thời lượng, số câu/tổng điểm và ngưỡng đạt; cột thông tin Job/mô tả gọn bên trái, từng câu hỏi trong thẻ riêng bên phải. Câu hỏi có nhãn loại bài/độ khó/kỹ năng; phương án đánh chữ A–B–C–D, đáp án đúng có nền nhấn và nhãn chữ, giải thích ở vùng riêng. Mobile xếp một cột; thao tác sửa/xóa/xuất bản của bản nháp giữ nguyên.
 Kiểm chứng bản sửa Candidate ngày 2026-09-29: `frontend/tests/assessment-types.browser.cjs` đạt với API fixture cho đề trộn MCQ/MULTIPLE_CHOICE/ESSAY: đúng trường payload, lỗi lưu và retry, bỏ chọn, khôi phục sau reload, tự luận, mobile không tràn ngang và lưu đáp án mới nhất trước nộp. Chưa kiểm thử E2E backend thật. Build toàn frontend còn bị chặn bởi lỗi TypeScript ngoài phần sửa.
 
 - Google Stitch: **FE-05 Online Technical Assessment / Multiple Choice Test** — _[dán link]_
@@ -144,9 +145,66 @@ Kiểm chứng bản sửa Candidate ngày 2026-09-29: `frontend/tests/assessmen
 - Recruiter: `/recruiter/assessments`, `/new`, `/:id`; danh sách phân trang, thông tin đề, CRUD câu hỏi/options, chọn đáp án đúng, publish khóa sửa.
 - Theo dõi bài làm: `/recruiter/jobs/:id/assessments/submissions` (nút "Theo dõi bài làm" trên trang bài đánh giá) liệt kê lượt làm của mọi đề trong job với tab Đang làm bài / Đã nộp / Hết thời gian, tìm theo ứng viên, lọc theo đề, thời gian còn lại và điểm; tự làm mới mỗi 15 giây.
 - Ngân hàng câu hỏi: `/recruiter/assessments/question-bank` tổng hợp câu MCQ theo bộ sưu tập, vị trí và bộ lọc; mở đề gốc để sửa. Độ khó/kỹ năng/giải thích lưu trên `questions` (V13). Yêu thích lưu trên trình duyệt. Coding / nhiều đáp án / tự luận vẫn ngoài phạm vi ASSESS-01.
-- Candidate: `/candidate/assessments` chọn đơn hợp lệ; `/:submissionId/take` có radio cho MCQ, checkbox cho nhiều đáp án, ô tự luận với bộ đếm ký tự, điều hướng, tiến độ, tự lưu/retry, timer, xác nhận nộp và điểm tổng (bài tự luận hiển thị đang chấm). Tự luận chỉ có khoảng trắng không được tính là đã trả lời.
+- Candidate: `/assessments` chọn đơn hợp lệ; `/assessments/:submissionId/take` có radio cho MCQ, checkbox cho nhiều đáp án, ô tự luận với bộ đếm ký tự, điều hướng, tiến độ, tự lưu/retry, timer, xác nhận nộp và điểm tổng (bài tự luận hiển thị đang chấm). Tự luận chỉ có khoảng trắng không được tính là đã trả lời.
 - Query key assessment phân biệt tenant/user; Axios hiện có gắn token và tenant header. Server state dùng TanStack Query, form dùng React Hook Form + Zod.
 
 ## Phụ thuộc
 
 JOB-04
+
+### Ngân hàng câu hỏi chung recruiter
+
+- Trạng thái: `Doing` (API ngân hàng, cấu hình và tạo assessment tự động từ câu theo skill đã triển khai; cần kiểm chứng rollout MySQL/RabbitMQ và E2E).
+- Route `/recruiter/question-bank`: đọc câu độc lập và toàn bộ câu của các assessment trong cùng tenant. Không tạo bài assessment để lưu câu độc lập. Câu thêm trong assessment/job hiện có tự xuất hiện trong danh sách chung qua truy vấn, không sao chép.
+- Ngân hàng riêng `/recruiter/jobs/:id/assessments/question-bank` dùng cùng nguồn API chung: giữ các câu đã thuộc job và bổ sung câu có nhãn skill khớp ít nhất một skill của job (trim, không phân biệt hoa/thường, khớp nguyên tên; không suy đoán từ nội dung). Câu chung/câu của job khác đã lưu trữ không được bổ sung. Job chưa có skill chỉ hiển thị câu đã thuộc job. Không sao chép câu hoặc tự tạo assessment; liên kết sửa dẫn tới câu chung hoặc assessment gốc đúng job. Cache dùng chung theo tenant/user, được invalidate sau khi lưu câu hỏi; thay đổi skill job lọc lại danh sách theo dữ liệu job mới.
+- Nhóm route `/recruiter/question-bank/**` dùng không gian làm việc tập trung, không hiển thị header và thanh điều hướng của recruiter; nội dung trang vẫn kế thừa tenant theme từ `RoleShell`.
+- Bảng danh sách dùng mật độ compact: gộp mã/trạng thái vào cột câu hỏi, nội dung dài hiển thị một dòng và mở drawer để xem đầy đủ; kỹ năng dư được thu gọn thành bộ đếm.
+- Header ngân hàng chung dùng bố cục compact gồm breadcrumb, tiêu đề/mô tả ngắn và nhóm thao tác; không lặp tổng số câu hỏi ở phần đầu trang. Tổng số chỉ hiển thị trong vùng kết quả/phân trang.
+- Phân trang ngân hàng chung hỗ trợ 10/25/50 hàng, giữ `page` và `size` trên URL khi tải lại, hiển thị cửa sổ số trang quanh trang hiện tại và cho phép về trang đầu/cuối. Client chỉ gọi đúng trang đang dùng; tìm kiếm, bộ lọc và sắp xếp được gửi lên API trước khi phân trang. Khi tải trang kế tiếp, bảng bỏ dữ liệu trang cũ và hiện `LoadingState` + `TableSkeleton` với hiệu ứng shimmer dùng chung toàn dự án; các nút phân trang và chọn số hàng bị khóa/ẩn cho đến khi request hoàn tất để không phát sinh chuyển trang chồng nhau. Xuất CSV và chọn tất cả áp dụng cho trang hiện tại, không tải ngầm toàn bộ ngân hàng.
+- Trạng thái hiển thị phân biệt dữ liệu và tiến trình: câu không thuộc assessment là `Câu độc lập`, câu thuộc đề `DRAFT` là `Bản nháp`, `PUBLISHED` là `Sẵn sàng`, `ARCHIVED` là `Đã lưu trữ`; `Đang lưu…` chỉ dùng khi request ghi dữ liệu đang chạy. Bộ lọc `Chưa xuất bản` chỉ gồm câu thuộc đề nháp, không gồm câu độc lập.
+- Staff cùng tenant được đọc ngân hàng chung; candidate và token sai tenant bị từ chối trước truy vấn. Quyền assessment/job và khóa bài đã xuất bản vẫn giữ nguyên. API chung không sửa hoặc lưu trữ câu có `test_id`; UI dẫn tới assessment gốc để sửa.
+- Thêm câu hỏi / Nhập Excel mở `/recruiter/question-bank/new`; `/recruiter/question-bank/:questionId/edit` mở câu độc lập đã lưu trong bảng soạn. Bản nháp chưa gửi lưu tạm trong `sessionStorage` theo tenant/user; câu đã lưu được tải lại từ API.
+- Nút Kiểm tra dùng cùng `ExcelImportReview`: phân loại VALID/INVALID/WARNING, bỏ dòng trống, chọn chỉ lưu dòng hợp lệ hoặc yêu cầu tất cả hợp lệ, báo nội dung trùng trong lô là WARNING, xem trước giám khảo/ứng viên bằng cùng `AssessmentPublishReview` và `QuestionAnswerPanel`.
+- Kiểm định ngân hàng yêu cầu skill (tối đa 128 ký tự), difficulty Easy/Medium/Hard, điểm nguyên 1–10.000 và đáp án đúng theo loại. Không cần tên bài, thời lượng, điểm đạt hoặc tổng điểm bằng 10. Không kiểm tra trùng với toàn bộ dữ liệu DB; quy tắc cảnh báo trùng trong lô giống luồng riêng hiện có.
+- Lưu 1–999 câu trong một transaction; một câu lỗi hoặc lỗi DB làm rollback cả lô, không tạo bài nháp dở dang. Lỗi API hiển thị tại màn xem trước, có thể thử lưu lại. Câu được đồng bộ nhãn `questions.skill` vào `skills`/`questionskills` khi thêm/sửa từ API chung; không backfill câu cũ.
+- V41 cho phép `questions.test_id` NULL, thêm `authoring_metadata` JSON để giữ rubric/đáp án mẫu/snippet/ngôn ngữ và `bank_archived`. Không thêm bảng hay bỏ FK; metadata biên soạn không trả candidate.
+
+| Method | API ngân hàng chung | Chức năng |
+|---|---|---|
+| GET | `/api/v1/question-bank/list_questions?page=0&size=10&collection=all&query=&skill=&difficulty=&status=&questionType=&sort=latest` | Danh sách phân trang phía server; size 1–100, trả thêm tổng số theo bộ sưu tập và danh sách kỹ năng |
+| GET | `/api/v1/question-bank/get_question/{id}` | Chi tiết staff, gồm options và metadata biên soạn |
+| POST | `/api/v1/question-bank/create_questions` | Body `{ questions: [{ question: QuestionRequest, authoringMetadata: object }] }`, trả 201 |
+| PUT | `/api/v1/question-bank/update_question/{id}` | Thay toàn bộ câu độc lập và options, trả 200 |
+| PUT | `/api/v1/question-bank/archive_questions` | Body `{ questionIds: [id], archived: true/false }`; chỉ câu độc lập |
+
+Response đều bọc `ApiResponse`; trang danh sách gồm `items`, `total`, `page`, `size`, `counts`, `skills`; mỗi item gồm `question`, `testId/testTitle/testStatus`, `jobId/jobTitle`, `archived`, `authoringMetadata`. Lỗi: 400 dữ liệu không hợp lệ, 403 role/tenant sai, 404 `BANK_QUESTION_NOT_FOUND`, 409 `BANK_QUESTION_IN_TEST`. Không đổi luồng assessment riêng hiện có.
+
+Kiểm chứng ngày 2026-10-02: build frontend đạt; 36 test assessment/ngân hàng đạt, gồm HTTP thêm/đọc/sửa/lưu trữ, không tạo assessment khi thêm câu chung, giữ metadata và skill, rollback lô lỗi, từ chối candidate/sai tenant và bảo vệ câu thuộc assessment. Các integration test lần này dùng H2 + MockMvc; chưa chạy migration V41 trên MySQL thực tế hoặc kiểm thử giao diện qua trình duyệt.
+
+### Tạo assessment thủ công / tự động (2026-10-03)
+
+- Actor: recruiter/staff có quyền trên job; candidate chỉ nhận và làm đề của hồ sơ mình.
+- `/recruiter/jobs/:id/assessments/new` chọn **Tạo thủ công** hoặc **Tạo tự động**. Thủ công: soạn câu hỏi bằng bảng hiện có → kiểm tra/xem trước → nhập metadata đề → lưu DRAFT → xuất bản ở trang chi tiết. Không tạo đề rỗng trước bước thêm câu hỏi.
+- Tự động: cấu hình từng nhóm `skill`, `questionType` MCQ/MULTIPLE_CHOICE/ESSAY, `difficulty` Easy/Medium/Hard, số câu và điểm/câu; thời lượng 1–480 phút, ngưỡng đạt 0–100%. Skill phải thuộc job; tổng 1–100 câu. ESSAY gồm tự luận lý thuyết/code theo dữ liệu ngân hàng hiện có.
+- UI cấu hình gồm hai tab cùng một form như AI Interview: **Cấu hình chung** (tự tạo cho ứng viên, ngưỡng đạt, số câu theo bài tập, thời lượng, trọng số nhóm tính từ điểm, Job Skills) và **Cấu hình bài tập** (skill/type/difficulty/count/points). Chuyển tab giữ dữ liệu; một lần lưu gửi cả hai phần. Chọn/bỏ skill thêm/xóa nhóm tương ứng. Hai luồng tạo đề đều đọc cùng `assessment_config_json`, không có cấu hình riêng cho ứng viên. Lỗi validation mở tab chứa trường sai.
+- Job chưa lưu cấu hình: API trả success với dữ liệu null; do `ApiResponse` bỏ trường null, frontend chuẩn hóa `data` bị bỏ thành null để mở form mặc định, không trả undefined cho TanStack Query.
+- **Tạo bài assessment tự động** lưu cấu hình rồi chọn ngẫu nhiên câu hợp lệ từ ngân hàng theo skill/type/difficulty, tự đặt tên theo job + thời điểm, copy nội dung/options/metadata sang đề DRAFT. Recruiter kiểm tra và xuất bản. Câu nguồn giữ nguyên. Câu lưu trữ và bản copy của đề riêng ứng viên không được dùng làm nguồn; loại trùng nội dung trong cùng đề. Thiếu câu trả 409 `ASSESSMENT_BANK_INSUFFICIENT`, rollback không để lại đề tạo dở.
+- **Tự động tạo đề riêng khi ứng viên vượt AI Interview**: cấu hình `autoAssign=true` áp dụng cả hồ sơ đạt trước khi bật và các hồ sơ đạt sau này. Chỉ hồ sơ ASSESSMENT, có AI Interview PASSED, không rút/lưu trữ, job chưa bị xóa. Bật cấu hình yêu cầu ngân hàng đáp ứng cấu trúc hiện tại.
+- Cấu hình Assessment ban đầu mặc định `autoAssign=true`, recruiter không cần tích bật. Cần lưu cấu trúc hợp lệ và ngân hàng đủ câu để tự động chạy; cấu hình đã lưu (kể cả `false`) được giữ nguyên, recruiter có thể bỏ tích và lưu để tắt.
+- Dispatcher tenant hiện có quét mỗi 15 giây mặc định, đưa application ID vào RabbitMQ `smarthire.assessment.generate` với header `X-Tenant-ID`; worker concurrency 3–10 dùng `TenantJobExecutor` để set/clear tenant. Khóa hồ sơ và UNIQUE `tests.assigned_application_id` ngăn tạo lặp. Transaction tạo PUBLISHED + notification `ASSESSMENT_INVITATION` + email outbox; email dùng worker/retry hiện có tối đa 3 lần. Không tạo nhiều đề nếu AI Interview được xử lý lại hoặc cấu hình được lưu lại.
+- Đề gán riêng chỉ xuất hiện trong danh sách available và start với đúng application; staff không thể gửi đề đó cho application khác. Các đề dùng chung (`assigned_application_id=NULL`) giữ luồng hiện có. Hệ thống không tự sửa đề đã tạo khi cấu hình/ngân hàng thay đổi.
+- Nếu ngân hàng/skill thay đổi khiến không đủ câu, hồ sơ vẫn chờ, kết quả AI Interview giữ nguyên. Giao diện cấu hình hiển thị số hồ sơ đủ điều kiện/đã có đề/chưa có đề và lỗi ngân hàng; cập nhật 15 giây. Khi bổ sung câu hoặc sửa cấu hình, dispatcher xử lý lại. Tắt `autoAssign` dừng tạo mới, không xóa đề đã tạo.
+- DB V43 mở rộng `Job`, `JobTest`, không tạo bảng mới; xem dictionary và ERD. Bật backend mới cần chạy migration V43 và RabbitMQ.
+
+| Method | API | Chức năng |
+|---|---|---|
+| GET | `/api/v1/assessments/jobs/{jobId}/configuration` | Cấu hình đã lưu hoặc null |
+| PUT | `/api/v1/assessments/jobs/{jobId}/configuration` | Lưu `{durationMinutes,passingPercent,autoAssign,sections:[{skill,questionType,difficulty,count,points}]}` |
+| POST | `/api/v1/assessments/jobs/{jobId}/generate` | Tạo đề DRAFT tự đặt tên từ cấu hình đã lưu |
+| GET | `/api/v1/assessments/jobs/{jobId}/automation_status` | `{eligible,generated,pending,bankReady,bankError}` cho job |
+
+Tất cả API trên bọc `ApiResponse`, staff cùng tenant và có quyền job; 400 dữ liệu/skill sai, 403 quyền/tenant sai, 404 job không tồn tại, 409 ngân hàng thiếu câu.
+
+Kiểm chứng ngày 2026-10-03: build frontend đạt; 51 test backend assessment/AI Interview/email đạt. Bao gồm tạo DRAFT từ ngân hàng, backfill hồ sơ đã PASSED, tạo PUBLISHED riêng, thông báo, chặn ứng viên khác, thiếu ngân hàng rollback, skill bị đổi, hồ sơ failed/withdrawn, hai lượt xử lý đồng thời chỉ tạo một đề và email retry tối đa 3 lần. Integration dùng H2 + MockMvc; chưa kiểm chứng migration V43 trên MySQL, RabbitMQ thực hoặc E2E trình duyệt (Playwright chưa có trong môi trường).
+
+Kiểm chứng bản sửa cấu hình cùng ngày: build frontend đạt, test API client cho response bỏ `data`/null/cấu hình đã lưu đạt; 25 test `AssessmentFlowTest` đạt. Regression test so sánh đề DRAFT tạo bằng nút và đề PUBLISHED tạo cho hồ sơ với cùng cấu hình 2 câu MCQ, skill, độ khó, 3 điểm/câu, 17 phút và ngưỡng 60%; cả hai dùng cùng cấu trúc đã lưu. Chưa kiểm chứng giao diện trên trình duyệt thực.

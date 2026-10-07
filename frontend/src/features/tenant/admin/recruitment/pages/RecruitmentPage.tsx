@@ -13,7 +13,7 @@ const statusLabel: Record<ApplicationStatus, string> = {
   NEW: "Mới ứng tuyển",
   IN_REVIEW: "Đang sàng lọc",
   ASSESSMENT: "Đánh giá kỹ thuật",
-  INTERVIEW: "Phỏng vấn",
+  INTERVIEW: "Phỏng vấn AI", HUMAN_INTERVIEW: "Phỏng vấn trực tiếp",
   OFFER: "Đề nghị",
   HIRED: "Đã tuyển",
   REJECTED: "Từ chối",

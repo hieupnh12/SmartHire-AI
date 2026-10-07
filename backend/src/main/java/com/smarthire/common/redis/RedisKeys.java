@@ -45,6 +45,8 @@ public final class RedisKeys {
         return "auth:master:refresh:" + tokenId;
     }
 
+    public static String interviewVoiceTicket(String ticket) { return "interview:voice:ticket:" + ticket; }
+
     public static String aiTaskConfig(String taskType) {
         return "cache:ai:config:" + (taskType == null ? "DEFAULT" : taskType.trim().toUpperCase());
     }

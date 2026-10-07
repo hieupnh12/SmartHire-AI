@@ -1,5 +1,6 @@
 package com.smarthire.tenant.applicant;
 
+import com.smarthire.domain.enums.NotificationCategory;
 import com.smarthire.domain.tenant.entity.Application;
 import com.smarthire.domain.tenant.entity.Job;
 import com.smarthire.domain.tenant.entity.MatchScore;
@@ -9,6 +10,7 @@ import com.smarthire.domain.tenant.repository.EmailOutboxRepository;
 import com.smarthire.multitenancy.service.TenantPublicUrlService;
 import com.smarthire.tenant.applicant.service.AiInterviewInviteService;
 import com.smarthire.tenant.auth.service.InviteMailSender;
+import com.smarthire.tenant.notification.service.NotificationPreferenceService;
 import java.math.BigDecimal;
 import java.time.Instant;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,6 +32,7 @@ class AiInterviewInviteServiceTest {
     @Mock EmailOutboxRepository outbox;
     @Mock ApplicationRepository applications;
     @Mock TenantPublicUrlService publicUrls;
+    @Mock NotificationPreferenceService preferences;
 
     AiInterviewInviteService service;
     Application application;
@@ -37,7 +40,7 @@ class AiInterviewInviteServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new AiInterviewInviteService(mail, outbox, applications, publicUrls);
+        service = new AiInterviewInviteService(mail, outbox, applications, publicUrls, preferences);
         org.mockito.Mockito.lenient().when(publicUrls.path("/candidate/interviews"))
                 .thenReturn("http://se36.localhost:5173/candidate/interviews");
         User candidate = new User();
@@ -45,6 +48,8 @@ class AiInterviewInviteServiceTest {
         candidate.setFullName("Candidate");
         Job job = new Job();
         job.setTitle("Backend Java");
+        job.setAiInterviewAvailableFrom(Instant.parse("2026-10-10T01:00:00Z"));
+        job.setAiInterviewAvailableUntil(Instant.parse("2026-10-12T16:59:00Z"));
         application = new Application();
         application.setId(4L);
         application.setCandidate(candidate);
@@ -61,6 +66,10 @@ class AiInterviewInviteServiceTest {
         service.sendIfNeeded(application, passed);
 
         verify(mail).send(eq("can@se36.local"), contains("phỏng vấn AI"), contains("http://se36.localhost:5173/candidate/interviews"));
+        verify(mail).send(eq("can@se36.local"), anyString(), contains("08:00 10/10/2026"));
+        verify(mail).send(eq("can@se36.local"), anyString(), contains("23:59 12/10/2026"));
+        verify(mail).send(eq("can@se36.local"), anyString(), contains("Thời lượng: 30 phút"));
+        verify(mail).send(eq("can@se36.local"), anyString(), contains("Số lần thực hiện: 1"));
         verify(outbox).save(any());
         verify(applications).save(application);
     }
@@ -72,6 +81,18 @@ class AiInterviewInviteServiceTest {
         service.sendIfNeeded(application, passed);
 
         verify(mail, never()).send(anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void marksInvitedWithoutEmailWhenCandidateOptedOut() {
+        when(preferences.emailOff(application.getCandidate(), NotificationCategory.AI_INTERVIEW)).thenReturn(true);
+
+        service.sendIfNeeded(application, passed);
+
+        verify(mail, never()).send(anyString(), anyString(), anyString());
+        verify(outbox, never()).save(any());
+        verify(applications).save(application);
+        org.assertj.core.api.Assertions.assertThat(application.getAiInterviewInvitedAt()).isNotNull();
     }
 
     @Test

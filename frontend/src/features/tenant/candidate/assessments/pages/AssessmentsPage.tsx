@@ -44,7 +44,7 @@ export function AssessmentsPage() {
     mutationFn: (testId: number) => assessmentApi.start(testId, applicationId),
     onSuccess: (result) => {
       client.setQueryData(queryKeys.assessments.submission(result.id), result);
-      navigate(`/candidate/assessments/${result.id}/take`);
+      navigate(`/assessments/${result.id}/take`);
     },
   });
 
@@ -56,7 +56,7 @@ export function AssessmentsPage() {
   const openOrStart = () => {
     if (!activeTest || !application) return;
     if (activeTest.submissionId && activeTest.submissionStatus && activeTest.submissionStatus !== "NOT_STARTED") {
-      navigate(`/candidate/assessments/${activeTest.submissionId}/take`);
+      navigate(`/assessments/${activeTest.submissionId}/take`);
       return;
     }
     if (!acceptRules) {

@@ -21,3 +21,8 @@ export type UpdateCompanyProfileRequest = {
   industry?: string;
   companySize?: string;
 };
+
+export type CompanyDirectory = {
+  departments: string[];
+  locations: string[];
+};

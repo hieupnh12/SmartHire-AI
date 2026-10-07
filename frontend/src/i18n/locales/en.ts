@@ -36,6 +36,7 @@ export const en = {
     required: "This field is required",
     saving: "Saving…",
     undo: "Undo",
+    edit: "Edit",
   },
   welcome: {
     title: "Hire smarter with AI screening & interviews",
@@ -47,7 +48,7 @@ export const en = {
     forCandidate: "For Candidates",
     forRecruiter: "For Recruiters",
     forAdmin: "For Admins",
-    candidateBlurb: "Apply, upload CV, take assessments, AI practice interviews.",
+    candidateBlurb: "Apply, upload CV, take assessments, and join AI interviews.",
     recruiterBlurb: "Jobs, pipeline, AI CV matching, interviews, analytics.",
     adminBlurb: "Users, roles, system health and platform settings.",
   },

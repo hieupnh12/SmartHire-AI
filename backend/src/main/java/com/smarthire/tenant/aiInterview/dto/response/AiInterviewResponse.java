@@ -26,5 +26,9 @@ public record AiInterviewResponse(
         boolean canRetry,
         String reportJson,
         Integer durationMinutes,
-        List<RoadmapStep> roadmap) {
+        Integer maxAttempts,
+        Instant availableFrom,
+        Instant availableUntil,
+        List<RoadmapStep> roadmap,
+        boolean processBased, boolean voiceEnabled, boolean recordingEnabled, boolean conversational) {
 }

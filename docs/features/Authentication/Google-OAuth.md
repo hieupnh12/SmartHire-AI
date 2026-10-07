@@ -19,13 +19,13 @@
 3. BE xác thực chữ ký token qua JWKS của Google (`GoogleTokenVerifierService`).
 4. BE thực hiện JIT Provisioning (khởi tạo User với role `CANDIDATE`, lưu `UserProfile` và liên kết `oauth_accounts` trong Tenant DB).
 5. BE cấp phát JWT Access Token & Refresh Token (lưu session vào Redis) và trả về thông tin Candidate.
-6. FE quay về tenant career page `/`, hiển thị avatar/thông tin candidate trong header; candidate workspace `/candidate` vẫn truy cập được từ menu tài khoản.
+6. FE quay về tenant career page `/`, hiển thị avatar/thông tin candidate trong header; candidate workspace `/workspace` vẫn truy cập được từ menu tài khoản.
 
 ## Business Rules
 
 - Chỉ chấp nhận email Google đã được `email_verified == true`.
 - Tự động liên kết `oauth_accounts` nếu tài khoản email đã tồn tại trong Tenant DB.
-- 401 Axios trên luồng ứng viên (`/candidate`, `/oauth/callback`) chuyển về `/candidate/login`, không về `/internal/login`.
+- 401 Axios trên luồng ứng viên (`/workspace`, `/applications`, `/cv`, `/assessments`, `/interviews`, `/oauth/callback`, `/career`, `/jobs`) chuyển về `/login`; tài khoản quản trị và nhân sự nội bộ tiếp tục dùng `/internal/login`.
 - Google callback local: Google trả về `localhost` rồi FE hop sang `{tenant}.localhost` trước khi gọi API, để giữ `X-Tenant-ID`.
 - Frontend nhận `VITE_GOOGLE_CLIENT_ID` tại thời điểm build image từ GitHub Actions Repository Variables; backend nhận `GOOGLE_CLIENT_ID` lúc runtime từ `deploy/.env.production`.
 

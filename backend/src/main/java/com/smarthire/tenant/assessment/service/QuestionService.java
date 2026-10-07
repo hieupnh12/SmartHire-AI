@@ -121,12 +121,12 @@ public class QuestionService {
         return questions.findByIdAndTest_Id(questionId, testId).orElseThrow(() -> notFound("Question"));
     }
 
-    private void validateOptions(QuestionRequest request) {
+    static void validateOptions(QuestionRequest request) {
         validateType(request.questionType().name(), request.options().size(),
                 request.options().stream().filter(o -> Boolean.TRUE.equals(o.correct())).count());
     }
 
-    private void validateType(String type, int count, long correct) {
+    static void validateType(String type, int count, long correct) {
         if ("ESSAY".equals(type)) {
             if (count != 0) throw invalid("Essay questions must not have options");
             return;
@@ -137,7 +137,7 @@ public class QuestionService {
         if ("MULTIPLE_CHOICE".equals(type) && correct < 2) throw invalid("Multiple-choice questions require at least two correct options");
     }
 
-    private void apply(Question question, QuestionRequest request) {
+    static void apply(Question question, QuestionRequest request) {
         question.setQuestionText(request.questionText().trim());
         question.setQuestionType(request.questionType().name());
         question.setPoints(request.points());
@@ -147,7 +147,7 @@ public class QuestionService {
         question.setExplanation(blankToNull(request.explanation()));
     }
 
-    private String normalizeDifficulty(String raw) {
+    private static String normalizeDifficulty(String raw) {
         String value = blankToNull(raw);
         if (value == null) {
             return null;
@@ -164,7 +164,7 @@ public class QuestionService {
         return normalized;
     }
 
-    private String blankToNull(String value) {
+    private static String blankToNull(String value) {
         if (value == null) {
             return null;
         }
@@ -184,7 +184,7 @@ public class QuestionService {
         }).toList());
     }
 
-    private BusinessException invalid(String message) {
+    private static BusinessException invalid(String message) {
         return new BusinessException(message, HttpStatus.BAD_REQUEST, "INVALID_TEST");
     }
 

@@ -47,12 +47,13 @@ import type { JobStatus } from "@/api/types/job";
 import { PipelineBoard } from "@/features/tenant/recruiter/pipeline/pages/PipelinePage";
 
 const PAGE_SIZE = 20;
-const STATUS_TABS = ["", "NEW", "IN_REVIEW", "ASSESSMENT", "INTERVIEW", "OFFER", "HIRED", "REJECTED"];
+const STATUS_TABS = ["", "NEW", "IN_REVIEW", "ASSESSMENT", "INTERVIEW", "HUMAN_INTERVIEW", "OFFER", "HIRED", "REJECTED"];
 const STATUS_STYLE: Record<string, string> = {
   NEW: "bg-sky-50 text-sky-700",
   IN_REVIEW: "bg-amber-50 text-amber-700",
   ASSESSMENT: "bg-violet-50 text-violet-700",
   INTERVIEW: "bg-[var(--color-primary-soft)] text-brand-primary",
+  HUMAN_INTERVIEW: "bg-[var(--color-primary-soft)] text-brand-primary",
   OFFER: "bg-indigo-50 text-indigo-700",
   HIRED: "bg-emerald-50 text-emerald-700",
   REJECTED: "bg-red-50 text-red-700",
@@ -258,7 +259,7 @@ export function ApplicantsPage() {
             </button>
           </div>
         </div>
-        <div role="tablist" aria-label="Lọc theo trạng thái" className="flex gap-1 overflow-x-auto rounded-xl bg-[var(--color-surface-alt)] p-1">
+        <div role="tablist" aria-label="Lọc theo trạng thái" className="flex flex-wrap gap-1 rounded-xl bg-[var(--color-surface-alt)] p-1">
           {STATUS_TABS.map((value) => {
             const active = status === value;
             return (

@@ -13,6 +13,7 @@ import com.smarthire.tenant.assessment.dto.request.SendAssessmentRequest;
 import com.smarthire.tenant.assessment.service.AssessmentInvitationService;
 import com.smarthire.tenant.auth.service.InviteMailSender;
 import com.smarthire.tenant.cv.service.CvAccess;
+import com.smarthire.tenant.notification.service.NotificationPreferenceService;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,6 +40,7 @@ class AssessmentInvitationServiceTest {
     @Mock InviteMailSender mail;
     @Mock TenantPublicUrlService publicUrls;
     @Mock CvAccess access;
+    @Mock NotificationPreferenceService preferences;
     @InjectMocks AssessmentInvitationService service;
 
     JobTest test;

@@ -141,6 +141,22 @@ The color strategy is white-dominant, using a soft, professional blue as the pri
 
 ## Typography
 
+### Màu trạng thái phỏng vấn AI
+
+Nhãn và bộ lọc dùng chung token `--color-interview-*`, cố định giữa các theme tenant. Giữ chữ và biểu tượng; bộ lọc được chọn có viền nhấn.
+
+| Trạng thái | Token | Màu chữ / nền |
+|---|---|---|
+| CREATED | created | #475569 / #f1f5f9 |
+| GENERATING | generating | #6d28d9 / #ede9fe |
+| QUESTIONS_READY | ready | #1d4ed8 / #dbeafe |
+| IN_PROGRESS | live | #075985 / #e0f2fe |
+| SCORING | scoring | #854d0e / #fef9c3 |
+| SCORED | scored | #115e59 / #ccfbf1 |
+| PASSED | passed | #166534 / #dcfce7 |
+| FAILED | failed | #9a3412 / #ffedd5 |
+| ERROR | error | #991b1b / #fee2e2 |
+
 Toàn bộ giao diện dùng **Inter** cho tiêu đề, nội dung, điều hướng và biểu mẫu. `--font-family` là nguồn cấu hình chung; `font-sans` và `font-display` cùng tham chiếu token này. Dùng system sans-serif khi font chưa tải hoặc không có glyph phù hợp (ví dụ tiếng Nhật).
 
 Nội dung dùng weight 400; nhãn và nút 500; tiêu đề 600. Chỉ dùng 700–800 khi thực sự cần nhấn mạnh. Giữ **IBM Plex Mono** riêng cho mã nguồn và nội dung kỹ thuật cần căn ký tự.

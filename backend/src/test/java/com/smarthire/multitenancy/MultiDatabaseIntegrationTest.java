@@ -43,6 +43,7 @@ class MultiDatabaseIntegrationTest {
     @Container static MySQLContainer<?> mysql = new MySQLContainer<>("mysql:8.4")
             .withDatabaseName("bootstrap").withUsername("test").withPassword("integration-password")
             .withEnv("TENANT_PROVISIONING_PASSWORD", PROVISION_PASSWORD)
+            .withEnv("MYSQL_ONETIME_PASSWORD", "")
             .withCopyFileToContainer(org.testcontainers.utility.MountableFile.forHostPath(
                     java.nio.file.Path.of("..", "deploy", "mysql", "init-provisioner.sh").toAbsolutePath()),
                     "/docker-entrypoint-initdb.d/init-provisioner.sh");

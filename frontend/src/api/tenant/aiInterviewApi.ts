@@ -17,6 +17,8 @@ import type {
 type ListParams = { applicationId?: number; status?: AiInterviewStatus; page?: number; size?: number };
 
 export const aiInterviewApi = {
+  recordingInfo: (id: number, answerId: number) => api.get<ApiResponse<{ answerId: number; durationSeconds: number; transcript: string; mimeType: string } | null>>(`/ai-interviews/${id}/answers/${answerId}/recording/info`).then(r => r.data.data),
+  recordingAudio: (id: number, answerId: number) => api.get<Blob>(`/ai-interviews/${id}/answers/${answerId}/recording/audio`, { responseType: "blob" }).then(r => r.data),
   generate: (id: number) => api.post<ApiResponse<AiInterview>>(`/ai-interviews/${id}/questions/generate`).then(r => r.data.data),
   retryScore: (id: number) => api.post<ApiResponse<AiInterview>>(`/ai-interviews/${id}/score`).then(r => r.data.data),
   logs: (id: number) => api.get<ApiResponse<AiInterviewLog[]>>(`/ai-interviews/${id}/logs`).then(r => r.data.data),

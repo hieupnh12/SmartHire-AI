@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, ArrowRight, CheckCircle2, Clock, Send } from "lucide-react";
+import { ArrowLeft, ArrowRight, Clock, Send } from "lucide-react";
 import { Button } from "@/components/ux/Button";
 import { AssessmentError, assessmentLink, assessmentMuted as muted, assessmentStatus } from "@/components/ux/assessmentUi";
+import { AssessmentResult } from "../components/AssessmentResult";
 import { AssessmentAnswerInput } from "../components/AssessmentAnswerInput";
 import { hasAnswer } from "../utils/hasAnswer";
 import { useSubmission } from "../hooks/useSubmission";
@@ -22,8 +23,8 @@ function SubmissionRoom({ id }: { id: number }) {
   const locked = room.submitting || room.remaining === 0;
   const answered = submission?.questions.filter(q => hasAnswer(room.choices[q.id])).length ?? 0;
   const seconds = room.remaining ?? submission?.remainingSeconds ?? 0;
-  const back = `/candidate/assessments${submission ? `?applicationId=${submission.applicationId}` : ""}`;
-  return <section className="space-y-6 text-[var(--color-on-surface)]">
+  const back = `/assessments${submission ? `?applicationId=${submission.applicationId}` : ""}`;
+  return <section className={`space-y-6 text-[var(--color-on-surface)] ${submission && !active ? "mx-auto max-w-5xl px-4 py-6 sm:px-8 sm:py-8" : ""}`}>
     <Link className={assessmentLink} to={back}><ArrowLeft className="size-4" aria-hidden="true" />Bài kiểm tra</Link>
     <AssessmentError error={room.query.error} retry={() => void room.query.refetch()} />
     {room.query.isPending && <p role="status">Đang tải bài làm…</p>}
@@ -32,7 +33,7 @@ function SubmissionRoom({ id }: { id: number }) {
         {active ? <div role="timer" aria-label="Thời gian còn lại" className={`flex min-w-28 items-center gap-2 text-xl font-semibold tabular-nums ${seconds < 60 ? "text-[var(--color-status-danger)]" : ""}`}><Clock className="size-5" aria-hidden="true" />{Math.floor(seconds / 60).toString().padStart(2, "0")}:{(seconds % 60).toString().padStart(2, "0")}</div> : <span className={muted}>{assessmentStatus[submission.status]}</span>}
       </header>
       <AssessmentError error={room.error} retry={active && seconds > 0 ? room.retrySave : undefined} />
-      {!active ? <section className="space-y-4 py-6"><CheckCircle2 className="size-10 text-[var(--color-primary)]" aria-hidden="true" /><h2 className="text-xl font-semibold">{submission.status === "EXPIRED" ? "Đã hết thời gian làm bài" : "Bài làm đã được ghi nhận"}</h2><p className="text-3xl font-semibold tabular-nums">{submission.score ?? "Đang chấm"}{submission.score !== null && <span className="text-lg font-normal"> / {submission.totalPoints} điểm</span>}</p>{submission.passed !== null && <p>{submission.passed ? "Đạt ngưỡng điểm của đề." : "Chưa đạt ngưỡng điểm của đề."}</p>}<p className={muted}>{submission.submittedAt && `Nộp lúc ${new Date(submission.submittedAt).toLocaleString("vi-VN")}`}</p></section>
+      {!active ? <AssessmentResult submission={submission} back={back} />
         : <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_240px]">
           <section className="min-w-0 space-y-5">
             {question && <fieldset disabled={locked} className="space-y-4"><legend className="mb-4 w-full"><span className={muted}>Câu {index + 1} / {submission.questions.length} · {question.points} điểm</span><span className="mt-2 block whitespace-pre-wrap break-words text-lg font-medium">{question.questionText}</span></legend>

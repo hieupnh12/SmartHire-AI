@@ -7,3 +7,11 @@ export type Notification = {
   readAt: string | null;
   createdAt: string;
 };
+
+export type NotificationCategory = "AI_INTERVIEW" | "ASSESSMENT" | "HUMAN_INTERVIEW";
+
+export type NotificationPreference = {
+  category: NotificationCategory;
+  webEnabled: boolean;
+  emailEnabled: boolean;
+};

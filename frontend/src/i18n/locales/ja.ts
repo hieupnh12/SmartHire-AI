@@ -29,6 +29,7 @@ export const ja: Messages = {
     required: "必須項目です",
     saving: "保存中…",
     undo: "元に戻す",
+    edit: "編集",
   },
   welcome: {
     title: "AIスクリーニングと面接でもっとスマートに採用",

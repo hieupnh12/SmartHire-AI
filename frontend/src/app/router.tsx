@@ -37,7 +37,11 @@ import { BillingPage } from "@/features/master/billing/pages/BillingPage";
 import { AuditLogsPage } from "@/features/master/system/pages/AuditLogsPage";
 import { AiManagementPage } from "@/features/master/system/pages/AiManagementPage";
 import { AccountPage as MasterAccountPage } from "@/features/master/account/pages/AccountPage";
-import { TenantCareerPage } from "@/features/tenant/career/pages/TenantCareerPage";
+import { TenantCareerPage } from "@/features/tenant/candidate/jobs/pages/TenantCareerPage";
+import { CareerNavigationLayout } from "@/features/tenant/candidate/jobs/components/CareerNavigationLayout";
+import { CvTemplatesPage } from "@/features/tenant/candidate/cv/pages/CvTemplatesPage";
+import { SharedCvPage } from "@/features/tenant/candidate/cv/pages/SharedCvPage";
+import { CvGuidePage } from "@/features/tenant/candidate/cv/pages/CvGuidePage";
 import { TenantAdminDashboardPage } from "@/features/tenant/admin/workspace/pages/TenantAdminDashboardPage";
 import { adminNav } from "@/features/tenant/admin/nav";
 import { HomePage as TenantAdminHomePage } from "@/features/tenant/admin/overview/pages/HomePage";
@@ -50,18 +54,14 @@ import { AnalyticsPage } from "@/features/tenant/admin/analytics/pages/Analytics
 import { RecruitmentPage } from "@/features/tenant/admin/recruitment/pages/RecruitmentPage";
 import { AcceptInvitationPage } from "@/features/tenant/auth/pages/AcceptInvitationPage";
 import { PublicContractSigningPage } from "@/features/master/contract/pages/PublicContractSigningPage";
-import { candidateNav } from "@/features/tenant/candidate/nav";
-import { HomePage as CandidateHomePage } from "@/features/tenant/candidate/dashboard/pages/HomePage";
-import { BrowseJobsPage } from "@/features/tenant/candidate/jobs/pages/BrowseJobsPage";
-import { CandidateJobDetailPage } from "@/features/tenant/candidate/jobs/pages/CandidateJobDetailPage";
 import { MyApplicationsPage } from "@/features/tenant/candidate/applications/pages/MyApplicationsPage";
 import { ApplicationDetailPage } from "@/features/tenant/candidate/applications/pages/ApplicationDetailPage";
 import { MyCvPage } from "@/features/tenant/candidate/cv/pages/MyCvPage";
+import { CvBuilderPage } from "@/features/tenant/candidate/cv/pages/CvBuilderPage";
 import { AssessmentsPage as CandidateAssessmentsPage } from "@/features/tenant/candidate/assessments/pages/AssessmentsPage";
 import { TakeAssessmentPage } from "@/features/tenant/candidate/assessments/pages/TakeAssessmentPage";
 import { InterviewsPage as CandidateInterviewsPage } from "@/features/tenant/candidate/interviews/pages/InterviewsPage";
 import { AiInterviewRoomPage } from "@/features/tenant/candidate/interviews/pages/AiInterviewRoomPage";
-import { PracticePage } from "@/features/tenant/candidate/practice/pages/PracticePage";
 import { SchedulesPage as CandidateSchedulesPage } from "@/features/tenant/candidate/schedules/pages/SchedulesPage";
 import { NotificationsPage as CandidateNotificationsPage } from "@/features/tenant/candidate/notifications/pages/NotificationsPage";
 import { recruiterNav } from "@/features/tenant/recruiter/nav";
@@ -76,8 +76,11 @@ import { PipelinePage } from "@/features/tenant/recruiter/pipeline/pages/Pipelin
 import { AssessmentsPage as RecruiterAssessmentsPage } from "@/features/tenant/recruiter/assessments/pages/AssessmentsPage";
 import { AssessmentDetailPage } from "@/features/tenant/recruiter/assessments/pages/AssessmentDetailPage";
 import { AssessmentSubmissionsPage } from "@/features/tenant/recruiter/assessments/pages/AssessmentSubmissionsPage";
+import { GeneralQuestionBankPage } from "@/features/tenant/recruiter/assessments/pages/GeneralQuestionBankPage";
+import { GeneralQuestionEditorPage } from "@/features/tenant/recruiter/assessments/pages/GeneralQuestionEditorPage";
 import { QuestionBankPage } from "@/features/tenant/recruiter/assessments/pages/QuestionBankPage";
 import { ExcelQuestionTemplatePage } from "@/features/tenant/recruiter/assessments/pages/ExcelQuestionTemplatePage";
+import { AssessmentCreationPage } from "@/features/tenant/recruiter/assessments/pages/AssessmentCreationPage";
 import { InterviewsPage as RecruiterInterviewsPage } from "@/features/tenant/recruiter/interviews/pages/InterviewsPage";
 import { AiInterviewsPage as RecruiterAiInterviewsPage } from "@/features/tenant/recruiter/interviews/pages/AiInterviewsPage";
 import { SchedulesPage as RecruiterSchedulesPage } from "@/features/tenant/recruiter/schedules/pages/SchedulesPage";
@@ -98,6 +101,13 @@ function LegacyTenantAdminRedirect() {
   );
 }
 
+function ShortCandidateRedirect() {
+  const location = useLocation();
+  const suffix = location.pathname.slice("/candidate".length);
+  const target = suffix && suffix !== "/jobs" ? suffix : suffix === "/jobs" ? "/jobs" : "/career";
+
+  return <Navigate to={`${target}${location.search}${location.hash}`} replace />;
+}
 function PublicMarketingRoute({ children }: { children: React.ReactNode }) {
   const tenantId = getTenantIdFromSubdomain();
   if (tenantId) {
@@ -130,37 +140,38 @@ export function AppRouter() {
       <Route element={<TenantSubdomainGuard />}>
       <Route path="/career" element={<TenantCareerPage />} />
       <Route path="/jobs" element={<TenantCareerPage />} />
-      <Route path="/candidate/login" element={<CandidateLoginPage />} />
+      <Route path="/jobs/:jobId" element={<TenantCareerPage />} />
+      <Route element={<CareerNavigationLayout />}>
+        <Route path="/cv-templates" element={<CvTemplatesPage />} />
+        <Route path="/cv/share/:token" element={<SharedCvPage />} />
+        <Route path="/cv-guide" element={<CvGuidePage />} />
+      </Route>
+      <Route element={<RoleRoute workspaces={["CANDIDATE"]} authRequired />}>
+        <Route element={<CareerNavigationLayout />}>
+          <Route path="/cv" element={<MyCvPage />} />
+          <Route path="/cv/builder" element={<CvBuilderPage />} />
+          <Route path="/cv/builder/:cvId" element={<CvBuilderPage />} />
+        </Route>
+      </Route>
+      <Route path="/candidate/login" element={<Navigate to="/login" replace />} />
+      <Route path="/candidate/*" element={<ShortCandidateRedirect />} />
       <Route path="/internal/login" element={<LoginPage />} />
-      <Route path="/login" element={<LoginPage />} />
+      <Route path="/login" element={<CandidateLoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/invite/accept" element={<AcceptInvitationPage />} />
 
       <Route element={<RoleRoute workspaces={["CANDIDATE"]} />}>
-        <Route
-          path="/candidate"
-          element={
-            <RoleShell
-              brandKey="roles.candidate"
-              basePath="/candidate"
-              links={candidateNav}
-            />
-          }
-        >
-          <Route index element={<CandidateHomePage />} />
-          <Route path="jobs" element={<BrowseJobsPage />} />
-          <Route path="jobs/:id" element={<CandidateJobDetailPage />} />
-          <Route path="applications" element={<MyApplicationsPage />} />
-          <Route path="applications/:id" element={<ApplicationDetailPage />} />
-          <Route path="cv" element={<MyCvPage />} />
-          <Route path="assessments" element={<CandidateAssessmentsPage />} />
-          <Route path="assessments/:submissionId/take" element={<TakeAssessmentPage />} />
-          <Route path="interviews" element={<CandidateInterviewsPage />} />
-          <Route path="interviews/:id" element={<AiInterviewRoomPage />} />
-          <Route path="practice" element={<PracticePage />} />
-          <Route path="schedules" element={<CandidateSchedulesPage />} />
-          <Route path="notifications" element={<CandidateNotificationsPage />} />
+        <Route element={<CareerNavigationLayout />}>
+          <Route path="/applications" element={<MyApplicationsPage />} />
+          <Route path="/applications/:id" element={<ApplicationDetailPage />} />
+          <Route path="/assessments" element={<CandidateAssessmentsPage />} />
+          <Route path="/interviews" element={<CandidateInterviewsPage />} />
+          <Route path="/practice" element={<Navigate to="/interviews" replace />} />
+          <Route path="/schedules" element={<CandidateSchedulesPage />} />
+          <Route path="/notifications" element={<CandidateNotificationsPage />} />
         </Route>
+        <Route path="/assessments/:submissionId/take" element={<TakeAssessmentPage />} />
+        <Route path="/interviews/:id" element={<AiInterviewRoomPage />} />
       </Route>
 
       <Route element={<RoleRoute workspaces={["RECRUITER", "ADMIN"]} />}>
@@ -204,15 +215,19 @@ export function AppRouter() {
             <Route path="jobs/:id/analytics" element={<RecruiterAnalyticsPage />} />
             <Route path="analytics" element={<Navigate to="/recruiter/jobs" replace />} />
           </Route>
+          {/* The general bank is a local UI preview; job assessments retain their feature guard. */}
+          <Route path="question-bank" element={<GeneralQuestionBankPage />} />
+          <Route path="question-bank/new" element={<GeneralQuestionEditorPage />} />
+          <Route path="question-bank/:questionId/edit" element={<GeneralQuestionEditorPage />} />
+          <Route path="assessments/question-bank" element={<Navigate to="/recruiter/question-bank" replace />} />
           <Route element={<FeatureRoute feature="ASSESSMENTS" />}>
             <Route path="jobs/:id/assessments" element={<JobRecruitmentWorkspace><RecruiterAssessmentsPage /></JobRecruitmentWorkspace>} />
-            <Route path="jobs/:id/assessments/new" element={<JobRecruitmentWorkspace><AssessmentDetailPage /></JobRecruitmentWorkspace>} />
+            <Route path="jobs/:id/assessments/new" element={<JobRecruitmentWorkspace><AssessmentCreationPage /></JobRecruitmentWorkspace>} />
             <Route path="jobs/:id/assessments/submissions" element={<JobRecruitmentWorkspace><AssessmentSubmissionsPage /></JobRecruitmentWorkspace>} />
             <Route path="jobs/:id/assessments/:assessmentId" element={<JobRecruitmentWorkspace><AssessmentDetailPage /></JobRecruitmentWorkspace>} />
             <Route path="assessments" element={<Navigate to="/recruiter/jobs" replace />} />
             <Route path="assessments/new" element={<Navigate to="/recruiter/jobs" replace />} />
             <Route path="jobs/:id/assessments/question-bank" element={<JobRecruitmentWorkspace><QuestionBankPage /></JobRecruitmentWorkspace>} />
-            <Route path="assessments/question-bank" element={<Navigate to="/recruiter/jobs" replace />} />
             <Route path="jobs/:id/assessments/excel-template" element={<JobRecruitmentWorkspace><ExcelQuestionTemplatePage /></JobRecruitmentWorkspace>} />
             <Route path="assessments/excel-template" element={<Navigate to="/recruiter/jobs" replace />} />
             <Route path="assessments/:id" element={<Navigate to="/recruiter/jobs" replace />} />

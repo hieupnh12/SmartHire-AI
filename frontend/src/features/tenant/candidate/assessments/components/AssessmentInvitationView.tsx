@@ -82,12 +82,12 @@ export function AssessmentInvitationView({
       <div className="relative flex flex-col gap-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <nav aria-label="Breadcrumb" className={`flex flex-wrap items-center gap-1 ${muted}`}>
-            <Link className="inline-flex items-center gap-1 hover:text-[var(--color-primary)]" to="/candidate">
+            <Link className="inline-flex items-center gap-1 hover:text-[var(--color-primary)]" to="/career">
               <Home className="size-4" aria-hidden="true" />
               <span>Cổng thông tin Ứng viên</span>
             </Link>
             <ChevronRight className="size-3.5 text-[var(--color-outline-variant)]" aria-hidden="true" />
-            <Link className="hover:text-[var(--color-primary)]" to="/candidate/assessments">
+            <Link className="hover:text-[var(--color-primary)]" to="/assessments">
               Lời mời làm bài kiểm tra
             </Link>
             <ChevronRight className="size-3.5 text-[var(--color-outline-variant)]" aria-hidden="true" />
@@ -233,7 +233,7 @@ export function AssessmentInvitationView({
               </div>
               <Link
                 className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-[var(--color-surface-container-low)] px-4 py-2 text-sm font-medium text-[var(--color-primary)] transition-colors hover:bg-[var(--color-surface-container)]"
-                to={`/candidate/applications/${application.id}`}
+                to={`/applications/${application.id}`}
               >
                 <span>Xem chi tiết đơn</span>
                 <ExternalLink className="size-4" aria-hidden="true" />

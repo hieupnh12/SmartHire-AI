@@ -2,6 +2,7 @@ package com.smarthire.domain.tenant.repository;
 
 import com.smarthire.domain.tenant.entity.Cv;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface CvRepository extends JpaRepository<Cv, Long> {
@@ -10,4 +11,5 @@ public interface CvRepository extends JpaRepository<Cv, Long> {
     List<Cv> findByUser_IdAndApplicationCopyFalseOrderByIdDesc(Long userId);
     List<Cv> findByApplication_IdOrderByIdDesc(Long applicationId);
     List<Cv> findByUser_IdAndJob_IdOrderByIdDesc(Long userId, Long jobId);
+    Optional<Cv> findByShareToken(String shareToken);
 }

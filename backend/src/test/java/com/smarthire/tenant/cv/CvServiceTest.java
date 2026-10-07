@@ -1,8 +1,10 @@
 package com.smarthire.tenant.cv;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.smarthire.common.exception.BusinessException;
 import com.smarthire.common.storage.FileStorageService;
 import com.smarthire.domain.tenant.entity.Cv;
+import com.smarthire.domain.tenant.entity.User;
 import com.smarthire.domain.tenant.repository.ApplicationRepository;
 import com.smarthire.domain.tenant.repository.CvAnalysisRepository;
 import com.smarthire.domain.tenant.repository.CvDocumentRepository;
@@ -15,8 +17,11 @@ import com.smarthire.domain.tenant.repository.RankingDataRepository;
 import com.smarthire.domain.tenant.repository.UserRepository;
 import com.smarthire.messaging.JobPublisher;
 import com.smarthire.multitenancy.service.TenantRegistryService;
+import com.smarthire.tenant.cv.dto.CvModels.BuilderPersonalInfo;
+import com.smarthire.tenant.cv.dto.CvModels.CvBuilderData;
 import com.smarthire.tenant.cv.mapper.CvMapper;
 import com.smarthire.tenant.cv.service.CvAccess;
+import com.smarthire.tenant.cv.service.CvBuilderPdfRenderer;
 import com.smarthire.tenant.cv.service.CvMatchingService;
 import com.smarthire.tenant.cv.service.CvPipelineService;
 import com.smarthire.tenant.cv.service.CvService;
@@ -28,8 +33,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockMultipartFile;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -51,6 +58,7 @@ class CvServiceTest {
     @Mock CvMatchingService matching;
     @Mock CvPipelineService pipeline;
     @Mock TenantRegistryService tenants;
+    @Mock CvBuilderPdfRenderer renderer;
 
     CvService service;
 
@@ -58,7 +66,95 @@ class CvServiceTest {
     void setUp() {
         service = new CvService(
                 cvs, jobs, users, applications, documents, extractions, cvSkills, analyses, scores,
-                rankingData, storage, publisher, access, mapper, matching, pipeline, tenants, 10_485_760);
+                rankingData, storage, publisher, access, mapper, matching, pipeline, tenants,
+                renderer, new ObjectMapper(), 10_485_760);
+    }
+
+    @Test
+    void builderCannotEditUploadedCv() {
+        User actor = new User();
+        actor.setId(3L);
+        Cv cv = new Cv();
+        cv.setId(9L);
+        cv.setUser(actor);
+        when(access.candidate()).thenReturn(true);
+        when(access.actor()).thenReturn(actor);
+        when(cvs.findById(9L)).thenReturn(Optional.of(cv));
+
+        assertThatThrownBy(() -> service.updateFromBuilder(9L, builderData()))
+                .isInstanceOf(BusinessException.class)
+                .extracting(ex -> ((BusinessException) ex).getCode())
+                .isEqualTo("CV_NOT_BUILDER");
+        verifyNoInteractions(renderer, storage);
+    }
+
+    @Test
+    void builderCannotEditAnotherUsersCv() {
+        User actor = new User();
+        actor.setId(3L);
+        User other = new User();
+        other.setId(4L);
+        Cv cv = new Cv();
+        cv.setId(9L);
+        cv.setUser(other);
+        cv.setBuilderData("{}");
+        when(access.candidate()).thenReturn(true);
+        when(access.actor()).thenReturn(actor);
+        when(cvs.findById(9L)).thenReturn(Optional.of(cv));
+
+        assertThatThrownBy(() -> service.updateFromBuilder(9L, builderData()))
+                .isInstanceOf(BusinessException.class)
+                .extracting(ex -> ((BusinessException) ex).getCode())
+                .isEqualTo("CV_FORBIDDEN");
+    }
+
+    @Test
+    void renameKeepsFileExtension() {
+        User actor = new User();
+        actor.setId(3L);
+        Cv cv = new Cv();
+        cv.setId(9L);
+        cv.setUser(actor);
+        cv.setOriginalFilename("CV-Nguyen Van A.pdf");
+        when(access.actor()).thenReturn(actor);
+        when(cvs.findById(9L)).thenReturn(Optional.of(cv));
+
+        service.rename(9L, "  CV Backend 2026 ");
+
+        assertThat(cv.getOriginalFilename()).isEqualTo("CV Backend 2026.pdf");
+    }
+
+    @Test
+    void shareCreatesStableTokenForBuilderCv() {
+        User actor = new User();
+        actor.setId(3L);
+        Cv cv = new Cv();
+        cv.setId(9L);
+        cv.setUser(actor);
+        cv.setBuilderData("{}");
+        when(access.candidate()).thenReturn(true);
+        when(access.actor()).thenReturn(actor);
+        when(cvs.findById(9L)).thenReturn(Optional.of(cv));
+
+        String token = service.share(9L).token();
+
+        assertThat(token).hasSizeGreaterThanOrEqualTo(32).matches("[A-Za-z0-9_-]+");
+        assertThat(service.share(9L).token()).isEqualTo(token);
+    }
+
+    @Test
+    void unknownShareTokenIsNotFound() {
+        when(cvs.findByShareToken("missing")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.shared("missing"))
+                .isInstanceOf(BusinessException.class)
+                .extracting(ex -> ((BusinessException) ex).getCode())
+                .isEqualTo("CV_SHARE_NOT_FOUND");
+    }
+
+    private static CvBuilderData builderData() {
+        return new CvBuilderData("basic", null, null, null,
+                new BuilderPersonalInfo("Nguyễn Văn A", null, null, null, null, null, null, null, null, null, null, null, null), List.of());
     }
 
     @Test

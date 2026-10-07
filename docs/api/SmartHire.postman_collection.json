@@ -5,13 +5,38 @@
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
-    {"key":"aiInterviewId","value":"1"},
-    {"key":"aiQuestionId","value":"1"},
-    {"key":"notificationId","value":"1"},
-    { "key": "candidateToken", "value": "" },
-    { "key": "questionId", "value": "1" },
-    { "key": "optionId", "value": "1" },
-    { "key": "submissionId", "value": "1" },
+    {
+      "key": "aiInterviewId",
+      "value": "1"
+    },
+    {
+      "key": "aiQuestionId",
+      "value": "1"
+    },
+    {
+      "key": "aiAnswerId",
+      "value": "1"
+    },
+    {
+      "key": "notificationId",
+      "value": "1"
+    },
+    {
+      "key": "candidateToken",
+      "value": ""
+    },
+    {
+      "key": "questionId",
+      "value": "1"
+    },
+    {
+      "key": "optionId",
+      "value": "1"
+    },
+    {
+      "key": "submissionId",
+      "value": "1"
+    },
     {
       "key": "baseUrl",
       "value": "http://localhost:8080/api/v1"
@@ -59,6 +84,14 @@
     {
       "key": "masterPassword",
       "value": ""
+    },
+    {
+      "key": "humanInterviewId",
+      "value": "1"
+    },
+    {
+      "key": "interviewerId",
+      "value": "1"
     }
   ],
   "item": [
@@ -189,7 +222,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"answerText\": \"Câu trả lời của ứng viên\"\n}"
+              "raw": "{\n  \"answerText\": \"Câu trả lời của ứng viên\",\n  \"answerDuration\": 5,\n  \"speechMetrics\": {\n    \"durationMs\": 5000,\n    \"voicedMs\": 4000,\n    \"silenceMs\": 1000,\n    \"pauseCount\": 1,\n    \"responseLatencyMs\": 1200\n  }\n}"
             }
           }
         },
@@ -790,6 +823,186 @@
           }
         },
         {
+          "name": "Save CV from Builder",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/cvs/builder",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"templateId\": \"basic\",\n  \"accentColor\": \"#2563eb\",\n  \"personalInfo\": {\n    \"fullName\": \"Nguyễn Văn A\",\n    \"title\": \"Backend Developer\",\n    \"email\": \"a@example.com\",\n    \"phone\": \"0901234567\",\n    \"address\": \"Hà Nội\",\n    \"website\": \"\",\n    \"summary\": \"<p>3 năm kinh nghiệm Java</p>\"\n  },\n  \"sections\": [\n    {\n      \"id\": \"s1\",\n      \"type\": \"experience\",\n      \"title\": \"Kinh nghiệm làm việc\",\n      \"visible\": true,\n      \"items\": [\n        { \"id\": \"i1\", \"title\": \"Công ty ABC\", \"subtitle\": \"Backend Developer\", \"date\": \"2022 - nay\", \"description\": \"<ul><li>Xây dựng REST API</li></ul>\" }\n      ]\n    }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "Update CV from Builder",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/cvs/1/builder",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"templateId\": \"cascade\",\n  \"accentColor\": null,\n  \"personalInfo\": { \"fullName\": \"Nguyễn Văn A\", \"title\": \"\", \"email\": \"\", \"phone\": \"\", \"address\": \"\", \"website\": \"\", \"summary\": \"\" },\n  \"sections\": []\n}"
+            }
+          }
+        },
+        {
+          "name": "Upload CV Builder Avatar",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/cvs/builder/avatar",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": ""
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "CV Builder AI Writing Suggestions",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/cvs/builder/suggestions",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"kind\": \"description\",\n  \"language\": \"vi\",\n  \"headline\": \"Backend Developer\",\n  \"sectionType\": \"experience\",\n  \"itemTitle\": \"Công ty ABC\",\n  \"itemSubtitle\": \"Backend Developer\",\n  \"text\": \"Làm API bằng Spring Boot\"\n}"
+            }
+          }
+        },
+        {
+          "name": "CV Builder Job Match",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/cvs/builder/job-match?jobId=1",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"templateId\": \"cascade\",\n  \"accentColor\": null,\n  \"personalInfo\": { \"fullName\": \"Nguyễn Văn A\", \"title\": \"\", \"email\": \"\", \"phone\": \"\", \"address\": \"\", \"website\": \"\", \"summary\": \"\" },\n  \"sections\": [{ \"id\": \"s1\", \"type\": \"skills\", \"title\": \"Kỹ năng\", \"visible\": true, \"items\": [{ \"id\": \"i1\", \"title\": \"Java\", \"subtitle\": \"\", \"date\": \"\", \"description\": \"\", \"level\": 0 }] }]\n}"
+            }
+          }
+        },
+        {
+          "name": "Duplicate Builder CV",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/cvs/1/duplicate"
+          }
+        },
+        {
+          "name": "Rename CV",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/cvs/1/name",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"CV Backend Developer\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Share Builder CV",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/cvs/1/share"
+          }
+        },
+        {
+          "name": "Unshare Builder CV",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/cvs/1/share"
+          }
+        },
+        {
+          "name": "Get Shared CV (public)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/public/cvs/{{shareToken}}"
+          }
+        },
+        {
           "name": "Delete CV",
           "request": {
             "method": "DELETE",
@@ -1216,6 +1429,843 @@
               }
             }
           ]
+        }
+      ]
+    },
+    {
+      "name": "Communication voice interview",
+      "item": [
+        {
+          "name": "Consent Communication",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/ai-interviews/{{aiInterviewId}}/voice/consent",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"accepted\":true,\"policyVersion\":\"communication-voice-v1\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Gửi câu trả lời audio và transcript",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/ai-interviews/{{aiInterviewId}}/questions/{{aiQuestionId}}/audio-answer",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": []
+                },
+                {
+                  "key": "answer",
+                  "type": "text",
+                  "contentType": "application/json",
+                  "value": "{\"answerText\":\"My solution...\",\"answerDuration\":5,\"speechMetrics\":{\"durationMs\":5000,\"voicedMs\":4000,\"silenceMs\":1000,\"pauseCount\":1,\"responseLatencyMs\":1000}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Metadata recording (Recruiter sau phiên)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/ai-interviews/{{aiInterviewId}}/answers/{{aiAnswerId}}/recording/info"
+          }
+        },
+        {
+          "name": "Audio riêng tư (Recruiter sau phiên)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/ai-interviews/{{aiInterviewId}}/answers/{{aiAnswerId}}/recording/audio"
+          }
+        }
+      ]
+    },
+    {
+      "name": "General Question Bank",
+      "item": [
+        {
+          "name": "List bank",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/question-bank/list_questions?page=0&size=100"
+          }
+        },
+        {
+          "name": "Get bank question",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/question-bank/get_question/{{questionId}}"
+          }
+        },
+        {
+          "name": "Create standalone questions",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/question-bank/create_questions",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"questions\": [\n    {\n      \"question\": {\n        \"questionText\": \"Which keyword defines a Java class?\",\n        \"points\": 5,\n        \"questionOrder\": 0,\n        \"difficulty\": \"Easy\",\n        \"skill\": \"Java\",\n        \"questionType\": \"MCQ\",\n        \"options\": [\n          {\n            \"optionText\": \"class\",\n            \"correct\": true\n          },\n          {\n            \"optionText\": \"def\",\n            \"correct\": false\n          }\n        ]\n      },\n      \"authoringMetadata\": null\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Update standalone question",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/question-bank/update_question/{{questionId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": {\n    \"questionText\": \"Which keyword defines a Java class?\",\n    \"points\": 5,\n    \"questionOrder\": 0,\n    \"difficulty\": \"Easy\",\n    \"skill\": \"Java\",\n    \"questionType\": \"MCQ\",\n    \"options\": [\n      {\n        \"optionText\": \"class\",\n        \"correct\": true\n      },\n      {\n        \"optionText\": \"def\",\n        \"correct\": false\n      }\n    ]\n  },\n  \"authoringMetadata\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Archive standalone questions",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/question-bank/archive_questions",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"questionIds\": [\n    1\n  ],\n  \"archived\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Assessment Generation",
+      "item": [
+        {
+          "name": "Read configuration",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/assessments/jobs/{{jobId}}/configuration"
+          }
+        },
+        {
+          "name": "Save structure",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/assessments/jobs/{{jobId}}/configuration",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"durationMinutes\": 30,\n  \"passingPercent\": 70,\n  \"autoAssign\": false,\n  \"sections\": [\n    {\n      \"skill\": \"Java\",\n      \"questionType\": \"MCQ\",\n      \"difficulty\": \"Easy\",\n      \"count\": 5,\n      \"points\": 2\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Generate draft",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/assessments/jobs/{{jobId}}/generate"
+          }
+        },
+        {
+          "name": "Automation status",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/assessments/jobs/{{jobId}}/automation_status"
+          }
+        }
+      ]
+    },
+    {
+      "name": "AI Conversation",
+      "description": "V44: streaming dialogue, post-session evaluation and native STT/TTS. WebSocket: /ws/interview-voice?ticket=<single-use ticket>; start, binary chunks, end. Reuse requestId only for retries.",
+      "item": [
+        {
+          "name": "Conversation transcript",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/ai-interviews/{{aiInterviewId}}/conversation"
+          }
+        },
+        {
+          "name": "Send conversation turn (SSE)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "text/event-stream"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/ai-interviews/{{aiInterviewId}}/conversation/turns",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"requestId\": \"12345678-1234-1234-1234-123456789012\",\n  \"content\": \"I would use dependency injection.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Voice WebSocket ticket",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/ai-interviews/{{aiInterviewId}}/conversation/voice-ticket"
+          }
+        },
+        {
+          "name": "Generate message speech",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/ai-interviews/{{aiInterviewId}}/conversation/messages/{{messageId}}/speech"
+          }
+        },
+        {
+          "name": "Read private message recording",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/ai-interviews/{{aiInterviewId}}/conversation/messages/{{messageId}}/recording"
+          }
+        },
+        {
+          "name": "Attach private message recording",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/ai-interviews/{{aiInterviewId}}/conversation/messages/{{messageId}}/recording",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": ""
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Human Interview",
+      "item": [
+        {
+          "name": "List",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/interviews?jobId={{jobId}}&page=0&size=20"
+          }
+        },
+        {
+          "name": "Summary",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/interviews/summary?jobId={{jobId}}&timezone=Asia/Bangkok"
+          }
+        },
+        {
+          "name": "Options",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/interviews/options?jobId={{jobId}}"
+          }
+        },
+        {
+          "name": "Mine (candidate)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/interviews/mine"
+          }
+        },
+        {
+          "name": "Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/interviews/{{humanInterviewId}}"
+          }
+        },
+        {
+          "name": "Availability",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/interviews/availability",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jobId\": \"{{jobId}}\",\n  \"start\": \"2030-01-02T03:00:00Z\",\n  \"end\": \"2030-01-02T04:00:00Z\",\n  \"userIds\": [\n    \"{{interviewerId}}\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Create",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/interviews",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jobId\": \"{{jobId}}\",\n  \"applicationId\": \"{{applicationId}}\",\n  \"round\": \"TECHNICAL\",\n  \"mode\": \"ONLINE\",\n  \"start\": \"2030-01-02T03:00:00Z\",\n  \"end\": \"2030-01-02T04:00:00Z\",\n  \"meetingUrl\": \"https://meet.example.com/interview\",\n  \"location\": \"\",\n  \"provider\": \"GOOGLE_MEET\",\n  \"rubric\": \"TECHNICAL\",\n  \"emailTemplate\": \"STANDARD\",\n  \"notes\": \"Bring your portfolio\",\n  \"attachCalendar\": true,\n  \"smsReminder\": false,\n  \"draft\": false,\n  \"participants\": [\n    {\n      \"userId\": \"{{interviewerId}}\",\n      \"role\": \"LEAD\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Edit",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/interviews/{{humanInterviewId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jobId\": \"{{jobId}}\",\n  \"applicationId\": \"{{applicationId}}\",\n  \"round\": \"TECHNICAL\",\n  \"mode\": \"ONLINE\",\n  \"start\": \"2030-01-02T03:00:00Z\",\n  \"end\": \"2030-01-02T04:00:00Z\",\n  \"meetingUrl\": \"https://meet.example.com/interview\",\n  \"location\": \"\",\n  \"provider\": \"GOOGLE_MEET\",\n  \"rubric\": \"TECHNICAL\",\n  \"emailTemplate\": \"STANDARD\",\n  \"notes\": \"Bring your portfolio\",\n  \"attachCalendar\": true,\n  \"smsReminder\": false,\n  \"draft\": false,\n  \"participants\": [\n    {\n      \"userId\": \"{{interviewerId}}\",\n      \"role\": \"LEAD\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Confirm",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/interviews/{{humanInterviewId}}/confirm"
+          }
+        },
+        {
+          "name": "Cancel",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/interviews/{{humanInterviewId}}/cancel"
+          }
+        },
+        {
+          "name": "Complete",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/interviews/{{humanInterviewId}}/complete"
+          }
+        },
+        {
+          "name": "Remind",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/interviews/{{humanInterviewId}}/remind"
+          }
+        },
+        {
+          "name": "Request reschedule",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/interviews/{{humanInterviewId}}/reschedule-request",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"start\": \"2030-01-03T03:00:00Z\",\n  \"end\": \"2030-01-03T04:00:00Z\",\n  \"reason\": \"Unavailable\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Scorecard",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/interviews/{{humanInterviewId}}/evaluations",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"technicalScore\": 80,\n  \"communicationScore\": 85,\n  \"cultureScore\": 90,\n  \"comments\": \"Strong problem solving\",\n  \"recommendation\": \"HIRE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Bulk",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/interviews/bulk",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ids\": [\n    \"{{humanInterviewId}}\"\n  ],\n  \"action\": \"RESCHEDULE\",\n  \"shiftMinutes\": 60\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Email preview",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/interviews/{{humanInterviewId}}/email-preview"
+          }
+        },
+        {
+          "name": "Export ICS",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/interviews/export?jobId={{jobId}}"
+          }
+        },
+        {
+          "name": "Calendar ICS",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/interviews/{{humanInterviewId}}/calendar"
+          }
         }
       ]
     }

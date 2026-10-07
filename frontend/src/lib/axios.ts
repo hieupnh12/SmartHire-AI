@@ -24,7 +24,6 @@ function shouldSkipLoginRedirect(pathname: string, url = "") {
   return (
     pathname.startsWith("/login") ||
     pathname.startsWith("/internal/login") ||
-    pathname.startsWith("/candidate/login") ||
     pathname.startsWith("/oauth/callback") ||
     pathname.startsWith("/invite/accept") ||
     pathname.startsWith("/admin/login")
@@ -34,11 +33,18 @@ function shouldSkipLoginRedirect(pathname: string, url = "") {
 function loginPathFor(pathname: string) {
   if (
     pathname.startsWith("/candidate") ||
+    pathname.startsWith("/applications") ||
+    pathname.startsWith("/cv") ||
+    pathname.startsWith("/assessments") ||
+    pathname.startsWith("/interviews") ||
+    pathname.startsWith("/practice") ||
+    pathname.startsWith("/schedules") ||
+    pathname.startsWith("/notifications") ||
     pathname.startsWith("/oauth") ||
     pathname.startsWith("/career") ||
     pathname.startsWith("/jobs")
   ) {
-    return "/candidate/login";
+    return "/login";
   }
   return "/internal/login";
 }
@@ -112,6 +118,7 @@ api.interceptors.response.use(
 );
 
 const FRIENDLY_ERROR_MESSAGES: Record<string, string> = {
+  AI_INTERVIEW_LOCKED: "Phiên đã bị khóa. Chỉ được xóa phiên chưa bắt đầu ở trạng thái mới tạo, sẵn sàng hoặc lỗi; không thể xóa khi đang sinh câu hỏi hoặc đã bắt đầu.",
   INTERNAL_ERROR: "Hệ thống đang gặp sự cố tạm thời. Vui lòng thử lại sau ít phút.",
   VALIDATION_ERROR: "Một số thông tin chưa hợp lệ. Vui lòng kiểm tra lại.",
   BAD_REQUEST: "Yêu cầu chưa hợp lệ. Vui lòng kiểm tra lại thông tin.",

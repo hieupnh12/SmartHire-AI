@@ -7,15 +7,20 @@ import com.smarthire.domain.master.repository.TenantInfoRepository;
 import com.smarthire.master.notification.dto.MasterEmailPayload;
 import com.smarthire.master.notification.messaging.MasterNotificationPublisher;
 import com.smarthire.multitenancy.quota.QuotaType;
+import com.smarthire.master.billing.dto.OrderPdfData;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.math.BigDecimal;
+import java.text.DecimalFormat;
+import java.text.DecimalFormatSymbols;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 @Service
@@ -53,6 +58,93 @@ public class MasterNotificationService {
                 .build();
 
         publisher.publishEmail(payload);
+    }
+
+    public void sendCheckoutOrderCreated(OrderPdfData orderData, byte[] pdfBytes, String recipientEmail) {
+        String invoiceNumber = orderData.getInvoiceNumber();
+        String idempotencyKey = String.format("email_sent:checkout_order:%s", invoiceNumber);
+        boolean canSet = redisService.setIfAbsent(idempotencyKey, "1", Duration.ofHours(24));
+        if (!canSet) {
+            log.info("Checkout order email already sent for invoice #{}. Skipping duplicate.", invoiceNumber);
+            return;
+        }
+
+        DecimalFormatSymbols symbols = new DecimalFormatSymbols(new Locale("vi", "VN"));
+        symbols.setGroupingSeparator('.');
+        DecimalFormat formatter = new DecimalFormat("#,###", symbols);
+
+        String formattedUnitPrice = formatter.format(orderData.getUnitPrice() != null ? orderData.getUnitPrice() : BigDecimal.ZERO);
+        String formattedTotalPrice = formatter.format(orderData.getTotalPrice() != null ? orderData.getTotalPrice() : BigDecimal.ZERO);
+
+        Map<String, Object> vars = new HashMap<>();
+        vars.put("customerName", StringUtils.hasText(orderData.getCustomerName()) ? orderData.getCustomerName() : "Quý khách");
+        vars.put("invoiceNumber", orderData.getInvoiceNumber());
+        vars.put("orderDate", StringUtils.hasText(orderData.getOrderDate()) ? orderData.getOrderDate() : LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")));
+        vars.put("planName", orderData.getPlanName());
+        vars.put("quantity", orderData.getQuantity() > 0 ? orderData.getQuantity() : 1);
+        vars.put("formattedUnitPrice", formattedUnitPrice);
+        vars.put("formattedTotalPrice", formattedTotalPrice);
+        vars.put("bankName", orderData.getBankName());
+        vars.put("accountNumber", orderData.getAccountNumber());
+        vars.put("accountName", orderData.getAccountName());
+        vars.put("transferSyntax", orderData.getTransferSyntax());
+        vars.put("qrUrl", orderData.getQrUrl());
+        vars.put("checkoutUrl", "https://smarthire.top/checkout");
+
+        String pdfFilename = "Thong tin don hang " + orderData.getInvoiceNumber() + ".pdf";
+
+        MasterEmailPayload payload = MasterEmailPayload.builder()
+                .tenantCode("PLATFORM")
+                .toEmail(recipientEmail)
+                .subject("SmartHire-AI - Thông tin đơn hàng #" + orderData.getInvoiceNumber())
+                .templateName("checkout-order-created")
+                .templateVariables(vars)
+                .notificationType("CHECKOUT_ORDER_CREATED")
+                .attachmentData(pdfBytes)
+                .attachmentFilename(pdfFilename)
+                .build();
+
+        publisher.publishEmail(payload);
+        log.info("Queued checkout order email with PDF for invoice #{} to {}", orderData.getInvoiceNumber(), recipientEmail);
+    }
+
+    public void sendWorkspaceActivated(TenantInfo tenant, String planName, String tempPassword, String workspaceUrl) {
+        String recipientEmail = getRecipient(tenant);
+        if (!StringUtils.hasText(recipientEmail)) {
+            log.warn("Cannot send workspace activation email: recipient email missing for tenant {}", tenant.getCode());
+            return;
+        }
+
+        String idempotencyKey = String.format("email_sent:workspace_activated:%s", tenant.getCode());
+        boolean canSet = redisService.setIfAbsent(idempotencyKey, "1", Duration.ofHours(24));
+        if (!canSet) {
+            log.info("Workspace activation email already sent for tenant {}. Skipping duplicate.", tenant.getCode());
+            return;
+        }
+
+        Map<String, Object> vars = new HashMap<>();
+        vars.put("customerName", StringUtils.hasText(tenant.getContactName()) ? tenant.getContactName() : tenant.getName());
+        vars.put("workspaceName", tenant.getName());
+        vars.put("subdomain", tenant.getSubdomain());
+        vars.put("workspaceLoginUrl", workspaceUrl.endsWith("/internal/login") ? workspaceUrl : workspaceUrl + "/internal/login");
+        vars.put("adminEmail", recipientEmail);
+        vars.put("tempPassword", tempPassword);
+        vars.put("planName", StringUtils.hasText(planName) ? planName : "Gói Thuê Bao SmartHire");
+        vars.put("activatedDate", LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")));
+        vars.put("supportEmail", "support@smarthire.top");
+        vars.put("supportHotline", "0988.888.888");
+
+        MasterEmailPayload payload = MasterEmailPayload.builder()
+                .tenantCode(tenant.getCode())
+                .toEmail(recipientEmail)
+                .subject("SmartHire-AI - Kích hoạt không gian làm việc thành công [" + tenant.getName() + "]")
+                .templateName("workspace-activated")
+                .templateVariables(vars)
+                .notificationType("WORKSPACE_ACTIVATED")
+                .build();
+
+        publisher.publishEmail(payload);
+        log.info("Queued workspace activation email for tenant {} to {}", tenant.getCode(), recipientEmail);
     }
 
     public void sendQuotaWarning(String tenantCode, QuotaType type, long used, long limit) {

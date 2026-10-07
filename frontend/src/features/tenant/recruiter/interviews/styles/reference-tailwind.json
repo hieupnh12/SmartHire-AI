@@ -1,0 +1,237 @@
+{
+  "darkMode": "class",
+  "theme": {
+    "extend": {
+      "colors": {
+        "background": "color-mix(in srgb, var(--color-background) calc(<alpha-value> * 100%), transparent)",
+        "error": "color-mix(in srgb, var(--color-error) calc(<alpha-value> * 100%), transparent)",
+        "on-primary": "color-mix(in srgb, var(--color-on-primary) calc(<alpha-value> * 100%), transparent)",
+        "on-tertiary": "color-mix(in srgb, var(--color-on-primary) calc(<alpha-value> * 100%), transparent)",
+        "on-secondary-fixed": "color-mix(in srgb, var(--color-on-surface) calc(<alpha-value> * 100%), transparent)",
+        "on-error-container": "color-mix(in srgb, var(--color-on-error-container) calc(<alpha-value> * 100%), transparent)",
+        "error-container": "color-mix(in srgb, var(--color-error-container) calc(<alpha-value> * 100%), transparent)",
+        "surface-container-high": "color-mix(in srgb, var(--color-primary-subtle) calc(<alpha-value> * 100%), transparent)",
+        "on-tertiary-container": "color-mix(in srgb, var(--color-on-primary) calc(<alpha-value> * 100%), transparent)",
+        "inverse-on-surface": "color-mix(in srgb, var(--color-on-primary) calc(<alpha-value> * 100%), transparent)",
+        "on-tertiary-fixed-variant": "color-mix(in srgb, var(--color-primary-hover) calc(<alpha-value> * 100%), transparent)",
+        "on-secondary-fixed-variant": "color-mix(in srgb, var(--color-on-surface-variant) calc(<alpha-value> * 100%), transparent)",
+        "surface-container-highest": "color-mix(in srgb, var(--color-primary-soft) calc(<alpha-value> * 100%), transparent)",
+        "surface-tint": "color-mix(in srgb, var(--color-primary) calc(<alpha-value> * 100%), transparent)",
+        "outline": "color-mix(in srgb, var(--color-outline) calc(<alpha-value> * 100%), transparent)",
+        "outline-variant": "color-mix(in srgb, var(--color-outline-variant) calc(<alpha-value> * 100%), transparent)",
+        "surface-container": "color-mix(in srgb, var(--color-surface-container) calc(<alpha-value> * 100%), transparent)",
+        "on-surface-variant": "color-mix(in srgb, var(--color-on-surface-variant) calc(<alpha-value> * 100%), transparent)",
+        "tertiary-fixed": "color-mix(in srgb, var(--color-primary-subtle) calc(<alpha-value> * 100%), transparent)",
+        "secondary-fixed-dim": "color-mix(in srgb, var(--color-surface-container-highest) calc(<alpha-value> * 100%), transparent)",
+        "inverse-primary": "color-mix(in srgb, var(--color-primary-subtle) calc(<alpha-value> * 100%), transparent)",
+        "surface-container-lowest": "color-mix(in srgb, var(--color-surface-card) calc(<alpha-value> * 100%), transparent)",
+        "on-error": "color-mix(in srgb, var(--color-on-error) calc(<alpha-value> * 100%), transparent)",
+        "on-surface": "color-mix(in srgb, var(--color-on-surface) calc(<alpha-value> * 100%), transparent)",
+        "surface": "color-mix(in srgb, var(--color-surface-page) calc(<alpha-value> * 100%), transparent)",
+        "surface-variant": "color-mix(in srgb, var(--color-surface-container-high) calc(<alpha-value> * 100%), transparent)",
+        "on-tertiary-fixed": "color-mix(in srgb, var(--color-primary-hover) calc(<alpha-value> * 100%), transparent)",
+        "primary-fixed-dim": "color-mix(in srgb, var(--color-primary-soft) calc(<alpha-value> * 100%), transparent)",
+        "on-secondary": "color-mix(in srgb, var(--color-on-secondary) calc(<alpha-value> * 100%), transparent)",
+        "secondary": "color-mix(in srgb, var(--color-secondary) calc(<alpha-value> * 100%), transparent)",
+        "on-primary-container": "color-mix(in srgb, var(--color-on-primary) calc(<alpha-value> * 100%), transparent)",
+        "primary-container": "color-mix(in srgb, var(--color-primary) calc(<alpha-value> * 100%), transparent)",
+        "on-primary-fixed": "color-mix(in srgb, var(--color-primary-hover) calc(<alpha-value> * 100%), transparent)",
+        "tertiary-container": "color-mix(in srgb, var(--color-primary) calc(<alpha-value> * 100%), transparent)",
+        "on-background": "color-mix(in srgb, var(--color-on-background) calc(<alpha-value> * 100%), transparent)",
+        "tertiary-fixed-dim": "color-mix(in srgb, var(--color-primary-soft) calc(<alpha-value> * 100%), transparent)",
+        "surface-container-low": "color-mix(in srgb, var(--color-surface-container-low) calc(<alpha-value> * 100%), transparent)",
+        "primary": "color-mix(in srgb, var(--color-primary) calc(<alpha-value> * 100%), transparent)",
+        "secondary-container": "color-mix(in srgb, var(--color-secondary-container) calc(<alpha-value> * 100%), transparent)",
+        "secondary-fixed": "color-mix(in srgb, var(--color-secondary-container) calc(<alpha-value> * 100%), transparent)",
+        "primary-fixed": "color-mix(in srgb, var(--color-primary-subtle) calc(<alpha-value> * 100%), transparent)",
+        "on-primary-fixed-variant": "color-mix(in srgb, var(--color-primary-hover) calc(<alpha-value> * 100%), transparent)",
+        "surface-bright": "color-mix(in srgb, var(--color-surface-card) calc(<alpha-value> * 100%), transparent)",
+        "on-secondary-container": "color-mix(in srgb, var(--color-on-surface-variant) calc(<alpha-value> * 100%), transparent)",
+        "tertiary": "color-mix(in srgb, var(--color-primary) calc(<alpha-value> * 100%), transparent)",
+        "inverse-surface": "color-mix(in srgb, var(--color-on-surface) calc(<alpha-value> * 100%), transparent)",
+        "surface-dim": "color-mix(in srgb, var(--color-surface-dim) calc(<alpha-value> * 100%), transparent)"
+      },
+      "borderRadius": {
+        "DEFAULT": "0.25rem",
+        "lg": "0.5rem",
+        "xl": "0.75rem",
+        "full": "9999px"
+      },
+      "spacing": {
+        "space-xl": "2rem",
+        "space-2xl": "3rem",
+        "margin-mobile": "1rem",
+        "space-md": "1rem",
+        "gutter": "1.5rem",
+        "space-sm": "0.5rem",
+        "margin": "2rem",
+        "gutter-lg": "2rem",
+        "gutter-sm": "1rem",
+        "space-lg": "1.5rem",
+        "space-xs": "0.25rem"
+      },
+      "fontFamily": {
+        "display-lg": [
+          "var(--font-family)"
+        ],
+        "body-lg": [
+          "var(--font-family)"
+        ],
+        "display-lg-mobile": [
+          "var(--font-family)"
+        ],
+        "headline-sm": [
+          "var(--font-family)"
+        ],
+        "label-md": [
+          "var(--font-family)"
+        ],
+        "label-lg": [
+          "var(--font-family)"
+        ],
+        "label-sm": [
+          "var(--font-family)"
+        ],
+        "data-mono": [
+          "var(--font-family)"
+        ],
+        "headline-xl": [
+          "var(--font-family)"
+        ],
+        "body-sm": [
+          "var(--font-family)"
+        ],
+        "headline-lg": [
+          "var(--font-family)"
+        ],
+        "headline-xl-mobile": [
+          "var(--font-family)"
+        ],
+        "body-md": [
+          "var(--font-family)"
+        ],
+        "headline-md": [
+          "var(--font-family)"
+        ]
+      },
+      "fontSize": {
+        "display-lg": [
+          "36px",
+          {
+            "lineHeight": "44px",
+            "letterSpacing": "-0.025em",
+            "fontWeight": "700"
+          }
+        ],
+        "body-lg": [
+          "16px",
+          {
+            "lineHeight": "26px",
+            "letterSpacing": "0em",
+            "fontWeight": "400"
+          }
+        ],
+        "display-lg-mobile": [
+          "28px",
+          {
+            "lineHeight": "36px",
+            "letterSpacing": "-0.02em",
+            "fontWeight": "700"
+          }
+        ],
+        "headline-sm": [
+          "16px",
+          {
+            "lineHeight": "24px",
+            "letterSpacing": "-0.005em",
+            "fontWeight": "600"
+          }
+        ],
+        "label-md": [
+          "12px",
+          {
+            "lineHeight": "16px",
+            "letterSpacing": "0.01em",
+            "fontWeight": "500"
+          }
+        ],
+        "label-lg": [
+          "14px",
+          {
+            "lineHeight": "20px",
+            "letterSpacing": "0.005em",
+            "fontWeight": "500"
+          }
+        ],
+        "label-sm": [
+          "11px",
+          {
+            "lineHeight": "14px",
+            "letterSpacing": "0.025em",
+            "fontWeight": "600"
+          }
+        ],
+        "data-mono": [
+          "13px",
+          {
+            "lineHeight": "20px",
+            "letterSpacing": "-0.01em",
+            "fontWeight": "400"
+          }
+        ],
+        "headline-xl": [
+          "30px",
+          {
+            "lineHeight": "38px",
+            "letterSpacing": "-0.02em",
+            "fontWeight": "600"
+          }
+        ],
+        "body-sm": [
+          "12px",
+          {
+            "lineHeight": "18px",
+            "letterSpacing": "0.005em",
+            "fontWeight": "400"
+          }
+        ],
+        "headline-lg": [
+          "24px",
+          {
+            "lineHeight": "32px",
+            "letterSpacing": "-0.015em",
+            "fontWeight": "600"
+          }
+        ],
+        "headline-xl-mobile": [
+          "24px",
+          {
+            "lineHeight": "32px",
+            "letterSpacing": "-0.015em",
+            "fontWeight": "600"
+          }
+        ],
+        "body-md": [
+          "14px",
+          {
+            "lineHeight": "22px",
+            "letterSpacing": "0em",
+            "fontWeight": "400"
+          }
+        ],
+        "headline-md": [
+          "20px",
+          {
+            "lineHeight": "28px",
+            "letterSpacing": "-0.01em",
+            "fontWeight": "600"
+          }
+        ]
+      }
+    }
+  },
+  "important": ".human-interview-reference",
+  "corePlugins": {
+    "preflight": false
+  }
+}

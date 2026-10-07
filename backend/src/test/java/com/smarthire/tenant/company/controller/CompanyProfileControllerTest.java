@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.smarthire.common.exception.GlobalExceptionHandler;
 import com.smarthire.tenant.company.dto.CompanyProfileResponse;
 import com.smarthire.tenant.company.dto.UpdateCompanyProfileRequest;
+import com.smarthire.tenant.company.service.CompanyDirectoryService;
 import com.smarthire.tenant.company.service.CompanyProfileService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -27,12 +28,15 @@ class CompanyProfileControllerTest {
     @Mock
     private CompanyProfileService companyProfileService;
 
+    @Mock
+    private CompanyDirectoryService companyDirectoryService;
+
     private MockMvc mockMvc;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @BeforeEach
     void setUp() {
-        CompanyProfileController controller = new CompanyProfileController(companyProfileService);
+        CompanyProfileController controller = new CompanyProfileController(companyProfileService, companyDirectoryService);
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();

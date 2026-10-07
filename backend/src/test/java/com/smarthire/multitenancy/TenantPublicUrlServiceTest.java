@@ -49,4 +49,19 @@ class TenantPublicUrlServiceTest {
         assertThat(urls.path("/candidate/interviews"))
                 .isEqualTo("http://se36.localhost:5173/candidate/interviews");
     }
+
+    @Test
+    void generatesProductionHttpsUrlWithSubdomain() {
+        TenantInfo tenant = new TenantInfo();
+        tenant.setCode("ttqt");
+        tenant.setSubdomain("se36");
+        TenantContext.setCurrentTenant("ttqt");
+        when(registry.requireActive("ttqt")).thenReturn(tenant);
+
+        TenantPublicUrlService urls = new TenantPublicUrlService(
+                registry, "https://smarthire.top", "smarthire.top");
+
+        assertThat(urls.path("/candidate/interviews"))
+                .isEqualTo("https://se36.smarthire.top/candidate/interviews");
+    }
 }

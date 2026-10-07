@@ -3,8 +3,8 @@ import { Loader2 } from "lucide-react";
 import { getTenantIdFromSubdomain } from "@/lib/tenant";
 import { LandingLayout } from "@/features/master/landing/components/LandingLayout";
 import { SaasLandingPage } from "@/features/master/landing/pages/SaasLandingPage";
-import { TenantCareerPage } from "@/features/tenant/career/pages/TenantCareerPage";
-import { TenantNotFoundPage } from "@/features/tenant/career/pages/TenantNotFoundPage";
+import { TenantCareerPage } from "@/features/tenant/candidate/jobs/pages/TenantCareerPage";
+import { TenantNotFoundPage } from "@/features/tenant/candidate/jobs/pages/TenantNotFoundPage";
 import { masterAdminApi } from "@/api/master/masterAdminApi";
 
 export function RootRouteSwitcher() {
