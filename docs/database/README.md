@@ -10,6 +10,9 @@
 
 | Thông tin | Giá trị |
 |---|---|
+| Cài đặt thông báo 2026-10-07 | Tenant V49 tạo `notification_preferences` + entity `NotificationPreference`, enum `NotificationCategory` (`AI_INTERVIEW`, `ASSESSMENT`, `HUMAN_INTERVIEW`); 1 FK CASCADE tới `users`, 1 UNIQUE `(user_id, category)`. Không có dòng nghĩa là bật cả web lẫn email |
+| Trạng thái ứng viên 2026-10-07 | Bổ sung ApplicationStatus.HUMAN_INTERVIEW (phỏng vấn người–người); INTERVIEW giữ nghĩa phỏng vấn AI. DB dùng VARCHAR(32), không cần migration; số bảng/entity/FK/index không đổi |
+| Human Interview 2026-10-06 | Tenant V48 thêm `interviews.configuration_json` JSON nullable (entity `Interview.configurationJson`), index `idx_human_schedule_window(status, scheduled_start, scheduled_end)` và `idx_interview_participant_user(user_id, interview_id)`. Không thêm bảng/entity/FK/UNIQUE. ScheduleStatus bổ sung DRAFT và RESCHEDULE_REQUESTED |
 | CV Builder đợt 3 2026-10-05 | `builder_data` có thêm `sections[].items[].rows[]` (≤ 8 dòng `{label, value}`, bảng 2 cột mẫu Enterprise; `description` đồng bộ từ rows), `personalInfo.avatarCrop` và `theme.avatar` (khung ảnh tùy chỉnh). Không có migration, không thêm bảng/entity/FK/index |
 | CV Builder đợt 2 2026-10-04 | Tenant V47 thêm `cvs.share_token` VARCHAR(64) nullable + UNIQUE `uk_cvs_share_token` (entity `Cv.shareToken`) cho link chia sẻ công khai chỉ đọc. `builder_data` có thêm `personalInfo.avatarUrl`, `language`. Không thêm bảng/entity/FK |
 | CV Builder 2026-10-04 | Tenant V46 thêm `cvs.builder_data` JSON nullable (entity `Cv.builderData`); CV tạo bằng trình tạo CV được render PDF và đi qua pipeline CV hiện có. Không thêm bảng/entity/FK/UNIQUE/index |
@@ -23,12 +26,12 @@
 | AI Interview workflow 2026-09-27 | V25: cấu hình AI Interview theo job, `applications.cv_screening_status`, cột worker; V26: 30–40 câu hỏi, bảng `ai_interview_logs` + entity `AiInterviewLog` |
 | Kiến trúc | Separate Database per Tenant |
 | Số database logic | 2 loại (1 Master + N Tenant) |
-| Bảng tenant sau V45 | 66 bảng (65 sau V44 + `company_directory_entries`); không tính Flyway history |
-| Entity JPA tenant | 61 class `@Entity` theo checkout hiện tại; V44 bổ sung `InterviewSession`, `InterviewMessage`; V45 bổ sung `CompanyDirectoryEntry` |
-| Khoá ngoại tenant | 87 theo mốc tài liệu (85 sau V43 + 2 FK V44); V45 không thêm FK |
-| Ràng buộc UNIQUE tenant | V25/V26 không thêm UNIQUE. V27 thêm UNIQUE `gate_scores.application_id`. V30 thêm `uk_job_assignments_job_user`. V45 thêm `uk_company_directory_type_name`. V47 thêm `uk_cvs_share_token` |
-| Số file migration trong repo | 63 (23 master + 40 tenant); V9 redesign nằm ngoài pipeline |
-| Cập nhật lần cuối | Master `V24`, tenant `V47`: cột `cvs.share_token` cho link chia sẻ CV Builder |
+| Bảng tenant sau V49 | 67 bảng (66 sau V45 + `notification_preferences`); không tính Flyway history |
+| Entity JPA tenant | 62 class `@Entity` theo checkout hiện tại; V44 bổ sung `InterviewSession`, `InterviewMessage`; V45 bổ sung `CompanyDirectoryEntry`; V49 bổ sung `NotificationPreference` |
+| Khoá ngoại tenant | 88 theo mốc tài liệu (85 sau V43 + 2 FK V44 + 1 FK V49); V45 không thêm FK |
+| Ràng buộc UNIQUE tenant | V25/V26 không thêm UNIQUE. V27 thêm UNIQUE `gate_scores.application_id`. V30 thêm `uk_job_assignments_job_user`. V45 thêm `uk_company_directory_type_name`. V47 thêm `uk_cvs_share_token`. V49 thêm `uk_notification_preference_user_category` |
+| Số file migration trong repo | 65 (23 master + 42 tenant); V9 redesign nằm ngoài pipeline |
+| Cập nhật lần cuối | Master `V24`, tenant `V49`: cài đặt kênh nhận thông báo theo người dùng |
 | Dọn legacy V21 | Xóa 19 bảng và dữ liệu legacy, xóa 2 cột ID legacy trong ranking; không chuyển ID cũ sang bản ghi mới |
 | Metadata assessment 2026-09-25 | V13: `tests.created_by/updated_at`, `questions.difficulty/skill/explanation` cho Excel/UI authoring |
 | Sửa lỗi assessment 2026-09-24 | V10/V11 khớp checksum lịch sử; V12 tạo schema mới và giữ bảng cũ; migration lỗi phải chặn mở tenant pool |
@@ -164,7 +167,7 @@ thay vì âm thầm đọc nhầm database của doanh nghiệp khác.
 | 07 | `PlatformAuditLog` | `platform_audit_logs` | Audit | Nhật ký cấp nền tảng |
 | 08 | `ConsultationRequest` | `consultation_requests` | Sales | Yêu cầu demo/tư vấn từ landing |
 
-### 3.2 Tenant — 61 entity (`com.smarthire.domain.tenant.entity`)
+### 3.2 Tenant — 62 entity (`com.smarthire.domain.tenant.entity`)
 
 | No | Entity | Bảng | Nhóm nghiệp vụ | Kế thừa `BaseEntity` |
 |---|---|---|---|---|
@@ -229,6 +232,7 @@ thay vì âm thầm đọc nhầm database của doanh nghiệp khác.
 | 59 | `InterviewSession` | `interview_sessions` | AI Conversation V44 | Không |
 | 60 | `InterviewMessage` | `interview_messages` | AI Conversation V44 | Không |
 | 61 | `CompanyDirectoryEntry` | `company_directory_entries` | Job & Skill | Có |
+| 62 | `NotificationPreference` | `notification_preferences` | Notification | Không |
 
 V23 thêm bảng nối `answer_selected_options`, entity `AnswerSelectedOption` (`@EmbeddedId` + `@MapsId`);
 `Answer.selectedOptions` là `@OneToMany(mappedBy = "answer", cascade = ALL, orphanRemoval)`.
@@ -257,7 +261,7 @@ V44 không thêm enum hoặc trạng thái lifecycle: session dùng lifecycle c�
 | `OAuthProvider` | `oauth_accounts.provider` | `GOOGLE` |
 | `InvitationStatus` | `member_invitations.status` | `PENDING`, `ACCEPTED` |
 | `JobStatus` | `jobs.status` | `DRAFT`, `PUBLISHED`, `PAUSED`, `CLOSED`, `ARCHIVED` |
-| `ApplicationStatus` | `applications.status` | `NEW`, `IN_REVIEW`, `ASSESSMENT`, `INTERVIEW`, `OFFER`, `HIRED`, `REJECTED`, `FAILED`, `WITHDRAWN` |
+| `ApplicationStatus` | `applications.status` | `NEW`, `IN_REVIEW`, `ASSESSMENT`, `INTERVIEW`, `HUMAN_INTERVIEW`, `OFFER`, `HIRED`, `REJECTED`, `FAILED`, `WITHDRAWN` |
 | `CvScreeningStatus` | `applications.cv_screening_status` | `PENDING`, `PASSED`, `FAILED` |
 | `HiringDecisionType` | `hiring_decisions.decision` | `HIRE`, `REJECT`, `HOLD` |
 | `CvStatus` | `cvs.status` | `UPLOADED`, `PARSING`, `PARSED`, `EXTRACTING`, `ANALYZING`, `ANALYZED`, `FAILED` |
@@ -268,9 +272,10 @@ V44 không thêm enum hoặc trạng thái lifecycle: session dùng lifecycle c�
 | `AiInterviewStatus` | `ai_interviews.status`, `ai_interview_logs.status` | `CREATED`, `GENERATING`, `QUESTIONS_READY`, `IN_PROGRESS`, `SCORING`, `SCORED`, `PASSED`, `ERROR`, `FAILED` |
 
 Với phiên chưa bắt đầu, service tự chuyển `QUESTIONS_READY` khi số câu hỏi đạt số câu của kế hoạch trong `config_snapshot_json` (câu hỏi–đáp + trắc nghiệm; phiên cũ dùng `jobs.ai_interview_question_count`); thêm/sửa/xóa khiến số câu chưa đủ thì chuyển `CREATED`. `FAILED` chỉ kết thúc hồ sơ khi hết lượt hoặc quá hạn làm lại; còn quyền thì application giữ `INTERVIEW` và lần làm mới là một dòng `ai_interviews` mới (`attempt_number + 1`). `IN_PROGRESS` quá `expires_at` được backend tự chuyển `SCORING`. Đây là quy tắc service, không phải CHECK constraint SQL. API cập nhật phiên không cho sửa trạng thái hoặc điểm thủ công.
-| `ScheduleStatus` | `interview_schedules.status` | `PROPOSED`, `CONFIRMED`, `CANCELLED`, `DONE` |
+| `ScheduleStatus` | `interview_schedules.status` | `DRAFT`, `PROPOSED`, `CONFIRMED`, `RESCHEDULE_REQUESTED`, `CANCELLED`, `DONE` |
 | `PracticeStatus` | `practice_sessions.status` | `CREATED`, `IN_PROGRESS`, `COMPLETED`, `FAILED` |
 | `NotificationStatus` | **chưa dùng** | `PENDING`, `SENT`, `FAILED` |
+| `NotificationCategory` | `notification_preferences.category` | `AI_INTERVIEW`, `ASSESSMENT`, `HUMAN_INTERVIEW` |
 
 Tất cả đều lưu dưới dạng `VARCHAR(32)` với `@Enumerated(EnumType.STRING)`. Database **không** có `CHECK`
 constraint, nên miền giá trị chỉ được ứng dụng bảo đảm.
@@ -401,6 +406,7 @@ flowchart LR
     end
     subgraph OTHER["Notification & Practice"]
         notifications
+        notification_preferences
         email_outbox
         practice_sessions
     end
@@ -538,6 +544,7 @@ erDiagram
 ```mermaid
 erDiagram
     users ||--o{ notifications : "thông báo in-app"
+    users ||--o{ notification_preferences : "kênh nhận theo loại"
     users ||--o{ practice_sessions : "phiên tự luyện"
     practice_sessions ||--o{ practice_answers : "câu hỏi và trả lời"
     practice_answers ||--o{ practice_feedbacks : "feedback từng câu"
@@ -672,6 +679,7 @@ của màn assessment hiện tại.
 |---|---|---|
 | `Notification` | Thông báo in-app | `type`, `payload_json`, `read_at`. Bảng **không** dùng enum `NotificationStatus` |
 | `EmailOutbox` | Hàng đợi email theo mẫu outbox | Không có FK — cố ý. `attempts` đếm số lần thử |
+| `NotificationPreference` | Cài đặt kênh nhận thông báo (web / email) theo loại | Tối đa một dòng mỗi `(user_id, category)`; thiếu dòng = bật cả hai kênh. Service kiểm tra trước khi ghi `notifications` / `email_outbox` |
 | `PracticeSession` | Phiên tự luyện | Tách khỏi ranking; có `started_at`, `completed_at`, `overall_score` |
 | `PracticeAnswer` | Câu hỏi/trả lời trong phiên | Có thể kèm `audio_url`, `answer_duration` |
 | `PracticeFeedback` | Feedback theo từng câu trả lời | FK `practice_answer_id`; `strengths` / `weaknesses` |
@@ -728,7 +736,9 @@ của màn assessment hiện tại.
 | `invoices` | `tenant_id` | `tenants` | Không | N:1 | `fk_inv_tenant` |
 | `tenant_usage_daily` | `tenant_id` | `tenants` | Không | N:1 (1:1 theo ngày) | `fk_tud_tenant` |
 
-### 7.2 Tenant — 60 khoá ngoại hiện hành
+### 7.2 Tenant — 61 khoá ngoại hiện hành
+
+V49 bổ sung FK NOT NULL `ON DELETE CASCADE`: `notification_preferences.user_id` → `users.id` (N:1).
 
 V44 bổ sung hai FK NOT NULL `ON DELETE CASCADE`: `interview_sessions.ai_interview_id` → `ai_interviews.id` (mỗi attempt 0..1 session nhờ UNIQUE), `interview_messages.session_id` → `interview_sessions.id` (1:N). Các bảng legacy vẫn giữ quan hệ cũ.
 
@@ -802,6 +812,7 @@ V44 bổ sung hai FK NOT NULL `ON DELETE CASCADE`: `interview_sessions.ai_interv
 | `ai_feedbacks` | `ai_answer_id` | `ai_answers` | Không | 1:1 (UQ) | `fk_ai_f_answer` |
 | `ai_interview_logs` | `ai_interview_id` | `ai_interviews` | Không | N:1 | `fk_ai_log_interview`, DELETE CASCADE |
 | `notifications` | `user_id` | `users` | Không | N:1 | `fk_notif_user` |
+| `notification_preferences` | `user_id` | `users` | Không | N:1 | `fk_notification_preference_user`, DELETE CASCADE |
 | `practice_sessions` | `candidate_id` | `users` | Không | N:1 | `fk_ps_user` |
 | `practice_answers` | `session_id` | `practice_sessions` | Không | N:1 | `fk_pa_ps` |
 | `practice_feedbacks` | `practice_answer_id` | `practice_answers` | Không | N:1 | `fk_pf_answer` |
@@ -852,7 +863,9 @@ kho hồ sơ (talent pool) chưa gắn với tin tuyển dụng nào.
 | `platform_users` | `uk_platform_users_email` | `email` | Email quản trị viên không trùng |
 | `tenant_usage_daily` | `uk_tenant_usage_daily` | `(tenant_id, usage_date)` | Mỗi tenant mỗi ngày đúng một dòng usage |
 
-### 8.2 Ràng buộc UNIQUE — Tenant (21, không tính PK)
+### 8.2 Ràng buộc UNIQUE — Tenant (22, không tính PK)
+
+V49 thêm `uk_notification_preference_user_category(user_id, category)`: mỗi người dùng một cài đặt cho mỗi loại thông báo.
 
 V47 thêm `uk_cvs_share_token(share_token)`: token ngẫu nhiên 24 byte (base64url) định danh link chia sẻ CV; NULL khi chưa chia sẻ, MySQL cho phép nhiều NULL.
 
@@ -887,6 +900,7 @@ V22 thêm PK kép `questionskills(question_id, skill_id)` để ngăn gắn trù
 | `role_permissions` | `uk_role_permissions_role_feature` | `(role, feature_code)` | Không lặp quyền cho một role |
 | `roles` | `uk_roles_code` | `code` | Mã role không trùng |
 | `company_directory_entries` | `uk_company_directory_type_name` | `(entry_type, name)` | Không trùng phòng ban hoặc địa điểm trong cùng danh mục |
+| `notification_preferences` | `uk_notification_preference_user_category` | `(user_id, category)` | Mỗi người dùng một cài đặt cho mỗi loại thông báo |
 
 ### 8.3 Máy trạng thái
 
@@ -901,7 +915,7 @@ Mỗi lần chuyển ghi mốc tương ứng: `published_at`, `paused_at`, `clos
 
 **Application** — `applications.status`
 ```
-NEW ──▶ IN_REVIEW ──▶ ASSESSMENT ──▶ INTERVIEW ──▶ OFFER ──▶ HIRED
+NEW ──▶ IN_REVIEW ──▶ INTERVIEW (AI) ──▶ ASSESSMENT ──▶ HUMAN_INTERVIEW ──▶ OFFER ──▶ HIRED
  └────────┴────────────┴─────────────┴────────────┴──▶ REJECTED
  └────────┴────────────┴─────────────┴────────────┴──▶ WITHDRAWN
 ```
@@ -926,6 +940,8 @@ NOT_STARTED ──▶ IN_PROGRESS ──▶ SUBMITTED ──▶ GRADED
 Đề có ESSAY chuyển `SUBMITTED` chờ chấm (hoặc `EXPIRED` khi hết hạn); tổng điểm và passed = NULL,
 kể cả chưa trả lời câu tự luận. Điểm các câu trắc nghiệm đã lưu vẫn được tính riêng trong answers.
 Chưa có endpoint chấm tay/AI cho tự luận trong thay đổi V23.
+
+**Lịch phỏng vấn trực tiếp V48** — `interview_schedules.status`: DRAFT → PROPOSED → CONFIRMED → DONE; PROPOSED/CONFIRMED → RESCHEDULE_REQUESTED → PROPOSED; lịch nháp/đang hoạt động → CANCELLED. Điểm 0–100; mỗi người chấm có một đánh giá, tuần tự hóa bằng khóa hàng interview; không thêm UNIQUE trong database.
 
 **Interview (direct)** — `interviews.status`
 ```
@@ -1007,6 +1023,8 @@ V22 thêm `idx_questionskills_skill(skill_id)` trên `questionskills`. PK kép h
 |---|---|---|---|---|
 | Tenant | `applications` | `idx_app_job_status` | `(job_id, status)` | Lọc danh sách ứng viên theo job và trạng thái |
 | Tenant | `applications` | `idx_app_archived` | `(job_id, archived_at)` | Tách đơn đang hoạt động khỏi đơn đã lưu trữ |
+| Tenant | `interview_schedules` | `idx_human_schedule_window` | `(status, scheduled_start, scheduled_end)` | Kiểm tra giao thời gian (V48) |
+| Tenant | `interview_participants` | `idx_interview_participant_user` | `(user_id, interview_id)` | Kiểm tra lịch hội đồng (V48) |
 | Tenant | `ai_interviews` | `idx_ai_interview_work_status` | `(status, id)` | Worker quét phiên `GENERATING`/`SCORING` (V25) |
 | Tenant | `ai_interviews` | `idx_ai_interview_expiry` | `(status, expires_at, id)` | Dispatcher tự nộp phiên `IN_PROGRESS` quá hạn (V35) |
 | Tenant | `email_outbox` | `idx_email_outbox_delivery` | `(purpose, status, attempts, id)` | Worker gửi email kết quả (V25) |
@@ -1141,6 +1159,8 @@ Hai pipeline dùng **hai phương ngữ SQL khác nhau** và không thể dùng 
 | V45 | `V45__company_directory.sql` | Tạo `company_directory_entries`, unique `(entry_type, name)` và backfill phòng ban/địa điểm từ job hiện có. Đánh lại từ V42 vì trùng version |
 | V46 | `V46__cv_builder_data.sql` | Thêm `cvs.builder_data` JSON nullable lưu nội dung CV Builder để chỉnh sửa lại; không backfill, không thêm bảng/FK/UNIQUE/index |
 | V47 | `V47__cv_share_token.sql` | Thêm `cvs.share_token` VARCHAR(64) nullable + UNIQUE `uk_cvs_share_token` cho link chia sẻ CV công khai; không thêm bảng/FK |
+| V48 | `V48__human_interview_configuration.sql` | `interviews.configuration_json` JSON nullable; `idx_human_schedule_window` và `idx_interview_participant_user`; không thêm bảng/FK/UNIQUE |
+| V49 | `V49__notification_preferences.sql` | Tạo `notification_preferences` (entity `NotificationPreference`): `web_enabled`/`email_enabled` mặc định TRUE theo `(user_id, category)`; 1 FK CASCADE + 1 UNIQUE; không backfill |
 
 V9 redesign cũ được giữ nguyên tại `db/migration-archive/`, **ngoài** location Flyway.
 Tenant tạo mới chạy V1–V13 rồi V21–V36: 60 bảng hiện hành (gồm 5 bảng analytics V9), chưa tính history.

@@ -7,6 +7,7 @@ import com.smarthire.domain.enums.*;
 import com.smarthire.domain.tenant.entity.*;
 import com.smarthire.domain.tenant.repository.*;
 import com.smarthire.tenant.aiInterview.ai.AiInterviewClient;
+import com.smarthire.tenant.notification.service.NotificationPreferenceService;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.*;
@@ -63,16 +64,19 @@ public class AiInterviewEvaluationService {
     private final AiInterviewActivityLog activity;
     private final AiInterviewProcessEngine processEngine;
     private final InterviewConversationService conversation;
+    private final NotificationPreferenceService preferences;
 
     public AiInterviewEvaluationService(AiInterviewRepository interviews, AiQuestionRepository questions,
             AiAnswerRepository answers, AiFeedbackRepository feedbacks, JobSkillRepository skills, CvRepository cvs,
             CvExtractionRepository extractions, ApplicationStatusHistoryRepository history, RecruitmentStageRepository stages,
             NotificationRepository notifications, EmailOutboxRepository emails, JobTestRepository tests,
-            AiInterviewClient ai, ObjectMapper mapper, AiInterviewActivityLog activity, AiInterviewProcessEngine processEngine, InterviewConversationService conversation) {
+            AiInterviewClient ai, ObjectMapper mapper, AiInterviewActivityLog activity, AiInterviewProcessEngine processEngine, InterviewConversationService conversation,
+            NotificationPreferenceService preferences) {
         this.interviews = interviews; this.questions = questions; this.answers = answers; this.feedbacks = feedbacks;
         this.skills = skills; this.cvs = cvs; this.extractions = extractions; this.history = history; this.stages = stages;
         this.notifications = notifications; this.emails = emails; this.tests = tests; this.ai = ai; this.mapper = mapper;
         this.activity = activity; this.processEngine = processEngine; this.conversation = conversation;
+        this.preferences = preferences;
     }
 
     @Transactional
@@ -502,10 +506,12 @@ public class AiInterviewEvaluationService {
     private void notify(AiInterview interview, String type, String title, String body, boolean email) {
         var app = interview.getApplication();
         String path = type.equals("AI_INTERVIEW_PASSED") ? "/candidate/assessments" : "/candidate/interviews/" + interview.getId();
-        notifications.save(Notification.builder().user(app.getCandidate()).type(type).title(title).body(body)
-                .payloadJson("{\"path\":\"" + path + "\",\"applicationId\":" + app.getId() + "}").build());
-        activity.record(interview, "NOTIFICATION_SENT", type);
-        if (email) {
+        if (!preferences.webOff(app.getCandidate(), NotificationCategory.AI_INTERVIEW)) {
+            notifications.save(Notification.builder().user(app.getCandidate()).type(type).title(title).body(body)
+                    .payloadJson("{\"path\":\"" + path + "\",\"applicationId\":" + app.getId() + "}").build());
+            activity.record(interview, "NOTIFICATION_SENT", type);
+        }
+        if (email && !preferences.emailOff(app.getCandidate(), NotificationCategory.AI_INTERVIEW)) {
             emails.save(EmailOutbox.builder().purpose("AI_INTERVIEW_RESULT").toEmail(app.getCandidate().getEmail()).subject(title).body(body).build());
             activity.record(interview, "EMAIL_QUEUED", "AI_INTERVIEW_RESULT");
         }

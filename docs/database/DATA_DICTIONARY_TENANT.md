@@ -314,7 +314,7 @@ Entity `Application` (káº¿ thá»«a `BaseEntity`). Má»Ÿ rá»™ng qua V7
 | `job_id` | BIGINT | FK â†’ `jobs.id`, UQ, IDX | KhÃ´ng | â€” | Tin á»©ng tuyá»ƒn |
 | `candidate_id` | BIGINT | FK â†’ `users.id`, UQ | KhÃ´ng | â€” | á»¨ng viÃªn |
 | `stage_id` | BIGINT | FK â†’ `recruitment_stages.id` | CÃ³ | NULL | VÃ²ng tuyá»ƒn hiá»‡n táº¡i |
-| `status` | VARCHAR(32) | IDX | KhÃ´ng | `'NEW'` | `ApplicationStatus` â€” 8 giÃ¡ trá»‹ |
+| `status` | VARCHAR(32) | IDX | KhÃ´ng | `'NEW'` | `ApplicationStatus`: NEW, IN_REVIEW, ASSESSMENT, INTERVIEW (AI), HUMAN_INTERVIEW (người–người), OFFER, HIRED, REJECTED, FAILED, WITHDRAWN |
 | `source` | VARCHAR(64) | | CÃ³ | NULL | Nguá»“n á»©ng tuyá»ƒn |
 | `notes` | TEXT | | CÃ³ | NULL | Ghi chÃº ná»™i bá»™ cá»§a recruiter |
 | `referral_code` | VARCHAR(64) | | CÃ³ | NULL | MÃ£ giá»›i thiá»‡u (V7) |
@@ -798,6 +798,7 @@ Entity `Interview` (kế thừa `BaseEntity`).
 | `id` | BIGINT | PK | Không | auto | |
 | `application_id` | BIGINT | FK → `applications.id` | Không | — | Đơn ứng tuyển |
 | `interview_type` | VARCHAR(64) | | Không | — | TECHNICAL, HR, BEHAVIORAL… |
+| `configuration_json` | JSON | | Có | NULL | V48: rubric, provider, emailTemplate, notes, attachCalendar, rescheduleReason, requestedStart, requestedEnd |
 | `mode` | VARCHAR(64) | | Không | — | DIRECT / ONLINE / … |
 | `status` | VARCHAR(32) | | Không | `'CREATED'` | `InterviewStatus` |
 | `created_at` | TIMESTAMP | | Không | now | |
@@ -817,7 +818,7 @@ Entity `InterviewSchedule`.
 | `scheduled_end` | TIMESTAMP | | Không | — | Kết thúc |
 | `location` | VARCHAR(255) | | Có | NULL | Địa điểm |
 | `meeting_url` | VARCHAR(512) | | Có | NULL | Link họp |
-| `status` | VARCHAR(32) | | Không | `'PROPOSED'` | `ScheduleStatus` |
+| `status` | VARCHAR(32) | | Không | `'PROPOSED'` | `ScheduleStatus`: DRAFT, PROPOSED, CONFIRMED, RESCHEDULE_REQUESTED, CANCELLED, DONE |
 
 **Ràng buộc:** `fk_isched_interview`
 
@@ -1002,6 +1003,21 @@ Entity `EmailOutbox`.
 | `attempts` | INT | | Không | 0 | Số lần thử gửi |
 | `created_at` | TIMESTAMP | | Không | now | |
 | `sent_at` | TIMESTAMP | | Có | NULL | |
+
+### I.3 `notification_preferences` — Cài đặt kênh nhận thông báo (V49)
+
+Entity `NotificationPreference`. Không có dòng cho một loại nghĩa là người dùng nhận cả web lẫn email.
+
+| Cột | Kiểu | Khoá | Null | Default | Mô tả |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | Không | auto | |
+| `user_id` | BIGINT | FK → `users.id` | Không | — | Chủ cài đặt; xóa user thì xóa theo (CASCADE) |
+| `category` | VARCHAR(32) | UQ (cùng `user_id`) | Không | — | Enum `NotificationCategory`: `AI_INTERVIEW`, `ASSESSMENT`, `HUMAN_INTERVIEW` |
+| `web_enabled` | BOOLEAN | | Không | TRUE | FALSE = không tạo dòng `notifications` cho loại này |
+| `email_enabled` | BOOLEAN | | Không | TRUE | FALSE = không gửi/ghi `email_outbox` cho loại này |
+| `updated_at` | TIMESTAMP | | Không | now (ON UPDATE) | |
+
+**Ràng buộc:** `fk_notification_preference_user`, `uk_notification_preference_user_category(user_id, category)`
 
 ---
 

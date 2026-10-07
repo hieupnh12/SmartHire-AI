@@ -54,8 +54,6 @@ import { AnalyticsPage } from "@/features/tenant/admin/analytics/pages/Analytics
 import { RecruitmentPage } from "@/features/tenant/admin/recruitment/pages/RecruitmentPage";
 import { AcceptInvitationPage } from "@/features/tenant/auth/pages/AcceptInvitationPage";
 import { PublicContractSigningPage } from "@/features/master/contract/pages/PublicContractSigningPage";
-import { candidateNav } from "@/features/tenant/candidate/nav";
-import { HomePage as CandidateHomePage } from "@/features/tenant/candidate/dashboard/pages/HomePage";
 import { MyApplicationsPage } from "@/features/tenant/candidate/applications/pages/MyApplicationsPage";
 import { ApplicationDetailPage } from "@/features/tenant/candidate/applications/pages/ApplicationDetailPage";
 import { MyCvPage } from "@/features/tenant/candidate/cv/pages/MyCvPage";
@@ -106,7 +104,7 @@ function LegacyTenantAdminRedirect() {
 function ShortCandidateRedirect() {
   const location = useLocation();
   const suffix = location.pathname.slice("/candidate".length);
-  const target = suffix && suffix !== "/jobs" ? suffix : suffix === "/jobs" ? "/jobs" : "/workspace";
+  const target = suffix && suffix !== "/jobs" ? suffix : suffix === "/jobs" ? "/jobs" : "/career";
 
   return <Navigate to={`${target}${location.search}${location.hash}`} replace />;
 }
@@ -171,18 +169,6 @@ export function AppRouter() {
           <Route path="/practice" element={<Navigate to="/interviews" replace />} />
           <Route path="/schedules" element={<CandidateSchedulesPage />} />
           <Route path="/notifications" element={<CandidateNotificationsPage />} />
-        </Route>
-        <Route
-          path="/workspace"
-          element={
-            <RoleShell
-              brandKey="roles.candidate"
-              basePath=""
-              links={candidateNav}
-            />
-          }
-        >
-          <Route index element={<CandidateHomePage />} />
         </Route>
         <Route path="/assessments/:submissionId/take" element={<TakeAssessmentPage />} />
         <Route path="/interviews/:id" element={<AiInterviewRoomPage />} />

@@ -25,6 +25,10 @@ import lombok.experimental.FieldDefaults;
 @Table(name = "interviews")
 public class Interview extends BaseEntity {
 
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
+    @Column(name = "configuration_json", columnDefinition = "json")
+    String configurationJson;
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "application_id", nullable = false)
     Application application;

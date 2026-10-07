@@ -1,5 +1,6 @@
 package com.smarthire.tenant.applicant.service;
 
+import com.smarthire.domain.enums.NotificationCategory;
 import com.smarthire.domain.enums.NotificationStatus;
 import com.smarthire.domain.tenant.entity.Application;
 import com.smarthire.domain.tenant.entity.EmailOutbox;
@@ -11,6 +12,7 @@ import com.smarthire.domain.tenant.repository.EmailOutboxRepository;
 import com.smarthire.multitenancy.service.TenantPublicUrlService;
 import com.smarthire.tenant.auth.service.InviteMailSender;
 import com.smarthire.tenant.cv.service.CvMatchingService;
+import com.smarthire.tenant.notification.service.NotificationPreferenceService;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -29,16 +31,19 @@ public class AiInterviewInviteService {
     private final EmailOutboxRepository outbox;
     private final ApplicationRepository applications;
     private final TenantPublicUrlService publicUrls;
+    private final NotificationPreferenceService preferences;
 
     public AiInterviewInviteService(
             InviteMailSender mail,
             EmailOutboxRepository outbox,
             ApplicationRepository applications,
-            TenantPublicUrlService publicUrls) {
+            TenantPublicUrlService publicUrls,
+            NotificationPreferenceService preferences) {
         this.mail = mail;
         this.outbox = outbox;
         this.applications = applications;
         this.publicUrls = publicUrls;
+        this.preferences = preferences;
     }
 
     @Transactional
@@ -66,6 +71,12 @@ public class AiInterviewInviteService {
         User candidate = application.getCandidate();
         Job job = application.getJob();
         if (candidate == null || candidate.getEmail() == null || candidate.getEmail().isBlank() || job == null) {
+            return;
+        }
+        if (preferences.emailOff(candidate, NotificationCategory.AI_INTERVIEW)) {
+            // Opt-out is a delivered decision, not an SMTP failure, so the invite must not be retried.
+            application.setAiInterviewInvitedAt(Instant.now());
+            applications.save(application);
             return;
         }
 

@@ -125,8 +125,9 @@ export function AiInterviewRoom({ id }: { id: number }) {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+          {!inProgress && <Link to="/interviews" className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-[var(--color-border-default)] px-3 text-sm font-semibold hover:bg-[var(--color-surface-container-low)]"><ArrowLeft className="size-4" aria-hidden="true" />Về danh sách</Link>}
           <span className={`inline-flex min-h-10 items-center gap-2 rounded-lg px-3 text-xs font-semibold ${inProgress ? "bg-emerald-50 text-emerald-700" : data.status === "ERROR" ? "bg-[var(--color-error-container)] text-[var(--color-on-error-container)]" : "bg-[var(--color-surface-container)] text-[var(--color-on-surface-variant)]"}`}>
-            <Wifi className="size-4" aria-hidden="true" />{inProgress ? "Phiên đang hoạt động" : data.status === "ERROR" ? "Đề thi cần khôi phục" : "Phòng thi chưa bắt đầu"}
+            <Wifi className="size-4" aria-hidden="true" />{inProgress ? "Phiên đang hoạt động" : data.status === "ERROR" ? (data.completedAt ? "Đã nộp · chờ chấm lại" : "Đề thi cần khôi phục") : data.completedAt ? "Đã nộp bài" : "Phòng thi chưa bắt đầu"}
           </span>
           {inProgress && remaining != null ? <div role="timer" aria-label={`Thời gian còn lại ${formatRemaining(remaining)}`}
             className={`flex items-center gap-2 rounded-lg px-3.5 py-2 ${remaining <= 300 ? "bg-[var(--color-error-container)] text-[var(--color-on-error-container)]" : "bg-[var(--color-surface-container)]"}`}>
@@ -149,7 +150,7 @@ export function AiInterviewRoom({ id }: { id: number }) {
 
       <section className="grid gap-3 rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-4 md:grid-cols-3" aria-label="Tiến trình tuyển dụng">
         <div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-3"><CheckCircle2 className="size-5 shrink-0 text-emerald-600" aria-hidden="true" /><div><p className="text-xs font-bold">VÒNG 1: CV SCREENING</p><p className="text-[11px] text-[var(--color-on-surface-variant)]">Đã hoàn tất · bạn đã được mời phỏng vấn</p></div></div>
-        <div className="flex items-center gap-3 rounded-xl border-2 border-[var(--color-primary)] bg-[var(--color-primary-soft)] p-3"><Bot className="size-5 shrink-0 text-[var(--color-primary)]" aria-hidden="true" /><div><p className="text-xs font-bold text-[var(--color-primary)]">VÒNG 2: AI INTERVIEW</p><p className="text-[11px] text-[var(--color-on-surface-variant)]">{inProgress ? "Đang thực hiện · câu trả lời được lưu theo từng câu" : data.status === "ERROR" ? "Đang chờ khôi phục bộ câu hỏi" : "Phòng thi đang chờ bắt đầu"}</p></div></div>
+        <div className="flex items-center gap-3 rounded-xl border-2 border-[var(--color-primary)] bg-[var(--color-primary-soft)] p-3"><Bot className="size-5 shrink-0 text-[var(--color-primary)]" aria-hidden="true" /><div><p className="text-xs font-bold text-[var(--color-primary)]">VÒNG 2: AI INTERVIEW</p><p className="text-[11px] text-[var(--color-on-surface-variant)]">{inProgress ? "Đang thực hiện · câu trả lời được lưu theo từng câu" : data.status === "ERROR" ? (data.completedAt ? "Đã nộp · đang chờ chấm lại" : "Đang chờ khôi phục bộ câu hỏi") : data.completedAt ? "Đã nộp bài" : "Phòng thi đang chờ bắt đầu"}</p></div></div>
         <div className="flex items-center gap-3 rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-container-low)] p-3"><LockKeyhole className="size-5 shrink-0 text-[var(--color-outline)]" aria-hidden="true" /><div><p className="text-xs font-semibold text-[var(--color-on-surface-variant)]">VÒNG 3: ASSESSMENT</p><p className="text-[11px] text-[var(--color-on-surface-variant)]">Mở theo kết quả của AI Interview</p></div></div>
       </section>
 
@@ -294,10 +295,11 @@ function InvitationCard({ data, busy, onReady }: {
 
 function ResultCard({ data, busy, retrying, onRetry }: { data: CandidateInterview; busy: boolean; retrying: boolean; onRetry: () => void }) {
   const finished = ["SCORED", "PASSED", "FAILED"].includes(data.status);
+  const failedScoring = data.status === "ERROR";
   return <section className={`${card} space-y-3`} aria-live="polite">
-    <h2 className="text-xl font-semibold">{finished ? "Kết quả AI Interview" : "Đã nộp bài"}</h2>
-    <p className="text-sm">Đã nộp lúc {new Date(data.completedAt!).toLocaleString("vi-VN")}.{finished ? "" : " Câu trả lời đang được đánh giá; trang sẽ tự cập nhật."}</p>
-    {data.status === "ERROR" && <p role="alert">{data.errorMessage ?? "Đánh giá gặp lỗi. Nhà tuyển dụng sẽ chấm lại."} Lỗi hệ thống không tính vào số lần làm.</p>}
+    <h2 className="text-xl font-semibold">{finished ? "Kết quả AI Interview" : failedScoring ? "Đã nộp bài · Chưa chấm được" : "Đã nộp bài"}</h2>
+    <p className="text-sm">Đã nộp lúc {new Date(data.completedAt!).toLocaleString("vi-VN")}.{finished || failedScoring ? "" : " Câu trả lời đang được đánh giá; trang sẽ tự cập nhật."}</p>
+    {failedScoring && <p role="alert">Bài làm của bạn đã được lưu nhưng hệ thống chưa chấm được. Nhà tuyển dụng sẽ chấm lại; bạn không cần làm lại. Lỗi hệ thống không tính vào số lần làm.</p>}
     {data.overallScore != null && <p>Điểm AI: <strong className="text-lg">{data.overallScore}/100</strong> · Ngưỡng đạt: {data.passingScore ?? "—"}/100</p>}
     {data.status === "PASSED" && <Link className="inline-flex min-h-11 items-center text-brand-primary underline" to="/assessments">Đến vòng Assessment</Link>}
     {data.status === "FAILED" && (data.canRetry

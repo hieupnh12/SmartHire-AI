@@ -10,6 +10,7 @@ import com.smarthire.multitenancy.context.TenantContext;
 import com.smarthire.tenant.aiInterview.service.AiInterviewActivityLog;
 import com.smarthire.tenant.aiInterview.service.AiInterviewInvitationService;
 import com.smarthire.tenant.applicant.service.AiInterviewInviteService;
+import com.smarthire.tenant.notification.service.NotificationPreferenceService;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.AfterEach;
@@ -31,6 +32,7 @@ class AiInterviewInvitationServiceTest {
     @Mock NotificationRepository notifications;
     @Mock AiInterviewActivityLog activity;
     @Mock AiInterviewInviteService emailInvites;
+    @Mock NotificationPreferenceService preferences;
     @InjectMocks AiInterviewInvitationService service;
     Application application;
 
@@ -75,6 +77,17 @@ class AiInterviewInvitationServiceTest {
         verify(emailInvites).sendForInterview(application);
         assertThat(result.getConfigSnapshotJson()).isNotBlank();
         assertThat(result.getAttemptNumber()).isEqualTo(1);
+    }
+
+    @Test void invitesWithDefaultConfigurationWithoutRecruiterEnablingIt() {
+        application.getJob().setAiInterviewEnabled(false);
+        application.getJob().setAiInterviewPolicyJson(null);
+        when(applications.findByIdForUpdate(7L)).thenReturn(Optional.of(application));
+        when(interviews.save(any())).thenAnswer(call -> { AiInterview next = call.getArgument(0); next.setId(11L); return next; });
+
+        assertThat(service.invite(7L, null).getStatus()).isEqualTo(AiInterviewStatus.GENERATING);
+        verify(notifications).save(any());
+        verify(emailInvites).sendForInterview(application);
     }
 
     @Test void retryDoesNotDuplicateSessionOrNotification() {

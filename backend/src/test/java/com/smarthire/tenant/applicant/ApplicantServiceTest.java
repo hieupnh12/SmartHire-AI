@@ -85,6 +85,37 @@ class ApplicantServiceTest {
     }
 
     @Test
+    void humanInterviewStatusRecordsHistoryWithoutAiInvitation() {
+        application.setStatus(ApplicationStatus.ASSESSMENT);
+        application.setCvScreeningStatus(CvScreeningStatus.PASSED);
+        job.setAiInterviewEnabled(true);
+        when(applications.findById(4L)).thenReturn(Optional.of(application));
+        when(access.actor()).thenReturn(candidate);
+
+        var detail = service.changeStatus(4L, "HUMAN_INTERVIEW", "Human interview round");
+
+        assertThat(detail.status()).isEqualTo("HUMAN_INTERVIEW");
+        var captured = org.mockito.ArgumentCaptor.forClass(com.smarthire.domain.tenant.entity.ApplicationStatusHistory.class);
+        verify(history).save(captured.capture());
+        assertThat(captured.getValue().getFromStatus()).isEqualTo("ASSESSMENT");
+        assertThat(captured.getValue().getToStatus()).isEqualTo("HUMAN_INTERVIEW");
+        org.mockito.Mockito.verifyNoInteractions(invitations);
+    }
+
+    @Test
+    void terminalApplicationCannotMoveToHumanInterview() {
+        application.setStatus(ApplicationStatus.HIRED);
+        when(applications.findById(4L)).thenReturn(Optional.of(application));
+        when(access.actor()).thenReturn(candidate);
+
+        assertThatThrownBy(() -> service.changeStatus(4L, "HUMAN_INTERVIEW", null))
+                .isInstanceOf(BusinessException.class)
+                .extracting(ex -> ((BusinessException) ex).getCode())
+                .isEqualTo("APPLICATION_BAD_STATUS");
+        org.mockito.Mockito.verifyNoInteractions(history, invitations);
+    }
+
+    @Test
     void applyRejectsDuplicate() {
         when(access.candidate()).thenReturn(true);
         when(jobs.findById(1L)).thenReturn(Optional.of(job));

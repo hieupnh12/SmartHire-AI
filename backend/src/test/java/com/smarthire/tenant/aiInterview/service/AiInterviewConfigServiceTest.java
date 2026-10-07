@@ -40,6 +40,24 @@ class AiInterviewConfigServiceTest {
         when(jobs.findById(1L)).thenReturn(Optional.of(job));
     }
 
+    @Test void enablesInvitationsByDefaultBeforeConfigurationIsSaved() {
+        assertThat(service.get(1L).enabled()).isTrue();
+        assertThat(InterviewPolicies.enabled(job)).isTrue();
+        verifyNoInteractions(invitations, applications);
+    }
+
+    @Test void preservesExplicitlyDisabledConfiguration() {
+        var enabled = processRequest(3);
+        when(skills.findByJob_IdOrderByIdAsc(1L)).thenReturn(List.of());
+        var disabled = new AiInterviewConfigRequest(false, enabled.passingScore(), enabled.questionCount(),
+                enabled.availableFrom(), enabled.availableUntil(), enabled.policy());
+
+        assertThat(service.update(1L, disabled).enabled()).isFalse();
+        assertThat(service.get(1L).enabled()).isFalse();
+        assertThat(InterviewPolicies.enabled(job)).isFalse();
+        verifyNoInteractions(invitations, applications);
+    }
+
     @Test void roadmapSuggestionIsReservedForFutureDevelopment() {
         assertThatThrownBy(() -> service.suggest(1L, request(100)))
                 .isInstanceOfSatisfying(BusinessException.class, ex -> assertThat(ex.getCode()).isEqualTo("AI_INTERVIEW_PROCESS_UNAVAILABLE"));

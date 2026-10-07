@@ -51,7 +51,6 @@ feature-name/
 Candidate:
 
 ```text
-candidate/dashboard
 candidate/jobs
 candidate/applications
 candidate/cv

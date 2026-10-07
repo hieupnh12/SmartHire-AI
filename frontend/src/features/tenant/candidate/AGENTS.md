@@ -12,15 +12,13 @@ Prefer this shape:
 
 ```text
 candidate/
-├── dashboard/
 ├── jobs/
 ├── applications/
 ├── cv/
 ├── assessments/
 ├── interviews/
 ├── schedules/
-├── notifications/
-└── nav.ts
+└── notifications/
 ```
 
 Inside each feature folder, add technical subfolders only when they contain real files:
@@ -52,13 +50,13 @@ Do not create empty `api/components/constants/hooks/pages/services/types/utils` 
 - If code is reused by two or more candidate features, move it to `candidate/shared/*` intentionally.
 - Candidate features may use global shared UI from `@/components/ux`.
 - Candidate features should not import internal components from sibling features.
-- `nav.ts` owns actor navigation config only.
+- Candidate navigation lives in the career header (`jobs/components/CareerHeader.tsx`); there is no actor `nav.ts`.
 
 ## Routing Rules
 
 - Add or update routes in `frontend/src/app/router.tsx` when adding a candidate page.
-- Import pages from their feature folder, for example `@/features/tenant/candidate/dashboard/pages/HomePage`.
-- Add a `nav.ts` entry only when the target route exists.
+- Import pages from their feature folder, for example `@/features/tenant/candidate/applications/pages/MyApplicationsPage`.
+- Add a header menu entry only when the target route exists.
 
 ## UI Rules
 

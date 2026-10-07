@@ -33,7 +33,6 @@ function shouldSkipLoginRedirect(pathname: string, url = "") {
 function loginPathFor(pathname: string) {
   if (
     pathname.startsWith("/candidate") ||
-    pathname.startsWith("/workspace") ||
     pathname.startsWith("/applications") ||
     pathname.startsWith("/cv") ||
     pathname.startsWith("/assessments") ||

@@ -9,7 +9,7 @@ UI is organized by actor boundary first, then by feature inside each actor.
 | `tenant/auth/` | Tenant users / candidate auth | `/login`, `/internal/login` |
 | `tenant/candidate/jobs/` | Guest / Candidate — public tenant career site, candidate header/layout | `/career`, `/jobs`, `/jobs/:jobId` |
 | `tenant/candidate/cv/` | Guest / Candidate — CV management, CV template library | `/cv`, `/cv-templates` |
-| `tenant/candidate/` | Candidate | `/workspace`, `/applications`, `/cv`, `/assessments`, `/interviews`, ... |
+| `tenant/candidate/` | Candidate | `/career`, `/applications`, `/cv`, `/assessments`, `/interviews`, ... |
 | `tenant/recruiter/` | Recruiter | `/recruiter/*` |
 | `tenant/admin/`, `tenant/dashboard/` | Tenant admin / workspace | `/internal/admin`, `/company/workspace` |
 
@@ -50,4 +50,4 @@ src/
     guards/RoleRoute.tsx
 ```
 
-Login redirects: `CANDIDATE` -> `/workspace`, `RECRUITER` -> `/recruiter`, `ADMIN` -> `/internal/admin`.
+Login redirects: `CANDIDATE` -> `/career`, `RECRUITER` -> `/recruiter`, `ADMIN` -> `/internal/admin`.

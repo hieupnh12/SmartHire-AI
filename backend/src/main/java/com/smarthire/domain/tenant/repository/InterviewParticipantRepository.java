@@ -4,4 +4,6 @@ import com.smarthire.domain.tenant.entity.InterviewParticipant;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface InterviewParticipantRepository extends JpaRepository<InterviewParticipant, InterviewParticipant.InterviewParticipantId> {
+    java.util.List<InterviewParticipant> findByInterviewIdOrderByUserId(Long id);
+    void deleteByInterviewId(Long id);
 }

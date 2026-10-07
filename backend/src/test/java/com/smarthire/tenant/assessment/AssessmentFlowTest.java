@@ -13,6 +13,7 @@ import com.smarthire.tenant.assessment.dto.response.*;
 import com.smarthire.tenant.assessment.mapper.AssessmentMapper;
 import com.smarthire.tenant.assessment.service.*;
 import com.smarthire.tenant.cv.service.CvAccess;
+import com.smarthire.tenant.notification.service.NotificationPreferenceService;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import java.math.BigDecimal;
@@ -46,7 +47,7 @@ class AssessmentFlowTest {
     @Configuration
     @EnableTransactionManagement
     @EnableJpaRepositories(basePackages = "com.smarthire.domain.tenant.repository")
-    @Import({AssessmentService.class, QuestionService.class, QuestionBankService.class, AssessmentGenerationService.class, SubmissionService.class, AssessmentMapper.class})
+    @Import({AssessmentService.class, QuestionService.class, QuestionBankService.class, AssessmentGenerationService.class, SubmissionService.class, AssessmentMapper.class, NotificationPreferenceService.class})
     static class Config {
         @Bean ObjectMapper objectMapper() { return new ObjectMapper(); }
         @Bean CvAccess cvAccess(UserRepository users, JobAssignmentRepository assignments) {
