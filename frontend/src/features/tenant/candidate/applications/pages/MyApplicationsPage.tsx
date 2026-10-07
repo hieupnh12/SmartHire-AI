@@ -15,14 +15,14 @@ import { cn } from "@/lib/utils";
 import { useUiStore } from "@/stores/uiStore";
 
 const STATUS_LABELS: Record<ApplicationStatus, string> = {
-  NEW: "Đã nộp", IN_REVIEW: "Đang xem xét", ASSESSMENT: "Bài đánh giá", INTERVIEW: "Phỏng vấn",
+  NEW: "Đã nộp", IN_REVIEW: "Đang xem xét", ASSESSMENT: "Bài đánh giá", INTERVIEW: "Phỏng vấn AI", HUMAN_INTERVIEW: "Phỏng vấn trực tiếp",
   OFFER: "Đề nghị nhận việc", HIRED: "Đã tuyển", REJECTED: "Không phù hợp", WITHDRAWN: "Đã rút",
 };
 
 const FILTERS: { value: "ALL" | ApplicationStatus; label: string }[] = [
   { value: "ALL", label: "Tất cả" }, { value: "NEW", label: "Đã nộp" },
   { value: "IN_REVIEW", label: "Đang xem xét" }, { value: "ASSESSMENT", label: "Bài đánh giá" },
-  { value: "INTERVIEW", label: "Phỏng vấn" }, { value: "OFFER", label: "Đề nghị" },
+  { value: "INTERVIEW", label: "Phỏng vấn AI" }, { value: "HUMAN_INTERVIEW", label: "Phỏng vấn trực tiếp" }, { value: "OFFER", label: "Đề nghị" },
   { value: "HIRED", label: "Đã tuyển" }, { value: "REJECTED", label: "Không phù hợp" },
 ];
 

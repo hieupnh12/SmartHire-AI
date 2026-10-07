@@ -5,6 +5,7 @@ public enum ApplicationStatus {
     IN_REVIEW,
     ASSESSMENT,
     INTERVIEW,
+    HUMAN_INTERVIEW,
     OFFER,
     HIRED,
     REJECTED,

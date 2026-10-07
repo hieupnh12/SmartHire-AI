@@ -17,6 +17,7 @@ const tones: Record<string, string> = {
   IN_REVIEW: "bg-amber-50 text-amber-700",
   ASSESSMENT: "bg-violet-50 text-violet-700",
   INTERVIEW: "bg-cyan-50 text-cyan-700",
+  HUMAN_INTERVIEW: "bg-[var(--color-primary-subtle)] text-[var(--color-primary-hover)]",
   OFFER: "bg-emerald-50 text-emerald-700",
   HIRED: "bg-emerald-100 text-emerald-800",
   REJECTED: "bg-red-50 text-red-700",

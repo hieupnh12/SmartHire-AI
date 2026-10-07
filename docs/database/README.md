@@ -10,6 +10,7 @@
 
 | Thông tin | Giá trị |
 |---|---|
+| Trạng thái ứng viên 2026-10-07 | Bổ sung ApplicationStatus.HUMAN_INTERVIEW (phỏng vấn người–người); INTERVIEW giữ nghĩa phỏng vấn AI. DB dùng VARCHAR(32), không cần migration; số bảng/entity/FK/index không đổi |
 | Human Interview 2026-10-06 | Tenant V48 thêm `interviews.configuration_json` JSON nullable (entity `Interview.configurationJson`), index `idx_human_schedule_window(status, scheduled_start, scheduled_end)` và `idx_interview_participant_user(user_id, interview_id)`. Không thêm bảng/entity/FK/UNIQUE. ScheduleStatus bổ sung DRAFT và RESCHEDULE_REQUESTED |
 | CV Builder đợt 3 2026-10-05 | `builder_data` có thêm `sections[].items[].rows[]` (≤ 8 dòng `{label, value}`, bảng 2 cột mẫu Enterprise; `description` đồng bộ từ rows), `personalInfo.avatarCrop` và `theme.avatar` (khung ảnh tùy chỉnh). Không có migration, không thêm bảng/entity/FK/index |
 | CV Builder đợt 2 2026-10-04 | Tenant V47 thêm `cvs.share_token` VARCHAR(64) nullable + UNIQUE `uk_cvs_share_token` (entity `Cv.shareToken`) cho link chia sẻ công khai chỉ đọc. `builder_data` có thêm `personalInfo.avatarUrl`, `language`. Không thêm bảng/entity/FK |
@@ -258,7 +259,7 @@ V44 không thêm enum hoặc trạng thái lifecycle: session dùng lifecycle c�
 | `OAuthProvider` | `oauth_accounts.provider` | `GOOGLE` |
 | `InvitationStatus` | `member_invitations.status` | `PENDING`, `ACCEPTED` |
 | `JobStatus` | `jobs.status` | `DRAFT`, `PUBLISHED`, `PAUSED`, `CLOSED`, `ARCHIVED` |
-| `ApplicationStatus` | `applications.status` | `NEW`, `IN_REVIEW`, `ASSESSMENT`, `INTERVIEW`, `OFFER`, `HIRED`, `REJECTED`, `FAILED`, `WITHDRAWN` |
+| `ApplicationStatus` | `applications.status` | `NEW`, `IN_REVIEW`, `ASSESSMENT`, `INTERVIEW`, `HUMAN_INTERVIEW`, `OFFER`, `HIRED`, `REJECTED`, `FAILED`, `WITHDRAWN` |
 | `CvScreeningStatus` | `applications.cv_screening_status` | `PENDING`, `PASSED`, `FAILED` |
 | `HiringDecisionType` | `hiring_decisions.decision` | `HIRE`, `REJECT`, `HOLD` |
 | `CvStatus` | `cvs.status` | `UPLOADED`, `PARSING`, `PARSED`, `EXTRACTING`, `ANALYZING`, `ANALYZED`, `FAILED` |
@@ -902,7 +903,7 @@ Mỗi lần chuyển ghi mốc tương ứng: `published_at`, `paused_at`, `clos
 
 **Application** — `applications.status`
 ```
-NEW ──▶ IN_REVIEW ──▶ ASSESSMENT ──▶ INTERVIEW ──▶ OFFER ──▶ HIRED
+NEW ──▶ IN_REVIEW ──▶ INTERVIEW (AI) ──▶ ASSESSMENT ──▶ HUMAN_INTERVIEW ──▶ OFFER ──▶ HIRED
  └────────┴────────────┴─────────────┴────────────┴──▶ REJECTED
  └────────┴────────────┴─────────────┴────────────┴──▶ WITHDRAWN
 ```

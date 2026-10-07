@@ -50,3 +50,9 @@ Luồng tuyển dụng theo từng job được quản lý bằng Kanban trạng
 ## Phụ thuộc
 
 JOB-04, JOB-05, CV-05
+
+## Trạng thái phỏng vấn trực tiếp (2026-10-07)
+
+- Bổ sung `HUMAN_INTERVIEW` cho phỏng vấn người–người, tách khỏi `INTERVIEW` (phỏng vấn AI).
+- Recruiter chuyển vòng qua API status hiện có hoặc bảng quy trình; UI hỗ trợ lọc và hiển thị trạng thái mới. Mỗi lần chuyển ghi `application_status_history`, không tạo lời mời AI khi chuyển sang `HUMAN_INTERVIEW`.
+- DB lưu chuỗi `HUMAN_INTERVIEW` tại `applications.status` (VARCHAR(32)); không cần migration và không đổi dữ liệu cũ.

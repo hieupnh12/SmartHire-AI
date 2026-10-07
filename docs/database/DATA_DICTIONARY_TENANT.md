@@ -314,7 +314,7 @@ Entity `Application` (káº¿ thá»«a `BaseEntity`). Má»Ÿ rá»™ng qua V7
 | `job_id` | BIGINT | FK â†’ `jobs.id`, UQ, IDX | KhÃ´ng | â€” | Tin á»©ng tuyá»ƒn |
 | `candidate_id` | BIGINT | FK â†’ `users.id`, UQ | KhÃ´ng | â€” | á»¨ng viÃªn |
 | `stage_id` | BIGINT | FK â†’ `recruitment_stages.id` | CÃ³ | NULL | VÃ²ng tuyá»ƒn hiá»‡n táº¡i |
-| `status` | VARCHAR(32) | IDX | KhÃ´ng | `'NEW'` | `ApplicationStatus` â€” 8 giÃ¡ trá»‹ |
+| `status` | VARCHAR(32) | IDX | KhÃ´ng | `'NEW'` | `ApplicationStatus`: NEW, IN_REVIEW, ASSESSMENT, INTERVIEW (AI), HUMAN_INTERVIEW (người–người), OFFER, HIRED, REJECTED, FAILED, WITHDRAWN |
 | `source` | VARCHAR(64) | | CÃ³ | NULL | Nguá»“n á»©ng tuyá»ƒn |
 | `notes` | TEXT | | CÃ³ | NULL | Ghi chÃº ná»™i bá»™ cá»§a recruiter |
 | `referral_code` | VARCHAR(64) | | CÃ³ | NULL | MÃ£ giá»›i thiá»‡u (V7) |
