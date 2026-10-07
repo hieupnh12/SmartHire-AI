@@ -5,7 +5,7 @@ import {
   ArrowRight, Bell, Box, BriefcaseBusiness, Building2, CalendarDays, ChevronDown,
   CircleUserRound, ClipboardCheck, DraftingCompass, Feather, FilePenLine,
   FileText, Gift, Lock, LogOut, Menu, MessageCircle, Search, Settings,
-  ShieldCheck, Sparkles, Star, Upload, UserRound, X,
+  Sparkles, Star, Upload, UserRound, X,
 } from "lucide-react";
 import type { Notification } from "@/api/types/notification";
 import { authApi } from "@/api/tenant/authApi";
@@ -232,7 +232,7 @@ function Avatar({ name, src }: { name?: string; src?: string | null }) {
 function AccountPanel({ user, onClose, onLogout }: { user: ReturnType<typeof useAuthStore.getState>["user"]; onClose: () => void; onLogout: () => void }) {
   return <div className="absolute right-0 top-[calc(100%+10px)] w-[min(390px,calc(100vw-24px))] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_18px_48px_rgba(15,23,42,0.18)]">
     <div className="flex gap-4 border-b border-slate-100 p-5"><Avatar name={user?.fullName} src={user?.avatarUrl} /><div className="min-w-0"><p className="truncate text-base font-semibold text-slate-800">{user?.fullName || "Ứng viên"}</p><p className="mt-1 truncate text-sm text-slate-500">{user?.email}</p><p className="mt-1 text-xs text-[var(--color-primary)]">Tài khoản đã xác thực</p></div></div>
-    <div className="max-h-[65vh] overflow-y-auto p-3"><AccountSection icon={BriefcaseBusiness} title="Quản lý tìm việc" links={[{ label: "Tìm việc làm", to: "/jobs" }, { label: "Việc làm đã ứng tuyển", to: "/applications" }, { label: "Theo dõi tiến trình", to: "/workspace" }]} onClose={onClose} /><AccountSection icon={FileText} title="Quản lý CV" links={[{ label: "CV của tôi", to: "/cv" }, { label: "Bài đánh giá", to: "/assessments" }, { label: "Phỏng vấn", to: "/interviews" }]} onClose={onClose} /><AccountSection icon={Settings} title="Thông báo & lịch" links={[{ label: "Thông báo", to: "/notifications" }, { label: "Lịch của tôi", to: "/schedules" }]} onClose={onClose} /><Link to="/workspace" onClick={onClose} className="flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"><ShieldCheck className="size-5 text-slate-400" aria-hidden="true" />Không gian ứng viên</Link></div>
+    <div className="max-h-[65vh] overflow-y-auto p-3"><AccountSection icon={Settings} title="Thông báo & lịch" links={[{ label: "Thông báo", to: "/notifications?tab=settings" }, { label: "Lịch của tôi", to: "/schedules" }]} onClose={onClose} /></div>
     <div className="border-t border-slate-100 p-3"><button type="button" onClick={onLogout} className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-sm font-semibold text-slate-600 hover:bg-red-50 hover:text-red-700"><LogOut className="size-5" aria-hidden="true" />Đăng xuất</button></div>
   </div>;
 }

@@ -7,6 +7,7 @@ import com.smarthire.domain.enums.CvScreeningStatus;
 import com.smarthire.domain.tenant.entity.*;
 import com.smarthire.domain.tenant.repository.*;
 import com.smarthire.tenant.aiInterview.ai.AiInterviewClient;
+import com.smarthire.tenant.notification.service.NotificationPreferenceService;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
@@ -38,6 +39,7 @@ class AiInterviewEvaluationServiceTest {
     @Mock AiInterviewActivityLog activity;
     @Mock AiInterviewProcessEngine processEngine;
     @Mock InterviewConversationService conversation;
+    @Mock NotificationPreferenceService preferences;
     final ObjectMapper mapper = new ObjectMapper();
     AiInterviewEvaluationService service;
     Application application;
@@ -45,7 +47,7 @@ class AiInterviewEvaluationServiceTest {
 
     @BeforeEach void setup() {
         service = new AiInterviewEvaluationService(interviews, questions, answers, feedbacks, skills, cvs, extractions,
-                history, stages, notifications, emails, tests, ai, mapper, activity, processEngine, conversation);
+                history, stages, notifications, emails, tests, ai, mapper, activity, processEngine, conversation, preferences);
         var job = new Job();
         job.setId(13L);
         job.setTitle("Java Backend Developer");

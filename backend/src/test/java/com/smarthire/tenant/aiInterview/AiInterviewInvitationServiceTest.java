@@ -10,6 +10,7 @@ import com.smarthire.multitenancy.context.TenantContext;
 import com.smarthire.tenant.aiInterview.service.AiInterviewActivityLog;
 import com.smarthire.tenant.aiInterview.service.AiInterviewInvitationService;
 import com.smarthire.tenant.applicant.service.AiInterviewInviteService;
+import com.smarthire.tenant.notification.service.NotificationPreferenceService;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.AfterEach;
@@ -31,6 +32,7 @@ class AiInterviewInvitationServiceTest {
     @Mock NotificationRepository notifications;
     @Mock AiInterviewActivityLog activity;
     @Mock AiInterviewInviteService emailInvites;
+    @Mock NotificationPreferenceService preferences;
     @InjectMocks AiInterviewInvitationService service;
     Application application;
 

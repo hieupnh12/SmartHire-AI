@@ -1,6 +1,6 @@
 # Candidate Actor Module
 
-`candidate/` là boundary theo actor Ứng viên. Bên trong actor này có nhiều feature riêng như dashboard, jobs, applications, CV, assessments, interviews, schedules và notifications.
+`candidate/` là boundary theo actor Ứng viên. Bên trong actor này có nhiều feature riêng như jobs, applications, CV, assessments, interviews, schedules và notifications.
 
 Vì vậy không chia root theo kỹ thuật kiểu `candidate/pages`, `candidate/components`, `candidate/api` cho mọi thứ. Cách đó làm module phình nhanh và reviewer khó biết file thuộc tính năng nào.
 
@@ -8,11 +8,6 @@ Vì vậy không chia root theo kỹ thuật kiểu `candidate/pages`, `candidat
 
 ```text
 candidate/
-├── dashboard/
-│   ├── components/
-│   ├── constants/
-│   ├── pages/
-│   └── types/
 ├── jobs/
 │   ├── components/
 │   ├── pages/
@@ -28,10 +23,16 @@ candidate/
 ├── interviews/
 │   └── pages/
 ├── schedules/
-│   └── pages/
+│   ├── components/
+│   ├── constants/
+│   ├── hooks/
+│   ├── pages/
+│   ├── services/
+│   └── types/
 ├── notifications/
+│   ├── components/
+│   ├── constants/
 │   └── pages/
-├── nav.ts
 ├── README.md
 └── AGENTS.md
 ```
@@ -40,15 +41,14 @@ candidate/
 
 Mỗi tính năng lớn của ứng viên là một folder cấp 1 dưới `candidate/`:
 
-- `dashboard/`: trang tổng quan sau đăng nhập.
-- `jobs/`: career site public của tenant (`/career`, `/jobs`, `/jobs/:jobId`): danh sách và chi tiết job, ứng tuyển; header/mega-menu và layout dùng chung cho các trang candidate; trang tenant không tồn tại.
+- `jobs/`: career site public của tenant (`/career`, `/jobs`, `/jobs/:jobId`): danh sách và chi tiết job, ứng tuyển; header/mega-menu và layout dùng chung cho các trang candidate; trang tenant không tồn tại. `/career` cũng là trang chủ sau khi ứng viên đăng nhập.
 - `applications/`: quản lý đơn ứng tuyển và pipeline trạng thái.
 - `cv/`: quản lý CV, upload, AI parsing, CV score; thư viện mẫu CV `/cv-templates`.
 - `shared/`: code dùng chung giữa nhiều feature candidate, ví dụ `shared/constants/cvTemplates.ts` (trang mẫu CV và mega-menu `Tạo CV`).
 - `assessments/`: bài test kỹ thuật.
 - `interviews/`: AI interview hoặc interview được mời.
-- `schedules/`: lịch phỏng vấn/lịch hẹn.
-- `notifications/`: thông báo dành cho ứng viên.
+- `schedules/`: "Lịch của tôi" — lịch tháng mọi mốc tuyển dụng theo job và xác nhận/đổi lịch phỏng vấn trực tiếp.
+- `notifications/`: hộp thư và cài đặt kênh nhận thông báo (web / Gmail).
 
 Trong từng feature, chỉ tạo folder kỹ thuật khi cần:
 
@@ -71,8 +71,8 @@ Không tạo đủ 8 folder cho mọi feature nếu chưa có nội dung. Folder
 - Feature con được dùng shared UI global từ `@/components/ux`.
 - Feature con không import component nội bộ của feature khác, trừ khi đã chuyển component đó lên shared scope có chủ đích.
 - Nếu một component được dùng bởi từ 2 candidate features trở lên, cân nhắc tạo `candidate/shared/components/`.
-- `nav.ts` chỉ chứa navigation cấp actor, không chứa UI component hoặc business logic.
-- `app/router.tsx` import page từ đúng feature folder, ví dụ `candidate/dashboard/pages/HomePage`.
+- Điều hướng của ứng viên nằm ở header career site (`jobs/components/CareerHeader.tsx`); actor này không còn `nav.ts`.
+- `app/router.tsx` import page từ đúng feature folder, ví dụ `candidate/applications/pages/MyApplicationsPage`.
 
 ## Quy tắc review
 

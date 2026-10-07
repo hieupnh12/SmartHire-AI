@@ -10,6 +10,7 @@ import com.smarthire.tenant.assessment.dto.request.QuestionRequest;
 import com.smarthire.tenant.assessment.dto.response.JobTestResponse;
 import com.smarthire.tenant.assessment.mapper.AssessmentMapper;
 import com.smarthire.tenant.cv.service.CvAccess;
+import com.smarthire.tenant.notification.service.NotificationPreferenceService;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
@@ -34,14 +35,15 @@ public class AssessmentGenerationService {
     private final CvAccess access;
     private final AssessmentMapper mapper;
     private final ObjectMapper json;
+    private final NotificationPreferenceService preferences;
 
     public AssessmentGenerationService(JobRepository jobs, JobTestRepository tests, JobSkillRepository skills,
             QuestionRepository questions, OptionRepository options, ApplicationRepository applications,
             AiInterviewRepository interviews, NotificationRepository notifications, EmailOutboxRepository outbox,
-            CvAccess access, AssessmentMapper mapper, ObjectMapper json) {
+            CvAccess access, AssessmentMapper mapper, ObjectMapper json, NotificationPreferenceService preferences) {
         this.jobs = jobs; this.tests = tests; this.skills = skills; this.questions = questions; this.options = options;
         this.applications = applications; this.interviews = interviews; this.notifications = notifications;
-        this.outbox = outbox; this.access = access; this.mapper = mapper; this.json = json;
+        this.outbox = outbox; this.access = access; this.mapper = mapper; this.json = json; this.preferences = preferences;
     }
 
     @Transactional(readOnly = true)
@@ -119,10 +121,13 @@ public class AssessmentGenerationService {
         String body = "Bạn đã vượt qua AI Interview cho vị trí " + test.getJob().getTitle()
                 + ". Bài \"" + test.getTitle() + "\" đã được tạo riêng cho bạn. Thời gian làm bài "
                 + test.getDurationMinutes() + " phút, tính từ lúc bắt đầu.";
-        notifications.save(Notification.builder().user(application.getCandidate()).type("ASSESSMENT_INVITATION")
-                .title(title).body(body).payloadJson("{\"testId\":" + test.getId() + ",\"applicationId\":" + id
-                        + ",\"path\":\"" + path + "\"}").build());
-        if (application.getCandidate().getEmail() != null && !application.getCandidate().getEmail().isBlank()) {
+        if (!preferences.webOff(application.getCandidate(), NotificationCategory.ASSESSMENT)) {
+            notifications.save(Notification.builder().user(application.getCandidate()).type("ASSESSMENT_INVITATION")
+                    .title(title).body(body).payloadJson("{\"testId\":" + test.getId() + ",\"applicationId\":" + id
+                            + ",\"path\":\"" + path + "\"}").build());
+        }
+        if (application.getCandidate().getEmail() != null && !application.getCandidate().getEmail().isBlank()
+                && !preferences.emailOff(application.getCandidate(), NotificationCategory.ASSESSMENT)) {
             outbox.save(EmailOutbox.builder().purpose("ASSESSMENT_INVITATION")
                     .toEmail(application.getCandidate().getEmail()).subject(title + " — " + test.getJob().getTitle())
                     .body(body + "\n\nĐăng nhập vào workspace để mở mục Bài đánh giá.")

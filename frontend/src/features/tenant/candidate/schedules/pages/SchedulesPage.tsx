@@ -1,24 +1,91 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import { humanInterviewApi as api } from "@/api/tenant/humanInterviewApi";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Button } from "@/components/ux/Button";
+import { EmptyState } from "@/components/ux/EmptyState";
+import { LoadingState, SkeletonCard } from "@/components/ux/Skeleton";
 import { getApiErrorMessage } from "@/lib/axios";
-import { DetailDialog } from "@/components/ux/DetailDialog";
-import { StatusPill } from "@/components/ux/StatusPill";
-import { button, muted, panel, primary } from "@/features/tenant/recruiter/matching/components/rankingUi";
-import { downloadInterview, statusLabels } from "@/components/ux/humanInterviewUtilities";
-const schema = z.object({ start: z.string().min(1), end: z.string().min(1), reason: z.string().trim().min(1).max(2000) }).refine(v => { const start = new Date(v.start).getTime(), end = new Date(v.end).getTime(); return start > Date.now() && end-start >= 900000 && end-start <= 14400000; }, { message: "Chọn lịch tương lai dài 15–240 phút.", path: ["start"] });
+import { cn } from "@/lib/utils";
+import { CalendarMonth, dayKey } from "../components/CalendarMonth";
+import { HumanInterviewActions } from "../components/HumanInterviewActions";
+import { eventKinds } from "../constants/calendarEvents";
+import { useCandidateCalendar } from "../hooks/useCandidateCalendar";
+import type { CalendarEvent } from "../types/calendar";
+
+const timeFormat: Intl.DateTimeFormatOptions = { hour: "2-digit", minute: "2-digit" };
+
 export function SchedulesPage() {
-  const client = useQueryClient(); const [message,setMessage] = useState(""); const [editing,setEditing] = useState<number | null>(null);
-  const rows = useQuery({ queryKey: ["human-interviews","mine"], queryFn: api.mine });
-  const form = useForm<z.infer<typeof schema>>({ resolver: zodResolver(schema), defaultValues: { start:"",end:"",reason:"" } });
-  const mutation = useMutation({ mutationFn: (fn:()=>Promise<unknown>)=>fn(), onSuccess:()=>{void client.invalidateQueries({queryKey:["human-interviews"]});setEditing(null);setMessage("Đã cập nhật lịch phỏng vấn.");}, onError:e=>setMessage(getApiErrorMessage(e)) });
-  return <section className="space-y-6 text-[var(--color-on-surface)]"><header><h1 className="text-3xl font-semibold">Lịch phỏng vấn</h1><p className={`mt-2 ${muted}`}>Xác nhận lịch phỏng vấn trực tiếp và đề nghị đổi giờ với nhà tuyển dụng.</p></header>
-    {message && <p role="status">{message}</p>}{rows.isPending && <p role="status">Đang tải lịch…</p>}{rows.error && <p role="alert">{getApiErrorMessage(rows.error)} <button onClick={()=>void rows.refetch()}>Thử lại</button></p>}
-    <div className={`${panel} space-y-4`}>{rows.data?.length === 0 && <p>Chưa có lịch phỏng vấn.</p>}{rows.data?.map(row=><article key={row.id} className="space-y-3 rounded-2xl border border-[var(--color-border-default)] p-4"><div className="flex justify-between gap-3"><h2 className="text-lg font-semibold">{row.jobTitle}</h2><StatusPill status={row.status} label={statusLabels[row.status]}/></div><p>{new Date(row.start).toLocaleString("vi-VN")} – {new Date(row.end).toLocaleTimeString("vi-VN")}</p><p className={muted}>Hội đồng: {row.participants.map(p=>p.name).join(", ")}</p>{row.mode === "ONLINE" && row.meetingUrl ? <a className="underline text-[var(--color-primary)]" href={row.meetingUrl} target="_blank" rel="noreferrer">Mở link meeting</a> : <p>{row.location}</p>}<p>{row.configuration.notes}</p>{row.status === "RESCHEDULE_REQUESTED" && <p>Đã đề nghị đổi giờ: {row.configuration.rescheduleReason}</p>}<div className="flex flex-wrap gap-2">{row.status === "PROPOSED" && new Date(row.start).getTime()>Date.now() && <button className={primary} disabled={mutation.isPending} onClick={()=>mutation.mutate(()=>api.confirm(row.id))}>Xác nhận tham dự</button>}{["PROPOSED","CONFIRMED","RESCHEDULE_REQUESTED"].includes(row.status) && new Date(row.start).getTime()>Date.now() && <button className={button} onClick={()=>{form.reset();setEditing(row.id);}}>Đề nghị đổi giờ</button>}<button className={button} onClick={()=>void api.calendar(row.id).then(blob=>downloadInterview(blob,`interview-${row.id}.ics`)).catch(e=>setMessage(getApiErrorMessage(e)))}>Tải lịch ICS</button><Link className={button} to={`/applications/${row.applicationId}`}>Chi tiết đơn</Link></div></article>)}</div>
-    <DetailDialog open={editing !== null} title="Đề nghị đổi lịch" onClose={()=>setEditing(null)}><form className="space-y-4" onSubmit={form.handleSubmit(v=>mutation.mutate(()=>api.requestChange(editing!,{start:new Date(v.start).toISOString(),end:new Date(v.end).toISOString(),reason:v.reason})))}><label className="block">Bắt đầu<input className="ml-3 rounded border p-2" type="datetime-local" {...form.register("start")}/></label><label className="block">Kết thúc<input className="ml-3 rounded border p-2" type="datetime-local" {...form.register("end")}/></label><textarea className="w-full rounded border p-2" placeholder="Lý do đổi lịch" {...form.register("reason")}/>{Object.values(form.formState.errors).map((e,i)=><p key={i} role="alert">{e.message}</p>)}<button className={primary} disabled={mutation.isPending}>Gửi đề nghị</button><p className={muted}>Lịch hiện tại được giữ cho đến khi nhà tuyển dụng duyệt và dời lịch.</p></form></DetailDialog>
+  const calendar = useCandidateCalendar();
+  const [month, setMonth] = useState(() => { const now = new Date(); return new Date(now.getFullYear(), now.getMonth(), 1); });
+  const [selected, setSelected] = useState(() => new Date());
+  const [jobId, setJobId] = useState<number | "ALL">("ALL");
+
+  const events = calendar.events.filter((event) => jobId === "ALL" || event.jobId === jobId);
+  const dayEvents = events.filter((event) => dayKey(event.at) === dayKey(selected));
+  const upcoming = events.filter((event) => event.at.getTime() >= Date.now() && event.kind !== "CANCELLED").slice(0, 5);
+  const shiftMonth = (offset: number) => setMonth((value) => new Date(value.getFullYear(), value.getMonth() + offset, 1));
+  const goToday = () => { const now = new Date(); setMonth(new Date(now.getFullYear(), now.getMonth(), 1)); setSelected(now); };
+
+  return <section className="space-y-6 text-[var(--color-on-surface)]" aria-labelledby="schedules-title">
+    <header className="rounded-3xl border border-[var(--color-border-default)] bg-[linear-gradient(135deg,var(--color-primary-subtle),white_58%)] px-5 py-6 shadow-[var(--shadow-card)] sm:px-7">
+      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--color-primary)]">Lịch của tôi</p>
+      <h1 id="schedules-title" className="mt-2 text-3xl font-semibold tracking-tight">Lịch tuyển dụng</h1>
+      <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--color-on-surface-variant)]">Toàn bộ mốc của từng công việc: từ lúc nộp CV, các vòng đánh giá, phỏng vấn AI đến lịch phỏng vấn trực tiếp với nhà tuyển dụng.</p>
+    </header>
+
+    {calendar.error && <div role="alert" className="flex flex-wrap items-center gap-3 rounded-xl bg-[var(--color-error-container)] p-4 text-sm text-[var(--color-on-error-container)]"><p>{getApiErrorMessage(calendar.error)}</p><Button variant="secondary" size="sm" onClick={calendar.refetch}>Thử lại</Button></div>}
+    {calendar.isPending && <LoadingState className="space-y-3" label="Đang tải lịch">{[0, 1].map((item) => <SkeletonCard key={item} className="min-h-40" />)}</LoadingState>}
+    {!calendar.isPending && !calendar.error && calendar.events.length === 0 && <EmptyState title="Chưa có sự kiện nào" description="Khi bạn nộp CV, các mốc tuyển dụng của từng công việc sẽ hiện trên lịch này." />}
+
+    {!calendar.isPending && calendar.events.length > 0 && <>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <Button variant="secondary" size="sm" aria-label="Tháng trước" onClick={() => shiftMonth(-1)}><ChevronLeft className="size-4" aria-hidden="true" /></Button>
+          <h2 className="min-w-36 text-center text-lg font-semibold capitalize">{month.toLocaleDateString("vi-VN", { month: "long", year: "numeric" })}</h2>
+          <Button variant="secondary" size="sm" aria-label="Tháng sau" onClick={() => shiftMonth(1)}><ChevronRight className="size-4" aria-hidden="true" /></Button>
+          <Button variant="ghost" size="sm" onClick={goToday}>Hôm nay</Button>
+        </div>
+        <label className="flex items-center gap-2 text-sm"><span className="text-[var(--color-on-surface-variant)]">Công việc</span>
+          <select value={jobId} onChange={(event) => setJobId(event.target.value === "ALL" ? "ALL" : Number(event.target.value))} className="min-h-10 max-w-64 rounded-xl border border-[var(--color-border-default)] bg-white px-3 text-sm outline-none focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/15">
+            <option value="ALL">Tất cả công việc</option>
+            {calendar.jobs.map((job) => <option key={job.id} value={job.id}>{job.title}</option>)}
+          </select>
+        </label>
+      </div>
+
+      <ul className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-[var(--color-on-surface-variant)]" aria-label="Chú thích loại sự kiện">
+        {Object.entries(eventKinds).map(([kind, meta]) => <li key={kind} className="flex items-center gap-1.5"><span className={cn("size-2.5 rounded-full", meta.dot)} aria-hidden="true" />{meta.label}</li>)}
+      </ul>
+
+      <div className="grid gap-5 xl:grid-cols-[1fr_340px]">
+        <CalendarMonth month={month} events={events} selected={selected} onSelect={(day) => { setSelected(day); if (day.getMonth() !== month.getMonth()) setMonth(new Date(day.getFullYear(), day.getMonth(), 1)); }} />
+        <aside className="space-y-5">
+          <EventList title={selected.toLocaleDateString("vi-VN", { weekday: "long", day: "numeric", month: "long" })} events={dayEvents} empty="Không có sự kiện trong ngày này." />
+          <EventList title="Sắp tới" events={upcoming} empty="Không có sự kiện sắp tới." showDate />
+        </aside>
+      </div>
+    </>}
+
+    <HumanInterviewActions />
+  </section>;
+}
+
+function EventList({ title, events, empty, showDate = false }: { title: string; events: CalendarEvent[]; empty: string; showDate?: boolean }) {
+  return <section className="rounded-2xl border border-[var(--color-border-default)] bg-white p-4 shadow-[var(--shadow-card)]">
+    <h3 className="mb-3 text-sm font-semibold capitalize">{title}</h3>
+    {events.length === 0 ? <p className="text-sm text-[var(--color-on-surface-variant)]">{empty}</p> : <ol className="space-y-2">
+      {events.map((event) => <li key={event.id}>
+        <Link to={event.link} className="flex gap-3 rounded-xl p-2 transition-colors hover:bg-[var(--color-surface-alt)]">
+          <span className={cn("mt-1.5 size-2.5 shrink-0 rounded-full", eventKinds[event.kind].dot)} aria-hidden="true" />
+          <span className="min-w-0">
+            <span className={cn("block text-sm font-semibold", event.kind === "CANCELLED" && "line-through")}>{event.title}</span>
+            <span className="block truncate text-xs text-[var(--color-on-surface-variant)]">{event.jobTitle}</span>
+            <span className="block text-xs text-[var(--color-on-surface-variant)]">
+              {showDate && `${event.at.toLocaleDateString("vi-VN")} · `}{event.at.toLocaleTimeString("vi-VN", timeFormat)}{event.end && ` – ${event.end.toLocaleTimeString("vi-VN", timeFormat)}`}{event.detail && ` · ${event.detail}`}
+            </span>
+          </span>
+        </Link>
+      </li>)}
+    </ol>}
   </section>;
 }

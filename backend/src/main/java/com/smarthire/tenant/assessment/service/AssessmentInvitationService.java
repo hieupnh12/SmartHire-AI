@@ -3,6 +3,7 @@ package com.smarthire.tenant.assessment.service;
 import com.smarthire.common.exception.BusinessException;
 import com.smarthire.domain.enums.AiInterviewStatus;
 import com.smarthire.domain.enums.ApplicationStatus;
+import com.smarthire.domain.enums.NotificationCategory;
 import com.smarthire.domain.enums.NotificationStatus;
 import com.smarthire.domain.enums.TestStatus;
 import com.smarthire.domain.enums.TestSubmissionStatus;
@@ -25,6 +26,7 @@ import com.smarthire.tenant.assessment.dto.request.SendAssessmentRequest;
 import com.smarthire.tenant.assessment.dto.response.SendAssessmentResponse;
 import com.smarthire.tenant.auth.service.InviteMailSender;
 import com.smarthire.tenant.cv.service.CvAccess;
+import com.smarthire.tenant.notification.service.NotificationPreferenceService;
 import java.time.Instant;
 import java.util.Set;
 import org.slf4j.Logger;
@@ -52,12 +54,14 @@ public class AssessmentInvitationService {
     private final InviteMailSender mail;
     private final TenantPublicUrlService publicUrls;
     private final CvAccess access;
+    private final NotificationPreferenceService preferences;
 
     public AssessmentInvitationService(JobTestRepository tests, ApplicationRepository applications,
             SubmissionRepository submissions, AiInterviewRepository aiInterviews,
             ApplicationStatusHistoryRepository history, RecruitmentStageRepository stages,
             NotificationRepository notifications, EmailOutboxRepository outbox, InviteMailSender mail,
-            TenantPublicUrlService publicUrls, CvAccess access) {
+            TenantPublicUrlService publicUrls, CvAccess access, NotificationPreferenceService preferences) {
+        this.preferences = preferences;
         this.tests = tests;
         this.applications = applications;
         this.submissions = submissions;
@@ -123,17 +127,20 @@ public class AssessmentInvitationService {
         String title = "Lời mời làm bài Assessment";
         String body = "Nhà tuyển dụng mời bạn làm bài \"" + test.getTitle() + "\" cho vị trí " + jobTitle
                 + ". Thời gian làm bài " + test.getDurationMinutes() + " phút, bắt đầu tính khi bạn bấm bắt đầu.";
-        notifications.save(Notification.builder()
-                .user(candidate)
-                .type("ASSESSMENT_INVITATION")
-                .title(title)
-                .body(body)
-                .payloadJson("{\"testId\":" + test.getId() + ",\"applicationId\":" + application.getId()
-                        + ",\"path\":\"" + path + "\"}")
-                .build());
+        if (!preferences.webOff(candidate, NotificationCategory.ASSESSMENT)) {
+            notifications.save(Notification.builder()
+                    .user(candidate)
+                    .type("ASSESSMENT_INVITATION")
+                    .title(title)
+                    .body(body)
+                    .payloadJson("{\"testId\":" + test.getId() + ",\"applicationId\":" + application.getId()
+                            + ",\"path\":\"" + path + "\"}")
+                    .build());
+        }
 
         boolean emailSent = false;
-        if (candidate.getEmail() != null && !candidate.getEmail().isBlank()) {
+        if (candidate.getEmail() != null && !candidate.getEmail().isBlank()
+                && !preferences.emailOff(candidate, NotificationCategory.ASSESSMENT)) {
             String subject = "SmartHire: mời làm bài Assessment — " + jobTitle;
             String emailBody = """
                     Xin chào %s,

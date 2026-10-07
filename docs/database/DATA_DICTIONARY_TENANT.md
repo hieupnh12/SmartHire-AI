@@ -1004,6 +1004,21 @@ Entity `EmailOutbox`.
 | `created_at` | TIMESTAMP | | Không | now | |
 | `sent_at` | TIMESTAMP | | Có | NULL | |
 
+### I.3 `notification_preferences` — Cài đặt kênh nhận thông báo (V49)
+
+Entity `NotificationPreference`. Không có dòng cho một loại nghĩa là người dùng nhận cả web lẫn email.
+
+| Cột | Kiểu | Khoá | Null | Default | Mô tả |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | Không | auto | |
+| `user_id` | BIGINT | FK → `users.id` | Không | — | Chủ cài đặt; xóa user thì xóa theo (CASCADE) |
+| `category` | VARCHAR(32) | UQ (cùng `user_id`) | Không | — | Enum `NotificationCategory`: `AI_INTERVIEW`, `ASSESSMENT`, `HUMAN_INTERVIEW` |
+| `web_enabled` | BOOLEAN | | Không | TRUE | FALSE = không tạo dòng `notifications` cho loại này |
+| `email_enabled` | BOOLEAN | | Không | TRUE | FALSE = không gửi/ghi `email_outbox` cho loại này |
+| `updated_at` | TIMESTAMP | | Không | now (ON UPDATE) | |
+
+**Ràng buộc:** `fk_notification_preference_user`, `uk_notification_preference_user_category(user_id, category)`
+
 ---
 
 ## J. Practice

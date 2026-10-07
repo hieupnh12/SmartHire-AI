@@ -1,8 +1,10 @@
 package com.smarthire.tenant.interview.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.smarthire.domain.enums.NotificationCategory;
 import com.smarthire.domain.tenant.entity.*;
 import com.smarthire.domain.tenant.repository.*;
 import com.smarthire.tenant.interview.dto.HumanInterviewModels.*;
+import com.smarthire.tenant.notification.service.NotificationPreferenceService;
 import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -17,6 +19,7 @@ public class HumanInterviewNotificationService {
     private final NotificationRepository notifications;
     private final UserRepository users;
     private final ObjectMapper json;
+    private final NotificationPreferenceService preferences;
     public EmailPreview preview(InterviewView r) {
         String time=DateTimeFormatter.ofPattern("HH:mm dd/MM/yyyy").withZone(ZoneId.of("Asia/Bangkok")).format(r.start());
         String heading=switch(r.configuration().emailTemplate()) { case "EXECUTIVE" -> "Executive interview invitation"; case "EXPRESS" -> "Interview appointment"; default -> "Interview invitation"; };
@@ -30,7 +33,7 @@ public class HumanInterviewNotificationService {
     public void remind(InterviewView r,User candidate) { enqueue(r,candidate,"HUMAN_INTERVIEW_REMINDER","Nhắc lịch phỏng vấn trực tiếp"); }
     public void cancel(InterviewView r,User candidate) { enqueue(r,candidate,"HUMAN_INTERVIEW_CANCELLED","Lịch phỏng vấn đã hủy"); }
     public void requestChange(InterviewView r) {
-        for(var p:r.participants()) notifications.save(Notification.builder().user(users.getReferenceById(p.userId())).type("HUMAN_INTERVIEW_RESCHEDULE").title("Ứng viên yêu cầu đổi lịch").body(r.configuration().rescheduleReason()).payloadJson("{\"interviewId\":"+r.id()+"}").build());
+        for(var p:r.participants()) if(!preferences.webOff(users.getReferenceById(p.userId()),NotificationCategory.HUMAN_INTERVIEW)) notifications.save(Notification.builder().user(users.getReferenceById(p.userId())).type("HUMAN_INTERVIEW_RESCHEDULE").title("Ứng viên yêu cầu đổi lịch").body(r.configuration().rescheduleReason()).payloadJson("{\"interviewId\":"+r.id()+"}").build());
     }
     private void enqueue(InterviewView r,User candidate,String type,String title) {
         var recipients=new LinkedHashMap<Long,User>(); recipients.put(candidate.getId(),candidate);
@@ -38,7 +41,8 @@ public class HumanInterviewNotificationService {
         var preview=preview(r);
         for(var user:recipients.values()) {
             String path=user.getId().equals(candidate.getId())?"/schedules":"/recruiter/jobs/"+r.jobId()+"/interviews";
-            notifications.save(Notification.builder().user(user).type(type).title(title).body(r.jobTitle()).payloadJson("{\"interviewId\":"+r.id()+",\"path\":\""+path+"\"}").build());
+            if(!preferences.webOff(user,NotificationCategory.HUMAN_INTERVIEW)) notifications.save(Notification.builder().user(user).type(type).title(title).body(r.jobTitle()).payloadJson("{\"interviewId\":"+r.id()+",\"path\":\""+path+"\"}").build());
+            if(preferences.emailOff(user,NotificationCategory.HUMAN_INTERVIEW)) continue;
             try {
                 String body=json.writeValueAsString(new EmailContent(title+"\n\n"+preview.body(),r.configuration().attachCalendar()?HumanInterviewCalendar.export(List.of(r)):null));
                 outbox.save(EmailOutbox.builder().toEmail(user.getEmail()).subject(title+" - "+r.jobTitle()).body(body).purpose(PURPOSE).build());

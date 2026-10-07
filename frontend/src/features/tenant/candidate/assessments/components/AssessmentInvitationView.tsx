@@ -82,7 +82,7 @@ export function AssessmentInvitationView({
       <div className="relative flex flex-col gap-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <nav aria-label="Breadcrumb" className={`flex flex-wrap items-center gap-1 ${muted}`}>
-            <Link className="inline-flex items-center gap-1 hover:text-[var(--color-primary)]" to="/workspace">
+            <Link className="inline-flex items-center gap-1 hover:text-[var(--color-primary)]" to="/career">
               <Home className="size-4" aria-hidden="true" />
               <span>Cổng thông tin Ứng viên</span>
             </Link>

@@ -3,6 +3,7 @@ package com.smarthire.tenant.aiInterview.service;
 import com.smarthire.common.exception.BusinessException;
 import com.smarthire.domain.enums.AiInterviewStatus;
 import com.smarthire.domain.enums.ApplicationStatus;
+import com.smarthire.domain.enums.NotificationCategory;
 import com.smarthire.domain.tenant.entity.AiInterview;
 import com.smarthire.domain.tenant.entity.Notification;
 import com.smarthire.domain.tenant.entity.RecruitmentStage;
@@ -11,6 +12,7 @@ import com.smarthire.domain.tenant.repository.ApplicationRepository;
 import com.smarthire.domain.tenant.repository.NotificationRepository;
 import com.smarthire.multitenancy.context.TenantContext;
 import com.smarthire.tenant.applicant.service.AiInterviewInviteService;
+import com.smarthire.tenant.notification.service.NotificationPreferenceService;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -27,15 +29,17 @@ public class AiInterviewInvitationService {
     private final NotificationRepository notifications;
     private final AiInterviewActivityLog activity;
     private final AiInterviewInviteService emailInvites;
+    private final NotificationPreferenceService preferences;
 
     public AiInterviewInvitationService(ApplicationRepository applications, AiInterviewRepository interviews,
                                         NotificationRepository notifications, AiInterviewActivityLog activity,
-                                        AiInterviewInviteService emailInvites) {
+                                        AiInterviewInviteService emailInvites, NotificationPreferenceService preferences) {
         this.applications = applications;
         this.interviews = interviews;
         this.notifications = notifications;
         this.activity = activity;
         this.emailInvites = emailInvites;
+        this.preferences = preferences;
     }
 
     @Transactional
@@ -90,16 +94,18 @@ public class AiInterviewInvitationService {
         var config = InterviewPolicies.config(interview);
         activity.record(interview, "INVITED", "Attempt " + attemptNumber + " created for application " + application.getId()
                 + "; generation of " + config.questionCount() + " Communication questions queued");
-        notifications.save(Notification.builder()
-                .user(application.getCandidate())
-                .type("AI_INTERVIEW_INVITATION")
-                .title(attemptNumber == 1 ? "Lời mời phỏng vấn AI" : "Lượt làm lại AI Interview")
-                .body(invitationBody(application.getJob().getTitle(), config.availableFrom(), config.availableUntil(),
-                        config.policy().durationMinutes(), config.policy().maxAttempts()))
-                .payloadJson("{\"aiInterviewId\":" + interview.getId() + ",\"applicationId\":" + application.getId()
-                        + ",\"path\":\"/candidate/interviews/" + interview.getId() + "\"}")
-                .build());
-        activity.record(interview, "NOTIFICATION_SENT", "AI_INTERVIEW_INVITATION");
+        if (!preferences.webOff(application.getCandidate(), NotificationCategory.AI_INTERVIEW)) {
+            notifications.save(Notification.builder()
+                    .user(application.getCandidate())
+                    .type("AI_INTERVIEW_INVITATION")
+                    .title(attemptNumber == 1 ? "Lời mời phỏng vấn AI" : "Lượt làm lại AI Interview")
+                    .body(invitationBody(application.getJob().getTitle(), config.availableFrom(), config.availableUntil(),
+                            config.policy().durationMinutes(), config.policy().maxAttempts()))
+                    .payloadJson("{\"aiInterviewId\":" + interview.getId() + ",\"applicationId\":" + application.getId()
+                            + ",\"path\":\"/candidate/interviews/" + interview.getId() + "\"}")
+                    .build());
+            activity.record(interview, "NOTIFICATION_SENT", "AI_INTERVIEW_INVITATION");
+        }
         emailInvites.sendForInterview(application);
         return interview;
     }
