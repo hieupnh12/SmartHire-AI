@@ -4,7 +4,6 @@ import type { ApiResponse } from "@/types/api";
 export interface TenantAdminRequest {
   adminName: string;
   adminEmail: string;
-  adminPassword: string;
 }
 
 export interface OnboardTenantRequest extends TenantAdminRequest {
@@ -27,6 +26,7 @@ export interface OnboardTenantResponse {
   status: string;
   environmentType?: string;
   createdAt: string;
+  activationUrl?: string;
 }
 
 export const masterTenantApi = {

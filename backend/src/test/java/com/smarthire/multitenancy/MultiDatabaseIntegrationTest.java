@@ -66,6 +66,7 @@ class MultiDatabaseIntegrationTest {
     @Autowired MasterTenantService service;
     @Autowired TenantInfoRepository tenants;
     @Autowired UserRepository users;
+    @Autowired com.smarthire.domain.tenant.repository.MemberInvitationRepository invitations;
     @Autowired PlatformUserRepository platformUsers;
     @Autowired DynamicMultiTenantConnectionProvider provider;
     @Autowired TenantCredentialService credentials;
@@ -80,8 +81,13 @@ class MultiDatabaseIntegrationTest {
         String code = prefix + UUID.randomUUID().toString().substring(0, 8);
         var request = new OnboardTenantRequest();
         request.setCode(code); request.setSubdomain("site-" + code); request.setName("Integration tenant");
-        request.setAdminName("Tenant Admin"); request.setAdminEmail("admin@example.test"); request.setAdminPassword(ADMIN_PASSWORD);
+        request.setAdminName("Tenant Admin"); request.setAdminEmail("admin@example.test");
         return request;
+    }
+
+    private String extractToken(String activationUrl) {
+        assertThat(activationUrl).contains("/invite/accept?token=");
+        return activationUrl.substring(activationUrl.indexOf("token=") + "token=".length());
     }
 
     private String platformToken() {
@@ -103,7 +109,8 @@ class MultiDatabaseIntegrationTest {
         assertThat(alpha.getDbUsername()).isNotEqualTo(beta.getDbUsername()).isNotEqualTo("smarthire_provisioner");
         for (TenantInfo tenant : List.of(alpha, beta)) {
             TenantContext.setCurrentTenant(tenant.getCode());
-            assertThat(users.findAll()).hasSize(1);
+            assertThat(users.findAll()).isEmpty();
+            assertThat(invitations.findAll()).hasSize(1);
             assertThat(tenants.findByCode(alpha.getCode())).isPresent();
             try (Connection connection = provider.getConnection(tenant.getCode());
                  Statement sql = connection.createStatement()) {
@@ -138,30 +145,34 @@ class MultiDatabaseIntegrationTest {
     }
 
     @Test void httpAuthRejectsCrossTenantSuspendedAndAnonymousRequests() throws Exception {
-        var alpha = service.onboardTenant(request("autha"));
-        var beta = service.onboardTenant(request("authb"));
+        var alpha = service.onboardTenantResponse(request("autha"));
+        var beta = service.onboardTenantResponse(request("authb"));
         mvc.perform(get("/api/v1/master/tenants")).andExpect(status().isUnauthorized());
         mvc.perform(post("/api/v1/master/tenants/onboard").contentType("application/json").content("{}"))
                 .andExpect(status().isUnauthorized());
-        mvc.perform(post("/api/v1/tenant/users").header("X-Tenant-ID", alpha.getCode())
-                .contentType("application/json").content("{}")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/v1/tenant/users").header("X-Tenant-ID", alpha.code()))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(post("/api/v1/tenant/users/invitations/accept").header("X-Tenant-ID", alpha.subdomain())
+                .contentType("application/json")
+                .content(mapper.writeValueAsString(Map.of("token", extractToken(alpha.activationUrl()), "password", ADMIN_PASSWORD))))
+                .andExpect(status().isOk());
         mvc.perform(post("/api/v1/tenant/auth/login").contentType("application/json")
                 .content("{\"email\":\"admin@example.test\",\"password\":\"" + ADMIN_PASSWORD + "\"}"))
                 .andExpect(status().isBadRequest());
-        String login = mvc.perform(post("/api/v1/tenant/auth/login").header("X-Tenant-ID", alpha.getSubdomain())
+        String login = mvc.perform(post("/api/v1/tenant/auth/login").header("X-Tenant-ID", alpha.subdomain())
                 .contentType("application/json").content("{\"email\":\"admin@example.test\",\"password\":\"" + ADMIN_PASSWORD + "\"}"))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
         String token = mapper.readTree(login).path("data").path("accessToken").asText();
         mvc.perform(get("/api/v1/master/tenants").header("Authorization", "Bearer " + token)).andExpect(status().isForbidden());
         mvc.perform(get("/api/v1/tenant/auth/me").header("Authorization", "Bearer " + token)
-                .header("X-Tenant-ID", beta.getCode())).andExpect(status().isForbidden());
+                .header("X-Tenant-ID", beta.code())).andExpect(status().isForbidden());
         mvc.perform(get("/api/v1/tenant/auth/me").header("Authorization", "Bearer " + token)
-                .header("X-Tenant-ID", alpha.getCode())).andExpect(status().isOk());
-        service.updateTenantStatus(alpha.getId(), "SUSPENDED");
+                .header("X-Tenant-ID", alpha.code())).andExpect(status().isOk());
+        service.updateTenantStatus(alpha.id(), "SUSPENDED");
         mvc.perform(get("/api/v1/tenant/auth/me").header("Authorization", "Bearer " + token)).andExpect(status().isForbidden());
-        assertThatThrownBy(() -> provider.getConnection(alpha.getCode())).isInstanceOf(BusinessException.class);
-        service.updateTenantStatus(alpha.getId(), "ACTIVE");
-        try (Connection connection = provider.getConnection(alpha.getCode())) { assertThat(connection.isValid(2)).isTrue(); }
+        assertThatThrownBy(() -> provider.getConnection(alpha.code())).isInstanceOf(BusinessException.class);
+        service.updateTenantStatus(alpha.id(), "ACTIVE");
+        try (Connection connection = provider.getConnection(alpha.code())) { assertThat(connection.isValid(2)).isTrue(); }
         mvc.perform(get("/api/v1/master/tenants").header("Authorization", "Bearer " + platformToken()))
                 .andExpect(status().isOk())
                 .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("dbPassword"))))
@@ -186,7 +197,7 @@ class MultiDatabaseIntegrationTest {
         }
         assertThat(service.retryProvisioning(failed.getId(), request).getStatus()).isEqualTo("ACTIVE");
         TenantContext.setCurrentTenant(failed.getCode());
-        assertThat(users.findAll()).hasSize(1);
+        assertThat(invitations.findAll()).hasSize(1);
         assertThatThrownBy(() -> service.retryProvisioning(failed.getId(), request)).isInstanceOf(BusinessException.class);
     }
 
@@ -194,10 +205,11 @@ class MultiDatabaseIntegrationTest {
         var request = request("http");
         String body = mapper.writeValueAsString(Map.of("code", request.getCode(), "name", request.getName(),
                 "subdomain", request.getSubdomain(), "adminName", request.getAdminName(),
-                "adminEmail", request.getAdminEmail(), "adminPassword", request.getAdminPassword()));
+                "adminEmail", request.getAdminEmail()));
         mvc.perform(post("/api/v1/master/tenants/onboard").header("Authorization", "Bearer " + platformToken())
                 .contentType("application/json").content(body)).andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.status").value("ACTIVE"))
+                .andExpect(jsonPath("$.data.activationUrl").isNotEmpty())
                 .andExpect(jsonPath("$.data.dbPassword").doesNotExist());
         var duplicate = request("duplicate"); duplicate.setCode(request.getSubdomain());
         assertThatThrownBy(() -> service.onboardTenant(duplicate)).isInstanceOf(BusinessException.class);
@@ -210,7 +222,7 @@ class MultiDatabaseIntegrationTest {
         assertThat(tenants.findByCode(tenant.getCode())).isPresent();
         mvc.perform(post("/api/v1/tenant/auth/login").header("X-Tenant-ID", tenant.getCode())
                 .contentType("application/json").content(mapper.writeValueAsString(
-                        Map.of("email", request.getAdminEmail(), "password", request.getAdminPassword()))))
+                        Map.of("email", request.getAdminEmail(), "password", ADMIN_PASSWORD))))
                 .andExpect(status().isServiceUnavailable());
     }
 

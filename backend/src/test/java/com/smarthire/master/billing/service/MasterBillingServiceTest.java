@@ -232,7 +232,8 @@ class MasterBillingServiceTest {
         when(invoiceRepository.save(any(Invoice.class))).thenAnswer(i -> i.getArgument(0));
         when(subscriptionRepository.findById(20L)).thenReturn(Optional.of(subscription));
         when(tenantRepository.findById(10L)).thenReturn(Optional.of(tenant));
-        when(masterTenantService.provisionPendingTenant(10L)).thenReturn("TempPassword123!");
+        when(masterTenantService.provisionPendingTenant(10L))
+                .thenReturn("https://acme.smarthire.top/invite/accept?token=one-time-token");
 
         InvoiceResponse response = billingService.approveInvoice(50L);
 
@@ -242,7 +243,12 @@ class MasterBillingServiceTest {
         assertThat(subscription.getStatus()).isEqualTo("ACTIVE");
 
         verify(masterTenantService).provisionPendingTenant(10L);
-        verify(mailSender).send(eq("admin@acme.com"), contains("Kích hoạt"), contains("TempPassword123!"));
+        verify(masterNotificationService).sendWorkspaceActivated(
+                eq(tenant),
+                isNull(),
+                eq("https://acme.smarthire.top/invite/accept?token=one-time-token"),
+                eq("https://acme.smarthire.top"));
+        verifyNoInteractions(mailSender);
     }
 
     @Test

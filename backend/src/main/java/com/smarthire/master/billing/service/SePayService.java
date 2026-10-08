@@ -26,10 +26,11 @@ public class SePayService {
     private final PaymentTransactionRepository paymentTransactionRepository;
     private final MasterBillingService masterBillingService;
 
-    // Pattern 1: INV-202610-1234
-    private static final Pattern INVOICE_PATTERN_HYPHEN = Pattern.compile("INV-\\d{6}-\\d{4}", Pattern.CASE_INSENSITIVE);
-    // Pattern 2: INV2026101234
-    private static final Pattern INVOICE_PATTERN_COMPACT = Pattern.compile("INV\\d{10}", Pattern.CASE_INSENSITIVE);
+    // Khớp mọi biến thể từ ngân hàng: INV-202610-1234, INV2026101234, INV 202610 1234, INV_202610_1234
+    private static final Pattern INVOICE_PATTERN_FLEXIBLE = Pattern.compile(
+            "INV[\\s\\-_]*(\\d{6})[\\s\\-_]*(\\d{4})",
+            Pattern.CASE_INSENSITIVE
+    );
 
     @Transactional(transactionManager = "masterTransactionManager")
     public SePayWebhookResponse processWebhook(SePayWebhookPayload payload) {
@@ -55,7 +56,7 @@ public class SePayService {
             return SePayWebhookResponse.ok();
         }
 
-        // 3. Trích xuất mã hóa đơn từ content hoặc code
+        // 3. Trích xuất mã hóa đơn từ content, code hoặc description
         String invoiceNumber = extractInvoiceNumber(payload);
         if (!StringUtils.hasText(invoiceNumber)) {
             log.warn("SePay Webhook: Could not extract invoice number from content='{}' or code='{}'",
@@ -134,25 +135,16 @@ public class SePayService {
         return SePayWebhookResponse.ok();
     }
 
-    private String extractInvoiceNumber(SePayWebhookPayload payload) {
+    public String extractInvoiceNumber(SePayWebhookPayload payload) {
         String combined = (payload.getCode() != null ? payload.getCode() + " " : "")
                 + (payload.getContent() != null ? payload.getContent() + " " : "")
                 + (payload.getDescription() != null ? payload.getDescription() : "");
 
         if (!StringUtils.hasText(combined)) return null;
 
-        // Thử khớp dạng có dấu gạch ngang: INV-202610-1234
-        Matcher matcherHyphen = INVOICE_PATTERN_HYPHEN.matcher(combined);
-        if (matcherHyphen.find()) {
-            return matcherHyphen.group(0).toUpperCase();
-        }
-
-        // Thử khớp dạng viết liền không gạch ngang: INV2026101234
-        Matcher matcherCompact = INVOICE_PATTERN_COMPACT.matcher(combined);
-        if (matcherCompact.find()) {
-            String compact = matcherCompact.group(0).toUpperCase();
-            // Tách lại thành INV-YYYYMM-XXXX
-            return compact.substring(0, 3) + "-" + compact.substring(3, 9) + "-" + compact.substring(9);
+        Matcher matcher = INVOICE_PATTERN_FLEXIBLE.matcher(combined);
+        if (matcher.find()) {
+            return "INV-" + matcher.group(1) + "-" + matcher.group(2);
         }
 
         return null;

@@ -77,7 +77,7 @@ class TenantUserInvitationControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(AcceptInvitationRequest.builder()
                                 .token(" ")
-                                .password("secret1")
+                                .password("secret123")
                                 .build())))
                 .andExpect(status().isBadRequest());
     }
@@ -95,7 +95,7 @@ class TenantUserInvitationControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(AcceptInvitationRequest.builder()
                                 .token("raw-token")
-                                .password("secret1")
+                                .password("secret123")
                                 .build())))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.role").value("HR"));

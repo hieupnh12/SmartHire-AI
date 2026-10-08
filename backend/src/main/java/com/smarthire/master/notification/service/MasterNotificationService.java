@@ -108,7 +108,7 @@ public class MasterNotificationService {
         log.info("Queued checkout order email with PDF for invoice #{} to {}", orderData.getInvoiceNumber(), recipientEmail);
     }
 
-    public void sendWorkspaceActivated(TenantInfo tenant, String planName, String tempPassword, String workspaceUrl) {
+    public void sendWorkspaceActivated(TenantInfo tenant, String planName, String activationUrl, String workspaceUrl) {
         String recipientEmail = getRecipient(tenant);
         if (!StringUtils.hasText(recipientEmail)) {
             log.warn("Cannot send workspace activation email: recipient email missing for tenant {}", tenant.getCode());
@@ -122,13 +122,16 @@ public class MasterNotificationService {
             return;
         }
 
+        String loginUrl = workspaceUrl.endsWith("/internal/login") ? workspaceUrl : workspaceUrl + "/internal/login";
+        String claimUrl = StringUtils.hasText(activationUrl) ? activationUrl : loginUrl;
+
         Map<String, Object> vars = new HashMap<>();
         vars.put("customerName", StringUtils.hasText(tenant.getContactName()) ? tenant.getContactName() : tenant.getName());
         vars.put("workspaceName", tenant.getName());
         vars.put("subdomain", tenant.getSubdomain());
-        vars.put("workspaceLoginUrl", workspaceUrl.endsWith("/internal/login") ? workspaceUrl : workspaceUrl + "/internal/login");
+        vars.put("workspaceLoginUrl", loginUrl);
+        vars.put("activationUrl", claimUrl);
         vars.put("adminEmail", recipientEmail);
-        vars.put("tempPassword", tempPassword);
         vars.put("planName", StringUtils.hasText(planName) ? planName : "Gói Thuê Bao SmartHire");
         vars.put("activatedDate", LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")));
         vars.put("supportEmail", "support@smarthire.top");
@@ -137,7 +140,7 @@ public class MasterNotificationService {
         MasterEmailPayload payload = MasterEmailPayload.builder()
                 .tenantCode(tenant.getCode())
                 .toEmail(recipientEmail)
-                .subject("SmartHire-AI - Kích hoạt không gian làm việc thành công [" + tenant.getName() + "]")
+                .subject("SmartHire-AI - Kích hoạt không gian làm việc & Thiết lập mật khẩu [" + tenant.getName() + "]")
                 .templateName("workspace-activated")
                 .templateVariables(vars)
                 .notificationType("WORKSPACE_ACTIVATED")

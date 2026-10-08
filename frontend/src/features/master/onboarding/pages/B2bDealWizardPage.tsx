@@ -20,7 +20,6 @@ const wizardSchema = z.object({
   environmentType: z.enum(["PRODUCTION", "POC_SANDBOX"]).default("PRODUCTION"),
   adminName: z.string().trim().min(1, "Vui lòng nhập tên quản trị viên"),
   adminEmail: z.string().trim().email("Email không hợp lệ"),
-  adminPassword: z.string().min(12, "Mật khẩu tối thiểu 12 ký tự"),
 
   // Step 2: Plan
   planId: z.number({ required_error: "Vui lòng chọn gói dịch vụ" }).min(1, "Vui lòng chọn gói dịch vụ"),
@@ -326,7 +325,6 @@ export function B2bDealWizardPageContent() {
       billingCycle: "YEARLY",
       closingMethod: "INVOICE",
       planId: plans?.[0]?.id || 0,
-      adminPassword: "",
       companyLegalName: initialName,
       billingEmail: initialEmail,
     },
@@ -363,7 +361,6 @@ export function B2bDealWizardPageContent() {
         subdomain: values.subdomain,
         adminName: values.adminName,
         adminEmail: values.adminEmail,
-        adminPassword: values.adminPassword,
         environmentType: values.environmentType,
         companyLegalName: values.companyLegalName,
         taxCode: values.taxCode,
@@ -433,7 +430,7 @@ export function B2bDealWizardPageContent() {
           </div>
           <h1 className="text-3xl font-bold text-slate-900 mb-3">Chốt Sale Thành Công! 🎉</h1>
           <p className="text-slate-600 mb-8 max-w-lg mx-auto">
-            Workspace <strong>{successData.tenantCode}</strong> đã được khởi tạo thành công cùng với Database độc lập.
+            Workspace <strong>{successData.tenantCode}</strong> đã được khởi tạo thành công cùng với Database độc lập và đã gửi lời mời kích hoạt một lần tới Email Admin.
             {successData.closingMethod === "INVOICE"
               ? " Hóa đơn thanh toán đã được tạo."
               : " Hợp đồng điện tử đã được tạo và sẵn sàng gửi cho khách ký số."}
@@ -507,7 +504,7 @@ export function B2bDealWizardPageContent() {
 
                   <div className="sm:col-span-2 pt-4 border-t border-slate-100">
                     <h3 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
-                      <ShieldCheck className="h-4 w-4 text-emerald-600" /> Tài khoản Quản trị
+                      <ShieldCheck className="h-4 w-4 text-emerald-600" /> Tài khoản Quản trị (Invite & Claim Account)
                     </h3>
                   </div>
 
@@ -523,10 +520,8 @@ export function B2bDealWizardPageContent() {
                     {form.formState.errors.adminEmail && <p className="mt-1 text-xs text-red-600">{form.formState.errors.adminEmail.message}</p>}
                   </div>
 
-                  <div className="sm:col-span-2">
-                    <label className={labelClass}>Mật khẩu Admin <span className="text-red-500">*</span></label>
-                    <input type="password" {...form.register("adminPassword")} className={inputClass} placeholder="Ít nhất 12 ký tự" />
-                    {form.formState.errors.adminPassword && <p className="mt-1 text-xs text-red-600">{form.formState.errors.adminPassword.message}</p>}
+                  <div className="sm:col-span-2 rounded-xl border border-emerald-200 bg-emerald-50/70 p-3.5 text-xs text-emerald-900 leading-relaxed">
+                    <strong>Bảo mật Enterprise:</strong> Hệ thống không cấp mật khẩu tĩnh. Sau khi tạo Workspace, hệ thống sẽ tự động gửi email chứa liên kết kích hoạt một lần (Magic Link có hiệu lực 72 giờ) tới địa chỉ email trên để khách hàng tự thiết lập mật khẩu riêng.
                   </div>
                 </div>
 

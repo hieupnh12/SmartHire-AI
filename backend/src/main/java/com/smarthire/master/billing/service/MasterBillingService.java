@@ -211,7 +211,7 @@ public class MasterBillingService {
             TenantInfo pendingTenant = tenantRepository.findById(invoice.getTenantId()).orElse(null);
             if (pendingTenant != null && ("PENDING_PAYMENT".equals(pendingTenant.getStatus()) || "FAILED".equals(pendingTenant.getStatus()))) {
                 log.info("Auto-provisioning workspace for tenant: {}", pendingTenant.getCode());
-                String tempPassword = masterTenantService.provisionPendingTenant(pendingTenant.getId());
+                String activationUrl = masterTenantService.provisionPendingTenant(pendingTenant.getId());
                 pendingTenant = tenantRepository.findById(pendingTenant.getId()).orElse(pendingTenant);
                 String workspaceUrl = "https://" + pendingTenant.getSubdomain() + "." + baseDomain;
 
@@ -225,7 +225,7 @@ public class MasterBillingService {
                 String planName = plan != null ? plan.getName() : null;
 
                 try {
-                    masterNotificationService.sendWorkspaceActivated(pendingTenant, planName, tempPassword, workspaceUrl);
+                    masterNotificationService.sendWorkspaceActivated(pendingTenant, planName, activationUrl, workspaceUrl);
                 } catch (Exception ex) {
                     log.warn("Could not deliver workspace activation email: {}", ex.getMessage());
                 }
@@ -424,24 +424,11 @@ public class MasterBillingService {
         TenantInfo tenant = tenantRepository.findById(saved.getTenantId()).orElse(null);
         if (tenant != null && ("PENDING_PAYMENT".equals(tenant.getStatus()) || "FAILED".equals(tenant.getStatus()))) {
             log.info("Auto-provisioning workspace for tenant: {}", tenant.getCode());
-            String tempPassword = masterTenantService.provisionPendingTenant(tenant.getId());
-            log.info("Temporary workspace administrator credentials generated for tenant '{}'", tenant.getCode());
+            String activationUrl = masterTenantService.provisionPendingTenant(tenant.getId());
+            log.info("Workspace administrator activation link generated for tenant '{}'", tenant.getCode());
             tenant = tenantRepository.findById(tenant.getId()).orElse(tenant);
 
             String workspaceUrl = "https://" + tenant.getSubdomain() + "." + baseDomain;
-            String emailBody = "Chào mừng bạn đến với SmartHire-AI!\n\n"
-                    + "Không gian làm việc doanh nghiệp của bạn đã được kích hoạt thành công.\n"
-                    + "Đường dẫn đăng nhập: " + workspaceUrl + "/internal/login\n"
-                    + "Tài khoản quản trị: " + tenant.getContactEmail() + "\n"
-                    + "Mật khẩu tạm thời: " + tempPassword + "\n\n"
-                    + "Vui lòng đăng nhập và đổi mật khẩu trong mục Tài khoản để đảm bảo an toàn.\n"
-                    + "Trân trọng,\nĐội ngũ SmartHire-AI";
-
-            try {
-                mailSender.send(tenant.getContactEmail(), "Kích hoạt không gian làm việc SmartHire-AI", emailBody);
-            } catch (Exception ex) {
-                log.warn("Could not deliver workspace activation email to: {}", tenant.getContactEmail());
-            }
 
             SubscriptionPlan plan = null;
             if (saved.getSubscriptionId() != null) {
@@ -452,9 +439,9 @@ public class MasterBillingService {
             }
             String planName = plan != null ? plan.getName() : null;
 
-            // Gửi email thông báo kích hoạt thành công với giao diện HTML chuẩn thương hiệu qua Brevo SMTP
+            // Gửi email thông báo kích hoạt thành công kèm link đặt mật khẩu 1 lần qua RabbitMQ / Brevo SMTP
             try {
-                masterNotificationService.sendWorkspaceActivated(tenant, planName, tempPassword, workspaceUrl);
+                masterNotificationService.sendWorkspaceActivated(tenant, planName, activationUrl, workspaceUrl);
             } catch (Exception ex) {
                 log.warn("Could not deliver workspace activation HTML email to: {}", tenant.getContactEmail(), ex);
             }

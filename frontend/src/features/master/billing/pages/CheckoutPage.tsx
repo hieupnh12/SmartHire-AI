@@ -58,6 +58,27 @@ export function CheckoutPage() {
   const selectedBankCode = "VNBANK";
   // PayPal state
   const [paypalVerifying, setPaypalVerifying] = useState(false);
+  const [checkingPayment, setCheckingPayment] = useState(false);
+
+  const handleManualCheckPayment = async () => {
+    if (!orderResult?.invoiceId || checkingPayment) return;
+    setCheckingPayment(true);
+    setErrorMsg(null);
+    try {
+      const statusRes = await checkoutApi.checkInvoiceStatus(orderResult.invoiceId);
+      if (statusRes && (statusRes.status === "PAID" || statusRes.isPaid)) {
+        setOrderResult((prev) => (prev ? { ...prev, status: "PAID" } : null));
+        setCurrentStep(3);
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      } else {
+        setErrorMsg("Hệ thống đang chờ xác nhận giao dịch từ ngân hàng (thường mất 5–30 giây sau khi chuyển khoản). Vui lòng giữ nguyên trang này.");
+      }
+    } catch {
+      setErrorMsg("Không thể kiểm tra trạng thái đơn hàng lúc này. Hệ thống sẽ tự động thử lại.");
+    } finally {
+      setCheckingPayment(false);
+    }
+  };
 
   // Realtime Polling for VietQR SePay payment status in Step 2 -> Auto transitions to Step 3
   useEffect(() => {
@@ -1146,6 +1167,21 @@ export function CheckoutPage() {
                           </div>
                         </div>
                       </div>
+
+                      <div className="mt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-blue-100 bg-blue-50/60 px-4 py-3 text-xs text-blue-800">
+                        <div className="flex items-center gap-2">
+                          <Loader2 className="w-4 h-4 animate-spin text-blue-600 shrink-0" />
+                          <span>Hệ thống đang tự động chờ xác nhận thanh toán từ ngân hàng...</span>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={checkingPayment}
+                          onClick={handleManualCheckPayment}
+                          className="shrink-0 rounded-lg bg-white border border-blue-200 px-3 py-1.5 font-semibold text-blue-700 hover:bg-blue-100 transition-colors disabled:opacity-60"
+                        >
+                          {checkingPayment ? "Đang kiểm tra..." : "Tôi đã chuyển khoản"}
+                        </button>
+                      </div>
                     </div>
                   )}
 
@@ -1439,8 +1475,8 @@ export function CheckoutPage() {
               <div className="mt-6 p-4 rounded-xl bg-blue-50 border border-blue-200 text-blue-800 text-sm text-left flex gap-3">
                 <div className="mt-0.5"><Clock className="w-4 h-4" /></div>
                 <p>
-                  Thông tin tài khoản quản trị viên đã được gửi tới email <strong>{adminEmail}</strong>.
-                  Quý khách vui lòng kiểm tra hộp thư (kể cả thư rác) để đăng nhập và thiết lập lại mật khẩu.
+                  Liên kết kích hoạt một lần (One-Time Activation Link, hiệu lực 72 giờ) dành cho Quản trị viên đã được gửi tới email <strong>{adminEmail}</strong>.
+                  Quý khách vui lòng kiểm tra hộp thư (kể cả thư rác) để tự thiết lập mật khẩu riêng và truy cập hệ thống.
                 </p>
               </div>
               <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">

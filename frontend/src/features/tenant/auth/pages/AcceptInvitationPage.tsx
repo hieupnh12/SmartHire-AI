@@ -11,8 +11,14 @@ import { toast } from "@/stores/toastStore";
 
 const schema = z
   .object({
-    password: z.string().min(6, "Mật khẩu tối thiểu 6 ký tự"),
-    confirmPassword: z.string().min(6),
+    password: z
+      .string()
+      .min(8, "Mật khẩu tối thiểu 8 ký tự")
+      .refine(
+        (v) => new TextEncoder().encode(v).length <= 72,
+        "Mật khẩu tối đa 72 byte UTF-8",
+      ),
+    confirmPassword: z.string().min(8, "Vui lòng nhập lại mật khẩu"),
   })
   .refine((v) => v.password === v.confirmPassword, {
     message: "Mật khẩu không khớp",
@@ -73,11 +79,15 @@ export function AcceptInvitationPage() {
         onSubmit={handleSubmit((values) => mutation.mutate(values.password))}
         noValidate
       >
-        <h1 className="font-display text-2xl font-bold text-[var(--color-text-primary)]">Đặt mật khẩu</h1>
-        <p className="text-sm text-[var(--color-text-secondary)]">Workspace {tenant}. Sau đó đăng nhập bằng email đã được mời.</p>
+        <h1 className="font-display text-2xl font-bold text-[var(--color-text-primary)]">
+          Kích hoạt tài khoản & Đặt mật khẩu
+        </h1>
+        <p className="text-sm text-[var(--color-text-secondary)]">
+          Thiết lập mật khẩu riêng cho Workspace <strong>{tenant}</strong>. Sau khi kích hoạt, liên kết này sẽ hết hiệu lực và bạn có thể đăng nhập bằng email đã được mời.
+        </p>
         <div>
           <label className="mb-1.5 block text-sm font-medium" htmlFor="password">
-            Mật khẩu *
+            Mật khẩu mới (tối thiểu 8 ký tự) *
           </label>
           <input id="password" type="password" className={inputClass} {...register("password")} />
           {errors.password && (
@@ -98,7 +108,7 @@ export function AcceptInvitationPage() {
           )}
         </div>
         <Button type="submit" disabled={mutation.isPending} className="w-full">
-          {mutation.isPending ? "Đang lưu…" : "Kích hoạt tài khoản"}
+          {mutation.isPending ? "Đang kích hoạt…" : "Kích hoạt tài khoản"}
         </Button>
       </form>
     </main>

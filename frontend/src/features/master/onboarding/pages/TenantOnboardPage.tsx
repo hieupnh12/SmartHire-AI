@@ -11,9 +11,6 @@ import { LanguageSwitcher } from "@/components/ux/LanguageSwitcher";
 const adminSchema = z.object({
   adminName: z.string().trim().min(1, "Vui lòng nhập họ tên quản trị viên").max(255),
   adminEmail: z.string().trim().email("Email không đúng định dạng").max(255),
-  adminPassword: z.string()
-    .min(12, "Mật khẩu quản trị cần ít nhất 12 ký tự")
-    .refine((value) => new TextEncoder().encode(value).length <= 72, "Mật khẩu tối đa 72 byte UTF-8"),
 });
 
 const schema = adminSchema.extend({
@@ -56,14 +53,12 @@ export function TenantOnboardPage() {
       environmentType: initialEnv,
       adminName: initialAdminName,
       adminEmail: initialEmail,
-      adminPassword: "",
     },
   });
 
   const mutation = useMutation({
     mutationFn: (values: FormValues) =>
       retry ? masterTenantApi.retry(retryId, values) : masterTenantApi.onboardTenant(values),
-    onSuccess: () => form.resetField("adminPassword"),
   });
 
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -152,6 +147,19 @@ export function TenantOnboardPage() {
                   <span className="text-[#64748b]">Database riêng:</span>
                   <span className="font-bold text-[#059669]">{mutation.data.dbName || `smarthire_tenant_${mutation.data.code}`}</span>
                 </div>
+                {mutation.data.activationUrl && (
+                  <div className="pt-2 border-t border-[#e2e8f0] space-y-1">
+                    <span className="block text-[#64748b] font-sans">Link kích hoạt Admin (One-Time Activation Link):</span>
+                    <a
+                      href={mutation.data.activationUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="block break-all text-[#2563eb] underline hover:text-[#1d4ed8]"
+                    >
+                      {mutation.data.activationUrl}
+                    </a>
+                  </div>
+                )}
               </div>
 
               <div className="pt-2 flex flex-col sm:flex-row gap-3 justify-center">
@@ -358,25 +366,11 @@ export function TenantOnboardPage() {
                       )}
                     </div>
 
-                    {/* Admin Password */}
-                    <div>
-                      <label htmlFor="adminPassword" className="mb-1.5 block text-sm font-semibold text-[#1e293b]">
-                        Mật khẩu Quản trị viên (Tối thiểu 12 ký tự) <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        id="adminPassword"
-                        type="password"
-                        placeholder="••••••••••••"
-                        autoComplete="new-password"
-                        {...form.register("adminPassword")}
-                        className={`${inputClass} font-mono`}
-                        aria-invalid={Boolean(form.formState.errors.adminPassword)}
-                      />
-                      {form.formState.errors.adminPassword && (
-                        <p className="mt-1 text-xs text-red-600 font-medium">
-                          {form.formState.errors.adminPassword.message}
-                        </p>
-                      )}
+                    <div className="rounded-[10px] border border-emerald-200 bg-emerald-50/70 p-3.5 text-xs leading-relaxed text-emerald-900">
+                      <strong className="block font-semibold text-emerald-800 mb-0.5">
+                        Cơ chế Lời mời kích hoạt (Invite &amp; Claim Account)
+                      </strong>
+                      Hệ thống không khởi tạo mật khẩu tĩnh. Sau khi cấp phát Database, một email chứa liên kết xác thực 1 lần sẽ được gửi tới Email Quản trị viên để khách hàng tự thiết lập mật khẩu riêng.
                     </div>
                   </div>
                 </div>

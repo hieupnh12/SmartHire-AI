@@ -58,7 +58,7 @@ public class MasterTenantController {
     @PostMapping("/{id}/retry")
     @Operation(summary = "Retry incomplete tenant provisioning", description = "Retries FAILED or interrupted PROVISIONING tenants under an exclusive lock.")
     public ResponseEntity<ApiResponse<TenantResponse>> retry(@PathVariable Long id, @Valid @RequestBody TenantAdminRequest request) {
-        return ResponseEntity.ok(ApiResponse.ok(TenantResponse.from(masterTenantService.retryProvisioning(id, request))));
+        return ResponseEntity.ok(ApiResponse.ok(masterTenantService.retryProvisioningResponse(id, request)));
     }
 
     @PutMapping("/{id}")
@@ -71,11 +71,11 @@ public class MasterTenantController {
     }
 
     @PostMapping("/onboard")
-    @Operation(summary = "Onboard a new Enterprise Tenant", description = "Registers tenant metadata in Master DB and automatically provisions dedicated Tenant DB & runs Flyway migrations.")
+    @Operation(summary = "Onboard a new Enterprise Tenant", description = "Registers tenant metadata in Master DB, automatically provisions dedicated Tenant DB, runs Flyway migrations, and dispatches a one-time account activation link to the Tenant Admin.")
     public ResponseEntity<ApiResponse<TenantResponse>> onboardTenant(@Valid @RequestBody OnboardTenantRequest request) {
-        TenantResponse tenant = TenantResponse.from(masterTenantService.onboardTenant(request));
+        TenantResponse tenant = masterTenantService.onboardTenantResponse(request);
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.ok("Enterprise Tenant onboarded and database provisioned successfully", tenant));
+                .body(ApiResponse.ok("Enterprise Tenant onboarded and activation invitation sent successfully", tenant));
     }
 
     @DeleteMapping("/{id}")

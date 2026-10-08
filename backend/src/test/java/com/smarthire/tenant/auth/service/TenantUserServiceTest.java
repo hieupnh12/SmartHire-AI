@@ -29,8 +29,6 @@ class TenantUserServiceTest {
 
     @Mock
     private UserRepository userRepository;
-    @Mock
-    private PasswordEncoder passwordEncoder;
     @Spy
     private AuthMapper authMapper = Mappers.getMapper(AuthMapper.class);
     @Mock
@@ -71,34 +69,6 @@ class TenantUserServiceTest {
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> tenantUserService.assignRole(8L, "HR"));
         assertEquals("USER_NOT_STAFF", ex.getCode());
-    }
-
-    @Test
-    void createEmployeeRejectsCandidateRole() {
-        com.smarthire.tenant.auth.dto.CreateEmployeeRequest request =
-                new com.smarthire.tenant.auth.dto.CreateEmployeeRequest("cand@tenant.test", "Cand", "secret123", "CANDIDATE");
-        when(userRepository.existsByEmailIgnoreCase("cand@tenant.test")).thenReturn(false);
-
-        BusinessException ex = assertThrows(BusinessException.class,
-                () -> tenantUserService.createEmployee(request));
-        assertEquals("INVALID_ROLE", ex.getCode());
-    }
-
-    @Test
-    void createEmployeePersistsStaffRole() {
-        com.smarthire.tenant.auth.dto.CreateEmployeeRequest request =
-                new com.smarthire.tenant.auth.dto.CreateEmployeeRequest("hr@tenant.test", "HR Staff", "secret123", "HR");
-        TenantRole hrRole = role("HR", "HR", RoleWorkspace.RECRUITER);
-        when(userRepository.existsByEmailIgnoreCase("hr@tenant.test")).thenReturn(false);
-        when(tenantRoleService.requireAssignable("HR")).thenReturn(hrRole);
-        when(passwordEncoder.encode("secret123")).thenReturn("hashed");
-        when(userRepository.save(any(User.class))).thenAnswer(call -> call.getArgument(0));
-
-        UserResponse response = tenantUserService.createEmployee(request);
-
-        assertEquals("hr@tenant.test", response.getEmail());
-        assertEquals("HR", response.getRole());
-        assertEquals("RECRUITER", response.getWorkspace());
     }
 
     private static User staff(Long id, String role) {

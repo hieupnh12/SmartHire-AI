@@ -3,11 +3,17 @@ package com.smarthire.master.tenant.service;
 import com.smarthire.common.exception.BusinessException;
 import com.smarthire.domain.master.entity.TenantInfo;
 import com.smarthire.domain.master.repository.TenantInfoRepository;
+import com.smarthire.master.notification.service.MasterNotificationService;
 import com.smarthire.master.tenant.dto.OnboardTenantRequest;
 import com.smarthire.master.tenant.dto.TenantAdminRequest;
+import com.smarthire.master.tenant.dto.TenantResponse;
 import com.smarthire.multitenancy.datasource.DynamicMultiTenantConnectionProvider;
 import com.smarthire.multitenancy.service.TenantCredentialService;
 import com.smarthire.multitenancy.service.TenantProvisioningService;
+import com.smarthire.multitenancy.service.TenantPublicUrlService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
@@ -18,21 +24,30 @@ import java.util.*;
 
 @Service
 public class MasterTenantService {
+    public record ProvisionedWorkspace(TenantInfo tenant, String activationUrl) {}
+
+    private static final Logger log = LoggerFactory.getLogger(MasterTenantService.class);
     private final TenantInfoRepository tenants;
     private final TenantProvisioningService provisioning;
     private final TenantCredentialService credentials;
     private final DynamicMultiTenantConnectionProvider pools;
+    private final TenantPublicUrlService publicUrls;
+    private final MasterNotificationService notificationService;
     private final org.springframework.transaction.support.TransactionTemplate registration;
     private final org.springframework.jdbc.core.JdbcTemplate masterJdbc;
     private final String mysqlBaseUrl;
     private final String mysqlOptions;
+    private final String baseDomain;
     private final SecureRandom random = new SecureRandom();
     private static final Set<String> RESERVED = Set.of("www", "api", "admin", "master", "localhost", "smarthire-master");
 
+    @Autowired
     public MasterTenantService(TenantInfoRepository tenants, TenantProvisioningService provisioning,
             TenantCredentialService credentials, DynamicMultiTenantConnectionProvider pools,
+            TenantPublicUrlService publicUrls, MasterNotificationService notificationService,
             @Value("${app.tenant.mysql-base-url}") String mysqlBaseUrl,
             @Value("${app.tenant.mysql-options:sslMode=PREFERRED&allowPublicKeyRetrieval=true}") String mysqlOptions,
+            @Value("${app.tenant.base-domain:smarthire.top}") String baseDomain,
             @org.springframework.beans.factory.annotation.Qualifier("masterTransactionManager") org.springframework.transaction.PlatformTransactionManager manager,
             @org.springframework.beans.factory.annotation.Qualifier("masterDataSource") javax.sql.DataSource masterDataSource) {
         this.registration = new org.springframework.transaction.support.TransactionTemplate(manager);
@@ -41,8 +56,11 @@ public class MasterTenantService {
         this.provisioning = provisioning;
         this.credentials = credentials;
         this.pools = pools;
+        this.publicUrls = publicUrls;
+        this.notificationService = notificationService;
         this.mysqlBaseUrl = mysqlBaseUrl;
         this.mysqlOptions = mysqlOptions != null ? mysqlOptions.replaceAll("^['\"]+|['\"]+$", "") : "";
+        this.baseDomain = baseDomain;
     }
 
     public List<TenantInfo> getAllTenants() { return tenants.findAll(); }
@@ -115,11 +133,20 @@ public class MasterTenantService {
     }
 
     public TenantInfo onboardTenant(OnboardTenantRequest request) {
+        return onboardTenantWithActivation(request).tenant();
+    }
+
+    public TenantResponse onboardTenantResponse(OnboardTenantRequest request) {
+        ProvisionedWorkspace result = onboardTenantWithActivation(request);
+        return TenantResponse.from(result.tenant(), result.activationUrl());
+    }
+
+    private ProvisionedWorkspace onboardTenantWithActivation(OnboardTenantRequest request) {
         TenantInfo tenant = registration.execute(status -> {
             masterJdbc.execute("SELECT pg_advisory_xact_lock(-1)");
             return registerTenant(request);
         });
-        return provisioning.provision(Objects.requireNonNull(tenant).getId(), request);
+        return provisionAndNotify(Objects.requireNonNull(tenant).getId(), request);
     }
 
     private TenantInfo registerTenant(OnboardTenantRequest request) {
@@ -149,6 +176,8 @@ public class MasterTenantService {
         tenant.setCode(code);
         tenant.setName(request.getName());
         tenant.setSubdomain(subdomain);
+        tenant.setContactName(request.getAdminName());
+        tenant.setContactEmail(request.getAdminEmail());
         tenant.setDbName(dbName);
         tenant.setDbUrl(url);
         tenant.setDbUsername(username);
@@ -157,7 +186,8 @@ public class MasterTenantService {
         tenant.setCompanyLegalName(request.getCompanyLegalName());
         tenant.setTaxCode(request.getTaxCode());
         tenant.setBillingAddress(request.getBillingAddress());
-        tenant.setBillingEmail(request.getBillingEmail());
+        tenant.setBillingEmail(request.getBillingEmail() != null && !request.getBillingEmail().isBlank()
+                ? request.getBillingEmail() : request.getAdminEmail());
         
         String envType = (request.getEnvironmentType() != null && !request.getEnvironmentType().isBlank())
                 ? request.getEnvironmentType().toUpperCase() : "PRODUCTION";
@@ -174,7 +204,41 @@ public class MasterTenantService {
 
     public TenantInfo retryProvisioning(Long id, TenantAdminRequest request) {
         getTenantById(id);
-        return provisioning.provision(id, request);
+        return provisionAndNotify(id, request).tenant();
+    }
+
+    public TenantResponse retryProvisioningResponse(Long id, TenantAdminRequest request) {
+        getTenantById(id);
+        ProvisionedWorkspace result = provisionAndNotify(id, request);
+        return TenantResponse.from(result.tenant(), result.activationUrl());
+    }
+
+    private ProvisionedWorkspace provisionAndNotify(Long id, TenantAdminRequest request) {
+        TenantProvisioningService.ProvisionResult result = provisioning.provisionWithInvitation(id, request);
+        TenantInfo tenant = result.tenant();
+        String activationUrl = buildActivationUrl(tenant, result.activationToken());
+        if (activationUrl != null && notificationService != null) {
+            try {
+                String workspaceUrl = "https://" + tenant.getSubdomain() + "." + baseDomain;
+                notificationService.sendWorkspaceActivated(tenant, null, activationUrl, workspaceUrl);
+            } catch (Exception ex) {
+                log.warn("Could not dispatch workspace activation email for tenant {}: {}", tenant.getCode(), ex.getMessage());
+            }
+        }
+        return new ProvisionedWorkspace(tenant, activationUrl);
+    }
+
+    private String buildActivationUrl(TenantInfo tenant, String activationToken) {
+        if (activationToken == null || activationToken.isBlank()) {
+            return null;
+        }
+        if (publicUrls != null) {
+            return publicUrls.pathForTenant(tenant, "/invite/accept?token=" + activationToken);
+        }
+        String subdomain = (tenant.getSubdomain() == null || tenant.getSubdomain().isBlank())
+                ? tenant.getCode()
+                : tenant.getSubdomain();
+        return "https://" + subdomain.toLowerCase(Locale.ROOT) + "." + baseDomain + "/invite/accept?token=" + activationToken;
     }
 
     private String randomPassword() {
@@ -249,16 +313,14 @@ public class MasterTenantService {
         if (!"PENDING_PAYMENT".equals(tenant.getStatus()) && !"FAILED".equals(tenant.getStatus())) {
             throw new BusinessException("Chỉ doanh nghiệp ở trạng thái PENDING_PAYMENT mới được kích hoạt", HttpStatus.CONFLICT, "INVALID_TENANT_STATE");
         }
-        String tempPassword = "Sh!" + UUID.randomUUID().toString().replace("-", "").substring(0, 13);
         TenantAdminRequest adminRequest = new TenantAdminRequest();
         adminRequest.setAdminEmail(tenant.getContactEmail());
         adminRequest.setAdminName(tenant.getContactName());
-        adminRequest.setAdminPassword(tempPassword);
 
         tenant.setStatus("PROVISIONING");
         tenants.saveAndFlush(tenant);
 
-        provisioning.provision(tenant.getId(), adminRequest);
-        return tempPassword;
+        TenantProvisioningService.ProvisionResult result = provisioning.provisionWithInvitation(tenant.getId(), adminRequest);
+        return buildActivationUrl(result.tenant(), result.activationToken());
     }
 }
