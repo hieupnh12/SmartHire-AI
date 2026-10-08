@@ -6,9 +6,9 @@ import com.smarthire.common.storage.FileStorageService;
 import com.smarthire.domain.enums.CvStatus;
 import com.smarthire.domain.enums.JobStatus;
 import com.smarthire.domain.tenant.entity.Application;
+import com.smarthire.domain.tenant.entity.Candidate;
 import com.smarthire.domain.tenant.entity.Cv;
 import com.smarthire.domain.tenant.entity.Job;
-import com.smarthire.domain.tenant.entity.User;
 import com.smarthire.domain.tenant.repository.ApplicationRepository;
 import com.smarthire.domain.tenant.repository.CvAnalysisRepository;
 import com.smarthire.domain.tenant.repository.CvDocumentRepository;
@@ -131,8 +131,8 @@ public class CvService {
         if (!access.candidate()) {
             throw new BusinessException("Only candidates can upload CVs", HttpStatus.FORBIDDEN, "CV_UPLOAD_CANDIDATE_ONLY");
         }
-        User actor = access.actor();
-        User owner = owner(actor, candidateEmail);
+        Candidate actor = access.candidateActor();
+        Candidate owner = owner(actor, candidateEmail);
         if (!owner.getId().equals(actor.getId())) {
             throw new BusinessException("Cannot upload for another user", HttpStatus.FORBIDDEN, "CV_FORBIDDEN");
         }
@@ -151,7 +151,7 @@ public class CvService {
             String filename = safeName(file.getOriginalFilename());
             Cv cv = new Cv();
             cv.setJob(job);
-            cv.setUser(owner);
+            cv.setCandidate(owner);
             cv.setApplication(application);
             cv.setOriginalFilename(filename);
             cv.setMimeType(file.getContentType());
@@ -188,7 +188,7 @@ public class CvService {
 
     @Transactional
     public CvDetail duplicate(long id) {
-        User actor = builderActor();
+        Candidate actor = builderActor();
         Cv source = ownedBuilderCv(id, actor);
         CvBuilderData data;
         try {
@@ -201,9 +201,9 @@ public class CvService {
 
     @Transactional
     public CvDetail rename(long id, String name) {
-        User actor = access.actor();
+        Candidate actor = builderActor();
         Cv cv = cvs.findById(id).orElseThrow(() -> notFound("CV not found", "CV_NOT_FOUND"));
-        if (!cv.getUser().getId().equals(actor.getId()) || cv.isApplicationCopy()) {
+        if (!cv.getCandidate().getId().equals(actor.getId()) || cv.isApplicationCopy()) {
             throw new BusinessException("Cannot rename this CV", HttpStatus.FORBIDDEN, "CV_FORBIDDEN");
         }
         String current = cv.getOriginalFilename() == null ? "" : cv.getOriginalFilename();
@@ -270,9 +270,9 @@ public class CvService {
         }
     }
 
-    private Cv ownedBuilderCv(long id, User actor) {
+    private Cv ownedBuilderCv(long id, Candidate actor) {
         Cv cv = cvs.findById(id).orElseThrow(() -> notFound("CV not found", "CV_NOT_FOUND"));
-        if (!cv.getUser().getId().equals(actor.getId())) {
+        if (!cv.getCandidate().getId().equals(actor.getId())) {
             throw new BusinessException("Cannot edit another user's CV", HttpStatus.FORBIDDEN, "CV_FORBIDDEN");
         }
         if (cv.getBuilderData() == null || cv.isApplicationCopy()) {
@@ -281,9 +281,9 @@ public class CvService {
         return cv;
     }
 
-    private CvDetail createBuilderCv(User actor, CvBuilderData data, String filename) {
+    private CvDetail createBuilderCv(Candidate actor, CvBuilderData data, String filename) {
         Cv cv = new Cv();
-        cv.setUser(actor);
+        cv.setCandidate(actor);
         cv.setOriginalFilename(filename);
         cv.setStatus(CvStatus.UPLOADED);
         cv.setFileUrl("pending");
@@ -321,11 +321,11 @@ public class CvService {
         return mapper.detail(cv, null, List.of(), null, null, false);
     }
 
-    private User builderActor() {
+    private Candidate builderActor() {
         if (!access.candidate()) {
             throw new BusinessException("Only candidates can upload CVs", HttpStatus.FORBIDDEN, "CV_UPLOAD_CANDIDATE_ONLY");
         }
-        return access.actor();
+        return access.candidateActor();
     }
 
     private byte[] applyBuilder(Cv cv, CvBuilderData data) {
@@ -413,8 +413,8 @@ public class CvService {
 
     @Transactional(readOnly = true)
     public List<CvSummary> mine() {
-        User actor = access.actor();
-        return cvs.findByUser_IdAndApplicationCopyFalseOrderByIdDesc(actor.getId()).stream()
+        Candidate actor = access.candidateActor();
+        return cvs.findByCandidate_IdAndApplicationCopyFalseOrderByIdDesc(actor.getId()).stream()
                 .map(cv -> mapper.summary(cv, null))
                 .toList();
     }
@@ -509,18 +509,14 @@ public class CvService {
                 includeMatch);
     }
 
-    private User owner(User actor, String candidateEmail) {
+    private Candidate owner(Candidate actor, String candidateEmail) {
         if (candidateEmail == null || candidateEmail.isBlank() || candidateEmail.equalsIgnoreCase(actor.getEmail())) {
             return actor;
         }
-        if (!access.staff()) {
-            throw new BusinessException("Cannot upload for another user", HttpStatus.FORBIDDEN, "CV_FORBIDDEN");
-        }
-        return users.findByEmailIgnoreCase(candidateEmail.trim())
-                .orElseThrow(() -> notFound("Candidate not found", "USER_NOT_FOUND"));
+        throw new BusinessException("Cannot upload for another user", HttpStatus.FORBIDDEN, "CV_FORBIDDEN");
     }
 
-    private Application resolveApplication(Job job, User owner, Long applicationId) {
+    private Application resolveApplication(Job job, Candidate owner, Long applicationId) {
         if (applicationId != null) {
             Application application = applications.findByIdAndJob_Id(applicationId, job.getId())
                     .orElseThrow(() -> notFound("Application not found", "APPLICATION_NOT_FOUND"));

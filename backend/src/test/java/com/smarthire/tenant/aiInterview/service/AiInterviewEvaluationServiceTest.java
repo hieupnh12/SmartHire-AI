@@ -53,7 +53,7 @@ class AiInterviewEvaluationServiceTest {
         job.setTitle("Java Backend Developer");
         job.setAiInterviewEnabled(true);
         job.setAiInterviewQuestionCount(5);
-        var candidate = new User();
+        var candidate = new Candidate();
         candidate.setId(9L);
         candidate.setEmail("candidate@example.com");
         application = new Application();

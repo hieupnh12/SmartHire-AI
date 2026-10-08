@@ -28,12 +28,12 @@ class AiInterviewVoiceServiceTest {
     final MockMultipartFile file = new MockMultipartFile("file", "audio.webm", "audio/webm", new byte[]{0x1a,0x45,(byte)0xdf,(byte)0xa3,0,0,0,0,0,0,0,0});
     @BeforeEach void setup() {
         TenantContext.setCurrentTenant("tenant_a");
-        var user = new User(); user.setId(9L); var job = new Job(); var application = new Application(); application.setJob(job); application.setCandidate(user);
+        var candidate = new Candidate(); candidate.setId(9L); var job = new Job(); var application = new Application(); application.setJob(job); application.setCandidate(candidate);
         interview = AiInterview.builder().id(1L).application(application).startedAt(java.time.Instant.now()).status(AiInterviewStatus.IN_PROGRESS).build();
         InterviewPolicies.snapshot(interview);
         answer = AiAnswer.builder().id(10L).aiQuestion(AiQuestion.builder().id(20L).aiInterview(interview).build()).build();
         when(interviews.findById(1L)).thenReturn(Optional.of(interview));
-        when(access.candidate()).thenReturn(true); when(access.actor()).thenReturn(user);
+        when(access.candidate()).thenReturn(true); when(access.candidateActor()).thenReturn(candidate);
     }
     @AfterEach void cleanup() { TenantContext.clear(); }
     @Test void uploadsPrivateAudioAndStoresTranscriptForTheOwnedAnswer() throws Exception {

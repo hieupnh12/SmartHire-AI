@@ -12,12 +12,11 @@ import java.math.*;
 import java.net.URI;
 import java.time.*;
 import java.util.*;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 @Service
-@RequiredArgsConstructor
 @Transactional
 public class InterviewService {
     private static final String PREFIX = "HUMAN_";
@@ -30,11 +29,62 @@ public class InterviewService {
     private final AiInterviewRepository aiInterviews;
     private final JobRepository jobs;
     private final UserRepository users;
+    private final CandidateRepository candidates;
     private final CvAccess access;
     private final JobAccess jobAccess;
     private final HumanInterviewMapper mapper;
     private final ObjectMapper json;
     private final HumanInterviewNotificationService notifications;
+
+    public InterviewService(
+            InterviewRepository interviews,
+            InterviewScheduleRepository schedules,
+            InterviewParticipantRepository participants,
+            InterviewEvaluationRepository evaluations,
+            ApplicationRepository applications,
+            AiInterviewRepository aiInterviews,
+            JobRepository jobs,
+            UserRepository users,
+            CvAccess access,
+            JobAccess jobAccess,
+            HumanInterviewMapper mapper,
+            ObjectMapper json,
+            HumanInterviewNotificationService notifications) {
+        this(interviews, schedules, participants, evaluations, applications, aiInterviews, jobs, users, null, access, jobAccess, mapper, json, notifications);
+    }
+
+    @Autowired
+    public InterviewService(
+            InterviewRepository interviews,
+            InterviewScheduleRepository schedules,
+            InterviewParticipantRepository participants,
+            InterviewEvaluationRepository evaluations,
+            ApplicationRepository applications,
+            AiInterviewRepository aiInterviews,
+            JobRepository jobs,
+            UserRepository users,
+            CandidateRepository candidates,
+            CvAccess access,
+            JobAccess jobAccess,
+            HumanInterviewMapper mapper,
+            ObjectMapper json,
+            HumanInterviewNotificationService notifications) {
+        this.interviews = interviews;
+        this.schedules = schedules;
+        this.participants = participants;
+        this.evaluations = evaluations;
+        this.applications = applications;
+        this.aiInterviews = aiInterviews;
+        this.jobs = jobs;
+        this.users = users;
+        this.candidates = candidates;
+        this.access = access;
+        this.jobAccess = jobAccess;
+        this.mapper = mapper;
+        this.json = json;
+        this.notifications = notifications;
+    }
+
     public Map<String,String> health() { return Map.of("module", "human-interview", "status", "ready"); }
     private void requireJob(long id, boolean write) {
         access.requireRecruiterWrite();
@@ -47,7 +97,7 @@ public class InterviewService {
         var i = interviews.findLockedById(id).orElseThrow(() -> missing("Interview"));
         if (!i.getInterviewType().startsWith(PREFIX)) throw missing("Interview");
         if (access.candidate()) {
-            if (!i.getApplication().getCandidate().getId().equals(access.actor().getId())) throw missing("Interview");
+            if (!i.getApplication().getCandidate().getId().equals(access.candidateActor().getId())) throw missing("Interview");
         } else requireJob(i.getApplication().getJob().getId(), write);
         return i;
     }
@@ -126,15 +176,20 @@ public class InterviewService {
         if (id!=null && (!i.getApplication().getJob().getId().equals(r.jobId()) || !i.getApplication().getId().equals(r.applicationId()))) throw invalid("Cannot change an existing interview application");
         if (id!=null && (List.of(ScheduleStatus.DONE,ScheduleStatus.CANCELLED).contains(schedule(i).getStatus()) || !evaluations.findByInterview_IdOrderById(id).isEmpty())) throw invalid("Interview is closed or evaluated");
         var ids=r.participants().stream().map(ParticipantInput::userId).toList();
-        if (new HashSet<>(ids).size()!=ids.size() || ids.contains(a.getCandidate().getId())) throw invalid("Duplicate or invalid interviewer");
+        if (new HashSet<>(ids).size()!=ids.size()) throw invalid("Duplicate or invalid interviewer");
         if (r.participants().stream().filter(p -> p.role().equals("LEAD")).count()!=1) throw invalid("Exactly one lead interviewer is required");
-        var panel=new HashMap<Long,User>(); var lockIds=new TreeSet<>(ids); lockIds.add(a.getCandidate().getId());
+        if (candidates != null) {
+            var lockedCandidate=candidates.findLockedById(a.getCandidate().getId()).orElseThrow(() -> missing("Candidate"));
+            if (lockedCandidate.getStatus()!=UserStatus.ACTIVE) throw invalid("Candidate must be active");
+        }
+        var panel=new HashMap<Long,User>(); var lockIds=new TreeSet<>(ids);
         for (long userId:lockIds) {
             var u=users.findLockedById(userId).orElseThrow(() -> missing("User"));
-            if (u.getStatus()!=UserStatus.ACTIVE || ids.contains(userId) && UserRole.isCandidate(u.getRole())) throw invalid("Interviewer must be active staff");
+            if (u.getStatus()!=UserStatus.ACTIVE || UserRole.isCandidate(u.getRole())) throw invalid("Interviewer must be active staff");
             panel.put(userId,u);
         }
-        if (!r.draft() && !schedules.conflicts(lockIds,r.start(),r.end(),id,ACTIVE).isEmpty()) throw new BusinessException("Candidate or interviewer already has a meeting",HttpStatus.CONFLICT,"INTERVIEW_CONFLICT");
+        var conflictRows = schedules.conflicts(lockIds, List.of(a.getCandidate().getId()), r.start(), r.end(), id, ACTIVE);
+        if (!r.draft() && !conflictRows.isEmpty()) throw new BusinessException("Candidate or interviewer already has a meeting",HttpStatus.CONFLICT,"INTERVIEW_CONFLICT");
         i.setApplication(a); i.setInterviewType(PREFIX+r.round()); i.setMode(r.mode()); i.setStatus(r.draft()?InterviewStatus.CREATED:InterviewStatus.SCHEDULED);
         configure(i,new Configuration(r.rubric(),r.provider(),r.emailTemplate(),r.notes(),r.attachCalendar(),null,null,null)); interviews.saveAndFlush(i);
         var s=id==null ? new InterviewSchedule() : schedule(i); s.setInterview(i); s.setScheduledStart(r.start()); s.setScheduledEnd(r.end());
@@ -164,7 +219,7 @@ public class InterviewService {
     }
     public List<InterviewView> mine() {
         if (!access.candidate()) throw forbidden();
-        return interviews.findByApplication_Candidate_IdAndInterviewTypeStartingWithOrderByIdDesc(access.actor().getId(),PREFIX).stream().filter(i -> schedule(i).getStatus()!=ScheduleStatus.DRAFT).map(this::view).toList();
+        return interviews.findByApplication_Candidate_IdAndInterviewTypeStartingWithOrderByIdDesc(access.candidateActor().getId(),PREFIX).stream().filter(i -> schedule(i).getStatus()!=ScheduleStatus.DRAFT).map(this::view).toList();
     }
     public InterviewView confirm(long id) {
         if (!access.candidate()) throw forbidden(); var i=load(id,false); var s=schedule(i);

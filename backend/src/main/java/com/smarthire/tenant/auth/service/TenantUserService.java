@@ -34,7 +34,12 @@ public class TenantUserService {
             throw new BusinessException("User with email '" + request.getEmail() + "' already exists in this Tenant.", HttpStatus.CONFLICT, "EMAIL_EXISTS");
         }
 
-        TenantRole tenantRole = tenantRoleService.requireExisting(request.getRole());
+        if (UserRole.isCandidate(request.getRole())) {
+            throw new BusinessException("Cannot create candidate account via employee management",
+                    HttpStatus.BAD_REQUEST, "INVALID_ROLE");
+        }
+
+        TenantRole tenantRole = tenantRoleService.requireAssignable(request.getRole());
 
         User user = new User();
         user.setEmail(request.getEmail().toLowerCase());

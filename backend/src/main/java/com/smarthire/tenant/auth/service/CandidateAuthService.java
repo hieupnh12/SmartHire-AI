@@ -4,14 +4,11 @@ import com.smarthire.common.exception.BusinessException;
 import com.smarthire.common.redis.RedisKeys;
 import com.smarthire.common.redis.RedisService;
 import com.smarthire.domain.enums.OAuthProvider;
-import com.smarthire.domain.enums.UserRole;
 import com.smarthire.domain.enums.UserStatus;
+import com.smarthire.domain.tenant.entity.Candidate;
 import com.smarthire.domain.tenant.entity.OauthAccount;
-import com.smarthire.domain.tenant.entity.User;
-import com.smarthire.domain.tenant.entity.UserProfile;
+import com.smarthire.domain.tenant.repository.CandidateRepository;
 import com.smarthire.domain.tenant.repository.OauthAccountRepository;
-import com.smarthire.domain.tenant.repository.UserProfileRepository;
-import com.smarthire.domain.tenant.repository.UserRepository;
 import com.smarthire.multitenancy.context.TenantContext;
 import com.smarthire.multitenancy.service.TenantRegistryService;
 import com.smarthire.security.JwtTokenProvider;
@@ -37,9 +34,8 @@ import java.util.UUID;
 public class CandidateAuthService {
 
     private final GoogleTokenVerifierService googleTokenVerifier;
-    private final UserRepository userRepository;
+    private final CandidateRepository candidateRepository;
     private final OauthAccountRepository oauthAccountRepository;
-    private final UserProfileRepository userProfileRepository;
     private final JwtTokenProvider tokenProvider;
     private final RedisService redisService;
     private final AuthMapper authMapper;
@@ -56,85 +52,87 @@ public class CandidateAuthService {
 
         log.info("Candidate Google Auth for email: {} in tenant: {}", payload.getEmail(), currentTenant);
 
-        // 2. Query user in isolated tenant database
-        Optional<User> userOpt = userRepository.findByEmailIgnoreCase(payload.getEmail());
-        User user;
-        UserProfile profile;
+        // 2. Query existing OAuth link and candidate in isolated tenant database
+        Optional<OauthAccount> oauthOpt = oauthAccountRepository.findByProviderAndProviderUserId(
+                OAuthProvider.GOOGLE, payload.getSub());
+        Optional<Candidate> candidateOpt = candidateRepository.findByEmailIgnoreCase(payload.getEmail());
+        if (candidateOpt.isEmpty() && oauthOpt.isPresent() && oauthOpt.get().getCandidate() != null) {
+            candidateOpt = Optional.of(oauthOpt.get().getCandidate());
+        }
 
-        if (userOpt.isEmpty()) {
+        Candidate candidate;
+
+        if (candidateOpt.isEmpty()) {
             // 3. JIT Provisioning for new Candidate
-            user = new User();
-            user.setEmail(payload.getEmail().toLowerCase());
-            user.setFullName(StringUtils.hasText(payload.getName()) ? payload.getName() : payload.getEmail());
-            user.setRole(UserRole.CANDIDATE.name());
-            user.setStatus(UserStatus.ACTIVE);
-            user = userRepository.save(user);
+            candidate = new Candidate();
+            candidate.setEmail(payload.getEmail().toLowerCase());
+            candidate.setFullName(StringUtils.hasText(payload.getName()) ? payload.getName() : payload.getEmail());
+            candidate.setAvatarUrl(payload.getPictureUrl());
+            candidate.setHeadline("Candidate");
+            candidate.setStatus(UserStatus.ACTIVE);
+            candidate = candidateRepository.save(candidate);
 
-            // Create OAuth Account link
-            OauthAccount oauthAccount = new OauthAccount();
-            oauthAccount.setUser(user);
-            oauthAccount.setProvider(OAuthProvider.GOOGLE);
-            oauthAccount.setProviderUserId(payload.getSub());
+            // Create or link OAuth Account
+            OauthAccount oauthAccount = oauthOpt.orElseGet(() -> {
+                OauthAccount created = new OauthAccount();
+                created.setProvider(OAuthProvider.GOOGLE);
+                created.setProviderUserId(payload.getSub());
+                return created;
+            });
+            oauthAccount.setCandidate(candidate);
             oauthAccountRepository.save(oauthAccount);
 
-            // Create Initial User Profile
-            profile = new UserProfile();
-            profile.setUser(user);
-            profile.setAvatarUrl(payload.getPictureUrl());
-            profile.setHeadline("Candidate");
-            profile = userProfileRepository.save(profile);
-
-            log.info("Provisioned new Candidate user id: {} in tenant: {}", user.getId(), currentTenant);
+            log.info("Provisioned new Candidate id: {} in tenant: {}", candidate.getId(), currentTenant);
         } else {
-            user = userOpt.get();
+            candidate = candidateOpt.get();
 
             // Validate status
-            if (user.getStatus() != null && user.getStatus() != UserStatus.ACTIVE) {
+            if (candidate.getStatus() != null && candidate.getStatus() != UserStatus.ACTIVE) {
                 throw new BusinessException("Tài khoản ứng viên của bạn đang bị khóa hoặc ngưng hoạt động",
                         HttpStatus.UNAUTHORIZED, "ACCOUNT_DISABLED");
             }
 
-            // Link Google OAuth if not linked yet
-            Optional<OauthAccount> oauthOpt = oauthAccountRepository.findByProviderAndProviderUserId(OAuthProvider.GOOGLE, payload.getSub());
+            // Link Google OAuth if not linked yet or if orphan
             if (oauthOpt.isEmpty()) {
                 OauthAccount oauthAccount = new OauthAccount();
-                oauthAccount.setUser(user);
+                oauthAccount.setCandidate(candidate);
                 oauthAccount.setProvider(OAuthProvider.GOOGLE);
                 oauthAccount.setProviderUserId(payload.getSub());
                 oauthAccountRepository.save(oauthAccount);
+            } else if (oauthOpt.get().getCandidate() == null) {
+                OauthAccount oauthAccount = oauthOpt.get();
+                oauthAccount.setCandidate(candidate);
+                oauthAccountRepository.save(oauthAccount);
             }
 
-            // Fetch or create profile if missing
-            final User existingUser = user;
-            profile = userProfileRepository.findByUser(existingUser).orElseGet(() -> {
-                UserProfile newProfile = new UserProfile();
-                newProfile.setUser(existingUser);
-                newProfile.setAvatarUrl(payload.getPictureUrl());
-                newProfile.setHeadline("Candidate");
-                return userProfileRepository.save(newProfile);
-            });
-
-            // Update avatar if currently empty
-            if (!StringUtils.hasText(profile.getAvatarUrl()) && StringUtils.hasText(payload.getPictureUrl())) {
-                profile.setAvatarUrl(payload.getPictureUrl());
-                profile = userProfileRepository.save(profile);
+            // Populate avatar/headline if currently empty
+            boolean updated = false;
+            if (!StringUtils.hasText(candidate.getHeadline())) {
+                candidate.setHeadline("Candidate");
+                updated = true;
+            }
+            if (!StringUtils.hasText(candidate.getAvatarUrl()) && StringUtils.hasText(payload.getPictureUrl())) {
+                candidate.setAvatarUrl(payload.getPictureUrl());
+                updated = true;
+            }
+            if (updated) {
+                candidate = candidateRepository.save(candidate);
             }
         }
 
         // 4. Generate JWT tokens
-        String accessToken = tokenProvider.generateToken(user, currentTenant);
+        String accessToken = tokenProvider.generateToken(candidate, currentTenant);
         String refreshToken = UUID.randomUUID().toString();
 
         // 5. Store session in Redis
         try {
-            String redisKey = RedisKeys.refreshSession(user.getId(), refreshToken);
-            redisService.set(redisKey, user.getEmail(), Duration.ofDays(7));
-            redisService.set(RedisKeys.tenantRefreshSession(refreshToken), currentTenant + ":" + user.getEmail(), Duration.ofDays(7));
+            redisService.set(RedisKeys.tenantRefreshSession(refreshToken),
+                    currentTenant + ":CANDIDATE:" + candidate.getEmail(), Duration.ofDays(7));
         } catch (Exception ex) {
             log.warn("Could not cache candidate refresh token to Redis: {}", ex.getMessage());
         }
 
-        CandidateProfileResponse profileResponse = authMapper.toCandidateProfileResponse(user, profile);
+        CandidateProfileResponse profileResponse = authMapper.toCandidateProfileResponse(candidate);
         String subdomain = tenantRegistryService.requireActive(currentTenant).getSubdomain();
         return CandidateLoginResponse.builder()
                 .accessToken(accessToken)

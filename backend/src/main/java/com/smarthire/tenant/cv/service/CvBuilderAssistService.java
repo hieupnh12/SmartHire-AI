@@ -6,9 +6,9 @@ import com.smarthire.common.exception.BusinessException;
 import com.smarthire.common.redis.RedisKeys;
 import com.smarthire.common.redis.RedisService;
 import com.smarthire.domain.enums.JobStatus;
+import com.smarthire.domain.tenant.entity.Candidate;
 import com.smarthire.domain.tenant.entity.Job;
 import com.smarthire.domain.tenant.entity.JobSkill;
-import com.smarthire.domain.tenant.entity.User;
 import com.smarthire.domain.tenant.repository.JobRepository;
 import com.smarthire.domain.tenant.repository.JobSkillRepository;
 import com.smarthire.multitenancy.context.TenantContext;
@@ -82,7 +82,7 @@ public class CvBuilderAssistService {
     }
 
     public CvWritingView suggest(CvWritingRequest request) {
-        User actor = candidate();
+        Candidate actor = candidate();
         if (!ai.configured()) throw unavailable();
         rateLimit(actor);
         String json;
@@ -202,7 +202,7 @@ public class CvBuilderAssistService {
         return result;
     }
 
-    private void rateLimit(User actor) {
+    private void rateLimit(Candidate actor) {
         long count;
         try {
             count = redis.increment(RedisKeys.rateLimit("cv-writing",
@@ -216,11 +216,11 @@ public class CvBuilderAssistService {
         }
     }
 
-    private User candidate() {
+    private Candidate candidate() {
         if (!access.candidate()) {
             throw new BusinessException("Only candidates can use the CV Builder", HttpStatus.FORBIDDEN, "CV_UPLOAD_CANDIDATE_ONLY");
         }
-        return access.actor();
+        return access.candidateActor();
     }
 
     private static BusinessException unavailable() {

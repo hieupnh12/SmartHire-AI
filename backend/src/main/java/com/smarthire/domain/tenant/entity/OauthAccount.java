@@ -37,8 +37,8 @@ public class OauthAccount {
     Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "user_id", nullable = false)
-    User user;
+    @JoinColumn(name = "candidate_id", nullable = false)
+    Candidate candidate;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)

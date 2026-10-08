@@ -454,7 +454,7 @@ public class JobService {
         if (!mapper.accepting(job)) {
             throw new BusinessException("Job is not open for applications", HttpStatus.BAD_REQUEST, "JOB_NOT_PUBLISHED");
         }
-        var actor = access.actor();
+        var actor = access.candidateActor();
         var existing = applications.findByJob_IdAndCandidate_Id(jobId, actor.getId());
         if (existing.isPresent()) return mapper.application(existing.get());
         Application application = new Application();

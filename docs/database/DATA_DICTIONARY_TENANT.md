@@ -1,5 +1,41 @@
 # Data Dictionary - Tenant DB (MySQL)
 
+## Tách vật lý Candidate khỏi User V51 (2026-10-08)
+
+Nguồn: `V51__separate_candidates_from_users.sql` (đánh số V51 vì DB tenant hiện có đã ghi nhận `V50__company_email_settings.sql`). Tách vật lý ứng viên (`candidates`, entity `Candidate`) khỏi nhân sự nội bộ (`users`, entity `User`), gộp toàn bộ thông tin hồ sơ từ `user_profiles` và xoá bảng `user_profiles`.
+
+### `candidates` (Entity `Candidate`)
+
+| Cột | Kiểu SQL | NULL | Default | Ý nghĩa |
+|---|---|---|---|---|
+| `id` | BIGINT | Không | AUTO_INCREMENT | PK (giữ nguyên ID khi migrate từ `users`) |
+| `email` | VARCHAR(255) | Không | — | `uk_candidates_email` — email đăng nhập ứng viên |
+| `password_hash` | VARCHAR(255) | Có | NULL | NULL với tài khoản chỉ dùng Google OAuth |
+| `full_name` | VARCHAR(255) | Không | — | Họ tên ứng viên |
+| `status` | VARCHAR(32) | Không | `'ACTIVE'` | `UserStatus`: `ACTIVE`, `LOCKED`, `DISABLED`; index `idx_candidates_status` |
+| `phone` | VARCHAR(32) | Có | NULL | Số điện thoại (gộp từ `user_profiles`) |
+| `avatar_url` | VARCHAR(512) | Có | NULL | Ảnh đại diện (gộp từ `user_profiles`) |
+| `bio` | TEXT | Có | NULL | Giới thiệu bản thân (gộp từ `user_profiles`) |
+| `headline` | VARCHAR(255) | Có | NULL | Tiêu đề nghề nghiệp (gộp từ `user_profiles`) |
+| `links_json` | JSON | Có | NULL | Liên kết mạng xã hội / portfolio (gộp từ `user_profiles`) |
+| `created_at` | TIMESTAMP | Không | CURRENT_TIMESTAMP | Thời điểm tạo |
+| `updated_at` | TIMESTAMP | Không | CURRENT_TIMESTAMP ON UPDATE | Thời điểm cập nhật |
+
+### Thay đổi trên các bảng hiện có ở V51
+
+| Bảng · cột | Thay đổi | Ràng buộc / Index mới |
+|---|---|---|
+| `users.phone`, `users.avatar_url`, `users.job_title` | Thêm cột hồ sơ nhân sự nội bộ (gộp từ `user_profiles`), xoá toàn bộ dòng `role = 'CANDIDATE'` | `idx_users_role_status (role, status)` |
+| `user_profiles` | Xoá bảng (`DROP TABLE user_profiles`) và entity `UserProfile` | Bỏ `fk_profile_user`, `uk_profile_user` |
+| `applications.candidate_id` | Đổi đích FK từ `users.id` sang `candidates.id` | `fk_app_candidate` → `candidates(id)` |
+| `cvs.candidate_id` | Đổi tên cột `user_id` → `candidate_id` và đổi đích FK sang `candidates.id` | `fk_cvs_candidate` → `candidates(id)` |
+| `submissions.candidate_id` | Đổi đích FK từ `users.id` sang `candidates.id` | `fk_submissions_candidate` → `candidates(id)` |
+| `practice_sessions.candidate_id` | Đổi đích FK từ `users.id` sang `candidates.id` | `fk_ps_candidate` → `candidates(id)` |
+| `ai_interview_consents.candidate_id` | Đổi đích FK từ `users.id` sang `candidates.id` (`ON DELETE CASCADE`) | `fk_ai_consent_candidate` → `candidates(id)` |
+| `oauth_accounts` | `user_id` chuyển thành nullable; thêm `candidate_id BIGINT NULL` (dual-actor) | `fk_oauth_candidate` (`ON DELETE CASCADE`) |
+| `notifications` | `user_id` chuyển thành nullable; thêm `candidate_id BIGINT NULL` (dual-actor) | `fk_notif_candidate` (`ON DELETE CASCADE`), `idx_notif_candidate (candidate_id, created_at)` |
+| `notification_preferences` | `user_id` chuyển thành nullable; thêm `candidate_id BIGINT NULL` (dual-actor) | `fk_notification_preference_candidate` (`ON DELETE CASCADE`), `uk_notification_preference_candidate_category (candidate_id, category)` |
+
 ## AI Conversation V44 (2026-10-03)
 
 Nguồn: `V44__interview_conversation.sql`. Hai bảng mới có entity `InterviewSession`/`InterviewMessage` cùng thay đổi; không backfill lịch sử cũ.
@@ -667,7 +703,7 @@ Entity `Submission`. Điểm tổng nằm ngay trên bảng (không còn `attemp
 |---|---|---|---|---|---|
 | `id` | BIGINT | PK | Không | auto | |
 | `test_id` | BIGINT | FK → `tests.id` | Không | — | Đề thi |
-| `candidate_id` | BIGINT | FK → `users.id` | Không | — | Ứng viên |
+| `candidate_id` | BIGINT | FK → `candidates.id` | Không | — | Ứng viên (V50 đổi đích sang `candidates.id`) |
 | `application_id` | BIGINT | FK → `applications.id` | Không | — | Đơn ứng tuyển |
 | `started_at` | TIMESTAMP | | Có | NULL | Bắt đầu |
 | `submitted_at` | TIMESTAMP | | Có | NULL | Nộp bài |
@@ -676,7 +712,7 @@ Entity `Submission`. Điểm tổng nằm ngay trên bảng (không còn `attemp
 | `status` | VARCHAR(32) | | Không | `'NOT_STARTED'` | `TestSubmissionStatus` |
 | `created_at` | TIMESTAMP | | Không | now | |
 
-**Ràng buộc:** `fk_submissions_test`, `fk_submissions_candidate`, `fk_submissions_application`
+**Ràng buộc:** `fk_submissions_test`, `fk_submissions_candidate` (`candidates.id`), `fk_submissions_application`
 
 ### F.5 `answers` — Câu trả lời trong lượt làm
 
@@ -974,12 +1010,13 @@ một phiên (mời, sinh câu theo lô, bắt đầu, lưu câu trả lời, n�
 
 ### I.1 `notifications` — Thông báo in-app
 
-Entity `Notification`.
+Entity `Notification`. Từ V50 hỗ trợ dual-actor: đúng một trong hai cột `user_id` hoặc `candidate_id` khác NULL.
 
 | Cột | Kiểu | Khoá | Null | Default | Mô tả |
 |---|---|---|---|---|---|
 | `id` | BIGINT | PK | Không | auto | |
-| `user_id` | BIGINT | FK → `users.id` | Không | — | Người nhận |
+| `user_id` | BIGINT | FK → `users.id` | Có (từ V50) | NULL | Nhân sự nhận thông báo |
+| `candidate_id` | BIGINT | FK → `candidates.id`, IDX | Có (từ V50) | NULL | Ứng viên nhận thông báo (ON DELETE CASCADE) |
 | `type` | VARCHAR(64) | | Không | — | Loại |
 | `title` | VARCHAR(255) | | Không | — | Tiêu đề |
 | `body` | TEXT | | Có | NULL | Nội dung |
@@ -987,7 +1024,7 @@ Entity `Notification`.
 | `read_at` | TIMESTAMP | | Có | NULL | NULL = chưa đọc |
 | `created_at` | TIMESTAMP | | Không | now | |
 
-**Ràng buộc:** `fk_notif_user`
+**Ràng buộc:** `fk_notif_user`, `fk_notif_candidate` (ON DELETE CASCADE, V50), index `idx_notif_candidate (candidate_id, created_at)` (V50)
 
 ### I.2 `email_outbox` — Hàng đợi email
 
@@ -1004,20 +1041,21 @@ Entity `EmailOutbox`.
 | `created_at` | TIMESTAMP | | Không | now | |
 | `sent_at` | TIMESTAMP | | Có | NULL | |
 
-### I.3 `notification_preferences` — Cài đặt kênh nhận thông báo (V49)
+### I.3 `notification_preferences` — Cài đặt kênh nhận thông báo (V49, mở rộng V50)
 
-Entity `NotificationPreference`. Không có dòng cho một loại nghĩa là người dùng nhận cả web lẫn email.
+Entity `NotificationPreference`. Không có dòng cho một loại nghĩa là người dùng nhận cả web lẫn email. Từ V50 hỗ trợ dual-actor (`user_id` cho nhân sự hoặc `candidate_id` cho ứng viên).
 
 | Cột | Kiểu | Khoá | Null | Default | Mô tả |
 |---|---|---|---|---|---|
 | `id` | BIGINT | PK | Không | auto | |
-| `user_id` | BIGINT | FK → `users.id` | Không | — | Chủ cài đặt; xóa user thì xóa theo (CASCADE) |
-| `category` | VARCHAR(32) | UQ (cùng `user_id`) | Không | — | Enum `NotificationCategory`: `AI_INTERVIEW`, `ASSESSMENT`, `HUMAN_INTERVIEW` |
+| `user_id` | BIGINT | FK → `users.id` | Có (từ V50) | NULL | Nhân sự chủ cài đặt; xóa user thì xóa theo (CASCADE) |
+| `candidate_id` | BIGINT | FK → `candidates.id` | Có (từ V50) | NULL | Ứng viên chủ cài đặt; xóa candidate thì xóa theo (CASCADE) |
+| `category` | VARCHAR(32) | UQ | Không | — | Enum `NotificationCategory`: `AI_INTERVIEW`, `ASSESSMENT`, `HUMAN_INTERVIEW` |
 | `web_enabled` | BOOLEAN | | Không | TRUE | FALSE = không tạo dòng `notifications` cho loại này |
 | `email_enabled` | BOOLEAN | | Không | TRUE | FALSE = không gửi/ghi `email_outbox` cho loại này |
 | `updated_at` | TIMESTAMP | | Không | now (ON UPDATE) | |
 
-**Ràng buộc:** `fk_notification_preference_user`, `uk_notification_preference_user_category(user_id, category)`
+**Ràng buộc:** `fk_notification_preference_user`, `fk_notification_preference_candidate` (ON DELETE CASCADE, V50), `uk_notification_preference_user_category(user_id, category)`, `uk_notification_preference_candidate_category(candidate_id, category)` (V50)
 
 ---
 
@@ -1030,7 +1068,7 @@ Entity `PracticeSession`.
 | Cột | Kiểu | Khoá | Null | Default | Mô tả |
 |---|---|---|---|---|---|
 | `id` | BIGINT | PK | Không | auto | |
-| `candidate_id` | BIGINT | FK → `users.id` | Không | — | Ứng viên |
+| `candidate_id` | BIGINT | FK → `candidates.id` | Không | — | Ứng viên (V50 đổi đích sang `candidates.id`) |
 | `topic` | VARCHAR(255) | | Có | NULL | Chủ đề |
 | `started_at` | TIMESTAMP | | Có | NULL | |
 | `completed_at` | TIMESTAMP | | Có | NULL | |
@@ -1038,7 +1076,7 @@ Entity `PracticeSession`.
 | `status` | VARCHAR(32) | | Không | `'CREATED'` | `PracticeStatus` |
 | `created_at` | TIMESTAMP | | Không | now | |
 
-**Ràng buộc:** `fk_ps_user`
+**Ràng buộc:** `fk_ps_candidate` (V50)
 
 ### J.2 `practice_answers` — Câu hỏi/trả lời luyện
 

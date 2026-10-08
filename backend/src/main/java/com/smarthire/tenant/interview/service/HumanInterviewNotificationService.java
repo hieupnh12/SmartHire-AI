@@ -29,24 +29,34 @@ public class HumanInterviewNotificationService {
             (cancelled ? "Lịch phỏng vấn đã hủy / Your interview has been cancelled.\n" : "Bạn được mời phỏng vấn trực tiếp / You are invited to a human interview.\n")+r.jobTitle()+"\n"+time+" (GMT+07)\n"+
             (r.mode().equals("ONLINE")?r.meetingUrl():r.location())+"\n\n"+Objects.toString(r.configuration().notes(),"")+(cancelled ? "\n\nSmartHire" : "\n\nVui lòng xác nhận trong mục Lịch phỏng vấn / Please RSVP in your interview schedule.\nSmartHire"));
     }
-    public void invite(InterviewView r,User candidate) { enqueue(r,candidate,"HUMAN_INTERVIEW_INVITATION","Lời mời phỏng vấn trực tiếp"); }
-    public void remind(InterviewView r,User candidate) { enqueue(r,candidate,"HUMAN_INTERVIEW_REMINDER","Nhắc lịch phỏng vấn trực tiếp"); }
-    public void cancel(InterviewView r,User candidate) { enqueue(r,candidate,"HUMAN_INTERVIEW_CANCELLED","Lịch phỏng vấn đã hủy"); }
+    public void invite(InterviewView r,Candidate candidate) { enqueue(r,candidate,"HUMAN_INTERVIEW_INVITATION","Lời mời phỏng vấn trực tiếp"); }
+    public void remind(InterviewView r,Candidate candidate) { enqueue(r,candidate,"HUMAN_INTERVIEW_REMINDER","Nhắc lịch phỏng vấn trực tiếp"); }
+    public void cancel(InterviewView r,Candidate candidate) { enqueue(r,candidate,"HUMAN_INTERVIEW_CANCELLED","Lịch phỏng vấn đã hủy"); }
     public void requestChange(InterviewView r) {
         for(var p:r.participants()) if(!preferences.webOff(users.getReferenceById(p.userId()),NotificationCategory.HUMAN_INTERVIEW)) notifications.save(Notification.builder().user(users.getReferenceById(p.userId())).type("HUMAN_INTERVIEW_RESCHEDULE").title("Ứng viên yêu cầu đổi lịch").body(r.configuration().rescheduleReason()).payloadJson("{\"interviewId\":"+r.id()+"}").build());
     }
-    private void enqueue(InterviewView r,User candidate,String type,String title) {
-        var recipients=new LinkedHashMap<Long,User>(); recipients.put(candidate.getId(),candidate);
-        for(var p:r.participants()) recipients.put(p.userId(),users.getReferenceById(p.userId()));
+    private void enqueue(InterviewView r,Candidate candidate,String type,String title) {
         var preview=preview(r);
+        String body;
+        try {
+            body=json.writeValueAsString(new EmailContent(title+"\n\n"+preview.body(),r.configuration().attachCalendar()?HumanInterviewCalendar.export(List.of(r)):null));
+        } catch(Exception ex) { throw new IllegalStateException("Cannot queue interview email",ex); }
+        if (candidate != null) {
+            String candidatePath="/schedules";
+            if(!preferences.webOff(candidate,NotificationCategory.HUMAN_INTERVIEW)) {
+                notifications.save(Notification.builder().candidate(candidate).type(type).title(title).body(r.jobTitle()).payloadJson("{\"interviewId\":"+r.id()+",\"path\":\""+candidatePath+"\"}").build());
+            }
+            if(!preferences.emailOff(candidate,NotificationCategory.HUMAN_INTERVIEW)) {
+                outbox.save(EmailOutbox.builder().toEmail(candidate.getEmail()).subject(title+" - "+r.jobTitle()).body(body).purpose(PURPOSE).build());
+            }
+        }
+        var recipients=new LinkedHashMap<Long,User>();
+        for(var p:r.participants()) recipients.put(p.userId(),users.getReferenceById(p.userId()));
         for(var user:recipients.values()) {
-            String path=user.getId().equals(candidate.getId())?"/schedules":"/recruiter/jobs/"+r.jobId()+"/interviews";
+            String path="/recruiter/jobs/"+r.jobId()+"/interviews";
             if(!preferences.webOff(user,NotificationCategory.HUMAN_INTERVIEW)) notifications.save(Notification.builder().user(user).type(type).title(title).body(r.jobTitle()).payloadJson("{\"interviewId\":"+r.id()+",\"path\":\""+path+"\"}").build());
             if(preferences.emailOff(user,NotificationCategory.HUMAN_INTERVIEW)) continue;
-            try {
-                String body=json.writeValueAsString(new EmailContent(title+"\n\n"+preview.body(),r.configuration().attachCalendar()?HumanInterviewCalendar.export(List.of(r)):null));
-                outbox.save(EmailOutbox.builder().toEmail(user.getEmail()).subject(title+" - "+r.jobTitle()).body(body).purpose(PURPOSE).build());
-            } catch(Exception ex) { throw new IllegalStateException("Cannot queue interview email",ex); }
+            outbox.save(EmailOutbox.builder().toEmail(user.getEmail()).subject(title+" - "+r.jobTitle()).body(body).purpose(PURPOSE).build());
         }
     }
 }

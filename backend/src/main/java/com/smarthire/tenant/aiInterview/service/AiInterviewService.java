@@ -7,8 +7,8 @@ import com.smarthire.domain.tenant.entity.AiFeedback;
 import com.smarthire.domain.tenant.entity.AiInterview;
 import com.smarthire.domain.tenant.entity.AiQuestion;
 import com.smarthire.domain.tenant.entity.Application;
+import com.smarthire.domain.tenant.entity.Candidate;
 import com.smarthire.domain.tenant.entity.RecruitmentStage;
-import com.smarthire.domain.tenant.entity.User;
 import com.smarthire.domain.tenant.repository.AiAnswerRepository;
 import com.smarthire.domain.tenant.repository.AiFeedbackRepository;
 import com.smarthire.domain.tenant.repository.AiInterviewLogRepository;
@@ -96,10 +96,10 @@ public class AiInterviewService {
      */
     @Transactional
     public AiInterviewResponse requestStart(long applicationId) {
-        User actor = access.actor();
         if (!access.candidate()) {
             throw new BusinessException("Candidate access required", HttpStatus.FORBIDDEN, "AI_INTERVIEW_FORBIDDEN");
         }
+        Candidate actor = access.candidateActor();
         Application application = applications.findById(applicationId)
                 .filter(a -> a.getCandidate() != null && a.getCandidate().getId().equals(actor.getId()))
                 .orElseThrow(() -> new BusinessException("Application not found", HttpStatus.NOT_FOUND, "APPLICATION_NOT_FOUND"));
@@ -170,10 +170,10 @@ public class AiInterviewService {
 
     @Transactional(readOnly = true)
     public List<AiInterviewResponse> mine() {
-        User actor = access.actor();
         if (!access.candidate()) {
             throw new BusinessException("Candidate access required", HttpStatus.FORBIDDEN, "AI_INTERVIEW_FORBIDDEN");
         }
+        Candidate actor = access.candidateActor();
         return interviews.findByApplication_Candidate_IdOrderByIdDesc(actor.getId()).stream()
                 .map(mapper::toResponse).toList();
     }
@@ -569,7 +569,7 @@ public class AiInterviewService {
     }
 
     private AiInterview loadAccessibleForUpdate(long id) {
-        access.actor();
+        if (access.candidate()) access.candidateActor(); else access.actor();
         AiInterview interview = interviews.findByIdForUpdate(id)
                 .orElseThrow(() -> new BusinessException("AI interview not found", HttpStatus.NOT_FOUND, "AI_INTERVIEW_NOT_FOUND"));
         if (!access.staff()) requireCandidateOwns(interview);
@@ -649,10 +649,10 @@ public class AiInterviewService {
     }
 
     private void requireCandidateOwns(AiInterview interview) {
-        User actor = access.actor();
         if (!access.candidate()) {
             throw new BusinessException("Access denied", HttpStatus.FORBIDDEN, "AI_INTERVIEW_FORBIDDEN");
         }
+        Candidate actor = access.candidateActor();
         Application app = interview.getApplication();
         if (app == null || app.getCandidate() == null || !app.getCandidate().getId().equals(actor.getId())) {
             throw new BusinessException("AI interview not found", HttpStatus.NOT_FOUND, "AI_INTERVIEW_NOT_FOUND");

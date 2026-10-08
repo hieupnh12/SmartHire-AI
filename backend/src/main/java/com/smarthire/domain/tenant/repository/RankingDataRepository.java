@@ -46,7 +46,7 @@ public class RankingDataRepository {
         return em.createQuery("select s from JobSkill s join fetch s.skill where s.job.id = :id order by s.id", JobSkill.class).setParameter("id", jobId).getResultList();
     }
     public List<Cv> cvs(long appId) {
-        return em.createQuery("select c from Cv c where c.application.id = :id and c.job = c.application.job and c.user = c.application.candidate order by c.id", Cv.class).setParameter("id", appId).getResultList();
+        return em.createQuery("select c from Cv c where c.application.id = :id and c.job = c.application.job and c.candidate = c.application.candidate order by c.id", Cv.class).setParameter("id", appId).getResultList();
     }
     public List<CvSkill> skills(long cvId) {
         return em.createQuery("select s from CvSkill s left join fetch s.skill where s.cv.id = :id", CvSkill.class).setParameter("id", cvId).getResultList();

@@ -63,7 +63,7 @@ class RankingServiceTest {
         job.setMinYearsExperience(new BigDecimal("2.0"));
         Skill skill = new Skill(); skill.setName("Java"); skill.setCategory("backend");
         JobSkill requirement = new JobSkill(); requirement.setSkill(skill); requirement.setWeight(BigDecimal.ONE);
-        Application app = new Application(); app.setId(2L); app.setJob(job); app.setCandidate(job.getCreatedBy());
+        Application app = new Application(); app.setId(2L); app.setJob(job); app.setCandidate(candidate());
         Cv cv = new Cv(); cv.setId(10L); cv.setStatus(com.smarthire.domain.enums.CvStatus.ANALYZED);
         CvSkill cvSkill = new CvSkill(); cvSkill.setSkillName("Java");
         JobScreeningConfig screening = new JobScreeningConfig();
@@ -96,7 +96,7 @@ class RankingServiceTest {
     }
     @Test void multipleSourcesRequireExplicitSelection() throws Exception {
         Job job = job(); when(data.job(1, false)).thenReturn(job);
-        Application app = new Application(); app.setId(2L); app.setJob(job); app.setCandidate(job.getCreatedBy());
+        Application app = new Application(); app.setId(2L); app.setJob(job); app.setCandidate(candidate());
         when(data.applications(1)).thenReturn(List.of(app));
         Cv first = new Cv(); first.setId(10L); Cv second = new Cv(); second.setId(11L);
         when(data.cvs(2)).thenReturn(List.of(first, second));
@@ -109,5 +109,8 @@ class RankingServiceTest {
     private Job job() {
         User recruiter = new User(); recruiter.setEmail("recruiter@example.test"); recruiter.setFullName("Recruiter");
         Job job = new Job(); job.setId(1L); job.setTitle("Backend"); job.setCreatedBy(recruiter); return job;
+    }
+    private Candidate candidate() {
+        Candidate candidate = new Candidate(); candidate.setEmail("candidate@example.test"); candidate.setFullName("Candidate"); return candidate;
     }
 }

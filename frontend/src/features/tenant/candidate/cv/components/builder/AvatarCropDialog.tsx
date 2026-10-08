@@ -53,8 +53,8 @@ export function AvatarCropDialog({ src, ratio, round, initial, saving, error, on
             initialCroppedAreaPercentages={initial ? cropToAreaPercentages(initial, ratio) : undefined}
             onCropChange={setPosition}
             onZoomChange={setZoom}
-            onCropComplete={(croppedArea) => { area.current = croppedArea; }}
-            onMediaLoaded={(media) => { aspect.current = media.naturalWidth / media.naturalHeight; }}
+            onCropComplete={(_croppedAreaPixels: Area, croppedArea: Area) => { area.current = croppedArea; }}
+            onMediaLoaded={(media: { naturalWidth: number; naturalHeight: number }) => { aspect.current = media.naturalWidth / media.naturalHeight; }}
           />
         </div>
         <label className="mt-4 flex items-center gap-3 text-sm text-slate-600">

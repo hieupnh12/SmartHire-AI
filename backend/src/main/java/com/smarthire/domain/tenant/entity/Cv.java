@@ -21,7 +21,7 @@ public class Cv extends BaseEntity {
     @JoinColumn(name = "job_id") Job job;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "user_id", nullable = false) User user;
+    @JoinColumn(name = "candidate_id", nullable = false) Candidate candidate;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "application_id") Application application;

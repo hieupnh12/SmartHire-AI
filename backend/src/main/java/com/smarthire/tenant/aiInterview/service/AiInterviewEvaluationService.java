@@ -507,7 +507,7 @@ public class AiInterviewEvaluationService {
         var app = interview.getApplication();
         String path = type.equals("AI_INTERVIEW_PASSED") ? "/candidate/assessments" : "/candidate/interviews/" + interview.getId();
         if (!preferences.webOff(app.getCandidate(), NotificationCategory.AI_INTERVIEW)) {
-            notifications.save(Notification.builder().user(app.getCandidate()).type(type).title(title).body(body)
+            notifications.save(Notification.builder().candidate(app.getCandidate()).type(type).title(title).body(body)
                     .payloadJson("{\"path\":\"" + path + "\",\"applicationId\":" + app.getId() + "}").build());
             activity.record(interview, "NOTIFICATION_SENT", type);
         }

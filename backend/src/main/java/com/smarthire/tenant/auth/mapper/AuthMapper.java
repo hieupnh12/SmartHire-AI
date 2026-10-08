@@ -1,7 +1,7 @@
 package com.smarthire.tenant.auth.mapper;
 
+import com.smarthire.domain.tenant.entity.Candidate;
 import com.smarthire.domain.tenant.entity.User;
-import com.smarthire.domain.tenant.entity.UserProfile;
 import com.smarthire.tenant.auth.dto.CandidateProfileResponse;
 import com.smarthire.tenant.auth.dto.UserResponse;
 import org.mapstruct.Mapper;
@@ -14,18 +14,14 @@ public interface AuthMapper {
 
     @Mapping(target = "permissions", ignore = true)
     @Mapping(target = "workspace", ignore = true)
+    @Mapping(target = "headline", ignore = true)
+    @Mapping(target = "bio", ignore = true)
     UserResponse toUserResponse(User user);
 
     List<UserResponse> toUserResponseList(List<User> users);
 
-    @Mapping(target = "id", source = "user.id")
-    @Mapping(target = "email", source = "user.email")
-    @Mapping(target = "fullName", source = "user.fullName")
-    @Mapping(target = "role", source = "user.role")
-    @Mapping(target = "status", source = "user.status")
-    @Mapping(target = "avatarUrl", source = "profile.avatarUrl")
-    @Mapping(target = "headline", source = "profile.headline")
-    CandidateProfileResponse toCandidateProfileResponse(User user, UserProfile profile);
+    @Mapping(target = "role", constant = "CANDIDATE")
+    CandidateProfileResponse toCandidateProfileResponse(Candidate candidate);
 }
 
 

@@ -1,5 +1,6 @@
 package com.smarthire.security;
 
+import com.smarthire.domain.tenant.entity.Candidate;
 import com.smarthire.domain.tenant.entity.User;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
@@ -35,9 +36,25 @@ public class JwtTokenProvider {
         return Jwts.builder()
                 .subject(user.getEmail())
                 .claim("userId", user.getId())
-                .claim("role", user.getRole() != null ? user.getRole() : "CANDIDATE")
+                .claim("role", user.getRole() != null ? user.getRole() : "RECRUITER")
                 .claim("tenantId", tenantId)
                 .claim("fullName", user.getFullName())
+                .issuedAt(now)
+                .expiration(expiryDate)
+                .signWith(key)
+                .compact();
+    }
+
+    public String generateToken(Candidate candidate, String tenantId) {
+        Date now = new Date();
+        Date expiryDate = new Date(now.getTime() + expirationMs);
+
+        return Jwts.builder()
+                .subject(candidate.getEmail())
+                .claim("userId", candidate.getId())
+                .claim("role", "CANDIDATE")
+                .claim("tenantId", tenantId)
+                .claim("fullName", candidate.getFullName())
                 .issuedAt(now)
                 .expiration(expiryDate)
                 .signWith(key)

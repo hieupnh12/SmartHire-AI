@@ -39,7 +39,7 @@ public class CvApplicationCopyService {
             throw new BusinessException("Cannot read CV file", HttpStatus.NOT_FOUND, "CV_FILE_MISSING");
         }
         Cv copy = new Cv();
-        copy.setUser(source.getUser());
+        copy.setCandidate(source.getCandidate());
         copy.setJob(job);
         copy.setApplication(application);
         copy.setApplicationCopy(true);

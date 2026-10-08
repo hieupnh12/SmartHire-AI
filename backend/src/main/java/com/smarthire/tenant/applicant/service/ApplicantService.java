@@ -9,6 +9,7 @@ import com.smarthire.domain.enums.UserRole;
 import com.smarthire.domain.enums.UserStatus;
 import com.smarthire.domain.tenant.entity.Application;
 import com.smarthire.domain.tenant.entity.ApplicationStatusHistory;
+import com.smarthire.domain.tenant.entity.Candidate;
 import com.smarthire.domain.tenant.entity.Cv;
 import com.smarthire.domain.tenant.entity.Job;
 import com.smarthire.domain.tenant.entity.MatchScore;
@@ -16,6 +17,7 @@ import com.smarthire.domain.tenant.entity.RecruitmentStage;
 import com.smarthire.domain.tenant.entity.User;
 import com.smarthire.domain.tenant.repository.ApplicationRepository;
 import com.smarthire.domain.tenant.repository.ApplicationStatusHistoryRepository;
+import com.smarthire.domain.tenant.repository.CandidateRepository;
 import com.smarthire.domain.tenant.repository.CvRepository;
 import com.smarthire.domain.tenant.repository.JobRepository;
 import com.smarthire.domain.tenant.repository.RecruitmentStageRepository;
@@ -41,6 +43,7 @@ import java.util.Map;
 import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
@@ -57,6 +60,7 @@ public class ApplicantService {
     private final ApplicationStatusHistoryRepository history;
     private final JobRepository jobs;
     private final UserRepository users;
+    private final CandidateRepository candidates;
     private final CvRepository cvs;
     private final RecruitmentStageRepository stages;
     private final CvAccess access;
@@ -81,10 +85,30 @@ public class ApplicantService {
             JobPublisher publisher,
             GateScreeningService gateScreening,
             CvApplicationCopyService cvCopies) {
+        this(applications, history, jobs, users, null, cvs, stages, access, jobsMapper, mapper, invitations, publisher, gateScreening, cvCopies);
+    }
+
+    @Autowired
+    public ApplicantService(
+            ApplicationRepository applications,
+            ApplicationStatusHistoryRepository history,
+            JobRepository jobs,
+            UserRepository users,
+            CandidateRepository candidates,
+            CvRepository cvs,
+            RecruitmentStageRepository stages,
+            CvAccess access,
+            JobMapper jobsMapper,
+            ApplicantMapper mapper,
+            AiInterviewInvitationService invitations,
+            JobPublisher publisher,
+            GateScreeningService gateScreening,
+            CvApplicationCopyService cvCopies) {
         this.applications = applications;
         this.history = history;
         this.jobs = jobs;
         this.users = users;
+        this.candidates = candidates;
         this.cvs = cvs;
         this.stages = stages;
         this.access = access;
@@ -114,7 +138,7 @@ public class ApplicantService {
         if (!jobsMapper.accepting(job)) {
             throw new BusinessException("Job is not open for applications", HttpStatus.BAD_REQUEST, "JOB_NOT_PUBLISHED");
         }
-        User actor = access.actor();
+        Candidate actor = access.candidateActor();
         var existing = applications.findByJob_IdAndCandidate_Id(jobId, actor.getId());
         if (existing.isPresent()) {
             Application current = existing.get();
@@ -145,16 +169,16 @@ public class ApplicantService {
         Job job = job(jobId);
         access.requireJob(job);
         String email = request.email().trim().toLowerCase(Locale.ROOT);
-        User candidate = users.findByEmailIgnoreCase(email).orElse(null);
+        if (users != null && users.findByEmailIgnoreCase(email).isPresent()) {
+            throw new BusinessException("Email belongs to a staff account", HttpStatus.BAD_REQUEST, "EMAIL_NOT_CANDIDATE");
+        }
+        Candidate candidate = candidates.findByEmailIgnoreCase(email).orElse(null);
         if (candidate == null) {
-            candidate = new User();
+            candidate = new Candidate();
             candidate.setEmail(email);
             candidate.setFullName(request.fullName().trim());
-            candidate.setRole(UserRole.CANDIDATE.name());
             candidate.setStatus(UserStatus.ACTIVE);
-            users.save(candidate);
-        } else if (!UserRole.isCandidate(candidate.getRole())) {
-            throw new BusinessException("Email belongs to a staff account", HttpStatus.BAD_REQUEST, "EMAIL_NOT_CANDIDATE");
+            candidates.save(candidate);
         }
         var existing = applications.findByJob_IdAndCandidate_Id(jobId, candidate.getId());
         if (existing.isPresent()) {
@@ -214,7 +238,7 @@ public class ApplicantService {
 
     @Transactional(readOnly = true)
     public List<ApplicationSummary> mine() {
-        User actor = access.actor();
+        Candidate actor = access.candidateActor();
         return applications.findByCandidate_IdOrderByIdDesc(actor.getId()).stream()
                 .filter(app -> app.getStatus() != ApplicationStatus.WITHDRAWN)
                 .map(app -> mapper.summary(app, false))
@@ -295,9 +319,12 @@ public class ApplicantService {
 
     @Transactional
     public ApplicationDetail withdraw(long id) {
+        if (!access.candidate()) {
+            throw new BusinessException("Only the candidate can withdraw", HttpStatus.FORBIDDEN, "APPLICATION_FORBIDDEN");
+        }
         Application application = load(id);
-        User actor = access.actor();
-        if (!access.candidate() || !application.getCandidate().getId().equals(actor.getId())) {
+        Candidate actor = access.candidateActor();
+        if (!application.getCandidate().getId().equals(actor.getId())) {
             throw new BusinessException("Only the candidate can withdraw", HttpStatus.FORBIDDEN, "APPLICATION_FORBIDDEN");
         }
         if (application.getStatus() == ApplicationStatus.HIRED) {
@@ -314,10 +341,10 @@ public class ApplicantService {
      */
     @Transactional
     public void advanceFromCvScreening(Cv cv, MatchScore score) {
-        if (cv.getJob() == null || cv.getUser() == null) return;
+        if (cv.getJob() == null || cv.getCandidate() == null) return;
         Application application = cv.getApplication();
         if (application == null) {
-            application = applications.findByJob_IdAndCandidate_Id(cv.getJob().getId(), cv.getUser().getId()).orElse(null);
+            application = applications.findByJob_IdAndCandidate_Id(cv.getJob().getId(), cv.getCandidate().getId()).orElse(null);
         }
         if (application == null) return;
         application = applications.findByIdForUpdate(application.getId()).orElse(null);
@@ -384,7 +411,7 @@ public class ApplicantService {
         return mapper.detail(
                 application,
                 applications.countByCandidate_Id(application.getCandidate().getId()),
-                cvs.findByUser_IdAndJob_IdOrderByIdDesc(application.getCandidate().getId(), application.getJob().getId()),
+                cvs.findByCandidate_IdAndJob_IdOrderByIdDesc(application.getCandidate().getId(), application.getJob().getId()),
                 history.findByApplication_IdOrderByIdDesc(application.getId()),
                 gateScreening.view(application),
                 gateScreening.rounds(application));
@@ -393,7 +420,7 @@ public class ApplicantService {
     private void record(Application application, ApplicationStatus next, String note) {
         Long actorId = null;
         try {
-            actorId = access.actor().getId();
+            actorId = access.candidate() ? access.candidateActor().getId() : access.actor().getId();
         } catch (RuntimeException ignored) {
             // Rabbit / job-close scanner has tenant context but no logged-in recruiter.
         }
@@ -420,8 +447,8 @@ public class ApplicantService {
     private Application load(long id) {
         Application application = applications.findById(id)
                 .orElseThrow(() -> new BusinessException("Application not found", HttpStatus.NOT_FOUND, "APPLICATION_NOT_FOUND"));
-        User actor = access.actor();
         if (access.candidate()) {
+            Candidate actor = access.candidateActor();
             if (!application.getCandidate().getId().equals(actor.getId())) {
                 throw new BusinessException("Application not found", HttpStatus.NOT_FOUND, "APPLICATION_NOT_FOUND");
             }
@@ -444,11 +471,11 @@ public class ApplicantService {
                 .orElseThrow(() -> new BusinessException("Job not found", HttpStatus.NOT_FOUND, "JOB_NOT_FOUND"));
     }
 
-    private void attachCv(Long cvId, Job job, Application application, User actor) {
+    private void attachCv(Long cvId, Job job, Application application, Candidate actor) {
         if (cvId == null) return;
         Cv cv = cvs.findById(cvId)
                 .orElseThrow(() -> new BusinessException("CV not found", HttpStatus.NOT_FOUND, "CV_NOT_FOUND"));
-        if (!cv.getUser().getId().equals(actor.getId())) {
+        if (!cv.getCandidate().getId().equals(actor.getId())) {
             throw new BusinessException("CV not found", HttpStatus.NOT_FOUND, "CV_NOT_FOUND");
         }
         boolean alreadyThisApplication = cv.getApplication() != null

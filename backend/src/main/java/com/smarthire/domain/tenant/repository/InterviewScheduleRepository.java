@@ -11,15 +11,26 @@ public interface InterviewScheduleRepository extends JpaRepository<InterviewSche
         select s from InterviewSchedule s where s.status in :statuses
         and s.scheduledStart < :end and s.scheduledEnd > :start
         and (:excludeId is null or s.interview.id <> :excludeId)
-        and (s.interview.application.candidate.id in :users or exists
+        and (s.interview.application.candidate.id in :candidates or exists
             (select p from InterviewParticipant p where p.interviewId = s.interview.id and p.userId in :users))
         """)
     java.util.List<InterviewSchedule> conflicts(
         @org.springframework.data.repository.query.Param("users") Collection<Long> users,
+        @org.springframework.data.repository.query.Param("candidates") Collection<Long> candidates,
         @org.springframework.data.repository.query.Param("start") java.time.Instant start,
         @org.springframework.data.repository.query.Param("end") java.time.Instant end,
         @org.springframework.data.repository.query.Param("excludeId") Long excludeId,
         @org.springframework.data.repository.query.Param("statuses") Collection<ScheduleStatus> statuses);
+
+    default java.util.List<InterviewSchedule> conflicts(
+        Collection<Long> users,
+        java.time.Instant start,
+        java.time.Instant end,
+        Long excludeId,
+        Collection<ScheduleStatus> statuses) {
+        return conflicts(users, users, start, end, excludeId, statuses);
+    }
+
     long countByStatusIn(Collection<ScheduleStatus> statuses);
 }
 

@@ -62,12 +62,12 @@ class RankingPersistenceTest {
     @AfterEach void cleanup() { TenantContext.clear(); SecurityContextHolder.clearContext(); }
     @Test void readsRealSourcesPersistsSnapshotsAndRecomputesIdempotently() {
         User recruiter = new User(); recruiter.setEmail("recruiter@example.test"); recruiter.setFullName("Recruiter"); recruiter.setRole(UserRole.RECRUITER.name()); em.persist(recruiter);
-        User candidate = new User(); candidate.setEmail("candidate@example.test"); candidate.setFullName("Candidate"); candidate.setRole(UserRole.CANDIDATE.name()); em.persist(candidate);
+        Candidate candidate = new Candidate(); candidate.setEmail("candidate@example.test"); candidate.setFullName("Candidate"); em.persist(candidate);
         Job job = new Job(); job.setTitle("Backend"); job.setDescription("Java"); job.setCreatedBy(recruiter); em.persist(job);
         Application app = new Application(); app.setJob(job); app.setCandidate(candidate); em.persist(app);
         Skill skill = new Skill(); skill.setName("Java"); skill.setCategory("backend"); em.persist(skill);
         JobSkill requirement = new JobSkill(); requirement.setJob(job); requirement.setSkill(skill); em.persist(requirement);
-        Cv cv = new Cv(); cv.setJob(job); cv.setUser(candidate); cv.setApplication(app); cv.setOriginalFilename("cv.pdf"); cv.setFileUrl("/private/cv.pdf"); cv.setStatus(CvStatus.ANALYZED); em.persist(cv);
+        Cv cv = new Cv(); cv.setJob(job); cv.setCandidate(candidate); cv.setApplication(app); cv.setOriginalFilename("cv.pdf"); cv.setFileUrl("/private/cv.pdf"); cv.setStatus(CvStatus.ANALYZED); em.persist(cv);
         CvSkill extracted = new CvSkill(); extracted.setCv(cv); extracted.setSkillName("Java"); em.persist(extracted);
         CvExtraction extraction = new CvExtraction(); extraction.setCv(cv); extraction.setExtractionJson("""
                 {"experience":[{"startDate":"2024-01","endDate":"2024-12","skills":["Java"],"evidence":"Java developer"}]}

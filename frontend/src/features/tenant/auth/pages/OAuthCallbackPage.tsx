@@ -3,7 +3,21 @@ import { useNavigate } from "react-router-dom";
 import { AlertCircle, CheckCircle2, Loader2, ArrowLeft } from "lucide-react";
 import { authApi } from "@/api/tenant/authApi";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
+import { getApiErrorMessage } from "@/lib/axios";
 import { getTenantIdFromSubdomain, getBaseDomain, buildTenantUrl } from "@/lib/tenant";
+
+const inFlightGoogleAuth = new Map<string, ReturnType<typeof authApi.google>>();
+
+function authenticateGoogleOnce(idToken: string) {
+  let pending = inFlightGoogleAuth.get(idToken);
+  if (!pending) {
+    pending = authApi.google(idToken).finally(() => {
+      window.setTimeout(() => inFlightGoogleAuth.delete(idToken), 5_000);
+    });
+    inFlightGoogleAuth.set(idToken, pending);
+  }
+  return pending;
+}
 
 export function OAuthCallbackPage() {
   const navigate = useNavigate();
@@ -85,8 +99,8 @@ export function OAuthCallbackPage() {
           setStatusMessage("Đang xác thực thông tin tài khoản với SmartHire...");
         }
 
-        // 4. Authenticate with Backend
-        const response = await authApi.google(idToken);
+        // 4. Authenticate with Backend (deduplicated across React StrictMode double-mounts)
+        const response = await authenticateGoogleOnce(idToken);
 
         if (isCancelled) return;
 
@@ -98,6 +112,7 @@ export function OAuthCallbackPage() {
             email: candidate.email,
             fullName: candidate.fullName,
             role: candidate.role,
+            workspace: "CANDIDATE",
             avatarUrl: candidate.avatarUrl,
             headline: candidate.headline,
           });
@@ -120,8 +135,7 @@ export function OAuthCallbackPage() {
       } catch (err: unknown) {
         if (isCancelled) return;
         setStatus("error");
-        const msg = err instanceof Error ? err.message : "Đã có lỗi xảy ra khi xác thực với máy chủ SmartHire.";
-        setErrorMessage(msg);
+        setErrorMessage(getApiErrorMessage(err, "Đã có lỗi xảy ra khi xác thực với máy chủ SmartHire."));
       }
     };
 

@@ -30,7 +30,7 @@ public class AiInterviewVoiceService {
     public void consent(long interviewId, AiInterviewConsentRequest request) {
         var interview = candidateInterview(interviewId);
         requireVoice(interview);
-        var candidate = access.actor();
+        var candidate = access.candidateActor();
         var consent = consents.findByAiInterview_Id(interviewId).orElseGet(() -> com.smarthire.domain.tenant.entity.AiInterviewConsent.builder()
                 .aiInterview(interview).candidate(candidate).build());
         consent.setAccepted(Boolean.TRUE.equals(request.accepted())); consent.setPolicyVersion(request.policyVersion().trim());
@@ -113,7 +113,7 @@ public class AiInterviewVoiceService {
     }
     private com.smarthire.domain.tenant.entity.AiInterview candidateInterview(long id) {
         if (!access.candidate()) throw new BusinessException("Candidate access required", HttpStatus.FORBIDDEN, "AI_INTERVIEW_FORBIDDEN");
-        var actor = access.actor();
+        var actor = access.candidateActor();
         return interviews.findById(id).filter(i -> i.getApplication().getCandidate().getId().equals(actor.getId()))
                 .orElseThrow(() -> new BusinessException("AI interview not found", HttpStatus.NOT_FOUND, "AI_INTERVIEW_NOT_FOUND"));
     }

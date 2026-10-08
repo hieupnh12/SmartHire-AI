@@ -3,10 +3,10 @@ package com.smarthire.tenant.applicant.service;
 import com.smarthire.domain.enums.NotificationCategory;
 import com.smarthire.domain.enums.NotificationStatus;
 import com.smarthire.domain.tenant.entity.Application;
+import com.smarthire.domain.tenant.entity.Candidate;
 import com.smarthire.domain.tenant.entity.EmailOutbox;
 import com.smarthire.domain.tenant.entity.Job;
 import com.smarthire.domain.tenant.entity.MatchScore;
-import com.smarthire.domain.tenant.entity.User;
 import com.smarthire.domain.tenant.repository.ApplicationRepository;
 import com.smarthire.domain.tenant.repository.EmailOutboxRepository;
 import com.smarthire.multitenancy.service.TenantPublicUrlService;
@@ -68,7 +68,7 @@ public class AiInterviewInviteService {
         if (application == null || application.getId() == null || application.getAiInterviewInvitedAt() != null) {
             return;
         }
-        User candidate = application.getCandidate();
+        Candidate candidate = application.getCandidate();
         Job job = application.getJob();
         if (candidate == null || candidate.getEmail() == null || candidate.getEmail().isBlank() || job == null) {
             return;

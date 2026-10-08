@@ -10,6 +10,7 @@
 
 | Thông tin | Giá trị |
 |---|---|
+| Tách vật lý Candidate & User 2026-10-08 | Tenant V51 (đánh lại từ V50 vì trùng `V50__company_email_settings` trên DB tenant) tạo bảng `candidates` + entity `Candidate`, gộp và xóa `user_profiles` (`UserProfile`), thêm `phone`/`avatar_url`/`job_title` + `idx_users_role_status` cho `users`, chuyển 6 FK ứng viên (`applications`, `cvs.candidate_id`, `submissions`, `practice_sessions`, `ai_interview_consents`, `oauth_accounts.candidate_id`) sang `candidates(id)`, bổ sung `candidate_id` nullable + FK cho 2 bảng đa tác nhân (`notifications`, `notification_preferences`) |
 | Cài đặt thông báo 2026-10-07 | Tenant V49 tạo `notification_preferences` + entity `NotificationPreference`, enum `NotificationCategory` (`AI_INTERVIEW`, `ASSESSMENT`, `HUMAN_INTERVIEW`); 1 FK CASCADE tới `users`, 1 UNIQUE `(user_id, category)`. Không có dòng nghĩa là bật cả web lẫn email |
 | Trạng thái ứng viên 2026-10-07 | Bổ sung ApplicationStatus.HUMAN_INTERVIEW (phỏng vấn người–người); INTERVIEW giữ nghĩa phỏng vấn AI. DB dùng VARCHAR(32), không cần migration; số bảng/entity/FK/index không đổi |
 | Human Interview 2026-10-06 | Tenant V48 thêm `interviews.configuration_json` JSON nullable (entity `Interview.configurationJson`), index `idx_human_schedule_window(status, scheduled_start, scheduled_end)` và `idx_interview_participant_user(user_id, interview_id)`. Không thêm bảng/entity/FK/UNIQUE. ScheduleStatus bổ sung DRAFT và RESCHEDULE_REQUESTED |
@@ -26,12 +27,12 @@
 | AI Interview workflow 2026-09-27 | V25: cấu hình AI Interview theo job, `applications.cv_screening_status`, cột worker; V26: 30–40 câu hỏi, bảng `ai_interview_logs` + entity `AiInterviewLog` |
 | Kiến trúc | Separate Database per Tenant |
 | Số database logic | 2 loại (1 Master + N Tenant) |
-| Bảng tenant sau V49 | 67 bảng (66 sau V45 + `notification_preferences`); không tính Flyway history |
-| Entity JPA tenant | 62 class `@Entity` theo checkout hiện tại; V44 bổ sung `InterviewSession`, `InterviewMessage`; V45 bổ sung `CompanyDirectoryEntry`; V49 bổ sung `NotificationPreference` |
-| Khoá ngoại tenant | 88 theo mốc tài liệu (85 sau V43 + 2 FK V44 + 1 FK V49); V45 không thêm FK |
-| Ràng buộc UNIQUE tenant | V25/V26 không thêm UNIQUE. V27 thêm UNIQUE `gate_scores.application_id`. V30 thêm `uk_job_assignments_job_user`. V45 thêm `uk_company_directory_type_name`. V47 thêm `uk_cvs_share_token`. V49 thêm `uk_notification_preference_user_category` |
-| Số file migration trong repo | 65 (23 master + 42 tenant); V9 redesign nằm ngoài pipeline |
-| Cập nhật lần cuối | Master `V24`, tenant `V49`: cài đặt kênh nhận thông báo theo người dùng |
+| Bảng tenant sau V51 | 67 bảng (V51 tạo `candidates` và xóa `user_profiles`, tổng số bảng giữ nguyên 67); không tính Flyway history |
+| Entity JPA tenant | 62 class `@Entity` theo checkout hiện tại; V44 bổ sung `InterviewSession`, `InterviewMessage`; V45 bổ sung `CompanyDirectoryEntry`; V49 bổ sung `NotificationPreference`; V51 thay `UserProfile` bằng `Candidate` |
+| Khoá ngoại tenant | 89 theo mốc tài liệu (88 sau V49 − 1 FK `user_profiles` + 2 FK `candidate_id` trên `notifications` & `notification_preferences`, 6 FK ứng viên chuyển đích sang `candidates`) |
+| Ràng buộc UNIQUE tenant | V25/V26 không thêm UNIQUE. V27 thêm UNIQUE `gate_scores.application_id`. V30 thêm `uk_job_assignments_job_user`. V45 thêm `uk_company_directory_type_name`. V47 thêm `uk_cvs_share_token`. V49 thêm `uk_notification_preference_user_category`. V51 xóa `uk_profile_user`, thêm `uk_candidates_email` và `uk_notification_preference_candidate_category` |
+| Số file migration trong repo | 66 (23 master + 43 tenant); V9 redesign nằm ngoài pipeline |
+| Cập nhật lần cuối | Master `V24`, tenant `V51`: tách vật lý bảng `candidates` khỏi `users` và gộp `user_profiles` |
 | Dọn legacy V21 | Xóa 19 bảng và dữ liệu legacy, xóa 2 cột ID legacy trong ranking; không chuyển ID cũ sang bản ghi mới |
 | Metadata assessment 2026-09-25 | V13: `tests.created_by/updated_at`, `questions.difficulty/skill/explanation` cho Excel/UI authoring |
 | Sửa lỗi assessment 2026-09-24 | V10/V11 khớp checksum lịch sử; V12 tạo schema mới và giữ bảng cũ; migration lỗi phải chặn mở tenant pool |
@@ -172,7 +173,7 @@ thay vì âm thầm đọc nhầm database của doanh nghiệp khác.
 | No | Entity | Bảng | Nhóm nghiệp vụ | Kế thừa `BaseEntity` |
 |---|---|---|---|---|
 | 01 | `User` | `users` | Identity | Có |
-| 02 | `UserProfile` | `user_profiles` | Identity | Có |
+| 02 | `Candidate` | `candidates` | Identity | Có |
 | 03 | `OauthAccount` | `oauth_accounts` | Identity | Không |
 | 04 | `MemberInvitation` | `member_invitations` | Identity | Có |
 | 05 | `Job` | `jobs` | Job & Skill | Có |
@@ -256,8 +257,8 @@ V44 không thêm enum hoặc trạng thái lifecycle: session dùng lifecycle c�
 
 | Enum | Bảng · cột sử dụng | Giá trị |
 |---|---|---|
-| `UserRole` | `users.role` | `TENANT_ADMIN`, `ADMIN`, `HR`, `RECRUITER`, `CANDIDATE` |
-| `UserStatus` | `users.status` | `ACTIVE`, `LOCKED`, `DISABLED` |
+| `UserRole` | `users.role` | `TENANT_ADMIN`, `ADMIN`, `HR`, `RECRUITER` (`CANDIDATE` chỉ dùng cho JWT claim / authority, không lưu trong bảng `users` từ V51) |
+| `UserStatus` | `users.status`, `candidates.status` | `ACTIVE`, `LOCKED`, `DISABLED` |
 | `OAuthProvider` | `oauth_accounts.provider` | `GOOGLE` |
 | `InvitationStatus` | `member_invitations.status` | `PENDING`, `ACCEPTED` |
 | `JobStatus` | `jobs.status` | `DRAFT`, `PUBLISHED`, `PAUSED`, `CLOSED`, `ARCHIVED` |
@@ -356,7 +357,7 @@ chọn cố ý để log và lead sống lâu hơn vòng đời của tenant.
 flowchart LR
     subgraph ID["Identity"]
         users
-        user_profiles
+        candidates
         oauth_accounts
         member_invitations
     end
@@ -426,8 +427,7 @@ flowchart LR
 
 ```mermaid
 erDiagram
-    users ||--o| user_profiles : "hồ sơ mở rộng 1:1"
-    users ||--o{ oauth_accounts : "liên kết Google"
+    candidates ||--o{ oauth_accounts : "liên kết Google (candidate_id)"
     member_invitations }o..o{ users : "không có FK · đối chiếu bằng email"
 ```
 
@@ -441,7 +441,7 @@ erDiagram
     jobs ||--o{ recruitment_stages : "định nghĩa vòng tuyển"
 
     jobs ||--o{ applications : "nhận đơn"
-    users ||--o{ applications : "candidate_id"
+    candidates ||--o{ applications : "candidate_id"
     users |o--o{ applications : "assignee_id · nullable"
     recruitment_stages |o--o{ applications : "stage_id · nullable"
 
@@ -461,7 +461,7 @@ erDiagram
 
 ```mermaid
 erDiagram
-    users ||--o{ cvs : "sở hữu CV"
+    candidates ||--o{ cvs : "sở hữu CV (candidate_id)"
     jobs |o--o{ cvs : "job_id · nullable từ V8"
     applications |o..o{ cvs : "application_id · KHÔNG có FK"
 
@@ -495,7 +495,7 @@ erDiagram
 
     tests ||--o{ submissions : "lượt làm bài"
     applications ||--o{ submissions : "của đơn ứng tuyển"
-    users ||--o{ submissions : "candidate_id"
+    candidates ||--o{ submissions : "candidate_id"
 
     submissions ||--o{ answers : "câu trả lời"
     questions ||--o{ answers : "thuộc câu hỏi"
@@ -543,9 +543,11 @@ erDiagram
 
 ```mermaid
 erDiagram
-    users ||--o{ notifications : "thông báo in-app"
-    users ||--o{ notification_preferences : "kênh nhận theo loại"
-    users ||--o{ practice_sessions : "phiên tự luyện"
+    users |o--o{ notifications : "thông báo in-app staff (user_id)"
+    candidates |o--o{ notifications : "thông báo in-app candidate (candidate_id)"
+    users |o--o{ notification_preferences : "kênh nhận staff (user_id)"
+    candidates |o--o{ notification_preferences : "kênh nhận candidate (candidate_id)"
+    candidates ||--o{ practice_sessions : "phiên tự luyện (candidate_id)"
     practice_sessions ||--o{ practice_answers : "câu hỏi và trả lời"
     practice_answers ||--o{ practice_feedbacks : "feedback từng câu"
     email_outbox {
@@ -585,9 +587,9 @@ sẽ chặn thao tác thay vì bị gỡ âm thầm. Hai cột `ranking_sources.
 
 | Entity | Mục đích | Ghi chú quan trọng |
 |---|---|---|
-| `User` | Mọi loại người dùng của một doanh nghiệp nằm chung một bảng, phân biệt bằng `role` | Không có bảng riêng cho recruiter hay ứng viên. `email` unique trong phạm vi tenant. `password_hash` nullable để hỗ trợ tài khoản chỉ đăng nhập OAuth |
-| `UserProfile` | Thông tin mở rộng: điện thoại, avatar, bio, headline, `links_json` | 1:1 với `users` |
-| `OauthAccount` | Liên kết tài khoản Google | Unique theo `(provider, provider_user_id)` |
+| `User` | Nhân sự nội bộ của doanh nghiệp (`TENANT_ADMIN`, `ADMIN`, `HR`, `RECRUITER`, custom role) | Tách vật lý khỏi ứng viên từ V51. Mang `phone`, `avatar_url`, `job_title`. `email` unique trong bảng `users` |
+| `Candidate` | Tài khoản và hồ sơ ứng viên bên ngoài nộp đơn vào doanh nghiệp (bảng `candidates`, V51) | Gộp định danh (`email`, `password_hash`, `full_name`, `status`) và hồ sơ mở rộng (`phone`, `avatar_url`, `headline`, `bio`, `links_json`). Thay thế `user_profiles` |
+| `OauthAccount` | Liên kết tài khoản Google của ứng viên (`candidate_id` → `candidates.id`) | Unique theo `(provider, provider_user_id)`, ON DELETE CASCADE |
 | `MemberInvitation` | Lời mời nhân sự vào workspace | Lưu `token_hash` chứ **không** lưu token gốc. Không có FK tới `users`; đối chiếu bằng email khi chấp nhận |
 | `RolePermission` | Quyền truy cập tính năng của role | UNIQUE `(role, feature_code)`; không có FK đến roles |
 | `TenantRole` | Role hệ thống và tùy chỉnh | UNIQUE `code`; workspace phân vùng giao diện |
@@ -677,10 +679,10 @@ của màn assessment hiện tại.
 
 | Entity | Mục đích | Ghi chú quan trọng |
 |---|---|---|
-| `Notification` | Thông báo in-app | `type`, `payload_json`, `read_at`. Bảng **không** dùng enum `NotificationStatus` |
+| `Notification` | Thông báo in-app (dual-actor) | `user_id` (staff) hoặc `candidate_id` (ứng viên); `type`, `payload_json`, `read_at`. Bảng **không** dùng enum `NotificationStatus` |
 | `EmailOutbox` | Hàng đợi email theo mẫu outbox | Không có FK — cố ý. `attempts` đếm số lần thử |
-| `NotificationPreference` | Cài đặt kênh nhận thông báo (web / email) theo loại | Tối đa một dòng mỗi `(user_id, category)`; thiếu dòng = bật cả hai kênh. Service kiểm tra trước khi ghi `notifications` / `email_outbox` |
-| `PracticeSession` | Phiên tự luyện | Tách khỏi ranking; có `started_at`, `completed_at`, `overall_score` |
+| `NotificationPreference` | Cài đặt kênh nhận thông báo (web / email) theo loại | Dual-actor: tối đa một dòng mỗi `(user_id, category)` hoặc `(candidate_id, category)`; thiếu dòng = bật cả hai kênh. Service kiểm tra trước khi ghi `notifications` / `email_outbox` |
+| `PracticeSession` | Phiên tự luyện | FK `candidate_id → candidates.id` (V51); tách khỏi ranking; có `started_at`, `completed_at`, `overall_score` |
 | `PracticeAnswer` | Câu hỏi/trả lời trong phiên | Có thể kèm `audio_url`, `answer_duration` |
 | `PracticeFeedback` | Feedback theo từng câu trả lời | FK `practice_answer_id`; `strengths` / `weaknesses` |
 
@@ -736,16 +738,18 @@ của màn assessment hiện tại.
 | `invoices` | `tenant_id` | `tenants` | Không | N:1 | `fk_inv_tenant` |
 | `tenant_usage_daily` | `tenant_id` | `tenants` | Không | N:1 (1:1 theo ngày) | `fk_tud_tenant` |
 
-### 7.2 Tenant — 61 khoá ngoại hiện hành
+### 7.2 Tenant — 63 khoá ngoại hiện hành
 
-V49 bổ sung FK NOT NULL `ON DELETE CASCADE`: `notification_preferences.user_id` → `users.id` (N:1).
+V51 tách vật lý bảng `candidates` khỏi `users`, xoá `user_profiles` (`fk_profile_user`), đổi đích các FK ứng viên (`applications.candidate_id`, `cvs.candidate_id`, `submissions.candidate_id`, `practice_sessions.candidate_id`, `ai_interview_consents.candidate_id`) sang `candidates.id`, và hỗ trợ dual-actor (`user_id` nullable / `candidate_id` nullable) trên `oauth_accounts`, `notifications`, `notification_preferences`.
+
+V49 bổ sung FK `ON DELETE CASCADE`: `notification_preferences.user_id` → `users.id` (N:0..1 từ V51).
 
 V44 bổ sung hai FK NOT NULL `ON DELETE CASCADE`: `interview_sessions.ai_interview_id` → `ai_interviews.id` (mỗi attempt 0..1 session nhờ UNIQUE), `interview_messages.session_id` → `interview_sessions.id` (1:N). Các bảng legacy vẫn giữ quan hệ cũ.
 
 | Bảng con | Cột | Bảng cha | Nullable | Lực lượng | Tên ràng buộc |
 |---|---|---|---|---|---|
-| `oauth_accounts` | `user_id` | `users` | Không | N:1 | `fk_oauth_user` |
-| `user_profiles` | `user_id` | `users` | Không | 1:1 (UQ) | `fk_profile_user` |
+| `oauth_accounts` | `user_id` | `users` | Có (từ V51) | N:0..1 | `fk_oauth_user` |
+| `oauth_accounts` | `candidate_id` | `candidates` | Có (từ V51) | N:0..1 | `fk_oauth_candidate`, DELETE CASCADE |
 | `jobs` | `created_by` | `users` | Không | N:1 | `fk_jobs_user` |
 | `job_screening_configs` | `job_id` | `jobs` | Không | 1:1 (PK) | `fk_job_screening_job` (V27) |
 | `gate_scores` | `application_id` | `applications` | Không | 1:1 (UQ) | `fk_gate_score_application` (V27) |
@@ -756,13 +760,13 @@ V44 bổ sung hai FK NOT NULL `ON DELETE CASCADE`: `interview_sessions.ai_interv
 | `job_skills` | `skill_id` | `skills` | Không | N:1 | `fk_js_skill` |
 | `recruitment_stages` | `job_id` | `jobs` | Không | N:1 | `fk_rs_job` |
 | `applications` | `job_id` | `jobs` | Không | N:1 | `fk_app_job` |
-| `applications` | `candidate_id` | `users` | Không | N:1 | `fk_app_candidate` |
+| `applications` | `candidate_id` | `candidates` | Không | N:1 | `fk_app_candidate` (V51) |
 | `applications` | `stage_id` | `recruitment_stages` | Có | N:0..1 | `fk_app_stage` |
 | `applications` | `assignee_id` | `users` | Có | N:0..1 | `fk_app_assignee` |
 | `application_status_history` | `application_id` | `applications` | Không | N:1 | `fk_ash_app` |
 | `hiring_decisions` | `application_id` | `applications` | Không | N:1 | `fk_hd_app` |
 | `cvs` | `job_id` | `jobs` | Có (từ V8) | N:0..1 | `fk_cvs_job` |
-| `cvs` | `user_id` | `users` | Không | N:1 | `fk_cvs_user` |
+| `cvs` | `candidate_id` | `candidates` | Không | N:1 | `fk_cvs_candidate` (V51) |
 | `cv_documents` | `cv_id` | `cvs` | Không | 1:1 (UQ) | `fk_cvdoc_cv` |
 | `cv_extractions` | `cv_id` | `cvs` | Không | 1:1 (UQ) | `fk_cvext_cv` |
 | `cv_analyses` | `cv_id` | `cvs` | Không | 1:1 (UQ) | `fk_cv_analyses_cv` |
@@ -789,7 +793,7 @@ V44 bổ sung hai FK NOT NULL `ON DELETE CASCADE`: `interview_sessions.ai_interv
 | `coding_problems` | `test_id` | `tests` | Không | N:1 | `fk_cp_test` |
 | `test_cases` | `coding_problem_id` | `coding_problems` | Không | N:1 | `fk_tc_cp` |
 | `submissions` | `test_id` | `tests` | Không | N:1 | `fk_submissions_test` |
-| `submissions` | `candidate_id` | `users` | Không | N:1 | `fk_submissions_candidate` |
+| `submissions` | `candidate_id` | `candidates` | Không | N:1 | `fk_submissions_candidate` (V51) |
 | `submissions` | `application_id` | `applications` | Không | N:1 | `fk_submissions_application` |
 | `answers` | `submission_id` | `submissions` | Không | N:1 | `fk_answers_submission` |
 | `answers` | `question_id` | `questions` | Không | N:1 | `fk_answers_question` |
@@ -811,9 +815,12 @@ V44 bổ sung hai FK NOT NULL `ON DELETE CASCADE`: `interview_sessions.ai_interv
 | `ai_answers` | `ai_question_id` | `ai_questions` | Không | 1:1 (UQ) | `fk_ai_a_question` |
 | `ai_feedbacks` | `ai_answer_id` | `ai_answers` | Không | 1:1 (UQ) | `fk_ai_f_answer` |
 | `ai_interview_logs` | `ai_interview_id` | `ai_interviews` | Không | N:1 | `fk_ai_log_interview`, DELETE CASCADE |
-| `notifications` | `user_id` | `users` | Không | N:1 | `fk_notif_user` |
-| `notification_preferences` | `user_id` | `users` | Không | N:1 | `fk_notification_preference_user`, DELETE CASCADE |
-| `practice_sessions` | `candidate_id` | `users` | Không | N:1 | `fk_ps_user` |
+| `ai_interview_consents` | `candidate_id` | `candidates` | Không | N:1 | `fk_ai_consent_candidate` (V51), DELETE CASCADE |
+| `notifications` | `user_id` | `users` | Có (từ V51) | N:0..1 | `fk_notif_user` |
+| `notifications` | `candidate_id` | `candidates` | Có (từ V51) | N:0..1 | `fk_notif_candidate`, DELETE CASCADE |
+| `notification_preferences` | `user_id` | `users` | Có (từ V51) | N:0..1 | `fk_notification_preference_user`, DELETE CASCADE |
+| `notification_preferences` | `candidate_id` | `candidates` | Có (từ V51) | N:0..1 | `fk_notification_preference_candidate`, DELETE CASCADE |
+| `practice_sessions` | `candidate_id` | `candidates` | Không | N:1 | `fk_ps_candidate` (V51) |
 | `practice_answers` | `session_id` | `practice_sessions` | Không | N:1 | `fk_pa_ps` |
 | `practice_feedbacks` | `practice_answer_id` | `practice_answers` | Không | N:1 | `fk_pf_answer` |
 
@@ -863,7 +870,9 @@ kho hồ sơ (talent pool) chưa gắn với tin tuyển dụng nào.
 | `platform_users` | `uk_platform_users_email` | `email` | Email quản trị viên không trùng |
 | `tenant_usage_daily` | `uk_tenant_usage_daily` | `(tenant_id, usage_date)` | Mỗi tenant mỗi ngày đúng một dòng usage |
 
-### 8.2 Ràng buộc UNIQUE — Tenant (22, không tính PK)
+### 8.2 Ràng buộc UNIQUE — Tenant (23, không tính PK)
+
+V51 thêm `uk_candidates_email(email)` trên `candidates`, `uk_notification_preference_candidate_category(candidate_id, category)` trên `notification_preferences`, và bỏ `uk_profile_user` cùng bảng `user_profiles`.
 
 V49 thêm `uk_notification_preference_user_category(user_id, category)`: mỗi người dùng một cài đặt cho mỗi loại thông báo.
 
@@ -879,9 +888,9 @@ V22 thêm PK kép `questionskills(question_id, skill_id)` để ngăn gắn trù
 
 | Bảng | Ràng buộc | Cột | Ý nghĩa nghiệp vụ |
 |---|---|---|---|
-| `users` | `uk_users_email` | `email` | Email không trùng **trong phạm vi một tenant** |
+| `users` | `uk_users_email` | `email` | Email nhân sự không trùng **trong phạm vi một tenant** |
+| `candidates` | `uk_candidates_email` | `email` | Email ứng viên không trùng **trong phạm vi một tenant** (V51) |
 | `oauth_accounts` | `uk_oauth_provider_user` | `(provider, provider_user_id)` | Một tài khoản Google chỉ liên kết một lần |
-| `user_profiles` | `uk_profile_user` | `user_id` | Mỗi user tối đa một profile |
 | `member_invitations` | `uk_member_invitations_token_hash` | `token_hash` | Token mời không trùng |
 | `skills` | `uk_skills_name` | `name` | Từ điển kỹ năng không trùng tên |
 | `job_skills` | `uk_job_skill` | `(job_id, skill_id)` | Một kỹ năng chỉ khai báo một lần cho mỗi job |
@@ -900,7 +909,8 @@ V22 thêm PK kép `questionskills(question_id, skill_id)` để ngăn gắn trù
 | `role_permissions` | `uk_role_permissions_role_feature` | `(role, feature_code)` | Không lặp quyền cho một role |
 | `roles` | `uk_roles_code` | `code` | Mã role không trùng |
 | `company_directory_entries` | `uk_company_directory_type_name` | `(entry_type, name)` | Không trùng phòng ban hoặc địa điểm trong cùng danh mục |
-| `notification_preferences` | `uk_notification_preference_user_category` | `(user_id, category)` | Mỗi người dùng một cài đặt cho mỗi loại thông báo |
+| `notification_preferences` | `uk_notification_preference_user_category` | `(user_id, category)` | Mỗi nhân sự một cài đặt cho mỗi loại thông báo |
+| `notification_preferences` | `uk_notification_preference_candidate_category` | `(candidate_id, category)` | Mỗi ứng viên một cài đặt cho mỗi loại thông báo (V51) |
 
 ### 8.3 Máy trạng thái
 
@@ -1021,6 +1031,9 @@ V22 thêm `idx_questionskills_skill(skill_id)` trên `questionskills`. PK kép h
 
 | DB | Bảng | Index | Cột | Mục đích |
 |---|---|---|---|---|
+| Tenant | `users` | `idx_users_role_status` | `(role, status)` | Lọc nhân sự theo vai trò và trạng thái (V51) |
+| Tenant | `candidates` | `idx_candidates_status` | `(status)` | Lọc ứng viên theo trạng thái tài khoản (V51) |
+| Tenant | `notifications` | `idx_notif_candidate` | `(candidate_id, created_at)` | Danh sách thông báo in-app của ứng viên (V51) |
 | Tenant | `applications` | `idx_app_job_status` | `(job_id, status)` | Lọc danh sách ứng viên theo job và trạng thái |
 | Tenant | `applications` | `idx_app_archived` | `(job_id, archived_at)` | Tách đơn đang hoạt động khỏi đơn đã lưu trữ |
 | Tenant | `interview_schedules` | `idx_human_schedule_window` | `(status, scheduled_start, scheduled_end)` | Kiểm tra giao thời gian (V48) |
@@ -1161,9 +1174,10 @@ Hai pipeline dùng **hai phương ngữ SQL khác nhau** và không thể dùng 
 | V47 | `V47__cv_share_token.sql` | Thêm `cvs.share_token` VARCHAR(64) nullable + UNIQUE `uk_cvs_share_token` cho link chia sẻ CV công khai; không thêm bảng/FK |
 | V48 | `V48__human_interview_configuration.sql` | `interviews.configuration_json` JSON nullable; `idx_human_schedule_window` và `idx_interview_participant_user`; không thêm bảng/FK/UNIQUE |
 | V49 | `V49__notification_preferences.sql` | Tạo `notification_preferences` (entity `NotificationPreference`): `web_enabled`/`email_enabled` mặc định TRUE theo `(user_id, category)`; 1 FK CASCADE + 1 UNIQUE; không backfill |
+| V51 | `V51__separate_candidates_from_users.sql` | Tạo `candidates` (entity `Candidate`), gộp hồ sơ và xoá `user_profiles`; bổ sung `phone`, `avatar_url`, `job_title` trên `users`; chuyển toàn bộ FK ứng viên (`applications`, `cvs.candidate_id`, `submissions`, `practice_sessions`, `ai_interview_consents`) sang `candidates.id`; hỗ trợ dual-actor (`user_id` / `candidate_id`) trên `oauth_accounts`, `notifications`, `notification_preferences`. Đánh số V51 vì DB tenant đã có `V50__company_email_settings` |
 
 V9 redesign cũ được giữ nguyên tại `db/migration-archive/`, **ngoài** location Flyway.
-Tenant tạo mới chạy V1–V13 rồi V21–V36: 60 bảng hiện hành (gồm 5 bảng analytics V9), chưa tính history.
+Tenant tạo mới chạy V1–V13 rồi V21–V51: 60 bảng hiện hành (gồm 5 bảng analytics V9), chưa tính history.
 V9 analytics đã có source trong checkout hiện tại. Tuy nhiên DB ttqt có V13–V20 khác checkout;
 không dùng `repair` để đổi checksum hoặc giả mạo lịch sử. Việc đồng bộ lịch sử này là task riêng.
 V27–V32 là schema screening, assignment và landing lấy từ main, đánh số sau V26 để không đè V13 và không lấp V14–V20.

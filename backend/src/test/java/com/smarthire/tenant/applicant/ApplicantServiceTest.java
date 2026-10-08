@@ -8,6 +8,7 @@ import com.smarthire.domain.enums.JobStatus;
 import com.smarthire.domain.enums.ScreeningMode;
 import com.smarthire.domain.enums.UserRole;
 import com.smarthire.domain.tenant.entity.Application;
+import com.smarthire.domain.tenant.entity.Candidate;
 import com.smarthire.domain.tenant.entity.Cv;
 import com.smarthire.domain.tenant.entity.Job;
 import com.smarthire.domain.tenant.entity.User;
@@ -58,7 +59,8 @@ class ApplicantServiceTest {
     @Mock CvApplicationCopyService cvCopies;
 
     ApplicantService service;
-    User candidate;
+    Candidate candidate;
+    User staffActor;
     Job job;
     Application application;
 
@@ -67,11 +69,13 @@ class ApplicantServiceTest {
         service = new ApplicantService(
                 applications, history, jobs, users, cvs, stages, access, new JobMapper(), new ApplicantMapper(),
                 invitations, publisher, gateScreening, cvCopies);
-        candidate = new User();
+        candidate = new Candidate();
         candidate.setId(9L);
         candidate.setEmail("can@se36.local");
         candidate.setFullName("Candidate");
-        candidate.setRole(UserRole.CANDIDATE.name());
+        staffActor = new User();
+        staffActor.setId(2L);
+        staffActor.setRole(UserRole.RECRUITER.name());
         job = new Job();
         job.setId(1L);
         job.setTitle("Backend Java");
@@ -90,7 +94,7 @@ class ApplicantServiceTest {
         application.setCvScreeningStatus(CvScreeningStatus.PASSED);
         job.setAiInterviewEnabled(true);
         when(applications.findById(4L)).thenReturn(Optional.of(application));
-        when(access.actor()).thenReturn(candidate);
+        when(access.actor()).thenReturn(staffActor);
 
         var detail = service.changeStatus(4L, "HUMAN_INTERVIEW", "Human interview round");
 
@@ -106,7 +110,6 @@ class ApplicantServiceTest {
     void terminalApplicationCannotMoveToHumanInterview() {
         application.setStatus(ApplicationStatus.HIRED);
         when(applications.findById(4L)).thenReturn(Optional.of(application));
-        when(access.actor()).thenReturn(candidate);
 
         assertThatThrownBy(() -> service.changeStatus(4L, "HUMAN_INTERVIEW", null))
                 .isInstanceOf(BusinessException.class)
@@ -119,7 +122,7 @@ class ApplicantServiceTest {
     void applyRejectsDuplicate() {
         when(access.candidate()).thenReturn(true);
         when(jobs.findById(1L)).thenReturn(Optional.of(job));
-        when(access.actor()).thenReturn(candidate);
+        when(access.candidateActor()).thenReturn(candidate);
         when(applications.findByJob_IdAndCandidate_Id(1L, 9L)).thenReturn(Optional.of(application));
 
         assertThatThrownBy(() -> service.apply(1L, "CAREER", null))
@@ -133,7 +136,7 @@ class ApplicantServiceTest {
         var cv = new com.smarthire.domain.tenant.entity.Cv();
         cv.setApplication(application);
         cv.setJob(job);
-        cv.setUser(candidate);
+        cv.setCandidate(candidate);
         var score = new com.smarthire.domain.tenant.entity.MatchScore();
         score.setScore(new java.math.BigDecimal("85"));
         score.setBreakdownJson("{\"passed\":true}");
@@ -150,7 +153,7 @@ class ApplicantServiceTest {
         var cv = new com.smarthire.domain.tenant.entity.Cv();
         cv.setApplication(application);
         cv.setJob(job);
-        cv.setUser(candidate);
+        cv.setCandidate(candidate);
         var score = new com.smarthire.domain.tenant.entity.MatchScore();
         score.setScore(new java.math.BigDecimal("20"));
         score.setBreakdownJson("{\"passed\":false}");
@@ -174,7 +177,7 @@ class ApplicantServiceTest {
         stubNewApplication(1L, job, 11L);
         Cv cv = new Cv();
         cv.setId(3L);
-        cv.setUser(candidate);
+        cv.setCandidate(candidate);
         cv.setStatus(CvStatus.ANALYZED);
         when(cvs.findById(3L)).thenReturn(Optional.of(cv));
         Cv copy = new Cv();
@@ -199,7 +202,7 @@ class ApplicantServiceTest {
         stubNewApplication(2L, second, 12L);
         Cv firstApplicationCv = new Cv();
         firstApplicationCv.setId(5L);
-        firstApplicationCv.setUser(candidate);
+        firstApplicationCv.setCandidate(candidate);
         firstApplicationCv.setJob(job);
         firstApplicationCv.setApplication(application);
         firstApplicationCv.setStatus(CvStatus.ANALYZED);
@@ -219,7 +222,7 @@ class ApplicantServiceTest {
     private void stubNewApplication(long jobId, Job target, long applicationId) {
         when(access.candidate()).thenReturn(true);
         when(jobs.findById(jobId)).thenReturn(Optional.of(target));
-        when(access.actor()).thenReturn(candidate);
+        when(access.candidateActor()).thenReturn(candidate);
         when(applications.findByJob_IdAndCandidate_Id(jobId, 9L)).thenReturn(Optional.empty());
         when(applications.save(any(Application.class))).thenAnswer(invocation -> {
             Application saved = invocation.getArgument(0);
@@ -232,9 +235,9 @@ class ApplicantServiceTest {
     @Test
     void candidateCanWithdraw() {
         when(applications.findById(4L)).thenReturn(Optional.of(application));
-        when(access.actor()).thenReturn(candidate);
+        when(access.candidateActor()).thenReturn(candidate);
         when(access.candidate()).thenReturn(true);
-        when(cvs.findByUser_IdAndJob_IdOrderByIdDesc(9L, 1L)).thenReturn(List.of());
+        when(cvs.findByCandidate_IdAndJob_IdOrderByIdDesc(9L, 1L)).thenReturn(List.of());
         when(history.findByApplication_IdOrderByIdDesc(4L)).thenReturn(List.of());
         when(applications.countByCandidate_Id(9L)).thenReturn(1L);
 
@@ -273,7 +276,7 @@ class ApplicantServiceTest {
         job.setAiInterviewEnabled(true);
         Cv cv = new Cv();
         cv.setJob(job);
-        cv.setUser(candidate);
+        cv.setCandidate(candidate);
         cv.setApplication(application);
         MatchScore score = new MatchScore();
         score.setScore(new java.math.BigDecimal("80.00"));
@@ -291,7 +294,7 @@ class ApplicantServiceTest {
     void cvFailDoesNotSendInvite() {
         Cv cv = new Cv();
         cv.setJob(job);
-        cv.setUser(candidate);
+        cv.setCandidate(candidate);
         cv.setApplication(application);
         MatchScore score = new MatchScore();
         score.setScore(new java.math.BigDecimal("40.00"));
@@ -309,7 +312,7 @@ class ApplicantServiceTest {
         application.setStatus(ApplicationStatus.INTERVIEW);
         Cv cv = new Cv();
         cv.setJob(job);
-        cv.setUser(candidate);
+        cv.setCandidate(candidate);
         cv.setApplication(application);
         MatchScore score = new MatchScore();
         score.setScore(new java.math.BigDecimal("80.00"));
@@ -328,7 +331,7 @@ class ApplicantServiceTest {
         job.setScreeningMode(ScreeningMode.MANUAL);
         Cv cv = new Cv();
         cv.setJob(job);
-        cv.setUser(candidate);
+        cv.setCandidate(candidate);
         cv.setApplication(application);
         MatchScore score = new MatchScore();
         score.setScore(new java.math.BigDecimal("90.00"));
@@ -391,7 +394,7 @@ class ApplicantServiceTest {
         when(access.candidate()).thenReturn(false);
         when(access.actor()).thenReturn(recruiter);
         when(applications.findByIdForUpdate(4L)).thenReturn(Optional.of(application));
-        when(cvs.findByUser_IdAndJob_IdOrderByIdDesc(9L, 1L)).thenReturn(List.of());
+        when(cvs.findByCandidate_IdAndJob_IdOrderByIdDesc(9L, 1L)).thenReturn(List.of());
         when(history.findByApplication_IdOrderByIdDesc(4L)).thenReturn(List.of());
         when(applications.countByCandidate_Id(9L)).thenReturn(1L);
     }

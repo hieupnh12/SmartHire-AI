@@ -169,7 +169,7 @@ public class InterviewConversationService {
     }
 
     AiInterview accessible(long id, boolean lock) {
-        access.actor();
+        if (access.candidate()) access.candidateActor(); else access.actor();
         var interview = (lock ? interviews.findByIdForUpdate(id) : interviews.findById(id))
                 .orElseThrow(() -> missing("Interview not found"));
         if (!InterviewPolicies.isConversation(interview)) throw error("This attempt uses the legacy interview room", "AI_CONVERSATION_LEGACY");
@@ -181,7 +181,7 @@ public class InterviewConversationService {
         return interview;
     }
     private void requireCandidate(AiInterview interview) {
-        if (!access.candidate() || !access.actor().getId().equals(interview.getApplication().getCandidate().getId()))
+        if (!access.candidate() || !access.candidateActor().getId().equals(interview.getApplication().getCandidate().getId()))
             throw new BusinessException("Candidate access required", HttpStatus.FORBIDDEN, "AI_INTERVIEW_FORBIDDEN");
     }
     private static void requireActive(AiInterview interview) {

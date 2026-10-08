@@ -73,7 +73,7 @@ class SubmissionServiceStaffListTest {
     }
 
     private Submission submission(long id, TestSubmissionStatus status, Instant startedAt, BigDecimal score) {
-        User candidate = new User();
+        Candidate candidate = new Candidate();
         candidate.setId(100L + id);
         candidate.setFullName("Candidate " + id);
         candidate.setEmail("c" + id + "@example.test");

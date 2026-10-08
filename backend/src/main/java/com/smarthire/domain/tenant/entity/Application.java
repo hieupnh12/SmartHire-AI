@@ -23,7 +23,7 @@ public class Application extends BaseEntity {
     @JoinColumn(name = "job_id", nullable = false) Job job;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "candidate_id", nullable = false) User candidate;
+    @JoinColumn(name = "candidate_id", nullable = false) Candidate candidate;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "stage_id") RecruitmentStage stage;
