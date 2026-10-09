@@ -3,7 +3,6 @@ import { useParams, useNavigate } from "react-router-dom";
 import { contractApi, ContractItem } from "@/api/master/contractApi";
 import {
   FileSignature,
-  FileCheck2,
   ShieldCheck,
   Building2,
   Printer,
@@ -11,6 +10,9 @@ import {
   CheckCircle2,
   AlertCircle,
   Loader2,
+  RefreshCw,
+  Download,
+  Hash,
 } from "lucide-react";
 
 export function PublicContractSigningPage() {
@@ -20,28 +22,8 @@ export function PublicContractSigningPage() {
   const [contract, setContract] = useState<ContractItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  // Signing Modal State
-  const [showSignModal, setShowSignModal] = useState(false);
-  const [signTab, setSignTab] = useState<"OTP" | "CA_TOKEN" | "UPLOAD_PDF">("OTP");
-
-  // Sign Form Fields
-  const [signerName, setSignerName] = useState("");
-  const [signerTitle, setSignerTitle] = useState("");
-  const [notes, setNotes] = useState("");
-
-  // OTP State
-  const [otpCode, setOtpCode] = useState("");
-  const [otpRequested, setOtpRequested] = useState(false);
-  const [requestingOtp, setRequestingOtp] = useState(false);
-  const [otpMessage, setOtpMessage] = useState<string | null>(null);
-
-  // CA Token State
-  const [tokenSerial, setTokenSerial] = useState("");
-  const [caProvider, setCaProvider] = useState("VNPT-CA");
-
-  // Signing Process State
-  const [signing, setSigning] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncNotice, setSyncNotice] = useState<string | null>(null);
 
   useEffect(() => {
     if (!token) {
@@ -55,8 +37,6 @@ export function PublicContractSigningPage() {
       try {
         const data = await contractApi.getBySigningToken(token);
         setContract(data);
-        if (data.partyBRepresentative) setSignerName(data.partyBRepresentative);
-        if (data.partyBPosition) setSignerTitle(data.partyBPosition);
       } catch (err: any) {
         const msg =
           err.response?.data?.message ||
@@ -70,64 +50,25 @@ export function PublicContractSigningPage() {
     fetchContract();
   }, [token]);
 
-  const handleRequestOtp = async () => {
+  const handleSyncDropboxSign = async () => {
     if (!token) return;
-    setRequestingOtp(true);
-    setOtpMessage(null);
+    setSyncing(true);
+    setSyncNotice(null);
     try {
-      const res = await contractApi.requestSigningOtp(token);
-      setOtpRequested(true);
-      setOtpMessage(res.message || "Đã gửi mã xác thực OTP 6 số đến email của bạn.");
-    } catch (err: any) {
-      const msg = err.response?.data?.message || "Không thể gửi mã OTP. Vui lòng thử lại.";
-      setOtpMessage(msg);
-    } finally {
-      setRequestingOtp(false);
-    }
-  };
-
-  const handleSignWithOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!token || !otpCode) return;
-    setSigning(true);
-    setError(null);
-    try {
-      const updated = await contractApi.signWithOtp(token, {
-        otpCode,
-        signerName: signerName.trim(),
-        signerTitle: signerTitle.trim(),
-        notes,
-      });
+      const updated = await contractApi.syncEsignByToken(token);
       setContract(updated);
-      setShowSignModal(false);
+      if (updated.status === "SIGNED") {
+        setSyncNotice("Hợp đồng đã được ký số thành công trên Dropbox Sign! Chứng thư Audit Trail và mã băm SHA-256 đã được cập nhật.");
+      } else {
+        setSyncNotice("Đã kiểm tra từ Dropbox Sign: Hợp đồng đang chờ đại diện Bên B hoàn tất ký kết qua email.");
+      }
     } catch (err: any) {
-      const msg = err.response?.data?.message || "Xác thực OTP không thành công. Vui lòng kiểm tra lại.";
-      setError(msg);
+      const msg =
+        err.response?.data?.message ||
+        "Không thể đồng bộ trạng thái từ Dropbox Sign. Vui lòng thử lại sau.";
+      setSyncNotice(msg);
     } finally {
-      setSigning(false);
-    }
-  };
-
-  const handleSignWithTokenCa = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!token || !tokenSerial) return;
-    setSigning(true);
-    setError(null);
-    try {
-      const updated = await contractApi.signWithTokenCa(token, {
-        tokenSerial: tokenSerial.trim(),
-        caProvider,
-        signerName: signerName.trim(),
-        signerTitle: signerTitle.trim(),
-        notes,
-      });
-      setContract(updated);
-      setShowSignModal(false);
-    } catch (err: any) {
-      const msg = err.response?.data?.message || "Không thể ký số CA. Vui lòng kiểm tra lại.";
-      setError(msg);
-    } finally {
-      setSigning(false);
+      setSyncing(false);
     }
   };
 
@@ -137,7 +78,7 @@ export function PublicContractSigningPage() {
         <div className="bg-white p-8 rounded-2xl shadow-xl border border-slate-200 text-center max-w-sm w-full">
           <Loader2 className="w-10 h-10 text-indigo-600 animate-spin mx-auto mb-4" />
           <h2 className="text-base font-bold text-slate-800">Đang Xác Thực Hợp Đồng Điện Tử...</h2>
-          <p className="text-xs text-slate-500 mt-1">Đang tải toàn văn văn bản pháp lý và chứng thư số.</p>
+          <p className="text-xs text-slate-500 mt-1">Đang tải toàn văn văn bản pháp lý và chứng thư số Dropbox Sign.</p>
         </div>
       </div>
     );
@@ -164,18 +105,19 @@ export function PublicContractSigningPage() {
   if (!contract) return null;
 
   const isSigned = contract.status === "SIGNED";
+  const pdfDownloadUrl = token ? contractApi.getPublicPdfUrl(token) : "#";
 
   return (
     <div className="min-h-screen bg-slate-200/70 py-8 px-4 sm:px-6 lg:px-8 font-sans antialiased text-slate-900">
       {/* Top Floating Action Bar */}
-      <div className="max-w-4xl mx-auto mb-6 bg-white/95 backdrop-blur-md rounded-2xl p-4 border border-slate-300/80 shadow-md flex flex-wrap items-center justify-between gap-3 print:hidden">
+      <div className="max-w-4xl mx-auto mb-4 bg-white/95 backdrop-blur-md rounded-2xl p-4 border border-slate-300/80 shadow-md flex flex-wrap items-center justify-between gap-3 print:hidden">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-200 flex items-center justify-center text-indigo-600 font-bold">
             <FileSignature className="w-5 h-5" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-bold text-slate-900">Cổng Ký Hợp Đồng Điện Tử B2B</span>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm font-bold text-slate-900">Cổng Ký Hợp Đồng Điện Tử B2B (Dropbox Sign)</span>
               <span
                 className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
                   isSigned
@@ -183,32 +125,101 @@ export function PublicContractSigningPage() {
                     : "bg-amber-100 text-amber-800 border border-amber-300"
                 }`}
               >
-                {isSigned ? "ĐÃ KÝ SỐ HỢP LỆ" : "CHỜ ĐỐI TÁC KÝ SỐ"}
+                {isSigned ? "ĐÃ KÝ SỐ HỢP LỆ (AUDIT TRAIL)" : "CHỜ ĐỐI TÁC KÝ QUA DROPBOX SIGN"}
               </span>
+              {contract.esignTestMode && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-sky-100 text-sky-800 border border-sky-300">
+                  SANDBOX TEST MODE
+                </span>
+              )}
             </div>
             <span className="text-xs text-slate-500 font-mono">Mã HĐ: {contract.contractNumber}</span>
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2 flex-wrap">
+          <a
+            href={pdfDownloadUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="px-3.5 py-2 rounded-xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold text-xs flex items-center gap-1.5 transition-colors"
+          >
+            <Download className="w-4 h-4" />
+            <span>{isSigned ? "Tải PDF Đã Ký & Audit Trail" : "Tải Bản Thảo PDF"}</span>
+          </a>
+
           <button
             onClick={() => window.print()}
             className="px-3.5 py-2 rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold text-xs flex items-center gap-1.5 transition-colors shadow-2xs"
           >
             <Printer className="w-4 h-4 text-slate-500" />
-            <span>In / Lưu PDF</span>
+            <span>In Văn Bản</span>
           </button>
 
           {!isSigned && (
             <button
-              onClick={() => setShowSignModal(true)}
-              className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center gap-2 shadow-sm transition-all animate-pulse"
+              onClick={handleSyncDropboxSign}
+              disabled={syncing}
+              className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-bold text-xs flex items-center gap-2 shadow-sm transition-all"
             >
-              <FileCheck2 className="w-4 h-4" />
-              <span>Tiến Hành Ký Số Ngay</span>
+              {syncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+              <span>Đồng Bộ Trạng Thái Ký</span>
             </button>
           )}
         </div>
+      </div>
+
+      {/* Dropbox Sign Legal E-Signature & Cryptographic Verification Banner */}
+      <div className="max-w-4xl mx-auto mb-6 bg-white rounded-2xl p-4 sm:p-5 border border-indigo-200/90 shadow-sm print:hidden">
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+          <div className="space-y-1.5 text-xs">
+            <div className="flex items-center gap-2 font-bold text-indigo-950 text-sm">
+              <ShieldCheck className="w-4 h-4 text-indigo-600 shrink-0" />
+              <span>
+                {isSigned
+                  ? "Văn bản đã được ký số hợp pháp trên nền tảng Dropbox Sign (HelloSign)"
+                  : "Hướng dẫn ký số hợp pháp qua Dropbox Sign (Remote Email Signing)"}
+              </span>
+            </div>
+            {!isSigned ? (
+              <p className="text-slate-600 leading-relaxed">
+                Để đảm bảo giá trị pháp lý và toàn vẹn dữ liệu theo Luật Giao dịch điện tử 20/2023/QH15, yêu cầu ký số kèm văn bản PDF đã được{" "}
+                <strong>Dropbox Sign</strong> gửi trực tiếp tới hộp thư đại diện Bên B:{" "}
+                <span className="font-mono font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded">
+                  {contract.partyBEmail || "email đại diện Bên B"}
+                </span>
+                . Vui lòng mở email từ <strong>Dropbox Sign (noreply@mail.hellosign.com)</strong> và nhấn <strong>"Review &amp; Sign"</strong> để ký kết.
+              </p>
+            ) : (
+              <p className="text-emerald-800 leading-relaxed">
+                Hợp đồng này đã được ký điện tử thành công và niêm phong mật mã học kèm trang <strong>Dropbox Sign Audit Trail</strong>. Mọi hành vi chỉnh sửa nội dung sau khi ký đều làm thay đổi mã băm SHA-256.
+              </p>
+            )}
+
+            <div className="pt-2 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-[11px] text-slate-600 font-mono">
+              {contract.externalSignatureRequestId && (
+                <div>
+                  <span className="font-sans font-semibold text-slate-500">Request ID: </span>
+                  <span className="text-slate-900 font-bold">{contract.externalSignatureRequestId}</span>
+                </div>
+              )}
+              {contract.documentChecksum && (
+                <div className="flex items-center gap-1 break-all">
+                  <Hash className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                  <span className="font-sans font-semibold text-slate-500">SHA-256: </span>
+                  <span className="text-slate-800">{contract.documentChecksum}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {syncNotice && (
+          <div className="mt-3 pt-3 border-t border-slate-100 text-xs font-medium text-indigo-800 flex items-center gap-2">
+            <Mail className="w-4 h-4 text-indigo-600 shrink-0" />
+            <span>{syncNotice}</span>
+          </div>
+        )}
       </div>
 
       {/* Contract Paper Document */}
@@ -428,7 +439,7 @@ export function PublicContractSigningPage() {
                 5.1. Hợp đồng này được lập dưới dạng <strong>Thông điệp dữ liệu điện tử</strong> theo Luật Giao dịch điện tử số 20/2023/QH15.
               </p>
               <p>
-                5.2. Chữ ký số và xác thực điện tử của hai bên có đầy đủ giá trị pháp lý tương đương văn bản giấy đóng dấu đỏ.
+                5.2. Chữ ký số và xác thực điện tử qua nền tảng <strong>Dropbox Sign</strong> của hai bên kèm biên bản kiểm toán (Audit Trail) và mã băm SHA-256 có đầy đủ giá trị pháp lý tương đương văn bản giấy đóng dấu đỏ.
               </p>
             </div>
           </div>
@@ -440,8 +451,8 @@ export function PublicContractSigningPage() {
           <div className="space-y-2 flex flex-col items-center">
             <span className="font-bold uppercase text-slate-900">ĐẠI DIỆN BÊN A</span>
             <span className="text-[11px] text-slate-500 italic">(Đã ký số điện tử)</span>
-            <div className="h-28 flex flex-col items-center justify-center">
-              <div className="p-3 bg-indigo-50/80 rounded-xl border border-indigo-200 text-center w-full max-w-[240px]">
+            <div className="h-32 flex flex-col items-center justify-center">
+              <div className="p-3 bg-indigo-50/80 rounded-xl border border-indigo-200 text-center w-full max-w-[250px]">
                 <ShieldCheck className="w-5 h-5 text-indigo-600 mx-auto mb-1" />
                 <div className="text-[10px] font-bold text-indigo-900">SMARTHIRE VIỆT NAM CA</div>
                 <div className="text-[9px] text-indigo-700 font-mono">Timestamp: {new Date(contract.createdAt).toLocaleDateString("vi-VN")}</div>
@@ -456,28 +467,38 @@ export function PublicContractSigningPage() {
           <div className="space-y-2 flex flex-col items-center">
             <span className="font-bold uppercase text-slate-900">ĐẠI DIỆN BÊN B</span>
             <span className="text-[11px] text-slate-500 italic">
-              {isSigned ? "(Đã hoàn tất ký số điện tử)" : "(Chờ đại diện Bên B ký số)"}
+              {isSigned ? "(Đã hoàn tất ký số qua Dropbox Sign)" : "(Chờ ký qua email Dropbox Sign)"}
             </span>
-            <div className="h-28 flex flex-col items-center justify-center">
+            <div className="h-32 flex flex-col items-center justify-center">
               {isSigned ? (
-                <div className="p-3 bg-emerald-50/90 rounded-xl border border-emerald-300 text-center w-full max-w-[240px] shadow-2xs">
+                <div className="p-3 bg-emerald-50/90 rounded-xl border border-emerald-300 text-center w-full max-w-[260px] shadow-2xs">
                   <CheckCircle2 className="w-5 h-5 text-emerald-600 mx-auto mb-1" />
                   <div className="text-[10px] font-bold text-emerald-900">
-                    {contract.signMethod === "DIGITAL_TOKEN_CA" ? "CHỨNG THƯ SỐ CA TOKEN" : "XÁC THỰC E-SIGN OTP"}
+                    DROPBOX SIGN VERIFIED E-SIGNATURE
                   </div>
                   <div className="text-[9px] text-emerald-800 font-mono">
                     Ký lúc: {contract.signedAt ? new Date(contract.signedAt).toLocaleString("vi-VN") : "Đã ký"}
                   </div>
-                  {contract.clientIp && <div className="text-[8px] text-slate-400 font-mono">IP: {contract.clientIp}</div>}
+                  {contract.externalSignatureRequestId && (
+                    <div className="text-[8px] text-slate-500 font-mono truncate">
+                      ReqID: {contract.externalSignatureRequestId}
+                    </div>
+                  )}
                 </div>
               ) : (
-                <button
-                  onClick={() => setShowSignModal(true)}
-                  className="px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs shadow-md transition-all flex items-center gap-2 print:hidden"
-                >
-                  <FileSignature className="w-4 h-4" />
-                  <span>Ký Hợp Đồng Ngay</span>
-                </button>
+                <div className="p-3 bg-amber-50/90 rounded-xl border border-amber-300 text-center w-full max-w-[260px] space-y-2 print:hidden">
+                  <div className="text-[11px] font-semibold text-amber-900">
+                    Kiểm tra hộp thư <span className="font-mono underline">{contract.partyBEmail}</span> để ký trên Dropbox Sign
+                  </div>
+                  <button
+                    onClick={handleSyncDropboxSign}
+                    disabled={syncing}
+                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold text-[11px] shadow-xs transition-all inline-flex items-center gap-1.5"
+                  >
+                    {syncing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                    <span>Kiểm Tra Trạng Thái Ký</span>
+                  </button>
+                </div>
               )}
             </div>
             <span className="font-bold text-slate-900 mt-2">
@@ -489,222 +510,7 @@ export function PublicContractSigningPage() {
           </div>
         </div>
       </div>
-
-      {/* MODAL: SIGNING FLOW */}
-      {showSignModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl p-6 sm:p-8 max-w-lg w-full shadow-2xl border border-slate-200 relative animate-fade-in max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center gap-3 mb-5">
-              <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-600 flex items-center justify-center font-bold">
-                <FileSignature className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-slate-900">Ký Số Điện Tử Hợp Đồng B2B</h3>
-                <span className="text-xs text-indigo-600 font-mono font-bold">{contract.contractNumber}</span>
-              </div>
-            </div>
-
-            {/* Method Tabs */}
-            <div className="flex rounded-xl bg-slate-100 p-1 mb-5 text-xs font-semibold">
-              <button
-                onClick={() => setSignTab("OTP")}
-                className={`flex-1 py-2 rounded-lg transition-all ${
-                  signTab === "OTP" ? "bg-white text-indigo-700 shadow-xs" : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                1. e-Sign OTP Email
-              </button>
-              <button
-                onClick={() => setSignTab("CA_TOKEN")}
-                className={`flex-1 py-2 rounded-lg transition-all ${
-                  signTab === "CA_TOKEN" ? "bg-white text-indigo-700 shadow-xs" : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                2. USB Token / CA
-              </button>
-            </div>
-
-            {/* TAB 1: OTP EMAIL SIGNING */}
-            {signTab === "OTP" && (
-              <form onSubmit={handleSignWithOtp} className="space-y-4 text-xs">
-                <div className="p-3 bg-indigo-50/70 rounded-xl border border-indigo-200 text-slate-700">
-                  <span className="font-semibold text-indigo-900 block mb-1">Xác thực người ký qua Email</span>
-                  <p className="text-[11px] text-slate-600">
-                    Mã xác thực OTP 6 số sẽ được gửi trực tiếp đến hộp thư:{" "}
-                    <strong className="font-mono text-indigo-700">{contract.partyBEmail || "email đại diện Bên B"}</strong>
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Họ tên người ký *</label>
-                    <input
-                      type="text"
-                      required
-                      value={signerName}
-                      onChange={(e) => setSignerName(e.target.value)}
-                      placeholder="Nguyễn Văn A"
-                      className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:border-indigo-600"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Chức vụ đại diện *</label>
-                    <input
-                      type="text"
-                      required
-                      value={signerTitle}
-                      onChange={(e) => setSignerTitle(e.target.value)}
-                      placeholder="Tổng Giám Đốc"
-                      className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:border-indigo-600"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex justify-between items-center mb-1">
-                    <label className="font-semibold text-slate-700">Mã OTP Xác Thực (6 số) *</label>
-                    <button
-                      type="button"
-                      disabled={requestingOtp}
-                      onClick={handleRequestOtp}
-                      className="text-xs font-bold text-indigo-600 hover:underline flex items-center gap-1 disabled:opacity-50"
-                    >
-                      {requestingOtp ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Mail className="w-3.5 h-3.5" />}
-                      <span>{otpRequested ? "Gửi lại mã OTP" : "Nhận mã OTP qua Email"}</span>
-                    </button>
-                  </div>
-                  <input
-                    type="text"
-                    required
-                    maxLength={6}
-                    value={otpCode}
-                    onChange={(e) => setOtpCode(e.target.value)}
-                    placeholder="859302"
-                    className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 font-mono font-bold text-lg text-center tracking-widest text-indigo-700 focus:outline-none focus:border-indigo-600"
-                  />
-                  {otpMessage && <p className="text-[11px] text-indigo-700 mt-1">{otpMessage}</p>}
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Ghi chú phản hồi khi ký (Tùy chọn)</label>
-                  <input
-                    type="text"
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    placeholder="Đã đối soát thông tin gói cước và đồng ý các điều khoản."
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-slate-800 focus:outline-none focus:border-indigo-600 text-xs"
-                  />
-                </div>
-
-                <div className="pt-2 flex gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setShowSignModal(false)}
-                    className="w-1/2 py-2.5 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 font-semibold"
-                  >
-                    Hủy Bỏ
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={signing || !otpCode}
-                    className="w-1/2 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold disabled:opacity-50 flex items-center justify-center gap-1.5 shadow-sm"
-                  >
-                    {signing ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileCheck2 className="w-4 h-4" />}
-                    <span>Xác Nhận Ký Số</span>
-                  </button>
-                </div>
-              </form>
-            )}
-
-            {/* TAB 2: CA TOKEN SIGNING */}
-            {signTab === "CA_TOKEN" && (
-              <form onSubmit={handleSignWithTokenCa} className="space-y-4 text-xs">
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Nhà cung cấp chữ ký số CA *</label>
-                  <select
-                    value={caProvider}
-                    onChange={(e) => setCaProvider(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-slate-800 font-semibold focus:outline-none focus:border-indigo-600 bg-white"
-                  >
-                    <option value="VNPT-CA">VNPT-CA (Tập đoàn VNPT)</option>
-                    <option value="VIETTEL-CA">Viettel-CA (Tập đoàn Viettel)</option>
-                    <option value="FPT-CA">FPT-CA (Công ty FPT IS)</option>
-                    <option value="MISA-eSign">MISA eSign (Công ty MISA)</option>
-                    <option value="BKAV-CA">BKAV-CA (Tập đoàn BKAV)</option>
-                    <option value="SMART-CA">VNPT SmartCA / Viettel MySign</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Serial Chứng thư số / Token ID *</label>
-                  <input
-                    type="text"
-                    required
-                    value={tokenSerial}
-                    onChange={(e) => setTokenSerial(e.target.value)}
-                    placeholder="54:02:FA:99:BC:11:00:88"
-                    className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 font-mono text-slate-800 focus:outline-none focus:border-indigo-600"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Họ tên người ký *</label>
-                    <input
-                      type="text"
-                      required
-                      value={signerName}
-                      onChange={(e) => setSignerName(e.target.value)}
-                      placeholder="Nguyễn Văn A"
-                      className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:border-indigo-600"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Chức vụ đại diện *</label>
-                    <input
-                      type="text"
-                      required
-                      value={signerTitle}
-                      onChange={(e) => setSignerTitle(e.target.value)}
-                      placeholder="Tổng Giám Đốc"
-                      className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:border-indigo-600"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Ghi chú phản hồi khi ký (Tùy chọn)</label>
-                  <input
-                    type="text"
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    placeholder="Đã đối soát thông tin gói cước và đồng ý các điều khoản."
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 text-slate-800 focus:outline-none focus:border-indigo-600 text-xs"
-                  />
-                </div>
-
-                <div className="pt-2 flex gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setShowSignModal(false)}
-                    className="w-1/2 py-2.5 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 font-semibold"
-                  >
-                    Hủy Bỏ
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={signing || !tokenSerial}
-                    className="w-1/2 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold disabled:opacity-50 flex items-center justify-center gap-1.5 shadow-sm"
-                  >
-                    {signing ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileCheck2 className="w-4 h-4" />}
-                    <span>Xác Nhận Ký Số CA</span>
-                  </button>
-                </div>
-              </form>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
+

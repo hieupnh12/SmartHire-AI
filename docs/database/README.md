@@ -10,6 +10,8 @@
 
 | Thông tin | Giá trị |
 |---|---|
+| Tích hợp Dropbox Sign API Hợp đồng B2B 2026-10-09 | Master V26 bổ sung `esign_provider`, `external_signature_request_id` (+ index `idx_contracts_external_sig_req_id`), `esign_details_url`, `esign_test_mode`, `signed_pdf_bytes` (BYTEA) trên `contracts` (`Contract`) và `external_signature_id` trên `contract_signatures` (`ContractSignature`) phục vụ ký số Remote Email Signing qua Dropbox Sign API v3 kèm Audit Trail & SHA-256 checksum |
+| Click-wrap Legal Consent Checkout 2026-10-09 | Master V25 tạo bảng `master_consent_logs` + entity `MasterConsentLog` (2 FK `ON DELETE SET NULL` tới `tenants` và `invoices`, 3 index tra cứu) và thêm 3 cột snapshot đồng thuận pháp lý (`terms_accepted`, `terms_version`, `terms_accepted_at`) vào `invoices` |
 | Tách vật lý Candidate & User 2026-10-08 | Tenant V51 (đánh lại từ V50 vì trùng `V50__company_email_settings` trên DB tenant) tạo bảng `candidates` + entity `Candidate`, gộp và xóa `user_profiles` (`UserProfile`), thêm `phone`/`avatar_url`/`job_title` + `idx_users_role_status` cho `users`, chuyển 6 FK ứng viên (`applications`, `cvs.candidate_id`, `submissions`, `practice_sessions`, `ai_interview_consents`, `oauth_accounts.candidate_id`) sang `candidates(id)`, bổ sung `candidate_id` nullable + FK cho 2 bảng đa tác nhân (`notifications`, `notification_preferences`) |
 | Cài đặt thông báo 2026-10-07 | Tenant V49 tạo `notification_preferences` + entity `NotificationPreference`, enum `NotificationCategory` (`AI_INTERVIEW`, `ASSESSMENT`, `HUMAN_INTERVIEW`); 1 FK CASCADE tới `users`, 1 UNIQUE `(user_id, category)`. Không có dòng nghĩa là bật cả web lẫn email |
 | Trạng thái ứng viên 2026-10-07 | Bổ sung ApplicationStatus.HUMAN_INTERVIEW (phỏng vấn người–người); INTERVIEW giữ nghĩa phỏng vấn AI. DB dùng VARCHAR(32), không cần migration; số bảng/entity/FK/index không đổi |
@@ -31,8 +33,8 @@
 | Entity JPA tenant | 62 class `@Entity` theo checkout hiện tại; V44 bổ sung `InterviewSession`, `InterviewMessage`; V45 bổ sung `CompanyDirectoryEntry`; V49 bổ sung `NotificationPreference`; V51 thay `UserProfile` bằng `Candidate` |
 | Khoá ngoại tenant | 89 theo mốc tài liệu (88 sau V49 − 1 FK `user_profiles` + 2 FK `candidate_id` trên `notifications` & `notification_preferences`, 6 FK ứng viên chuyển đích sang `candidates`) |
 | Ràng buộc UNIQUE tenant | V25/V26 không thêm UNIQUE. V27 thêm UNIQUE `gate_scores.application_id`. V30 thêm `uk_job_assignments_job_user`. V45 thêm `uk_company_directory_type_name`. V47 thêm `uk_cvs_share_token`. V49 thêm `uk_notification_preference_user_category`. V51 xóa `uk_profile_user`, thêm `uk_candidates_email` và `uk_notification_preference_candidate_category` |
-| Số file migration trong repo | 66 (23 master + 43 tenant); V9 redesign nằm ngoài pipeline |
-| Cập nhật lần cuối | Master `V24`, tenant `V51`: tách vật lý bảng `candidates` khỏi `users` và gộp `user_profiles` |
+| Số file migration trong repo | 68 (25 master + 43 tenant); V9 redesign nằm ngoài pipeline |
+| Cập nhật lần cuối | Master `V26` (tích hợp Dropbox Sign API cho `contracts` và `contract_signatures`), Master `V25` (`master_consent_logs`), tenant `V51` (`candidates`) |
 | Dọn legacy V21 | Xóa 19 bảng và dữ liệu legacy, xóa 2 cột ID legacy trong ranking; không chuyển ID cũ sang bản ghi mới |
 | Metadata assessment 2026-09-25 | V13: `tests.created_by/updated_at`, `questions.difficulty/skill/explanation` cho Excel/UI authoring |
 | Sửa lỗi assessment 2026-09-24 | V10/V11 khớp checksum lịch sử; V12 tạo schema mới và giữ bảng cũ; migration lỗi phải chặn mở tenant pool |
@@ -155,18 +157,19 @@ thay vì âm thầm đọc nhầm database của doanh nghiệp khác.
 
 ## 3. Entity List
 
-### 3.1 Master — 8 entity (`com.smarthire.domain.master.entity`)
+### 3.1 Master — 9 entity cốt lõi + các entity mở rộng V11–V25 (`com.smarthire.domain.master.entity`)
 
 | No | Entity | Bảng | Nhóm | Ghi chú |
 |---|---|---|---|---|
 | 01 | `TenantInfo` | `tenants` | Tenant | Gốc của Master DB |
 | 02 | `SubscriptionPlan` | `subscription_plans` | Subscription | Bảng tra cứu gói + hạn mức |
 | 03 | `TenantSubscription` | `tenant_subscriptions` | Subscription | Gói đang áp dụng cho tenant |
-| 04 | `Invoice` | `invoices` | Billing | Hoá đơn |
+| 04 | `Invoice` | `invoices` | Billing | Hoá đơn (mang snapshot `terms_accepted`, `terms_version`, `terms_accepted_at` từ V25) |
 | 05 | `TenantUsageDaily` | `tenant_usage_daily` | Analytics | Usage tổng hợp theo ngày |
 | 06 | `PlatformUser` | `platform_users` | Admin | Tài khoản quản trị nền tảng |
 | 07 | `PlatformAuditLog` | `platform_audit_logs` | Audit | Nhật ký cấp nền tảng |
 | 08 | `ConsultationRequest` | `consultation_requests` | Sales | Yêu cầu demo/tư vấn từ landing |
+| 09 | `MasterConsentLog` | `master_consent_logs` | Compliance & Audit | Bằng chứng pháp lý Click-wrap Agreement (`TERMS_OF_SERVICE`, `PRIVACY_POLICY_ND13`) tại checkout (V25) |
 
 ### 3.2 Tenant — 62 entity (`com.smarthire.domain.tenant.entity`)
 
@@ -298,6 +301,8 @@ erDiagram
     subscription_plans ||--o{ tenant_subscriptions : "được áp dụng bởi"
     tenants ||--o{ invoices : "phát sinh hoá đơn"
     tenants ||--o{ tenant_usage_daily : "ghi nhận usage theo ngày"
+    tenants |o--o{ master_consent_logs : "bằng chứng đồng thuận"
+    invoices |o--o{ master_consent_logs : "đồng thuận khi đặt hàng"
 
     tenants {
         bigint id PK
@@ -325,6 +330,19 @@ erDiagram
         bigint tenant_id FK
         bigint subscription_id "không có FK"
         decimal amount
+        boolean terms_accepted
+        varchar terms_version
+        timestamp terms_accepted_at
+    }
+    master_consent_logs {
+        bigint id PK
+        bigint tenant_id FK "ON DELETE SET NULL"
+        bigint invoice_id FK "ON DELETE SET NULL"
+        varchar actor_email
+        varchar policy_type
+        varchar policy_version
+        boolean is_accepted
+        varchar ip_address
     }
     tenant_usage_daily {
         bigint id PK
@@ -349,7 +367,7 @@ erDiagram
 ```
 
 `platform_users`, `platform_audit_logs` và `consultation_requests` **không** có khoá ngoại nào — đây là lựa
-chọn cố ý để log và lead sống lâu hơn vòng đời của tenant.
+chọn cố ý để log và lead sống lâu hơn vòng đời của tenant. `master_consent_logs` dùng FK `ON DELETE SET NULL` tới `tenants` và `invoices` để bằng chứng pháp lý không bị xoá mất khi huỷ tenant.
 
 ### 4.2 Tenant DB — bản đồ tổng quan theo nhóm nghiệp vụ
 
@@ -577,11 +595,12 @@ sẽ chặn thao tác thay vì bị gỡ âm thầm. Hai cột `ranking_sources.
 | `TenantInfo` | Đại diện một doanh nghiệp khách hàng và cách kết nối tới database riêng của họ | `code`, `subdomain`, `db_name`, `db_url`, `db_username`, `db_password` (mã hoá, `@JsonIgnore`), `managed_database`, hồ sơ công ty, `is_verified` | Tạo khi onboarding → `ACTIVE` → có thể khoá/xoá |
 | `SubscriptionPlan` | Định nghĩa gói dịch vụ và hạn mức tiêu thụ | `price_yearly`, `max_jobs`, `max_cv_parses`, `max_ai_interview_hours`, `max_storage_gb`, `max_proctoring_hours`, `video_retention_days`, `features_json` | Bảng tra cứu, ít thay đổi |
 | `TenantSubscription` | Gói mà một tenant đang dùng trong một khoảng thời gian | `tenant_id`, `plan_id`, `starts_at`, `ends_at`, `auto_renew` | `ACTIVE` → hết hạn hoặc gia hạn |
-| `Invoice` | Hoá đơn phát sinh cho tenant | `amount`, `currency`, `payment_gateway`, `transaction_id`, `paid_at` | `PENDING` → thanh toán |
+| `Invoice` | Hoá đơn phát sinh cho tenant | `amount`, `currency`, `payment_gateway`, `transaction_id`, `paid_at`, `terms_accepted`, `terms_version`, `terms_accepted_at` (V25) | `PENDING` → thanh toán |
 | `TenantUsageDaily` | Số liệu tiêu thụ theo ngày để đối chiếu hạn mức | `usage_date`, `cv_parses_count`, `ai_voice_seconds`, `proctoring_seconds`, `storage_bytes`, `active_jobs_count`, `ai_tokens_consumed` | Một dòng/tenant/ngày, cập nhật tăng dần |
 | `PlatformUser` | Tài khoản quản trị nền tảng, tách hoàn toàn khỏi `users` của tenant | `email`, `password_hash`, `role` (mặc định `WORKSPACE_ADMIN`) | `ACTIVE` / khoá |
 | `PlatformAuditLog` | Nhật ký hành động cấp nền tảng | `tenant_code`, `action`, `level`, `ip_address`, `metadata_json` | Chỉ ghi thêm, không sửa |
 | `ConsultationRequest` | Lead demo/tư vấn gửi từ landing page | `company_name`, `work_email`, `request_type`, `plan_tier`, `primary_need` | `PENDING` → xử lý |
+| `MasterConsentLog` | Bằng chứng đồng thuận pháp lý Click-wrap Agreement (`TERMS_OF_SERVICE`, `PRIVACY_POLICY_ND13` — Nghị định 13/2023/NĐ-CP) tại checkout (V25) | `tenant_id`, `invoice_id`, `actor_email`, `policy_type`, `policy_version`, `is_accepted`, `ip_address`, `user_agent`, `created_at` | Chỉ ghi thêm, giữ lại cả khi xoá tenant (`ON DELETE SET NULL`) |
 
 ### 5.2 Tenant — Identity & Access
 
@@ -729,7 +748,7 @@ của màn assessment hiện tại.
 
 ## 7. Relationships
 
-### 7.1 Master — 4 khoá ngoại
+### 7.1 Master — 6 khoá ngoại cốt lõi
 
 | Bảng con | Cột | Bảng cha | Nullable | Lực lượng | Tên ràng buộc |
 |---|---|---|---|---|---|
@@ -737,6 +756,8 @@ của màn assessment hiện tại.
 | `tenant_subscriptions` | `plan_id` | `subscription_plans` | Không | N:1 | `fk_ts_plan` |
 | `invoices` | `tenant_id` | `tenants` | Không | N:1 | `fk_inv_tenant` |
 | `tenant_usage_daily` | `tenant_id` | `tenants` | Không | N:1 (1:1 theo ngày) | `fk_tud_tenant` |
+| `master_consent_logs` | `tenant_id` | `tenants` | Có | N:0..1 | `fk_mcl_tenant` (`ON DELETE SET NULL`, V25) |
+| `master_consent_logs` | `invoice_id` | `invoices` | Có | N:0..1 | `fk_mcl_invoice` (`ON DELETE SET NULL`, V25) |
 
 ### 7.2 Tenant — 63 khoá ngoại hiện hành
 
@@ -1045,6 +1066,9 @@ V22 thêm `idx_questionskills_skill(skill_id)` trên `questionskills`. PK kép h
 | Master | `consultation_requests` | `idx_consultation_requests_status` | `status` | Lọc lead theo trạng thái xử lý |
 | Master | `consultation_requests` | `idx_consultation_requests_email` | `work_email` | Tra cứu lead trùng |
 | Master | `consultation_requests` | `idx_consultation_requests_created_at` | `created_at DESC` | Danh sách lead mới nhất |
+| Master | `master_consent_logs` | `idx_master_consent_logs_tenant` | `(tenant_id, created_at DESC)` | Tra cứu lịch sử đồng thuận pháp lý theo doanh nghiệp (V25) |
+| Master | `master_consent_logs` | `idx_master_consent_logs_invoice` | `(invoice_id)` | Tra cứu bằng chứng đồng thuận gắn với đơn hàng/hóa đơn (V25) |
+| Master | `master_consent_logs` | `idx_master_consent_logs_email` | `(actor_email, created_at DESC)` | Tra cứu bằng chứng đồng thuận theo email người đặt hàng (V25) |
 
 ### 9.2 Index do RDBMS tự sinh
 
@@ -1127,6 +1151,8 @@ Hai pipeline dùng **hai phương ngữ SQL khác nhau** và không thể dùng 
 | V22 | `V22__consolidate_subscription_plan_pricing_to_vnd.sql` | Chuẩn hoá lưu giá gói duy nhất bằng `price_yearly` (VNĐ), xoá `price_monthly`, `price_monthly_vnd`, `price_yearly_vnd` |
 | V23 | `V23__optimize_master_schema.sql` | Tối ưu schema master: liên kết hợp đồng–hóa đơn, độ chính xác tiền tệ VND và index log |
 | V24 | `V24__spring_ai_interview_defaults.sql` | Thay riêng seed model Gemini Interview 1.5/2.0 bằng `gemini-2.5-flash`, tăng ngân sách tối thiểu 8192 token; giữ model khác do admin chọn, không đổi schema |
+| V25 | `V25__checkout_legal_consent_logs.sql` | Tạo bảng `master_consent_logs` (entity `MasterConsentLog`) lưu bằng chứng Click-wrap Agreement (`TERMS_OF_SERVICE`, `PRIVACY_POLICY_ND13` — Nghị định 13/2023/NĐ-CP) kèm IP/User-Agent + 2 FK `ON DELETE SET NULL` + 3 index; thêm `terms_accepted`, `terms_version`, `terms_accepted_at` vào `invoices` |
+| V26 | `V26__dropbox_sign_contract_integration.sql` | Tích hợp Dropbox Sign API v3 cho hợp đồng B2B: thêm `esign_provider`, `external_signature_request_id` (+ `idx_contracts_external_sig_req_id`), `esign_details_url`, `esign_test_mode`, `signed_pdf_bytes` (BYTEA) trên `contracts` và `external_signature_id` trên `contract_signatures` |
 
 ### 10.3 Lịch sử migration — Tenant
 

@@ -30,6 +30,9 @@ class OrderPdfGeneratorServiceTest {
                 .accountName("NGUYEN NHAT SINH")
                 .transferSyntax("SH INV-202610-0001")
                 .qrUrl("https://img.vietqr.io/image/TPBank-07744348801-compact2.png?amount=36000000&addInfo=SH%20INV-202610-0001&accountName=NGUYEN%20NHAT%20SINH")
+                .termsVersion("v2026.10")
+                .termsAcceptedAt("09/10/2026 20:55:00")
+                .clientIp("203.113.152.10")
                 .build();
 
         byte[] pdfBytes = generator.generateOrderPdf(data);

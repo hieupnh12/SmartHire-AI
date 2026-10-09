@@ -204,3 +204,9 @@ sepay:
   webhook-secret: ${SEPAY_WEBHOOK_SECRET:}
   require-signature: ${SEPAY_REQUIRE_SIGNATURE:true}
 
+dropbox-sign:
+  api-key: ${DROPBOX_SIGN_API_KEY:}
+  base-url: ${DROPBOX_SIGN_BASE_URL:https://api.hellosign.com/v3}
+  test-mode: ${DROPBOX_SIGN_TEST_MODE:true}
+
+

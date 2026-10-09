@@ -159,6 +159,26 @@ public class Contract {
     @Column(name = "document_checksum")
     String documentChecksum;
 
+    @Builder.Default
+    @Column(name = "esign_provider", length = 32)
+    String esignProvider = "DROPBOX_SIGN";
+
+    @Column(name = "external_signature_request_id", length = 128)
+    String externalSignatureRequestId;
+
+    @Column(name = "esign_details_url", length = 512)
+    String esignDetailsUrl;
+
+    @Builder.Default
+    @Column(name = "esign_test_mode", nullable = false)
+    Boolean esignTestMode = true;
+
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
+    @Column(name = "signed_pdf_bytes", columnDefinition = "bytea")
+    byte[] signedPdfBytes;
+
     @Column(name = "terms_and_conditions", columnDefinition = "TEXT")
     String termsAndConditions;
 

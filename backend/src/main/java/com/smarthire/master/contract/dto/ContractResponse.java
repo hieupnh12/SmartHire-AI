@@ -68,6 +68,11 @@ public class ContractResponse {
     private LocalDateTime signedAt;
     private String signedDocumentUrl;
     private String documentChecksum;
+    private String esignProvider;
+    private String externalSignatureRequestId;
+    private String esignDetailsUrl;
+    private Boolean esignTestMode;
+    private Boolean hasSignedPdf;
     private String termsAndConditions;
     private String notes;
     private LocalDateTime createdAt;
@@ -119,6 +124,11 @@ public class ContractResponse {
                 .signedAt(contract.getSignedAt())
                 .signedDocumentUrl(contract.getSignedDocumentUrl())
                 .documentChecksum(contract.getDocumentChecksum())
+                .esignProvider(contract.getEsignProvider())
+                .externalSignatureRequestId(contract.getExternalSignatureRequestId())
+                .esignDetailsUrl(contract.getEsignDetailsUrl())
+                .esignTestMode(contract.getEsignTestMode())
+                .hasSignedPdf(contract.getSignedPdfBytes() != null && contract.getSignedPdfBytes().length > 0)
                 .termsAndConditions(contract.getTermsAndConditions())
                 .notes(contract.getNotes())
                 .createdAt(contract.getCreatedAt())

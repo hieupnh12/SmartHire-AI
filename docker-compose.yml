@@ -118,6 +118,8 @@ services:
       GOTENBERG_URL: http://gotenberg:3000
       SEPAY_WEBHOOK_SECRET: ${SEPAY_WEBHOOK_SECRET:-}
       SEPAY_REQUIRE_SIGNATURE: ${SEPAY_REQUIRE_SIGNATURE:-true}
+      DROPBOX_SIGN_API_KEY: ${DROPBOX_SIGN_API_KEY:-}
+      DROPBOX_SIGN_TEST_MODE: ${DROPBOX_SIGN_TEST_MODE:-true}
       CORS_ORIGINS: http://localhost:5173,http://localhost:80
     ports:
       - "8080:8080"

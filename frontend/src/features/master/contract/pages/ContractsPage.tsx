@@ -3,14 +3,13 @@ import { useNavigate } from "react-router-dom";
 import {
   Plus, Search, FileSignature, FileCheck2, Clock,
   Send, Copy, Eye, Trash2, ChevronDown, CheckCircle2,
-  TrendingUp, AlertCircle,
+  TrendingUp, AlertCircle, RefreshCw, Download,
 } from "lucide-react";
 import { ContractItem, contractApi } from "@/api/master/contractApi";
 import { useContracts, masterQueryKeys } from "@/api/master/queries";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/stores/toastStore";
 import { ContractDetailModal } from "../components/ContractDetailModal";
-import { SignContractModal } from "../components/SignContractModal";
 import { HeaderActions } from "@/features/master/shell/HeaderActions";
 
 /* ─────────────────────────────────────────────
@@ -119,13 +118,6 @@ export function ContractsPage() {
   const itemsPerPage = 10;
 
   const [selectedContract, setSelectedContract] = useState<ContractItem | null>(null);
-  const [showSignContractModal, setShowSignContractModal] = useState<ContractItem | null>(null);
-  const [signMethod, setSignMethod] = useState<"DIGITAL_TOKEN_CA" | "E_SIGN_ONLINE" | "UPLOAD_SIGNED_PDF" | "MANUAL">("DIGITAL_TOKEN_CA");
-  const [signSignedDocUrl, setSignSignedDocUrl] = useState("");
-  const [signSignatureData, setSignSignatureData] = useState("");
-  const [signAutoInvoice, setSignAutoInvoice] = useState(true);
-  const [signNotes, setSignNotes] = useState("");
-  const [signingContract, setSigningContract] = useState(false);
 
   /* ── derived counts ── */
   const signedCount   = useMemo(() => contracts.filter((c) => c.status === "SIGNED").length, [contracts]);
@@ -165,16 +157,38 @@ export function ContractsPage() {
 
   /* ── actions ── */
   const handleSendContract = (contract: ContractItem) => {
-    triggerNotification(`Đang gửi email mời ký HĐ ${contract.contractNumber}...`);
+    triggerNotification(`Đang khởi tạo PDF và gửi yêu cầu ký qua Dropbox Sign cho HĐ ${contract.contractNumber}...`);
     contractApi.send(contract.id)
       .then((updated) => {
         setContracts((prev: ContractItem[]) => (prev || []).map((c: ContractItem) => (c.id === updated.id ? updated : c)));
+        if (selectedContract && selectedContract.id === updated.id) {
+          setSelectedContract(updated);
+        }
         const url = `${window.location.origin}/contracts/sign/${updated.signingToken || contract.signingToken}`;
         navigator.clipboard?.writeText(url).catch(() => {});
-        triggerNotification(`Đã gửi & sao chép link ký số HĐ ${contract.contractNumber}!`);
+        triggerNotification(`Đã gửi yêu cầu ký qua Dropbox Sign & sao chép link HĐ ${contract.contractNumber}!`);
       })
       .catch((err: any) => {
         alert(`Lỗi gửi HĐ ${contract.contractNumber}: ${err.response?.data?.message || err.message}`);
+      });
+  };
+
+  const handleSyncEsign = (contract: ContractItem) => {
+    triggerNotification(`Đang đồng bộ trạng thái ký từ Dropbox Sign cho HĐ ${contract.contractNumber}...`);
+    contractApi.syncEsign(contract.id)
+      .then((updated) => {
+        setContracts((prev: ContractItem[]) => (prev || []).map((c: ContractItem) => (c.id === updated.id ? updated : c)));
+        if (selectedContract && selectedContract.id === updated.id) {
+          setSelectedContract(updated);
+        }
+        triggerNotification(
+          updated.status === "SIGNED"
+            ? `HĐ ${updated.contractNumber} đã hoàn tất ký số trên Dropbox Sign!`
+            : `Đã đồng bộ Dropbox Sign: HĐ ${updated.contractNumber} đang chờ Bên B ký.`
+        );
+      })
+      .catch((err: any) => {
+        alert(`Lỗi đồng bộ Dropbox Sign: ${err.response?.data?.message || err.message}`);
       });
   };
 
@@ -192,22 +206,6 @@ export function ContractsPage() {
       setContracts((prev: ContractItem[]) => (prev || []).filter((c: ContractItem) => c.id !== contract.id));
       triggerNotification(`Đã xóa HĐ ${contract.contractNumber}`);
     } catch { alert("Lỗi khi xóa hợp đồng."); }
-  };
-
-  const handleSignContractSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!showSignContractModal) return;
-    setSigningContract(true);
-    try {
-      const res = await contractApi.sign(showSignContractModal.id, {
-        signMethod, signatureData: signSignatureData,
-        signedDocumentUrl: signSignedDocUrl, autoCreateInvoice: signAutoInvoice, notes: signNotes,
-      } as any);
-      setContracts((prev: ContractItem[]) => (prev || []).map((c: ContractItem) => (c.id === res.id ? res : c)));
-      setShowSignContractModal(null);
-      triggerNotification(`Ký HĐ ${res.contractNumber} thành công!`);
-    } catch { alert("Lỗi khi ký hợp đồng"); }
-    finally { setSigningContract(false); }
   };
 
   return (
@@ -333,12 +331,8 @@ export function ContractsPage() {
 
                     {/* Sign method */}
                     <td className="px-5 py-4 whitespace-nowrap">
-                      <span className="inline-flex px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
-                        {c.signMethod === "DIGITAL_TOKEN_CA" ? "USB Token / CA"
-                          : c.signMethod === "E_SIGN_ONLINE" ? "OTP Email"
-                          : c.signMethod === "UPLOAD_SIGNED_PDF" ? "Upload PDF"
-                          : c.signMethod === "MANUAL" ? "Ký tay"
-                          : "—"}
+                      <span className="inline-flex px-2 py-0.5 rounded-md text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                        Dropbox Sign
                       </span>
                       {(c.partyBRepresentative || c.signerName) && (
                         <div className="text-[10px] text-slate-400 mt-0.5 truncate max-w-[130px]">
@@ -355,18 +349,41 @@ export function ContractsPage() {
                     {/* Actions */}
                     <td className="px-5 py-4 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-1.5 opacity-80 group-hover:opacity-100 transition-opacity">
-                        <button
-                          onClick={() => handleSendContract(c)}
-                          title="Gửi email mời ký"
-                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 font-semibold text-[11px] transition-colors"
+                        {c.status !== "SIGNED" && (
+                          <button
+                            onClick={() => handleSendContract(c)}
+                            title="Gửi yêu cầu ký qua Dropbox Sign"
+                            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 font-semibold text-[11px] transition-colors"
+                          >
+                            <Send className="w-3 h-3" />
+                            Gửi
+                          </button>
+                        )}
+
+                        {c.status !== "SIGNED" && c.externalSignatureRequestId && (
+                          <button
+                            onClick={() => handleSyncEsign(c)}
+                            title="Đồng bộ trạng thái ký từ Dropbox Sign"
+                            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 font-semibold text-[11px] transition-colors"
+                          >
+                            <RefreshCw className="w-3 h-3" />
+                            Đồng bộ
+                          </button>
+                        )}
+
+                        <a
+                          href={contractApi.getPublicPdfUrl(c.signingToken || `CTR-TOKEN-${c.id}`)}
+                          target="_blank"
+                          rel="noreferrer"
+                          title="Tải PDF hợp đồng & Audit Trail"
+                          className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-600 transition-colors"
                         >
-                          <Send className="w-3 h-3" />
-                          Gửi
-                        </button>
+                          <Download className="w-3.5 h-3.5" />
+                        </a>
 
                         <button
                           onClick={() => handleCopySigningLink(c)}
-                          title="Sao chép link ký số"
+                          title="Sao chép link tra cứu hợp đồng"
                           className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-500 transition-colors"
                         >
                           <Copy className="w-3.5 h-3.5" />
@@ -383,22 +400,13 @@ export function ContractsPage() {
 
                         {c.status !== "SIGNED" && (
                           <button
-                            onClick={() => setShowSignContractModal(c)}
-                            title="Ký số điện tử"
-                            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-[11px] transition-colors shadow-xs"
+                            onClick={() => handleDeleteContract(c)}
+                            title="Xóa hợp đồng"
+                            className="p-1.5 rounded-lg hover:bg-rose-50 hover:text-rose-600 text-slate-400 transition-colors"
                           >
-                            <FileSignature className="w-3 h-3" />
-                            Ký số
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         )}
-
-                        <button
-                          onClick={() => handleDeleteContract(c)}
-                          title="Xóa hợp đồng"
-                          className="p-1.5 rounded-lg hover:bg-rose-50 hover:text-rose-600 text-slate-400 transition-colors"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
                       </div>
                     </td>
                   </tr>
@@ -451,27 +459,7 @@ export function ContractsPage() {
         setSelectedContract={setSelectedContract}
         handleSendContract={handleSendContract}
         handleCopySigningLink={handleCopySigningLink}
-        handleOpenSignModal={(contract) => {
-          setSelectedContract(null);
-          setShowSignContractModal(contract);
-        }}
-      />
-
-      <SignContractModal
-        showSignContractModal={showSignContractModal}
-        setShowSignContractModal={setShowSignContractModal}
-        signMethod={signMethod}
-        setSignMethod={setSignMethod}
-        signSignedDocUrl={signSignedDocUrl}
-        setSignSignedDocUrl={setSignSignedDocUrl}
-        signSignatureData={signSignatureData}
-        setSignSignatureData={setSignSignatureData}
-        signAutoInvoice={signAutoInvoice}
-        setSignAutoInvoice={setSignAutoInvoice}
-        signNotes={signNotes}
-        setSignNotes={setSignNotes}
-        signingContract={signingContract}
-        handleSignContractSubmit={handleSignContractSubmit}
+        handleSyncEsign={handleSyncEsign}
       />
     </div>
   );

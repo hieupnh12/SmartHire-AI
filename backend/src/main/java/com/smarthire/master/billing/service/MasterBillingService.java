@@ -3,11 +3,15 @@ package com.smarthire.master.billing.service;
 import com.smarthire.common.exception.BusinessException;
 import com.smarthire.domain.master.entity.Invoice;
 import com.smarthire.domain.master.entity.InvoiceLineItem;
+import com.smarthire.domain.master.entity.MasterConsentLog;
+import com.smarthire.domain.master.entity.PlatformAuditLog;
 import com.smarthire.domain.master.entity.SubscriptionPlan;
 import com.smarthire.domain.master.entity.TenantInfo;
 import com.smarthire.domain.master.entity.TenantSubscription;
 import com.smarthire.domain.master.repository.InvoiceLineItemRepository;
 import com.smarthire.domain.master.repository.InvoiceRepository;
+import com.smarthire.domain.master.repository.MasterConsentLogRepository;
+import com.smarthire.domain.master.repository.PlatformAuditLogRepository;
 import com.smarthire.domain.master.repository.SubscriptionPlanRepository;
 import com.smarthire.domain.master.repository.TenantInfoRepository;
 import com.smarthire.domain.master.repository.TenantSubscriptionRepository;
@@ -44,6 +48,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class MasterBillingService {
 
+    public static final String DEFAULT_TERMS_VERSION = "v2026.10";
     private static final Set<String> VALID_STATUSES = Set.of("PENDING", "PAID", "OVERDUE", "CANCELLED");
 
     private final InvoiceRepository invoiceRepository;
@@ -51,6 +56,8 @@ public class MasterBillingService {
     private final TenantInfoRepository tenantRepository;
     private final SubscriptionPlanRepository planRepository;
     private final TenantSubscriptionRepository subscriptionRepository;
+    private final MasterConsentLogRepository consentLogRepository;
+    private final PlatformAuditLogRepository platformAuditLogRepository;
     private final MasterTenantService masterTenantService;
     private final InviteMailSender mailSender;
     private final OrderPdfGeneratorService orderPdfGeneratorService;
@@ -252,6 +259,26 @@ public class MasterBillingService {
 
     @Transactional(transactionManager = "masterTransactionManager")
     public CheckoutResponse checkout(CheckoutRequest request) {
+        return checkout(request, "127.0.0.1", null);
+    }
+
+    @Transactional(transactionManager = "masterTransactionManager")
+    public CheckoutResponse checkout(CheckoutRequest request, String clientIp, String userAgent) {
+        if (!Boolean.TRUE.equals(request.getTermsAccepted())) {
+            throw new BusinessException(
+                    "Quý khách cần đồng ý với Điều khoản dịch vụ và Chính sách bảo vệ dữ liệu cá nhân để tiếp tục",
+                    HttpStatus.BAD_REQUEST,
+                    "TERMS_NOT_ACCEPTED"
+            );
+        }
+
+        String policyVersion = StringUtils.hasText(request.getTermsVersion())
+                ? request.getTermsVersion().trim()
+                : DEFAULT_TERMS_VERSION;
+        LocalDateTime acceptedAt = LocalDateTime.now();
+        String safeIp = StringUtils.hasText(clientIp) ? clientIp.trim() : "127.0.0.1";
+        String safeUserAgent = StringUtils.hasText(userAgent) ? userAgent.trim() : "UNKNOWN";
+
         SubscriptionPlan plan = planRepository.findByCode(request.getPlanCode().toUpperCase())
                 .orElseThrow(() -> new BusinessException("Gói cước không tồn tại: " + request.getPlanCode(), HttpStatus.NOT_FOUND, "PLAN_NOT_FOUND"));
 
@@ -288,7 +315,7 @@ public class MasterBillingService {
                 .build();
         sub = subscriptionRepository.save(sub);
 
-        // 3. Create invoice
+        // 3. Create invoice with legal consent snapshot
         String invoiceNumber = generateInvoiceNumber();
         Invoice invoice = Invoice.builder()
                 .invoiceNumber(invoiceNumber)
@@ -306,6 +333,9 @@ public class MasterBillingService {
                 .billingTaxCode(request.getTaxCode())
                 .billingLegalName(request.getCompanyLegalName())
                 .billingAddress(request.getBillingAddress())
+                .termsAccepted(true)
+                .termsVersion(policyVersion)
+                .termsAcceptedAt(acceptedAt)
                 .notes("Self-Service Checkout - " + plan.getName() + " (" + quantity + " Năm)"
                         + (StringUtils.hasText(request.getNotes()) ? " | Ghi chú khách hàng: " + request.getNotes().trim() : ""))
                 .build();
@@ -321,6 +351,54 @@ public class MasterBillingService {
                 .itemType("SUBSCRIPTION")
                 .build();
         invoiceLineItemRepository.save(lineItem);
+
+        // 4.1 Record click-wrap legal consent audit trail (Terms of Service & Decree 13/2023/ND-CP Privacy Policy)
+        MasterConsentLog tosConsent = MasterConsentLog.builder()
+                .tenantId(tenant.getId())
+                .invoiceId(savedInvoice.getId())
+                .actorName(request.getAdminFullName().trim())
+                .actorEmail(request.getAdminEmail().trim())
+                .policyType("TERMS_OF_SERVICE")
+                .policyVersion(policyVersion)
+                .accepted(true)
+                .ipAddress(safeIp)
+                .userAgent(safeUserAgent)
+                .consentContext("SELF_SERVE_CHECKOUT")
+                .createdAt(acceptedAt)
+                .build();
+
+        MasterConsentLog privacyConsent = MasterConsentLog.builder()
+                .tenantId(tenant.getId())
+                .invoiceId(savedInvoice.getId())
+                .actorName(request.getAdminFullName().trim())
+                .actorEmail(request.getAdminEmail().trim())
+                .policyType("PRIVACY_POLICY_ND13")
+                .policyVersion(policyVersion)
+                .accepted(true)
+                .ipAddress(safeIp)
+                .userAgent(safeUserAgent)
+                .consentContext("SELF_SERVE_CHECKOUT")
+                .createdAt(acceptedAt)
+                .build();
+
+        consentLogRepository.saveAll(List.of(tosConsent, privacyConsent));
+
+        PlatformAuditLog auditLog = PlatformAuditLog.builder()
+                .tenantCode(tenant.getCode())
+                .action("ACCEPT_CHECKOUT_TERMS")
+                .level("INFO")
+                .ipAddress(safeIp)
+                .description("Khách hàng xác nhận đồng ý Điều khoản dịch vụ & Chính sách BVDLCN (NĐ 13/2023/NĐ-CP) phiên bản "
+                        + policyVersion + " cho đơn hàng #" + savedInvoice.getInvoiceNumber())
+                .metadataJson(String.format(
+                        "{\"invoiceNumber\":\"%s\",\"policyVersion\":\"%s\",\"policies\":[\"TERMS_OF_SERVICE\",\"PRIVACY_POLICY_ND13\"],\"acceptedAt\":\"%s\"}",
+                        savedInvoice.getInvoiceNumber(),
+                        policyVersion,
+                        acceptedAt
+                ))
+                .createdAt(acceptedAt)
+                .build();
+        platformAuditLogRepository.save(auditLog);
 
         // 5. Bank Info and SePay VietQR (TPBank)
         String bankName = "Ngân hàng TMCP Tiên Phong (TPBank)";
@@ -343,6 +421,7 @@ public class MasterBillingService {
                 String orderDate = savedInvoice.getCreatedAt() != null
                         ? savedInvoice.getCreatedAt().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
                         : LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+                String formattedAcceptedAt = acceptedAt.format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss"));
 
                 OrderPdfData pdfData = OrderPdfData.builder()
                         .invoiceNumber(savedInvoice.getInvoiceNumber())
@@ -361,6 +440,9 @@ public class MasterBillingService {
                         .accountName(accountName)
                         .transferSyntax(transferSyntax)
                         .qrUrl(qrUrl)
+                        .termsVersion(policyVersion)
+                        .termsAcceptedAt(formattedAcceptedAt)
+                        .clientIp(safeIp)
                         .build();
 
                 byte[] pdfBytes = orderPdfGeneratorService.generateOrderPdf(pdfData);
@@ -387,6 +469,9 @@ public class MasterBillingService {
                 .accountName(accountName)
                 .transferSyntax(transferSyntax)
                 .qrUrl(qrUrl)
+                .termsAccepted(true)
+                .termsVersion(policyVersion)
+                .termsAcceptedAt(acceptedAt)
                 .createdAt(savedInvoice.getCreatedAt())
                 .build();
     }

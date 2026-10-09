@@ -96,12 +96,14 @@ jobs:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
           SEPAY_WEBHOOK_SECRET: ${{ secrets.SEPAY_WEBHOOK_SECRET }}
+          DROPBOX_SIGN_API_KEY: ${{ secrets.DROPBOX_SIGN_API_KEY }}
+          DROPBOX_SIGN_TEST_MODE: ${{ secrets.DROPBOX_SIGN_TEST_MODE }}
           RELEASE_TAG: ${{ github.sha }}
         with:
           host: ${{ secrets.GCP_VPS_HOST }}
           username: ${{ secrets.GCP_VPS_USER }}
           key: ${{ secrets.GCP_VPS_SSH_KEY }}
-          envs: DOCKERHUB_USERNAME,DOCKERHUB_TOKEN,SEPAY_WEBHOOK_SECRET,RELEASE_TAG
+          envs: DOCKERHUB_USERNAME,DOCKERHUB_TOKEN,SEPAY_WEBHOOK_SECRET,DROPBOX_SIGN_API_KEY,DROPBOX_SIGN_TEST_MODE,RELEASE_TAG
           script_stop: true
           script: |
             set -euo pipefail
@@ -113,6 +115,16 @@ jobs:
               grep -q '^SEPAY_WEBHOOK_SECRET=' deploy/.env.production \
                 && sed -i "s|^SEPAY_WEBHOOK_SECRET=.*|SEPAY_WEBHOOK_SECRET=${SEPAY_WEBHOOK_SECRET}|" deploy/.env.production \
                 || printf '\nSEPAY_WEBHOOK_SECRET=%s\nSEPAY_REQUIRE_SIGNATURE=true\n' "${SEPAY_WEBHOOK_SECRET}" >> deploy/.env.production
+            fi
+            if [ -n "${DROPBOX_SIGN_API_KEY:-}" ]; then
+              grep -q '^DROPBOX_SIGN_API_KEY=' deploy/.env.production \
+                && sed -i "s|^DROPBOX_SIGN_API_KEY=.*|DROPBOX_SIGN_API_KEY=${DROPBOX_SIGN_API_KEY}|" deploy/.env.production \
+                || printf '\nDROPBOX_SIGN_API_KEY=%s\n' "${DROPBOX_SIGN_API_KEY}" >> deploy/.env.production
+            fi
+            if [ -n "${DROPBOX_SIGN_TEST_MODE:-}" ]; then
+              grep -q '^DROPBOX_SIGN_TEST_MODE=' deploy/.env.production \
+                && sed -i "s|^DROPBOX_SIGN_TEST_MODE=.*|DROPBOX_SIGN_TEST_MODE=${DROPBOX_SIGN_TEST_MODE}|" deploy/.env.production \
+                || printf 'DROPBOX_SIGN_TEST_MODE=%s\n' "${DROPBOX_SIGN_TEST_MODE}" >> deploy/.env.production
             fi
             echo "${DOCKERHUB_TOKEN}" | docker login --username "${DOCKERHUB_USERNAME}" --password-stdin
             IMAGE_TAG="${RELEASE_TAG}" bash deploy/scripts/deploy.sh

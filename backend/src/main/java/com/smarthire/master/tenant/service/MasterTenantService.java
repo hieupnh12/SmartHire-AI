@@ -103,7 +103,8 @@ public class MasterTenantService {
             throw new BusinessException("Failed to drop database: " + ex.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR, "DROP_DB_FAILED");
         }
         
-        // Cascade delete related records in Master DB
+        // Detach legal consent logs so immutable compliance audit trail survives tenant deletion, then cascade delete related records in Master DB
+        masterJdbc.update("UPDATE master_consent_logs SET tenant_id = NULL, invoice_id = NULL WHERE tenant_id = ?", id);
         masterJdbc.update("DELETE FROM invoice_line_items WHERE invoice_id IN (SELECT id FROM invoices WHERE tenant_id = ?)", id);
         masterJdbc.update("DELETE FROM invoices WHERE tenant_id = ?", id);
         masterJdbc.update("DELETE FROM payment_transactions WHERE tenant_id = ?", id);

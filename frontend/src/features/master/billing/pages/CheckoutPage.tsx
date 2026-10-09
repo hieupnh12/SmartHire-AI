@@ -19,6 +19,10 @@ import {
 } from "lucide-react";
 import { checkoutApi, PublicSubscriptionPlan, CheckoutResponseData } from "@/api/master/checkoutApi";
 import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
+import { LegalPolicyModal, type LegalPolicyTab } from "../components/modals/LegalPolicyModal";
+
+const CURRENT_POLICY_VERSION = "v2026.10";
+
 export function CheckoutPage() {
   const { planCode } = useParams<{ planCode: string }>();
   // Wizard Step: 1 = Đặt hàng, 2 = Thanh toán, 3 = Kích hoạt
@@ -42,6 +46,10 @@ export function CheckoutPage() {
   const [taxCode, setTaxCode] = useState("");
   const [billingAddress, setBillingAddress] = useState("");
   const [notes, setNotes] = useState("");
+  // Click-wrap Legal Consent state (Mandatory explicit Opt-in, NEVER pre-checked)
+  const [isTermsAccepted, setIsTermsAccepted] = useState<boolean>(false);
+  const [termsError, setTermsError] = useState<boolean>(false);
+  const [policyModalTab, setPolicyModalTab] = useState<LegalPolicyTab | null>(null);
   // Selected payment method on Step 1
   const [selectedPaymentType, setSelectedPaymentType] = useState<
     "TRANSFER" | "ATM" | "INTERNATIONAL" | "E_WALLET"
@@ -196,6 +204,9 @@ export function CheckoutPage() {
   const handleProceedToPayment = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
+    if (!isTermsAccepted) {
+      setTermsError(true);
+    }
     const cleanSub = subdomain.trim().toLowerCase().replace(/[^a-z0-9-]/g, "");
     if (!cleanSub || cleanSub.length < 2) {
       setErrorMsg("Vui lòng nhập Subdomain hợp lệ (mycompany).");
@@ -207,6 +218,9 @@ export function CheckoutPage() {
     }
     if (!adminFullName.trim() || !adminEmail.trim() || !adminPhone.trim()) {
       setErrorMsg("Vui lòng điền đầy đủ Họ tên, Email và Số điện thoại quản trị viên.");
+      return;
+    }
+    if (!isTermsAccepted) {
       return;
     }
     setLoading(true);
@@ -224,6 +238,8 @@ export function CheckoutPage() {
         billingAddress: needVatInvoice ? billingAddress.trim() : undefined,
         notes: notes.trim() || undefined,
         quantity: quantity,
+        termsAccepted: isTermsAccepted,
+        termsVersion: CURRENT_POLICY_VERSION,
       });
       setOrderResult(response);
       if (selectedPaymentType === "ATM") {
@@ -892,10 +908,63 @@ export function CheckoutPage() {
                       {currentAmountVnd.toLocaleString("vi-VN")} <span className="text-xs font-bold text-slate-600">VNĐ</span>
                     </span>
                   </div>
+
+                  {/* Click-wrap Legal Consent Checkbox (Explicit Opt-in) */}
+                  <div
+                    className={`p-3 rounded-xl border transition-all ${
+                      termsError && !isTermsAccepted
+                        ? "bg-rose-50/90 border-rose-400 ring-2 ring-rose-100"
+                        : "bg-slate-50/90 border-slate-200/80"
+                    }`}
+                  >
+                    <div className="flex items-start gap-2.5">
+                      <input
+                        id="checkout-terms-consent"
+                        type="checkbox"
+                        checked={isTermsAccepted}
+                        onChange={(e) => {
+                          setIsTermsAccepted(e.target.checked);
+                          if (e.target.checked) {
+                            setTermsError(false);
+                          }
+                        }}
+                        className={`mt-0.5 w-4 h-4 rounded cursor-pointer shrink-0 ${
+                          termsError && !isTermsAccepted
+                            ? "border-rose-400 text-rose-600 focus:ring-rose-500 accent-rose-600"
+                            : "border-slate-300 text-blue-600 focus:ring-blue-500 accent-blue-600"
+                        }`}
+                      />
+                      <label
+                        htmlFor="checkout-terms-consent"
+                        className={`text-xs leading-relaxed cursor-pointer select-none ${
+                          termsError && !isTermsAccepted ? "text-rose-700 font-medium" : "text-slate-600"
+                        }`}
+                      >
+                        Tôi đã đọc và đồng ý với{" "}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setPolicyModalTab("TOS");
+                          }}
+                          className="font-semibold text-blue-600 hover:text-blue-700 underline underline-offset-2 cursor-pointer"
+                        >
+                          Điều khoản dịch vụ
+                        </button>
+                      </label>
+                    </div>
+                  </div>
+
                   <button
                     type="submit"
                     disabled={loading}
-                    className="w-full py-3.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-98 text-white font-bold text-sm shadow-md shadow-blue-600/25 transition-all flex items-center justify-center gap-2 disabled:opacity-60"
+                    onClick={() => {
+                      if (!isTermsAccepted) {
+                        setTermsError(true);
+                      }
+                    }}
+                    className="w-full py-3.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-98 text-white font-bold text-sm shadow-md shadow-blue-600/25 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {loading ? (
                       <>
@@ -908,6 +977,13 @@ export function CheckoutPage() {
                       </>
                     )}
                   </button>
+
+                  {termsError && !isTermsAccepted && (
+                    <p className="text-xs font-semibold text-rose-600 flex items-center gap-1.5 animate-fade-in">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0 text-rose-600" />
+                      <span>Vui lòng tích chọn đồng ý với Điều khoản dịch vụ trước khi thanh toán.</span>
+                    </p>
+                  )}
                 </div>
               </div>
             </form>
@@ -1508,6 +1584,12 @@ export function CheckoutPage() {
           </div>
         )}
       </main>
+      <LegalPolicyModal
+        openTab={policyModalTab}
+        policyVersion={CURRENT_POLICY_VERSION}
+        onClose={() => setPolicyModalTab(null)}
+        onSwitchTab={(tab) => setPolicyModalTab(tab)}
+      />
     </div>
   );
 }

@@ -10,6 +10,7 @@ export interface ContractSignature {
   status: string;
   signedAt?: string;
   clientIp?: string;
+  externalSignatureId?: string;
 }
 
 export interface ContractItem {
@@ -66,8 +67,14 @@ export interface ContractItem {
   signerEmail?: string;
   signerTitle?: string;
 
+  // Dropbox Sign (HelloSign) e-Signature Integration
+  esignProvider?: string;
+  externalSignatureRequestId?: string;
+  esignDetailsUrl?: string;
+  esignTestMode?: boolean;
+
   status: "DRAFT" | "PENDING_SIGNATURE" | "SIGNED" | "EXPIRED" | "TERMINATED";
-  signMethod?: "DIGITAL_TOKEN_CA" | "E_SIGN_ONLINE" | "UPLOAD_SIGNED_PDF" | "MANUAL";
+  signMethod?: string;
   signedAt?: string;
   signedDocumentUrl?: string;
   documentChecksum?: string;
@@ -115,15 +122,6 @@ export interface CreateContractPayload {
   notes?: string;
 }
 
-export interface SignContractPayload {
-  signMethod: "DIGITAL_TOKEN_CA" | "E_SIGN_ONLINE" | "UPLOAD_SIGNED_PDF" | "MANUAL";
-  signatureData?: string;
-  signedDocumentUrl?: string;
-  documentChecksum?: string;
-  notes?: string;
-  autoCreateInvoice?: boolean;
-}
-
 export interface UpdateContractStatusPayload {
   status: "DRAFT" | "PENDING_SIGNATURE" | "SIGNED" | "EXPIRED" | "TERMINATED";
   notes?: string;
@@ -155,8 +153,8 @@ export const contractApi = {
     return res.data.data;
   },
 
-  sign: async (id: number, data: SignContractPayload): Promise<ContractItem> => {
-    const res = await masterClient.post<ApiResponse<ContractItem>>(`/master/contracts/${id}/sign`, data);
+  syncEsign: async (id: number): Promise<ContractItem> => {
+    const res = await masterClient.post<ApiResponse<ContractItem>>(`/master/contracts/${id}/sync-esign`);
     return res.data.data;
   },
 
@@ -169,27 +167,22 @@ export const contractApi = {
     await masterClient.delete<ApiResponse<void>>(`/master/contracts/${id}`);
   },
 
-  // --- PUBLIC CLIENT SIGNING API ---
+  // --- PUBLIC CLIENT SIGNING API (DROPBOX SIGN REMOTE EMAIL FLOW) ---
   getBySigningToken: async (token: string): Promise<ContractItem> => {
     const res = await axios.get<ApiResponse<ContractItem>>(`${PUBLIC_API_BASE}/public/contracts/${token}`);
     return res.data.data;
   },
 
-  requestSigningOtp: async (token: string): Promise<{ success: boolean; message: string; email: string }> => {
-    const res = await axios.post<ApiResponse<{ success: boolean; message: string; email: string }>>(
-      `${PUBLIC_API_BASE}/public/contracts/${token}/request-otp`
+  syncEsignByToken: async (token: string): Promise<ContractItem> => {
+    const res = await axios.post<ApiResponse<ContractItem>>(
+      `${PUBLIC_API_BASE}/public/contracts/${token}/sync-esign`
     );
     return res.data.data;
   },
 
-  signWithOtp: async (token: string, data: { otpCode: string; signerName?: string; signerTitle?: string; signatureData?: string; notes?: string }): Promise<ContractItem> => {
-    const res = await axios.post<ApiResponse<ContractItem>>(`${PUBLIC_API_BASE}/public/contracts/${token}/sign-otp`, data);
-    return res.data.data;
-  },
-
-  signWithTokenCa: async (token: string, data: { tokenSerial: string; caProvider?: string; signerName?: string; signerTitle?: string; notes?: string }): Promise<ContractItem> => {
-    const res = await axios.post<ApiResponse<ContractItem>>(`${PUBLIC_API_BASE}/public/contracts/${token}/sign-token-ca`, data);
-    return res.data.data;
+  getPublicPdfUrl: (token: string): string => {
+    return `${PUBLIC_API_BASE}/public/contracts/${token}/pdf`;
   },
 };
+
 

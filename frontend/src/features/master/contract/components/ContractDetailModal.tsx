@@ -1,12 +1,12 @@
-import { X, FileSignature, Send, Copy, ExternalLink, CheckCircle2 } from "lucide-react";
-import { ContractItem } from "@/api/master/contractApi";
+import { X, FileSignature, Send, Copy, ExternalLink, CheckCircle2, RefreshCw, Download, ShieldCheck } from "lucide-react";
+import { ContractItem, contractApi } from "@/api/master/contractApi";
 
 interface ContractDetailModalProps {
   selectedContract: ContractItem | null;
   setSelectedContract: (val: ContractItem | null) => void;
   handleSendContract: (contract: ContractItem) => void;
   handleCopySigningLink: (contract: ContractItem) => void;
-  handleOpenSignModal: (contract: ContractItem) => void;
+  handleSyncEsign?: (contract: ContractItem) => void;
 }
 
 export function ContractDetailModal({
@@ -14,9 +14,12 @@ export function ContractDetailModal({
   setSelectedContract,
   handleSendContract,
   handleCopySigningLink,
-  handleOpenSignModal,
+  handleSyncEsign,
 }: ContractDetailModalProps) {
   if (!selectedContract) return null;
+
+  const token = selectedContract.signingToken || `CTR-TOKEN-${selectedContract.id}`;
+  const pdfUrl = contractApi.getPublicPdfUrl(token);
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
@@ -29,7 +32,7 @@ export function ContractDetailModal({
         </button>
 
         {/* Document Action Bar */}
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-4 mb-5">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-4 mb-5 pr-8">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold border border-indigo-200">
               <FileSignature className="w-5 h-5" />
@@ -40,27 +43,51 @@ export function ContractDetailModal({
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => handleSendContract(selectedContract)}
-              className="px-3 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 rounded-lg text-xs font-semibold flex items-center gap-1"
-              title="Gửi email mời đại diện Bên B ký hợp đồng"
+          <div className="flex flex-wrap items-center gap-2">
+            {selectedContract.status !== "SIGNED" && (
+              <button
+                onClick={() => handleSendContract(selectedContract)}
+                className="px-3 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 rounded-lg text-xs font-semibold flex items-center gap-1"
+                title="Gửi hợp đồng qua Dropbox Sign API tới email đại diện Bên B"
+              >
+                <Send className="w-3.5 h-3.5" />
+                <span>Gửi Qua Dropbox Sign</span>
+              </button>
+            )}
+
+            {handleSyncEsign && selectedContract.externalSignatureRequestId && (
+              <button
+                onClick={() => handleSyncEsign(selectedContract)}
+                className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-semibold flex items-center gap-1"
+                title="Đồng bộ trạng thái ký và tải Audit Trail PDF từ Dropbox Sign"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Đồng Bộ Dropbox Sign</span>
+              </button>
+            )}
+
+            <a
+              href={pdfUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="px-3 py-1.5 border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-semibold flex items-center gap-1"
+              title="Tải PDF hợp đồng và Dropbox Sign Audit Trail"
             >
-              <Send className="w-3.5 h-3.5" />
-              <span>Gửi Mời Ký</span>
-            </button>
+              <Download className="w-3.5 h-3.5" />
+              <span>Tải PDF</span>
+            </a>
 
             <button
               onClick={() => handleCopySigningLink(selectedContract)}
               className="px-3 py-1.5 border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-semibold flex items-center gap-1"
-              title="Sao chép link ký số công khai"
+              title="Sao chép link tra cứu hợp đồng công khai"
             >
               <Copy className="w-3.5 h-3.5" />
               <span>Sao Chép Link</span>
             </button>
 
             <a
-              href={`/contracts/sign/${selectedContract.signingToken || `CTR-TOKEN-${selectedContract.id}`}`}
+              href={`/contracts/sign/${token}`}
               target="_blank"
               rel="noreferrer"
               className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-semibold flex items-center gap-1"
@@ -134,6 +161,28 @@ export function ContractDetailModal({
             </div>
           </div>
 
+          {/* Dropbox Sign / Cryptographic Integrity Metadata */}
+          {(selectedContract.externalSignatureRequestId || selectedContract.documentChecksum) && (
+            <div className="bg-indigo-50/70 p-3.5 rounded-lg border border-indigo-200 space-y-1 text-[11px]">
+              <div className="flex items-center gap-1.5 font-bold text-indigo-950">
+                <ShieldCheck className="w-4 h-4 text-indigo-600" />
+                <span>Thông Tin Xác Thực Mật Mã &amp; Dropbox Sign API</span>
+              </div>
+              {selectedContract.externalSignatureRequestId && (
+                <div>
+                  <span className="font-semibold text-slate-600">Dropbox Sign Request ID: </span>
+                  <span className="font-mono font-bold text-indigo-900">{selectedContract.externalSignatureRequestId}</span>
+                </div>
+              )}
+              {selectedContract.documentChecksum && (
+                <div className="break-all">
+                  <span className="font-semibold text-slate-600">SHA-256 Checksum: </span>
+                  <span className="font-mono text-slate-800">{selectedContract.documentChecksum}</span>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Digital Signature Certificate Section */}
           {selectedContract.status === "SIGNED" && (
             <div className="bg-emerald-50/80 p-3.5 rounded-lg border border-emerald-300 space-y-1.5 text-[11px]">
@@ -147,17 +196,17 @@ export function ContractDetailModal({
               </div>
               {selectedContract.signatures && selectedContract.signatures.length > 0 && (
                 <div className="mt-2 pt-2 border-t border-emerald-200/50">
-                  <div className="font-semibold text-emerald-900 mb-1.5">Lịch sử chữ ký:</div>
+                  <div className="font-semibold text-emerald-900 mb-1.5">Lịch sử chữ ký (Audit Trail):</div>
                   <div className="space-y-1.5">
                     {selectedContract.signatures.map((sig: any, idx: number) => (
                       <div key={idx} className="flex justify-between items-center bg-white/60 p-1.5 rounded border border-emerald-100">
                         <div>
                           <span className="font-bold">{sig.signerName || "Người đại diện"}</span>
-                          <span className="text-emerald-700 ml-1">({sig.signerTitle || "Bên B"})</span>
+                          <span className="text-emerald-700 ml-1">({sig.signerTitle || sig.signerEmail || "Bên B"})</span>
                         </div>
                         <div className="font-mono text-[10px] text-emerald-600 flex flex-col items-end">
-                          <span>{sig.signedAt ? new Date(sig.signedAt).toLocaleString("vi-VN") : "Đã ký"}</span>
-                          {sig.clientIp && <span className="text-[9px] opacity-70">IP: {sig.clientIp}</span>}
+                          <span>{sig.signedAt ? new Date(sig.signedAt).toLocaleString("vi-VN") : sig.status}</span>
+                          {sig.externalSignatureId && <span className="text-[9px] opacity-70">SigID: {sig.externalSignatureId}</span>}
                         </div>
                       </div>
                     ))}
@@ -176,20 +225,9 @@ export function ContractDetailModal({
           >
             Đóng
           </button>
-
-          {selectedContract.status !== "SIGNED" && (
-            <button
-              onClick={() => {
-                handleOpenSignModal(selectedContract);
-              }}
-              className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs transition-colors flex items-center gap-1.5 shadow-sm"
-            >
-              <FileSignature className="w-4 h-4" />
-              <span>Ký Số Ngay</span>
-            </button>
-          )}
         </div>
       </div>
     </div>
   );
 }
+

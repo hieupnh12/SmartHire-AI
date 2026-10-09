@@ -257,6 +257,19 @@ public class OrderPdfGeneratorService {
             paymentBox.addCell(rightCell);
             document.add(paymentBox);
 
+            if (StringUtils.hasText(data.getTermsVersion())) {
+                String consentLine = String.format(
+                        "Chứng thực điện tử: Khách hàng đã đọc và đồng ý với Điều khoản dịch vụ & Chính sách bảo vệ dữ liệu cá nhân (Nghị định 13/2023/NĐ-CP) phiên bản %s%s%s.",
+                        data.getTermsVersion(),
+                        StringUtils.hasText(data.getTermsAcceptedAt()) ? " lúc " + data.getTermsAcceptedAt() : "",
+                        StringUtils.hasText(data.getClientIp()) ? " (IP: " + data.getClientIp() + ")" : ""
+                );
+                Paragraph consentNote = new Paragraph(consentLine, fontCompanyMeta);
+                consentNote.setAlignment(Element.ALIGN_LEFT);
+                consentNote.setSpacingAfter(6f);
+                document.add(consentNote);
+            }
+
             // 7. Lời cảm ơn kết thúc
             Paragraph thankYou = new Paragraph("Xin chân thành cảm ơn Quý khách!", fontDate);
             thankYou.setAlignment(Element.ALIGN_CENTER);

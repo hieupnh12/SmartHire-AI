@@ -2,8 +2,8 @@
 
 > Trở về [Database Design & ERD](README.md) · Xem thêm [Data Dictionary Tenant](DATA_DICTIONARY_TENANT.md)
 
-**Database:** `smarthire_master` · **RDBMS:** PostgreSQL · **Số bảng:** 16
-**Nguồn:** `backend/src/main/resources/db/migration/master/V1…V23`
+**Database:** `smarthire_master` · **RDBMS:** PostgreSQL · **Số bảng:** 17
+**Nguồn:** `backend/src/main/resources/db/migration/master/V1…V26`
 **Entity:** `com.smarthire.domain.master.entity` · **Hibernate:** `hbm2ddl.auto = validate`
 
 Ký hiệu: `PK` khoá chính · `FK` khoá ngoại đã khai báo · `UQ` thuộc ràng buộc unique · `IDX` có index ·
@@ -130,6 +130,9 @@ Entity `Invoice`. Quản lý hóa đơn dịch vụ, snapshot thông tin pháp l
 | `billing_legal_name` | VARCHAR(255) | | Có | NULL | Snapshot Tên pháp nhân tại thời điểm xuất HĐ |
 | `billing_address` | VARCHAR(512) | | Có | NULL | Snapshot Địa chỉ tại thời điểm xuất HĐ |
 | `notes` | TEXT | | Có | NULL | Ghi chú hóa đơn |
+| `terms_accepted` | BOOLEAN | | Không | FALSE | Cờ xác nhận đồng ý Điều khoản dịch vụ & BVDLCN (V25) |
+| `terms_version` | VARCHAR(32) | | Có | NULL | Phiên bản văn bản pháp lý tại thời điểm đặt hàng (V25) |
+| `terms_accepted_at` | TIMESTAMP | | Có | NULL | Thời điểm khách hàng tích chọn đồng ý (V25) |
 | `created_at` | TIMESTAMP | | Không | now | Thời điểm phát hành |
 | `updated_at` | TIMESTAMP | | Không | now | Thời điểm cập nhật trạng thái gần nhất (V23) |
 
@@ -186,7 +189,7 @@ Entity `PaymentTransaction`. Lưu trữ đối soát toàn bộ giao dịch từ
 
 ## 7. `contracts` — Hợp đồng B2B điện tử
 
-Entity `Contract`. Quản lý hợp đồng thương mại điện tử, tuân thủ pháp lý Việt Nam, phục vụ ký số OTP/CA Token.
+Entity `Contract`. Quản lý hợp đồng thương mại điện tử, tuân thủ pháp lý Việt Nam, phục vụ ký số qua Dropbox Sign API (HelloSign) kèm Audit Trail & SHA-256 checksum.
 
 | Cột | Kiểu | Khoá | Null | Default | Mô tả |
 |---|---|---|---|---|---|
@@ -226,8 +229,13 @@ Entity `Contract`. Quản lý hợp đồng thương mại điện tử, tuân t
 | `token_expires_at` | TIMESTAMP | | Có | NULL | Thời hạn của token ký |
 | `sent_at` | TIMESTAMP | | Có | NULL | Thời điểm gửi hợp đồng cho đối tác |
 | `client_ip` | VARCHAR(64) | | Có | NULL | IP người ký hợp đồng |
+| `esign_provider` | VARCHAR(32) | | Có | `'DROPBOX_SIGN'` | Nhà cung cấp chữ ký số (`DROPBOX_SIGN`, V26) |
+| `external_signature_request_id` | VARCHAR(128) | IDX | Có | NULL | Mã yêu cầu ký `signature_request_id` từ Dropbox Sign (V26) |
+| `esign_details_url` | VARCHAR(512) | | Có | NULL | URL chi tiết hợp đồng trên Dropbox Sign (V26) |
+| `esign_test_mode` | BOOLEAN | | Không | TRUE | Cờ chế độ thử nghiệm Sandbox Dropbox Sign (V26) |
+| `signed_pdf_bytes` | BYTEA | | Có | NULL | Nội dung file PDF hợp đồng đã ký kèm trang Audit Trail (V26) |
 | `status` | VARCHAR(32) | IDX | Không | `'DRAFT'` | Trạng thái (`DRAFT`, `PENDING_SIGNATURE`, `SIGNED`, `EXPIRED`, `TERMINATED`) |
-| `sign_method` | VARCHAR(32) | | Có | NULL | Phương thức ký (`DIGITAL_TOKEN_CA`, `E_SIGN_ONLINE`, `UPLOAD_SIGNED_PDF`) |
+| `sign_method` | VARCHAR(32) | | Có | NULL | Phương thức ký (`DROPBOX_SIGN`, `UPLOAD_SIGNED_PDF`) |
 | `signed_at` | TIMESTAMP | | Có | NULL | Thời điểm hoàn tất ký |
 | `signed_document_url` | VARCHAR(512) | | Có | NULL | Đường dẫn file PDF hợp đồng đã ký |
 | `document_checksum` | VARCHAR(128) | | Có | NULL | SHA-256 Checksum đảm bảo tính toàn vẹn của hợp đồng |
@@ -236,7 +244,7 @@ Entity `Contract`. Quản lý hợp đồng thương mại điện tử, tuân t
 | `created_at` | TIMESTAMP | | Không | now | |
 | `updated_at` | TIMESTAMP | | Không | now | |
 
-**Ràng buộc & Index:** `fk_contract_tenant`, `fk_contract_plan`, `fk_contract_lead`, `idx_contracts_tenant`, `idx_contracts_status`, `idx_contracts_number`, `idx_contracts_signing_token`
+**Ràng buộc & Index:** `fk_contract_tenant`, `fk_contract_plan`, `fk_contract_lead`, `idx_contracts_tenant`, `idx_contracts_status`, `idx_contracts_number`, `idx_contracts_signing_token`, `idx_contracts_external_sig_req_id`
 
 ---
 
@@ -249,13 +257,14 @@ Entity `ContractSignature`. Chi tiết từng bên ký số trên hợp đồng 
 | `id` | BIGINT IDENTITY | PK | Không | auto | |
 | `contract_id` | BIGINT | FK → `contracts.id` | Không | — | Hợp đồng ký (CASCADE khi xóa HĐ) |
 | `signer_name` | VARCHAR(255) | | Không | — | Họ tên người ký |
-| `signer_email` | VARCHAR(255) | | Không | — | Email người ký nhận OTP |
+| `signer_email` | VARCHAR(255) | | Không | — | Email người ký nhận yêu cầu ký |
 | `signer_title` | VARCHAR(128) | | Không | — | Chức danh người ký |
-| `status` | VARCHAR(32) | | Không | `'PENDING'` | Trạng thái (`PENDING`, `SIGNED`, `REJECTED`) |
+| `status` | VARCHAR(32) | | Không | `'PENDING'` | Trạng thái (`PENDING`, `SIGNED`, `REJECTED`, `DECLINED`) |
 | `signed_at` | TIMESTAMP | | Có | NULL | Thời điểm ký thành công |
-| `otp_code` | VARCHAR(10) | | Có | NULL | Mã OTP xác thực ký số |
-| `otp_expires_at` | TIMESTAMP | | Có | NULL | Hạn OTP |
+| `otp_code` | VARCHAR(10) | | Có | NULL | Mã OTP (legacy) |
+| `otp_expires_at` | TIMESTAMP | | Có | NULL | Hạn OTP (legacy) |
 | `client_ip` | VARCHAR(64) | | Có | NULL | IP thực hiện ký |
+| `external_signature_id` | VARCHAR(128) | | Có | NULL | Mã chữ ký `signature_id` của từng người ký trên Dropbox Sign (V26) |
 | `created_at` | TIMESTAMP | | Không | now | Thời điểm phát hành lượt ký (V23) |
 | `updated_at` | TIMESTAMP | | Không | now | Thời điểm cập nhật lượt ký (V23) |
 
@@ -427,3 +436,27 @@ Entity `MasterNotificationLog`. Ghi vết việc gửi email/thông báo cấp s
 | `sent_at` | TIMESTAMP | IDX | Không | now | Thời điểm gửi (có Index DESC từ V23) |
 
 **Index:** `idx_mnl_tenant_code`, `idx_mnl_status`, `idx_mnl_sent_at`
+
+---
+
+## 17. `master_consent_logs` — Nhật ký đồng thuận pháp lý Click-wrap (ToS & NĐ 13/2023/NĐ-CP)
+
+Entity `MasterConsentLog`. Bảng kiểm toán bằng chứng pháp lý bất biến khi khách hàng tự tay tích chọn đồng ý với Điều khoản Dịch vụ (`TERMS_OF_SERVICE`) và Chính sách Bảo vệ Dữ liệu Cá nhân (`PRIVACY_POLICY_ND13`) tại luồng Self-serve Checkout (V25).
+
+| Cột | Kiểu | Khoá | Null | Default | Mô tả |
+|---|---|---|---|---|---|
+| `id` | BIGINT IDENTITY | PK | Không | auto | Định danh bản ghi consent |
+| `tenant_id` | BIGINT | FK → `tenants.id`, IDX | Có | NULL | Doanh nghiệp đặt mua (`ON DELETE SET NULL` để giữ bằng chứng kiểm toán) |
+| `invoice_id` | BIGINT | FK → `invoices.id`, IDX | Có | NULL | Đơn hàng / hóa đơn phát sinh (`ON DELETE SET NULL`) |
+| `actor_name` | VARCHAR(255) | | Không | — | Họ tên người đại diện thực hiện thao tác |
+| `actor_email` | VARCHAR(255) | IDX | Không | — | Email người đại diện thực hiện thao tác |
+| `policy_type` | VARCHAR(64) | | Không | — | Loại văn bản (`TERMS_OF_SERVICE`, `PRIVACY_POLICY_ND13`) |
+| `policy_version` | VARCHAR(32) | | Không | — | Phiên bản điều khoản tại thời điểm tích chọn (vd: `v2026.10`) |
+| `is_accepted` | BOOLEAN | | Không | TRUE | Trạng thái đồng thuận (`TRUE`) |
+| `ip_address` | VARCHAR(64) | | Không | — | Địa chỉ IP thực của khách hàng do Backend trích xuất |
+| `user_agent` | TEXT | | Có | NULL | Thông tin trình duyệt và thiết bị (`User-Agent` header) |
+| `consent_context` | VARCHAR(64) | | Không | `'SELF_SERVE_CHECKOUT'` | Ngữ cảnh phát sinh đồng thuận |
+| `created_at` | TIMESTAMP | IDX | Không | now | Thời điểm chính xác ghi nhận tại Server |
+
+**Ràng buộc & Index:** `fk_mcl_tenant (ON DELETE SET NULL)`, `fk_mcl_invoice (ON DELETE SET NULL)`, `idx_mcl_tenant_id`, `idx_mcl_invoice_id`, `idx_mcl_actor_email`, `idx_mcl_created_at`
+

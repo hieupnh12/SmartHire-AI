@@ -36,6 +36,9 @@ export interface InvoiceItem {
   transactionId?: string;
   paidAt?: string;
   notes?: string;
+  termsAccepted?: boolean;
+  termsVersion?: string;
+  termsAcceptedAt?: string;
   createdAt: string;
   lineItems?: InvoiceLineItem[];
 }

@@ -113,6 +113,16 @@ export function InvoiceDetailModal({
             </span>
           </div>
 
+          {selectedInvoice.termsAccepted && (
+            <div className="flex justify-between pb-2 border-b border-slate-200/70">
+              <span className="text-slate-500">Đồng Thuận Pháp Lý (ToS & NĐ13):</span>
+              <span className="font-semibold text-emerald-700 text-right">
+                Đã đồng ý ({selectedInvoice.termsVersion || "v2026.10"})
+                {selectedInvoice.termsAcceptedAt ? ` · ${selectedInvoice.termsAcceptedAt}` : ""}
+              </span>
+            </div>
+          )}
+
           {selectedInvoice.lineItems && selectedInvoice.lineItems.length > 0 && (
             <div className="pt-3 border-b border-slate-200/70 pb-3">
               <span className="text-slate-500 font-bold mb-2 block uppercase text-[10px]">Chi tiết hạng mục:</span>

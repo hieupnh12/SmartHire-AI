@@ -5,10 +5,12 @@ import com.smarthire.domain.master.repository.SubscriptionPlanRepository;
 import com.smarthire.master.billing.dto.CheckoutRequest;
 import com.smarthire.master.billing.dto.CheckoutResponse;
 import com.smarthire.master.billing.service.MasterBillingService;
+import com.smarthire.master.billing.util.VnPayUtil;
 import com.smarthire.master.subscription.dto.SubscriptionPlanResponse;
 import com.smarthire.master.subscription.mapper.SubscriptionPlanMapper;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -28,9 +30,13 @@ public class PublicCheckoutController {
     private final SubscriptionPlanMapper planMapper;
 
     @PostMapping
-    @Operation(summary = "Submit Self-Service Checkout", description = "Registers workspace in pending payment state, creates invoice and generates VietQR bank transfer details.")
-    public ResponseEntity<ApiResponse<CheckoutResponse>> submitCheckout(@Valid @RequestBody CheckoutRequest request) {
-        CheckoutResponse response = billingService.checkout(request);
+    @Operation(summary = "Submit Self-Service Checkout", description = "Registers workspace in pending payment state, records click-wrap legal consent audit trail, creates invoice and generates VietQR bank transfer details.")
+    public ResponseEntity<ApiResponse<CheckoutResponse>> submitCheckout(
+            @Valid @RequestBody CheckoutRequest request,
+            HttpServletRequest httpRequest) {
+        String clientIp = VnPayUtil.getIpAddress(httpRequest);
+        String userAgent = httpRequest != null ? httpRequest.getHeader("User-Agent") : null;
+        CheckoutResponse response = billingService.checkout(request, clientIp, userAgent);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.ok("Đăng ký mua gói dịch vụ thành công", response));
     }

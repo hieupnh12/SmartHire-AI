@@ -3,7 +3,6 @@ package com.smarthire.master.contract.controller;
 import com.smarthire.common.api.ApiResponse;
 import com.smarthire.master.contract.dto.ContractResponse;
 import com.smarthire.master.contract.dto.CreateContractRequest;
-import com.smarthire.master.contract.dto.SignContractRequest;
 import com.smarthire.master.contract.dto.UpdateContractStatusRequest;
 import com.smarthire.master.contract.service.MasterContractService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -58,29 +57,32 @@ public class MasterContractController {
     }
 
     @PostMapping("/{id}/send")
-    @Operation(summary = "Send Contract to Client", description = "Generates secure signing token and sends invitation email to party B signer.")
-    public ResponseEntity<ApiResponse<Object>> sendContract(@PathVariable Long id) {
-        try {
-            ContractResponse contract = contractService.sendContract(id);
-            return ResponseEntity.ok(ApiResponse.ok("Đã gửi liên kết ký hợp đồng điện tử đến khách hàng", contract));
-        } catch (Exception e) {
-            e.printStackTrace();
-            String stackTrace = java.util.Arrays.stream(e.getStackTrace())
-                    .limit(5)
-                    .map(StackTraceElement::toString)
-                    .collect(java.util.stream.Collectors.joining(" | "));
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.error("DEBUG_ERROR", "DEBUG: " + e.getClass().getName() + " - " + e.getMessage() + " | " + stackTrace));
-        }
+    @Operation(summary = "Send Contract via Dropbox Sign API", description = "Generates B2B Contract PDF, dispatches signature request via Dropbox Sign API, and emails Party B signer.")
+    public ResponseEntity<ApiResponse<ContractResponse>> sendContract(@PathVariable Long id) {
+        ContractResponse contract = contractService.sendContract(id);
+        return ResponseEntity.ok(ApiResponse.ok("Đã gửi yêu cầu ký hợp đồng điện tử qua Dropbox Sign đến khách hàng", contract));
     }
 
-    @PostMapping("/{id}/sign")
-    @Operation(summary = "Sign B2B Contract", description = "Marks contract as SIGNED via USB Token, e-Signature, or signed PDF upload, and optionally creates B2B Invoice.")
-    public ResponseEntity<ApiResponse<ContractResponse>> signContract(
+    @PostMapping("/{id}/sync-esign")
+    @Operation(summary = "Sync Dropbox Sign Status", description = "Polls Dropbox Sign API for latest signature status, downloads signed PDF + Audit Trail if complete, and updates contract.")
+    public ResponseEntity<ApiResponse<ContractResponse>> syncEsignStatus(
             @PathVariable Long id,
-            @Valid @RequestBody SignContractRequest request) {
-        ContractResponse contract = contractService.signContract(id, request);
-        return ResponseEntity.ok(ApiResponse.ok("Hợp đồng đã được ký kết và có hiệu lực pháp lý", contract));
+            jakarta.servlet.http.HttpServletRequest httpRequest) {
+        String clientIp = com.smarthire.master.billing.util.VnPayUtil.getIpAddress(httpRequest);
+        ContractResponse contract = contractService.syncDropboxSignStatus(id, clientIp);
+        return ResponseEntity.ok(ApiResponse.ok("Đã đồng bộ trạng thái ký số từ Dropbox Sign", contract));
+    }
+
+    @GetMapping(value = "/{id}/pdf", produces = org.springframework.http.MediaType.APPLICATION_PDF_VALUE)
+    @Operation(summary = "Download Contract PDF", description = "Downloads the signed PDF + Dropbox Sign Audit Trail (if signed) or generated B2B contract PDF.")
+    public ResponseEntity<byte[]> downloadContractPdf(@PathVariable Long id) {
+        ContractResponse contract = contractService.getContractById(id);
+        byte[] pdfBytes = contractService.getContractPdfBytesById(id);
+        String filename = (contract.getContractNumber() != null ? contract.getContractNumber() : "contract-" + id) + ".pdf";
+        return ResponseEntity.ok()
+                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .contentType(org.springframework.http.MediaType.APPLICATION_PDF)
+                .body(pdfBytes);
     }
 
     @PatchMapping("/{id}/status")
