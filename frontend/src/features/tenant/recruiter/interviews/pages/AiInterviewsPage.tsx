@@ -1,6 +1,6 @@
 import { useRecruitmentJob } from "../../jobs/components/JobRecruitmentWorkspace";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowRight,
   ArrowUpRight,
@@ -30,6 +30,7 @@ import {
   X,
 } from "lucide-react";
 import { aiInterviewApi } from "@/api/tenant/aiInterviewApi";
+import { companyApi } from "@/api/tenant/companyApi";
 import type { AiInterviewStatus } from "@/api/types/aiInterview";
 import { AssessmentError } from "@/components/ux/assessmentUi";
 import { AiInterviewConfigPanel } from "../components/AiInterviewConfigPanel";
@@ -180,6 +181,11 @@ export function AiInterviewsPage() {
   const [creating, setCreating] = useState(false);
   const [configOpen, setConfigOpen] = useState(false);
   const [detailId, setDetailId] = useState<number | null>(null);
+  const subQuery = useQuery({
+    queryKey: ["tenant-subscription-quota"],
+    queryFn: companyApi.getSubscription,
+  });
+  const sub = subQuery.data?.data;
 
   const counts = useMemo(() => {
     const by = (s: AiInterviewStatus) => rows.filter((r) => r.status === s).length;
@@ -252,6 +258,25 @@ export function AiInterviewsPage() {
           <div className="flex flex-wrap items-center gap-2">
             <div className="h-7 w-2.5 rounded-full bg-[var(--color-primary-container)]" />
             <h1 className="text-[30px] font-semibold leading-[38px] tracking-tight">Phỏng vấn AI</h1>
+            {sub && (
+              <span
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold",
+                  !sub.aiInterviewAllowed
+                    ? "border-red-200 bg-red-50 text-red-700"
+                    : "border-teal-200 bg-teal-50 text-teal-800"
+                )}
+              >
+                <span>Gói {sub.planName}:</span>
+                <strong>
+                  {!sub.aiInterviewEnabled
+                    ? "Không bao gồm AI Voice (0h)"
+                    : sub.maxAiInterviewHours < 0
+                    ? `${(sub.usedAiInterviewSeconds / 3600).toFixed(1)}h / ∞`
+                    : `${(sub.usedAiInterviewSeconds / 3600).toFixed(1)}/${sub.maxAiInterviewHours}h`}
+                </strong>
+              </span>
+            )}
           </div>
           <p className="max-w-2xl pl-4 text-sm leading-[22px] text-[var(--color-on-surface-variant)]">
             Quản lý phiên phỏng vấn AI của vị trí, câu hỏi, câu trả lời và feedback của ứng viên.
@@ -268,14 +293,59 @@ export function AiInterviewsPage() {
           </button>
           <button
             type="button"
+            disabled={Boolean(sub && !sub.aiInterviewAllowed)}
+            title={
+              sub && !sub.aiInterviewEnabled
+                ? `Gói ${sub.planName} không bao gồm tính năng Phỏng vấn AI Voice`
+                : sub && !sub.aiInterviewAllowed
+                ? "Đã hết hạn mức thời lượng Phỏng vấn AI Voice trong tháng"
+                : undefined
+            }
             onClick={() => setCreating(true)}
-            className="inline-flex h-10 items-center gap-2 rounded-lg bg-[var(--color-primary-container)] px-5 text-sm font-semibold text-[var(--color-on-primary)] shadow-md transition-all hover:bg-[var(--color-primary-hover)] active:scale-95"
+            className={cn(
+              "inline-flex h-10 items-center gap-2 rounded-lg px-5 text-sm font-semibold shadow-md transition-all",
+              sub && !sub.aiInterviewAllowed
+                ? "cursor-not-allowed bg-slate-200 text-slate-500 shadow-none"
+                : "bg-[var(--color-primary-container)] text-[var(--color-on-primary)] hover:bg-[var(--color-primary-hover)] active:scale-95"
+            )}
           >
-            <PlusCircle className="size-5" aria-hidden="true" />
-            Tạo phỏng vấn mới
+            {sub && !sub.aiInterviewAllowed ? (
+              <>
+                <Ban className="size-4" aria-hidden="true" />
+                {!sub.aiInterviewEnabled ? "Tính năng khóa theo gói" : "Đã hết hạn mức AI Voice"}
+              </>
+            ) : (
+              <>
+                <PlusCircle className="size-5" aria-hidden="true" />
+                Tạo phỏng vấn mới
+              </>
+            )}
           </button>
         </div>
       </div>
+
+      {sub && !sub.aiInterviewAllowed && (
+        <div role="alert" className="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
+          <Ban className="size-5 shrink-0 text-amber-600" aria-hidden="true" />
+          <p className="text-xs sm:text-sm">
+            {!sub.aiInterviewEnabled ? (
+              <>
+                Gói dịch vụ hiện tại (<strong>{sub.planName}</strong>) không bao gồm tính năng{" "}
+                <strong>Phỏng vấn AI Voice (0 giờ/tháng)</strong>. Vui lòng nâng cấp lên gói{" "}
+                <strong>Professional</strong> hoặc <strong>Enterprise</strong> để mở khóa.
+              </>
+            ) : (
+              <>
+                Workspace đã sử dụng hết 100% hạn mức thời lượng Phỏng vấn AI Voice trong tháng (
+                <strong>
+                  {(sub.usedAiInterviewSeconds / 3600).toFixed(1)}/{sub.maxAiInterviewHours} giờ
+                </strong>
+                ). Vui lòng nâng cấp gói dịch vụ để tiếp tục tạo phiên phỏng vấn mới.
+              </>
+            )}
+          </p>
+        </div>
+      )}
 
       {configOpen && <AiInterviewConfigPanel jobId={job.id} />}
 

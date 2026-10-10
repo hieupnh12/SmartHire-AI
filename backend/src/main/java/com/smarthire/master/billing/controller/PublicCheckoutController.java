@@ -42,9 +42,9 @@ public class PublicCheckoutController {
     }
 
     @GetMapping("/plans")
-    @Operation(summary = "Get Public Subscription Plans", description = "Returns active subscription plans with VND pricing for checkout and landing page.")
+    @Operation(summary = "Get Public Subscription Plans", description = "Returns active, non-archived, non-custom subscription plans with VND pricing for checkout and landing page.")
     public ResponseEntity<ApiResponse<List<SubscriptionPlanResponse>>> getPublicPlans() {
-        List<SubscriptionPlanResponse> plans = planRepository.findByStatusOrderByPriceYearlyAsc("ACTIVE")
+        List<SubscriptionPlanResponse> plans = planRepository.findByStatusAndArchivedFalseAndCustomFalseOrderByPriceYearlyAsc("ACTIVE")
                 .stream()
                 .map(planMapper::toResponse)
                 .toList();

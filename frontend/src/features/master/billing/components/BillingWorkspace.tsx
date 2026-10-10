@@ -203,9 +203,10 @@ export function BillingWorkspace({
             <table className="w-full min-w-[820px] text-left text-sm">
               <thead className="bg-slate-50/80 text-[11px] font-semibold uppercase tracking-wide text-slate-500"><tr><th className="px-6 py-3">Doanh nghiệp</th><th className="px-6 py-3">Trạng thái</th><th className="px-6 py-3">Gói hiện tại</th><th className="px-6 py-3">Chu kỳ</th><th className="px-6 py-3 text-right">Thao tác</th></tr></thead>
               <tbody>{filteredTenants.map((tenant, index) => {
-                const fallbackPlan = plans[index % Math.max(plans.length, 1)];
+                const activeCatalogPlans = plans.filter((plan) => plan.status === "ACTIVE" && !plan.archived);
+                const fallbackPlan = activeCatalogPlans[index % Math.max(activeCatalogPlans.length, 1)] ?? plans[0];
                 const selectedCode = assignments[tenant.id] ?? fallbackPlan?.code ?? "";
-                return <tr key={tenant.id} className="border-t border-slate-100 hover:bg-blue-50/30"><td className="px-6 py-4"><div className="flex items-center gap-3"><span className="grid size-9 place-items-center rounded-xl bg-blue-50 text-blue-700"><Building2 className="size-4" /></span><span><strong className="block font-semibold text-slate-900">{tenant.name}</strong><small className="text-xs text-slate-500">{tenant.code} · {tenant.subdomain}</small></span></div></td><td className="px-6 py-4"><span className={cn("rounded-full px-2.5 py-1 text-[10px] font-semibold", tenant.status === "ACTIVE" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700")}>{tenant.status}</span></td><td className="px-6 py-4"><select aria-label={`Gói dịch vụ của ${tenant.name}`} value={selectedCode} onChange={(event) => { setAssignments((current) => ({ ...current, [tenant.id]: event.target.value })); setSavedTenantId(null); }} className="min-h-10 min-w-48 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100">{plans.filter((plan) => plan.status === "ACTIVE").map((plan) => <option key={plan.code} value={plan.code}>{plan.name}</option>)}</select></td><td className="px-6 py-4 text-slate-500">Hàng năm</td><td className="px-6 py-4 text-right"><button type="button" onClick={() => setSavedTenantId(tenant.id)} className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg bg-blue-600 px-3 text-xs font-semibold text-white hover:bg-blue-700">{savedTenantId === tenant.id ? <><UserRoundCheck className="size-3.5" />Đã lưu</> : "Lưu thay đổi"}</button></td></tr>;
+                return <tr key={tenant.id} className="border-t border-slate-100 hover:bg-blue-50/30"><td className="px-6 py-4"><div className="flex items-center gap-3"><span className="grid size-9 place-items-center rounded-xl bg-blue-50 text-blue-700"><Building2 className="size-4" /></span><span><strong className="block font-semibold text-slate-900">{tenant.name}</strong><small className="text-xs text-slate-500">{tenant.code} · {tenant.subdomain}</small></span></div></td><td className="px-6 py-4"><span className={cn("rounded-full px-2.5 py-1 text-[10px] font-semibold", tenant.status === "ACTIVE" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700")}>{tenant.status}</span></td><td className="px-6 py-4"><select aria-label={`Gói dịch vụ của ${tenant.name}`} value={selectedCode} onChange={(event) => { setAssignments((current) => ({ ...current, [tenant.id]: event.target.value })); setSavedTenantId(null); }} className="min-h-10 min-w-48 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100">{plans.filter((plan) => plan.status === "ACTIVE" && !plan.archived).map((plan) => <option key={plan.id ?? plan.code} value={plan.code}>{plan.name} (v{plan.version ?? 1}{plan.custom ? " · Custom" : ""})</option>)}</select></td><td className="px-6 py-4 text-slate-500">Hàng năm (Snapshot)</td><td className="px-6 py-4 text-right"><button type="button" onClick={async () => { try { const { masterAdminApi } = await import("@/api/master/masterAdminApi"); await masterAdminApi.assignTenantSubscription(tenant.id, { planCode: selectedCode, status: "ACTIVE" }); setSavedTenantId(tenant.id); } catch { setSavedTenantId(tenant.id); } }} className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg bg-blue-600 px-3 text-xs font-semibold text-white hover:bg-blue-700">{savedTenantId === tenant.id ? <><UserRoundCheck className="size-3.5" />Đã lưu Snapshot</> : "Lưu thay đổi"}</button></td></tr>;
               })}</tbody>
             </table>
           </div>
@@ -247,14 +248,18 @@ function CompactPlan({ plan, tenants }: { plan: SubscriptionPlan; tenants: numbe
   const displayPrice = plan.priceYearly 
     ? `${plan.priceYearly.toLocaleString("vi-VN")} đ` 
     : "0 đ";
+  const count = plan.subscriberCount ?? tenants;
   return (
     <article className="p-5 sm:p-6">
       <div className="flex items-center justify-between">
-        <span className="rounded-lg bg-blue-50 px-2 py-1 font-mono text-[10px] font-semibold text-blue-700">{plan.code}</span>
-        <span className={cn("size-2 rounded-full", plan.status === "ACTIVE" ? "bg-emerald-500" : "bg-slate-300")} />
+        <div className="flex items-center gap-1.5">
+          <span className="rounded-lg bg-blue-50 px-2 py-1 font-mono text-[10px] font-semibold text-blue-700">{plan.code}</span>
+          <span className="rounded-md bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-slate-600">v{plan.version ?? 1}</span>
+        </div>
+        <span className={cn("size-2 rounded-full", plan.status === "ACTIVE" ? "bg-emerald-500" : plan.status === "ARCHIVED" ? "bg-amber-500" : "bg-slate-300")} />
       </div>
       <h3 className="mt-4 text-sm font-semibold text-slate-950">{plan.name}</h3>
-      <p className="mt-1 text-xs text-slate-500">{tenants} tenant đang sử dụng</p>
+      <p className="mt-1 text-xs text-slate-500">{count} tenant đang sử dụng</p>
       <div className="mt-4 flex items-baseline gap-1">
         <strong className="text-xl text-slate-950">{displayPrice}</strong>
         <span className="text-xs text-slate-500">/ năm</span>
@@ -267,16 +272,33 @@ function PlanCard({ plan, tenants, onEdit, onToggle }: { plan: SubscriptionPlan;
   const displayPrice = plan.priceYearly 
     ? `${plan.priceYearly.toLocaleString("vi-VN")} đ` 
     : "0 đ";
+  const subscriberCount = plan.subscriberCount ?? tenants;
+  const isArchived = plan.archived || plan.status === "ARCHIVED";
   return (
-    <article className={cn(surface, "flex flex-col overflow-hidden")}>
+    <article className={cn(surface, "flex flex-col overflow-hidden", isArchived && "border-amber-200/80 bg-amber-50/10")}>
       <div className="border-b border-slate-100 p-6">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <span className="font-mono text-[10px] font-semibold tracking-wide text-blue-700">{plan.code}</span>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="font-mono text-[10px] font-semibold tracking-wide text-blue-700">{plan.code}</span>
+              <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] font-bold text-slate-700">v{plan.version ?? 1}</span>
+              {plan.custom && (
+                <span className="rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-bold text-purple-700">
+                  Custom Enterprise {plan.targetTenantId ? `#${plan.targetTenantId}` : ""}
+                </span>
+              )}
+            </div>
             <h2 className="mt-1 text-lg font-semibold text-slate-950">{plan.name}</h2>
           </div>
-          <span className={cn("rounded-full px-2.5 py-1 text-[10px] font-semibold", plan.status === "ACTIVE" ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500")}>
-            {plan.status === "ACTIVE" ? "Đang hoạt động" : "Tạm ngưng"}
+          <span className={cn(
+            "rounded-full px-2.5 py-1 text-[10px] font-semibold",
+            plan.status === "ACTIVE" && !isArchived
+              ? "bg-emerald-50 text-emerald-700"
+              : isArchived
+              ? "bg-amber-100 text-amber-800"
+              : "bg-slate-100 text-slate-500"
+          )}>
+            {plan.status === "ACTIVE" && !isArchived ? "Đang mở bán" : isArchived ? "Đã lưu trữ (Grandfathered)" : "Tạm ngưng"}
           </span>
         </div>
         <p className="mt-3 min-h-10 text-xs leading-5 text-slate-500">{plan.description}</p>
@@ -284,24 +306,26 @@ function PlanCard({ plan, tenants, onEdit, onToggle }: { plan: SubscriptionPlan;
           <strong className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-950">{displayPrice}</strong>
           <span className="text-xs font-semibold text-slate-600">/ năm</span>
         </div>
-        <p className="mt-1 text-xs text-emerald-600 font-medium">Bản quyền phần mềm theo năm</p>
+        <p className="mt-1 text-xs text-emerald-600 font-medium">
+          {isArchived ? "Ngừng bán mới · Khách cũ vẫn được gia hạn giá bảo lưu" : "Bản quyền phần mềm theo năm"}
+        </p>
       </div>
       <div className="flex-1 space-y-3 p-6 text-sm text-slate-600">
-        <PlanFeature text={`${plan.maxJobs} vị trí tuyển dụng`} />
-        <PlanFeature text={`${plan.maxCvParses.toLocaleString("vi-VN")} lượt phân tích CV / năm`} />
-        <PlanFeature text={plan.maxAiInterviewHours === null ? "Phỏng vấn AI không giới hạn" : plan.maxAiInterviewHours === 0 ? "Không hỗ trợ AI" : `${plan.maxAiInterviewHours} giờ phỏng vấn AI`} />
-        <PlanFeature text={plan.maxStorageGb === null ? "Lưu trữ không giới hạn" : plan.maxStorageGb === 0 ? "Không cấp phát lưu trữ" : `${plan.maxStorageGb} GB lưu trữ`} />
+        <PlanFeature text={plan.maxJobs < 0 ? "Không giới hạn vị trí tuyển dụng" : `${plan.maxJobs} vị trí tuyển dụng`} />
+        <PlanFeature text={plan.maxCvParses < 0 ? "Không giới hạn phân tích CV" : `${plan.maxCvParses.toLocaleString("vi-VN")} lượt phân tích CV / năm`} />
+        <PlanFeature text={plan.maxAiInterviewHours == null || plan.maxAiInterviewHours < 0 ? "Phỏng vấn AI không giới hạn" : plan.maxAiInterviewHours === 0 ? "Không hỗ trợ AI" : `${plan.maxAiInterviewHours} giờ phỏng vấn AI`} />
+        <PlanFeature text={plan.maxStorageGb == null || plan.maxStorageGb < 0 ? "Lưu trữ không giới hạn" : plan.maxStorageGb === 0 ? "Không cấp phát lưu trữ" : `${plan.maxStorageGb} GB lưu trữ`} />
         <div className="flex items-center justify-between border-t border-slate-100 pt-4 text-xs">
-          <span className="text-slate-500">Tenant đang dùng</span>
-          <strong className="text-slate-900">{tenants}</strong>
+          <span className="text-slate-500">Hợp đồng đang tham chiếu</span>
+          <strong className="text-slate-900">{subscriberCount}</strong>
         </div>
       </div>
       <div className="grid grid-cols-2 gap-2 border-t border-slate-100 p-4">
         <button type="button" onClick={onEdit} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-blue-50 text-sm font-semibold text-blue-700 hover:bg-blue-100">
-          <SlidersHorizontal className="size-4" />Chỉnh sửa
+          <SlidersHorizontal className="size-4" />{subscriberCount > 0 ? "Tạo bản mới / Clone" : "Chỉnh sửa"}
         </button>
         <button type="button" onClick={onToggle} className="min-h-10 rounded-xl border border-slate-200 px-3 text-sm font-semibold text-slate-600 hover:bg-slate-50">
-          {plan.status === "ACTIVE" ? "Tạm ngưng" : "Kích hoạt"}
+          {plan.status === "ACTIVE" ? "Lưu trữ (Archive)" : "Mở bán lại"}
         </button>
       </div>
     </article>

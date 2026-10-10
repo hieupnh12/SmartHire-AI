@@ -12,4 +12,7 @@ public interface CvRepository extends JpaRepository<Cv, Long> {
     List<Cv> findByApplication_IdOrderByIdDesc(Long applicationId);
     List<Cv> findByCandidate_IdAndJob_IdOrderByIdDesc(Long candidateId, Long jobId);
     Optional<Cv> findByShareToken(String shareToken);
+
+    @org.springframework.data.jpa.repository.Query("select coalesce(sum(c.fileSize), 0) from Cv c where c.fileSize is not null")
+    long sumTotalFileSize();
 }

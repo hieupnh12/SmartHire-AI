@@ -10,6 +10,7 @@
 
 | Thông tin | Giá trị |
 |---|---|
+| Kiến trúc Quản lý Gói & Thuê bao SaaS B2B 2 Tầng 2026-10-10 | Master V27 bổ sung versioning/bảo lưu giá (`version`, `parent_plan_id` + `fk_sp_parent_plan`, `is_custom`, `target_tenant_id` + `fk_sp_target_tenant`, `is_archived`, 2 index) cho `subscription_plans` (`SubscriptionPlan`) và snapshot hợp đồng/vòng đời/proration (`plan_code_snapshot`, `plan_name_snapshot`, `plan_version_snapshot`, `contracted_price_yearly`, 6 cột `snapshot_max_*`, `snapshot_features_json`, `grace_period_ends_at`, `next_plan_id` + `fk_ts_next_plan`, `prorated_credit_amount`, `upgraded_from_subscription_id` + `fk_ts_upgraded_from`, `canceled_at`, `cancel_reason`, 2 index) cho `tenant_subscriptions` (`TenantSubscription`) |
 | Tích hợp Dropbox Sign API Hợp đồng B2B 2026-10-09 | Master V26 bổ sung `esign_provider`, `external_signature_request_id` (+ index `idx_contracts_external_sig_req_id`), `esign_details_url`, `esign_test_mode`, `signed_pdf_bytes` (BYTEA) trên `contracts` (`Contract`) và `external_signature_id` trên `contract_signatures` (`ContractSignature`) phục vụ ký số Remote Email Signing qua Dropbox Sign API v3 kèm Audit Trail & SHA-256 checksum |
 | Click-wrap Legal Consent Checkout 2026-10-09 | Master V25 tạo bảng `master_consent_logs` + entity `MasterConsentLog` (2 FK `ON DELETE SET NULL` tới `tenants` và `invoices`, 3 index tra cứu) và thêm 3 cột snapshot đồng thuận pháp lý (`terms_accepted`, `terms_version`, `terms_accepted_at`) vào `invoices` |
 | Tách vật lý Candidate & User 2026-10-08 | Tenant V51 (đánh lại từ V50 vì trùng `V50__company_email_settings` trên DB tenant) tạo bảng `candidates` + entity `Candidate`, gộp và xóa `user_profiles` (`UserProfile`), thêm `phone`/`avatar_url`/`job_title` + `idx_users_role_status` cho `users`, chuyển 6 FK ứng viên (`applications`, `cvs.candidate_id`, `submissions`, `practice_sessions`, `ai_interview_consents`, `oauth_accounts.candidate_id`) sang `candidates(id)`, bổ sung `candidate_id` nullable + FK cho 2 bảng đa tác nhân (`notifications`, `notification_preferences`) |
@@ -33,8 +34,8 @@
 | Entity JPA tenant | 62 class `@Entity` theo checkout hiện tại; V44 bổ sung `InterviewSession`, `InterviewMessage`; V45 bổ sung `CompanyDirectoryEntry`; V49 bổ sung `NotificationPreference`; V51 thay `UserProfile` bằng `Candidate` |
 | Khoá ngoại tenant | 89 theo mốc tài liệu (88 sau V49 − 1 FK `user_profiles` + 2 FK `candidate_id` trên `notifications` & `notification_preferences`, 6 FK ứng viên chuyển đích sang `candidates`) |
 | Ràng buộc UNIQUE tenant | V25/V26 không thêm UNIQUE. V27 thêm UNIQUE `gate_scores.application_id`. V30 thêm `uk_job_assignments_job_user`. V45 thêm `uk_company_directory_type_name`. V47 thêm `uk_cvs_share_token`. V49 thêm `uk_notification_preference_user_category`. V51 xóa `uk_profile_user`, thêm `uk_candidates_email` và `uk_notification_preference_candidate_category` |
-| Số file migration trong repo | 68 (25 master + 43 tenant); V9 redesign nằm ngoài pipeline |
-| Cập nhật lần cuối | Master `V26` (tích hợp Dropbox Sign API cho `contracts` và `contract_signatures`), Master `V25` (`master_consent_logs`), tenant `V51` (`candidates`) |
+| Số file migration trong repo | 69 (26 master + 43 tenant); V9 redesign nằm ngoài pipeline |
+| Cập nhật lần cuối | Master `V27` (kiến trúc gói cước & thuê bao SaaS B2B 2 tầng), Master `V26` (`contracts` Dropbox Sign), Master `V25` (`master_consent_logs`), tenant `V51` (`candidates`) |
 | Dọn legacy V21 | Xóa 19 bảng và dữ liệu legacy, xóa 2 cột ID legacy trong ranking; không chuyển ID cũ sang bản ghi mới |
 | Metadata assessment 2026-09-25 | V13: `tests.created_by/updated_at`, `questions.difficulty/skill/explanation` cho Excel/UI authoring |
 | Sửa lỗi assessment 2026-09-24 | V10/V11 khớp checksum lịch sử; V12 tạo schema mới và giữ bảng cũ; migration lỗi phải chặn mở tenant pool |
@@ -748,12 +749,16 @@ của màn assessment hiện tại.
 
 ## 7. Relationships
 
-### 7.1 Master — 6 khoá ngoại cốt lõi
+### 7.1 Master — 10 khoá ngoại cốt lõi
 
 | Bảng con | Cột | Bảng cha | Nullable | Lực lượng | Tên ràng buộc |
 |---|---|---|---|---|---|
+| `subscription_plans` | `parent_plan_id` | `subscription_plans` | Có | N:0..1 | `fk_sp_parent_plan` (`ON DELETE SET NULL`, V27) |
+| `subscription_plans` | `target_tenant_id` | `tenants` | Có | N:0..1 | `fk_sp_target_tenant` (`ON DELETE SET NULL`, V27) |
 | `tenant_subscriptions` | `tenant_id` | `tenants` | Không | N:1 | `fk_ts_tenant` |
 | `tenant_subscriptions` | `plan_id` | `subscription_plans` | Không | N:1 | `fk_ts_plan` |
+| `tenant_subscriptions` | `next_plan_id` | `subscription_plans` | Có | N:0..1 | `fk_ts_next_plan` (`ON DELETE SET NULL`, V27) |
+| `tenant_subscriptions` | `upgraded_from_subscription_id` | `tenant_subscriptions` | Có | 0..1:0..1 | `fk_ts_upgraded_from` (`ON DELETE SET NULL`, V27) |
 | `invoices` | `tenant_id` | `tenants` | Không | N:1 | `fk_inv_tenant` |
 | `tenant_usage_daily` | `tenant_id` | `tenants` | Không | N:1 (1:1 theo ngày) | `fk_tud_tenant` |
 | `master_consent_logs` | `tenant_id` | `tenants` | Có | N:0..1 | `fk_mcl_tenant` (`ON DELETE SET NULL`, V25) |
@@ -1069,6 +1074,10 @@ V22 thêm `idx_questionskills_skill(skill_id)` trên `questionskills`. PK kép h
 | Master | `master_consent_logs` | `idx_master_consent_logs_tenant` | `(tenant_id, created_at DESC)` | Tra cứu lịch sử đồng thuận pháp lý theo doanh nghiệp (V25) |
 | Master | `master_consent_logs` | `idx_master_consent_logs_invoice` | `(invoice_id)` | Tra cứu bằng chứng đồng thuận gắn với đơn hàng/hóa đơn (V25) |
 | Master | `master_consent_logs` | `idx_master_consent_logs_email` | `(actor_email, created_at DESC)` | Tra cứu bằng chứng đồng thuận theo email người đặt hàng (V25) |
+| Master | `subscription_plans` | `idx_sp_status_custom_archived` | `(status, is_custom, is_archived)` | Lọc danh mục gói cước đang mở bán công khai trên trang Pricing/Checkout (V27) |
+| Master | `subscription_plans` | `idx_sp_target_tenant_id` | `(target_tenant_id)` | Tra cứu gói Custom Enterprise thiết kế riêng cho từng Tenant (V27) |
+| Master | `tenant_subscriptions` | `idx_ts_tenant_status` | `(tenant_id, status)` | Tra cứu nhanh hợp đồng thuê bao hiệu lực theo Tenant (V27) |
+| Master | `tenant_subscriptions` | `idx_ts_ends_at_status` | `(status, ends_at)` | Scheduler quét chuyển trạng thái vòng đời thuê bao `ACTIVE` → `PAST_DUE` → `SUSPENDED` (V27) |
 
 ### 9.2 Index do RDBMS tự sinh
 
@@ -1153,6 +1162,7 @@ Hai pipeline dùng **hai phương ngữ SQL khác nhau** và không thể dùng 
 | V24 | `V24__spring_ai_interview_defaults.sql` | Thay riêng seed model Gemini Interview 1.5/2.0 bằng `gemini-2.5-flash`, tăng ngân sách tối thiểu 8192 token; giữ model khác do admin chọn, không đổi schema |
 | V25 | `V25__checkout_legal_consent_logs.sql` | Tạo bảng `master_consent_logs` (entity `MasterConsentLog`) lưu bằng chứng Click-wrap Agreement (`TERMS_OF_SERVICE`, `PRIVACY_POLICY_ND13` — Nghị định 13/2023/NĐ-CP) kèm IP/User-Agent + 2 FK `ON DELETE SET NULL` + 3 index; thêm `terms_accepted`, `terms_version`, `terms_accepted_at` vào `invoices` |
 | V26 | `V26__dropbox_sign_contract_integration.sql` | Tích hợp Dropbox Sign API v3 cho hợp đồng B2B: thêm `esign_provider`, `external_signature_request_id` (+ `idx_contracts_external_sig_req_id`), `esign_details_url`, `esign_test_mode`, `signed_pdf_bytes` (BYTEA) trên `contracts` và `external_signature_id` trên `contract_signatures` |
+| V27 | `V27__two_tier_subscription_architecture.sql` | Kiến trúc Quản lý Gói & Thuê bao SaaS B2B 2 Tầng: thêm `version`, `parent_plan_id` (`fk_sp_parent_plan`), `is_custom`, `target_tenant_id` (`fk_sp_target_tenant`), `is_archived`, 2 index trên `subscription_plans`; thêm 11 cột snapshot hợp đồng (`plan_*_snapshot`, `contracted_price_yearly`, `snapshot_max_*`, `snapshot_features_json`), `grace_period_ends_at`, `next_plan_id` (`fk_ts_next_plan`), `prorated_credit_amount`, `upgraded_from_subscription_id` (`fk_ts_upgraded_from`), `canceled_at`, `cancel_reason`, 2 index và backfill cho `tenant_subscriptions` |
 
 ### 10.3 Lịch sử migration — Tenant
 

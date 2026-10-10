@@ -63,6 +63,24 @@ public class SubscriptionPlan {
     String status = "ACTIVE";
 
     @Builder.Default
+    @Column(name = "version", nullable = false)
+    Integer version = 1;
+
+    @Column(name = "parent_plan_id")
+    Long parentPlanId;
+
+    @Builder.Default
+    @Column(name = "is_custom", nullable = false)
+    boolean custom = false;
+
+    @Column(name = "target_tenant_id")
+    Long targetTenantId;
+
+    @Builder.Default
+    @Column(name = "is_archived", nullable = false)
+    boolean archived = false;
+
+    @Builder.Default
     @Column(name = "created_at", nullable = false, updatable = false)
     LocalDateTime createdAt = LocalDateTime.now();
 

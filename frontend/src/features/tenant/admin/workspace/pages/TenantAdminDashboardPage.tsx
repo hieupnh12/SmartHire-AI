@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { getTenantIdFromWindow } from "@/lib/tenant";
 import { getTenantTheme } from "@/lib/tenantTheme";
 import { LanguageSwitcher } from "@/components/ux/LanguageSwitcher";
+import { companyApi } from "@/api/tenant/companyApi";
 import {
   Users,
   Building2,
@@ -74,6 +76,11 @@ export function TenantAdminDashboardPage() {
   const [profileSaved, setProfileSaved] = useState(false);
 
   // State: Billing & Subscription (UC: View Current Plan & Billing History)
+  const subQuery = useQuery({
+    queryKey: ["tenant-subscription-quota"],
+    queryFn: companyApi.getSubscription,
+  });
+  const sub = subQuery.data?.data;
   const [invoices] = useState<BillingInvoice[]>([
     { id: "INV-2026-001", date: "2026-08-01", description: "Gói SaaS Professional - Hàng Tháng", amount: 149, status: "PAID" },
     { id: "INV-2026-002", date: "2026-07-01", description: "Gói SaaS Professional - Hàng Tháng", amount: 149, status: "PAID" },
@@ -501,7 +508,7 @@ export function TenantAdminDashboardPage() {
           <div className="space-y-8 animate-fade-in">
             <div>
               <h1 className="text-2xl font-bold font-display text-[#1e293b]">Subscription Plan & Billing History</h1>
-              <p className="text-xs text-[#64748b]">Theo dõi hạn ngạch sử dụng hiện tại, mua gói nâng cấp và xem lịch sử hóa đơn dịch vụ.</p>
+              <p className="text-xs text-[#64748b]">Theo dõi hạn ngạch sử dụng thực tế theo gói đã mua và xem lịch sử hóa đơn dịch vụ.</p>
             </div>
 
             {/* Current Plan Overview Card */}
@@ -509,15 +516,30 @@ export function TenantAdminDashboardPage() {
               <div className="relative z-10 grid md:grid-cols-12 gap-8 items-center">
                 <div className="md:col-span-7 space-y-3">
                   <span className="px-3 py-1 rounded-full bg-teal-500/20 text-teal-300 font-bold text-xs border border-teal-500/30">
-                    CURRENT PLAN: PROFESSIONAL SAAS
+                    CURRENT PLAN: {(sub?.planCode || "STARTER").toUpperCase()} ({sub?.subscriptionStatus || "ACTIVE"})
                   </span>
-                  <h2 className="text-3xl font-extrabold font-display">Gói Enterprise Professional</h2>
-                  <p className="text-xs text-slate-300">Gói dành cho Doanh nghiệp tuyển dụng mở rộng với Separate DB per Tenant & AI STT Voice Interview.</p>
+                  <h2 className="text-3xl font-extrabold font-display">Gói {sub?.planName || "Starter"}</h2>
+                  <p className="text-xs text-slate-300">
+                    {sub?.description || "Gói bản quyền SaaS Multi-Tenant đang áp dụng cho workspace của doanh nghiệp."}
+                  </p>
+                  <p className="text-xs text-teal-300 font-semibold">
+                    Thời hạn còn lại: {sub?.daysRemaining ?? 0} ngày · Lưu trữ bản ghi phỏng vấn:{" "}
+                    {sub == null
+                      ? "—"
+                      : sub.videoRetentionDays < 0
+                      ? "Vĩnh viễn"
+                      : sub.videoRetentionDays === 0
+                      ? "Không hỗ trợ (0 ngày)"
+                      : `${sub.videoRetentionDays} ngày`}
+                  </p>
                 </div>
 
                 <div className="md:col-span-5 bg-white/10 backdrop-blur-md p-6 rounded-[20px] border border-white/20 text-center space-y-3">
-                  <span className="text-xs text-slate-300 block">Chi Phí Hàng Tháng</span>
-                  <span className="text-4xl font-extrabold text-cyan-400">$149<span className="text-xs text-slate-300">/tháng</span></span>
+                  <span className="text-xs text-slate-300 block">Chi Phí Bản Quyền Theo Năm</span>
+                  <span className="text-3xl font-extrabold text-cyan-400">
+                    {(sub?.priceYearly ?? 0).toLocaleString("vi-VN")} ₫
+                    <span className="text-xs text-slate-300">/năm</span>
+                  </span>
                   <button
                     onClick={() => setShowUpgradeModal(true)}
                     className="w-full py-2.5 rounded-[10px] bg-white text-slate-900 font-bold text-xs hover:bg-slate-100 transition-colors shadow-md"
@@ -528,35 +550,112 @@ export function TenantAdminDashboardPage() {
               </div>
             </div>
 
-            {/* Quotas Progress Bars */}
+            {/* 6 Quotas Progress Bars */}
             <div className="grid md:grid-cols-3 gap-6">
               <div className="p-6 rounded-[20px] bg-white border border-[#e2e8f0] shadow-sm space-y-2">
                 <div className="flex justify-between text-xs font-semibold">
                   <span>Tin Tuyển Dụng (Active Jobs)</span>
-                  <span className="text-[#3b82f6]">4 / 10 Jobs</span>
+                  <span className="text-[#3b82f6]">
+                    {sub?.usedJobs ?? 0} / {sub?.maxJobs != null && sub.maxJobs < 0 ? "Unlimited" : `${sub?.maxJobs ?? 3} Jobs`}
+                  </span>
                 </div>
-                <div className="w-full h-2.5 rounded-full bg-[#f2f3fd]">
-                  <div className="h-full bg-[#3b82f6] rounded-full w-[40%]" />
+                <div className="w-full h-2.5 rounded-full bg-[#f2f3fd] overflow-hidden">
+                  <div
+                    className={`h-full rounded-full ${sub && !sub.jobsAllowed ? "bg-red-600" : "bg-[#3b82f6]"}`}
+                    style={{ width: `${sub?.maxJobs != null && sub.maxJobs < 0 ? 20 : Math.min(100, sub?.jobsUsagePercent ?? 0)}%` }}
+                  />
                 </div>
               </div>
 
               <div className="p-6 rounded-[20px] bg-white border border-[#e2e8f0] shadow-sm space-y-2">
                 <div className="flex justify-between text-xs font-semibold">
-                  <span>CV Parsing AI Quota</span>
-                  <span className="text-teal-600">342 / 500 CVs</span>
+                  <span>CV Parsing AI (Theo tháng)</span>
+                  <span className="text-teal-600">
+                    {sub?.usedCvParses ?? 0} / {sub?.maxCvParses != null && sub.maxCvParses < 0 ? "Unlimited" : `${sub?.maxCvParses ?? 100} CVs`}
+                  </span>
                 </div>
-                <div className="w-full h-2.5 rounded-full bg-[#f2f3fd]">
-                  <div className="h-full bg-teal-600 rounded-full w-[68%]" />
+                <div className="w-full h-2.5 rounded-full bg-[#f2f3fd] overflow-hidden">
+                  <div
+                    className={`h-full rounded-full ${sub && !sub.cvParseAllowed ? "bg-red-600" : "bg-teal-600"}`}
+                    style={{ width: `${sub?.maxCvParses != null && sub.maxCvParses < 0 ? 20 : Math.min(100, sub?.cvParsesUsagePercent ?? 0)}%` }}
+                  />
                 </div>
               </div>
 
               <div className="p-6 rounded-[20px] bg-white border border-[#e2e8f0] shadow-sm space-y-2">
                 <div className="flex justify-between text-xs font-semibold">
                   <span>AI Voice Interview Hours</span>
-                  <span className="text-amber-600">12 / 20 Hours</span>
+                  <span className="text-amber-600">
+                    {((sub?.usedAiInterviewSeconds ?? 0) / 3600).toFixed(1)} /{" "}
+                    {sub?.maxAiInterviewHours != null && sub.maxAiInterviewHours < 0
+                      ? "Unlimited"
+                      : sub?.maxAiInterviewHours === 0
+                      ? "0h (Khóa)"
+                      : `${sub?.maxAiInterviewHours ?? 0} Hours`}
+                  </span>
                 </div>
-                <div className="w-full h-2.5 rounded-full bg-[#f2f3fd]">
-                  <div className="h-full bg-amber-600 rounded-full w-[60%]" />
+                <div className="w-full h-2.5 rounded-full bg-[#f2f3fd] overflow-hidden">
+                  <div
+                    className={`h-full rounded-full ${sub && !sub.aiInterviewAllowed ? "bg-red-600" : "bg-amber-600"}`}
+                    style={{ width: `${sub?.maxAiInterviewHours != null && sub.maxAiInterviewHours < 0 ? 20 : Math.min(100, sub?.aiInterviewUsagePercent ?? 0)}%` }}
+                  />
+                </div>
+              </div>
+
+              <div className="p-6 rounded-[20px] bg-white border border-[#e2e8f0] shadow-sm space-y-2">
+                <div className="flex justify-between text-xs font-semibold">
+                  <span>Giám Sát Thi Proctoring AI</span>
+                  <span className="text-indigo-600">
+                    {((sub?.usedProctoringSeconds ?? 0) / 3600).toFixed(1)} /{" "}
+                    {sub?.maxProctoringHours != null && sub.maxProctoringHours < 0
+                      ? "Unlimited"
+                      : sub?.maxProctoringHours === 0
+                      ? "0h (Khóa)"
+                      : `${sub?.maxProctoringHours ?? 0} Hours`}
+                  </span>
+                </div>
+                <div className="w-full h-2.5 rounded-full bg-[#f2f3fd] overflow-hidden">
+                  <div
+                    className={`h-full rounded-full ${sub && !sub.proctoringAllowed ? "bg-red-600" : "bg-indigo-600"}`}
+                    style={{ width: `${sub?.maxProctoringHours != null && sub.maxProctoringHours < 0 ? 20 : Math.min(100, sub?.proctoringUsagePercent ?? 0)}%` }}
+                  />
+                </div>
+              </div>
+
+              <div className="p-6 rounded-[20px] bg-white border border-[#e2e8f0] shadow-sm space-y-2">
+                <div className="flex justify-between text-xs font-semibold">
+                  <span>Dung Lượng Lưu Trữ (Storage)</span>
+                  <span className="text-cyan-600">
+                    {((sub?.usedStorageBytes ?? 0) / (1024 * 1024)).toFixed(1)} MB /{" "}
+                    {sub?.maxStorageGb != null && sub.maxStorageGb < 0 ? "Unlimited" : `${sub?.maxStorageGb ?? 2} GB`}
+                  </span>
+                </div>
+                <div className="w-full h-2.5 rounded-full bg-[#f2f3fd] overflow-hidden">
+                  <div
+                    className={`h-full rounded-full ${sub && !sub.storageAllowed ? "bg-red-600" : "bg-cyan-600"}`}
+                    style={{ width: `${sub?.maxStorageGb != null && sub.maxStorageGb < 0 ? 20 : Math.min(100, sub?.storageUsagePercent ?? 0)}%` }}
+                  />
+                </div>
+              </div>
+
+              <div className="p-6 rounded-[20px] bg-white border border-[#e2e8f0] shadow-sm space-y-2">
+                <div className="flex justify-between text-xs font-semibold">
+                  <span>Lưu Trữ Video/Audio Phỏng Vấn</span>
+                  <span className="text-emerald-600">
+                    {sub == null
+                      ? "—"
+                      : sub.videoRetentionDays < 0
+                      ? "Unlimited"
+                      : sub.videoRetentionDays === 0
+                      ? "0 ngày (Khóa)"
+                      : `${sub.videoRetentionDays} ngày`}
+                  </span>
+                </div>
+                <div className="w-full h-2.5 rounded-full bg-[#f2f3fd] overflow-hidden">
+                  <div
+                    className={`h-full rounded-full ${sub && !sub.videoRetentionEnabled ? "bg-slate-400" : "bg-emerald-600"}`}
+                    style={{ width: sub && sub.videoRetentionEnabled ? "100%" : "0%" }}
+                  />
                 </div>
               </div>
             </div>
@@ -573,33 +672,46 @@ export function TenantAdminDashboardPage() {
                     <th className="p-4">Mã Hóa Đơn</th>
                     <th className="p-4">Ngày Thanh Toán</th>
                     <th className="p-4">Nội Dung Thanh Toán</th>
-                    <th className="p-4">Số Tiền ($)</th>
+                    <th className="p-4">Số Tiền</th>
                     <th className="p-4">Trạng Thái</th>
-                    <th className="p-4 text-right">Tải Hóa Đơn</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#e2e8f0]">
-                  {invoices.map((inv) => (
-                    <tr key={inv.id} className="hover:bg-[#f8f9ff] font-mono">
-                      <td className="p-4 font-bold text-[#3b82f6]">{inv.id}</td>
-                      <td className="p-4 text-[#64748b]">{inv.date}</td>
-                      <td className="p-4 font-sans text-xs font-semibold text-[#1e293b]">{inv.description}</td>
-                      <td className="p-4 font-extrabold text-[#1e293b]">${inv.amount}</td>
-                      <td className="p-4">
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#16a34a]/10 text-[#16a34a]">
-                          {inv.status}
-                        </span>
-                      </td>
-                      <td className="p-4 text-right">
-                        <button
-                          onClick={() => alert(`Tải hóa đơn PDF ${inv.id}`)}
-                          className="px-3 py-1 rounded-[6px] bg-slate-100 hover:bg-slate-200 text-[#1e293b] font-semibold text-[11px] transition-colors"
-                        >
-                          Download PDF
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  {sub?.invoices && sub.invoices.length > 0 ? (
+                    sub.invoices.map((inv) => (
+                      <tr key={inv.id} className="hover:bg-[#f8f9ff] font-mono">
+                        <td className="p-4 font-bold text-[#3b82f6]">{inv.invoiceNumber}</td>
+                        <td className="p-4 text-[#64748b]">
+                          {inv.paidAt ? inv.paidAt.slice(0, 10) : inv.dueDate ? inv.dueDate.slice(0, 10) : "—"}
+                        </td>
+                        <td className="p-4 font-sans text-xs font-semibold text-[#1e293b]">
+                          {inv.planName ? `Bản quyền gói ${inv.planName}` : "Hóa đơn dịch vụ SaaS"}
+                        </td>
+                        <td className="p-4 font-extrabold text-[#1e293b]">
+                          {Number(inv.amount || 0).toLocaleString("vi-VN")} {inv.currency || "VND"}
+                        </td>
+                        <td className="p-4">
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#16a34a]/10 text-[#16a34a]">
+                            {inv.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    invoices.map((inv) => (
+                      <tr key={inv.id} className="hover:bg-[#f8f9ff] font-mono">
+                        <td className="p-4 font-bold text-[#3b82f6]">{inv.id}</td>
+                        <td className="p-4 text-[#64748b]">{inv.date}</td>
+                        <td className="p-4 font-sans text-xs font-semibold text-[#1e293b]">{inv.description}</td>
+                        <td className="p-4 font-extrabold text-[#1e293b]">${inv.amount}</td>
+                        <td className="p-4">
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#16a34a]/10 text-[#16a34a]">
+                            {inv.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>

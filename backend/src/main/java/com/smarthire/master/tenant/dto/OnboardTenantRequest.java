@@ -27,6 +27,8 @@ public class OnboardTenantRequest extends TenantAdminRequest {
     private String billingAddress;
     @Email @Size(max = 255)
     private String billingEmail;
+    @Size(max = 64)
+    private String planCode;
 
     public String getCode() { return code; }
     public void setCode(String value) { code = value; }
@@ -51,4 +53,6 @@ public class OnboardTenantRequest extends TenantAdminRequest {
     public void setBillingAddress(String value) { billingAddress = value; }
     public String getBillingEmail() { return billingEmail; }
     public void setBillingEmail(String value) { billingEmail = value; }
+    public String getPlanCode() { return planCode; }
+    public void setPlanCode(String value) { planCode = value; }
 }

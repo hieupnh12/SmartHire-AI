@@ -15,6 +15,7 @@ public interface JobRepository extends JpaRepository<Job, Long> {
     List<Job> findByStatusAndDeletedAtIsNullOrderByIdDesc(JobStatus status);
 
     long countByStatusAndDeletedAtIsNull(JobStatus status);
+    long countByStatusInAndDeletedAtIsNull(List<JobStatus> statuses);
     List<Job> findByDeletedAtIsNullOrderByIdDesc();
 
     @Query("select distinct j.department from Job j where j.deletedAt is null and j.department is not null and j.department <> '' order by j.department")

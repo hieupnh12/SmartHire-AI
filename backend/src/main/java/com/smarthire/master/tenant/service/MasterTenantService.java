@@ -200,6 +200,25 @@ public class MasterTenantService {
             throw new BusinessException("Tenant code, subdomain or database is already registered",
                     HttpStatus.CONFLICT, "TENANT_EXISTS");
         }
+        try {
+            String planCode = (request.getPlanCode() != null && !request.getPlanCode().isBlank())
+                    ? request.getPlanCode().trim().toUpperCase(Locale.ROOT)
+                    : "STARTER";
+            List<Long> planIds = masterJdbc.queryForList(
+                    "SELECT id FROM subscription_plans WHERE UPPER(code) = ? LIMIT 1", Long.class, planCode);
+            if (planIds.isEmpty() && !"STARTER".equals(planCode)) {
+                planIds = masterJdbc.queryForList(
+                        "SELECT id FROM subscription_plans WHERE UPPER(code) = 'STARTER' LIMIT 1", Long.class);
+            }
+            if (!planIds.isEmpty() && tenant.getId() != null) {
+                masterJdbc.update(
+                        "INSERT INTO tenant_subscriptions (tenant_id, plan_id, status, starts_at, ends_at, auto_renew, created_at, updated_at) " +
+                        "VALUES (?, ?, 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP + INTERVAL '1 year', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+                        tenant.getId(), planIds.get(0));
+            }
+        } catch (Exception ex) {
+            log.debug("Could not auto-assign initial subscription for tenant {}: {}", code, ex.getMessage());
+        }
         return tenant;
     }
 

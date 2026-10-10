@@ -63,6 +63,9 @@ public class MasterBillingService {
     private final OrderPdfGeneratorService orderPdfGeneratorService;
     private final MasterNotificationService masterNotificationService;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.smarthire.multitenancy.quota.TenantQuotaRedisService quotaRedisService;
+
     @Value("${app.tenant.base-domain:smarthire.top}")
     private String baseDomain;
 
@@ -140,6 +143,10 @@ public class MasterBillingService {
                     .endsAt(endsAt)
                     .autoRenew(true)
                     .build();
+            sub.applyPlanSnapshot(plan);
+            if (request.getAmount() != null && request.getAmount().compareTo(BigDecimal.ZERO) > 0) {
+                sub.setContractedPriceYearly(request.getAmount());
+            }
             sub = subscriptionRepository.save(sub);
             subscriptionId = sub.getId();
         }
@@ -211,8 +218,7 @@ public class MasterBillingService {
             invoice.setPaidAt(request.getPaidAt() != null ? request.getPaidAt() : LocalDateTime.now());
             if (invoice.getSubscriptionId() != null) {
                 subscriptionRepository.findById(invoice.getSubscriptionId()).ifPresent(sub -> {
-                    sub.setStatus("ACTIVE");
-                    subscriptionRepository.save(sub);
+                    activatePaidSubscription(sub);
                 });
             }
             TenantInfo pendingTenant = tenantRepository.findById(invoice.getTenantId()).orElse(null);
@@ -243,6 +249,9 @@ public class MasterBillingService {
         log.info("Invoice #{} updated to status: {}", saved.getInvoiceNumber(), nextStatus);
 
         TenantInfo tenant = tenantRepository.findById(saved.getTenantId()).orElse(null);
+        if (tenant != null && quotaRedisService != null) {
+            quotaRedisService.evictCache(tenant.getCode());
+        }
         SubscriptionPlan plan = null;
         if (saved.getSubscriptionId() != null) {
             TenantSubscription sub = subscriptionRepository.findById(saved.getSubscriptionId()).orElse(null);
@@ -301,7 +310,7 @@ public class MasterBillingService {
                 request.getBillingAddress()
         );
 
-        // 2. Create pending tenant subscription
+        // 2. Create pending tenant subscription with immutable Tier 2 resource snapshot
         LocalDateTime startsAt = LocalDateTime.now();
         LocalDateTime endsAt = startsAt.plusYears(quantity);
 
@@ -313,6 +322,7 @@ public class MasterBillingService {
                 .endsAt(endsAt)
                 .autoRenew(true)
                 .build();
+        sub.applyPlanSnapshot(plan);
         sub = subscriptionRepository.save(sub);
 
         // 3. Create invoice with legal consent snapshot
@@ -500,13 +510,13 @@ public class MasterBillingService {
         Invoice saved = invoiceRepository.save(invoice);
 
         if (saved.getSubscriptionId() != null) {
-            subscriptionRepository.findById(saved.getSubscriptionId()).ifPresent(sub -> {
-                sub.setStatus("ACTIVE");
-                subscriptionRepository.save(sub);
-            });
+            subscriptionRepository.findById(saved.getSubscriptionId()).ifPresent(this::activatePaidSubscription);
         }
 
         TenantInfo tenant = tenantRepository.findById(saved.getTenantId()).orElse(null);
+        if (tenant != null && quotaRedisService != null) {
+            quotaRedisService.evictCache(tenant.getCode());
+        }
         if (tenant != null && ("PENDING_PAYMENT".equals(tenant.getStatus()) || "FAILED".equals(tenant.getStatus()))) {
             log.info("Auto-provisioning workspace for tenant: {}", tenant.getCode());
             String activationUrl = masterTenantService.provisionPendingTenant(tenant.getId());
@@ -532,6 +542,26 @@ public class MasterBillingService {
             }
         }
         return saved;
+    }
+
+    private void activatePaidSubscription(TenantSubscription sub) {
+        if (sub == null) {
+            return;
+        }
+        if (sub.getPlanCodeSnapshot() == null && sub.getPlanId() != null) {
+            planRepository.findById(sub.getPlanId()).ifPresent(sub::applyPlanSnapshot);
+        }
+        if (sub.getUpgradedFromSubscriptionId() != null) {
+            subscriptionRepository.findById(sub.getUpgradedFromSubscriptionId()).ifPresent(oldSub -> {
+                oldSub.setStatus("CANCELED");
+                oldSub.setCanceledAt(LocalDateTime.now());
+                oldSub.setCancelReason("UPGRADED_TO_" + (sub.getPlanCodeSnapshot() != null ? sub.getPlanCodeSnapshot() : sub.getPlanId()));
+                subscriptionRepository.save(oldSub);
+            });
+        }
+        sub.setStatus("ACTIVE");
+        sub.setGracePeriodEndsAt(null);
+        subscriptionRepository.save(sub);
     }
 
     @Transactional(transactionManager = "masterTransactionManager")

@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { dashboardApi } from "@/api/tenant/dashboardApi";
 import { jobApi } from "@/api/tenant/jobApi";
+import { companyApi } from "@/api/tenant/companyApi";
 import type { JobListItem, JobStatus } from "@/api/types/job";
 import { getApiErrorMessage } from "@/lib/axios";
 import { queryKeys } from "@/lib/query-keys";
@@ -80,17 +81,23 @@ export function JobsPage() {
   });
   const summary = useQuery({ queryKey: ["recruiter-dashboard", "summary"], queryFn: dashboardApi.summary, enabled: !!token });
   const departments = useQuery({ queryKey: ["jobs", "departments"], queryFn: jobApi.departments, enabled: !!token });
+  const subQuery = useQuery({ queryKey: ["tenant-subscription-quota"], queryFn: companyApi.getSubscription, enabled: !!token });
+  const sub = subQuery.data?.data;
   const remove = useMutation({
     mutationFn: (id: number) => jobApi.remove(id),
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: queryKeys.jobs.all });
       void client.invalidateQueries({ queryKey: ["recruiter-dashboard"] });
+      void client.invalidateQueries({ queryKey: ["tenant-subscription-quota"] });
       toast.success("Đã lưu trữ tin tuyển dụng");
     },
   });
   const clone = useMutation({
     mutationFn: (id: number) => jobApi.clone(id),
-    onSuccess: (response) => navigate(`/recruiter/jobs/${response.data.id}/edit`),
+    onSuccess: (response) => {
+      void client.invalidateQueries({ queryKey: ["tenant-subscription-quota"] });
+      navigate(`/recruiter/jobs/${response.data.id}/edit`);
+    },
   });
 
   const data = list.data?.data;
@@ -130,16 +137,55 @@ export function JobsPage() {
             Tạo, đăng và theo dõi các vị trí đang tuyển. Mở từng tin để xem ứng viên, sàng lọc CV và pipeline.
           </p>
         </div>
-        {canCreateJob && (
-          <Link
-            to="new"
-            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-brand-primary px-5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-primary-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary"
-          >
-            <Plus className="size-4" aria-hidden="true" />
-            Tạo tin tuyển dụng
-          </Link>
-        )}
+        <div className="flex flex-wrap items-center gap-3">
+          {sub && (
+            <span
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-xl border px-3.5 py-2 text-xs font-semibold",
+                !sub.jobsAllowed
+                  ? "border-red-200 bg-red-50 text-red-700"
+                  : "border-teal-200 bg-teal-50/70 text-teal-800"
+              )}
+            >
+              <span>Gói {sub.planName}:</span>
+              <strong>
+                {sub.usedJobs}/{sub.maxJobs < 0 ? "∞" : sub.maxJobs} vị trí mở
+              </strong>
+            </span>
+          )}
+          {canCreateJob && (
+            sub && !sub.jobsAllowed ? (
+              <button
+                type="button"
+                disabled
+                title="Đã đạt giới hạn số lượng tin tuyển dụng đang mở của gói dịch vụ hiện tại"
+                className="inline-flex min-h-11 cursor-not-allowed items-center justify-center gap-2 rounded-xl bg-slate-200 px-5 text-sm font-semibold text-slate-500"
+              >
+                <Plus className="size-4" aria-hidden="true" />
+                Đã đạt trần tạo tin ({sub.usedJobs}/{sub.maxJobs})
+              </button>
+            ) : (
+              <Link
+                to="new"
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-brand-primary px-5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-primary-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary"
+              >
+                <Plus className="size-4" aria-hidden="true" />
+                Tạo tin tuyển dụng
+              </Link>
+            )
+          )}
+        </div>
       </header>
+
+      {sub && !sub.jobsAllowed && (
+        <div role="alert" className="flex items-center gap-2.5 rounded-xl border border-amber-200 bg-amber-50 p-3.5 text-amber-900">
+          <AlertCircle className="size-4 shrink-0 text-amber-600" aria-hidden="true" />
+          <p className="text-xs sm:text-sm">
+            Workspace đang sử dụng hết <strong>{sub.usedJobs}/{sub.maxJobs}</strong> vị trí tuyển dụng đang mở thuộc gói{" "}
+            <strong>{sub.planName}</strong>. Vui lòng đóng/lưu trữ các tin tuyển dụng cũ hoặc nâng cấp gói dịch vụ để mở thêm vị trí mới.
+          </p>
+        </div>
+      )}
 
       {/* Scope tabs — visible to admins or users with JOBS_ALL */}
       {canViewAll && (

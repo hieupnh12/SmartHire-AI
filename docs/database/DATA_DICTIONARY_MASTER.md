@@ -3,7 +3,7 @@
 > Trở về [Database Design & ERD](README.md) · Xem thêm [Data Dictionary Tenant](DATA_DICTIONARY_TENANT.md)
 
 **Database:** `smarthire_master` · **RDBMS:** PostgreSQL · **Số bảng:** 17
-**Nguồn:** `backend/src/main/resources/db/migration/master/V1…V26`
+**Nguồn:** `backend/src/main/resources/db/migration/master/V1…V27`
 **Entity:** `com.smarthire.domain.master.entity` · **Hibernate:** `hbm2ddl.auto = validate`
 
 Ký hiệu: `PK` khoá chính · `FK` khoá ngoại đã khai báo · `UQ` thuộc ràng buộc unique · `IDX` có index ·
@@ -55,51 +55,74 @@ tới database MySQL riêng của họ.
 
 ---
 
-## 2. `subscription_plans` — Gói dịch vụ
+## 2. `subscription_plans` — Danh mục Gói dịch vụ (Tier 1 Plan Catalog / Templates)
 
-Entity `SubscriptionPlan`. Bảng tra cứu định nghĩa giá và hạn mức tiêu thụ của từng gói (đã quy đổi giá chuẩn theo VNĐ).
+Entity `SubscriptionPlan`. Bảng danh mục định nghĩa giá và hạn mức tiêu thụ của từng gói (VNĐ), hỗ trợ bất biến phiên bản (Versioning / Grandfathering) và gói tùy biến riêng cho Enterprise Tenant (V27).
 
 | Cột | Kiểu | Khoá | Null | Default | Mô tả |
 |---|---|---|---|---|---|
 | `id` | BIGINT IDENTITY | PK | Không | auto | Định danh gói |
-| `code` | VARCHAR(64) | UQ | Không | — | Mã gói, ví dụ `STARTER`, `PROFESSIONAL`, `ENTERPRISE` |
+| `code` | VARCHAR(64) | UQ | Không | — | Mã gói, ví dụ `STARTER`, `PRO`, `ENTERPRISE` (hoặc `PRO_V1_2` khi lưu trữ) |
 | `name` | VARCHAR(128) | | Không | — | Tên hiển thị gói |
 | `description` | TEXT | | Có | NULL | Mô tả chi tiết |
+| `version` | INT | | Không | 1 | Số phiên bản của gói cước phục vụ bảo lưu giá (Grandfathering) (V27) |
+| `parent_plan_id` | BIGINT | FK → `subscription_plans.id` | Có | NULL | Phiên bản gói cha hoặc gói mẫu gốc khi tạo version mới / clone custom (V27, SET NULL) |
+| `is_custom` | BOOLEAN | IDX | Không | FALSE | `TRUE` nếu là gói thiết kế riêng theo hợp đồng Enterprise cho 1 Tenant (V27) |
+| `target_tenant_id` | BIGINT | FK → `tenants.id`, IDX | Có | NULL | Doanh nghiệp sở hữu gói Custom Enterprise (V27, SET NULL) |
+| `is_archived` | BOOLEAN | IDX | Không | FALSE | `TRUE` nếu gói đã ngừng mở bán mới nhưng khách cũ vẫn gia hạn theo giá cũ (V27) |
 | `price_yearly` | DECIMAL(15,2) | | Không | 0.00 | Giá gói theo năm (VNĐ) |
-| `max_jobs` | INT | | Không | 5 | Hạn mức tin tuyển dụng đang mở |
-| `max_cv_parses` | INT | | Không | 100 | Hạn mức số lần parse CV |
-| `max_ai_interview_hours` | INT | | Có | NULL | Hạn mức giờ phỏng vấn AI (NULL: không giới hạn) |
-| `max_storage_gb` | INT | | Có | NULL | Hạn mức dung lượng lưu trữ (NULL: không giới hạn) |
-| `max_proctoring_hours` | INT | | Có | NULL | Hạn mức giờ giám sát thi (NULL: không giới hạn) |
-| `video_retention_days` | INT | | Có | NULL | Số ngày lưu trữ video phỏng vấn |
-| `features_json` | JSONB | | Có | NULL | Danh sách tính năng bật/tắt dạng JSON tối ưu |
+| `max_jobs` | INT | | Không | 5 | Hạn mức tin tuyển dụng đang mở (`-1`: không giới hạn) |
+| `max_cv_parses` | INT | | Không | 100 | Hạn mức số lần parse CV / tháng (`-1`: không giới hạn) |
+| `max_ai_interview_hours` | INT | | Có | NULL | Hạn mức giờ phỏng vấn AI (`0`: khóa, `-1`/NULL: không giới hạn) |
+| `max_storage_gb` | INT | | Có | NULL | Hạn mức dung lượng lưu trữ GB (`-1`/NULL: không giới hạn) |
+| `max_proctoring_hours` | INT | | Có | NULL | Hạn mức giờ giám sát thi AI (`0`: khóa, `-1`/NULL: không giới hạn) |
+| `video_retention_days` | INT | | Có | NULL | Số ngày lưu trữ video phỏng vấn (`0`: khóa, `-1`/NULL: vĩnh viễn) |
+| `features_json` | JSONB | | Có | NULL | Danh sách tính năng bật/tắt dạng JSON |
 | `is_deleted` | BOOLEAN | | Không | FALSE | Cờ xoá mềm |
 | `deleted_at` | TIMESTAMP | | Có | NULL | Thời điểm xoá mềm |
-| `status` | VARCHAR(32) | | Không | `'ACTIVE'` | Gói còn bán (`ACTIVE`) hay ngừng bán (`INACTIVE`) |
+| `status` | VARCHAR(32) | IDX | Không | `'ACTIVE'` | Trạng thái gói (`ACTIVE`, `ARCHIVED`, `INACTIVE`) |
 | `created_at` | TIMESTAMP | | Không | now | |
 | `updated_at` | TIMESTAMP | | Không | now | |
 
-**Ràng buộc:** `uk_plans_code`
+**Ràng buộc & Index:** `uk_plans_code`, `fk_sp_parent_plan`, `fk_sp_target_tenant`, `idx_sp_status_custom_archived`, `idx_sp_target_tenant_id`
 
 ---
 
-## 3. `tenant_subscriptions` — Đăng ký gói của tenant
+## 3. `tenant_subscriptions` — Thuê bao của Tenant (Tier 2 Tenant Subscription Instance)
 
-Entity `TenantSubscription`. Ghi nhận gói mà một tenant đang dùng trong một khoảng thời gian.
+Entity `TenantSubscription`. Ghi nhận hợp đồng thuê bao của từng Tenant kèm bản chụp (Snapshot) toàn bộ giá và hạn mức tài nguyên tại thời điểm mua, vòng đời trạng thái (`TRIAL` → `ACTIVE` → `PAST_DUE` → `SUSPENDED` → `CANCELED`) và khấu trừ nâng/hạ cấp (V27).
 
 | Cột | Kiểu | Khoá | Null | Default | Mô tả |
 |---|---|---|---|---|---|
 | `id` | BIGINT IDENTITY | PK | Không | auto | |
-| `tenant_id` | BIGINT | FK → `tenants.id` | Không | — | Doanh nghiệp đăng ký |
-| `plan_id` | BIGINT | FK → `subscription_plans.id` | Không | — | Gói được áp dụng |
-| `status` | VARCHAR(32) | | Không | `'ACTIVE'` | Trạng thái đăng ký (`PENDING`, `ACTIVE`, `EXPIRED`, `CANCELLED`) |
-| `starts_at` | TIMESTAMP | | Không | now | Thời điểm bắt đầu hiệu lực |
-| `ends_at` | TIMESTAMP | | Có | NULL | Thời điểm hết hạn; NULL nghĩa là vô thời hạn |
-| `auto_renew` | BOOLEAN | | Không | TRUE | Tự động gia hạn |
+| `tenant_id` | BIGINT | FK → `tenants.id`, IDX | Không | — | Doanh nghiệp đăng ký |
+| `plan_id` | BIGINT | FK → `subscription_plans.id` | Không | — | Gói gốc tham chiếu |
+| `plan_code_snapshot` | VARCHAR(64) | | Có | NULL | Snapshot mã gói tại thời điểm mua (V27) |
+| `plan_name_snapshot` | VARCHAR(128) | | Có | NULL | Snapshot tên gói tại thời điểm mua (V27) |
+| `plan_version_snapshot` | INT | | Có | 1 | Snapshot phiên bản gói tại thời điểm mua (V27) |
+| `contracted_price_yearly`| DECIMAL(15,2) | | Có | NULL | Giá hợp đồng cam kết theo năm (VNĐ) tại thời điểm mua (V27) |
+| `snapshot_max_jobs` | INT | | Có | NULL | Snapshot hạn mức tin tuyển dụng đang mở (V27) |
+| `snapshot_max_cv_parses`| INT | | Có | NULL | Snapshot hạn mức lượt AI CV Parse / tháng (V27) |
+| `snapshot_max_ai_interview_hours` | INT | | Có | NULL | Snapshot hạn mức giờ phỏng vấn AI Voice (V27) |
+| `snapshot_max_storage_gb`| INT | | Có | NULL | Snapshot hạn mức dung lượng lưu trữ GB (V27) |
+| `snapshot_max_proctoring_hours` | INT | | Có | NULL | Snapshot hạn mức giờ giám sát thi AI Proctoring (V27) |
+| `snapshot_video_retention_days` | INT | | Có | NULL | Snapshot số ngày lưu trữ video phỏng vấn (V27) |
+| `snapshot_features_json`| JSONB | | Có | NULL | Snapshot JSON danh sách tính năng cam kết trong hợp đồng (V27) |
+| `status` | VARCHAR(32) | IDX | Không | `'ACTIVE'` | Trạng thái vòng đời (`TRIAL`, `PENDING`, `ACTIVE`, `PAST_DUE`, `SUSPENDED`, `CANCELED`, `EXPIRED`) |
+| `starts_at` | TIMESTAMP | | Không | now | Thời điểm bắt đầu chu kỳ |
+| `ends_at` | TIMESTAMP | IDX | Có | NULL | Thời điểm kết thúc chu kỳ; NULL nghĩa là vô thời hạn |
+| `grace_period_ends_at` | TIMESTAMP | | Có | NULL | Thời hạn ân hạn thanh toán (3-7 ngày) khi ở trạng thái `PAST_DUE` (V27) |
+| `auto_renew` | BOOLEAN | | Không | TRUE | Tự động gia hạn cuối kỳ |
+| `next_plan_id` | BIGINT | FK → `subscription_plans.id` | Có | NULL | Gói dự kiến áp dụng vào cuối chu kỳ khi khách hàng Downgrade (V27, SET NULL) |
+| `prorated_credit_amount`| DECIMAL(15,2) | | Không | 0.00 | Số tiền khấu trừ những ngày chưa dùng khi Upgrade giữa kỳ (V27) |
+| `upgraded_from_subscription_id` | BIGINT | FK → `tenant_subscriptions.id` | Có | NULL | Thuê bao cũ trước khi nâng cấp (V27, SET NULL) |
+| `canceled_at` | TIMESTAMP | | Có | NULL | Thời điểm hủy thuê bao (V27) |
+| `cancel_reason` | VARCHAR(512) | | Có | NULL | Lý do hủy thuê bao hoặc chuyển đổi gói (V27) |
 | `created_at` | TIMESTAMP | | Không | now | |
 | `updated_at` | TIMESTAMP | | Không | now | |
 
-**Ràng buộc:** `fk_ts_tenant`, `fk_ts_plan`
+**Ràng buộc & Index:** `fk_ts_tenant`, `fk_ts_plan`, `fk_ts_next_plan`, `fk_ts_upgraded_from`, `idx_ts_tenant_status`, `idx_ts_ends_at_status`
+
 
 ---
 

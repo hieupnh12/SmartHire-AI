@@ -1,8 +1,7 @@
 package com.smarthire.master.subscription.dto;
 
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotNull;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
 
@@ -13,35 +12,38 @@ import java.math.BigDecimal;
 @NoArgsConstructor
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class UpdateSubscriptionPlanRequest {
-    @NotBlank(message = "Name is required")
+public class CloneCustomPlanRequest {
+
+    @NotNull(message = "Target tenant ID is required")
+    Long targetTenantId;
+
+    String customCode;
     String name;
-    
     String description;
-    
-    @NotNull(message = "Yearly price is required")
+
     @Min(0)
     BigDecimal priceYearly;
-    
-    @NotNull(message = "Max jobs is required")
+
     @Min(-1)
     Integer maxJobs;
-    
-    @NotNull(message = "Max CV parses is required")
+
     @Min(-1)
     Integer maxCvParses;
-    
+
     @Min(-1)
     Integer maxAiInterviewHours;
-    
+
     @Min(-1)
     Integer maxStorageGb;
-    
+
     @Min(-1)
     Integer maxProctoringHours;
-    
+
     @Min(-1)
     Integer videoRetentionDays;
-    
+
     String featuresJson;
+
+    @Builder.Default
+    Boolean activateImmediately = true;
 }
