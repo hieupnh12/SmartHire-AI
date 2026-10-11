@@ -226,7 +226,7 @@ export function ContractsPage() {
           { label: "Tổng Hợp Đồng",       value: contracts.length, unit: "hợp đồng",   color: "text-slate-900", icon: <FileSignature className="w-3.5 h-3.5 text-slate-400" />, sub: "Toàn bộ trên nền tảng" },
           { label: "Đã Ký & Kích Hoạt",   value: signedCount,      unit: "đã ký",       color: "text-emerald-600", icon: <FileCheck2 className="w-3.5 h-3.5 text-emerald-400" />, sub: "Có giá trị pháp lý" },
           { label: "Chờ Ký Số",           value: pendingCount,     unit: "chờ ký",      color: "text-amber-600", icon: <Clock className="w-3.5 h-3.5 text-amber-400" />, sub: "Doanh nghiệp chưa ký" },
-          { label: "Tổng Giá Trị Ký",     value: `$${totalValue.toLocaleString()}`, unit: "USD", color: "text-indigo-600", icon: <TrendingUp className="w-3.5 h-3.5 text-indigo-400" />, sub: "Doanh thu từ HĐ đã ký" },
+          { label: "Tổng Giá Trị Ký",     value: `${totalValue.toLocaleString("vi-VN")}`, unit: "VNĐ", color: "text-indigo-600", icon: <TrendingUp className="w-3.5 h-3.5 text-indigo-400" />, sub: "Doanh thu từ HĐ đã ký" },
         ].map((card, i) => (
           <div key={i} className="bg-white border border-slate-200/80 rounded-xl p-3 shadow-xs">
             <div className="flex items-center justify-between mb-1.5">
@@ -310,10 +310,10 @@ export function ContractsPage() {
                     {/* Value */}
                     <td className="px-5 py-4 whitespace-nowrap">
                       <div className="font-bold text-slate-900 font-mono">
-                        ${(c.totalAmount || c.contractValue).toLocaleString()}
+                        {(c.totalAmount || c.contractValue).toLocaleString("vi-VN")} ₫
                       </div>
                       <div className="text-[10px] text-slate-400 mt-0.5">
-                        Gốc: ${c.contractValue.toLocaleString()} + VAT {c.taxRate || 10}%
+                        Gốc: {c.contractValue.toLocaleString("vi-VN")} ₫ + VAT {c.taxRate || 10}%
                       </div>
                     </td>
 

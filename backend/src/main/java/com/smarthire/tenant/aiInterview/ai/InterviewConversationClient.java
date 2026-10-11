@@ -3,6 +3,9 @@ package com.smarthire.tenant.aiInterview.ai;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.smarthire.common.exception.BusinessException;
+import com.smarthire.config.ai.AiRateLimiterService;
+import com.smarthire.config.ai.AiUsageMeteringService;
 import com.smarthire.config.ai.DynamicAiConfigProvider;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
@@ -13,6 +16,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.function.Consumer;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -30,6 +34,8 @@ public class InterviewConversationClient {
     private final String nativeBase;
     private final String ttsModel;
     private final String conversationModel;
+    private AiUsageMeteringService meteringService;
+    private AiRateLimiterService rateLimiterService;
 
     public InterviewConversationClient(DynamicAiConfigProvider configs, AiInterviewAiConfig fallback, ObjectMapper mapper,
             @org.springframework.beans.factory.annotation.Qualifier("interviewConversationHttp") RestClient.Builder builder,
@@ -41,13 +47,30 @@ public class InterviewConversationClient {
         http = builder.clone().build();
     }
 
+    @Autowired(required = false)
+    public void setMeteringService(AiUsageMeteringService meteringService) {
+        this.meteringService = meteringService;
+    }
+
+    @Autowired(required = false)
+    public void setRateLimiterService(AiRateLimiterService rateLimiterService) {
+        this.rateLimiterService = rateLimiterService;
+    }
+
     public String dialogue(String instruction, List<Message> history, Consumer<String> onDelta) {
         var config = configs.resolveConfig("INTERVIEW_GEN");
+        if (rateLimiterService != null) {
+            rateLimiterService.checkAndAcquire("INTERVIEW_GEN");
+        }
         var body = request(instruction, history);
+        String effectiveModel = model(config);
         var generation = body.putObject("generationConfig").put("temperature", 0.4).put("maxOutputTokens", 2048);
-        disableThinking(generation, model(config));
+        disableThinking(generation, effectiveModel);
+        long startNs = System.nanoTime();
+        boolean success = false;
+        long[] tokenHolder = new long[]{0L, 0L};
         try {
-            return http.post().uri(url(model(config), "streamGenerateContent") + "?alt=sse")
+            String out = http.post().uri(url(effectiveModel, "streamGenerateContent") + "?alt=sse")
                     .header("x-goog-api-key", key(config)).contentType(MediaType.APPLICATION_JSON).body(body)
                     .exchange((req, response) -> {
                         if (!response.getStatusCode().is2xxSuccessful()) throw failure(response.getStatusCode().value());
@@ -60,6 +83,11 @@ public class InterviewConversationClient {
                                 if (payload.isEmpty() || "[DONE]".equals(payload)) continue;
                                 var event = mapper.readTree(payload);
                                 if (event.has("error")) throw new IllegalStateException("AI dialogue stream failed");
+                                JsonNode usageNode = event.path("usageMetadata");
+                                if (!usageNode.isMissingNode() && usageNode.isObject()) {
+                                    tokenHolder[0] = Math.max(tokenHolder[0], usageNode.path("promptTokenCount").asLong(0L));
+                                    tokenHolder[1] = Math.max(tokenHolder[1], usageNode.path("candidatesTokenCount").asLong(0L));
+                                }
                                 var candidate = event.path("candidates").path(0);
                                 for (var part : candidate.path("content").path("parts")) {
                                     if (part.path("thought").asBoolean(false)) continue;
@@ -75,8 +103,20 @@ public class InterviewConversationClient {
                         if (!complete || result.toString().isBlank()) throw new IllegalStateException("Incomplete AI dialogue");
                         return result.toString().trim();
                     });
+            if (tokenHolder[0] <= 0L) tokenHolder[0] = Math.max(1L, body.toString().length() / 4L);
+            if (tokenHolder[1] <= 0L && out != null) tokenHolder[1] = Math.max(1L, out.length() / 4L);
+            success = true;
+            return out;
+        } catch (BusinessException ex) { throw ex;
         } catch (AiInterviewClient.ProviderException ex) { throw ex;
-        } catch (Exception ex) { throw unavailable("dialogue", ex); }
+        } catch (Exception ex) { throw unavailable("dialogue", ex);
+        } finally {
+            if (meteringService != null) {
+                long latencyMs = (System.nanoTime() - startNs) / 1_000_000L;
+                meteringService.recordUsageAsync("INTERVIEW_GEN", config.provider(), effectiveModel,
+                        tokenHolder[0], tokenHolder[1], latencyMs, success);
+            }
+        }
     }
 
     public JsonNode evaluate(String instruction, JsonNode transcript) {
@@ -89,6 +129,7 @@ public class InterviewConversationClient {
             var result = mapper.readTree(text(generate(config, model(config), body)));
             if (result == null || !result.isObject()) throw new IllegalStateException("Invalid transcript evaluation");
             return result;
+        } catch (BusinessException ex) { throw ex;
         } catch (AiInterviewClient.ProviderException ex) { throw ex;
         } catch (Exception ex) { throw unavailable("evaluation", ex); }
     }
@@ -136,14 +177,33 @@ public class InterviewConversationClient {
     }
 
     private JsonNode generate(DynamicAiConfigProvider.ResolvedAiConfig config, String model, ObjectNode body) {
+        if (rateLimiterService != null) {
+            rateLimiterService.checkAndAcquire(config.taskType());
+        }
+        long startNs = System.nanoTime();
+        boolean success = false;
+        long promptTokens = 0L;
+        long completionTokens = 0L;
         try {
             var response = http.post().uri(url(model, "generateContent")).header("x-goog-api-key", key(config))
                     .contentType(MediaType.APPLICATION_JSON).body(body).retrieve().body(JsonNode.class);
             if (response == null || !"STOP".equals(response.path("candidates").path(0).path("finishReason").asText()))
                 throw new IllegalStateException("Incomplete AI response");
+            long[] tokens = AiUsageMeteringService.extractTokenUsage(response, null, null);
+            promptTokens = tokens[0];
+            completionTokens = tokens[1];
+            success = true;
             return response;
+        } catch (BusinessException ex) { throw ex;
         } catch (RestClientResponseException ex) { throw failure(ex.getStatusCode().value());
-        } catch (Exception ex) { throw unavailable("generate", ex); }
+        } catch (Exception ex) { throw unavailable("generate", ex);
+        } finally {
+            if (meteringService != null) {
+                long latencyMs = (System.nanoTime() - startNs) / 1_000_000L;
+                meteringService.recordUsageAsync(config.taskType(), config.provider(), model,
+                        promptTokens, completionTokens, latencyMs, success);
+            }
+        }
     }
     private ObjectNode request(String instruction, List<Message> history) {
         var body = mapper.createObjectNode();

@@ -441,6 +441,11 @@ public class TenantQuotaRedisService {
                     && targetSub.getGracePeriodEndsAt() != null
                     && java.time.LocalDateTime.now().isAfter(targetSub.getGracePeriodEndsAt())) {
                 targetSub.setStatus("SUSPENDED");
+                try {
+                    subscriptionRepository.save(targetSub);
+                } catch (Exception ex) {
+                    log.debug("Deferred saving expired grace-period subscription {}: {}", targetSub.getId(), ex.getMessage());
+                }
             }
 
             if (targetSub != null && planRepository != null && targetSub.getPlanId() != null) {

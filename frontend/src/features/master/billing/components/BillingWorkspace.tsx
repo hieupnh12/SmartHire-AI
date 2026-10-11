@@ -46,16 +46,16 @@ type Invoice = {
 };
 
 const invoices: Invoice[] = [
-  { id: "INV-2026-0948", tenant: "Viettel Group", plan: "Enterprise", amount: 3990, dueDate: "18/09/2026", status: "PAID" },
-  { id: "INV-2026-0947", tenant: "FPT Software", plan: "Enterprise", amount: 3990, dueDate: "20/09/2026", status: "PENDING" },
-  { id: "INV-2026-0946", tenant: "VNG Corporation", plan: "Professional", amount: 1490, dueDate: "14/09/2026", status: "OVERDUE" },
-  { id: "INV-2026-0945", tenant: "Techcombank", plan: "Enterprise", amount: 3990, dueDate: "24/09/2026", status: "PENDING" },
-  { id: "INV-2026-0944", tenant: "Acme Corporation", plan: "Professional", amount: 149, dueDate: "12/09/2026", status: "PAID" },
+  { id: "INV-2026-0948", tenant: "Viettel Group", plan: "Enterprise", amount: 120000000, dueDate: "18/09/2026", status: "PAID" },
+  { id: "INV-2026-0947", tenant: "FPT Software", plan: "Enterprise", amount: 120000000, dueDate: "20/09/2026", status: "PENDING" },
+  { id: "INV-2026-0946", tenant: "VNG Corporation", plan: "Professional", amount: 36000000, dueDate: "14/09/2026", status: "OVERDUE" },
+  { id: "INV-2026-0945", tenant: "Techcombank", plan: "Enterprise", amount: 120000000, dueDate: "24/09/2026", status: "PENDING" },
+  { id: "INV-2026-0944", tenant: "Acme Corporation", plan: "Professional", amount: 36000000, dueDate: "12/09/2026", status: "PAID" },
 ];
 
-const money = new Intl.NumberFormat("en-US", {
+const money = new Intl.NumberFormat("vi-VN", {
   style: "currency",
-  currency: "USD",
+  currency: "VND",
   maximumFractionDigits: 0,
 });
 
@@ -139,9 +139,9 @@ export function BillingWorkspace({
       {view === "overview" && (
         <>
           <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Tổng quan thanh toán">
-            <MetricCard icon={CircleDollarSign} label="Doanh thu định kỳ" value={money.format(monthlyRevenue)} detail="MRR tháng 09/2026" trend="+12,8%" positive />
+            <MetricCard icon={CircleDollarSign} label="Doanh thu định kỳ (MRR)" value={money.format(monthlyRevenue)} detail="Quy đổi từ bản quyền năm" trend="+12,8%" positive />
             <MetricCard icon={Building2} label="Thuê bao hoạt động" value={activeTenants.toString()} detail="Trên toàn nền tảng" trend="+4 tháng này" positive />
-            <MetricCard icon={Clock3} label="Đang chờ thanh toán" value={money.format(7980)} detail="2 hóa đơn chưa đến hạn" trend="3,6%" />
+            <MetricCard icon={Clock3} label="Đang chờ thanh toán" value={money.format(240000000)} detail="2 hóa đơn chưa đến hạn" trend="3,6%" />
             <MetricCard icon={TriangleAlert} label="Công nợ quá hạn" value={money.format(overdueTotal)} detail="1 hóa đơn cần xử lý" trend="-1,2%" />
           </section>
 
@@ -152,7 +152,7 @@ export function BillingWorkspace({
             </section>
             <section className={cn(surface, "p-5 sm:p-6")}>
               <div className="flex items-start justify-between gap-4">
-                <div><p className="text-sm font-semibold text-slate-950">Tình trạng thu tiền</p><p className="mt-1 text-xs text-slate-500">Chu kỳ tháng 09/2026</p></div>
+                <div><p className="text-sm font-semibold text-slate-950">Tình trạng thu tiền</p><p className="mt-1 text-xs text-slate-500">Chu kỳ năm 2026</p></div>
                 <span className="grid size-10 place-items-center rounded-xl bg-blue-50 text-blue-700"><CreditCard className="size-5" aria-hidden="true" /></span>
               </div>
               <div className="mt-6 flex items-center gap-5">
@@ -160,8 +160,8 @@ export function BillingWorkspace({
                   <div className="grid size-full place-items-center rounded-full bg-white text-center"><span><strong className="block text-2xl text-slate-950">94%</strong><small className="text-[10px] font-medium text-slate-500">đã thu</small></span></div>
                 </div>
                 <dl className="min-w-0 flex-1 space-y-3 text-xs">
-                  <StatusLegend color="bg-blue-600" label="Đã thanh toán" value="$41.860" />
-                  <StatusLegend color="bg-amber-500" label="Đang chờ" value="$7.980" />
+                  <StatusLegend color="bg-blue-600" label="Đã thanh toán" value={money.format(156000000)} />
+                  <StatusLegend color="bg-amber-500" label="Đang chờ" value={money.format(240000000)} />
                   <StatusLegend color="bg-red-500" label="Quá hạn" value={money.format(overdueTotal)} />
                 </dl>
               </div>
@@ -237,7 +237,7 @@ function SectionHeader({ title, description, action, onAction }: { title: string
 
 function RevenueChart() {
   const points = [38, 45, 43, 58, 66, 78];
-  return <div className="p-5 sm:p-6"><div className="mb-5 flex items-end justify-between"><div><strong className="text-2xl font-semibold text-slate-950">$48.500</strong><span className="ml-2 text-xs font-semibold text-emerald-700">+12,8%</span></div><span className="text-xs text-slate-400">Đơn vị: USD</span></div><div className="flex h-44 items-end gap-3 sm:gap-5" role="img" aria-label="Biểu đồ doanh thu tăng từ tháng 4 đến tháng 9"><div className="flex h-full flex-1 items-end justify-around border-b border-slate-200 bg-[linear-gradient(to_top,#e2e8f0_1px,transparent_1px)] [background-size:100%_25%]">{points.map((point, index) => <div key={index} className="group flex h-full w-full items-end justify-center"><div className="relative w-3/5 max-w-12 rounded-t-lg bg-blue-100 transition-colors group-hover:bg-blue-200" style={{ height: `${point}%` }}><span className="absolute inset-x-0 -top-6 hidden text-center text-[10px] font-semibold text-blue-700 group-hover:block">${point - 30}k</span></div></div>)}</div></div><div className="mt-3 grid grid-cols-6 text-center text-[10px] font-medium text-slate-400">{["T4", "T5", "T6", "T7", "T8", "T9"].map((month) => <span key={month}>{month}</span>)}</div></div>;
+  return <div className="p-5 sm:p-6"><div className="mb-5 flex items-end justify-between"><div><strong className="text-2xl font-semibold text-slate-950">432.000.000 ₫</strong><span className="ml-2 text-xs font-semibold text-emerald-700">+12,8%</span></div><span className="text-xs text-slate-400">Đơn vị: VNĐ</span></div><div className="flex h-44 items-end gap-3 sm:gap-5" role="img" aria-label="Biểu đồ doanh thu tăng từ tháng 4 đến tháng 9"><div className="flex h-full flex-1 items-end justify-around border-b border-slate-200 bg-[linear-gradient(to_top,#e2e8f0_1px,transparent_1px)] [background-size:100%_25%]">{points.map((point, index) => <div key={index} className="group flex h-full w-full items-end justify-center"><div className="relative w-3/5 max-w-12 rounded-t-lg bg-blue-100 transition-colors group-hover:bg-blue-200" style={{ height: `${point}%` }}><span className="absolute inset-x-0 -top-6 hidden text-center text-[10px] font-semibold text-blue-700 group-hover:block">{(point - 30) * 10}tr ₫</span></div></div>)}</div></div><div className="mt-3 grid grid-cols-6 text-center text-[10px] font-medium text-slate-400">{["T4", "T5", "T6", "T7", "T8", "T9"].map((month) => <span key={month}>{month}</span>)}</div></div>;
 }
 
 function StatusLegend({ color, label, value }: { color: string; label: string; value: string }) {

@@ -59,7 +59,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/v1/public/jobs", "/api/v1/public/jobs/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/public/landing", "/api/v1/public/landing/**").permitAll()
                         .requestMatchers("/api/v1/public/**").permitAll()
-                        .requestMatchers("/api/v1/master/**").hasRole("WORKSPACE_ADMIN")
+                        .requestMatchers("/api/v1/master/**", "/api/master/**").hasRole("WORKSPACE_ADMIN")
                         .requestMatchers("/api/v1/tenant/role-permissions/**").hasAnyRole("TENANT_ADMIN", "ADMIN")
                         .requestMatchers("/api/v1/tenant/roles/**").hasAnyRole("TENANT_ADMIN", "ADMIN")
                         .requestMatchers("/api/v1/tenant/users/**").hasAnyRole("TENANT_ADMIN", "ADMIN")

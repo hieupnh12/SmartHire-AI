@@ -55,6 +55,20 @@ public final class RedisKeys {
         return "cache:ai:key:" + (provider == null ? "DEFAULT" : provider.trim().toUpperCase());
     }
 
+    public static String aiRateLimitConfig() {
+        return "cache:ai:ratelimit:config";
+    }
+
+    public static String aiTenantRpmWindow(String tenantCode, String minuteBucket) {
+        String t = (tenantCode == null ? "default" : tenantCode.trim().toLowerCase());
+        return "ratelimit:ai:rpm:" + t + ":" + minuteBucket;
+    }
+
+    public static String aiTenantTpmWindow(String tenantCode, String minuteBucket) {
+        String t = (tenantCode == null ? "default" : tenantCode.trim().toLowerCase());
+        return "ratelimit:ai:tpm:" + t + ":" + minuteBucket;
+    }
+
     public static String masterLoginFailedAttempts(String email) {
         return "ratelimit:master:login:failed:" + (email == null ? "" : email.trim().toLowerCase());
     }

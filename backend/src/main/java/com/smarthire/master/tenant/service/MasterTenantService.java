@@ -39,7 +39,7 @@ public class MasterTenantService {
     private final String mysqlOptions;
     private final String baseDomain;
     private final SecureRandom random = new SecureRandom();
-    private static final Set<String> RESERVED = Set.of("www", "api", "admin", "master", "localhost", "smarthire-master");
+    private static final Set<String> RESERVED = Set.of("www", "api", "app", "admin", "master", "localhost", "smarthire-master");
 
     @Autowired
     public MasterTenantService(TenantInfoRepository tenants, TenantProvisioningService provisioning,
@@ -74,12 +74,17 @@ public class MasterTenantService {
         if (subdomain == null || subdomain.isBlank()) return false;
         String value = subdomain.trim().toLowerCase(Locale.ROOT);
         return tenants.findBySubdomain(value)
-                .filter(t -> "ACTIVE".equals(t.getStatus())).isPresent();
+                .filter(t -> !t.isDeleted() && "ACTIVE".equals(t.getStatus())).isPresent();
     }
 
     public TenantInfo updateTenantStatus(Long id, String status) {
         if (!Set.of("ACTIVE", "SUSPENDED").contains(status)) {
             throw new BusinessException("Status must be ACTIVE or SUSPENDED", HttpStatus.BAD_REQUEST, "INVALID_STATUS");
+        }
+        TenantInfo current = getTenantById(id);
+        if (current.isDeleted() && "ACTIVE".equals(status)) {
+            throw new BusinessException("Không thể kích hoạt doanh nghiệp đang ở trạng thái xóa mềm (Lưu trữ). Vui lòng khôi phục trước.",
+                    HttpStatus.CONFLICT, "TENANT_SOFT_DELETED");
         }
         // Conditional update prevents status changes racing with provisioning or another administrator.
         if (tenants.changeOperationalStatus(id, status) != 1) {
@@ -91,46 +96,77 @@ public class MasterTenantService {
         return tenant;
     }
 
+    public TenantInfo softDeleteTenant(Long id) {
+        TenantInfo tenant = registration.execute(status -> {
+            TenantInfo t = getTenantById(id);
+            t.setDeleted(true);
+            t.setDeletedAt(java.time.LocalDateTime.now());
+            if ("ACTIVE".equals(t.getStatus())) {
+                t.setStatus("SUSPENDED");
+            }
+            return tenants.save(t);
+        });
+        if (tenant != null) {
+            pools.evict(tenant.getCode());
+        }
+        return tenant;
+    }
+
+    public TenantInfo restoreTenant(Long id) {
+        return registration.execute(status -> {
+            TenantInfo t = getTenantById(id);
+            t.setDeleted(false);
+            t.setDeletedAt(null);
+            return tenants.save(t);
+        });
+    }
+
     public void deleteTenant(Long id) {
         TenantInfo tenant = getTenantById(id);
         // Remove from connection pool
         pools.evict(tenant.getCode());
-        
+
+        // Delete Master DB registry and dependent rows atomically first so FK errors do not orphan a dropped MySQL DB
+        registration.executeWithoutResult(status -> {
+            masterJdbc.update("UPDATE master_consent_logs SET tenant_id = NULL, invoice_id = NULL WHERE tenant_id = ?", id);
+            masterJdbc.update("UPDATE consultation_requests SET tenant_id = NULL WHERE tenant_id = ?", id);
+            masterJdbc.update("UPDATE subscription_plans SET target_tenant_id = NULL WHERE target_tenant_id = ?", id);
+            masterJdbc.update("DELETE FROM invoice_line_items WHERE invoice_id IN (SELECT id FROM invoices WHERE tenant_id = ?)", id);
+            masterJdbc.update("DELETE FROM invoices WHERE tenant_id = ?", id);
+            masterJdbc.update("DELETE FROM payment_transactions WHERE tenant_id = ?", id);
+            masterJdbc.update("DELETE FROM contract_signatures WHERE contract_id IN (SELECT id FROM contracts WHERE tenant_id = ?)", id);
+            masterJdbc.update("DELETE FROM contracts WHERE tenant_id = ?", id);
+            masterJdbc.update("DELETE FROM tenant_subscriptions WHERE tenant_id = ?", id);
+            masterJdbc.update("DELETE FROM tenant_usage_daily WHERE tenant_id = ?", id);
+            masterJdbc.update("DELETE FROM tenant_ai_usage_daily WHERE tenant_id = ?", id);
+            masterJdbc.update("DELETE FROM master_notification_logs WHERE tenant_id = ?", id);
+            tenants.delete(tenant);
+        });
+
         try {
-            // Drop database and user
+            // Drop tenant MySQL database and user
             provisioning.deleteDatabaseAndUser(tenant);
         } catch (java.sql.SQLException ex) {
             throw new BusinessException("Failed to drop database: " + ex.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR, "DROP_DB_FAILED");
         }
-        
-        // Detach legal consent logs so immutable compliance audit trail survives tenant deletion, then cascade delete related records in Master DB
-        masterJdbc.update("UPDATE master_consent_logs SET tenant_id = NULL, invoice_id = NULL WHERE tenant_id = ?", id);
-        masterJdbc.update("DELETE FROM invoice_line_items WHERE invoice_id IN (SELECT id FROM invoices WHERE tenant_id = ?)", id);
-        masterJdbc.update("DELETE FROM invoices WHERE tenant_id = ?", id);
-        masterJdbc.update("DELETE FROM payment_transactions WHERE tenant_id = ?", id);
-        masterJdbc.update("DELETE FROM contract_signatures WHERE contract_id IN (SELECT id FROM contracts WHERE tenant_id = ?)", id);
-        masterJdbc.update("DELETE FROM contracts WHERE tenant_id = ?", id);
-        masterJdbc.update("DELETE FROM tenant_subscriptions WHERE tenant_id = ?", id);
-        masterJdbc.update("DELETE FROM tenant_usage_daily WHERE tenant_id = ?", id);
-        
-        // Delete from registry (cascade delete happens via JPA if configured, or just deletes TenantInfo)
-        tenants.delete(tenant);
     }
 
     public TenantInfo updateTenant(Long id, com.smarthire.master.tenant.dto.UpdateTenantRequest request) {
-        TenantInfo tenant = getTenantById(id);
-        if (request.getCompanyName() != null) tenant.setName(request.getCompanyName());
-        if (request.getIndustry() != null) tenant.setIndustry(request.getIndustry());
-        if (request.getCompanySize() != null) tenant.setCompanySize(request.getCompanySize());
-        if (request.getContactName() != null) tenant.setContactName(request.getContactName());
-        if (request.getContactEmail() != null) tenant.setContactEmail(request.getContactEmail());
-        if (request.getContactPhone() != null) tenant.setContactPhone(request.getContactPhone());
-        if (request.getSubdomain() != null) tenant.setSubdomain(request.getSubdomain());
-        if (request.getWebsite() != null) tenant.setWebsite(request.getWebsite());
-        if (request.getAddress() != null) tenant.setAddress(request.getAddress());
-        if (request.getTaxCode() != null) tenant.setTaxCode(request.getTaxCode());
+        return registration.execute(status -> {
+            TenantInfo tenant = getTenantById(id);
+            if (request.getCompanyName() != null) tenant.setName(request.getCompanyName());
+            if (request.getIndustry() != null) tenant.setIndustry(request.getIndustry());
+            if (request.getCompanySize() != null) tenant.setCompanySize(request.getCompanySize());
+            if (request.getContactName() != null) tenant.setContactName(request.getContactName());
+            if (request.getContactEmail() != null) tenant.setContactEmail(request.getContactEmail());
+            if (request.getContactPhone() != null) tenant.setContactPhone(request.getContactPhone());
+            if (request.getSubdomain() != null) tenant.setSubdomain(request.getSubdomain());
+            if (request.getWebsite() != null) tenant.setWebsite(request.getWebsite());
+            if (request.getAddress() != null) tenant.setAddress(request.getAddress());
+            if (request.getTaxCode() != null) tenant.setTaxCode(request.getTaxCode());
 
-        return tenants.save(tenant);
+            return tenants.save(tenant);
+        });
     }
 
     public TenantInfo onboardTenant(OnboardTenantRequest request) {
@@ -147,6 +183,10 @@ public class MasterTenantService {
             masterJdbc.execute("SELECT pg_advisory_xact_lock(-1)");
             return registerTenant(request);
         });
+        if (Boolean.TRUE.equals(request.getDeferProvisioning())) {
+            log.info("Registered tenant {} in PENDING_PAYMENT mode (deferred DB provisioning for B2B Deal)", Objects.requireNonNull(tenant).getCode());
+            return new ProvisionedWorkspace(tenant, null);
+        }
         return provisionAndNotify(Objects.requireNonNull(tenant).getId(), request);
     }
 
@@ -173,6 +213,7 @@ public class MasterTenantService {
             throw new BusinessException("Database username and password are required",
                     HttpStatus.BAD_REQUEST, "INVALID_DATABASE_CONFIG");
         }
+        boolean deferProvisioning = Boolean.TRUE.equals(request.getDeferProvisioning());
         TenantInfo tenant = new TenantInfo();
         tenant.setCode(code);
         tenant.setName(request.getName());
@@ -193,31 +234,52 @@ public class MasterTenantService {
         String envType = (request.getEnvironmentType() != null && !request.getEnvironmentType().isBlank())
                 ? request.getEnvironmentType().toUpperCase() : "PRODUCTION";
         tenant.setEnvironmentType(envType);
-        tenant.setStatus("PROVISIONING");
+        tenant.setStatus(deferProvisioning ? "PENDING_PAYMENT" : "PROVISIONING");
         try {
             tenant = tenants.saveAndFlush(tenant);
         } catch (DataIntegrityViolationException ex) {
             throw new BusinessException("Tenant code, subdomain or database is already registered",
                     HttpStatus.CONFLICT, "TENANT_EXISTS");
         }
-        try {
-            String planCode = (request.getPlanCode() != null && !request.getPlanCode().isBlank())
-                    ? request.getPlanCode().trim().toUpperCase(Locale.ROOT)
-                    : "STARTER";
-            List<Long> planIds = masterJdbc.queryForList(
-                    "SELECT id FROM subscription_plans WHERE UPPER(code) = ? LIMIT 1", Long.class, planCode);
-            if (planIds.isEmpty() && !"STARTER".equals(planCode)) {
-                planIds = masterJdbc.queryForList(
-                        "SELECT id FROM subscription_plans WHERE UPPER(code) = 'STARTER' LIMIT 1", Long.class);
-            }
-            if (!planIds.isEmpty() && tenant.getId() != null) {
+        if (request.getConsultationRequestId() != null && tenant.getId() != null) {
+            try {
                 masterJdbc.update(
-                        "INSERT INTO tenant_subscriptions (tenant_id, plan_id, status, starts_at, ends_at, auto_renew, created_at, updated_at) " +
-                        "VALUES (?, ?, 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP + INTERVAL '1 year', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
-                        tenant.getId(), planIds.get(0));
+                        "UPDATE consultation_requests SET tenant_id = ?, status = 'PROVISIONED', updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                        tenant.getId(), request.getConsultationRequestId());
+            } catch (Exception ex) {
+                log.warn("Could not link consultation_request {} to tenant {}: {}", request.getConsultationRequestId(), code, ex.getMessage());
             }
-        } catch (Exception ex) {
-            log.debug("Could not auto-assign initial subscription for tenant {}: {}", code, ex.getMessage());
+        }
+        if (!deferProvisioning) {
+            try {
+                String planCode = (request.getPlanCode() != null && !request.getPlanCode().isBlank())
+                        ? request.getPlanCode().trim().toUpperCase(Locale.ROOT)
+                        : "STARTER";
+                List<Long> planIds = masterJdbc.queryForList(
+                        "SELECT id FROM subscription_plans WHERE UPPER(code) = ? LIMIT 1", Long.class, planCode);
+                if (planIds.isEmpty() && !"STARTER".equals(planCode)) {
+                    planIds = masterJdbc.queryForList(
+                            "SELECT id FROM subscription_plans WHERE UPPER(code) = 'STARTER' LIMIT 1", Long.class);
+                }
+                if (!planIds.isEmpty() && tenant.getId() != null) {
+                    masterJdbc.update(
+                            "INSERT INTO tenant_subscriptions (" +
+                            "tenant_id, plan_id, status, starts_at, ends_at, auto_renew, " +
+                            "plan_code_snapshot, plan_name_snapshot, plan_version_snapshot, contracted_price_yearly, " +
+                            "snapshot_max_jobs, snapshot_max_cv_parses, snapshot_max_ai_interview_hours, " +
+                            "snapshot_max_storage_gb, snapshot_max_proctoring_hours, snapshot_video_retention_days, snapshot_features_json, " +
+                            "created_at, updated_at" +
+                            ") SELECT ?, id, 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP + INTERVAL '1 year', true, " +
+                            "code, name, COALESCE(version, 1), price_yearly, " +
+                            "max_jobs, max_cv_parses, max_ai_interview_hours, " +
+                            "max_storage_gb, max_proctoring_hours, video_retention_days, features_json, " +
+                            "CURRENT_TIMESTAMP, CURRENT_TIMESTAMP " +
+                            "FROM subscription_plans WHERE id = ?",
+                            tenant.getId(), planIds.get(0));
+                }
+            } catch (Exception ex) {
+                log.debug("Could not auto-assign initial subscription for tenant {}: {}", code, ex.getMessage());
+            }
         }
         return tenant;
     }

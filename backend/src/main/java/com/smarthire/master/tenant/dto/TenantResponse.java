@@ -10,6 +10,7 @@ public record TenantResponse(Long id, String code, String name, String subdomain
                              String contactName, String contactEmail, String contactPhone, String billingEmail,
                              String companyLegalName, String taxCode, String address, String website,
                              String industry, String companySize, boolean managedDatabase,
+                             boolean deleted, LocalDateTime deletedAt,
                              String activationUrl) {
     public static TenantResponse from(TenantInfo tenant) {
         return from(tenant, null);
@@ -20,6 +21,7 @@ public record TenantResponse(Long id, String code, String name, String subdomain
                 tenant.getDbName(), tenant.getStatus(), tenant.getEnvironmentType(), tenant.getCreatedAt(),
                 tenant.getContactName(), tenant.getContactEmail(), tenant.getContactPhone(), tenant.getBillingEmail(),
                 tenant.getCompanyLegalName(), tenant.getTaxCode(), tenant.getAddress(), tenant.getWebsite(),
-                tenant.getIndustry(), tenant.getCompanySize(), tenant.isManagedDatabase(), activationUrl);
+                tenant.getIndustry(), tenant.getCompanySize(), tenant.isManagedDatabase(),
+                tenant.isDeleted(), tenant.getDeletedAt(), activationUrl);
     }
 }

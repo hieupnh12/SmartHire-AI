@@ -15,6 +15,8 @@ export interface OnboardTenantRequest extends TenantAdminRequest {
   taxCode?: string;
   billingAddress?: string;
   billingEmail?: string;
+  deferProvisioning?: boolean;
+  consultationRequestId?: number;
 }
 
 export interface OnboardTenantResponse {
@@ -27,6 +29,8 @@ export interface OnboardTenantResponse {
   environmentType?: string;
   createdAt: string;
   activationUrl?: string;
+  deleted?: boolean;
+  deletedAt?: string;
 }
 
 export const masterTenantApi = {

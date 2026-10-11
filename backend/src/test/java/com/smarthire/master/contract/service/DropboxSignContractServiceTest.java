@@ -40,6 +40,10 @@ class DropboxSignContractServiceTest {
     @Mock
     private SubscriptionPlanRepository planRepository;
     @Mock
+    private TenantSubscriptionRepository subscriptionRepository;
+    @Mock
+    private ConsultationRequestRepository consultationRequestRepository;
+    @Mock
     private PlatformAuditLogRepository auditLogRepository;
     @Mock
     private MasterBillingService masterBillingService;
@@ -63,6 +67,8 @@ class DropboxSignContractServiceTest {
                 signatureRepository,
                 tenantInfoRepository,
                 planRepository,
+                subscriptionRepository,
+                consultationRequestRepository,
                 auditLogRepository,
                 masterBillingService,
                 notificationPublisher,

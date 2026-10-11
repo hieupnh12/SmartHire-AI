@@ -23,6 +23,8 @@ export interface TenantInfo {
   industry?: string;
   companySize?: string;
   managedDatabase?: boolean;
+  deleted?: boolean;
+  deletedAt?: string;
 }
 
 export interface SubscriptionPlan {
@@ -97,9 +99,20 @@ export interface RevenueAnalytics {
   totalRevenue: number;
   mrr: number;
   arr: number;
+  arpa?: number;
   activeTenants: number;
   totalTenants: number;
+  newTenantsThisMonth?: number;
   growthRate: string;
+  paidInvoicesCount?: number;
+  paidInvoicesAmount?: number;
+  pendingInvoicesCount?: number;
+  pendingInvoicesAmount?: number;
+  overdueInvoicesCount?: number;
+  overdueInvoicesAmount?: number;
+  openLeadsCount?: number;
+  conversionRatePercent?: number;
+  pendingContractsCount?: number;
   planDistribution: Record<string, number>;
   revenueTrend: ChartDataPoint[];
 }
@@ -114,6 +127,10 @@ export interface AiQuotaUsage {
   totalVoiceHoursUsed?: number;
   totalCvParsesLimit?: number;
   totalVoiceHoursLimit?: number;
+  nearQuotaTenantsCount?: number;
+  estimatedAiCostVnd?: number;
+  apiSuccessRate?: number;
+  averageLatencyMs?: number;
 }
 
 export interface AuditLog {
@@ -136,8 +153,16 @@ export const masterAdminApi = {
     const res = await masterClient.get(`${API_BASE}/master/tenants/${id}`);
     return res.data.data;
   },
-  deleteTenant: async (id: number): Promise<void> => {
-    await masterClient.delete(`${API_BASE}/master/tenants/${id}`);
+  deleteTenant: async (id: number, hard: boolean = true): Promise<void> => {
+    await masterClient.delete(`${API_BASE}/master/tenants/${id}?hard=${hard}`);
+  },
+  softDeleteTenant: async (id: number): Promise<TenantInfo> => {
+    const res = await masterClient.patch(`${API_BASE}/master/tenants/${id}/soft-delete`);
+    return res.data.data;
+  },
+  restoreTenant: async (id: number): Promise<TenantInfo> => {
+    const res = await masterClient.post(`${API_BASE}/master/tenants/${id}/restore`);
+    return res.data.data;
   },
   updateTenantStatus: async (id: number, status: "ACTIVE" | "SUSPENDED"): Promise<TenantInfo> => {
     const res = await masterClient.patch(`${API_BASE}/master/tenants/${id}/status?status=${status}`);

@@ -35,7 +35,7 @@ public class TenantWebInterceptor implements HandlerInterceptor {
         for (String suffix : new String[]{"." + baseDomain, ".localhost"}) {
             if (host.endsWith(suffix)) {
                 String label = host.substring(0, host.length() - suffix.length());
-                if (!label.contains(".") && !java.util.Set.of("www", "api", "admin").contains(label)) subdomain = label;
+                if (!label.contains(".") && !java.util.Set.of("www", "api", "app", "admin", "master", "localhost", "smarthire-master").contains(label)) subdomain = label;
                 break;
             }
         }

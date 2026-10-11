@@ -12,4 +12,5 @@ public interface AiProviderKeyRepository extends JpaRepository<AiProviderKey, Lo
     List<AiProviderKey> findByProvider(String provider);
     Optional<AiProviderKey> findFirstByProviderAndStatus(String provider, String status);
     Optional<AiProviderKey> findFirstByProviderAndIsDefaultTrue(String provider);
+    Optional<AiProviderKey> findFirstByProviderAndIsDefaultTrueAndStatus(String provider, String status);
 }

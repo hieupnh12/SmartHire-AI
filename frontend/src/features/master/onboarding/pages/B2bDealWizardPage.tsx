@@ -23,7 +23,7 @@ const wizardSchema = z.object({
 
   // Step 2: Plan
   planId: z.number({ required_error: "Vui lòng chọn gói dịch vụ" }).min(1, "Vui lòng chọn gói dịch vụ"),
-  billingCycle: z.enum(["MONTHLY", "YEARLY"]).default("YEARLY"),
+  billingCycle: z.enum(["YEARLY"]).default("YEARLY"),
 
   // Step 3: Billing & Contract
   closingMethod: z.enum(["INVOICE", "CONTRACT"]),
@@ -300,6 +300,8 @@ export function B2bDealWizardPageContent() {
   const [apiError, setApiError] = useState<string | null>(null);
   const [successData, setSuccessData] = useState<{ tenantCode: string; closingMethod: "INVOICE" | "CONTRACT" } | null>(null);
 
+  const leadIdParam = searchParams.get("leadId");
+  const consultationRequestId = leadIdParam ? Number(leadIdParam) : undefined;
   const initialName = searchParams.get("name") || "";
   const initialAdminName = searchParams.get("adminName") || "";
   const initialEmail = searchParams.get("email") || "";
@@ -354,7 +356,7 @@ export function B2bDealWizardPageContent() {
     setIsSubmitting(true);
     setApiError(null);
     try {
-      // 1. Khởi tạo Tenant & Database
+      // 1. Lưu hồ sơ Tenant ở trạng thái PENDING_PAYMENT (chưa cấp phát MySQL DB, chưa tạo gói STARTER mồ côi)
       const tenant = await masterTenantApi.onboardTenant({
         name: values.name,
         code: values.code,
@@ -366,33 +368,34 @@ export function B2bDealWizardPageContent() {
         taxCode: values.taxCode,
         billingAddress: values.address,
         billingEmail: values.billingEmail,
+        deferProvisioning: true,
+        consultationRequestId,
       });
 
-      // 2. Lấy thông tin gói
+      // 2. Lấy thông tin gói bản quyền năm
       const plan = plans.find((p) => p.id === values.planId);
       if (!plan) throw new Error("Không tìm thấy thông tin gói cước");
 
-      const isYearly = values.billingCycle === "YEARLY";
-      const amountVnd = isYearly ? (plan.priceYearly || 0) : Math.round((plan.priceYearly || 0) / 12);
+      const amountVnd = plan.priceYearly || 0;
 
-      // 3. Xử lý hình thức chốt sale
+      // 3. Tạo duy nhất 1 bản ghi tenant_subscriptions PENDING kèm 11 cột snapshot V27 thông qua Hóa đơn hoặc Hợp đồng
       if (values.closingMethod === "INVOICE") {
         await billingApi.create({
           tenantId: tenant.id,
           planId: plan.id,
           amount: amountVnd,
           currency: "VND",
-          notes: `Khởi tạo qua B2B Wizard. Gói: ${plan.name} (${values.billingCycle})`,
+          notes: `Khởi tạo qua B2B Wizard. Gói: ${plan.name} (YEARLY)`,
         });
       } else {
         const today = new Date();
         const endDate = new Date();
-        if (isYearly) endDate.setFullYear(today.getFullYear() + 1);
-        else endDate.setMonth(today.getMonth() + 1);
+        endDate.setFullYear(today.getFullYear() + 1);
 
         await contractApi.create({
           tenantId: tenant.id,
           planId: plan.id,
+          consultationRequestId,
           title: `Hợp đồng cung cấp Dịch vụ phần mềm SmartHire.AI - ${plan.name}`,
           contractValue: amountVnd,
           currency: "VND",
@@ -428,12 +431,12 @@ export function B2bDealWizardPageContent() {
           <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 shadow-sm border border-emerald-200 mb-6">
             <CheckCircle2 className="h-12 w-12" />
           </div>
-          <h1 className="text-3xl font-bold text-slate-900 mb-3">Chốt Sale Thành Công! 🎉</h1>
+          <h1 className="text-3xl font-bold text-slate-900 mb-3">Khởi Tạo Deal B2B Thành Công! 🎉</h1>
           <p className="text-slate-600 mb-8 max-w-lg mx-auto">
-            Workspace <strong>{successData.tenantCode}</strong> đã được khởi tạo thành công cùng với Database độc lập và đã gửi lời mời kích hoạt một lần tới Email Admin.
+            Hồ sơ doanh nghiệp <strong>{successData.tenantCode}</strong> và gói dịch vụ đã được ghi nhận ở trạng thái <strong>PENDING_PAYMENT</strong>.
             {successData.closingMethod === "INVOICE"
-              ? " Hóa đơn thanh toán đã được tạo."
-              : " Hợp đồng điện tử đã được tạo và sẵn sàng gửi cho khách ký số."}
+              ? " Ngay sau khi Hóa đơn được xác nhận thanh toán (PAID), hệ thống sẽ tự động cấp phát MySQL Database riêng, kích hoạt gói và gửi Email thiết lập mật khẩu cho Admin."
+              : " Hợp đồng điện tử đã sẵn sàng gửi khách ký số. Sau khi hoàn tất ký kết và thanh toán, hệ thống sẽ tự động cấp phát MySQL Database riêng và gửi Email kích hoạt cho Admin."}
           </p>
 
           <div className="flex flex-col sm:flex-row gap-3 justify-center">

@@ -189,9 +189,7 @@ public class MasterNotificationService {
     }
 
     private TenantInfo getTenant(String tenantCode) {
-        return tenantRepository.findAll().stream() // In a real app, use findByCode
-                .filter(t -> t.getCode().equals(tenantCode))
-                .findFirst()
+        return tenantRepository.findByCode(tenantCode)
                 .orElseGet(() -> {
                     log.warn("Tenant {} not found for notification", tenantCode);
                     return null;

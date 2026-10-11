@@ -10,6 +10,7 @@
 
 | Thông tin | Giá trị |
 |---|---|
+| AI Metering, Cost Tracking & Tenant Quota Override 2026-10-11 | Master V28 tạo 2 bảng `ai_model_pricings` (entity `AiModelPricing`, UNIQUE `uk_ai_model_pricings_provider_model`, index `idx_ai_model_pricings_provider`, seed đơn giá USD/1M tokens) và `tenant_ai_usage_daily` (entity `TenantAiUsageDaily`, 1 FK `fk_taud_tenant` `ON DELETE CASCADE` tới `tenants`, UNIQUE `uk_tenant_ai_usage_daily_dim`, 2 index `idx_taud_tenant_date` & `idx_taud_usage_date`) phục vụ ghi nhận bất đồng bộ token/latency/chi phí AI theo ngày & tác vụ |
 | Kiến trúc Quản lý Gói & Thuê bao SaaS B2B 2 Tầng 2026-10-10 | Master V27 bổ sung versioning/bảo lưu giá (`version`, `parent_plan_id` + `fk_sp_parent_plan`, `is_custom`, `target_tenant_id` + `fk_sp_target_tenant`, `is_archived`, 2 index) cho `subscription_plans` (`SubscriptionPlan`) và snapshot hợp đồng/vòng đời/proration (`plan_code_snapshot`, `plan_name_snapshot`, `plan_version_snapshot`, `contracted_price_yearly`, 6 cột `snapshot_max_*`, `snapshot_features_json`, `grace_period_ends_at`, `next_plan_id` + `fk_ts_next_plan`, `prorated_credit_amount`, `upgraded_from_subscription_id` + `fk_ts_upgraded_from`, `canceled_at`, `cancel_reason`, 2 index) cho `tenant_subscriptions` (`TenantSubscription`) |
 | Tích hợp Dropbox Sign API Hợp đồng B2B 2026-10-09 | Master V26 bổ sung `esign_provider`, `external_signature_request_id` (+ index `idx_contracts_external_sig_req_id`), `esign_details_url`, `esign_test_mode`, `signed_pdf_bytes` (BYTEA) trên `contracts` (`Contract`) và `external_signature_id` trên `contract_signatures` (`ContractSignature`) phục vụ ký số Remote Email Signing qua Dropbox Sign API v3 kèm Audit Trail & SHA-256 checksum |
 | Click-wrap Legal Consent Checkout 2026-10-09 | Master V25 tạo bảng `master_consent_logs` + entity `MasterConsentLog` (2 FK `ON DELETE SET NULL` tới `tenants` và `invoices`, 3 index tra cứu) và thêm 3 cột snapshot đồng thuận pháp lý (`terms_accepted`, `terms_version`, `terms_accepted_at`) vào `invoices` |
@@ -34,8 +35,8 @@
 | Entity JPA tenant | 62 class `@Entity` theo checkout hiện tại; V44 bổ sung `InterviewSession`, `InterviewMessage`; V45 bổ sung `CompanyDirectoryEntry`; V49 bổ sung `NotificationPreference`; V51 thay `UserProfile` bằng `Candidate` |
 | Khoá ngoại tenant | 89 theo mốc tài liệu (88 sau V49 − 1 FK `user_profiles` + 2 FK `candidate_id` trên `notifications` & `notification_preferences`, 6 FK ứng viên chuyển đích sang `candidates`) |
 | Ràng buộc UNIQUE tenant | V25/V26 không thêm UNIQUE. V27 thêm UNIQUE `gate_scores.application_id`. V30 thêm `uk_job_assignments_job_user`. V45 thêm `uk_company_directory_type_name`. V47 thêm `uk_cvs_share_token`. V49 thêm `uk_notification_preference_user_category`. V51 xóa `uk_profile_user`, thêm `uk_candidates_email` và `uk_notification_preference_candidate_category` |
-| Số file migration trong repo | 69 (26 master + 43 tenant); V9 redesign nằm ngoài pipeline |
-| Cập nhật lần cuối | Master `V27` (kiến trúc gói cước & thuê bao SaaS B2B 2 tầng), Master `V26` (`contracts` Dropbox Sign), Master `V25` (`master_consent_logs`), tenant `V51` (`candidates`) |
+| Số file migration trong repo | 71 (28 master + 43 tenant); V9 redesign nằm ngoài pipeline |
+| Cập nhật lần cuối | Master `V28` (`ai_model_pricings`, `tenant_ai_usage_daily`), Master `V27` (kiến trúc gói cước & thuê bao SaaS B2B 2 tầng), Master `V26` (`contracts` Dropbox Sign), tenant `V51` (`candidates`) |
 | Dọn legacy V21 | Xóa 19 bảng và dữ liệu legacy, xóa 2 cột ID legacy trong ranking; không chuyển ID cũ sang bản ghi mới |
 | Metadata assessment 2026-09-25 | V13: `tests.created_by/updated_at`, `questions.difficulty/skill/explanation` cho Excel/UI authoring |
 | Sửa lỗi assessment 2026-09-24 | V10/V11 khớp checksum lịch sử; V12 tạo schema mới và giữ bảng cũ; migration lỗi phải chặn mở tenant pool |
@@ -158,7 +159,7 @@ thay vì âm thầm đọc nhầm database của doanh nghiệp khác.
 
 ## 3. Entity List
 
-### 3.1 Master — 9 entity cốt lõi + các entity mở rộng V11–V25 (`com.smarthire.domain.master.entity`)
+### 3.1 Master — 13 entity cốt lõi & AI/Compliance (`com.smarthire.domain.master.entity`)
 
 | No | Entity | Bảng | Nhóm | Ghi chú |
 |---|---|---|---|---|
@@ -171,6 +172,10 @@ thay vì âm thầm đọc nhầm database của doanh nghiệp khác.
 | 07 | `PlatformAuditLog` | `platform_audit_logs` | Audit | Nhật ký cấp nền tảng |
 | 08 | `ConsultationRequest` | `consultation_requests` | Sales | Yêu cầu demo/tư vấn từ landing |
 | 09 | `MasterConsentLog` | `master_consent_logs` | Compliance & Audit | Bằng chứng pháp lý Click-wrap Agreement (`TERMS_OF_SERVICE`, `PRIVACY_POLICY_ND13`) tại checkout (V25) |
+| 10 | `AiProviderKey` | `ai_provider_keys` | AI Engine | Kho khóa API AI mã hóa AES-256-GCM (V14) |
+| 11 | `AiModelConfig` | `ai_model_configs` | AI Engine | Định tuyến Model AI theo tác vụ (V14, V24) |
+| 12 | `AiModelPricing` | `ai_model_pricings` | AI Metering | Bảng đơn giá USD/1M tokens theo provider & model (V28) |
+| 13 | `TenantAiUsageDaily` | `tenant_ai_usage_daily` | AI Metering | Thống kê tiêu thụ token, độ trễ & chi phí USD theo ngày/tác vụ/model (V28) |
 
 ### 3.2 Tenant — 62 entity (`com.smarthire.domain.tenant.entity`)
 
@@ -302,6 +307,7 @@ erDiagram
     subscription_plans ||--o{ tenant_subscriptions : "được áp dụng bởi"
     tenants ||--o{ invoices : "phát sinh hoá đơn"
     tenants ||--o{ tenant_usage_daily : "ghi nhận usage theo ngày"
+    tenants ||--o{ tenant_ai_usage_daily : "ghi nhận token & chi phí AI theo ngày"
     tenants |o--o{ master_consent_logs : "bằng chứng đồng thuận"
     invoices |o--o{ master_consent_logs : "đồng thuận khi đặt hàng"
 
@@ -349,6 +355,22 @@ erDiagram
         bigint id PK
         bigint tenant_id FK
         date usage_date
+    }
+    tenant_ai_usage_daily {
+        bigint id PK
+        bigint tenant_id FK "ON DELETE CASCADE"
+        date usage_date
+        varchar task_type
+        varchar provider
+        varchar model_name
+        decimal estimated_cost_usd
+    }
+    ai_model_pricings {
+        bigint id PK
+        varchar provider UK
+        varchar model_name UK
+        decimal input_price_per_1m_tokens
+        decimal output_price_per_1m_tokens
     }
     platform_users {
         bigint id PK
@@ -602,6 +624,10 @@ sẽ chặn thao tác thay vì bị gỡ âm thầm. Hai cột `ranking_sources.
 | `PlatformAuditLog` | Nhật ký hành động cấp nền tảng | `tenant_code`, `action`, `level`, `ip_address`, `metadata_json` | Chỉ ghi thêm, không sửa |
 | `ConsultationRequest` | Lead demo/tư vấn gửi từ landing page | `company_name`, `work_email`, `request_type`, `plan_tier`, `primary_need` | `PENDING` → xử lý |
 | `MasterConsentLog` | Bằng chứng đồng thuận pháp lý Click-wrap Agreement (`TERMS_OF_SERVICE`, `PRIVACY_POLICY_ND13` — Nghị định 13/2023/NĐ-CP) tại checkout (V25) | `tenant_id`, `invoice_id`, `actor_email`, `policy_type`, `policy_version`, `is_accepted`, `ip_address`, `user_agent`, `created_at` | Chỉ ghi thêm, giữ lại cả khi xoá tenant (`ON DELETE SET NULL`) |
+| `AiProviderKey` | Kho khóa API tích hợp các nhà cung cấp AI (V14) | `provider`, `key_alias`, `api_key_encrypted` (AES-256-GCM), `endpoint_url`, `status`, `is_default`, `last_tested_at` | Thêm/sửa/xoá và kiểm tra kết nối trực tiếp |
+| `AiModelConfig` | Định tuyến Model AI theo tác vụ nghiệp vụ (V14, V24) | `task_type`, `provider`, `model_name`, `temperature`, `max_tokens`, `timeout_seconds`, `is_active` | Cấu hình động, cache Redis 6 giờ |
+| `AiModelPricing` | Bảng đơn giá USD/1M tokens theo nhà cung cấp và model (V28) | `provider`, `model_name`, `input_price_per_1m_tokens`, `output_price_per_1m_tokens`, `is_active` | Bảng tra cứu tính chi phí AI thực tế |
+| `TenantAiUsageDaily` | Thống kê tiêu thụ token, độ trễ và chi phí USD của AI theo ngày/tenant/task/model (V28) | `tenant_id`, `usage_date`, `task_type`, `provider`, `model_name`, `total_requests`, `failed_requests`, `total_prompt_tokens`, `total_completion_tokens`, `estimated_cost_usd`, `total_latency_ms` | Cộng dồn bất đồng bộ sau mỗi lần gọi AI |
 
 ### 5.2 Tenant — Identity & Access
 
@@ -749,7 +775,7 @@ của màn assessment hiện tại.
 
 ## 7. Relationships
 
-### 7.1 Master — 10 khoá ngoại cốt lõi
+### 7.1 Master — 11 khoá ngoại cốt lõi
 
 | Bảng con | Cột | Bảng cha | Nullable | Lực lượng | Tên ràng buộc |
 |---|---|---|---|---|---|
@@ -761,6 +787,7 @@ của màn assessment hiện tại.
 | `tenant_subscriptions` | `upgraded_from_subscription_id` | `tenant_subscriptions` | Có | 0..1:0..1 | `fk_ts_upgraded_from` (`ON DELETE SET NULL`, V27) |
 | `invoices` | `tenant_id` | `tenants` | Không | N:1 | `fk_inv_tenant` |
 | `tenant_usage_daily` | `tenant_id` | `tenants` | Không | N:1 (1:1 theo ngày) | `fk_tud_tenant` |
+| `tenant_ai_usage_daily` | `tenant_id` | `tenants` | Không | N:1 | `fk_taud_tenant` (`ON DELETE CASCADE`, V28) |
 | `master_consent_logs` | `tenant_id` | `tenants` | Có | N:0..1 | `fk_mcl_tenant` (`ON DELETE SET NULL`, V25) |
 | `master_consent_logs` | `invoice_id` | `invoices` | Có | N:0..1 | `fk_mcl_invoice` (`ON DELETE SET NULL`, V25) |
 
@@ -885,7 +912,7 @@ kho hồ sơ (talent pool) chưa gắn với tin tuyển dụng nào.
 
 ## 8. Business Rules & Constraints
 
-### 8.1 Ràng buộc UNIQUE — Master (6)
+### 8.1 Ràng buộc UNIQUE — Master (9)
 
 | Bảng | Ràng buộc | Cột | Ý nghĩa nghiệp vụ |
 |---|---|---|---|
@@ -895,6 +922,9 @@ kho hồ sơ (talent pool) chưa gắn với tin tuyển dụng nào.
 | `tenants` | `uk_tenants_dbname` | `db_name` | Không hai tenant dùng chung database |
 | `platform_users` | `uk_platform_users_email` | `email` | Email quản trị viên không trùng |
 | `tenant_usage_daily` | `uk_tenant_usage_daily` | `(tenant_id, usage_date)` | Mỗi tenant mỗi ngày đúng một dòng usage |
+| `ai_model_configs` | `uk_ai_model_configs_task_type` | `task_type` | Mỗi tác vụ AI có một cấu hình định tuyến model (V14) |
+| `ai_model_pricings` | `uk_ai_model_pricings_provider_model` | `(provider, model_name)` | Không trùng đơn giá của cùng một model và nhà cung cấp (V28) |
+| `tenant_ai_usage_daily` | `uk_tenant_ai_usage_daily_dim` | `(tenant_id, usage_date, task_type, provider, model_name)` | Mỗi ngày mỗi tenant/tác vụ/model cộng dồn vào một bản ghi duy nhất (V28) |
 
 ### 8.2 Ràng buộc UNIQUE — Tenant (23, không tính PK)
 
@@ -1078,6 +1108,9 @@ V22 thêm `idx_questionskills_skill(skill_id)` trên `questionskills`. PK kép h
 | Master | `subscription_plans` | `idx_sp_target_tenant_id` | `(target_tenant_id)` | Tra cứu gói Custom Enterprise thiết kế riêng cho từng Tenant (V27) |
 | Master | `tenant_subscriptions` | `idx_ts_tenant_status` | `(tenant_id, status)` | Tra cứu nhanh hợp đồng thuê bao hiệu lực theo Tenant (V27) |
 | Master | `tenant_subscriptions` | `idx_ts_ends_at_status` | `(status, ends_at)` | Scheduler quét chuyển trạng thái vòng đời thuê bao `ACTIVE` → `PAST_DUE` → `SUSPENDED` (V27) |
+| Master | `ai_model_pricings` | `idx_ai_model_pricings_provider` | `(provider)` | Tra cứu đơn giá theo nhà cung cấp AI (V28) |
+| Master | `tenant_ai_usage_daily` | `idx_taud_tenant_date` | `(tenant_id, usage_date)` | Truy vấn thống kê tiêu thụ & chi phí AI theo tenant và khoảng ngày (V28) |
+| Master | `tenant_ai_usage_daily` | `idx_taud_usage_date` | `(usage_date)` | Tổng hợp tiêu thụ AI toàn sàn theo kỳ báo cáo (V28) |
 
 ### 9.2 Index do RDBMS tự sinh
 
@@ -1163,6 +1196,7 @@ Hai pipeline dùng **hai phương ngữ SQL khác nhau** và không thể dùng 
 | V25 | `V25__checkout_legal_consent_logs.sql` | Tạo bảng `master_consent_logs` (entity `MasterConsentLog`) lưu bằng chứng Click-wrap Agreement (`TERMS_OF_SERVICE`, `PRIVACY_POLICY_ND13` — Nghị định 13/2023/NĐ-CP) kèm IP/User-Agent + 2 FK `ON DELETE SET NULL` + 3 index; thêm `terms_accepted`, `terms_version`, `terms_accepted_at` vào `invoices` |
 | V26 | `V26__dropbox_sign_contract_integration.sql` | Tích hợp Dropbox Sign API v3 cho hợp đồng B2B: thêm `esign_provider`, `external_signature_request_id` (+ `idx_contracts_external_sig_req_id`), `esign_details_url`, `esign_test_mode`, `signed_pdf_bytes` (BYTEA) trên `contracts` và `external_signature_id` trên `contract_signatures` |
 | V27 | `V27__two_tier_subscription_architecture.sql` | Kiến trúc Quản lý Gói & Thuê bao SaaS B2B 2 Tầng: thêm `version`, `parent_plan_id` (`fk_sp_parent_plan`), `is_custom`, `target_tenant_id` (`fk_sp_target_tenant`), `is_archived`, 2 index trên `subscription_plans`; thêm 11 cột snapshot hợp đồng (`plan_*_snapshot`, `contracted_price_yearly`, `snapshot_max_*`, `snapshot_features_json`), `grace_period_ends_at`, `next_plan_id` (`fk_ts_next_plan`), `prorated_credit_amount`, `upgraded_from_subscription_id` (`fk_ts_upgraded_from`), `canceled_at`, `cancel_reason`, 2 index và backfill cho `tenant_subscriptions` |
+| V28 | `V28__ai_metering_and_model_pricing.sql` | AI Metering & Cost Tracking: tạo bảng `ai_model_pricings` (entity `AiModelPricing`, UNIQUE `(provider, model_name)`, index `idx_ai_model_pricings_provider`, seed đơn giá USD/1M tokens) và `tenant_ai_usage_daily` (entity `TenantAiUsageDaily`, FK `fk_taud_tenant` `ON DELETE CASCADE`, UNIQUE `(tenant_id, usage_date, task_type, provider, model_name)`, 2 index `idx_taud_tenant_date` & `idx_taud_usage_date`) |
 
 ### 10.3 Lịch sử migration — Tenant
 

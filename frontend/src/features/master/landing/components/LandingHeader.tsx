@@ -52,10 +52,9 @@ export function LandingHeader() {
               key={item.to}
               to={item.to}
               className={({ isActive }) =>
-                `px-3.5 py-2 rounded-full transition-all whitespace-nowrap active:scale-95 ${
-                  isActive
-                    ? "text-blue-600 font-semibold bg-blue-50 shadow-2xs border border-blue-200/60"
-                    : "text-slate-600 hover:text-blue-600 hover:bg-slate-100/80"
+                `px-3.5 py-2 rounded-full transition-all whitespace-nowrap active:scale-95 ${isActive
+                  ? "text-blue-600 font-semibold bg-blue-50 shadow-2xs border border-blue-200/60"
+                  : "text-slate-600 hover:text-blue-600 hover:bg-slate-100/80"
                 }`
               }
             >
@@ -105,10 +104,9 @@ export function LandingHeader() {
                 to={item.to}
                 onClick={() => setMobileMenuOpen(false)}
                 className={({ isActive }) =>
-                  `px-4 py-2.5 rounded-lg text-sm transition-colors ${
-                    isActive
-                      ? "bg-blue-50 font-semibold text-blue-600 border border-blue-200/60"
-                      : "text-slate-700 hover:bg-slate-100"
+                  `px-4 py-2.5 rounded-lg text-sm transition-colors ${isActive
+                    ? "bg-blue-50 font-semibold text-blue-600 border border-blue-200/60"
+                    : "text-slate-700 hover:bg-slate-100"
                   }`
                 }
               >

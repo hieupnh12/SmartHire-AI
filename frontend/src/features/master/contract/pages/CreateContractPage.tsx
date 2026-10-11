@@ -29,7 +29,7 @@ export function CreateContractPage() {
   const [contractPartyBPhone, setContractPartyBPhone] = useState("");
   const [contractPartyBEmail, setContractPartyBEmail] = useState("");
   const [contractPartyBBankAccount, setContractPartyBBankAccount] = useState("");
-  const [contractValue, setContractValue] = useState(3990);
+  const [contractValue, setContractValue] = useState(36000000);
   const [contractTaxRate, setContractTaxRate] = useState(10);
   const [contractCurrency, setContractCurrency] = useState("VND");
   const [contractStartDate, setContractStartDate] = useState(new Date().toISOString().split("T")[0]);
@@ -211,7 +211,7 @@ export function CreateContractPage() {
                     const selectedP = plans.find((p) => String(p.id) === String(planIdVal));
                     if (selectedP) {
                       const basePrice = selectedP.priceYearly || 36000000;
-                      setContractValue(contractCurrency === "USD" ? Math.round(basePrice / 25400) : basePrice);
+                      setContractValue(basePrice);
                     }
                   }}
                   className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-slate-800 focus:outline-none focus:border-indigo-600 bg-white"
@@ -378,18 +378,9 @@ export function CreateContractPage() {
                 <label className="block font-semibold text-slate-700 mb-1.5">Loại Tiền Tệ</label>
                 <select
                   value={contractCurrency}
-                  onChange={(e) => {
-                    const newCurrency = e.target.value;
-                    if (newCurrency === "VND" && contractCurrency === "USD") {
-                      setContractValue(contractValue * 25000);
-                    } else if (newCurrency === "USD" && contractCurrency === "VND") {
-                      setContractValue(Math.round(contractValue / 25000));
-                    }
-                    setContractCurrency(newCurrency);
-                  }}
+                  onChange={(e) => setContractCurrency(e.target.value)}
                   className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 font-bold text-slate-800 focus:outline-none focus:border-indigo-600 bg-white"
                 >
-                  <option value="USD">USD ($)</option>
                   <option value="VND">VND (₫)</option>
                 </select>
               </div>
@@ -398,12 +389,12 @@ export function CreateContractPage() {
             <div className="p-4 bg-white rounded-lg border border-slate-200 flex items-center justify-between text-sm">
               <div>
                 <span className="text-slate-500">Tiền thuế VAT ({contractTaxRate}%): </span>
-                <span className="font-mono font-semibold text-slate-800">${((contractValue * contractTaxRate) / 100).toLocaleString()} {contractCurrency}</span>
+                <span className="font-mono font-semibold text-slate-800">{((contractValue * contractTaxRate) / 100).toLocaleString("vi-VN")} ₫</span>
               </div>
               <div>
                 <span className="font-bold text-slate-900">Tổng tiền thanh toán: </span>
                 <span className="font-mono font-bold text-emerald-600 text-lg ml-2">
-                  ${(contractValue + (contractValue * contractTaxRate) / 100).toLocaleString()} {contractCurrency}
+                  {(contractValue + (contractValue * contractTaxRate) / 100).toLocaleString("vi-VN")} ₫
                 </span>
               </div>
             </div>

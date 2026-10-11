@@ -1311,6 +1311,8 @@ export function CheckoutPage() {
                                 intent: "CAPTURE",
                                 purchase_units: [
                                   {
+                                    custom_id: String(orderResult.invoiceId),
+                                    invoice_id: orderResult.invoiceNumber,
                                     amount: {
                                       currency_code: "USD",
                                       value: usdAmount,

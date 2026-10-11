@@ -2,8 +2,8 @@
 
 > Trở về [Database Design & ERD](README.md) · Xem thêm [Data Dictionary Tenant](DATA_DICTIONARY_TENANT.md)
 
-**Database:** `smarthire_master` · **RDBMS:** PostgreSQL · **Số bảng:** 17
-**Nguồn:** `backend/src/main/resources/db/migration/master/V1…V27`
+**Database:** `smarthire_master` · **RDBMS:** PostgreSQL · **Số bảng:** 19
+**Nguồn:** `backend/src/main/resources/db/migration/master/V1…V28`
 **Entity:** `com.smarthire.domain.master.entity` · **Hibernate:** `hbm2ddl.auto = validate`
 
 Ký hiệu: `PK` khoá chính · `FK` khoá ngoại đã khai báo · `UQ` thuộc ràng buộc unique · `IDX` có index ·
@@ -482,4 +482,48 @@ Entity `MasterConsentLog`. Bảng kiểm toán bằng chứng pháp lý bất bi
 | `created_at` | TIMESTAMP | IDX | Không | now | Thời điểm chính xác ghi nhận tại Server |
 
 **Ràng buộc & Index:** `fk_mcl_tenant (ON DELETE SET NULL)`, `fk_mcl_invoice (ON DELETE SET NULL)`, `idx_mcl_tenant_id`, `idx_mcl_invoice_id`, `idx_mcl_actor_email`, `idx_mcl_created_at`
+
+---
+
+## 18. `ai_model_pricings` — Bảng đơn giá Model AI (V28)
+
+Entity `AiModelPricing`. Lưu đơn giá Input / Output (USD trên mỗi 1 triệu token) theo từng nhà cung cấp và model để phục vụ tính chi phí nội bộ thực tế.
+
+| Cột | Kiểu | Khoá | Null | Default | Mô tả |
+|---|---|---|---|---|---|
+| `id` | BIGINT IDENTITY | PK | Không | auto | Định danh bảng giá |
+| `provider` | VARCHAR(50) | UQ, IDX | Không | — | Nhà cung cấp (`GEMINI`, `OPENAI`, `ANTHROPIC`, `DEEPSEEK`, `HUGGINGFACE`) |
+| `model_name` | VARCHAR(100) | UQ | Không | — | Tên model (`gemini-2.5-flash`, `gpt-4o-mini`, v.v.) |
+| `input_price_per_1m_tokens` | DECIMAL(12,4) | | Không | `0.0000` | Đơn giá USD trên 1M prompt tokens |
+| `output_price_per_1m_tokens` | DECIMAL(12,4) | | Không | `0.0000` | Đơn giá USD trên 1M completion tokens |
+| `is_active` | BOOLEAN | | Không | `TRUE` | Trạng thái áp dụng |
+| `updated_at` | TIMESTAMP | | Không | now | Thời điểm cập nhật gần nhất |
+
+**Ràng buộc & Index:** `uk_ai_model_pricings_provider_model (provider, model_name)`, `idx_ai_model_pricings_provider`
+
+---
+
+## 19. `tenant_ai_usage_daily` — Thống kê tiêu thụ & chi phí AI chi tiết theo ngày (V28)
+
+Entity `TenantAiUsageDaily`. Lưu số lượt gọi AI, tổng prompt/completion tokens, độ trễ và chi phí USD ước tính theo từng tenant, ngày, tác vụ (`task_type`) và model (`model_name`).
+
+| Cột | Kiểu | Khoá | Null | Default | Mô tả |
+|---|---|---|---|---|---|
+| `id` | BIGINT IDENTITY | PK | Không | auto | Định danh bản ghi |
+| `tenant_id` | BIGINT | FK → `tenants.id`, UQ, IDX | Không | — | Doanh nghiệp tiêu thụ (`ON DELETE CASCADE`) |
+| `usage_date` | DATE | UQ, IDX | Không | — | Ngày ghi nhận (UTC/Server) |
+| `task_type` | VARCHAR(50) | UQ | Không | — | Tác vụ AI (`CV_PARSING`, `INTERVIEW_GEN`, `INTERVIEW_NLP`, `MATCHING`, `CODE_GRADING`) |
+| `provider` | VARCHAR(50) | UQ | Không | — | Nhà cung cấp AI đã gọi |
+| `model_name` | VARCHAR(100) | UQ | Không | — | Model thực tế đã xử lý |
+| `total_requests` | INT | | Không | `0` | Tổng số request gọi AI trong ngày |
+| `failed_requests` | INT | | Không | `0` | Số request lỗi |
+| `total_prompt_tokens` | BIGINT | | Không | `0` | Tổng lượng prompt tokens tiêu thụ |
+| `total_completion_tokens` | BIGINT | | Không | `0` | Tổng lượng completion tokens sinh ra |
+| `estimated_cost_usd` | DECIMAL(12,6) | | Không | `0.000000` | Chi phí USD ước tính cộng dồn |
+| `total_latency_ms` | BIGINT | | Không | `0` | Tổng thời gian phản hồi (ms) để tính độ trễ trung bình |
+| `created_at` | TIMESTAMP | | Không | now | |
+| `updated_at` | TIMESTAMP | | Không | now | |
+
+**Ràng buộc & Index:** `fk_taud_tenant (ON DELETE CASCADE)`, `uk_tenant_ai_usage_daily_dim (tenant_id, usage_date, task_type, provider, model_name)`, `idx_taud_tenant_date (tenant_id, usage_date)`, `idx_taud_usage_date (usage_date)`
+
 

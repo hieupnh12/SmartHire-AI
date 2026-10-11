@@ -145,15 +145,15 @@ export function ContractDetailModal({
             <div className="grid grid-cols-1 gap-2 font-mono sm:grid-cols-3">
               <div>
                 <span className="text-slate-500 block">Giá gốc:</span>
-                <span className="font-bold text-slate-900">${selectedContract.contractValue.toLocaleString()} {selectedContract.currency}</span>
+                <span className="font-bold text-slate-900">{selectedContract.contractValue.toLocaleString("vi-VN")} ₫</span>
               </div>
               <div>
                 <span className="text-slate-500 block">Thuế VAT ({selectedContract.taxRate || 10}%):</span>
-                <span className="font-bold text-slate-700">${(selectedContract.taxAmount || 0).toLocaleString()} {selectedContract.currency}</span>
+                <span className="font-bold text-slate-700">{(selectedContract.taxAmount || 0).toLocaleString("vi-VN")} ₫</span>
               </div>
               <div>
                 <span className="text-slate-500 block">Tổng thanh toán:</span>
-                <span className="font-bold text-emerald-600 text-xs">${(selectedContract.totalAmount || selectedContract.contractValue).toLocaleString()} {selectedContract.currency}</span>
+                <span className="font-bold text-emerald-600 text-xs">{(selectedContract.totalAmount || selectedContract.contractValue).toLocaleString("vi-VN")} ₫</span>
               </div>
             </div>
             <div className="text-[10px] text-slate-500 italic pt-1 border-t border-slate-100">

@@ -49,9 +49,7 @@ public class MasterAnalyticsController {
     @GetMapping("/logs")
     @Operation(summary = "View Tenant System Audit Logs", description = "Returns platform audit log stream.")
     public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getSystemAuditLogs() {
-        // Keeping dummy data for logs as requested focus was on Revenue and AI charts
-        List<Map<String, Object>> logs = new ArrayList<>();
-        logs.add(Map.of("id", 101L, "tenantCode", "acme", "action", "TENANT_PROVISIONED", "level", "INFO", "timestamp", "2026-08-23T18:50:00Z"));
+        List<Map<String, Object>> logs = analyticsService.getSystemAuditLogs();
         return ResponseEntity.ok(ApiResponse.ok("Audit logs fetched successfully", logs));
     }
 }

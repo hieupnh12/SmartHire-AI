@@ -8,11 +8,14 @@ import com.smarthire.domain.master.entity.ContractSignature;
 import com.smarthire.domain.master.entity.PlatformAuditLog;
 import com.smarthire.domain.master.entity.SubscriptionPlan;
 import com.smarthire.domain.master.entity.TenantInfo;
+import com.smarthire.domain.master.entity.TenantSubscription;
+import com.smarthire.domain.master.repository.ConsultationRequestRepository;
 import com.smarthire.domain.master.repository.ContractRepository;
 import com.smarthire.domain.master.repository.ContractSignatureRepository;
 import com.smarthire.domain.master.repository.PlatformAuditLogRepository;
 import com.smarthire.domain.master.repository.SubscriptionPlanRepository;
 import com.smarthire.domain.master.repository.TenantInfoRepository;
+import com.smarthire.domain.master.repository.TenantSubscriptionRepository;
 import com.smarthire.master.billing.dto.CreateInvoiceRequest;
 import com.smarthire.master.billing.service.MasterBillingService;
 import com.smarthire.master.contract.dto.ContractResponse;
@@ -54,6 +57,8 @@ public class MasterContractService {
     private final ContractSignatureRepository signatureRepository;
     private final TenantInfoRepository tenantRepository;
     private final SubscriptionPlanRepository planRepository;
+    private final TenantSubscriptionRepository subscriptionRepository;
+    private final ConsultationRequestRepository consultationRequestRepository;
     private final PlatformAuditLogRepository auditLogRepository;
     private final MasterBillingService billingService;
     private final MasterNotificationPublisher notificationPublisher;
@@ -113,7 +118,7 @@ public class MasterContractService {
         }
 
         String contractNumber = generateContractNumber();
-        String currency = StringUtils.hasText(request.getCurrency()) ? request.getCurrency().toUpperCase() : "USD";
+        String currency = StringUtils.hasText(request.getCurrency()) ? request.getCurrency().toUpperCase() : "VND";
         BigDecimal value = request.getContractValue() != null ? request.getContractValue() : BigDecimal.ZERO;
         BigDecimal taxRate = request.getTaxRate() != null ? request.getTaxRate() : BigDecimal.valueOf(10.00);
         BigDecimal taxAmount = value.multiply(taxRate).divide(BigDecimal.valueOf(100), 2, java.math.RoundingMode.HALF_UP);
@@ -167,6 +172,37 @@ public class MasterContractService {
                 .build();
 
         Contract saved = contractRepository.save(contract);
+
+        if (tenant != null && plan != null) {
+            TenantInfo targetTenant = tenant;
+            SubscriptionPlan selectedPlan = plan;
+            TenantSubscription pendingSub = subscriptionRepository
+                    .findFirstByTenantIdAndStatusOrderByCreatedAtDesc(targetTenant.getId(), "PENDING")
+                    .orElseGet(() -> TenantSubscription.builder()
+                            .tenantId(targetTenant.getId())
+                            .planId(selectedPlan.getId())
+                            .status("PENDING")
+                            .autoRenew(true)
+                            .build());
+            pendingSub.setPlanId(selectedPlan.getId());
+            pendingSub.setStartsAt(request.getStartDate().atStartOfDay());
+            pendingSub.setEndsAt(request.getEndDate().atTime(23, 59, 59));
+            pendingSub.applyPlanSnapshot(selectedPlan);
+            if (value.compareTo(BigDecimal.ZERO) > 0) {
+                pendingSub.setContractedPriceYearly(value);
+            }
+            subscriptionRepository.save(pendingSub);
+        }
+
+        if (request.getConsultationRequestId() != null && tenant != null) {
+            Long finalTenantId = tenant.getId();
+            consultationRequestRepository.findById(request.getConsultationRequestId()).ifPresent(lead -> {
+                lead.setTenantId(finalTenantId);
+                lead.setStatus("PROVISIONED");
+                consultationRequestRepository.save(lead);
+            });
+        }
+
         log.info("Created Vietnam Legal B2B Contract: {} for tenant: {} ({})",
                 saved.getContractNumber(),
                 tenant != null ? tenant.getName() : "Draft",

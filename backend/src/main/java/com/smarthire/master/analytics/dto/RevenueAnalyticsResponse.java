@@ -16,9 +16,20 @@ public class RevenueAnalyticsResponse {
     BigDecimal totalRevenue;
     BigDecimal mrr;
     BigDecimal arr;
+    BigDecimal arpa;
     long activeTenants;
     long totalTenants;
+    long newTenantsThisMonth;
     String growthRate;
+    long paidInvoicesCount;
+    BigDecimal paidInvoicesAmount;
+    long pendingInvoicesCount;
+    BigDecimal pendingInvoicesAmount;
+    long overdueInvoicesCount;
+    BigDecimal overdueInvoicesAmount;
+    long openLeadsCount;
+    long conversionRatePercent;
+    long pendingContractsCount;
     Map<String, Long> planDistribution;
     List<ChartDataPoint> revenueTrend;
 }

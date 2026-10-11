@@ -141,8 +141,8 @@ export function InvoiceDetailModal({
                       <tr key={idx} className="hover:bg-slate-50/50">
                         <td className="py-1.5 px-2.5 text-slate-800 font-medium">{item.description}</td>
                         <td className="py-1.5 px-2.5 text-right font-mono text-slate-600">{item.quantity}</td>
-                        <td className="py-1.5 px-2.5 text-right font-mono text-slate-600">${item.unitPrice.toLocaleString()}</td>
-                        <td className="py-1.5 px-2.5 text-right font-mono font-semibold text-slate-800">${item.totalPrice?.toLocaleString() || (item.quantity * item.unitPrice).toLocaleString()}</td>
+                        <td className="py-1.5 px-2.5 text-right font-mono text-slate-600">{item.unitPrice.toLocaleString("vi-VN")} ₫</td>
+                        <td className="py-1.5 px-2.5 text-right font-mono font-semibold text-slate-800">{(item.totalPrice ?? (item.quantity * item.unitPrice)).toLocaleString("vi-VN")} ₫</td>
                       </tr>
                     ))}
                   </tbody>
@@ -153,7 +153,7 @@ export function InvoiceDetailModal({
 
           <div className="flex justify-between pt-1 text-sm font-bold text-slate-900">
             <span>Tổng Tiền Thanh Toán:</span>
-            <span className="font-mono text-emerald-600 text-base">${selectedInvoice.amount.toLocaleString()} {selectedInvoice.currency}</span>
+            <span className="font-mono text-emerald-600 text-base">{selectedInvoice.amount.toLocaleString("vi-VN")} ₫</span>
           </div>
 
           {selectedInvoice.notes && (

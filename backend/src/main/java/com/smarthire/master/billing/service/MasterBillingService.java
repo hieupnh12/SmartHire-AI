@@ -135,17 +135,24 @@ public class MasterBillingService {
             LocalDateTime startsAt = request.getBillingPeriodStart() != null ? request.getBillingPeriodStart() : LocalDateTime.now();
             LocalDateTime endsAt = request.getBillingPeriodEnd() != null ? request.getBillingPeriodEnd() : startsAt.plusYears(1);
 
-            TenantSubscription sub = TenantSubscription.builder()
-                    .tenantId(tenant.getId())
-                    .planId(plan.getId())
-                    .status("PENDING")
-                    .startsAt(startsAt)
-                    .endsAt(endsAt)
-                    .autoRenew(true)
-                    .build();
-            sub.applyPlanSnapshot(plan);
-            if (request.getAmount() != null && request.getAmount().compareTo(BigDecimal.ZERO) > 0) {
-                sub.setContractedPriceYearly(request.getAmount());
+            SubscriptionPlan selectedPlan = plan;
+            TenantSubscription sub = subscriptionRepository
+                    .findFirstByTenantIdAndStatusOrderByCreatedAtDesc(tenant.getId(), "PENDING")
+                    .orElseGet(() -> TenantSubscription.builder()
+                            .tenantId(tenant.getId())
+                            .planId(selectedPlan.getId())
+                            .status("PENDING")
+                            .autoRenew(true)
+                            .build());
+            sub.setPlanId(selectedPlan.getId());
+            sub.setStartsAt(startsAt);
+            sub.setEndsAt(endsAt);
+            sub.applyPlanSnapshot(selectedPlan);
+            BigDecimal contractedYearly = request.getSubtotal() != null && request.getSubtotal().compareTo(BigDecimal.ZERO) > 0
+                    ? request.getSubtotal()
+                    : request.getAmount();
+            if (contractedYearly != null && contractedYearly.compareTo(BigDecimal.ZERO) > 0) {
+                sub.setContractedPriceYearly(contractedYearly);
             }
             sub = subscriptionRepository.save(sub);
             subscriptionId = sub.getId();
@@ -551,14 +558,32 @@ public class MasterBillingService {
         if (sub.getPlanCodeSnapshot() == null && sub.getPlanId() != null) {
             planRepository.findById(sub.getPlanId()).ifPresent(sub::applyPlanSnapshot);
         }
+        LocalDateTime now = LocalDateTime.now();
         if (sub.getUpgradedFromSubscriptionId() != null) {
             subscriptionRepository.findById(sub.getUpgradedFromSubscriptionId()).ifPresent(oldSub -> {
                 oldSub.setStatus("CANCELED");
-                oldSub.setCanceledAt(LocalDateTime.now());
+                oldSub.setCanceledAt(now);
                 oldSub.setCancelReason("UPGRADED_TO_" + (sub.getPlanCodeSnapshot() != null ? sub.getPlanCodeSnapshot() : sub.getPlanId()));
                 subscriptionRepository.save(oldSub);
             });
         }
+        if (sub.getTenantId() != null) {
+            List<TenantSubscription> others = subscriptionRepository.findByTenantIdOrderByCreatedAtDesc(sub.getTenantId());
+            for (TenantSubscription other : others) {
+                if (!other.getId().equals(sub.getId())
+                        && Set.of("ACTIVE", "TRIAL", "PAST_DUE", "PENDING").contains(other.getStatus())) {
+                    other.setStatus("CANCELED");
+                    other.setCanceledAt(now);
+                    other.setCancelReason("SUPERSEDED_BY_SUBSCRIPTION_" + sub.getId());
+                    subscriptionRepository.save(other);
+                }
+            }
+        }
+        long years = (sub.getStartsAt() != null && sub.getEndsAt() != null)
+                ? Math.max(1L, Math.round(java.time.temporal.ChronoUnit.DAYS.between(sub.getStartsAt(), sub.getEndsAt()) / 365.0))
+                : 1L;
+        sub.setStartsAt(now);
+        sub.setEndsAt(now.plusYears(years));
         sub.setStatus("ACTIVE");
         sub.setGracePeriodEndsAt(null);
         subscriptionRepository.save(sub);

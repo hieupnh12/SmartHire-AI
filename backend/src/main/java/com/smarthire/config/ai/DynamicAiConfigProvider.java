@@ -89,11 +89,14 @@ public class DynamicAiConfigProvider {
         // Fetch from Master DB
         try {
             Optional<AiModelConfig> configOpt = modelConfigRepository.findByTaskType(normalizedTask);
-            if (configOpt.isPresent()) {
+            if (configOpt.isPresent() && !Boolean.FALSE.equals(configOpt.get().getIsActive())) {
                 AiModelConfig config = configOpt.get();
                 String provider = config.getProvider() != null ? config.getProvider() : "GEMINI";
-                String apiKey = resolveApiKeyForProvider(provider, normalizedTask);
-                String endpointUrl = null;
+                Optional<AiProviderKey> activeKeyOpt = findActiveProviderKey(provider);
+                String apiKey = decryptOrFallbackKey(activeKeyOpt, provider, normalizedTask);
+                String endpointUrl = activeKeyOpt.map(AiProviderKey::getEndpointUrl)
+                        .filter(u -> !u.isBlank())
+                        .orElse(null);
 
                 ResolvedAiConfig resolved = new ResolvedAiConfig(
                         normalizedTask,
@@ -149,25 +152,43 @@ public class DynamicAiConfigProvider {
         return RedisKeys.aiTaskConfig(task) + (isInterview(task) ? ":spring-ai-v1" : "");
     }
 
-    private String resolveApiKeyForProvider(String provider, String task) {
+    private Optional<AiProviderKey> findActiveProviderKey(String provider) {
         String normalizedProvider = provider == null ? "GEMINI" : provider.trim().toUpperCase();
         try {
-            Optional<AiProviderKey> defaultKeyOpt = providerKeyRepository.findFirstByProviderAndIsDefaultTrue(normalizedProvider);
+            Optional<AiProviderKey> defaultKeyOpt = providerKeyRepository
+                    .findFirstByProviderAndIsDefaultTrueAndStatus(normalizedProvider, "ACTIVE");
+            if (defaultKeyOpt.isEmpty()) {
+                defaultKeyOpt = providerKeyRepository.findFirstByProviderAndIsDefaultTrue(normalizedProvider)
+                        .filter(k -> k.getStatus() == null || "ACTIVE".equalsIgnoreCase(k.getStatus()));
+            }
             if (defaultKeyOpt.isEmpty()) {
                 defaultKeyOpt = providerKeyRepository.findFirstByProviderAndStatus(normalizedProvider, "ACTIVE");
             }
-            if (defaultKeyOpt.isPresent()) {
-                String encrypted = defaultKeyOpt.get().getApiKeyEncrypted();
-                return credentialService.decrypt("MASTER_AI_KEY", encrypted);
-            }
+            return defaultKeyOpt;
         } catch (Exception ex) {
-            log.warn("Could not decrypt API key for provider {}: {}", normalizedProvider, ex.getMessage());
+            log.warn("Could not query API key for provider {}: {}", normalizedProvider, ex.getMessage());
+            return Optional.empty();
         }
+    }
 
+    private String decryptOrFallbackKey(Optional<AiProviderKey> keyOpt, String provider, String task) {
+        String normalizedProvider = provider == null ? "GEMINI" : provider.trim().toUpperCase();
+        if (keyOpt.isPresent()) {
+            try {
+                String encrypted = keyOpt.get().getApiKeyEncrypted();
+                return credentialService.decrypt("MASTER_AI_KEY", encrypted);
+            } catch (Exception ex) {
+                log.warn("Could not decrypt API key for provider {}: {}", normalizedProvider, ex.getMessage());
+            }
+        }
         if ("GEMINI".equalsIgnoreCase(normalizedProvider)) {
             return isInterview(task) ? interviewKey : fallbackGeminiKey;
         }
         return "";
+    }
+
+    private String resolveApiKeyForProvider(String provider, String task) {
+        return decryptOrFallbackKey(findActiveProviderKey(provider), provider, task);
     }
 
     public void evictCache(String taskType) {

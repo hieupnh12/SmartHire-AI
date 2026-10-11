@@ -383,15 +383,15 @@ export function PublicContractSigningPage() {
               <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 my-2 space-y-1.5">
                 <div className="flex justify-between">
                   <span>• Giá trị dịch vụ trước thuế:</span>
-                  <span className="font-mono font-bold">${contract.contractValue.toLocaleString()} {contract.currency}</span>
+                  <span className="font-mono font-bold">{contract.contractValue.toLocaleString("vi-VN")} ₫</span>
                 </div>
                 <div className="flex justify-between text-slate-600">
                   <span>• Thuế giá trị gia tăng (VAT {contract.taxRate || 10}%):</span>
-                  <span className="font-mono">${(contract.taxAmount || 0).toLocaleString()} {contract.currency}</span>
+                  <span className="font-mono">{(contract.taxAmount || 0).toLocaleString("vi-VN")} ₫</span>
                 </div>
                 <div className="flex justify-between pt-2 border-t border-slate-200 text-sm font-bold text-slate-900">
                   <span>• Tổng giá trị thanh toán:</span>
-                  <span className="font-mono text-emerald-600">${(contract.totalAmount || contract.contractValue).toLocaleString()} {contract.currency}</span>
+                  <span className="font-mono text-emerald-600">{(contract.totalAmount || contract.contractValue).toLocaleString("vi-VN")} ₫</span>
                 </div>
                 <div className="text-[11px] text-slate-500 italic pt-1">
                   (Bằng chữ: {contract.amountInWords || "Đã bao gồm thuế giá trị gia tăng"})

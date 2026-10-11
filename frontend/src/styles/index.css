@@ -51,6 +51,13 @@
 @layer base {
   html {
     scroll-behavior: smooth;
+    /* Smoother momentum scrolling */
+    -webkit-overflow-scrolling: touch;
+  }
+
+  * {
+    /* Prevent layout shift jank */
+    box-sizing: border-box;
   }
 }
 
@@ -103,4 +110,87 @@
 
 .animate-text-gradient {
   animation: text-gradient 2s linear infinite;
+}
+
+/* ============================================
+   SCROLL REVEAL ANIMATION SYSTEM
+   Triggered via IntersectionObserver in JS
+   ============================================ */
+
+/* Default hidden state */
+[data-reveal] {
+  will-change: transform, opacity;
+}
+
+/* fade-up (default) */
+[data-reveal="fade-up"] {
+  opacity: 0;
+  transform: translateY(32px);
+  transition:
+    opacity 0.65s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.65s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* fade-in */
+[data-reveal="fade-in"] {
+  opacity: 0;
+  transition: opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* slide-left */
+[data-reveal="slide-left"] {
+  opacity: 0;
+  transform: translateX(-40px);
+  transition:
+    opacity 0.65s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.65s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* slide-right */
+[data-reveal="slide-right"] {
+  opacity: 0;
+  transform: translateX(40px);
+  transition:
+    opacity 0.65s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.65s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* scale-up */
+[data-reveal="scale-up"] {
+  opacity: 0;
+  transform: scale(0.94);
+  transition:
+    opacity 0.6s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* VISIBLE STATE — added by IntersectionObserver */
+[data-reveal].is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+/* Staggered children delay support */
+[data-reveal-stagger] > * {
+  opacity: 0;
+  transform: translateY(24px);
+  transition:
+    opacity 0.6s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+[data-reveal-stagger].is-visible > *:nth-child(1) { opacity: 1; transform: none; transition-delay: 0ms; }
+[data-reveal-stagger].is-visible > *:nth-child(2) { opacity: 1; transform: none; transition-delay: 80ms; }
+[data-reveal-stagger].is-visible > *:nth-child(3) { opacity: 1; transform: none; transition-delay: 160ms; }
+[data-reveal-stagger].is-visible > *:nth-child(4) { opacity: 1; transform: none; transition-delay: 240ms; }
+[data-reveal-stagger].is-visible > *:nth-child(5) { opacity: 1; transform: none; transition-delay: 320ms; }
+
+/* Respect reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  [data-reveal],
+  [data-reveal-stagger] > * {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
 }

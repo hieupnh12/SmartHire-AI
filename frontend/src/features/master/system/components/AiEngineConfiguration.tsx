@@ -13,11 +13,15 @@ import {
   Zap,
   Save,
   RefreshCw,
+  Gauge,
+  Coins,
 } from "lucide-react";
 import {
   aiConfigApi,
   type AiModelConfig,
+  type AiModelPricing,
   type AiProviderKey,
+  type AiRateLimitConfig,
 } from "@/api/master/aiConfigApi";
 import { AddAiKeyModal } from "./AddAiKeyModal";
 import { HeaderActions } from "@/features/master/shell/HeaderActions";
@@ -26,7 +30,7 @@ import { cn } from "@/lib/utils";
 const surface = "rounded-2xl border border-slate-200 bg-white shadow-[0_4px_14px_-8px_rgba(15,23,42,0.18)]";
 
 const MODEL_PRESETS: Record<string, string[]> = {
-  GEMINI: ["gemini-3.6-flash", "gemini-2.5-flash", "gemini-3.1-pro-preview", "gemini-2.5-pro"],
+  GEMINI: ["gemini-3.6-flash", "gemini-2.5-flash", "gemini-3.1-pro-preview", "gemini-2.5-pro", "gemini-1.5-flash", "gemini-1.5-pro"],
   OPENAI: ["gpt-4o-mini", "gpt-4o", "gpt-4-turbo", "o3-mini"],
   ANTHROPIC: ["claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022", "claude-3-opus-20240229"],
   DEEPSEEK: ["deepseek-chat", "deepseek-coder", "deepseek-reasoner"],
@@ -36,6 +40,25 @@ const MODEL_PRESETS: Record<string, string[]> = {
 export function AiEngineConfiguration() {
   const [keys, setKeys] = useState<AiProviderKey[]>([]);
   const [tasks, setTasks] = useState<AiModelConfig[]>([]);
+  const [pricings, setPricings] = useState<AiModelPricing[]>([]);
+  const [newPricing, setNewPricing] = useState<AiModelPricing>({
+    modelName: "",
+    provider: "GEMINI",
+    inputPricePer1mTokens: 0.075,
+    outputPricePer1mTokens: 0.3,
+    isActive: true,
+  });
+  const [savingPricingKey, setSavingPricingKey] = useState<string | null>(null);
+  const [savedPricingKeySuccess, setSavedPricingKeySuccess] = useState<string | null>(null);
+
+  const [rateLimit, setRateLimit] = useState<AiRateLimitConfig>({
+    enabled: true,
+    defaultRpmPerTenant: 30,
+    defaultTpmPerTenant: 100000,
+    tenantRpmOverrides: {},
+  });
+  const [savingRateLimit, setSavingRateLimit] = useState(false);
+  const [savedRateLimitSuccess, setSavedRateLimitSuccess] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -52,16 +75,111 @@ export function AiEngineConfiguration() {
     try {
       setLoading(true);
       setError(null);
-      const [keysRes, tasksRes] = await Promise.all([
+      const [keysRes, tasksRes, rateLimitRes, pricingsRes] = await Promise.all([
         aiConfigApi.getProviderKeys(),
         aiConfigApi.getTaskConfigs(),
+        aiConfigApi.getRateLimitConfig().catch(() => null),
+        aiConfigApi.getModelPricings().catch(() => []),
       ]);
       setKeys(keysRes);
       setTasks(tasksRes);
+      setPricings(pricingsRes);
+      if (rateLimitRes) {
+        setRateLimit({
+          enabled: rateLimitRes.enabled ?? true,
+          defaultRpmPerTenant: rateLimitRes.defaultRpmPerTenant ?? 30,
+          defaultTpmPerTenant: rateLimitRes.defaultTpmPerTenant ?? 100000,
+          tenantRpmOverrides: rateLimitRes.tenantRpmOverrides ?? {},
+        });
+      }
     } catch (err: any) {
       setError(err.response?.data?.message || err.message || "Lỗi khi tải cấu hình AI");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handlePricingChange = (
+    modelName: string,
+    field: keyof AiModelPricing,
+    value: string | number | boolean
+  ) => {
+    setPricings((prev) =>
+      prev.map((p) => (p.modelName === modelName ? { ...p, [field]: value } : p))
+    );
+  };
+
+  const handleSavePricing = async (pricing: AiModelPricing) => {
+    try {
+      setSavingPricingKey(pricing.modelName);
+      setSavedPricingKeySuccess(null);
+      const saved = await aiConfigApi.saveModelPricing(pricing);
+      setPricings((prev) =>
+        prev.map((p) => (p.modelName === pricing.modelName ? saved : p))
+      );
+      setSavedPricingKeySuccess(pricing.modelName);
+      setTimeout(() => setSavedPricingKeySuccess(null), 2500);
+    } catch (err: any) {
+      alert(err.response?.data?.message || err.message || "Lỗi khi lưu đơn giá Model");
+    } finally {
+      setSavingPricingKey(null);
+    }
+  };
+
+  const handleAddPricing = async () => {
+    if (!newPricing.modelName.trim()) {
+      alert("Vui lòng nhập tên Model (ví dụ: gemini-2.5-flash)");
+      return;
+    }
+    try {
+      setSavingPricingKey("__NEW__");
+      const saved = await aiConfigApi.saveModelPricing({
+        ...newPricing,
+        modelName: newPricing.modelName.trim(),
+      });
+      setPricings((prev) => {
+        const filtered = prev.filter((p) => p.modelName !== saved.modelName);
+        return [...filtered, saved];
+      });
+      setNewPricing({
+        modelName: "",
+        provider: "GEMINI",
+        inputPricePer1mTokens: 0.075,
+        outputPricePer1mTokens: 0.3,
+        isActive: true,
+      });
+    } catch (err: any) {
+      alert(err.response?.data?.message || err.message || "Lỗi khi thêm đơn giá Model");
+    } finally {
+      setSavingPricingKey(null);
+    }
+  };
+
+  const handleDeletePricing = async (id?: number, modelName?: string) => {
+    if (!id) return;
+    if (!window.confirm(`Xóa đơn giá của model "${modelName || id}"?`)) return;
+    try {
+      await aiConfigApi.deleteModelPricing(id);
+      setPricings((prev) => prev.filter((p) => p.id !== id));
+    } catch (err: any) {
+      alert(err.response?.data?.message || err.message || "Không thể xóa đơn giá Model");
+    }
+  };
+
+  const handleSaveRateLimit = async () => {
+    try {
+      setSavingRateLimit(true);
+      setSavedRateLimitSuccess(false);
+      const updated = await aiConfigApi.updateRateLimitConfig(rateLimit);
+      if (updated) {
+        setRateLimit(updated);
+      }
+      setSavedRateLimitSuccess(true);
+      setTimeout(() => setSavedRateLimitSuccess(false), 2500);
+    } catch (err: any) {
+      alert(err.response?.data?.message || err.message || "Lỗi khi lưu cấu hình Rate Limit");
+    } finally {
+      setSavingRateLimit(false);
     }
   };
 
@@ -331,7 +449,7 @@ export function AiEngineConfiguration() {
             <h2 className="text-base font-bold text-slate-950">Phân bổ Model theo Nghiệp vụ (Task Routing)</h2>
           </div>
           <p className="mt-1 text-xs text-slate-500">
-            Chỉ định chính xác Model AI, nhiệt độ ngẫu nhiên (Temperature), giới hạn Tokens và thời gian Timeout cho từng tính năng.
+            Chỉ định chính xác Model AI chính, Model dự phòng (Failover), nhiệt độ ngẫu nhiên (Temperature), giới hạn Max Tokens và thời gian Timeout cho từng tính năng.
           </p>
         </div>
 
@@ -340,28 +458,65 @@ export function AiEngineConfiguration() {
             const isSaving = savingTask === task.taskType;
             const isSuccess = savedTaskSuccess === task.taskType;
             const presets = MODEL_PRESETS[task.provider] || MODEL_PRESETS.GEMINI;
+            const failoverPresets =
+              MODEL_PRESETS[task.failoverProvider || task.provider] || MODEL_PRESETS.GEMINI;
 
             return (
               <div key={task.taskType} className="p-5 sm:p-6 hover:bg-slate-50/40 transition-colors">
-                <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-                  {/* TASK INFO */}
-                  <div className="max-w-md">
+                <div className="flex flex-col gap-4">
+                  {/* TOP ROW: TASK INFO + ACTIVE TOGGLE + SAVE BUTTON */}
+                  <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex items-center gap-2.5">
                       <span className="grid size-8 place-items-center rounded-lg bg-blue-50 text-blue-700 font-bold text-xs">
                         <BrainCircuit className="size-4" />
                       </span>
                       <div>
-                        <h3 className="text-sm font-bold text-slate-900">{task.taskName}</h3>
-                        <span className="font-mono text-[11px] text-slate-400">{task.taskType}</span>
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-sm font-bold text-slate-900">{task.taskName}</h3>
+                          <span className="font-mono text-[11px] text-slate-400">({task.taskType})</span>
+                        </div>
                       </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-semibold text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={task.isActive !== false}
+                          onChange={(e) => handleTaskChange(task.taskType, "isActive", e.target.checked)}
+                          className="size-3.5 accent-blue-600"
+                        />
+                        <span>{task.isActive !== false ? "Đang bật" : "Tạm ngưng"}</span>
+                      </label>
+
+                      <button
+                        type="button"
+                        disabled={isSaving}
+                        onClick={() => handleSaveTask(task)}
+                        className={cn(
+                          "inline-flex min-h-9 items-center justify-center gap-2 rounded-xl px-4 text-xs font-semibold shadow-sm transition-all",
+                          isSuccess
+                            ? "bg-emerald-600 text-white"
+                            : "bg-slate-900 text-white hover:bg-blue-600"
+                        )}
+                      >
+                        {isSaving ? (
+                          <Loader2 className="size-3.5 animate-spin" />
+                        ) : isSuccess ? (
+                          <CheckCircle2 className="size-3.5" />
+                        ) : (
+                          <Save className="size-3.5" />
+                        )}
+                        {isSuccess ? "Đã lưu!" : "Lưu thay đổi"}
+                      </button>
                     </div>
                   </div>
 
-                  {/* CONTROLS */}
-                  <div className="grid flex-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  {/* CONTROLS GRID (7 FIELDS) */}
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-7">
                     {/* Provider */}
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-500">Provider</label>
+                      <label className="block text-[11px] font-semibold text-slate-500">Provider chính</label>
                       <select
                         value={task.provider}
                         onChange={(e) => handleTaskChange(task.taskType, "provider", e.target.value)}
@@ -375,8 +530,8 @@ export function AiEngineConfiguration() {
                     </div>
 
                     {/* Model Name */}
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-500">Model Name</label>
+                    <div className="lg:col-span-2">
+                      <label className="block text-[11px] font-semibold text-slate-500">Model chính</label>
                       <input
                         type="text"
                         list={`presets-${task.taskType}`}
@@ -389,6 +544,22 @@ export function AiEngineConfiguration() {
                           <option key={p} value={p} />
                         ))}
                       </datalist>
+                    </div>
+
+                    {/* Max Tokens */}
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-500">Max Output Tokens</label>
+                      <input
+                        type="number"
+                        min="128"
+                        max="65536"
+                        step="256"
+                        value={task.maxTokens ?? 2048}
+                        onChange={(e) =>
+                          handleTaskChange(task.taskType, "maxTokens", parseInt(e.target.value, 10) || 2048)
+                        }
+                        className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-mono font-medium text-slate-800 outline-none focus:border-blue-500"
+                      />
                     </div>
 
                     {/* Temperature */}
@@ -419,40 +590,358 @@ export function AiEngineConfiguration() {
                         max="120"
                         value={task.timeoutSeconds}
                         onChange={(e) =>
-                          handleTaskChange(task.taskType, "timeoutSeconds", parseInt(e.target.value) || 30)
+                          handleTaskChange(task.taskType, "timeoutSeconds", parseInt(e.target.value, 10) || 30)
                         }
                         className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 outline-none focus:border-blue-500"
                       />
                     </div>
-                  </div>
 
-                  {/* SAVE BUTTON */}
-                  <div className="flex items-center justify-end">
-                    <button
-                      type="button"
-                      disabled={isSaving}
-                      onClick={() => handleSaveTask(task)}
-                      className={cn(
-                        "inline-flex min-h-9 items-center justify-center gap-2 rounded-xl px-4 text-xs font-semibold shadow-sm transition-all",
-                        isSuccess
-                          ? "bg-emerald-600 text-white"
-                          : "bg-slate-900 text-white hover:bg-blue-600"
-                      )}
-                    >
-                      {isSaving ? (
-                        <Loader2 className="size-3.5 animate-spin" />
-                      ) : isSuccess ? (
-                        <CheckCircle2 className="size-3.5" />
-                      ) : (
-                        <Save className="size-3.5" />
-                      )}
-                      {isSuccess ? "Đã lưu!" : "Lưu thay đổi"}
-                    </button>
+                    {/* Failover Provider & Model */}
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-500">Model dự phòng (Failover)</label>
+                      <div className="mt-1 flex gap-1.5">
+                        <select
+                          value={task.failoverProvider || ""}
+                          onChange={(e) =>
+                            handleTaskChange(task.taskType, "failoverProvider", e.target.value || undefined)
+                          }
+                          className="w-24 rounded-xl border border-slate-200 bg-slate-50 px-2 py-2 text-[11px] font-semibold text-slate-700 outline-none focus:border-blue-500"
+                        >
+                          <option value="">Không</option>
+                          <option value="GEMINI">GEMINI</option>
+                          <option value="OPENAI">OPENAI</option>
+                          <option value="ANTHROPIC">ANTHROPIC</option>
+                          <option value="DEEPSEEK">DEEPSEEK</option>
+                        </select>
+                        <input
+                          type="text"
+                          list={`failover-presets-${task.taskType}`}
+                          placeholder="Model dự phòng..."
+                          value={task.failoverModel || ""}
+                          onChange={(e) =>
+                            handleTaskChange(task.taskType, "failoverModel", e.target.value || undefined)
+                          }
+                          className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-xs font-mono text-slate-800 outline-none focus:border-blue-500"
+                        />
+                        <datalist id={`failover-presets-${task.taskType}`}>
+                          {failoverPresets.map((p) => (
+                            <option key={p} value={p} />
+                          ))}
+                        </datalist>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
             );
           })}
+        </div>
+      </section>
+
+      {/* SECTION 2.5: SHORT-TERM REDIS RATE LIMITING (RPM / TPM) */}
+      <section className={cn(surface, "overflow-hidden")}>
+        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 p-5 sm:p-6">
+          <div>
+            <div className="flex items-center gap-2">
+              <Gauge className="size-5 text-blue-600" />
+              <h2 className="text-base font-bold text-slate-950">
+                Bảo vệ Tài nguyên & Giới hạn Tốc độ Ngắn hạn (Redis Rate Limiting)
+              </h2>
+            </div>
+            <p className="mt-1 text-xs text-slate-500">
+              Chống cạn kiệt tài nguyên / Noisy Neighbor: giới hạn số lượng yêu cầu AI mỗi phút (RPM) và số Tokens mỗi phút (TPM) trên từng Tenant bằng Redis. Vượt ngưỡng sẽ trả về HTTP 429.
+            </p>
+          </div>
+          <label className="inline-flex cursor-pointer items-center gap-2.5 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-xs font-semibold text-slate-800">
+            <input
+              type="checkbox"
+              checked={rateLimit.enabled}
+              onChange={(e) => setRateLimit((prev) => ({ ...prev, enabled: e.target.checked }))}
+              className="size-4 accent-blue-600"
+            />
+            <span>{rateLimit.enabled ? "Đang bật Rate Limiter" : "Đang tắt Rate Limiter"}</span>
+          </label>
+        </div>
+
+        <div className="grid gap-5 p-5 sm:p-6 md:grid-cols-3 md:items-end">
+          <div>
+            <label className="block text-xs font-semibold text-slate-700">
+              Giới hạn RPM mặc định / Tenant (Requests / phút)
+            </label>
+            <p className="mt-0.5 text-[11px] text-slate-400">
+              Số lệnh gọi LLM tối đa trong 1 phút của một doanh nghiệp (khuyến nghị: 20–60 req/phút).
+            </p>
+            <input
+              type="number"
+              min={1}
+              max={10000}
+              disabled={!rateLimit.enabled}
+              value={rateLimit.defaultRpmPerTenant}
+              onChange={(e) =>
+                setRateLimit((prev) => ({
+                  ...prev,
+                  defaultRpmPerTenant: Math.max(1, parseInt(e.target.value, 10) || 30),
+                }))
+              }
+              className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-bold text-slate-900 outline-none focus:border-blue-500 disabled:bg-slate-100 disabled:text-slate-400"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700">
+              Giới hạn TPM mặc định / Tenant (Tokens / phút)
+            </label>
+            <p className="mt-0.5 text-[11px] text-slate-400">
+              Tổng Prompt + Completion tokens tối đa trong 1 phút (khuyến nghị: 60.000–200.000 tokens/phút).
+            </p>
+            <input
+              type="number"
+              min={1000}
+              step={5000}
+              disabled={!rateLimit.enabled}
+              value={rateLimit.defaultTpmPerTenant}
+              onChange={(e) =>
+                setRateLimit((prev) => ({
+                  ...prev,
+                  defaultTpmPerTenant: Math.max(1000, parseInt(e.target.value, 10) || 100000),
+                }))
+              }
+              className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-bold text-slate-900 outline-none focus:border-blue-500 disabled:bg-slate-100 disabled:text-slate-400"
+            />
+          </div>
+
+          <div className="flex flex-col items-stretch sm:items-end">
+            <button
+              type="button"
+              disabled={savingRateLimit}
+              onClick={handleSaveRateLimit}
+              className={cn(
+                "inline-flex min-h-10 items-center justify-center gap-2 rounded-xl px-5 text-xs font-semibold shadow-sm transition-all",
+                savedRateLimitSuccess
+                  ? "bg-emerald-600 text-white"
+                  : "bg-blue-600 text-white hover:bg-blue-700"
+              )}
+            >
+              {savingRateLimit ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : savedRateLimitSuccess ? (
+                <CheckCircle2 className="size-4" />
+              ) : (
+                <Save className="size-4" />
+              )}
+              {savedRateLimitSuccess ? "Đã đồng bộ Redis!" : "Lưu cấu hình Rate Limit"}
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* SECTION 2.8: MODEL PRICING TABLE (USD / 1M TOKENS) */}
+      <section className={cn(surface, "overflow-hidden")}>
+        <div className="border-b border-slate-100 p-5 sm:p-6">
+          <div className="flex items-center gap-2">
+            <Coins className="size-5 text-amber-600" />
+            <h2 className="text-base font-bold text-slate-950">
+              Bảng Đơn giá Model AI (Internal Cost Calculation — USD / 1M Tokens)
+            </h2>
+          </div>
+          <p className="mt-1 text-xs text-slate-500">
+            Cấu hình đơn giá Input & Output (USD trên 1.000.000 tokens) để tự động tính chi phí nội bộ khi ghi nhận tiêu thụ tại màn hình{" "}
+            <span className="font-mono font-semibold text-slate-700">/admin/system/ai-usage</span>.
+          </p>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[780px] text-left text-sm">
+            <thead className="bg-slate-50/80 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <tr>
+                <th className="px-5 py-3">Provider</th>
+                <th className="px-4 py-3">Model Name</th>
+                <th className="px-4 py-3">Giá Input (USD / 1M tokens)</th>
+                <th className="px-4 py-3">Giá Output (USD / 1M tokens)</th>
+                <th className="px-4 py-3">Trạng thái</th>
+                <th className="px-5 py-3 text-right">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {pricings.map((pricing) => {
+                const isSaving = savingPricingKey === pricing.modelName;
+                const isSaved = savedPricingKeySuccess === pricing.modelName;
+                return (
+                  <tr key={pricing.id ?? pricing.modelName} className="hover:bg-slate-50/50">
+                    <td className="px-5 py-3">
+                      <select
+                        value={pricing.provider}
+                        onChange={(e) =>
+                          handlePricingChange(pricing.modelName, "provider", e.target.value)
+                        }
+                        className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-800 outline-none focus:border-blue-500"
+                      >
+                        <option value="GEMINI">GEMINI</option>
+                        <option value="OPENAI">OPENAI</option>
+                        <option value="ANTHROPIC">ANTHROPIC</option>
+                        <option value="DEEPSEEK">DEEPSEEK</option>
+                      </select>
+                    </td>
+                    <td className="px-4 py-3 font-mono text-xs font-semibold text-slate-900">
+                      {pricing.modelName}
+                    </td>
+                    <td className="px-4 py-3">
+                      <input
+                        type="number"
+                        min={0}
+                        step="0.0001"
+                        value={pricing.inputPricePer1mTokens}
+                        onChange={(e) =>
+                          handlePricingChange(
+                            pricing.modelName,
+                            "inputPricePer1mTokens",
+                            parseFloat(e.target.value) || 0
+                          )
+                        }
+                        className="w-36 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-mono text-xs font-semibold text-slate-900 outline-none focus:border-blue-500"
+                      />
+                    </td>
+                    <td className="px-4 py-3">
+                      <input
+                        type="number"
+                        min={0}
+                        step="0.0001"
+                        value={pricing.outputPricePer1mTokens}
+                        onChange={(e) =>
+                          handlePricingChange(
+                            pricing.modelName,
+                            "outputPricePer1mTokens",
+                            parseFloat(e.target.value) || 0
+                          )
+                        }
+                        className="w-36 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-mono text-xs font-semibold text-slate-900 outline-none focus:border-blue-500"
+                      />
+                    </td>
+                    <td className="px-4 py-3">
+                      <label className="inline-flex cursor-pointer items-center gap-1.5 text-xs font-medium text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={pricing.isActive !== false}
+                          onChange={(e) =>
+                            handlePricingChange(pricing.modelName, "isActive", e.target.checked)
+                          }
+                          className="size-3.5 accent-blue-600"
+                        />
+                        <span>{pricing.isActive !== false ? "Active" : "Inactive"}</span>
+                      </label>
+                    </td>
+                    <td className="px-5 py-3 text-right">
+                      <div className="inline-flex items-center gap-2">
+                        <button
+                          type="button"
+                          disabled={isSaving}
+                          onClick={() => handleSavePricing(pricing)}
+                          className={cn(
+                            "inline-flex min-h-8 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold text-white transition-colors",
+                            isSaved ? "bg-emerald-600" : "bg-slate-900 hover:bg-blue-600"
+                          )}
+                        >
+                          {isSaving ? (
+                            <Loader2 className="size-3.5 animate-spin" />
+                          ) : isSaved ? (
+                            <CheckCircle2 className="size-3.5" />
+                          ) : (
+                            <Save className="size-3.5" />
+                          )}
+                          {isSaved ? "Đã lưu" : "Lưu"}
+                        </button>
+                        {pricing.id && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeletePricing(pricing.id, pricing.modelName)}
+                            className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+                            title="Xóa đơn giá model"
+                          >
+                            <Trash2 className="size-4" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+
+              {/* ADD NEW PRICING ROW */}
+              <tr className="bg-slate-50/70">
+                <td className="px-5 py-3">
+                  <select
+                    value={newPricing.provider}
+                    onChange={(e) =>
+                      setNewPricing((prev) => ({ ...prev, provider: e.target.value }))
+                    }
+                    className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-800 outline-none focus:border-blue-500"
+                  >
+                    <option value="GEMINI">GEMINI</option>
+                    <option value="OPENAI">OPENAI</option>
+                    <option value="ANTHROPIC">ANTHROPIC</option>
+                    <option value="DEEPSEEK">DEEPSEEK</option>
+                  </select>
+                </td>
+                <td className="px-4 py-3">
+                  <input
+                    type="text"
+                    placeholder="Tên model mới (vd: gemini-2.5-pro)"
+                    value={newPricing.modelName}
+                    onChange={(e) =>
+                      setNewPricing((prev) => ({ ...prev, modelName: e.target.value }))
+                    }
+                    className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-mono text-xs text-slate-900 outline-none focus:border-blue-500"
+                  />
+                </td>
+                <td className="px-4 py-3">
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.0001"
+                    value={newPricing.inputPricePer1mTokens}
+                    onChange={(e) =>
+                      setNewPricing((prev) => ({
+                        ...prev,
+                        inputPricePer1mTokens: parseFloat(e.target.value) || 0,
+                      }))
+                    }
+                    className="w-36 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-mono text-xs font-semibold text-slate-900 outline-none focus:border-blue-500"
+                  />
+                </td>
+                <td className="px-4 py-3">
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.0001"
+                    value={newPricing.outputPricePer1mTokens}
+                    onChange={(e) =>
+                      setNewPricing((prev) => ({
+                        ...prev,
+                        outputPricePer1mTokens: parseFloat(e.target.value) || 0,
+                      }))
+                    }
+                    className="w-36 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-mono text-xs font-semibold text-slate-900 outline-none focus:border-blue-500"
+                  />
+                </td>
+                <td className="px-4 py-3 text-xs text-slate-500">Mặc định Active</td>
+                <td className="px-5 py-3 text-right">
+                  <button
+                    type="button"
+                    disabled={savingPricingKey === "__NEW__"}
+                    onClick={handleAddPricing}
+                    className="inline-flex min-h-8 items-center gap-1.5 rounded-lg bg-blue-600 px-3 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {savingPricingKey === "__NEW__" ? (
+                      <Loader2 className="size-3.5 animate-spin" />
+                    ) : (
+                      <Plus className="size-3.5" />
+                    )}
+                    Thêm đơn giá
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </section>
 
