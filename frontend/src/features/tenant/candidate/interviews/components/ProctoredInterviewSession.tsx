@@ -11,7 +11,7 @@ const MAX_VIOLATIONS = 3;
 type StartProps = {
   busy: boolean;
   label?: string;
-  onReady: (session: ProctorSession) => void;
+  onReady: (session: ProctorSession) => void | Promise<void>;
 };
 
 export function ProctoringStart({ busy, label = "Bắt đầu phỏng vấn", onReady }: StartProps) {
@@ -38,6 +38,7 @@ export function ProctoringStart({ busy, label = "Bắt đầu phỏng vấn", on
     preparingRef.current = true;
     setPreparing(true);
     setError(null);
+    let handedOff: ProctorSession | null = null;
     try {
       if (!prepared.current) {
         const devices = await prepareProctorDevices(enableCamera);
@@ -47,20 +48,22 @@ export function ProctoringStart({ busy, label = "Bắt đầu phỏng vấn", on
         return;
       }
       if ([...prepared.current.camera.getAudioTracks(), ...prepared.current.screen.getTracks()].some(track => track.readyState !== "live")) {
-        throw new Error("Thiết bị hoặc chia sẻ màn hình đã dừng. Hãy kiểm tra thiết bị lại.");
+        throw new Error("Thiết bị hoặc chia sẻ tab phỏng vấn đã dừng. Hãy kiểm tra thiết bị lại.");
       }
       if (!document.documentElement.requestFullscreen) throw new Error("Trình duyệt không hỗ trợ chế độ toàn màn hình.");
       await document.documentElement.requestFullscreen();
       if (!mounted.current) return;
       const devices = prepared.current;
-      onReady(devices);
+      handedOff = devices;
       prepared.current = null;
+      await onReady(devices);
     } catch (cause) {
+      if (handedOff) stopProctorSession(handedOff);
       if (prepared.current) stopProctorSession(prepared.current);
       prepared.current = null;
       setReady(false);
       if (document.fullscreenElement) await document.exitFullscreen().catch(() => undefined);
-      setError(cause instanceof Error ? cause.message : "Không thể hoàn tất kiểm tra thiết bị.");
+      if (mounted.current) setError(cause instanceof Error ? cause.message : "Không thể hoàn tất kiểm tra thiết bị.");
     } finally {
       preparingRef.current = false;
       setPreparing(false);
@@ -71,7 +74,7 @@ export function ProctoringStart({ busy, label = "Bắt đầu phỏng vấn", on
     <div className="grid gap-3 sm:grid-cols-3">
       <Requirement icon={Camera} title="Camera" text="Tùy chọn, tạm thời không bắt buộc" />
       <Requirement icon={Mic} title="Microphone" text="Theo dõi trạng thái thiết bị" />
-      <Requirement icon={MonitorUp} title="Toàn màn hình" text="Chia sẻ toàn bộ màn hình" />
+      <Requirement icon={MonitorUp} title="Tab phỏng vấn" text="Chia sẻ tab đang sử dụng hệ thống" />
     </div>
     <label className="flex cursor-pointer items-start gap-3 rounded-lg bg-white p-3 text-sm leading-6">
       <input className="mt-1 size-4 accent-[var(--color-primary)]" type="checkbox" checked={accepted} disabled={preparing} onChange={event => {
@@ -80,16 +83,17 @@ export function ProctoringStart({ busy, label = "Bắt đầu phỏng vấn", on
         prepared.current = null;
         setReady(false);
       }} />
-      <span>Tôi đồng ý bật microphone, chia sẻ toàn bộ màn hình và ghi nhận các sự kiện vi phạm trong thời gian thực hiện.</span>
+      <span>Tôi đồng ý bật microphone, chia sẻ tab phỏng vấn và ghi nhận các sự kiện vi phạm trong thời gian thực hiện.</span>
     </label>
     <label className="flex items-center gap-3 text-sm">
       <input type="checkbox" checked={enableCamera} disabled={preparing || ready} onChange={event => setEnableCamera(event.target.checked)} />
       Bật camera (tùy chọn). Nếu camera không mở được, bạn vẫn có thể tiếp tục.
     </label>
     {error && <p className="rounded-lg bg-[var(--color-error-container)] p-3 text-sm text-[var(--color-on-error-container)]" role="alert">{error}</p>}
-    {ready && <p className="text-sm" role="status">Microphone và chia sẻ màn hình đã sẵn sàng. {enableCamera && !prepared.current?.camera.getVideoTracks().length ? "Camera không mở được; bạn vẫn có thể tiếp tục. " : ""}Bấm tiếp để vào toàn màn hình và bắt đầu.</p>}
+    {!ready && <p className="text-sm text-[var(--color-on-surface-variant)]">Khi trình duyệt hỏi chia sẻ, chọn tab phỏng vấn hiện tại và xác nhận. Hệ thống chỉ chia sẻ nội dung tab này.</p>}
+    {ready && <p className="text-sm" role="status">Microphone và chia sẻ tab phỏng vấn đã sẵn sàng. {enableCamera && !prepared.current?.camera.getVideoTracks().length ? "Camera không mở được; bạn vẫn có thể tiếp tục. " : ""}Bấm tiếp để vào toàn màn hình và bắt đầu.</p>}
     <Button size="lg" disabled={!accepted || preparing || busy} onClick={() => void prepare()}>
-      <ShieldCheck className="size-4" aria-hidden="true" />{preparing ? "Đang kiểm tra thiết bị…" : ready ? label : "Kiểm tra thiết bị"}
+      <ShieldCheck className="size-4" aria-hidden="true" />{preparing || busy ? ready ? "Đang mở phiên phỏng vấn…" : "Đang kiểm tra thiết bị…" : ready ? label : "Bước 1: Kiểm tra thiết bị"}
     </Button>
   </div>;
 }
@@ -141,7 +145,7 @@ export function ProctoredInterviewGuard({ interviewId, session, children, onAuto
     const microphoneTrack = session.camera.getAudioTracks()[0];
     const screenTrack = session.screen.getVideoTracks()[0];
     const microphoneLost = () => violate("MICROPHONE_LOST", "Microphone đã bị tắt");
-    const screenLost = () => violate("SCREEN_SHARE_STOPPED", "Chia sẻ màn hình đã dừng");
+    const screenLost = () => violate("SCREEN_SHARE_STOPPED", "Chia sẻ tab phỏng vấn đã dừng");
     microphoneTrack?.addEventListener("ended", microphoneLost);
     screenTrack?.addEventListener("ended", screenLost);
     return () => {
@@ -207,7 +211,7 @@ export function ProctoredInterviewGuard({ interviewId, session, children, onAuto
     <div className="fixed bottom-4 right-4 z-50 w-44 overflow-hidden rounded-xl border border-white/20 bg-slate-950 p-2 text-white shadow-2xl">
       {session.camera.getVideoTracks().length > 0
         ? <video ref={videoRef} autoPlay muted playsInline className="aspect-video w-full rounded-lg bg-slate-900 object-cover" />
-        : <p className="p-3 text-xs">Đang giám sát microphone và màn hình. Camera không bật.</p>}
+        : <p className="p-3 text-xs">Đang giám sát microphone và tab phỏng vấn. Camera không bật.</p>}
       <div className="mt-2 flex items-center justify-between text-[11px]"><span className="inline-flex items-center gap-1"><span className="size-2 rounded-full bg-emerald-400" />Đang giám sát</span><span>{violations}/{MAX_VIOLATIONS}</span></div>
     </div>
     {warning && <div className="fixed inset-0 z-[70] grid place-items-center bg-slate-950/65 p-4" role="alertdialog" aria-modal="true" aria-labelledby="proctor-warning-title">

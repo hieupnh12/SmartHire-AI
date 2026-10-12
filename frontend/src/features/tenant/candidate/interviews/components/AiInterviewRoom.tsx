@@ -170,9 +170,13 @@ export function AiInterviewRoom({ id }: { id: number }) {
           {!inProgress && !data.completedAt && <InvitationCard
             data={data}
             busy={busy}
-            onReady={(proctor) => {
-              setProctorSession(proctor);
-              start.mutate();
+            onReady={async (proctor) => {
+              try {
+                await start.mutateAsync();
+                setProctorSession(proctor);
+              } catch (cause) {
+                throw new Error(`Chưa thể bắt đầu phiên phỏng vấn: ${getApiErrorMessage(cause)} Chia sẻ tab đã được dừng. Hãy kiểm tra thiết bị và thử lại.`);
+              }
             }}
           />}
           {data.completedAt && <ResultCard data={data} busy={busy} retrying={retry.isPending} onRetry={() => retry.mutate(data.applicationId)} />}
@@ -265,7 +269,7 @@ function InterviewerCard({ question, done, total }: { question?: AiQuestion; don
 function InvitationCard({ data, busy, onReady }: {
   data: CandidateInterview;
   busy: boolean;
-  onReady: (session: ProctorSession) => void;
+  onReady: (session: ProctorSession) => void | Promise<void>;
 }) {
   const [accepted, setAccepted] = useState(false);
   const count = (kind: "OPEN" | "MCQ") => data.roadmap?.filter(s => s.kind === kind).reduce((sum, s) => sum + s.questionCount, 0) ?? 0;

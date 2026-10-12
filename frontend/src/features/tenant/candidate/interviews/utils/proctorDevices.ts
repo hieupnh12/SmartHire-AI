@@ -1,5 +1,12 @@
 export type ProctorSession = { camera: MediaStream; screen: MediaStream };
 type DeviceStep = "camera" | "microphone" | "screen";
+// Chromium capture hints are not yet included in TypeScript's DOM definitions.
+type InterviewDisplayOptions = DisplayMediaStreamOptions & {
+  preferCurrentTab: boolean;
+  selfBrowserSurface: "include";
+  monitorTypeSurfaces: "exclude";
+  surfaceSwitching: "exclude";
+};
 
 export function stopProctorSession(session: ProctorSession) {
   session.camera.getTracks().forEach(track => track.stop());
@@ -7,7 +14,7 @@ export function stopProctorSession(session: ProctorSession) {
 }
 
 export function deviceError(cause: unknown, step: DeviceStep) {
-  const device = { camera: "camera", microphone: "microphone", screen: "chia sẻ màn hình" }[step];
+  const device = { camera: "camera", microphone: "microphone", screen: "chia sẻ tab phỏng vấn" }[step];
   const name = cause instanceof Error ? cause.name : "";
   if (name === "NotReadableError" || name === "AbortError") {
     return `Không thể mở ${device}. Hãy đóng ứng dụng hoặc tab đang dùng thiết bị (Camera, Teams, Zoom, OBS), kiểm tra quyền thiết bị trong hệ điều hành rồi thử lại. (${name})`;
@@ -16,7 +23,7 @@ export function deviceError(cause: unknown, step: DeviceStep) {
     return `Chưa được cấp quyền ${device}. Hãy cho phép trong trình duyệt và hệ điều hành rồi thử lại. (${name})`;
   }
   if (name === "NotFoundError") return `Không tìm thấy ${device}. Hãy kết nối thiết bị rồi thử lại. (${name})`;
-  if (name === "InvalidStateError") return "Hãy quay lại tab phỏng vấn và bấm Kiểm tra thiết bị để chọn toàn bộ màn hình.";
+  if (name === "InvalidStateError") return "Hãy quay lại tab phỏng vấn và bấm Kiểm tra thiết bị để chia sẻ tab này.";
   return cause instanceof Error ? cause.message : `Không thể kiểm tra ${device}.`;
 }
 
@@ -29,10 +36,15 @@ export async function prepareProctorDevices(enableCamera = false): Promise<Proct
   const streams: MediaStream[] = [];
   try {
     // Screen capture must be requested directly from the user's click.
-    const screen = await navigator.mediaDevices.getDisplayMedia({ video: { displaySurface: "monitor" }, audio: false });
+    const options: InterviewDisplayOptions = {
+      video: { displaySurface: "browser" }, audio: false,
+      preferCurrentTab: true, selfBrowserSurface: "include",
+      monitorTypeSurfaces: "exclude", surfaceSwitching: "exclude",
+    };
+    const screen = await navigator.mediaDevices.getDisplayMedia(options);
     streams.push(screen);
     const surface = screen.getVideoTracks()[0]?.getSettings().displaySurface;
-    if (surface && surface !== "monitor") throw new Error("Vui lòng chia sẻ toàn bộ màn hình, không chỉ một cửa sổ hoặc tab.");
+    if (surface && surface !== "browser") throw new Error("Vui lòng chia sẻ tab đang mở phòng phỏng vấn, không chọn cửa sổ hoặc toàn màn hình.");
     step = "microphone";
     const microphone = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
     streams.push(microphone);

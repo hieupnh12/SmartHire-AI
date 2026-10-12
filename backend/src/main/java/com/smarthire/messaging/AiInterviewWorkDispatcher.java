@@ -66,7 +66,7 @@ public class AiInterviewWorkDispatcher {
                         });
                     }
                 });
-            } catch (Exception ex) { log.warn("AI interview dispatch deferred; pending work remains in database"); }
+            } catch (Exception ex) { log.warn("AI interview dispatch deferred for tenant [{}]; pending work remains in database", tenant.getCode()); }
         }
     }
 }

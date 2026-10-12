@@ -128,6 +128,12 @@ api.interceptors.response.use(
 );
 
 const FRIENDLY_ERROR_MESSAGES: Record<string, string> = {
+  AI_INTERVIEW_PROVIDER_OVERLOADED: "Dịch vụ AI phỏng vấn đang quá tải. Vui lòng thử lại sau.",
+  AI_INTERVIEW_PROVIDER_TIMEOUT: "Dịch vụ AI phản hồi quá lâu. Vui lòng thử lại sau.",
+  AI_INTERVIEW_PROVIDER_UNAVAILABLE: "Chưa kết nối được dịch vụ AI phỏng vấn. Vui lòng thử lại sau hoặc liên hệ hỗ trợ.",
+  AI_INTERVIEW_PROVIDER_RATE_LIMITED: "Dịch vụ AI đã đạt giới hạn lượt gọi. Vui lòng thử lại sau.",
+  AI_INTERVIEW_PROVIDER_AUTH_FAILED: "Dịch vụ AI từ chối xác thực. Vui lòng liên hệ hỗ trợ để kiểm tra cấu hình.",
+  AI_INTERVIEW_PROVIDER_MODEL_NOT_FOUND: "Model AI phỏng vấn chưa khả dụng. Vui lòng liên hệ hỗ trợ để kiểm tra cấu hình.",
   AI_INTERVIEW_LOCKED: "Phiên đã bị khóa. Chỉ được xóa phiên chưa bắt đầu ở trạng thái mới tạo, sẵn sàng hoặc lỗi; không thể xóa khi đang sinh câu hỏi hoặc đã bắt đầu.",
   INTERNAL_ERROR: "Hệ thống đang gặp sự cố tạm thời. Vui lòng thử lại sau ít phút.",
   VALIDATION_ERROR: "Một số thông tin chưa hợp lệ. Vui lòng kiểm tra lại.",
