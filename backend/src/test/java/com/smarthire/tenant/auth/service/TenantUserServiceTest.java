@@ -29,8 +29,6 @@ class TenantUserServiceTest {
 
     @Mock
     private UserRepository userRepository;
-    @Mock
-    private PasswordEncoder passwordEncoder;
     @Spy
     private AuthMapper authMapper = Mappers.getMapper(AuthMapper.class);
     @Mock

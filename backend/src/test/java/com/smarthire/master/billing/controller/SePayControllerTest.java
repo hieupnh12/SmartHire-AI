@@ -131,4 +131,75 @@ class SePayControllerTest {
                 .andExpect(status().isUnauthorized());
         verifyNoInteractions(sePayService);
     }
+
+    @Test
+    void webhook_ValidAuthorizationApikey_ReturnsOk() throws Exception {
+        String rawBody = "{\"id\":92704,\"gateway\":\"TPBank\",\"transferType\":\"in\",\"transferAmount\":12000000,\"content\":\"SH INV 202610 0001\"}";
+
+        when(sePayService.processWebhook(any())).thenReturn(SePayWebhookResponse.ok());
+
+        mockMvc.perform(post("/api/v1/public/sepay/webhook")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("Authorization", "Apikey " + SECRET_KEY)
+                        .content(rawBody))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+    }
+
+    @Test
+    void webhook_InvalidAuthorizationApikey_ReturnsUnauthorized() throws Exception {
+        String rawBody = "{\"id\":92704,\"gateway\":\"TPBank\",\"transferType\":\"in\",\"transferAmount\":12000000,\"content\":\"SH INV-202610-0001\"}";
+
+        mockMvc.perform(post("/api/v1/public/sepay/webhook")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("Authorization", "Apikey wrong-secret-key")
+                        .content(rawBody))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.success").value(false));
+        verifyNoInteractions(sePayService);
+    }
+
+    @Test
+    void webhook_BlankServerSecret_FailsClosedWithUnauthorized() throws Exception {
+        ReflectionTestUtils.setField(
+                new SePayController(sePayService, objectMapper), "webhookSecret", ""
+        );
+        SePayController unconfiguredController = new SePayController(sePayService, objectMapper);
+        ReflectionTestUtils.setField(unconfiguredController, "webhookSecret", "");
+        ReflectionTestUtils.setField(unconfiguredController, "requireSignature", true);
+        MockMvc unconfiguredMvc = MockMvcBuilders.standaloneSetup(unconfiguredController).build();
+
+        String rawBody = "{\"id\":92704}";
+        unconfiguredMvc.perform(post("/api/v1/public/sepay/webhook")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("Authorization", "Apikey " + SECRET_KEY)
+                        .content(rawBody))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.success").value(false));
+        verifyNoInteractions(sePayService);
+    }
+
+    @Test
+    void extractInvoiceNumber_HandlesHyphenCompactAndSpaceSeparatedBankContent() {
+        SePayService realService = new SePayService(null, null, null);
+
+        org.junit.jupiter.api.Assertions.assertEquals(
+                "INV-202610-1234",
+                realService.extractInvoiceNumber(com.smarthire.master.billing.dto.SePayWebhookPayload.builder()
+                        .content("SH INV-202610-1234")
+                        .build())
+        );
+        org.junit.jupiter.api.Assertions.assertEquals(
+                "INV-202610-1234",
+                realService.extractInvoiceNumber(com.smarthire.master.billing.dto.SePayWebhookPayload.builder()
+                        .content("MBVCB.12345.SH INV 202610 1234 CT tu 0123456789")
+                        .build())
+        );
+        org.junit.jupiter.api.Assertions.assertEquals(
+                "INV-202610-1234",
+                realService.extractInvoiceNumber(com.smarthire.master.billing.dto.SePayWebhookPayload.builder()
+                        .content("SH INV2026101234")
+                        .build())
+        );
+    }
 }

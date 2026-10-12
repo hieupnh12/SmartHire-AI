@@ -65,6 +65,7 @@ import { AiInterviewRoomPage } from "@/features/tenant/candidate/interviews/page
 import { SchedulesPage as CandidateSchedulesPage } from "@/features/tenant/candidate/schedules/pages/SchedulesPage";
 import { InterviewSchedulesPage as CandidateInterviewSchedulesPage } from "@/features/tenant/candidate/schedules/pages/InterviewSchedulesPage";
 import { NotificationsPage as CandidateNotificationsPage } from "@/features/tenant/candidate/notifications/pages/NotificationsPage";
+import { CandidateAccountPage } from "@/features/tenant/candidate/account/pages/CandidateAccountPage";
 import { recruiterNav } from "@/features/tenant/recruiter/nav";
 import { HomePage as RecruiterHomePage } from "@/features/tenant/recruiter/dashboard/pages/HomePage";
 import { JobsPage } from "@/features/tenant/recruiter/jobs/pages/JobsPage";
@@ -171,6 +172,7 @@ export function AppRouter() {
           <Route path="/schedules" element={<CandidateSchedulesPage />} />
           <Route path="/interview-schedules" element={<CandidateInterviewSchedulesPage />} />
           <Route path="/notifications" element={<CandidateNotificationsPage />} />
+          <Route path="/account" element={<CandidateAccountPage />} />
         </Route>
         <Route path="/assessments/:submissionId/take" element={<TakeAssessmentPage />} />
         <Route path="/interviews/:id" element={<AiInterviewRoomPage />} />

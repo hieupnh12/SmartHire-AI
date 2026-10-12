@@ -3,6 +3,7 @@ package com.smarthire.tenant.applicant.dto;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
@@ -63,7 +64,10 @@ public final class ApplicantModels {
             String jobLocation,
             String jobDepartment,
             String jobWorkMode,
-            String jobEmploymentType) {}
+            String jobEmploymentType,
+            boolean withdrawable) {}
+
+    public record WithdrawRequest(@Size(max = 255) String reason) {}
 
     public record ApplicationDetail(
             long id,
@@ -95,7 +99,9 @@ public final class ApplicantModels {
             GateScoreView gateScore,
             ScreeningRoundsView rounds,
             String cvScreeningStatus,
-            String screeningMode) {}
+            String screeningMode,
+            String withdrawReason,
+            boolean withdrawable) {}
 
     public record ScreeningRoundsView(
             RoundItemView cv,

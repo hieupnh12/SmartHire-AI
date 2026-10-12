@@ -56,7 +56,7 @@ class AssessmentInvitationServiceTest {
         test.setTitle("Java Core");
         test.setDurationMinutes(30);
         test.setStatus(TestStatus.PUBLISHED);
-        var candidate = new User();
+        var candidate = new Candidate();
         candidate.setId(9L);
         candidate.setEmail("candidate@example.test");
         candidate.setFullName("Nguyen Van A");

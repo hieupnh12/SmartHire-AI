@@ -9,6 +9,7 @@ import com.smarthire.domain.enums.TestStatus;
 import com.smarthire.domain.enums.TestSubmissionStatus;
 import com.smarthire.domain.tenant.entity.Application;
 import com.smarthire.domain.tenant.entity.ApplicationStatusHistory;
+import com.smarthire.domain.tenant.entity.Candidate;
 import com.smarthire.domain.tenant.entity.EmailOutbox;
 import com.smarthire.domain.tenant.entity.JobTest;
 import com.smarthire.domain.tenant.entity.Notification;
@@ -121,7 +122,7 @@ public class AssessmentInvitationService {
                     .ifPresent(application::setStage);
         }
 
-        User candidate = application.getCandidate();
+        Candidate candidate = application.getCandidate();
         String jobTitle = application.getJob().getTitle();
         String path = "/candidate/assessments?applicationId=" + application.getId();
         String title = "Lời mời làm bài Assessment";
@@ -129,7 +130,7 @@ public class AssessmentInvitationService {
                 + ". Thời gian làm bài " + test.getDurationMinutes() + " phút, bắt đầu tính khi bạn bấm bắt đầu.";
         if (!preferences.webOff(candidate, NotificationCategory.ASSESSMENT)) {
             notifications.save(Notification.builder()
-                    .user(candidate)
+                    .candidate(candidate)
                     .type("ASSESSMENT_INVITATION")
                     .title(title)
                     .body(body)

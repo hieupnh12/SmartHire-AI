@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { BriefcaseBusiness, Check, ChevronRight, XCircle } from "lucide-react";
+import { BriefcaseBusiness, Check, ChevronRight, Lock, XCircle } from "lucide-react";
 import type { ApplicationStatus, ApplicationSummary } from "@/api/types/applicant";
 import { StatusPill } from "@/components/ux/StatusPill";
 import { PIPELINE_STEPS, pipelineIndex } from "@/features/tenant/recruiter/matching/components/recruitmentFlow";
@@ -14,7 +14,9 @@ type Props = {
 
 export function ApplicationCard({ row, statusLabel, withdrawing, onWithdraw }: Props) {
   const meta = [row.jobDepartment, row.jobLocation, row.jobWorkMode, row.jobEmploymentType].filter(Boolean) as string[];
-  const canWithdraw = !["HIRED", "REJECTED"].includes(row.status);
+  const lockedHint = row.withdrawable || ["REJECTED", "FAILED", "HIRED"].includes(row.status)
+    ? null
+    : "Hồ sơ đã qua vòng lọc CV nên không thể rút";
 
   return <li className="flex min-w-0 flex-col rounded-2xl border border-[var(--color-border-default)] bg-white shadow-[var(--shadow-card)] transition-[border-color,box-shadow] hover:border-[var(--color-primary)]/30 hover:shadow-[var(--shadow-ambient)]">
     <div className="flex flex-1 flex-col gap-4 p-6">
@@ -35,9 +37,11 @@ export function ApplicationCard({ row, statusLabel, withdrawing, onWithdraw }: P
     </div>
 
     <div className="flex items-center justify-between gap-2 border-t border-[var(--color-border-default)] px-6 py-3">
-      {canWithdraw
+      {row.withdrawable
         ? <button type="button" onClick={onWithdraw} disabled={withdrawing} className="inline-flex min-h-10 items-center gap-1.5 rounded-lg px-2 text-sm font-medium text-[var(--color-on-surface-variant)] hover:bg-[var(--color-error-container)] hover:text-[var(--color-error)] disabled:opacity-50"><XCircle className="size-4" aria-hidden="true" />Rút đơn</button>
-        : <span />}
+        : lockedHint
+          ? <span className="inline-flex min-w-0 items-center gap-1.5 text-xs text-[var(--color-on-surface-variant)]"><Lock className="size-3.5 shrink-0" aria-hidden="true" /><span className="line-clamp-2">{lockedHint}</span></span>
+          : <span />}
       <div className="flex gap-2">
         <Link to={`/jobs/${row.jobId}`} className="inline-flex min-h-10 items-center rounded-lg px-3 text-sm font-semibold text-[var(--color-on-surface-variant)] hover:bg-[var(--color-surface-alt)]">Xem việc</Link>
         <Link to={`/applications/${row.id}`} className="inline-flex min-h-10 items-center gap-1 rounded-lg bg-[var(--color-primary)] px-4 text-sm font-semibold text-white hover:bg-[var(--color-primary-hover)]">Xem tiến trình<ChevronRight className="size-4" aria-hidden="true" /></Link>

@@ -46,6 +46,9 @@ public class ContractSignature {
     @Column(name = "client_ip", length = 64)
     String clientIp;
 
+    @Column(name = "external_signature_id", length = 128)
+    String externalSignatureId;
+
     @Builder.Default
     @Column(name = "created_at", nullable = false, updatable = false)
     LocalDateTime createdAt = LocalDateTime.now();

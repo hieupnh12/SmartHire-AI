@@ -31,6 +31,7 @@ import { dashboardApi } from "@/api/tenant/dashboardApi";
 import { jobApi } from "@/api/tenant/jobApi";
 import { recruiterAnalyticsApi } from "@/api/tenant/recruiterAnalyticsApi";
 import { usersApi } from "@/api/tenant/usersApi";
+import { companyApi } from "@/api/tenant/companyApi";
 
 type AnalyticsTab = "overview" | "pipeline" | "talent" | "team" | "usage";
 type TimeRange = "30_DAYS" | "CURRENT_QUARTER" | "12_MONTHS";
@@ -1855,41 +1856,402 @@ function TeamPanel() {
   );
 }
 
+function formatQuotaBytes(bytes: number): string {
+  if (bytes <= 0) return "0 MB";
+  const mb = bytes / (1024 * 1024);
+  if (mb < 1024) return `${mb.toFixed(1)} MB`;
+  return `${(mb / 1024).toFixed(2)} GB`;
+}
+
+function formatSecondsToHoursLabel(seconds: number): string {
+  const hours = seconds / 3600;
+  if (hours > 0 && hours < 0.1) return `${Math.ceil(seconds / 60)} phút`;
+  return `${hours.toFixed(1)} giờ`;
+}
+
 function UsagePanel() {
+  const [selectedTargetPlan, setSelectedTargetPlan] = useState<string>("");
+  const [changingPlan, setChangingPlan] = useState(false);
+  const [changeNotice, setChangeNotice] = useState<string | null>(null);
+
+  const subQuery = useQuery({
+    queryKey: ["tenant-subscription-quota"],
+    queryFn: companyApi.getSubscription,
+  });
+
+  const sub = subQuery.data?.data;
+
+  const previewQuery = useQuery({
+    queryKey: ["tenant-subscription-change-preview", selectedTargetPlan],
+    queryFn: () => companyApi.previewSubscriptionChange(selectedTargetPlan),
+    enabled: Boolean(selectedTargetPlan && selectedTargetPlan !== sub?.planCode),
+  });
+
+  const preview = previewQuery.data?.data;
+
+  const handleConfirmPlanChange = async () => {
+    if (!selectedTargetPlan) return;
+    setChangingPlan(true);
+    setChangeNotice(null);
+    try {
+      await companyApi.changeSubscriptionPlan(selectedTargetPlan);
+      await subQuery.refetch();
+      setSelectedTargetPlan("");
+      setChangeNotice(
+        preview?.changeType === "UPGRADE"
+          ? "Đã nâng cấp gói cước thành công (áp dụng ngay kèm khấu trừ Proration những ngày chưa dùng)!"
+          : "Đã lên lịch hạ cấp gói cước vào cuối chu kỳ hiện tại để bảo toàn các vị trí tuyển dụng đang mở!"
+      );
+    } catch (err: any) {
+      setChangeNotice(err?.response?.data?.message || "Không thể thực hiện thay đổi gói cước.");
+    } finally {
+      setChangingPlan(false);
+    }
+  };
+
+  const handleCancelDowngrade = async () => {
+    setChangingPlan(true);
+    try {
+      await companyApi.cancelScheduledDowngrade();
+      await subQuery.refetch();
+      setChangeNotice("Đã hủy lịch hạ cấp gói cuối chu kỳ.");
+    } finally {
+      setChangingPlan(false);
+    }
+  };
+
+  if (subQuery.isLoading) {
+    return (
+      <div className="grid gap-5 lg:grid-cols-[1.35fr_0.65fr]">
+        <Card className="rounded-xl border border-[var(--color-border-default)] p-6 shadow-sm space-y-4">
+          <Skeleton className="h-7 w-64 rounded" />
+          <Skeleton className="h-24 w-full rounded-xl" />
+          <Skeleton className="h-24 w-full rounded-xl" />
+        </Card>
+        <Card className="rounded-xl border border-[var(--color-border-default)] p-6 shadow-sm space-y-4">
+          <Skeleton className="h-7 w-40 rounded" />
+          <Skeleton className="h-32 w-full rounded-xl" />
+        </Card>
+      </div>
+    );
+  }
+
+  const quotaRows = sub
+    ? [
+        {
+          id: "jobs",
+          label: "Vị trí tuyển dụng đang mở (Active Jobs)",
+          usedLabel: `${sub.usedJobs.toLocaleString("vi-VN")}`,
+          maxLabel: sub.maxJobs < 0 ? "Không giới hạn" : `${sub.maxJobs.toLocaleString("vi-VN")} vị trí`,
+          pct: sub.jobsUsagePercent,
+          enabled: sub.jobsEnabled,
+          allowed: sub.jobsAllowed,
+          unlimited: sub.maxJobs < 0,
+        },
+        {
+          id: "cv",
+          label: "AI CV Parsing & Screening (theo tháng)",
+          usedLabel: `${sub.usedCvParses.toLocaleString("vi-VN")}`,
+          maxLabel: sub.maxCvParses < 0 ? "Không giới hạn" : `${sub.maxCvParses.toLocaleString("vi-VN")} CV/tháng`,
+          pct: sub.cvParsesUsagePercent,
+          enabled: sub.cvParseEnabled,
+          allowed: sub.cvParseAllowed,
+          unlimited: sub.maxCvParses < 0,
+        },
+        {
+          id: "ai_voice",
+          label: "Thời lượng Phỏng vấn AI Voice (theo tháng)",
+          usedLabel: formatSecondsToHoursLabel(sub.usedAiInterviewSeconds),
+          maxLabel:
+            sub.maxAiInterviewHours < 0
+              ? "Không giới hạn"
+              : sub.maxAiInterviewHours === 0
+              ? "Không hỗ trợ (0 giờ)"
+              : `${sub.maxAiInterviewHours.toLocaleString("vi-VN")} giờ/tháng`,
+          pct: sub.aiInterviewUsagePercent,
+          enabled: sub.aiInterviewEnabled,
+          allowed: sub.aiInterviewAllowed,
+          unlimited: sub.maxAiInterviewHours < 0,
+        },
+        {
+          id: "proctoring",
+          label: "Giám sát thi & chống gian lận Proctoring (theo tháng)",
+          usedLabel: formatSecondsToHoursLabel(sub.usedProctoringSeconds),
+          maxLabel:
+            sub.maxProctoringHours < 0
+              ? "Không giới hạn"
+              : sub.maxProctoringHours === 0
+              ? "Không hỗ trợ (0 giờ)"
+              : `${sub.maxProctoringHours.toLocaleString("vi-VN")} giờ/tháng`,
+          pct: sub.proctoringUsagePercent,
+          enabled: sub.proctoringEnabled,
+          allowed: sub.proctoringAllowed,
+          unlimited: sub.maxProctoringHours < 0,
+        },
+        {
+          id: "storage",
+          label: "Dung lượng lưu trữ hồ sơ & Audio/Video",
+          usedLabel: formatQuotaBytes(sub.usedStorageBytes),
+          maxLabel:
+            sub.maxStorageGb < 0
+              ? "Không giới hạn"
+              : sub.maxStorageGb === 0
+              ? "Không hỗ trợ (0 GB)"
+              : `${sub.maxStorageGb} GB`,
+          pct: sub.storageUsagePercent,
+          enabled: sub.storageEnabled,
+          allowed: sub.storageAllowed,
+          unlimited: sub.maxStorageGb < 0,
+        },
+      ]
+    : [];
+
   return (
-    <div className="grid gap-5 lg:grid-cols-[1.35fr_0.65fr]">
-      <Card className="rounded-xl border border-[var(--color-border-default)] p-6 shadow-sm">
-        <div className="flex items-start gap-3.5">
-          <span className="grid size-11 place-items-center rounded-xl bg-teal-50 text-teal-600 dark:bg-teal-950/40 dark:text-teal-400">
-            <Zap className="size-5" />
+    <div className="space-y-6">
+      {/* Lifecycle & Scheduled Downgrade Banners */}
+      {sub?.subscriptionStatus === "PAST_DUE" && (
+        <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-xs text-amber-900">
+          <strong>Thuê bao quá hạn thanh toán (PAST_DUE — Đang trong thời gian ân hạn):</strong> Quyền lợi tuyển dụng của doanh nghiệp vẫn được duy trì tạm thời{sub.gracePeriodEndsAt ? ` đến ${new Date(sub.gracePeriodEndsAt).toLocaleDateString("vi-VN")}` : ""}. Vui lòng hoàn tất thanh toán hóa đơn gia hạn để tránh bị tạm khóa (`SUSPENDED`).
+        </div>
+      )}
+
+      {sub?.subscriptionStatus === "SUSPENDED" && (
+        <div className="rounded-xl border border-red-300 bg-red-50 p-4 text-xs text-red-900">
+          <strong>Thuê bao đang tạm khóa (SUSPENDED):</strong> Thời gian ân hạn đã kết thúc. Quyền tạo mới vị trí tuyển dụng, lọc CV bằng AI và phỏng vấn AI tạm thời bị khóa cho tới khi gia hạn.
+        </div>
+      )}
+
+      {sub?.nextPlanName && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-blue-200 bg-blue-50 p-4 text-xs text-blue-900">
+          <span>
+            <strong>Đã lên lịch hạ cấp cuối kỳ:</strong> Gói dịch vụ sẽ tự động chuyển sang{" "}
+            <strong>{sub.nextPlanName} ({sub.nextPlanCode})</strong> khi kết thúc chu kỳ hiện tại
+            {sub.endsAt ? ` (${new Date(sub.endsAt).toLocaleDateString("vi-VN")})` : ""}. Trong thời gian còn lại, hạn mức gói hiện tại vẫn được giữ nguyên 100%.
           </span>
-          <div>
-            <h2 className="font-display text-lg font-semibold text-[var(--color-text-primary)]">Hạn mức AI hàng tháng</h2>
-            <p className="mt-1 text-sm text-[var(--color-text-secondary)]">Gói Enterprise Professional · còn 12 ngày</p>
-          </div>
+          <button
+            type="button"
+            disabled={changingPlan}
+            onClick={handleCancelDowngrade}
+            className="rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-blue-700 border border-blue-300 hover:bg-blue-100 cursor-pointer"
+          >
+            Hủy lịch hạ cấp
+          </button>
         </div>
-        <div className="mt-7 rounded-xl bg-surface-muted p-4">
-          <div className="flex flex-wrap justify-between gap-2 text-sm">
-            <span className="font-medium text-[var(--color-text-primary)]">CV parsing & screening</span>
-            <strong className="text-teal-700 dark:text-teal-400">7.200 / 10.000 credits</strong>
-          </div>
-          <div className="mt-3 h-3 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
-            <div className="h-full w-[72%] rounded-full bg-teal-600" />
-          </div>
-          <div className="mt-2 flex justify-between text-xs text-[var(--color-text-secondary)]">
-            <span>Còn 2.800 credits</span>
-            <span>Ước tính 140 credits/ngày</span>
-          </div>
+      )}
+
+      {changeNotice && (
+        <div className="rounded-xl border border-teal-200 bg-teal-50 p-3.5 text-xs font-medium text-teal-900 flex items-center justify-between">
+          <span>{changeNotice}</span>
+          <button type="button" onClick={() => setChangeNotice(null)} className="text-teal-700 hover:text-teal-900">
+            <X className="size-4" />
+          </button>
         </div>
-      </Card>
-      <Card className="rounded-xl border border-[var(--color-border-default)] p-6 shadow-sm bg-gradient-to-br from-teal-50/50 via-surface-card to-surface-card">
-        <Activity className="size-6 text-teal-600" />
-        <p className="mt-5 text-sm font-medium text-[var(--color-text-secondary)]">ROI ước tính kỳ này</p>
-        <p className="mt-1 font-display text-4xl font-bold text-[var(--color-text-primary)]">₫348 triệu</p>
-        <p className="mt-2 text-sm text-[var(--color-text-secondary)] leading-relaxed">
-          Chi phí headhunter và 320 giờ phỏng vấn kỹ thuật được tiết kiệm thông qua trợ lý AI.
-        </p>
-      </Card>
+      )}
+
+      <div className="grid gap-5 lg:grid-cols-[1.35fr_0.65fr]">
+        <Card className="rounded-xl border border-[var(--color-border-default)] p-6 shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-3.5">
+            <div className="flex items-start gap-3.5">
+              <span className="grid size-11 place-items-center rounded-xl bg-teal-50 text-teal-600 dark:bg-teal-950/40 dark:text-teal-400">
+                <Zap className="size-5" />
+              </span>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="font-display text-lg font-semibold text-[var(--color-text-primary)]">
+                    Hạn mức gói {sub?.planName ?? "Starter"}
+                  </h2>
+                  <span className="rounded-full bg-teal-50 px-2.5 py-0.5 text-xs font-bold text-teal-700 border border-teal-200">
+                    {sub?.planCode ?? "STARTER"} · v{sub?.planVersion ?? 1}
+                  </span>
+                  <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-semibold text-slate-700">
+                    {sub?.subscriptionStatus ?? "ACTIVE"} (Snapshot bảo lưu)
+                  </span>
+                </div>
+                <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
+                  Còn {sub?.daysRemaining ?? 0} ngày trong chu kỳ bản quyền · Lưu trữ bản ghi phỏng vấn:{" "}
+                  <strong>
+                    {sub == null
+                      ? "—"
+                      : sub.videoRetentionDays < 0
+                      ? "Vĩnh viễn (Không giới hạn)"
+                      : sub.videoRetentionDays === 0
+                      ? "Không lưu trữ (0 ngày)"
+                      : `${sub.videoRetentionDays} ngày`}
+                  </strong>
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => void subQuery.refetch()}
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--color-border-default)] bg-surface-card px-3 text-xs font-semibold text-teal-600 hover:bg-surface-muted transition-colors cursor-pointer"
+            >
+              <RefreshCw className={cn("size-3.5", subQuery.isFetching && "animate-spin")} />
+              Làm mới
+            </button>
+          </div>
+
+          <div className="mt-6 space-y-4">
+            {quotaRows.map((item) => {
+              const barColor = !item.enabled
+                ? "bg-slate-400"
+                : !item.allowed || item.pct >= 100
+                ? "bg-red-600"
+                : item.pct >= 85
+                ? "bg-amber-500"
+                : "bg-teal-600";
+
+              return (
+                <div key={item.id} className="rounded-xl bg-surface-muted p-4 border border-[var(--color-border-default)]">
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                    <span className="font-medium text-[var(--color-text-primary)]">{item.label}</span>
+                    <div className="flex items-center gap-2">
+                      {!item.enabled ? (
+                        <span className="rounded-md bg-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-700">
+                          Không bao gồm trong gói
+                        </span>
+                      ) : !item.allowed ? (
+                        <span className="rounded-md bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">
+                          Đã đạt trần 100% (Chặn cứng)
+                        </span>
+                      ) : item.unlimited ? (
+                        <span className="rounded-md bg-teal-100 px-2 py-0.5 text-xs font-semibold text-teal-800">
+                          Unlimited
+                        </span>
+                      ) : null}
+                      <strong className="text-teal-700 dark:text-teal-400">
+                        {item.usedLabel} / {item.maxLabel}
+                      </strong>
+                    </div>
+                  </div>
+                  <div className="mt-2.5 h-2.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
+                    <div
+                      className={cn("h-full rounded-full transition-all duration-300", barColor)}
+                      style={{ width: `${item.unlimited ? 18 : Math.min(100, item.pct)}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+
+        <div className="space-y-5">
+          <Card className="rounded-xl border border-[var(--color-border-default)] p-6 shadow-sm bg-gradient-to-br from-teal-50/50 via-surface-card to-surface-card">
+            <Activity className="size-6 text-teal-600" />
+            <p className="mt-4 text-sm font-medium text-[var(--color-text-secondary)]">
+              Giá hợp đồng bảo lưu (Snapshot Price)
+            </p>
+            <p className="mt-1 font-display text-3xl font-bold text-[var(--color-text-primary)]">
+              {(sub?.priceYearly ?? 0).toLocaleString("vi-VN")} ₫
+              <span className="text-xs font-normal text-[var(--color-text-secondary)]"> / năm</span>
+            </p>
+            {sub?.proratedCreditAmount != null && sub.proratedCreditAmount > 0 && (
+              <p className="mt-1 text-xs font-semibold text-teal-700">
+                Đã khấu trừ Proration từ gói cũ: -{sub.proratedCreditAmount.toLocaleString("vi-VN")} ₫
+              </p>
+            )}
+            <p className="mt-2 text-xs text-[var(--color-text-secondary)] leading-relaxed">
+              {sub?.description || "Gói dịch vụ SaaS Multi-Tenant đang áp dụng cho toàn bộ thành viên trong workspace."}
+            </p>
+
+            {/* Upgrade / Downgrade Proration Calculator */}
+            <div className="mt-5 border-t border-[var(--color-border-default)] pt-4 space-y-3">
+              <p className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-secondary)]">
+                Nâng cấp / Hạ cấp gói cước (Proration)
+              </p>
+              <select
+                value={selectedTargetPlan}
+                onChange={(e) => setSelectedTargetPlan(e.target.value)}
+                className="w-full rounded-lg border border-[var(--color-border-default)] bg-surface-card px-3 py-2 text-xs font-semibold text-[var(--color-text-primary)]"
+              >
+                <option value="">-- Chọn gói muốn chuyển đổi --</option>
+                {["STARTER", "PROFESSIONAL", "ENTERPRISE"]
+                  .filter((code) => code !== sub?.planCode)
+                  .map((code) => (
+                    <option key={code} value={code}>
+                      Chuyển sang gói {code}
+                    </option>
+                  ))}
+              </select>
+
+              {preview && (
+                <div className="rounded-xl border border-teal-200 bg-white p-3.5 text-xs space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-slate-800">
+                      {preview.changeType === "UPGRADE" ? "Nâng cấp giữa kỳ (Proration)" : "Hạ cấp cuối chu kỳ"}
+                    </span>
+                    <span
+                      className={cn(
+                        "rounded px-2 py-0.5 text-[10px] font-bold",
+                        preview.changeType === "UPGRADE"
+                          ? "bg-teal-100 text-teal-800"
+                          : "bg-amber-100 text-amber-800"
+                      )}
+                    >
+                      {preview.effectiveTiming === "IMMEDIATE" ? "Hiệu lực ngay" : "Hiệu lực cuối kỳ"}
+                    </span>
+                  </div>
+                  <div className="space-y-1 border-t border-slate-100 pt-2 text-slate-600">
+                    <div className="flex justify-between">
+                      <span>Giá gói {preview.targetPlanName}:</span>
+                      <strong>{preview.targetPriceYearly.toLocaleString("vi-VN")} ₫</strong>
+                    </div>
+                    {preview.changeType === "UPGRADE" && (
+                      <>
+                        <div className="flex justify-between text-teal-700">
+                          <span>Khấu trừ {preview.remainingDays}/{preview.totalCycleDays} ngày dư gói cũ:</span>
+                          <strong>-{preview.proratedCreditAmount.toLocaleString("vi-VN")} ₫</strong>
+                        </div>
+                        <div className="flex justify-between border-t border-slate-100 pt-1 text-slate-900 font-bold">
+                          <span>Số tiền cần thanh toán:</span>
+                          <span className="text-teal-700">{preview.netAmountDue.toLocaleString("vi-VN")} ₫</span>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  {preview.warnings && preview.warnings.length > 0 && (
+                    <div className="rounded-lg bg-amber-50 p-2 text-[11px] text-amber-800">
+                      {preview.warnings[0]}
+                    </div>
+                  )}
+                  {preview.allowed && (
+                    <button
+                      type="button"
+                      disabled={changingPlan}
+                      onClick={handleConfirmPlanChange}
+                      className="w-full rounded-lg bg-teal-600 py-2 text-xs font-bold text-white hover:bg-teal-700 disabled:opacity-50 cursor-pointer"
+                    >
+                      {changingPlan
+                        ? "Đang xử lý..."
+                        : preview.changeType === "UPGRADE"
+                        ? "Xác nhận Nâng cấp ngay"
+                        : "Lên lịch Hạ cấp cuối chu kỳ"}
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {sub?.features && sub.features.length > 0 && (
+              <div className="mt-4 border-t border-[var(--color-border-default)] pt-4 space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-secondary)]">
+                  Quyền lợi trong gói (Snapshot)
+                </p>
+                <ul className="space-y-1.5 text-xs text-[var(--color-text-primary)]">
+                  {sub.features.map((feat, idx) => (
+                    <li key={idx} className="flex items-start gap-2">
+                      <CheckCircle2 className="size-3.5 text-teal-600 shrink-0 mt-0.5" />
+                      <span>{feat}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </Card>
+        </div>
+      </div>
     </div>
   );
 }

@@ -54,7 +54,7 @@ const EMPLOYMENT_TYPES = [
 ];
 const WORK_MODES = [
   { value: "ONSITE", label: "Tại văn phòng", icon: Building2 },
-  { value: "HYBRID", label: "Hybrid", icon: Shuffle },
+  { value: "HYBRID", label: "Kết hợp", icon: Shuffle },
   { value: "REMOTE", label: "Từ xa", icon: Laptop },
 ];
 const SCREENING_MODES = [

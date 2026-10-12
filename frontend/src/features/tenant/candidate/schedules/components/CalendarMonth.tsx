@@ -42,7 +42,7 @@ export function CalendarMonth({ month, events, selected, onSelect }: Props) {
         const isSelected = key === dayKey(selected);
         return <button key={key} type="button" onClick={() => onSelect(day)} aria-pressed={isSelected}
           aria-label={`${day.toLocaleDateString("vi-VN", { weekday: "long", day: "numeric", month: "long" })}${total ? `, ${total} sự kiện` : ""}`}
-          className={cn("relative flex min-h-20 flex-col gap-1 border-b border-r border-[var(--color-border-default)] p-1.5 text-left align-top transition-colors hover:bg-[var(--color-primary-subtle)]/50 sm:min-h-28 [&:nth-child(7n)]:border-r-0",
+          className={cn("relative flex min-h-14 flex-col gap-1 border-b border-r border-[var(--color-border-default)] p-1 text-left align-top transition-colors hover:bg-[var(--color-primary-subtle)]/50 sm:min-h-20 [&:nth-child(7n)]:border-r-0",
             daySpans.length > 0 && "pb-6", outside && "bg-slate-50/60 text-slate-400", isSelected && "bg-[var(--color-primary-subtle)] ring-2 ring-inset ring-[var(--color-primary)]")}>
           <span className={cn("grid size-6 place-items-center rounded-full text-xs font-semibold", key === today && "bg-[var(--color-primary)] text-white")}>{day.getDate()}</span>
           <span className="flex gap-1 sm:hidden">{items.slice(0, 4).map((event) => <span key={event.id} className={cn("size-1.5 rounded-full", eventKinds[event.kind].dot)} />)}</span>

@@ -55,7 +55,7 @@ public class CandidateEvaluationService {
     @Transactional(readOnly = true)
     public CandidateEvaluationView evaluation(long applicationId) {
         Application application = applications.findById(applicationId).orElseThrow(CandidateEvaluationService::notFound);
-        if (!access.candidate() || !application.getCandidate().getId().equals(access.actor().getId())) throw notFound();
+        if (!access.candidate() || !application.getCandidate().getId().equals(access.candidateActor().getId())) throw notFound();
         return new CandidateEvaluationView(cv(application), interviews(application), assessments(application));
     }
 

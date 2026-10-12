@@ -14,6 +14,8 @@ public interface ContractRepository extends JpaRepository<Contract, Long> {
 
     Optional<Contract> findBySigningToken(String signingToken);
 
+    Optional<Contract> findByExternalSignatureRequestId(String externalSignatureRequestId);
+
     List<Contract> findByTenantIdOrderByCreatedAtDesc(Long tenantId);
 
     List<Contract> findByStatusOrderByCreatedAtDesc(String status);

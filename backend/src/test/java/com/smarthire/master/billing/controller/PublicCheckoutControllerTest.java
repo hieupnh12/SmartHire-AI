@@ -66,6 +66,8 @@ class PublicCheckoutControllerTest {
                 .companyLegalName("Cong Ty TNHH Tech Corp")
                 .billingAddress("123 Duy Tan, Cau Giay, Ha Noi")
                 .notes("Test checkout")
+                .termsAccepted(true)
+                .termsVersion("v2026.10")
                 .build();
 
         CheckoutResponse response = CheckoutResponse.builder()
@@ -85,12 +87,16 @@ class PublicCheckoutControllerTest {
                 .accountName("CONG TY CP CONG NGHE SMARTHIRE VIET NAM")
                 .transferSyntax("SH INV-202609-0001")
                 .qrUrl("https://img.vietqr.io/image/TCB-190388889999-compact2.png")
+                .termsAccepted(true)
+                .termsVersion("v2026.10")
                 .createdAt(LocalDateTime.now())
                 .build();
 
-        when(billingService.checkout(any(CheckoutRequest.class))).thenReturn(response);
+        when(billingService.checkout(any(CheckoutRequest.class), any(), any())).thenReturn(response);
 
         mockMvc.perform(post("/api/v1/public/checkout")
+                        .header("X-Forwarded-For", "203.113.152.10")
+                        .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
@@ -102,7 +108,29 @@ class PublicCheckoutControllerTest {
                 .andExpect(jsonPath("$.data.status").value("PENDING"))
                 .andExpect(jsonPath("$.data.bankName").value("Techcombank (TCB)"))
                 .andExpect(jsonPath("$.data.accountNumber").value("190388889999"))
-                .andExpect(jsonPath("$.data.transferSyntax").value("SH INV-202609-0001"));
+                .andExpect(jsonPath("$.data.transferSyntax").value("SH INV-202609-0001"))
+                .andExpect(jsonPath("$.data.termsAccepted").value(true))
+                .andExpect(jsonPath("$.data.termsVersion").value("v2026.10"));
+    }
+
+    @Test
+    void submitCheckout_TermsNotAccepted_ReturnsBadRequest() throws Exception {
+        CheckoutRequest request = CheckoutRequest.builder()
+                .planCode("STARTER")
+                .billingCycle("YEARLY")
+                .workspaceName("Tech Corp")
+                .subdomain("techcorp")
+                .adminFullName("Nguyen Van A")
+                .adminEmail("nguyenvana@techcorp.vn")
+                .adminPhone("0987654321")
+                .termsAccepted(false)
+                .build();
+
+        mockMvc.perform(post("/api/v1/public/checkout")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false));
     }
 
     @Test
@@ -115,6 +143,7 @@ class PublicCheckoutControllerTest {
                 .adminFullName("Nguyen Van A")
                 .adminEmail("nguyenvana@techcorp.vn")
                 .adminPhone("0987654321")
+                .termsAccepted(true)
                 .build();
 
         mockMvc.perform(post("/api/v1/public/checkout")

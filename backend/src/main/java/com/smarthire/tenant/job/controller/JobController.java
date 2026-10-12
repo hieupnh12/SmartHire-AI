@@ -2,6 +2,8 @@ package com.smarthire.tenant.job.controller;
 
 import com.smarthire.common.api.ApiResponse;
 import com.smarthire.domain.enums.JobStatus;
+import com.smarthire.multitenancy.quota.QuotaType;
+import com.smarthire.multitenancy.quota.RequireCapacityQuota;
 import com.smarthire.tenant.cv.dto.CvModels.JobCreateRequest;
 import com.smarthire.tenant.cv.dto.CvModels.JobOption;
 import com.smarthire.tenant.cv.dto.CvModels.JobSkillView;
@@ -76,12 +78,14 @@ public class JobController {
 
     @PostMapping
     @Operation(summary = "Create a draft job")
+    @RequireCapacityQuota(type = QuotaType.ACTIVE_JOBS)
     public ApiResponse<JobDetail> create(@Valid @RequestBody JobUpsertRequest body) {
         return ApiResponse.ok(jobService.create(body));
     }
 
     @PostMapping("/quick")
     @Operation(summary = "Create and publish a job with default skills for screening")
+    @RequireCapacityQuota(type = QuotaType.ACTIVE_JOBS)
     public ApiResponse<JobOption> createQuick(@Valid @RequestBody JobCreateRequest body) {
         return ApiResponse.ok(jobService.createQuick(body));
     }
@@ -107,12 +111,14 @@ public class JobController {
 
     @PostMapping("/{id}/clone")
     @Operation(summary = "Clone a job into a new draft")
+    @RequireCapacityQuota(type = QuotaType.ACTIVE_JOBS)
     public ApiResponse<JobDetail> clone(@PathVariable long id) {
         return ApiResponse.ok(jobService.cloneJob(id));
     }
 
     @PostMapping("/{id}/publish")
     @Operation(summary = "Publish or resume a job")
+    @RequireCapacityQuota(type = QuotaType.ACTIVE_JOBS)
     public ApiResponse<JobDetail> publish(@PathVariable long id) {
         return ApiResponse.ok(jobService.publish(id));
     }
@@ -137,6 +143,7 @@ public class JobController {
 
     @PostMapping("/{id}/reopen")
     @Operation(summary = "Reopen a closed or paused job")
+    @RequireCapacityQuota(type = QuotaType.ACTIVE_JOBS)
     public ApiResponse<JobDetail> reopen(@PathVariable long id) {
         return ApiResponse.ok(jobService.reopen(id));
     }

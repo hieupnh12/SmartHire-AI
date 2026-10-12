@@ -3,9 +3,11 @@ package com.smarthire.tenant.cv.service;
 import com.smarthire.common.exception.BusinessException;
 import com.smarthire.domain.enums.AssignmentRole;
 import com.smarthire.domain.enums.UserRole;
+import com.smarthire.domain.tenant.entity.Candidate;
 import com.smarthire.domain.tenant.entity.Cv;
 import com.smarthire.domain.tenant.entity.Job;
 import com.smarthire.domain.tenant.entity.User;
+import com.smarthire.domain.tenant.repository.CandidateRepository;
 import com.smarthire.domain.tenant.repository.JobAssignmentRepository;
 import com.smarthire.domain.tenant.repository.UserRepository;
 import com.smarthire.multitenancy.context.TenantContext;
@@ -21,19 +23,33 @@ import org.springframework.stereotype.Component;
 @Component
 public class CvAccess {
     private final UserRepository users;
+    private final CandidateRepository candidates;
     private final JobAssignmentRepository assignments;
     private final RolePermissionService rolePermissionService;
 
     public CvAccess(UserRepository users, JobAssignmentRepository assignments) {
-        this(users, assignments, null);
+        this(users, null, assignments, null);
+    }
+
+    public CvAccess(UserRepository users, CandidateRepository candidates, JobAssignmentRepository assignments) {
+        this(users, candidates, assignments, null);
+    }
+
+    public CvAccess(
+            UserRepository users,
+            JobAssignmentRepository assignments,
+            RolePermissionService rolePermissionService) {
+        this(users, null, assignments, rolePermissionService);
     }
 
     @Autowired
     public CvAccess(
             UserRepository users,
+            CandidateRepository candidates,
             JobAssignmentRepository assignments,
             RolePermissionService rolePermissionService) {
         this.users = users;
+        this.candidates = candidates;
         this.assignments = assignments;
         this.rolePermissionService = rolePermissionService;
     }
@@ -52,6 +68,18 @@ public class CvAccess {
     public User actor() {
         return users.findByEmailIgnoreCase(auth().getName())
                 .orElseThrow(() -> new BusinessException("User not found", HttpStatus.UNAUTHORIZED, "USER_NOT_FOUND"));
+    }
+
+    public Candidate candidateActor() {
+        if (candidates == null) {
+            throw new BusinessException("Candidate not found", HttpStatus.UNAUTHORIZED, "USER_NOT_FOUND");
+        }
+        return candidates.findByEmailIgnoreCase(auth().getName())
+                .orElseThrow(() -> new BusinessException("Candidate not found", HttpStatus.UNAUTHORIZED, "USER_NOT_FOUND"));
+    }
+
+    public Long actorId() {
+        return candidate() ? candidateActor().getId() : actor().getId();
     }
 
     public boolean staff() {
@@ -136,13 +164,14 @@ public class CvAccess {
     }
 
     public void requireCv(Cv cv) {
-        User user = actor();
         if (candidate()) {
-            if (!cv.getUser().getId().equals(user.getId())) {
+            Candidate candidate = candidateActor();
+            if (cv.getCandidate() == null || !cv.getCandidate().getId().equals(candidate.getId())) {
                 throw new BusinessException("CV not found", HttpStatus.NOT_FOUND, "CV_NOT_FOUND");
             }
             return;
         }
+        actor();
         if (staff()) {
             return;
         }

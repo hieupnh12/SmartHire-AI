@@ -52,7 +52,9 @@ public class MasterBillingApproveIntegrationTest {
           "adminPhone": "0987654321",
           "companyLegalName": "Công ty Test",
           "taxCode": "0109998888",
-          "billingAddress": "123 Đường Cầu Giấy, Hà Nội"
+          "billingAddress": "123 Đường Cầu Giấy, Hà Nội",
+          "termsAccepted": true,
+          "termsVersion": "v2026.10"
         }
         """, uniqueSubdomain, uniqueSubdomain);
 

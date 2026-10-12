@@ -26,11 +26,11 @@ class InterviewConversationServiceTest {
     @Mock InterviewMessageRepository messages; @Mock AiInterviewConsentRepository consents;
     @Mock CvAccess access; @Mock InterviewConversationClient ai;
     ObjectMapper mapper = new ObjectMapper(); InterviewConversationService service;
-    AiInterview interview; InterviewSession session; User candidate;
+    AiInterview interview; InterviewSession session; Candidate candidate;
     final String requestId = "12345678-1234-1234-1234-123456789012";
     @BeforeEach void setup() {
         var job = new Job(); job.setId(3L); job.setAiInterviewEnabled(true); job.setAiInterviewPassingScore(BigDecimal.valueOf(70));
-        candidate = new User(); candidate.setId(9L);
+        candidate = new Candidate(); candidate.setId(9L);
         var application = new Application(); application.setId(7L); application.setJob(job); application.setCandidate(candidate);
         application.setStatus(ApplicationStatus.INTERVIEW); application.setCvScreeningStatus(CvScreeningStatus.PASSED);
         interview = AiInterview.builder().id(11L).application(application).status(AiInterviewStatus.IN_PROGRESS)
@@ -40,7 +40,7 @@ class InterviewConversationServiceTest {
         service = new InterviewConversationService(interviews, sessions, messages, consents, access, ai, mapper);
     }
     void candidate(boolean lock) {
-        when(access.actor()).thenReturn(candidate); when(access.candidate()).thenReturn(true);
+        when(access.candidateActor()).thenReturn(candidate); when(access.candidate()).thenReturn(true);
         if (lock) when(interviews.findByIdForUpdate(11L)).thenReturn(Optional.of(interview));
         else when(interviews.findById(11L)).thenReturn(Optional.of(interview));
     }
@@ -125,13 +125,14 @@ class InterviewConversationServiceTest {
         assertThatThrownBy(() -> service.turn(11L, new ConversationTurnRequest(requestId, "REST"), text -> {})).hasMessageContaining("interview round");
     }
     @Test void wrongCandidateCannotReadTranscript() {
-        var other = new User(); other.setId(99L);
-        when(access.actor()).thenReturn(other); when(access.candidate()).thenReturn(true);
+        var other = new Candidate(); other.setId(99L);
+        when(access.candidateActor()).thenReturn(other); when(access.candidate()).thenReturn(true);
         when(interviews.findById(11L)).thenReturn(Optional.of(interview));
         assertThatThrownBy(() -> service.get(11L)).hasMessageContaining("Candidate access required"); verifyNoInteractions(ai, messages);
     }
     @Test void staffMustHaveJobAccessAndWaitForCompletion() {
-        when(access.actor()).thenReturn(candidate); when(access.staff()).thenReturn(true);
+        var staff = new User(); staff.setId(2L);
+        when(access.actor()).thenReturn(staff); when(access.staff()).thenReturn(true);
         when(interviews.findById(11L)).thenReturn(Optional.of(interview));
         assertThatThrownBy(() -> service.get(11L)).hasMessageContaining("after completion");
         verify(access).requireJob(interview.getApplication().getJob());

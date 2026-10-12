@@ -18,9 +18,13 @@ public class NotificationPreference {
 
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY) Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "user_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id")
     User user;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "candidate_id")
+    Candidate candidate;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)

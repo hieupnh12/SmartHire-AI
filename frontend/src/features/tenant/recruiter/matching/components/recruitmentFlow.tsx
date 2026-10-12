@@ -9,7 +9,7 @@ export const PIPELINE_STEPS = [
 ] as const;
 
 export function pipelineIndex(status: string) {
-  if (status === "REJECTED" || status === "WITHDRAWN") return -1;
+  if (status === "REJECTED" || status === "FAILED" || status === "WITHDRAWN") return -1;
   const index = PIPELINE_STEPS.findIndex((step) => (step.statuses as readonly string[]).includes(status));
   return index < 0 ? 0 : index;
 }

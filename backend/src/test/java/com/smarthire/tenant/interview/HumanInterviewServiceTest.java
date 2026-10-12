@@ -26,33 +26,33 @@ class HumanInterviewServiceTest {
     @Mock ApplicationRepository applications; @Mock JobRepository jobs; @Mock UserRepository users;
     @Mock AiInterviewRepository aiInterviews;
     @Mock CvAccess access; @Mock JobAccess jobAccess; @Mock HumanInterviewNotificationService notifications;
-    InterviewService service; User candidate; Job job; Interview interview; InterviewSchedule slot;
+    InterviewService service; Candidate candidate; Job job; Interview interview; InterviewSchedule slot;
     @BeforeEach void setup() {
         service=new InterviewService(interviews,schedules,participants,evaluations,applications,aiInterviews,jobs,users,access,jobAccess,new HumanInterviewMapper(),new ObjectMapper().findAndRegisterModules(),notifications);
-        candidate=new User();candidate.setId(2L);candidate.setFullName("Candidate");candidate.setEmail("candidate@example.test");
+        candidate=new Candidate();candidate.setId(2L);candidate.setFullName("Candidate");candidate.setEmail("candidate@example.test");
         job=new Job();job.setId(3L);job.setTitle("Engineer");
         var application=new Application();application.setId(4L);application.setCandidate(candidate);application.setJob(job);
-        interview=new Interview();interview.setId(5L);interview.setApplication(application);interview.setInterviewType("HUMAN_TECHNICAL");interview.setMode("ONLINE");
+        interview=new Interview();interview.setId(5L);application.setCandidate(candidate);interview.setApplication(application);interview.setInterviewType("HUMAN_TECHNICAL");interview.setMode("ONLINE");
         slot=new InterviewSchedule();slot.setInterview(interview);slot.setStatus(ScheduleStatus.PROPOSED);slot.setScheduledStart(Instant.now().plusSeconds(3600));slot.setScheduledEnd(Instant.now().plusSeconds(7200));
     }
     @Test void candidateConfirmsOwnSchedule() {
-        when(access.candidate()).thenReturn(true);when(access.actor()).thenReturn(candidate);
+        when(access.candidate()).thenReturn(true);when(access.candidateActor()).thenReturn(candidate);
         when(interviews.findLockedById(5L)).thenReturn(Optional.of(interview));when(schedules.findFirstByInterview_IdOrderByIdDesc(5L)).thenReturn(Optional.of(slot));
         assertEquals("CONFIRMED",service.confirm(5).status());assertEquals(ScheduleStatus.CONFIRMED,slot.getStatus());
         verifyNoInteractions(evaluations);
     }
     @Test void otherCandidateCannotReadInterview() {
-        var other=new User();other.setId(99L);when(access.candidate()).thenReturn(true);when(access.actor()).thenReturn(other);
+        var other=new Candidate();other.setId(99L);when(access.candidate()).thenReturn(true);when(access.candidateActor()).thenReturn(other);
         when(interviews.findLockedById(5L)).thenReturn(Optional.of(interview));
         assertEquals("INTERVIEW_NOT_FOUND",assertThrows(BusinessException.class,()->service.get(5)).getCode());verifyNoInteractions(schedules);
     }
     @Test void candidateCannotSeeDraft() {
-        when(access.candidate()).thenReturn(true);when(access.actor()).thenReturn(candidate);slot.setStatus(ScheduleStatus.DRAFT);
+        when(access.candidate()).thenReturn(true);when(access.candidateActor()).thenReturn(candidate);slot.setStatus(ScheduleStatus.DRAFT);
         when(interviews.findLockedById(5L)).thenReturn(Optional.of(interview));when(schedules.findFirstByInterview_IdOrderByIdDesc(5L)).thenReturn(Optional.of(slot));
         assertThrows(BusinessException.class,()->service.get(5));
     }
     @Test void rescheduleRequestPreservesBookedSlot() {
-        when(access.candidate()).thenReturn(true);when(access.actor()).thenReturn(candidate);
+        when(access.candidate()).thenReturn(true);when(access.candidateActor()).thenReturn(candidate);
         when(interviews.findLockedById(5L)).thenReturn(Optional.of(interview));when(schedules.findFirstByInterview_IdOrderByIdDesc(5L)).thenReturn(Optional.of(slot));
         Instant booked=slot.getScheduledStart(), proposed=booked.plusSeconds(86400);
         var result=service.requestReschedule(5,new RescheduleRequest(proposed,proposed.plusSeconds(3600),"Unavailable"));
@@ -62,9 +62,9 @@ class HumanInterviewServiceTest {
         when(jobs.findById(3L)).thenReturn(Optional.of(job));
         var app=interview.getApplication();app.setStatus(ApplicationStatus.NEW);when(applications.findByIdAndJob_Id(4L,3L)).thenReturn(Optional.of(app));
         when(aiInterviews.existsByApplication_IdAndStatus(4L,AiInterviewStatus.PASSED)).thenReturn(true);
-        candidate.setStatus(UserStatus.ACTIVE);candidate.setRole("CANDIDATE");var staff=new User();staff.setId(6L);staff.setRole("RECRUITER");staff.setStatus(UserStatus.ACTIVE);
-        when(users.findLockedById(2L)).thenReturn(Optional.of(candidate));when(users.findLockedById(6L)).thenReturn(Optional.of(staff));
-        when(schedules.conflicts(anyCollection(),any(),any(),isNull(),anyList())).thenReturn(List.of(slot));
+        candidate.setStatus(UserStatus.ACTIVE);var staff=new User();staff.setId(6L);staff.setRole("RECRUITER");staff.setStatus(UserStatus.ACTIVE);
+        when(users.findLockedById(6L)).thenReturn(Optional.of(staff));
+        when(schedules.conflicts(anyCollection(),anyCollection(),any(),any(),isNull(),anyList())).thenReturn(List.of(slot));
         var request=new SaveRequest(3,4,"TECHNICAL","ONLINE",slot.getScheduledStart(),slot.getScheduledEnd(),"https://meet.example.test/room",null,"GOOGLE_MEET","TECHNICAL","STANDARD","",true,false,false,List.of(new ParticipantInput(6L,"LEAD")));
         assertEquals("INTERVIEW_CONFLICT",assertThrows(BusinessException.class,()->service.save(null,request)).getCode());verify(interviews,never()).saveAndFlush(any());verifyNoInteractions(notifications);
     }
@@ -98,9 +98,9 @@ class HumanInterviewServiceTest {
         when(jobs.findById(3L)).thenReturn(Optional.of(job));
         when(applications.findByIdAndJob_Id(4L,3L)).thenReturn(Optional.of(interview.getApplication()));
         when(aiInterviews.existsByApplication_IdAndStatus(4L,AiInterviewStatus.PASSED)).thenReturn(true);
-        candidate.setStatus(UserStatus.ACTIVE);candidate.setRole("CANDIDATE");
+        candidate.setStatus(UserStatus.ACTIVE);
         var staff=new User();staff.setId(6L);staff.setRole("RECRUITER");staff.setStatus(UserStatus.ACTIVE);
-        when(users.findLockedById(2L)).thenReturn(Optional.of(candidate));when(users.findLockedById(6L)).thenReturn(Optional.of(staff));
+        when(users.findLockedById(6L)).thenReturn(Optional.of(staff));
         when(interviews.saveAndFlush(any())).thenAnswer(call->{ Interview i=call.getArgument(0);i.setId(5L);return i; });
         when(schedules.save(any())).thenAnswer(call->{ slot=call.getArgument(0);return slot; });
         when(schedules.findFirstByInterview_IdOrderByIdDesc(5L)).thenAnswer(call->Optional.of(slot));

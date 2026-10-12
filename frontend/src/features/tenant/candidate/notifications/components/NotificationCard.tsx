@@ -2,6 +2,7 @@ import type { ElementType } from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight, Bell, Bot, CalendarClock, CalendarDays, CalendarX, Check, CircleCheck, ClipboardCheck, CircleX } from "lucide-react";
 import type { Notification } from "@/api/types/notification";
+import { notificationPath } from "@/features/tenant/candidate/shared/utils/notificationPath";
 import { cn } from "@/lib/utils";
 
 type Kind = { icon: ElementType; tone: string; action: string; tag: string };
@@ -11,25 +12,13 @@ const KINDS: Record<string, Kind> = {
   AI_INTERVIEW_READY: { icon: Bot, tone: "bg-violet-50 text-violet-700", action: "Bắt đầu phỏng vấn", tag: "Phỏng vấn AI" },
   AI_INTERVIEW_PASSED: { icon: CircleCheck, tone: "bg-emerald-50 text-emerald-700", action: "Làm bài đánh giá", tag: "Kết quả" },
   AI_INTERVIEW_FAILED: { icon: CircleX, tone: "bg-red-50 text-red-700", action: "Xem kết quả", tag: "Kết quả" },
+  APPLICATION_REJECTED: { icon: CircleX, tone: "bg-red-50 text-red-700", action: "Xem hồ sơ", tag: "Kết quả" },
   ASSESSMENT_INVITATION: { icon: ClipboardCheck, tone: "bg-amber-50 text-amber-700", action: "Làm bài đánh giá", tag: "Bài đánh giá" },
   HUMAN_INTERVIEW_INVITATION: { icon: CalendarDays, tone: "bg-sky-50 text-sky-700", action: "Xác nhận lịch", tag: "Phỏng vấn trực tiếp" },
   HUMAN_INTERVIEW_REMINDER: { icon: CalendarClock, tone: "bg-sky-50 text-sky-700", action: "Xem lịch", tag: "Phỏng vấn trực tiếp" },
   HUMAN_INTERVIEW_CANCELLED: { icon: CalendarX, tone: "bg-red-50 text-red-700", action: "Xem lịch", tag: "Phỏng vấn trực tiếp" },
 };
 const FALLBACK: Kind = { icon: Bell, tone: "bg-slate-100 text-slate-600", action: "Xem chi tiết", tag: "Thông báo" };
-
-const SAFE_PATH = /^\/(?:interviews\/\d+|assessments(?:\/\d+\/take)?|interview-schedules|schedules|applications(?:\/\d+)?)(?:\?[\w=&%-]*)?$/;
-
-export function notificationPath(payload: string | null): string | null {
-  try {
-    const value: unknown = JSON.parse(payload ?? "{}");
-    if (typeof value === "object" && value !== null && "path" in value && typeof value.path === "string") {
-      const path = value.path.replace(/^\/candidate(?=\/)/, "");
-      return SAFE_PATH.test(path) ? path : null;
-    }
-  } catch { /* Notifications without a valid link remain readable. */ }
-  return null;
-}
 
 type Props = { item: Notification; marking: boolean; onRead: () => void };
 

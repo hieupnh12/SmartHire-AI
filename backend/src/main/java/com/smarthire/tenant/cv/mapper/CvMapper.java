@@ -30,8 +30,8 @@ public class CvMapper {
         return new CvSummary(
                 cv.getId(),
                 cv.getJob() == null ? null : cv.getJob().getId(),
-                cv.getUser().getId(),
-                cv.getUser().getFullName(),
+                cv.getCandidate().getId(),
+                cv.getCandidate().getFullName(),
                 cv.getOriginalFilename(),
                 cv.getStatus().name(),
                 score == null ? null : score.getScore(),
@@ -45,9 +45,9 @@ public class CvMapper {
         return new CvDetail(
                 cv.getId(),
                 cv.getJob() == null ? null : cv.getJob().getId(),
-                cv.getUser().getId(),
+                cv.getCandidate().getId(),
                 cv.getApplication() == null ? null : cv.getApplication().getId(),
-                cv.getUser().getFullName(),
+                cv.getCandidate().getFullName(),
                 cv.getOriginalFilename(),
                 cv.getMimeType(),
                 cv.getFileSize(),

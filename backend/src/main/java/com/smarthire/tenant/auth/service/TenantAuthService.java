@@ -4,7 +4,9 @@ import com.smarthire.common.exception.BusinessException;
 import com.smarthire.common.redis.RedisKeys;
 import com.smarthire.common.redis.RedisService;
 import com.smarthire.domain.enums.UserRole;
+import com.smarthire.domain.tenant.entity.Candidate;
 import com.smarthire.domain.tenant.entity.User;
+import com.smarthire.domain.tenant.repository.CandidateRepository;
 import com.smarthire.domain.tenant.repository.UserRepository;
 import com.smarthire.multitenancy.context.TenantContext;
 import com.smarthire.multitenancy.service.TenantRegistryService;
@@ -34,6 +36,7 @@ public class TenantAuthService {
     private static final Duration OTP_TTL = Duration.ofMinutes(15);
 
     private final UserRepository userRepository;
+    private final CandidateRepository candidateRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider tokenProvider;
     private final AuthMapper authMapper;
@@ -66,10 +69,15 @@ public class TenantAuthService {
             );
         }
 
-        // 2. Query user in isolated tenant database
+        // 2. Query user (or candidate fallback) in isolated tenant database
         User user = userRepository.findByEmailIgnoreCase(email).orElse(null);
+        Candidate candidate = (user == null && candidateRepository != null)
+                ? candidateRepository.findByEmailIgnoreCase(email).orElse(null)
+                : null;
 
-        if (user == null || user.getPasswordHash() == null || !passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
+        String passwordHash = user != null ? user.getPasswordHash() : (candidate != null ? candidate.getPasswordHash() : null);
+
+        if ((user == null && candidate == null) || passwordHash == null || !passwordEncoder.matches(request.getPassword(), passwordHash)) {
             long newCount = 1;
             try {
                 newCount = redisService.increment(rateLimitKey, LOCK_DURATION);
@@ -85,7 +93,10 @@ public class TenantAuthService {
             throw new BusinessException(errorDetail, HttpStatus.UNAUTHORIZED, "INVALID_CREDENTIALS");
         }
 
-        if (user.getStatus() == null || !"ACTIVE".equalsIgnoreCase(user.getStatus().name())) {
+        String statusName = user != null
+                ? (user.getStatus() != null ? user.getStatus().name() : null)
+                : (candidate.getStatus() != null ? candidate.getStatus().name() : null);
+        if (statusName == null || !"ACTIVE".equalsIgnoreCase(statusName)) {
             throw new BusinessException("Tài khoản của bạn tạm thời bị khóa hoặc ngưng hoạt động", HttpStatus.UNAUTHORIZED, "ACCOUNT_DISABLED");
         }
 
@@ -94,6 +105,26 @@ public class TenantAuthService {
             redisService.delete(rateLimitKey);
         } catch (Exception ex) {
             log.warn("Could not delete rate limit key in Redis: {}", ex.getMessage());
+        }
+
+        if (candidate != null) {
+            String accessToken = tokenProvider.generateToken(candidate, currentTenant);
+            String refreshToken = UUID.randomUUID().toString();
+            try {
+                String refreshKey = RedisKeys.tenantRefreshSession(refreshToken);
+                redisService.set(refreshKey, currentTenant + ":CANDIDATE:" + candidate.getEmail(), REFRESH_TOKEN_TTL);
+            } catch (Exception ex) {
+                log.warn("Could not store candidate refresh token to Redis: {}", ex.getMessage());
+            }
+            String subdomain = tenantRegistryService.requireActive(currentTenant).getSubdomain();
+            return LoginResponse.builder()
+                    .accessToken(accessToken)
+                    .refreshToken(refreshToken)
+                    .tokenType("Bearer")
+                    .user(UserResponse.fromCandidate(candidate))
+                    .tenantId(currentTenant)
+                    .subdomain(subdomain)
+                    .build();
         }
 
         // 4. Generate JWT access & refresh tokens
@@ -137,13 +168,33 @@ public class TenantAuthService {
             email = sessionData;
         }
 
+        boolean candidateSession = false;
+        if (email.startsWith("CANDIDATE:")) {
+            candidateSession = true;
+            email = email.substring("CANDIDATE:".length());
+        }
+
         String currentTenant = TenantContext.getCurrentTenant();
         if (StringUtils.hasText(sessionTenant) && StringUtils.hasText(currentTenant)
                 && !sessionTenant.equalsIgnoreCase(currentTenant)) {
             throw new BusinessException("Phiên làm việc không thuộc Doanh nghiệp hiện tại", HttpStatus.FORBIDDEN, "TENANT_MISMATCH");
         }
 
-        User user = userRepository.findByEmailIgnoreCase(email).orElseThrow(() ->
+        String effectiveTenant = StringUtils.hasText(currentTenant) ? currentTenant : sessionTenant;
+
+        if (candidateSession) {
+            return refreshCandidateSession(tokenKey, email, effectiveTenant);
+        }
+
+        Optional<User> userOpt = userRepository.findByEmailIgnoreCase(email);
+        if (userOpt.isEmpty() && candidateRepository != null) {
+            Optional<Candidate> candidateOpt = candidateRepository.findByEmailIgnoreCase(email);
+            if (candidateOpt.isPresent()) {
+                return refreshCandidateSession(tokenKey, email, effectiveTenant);
+            }
+        }
+
+        User user = userOpt.orElseThrow(() ->
                 new BusinessException("Không tìm thấy thông tin tài khoản người dùng", HttpStatus.NOT_FOUND, "USER_NOT_FOUND"));
 
         if (user.getStatus() == null || !"ACTIVE".equalsIgnoreCase(user.getStatus().name())) {
@@ -157,7 +208,6 @@ public class TenantAuthService {
             log.warn("Could not delete old tenant refresh token from Redis: {}", ex.getMessage());
         }
 
-        String effectiveTenant = StringUtils.hasText(currentTenant) ? currentTenant : sessionTenant;
         String newAccessToken = tokenProvider.generateToken(user, effectiveTenant);
         String newRefreshToken = UUID.randomUUID().toString();
 
@@ -175,6 +225,45 @@ public class TenantAuthService {
                 .refreshToken(newRefreshToken)
                 .tokenType("Bearer")
                 .user(withPermissions(user))
+                .tenantId(effectiveTenant)
+                .subdomain(subdomain)
+                .build();
+    }
+
+    private LoginResponse refreshCandidateSession(String tokenKey, String email, String effectiveTenant) {
+        if (candidateRepository == null) {
+            throw new BusinessException("Không tìm thấy thông tin tài khoản ứng viên", HttpStatus.NOT_FOUND, "USER_NOT_FOUND");
+        }
+        Candidate candidate = candidateRepository.findByEmailIgnoreCase(email).orElseThrow(() ->
+                new BusinessException("Không tìm thấy thông tin tài khoản ứng viên", HttpStatus.NOT_FOUND, "USER_NOT_FOUND"));
+
+        if (candidate.getStatus() == null || !"ACTIVE".equalsIgnoreCase(candidate.getStatus().name())) {
+            throw new BusinessException("Tài khoản của bạn tạm thời bị khóa hoặc ngưng hoạt động", HttpStatus.UNAUTHORIZED, "ACCOUNT_DISABLED");
+        }
+
+        try {
+            redisService.delete(tokenKey);
+        } catch (Exception ex) {
+            log.warn("Could not delete old candidate refresh token from Redis: {}", ex.getMessage());
+        }
+
+        String newAccessToken = tokenProvider.generateToken(candidate, effectiveTenant);
+        String newRefreshToken = UUID.randomUUID().toString();
+
+        try {
+            String newRefreshKey = RedisKeys.tenantRefreshSession(newRefreshToken);
+            redisService.set(newRefreshKey, effectiveTenant + ":CANDIDATE:" + candidate.getEmail(), REFRESH_TOKEN_TTL);
+        } catch (Exception ex) {
+            log.warn("Could not store rotated candidate refresh token to Redis: {}", ex.getMessage());
+        }
+
+        String subdomain = tenantRegistryService.requireActive(effectiveTenant).getSubdomain();
+
+        return LoginResponse.builder()
+                .accessToken(newAccessToken)
+                .refreshToken(newRefreshToken)
+                .tokenType("Bearer")
+                .user(UserResponse.fromCandidate(candidate))
                 .tenantId(effectiveTenant)
                 .subdomain(subdomain)
                 .build();
@@ -209,8 +298,19 @@ public class TenantAuthService {
         String email = request.getEmail().trim().toLowerCase();
 
         Optional<User> userOpt = userRepository.findByEmailIgnoreCase(email);
+        String recipientName = null;
         if (userOpt.isPresent() && userOpt.get().getStatus() != null
                 && "ACTIVE".equalsIgnoreCase(userOpt.get().getStatus().name())) {
+            recipientName = userOpt.get().getFullName();
+        } else if (userOpt.isEmpty() && candidateRepository != null) {
+            Optional<Candidate> candidateOpt = candidateRepository.findByEmailIgnoreCase(email);
+            if (candidateOpt.isPresent() && candidateOpt.get().getStatus() != null
+                    && "ACTIVE".equalsIgnoreCase(candidateOpt.get().getStatus().name())) {
+                recipientName = candidateOpt.get().getFullName();
+            }
+        }
+
+        if (recipientName != null) {
             String otp = String.format("%06d", new java.security.SecureRandom().nextInt(1_000_000));
             String otpKey = RedisKeys.tenantPasswordResetOtp(currentTenant, email);
             try {
@@ -221,7 +321,7 @@ public class TenantAuthService {
             }
 
             String subject = "[SmartHire] Mã xác thực đặt lại mật khẩu";
-            String body = "Xin chào " + userOpt.get().getFullName() + ",\n\n"
+            String body = "Xin chào " + recipientName + ",\n\n"
                     + "Mã xác thực OTP để đặt lại mật khẩu của bạn là: " + otp + "\n"
                     + "Mã này có hiệu lực trong vòng 15 phút.\n\n"
                     + "Nếu bạn không thực hiện yêu cầu này, vui lòng bỏ qua email này.\n\n"
@@ -243,11 +343,19 @@ public class TenantAuthService {
             throw new BusinessException("Mã xác thực OTP không chính xác hoặc đã hết hạn", HttpStatus.BAD_REQUEST, "INVALID_OTP");
         }
 
-        User user = userRepository.findByEmailIgnoreCase(email)
-                .orElseThrow(() -> new BusinessException("Không tìm thấy thông tin tài khoản", HttpStatus.NOT_FOUND, "USER_NOT_FOUND"));
-
-        user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
-        userRepository.save(user);
+        Optional<User> userOpt = userRepository.findByEmailIgnoreCase(email);
+        if (userOpt.isPresent()) {
+            User user = userOpt.get();
+            user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
+            userRepository.save(user);
+        } else if (candidateRepository != null) {
+            Candidate candidate = candidateRepository.findByEmailIgnoreCase(email)
+                    .orElseThrow(() -> new BusinessException("Không tìm thấy thông tin tài khoản", HttpStatus.NOT_FOUND, "USER_NOT_FOUND"));
+            candidate.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
+            candidateRepository.save(candidate);
+        } else {
+            throw new BusinessException("Không tìm thấy thông tin tài khoản", HttpStatus.NOT_FOUND, "USER_NOT_FOUND");
+        }
 
         try {
             redisService.delete(otpKey);
@@ -270,10 +378,27 @@ public class TenantAuthService {
         }
 
         String email = tokenProvider.getEmailFromToken(token);
+        String role = tokenProvider.getRoleFromToken(token);
+
+        if (UserRole.isCandidate(role) && candidateRepository != null) {
+            Candidate candidate = candidateRepository.findByEmailIgnoreCase(email)
+                    .orElseThrow(() -> new BusinessException("Không tìm thấy thông tin ứng viên", HttpStatus.NOT_FOUND, "USER_NOT_FOUND"));
+            if (candidate.getPasswordHash() == null || !passwordEncoder.matches(request.getCurrentPassword(), candidate.getPasswordHash())) {
+                throw new BusinessException("Mật khẩu hiện tại không chính xác", HttpStatus.BAD_REQUEST, "INVALID_CURRENT_PASSWORD");
+            }
+            if (passwordEncoder.matches(request.getNewPassword(), candidate.getPasswordHash())) {
+                throw new BusinessException("Mật khẩu mới không được trùng với mật khẩu hiện tại", HttpStatus.BAD_REQUEST, "SAME_PASSWORD");
+            }
+            candidate.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
+            candidateRepository.save(candidate);
+            log.info("Password changed successfully for candidate: {} in tenant: {}", email, TenantContext.getCurrentTenant());
+            return;
+        }
+
         User user = userRepository.findByEmailIgnoreCase(email)
                 .orElseThrow(() -> new BusinessException("Không tìm thấy thông tin người dùng", HttpStatus.NOT_FOUND, "USER_NOT_FOUND"));
 
-        if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPasswordHash())) {
+        if (user.getPasswordHash() == null || !passwordEncoder.matches(request.getCurrentPassword(), user.getPasswordHash())) {
             throw new BusinessException("Mật khẩu hiện tại không chính xác", HttpStatus.BAD_REQUEST, "INVALID_CURRENT_PASSWORD");
         }
 
@@ -299,6 +424,13 @@ public class TenantAuthService {
         }
 
         String email = tokenProvider.getEmailFromToken(token);
+        String role = tokenProvider.getRoleFromToken(token);
+        if (UserRole.isCandidate(role) && candidateRepository != null) {
+            Candidate candidate = candidateRepository.findByEmailIgnoreCase(email)
+                    .orElseThrow(() -> new BusinessException("Candidate not found in tenant database", HttpStatus.NOT_FOUND, "USER_NOT_FOUND"));
+            return UserResponse.fromCandidate(candidate);
+        }
+
         User user = userRepository.findByEmailIgnoreCase(email)
                 .orElseThrow(() -> new BusinessException("User not found in tenant database", HttpStatus.NOT_FOUND, "USER_NOT_FOUND"));
 

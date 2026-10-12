@@ -1,7 +1,6 @@
 package com.smarthire.tenant.auth.dto;
 
-import com.smarthire.domain.tenant.entity.User;
-import com.smarthire.domain.tenant.entity.UserProfile;
+import com.smarthire.domain.tenant.entity.Candidate;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -22,18 +21,18 @@ public class CandidateProfileResponse {
     private String headline;
     private String status;
 
-    public static CandidateProfileResponse fromEntity(User user, UserProfile profile) {
-        if (user == null) {
+    public static CandidateProfileResponse fromEntity(Candidate candidate) {
+        if (candidate == null) {
             return null;
         }
         return CandidateProfileResponse.builder()
-                .id(user.getId())
-                .email(user.getEmail())
-                .fullName(user.getFullName())
-                .avatarUrl(profile != null ? profile.getAvatarUrl() : null)
-                .role(user.getRole() != null ? user.getRole() : "CANDIDATE")
-                .headline(profile != null ? profile.getHeadline() : null)
-                .status(user.getStatus() != null ? user.getStatus().name() : "ACTIVE")
+                .id(candidate.getId())
+                .email(candidate.getEmail())
+                .fullName(candidate.getFullName())
+                .avatarUrl(candidate.getAvatarUrl())
+                .role("CANDIDATE")
+                .headline(candidate.getHeadline())
+                .status(candidate.getStatus() != null ? candidate.getStatus().name() : "ACTIVE")
                 .build();
     }
 }

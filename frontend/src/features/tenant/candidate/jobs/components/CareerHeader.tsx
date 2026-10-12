@@ -1,10 +1,10 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ElementType } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
 import {
-  ArrowRight, Bell, Box, BriefcaseBusiness, Building2, CalendarDays, ChevronDown,
+  ArrowRight, Bell, Box, BriefcaseBusiness, Building2, CalendarDays, Check, ChevronDown, ChevronRight,
   CircleUserRound, ClipboardCheck, DraftingCompass, Feather, FilePenLine,
-  FileText, Gift, Layers, Lock, LogOut, MapPin, Menu, MessageCircle, Quote, Search, Settings,
+  FileText, Gift, Languages, Layers, Lock, LogOut, MapPin, Menu, MessageCircle, Quote, Search, Settings,
   Sparkles, Star, Upload, UserRound, X,
 } from "lucide-react";
 import type { Notification } from "@/api/types/notification";
@@ -12,11 +12,14 @@ import type { PublicJob } from "@/api/types/job";
 import { authApi } from "@/api/tenant/authApi";
 import { jobApi } from "@/api/tenant/jobApi";
 import { landingApi } from "@/api/tenant/landingApi";
+import { notificationApi } from "@/api/tenant/notificationApi";
 import type { LandingPageConfig } from "@/features/tenant/admin/landing/types/landing";
 import { LanguageSwitcher } from "@/components/ux/LanguageSwitcher";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
+import { localeLabels, locales, useI18nStore, useT } from "@/i18n";
 import { useNotifications } from "@/hooks/useNotifications";
 import { buildPlatformUrl, getTenantIdFromWindow } from "@/lib/tenant";
+import { notificationPath } from "@/features/tenant/candidate/shared/utils/notificationPath";
 import { cvRoleKeys, cvRoles, cvStyleKeys, cvStyles, type CvStyleKey } from "@/features/tenant/candidate/shared/constants/cvTemplates";
 
 const styleIcons: Record<CvStyleKey, ElementType> = { simple: Box, impressive: DraftingCompass, professional: Star };
@@ -88,6 +91,7 @@ type Props = {
 
 export function CareerHeader({ tenantName, tenantCode, logoUrl, slogan, primaryColor }: Props) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const navRef = useRef<HTMLElement>(null);
   const [activeMenu, setActiveMenu] = useState<MenuKey | null>(null);
   const [menuArrowLeft, setMenuArrowLeft] = useState(48);
@@ -109,6 +113,7 @@ export function CareerHeader({ tenantName, tenantCode, logoUrl, slogan, primaryC
   const user = storedUser ?? profile.data?.data ?? null;
   const notifications = useNotifications(Boolean(token));
   const unreadCount = notifications.data?.filter((item) => !item.readAt).length ?? 0;
+  const markRead = useMutation({ mutationFn: notificationApi.markRead, onSuccess: () => queryClient.invalidateQueries({ queryKey: notifications.queryKey.slice(0, 3) }) });
   const recruiterUrl = buildPlatformUrl("/");
 
   useEffect(() => { if (!storedUser && profile.data?.data) setUser(profile.data.data); }, [profile.data, setUser, storedUser]);
@@ -151,13 +156,16 @@ export function CareerHeader({ tenantName, tenantCode, logoUrl, slogan, primaryC
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
-          <LanguageSwitcher variant="icon" />
+          {!token && <LanguageSwitcher variant="icon" />}
           {token ? <>
             <div className="relative hidden sm:block" onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setNotificationsOpen(false); }}>
               <button type="button" aria-label={unreadCount ? `Thông báo, ${unreadCount} chưa đọc` : "Thông báo"} aria-expanded={notificationsOpen} aria-haspopup="dialog" onClick={() => { setNotificationsOpen((value) => !value); setProfileOpen(false); setActiveMenu(null); }} className="relative grid size-11 place-items-center rounded-full bg-slate-50 text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]/30"><Bell className="size-5" aria-hidden="true" />{Boolean(unreadCount) && <span className="absolute right-0 top-0 grid min-w-5 place-items-center rounded-full bg-[var(--color-error)] px-1 text-[10px] font-semibold leading-5 text-white">{unreadCount > 9 ? "9+" : unreadCount}</span>}</button>
-              {notificationsOpen && <NotificationPreview items={notifications.data ?? []} loading={notifications.isPending} unreadCount={unreadCount} onClose={() => setNotificationsOpen(false)} />}
+              {notificationsOpen && <NotificationPreview items={notifications.data ?? []} loading={notifications.isPending} unreadCount={unreadCount} onClose={() => setNotificationsOpen(false)} onOpen={(item) => {
+                if (!item.readAt) markRead.mutate(item.id);
+                setNotificationsOpen(false);
+                navigate(notificationPath(item.payloadJson) ?? "/notifications");
+              }} />}
             </div>
-            <HeaderIcon to="/applications" label="Hồ sơ ứng tuyển" icon={MessageCircle} />
             <div className="relative" onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setProfileOpen(false); }}>
               <button type="button" aria-expanded={profileOpen} aria-label="Mở menu tài khoản" onClick={() => { setProfileOpen((value) => !value); setNotificationsOpen(false); setActiveMenu(null); }} className="flex min-h-11 items-center gap-2 rounded-full p-1.5 pr-2 hover:bg-slate-100">
                 <Avatar name={user?.fullName} src={user?.avatarUrl} /><ChevronDown className={`size-4 text-slate-500 transition-transform ${profileOpen ? "rotate-180" : ""}`} aria-hidden="true" />
@@ -234,18 +242,14 @@ function MegaMenu({ menuKey, menus, arrowLeft, loggedIn, onNavigate }: { menuKey
   </div>;
 }
 
-function HeaderIcon({ to, label, icon: Icon, count }: { to: string; label: string; icon: ElementType; count?: number }) {
-  return <Link to={to} aria-label={count ? `${label}, ${count} chưa đọc` : label} className="relative hidden size-11 place-items-center rounded-full bg-slate-50 text-slate-700 hover:bg-slate-100 sm:grid"><Icon className="size-5" aria-hidden="true" />{Boolean(count) && <span className="absolute right-0 top-0 grid min-w-5 place-items-center rounded-full bg-[var(--color-error)] px-1 text-[10px] font-semibold leading-5 text-white">{count! > 9 ? "9+" : count}</span>}</Link>;
-}
-
-function NotificationPreview({ items, loading, unreadCount, onClose }: { items: Notification[]; loading: boolean; unreadCount: number; onClose: () => void }) {
+function NotificationPreview({ items, loading, unreadCount, onClose, onOpen }: { items: Notification[]; loading: boolean; unreadCount: number; onClose: () => void; onOpen: (item: Notification) => void }) {
   const recent = items.slice(0, 5);
   return <div role="dialog" aria-label="Thông báo gần đây" className="absolute right-0 top-[calc(100%+10px)] w-[min(390px,calc(100vw-24px))] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_18px_48px_rgba(15,23,42,0.18)]">
     <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4"><div><h2 className="font-semibold text-slate-900">Thông báo</h2><p className="mt-0.5 text-xs text-slate-500">{unreadCount > 0 ? `${unreadCount} thông báo chưa đọc` : "Bạn đã xem hết thông báo mới"}</p></div><span className="grid size-9 place-items-center rounded-full bg-[var(--color-primary-subtle)] text-[var(--color-primary)]"><Bell className="size-4" aria-hidden="true" /></span></div>
     <div className="max-h-[min(60vh,420px)] overflow-y-auto">
       {loading && <p className="p-5 text-sm text-slate-500" role="status">Đang tải thông báo…</p>}
       {!loading && recent.length === 0 && <div className="px-5 py-10 text-center"><Bell className="mx-auto size-7 text-slate-300" aria-hidden="true" /><p className="mt-3 text-sm font-semibold text-slate-700">Chưa có thông báo</p><p className="mt-1 text-xs text-slate-500">Cập nhật về hồ sơ và phỏng vấn sẽ xuất hiện tại đây.</p></div>}
-      {recent.map((item) => <article key={item.id} className={`relative border-b border-slate-100 px-5 py-4 last:border-b-0 ${item.readAt ? "bg-white" : "bg-[var(--color-primary-subtle)]/45"}`}><div className="flex gap-3">{!item.readAt && <span className="mt-2 size-2 shrink-0 rounded-full bg-[var(--color-primary)]" aria-label="Chưa đọc" />}<div className="min-w-0 flex-1"><h3 className="line-clamp-1 text-sm font-semibold text-slate-800">{item.title}</h3>{item.body && <p className="mt-1 line-clamp-2 whitespace-pre-line text-xs leading-5 text-slate-600">{item.body}</p>}<time className="mt-2 block text-[11px] text-slate-400" dateTime={item.createdAt}>{formatNotificationTime(item.createdAt)}</time></div></div></article>)}
+      {recent.map((item) => <button key={item.id} type="button" onClick={() => onOpen(item)} className={`relative block w-full border-b border-slate-100 px-5 py-4 text-left transition-colors last:border-b-0 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--color-primary)]/30 ${item.readAt ? "bg-white" : "bg-[var(--color-primary-subtle)]/45"}`}><div className="flex gap-3">{!item.readAt && <span className="mt-2 size-2 shrink-0 rounded-full bg-[var(--color-primary)]" aria-hidden="true" />}<div className="min-w-0 flex-1"><h3 className="line-clamp-1 text-sm font-semibold text-slate-800">{!item.readAt && <span className="sr-only">Chưa đọc: </span>}{item.title}</h3>{item.body && <p className="mt-1 line-clamp-2 whitespace-pre-line text-xs leading-5 text-slate-600">{item.body}</p>}<time className="mt-2 block text-[11px] text-slate-400" dateTime={item.createdAt}>{formatNotificationTime(item.createdAt)}</time></div><ChevronRight className="mt-1 size-4 shrink-0 text-slate-400" aria-hidden="true" /></div></button>)}
     </div>
     <div className="border-t border-slate-100 p-3"><Link to="/notifications" onClick={onClose} className="flex min-h-10 items-center justify-center gap-2 rounded-xl text-sm font-semibold text-[var(--color-primary)] hover:bg-[var(--color-primary-subtle)]">Xem tất cả thông báo<ArrowRight className="size-4" aria-hidden="true" /></Link></div>
   </div>;
@@ -262,14 +266,21 @@ function Avatar({ name, src }: { name?: string; src?: string | null }) {
 
 function AccountPanel({ user, onClose, onLogout }: { user: ReturnType<typeof useAuthStore.getState>["user"]; onClose: () => void; onLogout: () => void }) {
   return <div className="absolute right-0 top-[calc(100%+10px)] w-[min(390px,calc(100vw-24px))] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_18px_48px_rgba(15,23,42,0.18)]">
-    <div className="flex gap-4 border-b border-slate-100 p-5"><Avatar name={user?.fullName} src={user?.avatarUrl} /><div className="min-w-0"><p className="truncate text-base font-semibold text-slate-800">{user?.fullName || "Ứng viên"}</p><p className="mt-1 truncate text-sm text-slate-500">{user?.email}</p><p className="mt-1 text-xs text-[var(--color-primary)]">Tài khoản đã xác thực</p></div></div>
-    <div className="max-h-[65vh] overflow-y-auto p-3"><AccountSection icon={Settings} title="Thông báo & lịch" links={[{ label: "Thông báo", to: "/notifications?tab=settings" }, { label: "Lịch của tôi", to: "/schedules" }]} onClose={onClose} /></div>
+    <Link to="/account" onClick={onClose} title="Cài đặt tài khoản" className="group flex items-center gap-4 border-b border-slate-100 p-5 transition-colors hover:bg-slate-50"><Avatar name={user?.fullName} src={user?.avatarUrl} /><div className="min-w-0 flex-1"><p className="truncate text-base font-semibold text-slate-800 group-hover:text-[var(--color-primary)]">{user?.fullName || "Ứng viên"}</p><p className="mt-1 truncate text-sm text-slate-500">{user?.email}</p><p className="mt-1 text-xs text-[var(--color-primary)]">Tài khoản đã xác thực</p></div><ChevronRight className="size-5 shrink-0 text-slate-400 group-hover:text-[var(--color-primary)]" aria-hidden="true" /></Link>
+    <div className="max-h-[65vh] overflow-y-auto p-3"><AccountSection icon={Settings} title="Thông báo & lịch" links={[{ label: "Thông báo", to: "/notifications?tab=settings" }, { label: "Lịch của tôi", to: "/schedules" }]} onClose={onClose} /><LanguageSection /></div>
     <div className="border-t border-slate-100 p-3"><button type="button" onClick={onLogout} className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-sm font-semibold text-slate-600 hover:bg-red-50 hover:text-red-700"><LogOut className="size-5" aria-hidden="true" />Đăng xuất</button></div>
   </div>;
 }
 
 function AccountSection({ icon: Icon, title, links, onClose }: { icon: ElementType; title: string; links: Array<MenuItem & { to: string }>; onClose: () => void }) {
   return <section className="mb-2"><h2 className="flex items-center gap-3 px-3 py-2 text-sm font-semibold text-slate-800"><Icon className="size-5 text-slate-400" aria-hidden="true" />{title}</h2><div className="ml-8">{links.map((link) => <Link key={link.to + link.label} to={link.to} onClick={onClose} className="block rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 hover:text-[var(--color-primary)]">{link.label}</Link>)}</div></section>;
+}
+
+function LanguageSection() {
+  const t = useT();
+  const locale = useI18nStore((state) => state.locale);
+  const setLocale = useI18nStore((state) => state.setLocale);
+  return <section className="mb-2"><h2 className="flex items-center gap-3 px-3 py-2 text-sm font-semibold text-slate-800"><Languages className="size-5 text-slate-400" aria-hidden="true" />{t("common.language")}</h2><div role="radiogroup" aria-label={t("common.language")} className="ml-8 flex flex-wrap gap-2 px-3 py-1">{locales.map((value) => { const selected = value === locale; return <button key={value} type="button" role="radio" aria-checked={selected} onClick={() => setLocale(value)} className={`inline-flex min-h-9 items-center gap-1.5 rounded-lg border px-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]/30 ${selected ? "border-[var(--color-primary)] bg-[var(--color-primary-subtle)] font-semibold text-[var(--color-primary)]" : "border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-[var(--color-primary)]"}`}>{selected && <Check className="size-4" aria-hidden="true" />}{localeLabels[value]}</button>; })}</div></section>;
 }
 
 function MobileMenu({ menus, loggedIn, onNavigate }: { menus: Menus; loggedIn: boolean; onNavigate: () => void }) {

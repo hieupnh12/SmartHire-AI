@@ -24,14 +24,20 @@ public class NotificationService {
 
     @Transactional(readOnly = true)
     public List<NotificationView> mine(int page) {
-        return notifications.findByUser_IdOrderByIdDesc(access.actor().getId(), PageRequest.of(Math.max(0, page), 50))
-                .map(NotificationView::from).getContent();
+        var pageable = PageRequest.of(Math.max(0, page), 50);
+        var pageResult = access.candidate()
+                ? notifications.findByCandidate_IdOrderByIdDesc(access.candidateActor().getId(), pageable)
+                : notifications.findByUser_IdOrderByIdDesc(access.actor().getId(), pageable);
+        return pageResult.map(NotificationView::from).getContent();
     }
 
     @Transactional
     public NotificationView markRead(long id) {
-        var notification = notifications.findByIdAndUser_Id(id, access.actor().getId())
-                .orElseThrow(() -> new BusinessException("Notification not found", HttpStatus.NOT_FOUND, "NOTIFICATION_NOT_FOUND"));
+        var found = access.candidate()
+                ? notifications.findByIdAndCandidate_Id(id, access.candidateActor().getId())
+                : notifications.findByIdAndUser_Id(id, access.actor().getId());
+        var notification = found.orElseThrow(
+                () -> new BusinessException("Notification not found", HttpStatus.NOT_FOUND, "NOTIFICATION_NOT_FOUND"));
         if (notification.getReadAt() == null) notification.setReadAt(Instant.now());
         return NotificationView.from(notification);
     }

@@ -2,6 +2,10 @@ package com.smarthire.tenant.auth.controller;
 
 import com.smarthire.common.api.ApiResponse;
 import com.smarthire.tenant.auth.dto.*;
+import com.smarthire.tenant.auth.dto.AccountProfileModels.AccountProfileResponse;
+import com.smarthire.tenant.auth.dto.AccountProfileModels.UpdateAccountProfileRequest;
+import com.smarthire.tenant.auth.service.AccountProfileService;
+import com.smarthire.tenant.auth.service.CandidateErasureService;
 import com.smarthire.tenant.auth.service.TenantAuthService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -17,6 +21,8 @@ import org.springframework.web.bind.annotation.*;
 public class TenantAuthController {
 
     private final TenantAuthService tenantAuthService;
+    private final AccountProfileService accountProfileService;
+    private final CandidateErasureService candidateErasureService;
 
     @PostMapping("/login")
     @Operation(summary = "Login Tenant User", description = "Authenticates Tenant User against Tenant DB, applies rate-limiting, and issues signed JWT Access & Refresh Tokens.")
@@ -71,5 +77,27 @@ public class TenantAuthController {
     public ResponseEntity<ApiResponse<UserResponse>> getCurrentUser(@RequestHeader(value = "Authorization", required = false) String authHeader) {
         UserResponse response = tenantAuthService.getCurrentUser(authHeader);
         return ResponseEntity.ok(ApiResponse.ok(response));
+    }
+
+    @GetMapping("/profile")
+    @Operation(summary = "Get My Account Profile", description = "Returns the signed-in user's editable account profile (name, phone, headline, bio).")
+    public ResponseEntity<ApiResponse<AccountProfileResponse>> getProfile() {
+        return ResponseEntity.ok(ApiResponse.ok(accountProfileService.current()));
+    }
+
+    @PutMapping("/profile")
+    @Operation(summary = "Update My Account Profile", description = "Updates the signed-in user's full name, phone, headline and bio.")
+    public ResponseEntity<ApiResponse<AccountProfileResponse>> updateProfile(@Valid @RequestBody UpdateAccountProfileRequest request) {
+        return ResponseEntity.ok(ApiResponse.ok("Đã cập nhật hồ sơ", accountProfileService.update(request)));
+    }
+
+    @DeleteMapping("/profile")
+    @Operation(summary = "Erase My Candidate Data",
+            description = "Candidate only. Wipes profile and CV files/parsed content, unlinks Google sign-in and disables the account. "
+                    + "409 CANDIDATE_HAS_OPEN_APPLICATION while an application is still in progress. Closed application history is kept "
+                    + "without personal data so the job rules still apply if the same email signs in again.")
+    public ResponseEntity<ApiResponse<Void>> eraseProfile() {
+        candidateErasureService.eraseCurrent();
+        return ResponseEntity.ok(ApiResponse.ok("Đã xoá dữ liệu cá nhân", null));
     }
 }

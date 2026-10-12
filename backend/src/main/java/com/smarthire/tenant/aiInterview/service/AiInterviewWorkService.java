@@ -4,6 +4,7 @@ import com.smarthire.domain.enums.AiInterviewStatus;
 import com.smarthire.domain.enums.NotificationStatus;
 import com.smarthire.domain.tenant.repository.AiInterviewRepository;
 import com.smarthire.domain.tenant.repository.EmailOutboxRepository;
+import com.smarthire.tenant.applicant.service.ApplicationClosureService;
 import com.smarthire.tenant.auth.service.InviteMailSender;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -29,12 +30,14 @@ public class AiInterviewWorkService {
                 .forEach(e -> result.add(new Pending(e.getId(), "EMAIL")));
         emails.findTop50ByPurposeAndStatusInAndAttemptsLessThanOrderByIdAsc("ASSESSMENT_INVITATION", List.of(NotificationStatus.PENDING, NotificationStatus.FAILED), 3)
                 .forEach(e -> result.add(new Pending(e.getId(), "EMAIL")));
+        emails.findTop50ByPurposeAndStatusInAndAttemptsLessThanOrderByIdAsc(ApplicationClosureService.EMAIL_PURPOSE, List.of(NotificationStatus.PENDING, NotificationStatus.FAILED), 3)
+                .forEach(e -> result.add(new Pending(e.getId(), "EMAIL")));
         return result;
     }
     @Transactional
     public void sendEmail(long id) {
         var email = emails.findLockedById(id).orElse(null);
-        if (email == null || !List.of("AI_INTERVIEW_RESULT", "ASSESSMENT_INVITATION").contains(email.getPurpose()) || email.getStatus() == NotificationStatus.SENT || email.getAttempts() >= 3) return;
+        if (email == null || !List.of("AI_INTERVIEW_RESULT", "ASSESSMENT_INVITATION", ApplicationClosureService.EMAIL_PURPOSE).contains(email.getPurpose()) || email.getStatus() == NotificationStatus.SENT || email.getAttempts() >= 3) return;
         email.setAttempts(email.getAttempts() + 1);
         boolean sent = mail.send(email.getToEmail(), email.getSubject(), email.getBody());
         email.setStatus(sent ? NotificationStatus.SENT : NotificationStatus.FAILED);

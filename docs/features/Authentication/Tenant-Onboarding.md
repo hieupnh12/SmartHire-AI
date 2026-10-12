@@ -10,19 +10,20 @@ Dùng PostgreSQL cho dữ liệu nền tảng và một database MySQL riêng ch
 ## Actor
 
 - Workspace Admin đăng ký, retry, khóa và mở doanh nghiệp.
-- Admin doanh nghiệp đăng nhập bằng tài khoản được cung cấp khi khởi tạo.
+- Admin doanh nghiệp nhận email lời mời kích hoạt một lần (**Invite & Claim Account**), tự đặt mật khẩu riêng và đăng nhập.
 - Worker RabbitMQ xử lý tác vụ trong đúng tenant.
 
 ## Luồng hoạt động
 
 1. Workspace Admin đăng nhập qua `POST /api/v1/master/auth/login`.
-2. Gửi mã, tên, subdomain và thông tin admin doanh nghiệp.
+2. Gửi mã, tên, subdomain và thông tin (`adminName`, `adminEmail`) của admin doanh nghiệp (không nhập mật khẩu tĩnh).
 3. Backend lưu cấu hình kết nối ở PostgreSQL với trạng thái `PROVISIONING`.
 4. Chế độ tự động dùng tài khoản provisioning riêng để tạo database MySQL, tạo user ngẫu nhiên và chỉ cấp quyền trên database đó.
-5. Backend chạy Flyway tenant và tạo admin; mật khẩu admin chỉ được lưu dưới dạng BCrypt hash.
-6. Thành công chuyển sang `ACTIVE`; lỗi chuyển sang `FAILED` và không làm lộ credential.
-7. Retry qua `POST /api/v1/master/tenants/{id}/retry`; PostgreSQL advisory lock ngăn hai tiến trình provisioning cùng tenant chạy đồng thời.
-8. Sau khi backend khởi động lại, connection pool được tạo khi có request dựa trên registry PostgreSQL; không cần thêm biến `.env` cho từng tenant.
+5. Backend chạy Flyway tenant và sinh bản ghi lời mời `PENDING` (`role = TENANT_ADMIN`, hết hạn sau 72 giờ) trong bảng `member_invitations` của Tenant DB; token thô chỉ dùng để tạo link kích hoạt một lần (`/invite/accept?token=...`), trong DB chỉ lưu SHA-256 `token_hash`.
+6. Thành công chuyển sang `ACTIVE` và gửi email chứa link kích hoạt một lần cho Admin doanh nghiệp; lỗi chuyển sang `FAILED` và không làm lộ credential.
+7. Admin doanh nghiệp mở link kích hoạt trên subdomain của công ty (`POST /api/v1/tenant/users/invitations/accept`), tự đặt mật khẩu riêng (8–72 byte UTF-8, lưu BCrypt hash) để tạo tài khoản `TENANT_ADMIN` trong `users` và đánh dấu lời mời `ACCEPTED`.
+8. Retry qua `POST /api/v1/master/tenants/{id}/retry`; PostgreSQL advisory lock ngăn hai tiến trình provisioning cùng tenant chạy đồng thời. Nếu admin chưa kích hoạt, retry làm mới token lời mời và gửi lại link kích hoạt.
+9. Sau khi backend khởi động lại, connection pool được tạo khi có request dựa trên registry PostgreSQL; không cần thêm biến `.env` cho từng tenant.
 
 Provisioning hiện chạy đồng bộ trong request. Nếu HTTP bị gián đoạn, Workspace Admin kiểm tra trạng thái tenant trước khi retry. Database đã tạo một phần được giữ lại để retry; hệ thống không tự xóa dữ liệu. Retry giữ nguyên admin đã tồn tại và phải dùng lại email admin ban đầu.
 
@@ -32,7 +33,7 @@ Provisioning hiện chạy đồng bộ trong request. Nếu HTTP bị gián đo
 - Lỗi nội bộ trả thông báo chung; chi tiết exception và tên database chỉ ghi ở log server, không đưa vào response API.
 
 - API master quản trị chỉ nhận `WORKSPACE_ADMIN`; chỉ login và kiểm tra tenant đang ACTIVE được công khai.
-- API tạo user tenant yêu cầu `TENANT_ADMIN` hoặc `ADMIN`.
+- Tạo tài khoản nhân sự nội bộ và quản trị viên doanh nghiệp bắt buộc qua cơ chế lời mời kích hoạt một lần (`member_invitations`); hệ thống không cấp mật khẩu tĩnh và không gửi mật khẩu plaintext qua email.
 - JWT, header và subdomain phải quy về cùng mã tenant. Subdomain chỉ được lấy dưới domain cấu hình hoặc `.localhost`.
 - Frontend xác định tenant trực tiếp từ subdomain; domain nền tảng không fallback sang tenant đã lưu trong `localStorage`.
 - Nhãn hostname chỉ được đối chiếu với cột `tenants.subdomain`; mã tenant (`code`) không được chấp nhận như một subdomain.
@@ -40,11 +41,11 @@ Provisioning hiện chạy đồng bộ trong request. Nếu HTTP bị gián đo
 - Tenant thiếu, không tồn tại hoặc không ACTIVE bị từ chối. Không fallback sang master.
 - Master và tenant có `EntityManagerFactory`, repository scan và transaction manager riêng.
 - Mật khẩu DB được mã hóa AES-256-GCM và ràng buộc với mã tenant. Khóa Base64 32 byte nằm ngoài DB.
-- Response tenant chỉ chứa metadata, không chứa URL, username hoặc password DB.
+- Response tenant chỉ chứa metadata (và `activationUrl` một lần khi vừa khởi tạo/retry), không chứa URL, username hoặc password DB.
 - Mã tenant gồm 2–32 ký tự thường, số hoặc dấu gạch ngang và bắt đầu bằng chữ.
 - Subdomain gồm 3–63 ký tự, bắt đầu bằng chữ và kết thúc bằng chữ hoặc số. Mã/subdomain không được trùng định danh tenant khác.
 - Tên DB là `smarthire_tenant_<code thay dấu - bằng _>` và không đổi sau đăng ký.
-- Mật khẩu admin dài ít nhất 12 ký tự và tối đa 72 byte UTF-8; không có mật khẩu mặc định.
+- Khi người dùng nhận lời mời và tự đặt mật khẩu (`POST /api/v1/tenant/users/invitations/accept`), mật khẩu dài từ 8 ký tự và tối đa 72 byte UTF-8; không có mật khẩu mặc định hay mật khẩu tĩnh do Admin nhập hộ.
 - Chỉ đổi trạng thái vận hành giữa `ACTIVE` và `SUSPENDED`; `FAILED`/`PROVISIONING` phải qua retry.
 - Sau khi suspend, request và lần lấy connection mới bị chặn, pool local bị đóng. Transaction đã bắt đầu trước thời điểm khóa có thể hoàn tất.
 - Pool được giới hạn theo số tenant và số connection. Pool nhàn rỗi cũ được đóng khi đạt giới hạn; mỗi backend process có giới hạn riêng.
@@ -62,6 +63,7 @@ Provisioning hiện chạy đồng bộ trong request. Nếu HTTP bị gián đo
 | GET | `/api/v1/master/tenants/{id}` | WORKSPACE_ADMIN |
 | PATCH | `/api/v1/master/tenants/{id}/status?status=ACTIVE\|SUSPENDED` | WORKSPACE_ADMIN |
 | GET | `/api/v1/master/tenants/check/{codeOrSubdomain}` | Public, trả boolean |
+| POST | `/api/v1/tenant/users/invitations/accept` | Public, bắt buộc tenant (One-Time Activation) |
 | POST | `/api/v1/tenant/auth/login` | Public, bắt buộc tenant |
 | GET | `/api/v1/tenant/auth/me` | Tenant user |
 
@@ -73,12 +75,11 @@ Request tự động:
   "name": "Công ty A",
   "subdomain": "company-a",
   "adminName": "Admin Công ty A",
-  "adminEmail": "admin@company-a.example",
-  "adminPassword": "<mat-khau-rieng-it-nhat-12-ky-tu>"
+  "adminEmail": "admin@company-a.example"
 }
 ```
 
-Ở chế độ thủ công, Workspace Admin chuẩn bị DB và user trước rồi bổ sung `customDbUrl`, `dbUsername`, `dbPassword`. Backend vẫn chạy Flyway và tạo admin nhưng không chạy `CREATE DATABASE`, `CREATE USER` hoặc `GRANT`.
+Ở chế độ thủ công, Workspace Admin chuẩn bị DB và user trước rồi bổ sung `customDbUrl`, `dbUsername`, `dbPassword`. Backend vẫn chạy Flyway và tạo lời mời kích hoạt `TENANT_ADMIN` nhưng không chạy `CREATE DATABASE`, `CREATE USER` hoặc `GRANT`.
 
 ## Database liên quan
 

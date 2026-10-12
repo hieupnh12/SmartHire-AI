@@ -7,6 +7,7 @@ export type ApplicationStatus =
   | "OFFER"
   | "HIRED"
   | "REJECTED"
+  | "FAILED"
   | "WITHDRAWN";
 
 export type Application = {
@@ -39,6 +40,8 @@ export type ApplicationSummary = {
   jobDepartment: string | null;
   jobWorkMode: string | null;
   jobEmploymentType: string | null;
+  /** Server rule: only before the CV round has a pass/fail outcome. */
+  withdrawable: boolean;
 };
 
 export type CvRef = {
@@ -71,6 +74,7 @@ export type ApplicationDetail = ApplicationSummary & {
   rounds?: ScreeningRoundsView | null;
   cvScreeningStatus?: "PENDING" | "PASSED" | "FAILED" | null;
   screeningMode?: "AUTO" | "MANUAL" | null;
+  withdrawReason?: string | null;
 };
 
 export type CvEvaluationView = {

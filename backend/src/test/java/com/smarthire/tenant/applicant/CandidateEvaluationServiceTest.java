@@ -6,12 +6,12 @@ import com.smarthire.domain.enums.AiInterviewStatus;
 import com.smarthire.domain.enums.TestSubmissionStatus;
 import com.smarthire.domain.tenant.entity.AiInterview;
 import com.smarthire.domain.tenant.entity.Application;
+import com.smarthire.domain.tenant.entity.Candidate;
 import com.smarthire.domain.tenant.entity.Job;
 import com.smarthire.domain.tenant.entity.JobScreeningConfig;
 import com.smarthire.domain.tenant.entity.JobTest;
 import com.smarthire.domain.tenant.entity.MatchScore;
 import com.smarthire.domain.tenant.entity.Submission;
-import com.smarthire.domain.tenant.entity.User;
 import com.smarthire.domain.tenant.repository.ApplicationRepository;
 import com.smarthire.domain.tenant.repository.RankingDataRepository;
 import com.smarthire.tenant.applicant.dto.ApplicantModels.CandidateEvaluationView;
@@ -40,13 +40,13 @@ class CandidateEvaluationServiceTest {
     @Mock JobScreeningConfigService screening;
 
     CandidateEvaluationService service;
-    User candidate;
+    Candidate candidate;
     Application application;
 
     @BeforeEach
     void setUp() {
         service = new CandidateEvaluationService(applications, access, ranking, gateScreening, screening, new ObjectMapper());
-        candidate = new User();
+        candidate = new Candidate();
         candidate.setId(9L);
         Job job = new Job();
         job.setId(1L);
@@ -60,7 +60,7 @@ class CandidateEvaluationServiceTest {
 
     @Test
     void ownerSeesRoundReasonsWithAttemptsNewestFirst() {
-        when(access.actor()).thenReturn(candidate);
+        when(access.candidateActor()).thenReturn(candidate);
         MatchScore match = new MatchScore();
         match.setScore(new BigDecimal("55.00"));
         match.setBreakdownJson("""
@@ -103,9 +103,9 @@ class CandidateEvaluationServiceTest {
 
     @Test
     void otherCandidateGetsNotFound() {
-        User other = new User();
+        Candidate other = new Candidate();
         other.setId(10L);
-        when(access.actor()).thenReturn(other);
+        when(access.candidateActor()).thenReturn(other);
 
         assertThatThrownBy(() -> service.evaluation(4L))
                 .isInstanceOf(BusinessException.class)

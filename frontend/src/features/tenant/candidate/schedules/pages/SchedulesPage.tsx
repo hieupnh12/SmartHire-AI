@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { BriefcaseBusiness, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ux/Button";
 import { EmptyState } from "@/components/ux/EmptyState";
 import { LoadingState, SkeletonCard } from "@/components/ux/Skeleton";
+import { FilterValueDropdown } from "@/features/tenant/candidate/jobs/pages/TenantCareerPage";
 import { getApiErrorMessage } from "@/lib/axios";
 import { cn } from "@/lib/utils";
 import { CalendarMonth, coversDay, isMultiDay, newestFirst } from "../components/CalendarMonth";
@@ -44,12 +45,11 @@ export function SchedulesPage() {
           <Button variant="secondary" size="sm" aria-label="Tháng sau" onClick={() => shiftMonth(1)}><ChevronRight className="size-4" aria-hidden="true" /></Button>
           <Button variant="ghost" size="sm" onClick={goToday}>Hôm nay</Button>
         </div>
-        <label className="flex items-center gap-2 text-sm"><span className="text-[var(--color-on-surface-variant)]">Công việc</span>
-          <select value={jobId} onChange={(event) => setJobId(event.target.value === "ALL" ? "ALL" : Number(event.target.value))} className="min-h-10 max-w-64 rounded-xl border border-[var(--color-border-default)] bg-white px-3 text-sm outline-none focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/15">
-            <option value="ALL">Tất cả công việc</option>
-            {calendar.jobs.map((job) => <option key={job.id} value={job.id}>{job.title}</option>)}
-          </select>
-        </label>
+        <div className="w-72 max-w-full">
+          <FilterValueDropdown label="Lọc theo công việc" icon={BriefcaseBusiness} value={String(jobId)}
+            onChange={(value) => setJobId(value === "ALL" ? "ALL" : Number(value))}
+            options={[{ value: "ALL", label: "Tất cả công việc" }, ...calendar.jobs.map((job) => ({ value: String(job.id), label: job.title }))]} />
+        </div>
       </div>
 
       <ul className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-[var(--color-on-surface-variant)]" aria-label="Chú thích loại sự kiện">

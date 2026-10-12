@@ -15,6 +15,7 @@ import { formatSalaryText } from "@/lib/formatSalary";
 import { getDeadlineInfo } from "@/features/tenant/candidate/jobs/utils/jobDeadline";
 import { CareerHeader } from "@/features/tenant/candidate/jobs/components/CareerHeader";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
+import { toast } from "@/stores/toastStore";
 import "../career-page.css";
 import {
   Search,
@@ -151,7 +152,7 @@ function locationLabel(value?: string | null) {
 function workModeLabel(value?: string | null) {
   if (!value) return null;
   const normalized = normalizedSearchValue(value);
-  if (normalized.includes("hybrid")) return "Hybrid";
+  if (normalized.includes("hybrid") || normalized.includes("ket hop")) return "Kết hợp";
   if (normalized.includes("remote") || normalized.includes("tu xa")) return "Từ xa";
   if (normalized.includes("onsite") || normalized.includes("tai van phong")) return "Tại văn phòng";
   return value.trim().replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toLocaleUpperCase("vi-VN"));
@@ -266,7 +267,7 @@ function FeaturedFilterDropdown({ value, onChange }: {
   );
 }
 
-function FilterValueDropdown({ label, value, options, icon: Icon, onChange }: {
+export function FilterValueDropdown({ label, value, options, icon: Icon, onChange }: {
   label: string;
   value: string;
   options: Array<{ value: string; label: string }>;
@@ -463,6 +464,11 @@ export function TenantCareerPage() {
     () => new Set((myApplications.data?.data ?? []).filter((app) => app.status !== "WITHDRAWN").map((app) => app.jobId)),
     [myApplications.data],
   );
+  // Mirrors the server rule: one open application per candidate (closed = REJECTED / FAILED / WITHDRAWN).
+  const openApplication = useMemo(
+    () => (myApplications.data?.data ?? []).find((app) => !["REJECTED", "FAILED", "WITHDRAWN"].includes(app.status)),
+    [myApplications.data],
+  );
   const analyzedCv = candidateCvs.data?.data.find((cv) => cv.status === "ANALYZED");
   const candidateCvDetail = useQuery({
     queryKey: ["career-candidate-cv", analyzedCv?.id],
@@ -593,6 +599,15 @@ export function TenantCareerPage() {
     if (!job.acceptingApplications) return;
     if (!token) {
       navigate("/login", { state: { from: `/jobs/${job.id}` } });
+      return;
+    }
+    if (openApplication && openApplication.jobId !== job.id) {
+      toast.warning(
+        openApplication.status === "HIRED" ? "Bạn đã trúng tuyển một vị trí" : "Bạn đang có một đơn ứng tuyển",
+        openApplication.status === "HIRED"
+          ? `Bạn đã trúng tuyển vị trí “${openApplication.jobTitle}” nên không thể ứng tuyển thêm.`
+          : `Mỗi ứng viên chỉ tham gia một vị trí tại một thời điểm. Đơn “${openApplication.jobTitle}” cần kết thúc hoặc được rút (khi chưa lọc CV) trước khi ứng tuyển vị trí khác.`,
+      );
       return;
     }
     setApplyError(null);

@@ -24,23 +24,23 @@ public class UpdateSubscriptionPlanRequest {
     BigDecimal priceYearly;
     
     @NotNull(message = "Max jobs is required")
-    @Min(0)
+    @Min(-1)
     Integer maxJobs;
     
     @NotNull(message = "Max CV parses is required")
-    @Min(0)
+    @Min(-1)
     Integer maxCvParses;
     
-    @Min(0)
+    @Min(-1)
     Integer maxAiInterviewHours;
     
-    @Min(0)
+    @Min(-1)
     Integer maxStorageGb;
     
-    @Min(0)
+    @Min(-1)
     Integer maxProctoringHours;
     
-    @Min(0)
+    @Min(-1)
     Integer videoRetentionDays;
     
     String featuresJson;

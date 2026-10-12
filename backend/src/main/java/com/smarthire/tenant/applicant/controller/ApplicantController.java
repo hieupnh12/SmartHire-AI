@@ -11,6 +11,7 @@ import com.smarthire.tenant.applicant.dto.ApplicantModels.ManualCreateRequest;
 import com.smarthire.tenant.applicant.dto.ApplicantModels.PageResult;
 import com.smarthire.tenant.applicant.dto.ApplicantModels.PatchRequest;
 import com.smarthire.tenant.applicant.dto.ApplicantModels.StatusRequest;
+import com.smarthire.tenant.applicant.dto.ApplicantModels.WithdrawRequest;
 import com.smarthire.tenant.applicant.service.ApplicantService;
 import com.smarthire.tenant.applicant.service.CandidateEvaluationService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -128,7 +129,7 @@ public class ApplicantController {
     @PostMapping("/applications/{id}/cv-screening-decision")
     @Operation(summary = "Recruiter decides whether the application passes the CV screening round",
             description = "Used by MANUAL screening jobs (AI only scores). passed=true moves the application to INTERVIEW "
-                    + "and sends the AI interview invite; passed=false keeps it in IN_REVIEW. Only NEW/IN_REVIEW applications.")
+                    + "and sends the AI interview invite; passed=false rejects it (final). Only NEW/IN_REVIEW applications.")
     public ApiResponse<ApplicationDetail> cvScreeningDecision(
             @PathVariable long id, @Valid @RequestBody CvScreeningDecisionRequest body) {
         return ApiResponse.ok(applicants.decideCvScreening(id, body.passed(), body.note()));
@@ -147,15 +148,17 @@ public class ApplicantController {
     }
 
     @PostMapping("/applications/{id}/restore")
-    @Operation(summary = "Restore an archived or rejected application")
+    @Operation(summary = "Restore an archived application", description = "Only un-archives; closed applications stay closed.")
     public ApiResponse<ApplicationDetail> restore(@PathVariable long id) {
         return ApiResponse.ok(applicants.restore(id));
     }
 
     @PostMapping("/applications/{id}/withdraw")
-    @Operation(summary = "Candidate withdraws an application")
-    public ApiResponse<ApplicationDetail> withdraw(@PathVariable long id) {
-        return ApiResponse.ok(applicants.withdraw(id));
+    @Operation(summary = "Candidate withdraws an application",
+            description = "Only allowed while the CV round has no pass/fail outcome (status NEW/IN_REVIEW and cvScreeningStatus PENDING);"
+                    + " otherwise 409 APPLICATION_WITHDRAW_LOCKED. Optional reason (max 255 chars).")
+    public ApiResponse<ApplicationDetail> withdraw(@PathVariable long id, @Valid @RequestBody(required = false) WithdrawRequest body) {
+        return ApiResponse.ok(applicants.withdraw(id, body == null ? null : body.reason()));
     }
 
     @GetMapping("/applications/{id}/history")

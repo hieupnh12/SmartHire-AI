@@ -25,6 +25,10 @@ public class TenantPublicUrlService {
     public String path(String path) {
         String tenantKey = TenantContext.getCurrentTenant();
         TenantInfo tenant = registry.requireActive(tenantKey);
+        return pathForTenant(tenant, path);
+    }
+
+    public String pathForTenant(TenantInfo tenant, String path) {
         String subdomain = tenant.getSubdomain() == null || tenant.getSubdomain().isBlank()
                 ? tenant.getCode()
                 : tenant.getSubdomain();

@@ -113,6 +113,16 @@ export function InvoiceDetailModal({
             </span>
           </div>
 
+          {selectedInvoice.termsAccepted && (
+            <div className="flex justify-between pb-2 border-b border-slate-200/70">
+              <span className="text-slate-500">Đồng Thuận Pháp Lý (ToS & NĐ13):</span>
+              <span className="font-semibold text-emerald-700 text-right">
+                Đã đồng ý ({selectedInvoice.termsVersion || "v2026.10"})
+                {selectedInvoice.termsAcceptedAt ? ` · ${selectedInvoice.termsAcceptedAt}` : ""}
+              </span>
+            </div>
+          )}
+
           {selectedInvoice.lineItems && selectedInvoice.lineItems.length > 0 && (
             <div className="pt-3 border-b border-slate-200/70 pb-3">
               <span className="text-slate-500 font-bold mb-2 block uppercase text-[10px]">Chi tiết hạng mục:</span>
@@ -131,8 +141,8 @@ export function InvoiceDetailModal({
                       <tr key={idx} className="hover:bg-slate-50/50">
                         <td className="py-1.5 px-2.5 text-slate-800 font-medium">{item.description}</td>
                         <td className="py-1.5 px-2.5 text-right font-mono text-slate-600">{item.quantity}</td>
-                        <td className="py-1.5 px-2.5 text-right font-mono text-slate-600">${item.unitPrice.toLocaleString()}</td>
-                        <td className="py-1.5 px-2.5 text-right font-mono font-semibold text-slate-800">${item.totalPrice?.toLocaleString() || (item.quantity * item.unitPrice).toLocaleString()}</td>
+                        <td className="py-1.5 px-2.5 text-right font-mono text-slate-600">{item.unitPrice.toLocaleString("vi-VN")} ₫</td>
+                        <td className="py-1.5 px-2.5 text-right font-mono font-semibold text-slate-800">{(item.totalPrice ?? (item.quantity * item.unitPrice)).toLocaleString("vi-VN")} ₫</td>
                       </tr>
                     ))}
                   </tbody>
@@ -143,7 +153,7 @@ export function InvoiceDetailModal({
 
           <div className="flex justify-between pt-1 text-sm font-bold text-slate-900">
             <span>Tổng Tiền Thanh Toán:</span>
-            <span className="font-mono text-emerald-600 text-base">${selectedInvoice.amount.toLocaleString()} {selectedInvoice.currency}</span>
+            <span className="font-mono text-emerald-600 text-base">{selectedInvoice.amount.toLocaleString("vi-VN")} ₫</span>
           </div>
 
           {selectedInvoice.notes && (

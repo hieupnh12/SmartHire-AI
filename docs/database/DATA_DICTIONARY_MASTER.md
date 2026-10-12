@@ -2,8 +2,8 @@
 
 > Trở về [Database Design & ERD](README.md) · Xem thêm [Data Dictionary Tenant](DATA_DICTIONARY_TENANT.md)
 
-**Database:** `smarthire_master` · **RDBMS:** PostgreSQL · **Số bảng:** 16
-**Nguồn:** `backend/src/main/resources/db/migration/master/V1…V23`
+**Database:** `smarthire_master` · **RDBMS:** PostgreSQL · **Số bảng:** 19
+**Nguồn:** `backend/src/main/resources/db/migration/master/V1…V28`
 **Entity:** `com.smarthire.domain.master.entity` · **Hibernate:** `hbm2ddl.auto = validate`
 
 Ký hiệu: `PK` khoá chính · `FK` khoá ngoại đã khai báo · `UQ` thuộc ràng buộc unique · `IDX` có index ·
@@ -55,51 +55,74 @@ tới database MySQL riêng của họ.
 
 ---
 
-## 2. `subscription_plans` — Gói dịch vụ
+## 2. `subscription_plans` — Danh mục Gói dịch vụ (Tier 1 Plan Catalog / Templates)
 
-Entity `SubscriptionPlan`. Bảng tra cứu định nghĩa giá và hạn mức tiêu thụ của từng gói (đã quy đổi giá chuẩn theo VNĐ).
+Entity `SubscriptionPlan`. Bảng danh mục định nghĩa giá và hạn mức tiêu thụ của từng gói (VNĐ), hỗ trợ bất biến phiên bản (Versioning / Grandfathering) và gói tùy biến riêng cho Enterprise Tenant (V27).
 
 | Cột | Kiểu | Khoá | Null | Default | Mô tả |
 |---|---|---|---|---|---|
 | `id` | BIGINT IDENTITY | PK | Không | auto | Định danh gói |
-| `code` | VARCHAR(64) | UQ | Không | — | Mã gói, ví dụ `STARTER`, `PROFESSIONAL`, `ENTERPRISE` |
+| `code` | VARCHAR(64) | UQ | Không | — | Mã gói, ví dụ `STARTER`, `PRO`, `ENTERPRISE` (hoặc `PRO_V1_2` khi lưu trữ) |
 | `name` | VARCHAR(128) | | Không | — | Tên hiển thị gói |
 | `description` | TEXT | | Có | NULL | Mô tả chi tiết |
+| `version` | INT | | Không | 1 | Số phiên bản của gói cước phục vụ bảo lưu giá (Grandfathering) (V27) |
+| `parent_plan_id` | BIGINT | FK → `subscription_plans.id` | Có | NULL | Phiên bản gói cha hoặc gói mẫu gốc khi tạo version mới / clone custom (V27, SET NULL) |
+| `is_custom` | BOOLEAN | IDX | Không | FALSE | `TRUE` nếu là gói thiết kế riêng theo hợp đồng Enterprise cho 1 Tenant (V27) |
+| `target_tenant_id` | BIGINT | FK → `tenants.id`, IDX | Có | NULL | Doanh nghiệp sở hữu gói Custom Enterprise (V27, SET NULL) |
+| `is_archived` | BOOLEAN | IDX | Không | FALSE | `TRUE` nếu gói đã ngừng mở bán mới nhưng khách cũ vẫn gia hạn theo giá cũ (V27) |
 | `price_yearly` | DECIMAL(15,2) | | Không | 0.00 | Giá gói theo năm (VNĐ) |
-| `max_jobs` | INT | | Không | 5 | Hạn mức tin tuyển dụng đang mở |
-| `max_cv_parses` | INT | | Không | 100 | Hạn mức số lần parse CV |
-| `max_ai_interview_hours` | INT | | Có | NULL | Hạn mức giờ phỏng vấn AI (NULL: không giới hạn) |
-| `max_storage_gb` | INT | | Có | NULL | Hạn mức dung lượng lưu trữ (NULL: không giới hạn) |
-| `max_proctoring_hours` | INT | | Có | NULL | Hạn mức giờ giám sát thi (NULL: không giới hạn) |
-| `video_retention_days` | INT | | Có | NULL | Số ngày lưu trữ video phỏng vấn |
-| `features_json` | JSONB | | Có | NULL | Danh sách tính năng bật/tắt dạng JSON tối ưu |
+| `max_jobs` | INT | | Không | 5 | Hạn mức tin tuyển dụng đang mở (`-1`: không giới hạn) |
+| `max_cv_parses` | INT | | Không | 100 | Hạn mức số lần parse CV / tháng (`-1`: không giới hạn) |
+| `max_ai_interview_hours` | INT | | Có | NULL | Hạn mức giờ phỏng vấn AI (`0`: khóa, `-1`/NULL: không giới hạn) |
+| `max_storage_gb` | INT | | Có | NULL | Hạn mức dung lượng lưu trữ GB (`-1`/NULL: không giới hạn) |
+| `max_proctoring_hours` | INT | | Có | NULL | Hạn mức giờ giám sát thi AI (`0`: khóa, `-1`/NULL: không giới hạn) |
+| `video_retention_days` | INT | | Có | NULL | Số ngày lưu trữ video phỏng vấn (`0`: khóa, `-1`/NULL: vĩnh viễn) |
+| `features_json` | JSONB | | Có | NULL | Danh sách tính năng bật/tắt dạng JSON |
 | `is_deleted` | BOOLEAN | | Không | FALSE | Cờ xoá mềm |
 | `deleted_at` | TIMESTAMP | | Có | NULL | Thời điểm xoá mềm |
-| `status` | VARCHAR(32) | | Không | `'ACTIVE'` | Gói còn bán (`ACTIVE`) hay ngừng bán (`INACTIVE`) |
+| `status` | VARCHAR(32) | IDX | Không | `'ACTIVE'` | Trạng thái gói (`ACTIVE`, `ARCHIVED`, `INACTIVE`) |
 | `created_at` | TIMESTAMP | | Không | now | |
 | `updated_at` | TIMESTAMP | | Không | now | |
 
-**Ràng buộc:** `uk_plans_code`
+**Ràng buộc & Index:** `uk_plans_code`, `fk_sp_parent_plan`, `fk_sp_target_tenant`, `idx_sp_status_custom_archived`, `idx_sp_target_tenant_id`
 
 ---
 
-## 3. `tenant_subscriptions` — Đăng ký gói của tenant
+## 3. `tenant_subscriptions` — Thuê bao của Tenant (Tier 2 Tenant Subscription Instance)
 
-Entity `TenantSubscription`. Ghi nhận gói mà một tenant đang dùng trong một khoảng thời gian.
+Entity `TenantSubscription`. Ghi nhận hợp đồng thuê bao của từng Tenant kèm bản chụp (Snapshot) toàn bộ giá và hạn mức tài nguyên tại thời điểm mua, vòng đời trạng thái (`TRIAL` → `ACTIVE` → `PAST_DUE` → `SUSPENDED` → `CANCELED`) và khấu trừ nâng/hạ cấp (V27).
 
 | Cột | Kiểu | Khoá | Null | Default | Mô tả |
 |---|---|---|---|---|---|
 | `id` | BIGINT IDENTITY | PK | Không | auto | |
-| `tenant_id` | BIGINT | FK → `tenants.id` | Không | — | Doanh nghiệp đăng ký |
-| `plan_id` | BIGINT | FK → `subscription_plans.id` | Không | — | Gói được áp dụng |
-| `status` | VARCHAR(32) | | Không | `'ACTIVE'` | Trạng thái đăng ký (`PENDING`, `ACTIVE`, `EXPIRED`, `CANCELLED`) |
-| `starts_at` | TIMESTAMP | | Không | now | Thời điểm bắt đầu hiệu lực |
-| `ends_at` | TIMESTAMP | | Có | NULL | Thời điểm hết hạn; NULL nghĩa là vô thời hạn |
-| `auto_renew` | BOOLEAN | | Không | TRUE | Tự động gia hạn |
+| `tenant_id` | BIGINT | FK → `tenants.id`, IDX | Không | — | Doanh nghiệp đăng ký |
+| `plan_id` | BIGINT | FK → `subscription_plans.id` | Không | — | Gói gốc tham chiếu |
+| `plan_code_snapshot` | VARCHAR(64) | | Có | NULL | Snapshot mã gói tại thời điểm mua (V27) |
+| `plan_name_snapshot` | VARCHAR(128) | | Có | NULL | Snapshot tên gói tại thời điểm mua (V27) |
+| `plan_version_snapshot` | INT | | Có | 1 | Snapshot phiên bản gói tại thời điểm mua (V27) |
+| `contracted_price_yearly`| DECIMAL(15,2) | | Có | NULL | Giá hợp đồng cam kết theo năm (VNĐ) tại thời điểm mua (V27) |
+| `snapshot_max_jobs` | INT | | Có | NULL | Snapshot hạn mức tin tuyển dụng đang mở (V27) |
+| `snapshot_max_cv_parses`| INT | | Có | NULL | Snapshot hạn mức lượt AI CV Parse / tháng (V27) |
+| `snapshot_max_ai_interview_hours` | INT | | Có | NULL | Snapshot hạn mức giờ phỏng vấn AI Voice (V27) |
+| `snapshot_max_storage_gb`| INT | | Có | NULL | Snapshot hạn mức dung lượng lưu trữ GB (V27) |
+| `snapshot_max_proctoring_hours` | INT | | Có | NULL | Snapshot hạn mức giờ giám sát thi AI Proctoring (V27) |
+| `snapshot_video_retention_days` | INT | | Có | NULL | Snapshot số ngày lưu trữ video phỏng vấn (V27) |
+| `snapshot_features_json`| JSONB | | Có | NULL | Snapshot JSON danh sách tính năng cam kết trong hợp đồng (V27) |
+| `status` | VARCHAR(32) | IDX | Không | `'ACTIVE'` | Trạng thái vòng đời (`TRIAL`, `PENDING`, `ACTIVE`, `PAST_DUE`, `SUSPENDED`, `CANCELED`, `EXPIRED`) |
+| `starts_at` | TIMESTAMP | | Không | now | Thời điểm bắt đầu chu kỳ |
+| `ends_at` | TIMESTAMP | IDX | Có | NULL | Thời điểm kết thúc chu kỳ; NULL nghĩa là vô thời hạn |
+| `grace_period_ends_at` | TIMESTAMP | | Có | NULL | Thời hạn ân hạn thanh toán (3-7 ngày) khi ở trạng thái `PAST_DUE` (V27) |
+| `auto_renew` | BOOLEAN | | Không | TRUE | Tự động gia hạn cuối kỳ |
+| `next_plan_id` | BIGINT | FK → `subscription_plans.id` | Có | NULL | Gói dự kiến áp dụng vào cuối chu kỳ khi khách hàng Downgrade (V27, SET NULL) |
+| `prorated_credit_amount`| DECIMAL(15,2) | | Không | 0.00 | Số tiền khấu trừ những ngày chưa dùng khi Upgrade giữa kỳ (V27) |
+| `upgraded_from_subscription_id` | BIGINT | FK → `tenant_subscriptions.id` | Có | NULL | Thuê bao cũ trước khi nâng cấp (V27, SET NULL) |
+| `canceled_at` | TIMESTAMP | | Có | NULL | Thời điểm hủy thuê bao (V27) |
+| `cancel_reason` | VARCHAR(512) | | Có | NULL | Lý do hủy thuê bao hoặc chuyển đổi gói (V27) |
 | `created_at` | TIMESTAMP | | Không | now | |
 | `updated_at` | TIMESTAMP | | Không | now | |
 
-**Ràng buộc:** `fk_ts_tenant`, `fk_ts_plan`
+**Ràng buộc & Index:** `fk_ts_tenant`, `fk_ts_plan`, `fk_ts_next_plan`, `fk_ts_upgraded_from`, `idx_ts_tenant_status`, `idx_ts_ends_at_status`
+
 
 ---
 
@@ -130,6 +153,9 @@ Entity `Invoice`. Quản lý hóa đơn dịch vụ, snapshot thông tin pháp l
 | `billing_legal_name` | VARCHAR(255) | | Có | NULL | Snapshot Tên pháp nhân tại thời điểm xuất HĐ |
 | `billing_address` | VARCHAR(512) | | Có | NULL | Snapshot Địa chỉ tại thời điểm xuất HĐ |
 | `notes` | TEXT | | Có | NULL | Ghi chú hóa đơn |
+| `terms_accepted` | BOOLEAN | | Không | FALSE | Cờ xác nhận đồng ý Điều khoản dịch vụ & BVDLCN (V25) |
+| `terms_version` | VARCHAR(32) | | Có | NULL | Phiên bản văn bản pháp lý tại thời điểm đặt hàng (V25) |
+| `terms_accepted_at` | TIMESTAMP | | Có | NULL | Thời điểm khách hàng tích chọn đồng ý (V25) |
 | `created_at` | TIMESTAMP | | Không | now | Thời điểm phát hành |
 | `updated_at` | TIMESTAMP | | Không | now | Thời điểm cập nhật trạng thái gần nhất (V23) |
 
@@ -186,7 +212,7 @@ Entity `PaymentTransaction`. Lưu trữ đối soát toàn bộ giao dịch từ
 
 ## 7. `contracts` — Hợp đồng B2B điện tử
 
-Entity `Contract`. Quản lý hợp đồng thương mại điện tử, tuân thủ pháp lý Việt Nam, phục vụ ký số OTP/CA Token.
+Entity `Contract`. Quản lý hợp đồng thương mại điện tử, tuân thủ pháp lý Việt Nam, phục vụ ký số qua Dropbox Sign API (HelloSign) kèm Audit Trail & SHA-256 checksum.
 
 | Cột | Kiểu | Khoá | Null | Default | Mô tả |
 |---|---|---|---|---|---|
@@ -226,8 +252,13 @@ Entity `Contract`. Quản lý hợp đồng thương mại điện tử, tuân t
 | `token_expires_at` | TIMESTAMP | | Có | NULL | Thời hạn của token ký |
 | `sent_at` | TIMESTAMP | | Có | NULL | Thời điểm gửi hợp đồng cho đối tác |
 | `client_ip` | VARCHAR(64) | | Có | NULL | IP người ký hợp đồng |
+| `esign_provider` | VARCHAR(32) | | Có | `'DROPBOX_SIGN'` | Nhà cung cấp chữ ký số (`DROPBOX_SIGN`, V26) |
+| `external_signature_request_id` | VARCHAR(128) | IDX | Có | NULL | Mã yêu cầu ký `signature_request_id` từ Dropbox Sign (V26) |
+| `esign_details_url` | VARCHAR(512) | | Có | NULL | URL chi tiết hợp đồng trên Dropbox Sign (V26) |
+| `esign_test_mode` | BOOLEAN | | Không | TRUE | Cờ chế độ thử nghiệm Sandbox Dropbox Sign (V26) |
+| `signed_pdf_bytes` | BYTEA | | Có | NULL | Nội dung file PDF hợp đồng đã ký kèm trang Audit Trail (V26) |
 | `status` | VARCHAR(32) | IDX | Không | `'DRAFT'` | Trạng thái (`DRAFT`, `PENDING_SIGNATURE`, `SIGNED`, `EXPIRED`, `TERMINATED`) |
-| `sign_method` | VARCHAR(32) | | Có | NULL | Phương thức ký (`DIGITAL_TOKEN_CA`, `E_SIGN_ONLINE`, `UPLOAD_SIGNED_PDF`) |
+| `sign_method` | VARCHAR(32) | | Có | NULL | Phương thức ký (`DROPBOX_SIGN`, `UPLOAD_SIGNED_PDF`) |
 | `signed_at` | TIMESTAMP | | Có | NULL | Thời điểm hoàn tất ký |
 | `signed_document_url` | VARCHAR(512) | | Có | NULL | Đường dẫn file PDF hợp đồng đã ký |
 | `document_checksum` | VARCHAR(128) | | Có | NULL | SHA-256 Checksum đảm bảo tính toàn vẹn của hợp đồng |
@@ -236,7 +267,7 @@ Entity `Contract`. Quản lý hợp đồng thương mại điện tử, tuân t
 | `created_at` | TIMESTAMP | | Không | now | |
 | `updated_at` | TIMESTAMP | | Không | now | |
 
-**Ràng buộc & Index:** `fk_contract_tenant`, `fk_contract_plan`, `fk_contract_lead`, `idx_contracts_tenant`, `idx_contracts_status`, `idx_contracts_number`, `idx_contracts_signing_token`
+**Ràng buộc & Index:** `fk_contract_tenant`, `fk_contract_plan`, `fk_contract_lead`, `idx_contracts_tenant`, `idx_contracts_status`, `idx_contracts_number`, `idx_contracts_signing_token`, `idx_contracts_external_sig_req_id`
 
 ---
 
@@ -249,13 +280,14 @@ Entity `ContractSignature`. Chi tiết từng bên ký số trên hợp đồng 
 | `id` | BIGINT IDENTITY | PK | Không | auto | |
 | `contract_id` | BIGINT | FK → `contracts.id` | Không | — | Hợp đồng ký (CASCADE khi xóa HĐ) |
 | `signer_name` | VARCHAR(255) | | Không | — | Họ tên người ký |
-| `signer_email` | VARCHAR(255) | | Không | — | Email người ký nhận OTP |
+| `signer_email` | VARCHAR(255) | | Không | — | Email người ký nhận yêu cầu ký |
 | `signer_title` | VARCHAR(128) | | Không | — | Chức danh người ký |
-| `status` | VARCHAR(32) | | Không | `'PENDING'` | Trạng thái (`PENDING`, `SIGNED`, `REJECTED`) |
+| `status` | VARCHAR(32) | | Không | `'PENDING'` | Trạng thái (`PENDING`, `SIGNED`, `REJECTED`, `DECLINED`) |
 | `signed_at` | TIMESTAMP | | Có | NULL | Thời điểm ký thành công |
-| `otp_code` | VARCHAR(10) | | Có | NULL | Mã OTP xác thực ký số |
-| `otp_expires_at` | TIMESTAMP | | Có | NULL | Hạn OTP |
+| `otp_code` | VARCHAR(10) | | Có | NULL | Mã OTP (legacy) |
+| `otp_expires_at` | TIMESTAMP | | Có | NULL | Hạn OTP (legacy) |
 | `client_ip` | VARCHAR(64) | | Có | NULL | IP thực hiện ký |
+| `external_signature_id` | VARCHAR(128) | | Có | NULL | Mã chữ ký `signature_id` của từng người ký trên Dropbox Sign (V26) |
 | `created_at` | TIMESTAMP | | Không | now | Thời điểm phát hành lượt ký (V23) |
 | `updated_at` | TIMESTAMP | | Không | now | Thời điểm cập nhật lượt ký (V23) |
 
@@ -427,3 +459,71 @@ Entity `MasterNotificationLog`. Ghi vết việc gửi email/thông báo cấp s
 | `sent_at` | TIMESTAMP | IDX | Không | now | Thời điểm gửi (có Index DESC từ V23) |
 
 **Index:** `idx_mnl_tenant_code`, `idx_mnl_status`, `idx_mnl_sent_at`
+
+---
+
+## 17. `master_consent_logs` — Nhật ký đồng thuận pháp lý Click-wrap (ToS & NĐ 13/2023/NĐ-CP)
+
+Entity `MasterConsentLog`. Bảng kiểm toán bằng chứng pháp lý bất biến khi khách hàng tự tay tích chọn đồng ý với Điều khoản Dịch vụ (`TERMS_OF_SERVICE`) và Chính sách Bảo vệ Dữ liệu Cá nhân (`PRIVACY_POLICY_ND13`) tại luồng Self-serve Checkout (V25).
+
+| Cột | Kiểu | Khoá | Null | Default | Mô tả |
+|---|---|---|---|---|---|
+| `id` | BIGINT IDENTITY | PK | Không | auto | Định danh bản ghi consent |
+| `tenant_id` | BIGINT | FK → `tenants.id`, IDX | Có | NULL | Doanh nghiệp đặt mua (`ON DELETE SET NULL` để giữ bằng chứng kiểm toán) |
+| `invoice_id` | BIGINT | FK → `invoices.id`, IDX | Có | NULL | Đơn hàng / hóa đơn phát sinh (`ON DELETE SET NULL`) |
+| `actor_name` | VARCHAR(255) | | Không | — | Họ tên người đại diện thực hiện thao tác |
+| `actor_email` | VARCHAR(255) | IDX | Không | — | Email người đại diện thực hiện thao tác |
+| `policy_type` | VARCHAR(64) | | Không | — | Loại văn bản (`TERMS_OF_SERVICE`, `PRIVACY_POLICY_ND13`) |
+| `policy_version` | VARCHAR(32) | | Không | — | Phiên bản điều khoản tại thời điểm tích chọn (vd: `v2026.10`) |
+| `is_accepted` | BOOLEAN | | Không | TRUE | Trạng thái đồng thuận (`TRUE`) |
+| `ip_address` | VARCHAR(64) | | Không | — | Địa chỉ IP thực của khách hàng do Backend trích xuất |
+| `user_agent` | TEXT | | Có | NULL | Thông tin trình duyệt và thiết bị (`User-Agent` header) |
+| `consent_context` | VARCHAR(64) | | Không | `'SELF_SERVE_CHECKOUT'` | Ngữ cảnh phát sinh đồng thuận |
+| `created_at` | TIMESTAMP | IDX | Không | now | Thời điểm chính xác ghi nhận tại Server |
+
+**Ràng buộc & Index:** `fk_mcl_tenant (ON DELETE SET NULL)`, `fk_mcl_invoice (ON DELETE SET NULL)`, `idx_mcl_tenant_id`, `idx_mcl_invoice_id`, `idx_mcl_actor_email`, `idx_mcl_created_at`
+
+---
+
+## 18. `ai_model_pricings` — Bảng đơn giá Model AI (V28)
+
+Entity `AiModelPricing`. Lưu đơn giá Input / Output (USD trên mỗi 1 triệu token) theo từng nhà cung cấp và model để phục vụ tính chi phí nội bộ thực tế.
+
+| Cột | Kiểu | Khoá | Null | Default | Mô tả |
+|---|---|---|---|---|---|
+| `id` | BIGINT IDENTITY | PK | Không | auto | Định danh bảng giá |
+| `provider` | VARCHAR(50) | UQ, IDX | Không | — | Nhà cung cấp (`GEMINI`, `OPENAI`, `ANTHROPIC`, `DEEPSEEK`, `HUGGINGFACE`) |
+| `model_name` | VARCHAR(100) | UQ | Không | — | Tên model (`gemini-2.5-flash`, `gpt-4o-mini`, v.v.) |
+| `input_price_per_1m_tokens` | DECIMAL(12,4) | | Không | `0.0000` | Đơn giá USD trên 1M prompt tokens |
+| `output_price_per_1m_tokens` | DECIMAL(12,4) | | Không | `0.0000` | Đơn giá USD trên 1M completion tokens |
+| `is_active` | BOOLEAN | | Không | `TRUE` | Trạng thái áp dụng |
+| `updated_at` | TIMESTAMP | | Không | now | Thời điểm cập nhật gần nhất |
+
+**Ràng buộc & Index:** `uk_ai_model_pricings_provider_model (provider, model_name)`, `idx_ai_model_pricings_provider`
+
+---
+
+## 19. `tenant_ai_usage_daily` — Thống kê tiêu thụ & chi phí AI chi tiết theo ngày (V28)
+
+Entity `TenantAiUsageDaily`. Lưu số lượt gọi AI, tổng prompt/completion tokens, độ trễ và chi phí USD ước tính theo từng tenant, ngày, tác vụ (`task_type`) và model (`model_name`).
+
+| Cột | Kiểu | Khoá | Null | Default | Mô tả |
+|---|---|---|---|---|---|
+| `id` | BIGINT IDENTITY | PK | Không | auto | Định danh bản ghi |
+| `tenant_id` | BIGINT | FK → `tenants.id`, UQ, IDX | Không | — | Doanh nghiệp tiêu thụ (`ON DELETE CASCADE`) |
+| `usage_date` | DATE | UQ, IDX | Không | — | Ngày ghi nhận (UTC/Server) |
+| `task_type` | VARCHAR(50) | UQ | Không | — | Tác vụ AI (`CV_PARSING`, `INTERVIEW_GEN`, `INTERVIEW_NLP`, `MATCHING`, `CODE_GRADING`) |
+| `provider` | VARCHAR(50) | UQ | Không | — | Nhà cung cấp AI đã gọi |
+| `model_name` | VARCHAR(100) | UQ | Không | — | Model thực tế đã xử lý |
+| `total_requests` | INT | | Không | `0` | Tổng số request gọi AI trong ngày |
+| `failed_requests` | INT | | Không | `0` | Số request lỗi |
+| `total_prompt_tokens` | BIGINT | | Không | `0` | Tổng lượng prompt tokens tiêu thụ |
+| `total_completion_tokens` | BIGINT | | Không | `0` | Tổng lượng completion tokens sinh ra |
+| `estimated_cost_usd` | DECIMAL(12,6) | | Không | `0.000000` | Chi phí USD ước tính cộng dồn |
+| `total_latency_ms` | BIGINT | | Không | `0` | Tổng thời gian phản hồi (ms) để tính độ trễ trung bình |
+| `created_at` | TIMESTAMP | | Không | now | |
+| `updated_at` | TIMESTAMP | | Không | now | |
+
+**Ràng buộc & Index:** `fk_taud_tenant (ON DELETE CASCADE)`, `uk_tenant_ai_usage_daily_dim (tenant_id, usage_date, task_type, provider, model_name)`, `idx_taud_tenant_date (tenant_id, usage_date)`, `idx_taud_usage_date (usage_date)`
+
+

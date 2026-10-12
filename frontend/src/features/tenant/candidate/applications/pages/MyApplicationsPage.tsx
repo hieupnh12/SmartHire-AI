@@ -6,33 +6,32 @@ import { applicantApi } from "@/api/tenant/applicantApi";
 import { EmptyState } from "@/components/ux/EmptyState";
 import { LoadingState, SkeletonCard } from "@/components/ux/Skeleton";
 import { ApplicationCard } from "../components/ApplicationCard";
+import { WithdrawDialog } from "../components/WithdrawDialog";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 import { getApiErrorMessage } from "@/lib/axios";
 import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
-import { useUiStore } from "@/stores/uiStore";
-
 const STATUS_LABELS: Record<ApplicationStatus, string> = {
   NEW: "Đã nộp", IN_REVIEW: "Đang xem xét", ASSESSMENT: "Bài đánh giá", INTERVIEW: "Phỏng vấn AI", HUMAN_INTERVIEW: "Phỏng vấn trực tiếp",
-  OFFER: "Đề nghị nhận việc", HIRED: "Đã tuyển", REJECTED: "Không phù hợp", WITHDRAWN: "Đã rút",
+  OFFER: "Đề nghị nhận việc", HIRED: "Đã tuyển", REJECTED: "Không phù hợp", FAILED: "Kết thúc quy trình", WITHDRAWN: "Đã rút",
 };
 
 const FILTERS: { value: "ALL" | ApplicationStatus; label: string }[] = [
   { value: "ALL", label: "Tất cả" }, { value: "NEW", label: "Đã nộp" },
   { value: "IN_REVIEW", label: "Đang xem xét" }, { value: "ASSESSMENT", label: "Bài đánh giá" },
   { value: "INTERVIEW", label: "Phỏng vấn AI" }, { value: "HUMAN_INTERVIEW", label: "Phỏng vấn trực tiếp" }, { value: "OFFER", label: "Đề nghị" },
-  { value: "HIRED", label: "Đã tuyển" }, { value: "REJECTED", label: "Không phù hợp" },
+  { value: "HIRED", label: "Đã tuyển" }, { value: "REJECTED", label: "Không phù hợp" }, { value: "FAILED", label: "Kết thúc quy trình" },
 ];
 
 export function MyApplicationsPage() {
   const token = useAuthStore((state) => state.accessToken);
-  const askConfirm = useUiStore((state) => state.askConfirm);
   const queryClient = useQueryClient();
   const [status, setStatus] = useState<"ALL" | ApplicationStatus>("ALL");
   const [search, setSearch] = useState("");
   const mine = useQuery({ queryKey: queryKeys.applicants.mine, queryFn: applicantApi.mine, enabled: Boolean(token) });
+  const [withdrawTarget, setWithdrawTarget] = useState<{ id: number; title: string } | null>(null);
   const withdraw = useMutation({
-    mutationFn: (id: number) => applicantApi.withdraw(id),
+    mutationFn: ({ id, reason }: { id: number; reason?: string }) => applicantApi.withdraw(id, reason),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.applicants.mine }),
   });
 
@@ -45,14 +44,6 @@ export function MyApplicationsPage() {
         .filter(Boolean).some((value) => value!.toLocaleLowerCase("vi-VN").includes(keyword)))
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [activeRows, search, status]);
-
-  const confirmWithdraw = (id: number, title: string) => askConfirm({
-    title: "Rút đơn ứng tuyển?",
-    description: `Đơn ứng tuyển “${title}” sẽ được rút và không còn xuất hiện trong danh sách của bạn.`,
-    danger: true,
-    confirmLabel: "Rút đơn",
-    onConfirm: async () => { await withdraw.mutateAsync(id); },
-  });
 
   return (
     <section className="space-y-6 text-[var(--color-on-surface)]" aria-labelledby="applications-title">
@@ -73,13 +64,17 @@ export function MyApplicationsPage() {
 
       {mine.isPending && <LoadingState className="grid gap-4 lg:grid-cols-2" label="Đang tải đơn ứng tuyển">{[0, 1, 2, 3].map((item) => <SkeletonCard key={item} className="min-h-64" />)}</LoadingState>}
       {mine.isError && <p role="alert" className="rounded-xl bg-[var(--color-error-container)] p-4 text-sm text-[var(--color-on-error-container)]">{getApiErrorMessage(mine.error)}</p>}
-      {withdraw.isError && <p role="alert" className="rounded-xl bg-[var(--color-error-container)] p-4 text-sm text-[var(--color-on-error-container)]">{getApiErrorMessage(withdraw.error)}</p>}
       {mine.isSuccess && activeRows.length === 0 && <EmptyState title="Bạn chưa có đơn ứng tuyển" description="Khám phá các vị trí đang tuyển và nộp CV cho công việc phù hợp với bạn." />}
       {mine.isSuccess && activeRows.length > 0 && rows.length === 0 && <EmptyState title="Không tìm thấy đơn phù hợp" description="Thử thay đổi từ khóa hoặc chọn trạng thái khác." />}
 
       {rows.length > 0 && <ul className="grid gap-4 lg:grid-cols-2">{rows.map((row) =>
-        <ApplicationCard key={row.id} row={row} statusLabel={STATUS_LABELS[row.status]} withdrawing={withdraw.isPending} onWithdraw={() => confirmWithdraw(row.id, row.jobTitle)} />,
+        <ApplicationCard key={row.id} row={row} statusLabel={STATUS_LABELS[row.status]} withdrawing={withdraw.isPending} onWithdraw={() => setWithdrawTarget({ id: row.id, title: row.jobTitle })} />,
       )}</ul>}
+      <WithdrawDialog
+        jobTitle={withdrawTarget?.title ?? null}
+        onClose={() => setWithdrawTarget(null)}
+        onConfirm={(reason) => withdraw.mutateAsync({ id: withdrawTarget!.id, reason })}
+      />
     </section>
   );
 }
