@@ -53,7 +53,7 @@ Recruiter set `deadline` (ngày giờ). Hết hạn → job đóng, tự phân t
 
 - Job feed tại `/recruiter` hiển thị cố định dạng bảng với dữ liệu thật về phòng ban, chế độ lọc CV và funnel theo trạng thái ứng viên. Recruiter có thể chọn số job mỗi trang và điều hướng trực tiếp giữa các trang. `AUTO`: hệ thống quyết định qua vòng CV sau hạn tuyển; `MANUAL`: AI chấm điểm, recruiter xác nhận quyết định. Job cũ mặc định `MANUAL`.
 
-- Recruiter: `/recruiter/jobs`, `/recruiter/jobs/new`, `/recruiter/jobs/:id`
+- Recruiter: `/recruiter` (danh sách job), `/recruiter/jobs/new`, `/recruiter/jobs/:id`. Trang `/recruiter/jobs` đã bỏ và tự chuyển về `/recruiter`; `/recruiter?status=draft` lọc sẵn bản nháp, `/recruiter?status=expiring` lọc job đang tuyển hết hạn trong 7 ngày. Hủy tạo job hoặc xóa job đều quay về `/recruiter`.
 - Khi mở chi tiết từ bảng tin tuyển dụng, thanh điều hướng giữ `Việc làm` là mục chính; không hiển thị `Bảng điều khiển` trong thanh điều hướng của trang chức năng.
 - Trang chi tiết job có nút menu ở đầu header để mở panel điều hướng gồm liên kết chung và các job được tạo gần đây.
 

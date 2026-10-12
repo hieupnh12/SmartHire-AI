@@ -368,7 +368,7 @@ export function QuestionBankPage() {
                 </button>
               );
             })}
-            <Link to="/recruiter/jobs" className="mt-2 flex items-center justify-center gap-2 rounded-lg bg-[var(--color-surface-container)] px-3 py-2 text-sm font-semibold text-[var(--color-primary)] hover:bg-[var(--color-surface-container-high)]">
+            <Link to="/recruiter" className="mt-2 flex items-center justify-center gap-2 rounded-lg bg-[var(--color-surface-container)] px-3 py-2 text-sm font-semibold text-[var(--color-primary)] hover:bg-[var(--color-surface-container-high)]">
               Quản lý vị trí tuyển dụng
             </Link>
           </div>

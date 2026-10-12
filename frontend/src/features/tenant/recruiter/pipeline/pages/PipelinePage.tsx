@@ -196,5 +196,5 @@ export function PipelineBoard() {
 
 export function PipelinePage() {
   const { id } = useParams<{ id: string }>();
-  return <Navigate to={id ? `/recruiter/jobs/${id}/applicants?view=board` : "/recruiter/jobs"} replace />;
+  return <Navigate to={id ? `/recruiter/jobs/${id}/applicants?view=board` : "/recruiter"} replace />;
 }
