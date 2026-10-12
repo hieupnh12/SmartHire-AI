@@ -35,7 +35,9 @@ export function buildCalendarEvents({ applications, details, aiInterviews, human
     if (!app) continue;
     const base = { jobId: app.jobId, jobTitle: interview.jobTitle ?? app.jobTitle, link: `/interviews/${interview.id}` };
     const attempt = interview.attemptNumber && interview.attemptNumber > 1 ? ` (lượt ${interview.attemptNumber})` : "";
-    events.push({ ...base, id: `ai-${interview.id}`, kind: "AI_INTERVIEW", at: new Date(interview.createdAt), title: `Mời phỏng vấn AI${attempt}` });
+    const invitedAt = new Date(interview.createdAt);
+    const closedAt = new Date(interview.completedAt ?? interview.availableUntil ?? "");
+    events.push({ ...base, id: `ai-${interview.id}`, kind: "AI_INTERVIEW", at: invitedAt, end: closedAt > invitedAt ? closedAt : undefined, title: `Mời phỏng vấn AI${attempt}` });
     if (interview.completedAt) {
       events.push({ ...base, id: `ai-done-${interview.id}`, kind: "AI_INTERVIEW", at: new Date(interview.completedAt), title: `Hoàn thành phỏng vấn AI${attempt}`, detail: interview.overallScore != null ? `Điểm: ${interview.overallScore}/100` : undefined });
     } else if (interview.availableUntil) {
@@ -51,7 +53,7 @@ export function buildCalendarEvents({ applications, details, aiInterviews, human
       at: new Date(interview.start), end: new Date(interview.end),
       title: `Phỏng vấn ${humanRoundLabels[interview.round] ?? interview.round}`,
       detail: interview.mode === "ONLINE" ? "Trực tuyến" : interview.location ?? undefined,
-      jobId: interview.jobId, jobTitle: interview.jobTitle, link: "/schedules#human-interviews",
+      jobId: interview.jobId, jobTitle: interview.jobTitle, link: "/interview-schedules",
     });
   }
 

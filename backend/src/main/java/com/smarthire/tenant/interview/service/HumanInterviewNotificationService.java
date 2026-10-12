@@ -42,7 +42,7 @@ public class HumanInterviewNotificationService {
             body=json.writeValueAsString(new EmailContent(title+"\n\n"+preview.body(),r.configuration().attachCalendar()?HumanInterviewCalendar.export(List.of(r)):null));
         } catch(Exception ex) { throw new IllegalStateException("Cannot queue interview email",ex); }
         if (candidate != null) {
-            String candidatePath="/schedules";
+            String candidatePath="/interview-schedules";
             if(!preferences.webOff(candidate,NotificationCategory.HUMAN_INTERVIEW)) {
                 notifications.save(Notification.builder().candidate(candidate).type(type).title(title).body(r.jobTitle()).payloadJson("{\"interviewId\":"+r.id()+",\"path\":\""+candidatePath+"\"}").build());
             }

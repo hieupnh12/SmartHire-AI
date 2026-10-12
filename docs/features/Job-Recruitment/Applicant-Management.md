@@ -22,15 +22,18 @@ Quản lý application theo job: apply từ candidate, lọc/phân trang, hồ s
 5. Candidate theo dõi `GET /applications/me` (không gồm `WITHDRAWN`). Upload PDF/DOCX (≤10MB) tại `/cv`; recruiter chọn job → chọn ứng viên → xem file CV và `POST /cvs/{id}/parse` để phân tích AI theo JD.
 6. Chi tiết application trả `rounds` (CV / phỏng vấn AI / bài kiểm tra) từ dữ liệu thật. CV đạt ngưỡng → chuyển `INTERVIEW` và gửi mail mời `/interviews`.
 7. Recruiter bấm ứng viên trên danh sách → dialog hồ sơ (không còn panel chung trang). Sàng lọc CV cũng mở dialog.
+8. Candidate mở `/applications/:id` → bấm thẻ vòng (Sàng lọc CV / Phỏng vấn AI / Bài đánh giá) để mở panel "Chi tiết đánh giá" của vòng đó ngay bên dưới, bấm lại để đóng (`GET /applications/{id}/evaluation`): CV (điểm / ngưỡng, nhận xét AI, kỹ năng đáp ứng / một phần / còn thiếu kèm nhãn bắt buộc, kinh nghiệm & học vấn so với yêu cầu); Phỏng vấn AI và Bài đánh giá liệt kê mọi lượt, mới nhất trước, mỗi lượt có điểm / ngưỡng / kết quả và số điểm còn thiếu khi rớt. Phỏng vấn AI thêm tổng quan, điểm mạnh, cần cải thiện, điểm theo tiêu chí khi có.
 
 ## Business Rules
 
 - 1 application / (job, candidate). Flag `duplicate` khi ứng viên có >1 application trên tenant.
 - Recruiter chỉ job staff được truy cập.
-- CV `retain_until` = 24 tháng; sau hạn `410 CV_EXPIRED`.
+- CV `retain_until` = 24 tháng; sau hạn `410 CV_EXPIRED`. Từ 2026-10-12: khi đơn kết thúc, hạn lưu CV của đơn còn 180 ngày và job định kỳ xoá file sau hạn.
+- Từ 2026-10-12: mỗi ứng viên chỉ một đơn đang xét; trượt CV → `REJECTED` (không nộp lại job đó); chỉ rút đơn trước khi có kết quả lọc CV; `restore` chỉ bỏ lưu trữ. Chi tiết: [Candidate-Status.md](../Recruitment-Workflow/Candidate-Status.md#quy-tắc-ứng-tuyển-phía-ứng-viên-2026-10-12).
 - Recruiter không `POST /cvs`.
 - Recruiter không tạo ứng viên thủ công trên UI. List quản lý ứng viên không hiện `WITHDRAWN`.
 - CV screening đạt → gửi một lần email mời phỏng vấn AI; không gửi lại nếu `ai_interview_invited_at` đã có.
+- Đánh giá cho candidate chỉ ở mức tóm tắt: không trả trọng số nội bộ, không trả chi tiết từng câu. Chi tiết từng câu phỏng vấn AI chỉ xem ở `/interviews/:id` và tuân theo cấu hình "xem lại sau phỏng vấn" của job. Chỉ chủ đơn (candidate) gọi được; người khác nhận `404 APPLICATION_NOT_FOUND`.
 
 ## API liên quan
 
@@ -45,10 +48,11 @@ Quản lý application theo job: apply từ candidate, lọc/phân trang, hồ s
 | POST | `/api/v1/applications/{id}/status` · `/reject` · `/archive` · `/restore` · `/withdraw` |
 | POST | `/api/v1/applications/{id}/cv-screening-decision` — recruiter cho qua / không đạt vòng CV (job `MANUAL`) |
 | GET | `/api/v1/applications/{id}/history` |
+| GET | `/api/v1/applications/{id}/evaluation` — candidate xem lý do điểm / đạt / rớt từng vòng (mọi lượt, mới nhất trước) |
 
 ## Database liên quan
 
-- `applications` (+ referral, tags, assignee, archived_at, reject_reason, withdrawn_at, ai_interview_invited_at)
+- `applications` (+ referral, tags, assignee, archived_at, reject_reason, withdrawn_at, withdraw_reason (V52), ai_interview_invited_at)
 - `application_status_history`
 - `email_outbox` (audit lời mời phỏng vấn AI)
 - `cvs.retain_until`

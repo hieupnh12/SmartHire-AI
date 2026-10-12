@@ -48,5 +48,7 @@ public class Application extends BaseEntity {
 
     @Column(name = "withdrawn_at") Instant withdrawnAt;
 
+    @Column(name = "withdraw_reason", length = 255) String withdrawReason;
+
     @Column(name = "ai_interview_invited_at") Instant aiInterviewInvitedAt;
 }

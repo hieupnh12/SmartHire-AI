@@ -52,7 +52,7 @@ const STATUS_STYLE: Record<JobStatus, string> = {
   ARCHIVED: "bg-slate-100 text-slate-500",
 };
 const EMPLOYMENT_LABEL: Record<string, string> = { FULL_TIME: "Toàn thời gian", PART_TIME: "Bán thời gian", CONTRACT: "Hợp đồng", INTERNSHIP: "Thực tập" };
-const WORK_MODE_LABEL: Record<string, string> = { ONSITE: "Tại văn phòng", HYBRID: "Hybrid", REMOTE: "Từ xa" };
+const WORK_MODE_LABEL: Record<string, string> = { ONSITE: "Tại văn phòng", HYBRID: "Kết hợp", REMOTE: "Từ xa" };
 const iconButton = "grid size-9 place-items-center rounded-lg text-[var(--color-on-surface-variant)] transition-colors hover:bg-[var(--color-primary-soft)] hover:text-brand-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-primary";
 
 export function JobsPage() {

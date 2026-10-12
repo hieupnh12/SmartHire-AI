@@ -25,7 +25,7 @@ Xếp hạng hồ sơ ứng tuyển của một Job bằng hai tầng trọng s�
 
 - Chỉ `RECRUITER` sở hữu Job được truy cập; Candidate và Recruiter khác không được xem. Tenant trong JWT phải khớp header/subdomain. Mọi query dùng Hibernate tenant context.
 - Ba bước xử lý: chuẩn hóa/phân nhóm → tương đồng và độ bao phủ → tổng hợp có trọng số. Xem [CV-05](../CV-Screening/Matching-Score.md) và [RANK-03](Overall-Candidate-Score.md).
-- Chỉ CV `ANALYZED`, attempt `GRADED`, interview `SCORED` mới cung cấp điểm. Nguồn phải liên kết đúng application, Job và ứng viên; interview hiện liên kết application qua CV.
+- Chỉ CV `ANALYZED`, submission `GRADED`, AI interview đã chấm (`PASSED`/`FAILED` — kết quả của luồng chấm điểm, hoặc `SCORED`) mới cung cấp điểm; `FAILED` vẫn có `overall_score` hợp lệ. Interview `ERROR` hiển thị `FAILED`, các trạng thái khác là `PROCESSING`. Nguồn phải liên kết đúng application, Job và ứng viên.
 - Thiếu điểm là `null`, không phải 0. Các trạng thái: `MISSING`, `PROCESSING`, `FAILED`, `SELECT_SOURCE`, `NEEDS_REVIEW`, `READY`, `DISABLED`.
 - Cohort là tập thành phần có trọng số > 0 và đã có kết quả, theo thứ tự `skills+experience+assessment+interview`. Chỉ so hạng trong cùng cohort; không chỉ so số lượng thành phần.
 - Đồng điểm hiển thị đồng hạng kiểu 1, 1, 3; thứ tự hiển thị ổn định theo application ID tăng dần. Không dùng thời điểm cập nhật làm lợi thế.

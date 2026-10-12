@@ -22,6 +22,7 @@ import com.smarthire.tenant.applicant.mapper.ApplicantMapper;
 import com.smarthire.messaging.JobPublisher;
 import com.smarthire.tenant.aiInterview.service.AiInterviewInvitationService;
 import com.smarthire.tenant.applicant.service.ApplicantService;
+import com.smarthire.tenant.applicant.service.ApplicationClosureService;
 import com.smarthire.tenant.cv.service.CvAccess;
 import com.smarthire.tenant.cv.service.CvApplicationCopyService;
 import com.smarthire.tenant.job.mapper.JobMapper;
@@ -57,6 +58,7 @@ class ApplicantServiceTest {
     @Mock JobPublisher publisher;
     @Mock GateScreeningService gateScreening;
     @Mock CvApplicationCopyService cvCopies;
+    @Mock ApplicationClosureService closures;
 
     ApplicantService service;
     Candidate candidate;
@@ -68,7 +70,7 @@ class ApplicantServiceTest {
     void setUp() {
         service = new ApplicantService(
                 applications, history, jobs, users, cvs, stages, access, new JobMapper(), new ApplicantMapper(),
-                invitations, publisher, gateScreening, cvCopies);
+                invitations, publisher, gateScreening, cvCopies, closures);
         candidate = new Candidate();
         candidate.setId(9L);
         candidate.setEmail("can@se36.local");
@@ -159,7 +161,8 @@ class ApplicantServiceTest {
         score.setBreakdownJson("{\"passed\":false}");
         when(applications.findByIdForUpdate(4L)).thenReturn(Optional.of(application));
         service.advanceFromCvScreening(cv, score);
-        assertThat(application.getStatus()).isEqualTo(ApplicationStatus.IN_REVIEW);
+        assertThat(application.getStatus()).isEqualTo(ApplicationStatus.REJECTED);
+        verify(closures).onClosed(eq(application), any());
         org.mockito.Mockito.verifyNoInteractions(invitations, access);
     }
 
@@ -233,18 +236,113 @@ class ApplicantServiceTest {
     }
 
     @Test
-    void candidateCanWithdraw() {
+    void candidateCanWithdrawBeforeCvScreening() {
         when(applications.findById(4L)).thenReturn(Optional.of(application));
+        when(applications.findByIdForUpdate(4L)).thenReturn(Optional.of(application));
         when(access.candidateActor()).thenReturn(candidate);
         when(access.candidate()).thenReturn(true);
         when(cvs.findByCandidate_IdAndJob_IdOrderByIdDesc(9L, 1L)).thenReturn(List.of());
         when(history.findByApplication_IdOrderByIdDesc(4L)).thenReturn(List.of());
         when(applications.countByCandidate_Id(9L)).thenReturn(1L);
 
-        var detail = service.withdraw(4L);
+        var detail = service.withdraw(4L, "  Found another job  ");
 
         assertThat(detail.status()).isEqualTo("WITHDRAWN");
+        assertThat(detail.withdrawReason()).isEqualTo("Found another job");
         verify(history).save(any());
+        verify(closures).onClosed(application, null);
+    }
+
+    @Test
+    void withdrawLockedOnceCvScreeningHasOutcome() {
+        application.setStatus(ApplicationStatus.IN_REVIEW);
+        application.setCvScreeningStatus(CvScreeningStatus.PASSED);
+        when(applications.findById(4L)).thenReturn(Optional.of(application));
+        when(applications.findByIdForUpdate(4L)).thenReturn(Optional.of(application));
+        when(access.candidateActor()).thenReturn(candidate);
+        when(access.candidate()).thenReturn(true);
+
+        assertThatThrownBy(() -> service.withdraw(4L, null))
+                .isInstanceOf(BusinessException.class)
+                .extracting(ex -> ((BusinessException) ex).getCode())
+                .isEqualTo("APPLICATION_WITHDRAW_LOCKED");
+        org.mockito.Mockito.verifyNoInteractions(history, closures);
+    }
+
+    @Test
+    void withdrawLockedWhenRecruiterMovedPastCvRound() {
+        application.setStatus(ApplicationStatus.INTERVIEW);
+        when(applications.findById(4L)).thenReturn(Optional.of(application));
+        when(applications.findByIdForUpdate(4L)).thenReturn(Optional.of(application));
+        when(access.candidateActor()).thenReturn(candidate);
+        when(access.candidate()).thenReturn(true);
+
+        assertThatThrownBy(() -> service.withdraw(4L, null))
+                .isInstanceOf(BusinessException.class)
+                .extracting(ex -> ((BusinessException) ex).getCode())
+                .isEqualTo("APPLICATION_WITHDRAW_LOCKED");
+    }
+
+    @Test
+    void applyBlockedWhileAnotherApplicationIsOpen() {
+        Job second = new Job();
+        second.setId(2L);
+        second.setStatus(JobStatus.PUBLISHED);
+        when(access.candidate()).thenReturn(true);
+        when(jobs.findById(2L)).thenReturn(Optional.of(second));
+        when(access.candidateActor()).thenReturn(candidate);
+        when(applications.findByJob_IdAndCandidate_Id(2L, 9L)).thenReturn(Optional.empty());
+        when(applications.findByCandidate_IdAndStatusNotIn(eq(9L), any())).thenReturn(List.of(application));
+
+        assertThatThrownBy(() -> service.apply(2L, "CAREER", null))
+                .isInstanceOf(BusinessException.class)
+                .extracting(ex -> ((BusinessException) ex).getCode())
+                .isEqualTo("APPLICATION_ACTIVE_EXISTS");
+        verify(applications, org.mockito.Mockito.never()).save(any());
+    }
+
+    @Test
+    void rejectedCandidateCannotReapplyToSameJob() {
+        application.setStatus(ApplicationStatus.FAILED);
+        when(access.candidate()).thenReturn(true);
+        when(jobs.findById(1L)).thenReturn(Optional.of(job));
+        when(access.candidateActor()).thenReturn(candidate);
+        when(applications.findByJob_IdAndCandidate_Id(1L, 9L)).thenReturn(Optional.of(application));
+
+        assertThatThrownBy(() -> service.apply(1L, "CAREER", null))
+                .isInstanceOf(BusinessException.class)
+                .extracting(ex -> ((BusinessException) ex).getCode())
+                .isEqualTo("APPLICATION_CLOSED");
+    }
+
+    @Test
+    void reapplyAfterWithdrawResetsCvRound() {
+        application.setStatus(ApplicationStatus.WITHDRAWN);
+        application.setCvScreeningStatus(CvScreeningStatus.FAILED);
+        application.setWithdrawReason("old");
+        when(access.candidate()).thenReturn(true);
+        when(jobs.findById(1L)).thenReturn(Optional.of(job));
+        when(access.candidateActor()).thenReturn(candidate);
+        when(applications.findByJob_IdAndCandidate_Id(1L, 9L)).thenReturn(Optional.of(application));
+
+        var summary = service.apply(1L, "CAREER", null);
+
+        assertThat(summary.status()).isEqualTo("NEW");
+        assertThat(summary.withdrawable()).isTrue();
+        assertThat(application.getWithdrawReason()).isNull();
+        verify(closures).onReopened(application);
+    }
+
+    @Test
+    void recruiterCannotReopenRejectedApplication() {
+        application.setStatus(ApplicationStatus.REJECTED);
+        when(applications.findById(4L)).thenReturn(Optional.of(application));
+
+        assertThatThrownBy(() -> service.changeStatus(4L, "IN_REVIEW", null))
+                .isInstanceOf(BusinessException.class)
+                .extracting(ex -> ((BusinessException) ex).getCode())
+                .isEqualTo("APPLICATION_CLOSED");
+        org.mockito.Mockito.verifyNoInteractions(history);
     }
 
     @Test
@@ -303,7 +401,8 @@ class ApplicantServiceTest {
 
         service.advanceFromCvScreening(cv, score);
 
-        assertThat(application.getStatus()).isEqualTo(ApplicationStatus.IN_REVIEW);
+        assertThat(application.getStatus()).isEqualTo(ApplicationStatus.REJECTED);
+        assertThat(application.getCvScreeningStatus()).isEqualTo(CvScreeningStatus.FAILED);
         org.mockito.Mockito.verifyNoInteractions(invitations);
     }
 
@@ -361,15 +460,17 @@ class ApplicantServiceTest {
     }
 
     @Test
-    void recruiterFailKeepsApplicationInReview() {
+    void recruiterFailRejectsApplication() {
         job.setScreeningMode(ScreeningMode.MANUAL);
         application.setStatus(ApplicationStatus.IN_REVIEW);
         stubStaffDetail();
 
         var detail = service.decideCvScreening(4L, false, null);
 
-        assertThat(detail.status()).isEqualTo("IN_REVIEW");
+        assertThat(detail.status()).isEqualTo("REJECTED");
         assertThat(detail.cvScreeningStatus()).isEqualTo("FAILED");
+        assertThat(detail.withdrawable()).isFalse();
+        verify(closures).onClosed(eq(application), any());
         org.mockito.Mockito.verifyNoInteractions(invitations);
     }
 

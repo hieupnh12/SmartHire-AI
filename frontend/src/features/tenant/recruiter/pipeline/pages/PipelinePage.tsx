@@ -21,10 +21,12 @@ const PIPELINE_COLUMNS: PipelineColumn[] = [
   { status: "OFFER", label: "Đề nghị", description: "Đang xử lý offer", accent: "bg-orange-500" },
   { status: "HIRED", label: "Đã tuyển", description: "Tuyển thành công", accent: "bg-emerald-600" },
   { status: "REJECTED", label: "Từ chối", description: "Không tiếp tục", accent: "bg-red-500" },
+  { status: "FAILED", label: "Trượt phỏng vấn AI", description: "Hết lượt phỏng vấn AI", accent: "bg-rose-700" },
   { status: "WITHDRAWN", label: "Đã rút", description: "Ứng viên chủ động rút", accent: "bg-slate-500" },
 ];
 
-const movableStatuses = PIPELINE_COLUMNS.filter((column) => column.status !== "WITHDRAWN");
+const movableStatuses = PIPELINE_COLUMNS.filter((column) => column.status !== "WITHDRAWN" && column.status !== "FAILED");
+const CLOSED_STATUSES: ApplicationStatus[] = ["REJECTED", "FAILED", "WITHDRAWN"];
 
 function initials(name: string) {
   return name.split(" ").filter(Boolean).slice(-2).map((part) => part[0]).join("").toLocaleUpperCase();
@@ -43,9 +45,8 @@ function CandidateCard({ application, pending, onOpen, onMove }: {
   onOpen: () => void;
   onMove: (status: ApplicationStatus) => void;
 }) {
-  const withdrawn = application.status === "WITHDRAWN";
-  const terminal = application.status === "HIRED" || application.status === "REJECTED";
-  const availableStatuses = terminal
+  const closed = CLOSED_STATUSES.includes(application.status);
+  const availableStatuses = application.status === "HIRED"
     ? movableStatuses.filter((column) => column.status === application.status || column.status === "IN_REVIEW")
     : movableStatuses;
   return (
@@ -65,7 +66,7 @@ function CandidateCard({ application, pending, onOpen, onMove }: {
         </div>
       </button>
       <div className="mt-3 border-t border-[var(--color-border-default)] pt-3">
-        {withdrawn ? <p className="text-[11px] leading-4 text-[var(--color-on-surface-variant)]">Chỉ ứng viên mới có thể rút hồ sơ.</p> : (
+        {closed ? <p className="text-[11px] leading-4 text-[var(--color-on-surface-variant)]">{application.status === "WITHDRAWN" ? "Ứng viên đã rút hồ sơ." : "Hồ sơ đã kết thúc, không thể mở lại."}</p> : (
           <label className="block">
             <span className="sr-only">Chuyển {application.candidateName} sang giai đoạn</span>
             <select value={application.status} disabled={pending} onChange={(event) => onMove(event.target.value as ApplicationStatus)} className="min-h-9 w-full rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-alt)] px-2 text-xs font-medium outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/15 disabled:cursor-wait disabled:opacity-60">

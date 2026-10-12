@@ -26,7 +26,7 @@ export function AssessmentsPage() {
     queryFn: applicantApi.mine,
   });
   const eligible = (applications.data?.data ?? []).filter(
-    (a) => !a.archived && ["ASSESSMENT", "INTERVIEW"].includes(a.status),
+    (a) => !a.archived && a.status === "ASSESSMENT",
   );
   const requested = Number(params.get("applicationId"));
   const application = eligible.find((a) => a.id === requested) ?? eligible[0] ?? null;
@@ -95,7 +95,7 @@ export function AssessmentsPage() {
           <ClipboardCheck className="size-8 text-[var(--color-primary)]" aria-hidden="true" />
           <div>
             <p className="font-semibold">Chưa có lời mời bài kiểm tra</p>
-            <p className={muted}>Đơn ứng tuyển cần ở vòng Assessment hoặc Interview mới hiện tại đây.</p>
+            <p className={muted}>Bài kiểm tra hiện tại đây sau khi bạn đậu vòng phỏng vấn AI và được mời làm bài.</p>
           </div>
         </div>
       )}
