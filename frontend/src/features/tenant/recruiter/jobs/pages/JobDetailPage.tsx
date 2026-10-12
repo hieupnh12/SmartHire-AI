@@ -12,6 +12,7 @@ import { JobPermissionsModal } from "../components/JobPermissionsModal";
 import { jobApi } from "@/api/tenant/jobApi";
 import { Button } from "@/components/ux/Button";
 import { StatusPill } from "@/components/ux/StatusPill";
+import { PageSkeleton } from "@/components/ux/Skeleton";
 import { getApiErrorMessage } from "@/lib/axios";
 import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
@@ -86,7 +87,7 @@ export function JobDetailPage() {
       onConfirm: async () => { await act.mutateAsync("delete"); },
     });
 
-  if (detail.isPending) return <p className="py-12 text-center text-sm text-[var(--color-on-surface-variant)]">Đang tải thông tin việc làm…</p>;
+  if (detail.isPending) return <PageSkeleton variant="detail" />;
   if (detail.isError) return <Alert>{getApiErrorMessage(detail.error)}</Alert>;
   if (!job) return null;
 

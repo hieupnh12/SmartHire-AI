@@ -36,6 +36,7 @@ export const en = {
     required: "This field is required",
     saving: "Saving…",
     undo: "Undo",
+    edit: "Edit",
   },
   welcome: {
     title: "Hire smarter with AI screening & interviews",
@@ -93,6 +94,7 @@ export const en = {
     company: "Company",
     landingPage: "Landing Page",
     system: "System",
+    mailConfig: "Gmail Configuration",
     overview: "Overview",
     companyVerification: "Verification",
     rolesPermissions: "Permissions",

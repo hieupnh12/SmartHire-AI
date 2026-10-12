@@ -1,232 +1,83 @@
+import { useCallback, useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { humanInterviewApi as api } from "@/api/tenant/humanInterviewApi";
+import { applicantApi } from "@/api/tenant/applicantApi";
+import { cvApi } from "@/api/tenant/cvApi";
+import type { HumanInterview, InterviewFilters } from "@/api/types/humanInterview";
+import { getApiErrorMessage } from "@/lib/axios";
+import { DetailDialog } from "@/components/ux/DetailDialog";
 import { useRecruitmentJob } from "../../jobs/components/JobRecruitmentWorkspace";
-import { useState } from "react";
-import { Link } from "react-router-dom";
-import { Bot, CalendarPlus, Link2, MapPin, Users, Video } from "lucide-react";
-import { PrototypeBanner } from "@/components/ux/PrototypeBanner";
-import { StatusPill } from "@/components/ux/StatusPill";
-import { button, input, muted, panel, primary } from "@/features/tenant/recruiter/matching/components/rankingUi";
-import {
-  interviewModeLabel,
-  interviewStatusLabel,
-  type InterviewMode,
-  type MockInterview,
-} from "@/features/tenant/recruiter/schedules/constants/mockInterviews";
+import { HumanInterviewWorkspace, type InterviewAction } from "../components/HumanInterviewWorkspace";
+import { HumanInterviewScheduleDialog } from "../components/HumanInterviewScheduleDialog";
+import { downloadInterview } from "../components/humanInterviewUi";
+import "../styles/human-interview-reference.css";
 
-/** Recruiter ↔ candidate interview (người–người). AI sessions live under AI Interview. */
+async function allRows(filters: InterviewFilters) {
+  const rows: HumanInterview[] = [];
+  for (let page = 0; ; page++) {
+    const result = await api.list({ ...filters, page, size: 100 });
+    rows.push(...result.items);
+    if (rows.length >= result.total || !result.items.length) return rows;
+  }
+}
+const scoreSchema = z.object({ technicalScore: z.coerce.number().min(0).max(100), communicationScore: z.coerce.number().min(0).max(100), cultureScore: z.coerce.number().min(0).max(100), comments: z.string().max(4000), recommendation: z.enum(["STRONG_HIRE", "HIRE", "NO_HIRE", "STRONG_NO_HIRE"]) });
+type Scores = z.infer<typeof scoreSchema>;
 export function InterviewsPage() {
-  const job = useRecruitmentJob();
-  const [rows, setRows] = useState<MockInterview[]>([]);
-  const [applicationId, setApplicationId] = useState("501");
-  const [candidateName, setCandidateName] = useState("Nguyễn An");
-  const jobTitle = job.title;
-  const [mode, setMode] = useState<InterviewMode>("ONLINE");
-  const [startsAt, setStartsAt] = useState("2026-09-25T09:00");
-  const [duration, setDuration] = useState(60);
-  const [interviewer, setInterviewer] = useState("");
-  const [meetingLink, setMeetingLink] = useState("");
-  const [location, setLocation] = useState("");
-  const [note, setNote] = useState("");
-  const [toast, setToast] = useState<string | null>(null);
-
-  const flash = (message: string) => {
-    setToast(message);
-    window.setTimeout(() => setToast(null), 2500);
+  const job = useRecruitmentJob(); const navigate = useNavigate(); const client = useQueryClient();
+  const [filters, setFilters] = useState({ search: "", round: "", mode: "", status: "", page: 0, size: 10 });
+  const [view, setView] = useState<"list" | "calendar">("list");
+  const [week, setWeek] = useState(() => { const d = new Date(); d.setDate(d.getDate() - (d.getDay()+6)%7); d.setHours(0,0,0,0); return d; });
+  const [selected, setSelected] = useState<number[]>([]); const [editor, setEditor] = useState<HumanInterview | "new" | null>(null);
+  const [detail, setDetail] = useState<{ action: "scorecard" | "preview" | "cancel" | "shift" | "profile"; row?: HumanInterview; applicationId?: number } | null>(null);
+  const [shift, setShift] = useState(60); const [message, setMessage] = useState("");
+  const params = { jobId: Number(job.id), q: filters.search || undefined, round: filters.round || undefined, mode: filters.mode || undefined, status: filters.status || undefined, page: filters.page, size: filters.size };
+  const list = useQuery({ queryKey: ["human-interviews", "list", params], queryFn: () => api.list(params) });
+  const summary = useQuery({ queryKey: ["human-interviews", "summary", job.id], queryFn: () => api.summary(Number(job.id)) });
+  const options = useQuery({ queryKey: ["human-interviews", "options", job.id], queryFn: () => api.options(Number(job.id)) });
+  const end = new Date(week); end.setDate(end.getDate()+7);
+  const calendar = useQuery({ queryKey: ["human-interviews", "calendar", params, week.toISOString()], queryFn: () => allRows({ ...params, from: week.toISOString(), to: end.toISOString() }), enabled: view === "calendar" });
+  const preview = useQuery({ queryKey: ["human-interviews", "preview", detail?.row?.id], queryFn: () => api.preview(detail!.row!.id), enabled: detail?.action === "preview" });
+  const applicant = useQuery({ queryKey: ["applications", detail?.applicationId], queryFn: () => applicantApi.get(detail!.applicationId!), enabled: detail?.action === "profile" });
+  const refresh = useCallback(() => { void client.invalidateQueries({ queryKey: ["human-interviews"] }); setSelected([]); }, [client]);
+  const closeEditor = useCallback(() => setEditor(null), []);
+  const mutation = useMutation({ mutationFn: (operation: () => Promise<unknown>) => operation(), onSuccess: () => { refresh(); setDetail(null); setMessage("Đã cập nhật lịch phỏng vấn."); }, onError: e => setMessage(getApiErrorMessage(e)) });
+  const run = (operation: () => Promise<unknown>) => mutation.mutate(operation);
+  const scores = useForm<Scores>({ resolver: zodResolver(scoreSchema), defaultValues: { technicalScore: 0, communicationScore: 0, cultureScore: 0, comments: "", recommendation: "HIRE" } });
+  useEffect(() => { const font = document.createElement("link"); font.rel = "stylesheet"; font.href = "https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200"; document.head.appendChild(font); return () => font.remove(); }, []);
+  const profile = (applicationId: number) => setDetail({ action: "profile", applicationId });
+  const action = (action: InterviewAction, row: HumanInterview) => {
+    if (action === "edit") setEditor(row);
+    else if (action === "profile") profile(row.applicationId);
+    else if (action === "remind" || action === "complete") run(() => api[action](row.id));
+    else { if (action === "scorecard") scores.reset(); setDetail({ action, row }); }
   };
-
-  const createInterview = () => {
-    if (!applicationId || !startsAt || !interviewer) {
-      flash("Cần Application ID, thời gian và người phỏng vấn.");
-      return;
-    }
-    if (mode === "ONLINE" && !meetingLink.trim()) {
-      flash("Online: nhập link meeting trước (tự tạo meeting là bước sau).");
-      return;
-    }
-    if (mode === "OFFLINE" && !location.trim()) {
-      flash("Offline: nhập địa điểm / phòng họp.");
-      return;
-    }
-    const next: MockInterview = {
-      id: Math.max(0, ...rows.map((r) => r.id)) + 1,
-      applicationId: Number(applicationId) || 0,
-      candidateName,
-      jobTitle,
-      mode,
-      status: "PENDING",
-      startsAt: new Date(startsAt).toISOString(),
-      durationMinutes: duration,
-      interviewerName: interviewer,
-      locationOrLink: mode === "ONLINE" ? meetingLink.trim() : location.trim(),
-      note,
-    };
-    setRows((prev) => [next, ...prev]);
-    setMeetingLink("");
-    setLocation("");
-    setNote("");
-    flash("Đã tạo lịch Interview người–người (mock). Candidate sẽ thấy để xác nhận.");
+  const exportFile = async (format: "ics" | "csv") => {
+    try {
+      if (format === "ics") downloadInterview(await api.export(Number(job.id)), `interviews-${job.id}.ics`);
+      else {
+        const rows = await allRows(params);
+        const cell = (value: string) => `"${value.replace(/^[=+@-]/, "'$&").replaceAll('"', '""')}"`;
+        const lines = [["Candidate", "Email", "Round", "Mode", "Start", "End", "Status"], ...rows.map(r => [r.candidateName, r.candidateEmail, r.round, r.mode, r.start, r.end, r.status])];
+        downloadInterview(new Blob(["\uFEFF" + lines.map(r => r.map(cell).join(",")).join("\r\n")], { type: "text/csv;charset=utf-8" }), `interviews-${job.id}.csv`);
+      }
+    } catch(e) { setMessage(getApiErrorMessage(e)); }
   };
-
-  return (
-    <section className="space-y-6 text-[var(--color-on-surface)]">
-      <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div className="min-w-0">
-          <nav className="flex flex-wrap items-center gap-1 text-xs text-[var(--color-on-surface-variant)]" aria-label="Breadcrumb">
-            <span>Tuyển dụng</span>
-            <span className="text-[var(--color-outline)]">/</span>
-            <span className="font-semibold text-[var(--color-primary)]">Interview</span>
-          </nav>
-          <div className="mt-2 flex flex-wrap items-center gap-3">
-            <h1 className="text-3xl font-semibold tracking-tight">Interview người–người</h1>
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-low)] px-3.5 py-1 text-sm font-semibold text-[var(--color-on-surface)]">
-              <Users className="size-3.5" aria-hidden="true" />
-              Recruiter ↔ Candidate
-            </span>
-          </div>
-          <p className={`mt-2 max-w-2xl ${muted}`}>
-            Đặt lịch phỏng vấn với interviewer thật (online/offline), phân công người hỏi và gửi thông báo cho ứng viên.
-            Khác với <strong className="font-semibold text-[var(--color-on-surface)]">AI Interview</strong> (AI ↔ ứng viên).
-          </p>
-        </div>
-        <Link
-          to={`/recruiter/jobs/${job.id}/ai-interviews`}
-          className="inline-flex min-h-10 items-center justify-center gap-2 self-start rounded-full border border-[var(--color-primary)] bg-[var(--color-primary-subtle)] px-4 text-sm font-semibold text-[var(--color-primary-hover)] hover:bg-[var(--color-primary-soft)] md:self-auto"
-        >
-          <Bot className="size-4" aria-hidden="true" />
-          AI Interview
-        </Link>
-      </header>
-
-      <PrototypeBanner note="Interview người–người · mock data · AI Interview nằm ở menu riêng" />
-      {toast && (
-        <p className="rounded-xl bg-[var(--color-primary-subtle)] px-4 py-2 text-sm text-[var(--color-primary-hover)]" role="status">
-          {toast}
-        </p>
-      )}
-
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
-        <form
-          className={`${panel} space-y-3`}
-          onSubmit={(e) => {
-            e.preventDefault();
-            createInterview();
-          }}
-        >
-          <div className="flex items-center gap-2">
-            <CalendarPlus className="size-5 text-[var(--color-primary)]" aria-hidden="true" />
-            <h2 className="text-base font-semibold">Tạo lịch Interview</h2>
-          </div>
-          <label className="block space-y-1 text-sm">
-            <span className="font-medium">Application ID</span>
-            <input className={input} value={applicationId} onChange={(e) => setApplicationId(e.target.value)} />
-          </label>
-          <label className="block space-y-1 text-sm">
-            <span className="font-medium">Ứng viên</span>
-            <input className={input} value={candidateName} onChange={(e) => setCandidateName(e.target.value)} />
-          </label>
-          <label className="block space-y-1 text-sm">
-            <span className="font-medium">Vị trí</span>
-            <input className={input} value={jobTitle} readOnly />
-          </label>
-          <label className="block space-y-1 text-sm">
-            <span className="font-medium">Hình thức</span>
-            <select className={input} value={mode} onChange={(e) => setMode(e.target.value as InterviewMode)}>
-              <option value="ONLINE">Online</option>
-              <option value="OFFLINE">Offline</option>
-            </select>
-          </label>
-          <label className="block space-y-1 text-sm">
-            <span className="font-medium">Thời gian bắt đầu</span>
-            <input className={input} type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} />
-          </label>
-          <label className="block space-y-1 text-sm">
-            <span className="font-medium">Thời lượng (phút)</span>
-            <input className={input} type="number" min={15} value={duration} onChange={(e) => setDuration(Number(e.target.value) || 60)} />
-          </label>
-          <label className="block space-y-1 text-sm">
-            <span className="font-medium">Người phỏng vấn</span>
-            <input className={input} value={interviewer} onChange={(e) => setInterviewer(e.target.value)} placeholder="Tên interviewer" />
-          </label>
-          {mode === "ONLINE" ? (
-            <label className="block space-y-1 text-sm">
-              <span className="inline-flex items-center gap-1 font-medium">
-                <Link2 className="size-3.5" aria-hidden="true" /> Link meeting
-              </span>
-              <input className={input} value={meetingLink} onChange={(e) => setMeetingLink(e.target.value)} placeholder="https://meet.google.com/…" />
-            </label>
-          ) : (
-            <label className="block space-y-1 text-sm">
-              <span className="inline-flex items-center gap-1 font-medium">
-                <MapPin className="size-3.5" aria-hidden="true" /> Địa điểm
-              </span>
-              <input className={input} value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Phòng họp / địa chỉ" />
-            </label>
-          )}
-          <label className="block space-y-1 text-sm">
-            <span className="font-medium">Ghi chú</span>
-            <textarea className={`${input} min-h-20`} value={note} onChange={(e) => setNote(e.target.value)} />
-          </label>
-          <button type="submit" className={primary}>
-            Lưu lịch Interview
-          </button>
-        </form>
-
-        <div className={`${panel} overflow-x-auto`}>
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <h2 className="text-base font-semibold">Lịch Interview sắp tới</h2>
-            <span className={`${muted} text-xs`}>{rows.length} lịch</span>
-          </div>
-          <table className="w-full min-w-[640px] text-left text-sm">
-            <thead>
-              <tr className={muted}>
-                <th className="py-2">Ứng viên</th>
-                <th>Hình thức</th>
-                <th>Thời gian</th>
-                <th>Interviewer</th>
-                <th>Trạng thái</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.length === 0 && <tr><td colSpan={5} className="py-6 text-center text-[var(--color-on-surface-variant)]">Chưa có lịch phỏng vấn cho vị trí này.</td></tr>}
-              {rows.map((row) => (
-                <tr key={row.id} className="border-t border-[var(--color-border-default)]">
-                  <td className="py-3">
-                    <p className="font-semibold">{row.candidateName}</p>
-                    <p className={muted}>{row.jobTitle} · App #{row.applicationId}</p>
-                  </td>
-                  <td>
-                    <span className="inline-flex items-center gap-1">
-                      {row.mode === "ONLINE" ? <Video className="size-3.5 text-[var(--color-primary)]" aria-hidden="true" /> : <MapPin className="size-3.5" aria-hidden="true" />}
-                      {interviewModeLabel[row.mode]}
-                    </span>
-                    <p className={`mt-0.5 max-w-[12rem] truncate text-xs ${muted}`}>{row.locationOrLink}</p>
-                  </td>
-                  <td>
-                    {new Date(row.startsAt).toLocaleString("vi-VN")}
-                    <p className={muted}>{row.durationMinutes} phút</p>
-                  </td>
-                  <td>{row.interviewerName}</td>
-                  <td>
-                    <StatusPill status={row.status} label={interviewStatusLabel[row.status]} />
-                    {row.status === "PENDING" && (
-                      <button
-                        type="button"
-                        className={`${button} mt-2`}
-                        onClick={() =>
-                          setRows((prev) =>
-                            prev.map((item) => (item.id === row.id ? { ...item, status: "CANCELLED" } : item)),
-                          )
-                        }
-                      >
-                        Hủy lịch
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </section>
-  );
+  return <>
+    {message && <p role="status" className="mb-3 rounded-xl border p-3">{message}</p>}
+    {[list, summary, options, calendar].some(q => q.isError) && <p role="alert" className="mb-3">{getApiErrorMessage(list.error ?? summary.error ?? options.error ?? calendar.error)} <button onClick={refresh}>Thử lại</button></p>}
+    <HumanInterviewWorkspace jobTitle={job.title} data={list.data} summary={summary.data} calendarRows={calendar.data ?? []} view={view} week={week} {...filters} selected={selected} pending={mutation.isPending} loading={list.isLoading || (view === "calendar" && calendar.isLoading)} onFilter={(name,value)=>{setFilters(f=>({...f,[name]:value,page:0}));setSelected([]);}} onView={setView} onWeek={offset=>setWeek(d=>{const n=new Date(d);n.setDate(n.getDate()+offset*7);return n;})} onSelect={setSelected} onPage={page=>{setFilters(f=>({...f,page}));setSelected([]);}} onSize={size=>{setFilters(f=>({...f,size,page:0}));setSelected([]);}} onNew={()=>setEditor("new")} onAi={()=>navigate(`/recruiter/jobs/${job.id}/ai-interviews`)} onExport={format=>void exportFile(format)} onBulk={kind=>kind === "RESCHEDULE" ? setDetail({action:"shift"}) : run(()=>api.bulk(selected,"REMIND"))} onRemindPending={()=>run(async()=>{const rows=await allRows({jobId:Number(job.id),status:"PROPOSED"}); for(let i=0;i<rows.length;i+=100) await api.bulk(rows.slice(i,i+100).map(r=>r.id),"REMIND");})} onAction={action}/>
+    {editor && options.data && <HumanInterviewScheduleDialog key={editor === "new" ? "new" : editor.id} jobId={Number(job.id)} options={options.data} existing={editor === "new" ? undefined : editor} variant={editor === "new" ? "modal" : "drawer"} onClose={closeEditor} onSaved={()=>{closeEditor();refresh();setMessage("Đã lưu lịch phỏng vấn.");}} onProfile={profile} onAiReport={()=>navigate(`/recruiter/jobs/${job.id}/cvs`)}/>}
+    {editor && !options.data && <p role="status">Đang tải lựa chọn ứng viên và hội đồng…</p>}
+    <DetailDialog open={!!detail} title={detail?.action === "profile" ? "Hồ sơ ứng viên" : detail?.action === "scorecard" ? "Scorecard phỏng vấn" : detail?.action === "preview" ? "Nội dung email" : detail?.action === "shift" ? "Đổi lịch hàng loạt" : "Hủy lịch phỏng vấn"} onClose={()=>setDetail(null)}>
+      {detail?.action === "profile" && (applicant.isPending ? <p>Đang tải hồ sơ…</p> : applicant.error ? <p role="alert">{getApiErrorMessage(applicant.error)}</p> : <div className="space-y-3"><h3>{applicant.data?.data.candidateName}</h3><p>{applicant.data?.data.candidateEmail}</p><p>CV Screening: {applicant.data?.data.cvScreeningStatus ?? "Chưa có kết quả"}</p>{applicant.data?.data.cvs.map(cv=><div key={cv.id} className="flex items-center justify-between rounded-xl border p-3"><span>{cv.originalFilename} · {cv.status}</span><button disabled={cv.expired} onClick={()=>void cvApi.file(cv.id).then(blob=>downloadInterview(blob,cv.originalFilename)).catch(e=>setMessage(getApiErrorMessage(e)))}>Tải CV</button></div>)}{!applicant.data?.data.cvs.length && <p>Chưa có CV.</p>}</div>)}
+      {detail?.action === "preview" && <>{preview.isPending ? <p>Đang tải…</p> : preview.error ? <p role="alert">{getApiErrorMessage(preview.error)}</p> : <><h3>{preview.data?.subject}</h3><pre className="whitespace-pre-wrap">{preview.data?.body}</pre></>}</>}
+      {detail?.action === "cancel" && <><p>Hủy lịch của {detail.row?.candidateName}? Người tham gia sẽ nhận thông báo.</p><button disabled={mutation.isPending} onClick={()=>run(()=>api.cancel(detail.row!.id))}>Xác nhận hủy</button></>}
+      {detail?.action === "shift" && <><label>Số phút dịch lịch (âm để sớm hơn)<input type="number" min={-10080} max={10080} value={shift} onChange={e=>setShift(Number(e.target.value))}/></label><button disabled={mutation.isPending || !Number.isInteger(shift)} onClick={()=>run(()=>api.bulk(selected,"RESCHEDULE",shift))}>Áp dụng cho {selected.length} lịch</button></>}
+      {detail?.action === "scorecard" && <div className="space-y-4">{detail.row?.evaluations.map(e=><div key={e.id} className="rounded-xl border p-3"><b>{e.evaluatorName}: {e.overallScore}/100 · {e.recommendation}</b><p>{e.comments}</p></div>)}<form className="space-y-3" onSubmit={scores.handleSubmit(values=>run(()=>api.evaluate(detail.row!.id,values)))}>{(["technicalScore","communicationScore","cultureScore"] as const).map((name,index)=><label key={name} className="block">{["Kỹ thuật", "Giao tiếp", "Phù hợp văn hóa"][index]} (0–100)<input className="ml-3 rounded border p-2" type="number" min={0} max={100} {...scores.register(name)}/>{scores.formState.errors[name] && <span role="alert">Nhập điểm 0–100.</span>}</label>)}<textarea className="w-full rounded border p-2" placeholder="Nhận xét" maxLength={4000} {...scores.register("comments")}/><select {...scores.register("recommendation")}><option value="STRONG_HIRE">Rất nên tuyển</option><option value="HIRE">Nên tuyển</option><option value="NO_HIRE">Không tuyển</option><option value="STRONG_NO_HIRE">Không phù hợp</option></select><button className="ml-4 rounded border p-2" disabled={mutation.isPending}>Lưu Scorecard</button><p className="text-sm">Người thuộc hội đồng phỏng vấn lưu đánh giá sau khi buổi phỏng vấn kết thúc.</p></form></div>}
+    </DetailDialog>
+  </>;
 }

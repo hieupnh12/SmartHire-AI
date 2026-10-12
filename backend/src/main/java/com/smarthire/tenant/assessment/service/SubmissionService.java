@@ -58,12 +58,13 @@ public class SubmissionService {
 
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public SubmissionResponse start(long testId, StartSubmissionRequest request) {
-        User candidate = candidate();
+        Candidate candidate = candidate();
         // Serialize starts on the paper so concurrent requests cannot create duplicate attempts.
         JobTest test = tests.findLockedById(testId).orElseThrow(this::notFound);
         Application application = applications.findById(request.applicationId()).orElseThrow(this::notFound);
         if (!application.getCandidate().getId().equals(candidate.getId())
                 || !application.getJob().getId().equals(test.getJob().getId())) throw notFound();
+        if (test.getAssignedApplication() != null && !test.getAssignedApplication().getId().equals(application.getId())) throw notFound();
         requireEligible(application);
         var previous = submissions.findLatestIds(testId, application.getId(), PageRequest.of(0, 1));
         Submission submission = previous.isEmpty() ? new Submission() : owned(previous.getFirst(), candidate);
@@ -90,11 +91,12 @@ public class SubmissionService {
 
     @Transactional(readOnly = true)
     public java.util.List<AvailableAssessmentResponse> available(long applicationId) {
-        User candidate = candidate();
+        Candidate candidate = candidate();
         Application application = applications.findById(applicationId).orElseThrow(this::notFound);
         if (!application.getCandidate().getId().equals(candidate.getId())) throw notFound();
         requireEligible(application);
         return tests.findByJob_IdAndStatusOrderByIdDesc(application.getJob().getId(), TestStatus.PUBLISHED).stream()
+                .filter(test -> test.getAssignedApplication() == null || test.getAssignedApplication().getId().equals(applicationId))
                 .map(test -> {
                     var ids = submissions.findLatestIds(test.getId(), applicationId, PageRequest.of(0, 1));
                     Submission latest = ids.isEmpty() ? null : submissions.findById(ids.getFirst()).orElse(null);
@@ -187,7 +189,7 @@ public class SubmissionService {
             BigDecimal score = overdue ? null : submission.getScore();
             BigDecimal threshold = test.getPassingScore();
             Boolean passed = threshold == null || score == null ? null : score.compareTo(threshold) >= 0;
-            User candidate = submission.getCandidate();
+            Candidate candidate = submission.getCandidate();
             return new SubmissionSummaryResponse(submission.getId(), test.getId(), test.getTitle(),
                     submission.getApplication().getId(), candidate.getId(), candidate.getFullName(), candidate.getEmail(),
                     status, submission.getStartedAt(), expiresAt, overdue ? null : submission.getSubmittedAt(),
@@ -195,12 +197,12 @@ public class SubmissionService {
         }).toList();
     }
 
-    private User candidate() {
+    private Candidate candidate() {
         if (!access.candidate()) throw new BusinessException("Candidate access required", HttpStatus.FORBIDDEN, "ASSESSMENT_FORBIDDEN");
-        return access.actor();
+        return access.candidateActor();
     }
 
-    private Submission owned(long id, User candidate) {
+    private Submission owned(long id, Candidate candidate) {
         return submissions.findOwnedLocked(id, candidate.getId()).orElseThrow(this::notFound);
     }
 

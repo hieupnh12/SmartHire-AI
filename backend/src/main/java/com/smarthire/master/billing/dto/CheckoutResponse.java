@@ -30,5 +30,8 @@ public class CheckoutResponse {
     private String accountName;
     private String transferSyntax;
     private String qrUrl;
+    private boolean termsAccepted;
+    private String termsVersion;
+    private LocalDateTime termsAcceptedAt;
     private LocalDateTime createdAt;
 }

@@ -3,11 +3,15 @@ package com.smarthire.master.billing.service;
 import com.smarthire.common.exception.BusinessException;
 import com.smarthire.domain.master.entity.Invoice;
 import com.smarthire.domain.master.entity.InvoiceLineItem;
+import com.smarthire.domain.master.entity.MasterConsentLog;
+import com.smarthire.domain.master.entity.PlatformAuditLog;
 import com.smarthire.domain.master.entity.SubscriptionPlan;
 import com.smarthire.domain.master.entity.TenantInfo;
 import com.smarthire.domain.master.entity.TenantSubscription;
 import com.smarthire.domain.master.repository.InvoiceLineItemRepository;
 import com.smarthire.domain.master.repository.InvoiceRepository;
+import com.smarthire.domain.master.repository.MasterConsentLogRepository;
+import com.smarthire.domain.master.repository.PlatformAuditLogRepository;
 import com.smarthire.domain.master.repository.SubscriptionPlanRepository;
 import com.smarthire.domain.master.repository.TenantInfoRepository;
 import com.smarthire.domain.master.repository.TenantSubscriptionRepository;
@@ -44,6 +48,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class MasterBillingService {
 
+    public static final String DEFAULT_TERMS_VERSION = "v2026.10";
     private static final Set<String> VALID_STATUSES = Set.of("PENDING", "PAID", "OVERDUE", "CANCELLED");
 
     private final InvoiceRepository invoiceRepository;
@@ -51,10 +56,15 @@ public class MasterBillingService {
     private final TenantInfoRepository tenantRepository;
     private final SubscriptionPlanRepository planRepository;
     private final TenantSubscriptionRepository subscriptionRepository;
+    private final MasterConsentLogRepository consentLogRepository;
+    private final PlatformAuditLogRepository platformAuditLogRepository;
     private final MasterTenantService masterTenantService;
     private final InviteMailSender mailSender;
     private final OrderPdfGeneratorService orderPdfGeneratorService;
     private final MasterNotificationService masterNotificationService;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.smarthire.multitenancy.quota.TenantQuotaRedisService quotaRedisService;
 
     @Value("${app.tenant.base-domain:smarthire.top}")
     private String baseDomain;
@@ -125,14 +135,25 @@ public class MasterBillingService {
             LocalDateTime startsAt = request.getBillingPeriodStart() != null ? request.getBillingPeriodStart() : LocalDateTime.now();
             LocalDateTime endsAt = request.getBillingPeriodEnd() != null ? request.getBillingPeriodEnd() : startsAt.plusYears(1);
 
-            TenantSubscription sub = TenantSubscription.builder()
-                    .tenantId(tenant.getId())
-                    .planId(plan.getId())
-                    .status("PENDING")
-                    .startsAt(startsAt)
-                    .endsAt(endsAt)
-                    .autoRenew(true)
-                    .build();
+            SubscriptionPlan selectedPlan = plan;
+            TenantSubscription sub = subscriptionRepository
+                    .findFirstByTenantIdAndStatusOrderByCreatedAtDesc(tenant.getId(), "PENDING")
+                    .orElseGet(() -> TenantSubscription.builder()
+                            .tenantId(tenant.getId())
+                            .planId(selectedPlan.getId())
+                            .status("PENDING")
+                            .autoRenew(true)
+                            .build());
+            sub.setPlanId(selectedPlan.getId());
+            sub.setStartsAt(startsAt);
+            sub.setEndsAt(endsAt);
+            sub.applyPlanSnapshot(selectedPlan);
+            BigDecimal contractedYearly = request.getSubtotal() != null && request.getSubtotal().compareTo(BigDecimal.ZERO) > 0
+                    ? request.getSubtotal()
+                    : request.getAmount();
+            if (contractedYearly != null && contractedYearly.compareTo(BigDecimal.ZERO) > 0) {
+                sub.setContractedPriceYearly(contractedYearly);
+            }
             sub = subscriptionRepository.save(sub);
             subscriptionId = sub.getId();
         }
@@ -160,7 +181,7 @@ public class MasterBillingService {
         log.info("New B2B Invoice created: #{} for Tenant: {}", saved.getInvoiceNumber(), tenant.getCode());
 
         if (request.getLineItems() != null && !request.getLineItems().isEmpty()) {
-            List<InvoiceLineItem> lineItems = request.getLineItems().stream().map(itemReq -> 
+            List<InvoiceLineItem> lineItems = request.getLineItems().stream().map(itemReq ->
                 InvoiceLineItem.builder()
                         .invoiceId(saved.getId())
                         .description(itemReq.getDescription())
@@ -204,14 +225,13 @@ public class MasterBillingService {
             invoice.setPaidAt(request.getPaidAt() != null ? request.getPaidAt() : LocalDateTime.now());
             if (invoice.getSubscriptionId() != null) {
                 subscriptionRepository.findById(invoice.getSubscriptionId()).ifPresent(sub -> {
-                    sub.setStatus("ACTIVE");
-                    subscriptionRepository.save(sub);
+                    activatePaidSubscription(sub);
                 });
             }
             TenantInfo pendingTenant = tenantRepository.findById(invoice.getTenantId()).orElse(null);
             if (pendingTenant != null && ("PENDING_PAYMENT".equals(pendingTenant.getStatus()) || "FAILED".equals(pendingTenant.getStatus()))) {
                 log.info("Auto-provisioning workspace for tenant: {}", pendingTenant.getCode());
-                String tempPassword = masterTenantService.provisionPendingTenant(pendingTenant.getId());
+                String activationUrl = masterTenantService.provisionPendingTenant(pendingTenant.getId());
                 pendingTenant = tenantRepository.findById(pendingTenant.getId()).orElse(pendingTenant);
                 String workspaceUrl = "https://" + pendingTenant.getSubdomain() + "." + baseDomain;
 
@@ -225,7 +245,7 @@ public class MasterBillingService {
                 String planName = plan != null ? plan.getName() : null;
 
                 try {
-                    masterNotificationService.sendWorkspaceActivated(pendingTenant, planName, tempPassword, workspaceUrl);
+                    masterNotificationService.sendWorkspaceActivated(pendingTenant, planName, activationUrl, workspaceUrl);
                 } catch (Exception ex) {
                     log.warn("Could not deliver workspace activation email: {}", ex.getMessage());
                 }
@@ -236,6 +256,9 @@ public class MasterBillingService {
         log.info("Invoice #{} updated to status: {}", saved.getInvoiceNumber(), nextStatus);
 
         TenantInfo tenant = tenantRepository.findById(saved.getTenantId()).orElse(null);
+        if (tenant != null && quotaRedisService != null) {
+            quotaRedisService.evictCache(tenant.getCode());
+        }
         SubscriptionPlan plan = null;
         if (saved.getSubscriptionId() != null) {
             TenantSubscription sub = subscriptionRepository.findById(saved.getSubscriptionId()).orElse(null);
@@ -252,11 +275,31 @@ public class MasterBillingService {
 
     @Transactional(transactionManager = "masterTransactionManager")
     public CheckoutResponse checkout(CheckoutRequest request) {
+        return checkout(request, "127.0.0.1", null);
+    }
+
+    @Transactional(transactionManager = "masterTransactionManager")
+    public CheckoutResponse checkout(CheckoutRequest request, String clientIp, String userAgent) {
+        if (!Boolean.TRUE.equals(request.getTermsAccepted())) {
+            throw new BusinessException(
+                    "Quý khách cần đồng ý với Điều khoản dịch vụ và Chính sách bảo vệ dữ liệu cá nhân để tiếp tục",
+                    HttpStatus.BAD_REQUEST,
+                    "TERMS_NOT_ACCEPTED"
+            );
+        }
+
+        String policyVersion = StringUtils.hasText(request.getTermsVersion())
+                ? request.getTermsVersion().trim()
+                : DEFAULT_TERMS_VERSION;
+        LocalDateTime acceptedAt = LocalDateTime.now();
+        String safeIp = StringUtils.hasText(clientIp) ? clientIp.trim() : "127.0.0.1";
+        String safeUserAgent = StringUtils.hasText(userAgent) ? userAgent.trim() : "UNKNOWN";
+
         SubscriptionPlan plan = planRepository.findByCode(request.getPlanCode().toUpperCase())
                 .orElseThrow(() -> new BusinessException("Gói cước không tồn tại: " + request.getPlanCode(), HttpStatus.NOT_FOUND, "PLAN_NOT_FOUND"));
 
         int quantity = request.getQuantity() != null && request.getQuantity() > 0 ? request.getQuantity() : 1;
-        
+
         // Mô hình bản quyền theo năm (Yearly Only) - giá lưu trực tiếp bằng VNĐ tại priceYearly
         BigDecimal unitPriceVnd = plan.getPriceYearly() != null ? plan.getPriceYearly() : BigDecimal.ZERO;
         BigDecimal amountVnd = unitPriceVnd.multiply(BigDecimal.valueOf(quantity));
@@ -274,7 +317,7 @@ public class MasterBillingService {
                 request.getBillingAddress()
         );
 
-        // 2. Create pending tenant subscription
+        // 2. Create pending tenant subscription with immutable Tier 2 resource snapshot
         LocalDateTime startsAt = LocalDateTime.now();
         LocalDateTime endsAt = startsAt.plusYears(quantity);
 
@@ -286,9 +329,10 @@ public class MasterBillingService {
                 .endsAt(endsAt)
                 .autoRenew(true)
                 .build();
+        sub.applyPlanSnapshot(plan);
         sub = subscriptionRepository.save(sub);
 
-        // 3. Create invoice
+        // 3. Create invoice with legal consent snapshot
         String invoiceNumber = generateInvoiceNumber();
         Invoice invoice = Invoice.builder()
                 .invoiceNumber(invoiceNumber)
@@ -306,6 +350,9 @@ public class MasterBillingService {
                 .billingTaxCode(request.getTaxCode())
                 .billingLegalName(request.getCompanyLegalName())
                 .billingAddress(request.getBillingAddress())
+                .termsAccepted(true)
+                .termsVersion(policyVersion)
+                .termsAcceptedAt(acceptedAt)
                 .notes("Self-Service Checkout - " + plan.getName() + " (" + quantity + " Năm)"
                         + (StringUtils.hasText(request.getNotes()) ? " | Ghi chú khách hàng: " + request.getNotes().trim() : ""))
                 .build();
@@ -322,6 +369,54 @@ public class MasterBillingService {
                 .build();
         invoiceLineItemRepository.save(lineItem);
 
+        // 4.1 Record click-wrap legal consent audit trail (Terms of Service & Decree 13/2023/ND-CP Privacy Policy)
+        MasterConsentLog tosConsent = MasterConsentLog.builder()
+                .tenantId(tenant.getId())
+                .invoiceId(savedInvoice.getId())
+                .actorName(request.getAdminFullName().trim())
+                .actorEmail(request.getAdminEmail().trim())
+                .policyType("TERMS_OF_SERVICE")
+                .policyVersion(policyVersion)
+                .accepted(true)
+                .ipAddress(safeIp)
+                .userAgent(safeUserAgent)
+                .consentContext("SELF_SERVE_CHECKOUT")
+                .createdAt(acceptedAt)
+                .build();
+
+        MasterConsentLog privacyConsent = MasterConsentLog.builder()
+                .tenantId(tenant.getId())
+                .invoiceId(savedInvoice.getId())
+                .actorName(request.getAdminFullName().trim())
+                .actorEmail(request.getAdminEmail().trim())
+                .policyType("PRIVACY_POLICY_ND13")
+                .policyVersion(policyVersion)
+                .accepted(true)
+                .ipAddress(safeIp)
+                .userAgent(safeUserAgent)
+                .consentContext("SELF_SERVE_CHECKOUT")
+                .createdAt(acceptedAt)
+                .build();
+
+        consentLogRepository.saveAll(List.of(tosConsent, privacyConsent));
+
+        PlatformAuditLog auditLog = PlatformAuditLog.builder()
+                .tenantCode(tenant.getCode())
+                .action("ACCEPT_CHECKOUT_TERMS")
+                .level("INFO")
+                .ipAddress(safeIp)
+                .description("Khách hàng xác nhận đồng ý Điều khoản dịch vụ & Chính sách BVDLCN (NĐ 13/2023/NĐ-CP) phiên bản "
+                        + policyVersion + " cho đơn hàng #" + savedInvoice.getInvoiceNumber())
+                .metadataJson(String.format(
+                        "{\"invoiceNumber\":\"%s\",\"policyVersion\":\"%s\",\"policies\":[\"TERMS_OF_SERVICE\",\"PRIVACY_POLICY_ND13\"],\"acceptedAt\":\"%s\"}",
+                        savedInvoice.getInvoiceNumber(),
+                        policyVersion,
+                        acceptedAt
+                ))
+                .createdAt(acceptedAt)
+                .build();
+        platformAuditLogRepository.save(auditLog);
+
         // 5. Bank Info and SePay VietQR (TPBank)
         String bankName = "Ngân hàng TMCP Tiên Phong (TPBank)";
         String accountNumber = "07744348801";
@@ -330,19 +425,20 @@ public class MasterBillingService {
         String encodedSyntax = URLEncoder.encode(transferSyntax, StandardCharsets.UTF_8);
         String encodedAccount = URLEncoder.encode(accountName, StandardCharsets.UTF_8);
         String qrUrl = "https://img.vietqr.io/image/TPBank-07744348801-compact2.png?amount="
-                + amountVnd.toBigInteger() 
-                + "&addInfo=" + encodedSyntax 
+                + amountVnd.toBigInteger()
+                + "&addInfo=" + encodedSyntax
                 + "&accountName=" + encodedAccount;
 
         // 6. Asynchronously generate PDF and send Order Confirmation Email
         CompletableFuture.runAsync(() -> {
             try {
-                String customerName = StringUtils.hasText(request.getCompanyLegalName()) 
-                        ? request.getCompanyLegalName() 
+                String customerName = StringUtils.hasText(request.getCompanyLegalName())
+                        ? request.getCompanyLegalName()
                         : (StringUtils.hasText(request.getWorkspaceName()) ? request.getWorkspaceName() : request.getAdminFullName());
-                String orderDate = savedInvoice.getCreatedAt() != null 
-                        ? savedInvoice.getCreatedAt().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) 
+                String orderDate = savedInvoice.getCreatedAt() != null
+                        ? savedInvoice.getCreatedAt().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
                         : LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+                String formattedAcceptedAt = acceptedAt.format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss"));
 
                 OrderPdfData pdfData = OrderPdfData.builder()
                         .invoiceNumber(savedInvoice.getInvoiceNumber())
@@ -361,6 +457,9 @@ public class MasterBillingService {
                         .accountName(accountName)
                         .transferSyntax(transferSyntax)
                         .qrUrl(qrUrl)
+                        .termsVersion(policyVersion)
+                        .termsAcceptedAt(formattedAcceptedAt)
+                        .clientIp(safeIp)
                         .build();
 
                 byte[] pdfBytes = orderPdfGeneratorService.generateOrderPdf(pdfData);
@@ -387,6 +486,9 @@ public class MasterBillingService {
                 .accountName(accountName)
                 .transferSyntax(transferSyntax)
                 .qrUrl(qrUrl)
+                .termsAccepted(true)
+                .termsVersion(policyVersion)
+                .termsAcceptedAt(acceptedAt)
                 .createdAt(savedInvoice.getCreatedAt())
                 .build();
     }
@@ -415,33 +517,20 @@ public class MasterBillingService {
         Invoice saved = invoiceRepository.save(invoice);
 
         if (saved.getSubscriptionId() != null) {
-            subscriptionRepository.findById(saved.getSubscriptionId()).ifPresent(sub -> {
-                sub.setStatus("ACTIVE");
-                subscriptionRepository.save(sub);
-            });
+            subscriptionRepository.findById(saved.getSubscriptionId()).ifPresent(this::activatePaidSubscription);
         }
 
         TenantInfo tenant = tenantRepository.findById(saved.getTenantId()).orElse(null);
+        if (tenant != null && quotaRedisService != null) {
+            quotaRedisService.evictCache(tenant.getCode());
+        }
         if (tenant != null && ("PENDING_PAYMENT".equals(tenant.getStatus()) || "FAILED".equals(tenant.getStatus()))) {
             log.info("Auto-provisioning workspace for tenant: {}", tenant.getCode());
-            String tempPassword = masterTenantService.provisionPendingTenant(tenant.getId());
-            log.info("Temporary workspace administrator credentials generated for tenant '{}'", tenant.getCode());
+            String activationUrl = masterTenantService.provisionPendingTenant(tenant.getId());
+            log.info("Workspace administrator activation link generated for tenant '{}'", tenant.getCode());
             tenant = tenantRepository.findById(tenant.getId()).orElse(tenant);
 
             String workspaceUrl = "https://" + tenant.getSubdomain() + "." + baseDomain;
-            String emailBody = "Chào mừng bạn đến với SmartHire-AI!\n\n"
-                    + "Không gian làm việc doanh nghiệp của bạn đã được kích hoạt thành công.\n"
-                    + "Đường dẫn đăng nhập: " + workspaceUrl + "/internal/login\n"
-                    + "Tài khoản quản trị: " + tenant.getContactEmail() + "\n"
-                    + "Mật khẩu tạm thời: " + tempPassword + "\n\n"
-                    + "Vui lòng đăng nhập và đổi mật khẩu trong mục Tài khoản để đảm bảo an toàn.\n"
-                    + "Trân trọng,\nĐội ngũ SmartHire-AI";
-
-            try {
-                mailSender.send(tenant.getContactEmail(), "Kích hoạt không gian làm việc SmartHire-AI", emailBody);
-            } catch (Exception ex) {
-                log.warn("Could not deliver workspace activation email to: {}", tenant.getContactEmail());
-            }
 
             SubscriptionPlan plan = null;
             if (saved.getSubscriptionId() != null) {
@@ -452,14 +541,52 @@ public class MasterBillingService {
             }
             String planName = plan != null ? plan.getName() : null;
 
-            // Gửi email thông báo kích hoạt thành công với giao diện HTML chuẩn thương hiệu qua Brevo SMTP
+            // Gửi email thông báo kích hoạt thành công kèm link đặt mật khẩu 1 lần qua RabbitMQ / Brevo SMTP
             try {
-                masterNotificationService.sendWorkspaceActivated(tenant, planName, tempPassword, workspaceUrl);
+                masterNotificationService.sendWorkspaceActivated(tenant, planName, activationUrl, workspaceUrl);
             } catch (Exception ex) {
                 log.warn("Could not deliver workspace activation HTML email to: {}", tenant.getContactEmail(), ex);
             }
         }
         return saved;
+    }
+
+    private void activatePaidSubscription(TenantSubscription sub) {
+        if (sub == null) {
+            return;
+        }
+        if (sub.getPlanCodeSnapshot() == null && sub.getPlanId() != null) {
+            planRepository.findById(sub.getPlanId()).ifPresent(sub::applyPlanSnapshot);
+        }
+        LocalDateTime now = LocalDateTime.now();
+        if (sub.getUpgradedFromSubscriptionId() != null) {
+            subscriptionRepository.findById(sub.getUpgradedFromSubscriptionId()).ifPresent(oldSub -> {
+                oldSub.setStatus("CANCELED");
+                oldSub.setCanceledAt(now);
+                oldSub.setCancelReason("UPGRADED_TO_" + (sub.getPlanCodeSnapshot() != null ? sub.getPlanCodeSnapshot() : sub.getPlanId()));
+                subscriptionRepository.save(oldSub);
+            });
+        }
+        if (sub.getTenantId() != null) {
+            List<TenantSubscription> others = subscriptionRepository.findByTenantIdOrderByCreatedAtDesc(sub.getTenantId());
+            for (TenantSubscription other : others) {
+                if (!other.getId().equals(sub.getId())
+                        && Set.of("ACTIVE", "TRIAL", "PAST_DUE", "PENDING").contains(other.getStatus())) {
+                    other.setStatus("CANCELED");
+                    other.setCanceledAt(now);
+                    other.setCancelReason("SUPERSEDED_BY_SUBSCRIPTION_" + sub.getId());
+                    subscriptionRepository.save(other);
+                }
+            }
+        }
+        long years = (sub.getStartsAt() != null && sub.getEndsAt() != null)
+                ? Math.max(1L, Math.round(java.time.temporal.ChronoUnit.DAYS.between(sub.getStartsAt(), sub.getEndsAt()) / 365.0))
+                : 1L;
+        sub.setStartsAt(now);
+        sub.setEndsAt(now.plusYears(years));
+        sub.setStatus("ACTIVE");
+        sub.setGracePeriodEndsAt(null);
+        subscriptionRepository.save(sub);
     }
 
     @Transactional(transactionManager = "masterTransactionManager")

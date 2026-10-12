@@ -6,4 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface AiAnswerRecordingRepository extends JpaRepository<AiAnswerRecording, Long> {
     Optional<AiAnswerRecording> findByAiAnswer_Id(Long answerId);
+
+    @org.springframework.data.jpa.repository.Query("select coalesce(sum(r.sizeBytes), 0) from AiAnswerRecording r where r.sizeBytes is not null")
+    long sumTotalRecordingSize();
 }

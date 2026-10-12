@@ -1,6 +1,7 @@
 package com.smarthire.master.billing.controller;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -16,6 +17,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
+@EnabledIfEnvironmentVariable(named = "RUN_EXTERNAL_INTEGRATION_TESTS", matches = "true")
 @AutoConfigureMockMvc
 @TestPropertySource(properties = {
         "spring.rabbitmq.listener.simple.auto-startup=false",
@@ -50,7 +52,9 @@ public class MasterBillingApproveIntegrationTest {
           "adminPhone": "0987654321",
           "companyLegalName": "Công ty Test",
           "taxCode": "0109998888",
-          "billingAddress": "123 Đường Cầu Giấy, Hà Nội"
+          "billingAddress": "123 Đường Cầu Giấy, Hà Nội",
+          "termsAccepted": true,
+          "termsVersion": "v2026.10"
         }
         """, uniqueSubdomain, uniqueSubdomain);
 

@@ -35,6 +35,9 @@ Xác thực email/password, cấp access token và refresh token JWT, quản lý
 5. **Đổi mật khẩu (`POST /api/v1/tenant/auth/change-password`):**
    - Người dùng đã xác thực gửi `currentPassword` và `newPassword`.
    - Kiểm tra mật khẩu hiện tại, đảm bảo mật khẩu mới không trùng với mật khẩu cũ, cập nhật băm mật khẩu mới vào Tenant DB.
+6. **Cài đặt tài khoản (`GET/PUT /api/v1/tenant/auth/profile`):**
+   - Người dùng đã đăng nhập xem và sửa họ tên (`users.full_name`), số điện thoại, tiêu đề hồ sơ, giới thiệu (`user_profiles`; tự tạo dòng profile nếu chưa có). Email không sửa được.
+   - Response có `hasPassword` để giao diện ẩn form đổi mật khẩu với tài khoản chỉ đăng nhập Google (chưa có mật khẩu) và hướng dẫn dùng "Quên mật khẩu".
 
 ## Business Rules
 
@@ -56,10 +59,12 @@ Xác thực email/password, cấp access token và refresh token JWT, quản lý
 | POST | `/api/v1/tenant/auth/reset-password` | Public | Đặt lại mật khẩu bằng mã OTP 6 số |
 | POST | `/api/v1/tenant/auth/change-password` | Authenticated | Đổi mật khẩu cho người dùng đang đăng nhập |
 | GET | `/api/v1/tenant/auth/me` | Authenticated | Lấy hồ sơ tài khoản và danh sách quyền hạn hiện tại |
+| GET | `/api/v1/tenant/auth/profile` | Authenticated | Lấy hồ sơ có thể chỉnh sửa (họ tên, SĐT, tiêu đề, giới thiệu, `hasPassword`) |
+| PUT | `/api/v1/tenant/auth/profile` | Authenticated | Cập nhật họ tên, SĐT, tiêu đề, giới thiệu |
 
 ## Database liên quan
 
-- Bảng Tenant MySQL: `users`
+- Bảng Tenant MySQL: `users`, `user_profiles` (cài đặt tài khoản)
 - Redis Keys:
   - `auth:tenant:refresh:{tokenId}` (TTL: 7 ngày)
   - `auth:jwt:blacklist:{token}` (TTL: remaining token lifetime)
@@ -72,6 +77,7 @@ Xác thực email/password, cấp access token và refresh token JWT, quản lý
 - Trang đăng nhập ứng viên dùng bố cục responsive hai vùng: phần giới thiệu lợi ích và bảo mật theo màu thương hiệu tenant ở desktop, thẻ đăng nhập Google tập trung ở bên phải; mobile rút gọn thành một cột. Logo lấy từ cấu hình landing public của tenant và fallback về chữ cái đầu nếu chưa cấu hình hoặc ảnh lỗi. Khối đăng nhập dùng một tiêu đề ngắn và hiệu ứng xuất hiện nhẹ có hỗ trợ `prefers-reduced-motion`. Giao diện có trạng thái loading, lỗi cấu hình, focus rõ ràng và không hiển thị số liệu ứng viên giả.
 - Quản trị viên và nhân sự tenant đăng nhập tại `/internal/login` bằng `LoginPage.tsx` (tích hợp nút "Quên mật khẩu?" mở modal nhập email và nhập mã OTP 6 chữ số để đặt lại mật khẩu).
 - Quản trị viên/Nhân viên: Header menu hỗ trợ Đăng xuất với cơ chế thu hồi token toàn diện.
+- Ứng viên: bấm vùng tên/email trong menu tài khoản ở header để mở `/account` (`CandidateAccountPage.tsx`) gồm thông tin cá nhân, đổi mật khẩu và link tùy chọn thông báo.
 
 ## Phụ thuộc
 

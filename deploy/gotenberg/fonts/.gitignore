@@ -1,0 +1,3 @@
+# Licensed fonts (e.g. tahoma.ttf) mounted into the Gotenberg container; never committed.
+*
+!.gitignore

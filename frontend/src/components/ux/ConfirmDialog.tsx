@@ -3,6 +3,7 @@ import { AlertTriangle, LoaderCircle } from "lucide-react";
 import { useUiStore } from "@/stores/uiStore";
 import { useT } from "@/i18n";
 import { Button } from "@/components/ux/Button";
+import { getApiErrorMessage } from "@/lib/axios";
 
 export function ConfirmDialog() {
   const t = useT();
@@ -29,8 +30,8 @@ export function ConfirmDialog() {
     try {
       await confirm.onConfirm?.();
       closeConfirm();
-    } catch {
-      setError("Không thể hoàn tất thao tác. Vui lòng thử lại.");
+    } catch (cause) {
+      setError(getApiErrorMessage(cause, "Không thể hoàn tất thao tác. Vui lòng thử lại."));
     } finally {
       setIsConfirming(false);
     }

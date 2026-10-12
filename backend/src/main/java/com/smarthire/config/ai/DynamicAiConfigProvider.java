@@ -44,6 +44,9 @@ public class DynamicAiConfigProvider {
     private final String fallbackGeminiKey;
     private final String fallbackCvModel;
     private final int fallbackTimeout;
+    private final String interviewKey;
+    private final String interviewModel;
+    private final int interviewTimeout;
 
     public DynamicAiConfigProvider(
             AiModelConfigRepository modelConfigRepository,
@@ -53,7 +56,10 @@ public class DynamicAiConfigProvider {
             ObjectMapper mapper,
             @Value("${app.ai.gemini.api-key:}") String fallbackGeminiKey,
             @Value("${app.ai.models.cv-parsing:gemini-2.0-flash}") String fallbackCvModel,
-            @Value("${app.ai.timeout-seconds:30}") int fallbackTimeout) {
+            @Value("${app.ai.timeout-seconds:30}") int fallbackTimeout,
+            @Value("${app.ai.interview.api-key:}") String interviewKey,
+            @Value("${app.ai.interview.model:gemini-2.5-flash}") String interviewModel,
+            @Value("${app.ai.interview.timeout-seconds:60}") int interviewTimeout) {
         this.modelConfigRepository = modelConfigRepository;
         this.providerKeyRepository = providerKeyRepository;
         this.credentialService = credentialService;
@@ -62,11 +68,14 @@ public class DynamicAiConfigProvider {
         this.fallbackGeminiKey = fallbackGeminiKey == null ? "" : fallbackGeminiKey.trim();
         this.fallbackCvModel = fallbackCvModel;
         this.fallbackTimeout = fallbackTimeout;
+        this.interviewKey = interviewKey == null ? "" : interviewKey.trim();
+        this.interviewModel = interviewModel;
+        this.interviewTimeout = interviewTimeout;
     }
 
     public ResolvedAiConfig resolveConfig(String taskType) {
         String normalizedTask = taskType == null ? "CV_PARSING" : taskType.trim().toUpperCase();
-        String cacheKey = RedisKeys.aiTaskConfig(normalizedTask);
+        String cacheKey = taskCacheKey(normalizedTask);
 
         try {
             Optional<String> cachedJson = redisService.get(cacheKey);
@@ -80,11 +89,14 @@ public class DynamicAiConfigProvider {
         // Fetch from Master DB
         try {
             Optional<AiModelConfig> configOpt = modelConfigRepository.findByTaskType(normalizedTask);
-            if (configOpt.isPresent()) {
+            if (configOpt.isPresent() && !Boolean.FALSE.equals(configOpt.get().getIsActive())) {
                 AiModelConfig config = configOpt.get();
                 String provider = config.getProvider() != null ? config.getProvider() : "GEMINI";
-                String apiKey = resolveApiKeyForProvider(provider);
-                String endpointUrl = null;
+                Optional<AiProviderKey> activeKeyOpt = findActiveProviderKey(provider);
+                String apiKey = decryptOrFallbackKey(activeKeyOpt, provider, normalizedTask);
+                String endpointUrl = activeKeyOpt.map(AiProviderKey::getEndpointUrl)
+                        .filter(u -> !u.isBlank())
+                        .orElse(null);
 
                 ResolvedAiConfig resolved = new ResolvedAiConfig(
                         normalizedTask,
@@ -113,50 +125,81 @@ public class DynamicAiConfigProvider {
         }
 
         // Fallback default
+        boolean interview = isInterview(normalizedTask);
         return new ResolvedAiConfig(
                 normalizedTask,
                 "GEMINI",
-                fallbackCvModel,
-                fallbackGeminiKey,
+                interview ? interviewModel : fallbackCvModel,
+                interview ? interviewKey : fallbackGeminiKey,
                 null,
                 new BigDecimal("0.20"),
-                2048,
-                fallbackTimeout,
+                interview ? 8192 : 2048,
+                interview ? interviewTimeout : fallbackTimeout,
                 "GEMINI",
                 "gemini-1.5-flash"
         );
     }
 
     public String resolveApiKeyForProvider(String provider) {
+        return resolveApiKeyForProvider(provider, null);
+    }
+
+    private static boolean isInterview(String task) {
+        return "INTERVIEW_GEN".equals(task) || "INTERVIEW_NLP".equals(task);
+    }
+
+    private static String taskCacheKey(String task) {
+        return RedisKeys.aiTaskConfig(task) + (isInterview(task) ? ":spring-ai-v1" : "");
+    }
+
+    private Optional<AiProviderKey> findActiveProviderKey(String provider) {
         String normalizedProvider = provider == null ? "GEMINI" : provider.trim().toUpperCase();
         try {
-            Optional<AiProviderKey> defaultKeyOpt = providerKeyRepository.findFirstByProviderAndIsDefaultTrue(normalizedProvider);
+            Optional<AiProviderKey> defaultKeyOpt = providerKeyRepository
+                    .findFirstByProviderAndIsDefaultTrueAndStatus(normalizedProvider, "ACTIVE");
+            if (defaultKeyOpt.isEmpty()) {
+                defaultKeyOpt = providerKeyRepository.findFirstByProviderAndIsDefaultTrue(normalizedProvider)
+                        .filter(k -> k.getStatus() == null || "ACTIVE".equalsIgnoreCase(k.getStatus()));
+            }
             if (defaultKeyOpt.isEmpty()) {
                 defaultKeyOpt = providerKeyRepository.findFirstByProviderAndStatus(normalizedProvider, "ACTIVE");
             }
-            if (defaultKeyOpt.isPresent()) {
-                String encrypted = defaultKeyOpt.get().getApiKeyEncrypted();
-                return credentialService.decrypt("MASTER_AI_KEY", encrypted);
-            }
+            return defaultKeyOpt;
         } catch (Exception ex) {
-            log.warn("Could not decrypt API key for provider {}: {}", normalizedProvider, ex.getMessage());
+            log.warn("Could not query API key for provider {}: {}", normalizedProvider, ex.getMessage());
+            return Optional.empty();
         }
+    }
 
+    private String decryptOrFallbackKey(Optional<AiProviderKey> keyOpt, String provider, String task) {
+        String normalizedProvider = provider == null ? "GEMINI" : provider.trim().toUpperCase();
+        if (keyOpt.isPresent()) {
+            try {
+                String encrypted = keyOpt.get().getApiKeyEncrypted();
+                return credentialService.decrypt("MASTER_AI_KEY", encrypted);
+            } catch (Exception ex) {
+                log.warn("Could not decrypt API key for provider {}: {}", normalizedProvider, ex.getMessage());
+            }
+        }
         if ("GEMINI".equalsIgnoreCase(normalizedProvider)) {
-            return fallbackGeminiKey;
+            return isInterview(task) ? interviewKey : fallbackGeminiKey;
         }
         return "";
     }
 
+    private String resolveApiKeyForProvider(String provider, String task) {
+        return decryptOrFallbackKey(findActiveProviderKey(provider), provider, task);
+    }
+
     public void evictCache(String taskType) {
         if (taskType != null) {
-            redisService.delete(RedisKeys.aiTaskConfig(taskType));
+            redisService.delete(taskCacheKey(taskType.trim().toUpperCase()));
         }
     }
 
     public void evictAll() {
         for (String task : new String[]{"CV_PARSING", "INTERVIEW_GEN", "INTERVIEW_NLP", "CODE_GRADING", "MATCHING"}) {
-            redisService.delete(RedisKeys.aiTaskConfig(task));
+            redisService.delete(taskCacheKey(task));
         }
     }
 }

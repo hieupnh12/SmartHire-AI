@@ -12,6 +12,9 @@ import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
+import com.smarthire.common.exception.BusinessException;
+import com.smarthire.config.ai.AiRateLimiterService;
+import com.smarthire.config.ai.AiUsageMeteringService;
 import com.smarthire.config.ai.DynamicAiConfigProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -22,8 +25,9 @@ public class GeminiCvAiClient implements CvAiClient {
     private static final Logger log = LoggerFactory.getLogger(GeminiCvAiClient.class);
     static final String INSTRUCTION = """
             Extract a JSON object from this CV for recruiter screening against ONE job. Return JSON only with keys:
-            contact{email,phone,name}, education[], experience[{startDate YYYY-MM,endDate,current,skills[],evidence}],
-            projects[], languages[], certifications[], skills[{name,confidence}],
+            contact{email,phone,name}, education[{degree,school,startDate,endDate}],
+            experience[{title,company,startDate YYYY-MM,endDate,current,skills[],evidence}],
+            projects[{name,description}], languages[{name,level}], certifications[{name,issuer,date}], skills[{name,confidence}],
             screening{verdict, matched[{requirement,status,evidence,explanation}],
             partial[{requirement,status,evidence,explanation}], missing[{requirement,status,evidence}]}.
             status must be MATCH, PARTIAL, MISSING, or UNKNOWN. Do not invent experience or skills.
@@ -41,6 +45,8 @@ public class GeminiCvAiClient implements CvAiClient {
     private final int timeoutSeconds;
     private final RestClient http;
     private DynamicAiConfigProvider configProvider;
+    private AiUsageMeteringService meteringService;
+    private AiRateLimiterService rateLimiterService;
 
     public GeminiCvAiClient(
             HeuristicCvAiClient fallback,
@@ -62,6 +68,16 @@ public class GeminiCvAiClient implements CvAiClient {
     @Autowired(required = false)
     public void setConfigProvider(DynamicAiConfigProvider configProvider) {
         this.configProvider = configProvider;
+    }
+
+    @Autowired(required = false)
+    public void setMeteringService(AiUsageMeteringService meteringService) {
+        this.meteringService = meteringService;
+    }
+
+    @Autowired(required = false)
+    public void setRateLimiterService(AiRateLimiterService rateLimiterService) {
+        this.rateLimiterService = rateLimiterService;
     }
 
     private String getEffectiveApiKey() {
@@ -97,14 +113,39 @@ public class GeminiCvAiClient implements CvAiClient {
 
     @Override
     public String extractJson(String rawText, String jobContext) {
+        if (!configured()) return fallback.extractJson(rawText, jobContext);
+        try {
+            return completeJson(INSTRUCTION, prompt(rawText, jobContext));
+        } catch (BusinessException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            log.error("AI extraction failed (provider={}), falling back to heuristic: {}", getEffectiveProvider(), ex.getMessage());
+            return tagHeuristic(fallback.extractJson(rawText, jobContext));
+        }
+    }
+
+    public boolean configured() {
+        String apiKey = getEffectiveApiKey();
+        return apiKey != null && !apiKey.isBlank();
+    }
+
+    /** Sends one JSON-mode request; {@code system} is only used by OpenAI-compatible providers, Gemini gets {@code promptText}. */
+    public String completeJson(String system, String promptText) throws Exception {
         String apiKey = getEffectiveApiKey();
         String model = getEffectiveModel();
         String provider = getEffectiveProvider();
-        if (apiKey == null || apiKey.isBlank()) return fallback.extractJson(rawText, jobContext);
-        try {
-            String promptText = prompt(rawText, jobContext);
-            String text;
+        if (apiKey == null || apiKey.isBlank()) throw new IllegalStateException("AI provider is not configured");
+        if (rateLimiterService != null) {
+            rateLimiterService.checkAndAcquire("CV_PARSING");
+        }
+        String text;
+        String rawResponse = null;
+        long startNs = System.nanoTime();
+        boolean success = false;
+        long promptTokens = 0L;
+        long completionTokens = 0L;
 
+        try {
             if ("OPENAI".equalsIgnoreCase(provider) || "DEEPSEEK".equalsIgnoreCase(provider)) {
                 String defaultEndpoint = "DEEPSEEK".equalsIgnoreCase(provider)
                         ? "https://api.deepseek.com/chat/completions"
@@ -123,11 +164,11 @@ public class GeminiCvAiClient implements CvAiClient {
                         }
                         """.formatted(
                                 mapper.writeValueAsString(model),
-                                mapper.writeValueAsString(INSTRUCTION),
+                                mapper.writeValueAsString(system),
                                 mapper.writeValueAsString(promptText)
                         );
 
-                String response = http.post()
+                rawResponse = http.post()
                         .uri(url)
                         .header("Authorization", "Bearer " + apiKey.trim())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -135,19 +176,26 @@ public class GeminiCvAiClient implements CvAiClient {
                         .retrieve()
                         .body(String.class);
 
-                text = readOpenAiText(response);
+                text = readOpenAiText(rawResponse);
             } else {
                 String body = """
                         {"contents":[{"parts":[{"text":%s}]}]}
                         """.formatted(mapper.writeValueAsString(promptText));
-                String response = http.post()
+                rawResponse = http.post()
                         .uri("https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}",
                                 model, apiKey.trim())
                         .contentType(MediaType.APPLICATION_JSON)
                         .body(body)
                         .retrieve()
                         .body(String.class);
-                text = readText(response);
+                text = readText(rawResponse);
+            }
+
+            if (rawResponse != null) {
+                JsonNode rootNode = mapper.readTree(rawResponse);
+                long[] tokens = AiUsageMeteringService.extractTokenUsage(rootNode, promptText, text);
+                promptTokens = tokens[0];
+                completionTokens = tokens[1];
             }
 
             int start = text.indexOf('{');
@@ -155,10 +203,14 @@ public class GeminiCvAiClient implements CvAiClient {
             if (start < 0 || end <= start) throw new IllegalStateException("AI returned no JSON");
             String json = text.substring(start, end + 1);
             mapper.readTree(json);
+            success = true;
             return json;
-        } catch (Exception ex) {
-            log.error("AI extraction failed (provider={}), falling back to heuristic: {}", provider, ex.getMessage());
-            return tagHeuristic(fallback.extractJson(rawText, jobContext));
+        } finally {
+            if (meteringService != null) {
+                long latencyMs = (System.nanoTime() - startNs) / 1_000_000L;
+                meteringService.recordUsageAsync(
+                        "CV_PARSING", provider, model, promptTokens, completionTokens, latencyMs, success);
+            }
         }
     }
 

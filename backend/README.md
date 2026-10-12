@@ -31,3 +31,5 @@ Swagger UI: http://localhost:8080/swagger-ui.html
 ```bash
 ./mvnw test
 ```
+
+Các test dùng database/RabbitMQ từ cấu hình môi trường (`MasterBillingApproveIntegrationTest`, `JobExpiryRabbitMQIntegrationTest`) chỉ chạy khi `RUN_EXTERNAL_INTEGRATION_TESTS=true`. Chỉ bật với hạ tầng kiểm thử riêng; test thanh toán có tạo doanh nghiệp, hóa đơn và kích hoạt workspace. `MultiDatabaseIntegrationTest` dùng PostgreSQL/MySQL Testcontainers và cần Docker.

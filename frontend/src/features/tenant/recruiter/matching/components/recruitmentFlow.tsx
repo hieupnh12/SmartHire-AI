@@ -1,14 +1,15 @@
 import { muted } from "@/features/tenant/recruiter/matching/components/rankingUi";
 
-const PIPELINE_STEPS = [
+export const PIPELINE_STEPS = [
   { id: "cv", label: "Sàng lọc CV", statuses: ["NEW", "IN_REVIEW"] },
   { id: "ai", label: "Phỏng vấn AI", statuses: ["INTERVIEW"] },
   { id: "test", label: "Technical test", statuses: ["ASSESSMENT"] },
+  { id: "human", label: "Phỏng vấn trực tiếp", statuses: ["HUMAN_INTERVIEW"] },
   { id: "decision", label: "Đánh giá chung", statuses: ["OFFER", "HIRED"] },
 ] as const;
 
-function pipelineIndex(status: string) {
-  if (status === "REJECTED" || status === "WITHDRAWN") return -1;
+export function pipelineIndex(status: string) {
+  if (status === "REJECTED" || status === "FAILED" || status === "WITHDRAWN") return -1;
   const index = PIPELINE_STEPS.findIndex((step) => (step.statuses as readonly string[]).includes(status));
   return index < 0 ? 0 : index;
 }
@@ -16,7 +17,7 @@ function pipelineIndex(status: string) {
 export function ApplicationPipeline({ status }: { status: string }) {
   const current = pipelineIndex(status);
   return (
-    <ol className="grid gap-2 sm:grid-cols-4">
+    <ol className="grid gap-2 sm:grid-cols-5">
       {PIPELINE_STEPS.map((step, index) => {
         const active = current === index;
         const done = current > index;

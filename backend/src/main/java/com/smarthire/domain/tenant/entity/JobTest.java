@@ -42,6 +42,10 @@ public class JobTest {
     @JoinColumn(name = "job_id", nullable = false)
     Job job;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "assigned_application_id", unique = true)
+    Application assignedApplication;
+
     @Column(nullable = false)
     String title;
 

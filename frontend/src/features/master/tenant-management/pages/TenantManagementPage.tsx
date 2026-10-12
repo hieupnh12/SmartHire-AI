@@ -31,16 +31,39 @@ export function TenantManagementPage() {
     triggerNotification(`Đã cập nhật trạng thái tenant ${tenant.code} sang ${status}`);
   };
 
-  const deleteTenant = async (tenant: TenantInfo) => {
-    if (!confirm(`Bạn có chắc muốn xoá sạch tenant ${tenant.code}? Hành động này KHÔNG THỂ PHỤC HỒI.`)) {
+  const softDeleteTenant = async (tenant: TenantInfo) => {
+    if (!confirm(`Bạn có chắc muốn xoá mềm (lưu trữ) tenant ${tenant.code}? Database vẫn được giữ lại và có thể khôi phục sau.`)) {
       return;
     }
     try {
-      await masterAdminApi.deleteTenant(tenant.id);
+      const updated = await masterAdminApi.softDeleteTenant(tenant.id);
+      setTenants((items: TenantInfo[]) => items.map((item) => item.id === updated.id ? updated : item));
+      triggerNotification(`Đã xoá mềm tenant ${tenant.code}.`);
+    } catch {
+      toast.danger("Lỗi khi xoá mềm tenant.");
+    }
+  };
+
+  const restoreTenant = async (tenant: TenantInfo) => {
+    try {
+      const updated = await masterAdminApi.restoreTenant(tenant.id);
+      setTenants((items: TenantInfo[]) => items.map((item) => item.id === updated.id ? updated : item));
+      triggerNotification(`Đã khôi phục tenant ${tenant.code} về trạng thái SUSPENDED.`);
+    } catch {
+      toast.danger("Lỗi khi khôi phục tenant.");
+    }
+  };
+
+  const deleteTenant = async (tenant: TenantInfo) => {
+    if (!confirm(`Bạn có chắc muốn XOÁ CỨNG (Hard Delete) tenant ${tenant.code} và DROP DATABASE? Hành động này dùng cho dữ liệu test và KHÔNG THỂ PHỤC HỒI.`)) {
+      return;
+    }
+    try {
+      await masterAdminApi.deleteTenant(tenant.id, true);
       setTenants((items: TenantInfo[]) => items.filter((item) => item.id !== tenant.id));
-      triggerNotification(`Đã xoá tenant ${tenant.code} và database thành công.`);
+      triggerNotification(`Đã xoá cứng tenant ${tenant.code} và database thành công.`);
     } catch (error) {
-      toast.danger("Lỗi khi xoá tenant.");
+      toast.danger("Lỗi khi xoá cứng tenant.");
     }
   };
 
@@ -54,6 +77,8 @@ export function TenantManagementPage() {
         environmentType: tenant.environmentType === "POC_SANDBOX" ? "POC_SANDBOX" : "PRODUCTION",
       }, ...items])}
       onToggleStatus={toggleStatus}
+      onSoftDeleteTenant={softDeleteTenant}
+      onRestoreTenant={restoreTenant}
       onDeleteTenant={deleteTenant}
       onRetryProvisioning={(tenant) => navigate(`/onboard?retry=${tenant.id}`)}
     />

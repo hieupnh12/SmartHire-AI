@@ -24,21 +24,21 @@ public class MasterAdminUserService {
     private final PlatformUserRepository platformUserRepository;
     private final PasswordEncoder passwordEncoder;
 
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "masterTransactionManager", readOnly = true)
     public List<PlatformUserResponse> getAllAdminUsers() {
         return platformUserRepository.findAll().stream()
                 .map(PlatformUserResponse::fromEntity)
                 .collect(Collectors.toList());
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(transactionManager = "masterTransactionManager", readOnly = true)
     public PlatformUserResponse getAdminUserById(Long id) {
         PlatformUser user = platformUserRepository.findById(id)
                 .orElseThrow(() -> new BusinessException("Admin user not found with id: " + id, HttpStatus.NOT_FOUND, "USER_NOT_FOUND"));
         return PlatformUserResponse.fromEntity(user);
     }
 
-    @Transactional
+    @Transactional("masterTransactionManager")
     public PlatformUserResponse createAdminUser(CreatePlatformUserRequest request) {
         if (platformUserRepository.existsByEmailIgnoreCase(request.getEmail())) {
             throw new BusinessException("Email already exists: " + request.getEmail(), HttpStatus.BAD_REQUEST, "EMAIL_EXISTS");
@@ -56,7 +56,7 @@ public class MasterAdminUserService {
         return PlatformUserResponse.fromEntity(newUser);
     }
 
-    @Transactional
+    @Transactional("masterTransactionManager")
     public PlatformUserResponse updateAdminUser(Long id, UpdatePlatformUserRequest request) {
         PlatformUser user = platformUserRepository.findById(id)
                 .orElseThrow(() -> new BusinessException("Admin user not found with id: " + id, HttpStatus.NOT_FOUND, "USER_NOT_FOUND"));
@@ -75,7 +75,7 @@ public class MasterAdminUserService {
         return PlatformUserResponse.fromEntity(user);
     }
 
-    @Transactional
+    @Transactional("masterTransactionManager")
     public void deleteAdminUser(Long id) {
         if (!platformUserRepository.existsById(id)) {
             throw new BusinessException("Admin user not found with id: " + id, HttpStatus.NOT_FOUND, "USER_NOT_FOUND");

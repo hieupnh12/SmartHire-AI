@@ -1,4 +1,5 @@
 import { AssessmentPublishReview } from "./AssessmentPublishReview";
+import type { BankSaveActions } from "../utils/bankQuestionAuthoring";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
@@ -126,12 +127,14 @@ export function ExcelImportReview({
   jobTitle,
   onBack,
   onEdit,
+  generalBank,
 }: {
   questions: BankQuestion[];
   jobId: number;
   jobTitle: string;
   onBack: () => void;
   onEdit: (index: number) => void;
+  generalBank?: BankSaveActions;
 }) {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [filter, setFilter] = useState<Filter>("all");
@@ -158,7 +161,8 @@ export function ExcelImportReview({
     (sum, item) => sum + (item.row.score.trim() ? Number(item.row.score) : defaultScore),
     0,
   );
-  const canContinue = valid.length > 0 && valid.length <= 100 && (policy === "valid" || excluded === 0);
+  const maxQuestions = generalBank ? 999 : 100;
+  const canContinue = valid.length > 0 && valid.length <= maxQuestions && (policy === "valid" || excluded === 0);
 
   const filtered = active.filter((item) => {
     if (step > 1 && item.status === "INVALID") return false;
@@ -201,6 +205,7 @@ export function ExcelImportReview({
           defaultScore={defaultScore}
           onBack={() => changeStep(1)}
           onEdit={onEdit}
+          generalBank={generalBank}
         />
       </div>
       <section hidden={step >= 2} className={cn(panel, "overflow-hidden text-[var(--color-on-surface)]")}>
@@ -219,7 +224,7 @@ export function ExcelImportReview({
                   {confirmed ? "Đã xác nhận dữ liệu nhập" : "Kiểm tra dữ liệu import Excel"}
                 </h1>
                 <p className={cn(muted, "mt-1 text-sm leading-6")}>
-                  Đối soát câu hỏi từ bảng Excel trước khi đưa vào cấu trúc bài đánh giá.
+                  {generalBank ? "Đối soát câu hỏi từ bảng Excel trước khi lưu vào ngân hàng chung." : "Đối soát câu hỏi từ bảng Excel trước khi đưa vào cấu trúc bài đánh giá."}
                 </p>
                 <p className="mt-1 text-xs font-medium text-[var(--color-primary)]">Vị trí: {jobTitle}</p>
               </div>
@@ -325,7 +330,7 @@ export function ExcelImportReview({
                   Đã xác nhận {valid.length} câu hỏi · {totalPoints} điểm
                 </p>
                 <p className={cn(muted, "mt-1")}>
-                  Tiếp tục bước xem trước để lưu bài đánh giá dưới dạng bản nháp (DRAFT).
+                  {generalBank ? "Tiếp tục xem trước để lưu câu hỏi vào ngân hàng chung." : "Tiếp tục bước xem trước để lưu bài đánh giá dưới dạng bản nháp (DRAFT)."}
                 </p>
               </div>
             </div>
@@ -560,7 +565,7 @@ export function ExcelImportReview({
                 <ShieldCheck className="size-5 shrink-0 text-[var(--color-primary)]" aria-hidden="true" />
                 <p className={cn(muted, "text-xs leading-6")}>
                   Trắc nghiệm đơn / nhiều đáp án / tự luận đều được kiểm tra và có thể lưu nháp. Không bắt buộc đủ mọi
-                  thể loại. Độ khó / kỹ năng / đáp án mẫu là khuyến nghị. Hàng trống bị bỏ qua. Tối đa 100 câu.
+                  thể loại. Hàng trống bị bỏ qua. {generalBank ? "Mỗi câu cần kỹ năng và độ khó trước khi lưu ngân hàng; tối đa 999 câu." : "Độ khó / kỹ năng / đáp án mẫu là khuyến nghị. Tối đa 100 câu."}
                 </p>
               </div>
             </div>
@@ -581,7 +586,7 @@ export function ExcelImportReview({
                     ["INVALID", invalid.length + " dòng"],
                     ["WARNING", warningOnly.length + " dòng"],
                     ["Tổng điểm", totalPoints + " điểm"],
-                    ["Cấu trúc đề", valid.length + " / 100 câu"],
+                    ["Cấu trúc đề", valid.length + ` / ${maxQuestions} câu`],
                   ].map(([label, value]) => (
                     <div key={label} className="flex justify-between gap-5">
                       <dt className={muted}>{label}</dt>
@@ -595,8 +600,8 @@ export function ExcelImportReview({
                   <p role="alert" className="text-xs leading-5 text-[var(--color-error)]">
                     {valid.length === 0
                       ? "Chưa có câu hỏi hợp lệ để nhập."
-                      : valid.length > 100
-                        ? "Vượt giới hạn 100 câu. Quay lại bảng để giảm số câu."
+                      : valid.length > maxQuestions
+                        ? `Vượt giới hạn ${maxQuestions} câu. Quay lại bảng để giảm số câu.`
                         : "Cần xử lý hết các dòng INVALID theo quy tắc đã chọn."}
                   </p>
                 )}

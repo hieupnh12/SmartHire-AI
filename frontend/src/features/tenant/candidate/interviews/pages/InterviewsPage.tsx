@@ -39,7 +39,7 @@ export function InterviewsPage() {
 }
 
 function InterviewCard({ interview, preview = false }: { interview: AiInterview; preview?: boolean }) {
-  const action = actionLabel(interview.status);
+  const action = actionLabel(interview.status, !!interview.completedAt);
   const expired = interview.availableUntil ? new Date(interview.availableUntil).getTime() < Date.now() : false;
   return <article className="flex min-w-0 flex-col overflow-hidden rounded-2xl border border-[var(--color-border-default)] bg-white shadow-[var(--shadow-card)] transition-[border-color,box-shadow] hover:border-[var(--color-primary)]/30 hover:shadow-[var(--shadow-ambient)]">
     <div className="flex-1 p-5 sm:p-6">
@@ -59,10 +59,10 @@ function Fact({ icon: Icon, label, value }: { icon: typeof Clock3; label: string
   return <div className="flex gap-2"><Icon className="mt-0.5 size-4 shrink-0 text-[var(--color-primary)]" aria-hidden="true" /><div><p className="text-xs text-[var(--color-on-surface-variant)]">{label}</p><p className="mt-0.5 font-medium">{value}</p></div></div>;
 }
 
-function actionLabel(status: AiInterviewStatus) {
+function actionLabel(status: AiInterviewStatus, submitted: boolean) {
   if (status === "QUESTIONS_READY") return "Bắt đầu";
   if (status === "IN_PROGRESS") return "Tiếp tục phỏng vấn";
-  if (status === "ERROR") return "Khôi phục phòng thi";
+  if (status === "ERROR") return submitted ? "Xem bài đã nộp" : "Khôi phục phòng thi";
   if (["SCORED", "PASSED", "FAILED"].includes(status)) return "Xem kết quả";
   return "Bắt đầu";
 }

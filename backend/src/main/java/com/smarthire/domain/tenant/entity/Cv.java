@@ -5,6 +5,8 @@ import jakarta.persistence.*;
 import java.time.Instant;
 import lombok.*;
 import lombok.experimental.FieldDefaults;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Getter
 @Setter
@@ -19,7 +21,7 @@ public class Cv extends BaseEntity {
     @JoinColumn(name = "job_id") Job job;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "user_id", nullable = false) User user;
+    @JoinColumn(name = "candidate_id", nullable = false) Candidate candidate;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "application_id") Application application;
@@ -46,6 +48,11 @@ public class Cv extends BaseEntity {
     @Column(name = "error_code", length = 64) String errorCode;
 
     @Column(name = "error_message", length = 512) String errorMessage;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "builder_data", columnDefinition = "json") String builderData;
+
+    @Column(name = "share_token", length = 64, unique = true) String shareToken;
 
     public void mark(CvStatus next) {
         this.status = next;

@@ -36,6 +36,20 @@ export type UserProfile = {
   recruiterReadOnly?: boolean;
 };
 
+export type AccountProfile = {
+  id: number;
+  email: string;
+  fullName: string;
+  role: Role;
+  phone: string | null;
+  headline: string | null;
+  bio: string | null;
+  avatarUrl: string | null;
+  hasPassword: boolean;
+};
+
+export type UpdateAccountProfile = Pick<AccountProfile, "fullName" | "phone" | "headline" | "bio">;
+
 export type CandidateProfile = {
   id: number;
   email: string;

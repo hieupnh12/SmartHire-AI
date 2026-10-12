@@ -16,5 +16,13 @@ public record AiQuestionResponse(
         List<String> competencies,
         List<String> skills,
         Integer correctOption,
-        String explanation) {
+        String explanation,
+        List<Integer> correctOptions,
+        boolean multipleChoice,
+        boolean explanationRequired,
+        String difficulty,
+        String hint,
+        String questionRole,
+        String responseMode,
+        String language) {
 }

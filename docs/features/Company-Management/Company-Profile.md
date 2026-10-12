@@ -6,7 +6,7 @@
 
 ## Mục đích chức năng
 
-Cho phép Tenant Admin xem và cập nhật thông tin thương hiệu của doanh nghiệp (tên, logo URL, website, địa chỉ, lĩnh vực, quy mô, mô tả). HR/Recruiter chỉ được xem. Dữ liệu dùng để hiển thị trên trang tuyển dụng công khai.
+Cho phép Tenant Admin xem và cập nhật thông tin thương hiệu, đồng thời quản lý danh mục phòng ban và địa điểm công ty dùng khi tạo job. HR/Recruiter được đọc danh mục để chọn trên form job.
 
 ## Actor
 
@@ -21,6 +21,7 @@ Cho phép Tenant Admin xem và cập nhật thông tin thương hiệu của doa
 3. BE đọc `TenantContext` → `tenants` trên Master DB → trả `CompanyProfileResponse`.
 4. Admin chỉnh sửa và lưu → `PUT /api/v1/tenant/company/profile`.
 5. BE validate URL/độ dài, cập nhật bảng `tenants` trong `masterTransactionManager`, trả hồ sơ mới.
+6. Admin thêm/xóa phòng ban và địa điểm rồi lưu qua `PUT /api/v1/tenant/company/directory`; recruiter đọc qua `GET` để chọn khi tạo/sửa job.
 
 ## Business Rules
 
@@ -30,6 +31,7 @@ Cho phép Tenant Admin xem và cập nhật thông tin thương hiệu của doa
 - `PUT` chỉ cho `TENANT_ADMIN`, `ADMIN`.
 - `companyName` bắt buộc; `website`/`logoUrl` trống hoặc phải bắt đầu bằng `http://` / `https://`.
 - Logo chỉ nhận URL CDN, không upload file trong sprint này.
+- Danh mục nằm trong tenant DB, loại `DEPARTMENT`/`LOCATION`, không cho trùng tên không phân biệt hoa thường ở tầng service.
 
 ## API liên quan
 
@@ -37,11 +39,14 @@ Cho phép Tenant Admin xem và cập nhật thông tin thương hiệu của doa
 |---|---|---|
 | GET | `/api/v1/tenant/company/profile` | `TENANT_ADMIN`, `ADMIN`, `HR`, `RECRUITER` |
 | PUT | `/api/v1/tenant/company/profile` | `TENANT_ADMIN`, `ADMIN` |
+| GET | `/api/v1/tenant/company/directory` | `TENANT_ADMIN`, `ADMIN`, `HR`, `RECRUITER`, `STAFF` |
+| PUT | `/api/v1/tenant/company/directory` | `TENANT_ADMIN`, `ADMIN` |
 
 ## Database liên quan
 
 - Master: `tenants` (`name`, `logo_url`, `website`, `address`, `industry`, `company_size`, `description`, `is_verified`)
 - Migration: `backend/src/main/resources/db/migration/master/V4__company_profile_fields.sql`
+- Tenant: `company_directory_entries`; migration V45 backfill dữ liệu phòng ban/địa điểm đang dùng từ `jobs`.
 
 ## UI mockup
 

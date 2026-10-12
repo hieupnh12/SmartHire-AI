@@ -1,0 +1,288 @@
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ElementType } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link, useNavigate } from "react-router-dom";
+import {
+  ArrowRight, Bell, Box, BriefcaseBusiness, Building2, CalendarDays, Check, ChevronDown, ChevronRight,
+  CircleUserRound, ClipboardCheck, DraftingCompass, Feather, FilePenLine,
+  FileText, Gift, Languages, Layers, Lock, LogOut, MapPin, Menu, MessageCircle, Quote, Search, Settings,
+  Sparkles, Star, Upload, UserRound, X,
+} from "lucide-react";
+import type { Notification } from "@/api/types/notification";
+import type { PublicJob } from "@/api/types/job";
+import { authApi } from "@/api/tenant/authApi";
+import { jobApi } from "@/api/tenant/jobApi";
+import { landingApi } from "@/api/tenant/landingApi";
+import { notificationApi } from "@/api/tenant/notificationApi";
+import type { LandingPageConfig } from "@/features/tenant/admin/landing/types/landing";
+import { LanguageSwitcher } from "@/components/ux/LanguageSwitcher";
+import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
+import { localeLabels, locales, useI18nStore, useT } from "@/i18n";
+import { useNotifications } from "@/hooks/useNotifications";
+import { buildPlatformUrl, getTenantIdFromWindow } from "@/lib/tenant";
+import { notificationPath } from "@/features/tenant/candidate/shared/utils/notificationPath";
+import { cvRoleKeys, cvRoles, cvStyleKeys, cvStyles, type CvStyleKey } from "@/features/tenant/candidate/shared/constants/cvTemplates";
+
+const styleIcons: Record<CvStyleKey, ElementType> = { simple: Box, impressive: DraftingCompass, professional: Star };
+
+type MenuKey = "jobs" | "profile" | "tools" | "company";
+type MenuItem = { label: string; description?: string; to?: string; icon?: ElementType; requiresAuth?: boolean };
+type MenuGroup = { title: string; to?: string; items: MenuItem[] };
+type MenuConfig = { label: string; groups: MenuGroup[]; layout?: "cv" };
+type Menus = Record<MenuKey, MenuConfig>;
+
+const baseMenus: Omit<Menus, "company"> = {
+  jobs: {
+    label: "Việc làm",
+    groups: [
+      { title: "Khám phá việc làm", items: [{ label: "Tìm việc làm", to: "/jobs", icon: Search }, { label: "Việc làm đang tuyển", to: "/jobs", icon: BriefcaseBusiness }, { label: "Đơn đã ứng tuyển", to: "/applications", icon: ClipboardCheck, requiresAuth: true }] },
+      { title: "Theo dõi tiến trình", items: [{ label: "Bài đánh giá", to: "/assessments", icon: ClipboardCheck, requiresAuth: true }, { label: "Phỏng vấn", to: "/interviews", icon: MessageCircle, requiresAuth: true }, { label: "Lịch của tôi", to: "/schedules", icon: CalendarDays, requiresAuth: true }] },
+    ],
+  },
+  profile: {
+    label: "Tạo CV",
+    layout: "cv",
+    groups: [
+      { title: "Mẫu CV theo style", to: "/cv-templates", items: cvStyleKeys.map((key) => ({ label: `Mẫu CV ${cvStyles[key].label}`, to: `/cv-templates?style=${key}`, icon: styleIcons[key] })) },
+      { title: "Mẫu CV theo vị trí IT", to: "/cv-templates", items: cvRoleKeys.map((key) => ({ label: cvRoles[key].label, to: `/cv-templates?position=${key}`, icon: BriefcaseBusiness })) },
+      { title: "Công cụ CV", items: [{ label: "Quản lý CV", to: "/cv", icon: FileText, requiresAuth: true }, { label: "Tải CV lên", to: "/cv", icon: Upload, requiresAuth: true }, { label: "Hướng dẫn viết CV", to: "/cv-guide", icon: FilePenLine }, { label: "Quản lý Cover Letter", to: "/cv", icon: Feather, requiresAuth: true }, { label: "Mẫu Cover Letter", to: "/cv", icon: Feather, requiresAuth: true }] },
+    ],
+  },
+  tools: {
+    label: "Công cụ",
+    groups: [
+      { title: "Công cụ ứng viên", items: [{ label: "Quản lý CV", to: "/cv", icon: FileText, requiresAuth: true }, { label: "Phỏng vấn AI", to: "/interviews", icon: Sparkles, requiresAuth: true }, { label: "Lịch phỏng vấn", to: "/interview-schedules", icon: CalendarDays, requiresAuth: true }] },
+      { title: "Cập nhật", items: [{ label: "Thông báo", to: "/notifications", icon: Bell, requiresAuth: true }, { label: "Theo dõi hồ sơ", to: "/applications", icon: ClipboardCheck, requiresAuth: true }] },
+    ],
+  },
+};
+
+function topValues(values: (string | null | undefined)[], limit: number) {
+  const counts = new Map<string, number>();
+  for (const value of values) if (value?.trim()) counts.set(value.trim(), (counts.get(value.trim()) ?? 0) + 1);
+  return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, limit);
+}
+
+function buildCompanyMenu(landing: LandingPageConfig | undefined, jobs: PublicJob[], loggedIn: boolean): MenuConfig {
+  const learn: MenuItem[] = [];
+  if (landing?.about?.enabled !== false) learn.push({ label: "Giới thiệu", description: landing?.about?.title || "Câu chuyện, sứ mệnh và những con số nổi bật", to: "/career#about", icon: Building2 });
+  if (landing?.benefits?.enabled !== false) learn.push({ label: "Đãi ngộ & phúc lợi", description: landing?.benefits?.title || "Lương thưởng, bảo hiểm, chế độ chăm sóc", to: "/career#benefits", icon: Gift });
+  if (landing?.testimonials?.enabled !== false) learn.push({ label: "Cảm nhận nhân viên", description: landing?.testimonials?.title || "Nhân viên nói gì khi làm việc tại đây", to: "/career#stories", icon: Quote });
+
+  const careers: MenuItem[] = [
+    ...topValues(jobs.map((job) => job.department), 3).map(([department, count]) => ({ label: department, description: `${count} vị trí · theo phòng ban`, to: `/jobs?department=${encodeURIComponent(department)}`, icon: Layers })),
+    ...topValues(jobs.map((job) => job.location), 2).map(([location, count]) => ({ label: location, description: `${count} vị trí · theo địa điểm`, to: `/jobs?location=${encodeURIComponent(location)}`, icon: MapPin })),
+    { label: "Xem tất cả vị trí", description: jobs.length ? `${jobs.length} vị trí đang tuyển` : "Khám phá các vị trí đang mở", to: "/jobs", icon: BriefcaseBusiness },
+  ];
+  if (!loggedIn) careers.push({ label: "Đăng nhập ứng viên", description: "Theo dõi hồ sơ và lịch phỏng vấn", to: "/login", icon: UserRound });
+
+  return {
+    label: "Về doanh nghiệp",
+    groups: [...(learn.length ? [{ title: "Tìm hiểu doanh nghiệp", items: learn }] : []), { title: "Cơ hội nghề nghiệp", items: careers }],
+  };
+}
+
+type Props = {
+  tenantName: string;
+  tenantCode: string;
+  logoUrl?: string | null;
+  slogan?: string | null;
+  primaryColor: string;
+};
+
+export function CareerHeader({ tenantName, tenantCode, logoUrl, slogan, primaryColor }: Props) {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const navRef = useRef<HTMLElement>(null);
+  const [activeMenu, setActiveMenu] = useState<MenuKey | null>(null);
+  const [menuArrowLeft, setMenuArrowLeft] = useState(48);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const token = useAuthStore((state) => state.accessToken);
+  const storedUser = useAuthStore((state) => state.user);
+  const setUser = useAuthStore((state) => state.setUser);
+  const clearAuth = useAuthStore((state) => state.logout);
+  const landingTenant = getTenantIdFromWindow() || "acme";
+  const landing = useQuery({ queryKey: ["public-landing", landingTenant], queryFn: landingApi.getPublicLanding, staleTime: 60_000 });
+  const publicJobs = useQuery({ queryKey: ["public-jobs", ""], queryFn: () => jobApi.publicList(), staleTime: 60_000 });
+  const menus: Menus = useMemo(
+    () => ({ ...baseMenus, company: buildCompanyMenu(landing.data?.data, publicJobs.data?.data ?? [], Boolean(token)) }),
+    [landing.data, publicJobs.data, token],
+  );
+  const profile = useQuery({ queryKey: ["auth", "career-profile"], queryFn: authApi.me, enabled: Boolean(token) && !storedUser, retry: false });
+  const user = storedUser ?? profile.data?.data ?? null;
+  const notifications = useNotifications(Boolean(token));
+  const unreadCount = notifications.data?.filter((item) => !item.readAt).length ?? 0;
+  const markRead = useMutation({ mutationFn: notificationApi.markRead, onSuccess: () => queryClient.invalidateQueries({ queryKey: notifications.queryKey.slice(0, 3) }) });
+  const recruiterUrl = buildPlatformUrl("/");
+
+  useEffect(() => { if (!storedUser && profile.data?.data) setUser(profile.data.data); }, [profile.data, setUser, storedUser]);
+  useEffect(() => {
+    const close = () => { setActiveMenu(null); setProfileOpen(false); setNotificationsOpen(false); };
+    window.addEventListener("scroll", close, { passive: true });
+    return () => window.removeEventListener("scroll", close);
+  }, []);
+
+  const signOut = async () => {
+    try { await authApi.logout(); } catch { /* Local logout must still complete. */ }
+    clearAuth();
+    setProfileOpen(false);
+    navigate("/career", { replace: true });
+  };
+
+  const openMenu = (key: MenuKey, trigger: HTMLElement) => {
+    const navRect = navRef.current?.getBoundingClientRect();
+    const triggerRect = trigger.getBoundingClientRect();
+    if (navRect) setMenuArrowLeft(triggerRect.left - navRect.left + triggerRect.width / 2);
+    setActiveMenu(key);
+  };
+
+  return (
+    <header className="sticky top-0 z-50 border-b border-[var(--color-border-default)] bg-white shadow-sm">
+      <div className="mx-auto flex h-[76px] max-w-[1536px] items-center gap-5 px-4 sm:px-6 lg:px-8">
+        <Link to="/" className="flex min-w-0 shrink-0 items-center gap-3" aria-label={`${tenantName} Careers`}>
+          {logoUrl ? <img src={logoUrl} alt="" className="h-11 max-w-36 object-contain" /> : <span className="grid size-11 place-items-center rounded-xl text-lg font-semibold text-white" style={{ backgroundColor: primaryColor }}>{tenantCode.charAt(0).toUpperCase()}</span>}
+          <span className="hidden min-w-0 xl:block"><span className="block max-w-44 truncate text-lg font-semibold text-slate-800">{tenantName}</span><span className="block max-w-44 truncate text-[11px] text-slate-500">{slogan || "Cổng tuyển dụng nhân tài"}</span></span>
+        </Link>
+
+        <nav ref={navRef} className="relative hidden h-full flex-1 items-stretch lg:flex" aria-label="Điều hướng tuyển dụng" onMouseLeave={() => setActiveMenu(null)} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setActiveMenu(null); }}>
+          {(Object.keys(menus) as MenuKey[]).map((key) => {
+            const menu = menus[key]; const open = activeMenu === key;
+            return <div key={key} className="flex items-stretch" onMouseEnter={(event) => openMenu(key, event.currentTarget)} onFocus={(event) => openMenu(key, event.currentTarget)}>
+              <button type="button" aria-expanded={open} aria-controls={`career-menu-${key}`} onClick={() => setActiveMenu(open ? null : key)} className={`flex items-center gap-1.5 border-b-2 px-4 text-sm font-semibold transition-colors ${open ? "border-[var(--color-primary)] text-[var(--color-primary)]" : "border-transparent text-slate-700 hover:text-[var(--color-primary)]"}`}>{menu.label}<ChevronDown className={`size-4 transition-transform ${open ? "rotate-180" : ""}`} aria-hidden="true" /></button>
+            </div>;
+          })}
+          {activeMenu && <MegaMenu menuKey={activeMenu} menus={menus} arrowLeft={menuArrowLeft} loggedIn={Boolean(token)} onNavigate={() => setActiveMenu(null)} />}
+        </nav>
+
+        <div className="ml-auto flex items-center gap-2">
+          {!token && <LanguageSwitcher variant="icon" />}
+          {token ? <>
+            <div className="relative hidden sm:block" onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setNotificationsOpen(false); }}>
+              <button type="button" aria-label={unreadCount ? `Thông báo, ${unreadCount} chưa đọc` : "Thông báo"} aria-expanded={notificationsOpen} aria-haspopup="dialog" onClick={() => { setNotificationsOpen((value) => !value); setProfileOpen(false); setActiveMenu(null); }} className="relative grid size-11 place-items-center rounded-full bg-slate-50 text-slate-700 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]/30"><Bell className="size-5" aria-hidden="true" />{Boolean(unreadCount) && <span className="absolute right-0 top-0 grid min-w-5 place-items-center rounded-full bg-[var(--color-error)] px-1 text-[10px] font-semibold leading-5 text-white">{unreadCount > 9 ? "9+" : unreadCount}</span>}</button>
+              {notificationsOpen && <NotificationPreview items={notifications.data ?? []} loading={notifications.isPending} unreadCount={unreadCount} onClose={() => setNotificationsOpen(false)} onOpen={(item) => {
+                if (!item.readAt) markRead.mutate(item.id);
+                setNotificationsOpen(false);
+                navigate(notificationPath(item.payloadJson) ?? "/notifications");
+              }} />}
+            </div>
+            <div className="relative" onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setProfileOpen(false); }}>
+              <button type="button" aria-expanded={profileOpen} aria-label="Mở menu tài khoản" onClick={() => { setProfileOpen((value) => !value); setNotificationsOpen(false); setActiveMenu(null); }} className="flex min-h-11 items-center gap-2 rounded-full p-1.5 pr-2 hover:bg-slate-100">
+                <Avatar name={user?.fullName} src={user?.avatarUrl} /><ChevronDown className={`size-4 text-slate-500 transition-transform ${profileOpen ? "rotate-180" : ""}`} aria-hidden="true" />
+              </button>
+              {profileOpen && <AccountPanel user={user} onClose={() => setProfileOpen(false)} onLogout={() => void signOut()} />}
+            </div>
+          </> : <button type="button" onClick={() => navigate("/login", { state: { from: { pathname: "/" } } })} className="hidden min-h-10 rounded-lg px-4 text-sm font-semibold text-white shadow-sm sm:inline-flex sm:items-center" style={{ backgroundColor: primaryColor }}>Đăng nhập</button>}
+          <a href={recruiterUrl} className="hidden min-h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 text-sm font-semibold text-slate-700 transition-colors hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] lg:inline-flex"><Building2 className="size-4" aria-hidden="true" />Nhà tuyển dụng</a>
+          <button type="button" aria-expanded={mobileOpen} aria-label={mobileOpen ? "Đóng menu" : "Mở menu"} onClick={() => setMobileOpen((value) => !value)} className="grid size-11 place-items-center rounded-full text-slate-700 hover:bg-slate-100 lg:hidden">{mobileOpen ? <X className="size-5" /> : <Menu className="size-5" />}</button>
+        </div>
+      </div>
+      {mobileOpen && <MobileMenu menus={menus} loggedIn={Boolean(token)} onNavigate={() => setMobileOpen(false)} />}
+    </header>
+  );
+}
+
+const panelWidths: Record<MenuKey, number> = { jobs: 680, profile: 760, tools: 680, company: 720 };
+
+function LoginBadge() {
+  return <span className="ml-auto inline-flex shrink-0 items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-500"><Lock className="size-3" aria-hidden="true" />Cần đăng nhập</span>;
+}
+
+function MegaMenu({ menuKey, menus, arrowLeft, loggedIn, onNavigate }: { menuKey: MenuKey; menus: Menus; arrowLeft: number; loggedIn: boolean; onNavigate: () => void }) {
+  const menu = menus[menuKey];
+  const contentRef = useRef<HTMLDivElement>(null);
+  const previousMenuKey = useRef(menuKey);
+  const [panelHeight, setPanelHeight] = useState(0);
+  const [leavingMenuKey, setLeavingMenuKey] = useState<MenuKey | null>(null);
+
+  useLayoutEffect(() => {
+    if (previousMenuKey.current === menuKey) return;
+    setLeavingMenuKey(previousMenuKey.current);
+    previousMenuKey.current = menuKey;
+    const timer = window.setTimeout(() => setLeavingMenuKey(null), 160);
+    return () => window.clearTimeout(timer);
+  }, [menuKey]);
+
+  useLayoutEffect(() => {
+    const content = contentRef.current;
+    if (!content) return;
+    const updateHeight = () => setPanelHeight(content.scrollHeight);
+    updateHeight();
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(content);
+    return () => observer.disconnect();
+  }, [menuKey]);
+
+  const menuItem = (item: MenuItem) => {
+    const Icon = item.icon;
+    const content = <>{Icon && <Icon className="size-5 shrink-0 text-slate-500 transition-colors group-hover:text-[var(--color-primary)]" aria-hidden="true" />}<span className="min-w-0"><span className="block truncate">{item.label}</span>{item.description && <span className="block truncate text-xs font-normal leading-5 text-slate-500">{item.description}</span>}</span>{item.requiresAuth && !loggedIn && <LoginBadge />}</>;
+    const className = "group flex min-h-10 w-full items-center gap-3 rounded-md px-2.5 py-1.5 text-left text-[15px] font-medium leading-6 text-slate-700 transition-colors hover:bg-[var(--color-primary-subtle)] hover:text-[var(--color-primary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--color-primary)]";
+    return item.to
+      ? <Link key={`${item.to}-${item.label}`} to={item.to} onClick={onNavigate} className={className}>{content}</Link>
+      : <button key={item.label} type="button" onClick={onNavigate} className={className}>{content}</button>;
+  };
+
+  const menuContent = (config: MenuConfig) => {
+    if (config.layout === "cv") {
+      const [styles, positions, tools] = config.groups;
+      return <div className="grid grid-cols-[1fr_1.08fr]">
+        <div className="space-y-3 p-4 pr-5">{[styles, positions].map((group) => <section key={group.title}><h2 className="mb-1 text-[15px] font-semibold text-[var(--color-primary)]">{group.to ? <Link to={group.to} onClick={onNavigate} className="inline-flex items-center gap-1 hover:underline">{group.title}<ArrowRight className="size-4" aria-hidden="true" /></Link> : <span className="flex items-center gap-1">{group.title}<ArrowRight className="size-4" aria-hidden="true" /></span>}</h2><div>{group.items.map(menuItem)}</div></section>)}</div>
+        <section className="border-l border-slate-200 p-4 pl-7"><h2 className="sr-only">{tools.title}</h2><div className="space-y-1">{tools.items.map(menuItem)}</div></section>
+      </div>;
+    }
+    return <div className={`grid ${config.groups.length > 1 ? "grid-cols-2" : ""}`}>{config.groups.map((group, index) => <section key={group.title} className={`p-4 ${index > 0 ? "border-l border-slate-200 pl-7" : "pr-5"}`}><h2 className="mb-1 flex items-center gap-1 text-[15px] font-semibold text-[var(--color-primary)]">{group.title}<ArrowRight className="size-4" aria-hidden="true" /></h2><div>{group.items.map(menuItem)}</div></section>)}</div>;
+  };
+
+  return <div id={`career-menu-${menuKey}`} className="career-mega-menu absolute left-0 top-[68px] max-w-[calc(100vw-32px)] rounded-xl border border-slate-200 bg-white shadow-[0_16px_40px_rgba(15,23,42,0.15)]" style={{ width: panelWidths[menuKey], height: panelHeight }}>
+    <span className="career-mega-menu-arrow" style={{ left: arrowLeft }} aria-hidden="true" />
+    <div className="relative h-full overflow-hidden rounded-xl">
+      {leavingMenuKey && <div className="career-mega-menu-content-leaving pointer-events-none absolute inset-x-0 top-0" aria-hidden="true">{menuContent(menus[leavingMenuKey])}</div>}
+      <div key={menuKey} ref={contentRef} className="career-mega-menu-content">{menuContent(menu)}</div>
+    </div>
+  </div>;
+}
+
+function NotificationPreview({ items, loading, unreadCount, onClose, onOpen }: { items: Notification[]; loading: boolean; unreadCount: number; onClose: () => void; onOpen: (item: Notification) => void }) {
+  const recent = items.slice(0, 5);
+  return <div role="dialog" aria-label="Thông báo gần đây" className="absolute right-0 top-[calc(100%+10px)] w-[min(390px,calc(100vw-24px))] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_18px_48px_rgba(15,23,42,0.18)]">
+    <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4"><div><h2 className="font-semibold text-slate-900">Thông báo</h2><p className="mt-0.5 text-xs text-slate-500">{unreadCount > 0 ? `${unreadCount} thông báo chưa đọc` : "Bạn đã xem hết thông báo mới"}</p></div><span className="grid size-9 place-items-center rounded-full bg-[var(--color-primary-subtle)] text-[var(--color-primary)]"><Bell className="size-4" aria-hidden="true" /></span></div>
+    <div className="max-h-[min(60vh,420px)] overflow-y-auto">
+      {loading && <p className="p-5 text-sm text-slate-500" role="status">Đang tải thông báo…</p>}
+      {!loading && recent.length === 0 && <div className="px-5 py-10 text-center"><Bell className="mx-auto size-7 text-slate-300" aria-hidden="true" /><p className="mt-3 text-sm font-semibold text-slate-700">Chưa có thông báo</p><p className="mt-1 text-xs text-slate-500">Cập nhật về hồ sơ và phỏng vấn sẽ xuất hiện tại đây.</p></div>}
+      {recent.map((item) => <button key={item.id} type="button" onClick={() => onOpen(item)} className={`relative block w-full border-b border-slate-100 px-5 py-4 text-left transition-colors last:border-b-0 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--color-primary)]/30 ${item.readAt ? "bg-white" : "bg-[var(--color-primary-subtle)]/45"}`}><div className="flex gap-3">{!item.readAt && <span className="mt-2 size-2 shrink-0 rounded-full bg-[var(--color-primary)]" aria-hidden="true" />}<div className="min-w-0 flex-1"><h3 className="line-clamp-1 text-sm font-semibold text-slate-800">{!item.readAt && <span className="sr-only">Chưa đọc: </span>}{item.title}</h3>{item.body && <p className="mt-1 line-clamp-2 whitespace-pre-line text-xs leading-5 text-slate-600">{item.body}</p>}<time className="mt-2 block text-[11px] text-slate-400" dateTime={item.createdAt}>{formatNotificationTime(item.createdAt)}</time></div><ChevronRight className="mt-1 size-4 shrink-0 text-slate-400" aria-hidden="true" /></div></button>)}
+    </div>
+    <div className="border-t border-slate-100 p-3"><Link to="/notifications" onClick={onClose} className="flex min-h-10 items-center justify-center gap-2 rounded-xl text-sm font-semibold text-[var(--color-primary)] hover:bg-[var(--color-primary-subtle)]">Xem tất cả thông báo<ArrowRight className="size-4" aria-hidden="true" /></Link></div>
+  </div>;
+}
+
+function formatNotificationTime(value: string) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString("vi-VN", { dateStyle: "short", timeStyle: "short" });
+}
+
+function Avatar({ name, src }: { name?: string; src?: string | null }) {
+  return src ? <img src={src} alt="" className="size-10 rounded-full border border-slate-200 object-cover" /> : <span className="grid size-10 place-items-center rounded-full bg-slate-200 text-sm font-semibold text-slate-600">{name?.split(/\s+/).slice(-2).map((part) => part[0]).join("").toUpperCase() || <CircleUserRound className="size-6" aria-hidden="true" />}</span>;
+}
+
+function AccountPanel({ user, onClose, onLogout }: { user: ReturnType<typeof useAuthStore.getState>["user"]; onClose: () => void; onLogout: () => void }) {
+  return <div className="absolute right-0 top-[calc(100%+10px)] w-[min(390px,calc(100vw-24px))] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_18px_48px_rgba(15,23,42,0.18)]">
+    <Link to="/account" onClick={onClose} title="Cài đặt tài khoản" className="group flex items-center gap-4 border-b border-slate-100 p-5 transition-colors hover:bg-slate-50"><Avatar name={user?.fullName} src={user?.avatarUrl} /><div className="min-w-0 flex-1"><p className="truncate text-base font-semibold text-slate-800 group-hover:text-[var(--color-primary)]">{user?.fullName || "Ứng viên"}</p><p className="mt-1 truncate text-sm text-slate-500">{user?.email}</p><p className="mt-1 text-xs text-[var(--color-primary)]">Tài khoản đã xác thực</p></div><ChevronRight className="size-5 shrink-0 text-slate-400 group-hover:text-[var(--color-primary)]" aria-hidden="true" /></Link>
+    <div className="max-h-[65vh] overflow-y-auto p-3"><AccountSection icon={Settings} title="Thông báo & lịch" links={[{ label: "Thông báo", to: "/notifications?tab=settings" }, { label: "Lịch của tôi", to: "/schedules" }]} onClose={onClose} /><LanguageSection /></div>
+    <div className="border-t border-slate-100 p-3"><button type="button" onClick={onLogout} className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-sm font-semibold text-slate-600 hover:bg-red-50 hover:text-red-700"><LogOut className="size-5" aria-hidden="true" />Đăng xuất</button></div>
+  </div>;
+}
+
+function AccountSection({ icon: Icon, title, links, onClose }: { icon: ElementType; title: string; links: Array<MenuItem & { to: string }>; onClose: () => void }) {
+  return <section className="mb-2"><h2 className="flex items-center gap-3 px-3 py-2 text-sm font-semibold text-slate-800"><Icon className="size-5 text-slate-400" aria-hidden="true" />{title}</h2><div className="ml-8">{links.map((link) => <Link key={link.to + link.label} to={link.to} onClick={onClose} className="block rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 hover:text-[var(--color-primary)]">{link.label}</Link>)}</div></section>;
+}
+
+function LanguageSection() {
+  const t = useT();
+  const locale = useI18nStore((state) => state.locale);
+  const setLocale = useI18nStore((state) => state.setLocale);
+  return <section className="mb-2"><h2 className="flex items-center gap-3 px-3 py-2 text-sm font-semibold text-slate-800"><Languages className="size-5 text-slate-400" aria-hidden="true" />{t("common.language")}</h2><div role="radiogroup" aria-label={t("common.language")} className="ml-8 flex flex-wrap gap-2 px-3 py-1">{locales.map((value) => { const selected = value === locale; return <button key={value} type="button" role="radio" aria-checked={selected} onClick={() => setLocale(value)} className={`inline-flex min-h-9 items-center gap-1.5 rounded-lg border px-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]/30 ${selected ? "border-[var(--color-primary)] bg-[var(--color-primary-subtle)] font-semibold text-[var(--color-primary)]" : "border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-[var(--color-primary)]"}`}>{selected && <Check className="size-4" aria-hidden="true" />}{localeLabels[value]}</button>; })}</div></section>;
+}
+
+function MobileMenu({ menus, loggedIn, onNavigate }: { menus: Menus; loggedIn: boolean; onNavigate: () => void }) {
+  return <nav aria-label="Điều hướng di động" className="max-h-[calc(100vh-76px)] overflow-y-auto border-t border-slate-100 bg-white p-4 lg:hidden">{(Object.keys(menus) as MenuKey[]).map((key) => <section key={key} className="border-b border-slate-100 py-3"><h2 className="px-2 text-sm font-semibold text-slate-800">{menus[key].label}</h2><div className="mt-2 grid gap-1">{menus[key].groups.flatMap((group) => group.items).map((item) => item.to ? <Link key={`${key}-${item.to}-${item.label}`} to={item.to} onClick={onNavigate} className="flex min-h-11 items-center gap-2 rounded-lg px-4 py-3 text-sm text-slate-600 hover:bg-slate-50">{item.label}{item.requiresAuth && !loggedIn && <LoginBadge />}</Link> : <button key={`${key}-${item.label}`} type="button" onClick={onNavigate} className="min-h-11 rounded-lg px-4 py-3 text-left text-sm text-slate-600 hover:bg-slate-50">{item.label}</button>)}</div></section>)}{!loggedIn && <Link to="/login" onClick={onNavigate} className="mt-4 flex min-h-11 items-center justify-center rounded-lg bg-[var(--color-primary)] px-4 text-sm font-semibold text-white">Đăng nhập</Link>}</nav>;
+}

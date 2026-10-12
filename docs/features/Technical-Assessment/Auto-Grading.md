@@ -41,6 +41,7 @@ Tự chấm MCQ + coding; tổng điểm assessment.
 - Google Stitch: **FE-05 Online Technical Assessment / Auto Grading** — _[dán link]_
 - Icons: xem `DESIGN.md`
 - Candidate xem điểm thô/tổng điểm, kết quả ngưỡng đạt và thời điểm nộp sau hoàn tất; không hiển thị đáp án đúng.
+- Màn hình kết quả dùng thẻ căn giữa, khối điểm nổi bật, nhãn đạt/chưa đạt, thời gian nộp và liên kết quay lại bài kiểm tra; các khối xếp dọc trên mobile. Bài chưa có điểm hiển thị “Đang chấm”, bài không có ngưỡng chỉ hiển thị “Đã chấm điểm”.
 
 ## Phụ thuộc
 

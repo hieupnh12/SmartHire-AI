@@ -16,6 +16,8 @@ export interface CheckoutRequestData {
   billingAddress?: string;
   notes?: string;
   quantity?: number;
+  termsAccepted: boolean;
+  termsVersion?: string;
 }
 
 export interface CheckoutResponseData {
@@ -35,6 +37,9 @@ export interface CheckoutResponseData {
   accountName: string;
   transferSyntax: string;
   qrUrl: string;
+  termsAccepted?: boolean;
+  termsVersion?: string;
+  termsAcceptedAt?: string;
   createdAt: string;
 }
 

@@ -5,5 +5,8 @@ public enum QuotaType {
     AI_VOICE_SECONDS,
     AI_TOKENS,
     ACTIVE_JOBS,
-    MAX_SEATS
+    MAX_SEATS,
+    PROCTORING_SECONDS,
+    STORAGE_BYTES,
+    VIDEO_RETENTION_DAYS
 }

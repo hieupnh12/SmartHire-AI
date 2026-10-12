@@ -28,4 +28,7 @@ public class OrderPdfData {
     private String accountName;
     private String transferSyntax;
     private String qrUrl;
+    private String termsVersion;
+    private String termsAcceptedAt;
+    private String clientIp;
 }

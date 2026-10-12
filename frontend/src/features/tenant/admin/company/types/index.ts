@@ -21,3 +21,31 @@ export type UpdateCompanyProfileRequest = {
   industry?: string;
   companySize?: string;
 };
+
+export type CompanyDirectory = {
+  departments: string[];
+  locations: string[];
+};
+
+export type CompanyEmailSetting = {
+  configured: boolean;
+  provider: string;
+  mailUsername?: string;
+  fromName?: string;
+  isActive?: boolean;
+  updatedAt?: string;
+};
+
+export type SaveCompanyEmailSettingRequest = {
+  mailUsername: string;
+  mailPassword?: string;
+  fromName?: string;
+  isActive?: boolean;
+};
+
+export type TestEmailConnectionRequest = {
+  mailUsername: string;
+  mailPassword?: string;
+  fromName?: string;
+  testRecipientEmail: string;
+};

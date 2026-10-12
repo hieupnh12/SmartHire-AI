@@ -58,6 +58,26 @@
   --color-border-focus: var(--color-primary);
   --color-status-danger: var(--color-error);
 
+  /* Interview lifecycle colors stay stable across tenant palettes. */
+  --color-interview-created: #475569;
+  --color-interview-created-bg: #f1f5f9;
+  --color-interview-generating: #6d28d9;
+  --color-interview-generating-bg: #ede9fe;
+  --color-interview-ready: #1d4ed8;
+  --color-interview-ready-bg: #dbeafe;
+  --color-interview-live: #075985;
+  --color-interview-live-bg: #e0f2fe;
+  --color-interview-scoring: #854d0e;
+  --color-interview-scoring-bg: #fef9c3;
+  --color-interview-scored: #115e59;
+  --color-interview-scored-bg: #ccfbf1;
+  --color-interview-passed: #166534;
+  --color-interview-passed-bg: #dcfce7;
+  --color-interview-failed: #9a3412;
+  --color-interview-failed-bg: #ffedd5;
+  --color-interview-error: #991b1b;
+  --color-interview-error-bg: #fee2e2;
+
   /* Radius */
   --radius-sm: 0.25rem;
   --radius-default: 0.5rem;

@@ -120,13 +120,13 @@ class MemberInvitationServiceTest {
         when(invitationRepository.findByTokenHashAndStatus(invitation.getTokenHash(), InvitationStatus.PENDING))
                 .thenReturn(Optional.of(invitation));
         when(userRepository.existsByEmailIgnoreCase("recruiter@se36.com")).thenReturn(false);
-        when(passwordEncoder.encode("secret1")).thenReturn("hashed");
+        when(passwordEncoder.encode("secret123")).thenReturn("hashed");
         when(userRepository.save(any(User.class))).thenAnswer(call -> call.getArgument(0));
         when(invitationRepository.save(any(MemberInvitation.class))).thenAnswer(call -> call.getArgument(0));
 
         UserResponse response = memberInvitationService.accept(AcceptInvitationRequest.builder()
                 .token("raw-token")
-                .password("secret1")
+                .password("secret123")
                 .build());
 
         assertEquals("recruiter@se36.com", response.getEmail());
@@ -141,7 +141,7 @@ class MemberInvitationServiceTest {
                 .thenReturn(Optional.empty());
 
         BusinessException ex = assertThrows(BusinessException.class, () -> memberInvitationService.accept(
-                AcceptInvitationRequest.builder().token("nope").password("secret1").build()));
+                AcceptInvitationRequest.builder().token("nope").password("secret123").build()));
         assertEquals("INVITE_INVALID", ex.getCode());
     }
 

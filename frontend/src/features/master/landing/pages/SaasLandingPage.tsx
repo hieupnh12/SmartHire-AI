@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useScrollReveal } from "@/hooks/useScrollReveal";
 import {
   CheckCircle2,
   ArrowRight,
@@ -22,6 +23,9 @@ import { useLandingModal } from "../context/LandingModalContext";
 export function SaasLandingPage() {
   const navigate = useNavigate();
   const { openDemoModal, openWorkspaceModal } = useLandingModal();
+
+  // Smooth scroll-reveal animations
+  useScrollReveal();
 
   // Interactive FAQ State
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
@@ -54,18 +58,18 @@ export function SaasLandingPage() {
       {/* HERO SECTION */}
       <section className="pt-16 pb-12 md:pt-24 md:pb-20 max-w-7xl mx-auto px-6">
         <div className="text-center max-w-4xl mx-auto">
-          <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight text-slate-900 leading-[1.15] mb-6">
+          <h1 data-reveal="fade-up" className="text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight text-slate-900 leading-[1.15] mb-6">
             Nâng Tầm Hiệu Suất Tuyển Dụng Với{" "}
             <span className="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 bg-clip-text text-transparent drop-shadow-sm">
               Trí Tuệ Nhân Tạo
             </span>
           </h1>
 
-          <p className="text-lg sm:text-xl text-slate-600 max-w-3xl mx-auto mb-10 leading-relaxed">
+          <p data-reveal="fade-up" style={{ transitionDelay: "80ms" }} className="text-lg sm:text-xl text-slate-600 max-w-3xl mx-auto mb-10 leading-relaxed">
             Giải pháp toàn diện giúp doanh nghiệp tự động hóa từ khâu sàng lọc hồ sơ, đánh giá năng lực đến phỏng vấn sơ loại. Rút ngắn 70% thời gian tuyển dụng, tối ưu chi phí và thu hút nhân tài xuất sắc.
           </p>
 
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 max-w-md mx-auto mb-16">
+          <div data-reveal="fade-up" style={{ transitionDelay: "160ms" }} className="flex flex-col sm:flex-row items-center justify-center gap-4 max-w-md mx-auto mb-16">
             <button
               onClick={() => openDemoModal("Tư Vấn Giải Pháp Doanh Nghiệp")}
               className="w-full sm:w-auto px-8 py-4 text-base font-semibold rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-98 text-white shadow-lg shadow-blue-600/20 hover:shadow-xl hover:shadow-blue-600/30 transition-all flex items-center justify-center gap-2.5 group"
@@ -83,7 +87,7 @@ export function SaasLandingPage() {
           </div>
 
           {/* LIVE PRODUCT PREVIEW MOCKUP WITH FLOATING CHIPS */}
-          <div className="relative max-w-5xl mx-auto mt-4 mb-16">
+          <div data-reveal="scale-up" style={{ transitionDelay: "240ms" }} className="relative max-w-5xl mx-auto mt-4 mb-16">
             {/* Floating Chip Left */}
             <div className="hidden lg:flex items-center gap-3 absolute -top-6 -left-6 z-20 bg-white/95 backdrop-blur-md px-4 py-2.5 rounded-2xl border border-slate-200/80 shadow-xl shadow-slate-900/5 animate-float">
               <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center font-semibold">
@@ -245,7 +249,7 @@ export function SaasLandingPage() {
           </div>
 
           {/* TRUST BANNER */}
-          <div className="pt-8 border-t border-slate-200">
+          <div data-reveal="fade-in" className="pt-8 border-t border-slate-200">
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-6">
               Giải pháp được nghiên cứu và tin cậy bởi các tổ chức & doanh nghiệp hàng đầu
             </p>
@@ -263,7 +267,7 @@ export function SaasLandingPage() {
       {/* CORE SOLUTIONS TEASER SECTION */}
       <section className="py-20 bg-white border-y border-slate-200/80">
         <div className="max-w-7xl mx-auto px-6">
-          <div className="text-center max-w-3xl mx-auto mb-16">
+          <div data-reveal="fade-up" className="text-center max-w-3xl mx-auto mb-16">
             <span className="text-xs font-semibold text-blue-600 uppercase tracking-wider px-3 py-1 rounded-full bg-blue-50 border border-blue-200">
               Hệ Sinh Thái Tuyển Dụng
             </span>
@@ -275,7 +279,7 @@ export function SaasLandingPage() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
+          <div data-reveal-stagger className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
             <div className="p-8 rounded-3xl bg-slate-50/70 border border-slate-200 hover:border-blue-400 hover:shadow-xl transition-all group">
               <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center mb-5 border border-blue-200 group-hover:bg-blue-600 group-hover:text-white transition-colors">
                 <FileCheck2 className="w-6 h-6" />
@@ -333,7 +337,7 @@ export function SaasLandingPage() {
 
       {/* VALUE & ROI SECTION */}
       <section className="py-20 max-w-7xl mx-auto px-6">
-        <div className="text-center max-w-3xl mx-auto mb-16">
+        <div data-reveal="fade-up" className="text-center max-w-3xl mx-auto mb-16">
           <span className="text-xs font-semibold text-blue-600 uppercase tracking-wider px-3 py-1 rounded-full bg-blue-50 border border-blue-200">
             Giá Trị Thực Tiễn
           </span>
@@ -345,7 +349,7 @@ export function SaasLandingPage() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+        <div data-reveal-stagger className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
           <div className="p-6 rounded-2xl bg-white border border-slate-200 text-center hover:-translate-y-1.5 hover:shadow-xl hover:border-blue-400/40 transition-all duration-300 group">
             <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto mb-4 border border-blue-200 group-hover:scale-110 group-hover:bg-blue-600 group-hover:text-white transition-all duration-300">
               <Clock className="w-6 h-6" />
@@ -404,7 +408,7 @@ export function SaasLandingPage() {
 
       {/* SECURITY TEASER SECTION - STYLE REFINED PER SHOWCASE CARD (IMAGE 2) */}
       <section className="py-12 sm:py-16 max-w-7xl mx-auto px-6">
-        <div className="relative rounded-[32px] sm:rounded-[36px] overflow-hidden bg-white border border-slate-200/80 p-8 sm:p-12 lg:p-14 shadow-xl shadow-slate-200/40">
+        <div data-reveal="scale-up" className="relative rounded-[32px] sm:rounded-[36px] overflow-hidden bg-white border border-slate-200/80 p-8 sm:p-12 lg:p-14 shadow-xl shadow-slate-200/40">
           {/* Ambient Warm Gradient (Top-Right per Image 2) */}
           <div className="absolute -top-24 -right-24 w-96 h-96 bg-gradient-to-br from-orange-300/30 via-rose-200/20 to-transparent rounded-full blur-3xl pointer-events-none" />
 
@@ -428,7 +432,7 @@ export function SaasLandingPage() {
 
           <div className="relative grid lg:grid-cols-12 gap-10 lg:gap-12 items-center">
             {/* Left Column: Heading + Checklist + Buttons */}
-            <div className="lg:col-span-6 xl:col-span-6">
+            <div data-reveal="slide-left" className="lg:col-span-6 xl:col-span-6">
               <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-slate-900 leading-tight mb-6">
                 <span className="text-[#f05123] font-bold">Bảo Vệ Dữ Liệu Nhân Sự</span>{" "}
                 <br className="hidden sm:inline" />
@@ -484,7 +488,7 @@ export function SaasLandingPage() {
             </div>
 
             {/* Right Column: White framed media card per Image 2 */}
-            <div className="lg:col-span-6 xl:col-span-6">
+            <div data-reveal="slide-right" style={{ transitionDelay: "100ms" }} className="lg:col-span-6 xl:col-span-6">
               <div className="bg-white rounded-3xl p-3 sm:p-4 shadow-xl shadow-slate-200/60 border border-slate-100">
                 <div className="relative overflow-hidden rounded-2xl aspect-[4/3] bg-slate-100">
                   <img
@@ -506,7 +510,7 @@ export function SaasLandingPage() {
 
       {/* PACKAGES PREVIEW SECTION */}
       <section className="py-20 max-w-7xl mx-auto px-6">
-        <div className="text-center max-w-3xl mx-auto mb-16">
+        <div data-reveal="fade-up" className="text-center max-w-3xl mx-auto mb-16">
           <span className="text-xs font-semibold text-blue-600 uppercase tracking-wider px-3 py-1 rounded-full bg-blue-50 border border-blue-200">
             Gói Giải Pháp Doanh Nghiệp
           </span>
@@ -518,7 +522,7 @@ export function SaasLandingPage() {
           </p>
         </div>
 
-        <div className="grid lg:grid-cols-3 gap-8 items-stretch mb-12">
+        <div data-reveal-stagger className="grid lg:grid-cols-3 gap-8 items-stretch mb-12">
           {/* TIER 1 */}
           <div className="rounded-3xl bg-white border border-slate-200 p-8 flex flex-col justify-between shadow-sm hover:shadow-xl transition-all">
             <div>
@@ -638,7 +642,7 @@ export function SaasLandingPage() {
       {/* FAQ SECTION */}
       <section className="py-20 bg-white border-t border-slate-200/80">
         <div className="max-w-4xl mx-auto px-6">
-          <div className="text-center mb-14">
+          <div data-reveal="fade-up" className="text-center mb-14">
             <span className="text-xs font-semibold text-blue-600 uppercase tracking-wider px-3 py-1 rounded-full bg-blue-50 border border-blue-200">
               Hỏi Đáp Thường Gặp
             </span>
@@ -650,7 +654,7 @@ export function SaasLandingPage() {
             </p>
           </div>
 
-          <div className="space-y-4">
+          <div data-reveal-stagger className="space-y-4">
             {faqs.map((faq, index) => {
               const isExpanded = expandedFaq === index;
               return (
@@ -688,7 +692,7 @@ export function SaasLandingPage() {
         <div className="absolute inset-0 pointer-events-none">
           <div className="absolute top-0 right-1/4 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl" />
         </div>
-        <div className="max-w-5xl mx-auto px-6 text-center relative z-10">
+        <div data-reveal="fade-up" className="max-w-5xl mx-auto px-6 text-center relative z-10">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-800 text-sky-400 text-xs font-semibold mb-6 border border-slate-700">
             <Sparkles className="w-3.5 h-3.5" />
             <span>Chuyển Đổi Số Tuyển Dụng</span>

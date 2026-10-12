@@ -39,6 +39,9 @@ public class InvoiceResponse {
     private String transactionId;
     private LocalDateTime paidAt;
     private String notes;
+    private boolean termsAccepted;
+    private String termsVersion;
+    private LocalDateTime termsAcceptedAt;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private List<InvoiceLineItemResponse> lineItems;
@@ -71,6 +74,9 @@ public class InvoiceResponse {
                 .transactionId(invoice.getTransactionId())
                 .paidAt(invoice.getPaidAt())
                 .notes(invoice.getNotes())
+                .termsAccepted(invoice.isTermsAccepted())
+                .termsVersion(invoice.getTermsVersion())
+                .termsAcceptedAt(invoice.getTermsAcceptedAt())
                 .createdAt(invoice.getCreatedAt())
                 .updatedAt(invoice.getUpdatedAt())
                 .lineItems(java.util.Collections.emptyList()) // Default empty, populated in service

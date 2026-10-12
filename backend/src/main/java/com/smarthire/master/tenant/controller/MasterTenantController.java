@@ -58,7 +58,7 @@ public class MasterTenantController {
     @PostMapping("/{id}/retry")
     @Operation(summary = "Retry incomplete tenant provisioning", description = "Retries FAILED or interrupted PROVISIONING tenants under an exclusive lock.")
     public ResponseEntity<ApiResponse<TenantResponse>> retry(@PathVariable Long id, @Valid @RequestBody TenantAdminRequest request) {
-        return ResponseEntity.ok(ApiResponse.ok(TenantResponse.from(masterTenantService.retryProvisioning(id, request))));
+        return ResponseEntity.ok(ApiResponse.ok(masterTenantService.retryProvisioningResponse(id, request)));
     }
 
     @PutMapping("/{id}")
@@ -71,17 +71,41 @@ public class MasterTenantController {
     }
 
     @PostMapping("/onboard")
-    @Operation(summary = "Onboard a new Enterprise Tenant", description = "Registers tenant metadata in Master DB and automatically provisions dedicated Tenant DB & runs Flyway migrations.")
+    @Operation(summary = "Onboard a new Enterprise Tenant", description = "Registers tenant metadata in Master DB, automatically provisions dedicated Tenant DB (unless deferProvisioning=true for B2B Deal), runs Flyway migrations, and dispatches a one-time account activation link to the Tenant Admin.")
     public ResponseEntity<ApiResponse<TenantResponse>> onboardTenant(@Valid @RequestBody OnboardTenantRequest request) {
-        TenantResponse tenant = TenantResponse.from(masterTenantService.onboardTenant(request));
+        TenantResponse tenant = masterTenantService.onboardTenantResponse(request);
+        String msg = Boolean.TRUE.equals(request.getDeferProvisioning())
+                ? "Enterprise Tenant registered in PENDING_PAYMENT state awaiting contract/payment completion"
+                : "Enterprise Tenant onboarded and activation invitation sent successfully";
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.ok("Enterprise Tenant onboarded and database provisioned successfully", tenant));
+                .body(ApiResponse.ok(msg, tenant));
+    }
+
+    @PatchMapping("/{id}/soft-delete")
+    @Operation(summary = "Soft Delete (Archive) Tenant", description = "Marks tenant as soft-deleted and suspends access while preserving Master & Tenant databases for audit/legal retention.")
+    public ResponseEntity<ApiResponse<TenantResponse>> softDeleteTenant(@PathVariable Long id) {
+        TenantResponse tenant = TenantResponse.from(masterTenantService.softDeleteTenant(id));
+        return ResponseEntity.ok(ApiResponse.ok("Tenant soft-deleted (archived) successfully", tenant));
+    }
+
+    @PostMapping("/{id}/restore")
+    @Operation(summary = "Restore Soft-Deleted Tenant", description = "Restores a soft-deleted tenant back to SUSPENDED status so an administrator can re-activate it.")
+    public ResponseEntity<ApiResponse<TenantResponse>> restoreTenant(@PathVariable Long id) {
+        TenantResponse tenant = TenantResponse.from(masterTenantService.restoreTenant(id));
+        return ResponseEntity.ok(ApiResponse.ok("Tenant restored successfully", tenant));
     }
 
     @DeleteMapping("/{id}")
-    @Operation(summary = "Delete Tenant", description = "Deletes tenant metadata and drops tenant database. (For testing)")
-    public ResponseEntity<ApiResponse<Void>> deleteTenant(@PathVariable Long id) {
-        masterTenantService.deleteTenant(id);
-        return ResponseEntity.ok(ApiResponse.ok("Tenant and database deleted successfully", null));
+    @Operation(summary = "Delete Tenant (Hard or Soft)", description = "Deletes tenant metadata and drops tenant database when hard=true (for test cleanup), or performs soft-delete when hard=false.")
+    public ResponseEntity<ApiResponse<Void>> deleteTenant(
+            @PathVariable Long id,
+            @RequestParam(defaultValue = "true") boolean hard) {
+        if (hard) {
+            masterTenantService.deleteTenant(id);
+            return ResponseEntity.ok(ApiResponse.ok("Tenant and database permanently deleted successfully", null));
+        } else {
+            masterTenantService.softDeleteTenant(id);
+            return ResponseEntity.ok(ApiResponse.ok("Tenant soft-deleted (archived) successfully", null));
+        }
     }
 }

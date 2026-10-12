@@ -30,13 +30,14 @@ public class CvMapper {
         return new CvSummary(
                 cv.getId(),
                 cv.getJob() == null ? null : cv.getJob().getId(),
-                cv.getUser().getId(),
-                cv.getUser().getFullName(),
+                cv.getCandidate().getId(),
+                cv.getCandidate().getFullName(),
                 cv.getOriginalFilename(),
                 cv.getStatus().name(),
                 score == null ? null : score.getScore(),
                 cv.getErrorCode(),
-                cv.getCreatedAt());
+                cv.getCreatedAt(),
+                cv.getBuilderData() != null);
     }
 
     public CvDetail detail(Cv cv, CvExtraction extraction, List<CvSkill> skillRows, CvAnalysis analysis,
@@ -44,9 +45,9 @@ public class CvMapper {
         return new CvDetail(
                 cv.getId(),
                 cv.getJob() == null ? null : cv.getJob().getId(),
-                cv.getUser().getId(),
+                cv.getCandidate().getId(),
                 cv.getApplication() == null ? null : cv.getApplication().getId(),
-                cv.getUser().getFullName(),
+                cv.getCandidate().getFullName(),
                 cv.getOriginalFilename(),
                 cv.getMimeType(),
                 cv.getFileSize(),
@@ -63,7 +64,9 @@ public class CvMapper {
                 includeMatch && score != null
                         ? new MatchView(score.getJob().getId(), score.getCv().getId(), score.getScore(),
                         json(score.getBreakdownJson()), score.getModelVersion())
-                        : null);
+                        : null,
+                json(cv.getBuilderData()),
+                cv.getShareToken());
     }
 
     private SkillView skill(CvSkill row) {

@@ -26,6 +26,7 @@ public class SystemSettingService {
         this.credentialService = credentialService;
     }
 
+    @Transactional(transactionManager = "masterTransactionManager", readOnly = true)
     public List<SystemSetting> getAllSettings(String category) {
         if (category != null && !category.isBlank()) {
             return settingRepository.findByCategory(category.toUpperCase());
@@ -33,6 +34,7 @@ public class SystemSettingService {
         return settingRepository.findAll();
     }
 
+    @Transactional(transactionManager = "masterTransactionManager", readOnly = true)
     public Optional<String> getSettingValue(String key) {
         return settingRepository.findById(key).map(setting -> {
             if (Boolean.TRUE.equals(setting.getIsEncrypted())) {

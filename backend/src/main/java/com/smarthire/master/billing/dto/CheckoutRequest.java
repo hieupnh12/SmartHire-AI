@@ -1,7 +1,9 @@
 package com.smarthire.master.billing.dto;
 
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
@@ -55,4 +57,11 @@ public class CheckoutRequest {
     private String billingAddress;
 
     private String notes;
+
+    @NotNull(message = "Quý khách cần đồng ý với Điều khoản dịch vụ và Chính sách bảo vệ dữ liệu cá nhân")
+    @AssertTrue(message = "Quý khách cần đồng ý với Điều khoản dịch vụ và Chính sách bảo vệ dữ liệu cá nhân")
+    private Boolean termsAccepted;
+
+    @Size(max = 32)
+    private String termsVersion;
 }

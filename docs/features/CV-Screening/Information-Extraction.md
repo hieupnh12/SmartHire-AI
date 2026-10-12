@@ -68,3 +68,4 @@ Bộ đọc ranking đã hỗ trợ trường `experience` trong `cv_extractions
 - Ranking chỉ tính thời gian có ít nhất một kỹ năng chuẩn khớp yêu cầu Job và loại trùng tháng giữa các công việc.
 - Gemini (khi có key) đọc text PDF và nhận context skill của job; không tự chấm điểm cuối. heuristic-v1 dùng khi không có key hoặc API lỗi.
 - Overall matching = 0 nếu CV không trùng skill nào của job, dù có bằng cấp / năm KN.
+- Trường tùy chọn (2026-10-04, phục vụ nhập CV vào CV Builder): `experience[].title/company`, `education[{degree,school,startDate,endDate}]`, `projects[{name,description}]`, `languages[{name,level}]`, `certifications[{name,issuer,date}]`. Không ảnh hưởng điểm sàng lọc; heuristic-v1 không sinh các trường này.

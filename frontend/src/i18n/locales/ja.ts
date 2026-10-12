@@ -29,6 +29,7 @@ export const ja: Messages = {
     required: "必須項目です",
     saving: "保存中…",
     undo: "元に戻す",
+    edit: "編集",
   },
   welcome: {
     title: "AIスクリーニングと面接でもっとスマートに採用",
@@ -86,6 +87,7 @@ export const ja: Messages = {
     company: "会社情報",
     landingPage: "採用ランディングページ",
     system: "システム",
+    mailConfig: "Gmail設定",
     overview: "概要",
     companyVerification: "企業認証",
     rolesPermissions: "権限管理",

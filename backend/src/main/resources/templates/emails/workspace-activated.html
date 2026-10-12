@@ -246,11 +246,11 @@
                 </p>
 
                 <!-- 1. THÔNG TIN TRUY CẬP HỆ THỐNG -->
-                <div class="section-title">Thông tin tài khoản &amp; Truy cập hệ thống:</div>
+                <div class="section-title">Thông tin tài khoản &amp; Kích hoạt hệ thống:</div>
                 <div class="access-box">
                     <table class="access-table">
                         <tr>
-                            <td class="access-label">Đường dẫn đăng nhập:</td>
+                            <td class="access-label">Đường dẫn Workspace:</td>
                             <td class="access-value">
                                 <a th:href="${workspaceLoginUrl}" target="_blank"
                                     style="color: #2563eb; text-decoration: none; font-weight: 700;"
@@ -264,9 +264,9 @@
                             <td class="access-value" th:text="${adminEmail}">admin@company.com</td>
                         </tr>
                         <tr>
-                            <td class="access-label">Mật khẩu khởi tạo:</td>
+                            <td class="access-label">Cơ chế bảo mật:</td>
                             <td class="access-value">
-                                <span class="password-badge" th:text="${tempPassword}">Sh!random123</span>
+                                <span class="password-badge">Liên kết kích hoạt 1 lần (Tự đặt mật khẩu)</span>
                             </td>
                         </tr>
                         <tr>
@@ -278,8 +278,8 @@
 
                 <!-- CTA Button -->
                 <div class="btn-container">
-                    <a th:href="${workspaceLoginUrl}" class="btn-primary" target="_blank">
-                        Đăng Nhập Ngay Vào Workspace
+                    <a th:href="${activationUrl}" class="btn-primary" target="_blank">
+                        Kích Hoạt Tài Khoản &amp; Đặt Mật Khẩu
                     </a>
                 </div>
 
@@ -311,19 +311,17 @@
 
                 <!-- 3. HƯỚNG DẪN KHỞI ĐẦU -->
                 <div class="guide-box">
-                    <strong>Các bước thiết lập ban đầu được khuyến nghị:</strong>
+                    <strong>Các bước thiết lập ban đầu:</strong>
                     <ol>
-                        <li>Đăng nhập vào hệ thống theo đường dẫn và mật khẩu khởi tạo ở trên.</li>
-                        <li>Vào mục <strong>Cài đặt tài khoản &gt; Đổi mật khẩu</strong> để cập nhật mật khẩu riêng của
-                            bạn.</li>
-                        <li>Hoàn tất cấu hình thông tin doanh nghiệp, bộ phận tuyển dụng và tạo tin tuyển dụng đầu tiên.
+                        <li>Bấm vào nút <strong>Kích Hoạt Tài Khoản &amp; Đặt Mật Khẩu</strong> ở trên (liên kết xác thực một lần có hiệu lực trong 72 giờ).</li>
+                        <li>Tự thiết lập mật khẩu riêng cho tài khoản Quản trị viên của Quý khách.</li>
+                        <li>Đăng nhập vào Workspace, hoàn tất cấu hình thông tin doanh nghiệp, bộ phận tuyển dụng và tạo tin tuyển dụng đầu tiên.
                         </li>
                     </ol>
                 </div>
 
                 <div class="security-note">
-                    * <strong>Lưu ý bảo mật:</strong> Đây là thông tin bảo mật chứa mật khẩu đăng nhập ban đầu của Quý
-                    khách. Vui lòng không chia sẻ email này cho bất kỳ ai không có phận sự.
+                    * <strong>Lưu ý bảo mật (Invite &amp; Claim Account):</strong> Để đảm bảo an toàn tuyệt đối, SmartHire-AI <strong>không bao giờ</strong> khởi tạo sẵn hay gửi mật khẩu qua Email/Zalo. Chỉ Quý khách mới có quyền tự thiết lập mật khẩu thông qua liên kết kích hoạt một lần ở trên. Vui lòng không chia sẻ liên kết này cho bất kỳ ai không có thẩm quyền.
                 </div>
 
                 <p style="font-size: 13px; color: #475569; margin-top: 20px;">

@@ -1,5 +1,91 @@
 # Data Dictionary - Tenant DB (MySQL)
 
+## Quy tắc ứng tuyển của ứng viên V52 (2026-10-12)
+
+Nguồn: `V52__candidate_application_rules.sql`. Không tạo bảng mới, không thêm FK/UNIQUE.
+
+| Bảng · cột / index | Kiểu | Null | Default | Ý nghĩa |
+|---|---|---|---|---|
+| `applications.withdraw_reason` | VARCHAR(255) | Có | NULL | Lý do ứng viên chọn khi rút đơn (entity `Application.withdrawReason`); xoá về NULL khi nộp lại |
+| `idx_app_candidate_status` | INDEX `(candidate_id, status)` | — | — | Kiểm tra "mỗi ứng viên chỉ một đơn đang xét" |
+| `idx_app_status_updated` | INDEX `(status, updated_at)` | — | — | Job tự đóng đơn quá hạn xử lý |
+| `idx_cvs_retain_until` | INDEX `(retain_until)` | — | — | Job xoá file CV quá hạn lưu |
+
+Thay đổi giá trị (không đổi kiểu cột):
+
+- `cvs.retain_until` giờ được đặt `= now + app.applications.cv-retention-days` (mặc định 180 ngày) khi đơn kết thúc (`REJECTED`/`FAILED`/`WITHDRAWN`); quá hạn thì job xoá file, `storage_key`, `builder_data`, `share_token`, `cv_documents`, `cv_extractions`. Điểm (`match_scores`, `cv_analyses`) được giữ.
+- `candidates.email` của ứng viên đã yêu cầu xoá dữ liệu được thay bằng `erased+<sha256(email)>@erased.invalid`, `status = DISABLED`, các cột hồ sơ về NULL.
+- `candidates.phone` được chuẩn hoá (bỏ khoảng trắng/dấu, `+84` → `0`) khi cập nhật hồ sơ và không trùng giữa hai ứng viên (kiểm tra ở service, không có UNIQUE trong DB vì dữ liệu cũ có thể trùng).
+- `notification_preferences.category` có thêm giá trị `APPLICATION`; `email_outbox.purpose` có thêm `APPLICATION_RESULT`.
+
+## Tách vật lý Candidate khỏi User V51 (2026-10-08)
+
+Nguồn: `V51__separate_candidates_from_users.sql` (đánh số V51 vì DB tenant hiện có đã ghi nhận `V50__company_email_settings.sql`). Tách vật lý ứng viên (`candidates`, entity `Candidate`) khỏi nhân sự nội bộ (`users`, entity `User`), gộp toàn bộ thông tin hồ sơ từ `user_profiles` và xoá bảng `user_profiles`.
+
+### `candidates` (Entity `Candidate`)
+
+| Cột | Kiểu SQL | NULL | Default | Ý nghĩa |
+|---|---|---|---|---|
+| `id` | BIGINT | Không | AUTO_INCREMENT | PK (giữ nguyên ID khi migrate từ `users`) |
+| `email` | VARCHAR(255) | Không | — | `uk_candidates_email` — email đăng nhập ứng viên |
+| `password_hash` | VARCHAR(255) | Có | NULL | NULL với tài khoản chỉ dùng Google OAuth |
+| `full_name` | VARCHAR(255) | Không | — | Họ tên ứng viên |
+| `status` | VARCHAR(32) | Không | `'ACTIVE'` | `UserStatus`: `ACTIVE`, `LOCKED`, `DISABLED`; index `idx_candidates_status` |
+| `phone` | VARCHAR(32) | Có | NULL | Số điện thoại (gộp từ `user_profiles`) |
+| `avatar_url` | VARCHAR(512) | Có | NULL | Ảnh đại diện (gộp từ `user_profiles`) |
+| `bio` | TEXT | Có | NULL | Giới thiệu bản thân (gộp từ `user_profiles`) |
+| `headline` | VARCHAR(255) | Có | NULL | Tiêu đề nghề nghiệp (gộp từ `user_profiles`) |
+| `links_json` | JSON | Có | NULL | Liên kết mạng xã hội / portfolio (gộp từ `user_profiles`) |
+| `created_at` | TIMESTAMP | Không | CURRENT_TIMESTAMP | Thời điểm tạo |
+| `updated_at` | TIMESTAMP | Không | CURRENT_TIMESTAMP ON UPDATE | Thời điểm cập nhật |
+
+### Thay đổi trên các bảng hiện có ở V51
+
+| Bảng · cột | Thay đổi | Ràng buộc / Index mới |
+|---|---|---|
+| `users.phone`, `users.avatar_url`, `users.job_title` | Thêm cột hồ sơ nhân sự nội bộ (gộp từ `user_profiles`), xoá toàn bộ dòng `role = 'CANDIDATE'` | `idx_users_role_status (role, status)` |
+| `user_profiles` | Xoá bảng (`DROP TABLE user_profiles`) và entity `UserProfile` | Bỏ `fk_profile_user`, `uk_profile_user` |
+| `applications.candidate_id` | Đổi đích FK từ `users.id` sang `candidates.id` | `fk_app_candidate` → `candidates(id)` |
+| `cvs.candidate_id` | Đổi tên cột `user_id` → `candidate_id` và đổi đích FK sang `candidates.id` | `fk_cvs_candidate` → `candidates(id)` |
+| `submissions.candidate_id` | Đổi đích FK từ `users.id` sang `candidates.id` | `fk_submissions_candidate` → `candidates(id)` |
+| `practice_sessions.candidate_id` | Đổi đích FK từ `users.id` sang `candidates.id` | `fk_ps_candidate` → `candidates(id)` |
+| `ai_interview_consents.candidate_id` | Đổi đích FK từ `users.id` sang `candidates.id` (`ON DELETE CASCADE`) | `fk_ai_consent_candidate` → `candidates(id)` |
+| `oauth_accounts` | `user_id` chuyển thành nullable; thêm `candidate_id BIGINT NULL` (dual-actor) | `fk_oauth_candidate` (`ON DELETE CASCADE`) |
+| `notifications` | `user_id` chuyển thành nullable; thêm `candidate_id BIGINT NULL` (dual-actor) | `fk_notif_candidate` (`ON DELETE CASCADE`), `idx_notif_candidate (candidate_id, created_at)` |
+| `notification_preferences` | `user_id` chuyển thành nullable; thêm `candidate_id BIGINT NULL` (dual-actor) | `fk_notification_preference_candidate` (`ON DELETE CASCADE`), `uk_notification_preference_candidate_category (candidate_id, category)` |
+
+## AI Conversation V44 (2026-10-03)
+
+Nguồn: `V44__interview_conversation.sql`. Hai bảng mới có entity `InterviewSession`/`InterviewMessage` cùng thay đổi; không backfill lịch sử cũ.
+
+### interview_sessions
+
+| Cột | Kiểu SQL | NULL | Default | Ý nghĩa |
+|---|---|---|---|---|
+| id | BIGINT | Không | AUTO_INCREMENT | PK |
+| ai_interview_id | BIGINT | Không | Không | UNIQUE + FK tới ai_interviews.id, DELETE CASCADE |
+| max_turns | INT | Không | Không | Ngân sách lượt candidate, service giới hạn 1–40 |
+| candidate_turns | INT | Không | 0 | Số lượt user đã commit |
+| ended_at | TIMESTAMP | Có | NULL | Chốt khi nộp, khóa hội thoại |
+| created_at | TIMESTAMP | Không | CURRENT_TIMESTAMP | Entity dùng callback Instant.now |
+
+### interview_messages
+
+| Cột | Kiểu SQL | NULL | Default | Ý nghĩa |
+|---|---|---|---|---|
+| id | BIGINT | Không | AUTO_INCREMENT | PK |
+| session_id | BIGINT | Không | Không | FK tới interview_sessions.id, DELETE CASCADE |
+| sequence_no | INT | Không | Không | Thứ tự 0-based, UNIQUE(session_id, sequence_no) |
+| role | VARCHAR(16) | Không | Không | USER / ASSISTANT, kiểm tra bởi service, không SQL CHECK |
+| content | TEXT | Không | Không | USER tối đa 10.000 ký tự; AI tối đa 12.000; plain text |
+| client_request_id | VARCHAR(36) | Có | NULL | UUID của USER, UNIQUE(session_id, client_request_id); AI để NULL |
+| recording_key | VARCHAR(512) | Có | NULL | Key audio authenticated, không trả qua DTO |
+| recording_mime | VARCHAR(128) | Có | NULL | audio/webm, audio/ogg hoặc audio/mp4 |
+| recording_size | BIGINT | Có | NULL | Byte, tối đa 9 MB theo service |
+| created_at | TIMESTAMP | Không | CURRENT_TIMESTAMP | Thời gian lưu message |
+
+Không thêm cột ai_interviews: JSON snapshot có `conversationVersion=1` cho phiên mới; `report_json` schemaVersion 3 chứa POST_SESSION, bốn tiêu chí, evidence(messageId/quote), summary/strengths/weaknesses và điểm backend tổng hợp. Phiên không có marker tiếp tục xử lý legacy.
+
 ## AI Interview Process Engine & Voice V39-V40 (2026-10-01)
 
 V39 adds `ai_interview_process_runs` so a session creates and completes one process at a time. `ai_questions` gains
@@ -178,6 +264,7 @@ Entity `Job` (káº¿ thá»«a `BaseEntity`). Báº£ng Ä‘Æ°á»£c má»�
 
 | Cá»™t | Kiá»ƒu | KhoÃ¡ | Null | Default | MÃ´ táº£ |
 |---|---|---|---|---|---|
+| `assessment_config_json` | JSON | | Có | NULL | V43: cấu hình durationMinutes, passingPercent, autoAssign, sections(skill/type/difficulty/count/points) |
 | `id` | BIGINT | PK | KhÃ´ng | auto | |
 | `title` | VARCHAR(255) | | KhÃ´ng | â€” | TiÃªu Ä‘á» tin |
 | `description` | TEXT | | KhÃ´ng | â€” | MÃ´ táº£ cÃ´ng viá»‡c |
@@ -253,6 +340,22 @@ Entity `RecruitmentStage`. Báº£ng khÃ´ng cÃ³ cá»™t thá»i gian.
 
 ---
 
+### B.5 `company_directory_entries` — Danh mục công ty (V45)
+
+Entity `CompanyDirectoryEntry` (kế thừa `BaseEntity`).
+
+| Cột | Kiểu | Khoá | Null | Default | Mô tả |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | Không | auto | Định danh mục |
+| `entry_type` | VARCHAR(32) | UQ | Không | — | `DEPARTMENT` hoặc `LOCATION` |
+| `name` | VARCHAR(255) | UQ | Không | — | Tên phòng ban hoặc địa chỉ/địa điểm hiển thị |
+| `created_at` | TIMESTAMP | | Không | CURRENT_TIMESTAMP | Thời điểm tạo |
+| `updated_at` | TIMESTAMP | | Không | CURRENT_TIMESTAMP on update | Thời điểm cập nhật |
+
+**Ràng buộc:** `uk_company_directory_type_name (entry_type, name)`. Không có FK; `jobs.department` và `jobs.location` lưu snapshot chuỗi và được service kiểm tra với danh mục.
+
+---
+
 ## C. Application pipeline
 
 ### C.1 `applications` â€” ÄÆ¡n á»©ng tuyá»ƒn (báº£ng trung tÃ¢m)
@@ -265,7 +368,7 @@ Entity `Application` (káº¿ thá»«a `BaseEntity`). Má»Ÿ rá»™ng qua V7
 | `job_id` | BIGINT | FK â†’ `jobs.id`, UQ, IDX | KhÃ´ng | â€” | Tin á»©ng tuyá»ƒn |
 | `candidate_id` | BIGINT | FK â†’ `users.id`, UQ | KhÃ´ng | â€” | á»¨ng viÃªn |
 | `stage_id` | BIGINT | FK â†’ `recruitment_stages.id` | CÃ³ | NULL | VÃ²ng tuyá»ƒn hiá»‡n táº¡i |
-| `status` | VARCHAR(32) | IDX | KhÃ´ng | `'NEW'` | `ApplicationStatus` â€” 8 giÃ¡ trá»‹ |
+| `status` | VARCHAR(32) | IDX | KhÃ´ng | `'NEW'` | `ApplicationStatus`: NEW, IN_REVIEW, ASSESSMENT, INTERVIEW (AI), HUMAN_INTERVIEW (người–người), OFFER, HIRED, REJECTED, FAILED, WITHDRAWN |
 | `source` | VARCHAR(64) | | CÃ³ | NULL | Nguá»“n á»©ng tuyá»ƒn |
 | `notes` | TEXT | | CÃ³ | NULL | Ghi chÃº ná»™i bá»™ cá»§a recruiter |
 | `referral_code` | VARCHAR(64) | | CÃ³ | NULL | MÃ£ giá»›i thiá»‡u (V7) |
@@ -338,10 +441,12 @@ Entity `Cv` (káº¿ thá»«a `BaseEntity`). Má»Ÿ rá»™ng qua V2, V5, V7,
 | `status` | VARCHAR(32) | | KhÃ´ng | `'UPLOADED'` | `CvStatus` â€” 7 giÃ¡ trá»‹ theo cháº·ng pipeline |
 | `error_code` | VARCHAR(64) | | CÃ³ | NULL | MÃ£ lá»—i khi pipeline há»ng (V5) |
 | `error_message` | VARCHAR(512) | | CÃ³ | NULL | ThÃ´ng Ä‘iá»‡p lá»—i, bá»‹ cáº¯t cÃ²n tá»‘i Ä‘a 512 kÃ½ tá»± (V5) |
+| `builder_data` | JSON | | Có | NULL | JSON nội dung CV tạo bằng CV Builder (`templateId`, `accentColor`, `theme`, `language` vi/en, `personalInfo` gồm `avatarUrl`, `avatarCrop {x, y, zoom, aspect}`, `github`, `linkedin`, `details[]` ≤ 12 dòng `{label, value}`, `logoUrl` (Cloudinary hoặc `/cv-assets/*`), `theme.font` modern/classic/compact/tahoma, `theme.avatar {shape, sizeMm}`, `sections[]` với `items[].level`, `items[].rows[]` ≤ 8 dòng `{label, value}` cho bảng 2 cột mẫu Enterprise) để mở lại chỉnh sửa; NULL = CV tải lên từ file (V46) |
+| `share_token` | VARCHAR(64) | UQ | Có | NULL | Token ngẫu nhiên của link chia sẻ công khai chỉ đọc `/cv/share/{token}`; NULL = chưa chia sẻ (V47) |
 | `created_at` | TIMESTAMP | | KhÃ´ng | now | |
 | `updated_at` | TIMESTAMP | | KhÃ´ng | now on update | |
 
-**RÃ ng buá»™c:** `fk_cvs_job`, `fk_cvs_user`
+**RÃ ng buá»™c:** `fk_cvs_job`, `fk_cvs_user`, `uk_cvs_share_token` (V47)
 
 ### D.2 `cv_documents` â€” VÄƒn báº£n thÃ´ (cháº·ng 1)
 
@@ -549,6 +654,7 @@ Entity `JobTest` (class Java tránh xung đột JUnit `Test`).
 |---|---|---|---|---|---|
 | `id` | BIGINT | PK | Không | auto | |
 | `job_id` | BIGINT | FK → `jobs.id` | Không | — | Tin tuyển dụng sở hữu đề |
+| `assigned_application_id` | BIGINT | FK → `applications.id`, UQ | Có | NULL | V43: đề tự động riêng cho hồ sơ; NULL là đề chung trong job. FK RESTRICT, UNIQUE `uk_tests_assigned_application` |
 | `title` | VARCHAR(255) | | Không | — | Tên đề thi |
 | `description` | TEXT | | Có | NULL | Mô tả |
 | `duration_minutes` | INT | | Không | — | Thời lượng (phút) |
@@ -558,7 +664,7 @@ Entity `JobTest` (class Java tránh xung đột JUnit `Test`).
 | `created_at` | TIMESTAMP | | Không | now | |
 | `updated_at` | TIMESTAMP | | Có | NULL | Cập nhật lần cuối; backfill = `created_at` ở V13 |
 
-**Ràng buộc:** `fk_tests_job`, `fk_tests_created_by`
+**Ràng buộc:** `fk_tests_job`, `fk_tests_created_by`, V43 `fk_tests_assigned_application`, `uk_tests_assigned_application`.
 
 ### F.2 `questions` — Câu hỏi
 
@@ -567,7 +673,7 @@ Entity `Question`.
 | Cột | Kiểu | Khoá | Null | Default | Mô tả |
 |---|---|---|---|---|---|
 | `id` | BIGINT | PK | Không | auto | |
-| `test_id` | BIGINT | FK → `tests.id` | Không | — | Đề thi |
+| `test_id` | BIGINT | FK → `tests.id` | Có | NULL | V41: NULL cho câu hỏi ngân hàng chung; có giá trị khi thuộc đề thi |
 | `question_text` | TEXT | | Không | — | Nội dung câu hỏi |
 | `question_type` | VARCHAR(32) | | Không | — | Loại câu hỏi (MCQ ở luồng ASSESS-01) |
 | `points` | INT | | Không | 1 | Điểm tối đa |
@@ -575,6 +681,8 @@ Entity `Question`.
 | `difficulty` | VARCHAR(16) | | Có | NULL | `Easy` / `Medium` / `Hard` — metadata biên soạn |
 | `skill` | VARCHAR(255) | | Có | NULL | Nhãn kỹ năng từ Excel/UI |
 | `explanation` | TEXT | | Có | NULL | Giải thích đáp án (chỉ staff; không trả candidate) |
+| `authoring_metadata` | JSON | | Có | NULL | V41: metadata bảng soạn, gồm loại tự luận, rubric, đáp án mẫu, snippet/ngôn ngữ và chính sách chấm; chỉ staff |
+| `bank_archived` | BOOLEAN | | Không | FALSE | V41: trạng thái lưu trữ câu hỏi độc lập trong ngân hàng chung |
 
 **Ràng buộc:** `fk_questions_test`
 
@@ -590,7 +698,7 @@ Entity `QuestionSkill`; bảng nối N–N giữa `questions` và `skills`.
 PK `(question_id, skill_id)` chống liên kết trùng; index `idx_questionskills_skill(skill_id)`
 hỗ trợ tìm câu hỏi theo kỹ năng. FK `fk_questionskills_question` và `fk_questionskills_skill`
 đều `ON DELETE CASCADE`: chỉ xóa dòng nối khi xóa bản ghi cha, không xóa cha còn lại.
-Không có cột id tự tăng. Cột văn bản `questions.skill` vẫn được giữ, không tự backfill hoặc đồng bộ.
+Không có cột id tự tăng. Cột văn bản `questions.skill` vẫn được giữ. Từ API ngân hàng chung V41, thêm/sửa câu hỏi độc lập đồng bộ một nhãn skill vào `skills` và `questionskills` trong cùng transaction. Không backfill dữ liệu cũ; luồng assessment gốc chưa đổi cách ghi skill.
 
 ### F.3 `options` — Lựa chọn trả lời
 
@@ -613,7 +721,7 @@ Entity `Submission`. Điểm tổng nằm ngay trên bảng (không còn `attemp
 |---|---|---|---|---|---|
 | `id` | BIGINT | PK | Không | auto | |
 | `test_id` | BIGINT | FK → `tests.id` | Không | — | Đề thi |
-| `candidate_id` | BIGINT | FK → `users.id` | Không | — | Ứng viên |
+| `candidate_id` | BIGINT | FK → `candidates.id` | Không | — | Ứng viên (V50 đổi đích sang `candidates.id`) |
 | `application_id` | BIGINT | FK → `applications.id` | Không | — | Đơn ứng tuyển |
 | `started_at` | TIMESTAMP | | Có | NULL | Bắt đầu |
 | `submitted_at` | TIMESTAMP | | Có | NULL | Nộp bài |
@@ -622,7 +730,7 @@ Entity `Submission`. Điểm tổng nằm ngay trên bảng (không còn `attemp
 | `status` | VARCHAR(32) | | Không | `'NOT_STARTED'` | `TestSubmissionStatus` |
 | `created_at` | TIMESTAMP | | Không | now | |
 
-**Ràng buộc:** `fk_submissions_test`, `fk_submissions_candidate`, `fk_submissions_application`
+**Ràng buộc:** `fk_submissions_test`, `fk_submissions_candidate` (`candidates.id`), `fk_submissions_application`
 
 ### F.5 `answers` — Câu trả lời trong lượt làm
 
@@ -744,6 +852,7 @@ Entity `Interview` (kế thừa `BaseEntity`).
 | `id` | BIGINT | PK | Không | auto | |
 | `application_id` | BIGINT | FK → `applications.id` | Không | — | Đơn ứng tuyển |
 | `interview_type` | VARCHAR(64) | | Không | — | TECHNICAL, HR, BEHAVIORAL… |
+| `configuration_json` | JSON | | Có | NULL | V48: rubric, provider, emailTemplate, notes, attachCalendar, rescheduleReason, requestedStart, requestedEnd |
 | `mode` | VARCHAR(64) | | Không | — | DIRECT / ONLINE / … |
 | `status` | VARCHAR(32) | | Không | `'CREATED'` | `InterviewStatus` |
 | `created_at` | TIMESTAMP | | Không | now | |
@@ -763,7 +872,7 @@ Entity `InterviewSchedule`.
 | `scheduled_end` | TIMESTAMP | | Không | — | Kết thúc |
 | `location` | VARCHAR(255) | | Có | NULL | Địa điểm |
 | `meeting_url` | VARCHAR(512) | | Có | NULL | Link họp |
-| `status` | VARCHAR(32) | | Không | `'PROPOSED'` | `ScheduleStatus` |
+| `status` | VARCHAR(32) | | Không | `'PROPOSED'` | `ScheduleStatus`: DRAFT, PROPOSED, CONFIRMED, RESCHEDULE_REQUESTED, CANCELLED, DONE |
 
 **Ràng buộc:** `fk_isched_interview`
 
@@ -874,6 +983,7 @@ Entity `AiAnswer`.
 | `ai_question_id` | BIGINT | FK → `ai_questions.id`, UQ | Không | — | Câu hỏi |
 | `answer_text` | TEXT | | Có | NULL | Nội dung trả lời |
 | `answer_duration` | INT | | Có | NULL | Thời lượng (giây) |
+| `speech_metrics_json` | JSON | | Có | NULL | V42: `durationMs`, `voicedMs`, `silenceMs`, `pauseCount`, `responseLatencyMs`; chỉ lưu khi Communication bật Speech Signals, không cộng vào điểm nội dung |
 | `answered_at` | TIMESTAMP | | Có | NULL | Thời điểm trả lời |
 
 **Ràng buộc:** `fk_ai_a_question`, `uk_ai_a_question (ai_question_id)`
@@ -918,12 +1028,13 @@ một phiên (mời, sinh câu theo lô, bắt đầu, lưu câu trả lời, n�
 
 ### I.1 `notifications` — Thông báo in-app
 
-Entity `Notification`.
+Entity `Notification`. Từ V50 hỗ trợ dual-actor: đúng một trong hai cột `user_id` hoặc `candidate_id` khác NULL.
 
 | Cột | Kiểu | Khoá | Null | Default | Mô tả |
 |---|---|---|---|---|---|
 | `id` | BIGINT | PK | Không | auto | |
-| `user_id` | BIGINT | FK → `users.id` | Không | — | Người nhận |
+| `user_id` | BIGINT | FK → `users.id` | Có (từ V50) | NULL | Nhân sự nhận thông báo |
+| `candidate_id` | BIGINT | FK → `candidates.id`, IDX | Có (từ V50) | NULL | Ứng viên nhận thông báo (ON DELETE CASCADE) |
 | `type` | VARCHAR(64) | | Không | — | Loại |
 | `title` | VARCHAR(255) | | Không | — | Tiêu đề |
 | `body` | TEXT | | Có | NULL | Nội dung |
@@ -931,7 +1042,7 @@ Entity `Notification`.
 | `read_at` | TIMESTAMP | | Có | NULL | NULL = chưa đọc |
 | `created_at` | TIMESTAMP | | Không | now | |
 
-**Ràng buộc:** `fk_notif_user`
+**Ràng buộc:** `fk_notif_user`, `fk_notif_candidate` (ON DELETE CASCADE, V50), index `idx_notif_candidate (candidate_id, created_at)` (V50)
 
 ### I.2 `email_outbox` — Hàng đợi email
 
@@ -948,6 +1059,22 @@ Entity `EmailOutbox`.
 | `created_at` | TIMESTAMP | | Không | now | |
 | `sent_at` | TIMESTAMP | | Có | NULL | |
 
+### I.3 `notification_preferences` — Cài đặt kênh nhận thông báo (V49, mở rộng V50)
+
+Entity `NotificationPreference`. Không có dòng cho một loại nghĩa là người dùng nhận cả web lẫn email. Từ V50 hỗ trợ dual-actor (`user_id` cho nhân sự hoặc `candidate_id` cho ứng viên).
+
+| Cột | Kiểu | Khoá | Null | Default | Mô tả |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | Không | auto | |
+| `user_id` | BIGINT | FK → `users.id` | Có (từ V50) | NULL | Nhân sự chủ cài đặt; xóa user thì xóa theo (CASCADE) |
+| `candidate_id` | BIGINT | FK → `candidates.id` | Có (từ V50) | NULL | Ứng viên chủ cài đặt; xóa candidate thì xóa theo (CASCADE) |
+| `category` | VARCHAR(32) | UQ | Không | — | Enum `NotificationCategory`: `AI_INTERVIEW`, `ASSESSMENT`, `HUMAN_INTERVIEW` |
+| `web_enabled` | BOOLEAN | | Không | TRUE | FALSE = không tạo dòng `notifications` cho loại này |
+| `email_enabled` | BOOLEAN | | Không | TRUE | FALSE = không gửi/ghi `email_outbox` cho loại này |
+| `updated_at` | TIMESTAMP | | Không | now (ON UPDATE) | |
+
+**Ràng buộc:** `fk_notification_preference_user`, `fk_notification_preference_candidate` (ON DELETE CASCADE, V50), `uk_notification_preference_user_category(user_id, category)`, `uk_notification_preference_candidate_category(candidate_id, category)` (V50)
+
 ---
 
 ## J. Practice
@@ -959,7 +1086,7 @@ Entity `PracticeSession`.
 | Cột | Kiểu | Khoá | Null | Default | Mô tả |
 |---|---|---|---|---|---|
 | `id` | BIGINT | PK | Không | auto | |
-| `candidate_id` | BIGINT | FK → `users.id` | Không | — | Ứng viên |
+| `candidate_id` | BIGINT | FK → `candidates.id` | Không | — | Ứng viên (V50 đổi đích sang `candidates.id`) |
 | `topic` | VARCHAR(255) | | Có | NULL | Chủ đề |
 | `started_at` | TIMESTAMP | | Có | NULL | |
 | `completed_at` | TIMESTAMP | | Có | NULL | |
@@ -967,7 +1094,7 @@ Entity `PracticeSession`.
 | `status` | VARCHAR(32) | | Không | `'CREATED'` | `PracticeStatus` |
 | `created_at` | TIMESTAMP | | Không | now | |
 
-**Ràng buộc:** `fk_ps_user`
+**Ràng buộc:** `fk_ps_candidate` (V50)
 
 ### J.2 `practice_answers` — Câu hỏi/trả lời luyện
 
@@ -1048,4 +1175,27 @@ Entity `LandingPageSetting` (`com.smarthire.domain.tenant.entity.LandingPageSett
 | `updated_at` | TIMESTAMP | | Không | `CURRENT_TIMESTAMP` | Thời điểm cập nhật cuối |
 
 **Ràng buộc:** Mỗi tenant database chứa 1 bản ghi cấu hình tùy biến duy nhất phục vụ trang Career công khai.
+
+---
+
+## L. Company Email Settings (V50)
+
+### L.1 `company_email_settings` — Cấu hình tài khoản Gmail gửi thư của Tenant (V50)
+
+Entity `CompanyEmailSetting` (`com.smarthire.domain.tenant.entity.CompanyEmailSetting`), kế thừa `BaseEntity`.
+
+| Cột | Kiểu | Khoá | Null | Default | Mô tả |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | Không | auto | Mã định danh bản ghi |
+| `provider` | VARCHAR(32) | | Không | `'GMAIL'` | Nhà cung cấp dịch vụ gửi thư |
+| `mail_username` | VARCHAR(255) | | Không | — | Địa chỉ Gmail của công ty dùng để gửi thư |
+| `mail_password_encrypted` | VARCHAR(512) | | Không | — | Mật khẩu ứng dụng (Google App Password) mã hóa AES-256 GCM |
+| `from_name` | VARCHAR(128) | | Có | NULL | Tên người gửi hiển thị (Sender Display Name) |
+| `is_active` | BOOLEAN | | Không | `TRUE` | Trạng thái kích hoạt cấu hình |
+| `created_at` | TIMESTAMP | | Không | `CURRENT_TIMESTAMP` | Thời điểm tạo |
+| `updated_at` | TIMESTAMP | | Không | `CURRENT_TIMESTAMP` | Thời điểm cập nhật cuối |
+
+**Ràng buộc & Nghiệp vụ:**
+- Mỗi tenant cấu hình tài khoản Gmail riêng. Mật khẩu ứng dụng 16 ký tự được mã hóa AES-256 GCM bằng `TenantCredentialService` với AAD là `tenantCode`.
+- Bắt buộc phải có Gmail được cấu hình thành công thì công ty mới có thể gửi thư mời nhân viên và các email thông báo. Nếu chưa cấu hình, hệ thống sẽ chặn gửi và thông báo yêu cầu cấu hình trên giao diện Company.
 

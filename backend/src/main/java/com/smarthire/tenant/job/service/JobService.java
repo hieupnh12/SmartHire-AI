@@ -11,6 +11,7 @@ import com.smarthire.domain.tenant.entity.Job;
 import com.smarthire.domain.tenant.entity.JobSkill;
 import com.smarthire.domain.tenant.entity.RecruitmentStage;
 import com.smarthire.domain.tenant.entity.Skill;
+import com.smarthire.domain.tenant.entity.CompanyDirectoryEntry.EntryType;
 import com.smarthire.domain.tenant.repository.ApplicationRepository;
 import com.smarthire.domain.tenant.repository.JobRepository;
 import com.smarthire.domain.tenant.repository.JobSkillRepository;
@@ -36,6 +37,7 @@ import com.smarthire.tenant.job.dto.JobModels.StageView;
 import com.smarthire.tenant.job.dto.JobModels.StagesRequest;
 import com.smarthire.tenant.job.mapper.JobMapper;
 import com.smarthire.tenant.job.screening.JobScreeningConfigService;
+import com.smarthire.tenant.company.service.CompanyDirectoryService;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -82,7 +84,9 @@ public class JobService {
     private final JobScreeningConfigService screening;
     private final JobScreeningConfigRepository screeningConfigs;
     private final JobCloseScreeningService closeScreening;
+    private final CompanyDirectoryService companyDirectory;
     private final org.springframework.amqp.rabbit.core.RabbitTemplate rabbitTemplate;
+    private final com.smarthire.tenant.applicant.service.ApplicationClosureService closures;
     
     @org.springframework.beans.factory.annotation.Value("${app.rabbitmq.exchanges.job-expiry}")
     private String jobExpiryExchange;
@@ -100,7 +104,9 @@ public class JobService {
             JobScreeningConfigService screening,
             JobScreeningConfigRepository screeningConfigs,
             JobCloseScreeningService closeScreening,
-            org.springframework.amqp.rabbit.core.RabbitTemplate rabbitTemplate) {
+            CompanyDirectoryService companyDirectory,
+            org.springframework.amqp.rabbit.core.RabbitTemplate rabbitTemplate,
+            com.smarthire.tenant.applicant.service.ApplicationClosureService closures) {
         this.jobs = jobs;
         this.jobSkills = jobSkills;
         this.stages = stages;
@@ -113,7 +119,9 @@ public class JobService {
         this.screening = screening;
         this.screeningConfigs = screeningConfigs;
         this.closeScreening = closeScreening;
+        this.companyDirectory = companyDirectory;
         this.rabbitTemplate = rabbitTemplate;
+        this.closures = closures;
     }
 
     public Map<String, String> health() {
@@ -269,6 +277,7 @@ public class JobService {
         job.setDeletedAt(Instant.now());
         job.setStatus(JobStatus.ARCHIVED);
         jobs.save(job);
+        closures.closeForRemovedJob(job);
     }
 
     @Transactional
@@ -449,7 +458,7 @@ public class JobService {
         if (!mapper.accepting(job)) {
             throw new BusinessException("Job is not open for applications", HttpStatus.BAD_REQUEST, "JOB_NOT_PUBLISHED");
         }
-        var actor = access.actor();
+        var actor = access.candidateActor();
         var existing = applications.findByJob_IdAndCandidate_Id(jobId, actor.getId());
         if (existing.isPresent()) return mapper.application(existing.get());
         Application application = new Application();
@@ -470,6 +479,8 @@ public class JobService {
     }
 
     private void apply(Job job, JobUpsertRequest request) {
+        companyDirectory.requireEntry(EntryType.DEPARTMENT, request.department());
+        companyDirectory.requireEntry(EntryType.LOCATION, request.location());
         job.setTitle(request.title().trim());
         job.setDescription(blankToValue(request.description(), request.title().trim()));
         job.setResponsibilities(blankToNull(request.responsibilities()));

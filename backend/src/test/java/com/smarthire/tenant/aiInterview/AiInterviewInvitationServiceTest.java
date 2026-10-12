@@ -10,6 +10,7 @@ import com.smarthire.multitenancy.context.TenantContext;
 import com.smarthire.tenant.aiInterview.service.AiInterviewActivityLog;
 import com.smarthire.tenant.aiInterview.service.AiInterviewInvitationService;
 import com.smarthire.tenant.applicant.service.AiInterviewInviteService;
+import com.smarthire.tenant.notification.service.NotificationPreferenceService;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.AfterEach;
@@ -31,6 +32,7 @@ class AiInterviewInvitationServiceTest {
     @Mock NotificationRepository notifications;
     @Mock AiInterviewActivityLog activity;
     @Mock AiInterviewInviteService emailInvites;
+    @Mock NotificationPreferenceService preferences;
     @InjectMocks AiInterviewInvitationService service;
     Application application;
 
@@ -38,7 +40,7 @@ class AiInterviewInvitationServiceTest {
         TenantContext.setCurrentTenant("test-tenant");
         application = new Application();
         application.setId(7L);
-        application.setCandidate(user(9L));
+        application.setCandidate(candidate(9L));
         var job = new Job();
         job.setId(13L);
         job.setTitle("Java Backend Developer");
@@ -64,26 +66,52 @@ class AiInterviewInvitationServiceTest {
         assertThat(result.getStatus()).isEqualTo(AiInterviewStatus.GENERATING);
         var notification = ArgumentCaptor.forClass(Notification.class);
         verify(notifications).save(notification.capture());
-        assertThat(notification.getValue().getUser().getId()).isEqualTo(9L);
+        assertThat(notification.getValue().getCandidate().getId()).isEqualTo(9L);
         assertThat(notification.getValue().getPayloadJson()).contains("/candidate/interviews/11");
         assertThat(notification.getValue().getBody()).contains("Java Backend Developer");
         assertThat(notification.getValue().getBody()).contains("08:00 10/10/2026");
         assertThat(notification.getValue().getBody()).contains("23:59 12/10/2026");
         assertThat(notification.getValue().getBody()).contains("Thời lượng: 30 phút");
         assertThat(notification.getValue().getBody()).contains("Số lần thực hiện: 1");
-        verify(activity).record(eq(result), eq("INVITED"), contains("5 questions"));
+        verify(activity).record(eq(result), eq("INVITED"), contains("3 Communication questions"));
         verify(emailInvites).sendForInterview(application);
         assertThat(result.getConfigSnapshotJson()).isNotBlank();
         assertThat(result.getAttemptNumber()).isEqualTo(1);
     }
 
+    @Test void invitesWithDefaultConfigurationWithoutRecruiterEnablingIt() {
+        application.getJob().setAiInterviewEnabled(false);
+        application.getJob().setAiInterviewPolicyJson(null);
+        when(applications.findByIdForUpdate(7L)).thenReturn(Optional.of(application));
+        when(interviews.save(any())).thenAnswer(call -> { AiInterview next = call.getArgument(0); next.setId(11L); return next; });
+
+        assertThat(service.invite(7L, null).getStatus()).isEqualTo(AiInterviewStatus.GENERATING);
+        verify(notifications).save(any());
+        verify(emailInvites).sendForInterview(application);
+    }
+
     @Test void retryDoesNotDuplicateSessionOrNotification() {
         when(applications.findByIdForUpdate(7L)).thenReturn(Optional.of(application));
         var existing = AiInterview.builder().id(11L).application(application).build();
+        com.smarthire.tenant.aiInterview.service.InterviewPolicies.snapshot(existing);
         when(interviews.findByApplication_IdOrderByIdDesc(7L)).thenReturn(List.of(existing));
         assertThat(service.invite(7L, null)).isSameAs(existing);
         verify(interviews, never()).save(any());
         verifyNoInteractions(notifications, activity, emailInvites);
+    }
+
+    @Test void createsCommunicationReplacementWithoutDeletingLegacySession() {
+        when(applications.findByIdForUpdate(7L)).thenReturn(Optional.of(application));
+        var legacy = AiInterview.builder().id(10L).application(application).status(AiInterviewStatus.QUESTIONS_READY).build();
+        when(interviews.findByApplication_IdOrderByIdDesc(7L)).thenReturn(List.of(legacy));
+        when(interviews.save(any())).thenAnswer(call -> { AiInterview next = call.getArgument(0); next.setId(11L); return next; });
+        var replacement = service.invite(7L, null);
+        assertThat(replacement).isNotSameAs(legacy);
+        assertThat(com.smarthire.tenant.aiInterview.service.InterviewPolicies.communicationOnly(
+                com.smarthire.tenant.aiInterview.service.InterviewPolicies.config(replacement).policy())).isTrue();
+        assertThat(legacy.getStatus()).isEqualTo(AiInterviewStatus.QUESTIONS_READY);
+        verify(interviews, never()).delete(any());
+        verify(notifications).save(any());
     }
 
     @Test void rejectsUnscreenedApplication() {
@@ -98,9 +126,9 @@ class AiInterviewInvitationServiceTest {
         assertThatThrownBy(() -> service.invite(7L, null)).isInstanceOf(BusinessException.class);
         verifyNoInteractions(applications, interviews, notifications);
     }
-    private static User user(long id) {
-        User user = new User();
-        user.setId(id);
-        return user;
+    private static Candidate candidate(long id) {
+        Candidate candidate = new Candidate();
+        candidate.setId(id);
+        return candidate;
     }
 }

@@ -20,6 +20,12 @@ public class User extends BaseEntity {
 
     @Column(name = "full_name", nullable = false) String fullName;
 
+    @Column(length = 32) String phone;
+
+    @Column(name = "avatar_url", length = 512) String avatarUrl;
+
+    @Column(name = "job_title", length = 128) String jobTitle;
+
     @Column(nullable = false, length = 64) String role;
 
     @Enumerated(EnumType.STRING)

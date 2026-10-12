@@ -39,18 +39,19 @@ export function formatDateTime(value: string | null | undefined) {
   });
 }
 
+export const aiStatusTone: Record<AiInterviewStatus, string> = {
+  CREATED: "bg-[var(--color-interview-created-bg)] text-[var(--color-interview-created)]",
+  GENERATING: "bg-[var(--color-interview-generating-bg)] text-[var(--color-interview-generating)]",
+  QUESTIONS_READY: "bg-[var(--color-interview-ready-bg)] text-[var(--color-interview-ready)]",
+  IN_PROGRESS: "bg-[var(--color-interview-live-bg)] text-[var(--color-interview-live)]",
+  SCORING: "bg-[var(--color-interview-scoring-bg)] text-[var(--color-interview-scoring)]",
+  SCORED: "bg-[var(--color-interview-scored-bg)] text-[var(--color-interview-scored)]",
+  PASSED: "bg-[var(--color-interview-passed-bg)] text-[var(--color-interview-passed)]",
+  FAILED: "bg-[var(--color-interview-failed-bg)] text-[var(--color-interview-failed)]",
+  ERROR: "bg-[var(--color-interview-error-bg)] text-[var(--color-interview-error)]",
+};
+
 export function AiStatusBadge({ status }: { status: AiInterviewStatus }) {
-  const tone: Record<AiInterviewStatus, string> = {
-    GENERATING: "bg-[var(--color-surface-container-high)] text-brand-primary",
-    PASSED: "bg-[var(--color-surface-container-low)] text-brand-primary",
-    ERROR: "bg-[var(--color-error-container)] text-[var(--color-on-error-container)]",
-    CREATED: "bg-[var(--color-surface-container)] text-[var(--color-on-surface-variant)]",
-    QUESTIONS_READY: "bg-[var(--color-surface-container-high)] text-[var(--color-primary)]",
-    IN_PROGRESS: "bg-[#c9e6ff] text-[#001e2f]",
-    SCORING: "bg-[var(--color-surface-container-high)] text-[var(--color-primary)]",
-    SCORED: "bg-[var(--color-surface-container-low)] text-[var(--color-primary)]",
-    FAILED: "bg-[#ffdad6] text-[#93000a]",
-  };
   const Icon =
     (status === "SCORING" || status === "GENERATING") ? RefreshCw
       : (status === "SCORED" || status === "PASSED") ? CheckCircle2
@@ -58,7 +59,7 @@ export function AiStatusBadge({ status }: { status: AiInterviewStatus }) {
           : status === "QUESTIONS_READY" ? ListChecks
             : CircleDashed;
   return (
-    <span className={cn("inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold shadow-sm", tone[status])}>
+    <span className={cn("inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1 text-xs font-bold shadow-sm", aiStatusTone[status])}>
       <Icon className={cn("size-3.5", status === "SCORING" && "animate-spin")} aria-hidden="true" />
       {aiStatusLabel[status]}
     </span>

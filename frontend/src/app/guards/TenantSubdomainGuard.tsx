@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Outlet } from "react-router-dom";
 import { masterAdminApi } from "@/api/master/masterAdminApi";
 import { getTenantIdFromSubdomain } from "@/lib/tenant";
-import { TenantNotFoundPage } from "@/features/tenant/career/pages/TenantNotFoundPage";
+import { TenantNotFoundPage } from "@/features/tenant/candidate/jobs/pages/TenantNotFoundPage";
 
 export function TenantSubdomainGuard() {
   const subdomain = getTenantIdFromSubdomain();

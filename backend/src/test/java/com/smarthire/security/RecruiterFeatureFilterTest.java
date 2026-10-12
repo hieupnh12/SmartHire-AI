@@ -41,7 +41,7 @@ class RecruiterFeatureFilterTest {
     @Test
     void recruiterMissingFeatureReturns403() throws Exception {
         authenticate("ROLE_RECRUITER");
-        when(rolePermissionService.hasFeature("RECRUITER", RecruiterFeature.RANKING)).thenReturn(false);
+        when(rolePermissionService.hasAction("RECRUITER", RecruiterFeature.RANKING, "VIEW")).thenReturn(false);
         RecruiterFeatureFilter filter = new RecruiterFeatureFilter(rolePermissionService, objectMapper);
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/jobs/1/rankings");
         request.setServletPath("/api/v1/jobs/1/rankings");
@@ -56,7 +56,7 @@ class RecruiterFeatureFilterTest {
     @Test
     void recruiterWithFeatureContinues() throws Exception {
         authenticate("ROLE_HR");
-        when(rolePermissionService.hasFeature("HR", RecruiterFeature.JOBS)).thenReturn(true);
+        when(rolePermissionService.hasAction("HR", RecruiterFeature.JOBS, "VIEW")).thenReturn(true);
         RecruiterFeatureFilter filter = new RecruiterFeatureFilter(rolePermissionService, objectMapper);
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/jobs/health");
         request.setServletPath("/api/v1/jobs/health");
@@ -71,7 +71,7 @@ class RecruiterFeatureFilterTest {
     @Test
     void customRoleMissingFeatureReturns403() throws Exception {
         authenticate("ROLE_CV_SCREENING", "ROLE_STAFF");
-        when(rolePermissionService.hasFeature("CV_SCREENING", RecruiterFeature.JOBS)).thenReturn(false);
+        when(rolePermissionService.hasAction("CV_SCREENING", RecruiterFeature.JOBS, "VIEW")).thenReturn(false);
         RecruiterFeatureFilter filter = new RecruiterFeatureFilter(rolePermissionService, objectMapper);
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/jobs/health");
         request.setServletPath("/api/v1/jobs/health");

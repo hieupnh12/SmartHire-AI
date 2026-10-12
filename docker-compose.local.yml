@@ -14,3 +14,14 @@ services:
     ports:
       - "127.0.0.1:5672:5672"
       - "127.0.0.1:15672:15672"
+
+  gotenberg:
+    image: gotenberg/gotenberg:8
+    command:
+      - gotenberg
+      - --chromium-disable-javascript=true
+      - --chromium-allow-list=^(file:///tmp/|data:|https://(res\.cloudinary\.com|fonts\.googleapis\.com|fonts\.gstatic\.com)/).*
+    volumes:
+      - ./deploy/gotenberg/fonts:/usr/local/share/fonts/custom:ro
+    ports:
+      - "127.0.0.1:3000:3000"

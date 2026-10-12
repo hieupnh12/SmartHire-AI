@@ -29,6 +29,7 @@ export const vi: Messages = {
     required: "Trường này bắt buộc",
     saving: "Đang lưu…",
     undo: "Hoàn tác",
+    edit: "Chỉnh sửa",
   },
   welcome: {
     title: "Tuyển dụng thông minh với sàng lọc CV & phỏng vấn AI",
@@ -86,6 +87,7 @@ export const vi: Messages = {
     company: "Công ty",
     landingPage: "Trang Tuyển Dụng",
     system: "Hệ thống",
+    mailConfig: "Cấu hình Gmail",
     overview: "Tổng quan",
     companyVerification: "Xác thực",
     rolesPermissions: "Phân quyền",

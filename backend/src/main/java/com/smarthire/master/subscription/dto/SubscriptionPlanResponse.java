@@ -25,6 +25,12 @@ public class SubscriptionPlanResponse {
     Integer videoRetentionDays;
     String featuresJson;
     String status;
+    Integer version;
+    Long parentPlanId;
+    boolean custom;
+    Long targetTenantId;
+    boolean archived;
+    Long subscriberCount;
     LocalDateTime createdAt;
     LocalDateTime updatedAt;
 }

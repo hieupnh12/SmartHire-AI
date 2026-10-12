@@ -20,6 +20,7 @@ Recruiter quản lý vòng đời tin tuyển dụng: tạo nháp, sửa, clone,
 4. Clone copy nội dung/skill/stage/screening config, không copy application.
 5. Soft delete `deleted_at` + `ARCHIVED`.
 6. Form job có `deadline` datetime và `screeningMode`. Cả hai chế độ: khi job đóng (hết hạn hoặc đóng tay), AI chấm mọi CV chưa chấm. `AUTO`: hệ thống cho CV đạt yêu cầu qua vòng CV (chuyển `INTERVIEW` + mời AI interview). `MANUAL`: AI chỉ chấm điểm, recruiter bấm **Cho qua vòng CV / Không đạt** (`POST /api/v1/applications/{id}/cv-screening-decision`).
+7. Phòng ban và địa điểm làm việc được chọn từ danh mục do Tenant Admin cấu hình; backend từ chối giá trị nhập ngoài danh mục.
 
 ## Business Rules
 
@@ -46,6 +47,7 @@ Recruiter set `deadline` (ngày giờ). Hết hạn → job đóng, tự phân t
 
 - `jobs` (V6: thông tin tuyển dụng; V15: deadline datetime; V16: `screening_mode`)
 - `job_screening_configs` (V13: CV weights + Gate weights + thresholds theo `job_id`)
+- `company_directory_entries` (V45: danh mục `DEPARTMENT`/`LOCATION`, backfill từ job hiện có)
 
 ## UI mockup
 

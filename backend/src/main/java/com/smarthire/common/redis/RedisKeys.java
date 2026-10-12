@@ -45,12 +45,28 @@ public final class RedisKeys {
         return "auth:master:refresh:" + tokenId;
     }
 
+    public static String interviewVoiceTicket(String ticket) { return "interview:voice:ticket:" + ticket; }
+
     public static String aiTaskConfig(String taskType) {
         return "cache:ai:config:" + (taskType == null ? "DEFAULT" : taskType.trim().toUpperCase());
     }
 
     public static String aiProviderKey(String provider) {
         return "cache:ai:key:" + (provider == null ? "DEFAULT" : provider.trim().toUpperCase());
+    }
+
+    public static String aiRateLimitConfig() {
+        return "cache:ai:ratelimit:config";
+    }
+
+    public static String aiTenantRpmWindow(String tenantCode, String minuteBucket) {
+        String t = (tenantCode == null ? "default" : tenantCode.trim().toLowerCase());
+        return "ratelimit:ai:rpm:" + t + ":" + minuteBucket;
+    }
+
+    public static String aiTenantTpmWindow(String tenantCode, String minuteBucket) {
+        String t = (tenantCode == null ? "default" : tenantCode.trim().toLowerCase());
+        return "ratelimit:ai:tpm:" + t + ":" + minuteBucket;
     }
 
     public static String masterLoginFailedAttempts(String email) {

@@ -1,5 +1,7 @@
 package com.smarthire.domain.tenant.entity;
 
+import com.fasterxml.jackson.databind.JsonNode;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -17,6 +19,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.FieldDefaults;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Getter
 @Setter
@@ -32,8 +36,8 @@ public class Question {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "test_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "test_id")
     JobTest test;
 
     @Column(name = "question_text", nullable = false, columnDefinition = "TEXT")
@@ -59,4 +63,12 @@ public class Question {
 
     @Column(columnDefinition = "TEXT")
     String explanation;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "authoring_metadata", columnDefinition = "json")
+    JsonNode authoringMetadata;
+
+    @Builder.Default
+    @Column(name = "bank_archived", nullable = false)
+    boolean bankArchived = false;
 }

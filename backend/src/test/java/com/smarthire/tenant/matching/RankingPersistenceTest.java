@@ -44,6 +44,17 @@ class RankingPersistenceTest {
     @PersistenceContext EntityManager em;
     @Autowired RankingService service;
     @BeforeEach void login() {
+        // Hibernate does not create this native-SQL analytics table from migration V9.
+        em.createNativeQuery("""
+                create table if not exists candidate_quality_snapshots (
+                    id bigint primary key auto_increment,
+                    application_id bigint not null references applications(id),
+                    score decimal(5,2) not null,
+                    components_json json,
+                    model_version varchar(64),
+                    calculated_at timestamp not null default current_timestamp
+                )
+                """).executeUpdate();
         TenantContext.setCurrentTenant("acme");
         var auth = new UsernamePasswordAuthenticationToken("recruiter@example.test", null, List.of(new SimpleGrantedAuthority("ROLE_RECRUITER")));
         auth.setDetails("acme"); SecurityContextHolder.getContext().setAuthentication(auth);
@@ -51,12 +62,12 @@ class RankingPersistenceTest {
     @AfterEach void cleanup() { TenantContext.clear(); SecurityContextHolder.clearContext(); }
     @Test void readsRealSourcesPersistsSnapshotsAndRecomputesIdempotently() {
         User recruiter = new User(); recruiter.setEmail("recruiter@example.test"); recruiter.setFullName("Recruiter"); recruiter.setRole(UserRole.RECRUITER.name()); em.persist(recruiter);
-        User candidate = new User(); candidate.setEmail("candidate@example.test"); candidate.setFullName("Candidate"); candidate.setRole(UserRole.CANDIDATE.name()); em.persist(candidate);
+        Candidate candidate = new Candidate(); candidate.setEmail("candidate@example.test"); candidate.setFullName("Candidate"); em.persist(candidate);
         Job job = new Job(); job.setTitle("Backend"); job.setDescription("Java"); job.setCreatedBy(recruiter); em.persist(job);
         Application app = new Application(); app.setJob(job); app.setCandidate(candidate); em.persist(app);
         Skill skill = new Skill(); skill.setName("Java"); skill.setCategory("backend"); em.persist(skill);
         JobSkill requirement = new JobSkill(); requirement.setJob(job); requirement.setSkill(skill); em.persist(requirement);
-        Cv cv = new Cv(); cv.setJob(job); cv.setUser(candidate); cv.setApplication(app); cv.setOriginalFilename("cv.pdf"); cv.setFileUrl("/private/cv.pdf"); cv.setStatus(CvStatus.ANALYZED); em.persist(cv);
+        Cv cv = new Cv(); cv.setJob(job); cv.setCandidate(candidate); cv.setApplication(app); cv.setOriginalFilename("cv.pdf"); cv.setFileUrl("/private/cv.pdf"); cv.setStatus(CvStatus.ANALYZED); em.persist(cv);
         CvSkill extracted = new CvSkill(); extracted.setCv(cv); extracted.setSkillName("Java"); em.persist(extracted);
         CvExtraction extraction = new CvExtraction(); extraction.setCv(cv); extraction.setExtractionJson("""
                 {"experience":[{"startDate":"2024-01","endDate":"2024-12","skills":["Java"],"evidence":"Java developer"}]}
@@ -64,10 +75,13 @@ class RankingPersistenceTest {
         com.smarthire.domain.tenant.entity.JobTest test = com.smarthire.domain.tenant.entity.JobTest.builder()
                 .job(job).title("Java").durationMinutes(60).status(TestStatus.PUBLISHED).build();
         em.persist(test);
+        em.persist(Question.builder().test(test).questionText("Q1").questionType("MCQ").points(150).build());
+        em.persist(Question.builder().test(test).questionText("Q2").questionType("MCQ").points(50).build());
+        // 170 of 200 raw points = 85 on the ranking scale.
         Submission submission = Submission.builder().test(test).candidate(candidate).application(app)
-                .status(TestSubmissionStatus.GRADED).score(new BigDecimal("85")).build();
+                .status(TestSubmissionStatus.GRADED).score(new BigDecimal("170")).build();
         em.persist(submission);
-        AiInterview aiInterview = AiInterview.builder().application(app).status(AiInterviewStatus.SCORED)
+        AiInterview aiInterview = AiInterview.builder().application(app).status(AiInterviewStatus.PASSED)
                 .overallScore(new BigDecimal("81")).build();
         em.persist(aiInterview);
         em.flush();

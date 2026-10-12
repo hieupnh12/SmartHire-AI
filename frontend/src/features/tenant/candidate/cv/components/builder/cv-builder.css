@@ -1,0 +1,46 @@
+.cv-rich-text ul { list-style: disc; padding-left: 1.25em; }
+.cv-rich-text ol { list-style: decimal; padding-left: 1.25em; }
+
+.cv-readonly .cv-print-hidden,
+.cv-readonly .cv-print-empty { display: none !important; }
+.cv-readonly [data-placeholder]:empty::before { content: none !important; }
+.cv-readonly [contenteditable],
+.cv-readonly [contenteditable]:hover { background: transparent !important; cursor: auto; }
+.cv-readonly section,
+.cv-readonly [data-cv-item] { outline: none !important; }
+
+.cv-review-flash { border-radius: 6px; box-shadow: 0 0 0 3px color-mix(in srgb, #f59e0b 55%, transparent); transition: box-shadow 0.3s; }
+
+/* Print only the CV page: hide everything that neither contains nor sits inside .cv-print-area. */
+@media print {
+  /* Page margins and footers are laid out inside .cv-print-area by paginateCv, so the sheet prints edge to edge. */
+  @page { size: A4; margin: 0; }
+  body :not(:has(.cv-print-area)):not(.cv-print-area):not(.cv-print-area *) { display: none !important; }
+  body :has(.cv-print-area) {
+    display: block !important;
+    position: static !important;
+    overflow: visible !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background: none !important;
+    box-shadow: none !important;
+  }
+  .cv-print-area {
+    margin: 0 !important;
+    box-shadow: none !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .cv-print-area .cv-print-hidden,
+  .cv-print-area .cv-print-empty { display: none !important; }
+  .cv-print-area [data-placeholder]:empty::before { content: none !important; }
+  .cv-print-area [contenteditable] { background: transparent !important; box-shadow: none !important; }
+  .cv-print-area section,
+  .cv-print-area [data-cv-item] { outline: none !important; }
+  .cv-print-area .cv-avoid-break { break-inside: avoid; }
+  .cv-page-guides { display: none !important; }
+  .cv-zoom-frame { width: auto !important; height: auto !important; }
+  .cv-zoom-inner { transform: none !important; }
+}

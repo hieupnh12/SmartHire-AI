@@ -46,6 +46,7 @@ public class AiInterviewController {
 
     @PostMapping
     @Operation(summary = "Create AI interview session (staff)")
+    @com.smarthire.multitenancy.quota.RequireMeteredQuota(type = com.smarthire.multitenancy.quota.QuotaType.AI_VOICE_SECONDS, count = 0)
     public ResponseEntity<ApiResponse<AiInterviewResponse>> create(
             @Valid @RequestBody CreateAiInterviewRequest request) {
         return ResponseEntity.status(201).body(ApiResponse.ok(aiInterviewService.create(request)));
@@ -79,6 +80,7 @@ public class AiInterviewController {
                     + " the INTERVIEW round. Creates an attempt from the job snapshot and queues question generation."
                     + " A failed attempt can start another one only while retries and the deadline remain."
                     + " A provider failure retries the same attempt and does not consume an attempt.")
+    @com.smarthire.multitenancy.quota.RequireMeteredQuota(type = com.smarthire.multitenancy.quota.QuotaType.AI_VOICE_SECONDS, count = 0)
     public ApiResponse<AiInterviewResponse> requestStart(@PathVariable long applicationId) {
         return ApiResponse.ok(aiInterviewService.requestStart(applicationId));
     }
@@ -91,12 +93,14 @@ public class AiInterviewController {
 
     @PostMapping("/{id}/start")
     @Operation(summary = "Start an owned interview with ready questions (candidate)")
+    @com.smarthire.multitenancy.quota.RequireMeteredQuota(type = com.smarthire.multitenancy.quota.QuotaType.AI_VOICE_SECONDS, count = 0)
     public ApiResponse<AiInterviewResponse> start(@PathVariable long id) {
         return ApiResponse.ok(aiInterviewService.start(id));
     }
 
     @PostMapping("/{id}/voice/consent")
     @Operation(summary = "Record the candidate's consent before a voice AI interview")
+    @com.smarthire.multitenancy.quota.RequireMeteredQuota(type = com.smarthire.multitenancy.quota.QuotaType.AI_VOICE_SECONDS, count = 0)
     public ApiResponse<Void> consent(@PathVariable long id, @Valid @RequestBody AiInterviewConsentRequest request) {
         voiceService.consent(id, request); return ApiResponse.ok(null);
     }
@@ -107,8 +111,30 @@ public class AiInterviewController {
         voiceService.saveRecording(id, answerId, request); return ApiResponse.ok(null);
     }
 
+    @PostMapping(value = "/{id}/questions/{questionId}/audio-answer", consumes = "multipart/form-data")
+    @Operation(summary = "Submit a recorded answer and transcript (owning candidate)")
+    @com.smarthire.multitenancy.quota.RequireMeteredQuota(type = com.smarthire.multitenancy.quota.QuotaType.AI_VOICE_SECONDS, count = 0)
+    public ApiResponse<AiAnswerResponse> audioAnswer(@PathVariable long id, @PathVariable long questionId,
+            @org.springframework.web.bind.annotation.RequestPart("file") org.springframework.web.multipart.MultipartFile file,
+            @Valid @org.springframework.web.bind.annotation.RequestPart("answer") UpsertAiAnswerRequest answer) {
+        return ApiResponse.ok(voiceService.submitAudio(id, questionId, file, answer));
+    }
+    @GetMapping("/{id}/answers/{answerId}/recording/info")
+    @Operation(summary = "Recording metadata after completion (authorized recruiter)")
+    public ApiResponse<AiInterviewVoiceService.RecordingInfo> recordingInfo(@PathVariable long id, @PathVariable long answerId) {
+        return ApiResponse.ok(voiceService.recordingInfo(id, answerId));
+    }
+    @GetMapping("/{id}/answers/{answerId}/recording/audio")
+    @Operation(summary = "Private audio after completion (authorized recruiter)")
+    public ResponseEntity<byte[]> audio(@PathVariable long id, @PathVariable long answerId) {
+        var file = voiceService.audio(id, answerId);
+        return ResponseEntity.ok().header("Cache-Control", "no-store").header("Content-Disposition", "inline")
+                .contentType(org.springframework.http.MediaType.parseMediaType(file.mimeType())).body(file.content());
+    }
+
     @PostMapping("/{id}/questions/generate")
     @Operation(summary = "Queue real AI questions or retry failed generation (staff)")
+    @com.smarthire.multitenancy.quota.RequireMeteredQuota(type = com.smarthire.multitenancy.quota.QuotaType.AI_VOICE_SECONDS, count = 0)
     public ApiResponse<AiInterviewResponse> generate(@PathVariable long id) {
         return ApiResponse.ok(aiInterviewService.generate(id));
     }
@@ -127,6 +153,7 @@ public class AiInterviewController {
 
     @PostMapping("/{id}/proctor-events")
     @Operation(summary = "Append a browser proctoring event for an active owned interview (candidate)")
+    @com.smarthire.multitenancy.quota.RequireMeteredQuota(type = com.smarthire.multitenancy.quota.QuotaType.PROCTORING_SECONDS, count = 0)
     public ApiResponse<Void> proctorEvent(
             @PathVariable long id,
             @Valid @RequestBody ProctorEventRequest request) {

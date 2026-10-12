@@ -48,7 +48,8 @@ tenant/admin/users/pages/UsersPage.tsx
 ## Current Tenant-Level Features
 
 - `auth/`: tenant authentication/session state.
-- `career/`: public tenant career site.
+
+The public career site is a candidate feature and lives in `candidate/jobs/`, not at the tenant root.
 
 ## Build Check
 

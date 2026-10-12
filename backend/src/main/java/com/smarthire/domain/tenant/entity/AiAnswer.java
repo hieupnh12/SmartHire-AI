@@ -42,6 +42,9 @@ public class AiAnswer {
     @Column(name = "answer_duration")
     Integer answerDuration;
 
+    @Column(name = "speech_metrics_json", columnDefinition = "JSON")
+    String speechMetricsJson;
+
     @Column(name = "answered_at")
     Instant answeredAt;
 }

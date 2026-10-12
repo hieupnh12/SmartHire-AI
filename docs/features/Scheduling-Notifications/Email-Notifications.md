@@ -23,7 +23,7 @@ Gửi email (OTP, schedule, decision, feedback) qua RabbitMQ mail worker.
 - Retry + DLQ (hàng đợi SCHED-03).
 - Lời mời AI interview: một lần / application; SMTP lỗi thì chưa set `ai_interview_invited_at`.
 - Thời gian trong lời mời hiển thị theo múi giờ `Asia/Bangkok` (`HH:mm dd/MM/yyyy`), đồng nhất với múi giờ vận hành hiện tại của hệ thống.
-- Unsubscribe/preference (optional).
+- Người nhận tắt kênh Gmail cho một loại (`notification_preferences.email_enabled=false`) thì không gửi và không ghi `email_outbox` cho loại đó. Riêng lời mời AI Interview vẫn set `ai_interview_invited_at` (lựa chọn của người dùng, không phải lỗi SMTP) để không gửi lại. Cài đặt tại `/notifications?tab=settings`, xem SCHED-02.
 
 ## API liên quan
 
@@ -32,6 +32,7 @@ Internal queue `notify.email`; templates trong `mail_templates`.
 ## Database liên quan
 
 - `email_outbox` / `notification_logs`
+- `notification_preferences` (V49) — kênh email theo loại thông báo
 
 ## UI mockup
 

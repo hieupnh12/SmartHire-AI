@@ -31,6 +31,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { jobApi } from "@/api/tenant/jobApi";
+import { companyApi } from "@/api/tenant/companyApi";
 import type { CvScreeningConfig, GateScreeningConfig, JobUpsertRequest } from "@/api/types/job";
 import { getApiErrorMessage } from "@/lib/axios";
 import { queryKeys } from "@/lib/query-keys";
@@ -53,7 +54,7 @@ const EMPLOYMENT_TYPES = [
 ];
 const WORK_MODES = [
   { value: "ONSITE", label: "Tại văn phòng", icon: Building2 },
-  { value: "HYBRID", label: "Hybrid", icon: Shuffle },
+  { value: "HYBRID", label: "Kết hợp", icon: Shuffle },
   { value: "REMOTE", label: "Từ xa", icon: Laptop },
 ];
 const SCREENING_MODES = [
@@ -154,6 +155,10 @@ export function JobFormPage() {
     queryKey: queryKeys.jobs.detail(jobId ?? 0),
     queryFn: () => jobApi.get(jobId!),
     enabled: editing,
+  });
+  const directory = useQuery({
+    queryKey: ["tenant", "company", "directory"],
+    queryFn: companyApi.getDirectory,
   });
   const [form, setForm] = useState<JobUpsertRequest>({
     title: "",
@@ -384,7 +389,10 @@ export function JobFormPage() {
                       <input className={inputClass(errorOf("title"))} maxLength={120} placeholder="VD: Senior Backend Developer (Java)" value={form.title} onChange={(e) => set("title", e.target.value)} />
                     </Field>
                     <Field label="Phòng ban">
-                      <input className={input} placeholder="VD: Engineering" value={form.department} onChange={(e) => set("department", e.target.value)} />
+                      <select className={input} value={form.department} onChange={(e) => set("department", e.target.value)} disabled={directory.isPending}>
+                        <option value="">Chọn phòng ban</option>
+                        {(directory.data?.data.departments ?? []).map((value) => <option key={value} value={value}>{value}</option>)}
+                      </select>
                     </Field>
                     <Field label="Số lượng cần tuyển" required error={errorOf("headcount")}>
                       <input className={cn(inputClass(errorOf("headcount")), "tabular-nums")} type="number" min={1} value={form.headcount ?? 1} onChange={(e) => set("headcount", Number(e.target.value))} />
@@ -398,7 +406,10 @@ export function JobFormPage() {
                   <Field label="Địa điểm làm việc">
                     <span className="relative block">
                       <MapPin className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--color-on-surface-variant)]" aria-hidden="true" />
-                      <input className={cn(input, "pl-9")} placeholder="VD: Tầng 5, 123 Cầu Giấy, Hà Nội" value={form.location} onChange={(e) => set("location", e.target.value)} />
+                      <select className={cn(input, "pl-9")} value={form.location} onChange={(e) => set("location", e.target.value)} disabled={directory.isPending}>
+                        <option value="">Chọn địa điểm công ty</option>
+                        {(directory.data?.data.locations ?? []).map((value) => <option key={value} value={value}>{value}</option>)}
+                      </select>
                     </span>
                   </Field>
                 </FieldGroup>

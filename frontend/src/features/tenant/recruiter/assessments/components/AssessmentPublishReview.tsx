@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight, Check, Clock3, Eye, LockKeyhole, Monitor, Pencil, Save, ShieldCheck, X } from "lucide-react";
 import { assessmentApi } from "@/api/tenant/assessmentApi";
-import type { QuestionRequest } from "@/api/types/assessment";
+import { toQuestionRequest } from "../utils/assessmentQuestionRequest";
 import { AssessmentError } from "@/components/ux/assessmentUi";
 import { Button } from "@/components/ux/Button";
 import {
@@ -21,66 +21,11 @@ import { typeMeta, isSubjectiveKind } from "../constants/excelTemplateMock";
 import type { ImportRow } from "../utils/excelImportValidation";
 import { hasMinimalContentAndAnswer, isPersistableQuestion } from "../utils/excelImportValidation";
 import { clearExcelQuestionDraft } from "../utils/excelQuestionDraft";
+import type { BankSaveActions } from "../utils/bankQuestionAuthoring";
 
 const card = "rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)]";
 const muted = "text-[var(--color-on-surface-variant)]";
 const field = "mt-1 h-10 w-full rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-container-low)] px-3 text-sm outline-none focus:ring-2 focus:ring-[var(--color-primary)] disabled:opacity-70";
-
-function mapDifficulty(raw: string): QuestionRequest["difficulty"] {
-  const value = raw.trim().toLowerCase();
-  if (!value) return null;
-  if (value === "easy" || value.includes("dễ") || value.includes("co ban") || value.includes("cơ bản")) return "Easy";
-  if (value === "hard" || value.includes("khó") || value.includes("nâng cao") || value.includes("nang cao")) return "Hard";
-  if (value === "medium" || value.includes("vận dụng") || value.includes("van dung") || value.includes("trung")) return "Medium";
-  return null;
-}
-
-function selectedLetters(answer: string): Set<string> {
-  return new Set(
-    answer
-      .trim()
-      .toUpperCase()
-      .split(/[,;/|\s]+/)
-      .map((part) => part.trim())
-      .filter((part) => /^[A-D]$/.test(part)),
-  );
-}
-
-function toQuestionRequest(item: ImportRow, index: number, defaultScore: number): QuestionRequest {
-  const row = item.row;
-  const base = {
-    questionText: row.content.trim(),
-    points: row.score.trim() ? Number(row.score) : defaultScore,
-    questionOrder: index,
-    difficulty: mapDifficulty(row.difficulty),
-    skill: row.skill.trim() || null,
-  };
-
-  if (isSubjectiveKind(row.kind)) {
-    return {
-      ...base,
-      questionType: "ESSAY",
-      explanation: row.sample.trim() || row.explanation.trim() || null,
-      options: [],
-    };
-  }
-
-  const letters =
-    row.kind === "NHIEU_DAP_AN" ? selectedLetters(row.answer) : new Set([row.answer.trim().toUpperCase()].filter((l) => /^[A-D]$/.test(l)));
-  const options = [row.optionA, row.optionB, row.optionC, row.optionD]
-    .map((optionText, optionIndex) => ({
-      optionText: optionText.trim(),
-      correct: letters.has(String.fromCharCode(65 + optionIndex)),
-    }))
-    .filter((option) => option.optionText.length > 0);
-
-  return {
-    ...base,
-    questionType: row.kind === "NHIEU_DAP_AN" ? "MULTIPLE_CHOICE" : "MCQ",
-    explanation: row.explanation.trim() || row.policyNote.trim() || null,
-    options,
-  };
-}
 
 export function AssessmentPublishReview({
   active,
@@ -90,6 +35,7 @@ export function AssessmentPublishReview({
   defaultScore,
   onBack,
   onEdit,
+  generalBank,
 }: {
   active: boolean;
   rows: ImportRow[];
@@ -98,6 +44,7 @@ export function AssessmentPublishReview({
   defaultScore: number;
   onBack: () => void;
   onEdit: (index: number) => void;
+  generalBank?: BankSaveActions;
 }) {
   const navigate = useNavigate();
   const client = useQueryClient();
@@ -146,7 +93,12 @@ export function AssessmentPublishReview({
     .map(([label, count]) => `${count} ${label}`)
     .join(" · ");
 
-  const checks = [
+  const checks = generalBank ? [
+    { title: "Số lượng câu hỏi", value: saveableRows.length > 0 && saveableRows.length <= 999, detail: `${saveableRows.length} câu hỏi độc lập sẽ được lưu vào ngân hàng.` },
+    { title: "Nội dung & đáp án", value: saveableRows.length > 0 && saveableRows.every(item => item.status !== "INVALID" && hasMinimalContentAndAnswer(item.row)), detail: "Kiểm tra nội dung, loại câu, lựa chọn và đáp án theo cùng quy tắc của assessment." },
+    { title: "Kỹ năng & độ khó", value: saveableRows.every(item => !!item.row.skill.trim() && item.row.skill.trim().length <= 128 && /^(easy|medium|hard)$/i.test(item.row.difficulty.trim())), detail: "Mỗi câu cần kỹ năng (tối đa 128 ký tự) và độ khó Easy, Medium hoặc Hard." },
+    { title: "Điểm từng câu", value: saveableRows.every(item => { const value = Number(item.row.score.trim() || defaultScore); return Number.isInteger(value) && value >= 1 && value <= 10000; }), detail: "Mỗi câu từ 1–10.000 điểm. Câu hỏi độc lập không yêu cầu tổng điểm bằng 10." },
+  ] : [
     { title: "Thông tin chung", value: validTitle && validDuration, detail: "Tên đề tối đa 255 ký tự và thời lượng là số phút nguyên dương." },
     {
       title: "Số lượng câu hỏi",
@@ -190,6 +142,11 @@ export function AssessmentPublishReview({
 
   const persist = useMutation({
     mutationFn: async () => {
+      if (generalBank) {
+        if (!canSave) throw new Error("Cần hoàn tất kiểm tra câu hỏi trước khi lưu.");
+        await generalBank.onSave(saveableRows.map(item => ({ ...item.row, score: item.row.score.trim() || String(defaultScore) })));
+        return null;
+      }
       const toSave = saveableRows;
       if (toSave.length === 0) {
         throw new Error("Không có câu hỏi đủ nội dung để lưu vào đề (cần content; trắc nghiệm cần đáp án + ≥2 lựa chọn).");
@@ -218,26 +175,27 @@ export function AssessmentPublishReview({
       return test;
     },
     onSuccess: async (test) => {
+      if (!test) return;
       clearExcelQuestionDraft(jobId);
       await client.invalidateQueries({ queryKey: queryKeys.assessments.all() });
       navigate(`${listPath}/${test.id}`, { replace: true });
     },
   });
 
-  const busy = persist.isPending;
+  const busy = persist.isPending || !!generalBank?.busy;
   const saved = persist.isSuccess;
-  const openSaveDialog = () => setShowPublish(true);
+  const openSaveDialog = () => generalBank ? persist.mutate() : setShowPublish(true);
 
   return (
     <section className="space-y-6 text-[var(--color-on-surface)]">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className={cn(muted, "text-xs")}>Bài đánh giá / {jobTitle}</p>
+          <p className={cn(muted, "text-xs")}>{generalBank ? "Ngân hàng câu hỏi chung" : `Bài đánh giá / ${jobTitle}`}</p>
           <h1 ref={heading} tabIndex={-1} className="mt-2 text-2xl font-semibold tracking-tight outline-none">
-            Kiểm định & lưu bản nháp
+            {generalBank ? "Kiểm định & lưu câu hỏi" : "Kiểm định & lưu bản nháp"}
           </h1>
           <p className="mt-2 text-xs text-[var(--color-primary)]">
-            Lưu bản nháp (DRAFT). Cho phép trộn loại câu — không bắt buộc đủ mọi thể loại hay đủ độ khó/kỹ năng.
+            {generalBank ? "Xem trước nội dung và đáp án trước khi lưu câu hỏi dùng chung theo kỹ năng." : "Lưu bản nháp (DRAFT). Cho phép trộn loại câu — không bắt buộc đủ mọi thể loại hay đủ độ khó/kỹ năng."}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -250,15 +208,15 @@ export function AssessmentPublishReview({
             onClick={openSaveDialog}
           >
             <Save className="size-4" aria-hidden="true" />
-            {busy ? "Đang lưu…" : "Lưu bản nháp"}
+            {busy ? "Đang lưu…" : generalBank ? "Lưu vào ngân hàng" : "Lưu bản nháp"}
           </Button>
         </div>
       </header>
 
-      <AssessmentError error={persist.error} />
+      <AssessmentError error={persist.error ?? generalBank?.error} />
 
       <ol className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Tiến trình tạo bài đánh giá">
-        {["Thông tin chung", "Thiết lập câu hỏi", "Kiểm tra & xem trước", "Lưu bản nháp"].map((label, i) => (
+        {(generalBank ? ["Soạn câu hỏi", "Kiểm tra dữ liệu", "Kiểm định & xem trước", "Lưu vào ngân hàng"] : ["Thông tin chung", "Thiết lập câu hỏi", "Kiểm tra & xem trước", "Lưu bản nháp"]).map((label, i) => (
           <li
             key={label}
             aria-current={i === (showPublish || saved ? 3 : 2) ? "step" : undefined}
@@ -275,7 +233,7 @@ export function AssessmentPublishReview({
         ))}
       </ol>
 
-      <fieldset disabled={busy || saved} className={cn(card, "grid gap-4 p-5 sm:grid-cols-2 xl:grid-cols-5")}>
+      {!generalBank && <fieldset disabled={busy || saved} className={cn(card, "grid gap-4 p-5 sm:grid-cols-2 xl:grid-cols-5")}>
         <legend className="sr-only">Thông tin bài đánh giá</legend>
         <label className="text-xs font-medium sm:col-span-2 xl:col-span-2">
           Tên bài kiểm tra
@@ -299,13 +257,13 @@ export function AssessmentPublishReview({
           </p>
           <p className={cn(muted, "mt-1 text-xs")}>{jobTitle}</p>
         </div>
-      </fieldset>
+      </fieldset>}
 
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(300px,0.85fr)_minmax(0,1.65fr)]">
         <aside className="space-y-5">
           <section className={cn(card, "p-5")}>
             <div className="flex items-center justify-between gap-2">
-              <h2 className="font-semibold">Báo cáo kiểm định đề thi</h2>
+              <h2 className="font-semibold">{generalBank ? "Báo cáo kiểm định câu hỏi" : "Báo cáo kiểm định đề thi"}</h2>
               <span className={cn("rounded-full px-2 py-1 text-xs font-medium", canSave ? "bg-[var(--color-primary-subtle)] text-[var(--color-primary)]" : "bg-[var(--color-error-container)] text-[var(--color-error)]")}>
                 {passed}/{checks.length} đạt
               </span>
@@ -386,7 +344,7 @@ export function AssessmentPublishReview({
             </div>
             <span className={cn(muted, "flex items-center gap-1 text-xs")}>
               <Clock3 className="size-4" aria-hidden="true" />
-              {validDuration ? duration : "—"} phút · xem trước
+              {generalBank ? "Xem trước câu hỏi" : `${validDuration ? duration : "—"} phút · xem trước`}
             </span>
           </div>
           <div className="space-y-6 p-5 sm:p-6">

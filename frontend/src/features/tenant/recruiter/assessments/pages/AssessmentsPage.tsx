@@ -153,6 +153,7 @@ export function AssessmentsPage() {
   const tests = useQuery({
     queryKey: [...queryKeys.assessments.all(), "job", job.id],
     queryFn: () => assessmentApi.listForJob(job.id),
+    refetchInterval: 15000,
   });
   const jobMap = useMemo(() => new Map([[job.id, { title: job.title, department: job.department ?? "" }]]), [job]);
 
@@ -236,7 +237,7 @@ export function AssessmentsPage() {
           </nav>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight">Quản lý bài đánh giá năng lực</h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--color-on-surface-variant)]">
-            Thiết lập và theo dõi các bài test chuyên môn gắn với vị trí tuyển dụng — tạo nháp, thêm câu hỏi trắc nghiệm, rồi xuất bản khi sẵn sàng.
+            Tạo bài đánh giá thủ công hoặc tự động từ ngân hàng câu hỏi. Cấu hình đề riêng cho ứng viên vượt AI Interview và theo dõi bài làm theo vị trí tuyển dụng.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
@@ -254,7 +255,7 @@ export function AssessmentsPage() {
             Ngân hàng câu hỏi
           </Link>
           <Link
-            to={`${basePath}/excel-template`}
+            to={`${basePath}/new`}
             className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-[var(--radius-md)] bg-[var(--color-primary)] px-4 text-sm font-semibold text-[var(--color-on-primary)] shadow-sm transition-colors hover:bg-[var(--color-primary-hover)]"
           >
             <Plus className="size-4" aria-hidden="true" />
@@ -336,22 +337,18 @@ export function AssessmentsPage() {
           </div>
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-base font-semibold">Quy trình tạo đề chuẩn</h2>
+              <h2 className="text-base font-semibold">Hai cách tạo bài đánh giá</h2>
               <span className="rounded-full bg-[var(--color-primary-soft)] px-2 py-0.5 text-[11px] font-semibold text-[var(--color-primary-hover)]">
-                3 bước
+                Thủ công / Tự động
               </span>
             </div>
             <p className="mt-1 max-w-2xl text-sm leading-6 text-[var(--color-on-surface-variant)]">
-              <strong className="font-semibold text-[var(--color-on-surface)]">1. Tạo bản nháp</strong>
-              {" → "}
-              <strong className="font-semibold text-[var(--color-on-surface)]">2. Thêm câu hỏi & đáp án</strong>
-              {" → "}
-              <strong className="font-semibold text-[var(--color-on-surface)]">3. Xuất bản</strong> để ứng viên bắt đầu làm bài.
+              Soạn câu hỏi thủ công hoặc cấu hình cấu trúc để tạo đề từ ngân hàng câu hỏi. Có thể bật tự động tạo đề riêng cho ứng viên vượt AI Interview.
             </p>
           </div>
         </div>
         <Link
-          to={`${basePath}/excel-template`}
+          to={`${basePath}/new`}
           className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg bg-[var(--color-primary)] px-4 text-sm font-semibold text-[var(--color-on-primary)] shadow-sm hover:bg-[var(--color-primary-hover)]"
         >
           <Plus className="size-4" aria-hidden="true" />
@@ -448,7 +445,7 @@ export function AssessmentsPage() {
             </div>
             {tests.data.items.length === 0 && (
               <Link
-                to={`${basePath}/excel-template`}
+                to={`${basePath}/new`}
                 className="inline-flex min-h-11 items-center gap-2 rounded-[var(--radius-md)] bg-[var(--color-primary)] px-4 text-sm font-semibold text-[var(--color-on-primary)] hover:bg-[var(--color-primary-hover)]"
               >
                 <Plus className="size-4" aria-hidden="true" />
@@ -626,7 +623,7 @@ export function AssessmentsPage() {
             </div>
           </div>
           <Link
-            to={`${basePath}/excel-template`}
+            to={`${basePath}/new`}
             className="mt-4 inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg bg-[var(--color-primary)] px-4 text-sm font-semibold text-[var(--color-on-primary)] shadow-sm hover:bg-[var(--color-primary-hover)]"
           >
             <Plus className="size-4" aria-hidden="true" />

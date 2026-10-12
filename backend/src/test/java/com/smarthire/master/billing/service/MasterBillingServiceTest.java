@@ -45,6 +45,12 @@ class MasterBillingServiceTest {
     private TenantSubscriptionRepository subscriptionRepository;
 
     @Mock
+    private MasterConsentLogRepository consentLogRepository;
+
+    @Mock
+    private PlatformAuditLogRepository platformAuditLogRepository;
+
+    @Mock
     private MasterTenantService masterTenantService;
 
     @Mock
@@ -66,6 +72,8 @@ class MasterBillingServiceTest {
                 tenantRepository,
                 planRepository,
                 subscriptionRepository,
+                consentLogRepository,
+                platformAuditLogRepository,
                 masterTenantService,
                 mailSender,
                 orderPdfGeneratorService,
@@ -121,9 +129,11 @@ class MasterBillingServiceTest {
                 .taxCode("0102030405")
                 .companyLegalName("Cong Ty Acme")
                 .billingAddress("123 Ha Noi")
+                .termsAccepted(true)
+                .termsVersion("v2026.10")
                 .build();
 
-        CheckoutResponse response = billingService.checkout(request);
+        CheckoutResponse response = billingService.checkout(request, "203.113.152.10", "Mozilla/5.0 Chrome/130");
 
         assertThat(response).isNotNull();
         assertThat(response.getInvoiceId()).isEqualTo(30L);
@@ -135,8 +145,40 @@ class MasterBillingServiceTest {
         assertThat(response.getTransferSyntax()).startsWith("SH ");
         assertThat(response.getQrUrl()).contains("07744348801");
         assertThat(response.getQrUrl()).contains("12000000");
+        assertThat(response.isTermsAccepted()).isTrue();
+        assertThat(response.getTermsVersion()).isEqualTo("v2026.10");
+        assertThat(response.getTermsAcceptedAt()).isNotNull();
 
         verify(invoiceLineItemRepository).save(any(InvoiceLineItem.class));
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<java.util.List<MasterConsentLog>> consentCaptor = ArgumentCaptor.forClass(java.util.List.class);
+        verify(consentLogRepository).saveAll(consentCaptor.capture());
+        assertThat(consentCaptor.getValue()).hasSize(2);
+        assertThat(consentCaptor.getValue().get(0).getPolicyType()).isEqualTo("TERMS_OF_SERVICE");
+        assertThat(consentCaptor.getValue().get(0).getIpAddress()).isEqualTo("203.113.152.10");
+        assertThat(consentCaptor.getValue().get(0).getUserAgent()).isEqualTo("Mozilla/5.0 Chrome/130");
+        assertThat(consentCaptor.getValue().get(1).getPolicyType()).isEqualTo("PRIVACY_POLICY_ND13");
+        verify(platformAuditLogRepository).save(any(PlatformAuditLog.class));
+    }
+
+    @Test
+    void checkout_TermsNotAccepted_ThrowsBadRequest() {
+        CheckoutRequest request = CheckoutRequest.builder()
+                .planCode("STARTER")
+                .billingCycle("YEARLY")
+                .workspaceName("Acme Corp")
+                .subdomain("acme")
+                .adminFullName("Nguyen Van A")
+                .adminEmail("admin@acme.com")
+                .adminPhone("0987654321")
+                .termsAccepted(false)
+                .build();
+
+        assertThatThrownBy(() -> billingService.checkout(request, "127.0.0.1", "TestAgent"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("Điều khoản dịch vụ");
+
+        verifyNoInteractions(invoiceRepository, consentLogRepository, platformAuditLogRepository);
     }
 
     @Test
@@ -173,12 +215,15 @@ class MasterBillingServiceTest {
                 .adminFullName("Tran Van B")
                 .adminEmail("b@megacorp.vn")
                 .adminPhone("0912345678")
+                .termsAccepted(true)
                 .build();
 
         CheckoutResponse response = billingService.checkout(request);
 
         assertThat(response.getAmountVnd()).isEqualByComparingTo("36000000");
         assertThat(response.getBillingCycle()).isEqualTo("YEARLY");
+        assertThat(response.isTermsAccepted()).isTrue();
+        assertThat(response.getTermsVersion()).isEqualTo(MasterBillingService.DEFAULT_TERMS_VERSION);
     }
 
     @Test
@@ -193,6 +238,7 @@ class MasterBillingServiceTest {
                 .adminFullName("Test")
                 .adminEmail("test@test.com")
                 .adminPhone("0123456789")
+                .termsAccepted(true)
                 .build();
 
         assertThatThrownBy(() -> billingService.checkout(request))
@@ -232,7 +278,8 @@ class MasterBillingServiceTest {
         when(invoiceRepository.save(any(Invoice.class))).thenAnswer(i -> i.getArgument(0));
         when(subscriptionRepository.findById(20L)).thenReturn(Optional.of(subscription));
         when(tenantRepository.findById(10L)).thenReturn(Optional.of(tenant));
-        when(masterTenantService.provisionPendingTenant(10L)).thenReturn("TempPassword123!");
+        when(masterTenantService.provisionPendingTenant(10L))
+                .thenReturn("https://acme.smarthire.top/invite/accept?token=one-time-token");
 
         InvoiceResponse response = billingService.approveInvoice(50L);
 
@@ -242,7 +289,12 @@ class MasterBillingServiceTest {
         assertThat(subscription.getStatus()).isEqualTo("ACTIVE");
 
         verify(masterTenantService).provisionPendingTenant(10L);
-        verify(mailSender).send(eq("admin@acme.com"), contains("Kích hoạt"), contains("TempPassword123!"));
+        verify(masterNotificationService).sendWorkspaceActivated(
+                eq(tenant),
+                isNull(),
+                eq("https://acme.smarthire.top/invite/accept?token=one-time-token"),
+                eq("https://acme.smarthire.top"));
+        verifyNoInteractions(mailSender);
     }
 
     @Test

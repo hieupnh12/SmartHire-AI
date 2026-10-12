@@ -49,6 +49,7 @@ export function LeadsPage() {
 
   const handleProvisionFromLead = (lead: ConsultationResponse) => {
     const query = new URLSearchParams({
+      leadId: String(lead.id),
       name: lead.companyName,
       email: lead.workEmail,
       adminName: lead.contactName,
