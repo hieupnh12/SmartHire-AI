@@ -40,6 +40,7 @@ function CvEvaluation({ cv }: { cv: CvEvaluationView }) {
   const optionalMissing = cv.missingSkills.filter((skill) => !cv.requiredMissingSkills.includes(skill));
   return <div className="space-y-4">
     <ScoreLine score={cv.score} threshold={cv.threshold} passed={cv.passed} />
+    {cv.passed === true && cv.threshold != null && cv.score < cv.threshold && <Reason title="Kết quả vòng">Điểm chưa đạt ngưỡng nhưng nhà tuyển dụng đã xem xét hồ sơ và duyệt cho bạn qua vòng này.</Reason>}
     {cv.explanation && <Reason title="Nhận xét">{cv.explanation}</Reason>}
     <div className="space-y-2">
       <h4 className="text-sm font-semibold">Kỹ năng so với yêu cầu công việc</h4>
@@ -99,7 +100,7 @@ function AttemptHeader({ title, date, outcome }: { title: string; date: string |
 function ScoreLine({ score, threshold, passed }: { score: number; threshold: number | null; passed: boolean | null }) {
   const gap = threshold == null ? null : score - threshold;
   return <p className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm">
-    <span>Điểm <strong className="text-xl">{formatScore(score)}</strong></span>
+    <span>Điểm <strong className={cn("text-xl", gap != null && (gap < 0 ? "text-[var(--color-error)]" : "text-emerald-700"))}>{formatScore(score)}</strong></span>
     {threshold != null && <span className="text-[var(--color-on-surface-variant)]">/ ngưỡng đạt {formatScore(threshold)}</span>}
     {gap != null && passed === false && gap < 0 && <span className="font-medium text-[var(--color-error)]">thiếu {formatScore(-gap)} điểm</span>}
   </p>;

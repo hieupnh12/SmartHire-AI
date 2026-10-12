@@ -118,7 +118,7 @@ export function JobNavigationDrawer() {
               <section aria-labelledby="recent-jobs-title">
                 <div className="flex items-center justify-between gap-3 px-2">
                   <h3 id="recent-jobs-title" className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--color-outline)]">Job tạo gần đây</h3>
-                  <Link to="/recruiter/jobs" onClick={close} className="text-xs font-semibold text-brand-primary hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-primary">Xem tất cả</Link>
+                  <Link to="/recruiter" onClick={close} className="text-xs font-semibold text-brand-primary hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-primary">Xem tất cả</Link>
                 </div>
                 <div className="mt-2 space-y-1.5">
                   {recentJobs.isPending && Array.from({ length: 4 }).map((_, index) => <div key={index} className="h-[4.5rem] animate-pulse rounded-xl bg-[var(--color-surface-container)]" />)}

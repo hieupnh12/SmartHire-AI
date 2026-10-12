@@ -15,7 +15,6 @@ import com.smarthire.tenant.applicant.dto.ApplicantModels.AssessmentEvaluationVi
 import com.smarthire.tenant.applicant.dto.ApplicantModels.CandidateEvaluationView;
 import com.smarthire.tenant.applicant.dto.ApplicantModels.CvEvaluationView;
 import com.smarthire.tenant.cv.service.CvAccess;
-import com.smarthire.tenant.cv.service.CvMatchingService;
 import com.smarthire.tenant.job.screening.GateScreeningService;
 import com.smarthire.tenant.job.screening.JobScreeningConfigService;
 import java.math.BigDecimal;
@@ -68,7 +67,7 @@ public class CandidateEvaluationService {
         return new CvEvaluationView(
                 match.getScore(),
                 screening.require(application.getJob().getId()).getCvPassThreshold(),
-                CvMatchingService.passed(match),
+                GateScreeningService.cvRoundPassed(application, match),
                 text(breakdown.path("explanation")),
                 requirementLabels(breakdown.path("matched")),
                 requirementLabels(breakdown.path("partialMatches")),

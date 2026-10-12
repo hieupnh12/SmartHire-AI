@@ -3,6 +3,7 @@ package com.smarthire.tenant.applicant;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.smarthire.common.exception.BusinessException;
 import com.smarthire.domain.enums.AiInterviewStatus;
+import com.smarthire.domain.enums.CvScreeningStatus;
 import com.smarthire.domain.enums.TestSubmissionStatus;
 import com.smarthire.domain.tenant.entity.AiInterview;
 import com.smarthire.domain.tenant.entity.Application;
@@ -99,6 +100,24 @@ class CandidateEvaluationServiceTest {
         assertThat(view.aiInterviews().get(1).passed()).isFalse();
         assertThat(view.assessments().get(0).passed()).isFalse();
         assertThat(view.assessments().get(0).testTitle()).isEqualTo("Java test");
+    }
+
+    @Test
+    void recruiterOverrideMarksLowCvScoreAsPassed() {
+        when(access.candidateActor()).thenReturn(candidate);
+        application.setCvScreeningStatus(CvScreeningStatus.PASSED);
+        MatchScore match = new MatchScore();
+        match.setScore(new BigDecimal("52.00"));
+        match.setBreakdownJson("{\"passed\":false}");
+        when(gateScreening.latestMatch(application)).thenReturn(match);
+        JobScreeningConfig config = new JobScreeningConfig();
+        config.setCvPassThreshold(new BigDecimal("60"));
+        when(screening.require(1L)).thenReturn(config);
+
+        CandidateEvaluationView view = service.evaluation(4L);
+
+        assertThat(view.cv().passed()).isTrue();
+        assertThat(view.cv().score()).isEqualByComparingTo("52");
     }
 
     @Test

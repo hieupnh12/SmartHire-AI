@@ -24,7 +24,7 @@ export function JobRecruitmentWorkspace({ children }: { children: ReactNode }) {
   if (!valid || job.isError) return (
     <div role="alert" className="space-y-3">
       <p>Không thể mở vị trí tuyển dụng này.</p>
-      <Link to="/recruiter/jobs" className="text-[var(--color-primary)]">Về danh sách việc làm</Link>
+      <Link to="/recruiter" className="text-[var(--color-primary)]">Về danh sách việc làm</Link>
       {valid && <button type="button" onClick={() => void job.refetch()} className="ml-4 text-[var(--color-primary)]">Thử lại</button>}
     </div>
   );

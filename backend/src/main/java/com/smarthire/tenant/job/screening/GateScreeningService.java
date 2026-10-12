@@ -3,6 +3,7 @@ package com.smarthire.tenant.job.screening;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.smarthire.domain.enums.AiInterviewStatus;
+import com.smarthire.domain.enums.CvScreeningStatus;
 import com.smarthire.domain.enums.TestSubmissionStatus;
 import com.smarthire.domain.tenant.entity.AiInterview;
 import com.smarthire.domain.tenant.entity.Application;
@@ -109,13 +110,13 @@ public class GateScreeningService {
         MatchScore match = latestMatch(application);
         AiInterview interview = latestInterviewAny(application.getId());
         Submission assessment = latestAssessmentAny(application.getId());
-        boolean cvPassed = CvMatchingService.passed(match);
+        Boolean cvPassed = cvRoundPassed(application, match);
         return new ScreeningRoundsView(
                 new RoundItemView(
-                        match == null ? "MISSING" : (cvPassed ? "PASSED" : "FAILED"),
+                        cvPassed == null ? "MISSING" : (cvPassed ? "PASSED" : "FAILED"),
                         match == null ? null : match.getScore(),
                         config.getCvPassThreshold(),
-                        match == null ? null : cvPassed,
+                        cvPassed,
                         null),
                 new RoundItemView(
                         interview == null
@@ -158,6 +159,14 @@ public class GateScreeningService {
                 config == null ? null : config.getGateInterviewWeight(),
                 config == null ? null : config.getGateAssessmentWeight(),
                 config == null ? null : config.getGatePassThreshold());
+    }
+
+    /** A recorded CV-round decision (AUTO result or recruiter override) wins over the raw score. */
+    public static Boolean cvRoundPassed(Application application, MatchScore match) {
+        CvScreeningStatus decision = application == null ? null : application.getCvScreeningStatus();
+        if (decision == CvScreeningStatus.PASSED) return Boolean.TRUE;
+        if (decision == CvScreeningStatus.FAILED) return Boolean.FALSE;
+        return match == null ? null : CvMatchingService.passed(match);
     }
 
     public MatchScore latestMatch(Application application) {
