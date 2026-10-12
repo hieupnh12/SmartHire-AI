@@ -242,7 +242,7 @@ export function PublicContractSigningPage() {
           <h1 className="text-xl sm:text-2xl font-black uppercase tracking-tight text-slate-900 leading-tight">
             HỢP ĐỒNG CUNG CẤP DỊCH VỤ PHẦN MỀM TUYỂN DỤNG AI
             <br />
-            <span className="text-indigo-600 text-lg sm:text-xl">& HẠ TẦNG DEDICATED DATABASE DOANH NGHIỆP</span>
+            <span className="text-indigo-600 text-lg sm:text-xl">&amp; HẠ TẦNG CƠ SỞ DỮ LIỆU ĐỘC LẬP</span>
           </h1>
           <p className="text-xs font-mono font-bold text-slate-600 mt-2">
             Số: <span className="text-indigo-700">{contract.contractNumber}</span>/HĐDV-SMARTHIRE
@@ -251,10 +251,10 @@ export function PublicContractSigningPage() {
 
         {/* Legal Basis */}
         <div className="text-[11px] text-slate-600 italic space-y-1 mb-8 leading-relaxed bg-slate-50 p-4 rounded-xl border border-slate-200">
-          <p>• Căn cứ Bộ luật Dân sự số 91/2015/QH13 ban hành ngày 24/11/2015;</p>
-          <p>• Căn cứ Luật Giao dịch điện tử số 20/2023/QH15 ban hành ngày 22/06/2023;</p>
-          <p>• Căn cứ Nghị định số 130/2018/NĐ-CP quy định chi tiết thi hành Luật Giao dịch điện tử về chữ ký số và dịch vụ chứng thực chữ ký số;</p>
-          <p>• Căn cứ Nghị định số 13/2023/NĐ-CP về Bảo vệ dữ liệu cá nhân (Personal Data Protection Decree - PDPD);</p>
+          <p>• Căn cứ Bộ luật Dân sự số 91/2015/QH13;</p>
+          <p>• Căn cứ Luật Thương mại số 36/2005/QH11;</p>
+          <p>• Căn cứ Luật Giao dịch điện tử số 20/2023/QH15;</p>
+          <p>• Căn cứ Nghị định số 13/2023/NĐ-CP của Chính phủ về Bảo vệ dữ liệu cá nhân;</p>
           <p>• Căn cứ vào nhu cầu và năng lực thực tế của hai bên.</p>
         </div>
 
@@ -266,41 +266,33 @@ export function PublicContractSigningPage() {
           <div className="border border-slate-200 rounded-xl p-4 bg-slate-50/70">
             <h3 className="font-bold text-sm text-indigo-900 uppercase mb-3 flex items-center gap-2">
               <Building2 className="w-4 h-4 text-indigo-600" />
-              <span>BÊN A: BÊN CUNG CẤP DỊCH VỤ (NHÀ PHÁT TRIỂN NỀN TẢNG)</span>
+              <span>BÊN A: {contract.partyAName || "CÔNG TY CỔ PHẦN CÔNG NGHỆ SMARTHIRE VIỆT NAM"}</span>
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-[12px]">
-              <div>
-                <span className="font-semibold">Tên doanh nghiệp: </span>
-                <span>{contract.partyAName || "CÔNG TY CỔ PHẦN CÔNG NGHỆ SMARTHIRE VIỆT NAM"}</span>
-              </div>
               <div>
                 <span className="font-semibold">Mã số thuế: </span>
                 <span className="font-mono font-bold text-slate-900">{contract.partyATaxCode || "0110889988"}</span>
               </div>
-              <div className="sm:col-span-2">
-                <span className="font-semibold">Địa chỉ trụ sở: </span>
-                <span>{contract.partyAAddress || "Tòa nhà Keangnam Landmark 72, Đường Phạm Hùng, Phường Mễ Trì, Quận Nam Từ Liêm, TP. Hà Nội"}</span>
-              </div>
               <div>
                 <span className="font-semibold">Người đại diện: </span>
-                <span>{contract.partyARepresentative || "Phan Nhật Hưng"}</span>
-              </div>
-              <div>
-                <span className="font-semibold">Chức vụ: </span>
-                <span>{contract.partyAPosition || "Tổng Giám Đốc"}</span>
-              </div>
-              <div>
-                <span className="font-semibold">Số điện thoại: </span>
-                <span>{contract.partyAPhone || "1900 6868"}</span>
-              </div>
-              <div>
-                <span className="font-semibold">Email: </span>
-                <span>{contract.partyAEmail || "legal@smarthire.top"}</span>
+                <span>{contract.partyARepresentative || "Phan Nhật Hưng"} — Chức vụ: {contract.partyAPosition || "Tổng Giám Đốc"}</span>
               </div>
               <div className="sm:col-span-2">
-                <span className="font-semibold">Tài khoản ngân hàng: </span>
+                <span className="font-semibold">Trụ sở: </span>
+                <span>{contract.partyAAddress || "Tòa nhà Keangnam Landmark 72, Đường Phạm Hùng, Nam Từ Liêm, Hà Nội"}</span>
+              </div>
+              <div>
+                <span className="font-semibold">Email pháp chế: </span>
+                <span>{contract.partyAEmail || "legal@smarthire.top"}</span>
+              </div>
+              <div>
+                <span className="font-semibold">Hotline: </span>
+                <span>{contract.partyAPhone || "1900 6868"}</span>
+              </div>
+              <div className="sm:col-span-2">
+                <span className="font-semibold">Tài khoản: </span>
                 <span className="font-mono font-bold">{contract.partyABankAccount || "190388889999"}</span> tại{" "}
-                <span>{contract.partyABankName || "Ngân hàng TMCP Kỹ Thương Việt Nam (Techcombank)"} - {contract.partyABankBranch || "CN Hà Nội"}</span>
+                <span>{contract.partyABankName || "Ngân hàng Techcombank"} – {contract.partyABankBranch || "CN Hà Nội"}</span>
               </div>
             </div>
           </div>
@@ -309,7 +301,7 @@ export function PublicContractSigningPage() {
           <div className="border border-slate-200 rounded-xl p-4 bg-slate-50/70">
             <h3 className="font-bold text-sm text-slate-900 uppercase mb-3 flex items-center gap-2">
               <Building2 className="w-4 h-4 text-slate-600" />
-              <span>BÊN B: BÊN SỬ DỤNG DỊCH VỤ (KHÁCH HÀNG DOANH NGHIỆP)</span>
+              <span>BÊN B: BÊN SỬ DỤNG DỊCH VỤ</span>
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-[12px]">
               <div>
@@ -321,23 +313,19 @@ export function PublicContractSigningPage() {
                 <span className="font-mono font-bold text-slate-900">{contract.partyBTaxCode || "Đang cập nhật"}</span>
               </div>
               <div className="sm:col-span-2">
-                <span className="font-semibold">Địa chỉ trụ sở: </span>
+                <span className="font-semibold">Địa chỉ: </span>
                 <span>{contract.partyBAddress || "Đăng ký theo Giấy phép ĐKKD"}</span>
               </div>
               <div>
-                <span className="font-semibold">Người đại diện: </span>
-                <span>{contract.partyBRepresentative || "Đại diện theo pháp luật"}</span>
-              </div>
-              <div>
-                <span className="font-semibold">Chức vụ: </span>
-                <span>{contract.partyBPosition || "Giám Đốc / Đại diện có thẩm quyền"}</span>
+                <span className="font-semibold">Đại diện: </span>
+                <span>{contract.partyBRepresentative || "Đại diện theo pháp luật"} — Chức vụ: {contract.partyBPosition || "Giám Đốc"}</span>
               </div>
               <div>
                 <span className="font-semibold">Số điện thoại: </span>
                 <span>{contract.partyBPhone || "Theo hồ sơ đăng ký"}</span>
               </div>
-              <div>
-                <span className="font-semibold">Email nhận HĐ & Ký số: </span>
+              <div className="sm:col-span-2">
+                <span className="font-semibold">Email ký số &amp; nhận hóa đơn: </span>
                 <span className="font-mono text-indigo-700">{contract.partyBEmail || "email@company.com"}</span>
               </div>
               {contract.partyBBankAccount && (
@@ -355,19 +343,40 @@ export function PublicContractSigningPage() {
           {/* Article 1 */}
           <div>
             <h4 className="font-bold text-sm text-slate-900 uppercase mb-2">
-              ĐIỀU 1: ĐỐI TƯỢNG VÀ NỘI DUNG DỊCH VỤ
+              ĐIỀU 1: ĐỐI TƯỢNG, PHẠM VI DỊCH VỤ VÀ HẠN NGẠCH TÀI NGUYÊN
             </h4>
             <div className="space-y-2 pl-3 border-l-2 border-slate-200">
               <p>
-                1.1. Bên A đồng ý cung cấp và Bên B đồng ý thuê sử dụng phần mềm tuyển dụng thông minh <strong>SmartHire-AI</strong> gói{" "}
-                <span className="font-bold text-indigo-700">{contract.planName || "Enterprise Dedicated"}</span>.
+                1.1. Bên A cung cấp và Bên B đồng ý thuê quyền sử dụng nền tảng tuyển dụng thông minh <strong>SmartHire-AI</strong> theo mô hình SaaS như sau:
+              </p>
+              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 my-2 space-y-1.5">
+                <div>
+                  • <strong>Gói dịch vụ:</strong>{" "}
+                  <span className="font-bold text-indigo-700">{contract.planName || "Enterprise (Tùy chỉnh)"}</span>
+                </div>
+                <div>
+                  • <strong>Không gian làm việc (Subdomain):</strong>{" "}
+                  <code className="bg-white px-1.5 py-0.5 rounded border border-slate-200 font-mono text-indigo-700">
+                    https://{contract.tenantCode || "doanhnghiep"}.smarthire.top
+                  </code>
+                </div>
+                <div>
+                  • <strong>Hạn mức tài nguyên định kỳ:</strong> Tối đa{" "}
+                  <strong>{contract.maxJobs && contract.maxJobs >= 9999 ? "Không giới hạn" : (contract.maxJobs ?? "Không giới hạn")}</strong> vị trí tuyển dụng (Jobs);{" "}
+                  <strong>{(contract.maxCvParses ?? 5000).toLocaleString("vi-VN")}</strong> lượt phân tích CV AI/tháng;{" "}
+                  <strong>{(contract.maxAiInterviewHours ?? 200).toLocaleString("vi-VN")}</strong> giờ phỏng vấn AI/tháng;{" "}
+                  <strong>{contract.maxStorageGb ?? 100} GB</strong> lưu trữ.
+                </div>
+              </div>
+              <p>
+                1.2. <strong>Cam kết Hạ tầng Cơ sở dữ liệu Độc lập (Separate Database per Tenant):</strong> Bên A khởi tạo và vận hành một cơ sở dữ liệu vật lý riêng biệt (
+                <code className="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-indigo-700">
+                  smarthire_tenant_{contract.tenantCode || "doanhnghiep"}
+                </code>
+                ) kèm bộ kết nối độc lập dành riêng cho Bên B, đảm bảo cô lập hoàn toàn và không lưu chung dữ liệu với bất kỳ bên thứ ba nào khác.
               </p>
               <p>
-                1.2. <strong>Cam kết kiến trúc Separate Database:</strong> Bên A khởi tạo một cơ sở dữ liệu vật lý riêng biệt (Dedicated DB{" "}
-                <code className="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-indigo-700">smarthire_tenant_{contract.tenantCode}</code>) và kết nối Connection Pool độc lập cho Bên B, đảm bảo tính bảo mật và không lưu chung dữ liệu với bất kỳ doanh nghiệp nào khác.
-              </p>
-              <p>
-                1.3. <strong>Thời hạn dịch vụ:</strong> Từ ngày <span className="font-semibold font-mono">{contract.startDate}</span> đến ngày{" "}
+                1.3. <strong>Thời hạn hợp đồng:</strong> Từ ngày <span className="font-semibold font-mono">{contract.startDate}</span> đến hết ngày{" "}
                 <span className="font-semibold font-mono">{contract.endDate}</span>.
               </p>
             </div>
@@ -376,29 +385,42 @@ export function PublicContractSigningPage() {
           {/* Article 2 */}
           <div>
             <h4 className="font-bold text-sm text-slate-900 uppercase mb-2">
-              ĐIỀU 2: GIÁ TRỊ HỢP ĐỒNG VÀ PHƯƠNG THỨC THANH TOÁN
+              ĐIỀU 2: GIÁ TRỊ HỢP ĐỒNG VÀ ĐIỀU KIỆN THANH TOÁN
             </h4>
             <div className="space-y-2 pl-3 border-l-2 border-slate-200">
-              <p>2.1. Chi tiết biểu phí dịch vụ:</p>
+              <p>2.1. Tổng giá trị hợp đồng:</p>
               <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 my-2 space-y-1.5">
                 <div className="flex justify-between">
-                  <span>• Giá trị dịch vụ trước thuế:</span>
-                  <span className="font-mono font-bold">{contract.contractValue.toLocaleString("vi-VN")} ₫</span>
+                  <span>• Phí bản quyền phần mềm và hạ tầng:</span>
+                  <span className="font-mono font-bold">{contract.contractValue.toLocaleString("vi-VN")} VND</span>
                 </div>
-                <div className="flex justify-between text-slate-600">
-                  <span>• Thuế giá trị gia tăng (VAT {contract.taxRate || 10}%):</span>
-                  <span className="font-mono">{(contract.taxAmount || 0).toLocaleString("vi-VN")} ₫</span>
+                <div className="flex justify-between text-slate-600 gap-4">
+                  <span>• Thuế giá trị gia tăng (GTGT):</span>
+                  {(contract.taxRate ?? 0) === 0 ? (
+                    <span className="text-right font-medium text-slate-700">
+                      Không chịu thuế GTGT (Theo Khoản 21 Điều 4 Thông tư 219/2013/TT-BTC đối với phần mềm và dịch vụ phần mềm)
+                    </span>
+                  ) : (
+                    <span className="font-mono">
+                      VAT {contract.taxRate}%: {(contract.taxAmount || 0).toLocaleString("vi-VN")} VND
+                    </span>
+                  )}
                 </div>
                 <div className="flex justify-between pt-2 border-t border-slate-200 text-sm font-bold text-slate-900">
                   <span>• Tổng giá trị thanh toán:</span>
-                  <span className="font-mono text-emerald-600">{(contract.totalAmount || contract.contractValue).toLocaleString("vi-VN")} ₫</span>
+                  <span className="font-mono text-emerald-600">{(contract.totalAmount || contract.contractValue).toLocaleString("vi-VN")} VND</span>
                 </div>
                 <div className="text-[11px] text-slate-500 italic pt-1">
-                  (Bằng chữ: {contract.amountInWords || "Đã bao gồm thuế giá trị gia tăng"})
+                  (Bằng chữ: {contract.amountInWords || "Không chịu thuế giá trị gia tăng"})
                 </div>
               </div>
+              <p>2.2. <strong>Phương thức và Thời hạn thanh toán:</strong></p>
               <p>
-                2.2. <strong>Phương thức thanh toán:</strong> Chuyển khoản Internet Banking vào tài khoản ngân hàng của Bên A nêu tại phần đầu hợp đồng. Bên A xuất Hóa đơn điện tử VAT hợp pháp theo quy định của Tổng cục Thuế Việt Nam gửi qua email Bên B ngay sau khi ký kết.
+                • Bên B thanh toán 100% giá trị hợp đồng bằng hình thức chuyển khoản vào tài khoản ngân hàng của Bên A trong vòng{" "}
+                <strong>05 (năm) ngày làm việc</strong> kể từ ngày hai bên hoàn tất ký số hợp đồng này.
+              </p>
+              <p>
+                • Bên A tiến hành bàn giao tài khoản Quản trị viên (Master Admin), kích hoạt cơ sở dữ liệu riêng và xuất Hóa đơn điện tử hợp pháp gửi qua email cho Bên B ngay sau khi nhận được báo có từ ngân hàng.
               </p>
             </div>
           </div>
@@ -406,40 +428,35 @@ export function PublicContractSigningPage() {
           {/* Article 3 */}
           <div>
             <h4 className="font-bold text-sm text-slate-900 uppercase mb-2">
-              ĐIỀU 3: CAM KẾT MỨC ĐỘ DỊCH VỤ (SLA) VÀ HỖ TRỢ KỸ THUẬT
+              ĐIỀU 3: CAM KẾT CHẤT LƯỢNG (SLA), BẢO VỆ DỮ LIỆU &amp; MIỄN TRỪ TRÁCH NHIỆM AI
             </h4>
             <div className="space-y-2 pl-3 border-l-2 border-slate-200">
-              <p>3.1. Bên A cam kết tỷ lệ sẵn sàng hạ tầng (Uptime SLA) tối thiểu <strong>99.99%</strong> trong suốt thời gian hiệu lực.</p>
-              <p>3.2. Đội ngũ kỹ sư hỗ trợ kỹ thuật 24/7, định kỳ sao lưu dữ liệu tự động (Daily Automated Backup) và khôi phục khi có sự cố.</p>
+              <p>
+                3.1. <strong>Cam kết Mức dịch vụ (SLA):</strong> Bên A cam kết độ sẵn sàng của hệ thống đạt tối thiểu <strong>99.5%/tháng</strong>, hỗ trợ kỹ thuật trong suốt thời hạn hợp đồng và thực hiện sao lưu dữ liệu tự động hàng ngày (Daily Backup).
+              </p>
+              <p>
+                3.2. <strong>Bảo vệ Dữ liệu Cá nhân (Nghị định 13/2023/NĐ-CP):</strong> Bên B đóng vai trò là <strong>Bên Kiểm soát Dữ liệu</strong> và chịu trách nhiệm thu thập sự đồng ý hợp pháp của ứng viên. Bên A đóng vai trò là <strong>Bên Xử lý Dữ liệu</strong>, cam kết chỉ xử lý dữ liệu theo yêu cầu của Bên B, không chia sẻ cho bên thứ ba và không sử dụng dữ liệu của Bên B vào mục đích thương mại khác.
+              </p>
+              <p>
+                3.3. <strong>Giới hạn Trách nhiệm đối với Trí tuệ Nhân tạo (AI Disclaimer):</strong> Các kết quả phân tích CV, chấm điểm phỏng vấn và cảnh báo gian lận do AI tạo ra đóng vai trò là công cụ tham khảo hỗ trợ ra quyết định. Bên B có toàn quyền và chịu hoàn toàn trách nhiệm pháp lý đối với quyết định tuyển dụng cuối cùng đối với ứng viên.
+              </p>
             </div>
           </div>
 
           {/* Article 4 */}
           <div>
             <h4 className="font-bold text-sm text-slate-900 uppercase mb-2">
-              ĐIỀU 4: BẢO VỆ DỮ LIỆU CÁ NHÂN THEO NGHỊ ĐỊNH 13/2023/NĐ-CP
+              ĐIỀU 4: HIỆU LỰC HỢP ĐỒNG ĐIỆN TỬ VÀ GIẢI QUYẾT TRANH CHẤP
             </h4>
             <div className="space-y-2 pl-3 border-l-2 border-slate-200">
               <p>
-                4.1. Bên A đóng vai trò là Bên Xử Lý Dữ Liệu và Bên B là Bên Kiểm Soát Dữ Liệu đối với toàn bộ hồ sơ ứng viên (CV), thông tin nhân sự và đánh giá phỏng vấn AI.
+                4.1. Hợp đồng này được giao kết dưới dạng <strong>Thông điệp dữ liệu điện tử</strong> theo quy định của Luật Giao dịch điện tử số 20/2023/QH15.
               </p>
               <p>
-                4.2. Bên A cam kết không sử dụng dữ liệu tuyển dụng của Bên B vào bất kỳ mục đích thương mại nào khác và không chia sẻ cho bên thứ ba.
-              </p>
-            </div>
-          </div>
-
-          {/* Article 5 */}
-          <div>
-            <h4 className="font-bold text-sm text-slate-900 uppercase mb-2">
-              ĐIỀU 5: HIỆU LỰC HỢP ĐỒNG ĐIỆN TỬ VÀ KÝ KẾT
-            </h4>
-            <div className="space-y-2 pl-3 border-l-2 border-slate-200">
-              <p>
-                5.1. Hợp đồng này được lập dưới dạng <strong>Thông điệp dữ liệu điện tử</strong> theo Luật Giao dịch điện tử số 20/2023/QH15.
+                4.2. Chữ ký điện tử xác thực qua nền tảng <strong>Dropbox Sign</strong> của đại diện hai bên kèm theo Biên bản kiểm toán (Audit Trail) và mã băm mật mã <strong>SHA-256</strong> có giá trị pháp lý nguyên vẹn và tương đương với hợp đồng văn bản giấy được ký tay, đóng dấu pháp nhân.
               </p>
               <p>
-                5.2. Chữ ký số và xác thực điện tử qua nền tảng <strong>Dropbox Sign</strong> của hai bên kèm biên bản kiểm toán (Audit Trail) và mã băm SHA-256 có đầy đủ giá trị pháp lý tương đương văn bản giấy đóng dấu đỏ.
+                4.3. Mọi tranh chấp phát sinh từ Hợp đồng này trước hết được giải quyết thông qua thương lượng thiện chí. Trường hợp không đạt được thỏa thuận trong vòng 30 ngày, vụ việc sẽ được đưa ra giải quyết tại <strong>Tòa án nhân dân có thẩm quyền tại Thành phố Hà Nội</strong>. Phán quyết của Tòa án là quyết định cuối cùng buộc hai bên phải thi hành.
               </p>
             </div>
           </div>

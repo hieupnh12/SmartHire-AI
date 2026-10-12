@@ -28,6 +28,34 @@ public class TenantPublicUrlService {
         return pathForTenant(tenant, path);
     }
 
+    public TenantInfo currentTenantOrNull() {
+        try {
+            String tenantKey = TenantContext.getCurrentTenant();
+            if (tenantKey == null || tenantKey.isBlank()) {
+                return null;
+            }
+            return registry.requireActive(tenantKey);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    public String brandName() {
+        TenantInfo tenant = currentTenantOrNull();
+        if (tenant != null && tenant.getName() != null && !tenant.getName().isBlank()) {
+            return tenant.getName().trim();
+        }
+        return "SmartHire";
+    }
+
+    public static String brandOrDefault(TenantPublicUrlService publicUrls) {
+        if (publicUrls == null) {
+            return "SmartHire";
+        }
+        String brand = publicUrls.brandName();
+        return (brand == null || brand.isBlank()) ? "SmartHire" : brand.trim();
+    }
+
     public String pathForTenant(TenantInfo tenant, String path) {
         String subdomain = tenant.getSubdomain() == null || tenant.getSubdomain().isBlank()
                 ? tenant.getCode()

@@ -23,6 +23,10 @@ public class ContractResponse {
     private Long planId;
     private String planName;
     private String planCode;
+    private Integer maxJobs;
+    private Integer maxCvParses;
+    private Integer maxAiInterviewHours;
+    private Integer maxStorageGb;
     private Long consultationRequestId;
     private String title;
     private BigDecimal contractValue;

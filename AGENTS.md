@@ -10,9 +10,9 @@ Hệ thống áp dụng kiến trúc **Separate Database per Tenant** (Mỗi doa
 
 | Thành phần | Đường dẫn | Stack chính |
 |---|---|---|
-| Backend | `backend/` | Java 21, Spring Boot 3.x, Hibernate MultiTenancy (DATABASE), MySQL, Redis, RabbitMQ, Flyway Dual-Pipeline, WebSocket |
+| Backend | `backend/` | Java 21, Spring Boot 3.x, Hibernate MultiTenancy (DATABASE), PostgreSQL (Master DB `smarthire_master`), MySQL (Tenant DB per Enterprise), Redis, RabbitMQ, Flyway Dual-Pipeline, WebSocket |
 | Frontend | `frontend/` | TypeScript, React 19, Vite, Shadcn UI, Tailwind, Zustand, TanStack Query |
-| Docs | `docs/features/` | **40 features** (AUTH→PRACT) — mục đích, actor, flow, rules, API, DB, mockup, status |
+| Docs | `docs/features/` | **Master Platform (`MASTER-01..08`) + 40 Tenant features (`AUTH→PRACT`)** — mục đích, actor, flow, rules, API, DB, mockup, status |
 | Design | `DESIGN.md` | Tokens, UX, i18n EN/VI/JA, shortcuts |
 
 ## 2. Nguyên tắc chung

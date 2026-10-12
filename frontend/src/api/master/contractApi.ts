@@ -23,6 +23,10 @@ export interface ContractItem {
   planId?: number;
   planName?: string;
   planCode?: string;
+  maxJobs?: number;
+  maxCvParses?: number;
+  maxAiInterviewHours?: number;
+  maxStorageGb?: number;
   consultationRequestId?: number;
   title: string;
   contractValue: number;
@@ -73,7 +77,7 @@ export interface ContractItem {
   esignDetailsUrl?: string;
   esignTestMode?: boolean;
 
-  status: "DRAFT" | "PENDING_SIGNATURE" | "SIGNED" | "EXPIRED" | "TERMINATED";
+  status: "DRAFT" | "PENDING_SIGNATURE" | "SIGNED" | "REJECTED" | "EXPIRED" | "TERMINATED";
   signMethod?: string;
   signedAt?: string;
   signedDocumentUrl?: string;

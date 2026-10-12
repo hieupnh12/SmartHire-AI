@@ -72,8 +72,22 @@ public class TenantQuotaRedisService {
         this(redis, null, subscriptionRepository, planRepository, null, objectMapper);
     }
 
+    @Autowired(required = false)
+    private com.smarthire.master.notification.service.MasterNotificationService masterNotificationService;
+
     public static final List<String> OPERATIONAL_SUBSCRIPTION_STATUSES = List.of("ACTIVE", "TRIAL", "PAST_DUE");
     private static final String CACHE_KEY_STATUS = "sub:tenant:%s:status";
+
+    private void notifyQuotaWarningIfNeeded(String tenantCode, QuotaType type, long used, long limit) {
+        if (masterNotificationService == null || limit <= 0L || used * 100L < limit * 80L) {
+            return;
+        }
+        try {
+            masterNotificationService.sendQuotaWarning(tenantCode, type, used, limit);
+        } catch (Exception ex) {
+            log.warn("Failed to dispatch quota warning email for tenant {} on {}: {}", tenantCode, type, ex.getMessage());
+        }
+    }
 
     public boolean hasFeature(String tenantCode, String feature) {
         if (tenantCode == null || tenantCode.isBlank()) {
@@ -161,10 +175,12 @@ public class TenantQuotaRedisService {
 
         if (limit > 0L && usageVal > limit) {
             redis.opsForHash().increment(key, type.name(), -count);
+            notifyQuotaWarningIfNeeded(tenantCode, type, limit, limit);
             log.warn("Tenant [{}] blocked on {} quota. Limit: {}, Attempted Usage: {}", tenantCode, type, limit, usageVal);
             throw new BusinessException(exceededMessage(type, limit), HttpStatus.PAYMENT_REQUIRED, "QUOTA_EXCEEDED");
         }
 
+        notifyQuotaWarningIfNeeded(tenantCode, type, usageVal, limit);
         recordDailyUsage(tenantCode, type, count);
         log.info("Reserved {} {} for tenant {}. Usage: {}/{}", count, type, tenantCode, usageVal, limit < 0 ? "UNLIMITED" : limit);
         return usageVal;
@@ -211,6 +227,7 @@ public class TenantQuotaRedisService {
         if (limit > 0L) {
             long used = getCurrentUsage(tenantCode, type);
             if (used >= limit) {
+                notifyQuotaWarningIfNeeded(tenantCode, type, used, limit);
                 throw new BusinessException(exceededMessage(type, limit), HttpStatus.PAYMENT_REQUIRED, "QUOTA_EXCEEDED");
             }
         }
@@ -225,13 +242,19 @@ public class TenantQuotaRedisService {
         }
         String monthStr = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMM"));
         String key = String.format(CACHE_KEY_USAGE, tenantCode, monthStr);
+        long usageVal = amount;
         try {
             ensureUsageLoaded(tenantCode, monthStr);
-            redis.opsForHash().increment(key, type.name(), amount);
+            Long currentUsage = redis.opsForHash().increment(key, type.name(), amount);
             redis.expire(key, 60, TimeUnit.DAYS);
+            if (currentUsage != null) {
+                usageVal = currentUsage;
+            }
         } catch (Exception ex) {
             log.warn("Failed to increment Redis usage {} for tenant {}", type, tenantCode, ex);
         }
+        long limit = getRawLimit(tenantCode, type);
+        notifyQuotaWarningIfNeeded(tenantCode, type, usageVal, limit);
         recordDailyUsage(tenantCode, type, amount);
     }
 
@@ -248,9 +271,11 @@ public class TenantQuotaRedisService {
             throw new BusinessException(disabledMessage(type), HttpStatus.PAYMENT_REQUIRED, "QUOTA_FEATURE_DISABLED");
         }
         if (limit > 0L && (currentActiveCount + addingCount) > limit) {
+            notifyQuotaWarningIfNeeded(tenantCode, type, currentActiveCount, limit);
             log.warn("Tenant [{}] reached capacity for {}. Limit: {}, Current: {}", tenantCode, type, limit, currentActiveCount);
             throw new BusinessException(exceededMessage(type, limit), HttpStatus.PAYMENT_REQUIRED, "CAPACITY_LIMIT_REACHED");
         }
+        notifyQuotaWarningIfNeeded(tenantCode, type, currentActiveCount + addingCount, limit);
     }
 
     /**
@@ -267,6 +292,7 @@ public class TenantQuotaRedisService {
         }
         long baseBytes = Math.max(currentStorageBytes, getCurrentUsage(tenantCode, QuotaType.STORAGE_BYTES));
         if (limit > 0L && (baseBytes + newFileBytes) > limit) {
+            notifyQuotaWarningIfNeeded(tenantCode, QuotaType.STORAGE_BYTES, baseBytes, limit);
             log.warn("Tenant [{}] exceeded storage quota. Limit: {} bytes, Current: {}, Uploading: {}",
                     tenantCode, limit, baseBytes, newFileBytes);
             throw new BusinessException(exceededMessage(QuotaType.STORAGE_BYTES, limit), HttpStatus.PAYMENT_REQUIRED, "QUOTA_EXCEEDED");
@@ -280,6 +306,7 @@ public class TenantQuotaRedisService {
         } catch (Exception ex) {
             log.warn("Failed to update storage usage in Redis for tenant {}", tenantCode, ex);
         }
+        notifyQuotaWarningIfNeeded(tenantCode, QuotaType.STORAGE_BYTES, updatedTotal, limit);
         updateAbsoluteDailyMetric(tenantCode, QuotaType.STORAGE_BYTES, updatedTotal);
     }
 

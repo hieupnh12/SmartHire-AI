@@ -187,11 +187,11 @@ Kiểm tra: `mvn.cmd test` với Java 21; máy dùng Java 24 có thể chạy `m
 ## PostgreSQL master / MySQL tenant
 
 API quản trị master yêu cầu `Authorization: Bearer <master-token>` với role `WORKSPACE_ADMIN`.
-`POST /master/tenants/onboard` yêu cầu `code`, `name`, `subdomain`, `adminName`, `adminEmail`, `adminPassword`.
-Không gọi API user tenant để bootstrap admin. Response chỉ chứa metadata và không chứa credential kết nối.
-`POST /master/tenants/{id}/retry` gửi lại `adminName`, `adminEmail`, `adminPassword` cho tenant `FAILED` hoặc `PROVISIONING` bị gián đoạn.
+`POST /master/tenants/onboard` yêu cầu `code`, `name`, `subdomain`, `adminName`, `adminEmail` (không nhận `adminPassword` tĩnh; hệ thống sinh lời mời kích hoạt một lần trong `member_invitations` để Admin doanh nghiệp tự đặt mật khẩu). Hỗ trợ cờ `deferProvisioning=true` cho luồng B2B Deal Wizard để giữ tenant ở `PENDING_PAYMENT` (chưa cấp phát MySQL DB, chưa tạo gói STARTER mặc định, chỉ kích hoạt qua Single Activation Trigger khi thanh toán hoá đơn thành công).
+Response chỉ chứa metadata (và `activationUrl` một lần khi vừa cấp phát/retry) và không chứa credential kết nối.
+`POST /master/tenants/{id}/retry` gửi lại `adminName`, `adminEmail` cho tenant `FAILED`, `PROVISIONING` bị gián đoạn hoặc `PENDING_PAYMENT`.
 Chế độ thủ công bổ sung `customDbUrl`, `dbUsername`, `dbPassword`; backend chạy migration trên DB đã chuẩn bị.
-Trạng thái provisioning là `PROVISIONING` → `ACTIVE` hoặc `FAILED`; trạng thái vận hành là `ACTIVE` ↔ `SUSPENDED`. Không kích hoạt trực tiếp tenant `FAILED`.
+Trạng thái vòng đời gồm `PENDING_PAYMENT` → `PROVISIONING` → `ACTIVE` hoặc `FAILED`; trạng thái vận hành là `ACTIVE` ↔ `SUSPENDED`. Hỗ trợ xoá mềm (`PATCH /master/tenants/{id}/soft-delete`), khôi phục (`PATCH /master/tenants/{id}/restore`) và xoá cứng (`DELETE /master/tenants/{id}?hard=true` — đóng Hikari pool + `DROP DATABASE` + `DROP USER`).
 Xem [contract và business rules](../features/Authentication/Tenant-Onboarding.md).
 
 ## Ngân hàng câu hỏi chung

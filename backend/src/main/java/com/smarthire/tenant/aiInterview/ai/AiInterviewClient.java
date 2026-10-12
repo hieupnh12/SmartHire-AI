@@ -57,15 +57,97 @@ public class AiInterviewClient {
         return call("INTERVIEW_NLP", instruction, data);
     }
 
+    private java.util.Optional<DynamicAiConfigProvider.ResolvedAiConfig> resolveFailoverTarget(
+            DynamicAiConfigProvider.ResolvedAiConfig primary) {
+        if (primary == null || !primary.hasFailover()) {
+            return java.util.Optional.empty();
+        }
+        if (dynamicConfig != null) {
+            var resolved = dynamicConfig.resolveFailoverConfig(primary);
+            if (resolved.isPresent()) {
+                return resolved;
+            }
+        }
+        String targetProvider = (primary.failoverProvider() == null || primary.failoverProvider().isBlank())
+                ? primary.provider()
+                : primary.failoverProvider().trim().toUpperCase();
+        String apiKey = (primary.apiKey() == null || primary.apiKey().isBlank())
+                ? config.getApiKey()
+                : primary.apiKey().trim();
+        if (targetProvider != null
+                && targetProvider.equalsIgnoreCase(primary.provider())
+                && apiKey != null
+                && !apiKey.isBlank()) {
+            return java.util.Optional.of(new DynamicAiConfigProvider.ResolvedAiConfig(
+                    primary.taskType(),
+                    targetProvider,
+                    primary.failoverModel().trim(),
+                    apiKey,
+                    primary.endpointUrl(),
+                    primary.temperature(),
+                    primary.maxTokens(),
+                    primary.timeoutSeconds(),
+                    null,
+                    null));
+        }
+        return java.util.Optional.empty();
+    }
+
     private JsonNode call(String task, String instruction, JsonNode data) {
         var resolved = dynamicConfig.resolveConfig(task);
         String apiKey = resolved.apiKey() == null || resolved.apiKey().isBlank()
                 ? config.getApiKey() : resolved.apiKey().trim();
         if (apiKey == null || apiKey.isBlank()) throw new IllegalStateException("AI interview provider is not configured");
-        if (!"GEMINI".equalsIgnoreCase(resolved.provider()))
-            throw new IllegalStateException("AI interview currently requires a Gemini provider");
         if (rateLimiterService != null) {
             rateLimiterService.checkAndAcquire(task);
+        }
+        var failoverOpt = resolveFailoverTarget(resolved);
+        int primaryMaxAttempts = failoverOpt.isPresent() ? 1 : 3;
+        try {
+            return executeCall(task, resolved, apiKey, instruction, data, primaryMaxAttempts);
+        } catch (BusinessException ex) {
+            throw ex;
+        } catch (RuntimeException primaryEx) {
+            if (failoverOpt.isPresent()) {
+                var failover = failoverOpt.get();
+                String failoverKey = failover.apiKey() == null || failover.apiKey().isBlank()
+                        ? apiKey
+                        : failover.apiKey().trim();
+                log.warn("Primary AI Interview model {}:{} failed for task={}, attempting failover to {}:{}",
+                        resolved.provider(), resolved.modelName(), task, failover.provider(), failover.modelName());
+                return executeCall(task, failover, failoverKey, instruction, data, 2);
+            }
+            throw primaryEx;
+        }
+    }
+
+    private String resolveBaseUrl(String provider, String endpointUrl) {
+        if (endpointUrl != null && !endpointUrl.isBlank()) {
+            return endpointUrl.trim().replaceAll("/+$", "").replaceAll("/models$", "/openai").replaceAll("/chat/completions$", "");
+        }
+        if ("OPENAI".equalsIgnoreCase(provider)) {
+            return "https://api.openai.com/v1";
+        }
+        if ("DEEPSEEK".equalsIgnoreCase(provider)) {
+            return "https://api.deepseek.com";
+        }
+        return config.getBaseUrl().replaceAll("/+$", "").replaceAll("/models$", "/openai");
+    }
+
+    private JsonNode executeCall(
+            String task,
+            DynamicAiConfigProvider.ResolvedAiConfig resolved,
+            String apiKey,
+            String instruction,
+            JsonNode data,
+            int maxAttempts) {
+        String provider = resolved.provider() == null || resolved.provider().isBlank()
+                ? "GEMINI"
+                : resolved.provider().trim().toUpperCase();
+        if (!"GEMINI".equalsIgnoreCase(provider)
+                && !"OPENAI".equalsIgnoreCase(provider)
+                && !"DEEPSEEK".equalsIgnoreCase(provider)) {
+            throw new IllegalStateException("AI interview currently requires a Gemini, OpenAI, or DeepSeek provider");
         }
         String effectiveModel = resolved.modelName() == null || resolved.modelName().isBlank()
                 ? config.getModel() : resolved.modelName();
@@ -74,16 +156,15 @@ public class AiInterviewClient {
         long promptTokens = 0L;
         long completionTokens = 0L;
         try {
-            String baseUrl = resolved.endpointUrl() == null || resolved.endpointUrl().isBlank()
-                    ? config.getBaseUrl() : resolved.endpointUrl().trim();
-            // Accept the previous environment URL while switching to Chat Completions.
-            baseUrl = baseUrl.replaceAll("/+$", "").replaceAll("/models$", "/openai");
+            String baseUrl = resolveBaseUrl(provider, resolved.endpointUrl());
             var api = OpenAiApi.builder().baseUrl(baseUrl).completionsPath("/chat/completions")
                     .apiKey(apiKey).restClientBuilder(http.clone())
                     .responseErrorHandler(new DefaultResponseErrorHandler()).build();
-            var retry = RetryTemplate.builder().maxAttempts(3).exponentialBackoff(1000, 2, 4000)
-                    .retryOn(error -> error instanceof RestClientResponseException response
-                            && retryable(response.getStatusCode().value())).build();
+            var retry = maxAttempts > 1
+                    ? RetryTemplate.builder().maxAttempts(maxAttempts).exponentialBackoff(1000, 2, 4000)
+                            .retryOn(error -> error instanceof RestClientResponseException response
+                                    && retryable(response.getStatusCode().value())).build()
+                    : RetryTemplate.builder().maxAttempts(1).build();
             var options = OpenAiChatOptions.builder()
                     .model(effectiveModel)
                     .temperature(resolved.temperature() == null ? 0.2 : resolved.temperature().doubleValue())
@@ -114,7 +195,7 @@ public class AiInterviewClient {
             throw ex;
         } catch (RestClientResponseException ex) {
             int status = ex.getStatusCode().value();
-            log.error("AI Interview call failed: task={}, HTTP {}", task, status, safeDiagnostic(ex));
+            log.error("AI Interview call failed: task={}, model={}, HTTP {}", task, effectiveModel, status, safeDiagnostic(ex));
             String message = switch (status) {
                 case 429 -> "Dịch vụ AI đang giới hạn lượt gọi (HTTP 429). Vui lòng thử lại sau.";
                 case 503, 502, 504 -> "Dịch vụ AI tạm thời không khả dụng (HTTP " + status + "). Vui lòng thử lại sau.";
@@ -124,13 +205,13 @@ public class AiInterviewClient {
             };
             throw new ProviderException(message);
         } catch (Exception ex) {
-            log.error("AI Interview call failed: task={}", task, safeDiagnostic(ex));
+            log.error("AI Interview call failed: task={}, model={}", task, effectiveModel, safeDiagnostic(ex));
             throw new IllegalStateException("AI interview provider unavailable or returned invalid data");
         } finally {
             if (meteringService != null) {
                 long latencyMs = (System.nanoTime() - startNs) / 1_000_000L;
                 meteringService.recordUsageAsync(
-                        task, resolved.provider(), effectiveModel, promptTokens, completionTokens, latencyMs, success);
+                        task, provider, effectiveModel, promptTokens, completionTokens, latencyMs, success);
             }
         }
     }

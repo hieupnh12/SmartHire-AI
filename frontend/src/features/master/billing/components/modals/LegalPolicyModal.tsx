@@ -34,7 +34,7 @@ export function LegalPolicyModal({
             </div>
             <div>
               <h3 className="text-base font-bold text-slate-900">
-                Văn Bản Pháp Lý & Thỏa Thuận Sử Dụng Dịch Vụ (Click-wrap Agreement)
+                Văn Bản Pháp Lý & Thỏa Thuận Sử Dụng Dịch Vụ
               </h3>
               <p className="text-xs text-slate-500">
                 Phiên bản hiệu lực: <span className="font-mono font-semibold text-blue-700">{policyVersion}</span> · Áp dụng cho khách hàng Doanh nghiệp (B2B SaaS)
@@ -85,47 +85,80 @@ export function LegalPolicyModal({
             <>
               <div className="p-3.5 rounded-xl bg-blue-50/70 border border-blue-200/80 text-xs text-slate-700">
                 <p className="font-bold text-slate-900 mb-1">
-                  THỎA THUẬN CẤP PHÉP SỬ DỤNG PHẦN MỀM SMARTHIRE-AI (TERMS OF SERVICE)
+                  PHẦN I: THỎA THUẬN CẤP PHÉP SỬ DỤNG PHẦN MỀM SMARTHIRE-AI (TERMS OF SERVICE)
                 </p>
                 <p>
-                  Bản Điều khoản Dịch vụ này cấu thành hợp đồng điện tử có giá trị pháp lý theo Luật Giao dịch điện tử 2023 và Luật Thương mại Việt Nam giữa <strong>Công ty Cổ phần Công nghệ SmartHire Việt Nam (Bên A)</strong> và <strong>Đơn vị đăng ký sử dụng (Bên B)</strong>.
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <h4 className="font-bold text-slate-900">Điều 1. Phạm vi cấp phép và Khởi tạo Không gian làm việc (Workspace)</h4>
-                <p>
-                  1.1. Bên A cấp cho Bên B quyền truy cập và sử dụng nền tảng tuyển dụng thông minh SmartHire-AI theo mô hình thuê bao năm (Annual SaaS Subscription) tương ứng với gói dịch vụ và hạn mức (số vị trí tuyển dụng, lượt phân tích CV AI, giờ phỏng vấn AI) được ghi nhận trên đơn đặt hàng.
-                </p>
-                <p>
-                  1.2. Ngay sau khi hệ thống xác nhận thanh toán thành công, Bên A tự động khởi tạo cơ sở dữ liệu độc lập (Separate Database per Tenant) tại địa chỉ Subdomain riêng của Bên B và gửi liên kết kích hoạt một lần tới email Quản trị viên đã đăng ký.
+                  Bản Điều khoản Dịch vụ này (&ldquo;Thỏa thuận&rdquo;) là hợp đồng điện tử có giá trị pháp lý theo quy định của Luật Giao dịch điện tử 2023 và Luật Thương mại Việt Nam giữa <strong>Bên cung cấp giải pháp (&ldquo;Bên A&rdquo;)</strong> và <strong>Đơn vị đăng ký sử dụng (&ldquo;Bên B&rdquo;)</strong>.
                 </p>
               </div>
 
               <div className="space-y-2">
-                <h4 className="font-bold text-slate-900">Điều 2. Nghĩa vụ Thanh toán và Hóa đơn Tài chính (VAT)</h4>
+                <h4 className="font-bold text-slate-900">Điều 1. Phạm vi Cấp phép và Khởi tạo Không gian làm việc (Workspace)</h4>
                 <p>
-                  2.1. Phí bản quyền được thanh toán trả trước theo chu kỳ hàng năm bằng Đồng Việt Nam (VNĐ) thông qua chuyển khoản VietQR doanh nghiệp, thẻ nội địa VNPay hoặc thẻ quốc tế.
+                  1.1. Bên A cấp cho Bên B quyền sử dụng có thời hạn, không độc quyền nền tảng SmartHire-AI theo mô hình thuê bao (SaaS Subscription) tương ứng với Gói dịch vụ và các hạn mức định lượng (Vị trí tuyển dụng, Lượt phân tích CV AI, Giờ phỏng vấn AI, Dung lượng lưu trữ) ghi nhận tại Đơn đặt hàng/Hóa đơn.
                 </p>
                 <p>
-                  2.2. Hóa đơn GTGT điện tử được xuất theo đúng thông tin pháp nhân và Mã số thuế do Bên B kê khai tại bước Đặt hàng.
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <h4 className="font-bold text-slate-900">Điều 3. Cam kết Chất lượng Dịch vụ (SLA) và Quyền Sở hữu Trí tuệ</h4>
-                <p>
-                  3.1. Bên A cam kết độ sẵn sàng của hạ tầng đạt tối thiểu 99.9% thời gian vận hành và thực hiện sao lưu dữ liệu định kỳ hàng ngày.
-                </p>
-                <p>
-                  3.2. Toàn bộ mã nguồn, thuật toán chấm điểm khớp CV, mô hình đánh giá phỏng vấn AI thuộc quyền sở hữu trí tuệ của Bên A. Toàn bộ dữ liệu tuyển dụng, hồ sơ ứng viên và kết quả đánh giá phát sinh trong Workspace thuộc quyền sở hữu độc quyền của Bên B.
+                  1.2. Sau khi hệ thống xác nhận giao dịch thanh toán thành công, Bên A tiến hành cấp phát cơ sở dữ liệu độc lập (Database-per-Tenant) tại địa chỉ Subdomain định danh của Bên B và gửi thông báo kích hoạt tới email Quản trị viên được chỉ định.
                 </p>
               </div>
 
               <div className="space-y-2">
-                <h4 className="font-bold text-slate-900">Điều 4. Giá trị Pháp lý của Giao dịch Click-wrap</h4>
+                <h4 className="font-bold text-slate-900">Điều 2. Quản lý Hạn mức và Chính sách Sử dụng Hợp lý (Fair Usage &amp; Quotas)</h4>
                 <p>
-                  4.1. Việc người đại diện của Bên B chủ động đánh dấu vào ô xác nhận đồng ý trên trang Thanh toán và gửi yêu cầu khởi tạo đơn hàng là bằng chứng xác thực ý chí giao kết hợp đồng điện tử, được hệ thống lưu vết kiểm toán (Audit Trail gồm phiên bản văn bản, thời gian UTC/Server, địa chỉ IP và thông tin trình duyệt).
+                  2.1. Khi Bên B sử dụng chạm 100% bất kỳ hạn mức định lượng nào của gói thuê bao (hoặc hạn mức = 0 đối với các tính năng không thuộc phạm vi gói), hệ thống sẽ tự động tạm dừng tính năng tương ứng cho đến khi Bên B gia hạn, nâng cấp gói hoặc mua thêm gói tài nguyên bổ sung (Add-on).
+                </p>
+                <p>
+                  2.2. Bên B có trách nhiệm tự bảo mật thông tin đăng nhập của các tài khoản con thuộc Workspace của mình và chịu hoàn toàn trách nhiệm đối với mọi thao tác khởi tạo từ các tài khoản này.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <h4 className="font-bold text-slate-900">Điều 3. Giới hạn Trách nhiệm đối với Tính năng Trí tuệ Nhân tạo (AI Disclaimer)</h4>
+                <p>
+                  3.1. Các tính năng AI (Phân tích CV, Đánh giá phỏng vấn tự động, Phát hiện gian lận) hoạt động như công cụ hỗ trợ ra quyết định dựa trên mô hình xác suất. Bên A không cam kết tính chính xác tuyệt đối 100% của mọi kết quả đầu ra do AI tạo ra.
+                </p>
+                <p>
+                  3.2. Quyết định tuyển dụng, phỏng vấn, từ chối hoặc tiếp nhận ứng viên thuộc toàn quyền và trách nhiệm của Bên B. Bên A được miễn trừ toàn bộ trách nhiệm pháp lý đối với bất kỳ khiếu nại, tranh chấp lao động hoặc thiệt hại phát sinh từ quyết định nhân sự của Bên B dựa trên kết quả đề xuất của hệ thống.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <h4 className="font-bold text-slate-900">Điều 4. Thanh toán, Hóa đơn và Chính sách Hoàn tiền</h4>
+                <p>
+                  4.1. Phí bản quyền được thanh toán trả trước theo chu kỳ thỏa thuận bằng Đồng Việt Nam (VNĐ).
+                </p>
+                <p>
+                  4.2. Hóa đơn GTGT điện tử được xuất và gửi tự động qua email theo thông tin pháp nhân và Mã số thuế do Bên B cung cấp tại thời điểm giao dịch.
+                </p>
+                <p>
+                  4.3. Dịch vụ SaaS được kích hoạt và cấp phát tài nguyên hạ tầng điện toán ngay sau khi thanh toán; do đó Bên A không áp dụng chính sách hoàn trả phí dịch vụ cho khoảng thời gian chưa sử dụng, trừ trường hợp hai bên có văn bản thỏa thuận riêng.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <h4 className="font-bold text-slate-900">Điều 5. Cam kết Mức Dịch vụ (SLA) và Bảo trì</h4>
+                <p>
+                  5.1. Bên A nỗ lực duy trì độ sẵn sàng của hệ thống đạt tối thiểu 99.5% thời gian trong mỗi chu kỳ thanh toán hàng tháng, không bao gồm các khung giờ bảo trì định kỳ có thông báo trước tối thiểu 24 giờ.
+                </p>
+                <p>
+                  5.2. Trong trường hợp hệ thống gián đoạn dịch vụ ngoài kế hoạch vượt quá thời gian cam kết, Bên A sẽ bồi hoàn cho Bên B dưới hình thức gia hạn thêm thời gian sử dụng tương ứng (Service Credits), không quy đổi thành tiền mặt.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <h4 className="font-bold text-slate-900">Điều 6. Chấm dứt Dịch vụ và Xử lý Dữ liệu Hậu Hợp đồng</h4>
+                <p>
+                  6.1. Khi gói thuê bao hết hạn mà không được gia hạn, hệ thống sẽ chuyển Workspace sang trạng thái Tạm khóa (Suspended) trong vòng 15 ngày.
+                </p>
+                <p>
+                  6.2. Sau thời hạn 30 ngày kể từ ngày hết hạn hợp đồng mà Bên B không thực hiện gia hạn, Bên A có quyền thu hồi Subdomain và xóa vĩnh viễn cơ sở dữ liệu riêng của Bên B khỏi hạ tầng máy chủ nhằm giải phóng tài nguyên. Bên B có trách nhiệm chủ động trích xuất toàn bộ dữ liệu trước thời điểm này.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <h4 className="font-bold text-slate-900">Điều 7. Giá trị Pháp lý của Giao dịch Điện tử</h4>
+                <p>
+                  Việc người đại diện của Bên B nhấp chọn &ldquo;Tôi đồng ý với Điều khoản Dịch vụ&rdquo; và hoàn tất bước đặt hàng/thanh toán cấu thành hành vi giao kết hợp đồng điện tử hợp pháp theo Luật Giao dịch điện tử 2023. Hệ thống của Bên A lưu vết kiểm toán (Audit Trail) bao gồm mã định danh giao dịch, nhãn thời gian (timestamp), địa chỉ IP và thông tin trình duyệt làm bằng chứng pháp lý ràng buộc giữa hai bên.
                 </p>
               </div>
             </>
@@ -135,41 +168,48 @@ export function LegalPolicyModal({
                 <Lock className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                 <div>
                   <p className="font-bold text-slate-900 mb-1">
-                    CHÍNH SÁCH BẢO VỆ & XỬ LÝ DỮ LIỆU CÁ NHÂN (TUÂN THỦ NGHỊ ĐỊNH 13/2023/NĐ-CP & GDPR)
+                    PHẦN II: CHÍNH SÁCH BẢO VỆ &amp; XỬ LÝ DỮ LIỆU CÁ NHÂN (DPA - TUÂN THỦ NGHỊ ĐỊNH 13/2023/NĐ-CP)
                   </p>
                   <p>
-                    Chính sách này quy định rõ trách nhiệm bảo vệ dữ liệu cá nhân của Quản trị viên doanh nghiệp, Nhân sự tuyển dụng và Ứng viên theo Nghị định số 13/2023/NĐ-CP của Chính phủ Việt Nam.
+                    Chính sách này quy định rõ vai trò pháp lý, nghĩa vụ thu thập sự đồng ý và các biện pháp bảo vệ dữ liệu cá nhân theo Nghị định số 13/2023/NĐ-CP của Chính phủ Việt Nam.
                   </p>
                 </div>
               </div>
 
               <div className="space-y-2">
-                <h4 className="font-bold text-slate-900">1. Vai trò Kiểm soát và Xử lý Dữ liệu Cá nhân</h4>
+                <h4 className="font-bold text-slate-900">1. Phân định Vai trò Pháp lý</h4>
                 <p>
-                  1.1. <strong>Đối với dữ liệu người đại diện đặt hàng & quản trị viên Workspace:</strong> SmartHire-AI đóng vai trò là Bên Kiểm soát và Xử lý dữ liệu nhằm mục đích khởi tạo tài khoản, xuất hóa đơn thuế, gửi thông báo vận hành và lưu bằng chứng giao kết hợp đồng.
+                  <strong>Bên Kiểm soát Dữ liệu Cá nhân (Data Controller):</strong> Bên B (Doanh nghiệp tuyển dụng) là Bên Kiểm soát Dữ liệu đối với toàn bộ thông tin cá nhân của Ứng viên (Hồ sơ ứng viên, CCCD, số điện thoại, giọng nói/hình ảnh trong phỏng vấn AI) đưa vào hệ thống.
                 </p>
                 <p>
-                  1.2. <strong>Đối với dữ liệu Ứng viên trong từng Workspace:</strong> Doanh nghiệp (Tenant) là <em>Bên Kiểm soát Dữ liệu Cá nhân</em>; SmartHire-AI đóng vai trò là <em>Bên Xử lý Dữ liệu Cá nhân</em> theo ủy quyền kỹ thuật của Doanh nghiệp.
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <h4 className="font-bold text-slate-900">2. Cơ chế Cô lập Vật lý và Bảo mật Kỹ thuật</h4>
-                <p>
-                  2.1. Mỗi doanh nghiệp được cấp phát một cơ sở dữ liệu riêng biệt (Separate Database per Tenant). Dữ liệu CV, bản ghi âm phỏng vấn AI và điểm đánh giá không dùng chung bảng với bất kỳ doanh nghiệp nào khác.
-                </p>
-                <p>
-                  2.2. Mật khẩu kết nối cơ sở dữ liệu được mã hóa AES-256-GCM; tài liệu CV được tự động áp dụng chính sách thời hạn lưu trữ (Retention Policy) và kiểm soát truy cập theo phân quyền RBAC.
-                </p>
-                <p>
-                  2.3. SmartHire-AI <strong>cam kết tuyệt đối không sử dụng</strong> dữ liệu hồ sơ ứng viên hoặc dữ liệu nội bộ của Doanh nghiệp để huấn luyện các mô hình AI công cộng.
+                  <strong>Bên Xử lý Dữ liệu Cá nhân (Data Processor):</strong> Bên A (SmartHire-AI) chỉ đóng vai trò là Bên Xử lý Dữ liệu theo ủy quyền và chỉ thị kỹ thuật của Bên B để cung cấp dịch vụ phần mềm.
                 </p>
               </div>
 
               <div className="space-y-2">
-                <h4 className="font-bold text-slate-900">3. Quyền của Chủ thể Dữ liệu (Điều 9 Nghị định 13/2023/NĐ-CP)</h4>
+                <h4 className="font-bold text-slate-900">2. Nghĩa vụ Thu thập Sự đồng ý (Consent) của Ứng viên</h4>
                 <p>
-                  Chủ thể dữ liệu có đầy đủ các quyền: Quyền được biết, Quyền đồng ý, Quyền truy cập, Quyền rút lại sự đồng ý, Quyền yêu cầu xóa dữ liệu (Right to be forgotten) và Quyền hạn chế xử lý dữ liệu thông qua cổng quản trị Workspace hoặc liên hệ trực tiếp bộ phận Pháp chế & Bảo mật tại <strong>legal@smarthire.top</strong>.
+                  Bên B cam kết và bảo đảm rằng đã thực hiện đầy đủ nghĩa vụ thông báo và đã thu thập được sự đồng ý hợp pháp của Ứng viên trước khi tải dữ liệu, hồ sơ hoặc tiến hành phỏng vấn AI/thu âm ghi hình ứng viên trên hệ thống SmartHire-AI theo đúng quy định tại Nghị định 13/2023/NĐ-CP. Bên B chịu hoàn toàn trách nhiệm giải trình trước cơ quan nhà nước có thẩm quyền và chịu trách nhiệm pháp lý nếu xảy ra khiếu nại từ ứng viên về nguồn gốc dữ liệu.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <h4 className="font-bold text-slate-900">3. Biện pháp Bảo vệ Dữ liệu và An toàn Kỹ thuật</h4>
+                <p>
+                  <strong>Cô lập cơ sở dữ liệu:</strong> Dữ liệu tuyển dụng của Bên B được lưu trữ tại cơ sở dữ liệu độc lập (Database-per-Tenant), bảo đảm không bị truy cập trái phép hoặc lẫn lộn dữ liệu giữa các doanh nghiệp.
+                </p>
+                <p>
+                  <strong>Mã hóa:</strong> Toàn bộ thông tin xác thực kết nối được mã hóa bằng thuật toán AES-256-GCM; dữ liệu truyền tải trên môi trường mạng bắt buộc qua giao thức bảo mật TLS/HTTPS.
+                </p>
+                <p>
+                  <strong>Cam kết không khai thác dữ liệu:</strong> Bên A cam kết tuyệt đối không sử dụng dữ liệu CV, hồ sơ ứng viên hoặc nội dung phỏng vấn riêng tư của Bên B để huấn luyện (train) các mô hình AI dùng chung hoặc thương mại hóa cho bên thứ ba.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <h4 className="font-bold text-slate-900">4. Thực thi Quyền của Chủ thể Dữ liệu</h4>
+                <p>
+                  Khi ứng viên của Bên B thực hiện các quyền theo Điều 9 Nghị định 13/2023/NĐ-CP (như yêu cầu xóa dữ liệu, cung cấp dữ liệu, rút lại sự đồng ý), Bên B sẽ chủ động thực hiện các thao tác này trực tiếp trên giao diện quản trị Workspace. Trường hợp phát sinh yêu cầu kỹ thuật can thiệp sâu, Bên B gửi văn bản yêu cầu hỗ trợ tới địa chỉ <strong>legal@smarthire.top</strong>.
                 </p>
               </div>
             </>

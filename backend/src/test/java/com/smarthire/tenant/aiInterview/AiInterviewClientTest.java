@@ -118,4 +118,22 @@ class AiInterviewClientTest {
         assertTrue(client.generate("Generate", mapper.createObjectNode()).isObject());
         server.verify();
     }
+
+    @Test void primaryRateLimitFailsOverToSecondaryModelWhenConfigured() throws Exception {
+        var withFailover = new DynamicAiConfigProvider.ResolvedAiConfig(
+                "INTERVIEW_GEN", "GEMINI", "gemini-3.8-flash", "admin-secret", null,
+                new BigDecimal("0.2"), 8192, 30, "GEMINI", "gemini-3.5-flash-lite");
+        when(dynamic.resolveConfig("INTERVIEW_GEN")).thenReturn(withFailover);
+
+        server.expect(requestTo(config.getBaseUrl() + "/chat/completions"))
+                .andExpect(jsonPath("$.model").value("gemini-3.8-flash"))
+                .andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS).body("RPD exhausted"));
+        server.expect(requestTo(config.getBaseUrl() + "/chat/completions"))
+                .andExpect(jsonPath("$.model").value("gemini-3.5-flash-lite"))
+                .andRespond(withSuccess(response("{\"questions\":[]}", "stop"), MediaType.APPLICATION_JSON));
+
+        var result = client.generate("Generate questions", mapper.createObjectNode());
+        assertTrue(result.has("questions"));
+        server.verify();
+    }
 }

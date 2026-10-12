@@ -105,4 +105,17 @@ class AiInterviewInviteServiceTest {
 
         verify(mail, never()).send(anyString(), anyString(), anyString());
     }
+
+    @Test
+    void usesTenantBrandNameInSubjectAndSignature() {
+        when(publicUrls.brandName()).thenReturn("FPT Software");
+        when(mail.send(anyString(), anyString(), anyString())).thenReturn(true);
+
+        service.sendIfNeeded(application, passed);
+
+        verify(mail).send(
+                eq("can@se36.local"),
+                eq("FPT Software: mời phỏng vấn AI — Backend Java"),
+                contains("FPT Software"));
+    }
 }

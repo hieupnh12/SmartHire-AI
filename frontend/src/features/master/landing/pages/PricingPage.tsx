@@ -331,7 +331,7 @@ export function PricingPage() {
             <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-2xs">
               <h4 className="font-bold text-slate-900 mb-2">Dữ liệu có được đảm bảo an toàn nếu chúng tôi tạm ngưng sử dụng?</h4>
               <p className="text-slate-600 leading-relaxed">
-                Toàn bộ dữ liệu trong cơ sở dữ liệu riêng của công ty sẽ được lưu trữ an toàn trong 90 ngày sau khi hết hạn thuê bao. Quý công ty có thể xuất trọn bộ dữ liệu (Export All Data) hoặc yêu cầu xóa vĩnh viễn bất kỳ lúc nào.
+                Toàn bộ dữ liệu trong cơ sở dữ liệu riêng của công ty sẽ được lưu trữ an toàn trong 30 ngày sau khi hết hạn thuê bao. Quý công ty có thể xuất trọn bộ dữ liệu (Export All Data) hoặc yêu cầu xóa vĩnh viễn bất kỳ lúc nào.
               </p>
             </div>
           </div>

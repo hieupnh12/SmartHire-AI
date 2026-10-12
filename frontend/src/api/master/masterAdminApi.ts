@@ -212,6 +212,10 @@ export const masterAdminApi = {
     const res = await masterClient.post(`${API_BASE}/master/subscriptions/${templatePlanId}/clone-custom`, payload);
     return res.data.data;
   },
+  getAllTenantSubscriptionInstances: async (): Promise<TenantSubscriptionInstance[]> => {
+    const res = await masterClient.get(`${API_BASE}/master/subscriptions/tenants`);
+    return res.data.data;
+  },
   getTenantSubscriptionInstance: async (tenantId: number): Promise<TenantSubscriptionInstance | null> => {
     const res = await masterClient.get(`${API_BASE}/master/subscriptions/tenants/${tenantId}`);
     return res.data.data;

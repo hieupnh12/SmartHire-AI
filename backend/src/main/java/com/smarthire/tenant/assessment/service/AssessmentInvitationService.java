@@ -11,6 +11,7 @@ import com.smarthire.domain.tenant.entity.Application;
 import com.smarthire.domain.tenant.entity.ApplicationStatusHistory;
 import com.smarthire.domain.tenant.entity.Candidate;
 import com.smarthire.domain.tenant.entity.EmailOutbox;
+import com.smarthire.domain.tenant.entity.Job;
 import com.smarthire.domain.tenant.entity.JobTest;
 import com.smarthire.domain.tenant.entity.Notification;
 import com.smarthire.domain.tenant.entity.User;
@@ -142,7 +143,8 @@ public class AssessmentInvitationService {
         boolean emailSent = false;
         if (candidate.getEmail() != null && !candidate.getEmail().isBlank()
                 && !preferences.emailOff(candidate, NotificationCategory.ASSESSMENT)) {
-            String subject = "SmartHire: mời làm bài Assessment — " + jobTitle;
+            String brand = TenantPublicUrlService.brandOrDefault(publicUrls);
+            String subject = brand + ": mời làm bài Assessment — " + jobTitle;
             String emailBody = """
                     Xin chào %s,
 
@@ -151,12 +153,19 @@ public class AssessmentInvitationService {
 
                     %s
 
-                    SmartHire
+                    %s
                     """.formatted(
                     candidate.getFullName() == null ? candidate.getEmail() : candidate.getFullName(),
                     body,
-                    publicUrls.path(path));
-            emailSent = mail.send(candidate.getEmail(), subject, emailBody);
+                    publicUrls.path(path),
+                    brand);
+            User replyUser = resolveReplyUser(actor, test.getJob());
+            String replyToEmail = replyUser != null ? replyUser.getEmail() : null;
+            String replyToName = replyUser != null ? replyUser.getFullName() : null;
+            emailSent = InviteMailSender.withReplyTo(
+                    replyToEmail,
+                    replyToName,
+                    () -> mail.send(candidate.getEmail(), subject, emailBody));
             outbox.save(EmailOutbox.builder()
                     .purpose("ASSESSMENT_INVITATION")
                     .toEmail(candidate.getEmail())
@@ -169,6 +178,22 @@ public class AssessmentInvitationService {
             if (!emailSent) log.warn("Assessment invitation email was not delivered for application {}", application.getId());
         }
         return new SendAssessmentResponse(test.getId(), application.getId(), application.getStatus(), emailSent);
+    }
+
+    private static User resolveReplyUser(User actor, Job job) {
+        if (actor != null && actor.getEmail() != null && !actor.getEmail().isBlank()) {
+            return actor;
+        }
+        try {
+            if (job != null && job.getCreatedBy() != null
+                    && job.getCreatedBy().getEmail() != null
+                    && !job.getCreatedBy().getEmail().isBlank()) {
+                return job.getCreatedBy();
+            }
+        } catch (Exception ignored) {
+            // Ignore lazy proxy errors
+        }
+        return null;
     }
 
     private BusinessException notFound(String resource) {

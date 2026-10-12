@@ -82,4 +82,21 @@ class InterviewConversationClientTest {
         byte[] wave = client.speech("Hello"); assertThat(wave).hasSize(48);
         assertThat(new String(wave, 0, 4, java.nio.charset.StandardCharsets.US_ASCII)).isEqualTo("RIFF"); server.verify();
     }
+
+    @Test void dialogueFailsOverToSecondaryModelWhenPrimaryRateLimited() {
+        when(configs.resolveConfig("INTERVIEW_GEN")).thenReturn(new DynamicAiConfigProvider.ResolvedAiConfig(
+                "INTERVIEW_GEN", "GEMINI", "gemini-3.8-flash", "test-key", null, BigDecimal.ZERO, 4096, 45, "GEMINI", "gemini-3.5-flash-lite"));
+
+        String events = "data: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"Fallback response\"}]},\"finishReason\":\"STOP\"}]}\n\n";
+        server.expect(requestTo("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:streamGenerateContent?alt=sse"))
+                .andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS).body("quota exceeded"));
+        server.expect(requestTo("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:streamGenerateContent?alt=sse"))
+                .andRespond(withSuccess(events, MediaType.TEXT_EVENT_STREAM));
+
+        var chunks = new ArrayList<String>();
+        String reply = client.dialogue("Interview", List.of(new InterviewConversationClient.Message("USER", "Hello")), chunks::add);
+        assertThat(reply).isEqualTo("Fallback response");
+        assertThat(chunks).containsExactly("Fallback response");
+        server.verify();
+    }
 }

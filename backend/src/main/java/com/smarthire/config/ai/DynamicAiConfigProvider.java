@@ -32,7 +32,17 @@ public class DynamicAiConfigProvider {
             Integer timeoutSeconds,
             String failoverProvider,
             String failoverModel
-    ) {}
+    ) {
+        public boolean hasFailover() {
+            if (failoverModel == null || failoverModel.isBlank()) {
+                return false;
+            }
+            String targetProvider = (failoverProvider == null || failoverProvider.isBlank()) ? provider : failoverProvider.trim();
+            return !(targetProvider != null
+                    && targetProvider.equalsIgnoreCase(provider)
+                    && failoverModel.trim().equalsIgnoreCase(modelName));
+        }
+    }
 
     private final AiModelConfigRepository modelConfigRepository;
     private final AiProviderKeyRepository providerKeyRepository;
@@ -138,6 +148,53 @@ public class DynamicAiConfigProvider {
                 "GEMINI",
                 "gemini-1.5-flash"
         );
+    }
+
+    public Optional<ResolvedAiConfig> resolveFailoverConfig(ResolvedAiConfig primary) {
+        if (primary == null || !primary.hasFailover()) {
+            return Optional.empty();
+        }
+        String primaryProvider = primary.provider() == null || primary.provider().isBlank()
+                ? "GEMINI"
+                : primary.provider().trim().toUpperCase();
+        String targetProvider = primary.failoverProvider() == null || primary.failoverProvider().isBlank()
+                ? primaryProvider
+                : primary.failoverProvider().trim().toUpperCase();
+        String targetModel = primary.failoverModel().trim();
+
+        String apiKey;
+        String endpointUrl;
+        if (targetProvider.equalsIgnoreCase(primaryProvider)
+                && primary.apiKey() != null
+                && !primary.apiKey().isBlank()) {
+            apiKey = primary.apiKey();
+            endpointUrl = primary.endpointUrl();
+        } else {
+            Optional<AiProviderKey> activeKeyOpt = findActiveProviderKey(targetProvider);
+            apiKey = decryptOrFallbackKey(activeKeyOpt, targetProvider, primary.taskType());
+            endpointUrl = activeKeyOpt.map(AiProviderKey::getEndpointUrl)
+                    .filter(u -> !u.isBlank())
+                    .orElse(null);
+        }
+
+        if (apiKey == null || apiKey.isBlank()) {
+            log.warn("Failover model {}:{} is configured for task {}, but no active API key was found for provider {}",
+                    targetProvider, targetModel, primary.taskType(), targetProvider);
+            return Optional.empty();
+        }
+
+        return Optional.of(new ResolvedAiConfig(
+                primary.taskType(),
+                targetProvider,
+                targetModel,
+                apiKey,
+                endpointUrl,
+                primary.temperature(),
+                primary.maxTokens(),
+                primary.timeoutSeconds(),
+                null,
+                null
+        ));
     }
 
     public String resolveApiKeyForProvider(String provider) {

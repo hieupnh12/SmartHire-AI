@@ -62,6 +62,9 @@ class MasterBillingServiceTest {
     @Mock
     private MasterNotificationService masterNotificationService;
 
+    @Mock
+    private org.springframework.context.ApplicationEventPublisher eventPublisher;
+
     private MasterBillingService billingService;
 
     @BeforeEach
@@ -77,7 +80,8 @@ class MasterBillingServiceTest {
                 masterTenantService,
                 mailSender,
                 orderPdfGeneratorService,
-                masterNotificationService
+                masterNotificationService,
+                eventPublisher
         );
         ReflectionTestUtils.setField(billingService, "baseDomain", "smarthire.top");
     }

@@ -129,15 +129,94 @@ public class GeminiCvAiClient implements CvAiClient {
         return apiKey != null && !apiKey.isBlank();
     }
 
+    private DynamicAiConfigProvider.ResolvedAiConfig resolvePrimaryConfig() {
+        if (configProvider != null) {
+            var resolved = configProvider.resolveConfig("CV_PARSING");
+            if (resolved != null) {
+                return resolved;
+            }
+        }
+        return new DynamicAiConfigProvider.ResolvedAiConfig(
+                "CV_PARSING", "GEMINI", defaultModel, defaultApiKey, null, null, 4096, timeoutSeconds, null, null);
+    }
+
+    private java.util.Optional<DynamicAiConfigProvider.ResolvedAiConfig> resolveFailoverTarget(
+            DynamicAiConfigProvider.ResolvedAiConfig primary) {
+        if (primary == null || !primary.hasFailover()) {
+            return java.util.Optional.empty();
+        }
+        if (configProvider != null) {
+            var resolved = configProvider.resolveFailoverConfig(primary);
+            if (resolved.isPresent()) {
+                return resolved;
+            }
+        }
+        String targetProvider = (primary.failoverProvider() == null || primary.failoverProvider().isBlank())
+                ? primary.provider()
+                : primary.failoverProvider().trim().toUpperCase();
+        if (targetProvider != null
+                && targetProvider.equalsIgnoreCase(primary.provider())
+                && primary.apiKey() != null
+                && !primary.apiKey().isBlank()) {
+            return java.util.Optional.of(new DynamicAiConfigProvider.ResolvedAiConfig(
+                    primary.taskType(),
+                    targetProvider,
+                    primary.failoverModel().trim(),
+                    primary.apiKey(),
+                    primary.endpointUrl(),
+                    primary.temperature(),
+                    primary.maxTokens(),
+                    primary.timeoutSeconds(),
+                    null,
+                    null));
+        }
+        return java.util.Optional.empty();
+    }
+
     /** Sends one JSON-mode request; {@code system} is only used by OpenAI-compatible providers, Gemini gets {@code promptText}. */
     public String completeJson(String system, String promptText) throws Exception {
-        String apiKey = getEffectiveApiKey();
-        String model = getEffectiveModel();
-        String provider = getEffectiveProvider();
+        var primary = resolvePrimaryConfig();
+        String apiKey = (primary.apiKey() == null || primary.apiKey().isBlank()) ? defaultApiKey : primary.apiKey();
         if (apiKey == null || apiKey.isBlank()) throw new IllegalStateException("AI provider is not configured");
         if (rateLimiterService != null) {
             rateLimiterService.checkAndAcquire("CV_PARSING");
         }
+        try {
+            return executeCompleteJson(
+                    primary.provider() == null || primary.provider().isBlank() ? "GEMINI" : primary.provider().toUpperCase(),
+                    primary.modelName() == null || primary.modelName().isBlank() ? defaultModel : primary.modelName(),
+                    apiKey,
+                    primary.endpointUrl(),
+                    system,
+                    promptText);
+        } catch (BusinessException ex) {
+            throw ex;
+        } catch (Exception primaryEx) {
+            var failoverOpt = resolveFailoverTarget(primary);
+            if (failoverOpt.isPresent()) {
+                var failover = failoverOpt.get();
+                log.warn("Primary AI model {}:{} failed for CV_PARSING ({}), attempting failover to {}:{}",
+                        primary.provider(), primary.modelName(), primaryEx.getMessage(),
+                        failover.provider(), failover.modelName());
+                return executeCompleteJson(
+                        failover.provider(),
+                        failover.modelName(),
+                        failover.apiKey(),
+                        failover.endpointUrl(),
+                        system,
+                        promptText);
+            }
+            throw primaryEx;
+        }
+    }
+
+    private String executeCompleteJson(
+            String provider,
+            String model,
+            String apiKey,
+            String endpoint,
+            String system,
+            String promptText) throws Exception {
         String text;
         String rawResponse = null;
         long startNs = System.nanoTime();
@@ -150,7 +229,6 @@ public class GeminiCvAiClient implements CvAiClient {
                 String defaultEndpoint = "DEEPSEEK".equalsIgnoreCase(provider)
                         ? "https://api.deepseek.com/chat/completions"
                         : "https://api.openai.com/v1/chat/completions";
-                String endpoint = getEffectiveEndpoint();
                 String url = (endpoint != null && !endpoint.isBlank()) ? endpoint.trim() : defaultEndpoint;
 
                 String body = """

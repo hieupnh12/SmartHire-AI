@@ -62,6 +62,7 @@ public class MasterBillingService {
     private final InviteMailSender mailSender;
     private final OrderPdfGeneratorService orderPdfGeneratorService;
     private final MasterNotificationService masterNotificationService;
+    private final org.springframework.context.ApplicationEventPublisher eventPublisher;
 
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private com.smarthire.multitenancy.quota.TenantQuotaRedisService quotaRedisService;
@@ -197,6 +198,13 @@ public class MasterBillingService {
         InvoiceResponse response = InvoiceResponse.from(saved, tenant, plan);
         List<InvoiceLineItem> items = invoiceLineItemRepository.findByInvoiceId(saved.getId());
         response.setLineItems(items.stream().map(InvoiceLineItemResponse::from).toList());
+
+        try {
+            masterNotificationService.sendInvoiceCreated(tenant.getCode(), saved);
+        } catch (Exception ex) {
+            log.warn("Could not dispatch invoice-created notification for invoice #{}: {}", saved.getInvoiceNumber(), ex.getMessage());
+        }
+
         return response;
     }
 
@@ -230,25 +238,15 @@ public class MasterBillingService {
             }
             TenantInfo pendingTenant = tenantRepository.findById(invoice.getTenantId()).orElse(null);
             if (pendingTenant != null && ("PENDING_PAYMENT".equals(pendingTenant.getStatus()) || "FAILED".equals(pendingTenant.getStatus()))) {
-                log.info("Auto-provisioning workspace for tenant: {}", pendingTenant.getCode());
-                String activationUrl = masterTenantService.provisionPendingTenant(pendingTenant.getId());
-                pendingTenant = tenantRepository.findById(pendingTenant.getId()).orElse(pendingTenant);
-                String workspaceUrl = "https://" + pendingTenant.getSubdomain() + "." + baseDomain;
-
-                SubscriptionPlan plan = null;
-                if (invoice.getSubscriptionId() != null) {
-                    TenantSubscription sub = subscriptionRepository.findById(invoice.getSubscriptionId()).orElse(null);
-                    if (sub != null) {
-                        plan = planRepository.findById(sub.getPlanId()).orElse(null);
-                    }
-                }
-                String planName = plan != null ? plan.getName() : null;
-
-                try {
-                    masterNotificationService.sendWorkspaceActivated(pendingTenant, planName, activationUrl, workspaceUrl);
-                } catch (Exception ex) {
-                    log.warn("Could not deliver workspace activation email: {}", ex.getMessage());
-                }
+                pendingTenant.setStatus("PROVISIONING");
+                tenantRepository.save(pendingTenant);
+                log.info("Scheduled async workspace provisioning via TenantPaymentSuccessEvent for tenant: {}", pendingTenant.getCode());
+                eventPublisher.publishEvent(new com.smarthire.master.billing.event.TenantPaymentSuccessEvent(
+                        invoice.getId(),
+                        invoice.getInvoiceNumber(),
+                        pendingTenant.getId(),
+                        invoice.getSubscriptionId()
+                ));
             }
         }
 
@@ -525,28 +523,16 @@ public class MasterBillingService {
             quotaRedisService.evictCache(tenant.getCode());
         }
         if (tenant != null && ("PENDING_PAYMENT".equals(tenant.getStatus()) || "FAILED".equals(tenant.getStatus()))) {
-            log.info("Auto-provisioning workspace for tenant: {}", tenant.getCode());
-            String activationUrl = masterTenantService.provisionPendingTenant(tenant.getId());
-            log.info("Workspace administrator activation link generated for tenant '{}'", tenant.getCode());
-            tenant = tenantRepository.findById(tenant.getId()).orElse(tenant);
-
-            String workspaceUrl = "https://" + tenant.getSubdomain() + "." + baseDomain;
-
-            SubscriptionPlan plan = null;
-            if (saved.getSubscriptionId() != null) {
-                TenantSubscription sub = subscriptionRepository.findById(saved.getSubscriptionId()).orElse(null);
-                if (sub != null) {
-                    plan = planRepository.findById(sub.getPlanId()).orElse(null);
-                }
-            }
-            String planName = plan != null ? plan.getName() : null;
-
-            // Gửi email thông báo kích hoạt thành công kèm link đặt mật khẩu 1 lần qua RabbitMQ / Brevo SMTP
-            try {
-                masterNotificationService.sendWorkspaceActivated(tenant, planName, activationUrl, workspaceUrl);
-            } catch (Exception ex) {
-                log.warn("Could not deliver workspace activation HTML email to: {}", tenant.getContactEmail(), ex);
-            }
+            tenant.setStatus("PROVISIONING");
+            tenantRepository.save(tenant);
+            log.info("Scheduled async workspace provisioning via TenantPaymentSuccessEvent for tenant: {} (Invoice #{})",
+                    tenant.getCode(), saved.getInvoiceNumber());
+            eventPublisher.publishEvent(new com.smarthire.master.billing.event.TenantPaymentSuccessEvent(
+                    saved.getId(),
+                    saved.getInvoiceNumber(),
+                    tenant.getId(),
+                    saved.getSubscriptionId()
+            ));
         }
         return saved;
     }

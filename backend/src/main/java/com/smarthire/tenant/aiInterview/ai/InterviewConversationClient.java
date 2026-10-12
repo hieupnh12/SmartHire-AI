@@ -57,13 +57,75 @@ public class InterviewConversationClient {
         this.rateLimiterService = rateLimiterService;
     }
 
+    private java.util.Optional<DynamicAiConfigProvider.ResolvedAiConfig> resolveGeminiFailover(
+            DynamicAiConfigProvider.ResolvedAiConfig primary, String primaryModel) {
+        if (primary == null || !primary.hasFailover() || !conversationModel.isBlank()) {
+            return java.util.Optional.empty();
+        }
+        if (configs != null) {
+            var resolved = configs.resolveFailoverConfig(primary);
+            if (resolved.isPresent()
+                    && "GEMINI".equalsIgnoreCase(resolved.get().provider())
+                    && !resolved.get().modelName().equalsIgnoreCase(primaryModel)) {
+                return resolved;
+            }
+        }
+        String targetProvider = (primary.failoverProvider() == null || primary.failoverProvider().isBlank())
+                ? primary.provider()
+                : primary.failoverProvider().trim().toUpperCase();
+        String targetModel = primary.failoverModel().trim();
+        if ("GEMINI".equalsIgnoreCase(targetProvider) && !targetModel.equalsIgnoreCase(primaryModel)) {
+            return java.util.Optional.of(new DynamicAiConfigProvider.ResolvedAiConfig(
+                    primary.taskType(),
+                    "GEMINI",
+                    targetModel,
+                    primary.apiKey(),
+                    primary.endpointUrl(),
+                    primary.temperature(),
+                    primary.maxTokens(),
+                    primary.timeoutSeconds(),
+                    null,
+                    null));
+        }
+        return java.util.Optional.empty();
+    }
+
     public String dialogue(String instruction, List<Message> history, Consumer<String> onDelta) {
         var config = configs.resolveConfig("INTERVIEW_GEN");
         if (rateLimiterService != null) {
             rateLimiterService.checkAndAcquire("INTERVIEW_GEN");
         }
-        var body = request(instruction, history);
         String effectiveModel = model(config);
+        boolean[] emittedDelta = {false};
+        Consumer<String> trackingConsumer = delta -> {
+            emittedDelta[0] = true;
+            onDelta.accept(delta);
+        };
+        try {
+            return executeDialogue(config, effectiveModel, instruction, history, trackingConsumer);
+        } catch (BusinessException ex) {
+            throw ex;
+        } catch (RuntimeException primaryEx) {
+            if (!emittedDelta[0]) {
+                var failoverOpt = resolveGeminiFailover(config, effectiveModel);
+                if (failoverOpt.isPresent()) {
+                    var failover = failoverOpt.get();
+                    log.warn("Primary AI Conversation model {} failed for dialogue, attempting failover to {}",
+                            effectiveModel, failover.modelName());
+                    return executeDialogue(failover, failover.modelName(), instruction, history, onDelta);
+                }
+            }
+            throw primaryEx;
+        }
+    }
+
+    private String executeDialogue(
+            DynamicAiConfigProvider.ResolvedAiConfig config,
+            String effectiveModel,
+            String instruction,
+            List<Message> history,
+            Consumer<String> onDelta) {
+        var body = request(instruction, history);
         var generation = body.putObject("generationConfig").put("temperature", 0.4).put("maxOutputTokens", 2048);
         disableThinking(generation, effectiveModel);
         long startNs = System.nanoTime();
@@ -180,6 +242,30 @@ public class InterviewConversationClient {
         if (rateLimiterService != null) {
             rateLimiterService.checkAndAcquire(config.taskType());
         }
+        try {
+            return executeGenerate(config, model, body);
+        } catch (BusinessException ex) {
+            throw ex;
+        } catch (RuntimeException primaryEx) {
+            if (!model.equals(ttsModel)) {
+                var failoverOpt = resolveGeminiFailover(config, model);
+                if (failoverOpt.isPresent()) {
+                    var failover = failoverOpt.get();
+                    log.warn("Primary AI Conversation model {} failed for task {}, attempting failover to {}",
+                            model, config.taskType(), failover.modelName());
+                    JsonNode genNode = body.path("generationConfig");
+                    if (genNode instanceof ObjectNode generation) {
+                        generation.remove("thinkingConfig");
+                        disableThinking(generation, failover.modelName());
+                    }
+                    return executeGenerate(failover, failover.modelName(), body);
+                }
+            }
+            throw primaryEx;
+        }
+    }
+
+    private JsonNode executeGenerate(DynamicAiConfigProvider.ResolvedAiConfig config, String model, ObjectNode body) {
         long startNs = System.nanoTime();
         boolean success = false;
         long promptTokens = 0L;

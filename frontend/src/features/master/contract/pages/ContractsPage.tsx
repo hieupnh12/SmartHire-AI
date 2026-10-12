@@ -91,6 +91,7 @@ function StatusBadge({ status }: { status: string }) {
     SIGNED:            { label: "Đã Ký Số",   cls: "bg-emerald-50 text-emerald-700 border-emerald-200", icon: <FileCheck2 className="w-3 h-3" /> },
     PENDING_SIGNATURE: { label: "Chờ Ký",     cls: "bg-amber-50 text-amber-700 border-amber-200",       icon: <Clock className="w-3 h-3" /> },
     DRAFT:             { label: "Bản Nháp",   cls: "bg-slate-100 text-slate-600 border-slate-200",      icon: <FileSignature className="w-3 h-3" /> },
+    REJECTED:          { label: "Từ Chối Ký", cls: "bg-rose-50 text-rose-700 border-rose-200",          icon: <AlertCircle className="w-3 h-3" /> },
     EXPIRED:           { label: "Hết Hạn",    cls: "bg-rose-50 text-rose-600 border-rose-200",          icon: <AlertCircle className="w-3 h-3" /> },
     TERMINATED:        { label: "Chấm Dứt",   cls: "bg-rose-50 text-rose-700 border-rose-200",          icon: <AlertCircle className="w-3 h-3" /> },
   };
@@ -129,6 +130,7 @@ export function ContractsPage() {
     { value: "SIGNED",            label: `Đã ký kết (${signedCount})` },
     { value: "PENDING_SIGNATURE", label: `Chờ ký (${pendingCount})` },
     { value: "DRAFT",             label: `Bản nháp (${contracts.filter((c) => c.status === "DRAFT").length})` },
+    { value: "REJECTED",          label: `Từ chối ký (${contracts.filter((c) => c.status === "REJECTED").length})` },
     { value: "EXPIRED",           label: `Đã hết hạn (${contracts.filter((c) => c.status === "EXPIRED").length})` },
     { value: "TERMINATED",        label: `Đã chấm dứt (${contracts.filter((c) => c.status === "TERMINATED").length})` },
   ];
