@@ -9,6 +9,7 @@ import com.smarthire.tenant.applicant.dto.ApplicantModels.CvRef;
 import com.smarthire.tenant.applicant.dto.ApplicantModels.GateScoreView;
 import com.smarthire.tenant.applicant.dto.ApplicantModels.ScreeningRoundsView;
 import com.smarthire.tenant.applicant.dto.ApplicantModels.HistoryView;
+import com.smarthire.tenant.applicant.service.ApplicantService;
 import java.time.Instant;
 import java.util.List;
 import org.springframework.stereotype.Component;
@@ -39,7 +40,8 @@ public class ApplicantMapper {
                 job.getLocation(),
                 job.getDepartment(),
                 job.getWorkMode(),
-                job.getEmploymentType());
+                job.getEmploymentType(),
+                ApplicantService.withdrawable(application));
     }
 
     public ApplicationDetail detail(
@@ -82,7 +84,9 @@ public class ApplicantMapper {
                 gateScore,
                 rounds,
                 application.getCvScreeningStatus() == null ? null : application.getCvScreeningStatus().name(),
-                job.getScreeningMode() == null ? null : job.getScreeningMode().name());
+                job.getScreeningMode() == null ? null : job.getScreeningMode().name(),
+                application.getWithdrawReason(),
+                ApplicantService.withdrawable(application));
     }
 
     public CvRef cv(Cv cv) {

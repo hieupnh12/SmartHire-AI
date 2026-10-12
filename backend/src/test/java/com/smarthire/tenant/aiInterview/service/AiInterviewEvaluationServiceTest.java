@@ -40,6 +40,7 @@ class AiInterviewEvaluationServiceTest {
     @Mock AiInterviewProcessEngine processEngine;
     @Mock InterviewConversationService conversation;
     @Mock NotificationPreferenceService preferences;
+    @Mock com.smarthire.tenant.applicant.service.ApplicationClosureService closures;
     final ObjectMapper mapper = new ObjectMapper();
     AiInterviewEvaluationService service;
     Application application;
@@ -47,7 +48,7 @@ class AiInterviewEvaluationServiceTest {
 
     @BeforeEach void setup() {
         service = new AiInterviewEvaluationService(interviews, questions, answers, feedbacks, skills, cvs, extractions,
-                history, stages, notifications, emails, tests, ai, mapper, activity, processEngine, conversation, preferences);
+                history, stages, notifications, emails, tests, ai, mapper, activity, processEngine, conversation, preferences, closures);
         var job = new Job();
         job.setId(13L);
         job.setTitle("Java Backend Developer");

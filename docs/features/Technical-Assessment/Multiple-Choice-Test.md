@@ -16,7 +16,7 @@ Tạo/làm bài trắc nghiệm kỹ thuật gắn job/stage.
 
 1. Staff tạo đề nháp, thêm/sửa/xóa câu hỏi kèm options, publish đề hợp lệ.
 2. Staff mở hồ sơ ứng viên (Quản lý ứng viên), chọn đề đã publish của job và bấm "Gửi cho ứng viên": đơn ở INTERVIEW được chuyển sang ASSESSMENT (ghi lịch sử trạng thái, gắn stage "Assessment" nếu job có), ứng viên nhận thông báo `ASSESSMENT_INVITATION` và email kèm link `/assessments?applicationId=...`.
-3. Candidate dùng applicationId của mình để start/resume đề thuộc cùng job, khi đơn ở ASSESSMENT hoặc INTERVIEW.
+3. Candidate dùng applicationId của mình để start/resume đề thuộc cùng job, khi đơn ở ASSESSMENT và đã có AI Interview PASSED. Trang `/assessments` chỉ liệt kê đơn ở ASSESSMENT.
 4. Candidate lưu từng nhóm đáp án, tải lại tiến độ, submit để chấm trắc nghiệm và xem điểm.
 5. Staff xem bài làm và kết quả; hệ thống không tự đổi trạng thái đơn ứng tuyển.
 
@@ -38,7 +38,7 @@ Tạo/làm bài trắc nghiệm kỹ thuật gắn job/stage.
 - Save là upsert từng questionId, không xóa câu ngoài payload; MCQ gửi `selectedOptionId`, nhiều đáp án gửi `selectedOptionIds`, tự luận gửi `answerText` (tối đa 10.000 ký tự), không trộn trường giữa các loại. null/[]/chuỗi rỗng dùng để xóa đáp án tương ứng. Question phải thuộc đề, option phải thuộc question. Payload có questionId lặp bị từ chối; lỗi một câu rollback cả nhóm.
 - Khóa hàng submission và transaction READ_COMMITTED tuần tự hóa save/submit; nộp lại trả cùng kết quả. Bỏ trống/sai được 0 điểm, đúng được toàn bộ điểm câu. Không tin điểm từ client.
 - Deadline = startedAt + durationMinutes, dùng giờ server. Lưu sau hạn trả 409 SUBMISSION_EXPIRED và vẫn commit EXPIRED/điểm của đáp án đã lưu. GET/start/submit/result cũng hoàn tất lượt quá hạn khi được truy cập; chưa có worker quét hết hạn chủ động.
-- Start mới và save/submit khi đang làm yêu cầu đơn còn ở ASSESSMENT/INTERVIEW, chưa lưu trữ/rút, job chưa xóa. Điểm tổng được trả candidate sau hoàn tất; thay đổi chính sách công bố cần cập nhật contract.
+- Start mới và save/submit khi đang làm yêu cầu đơn còn ở ASSESSMENT, đã có AI Interview PASSED (nếu chưa: 409 `AI_INTERVIEW_NOT_PASSED`), chưa lưu trữ/rút, job chưa xóa. Điểm tổng được trả candidate sau hoàn tất; thay đổi chính sách công bố cần cập nhật contract.
 - Tên đề bắt buộc, tối đa 255 ký tự; thời lượng là số phút nguyên dương; điểm đạt không âm, tối đa 8 chữ số nguyên và 2 chữ số thập phân.
 
 ## API liên quan

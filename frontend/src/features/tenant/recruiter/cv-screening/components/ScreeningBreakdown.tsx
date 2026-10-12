@@ -78,7 +78,7 @@ export function ScreeningBreakdown({
         <div className="mt-4 flex flex-wrap gap-2">
           {modelVersion && <MetaChip>{modelVersion}</MetaChip>}
           {breakdown?.source && <MetaChip>{breakdown.source}</MetaChip>}
-          {breakdown?.jaccardSimilarity != null && <MetaChip>Jaccard {formatScore(breakdown.jaccardSimilarity)}</MetaChip>}
+          {breakdown?.jaccardSimilarity != null && <MetaChip>Trùng khớp kỹ năng {formatScore(breakdown.jaccardSimilarity)}</MetaChip>}
         </div>
       </div>
 
@@ -116,10 +116,10 @@ function ComponentBars({ breakdown }: { breakdown: MatchBreakdown | null | undef
   const rows = [
     ["Kỹ năng bắt buộc", breakdown.components.required, breakdown.weights.required],
     ["Kỹ năng tùy chọn", breakdown.components.preferred, breakdown.weights.preferred],
-    ["Jaccard", breakdown.components.jaccard, breakdown.weights.jaccard],
+    ["Độ trùng khớp kỹ năng", breakdown.components.jaccard, breakdown.weights.jaccard],
     ["Kinh nghiệm", breakdown.components.experience, breakdown.weights.experience],
     ["Học vấn", breakdown.components.education, breakdown.weights.education],
-    ["Ngữ nghĩa (Gemini)", breakdown.components.semantic, breakdown.weights.semantic],
+    ["Ngữ nghĩa", breakdown.components.semantic, breakdown.weights.semantic],
   ] as const;
   return (
     <div className="space-y-3">

@@ -40,6 +40,7 @@ public class CandidateAuthService {
     private final RedisService redisService;
     private final AuthMapper authMapper;
     private final TenantRegistryService tenantRegistryService;
+    private final CandidateErasureService candidateErasure;
 
     @Transactional
     public CandidateLoginResponse authenticateWithGoogle(GoogleLoginRequest request) {
@@ -56,6 +57,9 @@ public class CandidateAuthService {
         Optional<OauthAccount> oauthOpt = oauthAccountRepository.findByProviderAndProviderUserId(
                 OAuthProvider.GOOGLE, payload.getSub());
         Optional<Candidate> candidateOpt = candidateRepository.findByEmailIgnoreCase(payload.getEmail());
+        if (candidateOpt.isEmpty()) {
+            candidateOpt = candidateErasure.restore(payload.getEmail(), payload.getName());
+        }
         if (candidateOpt.isEmpty() && oauthOpt.isPresent() && oauthOpt.get().getCandidate() != null) {
             candidateOpt = Optional.of(oauthOpt.get().getCandidate());
         }

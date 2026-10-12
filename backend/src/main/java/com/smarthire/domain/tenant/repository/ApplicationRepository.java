@@ -24,6 +24,9 @@ public interface ApplicationRepository extends JpaRepository<Application, Long> 
     long countByJob_Id(Long jobId);
     long countByCandidate_Id(Long candidateId);
     long countByStage_Id(Long stageId);
+    List<Application> findByCandidate_IdAndStatusNotIn(Long candidateId, Collection<ApplicationStatus> statuses);
+    List<Application> findByJob_IdAndStatusNotIn(Long jobId, Collection<ApplicationStatus> statuses);
+    List<Application> findTop200ByStatusInAndUpdatedAtBeforeOrderByIdAsc(Collection<ApplicationStatus> statuses, Instant before);
 
     @Query("""
             select count(a) from Application a

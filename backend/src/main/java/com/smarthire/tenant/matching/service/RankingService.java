@@ -46,6 +46,9 @@ public class RankingService {
                           ExperienceScoringService experience, ObjectMapper mapper) {
         this.data = data; this.calculator = calculator; this.skills = skills; this.experience = experience; this.mapper = mapper; this.realtime = null; this.access = null;
     }
+    /** The evaluation flow finishes as PASSED/FAILED; both carry the official overall score. */
+    private static final Set<AiInterviewStatus> INTERVIEW_SCORED = Set.of(
+            AiInterviewStatus.SCORED, AiInterviewStatus.PASSED, AiInterviewStatus.FAILED);
     private static final Set<String> STAFF = Set.of(
             "ROLE_STAFF", "ROLE_RECRUITER", "ROLE_HR", "ROLE_ADMIN", "ROLE_TENANT_ADMIN");
 
@@ -270,12 +273,13 @@ public class RankingService {
         }
         states.putIfAbsent("skills", "NEEDS_REVIEW");
         if (config.requiredExperienceMonths() == 0 && config.weights().experience() > 0) states.put("experience", "NEEDS_REVIEW");
-        BigDecimal testScore = submission != null && submission.getStatus() == TestSubmissionStatus.GRADED ? submission.getScore() : null;
-        BigDecimal interviewScore = aiInterview != null && aiInterview.getStatus() == AiInterviewStatus.SCORED ? aiInterview.getOverallScore() : null;
+        BigDecimal testScore = submission != null && submission.getStatus() == TestSubmissionStatus.GRADED ? data.assessmentPercent(submission) : null;
+        BigDecimal interviewScore = aiInterview != null && INTERVIEW_SCORED.contains(aiInterview.getStatus()) ? aiInterview.getOverallScore() : null;
         addScore(scores, states, "assessment", testScore,
                 submission == null ? (submissions.size() > 1 ? "SELECT_SOURCE" : "MISSING") : "PROCESSING");
         addScore(scores, states, "interview", interviewScore,
-                aiInterview == null ? (aiInterviews.size() > 1 ? "SELECT_SOURCE" : "MISSING") : aiInterview.getStatus() == AiInterviewStatus.FAILED ? "FAILED" : "PROCESSING");
+                aiInterview == null ? (aiInterviews.size() > 1 ? "SELECT_SOURCE" : "MISSING")
+                        : aiInterview.getStatus() == AiInterviewStatus.FAILED || aiInterview.getStatus() == AiInterviewStatus.ERROR ? "FAILED" : "PROCESSING");
         List<String> missing = groups.stream().flatMap(g -> g.matches().stream()).filter(m -> m.required() && m.similarity().compareTo(BigDecimal.ONE) < 0)
                 .map(SkillMatch::requiredSkill).toList();
         List<TimelineEvent> timeline = new ArrayList<>();

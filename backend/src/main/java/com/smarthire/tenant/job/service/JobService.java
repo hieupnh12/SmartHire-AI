@@ -86,6 +86,7 @@ public class JobService {
     private final JobCloseScreeningService closeScreening;
     private final CompanyDirectoryService companyDirectory;
     private final org.springframework.amqp.rabbit.core.RabbitTemplate rabbitTemplate;
+    private final com.smarthire.tenant.applicant.service.ApplicationClosureService closures;
     
     @org.springframework.beans.factory.annotation.Value("${app.rabbitmq.exchanges.job-expiry}")
     private String jobExpiryExchange;
@@ -104,7 +105,8 @@ public class JobService {
             JobScreeningConfigRepository screeningConfigs,
             JobCloseScreeningService closeScreening,
             CompanyDirectoryService companyDirectory,
-            org.springframework.amqp.rabbit.core.RabbitTemplate rabbitTemplate) {
+            org.springframework.amqp.rabbit.core.RabbitTemplate rabbitTemplate,
+            com.smarthire.tenant.applicant.service.ApplicationClosureService closures) {
         this.jobs = jobs;
         this.jobSkills = jobSkills;
         this.stages = stages;
@@ -119,6 +121,7 @@ public class JobService {
         this.closeScreening = closeScreening;
         this.companyDirectory = companyDirectory;
         this.rabbitTemplate = rabbitTemplate;
+        this.closures = closures;
     }
 
     public Map<String, String> health() {
@@ -274,6 +277,7 @@ public class JobService {
         job.setDeletedAt(Instant.now());
         job.setStatus(JobStatus.ARCHIVED);
         jobs.save(job);
+        closures.closeForRemovedJob(job);
     }
 
     @Transactional

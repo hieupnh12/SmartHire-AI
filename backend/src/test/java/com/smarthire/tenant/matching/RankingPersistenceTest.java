@@ -75,10 +75,13 @@ class RankingPersistenceTest {
         com.smarthire.domain.tenant.entity.JobTest test = com.smarthire.domain.tenant.entity.JobTest.builder()
                 .job(job).title("Java").durationMinutes(60).status(TestStatus.PUBLISHED).build();
         em.persist(test);
+        em.persist(Question.builder().test(test).questionText("Q1").questionType("MCQ").points(150).build());
+        em.persist(Question.builder().test(test).questionText("Q2").questionType("MCQ").points(50).build());
+        // 170 of 200 raw points = 85 on the ranking scale.
         Submission submission = Submission.builder().test(test).candidate(candidate).application(app)
-                .status(TestSubmissionStatus.GRADED).score(new BigDecimal("85")).build();
+                .status(TestSubmissionStatus.GRADED).score(new BigDecimal("170")).build();
         em.persist(submission);
-        AiInterview aiInterview = AiInterview.builder().application(app).status(AiInterviewStatus.SCORED)
+        AiInterview aiInterview = AiInterview.builder().application(app).status(AiInterviewStatus.PASSED)
                 .overallScore(new BigDecimal("81")).build();
         em.persist(aiInterview);
         em.flush();

@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { BriefcaseBusiness, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ux/Button";
 import { EmptyState } from "@/components/ux/EmptyState";
 import { LoadingState, SkeletonCard } from "@/components/ux/Skeleton";
+import { FilterValueDropdown } from "@/features/tenant/candidate/jobs/pages/TenantCareerPage";
 import { getApiErrorMessage } from "@/lib/axios";
 import { cn } from "@/lib/utils";
-import { CalendarMonth, dayKey } from "../components/CalendarMonth";
-import { HumanInterviewActions } from "../components/HumanInterviewActions";
+import { CalendarMonth, coversDay, isMultiDay, newestFirst } from "../components/CalendarMonth";
 import { eventKinds } from "../constants/calendarEvents";
 import { useCandidateCalendar } from "../hooks/useCandidateCalendar";
 import type { CalendarEvent } from "../types/calendar";
@@ -21,7 +21,7 @@ export function SchedulesPage() {
   const [jobId, setJobId] = useState<number | "ALL">("ALL");
 
   const events = calendar.events.filter((event) => jobId === "ALL" || event.jobId === jobId);
-  const dayEvents = events.filter((event) => dayKey(event.at) === dayKey(selected));
+  const dayEvents = events.filter((event) => coversDay(event, selected)).sort(newestFirst);
   const upcoming = events.filter((event) => event.at.getTime() >= Date.now() && event.kind !== "CANCELLED").slice(0, 5);
   const shiftMonth = (offset: number) => setMonth((value) => new Date(value.getFullYear(), value.getMonth() + offset, 1));
   const goToday = () => { const now = new Date(); setMonth(new Date(now.getFullYear(), now.getMonth(), 1)); setSelected(now); };
@@ -45,12 +45,11 @@ export function SchedulesPage() {
           <Button variant="secondary" size="sm" aria-label="Tháng sau" onClick={() => shiftMonth(1)}><ChevronRight className="size-4" aria-hidden="true" /></Button>
           <Button variant="ghost" size="sm" onClick={goToday}>Hôm nay</Button>
         </div>
-        <label className="flex items-center gap-2 text-sm"><span className="text-[var(--color-on-surface-variant)]">Công việc</span>
-          <select value={jobId} onChange={(event) => setJobId(event.target.value === "ALL" ? "ALL" : Number(event.target.value))} className="min-h-10 max-w-64 rounded-xl border border-[var(--color-border-default)] bg-white px-3 text-sm outline-none focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/15">
-            <option value="ALL">Tất cả công việc</option>
-            {calendar.jobs.map((job) => <option key={job.id} value={job.id}>{job.title}</option>)}
-          </select>
-        </label>
+        <div className="w-72 max-w-full">
+          <FilterValueDropdown label="Lọc theo công việc" icon={BriefcaseBusiness} value={String(jobId)}
+            onChange={(value) => setJobId(value === "ALL" ? "ALL" : Number(value))}
+            options={[{ value: "ALL", label: "Tất cả công việc" }, ...calendar.jobs.map((job) => ({ value: String(job.id), label: job.title }))]} />
+        </div>
       </div>
 
       <ul className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-[var(--color-on-surface-variant)]" aria-label="Chú thích loại sự kiện">
@@ -65,8 +64,6 @@ export function SchedulesPage() {
         </aside>
       </div>
     </>}
-
-    <HumanInterviewActions />
   </section>;
 }
 
@@ -81,7 +78,10 @@ function EventList({ title, events, empty, showDate = false }: { title: string; 
             <span className={cn("block text-sm font-semibold", event.kind === "CANCELLED" && "line-through")}>{event.title}</span>
             <span className="block truncate text-xs text-[var(--color-on-surface-variant)]">{event.jobTitle}</span>
             <span className="block text-xs text-[var(--color-on-surface-variant)]">
-              {showDate && `${event.at.toLocaleDateString("vi-VN")} · `}{event.at.toLocaleTimeString("vi-VN", timeFormat)}{event.end && ` – ${event.end.toLocaleTimeString("vi-VN", timeFormat)}`}{event.detail && ` · ${event.detail}`}
+              {isMultiDay(event)
+                ? `${event.at.toLocaleDateString("vi-VN")} – ${event.end!.toLocaleDateString("vi-VN")}`
+                : <>{showDate && `${event.at.toLocaleDateString("vi-VN")} · `}{event.at.toLocaleTimeString("vi-VN", timeFormat)}{event.end && ` – ${event.end.toLocaleTimeString("vi-VN", timeFormat)}`}</>}
+              {event.detail && ` · ${event.detail}`}
             </span>
           </span>
         </Link>

@@ -67,6 +67,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.PUT, "/api/v1/tenant/company/profile").hasAnyRole("TENANT_ADMIN", "ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/v1/tenant/company/directory").hasAnyRole("TENANT_ADMIN", "ADMIN", "HR", "RECRUITER", "STAFF")
                         .requestMatchers(HttpMethod.PUT, "/api/v1/tenant/company/directory").hasAnyRole("TENANT_ADMIN", "ADMIN")
+                        .requestMatchers("/api/v1/tenant/company/mail-settings", "/api/v1/tenant/company/mail-settings/**").hasAnyRole("TENANT_ADMIN", "ADMIN")
                         .requestMatchers("/api/v1/tenant/landing-page", "/api/v1/tenant/landing-page/**").hasAnyRole("TENANT_ADMIN", "ADMIN", "HR")
                         .requestMatchers("/api/v1/**").hasAnyRole("TENANT_ADMIN", "ADMIN", "HR", "RECRUITER", "CANDIDATE", "STAFF")
                         .anyRequest().authenticated())

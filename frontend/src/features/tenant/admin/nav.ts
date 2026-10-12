@@ -6,6 +6,7 @@ import {
   GitBranch,
   House,
   LayoutTemplate,
+  Mail,
   Settings,
   ShieldCheck,
   UserRoundCog,
@@ -23,6 +24,6 @@ export const adminNav = [
   { to: "/recruitment", labelKey: "nav.publishedJobs", icon: BriefcaseBusiness, groupId: "recruitment", groupLabelKey: "nav.adminRecruitment", groupDescriptionKey: "nav.adminRecruitmentDescription", groupIcon: GitBranch },
   { to: "/recruiter-assignments", labelKey: "nav.recruiterAssignments", icon: UserRoundCog, groupId: "recruitment", groupLabelKey: "nav.adminRecruitment", groupDescriptionKey: "nav.adminRecruitmentDescription", groupIcon: GitBranch },
   { to: "/analytics", labelKey: "nav.recruitmentAnalytics", icon: ChartNoAxesCombined, groupId: "recruitment", groupLabelKey: "nav.adminRecruitment", groupDescriptionKey: "nav.adminRecruitmentDescription", groupIcon: GitBranch },
-  { to: "/system", labelKey: "nav.system", icon: Settings, groupId: "system", groupLabelKey: "nav.system", groupDescriptionKey: "nav.adminSystemDescription", groupIcon: Settings },
+  { to: "/system", labelKey: "nav.mailConfig", icon: Mail, groupId: "system", groupLabelKey: "nav.system", groupDescriptionKey: "nav.adminSystemDescription", groupIcon: Settings },
   { to: "/audit-logs", labelKey: "nav.auditLogs", icon: FileClock, comingSoon: true, groupId: "system", groupLabelKey: "nav.system", groupDescriptionKey: "nav.adminSystemDescription", groupIcon: Settings },
 ] as const;

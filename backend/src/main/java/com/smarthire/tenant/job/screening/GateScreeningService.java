@@ -3,6 +3,7 @@ package com.smarthire.tenant.job.screening;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.smarthire.domain.enums.AiInterviewStatus;
+import com.smarthire.domain.enums.CvScreeningStatus;
 import com.smarthire.domain.enums.TestSubmissionStatus;
 import com.smarthire.domain.tenant.entity.AiInterview;
 import com.smarthire.domain.tenant.entity.Application;
@@ -27,6 +28,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class GateScreeningService {
     private static final BigDecimal HUNDRED = new BigDecimal("100");
+    private static final java.util.Set<AiInterviewStatus> SCORED_INTERVIEW = java.util.Set.of(
+            AiInterviewStatus.SCORED, AiInterviewStatus.PASSED, AiInterviewStatus.FAILED);
 
     private final JobScreeningConfigService screening;
     private final RankingDataRepository ranking;
@@ -62,10 +65,11 @@ public class GateScreeningService {
 
         boolean cvPresent = match != null && match.getScore() != null;
         boolean interviewPresent = interview != null && interview.getOverallScore() != null;
-        boolean assessmentPresent = assessment != null && assessment.getScore() != null;
+        BigDecimal assessmentPercent = assessment == null ? null : ranking.assessmentPercent(assessment);
+        boolean assessmentPresent = assessmentPercent != null;
         BigDecimal cvScore = cvPresent ? match.getScore() : BigDecimal.ZERO;
         BigDecimal interviewScore = interviewPresent ? interview.getOverallScore() : BigDecimal.ZERO;
-        BigDecimal assessmentScore = assessmentPresent ? assessment.getScore() : BigDecimal.ZERO;
+        BigDecimal assessmentScore = assessmentPresent ? assessmentPercent : BigDecimal.ZERO;
 
         BigDecimal score = weighted(cvScore, cvWeight)
                 .add(weighted(interviewScore, interviewWeight))
@@ -106,13 +110,13 @@ public class GateScreeningService {
         MatchScore match = latestMatch(application);
         AiInterview interview = latestInterviewAny(application.getId());
         Submission assessment = latestAssessmentAny(application.getId());
-        boolean cvPassed = CvMatchingService.passed(match);
+        Boolean cvPassed = cvRoundPassed(application, match);
         return new ScreeningRoundsView(
                 new RoundItemView(
-                        match == null ? "MISSING" : (cvPassed ? "PASSED" : "FAILED"),
+                        cvPassed == null ? "MISSING" : (cvPassed ? "PASSED" : "FAILED"),
                         match == null ? null : match.getScore(),
                         config.getCvPassThreshold(),
-                        match == null ? null : cvPassed,
+                        cvPassed,
                         null),
                 new RoundItemView(
                         interview == null
@@ -120,7 +124,9 @@ public class GateScreeningService {
                                 : interview.getStatus().name(),
                         interview == null ? null : interview.getOverallScore(),
                         null,
-                        interview != null && interview.getStatus() == AiInterviewStatus.SCORED ? Boolean.TRUE : null,
+                        interview == null ? null
+                                : interview.getStatus() == AiInterviewStatus.SCORED || interview.getStatus() == AiInterviewStatus.PASSED ? Boolean.TRUE
+                                : interview.getStatus() == AiInterviewStatus.FAILED ? Boolean.FALSE : null,
                         config.getGateInterviewWeight()),
                 new RoundItemView(
                         assessment == null ? "MISSING" : assessment.getStatus().name(),
@@ -155,7 +161,15 @@ public class GateScreeningService {
                 config == null ? null : config.getGatePassThreshold());
     }
 
-    private MatchScore latestMatch(Application application) {
+    /** A recorded CV-round decision (AUTO result or recruiter override) wins over the raw score. */
+    public static Boolean cvRoundPassed(Application application, MatchScore match) {
+        CvScreeningStatus decision = application == null ? null : application.getCvScreeningStatus();
+        if (decision == CvScreeningStatus.PASSED) return Boolean.TRUE;
+        if (decision == CvScreeningStatus.FAILED) return Boolean.FALSE;
+        return match == null ? null : CvMatchingService.passed(match);
+    }
+
+    public MatchScore latestMatch(Application application) {
         List<Cv> cvs = ranking.cvs(application.getId());
         for (int i = cvs.size() - 1; i >= 0; i--) {
             Cv cv = cvs.get(i);
@@ -179,7 +193,7 @@ public class GateScreeningService {
         List<AiInterview> interviews = ranking.aiInterviews(applicationId);
         for (int i = interviews.size() - 1; i >= 0; i--) {
             AiInterview interview = interviews.get(i);
-            if (interview.getId() == null || interview.getStatus() != AiInterviewStatus.SCORED) continue;
+            if (interview.getId() == null || !SCORED_INTERVIEW.contains(interview.getStatus())) continue;
             if (interview.getOverallScore() != null) return interview;
         }
         return null;

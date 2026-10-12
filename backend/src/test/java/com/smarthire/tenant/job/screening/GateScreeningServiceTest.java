@@ -102,7 +102,27 @@ class GateScreeningServiceTest {
         assertThat(score.getBreakdownJson()).contains("\"complete\":false");
     }
 
+    @Test
+    void finishedInterviewStatusesCarryTheirScore() {
+        JobScreeningConfig config = JobScreeningConfigService.snapshot();
+        config.setGateCvWeight(new BigDecimal("40"));
+        config.setGateInterviewWeight(new BigDecimal("35"));
+        config.setGateAssessmentWeight(new BigDecimal("25"));
+        config.setGatePassThreshold(new BigDecimal("70"));
+        when(screening.require(3L)).thenReturn(config);
+        stubScores("82", "55", "90", AiInterviewStatus.FAILED);
+
+        GateScore score = service.recalculate(application);
+
+        assertThat(score.getScore()).isEqualByComparingTo("74.55");
+        assertThat(score.getBreakdownJson()).contains("\"aiInterviewPresent\":true");
+    }
+
     private void stubScores(String cv, String interview, String assessment) {
+        stubScores(cv, interview, assessment, AiInterviewStatus.SCORED);
+    }
+
+    private void stubScores(String cv, String interview, String assessment, AiInterviewStatus interviewStatus) {
         Cv resume = new Cv();
         resume.setId(4L);
         MatchScore match = new MatchScore();
@@ -112,7 +132,7 @@ class GateScreeningServiceTest {
 
         AiInterview session = new AiInterview();
         session.setId(5L);
-        session.setStatus(AiInterviewStatus.SCORED);
+        session.setStatus(interviewStatus);
         session.setOverallScore(new BigDecimal(interview));
         when(ranking.aiInterviews(9L)).thenReturn(List.of(session));
 
@@ -121,5 +141,6 @@ class GateScreeningServiceTest {
         submission.setStatus(TestSubmissionStatus.GRADED);
         submission.setScore(new BigDecimal(assessment));
         when(ranking.submissions(9L)).thenReturn(List.of(submission));
+        when(ranking.assessmentPercent(submission)).thenReturn(new BigDecimal(assessment));
     }
 }

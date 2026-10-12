@@ -3,9 +3,11 @@ package com.smarthire.tenant.applicant.dto;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 public final class ApplicantModels {
     private ApplicantModels() {}
@@ -62,7 +64,10 @@ public final class ApplicantModels {
             String jobLocation,
             String jobDepartment,
             String jobWorkMode,
-            String jobEmploymentType) {}
+            String jobEmploymentType,
+            boolean withdrawable) {}
+
+    public record WithdrawRequest(@Size(max = 255) String reason) {}
 
     public record ApplicationDetail(
             long id,
@@ -94,7 +99,9 @@ public final class ApplicantModels {
             GateScoreView gateScore,
             ScreeningRoundsView rounds,
             String cvScreeningStatus,
-            String screeningMode) {}
+            String screeningMode,
+            String withdrawReason,
+            boolean withdrawable) {}
 
     public record ScreeningRoundsView(
             RoundItemView cv,
@@ -120,4 +127,45 @@ public final class ApplicantModels {
             BigDecimal aiInterviewWeight,
             BigDecimal assessmentWeight,
             BigDecimal passThreshold) {}
+
+    public record CandidateEvaluationView(
+            CvEvaluationView cv,
+            List<AiInterviewEvaluationView> aiInterviews,
+            List<AssessmentEvaluationView> assessments) {}
+
+    public record CvEvaluationView(
+            BigDecimal score,
+            BigDecimal threshold,
+            boolean passed,
+            String explanation,
+            List<String> matchedSkills,
+            List<String> partialSkills,
+            List<String> missingSkills,
+            List<String> requiredMissingSkills,
+            BigDecimal requiredYears,
+            BigDecimal candidateYears,
+            String requiredEducation,
+            String candidateEducation) {}
+
+    public record AiInterviewEvaluationView(
+            long id,
+            int attemptNumber,
+            String status,
+            BigDecimal score,
+            BigDecimal passingScore,
+            Boolean passed,
+            Instant completedAt,
+            String summary,
+            String strengths,
+            String weaknesses,
+            Map<String, BigDecimal> criteria) {}
+
+    public record AssessmentEvaluationView(
+            long id,
+            String testTitle,
+            String status,
+            BigDecimal score,
+            BigDecimal passingScore,
+            Boolean passed,
+            Instant submittedAt) {}
 }

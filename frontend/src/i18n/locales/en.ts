@@ -94,6 +94,7 @@ export const en = {
     company: "Company",
     landingPage: "Landing Page",
     system: "System",
+    mailConfig: "Gmail Configuration",
     overview: "Overview",
     companyVerification: "Verification",
     rolesPermissions: "Permissions",

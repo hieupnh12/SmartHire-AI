@@ -140,7 +140,7 @@ export function ApplicantsPage() {
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex min-w-0 flex-col gap-2">
           <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-1.5 text-xs font-medium text-[var(--color-on-surface-variant)]">
-            <Link to="/recruiter/jobs" className="transition-colors hover:text-brand-primary">Việc làm</Link>
+            <Link to="/recruiter" className="transition-colors hover:text-brand-primary">Việc làm</Link>
             {jobId != null && (
               <>
                 <span aria-hidden="true">/</span>
