@@ -52,6 +52,9 @@ public class JobTest {
     @Column(columnDefinition = "TEXT")
     String description;
 
+    @Column(name = "objective_duration_minutes")
+    Integer objectiveDurationMinutes;
+
     @Column(name = "duration_minutes", nullable = false)
     int durationMinutes;
 

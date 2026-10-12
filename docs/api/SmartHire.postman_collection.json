@@ -594,6 +594,147 @@
             ],
             "url": "{{baseUrl}}/jobs/{{jobId}}/list_assessment_submissions"
           }
+        },
+        {
+          "name": "Complete objective section",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{candidateToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/submissions/{{submissionId}}/complete_objective"
+          }
+        },
+        {
+          "name": "Run coding sample tests",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{candidateToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/submissions/{{submissionId}}/coding/{{questionId}}/run_samples",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"language\": \"python\",\n  \"source\": \"print(2)\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Inspect subjective grading review",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/submissions/{{submissionId}}/grading_review"
+          }
+        },
+        {
+          "name": "Approve AI suggested grade",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/submissions/{{submissionId}}/approve_grade/{{questionId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"score\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Set manually reviewed grade",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/submissions/{{submissionId}}/approve_grade/{{questionId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"score\": 8.5\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Retry outstanding grading",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/submissions/{{submissionId}}/retry_grading"
+          }
         }
       ]
     },

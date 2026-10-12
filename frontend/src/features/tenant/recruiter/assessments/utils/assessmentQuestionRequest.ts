@@ -1,3 +1,4 @@
+import { rubricSchema, codingSchema } from "./questionContentValidation";
 import type { QuestionRequest } from "@/api/types/assessment";
 import { isSubjectiveKind } from "../constants/excelTemplateMock";
 import type { ImportRow } from "./excelImportValidation";
@@ -35,7 +36,11 @@ export function toQuestionRequest(item: ImportRow, index: number, defaultScore: 
   if (isSubjectiveKind(row.kind)) {
     return {
       ...base,
-      questionType: "ESSAY",
+      questionType: row.kind === "TU_LUAN_CODE" ? "CODING" : "ESSAY",
+      rubricJson: row.kind === "TU_LUAN_CODE" ? null : rubricSchema.parse(row.rubricJsonText?.trim() ? JSON.parse(row.rubricJsonText) : {
+        referenceAnswer: row.sample.trim(), criteria: [{ description: row.rubric.map(item => item.text).filter(Boolean).join("; ") || "Technical correctness and completeness", weight: 100 }],
+      }),
+      coding: row.kind === "TU_LUAN_CODE" ? codingSchema.parse(JSON.parse(row.codingJsonText || "null")) : null,
       explanation: row.sample.trim() || row.explanation.trim() || null,
       options: [],
     };

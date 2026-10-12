@@ -47,7 +47,7 @@ class AssessmentFlowTest {
     @Configuration
     @EnableTransactionManagement
     @EnableJpaRepositories(basePackages = "com.smarthire.domain.tenant.repository")
-    @Import({AssessmentService.class, QuestionService.class, QuestionBankService.class, AssessmentGenerationService.class, SubmissionService.class, AssessmentMapper.class, NotificationPreferenceService.class})
+    @Import({com.smarthire.tenant.assessment.service.CodingJudge.class, AssessmentService.class, QuestionService.class, QuestionBankService.class, AssessmentGenerationService.class, SubmissionService.class, AssessmentMapper.class, NotificationPreferenceService.class})
     static class Config {
         @Bean ObjectMapper objectMapper() { return new ObjectMapper(); }
         @Bean CvAccess cvAccess(UserRepository users, CandidateRepository candidates, JobAssignmentRepository assignments) {
@@ -596,6 +596,42 @@ class AssessmentFlowTest {
     }
 
     @Test
+    void objectiveDeadlineLocksChoicesBeforeOverallDeadline() {
+        long id = draft();
+        assessments.update(id, new JobTestRequest(jobId, "Timed sections", null, 30, null, 1));
+        var choice = questions.create(id, question("Choice", 5, 0));
+        questions.create(id, new QuestionRequest("Explain", 5, 1, null, null, null, List.of(), QuestionType.ESSAY));
+        questions.publish(id); login(candidateEmail, "CANDIDATE");
+        long submission = submissions.start(id, new StartSubmissionRequest(applicationId)).id();
+        submissions.save(submission, save(choice.id(), choice.options().getFirst().id()));
+        tx.executeWithoutResult(status -> em.find(Submission.class, submission).setStartedAt(Instant.now().minusSeconds(70)));
+        var reloaded = submissions.get(submission);
+        assertThat(reloaded.status()).isEqualTo(TestSubmissionStatus.IN_PROGRESS);
+        assertThat(reloaded.objectiveCompletedAt()).isNotNull();
+        assertThat(reloaded.remainingSeconds()).isGreaterThan(1700);
+        assertThatThrownBy(() -> submissions.save(submission, save(choice.id(), null))).hasMessageContaining("Objective section is locked");
+    }
+
+    @Test
+    void codingAuthoringPersistsCasesAndCandidateOnlySeesSamples() throws Exception {
+        var json = new ObjectMapper();
+        var coding = new com.smarthire.tenant.assessment.dto.request.CodingRequest("CODING_ALGORITHM", 2000, 256,
+                json.readTree("{\"python\":\"def solve(): pass\"}"), json.readTree("{\"python\":\"{{SOURCE}}\"}"),
+                List.of(new com.smarthire.tenant.assessment.dto.request.CodingRequest.Case("sample", "sample output", true),
+                        new com.smarthire.tenant.assessment.dto.request.CodingRequest.Case("hidden", "secret output", false)));
+        long id = draft();
+        var created = questions.create(id, new QuestionRequest("Solve", 10, 0, "Easy", "Python", null, List.of(), QuestionType.CODING, null, coding));
+        assertThat(questions.list(id).getFirst().coding().testCases()).hasSize(2);
+        questions.publish(id); login(candidateEmail, "CANDIDATE");
+        var started = submissions.start(id, new StartSubmissionRequest(applicationId));
+        assertThat(started.questions().getFirst().coding().harness()).isNull();
+        assertThat(started.questions().getFirst().coding().testCases()).hasSize(1);
+        submissions.save(started.id(), new SaveAnswersRequest(List.of(new SaveAnswersRequest.AnswerInput(created.id(), null, null, "print(42)", "python"))));
+        assertThat(submissions.get(started.id()).answers().getFirst().language()).isEqualTo("python");
+        assertThat(submissions.submit(started.id()).status()).isEqualTo(TestSubmissionStatus.SUBMITTED);
+    }
+
+    @Test
     void essayAndMixedPaperPersistTextAndWaitForReviewIncludingExpiration() throws Exception {
         long id = draft();
         var essay = questions.create(id, new QuestionRequest("Explain", 5, 0, null, null, "Staff rubric",
@@ -604,13 +640,20 @@ class AssessmentFlowTest {
         questions.publish(id);
         login(candidateEmail, "CANDIDATE");
         long submission = submissions.start(id, new StartSubmissionRequest(applicationId)).id();
+        assertThatThrownBy(() -> submissions.save(submission, new SaveAnswersRequest(List.of(
+                new SaveAnswersRequest.AnswerInput(essay.id(), null, null, "Too early")))))
+                .hasMessageContaining("Complete objective section first");
+        submissions.save(submission, save(mcq.id(), mcq.options().getFirst().id()));
+        assertThat(submissions.completeObjective(submission).objectiveCompletedAt()).isNotNull();
+        assertThat(submissions.get(submission).objectiveCompletedAt()).isNotNull();
+        assertThatThrownBy(() -> submissions.save(submission, save(mcq.id(), mcq.options().getLast().id())))
+                .hasMessageContaining("Objective section is locked");
         mvc.perform(post("/api/v1/submissions/{id}/save_answers", submission).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"answers\":[{\"questionId\":" + essay.id() + ",\"answerText\":\"My reasoning\"}]}"))
                 .andExpect(status().isOk());
         assertThat(submissions.get(submission).answers().getFirst().answerText()).isEqualTo("My reasoning");
         assertThatThrownBy(() -> submissions.save(submission, save(essay.id(), mcq.options().getFirst().id())))
                 .hasMessageContaining("Essay answers cannot select");
-        submissions.save(submission, save(mcq.id(), mcq.options().getFirst().id()));
         var result = submissions.submit(submission);
         assertThat(result.status()).isEqualTo(TestSubmissionStatus.SUBMITTED);
         assertThat(result.score()).isNull();

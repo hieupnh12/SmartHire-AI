@@ -16,6 +16,8 @@ import org.springframework.web.bind.annotation.*;
 @Tag(name = "Technical Assessment - Submissions")
 public class SubmissionController {
     private final SubmissionService service;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.smarthire.tenant.assessment.service.AssessmentGradingService grading;
 
     public SubmissionController(SubmissionService service) { this.service = service; }
 
@@ -52,6 +54,30 @@ public class SubmissionController {
     public ApiResponse<SubmissionResponse> submit(@PathVariable long id) {
         return ApiResponse.ok(service.submit(id));
     }
+
+    @PostMapping("/submissions/{id}/coding/{questionId}/run_samples")
+    @Operation(summary = "Run up to five public sample cases in isolated sandbox (candidate owner only)")
+    public ApiResponse<java.util.List<com.fasterxml.jackson.databind.JsonNode>> samples(@PathVariable long id, @PathVariable long questionId,
+            @Valid @RequestBody SubmissionService.SampleRun body) { return ApiResponse.ok(service.runSamples(id, questionId, body)); }
+
+    @PostMapping("/submissions/{id}/complete_objective")
+    @Operation(summary = "Lock saved objective answers and start practical section")
+    public ApiResponse<SubmissionResponse> completeObjective(@PathVariable long id) { return ApiResponse.ok(service.completeObjective(id)); }
+
+    @GetMapping("/submissions/{id}/grading_review")
+    @Operation(summary = "Inspect AI suggestions and subjective answers (staff only)")
+    public ApiResponse<java.util.List<com.smarthire.tenant.assessment.service.AssessmentGradingService.Review>> review(@PathVariable long id) {
+        return ApiResponse.ok(grading.reviews(id));
+    }
+    public record GradeRequest(@jakarta.validation.constraints.DecimalMin("0") java.math.BigDecimal score) {}
+    @PostMapping("/submissions/{id}/approve_grade/{questionId}")
+    @Operation(summary = "Approve suggested score or provide reviewed score (staff only)")
+    public ApiResponse<Void> approve(@PathVariable long id, @PathVariable long questionId, @Valid @RequestBody GradeRequest body) {
+        grading.approve(id, questionId, body.score()); return ApiResponse.ok(null);
+    }
+    @PostMapping("/submissions/{id}/retry_grading")
+    @Operation(summary = "Retry outstanding AI or sandbox grading (staff only)")
+    public ApiResponse<Void> retry(@PathVariable long id) { grading.retry(id); return ApiResponse.ok(null); }
 
     @GetMapping("/jobs/{jobId}/list_assessment_submissions")
     @Operation(summary = "List candidate submissions for all tests of a job (staff only)",

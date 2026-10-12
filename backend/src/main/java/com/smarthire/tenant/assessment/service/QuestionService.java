@@ -85,12 +85,14 @@ public class QuestionService {
         JobTest test = draft(testId);
         var items = questions.findByTest_IdOrderByQuestionOrderAscIdAsc(testId);
         if (items.isEmpty() || items.size() > 100) throw invalid("A test requires 1 to 100 questions");
-        if (codingProblems.existsByTest_Id(testId)) throw invalid("Coding tests are not supported by this flow");
+        if (codingProblems.findByTest_Id(testId).stream().anyMatch(c -> c.getQuestion() == null)) throw invalid("Legacy coding problems must be linked to a question");
         int total = 0;
         for (Question question : items) {
             var choices = options.findByQuestion_IdOrderByIdAsc(question.getId());
             validateType(question.getQuestionType(), choices.size(), choices.stream().filter(Option::isCorrect).count());
             if (question.getPoints() < 1 || question.getPoints() > 10000) throw invalid("Invalid question points");
+            if ("ESSAY".equals(question.getQuestionType()) && question.getRubricJson() != null && !question.getRubricJson().isNull()) QuestionContent.validateRubric(question.getRubricJson());
+            if ("CODING".equals(question.getQuestionType()) && question.getCodingProblem() == null) throw invalid("Missing coding problem");
             total += question.getPoints();
         }
         if (test.getPassingScore() != null && (test.getPassingScore().signum() < 0
@@ -122,12 +124,13 @@ public class QuestionService {
     }
 
     static void validateOptions(QuestionRequest request) {
+        QuestionContent.validate(request);
         validateType(request.questionType().name(), request.options().size(),
                 request.options().stream().filter(o -> Boolean.TRUE.equals(o.correct())).count());
     }
 
     static void validateType(String type, int count, long correct) {
-        if ("ESSAY".equals(type)) {
+        if ("ESSAY".equals(type) || "CODING".equals(type)) {
             if (count != 0) throw invalid("Essay questions must not have options");
             return;
         }
@@ -145,6 +148,7 @@ public class QuestionService {
         question.setDifficulty(normalizeDifficulty(request.difficulty()));
         question.setSkill(blankToNull(request.skill()));
         question.setExplanation(blankToNull(request.explanation()));
+        QuestionContent.apply(question, request);
     }
 
     private static String normalizeDifficulty(String raw) {

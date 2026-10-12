@@ -201,3 +201,19 @@ API `/question-bank/*` dành cho staff trong đúng tenant, dùng token và `X-T
 ## Tạo assessment tự động theo cấu hình job
 
 Staff có quyền job dùng GET/PUT `/assessments/jobs/{jobId}/configuration`, POST `/assessments/jobs/{jobId}/generate` và GET `/assessments/jobs/{jobId}/automation_status`. Body, luồng thủ công/tự động và điều kiện ứng viên xem [ASSESS-01](../features/Technical-Assessment/Multiple-Choice-Test.md#tạo-assessment-thủ-công--tự-động-2026-10-03). Cần migration tenant V43. Bật `autoAssign` cần RabbitMQ; hồ sơ đạt trước/sau khi bật được xử lý nền, đề riêng không dùng được bởi hồ sơ khác.
+
+## Assessment đa phần (V53)
+
+Ngân hàng và đề thi vẫn thuộc tenant DB. QuestionRequest thêm `rubricJson` (referenceAnswer, criteria với tổng weight=100, category ESSAY_CONCEPTUAL/ESSAY_SCENARIO) cho ESSAY và `coding` cho CODING. Coding gồm category, timeLimitMs, memoryMb, starterCode/harness theo ngôn ngữ, testCases(input, expectedOutput, sample). Cần ít nhất một sample và một hidden test; harness chứa {{SOURCE}}. Candidate không được đọc rubric, harness, hidden tests hoặc điểm AI đề xuất.
+
+Test metadata/cấu hình sinh đề thêm `objectiveDurationMinutes` tùy chọn nhỏ hơn tổng thời lượng; response submission có objectiveCompletedAt/objectiveExpiresAt. Save code gửi answerText + language, không gửi option. Sau khi chốt phần trắc nghiệm, save các câu trắc nghiệm trả SECTION_LOCKED; trước khi chốt không được lưu phần thực hành (SECTION_NOT_STARTED). Tổng deadline vẫn do server xác định.
+
+| Method | Path | Actor / payload |
+|---|---|---|
+| POST | `/submissions/{id}/complete_objective` | Candidate sở hữu; lưu đáp án trước khi chốt |
+| POST | `/submissions/{id}/coding/{questionId}/run_samples` | Candidate sở hữu; `{source, language}`; tối đa 5 sample |
+| GET | `/submissions/{id}/grading_review` | Staff được quyền job; bài làm, rubric, evaluation, suggestedScore và điểm duyệt |
+| POST | `/submissions/{id}/approve_grade/{questionId}` | Staff; `{score: null}` nhận gợi ý hoặc score trong 0..points, tối đa 2 chữ số thập phân |
+| POST | `/submissions/{id}/retry_grading` | Staff; retry các câu chưa có điểm gợi ý/điểm duyệt |
+
+Chấm tự động dùng RabbitMQ và TenantJobExecutor (X-Tenant-ID). Điểm đề xuất chưa được công bố cho candidate; chỉ tổng điểm chính thức sau khi mọi câu được duyệt. Sandbox chưa cấu hình/lỗi trả SANDBOX_UNAVAILABLE (503) ở run_samples, không biến lỗi dịch vụ thành điểm 0.

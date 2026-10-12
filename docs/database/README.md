@@ -33,10 +33,11 @@
 | Số database logic | 2 loại (1 Master + N Tenant) |
 | Bảng tenant sau V51 | 67 bảng (V51 tạo `candidates` và xóa `user_profiles`, tổng số bảng giữ nguyên 67); không tính Flyway history |
 | Entity JPA tenant | 62 class `@Entity` theo checkout hiện tại; V44 bổ sung `InterviewSession`, `InterviewMessage`; V45 bổ sung `CompanyDirectoryEntry`; V49 bổ sung `NotificationPreference`; V51 thay `UserProfile` bằng `Candidate` |
-| Khoá ngoại tenant | 89 theo mốc tài liệu (88 sau V49 − 1 FK `user_profiles` + 2 FK `candidate_id` trên `notifications` & `notification_preferences`, 6 FK ứng viên chuyển đích sang `candidates`) |
-| Ràng buộc UNIQUE tenant | V25/V26 không thêm UNIQUE. V27 thêm UNIQUE `gate_scores.application_id`. V30 thêm `uk_job_assignments_job_user`. V45 thêm `uk_company_directory_type_name`. V47 thêm `uk_cvs_share_token`. V49 thêm `uk_notification_preference_user_category`. V51 xóa `uk_profile_user`, thêm `uk_candidates_email` và `uk_notification_preference_candidate_category` |
-| Số file migration trong repo | 71 (28 master + 43 tenant); V9 redesign nằm ngoài pipeline |
-| Cập nhật lần cuối | Master `V28` (`ai_model_pricings`, `tenant_ai_usage_daily`), Master `V27` (kiến trúc gói cước & thuê bao SaaS B2B 2 tầng), Master `V26` (`contracts` Dropbox Sign), tenant `V51` (`candidates`) |
+| Khoá ngoại tenant | 91 theo mốc tài liệu (88 sau V49 − 1 FK `user_profiles` + 2 FK `candidate_id` trên `notifications` & `notification_preferences`, 6 FK ứng viên chuyển đích sang `candidates`; V53 thêm fk_cp_question và fk_answer_reviewer) |
+| Ràng buộc UNIQUE tenant | V53 thêm `uk_cp_question`. V25/V26 không thêm UNIQUE. V27 thêm UNIQUE `gate_scores.application_id`. V30 thêm `uk_job_assignments_job_user`. V45 thêm `uk_company_directory_type_name`. V47 thêm `uk_cvs_share_token`. V49 thêm `uk_notification_preference_user_category`. V51 xóa `uk_profile_user`, thêm `uk_candidates_email` và `uk_notification_preference_candidate_category` |
+| Số file migration trong repo | 72 (28 master + 44 tenant); V9 redesign nằm ngoài pipeline |
+| Assessment đa phần 2026-10-12 | Tenant V53: rubric, khóa phần trắc nghiệm, gợi ý/duyệt điểm, liên kết coding→question và template sandbox; không thêm bảng/entity; thêm 2 FK và 1 UNIQUE |
+| Cập nhật lần cuối | Tenant `V53` (`assessment_sections_and_grading`); Master `V28` (`ai_model_pricings`, `tenant_ai_usage_daily`), Master `V27` (kiến trúc gói cước & thuê bao SaaS B2B 2 tầng), Master `V26` (`contracts` Dropbox Sign), tenant `V51` (`candidates`) |
 | Dọn legacy V21 | Xóa 19 bảng và dữ liệu legacy, xóa 2 cột ID legacy trong ranking; không chuyển ID cũ sang bản ghi mới |
 | Metadata assessment 2026-09-25 | V13: `tests.created_by/updated_at`, `questions.difficulty/skill/explanation` cho Excel/UI authoring |
 | Sửa lỗi assessment 2026-09-24 | V10/V11 khớp checksum lịch sử; V12 tạo schema mới và giữ bảng cũ; migration lỗi phải chặn mở tenant pool |
@@ -261,6 +262,8 @@ sang model hiện hành. Các bảng hiện hành và entity không thay đổi.
 `@PrePersist` / `@PreUpdate`. Các entity không kế thừa nó tự khai báo `@Id` và chỉ có `created_at`.
 
 ### 3.3 Enum dùng cho cột trạng thái (`com.smarthire.domain.enums`)
+
+V53: `QuestionType` gồm MCQ, MULTIPLE_CHOICE, ESSAY, CODING. SQL questions.question_type vẫn VARCHAR(32), không enum/CHECK. Rubric weight tổng 100, code có sample+hidden test, điểm duyệt 0..points được service kiểm tra. `uk_cp_question` bảo vệ tối đa một CodingProblem/câu hỏi.
 
 V44 không thêm enum hoặc trạng thái lifecycle: session dùng lifecycle của `ai_interviews`, `ended_at` khóa transcript; `interview_messages.role` là VARCHAR(16), service chỉ ghi `USER`/`ASSISTANT` (SQL không có CHECK role).
 
@@ -531,7 +534,9 @@ erDiagram
     questions ||--o{ questionskills : "question_id"
     skills ||--o{ questionskills : "skill_id"
     questions ||--o{ options : "lựa chọn"
-    tests ||--o{ coding_problems : "bài lập trình"
+    tests |o--o{ coding_problems : "bài lập trình (NULL = ngân hàng)"
+    questions |o--o| coding_problems : "question_id UNIQUE"
+    users |o--o{ answers : "reviewed_by"
     coding_problems ||--o{ test_cases : "bộ test"
 
     tests ||--o{ submissions : "lượt làm bài"
@@ -843,7 +848,7 @@ V44 bổ sung hai FK NOT NULL `ON DELETE CASCADE`: `interview_sessions.ai_interv
 | `answer_selected_options` | `answer_id` | `answers` | Không | N:1 | `fk_aso_answer`, DELETE CASCADE |
 | `answer_selected_options` | `option_id` | `options` | Không | N:1 | `fk_aso_option`, mặc định RESTRICT |
 | `options` | `question_id` | `questions` | Không | N:1 | `fk_options_question` |
-| `coding_problems` | `test_id` | `tests` | Không | N:1 | `fk_cp_test` |
+| `coding_problems` | `test_id` | `tests` | Có | N:1 | `fk_cp_test` |
 | `test_cases` | `coding_problem_id` | `coding_problems` | Không | N:1 | `fk_tc_cp` |
 | `submissions` | `test_id` | `tests` | Không | N:1 | `fk_submissions_test` |
 | `submissions` | `candidate_id` | `candidates` | Không | N:1 | `fk_submissions_candidate` (V51) |
@@ -876,6 +881,8 @@ V44 bổ sung hai FK NOT NULL `ON DELETE CASCADE`: `interview_sessions.ai_interv
 | `practice_sessions` | `candidate_id` | `candidates` | Không | N:1 | `fk_ps_candidate` (V51) |
 | `practice_answers` | `session_id` | `practice_sessions` | Không | N:1 | `fk_pa_ps` |
 | `practice_feedbacks` | `practice_answer_id` | `practice_answers` | Không | N:1 | `fk_pf_answer` |
+| `coding_problems` | `question_id` | `questions` | Có | 0..1:0..1 (UQ) | `fk_cp_question` (V53, RESTRICT) |
+| `answers` | `reviewed_by` | `users` | Có | N:1 | `fk_answer_reviewer` (V53, RESTRICT) |
 
 V21 bỏ các FK cùng 19 bảng archive và xóa hai cột `ranking_sources.legacy_attempt_id` /
 `legacy_interview_id`. Không tạo FK thay thế dựa trên ID cũ; nguồn ranking hiện hành vẫn dùng
@@ -1003,9 +1010,9 @@ NOT_STARTED ──▶ IN_PROGRESS ──▶ SUBMITTED ──▶ GRADED
 ```
 
 Đề chỉ có MCQ/MULTIPLE_CHOICE chấm đồng bộ: `IN_PROGRESS → GRADED`; hết hạn thành `EXPIRED`.
-Đề có ESSAY chuyển `SUBMITTED` chờ chấm (hoặc `EXPIRED` khi hết hạn); tổng điểm và passed = NULL,
+Đề có ESSAY/CODING chuyển `SUBMITTED` chờ chấm (hoặc `EXPIRED` khi hết hạn); tổng điểm và passed = NULL,
 kể cả chưa trả lời câu tự luận. Điểm các câu trắc nghiệm đã lưu vẫn được tính riêng trong answers.
-Chưa có endpoint chấm tay/AI cho tự luận trong thay đổi V23.
+V53 bổ sung AI chấm rubric và test sandbox cho ESSAY/CODING; điểm đề xuất lưu riêng, staff duyệt vào answers.score. Chỉ khi mọi câu có điểm chính thức mới ghi tổng vào submissions.score và chuyển SUBMITTED → GRADED; EXPIRED giữ nguyên trạng thái. objective_completed_at khóa phần trắc nghiệm; thời lượng phần riêng tùy chọn dùng giờ server.
 
 **Lịch phỏng vấn trực tiếp V48** — `interview_schedules.status`: DRAFT → PROPOSED → CONFIRMED → DONE; PROPOSED/CONFIRMED → RESCHEDULE_REQUESTED → PROPOSED; lịch nháp/đang hoạt động → CANCELLED. Điểm 0–100; mỗi người chấm có một đánh giá, tuần tự hóa bằng khóa hàng interview; không thêm UNIQUE trong database.
 
@@ -1075,6 +1082,8 @@ Những quy tắc sau bắt buộc phải kiểm tra ở tầng service, vì kh�
 
 ### 9.1 Index được khai báo tường minh
 
+V53 thêm UNIQUE index `uk_cp_question(question_id)` trên coding_problems. Hai FK mới dùng index do MySQL tạo cho FK; không khai báo thêm index thường.
+
 V44 tạo index qua UNIQUE (không có CREATE INDEX riêng): `uk_interview_session_attempt` tra cứu session theo attempt; `uk_interview_message_sequence` đọc history đúng thứ tự; `uk_interview_message_request` chống gửi trùng. Redis ticket WebSocket dùng GETDEL, TTL 60s, gắn tenant/actor/attempt; query ticket không chứa JWT và proxy không ghi access log trên `/ws/`.
 
 V43: UNIQUE index `uk_tests_assigned_application` trên `tests.assigned_application_id` hỗ trợ tra cứu và chống tạo lặp đề riêng.
@@ -1131,7 +1140,7 @@ V22 thêm `idx_questionskills_skill(skill_id)` trên `questionskills`. PK kép h
 | Rò rỉ credential qua API | `TenantInfo.dbPassword` gắn `@JsonIgnore` |
 | Mật khẩu người dùng | Chỉ lưu `password_hash`; `users.password_hash` nullable cho tài khoản chỉ dùng OAuth |
 | Token mời | `member_invitations.token_hash` lưu hash, không lưu token gốc |
-| Đáp án bài thi | `options.is_correct` và `test_cases.expected_output` không được đưa vào DTO trả cho thí sinh |
+| Đáp án bài thi | `options.is_correct`, hidden test_cases, harness và rubric không trả thí sinh; chỉ test sample có input/expected_output công khai |
 | Migration lỗi | Không tự `repair`, không nuốt lỗi, đóng pool chưa khởi tạo xong; API không trả tên database/SQL nội bộ |
 | Dữ liệu cá nhân trong CV | `cvs.retain_until` đặt mốc xoá; `checksum_sha256` để phát hiện trùng file mà không cần đọc lại nội dung |
 | Truy vết | `platform_audit_logs` (cấp nền tảng) và `application_status_history` (cấp nghiệp vụ) — cả hai chỉ ghi thêm |
@@ -1200,6 +1209,10 @@ Hai pipeline dùng **hai phương ngữ SQL khác nhau** và không thể dùng 
 
 ### 10.3 Lịch sử migration — Tenant
 
+Lưu ý 2026-10-13: DB tenant thực tế đã dùng V52__candidate_application_rules.sql. Migration assessment được đánh số V53 để tránh trùng phiên bản; không sửa lịch sử/checksum V52 đã áp dụng.
+
+V53 bổ sung mô hình đa phần; giữ nguyên số bảng/entity. Không tự chuyển metadata TU_LUAN_CODE thành bài code khi chưa có test case/harness.
+
 | Version | File | Nội dung |
 |---|---|---|
 | V1 | `V1__init_tenant_schema.sql` | 10 bảng nền: identity, job, CV, match score, interview |
@@ -1245,6 +1258,7 @@ Hai pipeline dùng **hai phương ngữ SQL khác nhau** và không thể dùng 
 | V48 | `V48__human_interview_configuration.sql` | `interviews.configuration_json` JSON nullable; `idx_human_schedule_window` và `idx_interview_participant_user`; không thêm bảng/FK/UNIQUE |
 | V49 | `V49__notification_preferences.sql` | Tạo `notification_preferences` (entity `NotificationPreference`): `web_enabled`/`email_enabled` mặc định TRUE theo `(user_id, category)`; 1 FK CASCADE + 1 UNIQUE; không backfill |
 | V51 | `V51__separate_candidates_from_users.sql` | Tạo `candidates` (entity `Candidate`), gộp hồ sơ và xoá `user_profiles`; bổ sung `phone`, `avatar_url`, `job_title` trên `users`; chuyển toàn bộ FK ứng viên (`applications`, `cvs.candidate_id`, `submissions`, `practice_sessions`, `ai_interview_consents`) sang `candidates.id`; hỗ trợ dual-actor (`user_id` / `candidate_id`) trên `oauth_accounts`, `notifications`, `notification_preferences`. Đánh số V51 vì DB tenant đã có `V50__company_email_settings` |
+| V53 | `V53__assessment_sections_and_grading.sql` | tests.objective_duration_minutes; questions.rubric_json; submissions.objective_completed_at; answers.language/evaluation_json/suggested_score/reviewed_by/reviewed_at + FK users; coding_problems.test_id nullable, question_id + UNIQUE + FK questions, category/starter_code_json/harness_json. Backfill rubric đơn cho essay có explanation; không tạo bảng/entity |
 
 V9 redesign cũ được giữ nguyên tại `db/migration-archive/`, **ngoài** location Flyway.
 Tenant tạo mới chạy V1–V13 rồi V21–V51: 60 bảng hiện hành (gồm 5 bảng analytics V9), chưa tính history.

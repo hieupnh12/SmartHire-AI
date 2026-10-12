@@ -92,6 +92,10 @@ public class AssessmentService {
     private void apply(JobTest test, JobTestRequest request) {
         test.setTitle(request.title().trim());
         test.setDescription(request.description());
+        if (request.objectiveDurationMinutes() != null && request.objectiveDurationMinutes() >= request.durationMinutes()) {
+            throw new BusinessException("Objective duration must be less than total duration", HttpStatus.BAD_REQUEST, "INVALID_TEST");
+        }
+        test.setObjectiveDurationMinutes(request.objectiveDurationMinutes());
         test.setDurationMinutes(request.durationMinutes());
         test.setPassingScore(request.passingScore());
     }

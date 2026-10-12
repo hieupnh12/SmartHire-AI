@@ -12,6 +12,7 @@ const schema = z.object({
   jobId: z.number().int().positive("Vị trí tuyển dụng không hợp lệ."),
   description: z.string().max(10000, "Tối đa 10.000 ký tự."),
   durationMinutes: z.number().int("Nhập số phút nguyên.").min(1, "Tối thiểu 1 phút.").max(2147483647),
+  objectiveDurationMinutes: z.string().refine(v => v === "" || /^\d+$/.test(v), "Nhập số phút nguyên dương."),
   passingScore: z.string().refine(v => v === "" || /^\d{1,8}(\.\d{1,2})?$/.test(v), "Nhập điểm không âm, tối đa 2 số thập phân."),
 });
 type Form = z.infer<typeof schema>;
@@ -23,12 +24,13 @@ export function TestForm({ test, jobs, lockedJobId, busy, onSave, onDirty }: {
   const { register, handleSubmit, reset, formState: { errors, isDirty } } = useForm<Form>({
     resolver: zodResolver(schema), defaultValues: { title: test?.title ?? "", jobId: lockedJobId,
       description: test?.description ?? "", durationMinutes: test?.durationMinutes ?? 30,
+      objectiveDurationMinutes: String(test?.objectiveDurationMinutes ?? ""),
       passingScore: test?.passingScore == null ? "" : String(test.passingScore) },
   });
   useEffect(() => { onDirty(isDirty); }, [isDirty, onDirty]);
   return <form className="space-y-4" onSubmit={handleSubmit(async values => {
     try {
-      await onSave({ ...values, description: values.description || null, passingScore: values.passingScore === "" ? null : Number(values.passingScore) });
+      await onSave({ ...values, objectiveDurationMinutes: values.objectiveDurationMinutes ? Number(values.objectiveDurationMinutes) : null, description: values.description || null, passingScore: values.passingScore === "" ? null : Number(values.passingScore) });
       reset(values);
     } catch { /* Keep input values; the page displays the mutation error. */ }
   })} noValidate>
@@ -40,6 +42,7 @@ export function TestForm({ test, jobs, lockedJobId, busy, onSave, onDirty }: {
         <label className="block space-y-1 text-sm">Thời lượng (phút)<input type="number" min={1} step={1} className={input} {...register("durationMinutes", { valueAsNumber: true })} /><FieldError message={errors.durationMinutes?.message} /></label>
         <label className="block space-y-1 text-sm">Điểm đạt (không bắt buộc)<input type="number" min={0} step="0.01" className={input} {...register("passingScore")} /><FieldError message={errors.passingScore?.message} /></label>
       </div>
+      <label className="block space-y-1 text-sm">Thời lượng phần trắc nghiệm (phút, tùy chọn)<input type="number" min={1} className={input} {...register("objectiveDurationMinutes")} /><FieldError message={errors.objectiveDurationMinutes?.message} /></label>
       <Button type="submit" disabled={busy || (!!test && !isDirty)}><Save className="size-4" aria-hidden="true" />{busy ? "Đang lưu…" : test ? "Lưu thay đổi" : "Tạo đề nháp"}</Button>
     </fieldset>
   </form>;

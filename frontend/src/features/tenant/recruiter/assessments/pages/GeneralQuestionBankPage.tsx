@@ -163,7 +163,7 @@ function GeneralQuestionBankView({ localKeys }: { localKeys: ReturnType<typeof q
   const basePath = "/recruiter/question-bank";
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [questionType, setQuestionType] = useState("");
+  const [questionType, setQuestionType] = useState("QUIZ");
   const workspace = getTenantTheme(getTenantIdFromWindow() ?? "acme").name;
   const [collection, setCollection] = useState<Collection>("all");
   const [query, setQuery] = useState("");
@@ -330,6 +330,11 @@ function GeneralQuestionBankView({ localKeys }: { localKeys: ReturnType<typeof q
           </div>
         </div>
       </header>
+      <nav aria-label="Nhóm ngân hàng câu hỏi" className="flex flex-wrap gap-2 rounded-xl bg-[var(--color-surface-container-low)] p-1">
+        {([["QUIZ", "Trắc nghiệm"], ["ESSAY", "Tự luận lý thuyết"], ["CODING", "Bài tập Code"]] as const).map(([type, label]) =>
+          <button key={type} type="button" aria-pressed={questionType === type} onClick={() => { setQuestionType(type); setPage(0); setActiveKey(null); setSelected([]); }}
+            className={cn("rounded-lg px-4 py-2 text-sm", questionType === type ? "bg-[var(--color-surface-card)] font-semibold text-[var(--color-primary)] shadow-sm" : "text-[var(--color-on-surface-variant)]")}>{label}</button>)}
+      </nav>
 
 
       <AssessmentError error={bankQuery.error} retry={() => void bankQuery.refetch()} />
@@ -413,7 +418,7 @@ function GeneralQuestionBankView({ localKeys }: { localKeys: ReturnType<typeof q
                 </select>
               </label>
               <div className="flex items-center rounded-lg bg-[var(--color-surface-container)] px-3 py-1.5 text-xs">
-                Loại câu: <select aria-label="Lọc loại câu hỏi" value={questionType} onChange={event => { setQuestionType(event.target.value); setPage(0); }} className="ml-1 min-w-0 bg-transparent"><option value="">Tất cả</option><option value="MCQ">Trắc nghiệm đơn</option><option value="MULTIPLE_CHOICE">Nhiều đáp án</option><option value="ESSAY">Tự luận</option></select>
+                Loại câu: <select aria-label="Lọc loại câu hỏi" value={questionType} onChange={event => { setQuestionType(event.target.value); setPage(0); }} className="ml-1 min-w-0 bg-transparent"><option value="">Tất cả</option><option value="MCQ">Trắc nghiệm đơn</option><option value="MULTIPLE_CHOICE">Nhiều đáp án</option><option value="QUIZ">Trắc nghiệm</option><option value="ESSAY">Tự luận lý thuyết</option><option value="CODING">Bài tập Code</option></select>
               </div>
               <label className="flex min-w-0 items-center gap-2 rounded-lg bg-[var(--color-surface-container)] px-3 py-1.5 text-xs">
                 <span className="shrink-0 text-[var(--color-on-surface-variant)]">Độ khó</span>
@@ -688,6 +693,8 @@ function GeneralQuestionBankView({ localKeys }: { localKeys: ReturnType<typeof q
                     </ul>
                     {active.content && active.question.questionType === "ESSAY" && <div className="mt-3 space-y-3 text-sm"><p>Loại câu: {typeMeta(active.content.kind).label}</p><p>Ngôn ngữ: {active.content.language || "—"}</p>{active.content.snippet && <pre className="overflow-x-auto whitespace-pre-wrap rounded-lg bg-[var(--color-surface-container)] p-3">{active.content.snippet}</pre>}<p className="whitespace-pre-wrap">Đáp án mẫu: {active.content.sample || "Chưa có"}</p>{active.content.rubric.map(item => <p key={item.level} className="whitespace-pre-wrap">{item.text}</p>)}</div>}
                   </div>
+                  {active.question.rubricJson && <div className="space-y-2 rounded-lg bg-[var(--color-surface-container-low)] p-3 text-sm"><h3 className="font-semibold">Rubric chấm điểm</h3><p className="whitespace-pre-wrap">{active.question.rubricJson.referenceAnswer}</p>{active.question.rubricJson.criteria.map((criterion, i) => <p key={i}>{criterion.weight}% · {criterion.description}</p>)}</div>}
+                  {active.question.coding && <div className="space-y-2 rounded-lg bg-[var(--color-surface-container-low)] p-3 text-sm"><h3 className="font-semibold">Bài lập trình</h3><p>{active.question.coding.category} · {active.question.coding.timeLimitMs} ms · {active.question.coding.memoryMb} MB</p><p>{active.question.coding.testCases.filter(test => test.sample).length} test công khai · {active.question.coding.testCases.filter(test => !test.sample).length} test ẩn</p>{Object.entries(active.question.coding.starterCode).map(([language, code]) => <pre key={language} className="overflow-auto whitespace-pre-wrap font-mono text-xs">{language}{"\n"}{code}</pre>)}</div>}
                   <div className="grid grid-cols-2 gap-3">
                     <div className="rounded-lg bg-[var(--color-surface-container)] p-3">
                       <p className="text-[11px] text-[var(--color-on-surface-variant)]">Điểm số</p>

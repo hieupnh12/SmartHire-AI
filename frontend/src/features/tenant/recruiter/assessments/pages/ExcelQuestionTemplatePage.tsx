@@ -1,3 +1,4 @@
+import { QuestionContentFields } from "../components/QuestionContentFields";
 import { ExcelImportReview } from "../components/ExcelImportReview";
 import { useRecruitmentJob } from "../../jobs/components/JobRecruitmentWorkspace";
 import { useEffect, useMemo, useRef, useState, type ClipboardEvent, type ReactNode } from "react";
@@ -1991,6 +1992,9 @@ export function ExcelQuestionEditor({ job, generalBank }: {
                     </span>
                   </div>
                 </div>
+                <QuestionContentFields type={selectedQuestion.kind === "TU_LUAN_CODE" ? "CODING" : "ESSAY"}
+                  value={selectedQuestion.kind === "TU_LUAN_CODE" ? selectedQuestion.codingJsonText ?? "" : selectedQuestion.rubricJsonText ?? ""}
+                  onChange={value => patchQuestion(selectedIndex, selectedQuestion.kind === "TU_LUAN_CODE" ? { codingJsonText: value } : { rubricJsonText: value })} />
                 <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
                   <div className="flex flex-col gap-2 rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-3">
                     <label className="flex flex-col gap-1">

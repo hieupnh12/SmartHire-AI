@@ -6,6 +6,7 @@ export type JobTest = {
   jobId: number;
   title: string;
   description: string | null;
+  objectiveDurationMinutes?: number | null;
   durationMinutes: number;
   passingScore: number | null;
   status: TestStatus;
@@ -14,7 +15,7 @@ export type JobTest = {
   createdById: number | null;
   createdByName: string | null;
 };
-export type TestRequest = Pick<JobTest, "jobId" | "title" | "description" | "durationMinutes" | "passingScore">;
+export type TestRequest = Pick<JobTest, "jobId" | "title" | "description" | "durationMinutes" | "passingScore" | "objectiveDurationMinutes">;
 export type TestPage = { items: JobTest[]; total: number; page: number; size: number };
 export type QuestionRequest = {
   questionText: string;
@@ -24,14 +25,16 @@ export type QuestionRequest = {
   skill: string | null;
   explanation: string | null;
   options: { optionText: string; correct: boolean }[];
-  questionType?: "MCQ" | "MULTIPLE_CHOICE" | "ESSAY";
+  questionType?: "MCQ" | "MULTIPLE_CHOICE" | "ESSAY" | "CODING";
+  rubricJson?: EssayRubric | null;
+  coding?: CodingContent | null;
 };
 export type Question = Omit<QuestionRequest, "options"> & {
   id: number;
   questionType: string;
   options: { id: number; optionText: string; correct: boolean }[];
 };
-export type CandidateQuestion = Omit<Question, "options" | "difficulty" | "skill" | "explanation"> & {
+export type CandidateQuestion = Omit<Question, "options" | "difficulty" | "skill" | "explanation" | "rubricJson"> & {
   options: { id: number; optionText: string }[];
 };
 export type SavedAnswer = {
@@ -39,11 +42,14 @@ export type SavedAnswer = {
   selectedOptionId?: number | null;
   selectedOptionIds?: number[] | null;
   answerText?: string | null;
+  language?: string | null;
 };
 export type Submission = {
   id: number; testId: number; applicationId: number; title: string; status: SubmissionStatus;
   startedAt: string | null; expiresAt: string | null; submittedAt: string | null; serverTime: string;
   remainingSeconds: number; score: number | null; totalPoints: number; passed: boolean | null;
+  objectiveCompletedAt?: string | null;
+  objectiveExpiresAt?: string | null;
   questions: CandidateQuestion[]; answers: SavedAnswer[];
 };
 export type SubmissionSummary = {
@@ -56,3 +62,12 @@ export type SendAssessmentResult = { testId: number; applicationId: number; appl
 export type AvailableAssessment = Pick<JobTest, "id" | "title" | "description" | "durationMinutes" | "passingScore"> & {
   submissionId: number | null; submissionStatus: SubmissionStatus | null;
 };
+
+export type EssayRubric = { category?: "ESSAY_CONCEPTUAL" | "ESSAY_SCENARIO"; referenceAnswer: string; criteria: { description: string; weight: number; keywords?: string[] }[] };
+export type CodingContent = { category: "CODING_ALGORITHM" | "CODING_OOP" | "SQL_QUERY"; timeLimitMs: number; memoryMb: number;
+  starterCode: Record<string, string>; harness: Record<string, string> | null;
+  testCases: { input: string; expectedOutput: string; sample: boolean }[] };
+export type GradingReview = { questionId: number; prompt: string; type: string; points: number; answerText: string | null;
+  language: string | null; rubric: EssayRubric | null; evaluation: Record<string, unknown> | null;
+  suggestedScore: number | null; score: number | null; reviewedAt: string | null };
+export type SampleResult = { status: { id: number; description: string }; stdout?: string; stderr?: string; compile_output?: string };
