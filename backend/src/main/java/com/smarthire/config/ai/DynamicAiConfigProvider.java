@@ -65,7 +65,7 @@ public class DynamicAiConfigProvider {
             RedisService redisService,
             ObjectMapper mapper,
             @Value("${app.ai.gemini.api-key:}") String fallbackGeminiKey,
-            @Value("${app.ai.models.cv-parsing:gemini-2.0-flash}") String fallbackCvModel,
+            @Value("${app.ai.models.cv-parsing:gemini-3.5-flash-lite}") String fallbackCvModel,
             @Value("${app.ai.timeout-seconds:30}") int fallbackTimeout,
             @Value("${app.ai.interview.api-key:}") String interviewKey,
             @Value("${app.ai.interview.model:gemini-2.5-flash}") String interviewModel,
@@ -146,7 +146,7 @@ public class DynamicAiConfigProvider {
                 interview ? 8192 : 2048,
                 interview ? interviewTimeout : fallbackTimeout,
                 "GEMINI",
-                "gemini-1.5-flash"
+                "gemini-3.1-flash-lite"
         );
     }
 
