@@ -23,14 +23,14 @@
     <div class="details">
         <p>Đã sử dụng: <strong th:text="${used}">80</strong> / <strong th:text="${limit}">100</strong> (<span th:text="${percentage}">80</span>%)</p>
         <div class="progress-bar">
-            <div class="progress-fill" th:style="'width: ' + ${percentage} + '%'"></div>
+            <div class="progress-fill" th:style="'width: ' + (${percentage} > 100 ? 100 : ${percentage}) + '%'"></div>
         </div>
     </div>
     
-    <p>Hệ thống SmartHire hỗ trợ tính năng <strong>Pay-as-you-go</strong>. Bạn vẫn có thể tiếp tục sử dụng vượt mức, nhưng phần vượt mức sẽ được tính phí vào cuối tháng theo đơn giá quy định.</p>
+    <p>Để tránh gián đoạn hoạt động tuyển dụng và phân tích AI của doanh nghiệp khi đạt 100% hạn mức, vui lòng nâng cấp gói bản quyền năm hoặc liên hệ bộ phận hỗ trợ SmartHire-AI để mở rộng hạn ngạch.</p>
     
     <div style="text-align: center;">
-        <a href="https://smarthire.top/admin/subscription" class="btn">Nâng cấp gói cước</a>
+        <a href="https://smarthire.top/checkout" class="btn">Nâng cấp gói cước</a>
     </div>
     
     <div class="footer">

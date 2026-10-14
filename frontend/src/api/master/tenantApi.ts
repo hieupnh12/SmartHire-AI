@@ -4,7 +4,6 @@ import type { ApiResponse } from "@/types/api";
 export interface TenantAdminRequest {
   adminName: string;
   adminEmail: string;
-  adminPassword: string;
 }
 
 export interface OnboardTenantRequest extends TenantAdminRequest {
@@ -16,6 +15,8 @@ export interface OnboardTenantRequest extends TenantAdminRequest {
   taxCode?: string;
   billingAddress?: string;
   billingEmail?: string;
+  deferProvisioning?: boolean;
+  consultationRequestId?: number;
 }
 
 export interface OnboardTenantResponse {
@@ -27,6 +28,9 @@ export interface OnboardTenantResponse {
   status: string;
   environmentType?: string;
   createdAt: string;
+  activationUrl?: string;
+  deleted?: boolean;
+  deletedAt?: string;
 }
 
 export const masterTenantApi = {

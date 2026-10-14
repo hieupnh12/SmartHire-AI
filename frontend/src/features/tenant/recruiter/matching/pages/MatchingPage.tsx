@@ -109,7 +109,7 @@ export function RankingPage() {
   return <section className="min-w-0 space-y-4 bg-[var(--color-surface)] py-4 text-[var(--color-on-surface)] sm:py-6 xl:h-full xl:overflow-y-auto xl:overscroll-contain">
 
     {!token && <p role="status" className="rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-5">Đăng nhập bằng tài khoản Recruiter để xem bảng xếp hạng.</p>}
-    {!validJobId && <div className="rounded-xl border border-red-200 bg-red-50 p-5 text-sm text-red-700" role="alert">Đường dẫn công việc không hợp lệ. <Link className="font-semibold underline" to="/recruiter/jobs">Quay lại danh sách công việc</Link></div>}
+    {!validJobId && <div className="rounded-xl border border-red-200 bg-red-50 p-5 text-sm text-red-700" role="alert">Đường dẫn công việc không hợp lệ. <Link className="font-semibold underline" to="/recruiter">Quay lại danh sách công việc</Link></div>}
     {jobId && !isPreview && token && query.isPending && <RankingLoadingState />}
     {jobId && !isPreview && query.isError && <div className="rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-6" role="alert">{getApiErrorMessage(query.error)} <button className={button} onClick={() => void query.refetch()}>Thử lại</button></div>}
 

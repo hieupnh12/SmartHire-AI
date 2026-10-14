@@ -96,7 +96,7 @@ public class AiInterviewInvitationService {
                 + "; generation of " + config.questionCount() + " Communication questions queued");
         if (!preferences.webOff(application.getCandidate(), NotificationCategory.AI_INTERVIEW)) {
             notifications.save(Notification.builder()
-                    .user(application.getCandidate())
+                    .candidate(application.getCandidate())
                     .type("AI_INTERVIEW_INVITATION")
                     .title(attemptNumber == 1 ? "Lời mời phỏng vấn AI" : "Lượt làm lại AI Interview")
                     .body(invitationBody(application.getJob().getTitle(), config.availableFrom(), config.availableUntil(),

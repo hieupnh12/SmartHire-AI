@@ -39,7 +39,9 @@ function loginPathFor(pathname: string) {
     pathname.startsWith("/interviews") ||
     pathname.startsWith("/practice") ||
     pathname.startsWith("/schedules") ||
+    pathname.startsWith("/interview-schedules") ||
     pathname.startsWith("/notifications") ||
+    pathname.startsWith("/account") ||
     pathname.startsWith("/oauth") ||
     pathname.startsWith("/career") ||
     pathname.startsWith("/jobs")
@@ -95,6 +97,16 @@ api.interceptors.response.use(
   (res) => res,
   async (error: AxiosError<ApiResponse<unknown>>) => {
     const original = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
+    const errorCode = error.response?.data?.code;
+    if (error.response?.status === 403 && errorCode === "TENANT_MISMATCH" && original) {
+      localStorage.removeItem("accessToken");
+      localStorage.removeItem("refreshToken");
+      const pathname = window.location.pathname;
+      if (!shouldSkipLoginRedirect(pathname, requestUrl(original))) {
+        window.location.href = loginPathFor(pathname);
+      }
+      return Promise.reject(error);
+    }
     if (error.response?.status === 401 && original && !original._retry) {
       if (isPublicTenantAuth(requestUrl(original))) {
         return Promise.reject(error);

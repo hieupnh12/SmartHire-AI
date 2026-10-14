@@ -122,7 +122,7 @@ public class AssessmentGenerationService {
                 + ". Bài \"" + test.getTitle() + "\" đã được tạo riêng cho bạn. Thời gian làm bài "
                 + test.getDurationMinutes() + " phút, tính từ lúc bắt đầu.";
         if (!preferences.webOff(application.getCandidate(), NotificationCategory.ASSESSMENT)) {
-            notifications.save(Notification.builder().user(application.getCandidate()).type("ASSESSMENT_INVITATION")
+            notifications.save(Notification.builder().candidate(application.getCandidate()).type("ASSESSMENT_INVITATION")
                     .title(title).body(body).payloadJson("{\"testId\":" + test.getId() + ",\"applicationId\":" + id
                             + ",\"path\":\"" + path + "\"}").build());
         }

@@ -35,7 +35,7 @@ public class TenantWebInterceptor implements HandlerInterceptor {
         for (String suffix : new String[]{"." + baseDomain, ".localhost"}) {
             if (host.endsWith(suffix)) {
                 String label = host.substring(0, host.length() - suffix.length());
-                if (!label.contains(".") && !java.util.Set.of("www", "api", "admin").contains(label)) subdomain = label;
+                if (!label.contains(".") && !java.util.Set.of("www", "api", "app", "admin", "master", "localhost", "smarthire-master").contains(label)) subdomain = label;
                 break;
             }
         }
@@ -44,10 +44,14 @@ public class TenantWebInterceptor implements HandlerInterceptor {
         String requested = headerCode != null ? headerCode : hostCode;
         var auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth != null && auth.isAuthenticated() && auth.getDetails() instanceof String tokenTenant
-                && !tokenTenant.isBlank()) {
+                && !tokenTenant.isBlank() && !"smarthire_master".equalsIgnoreCase(tokenTenant)) {
             String authenticated = registry.requireActive(tokenTenant).getCode();
             if (requested != null && !authenticated.equals(requested)) throw mismatch();
             requested = authenticated;
+            if (!authenticated.equals(tokenTenant)
+                    && auth instanceof org.springframework.security.authentication.AbstractAuthenticationToken abstractAuth) {
+                abstractAuth.setDetails(authenticated);
+            }
         }
         if (requested == null) throw new BusinessException("Tenant is required", HttpStatus.BAD_REQUEST, "TENANT_REQUIRED");
         TenantContext.setCurrentTenant(requested);

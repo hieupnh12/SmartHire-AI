@@ -40,6 +40,9 @@ class TenantAuthServiceTest {
     private UserRepository userRepository;
 
     @Mock
+    private com.smarthire.domain.tenant.repository.CandidateRepository candidateRepository;
+
+    @Mock
     private PasswordEncoder passwordEncoder;
 
     @Mock
@@ -295,6 +298,58 @@ class TenantAuthServiceTest {
         BusinessException ex = assertThrows(BusinessException.class, () -> authService.changePassword(authHeader, request));
         assertEquals(HttpStatus.BAD_REQUEST, ex.getStatus());
         assertEquals("INVALID_CURRENT_PASSWORD", ex.getCode());
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void refreshToken_CandidateSession_Success() {
+        TenantRefreshTokenRequest request = new TenantRefreshTokenRequest("cand-refresh-token");
+        String refreshKey = RedisKeys.tenantRefreshSession("cand-refresh-token");
+
+        com.smarthire.domain.tenant.entity.Candidate candidate = new com.smarthire.domain.tenant.entity.Candidate();
+        candidate.setId(99L);
+        candidate.setEmail("cand@acme.com");
+        candidate.setFullName("Candidate User");
+        candidate.setStatus(UserStatus.ACTIVE);
+
+        when(redisService.get(refreshKey)).thenReturn(Optional.of(TENANT_ID + ":CANDIDATE:cand@acme.com"));
+        when(candidateRepository.findByEmailIgnoreCase("cand@acme.com")).thenReturn(Optional.of(candidate));
+        when(tokenProvider.generateToken(candidate, TENANT_ID)).thenReturn("cand-new-jwt");
+        when(tenantRegistryService.requireActive(TENANT_ID)).thenReturn(tenantInfo);
+
+        LoginResponse response = authService.refreshToken(request);
+
+        assertNotNull(response);
+        assertEquals("cand-new-jwt", response.getAccessToken());
+        assertEquals("CANDIDATE", response.getUser().getRole());
+        assertEquals("CANDIDATE", response.getUser().getWorkspace());
+        verify(redisService).delete(refreshKey);
+        verify(redisService).set(startsWith("auth:tenant:refresh:"), eq(TENANT_ID + ":CANDIDATE:cand@acme.com"), any(Duration.class));
+    }
+
+    @Test
+    void changePassword_Candidate_Success() {
+        String authHeader = "Bearer cand-jwt";
+        ChangePasswordRequest request = new ChangePasswordRequest("OldPass123", "NewPass456");
+
+        com.smarthire.domain.tenant.entity.Candidate candidate = new com.smarthire.domain.tenant.entity.Candidate();
+        candidate.setId(99L);
+        candidate.setEmail("cand@acme.com");
+        candidate.setPasswordHash("cand_hashed_pwd");
+        candidate.setStatus(UserStatus.ACTIVE);
+
+        when(tokenProvider.validateToken("cand-jwt")).thenReturn(true);
+        when(tokenProvider.getEmailFromToken("cand-jwt")).thenReturn("cand@acme.com");
+        when(tokenProvider.getRoleFromToken("cand-jwt")).thenReturn("CANDIDATE");
+        when(candidateRepository.findByEmailIgnoreCase("cand@acme.com")).thenReturn(Optional.of(candidate));
+        when(passwordEncoder.matches("OldPass123", "cand_hashed_pwd")).thenReturn(true);
+        when(passwordEncoder.matches("NewPass456", "cand_hashed_pwd")).thenReturn(false);
+        when(passwordEncoder.encode("NewPass456")).thenReturn("cand_new_hashed_pwd");
+
+        authService.changePassword(authHeader, request);
+
+        assertEquals("cand_new_hashed_pwd", candidate.getPasswordHash());
+        verify(candidateRepository).save(candidate);
         verify(userRepository, never()).save(any());
     }
 }

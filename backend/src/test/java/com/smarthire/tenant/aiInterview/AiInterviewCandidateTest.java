@@ -47,7 +47,7 @@ class AiInterviewCandidateTest {
     @Mock com.smarthire.tenant.aiInterview.service.InterviewConversationService conversation;
     @Mock com.smarthire.tenant.aiInterview.service.AiInterviewEvaluationService evaluation;
     AiInterviewService service;
-    User candidate;
+    Candidate candidate;
     Application application;
     AiInterview interview;
     AiQuestion question;
@@ -55,7 +55,7 @@ class AiInterviewCandidateTest {
     @BeforeEach void setup() {
         service = new AiInterviewService(interviews, questions, answers, feedbacks, applications, stages,
                 new AiInterviewMapper(), access, invitations, activity, logs, processEngine, processRuns, consents, evaluation, conversation);
-        candidate = user(9L);
+        candidate = candidate(9L);
         var job = new Job();
         job.setId(13L);
         job.setAiInterviewEnabled(true);
@@ -72,7 +72,7 @@ class AiInterviewCandidateTest {
     }
 
     private void asCandidate() {
-        when(access.actor()).thenReturn(candidate);
+        when(access.candidateActor()).thenReturn(candidate);
         when(access.candidate()).thenReturn(true);
     }
 
@@ -92,7 +92,7 @@ class AiInterviewCandidateTest {
     }
 
     @Test void listIsScopedToCurrentCandidate() {
-        when(access.actor()).thenReturn(candidate);
+        when(access.candidateActor()).thenReturn(candidate);
         when(access.candidate()).thenReturn(true);
         when(interviews.findByApplication_Candidate_IdOrderByIdDesc(9L)).thenReturn(List.of(interview));
         assertThat(service.mine()).hasSize(1);
@@ -100,7 +100,7 @@ class AiInterviewCandidateTest {
     }
 
     @Test void cannotReadAnotherCandidatesInterview() {
-        when(access.actor()).thenReturn(user(99L));
+        when(access.candidateActor()).thenReturn(candidate(99L));
         when(access.candidate()).thenReturn(true);
         when(interviews.findById(11L)).thenReturn(Optional.of(interview));
         assertThatThrownBy(() -> service.get(11L)).isInstanceOf(BusinessException.class);
@@ -286,7 +286,7 @@ class AiInterviewCandidateTest {
     }
 
     @Test void requestStartRejectsSomeoneElsesApplication() {
-        when(access.actor()).thenReturn(user(99L));
+        when(access.candidateActor()).thenReturn(candidate(99L));
         when(access.candidate()).thenReturn(true);
         when(applications.findById(7L)).thenReturn(Optional.of(application));
         assertThatThrownBy(() -> service.requestStart(7L))
@@ -355,6 +355,12 @@ class AiInterviewCandidateTest {
         assertThat(service.requestStart(7L).status()).isEqualTo(AiInterviewStatus.ERROR);
     }
 
+    private static Candidate candidate(long id) {
+        Candidate candidate = new Candidate();
+        candidate.setId(id);
+        return candidate;
+    }
+
     private static User user(long id) {
         User user = new User();
         user.setId(id);
@@ -362,7 +368,7 @@ class AiInterviewCandidateTest {
     }
 
     private void staffEditsQuestions() {
-        when(access.actor()).thenReturn(candidate);
+        when(access.actor()).thenReturn(user(9L));
         when(access.staff()).thenReturn(true);
         when(interviews.findByIdForUpdate(11L)).thenReturn(Optional.of(interview));
         application.getJob().setAiInterviewQuestionCount(5);

@@ -96,6 +96,7 @@ export function TenantsTab({
           >
             <option value="ALL">Tất cả trạng thái</option>
             <option value="ACTIVE">Đang kích hoạt (ACTIVE)</option>
+            <option value="PENDING_PAYMENT">Chờ thanh toán (PENDING_PAYMENT)</option>
             <option value="SUSPENDED">Đang tạm khóa (SUSPENDED)</option>
             <option value="PROVISIONING">Đang cấp phát (PROVISIONING)</option>
             <option value="FAILED">Thất bại (FAILED)</option>

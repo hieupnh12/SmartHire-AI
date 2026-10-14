@@ -1,26 +1,48 @@
-import { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { Plus, Search, Filter, CheckCircle2, Clock, XCircle, Eye, Check, Inbox, Loader2 } from "lucide-react";
 import { InvoiceItem, billingApi } from "@/api/master/billingApi";
 import { useTenants, useSubscriptions, useInvoices, masterQueryKeys } from "@/api/master/queries";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/stores/toastStore";
 import { HeaderActions } from "@/features/master/shell/HeaderActions";
+import { CreateInvoiceModal } from "@/features/master/billing/components/modals/CreateInvoiceModal";
+import { InvoiceDetailModal } from "@/features/master/billing/components/modals/InvoiceDetailModal";
 
 interface InvoicesTabProps {
+  invoiceTenantId: number | "";
   setInvoiceTenantId: (val: number | "") => void;
+  invoicePlanId: number | "";
   setInvoicePlanId: (val: number | "") => void;
+  invoiceAmount: number;
   setInvoiceAmount: (val: number) => void;
+  invoiceCurrency: string;
+  setInvoiceCurrency: (val: string) => void;
+  invoicePaymentGateway: string;
+  setInvoicePaymentGateway: (val: string) => void;
+  invoiceNotes: string;
   setInvoiceNotes: (val: string) => void;
+  showCreateInvoiceModal: boolean;
   setShowCreateInvoiceModal: (val: boolean) => void;
+  selectedInvoice: InvoiceItem | null;
   setSelectedInvoice: (val: InvoiceItem | null) => void;
 }
 
 function InvoicesContent({
+  invoiceTenantId,
   setInvoiceTenantId,
+  invoicePlanId,
   setInvoicePlanId,
+  invoiceAmount,
   setInvoiceAmount,
+  invoiceCurrency,
+  setInvoiceCurrency,
+  invoicePaymentGateway,
+  setInvoicePaymentGateway,
+  invoiceNotes,
   setInvoiceNotes,
+  showCreateInvoiceModal,
   setShowCreateInvoiceModal,
+  selectedInvoice,
   setSelectedInvoice,
 }: InvoicesTabProps) {
   const queryClient = useQueryClient();
@@ -68,6 +90,8 @@ function InvoicesContent({
     return invoices.filter((i) => i.status === "OVERDUE").length;
   }, [invoices]);
 
+  const [creatingInvoice, setCreatingInvoice] = useState(false);
+
   const handleMarkInvoicePaid = async (inv: InvoiceItem) => {
     if (!window.confirm(`Xác nhận duyệt thanh toán cho Hóa đơn ${inv.invoiceNumber}?\n\nNếu đây là đơn đăng ký mới, hệ thống sẽ tự động cấp phát Database MySQL riêng và gửi email kích hoạt.`)) {
       return;
@@ -76,12 +100,42 @@ function InvoicesContent({
     try {
       const updated = await billingApi.approve(inv.id);
       setInvoices((prev: InvoiceItem[]) => prev.map((i) => (i.id === inv.id ? updated : i)));
+      if (selectedInvoice?.id === inv.id) {
+        setSelectedInvoice(updated);
+      }
       triggerNotification(`Đã duyệt thanh toán và kích hoạt Workspace cho Hóa đơn ${inv.invoiceNumber}`);
     } catch (err: any) {
       const msg = err.response?.data?.message || "Đã xảy ra lỗi khi duyệt hóa đơn và kích hoạt Workspace.";
       alert(msg);
     } finally {
       setApprovingId(null);
+    }
+  };
+
+  const handleCreateInvoiceSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!invoiceTenantId) {
+      toast.danger("Vui lòng chọn doanh nghiệp nhận hóa đơn");
+      return;
+    }
+    setCreatingInvoice(true);
+    try {
+      const created = await billingApi.create({
+        tenantId: Number(invoiceTenantId),
+        planId: invoicePlanId ? Number(invoicePlanId) : undefined,
+        amount: invoiceAmount,
+        currency: invoiceCurrency || "VND",
+        paymentGateway: invoicePaymentGateway || "BANK_TRANSFER",
+        notes: invoiceNotes || undefined,
+      });
+      setInvoices((prev: InvoiceItem[]) => [created, ...(prev || [])]);
+      setShowCreateInvoiceModal(false);
+      triggerNotification(`Đã phát hành hóa đơn ${created.invoiceNumber}`);
+    } catch (err: any) {
+      const msg = err.response?.data?.message || "Không thể phát hành hóa đơn mới.";
+      toast.danger(msg);
+    } finally {
+      setCreatingInvoice(false);
     }
   };
 
@@ -110,7 +164,7 @@ function InvoicesContent({
         <div className="p-3 rounded-xl bg-white border border-slate-200/80 shadow-2xs">
           <span className="text-[11px] font-semibold text-slate-500 block mb-1.5">Tổng Doanh Thu Đã Thu</span>
           <span className="text-lg font-extrabold text-emerald-600">
-            ${totalPaidAmount.toLocaleString()} <span className="text-[10px] font-medium text-slate-500">USD</span>
+            {totalPaidAmount.toLocaleString("vi-VN")} <span className="text-[10px] font-medium text-slate-500">VNĐ</span>
           </span>
           <span className="text-[10px] text-slate-400 mt-0.5 block">Từ các hóa đơn đã thanh toán</span>
         </div>
@@ -118,7 +172,7 @@ function InvoicesContent({
         <div className="p-3 rounded-xl bg-white border border-slate-200/80 shadow-2xs">
           <span className="text-[11px] font-semibold text-slate-500 block mb-1.5">Công Nợ Chờ Thu (Pending)</span>
           <span className="text-lg font-extrabold text-amber-600">
-            ${pendingInvoiceAmount.toLocaleString()} <span className="text-[10px] font-medium text-slate-500">USD</span>
+            {pendingInvoiceAmount.toLocaleString("vi-VN")} <span className="text-[10px] font-medium text-slate-500">VNĐ</span>
           </span>
           <span className="text-[10px] text-slate-400 mt-0.5 block">Chờ đối soát chuyển khoản ngân hàng</span>
         </div>
@@ -176,7 +230,7 @@ function InvoicesContent({
                 <th className="p-4 whitespace-nowrap">Số Hóa Đơn</th>
                 <th className="p-4 min-w-[200px]">Khách Hàng Doanh Nghiệp</th>
                 <th className="p-4 min-w-[150px]">Gói Dịch Vụ</th>
-                <th className="p-4 whitespace-nowrap">Số Tiền (USD)</th>
+                <th className="p-4 whitespace-nowrap">Số Tiền (VNĐ)</th>
                 <th className="p-4 whitespace-nowrap">Phương Thức</th>
                 <th className="p-4 whitespace-nowrap">Hạn Thanh Toán</th>
                 <th className="p-4 whitespace-nowrap">Trạng Thái</th>
@@ -213,7 +267,7 @@ function InvoicesContent({
 
                     <td className="p-4 whitespace-nowrap font-mono">
                       <div className="font-bold text-slate-900 text-sm">
-                        ${inv.amount.toLocaleString()} {inv.currency}
+                        {inv.amount.toLocaleString("vi-VN")} ₫
                       </div>
                       {inv.taxRate !== undefined && inv.taxRate > 0 && (
                         <div className="text-[10px] text-slate-400">VAT {inv.taxRate}%</div>
@@ -341,24 +395,64 @@ function InvoicesContent({
           </div>
         )}
       </div>
+      <CreateInvoiceModal
+        showCreateInvoiceModal={showCreateInvoiceModal}
+        setShowCreateInvoiceModal={setShowCreateInvoiceModal}
+        tenants={tenants}
+        plans={plans}
+        invoiceTenantId={invoiceTenantId}
+        setInvoiceTenantId={setInvoiceTenantId}
+        invoicePlanId={invoicePlanId}
+        setInvoicePlanId={setInvoicePlanId}
+        invoiceAmount={invoiceAmount}
+        setInvoiceAmount={setInvoiceAmount}
+        invoiceCurrency={invoiceCurrency}
+        setInvoiceCurrency={setInvoiceCurrency}
+        invoicePaymentGateway={invoicePaymentGateway}
+        setInvoicePaymentGateway={setInvoicePaymentGateway}
+        invoiceNotes={invoiceNotes}
+        setInvoiceNotes={setInvoiceNotes}
+        creatingInvoice={creatingInvoice}
+        handleCreateInvoiceSubmit={handleCreateInvoiceSubmit}
+      />
+
+      <InvoiceDetailModal
+        selectedInvoice={selectedInvoice}
+        setSelectedInvoice={setSelectedInvoice}
+        handleMarkInvoicePaid={handleMarkInvoicePaid}
+      />
     </div>
   );
 }
 
 export function InvoicesPage() {
-  const [, setTenantId] = useState<number | "">("");
-  const [, setPlanId] = useState<number | "">("");
-  const [, setAmount] = useState(0);
-  const [, setNotes] = useState("");
-  const [, setCreating] = useState(false);
-  const [, setSelected] = useState<InvoiceItem | null>(null);
+  const [tenantId, setTenantId] = useState<number | "">("");
+  const [planId, setPlanId] = useState<number | "">("");
+  const [amount, setAmount] = useState(0);
+  const [currency, setCurrency] = useState("VND");
+  const [paymentGateway, setPaymentGateway] = useState("BANK_TRANSFER");
+  const [notes, setNotes] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [selected, setSelected] = useState<InvoiceItem | null>(null);
 
-  return <InvoicesContent
-    setInvoiceTenantId={setTenantId}
-    setInvoicePlanId={setPlanId}
-    setInvoiceAmount={setAmount}
-    setInvoiceNotes={setNotes}
-    setShowCreateInvoiceModal={setCreating}
-    setSelectedInvoice={setSelected}
-  />;
+  return (
+    <InvoicesContent
+      invoiceTenantId={tenantId}
+      setInvoiceTenantId={setTenantId}
+      invoicePlanId={planId}
+      setInvoicePlanId={setPlanId}
+      invoiceAmount={amount}
+      setInvoiceAmount={setAmount}
+      invoiceCurrency={currency}
+      setInvoiceCurrency={setCurrency}
+      invoicePaymentGateway={paymentGateway}
+      setInvoicePaymentGateway={setPaymentGateway}
+      invoiceNotes={notes}
+      setInvoiceNotes={setNotes}
+      showCreateInvoiceModal={creating}
+      setShowCreateInvoiceModal={setCreating}
+      selectedInvoice={selected}
+      setSelectedInvoice={setSelected}
+    />
+  );
 }

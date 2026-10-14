@@ -4,10 +4,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.smarthire.common.exception.BusinessException;
 import com.smarthire.common.redis.RedisService;
 import com.smarthire.domain.enums.JobStatus;
+import com.smarthire.domain.tenant.entity.Candidate;
 import com.smarthire.domain.tenant.entity.Job;
 import com.smarthire.domain.tenant.entity.JobSkill;
 import com.smarthire.domain.tenant.entity.Skill;
-import com.smarthire.domain.tenant.entity.User;
 import com.smarthire.domain.tenant.repository.JobRepository;
 import com.smarthire.domain.tenant.repository.JobSkillRepository;
 import com.smarthire.tenant.cv.ai.GeminiCvAiClient;
@@ -114,10 +114,10 @@ class CvBuilderAssistServiceTest {
     }
 
     private void candidate() {
-        User actor = new User();
+        Candidate actor = new Candidate();
         actor.setId(3L);
         when(access.candidate()).thenReturn(true);
-        when(access.actor()).thenReturn(actor);
+        when(access.candidateActor()).thenReturn(actor);
     }
 
     private static Job job(JobStatus status) {

@@ -10,6 +10,13 @@
 
 | Thông tin | Giá trị |
 |---|---|
+| Quy tắc ứng tuyển của ứng viên 2026-10-12 | Tenant V52 thêm `applications.withdraw_reason` VARCHAR(255) nullable (entity `Application.withdrawReason`) và 3 index `idx_app_candidate_status`, `idx_app_status_updated`, `idx_cvs_retain_until`. Enum `NotificationCategory` thêm `APPLICATION`. Không thêm bảng/entity/FK/UNIQUE. Quy tắc mới: một đơn đang xét/ứng viên, trượt CV ⇒ `REJECTED`, đơn đã kết thúc không mở lại, chỉ rút đơn khi chưa có kết quả lọc CV, `cvs.retain_until` đặt khi đơn kết thúc |
+| AI Metering, Cost Tracking & Tenant Quota Override 2026-10-11 | Master V28 tạo 2 bảng `ai_model_pricings` (entity `AiModelPricing`, UNIQUE `uk_ai_model_pricings_provider_model`, index `idx_ai_model_pricings_provider`, seed đơn giá USD/1M tokens) và `tenant_ai_usage_daily` (entity `TenantAiUsageDaily`, 1 FK `fk_taud_tenant` `ON DELETE CASCADE` tới `tenants`, UNIQUE `uk_tenant_ai_usage_daily_dim`, 2 index `idx_taud_tenant_date` & `idx_taud_usage_date`) phục vụ ghi nhận bất đồng bộ token/latency/chi phí AI theo ngày & tác vụ |
+| Kiến trúc Quản lý Gói & Thuê bao SaaS B2B 2 Tầng 2026-10-10 | Master V27 bổ sung versioning/bảo lưu giá (`version`, `parent_plan_id` + `fk_sp_parent_plan`, `is_custom`, `target_tenant_id` + `fk_sp_target_tenant`, `is_archived`, 2 index) cho `subscription_plans` (`SubscriptionPlan`) và snapshot hợp đồng/vòng đời/proration (`plan_code_snapshot`, `plan_name_snapshot`, `plan_version_snapshot`, `contracted_price_yearly`, 6 cột `snapshot_max_*`, `snapshot_features_json`, `grace_period_ends_at`, `next_plan_id` + `fk_ts_next_plan`, `prorated_credit_amount`, `upgraded_from_subscription_id` + `fk_ts_upgraded_from`, `canceled_at`, `cancel_reason`, 2 index) cho `tenant_subscriptions` (`TenantSubscription`) |
+| Tích hợp Dropbox Sign API Hợp đồng B2B 2026-10-09 | Master V26 bổ sung `esign_provider`, `external_signature_request_id` (+ index `idx_contracts_external_sig_req_id`), `esign_details_url`, `esign_test_mode`, `signed_pdf_bytes` (BYTEA) trên `contracts` (`Contract`) và `external_signature_id` trên `contract_signatures` (`ContractSignature`) phục vụ ký số Remote Email Signing qua Dropbox Sign API v3 kèm Audit Trail & SHA-256 checksum |
+| Click-wrap Legal Consent Checkout 2026-10-09 | Master V25 tạo bảng `master_consent_logs` + entity `MasterConsentLog` (2 FK `ON DELETE SET NULL` tới `tenants` và `invoices`, 3 index tra cứu) và thêm 3 cột snapshot đồng thuận pháp lý (`terms_accepted`, `terms_version`, `terms_accepted_at`) vào `invoices` |
+| Tách vật lý Candidate & User 2026-10-08 | Tenant V51 (đánh lại từ V50 vì trùng `V50__company_email_settings` trên DB tenant) tạo bảng `candidates` + entity `Candidate`, gộp và xóa `user_profiles` (`UserProfile`), thêm `phone`/`avatar_url`/`job_title` + `idx_users_role_status` cho `users`, chuyển 6 FK ứng viên (`applications`, `cvs.candidate_id`, `submissions`, `practice_sessions`, `ai_interview_consents`, `oauth_accounts.candidate_id`) sang `candidates(id)`, bổ sung `candidate_id` nullable + FK cho 2 bảng đa tác nhân (`notifications`, `notification_preferences`) |
+| Cấu hình Gmail công ty 2026-10-07 | Tenant V50 (đánh lại từ V46 vì trùng `V46__cv_builder_data`) tạo bảng `company_email_settings` lưu thông tin Gmail gửi thư và mật khẩu ứng dụng mã hóa; thêm entity `CompanyEmailSetting`. Bắt buộc có Gmail mới gửi được email. Không thêm FK/UNIQUE |
 | Cài đặt thông báo 2026-10-07 | Tenant V49 tạo `notification_preferences` + entity `NotificationPreference`, enum `NotificationCategory` (`AI_INTERVIEW`, `ASSESSMENT`, `HUMAN_INTERVIEW`); 1 FK CASCADE tới `users`, 1 UNIQUE `(user_id, category)`. Không có dòng nghĩa là bật cả web lẫn email |
 | Trạng thái ứng viên 2026-10-07 | Bổ sung ApplicationStatus.HUMAN_INTERVIEW (phỏng vấn người–người); INTERVIEW giữ nghĩa phỏng vấn AI. DB dùng VARCHAR(32), không cần migration; số bảng/entity/FK/index không đổi |
 | Human Interview 2026-10-06 | Tenant V48 thêm `interviews.configuration_json` JSON nullable (entity `Interview.configurationJson`), index `idx_human_schedule_window(status, scheduled_start, scheduled_end)` và `idx_interview_participant_user(user_id, interview_id)`. Không thêm bảng/entity/FK/UNIQUE. ScheduleStatus bổ sung DRAFT và RESCHEDULE_REQUESTED |
@@ -26,12 +33,12 @@
 | AI Interview workflow 2026-09-27 | V25: cấu hình AI Interview theo job, `applications.cv_screening_status`, cột worker; V26: 30–40 câu hỏi, bảng `ai_interview_logs` + entity `AiInterviewLog` |
 | Kiến trúc | Separate Database per Tenant |
 | Số database logic | 2 loại (1 Master + N Tenant) |
-| Bảng tenant sau V49 | 67 bảng (66 sau V45 + `notification_preferences`); không tính Flyway history |
-| Entity JPA tenant | 62 class `@Entity` theo checkout hiện tại; V44 bổ sung `InterviewSession`, `InterviewMessage`; V45 bổ sung `CompanyDirectoryEntry`; V49 bổ sung `NotificationPreference` |
-| Khoá ngoại tenant | 88 theo mốc tài liệu (85 sau V43 + 2 FK V44 + 1 FK V49); V45 không thêm FK |
-| Ràng buộc UNIQUE tenant | V25/V26 không thêm UNIQUE. V27 thêm UNIQUE `gate_scores.application_id`. V30 thêm `uk_job_assignments_job_user`. V45 thêm `uk_company_directory_type_name`. V47 thêm `uk_cvs_share_token`. V49 thêm `uk_notification_preference_user_category` |
-| Số file migration trong repo | 65 (23 master + 42 tenant); V9 redesign nằm ngoài pipeline |
-| Cập nhật lần cuối | Master `V24`, tenant `V49`: cài đặt kênh nhận thông báo theo người dùng |
+| Bảng tenant sau V51 | 68 bảng (66 sau V45 + `notification_preferences` V49 + `company_email_settings` V50; V51 tạo `candidates` và xóa `user_profiles`, tổng số bảng giữ nguyên); không tính Flyway history |
+| Entity JPA tenant | 63 class `@Entity` theo checkout hiện tại; V44 bổ sung `InterviewSession`, `InterviewMessage`; V45 bổ sung `CompanyDirectoryEntry`; V49 bổ sung `NotificationPreference`; V50 bổ sung `CompanyEmailSetting`; V51 thay `UserProfile` bằng `Candidate` |
+| Khoá ngoại tenant | 89 theo mốc tài liệu (88 sau V49 − 1 FK `user_profiles` + 2 FK `candidate_id` trên `notifications` & `notification_preferences`, 6 FK ứng viên chuyển đích sang `candidates`); V45, V50 không thêm FK |
+| Ràng buộc UNIQUE tenant | V25/V26 không thêm UNIQUE. V27 thêm UNIQUE `gate_scores.application_id`. V30 thêm `uk_job_assignments_job_user`. V45 thêm `uk_company_directory_type_name`. V47 thêm `uk_cvs_share_token`. V49 thêm `uk_notification_preference_user_category`. V51 xóa `uk_profile_user`, thêm `uk_candidates_email` và `uk_notification_preference_candidate_category` |
+| Số file migration trong repo | 71 (27 master + 44 tenant); V9 redesign nằm ngoài pipeline |
+| Cập nhật lần cuối | Master `V28` (`ai_model_pricings`, `tenant_ai_usage_daily`), Master `V27` (kiến trúc gói cước & thuê bao SaaS B2B 2 tầng), Master `V26` (`contracts` Dropbox Sign), tenant `V51` (`candidates`), tenant `V50` (cấu hình Gmail công ty gửi thư) |
 | Dọn legacy V21 | Xóa 19 bảng và dữ liệu legacy, xóa 2 cột ID legacy trong ranking; không chuyển ID cũ sang bản ghi mới |
 | Metadata assessment 2026-09-25 | V13: `tests.created_by/updated_at`, `questions.difficulty/skill/explanation` cho Excel/UI authoring |
 | Sửa lỗi assessment 2026-09-24 | V10/V11 khớp checksum lịch sử; V12 tạo schema mới và giữ bảng cũ; migration lỗi phải chặn mở tenant pool |
@@ -54,7 +61,7 @@
 
 | File | Nội dung |
 |---|---|
-| [`DATA_DICTIONARY_MASTER.md`](DATA_DICTIONARY_MASTER.md) | Đặc tả cột chi tiết 8 bảng Master (PostgreSQL) |
+| [`DATA_DICTIONARY_MASTER.md`](DATA_DICTIONARY_MASTER.md) | Đặc tả cột chi tiết 19 bảng Master (PostgreSQL) |
 | [`DATA_DICTIONARY_TENANT.md`](DATA_DICTIONARY_TENANT.md) | Schema Tenant: mô hình hiện hành; V21 đã loại bỏ archive V12; V27–V32 thêm screening, assignment, landing |
 | [`MAINTENANCE.md`](MAINTENANCE.md) | Quy trình bắt buộc khi schema hoặc entity thay đổi |
 
@@ -83,7 +90,7 @@ flowchart TB
     subgraph MASTER["Persistence Unit: master"]
         MEMF["masterEntityManagerFactory<br/>hbm2ddl = validate"]
         MDS["HikariCP · 1 pool"]
-        PG[("PostgreSQL<br/>smarthire_master<br/>8 bảng")]
+        PG[("PostgreSQL<br/>smarthire_master<br/>19 bảng")]
     end
 
     subgraph TENANT["Persistence Unit: tenant"]
@@ -135,7 +142,7 @@ thay vì âm thầm đọc nhầm database của doanh nghiệp khác.
 
 | # | Database | RDBMS | Số bảng | Instance | Phạm vi dữ liệu | Migration path |
 |---|---|---|---|---|---|---|
-| 01 | `smarthire_master` | PostgreSQL | 8 | Duy nhất toàn nền tảng | Doanh nghiệp, gói cước, hoá đơn, usage, quản trị nền tảng | `db/migration/master` |
+| 01 | `smarthire_master` | PostgreSQL | 19 | Duy nhất toàn nền tảng | Doanh nghiệp, gói cước, hoá đơn, hợp đồng B2B, giao dịch thanh toán, usage, AI engine, quản trị nền tảng | `db/migration/master` |
 | 02 | `<db_name> theo từng tenant` | MySQL | 54 theo pipeline repo | N instance, mỗi doanh nghiệp một database | Toàn bộ nghiệp vụ tuyển dụng của một doanh nghiệp | `db/migration/tenant` |
 
 **Cấu hình kết nối** (`application.yml`, không commit giá trị thật):
@@ -154,25 +161,36 @@ thay vì âm thầm đọc nhầm database của doanh nghiệp khác.
 
 ## 3. Entity List
 
-### 3.1 Master — 8 entity (`com.smarthire.domain.master.entity`)
+### 3.1 Master — 19 entity (`com.smarthire.domain.master.entity`)
 
 | No | Entity | Bảng | Nhóm | Ghi chú |
 |---|---|---|---|---|
 | 01 | `TenantInfo` | `tenants` | Tenant | Gốc của Master DB |
-| 02 | `SubscriptionPlan` | `subscription_plans` | Subscription | Bảng tra cứu gói + hạn mức |
-| 03 | `TenantSubscription` | `tenant_subscriptions` | Subscription | Gói đang áp dụng cho tenant |
-| 04 | `Invoice` | `invoices` | Billing | Hoá đơn |
-| 05 | `TenantUsageDaily` | `tenant_usage_daily` | Analytics | Usage tổng hợp theo ngày |
-| 06 | `PlatformUser` | `platform_users` | Admin | Tài khoản quản trị nền tảng |
-| 07 | `PlatformAuditLog` | `platform_audit_logs` | Audit | Nhật ký cấp nền tảng |
-| 08 | `ConsultationRequest` | `consultation_requests` | Sales | Yêu cầu demo/tư vấn từ landing |
+| 02 | `SubscriptionPlan` | `subscription_plans` | Subscription | Bảng tra cứu gói + hạn mức, hỗ trợ versioning/grandfathering & custom Enterprise (V27) |
+| 03 | `TenantSubscription` | `tenant_subscriptions` | Subscription | Gói đang áp dụng cho tenant kèm 11 cột snapshot hợp đồng (V27) |
+| 04 | `Invoice` | `invoices` | Billing | Hoá đơn tài chính (mang snapshot `terms_accepted`, `terms_version`, `terms_accepted_at` từ V25) |
+| 05 | `InvoiceLineItem` | `invoice_line_items` | Billing | Chi tiết dòng hàng hoá đơn (V10, V23) |
+| 06 | `PaymentTransaction` | `payment_transactions` | Billing | Lịch sử giao dịch cổng thanh toán VNPay / SePay / PayPal (V21, V23) |
+| 07 | `Contract` | `contracts` | Legal & B2B | Hợp đồng điện tử B2B tích hợp Dropbox Sign API v3 & SHA-256 checksum (V11, V12, V26) |
+| 08 | `ContractSignature` | `contract_signatures` | Legal & B2B | Chữ ký số của từng bên trên hợp đồng (V11, V26) |
+| 09 | `TenantUsageDaily` | `tenant_usage_daily` | Analytics | Usage tài nguyên tổng hợp theo ngày (V6) |
+| 10 | `PlatformUser` | `platform_users` | Admin | Tài khoản quản trị nền tảng (`WORKSPACE_ADMIN`) |
+| 11 | `PlatformAuditLog` | `platform_audit_logs` | Audit | Nhật ký hành động cấp nền tảng (V6) |
+| 12 | `ConsultationRequest` | `consultation_requests` | Sales | Yêu cầu demo/tư vấn B2B từ landing page (V8, V23) |
+| 13 | `SystemSetting` | `system_settings` | System | Cấu hình hệ thống toàn sàn, PK tự nhiên `setting_key` (V14) |
+| 14 | `AiProviderKey` | `ai_provider_keys` | AI Engine | Kho khóa API AI mã hóa AES-256-GCM (V14) |
+| 15 | `AiModelConfig` | `ai_model_configs` | AI Engine | Định tuyến Model AI theo tác vụ (V14, V24) |
+| 16 | `MasterNotificationLog` | `master_notification_logs` | Notification | Nhật ký gửi email/thông báo cấp nền tảng (V15, V23) |
+| 17 | `MasterConsentLog` | `master_consent_logs` | Compliance & Audit | Bằng chứng pháp lý Click-wrap Agreement (`TERMS_OF_SERVICE`, `PRIVACY_POLICY_ND13`) tại checkout (V25) |
+| 18 | `AiModelPricing` | `ai_model_pricings` | AI Metering | Bảng đơn giá USD/1M tokens theo provider & model (V28) |
+| 19 | `TenantAiUsageDaily` | `tenant_ai_usage_daily` | AI Metering | Thống kê tiêu thụ token, độ trễ & chi phí USD theo ngày/tác vụ/model (V28) |
 
 ### 3.2 Tenant — 62 entity (`com.smarthire.domain.tenant.entity`)
 
 | No | Entity | Bảng | Nhóm nghiệp vụ | Kế thừa `BaseEntity` |
 |---|---|---|---|---|
 | 01 | `User` | `users` | Identity | Có |
-| 02 | `UserProfile` | `user_profiles` | Identity | Có |
+| 02 | `Candidate` | `candidates` | Identity | Có |
 | 03 | `OauthAccount` | `oauth_accounts` | Identity | Không |
 | 04 | `MemberInvitation` | `member_invitations` | Identity | Có |
 | 05 | `Job` | `jobs` | Job & Skill | Có |
@@ -233,6 +251,7 @@ thay vì âm thầm đọc nhầm database của doanh nghiệp khác.
 | 60 | `InterviewMessage` | `interview_messages` | AI Conversation V44 | Không |
 | 61 | `CompanyDirectoryEntry` | `company_directory_entries` | Job & Skill | Có |
 | 62 | `NotificationPreference` | `notification_preferences` | Notification | Không |
+| 63 | `CompanyEmailSetting` | `company_email_settings` | Branding / Mail | Có |
 
 V23 thêm bảng nối `answer_selected_options`, entity `AnswerSelectedOption` (`@EmbeddedId` + `@MapsId`);
 `Answer.selectedOptions` là `@OneToMany(mappedBy = "answer", cascade = ALL, orphanRemoval)`.
@@ -256,8 +275,8 @@ V44 không thêm enum hoặc trạng thái lifecycle: session dùng lifecycle c�
 
 | Enum | Bảng · cột sử dụng | Giá trị |
 |---|---|---|
-| `UserRole` | `users.role` | `TENANT_ADMIN`, `ADMIN`, `HR`, `RECRUITER`, `CANDIDATE` |
-| `UserStatus` | `users.status` | `ACTIVE`, `LOCKED`, `DISABLED` |
+| `UserRole` | `users.role` | `TENANT_ADMIN`, `ADMIN`, `HR`, `RECRUITER` (`CANDIDATE` chỉ dùng cho JWT claim / authority, không lưu trong bảng `users` từ V51) |
+| `UserStatus` | `users.status`, `candidates.status` | `ACTIVE`, `LOCKED`, `DISABLED` |
 | `OAuthProvider` | `oauth_accounts.provider` | `GOOGLE` |
 | `InvitationStatus` | `member_invitations.status` | `PENDING`, `ACCEPTED` |
 | `JobStatus` | `jobs.status` | `DRAFT`, `PUBLISHED`, `PAUSED`, `CLOSED`, `ARCHIVED` |
@@ -275,7 +294,7 @@ Với phiên chưa bắt đầu, service tự chuyển `QUESTIONS_READY` khi s�
 | `ScheduleStatus` | `interview_schedules.status` | `DRAFT`, `PROPOSED`, `CONFIRMED`, `RESCHEDULE_REQUESTED`, `CANCELLED`, `DONE` |
 | `PracticeStatus` | `practice_sessions.status` | `CREATED`, `IN_PROGRESS`, `COMPLETED`, `FAILED` |
 | `NotificationStatus` | **chưa dùng** | `PENDING`, `SENT`, `FAILED` |
-| `NotificationCategory` | `notification_preferences.category` | `AI_INTERVIEW`, `ASSESSMENT`, `HUMAN_INTERVIEW` |
+| `NotificationCategory` | `notification_preferences.category` | `APPLICATION`, `AI_INTERVIEW`, `ASSESSMENT`, `HUMAN_INTERVIEW` |
 
 Tất cả đều lưu dưới dạng `VARCHAR(32)` với `@Enumerated(EnumType.STRING)`. Database **không** có `CHECK`
 constraint, nên miền giá trị chỉ được ứng dụng bảo đảm.
@@ -289,14 +308,29 @@ Các sơ đồ dưới đây chỉ thể hiện **quan hệ và lực lượng (
 
 Quy ước Mermaid: `||` đúng một · `o|` không hoặc một · `o{` không hoặc nhiều · `|{` một hoặc nhiều.
 
-### 4.1 Master DB — PostgreSQL
+### 4.1 Master DB — PostgreSQL (19 bảng)
 
 ```mermaid
 erDiagram
     tenants ||--o{ tenant_subscriptions : "đăng ký gói"
     subscription_plans ||--o{ tenant_subscriptions : "được áp dụng bởi"
+    subscription_plans |o--o{ subscription_plans : "parent_plan_id (V27)"
+    tenants |o--o{ subscription_plans : "target_tenant_id (V27)"
     tenants ||--o{ invoices : "phát sinh hoá đơn"
+    tenant_subscriptions |o--o{ invoices : "subscription_id"
+    contracts |o--o{ invoices : "contract_id (V23)"
+    invoices ||--o{ invoice_line_items : "chi tiết dòng hàng"
+    invoices ||--o{ payment_transactions : "giao dịch cổng thanh toán"
+    tenants |o--o{ payment_transactions : "tenant_id (V23)"
+    tenants |o--o{ contracts : "hợp đồng B2B"
+    subscription_plans |o--o{ contracts : "plan_id"
+    consultation_requests |o--o{ contracts : "consultation_request_id"
+    contracts ||--o{ contract_signatures : "chữ ký số"
+    tenants |o--o{ consultation_requests : "tenant_id (V23)"
     tenants ||--o{ tenant_usage_daily : "ghi nhận usage theo ngày"
+    tenants ||--o{ tenant_ai_usage_daily : "ghi nhận token & chi phí AI theo ngày"
+    tenants |o--o{ master_consent_logs : "bằng chứng đồng thuận"
+    invoices |o--o{ master_consent_logs : "đồng thuận khi đặt hàng"
 
     tenants {
         bigint id PK
@@ -304,11 +338,14 @@ erDiagram
         varchar subdomain UK
         varchar db_name UK
         varchar db_password "đã mã hoá"
-        varchar status
+        varchar status "PENDING_PAYMENT / PROVISIONING / ACTIVE / SUSPENDED / FAILED"
     }
     subscription_plans {
         bigint id PK
         varchar code UK
+        int version
+        bigint parent_plan_id FK
+        bigint target_tenant_id FK
         decimal price_yearly
         int max_jobs
         int max_cv_parses
@@ -317,18 +354,110 @@ erDiagram
         bigint id PK
         bigint tenant_id FK
         bigint plan_id FK
+        bigint next_plan_id FK
+        bigint upgraded_from_subscription_id FK
+        varchar status
         timestamp ends_at "nullable"
     }
     invoices {
         bigint id PK
+        varchar invoice_number UK
         bigint tenant_id FK
-        bigint subscription_id "không có FK"
+        bigint subscription_id FK "ON DELETE SET NULL"
+        bigint contract_id FK "ON DELETE SET NULL"
         decimal amount
+        boolean terms_accepted
+        varchar terms_version
+        timestamp terms_accepted_at
+    }
+    invoice_line_items {
+        bigint id PK
+        bigint invoice_id FK "ON DELETE CASCADE"
+        varchar description
+        decimal unit_price
+        decimal total_price
+    }
+    payment_transactions {
+        bigint id PK
+        bigint invoice_id FK "ON DELETE CASCADE"
+        bigint tenant_id FK "ON DELETE SET NULL"
+        varchar txn_ref
+        varchar payment_gateway
+        decimal amount
+        varchar transaction_status
+    }
+    contracts {
+        bigint id PK
+        varchar contract_number UK
+        bigint tenant_id FK "nullable"
+        bigint plan_id FK "nullable"
+        bigint consultation_request_id FK "nullable"
+        varchar esign_provider
+        varchar external_signature_request_id
+        varchar status
+    }
+    contract_signatures {
+        bigint id PK
+        bigint contract_id FK "ON DELETE CASCADE"
+        varchar signer_email
+        varchar external_signature_id
+        varchar status
+    }
+    master_consent_logs {
+        bigint id PK
+        bigint tenant_id FK "ON DELETE SET NULL"
+        bigint invoice_id FK "ON DELETE SET NULL"
+        varchar actor_email
+        varchar policy_type
+        varchar policy_version
+        boolean is_accepted
+        varchar ip_address
     }
     tenant_usage_daily {
         bigint id PK
         bigint tenant_id FK
         date usage_date
+    }
+    tenant_ai_usage_daily {
+        bigint id PK
+        bigint tenant_id FK "ON DELETE CASCADE"
+        date usage_date
+        varchar task_type
+        varchar provider
+        varchar model_name
+        decimal estimated_cost_usd
+    }
+    ai_model_pricings {
+        bigint id PK
+        varchar provider UK
+        varchar model_name UK
+        decimal input_price_per_1m_tokens
+        decimal output_price_per_1m_tokens
+    }
+    ai_provider_keys {
+        bigint id PK
+        varchar provider
+        varchar key_alias
+        text api_key_encrypted
+        varchar status
+    }
+    ai_model_configs {
+        bigint id PK
+        varchar task_type UK
+        varchar provider
+        varchar model_name
+        boolean is_active
+    }
+    system_settings {
+        varchar setting_key PK
+        text setting_value
+        varchar category
+    }
+    master_notification_logs {
+        bigint id PK
+        varchar tenant_code "tham chiếu mềm"
+        varchar type
+        varchar status
     }
     platform_users {
         bigint id PK
@@ -342,13 +471,13 @@ erDiagram
     }
     consultation_requests {
         bigint id PK
+        bigint tenant_id FK "ON DELETE SET NULL"
         varchar work_email
         varchar status
     }
 ```
 
-`platform_users`, `platform_audit_logs` và `consultation_requests` **không** có khoá ngoại nào — đây là lựa
-chọn cố ý để log và lead sống lâu hơn vòng đời của tenant.
+`platform_users`, `platform_audit_logs`, `master_notification_logs`, `system_settings`, `ai_provider_keys`, `ai_model_configs` và `ai_model_pricings` **không** có khoá ngoại — log và cấu hình nền tảng sống độc lập với vòng đời của từng tenant. `master_consent_logs` dùng FK `ON DELETE SET NULL` tới `tenants` và `invoices` để bằng chứng pháp lý không bị xoá mất khi huỷ tenant.
 
 ### 4.2 Tenant DB — bản đồ tổng quan theo nhóm nghiệp vụ
 
@@ -356,7 +485,7 @@ chọn cố ý để log và lead sống lâu hơn vòng đời của tenant.
 flowchart LR
     subgraph ID["Identity"]
         users
-        user_profiles
+        candidates
         oauth_accounts
         member_invitations
     end
@@ -426,8 +555,7 @@ flowchart LR
 
 ```mermaid
 erDiagram
-    users ||--o| user_profiles : "hồ sơ mở rộng 1:1"
-    users ||--o{ oauth_accounts : "liên kết Google"
+    candidates ||--o{ oauth_accounts : "liên kết Google (candidate_id)"
     member_invitations }o..o{ users : "không có FK · đối chiếu bằng email"
 ```
 
@@ -441,7 +569,7 @@ erDiagram
     jobs ||--o{ recruitment_stages : "định nghĩa vòng tuyển"
 
     jobs ||--o{ applications : "nhận đơn"
-    users ||--o{ applications : "candidate_id"
+    candidates ||--o{ applications : "candidate_id"
     users |o--o{ applications : "assignee_id · nullable"
     recruitment_stages |o--o{ applications : "stage_id · nullable"
 
@@ -461,7 +589,7 @@ erDiagram
 
 ```mermaid
 erDiagram
-    users ||--o{ cvs : "sở hữu CV"
+    candidates ||--o{ cvs : "sở hữu CV (candidate_id)"
     jobs |o--o{ cvs : "job_id · nullable từ V8"
     applications |o..o{ cvs : "application_id · KHÔNG có FK"
 
@@ -495,7 +623,7 @@ erDiagram
 
     tests ||--o{ submissions : "lượt làm bài"
     applications ||--o{ submissions : "của đơn ứng tuyển"
-    users ||--o{ submissions : "candidate_id"
+    candidates ||--o{ submissions : "candidate_id"
 
     submissions ||--o{ answers : "câu trả lời"
     questions ||--o{ answers : "thuộc câu hỏi"
@@ -543,9 +671,11 @@ erDiagram
 
 ```mermaid
 erDiagram
-    users ||--o{ notifications : "thông báo in-app"
-    users ||--o{ notification_preferences : "kênh nhận theo loại"
-    users ||--o{ practice_sessions : "phiên tự luyện"
+    users |o--o{ notifications : "thông báo in-app staff (user_id)"
+    candidates |o--o{ notifications : "thông báo in-app candidate (candidate_id)"
+    users |o--o{ notification_preferences : "kênh nhận staff (user_id)"
+    candidates |o--o{ notification_preferences : "kênh nhận candidate (candidate_id)"
+    candidates ||--o{ practice_sessions : "phiên tự luyện (candidate_id)"
     practice_sessions ||--o{ practice_answers : "câu hỏi và trả lời"
     practice_answers ||--o{ practice_feedbacks : "feedback từng câu"
     email_outbox {
@@ -568,26 +698,37 @@ sẽ chặn thao tác thay vì bị gỡ âm thầm. Hai cột `ranking_sources.
 
 ## 5. Entity Description
 
-### 5.1 Master
+### 5.1 Master (19 entity)
 
 | Entity | Mục đích | Thuộc tính then chốt | Vòng đời |
 |---|---|---|---|
-| `TenantInfo` | Đại diện một doanh nghiệp khách hàng và cách kết nối tới database riêng của họ | `code`, `subdomain`, `db_name`, `db_url`, `db_username`, `db_password` (mã hoá, `@JsonIgnore`), `managed_database`, hồ sơ công ty, `is_verified` | Tạo khi onboarding → `ACTIVE` → có thể khoá/xoá |
-| `SubscriptionPlan` | Định nghĩa gói dịch vụ và hạn mức tiêu thụ | `price_yearly`, `max_jobs`, `max_cv_parses`, `max_ai_interview_hours`, `max_storage_gb`, `max_proctoring_hours`, `video_retention_days`, `features_json` | Bảng tra cứu, ít thay đổi |
-| `TenantSubscription` | Gói mà một tenant đang dùng trong một khoảng thời gian | `tenant_id`, `plan_id`, `starts_at`, `ends_at`, `auto_renew` | `ACTIVE` → hết hạn hoặc gia hạn |
-| `Invoice` | Hoá đơn phát sinh cho tenant | `amount`, `currency`, `payment_gateway`, `transaction_id`, `paid_at` | `PENDING` → thanh toán |
+| `TenantInfo` | Đại diện một doanh nghiệp khách hàng và cách kết nối tới database riêng của họ | `code`, `subdomain`, `db_name`, `db_url`, `db_username`, `db_password` (mã hoá, `@JsonIgnore`), `managed_database`, hồ sơ công ty, `is_verified`, `is_deleted`, `deleted_at` | Tạo khi onboarding (`PENDING_PAYMENT` / `PROVISIONING`) → `ACTIVE` ↔ `SUSPENDED` → có thể xoá mềm / khôi phục / xoá cứng |
+| `SubscriptionPlan` | Định nghĩa gói dịch vụ và hạn mức tiêu thụ (Tier 1 Catalog) | `version`, `parent_plan_id`, `is_custom`, `target_tenant_id`, `is_archived`, `price_yearly`, `max_jobs`, `max_cv_parses`, `max_ai_interview_hours`, `max_storage_gb`, `max_proctoring_hours`, `video_retention_days`, `features_json` | Bảng tra cứu, hỗ trợ versioning/grandfathering & custom Enterprise (V27) |
+| `TenantSubscription` | Gói mà một tenant đang dùng kèm 11 cột snapshot hợp đồng (Tier 2 Instance) | `tenant_id`, `plan_id`, `plan_*_snapshot`, `contracted_price_yearly`, `snapshot_max_*`, `snapshot_features_json`, `starts_at`, `ends_at`, `grace_period_ends_at`, `next_plan_id`, `prorated_credit_amount`, `upgraded_from_subscription_id` | `TRIAL` / `PENDING` → `ACTIVE` → `PAST_DUE` → `SUSPENDED` / `CANCELED` / `EXPIRED` |
+| `Invoice` | Hoá đơn tài chính phát sinh cho tenant | `invoice_number`, `tenant_id`, `subscription_id`, `contract_id`, `amount`, `subtotal`, `tax_rate`, `currency`, `payment_gateway`, `transaction_id`, `paid_at`, `terms_accepted`, `terms_version`, `terms_accepted_at` (V25) | `PENDING` → `PAID` / `OVERDUE` / `CANCELLED` |
+| `InvoiceLineItem` | Chi tiết dòng hàng hoá đơn (V10, V23) | `invoice_id`, `description`, `quantity`, `unit_price`, `total_price`, `item_type` (`BASE_PLAN`, `SUBSCRIPTION`, `EXTRA_QUOTA`, `ADDON`) | Tạo cùng hoá đơn, xoá theo hoá đơn (`ON DELETE CASCADE`) |
+| `PaymentTransaction` | Lịch sử đối soát giao dịch từ cổng thanh toán (VNPay, SePay VietQR, PayPal) (V21, V23) | `invoice_id`, `tenant_id`, `txn_ref`, `transaction_no`, `payment_gateway`, `amount`, `currency`, `response_code`, `transaction_status`, `raw_response` | `PENDING` → `SUCCESS` / `FAILED` |
+| `Contract` | Hợp đồng thương mại điện tử B2B tích hợp Dropbox Sign API v3 & SHA-256 checksum (V11, V12, V26) | `contract_number`, `tenant_id`, `plan_id`, `consultation_request_id`, thông tin pháp nhân Bên A/B, `total_amount`, `esign_provider`, `external_signature_request_id`, `signed_pdf_bytes`, `document_checksum`, `status` | `DRAFT` → `PENDING_SIGNATURE` → `SIGNED` / `EXPIRED` / `TERMINATED` |
+| `ContractSignature` | Chữ ký số của từng bên trên hợp đồng (V11, V26) | `contract_id`, `signer_name`, `signer_email`, `signer_title`, `external_signature_id`, `signed_at`, `client_ip`, `status` | `PENDING` → `SIGNED` / `DECLINED` |
 | `TenantUsageDaily` | Số liệu tiêu thụ theo ngày để đối chiếu hạn mức | `usage_date`, `cv_parses_count`, `ai_voice_seconds`, `proctoring_seconds`, `storage_bytes`, `active_jobs_count`, `ai_tokens_consumed` | Một dòng/tenant/ngày, cập nhật tăng dần |
 | `PlatformUser` | Tài khoản quản trị nền tảng, tách hoàn toàn khỏi `users` của tenant | `email`, `password_hash`, `role` (mặc định `WORKSPACE_ADMIN`) | `ACTIVE` / khoá |
 | `PlatformAuditLog` | Nhật ký hành động cấp nền tảng | `tenant_code`, `action`, `level`, `ip_address`, `metadata_json` | Chỉ ghi thêm, không sửa |
-| `ConsultationRequest` | Lead demo/tư vấn gửi từ landing page | `company_name`, `work_email`, `request_type`, `plan_tier`, `primary_need` | `PENDING` → xử lý |
+| `ConsultationRequest` | Lead demo/tư vấn B2B gửi từ landing page | `company_name`, `work_email`, `tenant_id`, `request_type`, `plan_tier`, `primary_need`, `status` | `PENDING` → `CONTACTED` → `PROVISIONED` / `REJECTED` |
+| `SystemSetting` | Tham số cấu hình toàn nền tảng SaaS (V14) | `setting_key` (PK), `setting_value`, `category`, `is_encrypted`, `updated_by` | Đọc/ghi bởi `WORKSPACE_ADMIN` |
+| `MasterNotificationLog` | Nhật ký gửi email/thông báo cấp nền tảng tới doanh nghiệp (V15, V23) | `tenant_code`, `type` (`INVOICE_CREATED`, `QUOTA_WARNING`, `SUBSCRIPTION_EXPIRY`), `to_email`, `status`, `error_message`, `sent_at` | Chỉ ghi thêm |
+| `MasterConsentLog` | Bằng chứng đồng thuận pháp lý Click-wrap Agreement (`TERMS_OF_SERVICE`, `PRIVACY_POLICY_ND13` — Nghị định 13/2023/NĐ-CP) tại checkout (V25) | `tenant_id`, `invoice_id`, `actor_email`, `policy_type`, `policy_version`, `is_accepted`, `ip_address`, `user_agent`, `created_at` | Chỉ ghi thêm, giữ lại cả khi xoá tenant (`ON DELETE SET NULL`) |
+| `AiProviderKey` | Kho khóa API tích hợp các nhà cung cấp AI (V14) | `provider`, `key_alias`, `api_key_encrypted` (AES-256-GCM), `endpoint_url`, `status`, `is_default`, `last_tested_at` | Thêm/sửa/xoá và kiểm tra kết nối trực tiếp |
+| `AiModelConfig` | Định tuyến Model AI theo tác vụ nghiệp vụ (V14, V24) | `task_type`, `provider`, `model_name`, `temperature`, `max_tokens`, `timeout_seconds`, `is_active` | Cấu hình động, cache Redis 6 giờ |
+| `AiModelPricing` | Bảng đơn giá USD/1M tokens theo nhà cung cấp và model (V28) | `provider`, `model_name`, `input_price_per_1m_tokens`, `output_price_per_1m_tokens`, `is_active` | Bảng tra cứu tính chi phí AI thực tế |
+| `TenantAiUsageDaily` | Thống kê tiêu thụ token, độ trễ và chi phí USD của AI theo ngày/tenant/task/model (V28) | `tenant_id`, `usage_date`, `task_type`, `provider`, `model_name`, `total_requests`, `failed_requests`, `total_prompt_tokens`, `total_completion_tokens`, `estimated_cost_usd`, `total_latency_ms` | Cộng dồn bất đồng bộ sau mỗi lần gọi AI |
 
 ### 5.2 Tenant — Identity & Access
 
 | Entity | Mục đích | Ghi chú quan trọng |
 |---|---|---|
-| `User` | Mọi loại người dùng của một doanh nghiệp nằm chung một bảng, phân biệt bằng `role` | Không có bảng riêng cho recruiter hay ứng viên. `email` unique trong phạm vi tenant. `password_hash` nullable để hỗ trợ tài khoản chỉ đăng nhập OAuth |
-| `UserProfile` | Thông tin mở rộng: điện thoại, avatar, bio, headline, `links_json` | 1:1 với `users` |
-| `OauthAccount` | Liên kết tài khoản Google | Unique theo `(provider, provider_user_id)` |
+| `User` | Nhân sự nội bộ của doanh nghiệp (`TENANT_ADMIN`, `ADMIN`, `HR`, `RECRUITER`, custom role) | Tách vật lý khỏi ứng viên từ V51. Mang `phone`, `avatar_url`, `job_title`. `email` unique trong bảng `users` |
+| `Candidate` | Tài khoản và hồ sơ ứng viên bên ngoài nộp đơn vào doanh nghiệp (bảng `candidates`, V51) | Gộp định danh (`email`, `password_hash`, `full_name`, `status`) và hồ sơ mở rộng (`phone`, `avatar_url`, `headline`, `bio`, `links_json`). Thay thế `user_profiles` |
+| `OauthAccount` | Liên kết tài khoản Google của ứng viên (`candidate_id` → `candidates.id`) | Unique theo `(provider, provider_user_id)`, ON DELETE CASCADE |
 | `MemberInvitation` | Lời mời nhân sự vào workspace | Lưu `token_hash` chứ **không** lưu token gốc. Không có FK tới `users`; đối chiếu bằng email khi chấp nhận |
 | `RolePermission` | Quyền truy cập tính năng của role | UNIQUE `(role, feature_code)`; không có FK đến roles |
 | `TenantRole` | Role hệ thống và tùy chỉnh | UNIQUE `code`; workspace phân vùng giao diện |
@@ -609,7 +750,7 @@ của màn assessment hiện tại.
 
 | Entity | Mục đích | Ghi chú quan trọng |
 |---|---|---|
-| `Application` | **Bảng trung tâm của toàn bộ tenant schema.** Một ứng viên nộp vào một job | Test submission, lịch phỏng vấn, AI interview, điểm tổng và thứ hạng đều neo vào đây. Mang `status`, `stage_id`, `assignee_id`, `tags`, `referral_code`, `reject_reason`, `withdrawn_at`, `archived_at`, `ai_interview_invited_at` (V28) |
+| `Application` | **Bảng trung tâm của toàn bộ tenant schema.** Một ứng viên nộp vào một job | Test submission, lịch phỏng vấn, AI interview, điểm tổng và thứ hạng đều neo vào đây. Mang `status`, `stage_id`, `assignee_id`, `tags`, `referral_code`, `reject_reason`, `withdrawn_at`, `withdraw_reason` (V52), `archived_at`, `ai_interview_invited_at` (V28) |
 | `ApplicationStatusHistory` | Nhật ký mỗi lần đổi trạng thái | `from_status → to_status`, `changed_by`, `note`. `changed_by` là số thô, không có FK |
 | `HiringDecision` | Quyết định cuối cùng của đơn | `HIRE` / `REJECT` / `HOLD` kèm `reason`. `decided_by` không có FK |
 
@@ -677,10 +818,10 @@ của màn assessment hiện tại.
 
 | Entity | Mục đích | Ghi chú quan trọng |
 |---|---|---|
-| `Notification` | Thông báo in-app | `type`, `payload_json`, `read_at`. Bảng **không** dùng enum `NotificationStatus` |
+| `Notification` | Thông báo in-app (dual-actor) | `user_id` (staff) hoặc `candidate_id` (ứng viên); `type`, `payload_json`, `read_at`. Bảng **không** dùng enum `NotificationStatus` |
 | `EmailOutbox` | Hàng đợi email theo mẫu outbox | Không có FK — cố ý. `attempts` đếm số lần thử |
-| `NotificationPreference` | Cài đặt kênh nhận thông báo (web / email) theo loại | Tối đa một dòng mỗi `(user_id, category)`; thiếu dòng = bật cả hai kênh. Service kiểm tra trước khi ghi `notifications` / `email_outbox` |
-| `PracticeSession` | Phiên tự luyện | Tách khỏi ranking; có `started_at`, `completed_at`, `overall_score` |
+| `NotificationPreference` | Cài đặt kênh nhận thông báo (web / email) theo loại | Dual-actor: tối đa một dòng mỗi `(user_id, category)` hoặc `(candidate_id, category)`; thiếu dòng = bật cả hai kênh. Service kiểm tra trước khi ghi `notifications` / `email_outbox` |
+| `PracticeSession` | Phiên tự luyện | FK `candidate_id → candidates.id` (V51); tách khỏi ranking; có `started_at`, `completed_at`, `overall_score` |
 | `PracticeAnswer` | Câu hỏi/trả lời trong phiên | Có thể kèm `audio_url`, `answer_duration` |
 | `PracticeFeedback` | Feedback theo từng câu trả lời | FK `practice_answer_id`; `strengths` / `weaknesses` |
 
@@ -693,7 +834,7 @@ của màn assessment hiện tại.
 
 | File | Phạm vi | Số bảng |
 |---|---|---|
-| [`DATA_DICTIONARY_MASTER.md`](DATA_DICTIONARY_MASTER.md) | PostgreSQL `smarthire_master` | 8 |
+| [`DATA_DICTIONARY_MASTER.md`](DATA_DICTIONARY_MASTER.md) | PostgreSQL `smarthire_master` | 19 |
 | [`DATA_DICTIONARY_TENANT.md`](DATA_DICTIONARY_TENANT.md) | MySQL — schema mỗi tenant | 54 theo pipeline repo, không còn archive |
 
 ### Quy ước ký hiệu dùng chung
@@ -727,25 +868,44 @@ của màn assessment hiện tại.
 
 ## 7. Relationships
 
-### 7.1 Master — 4 khoá ngoại
+### 7.1 Master — 21 khoá ngoại
 
 | Bảng con | Cột | Bảng cha | Nullable | Lực lượng | Tên ràng buộc |
 |---|---|---|---|---|---|
+| `subscription_plans` | `parent_plan_id` | `subscription_plans` | Có | N:0..1 | `fk_sp_parent_plan` (`ON DELETE SET NULL`, V27) |
+| `subscription_plans` | `target_tenant_id` | `tenants` | Có | N:0..1 | `fk_sp_target_tenant` (`ON DELETE SET NULL`, V27) |
 | `tenant_subscriptions` | `tenant_id` | `tenants` | Không | N:1 | `fk_ts_tenant` |
 | `tenant_subscriptions` | `plan_id` | `subscription_plans` | Không | N:1 | `fk_ts_plan` |
+| `tenant_subscriptions` | `next_plan_id` | `subscription_plans` | Có | N:0..1 | `fk_ts_next_plan` (`ON DELETE SET NULL`, V27) |
+| `tenant_subscriptions` | `upgraded_from_subscription_id` | `tenant_subscriptions` | Có | 0..1:0..1 | `fk_ts_upgraded_from` (`ON DELETE SET NULL`, V27) |
 | `invoices` | `tenant_id` | `tenants` | Không | N:1 | `fk_inv_tenant` |
+| `invoices` | `subscription_id` | `tenant_subscriptions` | Có | N:0..1 | `fk_inv_subscription` (`ON DELETE SET NULL`, V10) |
+| `invoices` | `contract_id` | `contracts` | Có | N:0..1 | `fk_inv_contract` (`ON DELETE SET NULL`, V23) |
+| `invoice_line_items` | `invoice_id` | `invoices` | Không | N:1 | `fk_ili_invoice` (`ON DELETE CASCADE`, V10) |
+| `payment_transactions` | `invoice_id` | `invoices` | Không | N:1 | `fk_pt_invoice` (`ON DELETE CASCADE`, V21) |
+| `payment_transactions` | `tenant_id` | `tenants` | Có | N:0..1 | `fk_pt_tenant` (`ON DELETE SET NULL`, V23) |
+| `contracts` | `tenant_id` | `tenants` | Có | N:0..1 | `fk_contract_tenant` (`ON DELETE SET NULL`, V11/V17) |
+| `contracts` | `plan_id` | `subscription_plans` | Có | N:0..1 | `fk_contract_plan` (`ON DELETE SET NULL`, V11) |
+| `contracts` | `consultation_request_id` | `consultation_requests` | Có | N:0..1 | `fk_contract_lead` (`ON DELETE SET NULL`, V11) |
+| `contract_signatures` | `contract_id` | `contracts` | Không | N:1 | `fk_cs_contract` (`ON DELETE CASCADE`, V11) |
+| `consultation_requests` | `tenant_id` | `tenants` | Có | N:0..1 | `fk_cr_tenant` (`ON DELETE SET NULL`, V23) |
 | `tenant_usage_daily` | `tenant_id` | `tenants` | Không | N:1 (1:1 theo ngày) | `fk_tud_tenant` |
+| `tenant_ai_usage_daily` | `tenant_id` | `tenants` | Không | N:1 | `fk_taud_tenant` (`ON DELETE CASCADE`, V28) |
+| `master_consent_logs` | `tenant_id` | `tenants` | Có | N:0..1 | `fk_mcl_tenant` (`ON DELETE SET NULL`, V25) |
+| `master_consent_logs` | `invoice_id` | `invoices` | Có | N:0..1 | `fk_mcl_invoice` (`ON DELETE SET NULL`, V25) |
 
-### 7.2 Tenant — 61 khoá ngoại hiện hành
+### 7.2 Tenant — 63 khoá ngoại hiện hành
 
-V49 bổ sung FK NOT NULL `ON DELETE CASCADE`: `notification_preferences.user_id` → `users.id` (N:1).
+V51 tách vật lý bảng `candidates` khỏi `users`, xoá `user_profiles` (`fk_profile_user`), đổi đích các FK ứng viên (`applications.candidate_id`, `cvs.candidate_id`, `submissions.candidate_id`, `practice_sessions.candidate_id`, `ai_interview_consents.candidate_id`) sang `candidates.id`, và hỗ trợ dual-actor (`user_id` nullable / `candidate_id` nullable) trên `oauth_accounts`, `notifications`, `notification_preferences`.
+
+V49 bổ sung FK `ON DELETE CASCADE`: `notification_preferences.user_id` → `users.id` (N:0..1 từ V51).
 
 V44 bổ sung hai FK NOT NULL `ON DELETE CASCADE`: `interview_sessions.ai_interview_id` → `ai_interviews.id` (mỗi attempt 0..1 session nhờ UNIQUE), `interview_messages.session_id` → `interview_sessions.id` (1:N). Các bảng legacy vẫn giữ quan hệ cũ.
 
 | Bảng con | Cột | Bảng cha | Nullable | Lực lượng | Tên ràng buộc |
 |---|---|---|---|---|---|
-| `oauth_accounts` | `user_id` | `users` | Không | N:1 | `fk_oauth_user` |
-| `user_profiles` | `user_id` | `users` | Không | 1:1 (UQ) | `fk_profile_user` |
+| `oauth_accounts` | `user_id` | `users` | Có (từ V51) | N:0..1 | `fk_oauth_user` |
+| `oauth_accounts` | `candidate_id` | `candidates` | Có (từ V51) | N:0..1 | `fk_oauth_candidate`, DELETE CASCADE |
 | `jobs` | `created_by` | `users` | Không | N:1 | `fk_jobs_user` |
 | `job_screening_configs` | `job_id` | `jobs` | Không | 1:1 (PK) | `fk_job_screening_job` (V27) |
 | `gate_scores` | `application_id` | `applications` | Không | 1:1 (UQ) | `fk_gate_score_application` (V27) |
@@ -756,13 +916,13 @@ V44 bổ sung hai FK NOT NULL `ON DELETE CASCADE`: `interview_sessions.ai_interv
 | `job_skills` | `skill_id` | `skills` | Không | N:1 | `fk_js_skill` |
 | `recruitment_stages` | `job_id` | `jobs` | Không | N:1 | `fk_rs_job` |
 | `applications` | `job_id` | `jobs` | Không | N:1 | `fk_app_job` |
-| `applications` | `candidate_id` | `users` | Không | N:1 | `fk_app_candidate` |
+| `applications` | `candidate_id` | `candidates` | Không | N:1 | `fk_app_candidate` (V51) |
 | `applications` | `stage_id` | `recruitment_stages` | Có | N:0..1 | `fk_app_stage` |
 | `applications` | `assignee_id` | `users` | Có | N:0..1 | `fk_app_assignee` |
 | `application_status_history` | `application_id` | `applications` | Không | N:1 | `fk_ash_app` |
 | `hiring_decisions` | `application_id` | `applications` | Không | N:1 | `fk_hd_app` |
 | `cvs` | `job_id` | `jobs` | Có (từ V8) | N:0..1 | `fk_cvs_job` |
-| `cvs` | `user_id` | `users` | Không | N:1 | `fk_cvs_user` |
+| `cvs` | `candidate_id` | `candidates` | Không | N:1 | `fk_cvs_candidate` (V51) |
 | `cv_documents` | `cv_id` | `cvs` | Không | 1:1 (UQ) | `fk_cvdoc_cv` |
 | `cv_extractions` | `cv_id` | `cvs` | Không | 1:1 (UQ) | `fk_cvext_cv` |
 | `cv_analyses` | `cv_id` | `cvs` | Không | 1:1 (UQ) | `fk_cv_analyses_cv` |
@@ -789,7 +949,7 @@ V44 bổ sung hai FK NOT NULL `ON DELETE CASCADE`: `interview_sessions.ai_interv
 | `coding_problems` | `test_id` | `tests` | Không | N:1 | `fk_cp_test` |
 | `test_cases` | `coding_problem_id` | `coding_problems` | Không | N:1 | `fk_tc_cp` |
 | `submissions` | `test_id` | `tests` | Không | N:1 | `fk_submissions_test` |
-| `submissions` | `candidate_id` | `users` | Không | N:1 | `fk_submissions_candidate` |
+| `submissions` | `candidate_id` | `candidates` | Không | N:1 | `fk_submissions_candidate` (V51) |
 | `submissions` | `application_id` | `applications` | Không | N:1 | `fk_submissions_application` |
 | `answers` | `submission_id` | `submissions` | Không | N:1 | `fk_answers_submission` |
 | `answers` | `question_id` | `questions` | Không | N:1 | `fk_answers_question` |
@@ -811,9 +971,12 @@ V44 bổ sung hai FK NOT NULL `ON DELETE CASCADE`: `interview_sessions.ai_interv
 | `ai_answers` | `ai_question_id` | `ai_questions` | Không | 1:1 (UQ) | `fk_ai_a_question` |
 | `ai_feedbacks` | `ai_answer_id` | `ai_answers` | Không | 1:1 (UQ) | `fk_ai_f_answer` |
 | `ai_interview_logs` | `ai_interview_id` | `ai_interviews` | Không | N:1 | `fk_ai_log_interview`, DELETE CASCADE |
-| `notifications` | `user_id` | `users` | Không | N:1 | `fk_notif_user` |
-| `notification_preferences` | `user_id` | `users` | Không | N:1 | `fk_notification_preference_user`, DELETE CASCADE |
-| `practice_sessions` | `candidate_id` | `users` | Không | N:1 | `fk_ps_user` |
+| `ai_interview_consents` | `candidate_id` | `candidates` | Không | N:1 | `fk_ai_consent_candidate` (V51), DELETE CASCADE |
+| `notifications` | `user_id` | `users` | Có (từ V51) | N:0..1 | `fk_notif_user` |
+| `notifications` | `candidate_id` | `candidates` | Có (từ V51) | N:0..1 | `fk_notif_candidate`, DELETE CASCADE |
+| `notification_preferences` | `user_id` | `users` | Có (từ V51) | N:0..1 | `fk_notification_preference_user`, DELETE CASCADE |
+| `notification_preferences` | `candidate_id` | `candidates` | Có (từ V51) | N:0..1 | `fk_notification_preference_candidate`, DELETE CASCADE |
+| `practice_sessions` | `candidate_id` | `candidates` | Không | N:1 | `fk_ps_candidate` (V51) |
 | `practice_answers` | `session_id` | `practice_sessions` | Không | N:1 | `fk_pa_ps` |
 | `practice_feedbacks` | `practice_answer_id` | `practice_answers` | Không | N:1 | `fk_pf_answer` |
 
@@ -832,9 +995,9 @@ FK `submission_id` → `submissions` và `ai_interview_id` → `ai_interviews`.
 | Tenant | `application_status_history` | `changed_by` | `users.id` | Xoá user là mất dấu vết truy vết |
 | Tenant | `hiring_decisions` | `decided_by` | `users.id` | Như trên |
 | Tenant | `recommendations` | `subject_id`, `target_id` | đa hình theo `*_type` | Database không kiểm tra được gì |
-| Master | `invoices` | `subscription_id` | `tenant_subscriptions.id` | Hoá đơn có thể trỏ vào subscription không tồn tại |
 | Master | `platform_audit_logs` | `platform_user_id` | `platform_users.id` | Cố ý — log sống lâu hơn tài khoản |
 | Master | `platform_audit_logs` | `tenant_code` | `tenants.code` | Tham chiếu mềm bằng chuỗi, cố ý |
+| Master | `master_notification_logs` | `tenant_code` | `tenants.code` | Tham chiếu mềm bằng chuỗi để giữ lịch sử gửi email kể cả khi xoá tenant |
 
 ### 7.4 Hai đường đi từ CV về job
 
@@ -852,7 +1015,7 @@ kho hồ sơ (talent pool) chưa gắn với tin tuyển dụng nào.
 
 ## 8. Business Rules & Constraints
 
-### 8.1 Ràng buộc UNIQUE — Master (6)
+### 8.1 Ràng buộc UNIQUE — Master (12)
 
 | Bảng | Ràng buộc | Cột | Ý nghĩa nghiệp vụ |
 |---|---|---|---|
@@ -860,10 +1023,18 @@ kho hồ sơ (talent pool) chưa gắn với tin tuyển dụng nào.
 | `tenants` | `uk_tenants_code` | `code` | Mã doanh nghiệp không trùng |
 | `tenants` | `uk_tenants_subdomain` | `subdomain` | Mỗi doanh nghiệp một subdomain |
 | `tenants` | `uk_tenants_dbname` | `db_name` | Không hai tenant dùng chung database |
+| `invoices` | `uk_invoices_number` | `invoice_number` | Mã hoá đơn tài chính không trùng (V10) |
+| `contracts` | `uk_contracts_number` | `contract_number` | Số hợp đồng B2B không trùng (V11) |
+| `contracts` | `uk_contracts_signing_token` | `signing_token` | Token ký hợp đồng điện tử không trùng (V11) |
 | `platform_users` | `uk_platform_users_email` | `email` | Email quản trị viên không trùng |
 | `tenant_usage_daily` | `uk_tenant_usage_daily` | `(tenant_id, usage_date)` | Mỗi tenant mỗi ngày đúng một dòng usage |
+| `ai_model_configs` | `uk_ai_model_configs_task_type` | `task_type` | Mỗi tác vụ AI có một cấu hình định tuyến model (V14) |
+| `ai_model_pricings` | `uk_ai_model_pricings_provider_model` | `(provider, model_name)` | Không trùng đơn giá của cùng một model và nhà cung cấp (V28) |
+| `tenant_ai_usage_daily` | `uk_tenant_ai_usage_daily_dim` | `(tenant_id, usage_date, task_type, provider, model_name)` | Mỗi ngày mỗi tenant/tác vụ/model cộng dồn vào một bản ghi duy nhất (V28) |
 
-### 8.2 Ràng buộc UNIQUE — Tenant (22, không tính PK)
+### 8.2 Ràng buộc UNIQUE — Tenant (23, không tính PK)
+
+V51 thêm `uk_candidates_email(email)` trên `candidates`, `uk_notification_preference_candidate_category(candidate_id, category)` trên `notification_preferences`, và bỏ `uk_profile_user` cùng bảng `user_profiles`.
 
 V49 thêm `uk_notification_preference_user_category(user_id, category)`: mỗi người dùng một cài đặt cho mỗi loại thông báo.
 
@@ -879,9 +1050,9 @@ V22 thêm PK kép `questionskills(question_id, skill_id)` để ngăn gắn trù
 
 | Bảng | Ràng buộc | Cột | Ý nghĩa nghiệp vụ |
 |---|---|---|---|
-| `users` | `uk_users_email` | `email` | Email không trùng **trong phạm vi một tenant** |
+| `users` | `uk_users_email` | `email` | Email nhân sự không trùng **trong phạm vi một tenant** |
+| `candidates` | `uk_candidates_email` | `email` | Email ứng viên không trùng **trong phạm vi một tenant** (V51) |
 | `oauth_accounts` | `uk_oauth_provider_user` | `(provider, provider_user_id)` | Một tài khoản Google chỉ liên kết một lần |
-| `user_profiles` | `uk_profile_user` | `user_id` | Mỗi user tối đa một profile |
 | `member_invitations` | `uk_member_invitations_token_hash` | `token_hash` | Token mời không trùng |
 | `skills` | `uk_skills_name` | `name` | Từ điển kỹ năng không trùng tên |
 | `job_skills` | `uk_job_skill` | `(job_id, skill_id)` | Một kỹ năng chỉ khai báo một lần cho mỗi job |
@@ -900,7 +1071,8 @@ V22 thêm PK kép `questionskills(question_id, skill_id)` để ngăn gắn trù
 | `role_permissions` | `uk_role_permissions_role_feature` | `(role, feature_code)` | Không lặp quyền cho một role |
 | `roles` | `uk_roles_code` | `code` | Mã role không trùng |
 | `company_directory_entries` | `uk_company_directory_type_name` | `(entry_type, name)` | Không trùng phòng ban hoặc địa điểm trong cùng danh mục |
-| `notification_preferences` | `uk_notification_preference_user_category` | `(user_id, category)` | Mỗi người dùng một cài đặt cho mỗi loại thông báo |
+| `notification_preferences` | `uk_notification_preference_user_category` | `(user_id, category)` | Mỗi nhân sự một cài đặt cho mỗi loại thông báo |
+| `notification_preferences` | `uk_notification_preference_candidate_category` | `(candidate_id, category)` | Mỗi ứng viên một cài đặt cho mỗi loại thông báo (V51) |
 
 ### 8.3 Máy trạng thái
 
@@ -916,11 +1088,14 @@ Mỗi lần chuyển ghi mốc tương ứng: `published_at`, `paused_at`, `clos
 **Application** — `applications.status`
 ```
 NEW ──▶ IN_REVIEW ──▶ INTERVIEW (AI) ──▶ ASSESSMENT ──▶ HUMAN_INTERVIEW ──▶ OFFER ──▶ HIRED
- └────────┴────────────┴─────────────┴────────────┴──▶ REJECTED
- └────────┴────────────┴─────────────┴────────────┴──▶ WITHDRAWN
+ └────────┴────────────┴─────────────┴────────────┴──▶ REJECTED   (trượt CV, recruiter từ chối, quá hạn, job bị gỡ)
+                            └──▶ FAILED (hết lượt AI Interview)
+ └────────┘──▶ WITHDRAWN   (chỉ khi cv_screening_status = PENDING)
 ```
-Mọi lần chuyển **bắt buộc** ghi một dòng `application_status_history`. `WITHDRAWN` đi kèm `withdrawn_at`,
-`REJECTED` đi kèm `reject_reason`.
+Mọi lần chuyển **bắt buộc** ghi một dòng `application_status_history`. `WITHDRAWN` đi kèm `withdrawn_at`
+(+ `withdraw_reason` tuỳ chọn), `REJECTED` đi kèm `reject_reason`. Từ 2026-10-12 (V52): `REJECTED`, `FAILED`,
+`WITHDRAWN` là trạng thái **đã kết thúc** — không chuyển tiếp được nữa (`APPLICATION_CLOSED`); riêng
+`WITHDRAWN` cho phép ứng viên nộp lại đúng job đó (tái sử dụng dòng, reset `cv_screening_status = PENDING`).
 
 **CV** — `cvs.status`
 ```
@@ -975,21 +1150,24 @@ Những quy tắc sau bắt buộc phải kiểm tra ở tầng service, vì kh�
 | BR-06 | Miền giá trị enum (`status`, `role`, `decision`) — database chỉ lưu `VARCHAR`, không có `CHECK` | `@Enumerated(EnumType.STRING)` |
 | BR-07 | `tests.duration_minutes` là nguồn sự thật; thời gian còn lại tính từ `submissions.started_at` | Service test |
 | BR-08 | `member_invitations` hết hạn theo `expires_at`; token đối chiếu bằng `token_hash`, không bao giờ log token gốc | Service invitation |
-| BR-09 | `cvs.retain_until` mặc định 24 tháng kể từ `created_at`; job dọn dẹp phải tôn trọng mốc này | Job vòng đời dữ liệu |
+| BR-09 | `cvs.retain_until`: dữ liệu cũ backfill 24 tháng (V7); từ V52 đặt `now + 180 ngày` (cấu hình `app.applications.cv-retention-days`) khi đơn kết thúc, xoá về NULL khi nộp lại. Quá hạn thì `ApplicationMaintenanceScheduler` xoá file + nội dung trích xuất | `ApplicationClosureService` |
 | BR-10 | Hạn mức trong `subscription_plans` được đối chiếu với `tenant_usage_daily`; database không chặn vượt hạn mức | Service subscription |
 | BR-11 | MCQ publish cần 1–100 câu, 2–10 options/câu và đúng một đáp án đúng; khóa nội dung/thời lượng sau publish | `QuestionService`, `AssessmentService` |
 | BR-12 | Start giữ khóa hàng test; save/submit giữ khóa hàng submission, READ_COMMITTED. Upsert answer theo submission/question; SQL chưa có UNIQUE cho cặp này | `SubmissionService` |
 | BR-13 | Candidate sở hữu application cùng job, ở ASSESSMENT/INTERVIEW mới bắt đầu; không đọc/lưu/nộp bài người khác; không tự chuyển trạng thái application | `SubmissionService`, tenant auth |
 | BR-14 | Lượt quá hạn được chấm từ đáp án đã lưu khi có request tiếp theo; ghi EXPIRED và submitted_at bằng deadline. Chưa có worker quét chủ động | `SubmissionService` |
 | BR-15 | `jobs.department` và `jobs.location` khi tạo/sửa phải khớp một mục trong danh mục công ty; cột job vẫn lưu snapshot tên để giữ tương thích dữ liệu hiện có | `JobService`, `CompanyDirectoryService` |
+| BR-16 | Mỗi ứng viên chỉ có **một** đơn chưa kết thúc (khác `REJECTED`/`FAILED`/`WITHDRAWN`; `HIRED` cũng chặn) trong tenant. Kiểm tra dưới khoá hàng `candidates` (`findLockedById`) để hai lần nộp đồng thời không lọt | `ApplicantService.apply/createManual` |
+| BR-17 | Đơn ở `NEW`/`IN_REVIEW`/`ASSESSMENT`/`HUMAN_INTERVIEW` không đổi trong 30 ngày (`updated_at`, cấu hình `app.applications.stale-days`) bị đóng `REJECTED`; job bị xoá (`JobService.delete`) đóng mọi đơn chưa kết thúc | `ApplicationClosureService` |
+| BR-18 | `candidates.phone` chuẩn hoá và không trùng giữa hai ứng viên (không có UNIQUE vì dữ liệu cũ) | `AccountProfileService` |
 
 - Ngân hàng chung V41: câu hỏi có `test_id = NULL` được thêm/sửa/lưu trữ độc lập; câu có `test_id` chỉ được sửa qua assessment gốc ở trạng thái DRAFT. API ngân hàng yêu cầu staff, xác thực tenant trước truy vấn; cả lô câu hỏi được lưu trong một transaction.
 - Assessment tự động V43: cấu hình theo job chỉ chọn skill của job, tối đa 100 câu, khớp skill/type/difficulty và không trùng nội dung; copy câu/options/metadata để đóng băng đề. Đề riêng chỉ hiển thị và mở được với hồ sơ được gán. Worker RabbitMQ có `X-Tenant-ID`, khóa hồ sơ trước khi tạo; đề, thông báo và email outbox cùng transaction. Áp dụng cho hồ sơ ASSESSMENT, đã PASSED AI Interview, không rút/lưu trữ, cả trước và sau khi bật. Thiếu câu thì rollback và chờ cấu hình/ngân hàng được sửa, không ảnh hưởng kết quả AI Interview.
 
 ### 8.5 Hệ quả nghiệp vụ cần biết
 
-- **Không nộp lại đơn:** ràng buộc `uk_app_job_candidate` khiến ứng viên đã rút đơn (`withdrawn_at`) không
-  thể nộp lại cùng một job. Muốn cho phép nộp lại thì phải đổi ràng buộc, không thể lách ở tầng code.
+- **Một dòng / (job, ứng viên):** ràng buộc `uk_app_job_candidate` nên nộp lại sau khi rút đơn tái sử dụng chính
+  dòng cũ (`ApplicantService.apply`); đơn `REJECTED`/`FAILED` không bao giờ được mở lại cho cùng job.
 - **Không ghi đè câu trả lời AI:** `uk_ai_a_question` khiến `ai_answers` không hỗ trợ trả lời lại cùng một câu.
 - **Schema cho phép thi lại:** `submissions` cố ý **không** unique theo `(test_id, application_id)`. API MCQ hiện trả lượt gần nhất khi start lại, chưa cung cấp cấp quyền thi lại; không suy ra policy thi lại từ khả năng lưu nhiều dòng của SQL.
 - **Không có `ON DELETE` nào được khai báo** trên toàn bộ khoá ngoại, nên mặc định là `RESTRICT`. Xoá
@@ -1021,6 +1199,12 @@ V22 thêm `idx_questionskills_skill(skill_id)` trên `questionskills`. PK kép h
 
 | DB | Bảng | Index | Cột | Mục đích |
 |---|---|---|---|---|
+| Tenant | `users` | `idx_users_role_status` | `(role, status)` | Lọc nhân sự theo vai trò và trạng thái (V51) |
+| Tenant | `applications` | `idx_app_candidate_status` | `(candidate_id, status)` | Kiểm tra một đơn đang xét / ứng viên (V52) |
+| Tenant | `applications` | `idx_app_status_updated` | `(status, updated_at)` | Quét đơn quá hạn xử lý (V52) |
+| Tenant | `cvs` | `idx_cvs_retain_until` | `(retain_until)` | Quét CV quá hạn lưu để xoá file (V52) |
+| Tenant | `candidates` | `idx_candidates_status` | `(status)` | Lọc ứng viên theo trạng thái tài khoản (V51) |
+| Tenant | `notifications` | `idx_notif_candidate` | `(candidate_id, created_at)` | Danh sách thông báo in-app của ứng viên (V51) |
 | Tenant | `applications` | `idx_app_job_status` | `(job_id, status)` | Lọc danh sách ứng viên theo job và trạng thái |
 | Tenant | `applications` | `idx_app_archived` | `(job_id, archived_at)` | Tách đơn đang hoạt động khỏi đơn đã lưu trữ |
 | Tenant | `interview_schedules` | `idx_human_schedule_window` | `(status, scheduled_start, scheduled_end)` | Kiểm tra giao thời gian (V48) |
@@ -1032,6 +1216,16 @@ V22 thêm `idx_questionskills_skill(skill_id)` trên `questionskills`. PK kép h
 | Master | `consultation_requests` | `idx_consultation_requests_status` | `status` | Lọc lead theo trạng thái xử lý |
 | Master | `consultation_requests` | `idx_consultation_requests_email` | `work_email` | Tra cứu lead trùng |
 | Master | `consultation_requests` | `idx_consultation_requests_created_at` | `created_at DESC` | Danh sách lead mới nhất |
+| Master | `master_consent_logs` | `idx_master_consent_logs_tenant` | `(tenant_id, created_at DESC)` | Tra cứu lịch sử đồng thuận pháp lý theo doanh nghiệp (V25) |
+| Master | `master_consent_logs` | `idx_master_consent_logs_invoice` | `(invoice_id)` | Tra cứu bằng chứng đồng thuận gắn với đơn hàng/hóa đơn (V25) |
+| Master | `master_consent_logs` | `idx_master_consent_logs_email` | `(actor_email, created_at DESC)` | Tra cứu bằng chứng đồng thuận theo email người đặt hàng (V25) |
+| Master | `subscription_plans` | `idx_sp_status_custom_archived` | `(status, is_custom, is_archived)` | Lọc danh mục gói cước đang mở bán công khai trên trang Pricing/Checkout (V27) |
+| Master | `subscription_plans` | `idx_sp_target_tenant_id` | `(target_tenant_id)` | Tra cứu gói Custom Enterprise thiết kế riêng cho từng Tenant (V27) |
+| Master | `tenant_subscriptions` | `idx_ts_tenant_status` | `(tenant_id, status)` | Tra cứu nhanh hợp đồng thuê bao hiệu lực theo Tenant (V27) |
+| Master | `tenant_subscriptions` | `idx_ts_ends_at_status` | `(status, ends_at)` | Scheduler quét chuyển trạng thái vòng đời thuê bao `ACTIVE` → `PAST_DUE` → `SUSPENDED` (V27) |
+| Master | `ai_model_pricings` | `idx_ai_model_pricings_provider` | `(provider)` | Tra cứu đơn giá theo nhà cung cấp AI (V28) |
+| Master | `tenant_ai_usage_daily` | `idx_taud_tenant_date` | `(tenant_id, usage_date)` | Truy vấn thống kê tiêu thụ & chi phí AI theo tenant và khoảng ngày (V28) |
+| Master | `tenant_ai_usage_daily` | `idx_taud_usage_date` | `(usage_date)` | Tổng hợp tiêu thụ AI toàn sàn theo kỳ báo cáo (V28) |
 
 ### 9.2 Index do RDBMS tự sinh
 
@@ -1114,6 +1308,10 @@ Hai pipeline dùng **hai phương ngữ SQL khác nhau** và không thể dùng 
 | V22 | `V22__consolidate_subscription_plan_pricing_to_vnd.sql` | Chuẩn hoá lưu giá gói duy nhất bằng `price_yearly` (VNĐ), xoá `price_monthly`, `price_monthly_vnd`, `price_yearly_vnd` |
 | V23 | `V23__optimize_master_schema.sql` | Tối ưu schema master: liên kết hợp đồng–hóa đơn, độ chính xác tiền tệ VND và index log |
 | V24 | `V24__spring_ai_interview_defaults.sql` | Thay riêng seed model Gemini Interview 1.5/2.0 bằng `gemini-2.5-flash`, tăng ngân sách tối thiểu 8192 token; giữ model khác do admin chọn, không đổi schema |
+| V25 | `V25__checkout_legal_consent_logs.sql` | Tạo bảng `master_consent_logs` (entity `MasterConsentLog`) lưu bằng chứng Click-wrap Agreement (`TERMS_OF_SERVICE`, `PRIVACY_POLICY_ND13` — Nghị định 13/2023/NĐ-CP) kèm IP/User-Agent + 2 FK `ON DELETE SET NULL` + 3 index; thêm `terms_accepted`, `terms_version`, `terms_accepted_at` vào `invoices` |
+| V26 | `V26__dropbox_sign_contract_integration.sql` | Tích hợp Dropbox Sign API v3 cho hợp đồng B2B: thêm `esign_provider`, `external_signature_request_id` (+ `idx_contracts_external_sig_req_id`), `esign_details_url`, `esign_test_mode`, `signed_pdf_bytes` (BYTEA) trên `contracts` và `external_signature_id` trên `contract_signatures` |
+| V27 | `V27__two_tier_subscription_architecture.sql` | Kiến trúc Quản lý Gói & Thuê bao SaaS B2B 2 Tầng: thêm `version`, `parent_plan_id` (`fk_sp_parent_plan`), `is_custom`, `target_tenant_id` (`fk_sp_target_tenant`), `is_archived`, 2 index trên `subscription_plans`; thêm 11 cột snapshot hợp đồng (`plan_*_snapshot`, `contracted_price_yearly`, `snapshot_max_*`, `snapshot_features_json`), `grace_period_ends_at`, `next_plan_id` (`fk_ts_next_plan`), `prorated_credit_amount`, `upgraded_from_subscription_id` (`fk_ts_upgraded_from`), `canceled_at`, `cancel_reason`, 2 index và backfill cho `tenant_subscriptions` |
+| V28 | `V28__ai_metering_and_model_pricing.sql` | AI Metering & Cost Tracking: tạo bảng `ai_model_pricings` (entity `AiModelPricing`, UNIQUE `(provider, model_name)`, index `idx_ai_model_pricings_provider`, seed đơn giá USD/1M tokens) và `tenant_ai_usage_daily` (entity `TenantAiUsageDaily`, FK `fk_taud_tenant` `ON DELETE CASCADE`, UNIQUE `(tenant_id, usage_date, task_type, provider, model_name)`, 2 index `idx_taud_tenant_date` & `idx_taud_usage_date`) |
 
 ### 10.3 Lịch sử migration — Tenant
 
@@ -1161,9 +1359,12 @@ Hai pipeline dùng **hai phương ngữ SQL khác nhau** và không thể dùng 
 | V47 | `V47__cv_share_token.sql` | Thêm `cvs.share_token` VARCHAR(64) nullable + UNIQUE `uk_cvs_share_token` cho link chia sẻ CV công khai; không thêm bảng/FK |
 | V48 | `V48__human_interview_configuration.sql` | `interviews.configuration_json` JSON nullable; `idx_human_schedule_window` và `idx_interview_participant_user`; không thêm bảng/FK/UNIQUE |
 | V49 | `V49__notification_preferences.sql` | Tạo `notification_preferences` (entity `NotificationPreference`): `web_enabled`/`email_enabled` mặc định TRUE theo `(user_id, category)`; 1 FK CASCADE + 1 UNIQUE; không backfill |
+| V50 | `V50__company_email_settings.sql` | Tạo `company_email_settings` (entity `CompanyEmailSetting`): Gmail gửi thư + mật khẩu ứng dụng mã hóa. Không FK/UNIQUE. Đánh lại từ V46 vì trùng version |
+| V51 | `V51__separate_candidates_from_users.sql` | Tạo `candidates` (entity `Candidate`), gộp hồ sơ và xoá `user_profiles`; bổ sung `phone`, `avatar_url`, `job_title` trên `users`; chuyển toàn bộ FK ứng viên (`applications`, `cvs.candidate_id`, `submissions`, `practice_sessions`, `ai_interview_consents`) sang `candidates.id`; hỗ trợ dual-actor (`user_id` / `candidate_id`) trên `oauth_accounts`, `notifications`, `notification_preferences`. Đánh số V51 vì DB tenant đã có `V50__company_email_settings` |
+| V52 | `V52__candidate_application_rules.sql` | Thêm `applications.withdraw_reason`; index `idx_app_candidate_status`, `idx_app_status_updated`, `idx_cvs_retain_until` phục vụ quy tắc một đơn/ứng viên, đóng đơn quá hạn và xoá CV hết hạn lưu |
 
 V9 redesign cũ được giữ nguyên tại `db/migration-archive/`, **ngoài** location Flyway.
-Tenant tạo mới chạy V1–V13 rồi V21–V36: 60 bảng hiện hành (gồm 5 bảng analytics V9), chưa tính history.
+Tenant tạo mới chạy V1–V13 rồi V21–V51: 60 bảng hiện hành (gồm 5 bảng analytics V9), chưa tính history.
 V9 analytics đã có source trong checkout hiện tại. Tuy nhiên DB ttqt có V13–V20 khác checkout;
 không dùng `repair` để đổi checksum hoặc giả mạo lịch sử. Việc đồng bộ lịch sử này là task riêng.
 V27–V32 là schema screening, assignment và landing lấy từ main, đánh số sau V26 để không đè V13 và không lấp V14–V20.
@@ -1347,3 +1548,8 @@ Script chỉ resolve V22 để giữ lịch sử khác nhau của các tenant; k
 V39 adds `ai_interview_process_runs`, sequential process state, and question-to-process/follow-up links. V40 adds
 candidate recording consent and private voice/STT metadata. New tenant entities are `AiInterviewProcessRun`,
 `AiInterviewConsent`, and `AiAnswerRecording`. Reference answers and storage object keys are not candidate-facing data.
+
+### 10.11 Cấu hình Gmail công ty V50
+
+Tenant V50 (đánh lại từ V46 vì trùng `V46__cv_builder_data`) tạo bảng `company_email_settings` để cho phép từng doanh nghiệp cấu hình tài khoản Gmail và Google App Password gửi thư riêng biệt. Entity JPA tương ứng là `CompanyEmailSetting`. Mật khẩu ứng dụng được mã hóa AES-256 GCM bằng `TenantCredentialService`. Khi công ty chưa cấu hình Gmail, hệ thống chặn gửi email mời nhân viên và yêu cầu cấu hình trên giao diện Company.
+

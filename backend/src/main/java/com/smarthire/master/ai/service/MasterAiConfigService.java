@@ -3,16 +3,20 @@ package com.smarthire.master.ai.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.smarthire.config.ai.DynamicAiConfigProvider;
 import com.smarthire.domain.master.entity.AiModelConfig;
+import com.smarthire.domain.master.entity.AiModelPricing;
 import com.smarthire.domain.master.entity.AiProviderKey;
 import com.smarthire.domain.master.entity.PlatformAuditLog;
 import com.smarthire.domain.master.repository.AiModelConfigRepository;
+import com.smarthire.domain.master.repository.AiModelPricingRepository;
 import com.smarthire.domain.master.repository.AiProviderKeyRepository;
 import com.smarthire.domain.master.repository.PlatformAuditLogRepository;
 import com.smarthire.master.ai.dto.AiModelConfigDto;
+import com.smarthire.master.ai.dto.AiModelPricingDto;
 import com.smarthire.master.ai.dto.AiProviderKeyDto;
 import com.smarthire.master.ai.dto.AiTestConnectionRequest;
 import com.smarthire.master.ai.dto.AiTestConnectionResponse;
 import com.smarthire.multitenancy.service.TenantCredentialService;
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -39,6 +43,7 @@ public class MasterAiConfigService {
     private final DynamicAiConfigProvider configProvider;
     private final ObjectMapper mapper;
     private final RestClient restClient;
+    private AiModelPricingRepository modelPricingRepository;
 
     @Autowired
     public MasterAiConfigService(
@@ -68,6 +73,11 @@ public class MasterAiConfigService {
         this.restClient = restClient;
     }
 
+    @Autowired(required = false)
+    public void setModelPricingRepository(AiModelPricingRepository modelPricingRepository) {
+        this.modelPricingRepository = modelPricingRepository;
+    }
+
     private static RestClient createDefaultRestClient() {
         var factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(Duration.ofSeconds(6));
@@ -75,6 +85,7 @@ public class MasterAiConfigService {
         return RestClient.builder().requestFactory(factory).build();
     }
 
+    @Transactional(transactionManager = "masterTransactionManager", readOnly = true)
     public List<AiProviderKeyDto> getAllProviderKeys() {
         return providerKeyRepository.findAll().stream()
                 .map(this::toProviderKeyDto)
@@ -148,6 +159,7 @@ public class MasterAiConfigService {
                 .build());
     }
 
+    @Transactional(transactionManager = "masterTransactionManager", readOnly = true)
     public List<AiModelConfigDto> getAllTaskConfigs() {
         return modelConfigRepository.findAll().stream()
                 .map(this::toModelConfigDto)
@@ -184,6 +196,7 @@ public class MasterAiConfigService {
         return toModelConfigDto(saved);
     }
 
+    @Transactional("masterTransactionManager")
     public AiTestConnectionResponse testConnection(AiTestConnectionRequest request) {
         String provider = request.getProvider() != null && !request.getProvider().isBlank()
                 ? request.getProvider().trim().toUpperCase()
@@ -390,6 +403,93 @@ public class MasterAiConfigService {
                 .failoverProvider(entity.getFailoverProvider())
                 .failoverModel(entity.getFailoverModel())
                 .isActive(entity.getIsActive())
+                .build();
+    }
+
+    @Transactional(transactionManager = "masterTransactionManager", readOnly = true)
+    public List<AiModelPricingDto> getAllModelPricings() {
+        if (modelPricingRepository == null) {
+            return List.of();
+        }
+        return modelPricingRepository.findAllByOrderByProviderAscModelNameAsc().stream()
+                .map(this::toModelPricingDto)
+                .collect(Collectors.toList());
+    }
+
+    @Transactional("masterTransactionManager")
+    public AiModelPricingDto saveModelPricing(AiModelPricingDto dto, String adminEmail) {
+        if (modelPricingRepository == null) {
+            throw new IllegalStateException("Model pricing repository is not available");
+        }
+        String provider = dto.getProvider() != null && !dto.getProvider().isBlank()
+                ? dto.getProvider().trim().toUpperCase()
+                : "GEMINI";
+        String modelName = dto.getModelName() != null ? dto.getModelName().trim() : "";
+        if (modelName.isEmpty()) {
+            throw new IllegalArgumentException("Model name is required");
+        }
+
+        AiModelPricing entity = null;
+        if (dto.getId() != null) {
+            entity = modelPricingRepository.findById(dto.getId()).orElse(null);
+        }
+        if (entity == null) {
+            entity = modelPricingRepository
+                    .findByProviderIgnoreCaseAndModelNameIgnoreCase(provider, modelName)
+                    .orElseGet(() -> AiModelPricing.builder()
+                            .provider(provider)
+                            .modelName(modelName)
+                            .build());
+        }
+
+        entity.setProvider(provider);
+        entity.setModelName(modelName);
+        if (dto.getInputPricePer1mTokens() != null) {
+            entity.setInputPricePer1mTokens(dto.getInputPricePer1mTokens().max(BigDecimal.ZERO));
+        }
+        if (dto.getOutputPricePer1mTokens() != null) {
+            entity.setOutputPricePer1mTokens(dto.getOutputPricePer1mTokens().max(BigDecimal.ZERO));
+        }
+        if (dto.getIsActive() != null) {
+            entity.setIsActive(dto.getIsActive());
+        }
+
+        AiModelPricing saved = modelPricingRepository.save(entity);
+
+        auditLogRepository.save(PlatformAuditLog.builder()
+                .action("AI_MODEL_PRICING_UPDATED")
+                .description(String.format("Updated AI model pricing for %s:%s (in=$%s/1M, out=$%s/1M) by %s",
+                        provider, modelName, saved.getInputPricePer1mTokens(), saved.getOutputPricePer1mTokens(), adminEmail))
+                .build());
+
+        return toModelPricingDto(saved);
+    }
+
+    @Transactional("masterTransactionManager")
+    public void deleteModelPricing(Long id, String adminEmail) {
+        if (modelPricingRepository == null) {
+            return;
+        }
+        AiModelPricing entity = modelPricingRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Model pricing not found with id: " + id));
+        modelPricingRepository.delete(entity);
+
+        auditLogRepository.save(PlatformAuditLog.builder()
+                .action("AI_MODEL_PRICING_DELETED")
+                .description(String.format("Deleted AI model pricing %s:%s (id=%d) by %s",
+                        entity.getProvider(), entity.getModelName(), id, adminEmail))
+                .build());
+    }
+
+    private AiModelPricingDto toModelPricingDto(AiModelPricing entity) {
+        return AiModelPricingDto.builder()
+                .id(entity.getId())
+                .provider(entity.getProvider())
+                .modelName(entity.getModelName())
+                .inputPricePer1mTokens(entity.getInputPricePer1mTokens())
+                .outputPricePer1mTokens(entity.getOutputPricePer1mTokens())
+                .isActive(entity.getIsActive())
+                .updatedAt(entity.getUpdatedAt())
                 .build();
     }
 

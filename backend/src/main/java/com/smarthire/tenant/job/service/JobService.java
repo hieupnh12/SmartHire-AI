@@ -86,6 +86,7 @@ public class JobService {
     private final JobCloseScreeningService closeScreening;
     private final CompanyDirectoryService companyDirectory;
     private final org.springframework.amqp.rabbit.core.RabbitTemplate rabbitTemplate;
+    private final com.smarthire.tenant.applicant.service.ApplicationClosureService closures;
     
     @org.springframework.beans.factory.annotation.Value("${app.rabbitmq.exchanges.job-expiry}")
     private String jobExpiryExchange;
@@ -104,7 +105,8 @@ public class JobService {
             JobScreeningConfigRepository screeningConfigs,
             JobCloseScreeningService closeScreening,
             CompanyDirectoryService companyDirectory,
-            org.springframework.amqp.rabbit.core.RabbitTemplate rabbitTemplate) {
+            org.springframework.amqp.rabbit.core.RabbitTemplate rabbitTemplate,
+            com.smarthire.tenant.applicant.service.ApplicationClosureService closures) {
         this.jobs = jobs;
         this.jobSkills = jobSkills;
         this.stages = stages;
@@ -119,6 +121,7 @@ public class JobService {
         this.closeScreening = closeScreening;
         this.companyDirectory = companyDirectory;
         this.rabbitTemplate = rabbitTemplate;
+        this.closures = closures;
     }
 
     public Map<String, String> health() {
@@ -274,6 +277,7 @@ public class JobService {
         job.setDeletedAt(Instant.now());
         job.setStatus(JobStatus.ARCHIVED);
         jobs.save(job);
+        closures.closeForRemovedJob(job);
     }
 
     @Transactional
@@ -454,7 +458,7 @@ public class JobService {
         if (!mapper.accepting(job)) {
             throw new BusinessException("Job is not open for applications", HttpStatus.BAD_REQUEST, "JOB_NOT_PUBLISHED");
         }
-        var actor = access.actor();
+        var actor = access.candidateActor();
         var existing = applications.findByJob_IdAndCandidate_Id(jobId, actor.getId());
         if (existing.isPresent()) return mapper.application(existing.get());
         Application application = new Application();

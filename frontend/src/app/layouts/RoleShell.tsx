@@ -83,16 +83,13 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
   const tenantDisplayName = companyProfile?.companyName?.trim() || tenantTheme.name;
   const showTenantLogo = !!tenantLogoUrl && failedTenantLogoUrl !== tenantLogoUrl;
   const recruiterJobId = isRecruiterWorkspace ? location.pathname.match(/^\/recruiter\/jobs\/(\d+)(?:\/|$)/)?.[1] : undefined;
-  const recruiterActionQueue = isRecruiterWorkspace && (
-    /^\/recruiter\/(applicants|cvs|schedules)\/?$/.test(location.pathname)
-    || (/^\/recruiter\/jobs\/?$/.test(location.pathname) && ["draft", "expiring"].includes(new URLSearchParams(location.search).get("status") ?? ""))
-  );
+  const recruiterActionQueue = isRecruiterWorkspace && /^\/recruiter\/(applicants|cvs|schedules)\/?$/.test(location.pathname);
   const actionQueueLinks = ([
     { to: "/recruiter/applicants?status=new", label: "Ứng viên mới", feature: "APPLICANTS" },
     { to: "/recruiter/cvs?status=pending", label: "CV cần sàng lọc", feature: "CV_SCREENING" },
     { to: "/recruiter/schedules?status=upcoming", label: "Lịch phỏng vấn", feature: "SCHEDULES" },
-    { to: "/recruiter/jobs?status=draft", label: "Job nháp", feature: "JOBS" },
-    { to: "/recruiter/jobs?status=expiring", label: "Sắp hết hạn", feature: "JOBS" },
+    { to: "/recruiter?status=draft", label: "Job nháp", feature: "JOBS" },
+    { to: "/recruiter?status=expiring", label: "Sắp hết hạn", feature: "JOBS" },
   ] as const).filter((item) => hasRecruiterFeature(user?.permissions, item.feature));
   // Recruitment modules use the selected job.
   const jobScopedNav = new Set([
@@ -112,10 +109,10 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
       : visibleRecruiterNav(user?.permissions).filter((item) => item.to !== "" && (!!recruiterJobId || !jobScopedNav.has(item.to))).map((item) => {
           let to: string = item.to;
           if (item.to === "/jobs") {
-            to = recruiterJobId ? `/jobs/${recruiterJobId}` : "/jobs";
+            to = recruiterJobId ? `/jobs/${recruiterJobId}` : "";
           } else if (jobScopedNav.has(item.to)) {
             if (recruiterJobId) to = `/jobs/${recruiterJobId}${item.to}`;
-            else to = "/jobs";
+            else to = "";
           }
           return { ...item, to };
         })
@@ -142,7 +139,7 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
     const target = isCandidateWorkspace
       ? "/jobs"
       : hasRecruiterFeature(user?.permissions, "APPLICANTS")
-        ? recruiterJobId ? `/recruiter/jobs/${recruiterJobId}/applicants` : "/recruiter/jobs"
+        ? recruiterJobId ? `/recruiter/jobs/${recruiterJobId}/applicants` : "/recruiter"
         : recruiterHomePath(user?.permissions);
     navigate(query ? `${target}?q=${encodeURIComponent(query)}` : target);
   };
@@ -422,7 +419,7 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
             {useWorkspaceHeader && showRecruiterNotifications && (
               <Tooltip content={t("nav.notifications")} side="bottom">
                 <NavLink
-                  to={isRecruiterWorkspace ? recruiterJobId ? `/recruiter/jobs/${recruiterJobId}/notifications` : "/recruiter/jobs" : `${basePath}/notifications`}
+                  to={isRecruiterWorkspace ? recruiterJobId ? `/recruiter/jobs/${recruiterJobId}/notifications` : "/recruiter" : `${basePath}/notifications`}
                   className="relative grid size-10 place-items-center rounded-[var(--radius-default)] text-[var(--color-on-surface-variant)] transition-colors hover:bg-[var(--color-primary-subtle)] hover:text-brand-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary"
                   aria-label={isCandidateWorkspace && unreadCount ? `${t("nav.notifications")} (${unreadCount} chưa đọc)` : t("nav.notifications")}
                 >

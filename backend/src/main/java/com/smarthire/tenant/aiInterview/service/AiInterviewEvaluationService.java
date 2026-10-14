@@ -65,18 +65,20 @@ public class AiInterviewEvaluationService {
     private final AiInterviewProcessEngine processEngine;
     private final InterviewConversationService conversation;
     private final NotificationPreferenceService preferences;
+    private final com.smarthire.tenant.applicant.service.ApplicationClosureService closures;
 
     public AiInterviewEvaluationService(AiInterviewRepository interviews, AiQuestionRepository questions,
             AiAnswerRepository answers, AiFeedbackRepository feedbacks, JobSkillRepository skills, CvRepository cvs,
             CvExtractionRepository extractions, ApplicationStatusHistoryRepository history, RecruitmentStageRepository stages,
             NotificationRepository notifications, EmailOutboxRepository emails, JobTestRepository tests,
             AiInterviewClient ai, ObjectMapper mapper, AiInterviewActivityLog activity, AiInterviewProcessEngine processEngine, InterviewConversationService conversation,
-            NotificationPreferenceService preferences) {
+            NotificationPreferenceService preferences, com.smarthire.tenant.applicant.service.ApplicationClosureService closures) {
         this.interviews = interviews; this.questions = questions; this.answers = answers; this.feedbacks = feedbacks;
         this.skills = skills; this.cvs = cvs; this.extractions = extractions; this.history = history; this.stages = stages;
         this.notifications = notifications; this.emails = emails; this.tests = tests; this.ai = ai; this.mapper = mapper;
         this.activity = activity; this.processEngine = processEngine; this.conversation = conversation;
         this.preferences = preferences;
+        this.closures = closures;
     }
 
     @Transactional
@@ -463,6 +465,7 @@ public class AiInterviewEvaluationService {
         row.setNote("AI Interview " + interview.getStatus() + ": " + score + "/100; passing score " + interview.getPassingScoreSnapshot());
         history.save(row);
         application.setStatus(next);
+        if (next == ApplicationStatus.FAILED) closures.onClosed(application, null);
         if (passed) stages.findByJob_IdOrderBySortOrderAsc(application.getJob().getId()).stream()
                 .filter(stage -> "ASSESSMENT".equalsIgnoreCase(stage.getStageCode()))
                 .findFirst()
@@ -497,6 +500,7 @@ public class AiInterviewEvaluationService {
             row.setNote("AI Interview retry window closed; latest score " + interview.getOverallScore() + "/100");
             history.save(row);
             application.setStatus(ApplicationStatus.FAILED);
+            closures.onClosed(application, null);
             activity.record(interview, "APPLICATION_STATUS_CHANGED", "INTERVIEW -> FAILED; retry window closed");
             notify(interview, "AI_INTERVIEW_FAILED", "Kết quả AI Interview", "Hạn làm lại AI Interview cho vị trí "
                     + application.getJob().getTitle() + " đã kết thúc. Hồ sơ kết thúc ở vòng AI Interview.", true);
@@ -507,7 +511,7 @@ public class AiInterviewEvaluationService {
         var app = interview.getApplication();
         String path = type.equals("AI_INTERVIEW_PASSED") ? "/candidate/assessments" : "/candidate/interviews/" + interview.getId();
         if (!preferences.webOff(app.getCandidate(), NotificationCategory.AI_INTERVIEW)) {
-            notifications.save(Notification.builder().user(app.getCandidate()).type(type).title(title).body(body)
+            notifications.save(Notification.builder().candidate(app.getCandidate()).type(type).title(title).body(body)
                     .payloadJson("{\"path\":\"" + path + "\",\"applicationId\":" + app.getId() + "}").build());
             activity.record(interview, "NOTIFICATION_SENT", type);
         }

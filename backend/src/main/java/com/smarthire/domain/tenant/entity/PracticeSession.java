@@ -39,7 +39,7 @@ public class PracticeSession {
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "candidate_id", nullable = false)
-    User candidate;
+    Candidate candidate;
 
     @Column(length = 255)
     String topic;

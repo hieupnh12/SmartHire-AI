@@ -4,10 +4,13 @@ import com.smarthire.domain.master.entity.SubscriptionPlan;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 @Repository
 public interface SubscriptionPlanRepository extends JpaRepository<SubscriptionPlan, Long> {
     Optional<SubscriptionPlan> findByCode(String code);
-    java.util.List<SubscriptionPlan> findByStatusOrderByPriceYearlyAsc(String status);
+    List<SubscriptionPlan> findByStatusOrderByPriceYearlyAsc(String status);
+    List<SubscriptionPlan> findByStatusAndArchivedFalseAndCustomFalseOrderByPriceYearlyAsc(String status);
+    List<SubscriptionPlan> findByTargetTenantIdOrderByCreatedAtDesc(Long targetTenantId);
 }

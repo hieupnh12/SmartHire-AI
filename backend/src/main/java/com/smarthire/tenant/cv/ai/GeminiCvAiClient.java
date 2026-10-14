@@ -12,6 +12,9 @@ import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
+import com.smarthire.common.exception.BusinessException;
+import com.smarthire.config.ai.AiRateLimiterService;
+import com.smarthire.config.ai.AiUsageMeteringService;
 import com.smarthire.config.ai.DynamicAiConfigProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -42,6 +45,8 @@ public class GeminiCvAiClient implements CvAiClient {
     private final int timeoutSeconds;
     private final RestClient http;
     private DynamicAiConfigProvider configProvider;
+    private AiUsageMeteringService meteringService;
+    private AiRateLimiterService rateLimiterService;
 
     public GeminiCvAiClient(
             HeuristicCvAiClient fallback,
@@ -63,6 +68,16 @@ public class GeminiCvAiClient implements CvAiClient {
     @Autowired(required = false)
     public void setConfigProvider(DynamicAiConfigProvider configProvider) {
         this.configProvider = configProvider;
+    }
+
+    @Autowired(required = false)
+    public void setMeteringService(AiUsageMeteringService meteringService) {
+        this.meteringService = meteringService;
+    }
+
+    @Autowired(required = false)
+    public void setRateLimiterService(AiRateLimiterService rateLimiterService) {
+        this.rateLimiterService = rateLimiterService;
     }
 
     private String getEffectiveApiKey() {
@@ -101,6 +116,8 @@ public class GeminiCvAiClient implements CvAiClient {
         if (!configured()) return fallback.extractJson(rawText, jobContext);
         try {
             return completeJson(INSTRUCTION, prompt(rawText, jobContext));
+        } catch (BusinessException ex) {
+            throw ex;
         } catch (Exception ex) {
             log.error("AI extraction failed (provider={}), falling back to heuristic: {}", getEffectiveProvider(), ex.getMessage());
             return tagHeuristic(fallback.extractJson(rawText, jobContext));
@@ -112,65 +129,167 @@ public class GeminiCvAiClient implements CvAiClient {
         return apiKey != null && !apiKey.isBlank();
     }
 
+    private DynamicAiConfigProvider.ResolvedAiConfig resolvePrimaryConfig() {
+        if (configProvider != null) {
+            var resolved = configProvider.resolveConfig("CV_PARSING");
+            if (resolved != null) {
+                return resolved;
+            }
+        }
+        return new DynamicAiConfigProvider.ResolvedAiConfig(
+                "CV_PARSING", "GEMINI", defaultModel, defaultApiKey, null, null, 4096, timeoutSeconds, null, null);
+    }
+
+    private java.util.Optional<DynamicAiConfigProvider.ResolvedAiConfig> resolveFailoverTarget(
+            DynamicAiConfigProvider.ResolvedAiConfig primary) {
+        if (primary == null || !primary.hasFailover()) {
+            return java.util.Optional.empty();
+        }
+        if (configProvider != null) {
+            var resolved = configProvider.resolveFailoverConfig(primary);
+            if (resolved.isPresent()) {
+                return resolved;
+            }
+        }
+        String targetProvider = (primary.failoverProvider() == null || primary.failoverProvider().isBlank())
+                ? primary.provider()
+                : primary.failoverProvider().trim().toUpperCase();
+        if (targetProvider != null
+                && targetProvider.equalsIgnoreCase(primary.provider())
+                && primary.apiKey() != null
+                && !primary.apiKey().isBlank()) {
+            return java.util.Optional.of(new DynamicAiConfigProvider.ResolvedAiConfig(
+                    primary.taskType(),
+                    targetProvider,
+                    primary.failoverModel().trim(),
+                    primary.apiKey(),
+                    primary.endpointUrl(),
+                    primary.temperature(),
+                    primary.maxTokens(),
+                    primary.timeoutSeconds(),
+                    null,
+                    null));
+        }
+        return java.util.Optional.empty();
+    }
+
     /** Sends one JSON-mode request; {@code system} is only used by OpenAI-compatible providers, Gemini gets {@code promptText}. */
     public String completeJson(String system, String promptText) throws Exception {
-        String apiKey = getEffectiveApiKey();
-        String model = getEffectiveModel();
-        String provider = getEffectiveProvider();
+        var primary = resolvePrimaryConfig();
+        String apiKey = (primary.apiKey() == null || primary.apiKey().isBlank()) ? defaultApiKey : primary.apiKey();
         if (apiKey == null || apiKey.isBlank()) throw new IllegalStateException("AI provider is not configured");
-        String text;
-
-        if ("OPENAI".equalsIgnoreCase(provider) || "DEEPSEEK".equalsIgnoreCase(provider)) {
-            String defaultEndpoint = "DEEPSEEK".equalsIgnoreCase(provider)
-                    ? "https://api.deepseek.com/chat/completions"
-                    : "https://api.openai.com/v1/chat/completions";
-            String endpoint = getEffectiveEndpoint();
-            String url = (endpoint != null && !endpoint.isBlank()) ? endpoint.trim() : defaultEndpoint;
-
-            String body = """
-                    {
-                      "model": %s,
-                      "messages": [
-                        {"role": "system", "content": %s},
-                        {"role": "user", "content": %s}
-                      ],
-                      "response_format": {"type": "json_object"}
-                    }
-                    """.formatted(
-                            mapper.writeValueAsString(model),
-                            mapper.writeValueAsString(system),
-                            mapper.writeValueAsString(promptText)
-                    );
-
-            String response = http.post()
-                    .uri(url)
-                    .header("Authorization", "Bearer " + apiKey.trim())
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(body)
-                    .retrieve()
-                    .body(String.class);
-
-            text = readOpenAiText(response);
-        } else {
-            String body = """
-                    {"contents":[{"parts":[{"text":%s}]}]}
-                    """.formatted(mapper.writeValueAsString(promptText));
-            String response = http.post()
-                    .uri("https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}",
-                            model, apiKey.trim())
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(body)
-                    .retrieve()
-                    .body(String.class);
-            text = readText(response);
+        if (rateLimiterService != null) {
+            rateLimiterService.checkAndAcquire("CV_PARSING");
         }
+        try {
+            return executeCompleteJson(
+                    primary.provider() == null || primary.provider().isBlank() ? "GEMINI" : primary.provider().toUpperCase(),
+                    primary.modelName() == null || primary.modelName().isBlank() ? defaultModel : primary.modelName(),
+                    apiKey,
+                    primary.endpointUrl(),
+                    system,
+                    promptText);
+        } catch (BusinessException ex) {
+            throw ex;
+        } catch (Exception primaryEx) {
+            var failoverOpt = resolveFailoverTarget(primary);
+            if (failoverOpt.isPresent()) {
+                var failover = failoverOpt.get();
+                log.warn("Primary AI model {}:{} failed for CV_PARSING ({}), attempting failover to {}:{}",
+                        primary.provider(), primary.modelName(), primaryEx.getMessage(),
+                        failover.provider(), failover.modelName());
+                return executeCompleteJson(
+                        failover.provider(),
+                        failover.modelName(),
+                        failover.apiKey(),
+                        failover.endpointUrl(),
+                        system,
+                        promptText);
+            }
+            throw primaryEx;
+        }
+    }
 
-        int start = text.indexOf('{');
-        int end = text.lastIndexOf('}');
-        if (start < 0 || end <= start) throw new IllegalStateException("AI returned no JSON");
-        String json = text.substring(start, end + 1);
-        mapper.readTree(json);
-        return json;
+    private String executeCompleteJson(
+            String provider,
+            String model,
+            String apiKey,
+            String endpoint,
+            String system,
+            String promptText) throws Exception {
+        String text;
+        String rawResponse = null;
+        long startNs = System.nanoTime();
+        boolean success = false;
+        long promptTokens = 0L;
+        long completionTokens = 0L;
+
+        try {
+            if ("OPENAI".equalsIgnoreCase(provider) || "DEEPSEEK".equalsIgnoreCase(provider)) {
+                String defaultEndpoint = "DEEPSEEK".equalsIgnoreCase(provider)
+                        ? "https://api.deepseek.com/chat/completions"
+                        : "https://api.openai.com/v1/chat/completions";
+                String url = (endpoint != null && !endpoint.isBlank()) ? endpoint.trim() : defaultEndpoint;
+
+                String body = """
+                        {
+                          "model": %s,
+                          "messages": [
+                            {"role": "system", "content": %s},
+                            {"role": "user", "content": %s}
+                          ],
+                          "response_format": {"type": "json_object"}
+                        }
+                        """.formatted(
+                                mapper.writeValueAsString(model),
+                                mapper.writeValueAsString(system),
+                                mapper.writeValueAsString(promptText)
+                        );
+
+                rawResponse = http.post()
+                        .uri(url)
+                        .header("Authorization", "Bearer " + apiKey.trim())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(body)
+                        .retrieve()
+                        .body(String.class);
+
+                text = readOpenAiText(rawResponse);
+            } else {
+                String body = """
+                        {"contents":[{"parts":[{"text":%s}]}]}
+                        """.formatted(mapper.writeValueAsString(promptText));
+                rawResponse = http.post()
+                        .uri("https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}",
+                                model, apiKey.trim())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(body)
+                        .retrieve()
+                        .body(String.class);
+                text = readText(rawResponse);
+            }
+
+            if (rawResponse != null) {
+                JsonNode rootNode = mapper.readTree(rawResponse);
+                long[] tokens = AiUsageMeteringService.extractTokenUsage(rootNode, promptText, text);
+                promptTokens = tokens[0];
+                completionTokens = tokens[1];
+            }
+
+            int start = text.indexOf('{');
+            int end = text.lastIndexOf('}');
+            if (start < 0 || end <= start) throw new IllegalStateException("AI returned no JSON");
+            String json = text.substring(start, end + 1);
+            mapper.readTree(json);
+            success = true;
+            return json;
+        } finally {
+            if (meteringService != null) {
+                long latencyMs = (System.nanoTime() - startNs) / 1_000_000L;
+                meteringService.recordUsageAsync(
+                        "CV_PARSING", provider, model, promptTokens, completionTokens, latencyMs, success);
+            }
+        }
     }
 
     static String prompt(String rawText, String jobContext) {

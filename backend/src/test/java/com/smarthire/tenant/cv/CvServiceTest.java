@@ -3,8 +3,8 @@ package com.smarthire.tenant.cv;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.smarthire.common.exception.BusinessException;
 import com.smarthire.common.storage.FileStorageService;
+import com.smarthire.domain.tenant.entity.Candidate;
 import com.smarthire.domain.tenant.entity.Cv;
-import com.smarthire.domain.tenant.entity.User;
 import com.smarthire.domain.tenant.repository.ApplicationRepository;
 import com.smarthire.domain.tenant.repository.CvAnalysisRepository;
 import com.smarthire.domain.tenant.repository.CvDocumentRepository;
@@ -72,13 +72,13 @@ class CvServiceTest {
 
     @Test
     void builderCannotEditUploadedCv() {
-        User actor = new User();
+        Candidate actor = new Candidate();
         actor.setId(3L);
         Cv cv = new Cv();
         cv.setId(9L);
-        cv.setUser(actor);
+        cv.setCandidate(actor);
         when(access.candidate()).thenReturn(true);
-        when(access.actor()).thenReturn(actor);
+        when(access.candidateActor()).thenReturn(actor);
         when(cvs.findById(9L)).thenReturn(Optional.of(cv));
 
         assertThatThrownBy(() -> service.updateFromBuilder(9L, builderData()))
@@ -90,16 +90,16 @@ class CvServiceTest {
 
     @Test
     void builderCannotEditAnotherUsersCv() {
-        User actor = new User();
+        Candidate actor = new Candidate();
         actor.setId(3L);
-        User other = new User();
+        Candidate other = new Candidate();
         other.setId(4L);
         Cv cv = new Cv();
         cv.setId(9L);
-        cv.setUser(other);
+        cv.setCandidate(other);
         cv.setBuilderData("{}");
         when(access.candidate()).thenReturn(true);
-        when(access.actor()).thenReturn(actor);
+        when(access.candidateActor()).thenReturn(actor);
         when(cvs.findById(9L)).thenReturn(Optional.of(cv));
 
         assertThatThrownBy(() -> service.updateFromBuilder(9L, builderData()))
@@ -110,13 +110,14 @@ class CvServiceTest {
 
     @Test
     void renameKeepsFileExtension() {
-        User actor = new User();
+        Candidate actor = new Candidate();
         actor.setId(3L);
         Cv cv = new Cv();
         cv.setId(9L);
-        cv.setUser(actor);
+        cv.setCandidate(actor);
         cv.setOriginalFilename("CV-Nguyen Van A.pdf");
-        when(access.actor()).thenReturn(actor);
+        when(access.candidate()).thenReturn(true);
+        when(access.candidateActor()).thenReturn(actor);
         when(cvs.findById(9L)).thenReturn(Optional.of(cv));
 
         service.rename(9L, "  CV Backend 2026 ");
@@ -126,14 +127,14 @@ class CvServiceTest {
 
     @Test
     void shareCreatesStableTokenForBuilderCv() {
-        User actor = new User();
+        Candidate actor = new Candidate();
         actor.setId(3L);
         Cv cv = new Cv();
         cv.setId(9L);
-        cv.setUser(actor);
+        cv.setCandidate(actor);
         cv.setBuilderData("{}");
         when(access.candidate()).thenReturn(true);
-        when(access.actor()).thenReturn(actor);
+        when(access.candidateActor()).thenReturn(actor);
         when(cvs.findById(9L)).thenReturn(Optional.of(cv));
 
         String token = service.share(9L).token();

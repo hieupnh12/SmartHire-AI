@@ -39,6 +39,7 @@ public class InterviewConversationController {
 
     @PostMapping(value = "/turns", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     @Operation(summary = "Send one candidate turn and stream AI reply", description = "Events: delta{text}, done{ConversationResponse}, error{message}. Reuse requestId on retry.")
+    @com.smarthire.multitenancy.quota.RequireMeteredQuota(type = com.smarthire.multitenancy.quota.QuotaType.AI_VOICE_SECONDS, count = 0)
     public ResponseEntity<SseEmitter> turn(@PathVariable long id, @Valid @RequestBody ConversationTurnRequest request) {
         conversation.get(id);
         String tenant = TenantContext.getCurrentTenant();
@@ -73,15 +74,18 @@ public class InterviewConversationController {
         return ResponseEntity.ok().header("X-Accel-Buffering", "no").header("Cache-Control", "no-store").body(emitter);
     }
     @PostMapping("/voice-ticket") @Operation(summary = "Issue a single-use voice WebSocket ticket (60 seconds)")
+    @com.smarthire.multitenancy.quota.RequireMeteredQuota(type = com.smarthire.multitenancy.quota.QuotaType.AI_VOICE_SECONDS, count = 0)
     public ApiResponse<Map<String, String>> ticket(@PathVariable long id) { return ApiResponse.ok(Map.of("ticket", tickets.issue(id))); }
 
     @PostMapping("/messages/{messageId}/speech") @Operation(summary = "Generate API TTS audio for a stored AI message")
+    @com.smarthire.multitenancy.quota.RequireMeteredQuota(type = com.smarthire.multitenancy.quota.QuotaType.AI_VOICE_SECONDS, count = 0)
     public ResponseEntity<byte[]> speech(@PathVariable long id, @PathVariable long messageId) {
         return ResponseEntity.ok().contentType(MediaType.parseMediaType("audio/wav"))
                 .header("Cache-Control", "no-store").body(conversation.speech(id, messageId));
     }
     @PostMapping(value = "/messages/{messageId}/recording", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "Attach private audio to a committed candidate message")
+    @com.smarthire.multitenancy.quota.RequireMeteredQuota(type = com.smarthire.multitenancy.quota.QuotaType.AI_VOICE_SECONDS, count = 0)
     public ApiResponse<Void> recording(@PathVariable long id, @PathVariable long messageId,
             @RequestPart("file") org.springframework.web.multipart.MultipartFile file) {
         recordings.attach(id, messageId, file); return ApiResponse.ok(null);

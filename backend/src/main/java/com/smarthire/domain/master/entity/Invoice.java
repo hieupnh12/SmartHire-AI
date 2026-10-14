@@ -58,6 +58,16 @@ public class Invoice {
     String notes;
 
     @Builder.Default
+    @Column(name = "terms_accepted", nullable = false)
+    boolean termsAccepted = false;
+
+    @Column(name = "terms_version", length = 32)
+    String termsVersion;
+
+    @Column(name = "terms_accepted_at")
+    LocalDateTime termsAcceptedAt;
+
+    @Builder.Default
     @Column(name = "created_at", nullable = false, updatable = false)
     LocalDateTime createdAt = LocalDateTime.now();
 

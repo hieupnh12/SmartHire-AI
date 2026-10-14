@@ -23,7 +23,7 @@ public class Application extends BaseEntity {
     @JoinColumn(name = "job_id", nullable = false) Job job;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "candidate_id", nullable = false) User candidate;
+    @JoinColumn(name = "candidate_id", nullable = false) Candidate candidate;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "stage_id") RecruitmentStage stage;
@@ -47,6 +47,8 @@ public class Application extends BaseEntity {
     @Column(name = "reject_reason", columnDefinition = "TEXT") String rejectReason;
 
     @Column(name = "withdrawn_at") Instant withdrawnAt;
+
+    @Column(name = "withdraw_reason", length = 255) String withdrawReason;
 
     @Column(name = "ai_interview_invited_at") Instant aiInterviewInvitedAt;
 }

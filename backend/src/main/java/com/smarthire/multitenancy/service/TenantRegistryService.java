@@ -23,7 +23,7 @@ public class TenantRegistryService {
         TenantInfo tenant = repository.findByCode(normalized)
                 .or(() -> repository.findBySubdomain(normalized))
                 .orElseThrow(() -> new BusinessException("Tenant not found", HttpStatus.NOT_FOUND, "TENANT_NOT_FOUND"));
-        if (!"ACTIVE".equals(tenant.getStatus())) {
+        if (tenant.isDeleted() || !"ACTIVE".equals(tenant.getStatus())) {
             throw new BusinessException("Tenant is not active", HttpStatus.FORBIDDEN, "TENANT_INACTIVE");
         }
         return tenant;
@@ -38,7 +38,7 @@ public class TenantRegistryService {
         TenantInfo tenant = repository.findBySubdomain(normalized)
                 .orElseThrow(() -> new BusinessException("Tenant subdomain not found", HttpStatus.NOT_FOUND,
                         "TENANT_NOT_FOUND"));
-        if (!"ACTIVE".equals(tenant.getStatus())) {
+        if (tenant.isDeleted() || !"ACTIVE".equals(tenant.getStatus())) {
             throw new BusinessException("Tenant is not active", HttpStatus.FORBIDDEN, "TENANT_INACTIVE");
         }
         return tenant;

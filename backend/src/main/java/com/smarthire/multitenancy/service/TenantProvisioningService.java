@@ -8,44 +8,52 @@ import com.smarthire.multitenancy.datasource.TenantDataSourceFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import javax.sql.DataSource;
-import java.sql.*;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.sql.*;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.HexFormat;
+import java.util.Locale;
+import java.util.UUID;
 
 @Service
 public class TenantProvisioningService {
+    public record ProvisionResult(TenantInfo tenant, String activationToken) {}
+
     private final DataSource master;
     private final TenantInfoRepository tenants;
     private final TenantDataSourceFactory factory;
     private final TenantCredentialService credentials;
-    private final PasswordEncoder encoder;
     private final String provisionUrl;
     private final String provisionUser;
     private final String provisionPassword;
+    private final long inviteExpireHours;
 
     public TenantProvisioningService(@Qualifier("masterDataSource") DataSource master,
             TenantInfoRepository tenants, TenantDataSourceFactory factory, TenantCredentialService credentials,
-            PasswordEncoder encoder,
             @Value("${app.tenant.provisioning.url}") String provisionUrl,
             @Value("${app.tenant.provisioning.username}") String provisionUser,
-            @Value("${app.tenant.provisioning.password}") String provisionPassword) {
+            @Value("${app.tenant.provisioning.password}") String provisionPassword,
+            @Value("${smarthire.invite.expire-hours:72}") long inviteExpireHours) {
         this.master = master;
         this.tenants = tenants;
         this.factory = factory;
         this.credentials = credentials;
-        this.encoder = encoder;
         this.provisionUrl = provisionUrl;
         this.provisionUser = provisionUser;
         this.provisionPassword = provisionPassword;
+        this.inviteExpireHours = inviteExpireHours;
     }
 
     public TenantInfo provision(Long id, TenantAdminRequest admin) {
-        if (admin.getAdminPassword().getBytes(StandardCharsets.UTF_8).length > 72) {
-            throw new BusinessException("Admin password must be at most 72 UTF-8 bytes",
-                    HttpStatus.BAD_REQUEST, "INVALID_ADMIN_PASSWORD");
-        }
+        return provisionWithInvitation(id, admin).tenant();
+    }
+
+    public ProvisionResult provisionWithInvitation(Long id, TenantAdminRequest admin) {
         // A session advisory lock survives individual registry commits and releases on process failure.
         try (Connection lock = master.getConnection()) {
             try (PreparedStatement stmt = lock.prepareStatement("SELECT pg_try_advisory_lock(?)")) {
@@ -67,12 +75,14 @@ public class TenantProvisioningService {
                 tenants.saveAndFlush(tenant);
                 try {
                     if (tenant.isManagedDatabase()) createDatabaseAndUser(tenant);
+                    String activationToken;
                     try (var pool = factory.create(tenant)) {
                         factory.migrate(pool);
-                        seedAdmin(pool, admin);
+                        activationToken = seedAdminInvitation(pool, admin);
                     }
                     tenant.setStatus("ACTIVE");
-                    return tenants.saveAndFlush(tenant);
+                    TenantInfo saved = tenants.saveAndFlush(tenant);
+                    return new ProvisionResult(saved, activationToken);
                 } catch (Exception ex) {
                     ex.printStackTrace(); // Log the actual provisioning exception!
                     tenant.setStatus("FAILED");
@@ -139,33 +149,74 @@ public class TenantProvisioningService {
         }
     }
 
-    private void seedAdmin(DataSource dataSource, TenantAdminRequest admin) throws SQLException {
+    String seedAdminInvitation(DataSource dataSource, TenantAdminRequest admin) throws SQLException {
+        String email = admin.getAdminEmail().trim().toLowerCase(Locale.ROOT);
+        String fullName = admin.getAdminName().trim();
         try (Connection connection = dataSource.getConnection()) {
             connection.setAutoCommit(false);
             try {
                 try (PreparedStatement query = connection.prepareStatement(
-                        "SELECT role FROM users WHERE email = ?")) {
-                    query.setString(1, admin.getAdminEmail());
+                        "SELECT role FROM users WHERE LOWER(email) = ?")) {
+                    query.setString(1, email);
                     try (ResultSet rs = query.executeQuery()) {
                         if (rs.next()) {
                             if (!"TENANT_ADMIN".equals(rs.getString(1))) throw new SQLException("Admin role conflict");
                             connection.commit();
-                            return;
+                            return null;
                         }
                     }
                 }
-                try (PreparedStatement insert = connection.prepareStatement(
-                        "INSERT INTO users (email, password_hash, full_name, role, status) VALUES (?, ?, ?, 'TENANT_ADMIN', 'ACTIVE')")) {
-                    insert.setString(1, admin.getAdminEmail());
-                    insert.setString(2, encoder.encode(admin.getAdminPassword()));
-                    insert.setString(3, admin.getAdminName());
-                    insert.executeUpdate();
+
+                String rawToken = UUID.randomUUID().toString();
+                String tokenHash = sha256(rawToken);
+                Timestamp expiresAt = Timestamp.from(Instant.now().plus(inviteExpireHours, ChronoUnit.HOURS));
+
+                Long existingInviteId = null;
+                try (PreparedStatement findPending = connection.prepareStatement(
+                        "SELECT id FROM member_invitations WHERE LOWER(email) = ? AND status = 'PENDING'")) {
+                    findPending.setString(1, email);
+                    try (ResultSet rs = findPending.executeQuery()) {
+                        if (rs.next()) {
+                            existingInviteId = rs.getLong(1);
+                        }
+                    }
                 }
+
+                if (existingInviteId != null) {
+                    try (PreparedStatement update = connection.prepareStatement(
+                            "UPDATE member_invitations SET full_name = ?, role = 'TENANT_ADMIN', token_hash = ?, expires_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")) {
+                        update.setString(1, fullName);
+                        update.setString(2, tokenHash);
+                        update.setTimestamp(3, expiresAt);
+                        update.setLong(4, existingInviteId);
+                        update.executeUpdate();
+                    }
+                } else {
+                    try (PreparedStatement insert = connection.prepareStatement(
+                            "INSERT INTO member_invitations (email, full_name, role, token_hash, status, expires_at) VALUES (?, ?, 'TENANT_ADMIN', ?, 'PENDING', ?)")) {
+                        insert.setString(1, email);
+                        insert.setString(2, fullName);
+                        insert.setString(3, tokenHash);
+                        insert.setTimestamp(4, expiresAt);
+                        insert.executeUpdate();
+                    }
+                }
+
                 connection.commit();
+                return rawToken;
             } catch (Exception ex) {
                 connection.rollback();
                 throw ex;
             }
+        }
+    }
+
+    static String sha256(String value) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(digest);
+        } catch (NoSuchAlgorithmException ex) {
+            throw new IllegalStateException("SHA-256 is required", ex);
         }
     }
 

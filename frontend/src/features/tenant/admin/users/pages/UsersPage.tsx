@@ -3,12 +3,15 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { Link } from "react-router-dom";
 import { usersApi, type InviteMemberRequest, type StaffAssignment, type TenantMember } from "@/api/tenant/usersApi";
+import { companyApi } from "@/api/tenant/companyApi";
 import { tenantRolesApi } from "@/api/tenant/tenantRolesApi";
 import { Button } from "@/components/ux/Button";
 import { Card } from "@/components/ux/Card";
 import { getApiErrorMessage } from "@/lib/axios";
 import { toast } from "@/stores/toastStore";
+import { AlertCircle } from "lucide-react";
 
 const schema = z.object({
   fullName: z.string().trim().min(1, "Họ tên bắt buộc"),
@@ -71,6 +74,12 @@ export function UsersPage() {
     queryFn: () => usersApi.list(),
   });
 
+  const mailSettings = useQuery({
+    queryKey: ["tenant", "company", "mail-settings"],
+    queryFn: companyApi.getMailSettings,
+  });
+  const isMailConfigured = Boolean(mailSettings.data?.data?.configured);
+
   const mutation = useMutation({
     mutationFn: (body: InviteMemberRequest) => usersApi.invite(body),
     onSuccess: (res) => {
@@ -119,6 +128,23 @@ export function UsersPage() {
       <div className="grid gap-6 lg:grid-cols-[minmax(18rem,24rem)_1fr] lg:items-start">
         <Card className="space-y-4">
           <h2 className="text-base font-semibold text-[var(--color-text-primary)]">Gửi lời mời</h2>
+          {!isMailConfigured && !mailSettings.isLoading && (
+            <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-700 dark:text-amber-300 space-y-1.5">
+              <p className="font-semibold flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
+                <AlertCircle className="size-4 shrink-0" />
+                Chưa thiết lập Gmail gửi thư
+              </p>
+              <p className="leading-relaxed">
+                Để gửi email lời mời và liên kết tạo mật khẩu cho nhân viên, công ty cần thiết lập tài khoản Gmail trước.
+              </p>
+              <Link
+                to="/internal/admin/system"
+                className="inline-flex items-center gap-1 font-semibold text-brand-primary hover:underline pt-0.5"
+              >
+                Cài đặt Gmail tại mục Hệ thống &rarr;
+              </Link>
+            </div>
+          )}
           <form
             className="space-y-4"
             onSubmit={handleSubmit((values) => mutation.mutate(values))}

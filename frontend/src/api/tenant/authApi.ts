@@ -1,6 +1,6 @@
 import { api } from "@/lib/axios";
 import type { ApiResponse } from "@/types/api";
-import type { AuthTokens, CandidateLoginResponse, LoginRequest, RegisterRequest, UserProfile } from "@/features/tenant/auth/types";
+import type { AccountProfile, AuthTokens, CandidateLoginResponse, LoginRequest, RegisterRequest, UpdateAccountProfile, UserProfile } from "@/features/tenant/auth/types";
 
 export const authApi = {
   login: (body: LoginRequest) =>
@@ -20,7 +20,9 @@ export const authApi = {
   changePassword: (body: { currentPassword: string; newPassword: string }) =>
     api.post<ApiResponse<null>>("/tenant/auth/change-password", body).then((r) => r.data),
   me: () => api.get<ApiResponse<UserProfile>>("/tenant/auth/me").then((r) => r.data),
-  updateMe: (body: Partial<UserProfile>) =>
-    api.put<ApiResponse<UserProfile>>("/tenant/users/me", body).then((r) => r.data),
+  profile: () => api.get<ApiResponse<AccountProfile>>("/tenant/auth/profile").then((r) => r.data.data),
+  updateProfile: (body: UpdateAccountProfile) =>
+    api.put<ApiResponse<AccountProfile>>("/tenant/auth/profile", body).then((r) => r.data.data),
+  eraseProfile: () => api.delete<ApiResponse<null>>("/tenant/auth/profile").then((r) => r.data),
   health: () => api.get<ApiResponse<Record<string, string>>>("/tenant/auth/health").then((r) => r.data),
 };

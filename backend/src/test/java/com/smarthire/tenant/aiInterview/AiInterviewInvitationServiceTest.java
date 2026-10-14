@@ -40,7 +40,7 @@ class AiInterviewInvitationServiceTest {
         TenantContext.setCurrentTenant("test-tenant");
         application = new Application();
         application.setId(7L);
-        application.setCandidate(user(9L));
+        application.setCandidate(candidate(9L));
         var job = new Job();
         job.setId(13L);
         job.setTitle("Java Backend Developer");
@@ -66,7 +66,7 @@ class AiInterviewInvitationServiceTest {
         assertThat(result.getStatus()).isEqualTo(AiInterviewStatus.GENERATING);
         var notification = ArgumentCaptor.forClass(Notification.class);
         verify(notifications).save(notification.capture());
-        assertThat(notification.getValue().getUser().getId()).isEqualTo(9L);
+        assertThat(notification.getValue().getCandidate().getId()).isEqualTo(9L);
         assertThat(notification.getValue().getPayloadJson()).contains("/candidate/interviews/11");
         assertThat(notification.getValue().getBody()).contains("Java Backend Developer");
         assertThat(notification.getValue().getBody()).contains("08:00 10/10/2026");
@@ -126,9 +126,9 @@ class AiInterviewInvitationServiceTest {
         assertThatThrownBy(() -> service.invite(7L, null)).isInstanceOf(BusinessException.class);
         verifyNoInteractions(applications, interviews, notifications);
     }
-    private static User user(long id) {
-        User user = new User();
-        user.setId(id);
-        return user;
+    private static Candidate candidate(long id) {
+        Candidate candidate = new Candidate();
+        candidate.setId(id);
+        return candidate;
     }
 }

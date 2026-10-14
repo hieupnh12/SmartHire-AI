@@ -182,12 +182,14 @@ public class CvController {
 
     @PostMapping("/cvs/{id}/parse")
     @Operation(summary = "Parse, extract, analyze and match a CV (inline when queues are down)")
+    @com.smarthire.multitenancy.quota.RequireMeteredQuota(type = com.smarthire.multitenancy.quota.QuotaType.CV_PARSE, count = 0)
     public ApiResponse<CvDetail> parse(@PathVariable long id) {
         return ApiResponse.ok(cvs.processNow(id));
     }
 
     @PostMapping("/cvs/{id}/extract")
     @Operation(summary = "Enqueue CV information extraction")
+    @com.smarthire.multitenancy.quota.RequireMeteredQuota(type = com.smarthire.multitenancy.quota.QuotaType.CV_PARSE, count = 0)
     public ResponseEntity<ApiResponse<Void>> extract(@PathVariable long id) {
         cvs.enqueueExtract(id);
         return ResponseEntity.accepted().body(ApiResponse.ok("Queued", null));

@@ -35,29 +35,50 @@ public class MasterNotificationService {
     private static final String IDEMPOTENCY_KEY = "email_sent:%s:%s:%s"; // tenantCode:type:yyyyMMdd
 
     public void sendInvoiceCreated(String tenantCode, Invoice invoice) {
-        if (!shouldSendEmail(tenantCode, "INVOICE_CREATED")) {
+        if (invoice == null || !StringUtils.hasText(tenantCode)) {
+            return;
+        }
+        String invoiceCode = StringUtils.hasText(invoice.getInvoiceNumber())
+                ? invoice.getInvoiceNumber()
+                : String.valueOf(invoice.getId());
+        if (!shouldSendEmail(tenantCode, "INVOICE_CREATED_" + invoiceCode)) {
             return;
         }
 
         TenantInfo tenant = getTenant(tenantCode);
         if (tenant == null) return;
 
+        String recipient = getRecipient(tenant);
+        if (!StringUtils.hasText(recipient)) {
+            log.warn("Cannot send invoice-created email: no recipient email for tenant {}", tenantCode);
+            return;
+        }
+
+        DecimalFormatSymbols symbols = new DecimalFormatSymbols(new Locale("vi", "VN"));
+        symbols.setGroupingSeparator('.');
+        DecimalFormat formatter = new DecimalFormat("#,###", symbols);
+        String formattedAmount = formatter.format(invoice.getAmount() != null ? invoice.getAmount() : BigDecimal.ZERO);
+        String formattedDueDate = invoice.getDueDate() != null
+                ? invoice.getDueDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+                : LocalDate.now().plusDays(14).format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+
         Map<String, Object> vars = new HashMap<>();
         vars.put("tenantName", tenant.getName());
-        vars.put("invoiceCode", invoice.getId()); // Adjust according to real Invoice fields
-        vars.put("amount", invoice.getAmount());
-        vars.put("dueDate", invoice.getDueDate());
+        vars.put("invoiceCode", invoiceCode);
+        vars.put("amount", formattedAmount);
+        vars.put("dueDate", formattedDueDate);
 
         MasterEmailPayload payload = MasterEmailPayload.builder()
-                .tenantCode(tenantCode)
-                .toEmail(getRecipient(tenant))
-                .subject("SmartHire - Hóa đơn mới #" + invoice.getId())
+                .tenantCode(tenant.getCode())
+                .toEmail(recipient)
+                .subject("SmartHire-AI - Thông báo phát hành hóa đơn #" + invoiceCode)
                 .templateName("invoice-created")
                 .templateVariables(vars)
                 .notificationType("INVOICE_CREATED")
                 .build();
 
         publisher.publishEmail(payload);
+        log.info("Queued invoice-created email for invoice #{} to {} (tenant={})", invoiceCode, recipient, tenant.getCode());
     }
 
     public void sendCheckoutOrderCreated(OrderPdfData orderData, byte[] pdfBytes, String recipientEmail) {
@@ -108,7 +129,7 @@ public class MasterNotificationService {
         log.info("Queued checkout order email with PDF for invoice #{} to {}", orderData.getInvoiceNumber(), recipientEmail);
     }
 
-    public void sendWorkspaceActivated(TenantInfo tenant, String planName, String tempPassword, String workspaceUrl) {
+    public void sendWorkspaceActivated(TenantInfo tenant, String planName, String activationUrl, String workspaceUrl) {
         String recipientEmail = getRecipient(tenant);
         if (!StringUtils.hasText(recipientEmail)) {
             log.warn("Cannot send workspace activation email: recipient email missing for tenant {}", tenant.getCode());
@@ -122,13 +143,16 @@ public class MasterNotificationService {
             return;
         }
 
+        String loginUrl = workspaceUrl.endsWith("/internal/login") ? workspaceUrl : workspaceUrl + "/internal/login";
+        String claimUrl = StringUtils.hasText(activationUrl) ? activationUrl : loginUrl;
+
         Map<String, Object> vars = new HashMap<>();
         vars.put("customerName", StringUtils.hasText(tenant.getContactName()) ? tenant.getContactName() : tenant.getName());
         vars.put("workspaceName", tenant.getName());
         vars.put("subdomain", tenant.getSubdomain());
-        vars.put("workspaceLoginUrl", workspaceUrl.endsWith("/internal/login") ? workspaceUrl : workspaceUrl + "/internal/login");
+        vars.put("workspaceLoginUrl", loginUrl);
+        vars.put("activationUrl", claimUrl);
         vars.put("adminEmail", recipientEmail);
-        vars.put("tempPassword", tempPassword);
         vars.put("planName", StringUtils.hasText(planName) ? planName : "Gói Thuê Bao SmartHire");
         vars.put("activatedDate", LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")));
         vars.put("supportEmail", "support@smarthire.top");
@@ -137,7 +161,7 @@ public class MasterNotificationService {
         MasterEmailPayload payload = MasterEmailPayload.builder()
                 .tenantCode(tenant.getCode())
                 .toEmail(recipientEmail)
-                .subject("SmartHire-AI - Kích hoạt không gian làm việc thành công [" + tenant.getName() + "]")
+                .subject("SmartHire-AI - Kích hoạt không gian làm việc & Thiết lập mật khẩu [" + tenant.getName() + "]")
                 .templateName("workspace-activated")
                 .templateVariables(vars)
                 .notificationType("WORKSPACE_ACTIVATED")
@@ -148,30 +172,53 @@ public class MasterNotificationService {
     }
 
     public void sendQuotaWarning(String tenantCode, QuotaType type, long used, long limit) {
-        if (!shouldSendEmail(tenantCode, "QUOTA_WARNING_" + type.name())) {
+        if (type == null || limit <= 0L || !StringUtils.hasText(tenantCode)) {
+            return;
+        }
+        long percentage = Math.round(((double) used / limit) * 100);
+        String thresholdTier = percentage >= 100 ? "100" : "80";
+        if (!shouldSendEmail(tenantCode, "QUOTA_WARNING_" + type.name() + "_" + thresholdTier)) {
             return;
         }
 
         TenantInfo tenant = getTenant(tenantCode);
         if (tenant == null) return;
 
+        String recipient = getRecipient(tenant);
+        if (!StringUtils.hasText(recipient)) {
+            log.warn("Cannot send quota warning email: no recipient email for tenant {}", tenantCode);
+            return;
+        }
+
+        String displayQuotaName = switch (type) {
+            case CV_PARSE -> "Lượt phân tích CV bằng AI (CV_PARSE)";
+            case AI_VOICE_SECONDS -> "Thời lượng phỏng vấn AI Voice (giây)";
+            case AI_TOKENS -> "Hạn ngạch AI Tokens (AI_TOKENS)";
+            case ACTIVE_JOBS -> "Số tin tuyển dụng đang mở (ACTIVE_JOBS)";
+            case MAX_SEATS -> "Số lượng tài khoản nhân sự (MAX_SEATS)";
+            case STORAGE_BYTES -> "Dung lượng lưu trữ (Bytes)";
+            case PROCTORING_SECONDS -> "Thời lượng giám sát thi Proctoring (giây)";
+            case VIDEO_RETENTION_DAYS -> "Thời hạn lưu trữ Video";
+        };
+
         Map<String, Object> vars = new HashMap<>();
         vars.put("tenantName", tenant.getName());
-        vars.put("quotaType", type.name());
+        vars.put("quotaType", displayQuotaName);
         vars.put("used", used);
         vars.put("limit", limit);
-        vars.put("percentage", Math.round(((double) used / limit) * 100));
+        vars.put("percentage", percentage);
 
         MasterEmailPayload payload = MasterEmailPayload.builder()
-                .tenantCode(tenantCode)
-                .toEmail(getRecipient(tenant))
-                .subject("SmartHire - Cảnh báo vượt mức tài nguyên " + type.name())
+                .tenantCode(tenant.getCode())
+                .toEmail(recipient)
+                .subject("SmartHire-AI - Cảnh báo chạm ngưỡng tài nguyên (" + percentage + "%) - " + displayQuotaName)
                 .templateName("quota-warning")
                 .templateVariables(vars)
                 .notificationType("QUOTA_WARNING")
                 .build();
 
         publisher.publishEmail(payload);
+        log.info("Queued quota warning email ({} - {}%) for tenant {} to {}", type.name(), percentage, tenant.getCode(), recipient);
     }
 
     private boolean shouldSendEmail(String tenantCode, String type) {
@@ -186,9 +233,8 @@ public class MasterNotificationService {
     }
 
     private TenantInfo getTenant(String tenantCode) {
-        return tenantRepository.findAll().stream() // In a real app, use findByCode
-                .filter(t -> t.getCode().equals(tenantCode))
-                .findFirst()
+        return tenantRepository.findByCode(tenantCode)
+                .or(() -> tenantRepository.findBySubdomain(tenantCode))
                 .orElseGet(() -> {
                     log.warn("Tenant {} not found for notification", tenantCode);
                     return null;

@@ -46,7 +46,7 @@ public class RankingDataRepository {
         return em.createQuery("select s from JobSkill s join fetch s.skill where s.job.id = :id order by s.id", JobSkill.class).setParameter("id", jobId).getResultList();
     }
     public List<Cv> cvs(long appId) {
-        return em.createQuery("select c from Cv c where c.application.id = :id and c.job = c.application.job and c.user = c.application.candidate order by c.id", Cv.class).setParameter("id", appId).getResultList();
+        return em.createQuery("select c from Cv c where c.application.id = :id and c.job = c.application.job and c.candidate = c.application.candidate order by c.id", Cv.class).setParameter("id", appId).getResultList();
     }
     public List<CvSkill> skills(long cvId) {
         return em.createQuery("select s from CvSkill s left join fetch s.skill where s.cv.id = :id", CvSkill.class).setParameter("id", cvId).getResultList();
@@ -58,6 +58,15 @@ public class RankingDataRepository {
     public List<Submission> submissions(long appId) {
         return em.createQuery("select s from Submission s where s.application.id = :id and s.test.job = s.application.job order by s.id", Submission.class)
                 .setParameter("id", appId).getResultList();
+    }
+    /** Submission scores are raw earned points; ranking components are on a 0-100 scale. */
+    public java.math.BigDecimal assessmentPercent(Submission submission) {
+        if (submission.getScore() == null) return null;
+        Long total = em.createQuery("select coalesce(sum(q.points), 0) from Question q where q.test.id = :id", Long.class)
+                .setParameter("id", submission.getTest().getId()).getSingleResult();
+        if (total == null || total <= 0) return null;
+        return submission.getScore().multiply(java.math.BigDecimal.valueOf(100))
+                .divide(java.math.BigDecimal.valueOf(total), 2, java.math.RoundingMode.HALF_UP);
     }
     public List<AiInterview> aiInterviews(long appId) {
         return em.createQuery("select i from AiInterview i where i.application.id = :id order by i.id", AiInterview.class)

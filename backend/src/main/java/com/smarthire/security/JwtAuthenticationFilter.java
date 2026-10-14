@@ -50,8 +50,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 String role = tokenProvider.getRoleFromToken(token);
                 String tokenTenantId = tokenProvider.getTenantIdFromToken(token);
 
-                // Enforce TenantContext if present in JWT token
-                if (StringUtils.hasText(tokenTenantId)) {
+                // Enforce TenantContext if present in JWT token (ignore master platform tokens)
+                if (StringUtils.hasText(tokenTenantId) && !"smarthire_master".equalsIgnoreCase(tokenTenantId)) {
                     TenantContext.setCurrentTenant(tokenTenantId);
                 }
 

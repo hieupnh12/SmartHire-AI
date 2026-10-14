@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/master/admin/users")
+@RequestMapping({"/api/v1/master/admin/users", "/api/master/admin/users"})
 @RequiredArgsConstructor
 @Tag(name = "Master - Admin User Management", description = "CRUD for Platform Users (Landlord Admins)")
 public class MasterAdminUserController {

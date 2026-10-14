@@ -8,7 +8,7 @@ export type Notification = {
   createdAt: string;
 };
 
-export type NotificationCategory = "AI_INTERVIEW" | "ASSESSMENT" | "HUMAN_INTERVIEW";
+export type NotificationCategory = "APPLICATION" | "AI_INTERVIEW" | "ASSESSMENT" | "HUMAN_INTERVIEW";
 
 export type NotificationPreference = {
   category: NotificationCategory;

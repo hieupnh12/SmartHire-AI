@@ -50,8 +50,8 @@ class AssessmentFlowTest {
     @Import({AssessmentService.class, QuestionService.class, QuestionBankService.class, AssessmentGenerationService.class, SubmissionService.class, AssessmentMapper.class, NotificationPreferenceService.class})
     static class Config {
         @Bean ObjectMapper objectMapper() { return new ObjectMapper(); }
-        @Bean CvAccess cvAccess(UserRepository users, JobAssignmentRepository assignments) {
-            return new CvAccess(users, assignments);
+        @Bean CvAccess cvAccess(UserRepository users, CandidateRepository candidates, JobAssignmentRepository assignments) {
+            return new CvAccess(users, candidates, assignments);
         }
         @Bean DataSource dataSource() {
             String mysql = System.getenv("ASSESSMENT_TEST_JDBC_URL");
@@ -104,8 +104,8 @@ class AssessmentFlowTest {
         otherEmail = "other-" + suffix + "@example.test";
         tx.executeWithoutResult(status -> {
             User recruiter = user(recruiterEmail, "RECRUITER");
-            User candidate = user(candidateEmail, "CANDIDATE");
-            user(otherEmail, "CANDIDATE");
+            Candidate candidate = candidate(candidateEmail);
+            candidate(otherEmail);
             Job job = new Job();
             job.setTitle("Java job"); job.setDescription("Java"); job.setCreatedBy(recruiter);
             em.persist(job);
@@ -188,7 +188,7 @@ class AssessmentFlowTest {
             assertThat(test.getStatus()).isEqualTo(TestStatus.PUBLISHED);
             assertThat(test.getPassingScore()).isEqualByComparingTo("7.00");
             assertThat(test.getTitle()).contains("Java job", "HS " + applicationId);
-            assertThat(em.createQuery("select count(n) from Notification n where n.user.id = :id and n.type = 'ASSESSMENT_INVITATION'", Long.class)
+            assertThat(em.createQuery("select count(n) from Notification n where n.candidate.id = :id and n.type = 'ASSESSMENT_INVITATION'", Long.class)
                     .setParameter("id", candidateId).getSingleResult()).isEqualTo(1);
             return test.getId();
         });
@@ -197,7 +197,7 @@ class AssessmentFlowTest {
         login(candidateEmail, "CANDIDATE");
         assertThat(submissions.available(applicationId)).extracting(AvailableAssessmentResponse::id).contains(testId);
         long otherApplication = tx.execute(status -> {
-            var other = em.createQuery("select u from User u where u.email = :email", User.class).setParameter("email", otherEmail).getSingleResult();
+            var other = em.createQuery("select c from Candidate c where c.email = :email", Candidate.class).setParameter("email", otherEmail).getSingleResult();
             Application app = new Application(); app.setJob(em.find(Job.class, jobId)); app.setCandidate(other); app.setStatus(ApplicationStatus.ASSESSMENT); em.persist(app);
             var interview = new AiInterview(); interview.setApplication(app); interview.setStatus(AiInterviewStatus.PASSED); em.persist(interview);
             em.flush(); return app.getId();
@@ -530,7 +530,7 @@ class AssessmentFlowTest {
             Submission submission = new Submission();
             submission.setTest(em.find(JobTest.class, testId));
             submission.setApplication(em.find(Application.class, applicationId));
-            submission.setCandidate(em.find(User.class, candidateId));
+            submission.setCandidate(em.find(Candidate.class, candidateId));
             em.persist(submission); em.flush(); return submission.getId();
         });
         login(candidateEmail, "CANDIDATE");
@@ -558,7 +558,7 @@ class AssessmentFlowTest {
         long foreignApplication = tx.execute(status -> {
             Job job = new Job(); job.setTitle("Other"); job.setDescription("Other");
             job.setCreatedBy(em.find(Job.class, jobId).getCreatedBy()); em.persist(job);
-            Application app = new Application(); app.setJob(job); app.setCandidate(em.find(User.class, candidateId));
+            Application app = new Application(); app.setJob(job); app.setCandidate(em.find(Candidate.class, candidateId));
             app.setStatus(ApplicationStatus.ASSESSMENT); em.persist(app); em.flush(); return app.getId();
         });
         login(candidateEmail, "CANDIDATE");
@@ -670,6 +670,9 @@ class AssessmentFlowTest {
 
     private User user(String email, String role) {
         User user = new User(); user.setEmail(email); user.setFullName("Test user"); user.setRole(role); em.persist(user); return user;
+    }
+    private Candidate candidate(String email) {
+        Candidate candidate = new Candidate(); candidate.setEmail(email); candidate.setFullName("Test candidate"); em.persist(candidate); return candidate;
     }
     private void login(String email, String role) {
         TenantContext.setCurrentTenant("assessment_tenant");

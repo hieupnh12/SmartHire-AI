@@ -1,8 +1,10 @@
-import { useState, useEffect } from "react";
-import { LogOut } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { LogOut, KeyRound } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { masterAuthApi } from "@/api/master/masterAuthApi";
 import { useUiStore } from "@/stores/uiStore";
+import { toast } from "@/stores/toastStore";
+import { ChangePasswordModal } from "@/features/master/account/components/ChangePasswordModal";
 
 interface AccountPageProps {
   activeTab: string;
@@ -13,6 +15,13 @@ export function AccountPage({ activeTab }: AccountPageProps) {
   const askConfirm = useUiStore((state) => state.askConfirm);
   const [reducedMotion, setReducedMotion] = useState(() => localStorage.getItem("master_reduced_motion") === "true");
   const [emailNotifications, setEmailNotifications] = useState(() => localStorage.getItem("master_email_notifications") === "true");
+
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [passwordLoading, setPasswordLoading] = useState(false);
 
   useEffect(() => {
     localStorage.setItem("master_reduced_motion", String(reducedMotion));
@@ -32,6 +41,37 @@ export function AccountPage({ activeTab }: AccountPageProps) {
       localStorage.removeItem("master_access_token");
       localStorage.removeItem("master_refresh_token");
       navigate("/admin/login", { replace: true });
+    }
+  };
+
+  const handleChangePasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordError(null);
+
+    if (newPassword.length < 12) {
+      setPasswordError("Mật khẩu mới phải có tối thiểu 12 ký tự.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError("Mật khẩu xác nhận không khớp.");
+      return;
+    }
+
+    setPasswordLoading(true);
+    try {
+      await masterAuthApi.changePassword({
+        currentPassword,
+        newPassword,
+      });
+      setShowPasswordModal(false);
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      toast.success("Đổi mật khẩu quản trị thành công!");
+    } catch (err: any) {
+      setPasswordError(err?.response?.data?.message || "Không thể đổi mật khẩu. Vui lòng kiểm tra lại mật khẩu hiện tại.");
+    } finally {
+      setPasswordLoading(false);
     }
   };
 
@@ -76,14 +116,27 @@ export function AccountPage({ activeTab }: AccountPageProps) {
               <p className="font-semibold text-emerald-900">Phiên đăng nhập đang hoạt động</p>
               <p className="mt-1 text-sm text-emerald-700">Tài khoản đã được xác thực bằng Master Auth.</p>
             </div>
-            <button
-              type="button"
-              onClick={() => askConfirm({ title: "Đăng xuất khỏi SmartHire?", confirmLabel: "Đăng xuất", danger: true, onConfirm: handleLogout })}
-              className="flex min-h-12 items-center gap-3 rounded-xl border border-rose-200 px-4 text-sm font-semibold text-rose-700 transition-colors hover:bg-rose-50"
-            >
-              <LogOut className="size-5" />
-              Đăng xuất khỏi thiết bị này
-            </button>
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setPasswordError(null);
+                  setShowPasswordModal(true);
+                }}
+                className="flex min-h-12 items-center gap-3 rounded-xl border border-blue-200 bg-blue-50/60 px-4 text-sm font-semibold text-blue-700 transition-colors hover:bg-blue-100/70"
+              >
+                <KeyRound className="size-5" />
+                Đổi mật khẩu quản trị
+              </button>
+              <button
+                type="button"
+                onClick={() => askConfirm({ title: "Đăng xuất khỏi SmartHire?", confirmLabel: "Đăng xuất", danger: true, onConfirm: handleLogout })}
+                className="flex min-h-12 items-center gap-3 rounded-xl border border-rose-200 px-4 text-sm font-semibold text-rose-700 transition-colors hover:bg-rose-50"
+              >
+                <LogOut className="size-5" />
+                Đăng xuất khỏi thiết bị này
+              </button>
+            </div>
           </div>
         </section>
       )}
@@ -127,6 +180,20 @@ export function AccountPage({ activeTab }: AccountPageProps) {
           </div>
         </section>
       )}
+
+      <ChangePasswordModal
+        showPasswordModal={showPasswordModal}
+        setShowPasswordModal={setShowPasswordModal}
+        currentPassword={currentPassword}
+        setCurrentPassword={setCurrentPassword}
+        newPassword={newPassword}
+        setNewPassword={setNewPassword}
+        confirmPassword={confirmPassword}
+        setConfirmPassword={setConfirmPassword}
+        passwordError={passwordError}
+        passwordLoading={passwordLoading}
+        handleChangePasswordSubmit={handleChangePasswordSubmit}
+      />
     </div>
   );
 }

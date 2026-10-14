@@ -3,10 +3,10 @@ package com.smarthire.tenant.applicant.service;
 import com.smarthire.domain.enums.NotificationCategory;
 import com.smarthire.domain.enums.NotificationStatus;
 import com.smarthire.domain.tenant.entity.Application;
+import com.smarthire.domain.tenant.entity.Candidate;
 import com.smarthire.domain.tenant.entity.EmailOutbox;
 import com.smarthire.domain.tenant.entity.Job;
 import com.smarthire.domain.tenant.entity.MatchScore;
-import com.smarthire.domain.tenant.entity.User;
 import com.smarthire.domain.tenant.repository.ApplicationRepository;
 import com.smarthire.domain.tenant.repository.EmailOutboxRepository;
 import com.smarthire.multitenancy.service.TenantPublicUrlService;
@@ -68,7 +68,7 @@ public class AiInterviewInviteService {
         if (application == null || application.getId() == null || application.getAiInterviewInvitedAt() != null) {
             return;
         }
-        User candidate = application.getCandidate();
+        Candidate candidate = application.getCandidate();
         Job job = application.getJob();
         if (candidate == null || candidate.getEmail() == null || candidate.getEmail().isBlank() || job == null) {
             return;
@@ -80,7 +80,8 @@ public class AiInterviewInviteService {
             return;
         }
 
-        String subject = "SmartHire: mời phỏng vấn AI — " + job.getTitle();
+        String brand = TenantPublicUrlService.brandOrDefault(publicUrls);
+        String subject = brand + ": mời phỏng vấn AI — " + job.getTitle();
         var policy = com.smarthire.tenant.aiInterview.service.InterviewPolicies.config(job).policy();
         String body = """
                 Xin chào %s,
@@ -97,7 +98,7 @@ public class AiInterviewInviteService {
 
                 %s
 
-                SmartHire
+                %s
                 """.formatted(
                 candidate.getFullName() == null ? candidate.getEmail() : candidate.getFullName(),
                 job.getTitle(),
@@ -106,9 +107,15 @@ public class AiInterviewInviteService {
                 formatTime(job.getAiInterviewAvailableUntil(), "Không giới hạn"),
                 policy.durationMinutes(),
                 policy.maxAttempts(),
-                publicUrls.path("/candidate/interviews"));
+                publicUrls.path("/candidate/interviews"),
+                brand);
 
-        boolean sent = mail.send(candidate.getEmail(), subject, body);
+        String replyToEmail = resolveJobCreatorEmail(job);
+        String replyToName = resolveJobCreatorName(job);
+        boolean sent = InviteMailSender.withReplyTo(
+                replyToEmail,
+                replyToName,
+                () -> mail.send(candidate.getEmail(), subject, body));
         outbox.save(EmailOutbox.builder()
                 .toEmail(candidate.getEmail())
                 .subject(subject)
@@ -123,6 +130,22 @@ public class AiInterviewInviteService {
             return;
         }
         log.warn("AI interview invite was not delivered for application {}", application.getId());
+    }
+
+    private static String resolveJobCreatorEmail(Job job) {
+        try {
+            return job != null && job.getCreatedBy() != null ? job.getCreatedBy().getEmail() : null;
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private static String resolveJobCreatorName(Job job) {
+        try {
+            return job != null && job.getCreatedBy() != null ? job.getCreatedBy().getFullName() : null;
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 
     private static String formatTime(Instant value, String fallback) {

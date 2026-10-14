@@ -20,6 +20,7 @@ public class ContractSignatureResponse {
     String status;
     LocalDateTime signedAt;
     String clientIp;
+    String externalSignatureId;
 
     public static ContractSignatureResponse from(ContractSignature signature) {
         if (signature == null) return null;
@@ -31,6 +32,7 @@ public class ContractSignatureResponse {
                 .status(signature.getStatus())
                 .signedAt(signature.getSignedAt())
                 .clientIp(signature.getClientIp())
+                .externalSignatureId(signature.getExternalSignatureId())
                 .build();
     }
 }

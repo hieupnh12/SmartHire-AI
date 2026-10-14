@@ -124,7 +124,6 @@ export function CreateInvoiceModal({
                 onChange={(e) => setInvoiceCurrency(e.target.value)}
                 className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 font-bold text-slate-800 focus:outline-none focus:border-blue-600 bg-white"
               >
-                <option value="USD">USD ($)</option>
                 <option value="VND">VND (₫)</option>
               </select>
             </div>

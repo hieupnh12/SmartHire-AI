@@ -2,9 +2,9 @@ package com.smarthire.tenant.applicant;
 
 import com.smarthire.domain.enums.NotificationCategory;
 import com.smarthire.domain.tenant.entity.Application;
+import com.smarthire.domain.tenant.entity.Candidate;
 import com.smarthire.domain.tenant.entity.Job;
 import com.smarthire.domain.tenant.entity.MatchScore;
-import com.smarthire.domain.tenant.entity.User;
 import com.smarthire.domain.tenant.repository.ApplicationRepository;
 import com.smarthire.domain.tenant.repository.EmailOutboxRepository;
 import com.smarthire.multitenancy.service.TenantPublicUrlService;
@@ -43,7 +43,7 @@ class AiInterviewInviteServiceTest {
         service = new AiInterviewInviteService(mail, outbox, applications, publicUrls, preferences);
         org.mockito.Mockito.lenient().when(publicUrls.path("/candidate/interviews"))
                 .thenReturn("http://se36.localhost:5173/candidate/interviews");
-        User candidate = new User();
+        Candidate candidate = new Candidate();
         candidate.setEmail("can@se36.local");
         candidate.setFullName("Candidate");
         Job job = new Job();
@@ -104,5 +104,18 @@ class AiInterviewInviteServiceTest {
         service.sendIfNeeded(application, failed);
 
         verify(mail, never()).send(anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void usesTenantBrandNameInSubjectAndSignature() {
+        when(publicUrls.brandName()).thenReturn("FPT Software");
+        when(mail.send(anyString(), anyString(), anyString())).thenReturn(true);
+
+        service.sendIfNeeded(application, passed);
+
+        verify(mail).send(
+                eq("can@se36.local"),
+                eq("FPT Software: mời phỏng vấn AI — Backend Java"),
+                contains("FPT Software"));
     }
 }

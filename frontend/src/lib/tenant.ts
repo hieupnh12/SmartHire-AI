@@ -1,3 +1,5 @@
+const RESERVED_SUBDOMAINS = ['www', 'api', 'app', 'admin', 'master', 'localhost', 'smarthire-master'];
+
 export const getTenantIdFromSubdomain = (): string | null => {
   if (typeof window === 'undefined') return null;
 
@@ -7,7 +9,7 @@ export const getTenantIdFromSubdomain = (): string | null => {
   // Case A: acme.localhost (2 parts, parts[1] === 'localhost')
   if (parts.length === 2 && parts[1].toLowerCase() === 'localhost') {
     const subdomain = parts[0].toLowerCase();
-    if (!['www', 'api', 'app', 'localhost'].includes(subdomain)) {
+    if (!RESERVED_SUBDOMAINS.includes(subdomain)) {
       return subdomain;
     }
   }
@@ -15,7 +17,7 @@ export const getTenantIdFromSubdomain = (): string | null => {
   // Case B: acme.smarthire.top or acme.smarthire.ai (3+ parts)
   if (parts.length > 2) {
     const subdomain = parts[0].toLowerCase();
-    if (!['www', 'api', 'app', 'localhost'].includes(subdomain)) {
+    if (!RESERVED_SUBDOMAINS.includes(subdomain)) {
       return subdomain;
     }
   }

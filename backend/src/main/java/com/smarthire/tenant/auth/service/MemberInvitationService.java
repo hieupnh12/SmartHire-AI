@@ -71,11 +71,12 @@ public class MemberInvitationService {
         invitation.setExpiresAt(expiresAt);
         invitationRepository.save(invitation);
 
+        String brand = TenantPublicUrlService.brandOrDefault(publicUrls);
         String acceptUrl = publicUrls.path("/invite/accept?token=" + rawToken);
         boolean emailSent = inviteMailSender.send(
                 email,
-                "Invitation to SmartHire workspace",
-                "You were invited as " + role.getName() + ".\nSet your password:\n" + acceptUrl + "\nThis link expires in "
+                "Invitation to " + brand + " workspace",
+                "You were invited to join " + brand + " as " + role.getName() + ".\nSet your password:\n" + acceptUrl + "\nThis link expires in "
                         + expireHours + " hours.");
 
         return InviteMemberResponse.builder()

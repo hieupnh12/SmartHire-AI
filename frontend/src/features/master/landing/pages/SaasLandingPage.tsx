@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useScrollReveal } from "@/hooks/useScrollReveal";
 import {
   CheckCircle2,
   ArrowRight,
@@ -18,10 +19,36 @@ import {
   ChevronRight
 } from "lucide-react";
 import { useLandingModal } from "../context/LandingModalContext";
+import { checkoutApi, PublicSubscriptionPlan } from "@/api/master/checkoutApi";
 
 export function SaasLandingPage() {
   const navigate = useNavigate();
   const { openDemoModal, openWorkspaceModal } = useLandingModal();
+  const [plans, setPlans] = useState<PublicSubscriptionPlan[]>([]);
+  const [loadingPlans, setLoadingPlans] = useState(true);
+
+  // Smooth scroll-reveal animations
+  useScrollReveal();
+
+  useEffect(() => {
+    checkoutApi.getPublicPlans()
+      .then(data => {
+        const standardPlans = ["STARTER", "PROFESSIONAL", "ENTERPRISE"];
+        let fetchedPlans = data
+          .filter(p => p.status === "ACTIVE" && standardPlans.includes(p.code))
+          .sort((a, b) => (a.priceYearly || 0) - (b.priceYearly || 0));
+
+        if (fetchedPlans.length === 0) {
+          fetchedPlans = data
+            .filter(p => p.status === "ACTIVE" && p.priceYearly > 0)
+            .sort((a, b) => (a.priceYearly || 0) - (b.priceYearly || 0))
+            .slice(0, 3);
+        }
+        setPlans(fetchedPlans);
+      })
+      .catch(err => console.error("Failed to fetch plans", err))
+      .finally(() => setLoadingPlans(false));
+  }, []);
 
   // Interactive FAQ State
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
@@ -54,18 +81,18 @@ export function SaasLandingPage() {
       {/* HERO SECTION */}
       <section className="pt-16 pb-12 md:pt-24 md:pb-20 max-w-7xl mx-auto px-6">
         <div className="text-center max-w-4xl mx-auto">
-          <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight text-slate-900 leading-[1.15] mb-6">
+          <h1 data-reveal="fade-up" className="text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight text-slate-900 leading-[1.15] mb-6">
             Nâng Tầm Hiệu Suất Tuyển Dụng Với{" "}
             <span className="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 bg-clip-text text-transparent drop-shadow-sm">
               Trí Tuệ Nhân Tạo
             </span>
           </h1>
 
-          <p className="text-lg sm:text-xl text-slate-600 max-w-3xl mx-auto mb-10 leading-relaxed">
+          <p data-reveal="fade-up" style={{ transitionDelay: "80ms" }} className="text-lg sm:text-xl text-slate-600 max-w-3xl mx-auto mb-10 leading-relaxed">
             Giải pháp toàn diện giúp doanh nghiệp tự động hóa từ khâu sàng lọc hồ sơ, đánh giá năng lực đến phỏng vấn sơ loại. Rút ngắn 70% thời gian tuyển dụng, tối ưu chi phí và thu hút nhân tài xuất sắc.
           </p>
 
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 max-w-md mx-auto mb-16">
+          <div data-reveal="fade-up" style={{ transitionDelay: "160ms" }} className="flex flex-col sm:flex-row items-center justify-center gap-4 max-w-md mx-auto mb-16">
             <button
               onClick={() => openDemoModal("Tư Vấn Giải Pháp Doanh Nghiệp")}
               className="w-full sm:w-auto px-8 py-4 text-base font-semibold rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-98 text-white shadow-lg shadow-blue-600/20 hover:shadow-xl hover:shadow-blue-600/30 transition-all flex items-center justify-center gap-2.5 group"
@@ -83,7 +110,7 @@ export function SaasLandingPage() {
           </div>
 
           {/* LIVE PRODUCT PREVIEW MOCKUP WITH FLOATING CHIPS */}
-          <div className="relative max-w-5xl mx-auto mt-4 mb-16">
+          <div data-reveal="scale-up" style={{ transitionDelay: "240ms" }} className="relative max-w-5xl mx-auto mt-4 mb-16">
             {/* Floating Chip Left */}
             <div className="hidden lg:flex items-center gap-3 absolute -top-6 -left-6 z-20 bg-white/95 backdrop-blur-md px-4 py-2.5 rounded-2xl border border-slate-200/80 shadow-xl shadow-slate-900/5 animate-float">
               <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center font-semibold">
@@ -245,7 +272,7 @@ export function SaasLandingPage() {
           </div>
 
           {/* TRUST BANNER */}
-          <div className="pt-8 border-t border-slate-200">
+          <div data-reveal="fade-in" className="pt-8 border-t border-slate-200">
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-6">
               Giải pháp được nghiên cứu và tin cậy bởi các tổ chức & doanh nghiệp hàng đầu
             </p>
@@ -263,7 +290,7 @@ export function SaasLandingPage() {
       {/* CORE SOLUTIONS TEASER SECTION */}
       <section className="py-20 bg-white border-y border-slate-200/80">
         <div className="max-w-7xl mx-auto px-6">
-          <div className="text-center max-w-3xl mx-auto mb-16">
+          <div data-reveal="fade-up" className="text-center max-w-3xl mx-auto mb-16">
             <span className="text-xs font-semibold text-blue-600 uppercase tracking-wider px-3 py-1 rounded-full bg-blue-50 border border-blue-200">
               Hệ Sinh Thái Tuyển Dụng
             </span>
@@ -275,7 +302,7 @@ export function SaasLandingPage() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
+          <div data-reveal-stagger className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
             <div className="p-8 rounded-3xl bg-slate-50/70 border border-slate-200 hover:border-blue-400 hover:shadow-xl transition-all group">
               <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center mb-5 border border-blue-200 group-hover:bg-blue-600 group-hover:text-white transition-colors">
                 <FileCheck2 className="w-6 h-6" />
@@ -333,7 +360,7 @@ export function SaasLandingPage() {
 
       {/* VALUE & ROI SECTION */}
       <section className="py-20 max-w-7xl mx-auto px-6">
-        <div className="text-center max-w-3xl mx-auto mb-16">
+        <div data-reveal="fade-up" className="text-center max-w-3xl mx-auto mb-16">
           <span className="text-xs font-semibold text-blue-600 uppercase tracking-wider px-3 py-1 rounded-full bg-blue-50 border border-blue-200">
             Giá Trị Thực Tiễn
           </span>
@@ -345,7 +372,7 @@ export function SaasLandingPage() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+        <div data-reveal-stagger className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
           <div className="p-6 rounded-2xl bg-white border border-slate-200 text-center hover:-translate-y-1.5 hover:shadow-xl hover:border-blue-400/40 transition-all duration-300 group">
             <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto mb-4 border border-blue-200 group-hover:scale-110 group-hover:bg-blue-600 group-hover:text-white transition-all duration-300">
               <Clock className="w-6 h-6" />
@@ -404,7 +431,7 @@ export function SaasLandingPage() {
 
       {/* SECURITY TEASER SECTION - STYLE REFINED PER SHOWCASE CARD (IMAGE 2) */}
       <section className="py-12 sm:py-16 max-w-7xl mx-auto px-6">
-        <div className="relative rounded-[32px] sm:rounded-[36px] overflow-hidden bg-white border border-slate-200/80 p-8 sm:p-12 lg:p-14 shadow-xl shadow-slate-200/40">
+        <div data-reveal="scale-up" className="relative rounded-[32px] sm:rounded-[36px] overflow-hidden bg-white border border-slate-200/80 p-8 sm:p-12 lg:p-14 shadow-xl shadow-slate-200/40">
           {/* Ambient Warm Gradient (Top-Right per Image 2) */}
           <div className="absolute -top-24 -right-24 w-96 h-96 bg-gradient-to-br from-orange-300/30 via-rose-200/20 to-transparent rounded-full blur-3xl pointer-events-none" />
 
@@ -428,7 +455,7 @@ export function SaasLandingPage() {
 
           <div className="relative grid lg:grid-cols-12 gap-10 lg:gap-12 items-center">
             {/* Left Column: Heading + Checklist + Buttons */}
-            <div className="lg:col-span-6 xl:col-span-6">
+            <div data-reveal="slide-left" className="lg:col-span-6 xl:col-span-6">
               <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-slate-900 leading-tight mb-6">
                 <span className="text-[#f05123] font-bold">Bảo Vệ Dữ Liệu Nhân Sự</span>{" "}
                 <br className="hidden sm:inline" />
@@ -484,7 +511,7 @@ export function SaasLandingPage() {
             </div>
 
             {/* Right Column: White framed media card per Image 2 */}
-            <div className="lg:col-span-6 xl:col-span-6">
+            <div data-reveal="slide-right" style={{ transitionDelay: "100ms" }} className="lg:col-span-6 xl:col-span-6">
               <div className="bg-white rounded-3xl p-3 sm:p-4 shadow-xl shadow-slate-200/60 border border-slate-100">
                 <div className="relative overflow-hidden rounded-2xl aspect-[4/3] bg-slate-100">
                   <img
@@ -506,7 +533,7 @@ export function SaasLandingPage() {
 
       {/* PACKAGES PREVIEW SECTION */}
       <section className="py-20 max-w-7xl mx-auto px-6">
-        <div className="text-center max-w-3xl mx-auto mb-16">
+        <div data-reveal="fade-up" className="text-center max-w-3xl mx-auto mb-12">
           <span className="text-xs font-semibold text-blue-600 uppercase tracking-wider px-3 py-1 rounded-full bg-blue-50 border border-blue-200">
             Gói Giải Pháp Doanh Nghiệp
           </span>
@@ -518,110 +545,151 @@ export function SaasLandingPage() {
           </p>
         </div>
 
-        <div className="grid lg:grid-cols-3 gap-8 items-stretch mb-12">
-          {/* TIER 1 */}
-          <div className="rounded-3xl bg-white border border-slate-200 p-8 flex flex-col justify-between shadow-sm hover:shadow-xl transition-all">
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-xl font-bold text-slate-900">Gói Chuyên Nghiệp</h3>
-                <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-700">
-                  Doanh nghiệp vừa
-                </span>
-              </div>
-              <p className="text-xs text-slate-500 mb-6">Tối ưu cho doanh nghiệp có nhu cầu chuẩn hóa tuyển dụng cốt lõi.</p>
-              <div className="flex items-baseline gap-1 mb-6">
-                <span className="text-2xl font-extrabold text-slate-900">3.600.000 đ</span>
-                <span className="text-xs text-slate-500 font-medium">/ tháng</span>
-              </div>
-              <ul className="space-y-3 text-xs sm:text-sm text-slate-600 mb-8">
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-blue-600" /> 10 tài khoản Tuyển dụng
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-blue-600" /> Sàng lọc 1,500 CVs / tháng
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-blue-600" /> Cổng Career Site riêng
-                </li>
-              </ul>
-            </div>
-            <button
-              onClick={() => navigate("/checkout/PROFESSIONAL")}
-              className="w-full py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold text-xs shadow transition-all"
-            >
-              Mua Ngay Gói Này
-            </button>
-          </div>
+        {/* SMALL INTRO / CTA */}
+        <div data-reveal="fade-up" className="flex flex-wrap items-center justify-center gap-3 mb-10">
+          <span className="italic text-slate-900 font-medium text-lg">Nếu Doanh nghiệp có quy mô khác</span>
+          <button
+            onClick={() => openDemoModal("Gói Tùy Biến Chuyên Sâu", "CONTRACT_QUOTE")}
+            className="px-5 py-2 rounded-full bg-violet-600 hover:bg-violet-700 active:scale-95 text-white font-bold text-sm transition-all shadow-sm flex items-center gap-2"
+          >
+            Báo giá 1-1
+          </button>
+        </div>
 
-          {/* TIER 2 (HIGHLIGHT) */}
-          <div className="rounded-3xl bg-white border-2 border-blue-600 p-8 flex flex-col justify-between shadow-xl relative hover:-translate-y-1.5 transition-all">
-            <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[11px] font-bold px-3.5 py-1 rounded-full shadow-sm">
-              Lựa Chọn Phổ Biến Nhất
+        <div data-reveal-stagger className="grid lg:grid-cols-3 gap-8 items-stretch mb-12">
+          {loadingPlans ? (
+            <div className="col-span-3 py-20 text-center text-slate-500 flex flex-col items-center">
+              <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+              <p>Đang tải bảng giá...</p>
             </div>
-            <div>
-              <div className="flex items-center justify-between mb-3 mt-1">
-                <h3 className="text-xl font-bold text-slate-900">Gói Doanh Nghiệp</h3>
-                <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-blue-50 text-blue-700">
-                  Doanh nghiệp lớn
-                </span>
-              </div>
-              <p className="text-xs text-slate-500 mb-6">Tối ưu cho tổ chức có nhiều phòng ban và khối lượng ứng viên lớn.</p>
-              <div className="flex items-baseline gap-1 mb-6">
-                <span className="text-2xl font-extrabold text-blue-600">9.900.000 đ</span>
-                <span className="text-xs text-slate-500 font-medium">/ tháng</span>
-              </div>
-              <ul className="space-y-3 text-xs sm:text-sm text-slate-600 mb-8">
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-blue-600" /> Không giới hạn vị trí tuyển
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-blue-600" /> Sàng lọc 10,000 CVs / tháng
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-blue-600" /> Trợ lý phỏng vấn AI giọng nói 24/7
-                </li>
-              </ul>
+          ) : plans.length === 0 ? (
+            <div className="col-span-3 py-20 text-center text-slate-500">
+              Không có gói cước nào khả dụng.
             </div>
-            <button
-              onClick={() => navigate("/checkout/ENTERPRISE")}
-              className="w-full py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold text-xs shadow transition-all"
-            >
-              Mua Ngay Gói Doanh Nghiệp
-            </button>
-          </div>
+          ) : (
+            plans.map((plan, index) => {
+              const isHighlighted = index === 1;
+              const isEnterprise = plan.code === "ENTERPRISE";
+              const cleanName = plan.name.replace(/\s*\(.*?\)\s*/g, "");
 
-          {/* TIER 3 */}
-          <div className="rounded-3xl bg-white border border-slate-200 p-8 flex flex-col justify-between shadow-sm hover:shadow-xl transition-all">
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-xl font-bold text-slate-900">Gói Tùy Biến Chuyên Sâu</h3>
-                <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-700">
-                  Tập đoàn
-                </span>
-              </div>
-              <p className="text-xs text-slate-500 mb-6">Dành cho các đơn vị có yêu cầu riêng biệt về hạ tầng máy chủ.</p>
-              <div className="flex items-baseline gap-1 mb-6">
-                <span className="text-2xl font-extrabold text-slate-900">Liên hệ báo giá</span>
-              </div>
-              <ul className="space-y-3 text-xs sm:text-sm text-slate-600 mb-8">
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-blue-600" /> Cụm máy chủ riêng biệt
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-blue-600" /> Không giới hạn tài khoản & CV
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-blue-600" /> Hỗ trợ kỹ thuật 24/7 chuyên trách
-                </li>
-              </ul>
-            </div>
-            <button
-              onClick={() => openDemoModal("Gói Tùy Biến Chuyên Sâu (Custom Solution)", "CONTRACT_QUOTE")}
-              className="w-full py-3 px-4 rounded-xl bg-blue-50 hover:bg-blue-100 active:scale-95 text-blue-700 font-semibold text-xs transition-all"
-            >
-              Liên Hệ Đội Ngũ Chuyên Gia
-            </button>
-          </div>
+              return (
+                <div
+                  key={plan.id}
+                  className={`rounded-3xl bg-white p-8 flex flex-col justify-between shadow-sm transition-all duration-300 ${
+                    isHighlighted
+                      ? "border-2 border-blue-600 shadow-xl relative hover:-translate-y-2"
+                      : "border border-slate-200 hover:shadow-xl hover:-translate-y-1.5"
+                  }`}
+                >
+                  {isHighlighted && (
+                    <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[11px] font-bold px-4 py-1 rounded-full shadow-sm tracking-wide whitespace-nowrap">
+                      Lựa Chọn Phổ Biến Nhất
+                    </div>
+                  )}
+
+                  <div>
+                    <div className="flex items-start justify-between gap-3 mb-3 mt-1">
+                      <h3 className="text-xl font-bold text-slate-900 leading-tight">{cleanName}</h3>
+                      <span
+                        className={`text-[11px] font-semibold px-2.5 py-1 rounded shrink-0 whitespace-nowrap ${
+                          isHighlighted ? "bg-blue-50 text-blue-700" : "bg-slate-100 text-slate-700"
+                        }`}
+                      >
+                        {index === 0 ? "Doanh nghiệp nhỏ" : index === 1 ? "Doanh nghiệp vừa" : "Doanh nghiệp lớn"}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 mb-6 min-h-[32px]">
+                      {plan.description || "Tối ưu cho doanh nghiệp có nhu cầu chuẩn hóa quy trình tuyển dụng."}
+                    </p>
+
+                    <div
+                      className={`p-4 rounded-xl mb-5 ${
+                        isHighlighted ? "bg-blue-50/60 border-blue-200" : "bg-slate-50 border border-slate-200"
+                      }`}
+                    >
+                      <span className={`text-xs block mb-1 ${isHighlighted ? "text-blue-700 font-semibold" : "text-slate-500"}`}>
+                        Quy mô phù hợp
+                      </span>
+                      <span className="text-sm font-semibold text-slate-900">
+                        {index === 0 ? "Dưới 50 nhân sự" : index === 1 ? "Từ 50 - 200 nhân sự" : "Từ 200+ nhân sự"}
+                      </span>
+                    </div>
+
+                    <div className="mb-6">
+                      <div className="flex items-baseline gap-1.5">
+                        {plan.priceYearly > 0 ? (
+                          <>
+                            <span className={`text-3xl font-extrabold ${isHighlighted ? "text-blue-600" : "text-slate-900"}`}>
+                              {plan.priceYearly.toLocaleString("vi-VN")} đ
+                            </span>
+                            <span className="text-xs text-slate-500 font-medium">/ năm</span>
+                          </>
+                        ) : (
+                          <span className={`text-3xl font-extrabold ${isHighlighted ? "text-blue-600" : "text-slate-900"}`}>
+                            Liên hệ báo giá
+                          </span>
+                        )}
+                      </div>
+                      <div className="mt-1.5 text-xs text-slate-500 font-medium">
+                        Bản quyền sử dụng trọn gói theo năm
+                      </div>
+                    </div>
+
+                    <ul className="space-y-3 text-sm text-slate-600 mb-8">
+                      <li className="flex items-start gap-2.5">
+                        <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                        <span>Cơ sở dữ liệu riêng biệt & bảo mật</span>
+                      </li>
+                      <li className="flex items-start gap-2.5">
+                        <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                        <span>
+                          <strong>{plan.maxJobs > 0 ? plan.maxJobs : "Không giới hạn"}</strong> vị trí tuyển dụng
+                        </span>
+                      </li>
+                      <li className="flex items-start gap-2.5">
+                        <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                        <span>
+                          Sàng lọc <strong>{plan.maxCvParses > 0 ? plan.maxCvParses.toLocaleString() : "Không giới hạn"} CVs / tháng</strong>
+                        </span>
+                      </li>
+                      <li className="flex items-start gap-2.5">
+                        <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                        <span>
+                          Trợ lý phỏng vấn AI <strong>{plan.maxAiInterviewHours ? `${plan.maxAiInterviewHours}h` : "Không giới hạn"}</strong>
+                        </span>
+                      </li>
+                      {isEnterprise && (
+                        <li className="flex items-start gap-2.5">
+                          <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                          <span>
+                            Hỗ trợ tích hợp <strong>SSO SAML / OIDC</strong>
+                          </span>
+                        </li>
+                      )}
+                    </ul>
+                  </div>
+
+                  <div className="flex gap-2.5 mt-auto">
+                    <button
+                      onClick={() => openDemoModal(plan.name, "CONTRACT_QUOTE")}
+                      className="flex-[1.2] py-3.5 px-2 rounded-full bg-[#00bda5] hover:bg-[#00a893] active:scale-95 text-white font-bold text-[13px] transition-all flex items-center justify-center shadow-md whitespace-nowrap"
+                    >
+                      Tư vấn báo giá 1:1
+                    </button>
+                    {plan.priceYearly > 0 && (
+                      <button
+                        onClick={() => navigate(`/checkout/${plan.code}`)}
+                        className="flex-1 py-3.5 px-2 rounded-full bg-gradient-to-r from-blue-600 to-blue-400 hover:from-blue-700 hover:to-blue-500 active:scale-95 text-white font-bold text-[13px] transition-all flex items-center justify-center gap-1.5 shadow-md whitespace-nowrap"
+                      >
+                        <span>Mua ngay</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          )}
         </div>
 
         <div className="text-center">
@@ -638,7 +706,7 @@ export function SaasLandingPage() {
       {/* FAQ SECTION */}
       <section className="py-20 bg-white border-t border-slate-200/80">
         <div className="max-w-4xl mx-auto px-6">
-          <div className="text-center mb-14">
+          <div data-reveal="fade-up" className="text-center mb-14">
             <span className="text-xs font-semibold text-blue-600 uppercase tracking-wider px-3 py-1 rounded-full bg-blue-50 border border-blue-200">
               Hỏi Đáp Thường Gặp
             </span>
@@ -650,7 +718,7 @@ export function SaasLandingPage() {
             </p>
           </div>
 
-          <div className="space-y-4">
+          <div data-reveal-stagger className="space-y-4">
             {faqs.map((faq, index) => {
               const isExpanded = expandedFaq === index;
               return (
@@ -688,7 +756,7 @@ export function SaasLandingPage() {
         <div className="absolute inset-0 pointer-events-none">
           <div className="absolute top-0 right-1/4 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl" />
         </div>
-        <div className="max-w-5xl mx-auto px-6 text-center relative z-10">
+        <div data-reveal="fade-up" className="max-w-5xl mx-auto px-6 text-center relative z-10">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-800 text-sky-400 text-xs font-semibold mb-6 border border-slate-700">
             <Sparkles className="w-3.5 h-3.5" />
             <span>Chuyển Đổi Số Tuyển Dụng</span>
