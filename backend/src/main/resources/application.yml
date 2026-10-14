@@ -166,11 +166,11 @@ app:
     cv-retention-days: ${APPLICATION_CV_RETENTION_DAYS:180}
     maintenance-cron: ${APPLICATION_MAINTENANCE_CRON:0 15 * * * *}
   ai:
-    timeout-seconds: ${CV_AI_TIMEOUT_SECONDS:30}
+    timeout-seconds: ${CV_AI_TIMEOUT_SECONDS:90}
     gemini:
       api-key: ${GEMINI_API_KEY:}
     models:
-      cv-parsing: ${GEMINI_MODEL:gemini-2.0-flash}
+      cv-parsing: ${GEMINI_MODEL:gemini-3.5-flash-lite}
     # Dedicated Gemini credentials for AI Interview (INT-01..05) — not shared with CV parsing
     interview:
       api-key: ${AI_INTERVIEW_GEMINI_API_KEY:}
