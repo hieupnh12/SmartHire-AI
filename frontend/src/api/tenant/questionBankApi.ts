@@ -1,8 +1,10 @@
+import type { CodingContent, SampleResult } from "@/api/types/assessment";
 import { api } from "@/lib/axios";
 import type { ApiResponse } from "@/types/api";
 import type { BankQuestion, BankQuestionPage, BankQuestionQuery, BankQuestionRequest } from "@/api/types/questionBank";
 
 export const questionBankApi = {
+  verifyCoding: (body: { coding: CodingContent; language: string; source: string }) => api.post<ApiResponse<SampleResult[]>>("/question-bank/verify_coding", body).then(response => response.data.data),
   list: (params: BankQuestionQuery, signal?: AbortSignal) => api.get<ApiResponse<BankQuestionPage>>("/question-bank/list_questions", {
     params,
     paramsSerializer: { indexes: null },

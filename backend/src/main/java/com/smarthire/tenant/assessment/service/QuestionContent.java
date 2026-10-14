@@ -21,6 +21,12 @@ public final class QuestionContent {
             if (!Set.of("CODING_ALGORITHM", "CODING_OOP", "SQL_QUERY").contains(coding.category())
                     || coding.timeLimitMs() < 100 || coding.timeLimitMs() > 10000 || coding.memoryMb() < 32 || coding.memoryMb() > 512)
                 throw invalid("Invalid coding limits or category");
+            if (coding.testCases().stream().anyMatch(c -> c.weight() != null)) {
+                var hidden = coding.testCases().stream().filter(c -> !c.sample()).toList();
+                if (hidden.size() < 2 || hidden.stream().anyMatch(c -> c.weight() == null || c.weight().signum() <= 0)
+                        || hidden.stream().map(c -> c.weight()).reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add)
+                            .compareTo(java.math.BigDecimal.valueOf(100)) != 0) throw invalid("Hidden test weights must total 100; two hidden tests required (totaling 100)");
+            }
             validateLanguages(coding.starterCode(), false);
             validateLanguages(coding.harness(), true);
             coding.starterCode().fieldNames().forEachRemaining(language -> {
@@ -43,9 +49,9 @@ public final class QuestionContent {
         if (total != 100) throw invalid("Rubric weights must total 100");
     }
     private static void validateLanguages(JsonNode node, boolean harness) {
-        if (node == null || !node.isObject() || node.isEmpty() || node.size() > 4) throw invalid("Language templates are required");
+        if (node == null || !node.isObject() || node.isEmpty() || node.size() > 5) throw invalid("Language templates are required");
         node.fields().forEachRemaining(entry -> {
-            if (!Set.of("java", "python", "javascript", "sql").contains(entry.getKey()) || !entry.getValue().isTextual()
+            if (!Set.of("java", "python", "javascript", "cpp", "sql").contains(entry.getKey()) || !entry.getValue().isTextual()
                     || entry.getValue().asText().length() > 10000 || (harness && !entry.getValue().asText().contains("{{SOURCE}}")))
                 throw invalid("Invalid language template");
         });
@@ -56,13 +62,14 @@ public final class QuestionContent {
         var data = request.coding();
         var problem = question.getCodingProblem() == null ? new CodingProblem() : question.getCodingProblem();
         problem.setQuestion(question); problem.setTest(question.getTest());
-        problem.setTitle(question.getQuestionText().substring(0, Math.min(255, question.getQuestionText().length())));
+        problem.setTitle(data.title() == null || data.title().isBlank() ? question.getQuestionText().substring(0, Math.min(255, question.getQuestionText().length())) : data.title().trim());
         problem.setPrompt(question.getQuestionText()); problem.setCategory(data.category());
         problem.setTimeLimitMs(data.timeLimitMs()); problem.setMemoryMb(data.memoryMb());
         problem.setStarterCodeJson(data.starterCode().deepCopy()); problem.setHarnessJson(data.harness().deepCopy());
         problem.getTestCases().clear();
         for (var input : data.testCases()) {
             var row = new TestCase(); row.setCodingProblem(problem); row.setInputData(input.input());
+            row.setWeight(input.weight() == null ? java.math.BigDecimal.ONE : input.weight());
             row.setExpectedOutput(input.expectedOutput()); row.setSample(input.sample()); problem.getTestCases().add(row);
         }
         question.setCodingProblem(problem);

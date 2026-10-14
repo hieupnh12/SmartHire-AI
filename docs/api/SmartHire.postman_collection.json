@@ -735,6 +735,70 @@
             ],
             "url": "{{baseUrl}}/submissions/{{submissionId}}/retry_grading"
           }
+        },
+        {
+          "name": "Get grading detail",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/submissions/{{submissionId}}/grading_detail"
+          }
+        },
+        {
+          "name": "Update grading result atomically",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/submissions/{{submissionId}}/update_grading_result",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"decisions\": [\n    {\n      \"questionId\": 1,\n      \"score\": null\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Queue approved result email",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/submissions/{{submissionId}}/send_result_email"
+          }
         }
       ]
     },

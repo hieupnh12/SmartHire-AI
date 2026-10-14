@@ -1,4 +1,4 @@
-import { AssessmentGradingPanel } from "../components/AssessmentGradingPanel";
+import { SubmissionGradingDetail } from "../components/SubmissionGradingDetail";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
@@ -125,7 +125,7 @@ export function AssessmentSubmissionsPage() {
         </Button>
       </header>
 
-      {reviewId != null && <AssessmentGradingPanel key={reviewId} id={reviewId} onClose={() => setReviewId(null)} />}
+      {reviewId != null && <SubmissionGradingDetail key={reviewId} id={reviewId} onClose={() => setReviewId(null)} />}
       <AssessmentError error={submissions.error} retry={() => void submissions.refetch()} />
 
       <div className="flex flex-col gap-4 rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-4 shadow-[var(--shadow-card)]">

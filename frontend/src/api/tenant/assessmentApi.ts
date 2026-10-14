@@ -1,8 +1,12 @@
+import type { SubmissionGradingDetail, GradeDecision, ResultEmailReceipt } from "@/api/types/assessment";
 import { api } from "@/lib/axios";
 import type { ApiResponse } from "@/types/api";
 import type { GradingReview, SampleResult, AvailableAssessment, JobTest, Question, QuestionRequest, SavedAnswer, SendAssessmentResult, Submission, SubmissionSummary, TestPage, TestRequest } from "@/api/types/assessment";
 
 export const assessmentApi = {
+  gradingDetail: (id: number) => api.get<ApiResponse<SubmissionGradingDetail>>(`/submissions/${id}/grading_detail`).then(r => r.data.data),
+  updateGradingResult: (id: number, decisions: GradeDecision[]) => api.post<ApiResponse<SubmissionGradingDetail>>(`/submissions/${id}/update_grading_result`, { decisions }).then(r => r.data.data),
+  sendResultEmail: (id: number) => api.post<ApiResponse<ResultEmailReceipt>>(`/submissions/${id}/send_result_email`).then(r => r.data.data),
   list: (page = 0, size = 20) => api.get<ApiResponse<TestPage>>("/assessments/list_tenant_tests", { params: { page, size } }).then(r => r.data.data),
   listForJob: async (jobId: number) => {
     const items: JobTest[] = [];

@@ -12,6 +12,20 @@ import static org.mockito.Mockito.*;
 
 class AiInterviewWorkServiceTest {
     @Test
+    void assessmentResultEmailsUseExistingWorkerAndStopAfterThreeFailures() {
+        var emails = mock(EmailOutboxRepository.class);
+        var mail = mock(InviteMailSender.class);
+        var interviews = mock(AiInterviewRepository.class);
+        var service = new AiInterviewWorkService(interviews, emails, mail);
+        var email = EmailOutbox.builder().purpose("ASSESSMENT_RESULT").toEmail("candidate@example.test").subject("Result").body("Approved result").build();
+        when(emails.findLockedById(1L)).thenReturn(Optional.of(email));
+        service.sendEmail(1L); service.sendEmail(1L); service.sendEmail(1L); service.sendEmail(1L);
+        assertThat(email.getStatus()).isEqualTo(NotificationStatus.FAILED);
+        assertThat(email.getAttempts()).isEqualTo(3);
+        verify(mail, times(3)).send(email.getToEmail(), email.getSubject(), email.getBody());
+    }
+
+    @Test
     void sendsAssessmentOutboxAndDoesNotSendItAgain() {
         var emails = mock(EmailOutboxRepository.class);
         var mail = mock(InviteMailSender.class);

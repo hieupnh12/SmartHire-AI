@@ -98,7 +98,7 @@ bảng nhật ký `ai_interview_logs` (chi tiết ở [H.5](#h5-ai_interview_log
 | `applications.cv_screening_status` | VARCHAR(16) | Không | `'PENDING'` | — | `CvScreeningStatus`: `PENDING`, `PASSED`, `FAILED` |
 | `ai_interviews.passing_score_snapshot` | DECIMAL(5,2) | Có | NULL | — | Ngưỡng đạt chốt lúc candidate bắt đầu |
 | `ai_interviews.error_message` | VARCHAR(255) | Có | NULL | — | Thông báo lỗi đã làm sạch khi sinh câu/chấm lỗi |
-| `email_outbox.purpose` | VARCHAR(64) | Có | NULL | IDX | Mục đích email, ví dụ `AI_INTERVIEW_RESULT` |
+| `email_outbox.purpose` | VARCHAR(64) | Có | NULL | IDX | Mục đích email: `AI_INTERVIEW_RESULT`, `ASSESSMENT_INVITATION`, `ASSESSMENT_RESULT`; worker xử lý theo tenant, không đổi schema |
 
 ## Dọn legacy V21 (2026-09-26)
 
@@ -784,7 +784,7 @@ Entity `TestCase`.
 | `input_data` | TEXT | | Không | — | Input |
 | `expected_output` | TEXT | | Không | — | Output mong đợi |
 | `is_sample` | BOOLEAN | | Không | FALSE | Test mẫu công khai |
-| `weight` | DECIMAL(5,2) | | Không | 1 | Trọng số |
+| `weight` | DECIMAL(5,2) | | Không | 1 | Hidden test mới có trọng số dương/tổng 100%, sample 0; service kiểm tra tổng. Bài legacy mặc định 1 giữ tỉ lệ test pass; không đổi schema |
 
 **Ràng buộc:** `fk_tc_cp`
 

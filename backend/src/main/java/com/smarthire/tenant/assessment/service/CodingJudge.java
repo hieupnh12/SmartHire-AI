@@ -20,7 +20,7 @@ public class CodingJudge {
     }
     public JsonNode run(CodingProblem problem, String language, String source, String input, String expected) {
         if (url.isBlank()) throw new IllegalStateException("Coding sandbox is not configured");
-        int languageId = switch (language) { case "java" -> 62; case "python" -> 71; case "javascript" -> 63; case "sql" -> 82; default -> throw new IllegalArgumentException("Unsupported language"); };
+        int languageId = switch (language) { case "java" -> 62; case "python" -> 71; case "javascript" -> 63; case "sql" -> 82; case "cpp" -> 54; default -> throw new IllegalArgumentException("Unsupported language"); };
         String harness = problem.getHarnessJson().path(language).asText();
         if (!harness.contains("{{SOURCE}}")) throw new IllegalStateException("Missing executable harness");
         var body = Map.of("source_code", harness.replace("{{SOURCE}}", source), "language_id", languageId,

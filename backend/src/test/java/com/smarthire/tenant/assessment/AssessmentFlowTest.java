@@ -47,9 +47,10 @@ class AssessmentFlowTest {
     @Configuration
     @EnableTransactionManagement
     @EnableJpaRepositories(basePackages = "com.smarthire.domain.tenant.repository")
-    @Import({com.smarthire.tenant.assessment.service.CodingJudge.class, AssessmentService.class, QuestionService.class, QuestionBankService.class, AssessmentGenerationService.class, SubmissionService.class, AssessmentMapper.class, NotificationPreferenceService.class})
+    @Import({com.smarthire.tenant.assessment.service.CodingJudge.class, AssessmentService.class, QuestionService.class, QuestionBankService.class, AssessmentGenerationService.class, SubmissionService.class, AssessmentMapper.class, NotificationPreferenceService.class, AssessmentGradingService.class, SubmissionGradingDetailService.class})
     static class Config {
         @Bean ObjectMapper objectMapper() { return new ObjectMapper(); }
+        @Bean com.smarthire.tenant.aiInterview.ai.AiInterviewClient aiClient() { return org.mockito.Mockito.mock(com.smarthire.tenant.aiInterview.ai.AiInterviewClient.class); }
         @Bean CvAccess cvAccess(UserRepository users, CandidateRepository candidates, JobAssignmentRepository assignments) {
             return new CvAccess(users, candidates, assignments);
         }
@@ -85,6 +86,9 @@ class AssessmentFlowTest {
     @Autowired QuestionBankService bank;
     @Autowired AssessmentGenerationService generation;
     @Autowired SubmissionService submissions;
+    @Autowired SubmissionGradingDetailService gradingDetail;
+    @Autowired AssessmentGradingService grading;
+    @Autowired EmailOutboxRepository emails;
     @Autowired PlatformTransactionManager transactionManager;
     TransactionTemplate tx;
     MockMvc mvc;
@@ -119,7 +123,10 @@ class AssessmentFlowTest {
             jobId = job.getId(); applicationId = application.getId(); candidateId = candidate.getId();
         });
         login(recruiterEmail, "RECRUITER");
-        mvc = MockMvcBuilders.standaloneSetup(new QuestionController(questions), new QuestionBankController(bank), new AssessmentGenerationController(generation), new SubmissionController(submissions))
+        var submissionController = new SubmissionController(submissions);
+        org.springframework.test.util.ReflectionTestUtils.setField(submissionController, "grading", grading);
+        org.springframework.test.util.ReflectionTestUtils.setField(submissionController, "gradingDetail", gradingDetail);
+        mvc = MockMvcBuilders.standaloneSetup(new QuestionController(questions), new QuestionBankController(bank), new AssessmentGenerationController(generation), submissionController)
                 .setControllerAdvice(new GlobalExceptionHandler()).build();
     }
 
@@ -723,6 +730,40 @@ class AssessmentFlowTest {
         authentication.setDetails("assessment_tenant"); SecurityContextHolder.getContext().setAuthentication(authentication);
     }
     private JobTestRequest request() { return new JobTestRequest(jobId, "Java", null, 30, BigDecimal.valueOf(5)); }
+    @Test
+    void gradingUpdateRollsBackInvalidBatchAndResultEmailIsDeduplicated() throws Exception {
+        long testId = draft();
+        var choice = questions.create(testId, question("Choice", 5, 0));
+        var first = questions.create(testId, new QuestionRequest("First essay", 5, 1, null, null, null, List.of(), QuestionType.ESSAY));
+        var second = questions.create(testId, new QuestionRequest("Second essay", 5, 2, null, null, null, List.of(), QuestionType.ESSAY));
+        questions.publish(testId);
+        login(candidateEmail, "CANDIDATE");
+        long id = submissions.start(testId, new StartSubmissionRequest(applicationId)).id();
+        submissions.save(id, save(choice.id(), choice.options().getFirst().id()));
+        submissions.completeObjective(id);
+        submissions.submit(id);
+        assertThatThrownBy(() -> gradingDetail.detail(id)).hasMessageContaining("Staff access required");
+        mvc.perform(get("/api/v1/submissions/{id}/grading_detail", id)).andExpect(status().isForbidden());
+        login(recruiterEmail, "RECRUITER");
+        assertThat(gradingDetail.detail(id).objective().correctCount()).isEqualTo(1);
+        assertThatThrownBy(() -> gradingDetail.sendResult(id)).hasMessageContaining("Approve every");
+        mvc.perform(post("/api/v1/submissions/{id}/send_result_email", id)).andExpect(status().isConflict());
+        assertThatThrownBy(() -> gradingDetail.update(id, new UpdateGradingRequest(List.of(
+                new UpdateGradingRequest.Decision(first.id(), new BigDecimal("4")),
+                new UpdateGradingRequest.Decision(second.id(), new BigDecimal("99")))))).hasMessageContaining("Invalid reviewed score");
+        assertThat(gradingDetail.detail(id).reviews()).allMatch(review -> review.score() == null && review.reviewedAt() == null);
+        var result = gradingDetail.update(id, new UpdateGradingRequest(List.of(
+                new UpdateGradingRequest.Decision(first.id(), new BigDecimal("4")),
+                new UpdateGradingRequest.Decision(second.id(), new BigDecimal("3")))));
+        assertThat(result.score()).isEqualByComparingTo("12");
+        assertThat(result.status()).isEqualTo(TestSubmissionStatus.GRADED);
+        mvc.perform(get("/api/v1/submissions/{id}/grading_detail", id)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.objective.correctCount").value(1)).andExpect(jsonPath("$.data.score").value(12));
+        var receipt = gradingDetail.sendResult(id);
+        assertThat(gradingDetail.sendResult(id).id()).isEqualTo(receipt.id());
+        assertThat(emails.findById(receipt.id()).orElseThrow().getPurpose()).isEqualTo("ASSESSMENT_RESULT");
+    }
+
     private long draft() { return assessments.create(request()).id(); }
     private long published() { long id = draft(); questions.create(id, question("One", 5, 0)); questions.publish(id); return id; }
     private QuestionRequest question(String text, int points, int order) {

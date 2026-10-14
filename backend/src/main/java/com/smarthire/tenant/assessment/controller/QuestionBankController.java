@@ -19,8 +19,16 @@ import org.springframework.web.bind.annotation.*;
 @Tag(name = "Technical Assessment - General Question Bank")
 public class QuestionBankController {
     private final QuestionBankService service;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.smarthire.tenant.assessment.service.CodingVerificationService verification;
 
     public QuestionBankController(QuestionBankService service) { this.service = service; }
+
+    @PostMapping("/verify_coding")
+    @Operation(summary = "Verify model solution against draft coding tests in sandbox (staff only)")
+    public ApiResponse<List<com.fasterxml.jackson.databind.JsonNode>> verify(@Valid @RequestBody com.smarthire.tenant.assessment.dto.request.CodingVerificationRequest body) {
+        return ApiResponse.ok(verification.verify(body));
+    }
 
     @GetMapping("/list_questions")
     @Operation(summary = "List standalone and assessment questions in the current tenant (staff only)")

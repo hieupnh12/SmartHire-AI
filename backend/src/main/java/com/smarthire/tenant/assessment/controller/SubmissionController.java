@@ -18,6 +18,8 @@ public class SubmissionController {
     private final SubmissionService service;
     @org.springframework.beans.factory.annotation.Autowired
     private com.smarthire.tenant.assessment.service.AssessmentGradingService grading;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.smarthire.tenant.assessment.service.SubmissionGradingDetailService gradingDetail;
 
     public SubmissionController(SubmissionService service) { this.service = service; }
 
@@ -70,6 +72,22 @@ public class SubmissionController {
         return ApiResponse.ok(grading.reviews(id));
     }
     public record GradeRequest(@jakarta.validation.constraints.DecimalMin("0") java.math.BigDecimal score) {}
+    @GetMapping("/submissions/{id}/grading_detail")
+    @Operation(summary = "Inspect objective totals and all subjective grading evidence (assigned staff only)")
+    public ApiResponse<com.smarthire.tenant.assessment.dto.response.SubmissionGradingDetailResponse> detail(@PathVariable long id) {
+        return ApiResponse.ok(gradingDetail.detail(id));
+    }
+    @PostMapping("/submissions/{id}/update_grading_result")
+    @Operation(summary = "Atomically approve subjective decisions and refresh official result (assigned staff only)")
+    public ApiResponse<com.smarthire.tenant.assessment.dto.response.SubmissionGradingDetailResponse> updateResult(@PathVariable long id,
+            @Valid @RequestBody com.smarthire.tenant.assessment.dto.request.UpdateGradingRequest request) {
+        return ApiResponse.ok(gradingDetail.update(id, request));
+    }
+    @PostMapping("/submissions/{id}/send_result_email")
+    @Operation(summary = "Queue an approved result email; repeated identical requests reuse the outbox item (assigned staff only)")
+    public ApiResponse<com.smarthire.tenant.assessment.service.SubmissionGradingDetailService.EmailReceipt> sendResultEmail(@PathVariable long id) {
+        return ApiResponse.ok(gradingDetail.sendResult(id));
+    }
     @PostMapping("/submissions/{id}/approve_grade/{questionId}")
     @Operation(summary = "Approve suggested score or provide reviewed score (staff only)")
     public ApiResponse<Void> approve(@PathVariable long id, @PathVariable long questionId, @Valid @RequestBody GradeRequest body) {

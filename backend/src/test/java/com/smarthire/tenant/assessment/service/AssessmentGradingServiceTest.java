@@ -75,6 +75,23 @@ class AssessmentGradingServiceTest {
         assertThat(answer.getSuggestedScore()).isEqualByComparingTo("5.00"); assertThat(answer.getScore()).isNull();
         verify(executions).save(argThat(execution -> execution.getStatus() == SubmissionStatus.FAILED));
     }
+    @Test void hiddenWeightsDetermineTestScoreAndSampleDoesNotContribute() throws Exception {
+        var problem = new CodingProblem();
+        var sample = new TestCase(); sample.setSample(true); sample.setInputData("sample"); sample.setExpectedOutput("ok"); sample.setWeight(BigDecimal.ZERO);
+        var first = new TestCase(); first.setInputData("first"); first.setExpectedOutput("ok"); first.setWeight(new BigDecimal("70"));
+        var second = new TestCase(); second.setInputData("second"); second.setExpectedOutput("ok"); second.setWeight(new BigDecimal("30"));
+        problem.getTestCases().addAll(List.of(sample, first, second));
+        answer.getQuestion().setCodingProblem(problem); answer.getQuestion().setQuestionType("CODING"); answer.setLanguage("cpp");
+        when(answers.findBySubmission_IdOrderByQuestion_QuestionOrderAscQuestion_IdAsc(1L)).thenReturn(List.of(answer));
+        when(judge.run(eq(problem), eq("cpp"), anyString(), anyString(), eq("ok")))
+                .thenAnswer(call -> json.readTree("{\"status\":{\"id\":" + (call.getArgument(3).equals("first") ? 3 : 4) + "}}"));
+        when(ai.evaluate(anyString(), any())).thenReturn(json.readTree("{\"score_percent\":100}"));
+        service.suggest(1L, "CODING");
+        assertThat(answer.getSuggestedScore()).isEqualByComparingTo("7.60");
+        assertThat(answer.getEvaluationJson().path("tests_percent").decimalValue()).isEqualByComparingTo("70");
+        assertThat(answer.getScore()).isNull();
+    }
+
     @Test void invalidAiScoresAreRejectedWithoutPublishingAGrade() throws Exception {
         answer.getQuestion().setRubricJson(json.readTree("{\"referenceAnswer\":\"WAL\",\"criteria\":[{\"description\":\"Correctness\",\"weight\":100}]}"));
         when(answers.findBySubmission_IdOrderByQuestion_QuestionOrderAscQuestion_IdAsc(1L)).thenReturn(List.of(answer));

@@ -1,0 +1,946 @@
+# Code giao di?n assessment ?? copy sang d? ?n kh?c
+
+??y l? m? ngu?n hi?n t?i c?a d? ?n, gi? nguy?n n?i dung. Kh?ng ph?i ?ng d?ng ??c l?p.
+
+## File ch?nh
+- AssessmentPreviewPage.tsx: trang Xem m?u b?i thi, b?n tab ng?n h?ng / c?u tr?c ?? / ?ng vi?n l?m b?i / ch?m & duy?t ?i?m. M? m?c ??nh ? tab ?ng vi?n.
+- EssayQuestionForm.tsx: form t? lu?n l? thuy?t, ??p ?n tham kh?o, rubric, tr?ng s?, s? t? t?i thi?u.
+- CodingProblemForm.tsx: form b?i l?p tr?nh, m? t?, ng?n ng?, starter code, harness v? sample/hidden tests.
+- QuestionContentFields.tsx: form c?u h?nh ??n gi?n m? trang m?u hi?n ?ang s? d?ng. Hai form chi ti?t ph?a tr?n l? component ri?ng.
+- CodingPreviewPanel.tsx v? essayPreview.ts: giao di?n code v? d? li?u minh h?a.
+
+## C?ch d?ng
+Copy c?c file theo ???ng d?n ghi trong b?n text; @/ l? alias tr? t?i src/.
+Stack: React + TypeScript + Tailwind CSS. Package ???c d?ng: react-router-dom, lucide-react, react-hook-form, @hookform/resolvers, zod, @tanstack/react-query, clsx, tailwind-merge. D?ng phi?n b?n t??ng th?ch v?i d? ?n ??ch.
+Import styles/tokens.css c?ng c?u h?nh Tailwind c?a d? ?n ??ch ?? gi? m?u, spacing v? radius.
+AssessmentPreviewPage d?ng useParams l?y id t? route /recruiter/jobs/:id/assessments/preview. N?u d?ng ??c l?p, thay link quay v? b?ng ???ng d?n d? ?n ??ch.
+EssayQuestionForm v? CodingProblemForm nh?n question (t?y ch?n), order, busy, onSave v? onCancel. Parent t? x? l? l?u d? li?u t? callback onSave; ?? d?ng UI m?u ch? c?n gi? d? li?u trong state.
+CodingProblemForm d?ng useMutation n?n ph?i n?m trong QueryClientProvider.
+
+## C?c ?i?m c?n n?i l?i khi chuy?n d? ?n
+questionBankApi.ts d?ng client @/lib/axios; assessmentUi.tsx d?ng getApiErrorMessage t? c?ng module. Client n?y kh?ng ???c ??ng g?i v? ph? thu?c auth v? tenant c?a SmartHire. Thay b?ng API client / h?m ??c l?i c?a d? ?n ??ch.
+N?t ki?m tra code c?a form th?t g?i POST /question-bank/verify_coding; ch? ho?t ??ng khi backend ??ch h? tr? endpoint v? sandbox. N?u ch? d?ng giao di?n, thay mutation b?ng k?t qu? mock c? nh?n minh h?a.
+Trang preview kh?ng ch?y AI ho?c code th?t. ?i?m, nh?n x?t v? k?t qu? test l? v? d? d?ng s?n. Kh?ng d?ng c?c gi? tr? n?y l?m ?i?m th?c.
+Kh?ng c?n sao ch?p backend ho?c d? li?u ?ng vi?n ?? d?ng c?c giao di?n n?y.
+
+
+
+================================================================================
+FILE: frontend/src/features/tenant/recruiter/assessments/pages/AssessmentPreviewPage.tsx
+================================================================================
+
+import { useState } from "react";
+import { Link, useParams } from "react-router-dom";
+import { BookOpen, ClipboardList, FilePenLine, RotateCcw } from "lucide-react";
+import type { Question } from "@/api/types/assessment";
+import { Button } from "@/components/ux/Button";
+import { assessmentInput, FieldError } from "@/components/ux/assessmentUi";
+import { QuestionContentFields } from "../components/QuestionContentFields";
+import { essayPreviewAnswer, essayPreviewBank, essayPreviewFeedback, codingPreviewAnswer } from "../constants/essayPreview";
+import { CodingPreviewPanel } from "../components/CodingPreviewPanel";
+import { rubricSchema, codingSchema, contentError } from "../utils/questionContentValidation";
+
+const panel = "rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-5 space-y-4";
+const steps = ["Ngân hàng câu hỏi", "Cấu trúc đề", "Ứng viên làm bài", "Chấm & duyệt điểm"];
+
+export function AssessmentPreviewPage() {
+  const { id } = useParams();
+  const [step, setStep] = useState(2);
+  const [bank, setBank] = useState<Question[]>(() => structuredClone(essayPreviewBank));
+  const [selected, setSelected] = useState(9102);
+  const question = bank.find(item => item.id === selected) ?? bank[1];
+  const [prompt, setPrompt] = useState(essayPreviewBank[1].questionText);
+  const [rubric, setRubric] = useState(JSON.stringify(essayPreviewBank[1].rubricJson));
+  const [error, setError] = useState<string>();
+  const [notice, setNotice] = useState("");
+  const [answer, setAnswer] = useState(essayPreviewAnswer);
+  const [objectiveDone, setObjectiveDone] = useState(false);
+  const [option, setOption] = useState<number>();
+  const [submitted, setSubmitted] = useState(false);
+  const [score, setScore] = useState("18.1");
+  const [approved, setApproved] = useState<number | null>(null);
+  const [source, setSource] = useState(codingPreviewAnswer);
+  const [codeApproved, setCodeApproved] = useState<number | null>(null);
+  const codeQuestion = bank[3];
+  const reviewQuestion = bank[1];
+  const totalScore = approved == null || codeApproved == null ? null : Number(((option == null || option === 1 ? 10 : 0) + 24 + approved + codeApproved).toFixed(2));
+  const weights = reviewQuestion.rubricJson?.criteria ?? [];
+  const suggested = Number((weights.reduce((sum, item, index) => sum + item.weight * (essayPreviewFeedback[index]?.percent ?? 0) / 100, 0) * reviewQuestion.points / 100).toFixed(2));
+  const scoreValid = score.trim() !== "" && Number.isFinite(Number(score)) && Number(score) >= 0 && Number(score) <= reviewQuestion.points && /^\d+(\.\d{1,2})?$/.test(score);
+
+  function choose(item: Question) {
+    setSelected(item.id); setPrompt(item.questionText); setRubric(JSON.stringify(item.questionType === "CODING" ? item.coding : item.rubricJson)); setError(undefined); setNotice("");
+  }
+  function saveQuestion() {
+    try {
+      if (!prompt.trim()) throw new Error("Nhập nội dung câu hỏi.");
+      const parsed = question.questionType === "CODING" ? { coding: codingSchema.parse(JSON.parse(rubric)) } : { rubricJson: rubricSchema.parse(JSON.parse(rubric)) };
+      setBank(items => items.map(item => item.id === selected ? { ...item, questionText: prompt.trim(), ...parsed } : item));
+      setApproved(null); setCodeApproved(null); setSubmitted(false); setError(undefined); setNotice("Đã lưu câu hỏi trong ngân hàng mẫu và cập nhật đề mẫu.");
+    } catch (failure) { setError(failure instanceof Error && failure.message === "Nhập nội dung câu hỏi." ? failure.message : contentError(failure)); }
+  }
+  function approve(value: number) { setApproved(value); setNotice(`Đã duyệt ${value}/${reviewQuestion.points} điểm cho câu tự luận mẫu.`); }
+
+  return <div className="mx-auto max-w-6xl space-y-6 p-4 sm:p-6">
+    <Link to={`/recruiter/jobs/${id}/assessments`} className="text-sm text-[var(--color-primary)] hover:underline">← Quản lý bài đánh giá</Link>
+    <header className="flex flex-wrap items-start justify-between gap-4">
+      <div><p className="text-sm font-medium text-[var(--color-primary)]">ASSESSMENT MẪU · Java Backend Developer</p><h1 className="mt-1 text-2xl font-semibold">Xem trước trải nghiệm làm bài của ứng viên</h1><p className="mt-2 text-sm text-[var(--color-on-surface-variant)]">Thử chọn đáp án, viết tự luận và làm bài code. Chuyển các tab để xem cấu trúc đề, cách soạn câu hỏi và duyệt điểm.</p></div>
+      <Button variant="secondary" onClick={() => { setBank(structuredClone(essayPreviewBank)); choose(essayPreviewBank[1]); setAnswer(essayPreviewAnswer); setObjectiveDone(false); setOption(undefined); setSubmitted(false); setApproved(null); setScore("18.1"); setSource(codingPreviewAnswer); setCodeApproved(null); setStep(2); }}><RotateCcw className="size-4" aria-hidden="true" />Đặt lại mẫu</Button>
+    </header>
+    <p className="rounded-lg bg-[var(--color-surface-container-low)] p-3 text-sm">Dữ liệu minh họa trong bộ nhớ, mất khi tải lại trang. Điểm và nhận xét AI bên dưới là ví dụ dựng sẵn, không đánh giá câu trả lời bạn nhập.</p>
+    <nav aria-label="Các bước xem assessment mẫu" className="grid gap-2 sm:grid-cols-4">{steps.map((label, index) => <Button key={label} variant={step === index ? "primary" : "secondary"} aria-current={step === index ? "step" : undefined} onClick={() => { setStep(index); setNotice(""); }}>{index + 1}. {label}</Button>)}</nav>
+    {notice && <p role="status" className="text-sm text-[var(--color-primary)]">{notice}</p>}
+
+    {step === 0 && <div className="grid items-start gap-5 lg:grid-cols-[320px_1fr]">
+      <section className={panel}><h2 className="flex items-center gap-2 font-semibold"><BookOpen className="size-5" aria-hidden="true" />Ngân hàng mẫu</h2><p className="text-sm">4 câu · 1 trắc nghiệm · 2 tự luận · 1 code</p>{bank.map(item => <button key={item.id} type="button" aria-pressed={selected === item.id} onClick={() => choose(item)} className={`w-full rounded-lg border p-3 text-left ${selected === item.id ? "border-[var(--color-primary)] bg-[var(--color-surface-container-low)]" : "border-[var(--color-border-default)]"}`}><span className="text-xs text-[var(--color-primary)]">{item.questionType} · {item.skill} · {item.points} điểm</span><span className="mt-2 block text-sm font-medium">{item.questionText}</span></button>)}</section>
+      <section className={panel}><h2 className="font-semibold">Biên soạn câu #{question.id}</h2><p className="text-sm">{question.difficulty} · {question.skill} · {question.points} điểm</p>{(question.questionType === "ESSAY" || question.questionType === "CODING") ? <><label className="block text-sm">Nội dung câu hỏi<textarea rows={4} className={assessmentInput} value={prompt} onChange={event => setPrompt(event.target.value)} /></label><QuestionContentFields type={question.questionType === "CODING" ? "CODING" : "ESSAY"} value={rubric} onChange={setRubric} /><FieldError message={error} /><Button onClick={saveQuestion}>Lưu câu hỏi mẫu</Button><p className="text-xs text-[var(--color-on-surface-variant)]">Đáp án tham khảo và rubric chỉ dành cho người biên soạn/chấm bài.</p></> : <><p>{question.questionText}</p>{question.options.map(item => <p key={item.id} className="rounded-lg bg-[var(--color-surface-container-low)] p-3 text-sm">{item.optionText}{item.correct ? " · Đáp án đúng" : ""}</p>)}</>}</section>
+    </div>}
+
+    {step === 1 && <section className={panel}><h2 className="flex items-center gap-2 text-lg font-semibold"><ClipboardList className="size-5" aria-hidden="true" />Đề mẫu: Java Backend · 45 phút</h2><p className="text-sm">Ngưỡng đạt: 60/100 điểm · Trắc nghiệm tối đa 10 phút · Tổng thời gian tính từ lúc bắt đầu.</p>{["Phần 1 — Trắc nghiệm (10 điểm)", "Phần 2 — Tự luận & code (90 điểm)"].map((label, index) => <div key={label} className="space-y-3 rounded-lg bg-[var(--color-surface-container-low)] p-4"><h3 className="font-medium">{label}</h3>{bank.filter(item => index === 0 ? item.questionType === "MCQ" : item.questionType !== "MCQ").map(item => <p key={item.id} className="text-sm">{item.questionText} <strong>({item.points} điểm)</strong></p>)}</div>)}<p className="text-sm">Bản mẫu cho phép sửa để khám phá. Trong luồng thật, câu hỏi được sao chép từ ngân hàng; publish khóa đề và sửa ngân hàng không thay đổi đề đã tạo.</p><Button onClick={() => setStep(2)}>Thử màn hình ứng viên</Button></section>}
+
+    {step === 2 && <section className={panel}><h2 className="flex items-center gap-2 text-lg font-semibold"><FilePenLine className="size-5" aria-hidden="true" />Ứng viên mẫu: Nguyễn Minh Anh</h2><p className="text-sm">{submitted ? "Đã nộp · Đang chờ chấm" : objectiveDone ? "Phần 2 · Tự luận & code" : "Phần 1 · Trắc nghiệm"} · Đồng hồ chỉ được mô tả trong bản mẫu.</p>{!objectiveDone ? <><h3 className="font-medium">{bank[0].questionText}</h3>{bank[0].options.map(item => <label key={item.id} className="flex gap-3 rounded-lg border border-[var(--color-border-default)] p-4"><input type="radio" name="preview-objective" checked={option === item.id} onChange={() => setOption(item.id)} />{item.optionText}</label>)}<p className="text-sm">Chốt phần trắc nghiệm sẽ khóa lựa chọn, sau đó mở tự luận.</p><Button disabled={option == null} onClick={() => setObjectiveDone(true)}>Chốt trắc nghiệm & chuyển tự luận</Button></> : <><h3 className="whitespace-pre-wrap font-medium">{reviewQuestion.questionText}</h3><p className="text-sm">{reviewQuestion.points} điểm · Không hiển thị đáp án mẫu hoặc rubric cho ứng viên.</p><label className="block text-sm">Bài làm (hỗ trợ nhập Markdown)<textarea rows={10} maxLength={10000} className={assessmentInput} value={answer} disabled={submitted} onChange={event => setAnswer(event.target.value)} /></label><p className="text-xs">{answer.trim().split(/\s+/).filter(Boolean).length} từ · {answer.length}/10.000 ký tự · Nháp giữ trong trang mẫu.</p><p className="text-sm">Để rút gọn thao tác, câu tự luận thứ hai có bài mẫu đã chấm 24/30 điểm.</p><CodingPreviewPanel question={codeQuestion} source={source} onSourceChange={setSource} submitted={submitted} approved={codeApproved} onApprove={setCodeApproved} /><Button disabled={submitted || !answer.trim() || !source.trim()} onClick={() => { setSubmitted(true); setApproved(null); setCodeApproved(null); setStep(3); setScore(String(suggested)); setNotice("Đã nộp bài mẫu. Nhận xét minh họa đã sẵn sàng để duyệt."); }}>Nộp bài mẫu</Button></>}</section>}
+
+    {step === 3 && <div className="grid items-start gap-5 lg:grid-cols-[1fr_300px]">
+      <section className={panel}><h2 className="text-lg font-semibold">Chấm tự luận theo rubric</h2><p className="text-sm">Bài {submitted ? "vừa nộp" : "dựng sẵn"} · {approved == null ? "Chờ recruiter duyệt" : "Đã duyệt"}</p><h3 className="font-medium">{reviewQuestion.questionText}</h3><pre className="whitespace-pre-wrap rounded-lg bg-[var(--color-surface-container-low)] p-4 font-sans text-sm">{answer}</pre><details><summary className="cursor-pointer font-medium">Đáp án tham khảo</summary><p className="mt-3 whitespace-pre-wrap text-sm">{reviewQuestion.rubricJson?.referenceAnswer}</p></details><div className="overflow-x-auto"><table className="w-full text-left text-sm"><caption className="mb-3 text-left">Đánh giá minh họa theo tiêu chí (giữ cố định khi sửa bài làm)</caption><thead><tr><th className="p-2">Tiêu chí</th><th className="p-2">Tỉ trọng</th><th className="p-2">Mức đạt</th></tr></thead><tbody>{weights.map((item, index) => <tr key={index} className="border-t border-[var(--color-border-default)]"><td className="p-2">{item.description}<p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">{essayPreviewFeedback[index]?.feedback ?? "Tiêu chí thêm mới: minh họa mức đạt 0%, chưa có nhận xét mẫu."}</p></td><td className="p-2">{item.weight}%</td><td className="p-2">{essayPreviewFeedback[index]?.percent ?? 0}%</td></tr>)}</tbody></table></div><p className="text-sm">Điểm đề xuất = {reviewQuestion.points} × Σ(tỉ trọng × mức đạt) = <strong>{suggested}/{reviewQuestion.points}</strong>.</p><p className="text-sm">Trong hệ thống thật, AI đánh giá ý nghĩa theo rubric. Recruiter duyệt hoặc điều chỉnh trước khi công bố điểm tổng.</p><CodingPreviewPanel question={codeQuestion} source={source} onSourceChange={setSource} submitted={submitted} review approved={codeApproved} onApprove={setCodeApproved} /></section>
+      <aside className={panel}><h2 className="font-semibold">Duyệt điểm</h2><p className="text-3xl font-semibold text-[var(--color-primary)]">{approved ?? suggested}<span className="text-base">/{reviewQuestion.points}</span></p><p className="text-sm">{approved == null ? "Điểm AI minh họa đề xuất" : "Điểm chính thức đã duyệt"}</p><Button className="w-full" onClick={() => approve(suggested)}>Chấp thuận điểm mẫu</Button><label className="block text-sm">Điểm điều chỉnh<input type="number" min={0} max={reviewQuestion.points} step="0.01" className={assessmentInput} value={score} onChange={event => setScore(event.target.value)} /></label>{!scoreValid && <FieldError message={`Nhập điểm từ 0 đến ${reviewQuestion.points}, tối đa 2 chữ số thập phân.`} />}<Button variant="secondary" className="w-full" disabled={!scoreValid} onClick={() => approve(Number(score))}>Lưu điểm điều chỉnh</Button><div className="space-y-2 border-t border-[var(--color-border-default)] pt-4"><p className="text-sm">Trắc nghiệm: {option == null || option === 1 ? 10 : 0}/10</p><p className="text-sm">Tự luận 2 (đã duyệt mẫu): 24/30</p><p className="text-sm">Code: {codeApproved == null ? "Chờ duyệt" : `${codeApproved}/40`}</p><p className="font-semibold">Tổng: {totalScore == null ? "Chờ duyệt tự luận và code" : `${totalScore}/100`}</p>{totalScore != null && <p role="status" className="text-sm">{totalScore >= 60 ? "Đạt" : "Chưa đạt"} · Ngưỡng 60 điểm</p>}</div></aside>
+    </div>}
+  </div>;
+}
+
+
+
+================================================================================
+FILE: frontend/src/features/tenant/recruiter/assessments/components/EssayQuestionForm.tsx
+================================================================================
+
+import { useFieldArray, useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { Plus, Trash2 } from "lucide-react";
+import type { Question, QuestionRequest } from "@/api/types/assessment";
+import { Button } from "@/components/ux/Button";
+import { assessmentInput as input, FieldError } from "@/components/ux/assessmentUi";
+
+const criterion = z.object({ name: z.string().trim().min(1, "Nhập tên tiêu chí."), guide: z.string().trim().min(1, "Nhập hướng dẫn chấm."), weightPercentage: z.number().int().min(1).max(100), requiredKeywords: z.string() });
+export const essayQuestionSchema = z.object({
+  questionText: z.string().trim().min(20, "Đề bài cần ít nhất 20 ký tự.").max(10000),
+  points: z.number().int().min(1).max(100), difficulty: z.enum(["Easy", "Medium", "Hard"]),
+  skill: z.string().trim().min(1, "Nhập kỹ năng.").max(128), referenceAnswer: z.string().trim().min(1, "Nhập đáp án tham khảo.").max(10000),
+  minWords: z.number().int().min(0).max(10000).optional(), rubric: z.array(criterion).min(1).max(5),
+}).refine(value => value.rubric.reduce((sum, row) => sum + row.weightPercentage, 0) === 100, { path: ["rubric"], message: "Tổng trọng số phải bằng 100%." });
+type Values = z.infer<typeof essayQuestionSchema>;
+const template: Values["rubric"] = [
+  { name: "Bản chất cốt lõi", weightPercentage: 40, guide: "Giải thích chính xác nguyên lý và các khái niệm cốt lõi.", requiredKeywords: "" },
+  { name: "Phân tích & So sánh Trade-offs", weightPercentage: 30, guide: "Phân tích ưu, nhược điểm và điều kiện áp dụng của từng phương án.", requiredKeywords: "" },
+  { name: "Tính logic & Thực tế", weightPercentage: 30, guide: "Lập luận nhất quán, có ví dụ thực tế phù hợp.", requiredKeywords: "" },
+];
+
+export function EssayQuestionForm({ question, order, busy, onSave, onCancel }: {
+  question?: Question; order: number; busy: boolean; onSave: (value: QuestionRequest) => void; onCancel: () => void;
+}) {
+  const { register, control, watch, handleSubmit, formState: { errors } } = useForm<Values>({ resolver: zodResolver(essayQuestionSchema), defaultValues: {
+    questionText: question?.questionText ?? "", points: question?.points ?? 10, difficulty: question?.difficulty ?? "Medium", skill: question?.skill ?? "",
+    referenceAnswer: question?.rubricJson?.referenceAnswer ?? "", minWords: question?.rubricJson?.minWords,
+    rubric: question?.rubricJson?.criteria.map(row => ({ name: row.name ?? row.description, guide: row.guide ?? row.description, weightPercentage: row.weight, requiredKeywords: row.keywords?.join(", ") ?? "" })) ?? template,
+  } });
+  const { fields, append, remove, replace } = useFieldArray({ control, name: "rubric" });
+  const total = watch("rubric").reduce((sum, row) => sum + (Number(row.weightPercentage) || 0), 0);
+  return <form noValidate className="space-y-5" onSubmit={handleSubmit(values => onSave({
+    questionType: "ESSAY", questionText: values.questionText, points: values.points, difficulty: values.difficulty, skill: values.skill || null,
+    questionOrder: question?.questionOrder ?? order, explanation: question?.explanation ?? null, options: [], coding: null,
+    rubricJson: { category: question?.rubricJson?.category ?? "ESSAY_CONCEPTUAL", referenceAnswer: values.referenceAnswer, minWords: values.minWords,
+      criteria: values.rubric.map(row => ({ name: row.name, guide: row.guide, description: `${row.name}: ${row.guide}`, weight: row.weightPercentage, keywords: row.requiredKeywords.split(",").map(word => word.trim()).filter(Boolean) })) },
+  }))}>
+    <fieldset disabled={busy} className="space-y-4">
+      <h2 className="text-lg font-semibold">{question ? "Sửa" : "Soạn"} câu hỏi tự luận</h2>
+      <label className="block text-sm">Đề bài / tình huống<textarea autoFocus rows={5} className={input} {...register("questionText")} /><FieldError message={errors.questionText?.message} /></label>
+      <div className="grid gap-4 sm:grid-cols-3">
+        <label className="text-sm">Điểm<input type="number" min={1} max={100} className={input} {...register("points", { valueAsNumber: true })} /><FieldError message={errors.points?.message} /></label>
+        <label className="text-sm">Độ khó<select className={input} {...register("difficulty")}><option value="Easy">Dễ</option><option value="Medium">Trung bình</option><option value="Hard">Khó</option></select></label>
+        <label className="text-sm">Kỹ năng<input className={input} {...register("skill")} /><FieldError message={errors.skill?.message} /></label>
+      </div>
+      <label className="block text-sm">Đáp án mẫu tham khảo<textarea rows={5} className={input} {...register("referenceAnswer")} /><FieldError message={errors.referenceAnswer?.message} /></label>
+      <label className="block text-sm">Số từ tối thiểu gợi ý (tùy chọn)<input type="number" min={0} className={input} {...register("minWords", { setValueAs: value => value === "" ? undefined : Number(value) })} /><FieldError message={errors.minWords?.message} /></label>
+      <section className="space-y-4 rounded-xl border border-[var(--color-border-default)] bg-[var(--color-primary-subtle)] p-4">
+        <h3 className="font-semibold">Cấu hình tiêu chí chấm điểm tự động (AI Rubric)</h3>
+        <Button variant="secondary" onClick={() => replace(template)}>Tải cấu hình mẫu chuẩn</Button>
+        {fields.map((field, index) => <fieldset key={field.id} className="space-y-3 rounded-lg bg-[var(--color-surface-card)] p-4"><legend className="text-sm font-medium">Tiêu chí {index + 1}</legend>
+          <div className="grid gap-3 sm:grid-cols-[1fr_120px]">
+            <label className="text-sm">Tên tiêu chí<input className={input} {...register(`rubric.${index}.name`)} /><FieldError message={errors.rubric?.[index]?.name?.message} /></label>
+            <label className="text-sm">Trọng số (%)<input type="number" min={1} max={100} className={input} {...register(`rubric.${index}.weightPercentage`, { valueAsNumber: true })} /><FieldError message={errors.rubric?.[index]?.weightPercentage?.message} /></label>
+          </div>
+          <label className="block text-sm">Hướng dẫn chấm<textarea rows={3} className={input} {...register(`rubric.${index}.guide`)} /><FieldError message={errors.rubric?.[index]?.guide?.message} /></label>
+          <label className="block text-sm">Từ khóa kỹ thuật (phân cách bằng dấu phẩy)<input className={input} {...register(`rubric.${index}.requiredKeywords`)} /></label>
+          <Button variant="ghost" disabled={fields.length <= 1} aria-label={`Xóa tiêu chí ${index + 1}`} onClick={() => remove(index)}><Trash2 className="size-4" aria-hidden="true" />Xóa tiêu chí</Button>
+        </fieldset>)}
+        <progress className="h-2 w-full accent-[var(--color-primary)]" max={100} value={Math.min(total, 100)} aria-label="Tổng trọng số rubric" />
+        <p role={total === 100 ? "status" : "alert"} className={total === 100 ? "text-sm" : "text-sm text-[var(--color-error)]"}>{total === 100 ? "Tổng trọng số: 100%" : `Tổng trọng số các tiêu chí phải đạt 100% (Hiện tại: ${total}%)`}</p>
+        <FieldError message={errors.rubric?.root?.message ?? errors.rubric?.message} />
+        <Button variant="secondary" disabled={fields.length >= 5} onClick={() => append({ name: "", guide: "", weightPercentage: 1, requiredKeywords: "" })}><Plus className="size-4" aria-hidden="true" />Thêm tiêu chí</Button>
+      </section>
+      <div className="flex flex-wrap gap-2"><Button type="submit" disabled={busy || total !== 100}>{busy ? "Đang lưu…" : "Lưu câu hỏi tự luận"}</Button><Button variant="secondary" onClick={onCancel}>Hủy</Button></div>
+    </fieldset>
+  </form>;
+}
+
+
+
+================================================================================
+FILE: frontend/src/features/tenant/recruiter/assessments/components/CodingProblemForm.tsx
+================================================================================
+
+import { useState } from "react";
+import { useMutation } from "@tanstack/react-query";
+import { useFieldArray, useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { Plus, Play, Trash2 } from "lucide-react";
+import type { Question, QuestionRequest } from "@/api/types/assessment";
+import { questionBankApi } from "@/api/tenant/questionBankApi";
+import { Button } from "@/components/ux/Button";
+import { AssessmentError, assessmentInput as input, FieldError } from "@/components/ux/assessmentUi";
+
+const languages = ["java", "python", "javascript", "cpp", "sql"] as const;
+const codeTemplates = z.record(z.string().max(10000));
+export const codingProblemSchema = z.object({
+  title: z.string().trim().min(1, "Nhập tên bài toán.").max(255), prompt: z.string().trim().min(20, "Mô tả cần ít nhất 20 ký tự.").max(10000),
+  points: z.number().int().min(1).max(100), difficulty: z.enum(["Easy", "Medium", "Hard"]), skill: z.string().trim().min(1, "Nhập kỹ năng.").max(128),
+  category: z.enum(["CODING_ALGORITHM", "CODING_OOP", "SQL_QUERY"]), timeLimitMs: z.number().int().min(500).max(5000), memoryMb: z.number().int().min(64).max(512),
+  allowedLanguages: z.array(z.enum(languages)).min(1, "Chọn ít nhất một ngôn ngữ."), starterCode: codeTemplates, harness: codeTemplates,
+  testCases: z.array(z.object({ input: z.string().max(10000), expectedOutput: z.string().max(10000), sample: z.boolean(), weight: z.number().min(0).max(100).multipleOf(0.01, "Trọng số tối đa hai chữ số thập phân.") })).min(3).max(50),
+}).superRefine((value, context) => {
+  for (const language of value.allowedLanguages) {
+    if (!value.harness[language]?.includes("{{SOURCE}}")) context.addIssue({ code: "custom", path: ["harness", language], message: "Chương trình kiểm thử cần chứa {{SOURCE}} để chèn lời giải." });
+  }
+  const hidden = value.testCases.filter(row => !row.sample);
+  if (!value.testCases.some(row => row.sample) || hidden.length < 2) context.addIssue({ code: "custom", path: ["testCases"], message: "Cần ít nhất 1 test công khai và 2 test ẩn." });
+  if (hidden.some(row => row.weight <= 0) || Math.abs(hidden.reduce((sum, row) => sum + row.weight, 0) - 100) > 0.000001) context.addIssue({ code: "custom", path: ["testCases"], message: "Trọng số test ẩn phải dương và tổng bằng 100%." });
+});
+type Values = z.infer<typeof codingProblemSchema>;
+
+function toRequest(value: Values, order: number, explanation: string | null): QuestionRequest {
+  const select = (templates: Record<string, string>) => Object.fromEntries(value.allowedLanguages.map(language => [language, templates[language] ?? ""]));
+  return { questionText: value.prompt, points: value.points, questionOrder: order, difficulty: value.difficulty, skill: value.skill || null, explanation,
+    options: [], questionType: "CODING", rubricJson: null, coding: { title: value.title, category: value.category, timeLimitMs: value.timeLimitMs, memoryMb: value.memoryMb,
+      starterCode: select(value.starterCode), harness: select(value.harness), testCases: value.testCases.map(row => ({ ...row, weight: row.sample ? 0 : row.weight })) } };
+}
+
+export function CodingProblemForm({ question, order, busy, onSave, onCancel }: {
+  question?: Question; order: number; busy: boolean; onSave: (value: QuestionRequest) => void; onCancel: () => void;
+}) {
+  const [tab, setTab] = useState<"description" | "code" | "tests">("description");
+  const [language, setLanguage] = useState<string>(Object.keys(question?.coding?.starterCode ?? {})[0] ?? "java");
+  const [solution, setSolution] = useState("");
+  const hiddenCount = question?.coding?.testCases.filter(row => !row.sample).length ?? 2;
+  let hiddenIndex = 0;
+  const equalWeight = Math.floor(10000 / Math.max(1, hiddenCount)) / 100;
+  const { register, control, watch, handleSubmit, setValue, formState: { errors } } = useForm<Values>({ resolver: zodResolver(codingProblemSchema), defaultValues: {
+    title: question?.coding?.title ?? question?.questionText.slice(0, 255) ?? "", prompt: question?.questionText ?? "", points: question?.points ?? 10,
+    difficulty: question?.difficulty ?? "Medium", skill: question?.skill ?? "", category: question?.coding?.category ?? "CODING_ALGORITHM",
+    timeLimitMs: question?.coding?.timeLimitMs ?? 2000, memoryMb: question?.coding?.memoryMb ?? 256,
+    allowedLanguages: Object.keys(question?.coding?.starterCode ?? { java: "" }) as Values["allowedLanguages"], starterCode: question?.coding?.starterCode ?? { java: "" }, harness: question?.coding?.harness ?? { java: "{{SOURCE}}" },
+    testCases: question?.coding?.testCases.map(row => ({ ...row, weight: row.sample ? 0 : row.weight ?? (++hiddenIndex === hiddenCount ? Number((100 - equalWeight * (hiddenCount - 1)).toFixed(2)) : equalWeight) })) ?? [
+      { input: "", expectedOutput: "", sample: true, weight: 0 }, { input: "", expectedOutput: "", sample: false, weight: 50 }, { input: "", expectedOutput: "", sample: false, weight: 50 },
+    ],
+  } });
+  const { fields, append, remove } = useFieldArray({ control, name: "testCases" });
+  const selectedLanguages = watch("allowedLanguages");
+  const verificationLanguage = selectedLanguages.includes(language as Values["allowedLanguages"][number]) ? language : selectedLanguages[0] ?? "";
+  const cases = watch("testCases");
+  const hidden = cases.filter(row => !row.sample);
+  const total = hidden.reduce((sum, row) => sum + (Number(row.weight) || 0), 0);
+  const validTests = cases.some(row => row.sample) && hidden.length >= 2 && hidden.every(row => row.weight > 0) && Math.abs(total - 100) < 0.000001;
+  const verify = useMutation({ mutationFn: (value: Values) => questionBankApi.verifyCoding({ coding: toRequest(value, order, null).coding!, language: verificationLanguage, source: solution }) });
+  const invalidTab = (invalid: typeof errors) => setTab(invalid.harness || invalid.allowedLanguages || invalid.starterCode ? "code" : invalid.testCases ? "tests" : "description");
+  const locked = busy || verify.isPending;
+  return <form noValidate className="space-y-4" onChange={() => verify.reset()} onSubmit={handleSubmit(value => onSave(toRequest(value, question?.questionOrder ?? order, question?.explanation ?? null)), invalidTab)}>
+    <h2 className="text-lg font-semibold">{question ? "Sửa" : "Soạn"} bài tập lập trình</h2>
+    <nav aria-label="Các bước soạn bài code" className="flex flex-wrap gap-2">{([["description", "Mô tả & Cấu hình"], ["code", "Code mẫu"], ["tests", "Test cases"]] as const).map(([id, label]) => <Button key={id} variant={tab === id ? "primary" : "secondary"} aria-pressed={tab === id} onClick={() => setTab(id)}>{label}</Button>)}</nav>
+    <fieldset disabled={locked} className="space-y-4">
+      <div hidden={tab !== "description"} className="space-y-4">
+        <label className="block text-sm">Tên bài toán<input className={input} {...register("title")} /><FieldError message={errors.title?.message} /></label>
+        <label className="block text-sm">Mô tả Markdown (Input / Output / Constraints)<textarea rows={8} className={input} {...register("prompt")} /><FieldError message={errors.prompt?.message} /></label>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="text-sm">Giới hạn CPU (ms)<input type="number" min={500} max={5000} className={input} {...register("timeLimitMs", { valueAsNumber: true })} /><FieldError message={errors.timeLimitMs?.message} /></label>
+          <label className="text-sm">Bộ nhớ (MB)<input type="number" min={64} max={512} className={input} {...register("memoryMb", { valueAsNumber: true })} /><FieldError message={errors.memoryMb?.message} /></label>
+          <label className="text-sm">Điểm<input type="number" min={1} max={100} className={input} {...register("points", { valueAsNumber: true })} /><FieldError message={errors.points?.message} /></label>
+          <label className="text-sm">Kỹ năng<input className={input} {...register("skill")} /><FieldError message={errors.skill?.message} /></label>
+          <label className="text-sm">Độ khó<select className={input} {...register("difficulty")}><option value="Easy">Dễ</option><option value="Medium">Trung bình</option><option value="Hard">Khó</option></select></label>
+          <label className="text-sm">Loại bài<select className={input} {...register("category")}><option value="CODING_ALGORITHM">Thuật toán</option><option value="CODING_OOP">Hướng đối tượng</option><option value="SQL_QUERY">SQL</option></select></label>
+        </div>
+      </div>
+      <div hidden={tab !== "code"} className="space-y-4">
+        <fieldset><legend className="mb-2 text-sm">Ngôn ngữ được phép</legend><div className="flex flex-wrap gap-4">{languages.map(item => <label key={item} className="flex items-center gap-2 text-sm"><input type="checkbox" value={item} {...register("allowedLanguages")} />{item === "cpp" ? "C++" : item.toUpperCase()}</label>)}</div><FieldError message={errors.allowedLanguages?.message} /></fieldset>
+        {selectedLanguages.map(item => <fieldset key={item} className="space-y-3 rounded-xl border border-[var(--color-border-default)] p-4"><legend className="text-sm font-semibold">{item.toUpperCase()}</legend>
+          <label className="block text-sm">Starter code<textarea rows={6} spellCheck={false} className={`${input} font-mono`} {...register(`starterCode.${item}`)} /><FieldError message={errors.starterCode?.[item]?.message} /></label>
+          <label className="block text-sm">Chương trình kiểm thử<textarea rows={6} spellCheck={false} className={`${input} font-mono`} {...register(`harness.${item}`)} /><FieldError message={errors.harness?.[item]?.message} /></label>
+          <p className="text-xs text-[var(--color-on-surface-variant)]">Dùng {"{{SOURCE}}"} để chèn lời giải; chương trình đọc stdin và ghi kết quả ra stdout. Nếu lời giải là chương trình hoàn chỉnh, dùng {"{{SOURCE}}"}.</p>
+        </fieldset>)}
+      </div>
+      <div hidden={tab !== "tests"} className="space-y-4">
+        {fields.map((field, index) => <fieldset key={field.id} className="space-y-3 rounded-xl border border-[var(--color-border-default)] p-4"><legend className="text-sm font-semibold">Test {index + 1} · {cases[index]?.sample ? "Công khai" : "Ẩn"}</legend>
+          <label className="flex items-center gap-2 text-sm"><input type="checkbox" {...register(`testCases.${index}.sample`)} onChange={event => { setValue(`testCases.${index}.sample`, event.target.checked); setValue(`testCases.${index}.weight`, event.target.checked ? 0 : 1); }} />Công khai cho ứng viên</label>
+          <div className="grid gap-3 sm:grid-cols-2"><label className="text-sm">Input<textarea rows={3} spellCheck={false} className={`${input} font-mono`} {...register(`testCases.${index}.input`)} /><FieldError message={errors.testCases?.[index]?.input?.message} /></label><label className="text-sm">Expected output<textarea rows={3} spellCheck={false} className={`${input} font-mono`} {...register(`testCases.${index}.expectedOutput`)} /><FieldError message={errors.testCases?.[index]?.expectedOutput?.message} /></label></div>
+          {!cases[index]?.sample && <label className="block text-sm">Trọng số (%)<input type="number" min={0.01} max={100} step="0.01" className={input} {...register(`testCases.${index}.weight`, { valueAsNumber: true })} /><FieldError message={errors.testCases?.[index]?.weight?.message} /></label>}
+          <Button variant="ghost" disabled={fields.length <= 3} onClick={() => { remove(index); verify.reset(); }} aria-label={`Xóa test ${index + 1}`}><Trash2 className="size-4" aria-hidden="true" />Xóa test</Button>
+        </fieldset>)}
+        <p role={validTests ? "status" : "alert"} className={`text-sm ${validTests ? "" : "text-[var(--color-error)]"}`}>{cases.length - hidden.length} test công khai · {hidden.length} test ẩn · Tổng trọng số ẩn: {total}% (cần 100%)</p>
+        <FieldError message={errors.testCases?.root?.message ?? errors.testCases?.message} />
+        <Button variant="secondary" disabled={fields.length >= 50} onClick={() => { append({ input: "", expectedOutput: "", sample: false, weight: 1 }); verify.reset(); }}><Plus className="size-4" aria-hidden="true" />Thêm test case</Button>
+        <section className="space-y-3 rounded-xl bg-[var(--color-surface-container-low)] p-4"><h3 className="font-semibold">Kiểm chứng lời giải chuẩn</h3>
+          <label className="block text-sm">Ngôn ngữ<select className={input} value={verificationLanguage} onChange={event => { setLanguage(event.target.value); verify.reset(); }}>{selectedLanguages.map(item => <option key={item} value={item}>{item.toUpperCase()}</option>)}</select></label>
+          <label className="block text-sm">Model solution<textarea rows={8} spellCheck={false} maxLength={10000} className={`${input} font-mono`} value={solution} onChange={event => { setSolution(event.target.value); verify.reset(); }} /></label>
+          <Button variant="secondary" disabled={!solution.trim() || !verificationLanguage} onClick={handleSubmit(value => verify.mutate(value), invalidTab)}><Play className="size-4" aria-hidden="true" />{verify.isPending ? "Đang kiểm tra…" : "Chạy kiểm tra test cases"}</Button>
+          <AssessmentError error={verify.error} />
+          {verify.data && <div role="status" className="space-y-2 text-sm">{verify.data.map((result, index) => <div key={index}>Test {index + 1}: {result.status?.description ?? "Chưa có kết quả"}{result.stderr || result.compile_output ? <pre className="overflow-auto whitespace-pre-wrap">{result.stderr || result.compile_output}</pre> : null}</div>)}</div>}
+        </section>
+      </div>
+      <div className="flex flex-wrap gap-2"><Button type="submit" disabled={locked || !validTests}>{busy ? "Đang lưu…" : "Lưu bài tập lập trình"}</Button><Button variant="secondary" onClick={onCancel}>Hủy</Button></div>
+    </fieldset>
+  </form>;
+}
+
+
+
+================================================================================
+FILE: frontend/src/features/tenant/recruiter/assessments/components/QuestionContentFields.tsx
+================================================================================
+
+import { assessmentInput, FieldError } from "@/components/ux/assessmentUi";
+import type { CodingContent, EssayRubric } from "@/api/types/assessment";
+
+export const rubricExample = JSON.stringify({ category: "ESSAY_CONCEPTUAL", referenceAnswer: "", criteria: [{ description: "Nguyên lý và tính đúng đắn", weight: 60 }, { description: "Giải thích và ví dụ", weight: 40 }] }, null, 2);
+export const codingExample = JSON.stringify({ category: "CODING_ALGORITHM", timeLimitMs: 2000, memoryMb: 256,
+  starterCode: { python: "def solve(a, b):\n    return a + b" },
+  harness: { python: "{{SOURCE}}\na, b = map(int, input().split())\nprint(solve(a, b))" },
+  testCases: [{ input: "1 2", expectedOutput: "3", sample: true }, { input: "-2 5", expectedOutput: "3", sample: false }] }, null, 2);
+
+export function QuestionContentFields({ type, value, onChange }: { type: "ESSAY" | "CODING"; value: string; onChange: (value: string) => void }) {
+  let error: string | undefined;
+  try { if (value.trim()) JSON.parse(value); } catch { error = "JSON không hợp lệ. Kiểm tra dấu ngoặc và dấu phẩy."; }
+  const parse = <T,>(fallback: string): T => {
+    try { return JSON.parse(value.trim() || fallback) as T; } catch { return JSON.parse(fallback) as T; }
+  };
+  if (type === "ESSAY") {
+    const rubric = parse<EssayRubric>(rubricExample);
+    const update = (patch: Partial<EssayRubric>) => onChange(JSON.stringify({ ...rubric, ...patch }));
+    return <fieldset className="space-y-3 rounded-lg border border-[var(--color-border-default)] p-3">
+      <legend className="px-2 text-sm font-medium">Tiêu chí chấm tự luận</legend>
+      <label className="block text-sm">Phân loại<select className={assessmentInput} value={rubric.category ?? "ESSAY_CONCEPTUAL"} onChange={event => update({ category: event.target.value as EssayRubric["category"] })}><option value="ESSAY_CONCEPTUAL">Khái niệm / nguyên lý</option><option value="ESSAY_SCENARIO">Tình huống / kiến trúc</option></select></label>
+      <label className="block text-sm">Đáp án tham khảo<textarea rows={4} value={rubric.referenceAnswer ?? ""} className={assessmentInput} onChange={event => update({ referenceAnswer: event.target.value })} /></label>
+      {(Array.isArray(rubric.criteria) ? rubric.criteria : []).map((criterion, index) => <div key={index} className="grid gap-2 sm:grid-cols-[1fr_100px_auto]">
+        <label className="text-sm">Tiêu chí {index + 1}<textarea rows={2} className={assessmentInput} value={criterion.description} onChange={event => update({ criteria: rubric.criteria.map((item, i) => i === index ? { ...item, description: event.target.value } : item) })} /></label>
+        <label className="text-sm">Tỉ trọng %<input type="number" min={1} max={100} className={assessmentInput} value={criterion.weight} onChange={event => update({ criteria: rubric.criteria.map((item, i) => i === index ? { ...item, weight: Number(event.target.value) } : item) })} /></label>
+        <button type="button" disabled={rubric.criteria.length <= 1} className="text-sm text-[var(--color-error)] disabled:opacity-40" onClick={() => update({ criteria: rubric.criteria.filter((_, i) => i !== index) })}>Xóa</button>
+      </div>)}
+      <p className="text-xs">Tổng tỉ trọng: {(rubric.criteria ?? []).reduce((sum, item) => sum + item.weight, 0)}% · Cần đúng 100%</p>
+      <button type="button" className="text-sm text-[var(--color-primary)]" onClick={() => update({ criteria: [...(rubric.criteria ?? []), { description: "", weight: 10 }] })}>Thêm tiêu chí</button><FieldError message={error} />
+    </fieldset>;
+  }
+  const coding = parse<CodingContent>(codingExample);
+  const update = (patch: Partial<CodingContent>) => onChange(JSON.stringify({ ...coding, ...patch }));
+  return <fieldset className="space-y-3 rounded-lg border border-[var(--color-border-default)] p-3">
+    <legend className="px-2 text-sm font-medium">Bài lập trình</legend>
+    <div className="grid gap-3 sm:grid-cols-3"><label className="text-sm">Phân loại<select className={assessmentInput} value={coding.category} onChange={event => update({ category: event.target.value as CodingContent["category"] })}><option value="CODING_ALGORITHM">Thuật toán</option><option value="CODING_OOP">Hướng đối tượng</option><option value="SQL_QUERY">Truy vấn SQL</option></select></label>
+      <label className="text-sm">Giới hạn thời gian (ms)<input type="number" min={100} max={10000} className={assessmentInput} value={coding.timeLimitMs} onChange={event => update({ timeLimitMs: Number(event.target.value) })} /></label>
+      <label className="text-sm">Bộ nhớ (MB)<input type="number" min={32} max={512} className={assessmentInput} value={coding.memoryMb} onChange={event => update({ memoryMb: Number(event.target.value) })} /></label></div>
+    {Object.entries(coding.starterCode ?? {}).map(([language, starter]) => <div key={language} className="space-y-2 rounded-lg bg-[var(--color-surface-container-low)] p-3">
+      <p className="text-sm font-medium">{language}</p><label className="block text-sm">Mã khởi đầu<textarea rows={4} className={`${assessmentInput} font-mono text-xs`} value={starter} onChange={event => update({ starterCode: { ...coding.starterCode, [language]: event.target.value } })} /></label>
+      <label className="block text-sm">Chương trình kiểm thử (chỉ người biên soạn)<textarea rows={4} className={`${assessmentInput} font-mono text-xs`} value={coding.harness?.[language] ?? ""} onChange={event => update({ harness: { ...coding.harness, [language]: event.target.value } })} /></label>
+      <p className="text-xs">Dùng {"{{SOURCE}}"} để chèn mã của ứng viên. Đọc input từ stdin và in kết quả ra stdout.</p>
+    </div>)}
+    <label className="block text-sm">Thêm ngôn ngữ<select className={assessmentInput} value="" onChange={event => { if (event.target.value) update({ starterCode: { ...coding.starterCode, [event.target.value]: "" }, harness: { ...coding.harness, [event.target.value]: "{{SOURCE}}" } }); }}><option value="">Chọn ngôn ngữ</option>{["java", "python", "javascript", "sql"].filter(language => !coding.starterCode?.[language]).map(language => <option key={language}>{language}</option>)}</select></label>
+    {(coding.testCases ?? []).map((test, index) => <div key={index} className="grid gap-2 rounded-lg bg-[var(--color-surface-container-low)] p-3 sm:grid-cols-2">
+      <label className="text-sm">Input {index + 1}<textarea rows={2} className={assessmentInput} value={test.input} onChange={event => update({ testCases: coding.testCases.map((item, i) => i === index ? { ...item, input: event.target.value } : item) })} /></label>
+      <label className="text-sm">Output mong đợi<textarea rows={2} className={assessmentInput} value={test.expectedOutput} onChange={event => update({ testCases: coding.testCases.map((item, i) => i === index ? { ...item, expectedOutput: event.target.value } : item) })} /></label>
+      <label className="text-sm"><input type="checkbox" checked={test.sample} onChange={event => update({ testCases: coding.testCases.map((item, i) => i === index ? { ...item, sample: event.target.checked } : item) })} /> Công khai cho ứng viên</label>
+      <button type="button" className="text-sm text-[var(--color-error)]" onClick={() => update({ testCases: coding.testCases.filter((_, i) => i !== index) })}>Xóa test</button>
+    </div>)}
+    <button type="button" className="text-sm text-[var(--color-primary)]" onClick={() => update({ testCases: [...(coding.testCases ?? []), { input: "", expectedOutput: "", sample: false }] })}>Thêm test case</button>
+    {!value.trim() && <button type="button" className="ml-3 text-sm text-[var(--color-primary)]" onClick={() => onChange(codingExample)}>Sử dụng mẫu đang hiển thị</button>}<FieldError message={error} />
+  </fieldset>;
+}
+
+
+
+================================================================================
+FILE: frontend/src/features/tenant/recruiter/assessments/components/CodingPreviewPanel.tsx
+================================================================================
+
+import { useState } from "react";
+import type { Question } from "@/api/types/assessment";
+import { Button } from "@/components/ux/Button";
+import { assessmentInput, FieldError } from "@/components/ux/assessmentUi";
+
+export function CodingPreviewPanel({ question, source, onSourceChange, submitted, review = false, approved, onApprove }: {
+  question: Question; source: string; onSourceChange: (value: string) => void; submitted: boolean;
+  review?: boolean; approved: number | null; onApprove: (value: number) => void;
+}) {
+  const [samplesShown, setSamplesShown] = useState(false);
+  const suggested = Number((question.points * (0.8 + 0.2 * 0.85)).toFixed(2));
+  const [score, setScore] = useState(String(suggested));
+  const valid = /^\d+(\.\d{1,2})?$/.test(score) && Number(score) <= question.points;
+  return <section className="space-y-4 rounded-lg border border-[var(--color-border-default)] p-4">
+    <h3 className="font-semibold">Code · {question.points} điểm · JavaScript</h3>
+    <p className="whitespace-pre-wrap text-sm">{question.questionText}</p>
+    <p className="text-xs">Giới hạn: {question.coding?.timeLimitMs} ms · {question.coding?.memoryMb} MB</p>
+    <label className="block text-sm">Mã nguồn<textarea rows={9} maxLength={10000} className={`${assessmentInput} font-mono`} value={source} disabled={submitted || review} onChange={event => { onSourceChange(event.target.value); setSamplesShown(false); }} /></label>
+    <div className="space-y-2">{question.coding?.testCases.filter(test => test.sample || review).map((test, index) => <div key={index} className="rounded-lg bg-[var(--color-surface-container-low)] p-3 text-sm"><p className="font-medium">{test.sample ? "Sample" : "Hidden"} test {index + 1}</p><pre className="overflow-x-auto whitespace-pre-wrap">Input: {test.input}{"\n"}Output mong đợi: {test.expectedOutput}</pre></div>)}</div>
+    {!review && <><Button variant="secondary" disabled={submitted || !source.trim()} onClick={() => setSamplesShown(true)}>Xem kết quả chạy mẫu minh họa</Button>{samplesShown && <p role="status" className="text-sm">Ví dụ lời giải mẫu: 2/2 sample tests đạt. Đây là kết quả dựng sẵn, không thực thi mã bạn nhập.</p>}</>}
+    {review && <><p className="text-sm">Kết quả minh họa cố định: 5/5 tests đạt (80%); AI review 85/100 (20%). Code rõ ràng, giữ thứ tự; có thể tối ưu để tránh tạo mảng trung gian.</p><p className="font-semibold">Đề xuất: {question.points} × (80% × 100% + 20% × 85%) = {suggested}/{question.points}</p><div className="flex flex-wrap items-end gap-3"><Button onClick={() => onApprove(suggested)}>Duyệt điểm code mẫu</Button><label className="text-sm">Điểm điều chỉnh<input type="number" min={0} max={question.points} step="0.01" className={assessmentInput} value={score} onChange={event => setScore(event.target.value)} /></label><Button variant="secondary" disabled={!valid} onClick={() => onApprove(Number(score))}>Lưu điểm code</Button></div>{!valid && <FieldError message={`Nhập điểm từ 0 đến ${question.points}, tối đa 2 chữ số thập phân.`} />}<p role="status" className="text-sm">{approved == null ? "Code đang chờ duyệt" : `Code đã duyệt: ${approved}/${question.points} điểm`}</p></>}
+  </section>;
+}
+
+
+
+================================================================================
+FILE: frontend/src/features/tenant/recruiter/assessments/constants/essayPreview.ts
+================================================================================
+
+import type { Question } from "@/api/types/assessment";
+
+export const essayPreviewBank: Question[] = [
+  { id: 9101, questionText: "Dependency Injection trong Spring giúp giải quyết vấn đề gì?", questionType: "MCQ", points: 10, questionOrder: 0, difficulty: "Easy", skill: "Spring Boot", explanation: null,
+    options: [{ id: 1, optionText: "Giảm phụ thuộc trực tiếp và hỗ trợ kiểm thử", correct: true }, { id: 2, optionText: "Thay thế hoàn toàn database", correct: false }] },
+  { id: 9102, questionText: "Giải thích sự khác nhau giữa authentication và authorization. Minh họa bằng API xem hồ sơ ứng viên trong hệ thống tuyển dụng multi-tenant.", questionType: "ESSAY", points: 20, questionOrder: 1, difficulty: "Medium", skill: "Spring Security", explanation: null, options: [],
+    rubricJson: { category: "ESSAY_CONCEPTUAL", referenceAnswer: "Authentication xác minh danh tính (ví dụ JWT). Authorization kiểm tra quyền thực hiện hành động. API xem hồ sơ phải kiểm tra role/quyền trên job và tenant của request; đăng nhập thành công không đồng nghĩa được xem mọi hồ sơ. Truy vấn phải chạy trong đúng database tenant.", criteria: [{ description: "Phân biệt đúng xác thực và phân quyền", weight: 40 }, { description: "Ví dụ API có kiểm tra quyền trên job", weight: 30 }, { description: "Giải thích cách ly dữ liệu tenant", weight: 30 }] } },
+  { id: 9103, questionText: "Thiết kế luồng gửi email mời assessment bất đồng bộ. Làm thế nào tránh gửi trùng khi worker retry?", questionType: "ESSAY", points: 30, questionOrder: 2, difficulty: "Hard", skill: "RabbitMQ", explanation: null, options: [],
+    rubricJson: { category: "ESSAY_SCENARIO", referenceAnswer: "Ghi ý định gửi vào outbox trong transaction, worker nhận message có tenant ID, thiết lập và xóa TenantContext. Dùng idempotency key theo lời mời và trạng thái gửi; retry có giới hạn/backoff và xử lý lỗi. Cần cân nhắc trường hợp nhà cung cấp đã gửi nhưng chưa ghi nhận kết quả.", criteria: [{ description: "Luồng transaction, outbox và queue hợp lý", weight: 40 }, { description: "Idempotency và xử lý retry", weight: 40 }, { description: "Truyền và dọn TenantContext", weight: 20 }] } },
+];
+
+export const codingPreviewQuestion: Question = {
+  id: 9104, questionText: "Viết hàm uniqueEmails(emails) bằng JavaScript: loại khoảng trắng đầu/cuối, chuyển email thành chữ thường, bỏ chuỗi rỗng và loại email trùng. Giữ thứ tự xuất hiện đầu tiên. Input là mảng chuỗi JSON; output là mảng email JSON.",
+  questionType: "CODING", points: 40, questionOrder: 3, difficulty: "Medium", skill: "JavaScript", explanation: null, options: [],
+  coding: { category: "CODING_ALGORITHM", timeLimitMs: 2000, memoryMb: 128,
+    starterCode: { javascript: "function uniqueEmails(emails) {\n  // Normalize and deduplicate emails.\n  return [];\n}" },
+    harness: { javascript: "{{SOURCE}}\nconst fs = require('fs');\nconst emails = JSON.parse(fs.readFileSync(0, 'utf8'));\nconsole.log(JSON.stringify(uniqueEmails(emails)));" },
+    testCases: [
+      { input: '[" A@EXAMPLE.COM ","a@example.com","b@example.com"]', expectedOutput: '["a@example.com","b@example.com"]', sample: true },
+      { input: '[" ","B@EXAMPLE.COM"," b@example.com ",""]', expectedOutput: '["b@example.com"]', sample: true },
+      { input: '[]', expectedOutput: '[]', sample: false },
+      { input: '["x@example.com","Y@example.com"," X@example.com "]', expectedOutput: '["x@example.com","y@example.com"]', sample: false },
+      { input: '["","  "," Z@example.com ","z@example.com"]', expectedOutput: '["z@example.com"]', sample: false },
+    ] },
+};
+essayPreviewBank.push(codingPreviewQuestion);
+
+export const codingPreviewAnswer = "function uniqueEmails(emails) {\n  const normalized = emails.map(email => email.trim().toLowerCase());\n  return [...new Set(normalized.filter(email => email.length > 0))];\n}";
+
+export const essayPreviewAnswer = "Authentication là xác minh người dùng là ai, ví dụ kiểm tra JWT khi đăng nhập. Authorization là kiểm tra người đó có được thực hiện hành động hay không.\n\nVới API xem hồ sơ ứng viên, recruiter cần đăng nhập và có quyền xem hồ sơ của job mình phụ trách. Candidate chỉ được xem hồ sơ của mình. Ngoài kiểm tra role, hệ thống cần lấy tenant từ request và truy vấn trong database tương ứng, tránh recruiter công ty A xem hồ sơ công ty B.";
+
+// Fixed illustrative feedback; this preview never calls an AI provider.
+export const essayPreviewFeedback = [
+  { percent: 95, feedback: "Phân biệt đúng hai khái niệm và có ví dụ JWT." },
+  { percent: 85, feedback: "Có kiểm tra quyền trên job; cần mô tả rõ xử lý từ chối truy cập." },
+  { percent: 90, feedback: "Đề cập database tenant; có thể bổ sung cách xác minh tenant của người dùng." },
+];
+
+
+
+================================================================================
+FILE: frontend/src/features/tenant/recruiter/assessments/utils/questionContentValidation.ts
+================================================================================
+
+import { z } from "zod";
+
+export const rubricSchema = z.object({
+  category: z.enum(["ESSAY_CONCEPTUAL", "ESSAY_SCENARIO"]).optional(),
+  referenceAnswer: z.string().trim().min(1, "Nhập đáp án tham khảo."),
+  criteria: z.array(z.object({ description: z.string().trim().min(1, "Nhập tiêu chí."), weight: z.number().int().min(1).max(100), keywords: z.array(z.string()).optional() })).min(1).max(20),
+}).refine(value => value.criteria.reduce((sum, item) => sum + item.weight, 0) === 100, "Tổng tỉ trọng tiêu chí phải bằng 100%.");
+
+const templates = z.record(z.enum(["java", "python", "javascript", "sql"]), z.string().max(10000));
+export const codingSchema = z.object({
+  category: z.enum(["CODING_ALGORITHM", "CODING_OOP", "SQL_QUERY"]),
+  timeLimitMs: z.number().int().min(100).max(10000), memoryMb: z.number().int().min(32).max(512),
+  starterCode: templates, harness: templates,
+  testCases: z.array(z.object({ input: z.string().max(10000), expectedOutput: z.string().max(10000), sample: z.boolean() })).min(2).max(50),
+}).refine(value => Object.keys(value.starterCode).length > 0 && Object.keys(value.starterCode).every(language => value.harness[language as keyof typeof value.harness]?.includes("{{SOURCE}}")), "Mỗi ngôn ngữ cần chương trình kiểm thử có {{SOURCE}}.")
+  .refine(value => value.testCases.some(test => test.sample) && value.testCases.some(test => !test.sample), "Cần ít nhất một test công khai và một test ẩn.");
+
+export function contentError(error: unknown): string {
+  return error instanceof z.ZodError ? error.issues[0]?.message ?? "Nội dung không hợp lệ." : "Cấu hình không hợp lệ. Kiểm tra rubric/test cases.";
+}
+
+
+
+================================================================================
+FILE: frontend/src/components/ux/Button.tsx
+================================================================================
+
+import { cn } from "@/lib/utils";
+import { forwardRef, type ButtonHTMLAttributes } from "react";
+
+type Variant = "primary" | "secondary" | "ghost" | "danger" | "ai";
+type Size = "sm" | "md" | "lg";
+
+const variants: Record<Variant, string> = {
+  primary:
+    "bg-brand-primary text-[var(--color-text-inverse)] hover:bg-brand-primary-hover shadow-sm",
+  secondary:
+    "bg-surface-card text-[var(--color-text-primary)] border border-[var(--color-border-default)] hover:bg-surface-muted",
+  ghost: "bg-transparent text-[var(--color-text-secondary)] hover:bg-surface-muted",
+  danger: "bg-red-600 text-white hover:bg-red-700 shadow-sm",
+  ai: "bg-brand-accent text-[var(--color-text-inverse)] hover:opacity-90",
+};
+
+const sizes: Record<Size, string> = {
+  sm: "min-h-9 px-3 text-sm",
+  md: "min-h-11 px-4 text-sm",
+  lg: "min-h-12 px-5 text-base",
+};
+
+type Props = ButtonHTMLAttributes<HTMLButtonElement> & {
+  variant?: Variant;
+  size?: Size;
+};
+
+/** Large tap targets, clear focus ring — UX / WCAG friendly. */
+export const Button = forwardRef<HTMLButtonElement, Props>(function Button({
+  className,
+  variant = "primary",
+  size = "md",
+  type = "button",
+  ...props
+}, ref) {
+  return (
+    <button
+      type={type}
+      ref={ref}
+      className={cn(
+        "inline-flex items-center justify-center gap-2 rounded-[var(--radius-md)] font-medium transition-colors duration-[var(--motion-fast)]",
+        "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-border-focus)]",
+        "disabled:cursor-not-allowed disabled:opacity-50",
+        variants[variant],
+        sizes[size],
+        className,
+      )}
+      {...props}
+    />
+  );
+});
+
+
+
+================================================================================
+FILE: frontend/src/components/ux/assessmentUi.tsx
+================================================================================
+
+import { AlertCircle, RotateCcw } from "lucide-react";
+import { Button } from "@/components/ux/Button";
+import { getApiErrorMessage } from "@/lib/axios";
+
+export const assessmentInput = "min-h-11 w-full rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-card)] px-3 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-primary)] disabled:opacity-70";
+export const assessmentMuted = "text-sm text-[var(--color-on-surface-variant)]";
+export const assessmentLink = "inline-flex min-h-11 items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-[var(--color-primary)] hover:bg-[var(--color-primary-subtle)] focus-visible:outline focus-visible:outline-2";
+export const assessmentStatus: Record<string, string> = {
+  DRAFT: "Bản nháp", PUBLISHED: "Đã xuất bản", ARCHIVED: "Lưu trữ", NOT_STARTED: "Chưa bắt đầu",
+  IN_PROGRESS: "Đang làm", SUBMITTED: "Đang chấm", GRADED: "Đã chấm", EXPIRED: "Hết thời gian",
+};
+export function AssessmentError({ error, retry }: { error: unknown; retry?: () => void }) {
+  if (!error) return null;
+  return <div role="alert" className="flex flex-wrap items-center gap-3 rounded-lg border border-[var(--color-status-danger)] p-3 text-sm">
+    <AlertCircle className="size-5 shrink-0 text-[var(--color-status-danger)]" aria-hidden="true" />
+    <span className="min-w-0 flex-1 break-words">{getApiErrorMessage(error)}</span>
+    {retry && <Button variant="secondary" onClick={retry}><RotateCcw className="size-4" aria-hidden="true" />Thử lại</Button>}
+  </div>;
+}
+export function FieldError({ message }: { message?: string }) {
+  return message ? <span role="alert" className="block text-sm text-[var(--color-status-danger)]">{message}</span> : null;
+}
+
+
+
+================================================================================
+FILE: frontend/src/api/types/assessment.ts
+================================================================================
+
+export type TestStatus = "DRAFT" | "PUBLISHED" | "ARCHIVED";
+export type SubmissionStatus = "NOT_STARTED" | "IN_PROGRESS" | "SUBMITTED" | "GRADED" | "EXPIRED";
+export type QuestionDifficulty = "Easy" | "Medium" | "Hard";
+export type JobTest = {
+  id: number;
+  jobId: number;
+  title: string;
+  description: string | null;
+  objectiveDurationMinutes?: number | null;
+  durationMinutes: number;
+  passingScore: number | null;
+  status: TestStatus;
+  createdAt: string;
+  updatedAt: string | null;
+  createdById: number | null;
+  createdByName: string | null;
+};
+export type TestRequest = Pick<JobTest, "jobId" | "title" | "description" | "durationMinutes" | "passingScore" | "objectiveDurationMinutes">;
+export type TestPage = { items: JobTest[]; total: number; page: number; size: number };
+export type QuestionRequest = {
+  questionText: string;
+  points: number;
+  questionOrder: number;
+  difficulty: QuestionDifficulty | null;
+  skill: string | null;
+  explanation: string | null;
+  options: { optionText: string; correct: boolean }[];
+  questionType?: "MCQ" | "MULTIPLE_CHOICE" | "ESSAY" | "CODING";
+  rubricJson?: EssayRubric | null;
+  coding?: CodingContent | null;
+};
+export type Question = Omit<QuestionRequest, "options"> & {
+  id: number;
+  questionType: string;
+  options: { id: number; optionText: string; correct: boolean }[];
+};
+export type CandidateQuestion = Omit<Question, "options" | "difficulty" | "skill" | "explanation" | "rubricJson"> & {
+  options: { id: number; optionText: string }[];
+};
+export type SavedAnswer = {
+  questionId: number;
+  selectedOptionId?: number | null;
+  selectedOptionIds?: number[] | null;
+  answerText?: string | null;
+  language?: string | null;
+};
+export type Submission = {
+  id: number; testId: number; applicationId: number; title: string; status: SubmissionStatus;
+  startedAt: string | null; expiresAt: string | null; submittedAt: string | null; serverTime: string;
+  remainingSeconds: number; score: number | null; totalPoints: number; passed: boolean | null;
+  objectiveCompletedAt?: string | null;
+  objectiveExpiresAt?: string | null;
+  questions: CandidateQuestion[]; answers: SavedAnswer[];
+};
+export type SubmissionSummary = {
+  id: number; testId: number; testTitle: string; applicationId: number;
+  candidateId: number; candidateName: string; candidateEmail: string; status: SubmissionStatus;
+  startedAt: string | null; expiresAt: string | null; submittedAt: string | null; remainingSeconds: number;
+  score: number | null; totalPoints: number; passingScore: number | null; passed: boolean | null;
+};
+export type SendAssessmentResult = { testId: number; applicationId: number; applicationStatus: string; emailSent: boolean };
+export type AvailableAssessment = Pick<JobTest, "id" | "title" | "description" | "durationMinutes" | "passingScore"> & {
+  submissionId: number | null; submissionStatus: SubmissionStatus | null;
+};
+
+export type EssayRubric = { category?: "ESSAY_CONCEPTUAL" | "ESSAY_SCENARIO"; referenceAnswer: string; minWords?: number; criteria: { description: string; name?: string; guide?: string; weight: number; keywords?: string[] }[] };
+export type CodingContent = { title?: string; category: "CODING_ALGORITHM" | "CODING_OOP" | "SQL_QUERY"; timeLimitMs: number; memoryMb: number;
+  starterCode: Record<string, string>; harness: Record<string, string> | null;
+  testCases: { input: string; expectedOutput: string; sample: boolean; weight?: number }[] };
+export type GradingReview = { questionId: number; prompt: string; type: string; points: number; answerText: string | null;
+  language: string | null; rubric: EssayRubric | null; evaluation: Record<string, unknown> | null;
+  suggestedScore: number | null; score: number | null; reviewedAt: string | null };
+export type SampleResult = { status: { id: number; description: string }; stdout?: string; stderr?: string; compile_output?: string };
+
+export type SubmissionGradingDetail = {
+  id: number; testTitle: string; candidateName: string; candidateEmail: string | null; status: SubmissionStatus;
+  score: number | null; totalPoints: number; passingScore: number | null; emailAvailable: boolean;
+  objective: { correctCount: number; questionCount: number; score: number; totalPoints: number }; reviews: GradingReview[];
+};
+export type GradeDecision = { questionId: number; score: number | null };
+export type ResultEmailReceipt = { id: number; status: "PENDING" | "SENT" | "FAILED" };
+
+
+
+================================================================================
+FILE: frontend/src/api/types/questionBank.ts
+================================================================================
+
+import type { Question, QuestionRequest, TestStatus } from "./assessment";
+
+export type BankQuestion = {
+  question: Question;
+  testId: number | null;
+  testTitle: string | null;
+  testStatus: TestStatus | null;
+  jobId: number | null;
+  jobTitle: string | null;
+  archived: boolean;
+  authoringMetadata: Record<string, unknown> | null;
+};
+export type BankQuestionRequest = { question: QuestionRequest; authoringMetadata: Record<string, unknown> | null };
+export type BankQuestionCounts = { all: number; favorites: number; ready: number; pending: number; archived: number };
+export type BankQuestionPage = { items: BankQuestion[]; total: number; page: number; size: number; counts: BankQuestionCounts; skills: string[] };
+export type BankQuestionQuery = {
+  page: number;
+  size: number;
+  collection?: string;
+  query?: string;
+  skill?: string;
+  difficulty?: string;
+  status?: string;
+  questionType?: string;
+  sort?: string;
+  favoriteIds?: number[];
+};
+
+
+
+================================================================================
+FILE: frontend/src/api/tenant/questionBankApi.ts
+================================================================================
+
+import type { CodingContent, SampleResult } from "@/api/types/assessment";
+import { api } from "@/lib/axios";
+import type { ApiResponse } from "@/types/api";
+import type { BankQuestion, BankQuestionPage, BankQuestionQuery, BankQuestionRequest } from "@/api/types/questionBank";
+
+export const questionBankApi = {
+  verifyCoding: (body: { coding: CodingContent; language: string; source: string }) => api.post<ApiResponse<SampleResult[]>>("/question-bank/verify_coding", body).then(response => response.data.data),
+  list: (params: BankQuestionQuery, signal?: AbortSignal) => api.get<ApiResponse<BankQuestionPage>>("/question-bank/list_questions", {
+    params,
+    paramsSerializer: { indexes: null },
+    signal,
+  }).then(response => response.data.data),
+  get: (id: number) => api.get<ApiResponse<BankQuestion>>(`/question-bank/get_question/${id}`).then(response => response.data.data),
+  create: (questions: BankQuestionRequest[]) => api.post<ApiResponse<BankQuestion[]>>("/question-bank/create_questions", { questions }).then(response => response.data.data),
+  update: (id: number, body: BankQuestionRequest) => api.put<ApiResponse<BankQuestion>>(`/question-bank/update_question/${id}`, body).then(response => response.data.data),
+  archive: (questionIds: number[], archived = true) => api.put("/question-bank/archive_questions", { questionIds, archived }),
+};
+
+
+
+================================================================================
+FILE: frontend/src/types/api.ts
+================================================================================
+
+/** Backend ApiResponse envelope — com.smarthire.common.api.ApiResponse */
+export type ApiResponse<T> = {
+  success: boolean;
+  message: string;
+  data: T;
+  code?: string | null;
+  errors?: Record<string, string> | null;
+  timestamp?: string;
+};
+
+export type PageMeta = {
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+};
+
+export type Role = string;
+
+export type RoleWorkspace = "ADMIN" | "RECRUITER" | "CANDIDATE";
+
+
+
+================================================================================
+FILE: frontend/src/lib/utils.ts
+================================================================================
+
+import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+
+
+
+================================================================================
+FILE: frontend/src/styles/tokens.css
+================================================================================
+
+:root {
+  /* Luminous Professional Design System — DESIGN.md */
+  --font-family: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  /* Colors */
+  --color-surface: #f9f9ff;
+  --color-surface-dim: #d8d9e3;
+  --color-surface-bright: #f9f9ff;
+  --color-surface-card: #ffffff;
+  --color-surface-container-low: #f2f3fd;
+  --color-surface-container: #ecedf7;
+  --color-surface-container-high: #e6e7f2;
+  --color-surface-container-highest: #e1e2ec;
+  
+  --color-on-surface: #191b23;
+  --color-on-surface-variant: #424754;
+  --color-outline: #727785;
+  --color-outline-variant: #c2c6d6;
+  --color-border-default: #e2e8f0;
+
+  --color-primary: #3b82f6;
+  --color-primary-hover: #2563eb;
+  --color-on-primary: #ffffff;
+  --color-primary-container: #2170e4;
+  --color-primary-soft: rgba(59, 130, 246, 0.12);
+  --color-primary-subtle: rgba(59, 130, 246, 0.06);
+  --color-primary-shadow: rgba(59, 130, 246, 0.75);
+
+  --color-secondary: #505f76;
+  --color-on-secondary: #ffffff;
+  --color-secondary-container: #d0e1fb;
+
+  --color-tertiary: #924700;
+  --color-tertiary-container: #b75b00;
+
+  --color-error: #ba1a1a;
+  --color-on-error: #ffffff;
+  --color-error-container: #ffdad6;
+  --color-on-error-container: #93000a;
+
+  --color-background: #f9f9ff;
+  --color-on-background: #191b23;
+  --color-surface-alt: #f8f9ff;
+
+  --container-blue: rgba(59, 130, 246, 0.08);
+  --container-neutral: rgba(100, 116, 139, 0.05);
+
+  /* Semantic aliases consumed by shared Tailwind components */
+  --color-brand-primary: var(--color-primary);
+  --color-brand-primary-hover: var(--color-primary-hover);
+  --color-brand-secondary: var(--color-secondary);
+  --color-brand-accent: var(--color-tertiary);
+  --color-surface-page: var(--color-background);
+  --color-surface-muted: var(--color-surface-container-low);
+  --color-text-primary: var(--color-on-surface);
+  --color-text-secondary: var(--color-on-surface-variant);
+  --color-text-inverse: var(--color-on-primary);
+  --color-border-focus: var(--color-primary);
+  --color-status-danger: var(--color-error);
+
+  /* Interview lifecycle colors stay stable across tenant palettes. */
+  --color-interview-created: #475569;
+  --color-interview-created-bg: #f1f5f9;
+  --color-interview-generating: #6d28d9;
+  --color-interview-generating-bg: #ede9fe;
+  --color-interview-ready: #1d4ed8;
+  --color-interview-ready-bg: #dbeafe;
+  --color-interview-live: #075985;
+  --color-interview-live-bg: #e0f2fe;
+  --color-interview-scoring: #854d0e;
+  --color-interview-scoring-bg: #fef9c3;
+  --color-interview-scored: #115e59;
+  --color-interview-scored-bg: #ccfbf1;
+  --color-interview-passed: #166534;
+  --color-interview-passed-bg: #dcfce7;
+  --color-interview-failed: #9a3412;
+  --color-interview-failed-bg: #ffedd5;
+  --color-interview-error: #991b1b;
+  --color-interview-error-bg: #fee2e2;
+
+  /* Radius */
+  --radius-sm: 0.25rem;
+  --radius-default: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.5rem;
+  --radius-full: 9999px;
+
+  /* Shadows & Motion */
+  --shadow-ambient: 0 20px 25px -5px rgba(59, 130, 246, 0.05);
+  --shadow-card: 0 4px 6px -1px rgba(59, 130, 246, 0.03), 0 2px 4px -2px rgba(59, 130, 246, 0.03);
+  --motion-fast: 150ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  --motion-normal: 250ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.tenant-workspace-theme {
+  /* Teal fallback; RoleShell replaces these semantic tokens with the current tenant palette. */
+  --color-primary: #0d9488;
+  --color-primary-hover: #0f766e;
+  --color-primary-container: #f0fdfa;
+  --color-background: #f9f9ff;
+  --color-surface: #f9f9ff;
+  --color-surface-alt: #f8f9ff;
+  --color-surface-container-low: #f0fdfa;
+  --color-surface-container: #f0fdfa;
+  --color-on-surface: #1e293b;
+  --color-on-surface-variant: #64748b;
+  --color-outline: #64748b;
+  --color-outline-variant: #e2e8f0;
+  --color-border-default: #e2e8f0;
+  --container-blue: #f0fdfa;
+  --container-neutral: #f8f9ff;
+  --color-primary-soft: rgba(13, 148, 136, 0.1);
+  --color-primary-subtle: #f0fdfa;
+  --color-primary-shadow: rgba(13, 148, 136, 0.65);
+  --shadow-card: 0 4px 10px -4px rgba(30, 41, 59, 0.1);
+
+  /* Re-resolve inherited semantic aliases inside the candidate scope. */
+  --color-brand-primary: #0d9488;
+  --color-brand-primary-hover: #0f766e;
+  --color-brand-secondary: #64748b;
+  --color-brand-accent: #0d9488;
+  --color-surface-page: #f9f9ff;
+  --color-surface-muted: #f0fdfa;
+  --color-text-primary: #1e293b;
+  --color-text-secondary: #64748b;
+  --color-text-inverse: #ffffff;
+  --color-border-focus: #0d9488;
+}
+
+.tenant-workspace-theme,
+.tenant-workspace-theme * {
+  --tw-ring-color: rgba(13, 148, 136, 0.35);
+}
+
+.tenant-workspace-theme ::selection {
+  color: #ffffff;
+  background: var(--color-primary);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-family);
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--color-on-surface);
+  background: var(--color-background);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@keyframes fadeSlide {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
