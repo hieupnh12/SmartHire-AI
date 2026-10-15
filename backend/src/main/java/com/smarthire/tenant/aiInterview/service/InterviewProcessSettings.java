@@ -5,6 +5,9 @@ import java.util.*;
 
 /** Canonical V2 exercise settings; UI metadata is never sent to the provider. */
 public final class InterviewProcessSettings {
+    public static final int MINUTES_PER_MAIN_QUESTION = 5;
+    public static final List<String> ASSESSMENT_CRITERIA = List.of("TECHNICAL_KNOWLEDGE", "PROBLEM_SOLVING", "REASONING", "COMMUNICATION");
+    public static final List<String> ASSESSMENT_WEIGHT_KEYS = List.of("technicalKnowledgeWeight", "problemSolvingWeight", "reasoningWeight", "communicationWeight");
     private InterviewProcessSettings() {}
 
     public static Map<String, Object> config(InterviewPolicy.Process process) {
@@ -36,6 +39,8 @@ public final class InterviewProcessSettings {
                 result.put("askResult", true); result.put("askReflection", true);
             }
             case "COMMUNICATION" -> {
+                ASSESSMENT_WEIGHT_KEYS.forEach(key -> result.put(key, 25));
+                result.put("assessmentFocus", "");
                 result.put("language", "English"); result.put("technicalExplanationTask", true);
                 result.put("nonTechnicalExplanationTask", true); result.put("realTimeInteraction", false);
                 result.put("recordAudio", true); result.put("generateTranscript", true);
@@ -45,7 +50,7 @@ public final class InterviewProcessSettings {
         }
         if (!process.key().equals("TECHNICAL_KNOWLEDGE")) {
             result.put("responseMode", process.key().equals("PROBLEM_SOLVING") ? "text" : "speech");
-            result.put("followUpEnabled", true); result.put("maxFollowUp", process.key().equals("COMMUNICATION") ? 1 : 2);
+            result.put("followUpEnabled", true); result.put("maxFollowUp", 2);
         }
         for (var entry : new ArrayList<>(result.entrySet())) {
             Object saved = process.config().get(entry.getKey());
@@ -55,7 +60,26 @@ public final class InterviewProcessSettings {
                 else result.put(entry.getKey(), saved.toString());
             }
         }
+        if ("COMMUNICATION".equals(process.key())) {
+            assessmentWeights(result);
+            Object focus = process.config().getOrDefault("assessmentFocus", "");
+            if (!(focus instanceof String text) || text.length() > 2000)
+                throw new IllegalStateException("Interview focus must be text of at most 2000 characters");
+            result.put("assessmentFocus", ((String) focus).trim());
+        }
         return result;
+    }
+
+    public static Map<String, Integer> assessmentWeights(Map<String, Object> settings) {
+        var weights = new LinkedHashMap<String, Integer>();
+        for (int index = 0; index < ASSESSMENT_CRITERIA.size(); index++) {
+            int value = integer(settings, ASSESSMENT_WEIGHT_KEYS.get(index), 25);
+            if (value < 0 || value > 100) throw new IllegalStateException("Criterion weight must be 0-100");
+            weights.put(ASSESSMENT_CRITERIA.get(index), value);
+        }
+        if (weights.values().stream().mapToInt(Integer::intValue).sum() != 100)
+            throw new IllegalStateException("Assessment criterion weights must total 100");
+        return weights;
     }
 
     public static int questionCount(Map<String, Object> config) {

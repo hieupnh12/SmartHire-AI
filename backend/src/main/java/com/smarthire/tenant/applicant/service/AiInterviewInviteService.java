@@ -64,7 +64,15 @@ public class AiInterviewInviteService {
         send(application, "đã vượt qua vòng sàng lọc CV");
     }
 
+    @Transactional
+    public void sendForInterview(Application application, com.smarthire.tenant.aiInterview.dto.request.AiInterviewConfigRequest config) {
+        send(application, "đã vượt qua vòng sàng lọc CV", config);
+    }
+
     private void send(Application application, String reason) {
+        send(application, reason, null);
+    }
+    private void send(Application application, String reason, com.smarthire.tenant.aiInterview.dto.request.AiInterviewConfigRequest invitationConfig) {
         if (application == null || application.getId() == null || application.getAiInterviewInvitedAt() != null) {
             return;
         }
@@ -81,7 +89,9 @@ public class AiInterviewInviteService {
         }
 
         String subject = "SmartHire: mời phỏng vấn AI — " + job.getTitle();
-        var policy = com.smarthire.tenant.aiInterview.service.InterviewPolicies.config(job).policy();
+        var config = invitationConfig == null ? com.smarthire.tenant.aiInterview.service.InterviewPolicies.resolveAvailability(
+                com.smarthire.tenant.aiInterview.service.InterviewPolicies.config(job), Instant.now()) : invitationConfig;
+        var policy = config.policy();
         String body = """
                 Xin chào %s,
 
@@ -102,8 +112,8 @@ public class AiInterviewInviteService {
                 candidate.getFullName() == null ? candidate.getEmail() : candidate.getFullName(),
                 job.getTitle(),
                 reason,
-                formatTime(job.getAiInterviewAvailableFrom(), "Ngay khi câu hỏi sẵn sàng"),
-                formatTime(job.getAiInterviewAvailableUntil(), "Không giới hạn"),
+                formatTime(config.availableFrom(), "Ngay khi câu hỏi sẵn sàng"),
+                formatTime(config.availableUntil(), "Không giới hạn"),
                 policy.durationMinutes(),
                 policy.maxAttempts(),
                 publicUrls.path("/candidate/interviews"));

@@ -29,14 +29,14 @@ class CommunicationAvailabilityTest {
         assertThatCode(() -> InterviewPolicies.requireCommunicationOnly(config.policy())).doesNotThrowAnyException();
     }
     @Test
-    void preservesCommunicationSettingsAndDisablesFutureProcesses() {
+    void derivesDurationFromMainQuestionsAndPreservesCommunicationSettings() {
         var base = InterviewPolicies.defaults();
         var source = new InterviewPolicy(20, 2, false, 3, 0, 0, base.weights(), List.of(), List.of(), 2,
                 "TEXT", null, null, List.of(
                 new InterviewPolicy.Process("TECHNICAL_KNOWLEDGE", true, 1, 35, Map.of("questionCount", 10)),
                 new InterviewPolicy.Process("COMMUNICATION", true, 2, 10, Map.of("questionCount", 2, "language", "Vietnamese", "followUpEnabled", false))));
         var policy = InterviewPolicies.communicationPolicy(source);
-        assertThat(policy.durationMinutes()).isEqualTo(20);
+        assertThat(policy.durationMinutes()).isEqualTo(10);
         assertThat(policy.processes().getFirst().enabled()).isFalse();
         assertThat(policy.processes().getLast().config()).containsEntry("questionCount", 2).containsEntry("language", "Vietnamese");
         assertThatThrownBy(() -> InterviewPolicies.requireCommunicationOnly(source)).isInstanceOf(BusinessException.class);

@@ -1,5 +1,26 @@
 # AI Question Generation
 
+## Cửa sổ làm bài tính từ lời mời (2026-10-15)
+
+Cấu hình chung cho phép chọn lịch tuyệt đối hoặc lịch tương đối theo lời mời. Với tương đối, thời gian mở = thời điểm tạo lời mời + X giờ (X ≥ 0), hạn hoàn thành = thời gian mở + N giờ (N ≥ 1). Mỗi lời mời mới chốt các ngày giờ vào snapshot, thẻ ứng viên/thông báo/email dùng các mốc đó; retry giữ nguyên cửa sổ ban đầu. Không dùng thời điểm lưu cấu hình, tạo câu hỏi, tải lại trang hoặc mở email làm mốc tính. Các kiểm tra bắt đầu sớm/quá hạn và deadline toàn phiên tiếp tục dùng ngày giờ snapshot. Thời lượng bài vẫn tính riêng theo số câu chính × 5 phút. API cấu hình bổ sung `policy.availability`; không đổi schema database. Trạng thái: `Done` cho logic và kiểm thử.
+
+## Ngân sách trả lời và số câu hỏi bồi (2026-10-15)
+
+Phiên mới tự tính thời lượng theo số câu chính cấu hình × 5 phút; hỏi bồi tối đa 2–10 câu/câu chính khi bật (mặc định 2), hoặc tắt. Prompt yêu cầu mỗi nhóm câu chính + mọi hỏi bồi trả lời trong tổng tối đa 5 phút ước tính, chọn nội dung vừa sức, ngắn và gắn Job. Không yêu cầu bài code dài/thiết kế rộng hoặc nhiều đầu việc; tăng số hỏi bồi phải giảm phạm vi câu trả lời kỳ vọng. Không cộng thêm thời gian theo số hỏi bồi.
+
+Vị trí lượt xác định câu chính hay hỏi bồi và chuyển chủ đề sau khi hết nhóm; trần lượt mới tối đa 110, thay giới hạn 40 lượt/3 hỏi bồi trước đây. Cấu hình/snapshot thời lượng và kiểm tra hết hạn toàn phiên vẫn là nguồn thực thi; không bổ sung đồng hồ cưỡng chế 5 phút từng câu. Không đổi DB/API hội thoại. Trạng thái: `Done` cho logic/prompt/test; mức thời gian thực tế cần kiểm chứng với provider và người trả lời.
+
+## Hỏi theo tiêu chí cấu hình và Job (2026-10-15)
+
+Phiên Conversation nhận cùng bộ tiêu chí với luồng chấm: định nghĩa Kiến thức chuyên môn, Giải quyết vấn đề, Lập luận, Giao tiếp; trọng số và trọng tâm từ Cấu hình chung, Job Skills đã chọn và snapshot Job/CV. Mỗi lượt hỏi có mục tiêu luân phiên các tiêu chí nội dung có trọng số dương (Giao tiếp quan sát xuyên suốt). AI được chỉ dẫn thu thập đủ bằng chứng trong ngân sách lượt, ưu tiên thiếu hụt và trọng số cao, hỏi một câu ngắn gắn với job, giữ độ khó phù hợp câu trả lời trước. Không công bố tiêu chí/trọng số/điểm cho candidate trong phiên. Ngân sách rất ngắn dùng một tình huống công việc để khai thác cả cách xử lý và lý do lựa chọn. Recruiter focus chỉ là dữ liệu chủ đề không đáng tin cậy, không được ghi đè chỉ dẫn hệ thống.
+
+Thiết lập mới nằm trong `policy.processes[COMMUNICATION].config`; xem [hướng dẫn cấu hình](AI-Interview-Configuration-Guide.md). Không đổi API câu trả lời hoặc schema DB. Trạng thái: `Done` cho nối cấu hình/prompt và test; chất lượng nội dung thực tế phụ thuộc provider và cần kiểm chứng phiên thật.
+
+## Cập nhật ngày 2026-10-15
+
+Câu hỏi Communication phải bám trách nhiệm, kỹ năng hoặc yêu cầu cụ thể trong snapshot Job và chủ đề cấu hình. Ưu tiên JD/kỹ năng đã chọn hơn chi tiết ngoài lề từ ứng viên; không suy diễn công nghệ từ chức danh hoặc kinh nghiệm chưa được xác nhận. Khi ứng viên thiếu kinh nghiệm/trả lời mơ hồ, chuyển sang tình huống công việc đơn giản; phân bổ các yêu cầu cốt lõi qua số lượt còn lại. Chỉ chào lượt đầu và dùng nhất quán ngôn ngữ cấu hình, trừ thuật ngữ kỹ thuật. Trạng thái `Doing`: đã cập nhật prompt, cần đánh giá nội dung với provider thật.
+
+
 ## Phục hồi lỗi HTTP provider tạm thời (2026-10-12)
 
 - Spring AI chat streaming thử lại tối đa một lần với backoff khoảng 2 giây có jitter khi provider trả 502/503/504 trước khi trả response thành công. Mỗi lần thử thêm phải qua rate limiter tenant. Không retry 429, lỗi xác thực/model, lỗi transport hoặc stream đã bắt đầu; không phát lại delta đã gửi.

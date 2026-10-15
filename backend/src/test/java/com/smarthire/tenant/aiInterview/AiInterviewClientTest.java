@@ -25,6 +25,7 @@ class AiInterviewClientTest {
     private AiInterviewClient client;
 
     @BeforeEach void setup() {
+        config.setBaseUrl("https://interview.example/v1");
         var builder = RestClient.builder();
         server = MockRestServiceServer.bindTo(builder).build();
         client = new AiInterviewClient(config, dynamic, builder, mapper);

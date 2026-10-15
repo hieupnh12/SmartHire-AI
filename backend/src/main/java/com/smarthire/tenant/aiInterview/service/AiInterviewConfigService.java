@@ -33,10 +33,11 @@ public class AiInterviewConfigService {
     @Transactional
     public AiInterviewConfigRequest update(long id, AiInterviewConfigRequest request) {
         Job job = job(id);
-        if (request.enabled() && request.availableUntil() != null && !request.availableUntil().isAfter(Instant.now())) {
+        boolean relative = InterviewPolicies.relativeAvailability(request.policy());
+        if (!relative && request.enabled() && request.availableUntil() != null && !request.availableUntil().isAfter(Instant.now())) {
             throw new BusinessException("Availability deadline must be in the future", HttpStatus.BAD_REQUEST, "AI_INTERVIEW_BAD_CONFIG");
         }
-        if (request.availableFrom() != null && request.availableUntil() != null
+        if (!relative && request.availableFrom() != null && request.availableUntil() != null
                 && !request.availableFrom().isBefore(request.availableUntil())) {
             throw new BusinessException("Availability start must be before the deadline", HttpStatus.BAD_REQUEST,
                     "AI_INTERVIEW_BAD_CONFIG");
@@ -48,8 +49,8 @@ public class AiInterviewConfigService {
         job.setAiInterviewEnabled(request.enabled());
         job.setAiInterviewPassingScore(request.passingScore());
         job.setAiInterviewQuestionCount(request.questionCount());
-        job.setAiInterviewAvailableFrom(request.availableFrom());
-        job.setAiInterviewAvailableUntil(request.availableUntil());
+        job.setAiInterviewAvailableFrom(relative ? null : request.availableFrom());
+        job.setAiInterviewAvailableUntil(relative ? null : request.availableUntil());
         if (request.enabled()) {
             applications.findByJob_IdOrderByIdDesc(id).stream()
                     .filter(a -> a.getStatus() == ApplicationStatus.INTERVIEW && a.getCvScreeningStatus() == CvScreeningStatus.PASSED

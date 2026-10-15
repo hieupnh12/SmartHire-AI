@@ -1,5 +1,11 @@
 # AI Interview Scoring
 
+## Trọng số tiêu chí hội thoại theo Job (2026-10-15)
+
+Recruiter thiết lập trong **Cấu hình chung** bốn trọng số: Kiến thức chuyên môn, Giải quyết vấn đề, Lập luận, Giao tiếp (0–100%, tổng 100%) và trọng tâm tối đa 2.000 ký tự. Luồng hỏi/chấm dùng cùng snapshot thiết lập và Job Skills. Điểm tổng Conversation = tổng `(điểm tiêu chí × trọng số) / 100`; mặc định 25% mỗi tiêu chí giữ nguyên kết quả cho snapshot cũ. Backend tính tổng, model chỉ trả điểm và bằng chứng. `report_json` bổ sung `criterionWeights`; giao diện báo cáo hiển thị trọng số từng tiêu chí.
+
+Prompt chấm bổ sung định nghĩa từng tiêu chí và mốc điểm: 0 không có bằng chứng phù hợp; 1–39 sai hoặc thiếu nhiều; 40–59 hiểu một phần; 60–79 đúng, thực tế nhưng còn thiếu; 80–100 chính xác, có căn cứ và áp dụng vào job. Không dùng CV làm bằng chứng ứng viên đã trả lời được; không trừ điểm vì chưa hỏi chủ đề nâng cao. Bằng chứng vẫn phải trích nguyên văn USER message và được backend xác minh, không có bằng chứng hợp lệ → 0. Trọng tâm recruiter là dữ liệu chủ đề, không phải chỉ dẫn hệ thống. Không thêm bảng/cột/enum, không đổi ngưỡng Passed/Failed. Trạng thái: `Done` cho logic và kiểm thử, cần kiểm chứng chất lượng chấm với provider thật.
+
 ## Quy tắc bỏ trống (2026-10-03)
 
 Phiên Communication theo câu hỏi: thiếu bản ghi `AiAnswer`, nội dung `null`, rỗng hoặc chỉ có khoảng trắng đều nhận 0 điểm, không gọi provider. Tổng điểm tính cả câu bỏ trống; trạng thái PASSED/FAILED theo ngưỡng snapshot. Câu đã trả lời nhưng thiếu kết quả chấm vẫn báo lỗi để retry. Trạng thái `Doing`: 41 kiểm thử cấu hình/rubric, chấm điểm và hội thoại đã qua. Đã xác minh phiên thực tế #3 tại tenant `ttqt`: câu trả lời rỗng được RabbitMQ worker chấm 0/100, phiên FAILED và không còn ERROR sau khi nạp bản sửa vào backend local. Các worker dùng chung database cần chạy cùng phiên bản mã xử lý snapshot.

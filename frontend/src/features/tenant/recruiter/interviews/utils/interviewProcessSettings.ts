@@ -1,4 +1,29 @@
 import type { AiInterview, InterviewProcessConfig } from "@/api/types/aiInterview";
+import { z } from "zod";
+
+export const ASSESSMENT_CRITERIA = [
+  { key: "technicalKnowledgeWeight", label: "Kiến thức chuyên môn", description: "Hiểu và áp dụng đúng kỹ năng, kiến thức cần cho job." },
+  { key: "problemSolvingWeight", label: "Giải quyết vấn đề", description: "Xác định vấn đề, đề xuất giải pháp và kiểm tra kết quả." },
+  { key: "reasoningWeight", label: "Lập luận", description: "Giải thích lựa chọn, căn cứ, phương án khác và đánh đổi." },
+  { key: "communicationWeight", label: "Giao tiếp", description: "Trình bày rõ ràng, đúng trọng tâm, phù hợp người nghe." },
+] as const;
+const criterionWeight = z.number().int("Nhập số nguyên 0–100.").min(0, "0–100%.").max(100, "0–100%.");
+export const conversationAssessmentSchema = z.object({
+  questionCount: z.coerce.number().int().min(1).max(10),
+  followUpEnabled: z.boolean(),
+  maxFollowUp: z.coerce.number().int(),
+  technicalKnowledgeWeight: criterionWeight, problemSolvingWeight: criterionWeight,
+  reasoningWeight: criterionWeight, communicationWeight: criterionWeight,
+  assessmentFocus: z.string().trim().max(2000, "Trọng tâm phỏng vấn tối đa 2.000 ký tự."),
+}).refine(value => ASSESSMENT_CRITERIA.reduce((sum, criterion) => sum + value[criterion.key], 0) === 100,
+  { message: "Tổng trọng số 4 tiêu chí phải bằng 100%." })
+  .refine(value => !value.followUpEnabled || value.maxFollowUp >= 2 && value.maxFollowUp <= 10,
+    { path: ["maxFollowUp"], message: "Hỏi bồi tối đa từ 2–10 câu cho mỗi câu chính." });
+
+export const MINUTES_PER_MAIN_QUESTION = 5;
+export function interviewDurationMinutes(processes: InterviewProcessConfig[]) {
+  return processCount(processes) * MINUTES_PER_MAIN_QUESTION;
+}
 
 export const AVAILABLE_INTERVIEW_PROCESS = "COMMUNICATION";
 
@@ -8,7 +33,8 @@ const defaults: Record<InterviewProcessConfig["key"], Record<string, unknown>> =
   PRACTICAL_EXPERIENCE: { questionCount: 3, responseMode: "speech", experienceDepth: "standard", followUpEnabled: true, maxFollowUp: 2, askRealExample: true, askCandidateRole: true, askChallenges: true, askResult: true, verifyAgainstCV: true },
   TECHNICAL_REASONING: { questionCount: 3, responseMode: "speech", scenarioComplexity: "medium", requireJustification: true, askAlternatives: true, askTradeOffs: true, challengeCandidateAnswer: true, followUpEnabled: true, followUpDepth: 2 },
   BEHAVIORAL_SITUATIONAL: { questionCount: 4, responseMode: "speech", followUpEnabled: true, maxFollowUp: 2, requireRealExample: true, askAction: true, askResult: true, askReflection: true },
-  COMMUNICATION: { questionCount: 3, responseMode: "speech", language: "English", followUpEnabled: true, maxFollowUp: 1, adaptiveQuestions: true, speechSignals: true, realTimeInteraction: false, recordAudio: true, generateTranscript: true, technicalExplanationTask: true, nonTechnicalExplanationTask: true },
+  COMMUNICATION: { questionCount: 3, responseMode: "speech", language: "English", followUpEnabled: true, maxFollowUp: 2, adaptiveQuestions: true, speechSignals: true, realTimeInteraction: false, recordAudio: true, generateTranscript: true, technicalExplanationTask: true, nonTechnicalExplanationTask: true,
+    technicalKnowledgeWeight: 25, problemSolvingWeight: 25, reasoningWeight: 25, communicationWeight: 25, assessmentFocus: "" },
 };
 
 export function normalizeProcesses(processes: InterviewProcessConfig[]): InterviewProcessConfig[] {
@@ -21,7 +47,10 @@ export function normalizeProcesses(processes: InterviewProcessConfig[]): Intervi
       return [key, typeof fallback === "number" ? Number(value) : typeof fallback === "boolean" ? value === true || value === "true" : String(value)];
     }));
     // These controls are explicitly marked unavailable in the form.
-    if (process.key === AVAILABLE_INTERVIEW_PROCESS) { config.realTimeInteraction = false; }
+    if (process.key === AVAILABLE_INTERVIEW_PROCESS) {
+      config.realTimeInteraction = false;
+      if (Number(config.maxFollowUp) < 2) config.maxFollowUp = 2;
+    }
     return { ...process, order: index + 1, enabled: process.key === AVAILABLE_INTERVIEW_PROCESS, weight: process.key === AVAILABLE_INTERVIEW_PROCESS ? 100 : 0, config };
   });
 }

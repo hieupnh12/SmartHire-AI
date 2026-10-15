@@ -263,9 +263,29 @@ public class MasterAiConfigService {
                 targetUrl = targetUrl.replaceAll("/+$", "");
                 if (!targetUrl.endsWith("/chat/completions")) targetUrl += "/chat/completions";
 
-                String body = """
-                        {"model":"%s","messages":[{"role":"user","content":"ping"}],"max_tokens":5}
-                        """.formatted(model);
+                // Custom OpenAI-compatible servers expose their own model IDs.
+                if ("OPENAI".equals(provider) && endpointUrl != null && !endpointUrl.isBlank()
+                        && (request.getModelName() == null || request.getModelName().isBlank())) {
+                    var available = restClient.get()
+                            .uri(targetUrl.substring(0, targetUrl.length() - "/chat/completions".length()) + "/models")
+                            .header("Authorization", "Bearer " + apiKey.trim())
+                            .retrieve().body(com.fasterxml.jackson.databind.JsonNode.class);
+                    String discovered = null;
+                    if (available != null && available.path("data").isArray()) {
+                        for (var entry : available.path("data")) {
+                            if (entry.path("id").isTextual() && !entry.path("id").asText().isBlank()) {
+                                discovered = entry.path("id").asText();
+                                break;
+                            }
+                        }
+                    }
+                    if (discovered == null) throw new IllegalStateException("No model available from the custom endpoint; specify modelName.");
+                    model = discovered;
+                }
+
+                String body = mapper.writeValueAsString(java.util.Map.of(
+                        "model", model, "messages", List.of(java.util.Map.of("role", "user", "content", "ping")),
+                        "max_tokens", 5));
 
                 restClient.post()
                         .uri(targetUrl)

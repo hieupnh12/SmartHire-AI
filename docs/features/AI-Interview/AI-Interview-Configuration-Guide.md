@@ -1,5 +1,55 @@
 # Hướng dẫn sử dụng và cấu hình AI Interview
 
+## Bảo toàn thời gian snapshot (2026-10-15)
+
+Snapshot giữ chính xác phần nano giây của thời gian mở/đóng khi chuyển qua JSON; không làm tròn qua số thực dấu phẩy động. Kiểm thử dùng mốc thời gian cố định để phát hiện sai lệch. Test thời lượng Communication đồng bộ quy tắc 2 câu chính × 5 phút = 10 phút. Trạng thái: `Done`.
+
+## Số câu hiển thị trên lời mời (2026-10-15)
+
+Thẻ AI Interview hiển thị tổng câu hỏi tối đa, gồm câu chính và hỏi bồi: `maxQuestionCount = questionCount × (1 + maxFollowUp)` khi bật hỏi bồi; khi tắt chỉ tính câu chính. Ví dụ 1 câu chính + tối đa 2 hỏi bồi → “Tối đa 3 câu (2 hỏi bồi)”. API bổ sung `maxQuestionCount`, giữ `questionCount` là số câu chính. Tổng thời lượng vẫn tính theo câu chính × 5 phút. Dữ liệu lấy từ snapshot phiên, không lấy giới hạn hỏi bồi đang chọn nhưng đã tắt, hoặc cấu hình Job thay đổi sau đó. Trạng thái: `Done` cho logic và kiểm thử.
+
+## Mở và đóng phiên theo lời mời hoặc ngày giờ (2026-10-15)
+
+Trong **Cấu hình chung**, Recruiter chọn **Cách đặt thời gian**:
+
+- **Theo số giờ từ lời mời**: mở sau X giờ tính từ thời điểm hệ thống tạo lời mời; X = 0 cho phép bắt đầu ngay. Hạn hoàn thành là N giờ tính từ lúc mở, N ≥ 1. Ví dụ X = 6, N = 48 → mở ở mốc +6 giờ và đóng ở mốc +54 giờ. Mặc định mới X = 0, N = 24; mỗi giá trị tối đa 8760 giờ.
+- **Theo ngày giờ cụ thể**: chọn cả giờ mở và hạn hoàn thành, hạn phải sau giờ mở. Cấu hình cũ có ngày giờ được giữ ở chế độ này; snapshot phiên cũ không bị viết lại.
+
+API cấu hình hiện có bổ sung `policy.availability = {mode: "RELATIVE"|"ABSOLUTE", startDelayHours, completionWindowHours}`. Với RELATIVE, `availableFrom`/`availableUntil` trong cấu hình Job là null, thời gian tuyệt đối được chốt vào snapshot ngay khi tạo lời mời. Thời điểm nhận lời mời ở đây là lúc tạo lời mời trong hệ thống, không phải lúc ứng viên mở email. Thẻ ứng viên, thông báo và email dùng cùng mốc snapshot; trước giờ mở thẻ hiển thị “Chưa đến giờ bắt đầu”, tự đổi khi đến giờ; backend tiếp tục chặn bắt đầu sớm hoặc quá hạn. Lượt làm lại giữ nguyên cửa sổ lời mời ban đầu, không gia hạn theo thời điểm retry.
+
+FE dùng Zod, BE kiểm tra mode/offset và thứ tự ngày giờ trước khi lưu. Dữ liệu dùng JSON policy/snapshot và các cột ngày giờ hiện có, không thêm bảng/cột/enum JPA hoặc migration. Lịch mở/đóng độc lập với thời lượng làm bài = số câu chính × 5 phút; đồng hồ phiên được giới hạn bởi hạn hoàn thành. Trạng thái: `Done` cho code và kiểm thử; cần triển khai để áp dụng cho lời mời mới.
+
+## Giao diện cấu hình chung (2026-10-15)
+
+Không hiển thị ô tổng thời gian và số câu hỏi Communication. Số câu lấy từ Cấu hình bài tập; hệ thống vẫn tự tính thời lượng. Trạng thái: `Done`.
+
+## Tự tính thời lượng và giới hạn hỏi bồi (2026-10-15)
+
+- Tổng thời gian = số câu hỏi chính Communication trong **Cấu hình bài tập × 5 phút**. Ví dụ 3 câu → 15 phút, 10 câu → 50 phút. **Cấu hình chung** không hiển thị ô tổng thời gian hoặc dòng giải thích thời lượng. Backend vẫn tính lại khi đọc/lưu cấu hình Job và tạo snapshot phiên mới, không tin thời lượng tùy ý do client gửi.
+- Khi bật hỏi bồi, **Max Follow-up** chọn 2–10 câu tối đa cho mỗi câu chính, mặc định 2; có thể tắt hỏi bồi. FE dùng Zod và BE kiểm tra giới hạn. Cấu hình Job cũ 0/1 được đưa về 2 khi chuẩn hóa; snapshot phiên đã tạo giữ nguyên.
+- Câu chính và toàn bộ câu hỏi bồi của nó dùng chung ngân sách **5 phút trả lời ước tính**, không phải mỗi câu bồi được thêm 5 phút. AI nhận chỉ dẫn chọn nhiệm vụ hẹp, tránh bài code dài/thiết kế hệ thống rộng/nhiều đầu việc; càng nhiều hỏi bồi thì câu trả lời kỳ vọng phải càng ngắn.
+- Mỗi lượt sinh nhận vị trí câu chính hoặc hỏi bồi tương ứng, số câu chính, trần hỏi bồi và thời lượng snapshot. Hết nhóm hỏi bồi chuyển sang câu chính/chủ đề kế tiếp. Trần lượt = số câu chính × (1 + max follow-up khi bật), tối đa 110 với 10 câu chính × 10 câu bồi. Giới hạn cũ 40 lượt/3 câu bồi được thay thế cho phiên mới.
+- Đồng hồ hết hạn toàn phiên vẫn do backend kiểm tra và bị giới hạn bởi hạn hoàn thành. 5 phút/câu là ngân sách thiết kế nội dung trong prompt, không khóa trả lời từng câu tại phút thứ 5; model không thể bảo đảm tốc độ trả lời thực tế của mọi ứng viên.
+
+API không thêm endpoint/cột/bảng: tiếp tục dùng `policy.durationMinutes`, `policy.processes[COMMUNICATION].config.questionCount`, `followUpEnabled`, `maxFollowUp` và snapshot hiện có. Trạng thái: `Done` cho logic và kiểm thử; cần triển khai để áp dụng, kiểm chứng nội dung sinh với provider thật.
+
+## Cấu hình tiêu chí và trọng tâm theo Job (2026-10-15)
+
+Recruiter mở **AI Interview → Cấu hình chung → Tiêu chí hỏi và đánh giá hội thoại** để thiết lập:
+
+- Kiến thức chuyên môn, Giải quyết vấn đề, Lập luận, Giao tiếp: trọng số nguyên 0–100%, tổng bắt buộc 100%. Mặc định mỗi tiêu chí 25%; 0% không đóng góp điểm tổng.
+- Trọng tâm phỏng vấn theo job: tối đa 2.000 ký tự, ví dụ “REST API, xử lý lỗi và lựa chọn database”. AI dùng cùng JD, trách nhiệm và Job Skills đã chọn; nội dung này là dữ liệu chủ đề, không được thay thế chỉ dẫn hệ thống.
+
+Thiết lập dùng chung cho sinh câu hỏi và đánh giá toàn phiên. Mỗi câu hỏi cần gắn yêu cầu công việc, có mục tiêu bằng chứng theo tiêu chí; mục tiêu luân phiên các tiêu chí chuyên môn/giải quyết vấn đề/lập luận có trọng số dương. Giao tiếp được quan sát xuyên suốt; khi chỉ Giao tiếp có trọng số thì mục tiêu là Giao tiếp. AI được chỉ dẫn ưu tiên bằng chứng còn thiếu và tiêu chí trọng số cao trong ngân sách lượt, giữ câu hỏi ngắn và độ khó tăng dần. Đây là định hướng cho model, không bảo đảm model luôn tuân thủ hoàn toàn.
+
+API cấu hình hiện có giữ nguyên endpoint; `policy.processes[key=COMMUNICATION].config` bổ sung `technicalKnowledgeWeight`, `problemSolvingWeight`, `reasoningWeight`, `communicationWeight` (integer), `assessmentFocus` (string). Frontend dùng Zod; backend kiểm tra trước khi lưu. Không thêm bảng/cột: dùng JSON cấu hình hiện có và snapshot phiên. Cấu hình chỉ áp dụng cho phiên mới; snapshot cũ thiếu trường dùng mặc định 25%/tiêu chí và trọng tâm rỗng. Báo cáo bổ sung `criterionWeights` và hiển thị trọng số cạnh điểm từng tiêu chí.
+
+Trạng thái: `Done` — đã kiểm thử validation, lưu/đọc lại, dữ liệu prompt và phép tính trọng số; cần triển khai và kiểm chứng chất lượng câu hỏi với provider thật.
+
+## Kiểm tra kết nối proxy OpenAI tùy chỉnh (2026-10-15)
+
+Nút kiểm tra API Key không truyền `modelName`: với endpoint OpenAI tùy chỉnh, backend gọi `GET /models` cùng Bearer key rồi dùng model đầu tiên có ID hợp lệ để gửi câu `ping`. Không mặc định gửi `o3-mini` tới proxy LiteLLM/Ollama. Nếu danh sách rỗng, báo lỗi yêu cầu chỉ định model và không gửi chat. Khi request truyền model cụ thể, dùng đúng model đó. Kết quả trả `modelVersion` cho biết model đã kiểm tra; thao tác này không đổi model routing của các task. Trạng thái: `Done` (kiểm thử HTTP mô phỏng; cần triển khai backend để áp dụng cho server).
+
 ## Vào phòng trước, tạo lời chào bất đồng bộ (2026-10-15)
 
 - Sau khi kiểm tra thiết bị và xác nhận bắt đầu, ứng viên vào phòng chờ ngay. Micro/chia sẻ tab được giữ trong lúc AI chuẩn bị; chỉ hiển thị chat khi lời chào đã được lưu.

@@ -19,7 +19,21 @@ public record InterviewPolicy(
         String interviewMode,
         Review review,
         Voice voice,
-        List<@Valid Process> processes) {
+        List<@Valid Process> processes,
+        @Valid Availability availability) {
+    public InterviewPolicy(int durationMinutes, int maxAttempts, boolean miniAssessmentEnabled, int miniQuestionCount,
+            int miniWeight, int miniAfterStage, Map<String, Integer> weights, List<String> selectedSkills, List<Stage> stages,
+            Integer schemaVersion, String interviewMode, Review review, Voice voice, List<Process> processes) {
+        this(durationMinutes, maxAttempts, miniAssessmentEnabled, miniQuestionCount, miniWeight, miniAfterStage,
+                weights, selectedSkills, stages, schemaVersion, interviewMode, review, voice, processes, null);
+    }
+    public InterviewPolicy withAvailability(Availability value) {
+        return new InterviewPolicy(durationMinutes, maxAttempts, miniAssessmentEnabled, miniQuestionCount, miniWeight,
+                miniAfterStage, weights, selectedSkills, stages, schemaVersion, interviewMode, review, voice, processes, value);
+    }
+    public record Availability(@NotNull @Pattern(regexp = "RELATIVE|ABSOLUTE") String mode,
+                               @Min(0) @Max(8760) Integer startDelayHours,
+                               @Min(1) @Max(8760) Integer completionWindowHours) {}
     public InterviewPolicy(int durationMinutes, int maxAttempts, boolean miniAssessmentEnabled, int miniQuestionCount,
             int miniWeight, int miniAfterStage, Map<String, Integer> weights, List<String> selectedSkills, List<Stage> stages) {
         this(durationMinutes, maxAttempts, miniAssessmentEnabled, miniQuestionCount, miniWeight, miniAfterStage,

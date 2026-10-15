@@ -56,7 +56,17 @@ public class AiInterviewMapper {
                 interview.getConfigSnapshotJson() == null ? null : InterviewPolicies.config(interview).availableFrom(),
                 interview.getConfigSnapshotJson() == null ? null : InterviewPolicies.config(interview).availableUntil(),
                 roadmap(interview), InterviewPolicies.isV2(interview), InterviewPolicies.voiceEnabled(interview),
-                InterviewPolicies.voiceEnabled(interview) && InterviewPolicies.config(interview).policy().voice().recordAudio(), InterviewPolicies.isConversation(interview));
+                InterviewPolicies.voiceEnabled(interview) && InterviewPolicies.config(interview).policy().voice().recordAudio(), InterviewPolicies.isConversation(interview),
+                maxQuestionCount(interview));
+    }
+
+    private static int maxQuestionCount(AiInterview interview) {
+        if (!InterviewPolicies.isConversation(interview)) return expectedQuestions(interview);
+        return InterviewPolicies.config(interview).policy().processes().stream()
+                .filter(process -> process.enabled() && "COMMUNICATION".equals(process.key()))
+                .map(InterviewProcessSettings::config)
+                .mapToInt(config -> InterviewProcessSettings.questionCount(config)
+                        * (1 + Math.clamp(InterviewProcessSettings.followUpLimit(config), 0, 10))).sum();
     }
 
     private static List<RoadmapStep> roadmap(AiInterview interview) {

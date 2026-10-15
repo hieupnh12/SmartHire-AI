@@ -38,12 +38,60 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 class MasterAiConfigServiceTest {
 
     @Test
+    void customEndpointDiscoversModelWhenConnectionTestOmitsModel() {
+        var builder = RestClient.builder();
+        var server = MockRestServiceServer.bindTo(builder).build();
+        var service = new MasterAiConfigService(providerKeyRepository, modelConfigRepository, auditLogRepository,
+                credentialService, configProvider, mapper, builder.build());
+        server.expect(requestTo("https://llama.example/v1/models"))
+                .andExpect(method(HttpMethod.GET))
+                .andExpect(header("Authorization", "Bearer test-key"))
+                .andRespond(withSuccess("{\"data\":[{\"id\":\"local-llama\"}]}", MediaType.APPLICATION_JSON));
+        server.expect(requestTo("https://llama.example/v1/chat/completions"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(jsonPath("$.model").value("local-llama"))
+                .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
+        var response = service.testConnection(AiTestConnectionRequest.builder().provider("OPENAI")
+                .apiKey("test-key").endpointUrl("https://llama.example/v1/chat/completions/").build());
+        assertThat(response.getSuccess()).isTrue();
+        assertThat(response.getModelVersion()).isEqualTo("openai:local-llama");
+        server.verify();
+    }
+
+    @Test
+    void customEndpointWithoutModelsDoesNotSendInvalidChatRequest() {
+        var builder = RestClient.builder();
+        var server = MockRestServiceServer.bindTo(builder).build();
+        var service = new MasterAiConfigService(providerKeyRepository, modelConfigRepository, auditLogRepository,
+                credentialService, configProvider, mapper, builder.build());
+        server.expect(requestTo("https://llama.example/v1/models"))
+                .andRespond(withSuccess("{\"data\":[]}", MediaType.APPLICATION_JSON));
+        var response = service.testConnection(AiTestConnectionRequest.builder().provider("OPENAI")
+                .apiKey("test-key").endpointUrl("https://llama.example/v1").build());
+        assertThat(response.getSuccess()).isFalse();
+        assertThat(response.getMessage()).contains("specify modelName");
+        server.verify();
+    }
+
+    @Test
     void nativeSpeechUsesDedicatedInterviewFallbackInsteadOfCvKey() {
+        org.springframework.test.util.ReflectionTestUtils.setField(configProvider, "interviewSpeechKey", "speech-key");
         var speech = configProvider.resolveInterviewSpeechConfig();
         assertThat(speech.provider()).isEqualTo("GEMINI");
-        assertThat(speech.apiKey()).isEqualTo("interview-key");
+        assertThat(speech.apiKey()).isEqualTo("speech-key");
         assertThat(speech.modelName()).isEqualTo("gemini-2.5-flash");
         verify(modelConfigRepository, never()).findByTaskType(anyString());
+    }
+
+    @Test
+    void nativeSpeechWithoutGeminiKeyDoesNotUseOpenAiOrCvKey() {
+        assertThat(configProvider.resolveInterviewSpeechConfig().apiKey()).isEmpty();
+    }
+
+    @Test
+    void nativeSpeechWithGeminiTextProviderUsesInterviewKey() {
+        org.springframework.test.util.ReflectionTestUtils.setField(configProvider, "interviewProvider", "GEMINI");
+        assertThat(configProvider.resolveInterviewSpeechConfig().apiKey()).isEqualTo("interview-key");
     }
 
     @Test

@@ -25,7 +25,7 @@ class InterviewConversationServiceTest {
     @Mock AiInterviewRepository interviews; @Mock InterviewSessionRepository sessions;
     @Mock InterviewMessageRepository messages; @Mock AiInterviewConsentRepository consents;
     @Mock CvAccess access; @Mock InterviewConversationClient ai;
-    ObjectMapper mapper = new ObjectMapper(); InterviewConversationService service;
+    ObjectMapper mapper = new ObjectMapper().findAndRegisterModules(); InterviewConversationService service;
     AiInterview interview; InterviewSession session; Candidate candidate;
     final String requestId = "12345678-1234-1234-1234-123456789012";
     @BeforeEach void setup() {
@@ -47,6 +47,56 @@ class InterviewConversationServiceTest {
     InterviewMessage message(long id, String role, String content, int order) {
         return InterviewMessage.builder().id(id).session(session).role(role).content(content).sequenceNo(order).build();
     }
+    void assessmentConfig() {
+        var snapshot = (ObjectNode) InterviewPolicies.tree(interview.getConfigSnapshotJson());
+        var config = (ObjectNode) snapshot.path("policy").path("processes").get(0).path("config");
+        config.put("technicalKnowledgeWeight", 50).put("problemSolvingWeight", 20)
+                .put("reasoningWeight", 20).put("communicationWeight", 10).put("assessmentFocus", "REST API failure handling");
+        ((ObjectNode) snapshot.path("policy")).putArray("selectedSkills").add("Java");
+        interview.setConfigSnapshotJson(snapshot.toString());
+    }
+    @Test void questionUsesSnapshotCriteriaAndRecruiterFocusAlongsideJobContext() {
+        assessmentConfig();
+        interview.setStartedAt(null); interview.setExpiresAt(null);
+        when(sessions.findByAiInterview_Id(11L)).thenReturn(Optional.empty());
+        when(sessions.save(any())).thenAnswer(call -> call.getArgument(0));
+        when(ai.dialogue(anyString(), anyList(), any())).thenAnswer(call -> {
+            String instruction = call.getArgument(0);
+            assertThat(instruction).contains("target TECHNICAL_KNOWLEDGE", "Criteria definitions:",
+                    "Gather evidence for every positive-weight criterion", "one job-grounded question");
+            List<InterviewConversationClient.Message> prompt = call.getArgument(1);
+            var context = mapper.readTree(prompt.getFirst().content());
+            assertThat(context.path("jobContext").path("jobTitle").asText()).isEqualTo("Backend");
+            assertThat(context.path("assessment").path("focus").asText()).isEqualTo("REST API failure handling");
+            assertThat(context.path("assessment").path("selectedJobSkills").get(0).asText()).isEqualTo("Java");
+            assertThat(context.path("assessment").path("criterionWeights").path("TECHNICAL_KNOWLEDGE").asInt()).isEqualTo(50);
+            return "Tell me about a Java API you worked on.";
+        });
+        service.initialize(interview);
+    }
+    @Test void evaluationUsesSameSnapshotAndComputesWeightedTotalOnBackend() {
+        assessmentConfig();
+        when(sessions.findByAiInterview_Id(11L)).thenReturn(Optional.of(session));
+        when(messages.findBySession_IdOrderBySequenceNoAsc(21L)).thenReturn(List.of(message(32, "USER", "I retry failed REST API requests", 1)));
+        var output = mapper.createObjectNode().put("summary", "Summary").put("strengths", "Strengths").put("weaknesses", "Weaknesses");
+        var criteria = output.putObject("criteria");
+        int value = 80;
+        for (String key : InterviewConversationService.CRITERIA) {
+            criteria.putObject(key).put("score", value).putArray("evidence").addObject()
+                    .put("messageId", 32).put("quote", "retry failed REST API requests");
+            value -= 20;
+        }
+        when(ai.evaluate(anyString(), any())).thenAnswer(call -> {
+            String instruction = call.getArgument(0);
+            assertThat(instruction).contains("Criteria definitions:", "Score anchors:", "Do not treat CV claims as proof");
+            com.fasterxml.jackson.databind.JsonNode input = call.getArgument(1);
+            assertThat(input.path("assessment").path("focus").asText()).isEqualTo("REST API failure handling");
+            return output;
+        });
+        interview.getApplication().getJob().setAiInterviewPolicyJson(InterviewPolicies.json(InterviewPolicies.defaults()));
+        assertThat(service.evaluate(interview)).isEqualByComparingTo("62.00");
+        assertThat(InterviewPolicies.tree(interview.getReportJson()).path("criterionWeights").path("TECHNICAL_KNOWLEDGE").asInt()).isEqualTo(50);
+    }
     @Test void initializationRequestsAnEasyJobRelatedOpening() {
         interview.setStartedAt(null); interview.setExpiresAt(null);
         when(sessions.findByAiInterview_Id(11L)).thenReturn(Optional.empty());
@@ -54,19 +104,60 @@ class InterviewConversationServiceTest {
         when(ai.dialogue(anyString(), anyList(), any())).thenAnswer(call -> {
             assertThat(interview.getStartedAt()).isNull(); assertThat(interview.getExpiresAt()).isNull();
             String instruction = call.getArgument(0);
-            assertThat(instruction).contains("Opening:", "ONE easy warm-up question", "Let the candidate choose the example")
+            assertThat(instruction).contains("Opening:", "ONE easy warm-up question", "Let the candidate choose the example",
+                            "Anchor every question in a specific responsibility", "Prioritize the job description and selected skills",
+                            "Do not assume a technology from the job title", "Greet only in the opening",
+                            "Use the configured interview language consistently")
                     .doesNotContain("Early conversation:", "Main conversation:", "This is the final turn");
             return "Hello! Could you tell me about a recent project?";
         });
         service.initialize(interview);
         assertThat(interview.getStartedAt()).isNotNull();
-        assertThat(java.time.Duration.between(interview.getStartedAt(), interview.getExpiresAt()).toMinutes()).isEqualTo(30);
+        assertThat(java.time.Duration.between(interview.getStartedAt(), interview.getExpiresAt()).toMinutes()).isEqualTo(15);
         verify(messages).save(argThat(value -> "ASSISTANT".equals(value.getRole()) && value.getSequenceNo() == 0));
         verify(ai, never()).evaluate(anyString(), any());
         when(sessions.findByAiInterview_Id(11L)).thenReturn(Optional.of(session));
         service.initialize(interview);
         verify(ai, times(1)).dialogue(anyString(), anyList(), any());
     }
+    @Test void tenFollowUpsAreNotClampedAndShareTheFiveMinuteBudget() {
+        var snapshot = (ObjectNode) InterviewPolicies.tree(interview.getConfigSnapshotJson());
+        var config = (ObjectNode) snapshot.path("policy").path("processes").get(0).path("config");
+        config.put("questionCount", 10).put("maxFollowUp", 10);
+        ((ObjectNode) snapshot.path("policy")).put("durationMinutes", 50);
+        interview.setConfigSnapshotJson(snapshot.toString());
+        interview.setStartedAt(null); interview.setExpiresAt(null);
+        when(sessions.findByAiInterview_Id(11L)).thenReturn(Optional.empty());
+        when(sessions.save(any())).thenAnswer(call -> {
+            InterviewSession saved = call.getArgument(0);
+            assertThat(saved.getMaxTurns()).isEqualTo(110);
+            return saved;
+        });
+        when(ai.dialogue(anyString(), anyList(), any())).thenAnswer(call -> {
+            String instruction = call.getArgument(0);
+            assertThat(instruction).contains("share at most 5 minutes", "maximum follow-ups per main question: 10",
+                    "session duration minutes: 50", "Ask main question 1", "more follow-ups must mean shorter answers");
+            return "Hello! Tell me about a recent task.";
+        });
+        service.initialize(interview);
+        assertThat(java.time.Duration.between(interview.getStartedAt(), interview.getExpiresAt()).toMinutes()).isEqualTo(50);
+    }
+
+    @Test void followUpsStayOnTheMainQuestionThenMoveToTheNextTopic() {
+        candidate(true); when(sessions.findByAiInterview_Id(11L)).thenReturn(Optional.of(session));
+        when(messages.findBySession_IdOrderBySequenceNoAsc(21L)).thenReturn(List.of());
+        session.setMaxTurns(9);
+        when(ai.dialogue(anyString(), anyList(), any())).thenAnswer(call -> {
+            String instruction = call.getArgument(0);
+            if (session.getCandidateTurns() < 3) {
+                assertThat(instruction).contains("Ask follow-up " + session.getCandidateTurns() + " of at most 2 for main question 1");
+            } else assertThat(instruction).contains("Ask main question 2", "target PROBLEM_SOLVING");
+            return "Next question";
+        });
+        for (int turn = 0; turn < 3; turn++)
+            service.turn(11L, new ConversationTurnRequest(UUID.randomUUID().toString(), "My answer"), text -> {});
+    }
+
     @Test void failedOpeningDoesNotPersistAnEmptySessionOrConsumeInterviewTime() {
         interview.setStartedAt(null); interview.setExpiresAt(null);
         when(sessions.findByAiInterview_Id(11L)).thenReturn(Optional.empty());

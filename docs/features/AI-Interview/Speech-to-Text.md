@@ -1,5 +1,12 @@
 # Speech-to-Text và ghi âm Communication
 
+## Cập nhật ngày 2026-10-15
+
+Phiên Conversation tự đọc lời chào và tin AI mới khi voice bật; candidate có thể tắt tự đọc hoặc bấm Dừng đọc. Dừng phát trước khi ghi âm/gửi. TTS backend lỗi có fallback giọng trình duyệt; nếu bị chặn tự phát, bấm Nghe AI để thử lại.
+
+Khi đang ghi âm, bấm **Gửi câu trả lời** để dừng micro → STT → gửi transcript hợp lệ, không cần gõ hoặc bấm gửi lần hai. Nút **Dừng micro** vẫn giữ luồng kiểm tra/sửa bản nháp. STT lỗi/không có lời nói không gửi lượt. Audio vẫn được lưu sau khi gửi nếu cấu hình bật Record Audio. Trạng thái `Doing`: cần xác minh micro, tự phát và provider thật trên trình duyệt.
+
+
 ## STT/TTS backend cho Conversation mới (2026-10-03)
 
 Phiên `conversationVersion=1` dùng MediaRecorder và Gemini STT/TTS API phía backend, không dùng SpeechRecognition/speechSynthesis. Candidate consent trước start, nhận Redis ticket single-use 60s gắn actor/tenant/attempt rồi mở `/ws/interview-voice?ticket=...`, không đưa JWT vào URL. Server ready; client gửi start{mimeType}, binary chunks 250ms (≤256KB/message, tổng≤9MB), end. Pool 3–10 ghép container hoàn chỉnh và gọi STT sau end dưới tenant/security context; luôn clear khi kết thúc. Audio WebM/Ogg/MP4 được kiểm tra MIME/container, owner, consent và deadline.
