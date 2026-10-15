@@ -5,7 +5,7 @@ import java.util.*;
 
 /** Canonical V2 exercise settings; UI metadata is never sent to the provider. */
 public final class InterviewProcessSettings {
-    public static final int MINUTES_PER_MAIN_QUESTION = 5;
+    public static final int MINUTES_PER_QUESTION = 5;
     public static final List<String> ASSESSMENT_CRITERIA = List.of("TECHNICAL_KNOWLEDGE", "PROBLEM_SOLVING", "REASONING", "COMMUNICATION");
     public static final List<String> ASSESSMENT_WEIGHT_KEYS = List.of("technicalKnowledgeWeight", "problemSolvingWeight", "reasoningWeight", "communicationWeight");
     private InterviewProcessSettings() {}
@@ -39,6 +39,8 @@ public final class InterviewProcessSettings {
                 result.put("askResult", true); result.put("askReflection", true);
             }
             case "COMMUNICATION" -> {
+                result.put("followUpSettingVersion", 0);
+                result.put("topic", "JOB_REQUIREMENTS");
                 ASSESSMENT_WEIGHT_KEYS.forEach(key -> result.put(key, 25));
                 result.put("assessmentFocus", "");
                 result.put("language", "English"); result.put("technicalExplanationTask", true);
@@ -104,5 +106,8 @@ public final class InterviewProcessSettings {
     public static String competency(String key) { return "TECHNICAL_REASONING".equals(key) ? "PROBLEM_SOLVING" : key; }
     public static int followUpLimit(Map<String, Object> config) {
         return bool(config, "followUpEnabled", true) ? integer(config, "followUpDepth", integer(config, "maxFollowUp", 2)) : 0;
+    }
+    public static int conversationQuestionCount(Map<String, Object> config) {
+        return 1 + followUpLimit(config);
     }
 }

@@ -74,7 +74,7 @@ export function AiInterviewDetailDrawer({ interviewId, jobId, candidateName, onC
             </div>
             <dl className="grid gap-3 pt-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
               <Metric icon={Network} label={interview.conversational ? "Tiến độ hội thoại" : "Quy trình & câu hỏi"}
-                value={interview.conversational ? transcript.data ? `${transcript.data.candidateTurns}/${transcript.data.maxTurns} lượt trả lời` : `${interview.questionCount} chủ đề`
+                value={interview.conversational ? transcript.data ? `${transcript.data.candidateTurns}/${transcript.data.maxTurns} lượt trả lời` : `${interview.maxQuestionCount ?? interview.questionCount} câu`
                   : `${interview.roadmap?.length ?? 0} chặng / ${interview.questions.length}/${interview.questionCount} câu`}
                 hint={interview.conversational ? "Tính theo lượt trả lời đã lưu trong transcript" : "Phân bổ theo từng chặng độc lập"} />
               <Metric icon={Timer} label="Thời lượng phiên" value={`${interview.durationMinutes ?? "—"} phút`} hint="Đếm ngược theo snapshot duration" />

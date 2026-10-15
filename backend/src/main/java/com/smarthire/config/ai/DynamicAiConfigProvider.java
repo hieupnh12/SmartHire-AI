@@ -50,8 +50,8 @@ public class DynamicAiConfigProvider {
     private String interviewEndpoint;
     @Value("${AI_INTERVIEW_GEMINI_API_KEY:}")
     private String interviewSpeechKey = "";
-    @Value("${AI_INTERVIEW_GEMINI_MODEL:gemini-2.5-flash}")
-    private String interviewSpeechModel = "gemini-2.5-flash";
+    @Value("${AI_INTERVIEW_GEMINI_MODEL:gemini-3.1-flash-lite}")
+    private String interviewSpeechModel = "gemini-3.1-flash-lite";
     private final String interviewKey;
     private final String interviewModel;
     private final int interviewTimeout;

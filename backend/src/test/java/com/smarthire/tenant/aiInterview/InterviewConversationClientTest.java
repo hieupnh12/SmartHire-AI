@@ -251,6 +251,20 @@ class InterviewConversationClientTest {
                 .isInstanceOf(IllegalStateException.class).hasMessageNotContaining("private");
     }
 
+    @Test void sttUsesSpeechModelEvenWhenConversationOverrideIsLlama() {
+        var builder = RestClient.builder(); server = MockRestServiceServer.bindTo(builder).build();
+        client = new InterviewConversationClient(configs, new AiInterviewAiConfig(), mapper, builder,
+                "https://generativelanguage.googleapis.com/v1beta", "gemini-2.5-flash-preview-tts",
+                "vanilj/llama-3-8b-instruct-32k-v0.1:Q4_K_M", WebClient.builder(), 60);
+        server.expect(requestTo(url("generateContent")))
+                .andExpect(header("x-goog-api-key", "speech-key"))
+                .andExpect(jsonPath("$.systemInstruction.parts[0].text").value(org.hamcrest.Matchers.containsString("in Vietnamese")))
+                .andExpect(jsonPath("$.contents[0].parts[1].inlineData.mimeType").value("audio/webm"))
+                .andExpect(jsonPath("$.generationConfig.thinkingConfig.thinkingBudget").value(0))
+                .andRespond(withSuccess("{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"Tôi sử dụng Java\"}]},\"finishReason\":\"STOP\"}]}", MediaType.APPLICATION_JSON));
+        assertThat(client.transcribe(new byte[]{1, 2}, "audio/webm", "Vietnamese")).isEqualTo("Tôi sử dụng Java");
+        server.verify();
+    }
     @Test void ttsAcceptsNativeWaveWithoutWrappingItAsPcmAgain() {
         var wave = java.nio.ByteBuffer.allocate(46).order(java.nio.ByteOrder.LITTLE_ENDIAN);
         wave.put("RIFF".getBytes(java.nio.charset.StandardCharsets.US_ASCII)).putInt(38)
@@ -260,7 +274,7 @@ class InterviewConversationClientTest {
         String data = java.util.Base64.getEncoder().encodeToString(wave.array());
         server.expect(requestTo("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent"))
                 .andRespond(withSuccess("{\"candidates\":[{\"content\":{\"parts\":[{\"inlineData\":{\"mimeType\":\"audio/wav\",\"data\":\"" + data + "\"}}]},\"finishReason\":\"STOP\"}]}", MediaType.APPLICATION_JSON));
-        assertThat(client.speech("Hello")).containsExactly(wave.array()); server.verify();
+        assertThat(client.speech("Hello", "English")).containsExactly(wave.array()); server.verify();
     }
 
     @Test void sttSendsAudioToBackendProviderAndTtsReturnsPlayableWave() {
@@ -268,9 +282,10 @@ class InterviewConversationClientTest {
                 .andExpect(jsonPath("$.contents[0].parts[1].inlineData.mimeType").value("audio/webm"))
                 .andRespond(withSuccess("{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"I use dependency injection\"}]},\"finishReason\":\"STOP\"}]}", MediaType.APPLICATION_JSON));
         server.expect(requestTo("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent"))
+                .andExpect(jsonPath("$.contents[0].parts[0].text").value("Read the following interview message naturally and verbatim in Vietnamese. Do not translate it:\nChào bạn"))
                 .andRespond(withSuccess("{\"candidates\":[{\"content\":{\"parts\":[{\"inlineData\":{\"mimeType\":\"audio/L16;codec=pcm;rate=24000\",\"data\":\"AAAAAA==\"}}]},\"finishReason\":\"STOP\"}]}", MediaType.APPLICATION_JSON));
         assertThat(client.transcribe(new byte[]{1, 2}, "audio/webm", "English")).isEqualTo("I use dependency injection");
-        byte[] wave = client.speech("Hello"); assertThat(wave).hasSize(48);
+        byte[] wave = client.speech("Chào bạn", "Vietnamese"); assertThat(wave).hasSize(48);
         assertThat(new String(wave, 0, 4, java.nio.charset.StandardCharsets.US_ASCII)).isEqualTo("RIFF"); server.verify();
     }
 }

@@ -79,7 +79,7 @@ class MasterAiConfigServiceTest {
         var speech = configProvider.resolveInterviewSpeechConfig();
         assertThat(speech.provider()).isEqualTo("GEMINI");
         assertThat(speech.apiKey()).isEqualTo("speech-key");
-        assertThat(speech.modelName()).isEqualTo("gemini-2.5-flash");
+        assertThat(speech.modelName()).isEqualTo("gemini-3.1-flash-lite");
         verify(modelConfigRepository, never()).findByTaskType(anyString());
     }
 

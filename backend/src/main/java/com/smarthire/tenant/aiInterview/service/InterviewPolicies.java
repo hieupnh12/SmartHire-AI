@@ -54,11 +54,14 @@ public final class InterviewPolicies {
         var settings = InterviewProcessSettings.config(communication == null
                 ? new InterviewPolicy.Process("COMMUNICATION", true, 1, 100, Map.of("questionCount", 3)) : communication);
         if (InterviewProcessSettings.integer(settings, "maxFollowUp", 2) < 2) settings.put("maxFollowUp", 2);
+        if (InterviewProcessSettings.integer(settings, "followUpSettingVersion", 0) < 1) settings.put("followUpEnabled", true);
+        settings.put("followUpSettingVersion", 1);
+        settings.put("questionCount", InterviewProcessSettings.conversationQuestionCount(settings));
         var processes = new ArrayList<InterviewPolicy.Process>();
         if (source.processes() != null) source.processes().stream().filter(process -> !"COMMUNICATION".equals(process.key()))
                 .forEach(process -> processes.add(new InterviewPolicy.Process(process.key(), false, processes.size() + 1, 0, process.config())));
         processes.add(new InterviewPolicy.Process("COMMUNICATION", true, processes.size() + 1, 100, settings));
-        return new InterviewPolicy(InterviewProcessSettings.questionCount(settings) * InterviewProcessSettings.MINUTES_PER_MAIN_QUESTION,
+        return new InterviewPolicy(InterviewProcessSettings.questionCount(settings) * InterviewProcessSettings.MINUTES_PER_QUESTION,
                 source.maxAttempts(), false, 3, 0, 0,
                 communicationWeights(), source.selectedSkills(), List.of(), 2,
                 "speech".equals(settings.get("responseMode")) ? "VOICE" : "TEXT", source.review(),
@@ -96,6 +99,7 @@ public final class InterviewPolicies {
             var config = resolveAvailability(config(interview.getApplication().getJob()), invitedAt);
             var snapshot = (com.fasterxml.jackson.databind.node.ObjectNode) tree(json(config));
             snapshot.put("conversationVersion", 1);
+            snapshot.put("questionBudgetVersion", 3);
             interview.setConfigSnapshotJson(snapshot.toString());
             interview.setPassingScoreSnapshot(config.passingScore());
         }
@@ -133,6 +137,9 @@ public final class InterviewPolicies {
     public static boolean expired(AiInterview interview) {
         return interview.getExpiresAt() != null && !Instant.now().isBefore(interview.getExpiresAt());
     }
+    public static boolean totalQuestionBudget(AiInterview interview) {
+        return interview.getConfigSnapshotJson() != null && tree(interview.getConfigSnapshotJson()).path("questionBudgetVersion").asInt() >= 2;
+    }
     public static boolean isConversation(AiInterview interview) {
         return interview.getConfigSnapshotJson() != null && tree(interview.getConfigSnapshotJson()).path("conversationVersion").asInt() == 1;
     }
@@ -156,7 +163,7 @@ public final class InterviewPolicies {
         if (isV2(p)) {
             validateV2(p, jobSkills);
             int total = p.processes().stream().filter(InterviewPolicy.Process::enabled).mapToInt(process -> InterviewProcessSettings.questionCount(process.config())).sum();
-            if (total < 1 || total > 30 || total != c.questionCount()) fail("Tổng câu hỏi chính của các bài tập bật phải bằng số câu chung (1–30).");
+            if (total < 1 || total > 30 || total != c.questionCount()) fail("Tổng số câu hỏi của các bài tập bật phải bằng số câu chung (1–30).");
             if (p.processes().stream().filter(InterviewPolicy.Process::enabled).noneMatch(process -> p.weights().getOrDefault(InterviewProcessSettings.competency(process.key()), 0) > 0))
                 fail("Cần ít nhất một bài tập bật có trọng số năng lực lớn hơn 0%.");
             return;
@@ -192,11 +199,14 @@ public final class InterviewPolicies {
                 try {
                     var settings = InterviewProcessSettings.config(process);
                     int count = InterviewProcessSettings.questionCount(settings);
-                    if (count < 1 || count > 10) fail("Mỗi bài tập có 1–10 câu hỏi chính.");
+                    if (count < 1 || count > ("COMMUNICATION".equals(process.key()) ? 11 : 10)) fail("Số câu hỏi vượt giới hạn của bài tập.");
                     int followUp = InterviewProcessSettings.followUpLimit(settings);
                     if ("COMMUNICATION".equals(process.key())) {
-                        if (InterviewProcessSettings.bool(settings, "followUpEnabled", true)
-                                && (followUp < 2 || followUp > 10)) fail("Giới hạn hỏi bồi phải từ 2–10 câu cho mỗi câu chính.");
+                        String topic = settings.get("topic").toString();
+                        if (!"JOB_REQUIREMENTS".equals(topic) && !jobSkills.contains(topic)) fail("Chỉ chọn chủ đề từ kỹ năng của Job.");
+                        if ((InterviewProcessSettings.integer(settings, "followUpSettingVersion", 0) < 1
+                                || InterviewProcessSettings.bool(settings, "followUpEnabled", true))
+                                && (followUp < 2 || followUp > 10)) fail("Giới hạn hỏi thêm phải từ 2–10 câu.");
                     } else if (followUp < 0 || followUp > 3) fail("Giới hạn hỏi bồi phải từ 0–3.");
                     for (String key : List.of("difficulty", "questionFormat", "problemStyle", "complexity", "scenarioComplexity", "experienceDepth", "responseMode", "language")) {
                         if (!settings.containsKey(key)) continue;

@@ -85,15 +85,15 @@ class AiInterviewConfigServiceTest {
         when(skills.findByJob_IdOrderByIdAsc(anyLong())).thenReturn(List.of());
         when(applications.findByJob_IdOrderByIdDesc(anyLong())).thenReturn(List.of());
 
-        service.update(1L, processRequest(2));
-        service.update(2L, processRequest(4));
+        service.update(1L, processRequest(3));
+        service.update(2L, processRequest(5));
 
         var firstPolicy = InterviewPolicies.read(job.getAiInterviewPolicyJson(), InterviewPolicy.class);
         var secondPolicy = InterviewPolicies.read(secondJob.getAiInterviewPolicyJson(), InterviewPolicy.class);
-        assertThat(firstPolicy.processes().getFirst().config()).containsEntry("questionCount", 2);
-        assertThat(secondPolicy.processes().getFirst().config()).containsEntry("questionCount", 4);
-        assertThat(firstPolicy.durationMinutes()).isEqualTo(10);
-        assertThat(secondPolicy.durationMinutes()).isEqualTo(20);
+        assertThat(firstPolicy.processes().getFirst().config()).containsEntry("questionCount", 3);
+        assertThat(secondPolicy.processes().getFirst().config()).containsEntry("questionCount", 5);
+        assertThat(firstPolicy.durationMinutes()).isEqualTo(15);
+        assertThat(secondPolicy.durationMinutes()).isEqualTo(25);
     }
 
     @Test void derivesDurationAndAcceptsTwoToTenFollowUps() {
@@ -107,7 +107,8 @@ class AiInterviewConfigServiceTest {
         for (int maximum : List.of(2, 10)) {
             settings.put("maxFollowUp", maximum);
             var saved = service.update(1L, request);
-            assertThat(saved.policy().durationMinutes()).isEqualTo(15);
+            assertThat(saved.policy().durationMinutes()).isEqualTo((1 + maximum) * 5);
+            assertThat(saved.questionCount()).isEqualTo(1 + maximum);
             assertThat(saved.policy().processes().getFirst().config()).containsEntry("maxFollowUp", maximum);
         }
         for (int invalid : List.of(0, 1, 11)) {
@@ -115,7 +116,8 @@ class AiInterviewConfigServiceTest {
             assertThatThrownBy(() -> service.update(1L, request)).isInstanceOf(BusinessException.class).hasMessageContaining("2–10");
         }
         settings.put("followUpEnabled", false);
-        assertThat(service.update(1L, request).policy().durationMinutes()).isEqualTo(15);
+        settings.put("followUpSettingVersion", 1);
+        assertThat(service.update(1L, request).policy().durationMinutes()).isEqualTo(5);
     }
 
     @Test void savesAssessmentSettingsAndRejectsInvalidCriteriaBeforePersisting() {
@@ -158,13 +160,35 @@ class AiInterviewConfigServiceTest {
         assertThat(service.get(1L).policy().availability()).isEqualTo(policy.availability());
     }
 
+    @Test void storesSelectedJobTopicAndDerivesTotalInsteadOfTrustingClientQuestionCount() {
+        var skill = new com.smarthire.domain.tenant.entity.Skill(); skill.setName("Java");
+        var jobSkill = new com.smarthire.domain.tenant.entity.JobSkill(); jobSkill.setSkill(skill);
+        when(skills.findByJob_IdOrderByIdAsc(1L)).thenReturn(List.of(jobSkill));
+        var base = processRequest(3);
+        var settings = new java.util.LinkedHashMap<String, Object>(base.policy().processes().getFirst().config());
+        settings.put("topic", "Java"); settings.put("questionCount", 9);
+        var p = base.policy();
+        var policy = new InterviewPolicy(180, p.maxAttempts(), false, 3, 0, 0, p.weights(), p.selectedSkills(), List.of(),
+                2, null, null, null, List.of(new InterviewPolicy.Process("COMMUNICATION", true, 1, 100, settings)));
+        var request = new AiInterviewConfigRequest(false, base.passingScore(), 9, null, policy);
+        var saved = service.update(1L, request);
+        assertThat(saved.questionCount()).isEqualTo(3);
+        assertThat(saved.policy().durationMinutes()).isEqualTo(15);
+        assertThat(job.getAiInterviewQuestionCount()).isEqualTo(3);
+        assertThat(service.get(1L).policy().processes().getFirst().config()).containsEntry("topic", "Java");
+        String stored = job.getAiInterviewPolicyJson();
+        settings.put("topic", "Unrelated skill");
+        assertThatThrownBy(() -> service.update(1L, request)).isInstanceOf(BusinessException.class);
+        assertThat(job.getAiInterviewPolicyJson()).isEqualTo(stored);
+    }
+
     private AiInterviewConfigRequest processRequest(int questionCount) {
         var policy = new InterviewPolicy(30, 1, false, 3, 30, 0,
                 Map.of("TECHNICAL_KNOWLEDGE", 35, "PROBLEM_SOLVING", 25,
                         "PRACTICAL_EXPERIENCE", 20, "COMMUNICATION", 10, "BEHAVIORAL_SITUATIONAL", 10),
                 List.of(), List.of(), 2, null, null, null,
                 List.of(new InterviewPolicy.Process("COMMUNICATION", true, 1, 100,
-                        Map.of("questionCount", questionCount))));
+                        Map.of("questionCount", questionCount, "maxFollowUp", questionCount - 1))));
         return new AiInterviewConfigRequest(true, new BigDecimal("70"), questionCount, null, policy);
     }
 

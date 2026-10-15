@@ -48,7 +48,8 @@ public class AiInterviewConfigService {
         job.setAiInterviewPolicyJson(InterviewPolicies.json(policy));
         job.setAiInterviewEnabled(request.enabled());
         job.setAiInterviewPassingScore(request.passingScore());
-        job.setAiInterviewQuestionCount(request.questionCount());
+        job.setAiInterviewQuestionCount(policy.processes().stream().filter(p -> p.enabled())
+                .mapToInt(p -> InterviewProcessSettings.questionCount(p.config())).sum());
         job.setAiInterviewAvailableFrom(relative ? null : request.availableFrom());
         job.setAiInterviewAvailableUntil(relative ? null : request.availableUntil());
         if (request.enabled()) {

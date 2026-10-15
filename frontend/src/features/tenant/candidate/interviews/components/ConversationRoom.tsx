@@ -26,7 +26,6 @@ export function ConversationRoom({ id, active, disabled, voiceEnabled, recording
   const abort = useRef<AbortController | null>(null); const bottom = useRef<HTMLDivElement | null>(null);
   const audio = useRef<HTMLAudioElement | null>(null); const audioUrl = useRef<string | null>(null);
   const playbackRequest = useRef(0);
-  const [autoRead, setAutoRead] = useState(true);
   const lastRead = useRef<string | null>(null);
   const submitRecording = useRef(false);
   const [voiceSubmission, setVoiceSubmission] = useState<string | null>(null);
@@ -69,12 +68,12 @@ export function ConversationRoom({ id, active, disabled, voiceEnabled, recording
   }, [voiceSubmission, voice.status, voice.error, active, disabled, send.isPending, pendingRecording]);
   useEffect(() => {
     const message = session.data?.messages.at(-1);
-    if (!active || disabled || !voiceEnabled || !autoRead || busy || !message || message.role !== "ASSISTANT") return;
+    if (!active || disabled || !voiceEnabled || busy || !message || message.role !== "ASSISTANT") return;
     const identity = `${id}:${message.id}`;
     if (lastRead.current === identity) return;
     lastRead.current = identity;
     void play(message);
-  }, [id, session.data, active, disabled, voiceEnabled, autoRead, busy]);
+  }, [id, session.data, active, disabled, voiceEnabled, busy]);
   function stopPlayback() {
     playbackRequest.current++; audio.current?.pause(); window.speechSynthesis?.cancel();
     if (audioUrl.current) { URL.revokeObjectURL(audioUrl.current); audioUrl.current = null; }
@@ -111,10 +110,6 @@ export function ConversationRoom({ id, active, disabled, voiceEnabled, recording
   return <section className="space-y-4 rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-4 sm:p-6" aria-label="Hội thoại phỏng vấn">
     <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="flex items-center gap-2 font-semibold"><Bot className="size-5 text-[var(--color-primary)]" aria-hidden="true" />SmartHire AI Interviewer</h2>
       <p className="text-xs text-[var(--color-on-surface-variant)]">{session.data?.candidateTurns}/{session.data?.maxTurns} lượt · {session.data?.language}</p></div>
-    {active && voiceEnabled && <div className="flex flex-wrap items-center gap-3 text-sm">
-      <label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={autoRead} onChange={event => { setAutoRead(event.target.checked); if (!event.target.checked) stopPlayback(); }} />Tự đọc lời chào và câu hỏi</label>
-      {speaking !== null && <Button type="button" variant="secondary" onClick={stopPlayback}><Square className="size-4" aria-hidden="true" />Dừng đọc</Button>}
-    </div>}
     <ol className="max-h-[55vh] space-y-4 overflow-y-auto p-1" aria-label="Lịch sử hội thoại">
       {session.data?.messages.map(message => <li key={message.id} className={`max-w-[95%] rounded-2xl p-4 sm:max-w-[85%] ${message.role === "USER" ? "ml-auto bg-[var(--color-primary-container)] text-[var(--color-on-primary-container)]" : "bg-[var(--color-surface-container-low)]"}`}>
         <p className="mb-1 text-xs font-semibold">{message.role === "USER" ? "Bạn" : "AI Interviewer"}</p>

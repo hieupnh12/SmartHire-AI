@@ -1,5 +1,25 @@
 # Hướng dẫn sử dụng và cấu hình AI Interview
 
+## Tổng số câu hỏi và thời lượng (2026-10-15, quy tắc hiện hành)
+
+**Trạng thái: `Done` cho triển khai; cần triển khai backend/frontend để áp dụng cho phiên mới.** Mục này thay thế các mô tả cũ về câu chính, chủ đề và nhân thêm số câu hỏi bồi bên dưới.
+
+- Thay ô **Số câu hỏi** bằng **Chủ đề**: chọn “Yêu cầu công việc” hoặc một kỹ năng thuộc Job. AI hỏi đúng 1 câu mở đầu theo chủ đề; các câu sau dựa vào câu trả lời trước để hỏi thêm trong cùng chủ đề. Chọn chủ đề không nhân số câu.
+- **Tổng số câu tối đa = 1 + Max Follow-up** khi bật hỏi thêm; tắt hỏi thêm thì chỉ có 1 câu. Backend tự tính, không dùng số câu tùy ý do client gửi.
+- **Follow-up mặc định bật**, kể cả khi cấu hình cũ từng lưu `false` nhưng chưa có xác nhận lựa chọn mới. Khi lưu, `config.followUpSettingVersion=1` ghi nhận lựa chọn rõ ràng: nếu recruiter chủ động tắt và lưu thì giữ tắt ở lần mở sau. Việc chuẩn hóa cấu hình Job không viết lại snapshot lời mời đã tồn tại.
+- Tổng thời lượng = **tổng số câu × 5 phút**: 1 câu mở đầu + 2 follow-up = 3 câu, 15 phút; +10 follow-up = 11 câu, 55 phút. Hạn hoàn thành vẫn giới hạn đồng hồ phiên.
+- Mọi câu trả lời, kể cả câu tiếp nối, được đưa vào transcript để chấm điểm tổng AI Interview theo trọng số tiêu chí. Chấm toàn hội thoại; không cộng hoặc lấy trung bình các điểm từng câu chưa tồn tại.
+- API tiếp tục dùng cấu hình hiện có, bổ sung `policy.processes[COMMUNICATION].config.topic` (`JOB_REQUIREMENTS` hoặc tên kỹ năng Job). `questionCount` được tính từ 1 + số follow-up đang bật. Snapshot mới có `questionBudgetVersion=3`; giới hạn lượt trả lời và `maxQuestionCount` bằng tổng số câu này. Snapshot v2/không có dấu phiên bản giữ điều kiện cũ để không đổi lời mời đã tạo. Không thay đổi schema DB.
+- Thẻ lời mời, thời lượng email/thông báo và chi tiết recruiter đọc cùng snapshot. Lượt cuối chỉ kết thúc hội thoại; API chặn gửi thêm câu trả lời sau khi dùng hết ngân sách.
+
+Kiểm chứng: kiểm thử tổng câu bật/tắt follow-up, chặn lượt vượt tổng, thời lượng phiên và transcript chấm điểm chứa cả câu trả lời tiếp nối; kiểm tra tương thích snapshot cũ.
+
+## Ngôn ngữ hội thoại và điều khiển đọc ở candidate (2026-10-15)
+
+- Phòng hội thoại candidate không hiển thị checkbox “Tự đọc lời chào và câu hỏi” hoặc nút “Dừng đọc”. Tự đọc vẫn hoạt động khi bật voice; dừng phát khi candidate bật micro, gửi câu trả lời hoặc rời phòng.
+- Lời chào, câu hỏi, hỏi tiếp và lời kết dùng ngôn ngữ trong snapshot `COMMUNICATION.config.language`. Prompt nhấn mạnh tiếng Việt khi cấu hình Vietnamese, tiếng Anh khi cấu hình English và tiếng Nhật khi cấu hình Japanese, độc lập ngôn ngữ JD hoặc câu trả lời. Request đọc thành tiếng nhận cùng ngôn ngữ, yêu cầu đọc nguyên văn, không dịch.
+- Không sửa nội dung hội thoại đã lưu hoặc ghi đè snapshot phiên cũ. Thay đổi prompt áp dụng cho lượt sinh tiếp theo sau khi triển khai backend; cần kiểm chứng lại bằng provider thật. Trạng thái: `Doing`.
+
 ## Bảo toàn thời gian snapshot (2026-10-15)
 
 Snapshot giữ chính xác phần nano giây của thời gian mở/đóng khi chuyển qua JSON; không làm tròn qua số thực dấu phẩy động. Kiểm thử dùng mốc thời gian cố định để phát hiện sai lệch. Test thời lượng Communication đồng bộ quy tắc 2 câu chính × 5 phút = 10 phút. Trạng thái: `Done`.
@@ -302,6 +322,7 @@ Ví dụ: Backend giải thích REST API cho khách hàng không kỹ thuật; D
 - Khi ngrok/Llama thử riêng thành công nhưng phiên vẫn `OPENING_FAILED`, kiểm tra cả `ai_model_configs`, provider key và Redis. Đã phát hiện `INTERVIEW_GEN` còn `CURSOR / claude-sonnet-4-5` trong Master DB/cache, dù env đã là Llama. Cần đồng bộ cả `INTERVIEW_GEN` và `INTERVIEW_NLP` sang `OPENAI / vanilj/llama-3-8b-instruct-32k-v0.1:Q4_K_M`, có provider key ACTIVE mặc định với endpoint ngrok đúng, rồi xóa cache hai task (bao gồm hậu tố `:spring-ai-v1`). Không tăng số lượt hoặc đặt lại dữ liệu phiên để xử lý lỗi cấu hình.
 
 - Ngrok chuyển cổng 8000 tới LiteLLM; Ollama chạy cổng 11434 với model Llama đã chọn. Lỗi `400 / no_db_connection / No connected db.` xuất hiện tại LiteLLM khi key gửi đến không được nhận diện là master key và proxy không có database cho virtual key.
+- Khôi phục ngày 2026-10-15: phiên #33 của tenant `ttqt` (subdomain `se36`) lỗi `OPENING_FAILED / HTTP 400`. Tiến trình LiteLLM chạy trực tiếp bằng `--model` được khởi động lại bằng `deploy/scripts/start-interview-ai.ps1` để nạp cấu hình model và master key từ môi trường. Kiểm chứng qua ngrok: `/v1/models` trả 200; request chat mẫu dạng stream với `max_tokens=12672` trả 200 và kết thúc `finish_reason=stop`. Không sửa dữ liệu phiên; chưa kiểm chứng lại phiên #33 qua giao diện. Trạng thái: `Doing`.
 - Cấu hình local tại `artifacts/litellm-interview-local.yaml` dùng `LITELLM_MASTER_KEY` từ môi trường, không chứa secret. Script `deploy/scripts/start-interview-ai.ps1` đọc `AI_INTERVIEW_API_KEY` trong `backend/.env`, thiết lập UTF-8 và chạy LiteLLM ẩn ở cổng 8000. Chỉ chạy script khi cổng 8000 chưa có dịch vụ; giữ lệnh ngrok hiện có.
 - Kiểm chứng trực tiếp qua URL ngrok và key env: HTTP 200, có lời chào/câu hỏi mẫu và SSE kết thúc `finish_reason=stop`. Chưa kiểm chứng lại phiên candidate 27 qua giao diện hoặc cấu hình task/key đã lưu trong Master AI.
 

@@ -9,7 +9,7 @@ export const ASSESSMENT_CRITERIA = [
 ] as const;
 const criterionWeight = z.number().int("Nhập số nguyên 0–100.").min(0, "0–100%.").max(100, "0–100%.");
 export const conversationAssessmentSchema = z.object({
-  questionCount: z.coerce.number().int().min(1).max(10),
+  topic: z.string().trim().min(1, "Chọn chủ đề phỏng vấn."),
   followUpEnabled: z.boolean(),
   maxFollowUp: z.coerce.number().int(),
   technicalKnowledgeWeight: criterionWeight, problemSolvingWeight: criterionWeight,
@@ -18,11 +18,11 @@ export const conversationAssessmentSchema = z.object({
 }).refine(value => ASSESSMENT_CRITERIA.reduce((sum, criterion) => sum + value[criterion.key], 0) === 100,
   { message: "Tổng trọng số 4 tiêu chí phải bằng 100%." })
   .refine(value => !value.followUpEnabled || value.maxFollowUp >= 2 && value.maxFollowUp <= 10,
-    { path: ["maxFollowUp"], message: "Hỏi bồi tối đa từ 2–10 câu cho mỗi câu chính." });
+    { path: ["maxFollowUp"], message: "Chọn tối đa 2–10 câu hỏi thêm." });
 
-export const MINUTES_PER_MAIN_QUESTION = 5;
+export const MINUTES_PER_QUESTION = 5;
 export function interviewDurationMinutes(processes: InterviewProcessConfig[]) {
-  return processCount(processes) * MINUTES_PER_MAIN_QUESTION;
+  return processCount(processes) * MINUTES_PER_QUESTION;
 }
 
 export const AVAILABLE_INTERVIEW_PROCESS = "COMMUNICATION";
@@ -34,7 +34,7 @@ const defaults: Record<InterviewProcessConfig["key"], Record<string, unknown>> =
   TECHNICAL_REASONING: { questionCount: 3, responseMode: "speech", scenarioComplexity: "medium", requireJustification: true, askAlternatives: true, askTradeOffs: true, challengeCandidateAnswer: true, followUpEnabled: true, followUpDepth: 2 },
   BEHAVIORAL_SITUATIONAL: { questionCount: 4, responseMode: "speech", followUpEnabled: true, maxFollowUp: 2, requireRealExample: true, askAction: true, askResult: true, askReflection: true },
   COMMUNICATION: { questionCount: 3, responseMode: "speech", language: "English", followUpEnabled: true, maxFollowUp: 2, adaptiveQuestions: true, speechSignals: true, realTimeInteraction: false, recordAudio: true, generateTranscript: true, technicalExplanationTask: true, nonTechnicalExplanationTask: true,
-    technicalKnowledgeWeight: 25, problemSolvingWeight: 25, reasoningWeight: 25, communicationWeight: 25, assessmentFocus: "" },
+    followUpSettingVersion: 1, topic: "JOB_REQUIREMENTS", technicalKnowledgeWeight: 25, problemSolvingWeight: 25, reasoningWeight: 25, communicationWeight: 25, assessmentFocus: "" },
 };
 
 export function normalizeProcesses(processes: InterviewProcessConfig[]): InterviewProcessConfig[] {
@@ -48,8 +48,11 @@ export function normalizeProcesses(processes: InterviewProcessConfig[]): Intervi
     }));
     // These controls are explicitly marked unavailable in the form.
     if (process.key === AVAILABLE_INTERVIEW_PROCESS) {
+      if (Number(process.config.followUpSettingVersion ?? 0) < 1) config.followUpEnabled = true;
+      config.followUpSettingVersion = 1;
       config.realTimeInteraction = false;
       if (Number(config.maxFollowUp) < 2) config.maxFollowUp = 2;
+      config.questionCount = conversationQuestionCount(config);
     }
     return { ...process, order: index + 1, enabled: process.key === AVAILABLE_INTERVIEW_PROCESS, weight: process.key === AVAILABLE_INTERVIEW_PROCESS ? 100 : 0, config };
   });
@@ -60,7 +63,12 @@ export function defaultProcesses(): InterviewProcessConfig[] {
 }
 
 export function processCount(processes: InterviewProcessConfig[]) {
-  return processes.filter(process => process.enabled).reduce((sum, process) => sum + Number(process.config.questionCount), 0);
+  return processes.filter(process => process.enabled).reduce((sum, process) => sum + (process.key === AVAILABLE_INTERVIEW_PROCESS
+    ? conversationQuestionCount(process.config) : Number(process.config.questionCount)), 0);
+}
+
+export function conversationQuestionCount(config: Record<string, unknown>) {
+  return 1 + (config.followUpEnabled === true || config.followUpEnabled === "true" ? Number(config.maxFollowUp ?? 2) : 0);
 }
 
 export function visibleInterviewDetails(interview: AiInterview): AiInterview {

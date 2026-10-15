@@ -25,6 +25,19 @@ TTS chỉ đọc ASSISTANT message đã lưu và đúng attempt qua backend API;
 
 Database V44: InterviewSession/InterviewMessage, message content và recording_key/mime/size nullable; consent vẫn dùng V40. UI `/interviews/:id` có chat, Micro/Dừng, trạng thái chuyển ngữ, textarea transcript và Nghe AI; Recruiter drawer có transcript/bản ghi. Unit kiểm tra chunk/tenant cleanup/ticket replay/size/container/STT/WAV; provider streaming/STT/TTS trả HTTP 200 bằng nội dung tổng hợp. Trạng thái `Doing`: cần migrate V44 và E2E micro thật trên tenant. Các phần dưới áp dụng engine legacy, tiếp tục browser STT và ai_answer_recordings cho snapshot cũ.
 
+## Khôi phục model STT khả dụng (2026-10-15)
+
+- Kiểm tra metadata `GET /models` trả 200 chưa chứng minh model gọi được. Request `generateContent` có audio tổng hợp tới `gemini-2.5-flash` trả 404 và báo không còn khả dụng cho người dùng mới; model được gợi ý `gemini-3.8-flash` trả 503 do quá tải.
+- Đổi mặc định và cấu hình local `AI_INTERVIEW_GEMINI_MODEL` sang `gemini-3.1-flash-lite`. Đã gọi `generateContent` với câu nói tự tổng hợp, nhận HTTP 200, `finishReason=STOP` và transcript đúng “I use Java and React to build web applications.” Không gửi audio ứng viên.
+- Không đổi model chat Llama hoặc model TTS. Cần ứng dụng nạp lại cấu hình; trạng thái `Doing` cho kiểm chứng micro/WebSocket trên phiên thực tế.
+
+## Sửa model STT khi chat dùng Llama (2026-10-15)
+
+- STT native đọc model từ cấu hình speech Gemini (`AI_INTERVIEW_GEMINI_MODEL`, mặc định hiện tại `gemini-3.1-flash-lite`), không dùng `AI_INTERVIEW_CONVERSATION_MODEL` của chat. Trước đây override Llama làm URL Gemini không hợp lệ nên ghi âm được nhưng chuyển ngữ thất bại.
+- Vẫn truyền ngôn ngữ snapshot, MIME và toàn bộ audio đã ghép; transcript trả qua WebSocket để điền câu trả lời như luồng hiện có. Không thay đổi API, schema hay dữ liệu phiên.
+- WebSocket trả lỗi tiếng Việt cho lỗi xác thực, hết hạn mức, timeout hoặc model speech chưa cấu hình. Log chỉ có mã phiên, loại exception và mã lỗi, không ghi key, audio, transcript hoặc response body.
+- Kiểm chứng: kiểm thử request STT dùng model/key speech khi chat override là Llama; kiểm thử ghép audio, trả lỗi an toàn và dọn tenant/security context. Kiểm tra Google thật xác nhận key hiện tại và model `gemini-2.5-flash` đều trả HTTP 200; chưa gửi audio ứng viên hoặc kiểm chứng micro E2E. Trạng thái: `Doing`.
+
 **Epic:** AI Interview System
 **Trạng thái:** `Doing`
 **Code ID:** `INT-02`

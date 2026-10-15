@@ -61,7 +61,7 @@ public class AiInterviewMapper {
     }
 
     private static int maxQuestionCount(AiInterview interview) {
-        if (!InterviewPolicies.isConversation(interview)) return expectedQuestions(interview);
+        if (!InterviewPolicies.isConversation(interview) || InterviewPolicies.totalQuestionBudget(interview)) return expectedQuestions(interview);
         return InterviewPolicies.config(interview).policy().processes().stream()
                 .filter(process -> process.enabled() && "COMMUNICATION".equals(process.key()))
                 .map(InterviewProcessSettings::config)
