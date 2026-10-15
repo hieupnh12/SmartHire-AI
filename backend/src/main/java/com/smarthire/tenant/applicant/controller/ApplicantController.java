@@ -107,7 +107,7 @@ public class ApplicantController {
 
     @GetMapping("/applications/{id}/evaluation")
     @Operation(summary = "Evaluation reasons per round for the owning candidate",
-            description = "Candidate only. CV score vs. threshold with AI explanation and matched/missing skills; every AI interview"
+            description = "Candidate only. CV score vs. threshold with AI explanation, candidate learning advice, and matched/missing skills; every AI interview"
                     + " attempt and assessment submission (newest first) with score, pass mark and outcome. AI interview attempts add"
                     + " summary/strengths/weaknesses and criterion scores when available. No per-question detail or internal weights.")
     public ApiResponse<CandidateEvaluationView> evaluation(@PathVariable long id) {

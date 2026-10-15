@@ -34,8 +34,10 @@ public class GeminiCvAiClient implements CvAiClient {
             If the CV has no information about a requirement, use MISSING or UNKNOWN — never guess.
             MATCH only when the CV clearly supports the requirement. PARTIAL when related but incomplete.
             Evidence must be a short quote or paraphrase from the CV text. Empty arrays mean not found.
+            Write verdict, explanation, and evidence sentences in Vietnamese. Keep skill names and direct CV quotes unchanged.
+            Do not write English sentences such as "No X experience found in the CV."
             Dates must be YYYY-MM. Do not output an overall score; the backend computes the score.
-            Verdict is 2-4 sentences for the recruiter, Vietnamese preferred.
+            Verdict is 2-4 sentences for the recruiter.
             """;
 
     private final HeuristicCvAiClient fallback;

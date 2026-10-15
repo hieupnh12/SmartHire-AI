@@ -35,7 +35,7 @@ import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 import { useUiStore } from "@/stores/uiStore";
 import { toast } from "@/stores/toastStore";
 import { LoadingState, TableSkeleton } from "@/components/ux/Skeleton";
-import { button, input, labels, primary } from "@/features/tenant/recruiter/matching/components/rankingUi";
+import { applicationStatusLabel, button, input, primary } from "@/features/tenant/recruiter/matching/components/rankingUi";
 import { ApplicationPipeline } from "@/features/tenant/recruiter/matching/components/recruitmentFlow";
 import { ApplicantRounds } from "@/features/tenant/recruiter/applicants/components/ApplicantRounds";
 import { DetailDialog } from "@/components/ux/DetailDialog";
@@ -57,6 +57,7 @@ const STATUS_STYLE: Record<string, string> = {
   OFFER: "bg-indigo-50 text-indigo-700",
   HIRED: "bg-emerald-50 text-emerald-700",
   REJECTED: "bg-red-50 text-red-700",
+  FAILED: "bg-rose-50 text-rose-800",
   WITHDRAWN: "bg-slate-100 text-slate-500",
 };
 const SOURCES = ["CAREER", "PORTAL", "REFERRAL", "MANUAL"];
@@ -108,11 +109,13 @@ export function ApplicantsPage() {
     }),
     placeholderData: keepPreviousData,
     enabled: !!token && !boardView,
+    refetchInterval: 5_000,
   });
   const detail = useQuery({
     queryKey: queryKeys.applicants.detail(selectedId ?? 0),
     queryFn: () => applicantApi.get(selectedId!),
     enabled: selectedId !== null && !boardView,
+    refetchInterval: 5_000,
   });
   const data = list.data?.data;
   const rows = data?.items ?? [];
@@ -281,7 +284,7 @@ export function ApplicantsPage() {
                   active ? "bg-white text-brand-primary shadow-sm" : "text-[var(--color-on-surface-variant)] hover:text-[var(--color-on-surface)]",
                 )}
               >
-                {value ? labels[value] ?? value : "Tất cả"}
+                {value ? applicationStatusLabel(value) : "Tất cả"}
               </button>
             );
           })}
@@ -591,7 +594,7 @@ function ApplicationPanel({ detail, onChanged }: { detail: ApplicationDetail; on
               <li key={`${row.createdAt}-${index}`} className="relative">
                 <span className="absolute -left-[26px] top-1 size-3 rounded-full border-2 border-white bg-brand-primary" aria-hidden="true" />
                 <p className="font-medium">
-                  {row.fromStatus ? `${labels[row.fromStatus] ?? row.fromStatus} → ` : ""}{labels[row.toStatus] ?? row.toStatus}
+                  {row.fromStatus ? `${applicationStatusLabel(row.fromStatus)} → ` : ""}{applicationStatusLabel(row.toStatus)}
                 </p>
                 {row.note && <p className="text-xs text-[var(--color-on-surface-variant)]">{row.note}</p>}
                 <p className="text-[11px] text-[var(--color-outline)]">{formatDateTime(row.createdAt)}</p>
@@ -612,6 +615,7 @@ function AppliedCvReview({ cvs }: { cvs: CvRef[] }) {
     queryKey: queryKeys.cvs.detail(selected?.id ?? 0),
     queryFn: () => cvApi.get(selected!.id),
     enabled: selected != null,
+    refetchInterval: 5_000,
   });
   const analyze = useMutation({
     mutationFn: (id: number) => cvApi.parse(id),
@@ -692,7 +696,7 @@ function StatusPill({ status }: { status: string }) {
   return (
     <span className={cn("inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold", STATUS_STYLE[status] ?? "bg-slate-100 text-slate-600")}>
       <span className="size-1.5 rounded-full bg-current" aria-hidden="true" />
-      {labels[status] ?? status}
+      {applicationStatusLabel(status)}
     </span>
   );
 }

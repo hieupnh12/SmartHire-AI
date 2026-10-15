@@ -138,6 +138,7 @@ public final class ApplicantModels {
             BigDecimal threshold,
             boolean passed,
             String explanation,
+            String candidateAdvice,
             List<String> matchedSkills,
             List<String> partialSkills,
             List<String> missingSkills,

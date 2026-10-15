@@ -65,7 +65,7 @@ class CandidateEvaluationServiceTest {
         MatchScore match = new MatchScore();
         match.setScore(new BigDecimal("55.00"));
         match.setBreakdownJson("""
-                {"passed":false,"explanation":"Thiếu kỹ năng bắt buộc","matched":[{"requirement":"Java"}],
+                {"passed":false,"explanation":"Thiếu kỹ năng bắt buộc","advice":"Hỏi Kafka trước khi cho qua","candidateAdvice":"Bạn nên bổ sung ví dụ đã dùng Kafka.","matched":[{"requirement":"Java"}],
                  "partialMatches":[],"missing":[{"requirement":"Kafka"}],"requiredMissing":["Kafka"],
                  "experienceAnalysis":{"requiredYears":3,"candidateYears":1.5},"educationAnalysis":{"requiredLevel":null}}""");
         when(gateScreening.latestMatch(application)).thenReturn(match);
@@ -90,6 +90,7 @@ class CandidateEvaluationServiceTest {
         assertThat(view.cv().passed()).isFalse();
         assertThat(view.cv().threshold()).isEqualByComparingTo("70");
         assertThat(view.cv().explanation()).isEqualTo("Thiếu kỹ năng bắt buộc");
+        assertThat(view.cv().candidateAdvice()).isEqualTo("Bạn nên bổ sung ví dụ đã dùng Kafka.");
         assertThat(view.cv().matchedSkills()).containsExactly("Java");
         assertThat(view.cv().requiredMissingSkills()).containsExactly("Kafka");
         assertThat(view.cv().candidateYears()).isEqualByComparingTo("1.5");
