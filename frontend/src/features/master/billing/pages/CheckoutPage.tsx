@@ -307,8 +307,8 @@ export function CheckoutPage() {
             <div className="flex items-center gap-2.5">
               <div
                 className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${currentStep === 1
-                    ? "bg-blue-600 text-white ring-4 ring-blue-100 shadow-sm"
-                    : "border-2 border-blue-600 text-blue-600 bg-white"
+                  ? "bg-blue-600 text-white ring-4 ring-blue-100 shadow-sm"
+                  : "border-2 border-blue-600 text-blue-600 bg-white"
                   }`}
               >
                 {currentStep > 1 ? <Check className="w-4 h-4 stroke-[3]" /> : "1"}
@@ -334,10 +334,10 @@ export function CheckoutPage() {
             <div className="flex items-center gap-2.5">
               <div
                 className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${currentStep === 2
-                    ? "bg-blue-600 text-white ring-4 ring-blue-100 shadow-sm"
-                    : currentStep > 2
-                      ? "border-2 border-blue-600 text-blue-600 bg-white"
-                      : "border-2 border-slate-300 text-slate-400 bg-white"
+                  ? "bg-blue-600 text-white ring-4 ring-blue-100 shadow-sm"
+                  : currentStep > 2
+                    ? "border-2 border-blue-600 text-blue-600 bg-white"
+                    : "border-2 border-slate-300 text-slate-400 bg-white"
                   }`}
               >
                 {currentStep > 2 ? <Check className="w-4 h-4 stroke-[3]" /> : "2"}
@@ -363,8 +363,8 @@ export function CheckoutPage() {
             <div className="flex items-center gap-2.5">
               <div
                 className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${currentStep === 3
-                    ? "bg-blue-600 text-white ring-4 ring-blue-100 shadow-sm"
-                    : "border-2 border-slate-300 text-slate-400 bg-white"
+                  ? "bg-blue-600 text-white ring-4 ring-blue-100 shadow-sm"
+                  : "border-2 border-slate-300 text-slate-400 bg-white"
                   }`}
               >
                 3
@@ -889,10 +889,7 @@ export function CheckoutPage() {
                         {currentAmountVnd.toLocaleString("vi-VN")} đ
                       </span>
                     </div>
-                    <div className="flex justify-between text-slate-500">
-                      <span>Thuế GTGT (VAT):</span>
-                      <span className="font-medium text-emerald-600">Đã bao gồm</span>
-                    </div>
+
                   </div>
                 </div>
                 {/* KHỐI TỔNG TIỀN & NÚT THANH TOÁN (STICKY ĐÁY MÀN HÌNH CHỈ RIÊNG PHẦN NÀY) */}
@@ -907,8 +904,8 @@ export function CheckoutPage() {
                   {/* Click-wrap Legal Consent Checkbox (Explicit Opt-in) */}
                   <div
                     className={`p-3 rounded-xl border transition-all ${termsError && !isTermsAccepted
-                        ? "bg-rose-50/90 border-rose-400 ring-2 ring-rose-100"
-                        : "bg-slate-50/90 border-slate-200/80"
+                      ? "bg-rose-50/90 border-rose-400 ring-2 ring-rose-100"
+                      : "bg-slate-50/90 border-slate-200/80"
                       }`}
                   >
                     <div className="flex items-start gap-2.5">
@@ -923,8 +920,8 @@ export function CheckoutPage() {
                           }
                         }}
                         className={`mt-0.5 w-4 h-4 rounded cursor-pointer shrink-0 ${termsError && !isTermsAccepted
-                            ? "border-rose-400 text-rose-600 focus:ring-rose-500 accent-rose-600"
-                            : "border-slate-300 text-blue-600 focus:ring-blue-500 accent-blue-600"
+                          ? "border-rose-400 text-rose-600 focus:ring-rose-500 accent-rose-600"
+                          : "border-slate-300 text-blue-600 focus:ring-blue-500 accent-blue-600"
                           }`}
                       />
                       <label
@@ -932,7 +929,7 @@ export function CheckoutPage() {
                         className={`text-xs leading-relaxed cursor-pointer select-none ${termsError && !isTermsAccepted ? "text-rose-700 font-medium" : "text-slate-600"
                           }`}
                       >
-                        Tôi đã đọcvà đồng ý với{" "}
+                        Tôi đồng ý với{" "}
                         <button
                           type="button"
                           onClick={(e) => {
@@ -1036,8 +1033,8 @@ export function CheckoutPage() {
                         setPaymentMethod("VIETQR");
                       }}
                       className={`flex items-center justify-center gap-2 py-3 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-medium transition-all ${activePaymentTab === "TRANSFER"
-                          ? "border-2 border-blue-500 bg-blue-50/50 text-blue-600 font-bold shadow-xs"
-                          : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                        ? "border-2 border-blue-500 bg-blue-50/50 text-blue-600 font-bold shadow-xs"
+                        : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
                         }`}
                     >
                       <ArrowLeftRight className="w-4 h-4" />
@@ -1052,8 +1049,8 @@ export function CheckoutPage() {
                         setPaymentMethod("ATM_CARD");
                       }}
                       className={`flex items-center justify-center gap-2 py-3 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-medium transition-all ${activePaymentTab === "DOMESTIC_CARD"
-                          ? "border-2 border-blue-500 bg-blue-50/50 text-blue-600 font-bold shadow-xs"
-                          : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                        ? "border-2 border-blue-500 bg-blue-50/50 text-blue-600 font-bold shadow-xs"
+                        : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
                         }`}
                     >
                       <CreditCard className="w-4 h-4" />
@@ -1068,8 +1065,8 @@ export function CheckoutPage() {
                         setPaymentMethod("E_WALLET");
                       }}
                       className={`flex items-center justify-center gap-2 py-3 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-medium transition-all ${activePaymentTab === "INTL_CARD"
-                          ? "border-2 border-blue-500 bg-blue-50/50 text-blue-600 font-bold shadow-xs"
-                          : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                        ? "border-2 border-blue-500 bg-blue-50/50 text-blue-600 font-bold shadow-xs"
+                        : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
                         }`}
                     >
                       <CreditCard className="w-4 h-4" />
@@ -1084,8 +1081,8 @@ export function CheckoutPage() {
                         setPaymentMethod("VIETQR");
                       }}
                       className={`flex items-center justify-center gap-2 py-3 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-medium transition-all ${activePaymentTab === "QR_CODE"
-                          ? "border-2 border-blue-500 bg-blue-50/50 text-blue-600 font-bold shadow-xs"
-                          : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                        ? "border-2 border-blue-500 bg-blue-50/50 text-blue-600 font-bold shadow-xs"
+                        : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
                         }`}
                     >
                       <QrCode className="w-4 h-4" />
