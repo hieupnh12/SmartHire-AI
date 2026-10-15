@@ -151,8 +151,7 @@ export function ProctoredInterviewGuard({ interviewId, session, children, onAuto
     return () => {
       microphoneTrack?.removeEventListener("ended", microphoneLost);
       screenTrack?.removeEventListener("ended", screenLost);
-      session.camera.getTracks().forEach(track => track.stop());
-      session.screen.getTracks().forEach(track => track.stop());
+      // The room owns device lifetime; this guard only attaches monitoring listeners.
     };
   }, [session, violate]);
 
@@ -197,7 +196,6 @@ export function ProctoredInterviewGuard({ interviewId, session, children, onAuto
       document.removeEventListener("paste", paste);
       document.removeEventListener("keydown", keydown, true);
       window.clearInterval(heartbeat);
-      if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
     };
   }, [send, violate]);
 
@@ -229,10 +227,10 @@ export function ProctoredInterviewGuard({ interviewId, session, children, onAuto
   </div>;
 }
 
-export function MonitoringRequired({ busy, onReady }: { busy: boolean; onReady: (session: ProctorSession) => void }) {
+export function MonitoringRequired({ busy, onReady, preparing = false }: { busy: boolean; onReady: (session: ProctorSession) => void; preparing?: boolean }) {
   return <section className="mx-auto max-w-3xl space-y-5 rounded-2xl border border-amber-200 bg-white p-6 shadow-[var(--shadow-card)]">
     <div className="flex gap-3"><ShieldAlert className="size-7 shrink-0 text-amber-600" aria-hidden="true" /><div><h1 className="text-xl font-semibold">Khôi phục không gian thi an toàn</h1><p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">Phiên đang làm cần bật lại giám sát trước khi hiển thị câu hỏi.</p></div></div>
     <ProctoringStart busy={busy} label="Bật giám sát và tiếp tục" onReady={onReady} />
-    <p className="flex items-start gap-2 text-xs text-[var(--color-on-surface-variant)]"><CheckCircle2 className="mt-0.5 size-4 shrink-0" aria-hidden="true" />Thời gian vẫn được tính trên máy chủ trong lúc thiết lập lại thiết bị.</p>
+    <p className="flex items-start gap-2 text-xs text-[var(--color-on-surface-variant)]"><CheckCircle2 className="mt-0.5 size-4 shrink-0" aria-hidden="true" />{preparing ? "AI đang chuẩn bị lời chào. Đồng hồ chỉ bắt đầu khi hội thoại sẵn sàng." : "Thời gian vẫn được tính trên máy chủ trong lúc thiết lập lại thiết bị."}</p>
   </section>;
 }

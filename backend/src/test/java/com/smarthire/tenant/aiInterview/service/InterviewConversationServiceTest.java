@@ -48,17 +48,32 @@ class InterviewConversationServiceTest {
         return InterviewMessage.builder().id(id).session(session).role(role).content(content).sequenceNo(order).build();
     }
     @Test void initializationRequestsAnEasyJobRelatedOpening() {
+        interview.setStartedAt(null); interview.setExpiresAt(null);
         when(sessions.findByAiInterview_Id(11L)).thenReturn(Optional.empty());
         when(sessions.save(any())).thenAnswer(call -> call.getArgument(0));
         when(ai.dialogue(anyString(), anyList(), any())).thenAnswer(call -> {
+            assertThat(interview.getStartedAt()).isNull(); assertThat(interview.getExpiresAt()).isNull();
             String instruction = call.getArgument(0);
             assertThat(instruction).contains("Opening:", "ONE easy warm-up question", "Let the candidate choose the example")
                     .doesNotContain("Early conversation:", "Main conversation:", "This is the final turn");
             return "Hello! Could you tell me about a recent project?";
         });
         service.initialize(interview);
+        assertThat(interview.getStartedAt()).isNotNull();
+        assertThat(java.time.Duration.between(interview.getStartedAt(), interview.getExpiresAt()).toMinutes()).isEqualTo(30);
         verify(messages).save(argThat(value -> "ASSISTANT".equals(value.getRole()) && value.getSequenceNo() == 0));
         verify(ai, never()).evaluate(anyString(), any());
+        when(sessions.findByAiInterview_Id(11L)).thenReturn(Optional.of(session));
+        service.initialize(interview);
+        verify(ai, times(1)).dialogue(anyString(), anyList(), any());
+    }
+    @Test void failedOpeningDoesNotPersistAnEmptySessionOrConsumeInterviewTime() {
+        interview.setStartedAt(null); interview.setExpiresAt(null);
+        when(sessions.findByAiInterview_Id(11L)).thenReturn(Optional.empty());
+        when(ai.dialogue(anyString(), anyList(), any())).thenThrow(new IllegalStateException("Provider unavailable"));
+        assertThatThrownBy(() -> service.initialize(interview)).isInstanceOf(IllegalStateException.class);
+        verify(sessions, never()).save(any()); verify(messages, never()).save(any());
+        assertThat(interview.getStartedAt()).isNull(); assertThat(interview.getExpiresAt()).isNull();
     }
     @Test void dialogueUsesHistoryWithoutCallingEvaluationOrCreatingStaticRubrics() {
         candidate(true); when(sessions.findByAiInterview_Id(11L)).thenReturn(Optional.of(session));

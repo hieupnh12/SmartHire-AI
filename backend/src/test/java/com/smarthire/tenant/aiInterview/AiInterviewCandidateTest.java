@@ -531,7 +531,18 @@ class AiInterviewCandidateTest {
         if (InterviewPolicies.voiceEnabled(interview)) when(consents.findByAiInterview_Id(11L))
                 .thenReturn(Optional.of(AiInterviewConsent.builder().accepted(true).build()));
         assertThat(service.start(11L).status()).isEqualTo(AiInterviewStatus.IN_PROGRESS);
-        verify(conversation).initialize(interview); verify(processEngine, never()).start(any());
+        assertThat(interview.getStartedAt()).isNull(); assertThat(interview.getExpiresAt()).isNull();
+        verify(conversation, never()).initialize(any()); verify(processEngine, never()).start(any());
+        assertThatThrownBy(() -> service.complete(11L)).isInstanceOfSatisfying(BusinessException.class,
+                ex -> assertThat(ex.getCode()).isEqualTo("AI_CONVERSATION_PREPARING"));
+        assertThat(service.start(11L).status()).isEqualTo(AiInterviewStatus.IN_PROGRESS);
+        interview.setStatus(AiInterviewStatus.ERROR);
+        interview.setErrorMessage("Opening failed");
+        int attempt = interview.getAttemptNumber();
+        assertThat(service.start(11L).status()).isEqualTo(AiInterviewStatus.IN_PROGRESS);
+        assertThat(interview.getAttemptNumber()).isEqualTo(attempt);
+        assertThat(interview.getErrorMessage()).isNull();
+        interview.setStartedAt(java.time.Instant.now());
         assertThat(service.complete(11L).status()).isEqualTo(AiInterviewStatus.SCORING);
         verify(conversation).end(interview); verifyNoInteractions(answers);
     }

@@ -38,6 +38,8 @@ Bài coding: đề, nộp code, chạy test cases (sandbox/worker).
 
 - Google Stitch: **FE-05 Online Technical Assessment / Coding Challenge** — _[dán link]_
 - Icons: xem `DESIGN.md`
+- Form biên soạn trên bảng (15/10/2026): đề bài, kỹ năng và rubric 3 mức ở cột trái; khung gợi ý/starter code và đáp án mẫu nằm trong hai thẻ editor riêng ở cột phải. Tiêu chí lý thuyết hoặc cấu hình code, harness và test cases đặt bên dưới. Màn hình nhỏ xếp thành một cột; giữ các trường và thao tác lưu hiện có.
+- Giao diện chia hai khu vực đánh số: nội dung/tiêu chuẩn và cấu hình chấm. Rubric phân biệt màu theo mức đạt; starter code và harness nằm cạnh nhau trong editor tối theo ngôn ngữ. Test cases có số thứ tự, nhãn công khai/ẩn và thống kê; tiêu chí lý thuyết có thanh tổng trọng số cùng nút thêm tiêu chí.
 
 ## Phụ thuộc
 

@@ -25,6 +25,10 @@ public class AiInterviewWorkService {
         var result = new ArrayList<Pending>();
         interviews.findTop50ByStatusInOrderByIdAsc(List.of(AiInterviewStatus.GENERATING, AiInterviewStatus.SCORING))
                 .forEach(i -> result.add(new Pending(i.getId(), i.getStatus().name())));
+        interviews.findByStatusAndApplication_StatusOrderByIdAsc(AiInterviewStatus.IN_PROGRESS,
+                        com.smarthire.domain.enums.ApplicationStatus.INTERVIEW).stream()
+                .filter(i -> i.getStartedAt() == null && i.getCompletedAt() == null && InterviewPolicies.isConversation(i))
+                .limit(50).forEach(i -> result.add(new Pending(i.getId(), "GENERATING")));
         emails.findTop50ByPurposeAndStatusInAndAttemptsLessThanOrderByIdAsc("AI_INTERVIEW_RESULT", List.of(NotificationStatus.PENDING, NotificationStatus.FAILED), 3)
                 .forEach(e -> result.add(new Pending(e.getId(), "EMAIL")));
         emails.findTop50ByPurposeAndStatusInAndAttemptsLessThanOrderByIdAsc("ASSESSMENT_INVITATION", List.of(NotificationStatus.PENDING, NotificationStatus.FAILED), 3)

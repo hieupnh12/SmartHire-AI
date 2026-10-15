@@ -92,7 +92,10 @@ public class AiInterviewController {
     }
 
     @PostMapping("/{id}/start")
-    @Operation(summary = "Start an owned interview with ready questions (candidate)")
+    @Operation(summary = "Start an owned interview with ready questions (candidate)",
+            description = "Conversation sessions are admitted immediately with IN_PROGRESS and null startedAt/expiresAt."
+                    + " A tenant-aware worker prepares the greeting, then starts the clock. Poll session details until startedAt is set."
+                    + " Failed opening preparation can retry the same session without consuming another attempt.")
     @com.smarthire.multitenancy.quota.RequireMeteredQuota(type = com.smarthire.multitenancy.quota.QuotaType.AI_VOICE_SECONDS, count = 0)
     public ApiResponse<AiInterviewResponse> start(@PathVariable long id) {
         return ApiResponse.ok(aiInterviewService.start(id));

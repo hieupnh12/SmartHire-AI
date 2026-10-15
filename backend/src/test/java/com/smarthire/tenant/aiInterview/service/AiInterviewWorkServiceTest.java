@@ -11,6 +11,17 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
 
 class AiInterviewWorkServiceTest {
+    @Test void queuesOnlyUnstartedConversationOpeningsForTheExistingWorker() {
+        var repository = mock(AiInterviewRepository.class);
+        var service = new AiInterviewWorkService(repository, mock(EmailOutboxRepository.class), mock(InviteMailSender.class));
+        var opening = com.smarthire.domain.tenant.entity.AiInterview.builder().id(11L)
+                .configSnapshotJson("{\"conversationVersion\":1}").build();
+        var active = com.smarthire.domain.tenant.entity.AiInterview.builder().id(12L)
+                .startedAt(java.time.Instant.now()).configSnapshotJson("{\"conversationVersion\":1}").build();
+        when(repository.findByStatusAndApplication_StatusOrderByIdAsc(com.smarthire.domain.enums.AiInterviewStatus.IN_PROGRESS,
+                com.smarthire.domain.enums.ApplicationStatus.INTERVIEW)).thenReturn(java.util.List.of(opening, active));
+        assertThat(service.pending()).containsExactly(new AiInterviewWorkService.Pending(11L, "GENERATING"));
+    }
     @Test
     void assessmentResultEmailsUseExistingWorkerAndStopAfterThreeFailures() {
         var emails = mock(EmailOutboxRepository.class);

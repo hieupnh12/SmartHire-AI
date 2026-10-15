@@ -10,7 +10,7 @@ import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 
 /**
- * Dedicated Gemini API configuration for AI Interview flows
+ * Dedicated OpenAI-compatible API configuration for AI Interview flows
  * (question generation, NLP analysis, scoring) — separate from CV parsing keys.
  */
 @Data
@@ -18,15 +18,15 @@ import org.springframework.web.client.RestClient;
 @ConfigurationProperties(prefix = "app.ai.interview")
 public class AiInterviewAiConfig {
 
-    private static final String DEFAULT_GEMINI_BASE =
-            "https://generativelanguage.googleapis.com/v1beta/openai";
+    private static final String DEFAULT_INTERVIEW_BASE =
+            "https://linked-flagpole-many.ngrok-free.dev/v1/chat/completions";
 
-    /** Gemini API key used only by AI Interview. */
+    /** API key used only by AI Interview. */
     private String apiKey = "";
 
-    private String model = "gemini-2.5-flash";
+    private String model = "vanilj/llama-3-8b-instruct-32k-v0.1:Q4_K_M";
 
-    private String baseUrl = DEFAULT_GEMINI_BASE;
+    private String baseUrl = DEFAULT_INTERVIEW_BASE;
 
     private int timeoutSeconds = 10;
 

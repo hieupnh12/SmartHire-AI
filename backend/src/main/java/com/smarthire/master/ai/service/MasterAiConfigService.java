@@ -80,8 +80,8 @@ public class MasterAiConfigService {
 
     private static RestClient createDefaultRestClient() {
         var factory = new SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(Duration.ofSeconds(6));
-        factory.setReadTimeout(Duration.ofSeconds(12));
+        factory.setConnectTimeout(Duration.ofSeconds(10));
+        factory.setReadTimeout(Duration.ofSeconds(30));
         return RestClient.builder().requestFactory(factory).build();
     }
 
@@ -260,6 +260,8 @@ public class MasterAiConfigService {
                 String targetUrl = (endpointUrl != null && !endpointUrl.isBlank())
                         ? endpointUrl.trim()
                         : defaultEndpoint;
+                targetUrl = targetUrl.replaceAll("/+$", "");
+                if (!targetUrl.endsWith("/chat/completions")) targetUrl += "/chat/completions";
 
                 String body = """
                         {"model":"%s","messages":[{"role":"user","content":"ping"}],"max_tokens":5}

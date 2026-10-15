@@ -77,6 +77,31 @@ class AiInterviewEvaluationServiceTest {
         when(interviews.findByIdForUpdate(11L)).thenReturn(Optional.of(interview));
     }
 
+    @Test void workerInitializesAdmittedConversationWithoutScoringIt() {
+        InterviewPolicies.snapshot(interview);
+        var snapshot = (com.fasterxml.jackson.databind.node.ObjectNode) InterviewPolicies.tree(interview.getConfigSnapshotJson());
+        snapshot.put("conversationVersion", 1); interview.setConfigSnapshotJson(snapshot.toString());
+        interview.setStatus(AiInterviewStatus.IN_PROGRESS);
+        when(interviews.findByIdForUpdate(11L)).thenReturn(Optional.of(interview));
+        service.process(11L);
+        verify(conversation).initialize(interview);
+        verify(conversation, never()).evaluate(any());
+        assertThat(interview.getStatus()).isEqualTo(AiInterviewStatus.IN_PROGRESS);
+    }
+
+    @Test void openingFailureIsRetryableAndNeverBecomesAScore() {
+        InterviewPolicies.snapshot(interview);
+        var snapshot = (com.fasterxml.jackson.databind.node.ObjectNode) InterviewPolicies.tree(interview.getConfigSnapshotJson());
+        snapshot.put("conversationVersion", 1); interview.setConfigSnapshotJson(snapshot.toString());
+        interview.setStatus(AiInterviewStatus.IN_PROGRESS);
+        when(interviews.findByIdForUpdate(11L)).thenReturn(Optional.of(interview));
+        doThrow(new IllegalStateException("Provider unavailable")).when(conversation).initialize(interview);
+        service.process(11L);
+        assertThat(interview.getStatus()).isEqualTo(AiInterviewStatus.ERROR);
+        assertThat(interview.getStartedAt()).isNull(); assertThat(interview.getOverallScore()).isNull();
+        verify(activity).record(eq(interview), eq("OPENING_FAILED"), anyString());
+    }
+
     @Test void miniAssessmentGenerationIsBlocked() {
         plannedInterview();
         service.process(11L);

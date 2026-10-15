@@ -38,6 +38,40 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 class MasterAiConfigServiceTest {
 
     @Test
+    void nativeSpeechUsesDedicatedInterviewFallbackInsteadOfCvKey() {
+        var speech = configProvider.resolveInterviewSpeechConfig();
+        assertThat(speech.provider()).isEqualTo("GEMINI");
+        assertThat(speech.apiKey()).isEqualTo("interview-key");
+        assertThat(speech.modelName()).isEqualTo("gemini-2.5-flash");
+        verify(modelConfigRepository, never()).findByTaskType(anyString());
+    }
+
+    @Test
+    void nativeSpeechPrefersActiveGeminiKeyRegardlessOfChatProvider() {
+        var key = new AiProviderKey(); key.setApiKeyEncrypted("encrypted-speech-key");
+        when(providerKeyRepository.findFirstByProviderAndIsDefaultTrueAndStatus("GEMINI", "ACTIVE"))
+                .thenReturn(Optional.of(key));
+        when(credentialService.decrypt("MASTER_AI_KEY", "encrypted-speech-key")).thenReturn("speech-key");
+        assertThat(configProvider.resolveInterviewSpeechConfig().apiKey()).isEqualTo("speech-key");
+        verify(modelConfigRepository, never()).findByTaskType(anyString());
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"https://llama.example/v1", "https://llama.example/v1/chat/completions/"})
+    void testConnectionAcceptsBaseOrFullChatEndpoint(String endpoint) {
+        var builder = RestClient.builder();
+        var server = MockRestServiceServer.bindTo(builder).build();
+        var service = new MasterAiConfigService(providerKeyRepository, modelConfigRepository, auditLogRepository,
+                credentialService, configProvider, mapper, builder.build());
+        server.expect(requestTo("https://llama.example/v1/chat/completions"))
+                .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
+        var request = AiTestConnectionRequest.builder().provider("OPENAI").modelName("llama")
+                .apiKey("llama-test-key").endpointUrl(endpoint).build();
+        assertThat(service.testConnection(request).getSuccess()).isTrue();
+        server.verify();
+    }
+
+    @Test
     void interviewFallbackDoesNotReuseCvCredentialsOrModel() {
         when(modelConfigRepository.findByTaskType("INTERVIEW_NLP")).thenReturn(java.util.Optional.empty());
         var result = configProvider.resolveConfig("INTERVIEW_NLP");

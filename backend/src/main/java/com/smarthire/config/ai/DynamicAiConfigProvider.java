@@ -44,6 +44,14 @@ public class DynamicAiConfigProvider {
     private final String fallbackGeminiKey;
     private final String fallbackCvModel;
     private final int fallbackTimeout;
+    @Value("${app.ai.interview.provider:OPENAI}")
+    private String interviewProvider = "OPENAI";
+    @Value("${app.ai.interview.base-url:}")
+    private String interviewEndpoint;
+    @Value("${AI_INTERVIEW_GEMINI_API_KEY:}")
+    private String interviewSpeechKey = "";
+    @Value("${AI_INTERVIEW_GEMINI_MODEL:gemini-2.5-flash}")
+    private String interviewSpeechModel = "gemini-2.5-flash";
     private final String interviewKey;
     private final String interviewModel;
     private final int interviewTimeout;
@@ -58,7 +66,7 @@ public class DynamicAiConfigProvider {
             @Value("${app.ai.models.cv-parsing:gemini-2.0-flash}") String fallbackCvModel,
             @Value("${app.ai.timeout-seconds:30}") int fallbackTimeout,
             @Value("${app.ai.interview.api-key:}") String interviewKey,
-            @Value("${app.ai.interview.model:gemini-2.5-flash}") String interviewModel,
+            @Value("${app.ai.interview.model:vanilj/llama-3-8b-instruct-32k-v0.1:Q4_K_M}") String interviewModel,
             @Value("${app.ai.interview.timeout-seconds:60}") int interviewTimeout) {
         this.modelConfigRepository = modelConfigRepository;
         this.providerKeyRepository = providerKeyRepository;
@@ -128,10 +136,10 @@ public class DynamicAiConfigProvider {
         boolean interview = isInterview(normalizedTask);
         return new ResolvedAiConfig(
                 normalizedTask,
-                "GEMINI",
+                interview ? interviewProvider : "GEMINI",
                 interview ? interviewModel : fallbackCvModel,
                 interview ? interviewKey : fallbackGeminiKey,
-                null,
+                interview ? interviewEndpoint : null,
                 new BigDecimal("0.20"),
                 interview ? 8192 : 2048,
                 interview ? interviewTimeout : fallbackTimeout,
@@ -142,6 +150,13 @@ public class DynamicAiConfigProvider {
 
     public String resolveApiKeyForProvider(String provider) {
         return resolveApiKeyForProvider(provider, null);
+    }
+
+    /** Native audio requires Gemini credentials even when interview text uses another provider. */
+    public ResolvedAiConfig resolveInterviewSpeechConfig() {
+        return new ResolvedAiConfig("INTERVIEW_GEN", "GEMINI", interviewSpeechModel,
+                decryptOrFallbackKey(findActiveProviderKey("GEMINI"), "GEMINI", "INTERVIEW_GEN"),
+                null, BigDecimal.ZERO, 4096, interviewTimeout, null, null);
     }
 
     private static boolean isInterview(String task) {
@@ -182,9 +197,9 @@ public class DynamicAiConfigProvider {
             }
         }
         if ("GEMINI".equalsIgnoreCase(normalizedProvider)) {
-            return isInterview(task) ? interviewKey : fallbackGeminiKey;
+            return isInterview(task) ? ("GEMINI".equalsIgnoreCase(interviewProvider) ? interviewKey : interviewSpeechKey) : fallbackGeminiKey;
         }
-        return "";
+        return isInterview(task) && normalizedProvider.equalsIgnoreCase(interviewProvider) ? interviewKey : "";
     }
 
     private String resolveApiKeyForProvider(String provider, String task) {

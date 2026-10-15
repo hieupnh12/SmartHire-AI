@@ -1,4 +1,4 @@
-import { ConversationTranscript } from "./ConversationTranscript";
+import { ConversationTranscript, useInterviewTranscript } from "./ConversationTranscript";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -37,6 +37,7 @@ export function AiInterviewDetailDrawer({ interviewId, jobId, candidateName, onC
   const generate = useMutation({ mutationFn: () => aiInterviewApi.generate(interviewId), onSuccess: refresh });
   const score = useMutation({ mutationFn: () => aiInterviewApi.retryScore(interviewId), onSuccess: refresh });
   const interview = useMemo(() => detail.data ? visibleInterviewDetails(detail.data) : undefined, [detail.data]);
+  const transcript = useInterviewTranscript(interviewId, !!interview?.conversational && !!interview.completedAt);
   const availableSession = !!detail.data?.processBased && !!detail.data.roadmap?.length
     && detail.data.roadmap.every(step => step.title.trim().toUpperCase() === AVAILABLE_INTERVIEW_PROCESS);
   const editable = availableSession && !!interview && !interview.startedAt && ["CREATED", "QUESTIONS_READY", "ERROR"].includes(interview.status);
@@ -72,7 +73,10 @@ export function AiInterviewDetailDrawer({ interviewId, jobId, candidateName, onC
               <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-[var(--color-secondary-container)] px-3 py-1.5 text-xs font-semibold text-[var(--color-on-secondary-container)]"><ShieldCheck className="size-4" aria-hidden="true" />Snapshot Policy Active</span>
             </div>
             <dl className="grid gap-3 pt-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-              <Metric icon={Network} label="Quy trình & câu hỏi" value={`${interview.roadmap?.length ?? 0} chặng / ${interview.questions.length}/${interview.questionCount} câu`} hint="Phân bổ theo từng chặng độc lập" />
+              <Metric icon={Network} label={interview.conversational ? "Tiến độ hội thoại" : "Quy trình & câu hỏi"}
+                value={interview.conversational ? transcript.data ? `${transcript.data.candidateTurns}/${transcript.data.maxTurns} lượt trả lời` : `${interview.questionCount} chủ đề`
+                  : `${interview.roadmap?.length ?? 0} chặng / ${interview.questions.length}/${interview.questionCount} câu`}
+                hint={interview.conversational ? "Tính theo lượt trả lời đã lưu trong transcript" : "Phân bổ theo từng chặng độc lập"} />
               <Metric icon={Timer} label="Thời lượng phiên" value={`${interview.durationMinutes ?? "—"} phút`} hint="Đếm ngược theo snapshot duration" />
               <Metric icon={Gauge} label="Điểm đạt" value={`${interview.passingScore ?? "—"}/100`} hint="Đạt ngưỡng để mở vòng Assessment" emphasized />
               <Metric icon={RefreshCw} label="Lượt thi tối đa" value={`${interview.maxAttempts ?? interview.attemptNumber ?? 1} lần`} hint={`Đang ở lần ${interview.attemptNumber ?? 1}`} />

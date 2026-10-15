@@ -118,4 +118,26 @@ class AiInterviewClientTest {
         assertTrue(client.generate("Generate", mapper.createObjectNode()).isObject());
         server.verify();
     }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"https://llama.example/v1", "https://llama.example/v1/chat/completions/"})
+    void openAiCompatibleProviderUsesConfiguredModelAndEndpoint(String endpoint) throws Exception {
+        when(dynamic.resolveConfig("INTERVIEW_GEN")).thenReturn(new DynamicAiConfigProvider.ResolvedAiConfig(
+                "INTERVIEW_GEN", "OPENAI", "vanilj/llama-3-8b-instruct-32k-v0.1:Q4_K_M", "llama-key", endpoint,
+                BigDecimal.ZERO, 2048, 30, null, null));
+        server.expect(requestTo("https://llama.example/v1/chat/completions"))
+                .andExpect(header("Authorization", "Bearer llama-key"))
+                .andExpect(jsonPath("$.model").value("vanilj/llama-3-8b-instruct-32k-v0.1:Q4_K_M"))
+                .andRespond(withSuccess(response("{}", "stop"), MediaType.APPLICATION_JSON));
+        assertTrue(client.generate("Generate", mapper.createObjectNode()).isObject());
+        server.verify();
+    }
+
+    @Test void openAiWithoutKeyNeverUsesGeminiFallbackKey() {
+        config.setApiKey("gemini-fallback");
+        when(dynamic.resolveConfig("INTERVIEW_GEN")).thenReturn(new DynamicAiConfigProvider.ResolvedAiConfig(
+                "INTERVIEW_GEN", "OPENAI", "llama", "", "https://llama.example/v1", BigDecimal.ZERO, 2048, 30, null, null));
+        assertThrows(IllegalStateException.class, () -> client.generate("Generate", mapper.createObjectNode()));
+        server.verify();
+    }
 }

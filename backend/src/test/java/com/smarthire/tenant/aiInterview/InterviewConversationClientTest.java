@@ -49,6 +49,8 @@ class InterviewConversationClientTest {
                 new com.smarthire.config.InterviewConversationConfig().interviewConversationWebClient(10), 60);
         lenient().when(configs.resolveConfig(anyString())).thenAnswer(invocation -> new DynamicAiConfigProvider.ResolvedAiConfig(
                 invocation.getArgument(0), "GEMINI", "gemini-2.5-flash", "test-key", null, BigDecimal.ZERO, 4096, 45, null, null));
+        lenient().when(configs.resolveInterviewSpeechConfig()).thenReturn(new DynamicAiConfigProvider.ResolvedAiConfig(
+                "INTERVIEW_GEN", "GEMINI", "gemini-2.5-flash", "speech-key", null, BigDecimal.ZERO, 4096, 45, null, null));
     }
     @AfterEach void stopProvider() { provider.stop(0); com.smarthire.multitenancy.context.TenantContext.clear(); }
     String url(String operation) { return "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:" + operation; }
@@ -83,6 +85,52 @@ class InterviewConversationClientTest {
         choice.putObject("delta").put("role", "assistant").put("content", text);
         if (finish != null) choice.put("finish_reason", finish);
         return "data: " + root + "\n\n";
+    }
+    void useLlama() {
+        when(configs.resolveConfig(anyString())).thenAnswer(invocation -> new DynamicAiConfigProvider.ResolvedAiConfig(
+                invocation.getArgument(0), "OPENAI", "vanilj/llama-3-8b-instruct-32k-v0.1:Q4_K_M", "llama-key",
+                chatUrl + "/", BigDecimal.ZERO, 4096, 45, null, null));
+    }
+    @Test void llamaStreamsFromFullEndpointAndIgnoresGeminiEnvironmentOverride() {
+        useLlama();
+        var fallback = new AiInterviewAiConfig();
+        client = new InterviewConversationClient(configs, fallback, mapper, RestClient.builder(),
+                "https://generativelanguage.googleapis.com/v1beta", "gemini-tts", "gemini-env-model",
+                new com.smarthire.config.InterviewConversationConfig().interviewConversationWebClient(10), 60);
+        events = chunk("Hello candidate", "stop") + "data: [DONE]\n\n";
+        assertThat(client.dialogue("Interview", List.of(new InterviewConversationClient.Message("USER", "Hello")), text -> {}))
+                .isEqualTo("Hello candidate");
+        assertThat(authorization).isEqualTo("Bearer llama-key");
+        assertThat(sent.path("model").asText()).isEqualTo("vanilj/llama-3-8b-instruct-32k-v0.1:Q4_K_M");
+        assertThat(sent.has("reasoning_effort")).isFalse();
+    }
+    @Test void llamaEvaluationUsesNlpTaskAndFullEndpoint() {
+        useLlama();
+        events = chunk("{", null) + chunk("}", "stop") + "data: [DONE]\n\n";
+        assertThat(client.evaluate("Evaluate synthetic transcript", mapper.createObjectNode()).isObject()).isTrue();
+        assertThat(authorization).isEqualTo("Bearer llama-key");
+        assertThat(sent.path("model").asText()).isEqualTo("vanilj/llama-3-8b-instruct-32k-v0.1:Q4_K_M");
+        assertThat(sent.path("response_format").path("type").asText()).isEqualTo("json_schema");
+        assertThat(sent.at("/response_format/json_schema/schema/properties/criteria/required").size()).isEqualTo(4);
+        assertThat(sent.path("max_tokens").asInt()).isEqualTo(4096);
+        verify(configs).resolveConfig("INTERVIEW_NLP"); server.verify();
+    }
+
+    @Test void llamaSpeechUsesSeparateGeminiCredentials() {
+        useLlama();
+        server.expect(requestTo(url("generateContent"))).andExpect(header("x-goog-api-key", "speech-key"))
+                .andRespond(withSuccess("{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"Synthetic speech\"}]},\"finishReason\":\"STOP\"}]}", MediaType.APPLICATION_JSON));
+        assertThat(client.transcribe(new byte[]{1}, "audio/webm", "English")).isEqualTo("Synthetic speech");
+        verify(configs).resolveInterviewSpeechConfig();
+        verify(configs, never()).resolveConfig(anyString());
+        server.verify(); assertThat(requests.get()).isZero();
+    }
+    @Test void nativeSpeechRetriesTransientOverloadOnce() {
+        server.expect(requestTo(url("generateContent"))).andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE));
+        server.expect(requestTo(url("generateContent"))).andExpect(header("x-goog-api-key", "speech-key"))
+                .andRespond(withSuccess("{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"Recovered speech\"}]},\"finishReason\":\"STOP\"}]}", MediaType.APPLICATION_JSON));
+        assertThat(client.transcribe(new byte[]{1}, "audio/webm", "English")).isEqualTo("Recovered speech");
+        server.verify();
     }
     @Test void streamsRealProviderChunksAndPreservesChatRoles() {
         var limiter = mock(com.smarthire.config.ai.AiRateLimiterService.class);
@@ -189,13 +237,20 @@ class InterviewConversationClientTest {
         }
     }
     @Test void evaluationUsesNlpTaskAndJsonOutput() {
-        server.expect(requestTo(chatUrl)).andExpect(header("Authorization", "Bearer test-key"))
-                .andExpect(jsonPath("$.response_format.type").value("json_object"))
-                .andExpect(jsonPath("$.messages[0].role").value("system"))
-                .andRespond(withSuccess("{\"id\":\"chat-1\",\"object\":\"chat.completion\",\"created\":1,\"model\":\"gemini-2.5-flash\",\"choices\":[{\"index\":0,\"finish_reason\":\"stop\",\"message\":{\"role\":\"assistant\",\"content\":\"{\\\"criteria\\\":{}}\"}}]}", MediaType.APPLICATION_JSON));
+        events = chunk("{\"criteria\":", null) + chunk("{}}", "stop") + "data: [DONE]\n\n";
         assertThat(client.evaluate("Evaluate transcript", mapper.createObjectNode()).has("criteria")).isTrue();
+        assertThat(sent.path("response_format").path("type").asText()).isEqualTo("json_object");
+        assertThat(sent.path("messages").path(0).path("role").asText()).isEqualTo("system");
         verify(configs).resolveConfig("INTERVIEW_NLP"); server.verify();
     }
+    @Test void evaluationRejectsPartialOrMalformedReport() {
+        events = chunk("{}", "length") + "data: [DONE]\n\n";
+        assertThatThrownBy(() -> client.evaluate("Evaluate", mapper.createObjectNode())).isInstanceOf(IllegalStateException.class);
+        events = chunk("private invalid report", "stop") + "data: [DONE]\n\n";
+        assertThatThrownBy(() -> client.evaluate("Evaluate", mapper.createObjectNode()))
+                .isInstanceOf(IllegalStateException.class).hasMessageNotContaining("private");
+    }
+
     @Test void ttsAcceptsNativeWaveWithoutWrappingItAsPcmAgain() {
         var wave = java.nio.ByteBuffer.allocate(46).order(java.nio.ByteOrder.LITTLE_ENDIAN);
         wave.put("RIFF".getBytes(java.nio.charset.StandardCharsets.US_ASCII)).putInt(38)

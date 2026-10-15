@@ -169,9 +169,10 @@ app:
       cv-parsing: ${GEMINI_MODEL:gemini-2.0-flash}
     # Dedicated Gemini credentials for AI Interview (INT-01..05) — not shared with CV parsing
     interview:
-      api-key: ${AI_INTERVIEW_GEMINI_API_KEY:}
-      model: ${AI_INTERVIEW_GEMINI_MODEL:gemini-2.5-flash}
-      base-url: ${AI_INTERVIEW_GEMINI_BASE_URL:https://generativelanguage.googleapis.com/v1beta/openai}
+      provider: ${AI_INTERVIEW_PROVIDER:OPENAI}
+      api-key: ${AI_INTERVIEW_API_KEY:}
+      model: ${AI_INTERVIEW_MODEL:vanilj/llama-3-8b-instruct-32k-v0.1:Q4_K_M}
+      base-url: ${AI_INTERVIEW_BASE_URL:https://linked-flagpole-many.ngrok-free.dev/v1/chat/completions}
       timeout-seconds: ${AI_INTERVIEW_TIMEOUT_SECONDS:60}
 
 smarthire:

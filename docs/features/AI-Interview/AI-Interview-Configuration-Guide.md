@@ -1,5 +1,26 @@
 # Hướng dẫn sử dụng và cấu hình AI Interview
 
+## Vào phòng trước, tạo lời chào bất đồng bộ (2026-10-15)
+
+- Sau khi kiểm tra thiết bị và xác nhận bắt đầu, ứng viên vào phòng chờ ngay. Micro/chia sẻ tab được giữ trong lúc AI chuẩn bị; chỉ hiển thị chat khi lời chào đã được lưu.
+- API `POST /api/v1/ai-interviews/{id}/start` với phiên hội thoại trả nhanh `IN_PROGRESS`, `startedAt=null`, `expiresAt=null`. Worker RabbitMQ hiện có tạo lời chào; chỉ sau khi thành công mới lưu session/message và bắt đầu đồng hồ. API không còn gọi model trực tiếp trong request bắt đầu.
+- Dispatcher lấy cả phiên hội thoại `IN_PROGRESS` chưa có `startedAt` để gửi queue tạo câu hỏi, kèm tenant context như trước. Khóa phiên bảo đảm không tạo trùng lời chào; tiến trình gián đoạn có thể tiếp tục từ trạng thái DB.
+- Giao diện kiểm tra trạng thái mỗi 2 giây khi mở phòng. Lỗi provider chuyển phiên sang `ERROR`, ghi `OPENING_FAILED`; phòng chờ cho thử lại cùng phiên, không tăng lượt làm và không buộc kiểm tra/chia sẻ thiết bị lại. Nộp bài khi lời chào chưa sẵn sàng trả `AI_CONVERSATION_PREPARING` (409).
+- Khi ứng viên chủ động quay lại kiểm tra thiết bị hoặc rời phòng, hệ thống dừng thiết bị đang giữ. Kiểm tra giám sát của phiên thi vẫn áp dụng khi chat bắt đầu.
+
+## Provider tương thích OpenAI / Llama (2026-10-15)
+
+- Trạng thái transport/chấm/âm thanh backend: `Done` — 58 kiểm thử liên quan thành công; smoke test dữ liệu giả trên endpoint thực tế xác nhận streaming, toàn bộ luồng tính điểm/báo cáo, TTS và STT. Đã khôi phục chấm lại phiên lỗi và xác minh điểm/báo cáo được lưu. Frontend build thành công; thao tác micro thực tế trên trình duyệt ứng viên vẫn cần kiểm chứng.
+- Hội thoại streaming, chấm transcript và engine cũ hỗ trợ `GEMINI` hoặc `OPENAI`. Với Llama qua API tương thích OpenAI, chọn `OPENAI` và model đúng cho cả `INTERVIEW_GEN` / `INTERVIEW_NLP`.
+- Endpoint nhận base URL (`https://host/v1`) hoặc URL đầy đủ (`https://host/v1/chat/completions`); backend chuẩn hóa để không lặp `/chat/completions`.
+- Với `OPENAI`, model lấy theo task Master DB; `AI_INTERVIEW_CONVERSATION_MODEL` chỉ override Gemini. Không dùng key Gemini dự phòng cho endpoint OpenAI.
+- Llama xử lý hội thoại và chấm điểm. STT/TTS native dùng cấu hình Gemini riêng, ưu tiên key Gemini ACTIVE trong Master DB rồi `AI_INTERVIEW_GEMINI_API_KEY`; không dùng key Llama hoặc key CV dự phòng cho âm thanh. Model STT dùng cấu hình Interview Gemini/override Gemini hiện có, model đọc dùng `AI_INTERVIEW_TTS_MODEL`.
+- Lỗi âm thanh HTTP 502/503/504 được thử lại tối đa một lần. Nếu TTS backend không khả dụng, nút “Nghe AI” dùng Speech Synthesis của trình duyệt và thông báo rõ. Bắt đầu ghi âm sẽ dừng giọng đọc; transcript vẫn cần được ứng viên kiểm tra trước khi gửi.
+- Chấm transcript thu nhận JSON qua streaming nội bộ, tối đa 180 giây và 32.000 ký tự; không công bố kết quả từng phần. Provider tương thích OpenAI nhận JSON Schema ràng buộc đủ bốn tiêu chí, kiểu số và bằng chứng; backend vẫn kiểm tra độc lập. Request tuân theo `maxTokens` của task, chỉ gửi ngữ cảnh Job và transcript (không gửi các quy trình cấu hình không dùng). Kiểm tra điểm 0–100, trích dẫn chính xác từ USER và nhận xét hợp lệ trước khi lưu báo cáo.
+- Giao diện recruiter hiển thị `candidateTurns/maxTurns` từ phiên hội thoại, không dùng số bản ghi `ai_questions` của engine cũ làm tiến độ.
+- Vận hành: dùng base endpoint `/v1` để tương thích cả client cũ có tự nối `/chat/completions`; test kết nối trên trang quản trị nhận cả base URL và URL đầy đủ. Sau khi đổi endpoint cần xóa cache cấu hình Interview và chỉ chấm lại phiên ERROR đã kết thúc, giữ nguyên transcript.
+- Kiểm chứng tự động: request đúng endpoint/model/key, streaming, chấm JSON, không override model Llama bằng model Gemini, không gọi âm thanh sai provider; giữ kiểm thử hồi quy Gemini.
+
 ## Phiên AI Conversation mới (2026-10-03)
 
 Attempt mới có `conversationVersion=1`: phòng chat lưu InterviewSession/InterviewMessage; không sinh đề/đáp án mẫu hoặc chấm từng câu. Mỗi lượt nhận phản hồi SSE thích ứng; complete/hết giờ → worker chấm toàn transcript. Ngân sách lượt = chủ đề × (1 + hỏi bồi), tối đa 40; thời lượng, consent, ngưỡng đạt, retries vẫn theo snapshot. Attempt cũ giữ engine và dữ liệu cũ.
@@ -223,6 +244,23 @@ Ví dụ: Backend giải thích REST API cho khách hàng không kỹ thuật; D
 
 `Doing` — luồng AI Interview và cấu hình nền tảng đã có. Communication hoạt động theo Process Engine V2. Năm quy trình khác được khóa để mở rộng trong tương lai. Phiên mới chỉ chốt Communication; phiên cũ chưa hoàn tất có quy trình khác bị khóa.
 # Process Engine V2 và Voice Interview
+
+## Cấu hình Llama qua OpenAI-compatible endpoint
+
+### Khôi phục LiteLLM local (2026-10-15)
+
+- Khi ngrok/Llama thử riêng thành công nhưng phiên vẫn `OPENING_FAILED`, kiểm tra cả `ai_model_configs`, provider key và Redis. Đã phát hiện `INTERVIEW_GEN` còn `CURSOR / claude-sonnet-4-5` trong Master DB/cache, dù env đã là Llama. Cần đồng bộ cả `INTERVIEW_GEN` và `INTERVIEW_NLP` sang `OPENAI / vanilj/llama-3-8b-instruct-32k-v0.1:Q4_K_M`, có provider key ACTIVE mặc định với endpoint ngrok đúng, rồi xóa cache hai task (bao gồm hậu tố `:spring-ai-v1`). Không tăng số lượt hoặc đặt lại dữ liệu phiên để xử lý lỗi cấu hình.
+
+- Ngrok chuyển cổng 8000 tới LiteLLM; Ollama chạy cổng 11434 với model Llama đã chọn. Lỗi `400 / no_db_connection / No connected db.` xuất hiện tại LiteLLM khi key gửi đến không được nhận diện là master key và proxy không có database cho virtual key.
+- Cấu hình local tại `artifacts/litellm-interview-local.yaml` dùng `LITELLM_MASTER_KEY` từ môi trường, không chứa secret. Script `deploy/scripts/start-interview-ai.ps1` đọc `AI_INTERVIEW_API_KEY` trong `backend/.env`, thiết lập UTF-8 và chạy LiteLLM ẩn ở cổng 8000. Chỉ chạy script khi cổng 8000 chưa có dịch vụ; giữ lệnh ngrok hiện có.
+- Kiểm chứng trực tiếp qua URL ngrok và key env: HTTP 200, có lời chào/câu hỏi mẫu và SSE kết thúc `finish_reason=stop`. Chưa kiểm chứng lại phiên candidate 27 qua giao diện hoặc cấu hình task/key đã lưu trong Master AI.
+
+- `AI_INTERVIEW_PROVIDER=OPENAI`, `AI_INTERVIEW_MODEL=vanilj/llama-3-8b-instruct-32k-v0.1:Q4_K_M`.
+- `AI_INTERVIEW_BASE_URL=https://linked-flagpole-many.ngrok-free.dev/v1/chat/completions`; key riêng qua `AI_INTERVIEW_API_KEY` trong môi trường chạy.
+- Để trống `AI_INTERVIEW_CONVERSATION_MODEL`. Sinh câu hỏi, chấm điểm và hội thoại dùng cấu hình task; fallback env dùng Llama. Master AI/cache vẫn ưu tiên hơn fallback env, cần đồng bộ `INTERVIEW_GEN` và `INTERVIEW_NLP` nếu đang lưu model khác.
+- Gemini chỉ phục vụ STT/TTS qua biến `AI_INTERVIEW_GEMINI_*` và `AI_INTERVIEW_TTS_MODEL`; không dùng key Llama cho speech.
+- Load lại biến môi trường và khởi động lại backend. Trạng thái `Doing`: chưa kiểm chứng endpoint ngrok thật.
+
 
 Với `schemaVersion = 2`, hệ thống chỉ sinh câu hỏi chính của process hiện tại. Mỗi câu được lưu cùng `referenceAnswer`
 và `keyPoints` trong `rubric_json` trước khi candidate nhìn thấy câu hỏi; process kế tiếp chỉ được sinh sau khi process hiện

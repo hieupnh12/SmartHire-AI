@@ -59,11 +59,10 @@ public class AiInterviewClient {
 
     private JsonNode call(String task, String instruction, JsonNode data) {
         var resolved = dynamicConfig.resolveConfig(task);
+        InterviewChatEndpoint.requireSupported(resolved.provider());
         String apiKey = resolved.apiKey() == null || resolved.apiKey().isBlank()
-                ? config.getApiKey() : resolved.apiKey().trim();
+                ? (InterviewChatEndpoint.gemini(resolved.provider()) ? config.getApiKey() : "") : resolved.apiKey().trim();
         if (apiKey == null || apiKey.isBlank()) throw new IllegalStateException("AI interview provider is not configured");
-        if (!"GEMINI".equalsIgnoreCase(resolved.provider()))
-            throw new IllegalStateException("AI interview currently requires a Gemini provider");
         if (rateLimiterService != null) {
             rateLimiterService.checkAndAcquire(task);
         }
@@ -74,10 +73,7 @@ public class AiInterviewClient {
         long promptTokens = 0L;
         long completionTokens = 0L;
         try {
-            String baseUrl = resolved.endpointUrl() == null || resolved.endpointUrl().isBlank()
-                    ? config.getBaseUrl() : resolved.endpointUrl().trim();
-            // Accept the previous environment URL while switching to Chat Completions.
-            baseUrl = baseUrl.replaceAll("/+$", "").replaceAll("/models$", "/openai");
+            String baseUrl = InterviewChatEndpoint.baseUrl(resolved.provider(), resolved.endpointUrl(), config.getBaseUrl());
             var api = OpenAiApi.builder().baseUrl(baseUrl).completionsPath("/chat/completions")
                     .apiKey(apiKey).restClientBuilder(http.clone())
                     .responseErrorHandler(new DefaultResponseErrorHandler()).build();
