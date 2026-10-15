@@ -30,5 +30,6 @@ public record AiInterviewResponse(
         Instant availableFrom,
         Instant availableUntil,
         List<RoadmapStep> roadmap,
-        boolean processBased, boolean voiceEnabled, boolean recordingEnabled, boolean conversational) {
+        boolean processBased, boolean voiceEnabled, boolean recordingEnabled, boolean conversational,
+        int maxQuestionCount) {
 }

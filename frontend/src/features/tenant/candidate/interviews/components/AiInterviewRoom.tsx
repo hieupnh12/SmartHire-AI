@@ -17,6 +17,7 @@ import { InterviewRoadmap } from "./InterviewRoadmap";
 import { InterviewProcessNavigator } from "./InterviewProcessNavigator";
 import { parseChoiceAnswer } from "@/lib/interview-choice-answer";
 import { MonitoringRequired, ProctoredInterviewGuard, ProctoringStart, type ProctorSession } from "./ProctoredInterviewSession";
+import { stopProctorSession } from "../utils/proctorDevices";
 
 const card = "rounded-2xl border border-[var(--color-border-default)] bg-surface-card p-5 shadow-[var(--shadow-card)]";
 const answered = (q: AiQuestion) => !!q.answer?.answerText?.trim();
@@ -27,7 +28,8 @@ export function AiInterviewRoom({ id }: { id: number }) {
   const navigate = useNavigate();
   const askConfirm = useUiStore(s => s.askConfirm);
   const key = [...scope, id];
-  const session = useQuery({ queryKey: key, queryFn: () => candidateInterviewApi.get(id), enabled: !!scope[2], refetchInterval: 15000 });
+  const session = useQuery({ queryKey: key, queryFn: () => candidateInterviewApi.get(id), enabled: !!scope[2],
+    refetchInterval: query => query.state.data?.conversational && !query.state.data.startedAt && !query.state.data.completedAt ? 2000 : 15000 });
   const [conversationBusy, setConversationBusy] = useState(false);
   const [conversationDirty, setConversationDirty] = useState(false);
   const onConversationActivity = useCallback((pending: boolean, draft: boolean) => { setConversationBusy(pending); setConversationDirty(draft); }, []);
@@ -36,6 +38,11 @@ export function AiInterviewRoom({ id }: { id: number }) {
   const [dirtyQuestions, setDirtyQuestions] = useState<Record<number, boolean>>({});
   const [proctorSession, setProctorSession] = useState<ProctorSession | null>(null);
   const autoRecoveryAttempted = useRef(false);
+  useEffect(() => () => {
+    if (!proctorSession) return;
+    stopProctorSession(proctorSession);
+    if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
+  }, [proctorSession]);
   const onDirty = useCallback((questionId: number, dirty: boolean) => setDirtyQuestions(previous => previous[questionId] === dirty ? previous : { ...previous, [questionId]: dirty }), []);
   function updated(value: CandidateInterview) {
     client.setQueryData(key, value);
@@ -60,6 +67,17 @@ export function AiInterviewRoom({ id }: { id: number }) {
     },
   });
   const data = session.data;
+  useEffect(() => { if (data?.completedAt) setProctorSession(null); }, [data?.completedAt]);
+  useEffect(() => {
+    if (!proctorSession || data?.startedAt) return;
+    const tracks = [...proctorSession.camera.getAudioTracks(), ...proctorSession.screen.getTracks()];
+    const lost = () => setProctorSession(null);
+    const fullscreen = () => { if (!document.fullscreenElement) lost(); };
+    if (tracks.some(track => track.readyState !== "live")) { lost(); return; }
+    tracks.forEach(track => track.addEventListener("ended", lost));
+    document.addEventListener("fullscreenchange", fullscreen);
+    return () => { tracks.forEach(track => track.removeEventListener("ended", lost)); document.removeEventListener("fullscreenchange", fullscreen); };
+  }, [proctorSession, data?.startedAt]);
   const inProgress = data?.status === "IN_PROGRESS";
   const remaining = useCountdown(inProgress ? data.expiresAt : null);
   const timeUp = remaining === 0;
@@ -80,10 +98,10 @@ export function AiInterviewRoom({ id }: { id: number }) {
   const currentId = inProgress ? questions[index]?.id : undefined;
   useEffect(() => { setOpenedAt(Date.now()); }, [currentId]);
   useEffect(() => {
-    if (data?.status !== "ERROR" || data.completedAt || autoRecoveryAttempted.current) return;
+    if (data?.status !== "ERROR" || data.completedAt || proctorSession || autoRecoveryAttempted.current) return;
     autoRecoveryAttempted.current = true;
     retry.mutate(data.applicationId);
-  }, [data?.applicationId, data?.completedAt, data?.status, retry.mutate]);
+  }, [data?.applicationId, data?.completedAt, data?.status, proctorSession, retry.mutate]);
   const answerDuration = () => (questions[index]?.answer?.answerDuration ?? 0) + Math.round((Date.now() - openedAt) / 1000);
 
   function submit() {
@@ -97,8 +115,22 @@ export function AiInterviewRoom({ id }: { id: number }) {
   }
 
   if (session.isPending) return <RoomLoading />;
-  if (session.isError) return <RoomLoadError message={getApiErrorMessage(session.error)} onRetry={() => void session.refetch()} />;
+  if (session.isError && !session.data) return <RoomLoadError message={getApiErrorMessage(session.error)} onRetry={() => void session.refetch()} />;
   if (!data) return <RoomLoadError message="Không nhận được dữ liệu phòng thi." onRetry={() => void refetchSession()} />;
+  if (data.conversational && proctorSession && !data.startedAt && !data.completedAt) {
+    const openingError = start.error ? getApiErrorMessage(start.error) : data.status === "ERROR" ? "AI chưa tạo được lời chào. Bạn có thể thử lại trong phòng chờ này." : null;
+    return <main className="grid min-h-[100dvh] place-items-center bg-[var(--color-surface-container-low)] p-4">
+      <section className={`${card} w-full max-w-xl space-y-4 text-center`} aria-busy={!openingError}>
+        <Bot className={`mx-auto size-12 text-[var(--color-primary)] ${openingError ? "" : "animate-pulse motion-reduce:animate-none"}`} aria-hidden="true" />
+        <h1 className="text-xl font-semibold">Đã vào phòng phỏng vấn</h1>
+        <p role="status">AI đang chuẩn bị lời chào. Hội thoại sẽ tự hiển thị khi sẵn sàng.</p>
+        <p className="text-sm text-[var(--color-on-surface-variant)]">Thời gian làm bài chưa bắt đầu. Giữ tab phỏng vấn và chia sẻ màn hình đang mở.</p>
+        {openingError && <><p role="alert" className="text-sm text-[var(--color-error)]">{openingError}</p>
+          <Button disabled={start.isPending} onClick={() => start.mutate()}>Thử tạo hội thoại lại</Button></>}
+        <Button variant="secondary" disabled={start.isPending} onClick={() => { setProctorSession(null); start.reset(); if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined); }}>Quay lại kiểm tra thiết bị</Button>
+      </section>
+    </main>;
+  }
   if (data.status === "ERROR" && !data.completedAt) {
     return <RoomRecovery
       data={data}
@@ -108,7 +140,7 @@ export function AiInterviewRoom({ id }: { id: number }) {
     />;
   }
   if (inProgress && !proctorSession) {
-    return <MonitoringRequired busy={busy} onReady={setProctorSession} />;
+    return <MonitoringRequired busy={busy} onReady={setProctorSession} preparing={!!data.conversational && !data.startedAt} />;
   }
 
   const content = <section className="mx-auto max-w-[1600px] space-y-4 pb-10 text-[var(--color-on-surface)]">
@@ -170,9 +202,18 @@ export function AiInterviewRoom({ id }: { id: number }) {
           {!inProgress && !data.completedAt && <InvitationCard
             data={data}
             busy={busy}
-            onReady={(proctor) => {
-              setProctorSession(proctor);
-              start.mutate();
+            onReady={async (proctor) => {
+              if (data.conversational) {
+                setProctorSession(proctor);
+                start.mutate();
+                return;
+              }
+              try {
+                await start.mutateAsync();
+                setProctorSession(proctor);
+              } catch (cause) {
+                throw new Error(`Chưa thể bắt đầu phiên phỏng vấn: ${getApiErrorMessage(cause)} Chia sẻ tab đã được dừng. Hãy kiểm tra thiết bị và thử lại.`);
+              }
             }}
           />}
           {data.completedAt && <ResultCard data={data} busy={busy} retrying={retry.isPending} onRetry={() => retry.mutate(data.applicationId)} />}
@@ -265,7 +306,7 @@ function InterviewerCard({ question, done, total }: { question?: AiQuestion; don
 function InvitationCard({ data, busy, onReady }: {
   data: CandidateInterview;
   busy: boolean;
-  onReady: (session: ProctorSession) => void;
+  onReady: (session: ProctorSession) => void | Promise<void>;
 }) {
   const [accepted, setAccepted] = useState(false);
   const count = (kind: "OPEN" | "MCQ") => data.roadmap?.filter(s => s.kind === kind).reduce((sum, s) => sum + s.questionCount, 0) ?? 0;
@@ -279,14 +320,14 @@ function InvitationCard({ data, busy, onReady }: {
     <div>
       <p className="text-xs font-semibold uppercase tracking-wider text-brand-primary">Phòng phỏng vấn AI</p>
       <h2 id="invitation-title" className="mt-1 text-xl font-semibold">Chuẩn bị làm bài · {data.jobTitle ?? `Hồ sơ #${data.applicationId}`}</h2>
-      <p className="mt-2 text-sm text-[var(--color-on-surface-variant)]">Đồng hồ bắt đầu theo giờ máy chủ sau khi bộ câu hỏi sẵn sàng và bạn hoàn tất kiểm tra thiết bị. Không rời khỏi phòng thi sau khi bắt đầu.</p>
+      <p className="mt-2 text-sm text-[var(--color-on-surface-variant)]">{data.conversational ? "Hoàn tất kiểm tra thiết bị để vào phòng chờ. Đồng hồ chỉ bắt đầu khi AI tạo xong lời chào và phòng chat sẵn sàng." : "Đồng hồ bắt đầu theo giờ máy chủ sau khi bộ câu hỏi sẵn sàng và bạn hoàn tất kiểm tra thiết bị. Không rời khỏi phòng thi sau khi bắt đầu."}</p>
     </div>
     <dl className="grid gap-3 sm:grid-cols-2">{facts.map(([label, value]) => <div key={label} className="rounded-lg bg-[var(--color-surface-container-low)] p-3">
       <dt className="text-xs text-[var(--color-on-surface-variant)]">{label}</dt><dd className="font-semibold">{value}</dd></div>)}</dl>
     {data.status === "GENERATING" && <p role="status">AI đang chuẩn bị câu hỏi. Trang sẽ tự cập nhật khi sẵn sàng.</p>}
     {data.status === "CREATED" && <p role="status">Nhà tuyển dụng đang chuẩn bị câu hỏi. Lời mời sẽ cập nhật khi phiên sẵn sàng.</p>}
     {data.status === "QUESTIONS_READY" && <div className="space-y-3">
-      <p className="text-sm">Thời gian bắt đầu tính khi bạn bấm “Bắt đầu phỏng vấn”. Hãy chuẩn bị trước khi bắt đầu.</p>
+      <p className="text-sm">{data.conversational ? "Bấm bắt đầu để vào phòng chờ; chat sẽ tự hiển thị khi AI sẵn sàng. Thời gian chờ không tính vào bài phỏng vấn." : "Thời gian bắt đầu tính khi bạn bấm “Bắt đầu phỏng vấn”. Hãy chuẩn bị trước khi bắt đầu."}</p>
       {data.voiceEnabled && <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={accepted} onChange={event => setAccepted(event.target.checked)} />Tôi đồng ý dùng micro, chuyển giọng nói thành transcript và phân tích tín hiệu lời nói{data.recordingEnabled ? ", lưu bản ghi âm riêng tư cho nhà tuyển dụng xem xét sau phiên" : ""}.</label>}
       <ProctoringStart busy={busy || !!data.voiceEnabled && !accepted} onReady={onReady} />
     </div>}

@@ -4,13 +4,13 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { ClipboardList, Save, Settings2 } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { aiInterviewApi } from "@/api/tenant/aiInterviewApi";
-import { COMPETENCY_LABELS, type AiInterviewConfig, type InterviewProcessConfig } from "@/api/types/aiInterview";
+import { type AiInterviewConfig, type InterviewProcessConfig } from "@/api/types/aiInterview";
 import { Button } from "@/components/ux/Button";
 import { AssessmentError, FieldError, assessmentInput, assessmentMuted } from "@/components/ux/assessmentUi";
 import { queryKeys } from "@/lib/query-keys";
-import { COMPETENCY_KEYS, configSchema, toFormValues, toRequest, type ConfigValues } from "../utils/aiInterviewConfigSchema";
+import { configSchema, toFormValues, toRequest, type ConfigValues } from "../utils/aiInterviewConfigSchema";
 import { ExerciseStructureConfigurator } from "./ExerciseStructureConfigurator";
-import { defaultProcesses, normalizeProcesses, processCount } from "../utils/interviewProcessSettings";
+import { ASSESSMENT_CRITERIA, conversationAssessmentSchema, defaultProcesses, interviewDurationMinutes, normalizeProcesses, processCount } from "../utils/interviewProcessSettings";
 
 type Tab = "general" | "exercise";
 
@@ -24,6 +24,7 @@ export function InterviewConfigurationTabs({ jobId, config, jobSkills }: { jobId
   const processesRef = useRef(processes);
   useEffect(() => {
     form.setValue("questionCount", processCount(processes), { shouldValidate: true, shouldDirty: true });
+    form.setValue("policy.durationMinutes", interviewDurationMinutes(processes), { shouldValidate: true, shouldDirty: true });
     form.setValue("policy.miniAssessmentEnabled", false);
     form.setValue("policy.schemaVersion", 2);
   }, [form, processes]);
@@ -33,8 +34,9 @@ export function InterviewConfigurationTabs({ jobId, config, jobSkills }: { jobId
       form.setValue("policy.selectedSkills", jobSkills, { shouldDirty: false, shouldValidate: true });
     }
   }, [form, jobSkills]);
-  const weights = form.watch("policy.weights");
-  const totalWeight = COMPETENCY_KEYS.reduce((total, key) => total + (Number(weights[key]) || 0), 0);
+  const communication = processes.find(process => process.key === "COMMUNICATION")!;
+  const assessmentValidation = conversationAssessmentSchema.safeParse(communication.config);
+  const totalWeight = ASSESSMENT_CRITERIA.reduce((total, criterion) => total + (Number(communication.config[criterion.key]) || 0), 0);
   const save = useMutation({
     mutationFn: (values: ConfigValues) => aiInterviewApi.saveConfig(jobId, request(values, processesRef.current)),
     onMutate: () => setSaveMessage("Đang lưu toàn bộ cấu hình…"),
@@ -49,37 +51,65 @@ export function InterviewConfigurationTabs({ jobId, config, jobSkills }: { jobId
     onError: () => setSaveMessage("Không thể lưu cấu hình. Vui lòng kiểm tra lại các trường bắt buộc."),
   });
   const busy = save.isPending;
+  const availabilityMode = form.watch("policy.availability.mode");
+  const startDelayHours = form.watch("policy.availability.startDelayHours");
+  const completionWindowHours = form.watch("policy.availability.completionWindowHours");
   function updateProcesses(next: InterviewProcessConfig[]) {
     processesRef.current = next; setProcesses(next); setExerciseDirty(true);
+  }
+  function updateAssessment(key: string, value: string | number) {
+    updateProcesses(processes.map(process => process.key === "COMMUNICATION"
+      ? { ...process, config: { ...process.config, [key]: value } } : process));
   }
 
   function submitInvalid(errors: FieldErrors<ConfigValues>) {
     setSaveMessage(firstValidationMessage(errors) ?? "Cấu hình chưa hợp lệ. Vui lòng kiểm tra các trường được đánh dấu.");
   }
 
-  return <form className="space-y-5" onSubmit={form.handleSubmit(values => save.mutate(values), submitInvalid)}>
+  return <form className="space-y-5" onSubmit={form.handleSubmit(values => {
+    if (!assessmentValidation.success) { setTab(["maxFollowUp", "questionCount"].includes(String(assessmentValidation.error.issues[0].path[0])) ? "exercise" : "general"); setSaveMessage(assessmentValidation.error.issues[0].message); return; }
+    save.mutate(values);
+  }, submitInvalid)}>
     <div className="flex gap-1 overflow-x-auto rounded-xl bg-[var(--color-surface-container-low)] p-1" role="tablist" aria-label="Cấu hình AI Interview">
       <TabButton active={tab === "general"} label="Cấu hình chung" icon={Settings2} onClick={() => setTab("general")} />
       <TabButton active={tab === "exercise"} label="Cấu hình bài tập" icon={ClipboardList} onClick={() => setTab("exercise")} />
     </div>
 
     {tab === "general" && <div role="tabpanel" className="space-y-5">
-      <Intro title="Điểm và điều kiện đạt" description="Thiết lập chung áp dụng cho toàn bộ bài tập trong phiên phỏng vấn AI." />
+      <Intro title="Nội dung phỏng vấn và điều kiện đạt" description="AI đặt câu hỏi theo Job Skills, trọng tâm và tiêu chí bên dưới; dùng cùng thiết lập để đánh giá toàn bộ hội thoại." />
       <fieldset className={card}><legend>Thiết lập phiên</legend>
         <label className="mb-4 flex min-h-11 items-center gap-3 text-sm"><input type="checkbox" {...form.register("enabled")} disabled={busy} />Cho phép AI Interview và tự tạo lời mời khi CV đạt</label>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <Field label="Passing Score (/100)" error={form.formState.errors.passingScore?.message}><input className={assessmentInput} type="number" min={0} max={100} {...form.register("passingScore")} /></Field>
-          <Field label="Số câu hỏi Communication" error={form.formState.errors.questionCount?.message}><input className={assessmentInput} type="number" readOnly {...form.register("questionCount")} /></Field>
-          <Field label="Tổng thời gian (phút)" error={form.formState.errors.policy?.durationMinutes?.message}><input className={assessmentInput} type="number" min={1} max={180} {...form.register("policy.durationMinutes")} /></Field>
-          <Field label="Thời gian có thể bắt đầu" error={form.formState.errors.availableFrom?.message}><input className={assessmentInput} type="datetime-local" {...form.register("availableFrom")} /></Field>
-          <Field label="Hạn hoàn thành" error={form.formState.errors.availableUntil?.message}><input className={assessmentInput} type="datetime-local" {...form.register("availableUntil")} /></Field>
+          <Field label="Cách đặt thời gian"><select className={assessmentInput} disabled={busy} {...form.register("policy.availability.mode")}><option value="RELATIVE">Theo số giờ từ lời mời</option><option value="ABSOLUTE">Theo ngày giờ cụ thể</option></select></Field>
+          {availabilityMode === "RELATIVE" ? <>
+            <Field label="Mở sau khi nhận lời mời (giờ)" error={form.formState.errors.policy?.availability?.startDelayHours?.message}><input className={assessmentInput} type="number" min={0} max={8760} step={1} disabled={busy} {...form.register("policy.availability.startDelayHours")} /><span className={assessmentMuted}>0 giờ: có thể bắt đầu ngay khi nhận lời mời.</span></Field>
+            <Field label="Hạn hoàn thành sau khi mở (giờ)" error={form.formState.errors.policy?.availability?.completionWindowHours?.message}><input className={assessmentInput} type="number" min={1} max={8760} step={1} disabled={busy} {...form.register("policy.availability.completionWindowHours")} /><span className={assessmentMuted}>Tính từ thời điểm được phép bắt đầu.</span></Field>
+          </> : <>
+            <Field label="Thời gian có thể bắt đầu" error={form.formState.errors.availableFrom?.message}><input className={assessmentInput} type="datetime-local" disabled={busy} {...form.register("availableFrom")} /></Field>
+            <Field label="Hạn hoàn thành" error={form.formState.errors.availableUntil?.message}><input className={assessmentInput} type="datetime-local" disabled={busy} {...form.register("availableUntil")} /></Field>
+          </>}
           <Field label="Số lần được phép làm"><input className={assessmentInput} type="number" min={1} max={5} {...form.register("policy.maxAttempts")} /></Field>
         </div>
+        {availabilityMode === "RELATIVE" && <p role="status" className={assessmentMuted}>Mở {Number(startDelayHours) === 0 ? "ngay khi nhận lời mời" : `sau ${startDelayHours ?? "…"} giờ từ lời mời`}; đóng sau {completionWindowHours ?? "…"} giờ kể từ lúc mở. Thời gian cụ thể được chốt riêng cho mỗi lời mời.</p>}
       </fieldset>
-      <fieldset className={card}><legend>Nhóm năng lực và trọng số</legend>
-        <p className={assessmentMuted}>Communication chiếm 100% điểm. Các nhóm năng lực khác sẽ được mở rộng trong tương lai.</p>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">{COMPETENCY_KEYS.map(key => <Field key={key} label={`${COMPETENCY_LABELS[key]} (%)`}><input className={assessmentInput} type="number" min={0} max={100} readOnly {...form.register(`policy.weights.${key}`)} /></Field>)}</div>
-        <p className={totalWeight === 100 ? assessmentMuted : "text-sm text-[var(--color-status-danger)]"}>Tổng trọng số: {totalWeight}%{totalWeight !== 100 && " — phải bằng 100%"}</p>
+      <fieldset className={card}><legend>Tiêu chí hỏi và đánh giá hội thoại</legend>
+        <p className={assessmentMuted}>AI thu thập bằng chứng cho các tiêu chí có trọng số lớn hơn 0%, gắn với yêu cầu công việc. Giao tiếp được quan sát xuyên suốt các câu trả lời. Điểm tổng là tổng điểm từng tiêu chí nhân trọng số.</p>
+        <div className="grid gap-4 sm:grid-cols-2">{ASSESSMENT_CRITERIA.map(criterion => <div key={criterion.key} className="space-y-1">
+          <Field label={`${criterion.label} (%)`} error={!assessmentValidation.success ? assessmentValidation.error.issues.find(issue => issue.path[0] === criterion.key)?.message : undefined}>
+            <input className={assessmentInput} type="number" min={0} max={100} step={1} disabled={busy}
+              value={Number.isNaN(Number(communication.config[criterion.key])) ? "" : Number(communication.config[criterion.key])}
+              aria-invalid={!assessmentValidation.success && assessmentValidation.error.issues.some(issue => issue.path[0] === criterion.key)}
+              onChange={event => updateAssessment(criterion.key, event.target.valueAsNumber)} />
+          </Field><p className={assessmentMuted}>{criterion.description}</p>
+        </div>)}</div>
+        <p role="status" className={totalWeight === 100 ? assessmentMuted : "text-sm text-[var(--color-status-danger)]"}>Tổng trọng số: {totalWeight}%{totalWeight !== 100 && " — phải bằng 100%"}</p>
+        <Field label="Trọng tâm phỏng vấn theo job" error={!assessmentValidation.success ? assessmentValidation.error.issues.find(issue => issue.path[0] === "assessmentFocus")?.message : undefined}>
+          <textarea className={assessmentInput} rows={4} maxLength={2000} disabled={busy} value={String(communication.config.assessmentFocus ?? "")}
+            placeholder="Ví dụ: tập trung thiết kế REST API, xử lý lỗi và giải thích lựa chọn database cho hệ thống bán hàng."
+            onChange={event => updateAssessment("assessmentFocus", event.target.value)} />
+        </Field>
+        <p className={assessmentMuted}>AI dùng nội dung này cùng JD và Job Skills đã chọn. Không chấm giọng, accent hoặc đặc điểm cá nhân.</p>
       </fieldset>
       <fieldset className={card}><legend>Job Skills cần đánh giá</legend>
         <div className="flex flex-wrap gap-2">{jobSkills.map(skill => <label key={skill} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-[var(--color-border-default)] px-3 text-sm has-[:checked]:border-[var(--color-primary)] has-[:checked]:bg-[var(--color-primary-soft)]"><input type="checkbox" checked={form.watch("policy.selectedSkills").includes(skill)} onChange={() => { const selected = form.getValues("policy.selectedSkills"); form.setValue("policy.selectedSkills", selected.includes(skill) ? selected.filter(item => item !== skill) : [...selected, skill], { shouldDirty: true }); }} />{skill}</label>)}</div>
@@ -98,7 +128,7 @@ export function InterviewConfigurationTabs({ jobId, config, jobSkills }: { jobId
 function request(values: ConfigValues, processes: InterviewProcessConfig[]): AiInterviewConfig {
   const value = toRequest(values);
   const normalized = normalizeProcesses(processes);
-  return { ...value, questionCount: processCount(normalized), policy: { ...value.policy, miniAssessmentEnabled: false, stages: [], schemaVersion: 2, processes: normalized } };
+  return { ...value, questionCount: processCount(normalized), policy: { ...value.policy, durationMinutes: interviewDurationMinutes(normalized), miniAssessmentEnabled: false, stages: [], schemaVersion: 2, processes: normalized } };
 }
 
 function firstValidationMessage(errors: FieldErrors<ConfigValues>): string | undefined {

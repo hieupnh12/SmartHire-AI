@@ -13,7 +13,6 @@ import java.time.Duration;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -87,37 +86,17 @@ public class DynamicAiConfigProvider {
     private final RedisService redisService;
     private final ObjectMapper mapper;
 
-    // Fallback environment properties
-    private final String fallbackGeminiKey;
-    private final String fallbackCvModel;
-    private final int fallbackTimeout;
-    private final String interviewKey;
-    private final String interviewModel;
-    private final int interviewTimeout;
-
     public DynamicAiConfigProvider(
             AiModelConfigRepository modelConfigRepository,
             AiProviderKeyRepository providerKeyRepository,
             TenantCredentialService credentialService,
             RedisService redisService,
-            ObjectMapper mapper,
-            @Value("${app.ai.gemini.api-key:}") String fallbackGeminiKey,
-            @Value("${app.ai.models.cv-parsing:gemini-3.5-flash-lite}") String fallbackCvModel,
-            @Value("${app.ai.timeout-seconds:30}") int fallbackTimeout,
-            @Value("${app.ai.interview.api-key:}") String interviewKey,
-            @Value("${app.ai.interview.model:gemini-2.5-flash}") String interviewModel,
-            @Value("${app.ai.interview.timeout-seconds:60}") int interviewTimeout) {
+            ObjectMapper mapper) {
         this.modelConfigRepository = modelConfigRepository;
         this.providerKeyRepository = providerKeyRepository;
         this.credentialService = credentialService;
         this.redisService = redisService;
         this.mapper = mapper;
-        this.fallbackGeminiKey = fallbackGeminiKey == null ? "" : fallbackGeminiKey.trim();
-        this.fallbackCvModel = fallbackCvModel;
-        this.fallbackTimeout = fallbackTimeout;
-        this.interviewKey = interviewKey == null ? "" : interviewKey.trim();
-        this.interviewModel = interviewModel;
-        this.interviewTimeout = interviewTimeout;
     }
 
     public ResolvedAiConfig resolveConfig(String taskType) {
@@ -187,21 +166,10 @@ public class DynamicAiConfigProvider {
             log.error("Failed to query AI config from Master DB for task {}: {}", normalizedTask, ex.getMessage());
         }
 
-        // Fallback default
-        boolean interview = isInterview(normalizedTask);
-        return new ResolvedAiConfig(
-                normalizedTask,
-                "GEMINI",
-                interview ? interviewModel : fallbackCvModel,
-                interview ? interviewKey : fallbackGeminiKey,
-                null,
-                new BigDecimal("0.20"),
-                interview ? 8192 : 2048,
-                interview ? interviewTimeout : fallbackTimeout,
-                "GEMINI",
-                "gemini-3.1-flash-lite",
-                null
-        );
+        // Missing, disabled or unreadable task config: callers see a blank key and report "not configured".
+        log.warn("AI task {} has no active configuration in Master DB (Admin > AI Config)", normalizedTask);
+        return new ResolvedAiConfig(normalizedTask, null, null, "", null,
+                new BigDecimal("0.20"), 2048, 30, null, null, null);
     }
 
     public void markModelCooldown(String provider, String modelName, Duration duration) {
@@ -436,9 +404,8 @@ public class DynamicAiConfigProvider {
             } catch (Exception ex) {
                 log.warn("Could not decrypt API key for provider {}: {}", normalizedProvider, ex.getMessage());
             }
-        }
-        if ("GEMINI".equalsIgnoreCase(normalizedProvider)) {
-            return isInterview(task) ? interviewKey : fallbackGeminiKey;
+        } else {
+            log.warn("No active API key for provider {} (task {}) in Master DB", normalizedProvider, task);
         }
         return "";
     }
@@ -459,7 +426,7 @@ public class DynamicAiConfigProvider {
 
     public void evictAll() {
         try {
-            for (String task : new String[]{"CV_PARSING", "INTERVIEW_GEN", "INTERVIEW_NLP", "CODE_GRADING", "MATCHING"}) {
+            for (String task : new String[]{"CV_PARSING", "INTERVIEW_GEN", "INTERVIEW_NLP", "INTERVIEW_STT", "INTERVIEW_TTS", "CODE_GRADING", "MATCHING"}) {
                 redisService.delete(taskCacheKey(task));
             }
         } catch (Exception ex) {

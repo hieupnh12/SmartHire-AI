@@ -18,14 +18,21 @@ public record QuestionRequest(
         @Size(max = 255) String skill,
         @Size(max = 10000) String explanation,
         @Size(max = 10) List<@NotNull @Valid OptionRequest> options,
-        com.smarthire.domain.enums.QuestionType questionType) {
+        com.smarthire.domain.enums.QuestionType questionType,
+        com.fasterxml.jackson.databind.JsonNode rubricJson,
+        @Valid CodingRequest coding) {
     public QuestionRequest {
+        if (rubricJson != null && rubricJson.isNull()) rubricJson = null;
         if (questionType == null) questionType = com.smarthire.domain.enums.QuestionType.MCQ;
         if (options == null) options = List.of();
     }
     public QuestionRequest(String questionText, Integer points, Integer questionOrder, String difficulty,
             String skill, String explanation, List<OptionRequest> options) {
-        this(questionText, points, questionOrder, difficulty, skill, explanation, options, null);
+        this(questionText, points, questionOrder, difficulty, skill, explanation, options, null, null, null);
+    }
+    public QuestionRequest(String text, Integer points, Integer order, String difficulty, String skill, String explanation,
+            List<OptionRequest> options, com.smarthire.domain.enums.QuestionType type) {
+        this(text, points, order, difficulty, skill, explanation, options, type, null, null);
     }
     public record OptionRequest(@NotBlank @Size(max = 5000) String optionText, @NotNull Boolean correct) {}
 }

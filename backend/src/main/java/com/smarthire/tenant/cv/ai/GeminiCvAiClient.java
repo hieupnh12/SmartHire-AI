@@ -40,8 +40,6 @@ public class GeminiCvAiClient implements CvAiClient {
 
     private final HeuristicCvAiClient fallback;
     private final ObjectMapper mapper;
-    private final String defaultApiKey;
-    private final String defaultModel;
     private final int timeoutSeconds;
     private final RestClient http;
     private DynamicAiConfigProvider configProvider;
@@ -51,13 +49,9 @@ public class GeminiCvAiClient implements CvAiClient {
     public GeminiCvAiClient(
             HeuristicCvAiClient fallback,
             ObjectMapper mapper,
-            @Value("${app.ai.gemini.api-key:}") String apiKey,
-            @Value("${app.ai.models.cv-parsing:gemini-3.5-flash-lite}") String model,
             @Value("${app.ai.timeout-seconds:30}") int timeoutSeconds) {
         this.fallback = fallback;
         this.mapper = mapper;
-        this.defaultApiKey = apiKey == null ? "" : apiKey.trim();
-        this.defaultModel = model;
         this.timeoutSeconds = timeoutSeconds;
         var factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(Duration.ofSeconds(5));
@@ -85,7 +79,7 @@ public class GeminiCvAiClient implements CvAiClient {
             String key = configProvider.resolveConfig("CV_PARSING").apiKey();
             if (key != null && !key.isBlank()) return key;
         }
-        return defaultApiKey;
+        return "";
     }
 
     private String getEffectiveModel() {
@@ -93,7 +87,7 @@ public class GeminiCvAiClient implements CvAiClient {
             String model = configProvider.resolveConfig("CV_PARSING").modelName();
             if (model != null && !model.isBlank()) return model;
         }
-        return defaultModel;
+        return "";
     }
 
     private String getEffectiveProvider() {
@@ -125,8 +119,7 @@ public class GeminiCvAiClient implements CvAiClient {
     }
 
     public boolean configured() {
-        String apiKey = getEffectiveApiKey();
-        return apiKey != null && !apiKey.isBlank();
+        return !getEffectiveApiKey().isBlank() && !getEffectiveModel().isBlank();
     }
 
     private DynamicAiConfigProvider.ResolvedAiConfig resolvePrimaryConfig() {
@@ -137,7 +130,7 @@ public class GeminiCvAiClient implements CvAiClient {
             }
         }
         return new DynamicAiConfigProvider.ResolvedAiConfig(
-                "CV_PARSING", "GEMINI", defaultModel, defaultApiKey, null, null, 4096, timeoutSeconds, null, null);
+                "CV_PARSING", null, null, "", null, null, 4096, timeoutSeconds, null, null);
     }
 
     private java.util.Optional<DynamicAiConfigProvider.ResolvedAiConfig> resolveFailoverTarget(
@@ -198,9 +191,9 @@ public class GeminiCvAiClient implements CvAiClient {
         Exception lastException = null;
         for (int i = 0; i < chain.size(); i++) {
             var target = chain.get(i);
-            String apiKey = (target.apiKey() == null || target.apiKey().isBlank()) ? defaultApiKey : target.apiKey();
-            if (apiKey == null || apiKey.isBlank()) {
-                log.warn("Skipping AI target {}:{} for CV_PARSING because no API key is available",
+            String apiKey = target.apiKey() == null ? "" : target.apiKey();
+            if (apiKey.isBlank() || target.modelName() == null || target.modelName().isBlank()) {
+                log.warn("Skipping AI target {}:{} for CV_PARSING because its model or API key is not configured",
                         target.provider(), target.modelName());
                 continue;
             }
@@ -212,7 +205,7 @@ public class GeminiCvAiClient implements CvAiClient {
             try {
                 return executeCompleteJson(
                         target.provider() == null || target.provider().isBlank() ? "GEMINI" : target.provider().toUpperCase(),
-                        target.modelName() == null || target.modelName().isBlank() ? defaultModel : target.modelName(),
+                        target.modelName(),
                         apiKey,
                         target.endpointUrl(),
                         system,
@@ -369,16 +362,12 @@ public class GeminiCvAiClient implements CvAiClient {
 
     @Override
     public String modelVersion() {
-        String apiKey = getEffectiveApiKey();
-        String model = getEffectiveModel();
-        String provider = getEffectiveProvider();
-        return (apiKey == null || apiKey.isBlank()) ? fallback.modelVersion() : provider.toLowerCase() + ":" + model;
+        return configured() ? getEffectiveProvider().toLowerCase() + ":" + getEffectiveModel() : fallback.modelVersion();
     }
 
     @Override
     public String promptVersion() {
-        String apiKey = getEffectiveApiKey();
-        return (apiKey == null || apiKey.isBlank()) ? fallback.promptVersion() : "screen-v2-hybrid";
+        return configured() ? "screen-v2-hybrid" : fallback.promptVersion();
     }
 
     @Override

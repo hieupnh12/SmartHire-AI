@@ -1,0 +1,196 @@
+{
+  "info": {
+    "name": "SE36 Candidate AI Interview - 23",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Interview 23 was FAILED at inspection. Read endpoints are usable. Start/turn/complete require an eligible active attempt. No credentials included. Set accessToken from the signed-in candidate browser. Retrying a turn must keep the same requestId and content; use a new UUID for each new answer. Do not run this whole collection against a real interview automatically."
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080/api/v1"
+    },
+    {
+      "key": "tenant",
+      "value": "se36"
+    },
+    {
+      "key": "interviewId",
+      "value": "23"
+    },
+    {
+      "key": "applicationId",
+      "value": "34"
+    },
+    {
+      "key": "accessToken",
+      "value": ""
+    },
+    {
+      "key": "requestId",
+      "value": "67a6428e-3764-45a4-9d52-08a0e46e8824"
+    }
+  ],
+  "item": [
+    {
+      "name": "Read current interview",
+      "item": [
+        {
+          "name": "My interviews",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenant}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/ai-interviews/me"
+          }
+        },
+        {
+          "name": "Interview details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenant}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/ai-interviews/{{interviewId}}"
+          }
+        },
+        {
+          "name": "Conversation transcript",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenant}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/ai-interviews/{{interviewId}}/conversation"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Eligible attempt only - changes interview state",
+      "item": [
+        {
+          "name": "Voice consent",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenant}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/ai-interviews/{{interviewId}}/voice/consent",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accepted\": true,\n  \"policyVersion\": \"communication-voice-v1\",\n  \"userAgent\": \"Postman\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Start ready interview",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenant}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/ai-interviews/{{interviewId}}/start"
+          }
+        },
+        {
+          "name": "Candidate answer - SSE",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenant}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "text/event-stream"
+              }
+            ],
+            "url": "{{baseUrl}}/ai-interviews/{{interviewId}}/conversation/turns",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"requestId\": \"{{requestId}}\",\n  \"content\": \"I built a recruitment application using Java Spring Boot and React. I implemented authentication and job management.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Complete and queue evaluation",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenant}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/ai-interviews/{{interviewId}}/complete"
+          }
+        }
+      ]
+    }
+  ]
+}

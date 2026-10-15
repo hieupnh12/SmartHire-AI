@@ -187,7 +187,9 @@ public class AiInterviewService {
             if (InterviewPolicies.expired(interview)) return submitExpired(interview);
             return mapper.toResponse(interview, loadQuestionResponses(interview));
         }
-        if (interview.getStatus() != AiInterviewStatus.QUESTIONS_READY
+        boolean retryOpening = InterviewPolicies.isConversation(interview) && interview.getStatus() == AiInterviewStatus.ERROR
+                && interview.getStartedAt() == null && interview.getCompletedAt() == null;
+        if ((interview.getStatus() != AiInterviewStatus.QUESTIONS_READY && !retryOpening)
                 || !InterviewPolicies.isConversation(interview) && questions.findByAiInterview_IdOrderByQuestionOrderAscIdAsc(id).isEmpty()) {
             throw new BusinessException("Interview questions are not ready", HttpStatus.CONFLICT, "AI_INTERVIEW_NOT_READY");
         }
@@ -212,9 +214,15 @@ public class AiInterviewService {
             interview.setPassingScoreSnapshot(interview.getApplication().getJob().getAiInterviewPassingScore());
         }
         interview.setStatus(AiInterviewStatus.IN_PROGRESS);
+        if (InterviewPolicies.isConversation(interview)) {
+            interview.setStartedAt(null);
+            interview.setExpiresAt(null);
+            interview.setErrorMessage(null);
+            activity.record(interview, "OPENING_QUEUED", "Candidate admitted; greeting queued; timer has not started");
+            return mapper.toResponse(interview);
+        }
         interview.setStartedAt(now);
-        if (InterviewPolicies.isConversation(interview)) conversation.initialize(interview);
-        else processEngine.start(interview);
+        processEngine.start(interview);
         var responses = loadQuestionResponses(interview);
         activity.record(interview, "STARTED", responses.size() + " questions; passing score "
                 + interview.getPassingScoreSnapshot());
@@ -229,6 +237,9 @@ public class AiInterviewService {
         if (interview.getCompletedAt() != null) return mapper.toResponse(interview, loadQuestionResponses(interview));
         if (interview.getStatus() != AiInterviewStatus.IN_PROGRESS) {
             throw new BusinessException("Interview is not in progress", HttpStatus.CONFLICT, "AI_INTERVIEW_BAD_STATUS");
+        }
+        if (InterviewPolicies.isConversation(interview) && interview.getStartedAt() == null) {
+            throw new BusinessException("Conversation is still being prepared", HttpStatus.CONFLICT, "AI_CONVERSATION_PREPARING");
         }
         if (InterviewPolicies.expired(interview)) return submitExpired(interview);
         boolean allowBlank = interview.getConfigSnapshotJson() != null;

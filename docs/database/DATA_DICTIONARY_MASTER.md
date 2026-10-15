@@ -427,7 +427,7 @@ Entity `AiModelConfig`. Cấu hình model, nhiệt độ (temperature), token v�
 | Cột | Kiểu | Khoá | Null | Default | Mô tả |
 |---|---|---|---|---|---|
 | `id` | BIGINT IDENTITY | PK | Không | auto | |
-| `task_type` | VARCHAR(60) | UQ, IDX | Không | — | Tác vụ AI (`CV_PARSING`, `INTERVIEW_GEN`, `INTERVIEW_NLP`, `CODE_GRADING`, `MATCHING`) |
+| `task_type` | VARCHAR(60) | UQ, IDX | Không | — | Tác vụ AI (`CV_PARSING`, `INTERVIEW_GEN`, `INTERVIEW_NLP`, `INTERVIEW_STT`, `INTERVIEW_TTS` (V34, provider phải là GEMINI), `CODE_GRADING`, `MATCHING`). Nguồn duy nhất của provider/model; không có fallback `.env` |
 | `task_name` | VARCHAR(100) | | Không | — | Tên hiển thị nghiệp vụ |
 | `provider` | VARCHAR(50) | | Không | `'GEMINI'` | Nhà cung cấp chính |
 | `model_name` | VARCHAR(100) | | Không | — | Tên model chính; V24 thay model Interview Gemini 1.5/2.0 mặc định bằng `gemini-2.5-flash`, giữ model admin đã chọn khác |

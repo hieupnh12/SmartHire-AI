@@ -208,3 +208,60 @@ Tất cả API trên bọc `ApiResponse`, staff cùng tenant và có quyền job
 Kiểm chứng ngày 2026-10-03: build frontend đạt; 51 test backend assessment/AI Interview/email đạt. Bao gồm tạo DRAFT từ ngân hàng, backfill hồ sơ đã PASSED, tạo PUBLISHED riêng, thông báo, chặn ứng viên khác, thiếu ngân hàng rollback, skill bị đổi, hồ sơ failed/withdrawn, hai lượt xử lý đồng thời chỉ tạo một đề và email retry tối đa 3 lần. Integration dùng H2 + MockMvc; chưa kiểm chứng migration V43 trên MySQL, RabbitMQ thực hoặc E2E trình duyệt (Playwright chưa có trong môi trường).
 
 Kiểm chứng bản sửa cấu hình cùng ngày: build frontend đạt, test API client cho response bỏ `data`/null/cấu hình đã lưu đạt; 25 test `AssessmentFlowTest` đạt. Regression test so sánh đề DRAFT tạo bằng nút và đề PUBLISHED tạo cho hồ sơ với cùng cấu hình 2 câu MCQ, skill, độ khó, 3 điểm/câu, 17 phút và ngưỡng 60%; cả hai dùng cùng cấu trúc đã lưu. Chưa kiểm chứng giao diện trên trình duyệt thực.
+
+## Mô hình đa phần — cập nhật 2026-10-12
+
+- UI giữ thành phần và token hiện có. Ngân hàng chung có 3 nhóm: trắc nghiệm (`MCQ`/`MULTIPLE_CHOICE`), lý thuyết (`ESSAY`), bài lập trình (`CODING`). Không di chuyển ngân hàng sang master DB; dữ liệu vẫn cách ly theo tenant.
+- Essay mới biên soạn rubric gồm đáp án tham khảo và tiêu chí có tổng tỉ trọng 100%. Câu cũ thiếu rubric vẫn có thể chấm tay. Không tự chuyển câu code legacy thành bài thực thi khi chưa có harness/test.
+- Form Code quản lý loại thuật toán/OOP/SQL, giới hạn thời gian/bộ nhớ, starter code, harness theo ngôn ngữ và sample/hidden tests. Khi tạo đề tự động, nội dung được sao chép độc lập từ ngân hàng.
+- Candidate làm phần trắc nghiệm trước, bấm chốt rồi chuyển tự luận/code. `POST /api/v1/submissions/{id}/complete_objective` khóa đáp án ở server; reload không mở lại phần đã chốt. Đề không có trắc nghiệm bắt đầu trực tiếp phần thực hành. `objectiveDurationMinutes` tùy chọn nhỏ hơn tổng thời lượng: hết hạn riêng, server tự chốt khi GET/save/submit; tổng hạn vẫn tính từ startedAt.
+- Tự luận nhập Markdown và đếm từ; lưu nháp mỗi 10 giây. Code dùng Monaco đóng gói nội bộ, chọn ngôn ngữ và chạy tối đa 5 sample tests qua `POST /api/v1/submissions/{id}/coding/{questionId}/run_samples`; hidden tests/harness/rubric/điểm gợi ý không trả candidate.
+- Submit chấm trắc nghiệm đồng bộ, phát RabbitMQ sau commit tới `assessment.essay.grade` và queue code cấu hình `assessment.code.grade.q`; worker concurrency 3–10 chạy trong TenantJobExecutor, header X-Tenant-ID bắt buộc.
+- Essay đánh giá ngữ nghĩa theo từng rubric; code dùng 80% tỉ lệ test pass + 20% AI review. Không so chuỗi source và không chấm bằng keyword matching. Mọi điểm AI là đề xuất, recruiter duyệt hoặc điều chỉnh trong màn hình Theo dõi bài làm.
+- Staff dùng GET `/api/v1/submissions/{id}/grading_review`, POST `/approve_grade/{questionId}` (body score=null để nhận gợi ý, hoặc điểm thủ công), POST `/retry_grading`. Điểm tổng chỉ công bố sau khi toàn bộ câu được chấm chính thức; giữ EXPIRED cho bài quá hạn.
+- Sandbox cần cấu hình `app.assessment.judge-url` / `app.assessment.judge-token` (Spring env: APP_ASSESSMENT_JUDGE_URL / APP_ASSESSMENT_JUDGE_TOKEN). Judge0 phải hỗ trợ wait=true và các language ID Java 62/Python 71/JavaScript 63/SQL 82. Không chạy source trong tiến trình backend. AI chấm tự luận/review code dùng task `CODE_GRADING` (provider/model/key cấu hình tại `/admin/system/ai-config`, không fallback env), kèm rate-limit/metering theo task.
+- Provider lỗi không tạo điểm 0. Bài giữ chờ duyệt, có thể retry hoặc chấm tay. Broker lỗi sau commit giữ dữ liệu bài làm; staff retry sau khi broker hoạt động lại. Chưa có quét tự động các bài chờ gửi/chấm.
+- Schema V53: tests, questions, submissions, answers, coding_problems; không tạo bảng mới. Xem docs/database để đối chiếu FK/UNIQUE và dictionary.
+
+## Xem & Duyệt kết quả Recruiter — Prompt 8, 2026-10-14
+
+- Trạng thái phần duyệt điểm: `Done`. Từ **Theo dõi bài làm → Xem & chấm bài**, `SubmissionGradingDetail` mở ba khối: trắc nghiệm tự động, tự luận theo rubric, code theo sandbox/AI review. `AssessmentGradingPanel` giữ export tương thích và dùng cùng component mới.
+- Trắc nghiệm lấy số câu từ toàn bộ đề (kể cả câu không trả lời), số câu đúng và điểm từ `answers.is_correct/score`, không suy ra từ tổng điểm hoặc đáp án mẫu. Hiển thị số đúng/tổng, điểm và tỉ lệ đúng. Tổng điểm chính thức giữ trống khi còn câu tự luận/code chưa duyệt.
+- Tự luận hiển thị bài viết và đáp án tham khảo; bảng tiêu chí bám tên/thứ tự/trọng số rubric đã lưu, không ép rubric tùy chỉnh thành đúng ba dòng. Mẫu chuẩn gồm bản chất cốt lõi, trade-offs, thực tế & logic. Điểm tối đa tiêu chí = điểm câu × trọng số; điểm đạt = điểm tối đa × `criteria_results.score_percent`. Thiếu phân tích/điểm AI hiển thị chưa có; không tạo nhận xét giả.
+- Code hiển thị source, ngôn ngữ, X/Y tests pass, tỉ lệ pass và bảng trạng thái sample/hidden. Điểm test theo trọng số hidden tổng 100 nếu bài được biên soạn theo trọng số; bài legacy giữ tỉ lệ pass. Thành phần điểm code là 80% tests + 20% AI review. AI được yêu cầu trả `time_complexity`, `space_complexity`, `clean_code`, `naming_conventions`, `exception_safety`; kết quả cũ thiếu trường hiển thị chưa có phân tích, không đoán độ phức tạp. Lỗi provider không đổi thành điểm 0.
+- Mỗi câu có điểm ghi đè 0–điểm tối đa, tối đa hai số thập phân. Để trống để nhận điểm AI; thiếu gợi ý cần nhập điểm thủ công. **Xác nhận duyệt điểm** lưu từng câu. **Cập nhật kết quả bài thi** duyệt các câu còn chờ và các điểm ghi đè đang nhập trong một transaction; một câu lỗi rollback cả lô. Dữ liệu nhập giữ khi request lỗi; polling 10 giây không ghi đè điểm đang nhập. Nút **Thử chấm AI lại** chỉ retry các câu chưa có điểm gợi ý/chưa được duyệt.
+- **Gửi email thông báo kết quả cho ứng viên** chỉ bật khi không còn thay đổi chưa lưu, mọi câu tự luận/code đã duyệt, có điểm chính thức và ứng viên có email/bật kênh assessment. Dialog nêu người nhận. API tạo `email_outbox.purpose=ASSESSMENT_RESULT`, không gửi đồng bộ; UI báo xếp hàng, không báo đã giao email. Email chỉ chứa tên bài, lượt làm, điểm chính thức/tổng và đạt/chưa đạt; không chứa rubric, hidden tests hay mã nguồn.
+- Lặp yêu cầu với cùng người nhận/subject/nội dung dùng lại outbox đã có. Khóa submission tuần tự hóa tạo email; khóa outbox phối hợp với worker. Bản SENT không gửi lại, bản FAILED được reset PENDING/attempts=0 khi recruiter yêu cầu thử lại. Nếu điểm chính thức đổi, snapshot nội dung mới được xếp hàng riêng. Worker hiện có quét tenant, RabbitMQ có `X-Tenant-ID`, `TenantJobExecutor` set/clear context, retry tối đa ba lần.
+- Staff phải có quyền job; Candidate bị 403. Bài đang làm/chưa bắt đầu bị 409. Truy cập staff hoàn tất bài đã hết giờ theo cơ chế sẵn có trước khi mở màn hình. Không tự chuyển trạng thái application. EXPIRED giữ trạng thái sau duyệt nhưng có thể có điểm chính thức.
+
+| Method | API | Nội dung |
+|---|---|---|
+| GET | `/api/v1/submissions/{id}/grading_detail` | Metadata ứng viên/bài, điểm chính thức/ngưỡng, `objective` và `reviews`; chỉ staff được gán job |
+| POST | `/api/v1/submissions/{id}/update_grading_result` | `{decisions:[{questionId,score}]}`; score=null nhận gợi ý AI; trả chi tiết đã cập nhật |
+| POST | `/api/v1/submissions/{id}/send_result_email` | Trả `{id,status}` outbox; 409 `GRADING_INCOMPLETE`, `EMAIL_UNAVAILABLE`, `EMAIL_DISABLED` khi chưa đủ điều kiện |
+
+Database không đổi schema/migration/entity. Dùng `answers`, `questions.rubric_json`, `test_cases.weight`, `email_outbox` và notification preferences hiện có. Contract coding tương thích form có sẵn (`title`, trọng số test), đồng thời nhận DTO legacy không gửi hai trường này.
+
+Kiểm chứng Prompt 8 ngày 2026-10-14: frontend TypeScript + Vite build đạt; 49 test backend đạt (`SubmissionGradingDetailServiceTest`, `AssessmentGradingServiceTest`, `AssessmentFlowTest`, `AiInterviewWorkServiceTest`, `CodingVerificationServiceTest`). Bao gồm số liệu trắc nghiệm/câu chưa trả lời, candidate bị 403, điểm ngoài miền và rollback lô, tổng chính thức sau duyệt, không gửi khi còn câu thiếu/chưa duyệt, preferences, trùng email và retry tối đa ba lần, giữ grading legacy và code theo trọng số hidden. Chrome headless `frontend/tests/grading-review.browser.cjs` đạt: ba khối điểm, điểm rubric, bằng chứng code/test, validation/giữ input khi lỗi, retry, cập nhật tổng, dialog xếp hàng email và mobile 375px. Ảnh QA ở `frontend/test-results/grading-review/`. Integration persistence dùng H2, email sender và API trình duyệt giả lập; chưa chạy SMTP, RabbitMQ và Judge0/AI provider thật.
+
+
+## Xem giao diện assessment mẫu — 2026-10-14
+
+- Trạng thái: Done. Nút chính trên header Quản lý bài đánh giá đổi từ **Tạo bài đánh giá** sang **Xem mẫu bài thi**.
+- Mở /recruiter/jobs/:id/assessments/preview trong workspace và quyền ASSESSMENTS hiện có, mặc định tab **Ứng viên làm bài**. Cho phép thử trắc nghiệm, tự luận, code và chuyển tab xem ngân hàng, cấu trúc đề, duyệt điểm. Có nút quay về đúng vị trí tuyển dụng và đặt lại mẫu.
+- Dữ liệu mẫu chỉ giữ trong bộ nhớ; không tạo assessment, không lưu bài thi thực, không gọi AI/sandbox thật. Điểm/nhận xét là minh họa có nhãn rõ ràng.
+
+
+### Cập nhật giao diện mẫu theo HTML tham chiếu — 2026-10-15
+
+- Trạng thái: Done. Trang preview có header/badge, thông báo minh họa, thanh 4 bước có số thứ tự. Tab ngân hàng chia hai cột danh sách/biên soạn, chuyển nhanh tự luận/code; tab cấu trúc dùng hai card phần thi.
+- Tab ứng viên có thanh thông tin và đồng hồ minh họa, sau khi chốt trắc nghiệm mở hai cột bài tự luận/code. Code có khung nguồn, sample test và output mẫu. Tab duyệt điểm ghi rõ góc nhìn Recruiter, rubric theo card và sidebar duyệt/tổng điểm. Mobile xếp dọc.
+- Giữ dữ liệu trong bộ nhớ và kiểm tra điểm hiện có; không chạy mã/AI thật. Không sao chép thông tin chứng nhận, xếp hạng top 5%, trạng thái autosave hay model version giả từ HTML tham chiếu. Tổng chỉ chính thức khi đã duyệt tự luận và code.
+- Kiểm chứng: TypeScript/Vite build và Chrome headless `assessment-preview.browser.cjs`; bốn tab, soạn/lưu câu hỏi, nhập/nộp bài mẫu, duyệt điểm, đặt lại mẫu, độ đọc mã nguồn và mobile 375px không tràn ngang. Ảnh QA trong `frontend/test-results/assessment-preview/`. API auth/job giả lập; không kiểm tra AI/sandbox thật trong trang minh họa.
+
+
+### Bám sát mẫu HTML — 2026-10-15
+
+- Preview dùng palette xanh dương theo HTML tham chiếu trong phạm vi trang, không đổi màu workspace. Mở ngay tự luận/code với bài trắc nghiệm mẫu đã chọn; nút Xem mẫu trắc nghiệm cho phép xem lại phần này. Reset trở về tự luận/code. Các form và card dùng nền xanh nhạt, editor tối và chữ tương phản.
+
+- Rubric Builder dạng thẻ cho tiêu chí, trọng số và từ khóa. Form code mẫu có ba tab cấu hình, starter/harness và sample/hidden test cases; không gọi sandbox thật. Kiểm chứng Chrome headless bao gồm palette xanh dương, các tab code và lưu cấu hình.

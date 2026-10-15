@@ -25,5 +25,21 @@ async function parse(payload, boundaries) {
   }
   const events = await parse('event: delta\ndata: first\ndata: second\n\n', [5, 13, 25]);
   assert.equal(events[0].data, "first\nsecond");
+  let cancelled = false;
+  const openStream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode('event: delta\ndata: {"text":"Hello"}\n\nevent: done\ndata: {"messages":[]}\n\n'));
+    },
+    cancel() { cancelled = true; },
+  });
+  const received = [];
+  let watchdog;
+  try {
+    await Promise.race([
+      exported.readConversationStream(openStream.getReader(), event => { received.push(event); return event.event === "done"; }),
+      new Promise((_, reject) => { watchdog = setTimeout(() => reject(new Error("Parser waited for EOF after done")), 1500); }),
+    ]);
+  } finally { clearTimeout(watchdog); }
+  assert.equal(cancelled, true); assert.equal(received.at(-1).event, "done");
   console.log("Conversation SSE: every byte boundary, Unicode, CRLF, heartbeat and multiline data passed.");
 })().catch(error => { console.error(error); process.exitCode = 1; });

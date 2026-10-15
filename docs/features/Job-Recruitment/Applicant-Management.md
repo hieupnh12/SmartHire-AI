@@ -29,7 +29,7 @@ Quản lý application theo job: apply từ candidate, lọc/phân trang, hồ s
 - 1 application / (job, candidate). Flag `duplicate` khi ứng viên có >1 application trên tenant.
 - Recruiter chỉ job staff được truy cập.
 - CV `retain_until` = 24 tháng; sau hạn `410 CV_EXPIRED`. Từ 2026-10-12: khi đơn kết thúc, hạn lưu CV của đơn còn 180 ngày và job định kỳ xoá file sau hạn.
-- Từ 2026-10-12: mỗi ứng viên chỉ một đơn đang xét; trượt CV → `REJECTED` (không nộp lại job đó); chỉ rút đơn trước khi có kết quả lọc CV; `restore` chỉ bỏ lưu trữ. Chi tiết: [Candidate-Status.md](../Recruitment-Workflow/Candidate-Status.md#quy-tắc-ứng-tuyển-phía-ứng-viên-2026-10-12).
+- Từ 2026-10-12: mỗi ứng viên chỉ một đơn đang xét; trượt CV → `REJECTED` (không nộp lại job đó); rút đơn được ở mọi giai đoạn còn đang xét, kể cả sau khi lọc CV (cập nhật 2026-10-16); `restore` chỉ bỏ lưu trữ. Chi tiết: [Candidate-Status.md](../Recruitment-Workflow/Candidate-Status.md#quy-tắc-ứng-tuyển-phía-ứng-viên-2026-10-12).
 - Recruiter không `POST /cvs`.
 - Recruiter không tạo ứng viên thủ công trên UI. List quản lý ứng viên không hiện `WITHDRAWN`.
 - CV screening đạt → gửi một lần email mời phỏng vấn AI; không gửi lại nếu `ai_interview_invited_at` đã có.

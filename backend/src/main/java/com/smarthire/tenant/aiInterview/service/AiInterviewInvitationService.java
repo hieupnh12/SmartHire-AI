@@ -61,7 +61,7 @@ public class AiInterviewInvitationService {
             var latest = existing.get(0);
             if (latest.getCompletedAt() != null || latest.getConfigSnapshotJson() != null && InterviewPolicies.communicationOnly(InterviewPolicies.config(latest).policy())) return latest;
         }
-        return createAttempt(application, stage, 1);
+        return createAttempt(application, stage, 1, null);
     }
 
     @Transactional
@@ -75,21 +75,29 @@ public class AiInterviewInvitationService {
         }
         AiInterviewEligibility.require(application);
         var existing = interviews.findByApplication_IdOrderByIdDesc(applicationId);
-        if (existing.isEmpty()) return createAttempt(application, null, 1);
+        if (existing.isEmpty()) return createAttempt(application, null, 1, null);
         var latest = existing.get(0);
         if (latest.getStatus() != AiInterviewStatus.FAILED || !InterviewPolicies.canRetry(latest, java.time.Instant.now())) {
             if (latest.getStatus() != AiInterviewStatus.PASSED && latest.getStatus() != AiInterviewStatus.FAILED
                     && latest.getStatus() != AiInterviewStatus.SCORED) return latest;
             throw new BusinessException("AI interview attempt already completed", HttpStatus.CONFLICT, "AI_INTERVIEW_ALREADY_COMPLETED");
         }
-        return createAttempt(application, latest.getWorkflowStage(), latest.getAttemptNumber() + 1);
+        return createAttempt(application, latest.getWorkflowStage(), latest.getAttemptNumber() + 1, latest);
     }
 
-    private AiInterview createAttempt(com.smarthire.domain.tenant.entity.Application application, RecruitmentStage stage, int attemptNumber) {
+    private AiInterview createAttempt(com.smarthire.domain.tenant.entity.Application application, RecruitmentStage stage, int attemptNumber, AiInterview previous) {
         AiInterview interview = AiInterview.builder()
                 .application(application).workflowStage(stage).status(AiInterviewStatus.GENERATING)
                 .attemptNumber(attemptNumber).build();
         InterviewPolicies.snapshot(interview);
+        if (previous != null && previous.getConfigSnapshotJson() != null) {
+            var prior = InterviewPolicies.config(previous);
+            var config = InterviewPolicies.withWindow(InterviewPolicies.config(interview), prior.availableFrom(), prior.availableUntil());
+            var snapshot = (com.fasterxml.jackson.databind.node.ObjectNode) InterviewPolicies.tree(interview.getConfigSnapshotJson());
+            snapshot.set("availableFrom", InterviewPolicies.tree(InterviewPolicies.json(config.availableFrom())));
+            snapshot.set("availableUntil", InterviewPolicies.tree(InterviewPolicies.json(config.availableUntil())));
+            interview.setConfigSnapshotJson(snapshot.toString());
+        }
         interview = interviews.save(interview);
         var config = InterviewPolicies.config(interview);
         activity.record(interview, "INVITED", "Attempt " + attemptNumber + " created for application " + application.getId()
@@ -106,7 +114,7 @@ public class AiInterviewInvitationService {
                     .build());
             activity.record(interview, "NOTIFICATION_SENT", "AI_INTERVIEW_INVITATION");
         }
-        emailInvites.sendForInterview(application);
+        emailInvites.sendForInterview(application, config);
         return interview;
     }
 

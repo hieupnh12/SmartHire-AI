@@ -84,14 +84,21 @@ public class AiInterviewEvaluationService {
     @Transactional
     public void process(long id) {
         var interview = interviews.findByIdForUpdate(id).orElse(null);
+        boolean opening = interview != null && interview.getStatus() == AiInterviewStatus.IN_PROGRESS
+                && interview.getStartedAt() == null && interview.getCompletedAt() == null && InterviewPolicies.isConversation(interview);
         if (interview == null || interview.getStatus() != AiInterviewStatus.GENERATING
-                && interview.getStatus() != AiInterviewStatus.SCORING) return;
+                && interview.getStatus() != AiInterviewStatus.SCORING && !opening) return;
         AiInterviewStatus phase = interview.getStatus();
         try {
             InterviewPolicies.requireCommunicationOnly(interview);
             if (interview.getConfigSnapshotJson() == null) AiInterviewEligibility.require(interview.getApplication());
             else AiInterviewEligibility.requireExisting(interview);
-            if (phase == AiInterviewStatus.GENERATING) generate(interview);
+            if (opening) {
+                if (interview.getApplication().getStatus() != ApplicationStatus.INTERVIEW)
+                    throw new IllegalStateException("Application is no longer in the interview round");
+                conversation.initialize(interview);
+                activity.record(interview, "STARTED", "Conversation greeting ready; interview timer started");
+            } else if (phase == AiInterviewStatus.GENERATING) generate(interview);
             else evaluate(interview);
             interview.setErrorMessage(null);
         } catch (IllegalStateException | com.smarthire.common.exception.BusinessException ex) {
@@ -99,7 +106,7 @@ public class AiInterviewEvaluationService {
             interview.setErrorMessage(ex instanceof AiInterviewClient.ProviderException ? ex.getMessage()
                     : "Không thể xử lý AI Interview. Kiểm tra cấu hình và thử lại.");
             // Messages here are our own validation texts; provider errors are already sanitized by AiInterviewClient.
-            activity.record(interview, phase == AiInterviewStatus.GENERATING ? "GENERATION_FAILED" : "EVALUATION_FAILED",
+            activity.record(interview, opening ? "OPENING_FAILED" : phase == AiInterviewStatus.GENERATING ? "GENERATION_FAILED" : "EVALUATION_FAILED",
                     ex.getMessage());
         }
     }

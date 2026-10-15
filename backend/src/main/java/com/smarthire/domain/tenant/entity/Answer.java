@@ -55,6 +55,23 @@ public class Answer {
     @Column(name = "answer_text", columnDefinition = "TEXT")
     String answerText;
 
+    @Column(length = 32)
+    String language;
+
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
+    @Column(name = "evaluation_json", columnDefinition = "json")
+    com.fasterxml.jackson.databind.JsonNode evaluationJson;
+
+    @Column(name = "suggested_score", precision = 10, scale = 2)
+    BigDecimal suggestedScore;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "reviewed_by")
+    User reviewedBy;
+
+    @Column(name = "reviewed_at")
+    java.time.Instant reviewedAt;
+
     @Column(name = "is_correct")
     Boolean correct;
 

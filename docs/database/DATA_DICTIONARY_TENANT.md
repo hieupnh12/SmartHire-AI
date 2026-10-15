@@ -116,7 +116,7 @@ bảng nhật ký `ai_interview_logs` (chi tiết ở [H.5](#h5-ai_interview_log
 | `applications.cv_screening_status` | VARCHAR(16) | Không | `'PENDING'` | — | `CvScreeningStatus`: `PENDING`, `PASSED`, `FAILED` |
 | `ai_interviews.passing_score_snapshot` | DECIMAL(5,2) | Có | NULL | — | Ngưỡng đạt chốt lúc candidate bắt đầu |
 | `ai_interviews.error_message` | VARCHAR(255) | Có | NULL | — | Thông báo lỗi đã làm sạch khi sinh câu/chấm lỗi |
-| `email_outbox.purpose` | VARCHAR(64) | Có | NULL | IDX | Mục đích email, ví dụ `AI_INTERVIEW_RESULT` |
+| `email_outbox.purpose` | VARCHAR(64) | Có | NULL | IDX | Mục đích email: `AI_INTERVIEW_RESULT`, `ASSESSMENT_INVITATION`, `ASSESSMENT_RESULT`; worker xử lý theo tenant, không đổi schema |
 
 ## Dọn legacy V21 (2026-09-26)
 
@@ -663,6 +663,7 @@ Entity `JobTest` (class Java tránh xung đột JUnit `Test`).
 | `created_by` | BIGINT | FK → `users.id` | Có | NULL | Người tạo đề (staff); NULL với đề cũ trước V13 |
 | `created_at` | TIMESTAMP | | Không | now | |
 | `updated_at` | TIMESTAMP | | Có | NULL | Cập nhật lần cuối; backfill = `created_at` ở V13 |
+| `objective_duration_minutes` | INT | | Có | NULL | V53: hạn riêng phần trắc nghiệm (phút từ started_at); service kiểm tra nhỏ hơn tổng thời lượng |
 
 **Ràng buộc:** `fk_tests_job`, `fk_tests_created_by`, V43 `fk_tests_assigned_application`, `uk_tests_assigned_application`.
 
@@ -675,7 +676,7 @@ Entity `Question`.
 | `id` | BIGINT | PK | Không | auto | |
 | `test_id` | BIGINT | FK → `tests.id` | Có | NULL | V41: NULL cho câu hỏi ngân hàng chung; có giá trị khi thuộc đề thi |
 | `question_text` | TEXT | | Không | — | Nội dung câu hỏi |
-| `question_type` | VARCHAR(32) | | Không | — | Loại câu hỏi (MCQ ở luồng ASSESS-01) |
+| `question_type` | VARCHAR(32) | | Không | — | MCQ/MULTIPLE_CHOICE/ESSAY/CODING; VARCHAR, không CHECK SQL |
 | `points` | INT | | Không | 1 | Điểm tối đa |
 | `question_order` | INT | | Không | 0 | Thứ tự |
 | `difficulty` | VARCHAR(16) | | Có | NULL | `Easy` / `Medium` / `Hard` — metadata biên soạn |
@@ -683,6 +684,7 @@ Entity `Question`.
 | `explanation` | TEXT | | Có | NULL | Giải thích đáp án (chỉ staff; không trả candidate) |
 | `authoring_metadata` | JSON | | Có | NULL | V41: metadata bảng soạn, gồm loại tự luận, rubric, đáp án mẫu, snippet/ngôn ngữ và chính sách chấm; chỉ staff |
 | `bank_archived` | BOOLEAN | | Không | FALSE | V41: trạng thái lưu trữ câu hỏi độc lập trong ngân hàng chung |
+| `rubric_json` | JSON | | Có | NULL | V53: referenceAnswer và criteria(description, weight), tổng weight 100; chỉ staff |
 
 **Ràng buộc:** `fk_questions_test`
 
@@ -729,6 +731,7 @@ Entity `Submission`. Điểm tổng nằm ngay trên bảng (không còn `attemp
 | `notes` | TEXT | | Có | NULL | Ghi chú |
 | `status` | VARCHAR(32) | | Không | `'NOT_STARTED'` | `TestSubmissionStatus` |
 | `created_at` | TIMESTAMP | | Không | now | |
+| `objective_completed_at` | TIMESTAMP | | Có | NULL | V53: thời điểm chốt phần trắc nghiệm; không được sửa đáp án sau mốc này |
 
 **Ràng buộc:** `fk_submissions_test`, `fk_submissions_candidate` (`candidates.id`), `fk_submissions_application`
 
@@ -745,6 +748,11 @@ Entity `Answer`.
 | `answer_text` | TEXT | | Có | NULL | Tự luận |
 | `is_correct` | BOOLEAN | | Có | NULL | Đúng/sai sau chấm |
 | `score` | DECIMAL(10,2) | | Có | NULL | Điểm câu |
+| `language` | VARCHAR(32) | | Có | NULL | V53: ngôn ngữ bài code |
+| `evaluation_json` | JSON | | Có | NULL | V53: giải trình AI/test case hoặc trạng thái ERROR; chỉ staff |
+| `suggested_score` | DECIMAL(10,2) | | Có | NULL | V53: điểm đề xuất, chưa phải điểm chính thức |
+| `reviewed_by` | BIGINT | FK → `users.id` | Có | NULL | V53: người duyệt; fk_answer_reviewer, RESTRICT |
+| `reviewed_at` | TIMESTAMP | | Có | NULL | V53: thời điểm duyệt điểm |
 
 **Ràng buộc:** `fk_answers_submission`, `fk_answers_question`, `fk_answers_option`
 
@@ -762,7 +770,7 @@ Entity `AnswerSelectedOption` (ánh xạ `Answer.selectedOptions`).
 
 PK `(answer_id, option_id)`, index `idx_answer_selected_options_option`, FK `fk_aso_answer` / `fk_aso_option`.
 Option phải thuộc question của answer: kiểm tra ở service, không phải ràng buộc chéo trong SQL.
-`questions.question_type` nhận MCQ/MULTIPLE_CHOICE/ESSAY qua API; vẫn VARCHAR(32), không SQL CHECK.
+`questions.question_type` nhận MCQ/MULTIPLE_CHOICE/ESSAY/CODING qua API; vẫn VARCHAR(32), không SQL CHECK.
 
 ### F.6 `coding_problems` — Bài lập trình
 
@@ -771,13 +779,17 @@ Entity `CodingProblem`.
 | Cột | Kiểu | Khoá | Null | Default | Mô tả |
 |---|---|---|---|---|---|
 | `id` | BIGINT | PK | Không | auto | |
-| `test_id` | BIGINT | FK → `tests.id` | Không | — | Đề thi |
+| `test_id` | BIGINT | FK → `tests.id` | Có | NULL | V53: NULL cho ngân hàng code độc lập |
 | `title` | VARCHAR(255) | | Không | — | Tên bài |
 | `prompt` | TEXT | | Không | — | Đề bài |
 | `time_limit_ms` | INT | | Không | 2000 | Giới hạn thời gian |
 | `memory_mb` | INT | | Không | 256 | Giới hạn bộ nhớ |
+| `question_id` | BIGINT | FK → `questions.id`, UQ | Có | NULL | V53: fk_cp_question, uk_cp_question; liên kết tối đa 1 bài code/câu hỏi, giữ NULL cho legacy |
+| `category` | VARCHAR(32) | | Không | CODING_ALGORITHM | V53: CODING_ALGORITHM/CODING_OOP/SQL_QUERY; service kiểm tra |
+| `starter_code_json` | JSON | | Có | NULL | V53: mã khởi đầu theo ngôn ngữ, candidate được đọc |
+| `harness_json` | JSON | | Có | NULL | V53: chương trình kiểm thử chứa {{SOURCE}} theo ngôn ngữ; chỉ staff |
 
-**Ràng buộc:** `fk_cp_test`
+**Ràng buộc:** `fk_cp_test`, `fk_cp_question`, `uk_cp_question`
 
 ### F.7 `test_cases` — Bộ test
 
@@ -790,7 +802,7 @@ Entity `TestCase`.
 | `input_data` | TEXT | | Không | — | Input |
 | `expected_output` | TEXT | | Không | — | Output mong đợi |
 | `is_sample` | BOOLEAN | | Không | FALSE | Test mẫu công khai |
-| `weight` | DECIMAL(5,2) | | Không | 1 | Trọng số |
+| `weight` | DECIMAL(5,2) | | Không | 1 | Hidden test mới có trọng số dương/tổng 100%, sample 0; service kiểm tra tổng. Bài legacy mặc định 1 giữ tỉ lệ test pass; không đổi schema |
 
 **Ràng buộc:** `fk_tc_cp`
 

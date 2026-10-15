@@ -70,6 +70,7 @@ public class AssessmentGenerationService {
     public AssessmentConfigRequest saveConfig(long jobId, AssessmentConfigRequest config) {
         Job job = staffJob(jobId);
         validate(job, config);
+        if (config.objectiveDurationMinutes() != null && config.objectiveDurationMinutes() >= config.durationMinutes()) throw invalid("Objective duration must be less than total duration");
         // Enabling automation must not silently accept an unusable question bank.
         if (config.autoAssign()) select(job, config);
         job.setAssessmentConfigJson(json.valueToTree(config));
@@ -145,7 +146,7 @@ public class AssessmentGenerationService {
         var test = JobTest.builder().job(job).assignedApplication(application).createdBy(creator)
                 .title(title + " — " + Instant.now().toString().substring(0, 16))
                 .description("Tạo tự động từ ngân hàng câu hỏi theo cấu hình của job.")
-                .durationMinutes(config.durationMinutes())
+                .durationMinutes(config.durationMinutes()).objectiveDurationMinutes(config.objectiveDurationMinutes())
                 .passingScore(BigDecimal.valueOf(total).multiply(BigDecimal.valueOf(config.passingPercent()))
                         .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP))
                 .status(application == null ? TestStatus.DRAFT : TestStatus.PUBLISHED).build();
@@ -157,6 +158,10 @@ public class AssessmentGenerationService {
                     .questionType(source.getQuestionType()).difficulty(source.getDifficulty()).skill(source.getSkill())
                     .explanation(source.getExplanation()).points(selection.points()).questionOrder(order++)
                     .authoringMetadata(source.getAuthoringMetadata() == null ? null : source.getAuthoringMetadata().deepCopy()).build();
+            QuestionContent.apply(copy, new QuestionRequest(source.getQuestionText(), selection.points(), copy.getQuestionOrder(),
+                    source.getDifficulty(), source.getSkill(), source.getExplanation(), List.of(),
+                    QuestionType.valueOf(source.getQuestionType()), source.getRubricJson(),
+                    com.smarthire.tenant.assessment.dto.request.CodingRequest.from(source.getCodingProblem(), false)));
             questions.save(copy);
             for (var option : options.findByQuestion_IdOrderByIdAsc(source.getId())) {
                 options.save(Option.builder().question(copy).optionText(option.getOptionText()).correct(option.isCorrect()).build());
@@ -169,6 +174,7 @@ public class AssessmentGenerationService {
 
     private List<Selected> select(Job job, AssessmentConfigRequest config) {
         validate(job, config);
+        if (config.objectiveDurationMinutes() != null && config.objectiveDurationMinutes() >= config.durationMinutes()) throw invalid("Objective duration must be less than total duration");
         var pool = new ArrayList<>(questions.findAll().stream().filter(q -> !q.isBankArchived()
                 && (q.getTest() == null || q.getTest().getStatus() != TestStatus.ARCHIVED))
                 .filter(q -> q.getTest() == null || q.getTest().getAssignedApplication() == null).toList());
@@ -186,7 +192,8 @@ public class AssessmentGenerationService {
                         .map(o -> new QuestionRequest.OptionRequest(o.getOptionText(), o.isCorrect())).toList();
                 try {
                     QuestionService.validateOptions(new QuestionRequest(question.getQuestionText(), section.points(), 0,
-                            question.getDifficulty(), question.getSkill(), question.getExplanation(), choices, section.questionType()));
+                            question.getDifficulty(), question.getSkill(), question.getExplanation(), choices, section.questionType(),
+                            question.getRubricJson(), com.smarthire.tenant.assessment.dto.request.CodingRequest.from(question.getCodingProblem(), false)));
                 } catch (BusinessException invalidSource) { continue; }
                 used.add(content); selected.add(new Selected(question, section.points()));
                 if (++count == section.count()) break;

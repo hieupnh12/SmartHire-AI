@@ -1,0 +1,97 @@
+diff --git a/backend/src/test/java/com/smarthire/master/ai/MasterAiConfigServiceTest.java b/backend/src/test/java/com/smarthire/master/ai/MasterAiConfigServiceTest.java
+index d41bf7f..bea31a0 100644
+--- a/backend/src/test/java/com/smarthire/master/ai/MasterAiConfigServiceTest.java
++++ b/backend/src/test/java/com/smarthire/master/ai/MasterAiConfigServiceTest.java
+@@ -39,13 +39,25 @@ class MasterAiConfigServiceTest {
+ 
+     @Test
+     void nativeSpeechUsesDedicatedInterviewFallbackInsteadOfCvKey() {
++        org.springframework.test.util.ReflectionTestUtils.setField(configProvider, "interviewSpeechKey", "speech-key");
+         var speech = configProvider.resolveInterviewSpeechConfig();
+         assertThat(speech.provider()).isEqualTo("GEMINI");
+-        assertThat(speech.apiKey()).isEqualTo("interview-key");
++        assertThat(speech.apiKey()).isEqualTo("speech-key");
+         assertThat(speech.modelName()).isEqualTo("gemini-2.5-flash");
+         verify(modelConfigRepository, never()).findByTaskType(anyString());
+     }
+ 
++    @Test
++    void nativeSpeechWithoutGeminiKeyDoesNotUseOpenAiOrCvKey() {
++        assertThat(configProvider.resolveInterviewSpeechConfig().apiKey()).isEmpty();
++    }
++
++    @Test
++    void nativeSpeechWithGeminiTextProviderUsesInterviewKey() {
++        org.springframework.test.util.ReflectionTestUtils.setField(configProvider, "interviewProvider", "GEMINI");
++        assertThat(configProvider.resolveInterviewSpeechConfig().apiKey()).isEqualTo("interview-key");
++    }
++
+     @Test
+     void nativeSpeechPrefersActiveGeminiKeyRegardlessOfChatProvider() {
+         var key = new AiProviderKey(); key.setApiKeyEncrypted("encrypted-speech-key");
+diff --git a/backend/src/test/java/com/smarthire/master/billing/controller/PublicCheckoutControllerTest.java b/backend/src/test/java/com/smarthire/master/billing/controller/PublicCheckoutControllerTest.java
+index 0099619..bd92688 100644
+--- a/backend/src/test/java/com/smarthire/master/billing/controller/PublicCheckoutControllerTest.java
++++ b/backend/src/test/java/com/smarthire/master/billing/controller/PublicCheckoutControllerTest.java
+@@ -189,7 +189,7 @@ class PublicCheckoutControllerTest {
+                 .status("ACTIVE")
+                 .build();
+ 
+-        when(planRepository.findByStatusOrderByPriceYearlyAsc("ACTIVE")).thenReturn(List.of(plan));
++        when(planRepository.findByStatusAndArchivedFalseAndCustomFalseOrderByPriceYearlyAsc("ACTIVE")).thenReturn(List.of(plan));
+         when(planMapper.toResponse(plan)).thenReturn(planResp);
+ 
+         mockMvc.perform(get("/api/v1/public/checkout/plans"))
+diff --git a/backend/src/test/java/com/smarthire/multitenancy/MultiDatabaseIntegrationTest.java b/backend/src/test/java/com/smarthire/multitenancy/MultiDatabaseIntegrationTest.java
+index cbbe1f6..e9af874 100644
+--- a/backend/src/test/java/com/smarthire/multitenancy/MultiDatabaseIntegrationTest.java
++++ b/backend/src/test/java/com/smarthire/multitenancy/MultiDatabaseIntegrationTest.java
+@@ -35,7 +35,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
+         "app.bootstrap.admin-enabled=false", "logging.level.com.smarthire=INFO"
+ })
+ @AutoConfigureMockMvc
+-@Testcontainers
++@Testcontainers(disabledWithoutDocker = true)
+ class MultiDatabaseIntegrationTest {
+     @MockBean FileStorageService fileStorageService;
+     private static final String PROVISION_PASSWORD = "a".repeat(48);
+diff --git a/backend/src/test/java/com/smarthire/tenant/aiInterview/AiInterviewClientTest.java b/backend/src/test/java/com/smarthire/tenant/aiInterview/AiInterviewClientTest.java
+index 7018410..d60ac80 100644
+--- a/backend/src/test/java/com/smarthire/tenant/aiInterview/AiInterviewClientTest.java
++++ b/backend/src/test/java/com/smarthire/tenant/aiInterview/AiInterviewClientTest.java
+@@ -25,6 +25,7 @@ class AiInterviewClientTest {
+     private AiInterviewClient client;
+ 
+     @BeforeEach void setup() {
++        config.setBaseUrl("https://interview.example/v1");
+         var builder = RestClient.builder();
+         server = MockRestServiceServer.bindTo(builder).build();
+         client = new AiInterviewClient(config, dynamic, builder, mapper);
+diff --git a/backend/src/test/java/com/smarthire/tenant/aiInterview/AiInterviewInvitationServiceTest.java b/backend/src/test/java/com/smarthire/tenant/aiInterview/AiInterviewInvitationServiceTest.java
+index e1b4a9a..16baa11 100644
+--- a/backend/src/test/java/com/smarthire/tenant/aiInterview/AiInterviewInvitationServiceTest.java
++++ b/backend/src/test/java/com/smarthire/tenant/aiInterview/AiInterviewInvitationServiceTest.java
+@@ -45,8 +45,8 @@ class AiInterviewInvitationServiceTest {
+         job.setId(13L);
+         job.setTitle("Java Backend Developer");
+         job.setAiInterviewEnabled(true);
+-        job.setAiInterviewAvailableFrom(java.time.Instant.parse("2026-10-10T01:00:00Z"));
+-        job.setAiInterviewAvailableUntil(java.time.Instant.parse("2026-10-12T16:59:00Z"));
++        job.setAiInterviewAvailableFrom(java.time.Instant.now().minusSeconds(3600));
++        job.setAiInterviewAvailableUntil(java.time.Instant.now().plusSeconds(86400));
+         application.setJob(job);
+         application.setStatus(ApplicationStatus.INTERVIEW);
+         application.setCvScreeningStatus(CvScreeningStatus.PASSED);
+@@ -69,8 +69,10 @@ class AiInterviewInvitationServiceTest {
+         assertThat(notification.getValue().getCandidate().getId()).isEqualTo(9L);
+         assertThat(notification.getValue().getPayloadJson()).contains("/candidate/interviews/11");
+         assertThat(notification.getValue().getBody()).contains("Java Backend Developer");
+-        assertThat(notification.getValue().getBody()).contains("08:00 10/10/2026");
+-        assertThat(notification.getValue().getBody()).contains("23:59 12/10/2026");
++        var invitationTime = java.time.format.DateTimeFormatter.ofPattern("HH:mm dd/MM/yyyy")
++                .withZone(java.time.ZoneId.of("Asia/Bangkok"));
++        assertThat(notification.getValue().getBody()).contains(invitationTime.format(application.getJob().getAiInterviewAvailableFrom()));
++        assertThat(notification.getValue().getBody()).contains(invitationTime.format(application.getJob().getAiInterviewAvailableUntil()));
+         assertThat(notification.getValue().getBody()).contains("Thời lượng: 30 phút");
+         assertThat(notification.getValue().getBody()).contains("Số lần thực hiện: 1");
+         verify(activity).record(eq(result), eq("INVITED"), contains("3 Communication questions"));
