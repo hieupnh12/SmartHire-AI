@@ -16,6 +16,7 @@ import com.smarthire.tenant.auth.dto.InviteMemberRequest;
 import com.smarthire.tenant.auth.dto.InviteMemberResponse;
 import com.smarthire.tenant.auth.dto.UserResponse;
 import com.smarthire.tenant.auth.mapper.AuthMapper;
+import com.smarthire.tenant.company.service.CompanyEmailSettingService;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Optional;
@@ -53,6 +54,8 @@ class MemberInvitationServiceTest {
     @Mock
     private InviteMailSender inviteMailSender;
     @Mock
+    private CompanyEmailSettingService companyEmailSettingService;
+    @Mock
     private TenantRoleService tenantRoleService;
     @Mock
     private TenantPublicUrlService publicUrls;
@@ -81,6 +84,7 @@ class MemberInvitationServiceTest {
         when(userRepository.existsByEmailIgnoreCase("hr@se36.com")).thenReturn(false);
         when(invitationRepository.existsByEmailIgnoreCaseAndStatus("hr@se36.com", InvitationStatus.PENDING)).thenReturn(false);
         when(invitationRepository.save(any(MemberInvitation.class))).thenAnswer(call -> call.getArgument(0));
+        when(companyEmailSettingService.isConfigured()).thenReturn(false);
         when(inviteMailSender.send(anyString(), anyString(), anyString())).thenReturn(true);
 
         InviteMemberResponse response = memberInvitationService.invite(InviteMemberRequest.builder()
@@ -95,6 +99,26 @@ class MemberInvitationServiceTest {
         assertEquals("HR", captor.getValue().getRole());
         assertTrue(response.isEmailSent());
         assertTrue(response.getAcceptUrl().startsWith("http://se36.localhost:5173/invite/accept?token="));
+        verify(inviteMailSender).send(eq("hr@se36.com"), anyString(), anyString());
+    }
+
+    @Test
+    void invite_UsesCompanyGmailWhenConfigured() {
+        when(tenantRoleService.requireAssignable("HR")).thenReturn(role("HR", "HR", RoleWorkspace.RECRUITER));
+        when(userRepository.existsByEmailIgnoreCase("hr@se36.com")).thenReturn(false);
+        when(invitationRepository.existsByEmailIgnoreCaseAndStatus("hr@se36.com", InvitationStatus.PENDING)).thenReturn(false);
+        when(invitationRepository.save(any(MemberInvitation.class))).thenAnswer(call -> call.getArgument(0));
+        when(companyEmailSettingService.isConfigured()).thenReturn(true);
+        when(companyEmailSettingService.sendMail(anyString(), anyString(), anyString())).thenReturn(true);
+
+        InviteMemberResponse response = memberInvitationService.invite(InviteMemberRequest.builder()
+                .email("hr@se36.com")
+                .fullName("HR User")
+                .role("HR")
+                .build());
+
+        assertTrue(response.isEmailSent());
+        verify(companyEmailSettingService).sendMail(eq("hr@se36.com"), anyString(), anyString());
     }
 
     @Test

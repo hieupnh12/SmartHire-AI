@@ -15,6 +15,7 @@ import com.smarthire.tenant.auth.dto.InviteMemberRequest;
 import com.smarthire.tenant.auth.dto.InviteMemberResponse;
 import com.smarthire.tenant.auth.dto.UserResponse;
 import com.smarthire.tenant.auth.mapper.AuthMapper;
+import com.smarthire.tenant.company.service.CompanyEmailSettingService;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -24,12 +25,14 @@ import java.util.HexFormat;
 import java.util.Locale;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class MemberInvitationService {
@@ -39,6 +42,7 @@ public class MemberInvitationService {
     private final PasswordEncoder passwordEncoder;
     private final AuthMapper authMapper;
     private final InviteMailSender inviteMailSender;
+    private final CompanyEmailSettingService companyEmailSettingService;
     private final TenantRoleService tenantRoleService;
     private final TenantPublicUrlService publicUrls;
 
@@ -73,11 +77,11 @@ public class MemberInvitationService {
 
         String brand = TenantPublicUrlService.brandOrDefault(publicUrls);
         String acceptUrl = publicUrls.path("/invite/accept?token=" + rawToken);
-        boolean emailSent = inviteMailSender.send(
-                email,
-                "Invitation to " + brand + " workspace",
-                "You were invited to join " + brand + " as " + role.getName() + ".\nSet your password:\n" + acceptUrl + "\nThis link expires in "
-                        + expireHours + " hours.");
+        String subject = "Invitation to " + brand + " workspace";
+        String body = "You were invited to join " + brand + " as " + role.getName()
+                + ".\nSet your password:\n" + acceptUrl + "\nThis link expires in "
+                + expireHours + " hours.";
+        boolean emailSent = deliverInviteEmail(email, subject, body);
 
         return InviteMemberResponse.builder()
                 .email(email)
@@ -87,6 +91,27 @@ public class MemberInvitationService {
                 .emailSent(emailSent)
                 .acceptUrl(acceptUrl)
                 .build();
+    }
+
+    /**
+     * Prefer tenant Gmail ({@code company_email_settings}); fall back to platform SMTP.
+     * Failures are soft — invitation stays PENDING and FE can copy {@code acceptUrl}.
+     */
+    private boolean deliverInviteEmail(String email, String subject, String body) {
+        if (companyEmailSettingService.isConfigured()) {
+            try {
+                return companyEmailSettingService.sendMail(email, subject, body);
+            } catch (Exception ex) {
+                log.warn("Company Gmail invite was not delivered to {}: {}", email, ex.getMessage());
+                return false;
+            }
+        }
+        boolean sent = inviteMailSender.send(email, subject, body);
+        if (!sent) {
+            log.warn("Platform SMTP invite was not delivered to {} (configure company Gmail under System settings)",
+                    email);
+        }
+        return sent;
     }
 
     @Transactional
