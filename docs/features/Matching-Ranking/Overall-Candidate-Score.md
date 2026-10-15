@@ -43,7 +43,7 @@ Tổng hợp kỹ năng (S), kinh nghiệm liên quan (E), assessment (A), AI in
 
 ## UI mockup
 
-- Panel chi tiết trong `/recruiter/jobs/{jobId}/rank`: điểm tổng, nhãn tạm/hoàn chỉnh, % trọng số, bảng đóng góp, bằng chứng kỹ năng/kinh nghiệm và nhận xét AI interview. `jobId` lấy từ Job workspace đã chọn; Candidate không có quyền xem.
+- Panel chi tiết trong `/recruiter/jobs/{jobId}/rank`: điểm tổng, nhãn tạm/hoàn chỉnh, % trọng số, bảng đóng góp, bằng chứng kỹ năng/kinh nghiệm và nhận xét AI interview. Hồ sơ tạm tính không có hạng và không mở đặt lịch tiếp theo; chỉ hồ sơ đủ thành phần mới được xếp hạng / đặt lịch. `jobId` lấy từ Job workspace đã chọn; Candidate không có quyền xem.
 
 ## Phụ thuộc
 
