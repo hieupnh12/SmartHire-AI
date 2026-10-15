@@ -20,5 +20,7 @@ public class AiModelConfigDto {
     Integer timeoutSeconds;
     String failoverProvider;
     String failoverModel;
+    String fallbackChain;
+    java.util.List<AiFallbackStep> fallbackSteps;
     Boolean isActive;
 }

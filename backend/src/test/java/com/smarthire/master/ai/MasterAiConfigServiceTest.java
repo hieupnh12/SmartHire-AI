@@ -8,6 +8,7 @@ import com.smarthire.domain.master.entity.AiProviderKey;
 import com.smarthire.domain.master.repository.AiModelConfigRepository;
 import com.smarthire.domain.master.repository.AiProviderKeyRepository;
 import com.smarthire.domain.master.repository.PlatformAuditLogRepository;
+import com.smarthire.master.ai.dto.AiFallbackStep;
 import com.smarthire.master.ai.dto.AiModelConfigDto;
 import com.smarthire.master.ai.dto.AiProviderKeyDto;
 import com.smarthire.master.ai.service.MasterAiConfigService;
@@ -15,6 +16,9 @@ import com.smarthire.multitenancy.service.TenantCredentialService;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
+import com.smarthire.domain.master.entity.AiModelPricing;
+import com.smarthire.domain.master.repository.AiModelPricingRepository;
+import com.smarthire.master.ai.dto.AiModelPricingDto;
 import com.smarthire.master.ai.dto.AiTestConnectionRequest;
 import com.smarthire.master.ai.dto.AiTestConnectionResponse;
 import org.junit.jupiter.api.BeforeEach;
@@ -61,6 +65,9 @@ class MasterAiConfigServiceTest {
     @Mock
     private RedisService redisService;
 
+    @Mock
+    private AiModelPricingRepository modelPricingRepository;
+
     private DynamicAiConfigProvider configProvider;
     private MasterAiConfigService aiConfigService;
     private ObjectMapper mapper;
@@ -86,6 +93,7 @@ class MasterAiConfigServiceTest {
                 configProvider,
                 mapper
         );
+        aiConfigService.setModelPricingRepository(modelPricingRepository);
     }
 
     @Test
@@ -234,6 +242,28 @@ class MasterAiConfigServiceTest {
         server.verify();
         assertThat(res.getSuccess()).isTrue();
         assertThat(res.getModelVersion()).isEqualTo("anthropic:claude-3-5-haiku-20241022");
+    }
+
+    @Test
+    void testConnection_AnthropicWithCursorKey_ReturnsFriendlyError() {
+        MasterAiConfigService service = new MasterAiConfigService(
+                providerKeyRepository,
+                modelConfigRepository,
+                auditLogRepository,
+                credentialService,
+                configProvider,
+                mapper
+        );
+
+        AiTestConnectionRequest req = AiTestConnectionRequest.builder()
+                .provider("ANTHROPIC")
+                .apiKey("crsr_0d4fa848d1e9702227dcc24c8afe5b1287b25e0b60f31f0d2c7121273c7f9a85")
+                .build();
+
+        AiTestConnectionResponse res = service.testConnection(req);
+        assertThat(res.getSuccess()).isFalse();
+        assertThat(res.getMessage()).contains("Cursor");
+        assertThat(res.getMessage()).contains("Cursor / AI");
     }
 
     @Test
@@ -425,6 +455,191 @@ class MasterAiConfigServiceTest {
 
         aiConfigService.deleteModelPricing(42L, "admin@smarthire.top");
         verify(pricingRepo).delete(existingEntity);
+    }
+
+    @Test
+    void dynamicAiConfigProvider_ProactivelyRoutesToFailoverWhenPrimaryModelInCooldown() {
+        when(redisService.get(anyString())).thenReturn(Optional.empty());
+        AiModelConfig taskCfg = AiModelConfig.builder()
+                .taskType("CV_PARSING")
+                .provider("GEMINI")
+                .modelName("gemini-2.5-flash")
+                .failoverProvider("OPENAI")
+                .failoverModel("gpt-4o-mini")
+                .isActive(true)
+                .build();
+        when(modelConfigRepository.findByTaskType("CV_PARSING")).thenReturn(Optional.of(taskCfg));
+
+        AiProviderKey geminiKey = AiProviderKey.builder()
+                .provider("GEMINI")
+                .apiKeyEncrypted("v1:gemini-enc")
+                .status("ACTIVE")
+                .isDefault(true)
+                .build();
+        AiProviderKey openAiKey = AiProviderKey.builder()
+                .provider("OPENAI")
+                .apiKeyEncrypted("v1:openai-enc")
+                .status("ACTIVE")
+                .isDefault(true)
+                .build();
+
+        when(providerKeyRepository.findFirstByProviderAndIsDefaultTrueAndStatus("GEMINI", "ACTIVE"))
+                .thenReturn(Optional.of(geminiKey));
+        when(providerKeyRepository.findFirstByProviderAndIsDefaultTrueAndStatus("OPENAI", "ACTIVE"))
+                .thenReturn(Optional.of(openAiKey));
+        when(credentialService.decrypt("MASTER_AI_KEY", "v1:gemini-enc")).thenReturn("gemini-secret");
+        when(credentialService.decrypt("MASTER_AI_KEY", "v1:openai-enc")).thenReturn("openai-secret");
+
+        // Primary model is in cooldown due to 429 in Redis!
+        when(redisService.exists(com.smarthire.common.redis.RedisKeys.aiModelCooldown("GEMINI", "gemini-2.5-flash")))
+                .thenReturn(true);
+
+        var resolved = configProvider.resolveConfig("CV_PARSING");
+
+        // Proactively routed to failover!
+        assertThat(resolved.provider()).isEqualTo("OPENAI");
+        assertThat(resolved.modelName()).isEqualTo("gpt-4o-mini");
+        assertThat(resolved.apiKey()).isEqualTo("openai-secret");
+    }
+
+    @Test
+    void markModelCooldown_SetsRedisKeyWithTtl() {
+        configProvider.markModelCooldown("GROQ", "qwen/qwen3.8-27b", java.time.Duration.ofSeconds(60));
+        verify(redisService).set(
+                eq(com.smarthire.common.redis.RedisKeys.aiModelCooldown("GROQ", "qwen/qwen3.8-27b")),
+                eq("RATE_LIMITED_429"),
+                eq(java.time.Duration.ofSeconds(60))
+        );
+    }
+
+    @Test
+    void resolveExecutionChain_ReturnsFullCascadeWhenNoCooldown() {
+        when(redisService.get(anyString())).thenReturn(Optional.empty());
+        String chainJson = "[{\"provider\":\"GROQ\",\"model\":\"qwen/qwen3.8-27b\"},{\"provider\":\"OPENROUTER\",\"model\":\"deepseek/deepseek-r1:free\"}]";
+        AiModelConfig taskCfg = AiModelConfig.builder()
+                .taskType("CV_PARSING")
+                .provider("GEMINI")
+                .modelName("gemini-2.5-flash")
+                .fallbackChain(chainJson)
+                .isActive(true)
+                .build();
+        when(modelConfigRepository.findByTaskType("CV_PARSING")).thenReturn(Optional.of(taskCfg));
+
+        AiProviderKey geminiKey = AiProviderKey.builder().provider("GEMINI").apiKeyEncrypted("v1:gemini-enc").status("ACTIVE").isDefault(true).build();
+        AiProviderKey groqKey = AiProviderKey.builder().provider("GROQ").apiKeyEncrypted("v1:groq-enc").status("ACTIVE").isDefault(true).build();
+        AiProviderKey routerKey = AiProviderKey.builder().provider("OPENROUTER").apiKeyEncrypted("v1:router-enc").status("ACTIVE").isDefault(true).build();
+
+        when(providerKeyRepository.findFirstByProviderAndIsDefaultTrueAndStatus("GEMINI", "ACTIVE")).thenReturn(Optional.of(geminiKey));
+        when(providerKeyRepository.findFirstByProviderAndIsDefaultTrueAndStatus("GROQ", "ACTIVE")).thenReturn(Optional.of(groqKey));
+        when(providerKeyRepository.findFirstByProviderAndIsDefaultTrueAndStatus("OPENROUTER", "ACTIVE")).thenReturn(Optional.of(routerKey));
+
+        when(credentialService.decrypt("MASTER_AI_KEY", "v1:gemini-enc")).thenReturn("gemini-secret");
+        when(credentialService.decrypt("MASTER_AI_KEY", "v1:groq-enc")).thenReturn("groq-secret");
+        when(credentialService.decrypt("MASTER_AI_KEY", "v1:router-enc")).thenReturn("router-secret");
+
+        when(redisService.exists(anyString())).thenReturn(false);
+
+        var chain = configProvider.resolveExecutionChain("CV_PARSING");
+        assertThat(chain).hasSize(3);
+        assertThat(chain.get(0).provider()).isEqualTo("GEMINI");
+        assertThat(chain.get(0).modelName()).isEqualTo("gemini-2.5-flash");
+        assertThat(chain.get(1).provider()).isEqualTo("GROQ");
+        assertThat(chain.get(1).modelName()).isEqualTo("qwen/qwen3.8-27b");
+        assertThat(chain.get(2).provider()).isEqualTo("OPENROUTER");
+        assertThat(chain.get(2).modelName()).isEqualTo("deepseek/deepseek-r1:free");
+    }
+
+    @Test
+    void resolveExecutionChain_SkipsCooldownModelsInCascade() {
+        when(redisService.get(anyString())).thenReturn(Optional.empty());
+        String chainJson = "[{\"provider\":\"GROQ\",\"model\":\"qwen/qwen3.8-27b\"},{\"provider\":\"OPENROUTER\",\"model\":\"deepseek/deepseek-r1:free\"}]";
+        AiModelConfig taskCfg = AiModelConfig.builder()
+                .taskType("CV_PARSING")
+                .provider("GEMINI")
+                .modelName("gemini-2.5-flash")
+                .fallbackChain(chainJson)
+                .isActive(true)
+                .build();
+        when(modelConfigRepository.findByTaskType("CV_PARSING")).thenReturn(Optional.of(taskCfg));
+
+        AiProviderKey geminiKey = AiProviderKey.builder().provider("GEMINI").apiKeyEncrypted("v1:gemini-enc").status("ACTIVE").isDefault(true).build();
+        AiProviderKey routerKey = AiProviderKey.builder().provider("OPENROUTER").apiKeyEncrypted("v1:router-enc").status("ACTIVE").isDefault(true).build();
+
+        when(providerKeyRepository.findFirstByProviderAndIsDefaultTrueAndStatus("GEMINI", "ACTIVE")).thenReturn(Optional.of(geminiKey));
+        when(providerKeyRepository.findFirstByProviderAndIsDefaultTrueAndStatus("OPENROUTER", "ACTIVE")).thenReturn(Optional.of(routerKey));
+
+        when(credentialService.decrypt("MASTER_AI_KEY", "v1:gemini-enc")).thenReturn("gemini-secret");
+        when(credentialService.decrypt("MASTER_AI_KEY", "v1:router-enc")).thenReturn("router-secret");
+
+        // Primary and OpenRouter healthy, GROQ step in cooldown
+        when(redisService.exists(com.smarthire.common.redis.RedisKeys.aiModelCooldown("GEMINI", "gemini-2.5-flash"))).thenReturn(false);
+        when(redisService.exists(com.smarthire.common.redis.RedisKeys.aiModelCooldown("GROQ", "qwen/qwen3.8-27b"))).thenReturn(true);
+        when(redisService.exists(com.smarthire.common.redis.RedisKeys.aiModelCooldown("OPENROUTER", "deepseek/deepseek-r1:free"))).thenReturn(false);
+
+        var chain = configProvider.resolveExecutionChain("CV_PARSING");
+        assertThat(chain).hasSize(2);
+        assertThat(chain.get(0).provider()).isEqualTo("GEMINI");
+        assertThat(chain.get(1).provider()).isEqualTo("OPENROUTER");
+    }
+
+    @Test
+    void updateTaskConfig_SavesFallbackChainJson() {
+        AiModelConfig existing = AiModelConfig.builder()
+                .id(1L)
+                .taskType("CV_PARSING")
+                .provider("GEMINI")
+                .modelName("gemini-2.5-flash")
+                .build();
+        when(modelConfigRepository.findByTaskType("CV_PARSING")).thenReturn(Optional.of(existing));
+        when(modelConfigRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        AiModelConfigDto update = AiModelConfigDto.builder()
+                .modelName("gemini-2.5-flash")
+                .fallbackSteps(List.of(
+                        new AiFallbackStep("GROQ", "qwen/qwen3.8-27b", 30, new BigDecimal("0.2")),
+                        new AiFallbackStep("OPENROUTER", "deepseek/deepseek-r1:free", 45, new BigDecimal("0.1"))
+                ))
+                .build();
+
+        AiModelConfigDto result = aiConfigService.updateTaskConfig("CV_PARSING", update, "admin@smarthire.top");
+        assertThat(result.getFallbackSteps()).hasSize(2);
+        assertThat(result.getFallbackSteps().get(0).getProvider()).isEqualTo("GROQ");
+        assertThat(result.getFallbackSteps().get(1).getProvider()).isEqualTo("OPENROUTER");
+        assertThat(existing.getFallbackChain()).contains("qwen/qwen3.8-27b").contains("deepseek/deepseek-r1:free");
+    }
+
+    @Test
+    void saveModelPricing_PersistsRegistryFields() {
+        AiModelPricing savedEntity = AiModelPricing.builder()
+                .id(10L)
+                .modelName("qwen/qwen3.8-27b")
+                .provider("GROQ")
+                .displayName("Groq Qwen 3.8 27B")
+                .contextWindow(131072)
+                .supportsJson(true)
+                .inputPricePer1mTokens(BigDecimal.ZERO)
+                .outputPricePer1mTokens(BigDecimal.ZERO)
+                .isActive(true)
+                .build();
+        when(modelPricingRepository.findByProviderIgnoreCaseAndModelNameIgnoreCase("GROQ", "qwen/qwen3.8-27b")).thenReturn(Optional.empty());
+        when(modelPricingRepository.save(any())).thenReturn(savedEntity);
+
+        AiModelPricingDto request = AiModelPricingDto.builder()
+                .modelName("qwen/qwen3.8-27b")
+                .provider("GROQ")
+                .displayName("Groq Qwen 3.8 27B")
+                .contextWindow(131072)
+                .supportsJson(true)
+                .inputPricePer1mTokens(BigDecimal.ZERO)
+                .outputPricePer1mTokens(BigDecimal.ZERO)
+                .isActive(true)
+                .build();
+
+        AiModelPricingDto result = aiConfigService.saveModelPricing(request, "admin@smarthire.top");
+        assertThat(result.getDisplayName()).isEqualTo("Groq Qwen 3.8 27B");
+        assertThat(result.getContextWindow()).isEqualTo(131072);
+        assertThat(result.getSupportsJson()).isTrue();
+        assertThat(result.getInputPricePer1mTokens()).isEqualByComparingTo(BigDecimal.ZERO);
     }
 }
 

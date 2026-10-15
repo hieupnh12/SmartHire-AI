@@ -33,6 +33,17 @@ public class AiModelPricing {
     @Column(name = "output_price_per_1m_tokens", nullable = false, precision = 12, scale = 4)
     BigDecimal outputPricePer1mTokens = BigDecimal.ZERO;
 
+    @Column(name = "display_name", length = 100)
+    String displayName;
+
+    @Builder.Default
+    @Column(name = "context_window", nullable = false)
+    Integer contextWindow = 128000;
+
+    @Builder.Default
+    @Column(name = "supports_json", nullable = false)
+    Boolean supportsJson = true;
+
     @Builder.Default
     @Column(name = "is_active", nullable = false)
     Boolean isActive = true;

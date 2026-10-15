@@ -104,8 +104,9 @@ export function LandingFooter() {
         <div className="pt-8 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600">
           <p>© 2026 SmartHire.AI Enterprise. All rights reserved.</p>
           <div className="flex items-center gap-5">
-            <span className="hover:text-slate-400 cursor-pointer transition-colors">Điều khoản sử dụng</span>
-            <Link to="/security" className="hover:text-slate-400 transition-colors">Bảo mật dữ liệu</Link>
+            <Link to="/terms" className="hover:text-slate-400 transition-colors">Điều khoản sử dụng</Link>
+            <Link to="/privacy" className="hover:text-slate-400 transition-colors">Bảo vệ dữ liệu cá nhân</Link>
+            <Link to="/security" className="hover:text-slate-400 transition-colors">An ninh hệ thống</Link>
           </div>
         </div>
       </div>

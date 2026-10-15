@@ -306,11 +306,10 @@ export function CheckoutPage() {
             {/* Step 1 */}
             <div className="flex items-center gap-2.5">
               <div
-                className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
-                  currentStep === 1
+                className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${currentStep === 1
                     ? "bg-blue-600 text-white ring-4 ring-blue-100 shadow-sm"
                     : "border-2 border-blue-600 text-blue-600 bg-white"
-                }`}
+                  }`}
               >
                 {currentStep > 1 ? <Check className="w-4 h-4 stroke-[3]" /> : "1"}
               </div>
@@ -328,20 +327,18 @@ export function CheckoutPage() {
             </div>
             {/* Connector 1-2 */}
             <div
-              className={`flex-1 mx-3 sm:mx-6 h-[2px] rounded transition-colors ${
-                currentStep >= 2 ? "bg-blue-600" : "bg-slate-300"
-              }`}
+              className={`flex-1 mx-3 sm:mx-6 h-[2px] rounded transition-colors ${currentStep >= 2 ? "bg-blue-600" : "bg-slate-300"
+                }`}
             />
             {/* Step 2 */}
             <div className="flex items-center gap-2.5">
               <div
-                className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
-                  currentStep === 2
+                className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${currentStep === 2
                     ? "bg-blue-600 text-white ring-4 ring-blue-100 shadow-sm"
                     : currentStep > 2
                       ? "border-2 border-blue-600 text-blue-600 bg-white"
                       : "border-2 border-slate-300 text-slate-400 bg-white"
-                }`}
+                  }`}
               >
                 {currentStep > 2 ? <Check className="w-4 h-4 stroke-[3]" /> : "2"}
               </div>
@@ -359,18 +356,16 @@ export function CheckoutPage() {
             </div>
             {/* Connector 2-3 */}
             <div
-              className={`flex-1 mx-3 sm:mx-6 h-[2px] rounded transition-colors ${
-                currentStep >= 3 ? "bg-blue-600" : "bg-slate-300"
-              }`}
+              className={`flex-1 mx-3 sm:mx-6 h-[2px] rounded transition-colors ${currentStep >= 3 ? "bg-blue-600" : "bg-slate-300"
+                }`}
             />
             {/* Step 3 */}
             <div className="flex items-center gap-2.5">
               <div
-                className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
-                  currentStep === 3
+                className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${currentStep === 3
                     ? "bg-blue-600 text-white ring-4 ring-blue-100 shadow-sm"
                     : "border-2 border-slate-300 text-slate-400 bg-white"
-                }`}
+                  }`}
               >
                 3
               </div>
@@ -911,11 +906,10 @@ export function CheckoutPage() {
 
                   {/* Click-wrap Legal Consent Checkbox (Explicit Opt-in) */}
                   <div
-                    className={`p-3 rounded-xl border transition-all ${
-                      termsError && !isTermsAccepted
+                    className={`p-3 rounded-xl border transition-all ${termsError && !isTermsAccepted
                         ? "bg-rose-50/90 border-rose-400 ring-2 ring-rose-100"
                         : "bg-slate-50/90 border-slate-200/80"
-                    }`}
+                      }`}
                   >
                     <div className="flex items-start gap-2.5">
                       <input
@@ -928,19 +922,17 @@ export function CheckoutPage() {
                             setTermsError(false);
                           }
                         }}
-                        className={`mt-0.5 w-4 h-4 rounded cursor-pointer shrink-0 ${
-                          termsError && !isTermsAccepted
+                        className={`mt-0.5 w-4 h-4 rounded cursor-pointer shrink-0 ${termsError && !isTermsAccepted
                             ? "border-rose-400 text-rose-600 focus:ring-rose-500 accent-rose-600"
                             : "border-slate-300 text-blue-600 focus:ring-blue-500 accent-blue-600"
-                        }`}
+                          }`}
                       />
                       <label
                         htmlFor="checkout-terms-consent"
-                        className={`text-xs leading-relaxed cursor-pointer select-none ${
-                          termsError && !isTermsAccepted ? "text-rose-700 font-medium" : "text-slate-600"
-                        }`}
+                        className={`text-xs leading-relaxed cursor-pointer select-none ${termsError && !isTermsAccepted ? "text-rose-700 font-medium" : "text-slate-600"
+                          }`}
                       >
-                        Tôi đã đọc và đồng ý với{" "}
+                        Tôi đã đọcvà đồng ý với{" "}
                         <button
                           type="button"
                           onClick={(e) => {
@@ -948,9 +940,21 @@ export function CheckoutPage() {
                             e.stopPropagation();
                             setPolicyModalTab("TOS");
                           }}
-                          className="font-semibold text-blue-600 hover:text-blue-700 underline underline-offset-2 cursor-pointer"
+                          className="font-medium text-blue-600 hover:text-blue-700 underline underline-offset-2 cursor-pointer"
                         >
-                          Điều khoản dịch vụ
+                          Thỏa thuận mua hàng
+                        </button>{" "}
+                        và{" "}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setPolicyModalTab("PRIVACY_ND13");
+                          }}
+                          className="font-medium text-blue-600 hover:text-blue-700 underline underline-offset-2 cursor-pointer"
+                        >
+                          Chính sách bảo vệ dữ liệu cá nhân
                         </button>
                       </label>
                     </div>
@@ -1031,11 +1035,10 @@ export function CheckoutPage() {
                         setActivePaymentTab("TRANSFER");
                         setPaymentMethod("VIETQR");
                       }}
-                      className={`flex items-center justify-center gap-2 py-3 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-medium transition-all ${
-                        activePaymentTab === "TRANSFER"
+                      className={`flex items-center justify-center gap-2 py-3 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-medium transition-all ${activePaymentTab === "TRANSFER"
                           ? "border-2 border-blue-500 bg-blue-50/50 text-blue-600 font-bold shadow-xs"
                           : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                      }`}
+                        }`}
                     >
                       <ArrowLeftRight className="w-4 h-4" />
                       <span>Chuyển khoản</span>
@@ -1048,11 +1051,10 @@ export function CheckoutPage() {
                         setActivePaymentTab("DOMESTIC_CARD");
                         setPaymentMethod("ATM_CARD");
                       }}
-                      className={`flex items-center justify-center gap-2 py-3 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-medium transition-all ${
-                        activePaymentTab === "DOMESTIC_CARD"
+                      className={`flex items-center justify-center gap-2 py-3 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-medium transition-all ${activePaymentTab === "DOMESTIC_CARD"
                           ? "border-2 border-blue-500 bg-blue-50/50 text-blue-600 font-bold shadow-xs"
                           : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                      }`}
+                        }`}
                     >
                       <CreditCard className="w-4 h-4" />
                       <span>Thẻ nội địa</span>
@@ -1065,11 +1067,10 @@ export function CheckoutPage() {
                         setActivePaymentTab("INTL_CARD");
                         setPaymentMethod("E_WALLET");
                       }}
-                      className={`flex items-center justify-center gap-2 py-3 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-medium transition-all ${
-                        activePaymentTab === "INTL_CARD"
+                      className={`flex items-center justify-center gap-2 py-3 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-medium transition-all ${activePaymentTab === "INTL_CARD"
                           ? "border-2 border-blue-500 bg-blue-50/50 text-blue-600 font-bold shadow-xs"
                           : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                      }`}
+                        }`}
                     >
                       <CreditCard className="w-4 h-4" />
                       <span>Thẻ quốc tế</span>
@@ -1082,11 +1083,10 @@ export function CheckoutPage() {
                         setActivePaymentTab("QR_CODE");
                         setPaymentMethod("VIETQR");
                       }}
-                      className={`flex items-center justify-center gap-2 py-3 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-medium transition-all ${
-                        activePaymentTab === "QR_CODE"
+                      className={`flex items-center justify-center gap-2 py-3 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-medium transition-all ${activePaymentTab === "QR_CODE"
                           ? "border-2 border-blue-500 bg-blue-50/50 text-blue-600 font-bold shadow-xs"
                           : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                      }`}
+                        }`}
                     >
                       <QrCode className="w-4 h-4" />
                       <span>QR Code</span>
@@ -1588,9 +1588,14 @@ export function CheckoutPage() {
       </main>
       <LegalPolicyModal
         openTab={policyModalTab}
-        policyVersion={CURRENT_POLICY_VERSION}
+        policyVersion="15/06/2026"
         onClose={() => setPolicyModalTab(null)}
         onSwitchTab={(tab) => setPolicyModalTab(tab)}
+        isAccepted={isTermsAccepted}
+        onAcceptChange={(val) => {
+          setIsTermsAccepted(val);
+          if (val) setTermsError(false);
+        }}
       />
     </div>
   );

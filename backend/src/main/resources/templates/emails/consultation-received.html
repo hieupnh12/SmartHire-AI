@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Tiếp Nhận Yêu Cầu Tư Vấn - SmartHire-AI</title>
+    <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.6; color: #1e293b; background-color: #f8fafc; margin: 0; padding: 20px; }
+        .wrapper { max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08); overflow: hidden; border: 1px solid #e2e8f0; }
+        .header { background: linear-gradient(135deg, #0284c7, #2563eb); color: #ffffff; padding: 28px; text-align: center; }
+        .header h1 { margin: 0; font-size: 20px; font-weight: 700; }
+        .content { padding: 28px; }
+        .info-box { background-color: #f1f5f9; border-radius: 8px; padding: 14px 18px; margin: 18px 0; font-size: 13px; }
+        .info-box p { margin: 4px 0; }
+        .footer { background-color: #f8fafc; border-top: 1px solid #e2e8f0; padding: 20px; text-align: center; font-size: 12px; color: #64748b; }
+    </style>
+</head>
+<body>
+<div class="wrapper">
+    <div class="header">
+        <h1>XÁC NHẬN TIẾP NHẬN YÊU CẦU</h1>
+        <p>SmartHire-AI — Nền Tảng Tuyển Dụng AI Thông Minh</p>
+    </div>
+
+    <div class="content">
+        <p>Kính gửi: <strong><span th:text="${contactName}">Quý khách</span></strong>,</p>
+        <p>Cảm ơn bạn đã quan tâm đến giải pháp tuyển dụng SmartHire-AI. Chúng tôi đã tiếp nhận thành công yêu cầu tư vấn của bạn với các thông tin sau:</p>
+
+        <div class="info-box">
+            <p><strong>Doanh nghiệp:</strong> <span th:text="${companyName}">Tên công ty</span></p>
+            <p><strong>Loại yêu cầu:</strong> <span th:text="${requestType == 'CONTRACT_QUOTE' ? 'Báo giá Hợp đồng B2B' : 'Trải nghiệm Demo nền tảng'}">Demo</span></p>
+            <p th:if="${planTier}"><strong>Gói quan tâm:</strong> <span th:text="${planTier}">Enterprise</span></p>
+            <p><strong>Thời gian gửi:</strong> <span th:text="${receivedDate}">13/10/2026</span></p>
+        </div>
+
+        <p>Chuyên viên tư vấn giải pháp của SmartHire-AI sẽ chủ động liên hệ với Quý khách qua email hoặc số điện thoại trong vòng <strong>24 giờ làm việc</strong> để trao đổi chi tiết và gửi bản demo / phương án phù hợp nhất.</p>
+
+        <p>Nếu Quý khách cần hỗ trợ gấp, vui lòng liên hệ trực tiếp qua hotline: <strong>1900 6868</strong> hoặc email: <strong>sales@smarthire.top</strong>.</p>
+    </div>
+
+    <div class="footer">
+        <p>Trân trọng cảm ơn sự tin tưởng của Quý khách!</p>
+        <p><strong>Đội ngũ SmartHire-AI Enterprise</strong></p>
+    </div>
+</div>
+</body>
+</html>

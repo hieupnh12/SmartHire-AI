@@ -10,6 +10,7 @@ import com.smarthire.domain.master.repository.AiModelConfigRepository;
 import com.smarthire.domain.master.repository.AiModelPricingRepository;
 import com.smarthire.domain.master.repository.AiProviderKeyRepository;
 import com.smarthire.domain.master.repository.PlatformAuditLogRepository;
+import com.smarthire.master.ai.dto.AiFallbackStep;
 import com.smarthire.master.ai.dto.AiModelConfigDto;
 import com.smarthire.master.ai.dto.AiModelPricingDto;
 import com.smarthire.master.ai.dto.AiProviderKeyDto;
@@ -100,7 +101,9 @@ public class MasterAiConfigService {
         if (dto.getId() != null) {
             entity = providerKeyRepository.findById(dto.getId())
                     .orElseThrow(() -> new IllegalArgumentException("Key not found with id: " + dto.getId()));
-            entity.setKeyAlias(dto.getKeyAlias());
+            if (dto.getKeyAlias() != null && !dto.getKeyAlias().isBlank()) {
+                entity.setKeyAlias(dto.getKeyAlias().trim());
+            }
             entity.setProvider(provider);
             entity.setEndpointUrl(dto.getEndpointUrl());
             if (dto.getStatus() != null) entity.setStatus(dto.getStatus());
@@ -115,7 +118,7 @@ public class MasterAiConfigService {
             }
             entity = AiProviderKey.builder()
                     .provider(provider)
-                    .keyAlias(dto.getKeyAlias() != null ? dto.getKeyAlias() : provider + " Key")
+                    .keyAlias(dto.getKeyAlias() != null && !dto.getKeyAlias().isBlank() ? dto.getKeyAlias().trim() : provider + " Key")
                     .apiKeyEncrypted(credentialService.encrypt("MASTER_AI_KEY", dto.getApiKey().trim()))
                     .endpointUrl(dto.getEndpointUrl())
                     .status(dto.getStatus() != null ? dto.getStatus() : "ACTIVE")
@@ -138,10 +141,14 @@ public class MasterAiConfigService {
         configProvider.evictAll();
 
         // Audit Log
-        auditLogRepository.save(PlatformAuditLog.builder()
-                .action("AI_KEY_SAVED")
-                .description("Saved AI key for provider " + provider + " (alias: " + saved.getKeyAlias() + ") by " + adminEmail)
-                .build());
+        try {
+            auditLogRepository.save(PlatformAuditLog.builder()
+                    .action("AI_KEY_SAVED")
+                    .description("Saved AI key for provider " + provider + " (alias: " + saved.getKeyAlias() + ") by " + adminEmail)
+                    .build());
+        } catch (Exception ex) {
+            log.warn("Failed to write audit log for saveProviderKey: {}", ex.getMessage());
+        }
 
         return toProviderKeyDto(saved);
     }
@@ -153,10 +160,14 @@ public class MasterAiConfigService {
         providerKeyRepository.delete(key);
         configProvider.evictAll();
 
-        auditLogRepository.save(PlatformAuditLog.builder()
-                .action("AI_KEY_DELETED")
-                .description("Deleted AI key id: " + id + " (" + key.getKeyAlias() + ") by " + adminEmail)
-                .build());
+        try {
+            auditLogRepository.save(PlatformAuditLog.builder()
+                    .action("AI_KEY_DELETED")
+                    .description("Deleted AI key id: " + id + " (" + key.getKeyAlias() + ") by " + adminEmail)
+                    .build());
+        } catch (Exception ex) {
+            log.warn("Failed to write audit log for deleteProviderKey: {}", ex.getMessage());
+        }
     }
 
     @Transactional(transactionManager = "masterTransactionManager", readOnly = true)
@@ -183,15 +194,26 @@ public class MasterAiConfigService {
         if (dto.getTimeoutSeconds() != null) entity.setTimeoutSeconds(dto.getTimeoutSeconds());
         if (dto.getFailoverProvider() != null) entity.setFailoverProvider(dto.getFailoverProvider().toUpperCase());
         if (dto.getFailoverModel() != null) entity.setFailoverModel(dto.getFailoverModel());
+        if (dto.getFallbackChain() != null) {
+            entity.setFallbackChain(dto.getFallbackChain());
+        } else if (dto.getFallbackSteps() != null) {
+            try {
+                entity.setFallbackChain(mapper.writeValueAsString(dto.getFallbackSteps()));
+            } catch (Exception ignored) {}
+        }
         if (dto.getIsActive() != null) entity.setIsActive(dto.getIsActive());
 
         AiModelConfig saved = modelConfigRepository.save(entity);
         configProvider.evictCache(normalizedTask);
 
-        auditLogRepository.save(PlatformAuditLog.builder()
-                .action("AI_MODEL_ROUTING_UPDATED")
-                .description("Updated AI task config for " + normalizedTask + " to model " + saved.getModelName() + " by " + adminEmail)
-                .build());
+        try {
+            auditLogRepository.save(PlatformAuditLog.builder()
+                    .action("AI_MODEL_ROUTING_UPDATED")
+                    .description("Updated AI task config for " + normalizedTask + " to model " + saved.getModelName() + " by " + adminEmail)
+                    .build());
+        } catch (Exception ex) {
+            log.warn("Failed to write audit log for updateTaskConfig: {}", ex.getMessage());
+        }
 
         return toModelConfigDto(saved);
     }
@@ -236,25 +258,106 @@ public class MasterAiConfigService {
         }
 
         String defaultModel = switch (provider) {
-            case "OPENAI" -> "o3-mini";
+            case "OPENAI" -> "gpt-4o-mini";
             case "DEEPSEEK" -> "deepseek-chat";
             case "ANTHROPIC" -> "claude-3-5-haiku-20241022";
+            case "CURSOR", "CUSTOM" -> "default";
+            case "OPENROUTER" -> "meta-llama/llama-3.3-70b-instruct";
+            case "GROQ" -> "qwen/qwen3.8-27b";
+            case "MISTRAL" -> "mistral-small-latest";
+            case "XAI" -> "grok-2-latest";
+            case "PERPLEXITY" -> "sonar";
+            case "OLLAMA" -> "llama3.2";
             case "HUGGINGFACE" -> "Qwen/Qwen2.5-7B-Instruct";
-            default -> "gemini-3.6-flash";
+            default -> "gemini-3.5-flash-lite";
         };
 
         String model = request.getModelName() != null && !request.getModelName().isBlank()
                 ? request.getModelName().trim()
                 : defaultModel;
 
+        if ("GROQ".equalsIgnoreCase(provider) && ("llama-3.3-70b-versatile".equalsIgnoreCase(model) || "llama-3.1-8b-instant".equalsIgnoreCase(model))) {
+            model = "qwen/qwen3.8-27b";
+        }
+
+        if (!"GROQ".equalsIgnoreCase(provider) && apiKey.trim().startsWith("gsk_")) {
+            return AiTestConnectionResponse.builder()
+                    .success(false)
+                    .message("Kết nối thất bại: Key bắt đầu bằng 'gsk_' là API Key của GroqCloud. Vui lòng chọn Nhà cung cấp là 'GroqCloud'.")
+                    .latencyMs(0L)
+                    .build();
+        }
+
+        if ("ANTHROPIC".equalsIgnoreCase(provider) && apiKey.trim().startsWith("crsr_")) {
+            return AiTestConnectionResponse.builder()
+                    .success(false)
+                    .message("Kết nối thất bại: Key bắt đầu bằng 'crsr_' là API Key của Cursor, không phải của Anthropic Claude. Vui lòng chọn Nhà cung cấp là 'Cursor / AI' để dùng key này, hoặc dùng key bắt đầu bằng 'sk-ant-' từ console.anthropic.com cho Anthropic Claude.")
+                    .latencyMs(0L)
+                    .build();
+        }
+
+        if ("OPENAI".equalsIgnoreCase(provider) && apiKey.trim().startsWith("crsr_")) {
+            return AiTestConnectionResponse.builder()
+                    .success(false)
+                    .message("Kết nối thất bại: Key bắt đầu bằng 'crsr_' là API Key của Cursor, không phải của OpenAI. Vui lòng chọn Nhà cung cấp là 'Cursor / AI'.")
+                    .latencyMs(0L)
+                    .build();
+        }
+
+        if ("CURSOR".equalsIgnoreCase(provider) && apiKey.trim().startsWith("sk-ant-")) {
+            return AiTestConnectionResponse.builder()
+                    .success(false)
+                    .message("Kết nối thất bại: Key bắt đầu bằng 'sk-ant-' là của Anthropic Claude, không phải của Cursor. Vui lòng chọn Nhà cung cấp là 'Anthropic Claude'.")
+                    .latencyMs(0L)
+                    .build();
+        }
+
         long start = System.currentTimeMillis();
 
         try {
-            if ("OPENAI".equalsIgnoreCase(provider) || "DEEPSEEK".equalsIgnoreCase(provider) || "HUGGINGFACE".equalsIgnoreCase(provider)) {
+            if ("CURSOR".equalsIgnoreCase(provider) && (endpointUrl == null || endpointUrl.isBlank() || endpointUrl.contains("api.cursor.com"))) {
+                String targetUrl = "https://api.cursor.com/v1/me";
+                String resBody = restClient.get()
+                        .uri(targetUrl)
+                        .header("Authorization", "Bearer " + apiKey.trim())
+                        .retrieve()
+                        .body(String.class);
+
+                String keyInfo = "";
+                try {
+                    var jsonNode = mapper.readTree(resBody);
+                    String keyName = jsonNode.has("apiKeyName") ? jsonNode.get("apiKeyName").asText() : "";
+                    String email = jsonNode.has("userEmail") ? jsonNode.get("userEmail").asText() : "";
+                    if (!keyName.isBlank() || !email.isBlank()) {
+                        keyInfo = " (" + (!keyName.isBlank() ? "Tên key: " + keyName : "") + (!email.isBlank() ? ", User: " + email : "") + ")";
+                    }
+                } catch (Exception ignored) {}
+
+                long latency = System.currentTimeMillis() - start;
+                updateKeyLastTested(request.getKeyId(), true, 200, "CURSOR", "cloud-agent-v1");
+                return AiTestConnectionResponse.builder()
+                        .success(true)
+                        .message("Kết nối thành công đến Cursor Cloud API!" + keyInfo)
+                        .latencyMs(latency)
+                        .modelVersion("cursor:cloud-agent-v1")
+                        .build();
+            }
+
+            boolean isOpenAiCompatible = !"ANTHROPIC".equalsIgnoreCase(provider) && !"GEMINI".equalsIgnoreCase(provider);
+
+            if (isOpenAiCompatible) {
                 String defaultEndpoint = switch (provider) {
                     case "OPENAI" -> "https://api.openai.com/v1/chat/completions";
                     case "DEEPSEEK" -> "https://api.deepseek.com/chat/completions";
-                    default -> "https://router.huggingface.co/hf-inference/models/" + model + "/v1/chat/completions";
+                    case "CURSOR" -> (endpointUrl != null && !endpointUrl.isBlank()) ? endpointUrl.trim() : "https://api.cursor.com/v1/agents";
+                    case "OPENROUTER" -> "https://openrouter.ai/api/v1/chat/completions";
+                    case "GROQ" -> "https://api.groq.com/openai/v1/chat/completions";
+                    case "MISTRAL" -> "https://api.mistral.ai/v1/chat/completions";
+                    case "XAI" -> "https://api.x.ai/v1/chat/completions";
+                    case "PERPLEXITY" -> "https://api.perplexity.ai/chat/completions";
+                    case "OLLAMA" -> "http://localhost:11434/v1/chat/completions";
+                    case "HUGGINGFACE" -> "https://router.huggingface.co/hf-inference/models/" + model + "/v1/chat/completions";
+                    default -> (endpointUrl != null && !endpointUrl.isBlank()) ? endpointUrl.trim() : "https://api.openai.com/v1/chat/completions";
                 };
 
                 String targetUrl = (endpointUrl != null && !endpointUrl.isBlank())
@@ -265,16 +368,24 @@ public class MasterAiConfigService {
                         {"model":"%s","messages":[{"role":"user","content":"ping"}],"max_tokens":5}
                         """.formatted(model);
 
-                restClient.post()
+                var requestSpec = restClient.post()
                         .uri(targetUrl)
-                        .header("Authorization", "Bearer " + apiKey.trim())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .body(body)
+                        .contentType(MediaType.APPLICATION_JSON);
+
+                if (apiKey != null && !apiKey.isBlank()) {
+                    requestSpec.header("Authorization", "Bearer " + apiKey.trim());
+                }
+                if ("OPENROUTER".equalsIgnoreCase(provider)) {
+                    requestSpec.header("HTTP-Referer", "https://smarthire.ai");
+                    requestSpec.header("X-Title", "SmartHire-AI");
+                }
+
+                requestSpec.body(body)
                         .retrieve()
                         .body(String.class);
 
                 long latency = System.currentTimeMillis() - start;
-                updateKeyLastTested(request.getKeyId(), true);
+                updateKeyLastTested(request.getKeyId(), true, 200, provider, model);
                 return AiTestConnectionResponse.builder()
                         .success(true)
                         .message("Kết nối thành công đến " + provider + "!")
@@ -302,7 +413,7 @@ public class MasterAiConfigService {
                         .body(String.class);
 
                 long latency = System.currentTimeMillis() - start;
-                updateKeyLastTested(request.getKeyId(), true);
+                updateKeyLastTested(request.getKeyId(), true, 200, provider, model);
                 return AiTestConnectionResponse.builder()
                         .success(true)
                         .message("Kết nối thành công đến Anthropic Claude!")
@@ -316,12 +427,17 @@ public class MasterAiConfigService {
                         {"contents":[{"parts":[{"text":"ping"}]}]}
                         """;
 
-                String defaultUrl = "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + apiKey.trim();
+                String effectiveModel = model;
+                if ("gemini-2.5-flash".equalsIgnoreCase(effectiveModel) || "gemini-2.0-flash".equalsIgnoreCase(effectiveModel) || "gemini-1.5-flash".equalsIgnoreCase(effectiveModel)) {
+                    effectiveModel = "gemini-3.5-flash-lite";
+                }
+
+                String defaultUrl = "https://generativelanguage.googleapis.com/v1beta/models/" + effectiveModel + ":generateContent?key=" + apiKey.trim();
                 String targetUrl;
                 if (endpointUrl != null && !endpointUrl.isBlank()) {
                     String base = endpointUrl.trim();
                     if (!base.contains(":generateContent") && !base.contains("/v1beta/models/")) {
-                        base = base.replaceAll("/+$", "") + "/v1beta/models/" + model + ":generateContent";
+                        base = base.replaceAll("/+$", "") + "/v1beta/models/" + effectiveModel + ":generateContent";
                     }
                     targetUrl = base.contains("?") ? base + "&key=" + apiKey.trim() : base + "?key=" + apiKey.trim();
                 } else {
@@ -330,43 +446,76 @@ public class MasterAiConfigService {
 
                 restClient.post()
                         .uri(targetUrl)
+                        .header("x-goog-api-key", apiKey.trim())
                         .contentType(MediaType.APPLICATION_JSON)
                         .body(body)
                         .retrieve()
                         .body(String.class);
 
                 long latency = System.currentTimeMillis() - start;
-                updateKeyLastTested(request.getKeyId(), true);
+                updateKeyLastTested(request.getKeyId(), true, 200, provider, effectiveModel);
                 return AiTestConnectionResponse.builder()
                         .success(true)
-                        .message("Kết nối thành công đến Google Gemini!")
+                        .message("Kết nối thành công đến Google Gemini! (Model: " + effectiveModel + ")")
                         .latencyMs(latency)
-                        .modelVersion("gemini:" + model)
+                        .modelVersion("gemini:" + effectiveModel)
                         .build();
             }
         } catch (Exception ex) {
             long latency = System.currentTimeMillis() - start;
             log.error("AI test connection failed for provider {}: {}", provider, ex.getMessage());
-            updateKeyLastTested(request.getKeyId(), false);
+
+            Integer statusCode = null;
+            String errorMsg = ex.getMessage();
+            if (ex instanceof org.springframework.web.client.RestClientResponseException rre) {
+                statusCode = rre.getStatusCode().value();
+                String responseBody = rre.getResponseBodyAsString();
+                if (statusCode == 401) {
+                    errorMsg = "401 Unauthorized: API Key không chính xác, đã hết hạn hoặc không có quyền truy cập";
+                    if ("ANTHROPIC".equalsIgnoreCase(provider) && apiKey.trim().startsWith("crsr_")) {
+                        errorMsg += " (Lưu ý: Bạn đang dùng API Key của Cursor 'crsr_...'. Vui lòng chọn Nhà cung cấp là 'Cursor / AI' thay vì 'Anthropic Claude').";
+                    } else if (responseBody != null && !responseBody.isBlank()) {
+                        errorMsg += " (" + responseBody + ")";
+                    }
+                } else if (statusCode == 404) {
+                    errorMsg = "404 Not Found: Đường dẫn endpoint hoặc model không tồn tại" + (responseBody != null && !responseBody.isBlank() ? " (" + responseBody + ")" : ".");
+                } else if (statusCode == 429) {
+                    errorMsg = "429 Too Many Requests: Model đang bị giới hạn tần suất (đã đưa vào Redis cooldown 60s)" + (responseBody != null && !responseBody.isBlank() ? " (" + responseBody + ")" : ".");
+                } else if (responseBody != null && !responseBody.isBlank()) {
+                    errorMsg = statusCode + " " + rre.getStatusText() + ": " + responseBody;
+                }
+            }
+            updateKeyLastTested(request.getKeyId(), false, statusCode, provider, model);
+
             return AiTestConnectionResponse.builder()
                     .success(false)
-                    .message("Kết nối thất bại: " + ex.getMessage())
+                    .message("Kết nối thất bại: " + errorMsg)
                     .latencyMs(latency)
                     .build();
         }
     }
 
-    private void updateKeyLastTested(Long keyId, boolean success) {
+    private void updateKeyLastTested(Long keyId, boolean success, Integer statusCode, String provider, String model) {
         if (keyId != null) {
             providerKeyRepository.findById(keyId).ifPresent(key -> {
                 key.setLastTestedAt(LocalDateTime.now());
                 if (!success) {
-                    key.setStatus("RATE_LIMITED_OR_INVALID");
-                } else if ("RATE_LIMITED_OR_INVALID".equals(key.getStatus())) {
+                    if (statusCode != null && (statusCode == 401 || statusCode == 403)) {
+                        key.setStatus("INVALID_OR_REVOKED");
+                    } else if (statusCode != null && statusCode == 429) {
+                        // Rate limit is transient per (provider, model), do NOT mark whole key invalid in DB!
+                        configProvider.markModelCooldown(provider, model, Duration.ofSeconds(60));
+                        if ("RATE_LIMITED_OR_INVALID".equals(key.getStatus())) {
+                            key.setStatus("ACTIVE");
+                        }
+                    }
+                } else if ("RATE_LIMITED_OR_INVALID".equals(key.getStatus()) || "INVALID_OR_REVOKED".equals(key.getStatus())) {
                     key.setStatus("ACTIVE");
                 }
                 providerKeyRepository.save(key);
             });
+        } else if (!success && statusCode != null && statusCode == 429) {
+            configProvider.markModelCooldown(provider, model, Duration.ofSeconds(60));
         }
     }
 
@@ -391,6 +540,13 @@ public class MasterAiConfigService {
     }
 
     private AiModelConfigDto toModelConfigDto(AiModelConfig entity) {
+        java.util.List<AiFallbackStep> steps = null;
+        if (entity.getFallbackChain() != null && !entity.getFallbackChain().isBlank()) {
+            try {
+                steps = mapper.readValue(entity.getFallbackChain(), new com.fasterxml.jackson.core.type.TypeReference<java.util.List<AiFallbackStep>>() {});
+            } catch (Exception ignored) {}
+        }
+
         return AiModelConfigDto.builder()
                 .id(entity.getId())
                 .taskType(entity.getTaskType())
@@ -402,6 +558,8 @@ public class MasterAiConfigService {
                 .timeoutSeconds(entity.getTimeoutSeconds())
                 .failoverProvider(entity.getFailoverProvider())
                 .failoverModel(entity.getFailoverModel())
+                .fallbackChain(entity.getFallbackChain())
+                .fallbackSteps(steps)
                 .isActive(entity.getIsActive())
                 .build();
     }
@@ -444,6 +602,15 @@ public class MasterAiConfigService {
 
         entity.setProvider(provider);
         entity.setModelName(modelName);
+        if (dto.getDisplayName() != null) {
+            entity.setDisplayName(dto.getDisplayName().trim());
+        }
+        if (dto.getContextWindow() != null && dto.getContextWindow() > 0) {
+            entity.setContextWindow(dto.getContextWindow());
+        }
+        if (dto.getSupportsJson() != null) {
+            entity.setSupportsJson(dto.getSupportsJson());
+        }
         if (dto.getInputPricePer1mTokens() != null) {
             entity.setInputPricePer1mTokens(dto.getInputPricePer1mTokens().max(BigDecimal.ZERO));
         }
@@ -456,11 +623,15 @@ public class MasterAiConfigService {
 
         AiModelPricing saved = modelPricingRepository.save(entity);
 
-        auditLogRepository.save(PlatformAuditLog.builder()
-                .action("AI_MODEL_PRICING_UPDATED")
-                .description(String.format("Updated AI model pricing for %s:%s (in=$%s/1M, out=$%s/1M) by %s",
-                        provider, modelName, saved.getInputPricePer1mTokens(), saved.getOutputPricePer1mTokens(), adminEmail))
-                .build());
+        try {
+            auditLogRepository.save(PlatformAuditLog.builder()
+                    .action("AI_MODEL_PRICING_UPDATED")
+                    .description(String.format("Updated AI model pricing for %s:%s (in=$%s/1M, out=$%s/1M) by %s",
+                            provider, modelName, saved.getInputPricePer1mTokens(), saved.getOutputPricePer1mTokens(), adminEmail))
+                    .build());
+        } catch (Exception ex) {
+            log.warn("Failed to write audit log for saveModelPricing: {}", ex.getMessage());
+        }
 
         return toModelPricingDto(saved);
     }
@@ -474,11 +645,15 @@ public class MasterAiConfigService {
                 .orElseThrow(() -> new IllegalArgumentException("Model pricing not found with id: " + id));
         modelPricingRepository.delete(entity);
 
-        auditLogRepository.save(PlatformAuditLog.builder()
-                .action("AI_MODEL_PRICING_DELETED")
-                .description(String.format("Deleted AI model pricing %s:%s (id=%d) by %s",
-                        entity.getProvider(), entity.getModelName(), id, adminEmail))
-                .build());
+        try {
+            auditLogRepository.save(PlatformAuditLog.builder()
+                    .action("AI_MODEL_PRICING_DELETED")
+                    .description(String.format("Deleted AI model pricing %s:%s (id=%d) by %s",
+                            entity.getProvider(), entity.getModelName(), id, adminEmail))
+                    .build());
+        } catch (Exception ex) {
+            log.warn("Failed to write audit log for deleteModelPricing: {}", ex.getMessage());
+        }
     }
 
     private AiModelPricingDto toModelPricingDto(AiModelPricing entity) {
@@ -486,8 +661,11 @@ public class MasterAiConfigService {
                 .id(entity.getId())
                 .provider(entity.getProvider())
                 .modelName(entity.getModelName())
+                .displayName(entity.getDisplayName())
                 .inputPricePer1mTokens(entity.getInputPricePer1mTokens())
                 .outputPricePer1mTokens(entity.getOutputPricePer1mTokens())
+                .contextWindow(entity.getContextWindow())
+                .supportsJson(entity.getSupportsJson())
                 .isActive(entity.getIsActive())
                 .updatedAt(entity.getUpdatedAt())
                 .build();

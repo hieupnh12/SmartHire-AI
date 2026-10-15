@@ -25,9 +25,9 @@ Hai sơ đồ giúp nhóm phát triển nhìn rõ luồng từ người dùng qu
 
 - Actor: Candidate, Recruiter/Tenant Admin và Workspace Admin.
 - Frontend: React SPA, route theo role, API client tách Master/Tenant và tự gắn `X-Tenant-ID` cho tenant API.
-- Backend: REST, bảo mật JWT/RBAC, Master Domain, Tenant Domain, Multi-Tenant Core và worker RabbitMQ; WebSocket là phần dự kiến.
+- Backend: REST, bảo mật JWT/RBAC, Master Domain, Tenant Domain, Multi-Tenant Core, WebSocket realtime và worker RabbitMQ.
 - Persistence: PostgreSQL cho Master DB; MySQL database riêng cho từng tenant; Redis cho dữ liệu ngắn hạn; RabbitMQ cho công việc bất đồng bộ.
-- Ảnh PNG chỉ thể hiện các thành phần chính; AI provider, object storage, email gateway và Google OAuth không được vẽ thành các khối riêng trong ảnh này.
+- External Integrations: Đã thể hiện đầy đủ các khối kết nối thực tế trong ảnh PNG: Google Gemini AI Engine, Cloud Object Storage, Payment Gateways (VNPay/PayPal), Email Gateway (SMTP) và Google OAuth.
 
 ## Tiền điều kiện và hậu điều kiện kiến trúc
 
@@ -68,7 +68,7 @@ Hai sơ đồ giúp nhóm phát triển nhìn rõ luồng từ người dùng qu
 | **JWT** | Token xác thực được gửi qua header `Authorization`; backend kiểm tra token và quyền trước khi xử lý tài nguyên được bảo vệ. |
 | **X-Tenant-ID** | Header xác định doanh nghiệp cần truy cập. Backend đối chiếu tenant với registry và phiên xác thực, không tin trực tiếp giá trị frontend gửi lên. |
 | **JSON response** | Dữ liệu hoặc thông tin lỗi backend trả cho frontend để cập nhật giao diện. |
-| **WebSocket (planned)** | Kênh thông báo realtime dự kiến, ví dụ báo hoàn tất tác vụ. Đường nét đứt và chữ `planned` thể hiện phần chưa triển khai đầy đủ, không phải tính năng đã vận hành. |
+| **WebSocket (WSS)** | Kênh giao tiếp hai chiều thời gian thực: truyền luồng âm thanh phỏng vấn (binary audio buffer) và cập nhật bảng xếp hạng, điểm matching, thông báo pipeline trực tiếp. |
 
 ### Back End và các lớp xử lý
 
@@ -98,7 +98,7 @@ Hai sơ đồ giúp nhóm phát triển nhìn rõ luồng từ người dùng qu
 | **RabbitMQ** | Lưu chuyển công việc bất đồng bộ để backend không phải thực hiện toàn bộ tác vụ lâu ngay trong request. Job tenant mang header `X-Tenant-ID`. |
 | **Worker Pool** | Nhóm consumer xử lý công việc từ RabbitMQ trong backend. Khối riêng trên ảnh thể hiện vai trò xử lý, không khẳng định có container worker độc lập. |
 | **TenantJobExecutor** | Wrapper xác nhận tenant đang hoạt động, phục hồi `TenantContext`, chạy callback xử lý và luôn xóa context trong `finally`. Tenant thiếu/không hoạt động bị reject và không requeue. |
-| **CV worker scaffold; AI processing planned** | Consumer CV đã có khung xử lý tenant-aware; phần xử lý AI vẫn chưa hoàn thiện. Không suy ra worker đã phân tích CV hoặc chấm điểm AI đầy đủ. |
+| **Worker Pool (Async Consumers)** | Nhóm consumer xử lý công việc từ RabbitMQ: `CvParseWorker`, `CvExtractWorker`, `CvAnalysisWorker`, `CvMatchingWorker`, `AiInterviewWorker`, `AssessmentGenerationWorker`, `RankingRecomputeWorker`, `HumanInterviewEmailWorker`. |
 
 ### Ý nghĩa các đường nối
 
@@ -126,14 +126,15 @@ Sơ đồ tách **FrontEnd** và **BackEnd** thành hai khung lớn; mỗi khung
 
 | Khung | Layer | Nội dung chính |
 | --- | --- | --- |
-| FrontEnd | Presentation | `main.tsx`, `app`, `features/*`, `components`, pages/routes |
-| FrontEnd | State | `hooks`, `stores` |
-| FrontEnd | Shared utilities | `lib`, `styles`, `i18n`, `types` |
-| FrontEnd | Api / Data access | `api/master`, `api/tenant` |
-| BackEnd | Controller | `config`, `security`, `multitenancy`, `*.controller` |
-| BackEnd | Service | `*.service`, `messaging`, `common.exception`, `common.api` |
-| BackEnd | Data Access | `domain.*`, dto/mapper, `multitenancy.datasource`, `common.redis` |
-| Stores | - | PostgreSQL, MySQL, Redis, RabbitMQ |
+| FrontEnd | Presentation | `main.tsx`, `app`, `features/master`, `features/tenant`, `components`, `pages` |
+| FrontEnd | State | `stores` (Zustand UI/toast), `hooks` (custom hooks) |
+| FrontEnd | Shared utilities | `lib`, `styles` (Google Stitch tokens), `i18n` (EN/VI/JA), `types` |
+| FrontEnd | Api / Data access | `api/master`, `api/tenant` (Axios clients) |
+| BackEnd | Controller | `security`, `config`, `master.*.controller`, `tenant.*.controller`, `realtime (ws)` |
+| BackEnd | Service | `master.*.service`, `tenant.*.service`, `messaging`, `common` |
+| BackEnd | Multi-Tenant Core | `multitenancy.context`, `multitenancy.service`, `multitenancy.resolver`, `multitenancy.datasource` |
+| BackEnd | Data Access | `domain.master`, `domain.tenant`, `domain.enums`, `common.redis` |
+| Stores | Persistence & Infra | PostgreSQL 16 (Master DB), MySQL 8.4 (Tenant DBs), Redis 7 (Cache), RabbitMQ 3.13 (Broker) |
 
 ![Package Diagram](package-diagram.png)
 
@@ -219,8 +220,8 @@ Các tên có dấu `/` là đường dẫn frontend; tên có dấu `.` là pac
 
 | File | Kích thước | Ghi chú |
 | --- | --- | --- |
-| [system-architecture.png](system-architecture.png) | 3600 × 2160 px; ít nhất 300 DPI | Nền màu phân biệt thành phần; khung và đường nối đã tăng độ đậm. |
-| [package-diagram.png](package-diagram.png) | 4960 × 2960 px; ít nhất 300 DPI | Bố cục Users \| FrontEnd layers \| BackEnd layers \| Stores. |
+| [system-architecture.png](system-architecture.png) | 4400 × 2080 px; ít nhất 300 DPI | Bản cập nhật tinh gọn: thu gọn 5 khối database/worker phía dưới, loại bỏ khoảng trắng thừa, chuẩn tỷ lệ 16:9 sắc nét. |
+| [package-diagram.png](package-diagram.png) | 4600 × 2300 px; ít nhất 300 DPI | Bố cục 4 cột mạch lạc: Users \| FrontEnd layers \| BackEnd layers \| Stores. Đã chuẩn hoá UTF-8, loại bỏ khoảng trắng thừa. |
 | [package-diagram-detailed.png](package-diagram-detailed.png) | (bản trước) | Package diagram chi tiết kiểu cũ, giữ để đối chiếu. |
 
 Hai ảnh được dựng bằng System.Drawing từ script PowerShell và đã kiểm tra trực quan cùng metadata DPI. Chỉ xuất PNG theo yêu cầu; không tạo SVG. Nguồn PlantUML ban đầu chưa được validate bằng PlantUML vì môi trường không có renderer tương ứng; render lại `.puml` sẽ không tái tạo chính xác bố cục PNG hiện tại.

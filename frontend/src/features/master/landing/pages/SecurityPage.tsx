@@ -26,10 +26,10 @@ export function SecurityPage() {
     },
     {
       icon: FileText,
-      title: "Tuân Thủ Nghị Định 13/2023/NĐ-CP",
+      title: "Tuân Thủ Luật Bảo Vệ Dữ Liệu Cá Nhân 2025 & NĐ 356/2025/NĐ-CP",
       badge: "Pháp Lý Việt Nam",
       description:
-        "Đáp ứng toàn diện các tiêu chuẩn về Bảo vệ Dữ liệu Cá nhân của Chính phủ Việt Nam. Cung cấp cơ chế xin chấp thuận thu thập thông tin, quyền kiểm tra và quyền yêu cầu hủy bỏ dữ liệu (Right to be forgotten) của ứng viên.",
+        "Đáp ứng toàn diện các tiêu chuẩn về Bảo vệ Dữ liệu Cá nhân theo Luật Bảo vệ dữ liệu cá nhân 2025 và Nghị định số 356/2025/NĐ-CP của Chính phủ. Cung cấp cơ chế xin chấp thuận thu thập thông tin, quyền kiểm tra và quyền yêu cầu hủy bỏ dữ liệu (Right to be forgotten) của ứng viên.",
     },
     {
       icon: KeyRound,
