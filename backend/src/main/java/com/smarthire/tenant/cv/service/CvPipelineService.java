@@ -23,6 +23,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Service
 public class CvPipelineService {
@@ -104,7 +106,7 @@ public class CvPipelineService {
             documents.save(document);
             cv.mark(CvStatus.PARSED);
             cvs.save(cv);
-            if (enqueue) publisher.publishExtract(cvId);
+            if (enqueue) afterCommit(() -> publisher.publishExtract(cvId));
             return true;
         } catch (Exception ex) {
             fail(cv, "PARSE_FAILED", ex, enqueue);
@@ -135,7 +137,9 @@ public class CvPipelineService {
             extraction.setPromptVersion(ai.promptVersionFor(json));
             extractions.save(extraction);
             cvs.save(cv);
-            if (enqueue) publisher.publishAnalysis(cvId);
+            // Publish after commit + unlock so the next worker does not skip on the Redis lock
+            // or race a still-open transaction (stuck EXTRACTING with extraction already saved).
+            if (enqueue) afterCommit(() -> publisher.publishAnalysis(cvId));
             return true;
         } catch (Exception ex) {
             fail(cv, "EXTRACT_FAILED", ex, enqueue);
@@ -162,7 +166,7 @@ public class CvPipelineService {
             analysis.analyze(cv, json);
             cv.mark(CvStatus.ANALYZED);
             cvs.save(cv);
-            if (enqueue) publisher.publishMatching(cvId);
+            if (enqueue) afterCommit(() -> publisher.publishMatching(cvId));
             return true;
         } catch (Exception ex) {
             fail(cv, "ANALYZE_FAILED", ex, enqueue);
@@ -232,6 +236,20 @@ public class CvPipelineService {
 
         if (enqueue) throw new IllegalStateException(ex);
         log.error("CV {} failed at {}", cv.getId(), code, ex);
+    }
+
+    /** Queue the next pipeline step only after this TX commits and the Redis lock is released. */
+    private void afterCommit(Runnable publish) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    publish.run();
+                }
+            });
+            return;
+        }
+        publish.run();
     }
 
     private boolean lock(long cvId) {
