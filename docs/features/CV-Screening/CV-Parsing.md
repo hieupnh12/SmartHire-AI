@@ -19,7 +19,7 @@ Parse file CV thành text, recruiter xem được PDF đã upload. Hỗ trợ PD
 2. Extract text → `cv_documents`.
 3. Status `PARSED` / `FAILED`.
 4. `POST /cvs/{id}/parse` chạy parse → extract → analyze → match trên request và trả `CvDetail`.
-5. Gemini nếu có `GEMINI_API_KEY` (biến môi trường, Spring không tự đọc `.env`). Không có key **hoặc Gemini API lỗi** thì `heuristic-v1`; backend vẫn tính điểm hybrid.
+5. Gemini nếu có key. Model lấy từ cấu hình `CV_PARSING` (mặc định `gemini-3.5-flash-lite`, failover `gemini-3.1-flash-lite`). Không có key **hoặc Gemini API lỗi** thì `heuristic-v1`; backend vẫn tính điểm hybrid.
 6. Prompt extract gửi kèm title + `job_skills` của tin ứng viên đã nộp; cấm invent skill.
 
 ## Business Rules

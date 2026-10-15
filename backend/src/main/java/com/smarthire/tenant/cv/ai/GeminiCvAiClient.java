@@ -52,7 +52,7 @@ public class GeminiCvAiClient implements CvAiClient {
             HeuristicCvAiClient fallback,
             ObjectMapper mapper,
             @Value("${app.ai.gemini.api-key:}") String apiKey,
-            @Value("${app.ai.models.cv-parsing:gemini-2.0-flash}") String model,
+            @Value("${app.ai.models.cv-parsing:gemini-3.5-flash-lite}") String model,
             @Value("${app.ai.timeout-seconds:30}") int timeoutSeconds) {
         this.fallback = fallback;
         this.mapper = mapper;
@@ -302,9 +302,14 @@ public class GeminiCvAiClient implements CvAiClient {
 
                 text = readOpenAiText(rawResponse);
             } else {
-                String body = """
-                        {"contents":[{"parts":[{"text":%s}]}]}
-                        """.formatted(mapper.writeValueAsString(promptText));
+                String instruction = system == null ? "" : system.trim();
+                String body = instruction.isEmpty()
+                        ? """
+                        {"contents":[{"parts":[{"text":%s}]}],"generationConfig":{"responseMimeType":"application/json"}}
+                        """.formatted(mapper.writeValueAsString(promptText))
+                        : """
+                        {"system_instruction":{"parts":[{"text":%s}]},"contents":[{"parts":[{"text":%s}]}],"generationConfig":{"responseMimeType":"application/json"}}
+                        """.formatted(mapper.writeValueAsString(instruction), mapper.writeValueAsString(promptText));
                 rawResponse = http.post()
                         .uri("https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}",
                                 model, apiKey.trim())
