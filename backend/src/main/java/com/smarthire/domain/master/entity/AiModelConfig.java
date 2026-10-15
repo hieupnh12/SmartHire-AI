@@ -50,6 +50,10 @@ public class AiModelConfig {
     @Column(name = "failover_model", length = 100)
     String failoverModel;
 
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
+    @Column(name = "fallback_chain", columnDefinition = "jsonb")
+    String fallbackChain;
+
     @Builder.Default
     @Column(name = "is_active", nullable = false)
     Boolean isActive = true;

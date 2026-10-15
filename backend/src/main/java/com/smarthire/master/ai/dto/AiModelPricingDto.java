@@ -15,8 +15,11 @@ public class AiModelPricingDto {
     private Long id;
     private String provider;
     private String modelName;
+    private String displayName;
     private BigDecimal inputPricePer1mTokens;
     private BigDecimal outputPricePer1mTokens;
+    private Integer contextWindow;
+    private Boolean supportsJson;
     private Boolean isActive;
     private LocalDateTime updatedAt;
 }

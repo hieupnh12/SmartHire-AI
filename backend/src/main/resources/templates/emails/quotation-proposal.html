@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Báo Giá Dịch Vụ SmartHire-AI</title>
+    <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.6; color: #1e293b; background-color: #f8fafc; margin: 0; padding: 20px; }
+        .wrapper { max-width: 650px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08); overflow: hidden; border: 1px solid #e2e8f0; }
+        .header { background: linear-gradient(135deg, #1e40af, #4338ca); color: #ffffff; padding: 32px 28px; text-align: center; }
+        .header h1 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -0.5px; }
+        .header p { margin: 6px 0 0; font-size: 13px; opacity: 0.9; }
+        .content { padding: 28px; }
+        .lead-info { background-color: #f1f5f9; border-radius: 8px; padding: 14px 18px; margin-bottom: 24px; font-size: 13px; }
+        .lead-info p { margin: 4px 0; }
+        .lead-info strong { color: #0f172a; }
+        
+        .section-title { font-size: 15px; font-weight: 700; color: #0f172a; margin: 20px 0 10px; display: flex; align-items: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px; }
+        
+        /* Table CPQ */
+        .cpq-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+        .cpq-table th { background-color: #f8fafc; text-align: left; padding: 10px 12px; font-size: 12px; font-weight: 700; color: #475569; border-bottom: 1px solid #cbd5e1; }
+        .cpq-table td { padding: 12px; font-size: 13px; border-bottom: 1px solid #e2e8f0; }
+        .cpq-table .amount { text-align: right; font-weight: 600; white-space: nowrap; }
+        .total-row td { background-color: #eff6ff; font-weight: 700; font-size: 14px; color: #1e40af; border-top: 2px solid #93c5fd; }
+        
+        /* Quota Grid */
+        .quota-box { background-color: #faf5ff; border: 1px solid #e9d5ff; border-radius: 8px; padding: 16px; margin-bottom: 24px; }
+        .quota-grid { width: 100%; border-collapse: collapse; }
+        .quota-grid td { padding: 6px 8px; font-size: 13px; }
+        .quota-grid td.label { color: #64748b; }
+        .quota-grid td.val { font-weight: 700; color: #581c87; text-align: right; }
+        
+        .badge { display: inline-block; background-color: #dbeafe; color: #1e40af; font-size: 11px; font-weight: 700; padding: 2px 8px; rounded: 4px; }
+        
+        .terms { background-color: #fefce8; border: 1px solid #fef08a; border-radius: 8px; padding: 14px 18px; font-size: 12px; color: #854d0e; margin-bottom: 24px; }
+        .terms ul { margin: 6px 0 0 16px; padding: 0; }
+        
+        .cta-container { text-align: center; margin: 28px 0 16px; }
+        .btn { display: inline-block; background: linear-gradient(135deg, #2563eb, #4f46e5); color: #ffffff !important; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-weight: 700; font-size: 14px; box-shadow: 0 2px 6px rgba(37, 99, 235, 0.3); }
+        
+        .footer { background-color: #f8fafc; border-top: 1px solid #e2e8f0; padding: 20px; text-align: center; font-size: 12px; color: #64748b; }
+        .footer p { margin: 4px 0; }
+    </style>
+</head>
+<body>
+<div class="wrapper">
+    <div class="header">
+        <h1>BẢNG BÁO GIÁ THƯƠNG MẠI B2B</h1>
+        <p>SmartHire-AI — Nền Tảng Tuyển Dụng AI & Phỏng Vấn Giọng Nói Chuẩn Doanh Nghiệp</p>
+    </div>
+
+    <div class="content">
+        <p>Kính gửi: <strong><span th:text="${contactName}">Đại diện Doanh nghiệp</span></strong> — <span th:text="${companyName}">Quý Công ty</span>,</p>
+        <p>SmartHire-AI trân trọng gửi tới Quý Doanh nghiệp phương án báo giá chi tiết cho gói dịch vụ <strong><span th:text="${planName}">Gói Tùy Chỉnh</span></strong> với kiến trúc <strong>Dedicated Database per Tenant</strong> bảo mật chuyên biệt:</p>
+
+        <div class="lead-info">
+            <p><strong>Doanh nghiệp:</strong> <span th:text="${companyName}">Công ty TNHH SmartHire</span></p>
+            <p><strong>Người liên hệ:</strong> <span th:text="${contactName}">Nguyễn Văn A</span> | <strong>Email:</strong> <span th:text="${recipientEmail}">contact@company.com</span></p>
+            <p th:if="${phoneNumber}"><strong>Số điện thoại:</strong> <span th:text="${phoneNumber}">0988888888</span></p>
+        </div>
+
+        <div class="section-title">1. BẢNG CẤU THÀNH BÁO GIÁ (CPQ BREAKDOWN)</div>
+        <table class="cpq-table">
+            <thead>
+                <tr>
+                    <th>Hạng mục dịch vụ</th>
+                    <th style="text-align: right;">Số tiền (VNĐ/năm)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>
+                        <strong>1. Phí bản quyền nền tảng (Platform License Fee)</strong><br/>
+                        <span style="font-size: 11px; color: #64748b;">Hạ tầng Dedicated Database riêng biệt, phân quyền, SLA 99.5% và subdomain</span>
+                    </td>
+                    <td class="amount" th:text="${formattedPlatformFee} + ' ₫'">10.000.000 ₫</td>
+                </tr>
+                <tr>
+                    <td>
+                        <strong>2. Hạn ngạch mở rộng & Tùy chọn cao cấp (Custom Quota Add-ons)</strong><br/>
+                        <span style="font-size: 11px; color: #64748b;">Định mức bổ sung theo nhu cầu trao đổi (Jobs, CV parse, AI Hours, Storage, Enterprise Features)</span>
+                    </td>
+                    <td class="amount" th:text="${formattedAddonFee} + ' ₫'">0 ₫</td>
+                </tr>
+                <tr th:if="${discountAmount != '0'}">
+                    <td>
+                        <strong>3. Chiết khấu thương mại đối tác (Commercial Discount)</strong><br/>
+                        <span style="font-size: 11px; color: #16a34a;">Chính sách ưu đãi thanh toán năm / Hỗ trợ chuyển đổi số</span>
+                    </td>
+                    <td class="amount" style="color: #16a34a;" th:text="'- ' + ${formattedDiscount} + ' ₫'">- 0 ₫</td>
+                </tr>
+                <tr class="total-row">
+                    <td>TỔNG GIÁ TRỊ BÁO GIÁ (1 NĂM)</td>
+                    <td class="amount" style="font-size: 16px; color: #1e40af;" th:text="${formattedTotalQuote} + ' ₫'">25.000.000 ₫</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="section-title">2. ĐỊNH MỨC TÀI NGUYÊN ĐƯỢC CẤP</div>
+        <div class="quota-box">
+            <table class="quota-grid">
+                <tr>
+                    <td class="label">• Tin tuyển dụng đang mở (Active Jobs):</td>
+                    <td class="val" th:text="${maxJobs} + ' tin'">25 tin</td>
+                </tr>
+                <tr>
+                    <td class="label">• Lượt quét & phân tích CV bằng AI:</td>
+                    <td class="val" th:text="${maxCvParses} + ' CV/tháng'">2.500 CV/tháng</td>
+                </tr>
+                <tr>
+                    <td class="label">• Thời lượng Phỏng vấn AI Voice đàm thoại:</td>
+                    <td class="val" th:text="${maxAiInterviewHours} + ' giờ/tháng'">30 giờ/tháng</td>
+                </tr>
+                <tr>
+                    <td class="label">• Dung lượng lưu trữ đám mây:</td>
+                    <td class="val" th:text="${maxStorageGb} + ' GB'">25 GB</td>
+                </tr>
+                <tr>
+                    <td class="label">• Hạ tầng lưu trữ dữ liệu ứng viên:</td>
+                    <td class="val">Dedicated MySQL Database riêng</td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="terms">
+            <strong>Lưu ý & Điều khoản thương mại:</strong>
+            <ul>
+                <li>Báo giá trên có hiệu lực trong vòng <strong>15 ngày</strong> kể từ ngày phát hành (đến ngày <strong th:text="${validUntil}">30/10/2026</strong>).</li>
+                <li>Giá trên chưa bao gồm thuế GTGT (VAT 10%) đối với phần mềm theo quy định hiện hành.</li>
+                <li>Sau khi Quý Doanh nghiệp đồng ý báo giá, hệ thống sẽ tiến hành gửi Hợp đồng điện tử để ký số và kích hoạt không gian làm việc.</li>
+            </ul>
+        </div>
+
+        <div class="cta-container">
+            <p style="font-size: 13px; color: #475569; margin-bottom: 12px;">Quý khách vui lòng phản hồi email này hoặc liên hệ hotline để xác nhận tiến hành ký kết hợp đồng:</p>
+            <a href="mailto:sales@smarthire.top?subject=Xác nhận báo giá SmartHire-AI" class="btn">Phản Hồi Đồng Ý Báo Giá</a>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p><strong>CÔNG TY CỔ PHẦN CÔNG NGHỆ SMARTHIRE VIỆT NAM</strong></p>
+        <p>Tòa nhà Keangnam Landmark 72, Phạm Hùng, Nam Từ Liêm, Hà Nội</p>
+        <p>Hotline: <strong>1900 6868</strong> | Email: <strong>sales@smarthire.top</strong> | Website: <strong>smarthire.top</strong></p>
+    </div>
+</div>
+</body>
+</html>

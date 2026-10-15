@@ -93,32 +93,76 @@ public class AiInterviewClient {
         return java.util.Optional.empty();
     }
 
+    private java.util.List<DynamicAiConfigProvider.ResolvedAiConfig> getExecutionChain(String task) {
+        if (dynamicConfig == null) {
+            return java.util.List.of(new DynamicAiConfigProvider.ResolvedAiConfig(
+                    task, "GEMINI", config.getModel(), config.getApiKey(), null, null, 3072, 30, null, null));
+        }
+        var chain = dynamicConfig.resolveExecutionChain(task);
+        if (chain != null && !chain.isEmpty()) {
+            return chain;
+        }
+        var primary = dynamicConfig.resolveConfig(task);
+        if (primary == null) {
+            return java.util.List.of();
+        }
+        java.util.List<DynamicAiConfigProvider.ResolvedAiConfig> list = new java.util.ArrayList<>();
+        list.add(primary);
+        resolveFailoverTarget(primary).ifPresent(list::add);
+        return list;
+    }
+
     private JsonNode call(String task, String instruction, JsonNode data) {
-        var resolved = dynamicConfig.resolveConfig(task);
-        String apiKey = resolved.apiKey() == null || resolved.apiKey().isBlank()
-                ? config.getApiKey() : resolved.apiKey().trim();
-        if (apiKey == null || apiKey.isBlank()) throw new IllegalStateException("AI interview provider is not configured");
-        if (rateLimiterService != null) {
-            rateLimiterService.checkAndAcquire(task);
+        var chain = getExecutionChain(task);
+        if (chain.isEmpty()) {
+            throw new IllegalStateException("AI interview provider is not configured");
         }
-        var failoverOpt = resolveFailoverTarget(resolved);
-        int primaryMaxAttempts = failoverOpt.isPresent() ? 1 : 3;
-        try {
-            return executeCall(task, resolved, apiKey, instruction, data, primaryMaxAttempts);
-        } catch (BusinessException ex) {
-            throw ex;
-        } catch (RuntimeException primaryEx) {
-            if (failoverOpt.isPresent()) {
-                var failover = failoverOpt.get();
-                String failoverKey = failover.apiKey() == null || failover.apiKey().isBlank()
-                        ? apiKey
-                        : failover.apiKey().trim();
-                log.warn("Primary AI Interview model {}:{} failed for task={}, attempting failover to {}:{}",
-                        resolved.provider(), resolved.modelName(), task, failover.provider(), failover.modelName());
-                return executeCall(task, failover, failoverKey, instruction, data, 2);
+
+        RuntimeException lastException = null;
+        for (int i = 0; i < chain.size(); i++) {
+            var target = chain.get(i);
+            String apiKey = target.apiKey() == null || target.apiKey().isBlank()
+                    ? config.getApiKey() : target.apiKey().trim();
+            if (apiKey == null || apiKey.isBlank()) {
+                log.warn("Skipping AI interview target {}:{} for task={} because no API key is available",
+                        target.provider(), target.modelName(), task);
+                continue;
             }
-            throw primaryEx;
+
+            if (rateLimiterService != null) {
+                rateLimiterService.checkAndAcquire(task);
+            }
+
+            int maxAttempts = (chain.size() == 1) ? 3 : (i < chain.size() - 1 ? 1 : 2);
+
+            try {
+                return executeCall(task, target, apiKey, instruction, data, maxAttempts);
+            } catch (BusinessException ex) {
+                throw ex;
+            } catch (RuntimeException ex) {
+                lastException = ex;
+                String errorMsg = ex.getMessage() != null ? ex.getMessage() : "";
+                boolean is429 = errorMsg.contains("429") || errorMsg.contains("RESOURCE_EXHAUSTED") || errorMsg.contains("Too Many Requests");
+                if (dynamicConfig != null && is429) {
+                    dynamicConfig.markModelCooldown(target.provider(), target.modelName(), java.time.Duration.ofSeconds(60));
+                }
+
+                if (i < chain.size() - 1) {
+                    var next = chain.get(i + 1);
+                    log.warn("AI Interview model {}:{} failed for task={} ({}), cascading to next fallback {}:{}",
+                            target.provider(), target.modelName(), task, ex.getMessage(),
+                            next.provider(), next.modelName());
+                } else {
+                    log.warn("AI Interview model {}:{} failed for task={} ({}), no more models in fallback chain",
+                            target.provider(), target.modelName(), task, ex.getMessage());
+                }
+            }
         }
+
+        if (lastException != null) {
+            throw lastException;
+        }
+        throw new IllegalStateException("AI interview provider unavailable or returned invalid data");
     }
 
     private String resolveBaseUrl(String provider, String endpointUrl) {
@@ -130,6 +174,21 @@ public class AiInterviewClient {
         }
         if ("DEEPSEEK".equalsIgnoreCase(provider)) {
             return "https://api.deepseek.com";
+        }
+        if ("GROQ".equalsIgnoreCase(provider)) {
+            return "https://api.groq.com/openai/v1";
+        }
+        if ("OPENROUTER".equalsIgnoreCase(provider)) {
+            return "https://openrouter.ai/api/v1";
+        }
+        if ("MISTRAL".equalsIgnoreCase(provider)) {
+            return "https://api.mistral.ai/v1";
+        }
+        if ("PERPLEXITY".equalsIgnoreCase(provider)) {
+            return "https://api.perplexity.ai";
+        }
+        if ("XAI".equalsIgnoreCase(provider)) {
+            return "https://api.x.ai/v1";
         }
         return config.getBaseUrl().replaceAll("/+$", "").replaceAll("/models$", "/openai");
     }
@@ -146,8 +205,13 @@ public class AiInterviewClient {
                 : resolved.provider().trim().toUpperCase();
         if (!"GEMINI".equalsIgnoreCase(provider)
                 && !"OPENAI".equalsIgnoreCase(provider)
-                && !"DEEPSEEK".equalsIgnoreCase(provider)) {
-            throw new IllegalStateException("AI interview currently requires a Gemini, OpenAI, or DeepSeek provider");
+                && !"DEEPSEEK".equalsIgnoreCase(provider)
+                && !"GROQ".equalsIgnoreCase(provider)
+                && !"OPENROUTER".equalsIgnoreCase(provider)
+                && !"MISTRAL".equalsIgnoreCase(provider)
+                && !"PERPLEXITY".equalsIgnoreCase(provider)
+                && !"XAI".equalsIgnoreCase(provider)) {
+            throw new IllegalStateException("AI interview currently requires a Gemini, OpenAI, DeepSeek, Groq, or OpenRouter provider");
         }
         String effectiveModel = resolved.modelName() == null || resolved.modelName().isBlank()
                 ? config.getModel() : resolved.modelName();

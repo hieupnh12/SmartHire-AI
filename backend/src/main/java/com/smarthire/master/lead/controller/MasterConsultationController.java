@@ -3,6 +3,7 @@ package com.smarthire.master.lead.controller;
 import com.smarthire.common.api.ApiResponse;
 import com.smarthire.master.lead.dto.ConsultationResponse;
 import com.smarthire.master.lead.dto.CreateConsultationRequest;
+import com.smarthire.master.lead.dto.SendQuotationRequest;
 import com.smarthire.master.lead.dto.UpdateConsultationStatusRequest;
 import com.smarthire.master.lead.service.ConsultationRequestService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -57,5 +58,14 @@ public class MasterConsultationController {
             @Valid @RequestBody UpdateConsultationStatusRequest request) {
         ConsultationResponse response = consultationRequestService.updateStatus(id, request);
         return ResponseEntity.ok(ApiResponse.ok("Cập nhật trạng thái thành công", response));
+    }
+
+    @PostMapping("/send-quotation")
+    @PreAuthorize("hasRole('WORKSPACE_ADMIN')")
+    @Operation(summary = "Send Commercial B2B Quotation Email", description = "Sends transparent 3-component quotation email to enterprise lead.")
+    public ResponseEntity<ApiResponse<ConsultationResponse>> sendQuotation(
+            @Valid @RequestBody SendQuotationRequest request) {
+        ConsultationResponse response = consultationRequestService.sendQuotation(request);
+        return ResponseEntity.ok(ApiResponse.ok("Báo giá thương mại đã được gửi thành công qua email", response));
     }
 }

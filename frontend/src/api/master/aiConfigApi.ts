@@ -13,6 +13,13 @@ export interface AiProviderKey {
   createdAt?: string;
 }
 
+export interface AiFallbackStep {
+  provider: string;
+  model: string;
+  timeoutSeconds?: number;
+  temperature?: number;
+}
+
 export interface AiModelConfig {
   id?: number;
   taskType: "CV_PARSING" | "INTERVIEW_GEN" | "INTERVIEW_NLP" | "CODE_GRADING" | "MATCHING" | string;
@@ -24,6 +31,7 @@ export interface AiModelConfig {
   timeoutSeconds: number;
   failoverProvider?: string;
   failoverModel?: string;
+  fallbackSteps?: AiFallbackStep[];
   isActive: boolean;
 }
 
@@ -136,8 +144,11 @@ export interface AiModelPricing {
   id?: number;
   provider: string;
   modelName: string;
+  displayName?: string;
   inputPricePer1mTokens: number;
   outputPricePer1mTokens: number;
+  contextWindow?: number;
+  supportsJson?: boolean;
   isActive: boolean;
   updatedAt?: string;
 }

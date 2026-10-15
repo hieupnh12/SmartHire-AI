@@ -15,5 +15,7 @@ public interface ConsultationRequestRepository extends JpaRepository<Consultatio
 
     List<ConsultationRequest> findByRequestTypeOrderByCreatedAtDesc(String requestType);
 
+    java.util.Optional<ConsultationRequest> findFirstByWorkEmailOrderByCreatedAtDesc(String workEmail);
+
     long countByStatus(String status);
 }

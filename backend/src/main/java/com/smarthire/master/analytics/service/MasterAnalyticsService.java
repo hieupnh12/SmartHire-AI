@@ -363,9 +363,9 @@ public class MasterAnalyticsService {
         String systemHealth = "HEALTHY";
         if (aiProviderKeyRepository != null) {
             List<AiProviderKey> keys = aiProviderKeyRepository.findAll();
-            boolean hasRateLimited = keys.stream()
-                    .anyMatch(k -> k.getStatus() != null && k.getStatus().toUpperCase().contains("RATE_LIMITED"));
-            if (hasRateLimited) {
+            boolean hasDegraded = keys.stream()
+                    .anyMatch(k -> k.getStatus() != null && (k.getStatus().toUpperCase().contains("INVALID") || k.getStatus().toUpperCase().contains("RATE_LIMITED")));
+            if (hasDegraded) {
                 systemHealth = "DEGRADED";
             }
         }

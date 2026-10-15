@@ -31,6 +31,7 @@ import { CreateContractPage } from "@/features/master/contract/pages/CreateContr
 import { CreateSubscriptionPlanPage } from "@/features/master/billing/pages/CreateSubscriptionPlanPage";
 import { InvoicesPage } from "@/features/master/billing/pages/InvoicesPage";
 import { CheckoutPage } from "@/features/master/billing/pages/CheckoutPage";
+import { LegalDocumentsPage } from "@/features/master/landing/pages/LegalDocumentsPage";
 import { CheckoutSuccessPage } from "@/features/master/billing/pages/CheckoutSuccessPage";
 import { VnPayReturnPage } from "@/features/master/billing/pages/VnPayReturnPage";
 import { BillingPage } from "@/features/master/billing/pages/BillingPage";
@@ -134,6 +135,8 @@ export function AppRouter() {
       <Route path="/checkout/:planCode" element={<CheckoutPage />} />
       <Route path="/checkout/success" element={<CheckoutSuccessPage />} />
       <Route path="/checkout/vnpay-return" element={<VnPayReturnPage />} />
+      <Route path="/terms" element={<LegalDocumentsPage />} />
+      <Route path="/privacy" element={<LegalDocumentsPage />} />
 
       <Route path="/contracts/sign/:token" element={<PublicContractSigningPage />} />
       <Route path="/contracts/view/:token" element={<PublicContractSigningPage />} />
@@ -284,6 +287,7 @@ export function AppRouter() {
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<DashboardPage />} />
           <Route path="tenants/create" element={<B2bDealWizardPage />} />
+          <Route path="deals" element={<B2bDealWizardPage />} />
           <Route path="analytics" element={<MasterAnalyticsPage />} />
           <Route path="leads" element={<LeadsPage />} />
           <Route path="tenants" element={<Navigate to="/admin/tenants/directory" replace />} />

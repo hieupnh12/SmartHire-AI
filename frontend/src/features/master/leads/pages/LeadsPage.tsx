@@ -1,6 +1,6 @@
 import { useState, useMemo, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Search, Filter, Inbox, Building2, FileSignature, UserPlus } from "lucide-react";
+import { Plus, Search, Filter, Inbox, Building2, FileSignature, Calculator } from "lucide-react";
 import { consultationApi, ConsultationResponse } from "@/api/master/consultationApi";
 import { useLeads, masterQueryKeys } from "@/api/master/queries";
 import { useQueryClient } from "@tanstack/react-query";
@@ -53,6 +53,7 @@ export function LeadsPage() {
       name: lead.companyName,
       email: lead.workEmail,
       adminName: lead.contactName,
+      phone: lead.phoneNumber || "",
     }).toString();
     navigate(`/admin/tenants/create?${query}`);
   };
@@ -146,6 +147,7 @@ export function LeadsPage() {
             <option value="ALL">Tất cả trạng thái ({leads.length})</option>
             <option value="PENDING">Chờ xử lý ({leads.filter((l) => l.status === "PENDING").length})</option>
             <option value="CONTACTED">Đang trao đổi / Demo ({leads.filter((l) => l.status === "CONTACTED").length})</option>
+            <option value="QUOTED">Đã gửi Báo giá ({leads.filter((l) => l.status === "QUOTED").length})</option>
             <option value="PROVISIONED">Đã cấp Workspace ({leads.filter((l) => l.status === "PROVISIONED").length})</option>
             <option value="REJECTED">Từ chối / Hủy ({leads.filter((l) => l.status === "REJECTED").length})</option>
           </select>
@@ -241,6 +243,8 @@ export function LeadsPage() {
                             ? "bg-amber-50 text-amber-700 border border-amber-200"
                             : lead.status === "CONTACTED"
                             ? "bg-blue-50 text-blue-700 border border-blue-200"
+                            : lead.status === "QUOTED"
+                            ? "bg-purple-50 text-purple-700 border border-purple-200"
                             : lead.status === "PROVISIONED"
                             ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
                             : "bg-rose-50 text-rose-700 border border-rose-200"
@@ -248,6 +252,7 @@ export function LeadsPage() {
                       >
                         {lead.status === "PENDING" && "Chờ liên hệ"}
                         {lead.status === "CONTACTED" && "Đang trao đổi"}
+                        {lead.status === "QUOTED" && "Đã gửi Báo giá"}
                         {lead.status === "PROVISIONED" && "Đã cấp Tenant"}
                         {lead.status === "REJECTED" && "Từ chối"}
                       </span>
@@ -276,10 +281,10 @@ export function LeadsPage() {
                           <button
                             onClick={() => handleProvisionFromLead(lead)}
                             className="px-2.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-semibold transition-colors flex items-center gap-1 shadow-2xs"
-                            title="Tự động điền thông tin và chuyển tới trang cấp phát Database riêng"
+                            title="Mở B2B Deal Wizard: Lên báo giá 3 cấu phần hoặc cấp Workspace"
                           >
-                            <UserPlus className="w-3.5 h-3.5" />
-                            <span>Cấp Workspace</span>
+                            <Calculator className="w-3.5 h-3.5" />
+                            <span>{lead.status === "QUOTED" ? "Chốt HĐ / Cấp WS" : "Báo giá / Deal"}</span>
                           </button>
                         )}
                       </div>
