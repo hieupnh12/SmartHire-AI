@@ -1,0 +1,7 @@
+model_list:
+  - model_name: vanilj/llama-3-8b-instruct-32k-v0.1:Q4_K_M
+    litellm_params:
+      model: ollama/vanilj/llama-3-8b-instruct-32k-v0.1:Q4_K_M
+      api_base: http://localhost:11434
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY

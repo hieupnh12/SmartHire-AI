@@ -33,7 +33,7 @@ export function AiInterviewReportView({ reportJson, questions }: { reportJson: s
       <p className="whitespace-pre-wrap">{report.summary}</p>
       <p><strong>Điểm mạnh:</strong> {report.strengths}</p><p><strong>Cần cải thiện:</strong> {report.weaknesses}</p>
       <dl className="grid gap-3 sm:grid-cols-2">{Object.entries(report.communicationCriteria ?? {}).map(([criterion, score]) => <div key={criterion} className="rounded-xl bg-[var(--color-surface-container-low)] p-3">
-        <dt className="font-medium">{{ TECHNICAL_KNOWLEDGE: "Kiến thức chuyên môn", PROBLEM_SOLVING: "Giải quyết vấn đề", REASONING: "Lập luận", COMMUNICATION: "Kỹ năng giao tiếp" }[criterion] ?? criterion}</dt><dd className="font-semibold">{score}/100</dd>
+        <dt className="font-medium">{{ TECHNICAL_KNOWLEDGE: "Kiến thức chuyên môn", PROBLEM_SOLVING: "Giải quyết vấn đề", REASONING: "Lập luận", COMMUNICATION: "Kỹ năng giao tiếp" }[criterion] ?? criterion}{report.criterionWeights?.[criterion] != null ? ` (${report.criterionWeights[criterion]}%)` : ""}</dt><dd className="font-semibold">{score}/100</dd>
         {(report.criteriaEvidence?.[criterion] ?? []).map((evidence, index) => <dd key={index} className="mt-2 whitespace-pre-wrap text-xs text-[var(--color-on-surface-variant)]">Tin #{evidence.messageId}: “{evidence.quote}”</dd>)}
       </div>)}</dl>
     </div>}

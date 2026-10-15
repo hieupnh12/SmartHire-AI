@@ -255,11 +255,11 @@ export function AssessmentsPage() {
             Ngân hàng câu hỏi
           </Link>
           <Link
-            to={`${basePath}/new`}
+            to={`${basePath}/preview`}
             className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-[var(--radius-md)] bg-[var(--color-primary)] px-4 text-sm font-semibold text-[var(--color-on-primary)] shadow-sm transition-colors hover:bg-[var(--color-primary-hover)]"
           >
-            <Plus className="size-4" aria-hidden="true" />
-            Tạo bài đánh giá
+            <Eye className="size-4" aria-hidden="true" />
+            Xem mẫu bài thi
           </Link>
         </div>
       </header>

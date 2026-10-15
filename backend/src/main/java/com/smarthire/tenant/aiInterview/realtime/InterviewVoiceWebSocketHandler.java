@@ -1,6 +1,7 @@
 package com.smarthire.tenant.aiInterview.realtime;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.smarthire.common.exception.BusinessException;
 import com.smarthire.messaging.TenantJobExecutor;
 import com.smarthire.tenant.aiInterview.service.InterviewConversationService;
 import java.io.ByteArrayOutputStream;
@@ -18,6 +19,7 @@ import org.springframework.web.socket.handler.AbstractWebSocketHandler;
 
 @Component
 public class InterviewVoiceWebSocketHandler extends AbstractWebSocketHandler {
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(InterviewVoiceWebSocketHandler.class);
     private static final int MAX_AUDIO = 9 * 1024 * 1024;
     private final Map<String, Buffer> buffers = new ConcurrentHashMap<>();
     private final InterviewConversationService conversation;
@@ -64,7 +66,10 @@ public class InterviewVoiceWebSocketHandler extends AbstractWebSocketHandler {
                         String transcript = conversation.transcribe(identity.interviewId(), audio, mime);
                         send(socket, Map.of("type", "transcript", "text", transcript));
                     });
-                } catch (Exception ex) { send(socket, Map.of("type", "error", "message", "Speech transcription failed. Retry or type your answer."));
+                } catch (Exception ex) {
+                    log.warn("Interview STT failed: interviewId={}, exception={}, code={}", identity.interviewId(),
+                            ex.getClass().getSimpleName(), ex instanceof BusinessException business ? business.getCode() : "AI_INTERVIEW_STT_FAILED");
+                    send(socket, Map.of("type", "error", "message", transcriptionError(ex)));
                 } finally {
                     SecurityContextHolder.clearContext();
                     synchronized (buffer) { buffer.processing = false; }
@@ -74,6 +79,18 @@ public class InterviewVoiceWebSocketHandler extends AbstractWebSocketHandler {
                 send(socket, Map.of("type", "error", "message", "Voice service is busy. Retry shortly."));
             }
         }
+    }
+    private static String transcriptionError(Exception ex) {
+        if (ex instanceof BusinessException business) {
+            return switch (business.getCode()) {
+                case "AI_INTERVIEW_PROVIDER_AUTH_FAILED" -> "Dịch vụ chuyển giọng nói chưa có API key hợp lệ. Vui lòng báo người quản trị hoặc nhập câu trả lời.";
+                case "AI_INTERVIEW_PROVIDER_RATE_LIMITED" -> "Dịch vụ chuyển giọng nói đang hết hạn mức. Vui lòng thử lại sau hoặc nhập câu trả lời.";
+                case "AI_INTERVIEW_PROVIDER_TIMEOUT" -> "Chuyển giọng nói quá thời gian chờ. Vui lòng thử lại hoặc nhập câu trả lời.";
+                case "AI_INTERVIEW_PROVIDER_MODEL_NOT_FOUND", "AI_INTERVIEW_SPEECH_UNAVAILABLE" -> "Dịch vụ chuyển giọng nói chưa được cấu hình đúng. Vui lòng báo người quản trị hoặc nhập câu trả lời.";
+                default -> "Không thể chuyển giọng nói thành văn bản. Vui lòng thử lại hoặc nhập câu trả lời.";
+            };
+        }
+        return "Không thể chuyển giọng nói thành văn bản. Vui lòng thử lại hoặc nhập câu trả lời.";
     }
     @Override protected void handleBinaryMessage(WebSocketSession socket, BinaryMessage message) throws Exception {
         var buffer = buffers.get(socket.getId()); if (buffer == null) return;

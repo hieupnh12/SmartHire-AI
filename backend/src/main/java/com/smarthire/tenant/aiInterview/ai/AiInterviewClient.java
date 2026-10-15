@@ -27,16 +27,15 @@ public class AiInterviewClient {
     public static class ProviderException extends IllegalStateException {
         public ProviderException(String message) { super(message); }
     }
-    private final AiInterviewAiConfig config;
     private final DynamicAiConfigProvider dynamicConfig;
     private final RestClient.Builder http;
     private final ObjectMapper mapper;
     private AiUsageMeteringService meteringService;
     private AiRateLimiterService rateLimiterService;
 
-    public AiInterviewClient(AiInterviewAiConfig config, DynamicAiConfigProvider dynamicConfig,
+    public AiInterviewClient(DynamicAiConfigProvider dynamicConfig,
             @Qualifier("aiInterviewRestClientBuilder") RestClient.Builder http, ObjectMapper mapper) {
-        this.config = config; this.dynamicConfig = dynamicConfig; this.http = http; this.mapper = mapper;
+        this.dynamicConfig = dynamicConfig; this.http = http; this.mapper = mapper;
     }
 
     @Autowired(required = false)
@@ -57,6 +56,10 @@ public class AiInterviewClient {
         return call("INTERVIEW_NLP", instruction, data);
     }
 
+    public JsonNode gradeAssessment(String instruction, JsonNode data) {
+        return call("CODE_GRADING", instruction, data);
+    }
+
     private java.util.Optional<DynamicAiConfigProvider.ResolvedAiConfig> resolveFailoverTarget(
             DynamicAiConfigProvider.ResolvedAiConfig primary) {
         if (primary == null || !primary.hasFailover()) {
@@ -71,9 +74,7 @@ public class AiInterviewClient {
         String targetProvider = (primary.failoverProvider() == null || primary.failoverProvider().isBlank())
                 ? primary.provider()
                 : primary.failoverProvider().trim().toUpperCase();
-        String apiKey = (primary.apiKey() == null || primary.apiKey().isBlank())
-                ? config.getApiKey()
-                : primary.apiKey().trim();
+        String apiKey = InterviewChatEndpoint.apiKey(primary.provider(), primary.apiKey());
         if (targetProvider != null
                 && targetProvider.equalsIgnoreCase(primary.provider())
                 && apiKey != null
@@ -93,45 +94,71 @@ public class AiInterviewClient {
         return java.util.Optional.empty();
     }
 
-    private JsonNode call(String task, String instruction, JsonNode data) {
-        var resolved = dynamicConfig.resolveConfig(task);
-        String apiKey = resolved.apiKey() == null || resolved.apiKey().isBlank()
-                ? config.getApiKey() : resolved.apiKey().trim();
-        if (apiKey == null || apiKey.isBlank()) throw new IllegalStateException("AI interview provider is not configured");
-        if (rateLimiterService != null) {
-            rateLimiterService.checkAndAcquire(task);
+    private java.util.List<DynamicAiConfigProvider.ResolvedAiConfig> getExecutionChain(String task) {
+        var chain = dynamicConfig.resolveExecutionChain(task);
+        if (chain != null && !chain.isEmpty()) {
+            return chain;
         }
-        var failoverOpt = resolveFailoverTarget(resolved);
-        int primaryMaxAttempts = failoverOpt.isPresent() ? 1 : 3;
-        try {
-            return executeCall(task, resolved, apiKey, instruction, data, primaryMaxAttempts);
-        } catch (BusinessException ex) {
-            throw ex;
-        } catch (RuntimeException primaryEx) {
-            if (failoverOpt.isPresent()) {
-                var failover = failoverOpt.get();
-                String failoverKey = failover.apiKey() == null || failover.apiKey().isBlank()
-                        ? apiKey
-                        : failover.apiKey().trim();
-                log.warn("Primary AI Interview model {}:{} failed for task={}, attempting failover to {}:{}",
-                        resolved.provider(), resolved.modelName(), task, failover.provider(), failover.modelName());
-                return executeCall(task, failover, failoverKey, instruction, data, 2);
-            }
-            throw primaryEx;
+        var primary = dynamicConfig.resolveConfig(task);
+        if (primary == null) {
+            return java.util.List.of();
         }
+        java.util.List<DynamicAiConfigProvider.ResolvedAiConfig> list = new java.util.ArrayList<>();
+        list.add(primary);
+        resolveFailoverTarget(primary).ifPresent(list::add);
+        return list;
     }
 
-    private String resolveBaseUrl(String provider, String endpointUrl) {
-        if (endpointUrl != null && !endpointUrl.isBlank()) {
-            return endpointUrl.trim().replaceAll("/+$", "").replaceAll("/models$", "/openai").replaceAll("/chat/completions$", "");
+    private JsonNode call(String task, String instruction, JsonNode data) {
+        var chain = getExecutionChain(task);
+        if (chain.isEmpty()) {
+            throw new IllegalStateException("AI interview provider is not configured");
         }
-        if ("OPENAI".equalsIgnoreCase(provider)) {
-            return "https://api.openai.com/v1";
+
+        RuntimeException lastException = null;
+        for (int i = 0; i < chain.size(); i++) {
+            var target = chain.get(i);
+            String apiKey = InterviewChatEndpoint.apiKey(target.provider(), target.apiKey());
+            if (apiKey.isBlank() || target.provider() == null || target.modelName() == null || target.modelName().isBlank()) {
+                log.warn("Skipping AI interview target {}:{} for task={} because no API key is available",
+                        target.provider(), target.modelName(), task);
+                continue;
+            }
+
+            if (rateLimiterService != null) {
+                rateLimiterService.checkAndAcquire(task);
+            }
+
+            int maxAttempts = (chain.size() == 1) ? 3 : (i < chain.size() - 1 ? 1 : 2);
+
+            try {
+                return executeCall(task, target, apiKey, instruction, data, maxAttempts);
+            } catch (BusinessException ex) {
+                throw ex;
+            } catch (RuntimeException ex) {
+                lastException = ex;
+                String errorMsg = ex.getMessage() != null ? ex.getMessage() : "";
+                boolean is429 = errorMsg.contains("429") || errorMsg.contains("RESOURCE_EXHAUSTED") || errorMsg.contains("Too Many Requests");
+                if (dynamicConfig != null && is429) {
+                    dynamicConfig.markModelCooldown(target.provider(), target.modelName(), java.time.Duration.ofSeconds(60));
+                }
+
+                if (i < chain.size() - 1) {
+                    var next = chain.get(i + 1);
+                    log.warn("AI Interview model {}:{} failed for task={} ({}), cascading to next fallback {}:{}",
+                            target.provider(), target.modelName(), task, ex.getMessage(),
+                            next.provider(), next.modelName());
+                } else {
+                    log.warn("AI Interview model {}:{} failed for task={} ({}), no more models in fallback chain",
+                            target.provider(), target.modelName(), task, ex.getMessage());
+                }
+            }
         }
-        if ("DEEPSEEK".equalsIgnoreCase(provider)) {
-            return "https://api.deepseek.com";
+
+        if (lastException != null) {
+            throw lastException;
         }
-        return config.getBaseUrl().replaceAll("/+$", "").replaceAll("/models$", "/openai");
+        throw new IllegalStateException("AI task " + task + " is not configured (provider, model and API key in Admin > AI Config)");
     }
 
     private JsonNode executeCall(
@@ -144,19 +171,13 @@ public class AiInterviewClient {
         String provider = resolved.provider() == null || resolved.provider().isBlank()
                 ? "GEMINI"
                 : resolved.provider().trim().toUpperCase();
-        if (!"GEMINI".equalsIgnoreCase(provider)
-                && !"OPENAI".equalsIgnoreCase(provider)
-                && !"DEEPSEEK".equalsIgnoreCase(provider)) {
-            throw new IllegalStateException("AI interview currently requires a Gemini, OpenAI, or DeepSeek provider");
-        }
-        String effectiveModel = resolved.modelName() == null || resolved.modelName().isBlank()
-                ? config.getModel() : resolved.modelName();
+        String baseUrl = InterviewChatEndpoint.baseUrl(provider, resolved.endpointUrl());
+        String effectiveModel = resolved.modelName();
         long startNs = System.nanoTime();
         boolean success = false;
         long promptTokens = 0L;
         long completionTokens = 0L;
         try {
-            String baseUrl = resolveBaseUrl(provider, resolved.endpointUrl());
             var api = OpenAiApi.builder().baseUrl(baseUrl).completionsPath("/chat/completions")
                     .apiKey(apiKey).restClientBuilder(http.clone())
                     .responseErrorHandler(new DefaultResponseErrorHandler()).build();

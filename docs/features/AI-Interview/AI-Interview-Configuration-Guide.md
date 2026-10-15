@@ -1,12 +1,103 @@
 # Hướng dẫn sử dụng và cấu hình AI Interview
 
+## Tổng số câu hỏi và thời lượng (2026-10-15, quy tắc hiện hành)
+
+**Trạng thái: `Done` cho triển khai; cần triển khai backend/frontend để áp dụng cho phiên mới.** Mục này thay thế các mô tả cũ về câu chính, chủ đề và nhân thêm số câu hỏi bồi bên dưới.
+
+- Thay ô **Số câu hỏi** bằng **Chủ đề**: chọn “Yêu cầu công việc” hoặc một kỹ năng thuộc Job. AI hỏi đúng 1 câu mở đầu theo chủ đề; các câu sau dựa vào câu trả lời trước để hỏi thêm trong cùng chủ đề. Chọn chủ đề không nhân số câu.
+- **Tổng số câu tối đa = 1 + Max Follow-up** khi bật hỏi thêm; tắt hỏi thêm thì chỉ có 1 câu. Backend tự tính, không dùng số câu tùy ý do client gửi.
+- **Follow-up mặc định bật**, kể cả khi cấu hình cũ từng lưu `false` nhưng chưa có xác nhận lựa chọn mới. Khi lưu, `config.followUpSettingVersion=1` ghi nhận lựa chọn rõ ràng: nếu recruiter chủ động tắt và lưu thì giữ tắt ở lần mở sau. Việc chuẩn hóa cấu hình Job không viết lại snapshot lời mời đã tồn tại.
+- Tổng thời lượng = **tổng số câu × 5 phút**: 1 câu mở đầu + 2 follow-up = 3 câu, 15 phút; +10 follow-up = 11 câu, 55 phút. Hạn hoàn thành vẫn giới hạn đồng hồ phiên.
+- Mọi câu trả lời, kể cả câu tiếp nối, được đưa vào transcript để chấm điểm tổng AI Interview theo trọng số tiêu chí. Chấm toàn hội thoại; không cộng hoặc lấy trung bình các điểm từng câu chưa tồn tại.
+- API tiếp tục dùng cấu hình hiện có, bổ sung `policy.processes[COMMUNICATION].config.topic` (`JOB_REQUIREMENTS` hoặc tên kỹ năng Job). `questionCount` được tính từ 1 + số follow-up đang bật. Snapshot mới có `questionBudgetVersion=3`; giới hạn lượt trả lời và `maxQuestionCount` bằng tổng số câu này. Snapshot v2/không có dấu phiên bản giữ điều kiện cũ để không đổi lời mời đã tạo. Không thay đổi schema DB.
+- Thẻ lời mời, thời lượng email/thông báo và chi tiết recruiter đọc cùng snapshot. Lượt cuối chỉ kết thúc hội thoại; API chặn gửi thêm câu trả lời sau khi dùng hết ngân sách.
+
+Kiểm chứng: kiểm thử tổng câu bật/tắt follow-up, chặn lượt vượt tổng, thời lượng phiên và transcript chấm điểm chứa cả câu trả lời tiếp nối; kiểm tra tương thích snapshot cũ.
+
+## Ngôn ngữ hội thoại và điều khiển đọc ở candidate (2026-10-15)
+
+- Phòng hội thoại candidate không hiển thị checkbox “Tự đọc lời chào và câu hỏi” hoặc nút “Dừng đọc”. Tự đọc vẫn hoạt động khi bật voice; dừng phát khi candidate bật micro, gửi câu trả lời hoặc rời phòng.
+- Lời chào, câu hỏi, hỏi tiếp và lời kết dùng ngôn ngữ trong snapshot `COMMUNICATION.config.language`. Prompt nhấn mạnh tiếng Việt khi cấu hình Vietnamese, tiếng Anh khi cấu hình English và tiếng Nhật khi cấu hình Japanese, độc lập ngôn ngữ JD hoặc câu trả lời. Request đọc thành tiếng nhận cùng ngôn ngữ, yêu cầu đọc nguyên văn, không dịch.
+- Không sửa nội dung hội thoại đã lưu hoặc ghi đè snapshot phiên cũ. Thay đổi prompt áp dụng cho lượt sinh tiếp theo sau khi triển khai backend; cần kiểm chứng lại bằng provider thật. Trạng thái: `Doing`.
+
+## Bảo toàn thời gian snapshot (2026-10-15)
+
+Snapshot giữ chính xác phần nano giây của thời gian mở/đóng khi chuyển qua JSON; không làm tròn qua số thực dấu phẩy động. Kiểm thử dùng mốc thời gian cố định để phát hiện sai lệch. Test thời lượng Communication đồng bộ quy tắc 2 câu chính × 5 phút = 10 phút. Trạng thái: `Done`.
+
+## Số câu hiển thị trên lời mời (2026-10-15)
+
+Thẻ AI Interview hiển thị tổng câu hỏi tối đa, gồm câu chính và hỏi bồi: `maxQuestionCount = questionCount × (1 + maxFollowUp)` khi bật hỏi bồi; khi tắt chỉ tính câu chính. Ví dụ 1 câu chính + tối đa 2 hỏi bồi → “Tối đa 3 câu (2 hỏi bồi)”. API bổ sung `maxQuestionCount`, giữ `questionCount` là số câu chính. Tổng thời lượng vẫn tính theo câu chính × 5 phút. Dữ liệu lấy từ snapshot phiên, không lấy giới hạn hỏi bồi đang chọn nhưng đã tắt, hoặc cấu hình Job thay đổi sau đó. Trạng thái: `Done` cho logic và kiểm thử.
+
+## Mở và đóng phiên theo lời mời hoặc ngày giờ (2026-10-15)
+
+Trong **Cấu hình chung**, Recruiter chọn **Cách đặt thời gian**:
+
+- **Theo số giờ từ lời mời**: mở sau X giờ tính từ thời điểm hệ thống tạo lời mời; X = 0 cho phép bắt đầu ngay. Hạn hoàn thành là N giờ tính từ lúc mở, N ≥ 1. Ví dụ X = 6, N = 48 → mở ở mốc +6 giờ và đóng ở mốc +54 giờ. Mặc định mới X = 0, N = 24; mỗi giá trị tối đa 8760 giờ.
+- **Theo ngày giờ cụ thể**: chọn cả giờ mở và hạn hoàn thành, hạn phải sau giờ mở. Cấu hình cũ có ngày giờ được giữ ở chế độ này; snapshot phiên cũ không bị viết lại.
+
+API cấu hình hiện có bổ sung `policy.availability = {mode: "RELATIVE"|"ABSOLUTE", startDelayHours, completionWindowHours}`. Với RELATIVE, `availableFrom`/`availableUntil` trong cấu hình Job là null, thời gian tuyệt đối được chốt vào snapshot ngay khi tạo lời mời. Thời điểm nhận lời mời ở đây là lúc tạo lời mời trong hệ thống, không phải lúc ứng viên mở email. Thẻ ứng viên, thông báo và email dùng cùng mốc snapshot; trước giờ mở thẻ hiển thị “Chưa đến giờ bắt đầu”, tự đổi khi đến giờ; backend tiếp tục chặn bắt đầu sớm hoặc quá hạn. Lượt làm lại giữ nguyên cửa sổ lời mời ban đầu, không gia hạn theo thời điểm retry.
+
+FE dùng Zod, BE kiểm tra mode/offset và thứ tự ngày giờ trước khi lưu. Dữ liệu dùng JSON policy/snapshot và các cột ngày giờ hiện có, không thêm bảng/cột/enum JPA hoặc migration. Lịch mở/đóng độc lập với thời lượng làm bài = số câu chính × 5 phút; đồng hồ phiên được giới hạn bởi hạn hoàn thành. Trạng thái: `Done` cho code và kiểm thử; cần triển khai để áp dụng cho lời mời mới.
+
+## Giao diện cấu hình chung (2026-10-15)
+
+Không hiển thị ô tổng thời gian và số câu hỏi Communication. Số câu lấy từ Cấu hình bài tập; hệ thống vẫn tự tính thời lượng. Trạng thái: `Done`.
+
+## Tự tính thời lượng và giới hạn hỏi bồi (2026-10-15)
+
+- Tổng thời gian = số câu hỏi chính Communication trong **Cấu hình bài tập × 5 phút**. Ví dụ 3 câu → 15 phút, 10 câu → 50 phút. **Cấu hình chung** không hiển thị ô tổng thời gian hoặc dòng giải thích thời lượng. Backend vẫn tính lại khi đọc/lưu cấu hình Job và tạo snapshot phiên mới, không tin thời lượng tùy ý do client gửi.
+- Khi bật hỏi bồi, **Max Follow-up** chọn 2–10 câu tối đa cho mỗi câu chính, mặc định 2; có thể tắt hỏi bồi. FE dùng Zod và BE kiểm tra giới hạn. Cấu hình Job cũ 0/1 được đưa về 2 khi chuẩn hóa; snapshot phiên đã tạo giữ nguyên.
+- Câu chính và toàn bộ câu hỏi bồi của nó dùng chung ngân sách **5 phút trả lời ước tính**, không phải mỗi câu bồi được thêm 5 phút. AI nhận chỉ dẫn chọn nhiệm vụ hẹp, tránh bài code dài/thiết kế hệ thống rộng/nhiều đầu việc; càng nhiều hỏi bồi thì câu trả lời kỳ vọng phải càng ngắn.
+- Mỗi lượt sinh nhận vị trí câu chính hoặc hỏi bồi tương ứng, số câu chính, trần hỏi bồi và thời lượng snapshot. Hết nhóm hỏi bồi chuyển sang câu chính/chủ đề kế tiếp. Trần lượt = số câu chính × (1 + max follow-up khi bật), tối đa 110 với 10 câu chính × 10 câu bồi. Giới hạn cũ 40 lượt/3 câu bồi được thay thế cho phiên mới.
+- Đồng hồ hết hạn toàn phiên vẫn do backend kiểm tra và bị giới hạn bởi hạn hoàn thành. 5 phút/câu là ngân sách thiết kế nội dung trong prompt, không khóa trả lời từng câu tại phút thứ 5; model không thể bảo đảm tốc độ trả lời thực tế của mọi ứng viên.
+
+API không thêm endpoint/cột/bảng: tiếp tục dùng `policy.durationMinutes`, `policy.processes[COMMUNICATION].config.questionCount`, `followUpEnabled`, `maxFollowUp` và snapshot hiện có. Trạng thái: `Done` cho logic và kiểm thử; cần triển khai để áp dụng, kiểm chứng nội dung sinh với provider thật.
+
+## Cấu hình tiêu chí và trọng tâm theo Job (2026-10-15)
+
+Recruiter mở **AI Interview → Cấu hình chung → Tiêu chí hỏi và đánh giá hội thoại** để thiết lập:
+
+- Kiến thức chuyên môn, Giải quyết vấn đề, Lập luận, Giao tiếp: trọng số nguyên 0–100%, tổng bắt buộc 100%. Mặc định mỗi tiêu chí 25%; 0% không đóng góp điểm tổng.
+- Trọng tâm phỏng vấn theo job: tối đa 2.000 ký tự, ví dụ “REST API, xử lý lỗi và lựa chọn database”. AI dùng cùng JD, trách nhiệm và Job Skills đã chọn; nội dung này là dữ liệu chủ đề, không được thay thế chỉ dẫn hệ thống.
+
+Thiết lập dùng chung cho sinh câu hỏi và đánh giá toàn phiên. Mỗi câu hỏi cần gắn yêu cầu công việc, có mục tiêu bằng chứng theo tiêu chí; mục tiêu luân phiên các tiêu chí chuyên môn/giải quyết vấn đề/lập luận có trọng số dương. Giao tiếp được quan sát xuyên suốt; khi chỉ Giao tiếp có trọng số thì mục tiêu là Giao tiếp. AI được chỉ dẫn ưu tiên bằng chứng còn thiếu và tiêu chí trọng số cao trong ngân sách lượt, giữ câu hỏi ngắn và độ khó tăng dần. Đây là định hướng cho model, không bảo đảm model luôn tuân thủ hoàn toàn.
+
+API cấu hình hiện có giữ nguyên endpoint; `policy.processes[key=COMMUNICATION].config` bổ sung `technicalKnowledgeWeight`, `problemSolvingWeight`, `reasoningWeight`, `communicationWeight` (integer), `assessmentFocus` (string). Frontend dùng Zod; backend kiểm tra trước khi lưu. Không thêm bảng/cột: dùng JSON cấu hình hiện có và snapshot phiên. Cấu hình chỉ áp dụng cho phiên mới; snapshot cũ thiếu trường dùng mặc định 25%/tiêu chí và trọng tâm rỗng. Báo cáo bổ sung `criterionWeights` và hiển thị trọng số cạnh điểm từng tiêu chí.
+
+Trạng thái: `Done` — đã kiểm thử validation, lưu/đọc lại, dữ liệu prompt và phép tính trọng số; cần triển khai và kiểm chứng chất lượng câu hỏi với provider thật.
+
+## Kiểm tra kết nối proxy OpenAI tùy chỉnh (2026-10-15)
+
+Nút kiểm tra API Key không truyền `modelName`: với endpoint OpenAI tùy chỉnh, backend gọi `GET /models` cùng Bearer key rồi dùng model đầu tiên có ID hợp lệ để gửi câu `ping`. Không mặc định gửi `o3-mini` tới proxy LiteLLM/Ollama. Nếu danh sách rỗng, báo lỗi yêu cầu chỉ định model và không gửi chat. Khi request truyền model cụ thể, dùng đúng model đó. Kết quả trả `modelVersion` cho biết model đã kiểm tra; thao tác này không đổi model routing của các task. Trạng thái: `Done` (kiểm thử HTTP mô phỏng; cần triển khai backend để áp dụng cho server).
+
+## Vào phòng trước, tạo lời chào bất đồng bộ (2026-10-15)
+
+- Sau khi kiểm tra thiết bị và xác nhận bắt đầu, ứng viên vào phòng chờ ngay. Micro/chia sẻ tab được giữ trong lúc AI chuẩn bị; chỉ hiển thị chat khi lời chào đã được lưu.
+- API `POST /api/v1/ai-interviews/{id}/start` với phiên hội thoại trả nhanh `IN_PROGRESS`, `startedAt=null`, `expiresAt=null`. Worker RabbitMQ hiện có tạo lời chào; chỉ sau khi thành công mới lưu session/message và bắt đầu đồng hồ. API không còn gọi model trực tiếp trong request bắt đầu.
+- Dispatcher lấy cả phiên hội thoại `IN_PROGRESS` chưa có `startedAt` để gửi queue tạo câu hỏi, kèm tenant context như trước. Khóa phiên bảo đảm không tạo trùng lời chào; tiến trình gián đoạn có thể tiếp tục từ trạng thái DB.
+- Giao diện kiểm tra trạng thái mỗi 2 giây khi mở phòng. Lỗi provider chuyển phiên sang `ERROR`, ghi `OPENING_FAILED`; phòng chờ cho thử lại cùng phiên, không tăng lượt làm và không buộc kiểm tra/chia sẻ thiết bị lại. Nộp bài khi lời chào chưa sẵn sàng trả `AI_CONVERSATION_PREPARING` (409).
+- Khi ứng viên chủ động quay lại kiểm tra thiết bị hoặc rời phòng, hệ thống dừng thiết bị đang giữ. Kiểm tra giám sát của phiên thi vẫn áp dụng khi chat bắt đầu.
+
+## Provider tương thích OpenAI / Llama (2026-10-15)
+
+- Trạng thái transport/chấm/âm thanh backend: `Done` — 58 kiểm thử liên quan thành công; smoke test dữ liệu giả trên endpoint thực tế xác nhận streaming, toàn bộ luồng tính điểm/báo cáo, TTS và STT. Đã khôi phục chấm lại phiên lỗi và xác minh điểm/báo cáo được lưu. Frontend build thành công; thao tác micro thực tế trên trình duyệt ứng viên vẫn cần kiểm chứng.
+- Hội thoại streaming, chấm transcript và engine cũ hỗ trợ `GEMINI` và các provider tương thích OpenAI: `OPENAI`, `DEEPSEEK`, `GROQ`, `OPENROUTER`, `MISTRAL`, `PERPLEXITY`, `XAI`, `OLLAMA` (mặc định `http://localhost:11434/v1`, key có thể để trống) và `CUSTOM` (bắt buộc nhập Endpoint URL trên API key, thiếu thì báo lỗi cấu hình). Với Llama qua LiteLLM/ngrok, chọn `CUSTOM` hoặc `OLLAMA` (hoặc `OPENAI`) kèm endpoint ngrok và model đúng cho cả `INTERVIEW_GEN` / `INTERVIEW_NLP`. `ANTHROPIC`, `CURSOR`, `HUGGINGFACE` chưa hỗ trợ cho AI Interview.
+- Endpoint nhận base URL (`https://host/v1`) hoặc URL đầy đủ (`https://host/v1/chat/completions`); backend chuẩn hóa để không lặp `/chat/completions`.
+- Provider, model, endpoint và key **chỉ** lấy từ Master DB qua `/admin/system/ai-config` (bảng `ai_model_configs` + `ai_provider_keys`). Backend không còn đọc `.env` cho key/model (đã bỏ `AI_INTERVIEW_PROVIDER/MODEL/BASE_URL/API_KEY`, `AI_INTERVIEW_GEMINI_*`, `AI_INTERVIEW_CONVERSATION_MODEL`, `AI_INTERVIEW_TTS_MODEL`). Task thiếu cấu hình, bị tắt hoặc chưa có key → lỗi "not configured", không gọi provider.
+- Llama xử lý hội thoại và chấm điểm. STT dùng task `INTERVIEW_STT`, TTS dùng task `INTERVIEW_TTS` (Master V34 seed, provider bắt buộc `GEMINI`, key lấy từ key Gemini mặc định ACTIVE). Thiếu cấu hình → `409 AI_INTERVIEW_SPEECH_UNAVAILABLE`.
+- Lỗi âm thanh HTTP 502/503/504 được thử lại tối đa một lần. Nếu TTS backend không khả dụng, nút “Nghe AI” dùng Speech Synthesis của trình duyệt và thông báo rõ. Bắt đầu ghi âm sẽ dừng giọng đọc; transcript vẫn cần được ứng viên kiểm tra trước khi gửi.
+- Chấm transcript thu nhận JSON qua streaming nội bộ, tối đa 180 giây và 32.000 ký tự; không công bố kết quả từng phần. Provider tương thích OpenAI nhận JSON Schema ràng buộc đủ bốn tiêu chí, kiểu số và bằng chứng; backend vẫn kiểm tra độc lập. Request tuân theo `maxTokens` của task, chỉ gửi ngữ cảnh Job và transcript (không gửi các quy trình cấu hình không dùng). Kiểm tra điểm 0–100, trích dẫn chính xác từ USER và nhận xét hợp lệ trước khi lưu báo cáo.
+- Giao diện recruiter hiển thị `candidateTurns/maxTurns` từ phiên hội thoại, không dùng số bản ghi `ai_questions` của engine cũ làm tiến độ.
+- Vận hành: dùng base endpoint `/v1` để tương thích cả client cũ có tự nối `/chat/completions`; test kết nối trên trang quản trị nhận cả base URL và URL đầy đủ. Sau khi đổi endpoint cần xóa cache cấu hình Interview và chỉ chấm lại phiên ERROR đã kết thúc, giữ nguyên transcript.
+- Kiểm chứng tự động: request đúng endpoint/model/key, streaming, chấm JSON, không override model Llama bằng model Gemini, không gọi âm thanh sai provider; giữ kiểm thử hồi quy Gemini.
+
 ## Phiên AI Conversation mới (2026-10-03)
 
 Attempt mới có `conversationVersion=1`: phòng chat lưu InterviewSession/InterviewMessage; không sinh đề/đáp án mẫu hoặc chấm từng câu. Mỗi lượt nhận phản hồi SSE thích ứng; complete/hết giờ → worker chấm toàn transcript. Ngân sách lượt = chủ đề × (1 + hỏi bồi), tối đa 40; thời lượng, consent, ngưỡng đạt, retries vẫn theo snapshot. Attempt cũ giữ engine và dữ liệu cũ.
 
 Voice: MediaRecorder gửi audio chunk qua WebSocket, Gemini STT backend chuyển ngữ sau khi dừng; candidate kiểm tra transcript trước khi gửi. Nghe AI dùng TTS API; audio USER được lưu riêng tư nếu Record Audio bật, lỗi upload có nút thử lại. Streaming là text response, chưa bật Live Audio hai chiều hoặc nhận dạng từng fragment độc lập.
 
-Native config: `AI_INTERVIEW_NATIVE_BASE_URL=https://generativelanguage.googleapis.com/v1beta`; `AI_INTERVIEW_CONVERSATION_MODEL` override model dialogue/STT/evaluation (trống thì dùng model task Master DB/env); `AI_INTERVIEW_TTS_MODEL` riêng cho voice. Key vẫn ưu tiên Master DB rồi env Interview. Kiểm tra Google ngày 2026-10-03: 2.5-flash trả 404 (không còn mở cho người dùng mới), 3.8-flash trả 503 quá tải; 3.7-flash streaming/STT và 3.8-flash-tts trả 200. `.env` local chọn model đã kiểm chứng, không commit key. Có tên trong list models không chứng minh gọi generateContent được.
+Native config: `AI_INTERVIEW_NATIVE_BASE_URL=https://generativelanguage.googleapis.com/v1beta` (hạ tầng). Model dialogue/evaluation theo `INTERVIEW_GEN`/`INTERVIEW_NLP`, STT theo `INTERVIEW_STT`, TTS theo `INTERVIEW_TTS`; key chỉ từ Master DB (từ 2026-10-15, không còn override/fallback env). Kiểm tra Google ngày 2026-10-03: 2.5-flash trả 404 (không còn mở cho người dùng mới), 3.8-flash trả 503 quá tải; 3.7-flash streaming/STT và 3.8-flash-tts trả 200. `.env` local chọn model đã kiểm chứng, không commit key. Có tên trong list models không chứng minh gọi generateContent được.
 
 Native HTTP connect 5s/read 45s; SSE tối đa 90s, không tự retry stream để tránh lặp lượt. Proxy tắt buffering SSE và hỗ trợ WebSocket upgrade. Trạng thái `Doing`: cần migrate V44 và E2E candidate/tenant thật trước Done. Mô tả Process V2/Web Speech API bên dưới chỉ áp dụng legacy.
 
@@ -49,8 +140,8 @@ V42 bổ sung `ai_answers.speech_metrics_json`; tiếp tục dùng consent/recor
 ### Kết nối Spring AI và Gemini
 
 - Backend dùng Spring AI 1.0.3 (module model/client, cấu hình thủ công) trên Spring Boot 3.3.2, gọi Gemini qua endpoint tương thích OpenAI. Không cần OpenAI key hoặc Vertex AI credentials.
-- Key Gemini do admin quản lý trong Master DB được ưu tiên; nếu chưa có key DB, hai tác vụ Interview dùng `AI_INTERVIEW_GEMINI_API_KEY`, không mượn key CV. Model lấy theo từng tác vụ `INTERVIEW_GEN` và `INTERVIEW_NLP`; khi chưa có cấu hình DB, dùng `AI_INTERVIEW_GEMINI_MODEL`.
-- Endpoint mặc định: `https://generativelanguage.googleapis.com/v1beta/openai`. Biến `AI_INTERVIEW_GEMINI_BASE_URL` cũ kết thúc bằng `/models` được chuyển sang `/openai` khi gọi.
+- Key và model chỉ lấy từ Master DB theo từng tác vụ `INTERVIEW_GEN` và `INTERVIEW_NLP`; chưa cấu hình thì báo lỗi "not configured", không dùng biến môi trường.
+- Endpoint mặc định của Gemini: `https://generativelanguage.googleapis.com/v1beta/openai`. Endpoint admin nhập kết thúc bằng `/models` được chuyển sang `/openai` khi gọi.
 - Timeout HTTP dùng `AI_INTERVIEW_TIMEOUT_SECONDS` (mặc định 60s); temperature/max tokens lấy theo task. Fallback Interview mặc định 8192 token. Model và quota thực tế cần kiểm tra trên AI Studio; không cam kết miễn phí/độ trễ cố định.
 - Master migration V24 thay riêng các seed Gemini Interview 1.5/2.0 đã lỗi thời bằng `gemini-2.5-flash`; model admin đã chọn khác được giữ. Tenant migration V42 thêm cột metrics nullable, không backfill dữ liệu giả. Cấu hình Interview dùng namespace cache mới để tránh đọc lại cấu hình transport cũ.
 - Gemini trả JSON; backend kiểm tra rubric, evidence, điểm và tự tổng hợp. Không tự chuyển sang provider failover hoặc câu dự phòng chưa có rubric.
@@ -223,6 +314,22 @@ Ví dụ: Backend giải thích REST API cho khách hàng không kỹ thuật; D
 
 `Doing` — luồng AI Interview và cấu hình nền tảng đã có. Communication hoạt động theo Process Engine V2. Năm quy trình khác được khóa để mở rộng trong tương lai. Phiên mới chỉ chốt Communication; phiên cũ chưa hoàn tất có quy trình khác bị khóa.
 # Process Engine V2 và Voice Interview
+
+## Cấu hình Llama qua OpenAI-compatible endpoint
+
+### Khôi phục LiteLLM local (2026-10-15)
+
+- Khi ngrok/Llama thử riêng thành công nhưng phiên vẫn `OPENING_FAILED`, kiểm tra cả `ai_model_configs`, provider key và Redis. Đã phát hiện `INTERVIEW_GEN` còn `CURSOR / claude-sonnet-4-5` trong Master DB/cache, dù env đã là Llama. Cần đồng bộ cả `INTERVIEW_GEN` và `INTERVIEW_NLP` sang `OPENAI / vanilj/llama-3-8b-instruct-32k-v0.1:Q4_K_M`, có provider key ACTIVE mặc định với endpoint ngrok đúng, rồi xóa cache hai task (bao gồm hậu tố `:spring-ai-v1`). Không tăng số lượt hoặc đặt lại dữ liệu phiên để xử lý lỗi cấu hình.
+
+- Ngrok chuyển cổng 8000 tới LiteLLM; Ollama chạy cổng 11434 với model Llama đã chọn. Lỗi `400 / no_db_connection / No connected db.` xuất hiện tại LiteLLM khi key gửi đến không được nhận diện là master key và proxy không có database cho virtual key.
+- Khôi phục ngày 2026-10-15: phiên #33 của tenant `ttqt` (subdomain `se36`) lỗi `OPENING_FAILED / HTTP 400`. Tiến trình LiteLLM chạy trực tiếp bằng `--model` được khởi động lại bằng `deploy/scripts/start-interview-ai.ps1` để nạp cấu hình model và master key từ môi trường. Kiểm chứng qua ngrok: `/v1/models` trả 200; request chat mẫu dạng stream với `max_tokens=12672` trả 200 và kết thúc `finish_reason=stop`. Không sửa dữ liệu phiên; chưa kiểm chứng lại phiên #33 qua giao diện. Trạng thái: `Doing`.
+- Cấu hình local tại `artifacts/litellm-interview-local.yaml` dùng `LITELLM_MASTER_KEY` từ môi trường, không chứa secret. Script `deploy/scripts/start-interview-ai.ps1` đọc `AI_INTERVIEW_API_KEY` trong `backend/.env`, thiết lập UTF-8 và chạy LiteLLM ẩn ở cổng 8000. Chỉ chạy script khi cổng 8000 chưa có dịch vụ; giữ lệnh ngrok hiện có.
+- Kiểm chứng trực tiếp qua URL ngrok và key env: HTTP 200, có lời chào/câu hỏi mẫu và SSE kết thúc `finish_reason=stop`. Chưa kiểm chứng lại phiên candidate 27 qua giao diện hoặc cấu hình task/key đã lưu trong Master AI.
+
+- Từ 2026-10-15 backend không còn đọc `AI_INTERVIEW_PROVIDER/MODEL/BASE_URL/API_KEY`. Trong `/admin/system/ai-config`: thêm provider key `OPENAI` ACTIVE, mặc định, endpoint `https://linked-flagpole-many.ngrok-free.dev/v1`; đặt `INTERVIEW_GEN` và `INTERVIEW_NLP` = `OPENAI / vanilj/llama-3-8b-instruct-32k-v0.1:Q4_K_M`.
+- STT/TTS cấu hình ở task `INTERVIEW_STT` / `INTERVIEW_TTS` (provider `GEMINI`) với key Gemini mặc định ACTIVE; không dùng key Llama cho speech.
+- `AI_INTERVIEW_API_KEY` trong `backend/.env` chỉ còn dùng cho script LiteLLM local. Trạng thái `Doing`: chưa kiểm chứng endpoint ngrok thật.
+
 
 Với `schemaVersion = 2`, hệ thống chỉ sinh câu hỏi chính của process hiện tại. Mỗi câu được lưu cùng `referenceAnswer`
 và `keyPoints` trong `rubric_json` trước khi candidate nhìn thấy câu hỏi; process kế tiếp chỉ được sinh sau khi process hiện

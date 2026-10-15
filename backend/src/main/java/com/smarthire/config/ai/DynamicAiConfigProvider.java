@@ -13,7 +13,6 @@ import java.time.Duration;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -31,9 +30,28 @@ public class DynamicAiConfigProvider {
             Integer maxTokens,
             Integer timeoutSeconds,
             String failoverProvider,
-            String failoverModel
+            String failoverModel,
+            String fallbackChain
     ) {
+        public ResolvedAiConfig(
+                String taskType,
+                String provider,
+                String modelName,
+                String apiKey,
+                String endpointUrl,
+                BigDecimal temperature,
+                Integer maxTokens,
+                Integer timeoutSeconds,
+                String failoverProvider,
+                String failoverModel
+        ) {
+            this(taskType, provider, modelName, apiKey, endpointUrl, temperature, maxTokens, timeoutSeconds, failoverProvider, failoverModel, null);
+        }
+
         public boolean hasFailover() {
+            if (fallbackChain != null && !fallbackChain.isBlank() && !fallbackChain.trim().equals("[]")) {
+                return true;
+            }
             if (failoverModel == null || failoverModel.isBlank()) {
                 return false;
             }
@@ -41,6 +59,24 @@ public class DynamicAiConfigProvider {
             return !(targetProvider != null
                     && targetProvider.equalsIgnoreCase(provider)
                     && failoverModel.trim().equalsIgnoreCase(modelName));
+        }
+
+        public java.util.List<com.smarthire.master.ai.dto.AiFallbackStep> getFallbackSteps(ObjectMapper mapper) {
+            if (fallbackChain != null && !fallbackChain.isBlank()) {
+                try {
+                    java.util.List<com.smarthire.master.ai.dto.AiFallbackStep> steps = mapper.readValue(
+                            fallbackChain, new com.fasterxml.jackson.core.type.TypeReference<java.util.List<com.smarthire.master.ai.dto.AiFallbackStep>>() {});
+                    if (steps != null && !steps.isEmpty()) {
+                        return steps;
+                    }
+                } catch (Exception ex) {
+                    log.warn("Failed to parse fallback_chain JSON: {}", ex.getMessage());
+                }
+            }
+            if (failoverModel != null && !failoverModel.isBlank()) {
+                return java.util.List.of(new com.smarthire.master.ai.dto.AiFallbackStep(failoverProvider, failoverModel, timeoutSeconds, temperature));
+            }
+            return java.util.List.of();
         }
     }
 
@@ -50,41 +86,36 @@ public class DynamicAiConfigProvider {
     private final RedisService redisService;
     private final ObjectMapper mapper;
 
-    // Fallback environment properties
-    private final String fallbackGeminiKey;
-    private final String fallbackCvModel;
-    private final int fallbackTimeout;
-    private final String interviewKey;
-    private final String interviewModel;
-    private final int interviewTimeout;
-
     public DynamicAiConfigProvider(
             AiModelConfigRepository modelConfigRepository,
             AiProviderKeyRepository providerKeyRepository,
             TenantCredentialService credentialService,
             RedisService redisService,
-            ObjectMapper mapper,
-            @Value("${app.ai.gemini.api-key:}") String fallbackGeminiKey,
-            @Value("${app.ai.models.cv-parsing:gemini-2.0-flash}") String fallbackCvModel,
-            @Value("${app.ai.timeout-seconds:30}") int fallbackTimeout,
-            @Value("${app.ai.interview.api-key:}") String interviewKey,
-            @Value("${app.ai.interview.model:gemini-2.5-flash}") String interviewModel,
-            @Value("${app.ai.interview.timeout-seconds:60}") int interviewTimeout) {
+            ObjectMapper mapper) {
         this.modelConfigRepository = modelConfigRepository;
         this.providerKeyRepository = providerKeyRepository;
         this.credentialService = credentialService;
         this.redisService = redisService;
         this.mapper = mapper;
-        this.fallbackGeminiKey = fallbackGeminiKey == null ? "" : fallbackGeminiKey.trim();
-        this.fallbackCvModel = fallbackCvModel;
-        this.fallbackTimeout = fallbackTimeout;
-        this.interviewKey = interviewKey == null ? "" : interviewKey.trim();
-        this.interviewModel = interviewModel;
-        this.interviewTimeout = interviewTimeout;
     }
 
     public ResolvedAiConfig resolveConfig(String taskType) {
         String normalizedTask = taskType == null ? "CV_PARSING" : taskType.trim().toUpperCase();
+        ResolvedAiConfig base = getOrResolveBaseConfig(normalizedTask);
+
+        // Check if primary model is currently in 429 rate-limited cooldown in Redis
+        if (base.hasFailover() && isModelInCooldown(base.provider(), base.modelName())) {
+            Optional<ResolvedAiConfig> failoverOpt = resolveFailoverConfig(base);
+            if (failoverOpt.isPresent()) {
+                log.info("Primary AI model {}:{} for task {} is currently in 429 cooldown, proactively routing to failover {}:{}",
+                        base.provider(), base.modelName(), normalizedTask, failoverOpt.get().provider(), failoverOpt.get().modelName());
+                return failoverOpt.get();
+            }
+        }
+        return base;
+    }
+
+    private ResolvedAiConfig getOrResolveBaseConfig(String normalizedTask) {
         String cacheKey = taskCacheKey(normalizedTask);
 
         try {
@@ -118,7 +149,8 @@ public class DynamicAiConfigProvider {
                         config.getMaxTokens() != null ? config.getMaxTokens() : 2048,
                         config.getTimeoutSeconds() != null ? config.getTimeoutSeconds() : 30,
                         config.getFailoverProvider(),
-                        config.getFailoverModel()
+                        config.getFailoverModel(),
+                        config.getFallbackChain()
                 );
 
                 // Cache in Redis (TTL: 6 hours)
@@ -134,33 +166,102 @@ public class DynamicAiConfigProvider {
             log.error("Failed to query AI config from Master DB for task {}: {}", normalizedTask, ex.getMessage());
         }
 
-        // Fallback default
-        boolean interview = isInterview(normalizedTask);
-        return new ResolvedAiConfig(
-                normalizedTask,
-                "GEMINI",
-                interview ? interviewModel : fallbackCvModel,
-                interview ? interviewKey : fallbackGeminiKey,
-                null,
-                new BigDecimal("0.20"),
-                interview ? 8192 : 2048,
-                interview ? interviewTimeout : fallbackTimeout,
-                "GEMINI",
-                "gemini-1.5-flash"
-        );
+        // Missing, disabled or unreadable task config: callers see a blank key and report "not configured".
+        log.warn("AI task {} has no active configuration in Master DB (Admin > AI Config)", normalizedTask);
+        return new ResolvedAiConfig(normalizedTask, null, null, "", null,
+                new BigDecimal("0.20"), 2048, 30, null, null, null);
+    }
+
+    public void markModelCooldown(String provider, String modelName, Duration duration) {
+        if (provider == null || modelName == null || redisService == null) return;
+        String key = RedisKeys.aiModelCooldown(provider, modelName);
+        Duration ttl = duration != null ? duration : Duration.ofSeconds(60);
+        try {
+            redisService.set(key, "RATE_LIMITED_429", ttl);
+            log.warn("Marked AI model {}:{} in Redis cooldown for {}s due to 429 rate limit",
+                    provider, modelName, ttl.getSeconds());
+        } catch (Exception ex) {
+            log.warn("Failed to set model cooldown in Redis for {}:{}: {}", provider, modelName, ex.getMessage());
+        }
+    }
+
+    public boolean isModelInCooldown(String provider, String modelName) {
+        if (provider == null || modelName == null || redisService == null) return false;
+        String key = RedisKeys.aiModelCooldown(provider, modelName);
+        try {
+            return redisService.exists(key);
+        } catch (Exception ex) {
+            log.warn("Failed to check model cooldown in Redis for {}:{}: {}", provider, modelName, ex.getMessage());
+            return false;
+        }
     }
 
     public Optional<ResolvedAiConfig> resolveFailoverConfig(ResolvedAiConfig primary) {
         if (primary == null || !primary.hasFailover()) {
             return Optional.empty();
         }
+
+        // 1. Try to find first active fallback step from fallbackChain
+        java.util.List<com.smarthire.master.ai.dto.AiFallbackStep> steps = primary.getFallbackSteps(mapper);
+        for (com.smarthire.master.ai.dto.AiFallbackStep step : steps) {
+            if (step.getModel() == null || step.getModel().isBlank()) continue;
+            String targetProvider = (step.getProvider() == null || step.getProvider().isBlank())
+                    ? primary.provider()
+                    : step.getProvider().trim().toUpperCase();
+            String targetModel = step.getModel().trim();
+
+            if (targetProvider.equalsIgnoreCase(primary.provider()) && targetModel.equalsIgnoreCase(primary.modelName())) {
+                continue;
+            }
+            if (isModelInCooldown(targetProvider, targetModel)) {
+                log.info("Fallback candidate {}:{} is in Redis cooldown, trying next", targetProvider, targetModel);
+                continue;
+            }
+
+            String apiKey;
+            String endpointUrl;
+            if (targetProvider.equalsIgnoreCase(primary.provider())
+                    && primary.apiKey() != null
+                    && !primary.apiKey().isBlank()) {
+                apiKey = primary.apiKey();
+                endpointUrl = primary.endpointUrl();
+            } else {
+                Optional<AiProviderKey> activeKeyOpt = findActiveProviderKey(targetProvider);
+                apiKey = decryptOrFallbackKey(activeKeyOpt, targetProvider, primary.taskType());
+                endpointUrl = activeKeyOpt.map(AiProviderKey::getEndpointUrl)
+                        .filter(u -> !u.isBlank())
+                        .orElse(null);
+            }
+
+            if (apiKey != null && !apiKey.isBlank()) {
+                return Optional.of(new ResolvedAiConfig(
+                        primary.taskType(),
+                        targetProvider,
+                        targetModel,
+                        apiKey,
+                        endpointUrl,
+                        step.getTemperature() != null ? step.getTemperature() : primary.temperature(),
+                        primary.maxTokens(),
+                        step.getTimeoutSeconds() != null ? step.getTimeoutSeconds() : primary.timeoutSeconds(),
+                        null,
+                        null,
+                        null
+                ));
+            }
+        }
+
+        // 2. Fallback to failoverProvider / failoverModel if not matched from chain
         String primaryProvider = primary.provider() == null || primary.provider().isBlank()
                 ? "GEMINI"
                 : primary.provider().trim().toUpperCase();
         String targetProvider = primary.failoverProvider() == null || primary.failoverProvider().isBlank()
                 ? primaryProvider
                 : primary.failoverProvider().trim().toUpperCase();
-        String targetModel = primary.failoverModel().trim();
+        String targetModel = primary.failoverModel() != null ? primary.failoverModel().trim() : null;
+
+        if (targetModel == null || targetModel.isBlank()) {
+            return Optional.empty();
+        }
 
         String apiKey;
         String endpointUrl;
@@ -193,8 +294,74 @@ public class DynamicAiConfigProvider {
                 primary.maxTokens(),
                 primary.timeoutSeconds(),
                 null,
+                null,
                 null
         ));
+    }
+
+    public java.util.List<ResolvedAiConfig> resolveExecutionChain(String taskType) {
+        String normalizedTask = taskType == null ? "CV_PARSING" : taskType.trim().toUpperCase();
+        ResolvedAiConfig base = getOrResolveBaseConfig(normalizedTask);
+
+        java.util.List<ResolvedAiConfig> chain = new java.util.ArrayList<>();
+
+        // 1. Primary model (add if not currently in Redis 429 cooldown)
+        if (!isModelInCooldown(base.provider(), base.modelName())) {
+            chain.add(base);
+        } else {
+            log.info("Primary AI model {}:{} for task {} is currently in 429 cooldown, skipping in execution chain",
+                    base.provider(), base.modelName(), normalizedTask);
+        }
+
+        // 2. Fallback steps
+        java.util.List<com.smarthire.master.ai.dto.AiFallbackStep> steps = base.getFallbackSteps(mapper);
+        for (com.smarthire.master.ai.dto.AiFallbackStep step : steps) {
+            if (step.getModel() == null || step.getModel().isBlank()) continue;
+            String stepProvider = (step.getProvider() == null || step.getProvider().isBlank()) ? base.provider() : step.getProvider().trim().toUpperCase();
+            String stepModel = step.getModel().trim();
+
+            if (stepProvider.equalsIgnoreCase(base.provider()) && stepModel.equalsIgnoreCase(base.modelName())) {
+                continue;
+            }
+            if (isModelInCooldown(stepProvider, stepModel)) {
+                log.info("Fallback model {}:{} for task {} is in 429 cooldown, skipping in execution chain",
+                        stepProvider, stepModel, normalizedTask);
+                continue;
+            }
+
+            String stepKey;
+            String stepEndpoint;
+            if (stepProvider.equalsIgnoreCase(base.provider()) && base.apiKey() != null && !base.apiKey().isBlank()) {
+                stepKey = base.apiKey();
+                stepEndpoint = base.endpointUrl();
+            } else {
+                Optional<AiProviderKey> activeKeyOpt = findActiveProviderKey(stepProvider);
+                stepKey = decryptOrFallbackKey(activeKeyOpt, stepProvider, normalizedTask);
+                stepEndpoint = activeKeyOpt.map(AiProviderKey::getEndpointUrl).filter(u -> !u.isBlank()).orElse(null);
+            }
+
+            if (stepKey != null && !stepKey.isBlank()) {
+                chain.add(new ResolvedAiConfig(
+                        normalizedTask,
+                        stepProvider,
+                        stepModel,
+                        stepKey,
+                        stepEndpoint,
+                        step.getTemperature() != null ? step.getTemperature() : base.temperature(),
+                        base.maxTokens(),
+                        step.getTimeoutSeconds() != null ? step.getTimeoutSeconds() : base.timeoutSeconds(),
+                        null,
+                        null,
+                        null
+                ));
+            }
+        }
+
+        if (chain.isEmpty()) {
+            chain.add(base);
+        }
+
+        return chain;
     }
 
     public String resolveApiKeyForProvider(String provider) {
@@ -237,9 +404,8 @@ public class DynamicAiConfigProvider {
             } catch (Exception ex) {
                 log.warn("Could not decrypt API key for provider {}: {}", normalizedProvider, ex.getMessage());
             }
-        }
-        if ("GEMINI".equalsIgnoreCase(normalizedProvider)) {
-            return isInterview(task) ? interviewKey : fallbackGeminiKey;
+        } else {
+            log.warn("No active API key for provider {} (task {}) in Master DB", normalizedProvider, task);
         }
         return "";
     }
@@ -250,13 +416,21 @@ public class DynamicAiConfigProvider {
 
     public void evictCache(String taskType) {
         if (taskType != null) {
-            redisService.delete(taskCacheKey(taskType.trim().toUpperCase()));
+            try {
+                redisService.delete(taskCacheKey(taskType.trim().toUpperCase()));
+            } catch (Exception ex) {
+                log.warn("Failed to evict Redis cache for task {}: {}", taskType, ex.getMessage());
+            }
         }
     }
 
     public void evictAll() {
-        for (String task : new String[]{"CV_PARSING", "INTERVIEW_GEN", "INTERVIEW_NLP", "CODE_GRADING", "MATCHING"}) {
-            redisService.delete(taskCacheKey(task));
+        try {
+            for (String task : new String[]{"CV_PARSING", "INTERVIEW_GEN", "INTERVIEW_NLP", "INTERVIEW_STT", "INTERVIEW_TTS", "CODE_GRADING", "MATCHING"}) {
+                redisService.delete(taskCacheKey(task));
+            }
+        } catch (Exception ex) {
+            log.warn("Failed to evict all Redis task caches: {}", ex.getMessage());
         }
     }
 }

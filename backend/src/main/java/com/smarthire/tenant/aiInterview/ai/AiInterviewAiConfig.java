@@ -10,29 +10,15 @@ import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 
 /**
- * Dedicated Gemini API configuration for AI Interview flows
- * (question generation, NLP analysis, scoring) — separate from CV parsing keys.
+ * HTTP transport for AI Interview calls. Provider, model and API key come only from
+ * Master DB (Admin &gt; AI Config) via {@link com.smarthire.config.ai.DynamicAiConfigProvider}.
  */
 @Data
 @Configuration
 @ConfigurationProperties(prefix = "app.ai.interview")
 public class AiInterviewAiConfig {
 
-    private static final String DEFAULT_GEMINI_BASE =
-            "https://generativelanguage.googleapis.com/v1beta/openai";
-
-    /** Gemini API key used only by AI Interview. */
-    private String apiKey = "";
-
-    private String model = "gemini-2.5-flash";
-
-    private String baseUrl = DEFAULT_GEMINI_BASE;
-
     private int timeoutSeconds = 10;
-
-    public boolean isConfigured() {
-        return apiKey != null && !apiKey.isBlank();
-    }
 
     @Bean
     @Qualifier("aiInterviewRestClientBuilder")

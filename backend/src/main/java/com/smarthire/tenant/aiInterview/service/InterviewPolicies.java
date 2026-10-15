@@ -17,6 +17,7 @@ public final class InterviewPolicies {
     public static final List<String> COMPETENCIES = List.of("TECHNICAL_KNOWLEDGE", "PROBLEM_SOLVING",
             "PRACTICAL_EXPERIENCE", "COMMUNICATION", "BEHAVIORAL_SITUATIONAL");
     private static final ObjectMapper JSON = new ObjectMapper().findAndRegisterModules()
+            .enable(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS)
             .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
     private InterviewPolicies() {}
 
@@ -39,9 +40,12 @@ public final class InterviewPolicies {
     }
     public static AiInterviewConfigRequest config(Job job) {
         var policy = communicationPolicy(job.getAiInterviewPolicyJson() == null ? defaults() : read(job.getAiInterviewPolicyJson(), InterviewPolicy.class));
+        if (policy.availability() == null && job.getAiInterviewAvailableFrom() == null && job.getAiInterviewAvailableUntil() == null)
+            policy = policy.withAvailability(new InterviewPolicy.Availability("RELATIVE", 0, 24));
         int count = policy.processes().stream().filter(InterviewPolicy.Process::enabled).mapToInt(process -> InterviewProcessSettings.questionCount(process.config())).sum();
         return new AiInterviewConfigRequest(enabled(job), job.getAiInterviewPassingScore(),
-                count, job.getAiInterviewAvailableFrom(), job.getAiInterviewAvailableUntil(),
+                count, relativeAvailability(policy) ? null : job.getAiInterviewAvailableFrom(),
+                relativeAvailability(policy) ? null : job.getAiInterviewAvailableUntil(),
                 policy);
     }
     public static InterviewPolicy communicationPolicy(InterviewPolicy source) {
@@ -49,15 +53,20 @@ public final class InterviewPolicies {
                 .filter(process -> "COMMUNICATION".equals(process.key())).findFirst().orElse(null);
         var settings = InterviewProcessSettings.config(communication == null
                 ? new InterviewPolicy.Process("COMMUNICATION", true, 1, 100, Map.of("questionCount", 3)) : communication);
+        if (InterviewProcessSettings.integer(settings, "maxFollowUp", 2) < 2) settings.put("maxFollowUp", 2);
+        if (InterviewProcessSettings.integer(settings, "followUpSettingVersion", 0) < 1) settings.put("followUpEnabled", true);
+        settings.put("followUpSettingVersion", 1);
+        settings.put("questionCount", InterviewProcessSettings.conversationQuestionCount(settings));
         var processes = new ArrayList<InterviewPolicy.Process>();
         if (source.processes() != null) source.processes().stream().filter(process -> !"COMMUNICATION".equals(process.key()))
                 .forEach(process -> processes.add(new InterviewPolicy.Process(process.key(), false, processes.size() + 1, 0, process.config())));
         processes.add(new InterviewPolicy.Process("COMMUNICATION", true, processes.size() + 1, 100, settings));
-        return new InterviewPolicy(source.durationMinutes(), source.maxAttempts(), false, 3, 0, 0,
+        return new InterviewPolicy(InterviewProcessSettings.questionCount(settings) * InterviewProcessSettings.MINUTES_PER_QUESTION,
+                source.maxAttempts(), false, 3, 0, 0,
                 communicationWeights(), source.selectedSkills(), List.of(), 2,
                 "speech".equals(settings.get("responseMode")) ? "VOICE" : "TEXT", source.review(),
                 new InterviewPolicy.Voice("speech".equals(settings.get("responseMode")), settings.get("language").toString(),
-                        InterviewProcessSettings.bool(settings, "recordAudio", true), true, true, false), processes);
+                        InterviewProcessSettings.bool(settings, "recordAudio", true), true, true, false), processes, source.availability());
     }
     public static Map<String, Integer> communicationWeights() {
         var weights = new LinkedHashMap<String, Integer>();
@@ -83,13 +92,41 @@ public final class InterviewPolicies {
                 : read(interview.getConfigSnapshotJson(), AiInterviewConfigRequest.class);
     }
     public static void snapshot(AiInterview interview) {
+        snapshot(interview, Instant.now());
+    }
+    public static void snapshot(AiInterview interview, Instant invitedAt) {
         if (interview.getConfigSnapshotJson() == null) {
-            var config = config(interview.getApplication().getJob());
+            var config = resolveAvailability(config(interview.getApplication().getJob()), invitedAt);
             var snapshot = (com.fasterxml.jackson.databind.node.ObjectNode) tree(json(config));
             snapshot.put("conversationVersion", 1);
+            snapshot.put("questionBudgetVersion", 3);
             interview.setConfigSnapshotJson(snapshot.toString());
             interview.setPassingScoreSnapshot(config.passingScore());
         }
+    }
+    public static boolean relativeAvailability(InterviewPolicy policy) {
+        return policy != null && policy.availability() != null && "RELATIVE".equals(policy.availability().mode());
+    }
+    public static AiInterviewConfigRequest resolveAvailability(AiInterviewConfigRequest config, Instant invitedAt) {
+        if (!relativeAvailability(config.policy())) return config;
+        validateAvailability(config);
+        var availability = config.policy().availability();
+        var from = invitedAt.plus(java.time.Duration.ofHours(availability.startDelayHours()));
+        return withWindow(config, from, from.plus(java.time.Duration.ofHours(availability.completionWindowHours())));
+    }
+    public static AiInterviewConfigRequest withWindow(AiInterviewConfigRequest config, Instant from, Instant until) {
+        return new AiInterviewConfigRequest(config.enabled(), config.passingScore(), config.questionCount(), from, until, config.policy());
+    }
+    private static void validateAvailability(AiInterviewConfigRequest config) {
+        var availability = config.policy().availability();
+        if (availability == null) return;
+        if ("RELATIVE".equals(availability.mode())) {
+            if (availability.startDelayHours() == null || availability.startDelayHours() < 0 || availability.startDelayHours() > 8760
+                    || availability.completionWindowHours() == null || availability.completionWindowHours() < 1
+                    || availability.completionWindowHours() > 8760) fail("Giờ mở phải từ 0–8760; hạn hoàn thành phải cách giờ mở 1–8760 giờ.");
+        } else if (!"ABSOLUTE".equals(availability.mode()) || config.availableFrom() == null || config.availableUntil() == null
+                || !config.availableUntil().isAfter(config.availableFrom()))
+            fail("Chọn ngày giờ bắt đầu và hạn hoàn thành sau thời gian bắt đầu.");
     }
     public static boolean canRetry(AiInterview interview, Instant now) {
         if (interview.getConfigSnapshotJson() == null || interview.getStatus() != com.smarthire.domain.enums.AiInterviewStatus.FAILED) return false;
@@ -99,6 +136,9 @@ public final class InterviewPolicies {
     }
     public static boolean expired(AiInterview interview) {
         return interview.getExpiresAt() != null && !Instant.now().isBefore(interview.getExpiresAt());
+    }
+    public static boolean totalQuestionBudget(AiInterview interview) {
+        return interview.getConfigSnapshotJson() != null && tree(interview.getConfigSnapshotJson()).path("questionBudgetVersion").asInt() >= 2;
     }
     public static boolean isConversation(AiInterview interview) {
         return interview.getConfigSnapshotJson() != null && tree(interview.getConfigSnapshotJson()).path("conversationVersion").asInt() == 1;
@@ -114,6 +154,7 @@ public final class InterviewPolicies {
     }
     public static void validate(AiInterviewConfigRequest c, Set<String> jobSkills, boolean requireRoadmap) {
         var p = c.policy();
+        if (p != null) validateAvailability(c);
         if (p == null || p.weights() == null || !p.weights().keySet().equals(new HashSet<>(COMPETENCIES))
                 || p.weights().values().stream().anyMatch(w -> w == null || w < 0 || w > 100)
                 || p.weights().values().stream().mapToInt(Integer::intValue).sum() != 100) fail("Tổng trọng số phải bằng 100%.");
@@ -122,7 +163,7 @@ public final class InterviewPolicies {
         if (isV2(p)) {
             validateV2(p, jobSkills);
             int total = p.processes().stream().filter(InterviewPolicy.Process::enabled).mapToInt(process -> InterviewProcessSettings.questionCount(process.config())).sum();
-            if (total < 1 || total > 30 || total != c.questionCount()) fail("Tổng câu hỏi chính của các bài tập bật phải bằng số câu chung (1–30).");
+            if (total < 1 || total > 30 || total != c.questionCount()) fail("Tổng số câu hỏi của các bài tập bật phải bằng số câu chung (1–30).");
             if (p.processes().stream().filter(InterviewPolicy.Process::enabled).noneMatch(process -> p.weights().getOrDefault(InterviewProcessSettings.competency(process.key()), 0) > 0))
                 fail("Cần ít nhất một bài tập bật có trọng số năng lực lớn hơn 0%.");
             return;
@@ -158,9 +199,15 @@ public final class InterviewPolicies {
                 try {
                     var settings = InterviewProcessSettings.config(process);
                     int count = InterviewProcessSettings.questionCount(settings);
-                    if (count < 1 || count > 10) fail("Mỗi bài tập có 1–10 câu hỏi chính.");
+                    if (count < 1 || count > ("COMMUNICATION".equals(process.key()) ? 11 : 10)) fail("Số câu hỏi vượt giới hạn của bài tập.");
                     int followUp = InterviewProcessSettings.followUpLimit(settings);
-                    if (followUp < 0 || followUp > 3) fail("Giới hạn hỏi bồi phải từ 0–3.");
+                    if ("COMMUNICATION".equals(process.key())) {
+                        String topic = settings.get("topic").toString();
+                        if (!"JOB_REQUIREMENTS".equals(topic) && !jobSkills.contains(topic)) fail("Chỉ chọn chủ đề từ kỹ năng của Job.");
+                        if ((InterviewProcessSettings.integer(settings, "followUpSettingVersion", 0) < 1
+                                || InterviewProcessSettings.bool(settings, "followUpEnabled", true))
+                                && (followUp < 2 || followUp > 10)) fail("Giới hạn hỏi thêm phải từ 2–10 câu.");
+                    } else if (followUp < 0 || followUp > 3) fail("Giới hạn hỏi bồi phải từ 0–3.");
                     for (String key : List.of("difficulty", "questionFormat", "problemStyle", "complexity", "scenarioComplexity", "experienceDepth", "responseMode", "language")) {
                         if (!settings.containsKey(key)) continue;
                         var allowed = switch (key) {

@@ -45,8 +45,8 @@ class AiInterviewInvitationServiceTest {
         job.setId(13L);
         job.setTitle("Java Backend Developer");
         job.setAiInterviewEnabled(true);
-        job.setAiInterviewAvailableFrom(java.time.Instant.parse("2026-10-10T01:00:00Z"));
-        job.setAiInterviewAvailableUntil(java.time.Instant.parse("2026-10-12T16:59:00Z"));
+        job.setAiInterviewAvailableFrom(java.time.Instant.now().minusSeconds(3600));
+        job.setAiInterviewAvailableUntil(java.time.Instant.now().plusSeconds(86400));
         application.setJob(job);
         application.setStatus(ApplicationStatus.INTERVIEW);
         application.setCvScreeningStatus(CvScreeningStatus.PASSED);
@@ -69,12 +69,14 @@ class AiInterviewInvitationServiceTest {
         assertThat(notification.getValue().getCandidate().getId()).isEqualTo(9L);
         assertThat(notification.getValue().getPayloadJson()).contains("/candidate/interviews/11");
         assertThat(notification.getValue().getBody()).contains("Java Backend Developer");
-        assertThat(notification.getValue().getBody()).contains("08:00 10/10/2026");
-        assertThat(notification.getValue().getBody()).contains("23:59 12/10/2026");
-        assertThat(notification.getValue().getBody()).contains("Thời lượng: 30 phút");
+        var invitationTime = java.time.format.DateTimeFormatter.ofPattern("HH:mm dd/MM/yyyy")
+                .withZone(java.time.ZoneId.of("Asia/Bangkok"));
+        assertThat(notification.getValue().getBody()).contains(invitationTime.format(application.getJob().getAiInterviewAvailableFrom()));
+        assertThat(notification.getValue().getBody()).contains(invitationTime.format(application.getJob().getAiInterviewAvailableUntil()));
+        assertThat(notification.getValue().getBody()).contains("Thời lượng: 15 phút");
         assertThat(notification.getValue().getBody()).contains("Số lần thực hiện: 1");
         verify(activity).record(eq(result), eq("INVITED"), contains("3 Communication questions"));
-        verify(emailInvites).sendForInterview(application);
+        verify(emailInvites).sendForInterview(eq(application), any());
         assertThat(result.getConfigSnapshotJson()).isNotBlank();
         assertThat(result.getAttemptNumber()).isEqualTo(1);
     }
@@ -87,7 +89,7 @@ class AiInterviewInvitationServiceTest {
 
         assertThat(service.invite(7L, null).getStatus()).isEqualTo(AiInterviewStatus.GENERATING);
         verify(notifications).save(any());
-        verify(emailInvites).sendForInterview(application);
+        verify(emailInvites).sendForInterview(eq(application), any());
     }
 
     @Test void retryDoesNotDuplicateSessionOrNotification() {
@@ -112,6 +114,30 @@ class AiInterviewInvitationServiceTest {
         assertThat(legacy.getStatus()).isEqualTo(AiInterviewStatus.QUESTIONS_READY);
         verify(interviews, never()).delete(any());
         verify(notifications).save(any());
+    }
+
+    @Test void retryKeepsTheOriginalInvitationWindow() {
+        var job = application.getJob();
+        job.setAiInterviewAvailableFrom(null); job.setAiInterviewAvailableUntil(null);
+        var policy = com.smarthire.tenant.aiInterview.service.InterviewPolicies.communicationPolicy(
+                com.smarthire.tenant.aiInterview.service.InterviewPolicies.defaults())
+                .withAvailability(new com.smarthire.tenant.aiInterview.dto.request.InterviewPolicy.Availability("RELATIVE", 0, 24));
+        var policyJson = (com.fasterxml.jackson.databind.node.ObjectNode) com.smarthire.tenant.aiInterview.service.InterviewPolicies.tree(
+                com.smarthire.tenant.aiInterview.service.InterviewPolicies.json(policy));
+        policyJson.put("maxAttempts", 2);
+        job.setAiInterviewPolicyJson(policyJson.toString());
+        var previous = AiInterview.builder().id(10L).application(application).status(AiInterviewStatus.FAILED).attemptNumber(1).build();
+        com.smarthire.tenant.aiInterview.service.InterviewPolicies.snapshot(previous, java.time.Instant.now().minusSeconds(3600));
+        var original = com.smarthire.tenant.aiInterview.service.InterviewPolicies.config(previous);
+        when(applications.findByIdForUpdate(7L)).thenReturn(Optional.of(application));
+        when(interviews.findByApplication_IdOrderByIdDesc(7L)).thenReturn(List.of(previous));
+        when(interviews.save(any())).thenAnswer(call -> { AiInterview next = call.getArgument(0); next.setId(11L); return next; });
+        var result = service.openNextAttempt(7L);
+        var retry = com.smarthire.tenant.aiInterview.service.InterviewPolicies.config(result);
+        assertThat(result.getAttemptNumber()).isEqualTo(2);
+        assertThat(retry.availableFrom()).isEqualTo(original.availableFrom());
+        assertThat(retry.availableUntil()).isEqualTo(original.availableUntil());
+        verify(emailInvites).sendForInterview(eq(application), eq(retry));
     }
 
     @Test void rejectsUnscreenedApplication() {

@@ -1,3 +1,4 @@
+import { SubmissionGradingDetail } from "../components/SubmissionGradingDetail";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
@@ -58,6 +59,7 @@ function StatusBadge({ status }: { status: SubmissionStatus }) {
 export function AssessmentSubmissionsPage() {
   const job = useRecruitmentJob();
   const basePath = `/recruiter/jobs/${job.id}/assessments`;
+  const [reviewId, setReviewId] = useState<number | null>(null);
   const [tab, setTab] = useState<StatusTab>("ALL");
   const [query, setQuery] = useState("");
   const [testFilter, setTestFilter] = useState<number | "ALL">("ALL");
@@ -123,6 +125,7 @@ export function AssessmentSubmissionsPage() {
         </Button>
       </header>
 
+      {reviewId != null && <SubmissionGradingDetail key={reviewId} id={reviewId} onClose={() => setReviewId(null)} />}
       <AssessmentError error={submissions.error} retry={() => void submissions.refetch()} />
 
       <div className="flex flex-col gap-4 rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-4 shadow-[var(--shadow-card)]">
@@ -230,7 +233,7 @@ export function AssessmentSubmissionsPage() {
                 </thead>
                 <tbody className="divide-y divide-[var(--color-surface-container-low)]">
                   {pageRows.map((row) => (
-                    <SubmissionRow key={row.id} row={row} />
+                    <SubmissionRow key={row.id} row={row} onReview={() => setReviewId(row.id)} />
                   ))}
                 </tbody>
               </table>
@@ -275,7 +278,7 @@ export function AssessmentSubmissionsPage() {
   );
 }
 
-function SubmissionRow({ row }: { row: SubmissionSummary }) {
+function SubmissionRow({ row, onReview }: { row: SubmissionSummary; onReview: () => void }) {
   const inProgress = row.status === "IN_PROGRESS";
   return (
     <tr className="transition-colors hover:bg-[var(--color-primary-subtle)]">
@@ -296,6 +299,7 @@ function SubmissionRow({ row }: { row: SubmissionSummary }) {
       </td>
       <td className="whitespace-nowrap px-4 py-3.5">
         <StatusBadge status={row.status} />
+        {["SUBMITTED", "GRADED", "EXPIRED"].includes(row.status) && <button type="button" onClick={onReview} className="mt-2 block text-xs font-medium text-[var(--color-primary)]">Xem & chấm bài</button>}
       </td>
       <td className="whitespace-nowrap px-4 py-3.5">{formatDateTime(row.startedAt)}</td>
       <td className="whitespace-nowrap px-4 py-3.5">

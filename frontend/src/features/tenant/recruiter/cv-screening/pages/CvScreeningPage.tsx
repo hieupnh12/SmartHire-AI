@@ -204,7 +204,7 @@ export function CvScreeningPage() {
           </div>
           <p className="max-w-2xl pl-4 text-sm leading-[22px] text-[var(--color-on-surface-variant)]">
             {jobTitle ? <><span className="font-semibold text-[var(--color-on-surface)]">{jobTitle}</span> · </> : null}
-            Chấm điểm kết hợp: đối chiếu kỹ năng, độ trùng khớp kỹ năng và đánh giá ngữ nghĩa của Gemini so với yêu cầu job.
+            Thuật toán tính điểm kỹ năng, Jaccard, kinh nghiệm và học vấn. Gemini đọc các số đó rồi quyết định đạt hay không.
           </p>
         </div>
         <div className="inline-flex items-center gap-2 self-start rounded-xl bg-[var(--color-surface-container-low)] px-3.5 py-2 text-xs font-medium text-[var(--color-on-surface-variant)] lg:self-auto">

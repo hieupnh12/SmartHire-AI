@@ -410,7 +410,7 @@ Entity `AiProviderKey`. Quản lý kho khóa API tích hợp (Gemini, OpenAI, An
 | `key_alias` | VARCHAR(100) | | Không | — | Tên đại diện cho key |
 | `api_key_encrypted` | TEXT | | Không | — | API key **đã mã hóa an toàn**, không lưu plaintext |
 | `endpoint_url` | VARCHAR(255) | | Có | NULL | Endpoint tùy biến (nếu dùng Proxy hoặc Self-host) |
-| `status` | VARCHAR(30) | | Không | `'ACTIVE'` | Trạng thái (`ACTIVE`, `EXPIRED`, `RATE_LIMITED`, `INACTIVE`) |
+| `status` | VARCHAR(30) | | Không | `'ACTIVE'` | Trạng thái dài hạn (`ACTIVE`, `INACTIVE`, `INVALID_OR_REVOKED`). Lỗi tạm thời 429 Rate Limit được quản lý tự hủy trên Redis (`ai:cooldown:{provider}:{model}`) thay vì ghi vào DB. |
 | `is_default` | BOOLEAN | | Không | FALSE | Key mặc định của nhà cung cấp |
 | `last_tested_at` | TIMESTAMP | | Có | NULL | Thời điểm kiểm tra hoạt động gần nhất |
 | `created_at` | TIMESTAMP | | Không | now | |
@@ -427,15 +427,16 @@ Entity `AiModelConfig`. Cấu hình model, nhiệt độ (temperature), token v�
 | Cột | Kiểu | Khoá | Null | Default | Mô tả |
 |---|---|---|---|---|---|
 | `id` | BIGINT IDENTITY | PK | Không | auto | |
-| `task_type` | VARCHAR(60) | UQ, IDX | Không | — | Tác vụ AI (`CV_PARSING`, `INTERVIEW_GEN`, `INTERVIEW_NLP`, `CODE_GRADING`, `MATCHING`) |
+| `task_type` | VARCHAR(60) | UQ, IDX | Không | — | Tác vụ AI (`CV_PARSING`, `INTERVIEW_GEN`, `INTERVIEW_NLP`, `INTERVIEW_STT`, `INTERVIEW_TTS` (V34, provider phải là GEMINI), `CODE_GRADING`, `MATCHING`). Nguồn duy nhất của provider/model; không có fallback `.env` |
 | `task_name` | VARCHAR(100) | | Không | — | Tên hiển thị nghiệp vụ |
 | `provider` | VARCHAR(50) | | Không | `'GEMINI'` | Nhà cung cấp chính |
 | `model_name` | VARCHAR(100) | | Không | — | Tên model chính; V24 thay model Interview Gemini 1.5/2.0 mặc định bằng `gemini-2.5-flash`, giữ model admin đã chọn khác |
 | `temperature` | DECIMAL(3,2) | | Không | 0.20 | Độ sáng tạo |
 | `max_tokens` | INT | | Không | 2048 | Số token tối đa phản hồi; V24 tăng các cấu hình Interview được chuyển model lên tối thiểu 8192, không đổi default của cột |
 | `timeout_seconds` | INT | | Không | 30 | Thời gian chờ tối đa (giây) |
-| `failover_provider` | VARCHAR(50) | | Có | NULL | Nhà cung cấp dự phòng khi model chính lỗi |
-| `failover_model` | VARCHAR(100) | | Có | NULL | Model dự phòng |
+| `failover_provider` | VARCHAR(50) | | Có | NULL | Nhà cung cấp dự phòng khi model chính lỗi (legacy 1-level) |
+| `failover_model` | VARCHAR(100) | | Có | NULL | Model dự phòng (legacy 1-level) |
+| `fallback_chain` | JSONB | | Có | NULL | Chuỗi các bước dự phòng đa cấp theo thứ tự ưu tiên (V32). Cấu trúc: `[{"provider":"...","model":"...","timeoutSeconds":30,"temperature":0.2}]`. Khi rỗng/null, hệ thống tự động fallback về failover_provider/failover_model |
 | `is_active` | BOOLEAN | | Không | TRUE | Trạng thái kích hoạt |
 | `created_at` | TIMESTAMP | | Không | now | |
 | `updated_at` | TIMESTAMP | | Không | now | |
@@ -485,18 +486,21 @@ Entity `MasterConsentLog`. Bảng kiểm toán bằng chứng pháp lý bất bi
 
 ---
 
-## 18. `ai_model_pricings` — Bảng đơn giá Model AI (V28)
+## 18. `ai_model_pricings` — Danh mục Model & Đơn giá AI (V28, V33)
 
-Entity `AiModelPricing`. Lưu đơn giá Input / Output (USD trên mỗi 1 triệu token) theo từng nhà cung cấp và model để phục vụ tính chi phí nội bộ thực tế.
+Entity `AiModelPricing`. Đóng vai trò Danh mục Model chuẩn (AI Model Registry & Pricing Catalog) toàn hệ thống: lưu tên hiển thị, context window, hỗ trợ JSON và đơn giá Input / Output (USD trên mỗi 1 triệu token) theo từng nhà cung cấp và model.
 
 | Cột | Kiểu | Khoá | Null | Default | Mô tả |
 |---|---|---|---|---|---|
-| `id` | BIGINT IDENTITY | PK | Không | auto | Định danh bảng giá |
-| `provider` | VARCHAR(50) | UQ, IDX | Không | — | Nhà cung cấp (`GEMINI`, `OPENAI`, `ANTHROPIC`, `DEEPSEEK`, `HUGGINGFACE`) |
-| `model_name` | VARCHAR(100) | UQ | Không | — | Tên model (`gemini-2.5-flash`, `gpt-4o-mini`, v.v.) |
+| `id` | BIGINT IDENTITY | PK | Không | auto | Định danh bản ghi model |
+| `provider` | VARCHAR(50) | UQ, IDX | Không | — | Nhà cung cấp (`GEMINI`, `OPENAI`, `ANTHROPIC`, `DEEPSEEK`, `GROQ`, `OPENROUTER`, `CURSOR`, `MISTRAL`, `XAI`, `HUGGINGFACE`) |
+| `model_name` | VARCHAR(100) | UQ | Không | — | Mã định danh model (`gemini-2.5-flash`, `qwen/qwen3.8-27b`, `deepseek/deepseek-r1:free`, v.v.) |
+| `display_name` | VARCHAR(100) | | Có | NULL | Tên hiển thị thân thiện trên UI (V33) |
 | `input_price_per_1m_tokens` | DECIMAL(12,4) | | Không | `0.0000` | Đơn giá USD trên 1M prompt tokens |
 | `output_price_per_1m_tokens` | DECIMAL(12,4) | | Không | `0.0000` | Đơn giá USD trên 1M completion tokens |
-| `is_active` | BOOLEAN | | Không | `TRUE` | Trạng thái áp dụng |
+| `context_window` | INT | | Không | `128000` | Kích thước ngữ cảnh tối đa tính bằng token (V33) |
+| `supports_json` | BOOLEAN | | Không | `TRUE` | Hỗ trợ Structured Output / JSON mode (V33) |
+| `is_active` | BOOLEAN | | Không | `TRUE` | Trạng thái cho phép lựa chọn và áp dụng |
 | `updated_at` | TIMESTAMP | | Không | now | Thời điểm cập nhật gần nhất |
 
 **Ràng buộc & Index:** `uk_ai_model_pricings_provider_model (provider, model_name)`, `idx_ai_model_pricings_provider`

@@ -6,10 +6,12 @@ export type BankSaveActions = { onSave: (questions: BankQuestion[]) => Promise<v
 export function bankQuestionAuthoring(item: ApiBankQuestion): BankQuestion {
   const question = item.question;
   const metadata = item.authoringMetadata as Partial<BankQuestion> | null;
-  const kind = question.questionType === "MCQ" ? "TRAC_NGHIEM_DON" : question.questionType === "MULTIPLE_CHOICE" ? "NHIEU_DAP_AN" : metadata?.kind === "TU_LUAN_CODE" ? "TU_LUAN_CODE" : "TINH_HUONG_SYSTEM";
+  const kind = question.questionType === "MCQ" ? "TRAC_NGHIEM_DON" : question.questionType === "MULTIPLE_CHOICE" ? "NHIEU_DAP_AN" : question.questionType === "CODING" || metadata?.kind === "TU_LUAN_CODE" ? "TU_LUAN_CODE" : "TINH_HUONG_SYSTEM";
   const answers = question.options.flatMap((option, index) => option.correct ? [String.fromCharCode(65 + index)] : []);
   return {
     ...blankQuestion(kind), ...metadata,
+    rubricJsonText: question.rubricJson ? JSON.stringify(question.rubricJson, null, 2) : metadata?.rubricJsonText,
+    codingJsonText: question.coding ? JSON.stringify(question.coding, null, 2) : metadata?.codingJsonText,
     id: `Q${question.id}`, kind, content: question.questionText, score: String(question.points),
     skill: question.skill ?? "", difficulty: question.difficulty ?? "",
     difficultyTone: question.difficulty === "Easy" ? "easy" : question.difficulty === "Hard" ? "hard" : "medium",

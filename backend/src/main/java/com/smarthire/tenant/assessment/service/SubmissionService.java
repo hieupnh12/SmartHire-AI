@@ -38,6 +38,8 @@ public class SubmissionService {
     private final AssessmentMapper mapper;
     private final AiInterviewRepository aiInterviews;
     private final JobRepository jobs;
+    @org.springframework.beans.factory.annotation.Autowired
+    private org.springframework.context.ApplicationEventPublisher events;
 
     public SubmissionService(JobTestRepository tests, ApplicationRepository applications, SubmissionRepository submissions,
             QuestionRepository questions, OptionRepository options, AnswerRepository answers,
@@ -77,8 +79,8 @@ public class SubmissionService {
         }
         requireEligible(application);
         var paper = questions.findByTest_IdOrderByQuestionOrderAscIdAsc(testId);
-        if (paper.isEmpty() || paper.stream().anyMatch(q -> !java.util.Set.of("MCQ", "MULTIPLE_CHOICE", "ESSAY").contains(q.getQuestionType()))
-                || codingProblems.existsByTest_Id(testId)) {
+        if (paper.isEmpty() || paper.stream().anyMatch(q -> !java.util.Set.of("MCQ", "MULTIPLE_CHOICE", "ESSAY", "CODING").contains(q.getQuestionType()))
+                || codingProblems.findByTest_Id(testId).stream().anyMatch(c -> c.getQuestion() == null)) {
             throw conflict("Test contains unsupported question types", "UNSUPPORTED_TEST");
         }
         submission.setTest(test);
@@ -131,6 +133,8 @@ public class SubmissionService {
             if (!seen.add(input.questionId())) throw invalid("Duplicate questionId in answers");
             Question question = questions.findByIdAndTest_Id(input.questionId(), submission.getTest().getId())
                     .orElseThrow(() -> invalid("Question does not belong to this test"));
+            if (submission.getObjectiveCompletedAt() != null && isObjective(question)) throw conflict("Objective section is locked", "SECTION_LOCKED");
+            if (submission.getObjectiveCompletedAt() == null && hasObjective(submission) && !isObjective(question)) throw conflict("Complete objective section first", "SECTION_NOT_STARTED");
             Answer answer = answers.findBySubmission_IdAndQuestion_Id(id, question.getId()).orElseGet(Answer::new);
             answer.setSubmission(submission);
             answer.setQuestion(question);
@@ -197,6 +201,43 @@ public class SubmissionService {
         }).toList();
     }
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private CodingJudge judge;
+    public record SampleRun(@jakarta.validation.constraints.NotNull @jakarta.validation.constraints.Size(max=10000) String source,
+            @jakarta.validation.constraints.NotBlank String language) {}
+    @Transactional(isolation = Isolation.READ_COMMITTED)
+    public java.util.List<com.fasterxml.jackson.databind.JsonNode> runSamples(long id, long questionId, SampleRun body) {
+        Submission submission = owned(id, candidate());
+        if (expire(submission) || submission.getStatus() != TestSubmissionStatus.IN_PROGRESS) throw conflict("Submission closed", "SUBMISSION_CLOSED");
+        requireEligible(submission.getApplication());
+        if (hasObjective(submission) && submission.getObjectiveCompletedAt() == null) throw conflict("Complete objective section first", "SECTION_NOT_STARTED");
+        Question question = questions.findByIdAndTest_Id(questionId, submission.getTest().getId()).orElseThrow(this::notFound);
+        var problem = question.getCodingProblem();
+        if (problem == null || !problem.getStarterCodeJson().has(body.language())) throw invalid("Unsupported coding language");
+        try {
+            return problem.getTestCases().stream().filter(TestCase::isSample).limit(5)
+                    .map(c -> judge.run(problem, body.language(), body.source(), c.getInputData(), c.getExpectedOutput())).toList();
+        } catch (RuntimeException failure) {
+            throw new BusinessException("Coding sandbox unavailable", HttpStatus.SERVICE_UNAVAILABLE, "SANDBOX_UNAVAILABLE");
+        }
+    }
+
+    public static boolean isObjective(Question question) {
+        return "MCQ".equals(question.getQuestionType()) || "MULTIPLE_CHOICE".equals(question.getQuestionType());
+    }
+    private boolean hasObjective(Submission submission) {
+        return questions.findByTest_IdOrderByQuestionOrderAscIdAsc(submission.getTest().getId()).stream().anyMatch(SubmissionService::isObjective);
+    }
+    @Transactional(isolation = Isolation.READ_COMMITTED, noRollbackFor = SubmissionExpiredException.class)
+    public SubmissionResponse completeObjective(long id) {
+        Submission submission = owned(id, candidate());
+        if (expire(submission)) throw new SubmissionExpiredException();
+        if (submission.getStatus() != TestSubmissionStatus.IN_PROGRESS) throw conflict("Submission closed", "SUBMISSION_CLOSED");
+        requireEligible(submission.getApplication());
+        if (submission.getObjectiveCompletedAt() == null) submission.setObjectiveCompletedAt(Instant.now());
+        return response(submission);
+    }
+
     private Candidate candidate() {
         if (!access.candidate()) throw new BusinessException("Candidate access required", HttpStatus.FORBIDDEN, "ASSESSMENT_FORBIDDEN");
         return access.candidateActor();
@@ -221,7 +262,16 @@ public class SubmissionService {
         return submission.getStartedAt().plusSeconds(submission.getTest().getDurationMinutes() * 60L);
     }
 
+    private Instant objectiveDeadline(Submission submission) {
+        Integer minutes = submission.getTest().getObjectiveDurationMinutes();
+        return minutes == null || submission.getStartedAt() == null ? null : submission.getStartedAt().plusSeconds(minutes * 60L);
+    }
     private boolean expire(Submission submission) {
+        Instant objectiveDeadline = objectiveDeadline(submission);
+        if (submission.getStatus() == TestSubmissionStatus.IN_PROGRESS && submission.getObjectiveCompletedAt() == null
+                && objectiveDeadline != null && !Instant.now().isBefore(objectiveDeadline)) {
+            submission.setObjectiveCompletedAt(objectiveDeadline);
+        }
         if (submission.getStatus() == TestSubmissionStatus.IN_PROGRESS
                 && !Instant.now().isBefore(deadline(submission))) {
             grade(submission, true);
@@ -233,10 +283,10 @@ public class SubmissionService {
     private void grade(Submission submission, boolean expired) {
         BigDecimal total = BigDecimal.ZERO;
         boolean needsReview = questions.findByTest_IdOrderByQuestionOrderAscIdAsc(submission.getTest().getId())
-                .stream().anyMatch(q -> "ESSAY".equals(q.getQuestionType()));
+                .stream().anyMatch(q -> !isObjective(q));
         var saved = answers.findBySubmission_IdOrderByQuestion_QuestionOrderAscQuestion_IdAsc(submission.getId());
         for (Answer answer : saved) {
-            if ("ESSAY".equals(answer.getQuestion().getQuestionType())) {
+            if (!isObjective(answer.getQuestion())) {
                 answer.setCorrect(null);
                 answer.setScore(null);
                 continue;
@@ -255,7 +305,15 @@ public class SubmissionService {
             answer.setScore(correct ? BigDecimal.valueOf(answer.getQuestion().getPoints()) : BigDecimal.ZERO);
             total = total.add(answer.getScore());
         }
+        var paper = questions.findByTest_IdOrderByQuestionOrderAscIdAsc(submission.getTest().getId());
+        for (Question question : paper) {
+            if (isObjective(question) || saved.stream().anyMatch(a -> a.getQuestion().getId().equals(question.getId()))) continue;
+            Answer empty = new Answer(); empty.setQuestion(question); empty.setSubmission(submission); empty.setAnswerText("");
+            saved.add(empty);
+        }
         answers.saveAll(saved);
+        if (events != null && needsReview) events.publishEvent(new AssessmentGradeEvent(submission.getId(),
+                com.smarthire.multitenancy.context.TenantContext.getCurrentTenant()));
         submission.setScore(needsReview ? null : total);
         submission.setSubmittedAt(expired ? deadline(submission) : Instant.now().truncatedTo(ChronoUnit.SECONDS));
         submission.setStatus(expired ? TestSubmissionStatus.EXPIRED
@@ -273,20 +331,25 @@ public class SubmissionService {
                 .map(answer -> new SavedAnswer(answer.getQuestion().getId(),
                         answer.getSelectedOption() == null ? null : answer.getSelectedOption().getId(),
                         answer.getSelectedOptions().stream().map(row -> row.getOption().getId()).sorted().toList(),
-                        answer.getAnswerText())).toList();
+                        answer.getAnswerText(), answer.getLanguage())).toList();
         BigDecimal threshold = submission.getTest().getPassingScore();
         Boolean passed = threshold == null || submission.getScore() == null ? null : submission.getScore().compareTo(threshold) >= 0;
         return new SubmissionResponse(submission.getId(), submission.getTest().getId(), submission.getApplication().getId(),
                 submission.getTest().getTitle(), submission.getStatus(), submission.getStartedAt(), expiresAt,
                 submission.getSubmittedAt(), now, remaining, submission.getScore(),
                 paper.stream().mapToInt(Question::getPoints).sum(), passed,
-                paper.stream().map(q -> mapper.candidateQuestion(q, options.findByQuestion_IdOrderByIdAsc(q.getId()))).toList(), saved);
+                paper.stream().map(q -> mapper.candidateQuestion(q, options.findByQuestion_IdOrderByIdAsc(q.getId()))).toList(), saved, submission.getObjectiveCompletedAt(), objectiveDeadline(submission));
     }
 
     private void applyAnswer(Answer answer, Question question, SaveAnswersRequest.AnswerInput input) {
         var ids = input.selectedOptionIds() == null ? java.util.List.<Long>of() : input.selectedOptionIds();
         String type = question.getQuestionType();
-        if ("ESSAY".equals(type)) {
+        if (isObjective(question) && input.language() != null) throw invalid("Choice answer cannot specify language");
+        if ("ESSAY".equals(type) || "CODING".equals(type)) {
+            if ("CODING".equals(type)) {
+                if (input.language() == null || question.getCodingProblem() == null || !question.getCodingProblem().getStarterCodeJson().has(input.language())) throw invalid("Unsupported coding language");
+                answer.setLanguage(input.language());
+            } else if (input.language() != null) throw invalid("Essay cannot specify language");
             if (input.selectedOptionId() != null || !ids.isEmpty()) throw invalid("Essay answers cannot select options");
             if (input.answerText() != null && input.answerText().length() > 10000) throw invalid("Essay answer is too long");
             answer.setSelectedOption(null);

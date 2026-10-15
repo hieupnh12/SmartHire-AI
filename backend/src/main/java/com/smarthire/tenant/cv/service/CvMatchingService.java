@@ -35,7 +35,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Hybrid CV screening: taxonomy + Jaccard + Gemini semantics. Gemini never sets the final score.
+ * Hybrid CV screening. Taxonomy, Jaccard, experience, education, and Gemini skill notes
+ * produce the score. Gemini then decides pass or fail from that breakdown.
+ * It cannot overturn a failed formula gate, and it does not emit the numeric score.
  * Rank-v1 overall (35/15/30/20) stays in Matching.
  */
 @Service
@@ -55,6 +57,7 @@ public class CvMatchingService {
     private final MatchScoreRepository scores;
     private final SkillScoringService skillScoring;
     private final JobScreeningConfigService jobScreening;
+    private final CvScreeningAdvisor advisor;
     private final ObjectMapper mapper;
     private final RedisService redis;
     private final long cacheSeconds;
@@ -67,6 +70,7 @@ public class CvMatchingService {
             MatchScoreRepository scores,
             SkillScoringService skillScoring,
             JobScreeningConfigService jobScreening,
+            CvScreeningAdvisor advisor,
             ObjectMapper mapper,
             RedisService redis,
             @Value("${app.redis.ttl.match-score-seconds:1800}") long cacheSeconds) {
@@ -77,6 +81,7 @@ public class CvMatchingService {
         this.scores = scores;
         this.skillScoring = skillScoring;
         this.jobScreening = jobScreening;
+        this.advisor = advisor;
         this.mapper = mapper;
         this.redis = redis;
         this.cacheSeconds = cacheSeconds;
@@ -210,15 +215,7 @@ public class CvMatchingService {
         boolean geminiExtraction = extraction != null && extraction.getModelVersion() != null
                 && extraction.getModelVersion().startsWith("gemini");
         String model = geminiExtraction || hasGeminiRows ? HYBRID_SCREEN : HEURISTIC_SCREEN;
-        boolean passed = passed(score, passThreshold, requiredMissing.size(), requirements.size(), hasGeminiRows || geminiExtraction);
-
-        breakdown.put("skillScore", requiredScore);
-        breakdown.put("jaccardSimilarity", jaccard);
-        breakdown.put("verdict", verdict);
-        breakdown.put("explanation", verdict);
-        breakdown.put("source", model.equals(HYBRID_SCREEN) ? "hybrid" : "heuristic");
-        breakdown.put("passed", passed);
-        breakdown.put("passThreshold", passThreshold);
+        boolean formulaPassed = passed(score, passThreshold, requiredMissing.size(), requirements.size(), hasGeminiRows || geminiExtraction);
 
         ObjectNode weights = breakdown.putObject("weights");
         weights.put("required", wRequired);
@@ -252,6 +249,26 @@ public class CvMatchingService {
         if (candidateEducation.isBlank()) education.putNull("candidateLevel");
         else education.put("candidateLevel", candidateEducation);
         education.put("match", !hasEducation || educationScore.compareTo(HUNDRED) >= 0);
+
+        breakdown.put("skillScore", requiredScore);
+        breakdown.put("jaccardSimilarity", jaccard);
+        breakdown.put("score", score);
+        breakdown.put("passThreshold", passThreshold);
+        breakdown.put("formulaPassed", formulaPassed);
+
+        String decisionSource = "formula";
+        boolean passed = formulaPassed;
+        var decision = advisor.decide(breakdown, formulaPassed);
+        if (decision.isPresent()) {
+            decisionSource = "ai";
+            verdict = decision.get().verdict();
+            passed = formulaPassed && decision.get().passed();
+        }
+        breakdown.put("verdict", verdict);
+        breakdown.put("explanation", verdict);
+        breakdown.put("source", model.equals(HYBRID_SCREEN) ? "hybrid" : "heuristic");
+        breakdown.put("decisionSource", decisionSource);
+        breakdown.put("passed", passed);
 
         MatchScore saved = scores.findByJob_IdAndCv_Id(cv.getJob().getId(), cv.getId()).orElseGet(MatchScore::new);
         saved.setJob(cv.getJob());

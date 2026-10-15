@@ -26,13 +26,28 @@ export interface ConsultationResponse {
   planTier?: string;
   primaryNeed?: string;
   notes?: string;
-  status: "PENDING" | "CONTACTED" | "PROVISIONED" | "REJECTED";
+  status: "PENDING" | "CONTACTED" | "QUOTED" | "PROVISIONED" | "REJECTED";
   createdAt: string;
   updatedAt: string;
 }
 
 export interface UpdateConsultationStatusRequest {
-  status: "PENDING" | "CONTACTED" | "PROVISIONED" | "REJECTED";
+  status: "PENDING" | "CONTACTED" | "QUOTED" | "PROVISIONED" | "REJECTED";
+  notes?: string;
+}
+
+export interface SendQuotationRequest {
+  consultationRequestId?: number;
+  companyName: string;
+  contactName: string;
+  recipientEmail: string;
+  phoneNumber?: string;
+  planId: number;
+  platformFee?: number;
+  addonFee?: number;
+  discount?: number;
+  totalQuote: number;
+  pricingMode?: string;
   notes?: string;
 }
 
@@ -59,4 +74,10 @@ export const consultationApi = {
     const res = await masterClient.patch<ApiResponse<ConsultationResponse>>(`/master/consultations/${id}/status`, data);
     return res.data.data;
   },
+
+  sendQuotation: async (data: SendQuotationRequest): Promise<ConsultationResponse> => {
+    const res = await masterClient.post<ApiResponse<ConsultationResponse>>("/master/consultations/send-quotation", data);
+    return res.data.data;
+  },
 };
+

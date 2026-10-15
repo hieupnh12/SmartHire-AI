@@ -68,7 +68,7 @@ class AiInterviewInviteServiceTest {
         verify(mail).send(eq("can@se36.local"), contains("phỏng vấn AI"), contains("http://se36.localhost:5173/candidate/interviews"));
         verify(mail).send(eq("can@se36.local"), anyString(), contains("08:00 10/10/2026"));
         verify(mail).send(eq("can@se36.local"), anyString(), contains("23:59 12/10/2026"));
-        verify(mail).send(eq("can@se36.local"), anyString(), contains("Thời lượng: 30 phút"));
+        verify(mail).send(eq("can@se36.local"), anyString(), contains("Thời lượng: 15 phút"));
         verify(mail).send(eq("can@se36.local"), anyString(), contains("Số lần thực hiện: 1"));
         verify(outbox).save(any());
         verify(applications).save(application);

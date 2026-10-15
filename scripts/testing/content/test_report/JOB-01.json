@@ -1,0 +1,47 @@
+{
+  "feature_name": "Create / Update / Delete Job",
+  "actor": "Recruiter",
+  "test_requirement": "Recruiters manage the job lifecycle: create drafts, edit, clone and soft delete jobs, and configure CV / Gate screening weights per job.",
+  "cases": {
+    "JOB-01-TC01": {
+      "rule": "Staff trong tenant mới được quản lý.",
+      "function": "Business rules",
+      "description": "Verify only staff of the same tenant can manage a job.",
+      "procedure": "1. Log in as Recruiter of tenant A and open a job of tenant A, edit the title and save.\n2. Log in as Candidate of tenant A and send PUT /api/v1/jobs/{id} for the same job.\n3. Log in as Recruiter of tenant B and send PUT /api/v1/jobs/{id} with the tenant A job ID.",
+      "expected": "Step 1: the job is updated.\nStep 2: HTTP 403, code FORBIDDEN.\nStep 3: HTTP 404; the tenant A job is not changed.",
+      "precondition": "Tenant A has a DRAFT job created by the Recruiter. Tenant B is ACTIVE."
+    },
+    "JOB-01-TC02": {
+      "rule": "Không hard-delete khi đã có applicants.",
+      "function": "Business rules",
+      "description": "Verify deleting a job with applicants is a soft delete.",
+      "procedure": "1. Log in as the job owner (Recruiter) of tenant A.\n2. Delete a job that already has applications.\n3. Check the job list, the job status and the applications of that job.",
+      "expected": "The job is not removed from the database: status becomes ARCHIVED and deleted_at is set.\nThe job disappears from the active job list.\nOpen applications of the job are closed as REJECTED; their history is kept.",
+      "precondition": "The job has at least one application in NEW or IN_REVIEW."
+    },
+    "JOB-01-TC03": {
+      "rule": "CV Screening Weights chỉ tính CV Score. Gate Screening Weights chỉ tổng hợp CV + AI Interview + Assessment.",
+      "function": "Business rules",
+      "description": "Verify CV screening weights and gate screening weights are applied independently.",
+      "procedure": "1. Create a job with CV weights (skill 40, preferred 8, experience 12, education 0, jaccard 15, semantic 25) and gate weights (CV 40, AI Interview 35, Assessment 25).\n2. Submit a CV and let the AI screen it.\n3. Complete the AI interview and assessment for the candidate.\n4. View the candidate scores on the job.",
+      "expected": "The CV score is calculated only from the CV weights.\nThe overall (gate) score combines only CV score, AI Interview score and Assessment score using the gate weights.",
+      "precondition": "AI screening is enabled for the tenant; a candidate account exists."
+    },
+    "JOB-01-TC04": {
+      "rule": "Backend từ chối weight âm, thiếu field, hoặc tổng ≠ 100%. Pass threshold 0–100.",
+      "function": "Business rules",
+      "description": "Verify invalid screening weights and thresholds are rejected (boundary values).",
+      "procedure": "1. Log in as Recruiter of tenant A.\n2. Save a job with one CV weight = -1.\n3. Save with a missing weight field.\n4. Save with weights totalling 99 and then 101.\n5. Save with pass threshold = -1, 101, then 0 and 100.",
+      "expected": "Step 2: HTTP 400, code SCREENING_WEIGHT_NEGATIVE.\nStep 3: HTTP 400, code SCREENING_WEIGHT_REQUIRED.\nStep 4: HTTP 400, code SCREENING_WEIGHT_SUM.\nStep 5: -1 and 101 return HTTP 400, code SCREENING_THRESHOLD_RANGE; 0 and 100 are saved.",
+      "precondition": "Recruiter has permission to create jobs."
+    },
+    "JOB-01-TC05": {
+      "rule": "Job cũ (trước V13) được snapshot công thức CV trước đây (40/8/12/0/15/25, ngưỡng 60) và gate 40/35/25 ngưỡng 70 để scoring không gãy. Recruiter đổi được sau.",
+      "function": "Business rules",
+      "description": "Verify legacy jobs keep the default screening formula and can be changed later.",
+      "procedure": "1. Open a job created before migration V13.\n2. View its screening configuration.\n3. Change the CV weights and save.",
+      "expected": "Step 2: CV weights are 40/8/12/0/15/25 with pass threshold 60; gate weights are 40/35/25 with threshold 70.\nStep 3: the new weights are saved and used for later scoring.",
+      "precondition": "The tenant database contains a job created before migration V13."
+    }
+  }
+}

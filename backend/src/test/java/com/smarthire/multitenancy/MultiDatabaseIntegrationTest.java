@@ -35,7 +35,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "app.bootstrap.admin-enabled=false", "logging.level.com.smarthire=INFO"
 })
 @AutoConfigureMockMvc
-@Testcontainers
+@Testcontainers(disabledWithoutDocker = true)
 class MultiDatabaseIntegrationTest {
     @MockBean FileStorageService fileStorageService;
     private static final String PROVISION_PASSWORD = "a".repeat(48);

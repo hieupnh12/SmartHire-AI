@@ -1,12 +1,12 @@
 import React from "react";
-import { X, PhoneCall, UserPlus, Loader2, Check } from "lucide-react";
+import { X, PhoneCall, Loader2, Check, Calculator } from "lucide-react";
 import { ConsultationResponse } from "@/api/master/consultationApi";
 
 interface LeadDetailModalProps {
   selectedLead: ConsultationResponse | null;
   setSelectedLead: (lead: ConsultationResponse | null) => void;
   leadStatusEdit: string;
-  setLeadStatusEdit: (val: "PENDING" | "CONTACTED" | "PROVISIONED" | "REJECTED") => void;
+  setLeadStatusEdit: (val: "PENDING" | "CONTACTED" | "QUOTED" | "PROVISIONED" | "REJECTED") => void;
   leadNotesEdit: string;
   setLeadNotesEdit: (val: string) => void;
   updatingLead: boolean;
@@ -113,6 +113,7 @@ export function LeadDetailModal({
             >
               <option value="PENDING">Chờ xử lý / Chưa liên hệ</option>
               <option value="CONTACTED">Đang liên hệ & Trao đổi Demo</option>
+              <option value="QUOTED">Đã gửi Báo giá thương mại</option>
               <option value="PROVISIONED">Đã cấp phát Workspace (Hoàn tất)</option>
               <option value="REJECTED">Từ chối / Hủy yêu cầu</option>
             </select>
@@ -133,18 +134,21 @@ export function LeadDetailModal({
 
           <div className="pt-2 flex flex-col sm:flex-row gap-2.5">
             {selectedLead.status !== "PROVISIONED" && (
-              <button
-                type="button"
-                onClick={() => {
-                  const l = selectedLead;
-                  setSelectedLead(null);
-                  handleProvisionFromLead(l);
-                }}
-                className="py-2.5 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold flex items-center justify-center gap-1.5 transition-colors"
-              >
-                <UserPlus className="w-4 h-4" />
-                <span>Cấp Workspace Ngay</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const l = selectedLead;
+                    setSelectedLead(null);
+                    handleProvisionFromLead(l);
+                  }}
+                  className="py-2 px-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold flex items-center justify-center gap-1.5 transition-colors text-xs"
+                  title="Mở B2B Deal Wizard: Lên báo giá 3 cấu phần hoặc cấp Workspace"
+                >
+                  <Calculator className="w-3.5 h-3.5" />
+                  <span>Deal Wizard / Báo giá</span>
+                </button>
+              </div>
             )}
 
             <div className="flex-1 flex gap-2 justify-end">

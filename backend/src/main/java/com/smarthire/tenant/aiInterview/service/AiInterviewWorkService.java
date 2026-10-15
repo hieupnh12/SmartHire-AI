@@ -26,18 +26,24 @@ public class AiInterviewWorkService {
         var result = new ArrayList<Pending>();
         interviews.findTop50ByStatusInOrderByIdAsc(List.of(AiInterviewStatus.GENERATING, AiInterviewStatus.SCORING))
                 .forEach(i -> result.add(new Pending(i.getId(), i.getStatus().name())));
+        interviews.findByStatusAndApplication_StatusOrderByIdAsc(AiInterviewStatus.IN_PROGRESS,
+                        com.smarthire.domain.enums.ApplicationStatus.INTERVIEW).stream()
+                .filter(i -> i.getStartedAt() == null && i.getCompletedAt() == null && InterviewPolicies.isConversation(i))
+                .limit(50).forEach(i -> result.add(new Pending(i.getId(), "GENERATING")));
         emails.findTop50ByPurposeAndStatusInAndAttemptsLessThanOrderByIdAsc("AI_INTERVIEW_RESULT", List.of(NotificationStatus.PENDING, NotificationStatus.FAILED), 3)
                 .forEach(e -> result.add(new Pending(e.getId(), "EMAIL")));
         emails.findTop50ByPurposeAndStatusInAndAttemptsLessThanOrderByIdAsc("ASSESSMENT_INVITATION", List.of(NotificationStatus.PENDING, NotificationStatus.FAILED), 3)
                 .forEach(e -> result.add(new Pending(e.getId(), "EMAIL")));
         emails.findTop50ByPurposeAndStatusInAndAttemptsLessThanOrderByIdAsc(ApplicationClosureService.EMAIL_PURPOSE, List.of(NotificationStatus.PENDING, NotificationStatus.FAILED), 3)
                 .forEach(e -> result.add(new Pending(e.getId(), "EMAIL")));
+        emails.findTop50ByPurposeAndStatusInAndAttemptsLessThanOrderByIdAsc("ASSESSMENT_RESULT", List.of(NotificationStatus.PENDING, NotificationStatus.FAILED), 3)
+                .forEach(e -> result.add(new Pending(e.getId(), "EMAIL")));
         return result;
     }
     @Transactional
     public void sendEmail(long id) {
         var email = emails.findLockedById(id).orElse(null);
-        if (email == null || !List.of("AI_INTERVIEW_RESULT", "ASSESSMENT_INVITATION", ApplicationClosureService.EMAIL_PURPOSE).contains(email.getPurpose()) || email.getStatus() == NotificationStatus.SENT || email.getAttempts() >= 3) return;
+        if (email == null || !List.of("AI_INTERVIEW_RESULT", "ASSESSMENT_INVITATION", ApplicationClosureService.EMAIL_PURPOSE, "ASSESSMENT_RESULT").contains(email.getPurpose()) || email.getStatus() == NotificationStatus.SENT || email.getAttempts() >= 3) return;
         email.setAttempts(email.getAttempts() + 1);
         boolean sent = mail.send(email.getToEmail(), email.getSubject(), email.getBody());
         email.setStatus(sent ? NotificationStatus.SENT : NotificationStatus.FAILED);

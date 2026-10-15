@@ -31,6 +31,7 @@ import { CreateContractPage } from "@/features/master/contract/pages/CreateContr
 import { CreateSubscriptionPlanPage } from "@/features/master/billing/pages/CreateSubscriptionPlanPage";
 import { InvoicesPage } from "@/features/master/billing/pages/InvoicesPage";
 import { CheckoutPage } from "@/features/master/billing/pages/CheckoutPage";
+import { LegalDocumentsPage } from "@/features/master/landing/pages/LegalDocumentsPage";
 import { CheckoutSuccessPage } from "@/features/master/billing/pages/CheckoutSuccessPage";
 import { VnPayReturnPage } from "@/features/master/billing/pages/VnPayReturnPage";
 import { BillingPage } from "@/features/master/billing/pages/BillingPage";
@@ -82,6 +83,7 @@ import { GeneralQuestionEditorPage } from "@/features/tenant/recruiter/assessmen
 import { QuestionBankPage } from "@/features/tenant/recruiter/assessments/pages/QuestionBankPage";
 import { ExcelQuestionTemplatePage } from "@/features/tenant/recruiter/assessments/pages/ExcelQuestionTemplatePage";
 import { AssessmentCreationPage } from "@/features/tenant/recruiter/assessments/pages/AssessmentCreationPage";
+import { AssessmentPreviewPage } from "@/features/tenant/recruiter/assessments/pages/AssessmentPreviewPage";
 import { InterviewsPage as RecruiterInterviewsPage } from "@/features/tenant/recruiter/interviews/pages/InterviewsPage";
 import { AiInterviewsPage as RecruiterAiInterviewsPage } from "@/features/tenant/recruiter/interviews/pages/AiInterviewsPage";
 import { SchedulesPage as RecruiterSchedulesPage } from "@/features/tenant/recruiter/schedules/pages/SchedulesPage";
@@ -134,6 +136,8 @@ export function AppRouter() {
       <Route path="/checkout/:planCode" element={<CheckoutPage />} />
       <Route path="/checkout/success" element={<CheckoutSuccessPage />} />
       <Route path="/checkout/vnpay-return" element={<VnPayReturnPage />} />
+      <Route path="/terms" element={<LegalDocumentsPage />} />
+      <Route path="/privacy" element={<LegalDocumentsPage />} />
 
       <Route path="/contracts/sign/:token" element={<PublicContractSigningPage />} />
       <Route path="/contracts/view/:token" element={<PublicContractSigningPage />} />
@@ -226,6 +230,7 @@ export function AppRouter() {
           <Route element={<FeatureRoute feature="ASSESSMENTS" />}>
             <Route path="jobs/:id/assessments" element={<JobRecruitmentWorkspace><RecruiterAssessmentsPage /></JobRecruitmentWorkspace>} />
             <Route path="jobs/:id/assessments/new" element={<JobRecruitmentWorkspace><AssessmentCreationPage /></JobRecruitmentWorkspace>} />
+            <Route path="jobs/:id/assessments/preview" element={<JobRecruitmentWorkspace><AssessmentPreviewPage /></JobRecruitmentWorkspace>} />
             <Route path="jobs/:id/assessments/submissions" element={<JobRecruitmentWorkspace><AssessmentSubmissionsPage /></JobRecruitmentWorkspace>} />
             <Route path="jobs/:id/assessments/:assessmentId" element={<JobRecruitmentWorkspace><AssessmentDetailPage /></JobRecruitmentWorkspace>} />
             <Route path="assessments" element={<Navigate to="/recruiter" replace />} />
@@ -284,6 +289,7 @@ export function AppRouter() {
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<DashboardPage />} />
           <Route path="tenants/create" element={<B2bDealWizardPage />} />
+          <Route path="deals" element={<B2bDealWizardPage />} />
           <Route path="analytics" element={<MasterAnalyticsPage />} />
           <Route path="leads" element={<LeadsPage />} />
           <Route path="tenants" element={<Navigate to="/admin/tenants/directory" replace />} />

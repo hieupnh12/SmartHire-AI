@@ -18,16 +18,16 @@ Tính điểm khớp CV ↔ Job **sau khi đủ bước parse / extract / taxono
 2. Backend đọc CV từ Cloudinary, parse text, extract (Gemini hoặc heuristic).
 3. Chuẩn hóa skill bằng taxonomy (`SkillScoringService`).
 4. Tính Jaccard trên tập skill đã normalize.
-5. Gemini chỉ trả MATCH / PARTIAL / MISSING / UNKNOWN + evidence; **không** quyết định điểm cuối.
-6. Backend tính weighted score → `match_scores` + Redis cache.
+5. Backend tính weighted score từ taxonomy, Jaccard, kinh nghiệm, học vấn và nhận xét kỹ năng của Gemini.
+6. Gemini đọc breakdown đó và quyết định đạt hay không. Công thức đã trượt (dưới ngưỡng hoặc thiếu kỹ năng bắt buộc) thì Gemini không được cho qua. Không có API key hoặc lỗi model thì quyết định giữ nguyên kết quả công thức.
 
 ## Business Rules
 
 - Cần CV analyzed + `job_skills` của đúng job.
 - Score 0–100 + breakdown giải thích được.
-- Pass: `score ≥ cvPassThreshold của Job` **và** không thiếu skill bắt buộc (`requiredMissing == 0`). Không auto-reject, không auto-hire.
-- Job `AUTO`: kết quả Pass của AI quyết định qua vòng CV. Job `MANUAL`: Pass chỉ là đề xuất; `applications.cv_screening_status` giữ `PENDING` tới khi recruiter gọi `POST /api/v1/applications/{id}/cv-screening-decision` (`passed=true` → `INTERVIEW` + email mời AI interview; `false` → `FAILED`, vẫn `IN_REVIEW`).
-- PARTIAL = 0.5 credit. UNKNOWN/MISSING = 0. Required UNKNOWN/MISSING đưa vào `requiredMissing`.
+- Pass công thức: `score ≥ cvPassThreshold của Job` và không thiếu skill bắt buộc (`requiredMissing == 0`). Gemini chỉ quyết định trong số hồ sơ công thức đã cho qua, và có thể từ chối. Gemini không ghi điểm tổng.
+- Job `AUTO`: kết quả Pass quyết định qua vòng CV. Job `MANUAL`: Pass chỉ là đề xuất; `applications.cv_screening_status` giữ `PENDING` tới khi recruiter gọi `POST /api/v1/applications/{id}/cv-screening-decision` (`passed=true` → `INTERVIEW` + email mời AI interview; `false` → `FAILED`, vẫn `IN_REVIEW`).
+- PARTIAL = 0.5 credit. UNKNOWN/MISSING = 0. Required UNKNOWN/MISSING đưa vào `requiredMissing`. Khớp tên taxonomy vẫn là MATCH kể cả khi Gemini ghi chú MISSING.
 - Gemini API lỗi hoặc không có key → heuristic extract; trọng số semantic gộp vào required (theo weight của Job).
 - Trọng số CV **không hard-code** trong scoring. Đọc `job_screening_configs` của Job. Rank-v1 35/15/30/20 và Gate Screening là hệ thống khác.
 

@@ -30,7 +30,7 @@ public class AssessmentMapper {
                 options.stream()
                         .map(option -> new QuestionResponse.OptionResponse(
                                 option.getId(), option.getOptionText(), option.isCorrect()))
-                        .toList());
+                        .toList(), question.getRubricJson(), com.smarthire.tenant.assessment.dto.request.CodingRequest.from(question.getCodingProblem(), false));
     }
 
     public CandidateQuestion candidateQuestion(Question question, List<Option> options) {
@@ -43,7 +43,7 @@ public class AssessmentMapper {
                 question.getQuestionOrder(),
                 options.stream()
                         .map(option -> new CandidateOption(option.getId(), option.getOptionText()))
-                        .toList());
+                        .toList(), com.smarthire.tenant.assessment.dto.request.CodingRequest.from(question.getCodingProblem(), true));
     }
 
     public JobTestResponse response(JobTest test) {
@@ -59,6 +59,6 @@ public class AssessmentMapper {
                 test.getCreatedAt(),
                 test.getUpdatedAt(),
                 creator != null ? creator.getId() : null,
-                creator != null ? creator.getFullName() : null);
+                creator != null ? creator.getFullName() : null, test.getObjectiveDurationMinutes());
     }
 }
