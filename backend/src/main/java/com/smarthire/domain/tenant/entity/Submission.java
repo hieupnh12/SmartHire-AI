@@ -52,6 +52,9 @@ public class Submission {
     @Column(name = "started_at")
     Instant startedAt;
 
+    @Column(name = "objective_completed_at")
+    Instant objectiveCompletedAt;
+
     @Column(name = "submitted_at")
     Instant submittedAt;
 

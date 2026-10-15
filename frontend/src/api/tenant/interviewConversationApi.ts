@@ -6,8 +6,9 @@ export type ConversationMessage = { id: number; sequenceNo: number; role: "USER"
 export type Conversation = { sessionId: number; candidateTurns: number; maxTurns: number; dialogueComplete: boolean; language: string; messages: ConversationMessage[] };
 export type StreamEvent = { event: string; data: string };
 
-export async function readConversationStream(reader: ReadableStreamDefaultReader<Uint8Array>, receive: (event: StreamEvent) => void) {
+export async function readConversationStream(reader: ReadableStreamDefaultReader<Uint8Array>, receive: (event: StreamEvent) => void | boolean) {
   const decoder = new TextDecoder(); let buffer = "";
+  let finished = false;
   function drain() {
     let delimiter: RegExpExecArray | null;
     while ((delimiter = /\r?\n\r?\n/.exec(buffer))) {
@@ -17,7 +18,7 @@ export async function readConversationStream(reader: ReadableStreamDefaultReader
         if (line.startsWith("event:")) event = line.slice(6).trim();
         if (line.startsWith("data:")) data.push(line.slice(5).replace(/^ /, ""));
       }
-      if (data.length) receive({ event, data: data.join("\n") });
+      if (data.length && receive({ event, data: data.join("\n") }) === true) { finished = true; return; }
     }
   }
   try {
@@ -25,6 +26,7 @@ export async function readConversationStream(reader: ReadableStreamDefaultReader
       const result = await reader.read();
       if (result.done) { buffer += decoder.decode(); drain(); break; }
       buffer += decoder.decode(result.value, { stream: true }); drain();
+      if (finished) { void reader.cancel().catch(() => undefined); break; }
     }
   } catch (error) { await reader.cancel().catch(() => undefined); throw error; }
   finally { reader.releaseLock(); }
@@ -41,22 +43,35 @@ export const interviewConversationApi = {
     return api.post(`${path(id)}/messages/${messageId}/recording`, body, { headers: { "Content-Type": "multipart/form-data" }, timeout: 60000 });
   },
   turn: async (id: number, requestId: string, content: string, signal: AbortSignal, onDelta: (text: string) => void) => {
-    // This authenticated request also uses the existing token refresh interceptor before streaming.
-    await interviewConversationApi.get(id);
-    const headers: Record<string, string> = { "Content-Type": "application/json", Accept: "text/event-stream" };
-    const token = localStorage.getItem("accessToken"); if (token) headers.Authorization = `Bearer ${token}`;
-    const tenant = getTenantIdFromWindow(); if (tenant) headers["X-Tenant-ID"] = tenant;
-    const base = (api.defaults.baseURL ?? "/api/v1").replace(/\/$/, "");
-    const response = await fetch(`${base}${path(id)}/turns`, { method: "POST", headers, body: JSON.stringify({ requestId, content }), signal });
-    if (!response.ok || !response.body) throw new Error(`Không thể kết nối hội thoại (HTTP ${response.status}). Vui lòng thử lại.`);
-    let completed: Conversation | undefined;
-    await readConversationStream(response.body.getReader(), message => {
-      if (message.event === "delta") onDelta((JSON.parse(message.data) as { text: string }).text);
-      if (message.event === "done") completed = JSON.parse(message.data) as Conversation;
-      if (message.event === "error") throw new Error((JSON.parse(message.data) as { message: string }).message);
-    });
-    if (!completed) throw new Error("Kết nối bị gián đoạn. Bấm gửi lại để khôi phục cùng lượt trả lời.");
-    return completed;
+    const controller = new AbortController();
+    let timedOut = false;
+    const cancel = () => controller.abort();
+    if (signal.aborted) controller.abort();
+    signal.addEventListener("abort", cancel, { once: true });
+    const timer = setTimeout(() => { timedOut = true; controller.abort(); }, 100000);
+    try {
+      // This authenticated request also uses the existing token refresh interceptor before streaming.
+      await interviewConversationApi.get(id);
+      const headers: Record<string, string> = { "Content-Type": "application/json", Accept: "text/event-stream" };
+      const token = localStorage.getItem("accessToken"); if (token) headers.Authorization = `Bearer ${token}`;
+      const tenant = getTenantIdFromWindow(); if (tenant) headers["X-Tenant-ID"] = tenant;
+      const base = (api.defaults.baseURL ?? "/api/v1").replace(/\/$/, "");
+      const response = await fetch(`${base}${path(id)}/turns`, { method: "POST", headers, body: JSON.stringify({ requestId, content }), signal: controller.signal });
+      if (!response.ok || !response.body) throw new Error(`Không thể kết nối hội thoại (HTTP ${response.status}). Vui lòng thử lại.`);
+      let completed: Conversation | undefined;
+      await readConversationStream(response.body.getReader(), message => {
+        if (message.event === "delta") onDelta((JSON.parse(message.data) as { text: string }).text);
+        if (message.event === "done") { completed = JSON.parse(message.data) as Conversation; return true; }
+        if (message.event === "error") throw new Error((JSON.parse(message.data) as { message: string }).message);
+      });
+      if (!completed) throw new Error("Kết nối bị gián đoạn. Bấm gửi lại để khôi phục cùng lượt trả lời.");
+      return completed;
+    } catch (error) {
+      if (timedOut) throw new Error("AI phản hồi quá lâu. Bấm gửi lại để khôi phục cùng lượt trả lời; nội dung của bạn được giữ lại.");
+      throw error;
+    } finally {
+      clearTimeout(timer); signal.removeEventListener("abort", cancel);
+    }
   },
 };
 

@@ -16,9 +16,14 @@ export const configSchema = z.object({
   enabled: z.boolean(),
   passingScore: z.coerce.number().min(0, "0–100").max(100, "0–100"),
   questionCount: int(1, 30, "1–30 câu"),
-  availableFrom: z.string().refine(value => !value || Number.isFinite(new Date(value).getTime()), "Thời gian không hợp lệ"),
-  availableUntil: z.string().refine(value => !value || Number.isFinite(new Date(value).getTime()), "Thời gian không hợp lệ"),
+  availableFrom: z.string(),
+  availableUntil: z.string(),
   policy: z.object({
+    availability: z.object({
+      mode: z.enum(["RELATIVE", "ABSOLUTE"]),
+      startDelayHours: z.coerce.number().int("Nhập số giờ nguyên.").min(0, "Từ 0 giờ.").max(8760, "Tối đa 8760 giờ.").nullable(),
+      completionWindowHours: z.coerce.number().int("Nhập số giờ nguyên.").min(1, "Ít nhất 1 giờ sau khi mở.").max(8760, "Tối đa 8760 giờ.").nullable(),
+    }).nullable().optional(),
     durationMinutes: int(1, 180, "1–180 phút"),
     maxAttempts: int(1, 5, "1–5 lần"),
     miniAssessmentEnabled: z.boolean(),
@@ -34,8 +39,17 @@ export const configSchema = z.object({
   const p = value.policy;
   const issue = (path: (string | number)[], message: string) => ctx.addIssue({ code: z.ZodIssueCode.custom, path, message });
   const total = COMPETENCY_KEYS.reduce((sum, key) => sum + p.weights[key], 0);
-  if (value.availableFrom && value.availableUntil && new Date(value.availableFrom) >= new Date(value.availableUntil)) {
-    issue(["availableUntil"], "Hạn hoàn thành phải sau thời gian bắt đầu.");
+  if (p.availability?.mode === "RELATIVE") {
+    if (p.availability.startDelayHours == null) issue(["policy", "availability", "startDelayHours"], "Nhập số giờ chờ từ lúc nhận lời mời.");
+    if (p.availability.completionWindowHours == null) issue(["policy", "availability", "completionWindowHours"], "Nhập số giờ từ lúc mở đến hạn hoàn thành.");
+  } else {
+    for (const key of ["availableFrom", "availableUntil"] as const) {
+      if (value[key] && !Number.isFinite(new Date(value[key]).getTime())) issue([key], "Thời gian không hợp lệ.");
+      if (p.availability?.mode === "ABSOLUTE" && !value[key]) issue([key], "Chọn ngày giờ.");
+    }
+    if (value.availableFrom && value.availableUntil && new Date(value.availableFrom) >= new Date(value.availableUntil)) {
+      issue(["availableUntil"], "Hạn hoàn thành phải sau thời gian bắt đầu.");
+    }
   }
   if (total !== 100) issue(["policy", "weights"], `Tổng trọng số phải bằng 100% (hiện tại ${total}%).`);
   if (p.miniAssessmentEnabled && (p.weights.TECHNICAL_KNOWLEDGE === 0 || p.selectedSkills.length === 0)) {
@@ -71,13 +85,15 @@ export function toFormValues(config: AiInterviewConfig): ConfigValues {
     const date = value ? new Date(value) : null;
     return date ? new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16) : "";
   };
-  return { ...config, availableFrom: local(config.availableFrom), availableUntil: local(config.availableUntil), policy: { ...config.policy, weights: Object.fromEntries(COMPETENCY_KEYS.map(key => [key, key === "COMMUNICATION" ? 100 : 0])) as Record<CompetencyKey, number>, miniAssessmentEnabled: false, stages: [], schemaVersion: 2 } };
+  return { ...config, availableFrom: local(config.availableFrom), availableUntil: local(config.availableUntil), policy: { ...config.policy,
+    availability: config.policy.availability ?? { mode: config.availableFrom || config.availableUntil ? "ABSOLUTE" : "RELATIVE", startDelayHours: 0, completionWindowHours: 24 },
+    weights: Object.fromEntries(COMPETENCY_KEYS.map(key => [key, key === "COMMUNICATION" ? 100 : 0])) as Record<CompetencyKey, number>, miniAssessmentEnabled: false, stages: [], schemaVersion: 2 } };
 }
 
 export function toRequest(values: ConfigValues): AiInterviewConfig {
   return {
     ...values,
-    availableFrom: values.availableFrom ? new Date(values.availableFrom).toISOString() : null,
-    availableUntil: values.availableUntil ? new Date(values.availableUntil).toISOString() : null,
+    availableFrom: values.policy.availability?.mode !== "RELATIVE" && values.availableFrom ? new Date(values.availableFrom).toISOString() : null,
+    availableUntil: values.policy.availability?.mode !== "RELATIVE" && values.availableUntil ? new Date(values.availableUntil).toISOString() : null,
   };
 }

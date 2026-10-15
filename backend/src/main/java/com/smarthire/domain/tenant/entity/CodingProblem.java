@@ -31,9 +31,29 @@ public class CodingProblem {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "test_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "test_id")
     JobTest test;
+
+    @jakarta.persistence.OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "question_id")
+    Question question;
+
+    @Builder.Default
+    @Column(nullable = false, length = 32)
+    String category = "CODING_ALGORITHM";
+
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
+    @Column(name = "starter_code_json", columnDefinition = "json")
+    com.fasterxml.jackson.databind.JsonNode starterCodeJson;
+
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
+    @Column(name = "harness_json", columnDefinition = "json")
+    com.fasterxml.jackson.databind.JsonNode harnessJson;
+
+    @Builder.Default
+    @jakarta.persistence.OneToMany(mappedBy = "codingProblem", cascade = jakarta.persistence.CascadeType.ALL, orphanRemoval = true)
+    java.util.List<TestCase> testCases = new java.util.ArrayList<>();
 
     @Column(nullable = false)
     String title;

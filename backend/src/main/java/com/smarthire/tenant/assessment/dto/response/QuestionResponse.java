@@ -11,6 +11,7 @@ public record QuestionResponse(
         String difficulty,
         String skill,
         String explanation,
-        List<OptionResponse> options) {
+        List<OptionResponse> options, com.fasterxml.jackson.databind.JsonNode rubricJson,
+        com.smarthire.tenant.assessment.dto.request.CodingRequest coding) {
     public record OptionResponse(Long id, String optionText, boolean correct) {}
 }

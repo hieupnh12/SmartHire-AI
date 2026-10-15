@@ -32,6 +32,8 @@ export type BankQuestion = {
   rubric: { level: "excellent" | "pass" | "fail"; text: string }[];
   sample: string;
   timeLimit: string;
+  rubricJsonText?: string;
+  codingJsonText?: string;
   warning?: string;
 };
 

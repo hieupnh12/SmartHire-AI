@@ -1,3 +1,4 @@
+import { QuestionContentFields } from "../components/QuestionContentFields";
 import { ExcelImportReview } from "../components/ExcelImportReview";
 import { useRecruitmentJob } from "../../jobs/components/JobRecruitmentWorkspace";
 import { useEffect, useMemo, useRef, useState, type ClipboardEvent, type ReactNode } from "react";
@@ -1973,13 +1974,17 @@ export function ExcelQuestionEditor({ job, generalBank }: {
             )}
 
             {selectedQuestion && isSubjectiveKind(selectedQuestion.kind) && (
-              <div className="border-t border-[var(--color-border-default)] bg-[var(--color-surface-container-low)] p-3">
-                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <div className="border-t border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-4 sm:p-8">
+                <div className="mb-6 border-b border-[var(--color-border-default)] pb-4 flex flex-wrap items-center justify-between gap-2">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="inline-flex items-center gap-1.5 rounded-md bg-[var(--color-primary)] px-2 py-1 text-[11px] font-semibold text-white">
+                    <span className="inline-flex items-center gap-1.5 rounded-xl bg-[var(--color-primary-subtle)] px-3 py-2 text-xs font-semibold text-[var(--color-primary)]">
                       <Code2 className="size-3.5" aria-hidden="true" />
                       {selectedQuestion.kind === "TU_LUAN_CODE" ? "Form tự luận code" : "Form tự luận lý thuyết"}
                     </span>
+                    <div>
+                      <h2 className="text-base font-semibold text-[var(--color-on-surface)]">{selectedQuestion.kind === "TU_LUAN_CODE" ? "Biên soạn bài lập trình" : "Biên soạn câu hỏi lý thuyết & tình huống"}</h2>
+                      <p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">Thiết lập nội dung, hướng dẫn trả lời và tiêu chuẩn chấm điểm.</p>
+                    </div>
                   </div>
                   <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
                     <span className="inline-flex items-center gap-1 rounded-full bg-[var(--color-surface-card)] px-2 py-0.5 ring-1 ring-[var(--color-border-default)]">
@@ -1991,18 +1996,23 @@ export function ExcelQuestionEditor({ job, generalBank }: {
                     </span>
                   </div>
                 </div>
-                <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-                  <div className="flex flex-col gap-2 rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-3">
+
+                <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                  <div className="min-w-0 flex flex-col gap-4 rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-4 sm:p-5">
+                    <div className="flex items-center gap-3 border-b border-[var(--color-border-default)] pb-4">
+                      <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[var(--color-primary-soft)] text-sm font-semibold text-[var(--color-primary)]">01</span>
+                      <div><h3 className="text-sm font-semibold">Nội dung & tiêu chuẩn đánh giá</h3><p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">Thông tin câu hỏi và mô tả từng mức điểm.</p></div>
+                    </div>
                     <label className="flex flex-col gap-1">
                       <span className="text-[11px] font-semibold text-[var(--color-on-surface-variant)]">Đề bài</span>
                       <textarea
                         value={selectedQuestion.content}
                         onChange={(event) => patchQuestion(selectedIndex, { content: event.target.value })}
-                        rows={2}
+                        rows={3}
                         className="resize-y rounded-md border border-[var(--color-border-default)] bg-[var(--color-surface-container-low)] px-2.5 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
                       />
                     </label>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid gap-3 sm:grid-cols-2">
                       <label className="flex flex-col gap-1">
                         <span className="text-[11px] font-semibold text-[var(--color-on-surface-variant)]">Kỹ năng</span>
                         <input
@@ -2020,11 +2030,15 @@ export function ExcelQuestionEditor({ job, generalBank }: {
                         />
                       </label>
                     </div>
-                    <div className="space-y-1.5">
+                    <div className="space-y-3">
                       <p className="text-[11px] font-semibold text-[var(--color-on-surface-variant)]">Rubric 3 mức</p>
-                      {selectedQuestion.rubric.map((item) => (
+                      {selectedQuestion.rubric.map((item, index) => (
+                        <label key={item.level} className={cn("block space-y-2 rounded-xl border border-l-4 p-3", index === 0 ? "border-[var(--color-interview-passed)] bg-[var(--color-interview-passed-bg)]" : index === 1 ? "border-[var(--color-primary)] bg-[var(--color-primary-subtle)]" : "border-[var(--color-error)] bg-[var(--color-error-container)]")}>
+                          <span className="flex items-center justify-between gap-2 text-xs font-semibold">
+                            <span>{["Xuất sắc · 9–10 điểm", "Đạt · 6–8 điểm", "Chưa đạt · 0–5 điểm"][index]}</span>
+                            <span className="text-[var(--color-on-surface-variant)]">Mức {index + 1}</span>
+                          </span>
                         <textarea
-                          key={item.level}
                           value={item.text}
                           onChange={(event) =>
                             patchQuestion(selectedIndex, {
@@ -2034,14 +2048,17 @@ export function ExcelQuestionEditor({ job, generalBank }: {
                             })
                           }
                           rows={2}
-                          className="w-full resize-y rounded-md border border-[var(--color-border-default)] bg-[var(--color-surface-container-low)] px-2 py-1.5 font-mono text-[11px] outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+                          className="w-full resize-y rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-card)] px-3 py-2 text-sm leading-relaxed outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
                         />
+                        </label>
                       ))}
                     </div>
                   </div>
-                  <div className="flex flex-col gap-2 rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-[#0f172a] p-3 text-slate-100">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-[11px] font-semibold text-slate-300">
+                  <div className="min-w-0 flex flex-col gap-4">
+                    <div className="flex flex-col gap-3 rounded-2xl border border-slate-700 bg-[#0f172a] p-4 text-slate-100">
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-700 pb-3">
+                      <p className="flex items-center gap-2 text-xs font-semibold text-slate-200">
+                        <Code2 className="size-4 shrink-0" aria-hidden="true" />
                         {selectedQuestion.kind === "TU_LUAN_CODE"
                           ? "Starter code (tuỳ chọn — có thể để trống)"
                           : "Khung lý thuyết (tuỳ chọn — có thể để trống)"}
@@ -2051,9 +2068,10 @@ export function ExcelQuestionEditor({ job, generalBank }: {
                       </span>
                     </div>
                     <textarea
+                      aria-label={selectedQuestion.kind === "TU_LUAN_CODE" ? "Starter code cho ứng viên" : "Khung lý thuyết cho ứng viên"}
                       value={selectedQuestion.snippet}
                       onChange={(event) => patchQuestion(selectedIndex, { snippet: event.target.value })}
-                      rows={12}
+                      rows={9}
                       spellCheck={false}
                       placeholder={
                         selectedQuestion.kind === "TU_LUAN_CODE"
@@ -2062,8 +2080,11 @@ export function ExcelQuestionEditor({ job, generalBank }: {
                       }
                       className="min-h-48 flex-1 resize-y rounded-md border border-slate-700 bg-[#020617] px-3 py-2 font-mono text-[12px] leading-relaxed text-emerald-200 outline-none placeholder:text-slate-500 focus:ring-2 focus:ring-emerald-500/60"
                     />
-                    <label className="flex flex-col gap-1">
-                      <span className="text-[11px] font-semibold text-slate-300">
+                    <p className="text-xs text-slate-400">Khung gợi ý hiển thị cho ứng viên khi làm bài. Có thể để trống.</p>
+                    </div>
+                    <label className="flex flex-1 flex-col gap-3 rounded-2xl border border-slate-700 bg-[#0f172a] p-4">
+                      <span className="flex items-center gap-2 border-b border-slate-700 pb-3 text-xs font-semibold text-slate-200">
+                        <ShieldCheck className="size-4 shrink-0" aria-hidden="true" />
                         Đáp án mẫu * (đáp án chính để so sánh — ẩn với ứng viên)
                       </span>
                       <textarea
@@ -2078,10 +2099,19 @@ export function ExcelQuestionEditor({ job, generalBank }: {
                         }}
                         rows={3}
                         placeholder="Bắt buộc — đáp án chuẩn do recruiter đưa ra để đối chiếu khi chấm"
-                        className="resize-y rounded-md border border-slate-700 bg-[#020617] px-3 py-2 text-[11px] text-slate-200 outline-none placeholder:text-slate-500 focus:ring-2 focus:ring-emerald-500/60"
+                        className="min-h-40 flex-1 resize-y rounded-lg border border-slate-700 bg-[#020617] px-3 py-2 text-[11px] text-slate-200 outline-none placeholder:text-slate-500 focus:ring-2 focus:ring-emerald-500/60"
                       />
                     </label>
                   </div>
+                </div>
+                <div className="mt-6 border-t border-[var(--color-border-default)] pt-6">
+                <div className="mb-5 flex items-center gap-3">
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[var(--color-primary-soft)] text-sm font-semibold text-[var(--color-primary)]">02</span>
+                  <div><h3 className="text-sm font-semibold">{selectedQuestion.kind === "TU_LUAN_CODE" ? "Cấu hình thực thi & bộ kiểm thử" : "Phân loại & tiêu chí chấm chi tiết"}</h3><p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">{selectedQuestion.kind === "TU_LUAN_CODE" ? "Quản lý tài nguyên, mã khởi đầu theo ngôn ngữ và test công khai / ẩn." : "Xác định đáp án tham khảo và phân bổ trọng số cho từng tiêu chí."}</p></div>
+                </div>
+                <QuestionContentFields type={selectedQuestion.kind === "TU_LUAN_CODE" ? "CODING" : "ESSAY"}
+                  value={selectedQuestion.kind === "TU_LUAN_CODE" ? selectedQuestion.codingJsonText ?? "" : selectedQuestion.rubricJsonText ?? ""}
+                  onChange={value => patchQuestion(selectedIndex, selectedQuestion.kind === "TU_LUAN_CODE" ? { codingJsonText: value } : { rubricJsonText: value })} />
                 </div>
               </div>
             )}

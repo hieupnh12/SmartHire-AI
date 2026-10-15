@@ -53,6 +53,7 @@ export type AiInterview = {
   passingScore: number | null;
   errorMessage: string | null;
   questionCount: number;
+  maxQuestionCount?: number;
   expiresAt?: string | null;
   attemptNumber?: number;
   canRetry?: boolean;
@@ -89,6 +90,7 @@ export type CompetencyKey = "TECHNICAL_KNOWLEDGE" | "PROBLEM_SOLVING" | "PRACTIC
 export type InterviewStage = { title: string; questionCount: number; competencies: string[]; skills: string[] };
 
 export type InterviewPolicy = {
+  availability?: { mode: "RELATIVE" | "ABSOLUTE"; startDelayHours: number | null; completionWindowHours: number | null } | null;
   durationMinutes: number;
   maxAttempts: number;
   miniAssessmentEnabled: boolean;
@@ -129,6 +131,7 @@ export type AiInterviewReport = {
   criteriaEvidence?: Record<string, { messageId: number; quote: string }[]>;
   overallScore: number;
   communicationCriteria?: Record<string, number>;
+  criterionWeights?: Record<string, number>;
   weights?: Partial<Record<CompetencyKey, number>>;
   miniAssessmentScore?: number;
   competencies: Partial<Record<CompetencyKey, number>>;

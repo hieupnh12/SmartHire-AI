@@ -1,0 +1,35 @@
+import { useState } from "react";
+import { Code2, ListChecks, Plus, Trash2 } from "lucide-react";
+import type { CodingContent, EssayRubric } from "@/api/types/assessment";
+import { Button } from "@/components/ux/Button";
+import { assessmentInput as input } from "@/components/ux/assessmentUi";
+
+export function PreviewQuestionAuthoring({ type, value, onChange }: {
+  type: "ESSAY" | "CODING"; value: string; onChange: (value: string) => void;
+}) {
+  const [tab, setTab] = useState(0);
+  const card = "space-y-3 rounded-xl bg-[var(--color-surface-container-low)] p-4";
+  if (type === "ESSAY") {
+    const rubric = JSON.parse(value) as EssayRubric;
+    const update = (patch: Partial<EssayRubric>) => onChange(JSON.stringify({ ...rubric, ...patch }));
+    const total = rubric.criteria.reduce((sum, row) => sum + row.weight, 0);
+    return <div className="space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="flex items-center gap-2 font-semibold"><ListChecks className="size-5 text-[var(--color-primary)]" aria-hidden="true" />Rubric Builder (Tiêu chí chấm điểm)</h3><span className="text-xs font-semibold text-[var(--color-primary)]">Tổng tỉ trọng: {total}%</span></div>
+      {rubric.criteria.map((row, index) => <div key={index} className={card}>
+        <div className="flex items-start justify-between gap-3"><label className="min-w-0 flex-1 text-sm font-medium">Tiêu chí {index + 1}<input className={`${input} mt-2`} value={row.description} onChange={event => update({ criteria: rubric.criteria.map((item, i) => i === index ? { ...item, description: event.target.value } : item) })} /></label><Button variant="ghost" aria-label={`Xóa tiêu chí ${index + 1}`} disabled={rubric.criteria.length <= 1} onClick={() => update({ criteria: rubric.criteria.filter((_, i) => i !== index) })}><Trash2 className="size-4" aria-hidden="true" /></Button></div>
+        <div className="grid gap-3 sm:grid-cols-[120px_1fr]"><label className="text-sm">Trọng số (%)<input className={input} type="number" min={1} max={100} value={row.weight} onChange={event => update({ criteria: rubric.criteria.map((item, i) => i === index ? { ...item, weight: Number(event.target.value) } : item) })} /></label><label className="text-sm">Từ khóa gợi ý<input className={input} value={row.keywords?.join(", ") ?? ""} onChange={event => update({ criteria: rubric.criteria.map((item, i) => i === index ? { ...item, keywords: event.target.value.split(",").map(word => word.trim()).filter(Boolean) } : item) })} /></label></div>
+      </div>)}
+      <Button variant="ghost" onClick={() => update({ criteria: [...rubric.criteria, { description: "", weight: 10 }] })}><Plus className="size-4" aria-hidden="true" />Thêm tiêu chí rubric</Button>
+      <label className="block space-y-2 text-sm font-medium">Đáp án tham khảo<textarea rows={5} className={input} value={rubric.referenceAnswer} onChange={event => update({ referenceAnswer: event.target.value })} /></label>
+      <p className="text-xs text-[var(--color-on-surface-variant)]">Tổng trọng số cần bằng 100%. Rubric và đáp án tham khảo chỉ dành cho Recruiter.</p>
+    </div>;
+  }
+  const coding = JSON.parse(value) as CodingContent;
+  const update = (patch: Partial<CodingContent>) => onChange(JSON.stringify({ ...coding, ...patch }));
+  return <div className="space-y-5">
+    <nav aria-label="Cấu hình bài code mẫu" className="grid gap-2 sm:grid-cols-3">{["Mô tả & Cấu hình", "Code mẫu & Harness", `Test cases (${coding.testCases.length})`].map((label, index) => <Button key={index} variant={tab === index ? "primary" : "ghost"} onClick={() => setTab(index)} aria-pressed={tab === index}>{index + 1}. {label}</Button>)}</nav>
+    {tab === 0 && <div className="space-y-4"><h3 className="flex items-center gap-2 font-semibold"><Code2 className="size-5 text-[var(--color-primary)]" aria-hidden="true" />Cấu hình Sandbox</h3><div className="grid gap-4 sm:grid-cols-2"><label className="text-sm">Giới hạn thời gian (ms)<input className={input} type="number" value={coding.timeLimitMs} min={100} max={10000} onChange={event => update({ timeLimitMs: Number(event.target.value) })} /></label><label className="text-sm">Giới hạn bộ nhớ (MB)<input className={input} type="number" value={coding.memoryMb} min={32} max={512} onChange={event => update({ memoryMb: Number(event.target.value) })} /></label></div><div className={card}><h4 className="text-sm font-semibold">Bộ Test cases minh họa</h4><p className="text-sm">{coding.testCases.filter(row => row.sample).length} công khai · {coding.testCases.filter(row => !row.sample).length} ẩn</p><p className="text-xs text-[var(--color-on-surface-variant)]">Cấu hình bài toán, starter code và test cases trong hai tab tiếp theo. Thao tác chỉ lưu trong mẫu.</p></div></div>}
+    {tab === 1 && Object.entries(coding.starterCode).map(([language, source]) => <div key={language} className={card}><h3 className="text-sm font-semibold">{language.toUpperCase()}</h3><label className="block text-sm">Starter Code<textarea rows={7} spellCheck={false} className={`${input} preview-code-source font-mono text-xs`} value={source} onChange={event => update({ starterCode: { ...coding.starterCode, [language]: event.target.value } })} /></label><label className="block text-sm">Harness kiểm thử<textarea rows={7} spellCheck={false} className={`${input} font-mono text-xs`} value={coding.harness?.[language] ?? ""} onChange={event => update({ harness: { ...coding.harness, [language]: event.target.value } })} /></label></div>)}
+    {tab === 2 && <div className="space-y-4">{coding.testCases.map((row, index) => <div key={index} className={card}><div className="flex items-center justify-between gap-2"><h3 className="text-sm font-semibold">Test {index + 1} · {row.sample ? "Công khai" : "Ẩn"}</h3><Button variant="ghost" aria-label={`Xóa test ${index + 1}`} disabled={coding.testCases.length <= 2} onClick={() => update({ testCases: coding.testCases.filter((_, i) => i !== index) })}><Trash2 className="size-4" aria-hidden="true" /></Button></div><div className="grid gap-3 sm:grid-cols-2"><label className="text-sm">Input<textarea rows={3} className={`${input} font-mono text-xs`} value={row.input} onChange={event => update({ testCases: coding.testCases.map((item, i) => i === index ? { ...item, input: event.target.value } : item) })} /></label><label className="text-sm">Expected Output<textarea rows={3} className={`${input} font-mono text-xs`} value={row.expectedOutput} onChange={event => update({ testCases: coding.testCases.map((item, i) => i === index ? { ...item, expectedOutput: event.target.value } : item) })} /></label></div><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={row.sample} onChange={event => update({ testCases: coding.testCases.map((item, i) => i === index ? { ...item, sample: event.target.checked } : item) })} />Công khai cho ứng viên</label></div>)}<Button variant="secondary" onClick={() => update({ testCases: [...coding.testCases, { input: "", expectedOutput: "", sample: false }] })}><Plus className="size-4" aria-hidden="true" />Thêm test case</Button></div>}
+  </div>;
+}

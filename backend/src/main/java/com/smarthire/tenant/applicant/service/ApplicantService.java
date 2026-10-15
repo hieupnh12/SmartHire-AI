@@ -352,7 +352,7 @@ public class ApplicantService {
         }
         application = applications.findByIdForUpdate(application.getId()).orElseThrow();
         if (!withdrawable(application)) {
-            throw new BusinessException("Chỉ có thể rút đơn khi hồ sơ chưa được lọc CV", HttpStatus.CONFLICT,
+            throw new BusinessException("Không thể rút đơn đã kết thúc hoặc đã lưu trữ", HttpStatus.CONFLICT,
                     "APPLICATION_WITHDRAW_LOCKED");
         }
         application.setWithdrawnAt(Instant.now());
@@ -362,11 +362,13 @@ public class ApplicantService {
         return toDetail(application);
     }
 
-    /** Candidates may only withdraw before the CV round has a pass/fail outcome. */
+    /** Candidates may withdraw any open application, including after CV screening. */
     public static boolean withdrawable(Application application) {
-        return (application.getStatus() == ApplicationStatus.NEW || application.getStatus() == ApplicationStatus.IN_REVIEW)
-                && application.getCvScreeningStatus() == CvScreeningStatus.PENDING;
+        return application.getArchivedAt() == null && !CLOSED_STATUSES.contains(application.getStatus());
     }
+
+    private static final java.util.Set<ApplicationStatus> CLOSED_STATUSES = java.util.EnumSet.of(
+            ApplicationStatus.HIRED, ApplicationStatus.REJECTED, ApplicationStatus.FAILED, ApplicationStatus.WITHDRAWN);
 
     /**
      * After CV screening. AUTO: pass → AI interview; fail → REJECTED. MANUAL: the score is only a

@@ -9,10 +9,13 @@ export function useSubmission(id: number) {
   const query = useQuery({ queryKey: queryKeys.assessments.submission(id), queryFn: ({ signal }) => assessmentApi.submission(id, signal),
     enabled: Number.isSafeInteger(id) && id > 0, refetchOnWindowFocus: false, retry: false });
   const [choices, setChoices] = useState<Record<number, SavedAnswer>>({});
-  const [revision, setRevision] = useState(0);
+
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<unknown>(null);
+  const [objectiveRemaining, setObjectiveRemaining] = useState<number | null>(null);
+  const objectiveDeadline = useRef(0);
+  const objectiveReload = useRef(false);
   const [remaining, setRemaining] = useState<number | null>(null);
   const initialized = useRef(false);
   const pending = useRef(new Map<number, SavedAnswer>());
@@ -29,12 +32,20 @@ export function useSubmission(id: number) {
 
   useEffect(() => {
     if (!query.data) return;
+    if (query.data.objectiveCompletedAt) {
+      const lockedIds = new Set(query.data.questions.filter(q => q.questionType === "MCQ" || q.questionType === "MULTIPLE_CHOICE").map(q => q.id));
+      for (const key of pending.current.keys()) if (lockedIds.has(key)) pending.current.delete(key);
+    }
     if (query.data.status !== "IN_PROGRESS") { pending.current.clear(); setError(null); }
     if (!initialized.current) {
       setChoices(Object.fromEntries(query.data.answers.map(a => [a.questionId, a])));
       initialized.current = true;
     }
     const seconds = query.data.expiresAt ? Math.max(0, (Date.parse(query.data.expiresAt) - Date.parse(query.data.serverTime)) / 1000) : 0;
+    const objectiveSeconds = query.data.objectiveExpiresAt && !query.data.objectiveCompletedAt
+      ? Math.max(0, (Date.parse(query.data.objectiveExpiresAt) - Date.parse(query.data.serverTime)) / 1000) : null;
+    objectiveDeadline.current = objectiveSeconds == null ? 0 : performance.now() + objectiveSeconds * 1000;
+    setObjectiveRemaining(objectiveSeconds == null ? null : Math.ceil(objectiveSeconds));
     deadline.current = performance.now() + seconds * 1000;
     setRemaining(query.data.status === "IN_PROGRESS" ? Math.ceil(seconds) : 0);
   }, [query.dataUpdatedAt, query.data]);
@@ -51,20 +62,30 @@ export function useSubmission(id: number) {
         setError(null);
       } catch (failure) {
         // Preserve newer local selections when an older save fails.
-        snapshot.forEach((value, key) => { if (!pending.current.has(key)) pending.current.set(key, value); });
+        const current = client.getQueryData<Submission>(queryKeys.assessments.submission(id));
+        const lockedIds = new Set(current?.objectiveCompletedAt ? current.questions.filter(q => q.questionType === "MCQ" || q.questionType === "MULTIPLE_CHOICE").map(q => q.id) : []);
+        snapshot.forEach((value, key) => { if (!lockedIds.has(key) && !pending.current.has(key)) pending.current.set(key, value); });
         setError(failure); throw failure;
       } finally { setSaving(false); }
     })();
     inFlight.current = request;
     try { await request; } finally { if (inFlight.current === request) inFlight.current = null; }
     if (pending.current.size) await flushPending();
-  }, [id, store]);
+  }, [id, store, client]);
 
   useEffect(() => {
-    if (!revision || !active || closing.current) return;
-    const timer = window.setTimeout(() => { void flush().catch(() => undefined); }, 600);
-    return () => window.clearTimeout(timer);
-  }, [revision, active, flush]);
+    if (!active) return;
+    const timer = window.setInterval(() => { if (!closing.current) void flush().catch(() => undefined); }, 10000);
+    return () => window.clearInterval(timer);
+  }, [active, flush]);
+
+  const completeObjective = async () => {
+    if (closing.current) return;
+    closing.current = true; setSubmitting(true); setError(null);
+    try { await flush(); await store(await assessmentApi.completeObjective(id)); }
+    catch (failure) { setError(failure); }
+    finally { closing.current = false; setSubmitting(false); }
+  };
 
   const finish = useCallback(async (expired = false) => {
     if (closing.current) return;
@@ -86,9 +107,18 @@ export function useSubmission(id: number) {
 
   useEffect(() => {
     if (!active) return;
-    const timer = window.setInterval(() => setRemaining(Math.max(0, Math.ceil((deadline.current - performance.now()) / 1000))), 250);
+    const timer = window.setInterval(() => {
+      setRemaining(Math.max(0, Math.ceil((deadline.current - performance.now()) / 1000)));
+      if (objectiveDeadline.current) setObjectiveRemaining(Math.max(0, Math.ceil((objectiveDeadline.current - performance.now()) / 1000)));
+    }, 250);
     return () => window.clearInterval(timer);
   }, [active]);
+  useEffect(() => {
+    if (active && objectiveRemaining === 0 && !objectiveReload.current) {
+      objectiveReload.current = true;
+      void query.refetch().finally(() => { objectiveReload.current = false; });
+    }
+  }, [active, objectiveRemaining, query.refetch]);
   useEffect(() => {
     if (active && remaining === 0 && !automaticSubmit.current) {
       automaticSubmit.current = true; void finish(true);
@@ -109,8 +139,8 @@ export function useSubmission(id: number) {
   const choose = (answer: SavedAnswer) => {
     if (!active || closing.current || remaining === 0) return;
     setChoices(previous => ({ ...previous, [answer.questionId]: answer }));
-    pending.current.set(answer.questionId, answer); setRevision(v => v + 1);
+    pending.current.set(answer.questionId, answer);
   };
-  return { query, choices, choose, saving, submitting, error, remaining, finish,
+  return { query, choices, choose, saving, submitting, error, remaining, objectiveRemaining, finish, completeObjective,
     unsaved: pending.current.size > 0, retrySave: () => void flush().catch(() => undefined) };
 }

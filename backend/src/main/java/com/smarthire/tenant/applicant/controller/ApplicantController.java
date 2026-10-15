@@ -155,8 +155,8 @@ public class ApplicantController {
 
     @PostMapping("/applications/{id}/withdraw")
     @Operation(summary = "Candidate withdraws an application",
-            description = "Only allowed while the CV round has no pass/fail outcome (status NEW/IN_REVIEW and cvScreeningStatus PENDING);"
-                    + " otherwise 409 APPLICATION_WITHDRAW_LOCKED. Optional reason (max 255 chars).")
+            description = "Allowed for any open, non-archived application, including after CV screening;"
+                    + " HIRED/REJECTED/FAILED/WITHDRAWN or archived returns 409 APPLICATION_WITHDRAW_LOCKED. Optional reason (max 255 chars).")
     public ApiResponse<ApplicationDetail> withdraw(@PathVariable long id, @Valid @RequestBody(required = false) WithdrawRequest body) {
         return ApiResponse.ok(applicants.withdraw(id, body == null ? null : body.reason()));
     }

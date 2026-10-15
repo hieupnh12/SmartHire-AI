@@ -28,7 +28,7 @@ public class HumanInterviewEmailWorker {
             if(!"ACTIVE".equals(tenant.getStatus())) continue;
             try { executor.execute(tenant.getCode(),() -> {
                 for(long id:emails.pending()) rabbit.convertAndSend(QUEUE,id,message -> { message.getMessageProperties().setHeader("X-Tenant-ID",TenantContext.getCurrentTenant());return message; });
-            }); } catch(Exception ex) { log.warn("Human interview emails remain pending for retry"); }
+            }); } catch(Exception ex) { log.warn("Human interview emails remain pending for retry for tenant [{}]",tenant.getCode()); }
         }
     }
     @RabbitListener(queues=QUEUE,concurrency="3-10")
