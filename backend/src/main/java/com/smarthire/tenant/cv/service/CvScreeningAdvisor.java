@@ -7,5 +7,18 @@ import java.util.Optional;
 public interface CvScreeningAdvisor {
     Optional<Decision> decide(JsonNode breakdown, boolean formulaPassed);
 
-    record Decision(boolean passed, String verdict) {}
+    record Decision(boolean passed, String verdict, String advice, String candidateAdvice) {
+        public Decision(boolean passed, String verdict) {
+            this(passed, verdict, "", "");
+        }
+
+        public Decision(boolean passed, String verdict, String advice) {
+            this(passed, verdict, advice, "");
+        }
+
+        public Decision {
+            advice = advice == null ? "" : advice.trim();
+            candidateAdvice = candidateAdvice == null ? "" : candidateAdvice.trim();
+        }
+    }
 }

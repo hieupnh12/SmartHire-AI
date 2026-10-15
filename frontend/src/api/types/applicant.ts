@@ -82,6 +82,7 @@ export type CvEvaluationView = {
   threshold: number | null;
   passed: boolean;
   explanation: string | null;
+  candidateAdvice: string | null;
   matchedSkills: string[];
   partialSkills: string[];
   missingSkills: string[];

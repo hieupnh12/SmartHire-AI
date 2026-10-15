@@ -102,8 +102,9 @@ export function PipelineBoard() {
       return [first, ...remaining].flatMap((response) => response.data.items);
     },
     enabled: Boolean(jobId),
+    refetchInterval: 5_000,
   });
-  const detailQuery = useQuery({ queryKey: queryKeys.applicants.detail(selectedId ?? 0), queryFn: () => applicantApi.get(selectedId!), enabled: selectedId != null });
+  const detailQuery = useQuery({ queryKey: queryKeys.applicants.detail(selectedId ?? 0), queryFn: () => applicantApi.get(selectedId!), enabled: selectedId != null, refetchInterval: 5_000 });
   const moveMutation = useMutation({
     mutationFn: ({ applicationId, status }: { applicationId: number; status: ApplicationStatus }) => applicantApi.changeStatus(applicationId, status),
     onSuccess: async () => {

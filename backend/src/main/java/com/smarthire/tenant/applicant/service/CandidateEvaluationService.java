@@ -69,6 +69,7 @@ public class CandidateEvaluationService {
                 screening.require(application.getJob().getId()).getCvPassThreshold(),
                 GateScreeningService.cvRoundPassed(application, match),
                 text(breakdown.path("explanation")),
+                text(breakdown.path("candidateAdvice")),
                 requirementLabels(breakdown.path("matched")),
                 requirementLabels(breakdown.path("partialMatches")),
                 requirementLabels(breakdown.path("missing")),

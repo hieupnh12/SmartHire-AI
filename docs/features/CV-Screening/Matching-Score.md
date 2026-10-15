@@ -19,7 +19,7 @@ Tính điểm khớp CV ↔ Job **sau khi đủ bước parse / extract / taxono
 3. Chuẩn hóa skill bằng taxonomy (`SkillScoringService`).
 4. Tính Jaccard trên tập skill đã normalize.
 5. Backend tính weighted score từ taxonomy, Jaccard, kinh nghiệm, học vấn và nhận xét kỹ năng của Gemini.
-6. Gemini đọc breakdown đó và quyết định đạt hay không. Công thức đã trượt (dưới ngưỡng hoặc thiếu kỹ năng bắt buộc) thì Gemini không được cho qua. Không có API key hoặc lỗi model thì quyết định giữ nguyên kết quả công thức.
+6. Gemini đọc breakdown đó và quyết định đạt hay không, kèm hai lời khuyên tách nhau: `advice` cho recruiter (hỏi gì tiếp, có nên cho qua hay không) và `candidateAdvice` cho ứng viên (cách bổ sung CV để rút kinh nghiệm). Công thức đã trượt (dưới ngưỡng hoặc thiếu kỹ năng bắt buộc) thì Gemini không được cho qua. Không có API key hoặc lỗi model thì quyết định giữ nguyên kết quả công thức và không có lời khuyên AI.
 
 ## Business Rules
 
@@ -98,6 +98,6 @@ CV-04, JOB-03
 - Không dùng embedding; không lấy CV tenant khác làm few-shot.
 - Chuẩn hóa NFKC, chữ thường, khoảng trắng và alias: ReactJS/React.js → react, SpringBoot → spring boot, K8s → kubernetes, My SQL → mysql, Postgres → postgresql, NodeJS → node.js, RESTful API → rest api. Java và JavaScript khác nhau.
 - Gemini không được bịa skill/kinh nghiệm không có trong CV. Thiếu thông tin → MISSING hoặc UNKNOWN.
-- Trang Sàng lọc CV / Applicants hiển thị Jaccard, MATCH/PARTIAL/MISSING, evidence, thành phần điểm trong dialog chi tiết. CV đạt → application chuyển `INTERVIEW` (phỏng vấn AI) và gửi email mời ứng viên làm vòng phỏng vấn AI (`applications.ai_interview_invited_at`, idempotent). SMTP chưa cấu hình thì không đánh dấu đã gửi để lần match sau thử lại.
+- Trang Sàng lọc CV / Applicants hiển thị Jaccard, MATCH/PARTIAL/MISSING, evidence, thành phần điểm trong dialog chi tiết. Nếu breakdown có `advice` thì recruiter thấy “Lời khuyên của AI”; hồ sơ đã chấm trước đó hiện “Gợi ý xử lý”. `candidateAdvice` chỉ trả cho ứng viên ở chi tiết đánh giá vòng CV, không hiện gợi ý xử lý của recruiter. Nhận xét, giải thích và câu dẫn chứng fallback hiển thị tiếng Việt; nhãn cách khớp là Danh mục kỹ năng / Ngữ nghĩa / Danh mục và ngữ nghĩa. Kết quả đã lưu với câu tiếng Anh cũ (`No … experience found in the CV.`) được dịch khi hiển thị. CV đạt → application chuyển `INTERVIEW` (phỏng vấn AI) và gửi email mời ứng viên làm vòng phỏng vấn AI (`applications.ai_interview_invited_at`, idempotent). SMTP chưa cấu hình thì không đánh dấu đã gửi để lần match sau thử lại.
 - Job hết hạn đăng (hoặc recruiter đóng tin) → tự enqueue parse/match cho CV chưa `ANALYZED`.
 - Unit test: Jaccard 3/5, alias ReactJS, bỏ qua `screening.score` của Gemini, semantic MATCH khi taxonomy miss, apply CV cũ vẫn enqueue screening.

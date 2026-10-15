@@ -5,7 +5,7 @@ import { ArrowLeft, Award, BriefcaseBusiness, CalendarDays, Check, ChevronDown, 
 import { matchingApi } from "@/api/tenant/matchingApi";
 import { getApiErrorMessage } from "@/lib/axios";
 import type { RankingRow, RankingSources, Selection } from "../types/ranking";
-import { button, labels, muted, primary, scoreText } from "./rankingUi";
+import { applicationStatusLabel, button, labels, muted, primary, scoreText } from "./rankingUi";
 import { RankingSelect } from "./RankingSelect";
 
 const section = "rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-5 shadow-sm";
@@ -77,7 +77,7 @@ function Timeline({ row }: { row: RankingRow }) {
   const visibleEvents = expanded ? row.timeline : row.timeline.slice(-5);
   const timelineId = `candidate-timeline-${row.applicationId}`;
   return <section className={section} aria-labelledby="timeline-title"><header className="mb-4 flex items-start justify-between gap-3"><div><h3 id="timeline-title" className="flex items-center gap-2 text-lg font-semibold"><BriefcaseBusiness className="size-5 text-[var(--color-primary)]" aria-hidden="true" />Tiến trình ứng viên</h3><p className={muted}>Các mốc tạo nên điểm hiện tại.</p></div><span className="shrink-0 rounded-full bg-[var(--color-surface-container-low)] px-2.5 py-1 text-xs font-semibold">{row.timeline.length} mốc</span></header>
-    <ol id={timelineId} className="relative ml-2 border-l border-[var(--color-outline-variant)]">{visibleEvents.map((event, index) => <li key={`${event.type}-${event.occurredAt ?? index}`} className="relative pb-3 pl-5 last:pb-0"><span className="absolute -left-1.5 top-1 size-3 rounded-full bg-[var(--color-primary)] ring-[3px] ring-[var(--color-surface-card)]" aria-hidden="true" /><div className="flex flex-col gap-0.5 sm:flex-row sm:items-baseline sm:justify-between sm:gap-3"><p className="text-sm font-semibold">{eventLabels[event.type] ?? (event.type.startsWith("STATUS_") ? labels[event.type.slice(7)] ?? event.type.slice(7) : event.type)}</p><time className="shrink-0 text-xs tabular-nums text-[var(--color-on-surface-variant)]" dateTime={event.occurredAt ?? undefined}>{event.occurredAt ? new Date(event.occurredAt).toLocaleString("vi-VN") : "Chưa ghi nhận"}</time></div></li>)}</ol>
+    <ol id={timelineId} className="relative ml-2 border-l border-[var(--color-outline-variant)]">{visibleEvents.map((event, index) => <li key={`${event.type}-${event.occurredAt ?? index}`} className="relative pb-3 pl-5 last:pb-0"><span className="absolute -left-1.5 top-1 size-3 rounded-full bg-[var(--color-primary)] ring-[3px] ring-[var(--color-surface-card)]" aria-hidden="true" /><div className="flex flex-col gap-0.5 sm:flex-row sm:items-baseline sm:justify-between sm:gap-3"><p className="text-sm font-semibold">{eventLabels[event.type] ?? (event.type.startsWith("STATUS_") ? applicationStatusLabel(event.type.slice(7)) : event.type)}</p><time className="shrink-0 text-xs tabular-nums text-[var(--color-on-surface-variant)]" dateTime={event.occurredAt ?? undefined}>{event.occurredAt ? new Date(event.occurredAt).toLocaleString("vi-VN") : "Chưa ghi nhận"}</time></div></li>)}</ol>
     {row.timeline.length > 5 && <button type="button" className={`${button} mt-4 w-full`} aria-expanded={expanded} aria-controls={timelineId} onClick={() => setExpanded((value) => !value)}>{expanded ? "Thu gọn" : `Xem tất cả ${row.timeline.length} mốc`}<ChevronDown className={`size-4 transition-transform ${expanded ? "rotate-180" : ""}`} aria-hidden="true" /></button>}
   </section>;
 }

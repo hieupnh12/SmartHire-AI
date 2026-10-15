@@ -188,9 +188,10 @@ export function HomePage() {
     }),
     placeholderData: keepPreviousData,
     enabled: !!token,
+    refetchInterval: 15_000,
   });
-  const summaryQuery = useQuery({ queryKey: ["recruiter-dashboard", "summary"], queryFn: dashboardApi.summary, enabled: !!token });
-  const actionItemsQuery = useQuery({ queryKey: ["recruiter-dashboard", "action-items"], queryFn: dashboardApi.actionItems, enabled: !!token });
+  const summaryQuery = useQuery({ queryKey: ["recruiter-dashboard", "summary"], queryFn: dashboardApi.summary, enabled: !!token, refetchInterval: 15_000 });
+  const actionItemsQuery = useQuery({ queryKey: ["recruiter-dashboard", "action-items"], queryFn: dashboardApi.actionItems, enabled: !!token, refetchInterval: 15_000 });
   const newApplicantsQuery = useQuery({
     queryKey: ["recruiter-dashboard", "new-applicants"],
     queryFn: async () => {
@@ -201,6 +202,7 @@ export function HomePage() {
       return [first, ...remaining].flatMap((response) => response.data.items);
     },
     enabled: !!token && taskDrawer === "applicants",
+    refetchInterval: 5_000,
   });
   const taskJobsQuery = useQuery({ queryKey: ["recruiter-dashboard", "task-jobs"], queryFn: jobApi.options, enabled: !!token && (taskDrawer === "cvs" || taskDrawer === "schedules") });
   const cvTaskQueries = useQueries({
@@ -208,6 +210,7 @@ export function HomePage() {
       queryKey: [...queryKeys.cvs.byJob(job.id), "dashboard-tasks"],
       queryFn: () => cvApi.listByJob(job.id),
       enabled: taskDrawer === "cvs",
+      refetchInterval: 5_000,
     })),
   });
   const departmentsQuery = useQuery({ queryKey: ["jobs", "departments"], queryFn: jobApi.departments, enabled: !!token });

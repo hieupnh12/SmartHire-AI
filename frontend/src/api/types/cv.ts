@@ -33,6 +33,7 @@ export type MatchBreakdown = {
   jaccardSimilarity?: number;
   verdict?: string;
   explanation?: string;
+  advice?: string;
   source?: string;
   matched?: RequirementMatch[];
   partialMatches?: RequirementMatch[];
