@@ -1,7 +1,37 @@
-import { BriefcaseBusiness, CheckCircle2, CircleHelp, GraduationCap, MinusCircle, Sparkles, XCircle } from "lucide-react";
+import { BriefcaseBusiness, CheckCircle2, CircleHelp, GraduationCap, Lightbulb, MinusCircle, Sparkles, XCircle } from "lucide-react";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import type { MatchBreakdown, RequirementMatch, RequirementStatus } from "@/api/types/cv";
+
+const MATCH_TYPE_LABEL: Record<string, string> = {
+  BOTH: "Danh mục và ngữ nghĩa",
+  TAXONOMY: "Danh mục kỹ năng",
+  SEMANTIC: "Ngữ nghĩa",
+};
+
+const SOURCE_LABEL: Record<string, string> = {
+  hybrid: "Kết hợp",
+  heuristic: "Quy tắc",
+};
+
+const MODEL_LABEL: Record<string, string> = {
+  "heuristic-screen": "Sàng lọc quy tắc",
+  "hybrid-v1": "Sàng lọc kết hợp",
+  "heuristic-v1": "Trích xuất quy tắc",
+};
+
+function screeningCopy(value: string) {
+  const missing = /^No (.+) experience found in the CV\.$/.exec(value);
+  if (missing) return `Không thấy ${missing[1]} trong CV.`;
+  const exact = /^Normalized CV skill matches (.+)\.$/.exec(value);
+  if (exact) return `Kỹ năng trên CV khớp với ${exact[1]}.`;
+  return value
+    .replace("Job chưa có skill yêu cầu để sàng lọc.", "Tin tuyển dụng chưa có kỹ năng yêu cầu để sàng lọc.")
+    .replace(" skill yêu cầu", " kỹ năng yêu cầu")
+    .replace("không thiếu skill bắt buộc", "không thiếu kỹ năng bắt buộc")
+    .replace("; thiếu: ", "; thiếu kỹ năng bắt buộc: ")
+    .replace(/ Điểm hybrid \(taxonomy \+ Jaccard \+ semantic\), không phải điểm Matching sau assessment\/interview\./, "");
+}
 
 const STATUS_META: Record<RequirementStatus, { label: string; tone: string; icon: typeof CheckCircle2 }> = {
   MATCH: { label: "Khớp", tone: "bg-emerald-50 text-emerald-700", icon: CheckCircle2 },
@@ -9,6 +39,26 @@ const STATUS_META: Record<RequirementStatus, { label: string; tone: string; icon
   MISSING: { label: "Thiếu", tone: "bg-red-50 text-red-700", icon: XCircle },
   UNKNOWN: { label: "Không rõ", tone: "bg-[var(--color-surface-container)] text-[var(--color-on-surface-variant)]", icon: CircleHelp },
 };
+
+function localAdvice(breakdown: MatchBreakdown) {
+  const missing = breakdown.requiredMissing ?? [];
+  const partial = (breakdown.partialMatches ?? []).map((item) => item.requirement).filter(Boolean);
+  const parts: string[] = [];
+  if (missing.length > 0) {
+    parts.push(`Nên làm rõ các kỹ năng bắt buộc còn thiếu: ${missing.join(", ")}.`);
+  }
+  if (partial.length > 0) {
+    parts.push(`Kỹ năng khớp một phần (${partial.join(", ")}) nên được hỏi thêm trong vòng phỏng vấn.`);
+  }
+  if (breakdown.passed) {
+    parts.push("Hồ sơ đạt sàng lọc. Nên chuyển sang phỏng vấn AI và kiểm tra mức độ làm việc thực tế với các kỹ năng đã khớp.");
+  } else if (missing.length > 0) {
+    parts.push("Chưa nên cho qua vòng CV cho đến khi xác nhận được các kỹ năng bắt buộc còn thiếu.");
+  } else if (breakdown.passed === false) {
+    parts.push("Hồ sơ chưa đạt ngưỡng. Chỉ nên xem lại nếu phần điểm thấp không phải yêu cầu cốt lõi của vị trí.");
+  }
+  return parts.join(" ");
+}
 
 function formatScore(value: number | null | undefined) {
   if (value == null) return "—";
@@ -76,8 +126,8 @@ export function ScreeningBreakdown({
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2">
-          {modelVersion && <MetaChip>{modelVersion}</MetaChip>}
-          {breakdown?.source && <MetaChip>{breakdown.source}</MetaChip>}
+          {modelVersion && <MetaChip>{MODEL_LABEL[modelVersion] ?? modelVersion}</MetaChip>}
+          {breakdown?.source && <MetaChip>{SOURCE_LABEL[breakdown.source] ?? breakdown.source}</MetaChip>}
           {breakdown?.jaccardSimilarity != null && <MetaChip>Trùng khớp kỹ năng {formatScore(breakdown.jaccardSimilarity)}</MetaChip>}
         </div>
       </div>
@@ -88,9 +138,11 @@ export function ScreeningBreakdown({
             <Sparkles className="size-4 text-[var(--color-primary)]" aria-hidden="true" />
             Nhận xét của AI
           </div>
-          <p className="mt-2 text-sm leading-relaxed text-[var(--color-on-surface)]">{breakdown.verdict}</p>
+          <p className="mt-2 text-sm leading-relaxed text-[var(--color-on-surface)]">{screeningCopy(breakdown.verdict)}</p>
         </div>
       )}
+
+      {breakdown && <AdviceBlock breakdown={breakdown} />}
 
       <ComponentBars breakdown={breakdown} />
 
@@ -99,6 +151,21 @@ export function ScreeningBreakdown({
       <RequirementList title="Khớp yêu cầu" items={breakdown?.matched} />
       <RequirementList title="Khớp một phần" items={breakdown?.partialMatches} />
       <RequirementList title="Thiếu so với yêu cầu" items={breakdown?.missing} />
+    </div>
+  );
+}
+
+function AdviceBlock({ breakdown }: { breakdown: MatchBreakdown }) {
+  const stored = breakdown.advice?.trim() ?? "";
+  const text = stored ? screeningCopy(stored) : localAdvice(breakdown);
+  if (!text) return null;
+  return (
+    <div className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-4">
+      <div className="flex items-center gap-2 text-sm font-semibold">
+        <Lightbulb className="size-4 text-[var(--color-primary)]" aria-hidden="true" />
+        {stored ? "Lời khuyên của AI" : "Gợi ý xử lý"}
+      </div>
+      <p className="mt-2 text-sm leading-relaxed text-[var(--color-on-surface)]">{text}</p>
     </div>
   );
 }
@@ -224,11 +291,11 @@ function RequirementList({ title, items }: { title: string; items?: RequirementM
                   <span className="rounded-full bg-[var(--color-primary-soft)] px-2 py-0.5 text-[11px] font-semibold text-[var(--color-primary-hover)]">Bắt buộc</span>
                 )}
                 {item.matchType && item.matchType !== "NONE" && (
-                  <span className="text-[11px] text-[var(--color-on-surface-variant)]">{item.matchType}</span>
+                  <span className="text-[11px] text-[var(--color-on-surface-variant)]">{MATCH_TYPE_LABEL[item.matchType] ?? item.matchType}</span>
                 )}
               </div>
-              {item.evidence && <p className="text-xs leading-relaxed text-[var(--color-on-surface-variant)]">“{item.evidence}”</p>}
-              {item.explanation && <p className="text-xs leading-relaxed text-[var(--color-on-surface-variant)]">{item.explanation}</p>}
+              {item.evidence && <p className="text-xs leading-relaxed text-[var(--color-on-surface-variant)]">“{screeningCopy(item.evidence)}”</p>}
+              {item.explanation && <p className="text-xs leading-relaxed text-[var(--color-on-surface-variant)]">{screeningCopy(item.explanation)}</p>}
             </li>
           );
         })}

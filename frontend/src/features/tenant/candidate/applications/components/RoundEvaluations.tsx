@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { Check, Minus, X } from "lucide-react";
+import { Check, Lightbulb, Minus, X } from "lucide-react";
 import type { AiInterviewEvaluationView, AssessmentEvaluationView, CandidateEvaluationView, CvEvaluationView } from "@/api/types/applicant";
 import { StatusPill } from "@/components/ux/StatusPill";
 import { cn } from "@/lib/utils";
@@ -36,12 +36,33 @@ export function RoundEvaluation({ id, round, data }: { id: string; round: RoundK
   </section>;
 }
 
+function candidateLearning(cv: CvEvaluationView) {
+  const parts: string[] = [];
+  if (cv.requiredMissingSkills.length > 0) {
+    parts.push(`CV chưa nêu rõ các kỹ năng bắt buộc: ${cv.requiredMissingSkills.join(", ")}. Lần nộp sau, hãy ghi cụ thể bạn đã dùng từng kỹ năng này ở dự án hoặc công việc nào.`);
+  }
+  if (cv.partialSkills.length > 0) {
+    parts.push(`Một số kỹ năng mới khớp một phần (${cv.partialSkills.join(", ")}). Hãy bổ sung ví dụ, thời gian làm và kết quả để thấy mức độ thành thạo.`);
+  }
+  if (cv.passed) {
+    parts.push("CV đã đáp ứng các yêu cầu chính. Bạn có thể làm rõ hơn kết quả đo được ở các kỹ năng đã khớp để hồ sơ nổi bật hơn.");
+  } else if (cv.requiredMissingSkills.length === 0) {
+    parts.push("Điểm sàng lọc chưa đạt yêu cầu của tin. Hãy đối chiếu mô tả công việc và bổ sung kinh nghiệm, học vấn hoặc kỹ năng còn thiếu.");
+  }
+  return parts.join(" ");
+}
+
 function CvEvaluation({ cv }: { cv: CvEvaluationView }) {
   const optionalMissing = cv.missingSkills.filter((skill) => !cv.requiredMissingSkills.includes(skill));
+  const advice = cv.candidateAdvice?.trim() || candidateLearning(cv);
   return <div className="space-y-4">
     <ScoreLine score={cv.score} threshold={cv.threshold} passed={cv.passed} />
     {cv.passed === true && cv.threshold != null && cv.score < cv.threshold && <Reason title="Kết quả vòng">Điểm chưa đạt ngưỡng nhưng nhà tuyển dụng đã xem xét hồ sơ và duyệt cho bạn qua vòng này.</Reason>}
     {cv.explanation && <Reason title="Nhận xét">{cv.explanation}</Reason>}
+    {advice && <div className="rounded-xl bg-[var(--color-primary-subtle)] p-4">
+      <h4 className="flex items-center gap-2 text-sm font-semibold"><Lightbulb className="size-4 text-[var(--color-primary)]" aria-hidden="true" />{cv.candidateAdvice?.trim() ? "Lời khuyên của AI" : "Gợi ý để rút kinh nghiệm"}</h4>
+      <p className="mt-1 whitespace-pre-line text-sm leading-6 text-[var(--color-on-surface-variant)]">{advice}</p>
+    </div>}
     <div className="space-y-2">
       <h4 className="text-sm font-semibold">Kỹ năng so với yêu cầu công việc</h4>
       <div className="flex flex-wrap gap-2">

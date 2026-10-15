@@ -258,14 +258,20 @@ public class CvMatchingService {
 
         String decisionSource = "formula";
         boolean passed = formulaPassed;
+        String advice = "";
+        String candidateAdvice = "";
         var decision = advisor.decide(breakdown, formulaPassed);
         if (decision.isPresent()) {
             decisionSource = "ai";
             verdict = decision.get().verdict();
+            advice = decision.get().advice();
+            candidateAdvice = decision.get().candidateAdvice();
             passed = formulaPassed && decision.get().passed();
         }
         breakdown.put("verdict", verdict);
         breakdown.put("explanation", verdict);
+        if (!advice.isBlank()) breakdown.put("advice", advice);
+        if (!candidateAdvice.isBlank()) breakdown.put("candidateAdvice", candidateAdvice);
         breakdown.put("source", model.equals(HYBRID_SCREEN) ? "hybrid" : "heuristic");
         breakdown.put("decisionSource", decisionSource);
         breakdown.put("passed", passed);
@@ -344,9 +350,9 @@ public class CvMatchingService {
 
     private static String evidence(String status, boolean exact, String label, SemanticHit ai) {
         if (ai != null && !ai.evidence.isBlank()) return ai.evidence;
-        if (exact) return "Normalized CV skill matches " + label + ".";
+        if (exact) return "Kỹ năng trên CV khớp với " + label + ".";
         if ("MISSING".equals(status) || "UNKNOWN".equals(status)) {
-            return "No " + label + " experience found in the CV.";
+            return "Không thấy " + label + " trong CV.";
         }
         return "";
     }
@@ -473,11 +479,10 @@ public class CvMatchingService {
     }
 
     private static String heuristicVerdict(String title, int hits, int total, ArrayNode missing) {
-        String job = title == null || title.isBlank() ? "job" : title;
-        if (total == 0) return "Job chưa có skill yêu cầu để sàng lọc.";
-        String miss = missing.size() == 0 ? "không thiếu skill bắt buộc" : "thiếu: " + missing.toString();
-        return "Sàng lọc CV cho " + job + ": khớp " + hits + "/" + total + " skill yêu cầu; " + miss
-                + ". Điểm hybrid (taxonomy + Jaccard + semantic), không phải điểm Matching sau assessment/interview.";
+        String job = title == null || title.isBlank() ? "vị trí này" : title;
+        if (total == 0) return "Tin tuyển dụng chưa có kỹ năng yêu cầu để sàng lọc.";
+        String miss = missing.size() == 0 ? "không thiếu kỹ năng bắt buộc" : "thiếu kỹ năng bắt buộc: " + missing.toString();
+        return "Sàng lọc CV cho " + job + ": khớp " + hits + "/" + total + " kỹ năng yêu cầu; " + miss + ".";
     }
 
     private JsonNode read(String json) {

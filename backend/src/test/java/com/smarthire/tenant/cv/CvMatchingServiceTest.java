@@ -146,7 +146,8 @@ class CvMatchingServiceTest {
         MatchScore score = matching(mapper, scoring).score(cv);
         assertThat(score.getScore()).isEqualByComparingTo("0.00");
         assertThat(score.getBreakdownJson()).contains("khớp 0/1").contains("\"passed\":false")
-                .contains("MISSING").doesNotContain("\"skills\":35");
+                .contains("MISSING").contains("Không thấy Java trong CV.")
+                .doesNotContain("experience found in the CV").doesNotContain("\"skills\":35");
     }
 
     @Test
@@ -214,13 +215,17 @@ class CvMatchingServiceTest {
         var mapper = new ObjectMapper();
         var scoring = new SkillScoringService();
         CvScreeningAdvisor reject = (breakdown, formulaPassed) ->
-                Optional.of(new CvScreeningAdvisor.Decision(false, "Jaccard cao vì trùng tên, kinh nghiệm chưa sát việc."));
+                Optional.of(new CvScreeningAdvisor.Decision(false, "Jaccard cao vì trùng tên, kinh nghiệm chưa sát việc.",
+                        "Hỏi lại kinh nghiệm thực tế trước khi cho qua.",
+                        "Bạn nên nêu rõ kinh nghiệm thực tế với Java trong CV."));
         MatchScore rejected = scoreSingleJava(mapper, scoring, reject, 12L, 12L);
         JsonNode rejectedBreakdown = mapper.readTree(rejected.getBreakdownJson());
         assertThat(rejectedBreakdown.path("formulaPassed").asBoolean()).isTrue();
         assertThat(rejectedBreakdown.path("passed").asBoolean()).isFalse();
         assertThat(rejectedBreakdown.path("decisionSource").asText()).isEqualTo("ai");
         assertThat(rejectedBreakdown.path("verdict").asText()).contains("Jaccard");
+        assertThat(rejectedBreakdown.path("advice").asText()).contains("Hỏi lại kinh nghiệm");
+        assertThat(rejectedBreakdown.path("candidateAdvice").asText()).contains("nêu rõ kinh nghiệm");
 
         CvScreeningAdvisor approve = (breakdown, formulaPassed) ->
                 Optional.of(new CvScreeningAdvisor.Decision(true, "Đạt vì các thành phần đều trên ngưỡng."));
