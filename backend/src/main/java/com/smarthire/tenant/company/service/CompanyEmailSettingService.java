@@ -156,12 +156,15 @@ public class CompanyEmailSettingService {
         }
     }
 
-    @Transactional(readOnly = true)
     public boolean isConfigured() {
-        return settingRepository.findFirstByIsActiveTrueOrderByIdDesc().isPresent();
+        try {
+            return settingRepository.findFirstByIsActiveTrueOrderByIdDesc().isPresent();
+        } catch (RuntimeException ex) {
+            log.warn("Could not read company mail settings: {}", ex.getMessage());
+            return false;
+        }
     }
 
-    @Transactional(readOnly = true)
     public boolean sendMail(String to, String subject, String body) {
         String tenantCode = TenantContext.getCurrentTenant();
         CompanyEmailSetting setting = settingRepository.findFirstByIsActiveTrueOrderByIdDesc()
@@ -169,10 +172,9 @@ public class CompanyEmailSettingService {
                         "Công ty chưa cấu hình tài khoản Gmail gửi thư. Vui lòng vào Cài đặt công ty để thiết lập tài khoản Gmail.",
                         HttpStatus.BAD_REQUEST, "MAIL_CONFIG_REQUIRED"));
 
-        String decryptedPassword = credentialService.decrypt(tenantCode, setting.getMailPasswordEncrypted());
-        JavaMailSenderImpl mailSender = buildMailSender(setting.getMailUsername(), decryptedPassword);
-
         try {
+            String decryptedPassword = credentialService.decrypt(tenantCode, setting.getMailPasswordEncrypted());
+            JavaMailSenderImpl mailSender = buildMailSender(setting.getMailUsername(), decryptedPassword);
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
@@ -188,10 +190,12 @@ public class CompanyEmailSettingService {
             mailSender.send(message);
             log.info("Email sent to {} via company Gmail ({}) for tenant {}", to, setting.getMailUsername(), tenantCode);
             return true;
+        } catch (RuntimeException ex) {
+            log.error("Failed to send email to {} via tenant Gmail {}: {}", to, setting.getMailUsername(), ex.getMessage());
+            return false;
         } catch (Exception ex) {
-            log.error("Failed to send email to {} via tenant Gmail {}: {}", to, setting.getMailUsername(), ex.getMessage(), ex);
-            throw new BusinessException("Không thể gửi email qua tài khoản Gmail của công ty: " + ex.getMessage(),
-                    HttpStatus.INTERNAL_SERVER_ERROR, "MAIL_DELIVERY_FAILED");
+            log.error("Failed to send email to {} via tenant Gmail {}: {}", to, setting.getMailUsername(), ex.getMessage());
+            return false;
         }
     }
 

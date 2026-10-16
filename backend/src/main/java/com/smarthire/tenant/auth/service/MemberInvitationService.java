@@ -58,15 +58,13 @@ public class MemberInvitationService {
             throw new BusinessException("User with this email already exists in this tenant",
                     HttpStatus.CONFLICT, "EMAIL_EXISTS");
         }
-        if (invitationRepository.existsByEmailIgnoreCaseAndStatus(email, InvitationStatus.PENDING)) {
-            throw new BusinessException("A pending invitation already exists for this email",
-                    HttpStatus.CONFLICT, "INVITE_PENDING");
-        }
 
         String rawToken = UUID.randomUUID().toString();
         Instant expiresAt = Instant.now().plus(expireHours, ChronoUnit.HOURS);
 
-        MemberInvitation invitation = new MemberInvitation();
+        MemberInvitation invitation = invitationRepository
+                .findFirstByEmailIgnoreCaseAndStatus(email, InvitationStatus.PENDING)
+                .orElseGet(MemberInvitation::new);
         invitation.setEmail(email);
         invitation.setFullName(request.getFullName().trim());
         invitation.setRole(role.getCode());
@@ -94,24 +92,28 @@ public class MemberInvitationService {
     }
 
     /**
-     * Prefer tenant Gmail ({@code company_email_settings}); fall back to platform SMTP.
-     * Failures are soft — invitation stays PENDING and FE can copy {@code acceptUrl}.
+     * Prefer tenant Gmail. If that account is missing or the send fails, use platform SMTP.
+     * A mail failure must not roll back the pending invitation; the UI can still copy {@code acceptUrl}.
      */
     private boolean deliverInviteEmail(String email, String subject, String body) {
-        if (companyEmailSettingService.isConfigured()) {
-            try {
-                return companyEmailSettingService.sendMail(email, subject, body);
-            } catch (Exception ex) {
-                log.warn("Company Gmail invite was not delivered to {}: {}", email, ex.getMessage());
-                return false;
+        try {
+            if (companyEmailSettingService.isConfigured()
+                    && companyEmailSettingService.sendMail(email, subject, body)) {
+                return true;
             }
+        } catch (Exception ex) {
+            log.warn("Company Gmail invite was not delivered to {}: {}", email, ex.getMessage());
         }
-        boolean sent = inviteMailSender.send(email, subject, body);
-        if (!sent) {
-            log.warn("Platform SMTP invite was not delivered to {} (configure company Gmail under System settings)",
-                    email);
+        try {
+            boolean sent = inviteMailSender.send(email, subject, body);
+            if (!sent) {
+                log.warn("Platform SMTP invite was not delivered to {}", email);
+            }
+            return sent;
+        } catch (Exception ex) {
+            log.warn("Platform SMTP invite was not delivered to {}: {}", email, ex.getMessage());
+            return false;
         }
-        return sent;
     }
 
     @Transactional
