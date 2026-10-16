@@ -10,5 +10,7 @@ public interface MemberInvitationRepository extends JpaRepository<MemberInvitati
 
     boolean existsByEmailIgnoreCaseAndStatus(String email, InvitationStatus status);
 
+    Optional<MemberInvitation> findFirstByEmailIgnoreCaseAndStatus(String email, InvitationStatus status);
+
     boolean existsByRoleAndStatus(String role, InvitationStatus status);
 }

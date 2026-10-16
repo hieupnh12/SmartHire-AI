@@ -17,7 +17,7 @@ Company admin mời nhân viên qua email. Người được mời mở link, đ
 
 1. Admin mở `/internal/admin/users`, nhập họ tên, email, chọn vai trò (role hệ thống hoặc role custom đã tạo ở Phân quyền).
 2. FE gọi `POST /api/v1/tenant/users/invitations` (JWT + `X-Tenant-ID`).
-3. BE lưu `member_invitations` (PENDING, token SHA-256, hạn 72h) và gửi SMTP nếu đã cấu hình.
+3. BE lưu `member_invitations` (PENDING, token SHA-256, hạn 72h). Gửi mail qua Gmail công ty nếu đã cấu hình; Gmail lỗi hoặc chưa cấu hình thì gửi bằng SMTP nền tảng. Lỗi gửi mail không hủy lời mời; API vẫn trả `acceptUrl`.
 4. Invitee mở `{tenant}.localhost:5173/invite/accept?token=...`, đặt mật khẩu.
 5. BE tạo `users` ACTIVE, đánh dấu lời mời ACCEPTED. Invitee đăng nhập `/internal/login`.
 
@@ -25,9 +25,9 @@ Company admin mời nhân viên qua email. Người được mời mở link, đ
 
 - Chỉ admin tenant được mời. Role mời: mọi role trong bảng `roles` trừ `CANDIDATE` (gồm `TENANT_ADMIN`, `ADMIN`, `HR`, `RECRUITER` và role custom). Không mời `CANDIDATE`.
 - Bảng quản lý nhân viên (`GET /api/v1/tenant/users`) không gồm tài khoản `CANDIDATE`.
-- Email đã có user hoặc đang PENDING thì `409`.
+- Email đã có user thì `409`. Email đang PENDING thì cấp lại token, gia hạn 72 giờ và gửi lại mail, không trả `409`.
 - User chỉ tạo khi accept. Token hết hạn / đã dùng → `400`.
-- SMTP tùy chọn: thiếu `MAIL_*` thì API vẫn trả `acceptUrl` để copy.
+- SMTP tùy chọn: Gmail công ty và SMTP nền tảng đều lỗi thì API vẫn trả `acceptUrl` để copy. Lời mời PENDING được giữ.
 
 ## API liên quan
 
