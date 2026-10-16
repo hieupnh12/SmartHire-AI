@@ -107,7 +107,7 @@ public class InviteMailSender {
             sender.send(message);
             return true;
         } catch (Exception ex) {
-            log.warn("Invite email was not delivered");
+            log.warn("Invite email was not delivered to {}: {}", to, ex.getMessage());
             return false;
         }
     }
