@@ -57,11 +57,23 @@ public class AiInterviewClient {
         return call("INTERVIEW_NLP", instruction, data);
     }
 
+    public JsonNode generateAssessment(String instruction, JsonNode data) {
+        return call("ASSESSMENT_GEN", instruction, data);
+    }
+
+    public JsonNode evaluateAssessment(String instruction, JsonNode data) {
+        return call("ASSESSMENT_GRADING", instruction, data);
+    }
+
     private JsonNode call(String task, String instruction, JsonNode data) {
         var resolved = dynamicConfig.resolveConfig(task);
         InterviewChatEndpoint.requireSupported(resolved.provider());
+        boolean assessment = "ASSESSMENT_GEN".equals(task) || "ASSESSMENT_GRADING".equals(task);
+        if (assessment && (resolved.endpointUrl() == null || resolved.endpointUrl().isBlank()))
+            throw new IllegalStateException("Assessment AI endpoint is not configured");
         String apiKey = resolved.apiKey() == null || resolved.apiKey().isBlank()
                 ? (InterviewChatEndpoint.gemini(resolved.provider()) ? config.getApiKey() : "") : resolved.apiKey().trim();
+        if (assessment && apiKey.isBlank()) apiKey = "local-model";
         if (apiKey == null || apiKey.isBlank()) throw new IllegalStateException("AI interview provider is not configured");
         if (rateLimiterService != null) {
             rateLimiterService.checkAndAcquire(task);
@@ -74,8 +86,15 @@ public class AiInterviewClient {
         long completionTokens = 0L;
         try {
             String baseUrl = InterviewChatEndpoint.baseUrl(resolved.provider(), resolved.endpointUrl(), config.getBaseUrl());
+            var builder = http.clone();
+            if (assessment) {
+                var factory = new org.springframework.http.client.SimpleClientHttpRequestFactory();
+                factory.setConnectTimeout(java.time.Duration.ofSeconds(5));
+                factory.setReadTimeout(java.time.Duration.ofSeconds(Math.max(5, resolved.timeoutSeconds())));
+                builder.requestFactory(factory);
+            }
             var api = OpenAiApi.builder().baseUrl(baseUrl).completionsPath("/chat/completions")
-                    .apiKey(apiKey).restClientBuilder(http.clone())
+                    .apiKey(apiKey).restClientBuilder(builder)
                     .responseErrorHandler(new DefaultResponseErrorHandler()).build();
             var retry = RetryTemplate.builder().maxAttempts(3).exponentialBackoff(1000, 2, 4000)
                     .retryOn(error -> error instanceof RestClientResponseException response

@@ -1,0 +1,135 @@
+@startuml
+!include ../class-style.puml
+hide empty members
+
+package "Controller Layer" {
+  class AiInterviewController <<Controller>> {
+    + start(id: long): ApiResponse<AiInterviewResponse>
+  }
+  class InterviewConversationController <<Controller>> {
+    + get(id: long): ApiResponse<ConversationResponse>
+    + turn(id: long, request: ConversationTurnRequest): ResponseEntity<SseEmitter>
+  }
+}
+package "DTO Layer" {
+  class ConversationTurnRequest <<Request>> {
+    + requestId: String
+    + content: String
+  }
+  class ConversationResponse <<Response>> {
+    + sessionId: long
+    + candidateTurns: int
+    + maxTurns: int
+    + dialogueComplete: boolean
+    + messages: List<Message>
+  }
+  class AiInterviewResponse <<Response>> {
+    + status: AiInterviewStatus
+    + roadmap: List<RoadmapStep>
+  }
+  class RoadmapStep <<Response>>
+}
+package "Service Layer" {
+  class AiInterviewService <<Service>> {
+    + start(id: long): AiInterviewResponse
+  }
+  class AiInterviewEvaluationService <<Service>> {
+    + process(id: long): void
+  }
+  class InterviewConversationService <<Service>> {
+    + initialize(interview: AiInterview): void
+    + get(id: long): ConversationResponse
+    + turn(id: long, request: ConversationTurnRequest, onDelta: Consumer): ConversationResponse
+  }
+  class InterviewPolicies {
+    + {static} config(interview: AiInterview): AiInterviewConfigRequest
+    + {static} isConversation(interview: AiInterview): boolean
+    + {static} totalQuestionBudget(interview: AiInterview): boolean
+  }
+  class AiInterviewMapper {
+    + toResponse(interview: AiInterview): AiInterviewResponse
+  }
+}
+package "Repository Layer" {
+  interface AiInterviewRepository <<Repository>>
+  interface InterviewSessionRepository <<Repository>>
+  interface InterviewMessageRepository <<Repository>>
+}
+package "Domain Entity Layer" {
+  class AiInterview <<Entity>> {
+    - id: Long
+    - configSnapshotJson: String
+    - contextSnapshotJson: String
+    - status: AiInterviewStatus
+    - startedAt: Instant
+    - expiresAt: Instant
+  }
+  class InterviewSession <<Entity>> {
+    - id: Long
+    - maxTurns: int
+    - candidateTurns: int
+    - endedAt: Instant
+  }
+  class InterviewMessage <<Entity>> {
+    - id: Long
+    - sequenceNo: int
+    - role: String
+    - content: String
+    - clientRequestId: String
+  }
+}
+package "Infrastructure & Persistence" {
+  class InterviewConversationClient <<DataSource>> {
+    + dialogue(instruction: String, history: List<Message>, onDelta: Consumer): String
+  }
+  class AiInterviewWorker <<Queue>> {
+    + process(id: Long, tenant: String): void
+  }
+  class TenantJobExecutor <<DataSource>> {
+    + execute(tenant: String, task: Runnable): void
+  }
+  class "Dedicated Tenant MySQL" as DB <<Database>>
+}
+
+AiInterviewController --> AiInterviewService : delegates >
+AiInterviewController ..> AiInterviewResponse : returns >
+InterviewConversationController --> InterviewConversationService : delegates >
+InterviewConversationController ..> ConversationTurnRequest : consumes >
+InterviewConversationController ..> ConversationResponse : returns through SSE >
+InterviewConversationController --> TenantJobExecutor : restores async context through >
+AiInterviewService --> AiInterviewRepository : queries / updates >
+AiInterviewService --> AiInterviewMapper : maps response through >
+AiInterviewMapper ..> AiInterviewResponse : creates >
+AiInterviewMapper ..> RoadmapStep : creates from snapshot >
+AiInterviewResponse --> "0..*" RoadmapStep : contains >
+AiInterviewWorker --> TenantJobExecutor : restores worker context through >
+AiInterviewWorker --> AiInterviewEvaluationService : delegates >
+AiInterviewEvaluationService --> AiInterviewRepository : locks / updates >
+AiInterviewEvaluationService --> InterviewConversationService : initializes opening through >
+InterviewConversationService --> AiInterviewRepository : locks / authorizes >
+InterviewConversationService --> InterviewSessionRepository : persists through >
+InterviewConversationService --> InterviewMessageRepository : reads / persists through >
+InterviewConversationService --> InterviewConversationClient : requests adaptive reply >
+InterviewConversationService ..> InterviewPolicies : reads snapshot policy >
+InterviewConversationService ..> ConversationResponse : creates >
+AiInterviewRepository --> AiInterview : manages >
+InterviewSessionRepository --> InterviewSession : manages >
+InterviewMessageRepository --> InterviewMessage : manages >
+AiInterviewRepository --> DB : persists to >
+InterviewSessionRepository --> DB : persists to >
+InterviewMessageRepository --> DB : persists to >
+InterviewSession "0..1" --> "1" AiInterview : belongs to attempt >
+InterviewMessage "0..*" --> "1" InterviewSession : belongs to session >
+
+note bottom of InterviewConversationService
+  Application-design view: current conversationVersion=1.
+  One adaptive question per reply; history and snapshot guide pacing.
+  Follow-up depth is prompted; maxTurns is enforced by the server.
+  No separate MAIN/FOLLOW_UP message type in this conversation model.
+end note
+note bottom of DB
+  V44: interview_sessions, interview_messages.
+  Unique attempt/session; unique session/sequence and session/requestId.
+  Tenant is selected by datasource, not a tenant_id column.
+end note
+@enduml

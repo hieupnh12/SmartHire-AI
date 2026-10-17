@@ -55,6 +55,14 @@ public class DynamicAiConfigProvider {
     private final String interviewKey;
     private final String interviewModel;
     private final int interviewTimeout;
+    @Value("${AI_ASSESSMENT_MODEL:vanilj/llama-3-8b-instruct-32k-v0.1:Q4_K_M}")
+    private String assessmentModel = "vanilj/llama-3-8b-instruct-32k-v0.1:Q4_K_M";
+    @Value("${AI_ASSESSMENT_BASE_URL:}")
+    private String assessmentEndpoint = "";
+    @Value("${AI_ASSESSMENT_API_KEY:}")
+    private String assessmentKey = "";
+    @Value("${AI_ASSESSMENT_TIMEOUT_SECONDS:120}")
+    private int assessmentTimeout = 120;
 
     public DynamicAiConfigProvider(
             AiModelConfigRepository modelConfigRepository,
@@ -83,6 +91,15 @@ public class DynamicAiConfigProvider {
 
     public ResolvedAiConfig resolveConfig(String taskType) {
         String normalizedTask = taskType == null ? "CV_PARSING" : taskType.trim().toUpperCase();
+        if ("ASSESSMENT_GEN".equals(normalizedTask) || "ASSESSMENT_GRADING".equals(normalizedTask)) {
+            var interview = resolveConfig("INTERVIEW_GEN");
+            boolean openAi = "OPENAI".equalsIgnoreCase(interview.provider());
+            return new ResolvedAiConfig(normalizedTask, "OPENAI", assessmentModel,
+                    !assessmentKey.isBlank() ? assessmentKey : openAi ? interview.apiKey() : interviewKey,
+                    !assessmentEndpoint.isBlank() ? assessmentEndpoint : openAi && interview.endpointUrl() != null
+                            ? interview.endpointUrl() : interviewEndpoint,
+                    new BigDecimal("ASSESSMENT_GRADING".equals(normalizedTask) ? "0.10" : "0.30"), 8192, assessmentTimeout, null, null);
+        }
         String cacheKey = taskCacheKey(normalizedTask);
 
         try {

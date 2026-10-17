@@ -1,4 +1,5 @@
 import { useRecruitmentJob } from "../../jobs/components/JobRecruitmentWorkspace";
+import { AiQuestionGenerationPanel } from "../components/AiQuestionGenerationPanel";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
@@ -309,14 +310,7 @@ export function QuestionBankPage() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Link
-              to={`/recruiter/jobs/${job.id}/ai-interviews`}
-              className="inline-flex h-10 items-center gap-2 rounded-lg bg-gradient-to-r from-violet-600 via-indigo-600 to-blue-600 px-4 text-sm font-semibold text-white shadow-md"
-            >
-              <Sparkles className="size-4 text-amber-200" aria-hidden="true" />
-              Đề xuất bằng AI
-              <span className="rounded bg-white/20 px-1.5 py-0.5 text-[10px] uppercase tracking-widest">GenAI</span>
-            </Link>
+            <AiQuestionGenerationPanel />
             <Link
               to={`${basePath}/excel-template`}
               className="inline-flex h-10 items-center gap-2 rounded-lg bg-[var(--color-surface-card)] px-4 text-sm font-medium shadow-sm ring-1 ring-[var(--color-border-default)] hover:bg-[var(--color-surface-container-low)]"

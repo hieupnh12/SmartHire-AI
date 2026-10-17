@@ -43,6 +43,22 @@ Tạo/làm bài trắc nghiệm kỹ thuật gắn job/stage.
 
 ## API liên quan
 
+- `POST /api/v1/question-bank/generation`: staff gửi kỹ năng, loại câu (`MCQ`/`MULTIPLE_CHOICE`/`ESSAY`/`CODING`), độ khó, số lượng 1–5, ngôn ngữ code và yêu cầu bổ sung; trả `202` cùng ID bản nháp.
+- `GET /api/v1/question-bank/generation/{id}`: đọc trạng thái `PENDING`/`RUNNING`/`READY`/`FAILED` và câu hỏi đề xuất. Chỉ người tạo trong cùng tenant được đọc; bản nháp Redis hết hạn sau 2 giờ.
+
+### Sinh câu hỏi ngân hàng bằng Llama — 16/10/2026
+
+- Trạng thái triển khai: `Done` cho luồng sinh bản nháp; trạng thái feature tổng thể giữ `Doing`.
+- Nút **Đề xuất bằng AI** có trong ngân hàng chung và ngân hàng theo job, mở form cấu hình sinh câu hỏi thay vì điều hướng sang AI Interview.
+- Tác vụ `ASSESSMENT_GEN` dùng OpenAI-compatible provider và model mặc định `vanilj/llama-3-8b-instruct-32k-v0.1:Q4_K_M`. Kết nối kế thừa endpoint/key OpenAI hiện có của AI Interview; có thể ghi đè bằng `AI_ASSESSMENT_BASE_URL`, `AI_ASSESSMENT_API_KEY`, `AI_ASSESSMENT_MODEL`, `AI_ASSESSMENT_TIMEOUT_SECONDS` (mặc định 120). Không tự chuyển sang model khác khi lỗi.
+- Request được đưa qua queue `smarthire.assessment.bank.generate`, header `X-Tenant-ID`, worker concurrency 3–10 và `TenantJobExecutor`. Gọi AI theo từng câu để hạn chế JSON bị cắt; giữ rate-limit và metering theo task/tenant hiện có.
+- Backend kiểm tra DTO và quy tắc số đáp án đúng/rubric/coding trước khi trả bản nháp. Lỗi provider hoặc dữ liệu sai trả trạng thái lỗi an toàn, không tạo câu hỏi rỗng hay ghi vào database.
+- Recruiter mở bản nháp trong editor hiện có, kiểm tra/chỉnh sửa rồi lưu qua API ngân hàng. Bản nháp AI có khóa riêng theo tenant/user/ID, không ghi đè bản nháp đang soạn thủ công. Câu code có mã khởi đầu, harness, lời giải mẫu và testcase; người soạn cần chạy kiểm tra bộ test trước khi sử dụng. Chưa coi code do AI sinh là đã chạy thành công.
+- Không đổi schema, không tạo assessment hoặc tự xuất bản câu hỏi. Sinh đề từ ngân hàng và chấm bài giữ luồng hiện có.
+- AI chấm bài tự luận/review code dùng task `ASSESSMENT_GRADING` với cùng model Llama và kết nối `AI_ASSESSMENT_*`; phần sinh câu hỏi dùng `ASSESSMENT_GEN`. Hai task có rate-limit/metering theo tenant; không dùng task `INTERVIEW_NLP` để chấm Assessment.
+- Endpoint Assessment bắt buộc được cấu hình/kế thừa; nếu thiếu thì báo lỗi, không chuyển sang endpoint OpenAI công cộng. Với local server không yêu cầu xác thực, client dùng placeholder `local-model` khi key trống.
+- Kiểm chứng: 19 test backend đạt (service sinh bản nháp/quyền/tenant/lỗi broker, cấu hình Llama, client AI cũ và HTTP contract với server localhost); frontend build và test chuyển đổi dữ liệu đạt; Chrome headless kiểm tra validation, tenant header, mở editor, giữ bản nháp thủ công, trạng thái lỗi và mobile 375px đạt. `/models` của endpoint hiện có trả đúng model được yêu cầu. Chưa kiểm thử sinh câu thật hoặc toàn tuyến RabbitMQ với model thật.
+
 | Method | Path |
 |---|---|
 | POST | `/api/v1/assessments/create_draft_test` |
