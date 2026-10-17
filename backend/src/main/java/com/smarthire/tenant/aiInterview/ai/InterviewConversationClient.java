@@ -59,7 +59,7 @@ public class InterviewConversationClient {
 
     private java.util.Optional<DynamicAiConfigProvider.ResolvedAiConfig> resolveGeminiFailover(
             DynamicAiConfigProvider.ResolvedAiConfig primary, String primaryModel) {
-        if (primary == null || !primary.hasFailover() || !conversationModel.isBlank()) {
+        if (primary == null || !primary.hasFailover()) {
             return java.util.Optional.empty();
         }
         if (configs != null) {
@@ -306,8 +306,11 @@ public class InterviewConversationClient {
         return value.trim();
     }
     private String model(DynamicAiConfigProvider.ResolvedAiConfig config) {
+        if (config != null && config.modelName() != null && !config.modelName().isBlank()) {
+            return config.modelName().trim();
+        }
         if (!conversationModel.isBlank()) return conversationModel;
-        return config.modelName() == null || config.modelName().isBlank() ? fallback.getModel() : config.modelName();
+        return fallback.getModel();
     }
     private String url(String model, String operation) {
         if (!model.matches("[a-zA-Z0-9._-]+")) throw new IllegalStateException("Invalid Gemini model name");
