@@ -11,7 +11,7 @@ import {
   AlertCircle,
   QrCode,
   CreditCard,
-  Clock,
+  Mail,
   Printer,
   ExternalLink,
   Wallet,
@@ -66,27 +66,6 @@ export function CheckoutPage() {
   const selectedBankCode = "VNBANK";
   // PayPal state
   const [paypalVerifying, setPaypalVerifying] = useState(false);
-  const [checkingPayment, setCheckingPayment] = useState(false);
-
-  const handleManualCheckPayment = async () => {
-    if (!orderResult?.invoiceId || checkingPayment) return;
-    setCheckingPayment(true);
-    setErrorMsg(null);
-    try {
-      const statusRes = await checkoutApi.checkInvoiceStatus(orderResult.invoiceId);
-      if (statusRes && (statusRes.status === "PAID" || statusRes.isPaid)) {
-        setOrderResult((prev) => (prev ? { ...prev, status: "PAID" } : null));
-        setCurrentStep(3);
-        window.scrollTo({ top: 0, behavior: "smooth" });
-      } else {
-        setErrorMsg("Hệ thống đang chờ xác nhận giao dịch từ ngân hàng (thường mất 5–30 giây sau khi chuyển khoản). Vui lòng giữ nguyên trang này.");
-      }
-    } catch {
-      setErrorMsg("Không thể kiểm tra trạng thái đơn hàng lúc này. Hệ thống sẽ tự động thử lại.");
-    } finally {
-      setCheckingPayment(false);
-    }
-  };
 
   // Realtime Polling for VietQR SePay payment status in Step 2 -> Auto transitions to Step 3
   useEffect(() => {
@@ -99,6 +78,8 @@ export function CheckoutPage() {
           setOrderResult((prev) => (prev ? { ...prev, status: "PAID" } : null));
           setCurrentStep(3);
           window.scrollTo({ top: 0, behavior: "smooth" });
+        } else if (statusRes && statusRes.status === "CANCELLED") {
+          setErrorMsg("Đơn hàng này đã quá hạn thanh toán 7 ngày và đã bị hủy. Tên miền phụ (subdomain) đã được giải phóng để người dùng khác có thể đăng ký.");
         }
       } catch (err) {
         console.debug("Status polling check...", err);
@@ -182,6 +163,14 @@ export function CheckoutPage() {
     navigator.clipboard.writeText(text);
     setCopiedField(field);
     setTimeout(() => setCopiedField(null), 2000);
+  };
+  const formatUsagePeriod = (years: number, dateStr?: string) => {
+    const start = dateStr ? new Date(dateStr) : new Date();
+    const end = new Date(start);
+    end.setFullYear(start.getFullYear() + years);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const fmt = (d: Date) => `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+    return `${years} Năm (${fmt(start)} - ${fmt(end)})`;
   };
   const handleDownloadQr = async () => {
     const qrSource = orderResult?.qrUrl || "/sepay_qr.png";
@@ -590,7 +579,7 @@ export function CheckoutPage() {
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                      Email Nhận Link Kích Hoạt & Mật Khẩu
+                      Email Nhận Hóa Đơn &amp; Liên Kết Kích Hoạt
                     </label>
                     <input
                       type="email"
@@ -600,9 +589,6 @@ export function CheckoutPage() {
                       onChange={(e) => setAdminEmail(e.target.value)}
                       className="w-full px-4 py-3 text-sm bg-slate-50/50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:border-blue-600 font-medium text-slate-800"
                     />
-                    <p className="text-xs text-slate-500 mt-1.5">
-                      💡 Mật khẩu đăng nhập sẽ được gửi tới email này sau khi hoàn tất đối soát thanh toán.
-                    </p>
                   </div>
                 </div>
                 {/* 3. THÔNG TIN XUẤT HÓA ĐƠN VAT */}
@@ -1240,21 +1226,6 @@ export function CheckoutPage() {
                           </div>
                         </div>
                       </div>
-
-                      <div className="mt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-blue-100 bg-blue-50/60 px-4 py-3 text-xs text-blue-800">
-                        <div className="flex items-center gap-2">
-                          <Loader2 className="w-4 h-4 animate-spin text-blue-600 shrink-0" />
-                          <span>Hệ thống đang tự động chờ xác nhận thanh toán từ ngân hàng...</span>
-                        </div>
-                        <button
-                          type="button"
-                          disabled={checkingPayment}
-                          onClick={handleManualCheckPayment}
-                          className="shrink-0 rounded-lg bg-white border border-blue-200 px-3 py-1.5 font-semibold text-blue-700 hover:bg-blue-100 transition-colors disabled:opacity-60"
-                        >
-                          {checkingPayment ? "Đang kiểm tra..." : "Tôi đã chuyển khoản"}
-                        </button>
-                      </div>
                     </div>
                   )}
 
@@ -1518,7 +1489,7 @@ export function CheckoutPage() {
               </span>
 
               <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-                Không Gian Làm Việc Đã Kích Hoạt!
+                Workspace Đã Được Kích Hoạt!
               </h1>
 
               <p className="text-sm text-slate-600 mt-3 max-w-md mx-auto">
@@ -1535,23 +1506,23 @@ export function CheckoutPage() {
                   <span className="font-bold text-blue-600">{orderResult.planName}</span>
                 </div>
                 <div className="flex items-center justify-between pb-4 border-b border-slate-200/80">
-                  <span className="text-sm font-semibold text-slate-700">Thời hạn bản quyền</span>
+                  <span className="text-sm font-semibold text-slate-700">Thời hạn sử dụng</span>
                   <span className="font-semibold text-slate-900">
-                    {quantity} Năm
+                    {formatUsagePeriod(quantity, orderResult.createdAt)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-semibold text-slate-700">Địa chỉ truy cập</span>
+                  <span className="text-sm font-semibold text-slate-700">Địa chỉ truy cập Workspace</span>
                   <span className="font-mono font-bold text-blue-600">
                     {orderResult.subdomain}.{baseDomain}
                   </span>
                 </div>
               </div>
-              <div className="mt-6 p-4 rounded-xl bg-blue-50 border border-blue-200 text-blue-800 text-sm text-left flex gap-3">
-                <div className="mt-0.5"><Clock className="w-4 h-4" /></div>
-                <p>
-                  Liên kết kích hoạt một lần (One-Time Activation Link, hiệu lực 72 giờ) dành cho Quản trị viên đã được gửi tới email <strong>{adminEmail}</strong>.
-                  Quý khách vui lòng kiểm tra hộp thư (kể cả thư rác) để tự thiết lập mật khẩu riêng và truy cập hệ thống.
+              <div className="mt-6 p-4 rounded-xl bg-blue-50 border border-blue-200 text-blue-800 text-sm text-left flex items-start gap-3">
+                <Mail className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+                <p className="leading-relaxed">
+                  Liên kết thiết lập mật khẩu quản trị viên (hiệu lực trong 72 giờ) đã được gửi tới email <strong>{adminEmail}</strong>.
+                  Quý khách vui lòng kiểm tra hộp thư (kể cả thư rác/spam) để thiết lập mật khẩu riêng và truy cập hệ thống.
                 </p>
               </div>
               <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">

@@ -64,4 +64,11 @@ public class MasterBillingController {
         InvoiceResponse response = billingService.approveInvoice(id);
         return ResponseEntity.ok(ApiResponse.ok("Duyệt hóa đơn và kích hoạt không gian làm việc thành công", response));
     }
+
+    @PostMapping("/cleanup-expired")
+    @Operation(summary = "Cleanup Expired Unpaid Orders", description = "Cancels unpaid invoices past 7-day due date and releases reserved subdomains.")
+    public ResponseEntity<ApiResponse<Integer>> cleanupExpiredOrders() {
+        int count = billingService.cleanupExpiredUnpaidOrders();
+        return ResponseEntity.ok(ApiResponse.ok("Đã xử lý dọn dẹp các đơn hàng quá hạn và giải phóng subdomain", count));
+    }
 }

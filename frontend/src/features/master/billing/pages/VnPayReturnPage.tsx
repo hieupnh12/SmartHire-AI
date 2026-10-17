@@ -11,6 +11,7 @@ import {
   BrainCircuit,
   Receipt,
   RotateCcw,
+  Mail,
 } from "lucide-react";
 import { checkoutApi, VnPayVerifyReturnData } from "@/api/master/checkoutApi";
 
@@ -160,7 +161,7 @@ export function VnPayReturnPage() {
             <div className="p-6 rounded-2xl bg-gradient-to-br from-blue-50/70 to-indigo-50/60 border border-blue-200 space-y-4">
               <div className="flex items-center gap-2 text-xs font-bold text-blue-950">
                 <Building2 className="w-4 h-4 text-blue-700" />
-                <span>Không Gian Làm Việc Doanh Nghiệp</span>
+                <span>Không Gian Làm Việc (Workspace)</span>
               </div>
 
               <div className="space-y-2 text-xs">
@@ -169,7 +170,7 @@ export function VnPayReturnPage() {
                   <span className="font-bold text-slate-900">{result.workspaceName || "Acme Corp"}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-600">Địa chỉ truy cập độc lập:</span>
+                  <span className="text-slate-600">Địa chỉ truy cập Workspace:</span>
                   <a
                     href={workspaceUrl}
                     target="_blank"
@@ -186,8 +187,11 @@ export function VnPayReturnPage() {
                 </div>
               </div>
 
-              <div className="p-3 rounded-xl bg-white/80 border border-blue-200/70 text-[11px] text-blue-900 leading-relaxed">
-                💡 <strong>Lưu ý:</strong> Mật khẩu quản trị tạm thời đã được gửi tới email <strong>{result.contactEmail}</strong>. Quý khách vui lòng kiểm tra hộp thư (kể cả hòm thư Spam) để đăng nhập và thiết lập mật khẩu mới.
+              <div className="p-3.5 rounded-xl bg-white/90 border border-blue-200/80 text-xs text-blue-900 leading-relaxed flex items-start gap-2.5">
+                <Mail className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                <p>
+                  Liên kết thiết lập mật khẩu quản trị viên (hiệu lực trong 72 giờ) đã được gửi tới email <strong>{result.contactEmail}</strong>. Quý khách vui lòng kiểm tra hộp thư (kể cả thư rác/spam) để thiết lập mật khẩu riêng và truy cập hệ thống.
+                </p>
               </div>
             </div>
 
@@ -199,7 +203,7 @@ export function VnPayReturnPage() {
                 rel="noreferrer"
                 className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-98 text-white font-bold text-xs shadow-md shadow-blue-600/20 transition-all flex items-center justify-center gap-2"
               >
-                <span>Đăng Nhập Không Gian Làm Việc</span>
+                <span>Truy Cập Workspace</span>
                 <ArrowRight className="w-4 h-4" />
               </a>
 
