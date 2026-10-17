@@ -582,9 +582,6 @@ export function CheckoutPage() {
                       onChange={(e) => setAdminEmail(e.target.value)}
                       className="w-full px-4 py-3 text-sm bg-slate-50/50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:border-blue-600 font-medium text-slate-800"
                     />
-                    <p className="text-xs text-slate-500 mt-1.5">
-                      💡 Hóa đơn điện tử và liên kết kích hoạt Workspace (để tự thiết lập mật khẩu riêng) sẽ được gửi tới email này sau khi thanh toán thành công.
-                    </p>
                   </div>
                 </div>
                 {/* 3. THÔNG TIN XUẤT HÓA ĐƠN VAT */}
