@@ -11,7 +11,7 @@ import {
   AlertCircle,
   QrCode,
   CreditCard,
-  Clock,
+  Mail,
   Printer,
   ExternalLink,
   Wallet,
@@ -163,6 +163,14 @@ export function CheckoutPage() {
     navigator.clipboard.writeText(text);
     setCopiedField(field);
     setTimeout(() => setCopiedField(null), 2000);
+  };
+  const formatUsagePeriod = (years: number, dateStr?: string) => {
+    const start = dateStr ? new Date(dateStr) : new Date();
+    const end = new Date(start);
+    end.setFullYear(start.getFullYear() + years);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const fmt = (d: Date) => `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+    return `${years} Năm (${fmt(start)} - ${fmt(end)})`;
   };
   const handleDownloadQr = async () => {
     const qrSource = orderResult?.qrUrl || "/sepay_qr.png";
@@ -1481,7 +1489,7 @@ export function CheckoutPage() {
               </span>
 
               <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-                Không Gian Làm Việc Đã Kích Hoạt!
+                Workspace Đã Được Kích Hoạt!
               </h1>
 
               <p className="text-sm text-slate-600 mt-3 max-w-md mx-auto">
@@ -1498,23 +1506,23 @@ export function CheckoutPage() {
                   <span className="font-bold text-blue-600">{orderResult.planName}</span>
                 </div>
                 <div className="flex items-center justify-between pb-4 border-b border-slate-200/80">
-                  <span className="text-sm font-semibold text-slate-700">Thời hạn bản quyền</span>
+                  <span className="text-sm font-semibold text-slate-700">Thời hạn sử dụng</span>
                   <span className="font-semibold text-slate-900">
-                    {quantity} Năm
+                    {formatUsagePeriod(quantity, orderResult.createdAt)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-semibold text-slate-700">Địa chỉ truy cập</span>
+                  <span className="text-sm font-semibold text-slate-700">Địa chỉ truy cập Workspace</span>
                   <span className="font-mono font-bold text-blue-600">
                     {orderResult.subdomain}.{baseDomain}
                   </span>
                 </div>
               </div>
-              <div className="mt-6 p-4 rounded-xl bg-blue-50 border border-blue-200 text-blue-800 text-sm text-left flex gap-3">
-                <div className="mt-0.5"><Clock className="w-4 h-4" /></div>
-                <p>
-                  Liên kết kích hoạt một lần (One-Time Activation Link, hiệu lực 72 giờ) dành cho Quản trị viên đã được gửi tới email <strong>{adminEmail}</strong>.
-                  Quý khách vui lòng kiểm tra hộp thư (kể cả thư rác) để tự thiết lập mật khẩu riêng và truy cập hệ thống.
+              <div className="mt-6 p-4 rounded-xl bg-blue-50 border border-blue-200 text-blue-800 text-sm text-left flex items-start gap-3">
+                <Mail className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+                <p className="leading-relaxed">
+                  Liên kết thiết lập mật khẩu quản trị viên (hiệu lực trong 72 giờ) đã được gửi tới email <strong>{adminEmail}</strong>.
+                  Quý khách vui lòng kiểm tra hộp thư (kể cả thư rác/spam) để thiết lập mật khẩu riêng và truy cập hệ thống.
                 </p>
               </div>
               <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
