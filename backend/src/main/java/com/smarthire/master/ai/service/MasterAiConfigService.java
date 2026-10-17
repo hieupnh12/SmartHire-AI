@@ -457,7 +457,7 @@ public class MasterAiConfigService {
                         """;
 
                 String effectiveModel = model;
-                if ("gemini-2.5-flash".equalsIgnoreCase(effectiveModel) || "gemini-2.0-flash".equalsIgnoreCase(effectiveModel) || "gemini-1.5-flash".equalsIgnoreCase(effectiveModel)) {
+                if ("gemini-2.0-flash".equalsIgnoreCase(effectiveModel) || "gemini-1.5-flash".equalsIgnoreCase(effectiveModel)) {
                     effectiveModel = "gemini-3.5-flash-lite";
                 }
 

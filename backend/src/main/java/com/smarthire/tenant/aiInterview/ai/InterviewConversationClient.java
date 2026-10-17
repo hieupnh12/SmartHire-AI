@@ -429,11 +429,11 @@ public class InterviewConversationClient {
         return value;
     }
     private static String model(DynamicAiConfigProvider.ResolvedAiConfig config) {
-        if (config.provider() == null || config.modelName() == null || config.modelName().isBlank()) throw notConfigured(config);
-        return config.modelName();
+        if (config == null || config.provider() == null || config.modelName() == null || config.modelName().isBlank()) throw notConfigured(config);
+        return config.modelName().trim();
     }
     private static IllegalStateException notConfigured(DynamicAiConfigProvider.ResolvedAiConfig config) {
-        return new IllegalStateException("AI task " + config.taskType()
+        return new IllegalStateException("AI task " + (config == null ? "UNKNOWN" : config.taskType())
                 + " is not configured (provider, model and API key in Admin > AI Config)");
     }
     private String url(String model, String operation) {

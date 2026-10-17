@@ -165,6 +165,8 @@ app:
     stale-days: ${APPLICATION_STALE_DAYS:30}
     cv-retention-days: ${APPLICATION_CV_RETENTION_DAYS:180}
     maintenance-cron: ${APPLICATION_MAINTENANCE_CRON:0 15 * * * *}
+  billing:
+    unpaid-cleanup-cron: ${BILLING_UNPAID_CLEANUP_CRON:0 0 * * * *}
   ai:
     timeout-seconds: ${CV_AI_TIMEOUT_SECONDS:90}
     # Provider, model and API key per task live only in Master DB (Admin > AI Config)

@@ -49,6 +49,7 @@ Khi một hoá đơn chuyển sang trạng thái `PAID` (dù qua Webhook tự đ
 - Webhook SePay bắt buộc kiểm tra chữ ký HMAC-SHA256 (`sepay.webhook.require-signature=true` mặc định); header `X-Test-Simulation` không được phép bypass xác thực.
 - Giao dịch thanh toán có số tiền nhỏ hơn `invoice.amount` bị từ chối kích hoạt hoá đơn và ghi log cảnh báo gian lận.
 - Không cho phép xoá cứng hoá đơn đã thanh toán (`PAID`) để đảm bảo tính toàn vẹn kế toán và kiểm toán.
+- **Tự động hủy đơn hàng quá hạn 7 ngày & Giải phóng Subdomain:** Đơn hàng Self-serve Checkout ở trạng thái `PENDING` nếu không thanh toán trong vòng 7 ngày (`due_date < now()`) sẽ được hệ thống quét định kỳ hàng giờ (`@Scheduled`), tự động hủy hóa đơn (`CANCELLED`), hủy thuê bao tạm (`CANCELED`), đánh dấu tenant `CANCELLED` và giải phóng mã/tên miền phụ (`released_<id>_<subdomain>`) để cho phép doanh nghiệp khác đăng ký ngay lập tức mà vẫn giữ trọn vẹn dữ liệu kế toán và kiểm toán.
 
 ## API liên quan
 
@@ -58,6 +59,7 @@ Khi một hoá đơn chuyển sang trạng thái `PAID` (dù qua Webhook tự đ
 | POST | `/api/v1/master/invoices` | WORKSPACE_ADMIN | Tạo hoá đơn mới kèm dòng hàng chi tiết |
 | PATCH | `/api/v1/master/invoices/{id}/pay` | WORKSPACE_ADMIN | Xác nhận thanh toán hoá đơn & kích hoạt dịch vụ |
 | POST | `/api/v1/master/invoices/{id}/approve` | WORKSPACE_ADMIN | Duyệt chứng từ chuyển khoản UNC & kích hoạt dịch vụ |
+| POST | `/api/v1/master/invoices/cleanup-expired` | WORKSPACE_ADMIN | Kích hoạt quét dọn dẹp đơn hàng quá hạn 7 ngày & giải phóng subdomain |
 | PATCH | `/api/v1/master/invoices/{id}/cancel` | WORKSPACE_ADMIN | Huỷ hoá đơn chưa thanh toán |
 | POST | `/api/v1/master/payments/webhook/sepay` | Public (HMAC) | Webhook nhận biến động số dư VietQR từ SePay |
 | POST | `/api/v1/master/payments/vnpay/create-url` | Public / Tenant | Khởi tạo URL thanh toán VNPay |
