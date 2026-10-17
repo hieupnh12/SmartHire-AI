@@ -79,6 +79,8 @@ export function CheckoutPage() {
           setOrderResult((prev) => (prev ? { ...prev, status: "PAID" } : null));
           setCurrentStep(3);
           window.scrollTo({ top: 0, behavior: "smooth" });
+        } else if (statusRes && statusRes.status === "CANCELLED") {
+          setErrorMsg("Đơn hàng này đã quá hạn thanh toán 7 ngày và đã bị hủy. Tên miền phụ (subdomain) đã được giải phóng để người dùng khác có thể đăng ký.");
         }
       } catch (err) {
         console.debug("Status polling check...", err);

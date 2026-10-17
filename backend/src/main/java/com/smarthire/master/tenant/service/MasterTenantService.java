@@ -73,8 +73,9 @@ public class MasterTenantService {
     public boolean checkSubdomainExists(String subdomain) {
         if (subdomain == null || subdomain.isBlank()) return false;
         String value = subdomain.trim().toLowerCase(Locale.ROOT);
+        if (RESERVED.contains(value)) return true;
         return tenants.findBySubdomain(value)
-                .filter(t -> !t.isDeleted() && "ACTIVE".equals(t.getStatus())).isPresent();
+                .filter(t -> !t.isDeleted() && !"CANCELLED".equals(t.getStatus())).isPresent();
     }
 
     public TenantInfo updateTenantStatus(Long id, String status) {

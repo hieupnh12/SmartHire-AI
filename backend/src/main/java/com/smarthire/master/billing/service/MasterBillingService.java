@@ -22,6 +22,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -501,6 +502,11 @@ public class MasterBillingService {
             return invoice;
         }
 
+        if ("CANCELLED".equalsIgnoreCase(invoice.getStatus())) {
+            log.warn("Invoice #{} has already been CANCELLED due to expiration. Manual reconciliation required.", invoice.getInvoiceNumber());
+            throw new BusinessException("Hóa đơn #" + invoice.getInvoiceNumber() + " đã bị hủy do quá hạn thanh toán. Subdomain đã được giải phóng.", HttpStatus.CONFLICT, "INVOICE_CANCELLED");
+        }
+
         invoice.setStatus("PAID");
         invoice.setPaidAt(LocalDateTime.now());
         if (StringUtils.hasText(gateway)) {
@@ -618,6 +624,105 @@ public class MasterBillingService {
                 tenant != null ? tenant.getSubdomain() : null,
                 tenant != null ? tenant.getStatus() : null
         );
+    }
+
+    /**
+     * Tự động quét và hủy các đơn hàng thanh toán quá hạn 7 ngày, đồng thời giải phóng subdomain
+     * để người dùng khác có thể đăng ký sử dụng.
+     * Áp dụng cho các tenant ở trạng thái PENDING_PAYMENT / FAILED (chưa khởi tạo database vật lý).
+     *
+     * @return Số lượng đơn hàng / tenant đã xử lý giải phóng.
+     */
+    @Scheduled(cron = "${app.billing.unpaid-cleanup-cron:0 0 * * * *}")
+    @Transactional(transactionManager = "masterTransactionManager")
+    public int cleanupExpiredUnpaidOrders() {
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime cutoff = now.minusDays(7);
+        List<Invoice> expiredInvoices = invoiceRepository.findExpiredPendingInvoices(now, cutoff);
+        if (expiredInvoices == null || expiredInvoices.isEmpty()) {
+            return 0;
+        }
+
+        log.info("Bắt đầu quét dọn dẹp đơn hàng quá hạn 7 ngày. Tìm thấy {} hóa đơn PENDING cần kiểm tra.", expiredInvoices.size());
+        int processedCount = 0;
+
+        for (Invoice invoice : expiredInvoices) {
+            try {
+                // 1. Cập nhật hóa đơn sang CANCELLED
+                invoice.setStatus("CANCELLED");
+                String cancelNote = "[Tự động hủy] Đơn hàng quá hạn thanh toán 7 ngày (hạn: " + invoice.getDueDate() + "). Subdomain đã được giải phóng.";
+                invoice.setNotes(StringUtils.hasText(invoice.getNotes()) ? invoice.getNotes() + " | " + cancelNote : cancelNote);
+                invoiceRepository.save(invoice);
+
+                // 2. Hủy subscription nếu đang ở trạng thái PENDING
+                if (invoice.getSubscriptionId() != null) {
+                    subscriptionRepository.findById(invoice.getSubscriptionId()).ifPresent(sub -> {
+                        if ("PENDING".equalsIgnoreCase(sub.getStatus())) {
+                            sub.setStatus("CANCELED");
+                            sub.setCanceledAt(now);
+                            sub.setCancelReason("EXPIRED_UNPAID_7_DAYS");
+                            subscriptionRepository.save(sub);
+                        }
+                    });
+                } else if (invoice.getTenantId() != null) {
+                    subscriptionRepository.findFirstByTenantIdAndStatusOrderByCreatedAtDesc(invoice.getTenantId(), "PENDING").ifPresent(sub -> {
+                        sub.setStatus("CANCELED");
+                        sub.setCanceledAt(now);
+                        sub.setCancelReason("EXPIRED_UNPAID_7_DAYS");
+                        subscriptionRepository.save(sub);
+                    });
+                }
+
+                // 3. Giải phóng Subdomain, Code và DbName cho Tenant chưa thanh toán (PENDING_PAYMENT / FAILED)
+                if (invoice.getTenantId() != null) {
+                    TenantInfo tenant = tenantRepository.findById(invoice.getTenantId()).orElse(null);
+                    if (tenant != null && ("PENDING_PAYMENT".equalsIgnoreCase(tenant.getStatus()) || "FAILED".equalsIgnoreCase(tenant.getStatus()))) {
+                        String oldSubdomain = tenant.getSubdomain();
+                        String oldCode = tenant.getCode();
+
+                        // Chỉ đổi tên giải phóng nếu chưa được giải phóng trước đó
+                        if (oldSubdomain != null && !oldSubdomain.startsWith("released_")) {
+                            Long tId = tenant.getId();
+                            String prefix = "released_" + tId + "_";
+
+                            String releasedSubdomain = prefix + oldSubdomain;
+                            if (releasedSubdomain.length() > 128) {
+                                releasedSubdomain = releasedSubdomain.substring(0, 128);
+                            }
+
+                            String releasedCode = prefix + oldCode;
+                            if (releasedCode.length() > 64) {
+                                releasedCode = releasedCode.substring(0, 64);
+                            }
+
+                            String safeOldCode = (oldCode != null && oldCode.length() > 30) ? oldCode.substring(0, 30) : (oldCode != null ? oldCode : "t");
+                            String releasedDbName = "smarthire_tenant_released_" + tId + "_" + safeOldCode;
+                            if (releasedDbName.length() > 128) {
+                                releasedDbName = releasedDbName.substring(0, 128);
+                            }
+
+                            tenant.setSubdomain(releasedSubdomain);
+                            tenant.setCode(releasedCode);
+                            tenant.setDbName(releasedDbName);
+                            tenant.setStatus("CANCELLED");
+                            tenant.setDeleted(true);
+                            tenant.setDeletedAt(now);
+                            tenantRepository.save(tenant);
+
+                            log.info("Đã giải phóng subdomain '{}' và hủy tenant ID={} (code: '{}') do đơn hàng #{} quá hạn 7 ngày.",
+                                    oldSubdomain, tId, oldCode, invoice.getInvoiceNumber());
+                        }
+                    }
+                }
+
+                processedCount++;
+            } catch (Exception ex) {
+                log.error("Lỗi khi xử lý hủy đơn hàng quá hạn cho invoice #{}: {}", invoice.getInvoiceNumber(), ex.getMessage(), ex);
+            }
+        }
+
+        log.info("Hoàn thành quét dọn dẹp đơn hàng quá hạn 7 ngày: Đã xử lý {} hóa đơn.", processedCount);
+        return processedCount;
     }
 
     private String generateInvoiceNumber() {
