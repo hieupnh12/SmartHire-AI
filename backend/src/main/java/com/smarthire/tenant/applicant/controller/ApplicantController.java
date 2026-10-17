@@ -107,7 +107,7 @@ public class ApplicantController {
 
     @GetMapping("/applications/{id}/evaluation")
     @Operation(summary = "Evaluation reasons per round for the owning candidate",
-            description = "Candidate only. CV score vs. threshold with AI explanation and matched/missing skills; every AI interview"
+            description = "Candidate only. CV score vs. threshold with AI explanation, candidate learning advice, and matched/missing skills; every AI interview"
                     + " attempt and assessment submission (newest first) with score, pass mark and outcome. AI interview attempts add"
                     + " summary/strengths/weaknesses and criterion scores when available. No per-question detail or internal weights.")
     public ApiResponse<CandidateEvaluationView> evaluation(@PathVariable long id) {
@@ -155,8 +155,8 @@ public class ApplicantController {
 
     @PostMapping("/applications/{id}/withdraw")
     @Operation(summary = "Candidate withdraws an application",
-            description = "Only allowed while the CV round has no pass/fail outcome (status NEW/IN_REVIEW and cvScreeningStatus PENDING);"
-                    + " otherwise 409 APPLICATION_WITHDRAW_LOCKED. Optional reason (max 255 chars).")
+            description = "Allowed for any open, non-archived application, including after CV screening;"
+                    + " HIRED/REJECTED/FAILED/WITHDRAWN or archived returns 409 APPLICATION_WITHDRAW_LOCKED. Optional reason (max 255 chars).")
     public ApiResponse<ApplicationDetail> withdraw(@PathVariable long id, @Valid @RequestBody(required = false) WithdrawRequest body) {
         return ApiResponse.ok(applicants.withdraw(id, body == null ? null : body.reason()));
     }

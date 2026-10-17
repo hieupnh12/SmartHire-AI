@@ -20,5 +20,8 @@ public record JobTestRequest(
         @NotNull @Min(1) Integer durationMinutes,
         @DecimalMin("0.00") @Digits(integer = 8, fraction = 2)
         @Schema(description = "Optional passing threshold in raw points, not a percentage")
-        BigDecimal passingScore) {
+        BigDecimal passingScore, @Min(1) Integer objectiveDurationMinutes) {
+    public JobTestRequest(Long jobId, String title, String description, Integer duration, BigDecimal passingScore) {
+        this(jobId, title, description, duration, passingScore, null);
+    }
 }

@@ -88,7 +88,8 @@ public class QuestionBankService {
             }
             if (skill != null && !skill.isBlank()) predicates.add(cb.equal(root.get("skill"), skill));
             if (difficulty != null && !difficulty.isBlank()) predicates.add(cb.equal(root.get("difficulty"), difficulty));
-            if (questionType != null && !questionType.isBlank()) predicates.add(cb.equal(root.get("questionType"), questionType));
+            if ("QUIZ".equals(questionType)) predicates.add(root.get("questionType").in("MCQ", "MULTIPLE_CHOICE"));
+            else if (questionType != null && !questionType.isBlank()) predicates.add(cb.equal(root.get("questionType"), questionType));
             if ("ARCHIVED".equalsIgnoreCase(status)) predicates.add(cb.isTrue(root.get("bankArchived")));
             else if ("DRAFT".equalsIgnoreCase(status)) predicates.add(cb.equal(test.get("status"), TestStatus.DRAFT));
             else if ("PUBLISHED".equalsIgnoreCase(status)) predicates.add(cb.equal(test.get("status"), TestStatus.PUBLISHED));

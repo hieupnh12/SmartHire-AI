@@ -1,3 +1,4 @@
+import { rubricSchema, codingSchema, contentError } from "./questionContentValidation";
 import {
   isSubjectiveKind,
   type BankQuestion,
@@ -251,6 +252,12 @@ export function validateExcelQuestions(questions: BankQuestion[], defaultScore =
     }
 
     validateByType(row, issues);
+    try {
+      if (row.kind === "TU_LUAN_CODE") codingSchema.parse(JSON.parse(row.codingJsonText || "null"));
+      else if (row.kind === "TINH_HUONG_SYSTEM") rubricSchema.parse(row.rubricJsonText?.trim() ? JSON.parse(row.rubricJsonText) : {
+        referenceAnswer: row.sample.trim(), criteria: [{ description: row.rubric.map(item => item.text).filter(Boolean).join("; ") || "Technical correctness", weight: 100 }],
+      });
+    } catch (error) { pushIssue(issues, "rubric", contentError(error)); }
 
     const contentKey = row.content.trim().toLowerCase();
     if (contentKey && (contentCounts.get(contentKey) ?? 0) > 1) {

@@ -102,8 +102,9 @@ export function PipelineBoard() {
       return [first, ...remaining].flatMap((response) => response.data.items);
     },
     enabled: Boolean(jobId),
+    refetchInterval: 5_000,
   });
-  const detailQuery = useQuery({ queryKey: queryKeys.applicants.detail(selectedId ?? 0), queryFn: () => applicantApi.get(selectedId!), enabled: selectedId != null });
+  const detailQuery = useQuery({ queryKey: queryKeys.applicants.detail(selectedId ?? 0), queryFn: () => applicantApi.get(selectedId!), enabled: selectedId != null, refetchInterval: 5_000 });
   const moveMutation = useMutation({
     mutationFn: ({ applicationId, status }: { applicationId: number; status: ApplicationStatus }) => applicantApi.changeStatus(applicationId, status),
     onSuccess: async () => {
@@ -135,44 +136,46 @@ export function PipelineBoard() {
   if (!jobId) return <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">Không xác định được job cho pipeline.</div>;
 
   return (
-    <section className="flex h-full min-h-0 flex-col gap-4 py-4 text-[var(--color-on-surface)] sm:py-6">
-      <header className="flex shrink-0 flex-col gap-3 rounded-2xl border border-[var(--color-border-default)] bg-white p-4 shadow-sm lg:flex-row lg:items-center lg:justify-between">
+    <section className="flex min-h-0 w-full min-w-0 max-w-full flex-1 flex-col gap-3 overflow-hidden py-3 text-[var(--color-on-surface)] sm:gap-4 sm:py-4">
+      <header className="flex w-full min-w-0 shrink-0 flex-col gap-3 rounded-2xl border border-[var(--color-border-default)] bg-white p-4 shadow-sm lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
-          <div className="flex items-center gap-2 text-xs font-medium text-brand-primary"><BriefcaseBusiness className="size-4" aria-hidden="true" />Bảng quy trình tuyển dụng</div>
+          <div className="flex items-center gap-2 text-xs font-medium text-brand-primary"><BriefcaseBusiness className="size-4 shrink-0" aria-hidden="true" />Bảng quy trình tuyển dụng</div>
           <h1 className="mt-1 truncate text-lg font-semibold sm:text-xl">{jobQuery.data?.data.title ?? "Đang tải vị trí…"}</h1>
           <p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">{applications.length} ứng viên · cập nhật trực tiếp theo trạng thái hồ sơ</p>
         </div>
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <label className="relative block min-w-[240px]">
+        <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+          <label className="relative block w-full min-w-0 sm:max-w-[240px] sm:flex-1">
             <span className="sr-only">Tìm ứng viên trong pipeline</span>
             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--color-outline)]" aria-hidden="true" />
             <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Tìm tên, email, kỹ năng…" className="min-h-10 w-full rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-alt)] pl-9 pr-3 text-sm outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/15" />
           </label>
-          {query && <button type="button" onClick={() => setQuery("")} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-[var(--color-border-default)] px-3 text-xs font-semibold hover:bg-[var(--color-surface-alt)]"><FilterX className="size-4" aria-hidden="true" />Xóa lọc</button>}
-          <Link to={`/recruiter/jobs/${jobId}/applicants?view=list`} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-brand-primary px-4 text-xs font-semibold text-white hover:bg-brand-primary-hover">Xem dạng danh sách<ArrowRight className="size-4" aria-hidden="true" /></Link>
+          {query && <button type="button" onClick={() => setQuery("")} className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-lg border border-[var(--color-border-default)] px-3 text-xs font-semibold hover:bg-[var(--color-surface-alt)]"><FilterX className="size-4" aria-hidden="true" />Xóa lọc</button>}
+          <Link to={`/recruiter/jobs/${jobId}/applicants?view=list`} className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-brand-primary px-4 text-xs font-semibold text-white hover:bg-brand-primary-hover">Xem dạng danh sách<ArrowRight className="size-4" aria-hidden="true" /></Link>
         </div>
       </header>
 
-      {feedback && <div role="status" className={cn("flex shrink-0 items-center gap-2 rounded-xl border px-4 py-2.5 text-xs", feedback.type === "error" ? "border-red-200 bg-red-50 text-red-800" : "border-emerald-200 bg-emerald-50 text-emerald-800")}><CircleAlert className="size-4 shrink-0" aria-hidden="true" />{feedback.message}<button type="button" onClick={() => setFeedback(null)} className="ml-auto font-semibold underline">Đóng</button></div>}
+      {feedback && <div role="status" className={cn("flex w-full min-w-0 shrink-0 items-center gap-2 rounded-xl border px-4 py-2.5 text-xs", feedback.type === "error" ? "border-red-200 bg-red-50 text-red-800" : "border-emerald-200 bg-emerald-50 text-emerald-800")}><CircleAlert className="size-4 shrink-0" aria-hidden="true" />{feedback.message}<button type="button" onClick={() => setFeedback(null)} className="ml-auto font-semibold underline">Đóng</button></div>}
 
       {applicationsQuery.isError ? <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{getApiErrorMessage(applicationsQuery.error, "Không tải được pipeline.")}</div> : (
-        <div className="min-h-0 flex-1 overflow-x-auto overscroll-contain [scrollbar-color:var(--color-outline-variant)_transparent] [scrollbar-width:thin]">
-          <div className="flex h-full min-h-[480px] min-w-max gap-3 pb-3">
-            {PIPELINE_COLUMNS.map((column) => {
-              const rows = filtered.filter((application) => application.status === column.status);
-              return <section key={column.status} className="flex h-full w-[286px] flex-col overflow-hidden rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-container-low)]/75 p-2.5" aria-labelledby={`pipeline-${column.status}`}>
-                <header className="mb-2 flex shrink-0 items-center gap-2 rounded-xl bg-white px-3 py-2.5">
-                  <span className={cn("size-2.5 rounded-full", column.accent)} aria-hidden="true" />
-                  <div className="min-w-0 flex-1"><h2 id={`pipeline-${column.status}`} className="text-sm font-semibold">{column.label}</h2><p className="truncate text-[10px] text-[var(--color-on-surface-variant)]">{column.description}</p></div>
-                  <span className="rounded-full bg-[var(--color-surface-alt)] px-2 py-1 text-[11px] font-semibold">{rows.length}</span>
-                </header>
-                <div className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain pr-1 [scrollbar-color:var(--color-outline-variant)_transparent] [scrollbar-width:thin]">
-                  {rows.map((application) => <CandidateCard key={application.id} application={application} pending={moveMutation.isPending && moveMutation.variables?.applicationId === application.id} onOpen={() => openDetail(application.id)} onMove={(status) => status !== application.status && moveMutation.mutate({ applicationId: application.id, status })} />)}
-                  {!applicationsQuery.isLoading && rows.length === 0 && <div className="grid min-h-28 place-items-center rounded-xl border border-dashed border-[var(--color-outline-variant)] bg-white/60 px-5 text-center text-[11px] leading-4 text-[var(--color-on-surface-variant)]">Chưa có ứng viên ở giai đoạn này</div>}
-                  {applicationsQuery.isLoading && <div className="h-28 animate-pulse rounded-xl bg-white" />}
-                </div>
-              </section>;
-            })}
+        <div className="relative min-h-0 min-w-0 w-full flex-1">
+          <div className="absolute inset-0 overflow-x-auto overflow-y-hidden overscroll-x-contain [scrollbar-color:var(--color-outline-variant)_transparent] [scrollbar-width:thin]">
+            <div className="flex h-full w-max gap-3 pb-2">
+              {PIPELINE_COLUMNS.map((column) => {
+                const rows = filtered.filter((application) => application.status === column.status);
+                return <section key={column.status} className="flex h-full w-[272px] shrink-0 flex-col overflow-hidden rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-container-low)]/75 p-2.5 sm:w-[286px]" aria-labelledby={`pipeline-${column.status}`}>
+                  <header className="mb-2 flex shrink-0 items-center gap-2 rounded-xl bg-white px-3 py-2.5">
+                    <span className={cn("size-2.5 shrink-0 rounded-full", column.accent)} aria-hidden="true" />
+                    <div className="min-w-0 flex-1"><h2 id={`pipeline-${column.status}`} className="truncate text-sm font-semibold">{column.label}</h2><p className="truncate text-[10px] text-[var(--color-on-surface-variant)]">{column.description}</p></div>
+                    <span className="shrink-0 rounded-full bg-[var(--color-surface-alt)] px-2 py-1 text-[11px] font-semibold">{rows.length}</span>
+                  </header>
+                  <div className="min-h-0 min-w-0 flex-1 space-y-2 overflow-y-auto overscroll-contain pr-1 [scrollbar-color:var(--color-outline-variant)_transparent] [scrollbar-width:thin]">
+                    {rows.map((application) => <CandidateCard key={application.id} application={application} pending={moveMutation.isPending && moveMutation.variables?.applicationId === application.id} onOpen={() => openDetail(application.id)} onMove={(status) => status !== application.status && moveMutation.mutate({ applicationId: application.id, status })} />)}
+                    {!applicationsQuery.isLoading && rows.length === 0 && <div className="grid min-h-28 place-items-center rounded-xl border border-dashed border-[var(--color-outline-variant)] bg-white/60 px-5 text-center text-[11px] leading-4 text-[var(--color-on-surface-variant)]">Chưa có ứng viên ở giai đoạn này</div>}
+                    {applicationsQuery.isLoading && <div className="h-28 animate-pulse rounded-xl bg-white" />}
+                  </div>
+                </section>;
+              })}
+            </div>
           </div>
         </div>
       )}

@@ -68,6 +68,13 @@ public class Question {
     @Column(name = "authoring_metadata", columnDefinition = "json")
     JsonNode authoringMetadata;
 
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "rubric_json", columnDefinition = "json")
+    JsonNode rubricJson;
+
+    @jakarta.persistence.OneToOne(mappedBy = "question", cascade = jakarta.persistence.CascadeType.ALL, orphanRemoval = true)
+    CodingProblem codingProblem;
+
     @Builder.Default
     @Column(name = "bank_archived", nullable = false)
     boolean bankArchived = false;

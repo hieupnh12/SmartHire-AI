@@ -81,8 +81,8 @@ public class MasterAiConfigService {
 
     private static RestClient createDefaultRestClient() {
         var factory = new SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(Duration.ofSeconds(6));
-        factory.setReadTimeout(Duration.ofSeconds(12));
+        factory.setConnectTimeout(Duration.ofSeconds(10));
+        factory.setReadTimeout(Duration.ofSeconds(30));
         return RestClient.builder().requestFactory(factory).build();
     }
 
@@ -194,12 +194,19 @@ public class MasterAiConfigService {
         if (dto.getTimeoutSeconds() != null) entity.setTimeoutSeconds(dto.getTimeoutSeconds());
         if (dto.getFailoverProvider() != null) entity.setFailoverProvider(dto.getFailoverProvider().toUpperCase());
         if (dto.getFailoverModel() != null) entity.setFailoverModel(dto.getFailoverModel());
-        if (dto.getFallbackChain() != null) {
-            entity.setFallbackChain(dto.getFallbackChain());
-        } else if (dto.getFallbackSteps() != null) {
+        // The admin UI echoes the loaded fallbackChain string next to its edited steps; the steps must win.
+        if (dto.getFallbackSteps() != null) {
+            List<AiFallbackStep> steps = dto.getFallbackSteps().stream()
+                    .filter(s -> s != null && s.getModel() != null && !s.getModel().isBlank())
+                    .toList();
             try {
-                entity.setFallbackChain(mapper.writeValueAsString(dto.getFallbackSteps()));
+                entity.setFallbackChain(mapper.writeValueAsString(steps));
             } catch (Exception ignored) {}
+            AiFallbackStep first = steps.isEmpty() ? null : steps.get(0);
+            entity.setFailoverProvider(first == null || first.getProvider() == null ? null : first.getProvider().toUpperCase());
+            entity.setFailoverModel(first == null ? null : first.getModel());
+        } else if (dto.getFallbackChain() != null) {
+            entity.setFallbackChain(dto.getFallbackChain());
         }
         if (dto.getIsActive() != null) entity.setIsActive(dto.getIsActive());
 
@@ -363,10 +370,32 @@ public class MasterAiConfigService {
                 String targetUrl = (endpointUrl != null && !endpointUrl.isBlank())
                         ? endpointUrl.trim()
                         : defaultEndpoint;
+                targetUrl = targetUrl.replaceAll("/+$", "");
+                if (!targetUrl.endsWith("/chat/completions")) targetUrl += "/chat/completions";
 
-                String body = """
-                        {"model":"%s","messages":[{"role":"user","content":"ping"}],"max_tokens":5}
-                        """.formatted(model);
+                // Custom OpenAI-compatible servers expose their own model IDs.
+                if (List.of("OPENAI", "CUSTOM", "OLLAMA").contains(provider) && endpointUrl != null && !endpointUrl.isBlank()
+                        && (request.getModelName() == null || request.getModelName().isBlank())) {
+                    var available = restClient.get()
+                            .uri(targetUrl.substring(0, targetUrl.length() - "/chat/completions".length()) + "/models")
+                            .header("Authorization", "Bearer " + apiKey.trim())
+                            .retrieve().body(com.fasterxml.jackson.databind.JsonNode.class);
+                    String discovered = null;
+                    if (available != null && available.path("data").isArray()) {
+                        for (var entry : available.path("data")) {
+                            if (entry.path("id").isTextual() && !entry.path("id").asText().isBlank()) {
+                                discovered = entry.path("id").asText();
+                                break;
+                            }
+                        }
+                    }
+                    if (discovered == null) throw new IllegalStateException("No model available from the custom endpoint; specify modelName.");
+                    model = discovered;
+                }
+
+                String body = mapper.writeValueAsString(java.util.Map.of(
+                        "model", model, "messages", List.of(java.util.Map.of("role", "user", "content", "ping")),
+                        "max_tokens", 5));
 
                 var requestSpec = restClient.post()
                         .uri(targetUrl)

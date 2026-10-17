@@ -189,7 +189,7 @@ class PublicCheckoutControllerTest {
                 .status("ACTIVE")
                 .build();
 
-        when(planRepository.findByStatusOrderByPriceYearlyAsc("ACTIVE")).thenReturn(List.of(plan));
+        when(planRepository.findByStatusAndArchivedFalseAndCustomFalseOrderByPriceYearlyAsc("ACTIVE")).thenReturn(List.of(plan));
         when(planMapper.toResponse(plan)).thenReturn(planResp);
 
         mockMvc.perform(get("/api/v1/public/checkout/plans"))

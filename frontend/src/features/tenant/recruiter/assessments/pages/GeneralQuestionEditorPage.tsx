@@ -26,7 +26,7 @@ export function GeneralQuestionEditorPage() {
     mutationFn: async (questions: BankQuestion[]) => {
       const rows = validateExcelQuestions(questions);
       const body = rows.filter(row => !row.skipped).map((row, index) => ({
-        question: toQuestionRequest(row, index, 5), authoringMetadata: { ...row.row },
+        question: toQuestionRequest(row, index, 5), authoringMetadata: { ...row.row, rubricJsonText: undefined, codingJsonText: undefined },
       }));
       if (editing) {
         if (body.length !== 1) throw new Error("Chỉ sửa một câu hỏi tại đây. Dùng Thêm câu hỏi để tạo câu mới.");

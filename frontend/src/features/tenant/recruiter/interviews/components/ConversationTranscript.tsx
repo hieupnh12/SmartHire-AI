@@ -6,9 +6,13 @@ import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 import { getTenantIdFromWindow } from "@/lib/tenant";
 import { Button } from "@/components/ux/Button";
 
-export function ConversationTranscript({ interviewId }: { interviewId: number }) {
+export function useInterviewTranscript(interviewId: number, enabled = true) {
   const userId = useAuthStore(state => state.user?.id);
-  const transcript = useQuery({ queryKey: ["interview-conversation", getTenantIdFromWindow(), userId, interviewId], queryFn: () => interviewConversationApi.get(interviewId) });
+  return useQuery({ queryKey: ["interview-conversation", getTenantIdFromWindow(), userId, interviewId], queryFn: () => interviewConversationApi.get(interviewId), enabled, refetchInterval: enabled ? 5000 : false });
+}
+
+export function ConversationTranscript({ interviewId }: { interviewId: number }) {
+  const transcript = useInterviewTranscript(interviewId);
   const [error, setError] = useState<string | null>(null); const [loading, setLoading] = useState<number | null>(null);
   const audio = useRef<HTMLAudioElement | null>(null); const url = useRef<string | null>(null);
   useEffect(() => () => { audio.current?.pause(); if (url.current) URL.revokeObjectURL(url.current); }, []);

@@ -16,6 +16,7 @@ import com.smarthire.tenant.auth.dto.InviteMemberRequest;
 import com.smarthire.tenant.auth.dto.InviteMemberResponse;
 import com.smarthire.tenant.auth.dto.UserResponse;
 import com.smarthire.tenant.auth.mapper.AuthMapper;
+import com.smarthire.tenant.company.service.CompanyEmailSettingService;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Optional;
@@ -53,6 +54,8 @@ class MemberInvitationServiceTest {
     @Mock
     private InviteMailSender inviteMailSender;
     @Mock
+    private CompanyEmailSettingService companyEmailSettingService;
+    @Mock
     private TenantRoleService tenantRoleService;
     @Mock
     private TenantPublicUrlService publicUrls;
@@ -79,8 +82,9 @@ class MemberInvitationServiceTest {
     void invite_StaffRole_PersistsPendingInvitation() {
         when(tenantRoleService.requireAssignable("HR")).thenReturn(role("HR", "HR", RoleWorkspace.RECRUITER));
         when(userRepository.existsByEmailIgnoreCase("hr@se36.com")).thenReturn(false);
-        when(invitationRepository.existsByEmailIgnoreCaseAndStatus("hr@se36.com", InvitationStatus.PENDING)).thenReturn(false);
+        when(invitationRepository.findFirstByEmailIgnoreCaseAndStatus("hr@se36.com", InvitationStatus.PENDING)).thenReturn(Optional.empty());
         when(invitationRepository.save(any(MemberInvitation.class))).thenAnswer(call -> call.getArgument(0));
+        when(companyEmailSettingService.isConfigured()).thenReturn(false);
         when(inviteMailSender.send(anyString(), anyString(), anyString())).thenReturn(true);
 
         InviteMemberResponse response = memberInvitationService.invite(InviteMemberRequest.builder()
@@ -95,6 +99,74 @@ class MemberInvitationServiceTest {
         assertEquals("HR", captor.getValue().getRole());
         assertTrue(response.isEmailSent());
         assertTrue(response.getAcceptUrl().startsWith("http://se36.localhost:5173/invite/accept?token="));
+        verify(inviteMailSender).send(eq("hr@se36.com"), anyString(), anyString());
+    }
+
+    @Test
+    void invite_UsesCompanyGmailWhenConfigured() {
+        when(tenantRoleService.requireAssignable("HR")).thenReturn(role("HR", "HR", RoleWorkspace.RECRUITER));
+        when(userRepository.existsByEmailIgnoreCase("hr@se36.com")).thenReturn(false);
+        when(invitationRepository.findFirstByEmailIgnoreCaseAndStatus("hr@se36.com", InvitationStatus.PENDING)).thenReturn(Optional.empty());
+        when(invitationRepository.save(any(MemberInvitation.class))).thenAnswer(call -> call.getArgument(0));
+        when(companyEmailSettingService.isConfigured()).thenReturn(true);
+        when(companyEmailSettingService.sendMail(anyString(), anyString(), anyString())).thenReturn(true);
+
+        InviteMemberResponse response = memberInvitationService.invite(InviteMemberRequest.builder()
+                .email("hr@se36.com")
+                .fullName("HR User")
+                .role("HR")
+                .build());
+
+        assertTrue(response.isEmailSent());
+        verify(companyEmailSettingService).sendMail(eq("hr@se36.com"), anyString(), anyString());
+        org.mockito.Mockito.verifyNoInteractions(inviteMailSender);
+    }
+
+    @Test
+    void invite_FallsBackToPlatformSmtpWhenCompanyGmailFails() {
+        when(tenantRoleService.requireAssignable("RECRUITER")).thenReturn(role("RECRUITER", "Recruiter", RoleWorkspace.RECRUITER));
+        when(userRepository.existsByEmailIgnoreCase("recruiter@mtv.example")).thenReturn(false);
+        when(invitationRepository.findFirstByEmailIgnoreCaseAndStatus("recruiter@mtv.example", InvitationStatus.PENDING)).thenReturn(Optional.empty());
+        when(invitationRepository.save(any(MemberInvitation.class))).thenAnswer(call -> call.getArgument(0));
+        when(companyEmailSettingService.isConfigured()).thenReturn(true);
+        when(companyEmailSettingService.sendMail(anyString(), anyString(), anyString()))
+                .thenThrow(new BusinessException("Không thể gửi email qua tài khoản Gmail của công ty",
+                        org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR, "MAIL_DELIVERY_FAILED"));
+        when(inviteMailSender.send(anyString(), anyString(), anyString())).thenReturn(true);
+
+        InviteMemberResponse response = memberInvitationService.invite(InviteMemberRequest.builder()
+                .email("recruiter@mtv.example")
+                .fullName("Recruiter")
+                .role("RECRUITER")
+                .build());
+
+        assertTrue(response.isEmailSent());
+        verify(inviteMailSender).send(eq("recruiter@mtv.example"), anyString(), anyString());
+    }
+
+    @Test
+    void invite_PendingInvitation_ResendsInsteadOfConflict() {
+        when(tenantRoleService.requireAssignable("RECRUITER")).thenReturn(role("RECRUITER", "Recruiter", RoleWorkspace.RECRUITER));
+        when(userRepository.existsByEmailIgnoreCase("recruiter@mtv.example")).thenReturn(false);
+        MemberInvitation existing = new MemberInvitation();
+        existing.setEmail("recruiter@mtv.example");
+        existing.setTokenHash("old-hash");
+        existing.setStatus(InvitationStatus.PENDING);
+        when(invitationRepository.findFirstByEmailIgnoreCaseAndStatus("recruiter@mtv.example", InvitationStatus.PENDING))
+                .thenReturn(Optional.of(existing));
+        when(invitationRepository.save(any(MemberInvitation.class))).thenAnswer(call -> call.getArgument(0));
+        when(companyEmailSettingService.isConfigured()).thenReturn(false);
+        when(inviteMailSender.send(anyString(), anyString(), anyString())).thenReturn(true);
+
+        InviteMemberResponse response = memberInvitationService.invite(InviteMemberRequest.builder()
+                .email("recruiter@mtv.example")
+                .fullName("Recruiter")
+                .role("RECRUITER")
+                .build());
+
+        assertTrue(response.isEmailSent());
+        org.junit.jupiter.api.Assertions.assertNotEquals("old-hash", existing.getTokenHash());
+        verify(inviteMailSender).send(eq("recruiter@mtv.example"), anyString(), anyString());
     }
 
     @Test

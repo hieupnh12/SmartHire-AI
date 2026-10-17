@@ -14,9 +14,9 @@ type Props = {
 
 export function ApplicationCard({ row, statusLabel, withdrawing, onWithdraw }: Props) {
   const meta = [row.jobDepartment, row.jobLocation, row.jobWorkMode, row.jobEmploymentType].filter(Boolean) as string[];
-  const lockedHint = row.withdrawable || ["REJECTED", "FAILED", "HIRED"].includes(row.status)
+  const lockedHint = row.withdrawable || ["REJECTED", "FAILED", "HIRED", "WITHDRAWN"].includes(row.status)
     ? null
-    : "Hồ sơ đã qua vòng lọc CV nên không thể rút";
+    : "Hồ sơ đã được lưu trữ nên không thể rút";
 
   return <li className="flex min-w-0 flex-col rounded-2xl border border-[var(--color-border-default)] bg-white shadow-[var(--shadow-card)] transition-[border-color,box-shadow] hover:border-[var(--color-primary)]/30 hover:shadow-[var(--shadow-ambient)]">
     <div className="flex flex-1 flex-col gap-4 p-6">

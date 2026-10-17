@@ -31,6 +31,7 @@ export function useJobAiInterviews(jobId: number) {
   const applicants = useQuery({
     queryKey: [...queryKeys.applicants.byJob(jobId), "all"],
     queryFn: () => listAllApplicants(jobId),
+    refetchInterval: 5_000,
   });
 
   const rows = useMemo<AiInterviewRow[]>(() => {

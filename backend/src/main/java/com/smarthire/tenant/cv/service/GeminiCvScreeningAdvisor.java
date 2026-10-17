@@ -17,11 +17,17 @@ public class GeminiCvScreeningAdvisor implements CvScreeningAdvisor {
             The user message is computed screening facts: skill matches, Jaccard, experience, education,
             component scores, weights, score, passThreshold, and formulaPassed.
             Use only these facts. Do not invent skills, scores, or evidence.
-            Return JSON only: {"passed": true or false, "verdict": "2-4 sentences in Vietnamese"}.
+            Return JSON only: {"passed": true or false, "verdict": "2-4 sentences in Vietnamese", "advice": "2-3 sentences in Vietnamese", "candidateAdvice": "2-4 sentences in Vietnamese"}.
             passed must be false when formulaPassed is false, when requiredMissing is not empty,
             or when score is below passThreshold.
             When formulaPassed is true, you may still set passed to false if the components show a poor fit.
             Name the components you used. Do not change the numeric scores.
+            advice tells the recruiter what to verify next and whether to advance this CV.
+            candidateAdvice speaks to the candidate (use "bạn") about what to improve on the CV so they can learn from this screening.
+            Tell them which missing or partial skills to evidence, and how to describe real projects or results.
+            Do not tell the candidate whether the recruiter should advance them, and do not mention internal scores or thresholds.
+            Use only the given matches, partial matches, and gaps. Do not repeat the verdict word for word.
+            Do not invent skills or experience.
             """;
 
     private final GeminiCvAiClient ai;
@@ -40,7 +46,9 @@ public class GeminiCvScreeningAdvisor implements CvScreeningAdvisor {
             String verdict = root.path("verdict").asText("").trim();
             if (verdict.isBlank()) return Optional.empty();
             boolean passed = formulaPassed && root.path("passed").asBoolean(false);
-            return Optional.of(new Decision(passed, verdict));
+            String advice = root.path("advice").asText("").trim();
+            String candidateAdvice = root.path("candidateAdvice").asText("").trim();
+            return Optional.of(new Decision(passed, verdict, advice, candidateAdvice));
         } catch (Exception ex) {
             log.warn("CV screening decision skipped: {}", ex.getMessage());
             return Optional.empty();

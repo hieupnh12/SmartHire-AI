@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { interviewConversationApi, voiceSocketUrl } from "@/api/tenant/interviewConversationApi";
+import { getApiErrorMessage } from "@/lib/axios";
 
 type Status = "idle" | "connecting" | "recording" | "transcribing";
 export function useConversationVoice(id: number, onTranscript: (text: string) => void) {
@@ -28,6 +29,7 @@ export function useConversationVoice(id: number, onTranscript: (text: string) =>
     if (socket.current) return;
     setError(null); setBlob(null); setStatus("connecting");
     try {
+      window.speechSynthesis?.cancel();
       if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") throw new Error("Trình duyệt chưa hỗ trợ ghi âm. Hãy nhập câu trả lời.");
       const mime = ["audio/webm;codecs=opus", "audio/ogg;codecs=opus", "audio/mp4"].find(value => MediaRecorder.isTypeSupported(value));
       if (!mime) throw new Error("Không có định dạng audio được hỗ trợ.");
@@ -40,12 +42,15 @@ export function useConversationVoice(id: number, onTranscript: (text: string) =>
       ws.onerror = () => { setError("Không thể kết nối dịch vụ giọng nói. Bạn vẫn có thể nhập văn bản."); cleanup(); };
       ws.onclose = () => { if (socket.current === ws) { setError("Kết nối giọng nói bị ngắt. Vui lòng thử lại."); cleanup(); } };
       ws.onmessage = event => {
-        const value = JSON.parse(String(event.data)) as { type: string; text?: string; message?: string };
+        let value: { type: string; text?: string; message?: string };
+        try { value = JSON.parse(String(event.data)) as typeof value; }
+        catch { setError("Phản hồi giọng nói không hợp lệ. Vui lòng thử lại."); cleanup(); return; }
         if (value.type === "ready") ws.send(JSON.stringify({ type: "start", mimeType: mime }));
         if (value.type === "recording") {
           if (timer.current) clearTimeout(timer.current);
           const chunks: Blob[] = []; let size = 0; let sending = Promise.resolve();
           const recording = new MediaRecorder(media.current!, { mimeType: mime }); recorder.current = recording;
+          recording.onerror = () => { setError("Ghi âm bị gián đoạn. Hãy thu lại hoặc nhập câu trả lời."); cleanup(); };
           recording.ondataavailable = event => {
             if (!event.data.size) return;
             chunks.push(event.data); size += event.data.size;
@@ -75,7 +80,7 @@ export function useConversationVoice(id: number, onTranscript: (text: string) =>
         }
         if (value.type === "error") { setError(value.message ?? "Chuyển ngữ thất bại. Vui lòng thử lại."); cleanup(); }
       };
-    } catch (failure) { setError(failure instanceof Error ? failure.message : "Không thể mở micro."); cleanup(); }
+    } catch (failure) { setError(getApiErrorMessage(failure)); cleanup(); }
   }
   return { status, error, blob, clear: () => setBlob(null), start, stop: () => { if (recorder.current?.state === "recording") recorder.current.stop(); } };
 }

@@ -254,9 +254,25 @@ class ApplicantServiceTest {
     }
 
     @Test
-    void withdrawLockedOnceCvScreeningHasOutcome() {
-        application.setStatus(ApplicationStatus.IN_REVIEW);
+    void candidateCanWithdrawAfterCvScreeningPassed() {
+        application.setStatus(ApplicationStatus.INTERVIEW);
         application.setCvScreeningStatus(CvScreeningStatus.PASSED);
+        when(applications.findById(4L)).thenReturn(Optional.of(application));
+        when(applications.findByIdForUpdate(4L)).thenReturn(Optional.of(application));
+        when(access.candidateActor()).thenReturn(candidate);
+        when(access.candidate()).thenReturn(true);
+        when(cvs.findByCandidate_IdAndJob_IdOrderByIdDesc(9L, 1L)).thenReturn(List.of());
+        when(history.findByApplication_IdOrderByIdDesc(4L)).thenReturn(List.of());
+        when(applications.countByCandidate_Id(9L)).thenReturn(1L);
+
+        assertThat(service.withdraw(4L, null).status()).isEqualTo("WITHDRAWN");
+        verify(closures).onClosed(application, null);
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.EnumSource(value = ApplicationStatus.class, names = {"HIRED", "REJECTED", "FAILED", "WITHDRAWN"})
+    void withdrawLockedForClosedApplications(ApplicationStatus status) {
+        application.setStatus(status);
         when(applications.findById(4L)).thenReturn(Optional.of(application));
         when(applications.findByIdForUpdate(4L)).thenReturn(Optional.of(application));
         when(access.candidateActor()).thenReturn(candidate);
@@ -270,8 +286,8 @@ class ApplicantServiceTest {
     }
 
     @Test
-    void withdrawLockedWhenRecruiterMovedPastCvRound() {
-        application.setStatus(ApplicationStatus.INTERVIEW);
+    void withdrawLockedWhenArchived() {
+        application.setArchivedAt(java.time.Instant.now());
         when(applications.findById(4L)).thenReturn(Optional.of(application));
         when(applications.findByIdForUpdate(4L)).thenReturn(Optional.of(application));
         when(access.candidateActor()).thenReturn(candidate);

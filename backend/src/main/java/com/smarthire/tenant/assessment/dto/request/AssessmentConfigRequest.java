@@ -9,7 +9,10 @@ public record AssessmentConfigRequest(
         @Min(1) @Max(480) int durationMinutes,
         @Min(0) @Max(100) int passingPercent,
         boolean autoAssign,
-        @NotNull @Size(min = 1, max = 100) List<@NotNull @Valid Section> sections) {
+        @NotNull @Size(min = 1, max = 100) List<@NotNull @Valid Section> sections, @Min(1) Integer objectiveDurationMinutes) {
+    public AssessmentConfigRequest(int duration, int passingPercent, boolean autoAssign, List<Section> sections) {
+        this(duration, passingPercent, autoAssign, sections, null);
+    }
     public record Section(@NotBlank @Size(max = 128) String skill,
             @NotNull QuestionType questionType,
             @NotBlank @Pattern(regexp = "Easy|Medium|Hard") String difficulty,

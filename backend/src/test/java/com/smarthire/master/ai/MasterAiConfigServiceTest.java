@@ -42,12 +42,80 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 class MasterAiConfigServiceTest {
 
     @Test
-    void interviewFallbackDoesNotReuseCvCredentialsOrModel() {
+    void customEndpointDiscoversModelWhenConnectionTestOmitsModel() {
+        var builder = RestClient.builder();
+        var server = MockRestServiceServer.bindTo(builder).build();
+        var service = new MasterAiConfigService(providerKeyRepository, modelConfigRepository, auditLogRepository,
+                credentialService, configProvider, mapper, builder.build());
+        server.expect(requestTo("https://llama.example/v1/models"))
+                .andExpect(method(HttpMethod.GET))
+                .andExpect(header("Authorization", "Bearer test-key"))
+                .andRespond(withSuccess("{\"data\":[{\"id\":\"local-llama\"}]}", MediaType.APPLICATION_JSON));
+        server.expect(requestTo("https://llama.example/v1/chat/completions"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(jsonPath("$.model").value("local-llama"))
+                .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
+        var response = service.testConnection(AiTestConnectionRequest.builder().provider("OPENAI")
+                .apiKey("test-key").endpointUrl("https://llama.example/v1/chat/completions/").build());
+        assertThat(response.getSuccess()).isTrue();
+        assertThat(response.getModelVersion()).isEqualTo("openai:local-llama");
+        server.verify();
+    }
+
+    @Test
+    void customEndpointWithoutModelsDoesNotSendInvalidChatRequest() {
+        var builder = RestClient.builder();
+        var server = MockRestServiceServer.bindTo(builder).build();
+        var service = new MasterAiConfigService(providerKeyRepository, modelConfigRepository, auditLogRepository,
+                credentialService, configProvider, mapper, builder.build());
+        server.expect(requestTo("https://llama.example/v1/models"))
+                .andRespond(withSuccess("{\"data\":[]}", MediaType.APPLICATION_JSON));
+        var response = service.testConnection(AiTestConnectionRequest.builder().provider("OPENAI")
+                .apiKey("test-key").endpointUrl("https://llama.example/v1").build());
+        assertThat(response.getSuccess()).isFalse();
+        assertThat(response.getMessage()).contains("specify modelName");
+        server.verify();
+    }
+
+    @Test
+    void customProviderTestConnectionUsesModelDiscoveredFromEndpoint() {
+        var builder = RestClient.builder();
+        var server = MockRestServiceServer.bindTo(builder).build();
+        var service = new MasterAiConfigService(providerKeyRepository, modelConfigRepository, auditLogRepository,
+                credentialService, configProvider, mapper, builder.build());
+        server.expect(requestTo("https://litellm.example/v1/models"))
+                .andRespond(withSuccess("{\"data\":[{\"id\":\"vanilj/llama-3-8b-instruct-32k-v0.1:Q4_K_M\"}]}", MediaType.APPLICATION_JSON));
+        server.expect(requestTo("https://litellm.example/v1/chat/completions"))
+                .andExpect(org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath("$.model")
+                        .value("vanilj/llama-3-8b-instruct-32k-v0.1:Q4_K_M"))
+                .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
+        var response = service.testConnection(AiTestConnectionRequest.builder().provider("CUSTOM")
+                .apiKey("litellm-key").endpointUrl("https://litellm.example/v1").build());
+        assertThat(response.getSuccess()).isTrue();
+        server.verify();
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"https://llama.example/v1", "https://llama.example/v1/chat/completions/"})
+    void testConnectionAcceptsBaseOrFullChatEndpoint(String endpoint) {
+        var builder = RestClient.builder();
+        var server = MockRestServiceServer.bindTo(builder).build();
+        var service = new MasterAiConfigService(providerKeyRepository, modelConfigRepository, auditLogRepository,
+                credentialService, configProvider, mapper, builder.build());
+        server.expect(requestTo("https://llama.example/v1/chat/completions"))
+                .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
+        var request = AiTestConnectionRequest.builder().provider("OPENAI").modelName("llama")
+                .apiKey("llama-test-key").endpointUrl(endpoint).build();
+        assertThat(service.testConnection(request).getSuccess()).isTrue();
+        server.verify();
+    }
+
+    @Test
+    void missingInterviewTaskIsNotConfigured() {
         when(modelConfigRepository.findByTaskType("INTERVIEW_NLP")).thenReturn(java.util.Optional.empty());
         var result = configProvider.resolveConfig("INTERVIEW_NLP");
-        assertThat(result.apiKey()).isEqualTo("interview-key");
-        assertThat(result.modelName()).isEqualTo("gemini-2.5-flash");
-        assertThat(result.maxTokens()).isEqualTo(8192);
+        assertThat(result.apiKey()).isEmpty();
+        assertThat(result.modelName()).isNull();
     }
 
     @Mock
@@ -80,10 +148,7 @@ class MasterAiConfigServiceTest {
                 providerKeyRepository,
                 credentialService,
                 redisService,
-                mapper,
-                "fallback-gemini-key",
-                "gemini-2.0-flash",
-                30, "interview-key", "gemini-2.5-flash", 60
+                mapper
         );
         aiConfigService = new MasterAiConfigService(
                 providerKeyRepository,
@@ -170,8 +235,10 @@ class MasterAiConfigServiceTest {
         when(modelConfigRepository.findByTaskType("CV_PARSING")).thenReturn(Optional.empty());
 
         DynamicAiConfigProvider.ResolvedAiConfig config = configProvider.resolveConfig("CV_PARSING");
-        assertThat(config.modelName()).isEqualTo("gemini-2.0-flash");
-        assertThat(config.apiKey()).isEqualTo("fallback-gemini-key");
+        assertThat(config.provider()).isNull();
+        assertThat(config.modelName()).isNull();
+        assertThat(config.apiKey()).isEmpty();
+        verify(redisService, never()).set(anyString(), any(), any());
     }
 
     @Test
@@ -606,6 +673,49 @@ class MasterAiConfigServiceTest {
         assertThat(result.getFallbackSteps().get(0).getProvider()).isEqualTo("GROQ");
         assertThat(result.getFallbackSteps().get(1).getProvider()).isEqualTo("OPENROUTER");
         assertThat(existing.getFallbackChain()).contains("qwen/qwen3.8-27b").contains("deepseek/deepseek-r1:free");
+    }
+
+    @Test
+    void updateTaskConfig_EditedStepsReplaceStaleChainEchoedByAdminUi() {
+        String staleChain = "[{\"model\": \"gemini-3.6-flash-lite\", \"provider\": \"GEMINI\"}]";
+        AiModelConfig existing = AiModelConfig.builder()
+                .id(1L).taskType("CV_PARSING").provider("GEMINI").modelName("gemini-2.0-flash")
+                .failoverProvider("GEMINI").failoverModel("gemini-3.6-flash-lite").fallbackChain(staleChain)
+                .build();
+        when(modelConfigRepository.findByTaskType("CV_PARSING")).thenReturn(Optional.of(existing));
+        when(modelConfigRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        AiModelConfigDto update = AiModelConfigDto.builder()
+                .modelName("gemini-3.5-flash-lite")
+                .fallbackChain(staleChain)
+                .fallbackSteps(List.of(
+                        new AiFallbackStep("GEMINI", "gemini-3.1-pro-preview", null, null),
+                        new AiFallbackStep("GEMINI", "", null, null)))
+                .build();
+
+        aiConfigService.updateTaskConfig("CV_PARSING", update, "admin@smarthire.top");
+
+        assertThat(existing.getModelName()).isEqualTo("gemini-3.5-flash-lite");
+        assertThat(existing.getFallbackChain()).contains("gemini-3.1-pro-preview").doesNotContain("gemini-3.6-flash-lite");
+        assertThat(existing.getFailoverModel()).isEqualTo("gemini-3.1-pro-preview");
+    }
+
+    @Test
+    void updateTaskConfig_EmptyStepsClearAllFailover() {
+        AiModelConfig existing = AiModelConfig.builder()
+                .id(1L).taskType("CV_PARSING").provider("GEMINI").modelName("gemini-3.5-flash-lite")
+                .failoverProvider("GEMINI").failoverModel("gemini-3.6-flash-lite")
+                .fallbackChain("[{\"model\": \"gemini-3.6-flash-lite\", \"provider\": \"GEMINI\"}]")
+                .build();
+        when(modelConfigRepository.findByTaskType("CV_PARSING")).thenReturn(Optional.of(existing));
+        when(modelConfigRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        aiConfigService.updateTaskConfig("CV_PARSING",
+                AiModelConfigDto.builder().fallbackSteps(List.of()).build(), "admin@smarthire.top");
+
+        assertThat(existing.getFallbackChain()).isEqualTo("[]");
+        assertThat(existing.getFailoverModel()).isNull();
+        assertThat(existing.getFailoverProvider()).isNull();
     }
 
     @Test
