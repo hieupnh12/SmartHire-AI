@@ -16,6 +16,7 @@ import {
   ExternalLink,
   Wallet,
   MapPin,
+  Mail,
 } from "lucide-react";
 import { checkoutApi, PublicSubscriptionPlan, CheckoutResponseData } from "@/api/master/checkoutApi";
 import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
@@ -66,27 +67,6 @@ export function CheckoutPage() {
   const selectedBankCode = "VNBANK";
   // PayPal state
   const [paypalVerifying, setPaypalVerifying] = useState(false);
-  const [checkingPayment, setCheckingPayment] = useState(false);
-
-  const handleManualCheckPayment = async () => {
-    if (!orderResult?.invoiceId || checkingPayment) return;
-    setCheckingPayment(true);
-    setErrorMsg(null);
-    try {
-      const statusRes = await checkoutApi.checkInvoiceStatus(orderResult.invoiceId);
-      if (statusRes && (statusRes.status === "PAID" || statusRes.isPaid)) {
-        setOrderResult((prev) => (prev ? { ...prev, status: "PAID" } : null));
-        setCurrentStep(3);
-        window.scrollTo({ top: 0, behavior: "smooth" });
-      } else {
-        setErrorMsg("Hệ thống đang chờ xác nhận giao dịch từ ngân hàng (thường mất 5–30 giây sau khi chuyển khoản). Vui lòng giữ nguyên trang này.");
-      }
-    } catch {
-      setErrorMsg("Không thể kiểm tra trạng thái đơn hàng lúc này. Hệ thống sẽ tự động thử lại.");
-    } finally {
-      setCheckingPayment(false);
-    }
-  };
 
   // Realtime Polling for VietQR SePay payment status in Step 2 -> Auto transitions to Step 3
   useEffect(() => {
@@ -1241,19 +1221,14 @@ export function CheckoutPage() {
                         </div>
                       </div>
 
-                      <div className="mt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-blue-100 bg-blue-50/60 px-4 py-3 text-xs text-blue-800">
-                        <div className="flex items-center gap-2">
-                          <Loader2 className="w-4 h-4 animate-spin text-blue-600 shrink-0" />
-                          <span>Hệ thống đang tự động chờ xác nhận thanh toán từ ngân hàng...</span>
+                      <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50/60 p-3.5 text-xs text-slate-600 flex items-start gap-2.5">
+                        <Mail className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                        <div className="space-y-0.5">
+                          <span className="font-semibold text-slate-800">Đơn hàng đã được ghi nhận &amp; gửi tới email của bạn</span>
+                          <p className="text-[11px] text-slate-500 leading-relaxed">
+                            Quý khách có thể quét mã chuyển khoản ngay tại trang này hoặc thanh toán sau qua email hóa đơn đã nhận. Hệ thống sẽ tự động kích hoạt dịch vụ ngay khi ngân hàng khớp lệnh mà không cần giữ mở trang này.
+                          </p>
                         </div>
-                        <button
-                          type="button"
-                          disabled={checkingPayment}
-                          onClick={handleManualCheckPayment}
-                          className="shrink-0 rounded-lg bg-white border border-blue-200 px-3 py-1.5 font-semibold text-blue-700 hover:bg-blue-100 transition-colors disabled:opacity-60"
-                        >
-                          {checkingPayment ? "Đang kiểm tra..." : "Tôi đã chuyển khoản"}
-                        </button>
                       </div>
                     </div>
                   )}
