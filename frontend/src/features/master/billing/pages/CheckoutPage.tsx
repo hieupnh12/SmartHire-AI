@@ -16,7 +16,6 @@ import {
   ExternalLink,
   Wallet,
   MapPin,
-  Mail,
 } from "lucide-react";
 import { checkoutApi, PublicSubscriptionPlan, CheckoutResponseData } from "@/api/master/checkoutApi";
 import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
@@ -1217,16 +1216,6 @@ export function CheckoutPage() {
                               )}
                             </button>
                           </div>
-                        </div>
-                      </div>
-
-                      <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50/60 p-3.5 text-xs text-slate-600 flex items-start gap-2.5">
-                        <Mail className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-                        <div className="space-y-0.5">
-                          <span className="font-semibold text-slate-800">Đơn hàng đã được ghi nhận &amp; gửi tới email của bạn</span>
-                          <p className="text-[11px] text-slate-500 leading-relaxed">
-                            Quý khách có thể quét mã chuyển khoản ngay tại trang này hoặc thanh toán sau qua email hóa đơn đã nhận. Hệ thống sẽ tự động kích hoạt dịch vụ ngay khi ngân hàng khớp lệnh mà không cần giữ mở trang này.
-                          </p>
                         </div>
                       </div>
                     </div>
