@@ -25,6 +25,7 @@ export function SendAssessmentPanel({ detail, onSent }: { detail: ApplicationDet
   return (
     <div className="space-y-2">
       <p className="font-semibold">Gửi assessment</p>
+      <p className={muted}>Gửi sau khi ứng viên vượt vòng lọc CV (trạng thái Assessment). Không cần hoàn thành AI Interview trước.</p>
       {tests.isPending && <p className={muted}>Đang tải đề…</p>}
       {tests.isError && <p role="alert">{getApiErrorMessage(tests.error)}</p>}
       {tests.isSuccess && published.length === 0 && <p className={muted}>Job này chưa có đề đã xuất bản.</p>}

@@ -58,7 +58,6 @@ public class AiInterviewEvaluationService {
     private final RecruitmentStageRepository stages;
     private final NotificationRepository notifications;
     private final EmailOutboxRepository emails;
-    private final JobTestRepository tests;
     private final AiInterviewClient ai;
     private final ObjectMapper mapper;
     private final AiInterviewActivityLog activity;
@@ -70,12 +69,12 @@ public class AiInterviewEvaluationService {
     public AiInterviewEvaluationService(AiInterviewRepository interviews, AiQuestionRepository questions,
             AiAnswerRepository answers, AiFeedbackRepository feedbacks, JobSkillRepository skills, CvRepository cvs,
             CvExtractionRepository extractions, ApplicationStatusHistoryRepository history, RecruitmentStageRepository stages,
-            NotificationRepository notifications, EmailOutboxRepository emails, JobTestRepository tests,
+            NotificationRepository notifications, EmailOutboxRepository emails,
             AiInterviewClient ai, ObjectMapper mapper, AiInterviewActivityLog activity, AiInterviewProcessEngine processEngine, InterviewConversationService conversation,
             NotificationPreferenceService preferences, com.smarthire.tenant.applicant.service.ApplicationClosureService closures) {
         this.interviews = interviews; this.questions = questions; this.answers = answers; this.feedbacks = feedbacks;
         this.skills = skills; this.cvs = cvs; this.extractions = extractions; this.history = history; this.stages = stages;
-        this.notifications = notifications; this.emails = emails; this.tests = tests; this.ai = ai; this.mapper = mapper;
+        this.notifications = notifications; this.emails = emails; this.ai = ai; this.mapper = mapper;
         this.activity = activity; this.processEngine = processEngine; this.conversation = conversation;
         this.preferences = preferences;
         this.closures = closures;
@@ -94,7 +93,7 @@ public class AiInterviewEvaluationService {
             if (interview.getConfigSnapshotJson() == null) AiInterviewEligibility.require(interview.getApplication());
             else AiInterviewEligibility.requireExisting(interview);
             if (opening) {
-                if (interview.getApplication().getStatus() != ApplicationStatus.INTERVIEW)
+                if (!AiInterviewEligibility.openRound(interview.getApplication().getStatus()))
                     throw new IllegalStateException("Application is no longer in the interview round");
                 conversation.initialize(interview);
                 activity.record(interview, "STARTED", "Conversation greeting ready; interview timer started");
@@ -466,7 +465,9 @@ public class AiInterviewEvaluationService {
         var application = interview.getApplication();
         ApplicationStatus previous = application.getStatus();
         boolean retry = !passed && InterviewPolicies.canRetry(interview, java.time.Instant.now());
-        ApplicationStatus next = passed ? ApplicationStatus.ASSESSMENT : retry ? ApplicationStatus.INTERVIEW : ApplicationStatus.FAILED;
+        ApplicationStatus next = passed ? ApplicationStatus.HUMAN_INTERVIEW
+                : retry ? (AiInterviewEligibility.openRound(previous) ? previous : ApplicationStatus.ASSESSMENT)
+                : ApplicationStatus.FAILED;
         var row = new ApplicationStatusHistory();
         row.setApplication(application); row.setFromStatus(previous.name()); row.setToStatus(next.name());
         row.setNote("AI Interview " + interview.getStatus() + ": " + score + "/100; passing score " + interview.getPassingScoreSnapshot());
@@ -474,19 +475,16 @@ public class AiInterviewEvaluationService {
         application.setStatus(next);
         if (next == ApplicationStatus.FAILED) closures.onClosed(application, null);
         if (passed) stages.findByJob_IdOrderBySortOrderAsc(application.getJob().getId()).stream()
-                .filter(stage -> "ASSESSMENT".equalsIgnoreCase(stage.getStageCode()))
+                .filter(stage -> "HUMAN_INTERVIEW".equalsIgnoreCase(stage.getStageCode())
+                        || "Human Interview".equalsIgnoreCase(stage.getName()))
                 .findFirst()
                 .ifPresent(application::setStage);
         activity.record(interview, "APPLICATION_STATUS_CHANGED", previous + " -> " + next + "; stage history saved");
-        boolean assessmentReady = passed && tests.findByJob_IdAndStatusOrderByIdDesc(application.getJob().getId(), TestStatus.PUBLISHED).stream()
-                .anyMatch(test -> test.getAssignedApplication() == null || test.getAssignedApplication().getId().equals(application.getId()));
         if (passed) {
-            activity.record(interview, "ASSESSMENT_UNLOCKED", assessmentReady
-                    ? "Published assessment available to candidate" : "Assessment round opened; no published test yet");
+            activity.record(interview, "HUMAN_INTERVIEW_UNLOCKED", "AI Interview passed; human interview round opened");
         }
         String body = "Kết quả AI Interview cho vị trí " + application.getJob().getTitle() + ": " + score + "/100. "
-                + (passed ? assessmentReady ? "Bạn đã vượt qua AI Interview. Assessment đã sẵn sàng."
-                        : "Bạn đã vượt qua AI Interview. Vòng Assessment đã được mở; nhà tuyển dụng đang chuẩn bị đề."
+                + (passed ? "Bạn đã vượt qua AI Interview. Vòng phỏng vấn trực tiếp đã được mở."
                         : retry ? "Bạn chưa đạt ngưỡng " + interview.getPassingScoreSnapshot() + "/100. Bạn còn lượt làm lại trước hạn."
                         : "Bạn chưa đạt ngưỡng " + interview.getPassingScoreSnapshot() + "/100. Hồ sơ kết thúc ở vòng AI Interview.");
         notify(interview, passed ? "AI_INTERVIEW_PASSED" : "AI_INTERVIEW_FAILED", "Kết quả AI Interview", body, true);

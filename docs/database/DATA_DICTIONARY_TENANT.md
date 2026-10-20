@@ -731,7 +731,7 @@ Entity `Submission`. Điểm tổng nằm ngay trên bảng (không còn `attemp
 | `notes` | TEXT | | Có | NULL | Ghi chú |
 | `status` | VARCHAR(32) | | Không | `'NOT_STARTED'` | `TestSubmissionStatus` |
 | `created_at` | TIMESTAMP | | Không | now | |
-| `objective_completed_at` | TIMESTAMP | | Có | NULL | V53: thời điểm chốt phần trắc nghiệm; không được sửa đáp án sau mốc này |
+| `objective_completed_at` | TIMESTAMP | | Có | NULL | V53: thời điểm chốt phần Quiz (MCQ/multi/essay); không được sửa câu Quiz sau mốc này; mở phần CODING |
 
 **Ràng buộc:** `fk_submissions_test`, `fk_submissions_candidate` (`candidates.id`), `fk_submissions_application`
 
