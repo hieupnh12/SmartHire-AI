@@ -310,7 +310,7 @@ public class AiInterviewService {
         if (interview.getConfigSnapshotJson() == null) AiInterviewEligibility.require(interview.getApplication());
         else AiInterviewEligibility.requireExisting(interview);
         var application = interview.getApplication();
-        if (application.getStatus() != com.smarthire.domain.enums.ApplicationStatus.INTERVIEW
+        if (!AiInterviewEligibility.openRound(application.getStatus())
                 || application.getArchivedAt() != null || application.getWithdrawnAt() != null) {
             throw new BusinessException("Application is no longer in the interview round", HttpStatus.CONFLICT, "AI_INTERVIEW_NOT_ELIGIBLE");
         }

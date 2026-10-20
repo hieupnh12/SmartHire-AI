@@ -1,15 +1,54 @@
 import { ArrowRight, CheckCircle2, Circle, LockKeyhole } from "lucide-react";
 
-export function ExamStepper({ objectiveCount, practicalCount, practical, objectiveCompleted, objectiveRemaining }: {
-  objectiveCount: number; practicalCount: number; practical: boolean; objectiveCompleted: boolean; objectiveRemaining: number | null;
+export function ExamStepper({
+  quizCount,
+  codingCount,
+  inCoding,
+  quizCompleted,
+  quizRemaining,
+}: {
+  quizCount: number;
+  codingCount: number;
+  inCoding: boolean;
+  quizCompleted: boolean;
+  quizRemaining: number | null;
 }) {
-  const firstDone = objectiveCompleted || objectiveCount === 0;
+  const firstDone = quizCompleted || quizCount === 0;
   const FirstIcon = firstDone ? CheckCircle2 : Circle;
-  const SecondIcon = practical ? Circle : LockKeyhole;
-  const style = (current: boolean) => `flex min-w-0 items-start gap-3 rounded-lg p-3 ${current ? "bg-[var(--color-primary-subtle)] text-[var(--color-primary)]" : "text-[var(--color-on-surface-variant)]"}`;
-  return <nav aria-label="Các phần bài đánh giá" className="grid items-center gap-3 rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-4 sm:grid-cols-[1fr_auto_1fr]">
-    <div aria-current={!practical ? "step" : undefined} className={style(!practical)}><FirstIcon className="mt-0.5 size-5 shrink-0" aria-hidden="true" /><div className="min-w-0"><p className="text-sm font-semibold">Bước 1: Trắc nghiệm ({objectiveCount} câu)</p><p className="mt-1 text-xs">{objectiveCount === 0 ? "Không có câu hỏi" : firstDone ? "Đã hoàn thành · Đáp án đã khóa" : "Đang làm dở"}{!firstDone && objectiveRemaining != null ? ` · Còn ${Math.floor(objectiveRemaining / 60)}:${String(objectiveRemaining % 60).padStart(2, "0")}` : ""}</p></div></div>
-    <ArrowRight className="hidden size-5 text-[var(--color-on-surface-variant)] sm:block" aria-hidden="true" />
-    <div aria-current={practical ? "step" : undefined} className={style(practical)}><SecondIcon className="mt-0.5 size-5 shrink-0" aria-hidden="true" /><div className="min-w-0"><p className="text-sm font-semibold">Bước 2: Tự luận & Lập trình ({practicalCount} câu)</p><p className="mt-1 text-xs">{practicalCount === 0 ? "Không có câu hỏi" : practical ? "Đang làm dở" : "Chưa mở"}</p></div></div>
-  </nav>;
+  const SecondIcon = inCoding ? Circle : LockKeyhole;
+  const quizTime =
+    !firstDone && quizRemaining != null
+      ? ` · Còn ${Math.floor(quizRemaining / 60)}:${String(quizRemaining % 60).padStart(2, "0")}`
+      : "";
+  const step = (current: boolean) =>
+    `inline-flex min-w-0 max-w-full items-center gap-2 rounded-lg px-3 py-1.5 text-sm ${
+      current
+        ? "bg-[var(--color-primary-subtle)] font-semibold text-[var(--color-primary)]"
+        : "text-[var(--color-on-surface-variant)]"
+    }`;
+
+  return (
+    <nav aria-label="Các phần bài đánh giá" className="flex min-w-0 flex-wrap items-center gap-1.5 sm:gap-2">
+      <div aria-current={!inCoding ? "step" : undefined} className={step(!inCoding)}>
+        <FirstIcon className="size-4 shrink-0" aria-hidden="true" />
+        <span className="min-w-0 truncate">
+          Bước 1: Trắc nghiệm &amp; tự luận ({quizCount})
+          <span className="font-normal">
+            {quizCount === 0 ? " · Không có câu" : firstDone ? " · Đã khóa" : " · Đang làm"}
+            {quizTime}
+          </span>
+        </span>
+      </div>
+      <ArrowRight className="size-4 shrink-0 text-[var(--color-on-surface-variant)]" aria-hidden="true" />
+      <div aria-current={inCoding ? "step" : undefined} className={step(inCoding)}>
+        <SecondIcon className="size-4 shrink-0" aria-hidden="true" />
+        <span className="min-w-0 truncate">
+          Bước 2: Lập trình ({codingCount})
+          <span className="font-normal">
+            {codingCount === 0 ? " · Không có câu" : inCoding ? " · Đang làm" : " · Chưa mở"}
+          </span>
+        </span>
+      </div>
+    </nav>
+  );
 }

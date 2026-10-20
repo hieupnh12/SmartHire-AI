@@ -31,7 +31,7 @@ public class SubmissionController {
 
     @PostMapping("/assessments/{testId}/start_submission")
     @Operation(summary = "Start or resume own assessment submission (candidate only)",
-            description = "applicationId must belong to the caller and test job. New starts require ASSESSMENT or INTERVIEW stage. Repeated calls return the existing submission, including completed submissions; no automatic retake.")
+            description = "applicationId must belong to the caller and test job. New starts require ASSESSMENT or INTERVIEW stage. Repeated calls return the existing submission, except demo papers ([Demo UI]) which start a new attempt after completion.")
     public ApiResponse<SubmissionResponse> start(@PathVariable long testId, @Valid @RequestBody StartSubmissionRequest body) {
         return ApiResponse.ok(service.start(testId, body));
     }

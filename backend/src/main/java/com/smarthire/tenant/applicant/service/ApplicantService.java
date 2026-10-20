@@ -68,6 +68,7 @@ public class ApplicantService {
     private final JobMapper jobsMapper;
     private final ApplicantMapper mapper;
     private final AiInterviewInvitationService invitations;
+    private final com.smarthire.tenant.assessment.service.AssessmentInvitationService assessmentInvites;
     private final JobPublisher publisher;
     private final GateScreeningService gateScreening;
     private final CvApplicationCopyService cvCopies;
@@ -84,11 +85,12 @@ public class ApplicantService {
             JobMapper jobsMapper,
             ApplicantMapper mapper,
             AiInterviewInvitationService invitations,
+            com.smarthire.tenant.assessment.service.AssessmentInvitationService assessmentInvites,
             JobPublisher publisher,
             GateScreeningService gateScreening,
             CvApplicationCopyService cvCopies,
             ApplicationClosureService closures) {
-        this(applications, history, jobs, users, null, cvs, stages, access, jobsMapper, mapper, invitations, publisher, gateScreening, cvCopies, closures);
+        this(applications, history, jobs, users, null, cvs, stages, access, jobsMapper, mapper, invitations, assessmentInvites, publisher, gateScreening, cvCopies, closures);
     }
 
     @Autowired
@@ -104,6 +106,7 @@ public class ApplicantService {
             JobMapper jobsMapper,
             ApplicantMapper mapper,
             AiInterviewInvitationService invitations,
+            com.smarthire.tenant.assessment.service.AssessmentInvitationService assessmentInvites,
             JobPublisher publisher,
             GateScreeningService gateScreening,
             CvApplicationCopyService cvCopies,
@@ -119,6 +122,7 @@ public class ApplicantService {
         this.jobsMapper = jobsMapper;
         this.mapper = mapper;
         this.invitations = invitations;
+        this.assessmentInvites = assessmentInvites;
         this.publisher = publisher;
         this.gateScreening = gateScreening;
         this.cvCopies = cvCopies;
@@ -371,7 +375,7 @@ public class ApplicantService {
             ApplicationStatus.HIRED, ApplicationStatus.REJECTED, ApplicationStatus.FAILED, ApplicationStatus.WITHDRAWN);
 
     /**
-     * After CV screening. AUTO: pass → AI interview; fail → REJECTED. MANUAL: the score is only a
+     * After CV screening. AUTO: pass → assessment; fail → REJECTED. MANUAL: the score is only a
      * recommendation; the recruiter decides via {@link #decideCvScreening}.
      */
     @Transactional
@@ -397,21 +401,20 @@ public class ApplicantService {
         application.setCvScreeningStatus(passed ? com.smarthire.domain.enums.CvScreeningStatus.PASSED
                 : com.smarthire.domain.enums.CvScreeningStatus.FAILED);
         if (current != ApplicationStatus.NEW && current != ApplicationStatus.IN_REVIEW) {
-            if (passed && current == ApplicationStatus.INTERVIEW && InterviewPolicies.enabled(application.getJob())) {
-                invitations.invite(application.getId(), null);
-            }
             gateScreening.recalculate(application);
             return;
         }
         if (passed) {
-            record(application, ApplicationStatus.INTERVIEW, "CV passed screening; moved to AI interview", null);
+            record(application, ApplicationStatus.ASSESSMENT, "CV passed screening; opened assessment and AI interview", null);
+            attachAssessmentStage(application);
+            inviteAssessmentAndAiInterview(application);
         } else {
             rejectAtCvRound(application, "CV did not pass screening", null);
         }
         gateScreening.recalculate(application);
     }
 
-    /** Recruiter decision on the CV round: pass → AI interview (with invite); fail → REJECTED. */
+    /** Recruiter decision on the CV round: pass → assessment + AI invite; fail → REJECTED. */
     @Transactional
     public ApplicationDetail decideCvScreening(long id, boolean passed, String note) {
         Application application = loadForStaff(id);
@@ -424,13 +427,54 @@ public class ApplicantService {
         }
         if (passed) {
             application.setCvScreeningStatus(CvScreeningStatus.PASSED);
-            record(application, ApplicationStatus.INTERVIEW, noteOr(note, "Recruiter passed CV screening"));
+            record(application, ApplicationStatus.ASSESSMENT, noteOr(note, "Recruiter passed CV screening"));
+            attachAssessmentStage(application);
+            inviteAssessmentAndAiInterview(application);
         } else {
             application.setCvScreeningStatus(CvScreeningStatus.FAILED);
             rejectAtCvRound(application, noteOr(note, "Recruiter marked CV screening as not passed"), actorIdOrNull());
         }
         gateScreening.recalculate(application);
         return toDetail(application);
+    }
+
+    /**
+     * Kept for assessment submit hook: AI is already invited at CV pass; only repair a missing invite.
+     */
+    @Transactional
+    public void openAiInterviewAfterAssessment(long applicationId) {
+        Application application = applications.findByIdForUpdate(applicationId).orElse(null);
+        if (application == null || application.getArchivedAt() != null || application.getWithdrawnAt() != null) {
+            return;
+        }
+        if (!InterviewPolicies.enabled(application.getJob())) return;
+        try {
+            invitations.invite(application.getId(), null);
+        } catch (RuntimeException ex) {
+            log.debug("AI interview invite after assessment skipped for application {}: {}", applicationId, ex.getMessage());
+        }
+    }
+
+    private void inviteAssessmentAndAiInterview(Application application) {
+        try {
+            assessmentInvites.inviteFixedDemoAfterCvPass(application);
+        } catch (RuntimeException ex) {
+            log.warn("Assessment demo invite failed for application {}: {}", application.getId(), ex.getMessage());
+        }
+        if (!InterviewPolicies.enabled(application.getJob())) return;
+        try {
+            invitations.invite(application.getId(), null);
+        } catch (RuntimeException ex) {
+            log.warn("AI interview invite failed for application {}: {}", application.getId(), ex.getMessage());
+        }
+    }
+
+    private void attachAssessmentStage(Application application) {
+        stages.findByJob_IdOrderBySortOrderAsc(application.getJob().getId()).stream()
+                .filter(stage -> "ASSESSMENT".equalsIgnoreCase(stage.getStageCode())
+                        || "Assessment".equalsIgnoreCase(stage.getName()))
+                .findFirst()
+                .ifPresent(application::setStage);
     }
 
     private void rejectAtCvRound(Application application, String note, Long actorId) {
@@ -506,12 +550,7 @@ public class ApplicantService {
         row.setNote(blankToNull(note));
         application.setStatus(next);
         history.save(row);
-        if (next == ApplicationStatus.INTERVIEW && application.getArchivedAt() == null
-                && application.getWithdrawnAt() == null
-                && application.getCvScreeningStatus() == com.smarthire.domain.enums.CvScreeningStatus.PASSED
-                && InterviewPolicies.enabled(application.getJob())) {
-            invitations.invite(application.getId(), null);
-        }
+        // Assessment + AI invites are sent explicitly via inviteAssessmentAndAiInterview after CV pass.
     }
 
     private Application load(long id) {

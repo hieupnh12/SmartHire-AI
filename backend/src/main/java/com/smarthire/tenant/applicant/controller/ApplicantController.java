@@ -128,8 +128,8 @@ public class ApplicantController {
 
     @PostMapping("/applications/{id}/cv-screening-decision")
     @Operation(summary = "Recruiter decides whether the application passes the CV screening round",
-            description = "Used by MANUAL screening jobs (AI only scores). passed=true moves the application to INTERVIEW "
-                    + "and sends the AI interview invite; passed=false rejects it (final). Only NEW/IN_REVIEW applications.")
+            description = "Used by MANUAL screening jobs (AI only scores). passed=true moves the application to ASSESSMENT; "
+                    + "passed=false rejects it (final). Only NEW/IN_REVIEW applications.")
     public ApiResponse<ApplicationDetail> cvScreeningDecision(
             @PathVariable long id, @Valid @RequestBody CvScreeningDecisionRequest body) {
         return ApiResponse.ok(applicants.decideCvScreening(id, body.passed(), body.note()));

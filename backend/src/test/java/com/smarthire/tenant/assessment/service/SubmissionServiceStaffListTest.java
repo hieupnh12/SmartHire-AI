@@ -26,9 +26,12 @@ class SubmissionServiceStaffListTest {
 
     @BeforeEach
     void setup() {
+        @SuppressWarnings("unchecked")
+        org.springframework.beans.factory.ObjectProvider<com.smarthire.tenant.applicant.service.ApplicantService> applicants =
+                mock(org.springframework.beans.factory.ObjectProvider.class);
         service = new SubmissionService(mock(JobTestRepository.class), mock(ApplicationRepository.class), submissions,
                 questions, mock(OptionRepository.class), mock(AnswerRepository.class), mock(CodingProblemRepository.class),
-                access, mock(AssessmentMapper.class), mock(AiInterviewRepository.class), jobs);
+                access, mock(AssessmentMapper.class), jobs, applicants);
         job = new Job();
         job.setId(1L);
         test = new JobTest();

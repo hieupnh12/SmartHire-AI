@@ -36,15 +36,16 @@ public class SubmissionService {
     private final CodingProblemRepository codingProblems;
     private final CvAccess access;
     private final AssessmentMapper mapper;
-    private final AiInterviewRepository aiInterviews;
     private final JobRepository jobs;
+    private final org.springframework.beans.factory.ObjectProvider<com.smarthire.tenant.applicant.service.ApplicantService> applicants;
     @org.springframework.beans.factory.annotation.Autowired
     private org.springframework.context.ApplicationEventPublisher events;
 
     public SubmissionService(JobTestRepository tests, ApplicationRepository applications, SubmissionRepository submissions,
             QuestionRepository questions, OptionRepository options, AnswerRepository answers,
-            CodingProblemRepository codingProblems, CvAccess access, AssessmentMapper mapper, AiInterviewRepository aiInterviews,
-            JobRepository jobs) {
+            CodingProblemRepository codingProblems, CvAccess access, AssessmentMapper mapper,
+            JobRepository jobs,
+            org.springframework.beans.factory.ObjectProvider<com.smarthire.tenant.applicant.service.ApplicantService> applicants) {
         this.tests = tests;
         this.applications = applications;
         this.submissions = submissions;
@@ -54,8 +55,8 @@ public class SubmissionService {
         this.codingProblems = codingProblems;
         this.access = access;
         this.mapper = mapper;
-        this.aiInterviews = aiInterviews;
         this.jobs = jobs;
+        this.applicants = applicants;
     }
 
     @Transactional(isolation = Isolation.READ_COMMITTED)
@@ -71,8 +72,14 @@ public class SubmissionService {
         var previous = submissions.findLatestIds(testId, application.getId(), PageRequest.of(0, 1));
         Submission submission = previous.isEmpty() ? new Submission() : owned(previous.getFirst(), candidate);
         if (submission.getId() != null && submission.getStatus() != TestSubmissionStatus.NOT_STARTED) {
+            boolean finishedBefore = isFinished(submission.getStatus());
             expire(submission);
-            return response(submission);
+            // Demo papers are for UI/flow testing — allow a fresh attempt after finish.
+            if (isDemoPaper(test) && finishedBefore) {
+                submission = new Submission();
+            } else {
+                return response(submission);
+            }
         }
         if (test.getStatus() != TestStatus.PUBLISHED || test.getJob().getDeletedAt() != null) {
             throw conflict("Test is not available", "TEST_UNAVAILABLE");
@@ -133,8 +140,8 @@ public class SubmissionService {
             if (!seen.add(input.questionId())) throw invalid("Duplicate questionId in answers");
             Question question = questions.findByIdAndTest_Id(input.questionId(), submission.getTest().getId())
                     .orElseThrow(() -> invalid("Question does not belong to this test"));
-            if (submission.getObjectiveCompletedAt() != null && isObjective(question)) throw conflict("Objective section is locked", "SECTION_LOCKED");
-            if (submission.getObjectiveCompletedAt() == null && hasObjective(submission) && !isObjective(question)) throw conflict("Complete objective section first", "SECTION_NOT_STARTED");
+            if (submission.getObjectiveCompletedAt() != null && isQuizSection(question)) throw conflict("Quiz section is locked", "SECTION_LOCKED");
+            if (submission.getObjectiveCompletedAt() == null && hasQuizSection(submission) && !isQuizSection(question)) throw conflict("Complete quiz section first", "SECTION_NOT_STARTED");
             Answer answer = answers.findBySubmission_IdAndQuestion_Id(id, question.getId()).orElseGet(Answer::new);
             answer.setSubmission(submission);
             answer.setQuestion(question);
@@ -210,7 +217,7 @@ public class SubmissionService {
         Submission submission = owned(id, candidate());
         if (expire(submission) || submission.getStatus() != TestSubmissionStatus.IN_PROGRESS) throw conflict("Submission closed", "SUBMISSION_CLOSED");
         requireEligible(submission.getApplication());
-        if (hasObjective(submission) && submission.getObjectiveCompletedAt() == null) throw conflict("Complete objective section first", "SECTION_NOT_STARTED");
+        if (hasQuizSection(submission) && submission.getObjectiveCompletedAt() == null) throw conflict("Complete quiz section first", "SECTION_NOT_STARTED");
         Question question = questions.findByIdAndTest_Id(questionId, submission.getTest().getId()).orElseThrow(this::notFound);
         var problem = question.getCodingProblem();
         if (problem == null || !problem.getStarterCodeJson().has(body.language())) throw invalid("Unsupported coding language");
@@ -222,11 +229,19 @@ public class SubmissionService {
         }
     }
 
+    /** Auto-gradable choice questions (MCQ / multi-select). */
     public static boolean isObjective(Question question) {
         return "MCQ".equals(question.getQuestionType()) || "MULTIPLE_CHOICE".equals(question.getQuestionType());
     }
-    private boolean hasObjective(Submission submission) {
-        return questions.findByTest_IdOrderByQuestionOrderAscIdAsc(submission.getTest().getId()).stream().anyMatch(SubmissionService::isObjective);
+
+    /** Quizizz section: choice + essay, locked after complete_objective. */
+    public static boolean isQuizSection(Question question) {
+        return isObjective(question) || "ESSAY".equals(question.getQuestionType());
+    }
+
+    private boolean hasQuizSection(Submission submission) {
+        return questions.findByTest_IdOrderByQuestionOrderAscIdAsc(submission.getTest().getId()).stream()
+                .anyMatch(SubmissionService::isQuizSection);
     }
     @Transactional(isolation = Isolation.READ_COMMITTED, noRollbackFor = SubmissionExpiredException.class)
     public SubmissionResponse completeObjective(long id) {
@@ -248,9 +263,6 @@ public class SubmissionService {
     }
 
     private void requireEligible(Application application) {
-        if (!aiInterviews.existsByApplication_IdAndStatus(application.getId(), com.smarthire.domain.enums.AiInterviewStatus.PASSED)) {
-            throw conflict("AI interview must be passed before accessing assessment", "AI_INTERVIEW_NOT_PASSED");
-        }
         if (application.getArchivedAt() != null || application.getWithdrawnAt() != null
                 || application.getJob().getDeletedAt() != null
                 || application.getStatus() != ApplicationStatus.ASSESSMENT) {
@@ -319,6 +331,10 @@ public class SubmissionService {
         submission.setStatus(expired ? TestSubmissionStatus.EXPIRED
                 : needsReview ? TestSubmissionStatus.SUBMITTED : TestSubmissionStatus.GRADED);
         submissions.save(submission);
+        var applicantService = applicants.getIfAvailable();
+        if (applicantService != null) {
+            applicantService.openAiInterviewAfterAssessment(submission.getApplication().getId());
+        }
     }
 
     private SubmissionResponse response(Submission submission) {
@@ -391,6 +407,16 @@ public class SubmissionService {
     private Option option(Question question, Long id) {
         return options.findByIdAndQuestion_Id(id, question.getId())
                 .orElseThrow(() -> invalid("Option does not belong to this question"));
+    }
+
+    private static boolean isDemoPaper(JobTest test) {
+        return AssessmentDemoSeedService.DEMO_TITLE.equals(test.getTitle());
+    }
+
+    private static boolean isFinished(TestSubmissionStatus status) {
+        return status == TestSubmissionStatus.SUBMITTED
+                || status == TestSubmissionStatus.GRADED
+                || status == TestSubmissionStatus.EXPIRED;
     }
 
     private BusinessException notFound() {

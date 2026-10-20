@@ -72,9 +72,9 @@ Chấm điểm phiên AI Interview sau khi candidate nộp bài và quyết đ�
    - Điểm từng Job Skill = trung bình các câu có kỹ năng đó; **không** cộng vào điểm tổng. Kỹ năng không được kiểm tra có `score = null` (UI hiển thị "Chưa đủ dữ liệu"), không mặc định 0.
    - Báo cáo lưu `ai_interviews.report_json`: `overallScore`, `miniAssessmentScore`, `competencies`, `weights` (trọng số chốt theo phiên), `skills` (score, evidenceCount, miniAssessmentTested, questionIds làm bằng chứng). Điểm từng câu lưu `ai_feedbacks.evaluation_json`.
 4. `overall_score >= passing_score_snapshot` (ngưỡng `aiInterviewPassingScore` chốt khi tạo phiên):
-   - **PASSED:** phiên `PASSED`; application → `ASSESSMENT` (và stage "Assessment" nếu có); Assessment mở cho candidate; notification `AI_INTERVIEW_PASSED` + email kết quả báo Assessment đã sẵn sàng (hoặc đang chuẩn bị đề nếu job chưa có test publish).
-   - **FAILED còn quyền làm lại** (`attempt_number < maxAttempts` và chưa quá `availableUntil`): phiên `FAILED`; application giữ `INTERVIEW`; thông báo còn lượt làm lại. Candidate tạo lần mới qua `POST .../applications/{applicationId}/start`.
-   - **FAILED hết quyền:** phiên `FAILED`; application → `FAILED`; không truy cập Assessment; notification `AI_INTERVIEW_FAILED` + email kết quả.
+   - **PASSED:** phiên `PASSED`; application giữ/ở `ASSESSMENT` (Assessment + AI đã mời song song từ lúc lọc CV đậu); notification `AI_INTERVIEW_PASSED` + email kết quả.
+   - **FAILED còn quyền làm lại** (`attempt_number < maxAttempts` và chưa quá `availableUntil`): phiên `FAILED`; application giữ `ASSESSMENT`/`INTERVIEW`; thông báo còn lượt làm lại. Candidate tạo lần mới qua `POST .../applications/{applicationId}/start`.
+   - **FAILED hết quyền:** phiên `FAILED`; application → `FAILED`; đóng các vòng còn mở; notification `AI_INTERVIEW_FAILED` + email kết quả.
 5. Dispatcher (`closeExhaustedRetries`) đóng hồ sơ `INTERVIEW` có lần làm gần nhất `FAILED` khi hạn làm lại đã qua: application → `FAILED` + lịch sử + thông báo.
 6. Cả hai nhánh lưu `application_status_history` và ghi `ai_interview_logs` (điểm, đổi trạng thái đơn, mở Assessment, notification, email).
 7. Email nằm trong `email_outbox` (`purpose = AI_INTERVIEW_RESULT`) và được worker qua queue durable `tenant.interview.email` gửi, tối đa 3 lần. Queue được `RabbitMqConfig` khai báo tự động khi backend khởi động.

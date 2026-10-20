@@ -116,10 +116,6 @@ class AssessmentFlowTest {
             Application application = new Application();
             application.setJob(job); application.setCandidate(candidate); application.setStatus(ApplicationStatus.ASSESSMENT);
             em.persist(application); em.flush();
-            AiInterview passedInterview = new AiInterview();
-            passedInterview.setApplication(application);
-            passedInterview.setStatus(AiInterviewStatus.PASSED);
-            em.persist(passedInterview);
             jobId = job.getId(); applicationId = application.getId(); candidateId = candidate.getId();
         });
         login(recruiterEmail, "RECRUITER");
@@ -194,7 +190,7 @@ class AssessmentFlowTest {
                     .setParameter("id", applicationId).getSingleResult();
             assertThat(test.getStatus()).isEqualTo(TestStatus.PUBLISHED);
             assertThat(test.getPassingScore()).isEqualByComparingTo("7.00");
-            assertThat(test.getTitle()).contains("Java job", "HS " + applicationId);
+            assertThat(test.getTitle()).isEqualTo("Java job");
             assertThat(em.createQuery("select count(n) from Notification n where n.candidate.id = :id and n.type = 'ASSESSMENT_INVITATION'", Long.class)
                     .setParameter("id", candidateId).getSingleResult()).isEqualTo(1);
             return test.getId();
@@ -206,7 +202,6 @@ class AssessmentFlowTest {
         long otherApplication = tx.execute(status -> {
             var other = em.createQuery("select c from Candidate c where c.email = :email", Candidate.class).setParameter("email", otherEmail).getSingleResult();
             Application app = new Application(); app.setJob(em.find(Job.class, jobId)); app.setCandidate(other); app.setStatus(ApplicationStatus.ASSESSMENT); em.persist(app);
-            var interview = new AiInterview(); interview.setApplication(app); interview.setStatus(AiInterviewStatus.PASSED); em.persist(interview);
             em.flush(); return app.getId();
         });
         login(otherEmail, "CANDIDATE");
@@ -237,17 +232,10 @@ class AssessmentFlowTest {
     }
 
     @Test
-    void automationSkipsFailedWithdrawnAndChangedSkills() {
+    void automationSkipsWithdrawnAndChangedSkills() {
         var config = generationConfig(true);
         generation.saveConfig(jobId, config);
-        tx.executeWithoutResult(status -> em.createQuery("update AiInterview i set i.status = :state where i.application.id = :id")
-                .setParameter("state", AiInterviewStatus.FAILED).setParameter("id", applicationId).executeUpdate());
-        assertThat(generation.generateForApplication(applicationId)).isFalse();
-        tx.executeWithoutResult(status -> {
-            em.createQuery("update AiInterview i set i.status = :state where i.application.id = :id")
-                    .setParameter("state", AiInterviewStatus.PASSED).setParameter("id", applicationId).executeUpdate();
-            em.find(Application.class, applicationId).setWithdrawnAt(Instant.now());
-        });
+        tx.executeWithoutResult(status -> em.find(Application.class, applicationId).setWithdrawnAt(Instant.now()));
         assertThat(generation.generateForApplication(applicationId)).isFalse();
         tx.executeWithoutResult(status -> {
             em.find(Application.class, applicationId).setWithdrawnAt(null);
@@ -616,7 +604,7 @@ class AssessmentFlowTest {
         assertThat(reloaded.status()).isEqualTo(TestSubmissionStatus.IN_PROGRESS);
         assertThat(reloaded.objectiveCompletedAt()).isNotNull();
         assertThat(reloaded.remainingSeconds()).isGreaterThan(1700);
-        assertThatThrownBy(() -> submissions.save(submission, save(choice.id(), null))).hasMessageContaining("Objective section is locked");
+        assertThatThrownBy(() -> submissions.save(submission, save(choice.id(), null))).hasMessageContaining("Quiz section is locked");
     }
 
     @Test
@@ -644,23 +632,36 @@ class AssessmentFlowTest {
         var essay = questions.create(id, new QuestionRequest("Explain", 5, 0, null, null, "Staff rubric",
                 List.of(), QuestionType.ESSAY));
         var mcq = questions.create(id, question("Choice", 5, 1));
+        var coding = questions.create(id, new QuestionRequest("Solve", 5, 2, "Easy", "Python", null, List.of(), QuestionType.CODING,
+                null, new com.smarthire.tenant.assessment.dto.request.CodingRequest("CODING_ALGORITHM", 2000, 256,
+                        new ObjectMapper().readTree("{\"python\":\"def solve(): pass\"}"),
+                        new ObjectMapper().readTree("{\"python\":\"{{SOURCE}}\"}"),
+                        List.of(
+                                new com.smarthire.tenant.assessment.dto.request.CodingRequest.Case("1", "1", true),
+                                new com.smarthire.tenant.assessment.dto.request.CodingRequest.Case("2", "2", false)))));
         questions.publish(id);
         login(candidateEmail, "CANDIDATE");
         long submission = submissions.start(id, new StartSubmissionRequest(applicationId)).id();
         assertThatThrownBy(() -> submissions.save(submission, new SaveAnswersRequest(List.of(
-                new SaveAnswersRequest.AnswerInput(essay.id(), null, null, "Too early")))))
-                .hasMessageContaining("Complete objective section first");
+                new SaveAnswersRequest.AnswerInput(coding.id(), null, null, "print(1)", "python")))))
+                .hasMessageContaining("Complete quiz section first");
         submissions.save(submission, save(mcq.id(), mcq.options().getFirst().id()));
-        assertThat(submissions.completeObjective(submission).objectiveCompletedAt()).isNotNull();
-        assertThat(submissions.get(submission).objectiveCompletedAt()).isNotNull();
-        assertThatThrownBy(() -> submissions.save(submission, save(mcq.id(), mcq.options().getLast().id())))
-                .hasMessageContaining("Objective section is locked");
         mvc.perform(post("/api/v1/submissions/{id}/save_answers", submission).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"answers\":[{\"questionId\":" + essay.id() + ",\"answerText\":\"My reasoning\"}]}"))
                 .andExpect(status().isOk());
-        assertThat(submissions.get(submission).answers().getFirst().answerText()).isEqualTo("My reasoning");
-        assertThatThrownBy(() -> submissions.save(submission, save(essay.id(), mcq.options().getFirst().id())))
-                .hasMessageContaining("Essay answers cannot select");
+        assertThat(submissions.get(submission).answers().stream().filter(a -> a.questionId() == essay.id()).findFirst().orElseThrow().answerText())
+                .isEqualTo("My reasoning");
+        assertThat(submissions.completeObjective(submission).objectiveCompletedAt()).isNotNull();
+        assertThat(submissions.get(submission).objectiveCompletedAt()).isNotNull();
+        assertThatThrownBy(() -> submissions.save(submission, save(mcq.id(), mcq.options().getLast().id())))
+                .hasMessageContaining("Quiz section is locked");
+        assertThatThrownBy(() -> submissions.save(submission, new SaveAnswersRequest(List.of(
+                new SaveAnswersRequest.AnswerInput(essay.id(), null, null, "Changed after lock")))))
+                .hasMessageContaining("Quiz section is locked");
+        submissions.save(submission, new SaveAnswersRequest(List.of(
+                new SaveAnswersRequest.AnswerInput(coding.id(), null, null, "print(42)", "python"))));
+        assertThat(submissions.get(submission).answers().stream().filter(a -> a.questionId() == coding.id()).findFirst().orElseThrow().language())
+                .isEqualTo("python");
         var result = submissions.submit(submission);
         assertThat(result.status()).isEqualTo(TestSubmissionStatus.SUBMITTED);
         assertThat(result.score()).isNull();

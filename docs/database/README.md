@@ -1131,7 +1131,7 @@ NOT_STARTED ──▶ IN_PROGRESS ──▶ SUBMITTED ──▶ GRADED
 Đề chỉ có MCQ/MULTIPLE_CHOICE chấm đồng bộ: `IN_PROGRESS → GRADED`; hết hạn thành `EXPIRED`.
 Đề có ESSAY/CODING chuyển `SUBMITTED` chờ chấm (hoặc `EXPIRED` khi hết hạn); tổng điểm và passed = NULL,
 kể cả chưa trả lời câu tự luận. Điểm các câu trắc nghiệm đã lưu vẫn được tính riêng trong answers.
-V53 bổ sung AI chấm rubric và test sandbox cho ESSAY/CODING; điểm đề xuất lưu riêng, staff duyệt vào answers.score. Chỉ khi mọi câu có điểm chính thức mới ghi tổng vào submissions.score và chuyển SUBMITTED → GRADED; EXPIRED giữ nguyên trạng thái. objective_completed_at khóa phần trắc nghiệm; thời lượng phần riêng tùy chọn dùng giờ server.
+V53 bổ sung AI chấm rubric và test sandbox cho ESSAY/CODING; điểm đề xuất lưu riêng, staff duyệt vào answers.score. Chỉ khi mọi câu có điểm chính thức mới ghi tổng vào submissions.score và chuyển SUBMITTED → GRADED; EXPIRED giữ nguyên trạng thái. objective_completed_at khóa phần Quiz (MCQ/multi/essay) trước khi mở CODING; thời lượng phần riêng tùy chọn dùng giờ server. Pipeline: lọc CV đậu → ASSESSMENT → nộp bài → INTERVIEW (AI); AI PASSED → HUMAN_INTERVIEW.
 
 **Lịch phỏng vấn trực tiếp V48** — `interview_schedules.status`: DRAFT → PROPOSED → CONFIRMED → DONE; PROPOSED/CONFIRMED → RESCHEDULE_REQUESTED → PROPOSED; lịch nháp/đang hoạt động → CANCELLED. Điểm 0–100; mỗi người chấm có một đánh giá, tuần tự hóa bằng khóa hàng interview; không thêm UNIQUE trong database.
 
@@ -1181,7 +1181,7 @@ Những quy tắc sau bắt buộc phải kiểm tra ở tầng service, vì kh�
 | BR-18 | `candidates.phone` chuẩn hoá và không trùng giữa hai ứng viên (không có UNIQUE vì dữ liệu cũ) | `AccountProfileService` |
 
 - Ngân hàng chung V41: câu hỏi có `test_id = NULL` được thêm/sửa/lưu trữ độc lập; câu có `test_id` chỉ được sửa qua assessment gốc ở trạng thái DRAFT. API ngân hàng yêu cầu staff, xác thực tenant trước truy vấn; cả lô câu hỏi được lưu trong một transaction.
-- Assessment tự động V43: cấu hình theo job chỉ chọn skill của job, tối đa 100 câu, khớp skill/type/difficulty và không trùng nội dung; copy câu/options/metadata để đóng băng đề. Đề riêng chỉ hiển thị và mở được với hồ sơ được gán. Worker RabbitMQ có `X-Tenant-ID`, khóa hồ sơ trước khi tạo; đề, thông báo và email outbox cùng transaction. Áp dụng cho hồ sơ ASSESSMENT, đã PASSED AI Interview, không rút/lưu trữ, cả trước và sau khi bật. Thiếu câu thì rollback và chờ cấu hình/ngân hàng được sửa, không ảnh hưởng kết quả AI Interview.
+- Assessment tự động V43: cấu hình theo job chỉ chọn skill của job, tối đa 100 câu, khớp skill/type/difficulty và không trùng nội dung; copy câu/options/metadata để đóng băng đề. Đề riêng chỉ hiển thị và mở được với hồ sơ được gán. Worker RabbitMQ có `X-Tenant-ID`, khóa hồ sơ trước khi tạo; đề, thông báo và email outbox cùng transaction. Áp dụng cho hồ sơ ASSESSMENT (sau lọc CV), không rút/lưu trữ, cả trước và sau khi bật. Thiếu câu thì rollback và chờ cấu hình/ngân hàng được sửa.
 
 ### 8.5 Hệ quả nghiệp vụ cần biết
 

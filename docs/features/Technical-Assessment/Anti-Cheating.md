@@ -14,9 +14,11 @@ Ghi nhận tín hiệu gian lận (tab blur, paste, multi-focus) và gắn risk 
 
 ## Luồng hoạt động
 
-1. FE gửi events `POST /attempts/{id}/proctor-events`.
-2. BE aggregate risk.
-3. Recruiter xem báo cáo.
+1. Mọi bước quy chế + kiểm tra thiết bị chỉ ở `/assessments/:testId/invite` (bắt đầu **và** tiếp tục phiên).
+2. Gate pass → `start_submission` (hoặc bind proctor cho submission đang mở) → `/take`. Nếu `/take` thiếu phiên giám sát → redirect lại invite (không hiện form check lần 2).
+3. Trong `/take`: fullscreen + chống gian lận client-side; 3 vi phạm → tự nộp; chặn đóng tab / Back.
+4. API `proctor-events` cho assessment (BE) — chưa có; AI Interview đã có.
+5. Recruiter xem báo cáo khi BE sẵn sàng.
 
 ## Business Rules
 
