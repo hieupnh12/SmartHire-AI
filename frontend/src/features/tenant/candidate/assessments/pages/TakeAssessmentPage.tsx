@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, ArrowRight, Clock, Send } from "lucide-react";
+import { ArrowLeft, ArrowRight, Clock, Expand, Send } from "lucide-react";
 import { Button } from "@/components/ux/Button";
 import { AssessmentError, assessmentMuted as muted } from "@/components/ux/assessmentUi";
 import { useUiStore } from "@/stores/uiStore";
 import { AssessmentResult } from "../components/AssessmentResult";
 import { AssessmentAnswerInput } from "../components/AssessmentAnswerInput";
-import { AssessmentProctorGuard } from "../components/AssessmentProctorGuard";
+import { AssessmentProctorGuard, ExamFullscreenButton, ExamMonitor } from "../components/AssessmentProctorGuard";
+import { examIsFullscreen } from "../utils/examFullscreen";
 import type { ProctorSession } from "../components/AssessmentProctorGate";
 import { ExamStepper } from "../components/ExamStepper";
 import { hasAnswer } from "../utils/hasAnswer";
@@ -33,6 +34,7 @@ function SubmissionRoom({ id }: { id: number }) {
   const room = useSubmission(id);
   const [index, setIndex] = useState(0);
   const [proctor, setProctor] = useState<ProctorSession | null>(() => getAssessmentProctor(id));
+  const [fullscreen, setFullscreen] = useState(examIsFullscreen);
   const submission = room.query.data;
   const quiz = submission?.questions.filter((q) => isQuiz(q.questionType)) ?? [];
   const coding = submission?.questions.filter((q) => q.questionType === "CODING") ?? [];
@@ -56,6 +58,19 @@ function SubmissionRoom({ id }: { id: number }) {
     if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
   }, [id]);
 
+  useEffect(() => {
+    const sync = () => setFullscreen(examIsFullscreen());
+    sync();
+    document.addEventListener("fullscreenchange", sync);
+    document.addEventListener("webkitfullscreenchange", sync as EventListener);
+    const timer = window.setInterval(sync, 400);
+    return () => {
+      document.removeEventListener("fullscreenchange", sync);
+      document.removeEventListener("webkitfullscreenchange", sync as EventListener);
+      window.clearInterval(timer);
+    };
+  }, []);
+
   // Device check only lives on invite — bounce back if /take opened without an active proctor session.
   useEffect(() => {
     if (room.query.isPending || !submission) return;
@@ -74,7 +89,10 @@ function SubmissionRoom({ id }: { id: number }) {
       event.preventDefault();
       event.returnValue = "";
     };
-    const lockHistory = () => window.history.pushState({ examLock: true }, "", window.location.href);
+    const lockHistory = () => {
+      if (document.fullscreenElement) return;
+      window.history.pushState({ examLock: true }, "", window.location.href);
+    };
     lockHistory();
     const onPopState = () => lockHistory();
     window.addEventListener("beforeunload", blockLeave);
@@ -173,7 +191,19 @@ function SubmissionRoom({ id }: { id: number }) {
 
   return (
     <AssessmentProctorGuard submissionId={id} session={proctor} onAutoSubmit={() => void finishExam(false)}>
-      <section className="flex h-dvh flex-col overflow-hidden bg-[var(--color-surface-alt)] text-[var(--color-on-surface)]">
+      {!fullscreen ? (
+        <main className="grid h-full min-h-0 flex-1 place-items-center bg-[var(--color-surface-alt)] p-6 text-[var(--color-on-surface)]">
+          <div className="w-full max-w-md rounded-2xl border border-[var(--color-border-default)] bg-white p-6 shadow-[var(--shadow-card)]">
+            <Expand className="size-9 text-[var(--color-primary)]" aria-hidden="true" />
+          <h1 className="mt-3 text-xl font-semibold">Mở toàn màn hình để làm bài</h1>
+          <p className="mt-2 text-sm leading-6 text-[var(--color-on-surface-variant)]">
+            Bài kiểm tra tự mở toàn màn hình khi bạn bấm Bắt đầu. Camera và bản ghi màn hình vẫn chạy trong lúc làm bài.
+          </p>
+            <ExamFullscreenButton />
+          </div>
+        </main>
+      ) : (
+      <section className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden bg-[var(--color-surface-alt)] text-[var(--color-on-surface)]">
         <header className="flex shrink-0 items-center justify-between gap-3 border-b border-[var(--color-border-default)] bg-white px-4 py-2.5 sm:px-5">
           <ExamStepper
             quizCount={quiz.length}
@@ -182,6 +212,8 @@ function SubmissionRoom({ id }: { id: number }) {
             quizCompleted={!!submission.objectiveCompletedAt}
             quizRemaining={room.objectiveRemaining}
           />
+          <div className="flex shrink-0 items-center gap-2">
+            <ExamMonitor />
           <div
             role="timer"
             aria-label="Thời gian còn lại"
@@ -194,14 +226,15 @@ function SubmissionRoom({ id }: { id: number }) {
             <Clock className="size-5 shrink-0" aria-hidden="true" />
             <span className="text-xl sm:text-2xl">{formatTimer(seconds)}</span>
           </div>
+          </div>
         </header>
 
-        <div className="min-h-0 flex-1 overflow-hidden p-3 sm:p-4">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-3 sm:p-4">
           <AssessmentError error={room.query.error} retry={() => void room.query.refetch()} />
           <AssessmentError error={room.error} retry={seconds > 0 ? room.retrySave : undefined} />
           {room.query.isPending && <p role="status">Đang tải bài làm…</p>}
           {inCoding ? (
-            <div className="flex h-full min-h-0 flex-col">
+            <div className="flex min-h-0 flex-1 flex-col">
               {!question && <p>Không có câu lập trình. Bạn có thể nộp bài.</p>}
               {question && (
                 <div className="h-full min-h-0 flex-1">
@@ -219,7 +252,7 @@ function SubmissionRoom({ id }: { id: number }) {
               )}
             </div>
           ) : (
-            <div className="flex h-full min-h-0 flex-col">
+            <div className="flex min-h-0 flex-1 flex-col">
               {!question && (
                 <p>Không có câu hỏi phần trắc nghiệm &amp; tự luận. Bạn có thể chuyển sang phần lập trình.</p>
               )}
@@ -323,6 +356,7 @@ function SubmissionRoom({ id }: { id: number }) {
           )}
         </footer>
       </section>
+      )}
     </AssessmentProctorGuard>
   );
 }

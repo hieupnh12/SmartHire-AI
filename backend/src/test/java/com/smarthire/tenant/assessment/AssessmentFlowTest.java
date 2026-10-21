@@ -349,6 +349,7 @@ class AssessmentFlowTest {
         var first = questions.create(testId, question("One", 5, 0));
         var second = questions.create(testId, question("Two", 3, 1));
         questions.publish(testId);
+        assign(testId);
         login(candidateEmail, "CANDIDATE");
         var started = submissions.start(testId, new StartSubmissionRequest(applicationId));
         assertThat(started.remainingSeconds()).isBetween(1798L, 1800L);
@@ -427,6 +428,7 @@ class AssessmentFlowTest {
         var first = questions.create(id, question("One", 5, 0));
         var second = questions.create(id, question("Two", 5, 1));
         questions.publish(id);
+        assign(id);
         long otherTest = draft();
         var foreign = questions.create(otherTest, question("Foreign", 5, 0));
         login(candidateEmail, "CANDIDATE");
@@ -467,11 +469,13 @@ class AssessmentFlowTest {
     @Test
     void draftOrIneligibleApplicationCannotStart() {
         long id = draft();
+        assign(id);
         login(candidateEmail, "CANDIDATE");
         assertThatThrownBy(() -> submissions.start(id, new StartSubmissionRequest(applicationId)))
                 .hasMessage("Test is not available");
         login(recruiterEmail, "RECRUITER");
         questions.create(id, question("One", 5, 0)); questions.publish(id);
+        assign(id);
         tx.executeWithoutResult(status -> em.find(Application.class, applicationId).setStatus(ApplicationStatus.NEW));
         login(candidateEmail, "CANDIDATE");
         assertThatThrownBy(() -> submissions.start(id, new StartSubmissionRequest(applicationId)))
@@ -489,6 +493,21 @@ class AssessmentFlowTest {
         assertThat(submissions.available(applicationId).getFirst().submissionId()).isEqualTo(submissionId);
         login(otherEmail, "CANDIDATE");
         assertThatThrownBy(() -> submissions.available(applicationId)).hasMessageContaining("not found");
+    }
+
+    @Test
+    void demoPaperStaysAvailableAndCanBeRetakenWithoutAssignment() {
+        long id = assessments.create(new JobTestRequest(jobId, AssessmentDemoSeedService.DEMO_TITLE, null, 30, BigDecimal.valueOf(5))).id();
+        questions.create(id, question("One", 5, 0));
+        questions.publish(id);
+        login(candidateEmail, "CANDIDATE");
+        assertThat(submissions.available(applicationId)).extracting(AvailableAssessmentResponse::id).contains(id);
+        long first = submissions.start(id, new StartSubmissionRequest(applicationId)).id();
+        assertThat(submissions.submit(first).status()).isEqualTo(TestSubmissionStatus.GRADED);
+        long second = submissions.start(id, new StartSubmissionRequest(applicationId)).id();
+        assertThat(second).isNotEqualTo(first);
+        assertThat(submissions.available(applicationId).stream().filter(item -> item.id().equals(id)).findFirst().orElseThrow().submissionId())
+                .isEqualTo(second);
     }
 
     @Test
@@ -565,6 +584,7 @@ class AssessmentFlowTest {
         long id = draft();
         var q = questions.create(id, multiQuestion());
         questions.publish(id);
+        assign(id);
         login(candidateEmail, "CANDIDATE");
         long submission = submissions.start(id, new StartSubmissionRequest(applicationId)).id();
         var correct = q.options().stream().filter(QuestionResponse.OptionResponse::correct).map(QuestionResponse.OptionResponse::id).toList();
@@ -584,6 +604,7 @@ class AssessmentFlowTest {
         long partialTest = draft();
         var partial = questions.create(partialTest, multiQuestion());
         questions.publish(partialTest);
+        assign(partialTest);
         login(candidateEmail, "CANDIDATE");
         long partialSubmission = submissions.start(partialTest, new StartSubmissionRequest(applicationId)).id();
         submissions.save(partialSubmission, multiSave(partial.id(), List.of(partial.options().getFirst().id())));
@@ -596,7 +617,7 @@ class AssessmentFlowTest {
         assessments.update(id, new JobTestRequest(jobId, "Timed sections", null, 30, null, 1));
         var choice = questions.create(id, question("Choice", 5, 0));
         questions.create(id, new QuestionRequest("Explain", 5, 1, null, null, null, List.of(), QuestionType.ESSAY));
-        questions.publish(id); login(candidateEmail, "CANDIDATE");
+        questions.publish(id); assign(id); login(candidateEmail, "CANDIDATE");
         long submission = submissions.start(id, new StartSubmissionRequest(applicationId)).id();
         submissions.save(submission, save(choice.id(), choice.options().getFirst().id()));
         tx.executeWithoutResult(status -> em.find(Submission.class, submission).setStartedAt(Instant.now().minusSeconds(70)));
@@ -617,7 +638,7 @@ class AssessmentFlowTest {
         long id = draft();
         var created = questions.create(id, new QuestionRequest("Solve", 10, 0, "Easy", "Python", null, List.of(), QuestionType.CODING, null, coding));
         assertThat(questions.list(id).getFirst().coding().testCases()).hasSize(2);
-        questions.publish(id); login(candidateEmail, "CANDIDATE");
+        questions.publish(id); assign(id); login(candidateEmail, "CANDIDATE");
         var started = submissions.start(id, new StartSubmissionRequest(applicationId));
         assertThat(started.questions().getFirst().coding().harness()).isNull();
         assertThat(started.questions().getFirst().coding().testCases()).hasSize(1);
@@ -640,6 +661,7 @@ class AssessmentFlowTest {
                                 new com.smarthire.tenant.assessment.dto.request.CodingRequest.Case("1", "1", true),
                                 new com.smarthire.tenant.assessment.dto.request.CodingRequest.Case("2", "2", false)))));
         questions.publish(id);
+        assign(id);
         login(candidateEmail, "CANDIDATE");
         long submission = submissions.start(id, new StartSubmissionRequest(applicationId)).id();
         assertThatThrownBy(() -> submissions.save(submission, new SaveAnswersRequest(List.of(
@@ -738,6 +760,7 @@ class AssessmentFlowTest {
         var first = questions.create(testId, new QuestionRequest("First essay", 5, 1, null, null, null, List.of(), QuestionType.ESSAY));
         var second = questions.create(testId, new QuestionRequest("Second essay", 5, 2, null, null, null, List.of(), QuestionType.ESSAY));
         questions.publish(testId);
+        assign(testId);
         login(candidateEmail, "CANDIDATE");
         long id = submissions.start(testId, new StartSubmissionRequest(applicationId)).id();
         submissions.save(id, save(choice.id(), choice.options().getFirst().id()));
@@ -766,7 +789,19 @@ class AssessmentFlowTest {
     }
 
     private long draft() { return assessments.create(request()).id(); }
-    private long published() { long id = draft(); questions.create(id, question("One", 5, 0)); questions.publish(id); return id; }
+    private long published() { long id = draft(); questions.create(id, question("One", 5, 0)); questions.publish(id); assign(id); return id; }
+
+    private void assign(long testId) {
+        tx.executeWithoutResult(status -> {
+            var application = em.find(Application.class, applicationId);
+            for (JobTest existing : em.createQuery("select t from JobTest t where t.assignedApplication.id = :id", JobTest.class)
+                    .setParameter("id", applicationId).getResultList()) {
+                existing.setAssignedApplication(null);
+            }
+            em.flush();
+            em.find(JobTest.class, testId).setAssignedApplication(application);
+        });
+    }
     private QuestionRequest question(String text, int points, int order) {
         return new QuestionRequest(text, points, order, "Easy", "Java", null,
                 List.of(new QuestionRequest.OptionRequest("Correct", true),

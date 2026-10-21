@@ -11,6 +11,7 @@ import com.smarthire.domain.tenant.entity.Application;
 import com.smarthire.domain.tenant.entity.Candidate;
 import com.smarthire.domain.tenant.entity.Cv;
 import com.smarthire.domain.tenant.entity.Job;
+import com.smarthire.domain.tenant.entity.MatchScore;
 import com.smarthire.domain.tenant.entity.User;
 import com.smarthire.domain.tenant.repository.ApplicationRepository;
 import com.smarthire.domain.tenant.repository.ApplicationStatusHistoryRepository;
@@ -27,7 +28,12 @@ import com.smarthire.tenant.cv.service.CvAccess;
 import com.smarthire.tenant.cv.service.CvApplicationCopyService;
 import com.smarthire.tenant.job.mapper.JobMapper;
 import com.smarthire.tenant.job.screening.GateScreeningService;
-import com.smarthire.domain.tenant.entity.MatchScore;
+import com.smarthire.domain.enums.TestSubmissionStatus;
+import com.smarthire.domain.tenant.entity.JobTest;
+import com.smarthire.domain.tenant.entity.Submission;
+import com.smarthire.domain.tenant.repository.JobTestRepository;
+import com.smarthire.domain.tenant.repository.SubmissionRepository;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -43,6 +49,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -56,7 +63,8 @@ class ApplicantServiceTest {
     @Mock RecruitmentStageRepository stages;
     @Mock CvAccess access;
     @Mock AiInterviewInvitationService invitations;
-    @Mock com.smarthire.tenant.assessment.service.AssessmentInvitationService assessmentInvites;
+    @Mock JobTestRepository jobTests;
+    @Mock SubmissionRepository assessmentSubmissions;
     @Mock JobPublisher publisher;
     @Mock GateScreeningService gateScreening;
     @Mock CvApplicationCopyService cvCopies;
@@ -72,7 +80,7 @@ class ApplicantServiceTest {
     void setUp() {
         service = new ApplicantService(
                 applications, history, jobs, users, cvs, stages, access, new JobMapper(), new ApplicantMapper(),
-                invitations, assessmentInvites, publisher, gateScreening, cvCopies, closures);
+                invitations, publisher, gateScreening, cvCopies, closures, jobTests, assessmentSubmissions);
         candidate = new Candidate();
         candidate.setId(9L);
         candidate.setEmail("can@se36.local");
@@ -149,7 +157,6 @@ class ApplicantServiceTest {
         when(applications.findByIdForUpdate(4L)).thenReturn(Optional.of(application));
         service.advanceFromCvScreening(cv, score);
         assertThat(application.getStatus()).isEqualTo(ApplicationStatus.ASSESSMENT);
-        verify(assessmentInvites).inviteFixedDemoAfterCvPass(application);
         verify(invitations).invite(4L, null);
         org.mockito.Mockito.verifyNoInteractions(access);
     }
@@ -167,7 +174,7 @@ class ApplicantServiceTest {
         service.advanceFromCvScreening(cv, score);
         assertThat(application.getStatus()).isEqualTo(ApplicationStatus.REJECTED);
         verify(closures).onClosed(eq(application), any());
-        org.mockito.Mockito.verifyNoInteractions(invitations, assessmentInvites, access);
+        org.mockito.Mockito.verifyNoInteractions(invitations, access);
     }
 
     @Test
@@ -404,7 +411,6 @@ class ApplicantServiceTest {
         service.advanceFromCvScreening(cv, score);
 
         assertThat(application.getStatus()).isEqualTo(ApplicationStatus.ASSESSMENT);
-        verify(assessmentInvites).inviteFixedDemoAfterCvPass(application);
         verify(invitations).invite(4L, null);
         verify(gateScreening).recalculate(application);
     }
@@ -424,7 +430,7 @@ class ApplicantServiceTest {
 
         assertThat(application.getStatus()).isEqualTo(ApplicationStatus.REJECTED);
         assertThat(application.getCvScreeningStatus()).isEqualTo(CvScreeningStatus.FAILED);
-        org.mockito.Mockito.verifyNoInteractions(invitations, assessmentInvites);
+        org.mockito.Mockito.verifyNoInteractions(invitations);
     }
 
     @Test
@@ -443,7 +449,7 @@ class ApplicantServiceTest {
         service.advanceFromCvScreening(cv, score);
 
         assertThat(application.getStatus()).isEqualTo(ApplicationStatus.ASSESSMENT);
-        org.mockito.Mockito.verifyNoInteractions(invitations, assessmentInvites);
+        org.mockito.Mockito.verifyNoInteractions(invitations);
         verify(gateScreening).recalculate(application);
     }
 
@@ -463,7 +469,7 @@ class ApplicantServiceTest {
 
         assertThat(application.getStatus()).isEqualTo(ApplicationStatus.IN_REVIEW);
         assertThat(application.getCvScreeningStatus()).isEqualTo(CvScreeningStatus.PENDING);
-        org.mockito.Mockito.verifyNoInteractions(invitations, assessmentInvites);
+        org.mockito.Mockito.verifyNoInteractions(invitations);
         verify(gateScreening).recalculate(application);
     }
 
@@ -478,7 +484,6 @@ class ApplicantServiceTest {
 
         assertThat(detail.status()).isEqualTo("ASSESSMENT");
         assertThat(detail.cvScreeningStatus()).isEqualTo("PASSED");
-        verify(assessmentInvites).inviteFixedDemoAfterCvPass(application);
         verify(invitations).invite(4L, null);
     }
 
@@ -494,7 +499,7 @@ class ApplicantServiceTest {
         assertThat(detail.cvScreeningStatus()).isEqualTo("FAILED");
         assertThat(detail.withdrawable()).isFalse();
         verify(closures).onClosed(eq(application), any());
-        org.mockito.Mockito.verifyNoInteractions(invitations, assessmentInvites);
+        org.mockito.Mockito.verifyNoInteractions(invitations);
     }
 
     @Test
@@ -508,6 +513,56 @@ class ApplicantServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(ex -> ((BusinessException) ex).getCode())
                 .isEqualTo("APPLICATION_NOT_IN_CV_ROUND");
+    }
+
+    @Test
+    void officialAssessmentPassOpensHumanInterview() {
+        application.setStatus(ApplicationStatus.ASSESSMENT);
+        scoredPaper(new BigDecimal("5.00"), new BigDecimal("7.00"), TestSubmissionStatus.GRADED);
+        when(applications.findByIdForUpdate(4L)).thenReturn(Optional.of(application));
+
+        service.settleAfterAssessment(4L);
+
+        assertThat(application.getStatus()).isEqualTo(ApplicationStatus.HUMAN_INTERVIEW);
+        verify(gateScreening).recalculate(application);
+        verify(closures, never()).onClosed(any(), any());
+    }
+
+    @Test
+    void officialAssessmentMissClosesApplication() {
+        application.setStatus(ApplicationStatus.ASSESSMENT);
+        scoredPaper(new BigDecimal("5.00"), new BigDecimal("2.00"), TestSubmissionStatus.EXPIRED);
+        when(applications.findByIdForUpdate(4L)).thenReturn(Optional.of(application));
+
+        service.settleAfterAssessment(4L);
+
+        assertThat(application.getStatus()).isEqualTo(ApplicationStatus.FAILED);
+        verify(closures).onClosed(eq(application), any());
+    }
+
+    @Test
+    void assessmentWithoutThresholdStaysForRecruiter() {
+        application.setStatus(ApplicationStatus.ASSESSMENT);
+        scoredPaper(null, new BigDecimal("9.00"), TestSubmissionStatus.GRADED);
+        when(applications.findByIdForUpdate(4L)).thenReturn(Optional.of(application));
+
+        service.settleAfterAssessment(4L);
+
+        assertThat(application.getStatus()).isEqualTo(ApplicationStatus.ASSESSMENT);
+        verify(closures, never()).onClosed(any(), any());
+    }
+
+    private void scoredPaper(BigDecimal passingScore, BigDecimal score, TestSubmissionStatus status) {
+        JobTest paper = new JobTest();
+        paper.setId(8L);
+        paper.setPassingScore(passingScore);
+        Submission submission = new Submission();
+        submission.setId(3L);
+        submission.setStatus(status);
+        submission.setScore(score);
+        when(jobTests.findByAssignedApplication_Id(4L)).thenReturn(Optional.of(paper));
+        when(assessmentSubmissions.findLatestIds(eq(8L), eq(4L), any())).thenReturn(List.of(3L));
+        when(assessmentSubmissions.findById(3L)).thenReturn(Optional.of(submission));
     }
 
     private void stubStaffDetail() {
