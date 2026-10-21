@@ -1,7 +1,6 @@
 package com.smarthire.tenant.assessment.service;
 
 import com.smarthire.common.exception.BusinessException;
-import com.smarthire.domain.enums.AiInterviewStatus;
 import com.smarthire.domain.enums.ApplicationStatus;
 import com.smarthire.domain.enums.NotificationCategory;
 import com.smarthire.domain.enums.NotificationStatus;
@@ -15,7 +14,6 @@ import com.smarthire.domain.tenant.entity.Job;
 import com.smarthire.domain.tenant.entity.JobTest;
 import com.smarthire.domain.tenant.entity.Notification;
 import com.smarthire.domain.tenant.entity.User;
-import com.smarthire.domain.tenant.repository.AiInterviewRepository;
 import com.smarthire.domain.tenant.repository.ApplicationRepository;
 import com.smarthire.domain.tenant.repository.ApplicationStatusHistoryRepository;
 import com.smarthire.domain.tenant.repository.EmailOutboxRepository;
@@ -48,7 +46,6 @@ public class AssessmentInvitationService {
     private final JobTestRepository tests;
     private final ApplicationRepository applications;
     private final SubmissionRepository submissions;
-    private final AiInterviewRepository aiInterviews;
     private final ApplicationStatusHistoryRepository history;
     private final RecruitmentStageRepository stages;
     private final NotificationRepository notifications;
@@ -57,17 +54,18 @@ public class AssessmentInvitationService {
     private final TenantPublicUrlService publicUrls;
     private final CvAccess access;
     private final NotificationPreferenceService preferences;
+    private final AssessmentDemoSeedService demoSeed;
 
     public AssessmentInvitationService(JobTestRepository tests, ApplicationRepository applications,
-            SubmissionRepository submissions, AiInterviewRepository aiInterviews,
+            SubmissionRepository submissions,
             ApplicationStatusHistoryRepository history, RecruitmentStageRepository stages,
             NotificationRepository notifications, EmailOutboxRepository outbox, InviteMailSender mail,
-            TenantPublicUrlService publicUrls, CvAccess access, NotificationPreferenceService preferences) {
+            TenantPublicUrlService publicUrls, CvAccess access, NotificationPreferenceService preferences,
+            AssessmentDemoSeedService demoSeed) {
         this.preferences = preferences;
         this.tests = tests;
         this.applications = applications;
         this.submissions = submissions;
-        this.aiInterviews = aiInterviews;
         this.history = history;
         this.stages = stages;
         this.notifications = notifications;
@@ -75,6 +73,21 @@ public class AssessmentInvitationService {
         this.mail = mail;
         this.publicUrls = publicUrls;
         this.access = access;
+        this.demoSeed = demoSeed;
+    }
+
+    /** System invite after CV pass: ensure fixed demo paper exists and notify the candidate. */
+    @Transactional
+    public SendAssessmentResponse inviteFixedDemoAfterCvPass(Application application) {
+        if (application.getArchivedAt() != null || application.getWithdrawnAt() != null
+                || !SENDABLE.contains(application.getStatus())) {
+            throw conflict("Application is not eligible for assessment", "APPLICATION_NOT_ELIGIBLE");
+        }
+        JobTest test = demoSeed.ensurePublishedDemo(application.getJob());
+        return notifyCandidate(application, test, application.getJob().getCreatedBy(),
+                "Bạn đã vượt vòng lọc CV cho vị trí " + application.getJob().getTitle()
+                        + ". Bài \"" + test.getTitle() + "\" đã sẵn sàng. Thời gian làm bài "
+                        + test.getDurationMinutes() + " phút, bắt đầu tính khi bạn bấm bắt đầu.");
     }
 
     @Transactional
@@ -93,18 +106,16 @@ public class AssessmentInvitationService {
         if (!application.getJob().getId().equals(test.getJob().getId())) {
             throw conflict("Application does not belong to the test job", "APPLICATION_JOB_MISMATCH");
         }
-        if (test.getAssignedApplication() != null && !test.getAssignedApplication().getId().equals(application.getId())) {
-            throw conflict("Assessment is assigned to a different application", "APPLICATION_JOB_MISMATCH");
+        if (test.getAssignedApplication() == null || !test.getAssignedApplication().getId().equals(application.getId())) {
+            throw conflict("Only the paper assigned to this application can be sent", "ASSESSMENT_NOT_ASSIGNED");
         }
         if (application.getArchivedAt() != null || application.getWithdrawnAt() != null
                 || !SENDABLE.contains(application.getStatus())) {
             throw conflict("Application is not eligible for assessment", "APPLICATION_NOT_ELIGIBLE");
         }
-        if (!aiInterviews.existsByApplication_IdAndStatus(application.getId(), AiInterviewStatus.PASSED)) {
-            throw conflict("AI interview must be passed before sending assessment", "AI_INTERVIEW_NOT_PASSED");
-        }
         var latest = submissions.findLatestIds(testId, application.getId(), PageRequest.of(0, 1));
-        if (!latest.isEmpty() && submissions.findById(latest.getFirst())
+        if (!AssessmentDemoSeedService.DEMO_TITLE.equals(test.getTitle())
+                && !latest.isEmpty() && submissions.findById(latest.getFirst())
                 .map(s -> COMPLETED.contains(s.getStatus())).orElse(false)) {
             throw conflict("Candidate already completed this assessment", "ASSESSMENT_ALREADY_COMPLETED");
         }
@@ -123,12 +134,16 @@ public class AssessmentInvitationService {
                     .ifPresent(application::setStage);
         }
 
+        return notifyCandidate(application, test, actor,
+                "Nhà tuyển dụng mời bạn làm bài \"" + test.getTitle() + "\" cho vị trí " + application.getJob().getTitle()
+                        + ". Thời gian làm bài " + test.getDurationMinutes() + " phút, bắt đầu tính khi bạn bấm bắt đầu.");
+    }
+
+    private SendAssessmentResponse notifyCandidate(Application application, JobTest test, User actor, String body) {
         Candidate candidate = application.getCandidate();
         String jobTitle = application.getJob().getTitle();
-        String path = "/candidate/assessments?applicationId=" + application.getId();
+        String path = "/assessments?applicationId=" + application.getId();
         String title = "Lời mời làm bài Assessment";
-        String body = "Nhà tuyển dụng mời bạn làm bài \"" + test.getTitle() + "\" cho vị trí " + jobTitle
-                + ". Thời gian làm bài " + test.getDurationMinutes() + " phút, bắt đầu tính khi bạn bấm bắt đầu.";
         if (!preferences.webOff(candidate, NotificationCategory.ASSESSMENT)) {
             notifications.save(Notification.builder()
                     .candidate(candidate)

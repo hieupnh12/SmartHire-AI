@@ -251,7 +251,7 @@ class MasterBillingServiceTest {
     }
 
     @Test
-    void approveInvoice_PendingInvoice_ProvisionsTenantAndSendsMail() {
+    void approveInvoice_PendingInvoice_SchedulesProvisioningAndListenerSendsMail() {
         Invoice invoice = Invoice.builder()
                 .id(50L)
                 .invoiceNumber("INV-202609-0050")
@@ -291,6 +291,18 @@ class MasterBillingServiceTest {
         assertThat(invoice.getStatus()).isEqualTo("PAID");
         assertThat(invoice.getPaidAt()).isNotNull();
         assertThat(subscription.getStatus()).isEqualTo("ACTIVE");
+
+        var event = ArgumentCaptor.forClass(com.smarthire.master.billing.event.TenantPaymentSuccessEvent.class);
+        verify(eventPublisher).publishEvent(event.capture());
+        assertThat(event.getValue().tenantId()).isEqualTo(10L);
+        assertThat(event.getValue().subscriptionId()).isEqualTo(20L);
+        assertThat(event.getValue().invoiceNumber()).isEqualTo("INV-202609-0050");
+        verifyNoInteractions(masterTenantService, masterNotificationService);
+
+        var listener = new com.smarthire.master.billing.event.TenantProvisioningEventListener(
+                tenantRepository, subscriptionRepository, planRepository, masterTenantService, masterNotificationService);
+        ReflectionTestUtils.setField(listener, "baseDomain", "smarthire.top");
+        listener.onTenantPaymentSuccess(event.getValue());
 
         verify(masterTenantService).provisionPendingTenant(10L);
         verify(masterNotificationService).sendWorkspaceActivated(

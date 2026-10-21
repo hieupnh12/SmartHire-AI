@@ -1,154 +1,315 @@
-import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ClipboardCheck } from "lucide-react";
+import { useMemo } from "react";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import {
+  ArrowRight,
+  ClipboardCheck,
+  Clock3,
+  FileSearch,
+  RefreshCw,
+  ShieldCheck,
+  Trophy,
+} from "lucide-react";
+import type { AvailableAssessment, SubmissionStatus } from "@/api/types/assessment";
+import type { ApplicationSummary } from "@/api/types/applicant";
 import { applicantApi } from "@/api/tenant/applicantApi";
 import { assessmentApi } from "@/api/tenant/assessmentApi";
-import { AssessmentError, assessmentMuted as muted } from "@/components/ux/assessmentUi";
-import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
-import { getTenantIdFromWindow } from "@/lib/tenant";
-import { getTenantTheme } from "@/lib/tenantTheme";
+import { Button } from "@/components/ux/Button";
+import { LoadingState, SkeletonCard } from "@/components/ux/Skeleton";
+import { getApiErrorMessage } from "@/lib/axios";
 import { queryKeys } from "@/lib/query-keys";
-import { AssessmentInvitationView } from "../components/AssessmentInvitationView";
+import { isDemoAssessmentTitle, shortAssessmentTitle } from "@/lib/assessmentTitle";
+
+type Invitation = {
+  application: ApplicationSummary;
+  test: AvailableAssessment;
+};
+
+const STATUS_TONE: Record<string, string> = {
+  NOT_STARTED: "bg-slate-100 text-slate-700",
+  IN_PROGRESS: "bg-violet-50 text-violet-700",
+  SUBMITTED: "bg-cyan-50 text-cyan-700",
+  GRADED: "bg-emerald-50 text-emerald-700",
+  EXPIRED: "bg-red-50 text-red-700",
+};
+
+const STATUS_LABEL: Record<string, string> = {
+  NOT_STARTED: "Chưa làm",
+  IN_PROGRESS: "Đang làm bài",
+  SUBMITTED: "Đã nộp",
+  GRADED: "Đã chấm",
+  EXPIRED: "Hết hạn",
+};
 
 export function AssessmentsPage() {
   const navigate = useNavigate();
-  const client = useQueryClient();
-  const [params, setParams] = useSearchParams();
-  const [acceptRules, setAcceptRules] = useState(true);
-  const [selectedTestId, setSelectedTestId] = useState<number | null>(null);
-  const [toast, setToast] = useState<string | null>(null);
-  const authUser = useAuthStore((s) => s.user);
-  const companyName = getTenantTheme(getTenantIdFromWindow() ?? "acme").name;
+  const [params] = useSearchParams();
+  const filterAppId = Number(params.get("applicationId")) || 0;
 
   const applications = useQuery({
     queryKey: [...queryKeys.assessments.all(), "applications"],
     queryFn: applicantApi.mine,
   });
-  const eligible = (applications.data?.data ?? []).filter(
-    (a) => !a.archived && a.status === "ASSESSMENT",
+  const eligible = useMemo(
+    () => (applications.data?.data ?? []).filter((a) => !a.archived && (a.status === "ASSESSMENT" || a.status === "HUMAN_INTERVIEW" || a.status === "FAILED")),
+    [applications.data?.data],
   );
-  const requested = Number(params.get("applicationId"));
-  const application = eligible.find((a) => a.id === requested) ?? eligible[0] ?? null;
-  const applicationId = application?.id ?? 0;
 
-  const tests = useQuery({
-    queryKey: queryKeys.assessments.available(applicationId),
-    queryFn: () => assessmentApi.available(applicationId),
-    enabled: applicationId > 0,
-  });
-  const activeTest =
-    tests.data?.find((t) => t.id === selectedTestId) ?? tests.data?.[0] ?? null;
-
-  const start = useMutation({
-    mutationFn: (testId: number) => assessmentApi.start(testId, applicationId),
-    onSuccess: (result) => {
-      client.setQueryData(queryKeys.assessments.submission(result.id), result);
-      navigate(`/assessments/${result.id}/take`);
-    },
+  const testQueries = useQueries({
+    queries: eligible.map((app) => ({
+      queryKey: queryKeys.assessments.available(app.id),
+      queryFn: () => assessmentApi.available(app.id),
+    })),
   });
 
-  const flash = (message: string) => {
-    setToast(message);
-    window.setTimeout(() => setToast(null), 2800);
+  const invitations = useMemo(() => {
+    const rows: Invitation[] = [];
+    eligible.forEach((application, index) => {
+      for (const test of testQueries[index]?.data ?? []) {
+        rows.push({ application, test });
+      }
+    });
+    return filterAppId > 0 ? rows.filter((row) => row.application.id === filterAppId) : rows;
+  }, [eligible, testQueries, filterAppId]);
+
+  const testsLoading = eligible.length > 0 && testQueries.some((q) => q.isPending);
+  const testsError = testQueries.find((q) => q.isError)?.error ?? null;
+
+  const ready = invitations.filter((item) => {
+    const status = item.test.submissionStatus;
+    return !status || status === "NOT_STARTED" || status === "IN_PROGRESS";
+  }).length;
+  const completed = invitations.filter((item) =>
+    ["SUBMITTED", "GRADED", "EXPIRED"].includes(item.test.submissionStatus ?? ""),
+  ).length;
+
+  const openInvitation = (invitation: Invitation) => {
+    const { test, application } = invitation;
+    navigate(`/assessments/${test.id}/invite?applicationId=${application.id}`);
   };
 
-  const openOrStart = () => {
-    if (!activeTest || !application) return;
-    if (activeTest.submissionId && activeTest.submissionStatus && activeTest.submissionStatus !== "NOT_STARTED") {
-      navigate(`/assessments/${activeTest.submissionId}/take`);
+  const openAction = (invitation: Invitation) => {
+    const { test } = invitation;
+    const done =
+      test.submissionStatus === "SUBMITTED" ||
+      test.submissionStatus === "GRADED" ||
+      test.submissionStatus === "EXPIRED";
+    const demo = isDemoAssessmentTitle(test.title);
+    // Result only: open take. Start / continue always goes through invite (rules + device check).
+    if (done && !demo && test.submissionId) {
+      navigate(`/assessments/${test.submissionId}/take`);
       return;
     }
-    if (!acceptRules) {
-      flash("Vui lòng xác nhận quy chế giám sát trước khi bắt đầu.");
-      return;
-    }
-    if (
-      !window.confirm(
-        `Bắt đầu "${activeTest.title}"? Thời gian làm bài là ${activeTest.durationMinutes} phút và tiếp tục chạy khi rời trang.`,
-      )
-    ) {
-      return;
-    }
-    start.mutate(activeTest.id);
+    openInvitation(invitation);
   };
 
   return (
-    <section className="space-y-6 text-[var(--color-on-surface)]">
-      {toast && (
-        <p
-          className="rounded-xl bg-[var(--color-primary-subtle)] px-4 py-2 text-sm text-[var(--color-primary-hover)]"
-          role="status"
-        >
-          {toast}
+    <section className="space-y-6 text-[var(--color-on-surface)]" aria-labelledby="assessments-title">
+      <header className="overflow-hidden rounded-3xl border border-[var(--color-border-default)] bg-[linear-gradient(135deg,var(--color-primary-subtle),white_62%)] px-5 py-6 shadow-[var(--shadow-card)] sm:px-7">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-2xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--color-primary)]">
+              Vòng đánh giá kỹ thuật
+            </p>
+            <h1 id="assessments-title" className="mt-2 text-3xl font-semibold tracking-tight">
+              Bài đánh giá
+            </h1>
+            <p className="mt-2 text-sm leading-6 text-[var(--color-on-surface-variant)]">
+              Mỗi hồ sơ nhận một đề riêng từ ngân hàng câu hỏi. Đề mẫu [Demo UI] dùng để xem giao diện và có thể làm lại nhiều lần, không tính vào kết quả hồ sơ.
+            </p>
+          </div>
+          <div className="grid grid-cols-3 gap-2 sm:gap-3">
+            <Metric value={invitations.length} label="Lời mời" />
+            <Metric value={ready} label="Cần thực hiện" />
+            <Metric value={completed} label="Đã hoàn tất" />
+          </div>
+        </div>
+      </header>
+
+      <div className="flex items-start gap-3 rounded-2xl border border-[var(--color-primary)]/15 bg-[var(--color-primary-subtle)] p-4 text-sm">
+        <ShieldCheck className="mt-0.5 size-5 shrink-0 text-[var(--color-primary)]" aria-hidden="true" />
+        <p className="leading-6 text-[var(--color-on-surface-variant)]">
+          <strong className="text-[var(--color-on-surface)]">Trước khi bắt đầu:</strong> mở lời mời để đọc
+          quy chế và hoàn tất kiểm tra thiết bị. Đồng hồ chỉ chạy sau khi bạn vào phòng thi.
         </p>
+      </div>
+
+      {(applications.isError || testsError) && (
+        <div
+          role="alert"
+          className="rounded-2xl border border-[var(--color-error-container)] bg-[var(--color-error-container)] p-5"
+        >
+          <p className="text-sm text-[var(--color-on-error-container)]">
+            {getApiErrorMessage(applications.error ?? testsError)}
+          </p>
+          <Button
+            className="mt-4"
+            variant="secondary"
+            onClick={() => {
+              void applications.refetch();
+              void Promise.all(testQueries.map((q) => q.refetch()));
+            }}
+          >
+            <RefreshCw className="size-4" aria-hidden="true" />
+            Thử lại
+          </Button>
+        </div>
       )}
 
-      <AssessmentError error={applications.error} retry={() => void applications.refetch()} />
-      <AssessmentError error={tests.error} retry={() => void tests.refetch()} />
-      <AssessmentError error={start.error} />
+      {(applications.isPending || testsLoading) && (
+        <LoadingState className="grid gap-4 lg:grid-cols-2" label="Đang tải lời mời bài đánh giá">
+          {[0, 1, 2, 3].map((item) => (
+            <SkeletonCard key={item} className="min-h-72" />
+          ))}
+        </LoadingState>
+      )}
 
-      {applications.isPending && <p role="status">Đang tải đơn ứng tuyển…</p>}
-
-      {applications.isSuccess && !eligible.length && (
-        <div className="flex items-center gap-3 border-y border-[var(--color-border-default)] py-8">
+      {!applications.isPending && !testsLoading && invitations.length === 0 && (
+        <div className="flex items-start gap-3 rounded-2xl border border-dashed border-[var(--color-border-default)] bg-white p-6 shadow-[var(--shadow-card)]">
           <ClipboardCheck className="size-8 text-[var(--color-primary)]" aria-hidden="true" />
           <div>
-            <p className="font-semibold">Chưa có lời mời bài kiểm tra</p>
-            <p className={muted}>Bài kiểm tra hiện tại đây sau khi bạn đậu vòng phỏng vấn AI và được mời làm bài.</p>
+            <p className="font-semibold">Chưa có đề được giao</p>
+            <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">
+              Đề xuất hiện khi hồ sơ đang ở vòng bài kiểm tra và nhà tuyển dụng đã lưu cấu hình, với ngân hàng đủ câu hỏi.
+            </p>
           </div>
         </div>
       )}
 
-      {application && !!tests.data?.length && activeTest && (
-        <>
-          {tests.data.length > 1 && (
-            <div className="flex flex-wrap gap-2">
-              {tests.data.map((test) => (
-                <button
-                  key={test.id}
-                  type="button"
-                  className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                    test.id === activeTest.id
-                      ? "bg-[var(--color-primary)] text-[var(--color-on-primary,#fff)]"
-                      : "bg-[var(--color-surface-container-low)] text-[var(--color-on-surface-variant)] hover:bg-[var(--color-surface-container)]"
-                  }`}
-                  onClick={() => {
-                    setSelectedTestId(test.id);
-                    setAcceptRules(true);
-                    start.reset();
-                  }}
-                >
-                  {test.title}
-                </button>
-              ))}
-            </div>
-          )}
-
-          <AssessmentInvitationView
-            application={application}
-            test={activeTest}
-            user={authUser}
-            companyName={companyName}
-            acceptRules={acceptRules}
-            onAcceptRulesChange={setAcceptRules}
-            starting={start.isPending}
-            onStart={openOrStart}
-            applications={eligible}
-            onSelectApplication={(id) => {
-              setParams({ applicationId: String(id) });
-              setSelectedTestId(null);
-              setAcceptRules(true);
-              start.reset();
-            }}
-          />
-        </>
-      )}
-
-      {application && tests.isPending && <p role="status">Đang tải bài kiểm tra…</p>}
-      {application && tests.isSuccess && tests.data.length === 0 && (
-        <p className={muted}>Chưa có đề được xuất bản cho vị trí này.</p>
+      {invitations.length > 0 && (
+        <div className="grid gap-4 lg:grid-cols-2">
+          {invitations.map((invitation) => (
+            <AssessmentCard
+              key={`${invitation.application.id}-${invitation.test.id}`}
+              invitation={invitation}
+              onAction={() => openAction(invitation)}
+            />
+          ))}
+        </div>
       )}
     </section>
   );
+}
+
+function AssessmentCard({
+  invitation,
+  onAction,
+}: {
+  invitation: Invitation;
+  onAction: () => void;
+}) {
+  const { application, test } = invitation;
+  const status = (test.submissionStatus ?? "NOT_STARTED") as SubmissionStatus | "NOT_STARTED";
+  const demo = isDemoAssessmentTitle(test.title);
+  const action = actionLabel(status, demo);
+
+  return (
+    <article className="flex min-w-0 flex-col overflow-hidden rounded-2xl border border-[var(--color-border-default)] bg-white shadow-[var(--shadow-card)] transition-[border-color,box-shadow] hover:border-[var(--color-primary)]/30 hover:shadow-[var(--shadow-ambient)]">
+      <div className="flex-1 p-5 sm:p-6">
+        <div className="flex items-start gap-4">
+          <span className="grid size-12 shrink-0 place-items-center rounded-xl bg-[var(--color-primary-subtle)] text-[var(--color-primary)]">
+            <ClipboardCheck className="size-6" aria-hidden="true" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-primary)]">
+                  Lời mời Assessment
+                </p>
+                <h2 className="mt-1 break-words text-lg font-semibold leading-6">
+                  {shortAssessmentTitle(application.jobTitle, test.title)}
+                </h2>
+                <p className="mt-1 truncate text-xs text-[var(--color-on-surface-variant)]">
+                  {application.jobTitle}
+                </p>
+              </div>
+              <span
+                className={`whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold ${STATUS_TONE[status] ?? STATUS_TONE.NOT_STARTED}`}
+              >
+                {STATUS_LABEL[status] ?? STATUS_LABEL.NOT_STARTED}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-3 rounded-xl bg-[var(--color-surface-alt)] p-4 text-sm sm:grid-cols-2">
+          <Fact icon={Clock3} label="Thời lượng" value={`${test.durationMinutes} phút`} />
+          <Fact
+            icon={Trophy}
+            label="Ngưỡng đạt"
+            value={test.passingScore != null ? String(test.passingScore) : "Theo đề"}
+          />
+          <Fact icon={FileSearch} label="Đơn ứng tuyển" value={`#${application.id}`} />
+          <Fact
+            icon={ClipboardCheck}
+            label="Trạng thái bài"
+            value={STATUS_LABEL[status] ?? "Chưa làm"}
+          />
+        </div>
+
+        {test.description ? (
+          <p className="mt-4 line-clamp-3 text-xs leading-5 text-[var(--color-on-surface-variant)]">
+            {test.description}
+          </p>
+        ) : null}
+      </div>
+
+      <div className="flex flex-col gap-3 border-t border-[var(--color-border-default)] bg-[var(--color-surface-alt)] px-5 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+        <span className="text-xs text-[var(--color-on-surface-variant)]">
+          {status === "NOT_STARTED" || !test.submissionStatus
+            ? "Xem lời mời, quy chế rồi kiểm tra thiết bị trước khi vào bài"
+            : status === "IN_PROGRESS"
+              ? "Bạn có thể tiếp tục phiên đang mở"
+              : "Xem kết quả hoặc mở lại lời mời"}
+        </span>
+        <button
+          type="button"
+          onClick={onAction}
+          className="inline-flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-xl bg-[var(--color-primary)] px-4 text-sm font-semibold text-white hover:bg-[var(--color-primary-hover)]"
+        >
+          {action}
+          <ArrowRight className="size-4" aria-hidden="true" />
+        </button>
+      </div>
+    </article>
+  );
+}
+
+function Metric({ value, label }: { value: number; label: string }) {
+  return (
+    <div className="min-w-20 rounded-2xl border border-[var(--color-primary)]/15 bg-white/80 px-3 py-3 text-center">
+      <strong className="block text-xl text-[var(--color-primary)]">{value}</strong>
+      <span className="mt-0.5 block text-[10px] font-medium text-[var(--color-on-surface-variant)] sm:text-xs">
+        {label}
+      </span>
+    </div>
+  );
+}
+
+function Fact({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: typeof Clock3;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="flex gap-2">
+      <Icon className="mt-0.5 size-4 shrink-0 text-[var(--color-primary)]" aria-hidden="true" />
+      <div>
+        <p className="text-xs text-[var(--color-on-surface-variant)]">{label}</p>
+        <p className="mt-0.5 font-medium">{value}</p>
+      </div>
+    </div>
+  );
+}
+
+function actionLabel(status: SubmissionStatus | "NOT_STARTED", demo: boolean) {
+  if (status === "IN_PROGRESS") return "Tiếp tục làm bài";
+  if (status === "SUBMITTED" || status === "GRADED" || status === "EXPIRED") {
+    return demo ? "Làm lại từ đầu" : "Xem kết quả";
+  }
+  return "Xem lời mời";
 }

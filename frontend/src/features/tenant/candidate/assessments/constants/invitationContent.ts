@@ -1,4 +1,4 @@
-export const ASSESSMENT_GUIDELINES = [
+﻿export const ASSESSMENT_GUIDELINES = [
   {
     title: "Đồng hồ đếm ngược liên tục:",
     body: "Khi bạn nhấn bắt đầu, thời gian làm bài sẽ chạy liên tục và không thể tạm dừng vì bất kỳ lý do nào.",

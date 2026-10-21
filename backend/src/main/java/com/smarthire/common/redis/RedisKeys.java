@@ -5,6 +5,9 @@ package com.smarthire.common.redis;
  * See docs/architecture/ASYNC_AND_CACHE.md
  */
 public final class RedisKeys {
+    public static String assessmentGeneration(String tenant, String id) {
+        return "assessment:bank-generation:" + tenant + ":" + id;
+    }
 
     private RedisKeys() {
     }
@@ -39,6 +42,10 @@ public final class RedisKeys {
 
     public static String cvAnalyzeLock(Long cvId) {
         return "lock:cv:analyze:" + cvId;
+    }
+
+    public static String githubAnalyzeLock(Long cvId) {
+        return "lock:github:analyze:" + cvId;
     }
 
     public static String masterRefreshSession(String tokenId) {

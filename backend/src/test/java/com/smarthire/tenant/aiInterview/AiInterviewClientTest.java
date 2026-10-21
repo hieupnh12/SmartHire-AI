@@ -152,6 +152,12 @@ class AiInterviewClientTest {
         server.verify();
     }
 
+    @Test void openAiWithoutKeyNeverUsesGeminiFallbackKey() {
+        when(dynamic.resolveConfig("INTERVIEW_GEN")).thenReturn(new DynamicAiConfigProvider.ResolvedAiConfig(
+                "INTERVIEW_GEN", "OPENAI", "llama", "", "https://llama.example/v1", BigDecimal.ZERO, 2048, 30, null, null));
+        assertThrows(IllegalStateException.class, () -> client.generate("Generate", mapper.createObjectNode()));
+    }
+
     @Test void ollamaWithoutKeyUsesConfiguredEndpoint() throws Exception {
         when(dynamic.resolveConfig("INTERVIEW_GEN")).thenReturn(new DynamicAiConfigProvider.ResolvedAiConfig(
                 "INTERVIEW_GEN", "OLLAMA", "llama3", "", "https://llama.example/v1/chat/completions",

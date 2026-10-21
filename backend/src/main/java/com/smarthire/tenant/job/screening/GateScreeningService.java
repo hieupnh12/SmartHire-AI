@@ -10,9 +10,11 @@ import com.smarthire.domain.tenant.entity.Application;
 import com.smarthire.domain.tenant.entity.Cv;
 import com.smarthire.domain.tenant.entity.GateScore;
 import com.smarthire.domain.tenant.entity.JobScreeningConfig;
+import com.smarthire.domain.tenant.entity.JobTest;
 import com.smarthire.domain.tenant.entity.MatchScore;
 import com.smarthire.domain.tenant.entity.Submission;
 import com.smarthire.domain.tenant.repository.GateScoreRepository;
+import com.smarthire.domain.tenant.repository.JobTestRepository;
 import com.smarthire.domain.tenant.repository.MatchScoreRepository;
 import com.smarthire.domain.tenant.repository.RankingDataRepository;
 import com.smarthire.tenant.applicant.dto.ApplicantModels.GateScoreView;
@@ -33,6 +35,7 @@ public class GateScreeningService {
 
     private final JobScreeningConfigService screening;
     private final RankingDataRepository ranking;
+    private final JobTestRepository tests;
     private final MatchScoreRepository matches;
     private final GateScoreRepository gates;
     private final ObjectMapper mapper;
@@ -40,11 +43,13 @@ public class GateScreeningService {
     public GateScreeningService(
             JobScreeningConfigService screening,
             RankingDataRepository ranking,
+            JobTestRepository tests,
             MatchScoreRepository matches,
             GateScoreRepository gates,
             ObjectMapper mapper) {
         this.screening = screening;
         this.ranking = ranking;
+        this.tests = tests;
         this.matches = matches;
         this.gates = gates;
         this.mapper = mapper;
@@ -185,8 +190,7 @@ public class GateScreeningService {
     }
 
     private Submission latestAssessmentAny(long applicationId) {
-        List<Submission> submissions = ranking.submissions(applicationId);
-        return submissions.isEmpty() ? null : submissions.get(submissions.size() - 1);
+        return submissionsOfAssignedPaper(applicationId).reduce((first, second) -> second).orElse(null);
     }
 
     private AiInterview latestInterview(long applicationId) {
@@ -200,13 +204,20 @@ public class GateScreeningService {
     }
 
     private Submission latestAssessment(long applicationId) {
-        List<Submission> submissions = ranking.submissions(applicationId);
-        for (int i = submissions.size() - 1; i >= 0; i--) {
-            Submission submission = submissions.get(i);
-            if (submission.getId() == null || submission.getStatus() != TestSubmissionStatus.GRADED) continue;
-            if (submission.getScore() != null) return submission;
+        Submission chosen = null;
+        for (Submission submission : submissionsOfAssignedPaper(applicationId).toList()) {
+            if (submission.getId() == null || submission.getScore() == null) continue;
+            if (submission.getStatus() != TestSubmissionStatus.GRADED && submission.getStatus() != TestSubmissionStatus.EXPIRED) continue;
+            if (chosen == null || submission.getId() > chosen.getId()) chosen = submission;
         }
-        return null;
+        return chosen;
+    }
+
+    private java.util.stream.Stream<Submission> submissionsOfAssignedPaper(long applicationId) {
+        JobTest paper = tests.findByAssignedApplication_Id(applicationId).orElse(null);
+        if (paper == null || paper.getId() == null) return java.util.stream.Stream.empty();
+        return ranking.submissions(applicationId).stream()
+                .filter(submission -> submission.getTest() != null && paper.getId().equals(submission.getTest().getId()));
     }
 
     private static boolean presentOrUnused(BigDecimal weight, boolean present) {

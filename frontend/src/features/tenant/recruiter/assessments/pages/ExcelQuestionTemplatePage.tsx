@@ -1,4 +1,6 @@
-import { QuestionContentFields } from "../components/QuestionContentFields";
+import { CodingStarterFields, codingAuthoringValue, QuestionContentFields } from "../components/QuestionContentFields";
+import { CodingTestVerification } from "../components/CodingTestVerification";
+import type { EssayRubric } from "@/api/types/assessment";
 import { ExcelImportReview } from "../components/ExcelImportReview";
 import { useRecruitmentJob } from "../../jobs/components/JobRecruitmentWorkspace";
 import { useEffect, useMemo, useRef, useState, type ClipboardEvent, type ReactNode } from "react";
@@ -793,7 +795,10 @@ export function ExcelQuestionEditor({ job, generalBank }: {
   }, [validation]);
   const [reviewingImport, setReviewingImport] = useState(false);
   const [view, setView] = useState<ViewId>("all");
-  const [typeFilter, setTypeFilter] = useState<TypeFilter>("ALL");
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>(() => {
+    const draft = generalBank ? generalBank.initialQuestions : loadExcelQuestionDraft(jobId);
+    return draft?.[0] && isSubjectiveKind(draft[0].kind) ? "SUBJECTIVE" : "ALL";
+  });
   const [questions, setQuestions] = useState<BankQuestion[]>(() => {
     const draft = generalBank ? generalBank.initialQuestions : loadExcelQuestionDraft(jobId);
     if (draft?.length) return withAutoQuestionIds(draft);
@@ -973,7 +978,28 @@ export function ExcelQuestionEditor({ job, generalBank }: {
         pushUndo(rows);
         editSessionRef.current = sessionKey;
       }
-      return withAutoQuestionIds(rows.map((row, index) => (index === rowIndex ? { ...row, ...safePatch } : row)));
+      return withAutoQuestionIds(rows.map((row, index) => {
+        if (index !== rowIndex) return row;
+        const next = { ...row, ...safePatch };
+        if (next.kind === "TU_LUAN_CODE") {
+          next.codingJsonText = codingAuthoringValue(next.codingJsonText, next.language, next.snippet);
+          try {
+            const coding = JSON.parse(next.codingJsonText) as { starterCode?: Record<string, string> };
+            const first = Object.entries(coding.starterCode ?? {})[0];
+            next.language = first?.[0] ?? "";
+            next.snippet = first?.[1] ?? "";
+          } catch { /* Keep malformed metadata for validation to report. */ }
+        }
+        if (next.kind === "TINH_HUONG_SYSTEM" && next.rubricJsonText && ("sample" in safePatch || "rubric" in safePatch)) {
+          try {
+            const rubric = JSON.parse(next.rubricJsonText) as EssayRubric;
+            next.rubricJsonText = JSON.stringify({ ...rubric, referenceAnswer: next.sample,
+              ...("rubric" in safePatch ? { criteria: [{ description: next.rubric.map(item => item.text).join("; "), weight: 100 }] } : {}),
+            });
+          } catch { /* Keep malformed metadata for validation to report. */ }
+        }
+        return next;
+      }));
     });
     setSavedNote("");
   }
@@ -1310,10 +1336,8 @@ export function ExcelQuestionEditor({ job, generalBank }: {
     setSelectedIndex(rowIndex);
     setActiveEdit({ rowIndex, field: "content" });
     setActiveCell(`A${rowIndex + 2}`);
-    if (typeFilter !== "ALL") {
-      if (isSubjectiveKind(kind)) setTypeFilter("SUBJECTIVE");
-      else setTypeFilter(kind);
-    }
+    if (isSubjectiveKind(kind)) setTypeFilter("SUBJECTIVE");
+    else if (typeFilter !== "ALL") setTypeFilter(kind);
   }
 
   function addQuestion(kind: QuestionKind = "TRAC_NGHIEM_DON") {
@@ -1322,6 +1346,7 @@ export function ExcelQuestionEditor({ job, generalBank }: {
       return;
     }
     const next = blankQuestion(kind);
+    if (kind === "TU_LUAN_CODE") next.codingJsonText = codingAuthoringValue(undefined, next.language, next.snippet);
     next.id = questionIdForIndex(questions.length);
     setQuestions((rows) => {
       pushUndo(rows);
@@ -1332,7 +1357,7 @@ export function ExcelQuestionEditor({ job, generalBank }: {
     setSelectedIndex(index);
     setActiveEdit({ rowIndex: index, field: "content" });
     setActiveCell(`A${index + 2}`);
-    setTypeFilter("ALL");
+    setTypeFilter(isSubjectiveKind(kind) ? "SUBJECTIVE" : kind);
     setView("all");
     setCapacityNote("");
   }
@@ -1385,7 +1410,7 @@ export function ExcelQuestionEditor({ job, generalBank }: {
     onEdit={index => {
       setReviewingImport(false);
       setView("all");
-      setTypeFilter("ALL");
+      setTypeFilter(isSubjectiveKind(questions[index].kind) ? "SUBJECTIVE" : "ALL");
       setSelectedIndex(index);
       setActiveEdit({ rowIndex: index, field: "content" });
       setActiveCell(`A${index + 2}`);
@@ -1426,7 +1451,7 @@ export function ExcelQuestionEditor({ job, generalBank }: {
       {validation.length > 0 && <div ref={validationRef} tabIndex={-1} role="alert" className="rounded-lg border border-[var(--color-error)] bg-[var(--color-error-container)] p-3 text-sm text-[var(--color-on-error-container)]"><p className="font-semibold">Kiểm tra lại nội dung</p><ul className="mt-2 list-inside list-disc">{validation.map((message, index) => <li key={index}>{message}{/^Dòng \d+:/.test(message) && <button type="button" className="ml-2 underline" onClick={() => {
         const rowIndex = Number(message.match(/^Dòng (\d+):/)?.[1]) - 2;
         const field = message.includes("kỹ năng") ? "skill" : message.includes("Độ khó") ? "difficulty" : "content";
-        setView("all"); setTypeFilter("ALL"); setSelectedIndex(rowIndex);
+        setView("all"); setTypeFilter(questions[rowIndex] && isSubjectiveKind(questions[rowIndex].kind) ? "SUBJECTIVE" : "ALL"); setSelectedIndex(rowIndex);
         setActiveEdit({ rowIndex, field }); setActiveCell(`${field === "skill" ? "E" : field === "difficulty" ? "D" : "A"}${rowIndex + 2}`);
       }}>Sửa dòng này</button>}</li>)}</ul></div>}
 
@@ -1514,7 +1539,7 @@ export function ExcelQuestionEditor({ job, generalBank }: {
             </button>
           </div>
           {view === "all" && (
-            <Button type="button" variant="secondary" size="sm" onClick={() => addQuestion("TRAC_NGHIEM_DON")}>
+            <Button type="button" variant="secondary" size="sm" onClick={() => addQuestion(typeFilter === "SUBJECTIVE" ? "TINH_HUONG_SYSTEM" : typeFilter === "NHIEU_DAP_AN" ? "NHIEU_DAP_AN" : "TRAC_NGHIEM_DON")}>
               <Plus className="size-3.5" aria-hidden="true" />
               Thêm câu
             </Button>
@@ -1523,6 +1548,7 @@ export function ExcelQuestionEditor({ job, generalBank }: {
 
         {view === "all" && (
           <>
+            {typeFilter !== "SUBJECTIVE" && <>
             <div className="flex items-center gap-2 border-b border-[var(--color-border-default)] bg-[var(--color-surface-container-low)] px-2 py-1.5">
               <div className="flex h-7 min-w-14 items-center justify-center rounded bg-[var(--color-surface-card)] px-2 font-mono text-xs font-semibold text-[var(--color-primary)]">
                 {activeCell}
@@ -1973,7 +1999,29 @@ export function ExcelQuestionEditor({ job, generalBank }: {
               </div>
             )}
 
-            {selectedQuestion && isSubjectiveKind(selectedQuestion.kind) && (
+            </>}
+            {typeFilter === "SUBJECTIVE" && <section className="space-y-4 border-b border-[var(--color-border-default)] p-4 sm:p-6" aria-label="Soạn câu tự luận và lý thuyết">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div><h2 className="font-semibold">Biên soạn câu hỏi tự luận & lý thuyết</h2><p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">Chọn câu hỏi để chỉnh sửa hoặc thêm câu mới theo từng loại.</p></div>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="secondary" size="sm" onClick={() => addQuestion("TINH_HUONG_SYSTEM")}><Plus className="size-4" aria-hidden="true" />Thêm câu lý thuyết</Button>
+                  <Button size="sm" onClick={() => addQuestion("TU_LUAN_CODE")}><Code2 className="size-4" aria-hidden="true" />Thêm câu tự luận code</Button>
+                </div>
+              </div>
+              <div className="overflow-x-auto rounded-xl border border-[var(--color-border-default)]">
+                <table className="w-full min-w-[600px] text-left text-xs">
+                  <thead className="bg-[var(--color-surface-container-low)] text-[var(--color-on-surface-variant)]"><tr><th className="p-3">STT</th><th className="p-3">Nội dung câu hỏi</th><th className="p-3">Loại</th><th className="p-3">Điểm</th><th className="p-3">Độ khó</th><th className="p-3">Kỹ năng</th></tr></thead>
+                  <tbody>{questions.map((question, index) => isSubjectiveKind(question.kind) && <tr key={question.id} className={cn("border-t border-[var(--color-border-default)]", selectedIndex === index && "bg-[var(--color-primary-subtle)]")}>
+                    <td className="p-3 font-mono">{index + 1}</td><td className="max-w-md p-3"><button type="button" aria-pressed={selectedIndex === index} className="w-full truncate text-left font-semibold text-[var(--color-primary)] focus-visible:outline focus-visible:outline-2" onClick={() => setSelectedIndex(index)}>{question.content || "Câu hỏi chưa có nội dung"}</button></td><td className="p-3">{typeMeta(question.kind).label}</td><td className="p-3">{question.score}</td><td className="p-3">{question.difficulty || "—"}</td><td className="p-3">{question.skill || "—"}</td>
+                  </tr>)}</tbody>
+                </table>
+                {counts.subjective === 0 && <p className="p-6 text-center text-sm text-[var(--color-on-surface-variant)]">Chưa có câu hỏi. Chọn loại câu phía trên để bắt đầu biên soạn.</p>}
+              </div>
+              {selectedQuestion && isSubjectiveKind(selectedQuestion.kind) && <div className="flex flex-wrap gap-2" aria-label="Loại câu đang soạn">
+                {QUESTION_TYPE_OPTIONS.filter(option => option.group === "subjective").map(option => <Button key={option.value} variant={selectedQuestion.kind === option.value ? "primary" : "secondary"} aria-pressed={selectedQuestion.kind === option.value} onClick={() => changeKind(selectedIndex, option.value)}>{option.label}</Button>)}
+              </div>}
+            </section>}
+            {typeFilter === "SUBJECTIVE" && selectedQuestion && isSubjectiveKind(selectedQuestion.kind) && (
               <div className="border-t border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-4 sm:p-8">
                 <div className="mb-6 border-b border-[var(--color-border-default)] pb-4 flex flex-wrap items-center justify-between gap-2">
                   <div className="flex flex-wrap items-center gap-2">
@@ -2025,12 +2073,17 @@ export function ExcelQuestionEditor({ job, generalBank }: {
                         <span className="text-[11px] font-semibold text-[var(--color-on-surface-variant)]">Ngôn ngữ</span>
                         <input
                           value={selectedQuestion.language}
+                          readOnly={selectedQuestion.kind === "TU_LUAN_CODE"}
                           onChange={(event) => patchQuestion(selectedIndex, { language: event.target.value })}
                           className="h-8 rounded-md border border-[var(--color-border-default)] bg-[var(--color-surface-container-low)] px-2 text-xs outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
                         />
                       </label>
                     </div>
                     <div className="space-y-3">
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <label className="text-xs">Điểm<input type="number" min="0.1" step="0.1" value={selectedQuestion.score} onChange={event => patchQuestion(selectedIndex, { score: event.target.value })} className="mt-1 w-full rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-2" /></label>
+                        <label className="text-xs">Độ khó<select value={selectedQuestion.difficulty} onChange={event => patchQuestion(selectedIndex, { difficulty: event.target.value, difficultyTone: toneFromDifficulty(event.target.value) })} className="mt-1 w-full rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-2"><option value="">Chọn độ khó</option><option value="Easy">Dễ</option><option value="Medium">Trung bình</option><option value="Hard">Khó</option></select></label>
+                      </div>
                       <p className="text-[11px] font-semibold text-[var(--color-on-surface-variant)]">Rubric 3 mức</p>
                       {selectedQuestion.rubric.map((item, index) => (
                         <label key={item.level} className={cn("block space-y-2 rounded-xl border border-l-4 p-3", index === 0 ? "border-[var(--color-interview-passed)] bg-[var(--color-interview-passed-bg)]" : index === 1 ? "border-[var(--color-primary)] bg-[var(--color-primary-subtle)]" : "border-[var(--color-error)] bg-[var(--color-error-container)]")}>
@@ -2055,33 +2108,31 @@ export function ExcelQuestionEditor({ job, generalBank }: {
                     </div>
                   </div>
                   <div className="min-w-0 flex flex-col gap-4">
+                    {selectedQuestion.kind === "TU_LUAN_CODE" ? <CodingStarterFields
+                      value={codingAuthoringValue(selectedQuestion.codingJsonText, selectedQuestion.language, selectedQuestion.snippet)}
+                      onChange={value => patchQuestion(selectedIndex, { codingJsonText: value })}
+                    /> :
                     <div className="flex flex-col gap-3 rounded-2xl border border-slate-700 bg-[#0f172a] p-4 text-slate-100">
                     <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-700 pb-3">
                       <p className="flex items-center gap-2 text-xs font-semibold text-slate-200">
                         <Code2 className="size-4 shrink-0" aria-hidden="true" />
-                        {selectedQuestion.kind === "TU_LUAN_CODE"
-                          ? "Starter code (tuỳ chọn — có thể để trống)"
-                          : "Khung lý thuyết (tuỳ chọn — có thể để trống)"}
+                        Khung lý thuyết (tuỳ chọn — có thể để trống)
                       </p>
                       <span className="rounded bg-slate-700 px-1.5 py-0.5 font-mono text-[10px] text-emerald-300">
-                        {selectedQuestion.language || (selectedQuestion.kind === "TU_LUAN_CODE" ? "Code" : "Theory")}
+                        {selectedQuestion.language || "Theory"}
                       </span>
                     </div>
                     <textarea
-                      aria-label={selectedQuestion.kind === "TU_LUAN_CODE" ? "Starter code cho ứng viên" : "Khung lý thuyết cho ứng viên"}
+                      aria-label="Khung lý thuyết cho ứng viên"
                       value={selectedQuestion.snippet}
                       onChange={(event) => patchQuestion(selectedIndex, { snippet: event.target.value })}
                       rows={9}
                       spellCheck={false}
-                      placeholder={
-                        selectedQuestion.kind === "TU_LUAN_CODE"
-                          ? "// Không bắt buộc — để trống nếu ứng viên tự viết từ đầu"
-                          : "Không bắt buộc — gợi ý khung trả lời cho ứng viên (có thể để trống)"
-                      }
+                      placeholder="Không bắt buộc — gợi ý khung trả lời cho ứng viên (có thể để trống)"
                       className="min-h-48 flex-1 resize-y rounded-md border border-slate-700 bg-[#020617] px-3 py-2 font-mono text-[12px] leading-relaxed text-emerald-200 outline-none placeholder:text-slate-500 focus:ring-2 focus:ring-emerald-500/60"
                     />
                     <p className="text-xs text-slate-400">Khung gợi ý hiển thị cho ứng viên khi làm bài. Có thể để trống.</p>
-                    </div>
+                    </div>}
                     <label className="flex flex-1 flex-col gap-3 rounded-2xl border border-slate-700 bg-[#0f172a] p-4">
                       <span className="flex items-center gap-2 border-b border-slate-700 pb-3 text-xs font-semibold text-slate-200">
                         <ShieldCheck className="size-4 shrink-0" aria-hidden="true" />
@@ -2104,15 +2155,19 @@ export function ExcelQuestionEditor({ job, generalBank }: {
                     </label>
                   </div>
                 </div>
-                <div className="mt-6 border-t border-[var(--color-border-default)] pt-6">
+                {selectedQuestion.kind === "TU_LUAN_CODE" && <div className="mt-6 border-t border-[var(--color-border-default)] pt-6">
                 <div className="mb-5 flex items-center gap-3">
                   <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[var(--color-primary-soft)] text-sm font-semibold text-[var(--color-primary)]">02</span>
-                  <div><h3 className="text-sm font-semibold">{selectedQuestion.kind === "TU_LUAN_CODE" ? "Cấu hình thực thi & bộ kiểm thử" : "Phân loại & tiêu chí chấm chi tiết"}</h3><p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">{selectedQuestion.kind === "TU_LUAN_CODE" ? "Quản lý tài nguyên, mã khởi đầu theo ngôn ngữ và test công khai / ẩn." : "Xác định đáp án tham khảo và phân bổ trọng số cho từng tiêu chí."}</p></div>
+                  <div><h3 className="text-sm font-semibold">Cấu hình thực thi & bộ kiểm thử</h3><p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">Thiết lập input/output, test công khai / ẩn và cấu hình chạy nâng cao.</p></div>
                 </div>
-                <QuestionContentFields type={selectedQuestion.kind === "TU_LUAN_CODE" ? "CODING" : "ESSAY"}
-                  value={selectedQuestion.kind === "TU_LUAN_CODE" ? selectedQuestion.codingJsonText ?? "" : selectedQuestion.rubricJsonText ?? ""}
-                  onChange={value => patchQuestion(selectedIndex, selectedQuestion.kind === "TU_LUAN_CODE" ? { codingJsonText: value } : { rubricJsonText: value })} />
-                </div>
+                <QuestionContentFields type="CODING" executionOnly
+                  value={codingAuthoringValue(selectedQuestion.codingJsonText, selectedQuestion.language, selectedQuestion.snippet)}
+                  onChange={value => patchQuestion(selectedIndex, { codingJsonText: value })} />
+                <div className="mt-4"><CodingTestVerification
+                  value={codingAuthoringValue(selectedQuestion.codingJsonText, selectedQuestion.language, selectedQuestion.snippet)}
+                  solution={selectedQuestion.sample}
+                /></div>
+                </div>}
               </div>
             )}
           </>

@@ -92,6 +92,10 @@
     {
       "key": "interviewerId",
       "value": "1"
+    },
+    {
+      "key": "generationId",
+      "value": ""
     }
   ],
   "item": [
@@ -2470,6 +2474,53 @@
               }
             ],
             "url": "{{baseUrl}}/interviews/{{humanInterviewId}}/calendar"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Assessment AI Question Bank",
+      "item": [
+        {
+          "name": "Queue question generation",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/question-bank/generation",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"skill\": \"Java\",\n  \"questionType\": \"MCQ\",\n  \"difficulty\": \"Medium\",\n  \"count\": 1,\n  \"language\": \"java\",\n  \"instructions\": \"\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Read generated draft",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Tenant-ID",
+                "value": "{{tenantId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/question-bank/generation/{{generationId}}"
           }
         }
       ]

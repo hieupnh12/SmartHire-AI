@@ -218,7 +218,7 @@ public class InterviewConversationService {
     }
     private static void requireActive(AiInterview interview) {
         AiInterviewEligibility.requireExisting(interview);
-        if (interview.getApplication().getStatus() != com.smarthire.domain.enums.ApplicationStatus.INTERVIEW)
+        if (!AiInterviewEligibility.openRound(interview.getApplication().getStatus()))
             throw error("Application is no longer in the interview round", "AI_INTERVIEW_NOT_ELIGIBLE");
         if (interview.getStatus() != AiInterviewStatus.IN_PROGRESS || interview.getCompletedAt() != null || InterviewPolicies.expired(interview))
             throw error("Interview is not active", "AI_INTERVIEW_NOT_ACTIVE");

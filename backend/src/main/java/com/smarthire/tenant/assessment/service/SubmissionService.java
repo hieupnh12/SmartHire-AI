@@ -36,15 +36,19 @@ public class SubmissionService {
     private final CodingProblemRepository codingProblems;
     private final CvAccess access;
     private final AssessmentMapper mapper;
-    private final AiInterviewRepository aiInterviews;
     private final JobRepository jobs;
+    private final org.springframework.beans.factory.ObjectProvider<com.smarthire.tenant.applicant.service.ApplicantService> applicants;
     @org.springframework.beans.factory.annotation.Autowired
     private org.springframework.context.ApplicationEventPublisher events;
+    /** Absent in tests that do not load the demo seeder. Production creates the practice paper on demand. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private AssessmentDemoSeedService demoSeed;
 
     public SubmissionService(JobTestRepository tests, ApplicationRepository applications, SubmissionRepository submissions,
             QuestionRepository questions, OptionRepository options, AnswerRepository answers,
-            CodingProblemRepository codingProblems, CvAccess access, AssessmentMapper mapper, AiInterviewRepository aiInterviews,
-            JobRepository jobs) {
+            CodingProblemRepository codingProblems, CvAccess access, AssessmentMapper mapper,
+            JobRepository jobs,
+            org.springframework.beans.factory.ObjectProvider<com.smarthire.tenant.applicant.service.ApplicantService> applicants) {
         this.tests = tests;
         this.applications = applications;
         this.submissions = submissions;
@@ -54,8 +58,8 @@ public class SubmissionService {
         this.codingProblems = codingProblems;
         this.access = access;
         this.mapper = mapper;
-        this.aiInterviews = aiInterviews;
         this.jobs = jobs;
+        this.applicants = applicants;
     }
 
     @Transactional(isolation = Isolation.READ_COMMITTED)
@@ -66,18 +70,20 @@ public class SubmissionService {
         Application application = applications.findById(request.applicationId()).orElseThrow(this::notFound);
         if (!application.getCandidate().getId().equals(candidate.getId())
                 || !application.getJob().getId().equals(test.getJob().getId())) throw notFound();
-        if (test.getAssignedApplication() != null && !test.getAssignedApplication().getId().equals(application.getId())) throw notFound();
-        requireEligible(application);
+        if (!assignedTo(test, application) && !isDemoPaper(test)) throw notFound();
+        requirePlayable(application, test);
         var previous = submissions.findLatestIds(testId, application.getId(), PageRequest.of(0, 1));
         Submission submission = previous.isEmpty() ? new Submission() : owned(previous.getFirst(), candidate);
         if (submission.getId() != null && submission.getStatus() != TestSubmissionStatus.NOT_STARTED) {
+            boolean finishedBefore = isFinished(submission.getStatus());
             expire(submission);
-            return response(submission);
+            if (!(isDemoPaper(test) && finishedBefore)) return response(submission);
+            submission = new Submission();
         }
         if (test.getStatus() != TestStatus.PUBLISHED || test.getJob().getDeletedAt() != null) {
             throw conflict("Test is not available", "TEST_UNAVAILABLE");
         }
-        requireEligible(application);
+        requirePlayable(application, test);
         var paper = questions.findByTest_IdOrderByQuestionOrderAscIdAsc(testId);
         if (paper.isEmpty() || paper.stream().anyMatch(q -> !java.util.Set.of("MCQ", "MULTIPLE_CHOICE", "ESSAY", "CODING").contains(q.getQuestionType()))
                 || codingProblems.findByTest_Id(testId).stream().anyMatch(c -> c.getQuestion() == null)) {
@@ -91,14 +97,15 @@ public class SubmissionService {
         return response(submissions.save(submission));
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public java.util.List<AvailableAssessmentResponse> available(long applicationId) {
         Candidate candidate = candidate();
         Application application = applications.findById(applicationId).orElseThrow(this::notFound);
         if (!application.getCandidate().getId().equals(candidate.getId())) throw notFound();
-        requireEligible(application);
+        requireVisible(application);
+        if (demoSeed != null && application.getJob().getDeletedAt() == null) demoSeed.ensurePublishedDemo(application.getJob());
         return tests.findByJob_IdAndStatusOrderByIdDesc(application.getJob().getId(), TestStatus.PUBLISHED).stream()
-                .filter(test -> test.getAssignedApplication() == null || test.getAssignedApplication().getId().equals(applicationId))
+                .filter(test -> assignedTo(test, application) || isDemoPaper(test))
                 .map(test -> {
                     var ids = submissions.findLatestIds(test.getId(), applicationId, PageRequest.of(0, 1));
                     Submission latest = ids.isEmpty() ? null : submissions.findById(ids.getFirst()).orElse(null);
@@ -111,7 +118,7 @@ public class SubmissionService {
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public SubmissionResponse get(long id) {
         Submission submission = owned(id, candidate());
-        requireEligible(submission.getApplication());
+        requireVisible(submission.getApplication());
         expire(submission);
         return response(submission);
     }
@@ -126,15 +133,15 @@ public class SubmissionService {
         if (submission.getStatus() != TestSubmissionStatus.IN_PROGRESS) {
             throw conflict("Submission is closed", "SUBMISSION_CLOSED");
         }
-        requireEligible(submission.getApplication());
+        requirePlayable(submission.getApplication(), submission.getTest());
         var seen = new HashSet<Long>();
         var changed = new ArrayList<Answer>();
         for (var input : request.answers()) {
             if (!seen.add(input.questionId())) throw invalid("Duplicate questionId in answers");
             Question question = questions.findByIdAndTest_Id(input.questionId(), submission.getTest().getId())
                     .orElseThrow(() -> invalid("Question does not belong to this test"));
-            if (submission.getObjectiveCompletedAt() != null && isObjective(question)) throw conflict("Objective section is locked", "SECTION_LOCKED");
-            if (submission.getObjectiveCompletedAt() == null && hasObjective(submission) && !isObjective(question)) throw conflict("Complete objective section first", "SECTION_NOT_STARTED");
+            if (submission.getObjectiveCompletedAt() != null && isQuizSection(question)) throw conflict("Quiz section is locked", "SECTION_LOCKED");
+            if (submission.getObjectiveCompletedAt() == null && hasQuizSection(submission) && !isQuizSection(question)) throw conflict("Complete quiz section first", "SECTION_NOT_STARTED");
             Answer answer = answers.findBySubmission_IdAndQuestion_Id(id, question.getId()).orElseGet(Answer::new);
             answer.setSubmission(submission);
             answer.setQuestion(question);
@@ -151,7 +158,7 @@ public class SubmissionService {
     public SubmissionResponse submit(long id) {
         Submission submission = owned(id, candidate());
         if (!expire(submission) && submission.getStatus() == TestSubmissionStatus.IN_PROGRESS) {
-            requireEligible(submission.getApplication());
+            requirePlayable(submission.getApplication(), submission.getTest());
             grade(submission, false);
         } else if (submission.getStatus() != TestSubmissionStatus.GRADED
                 && submission.getStatus() != TestSubmissionStatus.SUBMITTED
@@ -209,8 +216,8 @@ public class SubmissionService {
     public java.util.List<com.fasterxml.jackson.databind.JsonNode> runSamples(long id, long questionId, SampleRun body) {
         Submission submission = owned(id, candidate());
         if (expire(submission) || submission.getStatus() != TestSubmissionStatus.IN_PROGRESS) throw conflict("Submission closed", "SUBMISSION_CLOSED");
-        requireEligible(submission.getApplication());
-        if (hasObjective(submission) && submission.getObjectiveCompletedAt() == null) throw conflict("Complete objective section first", "SECTION_NOT_STARTED");
+        requirePlayable(submission.getApplication(), submission.getTest());
+        if (hasQuizSection(submission) && submission.getObjectiveCompletedAt() == null) throw conflict("Complete quiz section first", "SECTION_NOT_STARTED");
         Question question = questions.findByIdAndTest_Id(questionId, submission.getTest().getId()).orElseThrow(this::notFound);
         var problem = question.getCodingProblem();
         if (problem == null || !problem.getStarterCodeJson().has(body.language())) throw invalid("Unsupported coding language");
@@ -222,18 +229,26 @@ public class SubmissionService {
         }
     }
 
+    /** Auto-gradable choice questions (MCQ / multi-select). */
     public static boolean isObjective(Question question) {
         return "MCQ".equals(question.getQuestionType()) || "MULTIPLE_CHOICE".equals(question.getQuestionType());
     }
-    private boolean hasObjective(Submission submission) {
-        return questions.findByTest_IdOrderByQuestionOrderAscIdAsc(submission.getTest().getId()).stream().anyMatch(SubmissionService::isObjective);
+
+    /** Quizizz section: choice + essay, locked after complete_objective. */
+    public static boolean isQuizSection(Question question) {
+        return isObjective(question) || "ESSAY".equals(question.getQuestionType());
+    }
+
+    private boolean hasQuizSection(Submission submission) {
+        return questions.findByTest_IdOrderByQuestionOrderAscIdAsc(submission.getTest().getId()).stream()
+                .anyMatch(SubmissionService::isQuizSection);
     }
     @Transactional(isolation = Isolation.READ_COMMITTED, noRollbackFor = SubmissionExpiredException.class)
     public SubmissionResponse completeObjective(long id) {
         Submission submission = owned(id, candidate());
         if (expire(submission)) throw new SubmissionExpiredException();
         if (submission.getStatus() != TestSubmissionStatus.IN_PROGRESS) throw conflict("Submission closed", "SUBMISSION_CLOSED");
-        requireEligible(submission.getApplication());
+        requirePlayable(submission.getApplication(), submission.getTest());
         if (submission.getObjectiveCompletedAt() == null) submission.setObjectiveCompletedAt(Instant.now());
         return response(submission);
     }
@@ -247,13 +262,42 @@ public class SubmissionService {
         return submissions.findOwnedLocked(id, candidate.getId()).orElseThrow(this::notFound);
     }
 
-    private void requireEligible(Application application) {
-        if (!aiInterviews.existsByApplication_IdAndStatus(application.getId(), com.smarthire.domain.enums.AiInterviewStatus.PASSED)) {
-            throw conflict("AI interview must be passed before accessing assessment", "AI_INTERVIEW_NOT_PASSED");
+    private static boolean assignedTo(JobTest test, Application application) {
+        return test.getAssignedApplication() != null && test.getAssignedApplication().getId().equals(application.getId());
+    }
+
+    private void requirePlayable(Application application, JobTest test) {
+        if (isDemoPaper(test)) {
+            requireVisible(application);
+            return;
         }
+        requireEligible(application);
+    }
+
+    private void requireEligible(Application application) {
+        requireVisible(application);
+        if (application.getStatus() != ApplicationStatus.ASSESSMENT) {
+            throw conflict("Application is not eligible for assessment", "APPLICATION_NOT_ELIGIBLE");
+        }
+    }
+
+    private static boolean isDemoPaper(JobTest test) {
+        return AssessmentDemoSeedService.DEMO_TITLE.equals(test.getTitle());
+    }
+
+    private static boolean isFinished(TestSubmissionStatus status) {
+        return status == TestSubmissionStatus.SUBMITTED
+                || status == TestSubmissionStatus.GRADED
+                || status == TestSubmissionStatus.EXPIRED;
+    }
+
+    /** Finished papers stay readable after the round moves on from ASSESSMENT. */
+    private void requireVisible(Application application) {
         if (application.getArchivedAt() != null || application.getWithdrawnAt() != null
                 || application.getJob().getDeletedAt() != null
-                || application.getStatus() != ApplicationStatus.ASSESSMENT) {
+                || (application.getStatus() != ApplicationStatus.ASSESSMENT
+                && application.getStatus() != ApplicationStatus.HUMAN_INTERVIEW
+                && application.getStatus() != ApplicationStatus.FAILED)) {
             throw conflict("Application is not eligible for assessment", "APPLICATION_NOT_ELIGIBLE");
         }
     }
@@ -319,6 +363,10 @@ public class SubmissionService {
         submission.setStatus(expired ? TestSubmissionStatus.EXPIRED
                 : needsReview ? TestSubmissionStatus.SUBMITTED : TestSubmissionStatus.GRADED);
         submissions.save(submission);
+        var applicantService = applicants.getIfAvailable();
+        if (applicantService != null) {
+            applicantService.settleAfterAssessment(submission.getApplication().getId());
+        }
     }
 
     private SubmissionResponse response(Submission submission) {

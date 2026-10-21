@@ -1,7 +1,6 @@
 package com.smarthire.tenant.assessment;
 
 import com.smarthire.common.exception.BusinessException;
-import com.smarthire.domain.enums.AiInterviewStatus;
 import com.smarthire.domain.enums.ApplicationStatus;
 import com.smarthire.domain.enums.NotificationStatus;
 import com.smarthire.domain.enums.TestStatus;
@@ -10,6 +9,7 @@ import com.smarthire.domain.tenant.entity.*;
 import com.smarthire.domain.tenant.repository.*;
 import com.smarthire.multitenancy.service.TenantPublicUrlService;
 import com.smarthire.tenant.assessment.dto.request.SendAssessmentRequest;
+import com.smarthire.tenant.assessment.service.AssessmentDemoSeedService;
 import com.smarthire.tenant.assessment.service.AssessmentInvitationService;
 import com.smarthire.tenant.auth.service.InviteMailSender;
 import com.smarthire.tenant.cv.service.CvAccess;
@@ -25,6 +25,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -32,7 +33,6 @@ class AssessmentInvitationServiceTest {
     @Mock JobTestRepository tests;
     @Mock ApplicationRepository applications;
     @Mock SubmissionRepository submissions;
-    @Mock AiInterviewRepository aiInterviews;
     @Mock ApplicationStatusHistoryRepository history;
     @Mock RecruitmentStageRepository stages;
     @Mock NotificationRepository notifications;
@@ -41,6 +41,7 @@ class AssessmentInvitationServiceTest {
     @Mock TenantPublicUrlService publicUrls;
     @Mock CvAccess access;
     @Mock NotificationPreferenceService preferences;
+    @Mock AssessmentDemoSeedService demoSeed;
     @InjectMocks AssessmentInvitationService service;
 
     JobTest test;
@@ -65,11 +66,12 @@ class AssessmentInvitationServiceTest {
         application.setJob(job);
         application.setCandidate(candidate);
         application.setStatus(ApplicationStatus.INTERVIEW);
+        test.setAssignedApplication(application);
         var recruiter = new User();
         recruiter.setId(2L);
-        when(access.staff()).thenReturn(true);
-        when(access.actor()).thenReturn(recruiter);
-        when(tests.findById(5L)).thenReturn(Optional.of(test));
+        lenient().when(access.staff()).thenReturn(true);
+        lenient().when(access.actor()).thenReturn(recruiter);
+        lenient().when(tests.findById(5L)).thenReturn(Optional.of(test));
     }
 
     @Test void movesToAssessmentAndNotifiesCandidate() {
@@ -93,17 +95,33 @@ class AssessmentInvitationServiceTest {
         var notification = ArgumentCaptor.forClass(Notification.class);
         verify(notifications).save(notification.capture());
         assertThat(notification.getValue().getType()).isEqualTo("ASSESSMENT_INVITATION");
-        assertThat(notification.getValue().getPayloadJson()).contains("/candidate/assessments?applicationId=7");
+        assertThat(notification.getValue().getPayloadJson()).contains("/assessments?applicationId=7");
         var email = ArgumentCaptor.forClass(EmailOutbox.class);
         verify(outbox).save(email.capture());
         assertThat(email.getValue().getStatus()).isEqualTo(NotificationStatus.SENT);
-        assertThat(email.getValue().getBody()).contains("https://acme.example/candidate/assessments?applicationId=7");
+        assertThat(email.getValue().getBody()).contains("https://acme.example/assessments?applicationId=7");
+    }
+
+    @Test void inviteFixedDemoAfterCvPassSeedsAndNotifies() {
+        application.setStatus(ApplicationStatus.ASSESSMENT);
+        when(demoSeed.ensurePublishedDemo(application.getJob())).thenReturn(test);
+        when(publicUrls.path(anyString())).thenAnswer(call -> "https://acme.example" + call.getArgument(0));
+        when(mail.send(eq("candidate@example.test"), anyString(), anyString())).thenReturn(true);
+
+        var result = service.inviteFixedDemoAfterCvPass(application);
+
+        assertThat(result.testId()).isEqualTo(5L);
+        assertThat(result.applicationId()).isEqualTo(7L);
+        assertThat(result.emailSent()).isTrue();
+        verify(demoSeed).ensurePublishedDemo(application.getJob());
+        verify(notifications).save(any());
+        verifyNoInteractions(history);
     }
 
     @Test void resendInAssessmentKeepsStatusWithoutHistory() {
         application.setStatus(ApplicationStatus.ASSESSMENT);
         eligible();
-        when(publicUrls.path(anyString())).thenReturn("https://acme.example/candidate/assessments");
+        when(publicUrls.path(anyString())).thenReturn("https://acme.example/assessments");
 
         var result = service.send(5L, new SendAssessmentRequest(7L));
 
@@ -113,10 +131,11 @@ class AssessmentInvitationServiceTest {
         verify(notifications).save(any());
     }
 
-    @Test void rejectsWhenAiInterviewNotPassed() {
+    @Test void rejectsWhenApplicationNotSendable() {
+        application.setStatus(ApplicationStatus.NEW);
         when(applications.findByIdForUpdate(7L)).thenReturn(Optional.of(application));
         assertThatThrownBy(() -> service.send(5L, new SendAssessmentRequest(7L)))
-                .isInstanceOf(BusinessException.class).hasMessageContaining("AI interview");
+                .isInstanceOf(BusinessException.class).hasMessageContaining("not eligible");
         verifyNoInteractions(notifications, outbox, history, mail);
     }
 
@@ -140,6 +159,5 @@ class AssessmentInvitationServiceTest {
 
     private void eligible() {
         when(applications.findByIdForUpdate(7L)).thenReturn(Optional.of(application));
-        when(aiInterviews.existsByApplication_IdAndStatus(7L, AiInterviewStatus.PASSED)).thenReturn(true);
     }
 }

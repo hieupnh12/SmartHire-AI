@@ -70,6 +70,7 @@ FE nhận "hoàn thành"
 |---|---|---|
 | AI CV Analysis | `cv.analysis` | ⭐⭐⭐⭐⭐ |
 | CV Parse / Extract / Matching | `cv.parse`, `cv.extract`, `cv.matching` | ⭐⭐⭐⭐⭐ |
+| GitHub evidence | `cv.github` | ⭐⭐⭐⭐ |
 | AI Interview Scoring (+ STT/NLP) | `interview.stt`, `interview.nlp`, `interview.score` | ⭐⭐⭐⭐⭐ |
 | AI sinh câu hỏi | `interview.questions` | ⭐⭐⭐⭐ |
 | Email kết quả AI Interview | `tenant.interview.email` | ⭐⭐⭐⭐ |

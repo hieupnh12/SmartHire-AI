@@ -25,6 +25,7 @@ import { assessmentApi } from "@/api/tenant/assessmentApi";
 import type { JobTest, TestStatus } from "@/api/types/assessment";
 import { AssessmentError, assessmentStatus } from "@/components/ux/assessmentUi";
 import { Button } from "@/components/ux/Button";
+import { shortAssessmentTitle } from "@/lib/assessmentTitle";
 import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
 
@@ -237,7 +238,7 @@ export function AssessmentsPage() {
           </nav>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight">Quản lý bài đánh giá năng lực</h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--color-on-surface-variant)]">
-            Tạo bài đánh giá thủ công hoặc tự động từ ngân hàng câu hỏi. Cấu hình đề riêng cho ứng viên vượt AI Interview và theo dõi bài làm theo vị trí tuyển dụng.
+            Cấu hình cấu trúc đề cho vị trí. Hệ thống tự tạo một đề riêng cho từng hồ sơ từ ngân hàng câu hỏi. Thêm câu hỏi ở ngân hàng trước khi bật tạo tự động.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
@@ -343,7 +344,7 @@ export function AssessmentsPage() {
               </span>
             </div>
             <p className="mt-1 max-w-2xl text-sm leading-6 text-[var(--color-on-surface-variant)]">
-              Soạn câu hỏi thủ công hoặc cấu hình cấu trúc để tạo đề từ ngân hàng câu hỏi. Có thể bật tự động tạo đề riêng cho ứng viên vượt AI Interview.
+              Soạn câu hỏi thủ công hoặc cấu hình cấu trúc để tạo đề từ ngân hàng câu hỏi. Có thể bật tự động tạo đề riêng cho ứng viên sau khi vượt vòng lọc CV.
             </p>
           </div>
         </div>
@@ -486,6 +487,7 @@ export function AssessmentsPage() {
                       <AssessmentRow
                         key={test.id}
                         test={test}
+                        jobTitle={job.title}
                         structure={{
                           count: questions.length,
                           totalPoints: questions.reduce((sum, item) => sum + item.points, 0),
@@ -640,15 +642,18 @@ function AssessmentRow({
   structure,
   checked,
   onToggle,
+  jobTitle,
 }: {
   test: JobTest;
   structure?: { count: number; totalPoints: number; loading: boolean };
   checked: boolean;
   onToggle: () => void;
+  jobTitle?: string | null;
 }) {
   const draft = test.status === "DRAFT";
   const totalPoints = structure?.loading ? null : structure?.totalPoints ?? 0;
   const questionCount = structure?.loading ? null : structure?.count ?? 0;
+  const title = shortAssessmentTitle(jobTitle, test.title);
 
   return (
     <tr className="group transition-colors hover:bg-[var(--color-primary-subtle)]">
@@ -658,7 +663,7 @@ function AssessmentRow({
           className="size-4 cursor-pointer accent-[var(--color-primary)]"
           checked={checked}
           onChange={onToggle}
-          aria-label={`Chọn ${test.title}`}
+          aria-label={`Chọn ${title}`}
         />
       </td>
       <td className="px-4 py-3.5">
@@ -671,7 +676,7 @@ function AssessmentRow({
               to={String(test.id)}
               className="block truncate font-semibold transition-colors group-hover:text-[var(--color-primary)]"
             >
-              {test.title}
+              {title}
             </Link>
             <div className="mt-0.5 flex flex-wrap items-center gap-2">
               <span className="font-mono text-xs text-[var(--color-outline)]">Mã: ASM-{test.id}</span>
@@ -752,7 +757,7 @@ function AssessmentRow({
             to={String(test.id)}
             className="grid size-8 place-items-center rounded-lg text-[var(--color-outline)] transition-colors hover:bg-[var(--color-surface-container)] hover:text-[var(--color-on-surface)]"
             title="Chi tiết"
-            aria-label={`Chi tiết ${test.title}`}
+            aria-label={`Chi tiết ${title}`}
           >
             <Eye className="size-4" aria-hidden="true" />
           </Link>

@@ -5,10 +5,20 @@ import com.smarthire.domain.enums.ApplicationStatus;
 import com.smarthire.domain.enums.CvScreeningStatus;
 import com.smarthire.domain.tenant.entity.Application;
 import java.time.Instant;
+import java.util.EnumSet;
+import java.util.Set;
 import org.springframework.http.HttpStatus;
 
 public final class AiInterviewEligibility {
+    /** After CV pass, assessment and AI interview may run in parallel under ASSESSMENT. */
+    private static final Set<ApplicationStatus> OPEN_ROUND = EnumSet.of(
+            ApplicationStatus.ASSESSMENT, ApplicationStatus.INTERVIEW);
+
     private AiInterviewEligibility() {}
+
+    public static boolean openRound(ApplicationStatus status) {
+        return status != null && OPEN_ROUND.contains(status);
+    }
 
     public static void require(Application application) {
         if (application.getCvScreeningStatus() != CvScreeningStatus.PASSED) {
@@ -19,7 +29,7 @@ public final class AiInterviewEligibility {
                 || job.getAiInterviewAvailableUntil() != null && !Instant.now().isBefore(job.getAiInterviewAvailableUntil())) {
             throw new BusinessException("AI interview is not available for this job", HttpStatus.CONFLICT, "AI_INTERVIEW_UNAVAILABLE");
         }
-        if (application.getStatus() != ApplicationStatus.INTERVIEW || application.getArchivedAt() != null
+        if (!openRound(application.getStatus()) || application.getArchivedAt() != null
                 || application.getWithdrawnAt() != null) {
             throw new BusinessException("Application is not in the interview round", HttpStatus.CONFLICT, "AI_INTERVIEW_NOT_ELIGIBLE");
         }

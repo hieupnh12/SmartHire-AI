@@ -51,7 +51,7 @@ public class AiInterviewInvitationService {
         // Serialize automatic and recruiter invitations for the same application.
         var application = applications.findByIdForUpdate(applicationId)
                 .orElseThrow(() -> new BusinessException("Application not found", HttpStatus.NOT_FOUND, "APPLICATION_NOT_FOUND"));
-        if (application.getStatus() != ApplicationStatus.INTERVIEW || application.getArchivedAt() != null
+        if (!AiInterviewEligibility.openRound(application.getStatus()) || application.getArchivedAt() != null
                 || application.getWithdrawnAt() != null) {
             throw new BusinessException("Application must be in the interview round", HttpStatus.CONFLICT, "AI_INTERVIEW_NOT_ELIGIBLE");
         }
@@ -69,7 +69,7 @@ public class AiInterviewInvitationService {
         requireTenant();
         var application = applications.findByIdForUpdate(applicationId)
                 .orElseThrow(() -> new BusinessException("Application not found", HttpStatus.NOT_FOUND, "APPLICATION_NOT_FOUND"));
-        if (application.getStatus() != ApplicationStatus.INTERVIEW || application.getArchivedAt() != null
+        if (!AiInterviewEligibility.openRound(application.getStatus()) || application.getArchivedAt() != null
                 || application.getWithdrawnAt() != null) {
             throw new BusinessException("Application must be in the interview round", HttpStatus.CONFLICT, "AI_INTERVIEW_NOT_ELIGIBLE");
         }
