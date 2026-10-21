@@ -567,6 +567,56 @@ Entity `GateScore` (kế thừa `BaseEntity`).
 
 **Ràng buộc:** `fk_gate_score_application`
 
+### D.9 `github_analyses` — Bằng chứng GitHub theo CV và job (V54)
+
+Entity `GithubAnalysis`. `score` null khi không có URL, repository không public, hoặc không đủ bằng chứng. Không lưu nội dung source.
+
+| Cột | Kiểu | Khoá | Null | Default | Mô tả |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | Không | auto | |
+| `cv_id` | BIGINT | FK → `cvs.id` | Không | — | CV được đối chiếu |
+| `job_id` | BIGINT | FK → `jobs.id` | Không | — | Job dùng để chọn file |
+| `status` | VARCHAR(32) | | Không | — | `NOT_PROVIDED`, `PENDING`, `PROCESSING`, `COMPLETED`, `PARTIAL`, `FAILED` |
+| `score` | DECIMAL(5,2) | | Có | NULL | Điểm bằng chứng GitHub, tách khỏi điểm CV |
+| `source_urls` | JSON | | Có | NULL | URL đã chuẩn hoá |
+| `result_json` | JSON | | Có | NULL | Kỹ năng, bằng chứng, giới hạn. Không chứa source |
+| `error_code` | VARCHAR(64) | | Có | NULL | Mã lỗi hoặc lý do thiếu dữ liệu |
+| `error_message` | VARCHAR(512) | | Có | NULL | Mô tả ngắn |
+| `strategy_version` | VARCHAR(32) | | Không | — | Phiên bản cách chọn file |
+| `model_version` | VARCHAR(64) | | Có | NULL | Model đã dùng |
+| `prompt_version` | VARCHAR(32) | | Có | NULL | Phiên bản prompt |
+| `prompt_tokens` | INT | | Không | 0 | Token prompt của lần chạy |
+| `completion_tokens` | INT | | Không | 0 | Token sinh ra |
+| `github_requests` | INT | | Không | 0 | Số request GitHub API |
+| `duration_ms` | INT | | Không | 0 | Thời gian xử lý |
+| `cache_hit` | BOOLEAN | | Không | FALSE | Dùng lại kết quả cùng commit |
+| `analyzed_at` | TIMESTAMP | | Có | NULL | Thời điểm kết thúc |
+| `created_at` | TIMESTAMP | | Không | now | |
+| `updated_at` | TIMESTAMP | | Không | now on update | |
+
+**Ràng buộc:** `fk_github_analyses_cv` ON DELETE CASCADE, `fk_github_analyses_job` ON DELETE CASCADE, `uk_github_analyses_cv_job (cv_id, job_id)`, index `idx_github_analyses_status`
+
+### D.10 `github_repo_caches` — Cache repository công khai (V54)
+
+Entity `GithubRepoCache`. Không FK và không lưu nội dung file.
+
+| Cột | Kiểu | Khoá | Null | Default | Mô tả |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | Không | auto | |
+| `repo_full_name` | VARCHAR(200) | UQ | Không | — | `owner/repo` |
+| `commit_sha` | CHAR(40) | UQ | Không | — | Commit đã phân tích |
+| `skill_fingerprint` | CHAR(64) | UQ | Không | — | SHA-256 của JD skills, prompt và model |
+| `strategy_version` | VARCHAR(32) | UQ | Không | — | Phiên bản chọn file |
+| `model_version` | VARCHAR(64) | | Có | NULL | Model đã dùng |
+| `selected_files_json` | JSON | | Không | — | Path đã chọn, không có nội dung |
+| `result_json` | JSON | | Không | — | Kết quả kỹ năng đã chuẩn hoá |
+| `prompt_tokens` | INT | | Không | 0 | |
+| `completion_tokens` | INT | | Không | 0 | |
+| `created_at` | TIMESTAMP | | Không | now | |
+| `updated_at` | TIMESTAMP | | Không | now on update | |
+
+**Ràng buộc:** `uk_github_repo_cache (repo_full_name, commit_sha, skill_fingerprint, strategy_version)`, index `idx_github_repo_cache_lookup`
+
 ---
 
 ## E. Ranking

@@ -29,6 +29,7 @@ import { button, input, muted, panel, primary } from "@/features/tenant/recruite
 import { DetailDialog } from "@/components/ux/DetailDialog";
 import { CvFilePreview } from "@/components/shared/CvFilePreview";
 import { ScreeningBreakdown } from "@/features/tenant/recruiter/cv-screening/components/ScreeningBreakdown";
+import { GithubEvidencePanel } from "@/features/tenant/recruiter/cv-screening/components/GithubEvidencePanel";
 import { CvScreeningDecision } from "@/features/tenant/recruiter/cv-screening/components/CvScreeningDecision";
 import type { CvDetail, CvStatus, CvSummary } from "@/api/types/cv";
 
@@ -379,7 +380,7 @@ export function CvScreeningPage() {
         </>
       )}
 
-      <DetailDialog open={selectedId != null} title={cv?.candidateName ?? "Chi tiết CV"} onClose={() => setSelectedId(null)}>
+      <DetailDialog open={selectedId != null} size="wide" title={cv?.candidateName ?? "Chi tiết CV"} onClose={() => setSelectedId(null)}>
         {detail.isPending && selectedId != null && <p role="status" className={muted}>Đang tải…</p>}
         {cv && (
           <CvDetailPanel
@@ -517,13 +518,15 @@ function CvDetailPanel({ cv, onRetry, retryPending, onDelete, deletePending }: {
       )}
 
       {cv.match
-        ? <ScreeningBreakdown score={cv.match.score} modelVersion={cv.match.modelVersion} breakdown={cv.match.breakdown} />
+        ? <ScreeningBreakdown wide score={cv.match.score} modelVersion={cv.match.modelVersion} breakdown={cv.match.breakdown} />
         : (
           <div className="flex items-center gap-3 rounded-2xl border border-dashed border-[var(--color-border-default)] p-4 text-sm text-[var(--color-on-surface-variant)]">
             <CircleDashed className="size-5 shrink-0" aria-hidden="true" />
             Chưa có điểm sàng lọc. Bấm “Phân tích CV” để chấm theo yêu cầu của job.
           </div>
         )}
+
+      <GithubEvidencePanel analysis={cv.githubAnalysis} />
 
       {cv.applicationId != null && <CvScreeningDecision applicationId={cv.applicationId} />}
 

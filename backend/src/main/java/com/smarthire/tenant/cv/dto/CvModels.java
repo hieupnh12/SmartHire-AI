@@ -53,7 +53,19 @@ public final class CvModels {
             AnalysisView analysis,
             MatchView match,
             JsonNode builderData,
-            String shareToken) {}
+            String shareToken,
+            GithubAnalysisView githubAnalysis) {}
+
+    public record GithubAnalysisView(
+            String status,
+            BigDecimal score,
+            String errorCode,
+            String errorMessage,
+            Instant analyzedAt,
+            boolean cacheHit,
+            int promptTokens,
+            int completionTokens,
+            JsonNode result) {}
 
     public record BuilderPersonalInfo(
             @NotBlank @Size(max = 120) String fullName,

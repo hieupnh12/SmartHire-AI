@@ -69,6 +69,55 @@ export type MatchView = {
   modelVersion: string | null;
 };
 
+export type GithubAnalysisStatus = "NOT_PROVIDED" | "PENDING" | "PROCESSING" | "COMPLETED" | "PARTIAL" | "FAILED";
+
+export type GithubAnalysisView = {
+  status: GithubAnalysisStatus;
+  score: number | null;
+  errorCode: string | null;
+  errorMessage: string | null;
+  analyzedAt: string | null;
+  cacheHit: boolean;
+  promptTokens: number;
+  completionTokens: number;
+  result: {
+    summary?: string;
+    confidence?: string;
+    repositories?: Array<{
+      fullName?: string;
+      url?: string;
+      commitSha?: string;
+      language?: string | null;
+      description?: string | null;
+      cache?: string;
+      status?: string;
+      error?: string | null;
+    }>;
+    skills?: Array<{
+      name: string;
+      required?: boolean;
+      status: string;
+      confidence?: string;
+      quality?: number | null;
+      limit?: string;
+      evidence?: Array<{ repository?: string; path: string; observation: string }>;
+    }>;
+    strengths?: string[];
+    improvements?: string[];
+    unverified?: string[];
+    rejectedUrls?: string[];
+    limits?: {
+      filesRead?: number;
+      promptTokens?: number;
+      completionTokens?: number;
+      githubRequests?: number;
+      truncated?: boolean;
+      omitted?: string[];
+    };
+    notes?: string[];
+  } | null;
+};
+
 export type CvSummary = {
   id: number;
   jobId: number | null;
@@ -202,6 +251,7 @@ export type CvDetail = {
   match: MatchView | null;
   builderData: CvBuilderData | null;
   shareToken: string | null;
+  githubAnalysis: GithubAnalysisView | null;
 };
 
 export type JobSkillView = {

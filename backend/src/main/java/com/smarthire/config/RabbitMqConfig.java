@@ -50,6 +50,11 @@ public class RabbitMqConfig {
     }
 
     @Bean
+    public TopicExchange cvGithubExchange(@Value("${app.rabbitmq.exchanges.cv-github}") String name) {
+        return new TopicExchange(name, true, false);
+    }
+
+    @Bean
     public TopicExchange interviewQuestionsExchange(
             @Value("${app.rabbitmq.exchanges.interview-questions}") String name) {
         return new TopicExchange(name, true, false);
@@ -128,6 +133,11 @@ public class RabbitMqConfig {
 
     @Bean
     public Queue cvMatchingQueue(@Value("${app.rabbitmq.queues.cv-matching}") String name) {
+        return QueueBuilder.durable(name).build();
+    }
+
+    @Bean
+    public Queue cvGithubQueue(@Value("${app.rabbitmq.queues.cv-github}") String name) {
         return QueueBuilder.durable(name).build();
     }
 
@@ -217,6 +227,11 @@ public class RabbitMqConfig {
     @Bean
     public Binding cvMatchingBinding(Queue cvMatchingQueue, TopicExchange cvMatchingExchange) {
         return BindingBuilder.bind(cvMatchingQueue).to(cvMatchingExchange).with(RK);
+    }
+
+    @Bean
+    public Binding cvGithubBinding(Queue cvGithubQueue, TopicExchange cvGithubExchange) {
+        return BindingBuilder.bind(cvGithubQueue).to(cvGithubExchange).with(RK);
     }
 
     @Bean
