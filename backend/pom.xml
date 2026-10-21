@@ -24,6 +24,8 @@
     <lombok-mapstruct-binding.version>0.2.0</lombok-mapstruct-binding.version>
     <lombok.version>1.18.38</lombok.version>
     <spring-ai.version>1.0.3</spring-ai.version>
+    <jacoco.version>0.8.12</jacoco.version>
+    <argLine></argLine>
   </properties>
 
   <dependencyManagement>
@@ -285,8 +287,32 @@
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
         <configuration>
-          <argLine>-Dnet.bytebuddy.experimental=true -XX:+EnableDynamicAgentLoading</argLine>
+          <argLine>@{argLine} -Dnet.bytebuddy.experimental=true -XX:+EnableDynamicAgentLoading</argLine>
         </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.jacoco</groupId>
+        <artifactId>jacoco-maven-plugin</artifactId>
+        <version>${jacoco.version}</version>
+        <configuration>
+          <excludes>
+            <exclude>com/smarthire/*Application.class</exclude>
+            <exclude>com/smarthire/config/**</exclude>
+            <exclude>com/smarthire/**/dto/**</exclude>
+            <exclude>com/smarthire/domain/**/entity/**</exclude>
+            <exclude>com/smarthire/domain/enums/**</exclude>
+            <exclude>com/smarthire/**/*MapperImpl.class</exclude>
+            <exclude>**/*$MockitoMock$*</exclude>
+          </excludes>
+        </configuration>
+        <executions>
+          <execution>
+            <id>prepare-agent</id>
+            <goals>
+              <goal>prepare-agent</goal>
+            </goals>
+          </execution>
+        </executions>
       </plugin>
     </plugins>
   </build>

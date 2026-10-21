@@ -25,6 +25,12 @@ TTS chỉ đọc ASSISTANT message đã lưu và đúng attempt qua backend API;
 
 Database V44: InterviewSession/InterviewMessage, message content và recording_key/mime/size nullable; consent vẫn dùng V40. UI `/interviews/:id` có chat, Micro/Dừng, trạng thái chuyển ngữ, textarea transcript và Nghe AI; Recruiter drawer có transcript/bản ghi. Unit kiểm tra chunk/tenant cleanup/ticket replay/size/container/STT/WAV; provider streaming/STT/TTS trả HTTP 200 bằng nội dung tổng hợp. Trạng thái `Doing`: cần migrate V44 và E2E micro thật trên tenant. Các phần dưới áp dụng engine legacy, tiếp tục browser STT và ai_answer_recordings cho snapshot cũ.
 
+## Cấu hình STT/TTS chỉ từ Master DB (2026-10-15)
+
+- STT đọc task `INTERVIEW_STT`, TTS đọc task `INTERVIEW_TTS` trong `ai_model_configs` (Master V34 seed `gemini-3.1-flash-lite` / `gemini-3.8-flash-tts`), quản trị tại `/admin/system/ai-config`. Key là key `GEMINI` mặc định ACTIVE trong `ai_provider_keys`.
+- Bỏ `AI_INTERVIEW_GEMINI_*`, `AI_INTERVIEW_TTS_MODEL` và `AI_INTERVIEW_CONVERSATION_MODEL`. Task chưa cấu hình, bị tắt hoặc provider khác `GEMINI` → `409 AI_INTERVIEW_SPEECH_UNAVAILABLE`, không gọi Google.
+- Kiểm chứng: `InterviewConversationClientTest` (STT/TTS dùng đúng task, thiếu cấu hình bị chặn). Trạng thái: `Doing` cho kiểm chứng micro E2E.
+
 ## Khôi phục model STT khả dụng (2026-10-15)
 
 - Kiểm tra metadata `GET /models` trả 200 chưa chứng minh model gọi được. Request `generateContent` có audio tổng hợp tới `gemini-2.5-flash` trả 404 và báo không còn khả dụng cho người dùng mới; model được gợi ý `gemini-3.8-flash` trả 503 do quá tải.

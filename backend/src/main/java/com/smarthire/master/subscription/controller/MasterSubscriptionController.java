@@ -69,6 +69,12 @@ public class MasterSubscriptionController {
                 .body(ApiResponse.ok("Custom enterprise plan cloned successfully", response));
     }
 
+    @GetMapping("/tenants")
+    @Operation(summary = "List All Tenant Subscription Instances", description = "Returns the current subscription instance and immutable resource snapshot for every tenant.")
+    public ResponseEntity<ApiResponse<List<TenantSubscriptionInstanceResponse>>> getAllTenantSubscriptionInstances() {
+        return ResponseEntity.ok(ApiResponse.ok("Tenant subscription instances fetched", subscriptionService.getAllTenantSubscriptionInstances()));
+    }
+
     @GetMapping("/tenants/{tenantId}")
     @Operation(summary = "Get Tenant Subscription Instance & Snapshot", description = "Returns the active subscription instance and immutable resource snapshot for a tenant.")
     public ResponseEntity<ApiResponse<TenantSubscriptionInstanceResponse>> getTenantSubscriptionInstance(@PathVariable Long tenantId) {

@@ -320,16 +320,32 @@ public class TenantAuthService {
                 log.warn("Could not save OTP to Redis: {}", ex.getMessage());
             }
 
-            String subject = "[SmartHire] Mã xác thực đặt lại mật khẩu";
+            String brand = resolveBrandName(currentTenant);
+            String subject = "[" + brand + "] Mã xác thực đặt lại mật khẩu";
             String body = "Xin chào " + recipientName + ",\n\n"
                     + "Mã xác thực OTP để đặt lại mật khẩu của bạn là: " + otp + "\n"
                     + "Mã này có hiệu lực trong vòng 15 phút.\n\n"
                     + "Nếu bạn không thực hiện yêu cầu này, vui lòng bỏ qua email này.\n\n"
-                    + "Trân trọng,\nĐội ngũ SmartHire";
+                    + "Trân trọng,\nĐội ngũ " + brand;
             inviteMailSender.send(email, subject, body);
         } else {
             log.info("Forgot password requested for non-existing or inactive email: {} in tenant: {}", email, currentTenant);
         }
+    }
+
+    private String resolveBrandName(String tenantKey) {
+        if (!StringUtils.hasText(tenantKey) || tenantRegistryService == null) {
+            return "SmartHire";
+        }
+        try {
+            var tenant = tenantRegistryService.requireActive(tenantKey);
+            if (tenant != null && StringUtils.hasText(tenant.getName())) {
+                return tenant.getName().trim();
+            }
+        } catch (Exception ignored) {
+            // Fallback to default brand
+        }
+        return "SmartHire";
     }
 
     @Transactional

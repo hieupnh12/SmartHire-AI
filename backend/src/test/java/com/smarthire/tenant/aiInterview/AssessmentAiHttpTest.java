@@ -3,7 +3,6 @@ package com.smarthire.tenant.aiInterview;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.smarthire.config.ai.DynamicAiConfigProvider;
-import com.smarthire.tenant.aiInterview.ai.AiInterviewAiConfig;
 import com.smarthire.tenant.aiInterview.ai.AiInterviewClient;
 import com.sun.net.httpserver.HttpServer;
 import java.net.InetSocketAddress;
@@ -36,7 +35,7 @@ class AssessmentAiHttpTest {
             when(dynamic.resolveConfig("ASSESSMENT_GEN")).thenReturn(new DynamicAiConfigProvider.ResolvedAiConfig(
                     "ASSESSMENT_GEN", "OPENAI", model, "", "http://127.0.0.1:" + server.getAddress().getPort() + "/v1/chat/completions",
                     BigDecimal.valueOf(0.3), 8192, 120, null, null));
-            var client = new AiInterviewClient(new AiInterviewAiConfig(), dynamic, RestClient.builder(), json);
+            var client = new AiInterviewClient(dynamic, RestClient.builder(), json);
             assertThat(client.generateAssessment("Generate a draft", json.createObjectNode()).path("question").path("questionText").asText()).isEqualTo("test");
             assertThat(received.get().path("model").asText()).isEqualTo(model);
             assertThat(received.get().path("response_format").path("type").asText()).isEqualTo("json_object");
@@ -48,7 +47,7 @@ class AssessmentAiHttpTest {
         var dynamic = mock(DynamicAiConfigProvider.class);
         when(dynamic.resolveConfig("ASSESSMENT_GEN")).thenReturn(new DynamicAiConfigProvider.ResolvedAiConfig(
                 "ASSESSMENT_GEN", "OPENAI", model, "", null, BigDecimal.ZERO, 8192, 120, null, null));
-        var client = new AiInterviewClient(new AiInterviewAiConfig(), dynamic, RestClient.builder(), json);
+        var client = new AiInterviewClient(dynamic, RestClient.builder(), json);
         assertThatThrownBy(() -> client.generateAssessment("Generate", json.createObjectNode()))
                 .isInstanceOf(IllegalStateException.class).hasMessage("Assessment AI endpoint is not configured");
     }
@@ -71,7 +70,7 @@ class AssessmentAiHttpTest {
             when(dynamic.resolveConfig("ASSESSMENT_GRADING")).thenReturn(new DynamicAiConfigProvider.ResolvedAiConfig(
                     "ASSESSMENT_GRADING", "OPENAI", model, "", "http://127.0.0.1:" + server.getAddress().getPort() + "/v1",
                     BigDecimal.valueOf(0.1), 8192, 120, null, null));
-            var client = new AiInterviewClient(new AiInterviewAiConfig(), dynamic, RestClient.builder(), json);
+            var client = new AiInterviewClient(dynamic, RestClient.builder(), json);
             assertThat(client.evaluateAssessment("Review submitted code", json.createObjectNode().put("source", "test fixture"))
                     .path("score_percent").asInt()).isEqualTo(80);
             assertThat(received.get().path("model").asText()).isEqualTo(model);

@@ -20,7 +20,7 @@ export function CreateContractPage() {
 
   const [contractTenantId, setContractTenantId] = useState<number | "">("");
   const [contractPlanId, setContractPlanId] = useState<number | "">("");
-  const [contractTitle, setContractTitle] = useState("Hợp Đồng Cung Cấp Dịch Vụ Tuyển Dụng AI & Dedicated DB SmartHire-AI");
+  const [contractTitle, setContractTitle] = useState("Hợp Đồng Cung Cấp Dịch Vụ Phần Mềm Tuyển Dụng AI & Hạ Tầng Cơ Sở Dữ Liệu Độc Lập");
   const [contractPartyBName, setContractPartyBName] = useState("");
   const [contractPartyBTaxCode, setContractPartyBTaxCode] = useState("");
   const [contractPartyBAddress, setContractPartyBAddress] = useState("");
@@ -30,20 +30,15 @@ export function CreateContractPage() {
   const [contractPartyBEmail, setContractPartyBEmail] = useState("");
   const [contractPartyBBankAccount, setContractPartyBBankAccount] = useState("");
   const [contractValue, setContractValue] = useState(36000000);
-  const [contractTaxRate, setContractTaxRate] = useState(10);
+  const [contractTaxRate, setContractTaxRate] = useState(0);
   const [contractCurrency, setContractCurrency] = useState("VND");
   const [contractStartDate, setContractStartDate] = useState(new Date().toISOString().split("T")[0]);
   const [contractEndDate, setContractEndDate] = useState(new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split("T")[0]);
-  const [contractTerms, setContractTerms] = useState(`1. Cam kết chất lượng dịch vụ (SLA):
-- Chỉ số sẵn sàng (Uptime): Cam kết hệ thống đạt thời gian hoạt động tối thiểu 99.9% mỗi tháng (không bao gồm thời gian bảo trì định kỳ đã báo trước ít nhất 24 giờ).
-- Khôi phục dữ liệu (RPO/RTO): Điểm khôi phục dữ liệu (RPO) <= 1 giờ; Thời gian khôi phục dịch vụ (RTO) <= 4 giờ khi xảy ra sự cố kỹ thuật nghiêm trọng.
-- Hỗ trợ kỹ thuật: Tiếp nhận & xử lý phản hồi sự cố 24/7 qua kênh Email/Hotline hỗ trợ.
-
-2. Tương thích và Tuân thủ Bảo vệ Dữ liệu Cá nhân (Nghị định 13/2023/NĐ-CP):
-- Vai trò xử lý: Bên A đóng vai trò là Bên Xử lý Dữ liệu cá nhân / Bên Kiểm soát và Xử lý Dữ liệu cá nhân đối với các dữ liệu hồ sơ ứng viên do Bên B tải lên hệ thống SmartHire-AI.
-- Tách biệt dữ liệu (Dedicated DB): Dữ liệu của Bên B được lưu trữ trên hạ tầng cơ sở dữ liệu tách biệt, mã hóa ở trạng thái nghỉ (Encryption at Rest) và mã hóa trên đường truyền (Encryption in Transit).
-- Nghĩa vụ bảo mật: Bên A cam kết không sử dụng dữ liệu thương mại hoặc dữ liệu cá nhân của Bên B để huấn luyện (train) các mô hình AI dùng chung công khai mà không có sự đồng ý bằng văn bản của Bên B.
-- Quyền của chủ thể dữ liệu: Hệ thống cung cấp công cụ cho phép Bên B thực hiện các quyền của chủ thể dữ liệu (truy xuất, chỉnh sửa, xóa bỏ, rút lại sự đồng ý) theo đúng quy định tại Nghị định 13/2023/NĐ-CP.`);
+  const [contractTerms, setContractTerms] = useState(`3.1. Cam kết chất lượng (SLA): Bên A cam kết độ sẵn sàng của hạ tầng hệ thống (Uptime SLA) đạt tối thiểu 99.5%/tháng, thực hiện sao lưu dữ liệu tự động định kỳ hàng ngày.
+3.2. Tuân thủ Nghị định 13/2023/NĐ-CP:
+- Bên B xác nhận là Bên Kiểm soát Dữ liệu Cá nhân và chịu trách nhiệm thu thập sự đồng ý hợp pháp của Ứng viên trước khi đưa thông tin vào phần mềm.
+- Bên A đóng vai trò là Bên Xử lý Dữ liệu Cá nhân theo ủy quyền; cam kết bảo mật tuyệt đối và không sử dụng dữ liệu riêng của Bên B để huấn luyện mô hình AI công cộng hoặc chia sẻ cho bên thứ ba.
+3.3. Giới hạn trách nhiệm AI: Các tính năng đánh giá tự động của AI đóng vai trò là công cụ hỗ trợ sàng lọc; Bên B giữ toàn quyền và chịu hoàn toàn trách nhiệm đối với các quyết định tuyển dụng nhân sự cuối cùng.`);
   const [contractNotes, setContractNotes] = useState("");
   
   const [creatingContract, setCreatingContract] = useState(false);
@@ -363,15 +358,15 @@ export function CreateContractPage() {
                 />
               </div>
               <div>
-                <label className="block font-semibold text-slate-700 mb-1.5">Thuế Suất VAT (%)</label>
+                <label className="block font-semibold text-slate-700 mb-1.5">Thuế Suất GTGT (VAT)</label>
                 <select
                   value={contractTaxRate}
                   onChange={(e) => setContractTaxRate(Number(e.target.value))}
                   className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 font-bold text-slate-800 focus:outline-none focus:border-indigo-600 bg-white"
                 >
-                  <option value={10}>VAT 10% (Chuẩn dịch vụ phần mềm)</option>
-                  <option value={8}>VAT 8% (Ưu đãi)</option>
-                  <option value={0}>VAT 0% (Miễn thuế)</option>
+                  <option value={0}>Không chịu thuế GTGT (Khoản 21 Điều 4 TT 219/2013/TT-BTC)</option>
+                  <option value={8}>VAT 8% (Dịch vụ kèm theo nếu có)</option>
+                  <option value={10}>VAT 10% (Dịch vụ khác)</option>
                 </select>
               </div>
               <div>
@@ -388,8 +383,12 @@ export function CreateContractPage() {
 
             <div className="p-4 bg-white rounded-lg border border-slate-200 flex items-center justify-between text-sm">
               <div>
-                <span className="text-slate-500">Tiền thuế VAT ({contractTaxRate}%): </span>
-                <span className="font-mono font-semibold text-slate-800">{((contractValue * contractTaxRate) / 100).toLocaleString("vi-VN")} ₫</span>
+                <span className="text-slate-500">Thuế GTGT: </span>
+                <span className="font-mono font-semibold text-slate-800">
+                  {contractTaxRate === 0
+                    ? "Không chịu thuế GTGT (Dịch vụ phần mềm)"
+                    : `${((contractValue * contractTaxRate) / 100).toLocaleString("vi-VN")} ₫ (${contractTaxRate}%)`}
+                </span>
               </div>
               <div>
                 <span className="font-bold text-slate-900">Tổng tiền thanh toán: </span>

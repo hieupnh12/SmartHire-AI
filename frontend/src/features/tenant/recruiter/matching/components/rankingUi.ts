@@ -12,4 +12,6 @@ export const labels: Record<string, string> = {
   SELECT_SOURCE: "Cần chọn nguồn", NEEDS_REVIEW: "Cần xác minh", NEW: "Đã apply", IN_REVIEW: "Sàng lọc CV",
   ASSESSMENT: "Technical test", INTERVIEW: "Phỏng vấn AI", HUMAN_INTERVIEW: "Phỏng vấn trực tiếp", OFFER: "Đề nghị", HIRED: "Đã tuyển", REJECTED: "Đã từ chối", WITHDRAWN: "Đã rút",
 };
+/** Application status FAILED means the AI interview attempt ended below the threshold. Ranking component FAILED stays "Xử lý lỗi". */
+export const applicationStatusLabel = (status: string) => status === "FAILED" ? "Trượt phỏng vấn AI" : labels[status] ?? status;
 export const scoreText = (value: number | null) => value === null ? "—" : value.toLocaleString("vi-VN", { maximumFractionDigits: 2 });

@@ -3,6 +3,7 @@ package com.smarthire.tenant.auth.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.smarthire.common.exception.GlobalExceptionHandler;
 import com.smarthire.tenant.auth.dto.*;
+import com.smarthire.tenant.auth.service.AccountProfileService;
 import com.smarthire.tenant.auth.service.TenantAuthService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -29,12 +30,18 @@ class TenantAuthControllerTest {
     @Mock
     private TenantAuthService tenantAuthService;
 
+    @Mock
+    private AccountProfileService accountProfileService;
+
+    @Mock
+    private com.smarthire.tenant.auth.service.CandidateErasureService candidateErasureService;
+
     private MockMvc mockMvc;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @BeforeEach
     void setUp() {
-        TenantAuthController controller = new TenantAuthController(tenantAuthService);
+        TenantAuthController controller = new TenantAuthController(tenantAuthService, accountProfileService, candidateErasureService);
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();

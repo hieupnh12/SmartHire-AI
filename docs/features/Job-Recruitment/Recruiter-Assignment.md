@@ -84,6 +84,6 @@ Thay thế hoàn toàn cơ chế "Phân công" tách rời bằng hệ thống *
 ## UI Components liên quan
 
 - `RolesPage.tsx` (`/internal/admin/roles`): Cấu hình quyền `JOBS_ALL` (Phạm vi tuyển dụng) cho từng vai trò.
-- `JobsPage.tsx` (`/recruiter/jobs`): Tab "Việc làm của tôi / Tất cả" khi có quyền `JOBS_ALL` hoặc Admin.
+- `HomePage.tsx` (`/recruiter`): Danh sách job dùng `scope=my` mặc định; backend tự trả toàn bộ job cho Admin hoặc vai trò có quyền `JOBS_ALL`.
 - `JobDetailPage.tsx` (`/recruiter/jobs/:id`): Nút "Phân quyền" (mở modal) cho Admin hoặc Creator; kiểm soát hiển thị nút Sửa/Đổi trạng thái dựa theo `job.canEdit`.
 - `JobPermissionsModal.tsx`: Modal quản lý và cập nhật quyền Xem/Sửa của từng nhân viên trên Job.

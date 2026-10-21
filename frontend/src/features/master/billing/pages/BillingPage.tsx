@@ -2,7 +2,14 @@ import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { masterAdminApi, type SubscriptionPlan } from "@/api/master/masterAdminApi";
 import { BillingWorkspace, type BillingView } from "../components/BillingWorkspace";
-import { useTenants, useSubscriptions, useRevenueAnalytics, masterQueryKeys } from "@/api/master/queries";
+import {
+  useTenants,
+  useSubscriptions,
+  useRevenueAnalytics,
+  useInvoices,
+  useTenantSubscriptionInstances,
+  masterQueryKeys,
+} from "@/api/master/queries";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/stores/toastStore";
 import { X, Copy, GitBranch } from "lucide-react";
@@ -19,6 +26,8 @@ export function BillingPage() {
   const { data: tenants = [] } = useTenants();
   const { data: plans = [] } = useSubscriptions();
   const { data: revenue } = useRevenueAnalytics();
+  const { data: invoices = [] } = useInvoices();
+  const { data: tenantSubscriptions = [] } = useTenantSubscriptionInstances();
   const setPlans = (updater: any) => queryClient.setQueryData(masterQueryKeys.subscriptions(), updater);
   const triggerNotification = (msg: string) => toast.success(msg);
 
@@ -113,6 +122,7 @@ export function BillingPage() {
           activateImmediately: true,
         });
         await queryClient.invalidateQueries({ queryKey: masterQueryKeys.subscriptions() });
+        await queryClient.invalidateQueries({ queryKey: masterQueryKeys.tenantSubscriptionInstances() });
         triggerNotification("Đã nhân bản Gói Custom Enterprise riêng và kích hoạt Snapshot cho Tenant!");
       }
       setEditingPlan(null);
@@ -128,13 +138,21 @@ export function BillingPage() {
       <BillingWorkspace
         plans={plans}
         tenants={tenants}
+        invoices={invoices}
+        revenue={revenue ?? null}
+        tenantSubscriptions={tenantSubscriptions}
         view={currentView(location.pathname)}
         onViewChange={(view) => navigate(`/admin/subscriptions/${view}`)}
         monthlyRevenue={revenue?.mrr ?? 0}
-        activeTenants={revenue?.activeTenants ?? tenants.filter((tenant) => tenant.status === "ACTIVE").length}
+        activeTenants={revenue?.activeTenants ?? tenants.filter((tenant) => !tenant.deleted && tenant.status === "ACTIVE").length}
         onCreatePlan={() => handleCreateOrEditPlan()}
         onEditPlan={(plan) => handleCreateOrEditPlan(plan)}
         onTogglePlanStatus={togglePlan}
+        onSubscriptionAssigned={async () => {
+          await queryClient.invalidateQueries({ queryKey: masterQueryKeys.tenantSubscriptionInstances() });
+          await queryClient.invalidateQueries({ queryKey: masterQueryKeys.subscriptions() });
+          await queryClient.invalidateQueries({ queryKey: masterQueryKeys.all });
+        }}
       />
 
       {editingPlan && (

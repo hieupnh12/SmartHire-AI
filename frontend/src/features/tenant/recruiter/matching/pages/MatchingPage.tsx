@@ -11,7 +11,7 @@ import { createRankingSocket } from "@/lib/ws";
 import { RankingDetail } from "../components/RankingDetail";
 import { RankingSelect } from "../components/RankingSelect";
 import { PREVIEW_JOB_ID, rankingPreview } from "../data/rankingPreview";
-import { button, detailAction, input, labels, primary, scoreText } from "../components/rankingUi";
+import { applicationStatusLabel, button, detailAction, input, labels, primary, scoreText } from "../components/rankingUi";
 import { useRankingStore } from "../stores/useRankingStore";
 import type { RankingPage, RankingRow } from "../types/ranking";
 
@@ -63,7 +63,7 @@ function CandidateCard({ row, showRank, onOpen }: { row: RankingRow; showRank: b
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div className="min-w-0"><h3 className="truncate font-semibold">{row.candidateName}</h3><p className="mt-0.5 text-xs text-[var(--color-on-surface-variant)]">Hồ sơ #{row.applicationId} · {row.experienceMonths === null ? "Chưa rõ kinh nghiệm" : `${(row.experienceMonths / 12).toFixed(1)} năm kinh nghiệm`}</p></div>
-          <span className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold ${statusTone(row.status)}`}>{labels[row.status] ?? row.status}</span>
+          <span className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold ${statusTone(row.status)}`}>{applicationStatusLabel(row.status)}</span>
         </div>
         <div className="mt-4 grid grid-cols-2 gap-2 text-center sm:grid-cols-5">
           {[{ key: "score", label: "Tổng", value: row.result.score }, { key: "skills", label: "CV", value: componentScore(row, "skills") }, { key: "experience", label: "Kinh nghiệm", value: componentScore(row, "experience") }, { key: "assessment", label: "Bài test", value: componentScore(row, "assessment") }, { key: "interview", label: "PV AI", value: componentScore(row, "interview") }].map((item, index) => <div key={item.key} className={`rounded-lg bg-[var(--color-surface-container-low)] px-2 py-2 ${index === 0 ? "col-span-2 sm:col-span-1" : ""}`}><strong className="block text-sm tabular-nums">{scoreText(item.value)}</strong><span className="text-[10px] text-[var(--color-on-surface-variant)]">{item.label}</span></div>)}
@@ -109,7 +109,7 @@ export function RankingPage() {
   return <section className="min-w-0 space-y-4 bg-[var(--color-surface)] py-4 text-[var(--color-on-surface)] sm:py-6 xl:h-full xl:overflow-y-auto xl:overscroll-contain">
 
     {!token && <p role="status" className="rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-5">Đăng nhập bằng tài khoản Recruiter để xem bảng xếp hạng.</p>}
-    {!validJobId && <div className="rounded-xl border border-red-200 bg-red-50 p-5 text-sm text-red-700" role="alert">Đường dẫn công việc không hợp lệ. <Link className="font-semibold underline" to="/recruiter/jobs">Quay lại danh sách công việc</Link></div>}
+    {!validJobId && <div className="rounded-xl border border-red-200 bg-red-50 p-5 text-sm text-red-700" role="alert">Đường dẫn công việc không hợp lệ. <Link className="font-semibold underline" to="/recruiter">Quay lại danh sách công việc</Link></div>}
     {jobId && !isPreview && token && query.isPending && <RankingLoadingState />}
     {jobId && !isPreview && query.isError && <div className="rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-6" role="alert">{getApiErrorMessage(query.error)} <button className={button} onClick={() => void query.refetch()}>Thử lại</button></div>}
 
@@ -138,19 +138,19 @@ export function RankingPage() {
 
       <div className="order-2 overflow-hidden rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] shadow-sm xl:col-start-2">
         <div className="grid gap-3 p-4 md:hidden">
-          {filtered.map((row) => <CandidateCard key={row.applicationId} row={row} showRank={state.cohort !== "ALL"} onOpen={() => state.select(row.applicationId)} />)}
+          {filtered.map((row) => <CandidateCard key={row.applicationId} row={row} showRank onOpen={() => state.select(row.applicationId)} />)}
         </div>
         <div className="hidden overflow-x-auto md:block"><table className="w-full min-w-[1080px] border-collapse text-left text-sm">
-          <caption className="sr-only">Điểm ứng viên cho {board.jobTitle}; thứ hạng chỉ so sánh trong cùng nhóm thành phần.</caption>
+          <caption className="sr-only">Điểm ứng viên cho {board.jobTitle}. Ở chế độ tất cả nhóm điểm, hồ sơ đủ thành phần xếp trước; hạng chỉ gán cho hồ sơ hoàn chỉnh.</caption>
           <thead className="bg-[var(--color-surface-alt)] text-[11px] text-[var(--color-on-surface-variant)]"><tr>{["Hạng", "Ứng viên", "Điểm tổng", "CV Match", "Kinh nghiệm", "Assessment", "AI Interview", "Trạng thái", ""].map((title) => <th key={title || "actions"} scope="col" className="whitespace-nowrap border-b border-[var(--color-border-default)] px-3 py-2.5 font-semibold">{title}<span className={title ? "sr-only" : undefined}>{title ? "" : "Hành động"}</span></th>)}</tr></thead>
           <tbody>{filtered.map((row) => <tr key={row.applicationId} className={`border-t border-[var(--color-border-default)]/70 transition-colors hover:bg-[var(--color-primary-subtle)] ${row.rank === 1 ? "bg-[var(--color-primary-subtle)]" : ""}`}>
-            <td className="px-3 py-3"><span className={`grid size-7 place-items-center rounded-full text-[11px] font-bold ${row.rank && row.rank <= 3 ? "bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)]" : "bg-[var(--color-surface-container-low)]"}`}>{state.cohort === "ALL" ? "—" : row.rank ?? "—"}</span></td>
+            <td className="px-3 py-3"><span className={`grid size-7 place-items-center rounded-full text-[11px] font-bold ${row.rank && row.rank <= 3 ? "bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)]" : "bg-[var(--color-surface-container-low)]"}`}>{row.rank ?? "—"}</span></td>
             <td className="max-w-[240px] px-3 py-3"><div className="flex items-center gap-2.5"><span className="grid size-8 shrink-0 place-items-center rounded-full bg-[var(--color-primary-soft)] text-[10px] font-bold text-[var(--color-primary-hover)]">{row.candidateName.split(" ").slice(-2).map((part) => part[0]).join("")}</span><div className="min-w-0"><button onClick={() => state.select(row.applicationId)} className="block max-w-full truncate text-left text-xs font-semibold hover:text-[var(--color-primary)] hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-primary)]">{row.candidateName}</button><p className="mt-0.5 truncate text-[10px] text-[var(--color-on-surface-variant)]">Hồ sơ #{row.applicationId} · {row.experienceMonths === null ? "Chưa rõ kinh nghiệm" : `${(row.experienceMonths / 12).toFixed(1)} năm`}</p></div></div></td>
             <td className="px-3 py-3"><div className="flex items-center gap-2"><ScoreGauge score={row.result.score} /><div><p className="text-[11px] font-semibold text-[var(--color-primary-hover)]">{row.result.complete ? "Hoàn chỉnh" : "Tạm tính"}</p><p className="text-[10px] text-[var(--color-on-surface-variant)]">{row.result.availableWeight}% trọng số</p></div></div></td>
             <td className="px-3 py-3 text-xs"><p className="font-semibold tabular-nums text-[var(--color-primary-hover)]">{scoreText(componentScore(row, "skills"))}<span className="font-normal text-[var(--color-outline)]"> / 100</span></p><div className="mt-1.5 h-1 w-16 overflow-hidden rounded-full bg-[var(--color-surface-container)]"><div className="h-full rounded-full bg-[var(--color-primary)]" style={{ width: `${componentScore(row, "skills") ?? 0}%` }} /></div></td>
             <td className="px-3 py-3 text-xs font-semibold tabular-nums">{scoreText(componentScore(row, "experience"))}<span className="font-normal text-[var(--color-outline)]"> / 100</span></td>
             {(["assessment", "interview"] as const).map((part) => <td key={part} className="px-3 py-3 text-xs font-semibold tabular-nums">{scoreText(componentScore(row, part))}<span className="font-normal text-[var(--color-outline)]"> / 100</span></td>)}
-            <td className="px-3 py-3"><span className={`inline-flex whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-semibold ${statusTone(row.status)}`}>{labels[row.status] ?? row.status}</span></td>
+            <td className="px-3 py-3"><span className={`inline-flex whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-semibold ${statusTone(row.status)}`}>{applicationStatusLabel(row.status)}</span></td>
             <td className="px-3 py-3 text-right"><button className={detailAction} onClick={() => state.select(row.applicationId)}><Eye className="size-3.5" aria-hidden="true" />Xem chi tiết</button></td>
           </tr>)}</tbody>
         </table></div>

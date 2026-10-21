@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import {
   aiConfigApi,
+  type AiFallbackStep,
   type AiModelConfig,
   type AiModelPricing,
   type AiProviderKey,
@@ -30,11 +31,104 @@ import { cn } from "@/lib/utils";
 const surface = "rounded-2xl border border-slate-200 bg-white shadow-[0_4px_14px_-8px_rgba(15,23,42,0.18)]";
 
 const MODEL_PRESETS: Record<string, string[]> = {
-  GEMINI: ["gemini-3.6-flash", "gemini-2.5-flash", "gemini-3.1-pro-preview", "gemini-2.5-pro", "gemini-1.5-flash", "gemini-1.5-pro"],
-  OPENAI: ["gpt-4o-mini", "gpt-4o", "gpt-4-turbo", "o3-mini"],
+  GEMINI: [
+    "gemini-3.5-flash-lite",
+    "gemini-3.8-flash",
+    "gemini-3.7-flash",
+    "gemini-3.6-flash",
+    "gemini-3.1-pro-preview",
+    "gemini-2.5-flash",
+    "gemini-2.5-pro",
+  ],
+  OPENAI: ["gpt-4o-mini", "gpt-4o", "gpt-4-turbo", "o3-mini", "o1-mini"],
   ANTHROPIC: ["claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022", "claude-3-opus-20240229"],
+  CURSOR: [
+    "claude-sonnet-4-5",
+    "claude-haiku-4-5",
+    "claude-sonnet-4",
+    "gpt-5.1",
+    "gemini-3.5-flash",
+    "cursor-small",
+    "default",
+  ],
+  OPENROUTER: [
+    "anthropic/claude-3.5-sonnet",
+    "openai/gpt-4o-mini",
+    "meta-llama/llama-3.3-70b-instruct",
+    "deepseek/deepseek-chat",
+    "deepseek/deepseek-r1",
+    "google/gemini-2.5-flash",
+  ],
+  GROQ: [
+    "qwen/qwen3.8-27b",
+    "openai/gpt-oss-120b",
+    "openai/gpt-oss-20b",
+    "whisper-large-v3-turbo",
+    "llama-3.3-70b-versatile",
+    "llama-3.1-8b-instant",
+    "mixtral-8x7b-32768",
+    "deepseek-r1-distill-llama-70b",
+  ],
   DEEPSEEK: ["deepseek-chat", "deepseek-coder", "deepseek-reasoner"],
+  MISTRAL: ["mistral-small-latest", "mistral-large-latest", "codestral-latest"],
+  XAI: ["grok-2-latest", "grok-beta"],
+  PERPLEXITY: ["sonar", "sonar-pro", "sonar-reasoning"],
+  OLLAMA: ["llama3.2", "qwen2.5-coder", "deepseek-r1:8b", "mistral"],
   HUGGINGFACE: ["Qwen/Qwen2.5-7B-Instruct", "meta-llama/Meta-Llama-3-8B-Instruct", "mistralai/Mistral-7B-Instruct-v0.2"],
+  CUSTOM: ["custom-model-01", "default"],
+};
+
+const getProviderBadgeStyle = (p: string) => {
+  switch (p) {
+    case "GEMINI": return "bg-blue-50 text-blue-700 border border-blue-200";
+    case "OPENAI": return "bg-emerald-50 text-emerald-700 border border-emerald-200";
+    case "ANTHROPIC": return "bg-amber-50 text-amber-700 border border-amber-200";
+    case "CURSOR": return "bg-indigo-50 text-indigo-700 border border-indigo-200";
+    case "OPENROUTER": return "bg-fuchsia-50 text-fuchsia-700 border border-fuchsia-200";
+    case "GROQ": return "bg-orange-50 text-orange-700 border border-orange-200";
+    case "DEEPSEEK": return "bg-cyan-50 text-cyan-700 border border-cyan-200";
+    case "MISTRAL": return "bg-rose-50 text-rose-700 border border-rose-200";
+    case "XAI": return "bg-slate-100 text-slate-800 border border-slate-300";
+    case "OLLAMA": return "bg-teal-50 text-teal-700 border border-teal-200";
+    case "PERPLEXITY": return "bg-sky-50 text-sky-700 border border-sky-200";
+    default: return "bg-slate-50 text-slate-700 border border-slate-200";
+  }
+};
+
+const getStatusBadge = (status: string) => {
+  switch (status) {
+    case "ACTIVE":
+      return {
+        label: "Hoạt động",
+        className: "bg-emerald-50 text-emerald-700 border border-emerald-200",
+        dotColor: "bg-emerald-500",
+      };
+    case "INACTIVE":
+      return {
+        label: "Tạm dừng",
+        className: "bg-slate-100 text-slate-600 border border-slate-200",
+        dotColor: "bg-slate-400",
+      };
+    case "RATE_LIMITED_OR_INVALID":
+    case "RATE_LIMITED":
+      return {
+        label: "Lỗi / Quá tải",
+        className: "bg-rose-50 text-rose-700 border border-rose-200",
+        dotColor: "bg-rose-500",
+      };
+    case "EXPIRED":
+      return {
+        label: "Hết hạn",
+        className: "bg-amber-50 text-amber-700 border border-amber-200",
+        dotColor: "bg-amber-500",
+      };
+    default:
+      return {
+        label: status,
+        className: "bg-slate-50 text-slate-700 border border-slate-200",
+        dotColor: "bg-slate-400",
+      };
+  }
 };
 
 export function AiEngineConfiguration() {
@@ -44,6 +138,9 @@ export function AiEngineConfiguration() {
   const [newPricing, setNewPricing] = useState<AiModelPricing>({
     modelName: "",
     provider: "GEMINI",
+    displayName: "",
+    contextWindow: 128000,
+    supportsJson: true,
     inputPricePer1mTokens: 0.075,
     outputPricePer1mTokens: 0.3,
     isActive: true,
@@ -128,7 +225,7 @@ export function AiEngineConfiguration() {
 
   const handleAddPricing = async () => {
     if (!newPricing.modelName.trim()) {
-      alert("Vui lòng nhập tên Model (ví dụ: gemini-2.5-flash)");
+      alert("Vui lòng nhập tên Model (ví dụ: gemini-2.5-flash hoặc qwen/qwen3.8-27b)");
       return;
     }
     try {
@@ -136,6 +233,7 @@ export function AiEngineConfiguration() {
       const saved = await aiConfigApi.saveModelPricing({
         ...newPricing,
         modelName: newPricing.modelName.trim(),
+        displayName: newPricing.displayName?.trim() || undefined,
       });
       setPricings((prev) => {
         const filtered = prev.filter((p) => p.modelName !== saved.modelName);
@@ -144,6 +242,9 @@ export function AiEngineConfiguration() {
       setNewPricing({
         modelName: "",
         provider: "GEMINI",
+        displayName: "",
+        contextWindow: 128000,
+        supportsJson: true,
         inputPricePer1mTokens: 0.075,
         outputPricePer1mTokens: 0.3,
         isActive: true,
@@ -231,6 +332,133 @@ export function AiEngineConfiguration() {
     );
   };
 
+  const handleProviderChange = (taskType: string, newProvider: string) => {
+    const modelsForNewProvider = pricings.filter(
+      (p) => p.provider?.toUpperCase() === newProvider.toUpperCase() && p.isActive !== false
+    );
+    setTasks((prev) =>
+      prev.map((t) => {
+        if (t.taskType !== taskType) return t;
+        const currentStillValid = modelsForNewProvider.some((m) => m.modelName === t.modelName);
+        const nextModel = currentStillValid
+          ? t.modelName
+          : modelsForNewProvider[0]?.modelName || (MODEL_PRESETS[newProvider]?.[0] ?? t.modelName);
+        return {
+          ...t,
+          provider: newProvider,
+          modelName: nextModel,
+        };
+      })
+    );
+  };
+
+  const handleFallbackProviderChange = (taskType: string, index: number, newProvider: string) => {
+    const modelsForNewProvider = pricings.filter(
+      (p) => p.provider?.toUpperCase() === newProvider.toUpperCase() && p.isActive !== false
+    );
+    setTasks((prev) =>
+      prev.map((t) => {
+        if (t.taskType !== taskType) return t;
+        const currentSteps: AiFallbackStep[] =
+          t.fallbackSteps && t.fallbackSteps.length > 0
+            ? [...t.fallbackSteps]
+            : t.failoverModel
+              ? [{ provider: t.failoverProvider || t.provider || "GEMINI", model: t.failoverModel }]
+              : [];
+        const currentStep = currentSteps[index];
+        const currentStillValid = modelsForNewProvider.some((m) => m.modelName === currentStep?.model);
+        const nextModel = currentStillValid
+          ? currentStep?.model
+          : modelsForNewProvider[0]?.modelName || (MODEL_PRESETS[newProvider]?.[0] ?? "default");
+
+        const nextSteps = currentSteps.map((s, idx) =>
+          idx === index ? { ...s, provider: newProvider, model: nextModel } : s
+        );
+        return {
+          ...t,
+          fallbackSteps: nextSteps,
+          failoverProvider: nextSteps[0]?.provider,
+          failoverModel: nextSteps[0]?.model,
+        };
+      })
+    );
+  };
+
+  const handleAddFallbackStep = (taskType: string) => {
+    setTasks((prev) =>
+      prev.map((t) => {
+        if (t.taskType !== taskType) return t;
+        const currentSteps: AiFallbackStep[] =
+          t.fallbackSteps && t.fallbackSteps.length > 0
+            ? [...t.fallbackSteps]
+            : t.failoverModel
+              ? [{ provider: t.failoverProvider || t.provider || "GEMINI", model: t.failoverModel }]
+              : [];
+        const newStep: AiFallbackStep = {
+          provider: "GROQ",
+          model: "qwen/qwen3.8-27b",
+          timeoutSeconds: 30,
+        };
+        const nextSteps = [...currentSteps, newStep];
+        return {
+          ...t,
+          fallbackSteps: nextSteps,
+          failoverProvider: nextSteps[0]?.provider,
+          failoverModel: nextSteps[0]?.model,
+        };
+      })
+    );
+  };
+
+  const handleUpdateFallbackStep = (
+    taskType: string,
+    index: number,
+    field: keyof AiFallbackStep,
+    value: any
+  ) => {
+    setTasks((prev) =>
+      prev.map((t) => {
+        if (t.taskType !== taskType) return t;
+        const currentSteps: AiFallbackStep[] =
+          t.fallbackSteps && t.fallbackSteps.length > 0
+            ? [...t.fallbackSteps]
+            : t.failoverModel
+              ? [{ provider: t.failoverProvider || t.provider || "GEMINI", model: t.failoverModel }]
+              : [];
+        const nextSteps = currentSteps.map((s, idx) =>
+          idx === index ? { ...s, [field]: value } : s
+        );
+        return {
+          ...t,
+          fallbackSteps: nextSteps,
+          failoverProvider: nextSteps[0]?.provider,
+          failoverModel: nextSteps[0]?.model,
+        };
+      })
+    );
+  };
+
+  const handleRemoveFallbackStep = (taskType: string, index: number) => {
+    setTasks((prev) =>
+      prev.map((t) => {
+        if (t.taskType !== taskType) return t;
+        const currentSteps: AiFallbackStep[] =
+          t.fallbackSteps && t.fallbackSteps.length > 0
+            ? [...t.fallbackSteps]
+            : t.failoverModel
+              ? [{ provider: t.failoverProvider || t.provider || "GEMINI", model: t.failoverModel }]
+              : [];
+        const nextSteps = currentSteps.filter((_, idx) => idx !== index);
+        return {
+          ...t,
+          fallbackSteps: nextSteps,
+          failoverProvider: nextSteps[0]?.provider || undefined,
+          failoverModel: nextSteps[0]?.model || undefined,
+        };
+      })
+    );
+  };
+
   const handleSaveTask = async (task: AiModelConfig) => {
     setSavingTask(task.taskType);
     setSavedTaskSuccess(null);
@@ -284,9 +512,6 @@ export function AiEngineConfiguration() {
               <Key className="size-5 text-blue-600" />
               <h2 className="text-base font-bold text-slate-950">Danh sách Khóa API & Nhà cung cấp</h2>
             </div>
-            <p className="mt-1 text-xs text-slate-500">
-              Các khóa API được mã hóa an toàn khi lưu trữ và giải mã tại runtime khi gọi tác vụ AI.
-            </p>
           </div>
 
           <button
@@ -316,8 +541,8 @@ export function AiEngineConfiguration() {
               <thead className="bg-slate-50/80 text-xs font-semibold uppercase tracking-wide text-slate-500">
                 <tr>
                   <th className="px-5 py-3">Nhà cung cấp</th>
-                  <th className="px-4 py-3">Tên nhận diện (Alias)</th>
-                  <th className="px-4 py-3">API Key (Masked)</th>
+                  <th className="px-4 py-3">Tên nhận diện </th>
+                  <th className="px-4 py-3">API Key </th>
                   <th className="px-4 py-3">Trạng thái</th>
                   <th className="px-4 py-3">Kiểm tra gần nhất</th>
                   <th className="px-5 py-3 text-right">Thao tác</th>
@@ -335,11 +560,7 @@ export function AiEngineConfiguration() {
                           <span
                             className={cn(
                               "rounded-lg px-2.5 py-1 text-xs font-bold",
-                              key.provider === "GEMINI"
-                                ? "bg-blue-50 text-blue-700"
-                                : key.provider === "OPENAI"
-                                ? "bg-emerald-50 text-emerald-700"
-                                : "bg-violet-50 text-violet-700"
+                              getProviderBadgeStyle(key.provider)
                             )}
                           >
                             {key.provider}
@@ -359,22 +580,20 @@ export function AiEngineConfiguration() {
                       </td>
 
                       <td className="px-4 py-4">
-                        <span
-                          className={cn(
-                            "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold",
-                            key.status === "ACTIVE"
-                              ? "bg-emerald-50 text-emerald-700"
-                              : "bg-rose-50 text-rose-700"
-                          )}
-                        >
-                          <i
-                            className={cn(
-                              "size-1.5 rounded-full",
-                              key.status === "ACTIVE" ? "bg-emerald-500" : "bg-rose-500"
-                            )}
-                          />
-                          {key.status === "ACTIVE" ? "Hoạt động" : key.status}
-                        </span>
+                        {(() => {
+                          const badge = getStatusBadge(key.status);
+                          return (
+                            <span
+                              className={cn(
+                                "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold border",
+                                badge.className
+                              )}
+                            >
+                              <i className={cn("size-1.5 rounded-full", badge.dotColor)} />
+                              {badge.label}
+                            </span>
+                          );
+                        })()}
                       </td>
 
                       <td className="px-4 py-4 text-xs text-slate-500">
@@ -446,7 +665,7 @@ export function AiEngineConfiguration() {
         <div className="border-b border-slate-100 p-5 sm:p-6">
           <div className="flex items-center gap-2">
             <Sliders className="size-5 text-blue-600" />
-            <h2 className="text-base font-bold text-slate-950">Phân bổ Model theo Nghiệp vụ (Task Routing)</h2>
+            <h2 className="text-base font-bold text-slate-950">Phân bổ Model theo Nghiệp vụ</h2>
           </div>
           <p className="mt-1 text-xs text-slate-500">
             Chỉ định chính xác Model AI chính, Model dự phòng (Failover), nhiệt độ ngẫu nhiên (Temperature), giới hạn Max Tokens và thời gian Timeout cho từng tính năng.
@@ -457,9 +676,16 @@ export function AiEngineConfiguration() {
           {tasks.map((task) => {
             const isSaving = savingTask === task.taskType;
             const isSuccess = savedTaskSuccess === task.taskType;
-            const presets = MODEL_PRESETS[task.provider] || MODEL_PRESETS.GEMINI;
-            const failoverPresets =
-              MODEL_PRESETS[task.failoverProvider || task.provider] || MODEL_PRESETS.GEMINI;
+            const availableModels = pricings.filter(
+              (p) => p.provider?.toUpperCase() === task.provider?.toUpperCase() && p.isActive !== false
+            );
+            const hasCurrentModel = availableModels.some((m) => m.modelName === task.modelName);
+            const effectiveSteps: AiFallbackStep[] =
+              task.fallbackSteps && task.fallbackSteps.length > 0
+                ? task.fallbackSteps
+                : task.failoverModel
+                  ? [{ provider: task.failoverProvider || task.provider || "GEMINI", model: task.failoverModel }]
+                  : [];
 
             return (
               <div key={task.taskType} className="p-5 sm:p-6 hover:bg-slate-50/40 transition-colors">
@@ -519,31 +745,48 @@ export function AiEngineConfiguration() {
                       <label className="block text-[11px] font-semibold text-slate-500">Provider chính</label>
                       <select
                         value={task.provider}
-                        onChange={(e) => handleTaskChange(task.taskType, "provider", e.target.value)}
+                        onChange={(e) => handleProviderChange(task.taskType, e.target.value)}
                         className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 outline-none focus:border-blue-500"
                       >
                         <option value="GEMINI">Google Gemini</option>
                         <option value="OPENAI">OpenAI</option>
                         <option value="ANTHROPIC">Anthropic Claude</option>
+                        <option value="CURSOR">Cursor / AI</option>
+                        <option value="OPENROUTER">OpenRouter</option>
+                        <option value="GROQ">GroqCloud</option>
                         <option value="DEEPSEEK">DeepSeek</option>
+                        <option value="MISTRAL">Mistral AI</option>
+                        <option value="XAI">xAI Grok</option>
+                        <option value="PERPLEXITY">Perplexity</option>
+                        <option value="OLLAMA">Ollama (Local)</option>
+                        <option value="HUGGINGFACE">Hugging Face</option>
+                        <option value="CUSTOM">Custom</option>
                       </select>
                     </div>
 
-                    {/* Model Name */}
+                    {/* Model Name (Dropdown from Model Registry) */}
                     <div className="lg:col-span-2">
-                      <label className="block text-[11px] font-semibold text-slate-500">Model chính</label>
-                      <input
-                        type="text"
-                        list={`presets-${task.taskType}`}
+                      <label className="block text-[11px] font-semibold text-slate-500">Model chính </label>
+                      <select
                         value={task.modelName}
                         onChange={(e) => handleTaskChange(task.taskType, "modelName", e.target.value)}
                         className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-mono font-medium text-slate-800 outline-none focus:border-blue-500"
-                      />
-                      <datalist id={`presets-${task.taskType}`}>
-                        {presets.map((p) => (
-                          <option key={p} value={p} />
-                        ))}
-                      </datalist>
+                      >
+                        {!hasCurrentModel && task.modelName && (
+                          <option value={task.modelName}>⚠️ {task.modelName} (Chưa đăng ký trong bảng đơn giá)</option>
+                        )}
+                        {availableModels.length === 0 && (
+                          <option value="" disabled>-- Chưa có model nào thuộc provider này trong đơn giá --</option>
+                        )}
+                        {availableModels.map((p) => {
+                          const label = p.displayName || p.modelName;
+                          return (
+                            <option key={p.id ?? p.modelName} value={p.modelName}>
+                              {label}
+                            </option>
+                          );
+                        })}
+                      </select>
                     </div>
 
                     {/* Max Tokens */}
@@ -596,40 +839,104 @@ export function AiEngineConfiguration() {
                       />
                     </div>
 
-                    {/* Failover Provider & Model */}
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-500">Model dự phòng (Failover)</label>
-                      <div className="mt-1 flex gap-1.5">
-                        <select
-                          value={task.failoverProvider || ""}
-                          onChange={(e) =>
-                            handleTaskChange(task.taskType, "failoverProvider", e.target.value || undefined)
-                          }
-                          className="w-24 rounded-xl border border-slate-200 bg-slate-50 px-2 py-2 text-[11px] font-semibold text-slate-700 outline-none focus:border-blue-500"
-                        >
-                          <option value="">Không</option>
-                          <option value="GEMINI">GEMINI</option>
-                          <option value="OPENAI">OPENAI</option>
-                          <option value="ANTHROPIC">ANTHROPIC</option>
-                          <option value="DEEPSEEK">DEEPSEEK</option>
-                        </select>
-                        <input
-                          type="text"
-                          list={`failover-presets-${task.taskType}`}
-                          placeholder="Model dự phòng..."
-                          value={task.failoverModel || ""}
-                          onChange={(e) =>
-                            handleTaskChange(task.taskType, "failoverModel", e.target.value || undefined)
-                          }
-                          className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-xs font-mono text-slate-800 outline-none focus:border-blue-500"
-                        />
-                        <datalist id={`failover-presets-${task.taskType}`}>
-                          {failoverPresets.map((p) => (
-                            <option key={p} value={p} />
-                          ))}
-                        </datalist>
+                  </div>
+
+                  {/* Multi-Level Fallback Waterfall (Cascade Routing) */}
+                  <div className="mt-3 pt-3 border-t border-slate-100">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <label className="text-[11px] font-semibold text-slate-700">
+                          Model Dự Phòng
+                        </label>
                       </div>
+                      <button
+                        type="button"
+                        onClick={() => handleAddFallbackStep(task.taskType)}
+                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:text-blue-700 hover:underline"
+                      >
+                        <Plus className="size-3" />
+                        Thêm
+                      </button>
                     </div>
+
+                    {effectiveSteps.length === 0 ? (
+                      <div className="mt-2 rounded-xl border border-dashed border-slate-200 bg-slate-50/60 p-3 text-center">
+                        <p className="text-[11px] text-slate-400">
+                          Chưa có model dự phòng. Khi model chính ({task.provider}:{task.modelName}) gặp lỗi hoặc dính 429, yêu cầu sẽ thất bại ngay.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => handleAddFallbackStep(task.taskType)}
+                          className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-medium text-blue-600 hover:underline"
+                        >
+                          <Plus className="size-3" />
+                          Kích hoạt chuỗi dự phòng (VD: Groq, OpenRouter, Gemini Flash-Lite)
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="mt-2 space-y-2">
+                        {effectiveSteps.map((step, stepIdx) => {
+                          const stepAvailableModels = pricings.filter(
+                            (p) =>
+                              p.provider?.toUpperCase() === (step.provider || "GEMINI").toUpperCase() &&
+                              p.isActive !== false
+                          );
+                          const stepHasModel = stepAvailableModels.some((m) => m.modelName === step.model);
+
+                          return (
+                            <div
+                              key={stepIdx}
+                              className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50/60 p-2"
+                            >
+                              <span className="rounded-md bg-slate-200 px-1.5 py-0.5 text-[10px] font-bold text-slate-700">
+                                Cấp {stepIdx + 1}
+                              </span>
+                              <select
+                                value={step.provider || "GEMINI"}
+                                onChange={(e) =>
+                                  handleFallbackProviderChange(task.taskType, stepIdx, e.target.value)
+                                }
+                                className="w-28 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[11px] font-semibold text-slate-700 outline-none focus:border-blue-500"
+                              >
+                                {Object.keys(MODEL_PRESETS).map((p) => (
+                                  <option key={p} value={p}>{p}</option>
+                                ))}
+                              </select>
+                              <select
+                                value={step.model || ""}
+                                onChange={(e) =>
+                                  handleUpdateFallbackStep(task.taskType, stepIdx, "model", e.target.value)
+                                }
+                                className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-mono font-medium text-slate-800 outline-none focus:border-blue-500"
+                              >
+                                {!stepHasModel && step.model && (
+                                  <option value={step.model}>⚠️ {step.model} (Chưa đăng ký trong đơn giá)</option>
+                                )}
+                                {stepAvailableModels.length === 0 && (
+                                  <option value="" disabled>-- Chưa có model nào thuộc {step.provider} trong đơn giá --</option>
+                                )}
+                                {stepAvailableModels.map((p) => {
+                                  const label = p.displayName || p.modelName;
+                                  return (
+                                    <option key={p.id ?? p.modelName} value={p.modelName}>
+                                      {label}
+                                    </option>
+                                  );
+                                })}
+                              </select>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveFallbackStep(task.taskType, stepIdx)}
+                                className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition-colors"
+                                title="Xóa cấp dự phòng này"
+                              >
+                                <Trash2 className="size-3.5" />
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -645,7 +952,7 @@ export function AiEngineConfiguration() {
             <div className="flex items-center gap-2">
               <Gauge className="size-5 text-blue-600" />
               <h2 className="text-base font-bold text-slate-950">
-                Bảo vệ Tài nguyên & Giới hạn Tốc độ Ngắn hạn (Redis Rate Limiting)
+                Bảo vệ Tài nguyên & Giới hạn Tốc độ Ngắn hạn
               </h2>
             </div>
             <p className="mt-1 text-xs text-slate-500">
@@ -741,23 +1048,25 @@ export function AiEngineConfiguration() {
           <div className="flex items-center gap-2">
             <Coins className="size-5 text-amber-600" />
             <h2 className="text-base font-bold text-slate-950">
-              Bảng Đơn giá Model AI (Internal Cost Calculation — USD / 1M Tokens)
+              Danh mục & Đơn giá Model AI (Model Registry & Pricing)
             </h2>
           </div>
           <p className="mt-1 text-xs text-slate-500">
-            Cấu hình đơn giá Input & Output (USD trên 1.000.000 tokens) để tự động tính chi phí nội bộ khi ghi nhận tiêu thụ tại màn hình{" "}
-            <span className="font-mono font-semibold text-slate-700">/admin/system/ai-usage</span>.
+            Quản lý danh mục Model chuẩn hóa cho toàn hệ thống: Tên hiển thị, System Model ID, Context Window, Hỗ trợ JSON Mode và Đơn giá (USD trên 1.000.000 tokens). Danh mục này cấp nguồn trực tiếp cho Dropdown chọn Model tại các tính năng nghiệp vụ bên trên.
           </p>
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[780px] text-left text-sm">
+          <table className="w-full min-w-[980px] text-left text-sm">
             <thead className="bg-slate-50/80 text-xs font-semibold uppercase tracking-wide text-slate-500">
               <tr>
                 <th className="px-5 py-3">Provider</th>
-                <th className="px-4 py-3">Model Name</th>
-                <th className="px-4 py-3">Giá Input (USD / 1M tokens)</th>
-                <th className="px-4 py-3">Giá Output (USD / 1M tokens)</th>
+                <th className="px-4 py-3">Tên hiển thị</th>
+                <th className="px-4 py-3">Mã Model (ID)</th>
+                <th className="px-4 py-3">Context Window</th>
+                <th className="px-4 py-3">Giá Input ($/1M)</th>
+                <th className="px-4 py-3">Giá Output ($/1M)</th>
+                <th className="px-4 py-3 text-center">JSON?</th>
                 <th className="px-4 py-3">Trạng thái</th>
                 <th className="px-5 py-3 text-right">Thao tác</th>
               </tr>
@@ -779,11 +1088,47 @@ export function AiEngineConfiguration() {
                         <option value="GEMINI">GEMINI</option>
                         <option value="OPENAI">OPENAI</option>
                         <option value="ANTHROPIC">ANTHROPIC</option>
+                        <option value="CURSOR">CURSOR</option>
+                        <option value="OPENROUTER">OPENROUTER</option>
+                        <option value="GROQ">GROQ</option>
                         <option value="DEEPSEEK">DEEPSEEK</option>
+                        <option value="MISTRAL">MISTRAL</option>
+                        <option value="XAI">XAI</option>
+                        <option value="PERPLEXITY">PERPLEXITY</option>
+                        <option value="OLLAMA">OLLAMA</option>
+                        <option value="HUGGINGFACE">HUGGINGFACE</option>
+                        <option value="CUSTOM">CUSTOM</option>
                       </select>
+                    </td>
+                    <td className="px-4 py-3">
+                      <input
+                        type="text"
+                        placeholder="VD: Groq Qwen 3.8 27B"
+                        value={pricing.displayName || ""}
+                        onChange={(e) =>
+                          handlePricingChange(pricing.modelName, "displayName", e.target.value)
+                        }
+                        className="w-44 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-900 outline-none focus:border-blue-500"
+                      />
                     </td>
                     <td className="px-4 py-3 font-mono text-xs font-semibold text-slate-900">
                       {pricing.modelName}
+                    </td>
+                    <td className="px-4 py-3">
+                      <input
+                        type="number"
+                        min={1000}
+                        step={1000}
+                        value={pricing.contextWindow ?? 128000}
+                        onChange={(e) =>
+                          handlePricingChange(
+                            pricing.modelName,
+                            "contextWindow",
+                            parseInt(e.target.value, 10) || 128000
+                          )
+                        }
+                        className="w-28 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-mono text-xs font-semibold text-slate-900 outline-none focus:border-blue-500"
+                      />
                     </td>
                     <td className="px-4 py-3">
                       <input
@@ -798,7 +1143,7 @@ export function AiEngineConfiguration() {
                             parseFloat(e.target.value) || 0
                           )
                         }
-                        className="w-36 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-mono text-xs font-semibold text-slate-900 outline-none focus:border-blue-500"
+                        className="w-28 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-mono text-xs font-semibold text-slate-900 outline-none focus:border-blue-500"
                       />
                     </td>
                     <td className="px-4 py-3">
@@ -814,7 +1159,17 @@ export function AiEngineConfiguration() {
                             parseFloat(e.target.value) || 0
                           )
                         }
-                        className="w-36 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-mono text-xs font-semibold text-slate-900 outline-none focus:border-blue-500"
+                        className="w-28 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-mono text-xs font-semibold text-slate-900 outline-none focus:border-blue-500"
+                      />
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <input
+                        type="checkbox"
+                        checked={pricing.supportsJson !== false}
+                        onChange={(e) =>
+                          handlePricingChange(pricing.modelName, "supportsJson", e.target.checked)
+                        }
+                        className="size-3.5 accent-blue-600"
                       />
                     </td>
                     <td className="px-4 py-3">
@@ -879,18 +1234,53 @@ export function AiEngineConfiguration() {
                     <option value="GEMINI">GEMINI</option>
                     <option value="OPENAI">OPENAI</option>
                     <option value="ANTHROPIC">ANTHROPIC</option>
+                    <option value="CURSOR">CURSOR</option>
+                    <option value="OPENROUTER">OPENROUTER</option>
+                    <option value="GROQ">GROQ</option>
                     <option value="DEEPSEEK">DEEPSEEK</option>
+                    <option value="MISTRAL">MISTRAL</option>
+                    <option value="XAI">XAI</option>
+                    <option value="PERPLEXITY">PERPLEXITY</option>
+                    <option value="OLLAMA">OLLAMA</option>
+                    <option value="HUGGINGFACE">HUGGINGFACE</option>
+                    <option value="CUSTOM">CUSTOM</option>
                   </select>
                 </td>
                 <td className="px-4 py-3">
                   <input
                     type="text"
-                    placeholder="Tên model mới (vd: gemini-2.5-pro)"
+                    placeholder="Tên hiển thị (VD: Groq Qwen 3.8)"
+                    value={newPricing.displayName || ""}
+                    onChange={(e) =>
+                      setNewPricing((prev) => ({ ...prev, displayName: e.target.value }))
+                    }
+                    className="w-44 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-900 outline-none focus:border-blue-500"
+                  />
+                </td>
+                <td className="px-4 py-3">
+                  <input
+                    type="text"
+                    placeholder="Mã model (vd: qwen/qwen3.8-27b)"
                     value={newPricing.modelName}
                     onChange={(e) =>
                       setNewPricing((prev) => ({ ...prev, modelName: e.target.value }))
                     }
                     className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-mono text-xs text-slate-900 outline-none focus:border-blue-500"
+                  />
+                </td>
+                <td className="px-4 py-3">
+                  <input
+                    type="number"
+                    min={1000}
+                    step={1000}
+                    value={newPricing.contextWindow ?? 128000}
+                    onChange={(e) =>
+                      setNewPricing((prev) => ({
+                        ...prev,
+                        contextWindow: parseInt(e.target.value, 10) || 128000,
+                      }))
+                    }
+                    className="w-28 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-mono text-xs font-semibold text-slate-900 outline-none focus:border-blue-500"
                   />
                 </td>
                 <td className="px-4 py-3">
@@ -905,7 +1295,7 @@ export function AiEngineConfiguration() {
                         inputPricePer1mTokens: parseFloat(e.target.value) || 0,
                       }))
                     }
-                    className="w-36 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-mono text-xs font-semibold text-slate-900 outline-none focus:border-blue-500"
+                    className="w-28 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-mono text-xs font-semibold text-slate-900 outline-none focus:border-blue-500"
                   />
                 </td>
                 <td className="px-4 py-3">
@@ -920,7 +1310,17 @@ export function AiEngineConfiguration() {
                         outputPricePer1mTokens: parseFloat(e.target.value) || 0,
                       }))
                     }
-                    className="w-36 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-mono text-xs font-semibold text-slate-900 outline-none focus:border-blue-500"
+                    className="w-28 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-mono text-xs font-semibold text-slate-900 outline-none focus:border-blue-500"
+                  />
+                </td>
+                <td className="px-4 py-3 text-center">
+                  <input
+                    type="checkbox"
+                    checked={newPricing.supportsJson !== false}
+                    onChange={(e) =>
+                      setNewPricing((prev) => ({ ...prev, supportsJson: e.target.checked }))
+                    }
+                    className="size-3.5 accent-blue-600"
                   />
                 </td>
                 <td className="px-4 py-3 text-xs text-slate-500">Mặc định Active</td>
@@ -936,7 +1336,7 @@ export function AiEngineConfiguration() {
                     ) : (
                       <Plus className="size-3.5" />
                     )}
-                    Thêm đơn giá
+                    Thêm model
                   </button>
                 </td>
               </tr>
@@ -980,6 +1380,7 @@ export function AiEngineConfiguration() {
 
       {/* ADD / EDIT MODAL */}
       <AddAiKeyModal
+        key={editingKey?.id ? `edit-${editingKey.id}` : "create-new"}
         isOpen={isAddKeyOpen}
         onClose={() => {
           setIsAddKeyOpen(false);

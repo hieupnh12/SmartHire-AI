@@ -3,6 +3,8 @@ package com.smarthire.master.contract.service;
 import com.lowagie.text.*;
 import com.lowagie.text.pdf.*;
 import com.smarthire.domain.master.entity.Contract;
+import com.smarthire.domain.master.entity.SubscriptionPlan;
+import com.smarthire.domain.master.entity.TenantInfo;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
@@ -25,27 +27,47 @@ import java.util.Locale;
 public class ContractPdfGeneratorService {
 
     public byte[] generateContractPdf(Contract contract, String planName, String tenantCode) {
+        SubscriptionPlan fallbackPlan = SubscriptionPlan.builder()
+                .name(planName)
+                .build();
+        TenantInfo fallbackTenant = TenantInfo.builder()
+                .code(tenantCode)
+                .subdomain(tenantCode)
+                .build();
+        return generateContractPdf(contract, fallbackPlan, fallbackTenant);
+    }
+
+    public byte[] generateContractPdf(Contract contract, SubscriptionPlan plan, TenantInfo tenant) {
         try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             BaseFont baseRegular = loadBaseFont(false);
             BaseFont baseBold = loadBaseFont(true);
 
-            Document document = new Document(PageSize.A4, 42, 42, 40, 40);
+            Document document = new Document(PageSize.A4, 42, 42, 36, 36);
             PdfWriter.getInstance(document, out);
             document.open();
 
             Font fontNationalTitle = new Font(baseBold, 11, Font.NORMAL, Color.BLACK);
             Font fontNationalSub = new Font(baseBold, 10.5f, Font.UNDERLINE, Color.BLACK);
             Font fontDate = new Font(baseRegular, 9.5f, Font.ITALIC, new Color(71, 85, 105));
-            Font fontContractTitle = new Font(baseBold, 14, Font.NORMAL, new Color(15, 23, 42));
+            Font fontContractTitle = new Font(baseBold, 13.5f, Font.NORMAL, new Color(15, 23, 42));
             Font fontContractSubTitle = new Font(baseBold, 11.5f, Font.NORMAL, new Color(30, 58, 138));
             Font fontContractNo = new Font(baseBold, 10, Font.NORMAL, new Color(30, 41, 59));
             Font fontLegalBasis = new Font(baseRegular, 9.5f, Font.ITALIC, new Color(51, 65, 85));
             Font fontSectionTitle = new Font(baseBold, 10.5f, Font.NORMAL, new Color(15, 23, 42));
-            Font fontBody = new Font(baseRegular, 10, Font.NORMAL, new Color(15, 23, 42));
-            Font fontBodyBold = new Font(baseBold, 10, Font.NORMAL, new Color(15, 23, 42));
+            Font fontBody = new Font(baseRegular, 9.8f, Font.NORMAL, new Color(15, 23, 42));
+            Font fontBodyBold = new Font(baseBold, 9.8f, Font.NORMAL, new Color(15, 23, 42));
             Font fontSmall = new Font(baseRegular, 8.5f, Font.NORMAL, new Color(100, 116, 139));
 
             LocalDateTime createdAt = contract.getCreatedAt() != null ? contract.getCreatedAt() : LocalDateTime.now();
+
+            String planName = plan != null && StringUtils.hasText(plan.getName()) ? plan.getName() : "Enterprise B2B";
+            String tenantCode = tenant != null && StringUtils.hasText(tenant.getCode()) ? tenant.getCode() : "enterprise";
+            String subdomain = tenant != null && StringUtils.hasText(tenant.getSubdomain()) ? tenant.getSubdomain() : tenantCode;
+
+            String maxJobsStr = formatQuota(plan != null ? plan.getMaxJobs() : null, "tin");
+            String maxCvStr = formatQuota(plan != null ? plan.getMaxCvParses() : null, "hồ sơ");
+            String maxAiHoursStr = formatQuota(plan != null ? plan.getMaxAiInterviewHours() : null, "giờ");
+            String maxStorageStr = formatQuota(plan != null ? plan.getMaxStorageGb() : null, "GB");
 
             // 1. Quốc hiệu & Tiêu ngữ
             Paragraph nationalHeader = new Paragraph("CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM", fontNationalTitle);
@@ -62,7 +84,7 @@ public class ContractPdfGeneratorService {
                             createdAt.getDayOfMonth(), createdAt.getMonthValue(), createdAt.getYear()),
                     fontDate);
             dateLine.setAlignment(Element.ALIGN_RIGHT);
-            dateLine.setSpacingAfter(12f);
+            dateLine.setSpacingAfter(10f);
             document.add(dateLine);
 
             // 2. Tiêu đề Hợp đồng
@@ -70,7 +92,7 @@ public class ContractPdfGeneratorService {
             title.setAlignment(Element.ALIGN_CENTER);
             document.add(title);
 
-            Paragraph subTitle = new Paragraph("& HẠ TẦNG CƠ SỞ DỮ LIỆU ĐỘC LẬP (DEDICATED DATABASE)", fontContractSubTitle);
+            Paragraph subTitle = new Paragraph("& HẠ TẦNG CƠ SỞ DỮ LIỆU ĐỘC LẬP", fontContractSubTitle);
             subTitle.setAlignment(Element.ALIGN_CENTER);
             subTitle.setSpacingAfter(4f);
             document.add(subTitle);
@@ -79,117 +101,146 @@ public class ContractPdfGeneratorService {
                     "Số: " + safe(contract.getContractNumber(), "CTR-B2B") + "/HĐDV-SMARTHIRE",
                     fontContractNo);
             contractNo.setAlignment(Element.ALIGN_CENTER);
-            contractNo.setSpacingAfter(12f);
+            contractNo.setSpacingAfter(10f);
             document.add(contractNo);
 
             // 3. Căn cứ pháp lý
-            Paragraph basis1 = new Paragraph("• Căn cứ Bộ luật Dân sự số 91/2015/QH13 ngày 24/11/2015 của Quốc hội nước CHXHCN Việt Nam;", fontLegalBasis);
-            Paragraph basis2 = new Paragraph("• Căn cứ Luật Giao dịch điện tử số 20/2023/QH15 ngày 22/06/2023 quy định về thông điệp dữ liệu và chữ ký điện tử;", fontLegalBasis);
-            Paragraph basis3 = new Paragraph("• Căn cứ Nghị định số 13/2023/NĐ-CP ngày 17/04/2023 của Chính phủ về Bảo vệ dữ liệu cá nhân;", fontLegalBasis);
-            Paragraph basis4 = new Paragraph("• Căn cứ vào nhu cầu và năng lực thực tế của hai bên.", fontLegalBasis);
-            basis4.setSpacingAfter(10f);
+            Paragraph basis1 = new Paragraph("• Căn cứ Bộ luật Dân sự số 91/2015/QH13;", fontLegalBasis);
+            Paragraph basis2 = new Paragraph("• Căn cứ Luật Thương mại số 36/2005/QH11;", fontLegalBasis);
+            Paragraph basis3 = new Paragraph("• Căn cứ Luật Giao dịch điện tử số 20/2023/QH15;", fontLegalBasis);
+            Paragraph basis4 = new Paragraph("• Căn cứ Nghị định số 13/2023/NĐ-CP của Chính phủ về Bảo vệ dữ liệu cá nhân;", fontLegalBasis);
+            Paragraph basis5 = new Paragraph("• Căn cứ vào nhu cầu và năng lực thực tế của hai bên.", fontLegalBasis);
+            basis5.setSpacingAfter(8f);
             document.add(basis1);
             document.add(basis2);
             document.add(basis3);
             document.add(basis4);
+            document.add(basis5);
 
             // 4. Thông tin hai bên
-            Paragraph partyAHeader = new Paragraph("BÊN A: BÊN CUNG CẤP DỊCH VỤ (NHÀ PHÁT TRIỂN NỀN TẢNG)", fontSectionTitle);
-            partyAHeader.setSpacingAfter(4f);
+            Paragraph partyAHeader = new Paragraph("BÊN A: " + safe(contract.getPartyAName(), "CÔNG TY CỔ PHẦN CÔNG NGHỆ SMARTHIRE VIỆT NAM"), fontSectionTitle);
+            partyAHeader.setSpacingAfter(3f);
             document.add(partyAHeader);
 
-            addKeyValueLine(document, "Tên doanh nghiệp: ", safe(contract.getPartyAName(), "CÔNG TY CỔ PHẦN CÔNG NGHỆ SMARTHIRE VIỆT NAM"), fontBody, fontBodyBold);
             addKeyValueLine(document, "Mã số thuế: ", safe(contract.getPartyATaxCode(), "0110889988"), fontBody, fontBodyBold);
-            addKeyValueLine(document, "Địa chỉ trụ sở: ", safe(contract.getPartyAAddress(), "Tòa nhà Keangnam Landmark 72, Đường Phạm Hùng, Nam Từ Liêm, Hà Nội"), fontBody, fontBody);
+            addKeyValueLine(document, "Trụ sở: ", safe(contract.getPartyAAddress(), "Tòa nhà Keangnam Landmark 72, Đường Phạm Hùng, Nam Từ Liêm, Hà Nội"), fontBody, fontBody);
             addKeyValueLine(document, "Người đại diện: ", safe(contract.getPartyARepresentative(), "Phan Nhật Hưng") + " — Chức vụ: " + safe(contract.getPartyAPosition(), "Tổng Giám Đốc"), fontBody, fontBodyBold);
-            addKeyValueLine(document, "Email pháp chế: ", safe(contract.getPartyAEmail(), "legal@smarthire.top") + " — Điện thoại: " + safe(contract.getPartyAPhone(), "1900 6868"), fontBody, fontBody);
-            addKeyValueLine(document, "Tài khoản ngân hàng: ", safe(contract.getPartyABankAccount(), "190388889999") + " tại " + safe(contract.getPartyABankName(), "Techcombank"), fontBody, fontBody);
+            addKeyValueLine(document, "Email pháp chế: ", safe(contract.getPartyAEmail(), "legal@smarthire.top") + " — Hotline: " + safe(contract.getPartyAPhone(), "1900 6868"), fontBody, fontBody);
+            addKeyValueLine(document, "Tài khoản: ", safe(contract.getPartyABankAccount(), "190388889999") + " tại " + safe(contract.getPartyABankName(), "Ngân hàng Techcombank") + " – " + safe(contract.getPartyABankBranch(), "CN Hà Nội"), fontBody, fontBodyBold);
 
-            Paragraph partyBHeader = new Paragraph("BÊN B: BÊN SỬ DỤNG DỊCH VỤ (KHÁCH HÀNG DOANH NGHIỆP)", fontSectionTitle);
-            partyBHeader.setSpacingBefore(8f);
-            partyBHeader.setSpacingAfter(4f);
+            Paragraph partyBHeader = new Paragraph("BÊN B: BÊN SỬ DỤNG DỊCH VỤ", fontSectionTitle);
+            partyBHeader.setSpacingBefore(6f);
+            partyBHeader.setSpacingAfter(3f);
             document.add(partyBHeader);
 
             addKeyValueLine(document, "Tên doanh nghiệp: ", safe(contract.getPartyBName(), "Doanh nghiệp khách hàng"), fontBody, fontBodyBold);
             addKeyValueLine(document, "Mã số thuế: ", safe(contract.getPartyBTaxCode(), "Theo ĐKKD"), fontBody, fontBodyBold);
-            addKeyValueLine(document, "Địa chỉ trụ sở: ", safe(contract.getPartyBAddress(), "Theo Giấy chứng nhận ĐKKD"), fontBody, fontBody);
-            addKeyValueLine(document, "Người đại diện ký kết: ", safe(contract.getPartyBRepresentative(), "Đại diện theo pháp luật") + " — Chức vụ: " + safe(contract.getPartyBPosition(), "Giám Đốc"), fontBody, fontBodyBold);
-            addKeyValueLine(document, "Email nhận & ký hợp đồng: ", safe(contract.getPartyBEmail(), "") + " — Điện thoại: " + safe(contract.getPartyBPhone(), "—"), fontBody, fontBodyBold);
+            addKeyValueLine(document, "Địa chỉ: ", safe(contract.getPartyBAddress(), "Theo Giấy chứng nhận ĐKKD"), fontBody, fontBody);
+            addKeyValueLine(document, "Đại diện bởi: ", safe(contract.getPartyBRepresentative(), "Đại diện theo pháp luật") + " — Chức vụ: " + safe(contract.getPartyBPosition(), "Giám Đốc"), fontBody, fontBodyBold);
+            addKeyValueLine(document, "Email nhận thông báo: ", safe(contract.getPartyBEmail(), "") + " — SĐT: " + safe(contract.getPartyBPhone(), "—"), fontBody, fontBodyBold);
 
-            // 5. Các điều khoản hợp đồng
+            // 5. ĐIỀU 1: ĐỐI TƯỢNG VÀ PHẠM VI DỊCH VỤ
             Paragraph art1 = new Paragraph("ĐIỀU 1: ĐỐI TƯỢNG VÀ PHẠM VI DỊCH VỤ", fontSectionTitle);
-            art1.setSpacingBefore(10f);
-            art1.setSpacingAfter(4f);
+            art1.setSpacingBefore(8f);
+            art1.setSpacingAfter(3f);
             document.add(art1);
 
             Paragraph art1Body1 = new Paragraph(
-                    "1.1. Bên A cung cấp cho Bên B quyền truy cập và sử dụng nền tảng tuyển dụng thông minh SmartHire-AI ("
-                            + safe(contract.getTitle(), "Gói Doanh Nghiệp") + " - Gói: " + safe(planName, "Enterprise B2B") + ").",
+                    "1.1. Bên A cấp cho Bên B quyền truy cập và sử dụng nền tảng tuyển dụng thông minh SmartHire-AI theo mô hình thuê bao dịch vụ phần mềm (SaaS).\n"
+                            + "   • Gói dịch vụ: " + planName + "\n"
+                            + "   • Thời hạn hiệu lực: Từ ngày " + safe(String.valueOf(contract.getStartDate()), "—")
+                            + " đến hết ngày " + safe(String.valueOf(contract.getEndDate()), "—") + ".\n"
+                            + "   • Địa chỉ truy cập (Workspace Subdomain): " + subdomain + ".smarthire.top",
                     fontBody);
             Paragraph art1Body2 = new Paragraph(
-                    "1.2. Kiến trúc Separate Database per Tenant: Bên A cấp phát cơ sở dữ liệu vật lý độc lập (smarthire_tenant_"
-                            + safe(tenantCode, "enterprise") + ") dành riêng cho Bên B, đảm bảo cách ly hoàn toàn dữ liệu tuyển dụng.",
+                    "1.2. Hạn mức tài nguyên được cấp trong chu kỳ hợp đồng:\n"
+                            + "   • Số vị trí tuyển dụng mở tối đa (Active Jobs): " + maxJobsStr + ".\n"
+                            + "   • Số lượt phân tích & sàng lọc CV AI: " + maxCvStr + ".\n"
+                            + "   • Thời lượng phỏng vấn AI & Đánh giá gian lận: " + maxAiHoursStr + ".\n"
+                            + "   • Dung lượng lưu trữ cơ sở dữ liệu & media: " + maxStorageStr + ".",
                     fontBody);
             Paragraph art1Body3 = new Paragraph(
-                    "1.3. Thời hạn hiệu lực hợp đồng: Từ ngày " + safe(String.valueOf(contract.getStartDate()), "—")
-                            + " đến hết ngày " + safe(String.valueOf(contract.getEndDate()), "—") + ".",
+                    "1.3. Kiến trúc Cô lập Dữ liệu (Database-per-Tenant): Bên A khởi tạo một cơ sở dữ liệu vật lý độc lập mang mã định danh smarthire_tenant_"
+                            + tenantCode + " dành riêng cho Bên B, bảo đảm toàn bộ dữ liệu ứng viên không bị dùng chung bảng hoặc chia sẻ với bất kỳ khách hàng nào khác.",
                     fontBody);
-            art1Body3.setSpacingAfter(8f);
+            art1Body3.setSpacingAfter(6f);
             document.add(art1Body1);
             document.add(art1Body2);
             document.add(art1Body3);
 
+            // 6. ĐIỀU 2: GIÁ TRỊ HỢP ĐỒNG VÀ PHƯƠNG THỨC THANH TOÁN
             Paragraph art2 = new Paragraph("ĐIỀU 2: GIÁ TRỊ HỢP ĐỒNG VÀ PHƯƠNG THỨC THANH TOÁN", fontSectionTitle);
-            art2.setSpacingAfter(6f);
+            art2.setSpacingAfter(3f);
             document.add(art2);
 
             String currency = safe(contract.getCurrency(), "VND");
             BigDecimal value = contract.getContractValue() != null ? contract.getContractValue() : BigDecimal.ZERO;
-            BigDecimal taxRate = contract.getTaxRate() != null ? contract.getTaxRate() : BigDecimal.valueOf(10);
+            BigDecimal taxRate = contract.getTaxRate() != null ? contract.getTaxRate() : BigDecimal.ZERO;
             BigDecimal taxAmount = contract.getTaxAmount() != null ? contract.getTaxAmount() : BigDecimal.ZERO;
             BigDecimal totalAmount = contract.getTotalAmount() != null && contract.getTotalAmount().compareTo(BigDecimal.ZERO) > 0
                     ? contract.getTotalAmount()
                     : value.add(taxAmount);
 
-            PdfPTable priceTable = new PdfPTable(2);
-            priceTable.setWidthPercentage(100);
-            priceTable.setWidths(new float[]{65f, 35f});
-            addTableRow(priceTable, "Giá trị dịch vụ trước thuế:", formatMoney(value, currency), fontBody, fontBodyBold);
-            addTableRow(priceTable, "Thuế Giá trị gia tăng (VAT " + taxRate + "%):", formatMoney(taxAmount, currency), fontBody, fontBody);
-            addTableRow(priceTable, "TỔNG GIÁ TRỊ THANH TOÁN:", formatMoney(totalAmount, currency), fontBodyBold, fontBodyBold);
-            priceTable.setSpacingAfter(4f);
-            document.add(priceTable);
+            String vatDescription = taxRate.compareTo(BigDecimal.ZERO) == 0
+                    ? "Không chịu thuế GTGT (theo Khoản 21 Điều 4 Thông tư 219/2013/TT-BTC đối với dịch vụ phần mềm)."
+                    : formatMoney(taxAmount, currency) + " (VAT " + taxRate + "%).";
 
-            Paragraph inWords = new Paragraph("Bằng chữ: " + safe(contract.getAmountInWords(), "Đã bao gồm thuế GTGT"), fontDate);
-            inWords.setSpacingAfter(8f);
-            document.add(inWords);
+            Paragraph art2Body1 = new Paragraph("2.1. Chi phí bản quyền dịch vụ: " + formatMoney(value, currency) + ".", fontBody);
+            Paragraph art2Body2 = new Paragraph("2.2. Thuế GTGT: " + vatDescription, fontBody);
+            Paragraph art2Body3 = new Paragraph(
+                    "2.3. Tổng số tiền thanh toán: " + formatMoney(totalAmount, currency)
+                            + " (Bằng chữ: " + safe(contract.getAmountInWords(), "Không chịu thuế GTGT") + ").",
+                    fontBodyBold);
+            Paragraph art2Body4 = new Paragraph(
+                    "2.4. Thời hạn thanh toán: Bên B thanh toán 100% giá trị hợp đồng bằng phương thức chuyển khoản vào tài khoản ngân hàng của Bên A trong vòng 05 (năm) ngày làm việc kể từ ngày hai bên hoàn tất ký số hợp đồng.",
+                    fontBody);
+            Paragraph art2Body5 = new Paragraph(
+                    "2.5. Bên A kích hoạt quyền truy cập Workspace và bàn giao tài khoản Master Admin cho Bên B ngay sau khi nhận được thông báo ghi có từ ngân hàng.",
+                    fontBody);
+            art2Body5.setSpacingAfter(6f);
+            document.add(art2Body1);
+            document.add(art2Body2);
+            document.add(art2Body3);
+            document.add(art2Body4);
+            document.add(art2Body5);
 
-            Paragraph art3 = new Paragraph("ĐIỀU 3: CAM KẾT DỊCH VỤ (SLA) & BẢO VỆ DỮ LIỆU CÁ NHÂN (NGHỊ ĐỊNH 13/2023/NĐ-CP)", fontSectionTitle);
-            art3.setSpacingAfter(4f);
+            // 7. ĐIỀU 3: CAM KẾT MỨC DỊCH VỤ (SLA) & BẢO VỆ DỮ LIỆU CÁ NHÂN
+            Paragraph art3 = new Paragraph("ĐIỀU 3: CAM KẾT MỨC DỊCH VỤ (SLA) & BẢO VỆ DỮ LIỆU CÁ NHÂN", fontSectionTitle);
+            art3.setSpacingAfter(3f);
             document.add(art3);
 
+            String defaultArt3 = "3.1. Cam kết chất lượng (SLA): Bên A cam kết độ sẵn sàng của hạ tầng hệ thống (Uptime SLA) đạt tối thiểu 99.5%/tháng, thực hiện sao lưu dữ liệu tự động định kỳ hàng ngày.\n"
+                    + "3.2. Tuân thủ Nghị định 13/2023/NĐ-CP:\n"
+                    + "   • Bên B xác nhận là Bên Kiểm soát Dữ liệu Cá nhân và chịu trách nhiệm thu thập sự đồng ý hợp pháp của Ứng viên trước khi đưa thông tin vào phần mềm.\n"
+                    + "   • Bên A đóng vai trò là Bên Xử lý Dữ liệu Cá nhân theo ủy quyền; cam kết bảo mật tuyệt đối và không sử dụng dữ liệu riêng của Bên B để huấn luyện mô hình AI công cộng hoặc chia sẻ cho bên thứ ba.\n"
+                    + "3.3. Giới hạn trách nhiệm AI: Các tính năng đánh giá tự động của AI đóng vai trò là công cụ hỗ trợ sàng lọc; Bên B giữ toàn quyền và chịu hoàn toàn trách nhiệm đối với các quyết định tuyển dụng nhân sự cuối cùng.";
             String termsText = StringUtils.hasText(contract.getTermsAndConditions())
                     ? contract.getTermsAndConditions()
-                    : "3.1. Bên A cam kết thời gian hoạt động hệ thống (Uptime SLA) đạt tối thiểu 99.9%/tháng.\n"
-                      + "3.2. Tuân thủ Nghị định 13/2023/NĐ-CP: Bên B là Bên Kiểm soát dữ liệu cá nhân, Bên A là Bên Xử lý dữ liệu cá nhân. "
-                      + "Bên A cam kết không chia sẻ hoặc sử dụng dữ liệu ứng viên của Bên B cho bất kỳ bên thứ ba nào.";
+                    : defaultArt3;
             Paragraph art3Body = new Paragraph(termsText, fontBody);
-            art3Body.setSpacingAfter(8f);
+            art3Body.setSpacingAfter(6f);
             document.add(art3Body);
 
-            Paragraph art4 = new Paragraph("ĐIỀU 4: HIỆU LỰC CỦA HỢP ĐỒNG ĐIỆN TỬ VÀ CHỮ KÝ SỐ", fontSectionTitle);
-            art4.setSpacingAfter(4f);
+            // 8. ĐIỀU 4: HIỆU LỰC HỢP ĐỒNG ĐIỆN TỬ VÀ CHỮ KÝ SỐ
+            Paragraph art4 = new Paragraph("ĐIỀU 4: HIỆU LỰC HỢP ĐỒNG ĐIỆN TỬ VÀ CHỮ KÝ SỐ", fontSectionTitle);
+            art4.setSpacingAfter(3f);
             document.add(art4);
 
-            Paragraph art4Body = new Paragraph(
-                    "Hợp đồng này được lập dưới dạng Thông điệp dữ liệu điện tử theo Luật Giao dịch điện tử số 20/2023/QH15 "
-                            + "và được thực hiện giao kết thông qua nền tảng chứng thực chữ ký điện tử Dropbox Sign (HelloSign) "
-                            + "kèm trang Nhật ký Kiểm toán (Audit Trail / Certificate of Completion) và mã băm SHA-256 chống giả mạo.",
+            Paragraph art4Body1 = new Paragraph(
+                    "4.1. Hợp đồng này được khởi tạo, gửi và ký kết dưới dạng Thông điệp dữ liệu điện tử hợp pháp theo Luật Giao dịch điện tử số 20/2023/QH15.",
                     fontBody);
-            art4Body.setSpacingAfter(18f);
-            document.add(art4Body);
+            Paragraph art4Body2 = new Paragraph(
+                    "4.2. Việc giao kết được thực hiện qua nền tảng chứng thực chữ ký số độc lập Dropbox Sign (HelloSign). File hợp đồng hoàn tất có gắn kèm Nhật ký Kiểm toán (Audit Trail) cùng mã băm toàn vẹn SHA-256 có giá trị pháp lý ràng buộc tương đương văn bản giấy đóng dấu mộc đỏ.",
+                    fontBody);
+            Paragraph art4Body3 = new Paragraph(
+                    "4.3. Trường hợp phát sinh tranh chấp, hai bên ưu tiên thương lượng hòa giải. Nếu không thống nhất được, tranh chấp sẽ được đưa ra giải quyết tại Tòa án nhân dân có thẩm quyền tại Thành phố Hà Nội.",
+                    fontBody);
+            art4Body3.setSpacingAfter(14f);
+            document.add(art4Body1);
+            document.add(art4Body2);
+            document.add(art4Body3);
 
-            // 6. Khối đại diện ký kết
+            // 9. Khối đại diện ký kết
             PdfPTable sigTable = new PdfPTable(2);
             sigTable.setWidthPercentage(100);
             sigTable.setWidths(new float[]{50f, 50f});
@@ -199,7 +250,7 @@ public class ContractPdfGeneratorService {
             cellA.setHorizontalAlignment(Element.ALIGN_CENTER);
             Paragraph pA1 = new Paragraph("ĐẠI DIỆN BÊN A", fontBodyBold);
             pA1.setAlignment(Element.ALIGN_CENTER);
-            Paragraph pA2 = new Paragraph(safe(contract.getPartyAPosition(), "Tổng Giám Đốc"), fontSmall);
+            Paragraph pA2 = new Paragraph("(Ký số điện tử)", fontSmall);
             pA2.setAlignment(Element.ALIGN_CENTER);
             Paragraph pA3 = new Paragraph("\n[Đã xác thực phát hành bởi SmartHire-AI]\n\n", fontDate);
             pA3.setAlignment(Element.ALIGN_CENTER);
@@ -215,7 +266,7 @@ public class ContractPdfGeneratorService {
             cellB.setHorizontalAlignment(Element.ALIGN_CENTER);
             Paragraph pB1 = new Paragraph("ĐẠI DIỆN BÊN B", fontBodyBold);
             pB1.setAlignment(Element.ALIGN_CENTER);
-            Paragraph pB2 = new Paragraph(safe(contract.getPartyBPosition(), "Đại diện theo pháp luật"), fontSmall);
+            Paragraph pB2 = new Paragraph("(Ký số điện tử)", fontSmall);
             pB2.setAlignment(Element.ALIGN_CENTER);
             String sigStatusB = "SIGNED".equalsIgnoreCase(contract.getStatus())
                     ? "\n[Đã ký điện tử qua Dropbox Sign — "
@@ -241,6 +292,15 @@ public class ContractPdfGeneratorService {
             log.error("Failed to generate B2B Contract PDF for {}: {}", contract.getContractNumber(), e.getMessage(), e);
             throw new RuntimeException("Không thể khởi tạo file PDF hợp đồng B2B", e);
         }
+    }
+
+    private String formatQuota(Integer quota, String unit) {
+        if (quota == null) return "Không giới hạn";
+        if (quota <= 0) return "Không giới hạn";
+        DecimalFormatSymbols symbols = new DecimalFormatSymbols(new Locale("vi", "VN"));
+        symbols.setGroupingSeparator('.');
+        DecimalFormat df = new DecimalFormat("#,###", symbols);
+        return df.format(quota) + " " + unit;
     }
 
     public String computeSha256Hex(byte[] content) {

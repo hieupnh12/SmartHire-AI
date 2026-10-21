@@ -1,5 +1,23 @@
 # Data Dictionary - Tenant DB (MySQL)
 
+## Quy tắc ứng tuyển của ứng viên V52 (2026-10-12)
+
+Nguồn: `V52__candidate_application_rules.sql`. Không tạo bảng mới, không thêm FK/UNIQUE.
+
+| Bảng · cột / index | Kiểu | Null | Default | Ý nghĩa |
+|---|---|---|---|---|
+| `applications.withdraw_reason` | VARCHAR(255) | Có | NULL | Lý do ứng viên chọn khi rút đơn (entity `Application.withdrawReason`); xoá về NULL khi nộp lại |
+| `idx_app_candidate_status` | INDEX `(candidate_id, status)` | — | — | Kiểm tra "mỗi ứng viên chỉ một đơn đang xét" |
+| `idx_app_status_updated` | INDEX `(status, updated_at)` | — | — | Job tự đóng đơn quá hạn xử lý |
+| `idx_cvs_retain_until` | INDEX `(retain_until)` | — | — | Job xoá file CV quá hạn lưu |
+
+Thay đổi giá trị (không đổi kiểu cột):
+
+- `cvs.retain_until` giờ được đặt `= now + app.applications.cv-retention-days` (mặc định 180 ngày) khi đơn kết thúc (`REJECTED`/`FAILED`/`WITHDRAWN`); quá hạn thì job xoá file, `storage_key`, `builder_data`, `share_token`, `cv_documents`, `cv_extractions`. Điểm (`match_scores`, `cv_analyses`) được giữ.
+- `candidates.email` của ứng viên đã yêu cầu xoá dữ liệu được thay bằng `erased+<sha256(email)>@erased.invalid`, `status = DISABLED`, các cột hồ sơ về NULL.
+- `candidates.phone` được chuẩn hoá (bỏ khoảng trắng/dấu, `+84` → `0`) khi cập nhật hồ sơ và không trùng giữa hai ứng viên (kiểm tra ở service, không có UNIQUE trong DB vì dữ liệu cũ có thể trùng).
+- `notification_preferences.category` có thêm giá trị `APPLICATION`; `email_outbox.purpose` có thêm `APPLICATION_RESULT`.
+
 ## Tách vật lý Candidate khỏi User V51 (2026-10-08)
 
 Nguồn: `V51__separate_candidates_from_users.sql` (đánh số V51 vì DB tenant hiện có đã ghi nhận `V50__company_email_settings.sql`). Tách vật lý ứng viên (`candidates`, entity `Candidate`) khỏi nhân sự nội bộ (`users`, entity `User`), gộp toàn bộ thông tin hồ sơ từ `user_profiles` và xoá bảng `user_profiles`.
@@ -1169,4 +1187,27 @@ Entity `LandingPageSetting` (`com.smarthire.domain.tenant.entity.LandingPageSett
 | `updated_at` | TIMESTAMP | | Không | `CURRENT_TIMESTAMP` | Thời điểm cập nhật cuối |
 
 **Ràng buộc:** Mỗi tenant database chứa 1 bản ghi cấu hình tùy biến duy nhất phục vụ trang Career công khai.
+
+---
+
+## L. Company Email Settings (V50)
+
+### L.1 `company_email_settings` — Cấu hình tài khoản Gmail gửi thư của Tenant (V50)
+
+Entity `CompanyEmailSetting` (`com.smarthire.domain.tenant.entity.CompanyEmailSetting`), kế thừa `BaseEntity`.
+
+| Cột | Kiểu | Khoá | Null | Default | Mô tả |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | Không | auto | Mã định danh bản ghi |
+| `provider` | VARCHAR(32) | | Không | `'GMAIL'` | Nhà cung cấp dịch vụ gửi thư |
+| `mail_username` | VARCHAR(255) | | Không | — | Địa chỉ Gmail của công ty dùng để gửi thư |
+| `mail_password_encrypted` | VARCHAR(512) | | Không | — | Mật khẩu ứng dụng (Google App Password) mã hóa AES-256 GCM |
+| `from_name` | VARCHAR(128) | | Có | NULL | Tên người gửi hiển thị (Sender Display Name) |
+| `is_active` | BOOLEAN | | Không | `TRUE` | Trạng thái kích hoạt cấu hình |
+| `created_at` | TIMESTAMP | | Không | `CURRENT_TIMESTAMP` | Thời điểm tạo |
+| `updated_at` | TIMESTAMP | | Không | `CURRENT_TIMESTAMP` | Thời điểm cập nhật cuối |
+
+**Ràng buộc & Nghiệp vụ:**
+- Mỗi tenant cấu hình tài khoản Gmail riêng. Mật khẩu ứng dụng 16 ký tự được mã hóa AES-256 GCM bằng `TenantCredentialService` với AAD là `tenantCode`.
+- Bắt buộc phải có Gmail được cấu hình thành công thì công ty mới có thể gửi thư mời nhân viên và các email thông báo. Nếu chưa cấu hình, hệ thống sẽ chặn gửi và thông báo yêu cầu cấu hình trên giao diện Company.
 

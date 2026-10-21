@@ -58,6 +58,12 @@ public final class RedisKeys {
         return "cache:ai:key:" + (provider == null ? "DEFAULT" : provider.trim().toUpperCase());
     }
 
+    public static String aiModelCooldown(String provider, String modelName) {
+        String p = (provider == null ? "DEFAULT" : provider.trim().toUpperCase());
+        String m = (modelName == null ? "default" : modelName.trim().toLowerCase());
+        return "ai:cooldown:" + p + ":" + m;
+    }
+
     public static String aiRateLimitConfig() {
         return "cache:ai:ratelimit:config";
     }

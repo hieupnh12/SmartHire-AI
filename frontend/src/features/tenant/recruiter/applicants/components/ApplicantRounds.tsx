@@ -22,7 +22,9 @@ const aiLabel: Record<string, string> = {
   IN_PROGRESS: "Đang phỏng vấn",
   SCORING: "Đang chấm",
   SCORED: "Đã chấm",
-  FAILED: "Lỗi phiên",
+  PASSED: "Đạt",
+  FAILED: "Không đạt",
+  ERROR: "Lỗi xử lý",
 };
 const testLabel: Record<string, string> = {
   MISSING: "Chưa làm bài",
@@ -119,6 +121,6 @@ function tone(status?: string, passed?: boolean | null) {
   if (passed === true || status === "PASSED" || status === "SCORED" || status === "GRADED" || status === "INVITED") {
     return passChip;
   }
-  if (passed === false || status === "FAILED" || status === "EXPIRED") return failChip;
+  if (passed === false || status === "FAILED" || status === "ERROR" || status === "EXPIRED") return failChip;
   return waitChip;
 }

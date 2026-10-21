@@ -187,11 +187,11 @@ Kiểm tra: `mvn.cmd test` với Java 21; máy dùng Java 24 có thể chạy `m
 ## PostgreSQL master / MySQL tenant
 
 API quản trị master yêu cầu `Authorization: Bearer <master-token>` với role `WORKSPACE_ADMIN`.
-`POST /master/tenants/onboard` yêu cầu `code`, `name`, `subdomain`, `adminName`, `adminEmail`, `adminPassword`.
-Không gọi API user tenant để bootstrap admin. Response chỉ chứa metadata và không chứa credential kết nối.
-`POST /master/tenants/{id}/retry` gửi lại `adminName`, `adminEmail`, `adminPassword` cho tenant `FAILED` hoặc `PROVISIONING` bị gián đoạn.
+`POST /master/tenants/onboard` yêu cầu `code`, `name`, `subdomain`, `adminName`, `adminEmail` (không nhận `adminPassword` tĩnh; hệ thống sinh lời mời kích hoạt một lần trong `member_invitations` để Admin doanh nghiệp tự đặt mật khẩu). Hỗ trợ cờ `deferProvisioning=true` cho luồng B2B Deal Wizard để giữ tenant ở `PENDING_PAYMENT` (chưa cấp phát MySQL DB, chưa tạo gói STARTER mặc định, chỉ kích hoạt qua Single Activation Trigger khi thanh toán hoá đơn thành công).
+Response chỉ chứa metadata (và `activationUrl` một lần khi vừa cấp phát/retry) và không chứa credential kết nối.
+`POST /master/tenants/{id}/retry` gửi lại `adminName`, `adminEmail` cho tenant `FAILED`, `PROVISIONING` bị gián đoạn hoặc `PENDING_PAYMENT`.
 Chế độ thủ công bổ sung `customDbUrl`, `dbUsername`, `dbPassword`; backend chạy migration trên DB đã chuẩn bị.
-Trạng thái provisioning là `PROVISIONING` → `ACTIVE` hoặc `FAILED`; trạng thái vận hành là `ACTIVE` ↔ `SUSPENDED`. Không kích hoạt trực tiếp tenant `FAILED`.
+Trạng thái vòng đời gồm `PENDING_PAYMENT` → `PROVISIONING` → `ACTIVE` hoặc `FAILED`; trạng thái vận hành là `ACTIVE` ↔ `SUSPENDED`. Hỗ trợ xoá mềm (`PATCH /master/tenants/{id}/soft-delete`), khôi phục (`PATCH /master/tenants/{id}/restore`) và xoá cứng (`DELETE /master/tenants/{id}?hard=true` — đóng Hikari pool + `DROP DATABASE` + `DROP USER`).
 Xem [contract và business rules](../features/Authentication/Tenant-Onboarding.md).
 
 ## Ngân hàng câu hỏi chung
@@ -220,4 +220,4 @@ Test metadata/cấu hình sinh đề thêm `objectiveDurationMinutes` tùy chọ
 
 Chấm tự động dùng RabbitMQ và TenantJobExecutor (X-Tenant-ID). Điểm đề xuất chưa được công bố cho candidate; chỉ tổng điểm chính thức sau khi mọi câu được duyệt. Sandbox chưa cấu hình/lỗi trả SANDBOX_UNAVAILABLE (503) ở run_samples, không biến lỗi dịch vụ thành điểm 0.
 
-AI chấm tự luận và review code sử dụng task `ASSESSMENT_GRADING`, model mặc định `vanilj/llama-3-8b-instruct-32k-v0.1:Q4_K_M`, cùng endpoint/key `AI_ASSESSMENT_*` với sinh câu hỏi (`ASSESSMENT_GEN`). Chạy testcase vẫn do sandbox thực hiện; tỷ lệ điểm code 80% testcase + 20% AI review và bước recruiter duyệt điểm giữ nguyên. Không đổi cấu hình `INTERVIEW_NLP` của AI Interview.
+AI chấm tự luận/review code dùng task `ASSESSMENT_GRADING`: ưu tiên cấu hình `CODE_GRADING` trong Master DB khi task này tồn tại; nếu chưa có, giữ model `vanilj/llama-3-8b-instruct-32k-v0.1:Q4_K_M` và kết nối `AI_ASSESSMENT_*` dùng chung với sinh câu hỏi (`ASSESSMENT_GEN`). Rate-limit/metering theo task Assessment, không dùng `INTERVIEW_NLP`. Chạy testcase vẫn do sandbox thực hiện; tỷ lệ điểm code 80% testcase + 20% AI review và bước recruiter duyệt điểm giữ nguyên.

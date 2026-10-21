@@ -32,7 +32,7 @@ public class AiProviderKey {
 
     @Builder.Default
     @Column(nullable = false, length = 30)
-    String status = "ACTIVE"; // ACTIVE, EXPIRED, RATE_LIMITED, INACTIVE
+    String status = "ACTIVE"; // ACTIVE, INACTIVE, INVALID_OR_REVOKED
 
     @Builder.Default
     @Column(name = "is_default", nullable = false)

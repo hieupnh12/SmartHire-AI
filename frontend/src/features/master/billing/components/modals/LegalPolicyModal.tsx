@@ -1,195 +1,317 @@
-import { X, ShieldCheck, FileText, Scale, Lock } from "lucide-react";
+import { useState } from "react";
+import { X, Check } from "lucide-react";
 
 export type LegalPolicyTab = "TOS" | "PRIVACY_ND13";
 
 interface LegalPolicyModalProps {
   openTab: LegalPolicyTab | null;
-  policyVersion: string;
+  policyVersion?: string;
   onClose: () => void;
   onSwitchTab: (tab: LegalPolicyTab) => void;
+  isAccepted?: boolean;
+  onAcceptChange?: (accepted: boolean) => void;
+  inline?: boolean;
 }
 
 export function LegalPolicyModal({
   openTab,
-  policyVersion,
+  policyVersion = "15/06/2026",
   onClose,
   onSwitchTab,
+  isAccepted = false,
+  onAcceptChange,
+  inline = false,
 }: LegalPolicyModalProps) {
+  const [internalAccepted, setInternalAccepted] = useState<boolean>(isAccepted);
+
   if (!openTab) return null;
 
-  return (
-    <div
-      className="fixed inset-0 z-50 bg-slate-950/65 backdrop-blur-xs flex items-center justify-center p-4"
-      onClick={onClose}
-    >
-      <div
-        className="bg-white border border-slate-200 rounded-2xl max-w-3xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[88vh] animate-fade-in"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Modal Header */}
-        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/80">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 border border-blue-200 flex items-center justify-center shrink-0">
-              <Scale className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="text-base font-bold text-slate-900">
-                Văn Bản Pháp Lý & Thỏa Thuận Sử Dụng Dịch Vụ (Click-wrap Agreement)
-              </h3>
-              <p className="text-xs text-slate-500">
-                Phiên bản hiệu lực: <span className="font-mono font-semibold text-blue-700">{policyVersion}</span> · Áp dụng cho khách hàng Doanh nghiệp (B2B SaaS)
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors"
-            aria-label="Đóng cửa sổ"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+  const currentAccepted = onAcceptChange ? isAccepted : internalAccepted;
 
-        {/* Policy Switcher Tabs */}
-        <div className="px-6 pt-3 bg-white border-b border-slate-200 flex gap-2">
-          <button
-            type="button"
-            onClick={() => onSwitchTab("TOS")}
-            className={`px-4 py-2.5 text-xs sm:text-sm font-bold border-b-2 transition-colors flex items-center gap-2 ${
-              openTab === "TOS"
-                ? "border-blue-600 text-blue-600"
-                : "border-transparent text-slate-500 hover:text-slate-800"
-            }`}
-          >
-            <FileText className="w-4 h-4" />
-            <span>1. Điều Khoản Dịch Vụ (ToS)</span>
-          </button>
+  const handleToggleConsent = (checked: boolean) => {
+    setInternalAccepted(checked);
+    if (onAcceptChange) {
+      onAcceptChange(checked);
+    }
+  };
+
+  const handleConfirm = () => {
+    if (!currentAccepted && onAcceptChange) {
+      onAcceptChange(true);
+    }
+    onClose();
+  };
+
+  const modalContent = (
+    <div
+      className={`bg-white rounded-2xl shadow-2xl border border-slate-200/90 max-w-4xl w-full flex flex-col overflow-hidden ${
+        inline ? "h-[calc(100vh-85px)] shadow-md" : "h-[88vh] max-h-[850px] animate-fade-in"
+      }`}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {/* 1. Header Tab Navigation (Style exactly as requested: clean white tab bar with active blue underline) */}
+      <div className="bg-white border-b border-slate-200 px-4 sm:px-6 pt-2 flex items-center justify-between shrink-0 select-none">
+        <div className="flex items-center gap-1 sm:gap-6 overflow-x-auto">
+          {/* Tab 1: Chính sách bảo vệ dữ liệu cá nhân (Left) */}
           <button
             type="button"
             onClick={() => onSwitchTab("PRIVACY_ND13")}
-            className={`px-4 py-2.5 text-xs sm:text-sm font-bold border-b-2 transition-colors flex items-center gap-2 ${
+            className={`pb-3.5 pt-3 text-sm sm:text-base font-semibold border-b-2 transition-all cursor-pointer whitespace-nowrap ${
               openTab === "PRIVACY_ND13"
-                ? "border-blue-600 text-blue-600"
-                : "border-transparent text-slate-500 hover:text-slate-800"
+                ? "text-blue-600 border-blue-600"
+                : "text-slate-600 hover:text-slate-900 border-transparent"
             }`}
           >
-            <ShieldCheck className="w-4 h-4" />
-            <span>2. Bảo Vệ Dữ Liệu Cá Nhân (NĐ 13/2023/NĐ-CP)</span>
+            Chính sách bảo vệ dữ liệu cá nhân
+          </button>
+
+          {/* Tab 2: Thỏa thuận mua hàng (Right) */}
+          <button
+            type="button"
+            onClick={() => onSwitchTab("TOS")}
+            className={`pb-3.5 pt-3 text-sm sm:text-base font-semibold border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+              openTab === "TOS"
+                ? "text-blue-600 border-blue-600"
+                : "text-slate-600 hover:text-slate-900 border-transparent"
+            }`}
+          >
+            Thỏa thuận mua hàng
           </button>
         </div>
 
-        {/* Scrollable Legal Document Body */}
-        <div className="p-6 overflow-y-auto space-y-5 text-xs sm:text-sm text-slate-700 leading-relaxed">
-          {openTab === "TOS" ? (
-            <>
-              <div className="p-3.5 rounded-xl bg-blue-50/70 border border-blue-200/80 text-xs text-slate-700">
-                <p className="font-bold text-slate-900 mb-1">
-                  THỎA THUẬN CẤP PHÉP SỬ DỤNG PHẦN MỀM SMARTHIRE-AI (TERMS OF SERVICE)
-                </p>
-                <p>
-                  Bản Điều khoản Dịch vụ này cấu thành hợp đồng điện tử có giá trị pháp lý theo Luật Giao dịch điện tử 2023 và Luật Thương mại Việt Nam giữa <strong>Công ty Cổ phần Công nghệ SmartHire Việt Nam (Bên A)</strong> và <strong>Đơn vị đăng ký sử dụng (Bên B)</strong>.
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <h4 className="font-bold text-slate-900">Điều 1. Phạm vi cấp phép và Khởi tạo Không gian làm việc (Workspace)</h4>
-                <p>
-                  1.1. Bên A cấp cho Bên B quyền truy cập và sử dụng nền tảng tuyển dụng thông minh SmartHire-AI theo mô hình thuê bao năm (Annual SaaS Subscription) tương ứng với gói dịch vụ và hạn mức (số vị trí tuyển dụng, lượt phân tích CV AI, giờ phỏng vấn AI) được ghi nhận trên đơn đặt hàng.
-                </p>
-                <p>
-                  1.2. Ngay sau khi hệ thống xác nhận thanh toán thành công, Bên A tự động khởi tạo cơ sở dữ liệu độc lập (Separate Database per Tenant) tại địa chỉ Subdomain riêng của Bên B và gửi liên kết kích hoạt một lần tới email Quản trị viên đã đăng ký.
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <h4 className="font-bold text-slate-900">Điều 2. Nghĩa vụ Thanh toán và Hóa đơn Tài chính (VAT)</h4>
-                <p>
-                  2.1. Phí bản quyền được thanh toán trả trước theo chu kỳ hàng năm bằng Đồng Việt Nam (VNĐ) thông qua chuyển khoản VietQR doanh nghiệp, thẻ nội địa VNPay hoặc thẻ quốc tế.
-                </p>
-                <p>
-                  2.2. Hóa đơn GTGT điện tử được xuất theo đúng thông tin pháp nhân và Mã số thuế do Bên B kê khai tại bước Đặt hàng.
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <h4 className="font-bold text-slate-900">Điều 3. Cam kết Chất lượng Dịch vụ (SLA) và Quyền Sở hữu Trí tuệ</h4>
-                <p>
-                  3.1. Bên A cam kết độ sẵn sàng của hạ tầng đạt tối thiểu 99.9% thời gian vận hành và thực hiện sao lưu dữ liệu định kỳ hàng ngày.
-                </p>
-                <p>
-                  3.2. Toàn bộ mã nguồn, thuật toán chấm điểm khớp CV, mô hình đánh giá phỏng vấn AI thuộc quyền sở hữu trí tuệ của Bên A. Toàn bộ dữ liệu tuyển dụng, hồ sơ ứng viên và kết quả đánh giá phát sinh trong Workspace thuộc quyền sở hữu độc quyền của Bên B.
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <h4 className="font-bold text-slate-900">Điều 4. Giá trị Pháp lý của Giao dịch Click-wrap</h4>
-                <p>
-                  4.1. Việc người đại diện của Bên B chủ động đánh dấu vào ô xác nhận đồng ý trên trang Thanh toán và gửi yêu cầu khởi tạo đơn hàng là bằng chứng xác thực ý chí giao kết hợp đồng điện tử, được hệ thống lưu vết kiểm toán (Audit Trail gồm phiên bản văn bản, thời gian UTC/Server, địa chỉ IP và thông tin trình duyệt).
-                </p>
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200/80 text-xs text-slate-700 flex items-start gap-2.5">
-                <Lock className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-bold text-slate-900 mb-1">
-                    CHÍNH SÁCH BẢO VỆ & XỬ LÝ DỮ LIỆU CÁ NHÂN (TUÂN THỦ NGHỊ ĐỊNH 13/2023/NĐ-CP & GDPR)
-                  </p>
-                  <p>
-                    Chính sách này quy định rõ trách nhiệm bảo vệ dữ liệu cá nhân của Quản trị viên doanh nghiệp, Nhân sự tuyển dụng và Ứng viên theo Nghị định số 13/2023/NĐ-CP của Chính phủ Việt Nam.
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <h4 className="font-bold text-slate-900">1. Vai trò Kiểm soát và Xử lý Dữ liệu Cá nhân</h4>
-                <p>
-                  1.1. <strong>Đối với dữ liệu người đại diện đặt hàng & quản trị viên Workspace:</strong> SmartHire-AI đóng vai trò là Bên Kiểm soát và Xử lý dữ liệu nhằm mục đích khởi tạo tài khoản, xuất hóa đơn thuế, gửi thông báo vận hành và lưu bằng chứng giao kết hợp đồng.
-                </p>
-                <p>
-                  1.2. <strong>Đối với dữ liệu Ứng viên trong từng Workspace:</strong> Doanh nghiệp (Tenant) là <em>Bên Kiểm soát Dữ liệu Cá nhân</em>; SmartHire-AI đóng vai trò là <em>Bên Xử lý Dữ liệu Cá nhân</em> theo ủy quyền kỹ thuật của Doanh nghiệp.
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <h4 className="font-bold text-slate-900">2. Cơ chế Cô lập Vật lý và Bảo mật Kỹ thuật</h4>
-                <p>
-                  2.1. Mỗi doanh nghiệp được cấp phát một cơ sở dữ liệu riêng biệt (Separate Database per Tenant). Dữ liệu CV, bản ghi âm phỏng vấn AI và điểm đánh giá không dùng chung bảng với bất kỳ doanh nghiệp nào khác.
-                </p>
-                <p>
-                  2.2. Mật khẩu kết nối cơ sở dữ liệu được mã hóa AES-256-GCM; tài liệu CV được tự động áp dụng chính sách thời hạn lưu trữ (Retention Policy) và kiểm soát truy cập theo phân quyền RBAC.
-                </p>
-                <p>
-                  2.3. SmartHire-AI <strong>cam kết tuyệt đối không sử dụng</strong> dữ liệu hồ sơ ứng viên hoặc dữ liệu nội bộ của Doanh nghiệp để huấn luyện các mô hình AI công cộng.
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <h4 className="font-bold text-slate-900">3. Quyền của Chủ thể Dữ liệu (Điều 9 Nghị định 13/2023/NĐ-CP)</h4>
-                <p>
-                  Chủ thể dữ liệu có đầy đủ các quyền: Quyền được biết, Quyền đồng ý, Quyền truy cập, Quyền rút lại sự đồng ý, Quyền yêu cầu xóa dữ liệu (Right to be forgotten) và Quyền hạn chế xử lý dữ liệu thông qua cổng quản trị Workspace hoặc liên hệ trực tiếp bộ phận Pháp chế & Bảo mật tại <strong>legal@smarthire.top</strong>.
-                </p>
-              </div>
-            </>
-          )}
-        </div>
-
-        {/* Footer — Read-only acknowledgement (does NOT auto-check consent) */}
-        <div className="px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <span className="text-[11px] text-slate-500">
-            Lưu ý: Việc mở xem văn bản này không tự động kích hoạt trạng thái đồng ý. Quý khách vui lòng tự tay tích vào ô xác nhận ngoài màn hình đặt hàng.
-          </span>
+        {/* Close Button X */}
+        {!inline && (
           <button
             type="button"
             onClick={onClose}
-            className="px-5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs shrink-0 transition-colors"
+            className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+            title="Đóng văn bản"
           >
-            Đã hiểu & Đóng cửa sổ
+            <X className="w-5 h-5" />
+          </button>
+        )}
+      </div>
+
+      {/* 2. Modal Body: Document Container Box with Times New Roman font */}
+      <div className="p-3 sm:p-6 bg-slate-50/60 flex-1 overflow-hidden flex flex-col">
+        <div
+          style={{ fontFamily: '"Times New Roman", Times, serif' }}
+          className="bg-white border border-slate-200/90 rounded-xl p-5 sm:p-8 overflow-y-auto flex-1 shadow-2xs select-text text-black text-[14.5px] sm:text-[15px] leading-[1.7] custom-scrollbar"
+        >
+          {openTab === "PRIVACY_ND13" ? (
+            /* ======================================================== */
+            /* TAB 1: CHÍNH SÁCH BẢO VỆ DỮ LIỆU CÁ NHÂN (LUẬT 2025 & NĐ 356) */
+            /* ======================================================== */
+            <div className="space-y-4">
+              {/* Phiên bản cập nhật */}
+              <div className="text-right text-xs text-slate-700 italic pb-1">
+                Phiên bản cập nhật ngày {policyVersion}
+              </div>
+
+              {/* Document Header Title */}
+              <div className="text-center space-y-1 mb-6">
+                <h1 className="text-lg sm:text-xl font-bold uppercase tracking-tight text-black">
+                  CHÍNH SÁCH BẢO VỆ DỮ LIỆU CÁ NHÂN
+                </h1>
+                <p className="text-[14px] font-bold text-slate-900">
+                  (Dành cho Khách hàng)
+                </p>
+                <p className="text-[12.5px] italic text-slate-600">
+                  (Ban hành theo Luật Bảo vệ dữ liệu cá nhân 2025 và Nghị định số 356/2025/NĐ-CP của Chính phủ)
+                </p>
+              </div>
+
+              {/* Lời mở đầu */}
+              <p className="text-justify indent-6">
+                Chính sách bảo vệ Dữ liệu cá nhân này (&ldquo;<strong>Chính sách bảo vệ DLCN</strong>&rdquo;) do <strong>Công ty Cổ phần Công nghệ SmartHire Việt Nam</strong> (&ldquo;<strong>SmartHire</strong>&rdquo;) ban hành để giải thích cách SmartHire thu thập, phân tích, tổng hợp, sử dụng, cung cấp, chuyển giao hoặc các hoạt động xử lý Dữ liệu cá nhân khác của Quý Khách thông qua các sản phẩm, dịch vụ mà SmartHire cung cấp.
+              </p>
+
+              <p className="text-justify indent-6">
+                Chính sách bảo vệ DLCN này mô tả mục đích và phương tiện mà SmartHire xử lý Dữ liệu cá nhân với tư cách là Bên Kiểm soát Dữ liệu cá nhân, Bên Xử lý Dữ liệu cá nhân, Bên Kiểm soát và xử lý Dữ liệu cá nhân và/hoặc Bên Thứ ba có liên quan đến xử lý Dữ liệu cá nhân, tùy từng ngữ cảnh, tùy từng trường hợp khi SmartHire xử lý Dữ liệu cá nhân. Tùy thuộc vào Sản phẩm, dịch vụ cụ thể mà Quý Khách lựa chọn, cũng như nội dung các văn bản thỏa thuận, hợp đồng đã giao kết và bản chất của hoạt động xử lý dữ liệu trên thực tế, SmartHire sẽ xác định vai trò cụ thể để thực hiện xử lý DLCN. SmartHire cam kết thực hiện đầy đủ các nghĩa vụ và trách nhiệm pháp lý tương ứng với vai trò của mình trong từng trường hợp cụ thể.
+              </p>
+
+              {/* 1. ĐỊNH NGHĨA */}
+              <div className="space-y-2 pt-2">
+                <h2 className="font-bold text-[15px] uppercase text-black">
+                  1. ĐỊNH NGHĨA
+                </h2>
+                <p className="text-justify indent-6">
+                  <strong>1.1. Quý Khách/Khách hàng:</strong> là tổ chức, doanh nghiệp hoặc cá nhân tiếp cận, tìm hiểu, đăng ký, ký kết hợp đồng, sử dụng hoặc có liên quan trong quá trình hoạt động, cung cấp các sản phẩm, dịch vụ của SmartHire. Tại Chính sách bảo vệ DLCN này, Quý Khách có thể là Chủ thể dữ liệu hoặc là Bên Kiểm soát Dữ liệu cá nhân đối với toàn bộ hồ sơ ứng viên do Quý Khách quản lý.
+                </p>
+                <p className="text-justify indent-6">
+                  <strong>1.2. Dữ liệu cá nhân (DLCN):</strong> là thông tin dưới dạng ký hiệu, chữ viết, chữ số, hình ảnh, âm thanh hoặc dạng tương tự trên môi trường điện tử gắn liền với một con người cụ thể hoặc giúp xác định một con người cụ thể theo định nghĩa tại Luật Bảo vệ dữ liệu cá nhân năm 2025.
+                </p>
+                <p className="text-justify indent-6">
+                  <strong>1.3. Xử lý Dữ liệu cá nhân:</strong> là một hoặc nhiều hoạt động tác động tới Dữ liệu cá nhân như: thu thập, ghi, phân tích, xác nhận, lưu trữ, chỉnh sửa, công khai, kết hợp, truy cập, truy xuất, thu hồi, mã hóa, giải mã, sao chép, chia sẻ, truyền đưa, cung cấp, chuyển giao, xóa, hủy dữ liệu cá nhân hoặc các hành động khác có liên quan.
+                </p>
+              </div>
+
+              {/* 2. NGUYÊN TẮC VÀ VAI TRÒ XỬ LÝ DỮ LIỆU */}
+              <div className="space-y-2 pt-2">
+                <h2 className="font-bold text-[15px] uppercase text-black">
+                  2. PHÂN ĐỊNH VAI TRÒ GIỮA SMARTHIRE VÀ QUÝ KHÁCH
+                </h2>
+                <p className="text-justify indent-6">
+                  <strong>2.1. Quý Khách là Bên Kiểm soát Dữ liệu cá nhân:</strong> Quý Khách là chủ thể quyết định mục đích và phương tiện xử lý đối với toàn bộ hồ sơ ứng viên (CV, điểm đánh giá, câu trả lời phỏng vấn video/audio) được đưa vào hệ thống. Quý Khách cam đoan và bảo đảm đã có sự đồng ý tự nguyện, rõ ràng của ứng viên trước khi tải lên hoặc cho phép bóc tách dữ liệu theo quy định của Luật Bảo vệ dữ liệu cá nhân 2025 và Nghị định số 356/2025/NĐ-CP.
+                </p>
+                <p className="text-justify indent-6">
+                  <strong>2.2. SmartHire là Bên Xử lý Dữ liệu cá nhân:</strong> SmartHire chỉ tiến hành thu thập, lưu trữ, bóc tách hồ sơ CV bằng AI và điều phối phòng phỏng vấn trợ lý AI hoàn toàn nhân danh Quý Khách, tuân thủ đúng phạm vi Thỏa thuận mua hàng đã ký kết và không sử dụng dữ liệu này cho bất kỳ mục đích nào ngoài phạm vi dịch vụ.
+                </p>
+              </div>
+
+              {/* 3. BIỆN PHÁP AN TOÀN VÀ BẢO MẬT */}
+              <div className="space-y-2 pt-2">
+                <h2 className="font-bold text-[15px] uppercase text-black">
+                  3. BIỆN PHÁP BẢO VỆ VÀ CÁCH LY DỮ LIỆU
+                </h2>
+                <p className="text-justify indent-6">
+                  <strong>3.1. Cách ly vật lý từng Doanh nghiệp (Separate Database):</strong> SmartHire áp dụng kiến trúc mỗi doanh nghiệp một Database độc lập, bảo đảm tuyệt đối không chia sẻ chung bảng dữ liệu với bất kỳ khách hàng nào khác.
+                </p>
+                <p className="text-justify indent-6">
+                  <strong>3.2. Tiêu chuẩn mã hóa:</strong> Toàn bộ dữ liệu truyền tải trên môi trường mạng được bảo vệ thông qua giao thức TLS 1.3 mã hóa 256-bit. Mọi dữ liệu nhạy cảm được mã hóa cấp trường theo chuẩn AES-256-GCM.
+                </p>
+                <p className="text-justify indent-6">
+                  <strong>3.3. Cam kết AI minh bạch:</strong> SmartHire cam kết không sử dụng dữ liệu nội bộ hoặc thông tin cá nhân trong CV của Quý Khách để huấn luyện (train) các mô hình AI dùng chung khi chưa có văn bản đồng ý riêng từ Quý Khách.
+                </p>
+              </div>
+
+              {/* 4. QUYỀN CỦA CHỦ THỂ DỮ LIỆU */}
+              <div className="space-y-2 pt-2">
+                <h2 className="font-bold text-[15px] uppercase text-black">
+                  4. HỖ TRỢ THỰC THI QUYỀN CỦA ỨNG VIÊN
+                </h2>
+                <p className="text-justify indent-6">
+                  Khi ứng viên gửi yêu cầu thực hiện các quyền theo Luật Bảo vệ dữ liệu cá nhân 2025 và Nghị định số 356/2025/NĐ-CP (quyền biết, truy cập, chỉnh sửa, phản đối xử lý, xóa dữ liệu), Quý Khách có toàn quyền chủ động thực hiện trên trang quản trị Workspace của mình hoặc gửi yêu cầu tới <strong>privacy@smarthire.top</strong> để SmartHire hỗ trợ kỹ thuật trong vòng 72 giờ.
+                </p>
+              </div>
+            </div>
+          ) : (
+            /* ======================================================== */
+            /* TAB 2: THỎA THUẬN MUA HÀNG (TERMS OF SERVICE)              */
+            /* ======================================================== */
+            <div className="space-y-4">
+              {/* Phiên bản cập nhật */}
+              <div className="text-right text-xs text-slate-700 italic pb-1">
+                Phiên bản cập nhật ngày {policyVersion}
+              </div>
+
+              {/* Document Header Title */}
+              <div className="text-center space-y-1 mb-6">
+                <h1 className="text-lg sm:text-xl font-bold uppercase tracking-tight text-black">
+                  THỎA THUẬN MUA HÀNG VÀ CẤP PHÉP DỊCH VỤ SMARTHIRE-AI
+                </h1>
+                <p className="text-[14px] font-bold text-slate-900">
+                  (Dành cho Khách hàng Doanh nghiệp)
+                </p>
+                <p className="text-[12.5px] italic text-slate-600">
+                  (Căn cứ Bộ luật Dân sự 2015, Luật Giao dịch điện tử 2023 và Luật Công nghệ thông tin 2006)
+                </p>
+              </div>
+
+              {/* Lời mở đầu */}
+              <p className="text-justify indent-6">
+                Thỏa thuận mua hàng này (&ldquo;<strong>Thỏa thuận</strong>&rdquo;) xác lập các điều khoản và điều kiện pháp lý ràng buộc giữa <strong>Công ty Cổ phần Công nghệ SmartHire Việt Nam</strong> (&ldquo;<strong>SmartHire</strong>&rdquo;) và <strong>Cơ quan, Tổ chức, Doanh nghiệp</strong> đăng ký khởi tạo tài khoản và mua bản quyền dịch vụ trực tuyến trên hệ thống (&ldquo;<strong>Quý Khách</strong>&rdquo;).
+              </p>
+
+              {/* 1. PHẠM VI DỊCH VỤ */}
+              <div className="space-y-2 pt-2">
+                <h2 className="font-bold text-[15px] uppercase text-black">
+                  1. PHẠM VI DỊCH VỤ VÀ CẤP PHÉP BẢN QUYỀN
+                </h2>
+                <p className="text-justify indent-6">
+                  <strong>1.1. Cấp phép sử dụng:</strong> SmartHire cấp cho Quý Khách quyền sử dụng có thời hạn, không độc quyền nền tảng phần mềm SaaS quản lý tuyển dụng tích hợp AI (SmartHire-AI) theo đúng gói dịch vụ và thời hạn bản quyền Quý Khách đã thanh toán.
+                </p>
+                <p className="text-justify indent-6">
+                  <strong>1.2. Khởi tạo Workspace tự động:</strong> Ngay sau khi ghi nhận thanh toán thành công, hệ thống SmartHire tự động kích hoạt hạ tầng cơ sở dữ liệu độc lập và tên miền phụ (subdomain) dành riêng cho Quý Khách, đồng thời gửi email thông báo kích hoạt tới hòm thư Quý Khách đã đăng ký.
+                </p>
+              </div>
+
+              {/* 2. QUẢN LÝ HẠN MỨC */}
+              <div className="space-y-2 pt-2">
+                <h2 className="font-bold text-[15px] uppercase text-black">
+                  2. QUẢN LÝ HẠN MỨC VÀ SỬ DỤNG HỢP LÝ
+                </h2>
+                <p className="text-justify indent-6">
+                  <strong>2.1. Hạn mức tính năng:</strong> Việc sử dụng các chức năng như đăng tin tuyển dụng, bóc tách hồ sơ CV bằng AI và phỏng vấn trợ lý AI được áp dụng theo hạn mức quy định của từng gói cước (Starter, Professional, Enterprise).
+                </p>
+                <p className="text-justify indent-6">
+                  <strong>2.2. Nâng cấp gói:</strong> Quý Khách có thể chủ động nâng cấp hạn mức hoặc gia hạn thời gian sử dụng bất kỳ lúc nào trên giao diện thanh toán mà không làm gián đoạn dữ liệu hiện có.
+                </p>
+              </div>
+
+              {/* 3. THANH TOÁN VÀ HÓA ĐƠN */}
+              <div className="space-y-2 pt-2">
+                <h2 className="font-bold text-[15px] uppercase text-black">
+                  3. GIÁ CẢ, PHƯƠNG THỨC THANH TOÁN VÀ HÓA ĐƠN VAT
+                </h2>
+                <p className="text-justify indent-6">
+                  <strong>3.1. Phí dịch vụ:</strong> Phí dịch vụ được niêm yết bằng Việt Nam Đồng (VNĐ) và có thể bao gồm thuế Giá trị gia tăng (VAT) theo quy định hiện hành.
+                </p>
+                <p className="text-justify indent-6">
+                  <strong>3.2. Phương thức thanh toán:</strong> Quý Khách có thể thanh toán trực tuyến qua Chuyển khoản VietQR tức thì, Thẻ thanh toán quốc tế (Visa/MasterCard) hoặc Cổng thanh toán trực tuyến được tích hợp.
+                </p>
+                <p className="text-justify indent-6">
+                  <strong>3.3. Hóa đơn điện tử:</strong> SmartHire phát hành hóa đơn giá trị gia tăng điện tử hợp lệ theo đúng thông tin doanh nghiệp, mã số thuế và địa chỉ do Quý Khách cung cấp trong vòng 03 ngày làm việc kể từ khi giao dịch hoàn tất.
+                </p>
+              </div>
+
+              {/* 4. HIỆU LỰC RÀNG BUỘC */}
+              <div className="space-y-2 pt-2">
+                <h2 className="font-bold text-[15px] uppercase text-black">
+                  4. HIỆU LỰC PHÁP LÝ VÀ ĐIỀU KHOẢN CHUNG
+                </h2>
+                <p className="text-justify indent-6">
+                  <strong>4.1. Giá trị điện tử:</strong> Hành vi tích chọn xác nhận <em>&ldquo;Tôi đã đọc, hiểu và đồng ý với Thỏa thuận mua hàng và Chính sách bảo vệ dữ liệu cá nhân&rdquo;</em> và thực hiện thanh toán trực tuyến có giá trị pháp lý ràng buộc tương đương văn bản hợp đồng truyền thống căn cứ theo quy định của Luật Giao dịch điện tử năm 2023.
+                </p>
+                <p className="text-justify indent-6">
+                  <strong>4.2. Nhật ký kiểm toán:</strong> Thời gian chấp thuận, địa chỉ IP và mã định danh giao dịch của Quý Khách được ghi nhận và lưu trữ bất biến làm bằng chứng xác lập thỏa thuận giữa hai bên.
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* 3. Modal Footer: Consent Checkbox & Action Button (Matching Image 1) */}
+      <div className="px-4 sm:px-6 py-3.5 bg-white border-t border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shrink-0">
+        <label className="flex items-center gap-2.5 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={currentAccepted}
+            onChange={(e) => handleToggleConsent(e.target.checked)}
+            className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500 accent-blue-600 cursor-pointer"
+          />
+          <span className="text-xs sm:text-sm text-slate-800 font-medium leading-snug">
+            Tôi đã đọc, hiểu và đồng ý với Thỏa thuận mua hàng và Chính sách bảo vệ dữ liệu cá nhân
+          </span>
+        </label>
+
+        <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+          <button
+            type="button"
+            onClick={handleConfirm}
+            className="w-full sm:w-auto px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-98 text-white font-semibold text-xs sm:text-sm shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+          >
+            <Check className="w-4 h-4" />
+            <span>Đồng ý & Đóng</span>
           </button>
         </div>
       </div>
     </div>
   );
+
+  if (inline) {
+    return modalContent;
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5"
+      onClick={onClose}
+    >
+      {modalContent}
+    </div>
+  );
 }
+
+export default LegalPolicyModal;

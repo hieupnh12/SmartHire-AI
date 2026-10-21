@@ -39,7 +39,9 @@ function loginPathFor(pathname: string) {
     pathname.startsWith("/interviews") ||
     pathname.startsWith("/practice") ||
     pathname.startsWith("/schedules") ||
+    pathname.startsWith("/interview-schedules") ||
     pathname.startsWith("/notifications") ||
+    pathname.startsWith("/account") ||
     pathname.startsWith("/oauth") ||
     pathname.startsWith("/career") ||
     pathname.startsWith("/jobs")
@@ -147,6 +149,7 @@ export function getApiErrorMessage(error: unknown, fallback = "Không thể hoà
       return Object.values(data.errors).join(", ");
     }
     if (data?.code && FRIENDLY_ERROR_MESSAGES[data.code]) return FRIENDLY_ERROR_MESSAGES[data.code];
+    if (error.code === "ECONNABORTED") return "Hệ thống chưa trả lời kịp. Việc này có thể vẫn đang chạy, hãy đợi một lát rồi tải lại.";
     if (!error.response) return "Không thể kết nối đến hệ thống. Vui lòng kiểm tra mạng và thử lại.";
     if (error.response.status === 403) return "Bạn không có quyền thực hiện thao tác này.";
     if (error.response.status === 404) return "Không tìm thấy dữ liệu được yêu cầu.";

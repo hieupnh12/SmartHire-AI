@@ -1,0 +1,18 @@
+{
+  "project_name": "SmartHire-AI",
+  "project_code": "SA",
+  "creator": "Nguyễn Minh Hiếu",
+  "reviewer": "",
+  "version": "v1.0",
+  "issue_date": "14/09/2026",
+  "changes": [
+    {
+      "date": "14/10/2026",
+      "version": "v1.0",
+      "item": "Test Report",
+      "type": "A",
+      "description": "Initial release: system test cases for 53 features (8 Master platform modules, 45 Tenant modules).",
+      "reference": "SmartHire-AI feature specifications (docs/features), Report5_Unit Test"
+    }
+  ]
+}

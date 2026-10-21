@@ -46,6 +46,9 @@ public class RankingService {
                           ExperienceScoringService experience, ObjectMapper mapper) {
         this.data = data; this.calculator = calculator; this.skills = skills; this.experience = experience; this.mapper = mapper; this.realtime = null; this.access = null;
     }
+    /** The evaluation flow finishes as PASSED/FAILED; both carry the official overall score. */
+    private static final Set<AiInterviewStatus> INTERVIEW_SCORED = Set.of(
+            AiInterviewStatus.SCORED, AiInterviewStatus.PASSED, AiInterviewStatus.FAILED);
     private static final Set<String> STAFF = Set.of(
             "ROLE_STAFF", "ROLE_RECRUITER", "ROLE_HR", "ROLE_ADMIN", "ROLE_TENANT_ADMIN");
 
@@ -138,19 +141,27 @@ public class RankingService {
         List<Row> all = board.rows();
         Set<String> terminal = Set.of("REJECTED", "WITHDRAWN", "HIRED");
         String term = search == null ? "" : search.trim().toLowerCase(Locale.ROOT);
+        Comparator<Row> byScore = Comparator.comparing((Row row) -> sortScore(row, sort), Comparator.nullsLast(Comparator.reverseOrder()))
+                .thenComparing(Row::applicationId);
+        // ALL view: full-pipeline candidates lead; partial/temporary scores stay below.
+        Comparator<Row> ordered = "ALL".equals(cohort)
+                ? Comparator.comparing((Row row) -> row.result().complete()).reversed().thenComparing(byScore)
+                : byScore;
         List<Row> filtered = all.stream()
                 .filter(row -> term.isEmpty() || row.candidateName().toLowerCase(Locale.ROOT).contains(term))
                 .filter(row -> "ALL".equals(status) || ("ACTIVE".equals(status) ? !terminal.contains(row.status()) : row.status().equals(status)))
                 .filter(row -> "ALL".equals(cohort) || ("COMPLETE".equals(cohort) ? row.result().complete() : row.result().cohort().equals(cohort)))
                 .filter(row -> minScore == null || row.result().score() != null && row.result().score().compareTo(minScore) >= 0)
-                .sorted(Comparator.comparing((Row row) -> sortScore(row, sort), Comparator.nullsLast(Comparator.reverseOrder()))
-                        .thenComparing(Row::applicationId))
+                .sorted(ordered)
                 .toList();
+        if ("ALL".equals(cohort)) filtered = assignCompleteRanks(filtered, terminal);
         int from = Math.min(page * size, filtered.size());
         int to = Math.min(from + size, filtered.size());
         List<Row> items = filtered.subList(from, to).stream().map(this::lightweight).toList();
         List<Row> scored = all.stream().filter(row -> row.result().score() != null).toList();
-        Row top = scored.stream().max(Comparator.comparing(row -> row.result().score())).orElse(null);
+        Row top = scored.stream().filter(row -> row.result().complete())
+                .max(Comparator.comparing(row -> row.result().score()))
+                .orElse(null);
         BigDecimal average = scored.isEmpty() ? null : scored.stream().map(row -> row.result().score())
                 .reduce(BigDecimal.ZERO, BigDecimal::add).divide(BigDecimal.valueOf(scored.size()), 2, java.math.RoundingMode.HALF_UP);
         Summary summary = new Summary(all.size(), all.stream().filter(row -> !terminal.contains(row.status())).count(), scored.size(),
@@ -159,6 +170,25 @@ public class RankingService {
         return new BoardPage(board.jobId(), board.jobTitle(), board.config(), board.rankingVersion(), board.calculatedAt(),
                 items, board.skillCategories(), all.stream().map(row -> row.result().cohort()).filter(value -> !value.isBlank()).distinct().sorted().toList(), summary,
                 new PageInfo(page, size, filtered.size(), filtered.isEmpty() ? 0 : (filtered.size() + size - 1) / size));
+    }
+
+    /** Global competition ranks among complete candidates only; incomplete rows stay unranked. */
+    private List<Row> assignCompleteRanks(List<Row> rows, Set<String> terminal) {
+        int seen = 0;
+        Integer lastRank = null;
+        BigDecimal previous = null;
+        List<Row> ranked = new ArrayList<>(rows.size());
+        for (Row row : rows) {
+            if (!row.result().complete() || row.result().score() == null || terminal.contains(row.status())) {
+                ranked.add(row.withRank(null));
+                continue;
+            }
+            seen++;
+            if (previous == null || previous.compareTo(row.result().score()) != 0) lastRank = seen;
+            previous = row.result().score();
+            ranked.add(row.withRank(lastRank));
+        }
+        return ranked;
     }
 
     private BigDecimal sortScore(Row row, String key) {
@@ -181,7 +211,9 @@ public class RankingService {
     @Transactional(readOnly = true)
     public Row overall(long appId) {
         Application app = application(appId);
-        return compute(app.getJob(), false).rows().stream().filter(r -> r.applicationId() == appId).findFirst().orElseThrow();
+        Row row = compute(app.getJob(), false).rows().stream().filter(r -> r.applicationId() == appId).findFirst().orElseThrow();
+        // Incomplete / temporary scores are not ranked for hiring decisions.
+        return row.result().complete() ? row : row.withRank(null);
     }
     @Transactional(readOnly = true)
     public Sources sources(long appId) {
@@ -270,12 +302,13 @@ public class RankingService {
         }
         states.putIfAbsent("skills", "NEEDS_REVIEW");
         if (config.requiredExperienceMonths() == 0 && config.weights().experience() > 0) states.put("experience", "NEEDS_REVIEW");
-        BigDecimal testScore = submission != null && submission.getStatus() == TestSubmissionStatus.GRADED ? submission.getScore() : null;
-        BigDecimal interviewScore = aiInterview != null && aiInterview.getStatus() == AiInterviewStatus.SCORED ? aiInterview.getOverallScore() : null;
+        BigDecimal testScore = submission != null && submission.getStatus() == TestSubmissionStatus.GRADED ? data.assessmentPercent(submission) : null;
+        BigDecimal interviewScore = aiInterview != null && INTERVIEW_SCORED.contains(aiInterview.getStatus()) ? aiInterview.getOverallScore() : null;
         addScore(scores, states, "assessment", testScore,
                 submission == null ? (submissions.size() > 1 ? "SELECT_SOURCE" : "MISSING") : "PROCESSING");
         addScore(scores, states, "interview", interviewScore,
-                aiInterview == null ? (aiInterviews.size() > 1 ? "SELECT_SOURCE" : "MISSING") : aiInterview.getStatus() == AiInterviewStatus.FAILED ? "FAILED" : "PROCESSING");
+                aiInterview == null ? (aiInterviews.size() > 1 ? "SELECT_SOURCE" : "MISSING")
+                        : aiInterview.getStatus() == AiInterviewStatus.FAILED || aiInterview.getStatus() == AiInterviewStatus.ERROR ? "FAILED" : "PROCESSING");
         List<String> missing = groups.stream().flatMap(g -> g.matches().stream()).filter(m -> m.required() && m.similarity().compareTo(BigDecimal.ONE) < 0)
                 .map(SkillMatch::requiredSkill).toList();
         List<TimelineEvent> timeline = new ArrayList<>();

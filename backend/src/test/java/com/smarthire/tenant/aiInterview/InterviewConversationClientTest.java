@@ -40,17 +40,23 @@ class InterviewConversationClientTest {
             try (var output = exchange.getResponseBody()) { output.write(body); }
         });
         provider.start();
-        var fallback = new AiInterviewAiConfig();
-        fallback.setBaseUrl("http://127.0.0.1:" + provider.getAddress().getPort());
-        chatUrl = fallback.getBaseUrl() + "/chat/completions";
+        base = "http://127.0.0.1:" + provider.getAddress().getPort();
+        chatUrl = base + "/chat/completions";
         var builder = RestClient.builder(); server = MockRestServiceServer.bindTo(builder).build();
-        client = new InterviewConversationClient(configs, fallback, mapper, builder,
-                "https://generativelanguage.googleapis.com/v1beta", "gemini-2.5-flash-preview-tts", "",
-                new com.smarthire.config.InterviewConversationConfig().interviewConversationWebClient(10), 60);
-        lenient().when(configs.resolveConfig(anyString())).thenAnswer(invocation -> new DynamicAiConfigProvider.ResolvedAiConfig(
-                invocation.getArgument(0), "GEMINI", "gemini-2.5-flash", "test-key", null, BigDecimal.ZERO, 4096, 45, null, null));
-        lenient().when(configs.resolveInterviewSpeechConfig()).thenReturn(new DynamicAiConfigProvider.ResolvedAiConfig(
-                "INTERVIEW_GEN", "GEMINI", "gemini-2.5-flash", "speech-key", null, BigDecimal.ZERO, 4096, 45, null, null));
+        client = newClient(builder, new com.smarthire.config.InterviewConversationConfig().interviewConversationWebClient(10), 60);
+        lenient().when(configs.resolveConfig(anyString())).thenAnswer(invocation -> config(invocation.getArgument(0),
+                "GEMINI", "gemini-2.5-flash", "test-key", base));
+    }
+    String base;
+    InterviewConversationClient newClient(RestClient.Builder builder, WebClient.Builder web, int timeout) {
+        return new InterviewConversationClient(configs, mapper, builder, "https://generativelanguage.googleapis.com/v1beta", web, timeout);
+    }
+    DynamicAiConfigProvider.ResolvedAiConfig config(String task, String provider, String model, String key, String endpoint) {
+        if (task.equals("INTERVIEW_STT")) return new DynamicAiConfigProvider.ResolvedAiConfig(
+                task, "GEMINI", "gemini-2.5-flash", "speech-key", null, BigDecimal.ZERO, 4096, 45, null, null);
+        if (task.equals("INTERVIEW_TTS")) return new DynamicAiConfigProvider.ResolvedAiConfig(
+                task, "GEMINI", "gemini-2.5-flash-preview-tts", "speech-key", null, BigDecimal.ZERO, 4096, 45, null, null);
+        return new DynamicAiConfigProvider.ResolvedAiConfig(task, provider, model, key, endpoint, BigDecimal.ZERO, 4096, 45, null, null);
     }
     @AfterEach void stopProvider() { provider.stop(0); com.smarthire.multitenancy.context.TenantContext.clear(); }
     String url(String operation) { return "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:" + operation; }
@@ -62,8 +68,7 @@ class InterviewConversationClientTest {
             var web = WebClient.builder().exchangeFunction(request -> reactor.core.publisher.Mono.error(
                     new org.springframework.web.reactive.function.client.WebClientRequestException(failure,
                             HttpMethod.POST, request.url(), request.headers())));
-            client = new InterviewConversationClient(configs, new AiInterviewAiConfig(), mapper, RestClient.builder(),
-                    "https://generativelanguage.googleapis.com/v1beta", "gemini-2.5-flash-preview-tts", "", web, 60);
+            client = newClient(RestClient.builder(), web, 60);
             assertThatThrownBy(() -> client.dialogue("Interview",
                     List.of(new InterviewConversationClient.Message("USER", "context")), text -> {}))
                     .isInstanceOfSatisfying(com.smarthire.common.exception.BusinessException.class, ex -> {
@@ -87,22 +92,31 @@ class InterviewConversationClientTest {
         return "data: " + root + "\n\n";
     }
     void useLlama() {
-        when(configs.resolveConfig(anyString())).thenAnswer(invocation -> new DynamicAiConfigProvider.ResolvedAiConfig(
-                invocation.getArgument(0), "OPENAI", "vanilj/llama-3-8b-instruct-32k-v0.1:Q4_K_M", "llama-key",
-                chatUrl + "/", BigDecimal.ZERO, 4096, 45, null, null));
+        when(configs.resolveConfig(anyString())).thenAnswer(invocation -> config(invocation.getArgument(0),
+                "OPENAI", "vanilj/llama-3-8b-instruct-32k-v0.1:Q4_K_M", "llama-key", chatUrl + "/"));
     }
-    @Test void llamaStreamsFromFullEndpointAndIgnoresGeminiEnvironmentOverride() {
+    @Test void llamaStreamsFromFullEndpointWithDbModel() {
         useLlama();
-        var fallback = new AiInterviewAiConfig();
-        client = new InterviewConversationClient(configs, fallback, mapper, RestClient.builder(),
-                "https://generativelanguage.googleapis.com/v1beta", "gemini-tts", "gemini-env-model",
-                new com.smarthire.config.InterviewConversationConfig().interviewConversationWebClient(10), 60);
         events = chunk("Hello candidate", "stop") + "data: [DONE]\n\n";
         assertThat(client.dialogue("Interview", List.of(new InterviewConversationClient.Message("USER", "Hello")), text -> {}))
                 .isEqualTo("Hello candidate");
         assertThat(authorization).isEqualTo("Bearer llama-key");
         assertThat(sent.path("model").asText()).isEqualTo("vanilj/llama-3-8b-instruct-32k-v0.1:Q4_K_M");
         assertThat(sent.has("reasoning_effort")).isFalse();
+    }
+    @Test void customProviderStreamsFromItsEndpoint() {
+        when(configs.resolveConfig(anyString())).thenAnswer(invocation -> config(invocation.getArgument(0),
+                "CUSTOM", "vanilj/llama-3-8b-instruct-32k-v0.1:Q4_K_M", "litellm-key", base + "/v1/"));
+        provider.createContext("/v1/chat/completions", exchange -> {
+            authorization = exchange.getRequestHeaders().getFirst("Authorization");
+            byte[] body = (chunk("Hi", "stop") + "data: [DONE]\n\n").getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("Content-Type", "text/event-stream");
+            exchange.sendResponseHeaders(200, body.length);
+            try (var output = exchange.getResponseBody()) { output.write(body); }
+        });
+        assertThat(client.dialogue("Interview", List.of(new InterviewConversationClient.Message("USER", "Hello")), text -> {}))
+                .isEqualTo("Hi");
+        assertThat(authorization).isEqualTo("Bearer litellm-key");
     }
     @Test void llamaEvaluationUsesNlpTaskAndFullEndpoint() {
         useLlama();
@@ -121,8 +135,8 @@ class InterviewConversationClientTest {
         server.expect(requestTo(url("generateContent"))).andExpect(header("x-goog-api-key", "speech-key"))
                 .andRespond(withSuccess("{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"Synthetic speech\"}]},\"finishReason\":\"STOP\"}]}", MediaType.APPLICATION_JSON));
         assertThat(client.transcribe(new byte[]{1}, "audio/webm", "English")).isEqualTo("Synthetic speech");
-        verify(configs).resolveInterviewSpeechConfig();
-        verify(configs, never()).resolveConfig(anyString());
+        verify(configs).resolveConfig("INTERVIEW_STT");
+        verify(configs, never()).resolveConfig("INTERVIEW_GEN");
         server.verify(); assertThat(requests.get()).isZero();
     }
     @Test void nativeSpeechRetriesTransientOverloadOnce() {
@@ -167,15 +181,13 @@ class InterviewConversationClientTest {
                         .header("Content-Type", "text/event-stream")
                         .body(reactor.core.publisher.Flux.concat(reactor.core.publisher.Flux.just(buffer),
                                 reactor.core.publisher.Flux.never())).build()));
-        client = new InterviewConversationClient(configs, new AiInterviewAiConfig(), mapper, RestClient.builder(),
-                "https://generativelanguage.googleapis.com/v1beta", "gemini-2.5-flash-preview-tts", "", web, 1);
+        client = newClient(RestClient.builder(), web, 1);
         assertThat(client.dialogue("Interview", List.of(new InterviewConversationClient.Message("USER", "context")), text -> {}))
                 .isEqualTo("Hello candidate");
     }
     @Test void stalledStreamReturnsTimeoutInsteadOfHanging() {
         var web = WebClient.builder().exchangeFunction(request -> reactor.core.publisher.Mono.never());
-        client = new InterviewConversationClient(configs, new AiInterviewAiConfig(), mapper, RestClient.builder(),
-                "https://generativelanguage.googleapis.com/v1beta", "gemini-2.5-flash-preview-tts", "", web, 1);
+        client = newClient(RestClient.builder(), web, 1);
         assertThatThrownBy(() -> client.dialogue("Interview",
                 List.of(new InterviewConversationClient.Message("USER", "context")), text -> {}))
                 .isInstanceOfSatisfying(com.smarthire.common.exception.BusinessException.class,
@@ -251,11 +263,8 @@ class InterviewConversationClientTest {
                 .isInstanceOf(IllegalStateException.class).hasMessageNotContaining("private");
     }
 
-    @Test void sttUsesSpeechModelEvenWhenConversationOverrideIsLlama() {
-        var builder = RestClient.builder(); server = MockRestServiceServer.bindTo(builder).build();
-        client = new InterviewConversationClient(configs, new AiInterviewAiConfig(), mapper, builder,
-                "https://generativelanguage.googleapis.com/v1beta", "gemini-2.5-flash-preview-tts",
-                "vanilj/llama-3-8b-instruct-32k-v0.1:Q4_K_M", WebClient.builder(), 60);
+    @Test void sttUsesSttTaskModelEvenWhenChatIsLlama() {
+        useLlama();
         server.expect(requestTo(url("generateContent")))
                 .andExpect(header("x-goog-api-key", "speech-key"))
                 .andExpect(jsonPath("$.systemInstruction.parts[0].text").value(org.hamcrest.Matchers.containsString("in Vietnamese")))
@@ -287,5 +296,41 @@ class InterviewConversationClientTest {
         assertThat(client.transcribe(new byte[]{1, 2}, "audio/webm", "English")).isEqualTo("I use dependency injection");
         byte[] wave = client.speech("Chào bạn", "Vietnamese"); assertThat(wave).hasSize(48);
         assertThat(new String(wave, 0, 4, java.nio.charset.StandardCharsets.US_ASCII)).isEqualTo("RIFF"); server.verify();
+    }
+
+    @Test void dialogueFailsOverToSecondaryModelWhenPrimaryRateLimited() {
+        when(configs.resolveConfig("INTERVIEW_GEN")).thenReturn(new DynamicAiConfigProvider.ResolvedAiConfig(
+                "INTERVIEW_GEN", "GEMINI", "gemini-3.8-flash", "test-key", base, BigDecimal.ZERO, 4096, 45, "GEMINI", "gemini-3.5-flash-lite"));
+
+        var models = new java.util.concurrent.CopyOnWriteArrayList<String>();
+        provider.removeContext("/chat/completions");
+        provider.createContext("/chat/completions", exchange -> {
+            String model = mapper.readTree(exchange.getRequestBody()).path("model").asText();
+            models.add(model);
+            boolean primary = "gemini-3.8-flash".equals(model);
+            byte[] body = (primary ? "{\"error\":{\"status\":\"RESOURCE_EXHAUSTED\",\"message\":\"quota exceeded\"}}"
+                    : chunk("Fallback response", "stop") + "data: [DONE]\n\n").getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("Content-Type", primary ? "application/json" : "text/event-stream");
+            exchange.sendResponseHeaders(primary ? 429 : 200, body.length);
+            try (var output = exchange.getResponseBody()) { output.write(body); }
+        });
+
+        var chunks = new ArrayList<String>();
+        String reply = client.dialogue("Interview", List.of(new InterviewConversationClient.Message("USER", "Hello")), chunks::add);
+        assertThat(reply).isEqualTo("Fallback response");
+        assertThat(chunks).containsExactly("Fallback response");
+        assertThat(models).containsExactly("gemini-3.8-flash", "gemini-3.5-flash-lite");
+    }
+
+    @Test void missingDbTasksAreReportedAsNotConfigured() {
+        when(configs.resolveConfig(anyString())).thenAnswer(invocation -> new DynamicAiConfigProvider.ResolvedAiConfig(
+                invocation.getArgument(0), null, null, "", null, BigDecimal.ZERO, 2048, 30, null, null));
+        assertThatThrownBy(() -> client.dialogue("Interview",
+                List.of(new InterviewConversationClient.Message("USER", "context")), text -> {}))
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("not configured");
+        assertThatThrownBy(() -> client.speech("Hello", "English"))
+                .isInstanceOfSatisfying(com.smarthire.common.exception.BusinessException.class,
+                        ex -> assertThat(ex.getCode()).isEqualTo("AI_INTERVIEW_SPEECH_UNAVAILABLE"));
+        assertThat(requests.get()).isZero(); server.verify();
     }
 }

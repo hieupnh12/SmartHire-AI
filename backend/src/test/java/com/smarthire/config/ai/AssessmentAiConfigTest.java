@@ -12,6 +12,35 @@ import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 class AssessmentAiConfigTest {
+    @Test void gradingPrefersAdminConfigurationAndKeepsFallbackChain() {
+        var models = mock(AiModelConfigRepository.class);
+        var keys = mock(AiProviderKeyRepository.class);
+        var credentials = mock(TenantCredentialService.class);
+        var redis = mock(RedisService.class);
+        var config = com.smarthire.domain.master.entity.AiModelConfig.builder()
+                .taskType("CODE_GRADING").provider("CUSTOM").modelName("admin-grader")
+                .isActive(true).fallbackChain("[{\"provider\":\"CUSTOM\",\"model\":\"backup-grader\"}]").build();
+        when(models.findByTaskType("CODE_GRADING")).thenReturn(Optional.of(config));
+        when(keys.findFirstByProviderAndIsDefaultTrueAndStatus("CUSTOM", "ACTIVE")).thenReturn(Optional.of(
+                com.smarthire.domain.master.entity.AiProviderKey.builder()
+                        .apiKeyEncrypted("encrypted").endpointUrl("https://grader.example/v1").build()));
+        when(credentials.decrypt("MASTER_AI_KEY", "encrypted")).thenReturn("admin-key");
+        var provider = new DynamicAiConfigProvider(models, keys, credentials, redis, new ObjectMapper(),
+                "cv-key", "cv-model", 30, "interview-key", "interview-model", 60);
+
+        var grading = provider.resolveConfig("ASSESSMENT_GRADING");
+        assertThat(grading.taskType()).isEqualTo("ASSESSMENT_GRADING");
+        assertThat(grading.provider()).isEqualTo("CUSTOM");
+        assertThat(grading.modelName()).isEqualTo("admin-grader");
+        assertThat(grading.apiKey()).isEqualTo("admin-key");
+        assertThat(grading.endpointUrl()).isEqualTo("https://grader.example/v1");
+        assertThat(grading.hasFailover()).isTrue();
+        assertThat(provider.resolveExecutionChain("ASSESSMENT_GRADING"))
+                .extracting(DynamicAiConfigProvider.ResolvedAiConfig::modelName)
+                .containsExactly("admin-grader", "backup-grader");
+        verify(models, never()).findByTaskType("INTERVIEW_GEN");
+    }
+
     @Test void assessmentUsesRequestedLlamaAndExistingInterviewConnection() {
         var redis = mock(RedisService.class);
         var models = mock(AiModelConfigRepository.class);

@@ -161,13 +161,13 @@ app:
     cloudinary-api-secret: ${CLOUDINARY_API_SECRET}
     max-file-bytes: ${CV_MAX_FILE_BYTES:10485760}
     gotenberg-url: ${GOTENBERG_URL:http://localhost:3000}
+  applications:
+    stale-days: ${APPLICATION_STALE_DAYS:30}
+    cv-retention-days: ${APPLICATION_CV_RETENTION_DAYS:180}
+    maintenance-cron: ${APPLICATION_MAINTENANCE_CRON:0 15 * * * *}
   ai:
-    timeout-seconds: ${CV_AI_TIMEOUT_SECONDS:30}
-    gemini:
-      api-key: ${GEMINI_API_KEY:}
-    models:
-      cv-parsing: ${GEMINI_MODEL:gemini-2.0-flash}
-    # Dedicated Gemini credentials for AI Interview (INT-01..05) — not shared with CV parsing
+    timeout-seconds: ${CV_AI_TIMEOUT_SECONDS:90}
+    # Provider, model and API key per task live only in Master DB (Admin > AI Config)
     interview:
       provider: ${AI_INTERVIEW_PROVIDER:OPENAI}
       api-key: ${AI_INTERVIEW_API_KEY:}

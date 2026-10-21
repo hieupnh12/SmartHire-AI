@@ -17,6 +17,7 @@ const statusLabel: Record<ApplicationStatus, string> = {
   OFFER: "Đề nghị",
   HIRED: "Đã tuyển",
   REJECTED: "Từ chối",
+  FAILED: "Trượt phỏng vấn AI",
   WITHDRAWN: "Đã rút",
 };
 

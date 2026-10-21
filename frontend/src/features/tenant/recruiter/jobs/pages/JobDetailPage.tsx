@@ -12,6 +12,7 @@ import { JobPermissionsModal } from "../components/JobPermissionsModal";
 import { jobApi } from "@/api/tenant/jobApi";
 import { Button } from "@/components/ux/Button";
 import { StatusPill } from "@/components/ux/StatusPill";
+import { PageSkeleton } from "@/components/ux/Skeleton";
 import { getApiErrorMessage } from "@/lib/axios";
 import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
@@ -27,6 +28,7 @@ const STATUS_LABEL: Record<JobStatus, string> = { DRAFT: "Bản nháp", PUBLISHE
 const EMPLOYMENT: Record<string, string> = { FULL_TIME: "Toàn thời gian", PART_TIME: "Bán thời gian", CONTRACT: "Hợp đồng", INTERNSHIP: "Thực tập" };
 const WORK_MODE: Record<string, string> = { ONSITE: "Tại văn phòng", HYBRID: "Linh hoạt", REMOTE: "Từ xa" };
 const card = "rounded-[var(--radius-xl)] border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-6 shadow-[0_12px_30px_rgba(59,130,246,0.05)]";
+const statusAction = "w-full justify-start";
 const linkBase = "inline-flex min-h-11 items-center justify-center gap-2 rounded-[var(--radius-md)] px-4 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-border-focus)]";
 
 function date(value?: string | null) {
@@ -61,7 +63,7 @@ export function JobDetailPage() {
     },
     onSuccess: (response, action) => {
       if (action === "clone" && response.data) return navigate(`/recruiter/jobs/${(response.data as JobDetail).id}/edit`);
-      if (action === "delete") return navigate("/recruiter/jobs");
+      if (action === "delete") return navigate("/recruiter");
       refresh();
     },
   });
@@ -86,7 +88,7 @@ export function JobDetailPage() {
       onConfirm: async () => { await act.mutateAsync("delete"); },
     });
 
-  if (detail.isPending) return <p className="py-12 text-center text-sm text-[var(--color-on-surface-variant)]">Đang tải thông tin việc làm…</p>;
+  if (detail.isPending) return <PageSkeleton variant="detail" />;
   if (detail.isError) return <Alert>{getApiErrorMessage(detail.error)}</Alert>;
   if (!job) return null;
 
@@ -133,6 +135,16 @@ export function JobDetailPage() {
                     <Pencil className="size-4" aria-hidden="true" />Sửa tin
                   </Link>
                 )}
+                {canManage && (
+                  <button
+                    type="button"
+                    onClick={() => setPermissionsModalOpen(true)}
+                    className={`${linkBase} border border-[var(--color-border-default)] text-[var(--color-on-surface)] hover:bg-[var(--color-surface-container-low)]`}
+                    aria-label="Phân quyền tin tuyển dụng"
+                  >
+                    <ShieldCheck className="size-4 text-[var(--color-primary)]" aria-hidden="true" />Phân quyền
+                  </button>
+                )}
               </div>
             </div>
           </article>
@@ -164,16 +176,16 @@ export function JobDetailPage() {
           {/* Status actions — shown based on role */}
           <div className={card}>
             <h2 className="font-semibold">Trạng thái tin tuyển dụng</h2>
-            <div className="mt-4 flex flex-wrap gap-2">
-              {canPublish && (job.status === "DRAFT" || job.status === "PAUSED") && <Button size="sm" disabled={act.isPending} onClick={() => act.mutate("publish")}><Play className="size-4" aria-hidden="true" />Đăng tuyển</Button>}
-              {canPublish && job.status === "PUBLISHED" && <Button size="sm" variant="secondary" disabled={act.isPending} onClick={() => act.mutate("pause")}><Pause className="size-4" aria-hidden="true" />Tạm dừng</Button>}
-              {canPublish && job.status === "PUBLISHED" && <Button size="sm" variant="ghost" disabled={act.isPending} onClick={() => act.mutate("unpublish")}><RotateCcw className="size-4" aria-hidden="true" />Về bản nháp</Button>}
-              {canPublish && (job.status === "PUBLISHED" || job.status === "PAUSED") && <Button size="sm" variant="ghost" disabled={act.isPending} onClick={() => act.mutate("close")}><XCircle className="size-4" aria-hidden="true" />Đóng tin</Button>}
-              {canPublish && (job.status === "CLOSED" || job.status === "PAUSED") && <Button size="sm" disabled={act.isPending} onClick={() => act.mutate("reopen")}><Play className="size-4" aria-hidden="true" />Mở lại</Button>}
-              <Button size="sm" variant="ghost" disabled={act.isPending} onClick={() => act.mutate("clone")}><Copy className="size-4" aria-hidden="true" />Nhân bản</Button>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              {canPublish && (job.status === "DRAFT" || job.status === "PAUSED") && <Button size="sm" className={statusAction} disabled={act.isPending} onClick={() => act.mutate("publish")}><Play className="size-4" aria-hidden="true" />Đăng tuyển</Button>}
+              {canPublish && job.status === "PUBLISHED" && <Button size="sm" variant="secondary" className={statusAction} disabled={act.isPending} onClick={() => act.mutate("pause")}><Pause className="size-4" aria-hidden="true" />Tạm dừng</Button>}
+              {canPublish && job.status === "PUBLISHED" && <Button size="sm" variant="secondary" className={statusAction} disabled={act.isPending} onClick={() => act.mutate("unpublish")}><RotateCcw className="size-4" aria-hidden="true" />Về bản nháp</Button>}
+              {canPublish && (job.status === "PUBLISHED" || job.status === "PAUSED") && <Button size="sm" variant="secondary" className={statusAction} disabled={act.isPending} onClick={() => act.mutate("close")}><XCircle className="size-4" aria-hidden="true" />Đóng tin</Button>}
+              {canPublish && (job.status === "CLOSED" || job.status === "PAUSED") && <Button size="sm" className={statusAction} disabled={act.isPending} onClick={() => act.mutate("reopen")}><Play className="size-4" aria-hidden="true" />Mở lại</Button>}
+              <Button size="sm" variant="secondary" className={statusAction} disabled={act.isPending} onClick={() => act.mutate("clone")}><Copy className="size-4" aria-hidden="true" />Nhân bản</Button>
               {canDelete && (
-                <Button size="sm" variant="ghost" disabled={act.isPending} onClick={confirmDelete}
-                  className="text-red-600 hover:bg-red-50 hover:text-red-700">
+                <Button size="sm" variant="secondary" disabled={act.isPending} onClick={confirmDelete}
+                  className={`${statusAction} text-red-600 hover:border-red-200 hover:bg-red-50 hover:text-red-700`}>
                   <Trash2 className="size-4" aria-hidden="true" />Lưu trữ
                 </Button>
               )}
@@ -207,17 +219,6 @@ export function JobDetailPage() {
               <Tool to={`/recruiter/jobs/${job.id}/applicants?view=board`} icon={ClipboardCheck}>Bảng quy trình</Tool>
               <Tool to={`/recruiter/jobs/${job.id}/rank`} icon={Sparkles}>Xếp hạng ứng viên</Tool>
               <Tool to={`/recruiter/jobs/${job.id}/cvs`} icon={FileSearch}>Sàng lọc CV</Tool>
-              {/* Job permissions modal button — creator and admin only */}
-              {canManage && (
-                <button
-                  type="button"
-                  onClick={() => setPermissionsModalOpen(true)}
-                  className="flex w-full items-center gap-2 rounded-[var(--radius-md)] px-3 py-2 text-sm font-medium text-[var(--color-on-surface)] transition-colors hover:bg-[var(--color-surface-container-low)]"
-                >
-                  <ShieldCheck className="size-4 text-[var(--color-primary)]" aria-hidden="true" />
-                  <span>Phân quyền tin tuyển dụng</span>
-                </button>
-              )}
             </nav>
           </div>
 

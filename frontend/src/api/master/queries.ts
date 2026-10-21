@@ -9,6 +9,7 @@ export const masterQueryKeys = {
   all: ["master"] as const,
   tenants: () => [...masterQueryKeys.all, "tenants"] as const,
   subscriptions: () => [...masterQueryKeys.all, "subscriptions"] as const,
+  tenantSubscriptionInstances: () => [...masterQueryKeys.all, "tenantSubscriptionInstances"] as const,
   revenue: (params: any) => [...masterQueryKeys.all, "revenue", params] as const,
   aiQuota: (params: any) => [...masterQueryKeys.all, "aiQuota", params] as const,
   logs: () => [...masterQueryKeys.all, "logs"] as const,
@@ -32,6 +33,14 @@ export const useSubscriptions = () => {
     queryKey: masterQueryKeys.subscriptions(),
     queryFn: masterAdminApi.getSubscriptions,
     staleTime: 5 * 60 * 1000,
+  });
+};
+
+export const useTenantSubscriptionInstances = () => {
+  return useQuery({
+    queryKey: masterQueryKeys.tenantSubscriptionInstances(),
+    queryFn: masterAdminApi.getAllTenantSubscriptionInstances,
+    staleTime: 60 * 1000,
   });
 };
 

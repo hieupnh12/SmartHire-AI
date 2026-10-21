@@ -51,7 +51,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class MasterContractService {
 
-    private static final Set<String> VALID_STATUSES = Set.of("DRAFT", "PENDING_SIGNATURE", "SIGNED", "EXPIRED", "TERMINATED");
+    private static final Set<String> VALID_STATUSES = Set.of("DRAFT", "PENDING_SIGNATURE", "SIGNED", "REJECTED", "EXPIRED", "TERMINATED");
 
     private final ContractRepository contractRepository;
     private final ContractSignatureRepository signatureRepository;
@@ -120,10 +120,10 @@ public class MasterContractService {
         String contractNumber = generateContractNumber();
         String currency = StringUtils.hasText(request.getCurrency()) ? request.getCurrency().toUpperCase() : "VND";
         BigDecimal value = request.getContractValue() != null ? request.getContractValue() : BigDecimal.ZERO;
-        BigDecimal taxRate = request.getTaxRate() != null ? request.getTaxRate() : BigDecimal.valueOf(10.00);
+        BigDecimal taxRate = request.getTaxRate() != null ? request.getTaxRate() : BigDecimal.ZERO;
         BigDecimal taxAmount = value.multiply(taxRate).divide(BigDecimal.valueOf(100), 2, java.math.RoundingMode.HALF_UP);
         BigDecimal totalAmount = value.add(taxAmount);
-        String amountInWords = convertMoneyToVietnameseWords(totalAmount, currency);
+        String amountInWords = convertMoneyToVietnameseWords(totalAmount, currency, taxRate);
 
         String signingToken = java.util.UUID.randomUUID().toString().replace("-", "");
 
@@ -229,12 +229,12 @@ public class MasterContractService {
         if (request.getTenantPhone() != null) contract.setPartyBPhone(request.getTenantPhone());
         if (request.getTotalValue() != null) {
             contract.setContractValue(request.getTotalValue());
-            BigDecimal taxRate = contract.getTaxRate() != null ? contract.getTaxRate() : BigDecimal.valueOf(10.00);
+            BigDecimal taxRate = contract.getTaxRate() != null ? contract.getTaxRate() : BigDecimal.ZERO;
             BigDecimal taxAmount = request.getTotalValue().multiply(taxRate).divide(BigDecimal.valueOf(100), 2, java.math.RoundingMode.HALF_UP);
             BigDecimal totalAmount = request.getTotalValue().add(taxAmount);
             contract.setTaxAmount(taxAmount);
             contract.setTotalAmount(totalAmount);
-            contract.setAmountInWords(convertMoneyToVietnameseWords(totalAmount, contract.getCurrency()));
+            contract.setAmountInWords(convertMoneyToVietnameseWords(totalAmount, contract.getCurrency(), taxRate));
         }
         if (request.getCurrency() != null) contract.setCurrency(request.getCurrency());
         if (request.getPaymentTerms() != null) contract.setTermsAndConditions(request.getPaymentTerms());
@@ -271,10 +271,7 @@ public class MasterContractService {
         TenantInfo tenant = contract.getTenantId() != null ? tenantRepository.findById(contract.getTenantId()).orElse(null) : null;
         SubscriptionPlan plan = contract.getPlanId() != null ? planRepository.findById(contract.getPlanId()).orElse(null) : null;
 
-        byte[] contractPdfBytes = contractPdfGeneratorService.generateContractPdf(
-                contract,
-                plan != null ? plan.getName() : "Enterprise B2B",
-                tenant != null ? tenant.getCode() : "enterprise");
+        byte[] contractPdfBytes = contractPdfGeneratorService.generateContractPdf(contract, plan, tenant);
         String draftChecksum = contractPdfGeneratorService.computeSha256Hex(contractPdfBytes);
 
         DropboxSignClient.DropboxSignSendResult sendResult = dropboxSignClient.sendSignatureRequest(contract, contractPdfBytes);
@@ -403,13 +400,7 @@ public class MasterContractService {
                 finalizeDropboxSignedContract(contract, statusResult, clientIp);
             }
         } else if (statusResult.isDeclined() || "declined".equalsIgnoreCase(statusResult.getSignerStatusCode())) {
-            contract.setStatus("TERMINATED");
-            contract.setNotes("Đối tác đã từ chối ký trên Dropbox Sign (signature_request_id=" + contract.getExternalSignatureRequestId() + ")");
-            contractRepository.save(contract);
-            signatureRepository.findByContractIdAndStatus(contract.getId(), "PENDING").ifPresent(sig -> {
-                sig.setStatus("REJECTED");
-                signatureRepository.save(sig);
-            });
+            handleDeclinedContract(contract, clientIp);
         }
 
         TenantInfo tenant = contract.getTenantId() != null ? tenantRepository.findById(contract.getTenantId()).orElse(null) : null;
@@ -477,18 +468,90 @@ public class MasterContractService {
                     finalizeDropboxSignedContract(contract, statusResult, clientIp);
                 }
             } else if ("signature_request_declined".equalsIgnoreCase(eventType) || statusResult.isDeclined()) {
-                contract.setStatus("TERMINATED");
-                contractRepository.save(contract);
-                signatureRepository.findByContractIdAndStatus(contract.getId(), "PENDING").ifPresent(sig -> {
-                    sig.setStatus("REJECTED");
-                    signatureRepository.save(sig);
-                });
+                handleDeclinedContract(contract, clientIp);
             }
         } else {
             log.warn("Received Dropbox Sign webhook {} for unknown signature_request_id={}", eventType, sigReqId);
         }
 
         return "Hello API Event Received";
+    }
+
+    /**
+     * Cleanly closes the B2B deal when the customer clicks "Decline to Sign" on Dropbox Sign:
+     * 1. Contract -> REJECTED
+     * 2. ContractSignature -> REJECTED
+     * 3. TenantSubscription (PENDING) -> CANCELED
+     * 4. TenantInfo (PENDING_PAYMENT) -> CANCELED + soft-deleted (archived, freeing subdomain)
+     * 5. ConsultationRequest (if linked) -> REJECTED
+     */
+    private void handleDeclinedContract(Contract contract, String sourceIp) {
+        LocalDateTime now = LocalDateTime.now();
+
+        contract.setStatus("REJECTED");
+        contract.setNotes("Đối tác đã từ chối ký trên Dropbox Sign (signature_request_id="
+                + contract.getExternalSignatureRequestId() + ")");
+        if (StringUtils.hasText(sourceIp)) {
+            contract.setClientIp(sourceIp);
+        }
+        contractRepository.save(contract);
+
+        signatureRepository.findByContractIdAndStatus(contract.getId(), "PENDING").ifPresent(sig -> {
+            sig.setStatus("REJECTED");
+            if (StringUtils.hasText(sourceIp)) {
+                sig.setClientIp(sourceIp);
+            }
+            signatureRepository.save(sig);
+        });
+
+        TenantInfo tenant = null;
+        if (contract.getTenantId() != null) {
+            subscriptionRepository.findFirstByTenantIdAndStatusOrderByCreatedAtDesc(contract.getTenantId(), "PENDING")
+                    .ifPresent(sub -> {
+                        sub.setStatus("CANCELED");
+                        sub.setCanceledAt(now);
+                        sub.setCancelReason("CONTRACT_DECLINED_" + contract.getContractNumber());
+                        subscriptionRepository.save(sub);
+                        log.info("Canceled PENDING subscription #{} for declined contract {}",
+                                sub.getId(), contract.getContractNumber());
+                    });
+
+            tenant = tenantRepository.findById(contract.getTenantId()).orElse(null);
+            if (tenant != null && "PENDING_PAYMENT".equals(tenant.getStatus())) {
+                tenant.setStatus("CANCELED");
+                tenant.setDeleted(true);
+                tenant.setDeletedAt(now);
+                tenantRepository.save(tenant);
+                log.info("Archived PENDING_PAYMENT tenant '{}' (CANCELED) due to declined contract {}",
+                        tenant.getCode(), contract.getContractNumber());
+            }
+        }
+
+        if (contract.getConsultationRequestId() != null) {
+            consultationRequestRepository.findById(contract.getConsultationRequestId()).ifPresent(lead -> {
+                lead.setStatus("REJECTED");
+                consultationRequestRepository.save(lead);
+            });
+        }
+
+        try {
+            auditLogRepository.save(PlatformAuditLog.builder()
+                    .tenantCode(tenant != null ? tenant.getCode() : "MASTER")
+                    .action("CONTRACT_DECLINED_DROPBOX_SIGN")
+                    .level("WARN")
+                    .ipAddress(sourceIp)
+                    .description("Đối tác từ chối ký Hợp đồng B2B " + contract.getContractNumber()
+                            + " trên Dropbox Sign. Đã tự động chuyển Contract -> REJECTED, Subscription -> CANCELED, Tenant -> CANCELED/ARCHIVED.")
+                    .metadataJson(objectMapper.writeValueAsString(Map.of(
+                            "contractId", contract.getId(),
+                            "contractNumber", contract.getContractNumber(),
+                            "signatureRequestId", contract.getExternalSignatureRequestId() != null ? contract.getExternalSignatureRequestId() : "",
+                            "declinedAt", now.toString()
+                    )))
+                    .build());
+        } catch (Exception e) {
+            log.warn("Could not write PlatformAuditLog for handleDeclinedContract {}: {}", contract.getContractNumber(), e.getMessage());
+        }
     }
 
     private void finalizeDropboxSignedContract(
@@ -622,10 +685,7 @@ public class MasterContractService {
         }
         TenantInfo tenant = contract.getTenantId() != null ? tenantRepository.findById(contract.getTenantId()).orElse(null) : null;
         SubscriptionPlan plan = contract.getPlanId() != null ? planRepository.findById(contract.getPlanId()).orElse(null) : null;
-        return contractPdfGeneratorService.generateContractPdf(
-                contract,
-                plan != null ? plan.getName() : "Enterprise B2B",
-                tenant != null ? tenant.getCode() : "enterprise");
+        return contractPdfGeneratorService.generateContractPdf(contract, plan, tenant);
     }
 
     private void autoCreateInvoiceForSignedContract(Contract contract) {
@@ -703,13 +763,16 @@ public class MasterContractService {
         return "CTR-" + datePart + "-" + System.currentTimeMillis() % 10000;
     }
 
-    private String convertMoneyToVietnameseWords(BigDecimal amount, String currency) {
+    private String convertMoneyToVietnameseWords(BigDecimal amount, String currency, BigDecimal taxRate) {
         if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
             return "Không đồng";
         }
         long longVal = amount.longValue();
         if ("USD".equalsIgnoreCase(currency)) {
             return longVal + " Đô la Mỹ (quy đổi theo tỷ giá Vietcombank tại thời điểm thanh toán)";
+        }
+        if (taxRate == null || taxRate.compareTo(BigDecimal.ZERO) == 0) {
+            return String.format("%,d Đồng (Dịch vụ phần mềm không chịu thuế GTGT)", longVal);
         }
         return String.format("%,d Đồng (đã bao gồm thuế GTGT)", longVal);
     }
@@ -730,6 +793,10 @@ public class MasterContractService {
         if (plan != null) {
             res.setPlanName(plan.getName());
             res.setPlanCode(plan.getCode());
+            res.setMaxJobs(plan.getMaxJobs());
+            res.setMaxCvParses(plan.getMaxCvParses());
+            res.setMaxAiInterviewHours(plan.getMaxAiInterviewHours());
+            res.setMaxStorageGb(plan.getMaxStorageGb());
         }
         List<ContractSignature> signatures = signatureRepository.findByContractId(contract.getId());
         res.setSignatures(signatures.stream().map(ContractSignatureResponse::from).toList());

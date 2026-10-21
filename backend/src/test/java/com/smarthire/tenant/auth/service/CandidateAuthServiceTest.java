@@ -53,6 +53,9 @@ class CandidateAuthServiceTest {
     @Mock
     private TenantRegistryService tenantRegistryService;
 
+    @Mock
+    private CandidateErasureService candidateErasure;
+
     @Spy
     private AuthMapper authMapper = Mappers.getMapper(AuthMapper.class);
 

@@ -216,6 +216,22 @@ public class MasterSubscriptionService {
 
     /**
      * Tier 2 Tenant Subscription Instance Management:
+     * Retrieves the active or latest subscription instance for all non-deleted tenants.
+     */
+    @Transactional(transactionManager = "masterTransactionManager", readOnly = true)
+    public List<TenantSubscriptionInstanceResponse> getAllTenantSubscriptionInstances() {
+        if (subscriptionRepository == null || tenantInfoRepository == null) {
+            return List.of();
+        }
+        return tenantInfoRepository.findAll().stream()
+                .filter(t -> !t.isDeleted())
+                .map(t -> getTenantSubscriptionInstance(t.getId()))
+                .filter(java.util.Objects::nonNull)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Tier 2 Tenant Subscription Instance Management:
      * Retrieves the active or latest subscription instance with its immutable snapshot for a tenant.
      */
     @Transactional(transactionManager = "masterTransactionManager", readOnly = true)

@@ -16,7 +16,7 @@ Tạo/làm bài trắc nghiệm kỹ thuật gắn job/stage.
 
 1. Staff tạo đề nháp, thêm/sửa/xóa câu hỏi kèm options, publish đề hợp lệ.
 2. Staff mở hồ sơ ứng viên (Quản lý ứng viên), chọn đề đã publish của job và bấm "Gửi cho ứng viên": đơn ở INTERVIEW được chuyển sang ASSESSMENT (ghi lịch sử trạng thái, gắn stage "Assessment" nếu job có), ứng viên nhận thông báo `ASSESSMENT_INVITATION` và email kèm link `/assessments?applicationId=...`.
-3. Candidate dùng applicationId của mình để start/resume đề thuộc cùng job, khi đơn ở ASSESSMENT hoặc INTERVIEW.
+3. Candidate dùng applicationId của mình để start/resume đề thuộc cùng job, khi đơn ở ASSESSMENT và đã có AI Interview PASSED. Trang `/assessments` chỉ liệt kê đơn ở ASSESSMENT.
 4. Candidate lưu từng nhóm đáp án, tải lại tiến độ, submit để chấm trắc nghiệm và xem điểm.
 5. Staff xem bài làm và kết quả; hệ thống không tự đổi trạng thái đơn ứng tuyển.
 
@@ -38,7 +38,7 @@ Tạo/làm bài trắc nghiệm kỹ thuật gắn job/stage.
 - Save là upsert từng questionId, không xóa câu ngoài payload; MCQ gửi `selectedOptionId`, nhiều đáp án gửi `selectedOptionIds`, tự luận gửi `answerText` (tối đa 10.000 ký tự), không trộn trường giữa các loại. null/[]/chuỗi rỗng dùng để xóa đáp án tương ứng. Question phải thuộc đề, option phải thuộc question. Payload có questionId lặp bị từ chối; lỗi một câu rollback cả nhóm.
 - Khóa hàng submission và transaction READ_COMMITTED tuần tự hóa save/submit; nộp lại trả cùng kết quả. Bỏ trống/sai được 0 điểm, đúng được toàn bộ điểm câu. Không tin điểm từ client.
 - Deadline = startedAt + durationMinutes, dùng giờ server. Lưu sau hạn trả 409 SUBMISSION_EXPIRED và vẫn commit EXPIRED/điểm của đáp án đã lưu. GET/start/submit/result cũng hoàn tất lượt quá hạn khi được truy cập; chưa có worker quét hết hạn chủ động.
-- Start mới và save/submit khi đang làm yêu cầu đơn còn ở ASSESSMENT/INTERVIEW, chưa lưu trữ/rút, job chưa xóa. Điểm tổng được trả candidate sau hoàn tất; thay đổi chính sách công bố cần cập nhật contract.
+- Start mới và save/submit khi đang làm yêu cầu đơn còn ở ASSESSMENT, đã có AI Interview PASSED (nếu chưa: 409 `AI_INTERVIEW_NOT_PASSED`), chưa lưu trữ/rút, job chưa xóa. Điểm tổng được trả candidate sau hoàn tất; thay đổi chính sách công bố cần cập nhật contract.
 - Tên đề bắt buộc, tối đa 255 ký tự; thời lượng là số phút nguyên dương; điểm đạt không âm, tối đa 8 chữ số nguyên và 2 chữ số thập phân.
 
 ## API liên quan
@@ -55,7 +55,7 @@ Tạo/làm bài trắc nghiệm kỹ thuật gắn job/stage.
 - Backend kiểm tra DTO và quy tắc số đáp án đúng/rubric/coding trước khi trả bản nháp. Lỗi provider hoặc dữ liệu sai trả trạng thái lỗi an toàn, không tạo câu hỏi rỗng hay ghi vào database.
 - Recruiter mở bản nháp trong editor hiện có, kiểm tra/chỉnh sửa rồi lưu qua API ngân hàng. Bản nháp AI có khóa riêng theo tenant/user/ID, không ghi đè bản nháp đang soạn thủ công. Câu code có mã khởi đầu, harness, lời giải mẫu và testcase; người soạn cần chạy kiểm tra bộ test trước khi sử dụng. Chưa coi code do AI sinh là đã chạy thành công.
 - Không đổi schema, không tạo assessment hoặc tự xuất bản câu hỏi. Sinh đề từ ngân hàng và chấm bài giữ luồng hiện có.
-- AI chấm bài tự luận/review code dùng task `ASSESSMENT_GRADING` với cùng model Llama và kết nối `AI_ASSESSMENT_*`; phần sinh câu hỏi dùng `ASSESSMENT_GEN`. Hai task có rate-limit/metering theo tenant; không dùng task `INTERVIEW_NLP` để chấm Assessment.
+- AI chấm tự luận/review code dùng task `ASSESSMENT_GRADING`: ưu tiên cấu hình `CODE_GRADING` trong Master DB khi task này tồn tại; nếu chưa có, giữ model Llama và kết nối `AI_ASSESSMENT_*`. Phần sinh câu hỏi dùng `ASSESSMENT_GEN`. Hai task có rate-limit/metering theo tenant, không dùng `INTERVIEW_NLP` để chấm Assessment.
 - Endpoint Assessment bắt buộc được cấu hình/kế thừa; nếu thiếu thì báo lỗi, không chuyển sang endpoint OpenAI công cộng. Với local server không yêu cầu xác thực, client dùng placeholder `local-model` khi key trống.
 - Kiểm chứng: 19 test backend đạt (service sinh bản nháp/quyền/tenant/lỗi broker, cấu hình Llama, client AI cũ và HTTP contract với server localhost); frontend build và test chuyển đổi dữ liệu đạt; Chrome headless kiểm tra validation, tenant header, mở editor, giữ bản nháp thủ công, trạng thái lỗi và mobile 375px đạt. `/models` của endpoint hiện có trả đúng model được yêu cầu. Chưa kiểm thử sinh câu thật hoặc toàn tuyến RabbitMQ với model thật.
 
@@ -235,7 +235,7 @@ Kiểm chứng bản sửa cấu hình cùng ngày: build frontend đạt, test 
 - Submit chấm trắc nghiệm đồng bộ, phát RabbitMQ sau commit tới `assessment.essay.grade` và queue code cấu hình `assessment.code.grade.q`; worker concurrency 3–10 chạy trong TenantJobExecutor, header X-Tenant-ID bắt buộc.
 - Essay đánh giá ngữ nghĩa theo từng rubric; code dùng 80% tỉ lệ test pass + 20% AI review. Không so chuỗi source và không chấm bằng keyword matching. Mọi điểm AI là đề xuất, recruiter duyệt hoặc điều chỉnh trong màn hình Theo dõi bài làm.
 - Staff dùng GET `/api/v1/submissions/{id}/grading_review`, POST `/approve_grade/{questionId}` (body score=null để nhận gợi ý, hoặc điểm thủ công), POST `/retry_grading`. Điểm tổng chỉ công bố sau khi toàn bộ câu được chấm chính thức; giữ EXPIRED cho bài quá hạn.
-- Sandbox cần cấu hình `app.assessment.judge-url` / `app.assessment.judge-token` (Spring env: APP_ASSESSMENT_JUDGE_URL / APP_ASSESSMENT_JUDGE_TOKEN). Judge0 phải hỗ trợ wait=true và các language ID Java 62/Python 71/JavaScript 63/SQL 82. Không chạy source trong tiến trình backend. AI dùng cấu hình/rate-limit/metering hiện có cho INTERVIEW_NLP.
+- Sandbox cần cấu hình `app.assessment.judge-url` / `app.assessment.judge-token` (Spring env: APP_ASSESSMENT_JUDGE_URL / APP_ASSESSMENT_JUDGE_TOKEN). Judge0 phải hỗ trợ wait=true và các language ID Java 62/Python 71/JavaScript 63/SQL 82. Không chạy source trong tiến trình backend. AI chấm tự luận/review code dùng task `ASSESSMENT_GRADING`: ưu tiên cấu hình `CODE_GRADING` trong Master DB khi task này tồn tại; nếu chưa có, giữ model Llama và kết nối `AI_ASSESSMENT_*`. Rate-limit/metering theo task Assessment, không dùng `INTERVIEW_NLP`.
 - Provider lỗi không tạo điểm 0. Bài giữ chờ duyệt, có thể retry hoặc chấm tay. Broker lỗi sau commit giữ dữ liệu bài làm; staff retry sau khi broker hoạt động lại. Chưa có quét tự động các bài chờ gửi/chấm.
 - Schema V53: tests, questions, submissions, answers, coding_problems; không tạo bảng mới. Xem docs/database để đối chiếu FK/UNIQUE và dictionary.
 

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   AlertTriangle,
@@ -12,6 +12,7 @@ import {
   Check,
   CheckCircle2,
   Circle,
+  CircleHelp,
   Eye,
   FileText,
   GraduationCap,
@@ -45,6 +46,23 @@ import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 import { toast } from "@/stores/toastStore";
 
 const CURRENCIES = ["VND", "USD", "EUR", "JPY"];
+// Mirrors CvMatchingService scoring; update both together.
+const CV_WEIGHT_HELP = {
+  required: "Mỗi kỹ năng bắt buộc của job được chấm: CV ghi đúng tên kỹ năng (không phân biệt hoa thường, nhận cả tên gọi khác) hoặc Gemini đánh giá khớp = 100, Gemini đánh giá khớp một phần = 50, không có = 0. Điểm mục này là trung bình các kỹ năng. Thiếu hẳn bất kỳ kỹ năng bắt buộc nào (không khớp cả một phần) thì CV không đạt, dù tổng điểm cao. Trọng số của các mục không áp dụng cho job (vd. job không yêu cầu kinh nghiệm) được cộng dồn vào mục này.",
+  preferred: "Chấm giống Kỹ năng bắt buộc (có = 100, một phần = 50, không có = 0) nhưng cho các kỹ năng không bắt buộc. Thiếu không làm CV trượt. Job không có kỹ năng tùy chọn thì trọng số chuyển sang Kỹ năng bắt buộc.",
+  experience: "Số năm kinh nghiệm trong CV ÷ số năm tối thiểu của job × 100, tối đa 100. Ví dụ: yêu cầu 4 năm, CV có 3 năm → 75 điểm. Job không đặt số năm tối thiểu thì trọng số chuyển sang Kỹ năng bắt buộc.",
+  education: "Bằng cấp cao nhất trong CV đạt hoặc vượt yêu cầu = 100 điểm, thấp hơn một bậc = 50, thấp hơn nữa hoặc không xác định = 0. Job không yêu cầu học vấn thì trọng số chuyển sang Kỹ năng bắt buộc.",
+  jaccard: "Số kỹ năng chung giữa CV và job ÷ tổng số kỹ năng khác nhau của cả hai × 100 (hệ số Jaccard). Ví dụ: job cần 4 kỹ năng, CV liệt kê 6, trùng 3 → 3 ÷ 7 ≈ 43 điểm. CV liệt kê nhiều kỹ năng không liên quan sẽ bị kéo điểm xuống.",
+  semantic: "Gemini đọc CV và đánh giá từng kỹ năng của job, kể cả khi CV dùng cách gọi khác: khớp = 100, một phần = 50, không có = 0. Điểm mục này là trung bình các kỹ năng Gemini đánh giá được. Nếu Gemini không chạy được, trọng số chuyển sang Kỹ năng bắt buộc.",
+  threshold: "Điểm CV = tổng (điểm từng mục × trọng số ÷ 100), thang 0–100. CV đạt khi đủ cả ba điều kiện: điểm ≥ ngưỡng, không thiếu kỹ năng bắt buộc nào, và job có khai báo kỹ năng (hoặc Gemini đã chấm được CV).",
+};
+// Mirrors GateScreeningService scoring; update both together.
+const GATE_WEIGHT_HELP = {
+  cv: "Điểm sàng lọc CV mới nhất của hồ sơ (0–100), tính theo các trọng số CV ở trên.",
+  aiInterview: "Điểm tổng của lượt phỏng vấn AI gần nhất đã chấm xong (0–100). Lượt đang làm hoặc bị lỗi chưa được tính.",
+  assessment: "Điểm bài kiểm tra gần nhất đã chấm xong, quy về thang 100: điểm đạt được ÷ tổng điểm tối đa của đề × 100. Ví dụ đạt 30/40 điểm → 75.",
+  threshold: "Điểm vòng gửi xe = điểm CV × trọng số CV + điểm phỏng vấn AI × trọng số PV + điểm bài kiểm tra × trọng số BKT, tất cả ÷ 100. Hồ sơ chỉ đạt khi đã có đủ điểm của mọi vòng có trọng số > 0 và tổng ≥ ngưỡng. Vòng nào đặt trọng số 0 thì không cần chờ.",
+};
 const EDUCATION_LEVELS = ["Trung học phổ thông", "Cao đẳng", "Đại học", "Thạc sĩ", "Tiến sĩ"];
 const EMPLOYMENT_TYPES = [
   { value: "FULL_TIME", label: "Toàn thời gian" },
@@ -54,7 +72,7 @@ const EMPLOYMENT_TYPES = [
 ];
 const WORK_MODES = [
   { value: "ONSITE", label: "Tại văn phòng", icon: Building2 },
-  { value: "HYBRID", label: "Hybrid", icon: Shuffle },
+  { value: "HYBRID", label: "Kết hợp", icon: Shuffle },
   { value: "REMOTE", label: "Từ xa", icon: Laptop },
 ];
 const SCREENING_MODES = [
@@ -143,7 +161,7 @@ export function JobFormPage() {
   useEffect(() => {
     if (!editing && user && !canCreateJob) {
       toast.danger("Bạn không có quyền tạo tin tuyển dụng mới");
-      navigate("/recruiter/jobs", { replace: true });
+      navigate("/recruiter", { replace: true });
     }
   }, [editing, user, canCreateJob, navigate]);
 
@@ -345,7 +363,7 @@ export function JobFormPage() {
     && !SKILL_CATALOG.some((group) => group.skills.some((name) => name.toLowerCase() === query));
   const current = STEPS[step];
   const CurrentIcon = current.icon;
-  const cancelTo = editing ? `/recruiter/jobs/${id}` : "/recruiter/jobs";
+  const cancelTo = editing ? `/recruiter/jobs/${id}` : "/recruiter";
   return (
     <section className="mx-auto flex w-full max-w-[1440px] scroll-mt-24 flex-col gap-6 text-[var(--color-on-surface)] xl:h-full xl:min-h-0 xl:overflow-hidden">
       {existing.isError && <ErrorBox>{getApiErrorMessage(existing.error)}</ErrorBox>}
@@ -599,17 +617,18 @@ export function JobFormPage() {
                   aside={<TotalBadge total={cvTotal} />}
                 >
                   <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                    <WeightField label="Kỹ năng bắt buộc" value={cv.skillWeight} onChange={(v) => setCv("skillWeight", v)} />
-                    <WeightField label="Kỹ năng tùy chọn" value={cv.preferredWeight} onChange={(v) => setCv("preferredWeight", v)} />
-                    <WeightField label="Kinh nghiệm" value={cv.experienceWeight} onChange={(v) => setCv("experienceWeight", v)} />
-                    <WeightField label="Học vấn" value={cv.educationWeight} onChange={(v) => setCv("educationWeight", v)} />
-                    <WeightField label="Jaccard" value={cv.jaccardWeight} onChange={(v) => setCv("jaccardWeight", v)} />
-                    <WeightField label="Ngữ nghĩa (Gemini)" value={cv.semanticWeight} onChange={(v) => setCv("semanticWeight", v)} />
+                    <WeightField label="Kỹ năng bắt buộc" help={CV_WEIGHT_HELP.required} value={cv.skillWeight} onChange={(v) => setCv("skillWeight", v)} />
+                    <WeightField label="Kỹ năng tùy chọn" help={CV_WEIGHT_HELP.preferred} value={cv.preferredWeight} onChange={(v) => setCv("preferredWeight", v)} />
+                    <WeightField label="Kinh nghiệm" help={CV_WEIGHT_HELP.experience} value={cv.experienceWeight} onChange={(v) => setCv("experienceWeight", v)} />
+                    <WeightField label="Học vấn" help={CV_WEIGHT_HELP.education} value={cv.educationWeight} onChange={(v) => setCv("educationWeight", v)} />
+                    <WeightField label="Độ trùng khớp kỹ năng" help={CV_WEIGHT_HELP.jaccard} value={cv.jaccardWeight} onChange={(v) => setCv("jaccardWeight", v)} />
+                    <WeightField label="Ngữ nghĩa" help={CV_WEIGHT_HELP.semantic} value={cv.semanticWeight} onChange={(v) => setCv("semanticWeight", v)} />
                   </div>
                   <TotalMeter total={cvTotal} />
                   <div className="grid gap-4 sm:grid-cols-2">
                     <WeightField
                       label="Ngưỡng đạt CV"
+                      help={CV_WEIGHT_HELP.threshold}
                       suffix="/100"
                       value={cv.passThreshold}
                       onChange={(v) => setCv("passThreshold", v)}
@@ -624,14 +643,15 @@ export function JobFormPage() {
                   aside={<TotalBadge total={gateTotal} />}
                 >
                   <div className="grid gap-4 sm:grid-cols-3">
-                    <WeightField label="Điểm CV" value={gate.cvWeight} onChange={(v) => setGate("cvWeight", v)} />
-                    <WeightField label="Phỏng vấn AI" value={gate.aiInterviewWeight} onChange={(v) => setGate("aiInterviewWeight", v)} />
-                    <WeightField label="Bài kiểm tra" value={gate.assessmentWeight} onChange={(v) => setGate("assessmentWeight", v)} />
+                    <WeightField label="Điểm CV" help={GATE_WEIGHT_HELP.cv} value={gate.cvWeight} onChange={(v) => setGate("cvWeight", v)} />
+                    <WeightField label="Phỏng vấn AI" help={GATE_WEIGHT_HELP.aiInterview} value={gate.aiInterviewWeight} onChange={(v) => setGate("aiInterviewWeight", v)} />
+                    <WeightField label="Bài kiểm tra" help={GATE_WEIGHT_HELP.assessment} value={gate.assessmentWeight} onChange={(v) => setGate("assessmentWeight", v)} />
                   </div>
                   <TotalMeter total={gateTotal} />
                   <div className="grid gap-4 sm:grid-cols-2">
                     <WeightField
                       label="Ngưỡng đạt vòng gửi xe"
+                      help={GATE_WEIGHT_HELP.threshold}
                       suffix="/100"
                       value={gate.passThreshold}
                       onChange={(v) => setGate("passThreshold", v)}
@@ -1110,28 +1130,57 @@ function ErrorBox({ children }: { children: ReactNode }) {
   );
 }
 
-function WeightField({ label, value, onChange, suffix = "%", hint }: {
+function WeightField({ label, value, onChange, suffix = "%", hint, help }: {
   label: string;
   value: number;
   onChange: (value: number) => void;
   suffix?: string;
   hint?: string;
+  help?: string;
 }) {
+  const id = useId();
+  const control = (
+    <span className="relative block">
+      <input
+        id={id}
+        className={`${input} pr-12 tabular-nums`}
+        type="number"
+        min={0}
+        max={100}
+        step={0.5}
+        value={value}
+        onChange={(e) => onChange(e.target.value === "" ? 0 : Number(e.target.value))}
+      />
+      <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-[var(--color-on-surface-variant)]">{suffix}</span>
+    </span>
+  );
+  if (!help) return <Field label={label} hint={hint}>{control}</Field>;
+  // Kept outside <label>: a button inside it would become the label's control instead of the input.
   return (
-    <Field label={label} hint={hint}>
-      <span className="relative block">
-        <input
-          className={`${input} pr-12 tabular-nums`}
-          type="number"
-          min={0}
-          max={100}
-          step={0.5}
-          value={value}
-          onChange={(e) => onChange(e.target.value === "" ? 0 : Number(e.target.value))}
-        />
-        <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-[var(--color-on-surface-variant)]">{suffix}</span>
+    <div className="relative flex flex-col gap-1.5">
+      <span className="flex items-center gap-1.5 text-sm font-medium">
+        <label htmlFor={id}>{label}</label>
+        <span className="group inline-flex">
+          <button
+            type="button"
+            aria-label={`Cách tính điểm ${label}`}
+            aria-describedby={`${id}-help`}
+            className="grid size-5 place-items-center rounded-full text-[var(--color-outline)] transition-colors hover:text-brand-primary focus-visible:text-brand-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-primary"
+          >
+            <CircleHelp className="size-4" aria-hidden="true" />
+          </button>
+          <span
+            id={`${id}-help`}
+            role="tooltip"
+            className="pointer-events-none invisible absolute inset-x-0 top-7 z-50 rounded-lg bg-[var(--color-text-primary)] p-3 text-xs font-normal leading-5 text-[var(--color-text-inverse)] opacity-0 shadow-lg transition-opacity group-focus-within:visible group-focus-within:opacity-100 group-hover:visible group-hover:opacity-100"
+          >
+            {help}
+          </span>
+        </span>
       </span>
-    </Field>
+      {control}
+      {hint && <span className="text-xs text-[var(--color-on-surface-variant)]">{hint}</span>}
+    </div>
   );
 }
 

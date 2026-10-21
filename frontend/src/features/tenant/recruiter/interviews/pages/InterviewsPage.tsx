@@ -35,13 +35,13 @@ export function InterviewsPage() {
   const [detail, setDetail] = useState<{ action: "scorecard" | "preview" | "cancel" | "shift" | "profile"; row?: HumanInterview; applicationId?: number } | null>(null);
   const [shift, setShift] = useState(60); const [message, setMessage] = useState("");
   const params = { jobId: Number(job.id), q: filters.search || undefined, round: filters.round || undefined, mode: filters.mode || undefined, status: filters.status || undefined, page: filters.page, size: filters.size };
-  const list = useQuery({ queryKey: ["human-interviews", "list", params], queryFn: () => api.list(params) });
-  const summary = useQuery({ queryKey: ["human-interviews", "summary", job.id], queryFn: () => api.summary(Number(job.id)) });
+  const list = useQuery({ queryKey: ["human-interviews", "list", params], queryFn: () => api.list(params), refetchInterval: 15_000 });
+  const summary = useQuery({ queryKey: ["human-interviews", "summary", job.id], queryFn: () => api.summary(Number(job.id)), refetchInterval: 15_000 });
   const options = useQuery({ queryKey: ["human-interviews", "options", job.id], queryFn: () => api.options(Number(job.id)) });
   const end = new Date(week); end.setDate(end.getDate()+7);
-  const calendar = useQuery({ queryKey: ["human-interviews", "calendar", params, week.toISOString()], queryFn: () => allRows({ ...params, from: week.toISOString(), to: end.toISOString() }), enabled: view === "calendar" });
+  const calendar = useQuery({ queryKey: ["human-interviews", "calendar", params, week.toISOString()], queryFn: () => allRows({ ...params, from: week.toISOString(), to: end.toISOString() }), enabled: view === "calendar", refetchInterval: 15_000 });
   const preview = useQuery({ queryKey: ["human-interviews", "preview", detail?.row?.id], queryFn: () => api.preview(detail!.row!.id), enabled: detail?.action === "preview" });
-  const applicant = useQuery({ queryKey: ["applications", detail?.applicationId], queryFn: () => applicantApi.get(detail!.applicationId!), enabled: detail?.action === "profile" });
+  const applicant = useQuery({ queryKey: ["applications", detail?.applicationId], queryFn: () => applicantApi.get(detail!.applicationId!), enabled: detail?.action === "profile", refetchInterval: 5_000 });
   const refresh = useCallback(() => { void client.invalidateQueries({ queryKey: ["human-interviews"] }); setSelected([]); }, [client]);
   const closeEditor = useCallback(() => setEditor(null), []);
   const mutation = useMutation({ mutationFn: (operation: () => Promise<unknown>) => operation(), onSuccess: () => { refresh(); setDetail(null); setMessage("Đã cập nhật lịch phỏng vấn."); }, onError: e => setMessage(getApiErrorMessage(e)) });

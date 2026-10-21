@@ -33,10 +33,9 @@ Tiền điều kiện:
 
 Hậu điều kiện khi thành công:
 
-- Master database có bản ghi `tenants`, database credential được mã hóa và trạng thái là `ACTIVE`.
-- MySQL database riêng đã chạy đầy đủ tenant Flyway migration.
-- Có user `TENANT_ADMIN` đang hoạt động; mật khẩu chỉ lưu dưới dạng BCrypt hash.
-- HTTP response không chứa URL, username, database password hoặc admin password.
+- Master database có bản ghi `tenants`, database credential được mã hóa và trạng thái là `ACTIVE` (hoặc `PENDING_PAYMENT` nếu đi qua luồng B2B Deal Wizard với `deferProvisioning = true`, chờ thanh toán hóa đơn để kích hoạt).
+- Khi đã cấp phát (`deferProvisioning = false` hoặc sau khi thanh toán hóa đơn): MySQL database riêng đã chạy đầy đủ tenant Flyway migration, tạo bản ghi lời mời kích hoạt một lần (`member_invitations` với `role = TENANT_ADMIN`, lưu `token_hash` SHA-256) và gửi email kích hoạt để Admin doanh nghiệp tự đặt mật khẩu riêng (BCrypt hash).
+- HTTP response chỉ chứa metadata an toàn (kèm `activationUrl` một lần), không chứa URL, username hoặc database password.
 
 Hậu điều kiện khi thất bại:
 
@@ -46,9 +45,9 @@ Hậu điều kiện khi thất bại:
 
 ## Luồng chính
 
-Sau khi Spring Security cho phép request, controller thực hiện Bean Validation. Một master transaction ngắn lấy global registration advisory lock, kiểm tra code và subdomain trên cả hai namespace, xác thực cấu hình database, mã hóa database password rồi lưu tenant với trạng thái `PROVISIONING`.
+Sau khi Spring Security cho phép request, controller thực hiện Bean Validation. Một master transaction ngắn lấy global registration advisory lock, kiểm tra code và subdomain trên cả hai namespace, xác thực cấu hình database, mã hóa database password rồi lưu tenant với trạng thái `PROVISIONING` (hoặc `PENDING_PAYMENT` và dừng tại đây nếu `deferProvisioning = true`).
 
-Provisioning tiếp tục bằng session-level advisory lock theo tenant ID. Chế độ tự động tạo database và user theo cách có thể chạy lại an toàn, chỉ cấp quyền trên database của tenant. Chế độ thủ công bỏ qua DDL. Một Hikari pool có giới hạn kết nối tới database riêng, Flyway cập nhật schema với `clean` và automatic baseline bị vô hiệu hóa, sau đó tài khoản quản trị đầu tiên được tạo trong transaction. Trạng thái master chỉ chuyển thành `ACTIVE` khi toàn bộ các bước thành công.
+Khi cấp phát database (`PROVISIONING`), quy trình tiếp tục bằng session-level advisory lock theo tenant ID. Chế độ tự động tạo database và user theo cách có thể chạy lại an toàn, chỉ cấp quyền trên database của tenant. Chế độ thủ công bỏ qua DDL. Một Hikari pool có giới hạn kết nối tới database riêng, Flyway cập nhật schema với `clean` và automatic baseline bị vô hiệu hóa, sau đó bản ghi lời mời kích hoạt `TENANT_ADMIN` đầu tiên được tạo trong `member_invitations` (nếu chưa có tài khoản `TENANT_ADMIN`). Trạng thái master chỉ chuyển thành `ACTIVE` khi toàn bộ các bước thành công, kèm gửi email chứa link kích hoạt một lần.
 
 ## Luồng thay thế và lỗi
 
@@ -67,21 +66,21 @@ Provisioning tiếp tục bằng session-level advisory lock theo tenant ID. Ch�
 | Thành phần | Trách nhiệm trong luồng |
 |---|---|
 | `Workspace Admin` | Khởi tạo yêu cầu tạo doanh nghiệp và nhận kết quả cuối cùng. |
-| `Tenant Onboarding UI` | Thu thập dữ liệu tenant/admin, gửi HTTP request và hiển thị thành công hoặc lỗi. |
+| `Tenant Onboarding UI` | Thu thập dữ liệu tenant/admin (`adminName`, `adminEmail`), gửi HTTP request và hiển thị thành công hoặc lỗi. |
 | `Spring Security` | Xác thực JWT và chỉ cho phép người dùng có quyền `WORKSPACE_ADMIN` đi vào API quản trị. |
 | `MasterTenantController` | Biên HTTP của backend; nhận DTO, chạy Bean Validation, gọi service và ánh xạ kết quả sang HTTP response. |
 | `MasterTenantService` | Thực thi quy tắc đăng ký tenant, kiểm tra định danh, lưu trạng thái vòng đời và điều phối provisioning. |
-| `Master PostgreSQL` | Lưu registry của tenant và các trạng thái `PROVISIONING`, `ACTIVE`, `FAILED`. |
-| `TenantProvisioningService` | Điều phối việc chuẩn bị database riêng, migration schema và tạo quản trị viên đầu tiên. |
+| `Master PostgreSQL` | Lưu registry của tenant và các trạng thái `PENDING_PAYMENT`, `PROVISIONING`, `ACTIVE`, `FAILED`, `SUSPENDED`. |
+| `TenantProvisioningService` | Điều phối việc chuẩn bị database riêng, migration schema và tạo lời mời kích hoạt quản trị viên đầu tiên. |
 | `MySQL Server` | Tạo database/user riêng ở chế độ managed hoặc cung cấp kết nối tới database đã chuẩn bị trước. |
 | `Flyway` | Đưa schema của tenant về đúng phiên bản migration trước khi ghi dữ liệu nghiệp vụ. |
-| `Dedicated Tenant DB` | Lưu schema và dữ liệu của đúng một tenant, bao gồm tài khoản `TENANT_ADMIN`. |
+| `Dedicated Tenant DB` | Lưu schema và dữ liệu của đúng một tenant, bao gồm lời mời `member_invitations` và tài khoản `TENANT_ADMIN`. |
 
 #### Diễn giải từng bước
 
 Các hình chữ nhật hẹp trên lifeline là **activation bar**, biểu thị khoảng thời gian participant đang trực tiếp xử lý một lời gọi. Thanh bắt đầu khi participant nhận request và kết thúc khi trả kết quả hoặc khi nhánh lỗi dừng xử lý; chúng không biểu thị thời gian thực theo tỷ lệ.
 
-1. `Workspace Admin → Tenant Onboarding UI`: người quản trị nhập thông tin tenant và admin đầu tiên. Đây là dữ liệu đầu vào của use case.
+1. `Workspace Admin → Tenant Onboarding UI`: người quản trị nhập thông tin tenant và thông tin liên hệ của admin đầu tiên (`adminName`, `adminEmail` — không nhập mật khẩu tĩnh). Đây là dữ liệu đầu vào của use case.
 2. `Tenant Onboarding UI → Spring Security`: UI gửi `POST /api/v1/master/tenants/onboard`. Request đi qua security trước controller để quyền được kiểm tra tại biên tin cậy của backend.
 3. Nhánh `Unauthenticated or insufficient permission`: request thiếu/sai xác thực nhận `401`, còn người đã đăng nhập nhưng thiếu quyền nhận `403`; UI dừng luồng và hiển thị lỗi truy cập.
 4. Nhánh `Authorized Workspace Admin`: Spring Security chuyển request hợp lệ cho `MasterTenantController`.
@@ -89,14 +88,14 @@ Các hình chữ nhật hẹp trên lifeline là **activation bar**, biểu th�
 6. Nhánh `Valid request`: controller gọi `MasterTenantService.onboardTenant(request)` để chuyển xử lý nghiệp vụ ra khỏi tầng HTTP.
 7. `MasterTenantService ↔ Master PostgreSQL`: service kiểm tra `code` và `subdomain`. Kết quả quyết định tenant có thể được đăng ký hay không.
 8. Nhánh `Tenant identity already exists`: service trả xung đột, controller ánh xạ thành `409`, UI thông báo định danh tenant bị trùng; không tạo database mới.
-9. Nhánh `Tenant identity is available`: service lưu tenant với trạng thái `PROVISIONING`. Trạng thái trung gian cho biết registry đã tồn tại nhưng database riêng chưa sẵn sàng; Master DB trả lại `tenantId` để provisioning xử lý đúng bản ghi.
-10. `MasterTenantService → TenantProvisioningService`: service yêu cầu cấp phát database và tạo admin đầu tiên cho tenant vừa đăng ký.
+9. Nhánh `Tenant identity is available`: service lưu tenant với trạng thái `PROVISIONING` (hoặc `PENDING_PAYMENT` nếu `deferProvisioning = true`). Trạng thái trung gian cho biết registry đã tồn tại nhưng database riêng chưa sẵn sàng; Master DB trả lại `tenantId` để provisioning xử lý đúng bản ghi.
+10. `MasterTenantService → TenantProvisioningService`: service yêu cầu cấp phát database và khởi tạo lời mời cho admin đầu tiên của tenant vừa đăng ký.
 11. Nhánh `Managed database`: hệ thống tạo database và database user có phạm vi quyền riêng cho tenant. Nhánh `Pre-provisioned database` dùng database do Workspace Admin chuẩn bị sẵn; cả hai nhánh phải kết thúc bằng một kết nối tenant hợp lệ.
-12. `TenantProvisioningService → Flyway → Dedicated Tenant DB`: Flyway áp dụng migration. Bước này phải hoàn tất trước khi tạo admin để bảng `users` và các ràng buộc schema chắc chắn tồn tại.
-13. `TenantProvisioningService ↔ Dedicated Tenant DB`: hệ thống tạo `TENANT_ADMIN` đầu tiên và nhận xác nhận. Mật khẩu được lưu dưới dạng hash, nhưng chi tiết bộ mã hóa được lược khỏi sơ đồ chính.
-14. `TenantProvisioningService → MasterTenantService`: trả kết quả tổng hợp của quá trình provisioning để service quyết định trạng thái cuối.
+12. `TenantProvisioningService → Flyway → Dedicated Tenant DB`: Flyway áp dụng migration. Bước này phải hoàn tất trước khi tạo lời mời admin để bảng `users` và `member_invitations` chắc chắn tồn tại.
+13. `TenantProvisioningService ↔ Dedicated Tenant DB`: hệ thống sinh lời mời kích hoạt một lần (`member_invitations` với `role = TENANT_ADMIN`, lưu SHA-256 `token_hash`) để Admin doanh nghiệp tự đặt mật khẩu riêng khi truy cập link kích hoạt.
+14. `TenantProvisioningService → MasterTenantService`: trả kết quả tổng hợp của quá trình provisioning (kèm one-time activation token) để service quyết định trạng thái cuối.
 15. Nhánh `Provisioning failed`: Master DB được cập nhật thành `FAILED`; API trả `503` và UI thông báo lỗi. Trạng thái này giúp phân biệt lỗi cấp phát với lỗi validation và cho phép xử lý retry ở use case riêng.
-16. Nhánh `Provisioning succeeded`: service cập nhật tenant thành `ACTIVE`; controller trả `201 Created` cùng metadata an toàn và UI xác nhận tenant đã sẵn sàng.
+16. Nhánh `Provisioning succeeded`: service cập nhật tenant thành `ACTIVE`, gán gói mặc định (nếu chưa có gói), gửi email kích hoạt; controller trả `201 Created` cùng metadata an toàn và UI xác nhận tenant đã sẵn sàng.
 
 Hai database không nằm trong một distributed transaction. Vì vậy, trạng thái trong Master PostgreSQL là điểm theo dõi nhất quán khi một bước provisioning ở Tenant MySQL thất bại.
 
@@ -107,15 +106,15 @@ Hai database không nằm trong một distributed transaction. Vì vậy, trạn
 | Thành phần | Loại | Vai trò |
 |---|---|---|
 | `MasterTenantController` | `<<Controller>>` | Nhận request, validation, gọi service và tạo response HTTP. |
-| `OnboardTenantRequest` | `<<Request>>` | Mang dữ liệu nhận diện tenant và cấu hình database tùy chọn. |
-| `TenantAdminRequest` | `<<Request>>` | Mang thông tin quản trị viên đầu tiên; là phần dữ liệu chung có thể tái sử dụng cho onboarding và retry. |
-| `TenantResponse` | `<<Response>>` | Chỉ trả metadata an toàn; không trả URL, username hoặc password database. |
+| `OnboardTenantRequest` | `<<Request>>` | Mang dữ liệu nhận diện tenant, cờ `deferProvisioning` và cấu hình database tùy chọn. |
+| `TenantAdminRequest` | `<<Request>>` | Mang thông tin quản trị viên đầu tiên (`adminName`, `adminEmail`); tái sử dụng cho onboarding và retry. |
+| `TenantResponse` | `<<Response>>` | Chỉ trả metadata an toàn (kèm `activationUrl` một lần); không trả URL, username hoặc password database. |
 | `MasterTenantService` | `<<Service>>` | Thực thi quy tắc đăng ký tenant và điều phối provisioning. |
 | `TenantInfoRepository` | `<<Repository>>` | Cung cấp persistence boundary cho `TenantInfo`, che giấu chi tiết truy vấn Master DB. |
 | `TenantInfo` | `<<Entity>>` | Đại diện tenant trong registry nền tảng và giữ trạng thái vòng đời provisioning. |
 | `Master PostgreSQL` | `<<Database>>` | Sở hữu bảng `tenants` và metadata cấp nền tảng. |
-| `TenantProvisioningService` | `<<Service>>` | Chuẩn bị database riêng và tạo admin đầu tiên; chi tiết Hikari, encryption và Flyway wrapper được ẩn ở mức sơ đồ này. |
-| `TenantAdmin` | `<<Entity>>` | Đại diện tài khoản quản trị đầu tiên thuộc database tenant. |
+| `TenantProvisioningService` | `<<Service>>` | Chuẩn bị database riêng và tạo lời mời kích hoạt admin đầu tiên; chi tiết Hikari, encryption và Flyway wrapper được ẩn ở mức sơ đồ này. |
+| `TenantAdmin` | `<<Entity>>` | Đại diện tài khoản/lời mời quản trị đầu tiên thuộc database tenant (`users` / `member_invitations`). |
 | `Dedicated Tenant MySQL` | `<<Database>>` | Kho dữ liệu vật lý riêng của một tenant. |
 
 #### Giải thích các đường nối
@@ -142,15 +141,9 @@ Sơ đồ không vẽ quan hệ trực tiếp giữa `TenantInfo` và `TenantAdm
 - **Multi-tenancy:** database-per-tenant dùng MySQL database và credential riêng. Master provisioning endpoint không lấy tenant từ `X-Tenant-ID` và không thiết lập `TenantContext`; endpoint thuộc master security domain và kết nối trực tiếp tới database tenant mới.
 - **Transaction:** đăng ký master, cập nhật trạng thái và tạo tenant admin không nằm trong một distributed transaction. Trạng thái `FAILED` là điểm phục hồi rõ ràng.
 - **Concurrency và retry:** PostgreSQL advisory lock ngăn đăng ký chạy đua và provisioning đồng thời. DDL có tính idempotent, Flyway quản lý lịch sử migration và `TENANT_ADMIN` đã tồn tại được giữ nguyên khi retry.
-- **Secret và quyền riêng tư:** database credential dùng AES-256-GCM với tenant code làm additional authenticated data. Admin password là trường write-only và được BCrypt hash. Sơ đồ không chứa secret hoặc PII không cần thiết.
-- **Bất đồng bộ:** không áp dụng; provisioning chạy đồng bộ trong HTTP request và không publish RabbitMQ message.
-- **Audit:** implementation hiện chưa có durable audit writer. Sơ đồ không tự suy diễn audit participant chưa có trong contract.
-
-## Giả định và quyết định chưa hoàn tất
-
-- Dùng `TENANT-16` vì capability nằm tại `docs/diagram/16-tenant-creation-provisioning`; feature document chưa định nghĩa short ID khác.
-- Tự động gửi thông báo hoặc credential cho tenant admin nằm ngoài contract hiện tại.
-- Yêu cầu durable provisioning audit event vẫn chưa được xác định.
+- **Secret và quyền riêng tư:** database credential dùng AES-256-GCM với tenant code làm additional authenticated data. Tài khoản admin doanh nghiệp được kích hoạt qua one-time invitation token (`member_invitations`, lưu SHA-256 `token_hash`), mật khẩu do chính người dùng đặt được BCrypt hash. Sơ đồ không chứa secret hoặc PII không cần thiết.
+- **Bất đồng bộ:** provisioning trực tiếp chạy đồng bộ trong HTTP request; đối với B2B Deal Wizard (`deferProvisioning = true`), provisioning được hoãn lại ở trạng thái `PENDING_PAYMENT` và tự động chạy khi hóa đơn được xác nhận thanh toán.
+- **Audit:** các thao tác cấp nền tảng được ghi vào `platform_audit_logs` và nhật ký email thông báo vào `master_notification_logs`.
 
 ## Render và file được tạo
 

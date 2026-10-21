@@ -27,16 +27,15 @@ public class AiInterviewClient {
     public static class ProviderException extends IllegalStateException {
         public ProviderException(String message) { super(message); }
     }
-    private final AiInterviewAiConfig config;
     private final DynamicAiConfigProvider dynamicConfig;
     private final RestClient.Builder http;
     private final ObjectMapper mapper;
     private AiUsageMeteringService meteringService;
     private AiRateLimiterService rateLimiterService;
 
-    public AiInterviewClient(AiInterviewAiConfig config, DynamicAiConfigProvider dynamicConfig,
+    public AiInterviewClient(DynamicAiConfigProvider dynamicConfig,
             @Qualifier("aiInterviewRestClientBuilder") RestClient.Builder http, ObjectMapper mapper) {
-        this.config = config; this.dynamicConfig = dynamicConfig; this.http = http; this.mapper = mapper;
+        this.dynamicConfig = dynamicConfig; this.http = http; this.mapper = mapper;
     }
 
     @Autowired(required = false)
@@ -65,29 +64,134 @@ public class AiInterviewClient {
         return call("ASSESSMENT_GRADING", instruction, data);
     }
 
-    private JsonNode call(String task, String instruction, JsonNode data) {
-        var resolved = dynamicConfig.resolveConfig(task);
-        InterviewChatEndpoint.requireSupported(resolved.provider());
-        boolean assessment = "ASSESSMENT_GEN".equals(task) || "ASSESSMENT_GRADING".equals(task);
-        if (assessment && (resolved.endpointUrl() == null || resolved.endpointUrl().isBlank()))
-            throw new IllegalStateException("Assessment AI endpoint is not configured");
-        String apiKey = resolved.apiKey() == null || resolved.apiKey().isBlank()
-                ? (InterviewChatEndpoint.gemini(resolved.provider()) ? config.getApiKey() : "") : resolved.apiKey().trim();
-        if (assessment && apiKey.isBlank()) apiKey = "local-model";
-        if (apiKey == null || apiKey.isBlank()) throw new IllegalStateException("AI interview provider is not configured");
-        if (rateLimiterService != null) {
-            rateLimiterService.checkAndAcquire(task);
+    public JsonNode gradeAssessment(String instruction, JsonNode data) {
+        return call("CODE_GRADING", instruction, data);
+    }
+
+    private java.util.Optional<DynamicAiConfigProvider.ResolvedAiConfig> resolveFailoverTarget(
+            DynamicAiConfigProvider.ResolvedAiConfig primary) {
+        if (primary == null || !primary.hasFailover()) {
+            return java.util.Optional.empty();
         }
-        String effectiveModel = resolved.modelName() == null || resolved.modelName().isBlank()
-                ? config.getModel() : resolved.modelName();
+        if (dynamicConfig != null) {
+            var resolved = dynamicConfig.resolveFailoverConfig(primary);
+            if (resolved.isPresent()) {
+                return resolved;
+            }
+        }
+        String targetProvider = (primary.failoverProvider() == null || primary.failoverProvider().isBlank())
+                ? primary.provider()
+                : primary.failoverProvider().trim().toUpperCase();
+        String apiKey = InterviewChatEndpoint.apiKey(primary.provider(), primary.apiKey());
+        if (targetProvider != null
+                && targetProvider.equalsIgnoreCase(primary.provider())
+                && apiKey != null
+                && !apiKey.isBlank()) {
+            return java.util.Optional.of(new DynamicAiConfigProvider.ResolvedAiConfig(
+                    primary.taskType(),
+                    targetProvider,
+                    primary.failoverModel().trim(),
+                    apiKey,
+                    primary.endpointUrl(),
+                    primary.temperature(),
+                    primary.maxTokens(),
+                    primary.timeoutSeconds(),
+                    null,
+                    null));
+        }
+        return java.util.Optional.empty();
+    }
+
+    private java.util.List<DynamicAiConfigProvider.ResolvedAiConfig> getExecutionChain(String task) {
+        var chain = dynamicConfig.resolveExecutionChain(task);
+        if (chain != null && !chain.isEmpty()) {
+            return chain;
+        }
+        var primary = dynamicConfig.resolveConfig(task);
+        if (primary == null) {
+            return java.util.List.of();
+        }
+        java.util.List<DynamicAiConfigProvider.ResolvedAiConfig> list = new java.util.ArrayList<>();
+        list.add(primary);
+        resolveFailoverTarget(primary).ifPresent(list::add);
+        return list;
+    }
+
+    private JsonNode call(String task, String instruction, JsonNode data) {
+        var chain = getExecutionChain(task);
+        if (chain.isEmpty()) {
+            throw new IllegalStateException("AI interview provider is not configured");
+        }
+
+        RuntimeException lastException = null;
+        for (int i = 0; i < chain.size(); i++) {
+            var target = chain.get(i);
+            boolean assessment = "ASSESSMENT_GEN".equals(task) || "ASSESSMENT_GRADING".equals(task);
+            if (assessment && (target.endpointUrl() == null || target.endpointUrl().isBlank()))
+                throw new IllegalStateException("Assessment AI endpoint is not configured");
+            String apiKey = InterviewChatEndpoint.apiKey(target.provider(), target.apiKey());
+            if (assessment && apiKey.isBlank()) apiKey = "local-model";
+            if (apiKey.isBlank() || target.provider() == null || target.modelName() == null || target.modelName().isBlank()) {
+                log.warn("Skipping AI interview target {}:{} for task={} because no API key is available",
+                        target.provider(), target.modelName(), task);
+                continue;
+            }
+
+            if (rateLimiterService != null) {
+                rateLimiterService.checkAndAcquire(task);
+            }
+
+            int maxAttempts = (chain.size() == 1) ? 3 : (i < chain.size() - 1 ? 1 : 2);
+
+            try {
+                return executeCall(task, target, apiKey, instruction, data, maxAttempts);
+            } catch (BusinessException ex) {
+                throw ex;
+            } catch (RuntimeException ex) {
+                lastException = ex;
+                String errorMsg = ex.getMessage() != null ? ex.getMessage() : "";
+                boolean is429 = errorMsg.contains("429") || errorMsg.contains("RESOURCE_EXHAUSTED") || errorMsg.contains("Too Many Requests");
+                if (dynamicConfig != null && is429) {
+                    dynamicConfig.markModelCooldown(target.provider(), target.modelName(), java.time.Duration.ofSeconds(60));
+                }
+
+                if (i < chain.size() - 1) {
+                    var next = chain.get(i + 1);
+                    log.warn("AI Interview model {}:{} failed for task={} ({}), cascading to next fallback {}:{}",
+                            target.provider(), target.modelName(), task, ex.getMessage(),
+                            next.provider(), next.modelName());
+                } else {
+                    log.warn("AI Interview model {}:{} failed for task={} ({}), no more models in fallback chain",
+                            target.provider(), target.modelName(), task, ex.getMessage());
+                }
+            }
+        }
+
+        if (lastException != null) {
+            throw lastException;
+        }
+        throw new IllegalStateException("AI task " + task + " is not configured (provider, model and API key in Admin > AI Config)");
+    }
+
+    private JsonNode executeCall(
+            String task,
+            DynamicAiConfigProvider.ResolvedAiConfig resolved,
+            String apiKey,
+            String instruction,
+            JsonNode data,
+            int maxAttempts) {
+        String provider = resolved.provider() == null || resolved.provider().isBlank()
+                ? "GEMINI"
+                : resolved.provider().trim().toUpperCase();
+        String baseUrl = InterviewChatEndpoint.baseUrl(provider, resolved.endpointUrl());
+        String effectiveModel = resolved.modelName();
         long startNs = System.nanoTime();
         boolean success = false;
         long promptTokens = 0L;
         long completionTokens = 0L;
         try {
-            String baseUrl = InterviewChatEndpoint.baseUrl(resolved.provider(), resolved.endpointUrl(), config.getBaseUrl());
             var builder = http.clone();
-            if (assessment) {
+            if ("ASSESSMENT_GEN".equals(task) || "ASSESSMENT_GRADING".equals(task)) {
                 var factory = new org.springframework.http.client.SimpleClientHttpRequestFactory();
                 factory.setConnectTimeout(java.time.Duration.ofSeconds(5));
                 factory.setReadTimeout(java.time.Duration.ofSeconds(Math.max(5, resolved.timeoutSeconds())));
@@ -96,9 +200,11 @@ public class AiInterviewClient {
             var api = OpenAiApi.builder().baseUrl(baseUrl).completionsPath("/chat/completions")
                     .apiKey(apiKey).restClientBuilder(builder)
                     .responseErrorHandler(new DefaultResponseErrorHandler()).build();
-            var retry = RetryTemplate.builder().maxAttempts(3).exponentialBackoff(1000, 2, 4000)
-                    .retryOn(error -> error instanceof RestClientResponseException response
-                            && retryable(response.getStatusCode().value())).build();
+            var retry = maxAttempts > 1
+                    ? RetryTemplate.builder().maxAttempts(maxAttempts).exponentialBackoff(1000, 2, 4000)
+                            .retryOn(error -> error instanceof RestClientResponseException response
+                                    && retryable(response.getStatusCode().value())).build()
+                    : RetryTemplate.builder().maxAttempts(1).build();
             var options = OpenAiChatOptions.builder()
                     .model(effectiveModel)
                     .temperature(resolved.temperature() == null ? 0.2 : resolved.temperature().doubleValue())
@@ -129,7 +235,7 @@ public class AiInterviewClient {
             throw ex;
         } catch (RestClientResponseException ex) {
             int status = ex.getStatusCode().value();
-            log.error("AI Interview call failed: task={}, HTTP {}", task, status, safeDiagnostic(ex));
+            log.error("AI Interview call failed: task={}, model={}, HTTP {}", task, effectiveModel, status, safeDiagnostic(ex));
             String message = switch (status) {
                 case 429 -> "Dịch vụ AI đang giới hạn lượt gọi (HTTP 429). Vui lòng thử lại sau.";
                 case 503, 502, 504 -> "Dịch vụ AI tạm thời không khả dụng (HTTP " + status + "). Vui lòng thử lại sau.";
@@ -139,13 +245,13 @@ public class AiInterviewClient {
             };
             throw new ProviderException(message);
         } catch (Exception ex) {
-            log.error("AI Interview call failed: task={}", task, safeDiagnostic(ex));
+            log.error("AI Interview call failed: task={}, model={}", task, effectiveModel, safeDiagnostic(ex));
             throw new IllegalStateException("AI interview provider unavailable or returned invalid data");
         } finally {
             if (meteringService != null) {
                 long latencyMs = (System.nanoTime() - startNs) / 1_000_000L;
                 meteringService.recordUsageAsync(
-                        task, resolved.provider(), effectiveModel, promptTokens, completionTokens, latencyMs, success);
+                        task, provider, effectiveModel, promptTokens, completionTokens, latencyMs, success);
             }
         }
     }

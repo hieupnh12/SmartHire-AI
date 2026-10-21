@@ -25,7 +25,7 @@ Tổng hợp kỹ năng (S), kinh nghiệm liên quan (E), assessment (A), AI in
 - Ví dụ S=79, E=80, A=85, I=81 → 81,35. Dùng BigDecimal và làm tròn HALF_UP hai chữ số; không cộng các đóng góp đã làm tròn để tính tổng.
 - Thiếu thành phần: `partial = Σ(điểm có dữ liệu × trọng số) / Σ(trọng số có dữ liệu)`. Ví dụ chỉ S=79, E=80 → 79,30, có 2/4 thành phần và 50% trọng số.
 - Không có thành phần → điểm null, không có hạng. Điểm 0 hợp lệ vẫn được tính. Thành phần có trọng số 0 không ảnh hưởng mức hoàn thành.
-- Assessment lấy `attempt_scores.total_score` của attempt GRADED, interview lấy `interview_scores.overall_score` của session SCORED. Điểm nguồn phải nằm trong 0–100; ngoài thang hiển thị cần xác minh. Nhận xét AI assessment không cộng điểm lần thứ hai.
+- Assessment lấy `submissions.score` của submission GRADED (điểm thô) quy đổi `score × 100 / tổng points các câu của test`; test không có câu hỏi → coi như thiếu điểm, interview lấy `ai_interviews.overall_score` của AI interview PASSED/FAILED/SCORED. Điểm nguồn phải nằm trong 0–100; ngoài thang hiển thị cần xác minh. Nhận xét AI assessment không cộng điểm lần thứ hai.
 - `E = min(số tháng liên quan / số tháng yêu cầu, 1) × 100`. Đối chiếu kỹ năng chuẩn trong từng kinh nghiệm với kỹ năng Job; tính hợp các tháng (bao gồm tháng bắt đầu/kết thúc), không cộng trùng. Mốc YYYY-MM, công việc hiện tại tính đến tháng UTC hiện tại. Không tự coi thiếu ngày là 0 năm.
 - Chỉ dùng kinh nghiệm có trường skills và bằng chứng; dữ liệu liên quan sai ngày/thiếu bằng chứng → NEEDS_REVIEW. Mảng experience rỗng xác định 0 tháng. Xem contract [CV-03](../CV-Screening/Information-Extraction.md).
 - Nếu Job không yêu cầu kinh nghiệm, đặt trọng số E=0 và phân bổ lại; không tự giả định số năm yêu cầu.
@@ -43,7 +43,7 @@ Tổng hợp kỹ năng (S), kinh nghiệm liên quan (E), assessment (A), AI in
 
 ## UI mockup
 
-- Panel chi tiết trong `/recruiter/jobs/{jobId}/rank`: điểm tổng, nhãn tạm/hoàn chỉnh, % trọng số, bảng đóng góp, bằng chứng kỹ năng/kinh nghiệm và nhận xét AI interview. `jobId` lấy từ Job workspace đã chọn; Candidate không có quyền xem.
+- Panel chi tiết trong `/recruiter/jobs/{jobId}/rank`: điểm tổng, nhãn tạm/hoàn chỉnh, % trọng số, bảng đóng góp, bằng chứng kỹ năng/kinh nghiệm và nhận xét AI interview. Hồ sơ tạm tính không có hạng và không mở đặt lịch tiếp theo; chỉ hồ sơ đủ thành phần mới được xếp hạng / đặt lịch. `jobId` lấy từ Job workspace đã chọn; Candidate không có quyền xem.
 
 ## Phụ thuộc
 

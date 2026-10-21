@@ -392,8 +392,10 @@ public class MasterTenantService {
 
     public String provisionPendingTenant(Long id) {
         TenantInfo tenant = getTenantById(id);
-        if (!"PENDING_PAYMENT".equals(tenant.getStatus()) && !"FAILED".equals(tenant.getStatus())) {
-            throw new BusinessException("Chỉ doanh nghiệp ở trạng thái PENDING_PAYMENT mới được kích hoạt", HttpStatus.CONFLICT, "INVALID_TENANT_STATE");
+        if (!"PENDING_PAYMENT".equals(tenant.getStatus())
+                && !"PROVISIONING".equals(tenant.getStatus())
+                && !"FAILED".equals(tenant.getStatus())) {
+            throw new BusinessException("Chỉ doanh nghiệp ở trạng thái PENDING_PAYMENT hoặc PROVISIONING mới được kích hoạt", HttpStatus.CONFLICT, "INVALID_TENANT_STATE");
         }
         TenantAdminRequest adminRequest = new TenantAdminRequest();
         adminRequest.setAdminEmail(tenant.getContactEmail());

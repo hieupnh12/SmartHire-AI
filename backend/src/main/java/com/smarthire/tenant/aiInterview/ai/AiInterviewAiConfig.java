@@ -30,10 +30,6 @@ public class AiInterviewAiConfig {
 
     private int timeoutSeconds = 10;
 
-    public boolean isConfigured() {
-        return apiKey != null && !apiKey.isBlank();
-    }
-
     @Bean
     @Qualifier("aiInterviewRestClientBuilder")
     public RestClient.Builder aiInterviewRestClientBuilder() {
