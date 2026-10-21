@@ -1,0 +1,123 @@
+@startuml
+skinparam dpi 300
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam sequence {
+  ArrowColor #2D3748
+  ActorBorderColor #2D3748
+  LifeLineBorderColor #2D3748
+  ParticipantBorderColor #2D3748
+  ParticipantBackgroundColor #FFFFFF
+  BoxBorderColor #A0AEC0
+}
+hide footbox
+autonumber
+actor Candidate
+boundary "Interview Room" as UI
+control "Security / tenant context\nTenantJobExecutor (async)" as Guard
+control "AiInterviewController / Service" as Start
+queue "Dispatcher / RabbitMQ / Worker" as Work
+control "AiInterviewEvaluationService" as Evaluation
+control "InterviewConversationController" as Controller
+control "InterviewConversationService" as Conversation
+participant "InterviewConversationClient\nAI provider" as AI
+database "Dedicated Tenant MySQL\nvia repositories" as DB
+
+note over Candidate,DB
+  Existing eligible Communication attempt, conversationVersion=1.
+  Configuration/context snapshots are already stored; roadmap is mapped from policy.
+  Authentication and tenant resolution precede every HTTP tenant query.
+  Voice consent is required when voice is enabled; audio/STT is outside scope.
+end note
+
+group Admit candidate and prepare opening asynchronously
+  Candidate -> UI: Start interview
+  UI -> Guard: POST /api/v1/ai-interviews/{id}/start
+  activate Guard
+  Guard -> Start: Forward authenticated tenant request
+  activate Start
+  Start -> DB: Lock attempt; check owner, eligibility, consent and availability
+  alt admission denied
+    Start --> UI: 403 / 404 / 409 error
+  else allowed
+    Start -> DB: Commit IN_PROGRESS; startedAt/expiresAt = null; OPENING_QUEUED
+    Start --> UI: 200 ApiResponse<AiInterviewResponse> with roadmap
+  end
+  deactivate Start
+  Guard -> Guard: Clear HTTP tenant context in cleanup
+  deactivate Guard
+  opt admission succeeded and opening still pending
+    Work ->> Evaluation: process(id), via worker TenantJobExecutor\nheader X-Tenant-ID; restore tenant, finally clear
+    activate Evaluation
+    Evaluation -> DB: Lock attempt; recheck pending phase and eligibility
+    Evaluation -> Conversation: initialize(interview)
+    activate Conversation
+    Conversation -> DB: Check existing session (idempotent initialization)
+    opt session absent
+      Conversation -> AI: dialogue(snapshot instructions, job/CV context)
+      activate AI
+      AI --> Conversation: Greeting and first job-related question
+      deactivate AI
+      alt valid opening and availability still open
+        Conversation -> DB: Save session + ASSISTANT message; start timer/deadline
+      else provider / availability failure
+        Conversation --> Evaluation: Sanitized domain/provider exception
+        Evaluation -> DB: Record ERROR + OPENING_FAILED; timer remains unstarted
+      end
+    end
+    deactivate Conversation
+    deactivate Evaluation
+    UI -> Controller: GET /api/v1/ai-interviews/{id}/conversation\nafter preparation, through security/tenant boundary
+    activate Controller
+    Controller -> Conversation: get(id): authorize and load transcript
+    Conversation -> DB: Read session/messages
+    Controller --> UI: 200 ConversationResponse (or not-ready error)
+    deactivate Controller
+  end
+end
+
+group Generate the next adaptive question or follow-up
+  loop while opening ready, deadline valid and dialogue incomplete
+    Candidate -> UI: Answer current question
+    UI -> Guard: POST .../{id}/conversation/turns\n{requestId: UUID, content}
+    activate Guard
+    Guard -> Controller: Validate DTO; authorize conversation.get(id)
+    activate Controller
+    Controller ->> Conversation: TaskExecutor + TenantJobExecutor: turn(id, request, onDelta)\nrestore tenant and captured authentication
+    Controller --> UI: HTTP 200 text/event-stream
+    deactivate Controller
+    Guard -> Guard: Clear original HTTP tenant context
+    deactivate Guard
+    activate Conversation
+    Conversation -> DB: Lock/authorize attempt; read session and ordered history
+    alt same requestId and same content already committed
+      Conversation --> UI: SSE done: existing ConversationResponse (no AI call)
+    else conflicting ID, inactive attempt, deadline or turn limit reached
+      Conversation --> UI: SSE error: sanitized failure; no new committed turn
+    else new valid turn
+      Conversation -> AI: dialogue(snapshot pacing, context, history + answer, onDelta)
+      activate AI
+      AI -->> UI: SSE delta via callback/controller (provisional text)
+      AI --> Conversation: Complete adaptive reply
+      deactivate AI
+      alt provider completes successfully
+        Conversation -> DB: Commit USER + ASSISTANT messages; increment candidateTurns
+        Conversation --> UI: SSE done after transaction commit: ConversationResponse
+        UI --> Candidate: Show next question / completion action
+      else provider failure or disconnected stream
+        Conversation -> DB: Roll back new turn
+        Conversation --> UI: SSE error if connected; retry with same requestId
+      end
+    end
+    Conversation -> Conversation: Finally clear tenant and async security context\nthrough TenantJobExecutor/controller
+    deactivate Conversation
+  end
+end
+note over Conversation,DB
+  Per-question follow-up depth is instruction-driven, not a persisted counter.
+  maxTurns and deadline are enforced; messages have unique request IDs per session.
+  Final scoring and explicit completion are separate use cases.
+end note
+@enduml

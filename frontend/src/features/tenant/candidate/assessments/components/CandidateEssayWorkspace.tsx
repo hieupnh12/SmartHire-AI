@@ -40,7 +40,7 @@ export function CandidateEssayWorkspace({
   };
 
   return (
-    <div className="grid h-full min-h-0 min-w-0 gap-3 lg:grid-cols-[minmax(0,0.38fr)_minmax(0,0.62fr)]">
+    <div className="grid h-full min-h-0 min-w-0 gap-3 max-lg:grid-rows-[minmax(7.5rem,0.32fr)_minmax(0,1fr)] lg:grid-cols-[minmax(0,0.38fr)_minmax(0,0.62fr)] lg:grid-rows-1">
       <section className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)]">
         <div className="shrink-0 border-b border-[var(--color-border-default)] px-4 py-3">
           <h2 className="font-semibold">

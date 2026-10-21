@@ -1,10 +1,63 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { Expand, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ux/Button";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
-import type { ProctorSession } from "./AssessmentProctorGate";
+import type { ProctorSession } from "@/features/tenant/candidate/interviews/utils/proctorDevices";
+import { expandExamToScreen, examIsFullscreen } from "../utils/examFullscreen";
+import { watchFacePresence, type FacePresenceStatus } from "../utils/facePresence";
 
 const MAX_VIOLATIONS = 3;
+const EXAM_ROOT_ID = "exam-room-root";
+
+const FACE_LABEL: Record<FacePresenceStatus, string> = {
+  loading: "Đang tải nhận diện…",
+  ready: "Đang nhận diện…",
+  present: "Mặt trong khung",
+  absent: "Mất mặt",
+  multi: "Nhiều người",
+  unavailable: "Không nhận diện được",
+};
+
+const ProctorChromeContext = createContext<ReactNode>(null);
+const ExpandContext = createContext<(() => Promise<void>) | null>(null);
+
+/** Compact monitor chip. Render it in the exam header so it does not cover the editor. */
+export function ExamMonitor() {
+  return useContext(ProctorChromeContext);
+}
+
+export function ExamFullscreenButton() {
+  const expand = useContext(ExpandContext);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+  return (
+    <>
+      {error && (
+        <p className="mt-3 text-sm leading-6 text-[var(--color-on-surface-variant)]" role="status">
+          {error}
+        </p>
+      )}
+      <Button
+        className="mt-5 w-full"
+        disabled={pending || !expand}
+        onClick={() => {
+          if (!expand) return;
+          setPending(true);
+          setError(null);
+          void expand()
+            .catch((cause: unknown) => {
+              setError(cause instanceof Error ? cause.message : "Không mở được toàn màn hình.");
+            })
+            .finally(() => setPending(false));
+        }}
+      >
+        <Expand className="size-4" aria-hidden="true" />
+        {pending ? "Đang mở toàn màn hình…" : "Mở toàn màn hình"}
+      </Button>
+    </>
+  );
+}
 
 type Props = {
   submissionId: number;
@@ -21,8 +74,12 @@ export function AssessmentProctorGuard({ submissionId, session, children, onAuto
   const autoSubmitted = useRef(false);
   const autoSubmitRef = useRef(onAutoSubmit);
   const violationCount = useRef(0);
+  const ignoreTransient = useRef(false);
+  const onScreenEnded = useRef(() => {});
+  const warningOpen = useRef(false);
   const [violations, setViolations] = useState(0);
   const [warning, setWarning] = useState<string | null>(null);
+  const [faceStatus, setFaceStatus] = useState<FacePresenceStatus>("loading");
 
   useEffect(() => {
     autoSubmitRef.current = onAutoSubmit;
@@ -32,6 +89,7 @@ export function AssessmentProctorGuard({ submissionId, session, children, onAuto
     const next = violationCount.current + 1;
     violationCount.current = next;
     setViolations(next);
+    warningOpen.current = true;
     setWarning(
       `${message} (${next}/${MAX_VIOLATIONS}). ${next >= MAX_VIOLATIONS ? "Bài sẽ được tự động nộp." : "Vui lòng quay lại phòng thi."}`,
     );
@@ -42,24 +100,80 @@ export function AssessmentProctorGuard({ submissionId, session, children, onAuto
   }, []);
 
   useEffect(() => {
-    if (videoRef.current) videoRef.current.srcObject = session.camera;
+    const track = session.camera.getVideoTracks().find((item) => item.readyState === "live");
+    if (!track) {
+      setFaceStatus("unavailable");
+      return;
+    }
+    let active = true;
+    let handle: { stop: () => void } | null = null;
+    void watchFacePresence({
+      stream: session.camera,
+      onStatus: (status) => {
+        if (active) setFaceStatus(status);
+      },
+      onViolation: (reason) => {
+        if (!active || ignoreTransient.current || warningOpen.current) return;
+        if (reason === "multi") {
+          violate("Phát hiện nhiều khuôn mặt trong khung hình camera");
+          return;
+        }
+        violate("Khuôn mặt không còn trong khung hình camera");
+      },
+    }).then((watcher) => {
+      if (!active) {
+        watcher.stop();
+        return;
+      }
+      handle = watcher;
+    });
+    return () => {
+      active = false;
+      handle?.stop();
+    };
+  }, [session, violate]);
+
+  const bindVideo = (node: HTMLVideoElement | null) => {
+    videoRef.current = node;
+    if (node) node.srcObject = session.camera;
+  };
+
+  useEffect(() => {
+    const previousTitle = document.title;
+    document.title = "Phòng thi";
+    const root = document.documentElement;
+    const previousOverflow = root.style.overflow;
+    root.style.overflow = "hidden";
+    return () => {
+      document.title = previousTitle;
+      root.style.overflow = previousOverflow;
+    };
+  }, []);
+
+  useEffect(() => {
     const microphoneTrack = session.camera.getAudioTracks()[0];
+    const cameraTrack = session.camera.getVideoTracks()[0];
     const screenTrack = session.screen.getVideoTracks()[0];
     const microphoneLost = () => violate("Microphone đã bị tắt");
-    const screenLost = () => violate("Chia sẻ tab làm bài đã dừng");
+    const cameraLost = () => violate("Camera đã bị tắt");
+    const screenLost = () => onScreenEnded.current();
     microphoneTrack?.addEventListener("ended", microphoneLost);
+    cameraTrack?.addEventListener("ended", cameraLost);
     screenTrack?.addEventListener("ended", screenLost);
     return () => {
       microphoneTrack?.removeEventListener("ended", microphoneLost);
+      cameraTrack?.removeEventListener("ended", cameraLost);
       screenTrack?.removeEventListener("ended", screenLost);
     };
   }, [session, violate]);
 
   useEffect(() => {
     const fullscreen = () => {
-      if (!document.fullscreenElement) violate("Bạn đã thoát chế độ toàn màn hình");
+      if (ignoreTransient.current) return;
+      if (!examIsFullscreen()) violate("Bạn đã thoát chế độ toàn màn hình");
     };
     const visibility = () => {
+      if (ignoreTransient.current) return;
       if (document.hidden) {
         hiddenAt.current = Date.now();
         violate("Bạn đã chuyển tab hoặc ẩn trang thi");
@@ -68,6 +182,7 @@ export function AssessmentProctorGuard({ submissionId, session, children, onAuto
       }
     };
     const blur = () => {
+      if (ignoreTransient.current) return;
       if (!document.hidden) violate("Cửa sổ thi đã mất tiêu điểm");
     };
     const block = (event: Event, message: string) => {
@@ -103,33 +218,58 @@ export function AssessmentProctorGuard({ submissionId, session, children, onAuto
     };
   }, [violate]);
 
-  const watermark = `${user?.fullName ?? "Candidate"} · ${user?.email ?? "SmartHire"} · ASM-${submissionId}`;
+  onScreenEnded.current = () => {
+    if (ignoreTransient.current) return;
+    violate("Chia sẻ màn hình đã dừng");
+  };
+  const expand = useCallback(() => {
+    ignoreTransient.current = true;
+    return expandExamToScreen(session).finally(() => {
+      window.setTimeout(() => {
+        ignoreTransient.current = false;
+      }, 700);
+    });
+  }, [session]);
 
-  return (
-    <div className="relative h-full min-h-0 select-none">
-      <div className="pointer-events-none fixed inset-0 z-[60] overflow-hidden opacity-[0.05]" aria-hidden="true">
-        <div className="grid h-full -rotate-12 grid-cols-2 content-around gap-16 text-center text-sm font-bold text-slate-900 sm:grid-cols-3">
-          {Array.from({ length: 18 }, (_, index) => (
+  const watermark = `${user?.fullName ?? "Candidate"} · ${user?.email ?? "SmartHire"} · ASM-${submissionId}`;
+  const hasCamera = session.camera.getVideoTracks().length > 0;
+  const faceDot =
+    faceStatus === "present"
+      ? "bg-emerald-400"
+      : faceStatus === "absent" || faceStatus === "multi"
+        ? "bg-amber-400"
+        : faceStatus === "unavailable"
+          ? "bg-slate-400"
+          : "bg-sky-400 animate-pulse";
+  const monitor = (
+    <div className="flex shrink-0 items-center gap-2 rounded-lg bg-slate-950 px-2 py-1 text-[11px] text-white">
+      {hasCamera && (
+        <video ref={bindVideo} autoPlay muted playsInline className="h-8 w-12 rounded bg-slate-900 object-cover" />
+      )}
+      <span className="inline-flex items-center gap-1 whitespace-nowrap">
+        <span className={`size-2 rounded-full ${faceDot}`} />
+        {hasCamera ? FACE_LABEL[faceStatus] : "Đang giám sát"}
+      </span>
+      <span className="tabular-nums">
+        {violations}/{MAX_VIOLATIONS}
+      </span>
+    </div>
+  );
+
+  return createPortal(
+    <div id={EXAM_ROOT_ID} className="fixed inset-0 z-[65] flex h-[100dvh] w-[100vw] flex-col overflow-hidden bg-[var(--color-surface-alt)] text-[var(--color-on-surface)] select-none">
+      <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden opacity-[0.035]" aria-hidden="true">
+        <div className="grid h-full -rotate-12 grid-cols-3 content-around gap-24 text-center text-xs font-semibold text-slate-900">
+          {Array.from({ length: 12 }, (_, index) => (
             <span key={index}>{watermark}</span>
           ))}
         </div>
       </div>
-      <div className="fixed bottom-4 right-4 z-50 w-44 overflow-hidden rounded-xl border border-white/20 bg-slate-950 p-2 text-white shadow-2xl">
-        {session.camera.getVideoTracks().length > 0 ? (
-          <video ref={videoRef} autoPlay muted playsInline className="aspect-video w-full rounded-lg bg-slate-900 object-cover" />
-        ) : (
-          <p className="p-3 text-xs">Đang giám sát microphone và tab làm bài.</p>
-        )}
-        <div className="mt-2 flex items-center justify-between text-[11px]">
-          <span className="inline-flex items-center gap-1">
-            <span className="size-2 rounded-full bg-emerald-400" />
-            Đang giám sát
-          </span>
-          <span>
-            {violations}/{MAX_VIOLATIONS}
-          </span>
-        </div>
-      </div>
+      <ExpandContext.Provider value={expand}>
+      <ProctorChromeContext.Provider value={monitor}>
+        <div className="relative z-10 flex min-h-0 flex-1 flex-col">{children}</div>
+      </ProctorChromeContext.Provider>
+      </ExpandContext.Provider>
       {warning && (
         <div
           className="fixed inset-0 z-[70] grid place-items-center bg-slate-950/65 p-4"
@@ -147,10 +287,9 @@ export function AssessmentProctorGuard({ submissionId, session, children, onAuto
               <Button
                 className="mt-5"
                 onClick={async () => {
+                  warningOpen.current = false;
                   setWarning(null);
-                  if (!document.fullscreenElement) {
-                    await document.documentElement.requestFullscreen().catch(() => undefined);
-                  }
+                  if (!examIsFullscreen()) await expand().catch(() => undefined);
                 }}
               >
                 <Expand className="size-4" aria-hidden="true" />
@@ -160,7 +299,7 @@ export function AssessmentProctorGuard({ submissionId, session, children, onAuto
           </div>
         </div>
       )}
-      <div className="relative z-10 h-full min-h-0">{children}</div>
-    </div>
+    </div>,
+    document.body,
   );
 }

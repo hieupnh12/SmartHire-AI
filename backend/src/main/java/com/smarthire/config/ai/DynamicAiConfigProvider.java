@@ -14,6 +14,7 @@ import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.annotation.Value;
 
 @Component
 public class DynamicAiConfigProvider {
@@ -86,17 +87,53 @@ public class DynamicAiConfigProvider {
     private final RedisService redisService;
     private final ObjectMapper mapper;
 
+    // Fallback environment properties
+    private final String fallbackGeminiKey;
+    private final String fallbackCvModel;
+    private final int fallbackTimeout;
+    @Value("${app.ai.interview.provider:OPENAI}")
+    private String interviewProvider = "OPENAI";
+    @Value("${app.ai.interview.base-url:}")
+    private String interviewEndpoint;
+    @Value("${AI_INTERVIEW_GEMINI_API_KEY:}")
+    private String interviewSpeechKey = "";
+    @Value("${AI_INTERVIEW_GEMINI_MODEL:gemini-3.1-flash-lite}")
+    private String interviewSpeechModel = "gemini-3.1-flash-lite";
+    private final String interviewKey;
+    private final String interviewModel;
+    private final int interviewTimeout;
+    @Value("${AI_ASSESSMENT_MODEL:vanilj/llama-3-8b-instruct-32k-v0.1:Q4_K_M}")
+    private String assessmentModel = "vanilj/llama-3-8b-instruct-32k-v0.1:Q4_K_M";
+    @Value("${AI_ASSESSMENT_BASE_URL:}")
+    private String assessmentEndpoint = "";
+    @Value("${AI_ASSESSMENT_API_KEY:}")
+    private String assessmentKey = "";
+    @Value("${AI_ASSESSMENT_TIMEOUT_SECONDS:120}")
+    private int assessmentTimeout = 120;
+
     public DynamicAiConfigProvider(
             AiModelConfigRepository modelConfigRepository,
             AiProviderKeyRepository providerKeyRepository,
             TenantCredentialService credentialService,
             RedisService redisService,
-            ObjectMapper mapper) {
+            ObjectMapper mapper,
+            @Value("${app.ai.gemini.api-key:}") String fallbackGeminiKey,
+            @Value("${app.ai.models.cv-parsing:gemini-2.0-flash}") String fallbackCvModel,
+            @Value("${app.ai.timeout-seconds:30}") int fallbackTimeout,
+            @Value("${app.ai.interview.api-key:}") String interviewKey,
+            @Value("${app.ai.interview.model:vanilj/llama-3-8b-instruct-32k-v0.1:Q4_K_M}") String interviewModel,
+            @Value("${app.ai.interview.timeout-seconds:60}") int interviewTimeout) {
         this.modelConfigRepository = modelConfigRepository;
         this.providerKeyRepository = providerKeyRepository;
         this.credentialService = credentialService;
         this.redisService = redisService;
         this.mapper = mapper;
+        this.fallbackGeminiKey = fallbackGeminiKey;
+        this.fallbackCvModel = fallbackCvModel;
+        this.fallbackTimeout = fallbackTimeout;
+        this.interviewKey = interviewKey;
+        this.interviewModel = interviewModel;
+        this.interviewTimeout = interviewTimeout;
     }
 
     public ResolvedAiConfig resolveConfig(String taskType) {
@@ -116,6 +153,23 @@ public class DynamicAiConfigProvider {
     }
 
     private ResolvedAiConfig getOrResolveBaseConfig(String normalizedTask) {
+        if ("ASSESSMENT_GEN".equals(normalizedTask) || "ASSESSMENT_GRADING".equals(normalizedTask)) {
+            if ("ASSESSMENT_GRADING".equals(normalizedTask)
+                    && modelConfigRepository.findByTaskType("CODE_GRADING").isPresent()) {
+                var grading = getOrResolveBaseConfig("CODE_GRADING");
+                return new ResolvedAiConfig(normalizedTask, grading.provider(), grading.modelName(), grading.apiKey(),
+                        grading.endpointUrl(), grading.temperature(), grading.maxTokens(), grading.timeoutSeconds(),
+                        grading.failoverProvider(), grading.failoverModel(), grading.fallbackChain());
+            }
+            var interview = resolveConfig("INTERVIEW_GEN");
+            boolean openAi = "OPENAI".equalsIgnoreCase(interview.provider());
+            return new ResolvedAiConfig(normalizedTask, "OPENAI", assessmentModel,
+                    !assessmentKey.isBlank() ? assessmentKey : openAi ? interview.apiKey() : interviewKey,
+                    !assessmentEndpoint.isBlank() ? assessmentEndpoint : openAi && interview.endpointUrl() != null
+                            ? interview.endpointUrl() : interviewEndpoint,
+                    new BigDecimal("ASSESSMENT_GRADING".equals(normalizedTask) ? "0.10" : "0.30"), 8192, assessmentTimeout, null, null);
+        }
+
         String cacheKey = taskCacheKey(normalizedTask);
 
         try {
@@ -130,6 +184,10 @@ public class DynamicAiConfigProvider {
         // Fetch from Master DB
         try {
             Optional<AiModelConfig> configOpt = modelConfigRepository.findByTaskType(normalizedTask);
+            if (configOpt.isPresent() && Boolean.FALSE.equals(configOpt.get().getIsActive())) {
+                return new ResolvedAiConfig(normalizedTask, null, null, "", null,
+                        new BigDecimal("0.20"), 2048, 30, null, null);
+            }
             if (configOpt.isPresent() && !Boolean.FALSE.equals(configOpt.get().getIsActive())) {
                 AiModelConfig config = configOpt.get();
                 String provider = config.getProvider() != null ? config.getProvider() : "GEMINI";
@@ -166,10 +224,25 @@ public class DynamicAiConfigProvider {
             log.error("Failed to query AI config from Master DB for task {}: {}", normalizedTask, ex.getMessage());
         }
 
-        // Missing, disabled or unreadable task config: callers see a blank key and report "not configured".
-        log.warn("AI task {} has no active configuration in Master DB (Admin > AI Config)", normalizedTask);
-        return new ResolvedAiConfig(normalizedTask, null, null, "", null,
-                new BigDecimal("0.20"), 2048, 30, null, null, null);
+        if ("INTERVIEW_STT".equals(normalizedTask) || "INTERVIEW_TTS".equals(normalizedTask)
+                || "CODE_GRADING".equals(normalizedTask)) {
+            return new ResolvedAiConfig(normalizedTask, null, null, "", null,
+                    new BigDecimal("0.20"), 2048, 30, null, null);
+        }
+        // Preserve environment fallback for existing interview and CV deployments.
+        boolean interview = isInterview(normalizedTask);
+        return new ResolvedAiConfig(
+                normalizedTask,
+                interview ? interviewProvider : "GEMINI",
+                interview ? interviewModel : fallbackCvModel,
+                interview ? interviewKey : fallbackGeminiKey,
+                interview ? interviewEndpoint : null,
+                new BigDecimal("0.20"),
+                interview ? 8192 : 2048,
+                interview ? interviewTimeout : fallbackTimeout,
+                "GEMINI",
+                "gemini-1.5-flash"
+        );
     }
 
     public void markModelCooldown(String provider, String modelName, Duration duration) {
@@ -368,6 +441,13 @@ public class DynamicAiConfigProvider {
         return resolveApiKeyForProvider(provider, null);
     }
 
+    /** Native audio requires Gemini credentials even when interview text uses another provider. */
+    public ResolvedAiConfig resolveInterviewSpeechConfig() {
+        return new ResolvedAiConfig("INTERVIEW_GEN", "GEMINI", interviewSpeechModel,
+                decryptOrFallbackKey(findActiveProviderKey("GEMINI"), "GEMINI", "INTERVIEW_GEN"),
+                null, BigDecimal.ZERO, 4096, interviewTimeout, null, null);
+    }
+
     private static boolean isInterview(String task) {
         return "INTERVIEW_GEN".equals(task) || "INTERVIEW_NLP".equals(task);
     }
@@ -404,10 +484,14 @@ public class DynamicAiConfigProvider {
             } catch (Exception ex) {
                 log.warn("Could not decrypt API key for provider {}: {}", normalizedProvider, ex.getMessage());
             }
-        } else {
-            log.warn("No active API key for provider {} (task {}) in Master DB", normalizedProvider, task);
         }
-        return "";
+        if ("INTERVIEW_STT".equals(task) || "INTERVIEW_TTS".equals(task) || "CODE_GRADING".equals(task)) {
+            return "";
+        }
+        if ("GEMINI".equalsIgnoreCase(normalizedProvider)) {
+            return isInterview(task) ? ("GEMINI".equalsIgnoreCase(interviewProvider) ? interviewKey : interviewSpeechKey) : fallbackGeminiKey;
+        }
+        return isInterview(task) && normalizedProvider.equalsIgnoreCase(interviewProvider) ? interviewKey : "";
     }
 
     private String resolveApiKeyForProvider(String provider, String task) {

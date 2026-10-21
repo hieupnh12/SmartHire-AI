@@ -91,6 +91,9 @@ public class InterviewConversationClient {
         String targetProvider = (primary.failoverProvider() == null || primary.failoverProvider().isBlank())
                 ? primary.provider()
                 : primary.failoverProvider().trim().toUpperCase();
+        if (primary.failoverModel() == null || primary.failoverModel().isBlank()) {
+            return java.util.Optional.empty();
+        }
         String targetModel = primary.failoverModel().trim();
         if ("GEMINI".equalsIgnoreCase(targetProvider) && !targetModel.equalsIgnoreCase(primaryModel)) {
             return java.util.Optional.of(new DynamicAiConfigProvider.ResolvedAiConfig(

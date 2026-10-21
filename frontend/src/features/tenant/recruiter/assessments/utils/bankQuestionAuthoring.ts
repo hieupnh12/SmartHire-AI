@@ -16,6 +16,7 @@ export function bankQuestionAuthoring(item: ApiBankQuestion): BankQuestion {
     skill: question.skill ?? "", difficulty: question.difficulty ?? "",
     difficultyTone: question.difficulty === "Easy" ? "easy" : question.difficulty === "Hard" ? "hard" : "medium",
     explanation: question.explanation ?? "", answer: answers.join(","),
+    sample: question.rubricJson?.referenceAnswer ?? metadata?.sample ?? (kind === "TU_LUAN_CODE" ? question.explanation ?? "" : ""),
     optionA: question.options[0]?.optionText ?? "", optionB: question.options[1]?.optionText ?? "",
     optionC: question.options[2]?.optionText ?? "", optionD: question.options[3]?.optionText ?? "",
   };

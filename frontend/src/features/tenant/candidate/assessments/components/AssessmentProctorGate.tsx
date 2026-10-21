@@ -6,6 +6,7 @@ import {
   stopProctorSession,
   type ProctorSession,
 } from "@/features/tenant/candidate/interviews/utils/proctorDevices";
+import { expandExamToScreen } from "../utils/examFullscreen";
 
 export type { ProctorSession };
 export { stopProctorSession };
@@ -21,7 +22,6 @@ export function AssessmentProctorGate({ busy, label = "Bắt đầu làm bài", 
   const [preparing, setPreparing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
-  const [enableCamera, setEnableCamera] = useState(false);
   const prepared = useRef<ProctorSession | null>(null);
   const mounted = useRef(true);
   const preparingRef = useRef(false);
@@ -43,7 +43,7 @@ export function AssessmentProctorGate({ busy, label = "Bắt đầu làm bài", 
     let handedOff: ProctorSession | null = null;
     try {
       if (!prepared.current) {
-        const devices = await prepareProctorDevices(enableCamera);
+        const devices = await prepareProctorDevices(true, "monitor");
         if (!mounted.current) {
           stopProctorSession(devices);
           return;
@@ -52,19 +52,20 @@ export function AssessmentProctorGate({ busy, label = "Bắt đầu làm bài", 
         setReady(true);
         return;
       }
+      const live = (tracks: MediaStreamTrack[]) => tracks.some((track) => track.readyState === "live");
       if (
-        [...prepared.current.camera.getAudioTracks(), ...prepared.current.screen.getTracks()].some(
-          (track) => track.readyState !== "live",
-        )
+        !live(prepared.current.camera.getVideoTracks()) ||
+        !live(prepared.current.camera.getAudioTracks()) ||
+        !live(prepared.current.screen.getVideoTracks())
       ) {
-        throw new Error("Thiết bị hoặc chia sẻ tab làm bài đã dừng. Hãy kiểm tra thiết bị lại.");
+        throw new Error("Camera, microphone hoặc chia sẻ màn hình đã dừng. Hãy kiểm tra thiết bị lại.");
       }
       if (!document.documentElement.requestFullscreen) {
         throw new Error("Trình duyệt không hỗ trợ chế độ toàn màn hình.");
       }
-      await document.documentElement.requestFullscreen();
-      if (!mounted.current) return;
       const devices = prepared.current;
+      await expandExamToScreen(devices);
+      if (!mounted.current) return;
       handedOff = devices;
       prepared.current = null;
       await onReady(devices);
@@ -91,10 +92,10 @@ export function AssessmentProctorGate({ busy, label = "Bắt đầu làm bài", 
           <Mic className="size-3.5 text-[var(--color-primary)]" aria-hidden="true" /> Microphone
         </span>
         <span className="inline-flex items-center gap-1.5 rounded-lg bg-white px-2.5 py-1.5">
-          <MonitorUp className="size-3.5 text-[var(--color-primary)]" aria-hidden="true" /> Chia sẻ tab
+          <MonitorUp className="size-3.5 text-[var(--color-primary)]" aria-hidden="true" /> Cả màn hình
         </span>
         <span className="inline-flex items-center gap-1.5 rounded-lg bg-white px-2.5 py-1.5">
-          <Camera className="size-3.5 text-[var(--color-primary)]" aria-hidden="true" /> Camera (tuỳ chọn)
+          <Camera className="size-3.5 text-[var(--color-primary)]" aria-hidden="true" /> Camera
         </span>
       </div>
       <label className="flex cursor-pointer items-start gap-3 rounded-xl bg-white p-3 text-sm leading-6">
@@ -110,16 +111,9 @@ export function AssessmentProctorGate({ busy, label = "Bắt đầu làm bài", 
             setReady(false);
           }}
         />
-        <span>Cho phép microphone, chia sẻ tab làm bài và ghi nhận vi phạm trong phiên thi.</span>
-      </label>
-      <label className="flex items-center gap-2 px-1 text-sm text-[var(--color-on-surface-variant)]">
-        <input
-          type="checkbox"
-          checked={enableCamera}
-          disabled={preparing || ready}
-          onChange={(event) => setEnableCamera(event.target.checked)}
-        />
-        Bật camera (tuỳ chọn)
+        <span>
+          Cho phép camera, microphone và chia sẻ toàn bộ màn hình trong suốt bài thi. Tắt thiết bị, để khuôn mặt ra khỏi khung, hoặc có thêm người trong khung camera được tính là vi phạm.
+        </span>
       </label>
       {error && (
         <p className="rounded-lg bg-[var(--color-error-container)] p-3 text-sm text-[var(--color-on-error-container)]" role="alert">

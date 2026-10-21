@@ -78,6 +78,37 @@ class MasterAiConfigServiceTest {
     }
 
     @Test
+    void nativeSpeechUsesDedicatedInterviewFallbackInsteadOfCvKey() {
+        org.springframework.test.util.ReflectionTestUtils.setField(configProvider, "interviewSpeechKey", "speech-key");
+        var speech = configProvider.resolveInterviewSpeechConfig();
+        assertThat(speech.provider()).isEqualTo("GEMINI");
+        assertThat(speech.apiKey()).isEqualTo("speech-key");
+        assertThat(speech.modelName()).isEqualTo("gemini-3.1-flash-lite");
+        verify(modelConfigRepository, never()).findByTaskType(anyString());
+    }
+
+    @Test
+    void nativeSpeechWithoutGeminiKeyDoesNotUseOpenAiOrCvKey() {
+        assertThat(configProvider.resolveInterviewSpeechConfig().apiKey()).isEmpty();
+    }
+
+    @Test
+    void nativeSpeechWithGeminiTextProviderUsesInterviewKey() {
+        org.springframework.test.util.ReflectionTestUtils.setField(configProvider, "interviewProvider", "GEMINI");
+        assertThat(configProvider.resolveInterviewSpeechConfig().apiKey()).isEqualTo("interview-key");
+    }
+
+    @Test
+    void nativeSpeechPrefersActiveGeminiKeyRegardlessOfChatProvider() {
+        var key = new AiProviderKey(); key.setApiKeyEncrypted("encrypted-speech-key");
+        when(providerKeyRepository.findFirstByProviderAndIsDefaultTrueAndStatus("GEMINI", "ACTIVE"))
+                .thenReturn(Optional.of(key));
+        when(credentialService.decrypt("MASTER_AI_KEY", "encrypted-speech-key")).thenReturn("speech-key");
+        assertThat(configProvider.resolveInterviewSpeechConfig().apiKey()).isEqualTo("speech-key");
+        verify(modelConfigRepository, never()).findByTaskType(anyString());
+    }
+
+    @Test
     void customProviderTestConnectionUsesModelDiscoveredFromEndpoint() {
         var builder = RestClient.builder();
         var server = MockRestServiceServer.bindTo(builder).build();
@@ -111,11 +142,12 @@ class MasterAiConfigServiceTest {
     }
 
     @Test
-    void missingInterviewTaskIsNotConfigured() {
+    void interviewFallbackDoesNotReuseCvCredentialsOrModel() {
         when(modelConfigRepository.findByTaskType("INTERVIEW_NLP")).thenReturn(java.util.Optional.empty());
         var result = configProvider.resolveConfig("INTERVIEW_NLP");
-        assertThat(result.apiKey()).isEmpty();
-        assertThat(result.modelName()).isNull();
+        assertThat(result.apiKey()).isEqualTo("interview-key");
+        assertThat(result.provider()).isEqualTo("OPENAI");
+        assertThat(result.modelName()).isEqualTo("vanilj/llama-3-8b-instruct-32k-v0.1:Q4_K_M");
     }
 
     @Mock
@@ -148,7 +180,8 @@ class MasterAiConfigServiceTest {
                 providerKeyRepository,
                 credentialService,
                 redisService,
-                mapper
+                mapper, "fallback-key", "gemini-2.0-flash", 30,
+                "interview-key", "vanilj/llama-3-8b-instruct-32k-v0.1:Q4_K_M", 60
         );
         aiConfigService = new MasterAiConfigService(
                 providerKeyRepository,
@@ -235,9 +268,9 @@ class MasterAiConfigServiceTest {
         when(modelConfigRepository.findByTaskType("CV_PARSING")).thenReturn(Optional.empty());
 
         DynamicAiConfigProvider.ResolvedAiConfig config = configProvider.resolveConfig("CV_PARSING");
-        assertThat(config.provider()).isNull();
-        assertThat(config.modelName()).isNull();
-        assertThat(config.apiKey()).isEmpty();
+        assertThat(config.provider()).isEqualTo("GEMINI");
+        assertThat(config.modelName()).isEqualTo("gemini-2.0-flash");
+        assertThat(config.apiKey()).isEqualTo("fallback-key");
         verify(redisService, never()).set(anyString(), any(), any());
     }
 

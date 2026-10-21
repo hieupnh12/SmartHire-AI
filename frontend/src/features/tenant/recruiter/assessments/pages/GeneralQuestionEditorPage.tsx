@@ -1,4 +1,4 @@
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 import { getTenantIdFromWindow } from "@/lib/tenant";
@@ -16,12 +16,14 @@ export function GeneralQuestionEditorPage() {
   const userId = useAuthStore(state => state.user?.id);
   const keys = questionBankLocalKeys(getTenantIdFromWindow() ?? "acme", userId);
   const { questionId } = useParams();
+  const [search] = useSearchParams();
+  const generationId = search.get("generation");
   const navigate = useNavigate();
   const client = useQueryClient();
   const editingQuery = useQuery({ queryKey: [...queryKeys.assessments.all(), "bank-question", questionId],
     queryFn: () => questionBankApi.get(Number(questionId)), enabled: !!questionId });
   const editing = editingQuery.data;
-  const draftKey = questionId ? `${keys.draft}:${questionId}` : keys.draft;
+  const draftKey = questionId ? `${keys.draft}:${questionId}` : generationId ? `${keys.draft}:ai:${generationId}` : keys.draft;
   const save = useMutation({
     mutationFn: async (questions: BankQuestion[]) => {
       const rows = validateExcelQuestions(questions);

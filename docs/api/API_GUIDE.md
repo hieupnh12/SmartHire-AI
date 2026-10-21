@@ -196,6 +196,8 @@ Xem [contract và business rules](../features/Authentication/Tenant-Onboarding.m
 
 ## Ngân hàng câu hỏi chung
 
+Sinh câu hỏi AI: `POST /question-bank/generation` nhận `{skill, questionType, difficulty, count, language, instructions}`, số câu 1–5; trả 202 và `{id, status, questions, error}`. `GET /question-bank/generation/{id}` theo dõi `PENDING/RUNNING/READY/FAILED`, chỉ chủ yêu cầu trong cùng tenant được đọc (Redis TTL 2 giờ). Model mặc định `vanilj/llama-3-8b-instruct-32k-v0.1:Q4_K_M`, task `ASSESSMENT_GEN`, xử lý RabbitMQ. Kết quả là bản nháp để staff kiểm tra và lưu qua `/question-bank/create_questions`, không tự ghi câu hỏi hoặc xuất bản đề. Xem cấu hình endpoint/model trong [ASSESS-01](../features/Technical-Assessment/Multiple-Choice-Test.md#sinh-câu-hỏi-ngân-hàng-bằng-llama--16102026).
+
 API `/question-bank/*` dành cho staff trong đúng tenant, dùng token và `X-Tenant-ID`. Xem contract, body và lỗi tại [ASSESS-01](../features/Technical-Assessment/Multiple-Choice-Test.md#ngân-hàng-câu-hỏi-chung-recruiter). Cần tenant migration V41 trước khi sử dụng; câu đã thuộc assessment chỉ được sửa ở assessment gốc.
 
 ## Tạo assessment tự động theo cấu hình job
@@ -217,3 +219,5 @@ Test metadata/cấu hình sinh đề thêm `objectiveDurationMinutes` tùy chọ
 | POST | `/submissions/{id}/retry_grading` | Staff; retry các câu chưa có điểm gợi ý/điểm duyệt |
 
 Chấm tự động dùng RabbitMQ và TenantJobExecutor (X-Tenant-ID). Điểm đề xuất chưa được công bố cho candidate; chỉ tổng điểm chính thức sau khi mọi câu được duyệt. Sandbox chưa cấu hình/lỗi trả SANDBOX_UNAVAILABLE (503) ở run_samples, không biến lỗi dịch vụ thành điểm 0.
+
+AI chấm tự luận/review code dùng task `ASSESSMENT_GRADING`: ưu tiên cấu hình `CODE_GRADING` trong Master DB khi task này tồn tại; nếu chưa có, giữ model `vanilj/llama-3-8b-instruct-32k-v0.1:Q4_K_M` và kết nối `AI_ASSESSMENT_*` dùng chung với sinh câu hỏi (`ASSESSMENT_GEN`). Rate-limit/metering theo task Assessment, không dùng `INTERVIEW_NLP`. Chạy testcase vẫn do sandbox thực hiện; tỷ lệ điểm code 80% testcase + 20% AI review và bước recruiter duyệt điểm giữ nguyên.

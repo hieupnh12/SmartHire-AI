@@ -81,10 +81,10 @@ Nút kiểm tra API Key không truyền `modelName`: với endpoint OpenAI tùy 
 ## Provider tương thích OpenAI / Llama (2026-10-15)
 
 - Trạng thái transport/chấm/âm thanh backend: `Done` — 58 kiểm thử liên quan thành công; smoke test dữ liệu giả trên endpoint thực tế xác nhận streaming, toàn bộ luồng tính điểm/báo cáo, TTS và STT. Đã khôi phục chấm lại phiên lỗi và xác minh điểm/báo cáo được lưu. Frontend build thành công; thao tác micro thực tế trên trình duyệt ứng viên vẫn cần kiểm chứng.
-- Hội thoại streaming, chấm transcript và engine cũ hỗ trợ `GEMINI` và các provider tương thích OpenAI: `OPENAI`, `DEEPSEEK`, `GROQ`, `OPENROUTER`, `MISTRAL`, `PERPLEXITY`, `XAI`, `OLLAMA` (mặc định `http://localhost:11434/v1`, key có thể để trống) và `CUSTOM` (bắt buộc nhập Endpoint URL trên API key, thiếu thì báo lỗi cấu hình). Với Llama qua LiteLLM/ngrok, chọn `CUSTOM` hoặc `OLLAMA` (hoặc `OPENAI`) kèm endpoint ngrok và model đúng cho cả `INTERVIEW_GEN` / `INTERVIEW_NLP`. `ANTHROPIC`, `CURSOR`, `HUGGINGFACE` chưa hỗ trợ cho AI Interview.
+- Hội thoại streaming, chấm transcript và engine cũ hỗ trợ `GEMINI`, `OPENAI`, `DEEPSEEK`, `GROQ`, `OPENROUTER`, `MISTRAL`, `PERPLEXITY`, `XAI`, `OLLAMA` và `CUSTOM`. Với Llama qua API tương thích OpenAI, chọn `OPENAI`, `OLLAMA` hoặc `CUSTOM` và model đúng cho cả `INTERVIEW_GEN` / `INTERVIEW_NLP`; `CUSTOM` bắt buộc có endpoint.
 - Endpoint nhận base URL (`https://host/v1`) hoặc URL đầy đủ (`https://host/v1/chat/completions`); backend chuẩn hóa để không lặp `/chat/completions`.
-- Provider, model, endpoint và key **chỉ** lấy từ Master DB qua `/admin/system/ai-config` (bảng `ai_model_configs` + `ai_provider_keys`). Backend không còn đọc `.env` cho key/model (đã bỏ `AI_INTERVIEW_PROVIDER/MODEL/BASE_URL/API_KEY`, `AI_INTERVIEW_GEMINI_*`, `AI_INTERVIEW_CONVERSATION_MODEL`, `AI_INTERVIEW_TTS_MODEL`). Task thiếu cấu hình, bị tắt hoặc chưa có key → lỗi "not configured", không gọi provider.
-- Llama xử lý hội thoại và chấm điểm. STT dùng task `INTERVIEW_STT`, TTS dùng task `INTERVIEW_TTS` (Master V34 seed, provider bắt buộc `GEMINI`, key lấy từ key Gemini mặc định ACTIVE). Thiếu cấu hình → `409 AI_INTERVIEW_SPEECH_UNAVAILABLE`.
+- Model, key và endpoint chat ưu tiên task trong Master DB; khi chưa có task, giữ fallback `AI_INTERVIEW_PROVIDER/MODEL/BASE_URL/API_KEY` để tương thích cấu hình hiện tại. Task bị tắt không dùng fallback. `AI_INTERVIEW_CONVERSATION_MODEL` không còn override model chat. Không dùng key Gemini dự phòng cho endpoint OpenAI.
+- Llama xử lý hội thoại và chấm điểm. STT/TTS native dùng task `INTERVIEW_STT` / `INTERVIEW_TTS` trong Master DB (Master V34), provider `GEMINI` và key Gemini ACTIVE; không dùng key Llama hoặc key CV dự phòng cho âm thanh. Thiếu cấu hình speech báo lỗi cấu hình; không dùng biến môi trường thay task speech.
 - Lỗi âm thanh HTTP 502/503/504 được thử lại tối đa một lần. Nếu TTS backend không khả dụng, nút “Nghe AI” dùng Speech Synthesis của trình duyệt và thông báo rõ. Bắt đầu ghi âm sẽ dừng giọng đọc; transcript vẫn cần được ứng viên kiểm tra trước khi gửi.
 - Chấm transcript thu nhận JSON qua streaming nội bộ, tối đa 180 giây và 32.000 ký tự; không công bố kết quả từng phần. Provider tương thích OpenAI nhận JSON Schema ràng buộc đủ bốn tiêu chí, kiểu số và bằng chứng; backend vẫn kiểm tra độc lập. Request tuân theo `maxTokens` của task, chỉ gửi ngữ cảnh Job và transcript (không gửi các quy trình cấu hình không dùng). Kiểm tra điểm 0–100, trích dẫn chính xác từ USER và nhận xét hợp lệ trước khi lưu báo cáo.
 - Giao diện recruiter hiển thị `candidateTurns/maxTurns` từ phiên hội thoại, không dùng số bản ghi `ai_questions` của engine cũ làm tiến độ.
@@ -97,7 +97,7 @@ Attempt mới có `conversationVersion=1`: phòng chat lưu InterviewSession/Int
 
 Voice: MediaRecorder gửi audio chunk qua WebSocket, Gemini STT backend chuyển ngữ sau khi dừng; candidate kiểm tra transcript trước khi gửi. Nghe AI dùng TTS API; audio USER được lưu riêng tư nếu Record Audio bật, lỗi upload có nút thử lại. Streaming là text response, chưa bật Live Audio hai chiều hoặc nhận dạng từng fragment độc lập.
 
-Native config: `AI_INTERVIEW_NATIVE_BASE_URL=https://generativelanguage.googleapis.com/v1beta` (hạ tầng). Model dialogue/evaluation theo `INTERVIEW_GEN`/`INTERVIEW_NLP`, STT theo `INTERVIEW_STT`, TTS theo `INTERVIEW_TTS`; key chỉ từ Master DB (từ 2026-10-15, không còn override/fallback env). Kiểm tra Google ngày 2026-10-03: 2.5-flash trả 404 (không còn mở cho người dùng mới), 3.8-flash trả 503 quá tải; 3.7-flash streaming/STT và 3.8-flash-tts trả 200. `.env` local chọn model đã kiểm chứng, không commit key. Có tên trong list models không chứng minh gọi generateContent được.
+Native config: `AI_INTERVIEW_NATIVE_BASE_URL=https://generativelanguage.googleapis.com/v1beta` (hạ tầng). Chat và chấm transcript ưu tiên `INTERVIEW_GEN`/`INTERVIEW_NLP` trong Master DB, giữ fallback môi trường khi chưa có task. STT/TTS chỉ dùng `INTERVIEW_STT`/`INTERVIEW_TTS` và key Gemini ACTIVE trong Master DB; không override model speech bằng model chat.
 
 Native HTTP connect 5s/read 45s; SSE tối đa 90s, không tự retry stream để tránh lặp lượt. Proxy tắt buffering SSE và hỗ trợ WebSocket upgrade. Trạng thái `Doing`: cần migrate V44 và E2E candidate/tenant thật trước Done. Mô tả Process V2/Web Speech API bên dưới chỉ áp dụng legacy.
 
@@ -326,9 +326,11 @@ Ví dụ: Backend giải thích REST API cho khách hàng không kỹ thuật; D
 - Cấu hình local tại `artifacts/litellm-interview-local.yaml` dùng `LITELLM_MASTER_KEY` từ môi trường, không chứa secret. Script `deploy/scripts/start-interview-ai.ps1` đọc `AI_INTERVIEW_API_KEY` trong `backend/.env`, thiết lập UTF-8 và chạy LiteLLM ẩn ở cổng 8000. Chỉ chạy script khi cổng 8000 chưa có dịch vụ; giữ lệnh ngrok hiện có.
 - Kiểm chứng trực tiếp qua URL ngrok và key env: HTTP 200, có lời chào/câu hỏi mẫu và SSE kết thúc `finish_reason=stop`. Chưa kiểm chứng lại phiên candidate 27 qua giao diện hoặc cấu hình task/key đã lưu trong Master AI.
 
-- Từ 2026-10-15 backend không còn đọc `AI_INTERVIEW_PROVIDER/MODEL/BASE_URL/API_KEY`. Trong `/admin/system/ai-config`: thêm provider key `OPENAI` ACTIVE, mặc định, endpoint `https://linked-flagpole-many.ngrok-free.dev/v1`; đặt `INTERVIEW_GEN` và `INTERVIEW_NLP` = `OPENAI / vanilj/llama-3-8b-instruct-32k-v0.1:Q4_K_M`.
-- STT/TTS cấu hình ở task `INTERVIEW_STT` / `INTERVIEW_TTS` (provider `GEMINI`) với key Gemini mặc định ACTIVE; không dùng key Llama cho speech.
-- `AI_INTERVIEW_API_KEY` trong `backend/.env` chỉ còn dùng cho script LiteLLM local. Trạng thái `Doing`: chưa kiểm chứng endpoint ngrok thật.
+- `AI_INTERVIEW_PROVIDER=OPENAI`, `AI_INTERVIEW_MODEL=vanilj/llama-3-8b-instruct-32k-v0.1:Q4_K_M`.
+- `AI_INTERVIEW_BASE_URL=https://linked-flagpole-many.ngrok-free.dev/v1/chat/completions`; key riêng qua `AI_INTERVIEW_API_KEY` trong môi trường chạy.
+- Để trống `AI_INTERVIEW_CONVERSATION_MODEL`. Sinh câu hỏi, chấm điểm và hội thoại dùng cấu hình task; fallback env dùng Llama. Master AI/cache vẫn ưu tiên hơn fallback env, cần đồng bộ `INTERVIEW_GEN` và `INTERVIEW_NLP` nếu đang lưu model khác.
+- Gemini phục vụ STT/TTS qua task `INTERVIEW_STT` / `INTERVIEW_TTS` trong Master DB; không dùng key Llama cho speech.
+- Load lại biến môi trường và khởi động lại backend. Trạng thái `Doing`: chưa kiểm chứng endpoint ngrok thật.
 
 
 Với `schemaVersion = 2`, hệ thống chỉ sinh câu hỏi chính của process hiện tại. Mỗi câu được lưu cùng `referenceAnswer`
