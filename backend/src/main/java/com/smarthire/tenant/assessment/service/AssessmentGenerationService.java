@@ -13,7 +13,6 @@ import com.smarthire.tenant.cv.service.CvAccess;
 import com.smarthire.tenant.notification.service.NotificationPreferenceService;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.time.Instant;
 import java.util.*;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -29,7 +28,6 @@ public class AssessmentGenerationService {
     private final QuestionRepository questions;
     private final OptionRepository options;
     private final ApplicationRepository applications;
-    private final AiInterviewRepository interviews;
     private final NotificationRepository notifications;
     private final EmailOutboxRepository outbox;
     private final CvAccess access;
@@ -39,10 +37,10 @@ public class AssessmentGenerationService {
 
     public AssessmentGenerationService(JobRepository jobs, JobTestRepository tests, JobSkillRepository skills,
             QuestionRepository questions, OptionRepository options, ApplicationRepository applications,
-            AiInterviewRepository interviews, NotificationRepository notifications, EmailOutboxRepository outbox,
+            NotificationRepository notifications, EmailOutboxRepository outbox,
             CvAccess access, AssessmentMapper mapper, ObjectMapper json, NotificationPreferenceService preferences) {
         this.jobs = jobs; this.tests = tests; this.skills = skills; this.questions = questions; this.options = options;
-        this.applications = applications; this.interviews = interviews; this.notifications = notifications;
+        this.applications = applications; this.notifications = notifications;
         this.outbox = outbox; this.access = access; this.mapper = mapper; this.json = json; this.preferences = preferences;
     }
 
@@ -56,8 +54,7 @@ public class AssessmentGenerationService {
     public AutomationStatus status(long jobId) {
         Job job = staffJob(jobId);
         var config = readConfig(job);
-        var eligible = eligibleApplications(jobId).stream()
-                .filter(id -> interviews.existsByApplication_IdAndStatus(id, AiInterviewStatus.PASSED)).toList();
+        var eligible = eligibleApplications(jobId);
         int generated = (int) eligible.stream().filter(tests::existsByAssignedApplication_Id).count();
         String error = null;
         if (config != null) {
@@ -99,8 +96,7 @@ public class AssessmentGenerationService {
             var config = readConfig(job);
             if (config == null || !config.autoAssign()) continue;
             for (var id : eligibleApplications(job.getId())) {
-                if (!tests.existsByAssignedApplication_Id(id)
-                        && interviews.existsByApplication_IdAndStatus(id, AiInterviewStatus.PASSED)) ids.add(id);
+                if (!tests.existsByAssignedApplication_Id(id)) ids.add(id);
                 if (ids.size() == 50) return ids;
             }
         }
@@ -114,12 +110,11 @@ public class AssessmentGenerationService {
                 || application.getArchivedAt() != null || application.getWithdrawnAt() != null
                 || application.getJob().getDeletedAt() != null || tests.existsByAssignedApplication_Id(id)) return false;
         var config = readConfig(application.getJob());
-        if (config == null || !config.autoAssign()
-                || !interviews.existsByApplication_IdAndStatus(id, AiInterviewStatus.PASSED)) return false;
+        if (config == null || !config.autoAssign()) return false;
         JobTest test = create(application.getJob(), config, application, application.getJob().getCreatedBy());
         String path = "/candidate/assessments?applicationId=" + id;
         String title = "Bài Assessment đã sẵn sàng";
-        String body = "Bạn đã vượt qua AI Interview cho vị trí " + test.getJob().getTitle()
+        String body = "Bạn đã vượt qua vòng lọc CV cho vị trí " + test.getJob().getTitle()
                 + ". Bài \"" + test.getTitle() + "\" đã được tạo riêng cho bạn. Thời gian làm bài "
                 + test.getDurationMinutes() + " phút, tính từ lúc bắt đầu.";
         if (!preferences.webOff(application.getCandidate(), NotificationCategory.ASSESSMENT)) {
@@ -140,11 +135,8 @@ public class AssessmentGenerationService {
     private JobTest create(Job job, AssessmentConfigRequest config, Application application, User creator) {
         var selected = select(job, config);
         int total = config.sections().stream().mapToInt(s -> s.count() * s.points()).sum();
-        String title = "Assessment — " + job.getTitle();
-        title = title.substring(0, Math.min(title.length(), 180));
-        if (application != null) title += " — HS " + application.getId();
         var test = JobTest.builder().job(job).assignedApplication(application).createdBy(creator)
-                .title(title + " — " + Instant.now().toString().substring(0, 16))
+                .title(shortTitle(job.getTitle()))
                 .description("Tạo tự động từ ngân hàng câu hỏi theo cấu hình của job.")
                 .durationMinutes(config.durationMinutes()).objectiveDurationMinutes(config.objectiveDurationMinutes())
                 .passingScore(BigDecimal.valueOf(total).multiply(BigDecimal.valueOf(config.passingPercent()))
@@ -168,6 +160,14 @@ public class AssessmentGenerationService {
             }
         }
         return test;
+    }
+
+    /** Short display title from job name only (no Assessment/HS/timestamp suffix). */
+    static String shortTitle(String jobTitle) {
+        String base = jobTitle == null || jobTitle.isBlank() ? "Bài đánh giá" : jobTitle.trim();
+        String withoutParen = base.replaceAll("\\s*\\([^)]*\\)\\s*$", "").trim();
+        if (!withoutParen.isBlank()) base = withoutParen;
+        return base.length() <= 180 ? base : base.substring(0, 180).trim();
     }
 
     private record Selected(Question source, int points) {}

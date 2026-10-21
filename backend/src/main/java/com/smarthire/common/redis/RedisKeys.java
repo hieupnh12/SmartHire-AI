@@ -44,6 +44,10 @@ public final class RedisKeys {
         return "lock:cv:analyze:" + cvId;
     }
 
+    public static String githubAnalyzeLock(Long cvId) {
+        return "lock:github:analyze:" + cvId;
+    }
+
     public static String masterRefreshSession(String tokenId) {
         return "auth:master:refresh:" + tokenId;
     }

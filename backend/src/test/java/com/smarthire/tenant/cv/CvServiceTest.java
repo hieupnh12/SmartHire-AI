@@ -50,6 +50,7 @@ class CvServiceTest {
     @Mock CvSkillRepository cvSkills;
     @Mock CvAnalysisRepository analyses;
     @Mock MatchScoreRepository scores;
+    @Mock com.smarthire.domain.tenant.repository.GithubAnalysisRepository githubAnalyses;
     @Mock RankingDataRepository rankingData;
     @Mock FileStorageService storage;
     @Mock JobPublisher publisher;
@@ -66,7 +67,7 @@ class CvServiceTest {
     void setUp() {
         service = new CvService(
                 cvs, jobs, users, applications, documents, extractions, cvSkills, analyses, scores,
-                rankingData, storage, publisher, access, mapper, matching, pipeline, tenants,
+                githubAnalyses, rankingData, storage, publisher, access, mapper, matching, pipeline, tenants,
                 renderer, new ObjectMapper(), 10_485_760);
     }
 

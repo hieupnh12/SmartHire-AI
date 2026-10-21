@@ -1,4 +1,4 @@
-import { BriefcaseBusiness, CheckCircle2, CircleHelp, GraduationCap, Lightbulb, MinusCircle, Sparkles, XCircle } from "lucide-react";
+import { BriefcaseBusiness, CheckCircle2, ChevronDown, CircleHelp, GraduationCap, Lightbulb, MinusCircle, Sparkles, XCircle } from "lucide-react";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import type { MatchBreakdown, RequirementMatch, RequirementStatus } from "@/api/types/cv";
@@ -69,10 +69,12 @@ export function ScreeningBreakdown({
   score,
   modelVersion,
   breakdown,
+  wide = false,
 }: {
   score: number;
   modelVersion?: string | null;
   breakdown: MatchBreakdown | null | undefined;
+  wide?: boolean;
 }) {
   if (!breakdown && score == null) return null;
   const passed = breakdown?.passed === true;
@@ -87,8 +89,10 @@ export function ScreeningBreakdown({
         ? `Điểm thấp hơn ngưỡng ${formatScore(threshold)}.`
         : "Chưa đạt điều kiện sàng lọc.";
 
+  const pair = wide ? "grid items-start gap-5 lg:grid-cols-2" : "space-y-5";
   return (
     <div className="space-y-5">
+      <div className={pair}>
       <div className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
@@ -132,25 +136,31 @@ export function ScreeningBreakdown({
         </div>
       </div>
 
-      {breakdown?.verdict && (
-        <div className="rounded-2xl bg-[var(--color-primary-subtle)] p-4">
-          <div className="flex items-center gap-2 text-sm font-semibold">
-            <Sparkles className="size-4 text-[var(--color-primary)]" aria-hidden="true" />
-            Nhận xét của AI
+      <div className="space-y-5">
+        {breakdown?.verdict && (
+          <div className="rounded-2xl bg-[var(--color-primary-subtle)] p-4">
+            <div className="flex items-center gap-2 text-sm font-semibold">
+              <Sparkles className="size-4 text-[var(--color-primary)]" aria-hidden="true" />
+              Nhận xét của AI
+            </div>
+            <p className="mt-2 text-sm leading-relaxed text-[var(--color-on-surface)]">{screeningCopy(breakdown.verdict)}</p>
           </div>
-          <p className="mt-2 text-sm leading-relaxed text-[var(--color-on-surface)]">{screeningCopy(breakdown.verdict)}</p>
-        </div>
-      )}
-
-      {breakdown && <AdviceBlock breakdown={breakdown} />}
+        )}
+        {breakdown && <AdviceBlock breakdown={breakdown} />}
+      </div>
+      </div>
 
       <ComponentBars breakdown={breakdown} />
-
       <FitTiles breakdown={breakdown} />
 
-      <RequirementList title="Khớp yêu cầu" items={breakdown?.matched} />
-      <RequirementList title="Khớp một phần" items={breakdown?.partialMatches} />
-      <RequirementList title="Thiếu so với yêu cầu" items={breakdown?.missing} />
+      <RequirementGroups
+        wide={wide}
+        groups={[
+          { title: "Khớp yêu cầu", items: breakdown?.matched },
+          { title: "Khớp một phần", items: breakdown?.partialMatches },
+          { title: "Thiếu so với yêu cầu", items: breakdown?.missing },
+        ]}
+      />
     </div>
   );
 }
@@ -270,12 +280,46 @@ function FitTile({ icon: Icon, label, value, requirement, match }: {
   );
 }
 
-function RequirementList({ title, items }: { title: string; items?: RequirementMatch[] }) {
-  if (!items || items.length === 0) return null;
+function RequirementGroups({ wide, groups }: { wide: boolean; groups: Array<{ title: string; items?: RequirementMatch[] }> }) {
+  const visible = groups.filter((group) => group.items && group.items.length > 0);
+  if (visible.length === 0) return null;
+  const columns = !wide || visible.length === 1
+    ? "grid-cols-1"
+    : visible.length === 2
+      ? "lg:grid-cols-2"
+      : "lg:grid-cols-3";
   return (
-    <div className="space-y-2">
-      <h3 className="text-sm font-semibold">{title} <span className="font-normal text-[var(--color-on-surface-variant)]">· {items.length}</span></h3>
-      <ul className="divide-y divide-[var(--color-surface-container-low)] rounded-2xl border border-[var(--color-border-default)]">
+    <div className={cn("grid items-start gap-4", columns)}>
+      {visible.map((group) => (
+        <RequirementList key={group.title} title={group.title} items={group.items ?? []} />
+      ))}
+    </div>
+  );
+}
+
+function RequirementList({ title, items }: { title: string; items: RequirementMatch[] }) {
+  return (
+    <details className="group rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)]">
+      <summary className="cursor-pointer list-none px-4 py-3 [&::-webkit-details-marker]:hidden">
+        <span className="flex items-center justify-between gap-3">
+          <span className="text-sm font-semibold">
+            {title} <span className="font-normal text-[var(--color-on-surface-variant)]">· {items.length}</span>
+          </span>
+          <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-[var(--color-on-surface-variant)]">
+            <span className="group-open:hidden">Xem chi tiết</span>
+            <span className="hidden group-open:inline">Thu gọn</span>
+            <ChevronDown className="size-4 transition-transform group-open:rotate-180" aria-hidden="true" />
+          </span>
+        </span>
+        <span className="mt-3 flex flex-wrap gap-1.5 group-open:hidden">
+          {items.map((item) => (
+            <span key={`${item.requirement}-${item.status}`} className="rounded-full bg-[var(--color-surface-container-low)] px-2.5 py-1 text-xs font-medium">
+              {item.requirement}
+            </span>
+          ))}
+        </span>
+      </summary>
+      <ul className="max-h-72 divide-y divide-[var(--color-surface-container-low)] overflow-y-auto overscroll-contain border-t border-[var(--color-border-default)]">
         {items.map((item) => {
           const meta = STATUS_META[item.status] ?? STATUS_META.UNKNOWN;
           const Icon = meta.icon;
@@ -300,6 +344,6 @@ function RequirementList({ title, items }: { title: string; items?: RequirementM
           );
         })}
       </ul>
-    </div>
+    </details>
   );
 }

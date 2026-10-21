@@ -129,6 +129,7 @@ app:
       cv-extract: cv.extract
       cv-analysis: cv.analysis
       cv-matching: cv.matching
+      cv-github: cv.github
       interview-questions: interview.questions
       interview-stt: interview.stt
       interview-nlp: interview.nlp
@@ -144,6 +145,7 @@ app:
       cv-extract: cv.extract.q
       cv-analysis: cv.analysis.q
       cv-matching: cv.matching.q
+      cv-github: cv.github.q
       interview-questions: interview.questions.q
       interview-stt: interview.stt.q
       interview-nlp: interview.nlp.q
@@ -165,6 +167,22 @@ app:
     stale-days: ${APPLICATION_STALE_DAYS:30}
     cv-retention-days: ${APPLICATION_CV_RETENTION_DAYS:180}
     maintenance-cron: ${APPLICATION_MAINTENANCE_CRON:0 15 * * * *}
+  billing:
+    unpaid-cleanup-cron: ${BILLING_UNPAID_CLEANUP_CRON:0 0 * * * *}
+  github:
+    enabled: ${GITHUB_ANALYSIS_ENABLED:true}
+    token: ${GITHUB_TOKEN:}
+    max-repos: ${GITHUB_MAX_REPOS:2}
+    max-files: ${GITHUB_MAX_FILES:8}
+    max-file-bytes: ${GITHUB_MAX_FILE_BYTES:12000}
+    max-total-bytes: ${GITHUB_MAX_TOTAL_BYTES:48000}
+    max-prompt-chars: ${GITHUB_MAX_PROMPT_CHARS:60000}
+    timeout-seconds: ${GITHUB_TIMEOUT_SECONDS:12}
+    max-retries: ${GITHUB_MAX_RETRIES:2}
+    listener-concurrency: ${GITHUB_LISTENER_CONCURRENCY:1-2}
+    # Bump these when the file-selection strategy or the prompt changes so cached results are not reused.
+    strategy-version: github-v1
+    prompt-version: github-prompt-v1
   ai:
     timeout-seconds: ${CV_AI_TIMEOUT_SECONDS:90}
     # Provider, model and API key per task live only in Master DB (Admin > AI Config)

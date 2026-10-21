@@ -60,6 +60,7 @@ import { ApplicationDetailPage } from "@/features/tenant/candidate/applications/
 import { MyCvPage } from "@/features/tenant/candidate/cv/pages/MyCvPage";
 import { CvBuilderPage } from "@/features/tenant/candidate/cv/pages/CvBuilderPage";
 import { AssessmentsPage as CandidateAssessmentsPage } from "@/features/tenant/candidate/assessments/pages/AssessmentsPage";
+import { AssessmentInvitationPage } from "@/features/tenant/candidate/assessments/pages/AssessmentInvitationPage";
 import { TakeAssessmentPage } from "@/features/tenant/candidate/assessments/pages/TakeAssessmentPage";
 import { InterviewsPage as CandidateInterviewsPage } from "@/features/tenant/candidate/interviews/pages/InterviewsPage";
 import { AiInterviewRoomPage } from "@/features/tenant/candidate/interviews/pages/AiInterviewRoomPage";
@@ -170,6 +171,7 @@ export function AppRouter() {
           <Route path="/applications" element={<MyApplicationsPage />} />
           <Route path="/applications/:id" element={<ApplicationDetailPage />} />
           <Route path="/assessments" element={<CandidateAssessmentsPage />} />
+          <Route path="/assessments/:testId/invite" element={<AssessmentInvitationPage />} />
           <Route path="/interviews" element={<CandidateInterviewsPage />} />
           <Route path="/practice" element={<Navigate to="/interviews" replace />} />
           <Route path="/schedules" element={<CandidateSchedulesPage />} />
@@ -177,6 +179,7 @@ export function AppRouter() {
           <Route path="/notifications" element={<CandidateNotificationsPage />} />
           <Route path="/account" element={<CandidateAccountPage />} />
         </Route>
+        {/* Immersive exam room — no career chrome / no leave until submit */}
         <Route path="/assessments/:submissionId/take" element={<TakeAssessmentPage />} />
         <Route path="/interviews/:id" element={<AiInterviewRoomPage />} />
       </Route>

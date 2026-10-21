@@ -34,7 +34,6 @@ class AiInterviewEvaluationServiceTest {
     @Mock RecruitmentStageRepository stages;
     @Mock NotificationRepository notifications;
     @Mock EmailOutboxRepository emails;
-    @Mock JobTestRepository tests;
     @Mock AiInterviewClient ai;
     @Mock AiInterviewActivityLog activity;
     @Mock AiInterviewProcessEngine processEngine;
@@ -48,7 +47,7 @@ class AiInterviewEvaluationServiceTest {
 
     @BeforeEach void setup() {
         service = new AiInterviewEvaluationService(interviews, questions, answers, feedbacks, skills, cvs, extractions,
-                history, stages, notifications, emails, tests, ai, mapper, activity, processEngine, conversation, preferences, closures);
+                history, stages, notifications, emails, ai, mapper, activity, processEngine, conversation, preferences, closures);
         var job = new Job();
         job.setId(13L);
         job.setTitle("Java Backend Developer");
@@ -144,21 +143,21 @@ class AiInterviewEvaluationServiceTest {
 
 
 
-    @Test void passingScoreMovesApplicationToAssessment() {
+    @Test void passingScoreMovesApplicationToHumanInterview() {
         interview.setStatus(AiInterviewStatus.SCORING);
         interview.setPassingScoreSnapshot(new BigDecimal("70.00"));
 
         service.finish(interview, new BigDecimal("78.00"));
 
         assertThat(interview.getStatus()).isEqualTo(AiInterviewStatus.PASSED);
-        assertThat(application.getStatus()).isEqualTo(ApplicationStatus.ASSESSMENT);
+        assertThat(application.getStatus()).isEqualTo(ApplicationStatus.HUMAN_INTERVIEW);
         var row = ArgumentCaptor.forClass(ApplicationStatusHistory.class);
         verify(history).save(row.capture());
         assertThat(row.getValue().getFromStatus()).isEqualTo("INTERVIEW");
-        assertThat(row.getValue().getToStatus()).isEqualTo("ASSESSMENT");
+        assertThat(row.getValue().getToStatus()).isEqualTo("HUMAN_INTERVIEW");
         verify(notifications).save(any());
         verify(emails).save(any());
-        verify(activity).record(eq(interview), eq("ASSESSMENT_UNLOCKED"), anyString());
+        verify(activity).record(eq(interview), eq("HUMAN_INTERVIEW_UNLOCKED"), anyString());
     }
 
     @Test void scoreBelowThresholdFailsApplication() {
@@ -171,7 +170,7 @@ class AiInterviewEvaluationServiceTest {
         assertThat(application.getStatus()).isEqualTo(ApplicationStatus.FAILED);
         verify(history).save(any());
         verify(emails).save(any());
-        verify(activity, never()).record(eq(interview), eq("ASSESSMENT_UNLOCKED"), anyString());
+        verify(activity, never()).record(eq(interview), eq("HUMAN_INTERVIEW_UNLOCKED"), anyString());
     }
 
     @Test void failedAttemptWithRetryLeftKeepsApplicationOpenUntilDeadline() {

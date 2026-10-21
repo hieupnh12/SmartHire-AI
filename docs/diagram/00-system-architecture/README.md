@@ -220,7 +220,8 @@ Các tên có dấu `/` là đường dẫn frontend; tên có dấu `.` là pac
 
 | File | Kích thước | Ghi chú |
 | --- | --- | --- |
-| [system-architecture.png](system-architecture.png) | 4400 × 2080 px; ít nhất 300 DPI | Bản cập nhật tinh gọn: thu gọn 5 khối database/worker phía dưới, loại bỏ khoảng trắng thừa, chuẩn tỷ lệ 16:9 sắc nét. |
+| [system-architecture-clean-style.png](system-architecture-clean-style.png) | 3840 × 2160 px; ít nhất 300 DPI | **Bản phong cách tối giản hiện đại (Clean Tech-Stack)**: Bố cục 3 tầng không gian, viền xanh ngọc bo góc, sử dụng logo thương hiệu chính thức (React, Spring, DBs, Gemini, v.v.). |
+| [system-architecture.png](system-architecture.png) | 4400 × 2080 px; ít nhất 300 DPI | Bản kiến trúc chi tiết kỹ thuật: mô tả chi tiết các phân tầng, deployment, worker pool và kết nối hạ tầng. |
 | [package-diagram.png](package-diagram.png) | 4600 × 2300 px; ít nhất 300 DPI | Bố cục 4 cột mạch lạc: Users \| FrontEnd layers \| BackEnd layers \| Stores. Đã chuẩn hoá UTF-8, loại bỏ khoảng trắng thừa. |
 | [package-diagram-detailed.png](package-diagram-detailed.png) | (bản trước) | Package diagram chi tiết kiểu cũ, giữ để đối chiếu. |
 

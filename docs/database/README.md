@@ -37,15 +37,16 @@
 | AI Interview lộ trình 2026-09-28 | V35 (đánh lại từ V34 vì trùng V34 `cv application copy` của nhánh khác): cột JSON cấu hình/lộ trình trên `jobs`, snapshot + báo cáo + `attempt_number` + `expires_at` trên `ai_interviews`, rubric/trắc nghiệm trên `ai_questions`, `ai_feedbacks.evaluation_json`, index `idx_ai_interview_expiry`. Không thêm bảng, FK hay UNIQUE |
 | AI Interview API 2026-09-28 | Thêm truy vấn đếm câu hỏi theo phiên để tự cập nhật trạng thái; không đổi schema, entity, FK hay migration |
 | AI Interview workflow 2026-09-27 | V25: cấu hình AI Interview theo job, `applications.cv_screening_status`, cột worker; V26: 30–40 câu hỏi, bảng `ai_interview_logs` + entity `AiInterviewLog` |
+| Phân tích GitHub khi sàng CV 2026-10-21 | Tenant V54 tạo `github_analyses` (entity `GithubAnalysis`, 2 FK CASCADE, UNIQUE `(cv_id, job_id)`) và `github_repo_caches` (entity `GithubRepoCache`, không FK, UNIQUE repo+commit+fingerprint+strategy). Không lưu source code. Điểm GitHub tách khỏi `match_scores` |
 | Kiến trúc | Separate Database per Tenant |
 | Số database logic | 2 loại (1 Master + N Tenant) |
-| Bảng tenant sau V51 | 68 bảng (66 sau V45 + `notification_preferences` V49 + `company_email_settings` V50; V51 tạo `candidates` và xóa `user_profiles`, tổng số bảng giữ nguyên); không tính Flyway history |
-| Entity JPA tenant | 63 class `@Entity` theo checkout hiện tại; V44 bổ sung `InterviewSession`, `InterviewMessage`; V45 bổ sung `CompanyDirectoryEntry`; V49 bổ sung `NotificationPreference`; V50 bổ sung `CompanyEmailSetting`; V51 thay `UserProfile` bằng `Candidate` |
-| Khoá ngoại tenant | 91 theo mốc tài liệu (88 sau V49 − 1 FK `user_profiles` + 2 FK `candidate_id` trên `notifications` & `notification_preferences`, 6 FK ứng viên chuyển đích sang `candidates`; V53 thêm `fk_cp_question` và `fk_answer_reviewer`); V45, V50, V52 không thêm FK |
-| Ràng buộc UNIQUE tenant | V53 thêm `uk_cp_question`. V25/V26 không thêm UNIQUE. V27 thêm UNIQUE `gate_scores.application_id`. V30 thêm `uk_job_assignments_job_user`. V45 thêm `uk_company_directory_type_name`. V47 thêm `uk_cvs_share_token`. V49 thêm `uk_notification_preference_user_category`. V51 xóa `uk_profile_user`, thêm `uk_candidates_email` và `uk_notification_preference_candidate_category` |
-| Số file migration trong repo | 79 (33 master + 46 tenant); V9 redesign nằm ngoài pipeline |
+| Bảng tenant sau V54 | 70 bảng (68 sau V51 + `github_analyses` và `github_repo_caches`); không tính Flyway history |
+| Entity JPA tenant | 65 class `@Entity` theo checkout hiện tại; V54 bổ sung `GithubAnalysis`, `GithubRepoCache` |
+| Khoá ngoại tenant | 93 (91 trước V54 + `fk_github_analyses_cv` và `fk_github_analyses_job`; `github_repo_caches` không có FK) |
+| Ràng buộc UNIQUE tenant | V54 thêm `uk_github_analyses_cv_job` và `uk_github_repo_cache`. V53 thêm `uk_cp_question`. V51 thêm `uk_candidates_email` và `uk_notification_preference_candidate_category` |
+| Số file migration trong repo | 80 (33 master + 47 tenant); V9 redesign nằm ngoài pipeline |
 | Assessment đa phần 2026-10-12 | Tenant V53: rubric, khóa phần trắc nghiệm, gợi ý/duyệt điểm, liên kết coding→question và template sandbox; không thêm bảng/entity; thêm 2 FK và 1 UNIQUE |
-| Cập nhật lần cuối | Tenant `V53` (`assessment_sections_and_grading`), tenant `V52` (quy tắc ứng tuyển), Master `V34` (seed task `INTERVIEW_STT`/`INTERVIEW_TTS`), Master `V33` (`ai_model_pricings` Model Registry), Master `V32` (`ai_model_configs.fallback_chain`), Master `V31` (model `CV_PARSING` sang `gemini-3.5-flash-lite`), Master `V30`, Master `V29`, Master `V28` (`ai_model_pricings`, `tenant_ai_usage_daily`), Master `V27` (kiến trúc gói cước & thuê bao SaaS B2B 2 tầng), Master `V26` (`contracts` Dropbox Sign), tenant `V51` (`candidates`), tenant `V50` (cấu hình Gmail công ty gửi thư) |
+| Cập nhật lần cuối | Tenant `V54` (`github_analyses`, `github_repo_caches`), tenant `V53` (`assessment_sections_and_grading`) |
 | Dọn legacy V21 | Xóa 19 bảng và dữ liệu legacy, xóa 2 cột ID legacy trong ranking; không chuyển ID cũ sang bản ghi mới |
 | Metadata assessment 2026-09-25 | V13: `tests.created_by/updated_at`, `questions.difficulty/skill/explanation` cho Excel/UI authoring |
 | Sửa lỗi assessment 2026-09-24 | V10/V11 khớp checksum lịch sử; V12 tạo schema mới và giữ bảng cũ; migration lỗi phải chặn mở tenant pool |
@@ -192,7 +193,7 @@ thay vì âm thầm đọc nhầm database của doanh nghiệp khác.
 | 18 | `AiModelPricing` | `ai_model_pricings` | AI Metering & Catalog | Danh mục Model AI chuẩn hóa & Đơn giá USD/1M tokens (V28, V33) |
 | 19 | `TenantAiUsageDaily` | `tenant_ai_usage_daily` | AI Metering | Thống kê tiêu thụ token, độ trễ & chi phí USD theo ngày/tác vụ/model (V28) |
 
-### 3.2 Tenant — 62 entity (`com.smarthire.domain.tenant.entity`)
+### 3.2 Tenant — 65 entity (`com.smarthire.domain.tenant.entity`)
 
 | No | Entity | Bảng | Nhóm nghiệp vụ | Kế thừa `BaseEntity` |
 |---|---|---|---|---|
@@ -259,6 +260,8 @@ thay vì âm thầm đọc nhầm database của doanh nghiệp khác.
 | 61 | `CompanyDirectoryEntry` | `company_directory_entries` | Job & Skill | Có |
 | 62 | `NotificationPreference` | `notification_preferences` | Notification | Không |
 | 63 | `CompanyEmailSetting` | `company_email_settings` | Branding / Mail | Có |
+| 64 | `GithubAnalysis` | `github_analyses` | CV & AI screening | Có |
+| 65 | `GithubRepoCache` | `github_repo_caches` | CV & AI screening | Có |
 
 V23 thêm bảng nối `answer_selected_options`, entity `AnswerSelectedOption` (`@EmbeddedId` + `@MapsId`);
 `Answer.selectedOptions` là `@OneToMany(mappedBy = "answer", cascade = ALL, orphanRemoval)`.
@@ -291,6 +294,7 @@ V44 không thêm enum hoặc trạng thái lifecycle: session dùng lifecycle c�
 | `JobStatus` | `jobs.status` | `DRAFT`, `PUBLISHED`, `PAUSED`, `CLOSED`, `ARCHIVED` |
 | `ApplicationStatus` | `applications.status` | `NEW`, `IN_REVIEW`, `ASSESSMENT`, `INTERVIEW`, `HUMAN_INTERVIEW`, `OFFER`, `HIRED`, `REJECTED`, `FAILED`, `WITHDRAWN` |
 | `CvScreeningStatus` | `applications.cv_screening_status` | `PENDING`, `PASSED`, `FAILED` |
+| `GithubAnalysisStatus` | `github_analyses.status` | `NOT_PROVIDED`, `PENDING`, `PROCESSING`, `COMPLETED`, `PARTIAL`, `FAILED` |
 | `HiringDecisionType` | `hiring_decisions.decision` | `HIRE`, `REJECT`, `HOLD` |
 | `CvStatus` | `cvs.status` | `UPLOADED`, `PARSING`, `PARSED`, `EXTRACTING`, `ANALYZING`, `ANALYZED`, `FAILED` |
 | `TestStatus` | `tests.status` | `DRAFT`, `PUBLISHED`, `ARCHIVED` |
@@ -614,11 +618,14 @@ erDiagram
 
     jobs ||--o{ match_scores : "chấm khớp"
     cvs ||--o{ match_scores : "được chấm khớp"
+    jobs ||--o{ github_analyses : "bằng chứng GitHub"
+    cvs ||--o{ github_analyses : "bằng chứng GitHub"
+    github_analyses }o..o{ github_repo_caches : "không có FK"
 ```
 
 Pipeline chạy tuần tự qua RabbitMQ: `cv.parse` ghi `cv_documents` → `cv.extract` ghi `cv_extractions` →
-`cv.analysis` ghi `cv_analyses` và `cv_skills` → `cv.matching` ghi `match_scores`. Cột `cvs.status` phản
-ánh chặng hiện tại.
+`cv.analysis` ghi `cv_analyses` và `cv_skills` → `cv.matching` ghi `match_scores`. Sau khi chấm CV thành công,
+`cv.github` ghi `github_analyses` và có thể ghi `github_repo_caches`. Cột `cvs.status` phản ánh chặng sàng CV. Lỗi GitHub không đổi `cvs.status` hay `match_scores`.
 
 ### 4.6 Tenant — Test & Proctoring
 
@@ -778,7 +785,9 @@ của màn assessment hiện tại.
 | `CvExtraction` | Chặng 2 — JSON có cấu trúc do AI bóc tách | `extraction_json`, `model_version`, `prompt_version` |
 | `CvAnalysis` | Chặng 3 — tóm tắt và đánh giá | `summary`, `years_experience`, `skills_json`, `raw_json`, `model_version`, `prompt_version` |
 | `CvSkill` | Kỹ năng phát hiện trong CV | `skill_id` nullable và **không có FK** — để trống khi chưa map được vào từ điển `skills`; `skill_name` luôn được ghi |
-| `MatchScore` | Điểm khớp giữa một job và một CV | Unique `(job_id, cv_id)`, có `breakdown_json` và `model_version` |
+| `MatchScore` | Điểm khớp giữa một job và một CV | Unique `(job_id, cv_id)`, có `breakdown_json` và `model_version`. Không gồm điểm GitHub |
+| `GithubAnalysis` | Kết quả đối chiếu repository GitHub công khai với JD | Unique `(cv_id, job_id)`. `score` null khi không có GitHub hoặc không đủ bằng chứng. Không lưu source code |
+| `GithubRepoCache` | Cache kết quả theo repo, commit, nhóm kỹ năng và phiên bản chiến lược | Không FK. Đổi commit hoặc `strategy_version` thì không dùng lại |
 
 ### 5.6 Tenant — Ranking
 
@@ -944,6 +953,8 @@ V44 bổ sung hai FK NOT NULL `ON DELETE CASCADE`: `interview_sessions.ai_interv
 | `cv_skills` | `cv_id` | `cvs` | Không | N:1 | `fk_cvsk_cv` |
 | `match_scores` | `job_id` | `jobs` | Không | N:1 | `fk_match_job` |
 | `match_scores` | `cv_id` | `cvs` | Không | N:1 | `fk_match_cv` |
+| `github_analyses` | `cv_id` | `cvs` | Không | N:1 | `fk_github_analyses_cv`, DELETE CASCADE (V54) |
+| `github_analyses` | `job_id` | `jobs` | Không | N:1 | `fk_github_analyses_job`, DELETE CASCADE (V54) |
 | `overall_scores` | `application_id` | `applications` | Không | 1:1 (UQ) | `fk_os_app` |
 | `candidate_rankings` | `job_id` | `jobs` | Không | N:1 | `fk_cr_job` |
 | `candidate_rankings` | `application_id` | `applications` | Không | N:1 (UQ cặp) | `fk_cr_app` |
@@ -1078,6 +1089,8 @@ V22 thêm PK kép `questionskills(question_id, skill_id)` để ngăn gắn trù
 | `cv_extractions` | `uk_cvext_cv` | `cv_id` | Mỗi CV một bản bóc tách |
 | `cv_analyses` | `uk_cv_analyses_cv` | `cv_id` | Mỗi CV một bản phân tích |
 | `match_scores` | `uk_match_job_cv` | `(job_id, cv_id)` | Mỗi cặp job-CV một điểm khớp |
+| `github_analyses` | `uk_github_analyses_cv_job` | `(cv_id, job_id)` | Mỗi cặp CV-job một kết quả GitHub (V54) |
+| `github_repo_caches` | `uk_github_repo_cache` | `(repo_full_name, commit_sha, skill_fingerprint, strategy_version)` | Không phân tích lại cùng commit và cùng chiến lược (V54) |
 | `overall_scores` | `uk_os_app` | `application_id` | Mỗi đơn một điểm tổng |
 | `candidate_rankings` | `uk_cr_job_app` | `(job_id, application_id)` | Mỗi đơn xuất hiện một lần trong bảng xếp hạng của job |
 | `proctor_reports` | `uk_pr_submission` | `submission_id` | Mỗi lượt thi một báo cáo giám sát |
@@ -1122,6 +1135,15 @@ UPLOADED ──▶ PARSING ──▶ PARSED ──▶ EXTRACTING ──▶ ANALY
 `FAILED` luôn đi kèm `error_code` và `error_message`; method `Cv.fail()` đảm bảo điều này. `Cv.mark()` xoá
 sạch thông tin lỗi khi chuyển sang trạng thái thành công.
 
+**GitHub analysis** — `github_analyses.status`
+```
+NOT_PROVIDED
+PENDING ──▶ PROCESSING ──▶ COMPLETED
+                ├────────▶ PARTIAL
+                └────────▶ FAILED
+```
+`NOT_PROVIDED` nghĩa là ứng viên không đưa GitHub; `score` để null, không đưa vào điểm CV. `PARTIAL` khi hết ngân sách, repository private, hoặc chưa đủ file nguồn. `FAILED` là lỗi URL, GitHub API hoặc model và cũng để `score` null.
+
 **Submission** — `submissions.status`
 ```
 NOT_STARTED ──▶ IN_PROGRESS ──▶ SUBMITTED ──▶ GRADED
@@ -1131,7 +1153,7 @@ NOT_STARTED ──▶ IN_PROGRESS ──▶ SUBMITTED ──▶ GRADED
 Đề chỉ có MCQ/MULTIPLE_CHOICE chấm đồng bộ: `IN_PROGRESS → GRADED`; hết hạn thành `EXPIRED`.
 Đề có ESSAY/CODING chuyển `SUBMITTED` chờ chấm (hoặc `EXPIRED` khi hết hạn); tổng điểm và passed = NULL,
 kể cả chưa trả lời câu tự luận. Điểm các câu trắc nghiệm đã lưu vẫn được tính riêng trong answers.
-V53 bổ sung AI chấm rubric và test sandbox cho ESSAY/CODING; điểm đề xuất lưu riêng, staff duyệt vào answers.score. Chỉ khi mọi câu có điểm chính thức mới ghi tổng vào submissions.score và chuyển SUBMITTED → GRADED; EXPIRED giữ nguyên trạng thái. objective_completed_at khóa phần trắc nghiệm; thời lượng phần riêng tùy chọn dùng giờ server.
+V53 bổ sung AI chấm rubric và test sandbox cho ESSAY/CODING; điểm đề xuất lưu riêng, staff duyệt vào answers.score. Chỉ khi mọi câu có điểm chính thức mới ghi tổng vào submissions.score và chuyển SUBMITTED → GRADED; EXPIRED giữ nguyên trạng thái. objective_completed_at khóa phần Quiz (MCQ/multi/essay) trước khi mở CODING; thời lượng phần riêng tùy chọn dùng giờ server. Pipeline: lọc CV đậu → ASSESSMENT → nộp bài → INTERVIEW (AI); AI PASSED → HUMAN_INTERVIEW.
 
 **Lịch phỏng vấn trực tiếp V48** — `interview_schedules.status`: DRAFT → PROPOSED → CONFIRMED → DONE; PROPOSED/CONFIRMED → RESCHEDULE_REQUESTED → PROPOSED; lịch nháp/đang hoạt động → CANCELLED. Điểm 0–100; mỗi người chấm có một đánh giá, tuần tự hóa bằng khóa hàng interview; không thêm UNIQUE trong database.
 
@@ -1181,7 +1203,7 @@ Những quy tắc sau bắt buộc phải kiểm tra ở tầng service, vì kh�
 | BR-18 | `candidates.phone` chuẩn hoá và không trùng giữa hai ứng viên (không có UNIQUE vì dữ liệu cũ) | `AccountProfileService` |
 
 - Ngân hàng chung V41: câu hỏi có `test_id = NULL` được thêm/sửa/lưu trữ độc lập; câu có `test_id` chỉ được sửa qua assessment gốc ở trạng thái DRAFT. API ngân hàng yêu cầu staff, xác thực tenant trước truy vấn; cả lô câu hỏi được lưu trong một transaction.
-- Assessment tự động V43: cấu hình theo job chỉ chọn skill của job, tối đa 100 câu, khớp skill/type/difficulty và không trùng nội dung; copy câu/options/metadata để đóng băng đề. Đề riêng chỉ hiển thị và mở được với hồ sơ được gán. Worker RabbitMQ có `X-Tenant-ID`, khóa hồ sơ trước khi tạo; đề, thông báo và email outbox cùng transaction. Áp dụng cho hồ sơ ASSESSMENT, đã PASSED AI Interview, không rút/lưu trữ, cả trước và sau khi bật. Thiếu câu thì rollback và chờ cấu hình/ngân hàng được sửa, không ảnh hưởng kết quả AI Interview.
+- Assessment tự động V43: cấu hình theo job chỉ chọn skill của job, tối đa 100 câu, khớp skill/type/difficulty và không trùng nội dung; copy câu/options/metadata để đóng băng đề. Đề riêng chỉ hiển thị và mở được với hồ sơ được gán. Worker RabbitMQ có `X-Tenant-ID`, khóa hồ sơ trước khi tạo; đề, thông báo và email outbox cùng transaction. Áp dụng cho hồ sơ ASSESSMENT (sau lọc CV), không rút/lưu trữ, cả trước và sau khi bật. Thiếu câu thì rollback và chờ cấu hình/ngân hàng được sửa.
 
 ### 8.5 Hệ quả nghiệp vụ cần biết
 
@@ -1224,6 +1246,8 @@ V22 thêm `idx_questionskills_skill(skill_id)` trên `questionskills`. PK kép h
 | Tenant | `applications` | `idx_app_candidate_status` | `(candidate_id, status)` | Kiểm tra một đơn đang xét / ứng viên (V52) |
 | Tenant | `applications` | `idx_app_status_updated` | `(status, updated_at)` | Quét đơn quá hạn xử lý (V52) |
 | Tenant | `cvs` | `idx_cvs_retain_until` | `(retain_until)` | Quét CV quá hạn lưu để xoá file (V52) |
+| Tenant | `github_analyses` | `idx_github_analyses_status` | `(status)` | Lọc kết quả GitHub theo trạng thái (V54) |
+| Tenant | `github_repo_caches` | `idx_github_repo_cache_lookup` | `(repo_full_name, skill_fingerprint, strategy_version)` | Tìm cache cũ khi commit đổi (V54) |
 | Tenant | `candidates` | `idx_candidates_status` | `(status)` | Lọc ứng viên theo trạng thái tài khoản (V51) |
 | Tenant | `notifications` | `idx_notif_candidate` | `(candidate_id, created_at)` | Danh sách thông báo in-app của ứng viên (V51) |
 | Tenant | `applications` | `idx_app_job_status` | `(job_id, status)` | Lọc danh sách ứng viên theo job và trạng thái |
@@ -1394,6 +1418,7 @@ V53 bổ sung mô hình đa phần; giữ nguyên số bảng/entity. Không t�
 | V51 | `V51__separate_candidates_from_users.sql` | Tạo `candidates` (entity `Candidate`), gộp hồ sơ và xoá `user_profiles`; bổ sung `phone`, `avatar_url`, `job_title` trên `users`; chuyển toàn bộ FK ứng viên (`applications`, `cvs.candidate_id`, `submissions`, `practice_sessions`, `ai_interview_consents`) sang `candidates.id`; hỗ trợ dual-actor (`user_id` / `candidate_id`) trên `oauth_accounts`, `notifications`, `notification_preferences`. Đánh số V51 vì DB tenant đã có `V50__company_email_settings` |
 | V52 | `V52__candidate_application_rules.sql` | Thêm `applications.withdraw_reason`; index `idx_app_candidate_status`, `idx_app_status_updated`, `idx_cvs_retain_until` phục vụ quy tắc một đơn/ứng viên, đóng đơn quá hạn và xoá CV hết hạn lưu |
 | V53 | `V53__assessment_sections_and_grading.sql` | tests.objective_duration_minutes; questions.rubric_json; submissions.objective_completed_at; answers.language/evaluation_json/suggested_score/reviewed_by/reviewed_at + FK users; coding_problems.test_id nullable, question_id + UNIQUE + FK questions, category/starter_code_json/harness_json. Backfill rubric đơn cho essay có explanation; không tạo bảng/entity |
+| V54 | `V54__github_analysis.sql` | `github_analyses` + entity `GithubAnalysis` (UNIQUE `(cv_id, job_id)`, 2 FK CASCADE) và `github_repo_caches` + entity `GithubRepoCache` (UNIQUE repo/commit/fingerprint/strategy, không FK). Không backfill, không lưu source code |
 
 V9 redesign cũ được giữ nguyên tại `db/migration-archive/`, **ngoài** location Flyway.
 Tenant tạo mới chạy V1–V13 rồi V21–V51: 60 bảng hiện hành (gồm 5 bảng analytics V9), chưa tính history.

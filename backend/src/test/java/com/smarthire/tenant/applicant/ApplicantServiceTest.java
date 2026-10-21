@@ -42,6 +42,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -55,6 +56,7 @@ class ApplicantServiceTest {
     @Mock RecruitmentStageRepository stages;
     @Mock CvAccess access;
     @Mock AiInterviewInvitationService invitations;
+    @Mock com.smarthire.tenant.assessment.service.AssessmentInvitationService assessmentInvites;
     @Mock JobPublisher publisher;
     @Mock GateScreeningService gateScreening;
     @Mock CvApplicationCopyService cvCopies;
@@ -70,7 +72,7 @@ class ApplicantServiceTest {
     void setUp() {
         service = new ApplicantService(
                 applications, history, jobs, users, cvs, stages, access, new JobMapper(), new ApplicantMapper(),
-                invitations, publisher, gateScreening, cvCopies, closures);
+                invitations, assessmentInvites, publisher, gateScreening, cvCopies, closures);
         candidate = new Candidate();
         candidate.setId(9L);
         candidate.setEmail("can@se36.local");
@@ -88,6 +90,7 @@ class ApplicantServiceTest {
         application.setJob(job);
         application.setCandidate(candidate);
         application.setStatus(ApplicationStatus.NEW);
+        lenient().when(stages.findByJob_IdOrderBySortOrderAsc(any())).thenReturn(java.util.List.of());
     }
 
     @Test
@@ -145,7 +148,8 @@ class ApplicantServiceTest {
         job.setAiInterviewEnabled(true);
         when(applications.findByIdForUpdate(4L)).thenReturn(Optional.of(application));
         service.advanceFromCvScreening(cv, score);
-        assertThat(application.getStatus()).isEqualTo(ApplicationStatus.INTERVIEW);
+        assertThat(application.getStatus()).isEqualTo(ApplicationStatus.ASSESSMENT);
+        verify(assessmentInvites).inviteFixedDemoAfterCvPass(application);
         verify(invitations).invite(4L, null);
         org.mockito.Mockito.verifyNoInteractions(access);
     }
@@ -163,7 +167,7 @@ class ApplicantServiceTest {
         service.advanceFromCvScreening(cv, score);
         assertThat(application.getStatus()).isEqualTo(ApplicationStatus.REJECTED);
         verify(closures).onClosed(eq(application), any());
-        org.mockito.Mockito.verifyNoInteractions(invitations, access);
+        org.mockito.Mockito.verifyNoInteractions(invitations, assessmentInvites, access);
     }
 
     @Test
@@ -399,7 +403,8 @@ class ApplicantServiceTest {
 
         service.advanceFromCvScreening(cv, score);
 
-        assertThat(application.getStatus()).isEqualTo(ApplicationStatus.INTERVIEW);
+        assertThat(application.getStatus()).isEqualTo(ApplicationStatus.ASSESSMENT);
+        verify(assessmentInvites).inviteFixedDemoAfterCvPass(application);
         verify(invitations).invite(4L, null);
         verify(gateScreening).recalculate(application);
     }
@@ -419,12 +424,12 @@ class ApplicantServiceTest {
 
         assertThat(application.getStatus()).isEqualTo(ApplicationStatus.REJECTED);
         assertThat(application.getCvScreeningStatus()).isEqualTo(CvScreeningStatus.FAILED);
-        org.mockito.Mockito.verifyNoInteractions(invitations);
+        org.mockito.Mockito.verifyNoInteractions(invitations, assessmentInvites);
     }
 
     @Test
-    void alreadyInInterviewRepairsMissingInvitation() {
-        application.setStatus(ApplicationStatus.INTERVIEW);
+    void alreadyPastCvRoundDoesNotInviteAiAgain() {
+        application.setStatus(ApplicationStatus.ASSESSMENT);
         Cv cv = new Cv();
         cv.setJob(job);
         cv.setCandidate(candidate);
@@ -437,7 +442,8 @@ class ApplicantServiceTest {
 
         service.advanceFromCvScreening(cv, score);
 
-        verify(invitations).invite(4L, null);
+        assertThat(application.getStatus()).isEqualTo(ApplicationStatus.ASSESSMENT);
+        org.mockito.Mockito.verifyNoInteractions(invitations, assessmentInvites);
         verify(gateScreening).recalculate(application);
     }
 
@@ -457,12 +463,12 @@ class ApplicantServiceTest {
 
         assertThat(application.getStatus()).isEqualTo(ApplicationStatus.IN_REVIEW);
         assertThat(application.getCvScreeningStatus()).isEqualTo(CvScreeningStatus.PENDING);
-        org.mockito.Mockito.verifyNoInteractions(invitations);
+        org.mockito.Mockito.verifyNoInteractions(invitations, assessmentInvites);
         verify(gateScreening).recalculate(application);
     }
 
     @Test
-    void recruiterPassMovesToInterviewAndSendsInvite() {
+    void recruiterPassInvitesAssessmentAndAiInterview() {
         job.setScreeningMode(ScreeningMode.MANUAL);
         job.setAiInterviewEnabled(true);
         application.setStatus(ApplicationStatus.IN_REVIEW);
@@ -470,8 +476,9 @@ class ApplicantServiceTest {
 
         var detail = service.decideCvScreening(4L, true, null);
 
-        assertThat(detail.status()).isEqualTo("INTERVIEW");
+        assertThat(detail.status()).isEqualTo("ASSESSMENT");
         assertThat(detail.cvScreeningStatus()).isEqualTo("PASSED");
+        verify(assessmentInvites).inviteFixedDemoAfterCvPass(application);
         verify(invitations).invite(4L, null);
     }
 
@@ -487,7 +494,7 @@ class ApplicantServiceTest {
         assertThat(detail.cvScreeningStatus()).isEqualTo("FAILED");
         assertThat(detail.withdrawable()).isFalse();
         verify(closures).onClosed(eq(application), any());
-        org.mockito.Mockito.verifyNoInteractions(invitations);
+        org.mockito.Mockito.verifyNoInteractions(invitations, assessmentInvites);
     }
 
     @Test

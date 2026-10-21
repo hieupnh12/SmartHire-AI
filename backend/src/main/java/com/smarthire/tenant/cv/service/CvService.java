@@ -15,6 +15,7 @@ import com.smarthire.domain.tenant.repository.CvDocumentRepository;
 import com.smarthire.domain.tenant.repository.CvExtractionRepository;
 import com.smarthire.domain.tenant.repository.CvRepository;
 import com.smarthire.domain.tenant.repository.CvSkillRepository;
+import com.smarthire.domain.tenant.repository.GithubAnalysisRepository;
 import com.smarthire.domain.tenant.repository.JobRepository;
 import com.smarthire.domain.tenant.repository.MatchScoreRepository;
 import com.smarthire.domain.tenant.repository.RankingDataRepository;
@@ -29,6 +30,7 @@ import com.smarthire.tenant.cv.dto.CvModels.ImageUploadView;
 import com.smarthire.tenant.cv.dto.CvModels.ShareView;
 import com.smarthire.tenant.cv.dto.CvModels.SharedCvView;
 import com.smarthire.tenant.cv.dto.CvModels.MatchView;
+import com.smarthire.tenant.cv.github.GithubAnalysisViews;
 import com.smarthire.tenant.cv.mapper.CvMapper;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -67,6 +69,7 @@ public class CvService {
     private final CvSkillRepository cvSkills;
     private final CvAnalysisRepository analyses;
     private final MatchScoreRepository scores;
+    private final GithubAnalysisRepository githubAnalyses;
     private final RankingDataRepository rankingData;
     private final FileStorageService storage;
     private final JobPublisher publisher;
@@ -89,6 +92,7 @@ public class CvService {
             CvSkillRepository cvSkills,
             CvAnalysisRepository analyses,
             MatchScoreRepository scores,
+            GithubAnalysisRepository githubAnalyses,
             RankingDataRepository rankingData,
             FileStorageService storage,
             JobPublisher publisher,
@@ -109,6 +113,7 @@ public class CvService {
         this.cvSkills = cvSkills;
         this.analyses = analyses;
         this.scores = scores;
+        this.githubAnalyses = githubAnalyses;
         this.rankingData = rankingData;
         this.storage = storage;
         this.publisher = publisher;
@@ -172,7 +177,7 @@ public class CvService {
                 throw ex;
             }
             publisherOrInline(cv.getId());
-            return mapper.detail(cv, null, List.of(), null, null, false);
+            return mapper.detail(cv, null, List.of(), null, null, null, false);
         } catch (BusinessException ex) {
             throw ex;
         } catch (Exception ex) {
@@ -298,7 +303,7 @@ public class CvService {
             throw new BusinessException("Failed to store CV", HttpStatus.INTERNAL_SERVER_ERROR, "CV_STORE_FAILED");
         }
         publisherOrInline(cv.getId());
-        return mapper.detail(cv, null, List.of(), null, null, false);
+        return mapper.detail(cv, null, List.of(), null, null, null, false);
     }
 
     @Transactional
@@ -318,7 +323,7 @@ public class CvService {
             throw new BusinessException("Failed to store CV", HttpStatus.INTERNAL_SERVER_ERROR, "CV_STORE_FAILED");
         }
         publisherOrInline(id);
-        return mapper.detail(cv, null, List.of(), null, null, false);
+        return mapper.detail(cv, null, List.of(), null, null, null, false);
     }
 
     private Candidate builderActor() {
@@ -426,7 +431,7 @@ public class CvService {
         access.requireJob(cv.getJob());
         var score = scores.findByJob_IdAndCv_Id(jobId, cvId)
                 .orElseThrow(() -> notFound("Match score not found", "MATCH_NOT_FOUND"));
-        return mapper.detail(cv, null, List.of(), null, score, true).match();
+        return mapper.detail(cv, null, List.of(), null, score, null, true).match();
     }
 
     @Transactional
@@ -461,7 +466,7 @@ public class CvService {
             throw new BusinessException("CV is not analyzed yet", HttpStatus.CONFLICT, "CV_NOT_ANALYZED");
         }
         var score = matching.score(cv);
-        return mapper.detail(cv, null, List.of(), null, score, true).match();
+        return mapper.detail(cv, null, List.of(), null, score, null, true).match();
     }
 
     private void enqueue(long id, CvStatus expected, CvStatus retry, Runnable publish) {
@@ -500,12 +505,16 @@ public class CvService {
 
     private CvDetail toDetail(Cv cv) {
         boolean includeMatch = access.staff();
+        var github = includeMatch && cv.getJob() != null
+                ? githubAnalyses.findByCv_IdAndJob_Id(cv.getId(), cv.getJob().getId()).map(row -> GithubAnalysisViews.toView(row, objectMapper)).orElse(null)
+                : null;
         return mapper.detail(
                 cv,
                 extractions.findByCv_Id(cv.getId()).orElse(null),
                 cvSkills.findByCv_Id(cv.getId()),
                 analyses.findByCv_Id(cv.getId()).orElse(null),
                 includeMatch && cv.getJob() != null ? scores.findByJob_IdAndCv_Id(cv.getJob().getId(), cv.getId()).orElse(null) : null,
+                github,
                 includeMatch);
     }
 
