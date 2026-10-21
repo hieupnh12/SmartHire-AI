@@ -41,6 +41,7 @@ import { ApplicantRounds } from "@/features/tenant/recruiter/applicants/componen
 import { DetailDialog } from "@/components/ux/DetailDialog";
 import { CvFilePreview } from "@/components/shared/CvFilePreview";
 import { ScreeningBreakdown } from "@/features/tenant/recruiter/cv-screening/components/ScreeningBreakdown";
+import { GithubEvidencePanel } from "@/features/tenant/recruiter/cv-screening/components/GithubEvidencePanel";
 import { CvScreeningDecision } from "@/features/tenant/recruiter/cv-screening/components/CvScreeningDecision";
 import type { ApplicationDetail, ApplicationSummary, CvRef } from "@/api/types/applicant";
 import type { JobStatus } from "@/api/types/job";
@@ -653,6 +654,7 @@ function AppliedCvReview({ cvs }: { cvs: CvRef[] }) {
           {cv?.match && (
             <ScreeningBreakdown score={cv.match.score} modelVersion={cv.match.modelVersion} breakdown={breakdown} />
           )}
+          <GithubEvidencePanel analysis={cv?.githubAnalysis} />
           {skills.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {skills.map((skill) => (

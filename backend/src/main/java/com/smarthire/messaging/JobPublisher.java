@@ -16,6 +16,7 @@ public class JobPublisher {
     private final String cvExtractExchange;
     private final String cvAnalysisExchange;
     private final String cvMatchingExchange;
+    private final String cvGithubExchange;
     private final String jobEventsExchange;
 
     @Autowired
@@ -26,6 +27,7 @@ public class JobPublisher {
             @Value("${app.rabbitmq.exchanges.cv-extract}") String cvExtractExchange,
             @Value("${app.rabbitmq.exchanges.cv-analysis}") String cvAnalysisExchange,
             @Value("${app.rabbitmq.exchanges.cv-matching}") String cvMatchingExchange,
+            @Value("${app.rabbitmq.exchanges.cv-github}") String cvGithubExchange,
             @Value("${app.rabbitmq.exchanges.job-events}") String jobEventsExchange) {
         this.rabbitTemplate = rabbitTemplate;
         this.registry = registry;
@@ -33,6 +35,7 @@ public class JobPublisher {
         this.cvExtractExchange = cvExtractExchange;
         this.cvAnalysisExchange = cvAnalysisExchange;
         this.cvMatchingExchange = cvMatchingExchange;
+        this.cvGithubExchange = cvGithubExchange;
         this.jobEventsExchange = jobEventsExchange;
     }
 
@@ -40,18 +43,19 @@ public class JobPublisher {
             String cvParseExchange, String cvExtractExchange, String cvAnalysisExchange,
             String cvMatchingExchange) {
         this(rabbitTemplate, registry, cvParseExchange, cvExtractExchange, cvAnalysisExchange,
-                cvMatchingExchange, "job.events");
+                cvMatchingExchange, "cv.github", "job.events");
     }
 
     public JobPublisher(RabbitTemplate rabbitTemplate, TenantRegistryService registry, String cvAnalysisExchange) {
         this(rabbitTemplate, registry, "cv.parse", "cv.extract", cvAnalysisExchange,
-                "cv.matching", "job.events");
+                "cv.matching", "cv.github", "job.events");
     }
 
     public void publishParse(long cvId) { publish(cvParseExchange, new CvJobPayload(cvId)); }
     public void publishExtract(long cvId) { publish(cvExtractExchange, new CvJobPayload(cvId)); }
     public void publishAnalysis(long cvId) { publish(cvAnalysisExchange, new CvJobPayload(cvId)); }
     public void publishMatching(long cvId) { publish(cvMatchingExchange, new CvJobPayload(cvId)); }
+    public void publishGithub(long cvId) { publish(cvGithubExchange, new CvJobPayload(cvId)); }
 
     /** Kept for existing tests and callers. */
     public void publishCvAnalysis(String payloadJson) {

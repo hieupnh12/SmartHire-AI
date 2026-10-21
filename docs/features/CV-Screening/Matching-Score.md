@@ -29,6 +29,7 @@ Tính điểm khớp CV ↔ Job **sau khi đủ bước parse / extract / taxono
 - Job `AUTO`: kết quả Pass quyết định qua vòng CV. Job `MANUAL`: Pass chỉ là đề xuất; `applications.cv_screening_status` giữ `PENDING` tới khi recruiter gọi `POST /api/v1/applications/{id}/cv-screening-decision` (`passed=true` → `INTERVIEW` + email mời AI interview; `false` → `FAILED`, vẫn `IN_REVIEW`).
 - PARTIAL = 0.5 credit. UNKNOWN/MISSING = 0. Required UNKNOWN/MISSING đưa vào `requiredMissing`. Khớp tên taxonomy vẫn là MATCH kể cả khi Gemini ghi chú MISSING.
 - Gemini API lỗi hoặc không có key → heuristic extract; trọng số semantic gộp vào required (theo weight của Job).
+- Điểm GitHub, nếu có, nằm ở `github_analyses` và không cộng vào score hybrid này. Không có GitHub thì điểm CV giữ nguyên.
 - Trọng số CV **không hard-code** trong scoring. Đọc `job_screening_configs` của Job. Rank-v1 35/15/30/20 và Gate Screening là hệ thống khác.
 
 ### Công thức hybrid-v1 (trọng số theo Job)

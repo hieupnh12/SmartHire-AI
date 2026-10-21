@@ -168,11 +168,15 @@ public class GeminiCvAiClient implements CvAiClient {
         return java.util.Optional.empty();
     }
 
-    private java.util.List<DynamicAiConfigProvider.ResolvedAiConfig> getExecutionChain() {
+    private java.util.List<DynamicAiConfigProvider.ResolvedAiConfig> getExecutionChain(String taskType) {
+        String task = taskType == null || taskType.isBlank() ? "CV_PARSING" : taskType.trim().toUpperCase();
         if (configProvider == null) {
             return java.util.List.of(resolvePrimaryConfig());
         }
-        var chain = configProvider.resolveExecutionChain("CV_PARSING");
+        var chain = configProvider.resolveExecutionChain(task);
+        if (!usable(chain) && !"CV_PARSING".equals(task)) {
+            chain = configProvider.resolveExecutionChain("CV_PARSING");
+        }
         if (chain != null && !chain.isEmpty()) {
             return chain;
         }
@@ -183,9 +187,34 @@ public class GeminiCvAiClient implements CvAiClient {
         return list;
     }
 
+    private static boolean usable(java.util.List<DynamicAiConfigProvider.ResolvedAiConfig> chain) {
+        if (chain == null) return false;
+        return chain.stream().anyMatch(item -> item.apiKey() != null && !item.apiKey().isBlank()
+                && item.modelName() != null && !item.modelName().isBlank());
+    }
+
+    /** Model label for cache keys. Does not hard-code a model name. */
+    public String modelLabel(String taskType) {
+        for (var target : getExecutionChain(taskType)) {
+            if (target.apiKey() != null && !target.apiKey().isBlank()
+                    && target.modelName() != null && !target.modelName().isBlank()) {
+                String provider = target.provider() == null || target.provider().isBlank() ? "GEMINI" : target.provider();
+                return provider.toLowerCase() + ":" + target.modelName();
+            }
+        }
+        return "unconfigured";
+    }
+
+    public record AiJsonCompletion(String json, long promptTokens, long completionTokens, String provider, String model) {}
+
     /** Sends one JSON-mode request; {@code system} is only used by OpenAI-compatible providers, Gemini gets {@code promptText}. */
     public String completeJson(String system, String promptText) throws Exception {
-        var chain = getExecutionChain();
+        return completeForTask("CV_PARSING", system, promptText).json();
+    }
+
+    public AiJsonCompletion completeForTask(String taskType, String system, String promptText) throws Exception {
+        String task = taskType == null || taskType.isBlank() ? "CV_PARSING" : taskType.trim().toUpperCase();
+        var chain = getExecutionChain(task);
         if (chain.isEmpty()) {
             throw new IllegalStateException("AI provider is not configured");
         }
@@ -195,17 +224,18 @@ public class GeminiCvAiClient implements CvAiClient {
             var target = chain.get(i);
             String apiKey = target.apiKey() == null ? "" : target.apiKey();
             if (apiKey.isBlank() || target.modelName() == null || target.modelName().isBlank()) {
-                log.warn("Skipping AI target {}:{} for CV_PARSING because its model or API key is not configured",
-                        target.provider(), target.modelName());
+                log.warn("Skipping AI target {}:{} for {} because its model or API key is not configured",
+                        target.provider(), target.modelName(), task);
                 continue;
             }
 
             if (rateLimiterService != null) {
-                rateLimiterService.checkAndAcquire("CV_PARSING");
+                rateLimiterService.checkAndAcquire(task);
             }
 
             try {
                 return executeCompleteJson(
+                        task,
                         target.provider() == null || target.provider().isBlank() ? "GEMINI" : target.provider().toUpperCase(),
                         target.modelName(),
                         apiKey,
@@ -227,12 +257,12 @@ public class GeminiCvAiClient implements CvAiClient {
 
                 if (i < chain.size() - 1) {
                     var next = chain.get(i + 1);
-                    log.warn("AI model {}:{} failed for CV_PARSING ({}), cascading to next fallback {}:{}",
-                            target.provider(), target.modelName(), ex.getMessage(),
+                    log.warn("AI model {}:{} failed for {} ({}), cascading to next fallback {}:{}",
+                            target.provider(), target.modelName(), task, ex.getMessage(),
                             next.provider(), next.modelName());
                 } else {
-                    log.warn("AI model {}:{} failed for CV_PARSING ({}), no more models in fallback chain",
-                            target.provider(), target.modelName(), ex.getMessage());
+                    log.warn("AI model {}:{} failed for {} ({}), no more models in fallback chain",
+                            target.provider(), target.modelName(), task, ex.getMessage());
                 }
             }
         }
@@ -240,10 +270,11 @@ public class GeminiCvAiClient implements CvAiClient {
         if (lastException != null) {
             throw lastException;
         }
-        throw new IllegalStateException("No valid AI provider available in execution chain for CV_PARSING");
+        throw new IllegalStateException("No valid AI provider available in execution chain for " + task);
     }
 
-    private String executeCompleteJson(
+    private AiJsonCompletion executeCompleteJson(
+            String taskType,
             String provider,
             String model,
             String apiKey,
@@ -328,12 +359,12 @@ public class GeminiCvAiClient implements CvAiClient {
             String json = text.substring(start, end + 1);
             mapper.readTree(json);
             success = true;
-            return json;
+            return new AiJsonCompletion(json, promptTokens, completionTokens, provider, model);
         } finally {
             if (meteringService != null) {
                 long latencyMs = (System.nanoTime() - startNs) / 1_000_000L;
                 meteringService.recordUsageAsync(
-                        "CV_PARSING", provider, model, promptTokens, completionTokens, latencyMs, success);
+                        taskType, provider, model, promptTokens, completionTokens, latencyMs, success);
             }
         }
     }

@@ -10,6 +10,7 @@ import com.smarthire.domain.tenant.entity.MatchScore;
 import com.smarthire.tenant.cv.dto.CvModels.AnalysisView;
 import com.smarthire.tenant.cv.dto.CvModels.CvDetail;
 import com.smarthire.tenant.cv.dto.CvModels.CvSummary;
+import com.smarthire.tenant.cv.dto.CvModels.GithubAnalysisView;
 import com.smarthire.tenant.cv.dto.CvModels.MatchView;
 import com.smarthire.tenant.cv.dto.CvModels.SkillView;
 import com.smarthire.tenant.matching.service.SkillScoringService;
@@ -41,7 +42,7 @@ public class CvMapper {
     }
 
     public CvDetail detail(Cv cv, CvExtraction extraction, List<CvSkill> skillRows, CvAnalysis analysis,
-                           MatchScore score, boolean includeMatch) {
+                           MatchScore score, GithubAnalysisView githubAnalysis, boolean includeMatch) {
         return new CvDetail(
                 cv.getId(),
                 cv.getJob() == null ? null : cv.getJob().getId(),
@@ -66,7 +67,8 @@ public class CvMapper {
                         json(score.getBreakdownJson()), score.getModelVersion())
                         : null,
                 json(cv.getBuilderData()),
-                cv.getShareToken());
+                cv.getShareToken(),
+                includeMatch ? githubAnalysis : null);
     }
 
     private SkillView skill(CvSkill row) {

@@ -16,6 +16,7 @@ import com.smarthire.messaging.JobPublisher;
 import com.smarthire.tenant.applicant.service.ApplicantService;
 import com.smarthire.tenant.job.screening.GateScreeningService;
 import com.smarthire.tenant.cv.ai.CvAiClient;
+import com.smarthire.tenant.cv.github.GithubAnalysisService;
 import com.smarthire.tenant.cv.parse.CvDocumentParser;
 import java.time.Duration;
 import java.util.stream.Collectors;
@@ -43,6 +44,7 @@ public class CvPipelineService {
     private final RedisService redis;
     private final JobSkillRepository jobSkills;
     private final com.smarthire.multitenancy.quota.TenantQuotaRedisService quotaService;
+    private final GithubAnalysisService github;
 
     public CvPipelineService(
             CvRepository cvs,
@@ -58,7 +60,8 @@ public class CvPipelineService {
             JobPublisher publisher,
             RedisService redis,
             JobSkillRepository jobSkills,
-            com.smarthire.multitenancy.quota.TenantQuotaRedisService quotaService) {
+            com.smarthire.multitenancy.quota.TenantQuotaRedisService quotaService,
+            GithubAnalysisService github) {
         this.cvs = cvs;
         this.documents = documents;
         this.extractions = extractions;
@@ -73,6 +76,7 @@ public class CvPipelineService {
         this.redis = redis;
         this.jobSkills = jobSkills;
         this.quotaService = quotaService;
+        this.github = github;
     }
 
     /** Used when RabbitMQ is down so recruiters can still screen a CV locally. */
@@ -81,7 +85,7 @@ public class CvPipelineService {
         if (!parse(cvId, false)) return;
         if (!extract(cvId, false)) return;
         if (!analyze(cvId, false)) return;
-        match(cvId, false);
+        if (match(cvId, false)) github.analyzeSafely(cvId);
     }
 
     @Transactional
@@ -192,6 +196,7 @@ public class CvPipelineService {
             if (cv.getApplication() != null) {
                 gateScreening.recalculate(cv.getApplication());
             }
+            if (enqueue) afterCommit(() -> publishGithub(cvId));
             return true;
         } catch (Exception ex) {
             fail(require(cvId), "MATCH_FAILED", ex, enqueue);
@@ -236,6 +241,14 @@ public class CvPipelineService {
 
         if (enqueue) throw new IllegalStateException(ex);
         log.error("CV {} failed at {}", cv.getId(), code, ex);
+    }
+
+    private void publishGithub(long cvId) {
+        try {
+            publisher.publishGithub(cvId);
+        } catch (RuntimeException ex) {
+            log.warn("GitHub analysis was not queued for CV {}: {}", cvId, ex.toString());
+        }
     }
 
     /** Queue the next pipeline step only after this TX commits and the Redis lock is released. */
