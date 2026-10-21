@@ -12,12 +12,10 @@ import {
   ImageIcon,
   MapPin,
   Pencil,
-  Plus,
   RotateCcw,
   Save,
   ShieldCheck,
   Sparkles,
-  Trash2,
   Users,
   X,
 } from "lucide-react";
@@ -28,6 +26,7 @@ import { PageSkeleton } from "@/components/ux/Skeleton";
 import { getApiErrorMessage } from "@/lib/axios";
 import { toast } from "@/stores/toastStore";
 import { useT } from "@/i18n";
+import { CompanyDirectoryCard } from "../components/CompanyDirectoryCard";
 
 const HTTP_URL = /^https?:\/\/\S+$/;
 
@@ -220,11 +219,11 @@ export function CompanyProfilePage() {
   }
 
   return (
-    <section className="space-y-5 w-full">
+    <section className="space-y-3 w-full">
       {/* ──── Prominent, Balanced Header Bar ──── */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between rounded-xl border border-[var(--color-border-default)] bg-surface-card p-5 sm:p-6 shadow-[var(--shadow-card)]">
-        <div className="flex items-center gap-4 sm:gap-5 min-w-0">
-          <div className="grid size-16 sm:size-20 shrink-0 place-items-center rounded-2xl border border-[var(--color-border-default)] bg-surface-muted overflow-hidden shadow-sm">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-xl border border-[var(--color-border-default)] bg-surface-card p-4 sm:p-5 shadow-[var(--shadow-card)]">
+        <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+          <div className="grid size-12 sm:size-14 shrink-0 place-items-center rounded-xl border border-[var(--color-border-default)] bg-surface-muted overflow-hidden shadow-sm">
             {profile?.logoUrl && HTTP_URL.test(profile.logoUrl) ? (
               <img
                 src={profile.logoUrl}
@@ -232,12 +231,12 @@ export function CompanyProfilePage() {
                 className="size-full object-contain p-2"
               />
             ) : (
-              <Building2 className="size-8 text-brand-primary" />
+              <Building2 className="size-6 text-brand-primary" />
             )}
           </div>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2.5">
-              <h1 className="truncate font-display text-xl sm:text-2xl font-bold text-[var(--color-text-primary)]">
+              <h1 className="truncate font-display text-lg sm:text-xl font-bold text-[var(--color-text-primary)]">
                 {profile?.companyName || t("companyProfile.title")}
               </h1>
               {profile?.verified && (
@@ -307,21 +306,22 @@ export function CompanyProfilePage() {
       {/* ──── Content Area ──── */}
       {!editing ? (
         /* ──── READ MODE (RÕ RÀNG, VỪA KHUNG HÌNH) ──── */
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-          {/* Main Info Card */}
-          <Card className="p-6 sm:p-7 lg:col-span-8 space-y-6">
-            <div className="flex items-center justify-between border-b border-[var(--color-border-default)] pb-4">
-              <div className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-brand-primary">
-                <Building2 className="size-4 sm:size-5" />
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+          {/* Main Info Column: Profile Info + Company Directory (7 cols) */}
+          <div className="lg:col-span-7 space-y-3">
+            <Card className="p-4 sm:p-5 space-y-4">
+              <div className="flex items-center justify-between border-b border-[var(--color-border-default)] pb-3">
+              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-brand-primary">
+                <Building2 className="size-4" />
                 {t("companyProfile.companySection")}
               </div>
-              <div className="flex items-center gap-2 text-xs sm:text-sm font-medium text-[var(--color-text-secondary)]">
+              <div className="flex items-center gap-2 text-xs font-medium text-[var(--color-text-secondary)]">
                 <span className="inline-block size-2.5 rounded-full bg-emerald-500" />
                 Hoàn tất {completeness.filled}/{completeness.total}
               </div>
             </div>
 
-            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-5">
+            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
               <ReadItem label={t("companyProfile.companyName")} value={profile?.companyName} />
               <ReadItem label={t("companyProfile.industry")} value={profile?.industry} />
               <ReadItem label={t("companyProfile.companySize")} value={profile?.companySize} icon={Users} />
@@ -329,12 +329,12 @@ export function CompanyProfilePage() {
               <ReadItem label={t("companyProfile.address")} value={profile?.address} className="sm:col-span-2" icon={MapPin} />
             </dl>
 
-            <div className="border-t border-[var(--color-border-default)] pt-5">
-              <dt className="flex items-center gap-2 text-xs sm:text-sm font-semibold uppercase tracking-wider text-[var(--color-text-secondary)]">
+            <div className="border-t border-[var(--color-border-default)] pt-3">
+              <dt className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[var(--color-text-secondary)]">
                 <Sparkles className="size-4 text-brand-primary" />
                 {t("companyProfile.description")}
               </dt>
-              <dd className="mt-2 text-sm sm:text-base leading-relaxed text-[var(--color-text-primary)]">
+              <dd className="mt-1.5 text-sm leading-relaxed text-[var(--color-text-primary)]">
                 {profile?.description?.trim() ? (
                   <p className="whitespace-pre-line">{profile.description}</p>
                 ) : (
@@ -344,17 +344,20 @@ export function CompanyProfilePage() {
             </div>
           </Card>
 
-          {/* Side Column: Logo & System Info */}
-          <div className="lg:col-span-4 space-y-5">
-            {/* Logo Card - (ĐÃ XÓA HIỆN ĐƯỜNG DẪN ẢNH) */}
-            <Card className="p-6 space-y-4">
+          <CompanyDirectoryCard />
+        </div>
+
+        {/* Side Column: Logo & System Info */}
+          <div className="lg:col-span-5 space-y-3">
+            {/* Logo Card */}
+            <Card className="p-4 space-y-3">
               <div className="flex items-center justify-between border-b border-[var(--color-border-default)] pb-3">
-                <div className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-brand-primary">
-                  <ImageIcon className="size-4 sm:size-5" />
+                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-brand-primary">
+                  <ImageIcon className="size-4" />
                   {t("companyProfile.logoSection")}
                 </div>
               </div>
-              <div className="grid place-items-center h-44 sm:h-48 rounded-xl border border-dashed border-[var(--color-border-default)] bg-surface-muted/50 p-4">
+              <div className="grid place-items-center h-36 sm:h-40 rounded-xl border border-dashed border-[var(--color-border-default)] bg-surface-muted/50 p-3">
                 {profile?.logoUrl && HTTP_URL.test(profile.logoUrl) ? (
                   <img
                     src={profile.logoUrl}
@@ -370,8 +373,8 @@ export function CompanyProfilePage() {
               </div>
             </Card>
 
-            <Card className="p-6 space-y-3.5 text-sm">
-              <div className="flex items-center gap-2 font-semibold text-[var(--color-text-primary)] border-b border-[var(--color-border-default)] pb-3">
+            <Card className="p-4 space-y-2.5 text-sm">
+              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[var(--color-text-primary)] border-b border-[var(--color-border-default)] pb-3">
                 <ShieldCheck className="size-4 text-brand-primary" />
                 Thông tin hệ thống
               </div>
@@ -399,9 +402,10 @@ export function CompanyProfilePage() {
           noValidate
           className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start"
         >
-          {/* Main Column: Core Company Info (8 cols) */}
-          <Card className="p-6 sm:p-7 lg:col-span-8 space-y-5">
-            <div className="flex items-center justify-between border-b border-[var(--color-border-default)] pb-3">
+          {/* Main Column: Core Company Info + Directory (7 cols) */}
+          <div className="lg:col-span-7 space-y-5">
+            <Card className="p-6 sm:p-7 space-y-5">
+              <div className="flex items-center justify-between border-b border-[var(--color-border-default)] pb-3">
               <div className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-brand-primary">
                 <Building2 className="size-4 sm:size-5" />
                 {t("companyProfile.companySection")}
@@ -508,8 +512,11 @@ export function CompanyProfilePage() {
             </div>
           </Card>
 
-          {/* Right Column: Logo & Branding Preview (4 cols) */}
-          <div className="lg:col-span-4 space-y-5">
+          <CompanyDirectoryCard />
+        </div>
+
+        {/* Right Column: Logo & Branding Preview (5 cols) */}
+          <div className="lg:col-span-5 space-y-5">
             <Card className="p-6 space-y-4">
               <div className="flex items-center justify-between border-b border-[var(--color-border-default)] pb-3">
                 <div className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-brand-primary">
@@ -580,123 +587,6 @@ export function CompanyProfilePage() {
           </div>
         </form>
       )}
-      <CompanyDirectoryCard />
-    </section>
-  );
-}
-
-function CompanyDirectoryCard() {
-  const queryClient = useQueryClient();
-  const directoryQuery = useQuery({
-    queryKey: ["tenant", "company", "directory"],
-    queryFn: companyApi.getDirectory,
-  });
-  const [departments, setDepartments] = useState<string[]>([]);
-  const [locations, setLocations] = useState<string[]>([]);
-
-  useEffect(() => {
-    if (!directoryQuery.data?.data) return;
-    setDepartments(directoryQuery.data.data.departments);
-    setLocations(directoryQuery.data.data.locations);
-  }, [directoryQuery.data]);
-
-  const mutation = useMutation({
-    mutationFn: companyApi.updateDirectory,
-    onSuccess: (response) => {
-      queryClient.setQueryData(["tenant", "company", "directory"], response);
-      toast.success("Đã cập nhật danh mục công ty");
-    },
-    onError: (error) => toast.danger(getApiErrorMessage(error, "Không thể cập nhật danh mục công ty")),
-  });
-
-  if (directoryQuery.isLoading) return <PageSkeleton variant="list" />;
-
-  return (
-    <Card className="space-y-5">
-      <div>
-        <h2 className="text-base font-semibold text-[var(--color-text-primary)]">Danh mục phòng ban và địa điểm</h2>
-        <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
-          Recruiter chỉ có thể chọn các giá trị trong danh mục này khi tạo hoặc chỉnh sửa tin tuyển dụng.
-        </p>
-      </div>
-      {directoryQuery.isError && <p role="alert" className="text-sm text-status-danger">{getApiErrorMessage(directoryQuery.error)}</p>}
-      <div className="grid gap-5 lg:grid-cols-2">
-        <DirectoryList
-          id="company-departments"
-          title="Phòng ban"
-          placeholder="VD: Engineering"
-          maxLength={128}
-          values={departments}
-          onChange={setDepartments}
-        />
-        <DirectoryList
-          id="company-locations"
-          title="Địa điểm công ty"
-          placeholder="VD: Tầng 5, 123 Cầu Giấy, Hà Nội"
-          maxLength={255}
-          values={locations}
-          onChange={setLocations}
-        />
-      </div>
-      <Button
-        type="button"
-        disabled={mutation.isPending || directoryQuery.isError}
-        onClick={() => mutation.mutate({ departments, locations })}
-      >
-        {mutation.isPending ? "Đang lưu…" : "Lưu danh mục"}
-      </Button>
-    </Card>
-  );
-}
-
-function DirectoryList({ id, title, placeholder, maxLength, values, onChange }: {
-  id: string;
-  title: string;
-  placeholder: string;
-  maxLength: number;
-  values: string[];
-  onChange: (values: string[]) => void;
-}) {
-  const [draft, setDraft] = useState("");
-  const add = () => {
-    const value = draft.trim();
-    if (!value || values.some((item) => item.toLocaleLowerCase() === value.toLocaleLowerCase())) return;
-    onChange([...values, value]);
-    setDraft("");
-  };
-
-  return (
-    <section className="space-y-3 rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-surface-muted p-4">
-      <h3 className="text-sm font-semibold text-[var(--color-text-primary)]">{title}</h3>
-      <div className="flex gap-2">
-        <label htmlFor={id} className="sr-only">Thêm {title.toLocaleLowerCase()}</label>
-        <input
-          id={id}
-          className={inputClass}
-          maxLength={maxLength}
-          placeholder={placeholder}
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); add(); } }}
-        />
-        <Button type="button" variant="secondary" disabled={!draft.trim()} onClick={add} aria-label={`Thêm ${title.toLocaleLowerCase()}`}>
-          <Plus className="size-4" aria-hidden="true" />
-        </Button>
-      </div>
-      {values.length === 0 ? (
-        <p className="text-sm text-[var(--color-text-secondary)]">Chưa có mục nào.</p>
-      ) : (
-        <ul className="space-y-2">
-          {values.map((value) => (
-            <li key={value.toLocaleLowerCase()} className="flex items-center justify-between gap-3 rounded-[var(--radius-md)] bg-surface-card px-3 py-2 text-sm">
-              <span className="min-w-0 break-words">{value}</span>
-              <button type="button" className="shrink-0 rounded-md p-1.5 text-status-danger hover:bg-red-50" aria-label={`Xóa ${value}`} onClick={() => onChange(values.filter((item) => item !== value))}>
-                <Trash2 className="size-4" aria-hidden="true" />
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
     </section>
   );
 }
@@ -718,11 +608,11 @@ function ReadItem({
   const display = value?.trim() || "—";
   return (
     <div className={className}>
-      <dt className="flex items-center gap-1.5 text-xs sm:text-sm font-medium uppercase tracking-wider text-[var(--color-text-secondary)]">
+      <dt className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-[var(--color-text-secondary)]">
         {Icon && <Icon className="size-3.5 text-brand-primary/80" aria-hidden="true" />}
         {label}
       </dt>
-      <dd className="mt-1 text-base sm:text-lg font-semibold text-[var(--color-text-primary)] break-words">
+      <dd className="mt-1 text-sm font-semibold text-[var(--color-text-primary)] break-words">
         {isLink && value?.trim() ? (
           <a
             href={value}
