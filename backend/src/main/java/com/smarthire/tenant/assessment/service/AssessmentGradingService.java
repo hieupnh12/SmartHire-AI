@@ -27,6 +27,8 @@ public class AssessmentGradingService {
     private final ObjectMapper json;
     private final CvAccess access;
     private final ApplicationEventPublisher events;
+    @org.springframework.beans.factory.annotation.Autowired
+    private org.springframework.beans.factory.ObjectProvider<com.smarthire.tenant.applicant.service.ApplicantService> applicants;
     public AssessmentGradingService(SubmissionRepository submissions, AnswerRepository answers,
             CodingSubmissionRepository codingSubmissions, AiInterviewClient ai, CodingJudge judge,
             ObjectMapper json, CvAccess access, ApplicationEventPublisher events) {
@@ -128,6 +130,8 @@ public class AssessmentGradingService {
         if (all.stream().allMatch(a -> a.getScore() != null)) {
             submission.setScore(all.stream().map(Answer::getScore).reduce(BigDecimal.ZERO, BigDecimal::add));
             if (submission.getStatus() != TestSubmissionStatus.EXPIRED) submission.setStatus(TestSubmissionStatus.GRADED);
+            var applicantService = applicants == null ? null : applicants.getIfAvailable();
+            if (applicantService != null) applicantService.settleAfterAssessment(submission.getApplication().getId());
         }
     }
     @Transactional

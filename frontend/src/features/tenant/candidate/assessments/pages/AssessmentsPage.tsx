@@ -51,7 +51,7 @@ export function AssessmentsPage() {
     queryFn: applicantApi.mine,
   });
   const eligible = useMemo(
-    () => (applications.data?.data ?? []).filter((a) => !a.archived && a.status === "ASSESSMENT"),
+    () => (applications.data?.data ?? []).filter((a) => !a.archived && (a.status === "ASSESSMENT" || a.status === "HUMAN_INTERVIEW" || a.status === "FAILED")),
     [applications.data?.data],
   );
 
@@ -115,7 +115,7 @@ export function AssessmentsPage() {
               Bài đánh giá
             </h1>
             <p className="mt-2 text-sm leading-6 text-[var(--color-on-surface-variant)]">
-              Quản lý lời mời bài kiểm tra từ nhà tuyển dụng, xem thời lượng và tiếp tục bài đang làm.
+              Mỗi hồ sơ nhận một đề riêng từ ngân hàng câu hỏi. Đề mẫu [Demo UI] dùng để xem giao diện và có thể làm lại nhiều lần, không tính vào kết quả hồ sơ.
             </p>
           </div>
           <div className="grid grid-cols-3 gap-2 sm:gap-3">
@@ -168,9 +168,9 @@ export function AssessmentsPage() {
         <div className="flex items-start gap-3 rounded-2xl border border-dashed border-[var(--color-border-default)] bg-white p-6 shadow-[var(--shadow-card)]">
           <ClipboardCheck className="size-8 text-[var(--color-primary)]" aria-hidden="true" />
           <div>
-            <p className="font-semibold">Chưa có lời mời bài đánh giá</p>
+            <p className="font-semibold">Chưa có đề được giao</p>
             <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">
-              Lời mời sẽ xuất hiện tại đây khi nhà tuyển dụng gửi bài kiểm tra.
+              Đề xuất hiện khi hồ sơ đang ở vòng bài kiểm tra và nhà tuyển dụng đã lưu cấu hình, với ngân hàng đủ câu hỏi.
             </p>
           </div>
         </div>

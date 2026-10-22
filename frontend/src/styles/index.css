@@ -185,7 +185,22 @@
 [data-reveal-stagger].is-visible > *:nth-child(4) { opacity: 1; transform: none; transition-delay: 240ms; }
 [data-reveal-stagger].is-visible > *:nth-child(5) { opacity: 1; transform: none; transition-delay: 320ms; }
 
-/* Respect reduced motion preferences */
+/* The fullscreen element must fill the display, not the previous window size. */
+html:fullscreen,
+html:-webkit-full-screen {
+  width: 100% !important;
+  height: 100% !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+}
+html:fullscreen body,
+html:-webkit-full-screen body,
+html:fullscreen #exam-room-root,
+html:-webkit-full-screen #exam-room-root {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+}
 @media (prefers-reduced-motion: reduce) {
   [data-reveal],
   [data-reveal-stagger] > * {

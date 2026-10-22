@@ -238,7 +238,7 @@ export function AssessmentsPage() {
           </nav>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight">Quản lý bài đánh giá năng lực</h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--color-on-surface-variant)]">
-            Tạo bài đánh giá thủ công hoặc tự động từ ngân hàng câu hỏi. Cấu hình đề riêng cho ứng viên sau lọc CV và theo dõi bài làm theo vị trí tuyển dụng.
+            Cấu hình cấu trúc đề cho vị trí. Hệ thống tự tạo một đề riêng cho từng hồ sơ từ ngân hàng câu hỏi. Thêm câu hỏi ở ngân hàng trước khi bật tạo tự động.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">

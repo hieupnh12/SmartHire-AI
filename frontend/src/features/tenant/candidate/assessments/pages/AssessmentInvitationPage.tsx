@@ -20,6 +20,8 @@ import {
   handoffAssessmentProctor,
 } from "../utils/assessmentProctorHandoff";
 
+const OPEN_ASSESSMENT = new Set(["ASSESSMENT", "HUMAN_INTERVIEW", "FAILED"]);
+
 /** Career header is h-[76px]; cancel CareerNavigationLayout padding so this page fills one frame. */
 const roomShell =
   "-mx-4 -my-6 flex h-[calc(100dvh-76px)] flex-col overflow-hidden px-4 py-3 text-[var(--color-on-surface)] sm:-mx-6 sm:-my-8 sm:px-6 sm:py-4 lg:-mx-10 lg:px-8";
@@ -41,7 +43,7 @@ export function AssessmentInvitationPage() {
   });
 
   const eligible = useMemo(
-    () => (applications.data?.data ?? []).filter((a) => !a.archived && a.status === "ASSESSMENT"),
+    () => (applications.data?.data ?? []).filter((a) => !a.archived && OPEN_ASSESSMENT.has(a.status)),
     [applications.data?.data],
   );
 

@@ -106,8 +106,8 @@ public class AssessmentInvitationService {
         if (!application.getJob().getId().equals(test.getJob().getId())) {
             throw conflict("Application does not belong to the test job", "APPLICATION_JOB_MISMATCH");
         }
-        if (test.getAssignedApplication() != null && !test.getAssignedApplication().getId().equals(application.getId())) {
-            throw conflict("Assessment is assigned to a different application", "APPLICATION_JOB_MISMATCH");
+        if (test.getAssignedApplication() == null || !test.getAssignedApplication().getId().equals(application.getId())) {
+            throw conflict("Only the paper assigned to this application can be sent", "ASSESSMENT_NOT_ASSIGNED");
         }
         if (application.getArchivedAt() != null || application.getWithdrawnAt() != null
                 || !SENDABLE.contains(application.getStatus())) {

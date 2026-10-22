@@ -68,8 +68,8 @@ export function CandidateCodingStudio({ submissionId, question, answer, locked, 
   const processing = status == null || status < 3;
   const ResultIcon = passed ? CheckCircle2 : processing ? Clock : executionError ? CircleAlert : XCircle;
   return (
-    <div className="grid h-full min-h-0 min-w-0 gap-3 xl:grid-cols-[minmax(0,0.38fr)_minmax(0,0.62fr)]">
-      <section className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)]">
+    <div className="grid h-full min-h-0 min-w-0 gap-3 max-lg:grid-rows-[minmax(7.5rem,0.3fr)_minmax(0,1fr)] lg:grid-cols-[minmax(17rem,0.34fr)_minmax(0,1fr)] lg:grid-rows-1">
+      <section className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)]">
         <div className="shrink-0 border-b border-[var(--color-border-default)] px-4 py-3">
           <h2 className="text-lg font-semibold">{question.coding?.title ?? "Thử thách lập trình"} · {question.points} điểm</h2>
         </div>
@@ -94,11 +94,68 @@ export function CandidateCodingStudio({ submissionId, question, answer, locked, 
           <p className="text-xs leading-5 text-[var(--color-on-surface-variant)]">
             Chạy thử tối đa 5 test công khai. Test ẩn chỉ được dùng khi chấm bài. Mã nguồn tối đa 10.000 ký tự.
           </p>
+          <section className="space-y-3" aria-label="Console test cases">
+            <h3 className="font-semibold">Console · Test cases mẫu</h3>
+            <nav aria-label="Test case đang xem" className="flex flex-wrap gap-2">
+              {samples.map((_, index) => (
+                <Button
+                  key={index}
+                  variant={safeIndex === index ? "primary" : "secondary"}
+                  aria-pressed={safeIndex === index}
+                  onClick={() => setSampleIndex(index)}
+                >
+                  Test Case {index + 1}
+                </Button>
+              ))}
+            </nav>
+            <AssessmentError error={run.error} />
+            {run.isPending && <p role="status">Đang thực thi mã nguồn trong sandbox…</p>}
+            {result && (
+              <p
+                role="status"
+                className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${
+                  passed
+                    ? "bg-emerald-50 text-emerald-800"
+                    : executionError || processing
+                      ? "bg-amber-50 text-amber-900"
+                      : "bg-[var(--color-error-container)] text-[var(--color-on-error-container)]"
+                }`}
+              >
+                <ResultIcon className="size-4" aria-hidden="true" />
+                {passed ? "Passed" : processing ? "Đang xử lý" : executionError ? "Time Limit / Runtime / Compile Error" : "Failed"} ·{" "}
+                {result.status?.description}
+              </p>
+            )}
+            {sample && (
+              <div className="space-y-3 text-xs">
+                {(
+                  [
+                    ["Input", sample.input],
+                    ["Expected Output", sample.expectedOutput],
+                    ["Actual Output", result?.stdout ?? "Chưa có kết quả chạy"],
+                  ] as const
+                ).map(([label, value]) => (
+                  <div key={label}>
+                    <h4 className="mb-1 font-medium">{label}</h4>
+                    <pre className="overflow-auto whitespace-pre-wrap break-words rounded-lg bg-[var(--color-surface-container-low)] p-3 font-mono">{value}</pre>
+                  </div>
+                ))}
+                {(result?.stderr || result?.compile_output) && (
+                  <div>
+                    <h4 className="mb-1 font-medium">Terminal</h4>
+                    <pre className="overflow-auto whitespace-pre-wrap break-words rounded-lg bg-[var(--color-error-container)] p-3">
+                      {result.stderr || result.compile_output}
+                    </pre>
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
         </div>
       </section>
-      <section className="flex min-h-0 min-w-0 flex-col gap-3">
-        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-3 sm:p-4">
-          <div className="flex shrink-0 flex-wrap items-end justify-between gap-3">
+      <section className="grid h-full min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)_auto] gap-3 overflow-hidden">
+        <div className="contents">
+          <div className="flex shrink-0 flex-wrap items-end justify-between gap-3 rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-3">
             <label className="min-w-36 text-sm font-medium">
               Ngôn ngữ
               <select
@@ -145,7 +202,7 @@ export function CandidateCodingStudio({ submissionId, question, answer, locked, 
               Khôi phục code ban đầu
             </Button>
           </div>
-          <div className="min-h-0 flex-1 overflow-hidden rounded-lg border border-[var(--color-border-default)]">
+          <div className="h-full min-h-0 select-text overflow-hidden rounded-xl border border-[var(--color-border-default)] bg-white">
             <Editor
               height="100%"
               language={language}
@@ -175,7 +232,7 @@ export function CandidateCodingStudio({ submissionId, question, answer, locked, 
               }}
             />
           </div>
-          <div className="shrink-0 space-y-2">
+          <div className="space-y-2 rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-3">
             <FieldError message={sourceTooLong ? "Mã nguồn tối đa 10.000 ký tự. Phần nhập vượt giới hạn chưa được áp dụng." : undefined} />
             <p className="text-xs text-[var(--color-on-surface-variant)]">
               {source.length}/10.000 ký tự · Ctrl+Enter / ⌘+Enter: chạy test mẫu. Tab: di chuyển giữa các điều khiển.
@@ -204,66 +261,6 @@ export function CandidateCodingStudio({ submissionId, question, answer, locked, 
             <AssessmentError error={saveError} />
           </div>
         </div>
-        <section
-          className="max-h-[34%] min-h-0 shrink-0 space-y-3 overflow-y-auto rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-3 sm:p-4"
-          aria-label="Console test cases"
-        >
-          <h3 className="font-semibold">Console · Test cases mẫu</h3>
-          <nav aria-label="Test case đang xem" className="flex flex-wrap gap-2">
-            {samples.map((_, index) => (
-              <Button
-                key={index}
-                variant={safeIndex === index ? "primary" : "secondary"}
-                aria-pressed={safeIndex === index}
-                onClick={() => setSampleIndex(index)}
-              >
-                Test Case {index + 1}
-              </Button>
-            ))}
-          </nav>
-          <AssessmentError error={run.error} />
-          {run.isPending && <p role="status">Đang thực thi mã nguồn trong sandbox…</p>}
-          {result && (
-            <p
-              role="status"
-              className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${
-                passed
-                  ? "bg-emerald-50 text-emerald-800"
-                  : executionError || processing
-                    ? "bg-amber-50 text-amber-900"
-                    : "bg-[var(--color-error-container)] text-[var(--color-on-error-container)]"
-              }`}
-            >
-              <ResultIcon className="size-4" aria-hidden="true" />
-              {passed ? "Passed" : processing ? "Đang xử lý" : executionError ? "Time Limit / Runtime / Compile Error" : "Failed"} ·{" "}
-              {result.status?.description}
-            </p>
-          )}
-          {sample && (
-            <div className="space-y-3 text-xs">
-              {(
-                [
-                  ["Input", sample.input],
-                  ["Expected Output", sample.expectedOutput],
-                  ["Actual Output", result?.stdout ?? "Chưa có kết quả chạy"],
-                ] as const
-              ).map(([label, value]) => (
-                <div key={label}>
-                  <h4 className="mb-1 font-medium">{label}</h4>
-                  <pre className="overflow-auto whitespace-pre-wrap break-words rounded-lg bg-[var(--color-surface-container-low)] p-3 font-mono">{value}</pre>
-                </div>
-              ))}
-              {(result?.stderr || result?.compile_output) && (
-                <div>
-                  <h4 className="mb-1 font-medium">Terminal</h4>
-                  <pre className="overflow-auto whitespace-pre-wrap break-words rounded-lg bg-[var(--color-error-container)] p-3">
-                    {result.stderr || result.compile_output}
-                  </pre>
-                </div>
-              )}
-            </div>
-          )}
-        </section>
       </section>
     </div>
   );

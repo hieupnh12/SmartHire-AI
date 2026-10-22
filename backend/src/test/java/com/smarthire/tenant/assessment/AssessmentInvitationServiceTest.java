@@ -66,6 +66,7 @@ class AssessmentInvitationServiceTest {
         application.setJob(job);
         application.setCandidate(candidate);
         application.setStatus(ApplicationStatus.INTERVIEW);
+        test.setAssignedApplication(application);
         var recruiter = new User();
         recruiter.setId(2L);
         lenient().when(access.staff()).thenReturn(true);
