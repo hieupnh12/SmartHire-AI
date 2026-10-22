@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Camera, Mic, MonitorUp, ShieldCheck } from "lucide-react";
+import { Camera, Expand, Mic, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ux/Button";
 import {
   prepareProctorDevices,
@@ -21,7 +21,7 @@ export function AssessmentProctorGate({ busy, label = "Bắt đầu làm bài", 
   const [preparing, setPreparing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
-  const [enableCamera, setEnableCamera] = useState(false);
+  const [enableCamera, setEnableCamera] = useState(true);
   const prepared = useRef<ProctorSession | null>(null);
   const mounted = useRef(true);
   const preparingRef = useRef(false);
@@ -53,11 +53,11 @@ export function AssessmentProctorGate({ busy, label = "Bắt đầu làm bài", 
         return;
       }
       if (
-        [...prepared.current.camera.getAudioTracks(), ...prepared.current.screen.getTracks()].some(
+        prepared.current.camera.getTracks().some(
           (track) => track.readyState !== "live",
         )
       ) {
-        throw new Error("Thiết bị hoặc chia sẻ tab làm bài đã dừng. Hãy kiểm tra thiết bị lại.");
+        throw new Error("Thiết bị camera hoặc microphone đã dừng. Hãy kiểm tra lại thiết bị.");
       }
       if (!document.documentElement.requestFullscreen) {
         throw new Error("Trình duyệt không hỗ trợ chế độ toàn màn hình.");
@@ -88,13 +88,13 @@ export function AssessmentProctorGate({ busy, label = "Bắt đầu làm bài", 
       <p className="text-sm font-semibold">Kiểm tra thiết bị</p>
       <div className="flex flex-wrap gap-2 text-xs">
         <span className="inline-flex items-center gap-1.5 rounded-lg bg-white px-2.5 py-1.5">
+          <Camera className="size-3.5 text-[var(--color-primary)]" aria-hidden="true" /> Camera (Webcam)
+        </span>
+        <span className="inline-flex items-center gap-1.5 rounded-lg bg-white px-2.5 py-1.5">
           <Mic className="size-3.5 text-[var(--color-primary)]" aria-hidden="true" /> Microphone
         </span>
         <span className="inline-flex items-center gap-1.5 rounded-lg bg-white px-2.5 py-1.5">
-          <MonitorUp className="size-3.5 text-[var(--color-primary)]" aria-hidden="true" /> Chia sẻ tab
-        </span>
-        <span className="inline-flex items-center gap-1.5 rounded-lg bg-white px-2.5 py-1.5">
-          <Camera className="size-3.5 text-[var(--color-primary)]" aria-hidden="true" /> Camera (tuỳ chọn)
+          <Expand className="size-3.5 text-[var(--color-primary)]" aria-hidden="true" /> Toàn màn hình
         </span>
       </div>
       <label className="flex cursor-pointer items-start gap-3 rounded-xl bg-white p-3 text-sm leading-6">
@@ -110,7 +110,7 @@ export function AssessmentProctorGate({ busy, label = "Bắt đầu làm bài", 
             setReady(false);
           }}
         />
-        <span>Cho phép microphone, chia sẻ tab làm bài và ghi nhận vi phạm trong phiên thi.</span>
+        <span>Cho phép camera, microphone và tuân thủ quy chế thi toàn màn hình.</span>
       </label>
       <label className="flex items-center gap-2 px-1 text-sm text-[var(--color-on-surface-variant)]">
         <input
@@ -119,7 +119,7 @@ export function AssessmentProctorGate({ busy, label = "Bắt đầu làm bài", 
           disabled={preparing || ready}
           onChange={(event) => setEnableCamera(event.target.checked)}
         />
-        Bật camera (tuỳ chọn)
+        Bật camera giám sát (khuyến nghị)
       </label>
       {error && (
         <p className="rounded-lg bg-[var(--color-error-container)] p-3 text-sm text-[var(--color-on-error-container)]" role="alert">
@@ -127,8 +127,8 @@ export function AssessmentProctorGate({ busy, label = "Bắt đầu làm bài", 
         </p>
       )}
       {ready && (
-        <p className="text-sm text-[var(--color-primary)]" role="status">
-          Thiết bị sẵn sàng. Bấm để vào toàn màn hình và bắt đầu.
+        <p className="text-sm font-medium text-emerald-600" role="status">
+          Thiết bị đã sẵn sàng. Bấm để vào toàn màn hình và bắt đầu.
         </p>
       )}
       <Button size="lg" className="w-full" disabled={!accepted || preparing || busy} onClick={() => void prepare()}>

@@ -219,6 +219,11 @@ public class AiInterviewService {
             interview.setExpiresAt(null);
             interview.setErrorMessage(null);
             activity.record(interview, "OPENING_QUEUED", "Candidate admitted; greeting queued; timer has not started");
+            try {
+                evaluation.process(interview.getId());
+            } catch (Exception ex) {
+                // If immediate initialization encounters an issue, keep OPENING_QUEUED so background dispatcher can retry
+            }
             return mapper.toResponse(interview);
         }
         interview.setStartedAt(now);

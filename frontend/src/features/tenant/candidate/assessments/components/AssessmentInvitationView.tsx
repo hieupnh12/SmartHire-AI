@@ -1,4 +1,4 @@
-﻿import { Link } from "react-router-dom";
+import { Link } from "react-router-dom";
 import {
   AppWindow,
   ArrowRight,
@@ -226,7 +226,7 @@ export function AssessmentInvitationView({
                   </div>
                 ) : (
                   <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-[var(--color-border-default)] bg-white/70 px-4 text-center text-sm text-[var(--color-on-surface-variant)]">
-                    Đồng ý quy chế bên trên để kiểm tra microphone và chia sẻ tab.
+                    Đồng ý quy chế bên trên để kiểm tra camera và microphone.
                   </div>
                 )}
               </div>

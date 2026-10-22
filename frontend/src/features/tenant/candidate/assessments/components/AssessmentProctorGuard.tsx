@@ -44,14 +44,14 @@ export function AssessmentProctorGuard({ submissionId, session, children, onAuto
   useEffect(() => {
     if (videoRef.current) videoRef.current.srcObject = session.camera;
     const microphoneTrack = session.camera.getAudioTracks()[0];
-    const screenTrack = session.screen.getVideoTracks()[0];
+    const cameraTrack = session.camera.getVideoTracks()[0];
     const microphoneLost = () => violate("Microphone đã bị tắt");
-    const screenLost = () => violate("Chia sẻ tab làm bài đã dừng");
+    const cameraLost = () => violate("Camera giám sát đã bị dừng");
     microphoneTrack?.addEventListener("ended", microphoneLost);
-    screenTrack?.addEventListener("ended", screenLost);
+    cameraTrack?.addEventListener("ended", cameraLost);
     return () => {
       microphoneTrack?.removeEventListener("ended", microphoneLost);
-      screenTrack?.removeEventListener("ended", screenLost);
+      cameraTrack?.removeEventListener("ended", cameraLost);
     };
   }, [session, violate]);
 
@@ -118,7 +118,7 @@ export function AssessmentProctorGuard({ submissionId, session, children, onAuto
         {session.camera.getVideoTracks().length > 0 ? (
           <video ref={videoRef} autoPlay muted playsInline className="aspect-video w-full rounded-lg bg-slate-900 object-cover" />
         ) : (
-          <p className="p-3 text-xs">Đang giám sát microphone và tab làm bài.</p>
+          <p className="p-3 text-xs">Đang giám sát microphone và toàn màn hình.</p>
         )}
         <div className="mt-2 flex items-center justify-between text-[11px]">
           <span className="inline-flex items-center gap-1">
