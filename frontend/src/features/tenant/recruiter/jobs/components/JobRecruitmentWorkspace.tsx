@@ -12,6 +12,10 @@ export function useRecruitmentJob() {
   return job;
 }
 
+export function useOptionalRecruitmentJob() {
+  return useContext(JobContext);
+}
+
 export function JobRecruitmentWorkspace({ children }: { children: ReactNode }) {
   const { id, assessmentId } = useParams();
   const valid = Number.isSafeInteger(Number(id)) && Number(id) > 0;

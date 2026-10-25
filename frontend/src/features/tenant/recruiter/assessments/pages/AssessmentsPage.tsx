@@ -1,7 +1,7 @@
 import { useRecruitmentJob } from "../../jobs/components/JobRecruitmentWorkspace";
 import { useMemo, useState, type ReactNode } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   Archive,
   ArrowUpRight,
@@ -18,6 +18,7 @@ import {
   Lightbulb,
   Plus,
   Search,
+  Sparkles,
   Target,
   Users,
 } from "lucide-react";
@@ -28,6 +29,7 @@ import { Button } from "@/components/ux/Button";
 import { shortAssessmentTitle } from "@/lib/assessmentTitle";
 import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
+import { JobAssessmentConfiguration } from "../components/JobAssessmentConfiguration";
 
 type StatusTab = "ALL" | TestStatus;
 type SortKey = "latest" | "title" | "duration";
@@ -144,6 +146,23 @@ function MetricCard({
 export function AssessmentsPage() {
   const job = useRecruitmentJob();
   const basePath = `/recruiter/jobs/${job.id}/assessments`;
+  const [searchParams, setSearchParams] = useSearchParams();
+  const mainTab = (searchParams.get("tab") === "config" ? "config" : "tests") as "tests" | "config";
+  const setMainTab = (nextTab: "tests" | "config") => {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (nextTab === "config") {
+          next.set("tab", "config");
+        } else {
+          next.delete("tab");
+        }
+        return next;
+      },
+      { replace: true },
+    );
+  };
+
   const [tab, setTab] = useState<StatusTab>("ALL");
   const [query, setQuery] = useState("");
   const jobFilter = job.id;
@@ -265,6 +284,56 @@ export function AssessmentsPage() {
         </div>
       </header>
 
+      {/* 2 Tab chính: Danh sách bài thi & Cấu hình bài tập */}
+      <div className="flex border-b border-[var(--color-border-default)]" role="tablist" aria-label="Quản lý bài đánh giá">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mainTab === "tests"}
+          onClick={() => setMainTab("tests")}
+          className={cn(
+            "inline-flex items-center gap-2.5 border-b-2 px-5 py-3 text-base font-semibold transition-all",
+            mainTab === "tests"
+              ? "border-[var(--color-primary)] text-[var(--color-primary)]"
+              : "border-transparent text-[var(--color-on-surface-variant)] hover:border-[var(--color-outline-variant)] hover:text-[var(--color-on-surface)]",
+          )}
+        >
+          <ClipboardList className="size-5" />
+          Danh sách bài thi
+          <span
+            className={cn(
+              "rounded-full px-2 py-0.5 text-xs font-semibold",
+              mainTab === "tests"
+                ? "bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)]"
+                : "bg-[var(--color-surface-container-high)] text-[var(--color-on-surface-variant)]",
+            )}
+          >
+            {counts.all}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mainTab === "config"}
+          onClick={() => setMainTab("config")}
+          className={cn(
+            "inline-flex items-center gap-2.5 border-b-2 px-5 py-3 text-base font-semibold transition-all",
+            mainTab === "config"
+              ? "border-[var(--color-primary)] text-[var(--color-primary)]"
+              : "border-transparent text-[var(--color-on-surface-variant)] hover:border-[var(--color-outline-variant)] hover:text-[var(--color-on-surface)]",
+          )}
+        >
+          <Sparkles className="size-5 text-[var(--color-primary)]" />
+          Cấu hình bài tập & Tạo đề tự động
+        </button>
+      </div>
+
+      {mainTab === "config" ? (
+        <JobAssessmentConfiguration />
+      ) : (
+        <>
+
       <AssessmentError error={tests.error} retry={() => void tests.refetch()} />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -350,7 +419,7 @@ export function AssessmentsPage() {
         </div>
         <Link
           to={`${basePath}/new`}
-          className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg bg-[var(--color-primary)] px-4 text-sm font-semibold text-[var(--color-on-primary)] shadow-sm hover:bg-[var(--color-primary-hover)]"
+          className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg bg-[var(--color-primary)] px-4 text-sm font-semibold text-[var(--color-on-primary)] shadow-sm transition-colors hover:bg-[var(--color-primary-hover)]"
         >
           <Plus className="size-4" aria-hidden="true" />
           Bắt đầu tạo đề
@@ -633,6 +702,8 @@ export function AssessmentsPage() {
           </Link>
         </div>
       </div>
+      </>
+      )}
     </section>
   );
 }

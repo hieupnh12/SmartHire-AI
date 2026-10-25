@@ -202,16 +202,20 @@ export function CandidateCodingStudio({ submissionId, question, answer, locked, 
               Khôi phục code ban đầu
             </Button>
           </div>
-          <div className="h-full min-h-0 select-text overflow-hidden rounded-xl border border-[var(--color-border-default)] bg-white">
+          <div className="h-full min-h-0 select-text overflow-hidden rounded-xl border border-slate-700 bg-[#1e1e1e]">
             <Editor
               height="100%"
               language={language}
+              theme="vs-dark"
               value={source}
               onMount={onMount}
               options={{
                 readOnly: locked,
                 minimap: { enabled: false },
-                fontSize: 14,
+                fontSize: 13,
+                lineHeight: 20,
+                fontFamily: "'Fira Code', 'Cascadia Code', 'JetBrains Mono', Consolas, monospace",
+                fontLigatures: true,
                 automaticLayout: true,
                 wordWrap: "on",
                 scrollBeyondLastLine: false,

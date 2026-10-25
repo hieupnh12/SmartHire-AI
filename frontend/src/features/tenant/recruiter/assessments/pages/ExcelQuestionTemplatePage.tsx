@@ -1,4 +1,5 @@
 import { CodingStarterFields, codingAuthoringValue, QuestionContentFields } from "../components/QuestionContentFields";
+import { MonacoCodeEditor } from "../components/MonacoCodeEditor";
 import { CodingTestVerification } from "../components/CodingTestVerification";
 import type { EssayRubric } from "@/api/types/assessment";
 import { ExcelImportReview } from "../components/ExcelImportReview";
@@ -19,6 +20,7 @@ import {
   Plus,
   Save,
   ShieldCheck,
+  Sparkles,
   Table2,
 } from "lucide-react";
 import { Button } from "@/components/ux/Button";
@@ -782,7 +784,7 @@ type GeneralBankEditor = {
 };
 
 export function ExcelQuestionEditor({ job, generalBank }: {
-  job?: { id: number; title: string };
+  job?: { id: number; title: string; skills?: Array<{ name: string }> };
   generalBank?: GeneralBankEditor;
 }) {
   const jobId = job?.id ?? 0;
@@ -1730,13 +1732,25 @@ export function ExcelQuestionEditor({ job, generalBank }: {
                         {showAllColumns && (
                           <>
                             <EditCell
-                              selected={isSelected(rowIndex, "score")}
+                              selected={isSubjectiveKind(row.kind) ? false : isSelected(rowIndex, "score")}
                               value={row.score}
-                              onSelect={pick("score", "C")}
-                              onChange={applyEdit}
-                              className="text-center font-mono font-semibold"
+                              onSelect={isSubjectiveKind(row.kind) ? () => {} : pick("score", "C")}
+                              onChange={isSubjectiveKind(row.kind) ? () => {} : applyEdit}
+                              className={cn(
+                                "text-center font-mono",
+                                isSubjectiveKind(row.kind)
+                                  ? "bg-[var(--color-surface-container-low)] text-[10px] italic text-[var(--color-on-surface-variant)] cursor-not-allowed"
+                                  : "font-semibold"
+                              )}
+                              title={isSubjectiveKind(row.kind) ? "Điểm được áp dụng tự động theo Cấu hình bài tập" : undefined}
                             >
-                              {row.score}
+                              {isSubjectiveKind(row.kind) ? (
+                                <span className="rounded bg-[var(--color-surface-container)] px-1 py-0.5 text-[9px] font-medium text-[var(--color-on-surface-variant)]">
+                                  Theo cấu hình
+                                </span>
+                              ) : (
+                                row.score
+                              )}
                             </EditCell>
                             <EditCell
                               selected={isSelected(rowIndex, "difficulty")}
@@ -2010,9 +2024,9 @@ export function ExcelQuestionEditor({ job, generalBank }: {
               </div>
               <div className="overflow-x-auto rounded-xl border border-[var(--color-border-default)]">
                 <table className="w-full min-w-[600px] text-left text-xs">
-                  <thead className="bg-[var(--color-surface-container-low)] text-[var(--color-on-surface-variant)]"><tr><th className="p-3">STT</th><th className="p-3">Nội dung câu hỏi</th><th className="p-3">Loại</th><th className="p-3">Điểm</th><th className="p-3">Độ khó</th><th className="p-3">Kỹ năng</th></tr></thead>
+                  <thead className="bg-[var(--color-surface-container-low)] text-[var(--color-on-surface-variant)]"><tr><th className="p-3">STT</th><th className="p-3">Nội dung câu hỏi</th><th className="p-3">Loại</th><th className="p-3">Độ khó</th><th className="p-3">Kỹ năng</th></tr></thead>
                   <tbody>{questions.map((question, index) => isSubjectiveKind(question.kind) && <tr key={question.id} className={cn("border-t border-[var(--color-border-default)]", selectedIndex === index && "bg-[var(--color-primary-subtle)]")}>
-                    <td className="p-3 font-mono">{index + 1}</td><td className="max-w-md p-3"><button type="button" aria-pressed={selectedIndex === index} className="w-full truncate text-left font-semibold text-[var(--color-primary)] focus-visible:outline focus-visible:outline-2" onClick={() => setSelectedIndex(index)}>{question.content || "Câu hỏi chưa có nội dung"}</button></td><td className="p-3">{typeMeta(question.kind).label}</td><td className="p-3">{question.score}</td><td className="p-3">{question.difficulty || "—"}</td><td className="p-3">{question.skill || "—"}</td>
+                    <td className="p-3 font-mono">{index + 1}</td><td className="max-w-md p-3"><button type="button" aria-pressed={selectedIndex === index} className="w-full truncate text-left font-semibold text-[var(--color-primary)] focus-visible:outline focus-visible:outline-2" onClick={() => setSelectedIndex(index)}>{question.content || "Câu hỏi chưa có nội dung"}</button></td><td className="p-3">{typeMeta(question.kind).label}</td><td className="p-3">{question.difficulty || "—"}</td><td className="p-3">{question.skill || "—"}</td>
                   </tr>)}</tbody>
                 </table>
                 {counts.subjective === 0 && <p className="p-6 text-center text-sm text-[var(--color-on-surface-variant)]">Chưa có câu hỏi. Chọn loại câu phía trên để bắt đầu biên soạn.</p>}
@@ -2039,9 +2053,6 @@ export function ExcelQuestionEditor({ job, generalBank }: {
                       <Clock3 className="size-3" aria-hidden="true" />
                       {selectedQuestion.timeLimit || "--"}
                     </span>
-                    <span className="rounded-full bg-[var(--color-surface-card)] px-2 py-0.5 font-mono font-semibold text-[var(--color-primary)] ring-1 ring-[var(--color-border-default)]">
-                      {selectedQuestion.score || "0"} điểm
-                    </span>
                   </div>
                 </div>
 
@@ -2049,14 +2060,22 @@ export function ExcelQuestionEditor({ job, generalBank }: {
                   <div className="min-w-0 flex flex-col gap-4 rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-4 sm:p-5">
                     <div className="flex items-center gap-3 border-b border-[var(--color-border-default)] pb-4">
                       <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[var(--color-primary-soft)] text-sm font-semibold text-[var(--color-primary)]">01</span>
-                      <div><h3 className="text-sm font-semibold">Nội dung & tiêu chuẩn đánh giá</h3><p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">Thông tin câu hỏi và mô tả từng mức điểm.</p></div>
+                      <div>
+                        <h3 className="text-sm font-semibold">
+                          {selectedQuestion.kind === "TU_LUAN_CODE" ? "Thông tin bài toán lập trình" : "Đề bài & Thông tin câu hỏi"}
+                        </h3>
+                        <p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">
+                          {selectedQuestion.kind === "TU_LUAN_CODE" ? "Nội dung bài toán, kỹ năng và mức độ khó." : "Đề bài, kỹ năng kiểm tra và mức độ khó."}
+                        </p>
+                      </div>
                     </div>
                     <label className="flex flex-col gap-1">
-                      <span className="text-[11px] font-semibold text-[var(--color-on-surface-variant)]">Đề bài</span>
+                      <span className="text-[11px] font-semibold text-[var(--color-on-surface-variant)]">Đề bài (Markdown)</span>
                       <textarea
                         value={selectedQuestion.content}
                         onChange={(event) => patchQuestion(selectedIndex, { content: event.target.value })}
-                        rows={3}
+                        rows={4}
+                        placeholder={selectedQuestion.kind === "TU_LUAN_CODE" ? "Mô tả bài toán, yêu cầu input/output và ràng buộc..." : "Nhập câu hỏi tự luận hoặc tình huống cần phân tích..."}
                         className="resize-y rounded-md border border-[var(--color-border-default)] bg-[var(--color-surface-container-low)] px-2.5 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
                       />
                     </label>
@@ -2066,108 +2085,151 @@ export function ExcelQuestionEditor({ job, generalBank }: {
                         <input
                           value={selectedQuestion.skill}
                           onChange={(event) => patchQuestion(selectedIndex, { skill: event.target.value })}
+                          placeholder="Ví dụ: Java, SQL, System Design"
                           className="h-8 rounded-md border border-[var(--color-border-default)] bg-[var(--color-surface-container-low)] px-2 text-xs outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
                         />
                       </label>
                       <label className="flex flex-col gap-1">
-                        <span className="text-[11px] font-semibold text-[var(--color-on-surface-variant)]">Ngôn ngữ</span>
-                        <input
-                          value={selectedQuestion.language}
-                          readOnly={selectedQuestion.kind === "TU_LUAN_CODE"}
-                          onChange={(event) => patchQuestion(selectedIndex, { language: event.target.value })}
+                        <span className="text-[11px] font-semibold text-[var(--color-on-surface-variant)]">Độ khó</span>
+                        <select
+                          value={selectedQuestion.difficulty}
+                          onChange={event => patchQuestion(selectedIndex, { difficulty: event.target.value, difficultyTone: toneFromDifficulty(event.target.value) })}
                           className="h-8 rounded-md border border-[var(--color-border-default)] bg-[var(--color-surface-container-low)] px-2 text-xs outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
-                        />
+                        >
+                          <option value="">Chọn độ khó</option>
+                          <option value="Easy">Dễ (Easy)</option>
+                          <option value="Medium">Trung bình (Medium)</option>
+                          <option value="Hard">Khó (Hard)</option>
+                        </select>
                       </label>
                     </div>
-                    <div className="space-y-3">
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <label className="text-xs">Điểm<input type="number" min="0.1" step="0.1" value={selectedQuestion.score} onChange={event => patchQuestion(selectedIndex, { score: event.target.value })} className="mt-1 w-full rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-2" /></label>
-                        <label className="text-xs">Độ khó<select value={selectedQuestion.difficulty} onChange={event => patchQuestion(selectedIndex, { difficulty: event.target.value, difficultyTone: toneFromDifficulty(event.target.value) })} className="mt-1 w-full rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-2"><option value="">Chọn độ khó</option><option value="Easy">Dễ</option><option value="Medium">Trung bình</option><option value="Hard">Khó</option></select></label>
-                      </div>
-                      <p className="text-[11px] font-semibold text-[var(--color-on-surface-variant)]">Rubric 3 mức</p>
-                      {selectedQuestion.rubric.map((item, index) => (
-                        <label key={item.level} className={cn("block space-y-2 rounded-xl border border-l-4 p-3", index === 0 ? "border-[var(--color-interview-passed)] bg-[var(--color-interview-passed-bg)]" : index === 1 ? "border-[var(--color-primary)] bg-[var(--color-primary-subtle)]" : "border-[var(--color-error)] bg-[var(--color-error-container)]")}>
-                          <span className="flex items-center justify-between gap-2 text-xs font-semibold">
-                            <span>{["Xuất sắc · 9–10 điểm", "Đạt · 6–8 điểm", "Chưa đạt · 0–5 điểm"][index]}</span>
-                            <span className="text-[var(--color-on-surface-variant)]">Mức {index + 1}</span>
+
+                    <p className="mt-1 text-[11px] italic text-[var(--color-on-surface-variant)]">
+                      * Điểm số và tỷ trọng chấm của câu hỏi sẽ được thiết lập tự động trong mục <strong>Cấu hình bài tập</strong>.
+                    </p>
+                  </div>
+
+                  <div className="min-w-0 flex flex-col gap-4">
+                    {selectedQuestion.kind === "TU_LUAN_CODE" ? (
+                      <CodingStarterFields
+                        value={codingAuthoringValue(
+                          selectedQuestion.codingJsonText,
+                          selectedQuestion.language || selectedQuestion.skill,
+                          selectedQuestion.snippet,
+                          job?.skills
+                        )}
+                        onChange={value => patchQuestion(selectedIndex, { codingJsonText: value })}
+                        jobSkills={job?.skills}
+                        questionSkill={selectedQuestion.skill}
+                      />
+                    ) : (
+                      <div className="flex flex-col gap-3 rounded-2xl border border-slate-700 bg-[#0f172a] p-4 text-slate-100">
+                        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-700 pb-3">
+                          <div>
+                            <p className="flex items-center gap-2 text-xs font-semibold text-slate-200">
+                              <Code2 className="size-4 shrink-0" aria-hidden="true" />
+                              Gợi ý dàn ý / Khung trả lời cho ứng viên (Tuỳ chọn)
+                            </p>
+                            <p className="mt-0.5 text-[11px] text-slate-400">Hiển thị sẵn trong khung làm bài của ứng viên để định hướng cách trả lời.</p>
+                          </div>
+                          <span className="rounded bg-slate-700 px-1.5 py-0.5 font-mono text-[10px] text-emerald-300">
+                            Markdown
                           </span>
+                        </div>
                         <textarea
-                          value={item.text}
-                          onChange={(event) =>
-                            patchQuestion(selectedIndex, {
-                              rubric: selectedQuestion.rubric.map((rubricItem) =>
-                                rubricItem.level === item.level ? { ...rubricItem, text: event.target.value } : rubricItem,
-                              ),
-                            })
-                          }
-                          rows={2}
-                          className="w-full resize-y rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-card)] px-3 py-2 text-sm leading-relaxed outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+                          aria-label="Khung gợi ý dàn ý cho ứng viên"
+                          value={selectedQuestion.snippet}
+                          onChange={(event) => patchQuestion(selectedIndex, { snippet: event.target.value })}
+                          rows={6}
+                          spellCheck={false}
+                          placeholder={"Ví dụ định hướng cho ứng viên:\n1. Khái niệm & Nguyên lý cốt lõi...\n2. Phân tích ưu nhược điểm & Sự đánh đổi (Trade-offs)...\n3. Giải pháp thực tế & Xử lý tình huống..."}
+                          className="min-h-36 flex-1 resize-y rounded-md border border-slate-700 bg-[#020617] px-3 py-2 font-mono text-[12px] leading-relaxed text-emerald-200 outline-none placeholder:text-slate-500 focus:ring-2 focus:ring-emerald-500/60"
                         />
-                        </label>
-                      ))}
+                      </div>
+                    )}
+
+                    <div className="flex flex-1 flex-col gap-3 rounded-2xl border border-slate-700 bg-[#0f172a] p-4">
+                      <div className="border-b border-slate-700 pb-3">
+                        <span className="flex items-center gap-2 text-xs font-semibold text-slate-200">
+                          <ShieldCheck className="size-4 shrink-0 text-emerald-400" aria-hidden="true" />
+                          {selectedQuestion.kind === "TU_LUAN_CODE" ? "Lời giải mẫu chuẩn (Model Solution) *" : "Đáp án tham khảo chuẩn (Reference Answer) *"}
+                        </span>
+                        <p className="mt-0.5 text-[11px] text-slate-400">
+                          {selectedQuestion.kind === "TU_LUAN_CODE"
+                            ? "Bắt buộc — Lời giải chuẩn để chạy kiểm thử với bộ testcase qua Sandbox (ẩn với ứng viên)."
+                            : "Bắt buộc — Văn bản đối chiếu chuẩn để AI và người chấm đối chiếu ngữ nghĩa (ẩn với ứng viên)."}
+                        </p>
+                      </div>
+                      {selectedQuestion.kind === "TU_LUAN_CODE" ? (
+                        <MonacoCodeEditor
+                          height="200px"
+                          language={selectedQuestion.language || "java"}
+                          value={selectedQuestion.sample}
+                          onChange={(val) => patchQuestion(selectedIndex, { sample: val })}
+                          placeholder="// Dán code lời giải hoàn chỉnh bằng ngôn ngữ chính để verify test cases..."
+                        />
+                      ) : (
+                        <textarea
+                          value={selectedQuestion.sample}
+                          onChange={(event) => patchQuestion(selectedIndex, { sample: event.target.value })}
+                          onPaste={(event) => {
+                            const text = event.clipboardData.getData("text/plain");
+                            if (!isSampleAnswerOnlyLine(text) && !/^(?:đáp\s*án\s*mẫu|sample)/i.test(text.trim())) return;
+                            event.preventDefault();
+                            patchQuestion(selectedIndex, { sample: stripSamplePrefix(text) });
+                            setCapacityNote("Đã dán đáp án mẫu.");
+                          }}
+                          rows={5}
+                          placeholder="Nhập nội dung câu trả lời chuẩn mực cần đạt..."
+                          className="min-h-36 flex-1 resize-y rounded-lg border border-slate-700 bg-[#020617] px-3 py-2 font-mono text-[12px] text-slate-200 outline-none placeholder:text-slate-500 focus:ring-2 focus:ring-emerald-500/60"
+                        />
+                      )}
                     </div>
                   </div>
-                  <div className="min-w-0 flex flex-col gap-4">
-                    {selectedQuestion.kind === "TU_LUAN_CODE" ? <CodingStarterFields
+                </div>
+
+                {selectedQuestion.kind === "TU_LUAN_CODE" ? (
+                  <div className="mt-6 border-t border-[var(--color-border-default)] pt-6">
+                    <div className="mb-5 flex items-center gap-3">
+                      <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[var(--color-primary-soft)] text-sm font-semibold text-[var(--color-primary)]">02</span>
+                      <div>
+                        <h3 className="text-sm font-semibold">Cấu hình thực thi & Bộ kiểm thử (Test cases)</h3>
+                        <p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">Thiết lập input/output và chương trình kiểm thử Sandbox. Điểm số và tỷ trọng Sandbox / AI Review được thiết lập tự động trong Cấu hình bài tập.</p>
+                      </div>
+                    </div>
+                    <QuestionContentFields
+                      type="CODING"
+                      executionOnly
                       value={codingAuthoringValue(selectedQuestion.codingJsonText, selectedQuestion.language, selectedQuestion.snippet)}
                       onChange={value => patchQuestion(selectedIndex, { codingJsonText: value })}
-                    /> :
-                    <div className="flex flex-col gap-3 rounded-2xl border border-slate-700 bg-[#0f172a] p-4 text-slate-100">
-                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-700 pb-3">
-                      <p className="flex items-center gap-2 text-xs font-semibold text-slate-200">
-                        <Code2 className="size-4 shrink-0" aria-hidden="true" />
-                        Khung lý thuyết (tuỳ chọn — có thể để trống)
-                      </p>
-                      <span className="rounded bg-slate-700 px-1.5 py-0.5 font-mono text-[10px] text-emerald-300">
-                        {selectedQuestion.language || "Theory"}
-                      </span>
-                    </div>
-                    <textarea
-                      aria-label="Khung lý thuyết cho ứng viên"
-                      value={selectedQuestion.snippet}
-                      onChange={(event) => patchQuestion(selectedIndex, { snippet: event.target.value })}
-                      rows={9}
-                      spellCheck={false}
-                      placeholder="Không bắt buộc — gợi ý khung trả lời cho ứng viên (có thể để trống)"
-                      className="min-h-48 flex-1 resize-y rounded-md border border-slate-700 bg-[#020617] px-3 py-2 font-mono text-[12px] leading-relaxed text-emerald-200 outline-none placeholder:text-slate-500 focus:ring-2 focus:ring-emerald-500/60"
                     />
-                    <p className="text-xs text-slate-400">Khung gợi ý hiển thị cho ứng viên khi làm bài. Có thể để trống.</p>
-                    </div>}
-                    <label className="flex flex-1 flex-col gap-3 rounded-2xl border border-slate-700 bg-[#0f172a] p-4">
-                      <span className="flex items-center gap-2 border-b border-slate-700 pb-3 text-xs font-semibold text-slate-200">
-                        <ShieldCheck className="size-4 shrink-0" aria-hidden="true" />
-                        Đáp án mẫu * (đáp án chính để so sánh — ẩn với ứng viên)
-                      </span>
-                      <textarea
-                        value={selectedQuestion.sample}
-                        onChange={(event) => patchQuestion(selectedIndex, { sample: event.target.value })}
-                        onPaste={(event) => {
-                          const text = event.clipboardData.getData("text/plain");
-                          if (!isSampleAnswerOnlyLine(text) && !/^(?:đáp\s*án\s*mẫu|sample)/i.test(text.trim())) return;
-                          event.preventDefault();
-                          patchQuestion(selectedIndex, { sample: stripSamplePrefix(text) });
-                          setCapacityNote("Đã dán đáp án mẫu.");
-                        }}
-                        rows={3}
-                        placeholder="Bắt buộc — đáp án chuẩn do recruiter đưa ra để đối chiếu khi chấm"
-                        className="min-h-40 flex-1 resize-y rounded-lg border border-slate-700 bg-[#020617] px-3 py-2 text-[11px] text-slate-200 outline-none placeholder:text-slate-500 focus:ring-2 focus:ring-emerald-500/60"
+                    <div className="mt-4">
+                      <CodingTestVerification
+                        value={codingAuthoringValue(selectedQuestion.codingJsonText, selectedQuestion.language, selectedQuestion.snippet)}
+                        solution={selectedQuestion.sample}
                       />
-                    </label>
+                    </div>
                   </div>
-                </div>
-                {selectedQuestion.kind === "TU_LUAN_CODE" && <div className="mt-6 border-t border-[var(--color-border-default)] pt-6">
-                <div className="mb-5 flex items-center gap-3">
-                  <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[var(--color-primary-soft)] text-sm font-semibold text-[var(--color-primary)]">02</span>
-                  <div><h3 className="text-sm font-semibold">Cấu hình thực thi & bộ kiểm thử</h3><p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">Thiết lập input/output, test công khai / ẩn và cấu hình chạy nâng cao.</p></div>
-                </div>
-                <QuestionContentFields type="CODING" executionOnly
-                  value={codingAuthoringValue(selectedQuestion.codingJsonText, selectedQuestion.language, selectedQuestion.snippet)}
-                  onChange={value => patchQuestion(selectedIndex, { codingJsonText: value })} />
-                <div className="mt-4"><CodingTestVerification
-                  value={codingAuthoringValue(selectedQuestion.codingJsonText, selectedQuestion.language, selectedQuestion.snippet)}
-                  solution={selectedQuestion.sample}
-                /></div>
-                </div>}
+                ) : (
+                  <div className="mt-6 rounded-2xl border border-amber-200/80 bg-amber-50/30 p-4.5 dark:border-amber-900/40 dark:bg-amber-950/20">
+                    <div className="flex items-start gap-3">
+                      <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700 border border-amber-200 dark:bg-amber-900/60 dark:text-amber-300">
+                        <Sparkles className="size-4" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+                          Cấu hình điểm & Tiêu chuẩn chấm tự luận
+                        </h4>
+                        <p className="mt-1 text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                          Điểm số và bộ tiêu chí Rubric đánh giá tự động (%) của câu hỏi này được quản lý và áp dụng đồng bộ trong tab <strong>Cấu hình bài tập</strong> của vị trí tuyển dụng.
+                        </p>
+                        <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                          Người soạn chỉ cần cung cấp <strong>Đề bài</strong> và <strong>Đáp án tham khảo chuẩn</strong> ở trên để AI đối chiếu ngữ nghĩa khi chấm điểm.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </>

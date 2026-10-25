@@ -1,21 +1,11 @@
 import { useState } from "react";
-import Editor, { loader } from "@monaco-editor/react";
-import * as monaco from "monaco-editor/editor/editor.api";
-import "monaco-editor/languages/definitions/java/register.js";
-import "monaco-editor/languages/definitions/python/register.js";
-import "monaco-editor/languages/definitions/javascript/register.js";
-import "monaco-editor/languages/definitions/sql/register.js";
-import EditorWorker from "monaco-editor/editor/editor.worker.js?worker";
 import { useMutation } from "@tanstack/react-query";
 import { assessmentApi } from "@/api/tenant/assessmentApi";
 import type { CandidateQuestion, SavedAnswer } from "@/api/types/assessment";
 import { Button } from "@/components/ux/Button";
 import { AssessmentError, assessmentInput } from "@/components/ux/assessmentUi";
 import { useUiStore } from "@/stores/uiStore";
-
-// Bundle locally so candidate code and editor assets do not depend on a public CDN.
-self.MonacoEnvironment = { getWorker: () => new EditorWorker() };
-loader.config({ monaco });
+import { MonacoCodeEditor } from "@/components/shared/MonacoCodeEditor";
 
 export function CodingAnswerInput({ submissionId, question, answer, locked, onChange }: {
   submissionId: number; question: CandidateQuestion; answer?: SavedAnswer; locked: boolean; onChange: (answer: SavedAnswer) => void;
@@ -46,10 +36,19 @@ export function CodingAnswerInput({ submissionId, question, answer, locked, onCh
         });
       }}>{Object.keys(starters).map(item => <option key={item}>{item}</option>)}</select></label>
     <p className="text-sm text-[var(--color-on-surface-variant)]">Giới hạn: {question.coding?.timeLimitMs} ms · {question.coding?.memoryMb} MB · Mã tối đa 10.000 ký tự</p>
-    <div className="overflow-hidden rounded-lg border border-[var(--color-border-default)]">
-      <Editor height="360px" language={language} value={source} options={{ readOnly: locked, minimap: { enabled: false }, fontSize: 14, automaticLayout: true }}
-        onChange={value => { if (!locked && (value?.length ?? 0) <= 10000) { setEdited(true); onChange({ questionId: question.id, language, answerText: value ?? "" }); } }} />
-    </div>
+    <MonacoCodeEditor
+      height="360px"
+      language={language}
+      value={source}
+      readOnly={locked}
+      onChange={value => {
+        if (!locked && (value.length) <= 10000) {
+          setEdited(true);
+          onChange({ questionId: question.id, language, answerText: value });
+        }
+      }}
+      placeholder="// Viết mã nguồn bài làm của bạn..."
+    />
     <div className="space-y-2">{question.coding?.testCases.map((sample, i) => <details key={i} className="rounded-lg bg-[var(--color-surface-container-low)] p-3 text-sm">
       <summary>Ví dụ {i + 1}</summary><pre className="mt-2 overflow-auto">Input: {sample.input}{"\n"}Output: {sample.expectedOutput}</pre>
     </details>)}</div>

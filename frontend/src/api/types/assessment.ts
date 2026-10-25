@@ -14,6 +14,7 @@ export type JobTest = {
   updatedAt: string | null;
   createdById: number | null;
   createdByName: string | null;
+  assignedApplicationId?: number | null;
 };
 export type TestRequest = Pick<JobTest, "jobId" | "title" | "description" | "durationMinutes" | "passingScore" | "objectiveDurationMinutes">;
 export type TestPage = { items: JobTest[]; total: number; page: number; size: number };

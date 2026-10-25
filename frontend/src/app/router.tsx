@@ -62,6 +62,7 @@ import { CvBuilderPage } from "@/features/tenant/candidate/cv/pages/CvBuilderPag
 import { AssessmentsPage as CandidateAssessmentsPage } from "@/features/tenant/candidate/assessments/pages/AssessmentsPage";
 import { AssessmentInvitationPage } from "@/features/tenant/candidate/assessments/pages/AssessmentInvitationPage";
 import { TakeAssessmentPage } from "@/features/tenant/candidate/assessments/pages/TakeAssessmentPage";
+import { CandidateAssessmentSamplePage } from "@/features/tenant/candidate/assessments/pages/CandidateAssessmentSamplePage";
 import { InterviewsPage as CandidateInterviewsPage } from "@/features/tenant/candidate/interviews/pages/InterviewsPage";
 import { AiInterviewRoomPage } from "@/features/tenant/candidate/interviews/pages/AiInterviewRoomPage";
 import { SchedulesPage as CandidateSchedulesPage } from "@/features/tenant/candidate/schedules/pages/SchedulesPage";
@@ -151,6 +152,7 @@ export function AppRouter() {
         <Route path="/cv-templates" element={<CvTemplatesPage />} />
         <Route path="/cv/share/:token" element={<SharedCvPage />} />
         <Route path="/cv-guide" element={<CvGuidePage />} />
+        <Route path="/assessments/sample" element={<CandidateAssessmentSamplePage />} />
       </Route>
       <Route element={<RoleRoute workspaces={["CANDIDATE"]} authRequired />}>
         <Route element={<CareerNavigationLayout />}>
@@ -171,6 +173,7 @@ export function AppRouter() {
           <Route path="/applications" element={<MyApplicationsPage />} />
           <Route path="/applications/:id" element={<ApplicationDetailPage />} />
           <Route path="/assessments" element={<CandidateAssessmentsPage />} />
+          <Route path="/assessments/sample" element={<CandidateAssessmentSamplePage />} />
           <Route path="/assessments/:testId/invite" element={<AssessmentInvitationPage />} />
           <Route path="/interviews" element={<CandidateInterviewsPage />} />
           <Route path="/practice" element={<Navigate to="/interviews" replace />} />

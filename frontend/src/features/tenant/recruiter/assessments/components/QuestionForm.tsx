@@ -1,5 +1,6 @@
 import { rubricSchema, codingSchema, contentError as getContentError } from "../utils/questionContentValidation";
-import { QuestionContentFields, rubricExample, codingExample } from "./QuestionContentFields";
+import { QuestionContentFields, rubricExample, codingAuthoringValue } from "./QuestionContentFields";
+import { useOptionalRecruitmentJob } from "../../jobs/components/JobRecruitmentWorkspace";
 import { useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -13,7 +14,7 @@ import { assessmentInput as input, FieldError } from "@/components/ux/assessment
 const schema = z.object({
   questionType: z.enum(["MCQ", "MULTIPLE_CHOICE", "ESSAY", "CODING"]).optional(),
   questionText: z.string().trim().min(1, "Nhập câu hỏi.").max(10000),
-  points: z.number().int().min(1, "Tối thiểu 1 điểm.").max(10000),
+  points: z.number().int().min(1, "Tối thiểu 1 điểm.").max(10000).optional(),
   questionOrder: z.number().int().min(0).max(2147483647),
   difficulty: z.enum(["Easy", "Medium", "Hard"]).nullable(),
   skill: z.string().trim().max(255).nullable(),
@@ -23,6 +24,9 @@ const schema = z.object({
 }).superRefine((data, context) => {
   const type = data.questionType ?? "MCQ";
   if (type === "ESSAY" || type === "CODING") return;
+  if (!data.points || data.points < 1) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["points"], message: "Tối thiểu 1 điểm." });
+  }
   const correct = data.options.filter(o => o.correct).length;
   if (data.options.length < 2 || (type === "MCQ" ? correct !== 1 : correct < 2)) context.addIssue({ code: z.ZodIssueCode.custom, path: ["options"], message: type === "MCQ" ? "Chọn đúng một đáp án đúng." : "Chọn ít nhất hai đáp án đúng." });
 });
@@ -43,7 +47,14 @@ function blankDefaults(order: number): QuestionRequest {
 export function QuestionForm({ question, order, busy, onSave, onCancel }: {
   question?: Question; order: number; busy: boolean; onSave: (data: QuestionRequest) => void; onCancel: () => void;
 }) {
-  const [content, setContent] = useState(question?.questionType === "CODING" ? JSON.stringify(question.coding, null, 2) : question?.rubricJson ? JSON.stringify(question.rubricJson, null, 2) : rubricExample);
+  const job = useOptionalRecruitmentJob();
+  const [content, setContent] = useState(
+    question?.questionType === "CODING"
+      ? JSON.stringify(question.coding, null, 2)
+      : question?.rubricJson
+        ? JSON.stringify(question.rubricJson, null, 2)
+        : rubricExample
+  );
   const [contentError, setContentError] = useState<string>();
   const { register, control, handleSubmit, setValue, watch, formState: { errors } } = useForm<QuestionRequest>({
     resolver: zodResolver(schema),
@@ -64,7 +75,7 @@ export function QuestionForm({ question, order, busy, onSave, onCancel }: {
     try {
       const subjective = type === "ESSAY" || type === "CODING";
       const parsed = subjective ? (type === "ESSAY" ? rubricSchema : codingSchema).parse(JSON.parse(content)) : null;
-      onSave({ ...data, questionType: type, options: subjective ? [] : data.options, rubricJson: type === "ESSAY" ? rubricSchema.parse(parsed) : null, coding: type === "CODING" ? codingSchema.parse(parsed) : null,
+      onSave({ ...data, points: subjective ? (question?.points ?? 10) : (data.points ?? 1), questionType: type, options: subjective ? [] : data.options, rubricJson: type === "ESSAY" ? rubricSchema.parse(parsed) : null, coding: type === "CODING" ? codingSchema.parse(parsed) : null,
         skill: data.skill?.trim() || null, explanation: data.explanation?.trim() || null });
       setContentError(undefined);
     } catch (error) { setContentError(getContentError(error)); }
@@ -73,14 +84,33 @@ export function QuestionForm({ question, order, busy, onSave, onCancel }: {
       <h3 className="text-lg font-semibold">{question ? "Sửa câu hỏi" : "Thêm câu hỏi"}</h3>
       <label className="block text-sm">Loại câu hỏi<select className={input} {...register("questionType")} onChange={event => {
         const next = event.target.value as QuestionRequest["questionType"]; setValue("questionType", next);
-        if (next === "ESSAY" || next === "CODING") { setValue("options", []); setContent(next === "ESSAY" ? rubricExample : codingExample); }
+        if (next === "ESSAY" || next === "CODING") {
+          setValue("options", []);
+          setContent(
+            next === "ESSAY"
+              ? rubricExample
+              : codingAuthoringValue(undefined, watch("skill") ?? undefined, "", job?.skills)
+          );
+        }
         else if (options.length === 0) setValue("options", [{ optionText: "", correct: true }, { optionText: "", correct: false }]);
       }}><option value="MCQ">Trắc nghiệm đơn</option><option value="MULTIPLE_CHOICE">Nhiều đáp án</option><option value="ESSAY">Tự luận lý thuyết</option><option value="CODING">Bài tập Code</option></select></label>
-      {(type === "ESSAY" || type === "CODING") && <QuestionContentFields type={type} value={content} onChange={setContent} />}
+      {(type === "ESSAY" || type === "CODING") && (
+        <QuestionContentFields type={type} value={content} onChange={setContent} jobSkills={job?.skills} />
+      )}
       <FieldError message={contentError} />
       <label className="block space-y-1 text-sm">Nội dung câu hỏi<textarea autoFocus rows={3} className={input} {...register("questionText")} /><FieldError message={errors.questionText?.message} /></label>
       <div className="grid gap-4 sm:grid-cols-2">
-        <label className="block text-sm">Điểm<input className={input} type="number" min={1} max={10000} {...register("points", { valueAsNumber: true })} /><FieldError message={errors.points?.message} /></label>
+        {type !== "ESSAY" && type !== "CODING" ? (
+          <label className="block text-sm">
+            Điểm
+            <input className={input} type="number" min={1} max={10000} {...register("points", { valueAsNumber: true })} />
+            <FieldError message={errors.points?.message} />
+          </label>
+        ) : (
+          <div className="flex items-center rounded-xl border border-dashed border-[var(--color-border-default)] bg-[var(--color-surface-container-low)] p-3 text-xs text-[var(--color-on-surface-variant)]">
+            * Điểm số được thiết lập tự động trong mục &quot;Cấu hình bài tập&quot; của vị trí tuyển dụng.
+          </div>
+        )}
         <label className="block text-sm">Thứ tự (từ 0)<input className={input} type="number" min={0} {...register("questionOrder", { valueAsNumber: true })} /><FieldError message={errors.questionOrder?.message} /></label>
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
