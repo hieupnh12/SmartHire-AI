@@ -141,6 +141,7 @@ export function AiInterviewDetailDrawer({ interviewId, jobId, candidateName, onC
             <ol className="mt-3 space-y-3">{logs.data?.map(log => <li key={log.id} className="text-sm"><p className="font-medium">{log.event} · {formatDateTime(log.createdAt)}</p><p className="break-words text-[var(--color-on-surface-variant)]">{log.detail}</p></li>)}</ol>
           </details>
           </div>
+          </div>
         </>}
       </div>
     </aside>
