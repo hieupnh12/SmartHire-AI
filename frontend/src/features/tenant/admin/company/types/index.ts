@@ -25,6 +25,9 @@ export type UpdateCompanyProfileRequest = {
 export type CompanyDirectory = {
   departments: string[];
   locations: string[];
+  locationDepartments?: Record<string, string[]>;
+  locationJobCounts?: Record<string, number>;
+  departmentJobCounts?: Record<string, number>;
 };
 
 export type CompanyEmailSetting = {

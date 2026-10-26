@@ -496,6 +496,8 @@ export function LandingPageEditorPage() {
           brandName={brandName}
           viewMode={viewMode}
           showVisualControls={showVisualControls}
+          activeTab={activeTab}
+          isDrawerOpen={isDrawerOpen}
           openDrawerTab={openDrawerTab}
           updateHeader={updateHeader}
           updateTheme={updateTheme}
