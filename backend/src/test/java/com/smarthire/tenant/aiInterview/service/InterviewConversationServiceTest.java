@@ -282,7 +282,7 @@ class InterviewConversationServiceTest {
         assertThatThrownBy(() -> service.turn(11L, new ConversationTurnRequest(requestId, "REST"), text -> {})).hasMessageContaining("not active");
         verifyNoInteractions(ai);
         interview.setExpiresAt(Instant.now().plusSeconds(100));
-        interview.getApplication().setStatus(ApplicationStatus.ASSESSMENT);
+        interview.getApplication().setStatus(ApplicationStatus.REJECTED);
         assertThatThrownBy(() -> service.turn(11L, new ConversationTurnRequest(requestId, "REST"), text -> {})).hasMessageContaining("interview round");
     }
     @Test void wrongCandidateCannotReadTranscript() {

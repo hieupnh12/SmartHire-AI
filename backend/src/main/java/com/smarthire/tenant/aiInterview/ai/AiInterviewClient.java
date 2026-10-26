@@ -56,6 +56,14 @@ public class AiInterviewClient {
         return call("INTERVIEW_NLP", instruction, data);
     }
 
+    public JsonNode generateAssessment(String instruction, JsonNode data) {
+        return call("ASSESSMENT_GEN", instruction, data);
+    }
+
+    public JsonNode evaluateAssessment(String instruction, JsonNode data) {
+        return call("ASSESSMENT_GRADING", instruction, data);
+    }
+
     public JsonNode gradeAssessment(String instruction, JsonNode data) {
         return call("CODE_GRADING", instruction, data);
     }
@@ -118,7 +126,11 @@ public class AiInterviewClient {
         RuntimeException lastException = null;
         for (int i = 0; i < chain.size(); i++) {
             var target = chain.get(i);
+            boolean assessment = "ASSESSMENT_GEN".equals(task) || "ASSESSMENT_GRADING".equals(task);
+            if (assessment && (target.endpointUrl() == null || target.endpointUrl().isBlank()))
+                throw new IllegalStateException("Assessment AI endpoint is not configured");
             String apiKey = InterviewChatEndpoint.apiKey(target.provider(), target.apiKey());
+            if (assessment && apiKey.isBlank()) apiKey = "local-model";
             if (apiKey.isBlank() || target.provider() == null || target.modelName() == null || target.modelName().isBlank()) {
                 log.warn("Skipping AI interview target {}:{} for task={} because no API key is available",
                         target.provider(), target.modelName(), task);
@@ -178,8 +190,15 @@ public class AiInterviewClient {
         long promptTokens = 0L;
         long completionTokens = 0L;
         try {
+            var builder = http.clone();
+            if ("ASSESSMENT_GEN".equals(task) || "ASSESSMENT_GRADING".equals(task)) {
+                var factory = new org.springframework.http.client.SimpleClientHttpRequestFactory();
+                factory.setConnectTimeout(java.time.Duration.ofSeconds(5));
+                factory.setReadTimeout(java.time.Duration.ofSeconds(Math.max(5, resolved.timeoutSeconds())));
+                builder.requestFactory(factory);
+            }
             var api = OpenAiApi.builder().baseUrl(baseUrl).completionsPath("/chat/completions")
-                    .apiKey(apiKey).restClientBuilder(http.clone())
+                    .apiKey(apiKey).restClientBuilder(builder)
                     .responseErrorHandler(new DefaultResponseErrorHandler()).build();
             var retry = maxAttempts > 1
                     ? RetryTemplate.builder().maxAttempts(maxAttempts).exponentialBackoff(1000, 2, 4000)

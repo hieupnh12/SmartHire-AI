@@ -5,6 +5,9 @@ package com.smarthire.common.redis;
  * See docs/architecture/ASYNC_AND_CACHE.md
  */
 public final class RedisKeys {
+    public static String assessmentGeneration(String tenant, String id) {
+        return "assessment:bank-generation:" + tenant + ":" + id;
+    }
 
     private RedisKeys() {
     }

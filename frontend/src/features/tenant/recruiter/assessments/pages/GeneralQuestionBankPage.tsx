@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { AiQuestionGenerationPanel } from "../components/AiQuestionGenerationPanel";
 import { questionBankApi } from "@/api/tenant/questionBankApi";
 import { queryKeys } from "@/lib/query-keys";
 import { AssessmentError } from "@/components/ux/assessmentUi";
@@ -317,6 +318,7 @@ function GeneralQuestionBankView({ localKeys }: { localKeys: ReturnType<typeof q
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <AiQuestionGenerationPanel />
             <Link to={`${basePath}/new`} className="inline-flex h-9 items-center gap-2 rounded-lg bg-[var(--color-surface-card)] px-3 text-sm font-medium ring-1 ring-[var(--color-border-default)]"><Table2 className="size-4 text-[var(--color-primary)]" aria-hidden="true" />Nhập Excel</Link>
             <Link to={`${basePath}/new`} className="inline-flex h-9 items-center gap-2 rounded-lg bg-[var(--color-primary)] px-3 text-sm font-semibold text-white hover:bg-[var(--color-primary-hover)]">Thêm câu hỏi</Link>
             <button

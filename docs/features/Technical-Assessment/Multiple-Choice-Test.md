@@ -14,17 +14,18 @@ Tạo/làm bài trắc nghiệm kỹ thuật gắn job/stage.
 
 ## Luồng hoạt động
 
-1. Staff tạo đề nháp, thêm/sửa/xóa câu hỏi kèm options, publish đề hợp lệ.
-2. Sau lọc CV đậu, đơn chuyển `ASSESSMENT` (AUTO hoặc quyết định MANUAL). Hệ thống tự tạo/gửi đề demo cố định `[Demo UI] Bài kiểm tra kỹ thuật` (MCQ + Essay + Coding) và mời AI Interview song song nếu job bật AI. Staff vẫn có thể gửi thêm đề publish khác: thông báo `ASSESSMENT_INVITATION` + email `/assessments?applicationId=...`. Đơn legacy còn `INTERVIEW` vẫn gửi được và được chuyển sang `ASSESSMENT`.
-3. Candidate start/resume khi đơn ở `ASSESSMENT` (không cần AI Interview PASSED). Trang `/assessments` chỉ liệt kê đơn `ASSESSMENT`. AI Interview cũng mở được khi đơn còn `ASSESSMENT`.
-4. Candidate làm phần Quiz (MCQ/multi/essay) từng câu, chốt phần, rồi coding; submit để chấm. Hook sau nộp bài chỉ **bổ sung** lời mời AI nếu còn thiếu (không bắt buộc đổi vòng).
-5. Staff xem bài làm và kết quả chấm.
+1. Staff lưu cấu hình đề của job: thời lượng, ngưỡng đạt, các nhóm câu theo skill / loại / độ khó. Câu hỏi được thêm trong ngân hàng câu hỏi chung.
+2. Hồ sơ đậu lọc CV thì sang `ASSESSMENT`. AI Interview vẫn được mời nếu job bật, nhưng không chặn bài kiểm tra trong lúc module đó đang được sửa. Đề `[Demo UI]` chỉ là mẫu giao diện, không phải đề chính thức.
+3. Khi `autoAssign` bật và ngân hàng đủ câu, worker tạo **một** đề `PUBLISHED` gắn đúng hồ sơ, rồi gửi thông báo và email. Ứng viên chỉ thấy và chỉ bắt đầu được đề đó. Mỗi hồ sơ một lượt.
+4. Ứng viên làm Quiz rồi tới coding, nộp bài hoặc hết giờ. Trắc nghiệm chấm ngay. Tự luận và code chờ recruiter duyệt điểm gợi ý.
+5. Khi đề được giao đã có điểm chính thức và có ngưỡng: đạt thì đơn sang `HUMAN_INTERVIEW`, chưa đạt thì `FAILED`. Không có ngưỡng thì đơn ở lại `ASSESSMENT` để recruiter quyết định. Điểm cổng lấy từ đúng đề được giao, gồm bài `GRADED` và bài `EXPIRED` đã có điểm.
 
 ## Business Rules
 
 - Backend và màn hình làm bài Candidate hỗ trợ `MCQ` (một đáp án, mặc định khi bỏ questionType), `MULTIPLE_CHOICE` (nhiều đáp án), `ESSAY` (tự luận). Candidate dùng radio/checkbox/textarea theo loại câu hỏi; lưu, khôi phục và tính tiến độ theo dữ liệu tương ứng. Form biên soạn thủ công của recruiter vẫn là MCQ. Coding, randomize và cấp quyền thi lại chưa triển khai.
-- Start được tuần tự hóa bằng khóa hàng đề; trả lượt gần nhất đã có của cặp test/application, kể cả đã hoàn thành. NOT_STARTED được kích hoạt khi đủ điều kiện; không tự tạo lượt thi lại.
-- Gửi assessment (`send_assessment`) là lời mời + chuyển trạng thái, không phải assignment: mọi đề PUBLISHED của job vẫn có thể được bắt đầu bởi chủ đơn đủ điều kiện. Nếu cần giao riêng từng ứng viên, bổ sung chính sách assignment ở bước sau.
+- Start được tuần tự hóa bằng khóa hàng đề. Đề chính thức trả đúng lượt đã có của cặp test/application, kể cả đã hoàn thành, và không tạo lượt thi lại.
+- Ứng viên chỉ bắt đầu đề đã gắn đúng hồ sơ. Ngoại lệ: đề `[Demo UI] Bài kiểm tra kỹ thuật` là mẫu giao diện, hiện thêm trong danh sách, làm lại được nhiều lần, và không dùng để chuyển vòng hay tính điểm cổng. Đề này được tạo khi ứng viên mở danh sách bài.
+- Gửi assessment (`send_assessment`) chỉ nhắc đề đã gắn đúng hồ sơ. Đề published không gắn hồ sơ trả 409 `ASSESSMENT_NOT_ASSIGNED`. Ứng viên không mở được catalog mọi đề của job.
 - Điều kiện gửi: staff được gán job; đề PUBLISHED, job chưa xóa; đơn cùng job, chưa lưu trữ/rút, trạng thái INTERVIEW hoặc ASSESSMENT. Không yêu cầu AI Interview PASSED. Lỗi: 403 `ASSESSMENT_FORBIDDEN`, 404 `ASSESSMENT_NOT_FOUND`, 409 `TEST_UNAVAILABLE` / `APPLICATION_JOB_MISMATCH` / `APPLICATION_NOT_ELIGIBLE` / `ASSESSMENT_ALREADY_COMPLETED`.
 - Được gửi lại (nhắc) khi ứng viên chưa hoàn thành đề; lượt gần nhất đã SUBMITTED/GRADED/EXPIRED thì từ chối. Đơn đã ở ASSESSMENT không ghi thêm lịch sử trạng thái.
 - Email gửi trực tiếp qua SMTP và ghi `email_outbox` (`purpose = ASSESSMENT_INVITATION`, SENT/FAILED, không retry). Email lỗi không làm hỏng request; thông báo trong hệ thống vẫn được tạo, response trả `emailSent = false`.
@@ -42,6 +43,22 @@ Tạo/làm bài trắc nghiệm kỹ thuật gắn job/stage.
 - Tên đề bắt buộc, tối đa 255 ký tự; thời lượng là số phút nguyên dương; điểm đạt không âm, tối đa 8 chữ số nguyên và 2 chữ số thập phân.
 
 ## API liên quan
+
+- `POST /api/v1/question-bank/generation`: staff gửi kỹ năng, loại câu (`MCQ`/`MULTIPLE_CHOICE`/`ESSAY`/`CODING`), độ khó, số lượng 1–5, ngôn ngữ code và yêu cầu bổ sung; trả `202` cùng ID bản nháp.
+- `GET /api/v1/question-bank/generation/{id}`: đọc trạng thái `PENDING`/`RUNNING`/`READY`/`FAILED` và câu hỏi đề xuất. Chỉ người tạo trong cùng tenant được đọc; bản nháp Redis hết hạn sau 2 giờ.
+
+### Sinh câu hỏi ngân hàng bằng Llama — 16/10/2026
+
+- Trạng thái triển khai: `Done` cho luồng sinh bản nháp; trạng thái feature tổng thể giữ `Doing`.
+- Nút **Đề xuất bằng AI** có trong ngân hàng chung và ngân hàng theo job, mở form cấu hình sinh câu hỏi thay vì điều hướng sang AI Interview.
+- Tác vụ `ASSESSMENT_GEN` dùng OpenAI-compatible provider và model mặc định `vanilj/llama-3-8b-instruct-32k-v0.1:Q4_K_M`. Kết nối kế thừa endpoint/key OpenAI hiện có của AI Interview; có thể ghi đè bằng `AI_ASSESSMENT_BASE_URL`, `AI_ASSESSMENT_API_KEY`, `AI_ASSESSMENT_MODEL`, `AI_ASSESSMENT_TIMEOUT_SECONDS` (mặc định 120). Không tự chuyển sang model khác khi lỗi.
+- Request được đưa qua queue `smarthire.assessment.bank.generate`, header `X-Tenant-ID`, worker concurrency 3–10 và `TenantJobExecutor`. Gọi AI theo từng câu để hạn chế JSON bị cắt; giữ rate-limit và metering theo task/tenant hiện có.
+- Backend kiểm tra DTO và quy tắc số đáp án đúng/rubric/coding trước khi trả bản nháp. Lỗi provider hoặc dữ liệu sai trả trạng thái lỗi an toàn, không tạo câu hỏi rỗng hay ghi vào database.
+- Recruiter mở bản nháp trong editor hiện có, kiểm tra/chỉnh sửa rồi lưu qua API ngân hàng. Bản nháp AI có khóa riêng theo tenant/user/ID, không ghi đè bản nháp đang soạn thủ công. Câu code có mã khởi đầu, harness, lời giải mẫu và testcase; người soạn cần chạy kiểm tra bộ test trước khi sử dụng. Chưa coi code do AI sinh là đã chạy thành công.
+- Không đổi schema, không tạo assessment hoặc tự xuất bản câu hỏi. Sinh đề từ ngân hàng và chấm bài giữ luồng hiện có.
+- AI chấm tự luận/review code dùng task `ASSESSMENT_GRADING`: ưu tiên cấu hình `CODE_GRADING` trong Master DB khi task này tồn tại; nếu chưa có, giữ model Llama và kết nối `AI_ASSESSMENT_*`. Phần sinh câu hỏi dùng `ASSESSMENT_GEN`. Hai task có rate-limit/metering theo tenant, không dùng `INTERVIEW_NLP` để chấm Assessment.
+- Endpoint Assessment bắt buộc được cấu hình/kế thừa; nếu thiếu thì báo lỗi, không chuyển sang endpoint OpenAI công cộng. Với local server không yêu cầu xác thực, client dùng placeholder `local-model` khi key trống.
+- Kiểm chứng: 19 test backend đạt (service sinh bản nháp/quyền/tenant/lỗi broker, cấu hình Llama, client AI cũ và HTTP contract với server localhost); frontend build và test chuyển đổi dữ liệu đạt; Chrome headless kiểm tra validation, tenant header, mở editor, giữ bản nháp thủ công, trạng thái lỗi và mobile 375px đạt. `/models` của endpoint hiện có trả đúng model được yêu cầu. Chưa kiểm thử sinh câu thật hoặc toàn tuyến RabbitMQ với model thật.
 
 | Method | Path |
 |---|---|
@@ -192,7 +209,7 @@ Kiểm chứng ngày 2026-10-02: build frontend đạt; 36 test assessment/ngân
 - **Tự động tạo đề riêng khi ứng viên vào vòng Assessment (sau lọc CV)**: cấu hình `autoAssign=true` áp dụng cả hồ sơ đang chờ và hồ sơ mới. Chỉ hồ sơ ASSESSMENT, không rút/lưu trữ, job chưa bị xóa. Bật cấu hình yêu cầu ngân hàng đáp ứng cấu trúc hiện tại.
 - Cấu hình Assessment ban đầu mặc định `autoAssign=true`, recruiter không cần tích bật. Cần lưu cấu trúc hợp lệ và ngân hàng đủ câu để tự động chạy; cấu hình đã lưu (kể cả `false`) được giữ nguyên, recruiter có thể bỏ tích và lưu để tắt.
 - Dispatcher tenant hiện có quét mỗi 15 giây mặc định, đưa application ID vào RabbitMQ `smarthire.assessment.generate` với header `X-Tenant-ID`; worker concurrency 3–10 dùng `TenantJobExecutor` để set/clear tenant. Khóa hồ sơ và UNIQUE `tests.assigned_application_id` ngăn tạo lặp. Transaction tạo PUBLISHED + notification `ASSESSMENT_INVITATION` + email outbox; email dùng worker/retry hiện có tối đa 3 lần. Không tạo nhiều đề nếu AI Interview được xử lý lại hoặc cấu hình được lưu lại.
-- Đề gán riêng chỉ xuất hiện trong danh sách available và start với đúng application; staff không thể gửi đề đó cho application khác. Các đề dùng chung (`assigned_application_id=NULL`) giữ luồng hiện có. Hệ thống không tự sửa đề đã tạo khi cấu hình/ngân hàng thay đổi.
+- Đề gán riêng chỉ xuất hiện trong danh sách available và start với đúng application. Đề dùng chung (`assigned_application_id=NULL`), kể cả bản nháp kiểm tra cấu trúc, không mở cho ứng viên. Hệ thống không tự sửa đề đã tạo khi cấu hình/ngân hàng thay đổi.
 - Nếu ngân hàng/skill thay đổi khiến không đủ câu, hồ sơ vẫn chờ, kết quả AI Interview giữ nguyên. Giao diện cấu hình hiển thị số hồ sơ đủ điều kiện/đã có đề/chưa có đề và lỗi ngân hàng; cập nhật 15 giây. Khi bổ sung câu hoặc sửa cấu hình, dispatcher xử lý lại. Tắt `autoAssign` dừng tạo mới, không xóa đề đã tạo.
 - DB V43 mở rộng `Job`, `JobTest`, không tạo bảng mới; xem dictionary và ERD. Bật backend mới cần chạy migration V43 và RabbitMQ.
 
@@ -216,11 +233,11 @@ Kiểm chứng bản sửa cấu hình cùng ngày: build frontend đạt, test 
 - Form Code quản lý loại thuật toán/OOP/SQL, giới hạn thời gian/bộ nhớ, starter code, harness theo ngôn ngữ và sample/hidden tests. Khi tạo đề tự động, nội dung được sao chép độc lập từ ngân hàng.
 - Candidate làm **Quiz** (`MCQ`/`MULTIPLE_CHOICE`/`ESSAY`) từng câu (Quizizz-style), bấm chốt rồi mở **Coding**. `POST /api/v1/submissions/{id}/complete_objective` khóa mọi câu không-CODING; `objective_completed_at` mang nghĩa “đã chốt phần Quiz”. Đề không có Quiz bắt đầu trực tiếp Coding. `objectiveDurationMinutes` tùy chọn nhỏ hơn tổng thời lượng: hết hạn riêng, server tự chốt khi GET/save/submit; tổng hạn vẫn tính từ startedAt.
 - Tự luận dùng workspace Markdown (toolbar/preview) + nháp localStorage + đồng bộ server mỗi 10 giây. Code dùng `CandidateCodingStudio` (Monaco đóng gói, 2 cột, Ctrl+Enter), chạy tối đa 5 sample tests qua `POST /api/v1/submissions/{id}/coding/{questionId}/run_samples`; hidden tests/harness/rubric/điểm gợi ý không trả candidate.
-- Khi submission được chốt (SUBMITTED/GRADED/EXPIRED), đơn chuyển sang `INTERVIEW` và mời AI Interview nếu job bật AI. AI Interview PASSED mở vòng `HUMAN_INTERVIEW`.
+- Khi đề được giao có điểm chính thức, đạt ngưỡng thì đơn sang `HUMAN_INTERVIEW`, chưa đạt thì `FAILED`. Bài đang chờ duyệt tự luận/code giữ `ASSESSMENT`. Nộp bài không mời thêm AI Interview.
 - Submit chấm trắc nghiệm đồng bộ, phát RabbitMQ sau commit tới `assessment.essay.grade` và queue code cấu hình `assessment.code.grade.q`; worker concurrency 3–10 chạy trong TenantJobExecutor, header X-Tenant-ID bắt buộc.
 - Essay đánh giá ngữ nghĩa theo từng rubric; code dùng 80% tỉ lệ test pass + 20% AI review. Không so chuỗi source và không chấm bằng keyword matching. Mọi điểm AI là đề xuất, recruiter duyệt hoặc điều chỉnh trong màn hình Theo dõi bài làm.
 - Staff dùng GET `/api/v1/submissions/{id}/grading_review`, POST `/approve_grade/{questionId}` (body score=null để nhận gợi ý, hoặc điểm thủ công), POST `/retry_grading`. Điểm tổng chỉ công bố sau khi toàn bộ câu được chấm chính thức; giữ EXPIRED cho bài quá hạn.
-- Sandbox cần cấu hình `app.assessment.judge-url` / `app.assessment.judge-token` (Spring env: APP_ASSESSMENT_JUDGE_URL / APP_ASSESSMENT_JUDGE_TOKEN). Judge0 phải hỗ trợ wait=true và các language ID Java 62/Python 71/JavaScript 63/SQL 82. Không chạy source trong tiến trình backend. AI chấm tự luận/review code dùng task `CODE_GRADING` (provider/model/key cấu hình tại `/admin/system/ai-config`, không fallback env), kèm rate-limit/metering theo task.
+- Sandbox cần cấu hình `app.assessment.judge-url` / `app.assessment.judge-token` (Spring env: APP_ASSESSMENT_JUDGE_URL / APP_ASSESSMENT_JUDGE_TOKEN). Judge0 phải hỗ trợ wait=true và các language ID Java 62/Python 71/JavaScript 63/SQL 82. Không chạy source trong tiến trình backend. AI chấm tự luận/review code dùng task `ASSESSMENT_GRADING`: ưu tiên cấu hình `CODE_GRADING` trong Master DB khi task này tồn tại; nếu chưa có, giữ model Llama và kết nối `AI_ASSESSMENT_*`. Rate-limit/metering theo task Assessment, không dùng `INTERVIEW_NLP`.
 - Provider lỗi không tạo điểm 0. Bài giữ chờ duyệt, có thể retry hoặc chấm tay. Broker lỗi sau commit giữ dữ liệu bài làm; staff retry sau khi broker hoạt động lại. Chưa có quét tự động các bài chờ gửi/chấm.
 - Schema V53: tests, questions, submissions, answers, coding_problems; không tạo bảng mới. Xem docs/database để đối chiếu FK/UNIQUE và dictionary.
 

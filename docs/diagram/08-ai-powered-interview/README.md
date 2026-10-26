@@ -6,6 +6,7 @@ Feature diagram cho luồng phỏng vấn AI runtime.
 |---|---|---|---|
 | AI Interview Question Generation | [`ai-interview-question-generation`](ai-interview-question-generation/) | INT-01 | GENERAL / TECHNICAL / BEHAVIORAL / JAPANESE |
 | Voice Interview & Speech-to-Text | [`voice-interview-speech-to-text`](voice-interview-speech-to-text/) | INT-02 | Upload audio → STT transcript |
+| Adaptive Questions, Roadmap & Follow-up | [`adaptive-question-roadmap-follow-up`](adaptive-question-roadmap-follow-up/) | INT-01 | Code hiện tại: Communication conversation, câu mở đầu async và lượt SSE; AI đề xuất lộ trình đang trả 409 |
 
 ## Không vẽ lại tại FE-08 (lựa chọn A)
 

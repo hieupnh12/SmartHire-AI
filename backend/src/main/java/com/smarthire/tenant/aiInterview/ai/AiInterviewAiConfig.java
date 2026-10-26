@@ -10,13 +10,23 @@ import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 
 /**
- * HTTP transport for AI Interview calls. Provider, model and API key come only from
- * Master DB (Admin &gt; AI Config) via {@link com.smarthire.config.ai.DynamicAiConfigProvider}.
+ * Dedicated OpenAI-compatible API configuration for AI Interview flows
+ * (question generation, NLP analysis, scoring) — separate from CV parsing keys.
  */
 @Data
 @Configuration
 @ConfigurationProperties(prefix = "app.ai.interview")
 public class AiInterviewAiConfig {
+
+    private static final String DEFAULT_INTERVIEW_BASE =
+            "https://linked-flagpole-many.ngrok-free.dev/v1/chat/completions";
+
+    /** API key used only by AI Interview. */
+    private String apiKey = "";
+
+    private String model = "vanilj/llama-3-8b-instruct-32k-v0.1:Q4_K_M";
+
+    private String baseUrl = DEFAULT_INTERVIEW_BASE;
 
     private int timeoutSeconds = 10;
 

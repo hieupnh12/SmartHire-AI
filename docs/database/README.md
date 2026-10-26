@@ -10,7 +10,7 @@
 
 | Thông tin | Giá trị |
 |---|---|
-| AI Interview Speech Tasks 2026-10-15 | Master V34 seed 2 dòng `ai_model_configs`: `INTERVIEW_STT`, `INTERVIEW_TTS` (GEMINI). Không đổi schema. Mọi task AI chỉ đọc provider/model/key từ Master DB, bỏ fallback `.env` |
+| AI Interview Speech Tasks 2026-10-15 | Master V34 seed 2 dòng `ai_model_configs`: `INTERVIEW_STT`, `INTERVIEW_TTS` (GEMINI). Không đổi schema. STT/TTS đọc provider/model/key từ Master DB; Interview/CV giữ fallback môi trường; Assessment giữ `AI_ASSESSMENT_*`, ưu tiên `CODE_GRADING` từ Master DB khi chấm bài |
 | AI Model Registry & Catalog 2026-10-15 | Master V33 nâng cấp bảng `ai_model_pricings` thành Danh mục Model AI chuẩn hóa (entity `AiModelPricing`: thêm `display_name`, `context_window`, `supports_json`), seed bổ sung đầy đủ Groq, OpenRouter, Gemini Lite, Cursor và liên kết Dropdown FE loại bỏ hoàn toàn sai lệch gõ tay |
 | AI Model Fallback Chain Waterfall 2026-10-15 | Master V32 thêm cột `fallback_chain` JSONB nullable vào `ai_model_configs` (entity `AiModelConfig.fallbackChain`) hỗ trợ chuỗi fallback dự phòng đa cấp (Cascade Routing) khi gặp 429 hoặc lỗi quota. Tự động tích hợp Redis 429 cooldown TTL để bảo vệ DB |
 | Model sàng lọc CV 2026-10-14 | Master V31 đổi `CV_PARSING` từ `gemini-3.8-flash` (API 503) sang `gemini-3.5-flash-lite`. V30 đổi `gemini-3.6-flash` sang `gemini-3.5-flash-lite` và failover sang `gemini-3.1-flash-lite`. Không thêm bảng/cột/entity/FK/UNIQUE/index |
@@ -41,11 +41,19 @@
 | Phân tích GitHub khi sàng CV 2026-10-21 | Tenant V54 tạo `github_analyses` (entity `GithubAnalysis`, 2 FK CASCADE, UNIQUE `(cv_id, job_id)`) và `github_repo_caches` (entity `GithubRepoCache`, không FK, UNIQUE repo+commit+fingerprint+strategy). Không lưu source code. Điểm GitHub tách khỏi `match_scores` |
 | Kiến trúc | Separate Database per Tenant |
 | Số database logic | 2 loại (1 Master + N Tenant) |
+<<<<<<< HEAD
 | Bảng tenant sau V55 | 71 bảng (70 sau V54 + `company_location_departments`); không tính Flyway history |
 | Entity JPA tenant | 66 class `@Entity` theo checkout hiện tại; V55 bổ sung `CompanyLocationDepartment` |
 | Khoá ngoại tenant | 93 (91 trước V54 + `fk_github_analyses_cv` và `fk_github_analyses_job`; `github_repo_caches` và `company_location_departments` không có FK) |
 | Ràng buộc UNIQUE tenant | V55 thêm `uk_company_loc_dept`. V54 thêm `uk_github_analyses_cv_job` và `uk_github_repo_cache`. V53 thêm `uk_cp_question`. V51 thêm `uk_candidates_email` và `uk_notification_preference_candidate_category` |
 | Số file migration trong repo | 80 (32 master + 48 tenant); V9 redesign nằm ngoài pipeline |
+=======
+| Bảng tenant sau V54 | 70 bảng (68 sau V51 + `github_analyses` và `github_repo_caches`); không tính Flyway history |
+| Entity JPA tenant | 65 class `@Entity` theo checkout hiện tại; V54 bổ sung `GithubAnalysis`, `GithubRepoCache` |
+| Khoá ngoại tenant | 93 (91 trước V54 + `fk_github_analyses_cv` và `fk_github_analyses_job`; `github_repo_caches` không có FK) |
+| Ràng buộc UNIQUE tenant | V54 thêm `uk_github_analyses_cv_job` và `uk_github_repo_cache`. V53 thêm `uk_cp_question`. V51 thêm `uk_candidates_email` và `uk_notification_preference_candidate_category` |
+| Số file migration trong repo | 80 (33 master + 47 tenant); V9 redesign nằm ngoài pipeline |
+>>>>>>> 33cfe4b14674542c048063819c183f2db11fa324
 | Assessment đa phần 2026-10-12 | Tenant V53: rubric, khóa phần trắc nghiệm, gợi ý/duyệt điểm, liên kết coding→question và template sandbox; không thêm bảng/entity; thêm 2 FK và 1 UNIQUE |
 | Cập nhật lần cuối | Tenant `V55` (`company_location_departments`), tenant `V54` (`github_analyses`, `github_repo_caches`), tenant `V53` (`assessment_sections_and_grading`) |
 | Dọn legacy V21 | Xóa 19 bảng và dữ liệu legacy, xóa 2 cột ID legacy trong ranking; không chuyển ID cũ sang bản ghi mới |
@@ -1615,4 +1623,3 @@ candidate recording consent and private voice/STT metadata. New tenant entities 
 ### 10.11 Cấu hình Gmail công ty V50
 
 Tenant V50 (đánh lại từ V46 vì trùng `V46__cv_builder_data`) tạo bảng `company_email_settings` để cho phép từng doanh nghiệp cấu hình tài khoản Gmail và Google App Password gửi thư riêng biệt. Entity JPA tương ứng là `CompanyEmailSetting`. Mật khẩu ứng dụng được mã hóa AES-256 GCM bằng `TenantCredentialService`. Khi công ty chưa cấu hình Gmail, hệ thống chặn gửi email mời nhân viên và yêu cầu cấu hình trên giao diện Company.
-

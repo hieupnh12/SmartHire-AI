@@ -45,7 +45,7 @@ class AssessmentGradingServiceTest {
         answer.getQuestion().setRubricJson(json.readTree("{\"referenceAnswer\":\"Write log first\",\"criteria\":[{\"description\":\"Durability\",\"weight\":50},{\"description\":\"Recovery\",\"weight\":50}]}"));
         var objective = new Answer(); var question = new Question(); question.setQuestionType("MCQ"); objective.setQuestion(question); objective.setScore(new BigDecimal("5"));
         when(answers.findBySubmission_IdOrderByQuestion_QuestionOrderAscQuestion_IdAsc(1L)).thenReturn(List.of(objective, answer));
-        when(ai.gradeAssessment(anyString(), any())).thenReturn(json.readTree("{\"criteria_results\":[{\"score_percent\":100,\"feedback\":\"Equivalent meaning\"},{\"score_percent\":70,\"feedback\":\"Partial explanation\"}]}"));
+        when(ai.evaluateAssessment(anyString(), any())).thenReturn(json.readTree("{\"criteria_results\":[{\"score_percent\":100,\"feedback\":\"Equivalent meaning\"},{\"score_percent\":70,\"feedback\":\"Partial explanation\"}]}"));
         service.suggest(1L, "ESSAY");
         assertThat(answer.getSuggestedScore()).isEqualByComparingTo("8.50"); assertThat(answer.getScore()).isNull(); assertThat(submission.getScore()).isNull();
         when(access.staff()).thenReturn(true); when(access.actor()).thenReturn(new User());
@@ -53,12 +53,13 @@ class AssessmentGradingServiceTest {
         service.approve(1L, 2L, null);
         assertThat(submission.getScore()).isEqualByComparingTo("13.50"); assertThat(submission.getStatus()).isEqualTo(TestSubmissionStatus.GRADED);
         assertThat(answer.getReviewedAt()).isNotNull();
-        service.suggest(1L, "ESSAY"); verify(ai, times(1)).gradeAssessment(anyString(), any());
+        service.suggest(1L, "ESSAY"); verify(ai, times(1)).evaluateAssessment(anyString(), any());
+        verify(ai, never()).evaluate(anyString(), any());
     }
     @Test void providerFailureNeverBecomesCandidateZero() throws Exception {
         answer.getQuestion().setRubricJson(json.readTree("{\"referenceAnswer\":\"WAL\",\"criteria\":[{\"description\":\"Correctness\",\"weight\":100}]}"));
         when(answers.findBySubmission_IdOrderByQuestion_QuestionOrderAscQuestion_IdAsc(1L)).thenReturn(List.of(answer));
-        when(ai.gradeAssessment(anyString(), any())).thenThrow(new IllegalStateException("Unavailable"));
+        when(ai.evaluateAssessment(anyString(), any())).thenThrow(new IllegalStateException("Unavailable"));
         service.suggest(1L, "ESSAY");
         assertThat(answer.getScore()).isNull(); assertThat(answer.getSuggestedScore()).isNull();
         assertThat(answer.getEvaluationJson().path("status").asText()).isEqualTo("ERROR");
@@ -70,7 +71,7 @@ class AssessmentGradingServiceTest {
         when(answers.findBySubmission_IdOrderByQuestion_QuestionOrderAscQuestion_IdAsc(1L)).thenReturn(List.of(answer));
         when(judge.run(eq(problem), eq("python"), anyString(), eq("1"), eq("2"))).thenReturn(json.readTree("{\"status\":{\"id\":3}}"));
         when(judge.run(eq(problem), eq("python"), anyString(), eq("2"), eq("4"))).thenReturn(json.readTree("{\"status\":{\"id\":4}}"));
-        when(ai.gradeAssessment(anyString(), any())).thenReturn(json.readTree("{\"score_percent\":50}"));
+        when(ai.evaluateAssessment(anyString(), any())).thenReturn(json.readTree("{\"score_percent\":50}"));
         service.suggest(1L, "CODING");
         assertThat(answer.getSuggestedScore()).isEqualByComparingTo("5.00"); assertThat(answer.getScore()).isNull();
         verify(executions).save(argThat(execution -> execution.getStatus() == SubmissionStatus.FAILED));
@@ -85,7 +86,7 @@ class AssessmentGradingServiceTest {
         when(answers.findBySubmission_IdOrderByQuestion_QuestionOrderAscQuestion_IdAsc(1L)).thenReturn(List.of(answer));
         when(judge.run(eq(problem), eq("cpp"), anyString(), anyString(), eq("ok")))
                 .thenAnswer(call -> json.readTree("{\"status\":{\"id\":" + (call.getArgument(3).equals("first") ? 3 : 4) + "}}"));
-        when(ai.gradeAssessment(anyString(), any())).thenReturn(json.readTree("{\"score_percent\":100}"));
+        when(ai.evaluateAssessment(anyString(), any())).thenReturn(json.readTree("{\"score_percent\":100}"));
         service.suggest(1L, "CODING");
         assertThat(answer.getSuggestedScore()).isEqualByComparingTo("7.60");
         assertThat(answer.getEvaluationJson().path("tests_percent").decimalValue()).isEqualByComparingTo("70");
@@ -95,7 +96,7 @@ class AssessmentGradingServiceTest {
     @Test void invalidAiScoresAreRejectedWithoutPublishingAGrade() throws Exception {
         answer.getQuestion().setRubricJson(json.readTree("{\"referenceAnswer\":\"WAL\",\"criteria\":[{\"description\":\"Correctness\",\"weight\":100}]}"));
         when(answers.findBySubmission_IdOrderByQuestion_QuestionOrderAscQuestion_IdAsc(1L)).thenReturn(List.of(answer));
-        when(ai.gradeAssessment(anyString(), any())).thenReturn(json.readTree("{\"criteria_results\":[{\"score_percent\":200}]}"));
+        when(ai.evaluateAssessment(anyString(), any())).thenReturn(json.readTree("{\"criteria_results\":[{\"score_percent\":200}]}"));
         service.suggest(1L, "ESSAY"); assertThat(answer.getSuggestedScore()).isNull();
     }
     @Test void invalidRubricWeightsAreRejected() throws Exception {

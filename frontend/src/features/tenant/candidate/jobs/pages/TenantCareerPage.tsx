@@ -865,7 +865,7 @@ export function TenantCareerPage() {
                           <p className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-white/75">{slide.eyebrow}</p>
                           <h2 className="text-2xl font-semibold leading-tight sm:text-3xl lg:text-4xl">{slide.title}</h2>
                           <p className="mt-4 max-w-xl text-sm leading-6 text-white/80 sm:text-base">{slide.description}</p>
-                          <Link to={jobsHref} tabIndex={index === activeHeroSlide ? 0 : -1} className="mt-6 inline-flex min-h-11 w-fit items-center gap-2 rounded-xl bg-white px-5 text-sm font-semibold text-slate-900 transition-colors hover:bg-slate-100">Khám phá cơ hội <ArrowRight className="size-4" aria-hidden="true" /></Link>
+                          <Link to={jobsHref} tabIndex={index === activeHeroSlide ? 0 : -1} className="mt-6 inline-flex min-h-11 w-fit items-center gap-2 rounded-xl bg-white px-5 text-sm font-semibold text-slate-900 transition-colors hover:bg-slate-100">{customLanding?.hero?.primaryCtaText || "Khám phá cơ hội"} <ArrowRight className="size-4" aria-hidden="true" /></Link>
                         </div>
                       </article>
                     ))}

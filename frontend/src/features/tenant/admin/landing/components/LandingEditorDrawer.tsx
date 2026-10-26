@@ -11,6 +11,8 @@ import {
   Globe2,
   Search,
   Upload,
+  Plus,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ux/Button";
 import type { LandingPageConfig } from "../types/landing";
@@ -448,6 +450,95 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
                     className={inputClass}
                   />
                 </div>
+
+                {/* Stats List */}
+                <div className="pt-2 border-t border-slate-100 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-slate-800">
+                      Số Liệu Nổi Bật ({config.about.stats?.length || 0})
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = [...(config.about.stats || []), { icon: "Users", value: "100+", label: "Chỉ số mới" }];
+                        updateAbout({ stats: next });
+                      }}
+                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-brand-primary hover:underline"
+                    >
+                      <Plus className="w-3 h-3" />
+                      <span>Thêm số liệu</span>
+                    </button>
+                  </div>
+
+                  <div className="space-y-2">
+                    {(config.about.stats || []).map((st, idx) => (
+                      <div key={idx} className="p-2.5 rounded-lg border border-slate-200 bg-slate-50 space-y-2 relative group">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-bold text-slate-500 uppercase">Số liệu #{idx + 1}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const next = config.about.stats.filter((_, i) => i !== idx);
+                              updateAbout({ stats: next });
+                            }}
+                            className="p-1 text-slate-400 hover:text-red-600 transition-colors"
+                            title="Xóa số liệu"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2">
+                          <div>
+                            <label className="text-[10px] text-slate-500 block mb-0.5">Icon</label>
+                            <select
+                              value={st.icon}
+                              onChange={(e) => {
+                                const next = [...config.about.stats];
+                                next[idx] = { ...next[idx], icon: e.target.value };
+                                updateAbout({ stats: next });
+                              }}
+                              className={inputClass}
+                            >
+                              {["Users", "Award", "Globe", "Zap", "Briefcase", "HeartHandshake", "Laptop", "TrendingUp", "Coffee", "ShieldCheck", "CheckCircle2", "Code", "Layers", "Cpu", "Sparkles"].map((ic) => (
+                                <option key={ic} value={ic}>
+                                  {ic}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="text-[10px] text-slate-500 block mb-0.5">Giá trị</label>
+                            <input
+                              type="text"
+                              value={st.value}
+                              onChange={(e) => {
+                                const next = [...config.about.stats];
+                                next[idx] = { ...next[idx], value: e.target.value };
+                                updateAbout({ stats: next });
+                              }}
+                              placeholder="500+"
+                              className={inputClass}
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] text-slate-500 block mb-0.5">Nhãn mô tả</label>
+                            <input
+                              type="text"
+                              value={st.label}
+                              onChange={(e) => {
+                                const next = [...config.about.stats];
+                                next[idx] = { ...next[idx], label: e.target.value };
+                                updateAbout({ stats: next });
+                              }}
+                              placeholder="Kỹ Sư Phần Mềm"
+                              className={inputClass}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             )}
 
@@ -482,6 +573,98 @@ export function LandingEditorDrawer(props: LandingEditorDrawerProps) {
                     onChange={(e) => updateBenefits({ subtitle: e.target.value })}
                     className={inputClass}
                   />
+                </div>
+
+                {/* Benefits List */}
+                <div className="pt-2 border-t border-slate-100 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-slate-800">
+                      Chế Độ Đãi Ngộ ({config.benefits.items?.length || 0})
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = [
+                          ...(config.benefits.items || []),
+                          { icon: "HeartHandshake", title: "Chế Độ Đãi Ngộ Mới", description: "Mô tả chi tiết quyền lợi dành cho nhân viên..." },
+                        ];
+                        updateBenefits({ items: next });
+                      }}
+                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-brand-primary hover:underline"
+                    >
+                      <Plus className="w-3 h-3" />
+                      <span>Thêm đãi ngộ</span>
+                    </button>
+                  </div>
+
+                  <div className="space-y-2">
+                    {(config.benefits.items || []).map((b, idx) => (
+                      <div key={idx} className="p-2.5 rounded-lg border border-slate-200 bg-slate-50 space-y-2 relative group">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-bold text-slate-500 uppercase">Thẻ #{idx + 1}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const next = config.benefits.items.filter((_, i) => i !== idx);
+                              updateBenefits({ items: next });
+                            }}
+                            className="p-1 text-slate-400 hover:text-red-600 transition-colors"
+                            title="Xóa thẻ đãi ngộ"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2">
+                          <div>
+                            <label className="text-[10px] text-slate-500 block mb-0.5">Icon</label>
+                            <select
+                              value={b.icon}
+                              onChange={(e) => {
+                                const next = [...config.benefits.items];
+                                next[idx] = { ...next[idx], icon: e.target.value };
+                                updateBenefits({ items: next });
+                              }}
+                              className={inputClass}
+                            >
+                              {["Users", "Award", "Globe", "Zap", "Briefcase", "HeartHandshake", "Laptop", "TrendingUp", "Coffee", "ShieldCheck", "CheckCircle2", "Code", "Layers", "Cpu", "Sparkles"].map((ic) => (
+                                <option key={ic} value={ic}>
+                                  {ic}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="col-span-2">
+                            <label className="text-[10px] text-slate-500 block mb-0.5">Tiêu đề đãi ngộ</label>
+                            <input
+                              type="text"
+                              value={b.title}
+                              onChange={(e) => {
+                                const next = [...config.benefits.items];
+                                next[idx] = { ...next[idx], title: e.target.value };
+                                updateBenefits({ items: next });
+                              }}
+                              placeholder="Tiêu đề đãi ngộ"
+                              className={inputClass}
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-slate-500 block mb-0.5">Mô tả quyền lợi</label>
+                          <textarea
+                            rows={2}
+                            value={b.description}
+                            onChange={(e) => {
+                              const next = [...config.benefits.items];
+                              next[idx] = { ...next[idx], description: e.target.value };
+                              updateBenefits({ items: next });
+                            }}
+                            placeholder="Mô tả chi tiết"
+                            className={inputClass}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}

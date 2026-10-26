@@ -187,6 +187,10 @@ app:
     timeout-seconds: ${CV_AI_TIMEOUT_SECONDS:90}
     # Provider, model and API key per task live only in Master DB (Admin > AI Config)
     interview:
+      provider: ${AI_INTERVIEW_PROVIDER:OPENAI}
+      api-key: ${AI_INTERVIEW_API_KEY:}
+      model: ${AI_INTERVIEW_MODEL:vanilj/llama-3-8b-instruct-32k-v0.1:Q4_K_M}
+      base-url: ${AI_INTERVIEW_BASE_URL:https://linked-flagpole-many.ngrok-free.dev/v1/chat/completions}
       timeout-seconds: ${AI_INTERVIEW_TIMEOUT_SECONDS:60}
 
 smarthire:

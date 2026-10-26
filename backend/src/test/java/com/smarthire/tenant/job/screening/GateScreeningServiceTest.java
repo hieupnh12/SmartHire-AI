@@ -11,7 +11,9 @@ import com.smarthire.domain.tenant.entity.Job;
 import com.smarthire.domain.tenant.entity.JobScreeningConfig;
 import com.smarthire.domain.tenant.entity.MatchScore;
 import com.smarthire.domain.tenant.entity.Submission;
+import com.smarthire.domain.tenant.entity.JobTest;
 import com.smarthire.domain.tenant.repository.GateScoreRepository;
+import com.smarthire.domain.tenant.repository.JobTestRepository;
 import com.smarthire.domain.tenant.repository.MatchScoreRepository;
 import com.smarthire.domain.tenant.repository.RankingDataRepository;
 import java.math.BigDecimal;
@@ -32,6 +34,7 @@ import static org.mockito.Mockito.when;
 class GateScreeningServiceTest {
     @Mock JobScreeningConfigService screening;
     @Mock RankingDataRepository ranking;
+    @Mock JobTestRepository tests;
     @Mock MatchScoreRepository matches;
     @Mock GateScoreRepository gates;
 
@@ -41,7 +44,7 @@ class GateScreeningServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new GateScreeningService(screening, ranking, matches, gates, new ObjectMapper());
+        service = new GateScreeningService(screening, ranking, tests, matches, gates, new ObjectMapper());
         job = new Job();
         job.setId(3L);
         application = new Application();
@@ -93,7 +96,7 @@ class GateScreeningServiceTest {
         when(screening.require(3L)).thenReturn(config);
         when(ranking.cvs(9L)).thenReturn(List.of());
         when(ranking.aiInterviews(9L)).thenReturn(List.of());
-        when(ranking.submissions(9L)).thenReturn(List.of());
+        when(tests.findByAssignedApplication_Id(9L)).thenReturn(Optional.empty());
 
         GateScore score = service.recalculate(application);
 
@@ -136,10 +139,14 @@ class GateScreeningServiceTest {
         session.setOverallScore(new BigDecimal(interview));
         when(ranking.aiInterviews(9L)).thenReturn(List.of(session));
 
+        JobTest paper = new JobTest();
+        paper.setId(8L);
         Submission submission = new Submission();
         submission.setId(6L);
+        submission.setTest(paper);
         submission.setStatus(TestSubmissionStatus.GRADED);
         submission.setScore(new BigDecimal(assessment));
+        when(tests.findByAssignedApplication_Id(9L)).thenReturn(Optional.of(paper));
         when(ranking.submissions(9L)).thenReturn(List.of(submission));
         when(ranking.assessmentPercent(submission)).thenReturn(new BigDecimal(assessment));
     }
