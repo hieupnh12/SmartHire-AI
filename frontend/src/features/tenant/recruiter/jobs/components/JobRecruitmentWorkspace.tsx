@@ -14,6 +14,10 @@ export function useRecruitmentJob() {
   return job;
 }
 
+export function useOptionalRecruitmentJob() {
+  return useContext(JobContext);
+}
+
 export function JobRecruitmentWorkspace({ children }: { children: ReactNode }) {
   const { id, assessmentId } = useParams();
   const location = useLocation();

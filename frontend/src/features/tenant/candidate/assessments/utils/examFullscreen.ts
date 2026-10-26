@@ -94,7 +94,7 @@ export function expandExamToScreen(session: ProctorSession | null) {
       .then(async () => {
         if (await settleFullscreen()) return;
         throw new Error(
-          "Trình duyệt chưa ẩn thanh địa chỉ. Trong hộp thoại chia sẻ hãy chọn « Toàn bộ màn hình » (không phải Tab), rồi tải lại trang và bấm Bắt đầu.",
+          "Trình duyệt chưa vào chế độ toàn màn hình. Hãy bấm lại nút để tiếp tục.",
         );
       });
   };

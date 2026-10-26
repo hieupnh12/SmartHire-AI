@@ -34,12 +34,34 @@ export function toQuestionRequest(item: ImportRow, index: number, defaultScore: 
   };
 
   if (isSubjectiveKind(row.kind)) {
+    let rubricJson = null;
+    if (row.kind !== "TU_LUAN_CODE") {
+      let parsed: any = null;
+      if (row.rubricJsonText?.trim()) {
+        try { parsed = JSON.parse(row.rubricJsonText); } catch { parsed = null; }
+      }
+      if (!parsed || !Array.isArray(parsed.criteria) || parsed.criteria.length === 0) {
+        parsed = {
+          category: "ESSAY_CONCEPTUAL",
+          referenceAnswer: row.sample.trim() || "Tiêu chuẩn đánh giá",
+          criteria: [{
+            name: "Bản chất cốt lõi & Nguyên lý",
+            guide: row.rubric?.map((item) => item.text).filter(Boolean).join("; ") || "Giải thích đúng nguyên lý kỹ thuật",
+            description: row.rubric?.map((item) => item.text).filter(Boolean).join("; ") || "Technical correctness and completeness",
+            weight: 100,
+          }],
+        };
+      }
+      if (row.sample.trim()) {
+        parsed.referenceAnswer = row.sample.trim();
+      }
+      rubricJson = rubricSchema.parse(parsed);
+    }
+
     return {
       ...base,
       questionType: row.kind === "TU_LUAN_CODE" ? "CODING" : "ESSAY",
-      rubricJson: row.kind === "TU_LUAN_CODE" ? null : rubricSchema.parse(row.rubricJsonText?.trim() ? JSON.parse(row.rubricJsonText) : {
-        referenceAnswer: row.sample.trim(), criteria: [{ description: row.rubric.map(item => item.text).filter(Boolean).join("; ") || "Technical correctness and completeness", weight: 100 }],
-      }),
+      rubricJson,
       coding: row.kind === "TU_LUAN_CODE" ? codingSchema.parse(JSON.parse(row.codingJsonText || "null")) : null,
       explanation: row.sample.trim() || row.explanation.trim() || null,
       options: [],

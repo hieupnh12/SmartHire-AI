@@ -1,11 +1,13 @@
-﻿import { Link } from "react-router-dom";
+import { Link } from "react-router-dom";
 import {
   AppWindow,
   ArrowRight,
   Check,
   ClipboardCheck,
   Clock3,
+  Expand,
   ExternalLink,
+  Info,
   Monitor,
   Scale,
   Terminal,
@@ -16,8 +18,7 @@ import type { AvailableAssessment } from "@/api/types/assessment";
 import type { ApplicationSummary } from "@/api/types/applicant";
 import type { UserProfile } from "@/features/tenant/auth/types";
 import { Button } from "@/components/ux/Button";
-import { AssessmentProctorGate, type ProctorSession } from "./AssessmentProctorGate";
-import { ASSESSMENT_REGULATIONS } from "../constants/invitationContent";
+import { ASSESSMENT_GUIDELINES, ASSESSMENT_REGULATIONS } from "../constants/invitationContent";
 
 const regulationIcons: Record<(typeof ASSESSMENT_REGULATIONS)[number]["icon"], LucideIcon> = {
   tab: AppWindow,
@@ -35,7 +36,7 @@ type Props = {
   starting: boolean;
   allowRetake?: boolean;
   onContinue: () => void;
-  onProctorReady: (session: ProctorSession) => void | Promise<void>;
+  onStart: () => void | Promise<void>;
   onSelectApplication?: (applicationId: number) => void;
   applications?: ApplicationSummary[];
 };
@@ -50,7 +51,7 @@ export function AssessmentInvitationView({
   starting,
   allowRetake = false,
   onContinue,
-  onProctorReady,
+  onStart,
   applications,
   onSelectApplication,
 }: Props) {
@@ -62,14 +63,6 @@ export function AssessmentInvitationView({
   /** Rules + device check always happen here (start, continue, demo retake) — never again on /take. */
   const needsGate = !done || (done && allowRetake);
   const candidateName = user?.fullName ?? application.candidateName;
-  const gateLabel = starting
-    ? "Đang mở…"
-    : inProgress
-      ? "Tiếp tục làm bài"
-      : allowRetake && done
-        ? "Làm lại từ đầu"
-        : "Bắt đầu làm bài";
-  const ctaLabel = starting ? "Đang mở…" : "Xem kết quả";
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3 overflow-hidden">
@@ -119,38 +112,59 @@ export function AssessmentInvitationView({
             </dl>
           </header>
 
-          <div className="flex min-h-0 flex-1 flex-col gap-3 p-4 sm:p-5">
-            {test.description ? (
-              <p className="shrink-0 text-sm leading-6 text-[var(--color-on-surface-variant)] line-clamp-2">
-                {test.description}
-              </p>
-            ) : null}
+          <div className="flex min-h-0 flex-1 flex-col justify-between gap-4 p-4 sm:p-5">
+            <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pr-1">
+              {test.description ? (
+                <p className="shrink-0 text-sm leading-6 text-[var(--color-on-surface-variant)]">
+                  {test.description}
+                </p>
+              ) : null}
 
-            <div className="flex min-h-0 flex-1 flex-col">
-              <div className="mb-2 flex shrink-0 items-center gap-2">
-                <Scale className="size-4 text-[var(--color-primary)]" aria-hidden="true" />
-                <h2 className="text-sm font-semibold">Quy chế phòng thi</h2>
+              <div className="flex flex-col gap-2">
+                <div className="flex shrink-0 items-center gap-2">
+                  <Scale className="size-4 text-[var(--color-primary)]" aria-hidden="true" />
+                  <h2 className="text-sm font-semibold">Quy chế phòng thi</h2>
+                </div>
+                <ul className="flex flex-col gap-2">
+                  {ASSESSMENT_REGULATIONS.map((rule) => {
+                    const Icon = regulationIcons[rule.icon];
+                    return (
+                      <li
+                        key={rule.title}
+                        className="flex items-start gap-3 rounded-xl border border-[var(--color-border-default)]/60 bg-[var(--color-surface-alt)] px-3.5 py-2.5 text-sm transition-colors"
+                      >
+                        <div className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-lg bg-[var(--color-primary-subtle)] text-[var(--color-primary)]">
+                          <Icon className="size-4" aria-hidden="true" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium text-[var(--color-on-surface)]">{rule.title}</p>
+                          <p className="mt-0.5 text-xs leading-relaxed text-[var(--color-on-surface-variant)]">{rule.body}</p>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
               </div>
-              <ul className="grid min-h-0 flex-1 gap-2 sm:grid-cols-1 xl:auto-rows-fr">
-                {ASSESSMENT_REGULATIONS.map((rule) => {
-                  const Icon = regulationIcons[rule.icon];
-                  return (
-                    <li
-                      key={rule.title}
-                      className="flex gap-3 rounded-xl bg-[var(--color-surface-alt)] px-3 py-2.5 text-sm"
-                    >
-                      <Icon className="mt-0.5 size-4 shrink-0 text-[var(--color-primary)]" aria-hidden="true" />
-                      <div className="min-w-0">
-                        <p className="font-medium">{rule.title}</p>
-                        <p className="mt-0.5 text-xs leading-5 text-[var(--color-on-surface-variant)]">{rule.body}</p>
+
+              <div className="rounded-xl border border-[var(--color-border-default)]/60 bg-white p-3.5 shadow-sm">
+                <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-[var(--color-primary)]">
+                  <Info className="size-4" aria-hidden="true" />
+                  <span>Lưu ý kỹ thuật & Tiến trình bài làm</span>
+                </div>
+                <ul className="space-y-2 text-xs text-[var(--color-on-surface-variant)]">
+                  {ASSESSMENT_GUIDELINES.map((item) => (
+                    <li key={item.title} className="flex items-start gap-2 leading-relaxed">
+                      <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-[var(--color-primary)]" />
+                      <div>
+                        <strong className="font-medium text-[var(--color-on-surface)]">{item.title}</strong>{" "}
+                        {item.title.startsWith("Đồng hồ")
+                          ? `Thời gian ${test.durationMinutes} phút sẽ chạy liên tục sau khi bắt đầu và không thể tạm dừng.`
+                          : item.body}
                       </div>
                     </li>
-                  );
-                })}
-              </ul>
-              <p className="mt-2 shrink-0 text-xs text-[var(--color-on-surface-variant)]">
-                Đồng hồ {test.durationMinutes} phút chạy liên tục sau khi bắt đầu · đáp án tự lưu.
-              </p>
+                  ))}
+                </ul>
+              </div>
             </div>
 
             <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-[var(--color-border-default)] pt-3 text-xs text-[var(--color-on-surface-variant)]">
@@ -166,18 +180,18 @@ export function AssessmentInvitationView({
           </div>
         </section>
 
-        <aside className="flex min-h-0 flex-col gap-3 bg-[var(--color-surface-alt)]/40 p-4 sm:p-5">
+        <aside className="flex min-h-0 flex-col justify-between gap-4 bg-[var(--color-surface-alt)]/40 p-4 sm:p-5">
           {needsGate ? (
-            <>
+            <div className="flex flex-col gap-4">
               <div className="shrink-0">
                 <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-primary)]">
                   Bước tiếp theo
                 </p>
                 <h2 className="mt-1 text-lg font-semibold">
-                  {inProgress ? "Tiếp tục phiên đang mở" : allowRetake && done ? "Làm lại bài demo" : "Vào bài kiểm tra"}
+                  {inProgress ? "Tiếp tục bài thi" : allowRetake && done ? "Làm lại bài demo" : "Vào bài kiểm tra"}
                 </h2>
                 <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">
-                  Đồng ý quy chế và kiểm tra thiết bị tại đây — sau đó vào thẳng phòng thi.
+                  Xác nhận quy chế phòng thi để vào thẳng chế độ toàn màn hình.
                 </p>
               </div>
 
@@ -209,25 +223,49 @@ export function AssessmentInvitationView({
                 <span className="min-w-0">
                   <span className="block font-semibold">Tôi đồng ý quy chế phòng thi</span>
                   <span className="mt-1 block text-sm text-[var(--color-on-surface-variant)]">
-                    Cam kết làm bài trung thực và chấp nhận giám sát thiết bị.
+                    Cam kết làm bài trung thực và tuân thủ chế độ toàn màn hình.
                   </span>
                   {!acceptRules && (
                     <span className="mt-1.5 block text-sm font-semibold text-[var(--color-primary)]">
-                      Bấm để đồng ý và mở kiểm tra thiết bị
+                      Bấm để xác nhận và mở nút làm bài
                     </span>
                   )}
                 </span>
               </label>
 
-              <div className="min-h-0 flex-1 overflow-hidden">
-                {acceptRules ? (
-                  <div className="h-full min-h-0 overflow-y-auto">
-                    <AssessmentProctorGate busy={starting} label={gateLabel} onReady={onProctorReady} />
-                  </div>
-                ) : (
-                  <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-[var(--color-border-default)] bg-white/70 px-4 text-center text-sm text-[var(--color-on-surface-variant)]">
-                    Đồng ý quy chế bên trên để kiểm tra microphone và chia sẻ tab.
-                  </div>
+              <div className="rounded-xl border border-[var(--color-border-default)]/60 bg-white p-4 space-y-2 text-xs leading-relaxed text-[var(--color-on-surface-variant)]">
+                <div className="flex items-center gap-2 font-semibold text-[var(--color-on-surface)] text-sm">
+                  <Expand className="size-4 text-[var(--color-primary)]" aria-hidden="true" />
+                  <span>Quy định Toàn màn hình</span>
+                </div>
+                <p>
+                  Bài thi yêu cầu làm việc ở chế độ toàn màn hình để đảm bảo tính tập trung và công bằng. Bạn không cần chia sẻ màn hình hay bật camera.
+                </p>
+                <p>
+                  Thoát toàn màn hình hoặc chuyển sang tab khác quá 3 lần sẽ tự động khóa và nộp bài thi.
+                </p>
+              </div>
+
+              <div className="pt-2 space-y-2">
+                <Button
+                  size="lg"
+                  className="w-full"
+                  disabled={!acceptRules || starting}
+                  onClick={onStart}
+                >
+                  <Expand className="size-4" aria-hidden="true" />
+                  {starting
+                    ? "Đang mở phòng thi…"
+                    : inProgress
+                      ? "Tiếp tục làm bài"
+                      : allowRetake && done
+                        ? "Làm lại từ đầu"
+                        : "Bắt đầu làm bài"}
+                </Button>
+                {!acceptRules && (
+                  <p className="text-center text-xs text-[var(--color-on-surface-variant)]">
+                    Vui lòng tích đồng ý quy chế để mở bài thi
+                  </p>
                 )}
               </div>
 
@@ -236,7 +274,7 @@ export function AssessmentInvitationView({
                   Xem kết quả lần làm trước
                 </Button>
               )}
-            </>
+            </div>
           ) : (
             <div className="flex h-full flex-col justify-between gap-4">
               <div>
@@ -248,9 +286,9 @@ export function AssessmentInvitationView({
                   Bài đã nộp. Bạn có thể xem kết quả.
                 </p>
               </div>
-              <Button className="w-full" disabled={starting} onClick={onContinue}>
-                {ctaLabel}
+              <Button size="lg" className="w-full" disabled={starting} onClick={onContinue}>
                 <ArrowRight className="size-4" aria-hidden="true" />
+                Xem kết quả bài làm
               </Button>
             </div>
           )}

@@ -62,13 +62,13 @@ export function ExamFullscreenButton() {
 
 type Props = {
   submissionId: number;
-  session: ProctorSession;
+  session?: ProctorSession | null;
   children: ReactNode;
   onAutoSubmit: () => void;
 };
 
 /** Client-side exam proctoring (fullscreen, tab, copy/paste, device tracks). */
-export function AssessmentProctorGuard({ submissionId, session, children, onAutoSubmit }: Props) {
+export function AssessmentProctorGuard({ submissionId, session = null, children, onAutoSubmit }: Props) {
   const user = useAuthStore((state) => state.user);
   const videoRef = useRef<HTMLVideoElement>(null);
   const hiddenAt = useRef<number | null>(null);
@@ -99,6 +99,7 @@ export function AssessmentProctorGuard({ submissionId, session, children, onAuto
     setWarning(
       `${message} (${next}/${MAX_VIOLATIONS}). ${next >= MAX_VIOLATIONS ? "Bài sẽ được tự động nộp." : "Vui lòng quay lại phòng thi."}`,
     );
+
     if (next >= MAX_VIOLATIONS && !autoSubmitted.current) {
       autoSubmitted.current = true;
       window.setTimeout(() => autoSubmitRef.current(), 800);
@@ -106,6 +107,7 @@ export function AssessmentProctorGuard({ submissionId, session, children, onAuto
   }, [report]);
 
   useEffect(() => {
+    if (!session) return;
     const track = session.camera.getVideoTracks().find((item) => item.readyState === "live");
     if (!track) {
       setFaceStatus("unavailable");
@@ -121,10 +123,10 @@ export function AssessmentProctorGuard({ submissionId, session, children, onAuto
       onViolation: (reason) => {
         if (!active || ignoreTransient.current || warningOpen.current) return;
         if (reason === "multi") {
-          violate("Phát hiện nhiều khuôn mặt trong khung hình camera");
+          violate("Phát hiện nhiều khuôn mặt trong khung hình camera", "MULTI_FACE");
           return;
         }
-        violate("Khuôn mặt không còn trong khung hình camera");
+        violate("Khuôn mặt không còn trong khung hình camera", "LOST_FACE");
       },
     }).then((watcher) => {
       if (!active) {
@@ -141,7 +143,7 @@ export function AssessmentProctorGuard({ submissionId, session, children, onAuto
 
   const bindVideo = (node: HTMLVideoElement | null) => {
     videoRef.current = node;
-    if (node) node.srcObject = session.camera;
+    if (node && session) node.srcObject = session.camera;
   };
 
   useEffect(() => {
@@ -157,6 +159,7 @@ export function AssessmentProctorGuard({ submissionId, session, children, onAuto
   }, []);
 
   useEffect(() => {
+    if (!session) return;
     const microphoneTrack = session.camera.getAudioTracks()[0];
     const cameraTrack = session.camera.getVideoTracks()[0];
     const screenTrack = session.screen.getVideoTracks()[0];
@@ -230,7 +233,7 @@ export function AssessmentProctorGuard({ submissionId, session, children, onAuto
   };
   const expand = useCallback(() => {
     ignoreTransient.current = true;
-    return expandExamToScreen(session).finally(() => {
+    return expandExamToScreen(session ?? null).finally(() => {
       window.setTimeout(() => {
         ignoreTransient.current = false;
       }, 700);
@@ -238,7 +241,7 @@ export function AssessmentProctorGuard({ submissionId, session, children, onAuto
   }, [session]);
 
   const watermark = `${user?.fullName ?? "Candidate"} · ${user?.email ?? "SmartHire"} · ASM-${submissionId}`;
-  const hasCamera = session.camera.getVideoTracks().length > 0;
+  const hasCamera = !!session && session.camera.getVideoTracks().length > 0;
   const faceDot =
     faceStatus === "present"
       ? "bg-emerald-400"
@@ -248,16 +251,16 @@ export function AssessmentProctorGuard({ submissionId, session, children, onAuto
           ? "bg-slate-400"
           : "bg-sky-400 animate-pulse";
   const monitor = (
-    <div className="flex shrink-0 items-center gap-2 rounded-lg bg-slate-950 px-2 py-1 text-[11px] text-white">
+    <div className="flex shrink-0 items-center gap-2 rounded-lg bg-slate-950 px-2.5 py-1 text-[11px] text-white">
       {hasCamera && (
         <video ref={bindVideo} autoPlay muted playsInline className="h-8 w-12 rounded bg-slate-900 object-cover" />
       )}
-      <span className="inline-flex items-center gap-1 whitespace-nowrap">
-        <span className={`size-2 rounded-full ${faceDot}`} />
-        {hasCamera ? FACE_LABEL[faceStatus] : "Đang giám sát"}
+      <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+        <span className={`size-2 rounded-full ${hasCamera ? faceDot : "bg-emerald-400"}`} />
+        {hasCamera ? FACE_LABEL[faceStatus] : "Toàn màn hình"}
       </span>
       <span className="tabular-nums">
-        {violations}/{MAX_VIOLATIONS}
+        Vi phạm: <strong className="font-semibold text-rose-300">{violations}</strong>/{MAX_VIOLATIONS}
       </span>
     </div>
   );

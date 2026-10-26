@@ -81,6 +81,7 @@ public class SubmissionController {
     @Operation(summary = "Lock saved objective answers and start practical section")
     public ApiResponse<SubmissionResponse> completeObjective(@PathVariable long id) { return ApiResponse.ok(service.completeObjective(id)); }
 
+
     @GetMapping("/submissions/{id}/grading_review")
     @Operation(summary = "Inspect AI suggestions and subjective answers (staff only)")
     public ApiResponse<java.util.List<com.smarthire.tenant.assessment.service.AssessmentGradingService.Review>> review(@PathVariable long id) {

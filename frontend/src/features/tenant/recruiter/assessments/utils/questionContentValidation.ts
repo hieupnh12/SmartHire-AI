@@ -4,9 +4,16 @@ export const codingLanguages = ["java", "python", "javascript", "cpp", "sql"] as
 export type CodingLanguage = (typeof codingLanguages)[number];
 
 export const rubricSchema = z.object({
-  category: z.enum(["ESSAY_CONCEPTUAL", "ESSAY_SCENARIO"]).optional(),
+  category: z.enum(["ESSAY_CONCEPTUAL", "ESSAY_COMPARISON", "ESSAY_SCENARIO", "ESSAY_ARCHITECTURE"]).optional(),
   referenceAnswer: z.string().trim().min(1, "Nhập đáp án tham khảo."),
-  criteria: z.array(z.object({ description: z.string().trim().min(1, "Nhập tiêu chí."), weight: z.number().int().min(1).max(100), keywords: z.array(z.string()).optional() })).min(1).max(20),
+  minWords: z.number().int().min(0).max(10000).optional(),
+  criteria: z.array(z.object({
+    name: z.string().trim().optional(),
+    guide: z.string().trim().optional(),
+    description: z.string().trim().min(1, "Nhập tiêu chí."),
+    weight: z.number().int().min(1).max(100),
+    keywords: z.array(z.string()).optional()
+  })).min(1).max(20),
 }).refine(value => value.criteria.reduce((sum, item) => sum + item.weight, 0) === 100, "Tổng tỉ trọng tiêu chí phải bằng 100%.");
 
 const templates = z.record(z.enum(codingLanguages), z.string().max(10000));

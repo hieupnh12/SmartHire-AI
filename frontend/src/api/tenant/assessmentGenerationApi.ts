@@ -8,4 +8,5 @@ export const assessmentGenerationApi = {
   configuration: (jobId: number) => api.get<ApiResponse<AssessmentConfiguration | null>>(`/assessments/jobs/${jobId}/configuration`).then(r => r.data.data ?? null),
   save: (jobId: number, data: AssessmentConfiguration) => api.put<ApiResponse<AssessmentConfiguration>>(`/assessments/jobs/${jobId}/configuration`, data).then(r => r.data.data),
   generate: (jobId: number) => api.post<ApiResponse<JobTest>>(`/assessments/jobs/${jobId}/generate`).then(r => r.data.data),
+  generateForApplication: (jobId: number, applicationId: number) => api.post<ApiResponse<JobTest>>(`/assessments/jobs/${jobId}/generate-for-application/${applicationId}`).then(r => r.data.data),
 };

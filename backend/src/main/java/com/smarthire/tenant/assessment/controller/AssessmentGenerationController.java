@@ -38,4 +38,10 @@ public class AssessmentGenerationController {
     @PostMapping("/generate")
     @Operation(summary = "Generate a named draft assessment from the saved job structure and question bank")
     public ApiResponse<JobTestResponse> generate(@PathVariable long jobId) { return ApiResponse.ok(service.generate(jobId)); }
+
+    @PostMapping("/generate-for-application/{applicationId}")
+    @Operation(summary = "Generate and assign a test to an application from job question bank")
+    public ApiResponse<JobTestResponse> generateForApplication(@PathVariable long jobId, @PathVariable long applicationId) {
+        return ApiResponse.ok(service.generateForApplicationExplicit(jobId, applicationId));
+    }
 }

@@ -28,15 +28,18 @@ public class AiInterviewWorkDispatcher {
     private final String scoringQueue;
     private final String emailQueue;
     private final com.smarthire.tenant.assessment.service.AssessmentGenerationService assessmentGeneration;
+    private final com.smarthire.tenant.assessment.service.SubmissionService submissionService;
     public AiInterviewWorkDispatcher(TenantInfoRepository tenants, TenantJobExecutor executor, AiInterviewWorkService work,
             AiInterviewService interviews, AiInterviewEvaluationService evaluation, RabbitTemplate rabbit,
             com.smarthire.tenant.assessment.service.AssessmentGenerationService assessmentGeneration,
+            com.smarthire.tenant.assessment.service.SubmissionService submissionService,
             @Value("${app.rabbitmq.queues.interview-questions}") String questionsQueue,
             @Value("${app.rabbitmq.queues.interview-score}") String scoringQueue,
             @Value("${app.rabbitmq.queues.interview-email}") String emailQueue) {
         this.tenants = tenants; this.executor = executor; this.work = work; this.interviews = interviews;
         this.evaluation = evaluation; this.rabbit = rabbit;
         this.assessmentGeneration = assessmentGeneration;
+        this.submissionService = submissionService;
         this.questionsQueue = questionsQueue; this.scoringQueue = scoringQueue; this.emailQueue = emailQueue;
     }
 
@@ -47,6 +50,7 @@ public class AiInterviewWorkDispatcher {
             try {
                 executor.execute(tenant.getCode(), () -> {
                     interviews.expireDue();
+                    submissionService.expireOverdueSubmissions();
                     evaluation.closeExhaustedRetries();
                     for (var id : assessmentGeneration.pending()) {
                         rabbit.convertAndSend(AssessmentGenerationWorker.QUEUE, id, message -> {

@@ -13,14 +13,9 @@ import { queryKeys } from "@/lib/query-keys";
 import { getTenantIdFromWindow } from "@/lib/tenant";
 import { getTenantTheme } from "@/lib/tenantTheme";
 import { AssessmentInvitationView } from "../components/AssessmentInvitationView";
-import type { ProctorSession } from "../components/AssessmentProctorGate";
-import {
-  commitAssessmentProctor,
-  discardPendingAssessmentProctor,
-  handoffAssessmentProctor,
-} from "../utils/assessmentProctorHandoff";
+import { expandExamToScreen } from "../utils/examFullscreen";
 
-const OPEN_ASSESSMENT = new Set(["ASSESSMENT", "HUMAN_INTERVIEW", "FAILED"]);
+const OPEN_ASSESSMENT = new Set(["ASSESSMENT", "INTERVIEW", "HUMAN_INTERVIEW", "FAILED"]);
 
 /** Career header is h-[76px]; cancel CareerNavigationLayout padding so this page fills one frame. */
 const roomShell =
@@ -65,32 +60,27 @@ export function AssessmentInvitationPage() {
   const start = useMutation({
     mutationFn: () => assessmentApi.start(testId, resolvedApplicationId),
     onSuccess: (result) => {
-      commitAssessmentProctor(result.id);
       client.setQueryData(queryKeys.assessments.submission(result.id), result);
       void client.invalidateQueries({ queryKey: queryKeys.assessments.available(result.applicationId) });
       navigate(`/assessments/${result.id}/take`, { replace: true });
     },
   });
 
-  const onProctorReady = async (session: ProctorSession) => {
-    handoffAssessmentProctor(session);
-    // Continue an open attempt: reuse submission, only re-bind proctor from this page.
-    if (test?.submissionStatus === "IN_PROGRESS" && test.submissionId) {
-      commitAssessmentProctor(test.submissionId);
-      navigate(`/assessments/${test.submissionId}/take`, { replace: true });
-      return;
-    }
+  const onStart = async () => {
     try {
+      await expandExamToScreen(null).catch(() => undefined);
+      if (test?.submissionStatus === "IN_PROGRESS" && test.submissionId) {
+        navigate(`/assessments/${test.submissionId}/take`, { replace: true });
+        return;
+      }
       await start.mutateAsync();
-    } catch (error) {
-      discardPendingAssessmentProctor();
-      throw error;
+    } catch {
+      // handled by mutation error display
     }
   };
 
   const onContinue = () => {
     if (!test?.submissionId) return;
-    // Results only — never enter /take for an active attempt without device check here.
     navigate(`/assessments/${test.submissionId}/take`);
   };
 
@@ -165,7 +155,7 @@ export function AssessmentInvitationPage() {
             starting={start.isPending}
             allowRetake={allowRetake}
             onContinue={onContinue}
-            onProctorReady={onProctorReady}
+            onStart={onStart}
             applications={eligible}
             onSelectApplication={(id) => {
               setAcceptRules(false);

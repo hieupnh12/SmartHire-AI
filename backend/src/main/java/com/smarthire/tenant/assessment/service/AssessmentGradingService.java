@@ -6,6 +6,7 @@ import com.smarthire.common.exception.BusinessException;
 import com.smarthire.domain.enums.*;
 import com.smarthire.domain.tenant.entity.*;
 import com.smarthire.domain.tenant.repository.*;
+import com.smarthire.tenant.assessment.dto.request.AssessmentConfigRequest;
 import com.smarthire.tenant.aiInterview.ai.AiInterviewClient;
 import com.smarthire.tenant.cv.service.CvAccess;
 import java.math.BigDecimal;
@@ -57,20 +58,84 @@ public class AssessmentGradingService {
             }
         }
     }
+    private AssessmentConfigRequest getJobConfig(Answer answer) {
+        Job job = null;
+        if (answer.getSubmission() != null && answer.getSubmission().getTest() != null) {
+            job = answer.getSubmission().getTest().getJob();
+        } else if (answer.getQuestion() != null && answer.getQuestion().getTest() != null) {
+            job = answer.getQuestion().getTest().getJob();
+        }
+        if (job != null && job.getAssessmentConfigJson() != null) {
+            try {
+                return json.treeToValue(job.getAssessmentConfigJson(), AssessmentConfigRequest.class);
+            } catch (Exception ignored) {}
+        }
+        return null;
+    }
+
     private void essay(Answer answer) {
         var question = answer.getQuestion();
-        if (question.getRubricJson() == null) throw new IllegalStateException("Missing rubric");
-        QuestionContent.validateRubric(question.getRubricJson());
+        JsonNode rubricNode = question.getRubricJson();
+        var jobConfig = getJobConfig(answer);
+        if (rubricNode == null || !rubricNode.has("criteria") || rubricNode.path("criteria").isEmpty()) {
+            var fallbackRubric = json.createObjectNode();
+            String refAnswer = (rubricNode != null && rubricNode.has("referenceAnswer") && !rubricNode.path("referenceAnswer").asText().isBlank())
+                    ? rubricNode.path("referenceAnswer").asText()
+                    : (question.getExplanation() != null && !question.getExplanation().isBlank() ? question.getExplanation() : question.getQuestionText());
+            fallbackRubric.put("referenceAnswer", refAnswer);
+            String cat = rubricNode != null && rubricNode.has("category") ? rubricNode.path("category").asText() : "ESSAY_CONCEPTUAL";
+            fallbackRubric.put("category", cat);
+            var criteriaArr = fallbackRubric.putArray("criteria");
+            if (jobConfig != null && jobConfig.essayCriteria() != null && !jobConfig.essayCriteria().isEmpty()) {
+                for (var criterion : jobConfig.essayCriteria()) {
+                    var cNode = criteriaArr.addObject();
+                    cNode.put("name", criterion.name());
+                    cNode.put("guide", criterion.guide() != null ? criterion.guide() : criterion.name());
+                    cNode.put("description", criterion.name() + (criterion.guide() != null && !criterion.guide().isBlank() ? ": " + criterion.guide() : ""));
+                    cNode.put("weight", criterion.weight());
+                }
+            } else {
+                switch (cat) {
+                    case "ESSAY_COMPARISON" -> {
+                        addCriterionNode(criteriaArr, "Hiểu rõ đặc điểm của từng công nghệ / giải pháp", "Nắm vững bản chất, kiến trúc và đặc tính cốt lõi của từng phương án", 30);
+                        addCriterionNode(criteriaArr, "Phân tích ưu/nhược điểm đa chiều", "So sánh toàn diện ưu và nhược điểm về hiệu năng, độ phức tạp, bảo trì và mở rộng", 40);
+                        addCriterionNode(criteriaArr, "Độ phù hợp của ngữ cảnh áp dụng thực tế", "Đưa ra tiêu chí lựa chọn và khuyến nghị trường hợp nào nên dùng giải pháp nào", 30);
+                    }
+                    case "ESSAY_SCENARIO" -> {
+                        addCriterionNode(criteriaArr, "Phân tích nguyên nhân gốc rễ (Root Cause Analysis)", "Xác định chính xác nguyên nhân tiềm ẩn và phương pháp điều tra, cô lập sự cố", 30);
+                        addCriterionNode(criteriaArr, "Tính khả thi và hiệu quả của giải pháp", "Phương án khắc phục ngắn hạn và giải pháp dài hạn rõ ràng, có tính khả thi cao", 40);
+                        addCriterionNode(criteriaArr, "Biện pháp dự phòng / Giám sát lâu dài", "Biện pháp phòng ngừa lặp lại, thiết lập monitoring, alerting và xử lý rủi ro", 30);
+                    }
+                    case "ESSAY_ARCHITECTURE" -> {
+                        addCriterionNode(criteriaArr, "Cấu trúc luồng và tính khả thi", "Thiết kế kiến trúc / luồng dữ liệu hợp lý, phân tách trách nhiệm rõ ràng", 40);
+                        addCriterionNode(criteriaArr, "Xử lý edge-case, chịu lỗi và bảo mật", "Tính toán kịch bản lỗi, bảo đảm tính toàn vẹn dữ liệu, idempotency và an toàn", 35);
+                        addCriterionNode(criteriaArr, "Khả năng mở rộng (Scalability)", "Khả năng đáp ứng tải cao, tối ưu tài nguyên và chiến lược scale", 25);
+                    }
+                    default -> { // ESSAY_CONCEPTUAL
+                        addCriterionNode(criteriaArr, "Tính chính xác của khái niệm / cơ chế", "Giải thích chính xác nguyên lý, bản chất và các khái niệm cốt lõi", 50);
+                        addCriterionNode(criteriaArr, "Thuật ngữ chuyên môn & Bản chất hoạt động", "Sử dụng đúng thuật ngữ kỹ thuật, giải thích rõ cách thức hoạt động bên dưới", 30);
+                        addCriterionNode(criteriaArr, "Ví dụ minh họa thực tế", "Có ví dụ minh họa hoặc tình huống áp dụng thực tế phù hợp", 20);
+                    }
+                }
+            }
+            rubricNode = fallbackRubric;
+        }
+        QuestionContent.validateRubric(rubricNode);
         var data = json.createObjectNode().put("prompt", question.getQuestionText()).put("answer", answer.getAnswerText());
-        data.set("rubric", question.getRubricJson());
-        JsonNode result = ai.evaluateAssessment("Evaluate technical meaning against every supplied rubric criterion; accept equivalent wording. "
-                + "Do not use keyword matching. Return criteria_results in the same order, each with score_percent (0..100) and feedback, and general_comment.", data);
+        data.set("rubric", rubricNode);
+        String prompt = "Evaluate technical meaning against every supplied rubric criterion; accept equivalent wording. "
+                + "Do not use keyword matching. Return criteria_results in the same order, each with score_percent (0..100) and feedback, and general_comment.";
+        if (jobConfig != null && jobConfig.essayGradingGuide() != null && !jobConfig.essayGradingGuide().isBlank()) {
+            data.put("recruiter_grading_guide", jobConfig.essayGradingGuide().trim());
+            prompt += " Follow the recruiter_grading_guide instructions if provided.";
+        }
+        JsonNode result = ai.evaluateAssessment(prompt, data);
         var criteria = result.path("criteria_results");
-        if (!criteria.isArray() || criteria.size() != question.getRubricJson().path("criteria").size()) throw new IllegalStateException("Invalid criteria results");
+        if (!criteria.isArray() || criteria.size() != rubricNode.path("criteria").size()) throw new IllegalStateException("Invalid criteria results");
         BigDecimal percent = BigDecimal.ZERO;
         for (int i = 0; i < criteria.size(); i++) {
             BigDecimal score = percentage(criteria.get(i).path("score_percent"));
-            percent = percent.add(score.multiply(BigDecimal.valueOf(question.getRubricJson().path("criteria").get(i).path("weight").asInt())));
+            percent = percent.add(score.multiply(BigDecimal.valueOf(rubricNode.path("criteria").get(i).path("weight").asInt())));
         }
         answer.setSuggestedScore(percent.multiply(BigDecimal.valueOf(question.getPoints())).divide(BigDecimal.valueOf(10000), 2, RoundingMode.HALF_UP));
         answer.setEvaluationJson(result);
@@ -200,4 +265,12 @@ public class AssessmentGradingService {
         access.requireJob(submission.getTest().getJob()); return submission;
     }
     private BusinessException invalid(String message) { return new BusinessException(message, HttpStatus.BAD_REQUEST, "INVALID_GRADE"); }
+
+    private void addCriterionNode(com.fasterxml.jackson.databind.node.ArrayNode arrayNode, String name, String guide, int weight) {
+        var node = arrayNode.addObject();
+        node.put("name", name);
+        node.put("guide", guide);
+        node.put("description", name + ": " + guide);
+        node.put("weight", weight);
+    }
 }

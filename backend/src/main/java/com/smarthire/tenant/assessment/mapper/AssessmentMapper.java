@@ -59,7 +59,9 @@ public class AssessmentMapper {
                 test.getCreatedAt(),
                 test.getUpdatedAt(),
                 creator != null ? creator.getId() : null,
-                creator != null ? creator.getFullName() : null, test.getObjectiveDurationMinutes(),
-                test.getCodingTestWeightPercent());
+                creator != null ? creator.getFullName() : null,
+                test.getObjectiveDurationMinutes(),
+                test.getCodingTestWeightPercent(),
+                test.getAssignedApplication() != null ? test.getAssignedApplication().getId() : null);
     }
 }

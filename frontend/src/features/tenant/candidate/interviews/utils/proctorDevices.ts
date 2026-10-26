@@ -54,9 +54,9 @@ export function deviceError(cause: unknown, step: DeviceStep, capture: CaptureKi
 export async function prepareProctorDevices(enableCamera = false, capture: CaptureKind = "tab"): Promise<ProctorSession> {
   if (!window.isSecureContext) throw new Error("Kiểm tra thiết bị cần HTTPS hoặc localhost.");
   if (!navigator.mediaDevices?.getUserMedia || !navigator.mediaDevices?.getDisplayMedia) {
-    throw new Error("Trình duyệt không hỗ trợ camera hoặc chia sẻ màn hình. Hãy dùng Chrome hoặc Edge trên máy tính.");
+    throw new Error("Trình duyệt không hỗ trợ microphone hoặc chia sẻ màn hình. Hãy dùng Chrome hoặc Edge trên máy tính.");
   }
-  const requireCamera = capture === "monitor" || enableCamera;
+  const requireCamera = enableCamera;
   let step: DeviceStep = "screen";
   const streams: MediaStream[] = [];
   try {
@@ -79,11 +79,8 @@ export async function prepareProctorDevices(enableCamera = false, capture: Captu
         const camera = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
         streams.push(camera);
         camera.getVideoTracks().forEach(track => microphone.addTrack(track));
-        if (capture === "monitor" && camera.getVideoTracks().length === 0) {
-          throw new Error("Camera phải bật trong suốt bài thi.");
-        }
       } catch (cause) {
-        if (capture === "monitor") throw cause;
+        if (enableCamera) throw cause;
         // Interview camera is optional; microphone and screen capture remain required.
       }
     }

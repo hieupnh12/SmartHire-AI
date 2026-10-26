@@ -14,6 +14,7 @@ export type JobTest = {
   updatedAt: string | null;
   createdById: number | null;
   createdByName: string | null;
+  assignedApplicationId?: number | null;
   /** Hidden-test share of coding score (0–100). AI gets the remainder. */
   codingTestWeightPercent?: number;
 };
@@ -67,7 +68,19 @@ export type AvailableAssessment = Pick<JobTest, "id" | "title" | "description" |
   submissionId: number | null; submissionStatus: SubmissionStatus | null;
 };
 
-export type EssayRubric = { category?: "ESSAY_CONCEPTUAL" | "ESSAY_SCENARIO"; referenceAnswer: string; minWords?: number; criteria: { description: string; name?: string; guide?: string; weight: number; keywords?: string[] }[] };
+export type EssayCategory =
+  | "ESSAY_CONCEPTUAL"
+  | "ESSAY_COMPARISON"
+  | "ESSAY_SCENARIO"
+  | "ESSAY_ARCHITECTURE"
+  | "ESSAY_SYSTEM_DESIGN"
+  | "ESSAY_TRADE_OFF";
+export type EssayRubric = {
+  category?: EssayCategory;
+  referenceAnswer: string;
+  minWords?: number;
+  criteria: { description: string; name?: string; guide?: string; weight: number; keywords?: string[] }[];
+};
 export type CodingContent = {
   title?: string;
   constraints?: string;
@@ -84,16 +97,26 @@ export type GradingReview = { questionId: number; prompt: string; type: string; 
   suggestedScore: number | null; score: number | null; reviewedAt: string | null };
 export type SampleResult = { status: { id: number; description: string }; stdout?: string; stderr?: string; compile_output?: string };
 
+export type ProctorEventSummary = {
+  id: number;
+  event: string;
+  detail: string | null;
+  durationSeconds: number | null;
+  createdAt: string;
+};
+
 export type SubmissionGradingDetail = {
   id: number; testTitle: string; candidateName: string; candidateEmail: string | null; status: SubmissionStatus;
   score: number | null; totalPoints: number; passingScore: number | null; emailAvailable: boolean;
   objective: { correctCount: number; questionCount: number; score: number; totalPoints: number }; reviews: GradingReview[];
+  proctorEvents?: ProctorEventSummary[];
   integrity?: {
     proctorEventCount: number;
     proctorEvents: { eventType: string; createdAt: string; detail: string | null }[];
     customRuns: { questionId: number; prompt: string; count: number }[];
   };
 };
+
 export type AssessmentJobReport = {
   jobId: number;
   questions: { questionId: number; type: string; points: number; graded: number; fullCredit: number; passRatePercent: number; avgScorePercent: number | null }[];

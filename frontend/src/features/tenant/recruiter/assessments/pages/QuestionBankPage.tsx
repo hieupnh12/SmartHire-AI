@@ -30,6 +30,8 @@ import {
 } from "lucide-react";
 import { questionBankApi } from "@/api/tenant/questionBankApi";
 import { AiQuestionGenerateDialog } from "../components/AiQuestionGenerateDialog";
+import { bankQuestionAuthoring } from "../utils/bankQuestionAuthoring";
+import { typeMeta, type BankQuestion as BankQuestionAuthoring } from "../constants/excelTemplateMock";
 import type { Question, TestStatus } from "@/api/types/assessment";
 import { AssessmentError } from "@/components/ux/assessmentUi";
 import { Breadcrumb } from "@/components/ux/Breadcrumb";
@@ -58,6 +60,7 @@ type BankRow = {
   jobTitle: string;
   department: string;
   question: Question;
+  content: BankQuestionAuthoring | null;
   code: string;
   skills: string[];
   difficulty: Difficulty;
@@ -83,6 +86,17 @@ function loadFavorites() {
   } catch {
     return new Set<string>();
   }
+}
+
+function typeLabel(type?: string): string {
+  if (!type) return "Trắc nghiệm đơn";
+  const t = type.toUpperCase();
+  if (t === "MCQ") return "Trắc nghiệm đơn";
+  if (t === "MULTIPLE_CHOICE") return "Nhiều đáp án";
+  if (t === "QUIZ") return "Trắc nghiệm";
+  if (t === "CODING") return "Bài tập Code";
+  if (t === "ESSAY") return "Tự luận lý thuyết";
+  return type;
 }
 
 function questionCode(id: number) {
@@ -124,12 +138,13 @@ function difficultyClass(level: Difficulty) {
 }
 
 function downloadCsv(rows: BankRow[]) {
-  const header = ["Mã", "Câu hỏi", "Đề", "Vị trí", "Điểm", "Trạng thái", "Kỹ năng"];
+  const header = ["Mã", "Câu hỏi", "Đề", "Vị trí", "Loại câu", "Điểm", "Trạng thái", "Kỹ năng"];
   const body = rows.map((row) => [
     row.code,
     row.question.questionText,
     row.testTitle,
     row.jobTitle,
+    row.content ? typeMeta(row.content.kind).label : "Trắc nghiệm đơn",
     String(row.question.points),
     statusMeta(row.testStatus).label,
     row.skills.join("; "),
@@ -273,6 +288,7 @@ export function QuestionBankPage() {
   const [collection, setCollection] = useState<Collection>(initialCollection);
   const [query, setQuery] = useState(requestedQ);
   const [skill, setSkill] = useState(requestedSkill);
+  const [questionType, setQuestionType] = useState("");
   const [difficulty, setDifficulty] = useState<Difficulty | "">(initialDifficulty);
   const [status, setStatus] = useState<TestStatus | "">(initialStatus);
   const [sort, setSort] = useState<"latest" | "points" | "text">(initialSort);
@@ -388,6 +404,7 @@ export function QuestionBankPage() {
       jobTitle: item.jobTitle ?? "Tất cả vị trí",
       department: item.jobId === job.id ? job.department ?? "" : "",
       question: item.question,
+      content: bankQuestionAuthoring(item),
       code: questionCode(item.question.id),
       skills: skillsOf(item.question.questionText, item.question.skill),
       difficulty: difficultyLabel(item.question.difficulty, item.question.points),
@@ -530,6 +547,22 @@ export function QuestionBankPage() {
   };
 
   const chips = [
+    questionType
+      ? {
+          id: "type",
+          label: `Loại câu: ${
+            questionType === "MCQ"
+              ? "Trắc nghiệm đơn"
+              : questionType === "MULTIPLE_CHOICE"
+              ? "Nhiều đáp án"
+              : questionType === "QUIZ"
+              ? "Trắc nghiệm"
+              : questionType === "CODING"
+              ? "Bài tập Code"
+              : "Tự luận lý thuyết"
+          }`,
+        }
+      : null,
     skill ? { id: "skill", label: `Kỹ năng: ${skill}` } : null,
     difficulty ? { id: "difficulty", label: `Độ khó: ${difficulty}` } : null,
     status ? { id: "status", label: `Trạng thái: ${statusMeta(status).label}` } : null,
@@ -537,6 +570,7 @@ export function QuestionBankPage() {
   ].filter((chip): chip is { id: string; label: string } => chip !== null);
 
   const clearChip = (id: string) => {
+    if (id === "type") setQuestionType("");
     if (id === "skill") handleSkillChange("");
     if (id === "difficulty") handleDifficultyChange("");
     if (id === "status") handleStatusChange("");
@@ -544,6 +578,7 @@ export function QuestionBankPage() {
   };
 
   const clearFilters = () => {
+    setQuestionType("");
     triggerTableTransition(() => {
       setSkill("");
       setDifficulty("");
@@ -584,13 +619,6 @@ export function QuestionBankPage() {
     setActiveKey(key);
     setDrawerTab("content");
     setMenuKey(null);
-  };
-
-  const typeLabel = (type: string | undefined) => {
-    if (type === "MULTIPLE_CHOICE") return "Nhiều đáp án";
-    if (type === "ESSAY") return "Tự luận";
-    if (type === "CODING") return "Lập trình";
-    return "Trắc nghiệm";
   };
 
   return (
@@ -743,6 +771,25 @@ export function QuestionBankPage() {
                   {(jobSkills.length ? [...new Set([...jobSkills, ...skillOptions])] : skillOptions).map((item) => (
                     <option key={item} value={item}>{item}</option>
                   ))}
+                </select>
+
+                <select
+                  aria-label="Lọc loại câu hỏi"
+                  value={questionType}
+                  onChange={(event) => setQuestionType(event.target.value)}
+                  className={cn(
+                    "h-8 rounded-lg px-2 text-xs outline-none transition-colors cursor-pointer border-0",
+                    questionType
+                      ? "bg-white/80 dark:bg-slate-900/80 font-semibold text-[var(--color-primary)] shadow-2xs"
+                      : "bg-transparent text-[var(--color-on-surface-variant)] hover:bg-white/50 dark:hover:bg-slate-700/40 hover:text-[var(--color-on-surface)]"
+                  )}
+                >
+                  <option value="">Tất cả loại câu</option>
+                  <option value="MCQ">Trắc nghiệm đơn</option>
+                  <option value="MULTIPLE_CHOICE">Nhiều đáp án</option>
+                  <option value="QUIZ">Trắc nghiệm</option>
+                  <option value="ESSAY">Tự luận lý thuyết</option>
+                  <option value="CODING">Bài tập Code</option>
                 </select>
 
                 <select
@@ -1369,19 +1416,53 @@ export function QuestionBankPage() {
                     <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-on-surface-variant)]">Đề bài câu hỏi</p>
                     <p className="mt-2 rounded-xl bg-[var(--color-surface-container-low)] p-4 text-sm leading-6">{active.question.questionText}</p>
                   </div>
-                  <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-on-surface-variant)]">Phương án</p>
-                    <ul className="mt-2 space-y-2">
-                      {active.question.options.map((option) => (
-                        <li key={option.id} className={cn("rounded-xl px-3.5 py-3 text-sm", option.correct ? "bg-emerald-50 text-emerald-950" : "bg-[var(--color-surface-container)]")}>
-                          <span className="flex items-start gap-2">
-                            {option.correct && <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-700" aria-hidden="true" />}
-                            {option.optionText}
-                          </span>
-                        </li>
+                  {active.question.options.length > 0 && (
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-on-surface-variant)]">Phương án</p>
+                      <ul className="mt-2 space-y-2">
+                        {active.question.options.map((option) => (
+                          <li key={option.id} className={cn("rounded-xl px-3.5 py-3 text-sm", option.correct ? "bg-emerald-50 text-emerald-950" : "bg-[var(--color-surface-container)]")}>
+                            <span className="flex items-start gap-2">
+                              {option.correct && <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-700" aria-hidden="true" />}
+                              {option.optionText}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {active.content && active.question.questionType === "ESSAY" && (
+                    <div className="mt-3 space-y-3 text-sm">
+                      <p>Loại câu: {typeMeta(active.content.kind).label}</p>
+                      <p>Ngôn ngữ: {active.content.language || "—"}</p>
+                      {active.content.snippet && (
+                        <pre className="overflow-x-auto whitespace-pre-wrap rounded-lg bg-[var(--color-surface-container)] p-3">{active.content.snippet}</pre>
+                      )}
+                      <p className="whitespace-pre-wrap">Đáp án mẫu: {active.content.sample || "Chưa có"}</p>
+                      {active.content.rubric.map((item) => (
+                        <p key={item.level} className="whitespace-pre-wrap">{item.text}</p>
                       ))}
-                    </ul>
-                  </div>
+                    </div>
+                  )}
+                  {active.question.rubricJson && (
+                    <div className="space-y-2 rounded-lg bg-[var(--color-surface-container-low)] p-3 text-sm">
+                      <h3 className="font-semibold">Rubric chấm điểm</h3>
+                      <p className="whitespace-pre-wrap">{active.question.rubricJson.referenceAnswer}</p>
+                      {active.question.rubricJson.criteria.map((criterion, i) => (
+                        <p key={i}>{criterion.weight}% · {criterion.description}</p>
+                      ))}
+                    </div>
+                  )}
+                  {active.question.coding && (
+                    <div className="space-y-2 rounded-lg bg-[var(--color-surface-container-low)] p-3 text-sm">
+                      <h3 className="font-semibold">Bài lập trình</h3>
+                      <p>{active.question.coding.category} · {active.question.coding.timeLimitMs} ms · {active.question.coding.memoryMb} MB</p>
+                      <p>{active.question.coding.testCases.filter(test => test.sample).length} test công khai · {active.question.coding.testCases.filter(test => !test.sample).length} test ẩn</p>
+                      {Object.entries(active.question.coding.starterCode).map(([language, code]) => (
+                        <pre key={language} className="overflow-auto whitespace-pre-wrap font-mono text-xs">{language}{"\n"}{code}</pre>
+                      ))}
+                    </div>
+                  )}
                   <div className="grid grid-cols-2 gap-3">
                     <div className="rounded-lg bg-[var(--color-surface-container)] p-3">
                       <p className="text-[11px] text-[var(--color-on-surface-variant)]">Điểm số</p>
