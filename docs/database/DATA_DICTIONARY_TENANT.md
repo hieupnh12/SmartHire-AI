@@ -356,6 +356,22 @@ Entity `CompanyDirectoryEntry` (kế thừa `BaseEntity`).
 
 ---
 
+### B.6 `company_location_departments` — Phân bổ phòng ban theo địa điểm (V55)
+
+Entity `CompanyLocationDepartment` (kế thừa `BaseEntity`).
+
+| Cột | Kiểu | Khoá | Null | Default | Mô tả |
+|---|---|---|---|---|---|
+| `id` | BIGINT | PK | Không | auto | Định danh bản ghi gán |
+| `location_name` | VARCHAR(255) | UQ, IDX | Không | — | Tên địa điểm công ty |
+| `department_name` | VARCHAR(128) | UQ, IDX | Không | — | Tên phòng ban hoạt động tại địa điểm này |
+| `created_at` | TIMESTAMP | | Không | CURRENT_TIMESTAMP | Thời điểm tạo |
+| `updated_at` | TIMESTAMP | | Không | CURRENT_TIMESTAMP on update | Thời điểm cập nhật |
+
+**Ràng buộc:** `uk_company_loc_dept (location_name, department_name)`. Index `idx_cld_location (location_name)` và `idx_cld_department (department_name)`. Mối quan hệ N:M giữa địa điểm và phòng ban. Backfill từ các job đang có cặp địa điểm và phòng ban.
+
+---
+
 ## C. Application pipeline
 
 ### C.1 `applications` â€” ÄÆ¡n á»©ng tuyá»ƒn (báº£ng trung tÃ¢m)

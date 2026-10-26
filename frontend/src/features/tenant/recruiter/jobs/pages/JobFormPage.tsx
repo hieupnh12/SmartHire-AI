@@ -244,6 +244,19 @@ export function JobFormPage() {
   const alreadyPublished = status === "PUBLISHED";
   const selected = form.skills ?? [];
   const selectedNames = useMemo(() => new Set(selected.map((skill) => skill.name.toLowerCase())), [selected]);
+
+  const locationDepts = useMemo(() => {
+    if (!form.location || !directory.data?.data.locationDepartments) return [];
+    return directory.data.data.locationDepartments[form.location] ?? [];
+  }, [form.location, directory.data]);
+
+  const otherDepts = useMemo(() => {
+    const all = directory.data?.data.departments ?? [];
+    if (locationDepts.length === 0) return all;
+    const locSet = new Set(locationDepts.map((d) => d.toLowerCase()));
+    return all.filter((d) => !locSet.has(d.toLowerCase()));
+  }, [locationDepts, directory.data]);
+
   const cv = form.cvScreening ?? INITIAL_CV;
   const gate = form.gateScreening ?? INITIAL_GATE;
   const cvTotal = weightSum([
@@ -406,10 +419,23 @@ export function JobFormPage() {
                     <Field label="Tiêu đề tin tuyển dụng" required error={errorOf("title")} className="sm:col-span-2" counter={`${form.title.length}/120`}>
                       <input className={inputClass(errorOf("title"))} maxLength={120} placeholder="VD: Senior Backend Developer (Java)" value={form.title} onChange={(e) => set("title", e.target.value)} />
                     </Field>
-                    <Field label="Phòng ban">
+                    <Field label="Phòng ban" hint={locationDepts.length > 0 ? `Ưu tiên phòng ban tại ${form.location}` : undefined}>
                       <select className={input} value={form.department} onChange={(e) => set("department", e.target.value)} disabled={directory.isPending}>
                         <option value="">Chọn phòng ban</option>
-                        {(directory.data?.data.departments ?? []).map((value) => <option key={value} value={value}>{value}</option>)}
+                        {locationDepts.length > 0 ? (
+                          <>
+                            <optgroup label={`Phòng ban tại ${form.location}`}>
+                              {locationDepts.map((value) => <option key={value} value={value}>{value}</option>)}
+                            </optgroup>
+                            {otherDepts.length > 0 && (
+                              <optgroup label="Các phòng ban khác">
+                                {otherDepts.map((value) => <option key={value} value={value}>{value}</option>)}
+                              </optgroup>
+                            )}
+                          </>
+                        ) : (
+                          (directory.data?.data.departments ?? []).map((value) => <option key={value} value={value}>{value}</option>)
+                        )}
                       </select>
                     </Field>
                     <Field label="Số lượng cần tuyển" required error={errorOf("headcount")}>
