@@ -1,5 +1,18 @@
 # Data Dictionary - Tenant DB (MySQL)
 
+## Assessment ops hardening V55 (2026-10-25)
+
+Nguồn: `V55__assessment_ops_hardening.sql`. Không tạo bảng mới.
+
+| Bảng · cột / index | Kiểu | Null | Default | Ý nghĩa |
+|---|---|---|---|---|
+| `coding_problems.verified_at` | TIMESTAMP | Có | NULL | Thời điểm lời giải mẫu pass 100% test (kể cả hidden); bắt buộc trước `publish_test` |
+| `coding_problems.verified_language` | VARCHAR(32) | Có | NULL | Ngôn ngữ dùng khi verify thành công |
+| `tests.coding_test_weight_percent` | INT | Không | 90 | % điểm coding từ hidden tests (0–100); phần còn lại là AI review |
+| `answers.custom_run_count` | INT | Không | 0 | Số lần candidate chạy custom input trên câu code |
+| `email_outbox.reference_key` | VARCHAR(128) | Có | NULL | Khóa idempotent (vd. `assessment-result:{submissionId}`) |
+| `uk_email_outbox_purpose_ref` | UNIQUE `(purpose, reference_key)` | — | — | Chống trùng email theo purpose + reference (NULL reference vẫn cho phép nhiều dòng) |
+
 ## Quy tắc ứng tuyển của ứng viên V52 (2026-10-12)
 
 Nguồn: `V52__candidate_application_rules.sql`. Không tạo bảng mới, không thêm FK/UNIQUE.
@@ -714,6 +727,7 @@ Entity `JobTest` (class Java tránh xung đột JUnit `Test`).
 | `created_at` | TIMESTAMP | | Không | now | |
 | `updated_at` | TIMESTAMP | | Có | NULL | Cập nhật lần cuối; backfill = `created_at` ở V13 |
 | `objective_duration_minutes` | INT | | Có | NULL | V53: hạn riêng phần trắc nghiệm (phút từ started_at); service kiểm tra nhỏ hơn tổng thời lượng |
+| `coding_test_weight_percent` | INT | | Không | 90 | V55: tỉ lệ điểm coding từ hidden tests (0–100); phần còn lại là AI |
 
 **Ràng buộc:** `fk_tests_job`, `fk_tests_created_by`, V43 `fk_tests_assigned_application`, `uk_tests_assigned_application`.
 
@@ -803,6 +817,7 @@ Entity `Answer`.
 | `suggested_score` | DECIMAL(10,2) | | Có | NULL | V53: điểm đề xuất, chưa phải điểm chính thức |
 | `reviewed_by` | BIGINT | FK → `users.id` | Có | NULL | V53: người duyệt; fk_answer_reviewer, RESTRICT |
 | `reviewed_at` | TIMESTAMP | | Có | NULL | V53: thời điểm duyệt điểm |
+| `custom_run_count` | INT | | Không | 0 | V55: số lần chạy custom input (anti-cheat nhẹ) |
 
 **Ràng buộc:** `fk_answers_submission`, `fk_answers_question`, `fk_answers_option`
 
@@ -838,6 +853,9 @@ Entity `CodingProblem`.
 | `category` | VARCHAR(32) | | Không | CODING_ALGORITHM | V53: CODING_ALGORITHM/CODING_OOP/SQL_QUERY; service kiểm tra |
 | `starter_code_json` | JSON | | Có | NULL | V53: mã khởi đầu theo ngôn ngữ, candidate được đọc |
 | `harness_json` | JSON | | Có | NULL | V53: chương trình kiểm thử chứa {{SOURCE}} theo ngôn ngữ; chỉ staff |
+| `constraints_text` | TEXT | | Có | NULL | V56: ràng buộc đề (constraints) hiển thị ứng viên; staff soạn trong form code |
+| `verified_at` | TIMESTAMP | | Có | NULL | V55: publish gate — lời giải mẫu đã pass 100% test |
+| `verified_language` | VARCHAR(32) | | Có | NULL | V55: ngôn ngữ verify thành công |
 
 **Ràng buộc:** `fk_cp_test`, `fk_cp_question`, `uk_cp_question`
 
@@ -852,6 +870,7 @@ Entity `TestCase`.
 | `input_data` | TEXT | | Không | — | Input |
 | `expected_output` | TEXT | | Không | — | Output mong đợi |
 | `is_sample` | BOOLEAN | | Không | FALSE | Test mẫu công khai |
+| `explanation` | TEXT | | Có | NULL | V56: giải thích ví dụ (sample); ẩn với test ẩn khi trả candidate |
 | `weight` | DECIMAL(5,2) | | Không | 1 | Hidden test mới có trọng số dương/tổng 100%, sample 0; service kiểm tra tổng. Bài legacy mặc định 1 giữ tỉ lệ test pass; không đổi schema |
 
 **Ràng buộc:** `fk_tc_cp`
@@ -867,7 +886,7 @@ Entity `CodingSubmission`.
 | `coding_problem_id` | BIGINT | FK → `coding_problems.id` | Không | — | Bài lập trình |
 | `language` | VARCHAR(32) | | Không | — | Ngôn ngữ |
 | `source_code` | LONGTEXT | | Không | — | Mã nguồn |
-| `status` | VARCHAR(32) | | Không | `'QUEUED'` | `SubmissionStatus` |
+| `status` | VARCHAR(32) | | Không | `'QUEUED'` | `SubmissionStatus`: `QUEUED`, `RUNNING`, `PASSED`, `PARTIAL` (pass một phần hidden), `FAILED`, `ERROR` |
 | `result_json` | JSON | | Có | NULL | Kết quả chấm |
 | `created_at` | TIMESTAMP | | Không | now | |
 
@@ -1120,6 +1139,10 @@ Entity `EmailOutbox`.
 | `attempts` | INT | | Không | 0 | Số lần thử gửi |
 | `created_at` | TIMESTAMP | | Không | now | |
 | `sent_at` | TIMESTAMP | | Có | NULL | |
+| `purpose` | VARCHAR(64) | | Có | NULL | Mục đích: `ASSESSMENT_RESULT`, `ASSESSMENT_INVITATION`, … |
+| `reference_key` | VARCHAR(128) | | Có | NULL | V55: khóa idempotent; UNIQUE cùng `purpose` |
+
+**Ràng buộc / index:** `uk_email_outbox_purpose_ref (purpose, reference_key)` (V55)
 
 ### I.3 `notification_preferences` — Cài đặt kênh nhận thông báo (V49, mở rộng V50)
 

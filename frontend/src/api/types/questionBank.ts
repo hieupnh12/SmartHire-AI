@@ -22,6 +22,8 @@ export type BankQuestionQuery = {
   difficulty?: string;
   status?: string;
   questionType?: string;
+  /** Filter AI-authored questions (`AI`). */
+  source?: "AI";
   sort?: string;
   favoriteIds?: number[];
 };

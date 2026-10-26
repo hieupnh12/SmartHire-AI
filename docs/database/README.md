@@ -10,6 +10,8 @@
 
 | Thông tin | Giá trị |
 |---|---|
+| Assessment ops hardening 2026-10-25 | Tenant V55: `coding_problems.verified_at` / `verified_language`; `tests.coding_test_weight_percent` INT NOT NULL DEFAULT 90; `answers.custom_run_count` INT NOT NULL DEFAULT 0; `email_outbox.reference_key` VARCHAR(128) + UNIQUE `(purpose, reference_key)`. Không thêm bảng/entity mới |
+| Coding authoring aids 2026-10-25 | Tenant V56 thêm `coding_problems.constraints_text` TEXT nullable (entity `CodingProblem.constraintsText`) và `test_cases.explanation` TEXT nullable (entity `TestCase.explanation`). Không thêm bảng/FK/UNIQUE/index |
 | AI Interview Speech Tasks 2026-10-15 | Master V34 seed 2 dòng `ai_model_configs`: `INTERVIEW_STT`, `INTERVIEW_TTS` (GEMINI). Không đổi schema. STT/TTS đọc provider/model/key từ Master DB; Interview/CV giữ fallback môi trường; Assessment giữ `AI_ASSESSMENT_*`, ưu tiên `CODE_GRADING` từ Master DB khi chấm bài |
 | AI Model Registry & Catalog 2026-10-15 | Master V33 nâng cấp bảng `ai_model_pricings` thành Danh mục Model AI chuẩn hóa (entity `AiModelPricing`: thêm `display_name`, `context_window`, `supports_json`), seed bổ sung đầy đủ Groq, OpenRouter, Gemini Lite, Cursor và liên kết Dropdown FE loại bỏ hoàn toàn sai lệch gõ tay |
 | AI Model Fallback Chain Waterfall 2026-10-15 | Master V32 thêm cột `fallback_chain` JSONB nullable vào `ai_model_configs` (entity `AiModelConfig.fallbackChain`) hỗ trợ chuỗi fallback dự phòng đa cấp (Cascade Routing) khi gặp 429 hoặc lỗi quota. Tự động tích hợp Redis 429 cooldown TTL để bảo vệ DB |
@@ -43,10 +45,10 @@
 | Bảng tenant sau V54 | 70 bảng (68 sau V51 + `github_analyses` và `github_repo_caches`); không tính Flyway history |
 | Entity JPA tenant | 65 class `@Entity` theo checkout hiện tại; V54 bổ sung `GithubAnalysis`, `GithubRepoCache` |
 | Khoá ngoại tenant | 93 (91 trước V54 + `fk_github_analyses_cv` và `fk_github_analyses_job`; `github_repo_caches` không có FK) |
-| Ràng buộc UNIQUE tenant | V54 thêm `uk_github_analyses_cv_job` và `uk_github_repo_cache`. V53 thêm `uk_cp_question`. V51 thêm `uk_candidates_email` và `uk_notification_preference_candidate_category` |
-| Số file migration trong repo | 80 (33 master + 47 tenant); V9 redesign nằm ngoài pipeline |
+| Ràng buộc UNIQUE tenant | V55 thêm `uk_email_outbox_purpose_ref`. V54 thêm `uk_github_analyses_cv_job` và `uk_github_repo_cache`. V53 thêm `uk_cp_question`. V51 thêm `uk_candidates_email` và `uk_notification_preference_candidate_category` |
+| Số file migration trong repo | 83 (34 master + 49 tenant); V9 redesign nằm ngoài pipeline |
 | Assessment đa phần 2026-10-12 | Tenant V53: rubric, khóa phần trắc nghiệm, gợi ý/duyệt điểm, liên kết coding→question và template sandbox; không thêm bảng/entity; thêm 2 FK và 1 UNIQUE |
-| Cập nhật lần cuối | Tenant `V54` (`github_analyses`, `github_repo_caches`), tenant `V53` (`assessment_sections_and_grading`) |
+| Cập nhật lần cuối | Tenant `V56` (constraints/explanation), `V55` (assessment ops), `V54` (`github_analyses`, `github_repo_caches`) |
 | Dọn legacy V21 | Xóa 19 bảng và dữ liệu legacy, xóa 2 cột ID legacy trong ranking; không chuyển ID cũ sang bản ghi mới |
 | Metadata assessment 2026-09-25 | V13: `tests.created_by/updated_at`, `questions.difficulty/skill/explanation` cho Excel/UI authoring |
 | Sửa lỗi assessment 2026-09-24 | V10/V11 khớp checksum lịch sử; V12 tạo schema mới và giữ bảng cũ; migration lỗi phải chặn mở tenant pool |
@@ -151,7 +153,7 @@ thay vì âm thầm đọc nhầm database của doanh nghiệp khác.
 | # | Database | RDBMS | Số bảng | Instance | Phạm vi dữ liệu | Migration path |
 |---|---|---|---|---|---|---|
 | 01 | `smarthire_master` | PostgreSQL | 19 | Duy nhất toàn nền tảng | Doanh nghiệp, gói cước, hoá đơn, hợp đồng B2B, giao dịch thanh toán, usage, AI engine, quản trị nền tảng | `db/migration/master` |
-| 02 | `<db_name> theo từng tenant` | MySQL | 54 theo pipeline repo | N instance, mỗi doanh nghiệp một database | Toàn bộ nghiệp vụ tuyển dụng của một doanh nghiệp | `db/migration/tenant` |
+| 02 | `<db_name> theo từng tenant` | MySQL | 55 theo pipeline repo | N instance, mỗi doanh nghiệp một database | Toàn bộ nghiệp vụ tuyển dụng của một doanh nghiệp | `db/migration/tenant` |
 
 **Cấu hình kết nối** (`application.yml`, không commit giá trị thật):
 
@@ -299,7 +301,7 @@ V44 không thêm enum hoặc trạng thái lifecycle: session dùng lifecycle c�
 | `CvStatus` | `cvs.status` | `UPLOADED`, `PARSING`, `PARSED`, `EXTRACTING`, `ANALYZING`, `ANALYZED`, `FAILED` |
 | `TestStatus` | `tests.status` | `DRAFT`, `PUBLISHED`, `ARCHIVED` |
 | `TestSubmissionStatus` | `submissions.status` | `NOT_STARTED`, `IN_PROGRESS`, `SUBMITTED`, `GRADED`, `EXPIRED` |
-| `SubmissionStatus` | `coding_submissions.status` | `QUEUED`, `RUNNING`, `PASSED`, … |
+| `SubmissionStatus` | `coding_submissions.status` | `QUEUED`, `RUNNING`, `PASSED`, `PARTIAL`, `FAILED`, `ERROR` |
 | `InterviewStatus` | `interviews.status` | `CREATED`, `SCHEDULED`, `IN_PROGRESS`, `EVALUATED`, `CANCELLED` |
 | `AiInterviewStatus` | `ai_interviews.status`, `ai_interview_logs.status` | `CREATED`, `GENERATING`, `QUESTIONS_READY`, `IN_PROGRESS`, `SCORING`, `SCORED`, `PASSED`, `ERROR`, `FAILED` |
 
@@ -859,7 +861,7 @@ của màn assessment hiện tại.
 | File | Phạm vi | Số bảng |
 |---|---|---|
 | [`DATA_DICTIONARY_MASTER.md`](DATA_DICTIONARY_MASTER.md) | PostgreSQL `smarthire_master` | 19 |
-| [`DATA_DICTIONARY_TENANT.md`](DATA_DICTIONARY_TENANT.md) | MySQL — schema mỗi tenant | 54 theo pipeline repo, không còn archive |
+| [`DATA_DICTIONARY_TENANT.md`](DATA_DICTIONARY_TENANT.md) | MySQL — schema mỗi tenant | 55 theo pipeline repo, không còn archive |
 
 ### Quy ước ký hiệu dùng chung
 
@@ -1091,6 +1093,7 @@ V22 thêm PK kép `questionskills(question_id, skill_id)` để ngăn gắn trù
 | `match_scores` | `uk_match_job_cv` | `(job_id, cv_id)` | Mỗi cặp job-CV một điểm khớp |
 | `github_analyses` | `uk_github_analyses_cv_job` | `(cv_id, job_id)` | Mỗi cặp CV-job một kết quả GitHub (V54) |
 | `github_repo_caches` | `uk_github_repo_cache` | `(repo_full_name, commit_sha, skill_fingerprint, strategy_version)` | Không phân tích lại cùng commit và cùng chiến lược (V54) |
+| `email_outbox` | `uk_email_outbox_purpose_ref` | `(purpose, reference_key)` | Một khóa idempotent cho mỗi mục đích gửi (V55) |
 | `overall_scores` | `uk_os_app` | `application_id` | Mỗi đơn một điểm tổng |
 | `candidate_rankings` | `uk_cr_job_app` | `(job_id, application_id)` | Mỗi đơn xuất hiện một lần trong bảng xếp hạng của job |
 | `proctor_reports` | `uk_pr_submission` | `submission_id` | Mỗi lượt thi một báo cáo giám sát |
@@ -1257,6 +1260,7 @@ V22 thêm `idx_questionskills_skill(skill_id)` trên `questionskills`. PK kép h
 | Tenant | `ai_interviews` | `idx_ai_interview_work_status` | `(status, id)` | Worker quét phiên `GENERATING`/`SCORING` (V25) |
 | Tenant | `ai_interviews` | `idx_ai_interview_expiry` | `(status, expires_at, id)` | Dispatcher tự nộp phiên `IN_PROGRESS` quá hạn (V35) |
 | Tenant | `email_outbox` | `idx_email_outbox_delivery` | `(purpose, status, attempts, id)` | Worker gửi email kết quả (V25) |
+| Tenant | `email_outbox` | `uk_email_outbox_purpose_ref` | `(purpose, reference_key)` | Chặn gửi trùng kết quả assessment (V55) |
 | Tenant | `ai_interview_logs` | `idx_ai_interview_logs_interview` | `(ai_interview_id, id)` | Đọc nhật ký theo phiên đúng thứ tự (V26) |
 | Master | `consultation_requests` | `idx_consultation_requests_status` | `status` | Lọc lead theo trạng thái xử lý |
 | Master | `consultation_requests` | `idx_consultation_requests_email` | `work_email` | Tra cứu lead trùng |
@@ -1419,6 +1423,8 @@ V53 bổ sung mô hình đa phần; giữ nguyên số bảng/entity. Không t�
 | V52 | `V52__candidate_application_rules.sql` | Thêm `applications.withdraw_reason`; index `idx_app_candidate_status`, `idx_app_status_updated`, `idx_cvs_retain_until` phục vụ quy tắc một đơn/ứng viên, đóng đơn quá hạn và xoá CV hết hạn lưu |
 | V53 | `V53__assessment_sections_and_grading.sql` | tests.objective_duration_minutes; questions.rubric_json; submissions.objective_completed_at; answers.language/evaluation_json/suggested_score/reviewed_by/reviewed_at + FK users; coding_problems.test_id nullable, question_id + UNIQUE + FK questions, category/starter_code_json/harness_json. Backfill rubric đơn cho essay có explanation; không tạo bảng/entity |
 | V54 | `V54__github_analysis.sql` | `github_analyses` + entity `GithubAnalysis` (UNIQUE `(cv_id, job_id)`, 2 FK CASCADE) và `github_repo_caches` + entity `GithubRepoCache` (UNIQUE repo/commit/fingerprint/strategy, không FK). Không backfill, không lưu source code |
+| V55 | `V55__assessment_ops_hardening.sql` | `coding_problems.verified_at` TIMESTAMP NULL, `verified_language` VARCHAR(32) NULL; `tests.coding_test_weight_percent` INT NOT NULL DEFAULT 90; `answers.custom_run_count` INT NOT NULL DEFAULT 0; `email_outbox.reference_key` VARCHAR(128) NULL + UNIQUE `uk_email_outbox_purpose_ref(purpose, reference_key)`. Không thêm bảng |
+| V56 | `V56__coding_constraints_and_explanations.sql` | `coding_problems.constraints_text` TEXT nullable; `test_cases.explanation` TEXT nullable. Không thêm bảng/FK/UNIQUE/index |
 
 V9 redesign cũ được giữ nguyên tại `db/migration-archive/`, **ngoài** location Flyway.
 Tenant tạo mới chạy V1–V13 rồi V21–V51: 60 bảng hiện hành (gồm 5 bảng analytics V9), chưa tính history.

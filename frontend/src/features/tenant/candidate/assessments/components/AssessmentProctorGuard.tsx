@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Expand, TriangleAlert } from "lucide-react";
+import { assessmentApi } from "@/api/tenant/assessmentApi";
 import { Button } from "@/components/ux/Button";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 import type { ProctorSession } from "@/features/tenant/candidate/interviews/utils/proctorDevices";
@@ -85,7 +86,12 @@ export function AssessmentProctorGuard({ submissionId, session, children, onAuto
     autoSubmitRef.current = onAutoSubmit;
   }, [onAutoSubmit]);
 
-  const violate = useCallback((message: string) => {
+  const report = useCallback((event: string, detail?: string) => {
+    void assessmentApi.proctorEvent(submissionId, event, detail).catch(() => undefined);
+  }, [submissionId]);
+
+  const violate = useCallback((message: string, event?: string) => {
+    if (event) report(event, message);
     const next = violationCount.current + 1;
     violationCount.current = next;
     setViolations(next);
@@ -97,7 +103,7 @@ export function AssessmentProctorGuard({ submissionId, session, children, onAuto
       autoSubmitted.current = true;
       window.setTimeout(() => autoSubmitRef.current(), 800);
     }
-  }, []);
+  }, [report]);
 
   useEffect(() => {
     const track = session.camera.getVideoTracks().find((item) => item.readyState === "live");
@@ -154,8 +160,8 @@ export function AssessmentProctorGuard({ submissionId, session, children, onAuto
     const microphoneTrack = session.camera.getAudioTracks()[0];
     const cameraTrack = session.camera.getVideoTracks()[0];
     const screenTrack = session.screen.getVideoTracks()[0];
-    const microphoneLost = () => violate("Microphone đã bị tắt");
-    const cameraLost = () => violate("Camera đã bị tắt");
+    const microphoneLost = () => violate("Microphone đã bị tắt", "MICROPHONE_LOST");
+    const cameraLost = () => violate("Camera đã bị tắt", "CAMERA_LOST");
     const screenLost = () => onScreenEnded.current();
     microphoneTrack?.addEventListener("ended", microphoneLost);
     cameraTrack?.addEventListener("ended", cameraLost);
@@ -170,35 +176,35 @@ export function AssessmentProctorGuard({ submissionId, session, children, onAuto
   useEffect(() => {
     const fullscreen = () => {
       if (ignoreTransient.current) return;
-      if (!examIsFullscreen()) violate("Bạn đã thoát chế độ toàn màn hình");
+      if (!examIsFullscreen()) violate("Bạn đã thoát chế độ toàn màn hình", "FULLSCREEN_EXIT");
     };
     const visibility = () => {
       if (ignoreTransient.current) return;
       if (document.hidden) {
         hiddenAt.current = Date.now();
-        violate("Bạn đã chuyển tab hoặc ẩn trang thi");
+        violate("Bạn đã chuyển tab hoặc ẩn trang thi", "PAGE_HIDDEN");
       } else {
         hiddenAt.current = null;
       }
     };
     const blur = () => {
       if (ignoreTransient.current) return;
-      if (!document.hidden) violate("Cửa sổ thi đã mất tiêu điểm");
+      if (!document.hidden) violate("Cửa sổ thi đã mất tiêu điểm", "WINDOW_BLUR");
     };
-    const block = (event: Event, message: string) => {
+    const block = (event: Event, message: string, code: string) => {
       event.preventDefault();
-      violate(message);
+      violate(message, code);
     };
-    const contextmenu = (event: MouseEvent) => block(event, "Menu chuột phải đã bị chặn");
-    const copy = (event: ClipboardEvent) => block(event, "Sao chép nội dung đã bị chặn");
-    const paste = (event: ClipboardEvent) => block(event, "Dán nội dung đã bị chặn");
+    const contextmenu = (event: MouseEvent) => block(event, "Menu chuột phải đã bị chặn", "CONTEXT_MENU");
+    const copy = (event: ClipboardEvent) => block(event, "Sao chép nội dung đã bị chặn", "COPY_ATTEMPT");
+    const paste = (event: ClipboardEvent) => block(event, "Dán nội dung đã bị chặn", "PASTE_ATTEMPT");
     const keydown = (event: KeyboardEvent) => {
       const key = event.key.toLowerCase();
       const blocked =
         event.key === "F12" ||
         (event.ctrlKey && ["c", "v", "a", "p", "u"].includes(key)) ||
         (event.ctrlKey && event.shiftKey && ["i", "j", "c"].includes(key));
-      if (blocked) block(event, `Phím tắt ${event.key} đã bị chặn`);
+      if (blocked) block(event, `Phím tắt ${event.key} đã bị chặn`, "BLOCKED_SHORTCUT");
     };
     document.addEventListener("fullscreenchange", fullscreen);
     document.addEventListener("visibilitychange", visibility);
@@ -220,7 +226,7 @@ export function AssessmentProctorGuard({ submissionId, session, children, onAuto
 
   onScreenEnded.current = () => {
     if (ignoreTransient.current) return;
-    violate("Chia sẻ màn hình đã dừng");
+    violate("Chia sẻ màn hình đã dừng", "SCREEN_SHARE_STOPPED");
   };
   const expand = useCallback(() => {
     ignoreTransient.current = true;

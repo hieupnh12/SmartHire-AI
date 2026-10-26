@@ -21,6 +21,8 @@ public class EmailOutbox {
     @Column(name = "to_email", nullable = false) String toEmail;
     @Column(nullable = false) String subject;
     @Column(length = 64) String purpose;
+    /** Idempotency key, e.g. assessment-result:{submissionId}. Unique with purpose when set. */
+    @Column(name = "reference_key", length = 128) String referenceKey;
     @Column(nullable = false, columnDefinition = "TEXT") String body;
 
     @Builder.Default

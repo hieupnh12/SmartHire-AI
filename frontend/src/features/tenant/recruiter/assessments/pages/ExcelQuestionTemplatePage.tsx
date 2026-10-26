@@ -9,11 +9,9 @@ import {
   AlertTriangle,
   Check,
   CheckCircle2,
-  ChevronRight,
   Clock3,
   CloudUpload,
   Code2,
-  Folder,
   ListChecks,
   Pencil,
   Plus,
@@ -21,6 +19,7 @@ import {
   ShieldCheck,
   Table2,
 } from "lucide-react";
+import { Breadcrumb } from "@/components/ux/Breadcrumb";
 import { Button } from "@/components/ux/Button";
 import { cn } from "@/lib/utils";
 import {
@@ -1418,34 +1417,29 @@ export function ExcelQuestionEditor({ job, generalBank }: {
 
   return (
     <section className="flex flex-col gap-3 text-[var(--color-on-surface)]">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-1 text-xs text-[var(--color-on-surface-variant)]">
-          <Folder className="size-3.5" aria-hidden="true" />
-          <Link to={basePath} className="hover:text-[var(--color-primary)]">
-            {generalBank ? "Trang tuyển dụng" : "Assessment"}
-          </Link>
-          <ChevronRight className="size-3 text-[var(--color-outline-variant)]" aria-hidden="true" />
-          <Link to={bankPath} className="hover:text-[var(--color-primary)]">
-            Ngân hàng câu hỏi
-          </Link>
-          <ChevronRight className="size-3 text-[var(--color-outline-variant)]" aria-hidden="true" />
-          <span className="font-semibold text-[var(--color-primary)]">Soạn câu hỏi trên bảng</span>
-        </nav>
-        <div className="flex flex-wrap items-center gap-1.5">
-          <Button type="button" variant="secondary" size="sm" onClick={handleValidate}>
-            <ListChecks className="size-3.5 text-[var(--color-primary)]" aria-hidden="true" />
-            Kiểm tra
-          </Button>
-          <Button type="button" size="sm" onClick={handleSaveDraft}>
-            <Save className="size-3.5" aria-hidden="true" />
-            Lưu nội dung
-          </Button>
-          <Button type="button" size="sm" onClick={handleValidate}>
-            <CloudUpload className="size-3.5" aria-hidden="true" />
-            {generalBank ? "Lưu vào ngân hàng" : "Tạo bài đánh giá"}
-          </Button>
-        </div>
-      </div>
+      <Breadcrumb
+        items={[
+          { label: generalBank ? "Trang tuyển dụng" : "Assessment", to: basePath },
+          { label: "Ngân hàng câu hỏi", to: bankPath },
+          { label: "Soạn câu hỏi trên bảng" },
+        ]}
+        actions={
+          <>
+            <Button type="button" variant="secondary" size="sm" onClick={handleValidate}>
+              <ListChecks className="size-3.5 text-[var(--color-primary)]" aria-hidden="true" />
+              Kiểm tra
+            </Button>
+            <Button type="button" size="sm" onClick={handleSaveDraft}>
+              <Save className="size-3.5" aria-hidden="true" />
+              Lưu nội dung
+            </Button>
+            <Button type="button" size="sm" onClick={handleValidate}>
+              <CloudUpload className="size-3.5" aria-hidden="true" />
+              {generalBank ? "Lưu vào ngân hàng" : "Tạo bài đánh giá"}
+            </Button>
+          </>
+        }
+      />
 
       {generalBank && <p className="text-xs text-[var(--color-on-surface-variant)]">Tạo câu hỏi dùng chung theo kỹ năng. Kiểm tra và xem trước câu hỏi trước khi lưu vào ngân hàng của doanh nghiệp.</p>}
       {validation.length > 0 && <div ref={validationRef} tabIndex={-1} role="alert" className="rounded-lg border border-[var(--color-error)] bg-[var(--color-error-container)] p-3 text-sm text-[var(--color-on-error-container)]"><p className="font-semibold">Kiểm tra lại nội dung</p><ul className="mt-2 list-inside list-disc">{validation.map((message, index) => <li key={index}>{message}{/^Dòng \d+:/.test(message) && <button type="button" className="ml-2 underline" onClick={() => {

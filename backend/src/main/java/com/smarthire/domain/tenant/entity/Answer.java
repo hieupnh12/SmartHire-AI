@@ -58,6 +58,10 @@ public class Answer {
     @Column(length = 32)
     String language;
 
+    @Builder.Default
+    @Column(name = "custom_run_count", nullable = false)
+    int customRunCount = 0;
+
     @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
     @Column(name = "evaluation_json", columnDefinition = "json")
     com.fasterxml.jackson.databind.JsonNode evaluationJson;

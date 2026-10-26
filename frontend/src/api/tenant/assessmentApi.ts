@@ -1,7 +1,7 @@
 import type { SubmissionGradingDetail, GradeDecision, ResultEmailReceipt } from "@/api/types/assessment";
 import { api } from "@/lib/axios";
 import type { ApiResponse } from "@/types/api";
-import type { GradingReview, SampleResult, AvailableAssessment, JobTest, Question, QuestionRequest, SavedAnswer, SendAssessmentResult, Submission, SubmissionSummary, TestPage, TestRequest } from "@/api/types/assessment";
+import type { SampleResult, AvailableAssessment, JobTest, Question, QuestionRequest, SavedAnswer, SendAssessmentResult, Submission, SubmissionSummary, TestPage, TestRequest } from "@/api/types/assessment";
 
 export const assessmentApi = {
   gradingDetail: (id: number) => api.get<ApiResponse<SubmissionGradingDetail>>(`/submissions/${id}/grading_detail`).then(r => r.data.data),
@@ -34,10 +34,11 @@ export const assessmentApi = {
   saveAnswers: (id: number, answers: SavedAnswer[]) => api.post<ApiResponse<Submission>>(`/submissions/${id}/save_answers`, { answers }).then(r => r.data.data),
   completeObjective: (id: number) => api.post<ApiResponse<Submission>>(`/submissions/${id}/complete_objective`).then(r => r.data.data),
   runSamples: (id: number, questionId: number, source: string, language: string) => api.post<ApiResponse<SampleResult[]>>(`/submissions/${id}/coding/${questionId}/run_samples`, { source, language }).then(r => r.data.data),
-  reviews: (id: number) => api.get<ApiResponse<GradingReview[]>>(`/submissions/${id}/grading_review`).then(r => r.data.data),
+  runCustom: (id: number, questionId: number, source: string, language: string, input: string) => api.post<ApiResponse<SampleResult>>(`/submissions/${id}/coding/${questionId}/run_custom`, { source, language, input }).then(r => r.data.data),
+  proctorEvent: (id: number, event: string, detail?: string) => api.post(`/submissions/${id}/proctor-events`, { event, detail }),
+  jobReport: (jobId: number) => api.get<ApiResponse<import("@/api/types/assessment").AssessmentJobReport>>(`/jobs/${jobId}/assessment_report`).then(r => r.data.data),
   approveGrade: (id: number, questionId: number, score: number | null) => api.post(`/submissions/${id}/approve_grade/${questionId}`, { score }),
   retryGrading: (id: number) => api.post(`/submissions/${id}/retry_grading`),
   submit: (id: number) => api.post<ApiResponse<Submission>>(`/submissions/${id}/submit_test`).then(r => r.data.data),
-  result: (id: number) => api.get<ApiResponse<Submission>>(`/submissions/${id}/get_result`).then(r => r.data.data),
   jobSubmissions: (jobId: number) => api.get<ApiResponse<SubmissionSummary[]>>(`/jobs/${jobId}/list_assessment_submissions`).then(r => r.data.data),
 };

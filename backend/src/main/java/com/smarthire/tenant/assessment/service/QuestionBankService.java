@@ -47,15 +47,15 @@ public class QuestionBankService {
 
     @Transactional(readOnly = true)
     public BankQuestionPage list(int page, int size) {
-        return list(page, size, null, null, null, null, null, null, "latest", List.of());
+        return list(page, size, null, null, null, null, null, null, null, "latest", List.of());
     }
 
     @Transactional(readOnly = true)
     public BankQuestionPage list(int page, int size, String collection, String query, String skill,
-            String difficulty, String status, String questionType, String sort, List<Long> favoriteIds) {
+            String difficulty, String status, String questionType, String source, String sort, List<Long> favoriteIds) {
         staff();
         List<Long> safeFavoriteIds = favoriteIds == null ? List.of() : favoriteIds;
-        var result = questions.findAll(filters(collection, query, skill, difficulty, status, questionType,
+        var result = questions.findAll(filters(collection, query, skill, difficulty, status, questionType, source,
                         safeFavoriteIds),
                 PageRequest.of(Math.max(0, page), Math.max(1, Math.min(100, size)), sorting(sort)));
         var counts = new BankQuestionCounts(questions.count(), safeFavoriteIds.isEmpty() ? 0 : questions.countByIdIn(safeFavoriteIds),
@@ -66,7 +66,7 @@ public class QuestionBankService {
     }
 
     private Specification<Question> filters(String collection, String query, String skill, String difficulty,
-            String status, String questionType, List<Long> favoriteIds) {
+            String status, String questionType, String source, List<Long> favoriteIds) {
         return (root, criteria, cb) -> {
             var predicates = new java.util.ArrayList<jakarta.persistence.criteria.Predicate>();
             var test = root.join("test", jakarta.persistence.criteria.JoinType.LEFT);
@@ -93,6 +93,13 @@ public class QuestionBankService {
             if ("ARCHIVED".equalsIgnoreCase(status)) predicates.add(cb.isTrue(root.get("bankArchived")));
             else if ("DRAFT".equalsIgnoreCase(status)) predicates.add(cb.equal(test.get("status"), TestStatus.DRAFT));
             else if ("PUBLISHED".equalsIgnoreCase(status)) predicates.add(cb.equal(test.get("status"), TestStatus.PUBLISHED));
+            if ("AI".equalsIgnoreCase(source)) {
+                // authoring_metadata JSON: {"aiGenerated":true,...} — portable LIKE on serialized JSON text
+                var meta = root.get("authoringMetadata").as(String.class);
+                predicates.add(cb.or(
+                        cb.like(cb.lower(meta), "%\"aigenerated\":true%"),
+                        cb.like(cb.lower(meta), "%\"aigenerated\": true%")));
+            }
             return cb.and(predicates.toArray(jakarta.persistence.criteria.Predicate[]::new));
         };
     }

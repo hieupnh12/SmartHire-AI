@@ -10,7 +10,7 @@ import EditorWorker from "monaco-editor/editor/editor.worker.js?worker";
 import { useMutation } from "@tanstack/react-query";
 import { CheckCircle2, CircleAlert, Clock, Play, RotateCcw, Save, XCircle } from "lucide-react";
 import { assessmentApi } from "@/api/tenant/assessmentApi";
-import type { CandidateQuestion, SavedAnswer } from "@/api/types/assessment";
+import type { CandidateQuestion, SavedAnswer, SampleResult } from "@/api/types/assessment";
 import { Button } from "@/components/ux/Button";
 import { AssessmentError, assessmentInput, FieldError } from "@/components/ux/assessmentUi";
 import { useUiStore } from "@/stores/uiStore";
@@ -19,6 +19,10 @@ import { ExamMarkdown } from "./ExamMarkdown";
 self.MonacoEnvironment = { getWorker: () => new EditorWorker() };
 loader.config({ monaco });
 const languageLabels: Record<string, string> = { java: "Java", python: "Python", javascript: "JavaScript", cpp: "C++", sql: "SQL" };
+
+function isAccepted(result?: SampleResult) {
+  return result?.status?.id === 3;
+}
 
 export function CandidateCodingStudio({ submissionId, question, answer, locked, onChange, onSave, saving = false }: {
   submissionId: number; question: CandidateQuestion; answer?: SavedAnswer; locked: boolean; onChange: (answer: SavedAnswer) => void;
@@ -31,6 +35,8 @@ export function CandidateCodingStudio({ submissionId, question, answer, locked, 
   const source = answer?.answerText ?? starters[language] ?? "";
   const samples = question.coding?.testCases.filter(test => test.sample).slice(0, 5) ?? [];
   const [sampleIndex, setSampleIndex] = useState(0);
+  const [consoleTab, setConsoleTab] = useState<"samples" | "custom">("samples");
+  const [customInput, setCustomInput] = useState(samples[0]?.input ?? "");
   const [saveError, setSaveError] = useState<unknown>();
   const [saved, setSaved] = useState(false);
   const [sourceTooLong, setSourceTooLong] = useState(false);
@@ -38,6 +44,7 @@ export function CandidateCodingStudio({ submissionId, question, answer, locked, 
   const safeIndex = Math.min(sampleIndex, Math.max(0, samples.length - 1));
   const sample = samples[safeIndex];
   const run = useMutation({ mutationFn: () => assessmentApi.runSamples(submissionId, question.id, source, language) });
+  const custom = useMutation({ mutationFn: () => assessmentApi.runCustom(submissionId, question.id, source, language, customInput) });
   const latest = useRef({ locked, pending: run.isPending, source, language, run: () => run.mutate() });
   latest.current = { locked, pending: run.isPending, source, language, run: () => run.mutate() };
   const action = useRef<monaco.IDisposable | undefined>(undefined);
@@ -53,7 +60,7 @@ export function CandidateCodingStudio({ submissionId, question, answer, locked, 
   const changeCode = (nextSource: string, nextLanguage = language) => {
     if (locked) return;
     onChange({ questionId: question.id, answerText: nextSource, language: nextLanguage });
-    run.reset(); setSaved(false); setSaveError(undefined); setSourceTooLong(false);
+    run.reset(); custom.reset(); setSaved(false); setSaveError(undefined); setSourceTooLong(false);
   };
   const save = async () => {
     if (locked || saving) return;
@@ -67,6 +74,11 @@ export function CandidateCodingStudio({ submissionId, question, answer, locked, 
   const executionError = status != null && status >= 5;
   const processing = status == null || status < 3;
   const ResultIcon = passed ? CheckCircle2 : processing ? Clock : executionError ? CircleAlert : XCircle;
+  const sampleSummary = run.data
+    ? `${run.data.filter(isAccepted).length}/${run.data.length} sample passed`
+    : null;
+  const customResult = custom.data;
+  const customAccepted = isAccepted(customResult);
   return (
     <div className="grid h-full min-h-0 min-w-0 gap-3 max-lg:grid-rows-[minmax(7.5rem,0.3fr)_minmax(0,1fr)] lg:grid-cols-[minmax(17rem,0.34fr)_minmax(0,1fr)] lg:grid-rows-1">
       <section className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)]">
@@ -82,6 +94,12 @@ export function CandidateCodingStudio({ submissionId, question, answer, locked, 
             </span>
             <span>{question.coding?.memoryMb} MB</span>
           </div>
+          {question.coding?.constraints?.trim() && (
+            <div className="space-y-2">
+              <h3 className="font-medium">Constraints</h3>
+              <pre className="overflow-auto whitespace-pre-wrap break-words rounded-lg bg-[var(--color-surface-container-low)] p-3 text-sm">{question.coding.constraints}</pre>
+            </div>
+          )}
           <h3 className="font-medium">Ví dụ Input / Output</h3>
           {samples.map((test, index) => (
             <details key={index} open={index === 0} className="rounded-lg bg-[var(--color-surface-container-low)] p-3 text-sm">
@@ -89,63 +107,138 @@ export function CandidateCodingStudio({ submissionId, question, answer, locked, 
               <pre className="mt-3 overflow-auto whitespace-pre-wrap break-words">
                 Input: {test.input}{"\n"}Output: {test.expectedOutput}
               </pre>
+              {test.explanation?.trim() && (
+                <p className="mt-2 text-xs leading-5 text-[var(--color-on-surface-variant)]">Explanation: {test.explanation}</p>
+              )}
             </details>
           ))}
           <p className="text-xs leading-5 text-[var(--color-on-surface-variant)]">
-            Chạy thử tối đa 5 test công khai. Test ẩn chỉ được dùng khi chấm bài. Mã nguồn tối đa 10.000 ký tự.
+            Chạy thử tối đa 5 test công khai hoặc nhập stdin tùy chỉnh. Test ẩn chỉ dùng khi chấm bài. Mã nguồn tối đa 10.000 ký tự.
           </p>
           <section className="space-y-3" aria-label="Console test cases">
-            <h3 className="font-semibold">Console · Test cases mẫu</h3>
-            <nav aria-label="Test case đang xem" className="flex flex-wrap gap-2">
-              {samples.map((_, index) => (
-                <Button
-                  key={index}
-                  variant={safeIndex === index ? "primary" : "secondary"}
-                  aria-pressed={safeIndex === index}
-                  onClick={() => setSampleIndex(index)}
-                >
-                  Test Case {index + 1}
-                </Button>
-              ))}
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 className="font-semibold">Console</h3>
+              {sampleSummary && consoleTab === "samples" && (
+                <p role="status" className="text-sm font-medium text-[var(--color-primary)]">{sampleSummary}</p>
+              )}
+            </div>
+            <nav aria-label="Chế độ console" className="flex flex-wrap gap-2">
+              <Button variant={consoleTab === "samples" ? "primary" : "secondary"} aria-pressed={consoleTab === "samples"} onClick={() => setConsoleTab("samples")}>
+                Test mẫu
+              </Button>
+              <Button variant={consoleTab === "custom" ? "primary" : "secondary"} aria-pressed={consoleTab === "custom"} onClick={() => setConsoleTab("custom")}>
+                Custom input
+              </Button>
             </nav>
-            <AssessmentError error={run.error} />
-            {run.isPending && <p role="status">Đang thực thi mã nguồn trong sandbox…</p>}
-            {result && (
-              <p
-                role="status"
-                className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${
-                  passed
-                    ? "bg-emerald-50 text-emerald-800"
-                    : executionError || processing
-                      ? "bg-amber-50 text-amber-900"
-                      : "bg-[var(--color-error-container)] text-[var(--color-on-error-container)]"
-                }`}
-              >
-                <ResultIcon className="size-4" aria-hidden="true" />
-                {passed ? "Passed" : processing ? "Đang xử lý" : executionError ? "Time Limit / Runtime / Compile Error" : "Failed"} ·{" "}
-                {result.status?.description}
-              </p>
-            )}
-            {sample && (
-              <div className="space-y-3 text-xs">
-                {(
-                  [
-                    ["Input", sample.input],
-                    ["Expected Output", sample.expectedOutput],
-                    ["Actual Output", result?.stdout ?? "Chưa có kết quả chạy"],
-                  ] as const
-                ).map(([label, value]) => (
-                  <div key={label}>
-                    <h4 className="mb-1 font-medium">{label}</h4>
-                    <pre className="overflow-auto whitespace-pre-wrap break-words rounded-lg bg-[var(--color-surface-container-low)] p-3 font-mono">{value}</pre>
+            {consoleTab === "samples" ? (
+              <>
+                <nav aria-label="Test case đang xem" className="flex flex-wrap gap-2">
+                  {samples.map((_, index) => {
+                    const caseResult = run.data?.[index];
+                    const casePassed = isAccepted(caseResult);
+                    return (
+                      <Button
+                        key={index}
+                        variant={safeIndex === index ? "primary" : "secondary"}
+                        aria-pressed={safeIndex === index}
+                        onClick={() => setSampleIndex(index)}
+                      >
+                        Test Case {index + 1}{caseResult ? (casePassed ? " · ✓" : " · ✗") : ""}
+                      </Button>
+                    );
+                  })}
+                </nav>
+                <AssessmentError error={run.error} />
+                {run.isPending && <p role="status">Đang thực thi mã nguồn trong sandbox…</p>}
+                {result && (
+                  <p
+                    role="status"
+                    className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${
+                      passed
+                        ? "bg-emerald-50 text-emerald-800"
+                        : executionError || processing
+                          ? "bg-amber-50 text-amber-900"
+                          : "bg-[var(--color-error-container)] text-[var(--color-on-error-container)]"
+                    }`}
+                  >
+                    <ResultIcon className="size-4" aria-hidden="true" />
+                    {passed ? "Passed" : processing ? "Đang xử lý" : executionError ? "Time Limit / Runtime / Compile Error" : "Failed"} ·{" "}
+                    {result.status?.description}
+                  </p>
+                )}
+                {sample && (
+                  <div className="space-y-3 text-xs">
+                    {(
+                      [
+                        ["Input", sample.input],
+                        ["Expected Output", sample.expectedOutput],
+                        ["Actual Output", result?.stdout ?? "Chưa có kết quả chạy"],
+                      ] as const
+                    ).map(([label, value]) => (
+                      <div key={label}>
+                        <h4 className="mb-1 font-medium">{label}</h4>
+                        <pre className="overflow-auto whitespace-pre-wrap break-words rounded-lg bg-[var(--color-surface-container-low)] p-3 font-mono">{value}</pre>
+                      </div>
+                    ))}
+                    {(result?.stderr || result?.compile_output) && (
+                      <div>
+                        <h4 className="mb-1 font-medium">Terminal</h4>
+                        <pre className="overflow-auto whitespace-pre-wrap break-words rounded-lg bg-[var(--color-error-container)] p-3">
+                          {result.stderr || result.compile_output}
+                        </pre>
+                      </div>
+                    )}
                   </div>
-                ))}
-                {(result?.stderr || result?.compile_output) && (
-                  <div>
-                    <h4 className="mb-1 font-medium">Terminal</h4>
-                    <pre className="overflow-auto whitespace-pre-wrap break-words rounded-lg bg-[var(--color-error-container)] p-3">
-                      {result.stderr || result.compile_output}
-                    </pre>
+                )}
+              </>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-xs text-[var(--color-on-surface-variant)]">Chạy với stdin tùy chỉnh. Không so với expected output — chỉ xem stdout/stderr.</p>
+                <label className="block text-sm font-medium">
+                  Custom stdin
+                  <textarea
+                    rows={4}
+                    maxLength={10000}
+                    spellCheck={false}
+                    className={`${assessmentInput} font-mono text-xs`}
+                    value={customInput}
+                    disabled={locked || custom.isPending}
+                    onChange={event => { setCustomInput(event.target.value); custom.reset(); }}
+                  />
+                </label>
+                <Button
+                  variant="secondary"
+                  disabled={locked || custom.isPending || run.isPending || !language || !source.trim()}
+                  onClick={() => custom.mutate()}
+                >
+                  <Play className="size-4" aria-hidden="true" />
+                  {custom.isPending ? "Đang chạy…" : "Chạy custom input"}
+                </Button>
+                <AssessmentError error={custom.error} />
+                {customResult && (
+                  <p
+                    role="status"
+                    className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${
+                      customAccepted ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-900"
+                    }`}
+                  >
+                    {customAccepted ? "Chạy xong" : "Lỗi biên dịch / runtime"} · {customResult.status?.description}
+                  </p>
+                )}
+                {customResult && (
+                  <div className="space-y-3 text-xs">
+                    <div>
+                      <h4 className="mb-1 font-medium">Stdout</h4>
+                      <pre className="overflow-auto whitespace-pre-wrap break-words rounded-lg bg-[var(--color-surface-container-low)] p-3 font-mono">{customResult.stdout || "(trống)"}</pre>
+                    </div>
+                    {(customResult.stderr || customResult.compile_output) && (
+                      <div>
+                        <h4 className="mb-1 font-medium">Terminal</h4>
+                        <pre className="overflow-auto whitespace-pre-wrap break-words rounded-lg bg-[var(--color-error-container)] p-3">
+                          {customResult.stderr || customResult.compile_output}
+                        </pre>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -161,7 +254,7 @@ export function CandidateCodingStudio({ submissionId, question, answer, locked, 
               <select
                 className={assessmentInput}
                 value={language}
-                disabled={locked || run.isPending}
+                disabled={locked || run.isPending || custom.isPending}
                 onChange={(event) => {
                   const next = event.target.value;
                   const switchLanguage = () => {
@@ -186,7 +279,7 @@ export function CandidateCodingStudio({ submissionId, question, answer, locked, 
             </label>
             <Button
               variant="secondary"
-              disabled={locked || run.isPending || !language}
+              disabled={locked || run.isPending || custom.isPending || !language}
               onClick={() =>
                 askConfirm({
                   title: "Khôi phục code ban đầu?",
@@ -240,8 +333,8 @@ export function CandidateCodingStudio({ submissionId, question, answer, locked, 
             <div className="flex flex-wrap gap-2">
               <Button
                 variant="secondary"
-                disabled={locked || run.isPending || !language || !source.trim() || !samples.length}
-                onClick={() => run.mutate()}
+                disabled={locked || run.isPending || custom.isPending || !language || !source.trim() || !samples.length}
+                onClick={() => { setConsoleTab("samples"); run.mutate(); }}
               >
                 <Play className="size-4" aria-hidden="true" />
                 {run.isPending ? "Đang chạy…" : "Chạy thử Test Case"}

@@ -1,6 +1,6 @@
 # Build application images, push them to Docker Hub, then pull and run them on the VPS.
 name: Build images and deploy VPS
-
+timeout-minutes: 20
 on:
   workflow_dispatch:
   push:

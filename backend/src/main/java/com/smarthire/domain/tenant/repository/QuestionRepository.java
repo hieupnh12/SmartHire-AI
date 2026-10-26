@@ -26,6 +26,14 @@ public interface QuestionRepository extends JpaRepository<Question, Long>, JpaSp
     @Query("select distinct q.skill from Question q where q.skill is not null and q.skill <> '' order by q.skill")
     List<String> findDistinctSkills();
 
+    @Query("""
+            select q from Question q
+            where q.bankArchived = false
+              and lower(q.questionText) like lower(concat('%', :needle, '%'))
+            order by q.id desc
+            """)
+    List<Question> findSimilarByText(@Param("needle") String needle, Pageable pageable);
+
     @Override
     @EntityGraph(attributePaths = {"test", "test.job"})
     Page<Question> findAll(Pageable pageable);
