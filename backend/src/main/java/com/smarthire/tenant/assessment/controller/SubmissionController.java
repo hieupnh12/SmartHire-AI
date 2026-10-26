@@ -66,6 +66,14 @@ public class SubmissionController {
     @Operation(summary = "Lock saved objective answers and start practical section")
     public ApiResponse<SubmissionResponse> completeObjective(@PathVariable long id) { return ApiResponse.ok(service.completeObjective(id)); }
 
+    @PostMapping("/submissions/{id}/proctor-events")
+    @Operation(summary = "Append a browser proctoring event for an active owned assessment (candidate)")
+    public ApiResponse<Void> proctorEvent(@PathVariable long id,
+            @Valid @RequestBody com.smarthire.tenant.assessment.dto.request.AssessmentProctorEventRequest body) {
+        service.recordProctorEvent(id, body);
+        return ApiResponse.ok(null);
+    }
+
     @GetMapping("/submissions/{id}/grading_review")
     @Operation(summary = "Inspect AI suggestions and subjective answers (staff only)")
     public ApiResponse<java.util.List<com.smarthire.tenant.assessment.service.AssessmentGradingService.Review>> review(@PathVariable long id) {

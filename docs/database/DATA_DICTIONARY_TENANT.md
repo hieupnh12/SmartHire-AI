@@ -1,5 +1,24 @@
 # Data Dictionary - Tenant DB (MySQL)
 
+## Assessment Proctor Events V55 (2026-10-25)
+
+Nguồn: `V55__assessment_proctor_events.sql`. Bảng mới lưu vết vi phạm giám sát (proctoring: chuyển tab, mất khuôn mặt, nhiều người, thoát fullscreen,...) trong quá trình ứng viên làm bài thi Assessment (entity `AssessmentProctorEvent`).
+
+### `assessment_proctor_events` (Entity `AssessmentProctorEvent`)
+
+| Cột | Kiểu SQL | NULL | Default | Ý nghĩa |
+|---|---|---|---|---|
+| `id` | BIGINT | Không | AUTO_INCREMENT | PK sự kiện giám sát |
+| `submission_id` | BIGINT | Không | — | FK tham chiếu `submissions(id)` (`ON DELETE CASCADE`) |
+| `event` | VARCHAR(64) | Không | — | Mã định danh sự kiện: `TAB_HIDDEN`, `WINDOW_BLUR`, `LOST_FACE`, `MULTI_FACE`, `EXIT_FULLSCREEN`, `SCREEN_SHARE_STOPPED`, `ACTION_BLOCKED` |
+| `detail` | VARCHAR(512) | Có | NULL | Mô tả chi tiết vi phạm hiển thị cho recruiter |
+| `duration_seconds` | INT | Có | NULL | Thời lượng vi phạm (giây) nếu có đo đạc |
+| `created_at` | TIMESTAMP | Không | CURRENT_TIMESTAMP | Thời điểm ghi nhận sự kiện vi phạm |
+
+Index / FK:
+- FK: `fk_proctor_submission` (`submission_id` REFERENCES `submissions(id)` ON DELETE CASCADE)
+- Index: `idx_proctor_submission_created (submission_id, created_at)`
+
 ## Quy tắc ứng tuyển của ứng viên V52 (2026-10-12)
 
 Nguồn: `V52__candidate_application_rules.sql`. Không tạo bảng mới, không thêm FK/UNIQUE.

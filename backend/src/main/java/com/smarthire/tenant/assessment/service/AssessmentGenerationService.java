@@ -35,6 +35,11 @@ public class AssessmentGenerationService {
     private final ObjectMapper json;
     private final NotificationPreferenceService preferences;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private ApplicationStatusHistoryRepository history;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private RecruitmentStageRepository stages;
+
     public AssessmentGenerationService(JobRepository jobs, JobTestRepository tests, JobSkillRepository skills,
             QuestionRepository questions, OptionRepository options, ApplicationRepository applications,
             NotificationRepository notifications, EmailOutboxRepository outbox,
@@ -96,6 +101,24 @@ public class AssessmentGenerationService {
             throw invalid("Ứng viên này đã có bài đánh giá riêng");
         }
         JobTest test = create(job, config, application, access.actor());
+        if (application.getStatus() != ApplicationStatus.ASSESSMENT) {
+            if (history != null) {
+                var row = new ApplicationStatusHistory();
+                row.setApplication(application);
+                row.setFromStatus(application.getStatus().name());
+                row.setToStatus(ApplicationStatus.ASSESSMENT.name());
+                row.setChangedBy(access.actor().getId());
+                row.setNote("Assessment generated: " + test.getTitle());
+                history.save(row);
+            }
+            application.setStatus(ApplicationStatus.ASSESSMENT);
+            if (stages != null) {
+                stages.findByJob_IdOrderBySortOrderAsc(jobId).stream()
+                        .filter(stage -> "Assessment".equalsIgnoreCase(stage.getName())).findFirst()
+                        .ifPresent(application::setStage);
+            }
+            applications.save(application);
+        }
         String path = "/candidate/assessments?applicationId=" + applicationId;
         String title = "Bài Assessment đã sẵn sàng";
         String body = "Bạn đã được giao bài đánh giá năng lực cho vị trí " + test.getJob().getTitle()

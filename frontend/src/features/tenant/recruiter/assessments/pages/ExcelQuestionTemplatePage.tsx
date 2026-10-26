@@ -1,4 +1,10 @@
-import { CodingStarterFields, codingAuthoringValue, QuestionContentFields } from "../components/QuestionContentFields";
+import {
+  CodingStarterFields,
+  codingAuthoringValue,
+  QuestionContentFields,
+  AiRubricCriteriaEditor,
+  ESSAY_ARCHETYPES,
+} from "../components/QuestionContentFields";
 import { MonacoCodeEditor } from "../components/MonacoCodeEditor";
 import { CodingTestVerification } from "../components/CodingTestVerification";
 import type { EssayRubric } from "@/api/types/assessment";
@@ -20,8 +26,8 @@ import {
   Plus,
   Save,
   ShieldCheck,
-  Sparkles,
   Table2,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ux/Button";
 import { cn } from "@/lib/utils";
@@ -992,12 +998,10 @@ export function ExcelQuestionEditor({ job, generalBank }: {
             next.snippet = first?.[1] ?? "";
           } catch { /* Keep malformed metadata for validation to report. */ }
         }
-        if (next.kind === "TINH_HUONG_SYSTEM" && next.rubricJsonText && ("sample" in safePatch || "rubric" in safePatch)) {
+        if (next.kind === "TINH_HUONG_SYSTEM" && next.rubricJsonText && "sample" in safePatch) {
           try {
             const rubric = JSON.parse(next.rubricJsonText) as EssayRubric;
-            next.rubricJsonText = JSON.stringify({ ...rubric, referenceAnswer: next.sample,
-              ...("rubric" in safePatch ? { criteria: [{ description: next.rubric.map(item => item.text).join("; "), weight: 100 }] } : {}),
-            });
+            next.rubricJsonText = JSON.stringify({ ...rubric, referenceAnswer: next.sample });
           } catch { /* Keep malformed metadata for validation to report. */ }
         }
         return next;
@@ -1349,6 +1353,17 @@ export function ExcelQuestionEditor({ job, generalBank }: {
     }
     const next = blankQuestion(kind);
     if (kind === "TU_LUAN_CODE") next.codingJsonText = codingAuthoringValue(undefined, next.language, next.snippet);
+    if (kind === "TINH_HUONG_SYSTEM") {
+      next.rubricJsonText = JSON.stringify(
+        {
+          category: "ESSAY_CONCEPTUAL",
+          referenceAnswer: "",
+          criteria: ESSAY_ARCHETYPES.ESSAY_CONCEPTUAL.criteria.map((c) => ({ ...c })),
+        },
+        null,
+        2
+      );
+    }
     next.id = questionIdForIndex(questions.length);
     setQuestions((rows) => {
       pushUndo(rows);
@@ -2031,9 +2046,6 @@ export function ExcelQuestionEditor({ job, generalBank }: {
                 </table>
                 {counts.subjective === 0 && <p className="p-6 text-center text-sm text-[var(--color-on-surface-variant)]">Chưa có câu hỏi. Chọn loại câu phía trên để bắt đầu biên soạn.</p>}
               </div>
-              {selectedQuestion && isSubjectiveKind(selectedQuestion.kind) && <div className="flex flex-wrap gap-2" aria-label="Loại câu đang soạn">
-                {QUESTION_TYPE_OPTIONS.filter(option => option.group === "subjective").map(option => <Button key={option.value} variant={selectedQuestion.kind === option.value ? "primary" : "secondary"} aria-pressed={selectedQuestion.kind === option.value} onClick={() => changeKind(selectedIndex, option.value)}>{option.label}</Button>)}
-              </div>}
             </section>}
             {typeFilter === "SUBJECTIVE" && selectedQuestion && isSubjectiveKind(selectedQuestion.kind) && (
               <div className="border-t border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-4 sm:p-8">
@@ -2044,11 +2056,25 @@ export function ExcelQuestionEditor({ job, generalBank }: {
                       {selectedQuestion.kind === "TU_LUAN_CODE" ? "Form tự luận code" : "Form tự luận lý thuyết"}
                     </span>
                     <div>
-                      <h2 className="text-base font-semibold text-[var(--color-on-surface)]">{selectedQuestion.kind === "TU_LUAN_CODE" ? "Biên soạn bài lập trình" : "Biên soạn câu hỏi lý thuyết & tình huống"}</h2>
+                      <h2 className="text-base font-semibold text-[var(--color-on-surface)]">
+                        {selectedQuestion.kind === "TU_LUAN_CODE" ? "Biên soạn bài lập trình" : "Biên soạn câu hỏi lý thuyết & tình huống"}
+                      </h2>
                       <p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">Thiết lập nội dung, hướng dẫn trả lời và tiêu chuẩn chấm điểm.</p>
                     </div>
                   </div>
-                  <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                  <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                    <label className="flex items-center gap-1.5 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-container-low)] px-2.5 py-1 text-xs">
+                      <span className="text-[var(--color-on-surface-variant)]">Đổi loại câu:</span>
+                      <select
+                        aria-label="Thay đổi loại câu hỏi"
+                        value={selectedQuestion.kind}
+                        onChange={(e) => changeKind(selectedIndex, e.target.value as QuestionKind)}
+                        className="rounded bg-transparent font-semibold text-[var(--color-primary)] outline-none cursor-pointer"
+                      >
+                        <option value="TINH_HUONG_SYSTEM">Tự luận lý thuyết</option>
+                        <option value="TU_LUAN_CODE">Tự luận code</option>
+                      </select>
+                    </label>
                     <span className="inline-flex items-center gap-1 rounded-full bg-[var(--color-surface-card)] px-2 py-0.5 ring-1 ring-[var(--color-border-default)]">
                       <Clock3 className="size-3" aria-hidden="true" />
                       {selectedQuestion.timeLimit || "--"}
@@ -2211,25 +2237,77 @@ export function ExcelQuestionEditor({ job, generalBank }: {
                     </div>
                   </div>
                 ) : (
-                  <div className="mt-6 rounded-2xl border border-amber-200/80 bg-amber-50/30 p-4.5 dark:border-amber-900/40 dark:bg-amber-950/20">
-                    <div className="flex items-start gap-3">
-                      <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700 border border-amber-200 dark:bg-amber-900/60 dark:text-amber-300">
-                        <Sparkles className="size-4" />
-                      </div>
+                  <div className="mt-6 border-t border-[var(--color-border-default)] pt-6">
+                    <div className="mb-5 flex items-center gap-3">
+                      <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[var(--color-primary-soft)] text-sm font-semibold text-[var(--color-primary)]">
+                        02
+                      </span>
                       <div>
-                        <h4 className="text-sm font-bold text-slate-900 dark:text-white">
-                          Cấu hình điểm & Tiêu chuẩn chấm tự luận
-                        </h4>
-                        <p className="mt-1 text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-                          Điểm số và bộ tiêu chí Rubric đánh giá tự động (%) của câu hỏi này được quản lý và áp dụng đồng bộ trong tab <strong>Cấu hình bài tập</strong> của vị trí tuyển dụng.
-                        </p>
-                        <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
-                          Người soạn chỉ cần cung cấp <strong>Đề bài</strong> và <strong>Đáp án tham khảo chuẩn</strong> ở trên để AI đối chiếu ngữ nghĩa khi chấm điểm.
+                        <h3 className="text-sm font-semibold">
+                          Cấu hình tiêu chí & Mẫu Rubric AI (Rubric Archetypes)
+                        </h3>
+                        <p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">
+                          Chọn mẫu tiêu chuẩn phù hợp với loại câu hỏi để tự động thiết lập các tiêu chí đối chiếu ngữ nghĩa và tỷ trọng chấm của AI.
                         </p>
                       </div>
                     </div>
+                    <AiRubricCriteriaEditor
+                      value={
+                        selectedQuestion.rubricJsonText ||
+                        JSON.stringify(
+                          {
+                            category: "ESSAY_CONCEPTUAL",
+                            referenceAnswer: selectedQuestion.sample,
+                            criteria: ESSAY_ARCHETYPES.ESSAY_CONCEPTUAL.criteria.map((c) => ({ ...c })),
+                          },
+                          null,
+                          2
+                        )
+                      }
+                      referenceAnswer={selectedQuestion.sample}
+                      onChange={(value) => patchQuestion(selectedIndex, { rubricJsonText: value })}
+                    />
                   </div>
                 )}
+
+                {/* Thanh thao tác nhanh chân Form (Action Footer) */}
+                <div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--color-border-default)] pt-5">
+                  <div className="flex items-center gap-2 text-xs text-[var(--color-on-surface-variant)]">
+                    <CheckCircle2 className="size-4 text-emerald-600" />
+                    <span>Dữ liệu form đang được tự động cập nhật vào <strong>Câu {selectedIndex + 1}</strong> trong bảng danh sách phía trên.</span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={questions.filter(q => isSubjectiveKind(q.kind)).length <= 1}
+                      onClick={() => {
+                        setQuestions(prev => prev.filter((_, idx) => idx !== selectedIndex));
+                        setSelectedIndex(Math.max(0, selectedIndex - 1));
+                      }}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50/50 px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-100 disabled:opacity-30 dark:border-rose-900/40 dark:bg-rose-950/20 dark:text-rose-300"
+                    >
+                      <Trash2 className="size-3.5" />
+                      Xóa câu này
+                    </button>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={handleSaveDraft}
+                    >
+                      <Save className="size-3.5" />
+                      Lưu nội dung bản nháp
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={handleValidate}
+                    >
+                      <CloudUpload className="size-3.5" />
+                      {generalBank ? "Lưu vào ngân hàng câu hỏi" : "Tạo bài đánh giá"}
+                    </Button>
+                  </div>
+                </div>
               </div>
             )}
           </>

@@ -39,6 +39,8 @@ public class SubmissionService {
     private final JobRepository jobs;
     private final org.springframework.beans.factory.ObjectProvider<com.smarthire.tenant.applicant.service.ApplicantService> applicants;
     @org.springframework.beans.factory.annotation.Autowired
+    private AssessmentProctorEventRepository proctorEvents;
+    @org.springframework.beans.factory.annotation.Autowired
     private org.springframework.context.ApplicationEventPublisher events;
     /** Absent in tests that do not load the demo seeder. Production creates the practice paper on demand. */
     @org.springframework.beans.factory.annotation.Autowired(required = false)
@@ -102,6 +104,10 @@ public class SubmissionService {
         Candidate candidate = candidate();
         Application application = applications.findById(applicationId).orElseThrow(this::notFound);
         if (!application.getCandidate().getId().equals(candidate.getId())) throw notFound();
+        if (application.getStatus() == ApplicationStatus.INTERVIEW && tests.existsByAssignedApplication_Id(application.getId())) {
+            application.setStatus(ApplicationStatus.ASSESSMENT);
+            applications.save(application);
+        }
         requireVisible(application);
         if (demoSeed != null && application.getJob().getDeletedAt() == null) demoSeed.ensurePublishedDemo(application.getJob());
         return tests.findByJob_IdAndStatusOrderByIdDesc(application.getJob().getId(), TestStatus.PUBLISHED).stream()
@@ -253,6 +259,35 @@ public class SubmissionService {
         return response(submission);
     }
 
+    @Transactional
+    public void recordProctorEvent(long id, com.smarthire.tenant.assessment.dto.request.AssessmentProctorEventRequest request) {
+        Submission submission = owned(id, candidate());
+        if (submission.getStatus() != TestSubmissionStatus.IN_PROGRESS) {
+            throw conflict("Submission is not in progress", "SUBMISSION_CLOSED");
+        }
+        if (proctorEvents != null) {
+            var event = com.smarthire.domain.tenant.entity.AssessmentProctorEvent.builder()
+                    .submission(submission)
+                    .event(request.event())
+                    .detail(request.detail())
+                    .durationSeconds(request.durationSeconds())
+                    .build();
+            proctorEvents.save(event);
+        }
+    }
+
+    @Transactional
+    public int expireOverdueSubmissions() {
+        var inProgress = submissions.findInProgressWithTest();
+        int count = 0;
+        for (var sub : inProgress) {
+            if (expire(sub)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
     private Candidate candidate() {
         if (!access.candidate()) throw new BusinessException("Candidate access required", HttpStatus.FORBIDDEN, "ASSESSMENT_FORBIDDEN");
         return access.candidateActor();
@@ -275,6 +310,10 @@ public class SubmissionService {
     }
 
     private void requireEligible(Application application) {
+        if (application.getStatus() == ApplicationStatus.INTERVIEW && tests.existsByAssignedApplication_Id(application.getId())) {
+            application.setStatus(ApplicationStatus.ASSESSMENT);
+            applications.save(application);
+        }
         requireVisible(application);
         if (application.getStatus() != ApplicationStatus.ASSESSMENT) {
             throw conflict("Application is not eligible for assessment", "APPLICATION_NOT_ELIGIBLE");
@@ -293,11 +332,13 @@ public class SubmissionService {
 
     /** Finished papers stay readable after the round moves on from ASSESSMENT. */
     private void requireVisible(Application application) {
+        boolean hasDedicatedTest = tests.existsByAssignedApplication_Id(application.getId());
         if (application.getArchivedAt() != null || application.getWithdrawnAt() != null
                 || application.getJob().getDeletedAt() != null
                 || (application.getStatus() != ApplicationStatus.ASSESSMENT
                 && application.getStatus() != ApplicationStatus.HUMAN_INTERVIEW
-                && application.getStatus() != ApplicationStatus.FAILED)) {
+                && application.getStatus() != ApplicationStatus.FAILED
+                && (!hasDedicatedTest || application.getStatus() != ApplicationStatus.INTERVIEW))) {
             throw conflict("Application is not eligible for assessment", "APPLICATION_NOT_ELIGIBLE");
         }
     }

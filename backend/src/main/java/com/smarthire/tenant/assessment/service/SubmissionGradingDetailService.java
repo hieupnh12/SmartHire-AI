@@ -27,12 +27,15 @@ public class SubmissionGradingDetailService {
     private final SubmissionService submissionService;
     private final CvAccess access;
     private final NotificationPreferenceService preferences;
+    private final AssessmentProctorEventRepository proctorEvents;
 
     public SubmissionGradingDetailService(SubmissionRepository submissions, QuestionRepository questions,
             AnswerRepository answers, EmailOutboxRepository emails, AssessmentGradingService grading,
-            SubmissionService submissionService, CvAccess access, NotificationPreferenceService preferences) {
+            SubmissionService submissionService, CvAccess access, NotificationPreferenceService preferences,
+            AssessmentProctorEventRepository proctorEvents) {
         this.submissions = submissions; this.questions = questions; this.answers = answers; this.emails = emails;
         this.grading = grading; this.submissionService = submissionService; this.access = access; this.preferences = preferences;
+        this.proctorEvents = proctorEvents;
     }
 
     private Submission completed(long id) {
@@ -59,11 +62,15 @@ public class SubmissionGradingDetailService {
         var candidate = submission.getCandidate();
         boolean canEmail = candidate.getEmail() != null && !candidate.getEmail().isBlank()
                 && !preferences.emailOff(candidate, NotificationCategory.ASSESSMENT);
+        var events = proctorEvents.findBySubmission_IdOrderByIdAsc(submission.getId()).stream()
+                .map(e -> new SubmissionGradingDetailResponse.ProctorEventSummary(e.getId(), e.getEvent(), e.getDetail(), e.getDurationSeconds(), e.getCreatedAt()))
+                .toList();
         return new SubmissionGradingDetailResponse(submission.getId(), submission.getTest().getTitle(), candidate.getFullName(), candidate.getEmail(),
                 submission.getStatus(), submission.getScore(), paper.stream().mapToInt(question -> question.getPoints()).sum(), submission.getTest().getPassingScore(), canEmail,
                 new SubmissionGradingDetailResponse.ObjectiveSummary((int) objectiveAnswers.stream().filter(answer -> Boolean.TRUE.equals(answer.getCorrect())).count(), objective.size(),
                     objectiveAnswers.stream().map(answer -> answer.getScore() == null ? BigDecimal.ZERO : answer.getScore()).reduce(BigDecimal.ZERO, BigDecimal::add),
-                    objective.stream().mapToInt(question -> question.getPoints()).sum()), grading.reviews(submission.getId()));
+                    objective.stream().mapToInt(question -> question.getPoints()).sum()), grading.reviews(submission.getId()),
+                events);
     }
 
     @Transactional

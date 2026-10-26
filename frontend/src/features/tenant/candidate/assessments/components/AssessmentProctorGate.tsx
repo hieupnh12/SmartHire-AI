@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Camera, Mic, MonitorUp, ShieldCheck } from "lucide-react";
+import { Mic, MonitorUp, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ux/Button";
 import {
   prepareProctorDevices,
@@ -43,7 +43,7 @@ export function AssessmentProctorGate({ busy, label = "Bắt đầu làm bài", 
     let handedOff: ProctorSession | null = null;
     try {
       if (!prepared.current) {
-        const devices = await prepareProctorDevices(true, "monitor");
+        const devices = await prepareProctorDevices(false, "monitor");
         if (!mounted.current) {
           stopProctorSession(devices);
           return;
@@ -54,11 +54,10 @@ export function AssessmentProctorGate({ busy, label = "Bắt đầu làm bài", 
       }
       const live = (tracks: MediaStreamTrack[]) => tracks.some((track) => track.readyState === "live");
       if (
-        !live(prepared.current.camera.getVideoTracks()) ||
         !live(prepared.current.camera.getAudioTracks()) ||
         !live(prepared.current.screen.getVideoTracks())
       ) {
-        throw new Error("Camera, microphone hoặc chia sẻ màn hình đã dừng. Hãy kiểm tra thiết bị lại.");
+        throw new Error("Microphone hoặc chia sẻ màn hình đã dừng. Hãy kiểm tra thiết bị lại.");
       }
       if (!document.documentElement.requestFullscreen) {
         throw new Error("Trình duyệt không hỗ trợ chế độ toàn màn hình.");
@@ -94,9 +93,6 @@ export function AssessmentProctorGate({ busy, label = "Bắt đầu làm bài", 
         <span className="inline-flex items-center gap-1.5 rounded-lg bg-white px-2.5 py-1.5">
           <MonitorUp className="size-3.5 text-[var(--color-primary)]" aria-hidden="true" /> Cả màn hình
         </span>
-        <span className="inline-flex items-center gap-1.5 rounded-lg bg-white px-2.5 py-1.5">
-          <Camera className="size-3.5 text-[var(--color-primary)]" aria-hidden="true" /> Camera
-        </span>
       </div>
       <label className="flex cursor-pointer items-start gap-3 rounded-xl bg-white p-3 text-sm leading-6">
         <input
@@ -112,7 +108,7 @@ export function AssessmentProctorGate({ busy, label = "Bắt đầu làm bài", 
           }}
         />
         <span>
-          Cho phép camera, microphone và chia sẻ toàn bộ màn hình trong suốt bài thi. Tắt thiết bị, để khuôn mặt ra khỏi khung, hoặc có thêm người trong khung camera được tính là vi phạm.
+          Cho phép microphone và chia sẻ toàn bộ màn hình trong suốt bài thi. Tắt microphone hoặc dừng chia sẻ màn hình được tính là vi phạm.
         </span>
       </label>
       {error && (

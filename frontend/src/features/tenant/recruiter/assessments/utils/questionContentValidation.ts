@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const rubricSchema = z.object({
-  category: z.enum(["ESSAY_CONCEPTUAL", "ESSAY_SCENARIO"]).optional(),
+  category: z.enum(["ESSAY_CONCEPTUAL", "ESSAY_COMPARISON", "ESSAY_SCENARIO", "ESSAY_ARCHITECTURE"]).optional(),
   referenceAnswer: z.string().trim().min(1, "Nhập đáp án tham khảo."),
   minWords: z.number().int().min(0).max(10000).optional(),
   criteria: z.array(z.object({

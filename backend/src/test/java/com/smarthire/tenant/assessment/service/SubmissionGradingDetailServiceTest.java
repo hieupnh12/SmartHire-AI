@@ -23,7 +23,8 @@ class SubmissionGradingDetailServiceTest {
     final SubmissionService room = mock(SubmissionService.class);
     final CvAccess access = mock(CvAccess.class);
     final NotificationPreferenceService preferences = mock(NotificationPreferenceService.class);
-    final SubmissionGradingDetailService service = new SubmissionGradingDetailService(submissions, questions, answers, emails, grading, room, access, preferences);
+    final AssessmentProctorEventRepository proctorEvents = mock(AssessmentProctorEventRepository.class);
+    final SubmissionGradingDetailService service = new SubmissionGradingDetailService(submissions, questions, answers, emails, grading, room, access, preferences, proctorEvents);
     Submission submission;
     Question objective;
     Answer objectiveAnswer;

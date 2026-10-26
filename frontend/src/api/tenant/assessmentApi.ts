@@ -28,6 +28,8 @@ export const assessmentApi = {
   deleteQuestion: (id: number, questionId: number) => api.delete(`/assessments/${id}/delete_question/${questionId}`),
   publish: (id: number) => api.post<ApiResponse<JobTest>>(`/assessments/${id}/publish_test`).then(r => r.data.data),
   send: (id: number, applicationId: number) => api.post<ApiResponse<SendAssessmentResult>>(`/assessments/${id}/send_assessment`, { applicationId }).then(r => r.data.data),
+  assignToApplication: (id: number, applicationId: number) => api.post<ApiResponse<SendAssessmentResult>>(`/assessments/${id}/assign-to-application/${applicationId}`).then(r => r.data.data),
+  recordProctorEvent: (id: number, body: { event: string; detail?: string; durationSeconds?: number }) => api.post(`/submissions/${id}/proctor-events`, body),
   available: (applicationId: number) => api.get<ApiResponse<AvailableAssessment[]>>(`/applications/${applicationId}/list_available_assessments`).then(r => r.data.data),
   start: (id: number, applicationId: number) => api.post<ApiResponse<Submission>>(`/assessments/${id}/start_submission`, { applicationId }).then(r => r.data.data),
   submission: (id: number, signal?: AbortSignal) => api.get<ApiResponse<Submission>>(`/submissions/${id}/get_submission`, { signal }).then(r => r.data.data),

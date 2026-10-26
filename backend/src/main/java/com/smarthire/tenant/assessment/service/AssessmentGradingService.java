@@ -83,7 +83,8 @@ public class AssessmentGradingService {
                     ? rubricNode.path("referenceAnswer").asText()
                     : (question.getExplanation() != null && !question.getExplanation().isBlank() ? question.getExplanation() : question.getQuestionText());
             fallbackRubric.put("referenceAnswer", refAnswer);
-            fallbackRubric.put("category", rubricNode != null && rubricNode.has("category") ? rubricNode.path("category").asText() : "ESSAY_CONCEPTUAL");
+            String cat = rubricNode != null && rubricNode.has("category") ? rubricNode.path("category").asText() : "ESSAY_CONCEPTUAL";
+            fallbackRubric.put("category", cat);
             var criteriaArr = fallbackRubric.putArray("criteria");
             if (jobConfig != null && jobConfig.essayCriteria() != null && !jobConfig.essayCriteria().isEmpty()) {
                 for (var criterion : jobConfig.essayCriteria()) {
@@ -94,23 +95,28 @@ public class AssessmentGradingService {
                     cNode.put("weight", criterion.weight());
                 }
             } else {
-                var c1 = criteriaArr.addObject();
-                c1.put("name", "Bản chất cốt lõi");
-                c1.put("guide", "Giải thích chính xác nguyên lý và các khái niệm cốt lõi");
-                c1.put("description", "Bản chất cốt lõi: Giải thích chính xác nguyên lý và các khái niệm cốt lõi");
-                c1.put("weight", 40);
-
-                var c2 = criteriaArr.addObject();
-                c2.put("name", "Phân tích & Trade-offs");
-                c2.put("guide", "Phân tích ưu, nhược điểm và điều kiện áp dụng");
-                c2.put("description", "Phân tích & Trade-offs: Phân tích ưu, nhược điểm và điều kiện áp dụng");
-                c2.put("weight", 30);
-
-                var c3 = criteriaArr.addObject();
-                c3.put("name", "Tính logic & Thực tế");
-                c3.put("guide", "Lập luận nhất quán, có ví dụ thực tế phù hợp");
-                c3.put("description", "Tính logic & Thực tế: Lập luận nhất quán, có ví dụ thực tế phù hợp");
-                c3.put("weight", 30);
+                switch (cat) {
+                    case "ESSAY_COMPARISON" -> {
+                        addCriterionNode(criteriaArr, "Hiểu rõ đặc điểm của từng công nghệ / giải pháp", "Nắm vững bản chất, kiến trúc và đặc tính cốt lõi của từng phương án", 30);
+                        addCriterionNode(criteriaArr, "Phân tích ưu/nhược điểm đa chiều", "So sánh toàn diện ưu và nhược điểm về hiệu năng, độ phức tạp, bảo trì và mở rộng", 40);
+                        addCriterionNode(criteriaArr, "Độ phù hợp của ngữ cảnh áp dụng thực tế", "Đưa ra tiêu chí lựa chọn và khuyến nghị trường hợp nào nên dùng giải pháp nào", 30);
+                    }
+                    case "ESSAY_SCENARIO" -> {
+                        addCriterionNode(criteriaArr, "Phân tích nguyên nhân gốc rễ (Root Cause Analysis)", "Xác định chính xác nguyên nhân tiềm ẩn và phương pháp điều tra, cô lập sự cố", 30);
+                        addCriterionNode(criteriaArr, "Tính khả thi và hiệu quả của giải pháp", "Phương án khắc phục ngắn hạn và giải pháp dài hạn rõ ràng, có tính khả thi cao", 40);
+                        addCriterionNode(criteriaArr, "Biện pháp dự phòng / Giám sát lâu dài", "Biện pháp phòng ngừa lặp lại, thiết lập monitoring, alerting và xử lý rủi ro", 30);
+                    }
+                    case "ESSAY_ARCHITECTURE" -> {
+                        addCriterionNode(criteriaArr, "Cấu trúc luồng và tính khả thi", "Thiết kế kiến trúc / luồng dữ liệu hợp lý, phân tách trách nhiệm rõ ràng", 40);
+                        addCriterionNode(criteriaArr, "Xử lý edge-case, chịu lỗi và bảo mật", "Tính toán kịch bản lỗi, bảo đảm tính toàn vẹn dữ liệu, idempotency và an toàn", 35);
+                        addCriterionNode(criteriaArr, "Khả năng mở rộng (Scalability)", "Khả năng đáp ứng tải cao, tối ưu tài nguyên và chiến lược scale", 25);
+                    }
+                    default -> { // ESSAY_CONCEPTUAL
+                        addCriterionNode(criteriaArr, "Tính chính xác của khái niệm / cơ chế", "Giải thích chính xác nguyên lý, bản chất và các khái niệm cốt lõi", 50);
+                        addCriterionNode(criteriaArr, "Thuật ngữ chuyên môn & Bản chất hoạt động", "Sử dụng đúng thuật ngữ kỹ thuật, giải thích rõ cách thức hoạt động bên dưới", 30);
+                        addCriterionNode(criteriaArr, "Ví dụ minh họa thực tế", "Có ví dụ minh họa hoặc tình huống áp dụng thực tế phù hợp", 20);
+                    }
+                }
             }
             rubricNode = fallbackRubric;
         }
@@ -221,4 +227,12 @@ public class AssessmentGradingService {
         access.requireJob(submission.getTest().getJob()); return submission;
     }
     private BusinessException invalid(String message) { return new BusinessException(message, HttpStatus.BAD_REQUEST, "INVALID_GRADE"); }
+
+    private void addCriterionNode(com.fasterxml.jackson.databind.node.ArrayNode arrayNode, String name, String guide, int weight) {
+        var node = arrayNode.addObject();
+        node.put("name", name);
+        node.put("guide", guide);
+        node.put("description", name + ": " + guide);
+        node.put("weight", weight);
+    }
 }

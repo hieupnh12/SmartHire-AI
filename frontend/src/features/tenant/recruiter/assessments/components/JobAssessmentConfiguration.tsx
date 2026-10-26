@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useFieldArray, useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { CheckCircle2, ClipboardList, Plus, Settings2, Sparkles, Trash2, AlertCircle, Code2, FileText, ListChecks, Sliders, RotateCcw, Check, Scale } from "lucide-react";
+import { CheckCircle2, ClipboardList, Plus, Settings2, Sparkles, Trash2, AlertCircle, Code2, FileText, ListChecks, Sliders, Check, Scale, BookOpen, GitCompare, Network, AlertTriangle } from "lucide-react";
 import { assessmentGenerationApi } from "@/api/tenant/assessmentGenerationApi";
 import type { AssessmentConfiguration, RubricCriterionConfig } from "@/api/types/assessmentGeneration";
 import { AssessmentError } from "@/components/ux/assessmentUi";
@@ -56,11 +56,60 @@ const schema = z.object({
   path: ["essayCriteria"], message: "Tổng trọng số các tiêu chí Rubric phải đạt đúng 100%",
 });
 
-const defaultEssayCriteria: RubricCriterionConfig[] = [
-  { name: "Bản chất cốt lõi & Khái niệm", weight: 40, guide: "Giải thích chính xác nguyên lý, bản chất và các khái niệm cốt lõi." },
-  { name: "Phân tích so sánh & Trade-offs", weight: 30, guide: "Phân tích ưu, nhược điểm và điều kiện áp dụng của từng phương án." },
-  { name: "Tính logic & Ứng dụng thực tế", weight: 30, guide: "Lập luận nhất quán, có ví dụ thực tế phù hợp từ production." },
-];
+const essayPresets: Record<string, {
+  label: string;
+  badge: string;
+  description: string;
+  summaryWeights: string;
+  criteria: RubricCriterionConfig[];
+}> = {
+  conceptual: {
+    label: "Khái niệm & Nguyên lý",
+    badge: "50% • 30% • 20%",
+    description: "Giải thích chính xác nguyên lý, bản chất cốt lõi và ví dụ thực tế.",
+    summaryWeights: "Chính xác (50%) • Bản chất (30%) • Ví dụ (20%)",
+    criteria: [
+      { name: "Tính chính xác của khái niệm / cơ chế", weight: 50, guide: "Giải thích chính xác nguyên lý, bản chất và các khái niệm cốt lõi." },
+      { name: "Thuật ngữ chuyên môn & Bản chất hoạt động", weight: 30, guide: "Sử dụng đúng thuật ngữ kỹ thuật, giải thích rõ cách thức hoạt động bên dưới." },
+      { name: "Ví dụ minh họa thực tế", weight: 20, guide: "Có ví dụ minh họa hoặc tình huống áp dụng thực tế phù hợp." },
+    ],
+  },
+  comparison: {
+    label: "So sánh & Đánh đổi (Trade-offs)",
+    badge: "30% • 40% • 30%",
+    description: "So sánh ưu/nhược điểm đa chiều và khuyến nghị bối cảnh ứng dụng thực tế.",
+    summaryWeights: "Đặc điểm (30%) • Đánh đổi (40%) • Ngữ cảnh (30%)",
+    criteria: [
+      { name: "Hiểu rõ đặc điểm của từng công nghệ / giải pháp", weight: 30, guide: "Nắm vững bản chất, kiến trúc và đặc tính cốt lõi của từng phương án." },
+      { name: "Phân tích ưu/nhược điểm đa chiều", weight: 40, guide: "So sánh toàn diện ưu và nhược điểm về hiệu năng, độ phức tạp, bảo trì và mở rộng." },
+      { name: "Độ phù hợp của ngữ cảnh áp dụng thực tế", weight: 30, guide: "Đưa ra tiêu chí lựa chọn và khuyến nghị trường hợp nào nên dùng giải pháp nào." },
+    ],
+  },
+  scenario: {
+    label: "Tình huống & Sự cố (Troubleshooting)",
+    badge: "30% • 40% • 30%",
+    description: "Phân tích nguyên nhân gốc rễ, tính khả thi giải pháp và biện pháp phòng ngừa.",
+    summaryWeights: "Root Cause (30%) • Giải pháp (40%) • Giám sát (30%)",
+    criteria: [
+      { name: "Phân tích nguyên nhân gốc rễ (Root Cause Analysis)", weight: 30, guide: "Xác định chính xác nguyên nhân tiềm ẩn và phương pháp điều tra, cô lập sự cố." },
+      { name: "Tính khả thi và hiệu quả của giải pháp", weight: 40, guide: "Phương án khắc phục ngắn hạn và giải pháp dài hạn rõ ràng, có tính khả thi cao." },
+      { name: "Biện pháp dự phòng / Giám sát lâu dài", weight: 30, guide: "Biện pháp phòng ngừa lặp lại, thiết lập monitoring, alerting và xử lý rủi ro." },
+    ],
+  },
+  architecture: {
+    label: "Thiết kế giải pháp / Kiến trúc",
+    badge: "40% • 35% • 25%",
+    description: "Thiết kế luồng dữ liệu, xử lý chịu lỗi / bảo mật và khả năng mở rộng.",
+    summaryWeights: "Cấu trúc luồng (40%) • Chịu lỗi (35%) • Mở rộng (25%)",
+    criteria: [
+      { name: "Cấu trúc luồng và tính khả thi", weight: 40, guide: "Thiết kế kiến trúc / luồng dữ liệu hợp lý, phân tách trách nhiệm rõ ràng." },
+      { name: "Xử lý edge-case, chịu lỗi và bảo mật", weight: 35, guide: "Tính toán kịch bản lỗi, bảo đảm tính toàn vẹn dữ liệu, idempotency và an toàn." },
+      { name: "Khả năng mở rộng (Scalability)", weight: 25, guide: "Khả năng đáp ứng tải cao, tối ưu tài nguyên và chiến lược scale." },
+    ],
+  },
+};
+
+const defaultEssayCriteria: RubricCriterionConfig[] = essayPresets.conceptual.criteria;
 
 const inputClass = "mt-1 h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-900 transition-all focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-white";
 const cardClass = "rounded-2xl border border-slate-200 bg-white p-5 shadow-xs dark:border-slate-800 dark:bg-slate-900";
@@ -821,24 +870,76 @@ export function ConfigurationForm({ initial }: { initial: AssessmentConfiguratio
                 <Plus className="size-4 text-amber-600" /> Thêm nhóm tự luận lý thuyết
               </button>
 
-              {/* KHỐI CẤU HÌNH TÍNH ĐIỂM TỰ LUẬN LÝ THUYẾT (AI RUBRIC CRITERIA) */}
+              {/* KHỐI CẤU HÌNH TÍNH ĐIỂM TỰ LUẬN LÝ THUYẾT (AI RUBRIC ARCHETYPES) */}
               <div className="mt-5 rounded-2xl border border-amber-200/80 bg-amber-50/20 p-5 space-y-4 dark:border-amber-900/40 dark:bg-amber-950/10">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <h5 className="flex items-center gap-2 text-sm font-bold text-slate-900 dark:text-white">
-                      <Scale className="size-4 text-amber-600" /> Tiêu chuẩn chấm điểm tự luận (AI Rubric) áp dụng chung cho Job
+                      <Scale className="size-4 text-amber-600" /> Mẫu tiêu chuẩn chấm điểm tự luận AI (Rubric Archetypes)
                     </h5>
                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                      Toàn bộ câu hỏi tự luận lý thuyết trong đề sẽ được AI đánh giá tự động dựa trên các tiêu chí và tỷ trọng trọng số bên dưới.
+                      Chọn mẫu tiêu chí đánh giá chuẩn phù hợp với vị trí. AI sẽ tự động phân tích và đối chiếu bài làm của ứng viên theo các tiêu chuẩn này.
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => replaceRubric(defaultEssayCriteria)}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
-                  >
-                    <RotateCcw className="size-3.5 text-amber-600" /> Tải 3 tiêu chí mẫu chuẩn
-                  </button>
+                </div>
+
+                {/* Banner Cơ chế Kế thừa & Ghi đè (Trụ cột 2) */}
+                <div className="rounded-xl border border-blue-200/80 bg-blue-50/50 p-3.5 text-xs text-blue-900 dark:border-blue-900/50 dark:bg-blue-950/30 dark:text-blue-200">
+                  <div className="flex items-start gap-2.5">
+                    <Sparkles className="size-4 shrink-0 text-blue-600 dark:text-blue-400 mt-0.5" />
+                    <div className="leading-relaxed">
+                      <strong>Cơ chế Kế thừa & Ghi đè (Inheritance & Override):</strong> Bộ tiêu chuẩn bạn chọn dưới đây là chuẩn mặc định cho Job. Khi biên soạn câu hỏi trong <em>Ngân hàng đề (Excel / Form)</em>, mỗi câu hỏi tự luận lý thuyết sẽ tự động kế thừa bộ tiêu chuẩn theo loại câu của nó, hoặc người ra đề có thể tùy ý điều chỉnh tiêu chí riêng nếu câu hỏi đó có yêu cầu đặc thù.
+                    </div>
+                  </div>
+                </div>
+
+                {/* 4 Thẻ chọn nhanh Rubric Archetype */}
+                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
+                  {Object.entries(essayPresets).map(([key, preset]) => {
+                    const IconComp = key === "conceptual" ? BookOpen : key === "comparison" ? GitCompare : key === "scenario" ? AlertTriangle : Network;
+                    const isMatching = watchedEssayCriteria.length === preset.criteria.length &&
+                      watchedEssayCriteria[0]?.name === preset.criteria[0]?.name;
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => replaceRubric(preset.criteria.map(c => ({ ...c })))}
+                        className={cn(
+                          "group relative flex flex-col justify-between rounded-xl border p-3.5 text-left transition-all",
+                          isMatching
+                            ? "border-amber-500 bg-amber-50/50 shadow-sm ring-1 ring-amber-500/30 dark:border-amber-600 dark:bg-amber-950/30"
+                            : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900"
+                        )}
+                      >
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className={cn(
+                              "flex size-7 items-center justify-center rounded-lg text-xs",
+                              isMatching ? "bg-amber-500 text-white shadow-2xs" : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                            )}>
+                              <IconComp className="size-3.5" />
+                            </span>
+                            {isMatching ? (
+                              <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800 dark:bg-amber-900/60 dark:text-amber-300">
+                                <Check className="size-3" /> Đang áp dụng
+                              </span>
+                            ) : (
+                              <span className="font-mono text-[10px] text-slate-500 font-semibold">{preset.badge}</span>
+                            )}
+                          </div>
+                          <h6 className={cn("text-xs font-bold leading-tight", isMatching ? "text-amber-950 dark:text-amber-200" : "text-slate-800 dark:text-slate-200")}>
+                            {preset.label}
+                          </h6>
+                          <p className="text-[11px] leading-relaxed text-slate-500 dark:text-slate-400 line-clamp-2">
+                            {preset.description}
+                          </p>
+                        </div>
+                        <div className="mt-2.5 pt-2 border-t border-slate-100 dark:border-slate-800">
+                          <span className="text-[10px] font-mono text-slate-500 font-medium">{preset.summaryWeights}</span>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
 
                 {/* Status Bar tổng trọng số Rubric */}

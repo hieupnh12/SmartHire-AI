@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   RefreshCw,
   Search,
+  Send,
   Settings2,
   Sparkles,
   Users,
@@ -131,6 +132,25 @@ export function AutomaticAssessmentCandidateAssigner() {
       setFeedback({
         type: "error",
         message: err?.response?.data?.message ?? err?.message ?? "Không thể tạo bài đánh giá cho ứng viên.",
+      });
+    },
+  });
+
+  // Mutation gửi lại thông báo & email lời mời
+  const resendMutation = useMutation({
+    mutationFn: ({ testId, appId }: { testId: number; appId: number }) => assessmentApi.send(testId, appId),
+    onSuccess: () => {
+      setFeedback({
+        type: "success",
+        message: "Đã gửi lại lời mời làm bài thi qua thông báo và email cho ứng viên!",
+      });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.assessments.all() });
+      void queryClient.invalidateQueries({ queryKey: ["recruiter", "job-applications", job.id] });
+    },
+    onError: (err: any) => {
+      setFeedback({
+        type: "error",
+        message: err?.response?.data?.message ?? err?.message ?? "Không thể gửi lại lời mời.",
       });
     },
   });
@@ -371,7 +391,7 @@ export function AutomaticAssessmentCandidateAssigner() {
                           )}
                         </td>
                         <td className="px-4 py-3 text-right">
-                          {!hasTest && (
+                          {!hasTest ? (
                             <button
                               type="button"
                               disabled={assignMutation.isPending || !!status?.bankError}
@@ -380,6 +400,20 @@ export function AutomaticAssessmentCandidateAssigner() {
                             >
                               <Sparkles className="size-3" />
                               Tạo bài cho ứng viên này
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={resendMutation.isPending}
+                              onClick={() => {
+                                const t = (testsQuery.data?.items ?? []).find((item) => item.assignedApplicationId === app.id);
+                                if (t) resendMutation.mutate({ testId: t.id, appId: app.id });
+                              }}
+                              className="inline-flex items-center gap-1 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-container-low)] px-2.5 py-1 text-xs font-medium text-[var(--color-on-surface-variant)] transition-colors hover:bg-slate-200 disabled:opacity-40"
+                              title="Gửi lại thông báo & email lời mời làm bài thi cho ứng viên"
+                            >
+                              <Send className="size-3" />
+                              {resendMutation.isPending ? "Đang gửi..." : "Gửi lại lời mời"}
                             </button>
                           )}
                         </td>

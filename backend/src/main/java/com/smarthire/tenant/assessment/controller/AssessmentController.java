@@ -72,6 +72,13 @@ public class AssessmentController {
         return ApiResponse.ok(invitationService.send(testId, request));
     }
 
+    @PostMapping("/{testId}/assign-to-application/{applicationId}")
+    @Operation(summary = "Assign a published template test to one application (staff only)",
+            description = "Clones a published template test or sends existing assignment. Moves application to ASSESSMENT.")
+    public ApiResponse<SendAssessmentResponse> assignToApplication(@PathVariable long testId, @PathVariable long applicationId) {
+        return ApiResponse.ok(invitationService.assignToApplication(testId, applicationId));
+    }
+
     @GetMapping("/health")
     @Operation(summary = "Assessment module health check")
     public ResponseEntity<ApiResponse<Map<String, String>>> health() {

@@ -1,17 +1,164 @@
 import { assessmentInput, FieldError } from "@/components/ux/assessmentUi";
-import type { CodingContent, EssayRubric } from "@/api/types/assessment";
-import { Code2, FlaskConical, Plus, Sparkles, Trash2, Wand2 } from "lucide-react";
+import {
+  AlertTriangle,
+  BookOpen,
+  Check,
+  Code2,
+  FlaskConical,
+  GitCompare,
+  Network,
+  Plus,
+  RotateCcw,
+  Sparkles,
+  Trash2,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MonacoCodeEditor } from "./MonacoCodeEditor";
+import type { CodingContent, EssayCategory, EssayRubric } from "@/api/types/assessment";
+
+export const ESSAY_ARCHETYPES: Record<
+  EssayCategory,
+  {
+    label: string;
+    shortLabel: string;
+    badge: string;
+    description: string;
+    summaryWeights: string;
+    criteria: Array<{
+      name: string;
+      guide: string;
+      description: string;
+      weight: number;
+      keywords?: string[];
+    }>;
+  }
+> = {
+  ESSAY_CONCEPTUAL: {
+    label: "Khái niệm & Nguyên lý (Conceptual)",
+    shortLabel: "Khái niệm",
+    badge: "50% • 30% • 20%",
+    description: "Đánh giá tính chuẩn xác của khái niệm, cơ chế hoạt động và ví dụ minh họa thực tế.",
+    summaryWeights: "Tính chính xác (50%) • Bản chất hoạt động (30%) • Ví dụ thực tế (20%)",
+    criteria: [
+      {
+        name: "Tính chính xác của khái niệm / cơ chế",
+        guide: "Giải thích chính xác nguyên lý, bản chất cốt lõi và định nghĩa kỹ thuật.",
+        description: "Tính chính xác: Giải thích đúng nguyên lý và khái niệm cốt lõi",
+        weight: 50,
+        keywords: [],
+      },
+      {
+        name: "Thuật ngữ chuyên môn & Bản chất hoạt động",
+        guide: "Sử dụng thuật ngữ chính xác, giải thích rõ cách thức hoạt động ngầm (under the hood).",
+        description: "Thuật ngữ & Bản chất: Đúng thuật ngữ, giải thích rõ cơ chế hoạt động",
+        weight: 30,
+        keywords: [],
+      },
+      {
+        name: "Ví dụ minh họa thực tế",
+        guide: "Có ví dụ thực tế hoặc trường hợp áp dụng phù hợp.",
+        description: "Ví dụ thực tế: Minh họa rõ ràng ngữ cảnh sử dụng",
+        weight: 20,
+        keywords: [],
+      },
+    ],
+  },
+  ESSAY_COMPARISON: {
+    label: "So sánh & Đánh đổi (Comparison / Trade-offs)",
+    shortLabel: "So sánh & Trade-offs",
+    badge: "30% • 40% • 30%",
+    description: "Đánh giá khả năng hiểu sâu đặc điểm các giải pháp, phân tích ưu/nhược điểm và sự đánh đổi.",
+    summaryWeights: "Hiểu đặc điểm (30%) • Phân tích Trade-offs (40%) • Ngữ cảnh áp dụng (30%)",
+    criteria: [
+      {
+        name: "Hiểu rõ đặc điểm của từng công nghệ / giải pháp",
+        guide: "Nắm vững bản chất, kiến trúc và đặc tính cốt lõi của từng phương án được so sánh.",
+        description: "Hiểu rõ đặc điểm: Nắm vững bản chất của từng phương án so sánh",
+        weight: 30,
+        keywords: [],
+      },
+      {
+        name: "Phân tích ưu/nhược điểm đa chiều",
+        guide: "So sánh toàn diện ưu và nhược điểm về hiệu năng, chi phí, độ phức tạp và bảo trì.",
+        description: "Phân tích ưu/nhược điểm: So sánh đa chiều và sự đánh đổi (Trade-offs)",
+        weight: 40,
+        keywords: [],
+      },
+      {
+        name: "Độ phù hợp của ngữ cảnh áp dụng thực tế",
+        guide: "Đưa ra tiêu chí lựa chọn và khuyến nghị trường hợp nào nên dùng phương án nào.",
+        description: "Ngữ cảnh áp dụng: Khuyến nghị bối cảnh phù hợp cho từng lựa chọn",
+        weight: 30,
+        keywords: [],
+      },
+    ],
+  },
+  ESSAY_SCENARIO: {
+    label: "Tình huống & Sự cố (Scenario & Troubleshooting)",
+    shortLabel: "Tình huống & Sự cố",
+    badge: "30% • 40% • 30%",
+    description: "Đánh giá tư duy điều tra sự cố, phân tích nguyên nhân gốc rễ và đề xuất giải pháp xử lý.",
+    summaryWeights: "Nguyên nhân gốc rễ (30%) • Giải pháp khả thi (40%) • Dự phòng & Giám sát (30%)",
+    criteria: [
+      {
+        name: "Phân tích nguyên nhân gốc rễ (Root Cause Analysis)",
+        guide: "Xác định chính xác nguyên nhân tiềm ẩn, trình tự điều tra và cô lập sự cố.",
+        description: "Phân tích nguyên nhân: Xác định đúng root cause và phương pháp cô lập",
+        weight: 30,
+        keywords: [],
+      },
+      {
+        name: "Tính khả thi và hiệu quả của giải pháp",
+        guide: "Phương án khắc phục ngắn hạn (workaround) và xử lý dài hạn rõ ràng, có tính khả thi.",
+        description: "Giải pháp khả thi: Đề xuất phương án khắc phục triệt để và hiệu quả",
+        weight: 40,
+        keywords: [],
+      },
+      {
+        name: "Biện pháp dự phòng / Giám sát lâu dài",
+        guide: "Biện pháp phòng ngừa lặp lại, thiết lập monitoring, alert metrics và quy trình dự phòng.",
+        description: "Dự phòng & Giám sát: Thiết lập biện pháp ngăn ngừa và quan sát hệ thống",
+        weight: 30,
+        keywords: [],
+      },
+    ],
+  },
+  ESSAY_ARCHITECTURE: {
+    label: "Thiết kế giải pháp / Kiến trúc (Architecture)",
+    shortLabel: "Kiến trúc hệ thống",
+    badge: "40% • 35% • 25%",
+    description: "Đánh giá cấu trúc luồng hệ thống, tính toàn vẹn, khả năng chịu lỗi và mở rộng khi tải cao.",
+    summaryWeights: "Cấu trúc luồng (40%) • Chịu lỗi & Bảo mật (35%) • Khả năng mở rộng (25%)",
+    criteria: [
+      {
+        name: "Cấu trúc luồng và tính khả thi",
+        guide: "Thiết kế luồng dữ liệu, phân tách component hợp lý và các tương tác mạch lạc.",
+        description: "Cấu trúc luồng: Luồng dữ liệu và thiết kế phân rã hợp lý",
+        weight: 40,
+        keywords: [],
+      },
+      {
+        name: "Xử lý edge-case, chịu lỗi và bảo mật",
+        guide: "Tính toán kịch bản lỗi, retry, circuit-breaker, idempotent và an toàn bảo mật.",
+        description: "Chịu lỗi & Bảo mật: Xử lý lỗi, kịch bản edge-cases và an toàn dữ liệu",
+        weight: 35,
+        keywords: [],
+      },
+      {
+        name: "Khả năng mở rộng (Scalability)",
+        guide: "Khả năng đáp ứng tải cao, tối ưu tài nguyên, caching và chiến lược scale.",
+        description: "Mở rộng (Scale): Khả năng chịu tải và tối ưu tài nguyên hệ thống",
+        weight: 25,
+        keywords: [],
+      },
+    ],
+  },
+};
 
 export const defaultRubricTemplate: EssayRubric = {
   category: "ESSAY_CONCEPTUAL",
   referenceAnswer: "",
-  criteria: [
-    { name: "Bản chất cốt lõi & Nguyên lý", guide: "Giải thích chính xác các khái niệm và nguyên lý hoạt động cơ bản.", description: "Bản chất cốt lõi: Giải thích chính xác nguyên lý hoạt động cơ bản", weight: 40, keywords: [] },
-    { name: "Phân tích & Trade-offs", guide: "Phân tích được ưu nhược điểm, sự đánh đổi và điều kiện áp dụng.", description: "Phân tích Trade-offs: So sánh ưu nhược điểm và sự đánh đổi", weight: 30, keywords: [] },
-    { name: "Tính logic & Thực tế", guide: "Lập luận mạch lạc, có ví dụ minh họa hoặc giải pháp kỹ thuật cụ thể.", description: "Tính thực tế: Có ví dụ và giải pháp kỹ thuật cụ thể", weight: 30, keywords: [] },
-  ],
+  criteria: ESSAY_ARCHETYPES.ESSAY_CONCEPTUAL.criteria.map((c) => ({ ...c })),
 };
 
 export const rubricExample = JSON.stringify(defaultRubricTemplate, null, 2);
@@ -288,112 +435,260 @@ export function AiRubricCriteriaEditor({
     return defaultRubricTemplate;
   };
   const rubric = parse();
-  const criteria = Array.isArray(rubric.criteria) && rubric.criteria.length > 0 ? rubric.criteria : defaultRubricTemplate.criteria;
+  const activeCategory: EssayCategory = rubric.category && rubric.category in ESSAY_ARCHETYPES
+    ? rubric.category
+    : "ESSAY_CONCEPTUAL";
+  const criteria = Array.isArray(rubric.criteria) && rubric.criteria.length > 0
+    ? rubric.criteria
+    : ESSAY_ARCHETYPES[activeCategory].criteria.map((c) => ({ ...c }));
+
   const update = (patch: Partial<EssayRubric>) => {
-    const updated: EssayRubric = { ...rubric, referenceAnswer: referenceAnswer ?? rubric.referenceAnswer, ...patch };
+    const updated: EssayRubric = {
+      ...rubric,
+      category: activeCategory,
+      referenceAnswer: referenceAnswer ?? rubric.referenceAnswer ?? "",
+      ...patch,
+    };
     onChange(JSON.stringify(updated, null, 2));
+  };
+
+  const handleSelectArchetype = (categoryKey: EssayCategory) => {
+    const archetype = ESSAY_ARCHETYPES[categoryKey];
+    update({
+      category: categoryKey,
+      criteria: archetype.criteria.map((c) => ({ ...c })),
+    });
+  };
+
+  const handleResetToCurrentArchetype = () => {
+    const archetype = ESSAY_ARCHETYPES[activeCategory];
+    update({
+      criteria: archetype.criteria.map((c) => ({ ...c })),
+    });
   };
 
   const totalWeight = criteria.reduce((sum, item) => sum + (Number(item.weight) || 0), 0);
   const isValid = totalWeight === 100;
 
+  const archetypeIcons: Record<EssayCategory, React.ComponentType<{ className?: string }>> = {
+    ESSAY_CONCEPTUAL: BookOpen,
+    ESSAY_COMPARISON: GitCompare,
+    ESSAY_SCENARIO: AlertTriangle,
+    ESSAY_ARCHITECTURE: Network,
+  };
+
   return (
-    <div className="space-y-4 rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-4 sm:p-5">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--color-border-default)] pb-4">
+    <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-2xs dark:border-slate-800 dark:bg-slate-900">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4 dark:border-slate-800">
         <div>
-          <h3 className="text-sm font-semibold flex items-center gap-2">
-            <Sparkles className="size-4 text-[var(--color-primary)]" />
-            Tiêu chuẩn đánh giá tự động (AI Rubric Criteria)
-          </h3>
-          <p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">
-            AI sẽ đối chiếu bài làm với Đáp án tham khảo và chấm điểm độc lập từng tiêu chí theo trọng số (%).
+          <h4 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+            <Sparkles className="size-4 text-amber-600" />
+            Mẫu tiêu chuẩn chấm điểm AI (Rubric Archetypes)
+          </h4>
+          <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+            Chọn mẫu phù hợp với loại câu hỏi để tự động thiết lập các tiêu chí đối chiếu ngữ nghĩa và tỷ trọng chấm của AI.
           </p>
         </div>
         <button
           type="button"
-          className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-container-low)] px-3 py-1.5 text-xs font-medium text-[var(--color-primary)] hover:bg-[var(--color-primary-subtle)]"
-          onClick={() => update(defaultRubricTemplate)}
+          onClick={handleResetToCurrentArchetype}
+          title="Khôi phục các tiêu chí về nguyên mẫu chuẩn của Archetype này"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
         >
-          <Wand2 className="size-3.5" />
-          Tải bộ tiêu chí mẫu chuẩn (40% - 30% - 30%)
+          <RotateCcw className="size-3.5 text-amber-600" />
+          Đặt lại theo mẫu gốc
         </button>
       </div>
 
+      {/* 4 Thẻ chọn nhanh Rubric Archetype */}
+      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
+        {(Object.keys(ESSAY_ARCHETYPES) as EssayCategory[]).map((key) => {
+          const item = ESSAY_ARCHETYPES[key];
+          const isSelected = activeCategory === key;
+          const IconComp = archetypeIcons[key];
+          return (
+            <button
+              key={key}
+              type="button"
+              onClick={() => handleSelectArchetype(key)}
+              className={cn(
+                "group relative flex flex-col justify-between rounded-xl border p-3.5 text-left transition-all",
+                isSelected
+                  ? "border-amber-500 bg-amber-50/40 shadow-sm ring-1 ring-amber-500/30 dark:border-amber-600 dark:bg-amber-950/20"
+                  : "border-slate-200 bg-slate-50/40 hover:border-slate-300 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900/40"
+              )}
+            >
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span
+                    className={cn(
+                      "flex size-7 items-center justify-center rounded-lg text-xs",
+                      isSelected
+                        ? "bg-amber-500 text-white shadow-2xs"
+                        : "bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                    )}
+                  >
+                    <IconComp className="size-3.5" />
+                  </span>
+                  {isSelected ? (
+                    <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800 dark:bg-amber-900/60 dark:text-amber-300">
+                      <Check className="size-3" /> Đang chọn
+                    </span>
+                  ) : (
+                    <span className="font-mono text-[10px] text-slate-500 font-semibold">
+                      {item.badge}
+                    </span>
+                  )}
+                </div>
+                <h5
+                  className={cn(
+                    "text-xs font-bold leading-tight",
+                    isSelected ? "text-amber-950 dark:text-amber-200" : "text-slate-800 dark:text-slate-200"
+                  )}
+                >
+                  {item.shortLabel}
+                </h5>
+                <p className="text-[11px] leading-relaxed text-slate-500 dark:text-slate-400 line-clamp-2">
+                  {item.description}
+                </p>
+              </div>
+              <div className="mt-2.5 pt-2 border-t border-slate-100 dark:border-slate-800/80">
+                <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400 font-medium">
+                  {item.summaryWeights}
+                </span>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Status Bar tổng trọng số Rubric */}
+      <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3 shadow-2xs dark:border-slate-800 dark:bg-slate-900/60">
+        <div className="flex items-center justify-between text-xs font-medium">
+          <span className="text-slate-600 dark:text-slate-400">
+            Tổng trọng số tiêu chí đã phân bổ:
+          </span>
+          <span
+            className={cn(
+              "font-mono font-bold px-2 py-0.5 rounded-md",
+              isValid
+                ? "bg-emerald-50 text-emerald-700 border border-emerald-200/60 dark:bg-emerald-950 dark:text-emerald-300"
+                : "bg-rose-50 text-rose-700 border border-rose-200/60 dark:bg-rose-950 dark:text-rose-300"
+            )}
+          >
+            {totalWeight}% / 100% {isValid ? "✓ Hợp lệ" : "⚠ Cần điều chỉnh để đúng 100%"}
+          </span>
+        </div>
+        <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-slate-200/80 dark:bg-slate-800">
+          <div
+            className={cn(
+              "h-full transition-all duration-300",
+              isValid ? "bg-emerald-500" : totalWeight > 100 ? "bg-rose-500" : "bg-amber-500"
+            )}
+            style={{ width: `${Math.min(totalWeight, 100)}%` }}
+          />
+        </div>
+      </div>
+
+      {/* Danh sách tiêu chí chi tiết */}
       <div className="space-y-3">
         {criteria.map((criterion, index) => (
-          <div key={index} className="space-y-3 rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-container-low)] p-3.5 sm:p-4">
-            <div className="flex items-center justify-between gap-2 border-b border-[var(--color-border-default)] pb-2">
-              <span className="text-xs font-semibold text-[var(--color-primary)]">
+          <div
+            key={index}
+            className="space-y-3 rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs dark:border-slate-800 dark:bg-slate-900"
+          >
+            <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2 dark:border-slate-800">
+              <span className="text-xs font-bold text-amber-700 dark:text-amber-400">
                 Tiêu chí {index + 1}
               </span>
               <button
                 type="button"
                 disabled={criteria.length <= 1}
-                className="text-xs font-medium text-[var(--color-error)] hover:underline disabled:opacity-40"
+                className="text-xs font-medium text-rose-600 hover:underline disabled:opacity-30 dark:text-rose-400"
                 onClick={() => update({ criteria: criteria.filter((_, i) => i !== index) })}
               >
                 Xóa tiêu chí
               </button>
             </div>
-            <div className="grid gap-3 sm:grid-cols-[1fr_120px]">
-              <label className="text-xs">
-                Tên tiêu chí
+            <div className="grid gap-3 sm:grid-cols-[1fr_130px]">
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                Tên tiêu chí đánh giá
                 <input
                   type="text"
                   className={cn(assessmentInput, "mt-1")}
-                  placeholder="Ví dụ: Bản chất cốt lõi & Nguyên lý"
+                  placeholder="Ví dụ: Tính chính xác của khái niệm / cơ chế"
                   value={criterion.name ?? criterion.description}
-                  onChange={event => {
+                  onChange={(event) => {
                     const name = event.target.value;
                     update({
-                      criteria: criteria.map((item, i) => i === index ? { ...item, name, description: `${name}: ${item.guide ?? name}` } : item)
+                      criteria: criteria.map((item, i) =>
+                        i === index
+                          ? { ...item, name, description: `${name}: ${item.guide ?? name}` }
+                          : item
+                      ),
                     });
                   }}
                 />
               </label>
-              <label className="text-xs">
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                 Trọng số (%)
-                <input
-                  type="number"
-                  min={1}
-                  max={100}
-                  className={cn(assessmentInput, "mt-1 font-semibold")}
-                  value={criterion.weight}
-                  onChange={event => {
-                    const weight = Number(event.target.value) || 0;
-                    update({
-                      criteria: criteria.map((item, i) => i === index ? { ...item, weight } : item)
-                    });
-                  }}
-                />
+                <div className="relative mt-1">
+                  <input
+                    type="number"
+                    min={1}
+                    max={100}
+                    className={cn(assessmentInput, "font-mono font-bold pr-6")}
+                    value={criterion.weight}
+                    onChange={(event) => {
+                      const weight = Number(event.target.value) || 0;
+                      update({
+                        criteria: criteria.map((item, i) =>
+                          i === index ? { ...item, weight } : item
+                        ),
+                      });
+                    }}
+                  />
+                  <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
+                    %
+                  </span>
+                </div>
               </label>
             </div>
-            <label className="block text-xs">
-              Hướng dẫn chấm chi tiết cho AI
+            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+              Hướng dẫn chấm cho AI (Guide)
               <textarea
                 rows={2}
-                className={cn(assessmentInput, "mt-1")}
-                placeholder="Mô tả cụ thể những điểm ứng viên cần trình bày để đạt điểm tối đa ở tiêu chí này"
+                className={cn(assessmentInput, "mt-1 text-xs")}
+                placeholder="Mô tả cụ thể những điểm cốt lõi ứng viên cần đạt để AI đối chiếu chấm điểm..."
                 value={criterion.guide ?? criterion.description}
-                onChange={event => {
+                onChange={(event) => {
                   const guide = event.target.value;
                   update({
-                    criteria: criteria.map((item, i) => i === index ? { ...item, guide, description: `${item.name ?? ""}: ${guide}` } : item)
+                    criteria: criteria.map((item, i) =>
+                      i === index
+                        ? { ...item, guide, description: `${item.name ?? ""}: ${guide}` }
+                        : item
+                    ),
                   });
                 }}
               />
             </label>
-            <label className="block text-xs">
-              Từ khóa kỹ thuật gợi ý (phân cách bằng dấu phẩy)
+            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">
+              Từ khóa chuyên môn gợi ý (tùy chọn, phân cách bằng dấu phẩy)
               <input
                 type="text"
-                className={cn(assessmentInput, "mt-1")}
-                placeholder="Ví dụ: B-Tree, Clustered Index, Non-clustered, I/O"
+                className={cn(assessmentInput, "mt-1 text-xs")}
+                placeholder="Ví dụ: Thread safety, Volatile, Synchronization, Memory barrier"
                 value={Array.isArray(criterion.keywords) ? criterion.keywords.join(", ") : ""}
-                onChange={event => {
-                  const keywords = event.target.value.split(",").map(k => k.trim()).filter(Boolean);
+                onChange={(event) => {
+                  const keywords = event.target.value
+                    .split(",")
+                    .map((k) => k.trim())
+                    .filter(Boolean);
                   update({
-                    criteria: criteria.map((item, i) => i === index ? { ...item, keywords } : item)
+                    criteria: criteria.map((item, i) =>
+                      i === index ? { ...item, keywords } : item
+                    ),
                   });
                 }}
               />
@@ -402,22 +697,24 @@ export function AiRubricCriteriaEditor({
         ))}
       </div>
 
-      <div className={cn("flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3.5",
-        isValid ? "border-emerald-300 bg-emerald-50 text-emerald-900" : "border-amber-300 bg-amber-50 text-amber-900"
-      )}>
-        <div>
-          <p className="text-xs font-semibold">
-            Tổng trọng số: {totalWeight}% / 100% {isValid ? "— Đạt yêu cầu" : "— Cần điều chỉnh để tổng đúng 100%"}
-          </p>
-          <progress className="mt-1 h-1.5 w-44 rounded-full accent-[var(--color-primary)]" max={100} value={Math.min(totalWeight, 100)} />
-        </div>
+      <div className="flex items-center justify-between pt-1">
+        <p className="text-[11px] text-slate-500 dark:text-slate-400 italic">
+          * AI sẽ sử dụng bộ tiêu chí và trọng số % này để phân tích câu trả lời của ứng viên đối chiếu với Đáp án tham khảo.
+        </p>
         <button
           type="button"
           disabled={criteria.length >= 5}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-card)] px-3 py-1.5 text-xs font-medium text-[var(--color-primary)] hover:bg-[var(--color-primary-subtle)] disabled:opacity-40"
-          onClick={() => update({ criteria: [...criteria, { name: "", guide: "", description: "Tiêu chí mới", weight: 10, keywords: [] }] })}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-2xs disabled:opacity-40 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+          onClick={() =>
+            update({
+              criteria: [
+                ...criteria,
+                { name: "", guide: "", description: "Tiêu chí bổ sung", weight: 10, keywords: [] },
+              ],
+            })
+          }
         >
-          <Plus className="size-3.5" />
+          <Plus className="size-3.5 text-amber-600" />
           Thêm tiêu chí
         </button>
       </div>

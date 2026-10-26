@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, CheckCircle2, Code2, FileText, Mail, RefreshCw } from "lucide-react";
+import { Check, CheckCircle2, Code2, FileText, Mail, RefreshCw, TriangleAlert } from "lucide-react";
 import { assessmentApi } from "@/api/tenant/assessmentApi";
 import type { GradeDecision, GradingReview } from "@/api/types/assessment";
 import { Button } from "@/components/ux/Button";
@@ -65,6 +65,52 @@ export function SubmissionGradingDetail({ id, onClose }: { id: number; onClose: 
     {Object.keys(errors.scores ?? {}).length > 0 && <div ref={errorSummary} tabIndex={-1} role="alert" className="rounded-lg border border-[var(--color-status-danger)] p-3 text-sm"><p className="font-medium">Kiểm tra điểm ghi đè trước khi lưu:</p>{Object.entries(errors.scores ?? {}).map(([questionId, error]) => <a key={questionId} href={`#override-${id}-${questionId}`} className="mt-1 block underline">Câu #{questionId}: {error?.message}</a>)}</div>}
     {detail && <>
       <div className={card}><h3 className="font-semibold">Kết quả chính thức</h3><p className="text-2xl font-semibold">{detail.score == null ? "Chờ duyệt đầy đủ" : `${display(detail.score)} / ${detail.totalPoints} điểm`}</p><p className="text-sm">{detail.passingScore == null ? "Không đặt ngưỡng đạt" : `Ngưỡng đạt: ${display(detail.passingScore)} điểm`}{detail.score != null && detail.passingScore != null ? detail.score >= detail.passingScore ? " · Đạt yêu cầu" : " · Chưa đạt yêu cầu" : ""}</p></div>
+      {detail.proctorEvents && detail.proctorEvents.length > 0 ? (
+        <section className="min-w-0 space-y-3 rounded-xl border border-amber-300 bg-amber-50/50 p-4 dark:border-amber-900/60 dark:bg-amber-950/20">
+          <div className="flex items-center gap-2">
+            <TriangleAlert className="size-5 text-amber-600 dark:text-amber-500" aria-hidden="true" />
+            <h3 className="font-semibold text-amber-900 dark:text-amber-200">
+              Cảnh báo Giám sát thi ({detail.proctorEvents.length} vi phạm được ghi nhận)
+            </h3>
+          </div>
+          <p className="text-xs text-amber-800 dark:text-amber-300">
+            Hệ thống phát hiện ứng viên có thao tác rời khỏi màn hình thi hoặc vi phạm quy chế làm bài.
+          </p>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[500px] text-left text-xs">
+              <thead>
+                <tr className="border-b border-amber-200 dark:border-amber-800 text-amber-950 dark:text-amber-100">
+                  <th scope="col" className="p-2">Thời gian</th>
+                  <th scope="col" className="p-2">Hành vi</th>
+                  <th scope="col" className="p-2">Chi tiết</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-amber-100 dark:divide-amber-900/40">
+                {detail.proctorEvents.map((evt) => (
+                  <tr key={evt.id}>
+                    <td className="p-2 whitespace-nowrap text-amber-900 dark:text-amber-200">
+                      {new Date(evt.createdAt).toLocaleString("vi-VN")}
+                    </td>
+                    <td className="p-2 font-medium text-amber-950 dark:text-amber-100">
+                      <span className="rounded bg-amber-200/80 px-1.5 py-0.5 text-[11px] font-semibold text-amber-900 dark:bg-amber-900/60 dark:text-amber-200">
+                        {evt.event}
+                      </span>
+                    </td>
+                    <td className="p-2 text-amber-800 dark:text-amber-300">
+                      {evt.detail || "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : (
+        <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50/50 p-3 text-xs text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/20 dark:text-emerald-300">
+          <CheckCircle2 className="size-4 shrink-0 text-emerald-600" />
+          <span>Giám sát thi: Không ghi nhận bất kỳ vi phạm nào trong suốt thời gian làm bài.</span>
+        </div>
+      )}
       <section className={card}><h3 className="flex items-center gap-2 font-semibold"><CheckCircle2 className="size-5 text-[var(--color-primary)]" aria-hidden="true" />1. TRẮC NGHIỆM · Chấm tự động</h3><p className="text-sm">{detail.objective.correctCount}/{detail.objective.questionCount} câu đúng · {display(detail.objective.score)}/{detail.objective.totalPoints} điểm · Tỉ lệ đúng {detail.objective.questionCount ? display(detail.objective.correctCount / detail.objective.questionCount * 100) : "0"}%</p>{detail.objective.questionCount === 0 && <p className="text-sm text-[var(--color-on-surface-variant)]">Đề không có câu trắc nghiệm.</p>}</section>
       {(["ESSAY", "CODING"] as const).map(type => <section key={type} className="min-w-0 space-y-4"><h3 className="flex items-center gap-2 font-semibold">{type === "ESSAY" ? <FileText className="size-5" aria-hidden="true" /> : <Code2 className="size-5" aria-hidden="true" />}{type === "ESSAY" ? "2. TỰ LUẬN LÝ THUYẾT · AI Rubric & Duyệt điểm" : "3. THỬ THÁCH LẬP TRÌNH · Sandbox & AI Review"}</h3>
         {reviews.filter(review => review.type === type).length === 0 && <p className="text-sm">Không có câu hỏi thuộc nhóm này.</p>}

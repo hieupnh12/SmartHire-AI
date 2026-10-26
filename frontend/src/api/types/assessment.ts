@@ -64,7 +64,8 @@ export type AvailableAssessment = Pick<JobTest, "id" | "title" | "description" |
   submissionId: number | null; submissionStatus: SubmissionStatus | null;
 };
 
-export type EssayRubric = { category?: "ESSAY_CONCEPTUAL" | "ESSAY_SCENARIO"; referenceAnswer: string; minWords?: number; criteria: { description: string; name?: string; guide?: string; weight: number; keywords?: string[] }[] };
+export type EssayCategory = "ESSAY_CONCEPTUAL" | "ESSAY_COMPARISON" | "ESSAY_SCENARIO" | "ESSAY_ARCHITECTURE";
+export type EssayRubric = { category?: EssayCategory; referenceAnswer: string; minWords?: number; criteria: { description: string; name?: string; guide?: string; weight: number; keywords?: string[] }[] };
 export type CodingContent = { title?: string; category: "CODING_ALGORITHM" | "CODING_OOP" | "SQL_QUERY"; timeLimitMs: number; memoryMb: number;
   starterCode: Record<string, string>; harness: Record<string, string> | null;
   testCases: { input: string; expectedOutput: string; sample: boolean; weight?: number }[] };
@@ -73,10 +74,20 @@ export type GradingReview = { questionId: number; prompt: string; type: string; 
   suggestedScore: number | null; score: number | null; reviewedAt: string | null };
 export type SampleResult = { status: { id: number; description: string }; stdout?: string; stderr?: string; compile_output?: string };
 
+export type ProctorEventSummary = {
+  id: number;
+  event: string;
+  detail: string | null;
+  durationSeconds: number | null;
+  createdAt: string;
+};
+
 export type SubmissionGradingDetail = {
   id: number; testTitle: string; candidateName: string; candidateEmail: string | null; status: SubmissionStatus;
   score: number | null; totalPoints: number; passingScore: number | null; emailAvailable: boolean;
   objective: { correctCount: number; questionCount: number; score: number; totalPoints: number }; reviews: GradingReview[];
+  proctorEvents?: ProctorEventSummary[];
 };
 export type GradeDecision = { questionId: number; score: number | null };
 export type ResultEmailReceipt = { id: number; status: "PENDING" | "SENT" | "FAILED" };
+

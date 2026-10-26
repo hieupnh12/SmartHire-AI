@@ -52,7 +52,7 @@ export function AssessmentsPage() {
     queryFn: applicantApi.mine,
   });
   const eligible = useMemo(
-    () => (applications.data?.data ?? []).filter((a) => !a.archived && (a.status === "ASSESSMENT" || a.status === "HUMAN_INTERVIEW" || a.status === "FAILED")),
+    () => (applications.data?.data ?? []).filter((a) => !a.archived && (a.status === "ASSESSMENT" || a.status === "INTERVIEW" || a.status === "HUMAN_INTERVIEW" || a.status === "FAILED")),
     [applications.data?.data],
   );
 
