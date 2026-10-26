@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, ArrowRight, Clock, Expand, Send } from "lucide-react";
 import { Button } from "@/components/ux/Button";
+import { Skeleton, SkeletonCard } from "@/components/ux/Skeleton";
 import { AssessmentError, assessmentMuted as muted } from "@/components/ux/assessmentUi";
 import { useUiStore } from "@/stores/uiStore";
 import { AssessmentResult } from "../components/AssessmentResult";
@@ -158,9 +159,11 @@ function SubmissionRoom({ id }: { id: number }) {
       <section className="flex h-dvh flex-col overflow-hidden bg-[var(--color-surface-alt)] px-4 py-4 text-[var(--color-on-surface)] sm:px-6 sm:py-5 lg:px-8">
         <AssessmentError error={room.query.error} retry={() => void room.query.refetch()} />
         {room.query.isPending && (
-          <p role="status" className="grid flex-1 place-items-center text-sm text-[var(--color-on-surface-variant)]">
-            Đang tải kết quả…
-          </p>
+          <div className="flex-1 space-y-4 p-6" role="status" aria-busy="true">
+            <Skeleton className="h-8 w-64" />
+            <SkeletonCard className="h-72" />
+            <span className="sr-only">Đang tải kết quả…</span>
+          </div>
         )}
         {submission && (
           <div className="min-h-0 flex-1">
@@ -232,7 +235,16 @@ function SubmissionRoom({ id }: { id: number }) {
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-3 sm:p-4">
           <AssessmentError error={room.query.error} retry={() => void room.query.refetch()} />
           <AssessmentError error={room.error} retry={seconds > 0 ? room.retrySave : undefined} />
-          {room.query.isPending && <p role="status">Đang tải bài làm…</p>}
+          {room.query.isPending && (
+            <div className="flex-1 space-y-4" role="status" aria-busy="true">
+              <Skeleton className="h-6 w-1/3" />
+              <div className="grid h-[calc(100%-2rem)] gap-4 lg:grid-cols-12">
+                <Skeleton className="h-full rounded-2xl lg:col-span-8" />
+                <Skeleton className="h-full rounded-2xl lg:col-span-4" />
+              </div>
+              <span className="sr-only">Đang tải bài làm…</span>
+            </div>
+          )}
           {inCoding ? (
             <div className="flex min-h-0 flex-1 flex-col">
               {!question && <p>Không có câu lập trình. Bạn có thể nộp bài.</p>}

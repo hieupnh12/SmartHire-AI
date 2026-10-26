@@ -8,6 +8,7 @@ import type { Question, QuestionRequest, TestRequest } from "@/api/types/assessm
 import { queryKeys } from "@/lib/query-keys";
 import { Button } from "@/components/ux/Button";
 import { Tooltip } from "@/components/ux/Tooltip";
+import { PageSkeleton, SkeletonCard } from "@/components/ux/Skeleton";
 import { AssessmentError, assessmentLink, assessmentMuted as muted, assessmentStatus } from "@/components/ux/assessmentUi";
 import { TestForm } from "../components/TestForm";
 import { QuestionForm } from "../components/QuestionForm";
@@ -57,7 +58,12 @@ export function AssessmentDetailPage() {
     {notice && <p role="status" className="text-sm text-[var(--color-primary)]">{notice}</p>}
     <AssessmentError error={test.error || questions.error} retry={() => void refresh()} />
     <AssessmentError error={metadata.error || saveQuestion.error || remove.error || publish.error} />
-    {!isNew && test.isPending && <p role="status">Đang tải đề…</p>}
+    {!isNew && test.isPending && (
+      <div className="space-y-4">
+        <SkeletonCard className="h-40" />
+        <SkeletonCard className="h-64" />
+      </div>
+    )}
     {(isNew || test.data) && <div className={`grid items-start gap-6 ${draft ? "xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]" : "lg:grid-cols-[320px_minmax(0,1fr)]"}`}>
       <section className="min-w-0 space-y-5 rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-5 shadow-[var(--shadow-card)] sm:p-6"><h2 className="text-lg font-semibold">Thông tin đề</h2>
         {draft ? <TestForm key={`${job.id}-${test.data?.id ?? "new"}`} test={test.data} jobs={jobs} lockedJobId={job.id} busy={busy}
@@ -68,7 +74,13 @@ export function AssessmentDetailPage() {
         {!isNew && draft && <Button variant="secondary" disabled={busy || !!editor || (questions.data?.length ?? 0) >= 100} onClick={() => { saveQuestion.reset(); setEditor("new"); }}><Plus className="size-4" aria-hidden="true" />Thêm câu</Button>}
       </div>
       {isNew && <p className={muted}>Chưa có câu hỏi.</p>}
-      {questions.isPending && !isNew && <p role="status">Đang tải câu hỏi…</p>}
+      {questions.isPending && !isNew && (
+        <div className="space-y-3">
+          {[0, 1, 2].map((i) => (
+            <SkeletonCard key={i} className="min-h-32" />
+          ))}
+        </div>
+      )}
       {editor && <QuestionForm key={editor === "new" ? "new" : editor.id} question={editor === "new" ? undefined : editor} order={Math.max(-1, ...(questions.data ?? []).map(q => q.questionOrder)) + 1} busy={busy} onSave={body => saveQuestion.mutate(body)} onCancel={() => setEditor(null)} />}
       {questions.data?.map((q, index) => <AssessmentQuestionCard key={q.id} question={q} index={index} actions={draft ? <div className="flex shrink-0"><Tooltip content="Sửa câu hỏi"><Button variant="ghost" disabled={busy || !!editor} aria-label={`Sửa câu ${index + 1}`} onClick={() => { saveQuestion.reset(); setEditor(q); }}><Pencil className="size-4" aria-hidden="true" /></Button></Tooltip><Tooltip content="Xóa câu hỏi"><Button variant="ghost" disabled={busy || !!editor} aria-label={`Xóa câu ${index + 1}`} onClick={() => { if (window.confirm("Xóa câu hỏi này?")) remove.mutate(q.id); }}><Trash2 className="size-4" aria-hidden="true" /></Button></Tooltip></div> : undefined} />)}
       </section>

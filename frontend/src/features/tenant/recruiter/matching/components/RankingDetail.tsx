@@ -7,6 +7,7 @@ import { getApiErrorMessage } from "@/lib/axios";
 import type { RankingRow, RankingSources, Selection } from "../types/ranking";
 import { applicationStatusLabel, button, labels, muted, primary, scoreText } from "./rankingUi";
 import { RankingSelect } from "./RankingSelect";
+import { Skeleton, SkeletonText } from "@/components/ux/Skeleton";
 
 const section = "rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-5 shadow-sm";
 
@@ -133,7 +134,7 @@ function RankingDetailContent({ row, jobId, jobTitle, tenantKey, preview = false
 
       <div className="grid gap-6 lg:grid-cols-12"><div className="space-y-6 lg:col-span-8"><ComponentBreakdown row={row} /><SkillEvidence row={row} /><section className={section}><h3 className="text-lg font-semibold">Kinh nghiệm liên quan</h3><p className="mt-1 text-sm">{row.experienceMonths === null ? "Chưa đủ dữ liệu xác minh" : `${row.experienceMonths} tháng, đã loại trừ thời gian trùng lặp`}</p>{row.experienceEvidence.map((evidence, index) => <blockquote key={index} className="mt-3 rounded-r-lg border-l-2 border-[var(--color-primary)] bg-[var(--color-surface-alt)] p-3 text-sm">{evidence}</blockquote>)}</section><FormulaTable row={row} /></div>
         <aside className="space-y-6 lg:col-span-4"><InsightPanel row={row} preview={preview} />{row.interviewFeedback && <section className={section}><h3 className="flex items-center gap-2 text-lg font-semibold"><MessageSquareText className="size-5 text-[var(--color-primary)]" aria-hidden="true" />Nhận xét AI Interview</h3><p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-[var(--color-on-surface-variant)]">{row.interviewFeedback}</p></section>}<Timeline row={row} />
-          {!preview && !fallback && sources.isPending && <p role="status" className={section}>Đang tải nguồn đánh giá…</p>}{!preview && !fallback && sources.isError && <div role="alert" className={section}>{getApiErrorMessage(sources.error)}</div>}{!preview && !fallback && sources.data && <SourceSelector applicationId={row.applicationId} tenantKey={tenantKey} data={sources.data.data} />}
+          {!preview && !fallback && sources.isPending && <div className={section}><Skeleton className="mb-2 h-4 w-32" /><SkeletonText lines={3} /></div>}{!preview && !fallback && sources.isError && <div role="alert" className={section}>{getApiErrorMessage(sources.error)}</div>}{!preview && !fallback && sources.data && <SourceSelector applicationId={row.applicationId} tenantKey={tenantKey} data={sources.data.data} />}
         </aside></div>
     </div>
   </dialog>;
@@ -160,9 +161,25 @@ function RankingDetailStateDialog({ status, message, onClose }: { status: "loadi
 
   return <dialog ref={dialog} onCancel={(event) => { event.preventDefault(); onClose(); }} aria-labelledby="ranking-state-title" aria-describedby="ranking-state-description" className="m-auto w-[min(28rem,calc(100%-2rem))] border-0 bg-transparent p-0 text-[var(--color-on-surface)] backdrop:bg-slate-900/45 backdrop:backdrop-blur-sm">
     <div className={section}>
-      <h2 id="ranking-state-title" className="font-semibold">{status === "loading" ? "Đang tải chi tiết" : "Không thể tải chi tiết"}</h2>
-      <p id="ranking-state-description" role={status === "loading" ? "status" : "alert"} className="mt-2 text-sm text-[var(--color-on-surface-variant)]">{status === "loading" ? "Đang tải chi tiết xếp hạng ứng viên…" : message}</p>
-      {status === "error" && <button autoFocus className={`${button} mt-4`} onClick={onClose}>Đóng</button>}
+      {status === "loading" ? (
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+            <Skeleton className="size-10 rounded-full" />
+            <div className="flex-1 space-y-1.5">
+              <Skeleton className="h-4 w-1/2" />
+              <Skeleton className="h-3 w-1/3" />
+            </div>
+          </div>
+          <SkeletonText lines={4} />
+          <span className="sr-only" id="ranking-state-title">Đang tải chi tiết xếp hạng ứng viên…</span>
+        </div>
+      ) : (
+        <>
+          <h2 id="ranking-state-title" className="font-semibold">Không thể tải chi tiết</h2>
+          <p id="ranking-state-description" role="alert" className="mt-2 text-sm text-[var(--color-on-surface-variant)]">{message}</p>
+          <button autoFocus className={`${button} mt-4`} onClick={onClose}>Đóng</button>
+        </>
+      )}
     </div>
   </dialog>;
 }

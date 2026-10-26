@@ -9,6 +9,7 @@ import { assessmentGenerationApi } from "@/api/tenant/assessmentGenerationApi";
 import type { AssessmentConfiguration } from "@/api/types/assessmentGeneration";
 import { AssessmentError } from "@/components/ux/assessmentUi";
 import { Button } from "@/components/ux/Button";
+import { SkeletonCard } from "@/components/ux/Skeleton";
 import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
 import { useRecruitmentJob } from "../../jobs/components/JobRecruitmentWorkspace";
@@ -46,7 +47,7 @@ export function AssessmentCreationPage() {
       {([{ id: "manual", title: "Tạo thủ công", detail: "Thêm câu hỏi → Kiểm tra → Tạo bài assessment", icon: ClipboardList }, { id: "automatic", title: "Tạo tự động", detail: "Cấu hình cấu trúc → Lấy câu hỏi từ ngân hàng → Tạo đề", icon: Sparkles }] as const).map(item => <button key={item.id} type="button" role="tab" aria-selected={mode === item.id} aria-controls={`creation-${item.id}`} onClick={() => setMode(item.id)} className={cn(cardClass, "flex items-start gap-4 text-left transition-colors", mode === item.id && "border-[var(--color-primary)] bg-[var(--color-primary-soft)]")}><item.icon className="size-6 shrink-0 text-[var(--color-primary)]" /><span className="flex-1"><strong className="block">{item.title}</strong><span className="mt-1 block text-sm text-[var(--color-on-surface-variant)]">{item.detail}</span></span>{mode === item.id && <Check className="size-5 text-[var(--color-primary)]" />}</button>)}
     </div>
     {mode === "manual" ? <div id="creation-manual" role="tabpanel" className={cardClass}><h2 className="text-lg font-semibold">Bắt đầu từ câu hỏi</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--color-on-surface-variant)]">Soạn câu hỏi và đáp án trên bảng, kiểm tra nội dung, sau đó nhập thông tin bài assessment và lưu bản nháp để xuất bản khi sẵn sàng.</p><Link to={`${basePath}/excel-template`} className="mt-5 inline-flex min-h-10 items-center gap-2 rounded-lg bg-[var(--color-primary)] px-4 font-semibold text-[var(--color-on-primary)]"><Plus className="size-4" />Thêm câu hỏi thủ công</Link></div>
-      : <div id="creation-automatic" role="tabpanel" className="space-y-4"><AssessmentError error={config.error} retry={() => void config.refetch()} />{config.isPending ? <p role="status">Đang tải cấu hình…</p> : config.isSuccess && <ConfigurationForm initial={config.data} />}</div>}
+      : <div id="creation-automatic" role="tabpanel" className="space-y-4"><AssessmentError error={config.error} retry={() => void config.refetch()} />{config.isPending ? <SkeletonCard className="h-64" /> : config.isSuccess && <ConfigurationForm initial={config.data} />}</div>}
   </section>;
 }
 

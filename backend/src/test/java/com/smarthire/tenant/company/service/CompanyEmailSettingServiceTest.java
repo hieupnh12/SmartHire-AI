@@ -85,6 +85,7 @@ class CompanyEmailSettingServiceTest {
                 .build();
 
         CompanyEmailSettingResponse res = service.saveSettings(req);
+        assertNotNull(res);
 
         ArgumentCaptor<CompanyEmailSetting> captor = ArgumentCaptor.forClass(CompanyEmailSetting.class);
         verify(settingRepository).save(captor.capture());

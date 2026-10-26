@@ -61,6 +61,7 @@ public class AiInterviewService {
     private final AiInterviewProcessEngine processEngine;
     private final AiInterviewEvaluationService evaluation;
     private final InterviewConversationService conversation;
+    @SuppressWarnings("unused")
     private final com.smarthire.domain.tenant.repository.AiInterviewProcessRunRepository processRuns;
     private final com.smarthire.domain.tenant.repository.AiInterviewConsentRepository consents;
 

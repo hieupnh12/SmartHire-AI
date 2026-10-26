@@ -3,6 +3,7 @@ const CandidateCodingStudio = lazy(() => import("./CandidateCodingStudio").then(
 import { RotateCcw } from "lucide-react";
 import type { CandidateQuestion, SavedAnswer } from "@/api/types/assessment";
 import { Button } from "@/components/ux/Button";
+import { Skeleton } from "@/components/ux/Skeleton";
 import { assessmentMuted } from "@/components/ux/assessmentUi";
 import { hasAnswer } from "../utils/hasAnswer";
 import { CandidateEssayWorkspace } from "./CandidateEssayWorkspace";
@@ -15,7 +16,18 @@ export function AssessmentAnswerInput({ submissionId, question, answer, onChange
   if (question.questionType === "CODING") {
     return (
       <div className="h-full min-h-0">
-        <Suspense fallback={<p role="status">Đang tải trình soạn thảo code…</p>}>
+        <Suspense
+          fallback={
+            <div className="flex h-full w-full flex-col gap-3 rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-4" role="status" aria-busy="true">
+              <div className="flex items-center justify-between border-b border-[var(--color-border-default)] pb-3">
+                <Skeleton className="h-6 w-48" />
+                <Skeleton className="h-8 w-24 rounded-lg" />
+              </div>
+              <Skeleton className="h-full min-h-[320px] w-full flex-1 rounded-xl" />
+              <span className="sr-only">Đang tải trình soạn thảo code…</span>
+            </div>
+          }
+        >
           <CandidateCodingStudio
             key={questionId}
             submissionId={submissionId}

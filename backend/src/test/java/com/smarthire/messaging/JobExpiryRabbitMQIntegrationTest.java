@@ -32,7 +32,7 @@ public class JobExpiryRabbitMQIntegrationTest {
 
         // 2. Gửi tin nhắn hẹn giờ vào RabbitMQ
         rabbitTemplate.convertAndSend(jobExpiryExchange, com.smarthire.config.RabbitMqConfig.RK, testJobId, message -> {
-            message.getMessageProperties().setDelay(delayMs);
+            message.getMessageProperties().setDelayLong((long) delayMs);
             message.getMessageProperties().setHeader("X-Tenant-ID", tenantId);
             return message;
         });

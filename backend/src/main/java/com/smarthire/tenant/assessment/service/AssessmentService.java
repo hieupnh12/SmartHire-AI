@@ -47,12 +47,22 @@ public class AssessmentService {
     }
 
     @Transactional(readOnly = true)
-    public JobTestPage list(int page, int size) {
+    public JobTestPage list(Long jobId, int page, int size) {
         requireStaff();
         int safePage = Math.max(page, 0);
-        int safeSize = Math.min(Math.max(size, 1), 50);
-        var result = tests.findAll(PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "id")));
+        int safeSize = Math.min(Math.max(size, 1), 100);
+        org.springframework.data.domain.Page<JobTest> result;
+        if (jobId != null) {
+            result = tests.findByJob_Id(jobId, PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "id")));
+        } else {
+            result = tests.findAll(PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "id")));
+        }
         return new JobTestPage(result.map(mapper::response).getContent(), result.getTotalElements(), safePage, safeSize);
+    }
+
+    @Transactional(readOnly = true)
+    public JobTestPage list(int page, int size) {
+        return list(null, page, size);
     }
 
     @Transactional(readOnly = true)

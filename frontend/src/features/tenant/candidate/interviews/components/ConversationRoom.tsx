@@ -4,6 +4,7 @@ import { Bot, Mic, Send, Square, Volume2 } from "lucide-react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { Button } from "@/components/ux/Button";
+import { Skeleton } from "@/components/ux/Skeleton";
 import { interviewConversationApi, type Conversation, type ConversationMessage } from "@/api/tenant/interviewConversationApi";
 import { getApiErrorMessage } from "@/lib/axios";
 import { useConversationVoice } from "../hooks/useConversationVoice";
@@ -105,7 +106,23 @@ export function ConversationRoom({ id, active, disabled, voiceEnabled, recording
       } else { setError(getApiErrorMessage(failure)); setSpeaking(null); }
     }
   }
-  if (session.isPending) return <p role="status">Đang tải hội thoại…</p>;
+  if (session.isPending) {
+    return (
+      <section className="space-y-4 rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-4 sm:p-6" role="status" aria-busy="true">
+        <div className="flex items-center justify-between border-b border-[var(--color-border-default)] pb-4">
+          <Skeleton className="h-6 w-52" />
+          <Skeleton className="h-4 w-32" />
+        </div>
+        <div className="space-y-4 py-4">
+          <Skeleton className="h-16 w-3/4 rounded-2xl" />
+          <Skeleton className="ml-auto h-20 w-2/3 rounded-2xl" />
+          <Skeleton className="h-20 w-4/5 rounded-2xl" />
+        </div>
+        <Skeleton className="h-24 w-full rounded-xl" />
+        <span className="sr-only">Đang tải hội thoại…</span>
+      </section>
+    );
+  }
   if (session.isError) return <div role="alert"><p>{getApiErrorMessage(session.error)}</p><Button onClick={() => void session.refetch()}>Tải lại hội thoại</Button></div>;
   return <section className="space-y-4 rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-4 sm:p-6" aria-label="Hội thoại phỏng vấn">
     <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="flex items-center gap-2 font-semibold"><Bot className="size-5 text-[var(--color-primary)]" aria-hidden="true" />SmartHire AI Interviewer</h2>

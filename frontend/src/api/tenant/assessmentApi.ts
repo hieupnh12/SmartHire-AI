@@ -7,18 +7,14 @@ export const assessmentApi = {
   gradingDetail: (id: number) => api.get<ApiResponse<SubmissionGradingDetail>>(`/submissions/${id}/grading_detail`).then(r => r.data.data),
   updateGradingResult: (id: number, decisions: GradeDecision[]) => api.post<ApiResponse<SubmissionGradingDetail>>(`/submissions/${id}/update_grading_result`, { decisions }).then(r => r.data.data),
   sendResultEmail: (id: number) => api.post<ApiResponse<ResultEmailReceipt>>(`/submissions/${id}/send_result_email`).then(r => r.data.data),
-  list: (page = 0, size = 20) => api.get<ApiResponse<TestPage>>("/assessments/list_tenant_tests", { params: { page, size } }).then(r => r.data.data),
-  listForJob: async (jobId: number) => {
-    const items: JobTest[] = [];
-    let page = 0;
-    let result: TestPage;
-    do {
-      result = await assessmentApi.list(page, 50);
-      items.push(...result.items.filter(test => test.jobId === jobId));
-      page += 1;
-    } while (result.items.length > 0 && page * result.size < result.total);
-    return { items, total: items.length, page: 0, size: items.length };
+  list: (paramsOrPage: { jobId?: number; page?: number; size?: number } | number = 0, size = 20) => {
+    const params = typeof paramsOrPage === "object" ? paramsOrPage : { page: paramsOrPage, size };
+    return api.get<ApiResponse<TestPage>>("/assessments/list_tenant_tests", { params }).then(r => r.data.data);
   },
+  listForJob: (jobId: number, params: { page?: number; size?: number } = {}) =>
+    api.get<ApiResponse<TestPage>>("/assessments/list_tenant_tests", {
+      params: { jobId, page: params.page ?? 0, size: params.size ?? 100 },
+    }).then(r => r.data.data),
   get: (id: number) => api.get<ApiResponse<JobTest>>(`/assessments/get_test_metadata/${id}`).then(r => r.data.data),
   create: (body: TestRequest) => api.post<ApiResponse<JobTest>>("/assessments/create_draft_test", body).then(r => r.data.data),
   update: (id: number, body: TestRequest) => api.put<ApiResponse<JobTest>>(`/assessments/update_draft_test/${id}`, body).then(r => r.data.data),

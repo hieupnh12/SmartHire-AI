@@ -4,6 +4,7 @@ import { assessmentApi } from "@/api/tenant/assessmentApi";
 import { getApiErrorMessage } from "@/lib/axios";
 import { queryKeys } from "@/lib/query-keys";
 import { button, input, muted } from "@/features/tenant/recruiter/matching/components/rankingUi";
+import { Skeleton } from "@/components/ux/Skeleton";
 import type { ApplicationDetail } from "@/api/types/applicant";
 
 export function SendAssessmentPanel({ detail, onSent }: { detail: ApplicationDetail; onSent: () => void }) {
@@ -26,7 +27,7 @@ export function SendAssessmentPanel({ detail, onSent }: { detail: ApplicationDet
     <div className="space-y-2">
       <p className="font-semibold">Gửi assessment</p>
       <p className={muted}>Nhắc lại đề đã được giao riêng cho hồ sơ này. Đề dùng chung của job không mở cho ứng viên.</p>
-      {tests.isPending && <p className={muted}>Đang tải đề…</p>}
+      {tests.isPending && <Skeleton className="h-10 w-full sm:max-w-xs" />}
       {tests.isError && <p role="alert">{getApiErrorMessage(tests.error)}</p>}
       {tests.isSuccess && published.length === 0 && <p className={muted}>Job này chưa có đề đã xuất bản.</p>}
       {selected && (

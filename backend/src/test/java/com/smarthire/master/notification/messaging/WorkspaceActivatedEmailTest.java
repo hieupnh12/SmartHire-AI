@@ -17,8 +17,6 @@ import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.spring6.SpringTemplateEngine;
 import org.thymeleaf.templatemode.TemplateMode;
 import org.thymeleaf.templateresolver.ClassLoaderTemplateResolver;
-
-import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -90,7 +88,8 @@ class WorkspaceActivatedEmailTest {
         MasterEmailPayload payload = MasterEmailPayload.builder()
                 .tenantCode(tenantCode)
                 .toEmail(adminEmail)
-                .subject("SmartHire-AI - Kích hoạt không gian làm việc & Thiết lập mật khẩu [Công ty Cổ phần Công nghệ Acme]")
+                .subject(
+                        "SmartHire-AI - Kích hoạt không gian làm việc & Thiết lập mật khẩu [Công ty Cổ phần Công nghệ Acme]")
                 .templateName("workspace-activated")
                 .templateVariables(vars)
                 .notificationType("WORKSPACE_ACTIVATED")
@@ -105,7 +104,8 @@ class WorkspaceActivatedEmailTest {
 
         MimeMessage sentMessage = messageCaptor.getValue();
         assertThat(sentMessage).isNotNull();
-        assertThat(sentMessage.getSubject()).isEqualTo("SmartHire-AI - Kích hoạt không gian làm việc & Thiết lập mật khẩu [Công ty Cổ phần Công nghệ Acme]");
+        assertThat(sentMessage.getSubject()).isEqualTo(
+                "SmartHire-AI - Kích hoạt không gian làm việc & Thiết lập mật khẩu [Công ty Cổ phần Công nghệ Acme]");
 
         // Render nội dung HTML trực tiếp qua Thymeleaf Engine để kiểm tra chính xác
         org.thymeleaf.context.Context context = new org.thymeleaf.context.Context();
@@ -136,7 +136,8 @@ class WorkspaceActivatedEmailTest {
         assertThat(savedLog.getType()).isEqualTo("WORKSPACE_ACTIVATED");
         assertThat(savedLog.getStatus()).isEqualTo("SUCCESS");
 
-        // 6. Xuất file HTML preview ra target/test-output để người dùng có thể mở xem trực quan
+        // 6. Xuất file HTML preview ra target/test-output để người dùng có thể mở xem
+        // trực quan
         Path outputDir = Path.of("target", "test-email-preview");
         Files.createDirectories(outputDir);
         Path previewFile = outputDir.resolve("workspace-activated-preview.html");

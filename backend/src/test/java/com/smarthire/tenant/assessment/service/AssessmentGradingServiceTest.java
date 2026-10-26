@@ -5,7 +5,6 @@ import com.smarthire.domain.enums.*;
 import com.smarthire.domain.tenant.entity.*;
 import com.smarthire.domain.tenant.repository.*;
 import com.smarthire.tenant.aiInterview.ai.AiInterviewClient;
-import com.smarthire.tenant.assessment.dto.request.*;
 import com.smarthire.tenant.assessment.mapper.AssessmentMapper;
 import com.smarthire.tenant.cv.service.CvAccess;
 import java.math.BigDecimal;

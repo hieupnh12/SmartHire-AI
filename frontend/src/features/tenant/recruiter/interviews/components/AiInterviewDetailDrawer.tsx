@@ -8,6 +8,7 @@ import { Bot, CalendarClock, CheckCircle2, ChevronRight, CircleAlert, Gauge, Loc
 import { aiInterviewApi } from "@/api/tenant/aiInterviewApi";
 import { COMPETENCY_LABELS, type AiAnswer, type AiFeedback, type AiInterview, type AiQuestion, type AiQuestionRequest, type CompetencyKey } from "@/api/types/aiInterview";
 import { Button } from "@/components/ux/Button";
+import { Skeleton, SkeletonCard } from "@/components/ux/Skeleton";
 import { AssessmentError, FieldError, assessmentInput } from "@/components/ux/assessmentUi";
 import { queryKeys } from "@/lib/query-keys";
 import { toast } from "@/stores/toastStore";
@@ -63,7 +64,16 @@ export function AiInterviewDetailDrawer({ interviewId, jobId, candidateName, onC
       </header>
       <div className="mx-auto w-full max-w-[1440px] space-y-6 p-4 sm:p-8">
         <AssessmentError error={detail.error} retry={() => void detail.refetch()} />
-        {detail.isPending && <p role="status">Đang tải phiên phỏng vấn…</p>}
+        {detail.isPending && (
+          <div className="space-y-6" role="status" aria-busy="true">
+            <Skeleton className="h-10 w-72 rounded-xl" />
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+              {Array.from({ length: 6 }, (_, i) => <Skeleton key={i} className="h-24 rounded-2xl" />)}
+            </div>
+            <SkeletonCard className="h-64" />
+            <span className="sr-only">Đang tải phiên phỏng vấn…</span>
+          </div>
+        )}
         {interview && <>
           <PipelineStrip passed={interview.status === "PASSED"} />
 
@@ -121,10 +131,15 @@ export function AiInterviewDetailDrawer({ interviewId, jobId, candidateName, onC
           <details onToggle={event => setShowLogs(event.currentTarget.open)} className="group rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-4 shadow-sm sm:p-5">
             <summary className="cursor-pointer list-none rounded-lg font-semibold outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]/30 [&::-webkit-details-marker]:hidden"><span className="inline-flex items-center gap-2"><ChevronRight className="size-4 text-[var(--color-primary)] transition-transform group-open:rotate-90 motion-reduce:transition-none" aria-hidden="true" />Lịch sử xử lý AI Interview</span></summary>
             <AssessmentError error={logs.error} retry={() => void logs.refetch()} />
-            {showLogs && logs.isPending && <p role="status">Đang tải lịch sử…</p>}
+            {showLogs && logs.isPending && (
+              <div className="mt-3 space-y-2" role="status" aria-busy="true">
+                <Skeleton className="h-10 w-full rounded-lg" />
+                <Skeleton className="h-10 w-full rounded-lg" />
+                <span className="sr-only">Đang tải lịch sử…</span>
+              </div>
+            )}
             <ol className="mt-3 space-y-3">{logs.data?.map(log => <li key={log.id} className="text-sm"><p className="font-medium">{log.event} · {formatDateTime(log.createdAt)}</p><p className="break-words text-[var(--color-on-surface-variant)]">{log.detail}</p></li>)}</ol>
           </details>
-          </div>
           </div>
         </>}
       </div>

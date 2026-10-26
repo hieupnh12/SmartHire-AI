@@ -6,6 +6,7 @@ import { Check, CheckCircle2, Code2, FileText, Mail, RefreshCw } from "lucide-re
 import { assessmentApi } from "@/api/tenant/assessmentApi";
 import type { GradeDecision, GradingReview, SubmissionGradingDetail as GradingDetail } from "@/api/types/assessment";
 import { Button } from "@/components/ux/Button";
+import { Skeleton, SkeletonCard } from "@/components/ux/Skeleton";
 import { AssessmentError, assessmentInput, FieldError } from "@/components/ux/assessmentUi";
 import { queryKeys } from "@/lib/query-keys";
 import { useUiStore } from "@/stores/uiStore";
@@ -61,7 +62,13 @@ export function SubmissionGradingDetail({ id, onClose }: { id: number; onClose: 
     <AssessmentError error={query.error} retry={() => void query.refetch()} />
     <AssessmentError error={approve.error || update.error || email.error || retry.error} />
     {notice && <p role="status" className="rounded-lg bg-[var(--color-primary-subtle)] p-3 text-sm text-[var(--color-primary)]">{notice}</p>}
-    {query.isPending && <p role="status">Đang tải kết quả và bằng chứng chấm điểm…</p>}
+    {query.isPending && (
+      <div className="space-y-4">
+        <Skeleton className="h-24 w-full rounded-xl" />
+        <SkeletonCard className="h-44" />
+        <SkeletonCard className="h-44" />
+      </div>
+    )}
     {Object.keys(errors.scores ?? {}).length > 0 && <div ref={errorSummary} tabIndex={-1} role="alert" className="rounded-lg border border-[var(--color-status-danger)] p-3 text-sm"><p className="font-medium">Kiểm tra điểm ghi đè trước khi lưu:</p>{Object.entries(errors.scores ?? {}).map(([questionId, error]) => <a key={questionId} href={`#override-${id}-${questionId}`} className="mt-1 block underline">Câu #{questionId}: {error?.message}</a>)}</div>}
     {detail && <>
       <div className={card}><h3 className="font-semibold">Kết quả chính thức</h3><p className="text-2xl font-semibold">{detail.score == null ? "Chờ duyệt đầy đủ" : `${display(detail.score)} / ${detail.totalPoints} điểm`}</p><p className="text-sm">{detail.passingScore == null ? "Không đặt ngưỡng đạt" : `Ngưỡng đạt: ${display(detail.passingScore)} điểm`}{detail.score != null && detail.passingScore != null ? detail.score >= detail.passingScore ? " · Đạt yêu cầu" : " · Chưa đạt yêu cầu" : ""}</p></div>

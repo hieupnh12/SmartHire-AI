@@ -26,6 +26,7 @@ import {
 } from "@/api/master/aiConfigApi";
 import { AddAiKeyModal } from "./AddAiKeyModal";
 import { HeaderActions } from "@/features/master/shell/HeaderActions";
+import { PageSkeleton } from "@/components/ux/Skeleton";
 import { cn } from "@/lib/utils";
 
 const surface = "rounded-2xl border border-slate-200 bg-white shadow-[0_4px_14px_-8px_rgba(15,23,42,0.18)]";
@@ -474,14 +475,7 @@ export function AiEngineConfiguration() {
   };
 
   if (loading) {
-    return (
-      <div className="flex min-h-[400px] items-center justify-center">
-        <div className="flex flex-col items-center gap-3 text-slate-500">
-          <Loader2 className="size-8 animate-spin text-blue-600" />
-          <p className="text-sm font-medium">Đang tải cấu hình AI Engine...</p>
-        </div>
-      </div>
-    );
+    return <PageSkeleton variant="detail" />;
   }
 
   return (

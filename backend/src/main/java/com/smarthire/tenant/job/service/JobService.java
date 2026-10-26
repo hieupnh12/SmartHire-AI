@@ -509,7 +509,7 @@ public class JobService {
         }
         try {
             rabbitTemplate.convertAndSend(jobExpiryExchange, com.smarthire.config.RabbitMqConfig.RK, job.getId(), message -> {
-                message.getMessageProperties().setDelay((int) Math.min(delay, Integer.MAX_VALUE));
+                message.getMessageProperties().setDelayLong(Math.min(delay, (long) Integer.MAX_VALUE));
                 message.getMessageProperties().setHeader("X-Tenant-ID", com.smarthire.multitenancy.context.TenantContext.getCurrentTenant());
                 return message;
             });

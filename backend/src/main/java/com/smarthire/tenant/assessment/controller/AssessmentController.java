@@ -44,10 +44,12 @@ public class AssessmentController {
 
     @GetMapping("/list_tenant_tests")
     @Operation(summary = "List JobTests in tenant (staff only)",
-            description = "Newest first. Zero-based page; size limited to 1-50.")
-    public ApiResponse<JobTestPage> list(@RequestParam(defaultValue = "0") int page,
+            description = "Newest first. Zero-based page; size limited to 1-100.")
+    public ApiResponse<JobTestPage> list(
+            @RequestParam(required = false) Long jobId,
+            @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        return ApiResponse.ok(assessmentService.list(page, size));
+        return ApiResponse.ok(assessmentService.list(jobId, page, size));
     }
 
     @GetMapping("/get_test_metadata/{id}")

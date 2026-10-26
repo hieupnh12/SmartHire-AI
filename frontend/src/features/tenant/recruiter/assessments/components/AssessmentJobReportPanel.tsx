@@ -1,20 +1,23 @@
 import { useQuery } from "@tanstack/react-query";
-import { BarChart3 } from "lucide-react";
+import { CheckCircle2, Clock3, ShieldAlert, ShieldCheck, Users } from "lucide-react";
 import { assessmentApi } from "@/api/tenant/assessmentApi";
 import { AssessmentError } from "@/components/ux/assessmentUi";
 import { queryKeys } from "@/lib/query-keys";
+import { cn } from "@/lib/utils";
 
-const display = (value: number | null | undefined) =>
-  value == null ? "—" : Number(value.toFixed(1)).toLocaleString("vi-VN");
-
-function formatDuration(seconds: number | null) {
-  if (seconds == null) return "—";
+function formatDuration(seconds: number | null | undefined) {
+  if (seconds == null || seconds <= 0) return "—";
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
-  return m > 0 ? `${m} phút ${s}s` : `${s}s`;
+  if (m > 0 && s > 0) return `${m}p ${s}s`;
+  if (m > 0) return `${m} phút`;
+  return `${s}s`;
 }
 
-/** Pass-rate / duration / custom-run / proctor summary for one job. */
+/**
+ * Compact Stat Bar (1 dòng): Pass-rate, TB thời gian, Tín hiệu giám sát, Tổng lượt làm.
+ * Thay thế hoàn toàn khối báo cáo lớn và bảng con trùng lặp, tối ưu 100% diện tích First Fold.
+ */
 export function AssessmentJobReportPanel({ jobId }: { jobId: number }) {
   const report = useQuery({
     queryKey: [...queryKeys.assessments.all(), "job-report", jobId],
@@ -22,98 +25,113 @@ export function AssessmentJobReportPanel({ jobId }: { jobId: number }) {
     refetchInterval: 30_000,
   });
 
+  const questions = report.data?.questions ?? [];
+  const attempts = report.data?.attempts ?? [];
+
+  // Metrics calculation
+  const gradedAttempts = attempts.filter((a) => a.score != null);
+  const passedAttempts = gradedAttempts.filter((a) => a.totalPoints && (a.score! / a.totalPoints) >= 0.5);
+  const passRate = gradedAttempts.length
+    ? Math.round((passedAttempts.length / gradedAttempts.length) * 100)
+    : questions.length
+    ? Math.round(questions.reduce((acc, q) => acc + (q.passRatePercent ?? 0), 0) / questions.length)
+    : null;
+
+  const withDuration = attempts.filter((a) => a.durationSeconds != null && a.durationSeconds > 0);
+  const avgDurationSec = withDuration.length
+    ? Math.round(withDuration.reduce((acc, a) => acc + a.durationSeconds!, 0) / withDuration.length)
+    : null;
+
+  const totalProctorEvents = attempts.reduce((acc, a) => acc + (a.proctorEventCount ?? 0), 0);
+  const totalSubmissions = attempts.length;
+  const submittedCount = attempts.filter((a) => a.status === "SUBMITTED" || a.status === "GRADED").length;
+  const expiredCount = attempts.filter((a) => a.status === "EXPIRED").length;
+
   return (
-    <section
-      aria-label="Báo cáo assessment theo job"
-      className="space-y-4 rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-4 shadow-[var(--shadow-card)] sm:p-5"
-    >
-      <header className="flex items-center gap-2">
-        <BarChart3 className="size-5 text-[var(--color-primary)]" aria-hidden="true" />
-        <div>
-          <h2 className="font-semibold">Báo cáo theo vị trí</h2>
-          <p className="text-xs text-[var(--color-on-surface-variant)]">
-            Pass-rate theo câu, thời gian làm, số custom-run và sự kiện giám sát.
-          </p>
-        </div>
-      </header>
+    <section aria-label="Báo cáo tóm tắt bài làm" className="flex flex-col gap-2">
       <AssessmentError error={report.error} retry={() => void report.refetch()} />
-      {report.isPending && <p role="status" className="text-sm text-[var(--color-on-surface-variant)]">Đang tải báo cáo…</p>}
-      {report.data && (
-        <>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[520px] text-left text-sm">
-              <caption className="sr-only">Pass-rate theo câu hỏi</caption>
-              <thead>
-                <tr className="border-b border-[var(--color-border-default)] text-xs uppercase text-[var(--color-on-surface-variant)]">
-                  <th scope="col" className="p-2">Câu</th>
-                  <th scope="col" className="p-2">Loại</th>
-                  <th scope="col" className="p-2">Đã chấm</th>
-                  <th scope="col" className="p-2">Full credit</th>
-                  <th scope="col" className="p-2">Pass-rate</th>
-                  <th scope="col" className="p-2">TB % điểm</th>
-                </tr>
-              </thead>
-              <tbody>
-                {report.data.questions.length === 0 && (
-                  <tr>
-                    <td colSpan={6} className="p-3 text-[var(--color-on-surface-variant)]">
-                      Chưa có câu đã chấm điểm.
-                    </td>
-                  </tr>
-                )}
-                {report.data.questions.map((row) => (
-                  <tr key={row.questionId} className="border-t border-[var(--color-border-default)]">
-                    <td className="p-2">#{row.questionId}</td>
-                    <td className="p-2">{row.type}</td>
-                    <td className="p-2">{row.graded}</td>
-                    <td className="p-2">{row.fullCredit}</td>
-                    <td className="p-2">{display(row.passRatePercent)}%</td>
-                    <td className="p-2">{display(row.avgScorePercent)}%</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+
+      {/* 4 Compact Metric Cards (1 dòng gọn gàng) */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {/* Pass-rate */}
+        <div className="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs dark:border-slate-800 dark:bg-slate-900">
+          <div className="flex items-center gap-2">
+            <div className="grid size-7 place-items-center rounded-lg bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400">
+              <CheckCircle2 className="size-4" />
+            </div>
+            <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Pass-rate TB</p>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] text-left text-sm">
-              <caption className="sr-only">Lượt làm và tín hiệu anti-cheat nhẹ</caption>
-              <thead>
-                <tr className="border-b border-[var(--color-border-default)] text-xs uppercase text-[var(--color-on-surface-variant)]">
-                  <th scope="col" className="p-2">Ứng viên</th>
-                  <th scope="col" className="p-2">Đề</th>
-                  <th scope="col" className="p-2">Trạng thái</th>
-                  <th scope="col" className="p-2">Điểm</th>
-                  <th scope="col" className="p-2">Thời gian</th>
-                  <th scope="col" className="p-2">Custom run</th>
-                  <th scope="col" className="p-2">Proctor</th>
-                </tr>
-              </thead>
-              <tbody>
-                {report.data.attempts.length === 0 && (
-                  <tr>
-                    <td colSpan={7} className="p-3 text-[var(--color-on-surface-variant)]">
-                      Chưa có lượt nộp.
-                    </td>
-                  </tr>
-                )}
-                {report.data.attempts.map((row) => (
-                  <tr key={row.submissionId} className="border-t border-[var(--color-border-default)]">
-                    <td className="p-2">{row.candidateName}</td>
-                    <td className="max-w-[12rem] truncate p-2" title={row.testTitle}>{row.testTitle}</td>
-                    <td className="p-2">{row.status}</td>
-                    <td className="p-2">
-                      {row.score == null ? "—" : `${display(row.score)}/${row.totalPoints ?? "—"}`}
-                    </td>
-                    <td className="p-2">{formatDuration(row.durationSeconds)}</td>
-                    <td className="p-2">{row.customRunCount}</td>
-                    <td className="p-2">{row.proctorEventCount}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="mt-2">
+            <p className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
+              {passRate != null ? `${passRate}%` : "—"}
+            </p>
+            <p className="mt-0.5 truncate text-[11px] text-slate-500 dark:text-slate-400">
+              {gradedAttempts.length ? `${passedAttempts.length}/${gradedAttempts.length} lượt đạt yêu cầu` : "Chưa có bài chấm"}
+            </p>
           </div>
-        </>
-      )}
+        </div>
+
+        {/* Average Duration */}
+        <div className="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs dark:border-slate-800 dark:bg-slate-900">
+          <div className="flex items-center gap-2">
+            <div className="grid size-7 place-items-center rounded-lg bg-sky-50 text-sky-600 dark:bg-sky-950/40 dark:text-sky-400">
+              <Clock3 className="size-4" />
+            </div>
+            <p className="text-xs font-medium text-slate-500 dark:text-slate-400">TB Thời gian</p>
+          </div>
+          <div className="mt-2">
+            <p className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
+              {formatDuration(avgDurationSec)}
+            </p>
+            <p className="mt-0.5 truncate text-[11px] text-slate-500 dark:text-slate-400">
+              {withDuration.length ? `Dựa trên ${withDuration.length} lượt hoàn thành` : "Đang ghi nhận"}
+            </p>
+          </div>
+        </div>
+
+        {/* Proctor / Anti-cheat */}
+        <div className="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs dark:border-slate-800 dark:bg-slate-900">
+          <div className="flex items-center gap-2">
+            <div
+              className={cn(
+                "grid size-7 place-items-center rounded-lg",
+                totalProctorEvents > 0
+                  ? "bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400"
+                  : "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400"
+              )}
+            >
+              {totalProctorEvents > 0 ? <ShieldAlert className="size-4" /> : <ShieldCheck className="size-4" />}
+            </div>
+            <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Tín hiệu Vi phạm</p>
+          </div>
+          <div className="mt-2">
+            <p className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
+              {totalProctorEvents} <span className="text-xs font-normal text-slate-500">cảnh báo</span>
+            </p>
+            <p className="mt-0.5 truncate text-[11px] text-slate-500 dark:text-slate-400">
+              {totalProctorEvents > 0 ? "Phát hiện rời tab / đổi cửa sổ" : "Môi trường thi an toàn"}
+            </p>
+          </div>
+        </div>
+
+        {/* Total Attempts */}
+        <div className="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs dark:border-slate-800 dark:bg-slate-900">
+          <div className="flex items-center gap-2">
+            <div className="grid size-7 place-items-center rounded-lg bg-[var(--color-primary-subtle)] text-[var(--color-primary)]">
+              <Users className="size-4" />
+            </div>
+            <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Tổng lượt làm</p>
+          </div>
+          <div className="mt-2">
+            <p className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
+              {totalSubmissions} <span className="text-xs font-normal text-slate-500">lượt</span>
+            </p>
+            <p className="mt-0.5 truncate text-[11px] text-slate-500 dark:text-slate-400">
+              {submittedCount} đã nộp{expiredCount > 0 ? ` · ${expiredCount} quá giờ` : ""}
+            </p>
+          </div>
+        </div>
+      </div>
     </section>
   );
 }
