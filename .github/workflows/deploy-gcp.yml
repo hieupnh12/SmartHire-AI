@@ -1,6 +1,5 @@
 # Build application images, push them to Docker Hub, then pull and run them on the VPS.
 name: Build images and deploy VPS
-
 on:
   workflow_dispatch:
   push:
@@ -27,6 +26,7 @@ jobs:
   build:
     name: Build and push Docker images
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
@@ -77,6 +77,7 @@ jobs:
     name: Pull images on VPS
     needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 

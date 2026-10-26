@@ -34,6 +34,7 @@ import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 import { useUiStore } from "@/stores/uiStore";
 import { toast } from "@/stores/toastStore";
+import { Breadcrumb } from "@/components/ux/Breadcrumb";
 import { LoadingState, TableSkeleton } from "@/components/ux/Skeleton";
 import { applicationStatusLabel, button, input, primary } from "@/features/tenant/recruiter/matching/components/rankingUi";
 import { ApplicationPipeline } from "@/features/tenant/recruiter/matching/components/recruitmentFlow";
@@ -143,19 +144,15 @@ export function ApplicantsPage() {
     <section className="mx-auto flex w-full max-w-[1440px] flex-col gap-6 text-[var(--color-on-surface)]">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex min-w-0 flex-col gap-2">
-          <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-1.5 text-xs font-medium text-[var(--color-on-surface-variant)]">
-            <Link to="/recruiter" className="transition-colors hover:text-brand-primary">Việc làm</Link>
-            {jobId != null && (
-              <>
-                <span aria-hidden="true">/</span>
-                <Link to={`/recruiter/jobs/${jobId}`} className="max-w-[260px] truncate transition-colors hover:text-brand-primary">
-                  {jobInfo?.title ?? `#${jobId}`}
-                </Link>
-              </>
-            )}
-            <span aria-hidden="true">/</span>
-            <span className="text-[var(--color-on-surface)]">Ứng viên</span>
-          </nav>
+          <Breadcrumb
+            items={[
+              { label: "Việc làm", to: "/recruiter" },
+              ...(jobId != null
+                ? [{ label: jobInfo?.title ?? `#${jobId}`, to: `/recruiter/jobs/${jobId}` }]
+                : []),
+              { label: "Ứng viên" },
+            ]}
+          />
           <div className="flex items-center gap-2">
             <div className="h-7 w-2.5 rounded-full bg-[var(--color-primary)]" />
             <h1 className="text-[30px] font-semibold leading-[38px] tracking-tight">Quản lý ứng viên</h1>

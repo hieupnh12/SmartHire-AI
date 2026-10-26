@@ -19,12 +19,13 @@ class SubmissionGradingDetailServiceTest {
     final QuestionRepository questions = mock(QuestionRepository.class);
     final AnswerRepository answers = mock(AnswerRepository.class);
     final EmailOutboxRepository emails = mock(EmailOutboxRepository.class);
+    final ProctorEventRepository proctorEvents = mock(ProctorEventRepository.class);
     final AssessmentGradingService grading = mock(AssessmentGradingService.class);
     final SubmissionService room = mock(SubmissionService.class);
     final CvAccess access = mock(CvAccess.class);
     final NotificationPreferenceService preferences = mock(NotificationPreferenceService.class);
-    final AssessmentProctorEventRepository proctorEvents = mock(AssessmentProctorEventRepository.class);
-    final SubmissionGradingDetailService service = new SubmissionGradingDetailService(submissions, questions, answers, emails, grading, room, access, preferences, proctorEvents);
+    final SubmissionGradingDetailService service = new SubmissionGradingDetailService(
+            submissions, questions, answers, emails, proctorEvents, grading, room, access, preferences);
     Submission submission;
     Question objective;
     Answer objectiveAnswer;
@@ -40,6 +41,7 @@ class SubmissionGradingDetailServiceTest {
         lenient().when(questions.findByTest_IdOrderByQuestionOrderAscIdAsc(2L)).thenReturn(List.of(objective));
         lenient().when(answers.findBySubmission_IdOrderByQuestion_QuestionOrderAscQuestion_IdAsc(1L)).thenReturn(List.of(objectiveAnswer));
         lenient().when(grading.reviews(1L)).thenReturn(List.of());
+        lenient().when(proctorEvents.findBySubmission_IdOrderByCreatedAtAsc(1L)).thenReturn(List.of());
     }
 
     @Test void objectiveSummaryCountsUnansweredQuestionsAndUsesPersistedGrade() {
@@ -76,11 +78,14 @@ class SubmissionGradingDetailServiceTest {
 
     @Test void queuesOfficialResultWithoutRubricOrSourceAndRespectsPreferences() {
         submission.setScore(new BigDecimal("10.00")); submission.setStatus(TestSubmissionStatus.GRADED);
+        when(emails.findFirstByPurposeAndReferenceKeyOrderByIdDesc(eq("ASSESSMENT_RESULT"), anyString())).thenReturn(Optional.empty());
         when(emails.findFirstByPurposeAndToEmailAndSubjectAndBodyOrderByIdDesc(anyString(), anyString(), anyString(), anyString())).thenReturn(Optional.empty());
         when(emails.save(any())).thenAnswer(call -> { EmailOutbox email = call.getArgument(0); email.setId(7L); return email; });
         var receipt = service.sendResult(1L);
         assertThat(receipt.status()).isEqualTo(NotificationStatus.PENDING);
-        verify(emails).save(argThat(email -> email.getPurpose().equals("ASSESSMENT_RESULT") && email.getToEmail().equals("candidate@example.test") && email.getBody().contains("10/10")));
+        verify(emails).save(argThat(email -> email.getPurpose().equals("ASSESSMENT_RESULT")
+                && "assessment-result:1".equals(email.getReferenceKey())
+                && email.getToEmail().equals("candidate@example.test") && email.getBody().contains("10/10")));
         when(preferences.emailOff(any(Candidate.class), eq(NotificationCategory.ASSESSMENT))).thenReturn(true);
         assertThatThrownBy(() -> service.sendResult(1L)).hasMessageContaining("disabled assessment");
     }
@@ -88,7 +93,9 @@ class SubmissionGradingDetailServiceTest {
     @Test void repeatedResultRequestsReuseOutboxAndFailedEmailCanBeRetried() {
         submission.setScore(new BigDecimal("10"));
         var existing = new EmailOutbox(); existing.setId(7L); existing.setStatus(NotificationStatus.SENT);
-        when(emails.findFirstByPurposeAndToEmailAndSubjectAndBodyOrderByIdDesc(anyString(), anyString(), anyString(), anyString())).thenReturn(Optional.of(existing));
+        existing.setReferenceKey("assessment-result:1");
+        when(emails.findFirstByPurposeAndReferenceKeyOrderByIdDesc(eq("ASSESSMENT_RESULT"), eq("assessment-result:1")))
+                .thenReturn(Optional.of(existing));
         assertThat(service.sendResult(1L).id()).isEqualTo(7L);
         verify(emails, never()).save(any());
         existing.setStatus(NotificationStatus.FAILED); existing.setAttempts(3);

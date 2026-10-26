@@ -1,7 +1,6 @@
 import { useRecruitmentJob } from "../../jobs/components/JobRecruitmentWorkspace";
-import { AiQuestionGenerationPanel } from "../components/AiQuestionGenerationPanel";
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import {
   Archive,
@@ -26,11 +25,13 @@ import {
   X,
 } from "lucide-react";
 import { questionBankApi } from "@/api/tenant/questionBankApi";
+import { AiQuestionGenerateDialog } from "../components/AiQuestionGenerateDialog";
 import { matchesJobBank } from "../utils/jobQuestionBank";
 import { bankQuestionAuthoring } from "../utils/bankQuestionAuthoring";
 import { typeMeta, type BankQuestion as BankQuestionAuthoring } from "../constants/excelTemplateMock";
 import type { Question, TestStatus } from "@/api/types/assessment";
 import { AssessmentError } from "@/components/ux/assessmentUi";
+import { Breadcrumb } from "@/components/ux/Breadcrumb";
 import { SKILL_CATALOG } from "@/features/tenant/recruiter/jobs/skillCatalog";
 import { queryKeys } from "@/lib/query-keys";
 import { getTenantIdFromWindow } from "@/lib/tenant";
@@ -58,7 +59,12 @@ type BankRow = {
   code: string;
   skills: string[];
   difficulty: Difficulty;
+  aiGenerated: boolean;
 };
+
+function isAiGenerated(meta: Record<string, unknown> | null | undefined) {
+  return meta?.aiGenerated === true || meta?.aiGenerated === "true" || meta?.source === "AI";
+}
 
 const collections: { id: Collection; label: string; icon: typeof FolderOpen }[] = [
   { id: "all", label: "Tất cả câu hỏi", icon: FolderOpen },
@@ -149,6 +155,7 @@ function downloadCsv(rows: BankRow[]) {
 
 export function QuestionBankPage() {
   const job = useRecruitmentJob();
+  const client = useQueryClient();
   const basePath = `/recruiter/jobs/${job.id}/assessments`;
   const workspace = getTenantTheme(getTenantIdFromWindow() ?? "acme").name;
   const [collection, setCollection] = useState<Collection>("all");
@@ -167,6 +174,19 @@ export function QuestionBankPage() {
   const [drawerTab, setDrawerTab] = useState<DrawerTab>("content");
   const [menuKey, setMenuKey] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiOnly, setAiOnly] = useState(false);
+
+  const jobSkills = useMemo(() => job.skills?.map((item) => item.name).filter(Boolean) ?? [], [job.skills]);
+  const jobContext = useMemo(() => {
+    const parts = [
+      `Vị trí: ${job.title}`,
+      job.department ? `Phòng ban: ${job.department}` : "",
+      jobSkills.length ? `Kỹ năng: ${jobSkills.join(", ")}` : "",
+      job.description ? `JD: ${job.description}` : "",
+    ].filter(Boolean);
+    return parts.join("\n").slice(0, 1500);
+  }, [job, jobSkills]);
 
   const tests = useQuery({
     queryKey: [...queryKeys.assessments.all(), "general-bank"],
@@ -187,6 +207,7 @@ export function QuestionBankPage() {
       code: questionCode(item.question.id),
       skills: skillsOf(item.question.questionText, item.question.skill),
       difficulty: difficultyLabel(item.question.difficulty, item.question.points),
+      aiGenerated: isAiGenerated(item.authoringMetadata),
     }));
   }, [tests.data, job]);
   const questionPath = (row: BankRow) => row.testId && row.jobId
@@ -203,6 +224,7 @@ export function QuestionBankPage() {
     const q = query.trim().toLowerCase();
     const next = rows.filter((row) => {
       if (!matchesCollection(row, collection, favorites)) return false;
+      if (aiOnly && !row.aiGenerated) return false;
       if (skill && !row.skills.includes(skill)) return false;
       if (questionType) {
         const type = (row.question.questionType || "MCQ").toUpperCase();
@@ -229,7 +251,7 @@ export function QuestionBankPage() {
       return b.question.id - a.question.id;
     });
     return next;
-  }, [rows, collection, favorites, skill, questionType, difficulty, status, query, sort]);
+  }, [rows, collection, favorites, aiOnly, skill, questionType, difficulty, status, query, sort]);
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, pageCount - 1);
@@ -313,53 +335,46 @@ export function QuestionBankPage() {
 
   return (
     <section className="flex flex-col gap-5 text-[var(--color-on-surface)]">
-      <header className="flex flex-col gap-4">
-        <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-[var(--color-on-surface-variant)]">
-          <nav className="flex flex-wrap items-center gap-2" aria-label="Breadcrumb">
-            <Link to={basePath} className="hover:text-[var(--color-primary)]">Kho tài nguyên</Link>
-            <span>/</span>
-            <span className="font-semibold text-[var(--color-on-surface)]">Ngân hàng câu hỏi</span>
-            <span className="rounded-full bg-[var(--color-surface-container-high)] px-2 py-0.5 text-[11px] font-semibold">
+      <header>
+        <Breadcrumb
+          items={[
+            { label: "Kho tài nguyên", to: basePath },
+            { label: "Ngân hàng câu hỏi" },
+          ]}
+          meta={
+            <span className="rounded-full bg-[var(--color-surface-container-high)] px-2 py-0.5 text-[11px] font-semibold text-[var(--color-on-surface-variant)]">
               Workspace: {workspace}
             </span>
-          </nav>
-          <p className="inline-flex items-center gap-1.5">
-            <span className="size-2 rounded-full bg-emerald-500" />
-            {readyCount} câu sẵn sàng trên đề đã xuất bản
-          </p>
-        </div>
-        <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
-          <div className="max-w-3xl">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-3xl font-semibold tracking-tight">Ngân hàng câu hỏi</h1>
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--color-primary-subtle)] px-3 py-1 text-xs font-semibold text-[var(--color-primary)]">
-                <ClipboardList className="size-3.5" aria-hidden="true" />
-                {rows.length.toLocaleString("vi-VN")} câu hỏi đang lưu hành
-              </span>
-            </div>
-            <p className="mt-2 text-sm leading-6 text-[var(--color-on-surface-variant)]">
-              Tra cứu, phân loại theo vị trí và xem chi tiết câu hỏi đang dùng trong các bài đánh giá của workspace.
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <AiQuestionGenerationPanel />
-            <Link
-              to={`${basePath}/excel-template`}
-              className="inline-flex h-10 items-center gap-2 rounded-lg bg-[var(--color-surface-card)] px-4 text-sm font-medium shadow-sm ring-1 ring-[var(--color-border-default)] hover:bg-[var(--color-surface-container-low)]"
-            >
-              <Table2 className="size-4 text-emerald-600" aria-hidden="true" />
-              Nhập Excel
-            </Link>
-            <button
-              type="button"
-              onClick={() => downloadCsv(filtered)}
-              className="inline-flex h-10 items-center gap-2 rounded-lg bg-[var(--color-primary)] px-4 text-sm font-semibold text-white shadow-sm hover:bg-[var(--color-primary-hover)]"
-            >
-              <Download className="size-4" aria-hidden="true" />
-              Xuất ngân hàng
-            </button>
-          </div>
-        </div>
+          }
+          actions={
+            <>
+              <button
+                type="button"
+                onClick={() => setAiOpen(true)}
+                className="inline-flex h-9 items-center gap-2 rounded-lg bg-gradient-to-r from-violet-600 via-indigo-600 to-blue-600 px-3 text-sm font-semibold text-white shadow-md"
+              >
+                <Sparkles className="size-4 text-amber-200" aria-hidden="true" />
+                Sinh bằng AI
+                <span className="rounded bg-white/20 px-1.5 py-0.5 text-[10px] uppercase tracking-widest">GenAI</span>
+              </button>
+              <Link
+                to={`${basePath}/excel-template`}
+                className="inline-flex h-9 items-center gap-2 rounded-lg bg-[var(--color-surface-card)] px-3 text-sm font-medium shadow-sm ring-1 ring-[var(--color-border-default)] hover:bg-[var(--color-surface-container-low)]"
+              >
+                <Table2 className="size-4 text-emerald-600" aria-hidden="true" />
+                Nhập Excel
+              </Link>
+              <button
+                type="button"
+                onClick={() => downloadCsv(filtered)}
+                className="inline-flex h-9 items-center gap-2 rounded-lg bg-[var(--color-primary)] px-3 text-sm font-semibold text-white shadow-sm hover:bg-[var(--color-primary-hover)]"
+              >
+                <Download className="size-4" aria-hidden="true" />
+                Xuất ngân hàng
+              </button>
+            </>
+          }
+        />
       </header>
 
       <AssessmentError error={tests.error} retry={() => void tests.refetch()} />
@@ -438,7 +453,7 @@ export function QuestionBankPage() {
                 <span className="shrink-0 text-[var(--color-on-surface-variant)]">Kỹ năng</span>
                 <select aria-label="Lọc kỹ năng" value={skill} onChange={(event) => { setSkill(event.target.value); setPage(0); }} className="min-w-0 flex-1 bg-transparent font-semibold text-[var(--color-primary)] outline-none">
                   <option value="">Tất cả</option>
-                  {skillOptions.map((item) => <option key={item} value={item}>{item}</option>)}
+                  {(jobSkills.length ? [...new Set([...jobSkills, ...skillOptions])] : skillOptions).map((item) => <option key={item} value={item}>{item}</option>)}
                 </select>
               </label>
               <label className="flex min-w-0 items-center gap-2 rounded-lg bg-[var(--color-surface-container)] px-3 py-1.5 text-xs">
@@ -456,6 +471,10 @@ export function QuestionBankPage() {
                   <option value="ESSAY">Tự luận lý thuyết</option>
                   <option value="CODING">Bài tập Code</option>
                 </select>
+              </label>
+              <label className="flex min-w-0 items-center gap-2 rounded-lg bg-[var(--color-surface-container)] px-3 py-1.5 text-xs">
+                <input type="checkbox" className="size-4 accent-[var(--color-primary)]" checked={aiOnly} onChange={(e) => { setAiOnly(e.target.checked); setPage(0); }} />
+                <span>Chỉ câu AI</span>
               </label>
               <label className="flex min-w-0 items-center gap-2 rounded-lg bg-[var(--color-surface-container)] px-3 py-1.5 text-xs">
                 <span className="shrink-0 text-[var(--color-on-surface-variant)]">Độ khó</span>
@@ -556,19 +575,17 @@ export function QuestionBankPage() {
 
             {view === "table" && pageRows.length > 0 && (
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[980px] border-collapse text-left text-sm">
+                <table className="w-full min-w-[860px] table-fixed border-collapse text-left text-sm">
                   <thead>
                     <tr className="bg-[var(--color-surface-container-high)]/40 text-[11px] font-semibold uppercase tracking-wider text-[var(--color-on-surface-variant)]">
-                      <th className="w-10 px-4 py-3">
+                      <th className="w-10 px-3 py-2.5">
                         <input type="checkbox" checked={allPageSelected} aria-label="Chọn các câu trên trang" onChange={() => setSelected((current) => allPageSelected ? current.filter((key) => !pageKeys.includes(key)) : [...new Set([...current, ...pageKeys])])} className="size-4 accent-[var(--color-primary)]" />
                       </th>
-                      <th className="px-2 py-3">Mã & trạng thái</th>
-                      <th className="min-w-72 px-4 py-3">Nội dung câu hỏi</th>
-                      <th className="px-4 py-3">Kỹ năng</th>
-                      <th className="px-4 py-3">Phân loại</th>
-                      <th className="px-4 py-3">Mục đích</th>
-                      <th className="px-4 py-3">Nơi dùng</th>
-                      <th className="px-4 py-3 text-right">Thao tác</th>
+                      <th className="w-[42%] px-2 py-2.5">Câu hỏi</th>
+                      <th className="w-[16%] px-3 py-2.5">Kỹ năng</th>
+                      <th className="w-[16%] px-3 py-2.5">Phân loại</th>
+                      <th className="w-[20%] px-3 py-2.5">Nơi dùng</th>
+                      <th className="w-20 px-3 py-2.5 text-right">Thao tác</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--color-surface-container)]">
@@ -577,43 +594,57 @@ export function QuestionBankPage() {
                       const inspected = activeKey === row.key;
                       return (
                         <tr key={row.key} onClick={() => openRow(row.key)} className={cn("cursor-pointer", inspected ? "bg-[var(--color-primary-subtle)]" : "hover:bg-[var(--color-surface-container-low)]")}>
-                          <td className="px-4 py-3.5" onClick={(event) => event.stopPropagation()}>
+                          <td className="px-3 py-2.5" onClick={(event) => event.stopPropagation()}>
                             <input type="checkbox" checked={selected.includes(row.key)} aria-label={`Chọn ${row.code}`} onChange={() => toggleOne(row.key)} className="size-4 accent-[var(--color-primary)]" />
                           </td>
-                          <td className="px-2 py-3.5">
-                            <p className="font-mono text-xs font-bold text-[var(--color-primary)]">{row.code}</p>
-                            <span className={cn("mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold", meta.chip)}>
-                              <span className={cn("size-1.5 rounded-full", meta.dot)} />
-                              {meta.label}
-                            </span>
+                          <td className="px-2 py-2.5">
+                            <div className="mb-1 flex min-w-0 items-center gap-2">
+                              <span className="shrink-0 font-mono text-[11px] font-bold text-[var(--color-primary)]">{row.code}</span>
+                              <span className={cn("inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold", meta.chip)}>
+                                <span className={cn("size-1.5 rounded-full", meta.dot)} />
+                                {meta.label}
+                              </span>
+                              {row.aiGenerated && (
+                                <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-violet-50 px-1.5 py-0.5 text-[10px] font-semibold text-violet-700">
+                                  <Sparkles className="size-3" aria-hidden="true" />AI
+                                </span>
+                              )}
+                              <span className="truncate text-[11px] text-[var(--color-on-surface-variant)]">
+                                {row.question.options.length} phương án · {row.question.points} điểm
+                              </span>
+                            </div>
+                            <p className="truncate font-medium" title={row.question.questionText}>{row.question.questionText}</p>
                           </td>
-                          <td className="px-4 py-3.5">
-                            <p className="line-clamp-2 font-semibold">{row.question.questionText}</p>
-                            <p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">
-                              {row.question.options.length} phương án · {row.question.points} điểm
-                            </p>
-                          </td>
-                          <td className="px-4 py-3.5">
-                            <div className="flex flex-wrap gap-1">
-                              {(row.skills.length ? row.skills : ["MCQ"]).slice(0, 3).map((item) => (
-                                <span key={item} className="rounded bg-[var(--color-surface-container)] px-2 py-0.5 text-[11px] font-medium text-[var(--color-on-surface-variant)]">{item}</span>
+                          <td className="px-3 py-2.5" onClick={(event) => event.stopPropagation()}>
+                            <div className="flex min-w-0 items-center gap-1 overflow-hidden">
+                              {(row.skills.length ? row.skills : ["—"]).slice(0, 2).map((item) => (
+                                <button
+                                  key={item}
+                                  type="button"
+                                  title={`Lọc theo ${item}`}
+                                  onClick={() => { setSkill(item === "—" ? "" : item); setPage(0); }}
+                                  className={cn(
+                                    "max-w-24 truncate rounded px-1.5 py-0.5 text-[11px] font-medium hover:bg-[var(--color-primary-subtle)] hover:text-[var(--color-primary)]",
+                                    skill === item
+                                      ? "bg-[var(--color-primary-subtle)] text-[var(--color-primary)]"
+                                      : "bg-[var(--color-surface-container)] text-[var(--color-on-surface-variant)]",
+                                  )}
+                                >
+                                  {item}
+                                </button>
                               ))}
+                              {row.skills.length > 2 && <span className="shrink-0 text-[11px] text-[var(--color-on-surface-variant)]">+{row.skills.length - 2}</span>}
                             </div>
                           </td>
                           <td className="px-4 py-3.5">
                             <p className="font-medium">{row.content ? typeMeta(row.content.kind).label : "Trắc nghiệm đơn"}</p>
                             <span className={cn("mt-1 inline-flex rounded px-2 py-0.5 text-[11px] font-medium", difficultyClass(row.difficulty))}>{row.difficulty}</span>
                           </td>
-                          <td className="px-4 py-3.5">
-                            <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700">
-                              <ClipboardList className="size-3.5" /> Assessment
-                            </span>
+                          <td className="px-3 py-2.5 text-xs text-[var(--color-on-surface-variant)]">
+                            <p className="truncate font-medium text-[var(--color-on-surface)]" title={row.testTitle}>{row.testTitle}</p>
+                            <p className="mt-0.5 truncate" title={row.jobTitle}>{row.jobTitle}</p>
                           </td>
-                          <td className="px-4 py-3.5 text-xs text-[var(--color-on-surface-variant)]">
-                            <p className="font-medium text-[var(--color-on-surface)]">{row.testTitle}</p>
-                            <p>{row.jobTitle}</p>
-                          </td>
-                          <td className="px-4 py-3.5 text-right" onClick={(event) => event.stopPropagation()}>
+                          <td className="px-3 py-2.5 text-right" onClick={(event) => event.stopPropagation()}>
                             <div className="relative flex justify-end gap-1 text-[var(--color-on-surface-variant)]">
                               <Link to={questionPath(row)} aria-label="Chỉnh sửa câu hỏi" className="rounded p-1 hover:bg-[var(--color-surface-container)] hover:text-[var(--color-primary)]">
                                 <Pencil className="size-4" />
@@ -648,7 +679,14 @@ export function QuestionBankPage() {
                   return (
                     <button key={row.key} type="button" onClick={() => openRow(row.key)} className="rounded-xl bg-[var(--color-surface-container-low)] p-4 text-left hover:bg-[var(--color-primary-subtle)]">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="font-mono text-xs font-bold text-[var(--color-primary)]">{row.code}</span>
+                        <span className="inline-flex flex-wrap items-center gap-1.5 font-mono text-xs font-bold text-[var(--color-primary)]">
+                          {row.code}
+                          {row.aiGenerated && (
+                            <span className="inline-flex items-center gap-0.5 rounded-full bg-violet-50 px-1.5 py-0.5 text-[10px] font-semibold text-violet-700">
+                              <Sparkles className="size-3" aria-hidden="true" />AI
+                            </span>
+                          )}
+                        </span>
                         <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-semibold", meta.chip)}>{meta.label}</span>
                       </div>
                       <p className="mt-2 line-clamp-3 text-sm font-semibold">{row.question.questionText}</p>
@@ -839,6 +877,20 @@ export function QuestionBankPage() {
           </aside>
         </>
       )}
+      <AiQuestionGenerateDialog
+        open={aiOpen}
+        onClose={() => setAiOpen(false)}
+        defaultSkill={skill || jobSkills[0] || ""}
+        skillOptions={jobSkills.length ? jobSkills : skillOptions}
+        defaultTopic={job.title}
+        jobContext={jobContext}
+        onSaved={async () => {
+          setNotice("Đã lưu câu hỏi AI vào ngân hàng (theo ngữ cảnh JD vị trí).");
+          setAiOpen(false);
+          setAiOnly(true);
+          await client.invalidateQueries({ queryKey: queryKeys.assessments.all() });
+        }}
+      />
     </section>
   );
 }

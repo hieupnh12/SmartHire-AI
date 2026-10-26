@@ -21,8 +21,6 @@ export type ImportRow = {
   warnings: string[];
   issues: FieldIssue[];
   status: ImportStatus;
-  /** @deprecated Kept for callers; always false — all known types are validated. */
-  unsupported: boolean;
   /** Completely empty sheet row — ignored when saving to the database. */
   skipped: boolean;
 };
@@ -64,11 +62,6 @@ export function isPersistableQuestion(row: BankQuestion): boolean {
     return true;
   }
   return false;
-}
-
-/** Soft check for audit step: content + answer shape; does not require difficulty/skill/all types. */
-export function hasMinimalContentAndAnswer(row: BankQuestion): boolean {
-  return isPersistableQuestion(row);
 }
 
 function pushIssue(issues: FieldIssue[], field: string, message: string, level: "error" | "warning" = "error") {
@@ -212,7 +205,6 @@ export function validateExcelQuestions(questions: BankQuestion[], defaultScore =
         warnings: [],
         issues: [],
         status: "VALID",
-        unsupported: false,
         skipped: true,
       };
     }
@@ -290,7 +282,6 @@ export function validateExcelQuestions(questions: BankQuestion[], defaultScore =
       warnings,
       issues,
       status,
-      unsupported: false,
       skipped: false,
     };
   });

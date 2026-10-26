@@ -23,19 +23,19 @@ public class SubmissionGradingDetailService {
     private final QuestionRepository questions;
     private final AnswerRepository answers;
     private final EmailOutboxRepository emails;
+    private final ProctorEventRepository proctorEvents;
     private final AssessmentGradingService grading;
     private final SubmissionService submissionService;
     private final CvAccess access;
     private final NotificationPreferenceService preferences;
-    private final AssessmentProctorEventRepository proctorEvents;
 
     public SubmissionGradingDetailService(SubmissionRepository submissions, QuestionRepository questions,
-            AnswerRepository answers, EmailOutboxRepository emails, AssessmentGradingService grading,
-            SubmissionService submissionService, CvAccess access, NotificationPreferenceService preferences,
-            AssessmentProctorEventRepository proctorEvents) {
+            AnswerRepository answers, EmailOutboxRepository emails, ProctorEventRepository proctorEvents,
+            AssessmentGradingService grading, SubmissionService submissionService, CvAccess access,
+            NotificationPreferenceService preferences) {
         this.submissions = submissions; this.questions = questions; this.answers = answers; this.emails = emails;
-        this.grading = grading; this.submissionService = submissionService; this.access = access; this.preferences = preferences;
-        this.proctorEvents = proctorEvents;
+        this.proctorEvents = proctorEvents; this.grading = grading; this.submissionService = submissionService;
+        this.access = access; this.preferences = preferences;
     }
 
     private Submission completed(long id) {
@@ -62,15 +62,18 @@ public class SubmissionGradingDetailService {
         var candidate = submission.getCandidate();
         boolean canEmail = candidate.getEmail() != null && !candidate.getEmail().isBlank()
                 && !preferences.emailOff(candidate, NotificationCategory.ASSESSMENT);
-        var events = proctorEvents.findBySubmission_IdOrderByIdAsc(submission.getId()).stream()
-                .map(e -> new SubmissionGradingDetailResponse.ProctorEventSummary(e.getId(), e.getEvent(), e.getDetail(), e.getDurationSeconds(), e.getCreatedAt()))
-                .toList();
+        var proctor = proctorEvents.findBySubmission_IdOrderByCreatedAtAsc(submission.getId());
+        var integrity = new SubmissionGradingDetailResponse.Integrity(proctor.size(),
+                proctor.stream().map(event -> new SubmissionGradingDetailResponse.ProctorRow(event.getEventType(), event.getCreatedAt(),
+                        event.getPayloadJson())).toList(),
+                saved.stream().filter(answer -> answer.getCustomRunCount() > 0)
+                        .map(answer -> new SubmissionGradingDetailResponse.CustomRunRow(answer.getQuestion().getId(),
+                                answer.getQuestion().getQuestionText(), answer.getCustomRunCount())).toList());
         return new SubmissionGradingDetailResponse(submission.getId(), submission.getTest().getTitle(), candidate.getFullName(), candidate.getEmail(),
                 submission.getStatus(), submission.getScore(), paper.stream().mapToInt(question -> question.getPoints()).sum(), submission.getTest().getPassingScore(), canEmail,
                 new SubmissionGradingDetailResponse.ObjectiveSummary((int) objectiveAnswers.stream().filter(answer -> Boolean.TRUE.equals(answer.getCorrect())).count(), objective.size(),
                     objectiveAnswers.stream().map(answer -> answer.getScore() == null ? BigDecimal.ZERO : answer.getScore()).reduce(BigDecimal.ZERO, BigDecimal::add),
-                    objective.stream().mapToInt(question -> question.getPoints()).sum()), grading.reviews(submission.getId()),
-                events);
+                    objective.stream().mapToInt(question -> question.getPoints()).sum()), grading.reviews(submission.getId()), integrity);
     }
 
     @Transactional
@@ -101,21 +104,34 @@ public class SubmissionGradingDetailService {
         if (candidate.getEmail() == null || candidate.getEmail().isBlank()) throw conflict("Candidate email unavailable", "EMAIL_UNAVAILABLE");
         if (preferences.emailOff(candidate, NotificationCategory.ASSESSMENT)) throw conflict("Candidate disabled assessment emails", "EMAIL_DISABLED");
         int total = paper.stream().mapToInt(question -> question.getPoints()).sum();
-        String subject = "Kết quả bài đánh giá: " + submission.getTest().getTitle();
-        subject = subject.substring(0, Math.min(255, subject.length()));
+        String rawSubject = "Kết quả bài đánh giá: " + submission.getTest().getTitle();
+        String subject = rawSubject.substring(0, Math.min(255, rawSubject.length()));
         String result = submission.getTest().getPassingScore() == null ? "Đã chấm điểm"
                 : submission.getScore().compareTo(submission.getTest().getPassingScore()) >= 0 ? "Đạt yêu cầu" : "Chưa đạt yêu cầu";
         String body = "Chào " + candidate.getFullName() + ",\n\nBài đánh giá của bạn đã được duyệt.\n"
                 + "Bài: " + submission.getTest().getTitle() + "\nLượt làm: #" + id + "\nĐiểm: "
                 + submission.getScore().stripTrailingZeros().toPlainString() + "/" + total + "\nKết quả: " + result
                 + "\n\nĐăng nhập vào workspace và mở mục Bài kiểm tra để xem kết quả chính thức.";
-        var existing = emails.findFirstByPurposeAndToEmailAndSubjectAndBodyOrderByIdDesc("ASSESSMENT_RESULT", candidate.getEmail(), subject, body);
+        String reference = "assessment-result:" + id;
+        var existing = emails.findFirstByPurposeAndReferenceKeyOrderByIdDesc("ASSESSMENT_RESULT", reference)
+                .or(() -> emails.findFirstByPurposeAndToEmailAndSubjectAndBodyOrderByIdDesc("ASSESSMENT_RESULT", candidate.getEmail(), subject, body));
         if (existing.isPresent()) {
             var email = existing.get();
-            if (email.getStatus() == NotificationStatus.FAILED) { email.setAttempts(0); email.setStatus(NotificationStatus.PENDING); }
+            if (email.getReferenceKey() == null) email.setReferenceKey(reference);
+            if (email.getStatus() == NotificationStatus.FAILED || email.getStatus() == NotificationStatus.PENDING) {
+                // Refresh body/subject if score changed and re-queue failed or stuck pending rows.
+                email.setSubject(subject);
+                email.setBody(body);
+                email.setToEmail(candidate.getEmail());
+                if (email.getStatus() == NotificationStatus.FAILED) {
+                    email.setAttempts(0);
+                    email.setStatus(NotificationStatus.PENDING);
+                }
+            }
             return new EmailReceipt(email.getId(), email.getStatus());
         }
-        var email = emails.save(EmailOutbox.builder().purpose("ASSESSMENT_RESULT").toEmail(candidate.getEmail()).subject(subject).body(body).build());
+        var email = emails.save(EmailOutbox.builder().purpose("ASSESSMENT_RESULT").referenceKey(reference)
+                .toEmail(candidate.getEmail()).subject(subject).body(body).build());
         return new EmailReceipt(email.getId(), email.getStatus());
     }
 

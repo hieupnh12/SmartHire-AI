@@ -86,7 +86,12 @@ export function AssessmentProctorGuard({ submissionId, session = null, children,
     autoSubmitRef.current = onAutoSubmit;
   }, [onAutoSubmit]);
 
-  const violate = useCallback((message: string, eventType = "VIOLATION") => {
+  const report = useCallback((event: string, detail?: string) => {
+    void assessmentApi.proctorEvent(submissionId, event, detail).catch(() => undefined);
+  }, [submissionId]);
+
+  const violate = useCallback((message: string, event?: string) => {
+    if (event) report(event, message);
     const next = violationCount.current + 1;
     violationCount.current = next;
     setViolations(next);
@@ -95,16 +100,11 @@ export function AssessmentProctorGuard({ submissionId, session = null, children,
       `${message} (${next}/${MAX_VIOLATIONS}). ${next >= MAX_VIOLATIONS ? "Bài sẽ được tự động nộp." : "Vui lòng quay lại phòng thi."}`,
     );
 
-    void assessmentApi.recordProctorEvent(submissionId, {
-      event: eventType,
-      detail: message,
-    }).catch(() => undefined);
-
     if (next >= MAX_VIOLATIONS && !autoSubmitted.current) {
       autoSubmitted.current = true;
       window.setTimeout(() => autoSubmitRef.current(), 800);
     }
-  }, [submissionId]);
+  }, [report]);
 
   useEffect(() => {
     if (!session) return;
@@ -179,13 +179,13 @@ export function AssessmentProctorGuard({ submissionId, session = null, children,
   useEffect(() => {
     const fullscreen = () => {
       if (ignoreTransient.current) return;
-      if (!examIsFullscreen()) violate("Bạn đã thoát chế độ toàn màn hình", "EXIT_FULLSCREEN");
+      if (!examIsFullscreen()) violate("Bạn đã thoát chế độ toàn màn hình", "FULLSCREEN_EXIT");
     };
     const visibility = () => {
       if (ignoreTransient.current) return;
       if (document.hidden) {
         hiddenAt.current = Date.now();
-        violate("Bạn đã chuyển tab hoặc ẩn trang thi", "TAB_HIDDEN");
+        violate("Bạn đã chuyển tab hoặc ẩn trang thi", "PAGE_HIDDEN");
       } else {
         hiddenAt.current = null;
       }
@@ -194,20 +194,20 @@ export function AssessmentProctorGuard({ submissionId, session = null, children,
       if (ignoreTransient.current) return;
       if (!document.hidden) violate("Cửa sổ thi đã mất tiêu điểm", "WINDOW_BLUR");
     };
-    const block = (event: Event, message: string) => {
+    const block = (event: Event, message: string, code: string) => {
       event.preventDefault();
-      violate(message, "ACTION_BLOCKED");
+      violate(message, code);
     };
-    const contextmenu = (event: MouseEvent) => block(event, "Menu chuột phải đã bị chặn");
-    const copy = (event: ClipboardEvent) => block(event, "Sao chép nội dung đã bị chặn");
-    const paste = (event: ClipboardEvent) => block(event, "Dán nội dung đã bị chặn");
+    const contextmenu = (event: MouseEvent) => block(event, "Menu chuột phải đã bị chặn", "CONTEXT_MENU");
+    const copy = (event: ClipboardEvent) => block(event, "Sao chép nội dung đã bị chặn", "COPY_ATTEMPT");
+    const paste = (event: ClipboardEvent) => block(event, "Dán nội dung đã bị chặn", "PASTE_ATTEMPT");
     const keydown = (event: KeyboardEvent) => {
       const key = event.key.toLowerCase();
       const blocked =
         event.key === "F12" ||
         (event.ctrlKey && ["c", "v", "a", "p", "u"].includes(key)) ||
         (event.ctrlKey && event.shiftKey && ["i", "j", "c"].includes(key));
-      if (blocked) block(event, `Phím tắt ${event.key} đã bị chặn`);
+      if (blocked) block(event, `Phím tắt ${event.key} đã bị chặn`, "BLOCKED_SHORTCUT");
     };
     document.addEventListener("fullscreenchange", fullscreen);
     document.addEventListener("visibilitychange", visibility);

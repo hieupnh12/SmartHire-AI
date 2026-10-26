@@ -32,11 +32,17 @@ Bài coding: đề, nộp code, chạy test cases (sandbox/worker).
 | Method | Path |
 |---|---|
 | POST | `/api/v1/submissions/{id}/coding/{questionId}/run_samples` |
+| POST | `/api/v1/submissions/{id}/coding/{questionId}/run_custom` |
+| POST | `/api/v1/submissions/{id}/proctor-events` |
+| POST | `/api/v1/question-bank/verify_coding` |
 | GET | `/api/v1/submissions/{id}/grading_review` |
+| GET | `/api/v1/submissions/{id}/grading_detail` |
+| POST | `/api/v1/submissions/{id}/send_result_email` |
+| GET | `/api/v1/jobs/{jobId}/assessment_report` |
 
 ## Database liên quan
 
-- `coding_problems`, `test_cases`, `coding_submissions`
+- `coding_problems` (+ `verified_at`, `verified_language`), `test_cases`, `coding_submissions`, `tests.coding_test_weight_percent`, `answers.custom_run_count`, `email_outbox.reference_key`, `proctor_events`
 
 ## UI mockup
 
@@ -57,12 +63,13 @@ ASSESS-01
 
 - UI giữ thành phần và token hiện có. Ngân hàng chung có 3 nhóm: trắc nghiệm (`MCQ`/`MULTIPLE_CHOICE`), lý thuyết (`ESSAY`), bài lập trình (`CODING`). Không di chuyển ngân hàng sang master DB; dữ liệu vẫn cách ly theo tenant.
 - Essay mới biên soạn rubric gồm đáp án tham khảo và tiêu chí có tổng tỉ trọng 100%. Câu cũ thiếu rubric vẫn có thể chấm tay. Không tự chuyển câu code legacy thành bài thực thi khi chưa có harness/test.
-- Form Code quản lý loại thuật toán/OOP/SQL, giới hạn thời gian/bộ nhớ, starter code, harness theo ngôn ngữ và sample/hidden tests. Khi tạo đề tự động, nội dung được sao chép độc lập từ ngân hàng.
-- Candidate làm **Quiz** trước, chốt rồi vào **Coding** (HackerRank-style studio). `complete_objective` khóa Quiz; coding chỉ sau khi chốt (hoặc đề không có Quiz).
+- Form Code quản lý tên bài, **Constraints**, loại thuật toán/OOP/SQL, giới hạn thời gian/bộ nhớ, starter/harness theo ngôn ngữ (`java`/`python`/`javascript`/`cpp`/`sql`) và sample/hidden tests (sample có **Explanation**). Có **mẫu I/O** (hai số, một dòng, JSON stdin, chương trình đầy đủ, SQL) để sinh starter+harness. Test ẩn có thể gắn trọng số chấm (tổng 100%, ≥2 test ẩn); để trống thì chia đều. Recruiter **kiểm chứng lời giải mẫu** qua `POST /api/v1/question-bank/verify_coding` (kèm `questionId` khi đã lưu để ghi `coding_problems.verified_at`). **Publish gate cứng:** `publish_test` từ chối nếu bất kỳ câu CODING nào thiếu `verified_at` (lời giải mẫu phải pass 100% test kể cả hidden). Sửa nội dung code → xóa `verified_at`. Khi tạo đề tự động, nội dung được sao chép độc lập từ ngân hàng.
+- Candidate studio: Constraints + Explanation ví dụ; chạy sample với tóm tắt `x/y passed`; tab **Custom input** qua `run_custom` (chỉ stdout/stderr, không lộ test ẩn); mỗi custom-run tăng `answers.custom_run_count` (anti-cheat nhẹ).
+- Candidate làm **Quiz** trước, chốt rồi vào **Coding** (HackerRank-style studio). `complete_objective` khóa Quiz; coding chỉ sau khi chốt (hoặc đề không có Quiz). Proctor client gửi `POST /api/v1/submissions/{id}/proctor-events` (blur/copy/fullscreen/…) gắn submission; staff xem cạnh điểm trong `grading_detail.integrity`.
 - Code: Monaco đóng gói nội bộ, chạy tối đa 5 sample tests qua `POST /api/v1/submissions/{id}/coding/{questionId}/run_samples`; hidden tests/harness không trả candidate.
 - Submit chấm trắc nghiệm đồng bộ, phát RabbitMQ sau commit tới `assessment.essay.grade` và queue code cấu hình `assessment.code.grade.q`; worker concurrency 3–10 chạy trong TenantJobExecutor, header X-Tenant-ID bắt buộc.
-- Essay đánh giá ngữ nghĩa theo từng rubric; code dùng 80% tỉ lệ test pass + 20% AI review. Không so chuỗi source và không chấm bằng keyword matching. Mọi điểm AI là đề xuất, recruiter duyệt hoặc điều chỉnh trong màn hình Theo dõi bài làm.
-- Staff dùng GET `/api/v1/submissions/{id}/grading_review`, POST `/approve_grade/{questionId}` (body score=null để nhận gợi ý, hoặc điểm thủ công), POST `/retry_grading`. Điểm tổng chỉ công bố sau khi toàn bộ câu được chấm chính thức; giữ EXPIRED cho bài quá hạn.
-- Sandbox cấu hình `app.assessment.judge-url` / `app.assessment.judge-token` (Spring env: APP_ASSESSMENT_JUDGE_URL / APP_ASSESSMENT_JUDGE_TOKEN). Hỗ trợ cả Judge0 Cloud SaaS (RapidAPI: https://judge0-ce.p.rapidapi.com với header `x-rapidapi-key`) lẫn Judge0 self-hosted (`X-Auth-Token`). Yêu cầu hỗ trợ wait=true và các language ID Java 62/Python 71/JavaScript 63/SQL 82/C++ 54. Không chạy source trong tiến trình backend. AI chấm tự luận/review code dùng task `ASSESSMENT_GRADING`: ưu tiên cấu hình `CODE_GRADING` trong Master DB khi task này tồn tại; nếu chưa có, giữ model Llama và kết nối `AI_ASSESSMENT_*`. Rate-limit/metering theo task Assessment, không dùng `INTERVIEW_NLP`.
+- Essay đánh giá ngữ nghĩa theo từng rubric (`ASSESSMENT_GRADING`). Code chấm theo **hidden tests only** (sample không tính điểm); trọng số ẩn tự chia đều 100% nếu recruiter không nhập. Tỉ lệ test/AI lấy từ `tests.coding_test_weight_percent` (mặc định 90 → `90% × tests_hidden% + 10% × AI%`; screening có thể đặt 100/0). Nếu `tests_hidden% = 0` → điểm gợi ý 0 và bỏ qua AI. `hardcode_suspected` → trần 50% điểm câu + cờ duyệt tay. Trạng thái chạy: PASSED / PARTIAL / FAILED theo hidden. Không so chuỗi source; mọi điểm AI là đề xuất, recruiter duyệt hoặc điều chỉnh trong Theo dõi bài làm.
+- Staff dùng GET `/api/v1/submissions/{id}/grading_review` / `grading_detail` (kèm integrity), POST `/approve_grade/{questionId}` (body score=null để nhận gợi ý, hoặc điểm thủ công), POST `/retry_grading`, POST `/send_result_email` (idempotent theo `email_outbox.reference_key = assessment-result:{submissionId}`; FAILED/PENDING được tái xếp hàng). Báo cáo job: GET `/api/v1/jobs/{jobId}/assessment_report` (pass-rate theo câu, thời gian, custom-run, proctor count). Điểm tổng chỉ công bố sau khi toàn bộ câu được chấm chính thức; giữ EXPIRED cho bài quá hạn.
+- Sandbox cấu hình `app.assessment.judge-url` / `app.assessment.judge-token` (Spring env: APP_ASSESSMENT_JUDGE_URL / APP_ASSESSMENT_JUDGE_TOKEN). Hỗ trợ cả Judge0 Cloud SaaS (RapidAPI: https://judge0-ce.p.rapidapi.com với header `x-rapidapi-key`) lẫn Judge0 self-hosted (`X-Auth-Token`). Yêu cầu hỗ trợ wait=true và các language ID Java 62/Python 71/JavaScript 63/C++ 54/SQL 82. Không chạy source trong tiến trình backend. Tự luận dùng task `ASSESSMENT_GRADING` (ưu tiên cấu hình `CODE_GRADING` trong Master DB khi task này tồn tại; nếu chưa có, giữ model và kết nối `AI_ASSESSMENT_*`). Review code dùng task `CODE_GRADING`. Rate-limit/metering theo task Assessment, không dùng `INTERVIEW_NLP`.
 - Provider lỗi không tạo điểm 0. Bài giữ chờ duyệt, có thể retry hoặc chấm tay. Broker lỗi sau commit giữ dữ liệu bài làm; staff retry sau khi broker hoạt động lại. Chưa có quét tự động các bài chờ gửi/chấm.
-- Schema V53: tests, questions, submissions, answers, coding_problems; không tạo bảng mới. Xem docs/database để đối chiếu FK/UNIQUE và dictionary.
+- Schema V53–V56: tests, questions, submissions, answers, coding_problems, email_outbox, proctor_events; V55 và V56 không tạo bảng mới. Xem docs/database để đối chiếu FK/UNIQUE và dictionary.

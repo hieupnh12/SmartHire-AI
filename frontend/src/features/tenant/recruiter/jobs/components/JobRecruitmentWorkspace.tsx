@@ -1,5 +1,5 @@
 import { createContext, useContext, type ReactNode } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useLocation, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { jobApi } from "@/api/tenant/jobApi";
 import type { JobDetail } from "@/api/types/job";
@@ -18,6 +18,9 @@ export function useOptionalRecruitmentJob() {
 
 export function JobRecruitmentWorkspace({ children }: { children: ReactNode }) {
   const { id, assessmentId } = useParams();
+  const location = useLocation();
+  // Assessment module pages use the shared Breadcrumb instead of the job title link.
+  const hideJobTitle = /\/jobs\/\d+\/assessments(?:\/|$)/.test(location.pathname);
   const valid = Number.isSafeInteger(Number(id)) && Number(id) > 0;
   const job = useQuery({
     queryKey: ["jobs", "detail", id],
@@ -36,10 +39,12 @@ export function JobRecruitmentWorkspace({ children }: { children: ReactNode }) {
 
   return (
     <JobContext.Provider value={job.data.data}>
-      <div key={`${id}:${assessmentId ?? ""}`} className="space-y-5">
-        <Link to={`/recruiter/jobs/${id}`} className="inline-flex text-sm font-semibold text-[var(--color-primary)]">
-          {job.data.data.title}
-        </Link>
+      <div key={`${id}:${assessmentId ?? ""}`} className={hideJobTitle ? "space-y-3" : "space-y-5"}>
+        {!hideJobTitle && (
+          <Link to={`/recruiter/jobs/${id}`} className="inline-flex text-sm font-semibold text-[var(--color-primary)]">
+            {job.data.data.title}
+          </Link>
+        )}
         {children}
       </div>
     </JobContext.Provider>

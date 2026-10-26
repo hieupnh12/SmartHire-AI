@@ -1,5 +1,6 @@
 import { Link, useSearchParams } from "react-router-dom";
-import { ArrowRight, Check, ChevronRight, Code2, FileSearch, FolderGit2, LayoutTemplate, Lock, Mail, RotateCcw, Sparkles } from "lucide-react";
+import { ArrowRight, Check, Code2, FileSearch, FolderGit2, LayoutTemplate, Lock, Mail, RotateCcw, Sparkles } from "lucide-react";
+import { Breadcrumb } from "@/components/ux/Breadcrumb";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 import {
   cvRoleKeys, cvRoles, cvStyleKeys, cvStyles, cvTemplates, isCvRole, isCvStyle,
@@ -33,11 +34,7 @@ export function CvTemplatesPage() {
   return (
     <div className="space-y-6">
       <section className="relative overflow-hidden rounded-3xl border border-slate-200 px-6 py-8 sm:px-10 sm:py-10" style={{ background: `linear-gradient(135deg, ${tint(10)} 0%, #ffffff 70%)` }}>
-        <nav aria-label="Breadcrumb" className="flex items-center gap-1 text-sm text-slate-500">
-          <Link to="/" className="hover:text-[var(--color-primary)]">Trang chủ</Link>
-          <ChevronRight className="size-4" aria-hidden="true" />
-          <span className="font-medium text-slate-700">Mẫu CV</span>
-        </nav>
+        <Breadcrumb size="md" items={[{ label: "Trang chủ", to: "/" }, { label: "Mẫu CV" }]} />
         <div className="mt-4 flex flex-wrap items-end justify-between gap-6">
           <div className="max-w-2xl">
             <span className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-semibold text-[var(--color-primary)] shadow-sm"><LayoutTemplate className="size-4" aria-hidden="true" />Thư viện mẫu CV IT</span>

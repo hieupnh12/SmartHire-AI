@@ -15,8 +15,12 @@ export type JobTest = {
   createdById: number | null;
   createdByName: string | null;
   assignedApplicationId?: number | null;
+  /** Hidden-test share of coding score (0–100). AI gets the remainder. */
+  codingTestWeightPercent?: number;
 };
-export type TestRequest = Pick<JobTest, "jobId" | "title" | "description" | "durationMinutes" | "passingScore" | "objectiveDurationMinutes">;
+export type TestRequest = Pick<JobTest, "jobId" | "title" | "description" | "durationMinutes" | "passingScore" | "objectiveDurationMinutes"> & {
+  codingTestWeightPercent?: number | null;
+};
 export type TestPage = { items: JobTest[]; total: number; page: number; size: number };
 export type QuestionRequest = {
   questionText: string;
@@ -64,11 +68,30 @@ export type AvailableAssessment = Pick<JobTest, "id" | "title" | "description" |
   submissionId: number | null; submissionStatus: SubmissionStatus | null;
 };
 
-export type EssayCategory = "ESSAY_CONCEPTUAL" | "ESSAY_COMPARISON" | "ESSAY_SCENARIO" | "ESSAY_ARCHITECTURE";
-export type EssayRubric = { category?: EssayCategory; referenceAnswer: string; minWords?: number; criteria: { description: string; name?: string; guide?: string; weight: number; keywords?: string[] }[] };
-export type CodingContent = { title?: string; category: "CODING_ALGORITHM" | "CODING_OOP" | "SQL_QUERY"; timeLimitMs: number; memoryMb: number;
-  starterCode: Record<string, string>; harness: Record<string, string> | null;
-  testCases: { input: string; expectedOutput: string; sample: boolean; weight?: number }[] };
+export type EssayCategory =
+  | "ESSAY_CONCEPTUAL"
+  | "ESSAY_COMPARISON"
+  | "ESSAY_SCENARIO"
+  | "ESSAY_ARCHITECTURE"
+  | "ESSAY_SYSTEM_DESIGN"
+  | "ESSAY_TRADE_OFF";
+export type EssayRubric = {
+  category?: EssayCategory;
+  referenceAnswer: string;
+  minWords?: number;
+  criteria: { description: string; name?: string; guide?: string; weight: number; keywords?: string[] }[];
+};
+export type CodingContent = {
+  title?: string;
+  constraints?: string;
+  verifiedAt?: string | null;
+  category: "CODING_ALGORITHM" | "CODING_OOP" | "SQL_QUERY";
+  timeLimitMs: number;
+  memoryMb: number;
+  starterCode: Record<string, string>;
+  harness: Record<string, string> | null;
+  testCases: { input: string; expectedOutput: string; sample: boolean; weight?: number; explanation?: string }[];
+};
 export type GradingReview = { questionId: number; prompt: string; type: string; points: number; answerText: string | null;
   language: string | null; rubric: EssayRubric | null; evaluation: Record<string, unknown> | null;
   suggestedScore: number | null; score: number | null; reviewedAt: string | null };
@@ -87,7 +110,17 @@ export type SubmissionGradingDetail = {
   score: number | null; totalPoints: number; passingScore: number | null; emailAvailable: boolean;
   objective: { correctCount: number; questionCount: number; score: number; totalPoints: number }; reviews: GradingReview[];
   proctorEvents?: ProctorEventSummary[];
+  integrity?: {
+    proctorEventCount: number;
+    proctorEvents: { eventType: string; createdAt: string; detail: string | null }[];
+    customRuns: { questionId: number; prompt: string; count: number }[];
+  };
+};
+
+export type AssessmentJobReport = {
+  jobId: number;
+  questions: { questionId: number; type: string; points: number; graded: number; fullCredit: number; passRatePercent: number; avgScorePercent: number | null }[];
+  attempts: { submissionId: number; testId: number; testTitle: string; candidateName: string; status: string; score: number | null; totalPoints: number | null; durationSeconds: number | null; customRunCount: number; proctorEventCount: number }[];
 };
 export type GradeDecision = { questionId: number; score: number | null };
 export type ResultEmailReceipt = { id: number; status: "PENDING" | "SENT" | "FAILED" };
-

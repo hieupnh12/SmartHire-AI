@@ -1,11 +1,12 @@
+import { AssessmentJobReportPanel } from "../components/AssessmentJobReportPanel";
 import { SubmissionGradingDetail } from "../components/SubmissionGradingDetail";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Clock3, RefreshCw, Search, Users } from "lucide-react";
 import { assessmentApi } from "@/api/tenant/assessmentApi";
 import type { SubmissionStatus, SubmissionSummary } from "@/api/types/assessment";
 import { AssessmentError, assessmentStatus } from "@/components/ux/assessmentUi";
+import { Breadcrumb } from "@/components/ux/Breadcrumb";
 import { Button } from "@/components/ux/Button";
 import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
@@ -107,13 +108,13 @@ export function AssessmentSubmissionsPage() {
     <section className="flex flex-col gap-8 text-[var(--color-on-surface)]">
       <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div className="min-w-0">
-          <nav className="flex flex-wrap items-center gap-1 text-xs text-[var(--color-on-surface-variant)]" aria-label="Breadcrumb">
-            <span>Tuyển dụng</span>
-            <span className="text-[var(--color-outline)]">/</span>
-            <Link to={basePath} className="hover:text-[var(--color-primary)]">Bài đánh giá năng lực</Link>
-            <span className="text-[var(--color-outline)]">/</span>
-            <span className="font-semibold text-[var(--color-primary)]">Theo dõi bài làm</span>
-          </nav>
+          <Breadcrumb
+            items={[
+              { label: "Tuyển dụng" },
+              { label: "Bài đánh giá năng lực", to: basePath },
+              { label: "Theo dõi bài làm" },
+            ]}
+          />
           <h1 className="mt-2 text-3xl font-semibold tracking-tight">Theo dõi bài làm của ứng viên</h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--color-on-surface-variant)]">
             Xem ai đang làm bài, ai đã nộp và kết quả của từng lượt làm. Danh sách tự làm mới mỗi 15 giây.
@@ -127,6 +128,7 @@ export function AssessmentSubmissionsPage() {
 
       {reviewId != null && <SubmissionGradingDetail key={reviewId} id={reviewId} onClose={() => setReviewId(null)} />}
       <AssessmentError error={submissions.error} retry={() => void submissions.refetch()} />
+      <AssessmentJobReportPanel jobId={job.id} />
 
       <div className="flex flex-col gap-4 rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-4 shadow-[var(--shadow-card)]">
         <div className="flex flex-wrap items-center gap-1 rounded-xl bg-[var(--color-surface-container-low)]/80 p-1">

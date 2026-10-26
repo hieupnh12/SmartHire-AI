@@ -74,26 +74,20 @@ public class CodingJudge {
             default -> throw new IllegalArgumentException("Unsupported language");
         };
         String harness = problem.getHarnessJson().path(language).asText();
-        if (!harness.contains("{{SOURCE}}")) {
-            throw new IllegalStateException("Missing executable harness");
-        }
-
+        if (!harness.contains("{{SOURCE}}")) throw new IllegalStateException("Missing executable harness");
         Map<String, Object> body = new HashMap<>();
         body.put("source_code", harness.replace("{{SOURCE}}", source));
         body.put("language_id", languageId);
         body.put("stdin", input != null ? input : "");
-        body.put("expected_output", expected != null ? expected : "");
+        if (expected != null) body.put("expected_output", expected);
         body.put("cpu_time_limit", problem.getTimeLimitMs() / 1000.0);
         body.put("wall_time_limit", 15);
         body.put("memory_limit", problem.getMemoryMb() * 1024);
         body.put("enable_network", false);
         body.put("max_file_size", 1024);
 
-        return http.post()
-                .uri(url.replaceAll("/+$", "") + "/submissions?base64_encoded=false&wait=true")
-                .body(body)
-                .retrieve()
-                .body(JsonNode.class);
+        return http.post().uri(url.replaceAll("/+$", "") + "/submissions?base64_encoded=false&wait=true")
+                .body(body).retrieve().body(JsonNode.class);
     }
 
     private static boolean isRapidApi(String url, String host) {

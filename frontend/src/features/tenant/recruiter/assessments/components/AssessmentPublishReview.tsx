@@ -19,7 +19,7 @@ import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
 import { typeMeta, isSubjectiveKind } from "../constants/excelTemplateMock";
 import type { ImportRow } from "../utils/excelImportValidation";
-import { hasMinimalContentAndAnswer, isPersistableQuestion } from "../utils/excelImportValidation";
+import { isPersistableQuestion } from "../utils/excelImportValidation";
 import { clearExcelQuestionDraft } from "../utils/excelQuestionDraft";
 import type { BankSaveActions } from "../utils/bankQuestionAuthoring";
 
@@ -95,7 +95,7 @@ export function AssessmentPublishReview({
 
   const checks = generalBank ? [
     { title: "Số lượng câu hỏi", value: saveableRows.length > 0 && saveableRows.length <= 999, detail: `${saveableRows.length} câu hỏi độc lập sẽ được lưu vào ngân hàng.` },
-    { title: "Nội dung & đáp án", value: saveableRows.length > 0 && saveableRows.every(item => item.status !== "INVALID" && hasMinimalContentAndAnswer(item.row)), detail: "Kiểm tra nội dung, loại câu, lựa chọn và đáp án theo cùng quy tắc của assessment." },
+    { title: "Nội dung & đáp án", value: saveableRows.length > 0 && saveableRows.every(item => item.status !== "INVALID" && isPersistableQuestion(item.row)), detail: "Kiểm tra nội dung, loại câu, lựa chọn và đáp án theo cùng quy tắc của assessment." },
     { title: "Kỹ năng & độ khó", value: saveableRows.every(item => !!item.row.skill.trim() && item.row.skill.trim().length <= 128 && /^(easy|medium|hard)$/i.test(item.row.difficulty.trim())), detail: "Mỗi câu cần kỹ năng (tối đa 128 ký tự) và độ khó Easy, Medium hoặc Hard." },
     { title: "Điểm từng câu", value: saveableRows.every(item => { const value = Number(item.row.score.trim() || defaultScore); return Number.isInteger(value) && value >= 1 && value <= 10000; }), detail: "Mỗi câu từ 1–10.000 điểm. Câu hỏi độc lập không yêu cầu tổng điểm bằng 10." },
   ] : [
@@ -110,7 +110,7 @@ export function AssessmentPublishReview({
     },
     {
       title: "Nội dung & đáp án",
-      value: saveableRows.length > 0 && saveableRows.every((item) => hasMinimalContentAndAnswer(item.row)),
+      value: saveableRows.length > 0 && saveableRows.every((item) => isPersistableQuestion(item.row)),
       detail:
         "Mỗi câu cần có nội dung; trắc nghiệm cần ≥2 lựa chọn và đáp án. Độ khó / kỹ năng / đáp án mẫu là khuyến nghị, không chặn lưu nháp.",
     },

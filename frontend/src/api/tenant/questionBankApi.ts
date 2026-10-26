@@ -1,13 +1,29 @@
 import type { CodingContent, SampleResult } from "@/api/types/assessment";
+import type { BankGenerationRequest, BankGenerationResponse } from "@/api/types/bankGeneration";
 import { api } from "@/lib/axios";
 import type { ApiResponse } from "@/types/api";
 import type { BankQuestion, BankQuestionPage, BankQuestionQuery, BankQuestionRequest } from "@/api/types/questionBank";
-import type { BankGenerationRequest, BankGenerationResponse } from "@/api/types/bankGeneration";
+
+export type QuestionBankGenerateRequest = {
+  skill: string;
+  difficulty: "Easy" | "Medium" | "Hard";
+  questionType: "MCQ" | "MULTIPLE_CHOICE" | "ESSAY";
+  count: number;
+  topic?: string;
+  language?: "vi" | "en";
+  /** Job description / JD snippet for AI context. */
+  context?: string;
+};
 
 export const questionBankApi = {
-  generate: (body: BankGenerationRequest) => api.post<ApiResponse<BankGenerationResponse>>("/question-bank/generation", body).then(response => response.data.data),
-  generationStatus: (id: string) => api.get<ApiResponse<BankGenerationResponse>>(`/question-bank/generation/${id}`).then(response => response.data.data),
-  verifyCoding: (body: { coding: CodingContent; language: string; source: string }) => api.post<ApiResponse<SampleResult[]>>("/question-bank/verify_coding", body).then(response => response.data.data),
+  /** Async generation used for CODING drafts (queue + poll). */
+  generate: (body: BankGenerationRequest) =>
+    api.post<ApiResponse<BankGenerationResponse>>("/question-bank/generation", body).then(response => response.data.data),
+  generationStatus: (id: string) =>
+    api.get<ApiResponse<BankGenerationResponse>>(`/question-bank/generation/${id}`).then(response => response.data.data),
+  verifyCoding: (body: { coding?: CodingContent; language: string; source: string; questionId?: number }) => api.post<ApiResponse<SampleResult[]>>("/question-bank/verify_coding", body).then(response => response.data.data),
+  generateDrafts: (body: QuestionBankGenerateRequest) =>
+    api.post<ApiResponse<BankQuestionRequest[]>>("/question-bank/generate_drafts", body).then(response => response.data.data),
   list: (params: BankQuestionQuery, signal?: AbortSignal) => api.get<ApiResponse<BankQuestionPage>>("/question-bank/list_questions", {
     params,
     paramsSerializer: { indexes: null },

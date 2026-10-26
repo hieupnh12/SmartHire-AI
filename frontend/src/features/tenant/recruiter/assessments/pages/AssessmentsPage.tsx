@@ -275,11 +275,11 @@ export function AssessmentsPage() {
             Ngân hàng câu hỏi
           </Link>
           <Link
-            to={`${basePath}/preview`}
+            to={`${basePath}/new`}
             className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-[var(--radius-md)] bg-[var(--color-primary)] px-4 text-sm font-semibold text-[var(--color-on-primary)] shadow-sm transition-colors hover:bg-[var(--color-primary-hover)]"
           >
-            <Eye className="size-4" aria-hidden="true" />
-            Xem mẫu bài thi
+            <Plus className="size-4" aria-hidden="true" />
+            Cấu hình tạo đề
           </Link>
         </div>
       </header>
@@ -830,7 +830,7 @@ function AssessmentRow({
             title="Chi tiết"
             aria-label={`Chi tiết ${title}`}
           >
-            <Eye className="size-4" aria-hidden="true" />
+            <Plus className="size-4" aria-hidden="true" />
           </Link>
         </div>
       </td>

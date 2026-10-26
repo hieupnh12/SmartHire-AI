@@ -20,8 +20,14 @@ public record JobTestRequest(
         @NotNull @Min(1) Integer durationMinutes,
         @DecimalMin("0.00") @Digits(integer = 8, fraction = 2)
         @Schema(description = "Optional passing threshold in raw points, not a percentage")
-        BigDecimal passingScore, @Min(1) Integer objectiveDurationMinutes) {
+        BigDecimal passingScore, @Min(1) Integer objectiveDurationMinutes,
+        @Min(0) @jakarta.validation.constraints.Max(100)
+        @Schema(description = "Coding score share from hidden tests (0–100). AI review gets the remainder. Default 90.")
+        Integer codingTestWeightPercent) {
     public JobTestRequest(Long jobId, String title, String description, Integer duration, BigDecimal passingScore) {
-        this(jobId, title, description, duration, passingScore, null);
+        this(jobId, title, description, duration, passingScore, null, null);
+    }
+    public JobTestRequest(Long jobId, String title, String description, Integer duration, BigDecimal passingScore, Integer objectiveDurationMinutes) {
+        this(jobId, title, description, duration, passingScore, objectiveDurationMinutes, null);
     }
 }
