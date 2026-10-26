@@ -44,13 +44,13 @@ Tạo/làm bài trắc nghiệm kỹ thuật gắn job/stage.
 
 ## API liên quan
 
-- `POST /api/v1/question-bank/generation`: staff gửi kỹ năng, loại câu (`MCQ`/`MULTIPLE_CHOICE`/`ESSAY`/`CODING`), độ khó, số lượng 1–5, ngôn ngữ code và yêu cầu bổ sung; trả `202` cùng ID bản nháp.
-- `GET /api/v1/question-bank/generation/{id}`: đọc trạng thái `PENDING`/`RUNNING`/`READY`/`FAILED` và câu hỏi đề xuất. Chỉ người tạo trong cùng tenant được đọc; bản nháp Redis hết hạn sau 2 giờ.
+- `POST /api/v1/question-bank/generate_drafts`: **Sinh bằng AI** cho MCQ/MULTIPLE_CHOICE/ESSAY (sync), recruiter sửa rồi `create_questions`.
+- `POST /api/v1/question-bank/generation` / `GET .../generation/{id}`: **Sinh bằng AI** khi chọn CODING (async RabbitMQ + poll); cùng dialog, không còn nút Đề xuất riêng.
 
 ### Sinh câu hỏi ngân hàng bằng Llama — 16/10/2026
 
 - Trạng thái triển khai: `Done` cho luồng sinh bản nháp; trạng thái feature tổng thể giữ `Doing`.
-- Nút **Đề xuất bằng AI** có trong ngân hàng chung và ngân hàng theo job, mở form cấu hình sinh câu hỏi thay vì điều hướng sang AI Interview.
+- Nút **Sinh bằng AI** (đã gộp luồng cũ **Đề xuất bằng AI**) có trong ngân hàng chung và ngân hàng theo job: cấu hình → preview/sửa nháp → lưu vào ngân hàng (`generate_drafts` + `create_questions`).
 - Tác vụ `ASSESSMENT_GEN` dùng OpenAI-compatible provider và model mặc định `vanilj/llama-3-8b-instruct-32k-v0.1:Q4_K_M`. Kết nối kế thừa endpoint/key OpenAI hiện có của AI Interview; có thể ghi đè bằng `AI_ASSESSMENT_BASE_URL`, `AI_ASSESSMENT_API_KEY`, `AI_ASSESSMENT_MODEL`, `AI_ASSESSMENT_TIMEOUT_SECONDS` (mặc định 120). Không tự chuyển sang model khác khi lỗi.
 - Request được đưa qua queue `smarthire.assessment.bank.generate`, header `X-Tenant-ID`, worker concurrency 3–10 và `TenantJobExecutor`. Gọi AI theo từng câu để hạn chế JSON bị cắt; giữ rate-limit và metering theo task/tenant hiện có.
 - Backend kiểm tra DTO và quy tắc số đáp án đúng/rubric/coding trước khi trả bản nháp. Lỗi provider hoặc dữ liệu sai trả trạng thái lỗi an toàn, không tạo câu hỏi rỗng hay ghi vào database.
@@ -190,9 +190,12 @@ JOB-04
 |---|---|---|
 | GET | `/api/v1/question-bank/list_questions?page=0&size=10&collection=all&query=&skill=&difficulty=&status=&questionType=&sort=latest` | Danh sách phân trang phía server; size 1–100, trả thêm tổng số theo bộ sưu tập và danh sách kỹ năng |
 | GET | `/api/v1/question-bank/get_question/{id}` | Chi tiết staff, gồm options và metadata biên soạn |
+| POST | `/api/v1/question-bank/generate_drafts` | AI soạn nháp MCQ / MULTIPLE_CHOICE / ESSAY (không lưu). Spring AI `ChatClient.entity(GeneratedBankQuestionBatch)`. Task `QUESTION_GEN` (Master V35). Recruiter duyệt rồi `create_questions` |
 | POST | `/api/v1/question-bank/create_questions` | Body `{ questions: [{ question: QuestionRequest, authoringMetadata: object }] }`, trả 201 |
 | PUT | `/api/v1/question-bank/update_question/{id}` | Thay toàn bộ câu độc lập và options, trả 200 |
 | PUT | `/api/v1/question-bank/archive_questions` | Body `{ questionIds: [id], archived: true/false }`; chỉ câu độc lập |
+
+**AI sinh câu vào ngân hàng (2026-10-25, UI gộp 2026-10-26):** Một nút **Sinh bằng AI**. MCQ/MULTIPLE_CHOICE/ESSAY dùng `generate_drafts`; **CODING** dùng `generation` (queue) trong cùng dialog (chọn ngôn ngữ Java/Python/JS/SQL, tối đa 5 câu). Preview sửa text/options/rubric/lời giải; code hiện tóm tắt starter/testcase — kiểm chứng sau khi lưu. Job bank gửi kèm JD context. Nháp gắn `aiGenerated` + cảnh báo trùng. Không auto-publish.
 
 Response đều bọc `ApiResponse`; trang danh sách gồm `items`, `total`, `page`, `size`, `counts`, `skills`; mỗi item gồm `question`, `testId/testTitle/testStatus`, `jobId/jobTitle`, `archived`, `authoringMetadata`. Lỗi: 400 dữ liệu không hợp lệ, 403 role/tenant sai, 404 `BANK_QUESTION_NOT_FOUND`, 409 `BANK_QUESTION_IN_TEST`. Không đổi luồng assessment riêng hiện có.
 
@@ -243,7 +246,7 @@ Kiểm chứng bản sửa cấu hình cùng ngày: build frontend đạt, test 
 
 ## Xem & Duyệt kết quả Recruiter — Prompt 8, 2026-10-14
 
-- Trạng thái phần duyệt điểm: `Done`. Từ **Theo dõi bài làm → Xem & chấm bài**, `SubmissionGradingDetail` mở ba khối: trắc nghiệm tự động, tự luận theo rubric, code theo sandbox/AI review. `AssessmentGradingPanel` giữ export tương thích và dùng cùng component mới.
+- Trạng thái phần duyệt điểm: `Done`. Từ **Theo dõi bài làm → Xem & chấm bài**, `SubmissionGradingDetail` mở ba khối: trắc nghiệm tự động, tự luận theo rubric, code theo sandbox/AI review.
 - Trắc nghiệm lấy số câu từ toàn bộ đề (kể cả câu không trả lời), số câu đúng và điểm từ `answers.is_correct/score`, không suy ra từ tổng điểm hoặc đáp án mẫu. Hiển thị số đúng/tổng, điểm và tỉ lệ đúng. Tổng điểm chính thức giữ trống khi còn câu tự luận/code chưa duyệt.
 - Tự luận hiển thị bài viết và đáp án tham khảo; bảng tiêu chí bám tên/thứ tự/trọng số rubric đã lưu, không ép rubric tùy chỉnh thành đúng ba dòng. Mẫu chuẩn gồm bản chất cốt lõi, trade-offs, thực tế & logic. Điểm tối đa tiêu chí = điểm câu × trọng số; điểm đạt = điểm tối đa × `criteria_results.score_percent`. Thiếu phân tích/điểm AI hiển thị chưa có; không tạo nhận xét giả.
 - Code hiển thị source, ngôn ngữ, X/Y tests pass, tỉ lệ pass và bảng trạng thái sample/hidden. Điểm test theo trọng số hidden tổng 100 nếu bài được biên soạn theo trọng số; bài legacy giữ tỉ lệ pass. Thành phần điểm code là 80% tests + 20% AI review. AI được yêu cầu trả `time_complexity`, `space_complexity`, `clean_code`, `naming_conventions`, `exception_safety`; kết quả cũ thiếu trường hiển thị chưa có phân tích, không đoán độ phức tạp. Lỗi provider không đổi thành điểm 0.
@@ -265,9 +268,7 @@ Kiểm chứng Prompt 8 ngày 2026-10-14: frontend TypeScript + Vite build đạ
 
 ## Xem giao diện assessment mẫu — 2026-10-14
 
-- Trạng thái: Done. Nút chính trên header Quản lý bài đánh giá đổi từ **Tạo bài đánh giá** sang **Xem mẫu bài thi**.
-- Mở /recruiter/jobs/:id/assessments/preview trong workspace và quyền ASSESSMENTS hiện có, mặc định tab **Ứng viên làm bài**. Cho phép thử trắc nghiệm, tự luận, code và chuyển tab xem ngân hàng, cấu trúc đề, duyệt điểm. Có nút quay về đúng vị trí tuyển dụng và đặt lại mẫu.
-- Dữ liệu mẫu chỉ giữ trong bộ nhớ; không tạo assessment, không lưu bài thi thực, không gọi AI/sandbox thật. Điểm/nhận xét là minh họa có nhãn rõ ràng.
+- Trạng thái: Removed. Đã bỏ route `/recruiter/jobs/:id/assessments/preview`, trang `AssessmentPreviewPage`, và nút **Xem mẫu bài thi**. Nút chính trên breadcrumb danh sách bài đánh giá là **Cấu hình tạo đề** → `/assessments/new`.
 
 
 ### Cập nhật giao diện mẫu theo HTML tham chiếu — 2026-10-15

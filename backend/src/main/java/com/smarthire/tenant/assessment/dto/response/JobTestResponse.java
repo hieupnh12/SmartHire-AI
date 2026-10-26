@@ -15,5 +15,6 @@ public record JobTestResponse(
         Instant createdAt,
         Instant updatedAt,
         Long createdById,
-        String createdByName, Integer objectiveDurationMinutes) {
+        String createdByName, Integer objectiveDurationMinutes,
+        int codingTestWeightPercent) {
 }

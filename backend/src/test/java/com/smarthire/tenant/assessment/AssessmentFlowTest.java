@@ -22,6 +22,7 @@ import java.util.*;
 import java.util.concurrent.*;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.*;
+import static org.mockito.Mockito.mock;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.*;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
@@ -122,7 +123,9 @@ class AssessmentFlowTest {
         var submissionController = new SubmissionController(submissions);
         org.springframework.test.util.ReflectionTestUtils.setField(submissionController, "grading", grading);
         org.springframework.test.util.ReflectionTestUtils.setField(submissionController, "gradingDetail", gradingDetail);
-        mvc = MockMvcBuilders.standaloneSetup(new QuestionController(questions), new QuestionBankController(bank), new AssessmentGenerationController(generation), submissionController)
+        mvc = MockMvcBuilders.standaloneSetup(new QuestionController(questions),
+                        new QuestionBankController(bank, mock(com.smarthire.tenant.assessment.service.QuestionBankGenerateService.class)),
+                        new AssessmentGenerationController(generation), submissionController)
                 .setControllerAdvice(new GlobalExceptionHandler()).build();
     }
 

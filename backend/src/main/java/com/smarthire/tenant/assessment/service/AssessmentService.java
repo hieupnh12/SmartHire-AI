@@ -98,6 +98,7 @@ public class AssessmentService {
         test.setObjectiveDurationMinutes(request.objectiveDurationMinutes());
         test.setDurationMinutes(request.durationMinutes());
         test.setPassingScore(request.passingScore());
+        if (request.codingTestWeightPercent() != null) test.setCodingTestWeightPercent(request.codingTestWeightPercent());
     }
 
     public Map<String, String> health() {

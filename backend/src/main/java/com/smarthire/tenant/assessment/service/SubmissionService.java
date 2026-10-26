@@ -212,21 +212,46 @@ public class SubmissionService {
     private CodingJudge judge;
     public record SampleRun(@jakarta.validation.constraints.NotNull @jakarta.validation.constraints.Size(max=10000) String source,
             @jakarta.validation.constraints.NotBlank String language) {}
+    public record CustomRun(@jakarta.validation.constraints.NotNull @jakarta.validation.constraints.Size(max=10000) String source,
+            @jakarta.validation.constraints.NotBlank String language,
+            @jakarta.validation.constraints.NotNull @jakarta.validation.constraints.Size(max=10000) String input) {}
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public java.util.List<com.fasterxml.jackson.databind.JsonNode> runSamples(long id, long questionId, SampleRun body) {
-        Submission submission = owned(id, candidate());
-        if (expire(submission) || submission.getStatus() != TestSubmissionStatus.IN_PROGRESS) throw conflict("Submission closed", "SUBMISSION_CLOSED");
-        requirePlayable(submission.getApplication(), submission.getTest());
-        if (hasQuizSection(submission) && submission.getObjectiveCompletedAt() == null) throw conflict("Complete quiz section first", "SECTION_NOT_STARTED");
-        Question question = questions.findByIdAndTest_Id(questionId, submission.getTest().getId()).orElseThrow(this::notFound);
-        var problem = question.getCodingProblem();
-        if (problem == null || !problem.getStarterCodeJson().has(body.language())) throw invalid("Unsupported coding language");
+        CodingProblem problem = codingProblemForRun(id, questionId, body.language());
         try {
             return problem.getTestCases().stream().filter(TestCase::isSample).limit(5)
                     .map(c -> judge.run(problem, body.language(), body.source(), c.getInputData(), c.getExpectedOutput())).toList();
         } catch (RuntimeException failure) {
             throw new BusinessException("Coding sandbox unavailable", HttpStatus.SERVICE_UNAVAILABLE, "SANDBOX_UNAVAILABLE");
         }
+    }
+    @Transactional(isolation = Isolation.READ_COMMITTED)
+    public com.fasterxml.jackson.databind.JsonNode runCustom(long id, long questionId, CustomRun body) {
+        CodingProblem problem = codingProblemForRun(id, questionId, body.language());
+        Submission submission = owned(id, candidate());
+        Question question = questions.findByIdAndTest_Id(questionId, submission.getTest().getId()).orElseThrow(this::notFound);
+        Answer answer = answers.findBySubmission_IdAndQuestion_Id(id, questionId).orElseGet(() -> {
+            Answer created = new Answer();
+            created.setSubmission(submission);
+            created.setQuestion(question);
+            return answers.save(created);
+        });
+        answer.setCustomRunCount(answer.getCustomRunCount() + 1);
+        try {
+            return judge.run(problem, body.language(), body.source(), body.input(), null);
+        } catch (RuntimeException failure) {
+            throw new BusinessException("Coding sandbox unavailable", HttpStatus.SERVICE_UNAVAILABLE, "SANDBOX_UNAVAILABLE");
+        }
+    }
+    private CodingProblem codingProblemForRun(long id, long questionId, String language) {
+        Submission submission = owned(id, candidate());
+        if (expire(submission) || submission.getStatus() != TestSubmissionStatus.IN_PROGRESS) throw conflict("Submission closed", "SUBMISSION_CLOSED");
+        requirePlayable(submission.getApplication(), submission.getTest());
+        if (hasQuizSection(submission) && submission.getObjectiveCompletedAt() == null) throw conflict("Complete quiz section first", "SECTION_NOT_STARTED");
+        Question question = questions.findByIdAndTest_Id(questionId, submission.getTest().getId()).orElseThrow(this::notFound);
+        var problem = question.getCodingProblem();
+        if (problem == null || !problem.getStarterCodeJson().has(language)) throw invalid("Unsupported coding language");
+        return problem;
     }
 
     /** Auto-gradable choice questions (MCQ / multi-select). */

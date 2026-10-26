@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import java.util.HashMap;
 import java.util.Map;
 
 @Component
@@ -23,10 +24,16 @@ public class CodingJudge {
         int languageId = switch (language) { case "java" -> 62; case "python" -> 71; case "javascript" -> 63; case "sql" -> 82; case "cpp" -> 54; default -> throw new IllegalArgumentException("Unsupported language"); };
         String harness = problem.getHarnessJson().path(language).asText();
         if (!harness.contains("{{SOURCE}}")) throw new IllegalStateException("Missing executable harness");
-        var body = Map.of("source_code", harness.replace("{{SOURCE}}", source), "language_id", languageId,
-                "stdin", input, "expected_output", expected, "cpu_time_limit", problem.getTimeLimitMs() / 1000.0,
-                "wall_time_limit", 15, "memory_limit", problem.getMemoryMb() * 1024, "enable_network", false,
-                "max_file_size", 1024);
+        Map<String, Object> body = new HashMap<>();
+        body.put("source_code", harness.replace("{{SOURCE}}", source));
+        body.put("language_id", languageId);
+        body.put("stdin", input);
+        if (expected != null) body.put("expected_output", expected);
+        body.put("cpu_time_limit", problem.getTimeLimitMs() / 1000.0);
+        body.put("wall_time_limit", 15);
+        body.put("memory_limit", problem.getMemoryMb() * 1024);
+        body.put("enable_network", false);
+        body.put("max_file_size", 1024);
         return http.post().uri(url.replaceAll("/+$", "") + "/submissions?base64_encoded=false&wait=true")
                 .body(body).retrieve().body(JsonNode.class);
     }

@@ -151,9 +151,53 @@ public class TenantSchemaBootstrap {
             ensureRecruitmentStageCatalog(statement);
             ensureCvApplicationCopy(statement);
             ensureJobAssignmentPermissions(statement);
+            ensureAssessmentOpsHardening(statement);
+            ensureCodingAuthoringAids(statement);
         } catch (SQLException ex) {
             log.error("Failed to ensure tenant role tables", ex);
             throw new IllegalStateException("Failed to ensure tenant role tables", ex);
+        }
+    }
+
+    /**
+     * Mirrors V55 for tenants whose Flyway history reached a later version without these columns
+     * (e.g. version collision / renumbering with validateOnMigrate=false).
+     */
+    private static void ensureAssessmentOpsHardening(Statement statement) throws SQLException {
+        if (tableExists(statement, "coding_problems")) {
+            if (!columnExists(statement, "coding_problems", "verified_at")) {
+                statement.execute("ALTER TABLE coding_problems ADD COLUMN verified_at TIMESTAMP NULL");
+            }
+            if (!columnExists(statement, "coding_problems", "verified_language")) {
+                statement.execute("ALTER TABLE coding_problems ADD COLUMN verified_language VARCHAR(32) NULL");
+            }
+        }
+        if (tableExists(statement, "tests") && !columnExists(statement, "tests", "coding_test_weight_percent")) {
+            statement.execute(
+                    "ALTER TABLE tests ADD COLUMN coding_test_weight_percent INT NOT NULL DEFAULT 90");
+        }
+        if (tableExists(statement, "answers") && !columnExists(statement, "answers", "custom_run_count")) {
+            statement.execute("ALTER TABLE answers ADD COLUMN custom_run_count INT NOT NULL DEFAULT 0");
+        }
+        if (tableExists(statement, "email_outbox")) {
+            if (!columnExists(statement, "email_outbox", "reference_key")) {
+                statement.execute("ALTER TABLE email_outbox ADD COLUMN reference_key VARCHAR(128) NULL");
+            }
+            if (!indexExists(statement, "email_outbox", "uk_email_outbox_purpose_ref")) {
+                statement.execute(
+                        "CREATE UNIQUE INDEX uk_email_outbox_purpose_ref ON email_outbox (purpose, reference_key)");
+            }
+        }
+    }
+
+    /** Mirrors V56 for tenants whose Flyway history skipped authoring-aid columns. */
+    private static void ensureCodingAuthoringAids(Statement statement) throws SQLException {
+        if (tableExists(statement, "coding_problems")
+                && !columnExists(statement, "coding_problems", "constraints_text")) {
+            statement.execute("ALTER TABLE coding_problems ADD COLUMN constraints_text TEXT NULL");
+        }
+        if (tableExists(statement, "test_cases") && !columnExists(statement, "test_cases", "explanation")) {
+            statement.execute("ALTER TABLE test_cases ADD COLUMN explanation TEXT NULL");
         }
     }
 

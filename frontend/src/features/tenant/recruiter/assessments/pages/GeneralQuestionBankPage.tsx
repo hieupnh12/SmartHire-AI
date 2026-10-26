@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AiQuestionGenerationPanel } from "../components/AiQuestionGenerationPanel";
 import { questionBankApi } from "@/api/tenant/questionBankApi";
 import { queryKeys } from "@/lib/query-keys";
 import { AssessmentError } from "@/components/ux/assessmentUi";
+import { Breadcrumb } from "@/components/ux/Breadcrumb";
 import { LoadingState, Skeleton, TableSkeleton } from "@/components/ux/Skeleton";
+import { AiQuestionGenerateDialog } from "../components/AiQuestionGenerateDialog";
 import { bankQuestionAuthoring } from "../utils/bankQuestionAuthoring";
 import { typeMeta, type BankQuestion } from "../constants/excelTemplateMock";
 import { questionBankLocalKeys } from "../utils/generalQuestionDraft";
@@ -62,7 +63,12 @@ type BankRow = {
   code: string;
   skills: string[];
   difficulty: Difficulty;
+  aiGenerated: boolean;
 };
+
+function isAiGenerated(meta: Record<string, unknown> | null | undefined) {
+  return meta?.aiGenerated === true || meta?.aiGenerated === "true" || meta?.source === "AI";
+}
 
 const collections: { id: Collection; label: string; icon: typeof FolderOpen }[] = [
   { id: "all", label: "Tất cả câu hỏi", icon: FolderOpen },
@@ -169,10 +175,12 @@ function GeneralQuestionBankView({ localKeys }: { localKeys: ReturnType<typeof q
   const [collection, setCollection] = useState<Collection>("all");
   const [query, setQuery] = useState("");
   const [skill, setSkill] = useState("");
+  const [sourceFilter, setSourceFilter] = useState<"" | "AI">("");
   const [difficulty, setDifficulty] = useState<Difficulty | "">("");
   const [status, setStatus] = useState<TestStatus | "">("");
   const [sort, setSort] = useState<"latest" | "points" | "text">("latest");
   const [view, setView] = useState<ViewMode>("table");
+  const [aiOpen, setAiOpen] = useState(false);
   const initialPage = Math.max(0, Number(searchParams.get("page") ?? 1) - 1 || 0);
   const requestedSize = Number(searchParams.get("size"));
   const [page, setPage] = useState(initialPage);
@@ -189,10 +197,10 @@ function GeneralQuestionBankView({ localKeys }: { localKeys: ReturnType<typeof q
   const favoriteIds = useMemo(() => [...favorites].map(key => Number(key.replace("bank-", ""))).filter(Number.isFinite).sort((a, b) => a - b), [favorites]);
   const apiDifficulty = difficulty === "Cơ bản" ? "Easy" : difficulty === "Vận dụng" ? "Medium" : difficulty === "Nâng cao" ? "Hard" : undefined;
   const bankQuery = useQuery({
-    queryKey: [...queryKeys.assessments.all(), "general-bank", page, pageSize, collection, query, skill, apiDifficulty, status, questionType, sort, favoriteIds],
+    queryKey: [...queryKeys.assessments.all(), "general-bank", page, pageSize, collection, query, skill, apiDifficulty, status, questionType, sourceFilter, sort, favoriteIds],
     queryFn: ({ signal }) => questionBankApi.list({ page, size: pageSize, collection, query: query.trim() || undefined,
       skill: skill || undefined, difficulty: apiDifficulty, status: status || undefined,
-      questionType: questionType || undefined, sort, favoriteIds }, signal),
+      questionType: questionType || undefined, source: sourceFilter || undefined, sort, favoriteIds }, signal),
   });
   const rows = useMemo<BankRow[]>(() => (bankQuery.data?.items ?? []).map(item => {
     const question = item.question;
@@ -201,6 +209,7 @@ function GeneralQuestionBankView({ localKeys }: { localKeys: ReturnType<typeof q
       jobId: item.jobId ?? 0, jobTitle: item.jobTitle ?? "Ngân hàng chung", department: "",
       question, content: bankQuestionAuthoring(item), code: questionCode(question.id),
       skills: skillsOf(question.questionText, question.skill), difficulty: difficultyLabel(question.difficulty, question.points),
+      aiGenerated: isAiGenerated(item.authoringMetadata),
     };
   }), [bankQuery.data]);
   const archiveMutation = useMutation({ mutationFn: ({ ids, archived }: { ids: number[]; archived: boolean }) => questionBankApi.archive(ids, archived),
@@ -300,36 +309,44 @@ function GeneralQuestionBankView({ localKeys }: { localKeys: ReturnType<typeof q
   return (
     <section className="flex flex-col gap-4 text-[var(--color-on-surface)]">
       <header className="flex flex-col gap-2.5">
-        <div className="text-xs text-[var(--color-on-surface-variant)]">
-          <nav className="flex flex-wrap items-center gap-2" aria-label="Breadcrumb">
-            <Link to="/recruiter" className="hover:text-[var(--color-primary)]">Kho tài nguyên</Link>
-            <span>/</span>
-            <span className="font-semibold text-[var(--color-on-surface)]">Ngân hàng câu hỏi</span>
-            <span className="rounded-full bg-[var(--color-surface-container-high)] px-2 py-0.5 text-[11px] font-semibold">
+        <Breadcrumb
+          items={[
+            { label: "Kho tài nguyên", to: "/recruiter" },
+            { label: "Ngân hàng câu hỏi" },
+          ]}
+          meta={
+            <span className="rounded-full bg-[var(--color-surface-container-high)] px-2 py-0.5 text-[11px] font-semibold text-[var(--color-on-surface-variant)]">
               Workspace: {workspace}
             </span>
-          </nav>
-        </div>
-        <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-center">
-          <div className="min-w-0 max-w-3xl">
-            <h1 className="text-2xl font-semibold tracking-tight">Ngân hàng câu hỏi</h1>
-            <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">
-              Quản lý câu hỏi độc lập và câu hỏi từ các vị trí tuyển dụng trong cùng workspace.
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <AiQuestionGenerationPanel />
-            <Link to={`${basePath}/new`} className="inline-flex h-9 items-center gap-2 rounded-lg bg-[var(--color-surface-card)] px-3 text-sm font-medium ring-1 ring-[var(--color-border-default)]"><Table2 className="size-4 text-[var(--color-primary)]" aria-hidden="true" />Nhập Excel</Link>
-            <Link to={`${basePath}/new`} className="inline-flex h-9 items-center gap-2 rounded-lg bg-[var(--color-primary)] px-3 text-sm font-semibold text-white hover:bg-[var(--color-primary-hover)]">Thêm câu hỏi</Link>
-            <button
-              type="button"
-              onClick={() => downloadCsv(pageRows)}
-              className="inline-flex h-9 items-center gap-2 rounded-lg bg-[var(--color-surface-card)] px-3 text-sm font-medium ring-1 ring-[var(--color-border-default)] hover:bg-[var(--color-surface-container-low)]"
-            >
-              <Download className="size-4 text-[var(--color-primary)]" aria-hidden="true" />
-              Xuất trang hiện tại
-            </button>
-          </div>
+          }
+          actions={
+            <>
+              <button
+                type="button"
+                onClick={() => setAiOpen(true)}
+                className="inline-flex h-9 items-center gap-2 rounded-lg bg-[var(--color-surface-card)] px-3 text-sm font-medium ring-1 ring-[var(--color-border-default)] hover:bg-[var(--color-surface-container-low)]"
+              >
+                <Sparkles className="size-4 text-[var(--color-primary)]" aria-hidden="true" />
+                Sinh bằng AI
+              </button>
+              <Link to={`${basePath}/new`} className="inline-flex h-9 items-center gap-2 rounded-lg bg-[var(--color-surface-card)] px-3 text-sm font-medium ring-1 ring-[var(--color-border-default)]"><Table2 className="size-4 text-[var(--color-primary)]" aria-hidden="true" />Nhập Excel</Link>
+              <Link to={`${basePath}/new`} className="inline-flex h-9 items-center gap-2 rounded-lg bg-[var(--color-primary)] px-3 text-sm font-semibold text-white hover:bg-[var(--color-primary-hover)]">Thêm câu hỏi</Link>
+              <button
+                type="button"
+                onClick={() => downloadCsv(pageRows)}
+                className="inline-flex h-9 items-center gap-2 rounded-lg bg-[var(--color-surface-card)] px-3 text-sm font-medium ring-1 ring-[var(--color-border-default)] hover:bg-[var(--color-surface-container-low)]"
+              >
+                <Download className="size-4 text-[var(--color-primary)]" aria-hidden="true" />
+                Xuất trang hiện tại
+              </button>
+            </>
+          }
+        />
+        <div className="min-w-0 max-w-3xl">
+          <h1 className="text-2xl font-semibold tracking-tight">Ngân hàng câu hỏi</h1>
+          <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">
+            Quản lý câu hỏi độc lập và câu hỏi từ các vị trí tuyển dụng trong cùng workspace.
+          </p>
         </div>
       </header>
       <nav aria-label="Nhóm ngân hàng câu hỏi" className="flex flex-wrap gap-2 rounded-xl bg-[var(--color-surface-container-low)] p-1">
@@ -411,7 +428,7 @@ function GeneralQuestionBankView({ localKeys }: { localKeys: ReturnType<typeof q
                 </button>
               )}
             </div>
-            <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+            <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-5">
               <label className="flex min-w-0 items-center gap-2 rounded-lg bg-[var(--color-surface-container)] px-3 py-1.5 text-xs">
                 <span className="shrink-0 text-[var(--color-on-surface-variant)]">Kỹ năng</span>
                 <select aria-label="Lọc kỹ năng" value={skill} onChange={(event) => { setSkill(event.target.value); setPage(0); }} className="min-w-0 flex-1 bg-transparent font-semibold text-[var(--color-primary)] outline-none">
@@ -422,6 +439,13 @@ function GeneralQuestionBankView({ localKeys }: { localKeys: ReturnType<typeof q
               <div className="flex items-center rounded-lg bg-[var(--color-surface-container)] px-3 py-1.5 text-xs">
                 Loại câu: <select aria-label="Lọc loại câu hỏi" value={questionType} onChange={event => { setQuestionType(event.target.value); setPage(0); }} className="ml-1 min-w-0 bg-transparent"><option value="">Tất cả</option><option value="MCQ">Trắc nghiệm đơn</option><option value="MULTIPLE_CHOICE">Nhiều đáp án</option><option value="QUIZ">Trắc nghiệm</option><option value="ESSAY">Tự luận lý thuyết</option><option value="CODING">Bài tập Code</option></select>
               </div>
+              <label className="flex min-w-0 items-center gap-2 rounded-lg bg-[var(--color-surface-container)] px-3 py-1.5 text-xs">
+                <span className="shrink-0 text-[var(--color-on-surface-variant)]">Nguồn</span>
+                <select aria-label="Lọc nguồn câu hỏi" value={sourceFilter} onChange={event => { setSourceFilter(event.target.value as "" | "AI"); setPage(0); }} className="min-w-0 flex-1 bg-transparent font-semibold outline-none">
+                  <option value="">Tất cả</option>
+                  <option value="AI">Chỉ câu AI</option>
+                </select>
+              </label>
               <label className="flex min-w-0 items-center gap-2 rounded-lg bg-[var(--color-surface-container)] px-3 py-1.5 text-xs">
                 <span className="shrink-0 text-[var(--color-on-surface-variant)]">Độ khó</span>
                 <select aria-label="Lọc độ khó" value={difficulty} onChange={(event) => { setDifficulty(event.target.value as Difficulty | ""); setPage(0); }} className="min-w-0 flex-1 bg-transparent font-semibold outline-none">
@@ -551,6 +575,12 @@ function GeneralQuestionBankView({ localKeys }: { localKeys: ReturnType<typeof q
                                 <span className={cn("size-1.5 rounded-full", meta.dot)} />
                                 {meta.label}
                               </span>
+                              {row.aiGenerated && (
+                                <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-violet-50 px-1.5 py-0.5 text-[10px] font-semibold text-violet-700">
+                                  <Sparkles className="size-3" aria-hidden="true" />
+                                  AI
+                                </span>
+                              )}
                               <span className="truncate text-[11px] text-[var(--color-on-surface-variant)]">
                                 {row.question.options.length} phương án · {row.question.points} điểm
                               </span>
@@ -768,6 +798,19 @@ function GeneralQuestionBankView({ localKeys }: { localKeys: ReturnType<typeof q
           </aside>
         </>
       )}
+      <AiQuestionGenerateDialog
+        open={aiOpen}
+        onClose={() => setAiOpen(false)}
+        defaultSkill={skill}
+        defaultType={questionType === "ESSAY" ? "ESSAY" : questionType === "MULTIPLE_CHOICE" ? "MULTIPLE_CHOICE" : questionType === "CODING" ? "CODING" : "MCQ"}
+        skillOptions={skillOptions.length ? skillOptions : undefined}
+        onSaved={async () => {
+          setNotice("Đã lưu câu hỏi AI vào ngân hàng chung.");
+          setAiOpen(false);
+          setSourceFilter("AI");
+          await client.invalidateQueries({ queryKey: queryKeys.assessments.all() });
+        }}
+      />
     </section>
   );
 }

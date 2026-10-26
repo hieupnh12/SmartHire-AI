@@ -76,7 +76,7 @@ export function QuestionForm({ question, order, busy, onSave, onCancel }: {
         if (next === "ESSAY" || next === "CODING") { setValue("options", []); setContent(next === "ESSAY" ? rubricExample : codingExample); }
         else if (options.length === 0) setValue("options", [{ optionText: "", correct: true }, { optionText: "", correct: false }]);
       }}><option value="MCQ">Trắc nghiệm đơn</option><option value="MULTIPLE_CHOICE">Nhiều đáp án</option><option value="ESSAY">Tự luận lý thuyết</option><option value="CODING">Bài tập Code</option></select></label>
-      {(type === "ESSAY" || type === "CODING") && <QuestionContentFields type={type} value={content} onChange={setContent} />}
+      {(type === "ESSAY" || type === "CODING") && <QuestionContentFields type={type} value={content} onChange={setContent} questionId={question?.id} />}
       <FieldError message={contentError} />
       <label className="block space-y-1 text-sm">Nội dung câu hỏi<textarea autoFocus rows={3} className={input} {...register("questionText")} /><FieldError message={errors.questionText?.message} /></label>
       <div className="grid gap-4 sm:grid-cols-2">

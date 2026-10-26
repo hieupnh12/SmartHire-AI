@@ -20,7 +20,7 @@ public class AiModelConfig {
     Long id;
 
     @Column(name = "task_type", nullable = false, unique = true, length = 60)
-    String taskType; // CV_PARSING, INTERVIEW_GEN, INTERVIEW_NLP, INTERVIEW_STT, INTERVIEW_TTS, CODE_GRADING, MATCHING
+    String taskType; // CV_PARSING, INTERVIEW_GEN, INTERVIEW_NLP, INTERVIEW_STT, INTERVIEW_TTS, CODE_GRADING, QUESTION_GEN, MATCHING
 
     @Column(name = "task_name", nullable = false, length = 100)
     String taskName;
