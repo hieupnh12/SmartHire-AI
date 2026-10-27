@@ -183,12 +183,12 @@ export function HumanInterviewWorkspace(p: Props) {
 
           {/* Status Filter */}
           <select
-            aria-label="Trạng thái RSVP"
+            aria-label="Trạng thái lịch"
             value={p.status}
             onChange={(e) => p.onFilter("status", e.target.value)}
             className="h-8 rounded-lg border border-[var(--color-border-default)] bg-white px-2 text-xs font-medium text-[var(--color-on-surface)] outline-none focus:border-brand-primary"
           >
-            <option value="">Tất cả trạng thái RSVP</option>
+            <option value="">Tất cả trạng thái lịch</option>
             {Object.entries(statusLabels).map(([code, label]) => (
               <option key={code} value={code}>
                 {label}
@@ -290,8 +290,8 @@ export function HumanInterviewWorkspace(p: Props) {
                   <th scope="col" className="px-3 py-2.5">Vòng phỏng vấn</th>
                   <th scope="col" className="px-3 py-2.5">Thời gian & Địa điểm</th>
                   <th scope="col" className="px-3 py-2.5">Hội đồng (Lead)</th>
-                  <th scope="col" className="px-3 py-2.5">Trạng thái RSVP</th>
-                  <th scope="col" className="px-3 py-2.5">Scorecard</th>
+                  <th scope="col" className="px-3 py-2.5">Trạng thái lịch</th>
+                  <th scope="col" className="px-3 py-2.5">Phiếu đánh giá</th>
                   <th scope="col" className="px-3 py-2.5 text-right">Thao tác</th>
                 </tr>
               </thead>
@@ -447,26 +447,40 @@ export function HumanInterviewWorkspace(p: Props) {
                           onClick={() => p.onAction("scorecard", r)}
                           className="font-semibold text-brand-primary hover:underline text-[11px]"
                         >
-                          {r.evaluations.length}/{scoreCount(r)} Scorecard
+                          {r.evaluations.length}/{scoreCount(r)} phiếu
                         </button>
                       </td>
 
                       <td className="px-3 py-2.5 text-right">
                         <div className="flex items-center justify-end gap-1">
-                          <button
-                            type="button"
-                            onClick={() => p.onAction("edit", r)}
-                            className="rounded px-2 py-1 text-[11px] font-medium text-[var(--color-on-surface)] hover:bg-[var(--color-surface-alt)]"
-                          >
-                            Sửa
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => p.onAction("cancel", r)}
-                            className="rounded px-1.5 py-1 text-[11px] text-red-600 hover:bg-red-50"
-                          >
-                            Hủy
-                          </button>
+                          {r.status !== "DONE" && r.status !== "CANCELLED" && new Date(r.end).getTime() <= Date.now() && (
+                            <button
+                              type="button"
+                              disabled={p.pending}
+                              onClick={() => p.onAction("complete", r)}
+                              className="rounded px-2 py-1 text-[11px] font-medium text-emerald-700 hover:bg-emerald-50"
+                            >
+                              Hoàn tất buổi
+                            </button>
+                          )}
+                          {r.status !== "DONE" && r.status !== "CANCELLED" && (
+                            <button
+                              type="button"
+                              onClick={() => p.onAction("edit", r)}
+                              className="rounded px-2 py-1 text-[11px] font-medium text-[var(--color-on-surface)] hover:bg-[var(--color-surface-alt)]"
+                            >
+                              Sửa
+                            </button>
+                          )}
+                          {r.status !== "DONE" && r.status !== "CANCELLED" && (
+                            <button
+                              type="button"
+                              onClick={() => p.onAction("cancel", r)}
+                              className="rounded px-1.5 py-1 text-[11px] text-red-600 hover:bg-red-50"
+                            >
+                              Hủy
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

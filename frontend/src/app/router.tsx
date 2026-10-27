@@ -258,7 +258,7 @@ export function AppRouter() {
           </Route>
           <Route element={<FeatureRoute feature="NOTIFICATIONS" />}>
             <Route path="jobs/:id/notifications" element={<RecruiterNotificationsPage />} />
-            <Route path="notifications" element={<Navigate to="/recruiter" replace />} />
+            <Route path="notifications" element={<RecruiterNotificationsPage />} />
           </Route>
         </Route>
       </Route>
