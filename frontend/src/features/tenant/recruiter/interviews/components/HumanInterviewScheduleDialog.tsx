@@ -24,14 +24,26 @@ const schema = z.object({
   if (v.participants.filter(p => p.role === "LEAD").length !== 1) ctx.addIssue({ code:"custom",path:["participants"],message:"Chọn đúng một Lead Interviewer." });
 });
 type FormValues = z.infer<typeof schema>;
-type Props = { jobId: number; options: InterviewOptions; existing?: HumanInterview; variant?: "modal" | "drawer"; onClose: () => void; onSaved: () => void; onProfile: (id: number) => void; onAiReport: () => void };
+type Props = {
+  jobId: number;
+  options: InterviewOptions;
+  existing?: HumanInterview;
+  /** When set (e.g. from Ranking), lock the candidate picker to this application. */
+  lockedApplicationId?: number;
+  variant?: "modal" | "drawer";
+  onClose: () => void;
+  onSaved: (draft: boolean) => void;
+  onProfile: (id: number) => void;
+  onAiReport: () => void;
+};
 
-export function HumanInterviewScheduleDialog({ jobId, options, existing, variant = "modal", onClose, onSaved, onProfile, onAiReport }: Props) {
+export function HumanInterviewScheduleDialog({ jobId, options, existing, lockedApplicationId, variant = "modal", onClose, onSaved, onProfile, onAiReport }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
   const start = existing ? new Date(existing.configuration.requestedStart ?? existing.start) : new Date(Date.now() + 86400000);
+  const lockedId = existing?.applicationId ?? lockedApplicationId;
   const form = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: {
-    applicationId: existing?.applicationId ?? options.candidates[0]?.applicationId ?? 0,
+    applicationId: lockedId ?? options.candidates[0]?.applicationId ?? 0,
     round: existing?.round ?? "TECHNICAL", rubric: existing?.configuration.rubric ?? "TECHNICAL", mode: existing?.mode ?? "ONLINE",
     provider: existing?.configuration.provider === "OFFICE" ? "GOOGLE_MEET" : existing?.configuration.provider ?? "GOOGLE_MEET",
     meetingUrl: existing?.meetingUrl ?? "", location: existing?.location ?? "", date: localDate(start), time: localTime(start),
@@ -42,7 +54,11 @@ export function HumanInterviewScheduleDialog({ jobId, options, existing, variant
   const values = form.watch();
   const candidate = options.candidates.find(c => c.applicationId === values.applicationId);
   const profile = useQuery({ queryKey:["applications",values.applicationId], queryFn:() => applicantApi.get(values.applicationId), enabled:!!values.applicationId });
-  const save = useMutation({ mutationFn:({ body }: { body:SaveInterview }) => humanInterviewApi.save(body, existing?.id), onSuccess:onSaved, onError:e => setError(getApiErrorMessage(e)) });
+  const save = useMutation({
+    mutationFn: ({ body }: { body: SaveInterview }) => humanInterviewApi.save(body, existing?.id),
+    onSuccess: (_data, vars) => onSaved(vars.body.draft),
+    onError: e => setError(getApiErrorMessage(e)),
+  });
   const check = useMutation({ mutationFn:() => {
     const start = new Date(`${values.date}T${values.time}`);
     return humanInterviewApi.availability({ jobId, start:start.toISOString(), end:new Date(start.getTime()+values.duration*60000).toISOString(), userIds:[...values.participants.map(p => p.userId), ...(candidate ? [candidate.candidateId] : [])], excludeId:existing?.id });
@@ -75,13 +91,13 @@ export function HumanInterviewScheduleDialog({ jobId, options, existing, variant
   const section = "bg-surface-container-lowest p-space-lg rounded-xl shadow-sm flex flex-col gap-space-md";
   const heading = (number:number, title:string) => <h3 className="flex items-center gap-space-sm font-headline-sm text-headline-sm"><span className="w-6 h-6 rounded-full bg-primary-fixed text-primary text-label-sm flex items-center justify-center">{number}</span>{title}</h3>;
   const err = (name:keyof FormValues) => form.formState.errors[name] && <p role="alert" className="text-error text-body-sm">{form.formState.errors[name]?.message}</p>;
-  return <div className="human-interview-reference"><div className={`fixed inset-0 z-[50] flex ${variant==="drawer"?"justify-end":"items-center justify-center p-space-md sm:p-space-lg"} bg-inverse-surface/40 backdrop-blur-md`} onClick={e => { if (e.target===e.currentTarget && !save.isPending) onClose(); }}>
+  return <div className="human-interview-reference"><div className={`fixed inset-0 z-[100] flex ${variant==="drawer"?"justify-end":"items-center justify-center p-space-md sm:p-space-lg"} bg-inverse-surface/40 backdrop-blur-md`} onClick={e => { if (e.target===e.currentTarget && !save.isPending) onClose(); }}>
     <div ref={ref} role="dialog" aria-modal="true" aria-labelledby="human-schedule-title" className={`w-full ${variant==="drawer"?"max-w-[620px] h-full":"max-w-4xl max-h-[90vh] rounded-2xl"} bg-surface-container-lowest shadow-2xl overflow-hidden flex flex-col text-on-surface`}>
       <header className="px-space-xl py-space-lg flex items-start justify-between gap-space-md"><div className="flex items-start gap-space-md"><span className="w-12 h-12 rounded-xl bg-tertiary-fixed text-tertiary flex items-center justify-center shrink-0"><Icon name="calendar_add_on" className="text-[28px]" /></span><div><div className="flex flex-wrap items-center gap-space-xs"><h2 id="human-schedule-title" className="font-headline-lg text-headline-lg">{existing?"Cập nhật lịch phỏng vấn":"Lên lịch phỏng vấn trực tiếp"}</h2><span className="px-space-xs py-0.5 rounded-full bg-surface-container-high text-primary text-label-sm">Human Interview</span></div><p className="text-body-md text-on-surface-variant">Thiết lập thời gian, điều phối hội đồng phỏng vấn và gửi thư mời lịch trình thông minh kèm bộ câu hỏi chuẩn hóa.</p></div></div><button type="button" aria-label="Đóng cửa sổ" onClick={onClose} disabled={save.isPending}><Icon name="close" className="text-[22px]" /></button></header>
       <form className="p-space-xl overflow-y-auto flex flex-col gap-space-xl bg-surface" onSubmit={e => { e.preventDefault();submit(false); }}>
         {error && <p role="alert" className="p-space-md rounded-lg bg-error-container text-on-error-container">{error}</p>}
         <section className={section}>{heading(1,"Thông tin Ứng viên & Vòng Đánh giá")}
-          <label className="text-label-lg font-semibold">Ứng viên tiếp nhận<select aria-label="Ứng viên tiếp nhận" disabled={!!existing} className={`${input} mt-1`} {...form.register("applicationId", { valueAsNumber: true })}>{!options.candidates.length && <option value={0}>Chưa có ứng viên đủ điều kiện</option>}{options.candidates.map(c => <option key={c.applicationId} value={c.applicationId}>{c.name} — {c.jobTitle}</option>)}</select>{err("applicationId")}</label>
+          <label className="text-label-lg font-semibold">Ứng viên tiếp nhận<select aria-label="Ứng viên tiếp nhận" disabled={!!existing || !!lockedApplicationId} className={`${input} mt-1`} {...form.register("applicationId", { valueAsNumber: true })}>{!options.candidates.length && <option value={0}>Chưa có ứng viên đủ điều kiện</option>}{options.candidates.map(c => <option key={c.applicationId} value={c.applicationId}>{c.name} — {c.jobTitle}</option>)}</select>{err("applicationId")}{lockedApplicationId && !options.candidates.some(c => c.applicationId === lockedApplicationId) && <p role="alert" className="text-error text-body-sm">Ứng viên chưa đủ điều kiện (CV, AI Interview và Assessment phải đạt) nên chưa có trong danh sách mời.</p>}</label>
           <div className="p-space-md bg-surface-container-low rounded-xl flex flex-wrap items-center justify-between gap-space-md"><div className="flex items-center gap-space-md"><span className="w-12 h-12 rounded-full bg-primary text-on-primary flex items-center justify-center">{candidate?.name.split(" ").map(n=>n[0]).slice(-2).join("") ?? "—"}</span><div><p className="font-headline-sm text-headline-sm font-semibold">{candidate?.name ?? "Chọn ứng viên"}</p><span className="text-primary text-label-sm">CV Screening: {profile.data?.data.cvScreeningStatus ?? "Chưa có kết quả"}{profile.data?.data.gateScore ? ` · ${profile.data.data.gateScore.score}/100` : ""}</span><p className="text-body-sm text-on-surface-variant">{candidate?.email} · {candidate?.jobTitle}</p></div></div><div className="flex gap-space-xs"><button type="button" className="px-space-sm py-1 rounded bg-surface-container text-label-sm" onClick={()=>onProfile(values.applicationId)} disabled={!candidate}><Icon name="visibility" /> Hồ sơ CV</button><button type="button" className="px-space-sm py-1 rounded bg-surface-container text-tertiary text-label-sm" onClick={onAiReport}><Icon name="smart_toy" /> Báo cáo AI</button></div></div>
           <div className="grid md:grid-cols-2 gap-space-md"><label className="text-label-lg font-semibold">Vòng phỏng vấn (Interview Round) *<select className={input} {...form.register("round")}>{options.rounds.map(r=><option key={r.code} value={r.code}>{r.label}</option>)}</select></label><label className="text-label-lg font-semibold">Rubric Tiêu chí Đánh giá<select className={input} {...form.register("rubric")}>{options.rubrics.map(r=><option key={r.code} value={r.code}>{r.label}</option>)}</select><span className="text-body-sm text-outline">Scorecard: Kỹ thuật, Giao tiếp, Văn hóa (0–100).</span></label></div>
         </section>

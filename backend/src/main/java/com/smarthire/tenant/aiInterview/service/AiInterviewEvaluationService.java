@@ -7,12 +7,14 @@ import com.smarthire.domain.enums.*;
 import com.smarthire.domain.tenant.entity.*;
 import com.smarthire.domain.tenant.repository.*;
 import com.smarthire.tenant.aiInterview.ai.AiInterviewClient;
+import com.smarthire.tenant.interview.service.HumanInterviewGate;
 import com.smarthire.tenant.notification.service.NotificationPreferenceService;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -65,6 +67,7 @@ public class AiInterviewEvaluationService {
     private final InterviewConversationService conversation;
     private final NotificationPreferenceService preferences;
     private final com.smarthire.tenant.applicant.service.ApplicationClosureService closures;
+    private final RankingDataRepository rankingData;
 
     public AiInterviewEvaluationService(AiInterviewRepository interviews, AiQuestionRepository questions,
             AiAnswerRepository answers, AiFeedbackRepository feedbacks, JobSkillRepository skills, CvRepository cvs,
@@ -72,12 +75,25 @@ public class AiInterviewEvaluationService {
             NotificationRepository notifications, EmailOutboxRepository emails,
             AiInterviewClient ai, ObjectMapper mapper, AiInterviewActivityLog activity, AiInterviewProcessEngine processEngine, InterviewConversationService conversation,
             NotificationPreferenceService preferences, com.smarthire.tenant.applicant.service.ApplicationClosureService closures) {
+        this(interviews, questions, answers, feedbacks, skills, cvs, extractions, history, stages, notifications, emails,
+                ai, mapper, activity, processEngine, conversation, preferences, closures, null);
+    }
+
+    @Autowired
+    public AiInterviewEvaluationService(AiInterviewRepository interviews, AiQuestionRepository questions,
+            AiAnswerRepository answers, AiFeedbackRepository feedbacks, JobSkillRepository skills, CvRepository cvs,
+            CvExtractionRepository extractions, ApplicationStatusHistoryRepository history, RecruitmentStageRepository stages,
+            NotificationRepository notifications, EmailOutboxRepository emails,
+            AiInterviewClient ai, ObjectMapper mapper, AiInterviewActivityLog activity, AiInterviewProcessEngine processEngine, InterviewConversationService conversation,
+            NotificationPreferenceService preferences, com.smarthire.tenant.applicant.service.ApplicationClosureService closures,
+            RankingDataRepository rankingData) {
         this.interviews = interviews; this.questions = questions; this.answers = answers; this.feedbacks = feedbacks;
         this.skills = skills; this.cvs = cvs; this.extractions = extractions; this.history = history; this.stages = stages;
         this.notifications = notifications; this.emails = emails; this.ai = ai; this.mapper = mapper;
         this.activity = activity; this.processEngine = processEngine; this.conversation = conversation;
         this.preferences = preferences;
         this.closures = closures;
+        this.rankingData = rankingData;
     }
 
     @Transactional
@@ -465,26 +481,31 @@ public class AiInterviewEvaluationService {
         var application = interview.getApplication();
         ApplicationStatus previous = application.getStatus();
         boolean retry = !passed && InterviewPolicies.canRetry(interview, java.time.Instant.now());
-        ApplicationStatus next = passed ? ApplicationStatus.HUMAN_INTERVIEW
+        boolean unlockHuman = passed && HumanInterviewGate.cvPassed(application)
+                && (rankingData == null || HumanInterviewGate.assessmentPassed(rankingData.submissions(application.getId())));
+        ApplicationStatus next = unlockHuman ? ApplicationStatus.HUMAN_INTERVIEW
+                : passed ? (AiInterviewEligibility.openRound(previous) ? previous : ApplicationStatus.ASSESSMENT)
                 : retry ? (AiInterviewEligibility.openRound(previous) ? previous : ApplicationStatus.ASSESSMENT)
                 : ApplicationStatus.FAILED;
         var row = new ApplicationStatusHistory();
         row.setApplication(application); row.setFromStatus(previous.name()); row.setToStatus(next.name());
-        row.setNote("AI Interview " + interview.getStatus() + ": " + score + "/100; passing score " + interview.getPassingScoreSnapshot());
+        row.setNote("AI Interview " + interview.getStatus() + ": " + score + "/100; passing score " + interview.getPassingScoreSnapshot()
+                + (passed && !unlockHuman ? "; waiting for Assessment pass before Human Interview" : ""));
         history.save(row);
         application.setStatus(next);
         if (next == ApplicationStatus.FAILED) closures.onClosed(application, null);
-        if (passed) stages.findByJob_IdOrderBySortOrderAsc(application.getJob().getId()).stream()
+        if (unlockHuman) stages.findByJob_IdOrderBySortOrderAsc(application.getJob().getId()).stream()
                 .filter(stage -> "HUMAN_INTERVIEW".equalsIgnoreCase(stage.getStageCode())
                         || "Human Interview".equalsIgnoreCase(stage.getName()))
                 .findFirst()
                 .ifPresent(application::setStage);
         activity.record(interview, "APPLICATION_STATUS_CHANGED", previous + " -> " + next + "; stage history saved");
-        if (passed) {
-            activity.record(interview, "HUMAN_INTERVIEW_UNLOCKED", "AI Interview passed; human interview round opened");
+        if (unlockHuman) {
+            activity.record(interview, "HUMAN_INTERVIEW_UNLOCKED", "All prior rounds passed; human interview round opened");
         }
         String body = "Kết quả AI Interview cho vị trí " + application.getJob().getTitle() + ": " + score + "/100. "
-                + (passed ? "Bạn đã vượt qua AI Interview. Vòng phỏng vấn trực tiếp đã được mở."
+                + (unlockHuman ? "Bạn đã vượt qua các vòng đánh giá. Vòng phỏng vấn trực tiếp đã được mở."
+                        : passed ? "Bạn đã vượt qua AI Interview. Hoàn thành Assessment đạt yêu cầu để mở phỏng vấn trực tiếp."
                         : retry ? "Bạn chưa đạt ngưỡng " + interview.getPassingScoreSnapshot() + "/100. Bạn còn lượt làm lại trước hạn."
                         : "Bạn chưa đạt ngưỡng " + interview.getPassingScoreSnapshot() + "/100. Hồ sơ kết thúc ở vòng AI Interview.");
         notify(interview, passed ? "AI_INTERVIEW_PASSED" : "AI_INTERVIEW_FAILED", "Kết quả AI Interview", body, true);

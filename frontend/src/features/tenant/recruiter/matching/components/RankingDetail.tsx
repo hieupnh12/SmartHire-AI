@@ -1,13 +1,19 @@
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Award, BriefcaseBusiness, CalendarDays, Check, ChevronDown, CircleAlert, Code2, FileSearch, Lightbulb, MessageSquareText, Sparkles, Target, X } from "lucide-react";
+import { ArrowLeft, Award, BriefcaseBusiness, CalendarDays, Check, ChevronDown, CircleAlert, ClipboardList, Code2, FileSearch, Lightbulb, MessageSquareText, Bot, Sparkles, Target, X } from "lucide-react";
 import { matchingApi } from "@/api/tenant/matchingApi";
+import { applicantApi } from "@/api/tenant/applicantApi";
+import { humanInterviewApi } from "@/api/tenant/humanInterviewApi";
 import { getApiErrorMessage } from "@/lib/axios";
+import { toast } from "@/stores/toastStore";
+import type { ScreeningRoundsView } from "@/api/types/applicant";
 import type { RankingRow, RankingSources, Selection } from "../types/ranking";
 import { applicationStatusLabel, button, labels, muted, primary, scoreText } from "./rankingUi";
 import { RankingSelect } from "./RankingSelect";
 import { Skeleton, SkeletonText } from "@/components/ux/Skeleton";
+import { HumanInterviewScheduleDialog } from "@/features/tenant/recruiter/interviews/components/HumanInterviewScheduleDialog";
+import "@/features/tenant/recruiter/interviews/styles/human-interview-reference.css";
 
 const section = "rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-5 shadow-sm";
 
@@ -101,13 +107,82 @@ function SourceSelector({ applicationId, tenantKey, data }: { applicationId: num
   return <section className={section} aria-labelledby="source-title"><h3 id="source-title" className="text-lg font-semibold">Nguồn dữ liệu xếp hạng</h3><p className={muted}>Chọn nguồn chính thức khi ứng viên có nhiều lần đánh giá.</p><div className="mt-4 space-y-3">{fields.map((field) => <div key={field.key} className="space-y-1.5"><span className="block text-sm font-medium">{field.label}</span><RankingSelect ariaLabel={`Nguồn ${field.label}`} value={selection[field.key] === null ? "" : String(selection[field.key])} placeholder={field.options.length > 1 ? "Chọn nguồn" : "Chưa có nguồn"} options={[{ value: "", label: field.options.length > 1 ? "Chưa chọn nguồn" : "Chưa có nguồn" }, ...field.options.map((option) => ({ value: String(option.id), label: option.label, description: option.status }))]} onChange={(value) => setSelection((current) => ({ ...current, [field.key]: value ? Number(value) : null }))} /></div>)}</div>{mutation.isError && <p role="alert" className="mt-3 text-sm text-red-700">{getApiErrorMessage(mutation.error)}</p>}<button type="button" className={`${primary} mt-4 w-full`} disabled={mutation.isPending} onClick={() => mutation.mutate()}>{mutation.isPending ? "Đang lưu…" : "Lưu nguồn và tính lại"}</button></section>;
 }
 
+function roundPassed(passed: boolean | null | undefined, status?: string) {
+  return passed === true || status === "PASSED";
+}
+
+function canScheduleLiveInterview(rounds?: ScreeningRoundsView | null, cvScreeningStatus?: string | null) {
+  if (!rounds) return false;
+  const cvOk = roundPassed(rounds.cv.passed, rounds.cv.status) || cvScreeningStatus === "PASSED";
+  const aiOk = roundPassed(rounds.aiInterview.passed, rounds.aiInterview.status);
+  const assessmentOk = roundPassed(rounds.assessment.passed, rounds.assessment.status);
+  return cvOk && aiOk && assessmentOk;
+}
+
+function RoundHistory({ rounds, loading, error }: { rounds?: ScreeningRoundsView | null; loading?: boolean; error?: string }) {
+  const chip = "shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium";
+  const tone = (passed: boolean | null | undefined, status: string) => {
+    if (passed === true || status === "PASSED") return `${chip} bg-emerald-50 text-emerald-800`;
+    if (passed === false || status === "FAILED" || status === "EXPIRED" || status === "ERROR") return `${chip} bg-red-50 text-red-700`;
+    return `${chip} bg-[var(--color-surface-container-low)] text-[var(--color-on-surface-variant)]`;
+  };
+  const label = (passed: boolean | null | undefined, status: string, fallback: string) => {
+    if (passed === true || status === "PASSED") return "Đạt";
+    if (passed === false || status === "FAILED") return "Trượt";
+    return fallback;
+  };
+  const rows = [
+    { key: "cv", title: "Sàng lọc CV", icon: FileSearch, score: rounds?.cv.score, threshold: rounds?.cv.threshold, status: rounds?.cv.status ?? "MISSING", passed: rounds?.cv.passed ?? null, waiting: "Chưa có kết quả" },
+    { key: "ai", title: "AI Interview", icon: Bot, score: rounds?.aiInterview.score, threshold: rounds?.aiInterview.threshold, status: rounds?.aiInterview.status ?? "MISSING", passed: rounds?.aiInterview.passed ?? null, waiting: "Chưa hoàn thành" },
+    { key: "assessment", title: "Assessment", icon: ClipboardList, score: rounds?.assessment.score, threshold: rounds?.assessment.threshold, status: rounds?.assessment.status ?? "MISSING", passed: rounds?.assessment.passed ?? null, waiting: "Chưa làm bài" },
+  ] as const;
+  return <section className={section} aria-labelledby="round-history-title">
+    <header className="mb-4"><h3 id="round-history-title" className="flex items-center gap-2 text-lg font-semibold"><ClipboardList className="size-5 text-[var(--color-primary)]" aria-hidden="true" />Lịch sử các vòng đánh giá</h3><p className={muted}>CV, AI Interview và Assessment — chỉ đặt lịch phỏng vấn trực tiếp khi cả ba vòng đều đạt.</p></header>
+    {loading && <div className="space-y-2"><Skeleton className="h-14 w-full" /><Skeleton className="h-14 w-full" /><Skeleton className="h-14 w-full" /></div>}
+    {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+    {!loading && !error && <ul className="space-y-2">{rows.map((item) => {
+      const Icon = item.icon;
+      return <li key={item.key} className="flex items-start justify-between gap-3 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-alt)] px-3 py-3">
+        <div className="min-w-0 space-y-1">
+          <p className="flex items-center gap-2 font-medium"><Icon className="size-4 text-[var(--color-primary)]" aria-hidden="true" />{item.title}</p>
+          <p className={muted}>{item.score != null ? `${scoreText(item.score)}${item.threshold != null ? ` / ngưỡng ${scoreText(item.threshold)}` : ""}` : item.waiting}</p>
+        </div>
+        <span className={tone(item.passed, item.status)}>{label(item.passed, item.status, item.waiting)}</span>
+      </li>;
+    })}</ul>}
+  </section>;
+}
+
 function RankingDetailContent({ row, jobId, jobTitle, tenantKey, preview = false, fallback = false, onClose }: {
   row: RankingRow; jobId: number; jobTitle: string; tenantKey: string; preview?: boolean; fallback?: boolean; onClose: () => void;
 }) {
+  const navigate = useNavigate();
   const dialog = useRef<HTMLDialogElement>(null);
+  const [scheduling, setScheduling] = useState(false);
   useEffect(() => { const element = dialog.current; element?.showModal(); return () => element?.close(); }, []);
+  useEffect(() => {
+    if (!scheduling) return;
+    const font = document.createElement("link");
+    font.rel = "stylesheet";
+    font.href = "https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200";
+    document.head.appendChild(font);
+    return () => font.remove();
+  }, [scheduling]);
   const sources = useQuery({ queryKey: ["ranking-sources", tenantKey, row.applicationId], queryFn: () => matchingApi.sources(row.applicationId), enabled: !preview && !fallback });
-  return <dialog ref={dialog} onCancel={(event) => { event.preventDefault(); onClose(); }} aria-labelledby="ranking-detail-title" aria-modal="true" className="fixed inset-0 m-auto h-dvh w-full max-w-6xl overflow-y-auto border-0 bg-[var(--color-surface)] p-0 text-[var(--color-on-surface)] shadow-2xl backdrop:bg-slate-900/45 backdrop:backdrop-blur-sm sm:h-[calc(100dvh-32px)] sm:w-[calc(100%-32px)] sm:rounded-2xl sm:border sm:border-[var(--color-border-default)]">
+  const application = useQuery({
+    queryKey: ["applications", row.applicationId, "ranking-rounds"],
+    queryFn: () => applicantApi.get(row.applicationId),
+    enabled: !preview,
+  });
+  const interviewOptions = useQuery({
+    queryKey: ["human-interviews", "options", jobId],
+    queryFn: () => humanInterviewApi.options(jobId),
+    enabled: scheduling,
+  });
+  const rounds = application.data?.data.rounds;
+  const eligible = canScheduleLiveInterview(rounds, application.data?.data.cvScreeningStatus);
+  return <>
+  <dialog ref={dialog} onCancel={(event) => { event.preventDefault(); onClose(); }} aria-labelledby="ranking-detail-title" aria-modal="true" className="fixed inset-0 m-auto h-dvh w-full max-w-6xl overflow-y-auto border-0 bg-[var(--color-surface)] p-0 text-[var(--color-on-surface)] shadow-2xl backdrop:bg-slate-900/45 backdrop:backdrop-blur-sm sm:h-[calc(100dvh-32px)] sm:w-[calc(100%-32px)] sm:rounded-2xl sm:border sm:border-[var(--color-border-default)]">
     <div className="sticky top-0 z-20 flex items-center justify-between gap-4 border-b border-[var(--color-border-default)] bg-[var(--color-surface-card)]/90 px-4 py-3 backdrop-blur-xl sm:px-6">
       <button className={button} onClick={onClose} autoFocus><ArrowLeft className="size-4" aria-hidden="true" /><span className="hidden sm:inline">Quay lại bảng xếp hạng</span><span className="sm:hidden">Quay lại</span></button>
       <div className="flex items-center gap-2"><span className="hidden rounded-full bg-[var(--color-surface-container-low)] px-3 py-1 text-xs text-[var(--color-on-surface-variant)] sm:inline">Hồ sơ #{row.applicationId}</span><button className="grid size-11 place-items-center rounded-lg text-[var(--color-on-surface-variant)] hover:bg-[var(--color-surface-container-low)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-primary)]" onClick={onClose} aria-label="Đóng chi tiết ứng viên"><X className="size-5" aria-hidden="true" /></button></div>
@@ -125,19 +200,53 @@ function RankingDetailContent({ row, jobId, jobTitle, tenantKey, preview = false
         <nav className="relative mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3" aria-label="Thao tác với ứng viên">
           <Link className={`${button} bg-[var(--color-surface-card)]`} to={`/recruiter/jobs/${jobId}/assessments?applicationId=${row.applicationId}`}><Code2 className="size-4 text-[var(--color-primary)]" aria-hidden="true" />Xem Assessment</Link>
           <Link className={`${button} bg-[var(--color-surface-card)]`} to={`/recruiter/jobs/${jobId}/ai-interviews?applicationId=${row.applicationId}`}><MessageSquareText className="size-4 text-[var(--color-primary)]" aria-hidden="true" />Xem AI Interview</Link>
-          {row.result.complete
-            ? <Link className={primary} to={`/recruiter/jobs/${jobId}/interviews?applicationId=${row.applicationId}`}><CalendarDays className="size-4" aria-hidden="true" />Đặt lịch tiếp theo</Link>
-            : <button type="button" className={primary} disabled title="Cần đủ kết quả CV Match, Kinh nghiệm, Assessment và AI Interview"><CalendarDays className="size-4" aria-hidden="true" />Đặt lịch tiếp theo</button>}
+          {eligible && !preview
+            ? <button type="button" className={primary} onClick={() => setScheduling(true)}><CalendarDays className="size-4" aria-hidden="true" />Đặt lịch phỏng vấn trực tiếp</button>
+            : <button type="button" className={primary} disabled title="Cần đạt cả ba vòng: CV, AI Interview và Assessment"><CalendarDays className="size-4" aria-hidden="true" />Đặt lịch phỏng vấn trực tiếp</button>}
         </nav>
-        {!row.result.complete && <p role="status" className="relative mt-2 text-xs text-[var(--color-on-surface-variant)]">Chỉ đặt lịch khi đã đủ kết quả CV Match, Kinh nghiệm, Assessment và AI Interview ({row.result.completedComponents}/{row.result.requiredComponents}).</p>}
+        {!eligible && <p role="status" className="relative mt-2 text-xs text-[var(--color-on-surface-variant)]">Chỉ đặt lịch khi ứng viên đạt cả sàng lọc CV, AI Interview và Assessment.</p>}
       </section>
+
+      <RoundHistory rounds={rounds} loading={!preview && application.isPending} error={!preview && application.isError ? getApiErrorMessage(application.error) : undefined} />
 
       <div className="grid gap-6 lg:grid-cols-12"><div className="space-y-6 lg:col-span-8"><ComponentBreakdown row={row} /><SkillEvidence row={row} /><section className={section}><h3 className="text-lg font-semibold">Kinh nghiệm liên quan</h3><p className="mt-1 text-sm">{row.experienceMonths === null ? "Chưa đủ dữ liệu xác minh" : `${row.experienceMonths} tháng, đã loại trừ thời gian trùng lặp`}</p>{row.experienceEvidence.map((evidence, index) => <blockquote key={index} className="mt-3 rounded-r-lg border-l-2 border-[var(--color-primary)] bg-[var(--color-surface-alt)] p-3 text-sm">{evidence}</blockquote>)}</section><FormulaTable row={row} /></div>
         <aside className="space-y-6 lg:col-span-4"><InsightPanel row={row} preview={preview} />{row.interviewFeedback && <section className={section}><h3 className="flex items-center gap-2 text-lg font-semibold"><MessageSquareText className="size-5 text-[var(--color-primary)]" aria-hidden="true" />Nhận xét AI Interview</h3><p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-[var(--color-on-surface-variant)]">{row.interviewFeedback}</p></section>}<Timeline row={row} />
           {!preview && !fallback && sources.isPending && <div className={section}><Skeleton className="mb-2 h-4 w-32" /><SkeletonText lines={3} /></div>}{!preview && !fallback && sources.isError && <div role="alert" className={section}>{getApiErrorMessage(sources.error)}</div>}{!preview && !fallback && sources.data && <SourceSelector applicationId={row.applicationId} tenantKey={tenantKey} data={sources.data.data} />}
         </aside></div>
     </div>
-  </dialog>;
+    {/* Must stay inside <dialog>: native dialog top-layer hides siblings with z-index. */}
+    {scheduling && interviewOptions.data && (
+      <HumanInterviewScheduleDialog
+        jobId={jobId}
+        options={interviewOptions.data}
+        lockedApplicationId={row.applicationId}
+        onClose={() => setScheduling(false)}
+        onSaved={(draft) => {
+          setScheduling(false);
+          toast.success(draft
+            ? "Đã lưu bản nháp lịch phỏng vấn (chưa gửi thông báo)."
+            : "Đã lưu lịch và gửi lời mời / thông báo tới ứng viên và hội đồng.");
+          void application.refetch();
+        }}
+        onProfile={() => navigate(`/recruiter/jobs/${jobId}/applicants?applicationId=${row.applicationId}`)}
+        onAiReport={() => navigate(`/recruiter/jobs/${jobId}/ai-interviews?applicationId=${row.applicationId}`)}
+      />
+    )}
+    {scheduling && interviewOptions.isPending && (
+      <div className="fixed inset-0 z-[60] grid place-items-center bg-slate-900/40">
+        <div className={section}><Skeleton className="h-4 w-40" /><SkeletonText lines={3} /></div>
+      </div>
+    )}
+    {scheduling && interviewOptions.isError && (
+      <div className="fixed inset-0 z-[60] grid place-items-center bg-slate-900/40 p-4">
+        <div className={section} role="alert">
+          <p className="text-sm text-red-700">{getApiErrorMessage(interviewOptions.error)}</p>
+          <button type="button" className={`${button} mt-3`} onClick={() => setScheduling(false)}>Đóng</button>
+        </div>
+      </div>
+    )}
+  </dialog>
+  </>;
 }
 
 export function RankingDetail({ applicationId, previewRow, fallbackRow, jobId, jobTitle, tenantKey, onClose }: {

@@ -52,9 +52,9 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
   const [failedTenantLogoUrl, setFailedTenantLogoUrl] = useState<string | null>(null);
   const userInitial = user?.fullName.trim().charAt(0).toLocaleUpperCase();
   const isCandidateWorkspace = brandKey === "roles.candidate";
-  const inbox = useNotifications(isCandidateWorkspace);
-  const unreadCount = inbox.data?.filter(item => !item.readAt).length ?? 0;
   const isRecruiterWorkspace = basePath === "/recruiter";
+  const inbox = useNotifications(isCandidateWorkspace || isRecruiterWorkspace);
+  const unreadCount = inbox.data?.filter(item => !item.readAt).length ?? 0;
   const isRecruiterDashboard = isRecruiterWorkspace && /^\/recruiter\/?$/.test(location.pathname);
   const isRecruiterQuestionBank = isRecruiterWorkspace && /^\/recruiter\/question-bank(?:\/|$)/.test(location.pathname);
   const isRecruiterJobCreate = isRecruiterWorkspace && /^\/recruiter\/jobs\/new\/?$/.test(location.pathname);
@@ -410,12 +410,12 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
             {useWorkspaceHeader && showRecruiterNotifications && (
               <Tooltip content={t("nav.notifications")} side="bottom">
                 <NavLink
-                  to={isRecruiterWorkspace ? recruiterJobId ? `/recruiter/jobs/${recruiterJobId}/notifications` : "/recruiter" : `${basePath}/notifications`}
+                  to={isRecruiterWorkspace ? "/recruiter/notifications" : `${basePath}/notifications`}
                   className="relative grid size-10 place-items-center rounded-[var(--radius-default)] text-[var(--color-on-surface-variant)] transition-colors hover:bg-[var(--color-primary-subtle)] hover:text-brand-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary"
-                  aria-label={isCandidateWorkspace && unreadCount ? `${t("nav.notifications")} (${unreadCount} chưa đọc)` : t("nav.notifications")}
+                  aria-label={unreadCount ? `${t("nav.notifications")} (${unreadCount} chưa đọc)` : t("nav.notifications")}
                 >
                   <Bell className="size-[18px]" aria-hidden="true" />
-                  {isCandidateWorkspace && unreadCount > 0 && <span className="absolute right-1 top-1 rounded-full bg-brand-primary px-1 text-[10px] text-[var(--color-on-primary)]" aria-hidden="true">{unreadCount}</span>}
+                  {unreadCount > 0 && <span className="absolute right-1 top-1 rounded-full bg-brand-primary px-1 text-[10px] text-[var(--color-on-primary)]" aria-hidden="true">{unreadCount}</span>}
                 </NavLink>
               </Tooltip>
             )}
