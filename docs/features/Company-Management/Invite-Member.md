@@ -17,7 +17,7 @@ Company admin mời nhân viên qua email. Người được mời mở link, đ
 
 1. Admin mở `/internal/admin/users`, nhập họ tên, email, chọn vai trò (role hệ thống hoặc role custom đã tạo ở Phân quyền).
 2. FE gọi `POST /api/v1/tenant/users/invitations` (JWT + `X-Tenant-ID`).
-3. BE lưu `member_invitations` (PENDING, token SHA-256, hạn 72h). Gửi mail qua Gmail công ty nếu đã cấu hình; Gmail lỗi hoặc chưa cấu hình thì gửi bằng SMTP nền tảng. Lỗi gửi mail không hủy lời mời; API vẫn trả `acceptUrl`.
+3. BE lưu `member_invitations` (PENDING, token SHA-256, hạn 72h). Gửi mail qua Gmail công ty nếu đã cấu hình (render template HTML Thymeleaf `emails/member-invitation.html` chuẩn responsive với logo thương hiệu, badge lời mời, chi tiết vai trò, nút CTA Kích hoạt tài khoản và hướng dẫn 3 bước bảo mật); Gmail lỗi hoặc chưa cấu hình thì gửi bằng SMTP nền tảng. Lỗi gửi mail không hủy lời mời; API vẫn trả `acceptUrl`.
 4. Invitee mở `{tenant}.localhost:5173/invite/accept?token=...`, đặt mật khẩu.
 5. BE tạo `users` ACTIVE, đánh dấu lời mời ACCEPTED. Invitee đăng nhập `/internal/login`.
 
@@ -45,7 +45,7 @@ Migration: `backend/src/main/resources/db/migration/tenant/V4__member_invitation
 
 ## UI mockup
 
-- Admin: `/internal/admin/users` — form mời bên trái, bảng nhân viên bên phải (dropdown gắn vai trò). Nút Xem mở hộp thoại chi tiết: email, vai trò, workspace, trạng thái, ngày tham gia, và các job đang phụ trách.
+- Admin: `/internal/admin/users` — form mời bên trái có nút xem trước mẫu thư Gmail (Email Preview Modal), badge trạng thái tài khoản Gmail công ty, kết quả gửi kèm nút chép liên kết kích hoạt một chạm. Bảng nhân viên bên phải (dropdown gắn vai trò). Nút Xem mở hộp thoại chi tiết: email, vai trò, workspace, trạng thái, ngày tham gia, và các job đang phụ trách.
 - Accept: `/invite/accept?token=`
 - Nav: `nav.users`
 

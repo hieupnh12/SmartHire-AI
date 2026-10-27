@@ -138,9 +138,39 @@ public class CompanyEmailSettingService {
             helper.setFrom(request.getMailUsername().trim(), fromName);
             helper.setTo(request.getTestRecipientEmail().trim());
             helper.setSubject("[SmartHire-AI] Kiểm tra kết nối Gmail thành công");
-            helper.setText("Xin chào,\n\nĐây là email kiểm tra kết nối từ hệ thống SmartHire-AI.\n"
+
+            String testHtml = """
+                    <!DOCTYPE html>
+                    <html>
+                    <head><meta charset="UTF-8"><style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1e293b;background-color:#f1f5f9;margin:0;padding:20px;}.card{max-width:560px;margin:0 auto;background:#fff;border-radius:12px;padding:28px;border:1px solid #e2e8f0;box-shadow:0 4px 12px rgba(0,0,0,0.05);}.badge{display:inline-block;background:#ecfdf5;color:#047857;font-size:11px;font-weight:700;padding:4px 12px;border-radius:999px;border:1px solid #a7f3d0;}.title{font-size:20px;font-weight:800;color:#0f172a;margin:12px 0 8px;}.info-box{background:#f8fafc;border:1px solid #cbd5e1;border-radius:8px;padding:14px;margin:18px 0;font-size:13px;}.footer{margin-top:20px;font-size:11px;color:#64748b;text-align:center;border-top:1px solid #f1f5f9;padding-top:14px;}</style></head>
+                    <body>
+                    <div class="card">
+                      <div style="text-align:center;">
+                        <span class="badge">Kết Nối Thành Công</span>
+                        <h2 class="title">Kiểm Tra Kết Nối Gmail Thành Công!</h2>
+                      </div>
+                      <p style="font-size:14px;color:#334155;">Xin chào,</p>
+                      <p style="font-size:14px;color:#334155;">Tài khoản Gmail của Quý công ty đã kết nối SMTP thành công với hệ thống <strong>SmartHire-AI</strong>. Từ bây giờ, tất cả các email gửi lời mời nhân viên, lịch phỏng vấn và thông báo tuyển dụng sẽ được gửi trực tiếp từ địa chỉ Gmail này.</p>
+                      <div class="info-box">
+                        <strong>Tài khoản Gmail gửi:</strong> %s<br>
+                        <strong>Tên người gửi:</strong> %s<br>
+                        <strong>Thời gian kiểm tra:</strong> %s
+                      </div>
+                      <p style="font-size:13px;color:#64748b;margin:0;">Trân trọng,<br><strong>Đội ngũ SmartHire-AI</strong></p>
+                      <div class="footer">&copy; 2026 SmartHire-AI JSC. All rights reserved.</div>
+                    </div>
+                    </body>
+                    </html>
+                    """.formatted(
+                    request.getMailUsername().trim(),
+                    fromName,
+                    java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss dd/MM/yyyy")));
+
+            String plainFallback = "Xin chào,\n\nĐây là email kiểm tra kết nối từ hệ thống SmartHire-AI.\n"
                     + "Tài khoản Gmail (" + request.getMailUsername().trim() + ") đã kết nối SMTP thành công và sẵn sàng để gửi thư trong hệ thống.\n\n"
-                    + "Trân trọng,\nĐội ngũ SmartHire-AI", false);
+                    + "Trân trọng,\nĐội ngũ SmartHire-AI";
+
+            helper.setText(plainFallback, testHtml);
 
             mailSender.send(message);
             log.info("Test email successfully sent from {} to {} for tenant {}",
@@ -166,6 +196,11 @@ public class CompanyEmailSettingService {
     }
 
     public boolean sendMail(String to, String subject, String body) {
+        boolean isHtml = body != null && (body.contains("<html") || body.contains("<!DOCTYPE") || body.contains("<table"));
+        return sendMail(to, subject, isHtml ? null : body, isHtml ? body : null);
+    }
+
+    public boolean sendMail(String to, String subject, String textBody, String htmlBody) {
         String tenantCode = TenantContext.getCurrentTenant();
         CompanyEmailSetting setting = settingRepository.findFirstByIsActiveTrueOrderByIdDesc()
                 .orElseThrow(() -> new BusinessException(
@@ -185,7 +220,14 @@ public class CompanyEmailSettingService {
             helper.setFrom(setting.getMailUsername(), fromName);
             helper.setTo(to);
             helper.setSubject(subject);
-            helper.setText(body, false);
+
+            if (StringUtils.hasText(htmlBody) && StringUtils.hasText(textBody)) {
+                helper.setText(textBody, htmlBody);
+            } else if (StringUtils.hasText(htmlBody)) {
+                helper.setText(htmlBody, true);
+            } else {
+                helper.setText(textBody != null ? textBody : "", false);
+            }
 
             mailSender.send(message);
             log.info("Email sent to {} via company Gmail ({}) for tenant {}", to, setting.getMailUsername(), tenantCode);
