@@ -1,11 +1,8 @@
 import { useRecruitmentJob } from "../../jobs/components/JobRecruitmentWorkspace";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
 import {
-  Archive,
-  ArrowUpRight,
-  CheckCircle2,
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
@@ -14,26 +11,22 @@ import {
   Clock3,
   Edit3,
   Eye,
-  FileEdit,
-  Lightbulb,
   Loader2,
   Plus,
   Search,
-  Sparkles,
-  Target,
   Users,
 } from "lucide-react";
 import { assessmentApi } from "@/api/tenant/assessmentApi";
 import type { JobTest, TestStatus } from "@/api/types/assessment";
 import { AssessmentError, assessmentStatus } from "@/components/ux/assessmentUi";
+import { Breadcrumb } from "@/components/ux/Breadcrumb";
 import { TableSkeleton } from "@/components/ux/Skeleton";
 import { shortAssessmentTitle } from "@/lib/assessmentTitle";
 import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
-import { JobAssessmentConfiguration } from "../components/JobAssessmentConfiguration";
 
-type StatusTab = "ALL" | TestStatus;
 type SortKey = "latest" | "title" | "duration";
+type StatusFilter = "ALL" | TestStatus;
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
 
@@ -55,13 +48,6 @@ function getPaginationItems(current: number, total: number): (number | "ellipsis
 
   return [1, "ellipsis-start", current - 1, current, current + 1, "ellipsis-end", total];
 }
-
-const tabs: { id: StatusTab; label: string }[] = [
-  { id: "ALL", label: "Tất cả bài thi" },
-  { id: "PUBLISHED", label: "Đã xuất bản" },
-  { id: "DRAFT", label: "Bản nháp" },
-  { id: "ARCHIVED", label: "Lưu trữ" },
-];
 
 function formatRelative(iso: string) {
   const diff = Date.now() - new Date(iso).getTime();
@@ -103,98 +89,25 @@ function StatusBadge({ status }: { status: TestStatus }) {
   );
 }
 
-function MetricCard({
-  label,
-  value,
-  unit,
-  icon: Icon,
-  footer,
-  tone = "primary",
-}: {
-  label: string;
-  value: number;
-  unit: string;
-  icon: typeof ClipboardList;
-  footer: ReactNode;
-  tone?: "primary" | "success" | "warning" | "muted";
-}) {
-  const tones = {
-    primary: {
-      value: "text-[var(--color-on-surface)]",
-      iconWrap: "bg-[var(--color-primary-soft)] text-[var(--color-primary)]",
-      blob: "bg-[var(--color-surface-container-low)]",
-    },
-    success: {
-      value: "text-emerald-700",
-      iconWrap: "bg-emerald-50 text-emerald-700",
-      blob: "bg-emerald-50",
-    },
-    warning: {
-      value: "text-amber-700",
-      iconWrap: "bg-amber-50 text-amber-700",
-      blob: "bg-amber-50",
-    },
-    muted: {
-      value: "text-[var(--color-on-surface-variant)]",
-      iconWrap: "bg-[var(--color-surface-container)] text-[var(--color-on-surface-variant)]",
-      blob: "bg-[var(--color-surface-container)]",
-    },
-  }[tone];
-
-  return (
-    <div className="group relative flex flex-col justify-between overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-5 shadow-[var(--shadow-card)] transition-shadow hover:shadow-[var(--shadow-ambient)]">
-      <div className={cn("pointer-events-none absolute -right-4 -top-4 size-24 rounded-full opacity-60 transition-transform group-hover:scale-110", tones.blob)} />
-      <div className="relative z-10 flex items-start justify-between gap-3">
-        <div>
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-outline)]">{label}</span>
-          <p className={cn("mt-1 text-3xl font-semibold tracking-tight", tones.value)}>
-            {value.toLocaleString("vi-VN")}{" "}
-            <span className="text-base font-semibold text-[var(--color-on-surface-variant)]">{unit}</span>
-          </p>
-        </div>
-        <div className={cn("grid size-11 place-items-center rounded-xl", tones.iconWrap)}>
-          <Icon className="size-5" aria-hidden="true" />
-        </div>
-      </div>
-      <div className="relative z-10 mt-4 flex items-center justify-between gap-2 text-xs text-[var(--color-on-surface-variant)]">
-        {footer}
-      </div>
-    </div>
-  );
-}
-
 export function AssessmentsPage() {
   const job = useRecruitmentJob();
   const basePath = `/recruiter/jobs/${job.id}/assessments`;
   const [params, setParams] = useSearchParams();
-  const mainTab = (params.get("tab") === "config" ? "config" : "tests") as "tests" | "config";
-  const setMainTab = (nextTab: "tests" | "config") => {
-    setParams(
-      (prev) => {
-        const next = new URLSearchParams(prev);
-        if (nextTab === "config") {
-          next.set("tab", "config");
-        } else {
-          next.delete("tab");
-        }
-        return next;
-      },
-      { replace: true },
-    );
-  };
 
   const requestedPage = Math.max(1, parseInt(params.get("page") || "1", 10) || 1);
   const rawSize = parseInt(params.get("limit") || params.get("size") || "10", 10);
   const requestedSize = (PAGE_SIZE_OPTIONS as readonly number[]).includes(rawSize) ? rawSize : 10;
   const requestedQ = params.get("q") ?? "";
   const requestedSort = (params.get("sort") as SortKey) ?? "latest";
+  const requestedStatus = (params.get("status") as StatusFilter) ?? "ALL";
   const initialSort: SortKey = ["latest", "title", "duration"].includes(requestedSort) ? requestedSort : "latest";
+  const initialStatus: StatusFilter = ["ALL", "PUBLISHED", "DRAFT", "ARCHIVED"].includes(requestedStatus) ? requestedStatus : "ALL";
 
-  const [tab, setTab] = useState<StatusTab>("ALL");
   const [page, setPage] = useState(requestedPage);
   const [pageSize, setPageSize] = useState(requestedSize);
   const [query, setQuery] = useState(requestedQ);
   const [sort, setSort] = useState<SortKey>(initialSort);
+  const [status, setStatus] = useState<StatusFilter>(initialStatus);
   const [jumpVal, setJumpVal] = useState("");
   const [isTableTransitioning, setIsTableTransitioning] = useState(false);
   const [selected, setSelected] = useState<number[]>([]);
@@ -206,12 +119,15 @@ export function AssessmentsPage() {
     const s = (PAGE_SIZE_OPTIONS as readonly number[]).includes(raw) ? raw : 10;
     const q = params.get("q") ?? "";
     const so = (params.get("sort") as SortKey) ?? "latest";
+    const st = (params.get("status") as StatusFilter) ?? "ALL";
     const srt: SortKey = ["latest", "title", "duration"].includes(so) ? so : "latest";
+    const stat: StatusFilter = ["ALL", "PUBLISHED", "DRAFT", "ARCHIVED"].includes(st) ? st : "ALL";
 
     if (p !== page) setPage(p);
     if (s !== pageSize) setPageSize(s);
     if (q !== query) setQuery(q);
     if (srt !== sort) setSort(srt);
+    if (stat !== status) setStatus(stat);
   }, [params]);
 
   const tests = useQuery({
@@ -223,19 +139,11 @@ export function AssessmentsPage() {
 
   const jobTitle = (jobId: number) => jobMap.get(jobId)?.title ?? `Job #${jobId}`;
 
-  const counts = useMemo(() => {
-    const items = tests.data?.items ?? [];
-    return {
-      all: tests.data?.total ?? items.length,
-      published: items.filter((item) => item.status === "PUBLISHED").length,
-      draft: items.filter((item) => item.status === "DRAFT").length,
-      archived: items.filter((item) => item.status === "ARCHIVED").length,
-    };
-  }, [tests.data]);
-
   const filtered = useMemo(() => {
     let rows = [...(tests.data?.items ?? [])].filter((item) => item.jobId === job.id);
-    if (tab !== "ALL") rows = rows.filter((item) => item.status === tab);
+    if (status !== "ALL") {
+      rows = rows.filter((item) => item.status === status);
+    }
     const q = query.trim().toLowerCase();
     if (q) {
       rows = rows.filter(
@@ -251,7 +159,7 @@ export function AssessmentsPage() {
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
     return rows;
-  }, [tests.data, tab, job.id, query, sort, jobMap]);
+  }, [tests.data, job.id, query, sort, status, jobMap]);
 
   const totalItems = filtered.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
@@ -311,6 +219,18 @@ export function AssessmentsPage() {
     setPage(1);
   };
 
+  const handleStatusChange = (newStatus: StatusFilter) => {
+    setStatus(newStatus);
+    const nextParams = new URLSearchParams(params);
+    if (newStatus !== "ALL") nextParams.set("status", newStatus);
+    else nextParams.delete("status");
+    nextParams.set("page", "1");
+    nextParams.set("limit", String(pageSize));
+    nextParams.delete("size");
+    setParams(nextParams, { replace: true });
+    setPage(1);
+  };
+
   useEffect(() => {
     if (!tests.isFetching && totalItems > 0 && page > totalPages) {
       goToPage(totalPages);
@@ -333,240 +253,45 @@ export function AssessmentsPage() {
     setSelected((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
   };
 
-  const activeRate = counts.all ? Math.round((counts.published / Math.max(counts.all, 1)) * 1000) / 10 : 0;
-
-  const jobDistribution = useMemo(() => {
-    const map = new Map<number, number>();
-    for (const item of tests.data?.items ?? []) {
-      map.set(item.jobId, (map.get(item.jobId) ?? 0) + 1);
-    }
-    const total = Math.max(1, tests.data?.items.length ?? 1);
-    return [...map.entries()]
-      .map(([jobId, count]) => ({ jobId, count, percent: Math.round((count / total) * 100) }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 3);
-  }, [tests.data]);
-
-  const resetPage = () => goToPage(1);
   return (
-    <section className="flex flex-col gap-8 text-[var(--color-on-surface)]">
-      <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div className="min-w-0">
-          <nav className="flex flex-wrap items-center gap-1 text-xs text-[var(--color-on-surface-variant)]" aria-label="Breadcrumb">
-            <span>Tuyển dụng</span>
-            <span className="text-[var(--color-outline)]">/</span>
-            <span className="font-semibold text-[var(--color-primary)]">Bài đánh giá năng lực</span>
-          </nav>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight">Quản lý bài đánh giá năng lực</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--color-on-surface-variant)]">
-            Cấu hình cấu trúc đề cho vị trí. Hệ thống tự tạo một đề riêng cho từng hồ sơ từ ngân hàng câu hỏi. Thêm câu hỏi ở ngân hàng trước khi bật tạo tự động.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
-          <Link
-            to={`${basePath}/submissions`}
-            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-[var(--color-primary)] bg-[var(--color-primary-subtle)] px-4 text-sm font-semibold text-[var(--color-primary-hover)] transition-colors hover:bg-[var(--color-primary-soft)]"
-          >
-            <Users className="size-4" aria-hidden="true" />
-            Theo dõi bài làm
-          </Link>
-          <Link
-            to={`${basePath}/question-bank`}
-            className="inline-flex min-h-10 items-center justify-center rounded-full border border-[var(--color-primary)] bg-[var(--color-primary-subtle)] px-4 text-sm font-semibold text-[var(--color-primary-hover)] transition-colors hover:bg-[var(--color-primary-soft)]"
-          >
-            Ngân hàng câu hỏi
-          </Link>
-          <Link
-            to={`${basePath}/new`}
-            className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-[var(--radius-md)] bg-[var(--color-primary)] px-4 text-sm font-semibold text-[var(--color-on-primary)] shadow-sm transition-colors hover:bg-[var(--color-primary-hover)]"
-          >
-            <Plus className="size-4" aria-hidden="true" />
-            Cấu hình tạo đề
-          </Link>
-        </div>
-      </header>
-
-      {/* 2 Tab chính: Danh sách bài thi & Cấu hình bài tập */}
-      <div className="flex border-b border-[var(--color-border-default)]" role="tablist" aria-label="Quản lý bài đánh giá">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={mainTab === "tests"}
-          onClick={() => setMainTab("tests")}
-          className={cn(
-            "inline-flex items-center gap-2.5 border-b-2 px-5 py-3 text-base font-semibold transition-all",
-            mainTab === "tests"
-              ? "border-[var(--color-primary)] text-[var(--color-primary)]"
-              : "border-transparent text-[var(--color-on-surface-variant)] hover:border-[var(--color-outline-variant)] hover:text-[var(--color-on-surface)]",
-          )}
-        >
-          <ClipboardList className="size-5" />
-          Danh sách bài thi
-          <span
-            className={cn(
-              "rounded-full px-2 py-0.5 text-xs font-semibold",
-              mainTab === "tests"
-                ? "bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)]"
-                : "bg-[var(--color-surface-container-high)] text-[var(--color-on-surface-variant)]",
-            )}
-          >
-            {counts.all}
-          </span>
-        </button>
-
-        <button
-          type="button"
-          role="tab"
-          aria-selected={mainTab === "config"}
-          onClick={() => setMainTab("config")}
-          className={cn(
-            "inline-flex items-center gap-2.5 border-b-2 px-5 py-3 text-base font-semibold transition-all",
-            mainTab === "config"
-              ? "border-[var(--color-primary)] text-[var(--color-primary)]"
-              : "border-transparent text-[var(--color-on-surface-variant)] hover:border-[var(--color-outline-variant)] hover:text-[var(--color-on-surface)]",
-          )}
-        >
-          <Sparkles className="size-5 text-[var(--color-primary)]" />
-          Cấu hình bài tập & Tạo đề tự động
-        </button>
-      </div>
-
-      {mainTab === "config" ? (
-        <JobAssessmentConfiguration />
-      ) : (
-        <>
+    <section className="flex flex-col gap-3 text-[var(--color-on-surface)]">
+      <Breadcrumb
+        items={[
+          { label: "Tuyển dụng", to: "/recruiter" },
+          { label: job.title, to: `/recruiter/jobs/${job.id}` },
+          { label: "Bài đánh giá năng lực" },
+        ]}
+        actions={
+          <>
+            <Link
+              to={`${basePath}/submissions`}
+              className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-[var(--color-primary)] bg-[var(--color-primary-subtle)] px-3 text-sm font-semibold text-[var(--color-primary-hover)] transition-colors hover:bg-[var(--color-primary-soft)]"
+            >
+              <Users className="size-4" aria-hidden="true" />
+              Theo dõi bài làm
+            </Link>
+            <Link
+              to={`${basePath}/question-bank`}
+              className="inline-flex h-9 items-center justify-center rounded-lg border border-[var(--color-primary)] bg-[var(--color-primary-subtle)] px-3 text-sm font-semibold text-[var(--color-primary-hover)] transition-colors hover:bg-[var(--color-primary-soft)]"
+            >
+              Ngân hàng câu hỏi
+            </Link>
+            <Link
+              to={`${basePath}/new`}
+              className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-[var(--radius-md)] bg-[var(--color-primary)] px-3 text-sm font-semibold text-[var(--color-on-primary)] shadow-sm transition-colors hover:bg-[var(--color-primary-hover)]"
+            >
+              <Plus className="size-4" aria-hidden="true" />
+              Cấu hình tạo đề
+            </Link>
+          </>
+        }
+      />
 
       <AssessmentError error={tests.error} retry={() => void tests.refetch()} />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard
-          label="Hệ thống bài thi"
-          value={counts.all}
-          unit="bài"
-          icon={ClipboardList}
-          tone="primary"
-          footer={
-            <>
-              <span className="inline-flex items-center gap-1 font-medium text-[var(--color-primary)]">
-                <ArrowUpRight className="size-3.5" aria-hidden="true" />
-                {counts.published} đang xuất bản
-              </span>
-              <span className="text-[var(--color-outline)]">toàn bộ thư viện</span>
-            </>
-          }
-        />
-        <MetricCard
-          label="Đang kích hoạt"
-          value={counts.published}
-          unit="bài"
-          icon={CheckCircle2}
-          tone="success"
-          footer={
-            <>
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-700">
-                <span className="size-1.5 rounded-full bg-emerald-500" />
-                {activeRate}% vận hành
-              </span>
-              <span className="text-[var(--color-outline)]">sẵn sàng thi</span>
-            </>
-          }
-        />
-        <MetricCard
-          label="Bản nháp"
-          value={counts.draft}
-          unit="bài"
-          icon={FileEdit}
-          tone="warning"
-          footer={
-            <>
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2 py-0.5 font-semibold text-amber-800">
-                <span className="size-1.5 rounded-full bg-amber-500" />
-                Chưa xuất bản
-              </span>
-              <span className="text-[var(--color-outline)]">cần hoàn thiện</span>
-            </>
-          }
-        />
-        <MetricCard
-          label="Đã lưu trữ"
-          value={counts.archived}
-          unit="bài"
-          icon={Archive}
-          tone="muted"
-          footer={
-            <>
-              <span className="font-medium text-[var(--color-on-surface-variant)]">Không còn giao thi</span>
-              <span className="text-[var(--color-outline)]">lưu để tra cứu</span>
-            </>
-          }
-        />
-      </div>
-
-      <div className="flex flex-col items-start justify-between gap-4 rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-gradient-to-r from-[var(--color-surface-container-low)] via-[var(--color-surface-card)] to-[var(--color-surface-container-low)] p-5 shadow-[var(--shadow-card)] lg:flex-row lg:items-center">
-        <div className="flex items-start gap-4">
-          <div className="grid size-12 shrink-0 place-items-center rounded-xl bg-[var(--color-primary)] text-[var(--color-on-primary)] shadow-sm">
-            <Lightbulb className="size-6" aria-hidden="true" />
-          </div>
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-base font-semibold">Hai cách tạo bài đánh giá</h2>
-              <span className="rounded-full bg-[var(--color-primary-soft)] px-2 py-0.5 text-[11px] font-semibold text-[var(--color-primary-hover)]">
-                Thủ công / Tự động
-              </span>
-            </div>
-            <p className="mt-1 max-w-2xl text-sm leading-6 text-[var(--color-on-surface-variant)]">
-              Soạn câu hỏi thủ công hoặc cấu hình cấu trúc để tạo đề từ ngân hàng câu hỏi. Có thể bật tự động tạo đề riêng cho ứng viên sau khi vượt vòng lọc CV.
-            </p>
-          </div>
-        </div>
-        <Link
-          to={`${basePath}/new`}
-          className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg bg-[var(--color-primary)] px-4 text-sm font-semibold text-[var(--color-on-primary)] shadow-sm transition-colors hover:bg-[var(--color-primary-hover)]"
-        >
-          <Plus className="size-4" aria-hidden="true" />
-          Bắt đầu tạo đề
-        </Link>
-      </div>
-
-      <div className="flex flex-col gap-4 rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-4 shadow-[var(--shadow-card)]">
-        <div className="flex flex-wrap items-center gap-1 rounded-xl bg-[var(--color-surface-container-low)]/80 p-1">
-          {tabs.map((item) => {
-            const count =
-              item.id === "ALL" ? counts.all : item.id === "PUBLISHED" ? counts.published : item.id === "DRAFT" ? counts.draft : counts.archived;
-            const active = tab === item.id;
-            return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => {
-                  setTab(item.id);
-                  resetPage();
-                }}
-                className={cn(
-                  "inline-flex items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-sm transition-colors",
-                  active
-                    ? "bg-[var(--color-surface-card)] font-semibold text-[var(--color-primary)] shadow-sm"
-                    : "text-[var(--color-on-surface-variant)] hover:bg-[var(--color-surface-container)] hover:text-[var(--color-on-surface)]",
-                )}
-              >
-                {item.label}
-                <span
-                  className={cn(
-                    "rounded-full px-2 py-0.5 text-[11px] font-semibold",
-                    active
-                      ? "bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)]"
-                      : "bg-[var(--color-surface-container-high)] text-[var(--color-on-surface-variant)]",
-                  )}
-                >
-                  {count}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-12">
-          <label className="relative md:col-span-9">
+      <div className="overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-[var(--color-surface-card)] shadow-[var(--shadow-card)]">
+        <div className="grid grid-cols-1 gap-3 border-b border-[var(--color-border-default)] p-3 md:grid-cols-12">
+          <label className="relative md:col-span-6">
             <span className="sr-only">Tìm kiếm bài đánh giá</span>
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--color-outline)]" aria-hidden="true" />
             <input
@@ -575,6 +300,19 @@ export function AssessmentsPage() {
               value={query}
               onChange={(e) => handleQueryChange(e.target.value)}
             />
+          </label>
+          <label className="md:col-span-3">
+            <span className="sr-only">Trạng thái</span>
+            <select
+              className="h-10 w-full appearance-none rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-low)] px-3 text-sm outline-none focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20 cursor-pointer"
+              value={status}
+              onChange={(e) => handleStatusChange(e.target.value as StatusFilter)}
+            >
+              <option value="ALL">Tất cả trạng thái</option>
+              <option value="PUBLISHED">Đã xuất bản</option>
+              <option value="DRAFT">Bản nháp</option>
+              <option value="ARCHIVED">Lưu trữ</option>
+            </select>
           </label>
           <label className="md:col-span-3">
             <span className="sr-only">Sắp xếp</span>
@@ -589,9 +327,7 @@ export function AssessmentsPage() {
             </select>
           </label>
         </div>
-      </div>
 
-      <div className="overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-[var(--color-surface-card)] shadow-[var(--shadow-card)]">
         {tests.isPending && (
           <div className="p-4">
             <TableSkeleton columns={6} rows={5} />
@@ -605,7 +341,7 @@ export function AssessmentsPage() {
               <div>
                 <p className="font-semibold">Chưa có bài đánh giá phù hợp</p>
                 <p className="text-sm text-[var(--color-on-surface-variant)]">
-                  {tests.data.items.length === 0 ? "Tạo đề mới cho vị trí đang mở." : "Thử đổi bộ lọc hoặc từ khóa tìm kiếm."}
+                  {tests.data.items.length === 0 ? "Tạo đề mới cho vị trí đang mở." : "Thử đổi từ khóa hoặc bộ lọc tìm kiếm."}
                 </p>
               </div>
             </div>
@@ -837,97 +573,6 @@ export function AssessmentsPage() {
           </>
         )}
       </div>
-
-      <div className="mb-2 grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div className="flex flex-col justify-between rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-5 shadow-[var(--shadow-card)]">
-          <div>
-            <div className="flex items-center justify-between gap-2">
-              <h3 className="text-base font-semibold">Phân bổ theo trạng thái</h3>
-              <Target className="size-5 text-[var(--color-outline)]" aria-hidden="true" />
-            </div>
-            <p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">Tỷ lệ đề trong thư viện đang tải.</p>
-            <div className="mt-4 space-y-3">
-              {[
-                { label: "Đã xuất bản", count: counts.published, color: "bg-emerald-500", text: "text-emerald-700" },
-                { label: "Bản nháp", count: counts.draft, color: "bg-amber-500", text: "text-amber-700" },
-                { label: "Lưu trữ", count: counts.archived, color: "bg-[var(--color-outline)]", text: "text-[var(--color-on-surface-variant)]" },
-              ].map((row) => {
-                const pct = counts.all ? Math.round((row.count / Math.max(counts.all, 1)) * 100) : 0;
-                return (
-                  <div key={row.label}>
-                    <div className="mb-1 flex justify-between text-xs">
-                      <span className="font-medium">{row.label}</span>
-                      <span className={cn("font-bold", row.text)}>
-                        {pct}% ({row.count})
-                      </span>
-                    </div>
-                    <div className="h-2 w-full overflow-hidden rounded-full bg-[var(--color-surface-container)]">
-                      <div className={cn("h-full rounded-full", row.color)} style={{ width: `${pct}%` }} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-
-        <div className="flex flex-col justify-between rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-5 shadow-[var(--shadow-card)]">
-          <div>
-            <div className="flex items-center justify-between gap-2">
-              <h3 className="text-base font-semibold">Đề của vị trí đang mở</h3>
-              <ClipboardList className="size-5 text-[var(--color-outline)]" aria-hidden="true" />
-            </div>
-            <p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">Dựa trên các đề đang hiển thị trong thư viện.</p>
-            <div className="mt-4 space-y-2">
-              {jobDistribution.length === 0 && <p className="text-sm text-[var(--color-on-surface-variant)]">Chưa có dữ liệu.</p>}
-              {jobDistribution.map((row, index) => (
-                <div key={row.jobId} className="flex items-center justify-between gap-3 rounded-lg bg-[var(--color-surface-container-low)]/70 p-2.5">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <div
-                      className={cn(
-                        "grid size-6 shrink-0 place-items-center rounded-full text-[11px] font-bold",
-                        index === 0
-                          ? "bg-[var(--color-primary)] text-[var(--color-on-primary)]"
-                          : "bg-[var(--color-surface-container-highest)] text-[var(--color-on-surface)]",
-                      )}
-                    >
-                      {index + 1}
-                    </div>
-                    <span className="truncate text-sm font-medium">{jobTitle(row.jobId)}</span>
-                  </div>
-                  <span className="shrink-0 text-sm font-bold text-[var(--color-primary)]">{row.count} đề</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <div className="relative flex flex-col justify-between overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-gradient-to-br from-[var(--color-surface-card)] to-[var(--color-surface-container-low)] p-5 shadow-[var(--shadow-card)]">
-          <div>
-            <div className="flex items-center gap-2">
-              <Plus className="size-5 text-[var(--color-primary)]" aria-hidden="true" />
-              <h3 className="text-base font-semibold">Tạo đề mới nhanh</h3>
-            </div>
-            <p className="mt-1.5 text-xs leading-5 text-[var(--color-on-surface-variant)]">
-              Đặt thời lượng và điểm đạt, rồi thêm câu hỏi trắc nghiệm trước khi xuất bản.
-            </p>
-            <div className="mt-4 rounded-xl bg-[var(--color-surface-card)] p-4 text-center">
-              <ClipboardList className="mx-auto size-8 text-[var(--color-primary)]" aria-hidden="true" />
-              <p className="mt-2 text-sm font-semibold">Sẵn sàng soạn đề?</p>
-              <p className="mt-0.5 text-xs text-[var(--color-outline)]">Mỗi đề gắn với một job trong tenant</p>
-            </div>
-          </div>
-          <Link
-            to={`${basePath}/new`}
-            className="mt-4 inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg bg-[var(--color-primary)] px-4 text-sm font-semibold text-[var(--color-on-primary)] shadow-sm hover:bg-[var(--color-primary-hover)]"
-          >
-            <Plus className="size-4" aria-hidden="true" />
-            Tạo bài đánh giá
-          </Link>
-        </div>
-      </div>
-      </>
-      )}
     </section>
   );
 }
@@ -1030,33 +675,23 @@ function AssessmentRow({
         </div>
       </td>
       <td className="whitespace-nowrap px-4 py-3.5 text-right">
-        <div className="flex items-center justify-end gap-1">
-          {draft ? (
-            <Link
-              to={String(test.id)}
-              className="inline-flex h-8 items-center gap-1 rounded-lg bg-[var(--color-primary-soft)] px-2.5 text-xs font-medium text-[var(--color-primary)] hover:bg-[var(--color-primary)]/20"
-            >
-              <Edit3 className="size-3.5" aria-hidden="true" />
-              Chỉnh sửa
-            </Link>
-          ) : (
-            <Link
-              to={String(test.id)}
-              className="inline-flex h-8 items-center gap-1 rounded-lg bg-[var(--color-primary)] px-2.5 text-xs font-medium text-[var(--color-on-primary)] shadow-sm hover:bg-[var(--color-primary-hover)]"
-            >
-              <Eye className="size-3.5" aria-hidden="true" />
-              Xem đề
-            </Link>
-          )}
+        {draft ? (
           <Link
             to={String(test.id)}
-            className="grid size-8 place-items-center rounded-lg text-[var(--color-outline)] transition-colors hover:bg-[var(--color-surface-container)] hover:text-[var(--color-on-surface)]"
-            title="Chi tiết"
-            aria-label={`Chi tiết ${title}`}
+            className="inline-flex h-8 items-center gap-1 rounded-lg bg-[var(--color-primary-soft)] px-2.5 text-xs font-medium text-[var(--color-primary)] hover:bg-[var(--color-primary)]/20"
           >
-            <Plus className="size-4" aria-hidden="true" />
+            <Edit3 className="size-3.5" aria-hidden="true" />
+            Chỉnh sửa
           </Link>
-        </div>
+        ) : (
+          <Link
+            to={String(test.id)}
+            className="inline-flex h-8 items-center gap-1 rounded-lg bg-[var(--color-primary)] px-2.5 text-xs font-medium text-[var(--color-on-primary)] shadow-sm hover:bg-[var(--color-primary-hover)]"
+          >
+            <Eye className="size-3.5" aria-hidden="true" />
+            Xem đề
+          </Link>
+        )}
       </td>
     </tr>
   );

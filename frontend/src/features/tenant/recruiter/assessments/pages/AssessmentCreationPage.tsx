@@ -1,35 +1,57 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, Check, ClipboardList, Plus, Sparkles } from "lucide-react";
+import { Check, ClipboardList, Plus, Sparkles, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Breadcrumb } from "@/components/ux/Breadcrumb";
 import { useRecruitmentJob } from "../../jobs/components/JobRecruitmentWorkspace";
 import { AutomaticAssessmentCandidateAssigner } from "../components/AutomaticAssessmentCandidateAssigner";
+import { JobAssessmentConfiguration } from "../components/JobAssessmentConfiguration";
 
 const cardClass = "rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-5 shadow-[var(--shadow-card)]";
 
 export function AssessmentCreationPage() {
   const job = useRecruitmentJob();
   const basePath = `/recruiter/jobs/${job.id}/assessments`;
-  const [mode, setMode] = useState<"manual" | "automatic">("manual");
+  const [mode, setMode] = useState<"config" | "assign" | "manual">("config");
 
   return (
-    <section className="space-y-6">
-      <Link to={basePath} className="inline-flex items-center gap-2 text-sm text-[var(--color-primary)] hover:underline">
-        <ArrowLeft className="size-4" />
-        Danh sách bài đánh giá
-      </Link>
+    <section className="space-y-6 text-[var(--color-on-surface)]">
+      <Breadcrumb
+        items={[
+          { label: "Tuyển dụng", to: "/recruiter" },
+          { label: job.title, to: `/recruiter/jobs/${job.id}` },
+          { label: "Bài đánh giá năng lực", to: basePath },
+          { label: "Cấu hình tạo đề" },
+        ]}
+      />
+
       <header>
-        <p className="text-xs font-semibold uppercase tracking-wider text-[var(--color-primary)]">Thiết lập bài đánh giá</p>
-        <h1 className="mt-2 text-2xl font-semibold">Tạo bài assessment</h1>
-        <p className="mt-2 text-sm text-[var(--color-on-surface-variant)]">
-          Soạn câu hỏi thủ công hoặc tạo đề tự động cho ứng viên theo cấu hình bài tập của vị trí tuyển dụng.
+        <h1 className="text-2xl font-semibold tracking-tight">Cấu hình &amp; Tạo bài đánh giá</h1>
+        <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">
+          Thiết lập cấu trúc đề tự động theo kỹ năng của vị trí tuyển dụng, giao đề cho ứng viên hoặc soạn đề thủ công.
         </p>
       </header>
 
-      <div className="grid gap-4 md:grid-cols-2" role="tablist" aria-label="Cách tạo bài đánh giá">
+      <div className="grid gap-3 sm:grid-cols-3" role="tablist" aria-label="Tùy chọn tạo bài đánh giá">
         {([
-          { id: "manual", title: "Tạo thủ công", detail: "Thêm câu hỏi → Kiểm tra → Tạo bài assessment", icon: ClipboardList },
-          { id: "automatic", title: "Tạo tự động", detail: "Bốc đề từ ngân hàng câu hỏi → Chọn ứng viên giao bài", icon: Sparkles },
+          {
+            id: "config",
+            title: "Cấu hình bài tập & đề tự động",
+            detail: "Cấu trúc đề theo skill, độ khó và tự động tạo đề riêng",
+            icon: Sparkles,
+          },
+          {
+            id: "assign",
+            title: "Giao đề cho ứng viên",
+            detail: "Bốc đề từ ngân hàng câu hỏi và gửi tới ứng viên",
+            icon: Users,
+          },
+          {
+            id: "manual",
+            title: "Soạn đề thủ công",
+            detail: "Nhập câu hỏi từ bảng tính hoặc file Excel mẫu",
+            icon: ClipboardList,
+          },
         ] as const).map((item) => (
           <button
             key={item.id}
@@ -40,21 +62,35 @@ export function AssessmentCreationPage() {
             onClick={() => setMode(item.id)}
             className={cn(
               cardClass,
-              "flex items-start gap-4 text-left transition-colors",
-              mode === item.id && "border-[var(--color-primary)] bg-[var(--color-primary-soft)]",
+              "flex items-start gap-3.5 text-left transition-all cursor-pointer",
+              mode === item.id
+                ? "border-[var(--color-primary)] bg-[var(--color-primary-soft)] ring-1 ring-[var(--color-primary)]"
+                : "hover:border-[var(--color-outline-variant)]",
             )}
           >
-            <item.icon className="size-6 shrink-0 text-[var(--color-primary)]" />
-            <span className="flex-1">
-              <strong className="block">{item.title}</strong>
-              <span className="mt-1 block text-sm text-[var(--color-on-surface-variant)]">{item.detail}</span>
+            <item.icon className={cn("size-5 shrink-0 mt-0.5", mode === item.id ? "text-[var(--color-primary)]" : "text-[var(--color-outline)]")} />
+            <span className="flex-1 min-w-0">
+              <strong className="block text-sm font-semibold">{item.title}</strong>
+              <span className="mt-1 block text-xs leading-5 text-[var(--color-on-surface-variant)]">{item.detail}</span>
             </span>
-            {mode === item.id && <Check className="size-5 text-[var(--color-primary)]" />}
+            {mode === item.id && <Check className="size-4 shrink-0 text-[var(--color-primary)]" />}
           </button>
         ))}
       </div>
 
-      {mode === "manual" ? (
+      {mode === "config" && (
+        <div id="creation-config" role="tabpanel">
+          <JobAssessmentConfiguration />
+        </div>
+      )}
+
+      {mode === "assign" && (
+        <div id="creation-assign" role="tabpanel" className="space-y-4">
+          <AutomaticAssessmentCandidateAssigner />
+        </div>
+      )}
+
+      {mode === "manual" && (
         <div id="creation-manual" role="tabpanel" className={cardClass}>
           <h2 className="text-lg font-semibold">Bắt đầu từ câu hỏi</h2>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--color-on-surface-variant)]">
@@ -62,15 +98,11 @@ export function AssessmentCreationPage() {
           </p>
           <Link
             to={`${basePath}/excel-template`}
-            className="mt-5 inline-flex min-h-10 items-center gap-2 rounded-lg bg-[var(--color-primary)] px-4 font-semibold text-[var(--color-on-primary)] shadow-sm hover:bg-[var(--color-primary-hover)]"
+            className="mt-5 inline-flex min-h-10 items-center gap-2 rounded-lg bg-[var(--color-primary)] px-4 text-sm font-semibold text-[var(--color-on-primary)] shadow-sm hover:bg-[var(--color-primary-hover)]"
           >
             <Plus className="size-4" />
             Thêm câu hỏi thủ công
           </Link>
-        </div>
-      ) : (
-        <div id="creation-automatic" role="tabpanel" className="space-y-4">
-          <AutomaticAssessmentCandidateAssigner />
         </div>
       )}
     </section>
