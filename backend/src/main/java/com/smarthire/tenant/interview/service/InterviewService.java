@@ -4,6 +4,8 @@ import com.smarthire.common.exception.BusinessException;
 import com.smarthire.domain.enums.*;
 import com.smarthire.domain.tenant.entity.*;
 import com.smarthire.domain.tenant.repository.*;
+import com.smarthire.tenant.applicant.service.ApplicantService;
+import com.smarthire.tenant.applicant.service.ApplicationClosureService;
 import com.smarthire.tenant.cv.service.CvAccess;
 import com.smarthire.tenant.job.service.JobAccess;
 import com.smarthire.tenant.interview.dto.HumanInterviewModels.*;
@@ -11,6 +13,7 @@ import com.smarthire.tenant.interview.mapper.HumanInterviewMapper;
 import java.math.*;
 import java.net.URI;
 import java.time.*;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -27,6 +30,7 @@ public class InterviewService {
     private final InterviewEvaluationRepository evaluations;
     private final ApplicationRepository applications;
     private final AiInterviewRepository aiInterviews;
+    private final RankingDataRepository rankingData;
     private final JobRepository jobs;
     private final UserRepository users;
     private final CandidateRepository candidates;
@@ -35,6 +39,7 @@ public class InterviewService {
     private final HumanInterviewMapper mapper;
     private final ObjectMapper json;
     private final HumanInterviewNotificationService notifications;
+    private final ApplicantService applicants;
 
     public InterviewService(
             InterviewRepository interviews,
@@ -43,6 +48,7 @@ public class InterviewService {
             InterviewEvaluationRepository evaluations,
             ApplicationRepository applications,
             AiInterviewRepository aiInterviews,
+            RankingDataRepository rankingData,
             JobRepository jobs,
             UserRepository users,
             CvAccess access,
@@ -50,7 +56,7 @@ public class InterviewService {
             HumanInterviewMapper mapper,
             ObjectMapper json,
             HumanInterviewNotificationService notifications) {
-        this(interviews, schedules, participants, evaluations, applications, aiInterviews, jobs, users, null, access, jobAccess, mapper, json, notifications);
+        this(interviews, schedules, participants, evaluations, applications, aiInterviews, rankingData, jobs, users, null, access, jobAccess, mapper, json, notifications, null);
     }
 
     @Autowired
@@ -61,6 +67,7 @@ public class InterviewService {
             InterviewEvaluationRepository evaluations,
             ApplicationRepository applications,
             AiInterviewRepository aiInterviews,
+            RankingDataRepository rankingData,
             JobRepository jobs,
             UserRepository users,
             CandidateRepository candidates,
@@ -68,13 +75,15 @@ public class InterviewService {
             JobAccess jobAccess,
             HumanInterviewMapper mapper,
             ObjectMapper json,
-            HumanInterviewNotificationService notifications) {
+            HumanInterviewNotificationService notifications,
+            ApplicantService applicants) {
         this.interviews = interviews;
         this.schedules = schedules;
         this.participants = participants;
         this.evaluations = evaluations;
         this.applications = applications;
         this.aiInterviews = aiInterviews;
+        this.rankingData = rankingData;
         this.jobs = jobs;
         this.users = users;
         this.candidates = candidates;
@@ -83,6 +92,7 @@ public class InterviewService {
         this.mapper = mapper;
         this.json = json;
         this.notifications = notifications;
+        this.applicants = applicants;
     }
 
     public Map<String,String> health() { return Map.of("module", "human-interview", "status", "ready"); }
@@ -151,7 +161,7 @@ public class InterviewService {
         requireJob(jobId,false);
         return new Options(applications.findByJob_IdOrderByIdDesc(jobId).stream().filter(a -> a.getArchivedAt()==null && a.getWithdrawnAt()==null &&
             !List.of(ApplicationStatus.REJECTED,ApplicationStatus.HIRED,ApplicationStatus.WITHDRAWN).contains(a.getStatus()) &&
-            aiInterviews.existsByApplication_IdAndStatus(a.getId(),AiInterviewStatus.PASSED))
+            eligibleForHumanInterview(a))
             .map(a -> new CandidateOption(a.getId(),a.getCandidate().getId(),a.getCandidate().getFullName(),a.getCandidate().getEmail(),a.getJob().getTitle())).toList(),
             users.findAll().stream().filter(u -> u.getStatus()==UserStatus.ACTIVE && !UserRole.isCandidate(u.getRole()))
                 .map(u -> new ParticipantView(u.getId(),u.getFullName(),u.getEmail(),"CO_INTERVIEWER")).toList(),
@@ -170,8 +180,7 @@ public class InterviewService {
         } else if (r.location()==null || r.location().isBlank()) throw invalid("Enter the interview location");
         var a=applications.findByIdAndJob_Id(r.applicationId(),r.jobId()).orElseThrow(() -> missing("Application"));
         if (a.getArchivedAt()!=null || a.getWithdrawnAt()!=null || List.of(ApplicationStatus.REJECTED,ApplicationStatus.WITHDRAWN,ApplicationStatus.HIRED).contains(a.getStatus())) throw invalid("Application is not eligible for scheduling");
-        if (!aiInterviews.existsByApplication_IdAndStatus(a.getId(),AiInterviewStatus.PASSED))
-            throw new BusinessException("Ứng viên phải vượt qua vòng AI Interview trước khi lên lịch phỏng vấn trực tiếp",HttpStatus.CONFLICT,"AI_INTERVIEW_NOT_PASSED");
+        requireEligibleForHumanInterview(a);
         Interview i=id==null ? new Interview() : load(id,true);
         if (id!=null && (!i.getApplication().getJob().getId().equals(r.jobId()) || !i.getApplication().getId().equals(r.applicationId()))) throw invalid("Cannot change an existing interview application");
         if (id!=null && (List.of(ScheduleStatus.DONE,ScheduleStatus.CANCELLED).contains(schedule(i).getStatus()) || !evaluations.findByInterview_IdOrderById(id).isEmpty())) throw invalid("Interview is closed or evaluated");
@@ -189,7 +198,19 @@ public class InterviewService {
             panel.put(userId,u);
         }
         var conflictRows = schedules.conflicts(lockIds, List.of(a.getCandidate().getId()), r.start(), r.end(), id, ACTIVE);
-        if (!r.draft() && !conflictRows.isEmpty()) throw new BusinessException("Candidate or interviewer already has a meeting",HttpStatus.CONFLICT,"INTERVIEW_CONFLICT");
+        if (!r.draft() && !conflictRows.isEmpty()) {
+            var clash = conflictRows.get(0);
+            var other = clash.getInterview().getApplication().getCandidate();
+            String when = DateTimeFormatter.ofPattern("HH:mm dd/MM/yyyy").withZone(ZoneId.of("Asia/Bangkok")).format(clash.getScheduledStart());
+            boolean sameCandidate = other.getId().equals(a.getCandidate().getId());
+            throw new BusinessException(
+                sameCandidate
+                    ? "Ứng viên đã có lịch phỏng vấn đang mở lúc " + when + ". Hủy hoặc đổi giờ lịch đó trước khi tạo lịch mới."
+                    : "Người phỏng vấn đã có lịch với " + other.getFullName() + " (" + other.getEmail() + ") lúc " + when
+                        + ". Đổi giờ/hội đồng, hoặc hủy lịch kia trước.",
+                HttpStatus.CONFLICT,
+                "INTERVIEW_CONFLICT");
+        }
         i.setApplication(a); i.setInterviewType(PREFIX+r.round()); i.setMode(r.mode()); i.setStatus(r.draft()?InterviewStatus.CREATED:InterviewStatus.SCHEDULED);
         configure(i,new Configuration(r.rubric(),r.provider(),r.emailTemplate(),r.notes(),r.attachCalendar(),null,null,null)); interviews.saveAndFlush(i);
         var s=id==null ? new InterviewSchedule() : schedule(i); s.setInterview(i); s.setScheduledStart(r.start()); s.setScheduledEnd(r.end());
@@ -203,7 +224,10 @@ public class InterviewService {
             member.setParticipantRole(p.role()); participants.save(member);
         }
         participants.flush();
-        if (!r.draft()) notifications.invite(view(i),a.getCandidate());
+        if (!r.draft()) {
+            markHumanInterviewStage(a);
+            notifications.invite(view(i),a.getCandidate());
+        }
         return view(i);
     }
     public Availability availability(AvailabilityRequest r) {
@@ -247,13 +271,46 @@ public class InterviewService {
     public InterviewView evaluate(long id, EvaluationRequest r) {
         var i=load(id,false); if (access.candidate()) throw forbidden(); var s=schedule(i);
         if (List.of(ScheduleStatus.DRAFT,ScheduleStatus.CANCELLED).contains(s.getStatus()) || s.getScheduledEnd().isAfter(Instant.now())) throw invalid("Scorecard is available after the interview");
+        boolean reject = r.recommendation().equals("NO_HIRE") || r.recommendation().equals("STRONG_NO_HIRE");
+        boolean pass = r.recommendation().equals("HIRE") || r.recommendation().equals("STRONG_HIRE");
+        boolean finalize = Boolean.TRUE.equals(r.finalizeDecision());
+        if ((reject || finalize) && (r.comments() == null || r.comments().isBlank())) {
+            throw invalid(reject
+                    ? "Nhập lý do khi đánh giá Trượt / không tuyển"
+                    : "Nhập nhận xét khi ra quyết định cuối cùng");
+        }
         var actor=access.actor();
-        if (participants.findByInterviewIdOrderByUserId(id).stream().noneMatch(p -> p.getUserId().equals(actor.getId()) && !p.getParticipantRole().equals("NOTE_TAKER"))) throw forbidden();
+        var panel = participants.findByInterviewIdOrderByUserId(id);
+        if (panel.stream().noneMatch(p -> p.getUserId().equals(actor.getId()) && !p.getParticipantRole().equals("NOTE_TAKER"))) throw forbidden();
+        if (finalize && panel.stream().noneMatch(p -> p.getUserId().equals(actor.getId()) && "LEAD".equals(p.getParticipantRole()))) {
+            throw new BusinessException("Chỉ Lead Interviewer được ra quyết định Đậu/Trượt cuối cùng", HttpStatus.FORBIDDEN, "INTERVIEW_FORBIDDEN");
+        }
         var e=evaluations.findFirstByInterview_IdAndEvaluator_Id(id,actor.getId()).orElseGet(InterviewEvaluation::new);
         e.setInterview(i); e.setEvaluator(actor); e.setTechnicalScore(r.technicalScore()); e.setCommunicationScore(r.communicationScore()); e.setCultureScore(r.cultureScore());
         e.setOverallScore(r.technicalScore().add(r.communicationScore()).add(r.cultureScore()).divide(BigDecimal.valueOf(3),2,RoundingMode.HALF_UP));
         e.setComments(r.comments()); e.setRecommendation(r.recommendation()); evaluations.saveAndFlush(e);
-        s.setStatus(ScheduleStatus.DONE); i.setStatus(InterviewStatus.EVALUATED); return view(i);
+        // Completing the slot ≠ hiring decision. Finalize only when Lead opts in.
+        s.setStatus(ScheduleStatus.DONE); i.setStatus(InterviewStatus.EVALUATED);
+        if (finalize && applicants != null) {
+            var application = i.getApplication();
+            if (ApplicationClosureService.closed(application.getStatus())) {
+                throw new BusinessException("Đơn ứng tuyển đã kết thúc, không thể cập nhật quyết định", HttpStatus.CONFLICT, "APPLICATION_CLOSED");
+            }
+            if (pass) {
+                applicants.changeStatus(application.getId(), ApplicationStatus.OFFER.name(),
+                        r.comments() == null || r.comments().isBlank() ? "Đạt phỏng vấn trực tiếp" : r.comments().trim());
+            } else if (reject) {
+                applicants.changeStatus(application.getId(), ApplicationStatus.REJECTED.name(), r.comments().trim());
+            }
+        }
+        return view(i);
+    }
+
+    private void markHumanInterviewStage(Application a) {
+        if (applicants == null) return;
+        if (a.getStatus() == ApplicationStatus.ASSESSMENT || a.getStatus() == ApplicationStatus.INTERVIEW) {
+            applicants.changeStatus(a.getId(), ApplicationStatus.HUMAN_INTERVIEW.name(), "Đã lên lịch phỏng vấn trực tiếp");
+        }
     }
     public BulkResult bulk(BulkRequest r) {
         if (access.candidate()) throw forbidden(); var ids=new TreeSet<>(r.ids());
@@ -289,6 +346,38 @@ public class InterviewService {
     private static void window(Instant start, Instant end, boolean future) {
         if (start==null || end==null || !end.isAfter(start) || Duration.between(start,end).compareTo(Duration.ofMinutes(15))<0 || Duration.between(start,end).compareTo(Duration.ofMinutes(240))>0 || future && !start.isAfter(Instant.now())) throw invalid("Choose a future interview lasting 15-240 minutes");
     }
+
+    /** Live interview invite requires CV screening, AI Interview and Assessment all passed. */
+    private boolean eligibleForHumanInterview(Application a) {
+        try {
+            requireEligibleForHumanInterview(a);
+            return true;
+        } catch (BusinessException ex) {
+            return false;
+        }
+    }
+
+    private void requireEligibleForHumanInterview(Application a) {
+        if (!HumanInterviewGate.cvPassed(a)) {
+            throw new BusinessException(
+                    "Ứng viên phải vượt qua sàng lọc CV trước khi lên lịch phỏng vấn trực tiếp",
+                    HttpStatus.CONFLICT,
+                    "CV_SCREENING_NOT_PASSED");
+        }
+        if (!HumanInterviewGate.aiInterviewPassed(aiInterviews, a.getId())) {
+            throw new BusinessException(
+                    "Ứng viên phải vượt qua vòng AI Interview trước khi lên lịch phỏng vấn trực tiếp",
+                    HttpStatus.CONFLICT,
+                    "AI_INTERVIEW_NOT_PASSED");
+        }
+        if (!HumanInterviewGate.assessmentPassed(rankingData.submissions(a.getId()))) {
+            throw new BusinessException(
+                    "Ứng viên phải đạt Assessment trước khi lên lịch phỏng vấn trực tiếp",
+                    HttpStatus.CONFLICT,
+                    "ASSESSMENT_NOT_PASSED");
+        }
+    }
+
     private static BusinessException missing(String item) { return new BusinessException(item+" not found",HttpStatus.NOT_FOUND,"INTERVIEW_NOT_FOUND"); }
     private static BusinessException invalid(String message) { return new BusinessException(message,HttpStatus.BAD_REQUEST,"INTERVIEW_INVALID"); }
     private static BusinessException forbidden() { return new BusinessException("Interview access denied",HttpStatus.FORBIDDEN,"INTERVIEW_FORBIDDEN"); }

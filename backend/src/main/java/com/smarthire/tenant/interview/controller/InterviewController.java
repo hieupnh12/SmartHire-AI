@@ -45,7 +45,7 @@ public class InterviewController {
     public ApiResponse<InterviewView> cancel(@PathVariable long id) { return ApiResponse.ok(service.cancel(id)); }
     @PostMapping("/{id}/complete") @Operation(summary="Mark an ended human interview complete")
     public ApiResponse<InterviewView> complete(@PathVariable long id) { return ApiResponse.ok(service.complete(id)); }
-    @PostMapping("/{id}/evaluations") @Operation(summary="Assigned interviewer submits or updates their scorecard")
+    @PostMapping("/{id}/evaluations") @Operation(summary="Panel member saves scorecard; Lead may finalize OFFER/REJECTED on the application")
     public ApiResponse<InterviewView> evaluate(@PathVariable long id,@Valid @RequestBody EvaluationRequest body) { return ApiResponse.ok(service.evaluate(id,body)); }
     @PostMapping("/{id}/remind") @Operation(summary="Queue reminder emails to candidate and panel")
     public ApiResponse<Void> remind(@PathVariable long id) { service.remind(id); return ApiResponse.ok(null); }

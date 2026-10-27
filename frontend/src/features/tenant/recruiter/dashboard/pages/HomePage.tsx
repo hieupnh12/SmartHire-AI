@@ -31,7 +31,8 @@ import { cvApi } from "@/api/tenant/cvApi";
 import { jobApi } from "@/api/tenant/jobApi";
 import type { JobListItem, JobStatus } from "@/api/types/job";
 import type { ApplicationSummary } from "@/api/types/applicant";
-import { mockInterviews } from "@/features/tenant/recruiter/schedules/constants/mockInterviews";
+import { humanInterviewApi } from "@/api/tenant/humanInterviewApi";
+import { mapHumanInterview } from "@/features/tenant/recruiter/schedules/utils/mapHumanInterview";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 import { hasRecruiterFeature } from "@/features/tenant/recruiter/permissions";
 import { getApiErrorMessage } from "@/lib/axios";
@@ -257,6 +258,14 @@ export function HomePage() {
       refetchInterval: 5_000,
     })),
   });
+  const scheduleTaskQueries = useQueries({
+    queries: (taskJobsQuery.data?.data ?? []).map((job) => ({
+      queryKey: ["human-interviews", "dashboard-tasks", job.id],
+      queryFn: () => humanInterviewApi.list({ jobId: job.id, size: 100 }),
+      enabled: taskDrawer === "schedules",
+      refetchInterval: 5_000,
+    })),
+  });
   const departmentsQuery = useQuery({ queryKey: ["jobs", "departments"], queryFn: jobApi.departments, enabled: !!token });
   const jobs = jobsQuery.data?.data.items ?? [];
   const jobPage = jobsQuery.data?.data;
@@ -307,10 +316,23 @@ export function HomePage() {
     const rows = list.filter((cv) => cv.status === "UPLOADED" || cv.status === "PARSED");
     return rows.length === 0 ? [] : [{ jobId: job.id, title: job.title, to: `/recruiter/jobs/${job.id}/cvs`, items: rows.map((cv) => ({ id: cv.id, title: cv.candidateName, detail: cv.originalFilename, to: `/recruiter/jobs/${job.id}/cvs?cvId=${cv.id}` })) }];
   }).sort((a, b) => b.items.length - a.items.length), [cvTaskQueries, taskJobsQuery.data]);
-  const scheduleGroups = useMemo<TaskDrawerGroup[]>(() => (taskJobsQuery.data?.data ?? []).flatMap((job) => {
-    const rows = mockInterviews.filter((interview) => interview.jobTitle === job.title && interview.status !== "CANCELLED" && interview.status !== "DONE" && new Date(interview.startsAt).getTime() >= Date.now());
-    return rows.length === 0 ? [] : [{ jobId: job.id, title: job.title, to: `/recruiter/jobs/${job.id}/schedules?status=upcoming`, items: rows.map((interview) => ({ id: interview.id, title: interview.candidateName, detail: new Date(interview.startsAt).toLocaleString("vi-VN"), to: `/recruiter/jobs/${job.id}/schedules?status=upcoming&scheduleId=${interview.id}` })) }];
-  }).sort((a, b) => b.items.length - a.items.length), [taskJobsQuery.data]);
+  const scheduleGroups = useMemo<TaskDrawerGroup[]>(() => (taskJobsQuery.data?.data ?? []).flatMap((job, index) => {
+    const rows = (scheduleTaskQueries[index]?.data?.items ?? [])
+      .map(mapHumanInterview)
+      .filter((interview): interview is NonNullable<typeof interview> =>
+        !!interview && interview.status !== "CANCELLED" && interview.status !== "DONE" && new Date(interview.startsAt).getTime() >= Date.now());
+    return rows.length === 0 ? [] : [{
+      jobId: job.id,
+      title: job.title,
+      to: `/recruiter/jobs/${job.id}/schedules?status=upcoming`,
+      items: rows.map((interview) => ({
+        id: interview.id,
+        title: interview.candidateName,
+        detail: new Date(interview.startsAt).toLocaleString("vi-VN"),
+        to: `/recruiter/jobs/${job.id}/schedules?status=upcoming&scheduleId=${interview.id}`,
+      })),
+    }];
+  }).sort((a, b) => b.items.length - a.items.length), [scheduleTaskQueries, taskJobsQuery.data]);
 
   return (
     <section className="grid min-h-[calc(100vh-4rem)] items-stretch xl:grid-cols-[220px_minmax(0,1fr)] 2xl:grid-cols-[228px_minmax(0,1fr)]">

@@ -18,6 +18,7 @@ import com.smarthire.domain.tenant.entity.MatchScore;
 import com.smarthire.domain.tenant.entity.RecruitmentStage;
 import com.smarthire.domain.tenant.entity.Submission;
 import com.smarthire.domain.tenant.entity.User;
+import com.smarthire.domain.tenant.repository.AiInterviewRepository;
 import com.smarthire.domain.tenant.repository.ApplicationRepository;
 import com.smarthire.domain.tenant.repository.ApplicationStatusHistoryRepository;
 import com.smarthire.domain.tenant.repository.CandidateRepository;
@@ -27,6 +28,7 @@ import com.smarthire.domain.tenant.repository.JobTestRepository;
 import com.smarthire.domain.tenant.repository.RecruitmentStageRepository;
 import com.smarthire.domain.tenant.repository.SubmissionRepository;
 import com.smarthire.domain.tenant.repository.UserRepository;
+import com.smarthire.tenant.interview.service.HumanInterviewGate;
 import com.smarthire.tenant.applicant.dto.ApplicantModels.ApplicationDetail;
 import com.smarthire.tenant.applicant.dto.ApplicantModels.ApplicationSummary;
 import com.smarthire.tenant.applicant.dto.ApplicantModels.HistoryView;
@@ -80,6 +82,8 @@ public class ApplicantService {
     private final GateScreeningService gateScreening;
     private final CvApplicationCopyService cvCopies;
     private final ApplicationClosureService closures;
+    /** Optional in unit tests; required in production for Human Interview unlock gating. */
+    private AiInterviewRepository aiInterviews;
 
     public ApplicantService(
             ApplicationRepository applications,
@@ -138,6 +142,11 @@ public class ApplicantService {
         this.gateScreening = gateScreening;
         this.cvCopies = cvCopies;
         this.closures = closures;
+    }
+
+    @Autowired(required = false)
+    public void setAiInterviews(AiInterviewRepository aiInterviews) {
+        this.aiInterviews = aiInterviews;
     }
 
     public Map<String, String> health() {
@@ -511,8 +520,8 @@ public class ApplicantService {
 
     /**
      * Moves the application when the assigned paper has an official score.
-     * A pass opens human interview. A miss closes the application. No threshold
-     * leaves the decision to the recruiter.
+     * Human Interview unlocks only after CV + AI Interview + Assessment all pass.
+     * A miss closes the application. No threshold leaves the decision to the recruiter.
      */
     @Transactional
     public void settleAfterAssessment(long applicationId) {
@@ -521,7 +530,8 @@ public class ApplicantService {
         Application application = applications.findByIdForUpdate(applicationId).orElse(null);
         if (application == null || application.getArchivedAt() != null || application.getWithdrawnAt() != null)
             return;
-        if (application.getStatus() != ApplicationStatus.ASSESSMENT) {
+        if (application.getStatus() != ApplicationStatus.ASSESSMENT
+                && application.getStatus() != ApplicationStatus.INTERVIEW) {
             gateScreening.recalculate(application);
             return;
         }
@@ -532,7 +542,14 @@ public class ApplicantService {
             return;
         boolean passed = latest.getScore().compareTo(paper.getPassingScore()) >= 0;
         if (passed) {
-            record(application, ApplicationStatus.HUMAN_INTERVIEW, "Assessment passed", null);
+            if (!HumanInterviewGate.aiInterviewPassed(aiInterviews, applicationId)) {
+                // Assessment đạt nhưng AI Interview chưa — giữ vòng hiện tại, chưa mở lời mời Human Interview.
+                return;
+            }
+            if (!HumanInterviewGate.cvPassed(application)) {
+                return;
+            }
+            record(application, ApplicationStatus.HUMAN_INTERVIEW, "CV, AI Interview and Assessment passed", null);
             stages.findByJob_IdOrderBySortOrderAsc(application.getJob().getId()).stream()
                     .filter(stage -> "HUMAN_INTERVIEW".equalsIgnoreCase(stage.getStageCode())
                             || "Human Interview".equalsIgnoreCase(stage.getName()))

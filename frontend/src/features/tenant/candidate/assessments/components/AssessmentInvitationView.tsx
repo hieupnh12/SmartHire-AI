@@ -5,7 +5,6 @@ import {
   Check,
   ClipboardCheck,
   Clock3,
-  Expand,
   ExternalLink,
   Info,
   Monitor,
@@ -18,6 +17,7 @@ import type { AvailableAssessment } from "@/api/types/assessment";
 import type { ApplicationSummary } from "@/api/types/applicant";
 import type { UserProfile } from "@/features/tenant/auth/types";
 import { Button } from "@/components/ux/Button";
+import { AssessmentProctorGate, type ProctorSession } from "./AssessmentProctorGate";
 import { ASSESSMENT_GUIDELINES, ASSESSMENT_REGULATIONS } from "../constants/invitationContent";
 
 const regulationIcons: Record<(typeof ASSESSMENT_REGULATIONS)[number]["icon"], LucideIcon> = {
@@ -36,7 +36,7 @@ type Props = {
   starting: boolean;
   allowRetake?: boolean;
   onContinue: () => void;
-  onStart: () => void | Promise<void>;
+  onProctorReady: (session: ProctorSession) => void | Promise<void>;
   onSelectApplication?: (applicationId: number) => void;
   applications?: ApplicationSummary[];
 };
@@ -51,7 +51,7 @@ export function AssessmentInvitationView({
   starting,
   allowRetake = false,
   onContinue,
-  onStart,
+  onProctorReady,
   applications,
   onSelectApplication,
 }: Props) {
@@ -63,6 +63,11 @@ export function AssessmentInvitationView({
   /** Rules + device check always happen here (start, continue, demo retake) — never again on /take. */
   const needsGate = !done || (done && allowRetake);
   const candidateName = user?.fullName ?? application.candidateName;
+  const gateLabel = inProgress
+    ? "Tiếp tục làm bài"
+    : allowRetake && done
+      ? "Làm lại từ đầu"
+      : "Bắt đầu làm bài";
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3 overflow-hidden">
@@ -191,7 +196,7 @@ export function AssessmentInvitationView({
                   {inProgress ? "Tiếp tục bài thi" : allowRetake && done ? "Làm lại bài demo" : "Vào bài kiểm tra"}
                 </h2>
                 <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">
-                  Xác nhận quy chế phòng thi để vào thẳng chế độ toàn màn hình.
+                  Xác nhận quy chế, rồi kiểm tra camera, microphone và chia sẻ màn hình trước khi vào bài.
                 </p>
               </div>
 
@@ -223,49 +228,25 @@ export function AssessmentInvitationView({
                 <span className="min-w-0">
                   <span className="block font-semibold">Tôi đồng ý quy chế phòng thi</span>
                   <span className="mt-1 block text-sm text-[var(--color-on-surface-variant)]">
-                    Cam kết làm bài trung thực và tuân thủ chế độ toàn màn hình.
+                    Cam kết làm bài trung thực và chấp nhận giám sát thiết bị.
                   </span>
                   {!acceptRules && (
                     <span className="mt-1.5 block text-sm font-semibold text-[var(--color-primary)]">
-                      Bấm để xác nhận và mở nút làm bài
+                      Bấm để đồng ý và mở kiểm tra thiết bị
                     </span>
                   )}
                 </span>
               </label>
 
-              <div className="rounded-xl border border-[var(--color-border-default)]/60 bg-white p-4 space-y-2 text-xs leading-relaxed text-[var(--color-on-surface-variant)]">
-                <div className="flex items-center gap-2 font-semibold text-[var(--color-on-surface)] text-sm">
-                  <Expand className="size-4 text-[var(--color-primary)]" aria-hidden="true" />
-                  <span>Quy định Toàn màn hình</span>
-                </div>
-                <p>
-                  Bài thi yêu cầu làm việc ở chế độ toàn màn hình để đảm bảo tính tập trung và công bằng. Bạn không cần chia sẻ màn hình hay bật camera.
-                </p>
-                <p>
-                  Thoát toàn màn hình hoặc chuyển sang tab khác quá 3 lần sẽ tự động khóa và nộp bài thi.
-                </p>
-              </div>
-
-              <div className="pt-2 space-y-2">
-                <Button
-                  size="lg"
-                  className="w-full"
-                  disabled={!acceptRules || starting}
-                  onClick={onStart}
-                >
-                  <Expand className="size-4" aria-hidden="true" />
-                  {starting
-                    ? "Đang mở phòng thi…"
-                    : inProgress
-                      ? "Tiếp tục làm bài"
-                      : allowRetake && done
-                        ? "Làm lại từ đầu"
-                        : "Bắt đầu làm bài"}
-                </Button>
-                {!acceptRules && (
-                  <p className="text-center text-xs text-[var(--color-on-surface-variant)]">
-                    Vui lòng tích đồng ý quy chế để mở bài thi
-                  </p>
+              <div className="min-h-0 flex-1 overflow-hidden">
+                {acceptRules ? (
+                  <div className="h-full min-h-0 overflow-y-auto">
+                    <AssessmentProctorGate busy={starting} label={gateLabel} onReady={onProctorReady} />
+                  </div>
+                ) : (
+                  <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-[var(--color-border-default)] bg-white/70 px-4 text-center text-sm text-[var(--color-on-surface-variant)]">
+                    Đồng ý quy chế bên trên để kiểm tra camera, microphone và chia sẻ màn hình.
+                  </div>
                 )}
               </div>
 
