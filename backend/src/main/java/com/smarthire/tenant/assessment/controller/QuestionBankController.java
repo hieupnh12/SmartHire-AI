@@ -4,8 +4,10 @@ import com.smarthire.common.api.ApiResponse;
 import com.smarthire.tenant.assessment.dto.request.BankArchiveRequest;
 import com.smarthire.tenant.assessment.dto.request.BankQuestionBatchRequest;
 import com.smarthire.tenant.assessment.dto.request.BankQuestionRequest;
+import com.smarthire.tenant.assessment.dto.request.QuestionBankGenerateRequest;
 import com.smarthire.tenant.assessment.dto.response.BankQuestionPage;
 import com.smarthire.tenant.assessment.dto.response.BankQuestionResponse;
+import com.smarthire.tenant.assessment.service.QuestionBankGenerateService;
 import com.smarthire.tenant.assessment.service.QuestionBankService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -19,10 +21,14 @@ import org.springframework.web.bind.annotation.*;
 @Tag(name = "Technical Assessment - General Question Bank")
 public class QuestionBankController {
     private final QuestionBankService service;
+    private final QuestionBankGenerateService generate;
     @org.springframework.beans.factory.annotation.Autowired
     private com.smarthire.tenant.assessment.service.CodingVerificationService verification;
 
-    public QuestionBankController(QuestionBankService service) { this.service = service; }
+    public QuestionBankController(QuestionBankService service, QuestionBankGenerateService generate) {
+        this.service = service;
+        this.generate = generate;
+    }
 
     @PostMapping("/verify_coding")
     @Operation(summary = "Verify model solution against draft coding tests in sandbox (staff only)")
@@ -30,9 +36,18 @@ public class QuestionBankController {
         return ApiResponse.ok(verification.verify(body));
     }
 
+    @PostMapping("/generate_drafts")
+    @Operation(summary = "Draft MCQ / multiple-choice / essay questions with AI into the bank workflow (staff only)",
+            description = "Does not persist. Recruiter reviews drafts then POST /create_questions. Requires Admin AI task QUESTION_GEN.")
+    public ApiResponse<List<BankQuestionRequest>> generateDrafts(@Valid @RequestBody QuestionBankGenerateRequest body) {
+        return ApiResponse.ok(generate.generate(body));
+    }
+
     @GetMapping("/list_questions")
     @Operation(summary = "List standalone and assessment questions in the current tenant (staff only)")
-    public ApiResponse<BankQuestionPage> list(@RequestParam(defaultValue = "0") int page,
+    public ApiResponse<BankQuestionPage> list(
+            @RequestParam(required = false) Long jobId,
+            @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "50") int size,
             @RequestParam(required = false) String collection,
             @RequestParam(required = false) String query,
@@ -40,10 +55,11 @@ public class QuestionBankController {
             @RequestParam(required = false) String difficulty,
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String questionType,
+            @RequestParam(required = false) String source,
             @RequestParam(defaultValue = "latest") String sort,
             @RequestParam(required = false) List<Long> favoriteIds) {
         return ApiResponse.ok(service.list(page, size, collection, query, skill, difficulty, status,
-                questionType, sort, favoriteIds));
+                questionType, source, sort, favoriteIds, jobId));
     }
 
     @GetMapping("/get_question/{id}")

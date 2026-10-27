@@ -26,6 +26,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.smarthire.domain.tenant.repository.JobSkillRepository;
+
 @Service
 public class QuestionBankService {
     private final QuestionRepository questions;
@@ -34,65 +36,183 @@ public class QuestionBankService {
     private final QuestionSkillRepository questionSkills;
     private final CvAccess access;
     private final AssessmentMapper mapper;
+    private final JobSkillRepository jobSkills;
 
+    @org.springframework.beans.factory.annotation.Autowired
     public QuestionBankService(QuestionRepository questions, OptionRepository options, SkillRepository skills,
-            QuestionSkillRepository questionSkills, CvAccess access, AssessmentMapper mapper) {
+            QuestionSkillRepository questionSkills, CvAccess access, AssessmentMapper mapper,
+            @org.springframework.beans.factory.annotation.Autowired(required = false) JobSkillRepository jobSkills) {
         this.questions = questions;
         this.options = options;
         this.skills = skills;
         this.questionSkills = questionSkills;
         this.access = access;
         this.mapper = mapper;
+        this.jobSkills = jobSkills;
+    }
+
+    public QuestionBankService(QuestionRepository questions, OptionRepository options, SkillRepository skills,
+            QuestionSkillRepository questionSkills, CvAccess access, AssessmentMapper mapper) {
+        this(questions, options, skills, questionSkills, access, mapper, null);
     }
 
     @Transactional(readOnly = true)
     public BankQuestionPage list(int page, int size) {
-        return list(page, size, null, null, null, null, null, null, "latest", List.of());
+        return list(page, size, null, null, null, null, null, null, null, "latest", List.of(), null);
     }
 
     @Transactional(readOnly = true)
     public BankQuestionPage list(int page, int size, String collection, String query, String skill,
-            String difficulty, String status, String questionType, String sort, List<Long> favoriteIds) {
+            String difficulty, String status, String questionType, String source, String sort, List<Long> favoriteIds) {
+        return list(page, size, collection, query, skill, difficulty, status, questionType, source, sort, favoriteIds, null);
+    }
+
+    @Transactional(readOnly = true)
+    public BankQuestionPage list(int page, int size, String collection, String query, String skill,
+            String difficulty, String status, String questionType, String source, String sort, List<Long> favoriteIds, Long jobId) {
         staff();
         List<Long> safeFavoriteIds = favoriteIds == null ? List.of() : favoriteIds;
-        var result = questions.findAll(filters(collection, query, skill, difficulty, status, questionType,
-                        safeFavoriteIds),
+        var result = questions.findAll(filters(collection, query, skill, difficulty, status, questionType, source,
+                        safeFavoriteIds, jobId),
                 PageRequest.of(Math.max(0, page), Math.max(1, Math.min(100, size)), sorting(sort)));
-        var counts = new BankQuestionCounts(questions.count(), safeFavoriteIds.isEmpty() ? 0 : questions.countByIdIn(safeFavoriteIds),
-                questions.countByTest_Status(TestStatus.PUBLISHED), questions.countByTest_Status(TestStatus.DRAFT),
-                questions.countByBankArchivedTrue());
+
+        BankQuestionCounts counts;
+        if (jobId == null) {
+            counts = new BankQuestionCounts(questions.count(), safeFavoriteIds.isEmpty() ? 0 : questions.countByIdIn(safeFavoriteIds),
+                    questions.countByTest_Status(TestStatus.PUBLISHED), questions.countByTest_Status(TestStatus.DRAFT),
+                    questions.countByBankArchivedTrue());
+        } else {
+            Specification<Question> baseJobSpec = filters(null, null, null, null, null, null, null, safeFavoriteIds, jobId);
+            long allCount = questions.count(baseJobSpec);
+            long favCount = safeFavoriteIds.isEmpty() ? 0 : questions.count(baseJobSpec.and(filters("favorites", null, null, null, null, null, null, safeFavoriteIds, jobId)));
+            long readyCount = questions.count(baseJobSpec.and(filters("ready", null, null, null, null, null, null, safeFavoriteIds, jobId)));
+            long pendingCount = questions.count(baseJobSpec.and(filters("pending", null, null, null, null, null, null, safeFavoriteIds, jobId)));
+            long archivedCount = questions.count(baseJobSpec.and(filters("archived", null, null, null, null, null, null, safeFavoriteIds, jobId)));
+            counts = new BankQuestionCounts(allCount, favCount, readyCount, pendingCount, archivedCount);
+        }
+
+        List<String> distinctSkills = questions.findDistinctSkills();
+        if (jobId != null && jobSkills != null) {
+            List<String> jobSpecificSkills = jobSkills.findByJob_IdOrderByIdAsc(jobId).stream()
+                    .map(js -> js.getSkill() != null ? js.getSkill().getName() : null)
+                    .filter(name -> name != null && !name.isBlank())
+                    .distinct()
+                    .toList();
+            var set = new java.util.LinkedHashSet<String>(jobSpecificSkills);
+            set.addAll(distinctSkills);
+            distinctSkills = new java.util.ArrayList<>(set);
+        }
+
         return new BankQuestionPage(result.getContent().stream().map(this::response).toList(),
-                result.getTotalElements(), result.getNumber(), result.getSize(), counts, questions.findDistinctSkills());
+                result.getTotalElements(), result.getNumber(), result.getSize(), counts, distinctSkills);
     }
 
     private Specification<Question> filters(String collection, String query, String skill, String difficulty,
-            String status, String questionType, List<Long> favoriteIds) {
+            String status, String questionType, String source, List<Long> favoriteIds, Long jobId) {
         return (root, criteria, cb) -> {
             var predicates = new java.util.ArrayList<jakarta.persistence.criteria.Predicate>();
             var test = root.join("test", jakarta.persistence.criteria.JoinType.LEFT);
+            var job = test.join("job", jakarta.persistence.criteria.JoinType.LEFT);
+
+            if (jobId != null) {
+                var jobPredicateList = new java.util.ArrayList<jakarta.persistence.criteria.Predicate>();
+                jobPredicateList.add(cb.equal(job.get("id"), jobId));
+
+                List<String> jobSkillNames = List.of();
+                if (jobSkills != null) {
+                    jobSkillNames = jobSkills.findByJob_IdOrderByIdAsc(jobId).stream()
+                            .map(js -> js.getSkill() != null ? js.getSkill().getName() : null)
+                            .filter(name -> name != null && !name.isBlank())
+                            .map(String::trim)
+                            .map(String::toLowerCase)
+                            .distinct()
+                            .toList();
+                }
+
+                if (!jobSkillNames.isEmpty()) {
+                    var notBankArchived = cb.or(cb.isNull(root.get("bankArchived")), cb.isFalse(root.get("bankArchived")));
+                    var notTestArchived = cb.or(cb.isNull(test.get("status")), cb.notEqual(test.get("status"), TestStatus.ARCHIVED));
+                    var skillMatch = cb.lower(root.get("skill")).in(jobSkillNames);
+                    jobPredicateList.add(cb.and(notBankArchived, notTestArchived, skillMatch));
+                }
+
+                predicates.add(cb.or(jobPredicateList.toArray(jakarta.persistence.criteria.Predicate[]::new)));
+            }
+
             if ("favorites".equalsIgnoreCase(collection)) {
                 predicates.add(favoriteIds.isEmpty() ? cb.disjunction() : root.get("id").in(favoriteIds));
             } else if ("ready".equalsIgnoreCase(collection)) {
                 predicates.add(cb.equal(test.get("status"), TestStatus.PUBLISHED));
             } else if ("pending".equalsIgnoreCase(collection)) {
-                predicates.add(cb.equal(test.get("status"), TestStatus.DRAFT));
+                predicates.add(cb.or(cb.isNull(test.get("status")), cb.equal(test.get("status"), TestStatus.DRAFT)));
             } else if ("archived".equalsIgnoreCase(collection)) {
-                predicates.add(cb.isTrue(root.get("bankArchived")));
+                predicates.add(cb.or(cb.isTrue(root.get("bankArchived")), cb.equal(test.get("status"), TestStatus.ARCHIVED)));
             }
+
             if (query != null && !query.isBlank()) {
-                String term = "%" + query.trim().toLowerCase() + "%";
-                var job = test.join("job", jakarta.persistence.criteria.JoinType.LEFT);
-                predicates.add(cb.or(cb.like(cb.lower(root.get("questionText")), term),
-                        cb.like(cb.lower(root.get("skill")), term), cb.like(cb.lower(test.get("title")), term),
-                        cb.like(cb.lower(job.get("title")), term)));
+                String trimmed = query.trim();
+                String term = "%" + trimmed.toLowerCase() + "%";
+                var queryPredicates = new java.util.ArrayList<jakarta.persistence.criteria.Predicate>();
+                queryPredicates.add(cb.like(cb.lower(root.get("questionText")), term));
+                queryPredicates.add(cb.like(cb.lower(root.get("skill")), term));
+                queryPredicates.add(cb.like(cb.lower(test.get("title")), term));
+                queryPredicates.add(cb.like(cb.lower(job.get("title")), term));
+
+                String cleanNum = trimmed.replaceAll("(?i)^#?qb-?", "");
+                try {
+                    long idVal = Long.parseLong(cleanNum);
+                    queryPredicates.add(cb.equal(root.get("id"), idVal));
+                } catch (NumberFormatException ignored) {}
+
+                predicates.add(cb.or(queryPredicates.toArray(jakarta.persistence.criteria.Predicate[]::new)));
             }
-            if (skill != null && !skill.isBlank()) predicates.add(cb.equal(root.get("skill"), skill));
-            if (difficulty != null && !difficulty.isBlank()) predicates.add(cb.equal(root.get("difficulty"), difficulty));
-            if ("QUIZ".equals(questionType)) predicates.add(root.get("questionType").in("MCQ", "MULTIPLE_CHOICE"));
-            else if (questionType != null && !questionType.isBlank()) predicates.add(cb.equal(root.get("questionType"), questionType));
-            if ("ARCHIVED".equalsIgnoreCase(status)) predicates.add(cb.isTrue(root.get("bankArchived")));
-            else if ("DRAFT".equalsIgnoreCase(status)) predicates.add(cb.equal(test.get("status"), TestStatus.DRAFT));
-            else if ("PUBLISHED".equalsIgnoreCase(status)) predicates.add(cb.equal(test.get("status"), TestStatus.PUBLISHED));
+
+            if (skill != null && !skill.isBlank()) {
+                predicates.add(cb.equal(cb.lower(root.get("skill")), skill.trim().toLowerCase()));
+            }
+
+            if (difficulty != null && !difficulty.isBlank()) {
+                String diff = difficulty.trim();
+                if ("Cơ bản".equalsIgnoreCase(diff) || "Easy".equalsIgnoreCase(diff)) {
+                    predicates.add(cb.or(
+                            cb.equal(cb.lower(root.get("difficulty")), "easy"),
+                            cb.and(cb.isNull(root.get("difficulty")), cb.le(root.get("points"), 5))));
+                } else if ("Vận dụng".equalsIgnoreCase(diff) || "Medium".equalsIgnoreCase(diff)) {
+                    predicates.add(cb.or(
+                            cb.equal(cb.lower(root.get("difficulty")), "medium"),
+                            cb.and(cb.isNull(root.get("difficulty")), cb.gt(root.get("points"), 5), cb.le(root.get("points"), 15))));
+                } else if ("Nâng cao".equalsIgnoreCase(diff) || "Hard".equalsIgnoreCase(diff)) {
+                    predicates.add(cb.or(
+                            cb.equal(cb.lower(root.get("difficulty")), "hard"),
+                            cb.and(cb.isNull(root.get("difficulty")), cb.gt(root.get("points"), 15))));
+                } else {
+                    predicates.add(cb.equal(cb.lower(root.get("difficulty")), diff.toLowerCase()));
+                }
+            }
+
+            if ("QUIZ".equals(questionType)) {
+                predicates.add(root.get("questionType").in("MCQ", "MULTIPLE_CHOICE"));
+            } else if (questionType != null && !questionType.isBlank()) {
+                predicates.add(cb.equal(root.get("questionType"), questionType));
+            }
+
+            if ("ARCHIVED".equalsIgnoreCase(status)) {
+                predicates.add(cb.or(cb.isTrue(root.get("bankArchived")), cb.equal(test.get("status"), TestStatus.ARCHIVED)));
+            } else if ("DRAFT".equalsIgnoreCase(status)) {
+                predicates.add(cb.or(cb.isNull(test.get("status")), cb.equal(test.get("status"), TestStatus.DRAFT)));
+            } else if ("PUBLISHED".equalsIgnoreCase(status)) {
+                predicates.add(cb.equal(test.get("status"), TestStatus.PUBLISHED));
+            }
+
+            if ("AI".equalsIgnoreCase(source)) {
+                var meta = root.get("authoringMetadata").as(String.class);
+                predicates.add(cb.or(
+                        cb.like(cb.lower(meta), "%\"aigenerated\":true%"),
+                        cb.like(cb.lower(meta), "%\"aigenerated\": true%"),
+                        cb.like(cb.lower(meta), "%\"source\":\"ai\"%"),
+                        cb.like(cb.lower(meta), "%\"source\": \"ai\"%")));
+            }
+
             return cb.and(predicates.toArray(jakarta.persistence.criteria.Predicate[]::new));
         };
     }

@@ -71,4 +71,41 @@ class AssessmentAiConfigTest {
         assertThat(provider.resolveConfig("ASSESSMENT_GRADING").endpointUrl()).isEqualTo("http://localhost:4321/v1");
         assertThat(provider.resolveConfig("ASSESSMENT_GRADING").apiKey()).isEqualTo("assessment-key");
     }
+
+    @Test void assessmentGenUsesQuestionGenAdminConfigAndFallbackChain() {
+        var models = mock(AiModelConfigRepository.class);
+        var keys = mock(AiProviderKeyRepository.class);
+        var credentials = mock(TenantCredentialService.class);
+        var redis = mock(RedisService.class);
+        when(redis.get(anyString())).thenReturn(Optional.empty());
+        when(redis.exists(anyString())).thenReturn(false);
+        var config = com.smarthire.domain.master.entity.AiModelConfig.builder()
+                .taskType("QUESTION_GEN").provider("GEMINI").modelName("gemini-2.5-flash")
+                .isActive(true)
+                .fallbackChain("[{\"provider\":\"GROQ\",\"model\":\"llama-3.3-70b-versatile\"}]")
+                .build();
+        when(models.findByTaskType("QUESTION_GEN")).thenReturn(Optional.of(config));
+        when(models.findByTaskType("CODE_GRADING")).thenReturn(Optional.empty());
+        when(keys.findFirstByProviderAndIsDefaultTrueAndStatus("GEMINI", "ACTIVE")).thenReturn(Optional.of(
+                com.smarthire.domain.master.entity.AiProviderKey.builder()
+                        .apiKeyEncrypted("enc-gemini").build()));
+        when(keys.findFirstByProviderAndIsDefaultTrueAndStatus("GROQ", "ACTIVE")).thenReturn(Optional.of(
+                com.smarthire.domain.master.entity.AiProviderKey.builder()
+                        .apiKeyEncrypted("enc-groq").build()));
+        when(credentials.decrypt("MASTER_AI_KEY", "enc-gemini")).thenReturn("gemini-secret");
+        when(credentials.decrypt("MASTER_AI_KEY", "enc-groq")).thenReturn("groq-secret");
+
+        var provider = new DynamicAiConfigProvider(models, keys, credentials, redis, new ObjectMapper(),
+                "cv-key", "cv-model", 30, "interview-key", "interview-model", 60);
+
+        var assessment = provider.resolveConfig("ASSESSMENT_GEN");
+        assertThat(assessment.taskType()).isEqualTo("ASSESSMENT_GEN");
+        assertThat(assessment.provider()).isEqualTo("GEMINI");
+        assertThat(assessment.modelName()).isEqualTo("gemini-2.5-flash");
+        assertThat(assessment.apiKey()).isEqualTo("gemini-secret");
+        assertThat(assessment.hasFailover()).isTrue();
+        assertThat(provider.resolveExecutionChain("ASSESSMENT_GEN"))
+                .extracting(DynamicAiConfigProvider.ResolvedAiConfig::modelName)
+                .containsExactly("gemini-2.5-flash", "llama-3.3-70b-versatile");
+    }
 }

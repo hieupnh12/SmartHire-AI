@@ -122,7 +122,7 @@ class AssessmentServiceTest {
         when(tests.findAll(any(Pageable.class))).thenReturn(new PageImpl<>(List.of(draft)));
         var result = service.list(-1, 500);
         assertThat(result.page()).isZero();
-        assertThat(result.size()).isEqualTo(50);
+        assertThat(result.size()).isEqualTo(100);
         assertThat(result.items()).hasSize(1);
     }
 

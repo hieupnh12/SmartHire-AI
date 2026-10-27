@@ -2,7 +2,6 @@ package com.smarthire.tenant.aiInterview.service;
 
 import com.smarthire.common.exception.BusinessException;
 import com.smarthire.domain.enums.AiInterviewStatus;
-import com.smarthire.domain.enums.ApplicationStatus;
 import com.smarthire.domain.enums.NotificationCategory;
 import com.smarthire.domain.tenant.entity.AiInterview;
 import com.smarthire.domain.tenant.entity.Notification;

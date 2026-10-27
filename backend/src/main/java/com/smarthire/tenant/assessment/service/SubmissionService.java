@@ -38,6 +38,7 @@ public class SubmissionService {
     private final AssessmentMapper mapper;
     private final JobRepository jobs;
     private final org.springframework.beans.factory.ObjectProvider<com.smarthire.tenant.applicant.service.ApplicantService> applicants;
+
     @org.springframework.beans.factory.annotation.Autowired
     private org.springframework.context.ApplicationEventPublisher events;
     /** Absent in tests that do not load the demo seeder. Production creates the practice paper on demand. */
@@ -102,6 +103,10 @@ public class SubmissionService {
         Candidate candidate = candidate();
         Application application = applications.findById(applicationId).orElseThrow(this::notFound);
         if (!application.getCandidate().getId().equals(candidate.getId())) throw notFound();
+        if (application.getStatus() == ApplicationStatus.INTERVIEW && tests.existsByAssignedApplication_Id(application.getId())) {
+            application.setStatus(ApplicationStatus.ASSESSMENT);
+            applications.save(application);
+        }
         requireVisible(application);
         if (demoSeed != null && application.getJob().getDeletedAt() == null) demoSeed.ensurePublishedDemo(application.getJob());
         return tests.findByJob_IdAndStatusOrderByIdDesc(application.getJob().getId(), TestStatus.PUBLISHED).stream()
@@ -212,21 +217,46 @@ public class SubmissionService {
     private CodingJudge judge;
     public record SampleRun(@jakarta.validation.constraints.NotNull @jakarta.validation.constraints.Size(max=10000) String source,
             @jakarta.validation.constraints.NotBlank String language) {}
+    public record CustomRun(@jakarta.validation.constraints.NotNull @jakarta.validation.constraints.Size(max=10000) String source,
+            @jakarta.validation.constraints.NotBlank String language,
+            @jakarta.validation.constraints.NotNull @jakarta.validation.constraints.Size(max=10000) String input) {}
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public java.util.List<com.fasterxml.jackson.databind.JsonNode> runSamples(long id, long questionId, SampleRun body) {
-        Submission submission = owned(id, candidate());
-        if (expire(submission) || submission.getStatus() != TestSubmissionStatus.IN_PROGRESS) throw conflict("Submission closed", "SUBMISSION_CLOSED");
-        requirePlayable(submission.getApplication(), submission.getTest());
-        if (hasQuizSection(submission) && submission.getObjectiveCompletedAt() == null) throw conflict("Complete quiz section first", "SECTION_NOT_STARTED");
-        Question question = questions.findByIdAndTest_Id(questionId, submission.getTest().getId()).orElseThrow(this::notFound);
-        var problem = question.getCodingProblem();
-        if (problem == null || !problem.getStarterCodeJson().has(body.language())) throw invalid("Unsupported coding language");
+        CodingProblem problem = codingProblemForRun(id, questionId, body.language());
         try {
             return problem.getTestCases().stream().filter(TestCase::isSample).limit(5)
                     .map(c -> judge.run(problem, body.language(), body.source(), c.getInputData(), c.getExpectedOutput())).toList();
         } catch (RuntimeException failure) {
             throw new BusinessException("Coding sandbox unavailable", HttpStatus.SERVICE_UNAVAILABLE, "SANDBOX_UNAVAILABLE");
         }
+    }
+    @Transactional(isolation = Isolation.READ_COMMITTED)
+    public com.fasterxml.jackson.databind.JsonNode runCustom(long id, long questionId, CustomRun body) {
+        CodingProblem problem = codingProblemForRun(id, questionId, body.language());
+        Submission submission = owned(id, candidate());
+        Question question = questions.findByIdAndTest_Id(questionId, submission.getTest().getId()).orElseThrow(this::notFound);
+        Answer answer = answers.findBySubmission_IdAndQuestion_Id(id, questionId).orElseGet(() -> {
+            Answer created = new Answer();
+            created.setSubmission(submission);
+            created.setQuestion(question);
+            return answers.save(created);
+        });
+        answer.setCustomRunCount(answer.getCustomRunCount() + 1);
+        try {
+            return judge.run(problem, body.language(), body.source(), body.input(), null);
+        } catch (RuntimeException failure) {
+            throw new BusinessException("Coding sandbox unavailable", HttpStatus.SERVICE_UNAVAILABLE, "SANDBOX_UNAVAILABLE");
+        }
+    }
+    private CodingProblem codingProblemForRun(long id, long questionId, String language) {
+        Submission submission = owned(id, candidate());
+        if (expire(submission) || submission.getStatus() != TestSubmissionStatus.IN_PROGRESS) throw conflict("Submission closed", "SUBMISSION_CLOSED");
+        requirePlayable(submission.getApplication(), submission.getTest());
+        if (hasQuizSection(submission) && submission.getObjectiveCompletedAt() == null) throw conflict("Complete quiz section first", "SECTION_NOT_STARTED");
+        Question question = questions.findByIdAndTest_Id(questionId, submission.getTest().getId()).orElseThrow(this::notFound);
+        var problem = question.getCodingProblem();
+        if (problem == null || !problem.getStarterCodeJson().has(language)) throw invalid("Unsupported coding language");
+        return problem;
     }
 
     /** Auto-gradable choice questions (MCQ / multi-select). */
@@ -253,6 +283,20 @@ public class SubmissionService {
         return response(submission);
     }
 
+
+
+    @Transactional
+    public int expireOverdueSubmissions() {
+        var inProgress = submissions.findInProgressWithTest();
+        int count = 0;
+        for (var sub : inProgress) {
+            if (expire(sub)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
     private Candidate candidate() {
         if (!access.candidate()) throw new BusinessException("Candidate access required", HttpStatus.FORBIDDEN, "ASSESSMENT_FORBIDDEN");
         return access.candidateActor();
@@ -275,6 +319,10 @@ public class SubmissionService {
     }
 
     private void requireEligible(Application application) {
+        if (application.getStatus() == ApplicationStatus.INTERVIEW && tests.existsByAssignedApplication_Id(application.getId())) {
+            application.setStatus(ApplicationStatus.ASSESSMENT);
+            applications.save(application);
+        }
         requireVisible(application);
         if (application.getStatus() != ApplicationStatus.ASSESSMENT) {
             throw conflict("Application is not eligible for assessment", "APPLICATION_NOT_ELIGIBLE");
@@ -293,11 +341,13 @@ public class SubmissionService {
 
     /** Finished papers stay readable after the round moves on from ASSESSMENT. */
     private void requireVisible(Application application) {
+        boolean hasDedicatedTest = tests.existsByAssignedApplication_Id(application.getId());
         if (application.getArchivedAt() != null || application.getWithdrawnAt() != null
                 || application.getJob().getDeletedAt() != null
                 || (application.getStatus() != ApplicationStatus.ASSESSMENT
                 && application.getStatus() != ApplicationStatus.HUMAN_INTERVIEW
-                && application.getStatus() != ApplicationStatus.FAILED)) {
+                && application.getStatus() != ApplicationStatus.FAILED
+                && (!hasDedicatedTest || application.getStatus() != ApplicationStatus.INTERVIEW))) {
             throw conflict("Application is not eligible for assessment", "APPLICATION_NOT_ELIGIBLE");
         }
     }

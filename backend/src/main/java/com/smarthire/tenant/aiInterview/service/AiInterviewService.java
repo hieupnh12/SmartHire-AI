@@ -61,6 +61,7 @@ public class AiInterviewService {
     private final AiInterviewProcessEngine processEngine;
     private final AiInterviewEvaluationService evaluation;
     private final InterviewConversationService conversation;
+    @SuppressWarnings("unused")
     private final com.smarthire.domain.tenant.repository.AiInterviewProcessRunRepository processRuns;
     private final com.smarthire.domain.tenant.repository.AiInterviewConsentRepository consents;
 
@@ -219,6 +220,11 @@ public class AiInterviewService {
             interview.setExpiresAt(null);
             interview.setErrorMessage(null);
             activity.record(interview, "OPENING_QUEUED", "Candidate admitted; greeting queued; timer has not started");
+            try {
+                evaluation.process(interview.getId());
+            } catch (Exception ex) {
+                // If immediate initialization encounters an issue, keep OPENING_QUEUED so background dispatcher can retry
+            }
             return mapper.toResponse(interview);
         }
         interview.setStartedAt(now);

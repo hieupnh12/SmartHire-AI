@@ -61,6 +61,11 @@ public class JobTest {
     @Column(name = "passing_score", precision = 10, scale = 2)
     BigDecimal passingScore;
 
+    /** Share of coding score from hidden tests (0–100); AI review gets the remainder. */
+    @Builder.Default
+    @Column(name = "coding_test_weight_percent", nullable = false)
+    int codingTestWeightPercent = 90;
+
     @Builder.Default
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)

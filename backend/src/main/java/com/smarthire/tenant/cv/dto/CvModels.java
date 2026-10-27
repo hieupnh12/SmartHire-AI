@@ -30,6 +30,20 @@ public final class CvModels {
             Instant createdAt,
             boolean fromBuilder) {}
 
+    public record CvJobStats(
+            long total,
+            long scored,
+            long processing,
+            long failed,
+            BigDecimal averageScore) {}
+
+    public record CvPageResult(
+            List<CvSummary> items,
+            long total,
+            int page,
+            int size,
+            CvJobStats stats) {}
+
     public record SkillView(String skillName, String canonicalName, String category, BigDecimal confidence) {}
 
     public record AnalysisView(String summary, BigDecimal yearsExperience, String modelVersion, String promptVersion) {}

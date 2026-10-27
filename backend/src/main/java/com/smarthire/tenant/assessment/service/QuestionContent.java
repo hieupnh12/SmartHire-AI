@@ -38,7 +38,7 @@ public final class QuestionContent {
         if (!rubric.isObject() || rubric.toString().length() > 50000 || !rubric.path("referenceAnswer").isTextual()
                 || rubric.path("referenceAnswer").asText().isBlank() || !rubric.path("criteria").isArray()
                 || rubric.path("criteria").isEmpty() || rubric.path("criteria").size() > 20) throw invalid("Essay requires a reference answer and weighted rubric criteria");
-        if (rubric.has("category") && !Set.of("ESSAY_CONCEPTUAL", "ESSAY_SCENARIO").contains(rubric.path("category").asText())) throw invalid("Invalid essay category");
+        if (rubric.has("category") && !Set.of("ESSAY_CONCEPTUAL", "ESSAY_COMPARISON", "ESSAY_SCENARIO", "ESSAY_ARCHITECTURE").contains(rubric.path("category").asText())) throw invalid("Invalid essay category");
         int total = 0;
         for (JsonNode criterion : rubric.path("criteria")) {
             if (!criterion.path("description").isTextual() || criterion.path("description").asText().isBlank()
@@ -64,16 +64,49 @@ public final class QuestionContent {
         problem.setQuestion(question); problem.setTest(question.getTest());
         problem.setTitle(data.title() == null || data.title().isBlank() ? question.getQuestionText().substring(0, Math.min(255, question.getQuestionText().length())) : data.title().trim());
         problem.setPrompt(question.getQuestionText()); problem.setCategory(data.category());
+        problem.setConstraintsText(data.constraints() == null || data.constraints().isBlank() ? null : data.constraints().trim());
+        // Any content change invalidates model-solution publish gate.
+        problem.setVerifiedAt(null);
+        problem.setVerifiedLanguage(null);
         problem.setTimeLimitMs(data.timeLimitMs()); problem.setMemoryMb(data.memoryMb());
         problem.setStarterCodeJson(data.starterCode().deepCopy()); problem.setHarnessJson(data.harness().deepCopy());
         problem.getTestCases().clear();
         for (var input : data.testCases()) {
             var row = new TestCase(); row.setCodingProblem(problem); row.setInputData(input.input());
-            row.setWeight(input.weight() == null ? java.math.BigDecimal.ONE : input.weight());
-            row.setExpectedOutput(input.expectedOutput()); row.setSample(input.sample()); problem.getTestCases().add(row);
+            row.setWeight(input.sample() ? java.math.BigDecimal.ZERO
+                    : input.weight() == null ? java.math.BigDecimal.ONE : input.weight());
+            row.setExpectedOutput(input.expectedOutput()); row.setSample(input.sample());
+            row.setExplanation(input.explanation() == null || input.explanation().isBlank() ? null : input.explanation().trim());
+            problem.getTestCases().add(row);
         }
+        normalizeHiddenWeights(problem);
         question.setCodingProblem(problem);
     }
+
+    /** Equalize hidden weights to 100 when author did not supply a valid weighted set. Samples stay 0. */
+    public static void normalizeHiddenWeights(CodingProblem problem) {
+        var hidden = problem.getTestCases().stream().filter(test -> !test.isSample()).toList();
+        if (hidden.isEmpty()) return;
+        boolean weighted = hidden.stream().allMatch(test -> test.getWeight() != null && test.getWeight().signum() > 0)
+                && hidden.stream().map(TestCase::getWeight).reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add)
+                        .compareTo(java.math.BigDecimal.valueOf(100)) == 0;
+        if (weighted) {
+            problem.getTestCases().stream().filter(TestCase::isSample).forEach(test -> test.setWeight(java.math.BigDecimal.ZERO));
+            return;
+        }
+        java.math.BigDecimal share = java.math.BigDecimal.valueOf(100)
+                .divide(java.math.BigDecimal.valueOf(hidden.size()), 2, java.math.RoundingMode.HALF_UP);
+        java.math.BigDecimal assigned = java.math.BigDecimal.ZERO;
+        for (int i = 0; i < hidden.size(); i++) {
+            java.math.BigDecimal weight = i == hidden.size() - 1
+                    ? java.math.BigDecimal.valueOf(100).subtract(assigned)
+                    : share;
+            hidden.get(i).setWeight(weight);
+            assigned = assigned.add(weight);
+        }
+        problem.getTestCases().stream().filter(TestCase::isSample).forEach(test -> test.setWeight(java.math.BigDecimal.ZERO));
+    }
+
     private static BusinessException invalid(String message) {
         return new BusinessException(message, HttpStatus.BAD_REQUEST, "INVALID_TEST");
     }

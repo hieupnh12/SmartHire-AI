@@ -121,6 +121,8 @@ services:
       DROPBOX_SIGN_API_KEY: ${DROPBOX_SIGN_API_KEY:-}
       DROPBOX_SIGN_TEST_MODE: ${DROPBOX_SIGN_TEST_MODE:-true}
       CORS_ORIGINS: http://localhost:5173,http://localhost:80
+      APP_ASSESSMENT_JUDGE_URL: ${APP_ASSESSMENT_JUDGE_URL:-https://judge0-ce.p.rapidapi.com}
+      APP_ASSESSMENT_JUDGE_TOKEN: ${APP_ASSESSMENT_JUDGE_TOKEN:-}
     ports:
       - "8080:8080"
 

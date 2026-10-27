@@ -45,6 +45,10 @@ public class TestCase {
     @Column(name = "is_sample", nullable = false)
     boolean sample;
 
+    @Column(columnDefinition = "TEXT")
+    String explanation;
+
+    @Builder.Default
     @Column(nullable = false, precision = 5, scale = 2)
     BigDecimal weight = BigDecimal.ONE;
 }

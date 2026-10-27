@@ -9,6 +9,7 @@ import { companyApi } from "@/api/tenant/companyApi";
 import { tenantRolesApi } from "@/api/tenant/tenantRolesApi";
 import { Button } from "@/components/ux/Button";
 import { Card } from "@/components/ux/Card";
+import { Skeleton, TableSkeleton } from "@/components/ux/Skeleton";
 import { getApiErrorMessage } from "@/lib/axios";
 import { toast } from "@/stores/toastStore";
 import {
@@ -332,7 +333,12 @@ export function UsersPage() {
           <p className="text-sm text-[var(--color-text-secondary)]">
             Chọn vai trò đã tạo ở Phân quyền cho từng nhân viên.
           </p>
-          {members.isLoading && <p className="text-sm text-[var(--color-text-secondary)]">Đang tải…</p>}
+          {members.isLoading && (
+            <div className="py-2" role="status" aria-busy="true">
+              <TableSkeleton columns={5} rows={4} />
+              <span className="sr-only">Đang tải danh sách nhân viên…</span>
+            </div>
+          )}
           {members.isError && (
             <p className="text-sm text-status-danger" role="alert">
               {getApiErrorMessage(members.error, "Không tải được danh sách nhân viên")}
@@ -486,7 +492,14 @@ function EmployeeDetailDialog({
           </div>
         </dl>
         <h3 className="mt-6 text-sm font-semibold text-[var(--color-text-primary)]">Công việc đang phụ trách</h3>
-        {loading && <p className="mt-2 text-sm text-[var(--color-text-secondary)]">Đang tải…</p>}
+        {loading && (
+          <div className="mt-3 space-y-2" role="status" aria-busy="true">
+            {Array.from({ length: 3 }, (_, i) => (
+              <Skeleton key={i} className="h-12 w-full rounded-lg" />
+            ))}
+            <span className="sr-only">Đang tải danh sách công việc…</span>
+          </div>
+        )}
         {error && <p className="mt-2 text-sm text-status-danger">{error}</p>}
         {!loading && !error && jobs.length === 0 && (
           <p className="mt-2 text-sm text-[var(--color-text-secondary)]">Chưa được phân công job nào.</p>

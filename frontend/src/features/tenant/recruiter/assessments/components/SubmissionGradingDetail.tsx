@@ -4,8 +4,9 @@ import { z } from "zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, CheckCircle2, Code2, FileText, Mail, RefreshCw } from "lucide-react";
 import { assessmentApi } from "@/api/tenant/assessmentApi";
-import type { GradeDecision, GradingReview } from "@/api/types/assessment";
+import type { GradeDecision, GradingReview, SubmissionGradingDetail as GradingDetail } from "@/api/types/assessment";
 import { Button } from "@/components/ux/Button";
+import { Skeleton, SkeletonCard } from "@/components/ux/Skeleton";
 import { AssessmentError, assessmentInput, FieldError } from "@/components/ux/assessmentUi";
 import { queryKeys } from "@/lib/query-keys";
 import { useUiStore } from "@/stores/uiStore";
@@ -34,7 +35,7 @@ export function SubmissionGradingDetail({ id, onClose }: { id: number; onClose: 
     onSuccess: async (_, decision) => { setValue(`scores.${decision.questionId}`, ""); setNotice("Đã xác nhận duyệt điểm."); await refresh(); } });
   const update = useMutation({ mutationFn: (decisions: GradeDecision[]) => assessmentApi.updateGradingResult(id, decisions),
     onSuccess: async (data, decisions) => { client.setQueryData(key, data); decisions.forEach(decision => setValue(`scores.${decision.questionId}`, "")); setNotice(data.score == null ? "Đã cập nhật điểm. Còn câu hỏi chờ duyệt." : "Đã cập nhật kết quả chính thức."); await refresh(); } });
-  const email = useMutation({ mutationFn: () => assessmentApi.sendResultEmail(id), onSuccess: result => setNotice(result.status === "SENT" ? "Kết quả này đã được gửi trước đó." : "Đã đưa email kết quả vào hàng đợi gửi. Đây chưa phải xác nhận giao email thành công.") });
+  const email = useMutation({ mutationFn: () => assessmentApi.sendResultEmail(id), onSuccess: result => setNotice(result.status === "SENT" ? "Kết quả này đã được gửi trước đó (idempotent)." : result.status === "PENDING" ? "Đã đưa / tái xếp hàng email kết quả (PENDING). Đây chưa phải xác nhận giao thành công." : "Email kết quả đang FAILED — hệ thống đã reset attempts để worker thử lại.") });
   const retry = useMutation({ mutationFn: () => assessmentApi.retryGrading(id), onSuccess: async () => { setNotice("Đã yêu cầu chấm lại các câu chưa có điểm gợi ý."); await refresh(); } });
   const busy = approve.isPending || update.isPending || email.isPending || retry.isPending;
   const detail = query.data;
@@ -61,10 +62,17 @@ export function SubmissionGradingDetail({ id, onClose }: { id: number; onClose: 
     <AssessmentError error={query.error} retry={() => void query.refetch()} />
     <AssessmentError error={approve.error || update.error || email.error || retry.error} />
     {notice && <p role="status" className="rounded-lg bg-[var(--color-primary-subtle)] p-3 text-sm text-[var(--color-primary)]">{notice}</p>}
-    {query.isPending && <p role="status">Đang tải kết quả và bằng chứng chấm điểm…</p>}
+    {query.isPending && (
+      <div className="space-y-4">
+        <Skeleton className="h-24 w-full rounded-xl" />
+        <SkeletonCard className="h-44" />
+        <SkeletonCard className="h-44" />
+      </div>
+    )}
     {Object.keys(errors.scores ?? {}).length > 0 && <div ref={errorSummary} tabIndex={-1} role="alert" className="rounded-lg border border-[var(--color-status-danger)] p-3 text-sm"><p className="font-medium">Kiểm tra điểm ghi đè trước khi lưu:</p>{Object.entries(errors.scores ?? {}).map(([questionId, error]) => <a key={questionId} href={`#override-${id}-${questionId}`} className="mt-1 block underline">Câu #{questionId}: {error?.message}</a>)}</div>}
     {detail && <>
       <div className={card}><h3 className="font-semibold">Kết quả chính thức</h3><p className="text-2xl font-semibold">{detail.score == null ? "Chờ duyệt đầy đủ" : `${display(detail.score)} / ${detail.totalPoints} điểm`}</p><p className="text-sm">{detail.passingScore == null ? "Không đặt ngưỡng đạt" : `Ngưỡng đạt: ${display(detail.passingScore)} điểm`}{detail.score != null && detail.passingScore != null ? detail.score >= detail.passingScore ? " · Đạt yêu cầu" : " · Chưa đạt yêu cầu" : ""}</p></div>
+      {detail.integrity && <IntegrityPanel integrity={detail.integrity} />}
       <section className={card}><h3 className="flex items-center gap-2 font-semibold"><CheckCircle2 className="size-5 text-[var(--color-primary)]" aria-hidden="true" />1. TRẮC NGHIỆM · Chấm tự động</h3><p className="text-sm">{detail.objective.correctCount}/{detail.objective.questionCount} câu đúng · {display(detail.objective.score)}/{detail.objective.totalPoints} điểm · Tỉ lệ đúng {detail.objective.questionCount ? display(detail.objective.correctCount / detail.objective.questionCount * 100) : "0"}%</p>{detail.objective.questionCount === 0 && <p className="text-sm text-[var(--color-on-surface-variant)]">Đề không có câu trắc nghiệm.</p>}</section>
       {(["ESSAY", "CODING"] as const).map(type => <section key={type} className="min-w-0 space-y-4"><h3 className="flex items-center gap-2 font-semibold">{type === "ESSAY" ? <FileText className="size-5" aria-hidden="true" /> : <Code2 className="size-5" aria-hidden="true" />}{type === "ESSAY" ? "2. TỰ LUẬN LÝ THUYẾT · AI Rubric & Duyệt điểm" : "3. THỬ THÁCH LẬP TRÌNH · Sandbox & AI Review"}</h3>
         {reviews.filter(review => review.type === type).length === 0 && <p className="text-sm">Không có câu hỏi thuộc nhóm này.</p>}
@@ -87,6 +95,56 @@ export function SubmissionGradingDetail({ id, onClose }: { id: number; onClose: 
   </section>;
 }
 
+function IntegrityPanel({ integrity }: { integrity: NonNullable<GradingDetail["integrity"]> }) {
+  const events = integrity.proctorEvents ?? [];
+  const runs = integrity.customRuns ?? [];
+  return (
+    <section className={card}>
+      <h3 className="font-semibold">Tín hiệu toàn vẹn · cạnh điểm</h3>
+      <p className="text-sm">
+        {integrity.proctorEventCount} sự kiện giám sát · {runs.reduce((sum, row) => sum + row.count, 0)} lần custom-run
+      </p>
+      {runs.length > 0 && (
+        <ul className="space-y-1 text-sm">
+          {runs.map((row) => (
+            <li key={row.questionId}>
+              Câu #{row.questionId}: {row.count} custom-run
+              {row.prompt ? ` · ${row.prompt.slice(0, 80)}${row.prompt.length > 80 ? "…" : ""}` : ""}
+            </li>
+          ))}
+        </ul>
+      )}
+      {events.length > 0 && (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[420px] text-left text-sm">
+            <thead>
+              <tr>
+                <th scope="col" className="p-2">Sự kiện</th>
+                <th scope="col" className="p-2">Thời điểm</th>
+                <th scope="col" className="p-2">Chi tiết</th>
+              </tr>
+            </thead>
+            <tbody>
+              {events.map((event, index) => (
+                <tr key={`${event.eventType}-${event.createdAt}-${index}`} className="border-t border-[var(--color-border-default)]">
+                  <td className="p-2 font-medium">{event.eventType}</td>
+                  <td className="whitespace-nowrap p-2">{new Date(event.createdAt).toLocaleString("vi-VN")}</td>
+                  <td className="max-w-xs truncate p-2 text-[var(--color-on-surface-variant)]" title={event.detail ?? undefined}>
+                    {event.detail ?? "—"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {integrity.proctorEventCount === 0 && runs.length === 0 && (
+        <p className="text-sm text-[var(--color-on-surface-variant)]">Không ghi nhận blur/copy hay custom-run.</p>
+      )}
+    </section>
+  );
+}
+
 function EssayEvidence({ review }: { review: GradingReview }) {
   const evaluation = review.evaluation ?? {};
   const results = Array.isArray(evaluation.criteria_results) ? evaluation.criteria_results : [];
@@ -106,15 +164,23 @@ function CodingEvidence({ review }: { review: GradingReview }) {
   const evaluation = review.evaluation ?? {};
   const tests = Array.isArray(evaluation.tests) ? evaluation.tests : [];
   const codeReview = object(evaluation.code_review);
-  const passed = number(evaluation.passed);
-  const total = number(evaluation.total);
+  const hiddenPassed = number(evaluation.hidden_passed);
+  const hiddenTotal = number(evaluation.hidden_total);
+  const testsPercent = number(evaluation.tests_percent);
+  const aiPercent = number(evaluation.ai_percent);
+  const formulaPercent = number(evaluation.formula_percent);
+  const testWeight = number(evaluation.test_weight) ?? 0.9;
+  const aiWeight = number(evaluation.ai_weight) ?? 0.1;
   return <div className="min-w-0 space-y-4">
     {evaluation.status === "ERROR" && <p role="status" className="text-sm text-[var(--color-status-warning)]">Sandbox hoặc AI review chưa khả dụng. Không coi lỗi dịch vụ là điểm 0.</p>}
-    <p className="text-sm">Test vượt qua: {display(passed)}/{display(total)} · {passed != null && total != null && total > 0 ? display(passed / total * 100) : "—"}%</p>
-    {number(evaluation.tests_percent) != null && <p className="text-sm">Điểm test: {display(number(evaluation.tests_percent))}% · {evaluation.tests_weighted === true ? "Theo trọng số test ẩn" : "Theo tỉ lệ test pass"} (80% điểm code). AI review đóng góp 20%.</p>}
-    {tests.length > 0 && <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr><th scope="col" className="p-2">Test case</th><th scope="col" className="p-2">Loại</th><th scope="col" className="p-2">Kết quả Sandbox</th></tr></thead><tbody>{tests.map((raw, index) => { const test = object(raw); return <tr key={index} className="border-t border-[var(--color-border-default)]"><td className="p-2">Test {index + 1}</td><td className="p-2">{test.sample === true ? "Công khai" : "Ẩn"}</td><td className="p-2"><span className={test.passed === true ? "text-emerald-700" : "text-[var(--color-status-danger)]"}>{test.passed === true ? "Passed" : test.passed === false ? "Failed" : "Chưa có kết quả"}</span>{typeof test.status_description === "string" ? ` · ${test.status_description}` : number(test.status) != null ? ` · Trạng thái ${test.status}` : ""}</td></tr>; })}</tbody></table></div>}
-    <div className="grid gap-3 sm:grid-cols-2">{[["Time Complexity", codeReview.time_complexity], ["Space Complexity", codeReview.space_complexity], ["Clean Code", codeReview.clean_code], ["Naming Convention", codeReview.naming_conventions], ["Xử lý ngoại lệ an toàn", codeReview.exception_safety]].map(([label, value]) => <div key={String(label)} className="rounded-lg bg-[var(--color-surface-container-low)] p-3 text-sm"><h5 className="font-medium">{String(label)}</h5><p className="mt-1 whitespace-pre-wrap break-words">{text(value)}</p></div>)}</div>
-    <p className="whitespace-pre-wrap break-words text-sm">AI Code Review: {text(codeReview.general_comment)}</p>
-    {codeReview.hardcode_suspected === true && <p className="text-sm text-[var(--color-status-warning)]">AI nghi ngờ hardcode; Recruiter cần kiểm tra thủ công.</p>}
+    {evaluation.manual_review_required === true && <p role="status" className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">Cần duyệt tay: AI nghi hardcode{evaluation.hardcode_capped === true ? " · điểm đề xuất đã bị trần 50%" : ""}.</p>}
+    <p className="text-sm">Hidden tests: {display(hiddenPassed)}/{display(hiddenTotal)} · Correctness: {display(testsPercent)}%</p>
+    {testsPercent != null && <p className="text-sm">Công thức: {display(testsPercent)}% × {display(testWeight * 100)}% (test){testsPercent > 0 ? ` + ${display(aiPercent)}% × ${display(aiWeight * 100)}% (AI)` : " · AI bỏ qua vì không pass hidden"} = {display(formulaPercent)}% → gợi ý {display(review.suggestedScore)}/{review.points}</p>}
+    {tests.length > 0 && <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr><th scope="col" className="p-2">Test case</th><th scope="col" className="p-2">Loại</th><th scope="col" className="p-2">Kết quả Sandbox</th></tr></thead><tbody>{tests.map((raw, index) => { const test = object(raw); return <tr key={index} className="border-t border-[var(--color-border-default)]"><td className="p-2">Test {index + 1}</td><td className="p-2">{test.sample === true ? "Công khai (không tính điểm)" : "Ẩn"}</td><td className="p-2"><span className={test.passed === true ? "text-emerald-700" : "text-[var(--color-status-danger)]"}>{test.passed === true ? "Passed" : test.passed === false ? "Failed" : "Chưa có kết quả"}</span>{typeof test.status_description === "string" ? ` · ${test.status_description}` : number(test.status) != null ? ` · Trạng thái ${test.status}` : ""}</td></tr>; })}</tbody></table></div>}
+    {Object.keys(codeReview).length > 0 && <>
+      <div className="grid gap-3 sm:grid-cols-2">{[["Time Complexity", codeReview.time_complexity], ["Space Complexity", codeReview.space_complexity], ["Clean Code", codeReview.clean_code], ["Naming Convention", codeReview.naming_conventions], ["Xử lý ngoại lệ an toàn", codeReview.exception_safety]].map(([label, value]) => <div key={String(label)} className="rounded-lg bg-[var(--color-surface-container-low)] p-3 text-sm"><h5 className="font-medium">{String(label)}</h5><p className="mt-1 whitespace-pre-wrap break-words">{text(value)}</p></div>)}</div>
+      <p className="whitespace-pre-wrap break-words text-sm">AI Code Review: {text(codeReview.general_comment)}</p>
+    </>}
+    {typeof evaluation.general_comment === "string" && evaluation.general_comment && <p className="text-sm text-[var(--color-on-surface-variant)]">{evaluation.general_comment}</p>}
   </div>;
 }

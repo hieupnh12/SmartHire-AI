@@ -136,6 +136,7 @@ Login redirect theo `role` & `tenant`: Candidate → `/candidate`, Recruiter →
 - UI: Shadcn + Tailwind; **chỉ** dùng token/màu/icon từ `DESIGN.md` (Google Stitch).
 - Routing: React Router DOM; bảo vệ route theo role (Recruiter / Candidate / Admin).
 - Không inline style tùy tiện; ưu tiên utility Tailwind theo design tokens.
+- **Hệ thống Toast thông báo (Global Toast System):** Dùng `toast` từ `@/stores/toastStore` (`toast.success(...)`, `toast.error(...)`, `toast.warning(...)`, `toast.info(...)`). `ToastViewport` tự động hiển thị trong `AppProviders`. **BẮT BUỘC** dùng `toast` cho mọi thông báo tương tác (tạo mới, cập nhật, xóa, sao chép, thao tác thành công hoặc lỗi API); **KHÔNG** tự tạo `const [notice, setNotice] = useState(...)` hay dựng alert/notice banner riêng lẻ cục bộ trên từng trang.
 
 
 ## 5. Docs & trạng thái
@@ -170,6 +171,7 @@ Khi AI implement xong một phần: đổi status tương ứng và ghi chú com
 - [ ] Nếu có `CREATE TABLE` mới: đã có entity JPA tương ứng (xem mục 3 / 12)
 - [ ] Cập nhật feature doc + status nếu đổi hành vi
 - [ ] Cập nhật `docs/database/` nếu đổi schema / entity / enum (xem mục 12)
+- [ ] Dùng `toast` từ `@/stores/toastStore` cho thông báo thao tác, không tạo banner thông báo cục bộ rời rạc
 - [ ] Test hoặc bước verify thủ công đã nêu rõ
 - [ ] Không commit file nhạy cảm
 

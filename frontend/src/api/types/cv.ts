@@ -131,6 +131,22 @@ export type CvSummary = {
   fromBuilder: boolean;
 };
 
+export type CvJobStats = {
+  total: number;
+  scored: number;
+  processing: number;
+  failed: number;
+  averageScore: number | null;
+};
+
+export type CvPageResult = {
+  items: CvSummary[];
+  total: number;
+  page: number;
+  size: number;
+  stats?: CvJobStats;
+};
+
 export type CvSectionType =
   | "experience" | "education" | "projects" | "skills" | "languages" | "certifications"
   | "awards" | "activities" | "interests" | "references" | "custom";

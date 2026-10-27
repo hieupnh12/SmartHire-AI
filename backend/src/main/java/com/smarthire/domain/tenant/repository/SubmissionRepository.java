@@ -24,4 +24,7 @@ public interface SubmissionRepository extends JpaRepository<Submission, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select s from Submission s where s.id = :id")
     Optional<Submission> findLockedById(@Param("id") Long id);
+
+    @Query("select s from Submission s join fetch s.test t join fetch s.application a join fetch a.job j where s.status = com.smarthire.domain.enums.TestSubmissionStatus.IN_PROGRESS and s.startedAt is not null")
+    List<Submission> findInProgressWithTest();
 }

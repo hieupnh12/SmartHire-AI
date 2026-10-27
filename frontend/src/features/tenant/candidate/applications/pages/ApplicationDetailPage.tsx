@@ -4,7 +4,7 @@ import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, Bot, BriefcaseBusiness, CalendarDays, ChevronDown, ClipboardList, MapPin } from "lucide-react";
 import type { RoundItemView } from "@/api/types/applicant";
 import { applicantApi } from "@/api/tenant/applicantApi";
-import { PageSkeleton } from "@/components/ux/Skeleton";
+import { PageSkeleton, SkeletonCard } from "@/components/ux/Skeleton";
 import { StatusPill } from "@/components/ux/StatusPill";
 import { ApplicationPipeline } from "@/features/tenant/recruiter/matching/components/recruitmentFlow";
 import { getApiErrorMessage } from "@/lib/axios";
@@ -65,7 +65,7 @@ export function ApplicationDetailPage() {
       </div>
 
       {openRound && evaluation.isError && <ErrorMessage>{getApiErrorMessage(evaluation.error)}</ErrorMessage>}
-      {openRound && evaluation.isPending && <p role="status" className="text-sm text-[var(--color-on-surface-variant)]">Đang tải chi tiết đánh giá…</p>}
+      {openRound && evaluation.isPending && <SkeletonCard className="h-56" />}
       {openRound && evaluation.data && <RoundEvaluation id="round-evaluation" round={openRound} data={evaluation.data} />}
 
       <section className="rounded-2xl border border-[var(--color-border-default)] bg-white p-5 shadow-[var(--shadow-card)] sm:p-6">

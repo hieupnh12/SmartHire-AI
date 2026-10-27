@@ -1,6 +1,5 @@
 package com.smarthire.master.analytics.service;
 
-import com.smarthire.domain.master.entity.AiModelConfig;
 import com.smarthire.domain.master.entity.AiProviderKey;
 import com.smarthire.domain.master.entity.ConsultationRequest;
 import com.smarthire.domain.master.entity.Contract;
