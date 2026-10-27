@@ -38,7 +38,7 @@ public final class QuestionContent {
         if (!rubric.isObject() || rubric.toString().length() > 50000 || !rubric.path("referenceAnswer").isTextual()
                 || rubric.path("referenceAnswer").asText().isBlank() || !rubric.path("criteria").isArray()
                 || rubric.path("criteria").isEmpty() || rubric.path("criteria").size() > 20) throw invalid("Essay requires a reference answer and weighted rubric criteria");
-        if (rubric.has("category") && !Set.of("ESSAY_CONCEPTUAL", "ESSAY_SCENARIO").contains(rubric.path("category").asText())) throw invalid("Invalid essay category");
+        if (rubric.has("category") && !Set.of("ESSAY_CONCEPTUAL", "ESSAY_COMPARISON", "ESSAY_SCENARIO", "ESSAY_ARCHITECTURE").contains(rubric.path("category").asText())) throw invalid("Invalid essay category");
         int total = 0;
         for (JsonNode criterion : rubric.path("criteria")) {
             if (!criterion.path("description").isTextual() || criterion.path("description").asText().isBlank()

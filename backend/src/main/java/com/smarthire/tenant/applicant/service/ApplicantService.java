@@ -42,8 +42,8 @@ import com.smarthire.tenant.cv.service.CvAccess;
 import com.smarthire.tenant.cv.service.CvApplicationCopyService;
 import com.smarthire.tenant.job.mapper.JobMapper;
 import com.smarthire.tenant.job.screening.GateScreeningService;
-import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -98,7 +98,8 @@ public class ApplicantService {
             ApplicationClosureService closures,
             JobTestRepository jobTests,
             SubmissionRepository assessmentSubmissions) {
-        this(applications, history, jobs, users, null, cvs, stages, access, jobsMapper, mapper, invitations, publisher, gateScreening, cvCopies, closures, jobTests, assessmentSubmissions);
+        this(applications, history, jobs, users, null, cvs, stages, access, jobsMapper, mapper, invitations, publisher,
+                gateScreening, cvCopies, closures, jobTests, assessmentSubmissions);
     }
 
     @Autowired
@@ -151,11 +152,13 @@ public class ApplicantService {
     @Transactional
     public ApplicationSummary apply(long jobId, String source, String referralCode, Long cvId) {
         if (!access.candidate()) {
-            throw new BusinessException("Only candidates can apply", HttpStatus.FORBIDDEN, "APPLICATION_CANDIDATE_ONLY");
+            throw new BusinessException("Only candidates can apply", HttpStatus.FORBIDDEN,
+                    "APPLICATION_CANDIDATE_ONLY");
         }
         Job job = job(jobId);
         if (!jobsMapper.accepting(job)) {
-            throw new BusinessException("Job is not open for applications", HttpStatus.BAD_REQUEST, "JOB_NOT_PUBLISHED");
+            throw new BusinessException("Job is not open for applications", HttpStatus.BAD_REQUEST,
+                    "JOB_NOT_PUBLISHED");
         }
         Candidate actor = lockCandidate(access.candidateActor());
         var existing = applications.findByJob_IdAndCandidate_Id(jobId, actor.getId());
@@ -199,7 +202,8 @@ public class ApplicantService {
         access.requireJob(job);
         String email = request.email().trim().toLowerCase(Locale.ROOT);
         if (users != null && users.findByEmailIgnoreCase(email).isPresent()) {
-            throw new BusinessException("Email belongs to a staff account", HttpStatus.BAD_REQUEST, "EMAIL_NOT_CANDIDATE");
+            throw new BusinessException("Email belongs to a staff account", HttpStatus.BAD_REQUEST,
+                    "EMAIL_NOT_CANDIDATE");
         }
         Candidate candidate = candidates.findByEmailIgnoreCase(email)
                 .or(() -> candidates.findByEmailIgnoreCase(CandidateErasureService.erasedEmail(email)).map(erased -> {
@@ -219,7 +223,8 @@ public class ApplicantService {
         candidate = lockCandidate(candidate);
         var existing = applications.findByJob_IdAndCandidate_Id(jobId, candidate.getId());
         if (existing.isPresent()) {
-            throw new BusinessException("Candidate already applied to this job", HttpStatus.CONFLICT, "APPLICATION_EXISTS");
+            throw new BusinessException("Candidate already applied to this job", HttpStatus.CONFLICT,
+                    "APPLICATION_EXISTS");
         }
         requireNoOpenApplication(candidate, false);
         Application application = new Application();
@@ -239,7 +244,7 @@ public class ApplicantService {
 
     @Transactional(readOnly = true)
     public PageResult<ApplicationSummary> list(long jobId, String q, ApplicationStatus status, String source,
-                                                boolean archived, boolean includeWithdrawn, int page, int size) {
+            boolean archived, boolean includeWithdrawn, int page, int size) {
         access.requireJob(job(jobId));
         var result = applications.search(
                 jobId,
@@ -256,7 +261,8 @@ public class ApplicantService {
     }
 
     @Transactional(readOnly = true)
-    public PageResult<ApplicationSummary> listVisible(Long jobId, String q, ApplicationStatus status, String source, boolean archived, int page, int size) {
+    public PageResult<ApplicationSummary> listVisible(Long jobId, String q, ApplicationStatus status, String source,
+            boolean archived, int page, int size) {
         if (!access.staff()) {
             throw new BusinessException("Recruiter access required", HttpStatus.FORBIDDEN, "APPLICATION_FORBIDDEN");
         }
@@ -272,6 +278,25 @@ public class ApplicantService {
                 .map(app -> mapper.summary(app, applications.countByCandidate_Id(app.getCandidate().getId()) > 1))
                 .toList();
         return new PageResult<>(items, result.getNumber(), result.getSize(), result.getTotalElements());
+    }
+
+    @Transactional(readOnly = true)
+    public Map<String, Long> statusCounts(long jobId) {
+        if (!access.staff()) {
+            throw new BusinessException("Recruiter access required", HttpStatus.FORBIDDEN, "APPLICATION_FORBIDDEN");
+        }
+        Map<String, Long> counts = new HashMap<>();
+        long total = 0;
+        for (Object[] row : applications.countStatusesGroupedByJobIds(List.of(jobId))) {
+            ApplicationStatus status = (ApplicationStatus) row[1];
+            long count = ((Number) row[2]).longValue();
+            if (status != ApplicationStatus.WITHDRAWN) {
+                counts.put(status.name(), count);
+                total += count;
+            }
+        }
+        counts.put("ALL", total);
+        return counts;
     }
 
     @Transactional(readOnly = true)
@@ -293,16 +318,21 @@ public class ApplicantService {
     @Transactional
     public ApplicationDetail patch(long id, PatchRequest request) {
         Application application = loadForStaff(id);
-        if (request.notes() != null) application.setNotes(blankToNull(request.notes()));
-        if (request.tags() != null) application.setTags(blankToNull(request.tags()));
-        if (request.source() != null) application.setSource(blankToNull(request.source()));
-        if (request.referralCode() != null) application.setReferralCode(blankToNull(request.referralCode()));
+        if (request.notes() != null)
+            application.setNotes(blankToNull(request.notes()));
+        if (request.tags() != null)
+            application.setTags(blankToNull(request.tags()));
+        if (request.source() != null)
+            application.setSource(blankToNull(request.source()));
+        if (request.referralCode() != null)
+            application.setReferralCode(blankToNull(request.referralCode()));
         if (request.assigneeEmail() != null) {
             if (request.assigneeEmail().isBlank()) {
                 application.setAssignee(null);
             } else {
                 User assignee = users.findByEmailIgnoreCase(request.assigneeEmail().trim())
-                        .orElseThrow(() -> new BusinessException("Assignee not found", HttpStatus.NOT_FOUND, "USER_NOT_FOUND"));
+                        .orElseThrow(() -> new BusinessException("Assignee not found", HttpStatus.NOT_FOUND,
+                                "USER_NOT_FOUND"));
                 if (UserRole.isCandidate(assignee.getRole())) {
                     throw new BusinessException("Assignee must be staff", HttpStatus.BAD_REQUEST, "ASSIGNEE_NOT_STAFF");
                 }
@@ -317,11 +347,13 @@ public class ApplicantService {
         Application application = loadForStaff(id);
         ApplicationStatus next = parseStatus(status);
         if (next == ApplicationStatus.WITHDRAWN) {
-            throw new BusinessException("Candidates withdraw their own applications", HttpStatus.BAD_REQUEST, "APPLICATION_BAD_STATUS");
+            throw new BusinessException("Candidates withdraw their own applications", HttpStatus.BAD_REQUEST,
+                    "APPLICATION_BAD_STATUS");
         }
         requireNotClosed(application);
         if (TERMINAL.contains(application.getStatus()) && next != ApplicationStatus.IN_REVIEW) {
-            throw new BusinessException("Application is in a terminal state", HttpStatus.CONFLICT, "APPLICATION_BAD_STATUS");
+            throw new BusinessException("Application is in a terminal state", HttpStatus.CONFLICT,
+                    "APPLICATION_BAD_STATUS");
         }
         if (next == ApplicationStatus.REJECTED) {
             application.setRejectReason(blankToNull(note));
@@ -357,12 +389,14 @@ public class ApplicantService {
     @Transactional
     public ApplicationDetail withdraw(long id, String reason) {
         if (!access.candidate()) {
-            throw new BusinessException("Only the candidate can withdraw", HttpStatus.FORBIDDEN, "APPLICATION_FORBIDDEN");
+            throw new BusinessException("Only the candidate can withdraw", HttpStatus.FORBIDDEN,
+                    "APPLICATION_FORBIDDEN");
         }
         Application application = load(id);
         Candidate actor = access.candidateActor();
         if (!application.getCandidate().getId().equals(actor.getId())) {
-            throw new BusinessException("Only the candidate can withdraw", HttpStatus.FORBIDDEN, "APPLICATION_FORBIDDEN");
+            throw new BusinessException("Only the candidate can withdraw", HttpStatus.FORBIDDEN,
+                    "APPLICATION_FORBIDDEN");
         }
         application = applications.findByIdForUpdate(application.getId()).orElseThrow();
         if (!withdrawable(application)) {
@@ -376,7 +410,9 @@ public class ApplicantService {
         return toDetail(application);
     }
 
-    /** Candidates may withdraw any open application, including after CV screening. */
+    /**
+     * Candidates may withdraw any open application, including after CV screening.
+     */
     public static boolean withdrawable(Application application) {
         return application.getArchivedAt() == null && !CLOSED_STATUSES.contains(application.getStatus());
     }
@@ -385,21 +421,27 @@ public class ApplicantService {
             ApplicationStatus.HIRED, ApplicationStatus.REJECTED, ApplicationStatus.FAILED, ApplicationStatus.WITHDRAWN);
 
     /**
-     * After CV screening. AUTO: pass → assessment; fail → REJECTED. MANUAL: the score is only a
+     * After CV screening. AUTO: pass → assessment; fail → REJECTED. MANUAL: the
+     * score is only a
      * recommendation; the recruiter decides via {@link #decideCvScreening}.
      */
     @Transactional
     public void advanceFromCvScreening(Cv cv, MatchScore score) {
-        if (cv.getJob() == null || cv.getCandidate() == null) return;
+        if (cv.getJob() == null || cv.getCandidate() == null)
+            return;
         Application application = cv.getApplication();
         if (application == null) {
-            application = applications.findByJob_IdAndCandidate_Id(cv.getJob().getId(), cv.getCandidate().getId()).orElse(null);
+            application = applications.findByJob_IdAndCandidate_Id(cv.getJob().getId(), cv.getCandidate().getId())
+                    .orElse(null);
         }
-        if (application == null) return;
+        if (application == null)
+            return;
         application = applications.findByIdForUpdate(application.getId()).orElse(null);
-        if (application == null || application.getArchivedAt() != null || application.getWithdrawnAt() != null) return;
+        if (application == null || application.getArchivedAt() != null || application.getWithdrawnAt() != null)
+            return;
         ApplicationStatus current = application.getStatus();
-        if (ApplicationClosureService.closed(current)) return;
+        if (ApplicationClosureService.closed(current))
+            return;
         if (application.getJob().getScreeningMode() != ScreeningMode.AUTO) {
             if (current == ApplicationStatus.NEW) {
                 record(application, ApplicationStatus.IN_REVIEW, "CV scored by AI; awaiting recruiter decision", null);
@@ -424,7 +466,10 @@ public class ApplicantService {
         gateScreening.recalculate(application);
     }
 
-    /** Recruiter decision on the CV round: pass → assessment + AI invite; fail → REJECTED. */
+    /**
+     * Recruiter decision on the CV round: pass → assessment + AI invite; fail →
+     * REJECTED.
+     */
     @Transactional
     public ApplicationDetail decideCvScreening(long id, boolean passed, String note) {
         Application application = loadForStaff(id);
@@ -449,11 +494,14 @@ public class ApplicantService {
     }
 
     /**
-     * AI Interview is invited alongside the assessment round while that module is still being fixed.
-     * The candidate paper itself is generated from the question bank for this application only.
+     * AI Interview is invited alongside the assessment round while that module is
+     * still being fixed.
+     * The candidate paper itself is generated from the question bank for this
+     * application only.
      */
     private void inviteAssessmentAndAiInterview(Application application) {
-        if (!InterviewPolicies.enabled(application.getJob())) return;
+        if (!InterviewPolicies.enabled(application.getJob()))
+            return;
         try {
             invitations.invite(application.getId(), null);
         } catch (RuntimeException ex) {
@@ -463,13 +511,16 @@ public class ApplicantService {
 
     /**
      * Moves the application when the assigned paper has an official score.
-     * A pass opens human interview. A miss closes the application. No threshold leaves the decision to the recruiter.
+     * A pass opens human interview. A miss closes the application. No threshold
+     * leaves the decision to the recruiter.
      */
     @Transactional
     public void settleAfterAssessment(long applicationId) {
-        if (jobTests == null || assessmentSubmissions == null) return;
+        if (jobTests == null || assessmentSubmissions == null)
+            return;
         Application application = applications.findByIdForUpdate(applicationId).orElse(null);
-        if (application == null || application.getArchivedAt() != null || application.getWithdrawnAt() != null) return;
+        if (application == null || application.getArchivedAt() != null || application.getWithdrawnAt() != null)
+            return;
         if (application.getStatus() != ApplicationStatus.ASSESSMENT) {
             gateScreening.recalculate(application);
             return;
@@ -477,7 +528,8 @@ public class ApplicantService {
         JobTest paper = jobTests.findByAssignedApplication_Id(applicationId).orElse(null);
         Submission latest = paper == null ? null : latestScored(paper.getId(), applicationId);
         gateScreening.recalculate(application);
-        if (paper == null || paper.getPassingScore() == null || latest == null) return;
+        if (paper == null || paper.getPassingScore() == null || latest == null)
+            return;
         boolean passed = latest.getScore().compareTo(paper.getPassingScore()) >= 0;
         if (passed) {
             record(application, ApplicationStatus.HUMAN_INTERVIEW, "Assessment passed", null);
@@ -496,10 +548,13 @@ public class ApplicantService {
 
     private Submission latestScored(long testId, long applicationId) {
         var ids = assessmentSubmissions.findLatestIds(testId, applicationId, PageRequest.of(0, 1));
-        if (ids.isEmpty()) return null;
+        if (ids.isEmpty())
+            return null;
         Submission latest = assessmentSubmissions.findById(ids.getFirst()).orElse(null);
-        if (latest == null || latest.getScore() == null) return null;
-        if (latest.getStatus() != TestSubmissionStatus.GRADED && latest.getStatus() != TestSubmissionStatus.EXPIRED) return null;
+        if (latest == null || latest.getScore() == null)
+            return null;
+        if (latest.getStatus() != TestSubmissionStatus.GRADED && latest.getStatus() != TestSubmissionStatus.EXPIRED)
+            return null;
         return latest;
     }
 
@@ -531,7 +586,8 @@ public class ApplicantService {
         return mapper.detail(
                 application,
                 applications.countByCandidate_Id(application.getCandidate().getId()),
-                cvs.findByCandidate_IdAndJob_IdOrderByIdDesc(application.getCandidate().getId(), application.getJob().getId()),
+                cvs.findByCandidate_IdAndJob_IdOrderByIdDesc(application.getCandidate().getId(),
+                        application.getJob().getId()),
                 history.findByApplication_IdOrderByIdDesc(application.getId()),
                 gateScreening.view(application),
                 gateScreening.rounds(application));
@@ -550,9 +606,13 @@ public class ApplicantService {
         }
     }
 
-    /** Serializes concurrent applies of the same candidate so the one-open-application rule holds. */
+    /**
+     * Serializes concurrent applies of the same candidate so the
+     * one-open-application rule holds.
+     */
     private Candidate lockCandidate(Candidate candidate) {
-        if (candidates == null) return candidate;
+        if (candidates == null)
+            return candidate;
         return candidates.findLockedById(candidate.getId()).orElse(candidate);
     }
 
@@ -562,7 +622,8 @@ public class ApplicantService {
                 .ifPresent(open -> {
                     String who = self ? "Bạn" : "Ứng viên";
                     String message = open.getStatus() == ApplicationStatus.HIRED
-                            ? who + " đã trúng tuyển vị trí " + open.getJob().getTitle() + " nên không thể ứng tuyển thêm"
+                            ? who + " đã trúng tuyển vị trí " + open.getJob().getTitle()
+                                    + " nên không thể ứng tuyển thêm"
                             : who + " đang ứng tuyển vị trí " + open.getJob().getTitle()
                                     + ". Mỗi ứng viên chỉ được tham gia một vị trí tại một thời điểm";
                     throw new BusinessException(message, HttpStatus.CONFLICT, "APPLICATION_ACTIVE_EXISTS");
@@ -571,7 +632,8 @@ public class ApplicantService {
 
     private static void requireNotClosed(Application application) {
         if (ApplicationClosureService.closed(application.getStatus())) {
-            throw new BusinessException("Application is closed and cannot be reopened", HttpStatus.CONFLICT, "APPLICATION_CLOSED");
+            throw new BusinessException("Application is closed and cannot be reopened", HttpStatus.CONFLICT,
+                    "APPLICATION_CLOSED");
         }
     }
 
@@ -584,12 +646,14 @@ public class ApplicantService {
         row.setNote(blankToNull(note));
         application.setStatus(next);
         history.save(row);
-        // The assigned assessment is created by the question-bank dispatcher after this commit.
+        // The assigned assessment is created by the question-bank dispatcher after this
+        // commit.
     }
 
     private Application load(long id) {
         Application application = applications.findById(id)
-                .orElseThrow(() -> new BusinessException("Application not found", HttpStatus.NOT_FOUND, "APPLICATION_NOT_FOUND"));
+                .orElseThrow(() -> new BusinessException("Application not found", HttpStatus.NOT_FOUND,
+                        "APPLICATION_NOT_FOUND"));
         if (access.candidate()) {
             Candidate actor = access.candidateActor();
             if (!application.getCandidate().getId().equals(actor.getId())) {
@@ -615,7 +679,8 @@ public class ApplicantService {
     }
 
     private void attachCv(Long cvId, Job job, Application application, Candidate actor) {
-        if (cvId == null) return;
+        if (cvId == null)
+            return;
         Cv cv = cvs.findById(cvId)
                 .orElseThrow(() -> new BusinessException("CV not found", HttpStatus.NOT_FOUND, "CV_NOT_FOUND"));
         if (!cv.getCandidate().getId().equals(actor.getId())) {
@@ -626,7 +691,10 @@ public class ApplicantService {
         enqueueScreening(alreadyThisApplication ? cv : cvCopies.copyFor(cv, job, application));
     }
 
-    /** Personal CVs are parsed without a job; attach must re-run extract/match against this JD. */
+    /**
+     * Personal CVs are parsed without a job; attach must re-run extract/match
+     * against this JD.
+     */
     private void enqueueScreening(Cv cv) {
         long cvId = cv.getId();
         CvStatus status = cv.getStatus();

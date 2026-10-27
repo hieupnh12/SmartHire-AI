@@ -1,7 +1,15 @@
 import { api } from "@/lib/axios";
 import type { ApiResponse } from "@/types/api";
-import type { BuilderJobMatch, CvBuilderData, CvDetail, CvSummary, CvWritingRequest, MatchView } from "../types/cv";
+import type { BuilderJobMatch, CvBuilderData, CvDetail, CvPageResult, CvSummary, CvWritingRequest, MatchView } from "../types/cv";
 import axios from "axios";
+
+export type CvListParams = {
+  tab?: string;
+  sort?: string;
+  page?: number;
+  size?: number;
+  limit?: number;
+};
 
 /** Blob requests receive JSON errors as a Blob; surface the backend message instead of a generic failure. */
 async function rethrowBlobError(error: unknown) {
@@ -70,8 +78,8 @@ export const cvApi = {
     api.post<ApiResponse<null>>(`/cvs/${id}/extract`).then((r) => r.data),
   analyze: (id: number | string) =>
     api.post<ApiResponse<null>>(`/cvs/${id}/analyze`).then((r) => r.data),
-  listByJob: (jobId: number | string) =>
-    api.get<ApiResponse<CvSummary[]>>(`/jobs/${jobId}/cvs`).then((r) => r.data),
+  listByJob: (jobId: number | string, params: CvListParams = {}) =>
+    api.get<ApiResponse<CvPageResult>>(`/jobs/${jobId}/cvs`, { params }).then((r) => r.data),
   match: (jobId: number | string, cvId: number | string) =>
     api.get<ApiResponse<MatchView>>(`/jobs/${jobId}/cvs/${cvId}/match`).then((r) => r.data),
   recomputeMatch: (jobId: number | string, cvId: number | string) =>

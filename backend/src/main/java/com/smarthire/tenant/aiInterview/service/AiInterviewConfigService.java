@@ -20,6 +20,7 @@ public class AiInterviewConfigService {
     private final CvAccess access;
     private final AiInterviewInvitationService invitations;
     private final com.smarthire.domain.tenant.repository.JobSkillRepository skills;
+    @SuppressWarnings("unused")
     private final com.smarthire.tenant.aiInterview.ai.AiInterviewClient ai;
     public AiInterviewConfigService(JobRepository jobs, ApplicationRepository applications, CvAccess access,
                                      AiInterviewInvitationService invitations, com.smarthire.domain.tenant.repository.JobSkillRepository skills,

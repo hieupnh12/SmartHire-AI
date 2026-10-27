@@ -47,6 +47,7 @@ public class RecruitmentStage {
     @Column(name = "is_terminal", nullable = false)
     boolean terminal;
 
+    @Builder.Default
     @Column(name = "active", nullable = false)
     boolean active = true;
 }

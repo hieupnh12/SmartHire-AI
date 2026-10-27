@@ -25,7 +25,7 @@ Press **`?`** in the app for the full list.
 - [x] Cards / soft shadows / radius
 - [x] Toast notifications
 - [x] Empty states
-- [x] Loading skeletons
+- [x] Loading skeletons & Pagination UX (xem [UX_PAGINATION_LOADING.md](UX_PAGINATION_LOADING.md))
 - [x] Confirm dialogs (destructive)
 - [x] Tooltips
 - [x] Reduced motion support

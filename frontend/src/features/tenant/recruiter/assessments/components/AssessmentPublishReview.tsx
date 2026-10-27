@@ -117,16 +117,16 @@ export function AssessmentPublishReview({
     {
       title: "Cơ cấu điểm số",
       value:
-        Math.abs(total - 10) < 1e-9 &&
+        total > 0 &&
         saveableRows.length > 0 &&
         saveableRows.every((item) => {
           const points = Number(item.row.score.trim() || defaultScore);
-          return Number.isFinite(points) && points > 0 && points <= 10;
+          return Number.isFinite(points) && points > 0 && points <= 10000;
         }),
       detail:
-        Math.abs(total - 10) < 1e-9
-          ? `Tổng ${total} điểm — đạt yêu cầu (phải đúng 10).`
-          : `Tổng ${total} điểm — cần điều chỉnh để tổng đúng 10 điểm.`,
+        total > 0
+          ? `Tổng ${total} điểm (${saveableRows.length} câu) — hợp lệ.`
+          : `Tổng điểm phải lớn hơn 0.`,
     },
     { title: "Ngưỡng điểm đạt", value: validPassing, detail: passingScore === "" ? "Không đặt ngưỡng điểm đạt." : `Điểm đạt phải từ 0 đến ${total}.` },
   ];
@@ -158,8 +158,8 @@ export function AssessmentPublishReview({
         (sum, item) => sum + (item.row.score.trim() ? Number(item.row.score) : defaultScore),
         0,
       );
-      if (Math.abs(pointsTotal - 10) >= 1e-9) {
-        throw new Error(`Tổng điểm phải đúng 10 (hiện tại ${pointsTotal}).`);
+      if (pointsTotal <= 0) {
+        throw new Error(`Tổng điểm bài đánh giá phải lớn hơn 0 (hiện tại ${pointsTotal}).`);
       }
       // Always create DRAFT — publish is done later from assessment detail.
       const test = await assessmentApi.create({

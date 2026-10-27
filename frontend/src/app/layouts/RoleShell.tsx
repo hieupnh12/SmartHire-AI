@@ -1,4 +1,4 @@
-import { Bell, CircleHelp, Library, Home, LogOut, Search, Sparkles, type LucideIcon } from "lucide-react";
+import { Bell, CircleHelp, Home, LogOut, Search, Sparkles, type LucideIcon } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
@@ -60,8 +60,7 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
   const isRecruiterJobCreate = isRecruiterWorkspace && /^\/recruiter\/jobs\/new\/?$/.test(location.pathname);
   const isRecruiterJobEdit = isRecruiterWorkspace && /^\/recruiter\/jobs\/\d+\/edit\/?$/.test(location.pathname);
   const isRecruiterJobForm = isRecruiterJobCreate || isRecruiterJobEdit;
-  const isRecruiterRanking = isRecruiterWorkspace && /\/rank\/?$/.test(location.pathname);
-  const isRecruiterBoard = isRecruiterRanking || (isRecruiterWorkspace && /\/jobs\/\d+\/applicants\/?$/.test(location.pathname) && new URLSearchParams(location.search).get("view") === "board");
+  const isRecruiterBoard = isRecruiterWorkspace && /\/jobs\/\d+\/applicants\/?$/.test(location.pathname) && new URLSearchParams(location.search).get("view") === "board";
   const isTenantAdminWorkspace = basePath === "/internal/admin";
   const useWorkspaceHeader = isCandidateWorkspace || isRecruiterWorkspace;
   const tenantTheme = getTenantTheme(getTenantIdFromWindow() ?? "acme");
@@ -83,14 +82,6 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
   const tenantDisplayName = companyProfile?.companyName?.trim() || tenantTheme.name;
   const showTenantLogo = !!tenantLogoUrl && failedTenantLogoUrl !== tenantLogoUrl;
   const recruiterJobId = isRecruiterWorkspace ? location.pathname.match(/^\/recruiter\/jobs\/(\d+)(?:\/|$)/)?.[1] : undefined;
-  const recruiterActionQueue = isRecruiterWorkspace && /^\/recruiter\/(applicants|cvs|schedules)\/?$/.test(location.pathname);
-  const actionQueueLinks = ([
-    { to: "/recruiter/applicants?status=new", label: "Ứng viên mới", feature: "APPLICANTS" },
-    { to: "/recruiter/cvs?status=pending", label: "CV cần sàng lọc", feature: "CV_SCREENING" },
-    { to: "/recruiter/schedules?status=upcoming", label: "Lịch phỏng vấn", feature: "SCHEDULES" },
-    { to: "/recruiter?status=draft", label: "Job nháp", feature: "JOBS" },
-    { to: "/recruiter?status=expiring", label: "Sắp hết hạn", feature: "JOBS" },
-  ] as const).filter((item) => hasRecruiterFeature(user?.permissions, item.feature));
   // Recruitment modules use the selected job.
   const jobScopedNav = new Set([
     "/applicants",
@@ -345,7 +336,7 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
             </div>
           </header>
 
-          <main id="main-content" className="px-4 py-6 sm:px-6 sm:py-8 lg:px-10">
+          <main id="main-content" className="px-4 pt-3 pb-8 sm:px-6 sm:pt-3.5 sm:pb-10 lg:px-10">
             <div className="mx-auto max-w-[1456px]">
               <Outlet />
             </div>
@@ -455,55 +446,33 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
           </div>
         </div>
 
-        {!isRecruiterDashboard && <div className="border-t border-[var(--color-border-default)] bg-white/85">
-          {recruiterActionQueue ? (
-            <div className="mx-auto flex max-w-[1440px] items-center gap-3 overflow-hidden px-4 py-2 sm:px-6 lg:px-10">
-              <Link to="/recruiter/question-bank" className="hidden shrink-0 items-center gap-2 rounded-lg lg:flex hover:text-brand-primary"><Library className="size-4 text-brand-primary" aria-hidden="true" /><p className="text-sm font-semibold">Ngân hàng câu hỏi</p></Link>
-              <nav className="flex min-w-0 flex-1 gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label="Các việc tuyển dụng cần xử lý">
-                {actionQueueLinks.map((item) => {
-                  const active = `${location.pathname}${location.search}` === item.to;
-                  return (
-                    <Link
-                      key={item.to}
-                      to={item.to}
-                      aria-current={active ? "page" : undefined}
-                      className={cn(
-                        "inline-flex min-h-10 shrink-0 items-center whitespace-nowrap rounded-[var(--radius-md)] px-3 text-sm font-medium transition-colors duration-[var(--motion-fast)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-primary)]",
-                        active
-                          ? "bg-[var(--color-primary-soft)] text-brand-primary ring-1 ring-inset ring-brand-primary/20"
-                          : "text-[var(--color-on-surface-variant)] hover:bg-[var(--color-primary-subtle)] hover:text-brand-primary",
-                      )}
-                    >
-                      {item.label}
-                    </Link>
-                  );
-                })}
-              </nav>
-            </div>
-          ) : displayedLinks.length > 0 ? <nav
-            className="mx-auto flex max-w-[1440px] gap-1 overflow-x-auto px-4 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:px-6 lg:px-10"
-            aria-label={t("a11y.mainNav")}
-          >
-            {displayedLinks.map((l) => (
-              <NavLink
-                key={`${l.labelKey}:${l.to}`}
-                to={`${basePath}${l.to}`}
-                end={l.to === "" || (isRecruiterWorkspace && !!recruiterJobId && l.to === `/jobs/${recruiterJobId}`)}
-                className={({ isActive }) =>
-                  cn(
-                    "relative inline-flex min-h-10 shrink-0 items-center whitespace-nowrap rounded-[var(--radius-md)] px-3 text-sm font-medium transition-colors duration-[var(--motion-fast)]",
-                    "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-primary)]",
-                    isActive
-                      ? "bg-[var(--color-primary-soft)] text-brand-primary ring-1 ring-inset ring-brand-primary/20"
-                      : "text-[var(--color-on-surface-variant)] hover:bg-[var(--color-primary-subtle)] hover:text-brand-primary",
-                  )
-                }
-              >
-                {t(l.labelKey)}
-              </NavLink>
-            ))}
-          </nav> : null}
-        </div>}
+        {!isRecruiterDashboard && displayedLinks.length > 0 && (
+          <div className="border-t border-[var(--color-border-default)] bg-white/85">
+            <nav
+              className="mx-auto flex max-w-[1440px] gap-1 overflow-x-auto px-4 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:px-6 lg:px-10"
+              aria-label={t("a11y.mainNav")}
+            >
+              {displayedLinks.map((l) => (
+                <NavLink
+                  key={`${l.labelKey}:${l.to}`}
+                  to={`${basePath}${l.to}`}
+                  end={l.to === "" || (isRecruiterWorkspace && !!recruiterJobId && l.to === `/jobs/${recruiterJobId}`)}
+                  className={({ isActive }) =>
+                    cn(
+                      "relative inline-flex min-h-10 shrink-0 items-center whitespace-nowrap rounded-[var(--radius-md)] px-3 text-sm font-medium transition-colors duration-[var(--motion-fast)]",
+                      "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-primary)]",
+                      isActive
+                        ? "bg-[var(--color-primary-soft)] text-brand-primary ring-1 ring-inset ring-brand-primary/20"
+                        : "text-[var(--color-on-surface-variant)] hover:bg-[var(--color-primary-subtle)] hover:text-brand-primary",
+                    )
+                  }
+                >
+                  {t(l.labelKey)}
+                </NavLink>
+              ))}
+            </nav>
+          </div>
+        )}
       </header>}
       {showAdminBackBanner && !isRecruiterQuestionBank && (
         <div
@@ -519,7 +488,7 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
           </Link>
         </div>
       )}
-      <main id="main-content" className={cn("mx-auto", isRecruiterDashboard ? "w-full max-w-none p-0" : isRecruiterJobForm ? "w-full max-w-[1440px] px-4 py-4 sm:px-5 sm:py-5 lg:px-6 xl:h-[calc(100dvh-4rem)] xl:overflow-hidden" : isRecruiterBoard ? "flex h-[calc(100dvh-7.5rem)] w-full min-w-0 max-w-full flex-col overflow-hidden px-4 sm:px-6 lg:px-10" : "max-w-[1440px] px-4 py-6 sm:px-6 sm:py-8 lg:px-10")}>
+      <main id="main-content" className={cn("mx-auto", isRecruiterDashboard ? "w-full max-w-none p-0" : isRecruiterJobForm ? "w-full max-w-[1440px] px-4 py-4 sm:px-5 sm:py-5 lg:px-6 xl:h-[calc(100dvh-4rem)] xl:overflow-hidden" : isRecruiterBoard ? "flex h-[calc(100dvh-7.5rem)] w-full min-w-0 max-w-full flex-col overflow-hidden px-4 sm:px-6 lg:px-10" : "max-w-[1440px] px-4 pt-3 pb-8 sm:px-6 sm:pt-3.5 sm:pb-10 lg:px-10")}>
         <Outlet />
       </main>
     </div>

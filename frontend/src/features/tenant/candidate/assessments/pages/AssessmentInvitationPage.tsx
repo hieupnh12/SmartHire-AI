@@ -20,7 +20,7 @@ import {
   handoffAssessmentProctor,
 } from "../utils/assessmentProctorHandoff";
 
-const OPEN_ASSESSMENT = new Set(["ASSESSMENT", "HUMAN_INTERVIEW", "FAILED"]);
+const OPEN_ASSESSMENT = new Set(["ASSESSMENT", "INTERVIEW", "HUMAN_INTERVIEW", "FAILED"]);
 
 /** Career header is h-[76px]; cancel CareerNavigationLayout padding so this page fills one frame. */
 const roomShell =
@@ -74,7 +74,6 @@ export function AssessmentInvitationPage() {
 
   const onProctorReady = async (session: ProctorSession) => {
     handoffAssessmentProctor(session);
-    // Continue an open attempt: reuse submission, only re-bind proctor from this page.
     if (test?.submissionStatus === "IN_PROGRESS" && test.submissionId) {
       commitAssessmentProctor(test.submissionId);
       navigate(`/assessments/${test.submissionId}/take`, { replace: true });

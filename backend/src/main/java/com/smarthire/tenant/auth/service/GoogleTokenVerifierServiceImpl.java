@@ -20,6 +20,7 @@ public class GoogleTokenVerifierServiceImpl implements GoogleTokenVerifierServic
 
     private static final Logger log = LoggerFactory.getLogger(GoogleTokenVerifierServiceImpl.class);
 
+    @SuppressWarnings("unused")
     private final String configuredClientId;
     private final GoogleIdTokenVerifier tokenVerifier;
 

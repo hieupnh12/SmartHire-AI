@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ux/Button";
+import { Skeleton } from "@/components/ux/Skeleton";
 import { useNotifications } from "@/hooks/useNotifications";
 import { notificationApi } from "@/api/tenant/notificationApi";
 import { getApiErrorMessage } from "@/lib/axios";
@@ -12,7 +13,20 @@ export function NotificationInbox() {
   const client = useQueryClient();
   const read = useMutation({ mutationFn: notificationApi.markRead, onSuccess: () => client.invalidateQueries({ queryKey: inbox.queryKey.slice(0, 3) }) });
   return <div className="space-y-5">
-    {inbox.isPending && <p role="status">Đang tải thông báo…</p>}
+    {inbox.isPending && (
+      <div className="space-y-3" role="status" aria-busy="true">
+        {Array.from({ length: 4 }, (_, i) => (
+          <div key={i} className="flex items-center gap-3 rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-4">
+            <Skeleton className="size-10 shrink-0 rounded-full" />
+            <div className="min-w-0 flex-1 space-y-2">
+              <Skeleton className="h-4 w-1/3" />
+              <Skeleton className="h-3.5 w-2/3" />
+            </div>
+          </div>
+        ))}
+        <span className="sr-only">Đang tải thông báo…</span>
+      </div>
+    )}
     {inbox.isError && <div role="alert"><p>{getApiErrorMessage(inbox.error)}</p><Button onClick={() => void inbox.refetch()}>Thử lại</Button></div>}
     {read.isError && <p role="alert">{getApiErrorMessage(read.error)}</p>}
     {inbox.isSuccess && inbox.data.length === 0 && <p>Chưa có thông báo.</p>}

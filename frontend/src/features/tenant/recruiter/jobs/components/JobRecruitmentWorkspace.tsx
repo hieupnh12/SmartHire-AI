@@ -4,6 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import { jobApi } from "@/api/tenant/jobApi";
 import type { JobDetail } from "@/api/types/job";
 
+import { LoadingState, Skeleton, TableSkeleton } from "@/components/ux/Skeleton";
+
 const JobContext = createContext<JobDetail | null>(null);
 
 export function useRecruitmentJob() {
@@ -12,11 +14,15 @@ export function useRecruitmentJob() {
   return job;
 }
 
+export function useOptionalRecruitmentJob() {
+  return useContext(JobContext);
+}
+
 export function JobRecruitmentWorkspace({ children }: { children: ReactNode }) {
   const { id, assessmentId } = useParams();
   const location = useLocation();
-  // Assessment module pages use the shared Breadcrumb instead of the job title link.
-  const hideJobTitle = /\/jobs\/\d+\/assessments(?:\/|$)/.test(location.pathname);
+  // Assessment and Interview module pages use the shared Breadcrumb instead of the job title link.
+  const hideJobTitle = /\/jobs\/\d+\/(assessments|interviews)(?:\/|$)/.test(location.pathname);
   const valid = Number.isSafeInteger(Number(id)) && Number(id) > 0;
   const job = useQuery({
     queryKey: ["jobs", "detail", id],
@@ -31,7 +37,22 @@ export function JobRecruitmentWorkspace({ children }: { children: ReactNode }) {
       {valid && <button type="button" onClick={() => void job.refetch()} className="ml-4 text-[var(--color-primary)]">Thử lại</button>}
     </div>
   );
-  if (!job.data) return <p role="status">Đang tải vị trí tuyển dụng…</p>;
+  if (!job.data) {
+    return (
+      <LoadingState label="Đang tải dữ liệu vị trí tuyển dụng" className="space-y-6">
+        <div className="space-y-2">
+          <Skeleton className="h-4 w-32" />
+          <Skeleton className="h-8 w-72 max-w-full" />
+        </div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {[0, 1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-24 rounded-xl" />
+          ))}
+        </div>
+        <TableSkeleton columns={6} rows={6} />
+      </LoadingState>
+    );
+  }
 
   return (
     <JobContext.Provider value={job.data.data}>

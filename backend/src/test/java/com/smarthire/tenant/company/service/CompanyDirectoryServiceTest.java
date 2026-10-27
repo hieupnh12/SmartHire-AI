@@ -7,9 +7,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.smarthire.common.exception.BusinessException;
-import com.smarthire.domain.tenant.entity.CompanyDirectoryEntry;
 import com.smarthire.domain.tenant.entity.CompanyDirectoryEntry.EntryType;
-import com.smarthire.domain.tenant.entity.CompanyLocationDepartment;
 import com.smarthire.domain.tenant.repository.CompanyDirectoryEntryRepository;
 import com.smarthire.domain.tenant.repository.CompanyLocationDepartmentRepository;
 import com.smarthire.domain.tenant.repository.JobRepository;

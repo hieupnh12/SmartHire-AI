@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
   ArrowRight,
   ClipboardCheck,
@@ -8,6 +8,7 @@ import {
   FileSearch,
   RefreshCw,
   ShieldCheck,
+  Sparkles,
   Trophy,
 } from "lucide-react";
 import type { AvailableAssessment, SubmissionStatus } from "@/api/types/assessment";
@@ -51,7 +52,7 @@ export function AssessmentsPage() {
     queryFn: applicantApi.mine,
   });
   const eligible = useMemo(
-    () => (applications.data?.data ?? []).filter((a) => !a.archived && (a.status === "ASSESSMENT" || a.status === "HUMAN_INTERVIEW" || a.status === "FAILED")),
+    () => (applications.data?.data ?? []).filter((a) => !a.archived && (a.status === "ASSESSMENT" || a.status === "INTERVIEW" || a.status === "HUMAN_INTERVIEW" || a.status === "FAILED")),
     [applications.data?.data],
   );
 
@@ -165,14 +166,65 @@ export function AssessmentsPage() {
       )}
 
       {!applications.isPending && !testsLoading && invitations.length === 0 && (
-        <div className="flex items-start gap-3 rounded-2xl border border-dashed border-[var(--color-border-default)] bg-white p-6 shadow-[var(--shadow-card)]">
-          <ClipboardCheck className="size-8 text-[var(--color-primary)]" aria-hidden="true" />
-          <div>
-            <p className="font-semibold">Chưa có đề được giao</p>
-            <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">
-              Đề xuất hiện khi hồ sơ đang ở vòng bài kiểm tra và nhà tuyển dụng đã lưu cấu hình, với ngân hàng đủ câu hỏi.
-            </p>
+        <div className="space-y-4">
+          <div className="flex items-start gap-3 rounded-2xl border border-dashed border-[var(--color-border-default)] bg-white p-6 shadow-[var(--shadow-card)]">
+            <ClipboardCheck className="size-8 text-[var(--color-primary)]" aria-hidden="true" />
+            <div>
+              <p className="font-semibold">Chưa có đề được nhà tuyển dụng giao</p>
+              <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">
+                Đề chính thức sẽ xuất hiện khi hồ sơ ứng tuyển của bạn vượt qua vòng lọc CV. Trong lúc chờ đợi, bạn có thể thử sức với đề thi mẫu kỹ thuật bên dưới.
+              </p>
+            </div>
           </div>
+
+          {/* Featured Sample Card */}
+          <article className="flex min-w-0 flex-col overflow-hidden rounded-2xl border-2 border-[var(--color-primary)]/30 bg-white shadow-md transition-all hover:border-[var(--color-primary)] hover:shadow-lg">
+            <div className="flex-1 p-5 sm:p-6">
+              <div className="flex items-start gap-4">
+                <span className="grid size-12 shrink-0 place-items-center rounded-xl bg-[var(--color-primary-subtle)] text-[var(--color-primary)]">
+                  <Sparkles className="size-6" aria-hidden="true" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-primary)]">
+                        ĐỀ THI MẪU DÀNH CHO ỨNG VIÊN
+                      </p>
+                      <h2 className="mt-1 text-lg font-bold leading-6 text-[var(--color-on-surface)]">
+                        [Demo UI] Senior Full-Stack Engineer Technical Assessment
+                      </h2>
+                      <p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">
+                        Vị trí: Senior Full-Stack Developer (React 19 & Spring Boot 3)
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-800">
+                      Làm thử miễn phí
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-5 grid gap-3 rounded-xl bg-[var(--color-surface-alt)] p-4 text-sm sm:grid-cols-2">
+                <Fact icon={Clock3} label="Thời lượng" value="45 phút" />
+                <Fact icon={Trophy} label="Ngưỡng đạt" value="70 / 100 điểm" />
+              </div>
+
+              <p className="mt-4 text-xs leading-5 text-[var(--color-on-surface-variant)]">
+                Đề kiểm tra kỹ thuật mẫu bao gồm 5 câu trắc nghiệm khách quan, 1 câu tự luận thiết kế kiến trúc phân tán và 1 bài toán lập trình thuật toán có trình chạy code sandbox.
+              </p>
+
+              <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--color-border-default)]/60 pt-4">
+                <span className="text-xs text-[var(--color-on-surface-variant)]">
+                  Không giới hạn số lần làm thử · Không ảnh hưởng đến hồ sơ thực
+                </span>
+                <Link to="/assessments/sample">
+                  <Button className="gap-2 font-bold">
+                    Vào làm bài mẫu ngay <ArrowRight className="size-4" />
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          </article>
         </div>
       )}
 

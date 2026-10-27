@@ -132,6 +132,8 @@ services:
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_PORT: 5672
       GOTENBERG_URL: http://gotenberg:3000
+      APP_ASSESSMENT_JUDGE_URL: ${APP_ASSESSMENT_JUDGE_URL:-https://judge0-ce.p.rapidapi.com}
+      APP_ASSESSMENT_JUDGE_TOKEN: ${APP_ASSESSMENT_JUDGE_TOKEN:-}
       # SEPAY_* / DROPBOX_* come only from env_file above (VPS deploy/.env.production).
       SPRING_PROFILES_ACTIVE: prod
     depends_on:

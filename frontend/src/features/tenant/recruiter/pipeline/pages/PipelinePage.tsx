@@ -6,6 +6,7 @@ import { applicantApi } from "@/api/tenant/applicantApi";
 import { jobApi } from "@/api/tenant/jobApi";
 import type { ApplicationStatus, ApplicationSummary } from "@/api/types/applicant";
 import { DetailDialog } from "@/components/ux/DetailDialog";
+import { Skeleton, SkeletonCard } from "@/components/ux/Skeleton";
 import { getApiErrorMessage } from "@/lib/axios";
 import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
@@ -140,7 +141,9 @@ export function PipelineBoard() {
       <header className="flex w-full min-w-0 shrink-0 flex-col gap-3 rounded-2xl border border-[var(--color-border-default)] bg-white p-4 shadow-sm lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-xs font-medium text-brand-primary"><BriefcaseBusiness className="size-4 shrink-0" aria-hidden="true" />Bảng quy trình tuyển dụng</div>
-          <h1 className="mt-1 truncate text-lg font-semibold sm:text-xl">{jobQuery.data?.data.title ?? "Đang tải vị trí…"}</h1>
+          <h1 className="mt-1 truncate text-lg font-semibold sm:text-xl">
+            {jobQuery.data?.data.title ? jobQuery.data.data.title : <Skeleton className="h-6 w-48 inline-block" />}
+          </h1>
           <p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">{applications.length} ứng viên · cập nhật trực tiếp theo trạng thái hồ sơ</p>
         </div>
         <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
@@ -181,7 +184,7 @@ export function PipelineBoard() {
       )}
 
       <DetailDialog open={selectedId != null} title={detail?.candidateName ?? "Chi tiết ứng viên"} onClose={closeDetail}>
-        {detailQuery.isLoading ? <p className="text-sm text-[var(--color-on-surface-variant)]">Đang tải hồ sơ…</p> : detail ? <div className="space-y-4">
+        {detailQuery.isLoading ? <SkeletonCard className="h-56" /> : detail ? <div className="space-y-4">
           <div className="grid gap-3 rounded-xl bg-[var(--color-surface-alt)] p-4 sm:grid-cols-2">
             <div><p className="text-xs text-[var(--color-on-surface-variant)]">Email</p><p className="mt-1 text-sm font-medium">{detail.candidateEmail}</p></div>
             <div><p className="text-xs text-[var(--color-on-surface-variant)]">Người phụ trách</p><p className="mt-1 text-sm font-medium">{detail.assigneeName ?? "Chưa phân công"}</p></div>

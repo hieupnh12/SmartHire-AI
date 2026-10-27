@@ -382,7 +382,7 @@ public class OrderPdfGeneratorService {
     }
 
     private DecimalFormat getCurrencyFormatter() {
-        DecimalFormatSymbols symbols = new DecimalFormatSymbols(new Locale("vi", "VN"));
+        DecimalFormatSymbols symbols = new DecimalFormatSymbols(Locale.of("vi", "VN"));
         symbols.setGroupingSeparator('.');
         return new DecimalFormat("#,###", symbols);
     }

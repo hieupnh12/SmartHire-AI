@@ -23,6 +23,7 @@ import {
 } from "@/api/master/aiConfigApi";
 import { cn } from "@/lib/utils";
 import { HeaderActions } from "@/features/master/shell/HeaderActions";
+import { PageSkeleton } from "@/components/ux/Skeleton";
 import { AiEngineConfiguration } from "./AiEngineConfiguration";
 
 export type SystemManagementView = "ai-usage" | "ai-quotas" | "ai-config";
@@ -163,14 +164,7 @@ function AiUsageReportView() {
   };
 
   if (loading && !report) {
-    return (
-      <div className="flex min-h-[360px] items-center justify-center">
-        <div className="flex flex-col items-center gap-3 text-slate-500">
-          <Loader2 className="size-8 animate-spin text-blue-600" />
-          <p className="text-sm font-medium">Đang tải thống kê tiêu thụ AI...</p>
-        </div>
-      </div>
-    );
+    return <PageSkeleton variant="detail" />;
   }
 
   const trend = report?.monthlyTrend || [];
@@ -530,14 +524,7 @@ function AiQuotaManagementView() {
   };
 
   if (loading && rows.length === 0) {
-    return (
-      <div className="flex min-h-[360px] items-center justify-center">
-        <div className="flex flex-col items-center gap-3 text-slate-500">
-          <Loader2 className="size-8 animate-spin text-blue-600" />
-          <p className="text-sm font-medium">Đang tải hạn ngạch AI các Tenant...</p>
-        </div>
-      </div>
-    );
+    return <PageSkeleton variant="list" />;
   }
 
   const nearLimitCount = rows.filter((row) => {

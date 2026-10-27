@@ -660,6 +660,7 @@ erDiagram
     submissions ||--o{ coding_submissions : "bài nộp code"
     coding_problems ||--o{ coding_submissions : "của bài tập"
 
+    submissions ||--o{ assessment_proctor_events : "sự kiện vi phạm"
     submissions ||--o{ proctor_events : "sự kiện giám sát"
     submissions ||--o| proctor_reports : "báo cáo rủi ro 1:1"
 ```
@@ -818,6 +819,7 @@ của màn assessment hiện tại.
 | `Answer` | Câu trả lời trong lượt làm | `selected_option_id` (có FK), `answer_text`, `is_correct`, `score` |
 | `Answer.selectedOptions` | Các lựa chọn cho MULTIPLE_CHOICE | Entity `AnswerSelectedOption` → bảng `answer_selected_options`; MCQ dùng cột đơn cũ, ESSAY dùng `answer_text` |
 | `CodingSubmission` | Bài nộp code | `language`, `source_code`, `result_json`, `status` |
+| `AssessmentProctorEvent` | Sự kiện vi phạm giám sát thi thô (bảng `assessment_proctor_events`) | FK `submission_id` CASCADE, lưu vết `event` (`TAB_HIDDEN`, `LOST_FACE`, `MULTI_FACE`, `EXIT_FULLSCREEN`...), `detail`, `duration_seconds` (V55) |
 | `ProctorEvent` | Sự kiện giám sát thô | FK `submission_id` |
 | `ProctorReport` | Báo cáo rủi ro tổng hợp | 1:1 với `submissions` |
 
@@ -986,6 +988,7 @@ V44 bổ sung hai FK NOT NULL `ON DELETE CASCADE`: `interview_sessions.ai_interv
 | `answers` | `selected_option_id` | `options` | Có | N:0..1 | `fk_answers_option` |
 | `coding_submissions` | `submission_id` | `submissions` | Không | N:1 | `fk_cs_submission` |
 | `coding_submissions` | `coding_problem_id` | `coding_problems` | Không | N:1 | `fk_cs_cp` |
+| `assessment_proctor_events` | `submission_id` | `submissions` | Không | N:1 | `fk_proctor_submission`, DELETE CASCADE (V55) |
 | `proctor_events` | `submission_id` | `submissions` | Không | N:1 | `fk_pe_submission` |
 | `proctor_reports` | `submission_id` | `submissions` | Không | 1:1 (UQ) | `fk_pr_submission` |
 | `interviews` | `application_id` | `applications` | Không | N:1 | `fk_interviews_application` |
@@ -1252,6 +1255,7 @@ V22 thêm `idx_questionskills_skill(skill_id)` trên `questionskills`. PK kép h
 | Tenant | `applications` | `idx_app_candidate_status` | `(candidate_id, status)` | Kiểm tra một đơn đang xét / ứng viên (V52) |
 | Tenant | `applications` | `idx_app_status_updated` | `(status, updated_at)` | Quét đơn quá hạn xử lý (V52) |
 | Tenant | `cvs` | `idx_cvs_retain_until` | `(retain_until)` | Quét CV quá hạn lưu để xoá file (V52) |
+| Tenant | `assessment_proctor_events` | `idx_proctor_submission_created` | `(submission_id, created_at)` | Tra cứu vết vi phạm proctoring theo bài nộp (V55) |
 | Tenant | `github_analyses` | `idx_github_analyses_status` | `(status)` | Lọc kết quả GitHub theo trạng thái (V54) |
 | Tenant | `github_repo_caches` | `idx_github_repo_cache_lookup` | `(repo_full_name, skill_fingerprint, strategy_version)` | Tìm cache cũ khi commit đổi (V54) |
 | Tenant | `company_location_departments` | `idx_cld_location` | `(location_name)` | Lọc phòng ban theo địa điểm (V55) |

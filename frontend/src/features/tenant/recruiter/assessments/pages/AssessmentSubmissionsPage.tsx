@@ -2,12 +2,23 @@ import { AssessmentJobReportPanel } from "../components/AssessmentJobReportPanel
 import { SubmissionGradingDetail } from "../components/SubmissionGradingDetail";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Clock3, RefreshCw, Search, Users } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  Clock3,
+  Eye,
+  RefreshCw,
+  Search,
+  Users,
+} from "lucide-react";
 import { assessmentApi } from "@/api/tenant/assessmentApi";
 import type { SubmissionStatus, SubmissionSummary } from "@/api/types/assessment";
-import { AssessmentError, assessmentStatus } from "@/components/ux/assessmentUi";
+import { AssessmentError } from "@/components/ux/assessmentUi";
 import { Breadcrumb } from "@/components/ux/Breadcrumb";
 import { Button } from "@/components/ux/Button";
+import { TableSkeleton } from "@/components/ux/Skeleton";
 import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
 import { useRecruitmentJob } from "../../jobs/components/JobRecruitmentWorkspace";
@@ -18,14 +29,21 @@ const PAGE_SIZE = 10;
 const REFRESH_MS = 15_000;
 
 const tabs: { id: StatusTab; label: string; match: (status: SubmissionStatus) => boolean }[] = [
-  { id: "ALL", label: "Tất cả lượt làm", match: () => true },
+  { id: "ALL", label: "Tất cả", match: () => true },
   { id: "IN_PROGRESS", label: "Đang làm bài", match: (status) => status === "IN_PROGRESS" || status === "NOT_STARTED" },
   { id: "DONE", label: "Đã nộp", match: (status) => status === "SUBMITTED" || status === "GRADED" },
-  { id: "EXPIRED", label: "Hết thời gian", match: (status) => status === "EXPIRED" },
+  { id: "EXPIRED", label: "Quá giờ", match: (status) => status === "EXPIRED" },
 ];
 
 function formatDateTime(iso: string | null) {
-  return iso ? new Date(iso).toLocaleString("vi-VN", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit" }) : "—";
+  return iso
+    ? new Date(iso).toLocaleString("vi-VN", {
+        hour: "2-digit",
+        minute: "2-digit",
+        day: "2-digit",
+        month: "2-digit",
+      })
+    : "—";
 }
 
 function formatRemaining(seconds: number) {
@@ -40,19 +58,53 @@ function initials(name: string | null | undefined) {
   return `${parts[0][0] ?? ""}${parts[parts.length - 1][0] ?? ""}`.toUpperCase();
 }
 
-function statusTone(status: SubmissionStatus) {
-  if (status === "IN_PROGRESS") return { badge: "bg-sky-50 text-sky-700", dot: "bg-sky-500 animate-pulse" };
-  if (status === "GRADED") return { badge: "bg-emerald-50 text-emerald-700", dot: "bg-emerald-500" };
-  if (status === "SUBMITTED") return { badge: "bg-amber-50 text-amber-800", dot: "bg-amber-500" };
-  return { badge: "bg-[var(--color-surface-container)] text-[var(--color-on-surface-variant)]", dot: "bg-[var(--color-outline)]" };
+function statusMeta(status: SubmissionStatus) {
+  switch (status) {
+    case "GRADED":
+      return {
+        label: "Đã chấm",
+        badge: "bg-emerald-50 text-emerald-700 border border-emerald-200/60 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/40",
+        dot: "bg-emerald-500",
+      };
+    case "SUBMITTED":
+      return {
+        label: "Đã nộp",
+        badge: "bg-amber-50 text-amber-700 border border-amber-200/60 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/40",
+        dot: "bg-amber-500",
+      };
+    case "IN_PROGRESS":
+      return {
+        label: "Đang làm bài",
+        badge: "bg-sky-50 text-sky-700 border border-sky-200/60 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800/40",
+        dot: "bg-sky-500 animate-pulse",
+      };
+    case "NOT_STARTED":
+      return {
+        label: "Chưa bắt đầu",
+        badge: "bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700",
+        dot: "bg-slate-400",
+      };
+    case "EXPIRED":
+      return {
+        label: "Quá giờ",
+        badge: "bg-rose-50 text-rose-700 border border-rose-200/60 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800/40",
+        dot: "bg-rose-500",
+      };
+    default:
+      return {
+        label: "Đã hủy",
+        badge: "bg-slate-100 text-slate-600 border border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700",
+        dot: "bg-slate-400",
+      };
+  }
 }
 
 function StatusBadge({ status }: { status: SubmissionStatus }) {
-  const tone = statusTone(status);
+  const meta = statusMeta(status);
   return (
-    <span className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold", tone.badge)}>
-      <span className={cn("size-1.5 rounded-full", tone.dot)} />
-      {assessmentStatus[status]}
+    <span className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold", meta.badge)}>
+      <span className={cn("size-1.5 rounded-full", meta.dot)} />
+      {meta.label}
     </span>
   );
 }
@@ -85,7 +137,10 @@ export function AssessmentSubmissionsPage() {
   );
 
   const counts = useMemo(
-    () => Object.fromEntries(tabs.map((item) => [item.id, scoped.filter((row) => item.match(row.status)).length])) as Record<StatusTab, number>,
+    () =>
+      Object.fromEntries(
+        tabs.map((item) => [item.id, scoped.filter((row) => item.match(row.status)).length]),
+      ) as Record<StatusTab, number>,
     [scoped],
   );
 
@@ -95,7 +150,10 @@ export function AssessmentSubmissionsPage() {
     return scoped.filter(
       (item) =>
         matcher(item.status) &&
-        (!q || item.candidateName.toLowerCase().includes(q) || item.candidateEmail.toLowerCase().includes(q) || item.testTitle.toLowerCase().includes(q)),
+        (!q ||
+          item.candidateName.toLowerCase().includes(q) ||
+          item.candidateEmail.toLowerCase().includes(q) ||
+          item.testTitle.toLowerCase().includes(q)),
     );
   }, [scoped, tab, query]);
 
@@ -105,7 +163,8 @@ export function AssessmentSubmissionsPage() {
   const resetPage = () => setPage(0);
 
   return (
-    <section className="flex flex-col gap-8 text-[var(--color-on-surface)]">
+    <section className="flex flex-col gap-5 text-[var(--color-on-surface)]">
+      {/* 1. Header */}
       <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div className="min-w-0">
           <Breadcrumb
@@ -115,23 +174,35 @@ export function AssessmentSubmissionsPage() {
               { label: "Theo dõi bài làm" },
             ]}
           />
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight">Theo dõi bài làm của ứng viên</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--color-on-surface-variant)]">
-            Xem ai đang làm bài, ai đã nộp và kết quả của từng lượt làm. Danh sách tự làm mới mỗi 15 giây.
+          <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">
+            Theo dõi bài làm của ứng viên
+          </h1>
+          <p className="mt-1 max-w-2xl text-xs text-[var(--color-on-surface-variant)] sm:text-sm">
+            Xem tiến độ làm bài, trạng thái nộp và chấm điểm của từng ứng viên. Tự động làm mới mỗi 15 giây.
           </p>
         </div>
-        <Button variant="secondary" onClick={() => void submissions.refetch()} disabled={submissions.isFetching}>
-          <RefreshCw className={cn("size-4", submissions.isFetching && "animate-spin")} aria-hidden="true" />
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => void submissions.refetch()}
+          disabled={submissions.isFetching}
+          className="self-start md:self-auto shrink-0"
+        >
+          <RefreshCw className={cn("size-3.5", submissions.isFetching && "animate-spin")} aria-hidden="true" />
           Làm mới
         </Button>
       </header>
 
       {reviewId != null && <SubmissionGradingDetail key={reviewId} id={reviewId} onClose={() => setReviewId(null)} />}
       <AssessmentError error={submissions.error} retry={() => void submissions.refetch()} />
+
+      {/* 2. Compact Metric Cards */}
       <AssessmentJobReportPanel jobId={job.id} />
 
-      <div className="flex flex-col gap-4 rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-4 shadow-[var(--shadow-card)]">
-        <div className="flex flex-wrap items-center gap-1 rounded-xl bg-[var(--color-surface-container-low)]/80 p-1">
+      {/* 3. Unified Filter Toolbar */}
+      <div className="flex flex-col gap-3 rounded-2xl border border-slate-200/80 bg-white p-2.5 shadow-2xs dark:border-slate-800 dark:bg-slate-900 lg:flex-row lg:items-center lg:justify-between">
+        {/* Status Tabs */}
+        <div className="flex flex-wrap items-center gap-1 rounded-xl bg-slate-100/70 p-1 dark:bg-slate-800/60">
           {tabs.map((item) => {
             const active = tab === item.id;
             return (
@@ -143,19 +214,19 @@ export function AssessmentSubmissionsPage() {
                   resetPage();
                 }}
                 className={cn(
-                  "inline-flex items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-sm transition-colors",
+                  "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer",
                   active
-                    ? "bg-[var(--color-surface-card)] font-semibold text-[var(--color-primary)] shadow-sm"
-                    : "text-[var(--color-on-surface-variant)] hover:bg-[var(--color-surface-container)] hover:text-[var(--color-on-surface)]",
+                    ? "bg-white font-semibold text-[var(--color-primary)] shadow-2xs dark:bg-slate-900"
+                    : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200",
                 )}
               >
                 {item.label}
                 <span
                   className={cn(
-                    "rounded-full px-2 py-0.5 text-[11px] font-semibold",
+                    "rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
                     active
-                      ? "bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)]"
-                      : "bg-[var(--color-surface-container-high)] text-[var(--color-on-surface-variant)]",
+                      ? "bg-[var(--color-primary-subtle)] text-[var(--color-primary)]"
+                      : "bg-slate-200/60 text-slate-500 dark:bg-slate-700/60 dark:text-slate-400",
                   )}
                 >
                   {counts[item.id]}
@@ -165,55 +236,57 @@ export function AssessmentSubmissionsPage() {
           })}
         </div>
 
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-12">
-          <label className="relative md:col-span-8">
-            <span className="sr-only">Tìm kiếm ứng viên</span>
-            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--color-outline)]" aria-hidden="true" />
+        {/* Search & Test Filter */}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative min-w-[200px] flex-1 sm:w-60">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-slate-400" />
             <input
-              className="h-10 w-full rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-low)] pl-10 pr-3 text-sm outline-none transition-[box-shadow,border-color] placeholder:text-[var(--color-outline)] focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20"
-              placeholder="Tìm theo tên, email ứng viên hoặc tên bài…"
+              className="h-8.5 w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-8.5 pr-3 text-xs outline-none transition focus:border-[var(--color-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--color-primary)]/20 dark:border-slate-800 dark:bg-slate-800/40 dark:focus:bg-slate-900"
+              placeholder="Tìm ứng viên, email, tên bài…"
               value={query}
               onChange={(e) => {
                 setQuery(e.target.value);
                 resetPage();
               }}
             />
-          </label>
-          <label className="md:col-span-4">
-            <span className="sr-only">Lọc theo bài đánh giá</span>
-            <select
-              className="h-10 w-full appearance-none rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-low)] px-3 text-sm outline-none focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20"
-              value={testFilter}
-              onChange={(e) => {
-                setTestFilter(e.target.value === "ALL" ? "ALL" : Number(e.target.value));
-                resetPage();
-              }}
-            >
-              <option value="ALL">Tất cả bài đánh giá</option>
-              {testOptions.map(([id, title]) => (
-                <option key={id} value={id}>
-                  {title} (ASM-{id})
-                </option>
-              ))}
-            </select>
-          </label>
+          </div>
+
+          <select
+            aria-label="Lọc theo bài đánh giá"
+            className="h-8.5 rounded-xl border border-slate-200 bg-slate-50/50 px-3 text-xs font-medium text-slate-700 outline-none transition cursor-pointer hover:bg-slate-100 focus:border-[var(--color-primary)] dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-300 dark:hover:bg-slate-800"
+            value={testFilter}
+            onChange={(e) => {
+              setTestFilter(e.target.value === "ALL" ? "ALL" : Number(e.target.value));
+              resetPage();
+            }}
+          >
+            <option value="ALL">Tất cả bài đánh giá</option>
+            {testOptions.map(([id, title]) => (
+              <option key={id} value={id}>
+                {title} (ASM-{id})
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-[var(--color-surface-card)] shadow-[var(--shadow-card)]">
+      {/* 4. Main Submissions Table */}
+      <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-2xs dark:border-slate-800 dark:bg-slate-900">
         {submissions.isPending && (
-          <p className="p-6 text-sm text-[var(--color-on-surface-variant)]" role="status">
-            Đang tải danh sách bài làm…
-          </p>
+          <div className="p-4">
+            <TableSkeleton columns={7} rows={6} />
+          </div>
         )}
 
         {submissions.data && !pageRows.length && (
           <div className="flex items-center gap-3 p-8">
             <Users className="size-8 text-[var(--color-primary)]" aria-hidden="true" />
             <div>
-              <p className="font-semibold">Chưa có lượt làm bài phù hợp</p>
-              <p className="text-sm text-[var(--color-on-surface-variant)]">
-                {items.length === 0 ? "Chưa ứng viên nào bắt đầu bài đánh giá của vị trí này." : "Thử đổi bộ lọc hoặc từ khóa tìm kiếm."}
+              <p className="font-semibold text-slate-900 dark:text-slate-100">Chưa có lượt làm bài phù hợp</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                {items.length === 0
+                  ? "Chưa ứng viên nào bắt đầu bài đánh giá của vị trí này."
+                  : "Thử đổi bộ lọc hoặc từ khóa tìm kiếm."}
               </p>
             </div>
           </div>
@@ -222,18 +295,19 @@ export function AssessmentSubmissionsPage() {
         {pageRows.length > 0 && (
           <>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1000px] border-collapse text-left text-sm">
+              <table className="w-full min-w-[960px] border-collapse text-left text-sm">
                 <thead>
-                  <tr className="h-11 bg-[var(--color-surface-container-low)] text-[11px] font-semibold uppercase tracking-wider text-[var(--color-outline)]">
-                    <th className="px-4 py-2">Ứng viên</th>
-                    <th className="px-4 py-2">Bài đánh giá</th>
-                    <th className="px-4 py-2">Trạng thái</th>
-                    <th className="px-4 py-2">Bắt đầu</th>
-                    <th className="px-4 py-2">Nộp bài / Thời gian</th>
-                    <th className="px-4 py-2">Điểm</th>
+                  <tr className="border-b border-slate-100 bg-slate-50/60 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:border-slate-800 dark:bg-slate-800/30 dark:text-slate-400">
+                    <th className="px-4 py-3">Ứng viên</th>
+                    <th className="px-4 py-3">Bài đánh giá</th>
+                    <th className="px-4 py-3">Trạng thái</th>
+                    <th className="px-4 py-3">Bắt đầu</th>
+                    <th className="px-4 py-3">Nộp bài / Thời gian</th>
+                    <th className="px-4 py-3">Điểm</th>
+                    <th className="px-4 py-3 text-right">Thao tác</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[var(--color-surface-container-low)]">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
                   {pageRows.map((row) => (
                     <SubmissionRow key={row.id} row={row} onReview={() => setReviewId(row.id)} />
                   ))}
@@ -241,22 +315,29 @@ export function AssessmentSubmissionsPage() {
               </table>
             </div>
 
-            <div className="flex flex-col items-center justify-between gap-3 border-t border-[var(--color-border-default)] px-4 py-3 sm:flex-row">
-              <p className="text-sm text-[var(--color-outline)]">
+            {/* Pagination footer */}
+            <div className="flex flex-col items-center justify-between gap-3 border-t border-slate-100 px-4 py-3 sm:flex-row dark:border-slate-800">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
                 Hiển thị{" "}
-                <span className="font-semibold text-[var(--color-on-surface)]">
+                <span className="font-semibold text-slate-900 dark:text-slate-100">
                   {safePage * PAGE_SIZE + 1}–{Math.min((safePage + 1) * PAGE_SIZE, filtered.length)}
                 </span>{" "}
-                của <span className="font-semibold text-[var(--color-on-surface)]">{filtered.length}</span> lượt làm
+                trên <span className="font-semibold text-slate-900 dark:text-slate-100">{filtered.length}</span> lượt làm
               </p>
               <div className="flex items-center gap-1">
                 <Button variant="secondary" size="sm" disabled={safePage === 0} aria-label="Trang đầu" onClick={() => setPage(0)}>
-                  <ChevronsLeft className="size-4" aria-hidden="true" />
+                  <ChevronsLeft className="size-3.5" aria-hidden="true" />
                 </Button>
-                <Button variant="secondary" size="sm" disabled={safePage === 0} aria-label="Trang trước" onClick={() => setPage((p) => Math.max(0, p - 1))}>
-                  <ChevronLeft className="size-4" aria-hidden="true" />
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={safePage === 0}
+                  aria-label="Trang trước"
+                  onClick={() => setPage((p) => Math.max(0, p - 1))}
+                >
+                  <ChevronLeft className="size-3.5" aria-hidden="true" />
                 </Button>
-                <span className="min-w-16 px-2 text-center text-sm font-semibold">
+                <span className="min-w-16 px-2 text-center text-xs font-semibold text-slate-700 dark:text-slate-300">
                   {safePage + 1} / {pageCount}
                 </span>
                 <Button
@@ -266,10 +347,16 @@ export function AssessmentSubmissionsPage() {
                   aria-label="Trang sau"
                   onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
                 >
-                  <ChevronRight className="size-4" aria-hidden="true" />
+                  <ChevronRight className="size-3.5" aria-hidden="true" />
                 </Button>
-                <Button variant="secondary" size="sm" disabled={safePage >= pageCount - 1} aria-label="Trang cuối" onClick={() => setPage(pageCount - 1)}>
-                  <ChevronsRight className="size-4" aria-hidden="true" />
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={safePage >= pageCount - 1}
+                  aria-label="Trang cuối"
+                  onClick={() => setPage(pageCount - 1)}
+                >
+                  <ChevronsRight className="size-3.5" aria-hidden="true" />
                 </Button>
               </div>
             </div>
@@ -282,54 +369,88 @@ export function AssessmentSubmissionsPage() {
 
 function SubmissionRow({ row, onReview }: { row: SubmissionSummary; onReview: () => void }) {
   const inProgress = row.status === "IN_PROGRESS";
+  const canReview = ["SUBMITTED", "GRADED", "EXPIRED"].includes(row.status);
+
   return (
-    <tr className="transition-colors hover:bg-[var(--color-primary-subtle)]">
+    <tr className="group transition-colors hover:bg-slate-50/70 dark:hover:bg-slate-800/30">
       <td className="px-4 py-3.5">
         <div className="flex items-center gap-3">
-          <div className="grid size-9 shrink-0 place-items-center rounded-full bg-[var(--color-secondary-container)] text-xs font-bold">
+          <div className="grid size-9 shrink-0 place-items-center rounded-full bg-[var(--color-primary-subtle)] text-xs font-bold text-[var(--color-primary)]">
             {initials(row.candidateName)}
           </div>
           <div className="min-w-0">
-            <span className="block truncate font-semibold">{row.candidateName}</span>
-            <span className="block truncate text-xs text-[var(--color-outline)]">{row.candidateEmail}</span>
+            <span className="block truncate font-semibold text-slate-900 dark:text-slate-100">{row.candidateName}</span>
+            <span className="block truncate text-xs text-slate-500 dark:text-slate-400">{row.candidateEmail}</span>
           </div>
         </div>
       </td>
       <td className="px-4 py-3.5">
-        <span className="block truncate font-medium">{row.testTitle}</span>
-        <span className="font-mono text-xs text-[var(--color-outline)]">Mã: ASM-{row.testId}</span>
+        <span className="block truncate font-medium text-slate-900 dark:text-slate-100">{row.testTitle}</span>
+        <span className="font-mono text-xs text-slate-400 dark:text-slate-500">Mã: ASM-{row.testId}</span>
       </td>
       <td className="whitespace-nowrap px-4 py-3.5">
         <StatusBadge status={row.status} />
-        {["SUBMITTED", "GRADED", "EXPIRED"].includes(row.status) && <button type="button" onClick={onReview} className="mt-2 block text-xs font-medium text-[var(--color-primary)]">Xem & chấm bài</button>}
       </td>
-      <td className="whitespace-nowrap px-4 py-3.5">{formatDateTime(row.startedAt)}</td>
-      <td className="whitespace-nowrap px-4 py-3.5">
+      <td className="whitespace-nowrap px-4 py-3.5 text-xs text-slate-600 dark:text-slate-400">
+        {formatDateTime(row.startedAt)}
+      </td>
+      <td className="whitespace-nowrap px-4 py-3.5 text-xs">
         {inProgress ? (
-          <span className="inline-flex items-center gap-1.5 font-medium text-sky-700">
+          <span className="inline-flex items-center gap-1.5 font-medium text-sky-600 dark:text-sky-400">
             <Clock3 className="size-3.5" aria-hidden="true" />
             {formatRemaining(row.remainingSeconds)}
           </span>
         ) : row.submittedAt ? (
-          formatDateTime(row.submittedAt)
+          <span className="text-slate-700 dark:text-slate-300">{formatDateTime(row.submittedAt)}</span>
         ) : (
-          <span className="text-[var(--color-outline)]">Chưa nộp</span>
+          <span className="text-slate-400 italic">Chưa nộp bài</span>
         )}
       </td>
       <td className="whitespace-nowrap px-4 py-3.5">
-        {row.score == null ? (
-          <span className="text-[var(--color-outline)]">{row.status === "SUBMITTED" ? "Chờ chấm tự luận" : "—"}</span>
-        ) : (
+        {inProgress || row.status === "NOT_STARTED" ? (
+          <span className="inline-flex items-center gap-1 text-xs text-sky-600 dark:text-sky-400 font-medium">
+            <Clock3 className="size-3" /> Đang làm bài
+          </span>
+        ) : row.status === "SUBMITTED" && row.score == null ? (
+          <span className="inline-flex items-center gap-1 rounded-md bg-amber-50 dark:bg-amber-950/40 px-2.5 py-1 text-xs font-semibold text-amber-700 dark:text-amber-300 border border-amber-200/60 dark:border-amber-800/40">
+            Chờ chấm bài
+          </span>
+        ) : row.status === "EXPIRED" && row.score == null ? (
+          <span className="inline-flex items-center gap-1 rounded-md bg-rose-50 dark:bg-rose-950/40 px-2.5 py-1 text-xs font-semibold text-rose-700 dark:text-rose-300 border border-rose-200/60 dark:border-rose-800/40">
+            Quá giờ (0 điểm)
+          </span>
+        ) : row.score != null ? (
           <div className="flex flex-col">
-            <span className="font-semibold">
-              {row.score} / {row.totalPoints} điểm
+            <span className="font-bold text-slate-900 dark:text-slate-100 text-sm">
+              {row.score} <span className="text-xs font-normal text-slate-500">/ {row.totalPoints ?? "—"} điểm</span>
             </span>
             {row.passed != null && (
-              <span className={cn("text-[11px] font-medium", row.passed ? "text-emerald-700" : "text-[var(--color-status-danger)]")}>
-                {row.passed ? "Đạt" : "Chưa đạt"}
+              <span
+                className={cn(
+                  "text-[11px] font-semibold mt-0.5",
+                  row.passed ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400",
+                )}
+              >
+                {row.passed ? "✓ Đạt yêu cầu" : "✗ Chưa đạt"}
               </span>
             )}
           </div>
+        ) : (
+          <span className="text-xs text-slate-400 italic">Chưa có điểm</span>
+        )}
+      </td>
+      <td className="whitespace-nowrap px-4 py-3.5 text-right">
+        {canReview ? (
+          <button
+            type="button"
+            onClick={onReview}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--color-primary)] px-3 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-[var(--color-primary-hover)] active:scale-98 transition-all cursor-pointer"
+          >
+            <Eye className="size-3.5" />
+            Xem & chấm bài
+          </button>
+        ) : (
+          <span className="text-xs text-slate-400 italic">Đang làm bài</span>
         )}
       </td>
     </tr>

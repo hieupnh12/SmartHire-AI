@@ -16,6 +16,7 @@ import { getDeadlineInfo } from "@/features/tenant/candidate/jobs/utils/jobDeadl
 import { CareerHeader } from "@/features/tenant/candidate/jobs/components/CareerHeader";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 import { toast } from "@/stores/toastStore";
+import { Skeleton } from "@/components/ux/Skeleton";
 import "../career-page.css";
 import {
   Search,
@@ -1234,7 +1235,13 @@ export function TenantCareerPage() {
                     <legend className="font-semibold text-slate-800">Chọn CV để ứng tuyển <span className="text-[var(--color-error)]">*</span></legend>
                     <p className="mt-1 text-xs text-slate-500">Chọn một CV đã lưu hoặc tải lên bản mới dành cho vị trí này.</p>
 
-                    {candidateCvs.isPending && <p className="mt-3 rounded-xl bg-slate-50 p-3 text-xs text-slate-500">Đang tải danh sách CV…</p>}
+                    {candidateCvs.isPending && (
+                      <div className="mt-3 space-y-2" role="status" aria-busy="true">
+                        <Skeleton className="h-14 w-full rounded-xl" />
+                        <Skeleton className="h-14 w-full rounded-xl" />
+                        <span className="sr-only">Đang tải danh sách CV…</span>
+                      </div>
+                    )}
                     {candidateCvs.isError && <p role="alert" className="mt-3 rounded-xl bg-[var(--color-error-container)] p-3 text-xs text-[var(--color-on-error-container)]">Không thể tải CV đã lưu. Bạn vẫn có thể tải file mới bên dưới.</p>}
                     {(candidateCvs.data?.data.length ?? 0) > 0 && (
                       <div className="mt-3 max-h-52 space-y-2 overflow-y-auto pr-1">
