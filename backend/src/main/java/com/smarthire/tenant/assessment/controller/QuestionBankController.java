@@ -43,6 +43,13 @@ public class QuestionBankController {
         return ApiResponse.ok(generate.generate(body));
     }
 
+    @PostMapping(value = "/generate_stream", produces = org.springframework.http.MediaType.TEXT_EVENT_STREAM_VALUE)
+    @Operation(summary = "Real-time SSE stream drafting questions one-by-one with progressive events (staff only)",
+            description = "Streams events: generation_started, generation_progress, question_created, generation_completed")
+    public org.springframework.web.servlet.mvc.method.annotation.SseEmitter generateStream(@Valid @RequestBody QuestionBankGenerateRequest body) {
+        return generate.generateStream(body);
+    }
+
     @GetMapping("/list_questions")
     @Operation(summary = "List standalone and assessment questions in the current tenant (staff only)")
     public ApiResponse<BankQuestionPage> list(

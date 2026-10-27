@@ -739,6 +739,7 @@ Entity `JobTest` (class Java tránh xung đột JUnit `Test`).
 | `duration_minutes` | INT | | Không | — | Thời lượng (phút) |
 | `passing_score` | DECIMAL(10,2) | | Có | NULL | Điểm đạt |
 | `status` | VARCHAR(32) | | Không | `'DRAFT'` | `TestStatus`: DRAFT, PUBLISHED, ARCHIVED |
+| `origin` | VARCHAR(32) | | Không | `'AUTHORED'` | V58: `TestOrigin`. `AUTHORED` hiện nhãn **Thường** (soạn từ ngân hàng câu hỏi); `GENERATED` hiện nhãn **AI** (Tạo tự động / worker). Không đổi `status` |
 | `created_by` | BIGINT | FK → `users.id` | Có | NULL | Người tạo đề (staff); NULL với đề cũ trước V13 |
 | `created_at` | TIMESTAMP | | Không | now | |
 | `updated_at` | TIMESTAMP | | Có | NULL | Cập nhật lần cuối; backfill = `created_at` ở V13 |

@@ -11,8 +11,8 @@ import { Tooltip } from "@/components/ux/Tooltip";
 import { PageSkeleton, SkeletonCard } from "@/components/ux/Skeleton";
 import { AssessmentError, assessmentLink, assessmentMuted as muted, assessmentStatus } from "@/components/ux/assessmentUi";
 import { TestForm } from "../components/TestForm";
-import { QuestionForm } from "../components/QuestionForm";
 import { AssessmentQuestionCard } from "../components/AssessmentQuestionCard";
+import { AssessmentSubNav } from "../components/AssessmentSubNav";
 
 export function AssessmentDetailPage() {
   const job = useRecruitmentJob();
@@ -45,7 +45,7 @@ export function AssessmentDetailPage() {
   if (!isNew && !valid) return <p role="alert">Mã đề không hợp lệ.</p>;
   if (test.data && test.data.jobId !== job.id) return <p role="alert">Đề này không thuộc vị trí đang mở. <Link className={assessmentLink} to={listPath}>Về danh sách đề</Link></p>;
   return <section className="space-y-6 text-[var(--color-on-surface)]">
-    <Link className={assessmentLink} to={listPath}><ArrowLeft className="size-4" aria-hidden="true" />Danh sách đề</Link>
+    <AssessmentSubNav jobId={job.id} activeTab="tests" />
     <header className="space-y-5 rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-5 shadow-[var(--shadow-card)] sm:p-8"><div className="flex flex-wrap items-start justify-between gap-4"><div className="min-w-0 flex-1"><p className="mb-3 inline-flex rounded-full bg-[var(--color-primary-subtle)] px-3 py-1 text-xs font-medium text-[var(--color-primary)]">{isNew ? "Đề mới" : assessmentStatus[test.data?.status ?? "DRAFT"]}</p><h1 className="break-words text-xl font-semibold leading-snug sm:text-2xl">{isNew ? "Tạo đề kiểm tra" : test.data?.title ?? "Đề kiểm tra"}</h1></div>
       {!isNew && draft && <Button disabled={busy || dirty || !!editor || !questions.data?.length || questions.isError} onClick={() => { if (window.confirm("Xuất bản đề? Nội dung và thời lượng sẽ không thể sửa.")) publish.mutate(); }}><Send className="size-4" aria-hidden="true" />Xuất bản</Button>}
       </div>

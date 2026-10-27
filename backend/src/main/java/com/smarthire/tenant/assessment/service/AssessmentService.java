@@ -8,6 +8,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import com.smarthire.common.exception.BusinessException;
+import com.smarthire.domain.enums.TestOrigin;
 import com.smarthire.domain.enums.TestStatus;
 import com.smarthire.domain.tenant.entity.JobTest;
 import com.smarthire.domain.tenant.repository.JobRepository;
@@ -41,6 +42,7 @@ public class AssessmentService {
         JobTest test = new JobTest();
         test.setJob(job);
         test.setStatus(TestStatus.DRAFT);
+        test.setOrigin(TestOrigin.AUTHORED);
         test.setCreatedBy(access.actor());
         apply(test, request);
         return mapper.response(tests.save(test));

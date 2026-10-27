@@ -1,5 +1,6 @@
 package com.smarthire.tenant.assessment.dto.response;
 
+import com.smarthire.domain.enums.TestOrigin;
 import com.smarthire.domain.enums.TestStatus;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -18,5 +19,6 @@ public record JobTestResponse(
         String createdByName,
         Integer objectiveDurationMinutes,
         int codingTestWeightPercent,
-        Long assignedApplicationId) {
+        Long assignedApplicationId,
+        TestOrigin origin) {
 }

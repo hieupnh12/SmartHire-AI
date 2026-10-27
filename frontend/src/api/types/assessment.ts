@@ -1,4 +1,5 @@
 export type TestStatus = "DRAFT" | "PUBLISHED" | "ARCHIVED";
+export type TestOrigin = "AUTHORED" | "GENERATED";
 export type SubmissionStatus = "NOT_STARTED" | "IN_PROGRESS" | "SUBMITTED" | "GRADED" | "EXPIRED";
 export type QuestionDifficulty = "Easy" | "Medium" | "Hard";
 export type JobTest = {
@@ -10,6 +11,8 @@ export type JobTest = {
   durationMinutes: number;
   passingScore: number | null;
   status: TestStatus;
+  /** AUTHORED = recruiter wrote the paper. GENERATED = drawn from the question bank. */
+  origin?: TestOrigin;
   createdAt: string;
   updatedAt: string | null;
   createdById: number | null;

@@ -21,8 +21,6 @@ type ToastState = {
   dismiss: (id?: string) => void;
 };
 
-const timers = new Map<string, number>();
-
 export const useToastStore = create<ToastState>((set) => ({
   items: [],
   push: (toast) => {
@@ -31,38 +29,24 @@ export const useToastStore = create<ToastState>((set) => ({
       (typeof crypto !== "undefined" && crypto.randomUUID
         ? crypto.randomUUID()
         : `toast-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`);
-    const duration = toast.duration ?? (toast.tone === "error" || toast.tone === "danger" ? 5000 : 4000);
-
-    // Clear existing timer if replacing same id
-    if (timers.has(id)) {
-      window.clearTimeout(timers.get(id));
-      timers.delete(id);
-    }
+    const duration =
+      toast.duration ??
+      (toast.tone === "error" || toast.tone === "danger"
+        ? 6000
+        : toast.tone === "warning"
+          ? 5000
+          : 4000);
 
     set((s) => ({
       items: [...s.items.filter((item) => item.id !== id), { ...toast, id, duration }],
     }));
 
-    if (duration > 0) {
-      const timerId = window.setTimeout(() => {
-        timers.delete(id);
-        set((s) => ({ items: s.items.filter((t) => t.id !== id) }));
-      }, duration);
-      timers.set(id, timerId);
-    }
-
     return id;
   },
   dismiss: (id) => {
     if (id) {
-      if (timers.has(id)) {
-        window.clearTimeout(timers.get(id));
-        timers.delete(id);
-      }
       set((s) => ({ items: s.items.filter((t) => t.id !== id) }));
     } else {
-      timers.forEach((t) => window.clearTimeout(t));
-      timers.clear();
       set({ items: [] });
     }
   },

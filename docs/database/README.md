@@ -10,6 +10,7 @@
 
 | Thông tin | Giá trị |
 |---|---|
+| Nguồn đề thi 2026-10-27 | Tenant V58 thêm `tests.origin` VARCHAR(32) NOT NULL DEFAULT `AUTHORED` (entity `JobTest.origin`, enum `TestOrigin`: `AUTHORED`, `GENERATED`). Backfill `GENERATED` khi description là câu tạo tự động từ ngân hàng. Không thêm bảng/FK/UNIQUE/index. `TestStatus` giữ nguyên |
 | Assessment ops hardening 2026-10-25 | Tenant V55: `coding_problems.verified_at` / `verified_language`; `tests.coding_test_weight_percent` INT NOT NULL DEFAULT 90; `answers.custom_run_count` INT NOT NULL DEFAULT 0; `email_outbox.reference_key` VARCHAR(128) + UNIQUE `(purpose, reference_key)`. Không thêm bảng/entity mới |
 | Coding authoring aids 2026-10-25 | Tenant V56 thêm `coding_problems.constraints_text` TEXT nullable (entity `CodingProblem.constraintsText`) và `test_cases.explanation` TEXT nullable (entity `TestCase.explanation`). Không thêm bảng/FK/UNIQUE/index |
 | AI Interview Speech Tasks 2026-10-15 | Master V34 seed 2 dòng `ai_model_configs`: `INTERVIEW_STT`, `INTERVIEW_TTS` (GEMINI). Không đổi schema. STT/TTS đọc provider/model/key từ Master DB; Interview/CV giữ fallback môi trường; Assessment giữ `AI_ASSESSMENT_*`, ưu tiên `CODE_GRADING` từ Master DB khi chấm bài |
@@ -49,7 +50,7 @@
 | Ràng buộc UNIQUE tenant | V57 thêm `uk_company_loc_dept`. V55 thêm `uk_email_outbox_purpose_ref`. V54 thêm `uk_github_analyses_cv_job` và `uk_github_repo_cache`. V53 thêm `uk_cp_question`. V51 thêm `uk_candidates_email` và `uk_notification_preference_candidate_category` |
 | Số file migration trong repo | 84 (34 master + 50 tenant); V9 redesign nằm ngoài pipeline |
 | Assessment đa phần 2026-10-12 | Tenant V53: rubric, khóa phần trắc nghiệm, gợi ý/duyệt điểm, liên kết coding→question và template sandbox; không thêm bảng/entity; thêm 2 FK và 1 UNIQUE |
-| Cập nhật lần cuối | Tenant `V57` (`company_location_departments`, đánh lại từ V55 vì trùng `V55__assessment_ops_hardening`), `V56` (constraints/explanation), `V55` (assessment ops), `V54` (`github_analyses`, `github_repo_caches`) |
+| Cập nhật lần cuối | Tenant `V58` (`tests.origin`), `V57` (`company_location_departments`), `V56` (constraints/explanation), `V55` (assessment ops) |
 | Dọn legacy V21 | Xóa 19 bảng và dữ liệu legacy, xóa 2 cột ID legacy trong ranking; không chuyển ID cũ sang bản ghi mới |
 | Metadata assessment 2026-09-25 | V13: `tests.created_by/updated_at`, `questions.difficulty/skill/explanation` cho Excel/UI authoring |
 | Sửa lỗi assessment 2026-09-24 | V10/V11 khớp checksum lịch sử; V12 tạo schema mới và giữ bảng cũ; migration lỗi phải chặn mở tenant pool |
@@ -302,6 +303,7 @@ V44 không thêm enum hoặc trạng thái lifecycle: session dùng lifecycle c�
 | `HiringDecisionType` | `hiring_decisions.decision` | `HIRE`, `REJECT`, `HOLD` |
 | `CvStatus` | `cvs.status` | `UPLOADED`, `PARSING`, `PARSED`, `EXTRACTING`, `ANALYZING`, `ANALYZED`, `FAILED` |
 | `TestStatus` | `tests.status` | `DRAFT`, `PUBLISHED`, `ARCHIVED` |
+| `TestOrigin` | `tests.origin` | `AUTHORED` (người soạn), `GENERATED` (hệ thống bốc từ ngân hàng). Không thay `TestStatus` |
 | `TestSubmissionStatus` | `submissions.status` | `NOT_STARTED`, `IN_PROGRESS`, `SUBMITTED`, `GRADED`, `EXPIRED` |
 | `SubmissionStatus` | `coding_submissions.status` | `QUEUED`, `RUNNING`, `PASSED`, `PARTIAL`, `FAILED`, `ERROR` |
 | `InterviewStatus` | `interviews.status` | `CREATED`, `SCHEDULED`, `IN_PROGRESS`, `EVALUATED`, `CANCELLED` |
@@ -808,7 +810,7 @@ của màn assessment hiện tại.
 
 | Entity | Mục đích | Ghi chú quan trọng |
 |---|---|---|
-| `JobTest` | Đề thi gắn với một job (bảng `tests`) | V43: `assigned_application_id` nullable + UNIQUE + FK, tối đa một đề tự động cho mỗi hồ sơ; NULL là đề dùng chung trong job. Tên class tránh xung đột JUnit `Test` |
+| `JobTest` | Đề thi gắn với một job (bảng `tests`) | V43: `assigned_application_id` nullable + UNIQUE + FK, tối đa một đề tự động cho mỗi hồ sơ; NULL là đề dùng chung trong job. V58: `origin` = `AUTHORED` hoặc `GENERATED`. Tên class tránh xung đột JUnit `Test` |
 | `Question` | Câu hỏi trắc nghiệm hoặc tự luận, độc lập hoặc thuộc đề | V41: `test_id` nullable; `authoring_metadata` giữ nội dung bảng soạn/rubric/đáp án mẫu; `bank_archived` lưu trữ câu độc lập. Dữ liệu câu gốc của assessment không bị thay đổi khi xem ngân hàng |
 | `QuestionSkill` | Liên kết N–N câu hỏi và kỹ năng | PK kép `(question_id, skill_id)`; 2 FK NOT NULL, ON DELETE CASCADE |
 | `AnswerSelectedOption` | Lựa chọn đã chọn của câu MULTIPLE_CHOICE | PK kép `(answer_id, option_id)`; FK answer CASCADE, option RESTRICT |
@@ -1435,6 +1437,7 @@ V53 bổ sung mô hình đa phần; giữ nguyên số bảng/entity. Không t�
 | V55 | `V55__assessment_ops_hardening.sql` | `coding_problems.verified_at` TIMESTAMP NULL, `verified_language` VARCHAR(32) NULL; `tests.coding_test_weight_percent` INT NOT NULL DEFAULT 90; `answers.custom_run_count` INT NOT NULL DEFAULT 0; `email_outbox.reference_key` VARCHAR(128) NULL + UNIQUE `uk_email_outbox_purpose_ref(purpose, reference_key)`. Không thêm bảng |
 | V56 | `V56__coding_constraints_and_explanations.sql` | `coding_problems.constraints_text` TEXT nullable; `test_cases.explanation` TEXT nullable. Không thêm bảng/FK/UNIQUE/index |
 | V57 | `V57__company_location_departments.sql` | `company_location_departments` + entity `CompanyLocationDepartment` (UNIQUE `(location_name, department_name)`, 2 index). Backfill từ jobs. Đánh lại từ V55 vì trùng version |
+| V58 | `V58__test_origin.sql` | `tests.origin` VARCHAR(32) NOT NULL DEFAULT `AUTHORED`. Backfill `GENERATED` theo description đề bốc từ ngân hàng. Không thêm bảng/FK/UNIQUE |
 
 V9 redesign cũ được giữ nguyên tại `db/migration-archive/`, **ngoài** location Flyway.
 Tenant tạo mới chạy V1–V13 rồi V21–V51: 60 bảng hiện hành (gồm 5 bảng analytics V9), chưa tính history.

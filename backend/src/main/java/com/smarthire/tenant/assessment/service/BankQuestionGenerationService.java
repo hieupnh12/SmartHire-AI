@@ -16,12 +16,15 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 @Service
 public class BankQuestionGenerationService {
+    private static final Logger log = LoggerFactory.getLogger(BankQuestionGenerationService.class);
     public record Draft(Long owner, BankGenerationRequest request, BankGenerationResponse result) {}
     private final CvAccess access;
     private final RedisService redis;
@@ -78,10 +81,16 @@ public class BankQuestionGenerationService {
                         draft.request().difficulty(), draft.request().skill().trim(), question.explanation(),
                         question.options(), question.questionType(), question.rubricJson(), question.coding()));
             }
-            store(id, new Draft(draft.owner(), draft.request(), new BankGenerationResponse(id, "READY", questions, null)));
+            AiInterviewClient.AiExecutionInfo exec = ai.getLastExecutionInfo();
+            String modelName = exec != null && exec.displayName() != null ? exec.displayName() : null;
+            store(id, new Draft(draft.owner(), draft.request(), new BankGenerationResponse(id, "READY", questions, null, modelName)));
         } catch (Exception failure) {
-            store(id, new Draft(draft.owner(), draft.request(), new BankGenerationResponse(id, "FAILED", List.of(),
-                    "AI chưa tạo được bộ câu hỏi hợp lệ. Kiểm tra kết nối model hoặc thử tạo ít câu hơn.")));
+            log.warn("Bank question generation {} failed: {}", id, failure.toString());
+            String reason = failure.getMessage();
+            String message = reason == null || reason.isBlank()
+                    ? "AI chưa tạo được bộ câu hỏi hợp lệ. Kiểm tra kết nối model hoặc thử tạo ít câu hơn."
+                    : "AI chưa tạo được bộ câu hỏi hợp lệ. " + (reason.length() > 300 ? reason.substring(0, 300) : reason);
+            store(id, new Draft(draft.owner(), draft.request(), new BankGenerationResponse(id, "FAILED", List.of(), message)));
         }
     }
 

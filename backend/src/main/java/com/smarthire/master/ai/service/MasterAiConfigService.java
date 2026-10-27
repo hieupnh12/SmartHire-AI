@@ -268,7 +268,8 @@ public class MasterAiConfigService {
             case "OPENAI" -> "gpt-4o-mini";
             case "DEEPSEEK" -> "deepseek-chat";
             case "ANTHROPIC" -> "claude-3-5-haiku-20241022";
-            case "CURSOR", "CUSTOM" -> "default";
+            case "CURSOR" -> "composer-2";
+            case "CUSTOM" -> "default";
             case "OPENROUTER" -> "meta-llama/llama-3.3-70b-instruct";
             case "GROQ" -> "qwen/qwen3.8-27b";
             case "MISTRAL" -> "mistral-small-latest";
@@ -322,10 +323,12 @@ public class MasterAiConfigService {
         long start = System.currentTimeMillis();
 
         try {
-            if ("CURSOR".equalsIgnoreCase(provider) && (endpointUrl == null || endpointUrl.isBlank() || endpointUrl.contains("api.cursor.com"))) {
-                String targetUrl = "https://api.cursor.com/v1/me";
+            if ("CURSOR".equalsIgnoreCase(provider)) {
+                String baseHost = (endpointUrl != null && !endpointUrl.isBlank()) ? endpointUrl.trim() : "https://api.cursor.com";
+                baseHost = baseHost.replaceAll("/+$", "").replaceAll("/v1/agents$", "").replaceAll("/v1/me$", "").replaceAll("/v1$", "");
+                String meUrl = baseHost + "/v1/me";
                 String resBody = restClient.get()
-                        .uri(targetUrl)
+                        .uri(meUrl)
                         .header("Authorization", "Bearer " + apiKey.trim())
                         .retrieve()
                         .body(String.class);
@@ -340,23 +343,41 @@ public class MasterAiConfigService {
                     }
                 } catch (Exception ignored) {}
 
+                String detectedModel = "composer-2";
+                try {
+                    String modelsRes = restClient.get()
+                            .uri(baseHost + "/v1/models")
+                            .header("Authorization", "Bearer " + apiKey.trim())
+                            .retrieve()
+                            .body(String.class);
+                    if (modelsRes != null && !modelsRes.isBlank()) {
+                        var modelsNode = mapper.readTree(modelsRes);
+                        if (modelsNode.has("models") && modelsNode.get("models").isArray() && !modelsNode.get("models").isEmpty()) {
+                            detectedModel = modelsNode.get("models").get(0).has("id")
+                                    ? modelsNode.get("models").get(0).get("id").asText()
+                                    : "composer-2";
+                        }
+                    }
+                } catch (Exception ignored) {}
+
                 long latency = System.currentTimeMillis() - start;
-                updateKeyLastTested(request.getKeyId(), true, 200, "CURSOR", "cloud-agent-v1");
+                updateKeyLastTested(request.getKeyId(), true, 200, "CURSOR", detectedModel);
                 return AiTestConnectionResponse.builder()
                         .success(true)
-                        .message("Kết nối thành công đến Cursor Cloud API!" + keyInfo)
+                        .message("Kết nối thành công đến Cursor Cloud Agents API!" + keyInfo)
                         .latencyMs(latency)
-                        .modelVersion("cursor:cloud-agent-v1")
+                        .modelVersion("cursor:" + detectedModel)
                         .build();
             }
 
-            boolean isOpenAiCompatible = !"ANTHROPIC".equalsIgnoreCase(provider) && !"GEMINI".equalsIgnoreCase(provider);
+            boolean isOpenAiCompatible = !"ANTHROPIC".equalsIgnoreCase(provider)
+                    && !"GEMINI".equalsIgnoreCase(provider)
+                    && !"CURSOR".equalsIgnoreCase(provider);
 
             if (isOpenAiCompatible) {
                 String defaultEndpoint = switch (provider) {
                     case "OPENAI" -> "https://api.openai.com/v1/chat/completions";
                     case "DEEPSEEK" -> "https://api.deepseek.com/chat/completions";
-                    case "CURSOR" -> (endpointUrl != null && !endpointUrl.isBlank()) ? endpointUrl.trim() : "https://api.cursor.com/v1/agents";
                     case "OPENROUTER" -> "https://openrouter.ai/api/v1/chat/completions";
                     case "GROQ" -> "https://api.groq.com/openai/v1/chat/completions";
                     case "MISTRAL" -> "https://api.mistral.ai/v1/chat/completions";

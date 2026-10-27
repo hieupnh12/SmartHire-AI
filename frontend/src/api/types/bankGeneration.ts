@@ -14,4 +14,5 @@ export type BankGenerationResponse = {
   status: "PENDING" | "RUNNING" | "READY" | "FAILED";
   questions: QuestionRequest[];
   error: string | null;
+  model?: string | null;
 };

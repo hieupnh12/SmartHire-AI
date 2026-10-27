@@ -44,12 +44,13 @@ const MODEL_PRESETS: Record<string, string[]> = {
   OPENAI: ["gpt-4o-mini", "gpt-4o", "gpt-4-turbo", "o3-mini", "o1-mini"],
   ANTHROPIC: ["claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022", "claude-3-opus-20240229"],
   CURSOR: [
-    "claude-sonnet-4-5",
-    "claude-haiku-4-5",
-    "claude-sonnet-4",
-    "gpt-5.1",
-    "gemini-3.5-flash",
+    "composer-2",
+    "composer-2.5",
+    "claude-4-sonnet-thinking",
+    "claude-3-5-sonnet",
+    "gpt-4o",
     "cursor-small",
+    "auto-smart",
     "default",
   ],
   OPENROUTER: [

@@ -85,6 +85,7 @@ import { GeneralQuestionEditorPage } from "@/features/tenant/recruiter/assessmen
 import { QuestionBankPage } from "@/features/tenant/recruiter/assessments/pages/QuestionBankPage";
 import { ExcelQuestionTemplatePage } from "@/features/tenant/recruiter/assessments/pages/ExcelQuestionTemplatePage";
 import { AssessmentCreationPage } from "@/features/tenant/recruiter/assessments/pages/AssessmentCreationPage";
+import { AiQuestionGeneratorPage } from "@/features/tenant/recruiter/assessments/pages/AiQuestionGeneratorPage";
 import { InterviewsPage as RecruiterInterviewsPage } from "@/features/tenant/recruiter/interviews/pages/InterviewsPage";
 import { AiInterviewsPage as RecruiterAiInterviewsPage } from "@/features/tenant/recruiter/interviews/pages/AiInterviewsPage";
 import { SchedulesPage as RecruiterSchedulesPage } from "@/features/tenant/recruiter/schedules/pages/SchedulesPage";
@@ -231,6 +232,7 @@ export function AppRouter() {
           <Route path="question-bank" element={<GeneralQuestionBankPage />} />
           <Route path="question-bank/new" element={<GeneralQuestionEditorPage />} />
           <Route path="question-bank/:questionId/edit" element={<GeneralQuestionEditorPage />} />
+          <Route path="question-bank/ai-generator" element={<AiQuestionGeneratorPage />} />
           <Route path="assessments/question-bank" element={<Navigate to="/recruiter/question-bank" replace />} />
           <Route element={<FeatureRoute feature="ASSESSMENTS" />}>
             <Route path="jobs/:id/assessments" element={<JobRecruitmentWorkspace><RecruiterAssessmentsPage /></JobRecruitmentWorkspace>} />
@@ -240,8 +242,10 @@ export function AppRouter() {
             <Route path="assessments" element={<Navigate to="/recruiter" replace />} />
             <Route path="assessments/new" element={<Navigate to="/recruiter" replace />} />
             <Route path="jobs/:id/assessments/question-bank" element={<JobRecruitmentWorkspace><QuestionBankPage /></JobRecruitmentWorkspace>} />
+            <Route path="jobs/:id/assessments/ai-generator" element={<JobRecruitmentWorkspace><AiQuestionGeneratorPage /></JobRecruitmentWorkspace>} />
             <Route path="jobs/:id/assessments/excel-template" element={<JobRecruitmentWorkspace><ExcelQuestionTemplatePage /></JobRecruitmentWorkspace>} />
             <Route path="assessments/excel-template" element={<Navigate to="/recruiter" replace />} />
+            <Route path="assessments/ai-generator" element={<Navigate to="/recruiter/question-bank/ai-generator" replace />} />
             <Route path="assessments/:id" element={<Navigate to="/recruiter" replace />} />
           </Route>
           <Route element={<FeatureRoute feature="AI_INTERVIEWS" />}>

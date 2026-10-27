@@ -370,14 +370,13 @@ function GeneralQuestionBankView({ localKeys }: { localKeys: ReturnType<typeof q
           }
           actions={
             <>
-              <button
-                type="button"
-                onClick={() => setAiOpen(true)}
+              <Link
+                to="/recruiter/question-bank/ai-generator"
                 className="inline-flex h-9 items-center gap-2 rounded-lg bg-[var(--color-surface-card)] px-3 text-sm font-medium ring-1 ring-[var(--color-border-default)] hover:bg-[var(--color-surface-container-low)]"
               >
                 <Sparkles className="size-4 text-[var(--color-primary)]" aria-hidden="true" />
                 Sinh bằng AI
-              </button>
+              </Link>
               <Link to={`${basePath}/new`} className="inline-flex h-9 items-center gap-2 rounded-lg bg-[var(--color-surface-card)] px-3 text-sm font-medium ring-1 ring-[var(--color-border-default)]"><Table2 className="size-4 text-[var(--color-primary)]" aria-hidden="true" />Nhập Excel</Link>
               <Link to={`${basePath}/new`} className="inline-flex h-9 items-center gap-2 rounded-lg bg-[var(--color-primary)] px-3 text-sm font-semibold text-white hover:bg-[var(--color-primary-hover)]">Thêm câu hỏi</Link>
               <button

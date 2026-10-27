@@ -1,5 +1,6 @@
 package com.smarthire.domain.tenant.entity;
 
+import com.smarthire.domain.enums.TestOrigin;
 import com.smarthire.domain.enums.TestStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -70,6 +71,12 @@ public class JobTest {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)
     TestStatus status = TestStatus.DRAFT;
+
+    /** AUTHORED = recruiter wrote the paper. GENERATED = drawn from the question bank. */
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 32)
+    TestOrigin origin = TestOrigin.AUTHORED;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by")

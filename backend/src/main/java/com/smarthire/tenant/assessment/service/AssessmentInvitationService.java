@@ -184,6 +184,7 @@ public class AssessmentInvitationService {
                 .durationMinutes(test.getDurationMinutes())
                 .objectiveDurationMinutes(test.getObjectiveDurationMinutes())
                 .passingScore(test.getPassingScore())
+                .origin(test.getOrigin())
                 .status(TestStatus.PUBLISHED)
                 .build();
         tests.save(paper);
