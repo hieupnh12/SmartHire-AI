@@ -18,7 +18,7 @@ class InterviewVoiceTicketsTest {
         var tickets = new InterviewVoiceTickets(redis, new ObjectMapper(), mock(InterviewConversationService.class));
         String ticket = "12345678-1234-1234-1234-123456789012";
         when(values.getAndDelete(RedisKeys.interviewVoiceTicket(ticket))).thenReturn(
-                "{\"interviewId\":11,\"tenant\":\"acme\",\"email\":\"candidate@example.test\",\"authorities\":[\"ROLE_CANDIDATE\"]}", null);
+                "{\"interviewId\":11,\"tenant\":\"acme\",\"email\":\"candidate@example.test\",\"authorities\":[\"ROLE_CANDIDATE\"]}", (String) null);
         assertThat(tickets.consume(ticket).tenant()).isEqualTo("acme"); assertThat(tickets.consume(ticket)).isNull();
         assertThat(tickets.consume("invalid")).isNull();
         verify(values, times(2)).getAndDelete(RedisKeys.interviewVoiceTicket(ticket));

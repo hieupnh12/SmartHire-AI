@@ -70,7 +70,7 @@ export function AiInterviewRoom({ id }: { id: number }) {
   useEffect(() => { if (data?.completedAt) setProctorSession(null); }, [data?.completedAt]);
   useEffect(() => {
     if (!proctorSession || data?.startedAt) return;
-    const tracks = [...proctorSession.camera.getAudioTracks(), ...proctorSession.screen.getTracks()];
+    const tracks = proctorSession.camera.getTracks();
     const lost = () => setProctorSession(null);
     const fullscreen = () => { if (!document.fullscreenElement) lost(); };
     if (tracks.some(track => track.readyState !== "live")) { lost(); return; }
@@ -124,7 +124,7 @@ export function AiInterviewRoom({ id }: { id: number }) {
         <Bot className={`mx-auto size-12 text-[var(--color-primary)] ${openingError ? "" : "animate-pulse motion-reduce:animate-none"}`} aria-hidden="true" />
         <h1 className="text-xl font-semibold">Đã vào phòng phỏng vấn</h1>
         <p role="status">AI đang chuẩn bị lời chào. Hội thoại sẽ tự hiển thị khi sẵn sàng.</p>
-        <p className="text-sm text-[var(--color-on-surface-variant)]">Thời gian làm bài chưa bắt đầu. Giữ tab phỏng vấn và chia sẻ màn hình đang mở.</p>
+        <p className="text-sm text-[var(--color-on-surface-variant)]">Thời gian làm bài chưa bắt đầu. Vui lòng giữ tab phỏng vấn ở chế độ toàn màn hình.</p>
         {openingError && <><p role="alert" className="text-sm text-[var(--color-error)]">{openingError}</p>
           <Button disabled={start.isPending} onClick={() => start.mutate()}>Thử tạo hội thoại lại</Button></>}
         <Button variant="secondary" disabled={start.isPending} onClick={() => { setProctorSession(null); start.reset(); if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined); }}>Quay lại kiểm tra thiết bị</Button>
@@ -212,7 +212,7 @@ export function AiInterviewRoom({ id }: { id: number }) {
                 await start.mutateAsync();
                 setProctorSession(proctor);
               } catch (cause) {
-                throw new Error(`Chưa thể bắt đầu phiên phỏng vấn: ${getApiErrorMessage(cause)} Chia sẻ tab đã được dừng. Hãy kiểm tra thiết bị và thử lại.`);
+                throw new Error(`Chưa thể bắt đầu phiên phỏng vấn: ${getApiErrorMessage(cause)} Vui lòng kiểm tra thiết bị và thử lại.`);
               }
             }}
           />}

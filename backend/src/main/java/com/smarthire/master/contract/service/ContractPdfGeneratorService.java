@@ -297,7 +297,7 @@ public class ContractPdfGeneratorService {
     private String formatQuota(Integer quota, String unit) {
         if (quota == null) return "Không giới hạn";
         if (quota <= 0) return "Không giới hạn";
-        DecimalFormatSymbols symbols = new DecimalFormatSymbols(new Locale("vi", "VN"));
+        DecimalFormatSymbols symbols = new DecimalFormatSymbols(Locale.of("vi", "VN"));
         symbols.setGroupingSeparator('.');
         DecimalFormat df = new DecimalFormat("#,###", symbols);
         return df.format(quota) + " " + unit;
@@ -324,21 +324,8 @@ public class ContractPdfGeneratorService {
         doc.add(p);
     }
 
-    private void addTableRow(PdfPTable table, String col1, String col2, Font f1, Font f2) {
-        PdfPCell c1 = new PdfPCell(new Phrase(col1, f1));
-        c1.setPadding(6f);
-        c1.setBorderColor(new Color(226, 232, 240));
-        table.addCell(c1);
-
-        PdfPCell c2 = new PdfPCell(new Phrase(col2, f2));
-        c2.setPadding(6f);
-        c2.setHorizontalAlignment(Element.ALIGN_RIGHT);
-        c2.setBorderColor(new Color(226, 232, 240));
-        table.addCell(c2);
-    }
-
     private String formatMoney(BigDecimal amount, String currency) {
-        DecimalFormatSymbols symbols = new DecimalFormatSymbols(new Locale("vi", "VN"));
+        DecimalFormatSymbols symbols = new DecimalFormatSymbols(Locale.of("vi", "VN"));
         symbols.setGroupingSeparator('.');
         DecimalFormat df = new DecimalFormat("#,###", symbols);
         return df.format(amount != null ? amount : BigDecimal.ZERO) + " " + currency;

@@ -1,14 +1,15 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AiQuestionGenerationPanel } from "../components/AiQuestionGenerationPanel";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { questionBankApi } from "@/api/tenant/questionBankApi";
 import { queryKeys } from "@/lib/query-keys";
 import { AssessmentError } from "@/components/ux/assessmentUi";
+import { Breadcrumb } from "@/components/ux/Breadcrumb";
 import { LoadingState, Skeleton, TableSkeleton } from "@/components/ux/Skeleton";
+import { AiQuestionGenerateDialog } from "../components/AiQuestionGenerateDialog";
 import { bankQuestionAuthoring } from "../utils/bankQuestionAuthoring";
 import { typeMeta, type BankQuestion } from "../constants/excelTemplateMock";
 import { questionBankLocalKeys } from "../utils/generalQuestionDraft";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 import {
@@ -40,6 +41,7 @@ import { SKILL_CATALOG } from "@/features/tenant/recruiter/jobs/skillCatalog";
 import { getTenantIdFromWindow } from "@/lib/tenant";
 import { getTenantTheme } from "@/lib/tenantTheme";
 import { cn } from "@/lib/utils";
+import { toast } from "@/stores/toastStore";
 
 const FAVORITES_KEY = "smarthire.general-question-bank.preview.favorites";
 const SKILLS = SKILL_CATALOG.flatMap((group) => group.skills);
@@ -62,7 +64,12 @@ type BankRow = {
   code: string;
   skills: string[];
   difficulty: Difficulty;
+  aiGenerated: boolean;
 };
+
+function isAiGenerated(meta: Record<string, unknown> | null | undefined) {
+  return meta?.aiGenerated === true || meta?.aiGenerated === "true" || meta?.source === "AI";
+}
 
 const collections: { id: Collection; label: string; icon: typeof FolderOpen }[] = [
   { id: "all", label: "Tất cả câu hỏi", icon: FolderOpen },
@@ -125,6 +132,49 @@ function paginationItems(current: number, total: number): (number | "start-ellip
   return items;
 }
 
+function JumpPageInput({
+  pageCount,
+  onJump,
+}: {
+  pageCount: number;
+  onJump: (page: number) => void;
+}) {
+  const [val, setVal] = useState("");
+
+  const handleCommit = () => {
+    const p = parseInt(val, 10);
+    if (!isNaN(p) && p >= 1 && p <= pageCount) {
+      onJump(p);
+      setVal("");
+    } else {
+      setVal("");
+    }
+  };
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        handleCommit();
+      }}
+      className="inline-flex items-center"
+    >
+      <input
+        type="number"
+        min={1}
+        max={pageCount}
+        placeholder="..."
+        value={val}
+        onChange={(e) => setVal(e.target.value)}
+        onBlur={handleCommit}
+        className="h-8 w-11 rounded border border-[var(--color-border-default)] bg-[var(--color-surface-card)] px-1 text-center text-xs font-semibold text-[var(--color-on-surface)] outline-none transition placeholder:text-[var(--color-on-surface-variant)] focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)] [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+        title={`Nhập số trang (1 - ${pageCount}) rồi nhấn Enter`}
+        aria-label="Nhập số trang để chuyển"
+      />
+    </form>
+  );
+}
+
 function difficultyClass(level: Difficulty) {
   if (level === "Cơ bản") return "bg-emerald-50 text-emerald-700";
   if (level === "Nâng cao") return "bg-rose-50 text-rose-700";
@@ -169,30 +219,37 @@ function GeneralQuestionBankView({ localKeys }: { localKeys: ReturnType<typeof q
   const [collection, setCollection] = useState<Collection>("all");
   const [query, setQuery] = useState("");
   const [skill, setSkill] = useState("");
+  const [sourceFilter, setSourceFilter] = useState<"" | "AI">("");
   const [difficulty, setDifficulty] = useState<Difficulty | "">("");
   const [status, setStatus] = useState<TestStatus | "">("");
   const [sort, setSort] = useState<"latest" | "points" | "text">("latest");
   const [view, setView] = useState<ViewMode>("table");
+  const [aiOpen, setAiOpen] = useState(false);
   const initialPage = Math.max(0, Number(searchParams.get("page") ?? 1) - 1 || 0);
   const requestedSize = Number(searchParams.get("size"));
   const [page, setPage] = useState(initialPage);
   const [pageSize, setPageSize] = useState([10, 25, 50].includes(requestedSize) ? requestedSize : 10);
-  const pageTransition = useRef(false);
   const [selected, setSelected] = useState<string[]>([]);
   const [favorites, setFavorites] = useState<Set<string>>(() => loadFavorites(`${FAVORITES_KEY}:${localKeys.scope}`));
   const [activeKey, setActiveKey] = useState<string | null>(null);
   const [drawerTab, setDrawerTab] = useState<DrawerTab>("content");
   const [menuKey, setMenuKey] = useState<string | null>(null);
-  const [notice, setNotice] = useState(location.state?.savedQuestions ? `Đã lưu ${location.state.savedQuestions} câu hỏi vào ngân hàng chung.` : "");
+
+  useEffect(() => {
+    if (location.state?.savedQuestions) {
+      toast.success("Lưu câu hỏi thành công", `Đã lưu ${location.state.savedQuestions} câu hỏi vào ngân hàng chung.`);
+    }
+  }, [location.state?.savedQuestions]);
 
   const client = useQueryClient();
   const favoriteIds = useMemo(() => [...favorites].map(key => Number(key.replace("bank-", ""))).filter(Number.isFinite).sort((a, b) => a - b), [favorites]);
   const apiDifficulty = difficulty === "Cơ bản" ? "Easy" : difficulty === "Vận dụng" ? "Medium" : difficulty === "Nâng cao" ? "Hard" : undefined;
   const bankQuery = useQuery({
-    queryKey: [...queryKeys.assessments.all(), "general-bank", page, pageSize, collection, query, skill, apiDifficulty, status, questionType, sort, favoriteIds],
+    queryKey: [...queryKeys.assessments.all(), "general-bank", page, pageSize, collection, query, skill, apiDifficulty, status, questionType, sourceFilter, sort, favoriteIds],
     queryFn: ({ signal }) => questionBankApi.list({ page, size: pageSize, collection, query: query.trim() || undefined,
       skill: skill || undefined, difficulty: apiDifficulty, status: status || undefined,
-      questionType: questionType || undefined, sort, favoriteIds }, signal),
+      questionType: questionType || undefined, source: sourceFilter || undefined, sort, favoriteIds }, signal),
+    placeholderData: keepPreviousData,
   });
   const rows = useMemo<BankRow[]>(() => (bankQuery.data?.items ?? []).map(item => {
     const question = item.question;
@@ -201,18 +258,18 @@ function GeneralQuestionBankView({ localKeys }: { localKeys: ReturnType<typeof q
       jobId: item.jobId ?? 0, jobTitle: item.jobTitle ?? "Ngân hàng chung", department: "",
       question, content: bankQuestionAuthoring(item), code: questionCode(question.id),
       skills: skillsOf(question.questionText, question.skill), difficulty: difficultyLabel(question.difficulty, question.points),
+      aiGenerated: isAiGenerated(item.authoringMetadata),
     };
   }), [bankQuery.data]);
   const archiveMutation = useMutation({ mutationFn: ({ ids, archived }: { ids: number[]; archived: boolean }) => questionBankApi.archive(ids, archived),
-    onSuccess: async () => { setSelected([]); setNotice("Đã cập nhật trạng thái câu hỏi."); await client.invalidateQueries({ queryKey: queryKeys.assessments.all() }); } });
+    onSuccess: async () => { setSelected([]); toast.success("Cập nhật thành công", "Đã cập nhật trạng thái câu hỏi."); await client.invalidateQueries({ queryKey: queryKeys.assessments.all() }); } });
   const editPath = (row: BankRow) => row.testId ? `/recruiter/jobs/${row.jobId}/assessments/${row.testId}` : `${basePath}/${row.question.id}/edit`;
 
   const skillOptions = bankQuery.data?.skills ?? [];
   const total = bankQuery.data?.total ?? 0;
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
-  const safePage = Math.min(page, pageCount - 1);
   const pageRows = rows;
-  const visiblePages = paginationItems(safePage, pageCount);
+  const visiblePages = paginationItems(page, pageCount);
   const isTableLoading = bankQuery.isPending || bankQuery.isFetching;
   const readyCount = bankQuery.data?.counts.ready ?? 0;
   const allCount = bankQuery.data?.counts.all ?? 0;
@@ -222,26 +279,27 @@ function GeneralQuestionBankView({ localKeys }: { localKeys: ReturnType<typeof q
   const pageKeys = pageRows.map((row) => row.key);
   const allPageSelected = pageKeys.length > 0 && pageKeys.every((key) => selected.includes(key));
 
-  useEffect(() => {
-    if (!bankQuery.isFetching) pageTransition.current = false;
-  }, [bankQuery.isFetching]);
-
   const goToPage = (nextPage: number) => {
-    if (pageTransition.current || bankQuery.isFetching || nextPage === safePage) return;
-    pageTransition.current = true;
-    setPage(nextPage);
+    const target = Math.max(0, Math.min(nextPage, pageCount - 1));
+    setPage(target);
+    const next = new URLSearchParams(searchParams);
+    next.set("page", String(target + 1));
+    next.set("size", String(pageSize));
+    setSearchParams(next);
   };
 
   useEffect(() => {
-    if (page !== safePage) {
-      setPage(safePage);
-      return;
+    const paramPage = Math.max(0, Number(searchParams.get("page") ?? 1) - 1 || 0);
+    if (paramPage !== page) {
+      setPage(paramPage);
     }
-    const next = new URLSearchParams(searchParams);
-    next.set("page", String(safePage + 1));
-    next.set("size", String(pageSize));
-    if (next.toString() !== searchParams.toString()) setSearchParams(next, { replace: true });
-  }, [page, pageSize, safePage, searchParams, setSearchParams]);
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (!bankQuery.isFetching && total > 0 && page >= pageCount) {
+      goToPage(pageCount - 1);
+    }
+  }, [bankQuery.isFetching, total, page, pageCount]);
 
   const counts: Record<Collection, number> = bankQuery.data?.counts ?? { all: 0, favorites: 0, ready: 0, pending: 0, archived: 0 };
 
@@ -254,7 +312,7 @@ function GeneralQuestionBankView({ localKeys }: { localKeys: ReturnType<typeof q
   ].filter((chip): chip is { id: string; label: string } => chip !== null);
 
   const clearChip = (id: string) => {
-    setPage(0);
+    goToPage(0);
     if (id === "type") setQuestionType("");
     if (id === "skill") setSkill("");
     if (id === "difficulty") setDifficulty("");
@@ -269,7 +327,7 @@ function GeneralQuestionBankView({ localKeys }: { localKeys: ReturnType<typeof q
     setQuery("");
     setQuestionType("");
     setCollection("all");
-    setPage(0);
+    goToPage(0);
   };
 
   const toggleFavorite = (key: string) => {
@@ -300,48 +358,54 @@ function GeneralQuestionBankView({ localKeys }: { localKeys: ReturnType<typeof q
   return (
     <section className="flex flex-col gap-4 text-[var(--color-on-surface)]">
       <header className="flex flex-col gap-2.5">
-        <div className="text-xs text-[var(--color-on-surface-variant)]">
-          <nav className="flex flex-wrap items-center gap-2" aria-label="Breadcrumb">
-            <Link to="/recruiter" className="hover:text-[var(--color-primary)]">Kho tài nguyên</Link>
-            <span>/</span>
-            <span className="font-semibold text-[var(--color-on-surface)]">Ngân hàng câu hỏi</span>
-            <span className="rounded-full bg-[var(--color-surface-container-high)] px-2 py-0.5 text-[11px] font-semibold">
+        <Breadcrumb
+          items={[
+            { label: "Kho tài nguyên", to: "/recruiter" },
+            { label: "Ngân hàng câu hỏi" },
+          ]}
+          meta={
+            <span className="rounded-full bg-[var(--color-surface-container-high)] px-2 py-0.5 text-[11px] font-semibold text-[var(--color-on-surface-variant)]">
               Workspace: {workspace}
             </span>
-          </nav>
-        </div>
-        <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-center">
-          <div className="min-w-0 max-w-3xl">
-            <h1 className="text-2xl font-semibold tracking-tight">Ngân hàng câu hỏi</h1>
-            <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">
-              Quản lý câu hỏi độc lập và câu hỏi từ các vị trí tuyển dụng trong cùng workspace.
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <AiQuestionGenerationPanel />
-            <Link to={`${basePath}/new`} className="inline-flex h-9 items-center gap-2 rounded-lg bg-[var(--color-surface-card)] px-3 text-sm font-medium ring-1 ring-[var(--color-border-default)]"><Table2 className="size-4 text-[var(--color-primary)]" aria-hidden="true" />Nhập Excel</Link>
-            <Link to={`${basePath}/new`} className="inline-flex h-9 items-center gap-2 rounded-lg bg-[var(--color-primary)] px-3 text-sm font-semibold text-white hover:bg-[var(--color-primary-hover)]">Thêm câu hỏi</Link>
-            <button
-              type="button"
-              onClick={() => downloadCsv(pageRows)}
-              className="inline-flex h-9 items-center gap-2 rounded-lg bg-[var(--color-surface-card)] px-3 text-sm font-medium ring-1 ring-[var(--color-border-default)] hover:bg-[var(--color-surface-container-low)]"
-            >
-              <Download className="size-4 text-[var(--color-primary)]" aria-hidden="true" />
-              Xuất trang hiện tại
-            </button>
-          </div>
+          }
+          actions={
+            <>
+              <Link
+                to="/recruiter/question-bank/ai-generator"
+                className="inline-flex h-9 items-center gap-2 rounded-lg bg-[var(--color-surface-card)] px-3 text-sm font-medium ring-1 ring-[var(--color-border-default)] hover:bg-[var(--color-surface-container-low)]"
+              >
+                <Sparkles className="size-4 text-[var(--color-primary)]" aria-hidden="true" />
+                Sinh bằng AI
+              </Link>
+              <Link to={`${basePath}/new`} className="inline-flex h-9 items-center gap-2 rounded-lg bg-[var(--color-surface-card)] px-3 text-sm font-medium ring-1 ring-[var(--color-border-default)]"><Table2 className="size-4 text-[var(--color-primary)]" aria-hidden="true" />Nhập Excel</Link>
+              <Link to={`${basePath}/new`} className="inline-flex h-9 items-center gap-2 rounded-lg bg-[var(--color-primary)] px-3 text-sm font-semibold text-white hover:bg-[var(--color-primary-hover)]">Thêm câu hỏi</Link>
+              <button
+                type="button"
+                onClick={() => downloadCsv(pageRows)}
+                className="inline-flex h-9 items-center gap-2 rounded-lg bg-[var(--color-surface-card)] px-3 text-sm font-medium ring-1 ring-[var(--color-border-default)] hover:bg-[var(--color-surface-container-low)]"
+              >
+                <Download className="size-4 text-[var(--color-primary)]" aria-hidden="true" />
+                Xuất trang hiện tại
+              </button>
+            </>
+          }
+        />
+        <div className="min-w-0 max-w-3xl">
+          <h1 className="text-2xl font-semibold tracking-tight">Ngân hàng câu hỏi</h1>
+          <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">
+            Quản lý câu hỏi độc lập và câu hỏi từ các vị trí tuyển dụng trong cùng workspace.
+          </p>
         </div>
       </header>
       <nav aria-label="Nhóm ngân hàng câu hỏi" className="flex flex-wrap gap-2 rounded-xl bg-[var(--color-surface-container-low)] p-1">
         {([["QUIZ", "Trắc nghiệm"], ["ESSAY", "Tự luận lý thuyết"], ["CODING", "Bài tập Code"]] as const).map(([type, label]) =>
-          <button key={type} type="button" aria-pressed={questionType === type} onClick={() => { setQuestionType(type); setPage(0); setActiveKey(null); setSelected([]); }}
+          <button key={type} type="button" aria-pressed={questionType === type} onClick={() => { setQuestionType(type); goToPage(0); setActiveKey(null); setSelected([]); }}
             className={cn("rounded-lg px-4 py-2 text-sm", questionType === type ? "bg-[var(--color-surface-card)] font-semibold text-[var(--color-primary)] shadow-sm" : "text-[var(--color-on-surface-variant)]")}>{label}</button>)}
       </nav>
 
 
       <AssessmentError error={bankQuery.error} retry={() => void bankQuery.refetch()} />
       <AssessmentError error={archiveMutation.error} retry={archiveSelected} />
-      {notice && <p role="status" className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">{notice}</p>}
 
       <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-12">
         <aside className="flex flex-col gap-4 xl:col-span-3">
@@ -354,7 +418,7 @@ function GeneralQuestionBankView({ localKeys }: { localKeys: ReturnType<typeof q
                 <button
                   key={item.id}
                   type="button"
-                  onClick={() => { setCollection(item.id); setPage(0); }}
+                  onClick={() => { setCollection(item.id); goToPage(0); }}
                   className={cn(
                     "flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition-colors",
                     activeCollection
@@ -400,31 +464,38 @@ function GeneralQuestionBankView({ localKeys }: { localKeys: ReturnType<typeof q
               <Search className="size-5 text-[var(--color-on-surface-variant)]" aria-hidden="true" />
               <input
                 value={query}
-                onChange={(event) => { setQuery(event.target.value); setPage(0); }}
+                onChange={(event) => { setQuery(event.target.value); goToPage(0); }}
                 className="w-full bg-transparent text-sm outline-none placeholder:text-[var(--color-outline)]"
                 placeholder="Tra cứu câu hỏi theo mã, nội dung hoặc kỹ năng..."
                 aria-label="Tìm câu hỏi"
               />
               {query && (
-                <button type="button" aria-label="Xóa nội dung tìm kiếm" onClick={() => { setQuery(""); setPage(0); }} className="text-[var(--color-on-surface-variant)]">
+                <button type="button" aria-label="Xóa nội dung tìm kiếm" onClick={() => { setQuery(""); goToPage(0); }} className="text-[var(--color-on-surface-variant)]">
                   <X className="size-4" />
                 </button>
               )}
             </div>
-            <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+            <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-5">
               <label className="flex min-w-0 items-center gap-2 rounded-lg bg-[var(--color-surface-container)] px-3 py-1.5 text-xs">
                 <span className="shrink-0 text-[var(--color-on-surface-variant)]">Kỹ năng</span>
-                <select aria-label="Lọc kỹ năng" value={skill} onChange={(event) => { setSkill(event.target.value); setPage(0); }} className="min-w-0 flex-1 bg-transparent font-semibold text-[var(--color-primary)] outline-none">
+                <select aria-label="Lọc kỹ năng" value={skill} onChange={(event) => { setSkill(event.target.value); goToPage(0); }} className="min-w-0 flex-1 bg-transparent font-semibold text-[var(--color-primary)] outline-none">
                   <option value="">Tất cả</option>
                   {skillOptions.map((item) => <option key={item} value={item}>{item}</option>)}
                 </select>
               </label>
               <div className="flex items-center rounded-lg bg-[var(--color-surface-container)] px-3 py-1.5 text-xs">
-                Loại câu: <select aria-label="Lọc loại câu hỏi" value={questionType} onChange={event => { setQuestionType(event.target.value); setPage(0); }} className="ml-1 min-w-0 bg-transparent"><option value="">Tất cả</option><option value="MCQ">Trắc nghiệm đơn</option><option value="MULTIPLE_CHOICE">Nhiều đáp án</option><option value="QUIZ">Trắc nghiệm</option><option value="ESSAY">Tự luận lý thuyết</option><option value="CODING">Bài tập Code</option></select>
+                Loại câu: <select aria-label="Lọc loại câu hỏi" value={questionType} onChange={event => { setQuestionType(event.target.value); goToPage(0); }} className="ml-1 min-w-0 bg-transparent"><option value="">Tất cả</option><option value="MCQ">Trắc nghiệm đơn</option><option value="MULTIPLE_CHOICE">Nhiều đáp án</option><option value="QUIZ">Trắc nghiệm</option><option value="ESSAY">Tự luận lý thuyết</option><option value="CODING">Bài tập Code</option></select>
               </div>
               <label className="flex min-w-0 items-center gap-2 rounded-lg bg-[var(--color-surface-container)] px-3 py-1.5 text-xs">
+                <span className="shrink-0 text-[var(--color-on-surface-variant)]">Nguồn</span>
+                <select aria-label="Lọc nguồn câu hỏi" value={sourceFilter} onChange={event => { setSourceFilter(event.target.value as "" | "AI"); goToPage(0); }} className="min-w-0 flex-1 bg-transparent font-semibold outline-none">
+                  <option value="">Tất cả</option>
+                  <option value="AI">Chỉ câu AI</option>
+                </select>
+              </label>
+              <label className="flex min-w-0 items-center gap-2 rounded-lg bg-[var(--color-surface-container)] px-3 py-1.5 text-xs">
                 <span className="shrink-0 text-[var(--color-on-surface-variant)]">Độ khó</span>
-                <select aria-label="Lọc độ khó" value={difficulty} onChange={(event) => { setDifficulty(event.target.value as Difficulty | ""); setPage(0); }} className="min-w-0 flex-1 bg-transparent font-semibold outline-none">
+                <select aria-label="Lọc độ khó" value={difficulty} onChange={(event) => { setDifficulty(event.target.value as Difficulty | ""); goToPage(0); }} className="min-w-0 flex-1 bg-transparent font-semibold outline-none">
                   <option value="">Tất cả</option>
                   <option>Cơ bản</option>
                   <option>Vận dụng</option>
@@ -433,7 +504,7 @@ function GeneralQuestionBankView({ localKeys }: { localKeys: ReturnType<typeof q
               </label>
               <label className="flex min-w-0 items-center gap-2 rounded-lg bg-[var(--color-surface-container)] px-3 py-1.5 text-xs">
                 <span className="shrink-0 text-[var(--color-on-surface-variant)]">Trạng thái</span>
-                <select aria-label="Lọc trạng thái" value={status} onChange={(event) => { setStatus(event.target.value as TestStatus | ""); setPage(0); }} className="min-w-0 flex-1 bg-transparent font-semibold text-emerald-700 outline-none">
+                <select aria-label="Lọc trạng thái" value={status} onChange={(event) => { setStatus(event.target.value as TestStatus | ""); goToPage(0); }} className="min-w-0 flex-1 bg-transparent font-semibold text-emerald-700 outline-none">
                   <option value="">Tất cả</option>
                   <option value="PUBLISHED">Sẵn sàng</option>
                   <option value="DRAFT">Chưa xuất bản</option>
@@ -466,7 +537,7 @@ function GeneralQuestionBankView({ localKeys }: { localKeys: ReturnType<typeof q
                 </div>
                 <label className="flex items-center gap-1 text-xs text-[var(--color-on-surface-variant)]">
                   Sắp xếp:
-                  <select value={sort} onChange={(event) => { setSort(event.target.value as typeof sort); setPage(0); }} className="bg-transparent font-medium text-[var(--color-on-surface)] outline-none">
+                  <select value={sort} onChange={(event) => { setSort(event.target.value as typeof sort); goToPage(0); }} className="bg-transparent font-medium text-[var(--color-on-surface)] outline-none">
                     <option value="latest">Mới cập nhật gần nhất</option>
                     <option value="points">Điểm cao nhất</option>
                     <option value="text">Nội dung A-Z</option>
@@ -499,7 +570,7 @@ function GeneralQuestionBankView({ localKeys }: { localKeys: ReturnType<typeof q
           <div className="overflow-hidden rounded-xl bg-[var(--color-surface-card)] shadow-[var(--shadow-card)]" aria-busy={isTableLoading}>
             <div className="flex flex-wrap items-center justify-between gap-2 bg-[var(--color-surface-container-low)] px-4 py-2.5 text-xs text-[var(--color-on-surface-variant)]">
               {bankQuery.isPending ? <Skeleton className="h-4 w-52" /> : <p>
-                Hiển thị <span className="font-semibold text-[var(--color-on-surface)]">{total === 0 ? 0 : safePage * pageSize + 1} - {Math.min(total, safePage * pageSize + pageRows.length)}</span> trên <span className="font-semibold text-[var(--color-on-surface)]">{total}</span> câu hỏi
+                Hiển thị <span className="font-semibold text-[var(--color-on-surface)]">{total === 0 ? 0 : page * pageSize + 1} - {Math.min(total, page * pageSize + pageRows.length)}</span> trên <span className="font-semibold text-[var(--color-on-surface)]">{total}</span> câu hỏi
                 {bankQuery.isFetching && <span role="status"> · Đang cập nhật…</span>}
               </p>}
               
@@ -551,6 +622,12 @@ function GeneralQuestionBankView({ localKeys }: { localKeys: ReturnType<typeof q
                                 <span className={cn("size-1.5 rounded-full", meta.dot)} />
                                 {meta.label}
                               </span>
+                              {row.aiGenerated && (
+                                <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-violet-50 px-1.5 py-0.5 text-[10px] font-semibold text-violet-700">
+                                  <Sparkles className="size-3" aria-hidden="true" />
+                                  AI
+                                </span>
+                              )}
                               <span className="truncate text-[11px] text-[var(--color-on-surface-variant)]">
                                 {row.question.options.length} phương án · {row.question.points} điểm
                               </span>
@@ -619,30 +696,77 @@ function GeneralQuestionBankView({ localKeys }: { localKeys: ReturnType<typeof q
               </div>
             )}
 
-            {!bankQuery.isPending && <div className="flex flex-col items-center justify-between gap-3 bg-[var(--color-surface-container-low)] px-4 py-3 text-sm text-[var(--color-on-surface-variant)] sm:flex-row">
-              <label className="flex items-center gap-2">
-                Hiển thị
-                <select value={pageSize} disabled={bankQuery.isFetching} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(0); }} className="rounded bg-[var(--color-surface-card)] px-2 py-1 font-semibold text-[var(--color-on-surface)] outline-none disabled:cursor-not-allowed disabled:opacity-50">
-                  <option value={10}>10 hàng / trang</option>
-                  <option value={25}>25 hàng / trang</option>
-                  <option value={50}>50 hàng / trang</option>
-                </select>
-                trên {total} kết quả
-              </label>
-              <div className="flex items-center gap-1">
-                <button type="button" aria-label="Trang trước" disabled={bankQuery.isFetching || safePage === 0} onClick={() => goToPage(safePage - 1)} className="rounded bg-[var(--color-surface-card)] p-1.5 disabled:cursor-not-allowed disabled:opacity-40">
-                  <ChevronLeft className="size-4" />
-                </button>
-                {visiblePages.map((item) => typeof item === "number" ? (
-                  <button key={item} type="button" aria-label={`Trang ${item + 1}`} aria-current={item === safePage ? "page" : undefined} disabled={bankQuery.isFetching || item === safePage} onClick={() => goToPage(item)} className={cn("size-8 rounded font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)] disabled:cursor-not-allowed disabled:opacity-50", item === safePage ? "bg-[var(--color-primary)] text-white" : "bg-[var(--color-surface-card)]")}>
-                    {item + 1}
+            {!bankQuery.isPending && (
+              <div className="flex flex-col items-center justify-between gap-3 bg-[var(--color-surface-container-low)] px-4 py-3 text-sm text-[var(--color-on-surface-variant)] sm:flex-row">
+                <label className="flex items-center gap-2">
+                  Hiển thị
+                  <select
+                    value={pageSize}
+                    onChange={(event) => {
+                      const nextSize = Number(event.target.value);
+                      setPageSize(nextSize);
+                      const next = new URLSearchParams(searchParams);
+                      next.set("page", "1");
+                      next.set("size", String(nextSize));
+                      setSearchParams(next);
+                      setPage(0);
+                    }}
+                    className="rounded bg-[var(--color-surface-card)] px-2 py-1 font-semibold text-[var(--color-on-surface)] outline-none"
+                  >
+                    <option value={10}>10 hàng / trang</option>
+                    <option value={25}>25 hàng / trang</option>
+                    <option value={50}>50 hàng / trang</option>
+                  </select>
+                  trên {total} kết quả
+                </label>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    aria-label="Trang trước"
+                    disabled={page === 0}
+                    onClick={() => goToPage(page - 1)}
+                    className="rounded bg-[var(--color-surface-card)] p-1.5 transition hover:bg-[var(--color-surface-container)] disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <ChevronLeft className="size-4" />
                   </button>
-                ) : <span key={item} className="grid size-8 place-items-center" aria-hidden="true">…</span>)}
-                <button type="button" aria-label="Trang tiếp" disabled={bankQuery.isFetching || safePage >= pageCount - 1} onClick={() => goToPage(safePage + 1)} className="rounded bg-[var(--color-surface-card)] p-1.5 disabled:cursor-not-allowed disabled:opacity-40">
-                  <ChevronRight className="size-4" />
-                </button>
+                  {visiblePages.map((item) =>
+                    typeof item === "number" ? (
+                      <button
+                        key={item}
+                        type="button"
+                        aria-label={`Trang ${item + 1}`}
+                        aria-current={item === page ? "page" : undefined}
+                        disabled={item === page}
+                        onClick={() => goToPage(item)}
+                        className={cn(
+                          "size-8 rounded font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)] disabled:cursor-default",
+                          item === page
+                            ? "bg-[var(--color-primary)] text-white"
+                            : "bg-[var(--color-surface-card)] hover:bg-[var(--color-surface-container)] text-[var(--color-on-surface)]"
+                        )}
+                      >
+                        {item + 1}
+                      </button>
+                    ) : (
+                      <JumpPageInput
+                        key={item}
+                        pageCount={pageCount}
+                        onJump={(p) => goToPage(p - 1)}
+                      />
+                    )
+                  )}
+                  <button
+                    type="button"
+                    aria-label="Trang tiếp"
+                    disabled={page >= pageCount - 1}
+                    onClick={() => goToPage(page + 1)}
+                    className="rounded bg-[var(--color-surface-card)] p-1.5 transition hover:bg-[var(--color-surface-container)] disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <ChevronRight className="size-4" />
+                  </button>
+                </div>
               </div>
-            </div>}
+            )}
           </div>
         </div>
       </div>
@@ -768,6 +892,19 @@ function GeneralQuestionBankView({ localKeys }: { localKeys: ReturnType<typeof q
           </aside>
         </>
       )}
+      <AiQuestionGenerateDialog
+        open={aiOpen}
+        onClose={() => setAiOpen(false)}
+        defaultSkill={skill}
+        defaultType={questionType === "ESSAY" ? "ESSAY" : questionType === "MULTIPLE_CHOICE" ? "MULTIPLE_CHOICE" : questionType === "CODING" ? "CODING" : "MCQ"}
+        skillOptions={skillOptions.length ? skillOptions : undefined}
+        onSaved={async () => {
+          toast.success("Lưu thành công", "Đã lưu câu hỏi AI vào ngân hàng chung.");
+          setAiOpen(false);
+          setSourceFilter("AI");
+          await client.invalidateQueries({ queryKey: queryKeys.assessments.all() });
+        }}
+      />
     </section>
   );
 }

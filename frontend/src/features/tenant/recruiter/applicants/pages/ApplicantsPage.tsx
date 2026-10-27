@@ -1,6 +1,6 @@
 import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
-import { useMemo, useState, type ReactNode } from "react";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { Link, Navigate, useParams, useSearchParams } from "react-router-dom";
 import {
   AlertCircle,
   Archive,
@@ -10,14 +10,16 @@ import {
   CalendarClock,
   ChevronLeft,
   ChevronRight,
-  ExternalLink,
-  FileSearch,
+  ChevronsLeft,
+  ChevronsRight,
   FileText,
   History,
   Inbox,
+  Loader2,
   RefreshCw,
   Save,
   Search,
+  Settings,
   StickyNote,
   UserCheck,
   Users,
@@ -44,10 +46,10 @@ import { ScreeningBreakdown } from "@/features/tenant/recruiter/cv-screening/com
 import { GithubEvidencePanel } from "@/features/tenant/recruiter/cv-screening/components/GithubEvidencePanel";
 import { CvScreeningDecision } from "@/features/tenant/recruiter/cv-screening/components/CvScreeningDecision";
 import type { ApplicationDetail, ApplicationSummary, CvRef } from "@/api/types/applicant";
-import type { JobStatus } from "@/api/types/job";
 import { PipelineBoard } from "@/features/tenant/recruiter/pipeline/pages/PipelinePage";
 
-const PAGE_SIZE = 20;
+const DEFAULT_PAGE_SIZE = 10;
+const PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
 const STATUS_TABS = ["", "NEW", "IN_REVIEW", "ASSESSMENT", "INTERVIEW", "HUMAN_INTERVIEW", "OFFER", "HIRED", "REJECTED"];
 const STATUS_STYLE: Record<string, string> = {
   NEW: "bg-sky-50 text-sky-700",
@@ -68,35 +70,82 @@ const SOURCE_LABEL: Record<string, string> = {
   REFERRAL: "Giới thiệu",
   MANUAL: "Thêm thủ công",
 };
-const JOB_STATUS_LABEL: Record<JobStatus, string> = { DRAFT: "Bản nháp", PUBLISHED: "Đang tuyển", PAUSED: "Tạm dừng", CLOSED: "Đã đóng", ARCHIVED: "Lưu trữ" };
 const ACTION_TOAST = { reject: "Đã từ chối ứng viên", archive: "Đã lưu trữ hồ sơ", restore: "Đã khôi phục hồ sơ" } as const;
-const linkButton = "inline-flex min-h-10 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary";
-const secondaryLink = `${linkButton} border border-[var(--color-border-default)] bg-white hover:border-brand-primary hover:bg-[var(--color-primary-subtle)] hover:text-brand-primary`;
-const primaryLink = `${linkButton} bg-brand-primary text-white shadow-sm hover:bg-brand-primary-hover`;
-const pagerButton = "inline-flex min-h-9 items-center gap-1 rounded-lg border border-[var(--color-border-default)] px-3 text-xs font-semibold transition-colors hover:bg-[var(--color-primary-subtle)] disabled:cursor-not-allowed disabled:opacity-50";
+
+function getPaginationItems(current: number, total: number): (number | "ellipsis-start" | "ellipsis-end")[] {
+  if (total <= 7) {
+    return Array.from({ length: total }, (_, i) => i + 1);
+  }
+
+  const showStartEllipsis = current > 4;
+  const showEndEllipsis = current < total - 3;
+
+  if (!showStartEllipsis && showEndEllipsis) {
+    return [1, 2, 3, 4, 5, "ellipsis-end", total];
+  }
+
+  if (showStartEllipsis && !showEndEllipsis) {
+    return [1, "ellipsis-start", total - 4, total - 3, total - 2, total - 1, total];
+  }
+
+  return [1, "ellipsis-start", current - 1, current, current + 1, "ellipsis-end", total];
+}
 
 export function ApplicantsPage() {
   const token = useAuthStore((s) => s.accessToken);
   const { id: routeJobId } = useParams<{ id?: string }>();
   const [params, setParams] = useSearchParams();
-  const jobIdRaw = params.get("jobId");
-  const jobId = routeJobId && /^\d+$/.test(routeJobId) ? Number(routeJobId) : jobIdRaw && /^\d+$/.test(jobIdRaw) ? Number(jobIdRaw) : null;
+  const jobId = routeJobId && /^\d+$/.test(routeJobId) ? Number(routeJobId) : null;
   const boardView = routeJobId != null && params.get("view") === "board";
   const requestedApplicationId = Number(params.get("applicationId"));
   const [selectedId, setSelectedId] = useState<number | null>(Number.isInteger(requestedApplicationId) && requestedApplicationId > 0 ? requestedApplicationId : null);
-  const [q, setQ] = useState("");
+  const [q, setQ] = useState(params.get("q") ?? "");
   const requestedStatus = params.get("status")?.toUpperCase() ?? "";
   const [status, setStatus] = useState(STATUS_TABS.includes(requestedStatus) ? requestedStatus : "");
-  const [source, setSource] = useState("");
-  const [archived, setArchived] = useState(false);
-  const [page, setPage] = useState(0);
-  const jobs = useQuery({ queryKey: ["screening-jobs"], queryFn: jobApi.options, enabled: !!token && !routeJobId });
+  const requestedSource = params.get("source")?.toUpperCase() ?? "";
+  const [source, setSource] = useState(SOURCES.includes(requestedSource) ? requestedSource : "");
+  const [archived, setArchived] = useState(params.get("archived") === "true");
+
+  const requestedPage = Math.max(0, (parseInt(params.get("page") || "1", 10) || 1) - 1);
+  const rawSize = parseInt(params.get("limit") || params.get("size") || String(DEFAULT_PAGE_SIZE), 10);
+  const requestedSize = (PAGE_SIZE_OPTIONS as readonly number[]).includes(rawSize) ? rawSize : DEFAULT_PAGE_SIZE;
+  const [page, setPage] = useState(requestedPage);
+  const [pageSize, setPageSize] = useState(requestedSize);
+  const [jumpVal, setJumpVal] = useState("");
+  const [configOpen, setConfigOpen] = useState(false);
+
+  // Sync state if browser Back/Forward or direct URL query changes
+  useEffect(() => {
+    const p = Math.max(0, (parseInt(params.get("page") || "1", 10) || 1) - 1);
+    const raw = parseInt(params.get("limit") || params.get("size") || String(DEFAULT_PAGE_SIZE), 10);
+    const s = (PAGE_SIZE_OPTIONS as readonly number[]).includes(raw) ? raw : DEFAULT_PAGE_SIZE;
+    if (p !== page) setPage(p);
+    if (s !== pageSize) setPageSize(s);
+    const st = params.get("status")?.toUpperCase() ?? "";
+    if (STATUS_TABS.includes(st) && st !== status) setStatus(st);
+    const src = params.get("source")?.toUpperCase() ?? "";
+    if (SOURCES.includes(src) && src !== source) setSource(src);
+    const arc = params.get("archived") === "true";
+    if (arc !== archived) setArchived(arc);
+    const query = params.get("q") ?? "";
+    if (query !== q) setQ(query);
+  }, [params]);
+
   const job = useQuery({
     queryKey: queryKeys.jobs.detail(jobId ?? 0),
     queryFn: () => jobApi.get(jobId!),
     enabled: !!token && jobId != null,
   });
-  const listKey = [...queryKeys.applicants.byJob(jobId ?? "all"), q, status, source, archived, page];
+
+  // Query counts per status across all applicants of this job from backend
+  const countQuery = useQuery({
+    queryKey: [...queryKeys.applicants.byJob(jobId ?? "all"), "status-counts"],
+    queryFn: () => applicantApi.statusCounts(jobId!),
+    enabled: !!token && jobId != null && !boardView,
+    refetchInterval: 10_000,
+  });
+
+  const listKey = [...queryKeys.applicants.byJob(jobId ?? "all"), q, status, source, archived, page, pageSize];
   const list = useQuery({
     queryKey: listKey,
     queryFn: () => applicantApi.list({
@@ -106,7 +155,7 @@ export function ApplicantsPage() {
       source: source || undefined,
       archived,
       page,
-      size: PAGE_SIZE,
+      size: pageSize,
     }),
     placeholderData: keepPreviousData,
     enabled: !!token && !boardView,
@@ -121,151 +170,208 @@ export function ApplicantsPage() {
   const data = list.data?.data;
   const rows = data?.items ?? [];
   const total = data?.total ?? 0;
-  const jobList = jobs.data?.data ?? [];
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const safePage = Math.min(page, totalPages - 1);
+  const from = total > 0 ? safePage * pageSize + 1 : 0;
+  const to = Math.min((safePage + 1) * pageSize, total);
+  const pageItems = useMemo(() => getPaginationItems(safePage + 1, totalPages), [safePage, totalPages]);
   const jobInfo = job.data?.data;
   const filtered = Boolean(q.trim() || status || source || archived);
-  const from = total > 0 ? page * PAGE_SIZE + 1 : 0;
-  const to = Math.min((page + 1) * PAGE_SIZE, total);
-  const showJobColumn = jobId == null;
-  const resetPage = () => setPage(0);
-  const selectJob = (next: number | null) => {
+
+  const goToPage = (nextPage: number, nextSize: number = pageSize) => {
+    const calcTotalPages = Math.max(1, Math.ceil(total / nextSize));
+    const target = Math.max(0, Math.min(nextPage, calcTotalPages - 1));
+    setPage(target);
+    if (nextSize !== pageSize) {
+      setPageSize(nextSize);
+    }
     const nextParams = new URLSearchParams(params);
-    if (next == null) nextParams.delete("jobId");
-    else nextParams.set("jobId", String(next));
+    nextParams.set("page", String(target + 1));
+    nextParams.set("limit", String(nextSize));
+    nextParams.delete("size");
     setParams(nextParams, { replace: true });
-    setSelectedId(null);
-    setPage(0);
   };
+
+  const resetPageToFirst = (customParams?: URLSearchParams) => {
+    setPage(0);
+    const nextParams = customParams ?? new URLSearchParams(params);
+    nextParams.set("page", "1");
+    nextParams.set("limit", String(pageSize));
+    nextParams.delete("size");
+    setParams(nextParams, { replace: true });
+  };
+
+  useEffect(() => {
+    if (!list.isFetching && total > 0 && page >= totalPages) {
+      goToPage(totalPages - 1);
+    }
+  }, [list.isFetching, total, page, totalPages]);
+
+  // Status counts map from backend aggregation
+  const statusCounts = useMemo<Record<string, number>>(() => {
+    const counts = countQuery.data?.data ?? {};
+    return {
+      "": counts["ALL"] ?? total,
+      ...counts,
+    };
+  }, [countQuery.data, total]);
+
+  if (!jobId) {
+    return <Navigate to="/recruiter" replace />;
+  }
 
   if (boardView) return <PipelineBoard />;
 
   return (
-    <section className="mx-auto flex w-full max-w-[1440px] flex-col gap-6 text-[var(--color-on-surface)]">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div className="flex min-w-0 flex-col gap-2">
-          <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-1.5 text-xs font-medium text-[var(--color-on-surface-variant)]">
-            <Link to="/recruiter" className="transition-colors hover:text-brand-primary">Việc làm</Link>
-            {jobId != null && (
-              <>
-                <span aria-hidden="true">/</span>
-                <Link to={`/recruiter/jobs/${jobId}`} className="max-w-[260px] truncate transition-colors hover:text-brand-primary">
-                  {jobInfo?.title ?? `#${jobId}`}
-                </Link>
-              </>
-            )}
-            <span aria-hidden="true">/</span>
-            <span className="text-[var(--color-on-surface)]">Ứng viên</span>
-          </nav>
-          <div className="flex items-center gap-2">
-            <div className="h-7 w-2.5 rounded-full bg-[var(--color-primary)]" />
-            <h1 className="text-[30px] font-semibold leading-[38px] tracking-tight">Quản lý ứng viên</h1>
-          </div>
-          <p className="max-w-2xl pl-4 text-sm leading-[22px] text-[var(--color-on-surface-variant)]">
-            {jobInfo ? (
-              <>Hồ sơ ứng tuyển vào <strong className="font-semibold text-[var(--color-on-surface)]">{jobInfo.title}</strong>. Bấm một hồ sơ để xem CV, điểm sàng lọc và xử lý.</>
-            ) : "Bấm một hồ sơ để xem CV, điểm sàng lọc và xử lý."}
-          </p>
-        </div>
-        {jobId != null && (
-          <div className="flex flex-wrap gap-2">
-            <Link to={`/recruiter/jobs/${jobId}/cvs`} className={secondaryLink}>
-              <FileSearch className="size-4" aria-hidden="true" />
-              Sàng lọc CV
-            </Link>
-            <Link to={`/recruiter/jobs/${jobId}/applicants?view=board`} className={secondaryLink}>
-              <Users className="size-4" aria-hidden="true" />
-              Bảng quy trình
-            </Link>
-            <Link to={`/recruiter/jobs/${jobId}`} className={primaryLink}>
-              <ExternalLink className="size-4" aria-hidden="true" />
-              Xem tin tuyển dụng
-            </Link>
-          </div>
-        )}
-      </header>
-
-      {jobId != null && (
-        <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-          <StatCard
-            label="Tổng hồ sơ"
-            value={jobInfo ? jobInfo.applicationCount : "—"}
-            hint={jobInfo ? `Chỉ tiêu ${jobInfo.headcount ?? 1} người` : "Đang tải…"}
-            icon={Users}
-          />
-          <StatCard
-            label="Kết quả lọc"
-            value={data ? total : "—"}
-            hint={filtered ? "Theo bộ lọc hiện tại" : "Đang hiển thị tất cả hồ sơ"}
-            icon={Search}
-          />
-          <StatCard
-            label="Chế độ lọc CV"
-            value={!jobInfo ? "—" : jobInfo.screeningMode === "AUTO" ? "Tự động" : "Thủ công"}
-            hint={jobInfo?.screeningMode === "AUTO" ? "Hệ thống quyết định qua vòng CV" : "Recruiter quyết định qua vòng CV"}
-            icon={jobInfo?.screeningMode === "AUTO" ? Bot : UserCheck}
-          />
-          <StatCard
-            label="Trạng thái tin"
-            value={jobInfo ? JOB_STATUS_LABEL[jobInfo.status] ?? jobInfo.status : "—"}
-            hint={jobInfo?.deadline ? `Hạn nộp ${formatDateTime(jobInfo.deadline)}` : "Không giới hạn hạn nộp"}
-            icon={CalendarClock}
-            tone="amber"
-          />
-        </div>
-      )}
-
-      <div className="flex flex-col gap-3 rounded-2xl border border-[var(--color-border-default)] bg-white p-3">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-          {!routeJobId && (
-            <select
-              aria-label="Lọc theo job"
-              value={jobId ?? ""}
-              onChange={(e) => selectJob(e.target.value ? Number(e.target.value) : null)}
-              className="min-h-10 rounded-xl border border-[var(--color-border-default)] bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-brand-primary/20"
-            >
-              <option value="">Tất cả job</option>
-              {jobList.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
-            </select>
-          )}
+    <section className="mx-auto flex w-full max-w-[1440px] flex-col gap-4 text-[var(--color-on-surface)]">
+      {/* Filter & Status Tabs Toolbar */}
+      <div className="flex flex-col gap-2.5 rounded-xl border border-[var(--color-border-default)] bg-white p-2.5">
+        <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
           <label className="relative min-w-0 flex-1">
             <span className="sr-only">Tìm ứng viên</span>
-            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--color-outline)]" aria-hidden="true" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-[var(--color-outline)]" aria-hidden="true" />
             <input
               value={q}
-              onChange={(e) => { setQ(e.target.value); resetPage(); }}
-              placeholder="Tìm theo tên, email, tag hoặc mã giới thiệu"
-              className="min-h-10 w-full rounded-xl bg-[var(--color-surface-alt)] pl-9 pr-3 text-sm outline-none focus:ring-2 focus:ring-brand-primary/20"
+              onChange={(e) => {
+                setQ(e.target.value);
+                setPage(0);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  const nextParams = new URLSearchParams(params);
+                  if (q.trim()) nextParams.set("q", q.trim());
+                  else nextParams.delete("q");
+                  resetPageToFirst(nextParams);
+                }
+              }}
+              onBlur={() => {
+                const nextParams = new URLSearchParams(params);
+                if (q.trim()) nextParams.set("q", q.trim());
+                else nextParams.delete("q");
+                resetPageToFirst(nextParams);
+              }}
+              placeholder="Tìm theo tên, email, tag hoặc mã giới thiệu..."
+              className="h-9 w-full rounded-lg bg-[var(--color-surface-alt)] pl-9 pr-3 text-xs outline-none focus:ring-2 focus:ring-brand-primary/20"
             />
           </label>
+
           <div className="flex flex-wrap items-center gap-2">
             <select
               aria-label="Lọc theo nguồn"
               value={source}
-              onChange={(e) => { setSource(e.target.value); resetPage(); }}
-              className="min-h-10 rounded-xl border border-[var(--color-border-default)] bg-white px-3 text-xs outline-none focus:ring-2 focus:ring-brand-primary/20"
+              onChange={(e) => {
+                const val = e.target.value;
+                setSource(val);
+                const nextParams = new URLSearchParams(params);
+                if (val) nextParams.set("source", val);
+                else nextParams.delete("source");
+                resetPageToFirst(nextParams);
+              }}
+              className="h-9 rounded-lg border border-[var(--color-border-default)] bg-white px-2.5 text-xs outline-none focus:ring-2 focus:ring-brand-primary/20"
             >
               <option value="">Tất cả nguồn</option>
               {SOURCES.map((item) => <option key={item} value={item}>{SOURCE_LABEL[item]}</option>)}
             </select>
+
             <button
               type="button"
               aria-pressed={archived}
-              onClick={() => { setArchived((value) => !value); resetPage(); }}
+              onClick={() => {
+                const nextVal = !archived;
+                setArchived(nextVal);
+                const nextParams = new URLSearchParams(params);
+                if (nextVal) nextParams.set("archived", "true");
+                else nextParams.delete("archived");
+                resetPageToFirst(nextParams);
+              }}
               className={cn(
-                "inline-flex min-h-10 items-center gap-2 rounded-xl border px-3 text-xs font-semibold transition-colors",
+                "inline-flex h-9 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-semibold transition-colors",
                 archived
                   ? "border-brand-primary bg-[var(--color-primary-soft)] text-brand-primary"
                   : "border-[var(--color-border-default)] text-[var(--color-on-surface-variant)] hover:border-brand-primary hover:text-brand-primary",
               )}
             >
-              <Archive className="size-4" aria-hidden="true" />
-              Hồ sơ đã lưu trữ
+              <Archive className="size-3.5" aria-hidden="true" />
+              Đã lưu trữ
             </button>
+
+            {jobId != null && (
+              <Link
+                to={`/recruiter/jobs/${jobId}/applicants?view=board`}
+                className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--color-border-default)] bg-white px-2.5 text-xs font-semibold text-[var(--color-on-surface)] transition-colors hover:border-brand-primary hover:bg-[var(--color-primary-subtle)] hover:text-brand-primary shadow-2xs"
+              >
+                <Users className="size-3.5" aria-hidden="true" />
+                Bảng quy trình
+              </Link>
+            )}
+
+            {/* Meta info & Setting tooltip/popover */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setConfigOpen((v) => !v)}
+                title="Thông tin cấu hình lọc CV & Hạn nộp"
+                className={cn(
+                  "grid size-9 place-items-center rounded-lg border transition-colors",
+                  configOpen
+                    ? "border-brand-primary bg-[var(--color-primary-soft)] text-brand-primary"
+                    : "border-[var(--color-border-default)] text-[var(--color-on-surface-variant)] hover:bg-[var(--color-surface-alt)] hover:text-[var(--color-on-surface)]",
+                )}
+              >
+                <Settings className="size-4" aria-hidden="true" />
+              </button>
+
+              {configOpen && (
+                <div className="absolute right-0 top-[calc(100%+6px)] z-30 w-72 rounded-xl border border-[var(--color-border-default)] bg-white p-3 shadow-lg text-xs">
+                  <div className="flex items-center justify-between border-b border-[var(--color-border-default)] pb-2 mb-2.5">
+                    <span className="font-semibold text-[var(--color-on-surface)] flex items-center gap-1.5">
+                      <Settings className="size-3.5 text-brand-primary" />
+                      Cấu hình & Hạn nộp
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setConfigOpen(false)}
+                      className="text-[var(--color-outline)] hover:text-[var(--color-on-surface)] text-xs font-bold"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <div className="space-y-2 text-[11px]">
+                    <div>
+                      <p className="font-semibold text-[var(--color-on-surface)] flex items-center gap-1">
+                        {jobInfo?.screeningMode === "AUTO" ? <Bot className="size-3 text-brand-primary" /> : <UserCheck className="size-3 text-slate-600" />}
+                        Chế độ lọc CV:
+                        <span className="text-brand-primary font-bold">
+                          {jobInfo?.screeningMode === "AUTO" ? "Tự động" : "Thủ công"}
+                        </span>
+                      </p>
+                      <p className="text-[var(--color-on-surface-variant)] mt-0.5">
+                        {jobInfo?.screeningMode === "AUTO"
+                          ? "Hệ thống tự động chấm điểm và quyết định qua vòng CV."
+                          : "Recruiter tự xem xét và quyết định chuyển vòng."}
+                      </p>
+                    </div>
+                    <div className="border-t border-[var(--color-border-default)]/60 pt-2">
+                      <p className="font-semibold text-[var(--color-on-surface)] flex items-center gap-1">
+                        <CalendarClock className="size-3 text-amber-600" />
+                        Hạn nộp hồ sơ:
+                      </p>
+                      <p className="text-[var(--color-on-surface-variant)] mt-0.5">
+                        {jobInfo?.deadline ? formatDateTime(jobInfo.deadline) : "Không giới hạn hạn nộp"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
-        <div role="tablist" aria-label="Lọc theo trạng thái" className="flex flex-wrap gap-1 rounded-xl bg-[var(--color-surface-alt)] p-1">
+
+        {/* Tab list with status counts */}
+        <div role="tablist" aria-label="Lọc theo trạng thái" className="flex flex-wrap gap-1 rounded-lg bg-[var(--color-surface-alt)] p-1">
           {STATUS_TABS.map((value) => {
             const active = status === value;
+            const count = statusCounts[value] ?? (value === "" ? (countQuery.data?.data?.total ?? total) : 0);
             return (
               <button
                 key={value || "all"}
@@ -276,16 +382,27 @@ export function ApplicantsPage() {
                   const nextParams = new URLSearchParams(params);
                   if (value) nextParams.set("status", value.toLowerCase());
                   else nextParams.delete("status");
-                  setParams(nextParams, { replace: true });
+                  resetPageToFirst(nextParams);
                   setStatus(value);
-                  resetPage();
                 }}
                 className={cn(
-                  "min-h-8 shrink-0 rounded-lg px-3 text-xs font-semibold transition-colors",
-                  active ? "bg-white text-brand-primary shadow-sm" : "text-[var(--color-on-surface-variant)] hover:text-[var(--color-on-surface)]",
+                  "inline-flex items-center gap-1.5 min-h-7.5 shrink-0 rounded-md px-2.5 text-xs font-semibold transition-colors",
+                  active
+                    ? "bg-white text-brand-primary shadow-xs"
+                    : "text-[var(--color-on-surface-variant)] hover:text-[var(--color-on-surface)]",
                 )}
               >
-                {value ? applicationStatusLabel(value) : "Tất cả"}
+                <span>{value ? applicationStatusLabel(value) : "Tất cả"}</span>
+                <span
+                  className={cn(
+                    "rounded-full px-1.5 py-0.2 text-[10px] font-bold tabular-nums",
+                    active
+                      ? "bg-[var(--color-primary-soft)] text-brand-primary"
+                      : "bg-black/5 text-[var(--color-on-surface-variant)]",
+                  )}
+                >
+                  {count}
+                </span>
               </button>
             );
           })}
@@ -326,7 +443,6 @@ export function ApplicantsPage() {
               <thead>
                 <tr className="h-11 bg-[var(--color-surface-container-low)] text-[11px] font-semibold uppercase tracking-wider text-[var(--color-on-surface-variant)]">
                   <th scope="col" className="px-5">Ứng viên</th>
-                  {showJobColumn && <th scope="col" className="px-4">Vị trí</th>}
                   <th scope="col" className="px-4">Trạng thái</th>
                   <th scope="col" className="px-4">Nguồn</th>
                   <th scope="col" className="px-4">Phụ trách</th>
@@ -336,7 +452,7 @@ export function ApplicantsPage() {
               </thead>
               <tbody className="divide-y divide-[var(--color-border-default)]">
                 {rows.map((row) => (
-                  <ApplicantRow key={row.id} row={row} showJob={showJobColumn} selected={selectedId === row.id} onOpen={() => setSelectedId(row.id)} />
+                  <ApplicantRow key={row.id} row={row} selected={selectedId === row.id} onOpen={() => setSelectedId(row.id)} />
                 ))}
               </tbody>
             </table>
@@ -344,22 +460,166 @@ export function ApplicantsPage() {
         )}
 
         {data && total > 0 && (
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--color-border-default)] px-5 py-3">
-            <p className="text-xs text-[var(--color-on-surface-variant)]">
-              Hiển thị <strong className="font-semibold text-[var(--color-on-surface)]">{from}–{to}</strong> trên <strong className="font-semibold text-[var(--color-on-surface)]">{total}</strong> hồ sơ
-            </p>
-            <div className="flex items-center gap-2">
-              <button type="button" disabled={page === 0} onClick={() => setPage((p) => p - 1)} className={pagerButton}>
-                <ChevronLeft className="size-4" aria-hidden="true" />
-                Trước
-              </button>
-              <span className="text-xs tabular-nums text-[var(--color-on-surface-variant)]">
-                Trang {page + 1}/{Math.max(1, Math.ceil(total / PAGE_SIZE))}
-              </span>
-              <button type="button" disabled={(page + 1) * PAGE_SIZE >= total} onClick={() => setPage((p) => p + 1)} className={pagerButton}>
-                Sau
-                <ChevronRight className="size-4" aria-hidden="true" />
-              </button>
+          <div className="flex flex-col gap-3 border-t border-[var(--color-border-default)] bg-slate-50/50 px-4 py-3 sm:px-5 lg:flex-row lg:items-center lg:justify-between">
+            {/* Nhóm Thông tin Dữ liệu (Left) */}
+            <div className="flex items-center gap-2 text-xs text-[var(--color-on-surface-variant)]">
+              <p>
+                Hiển thị <strong className="font-semibold text-[var(--color-on-surface)]">{from}–{to}</strong> trên <strong className="font-semibold text-[var(--color-on-surface)]">{total}</strong> hồ sơ
+              </p>
+              <span className="text-slate-400">·</span>
+              <span className="tabular-nums">Trang {safePage + 1} / {totalPages}</span>
+              {list.isFetching && (
+                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-brand-primary ml-1" role="status">
+                  <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+                  <span className="hidden sm:inline">Đang tải…</span>
+                </span>
+              )}
+            </div>
+
+            {/* Nhóm Chọn số bản ghi / trang (Center) */}
+            <div className="flex items-center justify-start lg:justify-center">
+              <label className="flex items-center gap-1.5 text-xs text-[var(--color-on-surface-variant)]">
+                <span>Hiển thị</span>
+                <select
+                  aria-label="Số hồ sơ mỗi trang"
+                  value={pageSize}
+                  onChange={(e) => {
+                    const nextSize = Number(e.target.value);
+                    goToPage(0, nextSize);
+                  }}
+                  className="h-8 rounded-lg border border-[var(--color-border-default)] bg-white px-2 text-xs font-semibold text-[var(--color-on-surface)] shadow-2xs outline-none transition-colors hover:border-brand-primary focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20 cursor-pointer"
+                >
+                  {PAGE_SIZE_OPTIONS.map((size) => (
+                    <option key={size} value={size}>
+                      {size} / trang
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            {/* Nhóm Điều hướng & Nhảy trang (Right) */}
+            <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+              <nav className="flex items-center gap-1" aria-label="Phân trang danh sách hồ sơ">
+                {/* First Page [|<] */}
+                <button
+                  type="button"
+                  aria-label="Về trang đầu"
+                  title="Về trang đầu (Trang 1)"
+                  disabled={safePage === 0}
+                  onClick={() => goToPage(0)}
+                  className="grid size-8 place-items-center rounded-lg border border-[var(--color-border-default)] bg-white text-[var(--color-on-surface-variant)] shadow-2xs transition-colors hover:border-brand-primary hover:bg-[var(--color-primary-subtle)] hover:text-brand-primary disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <ChevronsLeft className="size-4" aria-hidden="true" />
+                </button>
+
+                {/* Previous [<] */}
+                <button
+                  type="button"
+                  aria-label="Trang trước"
+                  title="Trang trước"
+                  disabled={safePage === 0}
+                  onClick={() => goToPage(safePage - 1)}
+                  className="grid size-8 place-items-center rounded-lg border border-[var(--color-border-default)] bg-white text-[var(--color-on-surface-variant)] shadow-2xs transition-colors hover:border-brand-primary hover:bg-[var(--color-primary-subtle)] hover:text-brand-primary disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <ChevronLeft className="size-4" aria-hidden="true" />
+                </button>
+
+                {/* Page Number Buttons */}
+                <div className="flex items-center gap-1">
+                  {pageItems.map((item, idx) => {
+                    if (typeof item !== "number") {
+                      return (
+                        <span
+                          key={`${item}-${idx}`}
+                          className="grid size-8 place-items-center text-xs text-[var(--color-outline)] select-none"
+                          aria-hidden="true"
+                        >
+                          …
+                        </span>
+                      );
+                    }
+
+                    const isActive = item - 1 === safePage;
+                    return (
+                      <button
+                        key={item}
+                        type="button"
+                        aria-label={`Trang ${item}`}
+                        aria-current={isActive ? "page" : undefined}
+                        onClick={() => goToPage(item - 1)}
+                        className={cn(
+                          "grid size-8 place-items-center rounded-lg text-xs font-semibold transition-all shadow-2xs",
+                          isActive
+                            ? "bg-brand-primary text-white shadow-xs"
+                            : "border border-[var(--color-border-default)] bg-white text-[var(--color-on-surface)] hover:border-brand-primary hover:bg-[var(--color-primary-subtle)] hover:text-brand-primary"
+                        )}
+                      >
+                        {item}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Next [>] */}
+                <button
+                  type="button"
+                  aria-label="Trang sau"
+                  title="Trang sau"
+                  disabled={safePage >= totalPages - 1}
+                  onClick={() => goToPage(safePage + 1)}
+                  className="grid size-8 place-items-center rounded-lg border border-[var(--color-border-default)] bg-white text-[var(--color-on-surface-variant)] shadow-2xs transition-colors hover:border-brand-primary hover:bg-[var(--color-primary-subtle)] hover:text-brand-primary disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <ChevronRight className="size-4" aria-hidden="true" />
+                </button>
+
+                {/* Last Page [>|] */}
+                <button
+                  type="button"
+                  aria-label="Đến trang cuối"
+                  title={`Đến trang cuối (Trang ${totalPages})`}
+                  disabled={safePage >= totalPages - 1}
+                  onClick={() => goToPage(totalPages - 1)}
+                  className="grid size-8 place-items-center rounded-lg border border-[var(--color-border-default)] bg-white text-[var(--color-on-surface-variant)] shadow-2xs transition-colors hover:border-brand-primary hover:bg-[var(--color-primary-subtle)] hover:text-brand-primary disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <ChevronsRight className="size-4" aria-hidden="true" />
+                </button>
+              </nav>
+
+              {/* Page Jumper */}
+              <div className="h-4 w-px bg-[var(--color-border-default)] mx-1 hidden sm:block" aria-hidden="true" />
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const p = parseInt(jumpVal, 10);
+                  if (!isNaN(p) && p >= 1 && p <= totalPages) {
+                    goToPage(p - 1);
+                    setJumpVal("");
+                  }
+                }}
+                className="flex items-center gap-1.5 text-xs text-[var(--color-on-surface-variant)]"
+              >
+                <label htmlFor="jump-page-input" className="whitespace-nowrap">Đi đến:</label>
+                <input
+                  id="jump-page-input"
+                  type="number"
+                  min={1}
+                  max={totalPages}
+                  placeholder={String(safePage + 1)}
+                  value={jumpVal}
+                  onChange={(e) => setJumpVal(e.target.value)}
+                  className="h-8 w-11 rounded-lg border border-[var(--color-border-default)] bg-white px-1 text-center text-xs font-semibold text-[var(--color-on-surface)] shadow-2xs outline-none transition-colors hover:border-brand-primary focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                  title={`Nhập trang từ 1 đến ${totalPages}`}
+                />
+                <span className="text-xs">Trang</span>
+                <button
+                  type="submit"
+                  disabled={!jumpVal || isNaN(Number(jumpVal)) || Number(jumpVal) < 1 || Number(jumpVal) > totalPages}
+                  className="inline-flex h-8 items-center justify-center rounded-lg border border-[var(--color-border-default)] bg-white px-2 text-xs font-semibold text-[var(--color-on-surface-variant)] shadow-2xs transition-colors hover:border-brand-primary hover:bg-[var(--color-primary-subtle)] hover:text-brand-primary disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Đi
+                </button>
+              </form>
             </div>
           </div>
         )}
@@ -384,7 +644,7 @@ export function ApplicantsPage() {
   );
 }
 
-function ApplicantRow({ row, showJob, selected, onOpen }: { row: ApplicationSummary; showJob: boolean; selected: boolean; onOpen: () => void }) {
+function ApplicantRow({ row, selected, onOpen }: { row: ApplicationSummary; selected: boolean; onOpen: () => void }) {
   const tags = splitTags(row.tags).slice(0, 3);
   return (
     <tr
@@ -411,12 +671,6 @@ function ApplicantRow({ row, showJob, selected, onOpen }: { row: ApplicationSumm
           </div>
         </div>
       </td>
-      {showJob && (
-        <td className="px-4 py-3.5">
-          <p className="font-medium">{row.jobTitle}</p>
-          <p className="text-xs text-[var(--color-on-surface-variant)]">{row.jobDepartment || "—"}</p>
-        </td>
-      )}
       <td className="px-4 py-3.5"><StatusPill status={row.status} /></td>
       <td className="px-4 py-3.5">
         <p>{sourceLabel(row.source)}</p>
@@ -718,30 +972,6 @@ function Avatar({ name, size = "md" }: { name: string; size?: "sm" | "md" | "lg"
   );
 }
 
-function StatCard({ label, value, hint, icon: Icon, tone = "primary" }: {
-  label: string;
-  value: number | string;
-  hint: string;
-  icon: LucideIcon;
-  tone?: "primary" | "amber";
-}) {
-  return (
-    <div className="group relative overflow-hidden rounded-xl border border-[var(--color-border-default)] bg-white p-4 shadow-sm transition-[border-color,box-shadow] duration-200 hover:border-brand-primary hover:shadow-md motion-reduce:transition-none">
-      <span className="absolute inset-x-0 top-0 h-0.5 bg-brand-primary opacity-0 transition-opacity duration-200 group-hover:opacity-100 motion-reduce:transition-none" aria-hidden="true" />
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--color-on-surface-variant)]">{label}</span>
-        <span className={cn(
-          "grid size-8 place-items-center rounded-lg transition-colors duration-200 group-hover:bg-brand-primary group-hover:text-white motion-reduce:transition-none",
-          tone === "amber" ? "bg-amber-50 text-amber-700" : "bg-[var(--color-primary-soft)] text-brand-primary",
-        )}>
-          <Icon className="size-4" aria-hidden="true" />
-        </span>
-      </div>
-      <p className="mt-2 text-2xl font-semibold tabular-nums">{value}</p>
-      <p className="mt-0.5 truncate text-xs text-[var(--color-on-surface-variant)]">{hint}</p>
-    </div>
-  );
-}
 
 function splitTags(value: string | null) {
   return (value ?? "").split(",").map((tag) => tag.trim()).filter(Boolean);

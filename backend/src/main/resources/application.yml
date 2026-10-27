@@ -123,6 +123,10 @@ app:
       otp-seconds: 600
       match-score-seconds: 1800
       rate-limit-window-seconds: 60
+  assessment:
+    judge-url: ${APP_ASSESSMENT_JUDGE_URL:https://judge0-ce.p.rapidapi.com}
+    judge-token: ${APP_ASSESSMENT_JUDGE_TOKEN:}
+    judge-rapidapi-host: ${APP_ASSESSMENT_JUDGE_RAPIDAPI_HOST:}
   rabbitmq:
     exchanges:
       cv-parse: cv.parse

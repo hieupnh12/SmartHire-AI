@@ -1,27 +1,36 @@
-import { CodingStarterFields, codingAuthoringValue, QuestionContentFields } from "../components/QuestionContentFields";
+import {
+  CodingStarterFields,
+  codingAuthoringValue,
+  QuestionContentFields,
+  AiRubricCriteriaEditor,
+  ESSAY_ARCHETYPES,
+} from "../components/QuestionContentFields";
+import { MonacoCodeEditor } from "../components/MonacoCodeEditor";
 import { CodingTestVerification } from "../components/CodingTestVerification";
 import type { EssayRubric } from "@/api/types/assessment";
 import { ExcelImportReview } from "../components/ExcelImportReview";
 import { useRecruitmentJob } from "../../jobs/components/JobRecruitmentWorkspace";
 import { useEffect, useMemo, useRef, useState, type ClipboardEvent, type ReactNode } from "react";
-import { Link } from "react-router-dom";
 import {
   AlertTriangle,
   Check,
   CheckCircle2,
-  ChevronRight,
   Clock3,
   CloudUpload,
   Code2,
-  Folder,
+  HelpCircle,
   ListChecks,
   Pencil,
   Plus,
   Save,
   ShieldCheck,
   Table2,
+  Trash2,
 } from "lucide-react";
+import { Breadcrumb } from "@/components/ux/Breadcrumb";
 import { Button } from "@/components/ux/Button";
+import { DetailDialog } from "@/components/ux/DetailDialog";
+import { toast } from "@/stores/toastStore";
 import { cn } from "@/lib/utils";
 import {
   DICTIONARY_ROWS,
@@ -782,7 +791,7 @@ type GeneralBankEditor = {
 };
 
 export function ExcelQuestionEditor({ job, generalBank }: {
-  job?: { id: number; title: string };
+  job?: { id: number; title: string; skills?: Array<{ name: string }> };
   generalBank?: GeneralBankEditor;
 }) {
   const jobId = job?.id ?? 0;
@@ -814,6 +823,7 @@ export function ExcelQuestionEditor({ job, generalBank }: {
   );
   const [rowDrag, setRowDrag] = useState<RowDragState | null>(null);
   const [capacityNote, setCapacityNote] = useState("");
+  const [showHelpModal, setShowHelpModal] = useState(false);
   const undoStackRef = useRef<BankQuestion[][]>([]);
   const editSessionRef = useRef<string | null>(null);
 
@@ -826,12 +836,14 @@ export function ExcelQuestionEditor({ job, generalBank }: {
     const previous = undoStackRef.current.pop();
     if (!previous) {
       setCapacityNote("Không còn thao tác để hoàn tác.");
+      toast.info("Không còn thao tác để hoàn tác");
       return;
     }
     editSessionRef.current = null;
     setQuestions(previous);
     setSavedNote("");
     setCapacityNote("Đã hoàn tác (Ctrl+Z).");
+    toast.info("Đã hoàn tác thay đổi gần nhất (Ctrl+Z)");
   }
 
   const counts = useMemo(
@@ -945,6 +957,14 @@ export function ExcelQuestionEditor({ job, generalBank }: {
         undoQuestions();
         return;
       }
+      if (event.key === "?" && !event.ctrlKey && !event.metaKey && !event.altKey) {
+        const target = event.target as HTMLElement | null;
+        if (!target || (target.tagName !== "INPUT" && target.tagName !== "TEXTAREA" && !target.isContentEditable)) {
+          event.preventDefault();
+          setShowHelpModal((prev) => !prev);
+          return;
+        }
+      }
       handleCopyActiveCell(event);
     }
     window.addEventListener("keydown", onKeyDown);
@@ -990,12 +1010,10 @@ export function ExcelQuestionEditor({ job, generalBank }: {
             next.snippet = first?.[1] ?? "";
           } catch { /* Keep malformed metadata for validation to report. */ }
         }
-        if (next.kind === "TINH_HUONG_SYSTEM" && next.rubricJsonText && ("sample" in safePatch || "rubric" in safePatch)) {
+        if (next.kind === "TINH_HUONG_SYSTEM" && next.rubricJsonText && "sample" in safePatch) {
           try {
             const rubric = JSON.parse(next.rubricJsonText) as EssayRubric;
-            next.rubricJsonText = JSON.stringify({ ...rubric, referenceAnswer: next.sample,
-              ...("rubric" in safePatch ? { criteria: [{ description: next.rubric.map(item => item.text).join("; "), weight: 100 }] } : {}),
-            });
+            next.rubricJsonText = JSON.stringify({ ...rubric, referenceAnswer: next.sample });
           } catch { /* Keep malformed metadata for validation to report. */ }
         }
         return next;
@@ -1286,6 +1304,7 @@ export function ExcelQuestionEditor({ job, generalBank }: {
     event.preventDefault();
     void navigator.clipboard.writeText(text).then(() => {
       setCapacityNote("Đã sao chép ô đang chọn.");
+      toast.success("Đã sao chép vào bộ nhớ tạm");
     });
   }
 
@@ -1347,6 +1366,17 @@ export function ExcelQuestionEditor({ job, generalBank }: {
     }
     const next = blankQuestion(kind);
     if (kind === "TU_LUAN_CODE") next.codingJsonText = codingAuthoringValue(undefined, next.language, next.snippet);
+    if (kind === "TINH_HUONG_SYSTEM") {
+      next.rubricJsonText = JSON.stringify(
+        {
+          category: "ESSAY_CONCEPTUAL",
+          referenceAnswer: "",
+          criteria: ESSAY_ARCHETYPES.ESSAY_CONCEPTUAL.criteria.map((c) => ({ ...c })),
+        },
+        null,
+        2
+      );
+    }
     next.id = questionIdForIndex(questions.length);
     setQuestions((rows) => {
       pushUndo(rows);
@@ -1379,9 +1409,11 @@ export function ExcelQuestionEditor({ job, generalBank }: {
     try {
       if (generalBank) generalBank.onSaveDraft(questions);
       else saveExcelQuestionDraft(jobId, questions);
-      setSavedNote("Đã lưu tạm. Rời trang hoặc sang trang khác vẫn giữ nội dung đang soạn.");
+      setSavedNote("Đã lưu tạm vào trình duyệt.");
+      toast.success("Đã lưu nội dung bản nháp thành công");
     } catch {
       setValidation(["Chưa lưu được trên trình duyệt. Nội dung đang soạn vẫn giữ trên trang."]);
+      toast.error("Không thể lưu bản nháp vào bộ nhớ trình duyệt");
     }
     setCapacityNote("");
   }
@@ -1418,69 +1450,90 @@ export function ExcelQuestionEditor({ job, generalBank }: {
 
   return (
     <section className="flex flex-col gap-3 text-[var(--color-on-surface)]">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-1 text-xs text-[var(--color-on-surface-variant)]">
-          <Folder className="size-3.5" aria-hidden="true" />
-          <Link to={basePath} className="hover:text-[var(--color-primary)]">
-            {generalBank ? "Trang tuyển dụng" : "Assessment"}
-          </Link>
-          <ChevronRight className="size-3 text-[var(--color-outline-variant)]" aria-hidden="true" />
-          <Link to={bankPath} className="hover:text-[var(--color-primary)]">
-            Ngân hàng câu hỏi
-          </Link>
-          <ChevronRight className="size-3 text-[var(--color-outline-variant)]" aria-hidden="true" />
-          <span className="font-semibold text-[var(--color-primary)]">Soạn câu hỏi trên bảng</span>
-        </nav>
-        <div className="flex flex-wrap items-center gap-1.5">
-          <Button type="button" variant="secondary" size="sm" onClick={handleValidate}>
-            <ListChecks className="size-3.5 text-[var(--color-primary)]" aria-hidden="true" />
-            Kiểm tra
-          </Button>
-          <Button type="button" size="sm" onClick={handleSaveDraft}>
-            <Save className="size-3.5" aria-hidden="true" />
-            Lưu nội dung
-          </Button>
-          <Button type="button" size="sm" onClick={handleValidate}>
-            <CloudUpload className="size-3.5" aria-hidden="true" />
-            {generalBank ? "Lưu vào ngân hàng" : "Tạo bài đánh giá"}
-          </Button>
-        </div>
-      </div>
+      <Breadcrumb
+        items={[
+          { label: generalBank ? "Trang tuyển dụng" : "Assessment", to: basePath },
+          { label: "Ngân hàng câu hỏi", to: bankPath },
+          { label: "Soạn câu hỏi trên bảng" },
+        ]}
+        actions={
+          <>
+            <Button type="button" variant="ghost" size="sm" onClick={() => setShowHelpModal(true)}>
+              <HelpCircle className="size-3.5 text-blue-600 dark:text-blue-400" aria-hidden="true" />
+              Hướng dẫn & Phím tắt
+            </Button>
+            <Button type="button" variant="secondary" size="sm" onClick={handleValidate}>
+              <ListChecks className="size-3.5 text-[var(--color-primary)]" aria-hidden="true" />
+              Kiểm tra
+            </Button>
+            <Button type="button" variant="secondary" size="sm" onClick={handleSaveDraft}>
+              <Save className="size-3.5" aria-hidden="true" />
+              Lưu bản nháp
+            </Button>
+            <Button type="button" size="sm" onClick={handleValidate}>
+              <CloudUpload className="size-3.5" aria-hidden="true" />
+              {generalBank ? "Lưu vào ngân hàng" : "Tạo bài đánh giá"}
+            </Button>
+          </>
+        }
+      />
 
-      {generalBank && <p className="text-xs text-[var(--color-on-surface-variant)]">Tạo câu hỏi dùng chung theo kỹ năng. Kiểm tra và xem trước câu hỏi trước khi lưu vào ngân hàng của doanh nghiệp.</p>}
-      {validation.length > 0 && <div ref={validationRef} tabIndex={-1} role="alert" className="rounded-lg border border-[var(--color-error)] bg-[var(--color-error-container)] p-3 text-sm text-[var(--color-on-error-container)]"><p className="font-semibold">Kiểm tra lại nội dung</p><ul className="mt-2 list-inside list-disc">{validation.map((message, index) => <li key={index}>{message}{/^Dòng \d+:/.test(message) && <button type="button" className="ml-2 underline" onClick={() => {
-        const rowIndex = Number(message.match(/^Dòng (\d+):/)?.[1]) - 2;
-        const field = message.includes("kỹ năng") ? "skill" : message.includes("Độ khó") ? "difficulty" : "content";
-        setView("all"); setTypeFilter(questions[rowIndex] && isSubjectiveKind(questions[rowIndex].kind) ? "SUBJECTIVE" : "ALL"); setSelectedIndex(rowIndex);
-        setActiveEdit({ rowIndex, field }); setActiveCell(`${field === "skill" ? "E" : field === "difficulty" ? "D" : "A"}${rowIndex + 2}`);
-      }}>Sửa dòng này</button>}</li>)}</ul></div>}
+      {generalBank && (
+        <p className="text-xs text-[var(--color-on-surface-variant)]">
+          Tạo câu hỏi dùng chung theo kỹ năng. Kiểm tra và xem trước câu hỏi trước khi lưu vào ngân hàng của doanh nghiệp.
+        </p>
+      )}
 
-      <div className="flex flex-wrap items-center gap-3 rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-[var(--color-surface-card)] px-3 py-2 shadow-[var(--shadow-card)]">
-        <div className="flex min-w-0 flex-1 items-center gap-2">
-          <div className="flex size-8 shrink-0 items-center justify-center rounded bg-[#107c41] text-white">
-            <Table2 className="size-4" aria-hidden="true" />
-          </div>
-          <div className="min-w-0">
-            <p className="truncate text-sm font-semibold">
-              Ngân hàng câu hỏi
-              <span className="ml-2 rounded-full bg-[var(--color-primary-subtle)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--color-primary)]">
-                Đang soạn
-              </span>
+      {validation.length > 0 && (
+        <div
+          ref={validationRef}
+          tabIndex={-1}
+          role="alert"
+          className="rounded-xl border border-rose-200 bg-rose-50/80 p-3.5 text-xs text-rose-800 shadow-2xs dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-200"
+        >
+          <div className="flex items-center justify-between">
+            <p className="flex items-center gap-1.5 font-semibold">
+              <AlertTriangle className="size-4 text-rose-600 dark:text-rose-400" aria-hidden="true" />
+              Cần kiểm tra lại nội dung ({validation.length} lưu ý)
             </p>
-            <p className="text-[11px] text-[var(--color-on-surface-variant)]">
-              Dán từ Excel hoặc kéo số dòng để thêm câu (tối đa {MAX_QUESTIONS}). Cột type đổi form từng câu.
-            </p>
+            <button
+              type="button"
+              onClick={() => setValidation([])}
+              className="text-[11px] font-semibold text-rose-600 hover:text-rose-800 dark:text-rose-400"
+            >
+              Đóng
+            </button>
           </div>
+          <ul className="mt-2 list-inside list-disc space-y-1">
+            {validation.map((message, index) => (
+              <li key={index}>
+                {message}
+                {/^Dòng \d+:/.test(message) && (
+                  <button
+                    type="button"
+                    className="ml-2 font-medium underline text-rose-700 hover:text-rose-900 dark:text-rose-300"
+                    onClick={() => {
+                      const rowIndex = Number(message.match(/^Dòng (\d+):/)?.[1]) - 2;
+                      const field = message.includes("kỹ năng") ? "skill" : message.includes("Độ khó") ? "difficulty" : "content";
+                      setView("all");
+                      setTypeFilter(questions[rowIndex] && isSubjectiveKind(questions[rowIndex].kind) ? "SUBJECTIVE" : "ALL");
+                      setSelectedIndex(rowIndex);
+                      setActiveEdit({ rowIndex, field });
+                      setActiveCell(`${field === "skill" ? "E" : field === "difficulty" ? "D" : "A"}${rowIndex + 2}`);
+                    }}
+                  >
+                    Sửa dòng này
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
         </div>
-        <span className="inline-flex items-center gap-1 rounded-full bg-[var(--color-primary-subtle)] px-2 py-0.5 text-[10px] font-medium text-[var(--color-primary)]">
-          <Pencil className="size-3" aria-hidden="true" />
-          {savedNote || "Có thể chỉnh sửa"}
-        </span>
-      </div>
+      )}
 
-      <div className="rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-[var(--color-surface-card)] shadow-[var(--shadow-card)]">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--color-border-default)] bg-[var(--color-surface-container-low)] p-1">
-          <div className="flex flex-wrap gap-1">
+      <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-xs dark:border-slate-800 dark:bg-slate-900">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/80 bg-slate-50/75 p-2 dark:border-slate-800 dark:bg-slate-900/60">
+          <div className="flex flex-wrap items-center gap-1 rounded-xl bg-slate-200/70 p-1 dark:bg-slate-800/80">
             {filterTabs.map((tab) => {
               const active = view === "all" && typeFilter === tab.id;
               return (
@@ -1502,71 +1555,113 @@ export function ExcelQuestionEditor({ job, generalBank }: {
                     }
                   }}
                   className={cn(
-                    "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs transition-colors",
+                    "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition-all",
                     active
-                      ? "bg-[var(--color-surface-card)] font-semibold text-[var(--color-primary)] shadow-sm ring-1 ring-[var(--color-primary)]/20"
-                      : "font-medium text-[var(--color-on-surface-variant)] hover:bg-[var(--color-surface-container)]",
+                      ? "bg-white font-semibold text-blue-600 shadow-2xs dark:bg-slate-900 dark:text-blue-400"
+                      : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200",
                   )}
                 >
                   {tab.label}
                   <span
                     className={cn(
-                      "rounded px-1 py-0.5 text-[10px] font-semibold",
+                      "rounded-full px-1.5 py-0.2 text-[10px] font-semibold",
                       active
-                        ? "bg-[var(--color-primary-subtle)] text-[var(--color-primary)]"
-                        : "bg-[var(--color-surface-container)] text-[var(--color-on-surface-variant)]",
+                        ? "bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300"
+                        : "bg-slate-300/60 text-slate-600 dark:bg-slate-700/60 dark:text-slate-300",
                     )}
                   >
-                    {tab.count} câu
+                    {tab.count}
                   </span>
                 </button>
               );
             })}
+            <div className="mx-0.5 h-4 w-px bg-slate-300 dark:bg-slate-700" />
             <button
               type="button"
               onClick={() => setView("schema")}
               className={cn(
-                "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs transition-colors",
+                "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition-all",
                 view === "schema"
-                  ? "bg-[var(--color-surface-card)] font-semibold text-[var(--color-primary)] shadow-sm ring-1 ring-[var(--color-primary)]/20"
-                  : "font-medium text-[var(--color-on-surface-variant)] hover:bg-[var(--color-surface-container)]",
+                  ? "bg-white font-semibold text-blue-600 shadow-2xs dark:bg-slate-900 dark:text-blue-400"
+                  : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200",
               )}
             >
               Từ điển Schema
-              <span className="rounded bg-[var(--color-surface-container)] px-1 py-0.5 text-[10px] font-semibold">
+              <span
+                className={cn(
+                  "rounded-full px-1.5 py-0.2 text-[10px] font-semibold",
+                  view === "schema"
+                    ? "bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300"
+                    : "bg-slate-300/60 text-slate-600 dark:bg-slate-700/60 dark:text-slate-300",
+                )}
+              >
                 {DICTIONARY_ROWS.length} cột
               </span>
             </button>
           </div>
-          {view === "all" && (
-            <Button type="button" variant="secondary" size="sm" onClick={() => addQuestion(typeFilter === "SUBJECTIVE" ? "TINH_HUONG_SYSTEM" : typeFilter === "NHIEU_DAP_AN" ? "NHIEU_DAP_AN" : "TRAC_NGHIEM_DON")}>
-              <Plus className="size-3.5" aria-hidden="true" />
-              Thêm câu
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="text-xs text-slate-600 hover:text-slate-900 dark:text-slate-400"
+              onClick={() => setShowHelpModal(true)}
+              title="Xem cẩm nang dán Excel & phím tắt (?)"
+            >
+              <HelpCircle className="size-3.5 text-blue-600 dark:text-blue-400" aria-hidden="true" />
+              <span className="hidden sm:inline">Cẩm nang</span>
             </Button>
-          )}
+            {view === "all" && (
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() =>
+                  addQuestion(
+                    typeFilter === "SUBJECTIVE"
+                      ? "TINH_HUONG_SYSTEM"
+                      : typeFilter === "NHIEU_DAP_AN"
+                        ? "NHIEU_DAP_AN"
+                        : "TRAC_NGHIEM_DON",
+                  )
+                }
+              >
+                <Plus className="size-3.5" aria-hidden="true" />
+                Thêm câu
+              </Button>
+            )}
+          </div>
         </div>
 
         {view === "all" && (
           <>
             {typeFilter !== "SUBJECTIVE" && <>
-            <div className="flex items-center gap-2 border-b border-[var(--color-border-default)] bg-[var(--color-surface-container-low)] px-2 py-1.5">
-              <div className="flex h-7 min-w-14 items-center justify-center rounded bg-[var(--color-surface-card)] px-2 font-mono text-xs font-semibold text-[var(--color-primary)]">
-                {activeCell}
-              </div>
-              <span className="font-mono text-xs italic text-[var(--color-on-surface-variant)]">fx</span>
-              <input
-                className="h-7 min-w-0 flex-1 rounded border border-[var(--color-border-default)] bg-[var(--color-surface-card)] px-2 font-mono text-xs outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
-                value={formula}
-                onChange={(event) => applyEdit(event.target.value)}
-                onPasteCapture={handleTablePaste}
-                disabled={!activeEdit}
-                placeholder="Chọn một ô để sửa · Ctrl+C sao chép · Ctrl+V dán từ Excel"
-                aria-label="Thanh sửa nội dung ô"
-              />
-              <span className="shrink-0 font-mono text-[10px] text-[var(--color-on-surface-variant)]">
-                {questions.length}/{MAX_QUESTIONS}
-              </span>
-            </div>
+                <div className="flex items-center gap-2.5 border-b border-slate-200/80 bg-slate-50/50 px-3 py-1.5 dark:border-slate-800 dark:bg-slate-900/40">
+                  <div className="flex h-7 min-w-14 items-center justify-center rounded-md border border-blue-200/80 bg-blue-50/80 px-2 font-mono text-xs font-bold text-blue-700 shadow-2xs dark:border-blue-900/60 dark:bg-blue-950/40 dark:text-blue-300">
+                    {activeCell}
+                  </div>
+                  <span className="select-none font-mono text-xs font-bold italic text-slate-400">fx</span>
+                  <input
+                    className="h-7 min-w-0 flex-1 rounded-md border border-slate-200 bg-white px-2.5 font-mono text-xs text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:focus:border-blue-400 dark:disabled:bg-slate-800"
+                    value={formula}
+                    onChange={(event) => applyEdit(event.target.value)}
+                    onPasteCapture={handleTablePaste}
+                    disabled={!activeEdit}
+                    placeholder="Chọn một ô để sửa · Ctrl+C sao chép · Ctrl+V dán từ Excel..."
+                    aria-label="Thanh sửa nội dung ô"
+                  />
+                  <div className="flex shrink-0 items-center gap-2">
+                    {savedNote && (
+                      <span className="hidden items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 sm:inline-flex">
+                        <Check className="size-3" aria-hidden="true" />
+                        Bản nháp tự lưu
+                      </span>
+                    )}
+                    <span className="font-mono text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                      {questions.length}/{MAX_QUESTIONS} câu
+                    </span>
+                  </div>
+                </div>
 
             <div className="overflow-x-auto" onPasteCapture={handleTablePaste}>
               <table className="w-full min-w-[880px] table-fixed border-collapse text-[11px] leading-snug">
@@ -1730,13 +1825,25 @@ export function ExcelQuestionEditor({ job, generalBank }: {
                         {showAllColumns && (
                           <>
                             <EditCell
-                              selected={isSelected(rowIndex, "score")}
+                              selected={isSubjectiveKind(row.kind) ? false : isSelected(rowIndex, "score")}
                               value={row.score}
-                              onSelect={pick("score", "C")}
-                              onChange={applyEdit}
-                              className="text-center font-mono font-semibold"
+                              onSelect={isSubjectiveKind(row.kind) ? () => {} : pick("score", "C")}
+                              onChange={isSubjectiveKind(row.kind) ? () => {} : applyEdit}
+                              className={cn(
+                                "text-center font-mono",
+                                isSubjectiveKind(row.kind)
+                                  ? "bg-[var(--color-surface-container-low)] text-[10px] italic text-[var(--color-on-surface-variant)] cursor-not-allowed"
+                                  : "font-semibold"
+                              )}
+                              title={isSubjectiveKind(row.kind) ? "Điểm được áp dụng tự động theo Cấu hình bài tập" : undefined}
                             >
-                              {row.score}
+                              {isSubjectiveKind(row.kind) ? (
+                                <span className="rounded bg-[var(--color-surface-container)] px-1 py-0.5 text-[9px] font-medium text-[var(--color-on-surface-variant)]">
+                                  Theo cấu hình
+                                </span>
+                              ) : (
+                                row.score
+                              )}
                             </EditCell>
                             <EditCell
                               selected={isSelected(rowIndex, "difficulty")}
@@ -1927,74 +2034,79 @@ export function ExcelQuestionEditor({ job, generalBank }: {
             </div>
 
             {selectedQuestion && isChoiceKind(selectedQuestion.kind) && typeFilter === "ALL" && (
-              <div className="border-t border-[var(--color-border-default)] bg-[var(--color-surface-container-low)] p-3">
-                <div className="mb-2 flex flex-wrap items-center gap-2">
-                  <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-semibold", typeBadgeClass(selectedQuestion.kind))}>
-                    Form {typeMeta(selectedQuestion.kind).label}
-                  </span>
-                  <span className="text-[11px] text-[var(--color-on-surface-variant)]">
-                    Đổi type trên dòng để chuyển sang form khác.
+              <div className="border-t border-slate-200/80 bg-slate-50/70 p-3.5 dark:border-slate-800 dark:bg-slate-900/60">
+                <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className={cn("rounded-md px-2 py-0.5 text-[11px] font-semibold", typeBadgeClass(selectedQuestion.kind))}>
+                      Phương án cho Câu {selectedIndex + 1} ({typeMeta(selectedQuestion.kind).label})
+                    </span>
+                    <span className="text-xs text-slate-500 dark:text-slate-400">
+                      Chỉnh sửa trực tiếp 4 lựa chọn A–D và đáp án đúng
+                    </span>
+                  </div>
+                  <span className="text-[11px] text-slate-400">
+                    Đổi loại câu ở cột Loại nếu muốn chuyển sang Tự luận
                   </span>
                 </div>
-                <div className="overflow-x-auto rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-[var(--color-surface-card)]">
-                  <table className="w-full min-w-[720px] table-fixed border-collapse text-[11px]">
-                    <thead>
-                      <tr className="bg-[var(--color-surface-container)] text-[10px] font-semibold">
-                        <HeaderCell label="option_a *" />
-                        <HeaderCell label="option_b *" />
-                        <HeaderCell label="option_c" />
-                        <HeaderCell label="option_d" />
-                        <HeaderCell label="answer *" highlight="answer" />
-                        <HeaderCell label={selectedQuestion.kind === "NHIEU_DAP_AN" ? "policy" : "giải thích"} />
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        {(["optionA", "optionB", "optionC", "optionD"] as const).map((field, optionIndex) => (
-                          <td key={field} className="border-t border-[var(--color-surface-container)] px-1.5 py-1.5">
-                            <input
-                              value={selectedQuestion[field]}
-                              onChange={(event) => patchQuestion(selectedIndex, { [field]: event.target.value })}
-                              onPasteCapture={(event) => handleChoiceFormPaste(field, event)}
-                              className="w-full rounded border border-[var(--color-border-default)] bg-[var(--color-surface-container-low)] px-1.5 py-1 font-mono text-[11px] outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
-                              placeholder={String.fromCharCode(65 + optionIndex)}
-                              aria-label={`Phương án ${String.fromCharCode(65 + optionIndex)}`}
-                            />
-                          </td>
-                        ))}
-                        <td className="border-t border-[var(--color-surface-container)] bg-emerald-50 px-1.5 py-1.5">
-                          <input
-                            value={selectedQuestion.answer}
-                            onChange={(event) => patchQuestion(selectedIndex, { answer: event.target.value })}
-                            onPasteCapture={(event) => handleChoiceFormPaste("answer", event)}
-                            className="w-full rounded border border-[var(--color-border-default)] bg-white px-1.5 py-1 text-center font-mono text-[11px] outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
-                            placeholder={selectedQuestion.kind === "NHIEU_DAP_AN" ? "A,C" : "A"}
-                            aria-label="Đáp án đúng"
-                          />
-                        </td>
-                        <td className="border-t border-[var(--color-surface-container)] px-1.5 py-1.5">
-                          <input
-                            value={
-                              selectedQuestion.kind === "NHIEU_DAP_AN"
-                                ? selectedQuestion.policyNote
-                                : selectedQuestion.explanation
-                            }
-                            onChange={(event) =>
-                              patchQuestion(
-                                selectedIndex,
-                                selectedQuestion.kind === "NHIEU_DAP_AN"
-                                  ? { policyNote: event.target.value }
-                                  : { explanation: event.target.value, warning: undefined },
-                              )
-                            }
-                            onPasteCapture={(event) => handleChoiceFormPaste("detail", event)}
-                            className="w-full rounded border border-[var(--color-border-default)] bg-[var(--color-surface-container-low)] px-1.5 py-1 text-[11px] outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
-                            aria-label="Chi tiết chấm điểm"
-                          />
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
+                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-6">
+                  {(["optionA", "optionB", "optionC", "optionD"] as const).map((field, optionIndex) => {
+                    const letter = String.fromCharCode(65 + optionIndex);
+                    return (
+                      <div
+                        key={field}
+                        className="flex items-center rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 shadow-2xs dark:border-slate-700 dark:bg-slate-900"
+                      >
+                        <span className="mr-2 flex size-5 shrink-0 items-center justify-center rounded bg-slate-100 font-mono text-[10px] font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                          {letter}
+                        </span>
+                        <input
+                          value={selectedQuestion[field]}
+                          onChange={(event) => patchQuestion(selectedIndex, { [field]: event.target.value })}
+                          onPasteCapture={(event) => handleChoiceFormPaste(field, event)}
+                          className="min-w-0 flex-1 bg-transparent text-xs text-slate-900 outline-none placeholder:text-slate-400 dark:text-slate-100"
+                          placeholder={`Lựa chọn ${letter}...`}
+                          aria-label={`Phương án ${letter}`}
+                        />
+                      </div>
+                    );
+                  })}
+                  <div className="flex items-center rounded-lg border border-emerald-300 bg-emerald-50/80 px-2.5 py-1.5 shadow-2xs dark:border-emerald-800 dark:bg-emerald-950/40">
+                    <span className="mr-2 flex h-5 shrink-0 items-center justify-center rounded bg-emerald-200 px-1 font-mono text-[10px] font-bold text-emerald-800 dark:bg-emerald-800 dark:text-emerald-200">
+                      Đ.Án *
+                    </span>
+                    <input
+                      value={selectedQuestion.answer}
+                      onChange={(event) => patchQuestion(selectedIndex, { answer: event.target.value })}
+                      onPasteCapture={(event) => handleChoiceFormPaste("answer", event)}
+                      className="min-w-0 flex-1 bg-transparent text-center font-mono text-xs font-bold text-emerald-900 outline-none placeholder:text-emerald-500 dark:text-emerald-200"
+                      placeholder={selectedQuestion.kind === "NHIEU_DAP_AN" ? "A,C" : "A"}
+                      aria-label="Đáp án đúng"
+                    />
+                  </div>
+                  <div className="flex items-center rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 shadow-2xs dark:border-slate-700 dark:bg-slate-900">
+                    <span className="mr-2 shrink-0 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+                      {selectedQuestion.kind === "NHIEU_DAP_AN" ? "Policy" : "Giải thích"}
+                    </span>
+                    <input
+                      value={
+                        selectedQuestion.kind === "NHIEU_DAP_AN"
+                          ? selectedQuestion.policyNote
+                          : selectedQuestion.explanation
+                      }
+                      onChange={(event) =>
+                        patchQuestion(
+                          selectedIndex,
+                          selectedQuestion.kind === "NHIEU_DAP_AN"
+                            ? { policyNote: event.target.value }
+                            : { explanation: event.target.value, warning: undefined },
+                        )
+                      }
+                      onPasteCapture={(event) => handleChoiceFormPaste("detail", event)}
+                      className="min-w-0 flex-1 bg-transparent text-xs text-slate-900 outline-none placeholder:text-slate-400 dark:text-slate-100"
+                      placeholder="Ghi chú / giải thích..."
+                      aria-label="Chi tiết chấm điểm"
+                    />
+                  </div>
                 </div>
               </div>
             )}
@@ -2010,16 +2122,13 @@ export function ExcelQuestionEditor({ job, generalBank }: {
               </div>
               <div className="overflow-x-auto rounded-xl border border-[var(--color-border-default)]">
                 <table className="w-full min-w-[600px] text-left text-xs">
-                  <thead className="bg-[var(--color-surface-container-low)] text-[var(--color-on-surface-variant)]"><tr><th className="p-3">STT</th><th className="p-3">Nội dung câu hỏi</th><th className="p-3">Loại</th><th className="p-3">Điểm</th><th className="p-3">Độ khó</th><th className="p-3">Kỹ năng</th></tr></thead>
+                  <thead className="bg-[var(--color-surface-container-low)] text-[var(--color-on-surface-variant)]"><tr><th className="p-3">STT</th><th className="p-3">Nội dung câu hỏi</th><th className="p-3">Loại</th><th className="p-3">Độ khó</th><th className="p-3">Kỹ năng</th></tr></thead>
                   <tbody>{questions.map((question, index) => isSubjectiveKind(question.kind) && <tr key={question.id} className={cn("border-t border-[var(--color-border-default)]", selectedIndex === index && "bg-[var(--color-primary-subtle)]")}>
-                    <td className="p-3 font-mono">{index + 1}</td><td className="max-w-md p-3"><button type="button" aria-pressed={selectedIndex === index} className="w-full truncate text-left font-semibold text-[var(--color-primary)] focus-visible:outline focus-visible:outline-2" onClick={() => setSelectedIndex(index)}>{question.content || "Câu hỏi chưa có nội dung"}</button></td><td className="p-3">{typeMeta(question.kind).label}</td><td className="p-3">{question.score}</td><td className="p-3">{question.difficulty || "—"}</td><td className="p-3">{question.skill || "—"}</td>
+                    <td className="p-3 font-mono">{index + 1}</td><td className="max-w-md p-3"><button type="button" aria-pressed={selectedIndex === index} className="w-full truncate text-left font-semibold text-[var(--color-primary)] focus-visible:outline focus-visible:outline-2" onClick={() => setSelectedIndex(index)}>{question.content || "Câu hỏi chưa có nội dung"}</button></td><td className="p-3">{typeMeta(question.kind).label}</td><td className="p-3">{question.difficulty || "—"}</td><td className="p-3">{question.skill || "—"}</td>
                   </tr>)}</tbody>
                 </table>
                 {counts.subjective === 0 && <p className="p-6 text-center text-sm text-[var(--color-on-surface-variant)]">Chưa có câu hỏi. Chọn loại câu phía trên để bắt đầu biên soạn.</p>}
               </div>
-              {selectedQuestion && isSubjectiveKind(selectedQuestion.kind) && <div className="flex flex-wrap gap-2" aria-label="Loại câu đang soạn">
-                {QUESTION_TYPE_OPTIONS.filter(option => option.group === "subjective").map(option => <Button key={option.value} variant={selectedQuestion.kind === option.value ? "primary" : "secondary"} aria-pressed={selectedQuestion.kind === option.value} onClick={() => changeKind(selectedIndex, option.value)}>{option.label}</Button>)}
-              </div>}
             </section>}
             {typeFilter === "SUBJECTIVE" && selectedQuestion && isSubjectiveKind(selectedQuestion.kind) && (
               <div className="border-t border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-4 sm:p-8">
@@ -2030,17 +2139,28 @@ export function ExcelQuestionEditor({ job, generalBank }: {
                       {selectedQuestion.kind === "TU_LUAN_CODE" ? "Form tự luận code" : "Form tự luận lý thuyết"}
                     </span>
                     <div>
-                      <h2 className="text-base font-semibold text-[var(--color-on-surface)]">{selectedQuestion.kind === "TU_LUAN_CODE" ? "Biên soạn bài lập trình" : "Biên soạn câu hỏi lý thuyết & tình huống"}</h2>
+                      <h2 className="text-base font-semibold text-[var(--color-on-surface)]">
+                        {selectedQuestion.kind === "TU_LUAN_CODE" ? "Biên soạn bài lập trình" : "Biên soạn câu hỏi lý thuyết & tình huống"}
+                      </h2>
                       <p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">Thiết lập nội dung, hướng dẫn trả lời và tiêu chuẩn chấm điểm.</p>
                     </div>
                   </div>
-                  <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                  <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                    <label className="flex items-center gap-1.5 rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-container-low)] px-2.5 py-1 text-xs">
+                      <span className="text-[var(--color-on-surface-variant)]">Đổi loại câu:</span>
+                      <select
+                        aria-label="Thay đổi loại câu hỏi"
+                        value={selectedQuestion.kind}
+                        onChange={(e) => changeKind(selectedIndex, e.target.value as QuestionKind)}
+                        className="rounded bg-transparent font-semibold text-[var(--color-primary)] outline-none cursor-pointer"
+                      >
+                        <option value="TINH_HUONG_SYSTEM">Tự luận lý thuyết</option>
+                        <option value="TU_LUAN_CODE">Tự luận code</option>
+                      </select>
+                    </label>
                     <span className="inline-flex items-center gap-1 rounded-full bg-[var(--color-surface-card)] px-2 py-0.5 ring-1 ring-[var(--color-border-default)]">
                       <Clock3 className="size-3" aria-hidden="true" />
                       {selectedQuestion.timeLimit || "--"}
-                    </span>
-                    <span className="rounded-full bg-[var(--color-surface-card)] px-2 py-0.5 font-mono font-semibold text-[var(--color-primary)] ring-1 ring-[var(--color-border-default)]">
-                      {selectedQuestion.score || "0"} điểm
                     </span>
                   </div>
                 </div>
@@ -2049,14 +2169,22 @@ export function ExcelQuestionEditor({ job, generalBank }: {
                   <div className="min-w-0 flex flex-col gap-4 rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-4 sm:p-5">
                     <div className="flex items-center gap-3 border-b border-[var(--color-border-default)] pb-4">
                       <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[var(--color-primary-soft)] text-sm font-semibold text-[var(--color-primary)]">01</span>
-                      <div><h3 className="text-sm font-semibold">Nội dung & tiêu chuẩn đánh giá</h3><p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">Thông tin câu hỏi và mô tả từng mức điểm.</p></div>
+                      <div>
+                        <h3 className="text-sm font-semibold">
+                          {selectedQuestion.kind === "TU_LUAN_CODE" ? "Thông tin bài toán lập trình" : "Đề bài & Thông tin câu hỏi"}
+                        </h3>
+                        <p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">
+                          {selectedQuestion.kind === "TU_LUAN_CODE" ? "Nội dung bài toán, kỹ năng và mức độ khó." : "Đề bài, kỹ năng kiểm tra và mức độ khó."}
+                        </p>
+                      </div>
                     </div>
                     <label className="flex flex-col gap-1">
-                      <span className="text-[11px] font-semibold text-[var(--color-on-surface-variant)]">Đề bài</span>
+                      <span className="text-[11px] font-semibold text-[var(--color-on-surface-variant)]">Đề bài (Markdown)</span>
                       <textarea
                         value={selectedQuestion.content}
                         onChange={(event) => patchQuestion(selectedIndex, { content: event.target.value })}
-                        rows={3}
+                        rows={4}
+                        placeholder={selectedQuestion.kind === "TU_LUAN_CODE" ? "Mô tả bài toán, yêu cầu input/output và ràng buộc..." : "Nhập câu hỏi tự luận hoặc tình huống cần phân tích..."}
                         className="resize-y rounded-md border border-[var(--color-border-default)] bg-[var(--color-surface-container-low)] px-2.5 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
                       />
                     </label>
@@ -2066,108 +2194,203 @@ export function ExcelQuestionEditor({ job, generalBank }: {
                         <input
                           value={selectedQuestion.skill}
                           onChange={(event) => patchQuestion(selectedIndex, { skill: event.target.value })}
+                          placeholder="Ví dụ: Java, SQL, System Design"
                           className="h-8 rounded-md border border-[var(--color-border-default)] bg-[var(--color-surface-container-low)] px-2 text-xs outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
                         />
                       </label>
                       <label className="flex flex-col gap-1">
-                        <span className="text-[11px] font-semibold text-[var(--color-on-surface-variant)]">Ngôn ngữ</span>
-                        <input
-                          value={selectedQuestion.language}
-                          readOnly={selectedQuestion.kind === "TU_LUAN_CODE"}
-                          onChange={(event) => patchQuestion(selectedIndex, { language: event.target.value })}
+                        <span className="text-[11px] font-semibold text-[var(--color-on-surface-variant)]">Độ khó</span>
+                        <select
+                          value={selectedQuestion.difficulty}
+                          onChange={event => patchQuestion(selectedIndex, { difficulty: event.target.value, difficultyTone: toneFromDifficulty(event.target.value) })}
                           className="h-8 rounded-md border border-[var(--color-border-default)] bg-[var(--color-surface-container-low)] px-2 text-xs outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
-                        />
+                        >
+                          <option value="">Chọn độ khó</option>
+                          <option value="Easy">Dễ (Easy)</option>
+                          <option value="Medium">Trung bình (Medium)</option>
+                          <option value="Hard">Khó (Hard)</option>
+                        </select>
                       </label>
                     </div>
-                    <div className="space-y-3">
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <label className="text-xs">Điểm<input type="number" min="0.1" step="0.1" value={selectedQuestion.score} onChange={event => patchQuestion(selectedIndex, { score: event.target.value })} className="mt-1 w-full rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-2" /></label>
-                        <label className="text-xs">Độ khó<select value={selectedQuestion.difficulty} onChange={event => patchQuestion(selectedIndex, { difficulty: event.target.value, difficultyTone: toneFromDifficulty(event.target.value) })} className="mt-1 w-full rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-2"><option value="">Chọn độ khó</option><option value="Easy">Dễ</option><option value="Medium">Trung bình</option><option value="Hard">Khó</option></select></label>
-                      </div>
-                      <p className="text-[11px] font-semibold text-[var(--color-on-surface-variant)]">Rubric 3 mức</p>
-                      {selectedQuestion.rubric.map((item, index) => (
-                        <label key={item.level} className={cn("block space-y-2 rounded-xl border border-l-4 p-3", index === 0 ? "border-[var(--color-interview-passed)] bg-[var(--color-interview-passed-bg)]" : index === 1 ? "border-[var(--color-primary)] bg-[var(--color-primary-subtle)]" : "border-[var(--color-error)] bg-[var(--color-error-container)]")}>
-                          <span className="flex items-center justify-between gap-2 text-xs font-semibold">
-                            <span>{["Xuất sắc · 9–10 điểm", "Đạt · 6–8 điểm", "Chưa đạt · 0–5 điểm"][index]}</span>
-                            <span className="text-[var(--color-on-surface-variant)]">Mức {index + 1}</span>
+
+                    <p className="mt-1 text-[11px] italic text-[var(--color-on-surface-variant)]">
+                      * Điểm số và tỷ trọng chấm của câu hỏi sẽ được thiết lập tự động trong mục <strong>Cấu hình bài tập</strong>.
+                    </p>
+                  </div>
+
+                  <div className="min-w-0 flex flex-col gap-4">
+                    {selectedQuestion.kind === "TU_LUAN_CODE" ? (
+                      <CodingStarterFields
+                        value={codingAuthoringValue(
+                          selectedQuestion.codingJsonText,
+                          selectedQuestion.language || selectedQuestion.skill,
+                          selectedQuestion.snippet,
+                          job?.skills
+                        )}
+                        onChange={value => patchQuestion(selectedIndex, { codingJsonText: value })}
+                        jobSkills={job?.skills}
+                        questionSkill={selectedQuestion.skill}
+                      />
+                    ) : (
+                      <div className="flex flex-col gap-3 rounded-2xl border border-slate-700 bg-[#0f172a] p-4 text-slate-100">
+                        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-700 pb-3">
+                          <div>
+                            <p className="flex items-center gap-2 text-xs font-semibold text-slate-200">
+                              <Code2 className="size-4 shrink-0" aria-hidden="true" />
+                              Gợi ý dàn ý / Khung trả lời cho ứng viên (Tuỳ chọn)
+                            </p>
+                            <p className="mt-0.5 text-[11px] text-slate-400">Hiển thị sẵn trong khung làm bài của ứng viên để định hướng cách trả lời.</p>
+                          </div>
+                          <span className="rounded bg-slate-700 px-1.5 py-0.5 font-mono text-[10px] text-emerald-300">
+                            Markdown
                           </span>
+                        </div>
                         <textarea
-                          value={item.text}
-                          onChange={(event) =>
-                            patchQuestion(selectedIndex, {
-                              rubric: selectedQuestion.rubric.map((rubricItem) =>
-                                rubricItem.level === item.level ? { ...rubricItem, text: event.target.value } : rubricItem,
-                              ),
-                            })
-                          }
-                          rows={2}
-                          className="w-full resize-y rounded-lg border border-[var(--color-border-default)] bg-[var(--color-surface-card)] px-3 py-2 text-sm leading-relaxed outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+                          aria-label="Khung gợi ý dàn ý cho ứng viên"
+                          value={selectedQuestion.snippet}
+                          onChange={(event) => patchQuestion(selectedIndex, { snippet: event.target.value })}
+                          rows={6}
+                          spellCheck={false}
+                          placeholder={"Ví dụ định hướng cho ứng viên:\n1. Khái niệm & Nguyên lý cốt lõi...\n2. Phân tích ưu nhược điểm & Sự đánh đổi (Trade-offs)...\n3. Giải pháp thực tế & Xử lý tình huống..."}
+                          className="min-h-36 flex-1 resize-y rounded-md border border-slate-700 bg-[#020617] px-3 py-2 font-mono text-[12px] leading-relaxed text-emerald-200 outline-none placeholder:text-slate-500 focus:ring-2 focus:ring-emerald-500/60"
                         />
-                        </label>
-                      ))}
+                      </div>
+                    )}
+
+                    <div className="flex flex-1 flex-col gap-3 rounded-2xl border border-slate-700 bg-[#0f172a] p-4">
+                      <div className="border-b border-slate-700 pb-3">
+                        <span className="flex items-center gap-2 text-xs font-semibold text-slate-200">
+                          <ShieldCheck className="size-4 shrink-0 text-emerald-400" aria-hidden="true" />
+                          {selectedQuestion.kind === "TU_LUAN_CODE" ? "Lời giải mẫu chuẩn (Model Solution) *" : "Đáp án tham khảo chuẩn (Reference Answer) *"}
+                        </span>
+                        <p className="mt-0.5 text-[11px] text-slate-400">
+                          {selectedQuestion.kind === "TU_LUAN_CODE"
+                            ? "Bắt buộc — Lời giải chuẩn để chạy kiểm thử với bộ testcase qua Sandbox (ẩn với ứng viên)."
+                            : "Bắt buộc — Văn bản đối chiếu chuẩn để AI và người chấm đối chiếu ngữ nghĩa (ẩn với ứng viên)."}
+                        </p>
+                      </div>
+                      {selectedQuestion.kind === "TU_LUAN_CODE" ? (
+                        <MonacoCodeEditor
+                          height="200px"
+                          language={selectedQuestion.language || "java"}
+                          value={selectedQuestion.sample}
+                          onChange={(val) => patchQuestion(selectedIndex, { sample: val })}
+                          placeholder="// Dán code lời giải hoàn chỉnh bằng ngôn ngữ chính để verify test cases..."
+                        />
+                      ) : (
+                        <textarea
+                          value={selectedQuestion.sample}
+                          onChange={(event) => patchQuestion(selectedIndex, { sample: event.target.value })}
+                          onPaste={(event) => {
+                            const text = event.clipboardData.getData("text/plain");
+                            if (!isSampleAnswerOnlyLine(text) && !/^(?:đáp\s*án\s*mẫu|sample)/i.test(text.trim())) return;
+                            event.preventDefault();
+                            patchQuestion(selectedIndex, { sample: stripSamplePrefix(text) });
+                            setCapacityNote("Đã dán đáp án mẫu.");
+                          }}
+                          rows={5}
+                          placeholder="Nhập nội dung câu trả lời chuẩn mực cần đạt..."
+                          className="min-h-36 flex-1 resize-y rounded-lg border border-slate-700 bg-[#020617] px-3 py-2 font-mono text-[12px] text-slate-200 outline-none placeholder:text-slate-500 focus:ring-2 focus:ring-emerald-500/60"
+                        />
+                      )}
                     </div>
                   </div>
-                  <div className="min-w-0 flex flex-col gap-4">
-                    {selectedQuestion.kind === "TU_LUAN_CODE" ? <CodingStarterFields
+                </div>
+
+                {selectedQuestion.kind === "TU_LUAN_CODE" ? (
+                  <div className="mt-6 border-t border-[var(--color-border-default)] pt-6">
+                    <div className="mb-5 flex items-center gap-3">
+                      <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[var(--color-primary-soft)] text-sm font-semibold text-[var(--color-primary)]">02</span>
+                      <div>
+                        <h3 className="text-sm font-semibold">Cấu hình thực thi & Bộ kiểm thử (Test cases)</h3>
+                        <p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">Thiết lập input/output và chương trình kiểm thử Sandbox. Điểm số và tỷ trọng Sandbox / AI Review được thiết lập tự động trong Cấu hình bài tập.</p>
+                      </div>
+                    </div>
+                    <QuestionContentFields
+                      type="CODING"
+                      executionOnly
                       value={codingAuthoringValue(selectedQuestion.codingJsonText, selectedQuestion.language, selectedQuestion.snippet)}
                       onChange={value => patchQuestion(selectedIndex, { codingJsonText: value })}
-                    /> :
-                    <div className="flex flex-col gap-3 rounded-2xl border border-slate-700 bg-[#0f172a] p-4 text-slate-100">
-                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-700 pb-3">
-                      <p className="flex items-center gap-2 text-xs font-semibold text-slate-200">
-                        <Code2 className="size-4 shrink-0" aria-hidden="true" />
-                        Khung lý thuyết (tuỳ chọn — có thể để trống)
-                      </p>
-                      <span className="rounded bg-slate-700 px-1.5 py-0.5 font-mono text-[10px] text-emerald-300">
-                        {selectedQuestion.language || "Theory"}
-                      </span>
-                    </div>
-                    <textarea
-                      aria-label="Khung lý thuyết cho ứng viên"
-                      value={selectedQuestion.snippet}
-                      onChange={(event) => patchQuestion(selectedIndex, { snippet: event.target.value })}
-                      rows={9}
-                      spellCheck={false}
-                      placeholder="Không bắt buộc — gợi ý khung trả lời cho ứng viên (có thể để trống)"
-                      className="min-h-48 flex-1 resize-y rounded-md border border-slate-700 bg-[#020617] px-3 py-2 font-mono text-[12px] leading-relaxed text-emerald-200 outline-none placeholder:text-slate-500 focus:ring-2 focus:ring-emerald-500/60"
                     />
-                    <p className="text-xs text-slate-400">Khung gợi ý hiển thị cho ứng viên khi làm bài. Có thể để trống.</p>
-                    </div>}
-                    <label className="flex flex-1 flex-col gap-3 rounded-2xl border border-slate-700 bg-[#0f172a] p-4">
-                      <span className="flex items-center gap-2 border-b border-slate-700 pb-3 text-xs font-semibold text-slate-200">
-                        <ShieldCheck className="size-4 shrink-0" aria-hidden="true" />
-                        Đáp án mẫu * (đáp án chính để so sánh — ẩn với ứng viên)
-                      </span>
-                      <textarea
-                        value={selectedQuestion.sample}
-                        onChange={(event) => patchQuestion(selectedIndex, { sample: event.target.value })}
-                        onPaste={(event) => {
-                          const text = event.clipboardData.getData("text/plain");
-                          if (!isSampleAnswerOnlyLine(text) && !/^(?:đáp\s*án\s*mẫu|sample)/i.test(text.trim())) return;
-                          event.preventDefault();
-                          patchQuestion(selectedIndex, { sample: stripSamplePrefix(text) });
-                          setCapacityNote("Đã dán đáp án mẫu.");
-                        }}
-                        rows={3}
-                        placeholder="Bắt buộc — đáp án chuẩn do recruiter đưa ra để đối chiếu khi chấm"
-                        className="min-h-40 flex-1 resize-y rounded-lg border border-slate-700 bg-[#020617] px-3 py-2 text-[11px] text-slate-200 outline-none placeholder:text-slate-500 focus:ring-2 focus:ring-emerald-500/60"
+                    <div className="mt-4">
+                      <CodingTestVerification
+                        value={codingAuthoringValue(selectedQuestion.codingJsonText, selectedQuestion.language, selectedQuestion.snippet)}
+                        solution={selectedQuestion.sample}
                       />
-                    </label>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-6 border-t border-[var(--color-border-default)] pt-6">
+                    <div className="mb-5 flex items-center gap-3">
+                      <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[var(--color-primary-soft)] text-sm font-semibold text-[var(--color-primary)]">
+                        02
+                      </span>
+                      <div>
+                        <h3 className="text-sm font-semibold">
+                          Cấu hình tiêu chí & Mẫu Rubric AI (Rubric Archetypes)
+                        </h3>
+                        <p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">
+                          Chọn mẫu tiêu chuẩn phù hợp với loại câu hỏi để tự động thiết lập các tiêu chí đối chiếu ngữ nghĩa và tỷ trọng chấm của AI.
+                        </p>
+                      </div>
+                    </div>
+                    <AiRubricCriteriaEditor
+                      value={
+                        selectedQuestion.rubricJsonText ||
+                        JSON.stringify(
+                          {
+                            category: "ESSAY_CONCEPTUAL",
+                            referenceAnswer: selectedQuestion.sample,
+                            criteria: ESSAY_ARCHETYPES.ESSAY_CONCEPTUAL.criteria.map((c) => ({ ...c })),
+                          },
+                          null,
+                          2
+                        )
+                      }
+                      referenceAnswer={selectedQuestion.sample}
+                      onChange={(value) => patchQuestion(selectedIndex, { rubricJsonText: value })}
+                    />
+                  </div>
+                )}
+
+                {/* Thanh thao tác nhanh chân Form (Action Footer) */}
+                <div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--color-border-default)] pt-5">
+                  <div className="flex items-center gap-2 text-xs text-[var(--color-on-surface-variant)]">
+                    <CheckCircle2 className="size-4 text-emerald-600" />
+                    <span>Dữ liệu form đang được tự động cập nhật vào <strong>Câu {selectedIndex + 1}</strong> trong bảng danh sách phía trên.</span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={questions.filter(q => isSubjectiveKind(q.kind)).length <= 1}
+                      onClick={() => {
+                        setQuestions(prev => prev.filter((_, idx) => idx !== selectedIndex));
+                        setSelectedIndex(Math.max(0, selectedIndex - 1));
+                      }}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50/50 px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-100 disabled:opacity-30 dark:border-rose-900/40 dark:bg-rose-950/20 dark:text-rose-300"
+                    >
+                      <Trash2 className="size-3.5" />
+                      Xóa câu này
+                    </button>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={handleSaveDraft}
+                    >
+                      <Save className="size-3.5" />
+                      Lưu nội dung bản nháp
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={handleValidate}
+                    >
+                      <CloudUpload className="size-3.5" />
+                      {generalBank ? "Lưu vào ngân hàng câu hỏi" : "Tạo bài đánh giá"}
+                    </Button>
                   </div>
                 </div>
-                {selectedQuestion.kind === "TU_LUAN_CODE" && <div className="mt-6 border-t border-[var(--color-border-default)] pt-6">
-                <div className="mb-5 flex items-center gap-3">
-                  <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[var(--color-primary-soft)] text-sm font-semibold text-[var(--color-primary)]">02</span>
-                  <div><h3 className="text-sm font-semibold">Cấu hình thực thi & bộ kiểm thử</h3><p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">Thiết lập input/output, test công khai / ẩn và cấu hình chạy nâng cao.</p></div>
-                </div>
-                <QuestionContentFields type="CODING" executionOnly
-                  value={codingAuthoringValue(selectedQuestion.codingJsonText, selectedQuestion.language, selectedQuestion.snippet)}
-                  onChange={value => patchQuestion(selectedIndex, { codingJsonText: value })} />
-                <div className="mt-4"><CodingTestVerification
-                  value={codingAuthoringValue(selectedQuestion.codingJsonText, selectedQuestion.language, selectedQuestion.snippet)}
-                  solution={selectedQuestion.sample}
-                /></div>
-                </div>}
               </div>
             )}
           </>
@@ -2237,85 +2460,145 @@ export function ExcelQuestionEditor({ job, generalBank }: {
           </div>
         )}
 
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--color-border-default)] bg-[var(--color-surface-container-low)] px-3 py-1.5 text-[11px] text-[var(--color-on-surface-variant)]">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200/80 bg-slate-50/80 px-3.5 py-2 text-xs text-slate-600 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-400">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center gap-1">
-              <CheckCircle2 className="size-3.5 text-[var(--color-primary)]" aria-hidden="true" />
-              <strong className="text-[var(--color-on-surface)]">
+            <span className="inline-flex items-center gap-1.5 font-medium text-slate-700 dark:text-slate-300">
+              <CheckCircle2 className="size-3.5 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+              <span>
                 {view === "schema"
-                  ? "Schema Data Dictionary"
-                  : capacityNote || "Ctrl+C sao chép · Ctrl+V dán · Ctrl+Z hoàn tác · kéo số dòng để thêm câu"}
-              </strong>
+                  ? "Từ điển dữ liệu Schema cột A–K"
+                  : capacityNote || (savedNote ? "Bản nháp đã lưu tự động" : "Sẵn sàng soạn thảo")}
+              </span>
             </span>
-            <span>
-              {questions.length}/{MAX_QUESTIONS} câu · Đơn {counts.single} · Nhiều {counts.multi} · Tự luận{" "}
-              {counts.subjective}
-            </span>
+            <span className="text-slate-300 dark:text-slate-700">|</span>
+            <div className="hidden items-center gap-2 md:flex">
+              <span className="inline-flex items-center gap-1">
+                <kbd className="rounded border border-slate-200 bg-white px-1.5 py-0.5 font-mono text-[10px] shadow-2xs dark:border-slate-700 dark:bg-slate-800">Ctrl+C</kbd>
+                <span>Sao chép</span>
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <kbd className="rounded border border-slate-200 bg-white px-1.5 py-0.5 font-mono text-[10px] shadow-2xs dark:border-slate-700 dark:bg-slate-800">Ctrl+V</kbd>
+                <span>Dán từ Excel</span>
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <kbd className="rounded border border-slate-200 bg-white px-1.5 py-0.5 font-mono text-[10px] shadow-2xs dark:border-slate-700 dark:bg-slate-800">Ctrl+Z</kbd>
+                <span>Hoàn tác</span>
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <kbd className="rounded border border-slate-200 bg-white px-1.5 py-0.5 font-mono text-[10px] shadow-2xs dark:border-slate-700 dark:bg-slate-800">Kéo STT</kbd>
+                <span>Thêm dòng</span>
+              </span>
+            </div>
           </div>
-          {selectedQuestion && view === "all" && (
-            <span className="text-[11px]">
-              Đang soạn: {typeMeta(selectedQuestion.kind).label}
+
+          <div className="flex items-center gap-3">
+            <span className="font-mono text-[11px]">
+              Tổng: <strong className="text-slate-800 dark:text-slate-200">{questions.length}</strong>/{MAX_QUESTIONS} câu (Đơn: {counts.single} · Nhiều: {counts.multi} · Tự luận: {counts.subjective})
             </span>
-          )}
+            <button
+              type="button"
+              onClick={() => setShowHelpModal(true)}
+              className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-700 dark:text-blue-400"
+            >
+              <HelpCircle className="size-3.5" aria-hidden="true" />
+              Cẩm nang & Phím tắt (?)
+            </button>
+          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
-        <article className="rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-3 shadow-[var(--shadow-card)]">
-          <div className="mb-1.5 flex items-center gap-2">
-            <ListChecks className="size-4 text-[var(--color-primary)]" aria-hidden="true" />
-            <h3 className="text-sm font-semibold">Cách dùng</h3>
+      <DetailDialog
+        open={showHelpModal}
+        onClose={() => setShowHelpModal(false)}
+        title="Cẩm nang biên soạn câu hỏi kiểu Excel"
+        size="wide"
+      >
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <div className="flex flex-col gap-2.5 rounded-2xl border border-slate-200/80 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-900/60">
+            <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
+              <ListChecks className="size-4" aria-hidden="true" />
+              <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Dán dữ liệu từ Excel</h3>
+            </div>
+            <ul className="space-y-2 text-xs text-slate-600 dark:text-slate-300">
+              <li>
+                <strong className="text-slate-800 dark:text-slate-200">Dán trực tiếp:</strong> Dán vào đúng ô đang chọn. Clipboard có ký tự tab hoặc sao chép từ Excel/Google Sheets sẽ tự động phân tách các cột <em>content / type / score / difficulty / skill</em>.
+              </li>
+              <li>
+                <strong className="text-slate-800 dark:text-slate-200">Chuỗi dính liền:</strong> Nếu chuỗi văn bản chứa loại câu (vd: <span className="font-mono text-[11px] text-blue-600 dark:text-blue-400">...Authorization.Tự luận3.0MediumSecurity</span>), hệ thống sẽ tự động tách cột thông minh.
+              </li>
+              <li>
+                <strong className="text-slate-800 dark:text-slate-200">Tự luận & Đáp án mẫu:</strong> Dán thêm dòng chứa <span className="font-mono text-[11px] text-emerald-600 dark:text-emerald-400">Đáp án mẫu: ...</span> để hệ thống tự động đưa vào lời giải chuẩn.
+              </li>
+            </ul>
           </div>
-          <ul className="space-y-1 text-[11px] text-[var(--color-on-surface-variant)]">
-            <li>
-              <strong className="text-[var(--color-on-surface)]">Dán Excel:</strong> dán đúng ô đang chọn. Clipboard
-              có tab/Excel hoặc chuỗi dính liền có type (vd.{" "}
-              <span className="font-mono">…Authorization.Tự luận3.0MediumSecurity</span>) sẽ tách cột content / type /
-              score / difficulty / skill. Option A–D chỉ khi đứng ở cột option/đáp án.
-            </li>
-            <li>
-              <strong className="text-[var(--color-on-surface)]">Tự luận:</strong> dán thêm dòng{" "}
-              <span className="font-mono">Đáp án mẫu: …</span> (cùng lần dán hoặc dán vào ô đáp án mẫu) — hệ thống bỏ
-              tiền tố và ghi vào sample.
-            </li>
-            <li>
-              <strong className="text-[var(--color-on-surface)]">Sao chép:</strong> Ctrl+C sao chép nội dung ô đang chọn
-            </li>
-            <li>
-              <strong className="text-[var(--color-on-surface)]">Hoàn tác:</strong> Ctrl+Z để đảo ngược dán / sửa gần nhất
-            </li>
-            <li>
-              <strong className="text-[var(--color-on-surface)]">Kéo chuột:</strong> giữ kéo cột số dòng xuống để thêm
-              dòng trống
-            </li>
-          </ul>
-        </article>
-        <article className="rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-3 shadow-[var(--shadow-card)]">
-          <div className="mb-1.5 flex items-center gap-2">
-            <Code2 className="size-4 text-[var(--color-secondary)]" aria-hidden="true" />
-            <h3 className="text-sm font-semibold">Rubric 3 mức</h3>
+
+          <div className="flex flex-col gap-2.5 rounded-2xl border border-slate-200/80 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-900/60">
+            <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
+              <Code2 className="size-4" aria-hidden="true" />
+              <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Tiêu chuẩn Rubric 3 mức</h3>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-white p-2.5 font-mono text-[11px] leading-relaxed text-slate-800 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200">
+              [Xuất sắc 9-10đ] · [Đạt 6-8đ] · [Chưa đạt 0-5đ]
+            </div>
+            <ul className="space-y-1.5 text-xs text-slate-600 dark:text-slate-300">
+              <li>
+                <strong className="text-emerald-700 dark:text-emerald-300">Xuất sắc:</strong> Trả lời toàn diện, chuẩn kiến trúc, giải quyết triệt để vấn đề và xử lý corner-case.
+              </li>
+              <li>
+                <strong className="text-amber-700 dark:text-amber-300">Đạt:</strong> Nắm vững nguyên lý cốt lõi, giải pháp khả thi, có thể thiếu sót nhỏ.
+              </li>
+              <li>
+                <strong className="text-rose-700 dark:text-rose-300">Chưa đạt:</strong> Sai lệch nguyên lý cơ bản, chưa hoàn thiện giải pháp.
+              </li>
+            </ul>
           </div>
-          <p className="rounded bg-[var(--color-surface-container-low)] p-2 font-mono text-[10px] leading-relaxed">
-            [Xuất sắc 9-10đ] · [Đạt 6-8đ] · [Chưa đạt 0-5đ]
-          </p>
-        </article>
-        <article className="rounded-[var(--radius-md)] border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-3 shadow-[var(--shadow-card)]">
-          <div className="mb-1.5 flex items-center gap-2">
-            <ShieldCheck className="size-4 text-[#005a82]" aria-hidden="true" />
-            <h3 className="text-sm font-semibold">AI kiểm tra</h3>
+
+          <div className="flex flex-col gap-2.5 rounded-2xl border border-slate-200/80 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-900/60">
+            <div className="flex items-center gap-2 text-purple-600 dark:text-purple-400">
+              <ShieldCheck className="size-4" aria-hidden="true" />
+              <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">AI Tự động Kiểm tra</h3>
+            </div>
+            <ul className="space-y-2 text-xs text-slate-600 dark:text-slate-300">
+              <li className="flex items-start gap-1.5">
+                <Check className="mt-0.5 size-3.5 shrink-0 text-emerald-500" aria-hidden="true" />
+                <span>Phát hiện và cảnh báo đáp án trắc nghiệm rỗng hoặc sai cú pháp quy định.</span>
+              </li>
+              <li className="flex items-start gap-1.5">
+                <Check className="mt-0.5 size-3.5 shrink-0 text-emerald-500" aria-hidden="true" />
+                <span>Cảnh báo câu hỏi tự luận thiếu tiêu chí rubric hoặc thiếu lời giải mẫu đối chiếu.</span>
+              </li>
+              <li className="flex items-start gap-1.5">
+                <Check className="mt-0.5 size-3.5 shrink-0 text-emerald-500" aria-hidden="true" />
+                <span>Kiểm tra cú pháp code và bộ test cases sandbox trước khi xuất bản bài test.</span>
+              </li>
+            </ul>
           </div>
-          <ul className="space-y-1 text-[11px] text-[var(--color-on-surface-variant)]">
-            <li className="flex items-center gap-1">
-              <Check className="size-3 text-emerald-500" aria-hidden="true" />
-              Đáp án rỗng / sai regex
-            </li>
-            <li className="flex items-center gap-1">
-              <Check className="size-3 text-emerald-500" aria-hidden="true" />
-              Rubric tự luận thiếu tiêu chí
-            </li>
-          </ul>
-        </article>
-      </div>
+        </div>
+
+        <div className="mt-4 rounded-2xl border border-slate-200/80 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-900/60">
+          <h4 className="mb-2.5 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            Bảng phím tắt thao tác nhanh
+          </h4>
+          <div className="grid grid-cols-2 gap-2.5 text-xs sm:grid-cols-4">
+            <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 dark:border-slate-700 dark:bg-slate-900">
+              <span className="text-slate-600 dark:text-slate-300">Sao chép ô</span>
+              <kbd className="rounded border border-slate-200 bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] font-semibold dark:border-slate-700 dark:bg-slate-800">Ctrl+C</kbd>
+            </div>
+            <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 dark:border-slate-700 dark:bg-slate-900">
+              <span className="text-slate-600 dark:text-slate-300">Dán từ Excel</span>
+              <kbd className="rounded border border-slate-200 bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] font-semibold dark:border-slate-700 dark:bg-slate-800">Ctrl+V</kbd>
+            </div>
+            <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 dark:border-slate-700 dark:bg-slate-900">
+              <span className="text-slate-600 dark:text-slate-300">Hoàn tác</span>
+              <kbd className="rounded border border-slate-200 bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] font-semibold dark:border-slate-700 dark:bg-slate-800">Ctrl+Z</kbd>
+            </div>
+            <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 dark:border-slate-700 dark:bg-slate-900">
+              <span className="text-slate-600 dark:text-slate-300">Kéo STT thêm dòng</span>
+              <kbd className="rounded border border-slate-200 bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] font-semibold dark:border-slate-700 dark:bg-slate-800">Kéo chuột</kbd>
+            </div>
+          </div>
+        </div>
+      </DetailDialog>
     </section>
   );
 }

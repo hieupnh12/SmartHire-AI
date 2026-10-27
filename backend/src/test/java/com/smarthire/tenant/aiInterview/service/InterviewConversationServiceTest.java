@@ -230,7 +230,7 @@ class InterviewConversationServiceTest {
             String instruction = call.getArgument(0);
             assertThat(instruction).contains("Early conversation:", "ONE simple concrete question")
                     .doesNotContain("Opening:", "Main conversation:");
-            @SuppressWarnings("unchecked") List<InterviewConversationClient.Message> prompt = call.getArgument(1);
+            List<InterviewConversationClient.Message> prompt = call.getArgument(1);
             assertThat(prompt).extracting(InterviewConversationClient.Message::content).contains("How would you design an API?", "I use REST");
             return "What trade-offs would you consider?";
         });

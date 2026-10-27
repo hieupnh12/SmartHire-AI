@@ -2,6 +2,7 @@ package com.smarthire.tenant.assessment.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.smarthire.domain.tenant.entity.User;
+import com.smarthire.domain.tenant.repository.QuestionRepository;
 import com.smarthire.tenant.assessment.dto.request.CodingRequest;
 import com.smarthire.tenant.assessment.dto.request.CodingVerificationRequest;
 import com.smarthire.tenant.cv.service.CvAccess;
@@ -15,7 +16,8 @@ class CodingVerificationServiceTest {
     final ObjectMapper json = new ObjectMapper();
     final CvAccess access = mock(CvAccess.class);
     final CodingJudge judge = mock(CodingJudge.class);
-    final CodingVerificationService service = new CodingVerificationService(access, judge);
+    final QuestionRepository questions = mock(QuestionRepository.class);
+    final CodingVerificationService service = new CodingVerificationService(access, judge, questions);
 
     CodingRequest coding(int secondWeight) throws Exception {
         return new CodingRequest("CODING_ALGORITHM", 2000, 256, json.readTree("{\"cpp\":\"\"}"),

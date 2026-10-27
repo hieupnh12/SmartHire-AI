@@ -1,45 +1,63 @@
 import { useRecruitmentJob } from "../../jobs/components/JobRecruitmentWorkspace";
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
-  Archive,
-  ArrowUpRight,
-  CheckCircle2,
+  Check,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
   ClipboardList,
   Clock3,
+  Copy,
+  Download,
   Edit3,
   Eye,
-  FileEdit,
-  Lightbulb,
+  FileSpreadsheet,
+  Loader2,
+  MoreVertical,
   Plus,
   Search,
-  Target,
+  Settings2,
   Users,
+  X,
 } from "lucide-react";
 import { assessmentApi } from "@/api/tenant/assessmentApi";
-import type { JobTest, TestStatus } from "@/api/types/assessment";
+import type { JobTest, TestOrigin, TestStatus } from "@/api/types/assessment";
 import { AssessmentError, assessmentStatus } from "@/components/ux/assessmentUi";
-import { Button } from "@/components/ux/Button";
+import { AssessmentSubNav } from "../components/AssessmentSubNav";
+import { TableSkeleton } from "@/components/ux/Skeleton";
+import { Tooltip } from "@/components/ux/Tooltip";
+import { toast } from "@/stores/toastStore";
 import { shortAssessmentTitle } from "@/lib/assessmentTitle";
 import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
 
-type StatusTab = "ALL" | TestStatus;
 type SortKey = "latest" | "title" | "duration";
+type StatusFilter = "ALL" | TestStatus;
 
-const PAGE_SIZE = 5;
+const PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
 
-const tabs: { id: StatusTab; label: string }[] = [
-  { id: "ALL", label: "Tất cả bài thi" },
-  { id: "PUBLISHED", label: "Đã xuất bản" },
-  { id: "DRAFT", label: "Bản nháp" },
-  { id: "ARCHIVED", label: "Lưu trữ" },
-];
+function getPaginationItems(current: number, total: number): (number | "ellipsis-start" | "ellipsis-end")[] {
+  if (total <= 7) {
+    return Array.from({ length: total }, (_, i) => i + 1);
+  }
+
+  const showStartEllipsis = current > 4;
+  const showEndEllipsis = current < total - 3;
+
+  if (!showStartEllipsis && showEndEllipsis) {
+    return [1, 2, 3, 4, 5, "ellipsis-end", total];
+  }
+
+  if (showStartEllipsis && !showEndEllipsis) {
+    return [1, "ellipsis-start", total - 4, total - 3, total - 2, total - 1, total];
+  }
+
+  return [1, "ellipsis-start", current - 1, current, current + 1, "ellipsis-end", total];
+}
 
 function formatRelative(iso: string) {
   const diff = Date.now() - new Date(iso).getTime();
@@ -65,6 +83,22 @@ function statusTone(status: TestStatus) {
   return "bg-[var(--color-surface-container)] text-[var(--color-on-surface-variant)]";
 }
 
+function OriginBadge({ origin }: { origin?: TestOrigin }) {
+  const ai = origin === "GENERATED";
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none",
+        ai
+          ? "bg-violet-50 text-violet-700 dark:bg-violet-950 dark:text-violet-300"
+          : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300",
+      )}
+    >
+      {ai ? "AI" : "Thường"}
+    </span>
+  );
+}
+
 function StatusBadge({ status }: { status: TestStatus }) {
   return (
     <span className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold", statusTone(status))}>
@@ -81,99 +115,94 @@ function StatusBadge({ status }: { status: TestStatus }) {
   );
 }
 
-function MetricCard({
-  label,
-  value,
-  unit,
-  icon: Icon,
-  footer,
-  tone = "primary",
-}: {
-  label: string;
-  value: number;
-  unit: string;
-  icon: typeof ClipboardList;
-  footer: ReactNode;
-  tone?: "primary" | "success" | "warning" | "muted";
-}) {
-  const tones = {
-    primary: {
-      value: "text-[var(--color-on-surface)]",
-      iconWrap: "bg-[var(--color-primary-soft)] text-[var(--color-primary)]",
-      blob: "bg-[var(--color-surface-container-low)]",
-    },
-    success: {
-      value: "text-emerald-700",
-      iconWrap: "bg-emerald-50 text-emerald-700",
-      blob: "bg-emerald-50",
-    },
-    warning: {
-      value: "text-amber-700",
-      iconWrap: "bg-amber-50 text-amber-700",
-      blob: "bg-amber-50",
-    },
-    muted: {
-      value: "text-[var(--color-on-surface-variant)]",
-      iconWrap: "bg-[var(--color-surface-container)] text-[var(--color-on-surface-variant)]",
-      blob: "bg-[var(--color-surface-container)]",
-    },
-  }[tone];
-
-  return (
-    <div className="group relative flex flex-col justify-between overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-5 shadow-[var(--shadow-card)] transition-shadow hover:shadow-[var(--shadow-ambient)]">
-      <div className={cn("pointer-events-none absolute -right-4 -top-4 size-24 rounded-full opacity-60 transition-transform group-hover:scale-110", tones.blob)} />
-      <div className="relative z-10 flex items-start justify-between gap-3">
-        <div>
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-outline)]">{label}</span>
-          <p className={cn("mt-1 text-3xl font-semibold tracking-tight", tones.value)}>
-            {value.toLocaleString("vi-VN")}{" "}
-            <span className="text-base font-semibold text-[var(--color-on-surface-variant)]">{unit}</span>
-          </p>
-        </div>
-        <div className={cn("grid size-11 place-items-center rounded-xl", tones.iconWrap)}>
-          <Icon className="size-5" aria-hidden="true" />
-        </div>
-      </div>
-      <div className="relative z-10 mt-4 flex items-center justify-between gap-2 text-xs text-[var(--color-on-surface-variant)]">
-        {footer}
-      </div>
-    </div>
-  );
-}
-
 export function AssessmentsPage() {
   const job = useRecruitmentJob();
   const basePath = `/recruiter/jobs/${job.id}/assessments`;
-  const [tab, setTab] = useState<StatusTab>("ALL");
-  const [query, setQuery] = useState("");
-  const jobFilter = job.id;
-  const [sort, setSort] = useState<SortKey>("latest");
-  const [page, setPage] = useState(0);
+  const [params, setParams] = useSearchParams();
+
+  const requestedPage = Math.max(1, parseInt(params.get("page") || "1", 10) || 1);
+  const rawSize = parseInt(params.get("limit") || params.get("size") || "10", 10);
+  const requestedSize = (PAGE_SIZE_OPTIONS as readonly number[]).includes(rawSize) ? rawSize : 10;
+  const requestedQ = params.get("q") ?? "";
+  const requestedSort = (params.get("sort") as SortKey) ?? "latest";
+  const requestedStatus = (params.get("status") as StatusFilter) ?? "ALL";
+  const initialSort: SortKey = ["latest", "title", "duration"].includes(requestedSort) ? requestedSort : "latest";
+  const initialStatus: StatusFilter = ["ALL", "PUBLISHED", "DRAFT", "ARCHIVED"].includes(requestedStatus) ? requestedStatus : "ALL";
+
+  const [page, setPage] = useState(requestedPage);
+  const [pageSize, setPageSize] = useState(requestedSize);
+  const [query, setQuery] = useState(requestedQ);
+  const [sort, setSort] = useState<SortKey>(initialSort);
+  const [status, setStatus] = useState<StatusFilter>(initialStatus);
+  const [jumpVal, setJumpVal] = useState("");
+  const [isTableTransitioning, setIsTableTransitioning] = useState(false);
   const [selected, setSelected] = useState<number[]>([]);
+  const [activeDropdown, setActiveDropdown] = useState<"status" | "sort" | "export" | null>(null);
+
+  // Click outside and escape listeners for floating dropdowns
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest("[data-dropdown-root]")) {
+        setActiveDropdown(null);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setActiveDropdown(null);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, []);
+
+  // Sync state if browser Back/Forward or direct URL query changes
+  useEffect(() => {
+    const p = Math.max(1, parseInt(params.get("page") || "1", 10) || 1);
+    const raw = parseInt(params.get("limit") || params.get("size") || "10", 10);
+    const s = (PAGE_SIZE_OPTIONS as readonly number[]).includes(raw) ? raw : 10;
+    const q = params.get("q") ?? "";
+    const so = (params.get("sort") as SortKey) ?? "latest";
+    const st = (params.get("status") as StatusFilter) ?? "ALL";
+    const srt: SortKey = ["latest", "title", "duration"].includes(so) ? so : "latest";
+    const stat: StatusFilter = ["ALL", "PUBLISHED", "DRAFT", "ARCHIVED"].includes(st) ? st : "ALL";
+
+    if (p !== page) setPage(p);
+    if (s !== pageSize) setPageSize(s);
+    if (q !== query) setQuery(q);
+    if (srt !== sort) setSort(srt);
+    if (stat !== status) setStatus(stat);
+  }, [params]);
 
   const tests = useQuery({
     queryKey: [...queryKeys.assessments.all(), "job", job.id],
-    queryFn: () => assessmentApi.listForJob(job.id),
+    queryFn: () => assessmentApi.listForJob(job.id, { page: 0, size: 100 }),
     refetchInterval: 15000,
   });
   const jobMap = useMemo(() => new Map([[job.id, { title: job.title, department: job.department ?? "" }]]), [job]);
 
   const jobTitle = (jobId: number) => jobMap.get(jobId)?.title ?? `Job #${jobId}`;
 
+  const allTests = useMemo(() => (tests.data?.items ?? []).filter((item) => item.jobId === job.id), [tests.data, job.id]);
+
   const counts = useMemo(() => {
-    const items = tests.data?.items ?? [];
     return {
-      all: tests.data?.total ?? items.length,
-      published: items.filter((item) => item.status === "PUBLISHED").length,
-      draft: items.filter((item) => item.status === "DRAFT").length,
-      archived: items.filter((item) => item.status === "ARCHIVED").length,
+      ALL: allTests.length,
+      PUBLISHED: allTests.filter((t) => t.status === "PUBLISHED").length,
+      DRAFT: allTests.filter((t) => t.status === "DRAFT").length,
+      ARCHIVED: allTests.filter((t) => t.status === "ARCHIVED").length,
     };
-  }, [tests.data]);
+  }, [allTests]);
 
   const filtered = useMemo(() => {
-    let rows = [...(tests.data?.items ?? [])];
-    if (tab !== "ALL") rows = rows.filter((item) => item.status === tab);
-    rows = rows.filter((item) => item.jobId === jobFilter);
+    let rows = [...allTests];
+    if (status !== "ALL") {
+      rows = rows.filter((item) => item.status === status);
+    }
     const q = query.trim().toLowerCase();
     if (q) {
       rows = rows.filter(
@@ -189,11 +218,83 @@ export function AssessmentsPage() {
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
     return rows;
-  }, [tests.data, tab, jobFilter, query, sort, jobMap]);
+  }, [allTests, job.id, query, sort, status, jobMap]);
 
-  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const safePage = Math.min(page, pageCount - 1);
-  const pageRows = filtered.slice(safePage * PAGE_SIZE, safePage * PAGE_SIZE + PAGE_SIZE);
+  const totalItems = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const startIndex = (currentPage - 1) * pageSize;
+  const pageRows = useMemo(
+    () => filtered.slice(startIndex, startIndex + pageSize),
+    [filtered, startIndex, pageSize],
+  );
+  const pageItems = useMemo(() => getPaginationItems(currentPage, totalPages), [currentPage, totalPages]);
+
+  const triggerTableTransition = (action: () => void) => {
+    setIsTableTransitioning(true);
+    action();
+    setTimeout(() => {
+      setIsTableTransitioning(false);
+    }, 220);
+  };
+
+  const goToPage = (nextPage: number, nextSize: number = pageSize) => {
+    const calcTotalPages = Math.max(1, Math.ceil(totalItems / nextSize));
+    const target = Math.max(1, Math.min(nextPage, calcTotalPages));
+    triggerTableTransition(() => {
+      setPage(target);
+      if (nextSize !== pageSize) {
+        setPageSize(nextSize);
+      }
+      const nextParams = new URLSearchParams(params);
+      nextParams.set("page", String(target));
+      nextParams.set("limit", String(nextSize));
+      nextParams.delete("size");
+      setParams(nextParams, { replace: true });
+    });
+  };
+
+  const handleQueryChange = (newQ: string) => {
+    setQuery(newQ);
+    const nextParams = new URLSearchParams(params);
+    if (newQ.trim()) nextParams.set("q", newQ.trim());
+    else nextParams.delete("q");
+    nextParams.set("page", "1");
+    nextParams.set("limit", String(pageSize));
+    nextParams.delete("size");
+    setParams(nextParams, { replace: true });
+    setPage(1);
+  };
+
+  const handleSortChange = (newSort: SortKey) => {
+    setSort(newSort);
+    const nextParams = new URLSearchParams(params);
+    if (newSort !== "latest") nextParams.set("sort", newSort);
+    else nextParams.delete("sort");
+    nextParams.set("page", "1");
+    nextParams.set("limit", String(pageSize));
+    nextParams.delete("size");
+    setParams(nextParams, { replace: true });
+    setPage(1);
+  };
+
+  const handleStatusChange = (newStatus: StatusFilter) => {
+    setStatus(newStatus);
+    const nextParams = new URLSearchParams(params);
+    if (newStatus !== "ALL") nextParams.set("status", newStatus);
+    else nextParams.delete("status");
+    nextParams.set("page", "1");
+    nextParams.set("limit", String(pageSize));
+    nextParams.delete("size");
+    setParams(nextParams, { replace: true });
+    setPage(1);
+  };
+
+  useEffect(() => {
+    if (!tests.isFetching && totalItems > 0 && page > totalPages) {
+      goToPage(totalPages);
+    }
+  }, [tests.isFetching, totalItems, page, totalPages]);
 
   const structureQueries = useQueries({
     queries: pageRows.map((test) => ({
@@ -211,226 +312,344 @@ export function AssessmentsPage() {
     setSelected((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
   };
 
-  const activeRate = counts.all ? Math.round((counts.published / Math.max(counts.all, 1)) * 1000) / 10 : 0;
-
-  const jobDistribution = useMemo(() => {
-    const map = new Map<number, number>();
-    for (const item of tests.data?.items ?? []) {
-      map.set(item.jobId, (map.get(item.jobId) ?? 0) + 1);
+  const exportCsv = (rowsToExport: JobTest[]) => {
+    if (rowsToExport.length === 0) {
+      toast.warning("Không có dữ liệu bài đánh giá để xuất");
+      return;
     }
-    const total = Math.max(1, tests.data?.items.length ?? 1);
-    return [...map.entries()]
-      .map(([jobId, count]) => ({ jobId, count, percent: Math.round((count / total) * 100) }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 3);
-  }, [tests.data]);
-
-  const resetPage = () => setPage(0);
+    const headers = ["Mã đề", "Tên bài đánh giá", "Thời lượng (phút)", "Ngưỡng đạt", "Trạng thái", "Người tạo", "Ngày tạo"];
+    const lines = rowsToExport.map((t) => [
+      `ASM-${t.id}`,
+      `"${(t.title ?? "").replace(/"/g, '""')}"`,
+      t.durationMinutes,
+      t.passingScore != null ? t.passingScore : "—",
+      assessmentStatus[t.status] ?? t.status,
+      `"${(t.createdByName ?? "").replace(/"/g, '""')}"`,
+      new Date(t.createdAt).toLocaleDateString("vi-VN"),
+    ]);
+    const csvContent = "\uFEFF" + [headers.join(","), ...lines.map((l) => l.join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `Danh_sach_bai_danh_gia_Job_${job.id}_${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    toast.success("Xuất file CSV thành công", `Đã xuất ${rowsToExport.length} bài đánh giá`);
+  };
 
   return (
-    <section className="flex flex-col gap-8 text-[var(--color-on-surface)]">
-      <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div className="min-w-0">
-          <nav className="flex flex-wrap items-center gap-1 text-xs text-[var(--color-on-surface-variant)]" aria-label="Breadcrumb">
-            <span>Tuyển dụng</span>
-            <span className="text-[var(--color-outline)]">/</span>
-            <span className="font-semibold text-[var(--color-primary)]">Bài đánh giá năng lực</span>
-          </nav>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight">Quản lý bài đánh giá năng lực</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--color-on-surface-variant)]">
-            Cấu hình cấu trúc đề cho vị trí. Hệ thống tự tạo một đề riêng cho từng hồ sơ từ ngân hàng câu hỏi. Thêm câu hỏi ở ngân hàng trước khi bật tạo tự động.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
-          <Link
-            to={`${basePath}/submissions`}
-            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-[var(--color-primary)] bg-[var(--color-primary-subtle)] px-4 text-sm font-semibold text-[var(--color-primary-hover)] transition-colors hover:bg-[var(--color-primary-soft)]"
-          >
-            <Users className="size-4" aria-hidden="true" />
-            Theo dõi bài làm
-          </Link>
-          <Link
-            to={`${basePath}/question-bank`}
-            className="inline-flex min-h-10 items-center justify-center rounded-full border border-[var(--color-primary)] bg-[var(--color-primary-subtle)] px-4 text-sm font-semibold text-[var(--color-primary-hover)] transition-colors hover:bg-[var(--color-primary-soft)]"
-          >
-            Ngân hàng câu hỏi
-          </Link>
-          <Link
-            to={`${basePath}/preview`}
-            className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-[var(--radius-md)] bg-[var(--color-primary)] px-4 text-sm font-semibold text-[var(--color-on-primary)] shadow-sm transition-colors hover:bg-[var(--color-primary-hover)]"
-          >
-            <Eye className="size-4" aria-hidden="true" />
-            Xem mẫu bài thi
-          </Link>
-        </div>
-      </header>
+    <section className="flex flex-col gap-3.5 text-[var(--color-on-surface)]">
+      <AssessmentSubNav jobId={job.id} activeTab="tests" />
 
       <AssessmentError error={tests.error} retry={() => void tests.refetch()} />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard
-          label="Hệ thống bài thi"
-          value={counts.all}
-          unit="bài"
-          icon={ClipboardList}
-          tone="primary"
-          footer={
-            <>
-              <span className="inline-flex items-center gap-1 font-medium text-[var(--color-primary)]">
-                <ArrowUpRight className="size-3.5" aria-hidden="true" />
-                {counts.published} đang xuất bản
-              </span>
-              <span className="text-[var(--color-outline)]">toàn bộ thư viện</span>
-            </>
-          }
-        />
-        <MetricCard
-          label="Đang kích hoạt"
-          value={counts.published}
-          unit="bài"
-          icon={CheckCircle2}
-          tone="success"
-          footer={
-            <>
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-700">
-                <span className="size-1.5 rounded-full bg-emerald-500" />
-                {activeRate}% vận hành
-              </span>
-              <span className="text-[var(--color-outline)]">sẵn sàng thi</span>
-            </>
-          }
-        />
-        <MetricCard
-          label="Bản nháp"
-          value={counts.draft}
-          unit="bài"
-          icon={FileEdit}
-          tone="warning"
-          footer={
-            <>
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2 py-0.5 font-semibold text-amber-800">
-                <span className="size-1.5 rounded-full bg-amber-500" />
-                Chưa xuất bản
-              </span>
-              <span className="text-[var(--color-outline)]">cần hoàn thiện</span>
-            </>
-          }
-        />
-        <MetricCard
-          label="Đã lưu trữ"
-          value={counts.archived}
-          unit="bài"
-          icon={Archive}
-          tone="muted"
-          footer={
-            <>
-              <span className="font-medium text-[var(--color-on-surface-variant)]">Không còn giao thi</span>
-              <span className="text-[var(--color-outline)]">lưu để tra cứu</span>
-            </>
-          }
-        />
-      </div>
-
-      <div className="flex flex-col items-start justify-between gap-4 rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-gradient-to-r from-[var(--color-surface-container-low)] via-[var(--color-surface-card)] to-[var(--color-surface-container-low)] p-5 shadow-[var(--shadow-card)] lg:flex-row lg:items-center">
-        <div className="flex items-start gap-4">
-          <div className="grid size-12 shrink-0 place-items-center rounded-xl bg-[var(--color-primary)] text-[var(--color-on-primary)] shadow-sm">
-            <Lightbulb className="size-6" aria-hidden="true" />
-          </div>
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-base font-semibold">Hai cách tạo bài đánh giá</h2>
-              <span className="rounded-full bg-[var(--color-primary-soft)] px-2 py-0.5 text-[11px] font-semibold text-[var(--color-primary-hover)]">
-                Thủ công / Tự động
-              </span>
-            </div>
-            <p className="mt-1 max-w-2xl text-sm leading-6 text-[var(--color-on-surface-variant)]">
-              Soạn câu hỏi thủ công hoặc cấu hình cấu trúc để tạo đề từ ngân hàng câu hỏi. Có thể bật tự động tạo đề riêng cho ứng viên sau khi vượt vòng lọc CV.
-            </p>
-          </div>
-        </div>
-        <Link
-          to={`${basePath}/new`}
-          className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg bg-[var(--color-primary)] px-4 text-sm font-semibold text-[var(--color-on-primary)] shadow-sm hover:bg-[var(--color-primary-hover)]"
-        >
-          <Plus className="size-4" aria-hidden="true" />
-          Bắt đầu tạo đề
-        </Link>
-      </div>
-
-      <div className="flex flex-col gap-4 rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-4 shadow-[var(--shadow-card)]">
-        <div className="flex flex-wrap items-center gap-1 rounded-xl bg-[var(--color-surface-container-low)]/80 p-1">
-          {tabs.map((item) => {
-            const count =
-              item.id === "ALL" ? counts.all : item.id === "PUBLISHED" ? counts.published : item.id === "DRAFT" ? counts.draft : counts.archived;
-            const active = tab === item.id;
-            return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => {
-                  setTab(item.id);
-                  resetPage();
-                }}
-                className={cn(
-                  "inline-flex items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-sm transition-colors",
-                  active
-                    ? "bg-[var(--color-surface-card)] font-semibold text-[var(--color-primary)] shadow-sm"
-                    : "text-[var(--color-on-surface-variant)] hover:bg-[var(--color-surface-container)] hover:text-[var(--color-on-surface)]",
-                )}
-              >
-                {item.label}
-                <span
-                  className={cn(
-                    "rounded-full px-2 py-0.5 text-[11px] font-semibold",
-                    active
-                      ? "bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)]"
-                      : "bg-[var(--color-surface-container-high)] text-[var(--color-on-surface-variant)]",
-                  )}
-                >
-                  {count}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-12">
-          <label className="relative md:col-span-9">
-            <span className="sr-only">Tìm kiếm bài đánh giá</span>
-            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--color-outline)]" aria-hidden="true" />
-            <input
-              className="h-10 w-full rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-low)] pl-10 pr-3 text-sm outline-none transition-[box-shadow,border-color] placeholder:text-[var(--color-outline)] focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20"
-              placeholder="Tìm theo tên bài đánh giá, mã đề…"
-              value={query}
-              onChange={(e) => {
-                setQuery(e.target.value);
-                resetPage();
-              }}
-            />
-          </label>
-          <label className="md:col-span-3">
-            <span className="sr-only">Sắp xếp</span>
-            <select
-              className="h-10 w-full appearance-none rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-low)] px-3 text-sm outline-none focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20"
-              value={sort}
-              onChange={(e) => {
-                setSort(e.target.value as SortKey);
-                resetPage();
-              }}
+      {/* Thanh tác vụ chọn nhiều (Selection Batch Action Bar) */}
+      {selected.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-[#213145] px-4 py-2.5 text-white shadow-xl animate-in fade-in slide-in-from-top-2">
+          <div className="flex flex-wrap items-center gap-3 text-sm">
+            <span className="grid size-6 place-items-center rounded-full bg-[var(--color-primary)] text-xs font-bold">
+              {selected.length}
+            </span>
+            <span className="font-medium">Đã chọn {selected.length} bài đánh giá</span>
+            <button
+              type="button"
+              className="text-xs text-sky-200 hover:underline cursor-pointer"
+              onClick={() => setSelected(pageRows.map((row) => row.id))}
             >
-              <option value="latest">Mới tạo gần đây</option>
-              <option value="title">Tên A → Z</option>
-              <option value="duration">Thời lượng test</option>
-            </select>
-          </label>
+              Chọn toàn bộ {pageRows.length} bài trên trang
+            </button>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              to={`${basePath}/submissions`}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-white/10 px-3 py-1.5 text-xs font-medium hover:bg-white/20 transition-colors"
+            >
+              <Users className="size-3.5" /> Xem bài nộp ứng viên
+            </Link>
+            <button
+              type="button"
+              onClick={() => {
+                const selectedTests = filtered.filter((t) => selected.includes(t.id));
+                exportCsv(selectedTests);
+              }}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-white/10 px-3 py-1.5 text-xs font-medium hover:bg-white/20 transition-colors cursor-pointer"
+            >
+              <Download className="size-3.5" /> Xuất file CSV ({selected.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelected([])}
+              className="inline-flex items-center gap-1 rounded-xl bg-white/5 px-2.5 py-1.5 text-xs text-slate-300 hover:bg-white/10 transition-colors cursor-pointer"
+            >
+              <X className="size-3.5" /> Bỏ chọn
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
-      <div className="overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-[var(--color-surface-card)] shadow-[var(--shadow-card)]">
+      <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-2xs dark:border-slate-800 dark:bg-slate-900">
+        {/* Toolbar với các nút Dropdown Panel hiện đại */}
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800/80 p-3 bg-white dark:bg-slate-900">
+          <div className="flex min-w-[280px] flex-1 flex-wrap items-center gap-2">
+            {/* Input tìm kiếm */}
+            <div className="relative min-w-[200px] max-w-sm flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+              <input
+                className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50/60 pl-9 pr-8 text-xs outline-none transition-[box-shadow,border-color] placeholder:text-slate-400 focus:border-[#0066FF] focus:bg-white focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800/60 dark:focus:bg-slate-900"
+                placeholder="Tìm theo tên bài đánh giá, mã đề…"
+                value={query}
+                onChange={(e) => handleQueryChange(e.target.value)}
+              />
+              {query && (
+                <button
+                  type="button"
+                  aria-label="Xóa tìm kiếm"
+                  onClick={() => handleQueryChange("")}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                >
+                  <X className="size-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Dropdown Panel: Trạng thái */}
+            <div className="relative" data-dropdown-root>
+              <button
+                type="button"
+                onClick={() => setActiveDropdown(activeDropdown === "status" ? null : "status")}
+                className={cn(
+                  "inline-flex h-9 items-center gap-1.5 rounded-xl border px-3 text-xs font-medium transition-all cursor-pointer whitespace-nowrap",
+                  status !== "ALL"
+                    ? "border-blue-300 bg-blue-50 text-[#0066FF] font-semibold dark:border-blue-800 dark:bg-blue-950/60 dark:text-blue-300 shadow-2xs"
+                    : "border-slate-200 bg-slate-50/60 text-slate-700 hover:bg-slate-100 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-200"
+                )}
+                aria-expanded={activeDropdown === "status"}
+              >
+                <span className={cn(
+                  "size-1.5 rounded-full",
+                  status === "PUBLISHED" ? "bg-emerald-500" : status === "DRAFT" ? "bg-amber-500" : status === "ARCHIVED" ? "bg-slate-400" : "bg-slate-300"
+                )} />
+                <span>{status === "ALL" ? "Tất cả trạng thái" : assessmentStatus[status]}</span>
+                <ChevronDown className={cn("size-3.5 text-slate-400 transition-transform", activeDropdown === "status" && "rotate-180")} />
+              </button>
+
+              {activeDropdown === "status" && (
+                <div className="absolute left-0 top-full mt-1.5 z-40 w-52 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-800 dark:bg-slate-900 animate-in fade-in-50 zoom-in-95">
+                  <p className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                    Lọc theo trạng thái
+                  </p>
+                  {[
+                    { value: "ALL", label: "Tất cả trạng thái", dot: "bg-slate-400", count: counts.ALL },
+                    { value: "PUBLISHED", label: "Đã xuất bản", dot: "bg-emerald-500", count: counts.PUBLISHED },
+                    { value: "DRAFT", label: "Bản nháp", dot: "bg-amber-500", count: counts.DRAFT },
+                    { value: "ARCHIVED", label: "Lưu trữ", dot: "bg-slate-400", count: counts.ARCHIVED },
+                  ].map((item) => (
+                    <button
+                      key={item.value}
+                      type="button"
+                      onClick={() => {
+                        handleStatusChange(item.value as StatusFilter);
+                        setActiveDropdown(null);
+                      }}
+                      className={cn(
+                        "flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-xs text-left transition-colors cursor-pointer",
+                        status === item.value
+                          ? "bg-blue-50 font-semibold text-[#0066FF] dark:bg-blue-950/60 dark:text-blue-300"
+                          : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                      )}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className={cn("size-2 rounded-full", item.dot)} />
+                        <span>{item.label}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="rounded-full bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 text-[10px] font-mono font-medium text-slate-500 dark:text-slate-400">
+                          {item.count}
+                        </span>
+                        {status === item.value && <Check className="size-3.5 text-[#0066FF]" />}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Dropdown Panel: Sắp xếp */}
+            <div className="relative" data-dropdown-root>
+              <button
+                type="button"
+                onClick={() => setActiveDropdown(activeDropdown === "sort" ? null : "sort")}
+                className={cn(
+                  "inline-flex h-9 items-center gap-1.5 rounded-xl border px-3 text-xs font-medium transition-all cursor-pointer whitespace-nowrap",
+                  sort !== "latest"
+                    ? "border-blue-300 bg-blue-50 text-[#0066FF] font-semibold dark:border-blue-800 dark:bg-blue-950/60 dark:text-blue-300 shadow-2xs"
+                    : "border-slate-200 bg-slate-50/60 text-slate-700 hover:bg-slate-100 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-200"
+                )}
+                aria-expanded={activeDropdown === "sort"}
+              >
+                <span>
+                  {sort === "latest" ? "Mới tạo gần đây" : sort === "title" ? "Tên A → Z" : "Thời lượng test"}
+                </span>
+                <ChevronDown className={cn("size-3.5 text-slate-400 transition-transform", activeDropdown === "sort" && "rotate-180")} />
+              </button>
+
+              {activeDropdown === "sort" && (
+                <div className="absolute left-0 top-full mt-1.5 z-40 w-48 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-800 dark:bg-slate-900 animate-in fade-in-50 zoom-in-95">
+                  <p className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                    Sắp xếp theo
+                  </p>
+                  {[
+                    { value: "latest", label: "Mới tạo gần đây" },
+                    { value: "title", label: "Tên bài đánh giá (A → Z)" },
+                    { value: "duration", label: "Thời lượng thi" },
+                  ].map((item) => (
+                    <button
+                      key={item.value}
+                      type="button"
+                      onClick={() => {
+                        handleSortChange(item.value as SortKey);
+                        setActiveDropdown(null);
+                      }}
+                      className={cn(
+                        "flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-xs text-left transition-colors cursor-pointer",
+                        sort === item.value
+                          ? "bg-blue-50 font-semibold text-[#0066FF] dark:bg-blue-950/60 dark:text-blue-300"
+                          : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                      )}
+                    >
+                      <span>{item.label}</span>
+                      {sort === item.value && <Check className="size-3.5 text-[#0066FF]" />}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="flex shrink-0 items-center gap-2">
+            {/* Dropdown Panel: Xuất file */}
+            <div className="relative" data-dropdown-root>
+              <button
+                type="button"
+                onClick={() => setActiveDropdown(activeDropdown === "export" ? null : "export")}
+                className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50/60 px-3 text-xs font-medium text-slate-700 hover:bg-slate-100 hover:border-slate-300 transition-all cursor-pointer dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-200"
+                aria-expanded={activeDropdown === "export"}
+              >
+                <Download className="size-3.5 text-slate-500" />
+                <span>Xuất file</span>
+                <ChevronDown className={cn("size-3.5 text-slate-400 transition-transform", activeDropdown === "export" && "rotate-180")} />
+              </button>
+
+              {activeDropdown === "export" && (
+                <div className="absolute right-0 top-full mt-1.5 z-40 w-52 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-800 dark:bg-slate-900 animate-in fade-in-50 zoom-in-95">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      exportCsv(filtered);
+                      setActiveDropdown(null);
+                    }}
+                    className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                  >
+                    <FileSpreadsheet className="size-4 text-emerald-600" />
+                    <div className="text-left">
+                      <p className="font-semibold">Xuất toàn bộ bộ lọc</p>
+                      <p className="text-[10px] text-slate-400">{filtered.length} bài đánh giá</p>
+                    </div>
+                  </button>
+                  {selected.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const selectedTests = filtered.filter((t) => selected.includes(t.id));
+                        exportCsv(selectedTests);
+                        setActiveDropdown(null);
+                      }}
+                      className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer border-t border-slate-100 dark:border-slate-800"
+                    >
+                      <FileSpreadsheet className="size-4 text-blue-600" />
+                      <div className="text-left">
+                        <p className="font-semibold">Xuất bài đã chọn</p>
+                        <p className="text-[10px] text-slate-400">{selected.length} bài đã chọn</p>
+                      </div>
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Nút Cấu hình bài đánh giá */}
+            <Link
+              to={`${basePath}/new`}
+              className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-xl bg-[var(--color-primary)] px-3 text-xs font-semibold text-[var(--color-on-primary)] shadow-xs transition-colors hover:bg-[var(--color-primary-hover)] cursor-pointer"
+            >
+              <Settings2 className="size-3.5" aria-hidden="true" />
+              Cấu hình bài đánh giá
+            </Link>
+          </div>
+        </div>
+
+        {/* Thanh chip bộ lọc đang bật */}
+        {(query || status !== "ALL" || sort !== "latest") && (
+          <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 dark:border-slate-800 px-4 py-2 text-xs bg-slate-50/40 dark:bg-slate-800/20">
+            <span className="font-medium text-slate-400">Bộ lọc đang bật:</span>
+            {query && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 text-[#0066FF] dark:bg-blue-950/60 dark:text-blue-300 px-2.5 py-0.5 text-xs font-medium">
+                Từ khóa: "{query}"
+                <button
+                  type="button"
+                  onClick={() => handleQueryChange("")}
+                  className="rounded-full p-0.5 hover:bg-blue-100 dark:hover:bg-blue-900 cursor-pointer"
+                  aria-label="Xóa từ khóa tìm kiếm"
+                >
+                  <X className="size-3" />
+                </button>
+              </span>
+            )}
+            {status !== "ALL" && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 text-[#0066FF] dark:bg-blue-950/60 dark:text-blue-300 px-2.5 py-0.5 text-xs font-medium">
+                Trạng thái: {assessmentStatus[status]}
+                <button
+                  type="button"
+                  onClick={() => handleStatusChange("ALL")}
+                  className="rounded-full p-0.5 hover:bg-blue-100 dark:hover:bg-blue-900 cursor-pointer"
+                  aria-label="Xóa lọc trạng thái"
+                >
+                  <X className="size-3" />
+                </button>
+              </span>
+            )}
+            {sort !== "latest" && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 text-[#0066FF] dark:bg-blue-950/60 dark:text-blue-300 px-2.5 py-0.5 text-xs font-medium">
+                Sắp xếp: {sort === "title" ? "Tên A → Z" : "Thời lượng"}
+                <button
+                  type="button"
+                  onClick={() => handleSortChange("latest")}
+                  className="rounded-full p-0.5 hover:bg-blue-100 dark:hover:bg-blue-900 cursor-pointer"
+                  aria-label="Xóa sắp xếp"
+                >
+                  <X className="size-3" />
+                </button>
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                handleQueryChange("");
+                handleStatusChange("ALL");
+                handleSortChange("latest");
+              }}
+              className="ml-auto text-xs font-semibold text-[#0066FF] hover:underline dark:text-blue-400 cursor-pointer"
+            >
+              Xóa tất cả bộ lọc
+            </button>
+          </div>
+        )}
+
         {tests.isPending && (
-          <p className="p-6 text-sm text-[var(--color-on-surface-variant)]" role="status">
-            Đang tải đề kiểm tra…
-          </p>
+          <div className="p-4">
+            <TableSkeleton columns={6} rows={5} />
+          </div>
         )}
 
         {tests.data && !pageRows.length && (
@@ -438,9 +657,11 @@ export function AssessmentsPage() {
             <div className="flex items-center gap-3">
               <ClipboardList className="size-8 text-[var(--color-primary)]" aria-hidden="true" />
               <div>
-                <p className="font-semibold">Chưa có bài đánh giá phù hợp</p>
+                <p className="font-semibold">Chưa có đề thi nào</p>
                 <p className="text-sm text-[var(--color-on-surface-variant)]">
-                  {tests.data.items.length === 0 ? "Tạo đề mới cho vị trí đang mở." : "Thử đổi bộ lọc hoặc từ khóa tìm kiếm."}
+                  {tests.data.items.length === 0
+                    ? "Đề thi sẽ được hệ thống tự động bốc từ Ngân hàng câu hỏi khi ứng viên vào vòng Assessment."
+                    : "Thử đổi từ khóa hoặc bộ lọc tìm kiếm."}
                 </p>
               </div>
             </div>
@@ -449,8 +670,8 @@ export function AssessmentsPage() {
                 to={`${basePath}/new`}
                 className="inline-flex min-h-11 items-center gap-2 rounded-[var(--radius-md)] bg-[var(--color-primary)] px-4 text-sm font-semibold text-[var(--color-on-primary)] hover:bg-[var(--color-primary-hover)]"
               >
-                <Plus className="size-4" aria-hidden="true" />
-                Tạo bài đánh giá
+                <Settings2 className="size-4" aria-hidden="true" />
+                Cấu hình bài đánh giá
               </Link>
             )}
           </div>
@@ -458,7 +679,7 @@ export function AssessmentsPage() {
 
         {pageRows.length > 0 && (
           <>
-            <div className="overflow-x-auto">
+            <div className={cn("overflow-x-auto transition-opacity", isTableTransitioning && "opacity-50 pointer-events-none")}>
               <table className="w-full min-w-[1100px] border-collapse text-left text-sm">
                 <thead>
                   <tr className="h-11 bg-[var(--color-surface-container-low)] text-[11px] font-semibold uppercase tracking-wider text-[var(--color-outline)]">
@@ -488,6 +709,7 @@ export function AssessmentsPage() {
                         key={test.id}
                         test={test}
                         jobTitle={job.title}
+                        basePath={basePath}
                         structure={{
                           count: questions.length,
                           totalPoints: questions.reduce((sum, item) => sum + item.points, 0),
@@ -502,136 +724,175 @@ export function AssessmentsPage() {
               </table>
             </div>
 
-            <div className="flex flex-col items-center justify-between gap-3 border-t border-[var(--color-border-default)] px-4 py-3 sm:flex-row">
-              <p className="text-sm text-[var(--color-outline)]">
-                Hiển thị{" "}
-                <span className="font-semibold text-[var(--color-on-surface)]">
-                  {filtered.length === 0 ? 0 : safePage * PAGE_SIZE + 1}–{Math.min((safePage + 1) * PAGE_SIZE, filtered.length)}
-                </span>{" "}
-                của <span className="font-semibold text-[var(--color-on-surface)]">{filtered.length}</span> bài đánh giá
+            {/* 4 Nhóm Phân trang Chuẩn UX/UI */}
+            <div
+              className={cn(
+                "flex flex-col gap-3 border-t border-[var(--color-border-default)] bg-slate-50/60 px-4 py-3 sm:px-6 lg:flex-row lg:items-center lg:justify-between transition-opacity",
+                isTableTransitioning && "opacity-50 pointer-events-none"
+              )}
+            >
+              {/* Nhóm 1: Thông tin Dữ liệu (Left) */}
+              <div className="flex items-center gap-2 text-xs sm:text-[13px] text-slate-600">
+                <p>
+                  Hiển thị <strong className="font-semibold text-slate-900">{totalItems > 0 ? startIndex + 1 : 0}–{Math.min(startIndex + pageSize, totalItems)}</strong> trên <strong className="font-semibold text-slate-900">{totalItems}</strong> bài đánh giá
+                </p>
+                <span className="text-slate-300">·</span>
+                <span className="tabular-nums">Trang {currentPage} / {totalPages}</span>
+                {tests.isFetching && (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-medium text-brand-primary ml-1" role="status">
+                    <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+                    <span className="hidden sm:inline">Đang tải…</span>
+                  </span>
+                )}
+              </div>
 
-              </p>
-              <div className="flex items-center gap-1">
-                <Button variant="secondary" size="sm" disabled={safePage === 0} aria-label="Trang đầu" onClick={() => setPage(0)}>
-                  <ChevronsLeft className="size-4" aria-hidden="true" />
-                </Button>
-                <Button variant="secondary" size="sm" disabled={safePage === 0} aria-label="Trang trước" onClick={() => setPage((p) => Math.max(0, p - 1))}>
-                  <ChevronLeft className="size-4" aria-hidden="true" />
-                </Button>
-                <span className="min-w-16 px-2 text-center text-sm font-semibold">
-                  {safePage + 1} / {pageCount}
-                </span>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  disabled={safePage >= pageCount - 1}
-                  aria-label="Trang sau"
-                  onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+              {/* Nhóm 2: Chọn số bản ghi / trang (Center) */}
+              <div className="flex items-center justify-start lg:justify-center">
+                <label className="flex items-center gap-1.5 text-xs sm:text-[13px] text-slate-600">
+                  <span>Hiển thị</span>
+                  <select
+                    aria-label="Số bài đánh giá mỗi trang"
+                    value={pageSize}
+                    onChange={(e) => {
+                      const nextSize = Number(e.target.value);
+                      goToPage(1, nextSize);
+                    }}
+                    className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs sm:text-[13px] font-semibold text-slate-800 shadow-2xs outline-none transition-colors hover:border-brand-primary focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20 cursor-pointer"
+                  >
+                    {PAGE_SIZE_OPTIONS.map((size) => (
+                      <option key={size} value={size}>
+                        {size} / trang
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              {/* Nhóm 3 & 4: Điều hướng & Nhảy trang (Right) */}
+              <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+                <nav className="flex items-center gap-1" aria-label="Phân trang danh sách bài đánh giá">
+                  {/* First Page [|<] */}
+                  <button
+                    type="button"
+                    aria-label="Về trang đầu"
+                    title="Về trang đầu (Trang 1)"
+                    disabled={currentPage === 1}
+                    onClick={() => goToPage(1)}
+                    className="grid size-8 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-2xs transition-colors hover:border-brand-primary hover:bg-brand-primary/5 hover:text-brand-primary disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
+                  >
+                    <ChevronsLeft className="size-4" aria-hidden="true" />
+                  </button>
+
+                  {/* Previous [<] */}
+                  <button
+                    type="button"
+                    aria-label="Trang trước"
+                    title="Trang trước"
+                    disabled={currentPage === 1}
+                    onClick={() => goToPage(currentPage - 1)}
+                    className="grid size-8 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-2xs transition-colors hover:border-brand-primary hover:bg-brand-primary/5 hover:text-brand-primary disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
+                  >
+                    <ChevronLeft className="size-4" aria-hidden="true" />
+                  </button>
+
+                  {/* Page Numbers with Ellipsis */}
+                  {pageItems.map((item, idx) => {
+                    if (typeof item === "string") {
+                      return (
+                        <span
+                          key={`${item}-${idx}`}
+                          className="grid size-8 place-items-center text-xs text-slate-400 select-none"
+                          aria-hidden="true"
+                        >
+                          …
+                        </span>
+                      );
+                    }
+                    const isActive = item === currentPage;
+                    return (
+                      <button
+                        key={item}
+                        type="button"
+                        aria-label={`Trang ${item}`}
+                        aria-current={isActive ? "page" : undefined}
+                        onClick={() => goToPage(item)}
+                        className={cn(
+                          "grid size-8 place-items-center rounded-lg text-xs font-semibold transition-all cursor-pointer",
+                          isActive
+                            ? "bg-brand-primary text-white shadow-xs font-bold"
+                            : "border border-slate-200 bg-white text-slate-700 hover:border-brand-primary hover:bg-brand-primary/5 hover:text-brand-primary"
+                        )}
+                      >
+                        {item}
+                      </button>
+                    );
+                  })}
+
+                  {/* Next [>] */}
+                  <button
+                    type="button"
+                    aria-label="Trang sau"
+                    title="Trang sau"
+                    disabled={currentPage >= totalPages}
+                    onClick={() => goToPage(currentPage + 1)}
+                    className="grid size-8 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-2xs transition-colors hover:border-brand-primary hover:bg-brand-primary/5 hover:text-brand-primary disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
+                  >
+                    <ChevronRight className="size-4" aria-hidden="true" />
+                  </button>
+
+                  {/* Last Page [>|] */}
+                  <button
+                    type="button"
+                    aria-label="Đến trang cuối"
+                    title={`Đến trang cuối (Trang ${totalPages})`}
+                    disabled={currentPage >= totalPages}
+                    onClick={() => goToPage(totalPages)}
+                    className="grid size-8 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-2xs transition-colors hover:border-brand-primary hover:bg-brand-primary/5 hover:text-brand-primary disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
+                  >
+                    <ChevronsRight className="size-4" aria-hidden="true" />
+                  </button>
+                </nav>
+
+                <div className="hidden h-4 w-px bg-slate-300 sm:block" />
+
+                {/* Nhóm 4: Nhảy trang nhanh (Jump To Page) */}
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const target = parseInt(jumpVal, 10);
+                    if (!Number.isNaN(target)) {
+                      goToPage(target);
+                      setJumpVal("");
+                    }
+                  }}
+                  className="flex items-center gap-1.5 text-xs sm:text-[13px] text-slate-600"
                 >
-                  <ChevronRight className="size-4" aria-hidden="true" />
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  disabled={safePage >= pageCount - 1}
-                  aria-label="Trang cuối"
-                  onClick={() => setPage(pageCount - 1)}
-                >
-                  <ChevronsRight className="size-4" aria-hidden="true" />
-                </Button>
+                  <label htmlFor="assessment-jump-page" className="whitespace-nowrap">
+                    Đi đến:
+                  </label>
+                  <input
+                    id="assessment-jump-page"
+                    type="number"
+                    min={1}
+                    max={totalPages}
+                    value={jumpVal}
+                    onChange={(e) => setJumpVal(e.target.value)}
+                    placeholder={String(currentPage)}
+                    className="h-8 w-13 rounded-lg border border-slate-200 bg-white px-1.5 text-center text-xs font-semibold text-slate-800 shadow-2xs outline-none transition-colors hover:border-brand-primary focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20"
+                  />
+                  <span>Trang</span>
+                  <button
+                    type="submit"
+                    disabled={!jumpVal.trim() || Number(jumpVal) < 1 || Number(jumpVal) > totalPages}
+                    className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700 shadow-2xs transition-colors hover:border-brand-primary hover:bg-brand-primary/5 hover:text-brand-primary disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
+                  >
+                    Đi
+                  </button>
+                </form>
               </div>
             </div>
           </>
         )}
-      </div>
-
-      <div className="mb-2 grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div className="flex flex-col justify-between rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-5 shadow-[var(--shadow-card)]">
-          <div>
-            <div className="flex items-center justify-between gap-2">
-              <h3 className="text-base font-semibold">Phân bổ theo trạng thái</h3>
-              <Target className="size-5 text-[var(--color-outline)]" aria-hidden="true" />
-            </div>
-            <p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">Tỷ lệ đề trong thư viện đang tải.</p>
-            <div className="mt-4 space-y-3">
-              {[
-                { label: "Đã xuất bản", count: counts.published, color: "bg-emerald-500", text: "text-emerald-700" },
-                { label: "Bản nháp", count: counts.draft, color: "bg-amber-500", text: "text-amber-700" },
-                { label: "Lưu trữ", count: counts.archived, color: "bg-[var(--color-outline)]", text: "text-[var(--color-on-surface-variant)]" },
-              ].map((row) => {
-                const pct = counts.all ? Math.round((row.count / Math.max(counts.all, 1)) * 100) : 0;
-                return (
-                  <div key={row.label}>
-                    <div className="mb-1 flex justify-between text-xs">
-                      <span className="font-medium">{row.label}</span>
-                      <span className={cn("font-bold", row.text)}>
-                        {pct}% ({row.count})
-                      </span>
-                    </div>
-                    <div className="h-2 w-full overflow-hidden rounded-full bg-[var(--color-surface-container)]">
-                      <div className={cn("h-full rounded-full", row.color)} style={{ width: `${pct}%` }} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-
-        <div className="flex flex-col justify-between rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-5 shadow-[var(--shadow-card)]">
-          <div>
-            <div className="flex items-center justify-between gap-2">
-              <h3 className="text-base font-semibold">Đề của vị trí đang mở</h3>
-              <ClipboardList className="size-5 text-[var(--color-outline)]" aria-hidden="true" />
-            </div>
-            <p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">Dựa trên các đề đang hiển thị trong thư viện.</p>
-            <div className="mt-4 space-y-2">
-              {jobDistribution.length === 0 && <p className="text-sm text-[var(--color-on-surface-variant)]">Chưa có dữ liệu.</p>}
-              {jobDistribution.map((row, index) => (
-                <div key={row.jobId} className="flex items-center justify-between gap-3 rounded-lg bg-[var(--color-surface-container-low)]/70 p-2.5">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <div
-                      className={cn(
-                        "grid size-6 shrink-0 place-items-center rounded-full text-[11px] font-bold",
-                        index === 0
-                          ? "bg-[var(--color-primary)] text-[var(--color-on-primary)]"
-                          : "bg-[var(--color-surface-container-highest)] text-[var(--color-on-surface)]",
-                      )}
-                    >
-                      {index + 1}
-                    </div>
-                    <span className="truncate text-sm font-medium">{jobTitle(row.jobId)}</span>
-                  </div>
-                  <span className="shrink-0 text-sm font-bold text-[var(--color-primary)]">{row.count} đề</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <div className="relative flex flex-col justify-between overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-gradient-to-br from-[var(--color-surface-card)] to-[var(--color-surface-container-low)] p-5 shadow-[var(--shadow-card)]">
-          <div>
-            <div className="flex items-center gap-2">
-              <Plus className="size-5 text-[var(--color-primary)]" aria-hidden="true" />
-              <h3 className="text-base font-semibold">Tạo đề mới nhanh</h3>
-            </div>
-            <p className="mt-1.5 text-xs leading-5 text-[var(--color-on-surface-variant)]">
-              Đặt thời lượng và điểm đạt, rồi thêm câu hỏi trắc nghiệm trước khi xuất bản.
-            </p>
-            <div className="mt-4 rounded-xl bg-[var(--color-surface-card)] p-4 text-center">
-              <ClipboardList className="mx-auto size-8 text-[var(--color-primary)]" aria-hidden="true" />
-              <p className="mt-2 text-sm font-semibold">Sẵn sàng soạn đề?</p>
-              <p className="mt-0.5 text-xs text-[var(--color-outline)]">Mỗi đề gắn với một job trong tenant</p>
-            </div>
-          </div>
-          <Link
-            to={`${basePath}/new`}
-            className="mt-4 inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg bg-[var(--color-primary)] px-4 text-sm font-semibold text-[var(--color-on-primary)] shadow-sm hover:bg-[var(--color-primary-hover)]"
-          >
-            <Plus className="size-4" aria-hidden="true" />
-            Tạo bài đánh giá
-          </Link>
-        </div>
       </div>
     </section>
   );
@@ -643,21 +904,43 @@ function AssessmentRow({
   checked,
   onToggle,
   jobTitle,
+  basePath,
 }: {
   test: JobTest;
   structure?: { count: number; totalPoints: number; loading: boolean };
   checked: boolean;
   onToggle: () => void;
   jobTitle?: string | null;
+  basePath: string;
 }) {
+  const [menuOpen, setMenuOpen] = useState(false);
   const draft = test.status === "DRAFT";
   const totalPoints = structure?.loading ? null : structure?.totalPoints ?? 0;
   const questionCount = structure?.loading ? null : structure?.count ?? 0;
   const title = shortAssessmentTitle(jobTitle, test.title);
 
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handleClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest(`[data-row-action="${test.id}"]`)) {
+        setMenuOpen(false);
+      }
+    };
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", handleClick);
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      document.removeEventListener("mousedown", handleClick);
+      document.removeEventListener("keydown", handleKey);
+    };
+  }, [menuOpen, test.id]);
+
   return (
     <tr className="group transition-colors hover:bg-[var(--color-primary-subtle)]">
-      <td className="px-4 py-3.5 text-center">
+      <td className="px-4 py-3.5 text-center" onClick={(e) => e.stopPropagation()}>
         <input
           type="checkbox"
           className="size-4 cursor-pointer accent-[var(--color-primary)]"
@@ -668,22 +951,23 @@ function AssessmentRow({
       </td>
       <td className="px-4 py-3.5">
         <div className="flex items-center gap-3">
-          <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-[var(--color-surface-container)] text-[var(--color-primary)]">
+          <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-blue-50 text-[#0066FF] border border-blue-100 dark:bg-blue-950/60 dark:border-blue-900 dark:text-blue-300">
             <ClipboardList className="size-4" aria-hidden="true" />
           </div>
           <div className="min-w-0">
             <Link
               to={String(test.id)}
-              className="block truncate font-semibold transition-colors group-hover:text-[var(--color-primary)]"
+              className="block truncate font-semibold transition-colors group-hover:text-[var(--color-primary)] text-slate-900 dark:text-slate-100"
             >
               {title}
             </Link>
             <div className="mt-0.5 flex flex-wrap items-center gap-2">
-              <span className="font-mono text-xs text-[var(--color-outline)]">Mã: ASM-{test.id}</span>
+              <span className="font-mono text-xs font-semibold text-slate-500 dark:text-slate-400">ASM-{test.id}</span>
+              <OriginBadge origin={test.origin} />
               {draft && (
                 <>
-                  <span className="size-1 rounded-full bg-[var(--color-outline-variant)]" />
-                  <span className="text-[11px] font-medium text-[var(--color-secondary)]">Đang biên soạn</span>
+                  <span className="size-1 rounded-full bg-slate-300 dark:bg-slate-600" />
+                  <span className="text-[11px] font-medium text-amber-600 dark:text-amber-400">Đang biên soạn</span>
                 </>
               )}
             </div>
@@ -692,28 +976,28 @@ function AssessmentRow({
       </td>
       <td className="whitespace-nowrap px-4 py-3.5">
         {questionCount === null ? (
-          <span className="text-[var(--color-outline)]">Đang tải…</span>
+          <span className="text-slate-400">Đang tải…</span>
         ) : (
           <>
-            <span className="block font-semibold">{questionCount} câu hỏi</span>
-            <span className="text-[11px] text-[var(--color-outline)]">
+            <span className="block font-semibold text-slate-900 dark:text-slate-100">{questionCount} câu hỏi</span>
+            <span className="text-[11px] text-slate-500 dark:text-slate-400">
               {questionCount === 0 ? "Chưa có câu hỏi" : "Trắc nghiệm một đáp án"}
             </span>
           </>
         )}
       </td>
       <td className="whitespace-nowrap px-4 py-3.5">
-        <span className="inline-flex items-center gap-1.5 font-medium">
-          <Clock3 className="size-3.5 text-[var(--color-outline)]" aria-hidden="true" />
+        <span className="inline-flex items-center gap-1.5 font-medium text-slate-700 dark:text-slate-300">
+          <Clock3 className="size-3.5 text-slate-400" aria-hidden="true" />
           {test.durationMinutes} phút
         </span>
       </td>
       <td className="whitespace-nowrap px-4 py-3.5">
         <div className="flex flex-col">
-          <span className="font-semibold">
+          <span className="font-semibold text-slate-900 dark:text-slate-100">
             {totalPoints === null ? "…" : totalPoints > 0 ? `${totalPoints} điểm` : "Chưa có điểm"}
           </span>
-          <span className="text-[11px] font-medium text-emerald-700">
+          <span className="text-[11px] font-medium text-emerald-700 dark:text-emerald-400">
             {test.passingScore != null ? `Đạt: ≥ ${test.passingScore} điểm` : "Không đặt ngưỡng"}
           </span>
         </div>
@@ -723,23 +1007,23 @@ function AssessmentRow({
       </td>
       <td className="whitespace-nowrap px-4 py-3.5">
         <div className="flex items-center gap-2">
-          <div className="grid size-7 place-items-center rounded-full bg-[var(--color-secondary-container)] text-[10px] font-bold text-[var(--color-on-surface)]">
+          <div className="grid size-7 place-items-center rounded-full bg-slate-100 dark:bg-slate-800 text-[10px] font-bold text-slate-700 dark:text-slate-300">
             {initials(test.createdByName)}
           </div>
           <div className="flex flex-col">
-            <span className="text-xs font-semibold">{test.createdByName?.trim() || "Chưa ghi nhận"}</span>
-            <span className="text-[11px] text-[var(--color-outline)]">
+            <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">{test.createdByName?.trim() || "Chưa ghi nhận"}</span>
+            <span className="text-[11px] text-slate-400">
               {formatRelative(test.updatedAt ?? test.createdAt)}
             </span>
           </div>
         </div>
       </td>
-      <td className="whitespace-nowrap px-4 py-3.5 text-right">
-        <div className="flex items-center justify-end gap-1">
+      <td className="whitespace-nowrap px-4 py-3.5 text-right" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-end gap-1.5">
           {draft ? (
             <Link
               to={String(test.id)}
-              className="inline-flex h-8 items-center gap-1 rounded-lg bg-[var(--color-primary-soft)] px-2.5 text-xs font-medium text-[var(--color-primary)] hover:bg-[var(--color-primary)]/20"
+              className="inline-flex h-8 items-center gap-1 rounded-xl bg-amber-50 px-2.5 text-xs font-semibold text-amber-800 border border-amber-200/80 hover:bg-amber-100 transition-colors shadow-2xs"
             >
               <Edit3 className="size-3.5" aria-hidden="true" />
               Chỉnh sửa
@@ -747,20 +1031,82 @@ function AssessmentRow({
           ) : (
             <Link
               to={String(test.id)}
-              className="inline-flex h-8 items-center gap-1 rounded-lg bg-[var(--color-primary)] px-2.5 text-xs font-medium text-[var(--color-on-primary)] shadow-sm hover:bg-[var(--color-primary-hover)]"
+              className="inline-flex h-8 items-center gap-1 rounded-xl bg-blue-50 px-2.5 text-xs font-semibold text-[#0066FF] border border-blue-200/80 hover:bg-blue-100 transition-colors shadow-2xs"
             >
               <Eye className="size-3.5" aria-hidden="true" />
               Xem đề
             </Link>
           )}
-          <Link
-            to={String(test.id)}
-            className="grid size-8 place-items-center rounded-lg text-[var(--color-outline)] transition-colors hover:bg-[var(--color-surface-container)] hover:text-[var(--color-on-surface)]"
-            title="Chi tiết"
-            aria-label={`Chi tiết ${title}`}
-          >
-            <Eye className="size-4" aria-hidden="true" />
-          </Link>
+
+          <Tooltip content="Xem bài nộp của ứng viên" side="top">
+            <Link
+              to={`${basePath}/submissions?testId=${test.id}`}
+              aria-label="Xem bài nộp của ứng viên"
+              className="inline-flex size-8 items-center justify-center rounded-xl text-slate-500 hover:bg-blue-50 hover:text-[#0066FF] transition-colors border border-transparent hover:border-blue-200/60"
+            >
+              <Users className="size-4" />
+            </Link>
+          </Tooltip>
+
+          <div className="relative" data-row-action={test.id}>
+            <Tooltip content="Tùy chọn khác" side="top">
+              <button
+                type="button"
+                aria-label="Tùy chọn khác"
+                onClick={() => setMenuOpen((prev) => !prev)}
+                className={cn(
+                  "inline-flex size-8 items-center justify-center rounded-xl text-slate-500 transition-colors cursor-pointer",
+                  menuOpen
+                    ? "bg-slate-200 text-slate-900 dark:bg-slate-700 dark:text-white"
+                    : "hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-slate-800"
+                )}
+              >
+                <MoreVertical className="size-4" />
+              </button>
+            </Tooltip>
+
+            {menuOpen && (
+              <div className="absolute right-0 top-full mt-1.5 z-40 w-48 rounded-2xl bg-white dark:bg-slate-900 p-1.5 text-left text-xs shadow-xl border border-slate-200 dark:border-slate-800 animate-in fade-in-50 zoom-in-95">
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                  onClick={() => {
+                    void navigator.clipboard.writeText(`ASM-${test.id}`);
+                    setMenuOpen(false);
+                    toast.success("Đã sao chép mã đề ASM-" + test.id);
+                  }}
+                >
+                  <Copy className="size-3.5 text-slate-500" /> Sao chép mã đề
+                </button>
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                  onClick={() => {
+                    void navigator.clipboard.writeText(test.title);
+                    setMenuOpen(false);
+                    toast.success("Đã sao chép tên bài đánh giá");
+                  }}
+                >
+                  <Copy className="size-3.5 text-slate-500" /> Sao chép tên bài thi
+                </button>
+                <div className="my-1 border-t border-slate-100 dark:border-slate-800" />
+                <Link
+                  to={`${basePath}/submissions?testId=${test.id}`}
+                  className="flex w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  onClick={() => setMenuOpen(false)}
+                >
+                  <Users className="size-3.5 text-blue-600" /> Bài nộp ứng viên
+                </Link>
+                <Link
+                  to={String(test.id)}
+                  className="flex w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  onClick={() => setMenuOpen(false)}
+                >
+                  <Eye className="size-3.5 text-slate-600" /> Chi tiết bài đánh giá
+                </Link>
+              </div>
+            )}
+          </div>
         </div>
       </td>
     </tr>

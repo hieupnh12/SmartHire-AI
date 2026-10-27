@@ -79,11 +79,11 @@ export async function prepareProctorDevices(enableCamera = false, capture: Captu
         const camera = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
         streams.push(camera);
         camera.getVideoTracks().forEach(track => microphone.addTrack(track));
-        if (capture === "monitor" && camera.getVideoTracks().length === 0) {
+        if (camera.getVideoTracks().length === 0) {
           throw new Error("Camera phải bật trong suốt bài thi.");
         }
       } catch (cause) {
-        if (capture === "monitor") throw cause;
+        if (requireCamera) throw cause;
         // Interview camera is optional; microphone and screen capture remain required.
       }
     }

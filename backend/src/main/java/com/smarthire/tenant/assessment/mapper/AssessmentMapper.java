@@ -1,6 +1,7 @@
 package com.smarthire.tenant.assessment.mapper;
 
 import org.springframework.stereotype.Component;
+import com.smarthire.domain.enums.TestOrigin;
 import com.smarthire.domain.tenant.entity.JobTest;
 import com.smarthire.tenant.assessment.dto.response.JobTestResponse;
 import com.smarthire.domain.tenant.entity.Question;
@@ -59,6 +60,10 @@ public class AssessmentMapper {
                 test.getCreatedAt(),
                 test.getUpdatedAt(),
                 creator != null ? creator.getId() : null,
-                creator != null ? creator.getFullName() : null, test.getObjectiveDurationMinutes());
+                creator != null ? creator.getFullName() : null,
+                test.getObjectiveDurationMinutes(),
+                test.getCodingTestWeightPercent(),
+                test.getAssignedApplication() != null ? test.getAssignedApplication().getId() : null,
+                test.getOrigin() == null ? TestOrigin.AUTHORED : test.getOrigin());
     }
 }

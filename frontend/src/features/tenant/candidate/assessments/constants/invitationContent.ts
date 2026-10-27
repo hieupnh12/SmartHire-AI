@@ -1,4 +1,4 @@
-﻿export const ASSESSMENT_GUIDELINES = [
+export const ASSESSMENT_GUIDELINES = [
   {
     title: "Đồng hồ đếm ngược liên tục:",
     body: "Khi bạn nhấn bắt đầu, thời gian làm bài sẽ chạy liên tục và không thể tạm dừng vì bất kỳ lý do nào.",
@@ -16,8 +16,8 @@
 export const ASSESSMENT_REGULATIONS = [
   {
     icon: "tab" as const,
-    title: "1 Tab trình duyệt duy nhất",
-    body: "Rời khỏi màn hình hoặc chuyển tab quá 3 lần sẽ tự động khóa bài thi.",
+    title: "Chế độ Toàn màn hình bắt buộc",
+    body: "Bài thi tự động kích hoạt toàn màn hình. Thoát toàn màn hình hoặc chuyển tab quá 3 lần sẽ tự động khóa bài thi.",
   },
   {
     icon: "terminal" as const,

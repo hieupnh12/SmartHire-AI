@@ -92,7 +92,14 @@ public class QuestionService {
             validateType(question.getQuestionType(), choices.size(), choices.stream().filter(Option::isCorrect).count());
             if (question.getPoints() < 1 || question.getPoints() > 10000) throw invalid("Invalid question points");
             if ("ESSAY".equals(question.getQuestionType()) && question.getRubricJson() != null && !question.getRubricJson().isNull()) QuestionContent.validateRubric(question.getRubricJson());
-            if ("CODING".equals(question.getQuestionType()) && question.getCodingProblem() == null) throw invalid("Missing coding problem");
+            if ("CODING".equals(question.getQuestionType())) {
+                var problem = question.getCodingProblem();
+                if (problem == null) throw invalid("Missing coding problem");
+                if (problem.getVerifiedAt() == null) {
+                    throw invalid("Coding question #" + question.getId()
+                            + " must pass model-solution verification (100% tests including hidden) before publish");
+                }
+            }
             total += question.getPoints();
         }
         if (test.getPassingScore() != null && (test.getPassingScore().signum() < 0

@@ -60,6 +60,7 @@ public class MasterBillingService {
     private final MasterConsentLogRepository consentLogRepository;
     private final PlatformAuditLogRepository platformAuditLogRepository;
     private final MasterTenantService masterTenantService;
+    @SuppressWarnings("unused")
     private final InviteMailSender mailSender;
     private final OrderPdfGeneratorService orderPdfGeneratorService;
     private final MasterNotificationService masterNotificationService;

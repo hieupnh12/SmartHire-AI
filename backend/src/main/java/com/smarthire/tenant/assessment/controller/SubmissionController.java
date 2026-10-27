@@ -62,9 +62,25 @@ public class SubmissionController {
     public ApiResponse<java.util.List<com.fasterxml.jackson.databind.JsonNode>> samples(@PathVariable long id, @PathVariable long questionId,
             @Valid @RequestBody SubmissionService.SampleRun body) { return ApiResponse.ok(service.runSamples(id, questionId, body)); }
 
+    @PostMapping("/submissions/{id}/coding/{questionId}/run_custom")
+    @Operation(summary = "Run candidate source against custom stdin (no expected-output grading; owner only)")
+    public ApiResponse<com.fasterxml.jackson.databind.JsonNode> custom(@PathVariable long id, @PathVariable long questionId,
+            @Valid @RequestBody SubmissionService.CustomRun body) { return ApiResponse.ok(service.runCustom(id, questionId, body)); }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.smarthire.tenant.assessment.service.AssessmentProctorService proctor;
+
+    @PostMapping("/submissions/{id}/proctor-events")
+    @Operation(summary = "Record assessment proctoring event (candidate owner only)")
+    public ApiResponse<Void> proctorEvent(@PathVariable long id,
+            @Valid @RequestBody com.smarthire.tenant.assessment.dto.request.AssessmentProctorEventRequest body) {
+        proctor.record(id, body); return ApiResponse.ok(null);
+    }
+
     @PostMapping("/submissions/{id}/complete_objective")
     @Operation(summary = "Lock saved objective answers and start practical section")
     public ApiResponse<SubmissionResponse> completeObjective(@PathVariable long id) { return ApiResponse.ok(service.completeObjective(id)); }
+
 
     @GetMapping("/submissions/{id}/grading_review")
     @Operation(summary = "Inspect AI suggestions and subjective answers (staff only)")
@@ -103,6 +119,15 @@ public class SubmissionController {
                     + "deadline is reported as EXPIRED with null score/submittedAt and is finalized on the next candidate/staff access.")
     public ApiResponse<java.util.List<SubmissionSummaryResponse>> listForJob(@PathVariable long jobId) {
         return ApiResponse.ok(service.staffList(jobId));
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.smarthire.tenant.assessment.service.AssessmentJobReportService jobReport;
+
+    @GetMapping("/jobs/{jobId}/assessment_report")
+    @Operation(summary = "Pass-rate, duration, custom-run and proctor summary for a job (staff only)")
+    public ApiResponse<com.smarthire.tenant.assessment.dto.response.AssessmentJobReportResponse> assessmentReport(@PathVariable long jobId) {
+        return ApiResponse.ok(jobReport.report(jobId));
     }
 
     @GetMapping("/submissions/{id}/get_result")

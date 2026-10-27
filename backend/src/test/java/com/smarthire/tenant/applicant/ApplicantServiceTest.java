@@ -13,6 +13,8 @@ import com.smarthire.domain.tenant.entity.Cv;
 import com.smarthire.domain.tenant.entity.Job;
 import com.smarthire.domain.tenant.entity.MatchScore;
 import com.smarthire.domain.tenant.entity.User;
+import com.smarthire.domain.enums.AiInterviewStatus;
+import com.smarthire.domain.tenant.repository.AiInterviewRepository;
 import com.smarthire.domain.tenant.repository.ApplicationRepository;
 import com.smarthire.domain.tenant.repository.ApplicationStatusHistoryRepository;
 import com.smarthire.domain.tenant.repository.CvRepository;
@@ -69,6 +71,7 @@ class ApplicantServiceTest {
     @Mock GateScreeningService gateScreening;
     @Mock CvApplicationCopyService cvCopies;
     @Mock ApplicationClosureService closures;
+    @Mock AiInterviewRepository aiInterviews;
 
     ApplicantService service;
     Candidate candidate;
@@ -81,6 +84,7 @@ class ApplicantServiceTest {
         service = new ApplicantService(
                 applications, history, jobs, users, cvs, stages, access, new JobMapper(), new ApplicantMapper(),
                 invitations, publisher, gateScreening, cvCopies, closures, jobTests, assessmentSubmissions);
+        service.setAiInterviews(aiInterviews);
         candidate = new Candidate();
         candidate.setId(9L);
         candidate.setEmail("can@se36.local");
@@ -516,15 +520,31 @@ class ApplicantServiceTest {
     }
 
     @Test
-    void officialAssessmentPassOpensHumanInterview() {
+    void officialAssessmentPassOpensHumanInterviewWhenAiAlsoPassed() {
         application.setStatus(ApplicationStatus.ASSESSMENT);
+        application.setCvScreeningStatus(CvScreeningStatus.PASSED);
         scoredPaper(new BigDecimal("5.00"), new BigDecimal("7.00"), TestSubmissionStatus.GRADED);
         when(applications.findByIdForUpdate(4L)).thenReturn(Optional.of(application));
+        when(aiInterviews.existsByApplication_IdAndStatus(4L, AiInterviewStatus.PASSED)).thenReturn(true);
 
         service.settleAfterAssessment(4L);
 
         assertThat(application.getStatus()).isEqualTo(ApplicationStatus.HUMAN_INTERVIEW);
         verify(gateScreening).recalculate(application);
+        verify(closures, never()).onClosed(any(), any());
+    }
+
+    @Test
+    void officialAssessmentPassWaitsForAiInterview() {
+        application.setStatus(ApplicationStatus.ASSESSMENT);
+        application.setCvScreeningStatus(CvScreeningStatus.PASSED);
+        scoredPaper(new BigDecimal("5.00"), new BigDecimal("7.00"), TestSubmissionStatus.GRADED);
+        when(applications.findByIdForUpdate(4L)).thenReturn(Optional.of(application));
+        when(aiInterviews.existsByApplication_IdAndStatus(4L, AiInterviewStatus.PASSED)).thenReturn(false);
+
+        service.settleAfterAssessment(4L);
+
+        assertThat(application.getStatus()).isEqualTo(ApplicationStatus.ASSESSMENT);
         verify(closures, never()).onClosed(any(), any());
     }
 

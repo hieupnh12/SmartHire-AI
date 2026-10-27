@@ -35,6 +35,11 @@ public class AssessmentGenerationService {
     private final ObjectMapper json;
     private final NotificationPreferenceService preferences;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private ApplicationStatusHistoryRepository history;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private RecruitmentStageRepository stages;
+
     public AssessmentGenerationService(JobRepository jobs, JobTestRepository tests, JobSkillRepository skills,
             QuestionRepository questions, OptionRepository options, ApplicationRepository applications,
             NotificationRepository notifications, EmailOutboxRepository outbox,
@@ -68,8 +73,8 @@ public class AssessmentGenerationService {
         Job job = staffJob(jobId);
         validate(job, config);
         if (config.objectiveDurationMinutes() != null && config.objectiveDurationMinutes() >= config.durationMinutes()) throw invalid("Objective duration must be less than total duration");
-        // Enabling automation must not silently accept an unusable question bank.
-        if (config.autoAssign()) select(job, config);
+        // The configuration acts as a template/rule; question availability is validated during actual test generation
+        // or reported via automation_status.
         job.setAssessmentConfigJson(json.valueToTree(config));
         return config;
     }
@@ -80,6 +85,58 @@ public class AssessmentGenerationService {
         var config = readConfig(job);
         if (config == null) throw invalid("Save the assessment structure first");
         return mapper.response(create(job, config, null, access.actor()));
+    }
+
+    @Transactional
+    public JobTestResponse generateForApplicationExplicit(long jobId, long applicationId) {
+        Job job = staffJob(jobId);
+        var config = readConfig(job);
+        if (config == null) throw invalid("Cần cấu hình bài tập cho vị trí trước khi tạo đề");
+        var application = applications.findById(applicationId)
+                .orElseThrow(() -> new BusinessException("Không tìm thấy hồ sơ", HttpStatus.NOT_FOUND, "APPLICATION_NOT_FOUND"));
+        if (application.getJob().getId() != jobId) {
+            throw invalid("Hồ sơ ứng viên không thuộc vị trí này");
+        }
+        if (tests.existsByAssignedApplication_Id(applicationId)) {
+            throw invalid("Ứng viên này đã có bài đánh giá riêng");
+        }
+        JobTest test = create(job, config, application, access.actor());
+        if (application.getStatus() != ApplicationStatus.ASSESSMENT) {
+            if (history != null) {
+                var row = new ApplicationStatusHistory();
+                row.setApplication(application);
+                row.setFromStatus(application.getStatus().name());
+                row.setToStatus(ApplicationStatus.ASSESSMENT.name());
+                row.setChangedBy(access.actor().getId());
+                row.setNote("Assessment generated: " + test.getTitle());
+                history.save(row);
+            }
+            application.setStatus(ApplicationStatus.ASSESSMENT);
+            if (stages != null) {
+                stages.findByJob_IdOrderBySortOrderAsc(jobId).stream()
+                        .filter(stage -> "Assessment".equalsIgnoreCase(stage.getName())).findFirst()
+                        .ifPresent(application::setStage);
+            }
+            applications.save(application);
+        }
+        String path = "/candidate/assessments?applicationId=" + applicationId;
+        String title = "Bài Assessment đã sẵn sàng";
+        String body = "Bạn đã được giao bài đánh giá năng lực cho vị trí " + test.getJob().getTitle()
+                + ". Bài \"" + test.getTitle() + "\" đã được tạo riêng cho bạn. Thời gian làm bài "
+                + test.getDurationMinutes() + " phút, tính từ lúc bắt đầu.";
+        if (!preferences.webOff(application.getCandidate(), NotificationCategory.ASSESSMENT)) {
+            notifications.save(Notification.builder().candidate(application.getCandidate()).type("ASSESSMENT_INVITATION")
+                    .title(title).body(body).payloadJson("{\"testId\":" + test.getId() + ",\"applicationId\":" + applicationId
+                            + ",\"path\":\"" + path + "\"}").build());
+        }
+        if (application.getCandidate().getEmail() != null && !application.getCandidate().getEmail().isBlank()
+                && !preferences.emailOff(application.getCandidate(), NotificationCategory.ASSESSMENT)) {
+            outbox.save(EmailOutbox.builder().purpose("ASSESSMENT_INVITATION")
+                    .toEmail(application.getCandidate().getEmail()).subject(title + " — " + test.getJob().getTitle())
+                    .body(body + "\n\nĐăng nhập vào workspace để mở mục Bài đánh giá.")
+                    .status(NotificationStatus.PENDING).attempts(0).build());
+        }
+        return mapper.response(test);
     }
 
     @Transactional(readOnly = true)
@@ -141,6 +198,7 @@ public class AssessmentGenerationService {
                 .durationMinutes(config.durationMinutes()).objectiveDurationMinutes(config.objectiveDurationMinutes())
                 .passingScore(BigDecimal.valueOf(total).multiply(BigDecimal.valueOf(config.passingPercent()))
                         .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP))
+                .origin(TestOrigin.GENERATED)
                 .status(application == null ? TestStatus.DRAFT : TestStatus.PUBLISHED).build();
         tests.save(test);
         int order = 0;
@@ -213,6 +271,17 @@ public class AssessmentGenerationService {
         }
         for (var section : config.sections()) {
             if (!names.contains(section.skill().trim().toLowerCase(Locale.ROOT))) throw invalid("Skill does not belong to job: " + section.skill());
+        }
+        if (config.codingTestWeightPercent() != null && config.codingAiWeightPercent() != null) {
+            if (config.codingTestWeightPercent() + config.codingAiWeightPercent() != 100) {
+                throw invalid("Coding weights must total 100% (test cases + AI review)");
+            }
+        }
+        if (config.essayCriteria() != null && !config.essayCriteria().isEmpty()) {
+            int totalRubric = config.essayCriteria().stream().mapToInt(AssessmentConfigRequest.RubricCriterionConfig::weight).sum();
+            if (totalRubric != 100) {
+                throw invalid("Essay rubric criteria weights must total 100%");
+            }
         }
     }
 

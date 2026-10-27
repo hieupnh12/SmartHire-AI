@@ -13,14 +13,8 @@ import com.smarthire.domain.tenant.entity.EmailOutbox;
 import com.smarthire.domain.tenant.entity.Job;
 import com.smarthire.domain.tenant.entity.JobTest;
 import com.smarthire.domain.tenant.entity.Notification;
-import com.smarthire.domain.tenant.entity.User;
-import com.smarthire.domain.tenant.repository.ApplicationRepository;
-import com.smarthire.domain.tenant.repository.ApplicationStatusHistoryRepository;
-import com.smarthire.domain.tenant.repository.EmailOutboxRepository;
-import com.smarthire.domain.tenant.repository.JobTestRepository;
-import com.smarthire.domain.tenant.repository.NotificationRepository;
-import com.smarthire.domain.tenant.repository.RecruitmentStageRepository;
-import com.smarthire.domain.tenant.repository.SubmissionRepository;
+import com.smarthire.domain.tenant.entity.*;
+import com.smarthire.domain.tenant.repository.*;
 import com.smarthire.multitenancy.service.TenantPublicUrlService;
 import com.smarthire.tenant.assessment.dto.request.SendAssessmentRequest;
 import com.smarthire.tenant.assessment.dto.response.SendAssessmentResponse;
@@ -55,6 +49,15 @@ public class AssessmentInvitationService {
     private final CvAccess access;
     private final NotificationPreferenceService preferences;
     private final AssessmentDemoSeedService demoSeed;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private QuestionRepository questions;
+    @org.springframework.beans.factory.annotation.Autowired
+    private OptionRepository options;
+    @org.springframework.beans.factory.annotation.Autowired
+    private CodingProblemRepository codingProblems;
+    @org.springframework.beans.factory.annotation.Autowired
+    private TestCaseRepository testCases;
 
     public AssessmentInvitationService(JobTestRepository tests, ApplicationRepository applications,
             SubmissionRepository submissions,
@@ -138,6 +141,123 @@ public class AssessmentInvitationService {
                 "Nhà tuyển dụng mời bạn làm bài \"" + test.getTitle() + "\" cho vị trí " + application.getJob().getTitle()
                         + ". Thời gian làm bài " + test.getDurationMinutes() + " phút, bắt đầu tính khi bạn bấm bắt đầu.");
     }
+
+    @Transactional
+    public SendAssessmentResponse assignToApplication(long testId, long applicationId) {
+        if (!access.staff()) {
+            throw new BusinessException("Staff access required", HttpStatus.FORBIDDEN, "ASSESSMENT_FORBIDDEN");
+        }
+        User actor = access.actor();
+        JobTest test = tests.findById(testId).orElseThrow(() -> notFound("Test"));
+        access.requireJob(test.getJob());
+        if (test.getStatus() != TestStatus.PUBLISHED || test.getJob().getDeletedAt() != null) {
+            throw conflict("Only published tests can be assigned", "TEST_UNAVAILABLE");
+        }
+        Application application = applications.findByIdForUpdate(applicationId)
+                .orElseThrow(() -> notFound("Application"));
+        if (!application.getJob().getId().equals(test.getJob().getId())) {
+            throw conflict("Application does not belong to the test job", "APPLICATION_JOB_MISMATCH");
+        }
+        if (application.getArchivedAt() != null || application.getWithdrawnAt() != null
+                || !SENDABLE.contains(application.getStatus())) {
+            throw conflict("Application is not eligible for assessment", "APPLICATION_NOT_ELIGIBLE");
+        }
+
+        // If this test is already assigned to this application, simply send/resend:
+        if (test.getAssignedApplication() != null && test.getAssignedApplication().getId().equals(application.getId())) {
+            return send(testId, new SendAssessmentRequest(applicationId));
+        }
+
+        // Check if application already has a dedicated test:
+        var existing = tests.findByAssignedApplication_Id(applicationId);
+        if (existing.isPresent()) {
+            return send(existing.get().getId(), new SendAssessmentRequest(applicationId));
+        }
+
+        // Clone the published template test into a dedicated paper for this application:
+        JobTest paper = JobTest.builder()
+                .job(test.getJob())
+                .assignedApplication(application)
+                .createdBy(actor)
+                .title(test.getTitle())
+                .description(test.getDescription())
+                .durationMinutes(test.getDurationMinutes())
+                .objectiveDurationMinutes(test.getObjectiveDurationMinutes())
+                .passingScore(test.getPassingScore())
+                .origin(test.getOrigin())
+                .status(TestStatus.PUBLISHED)
+                .build();
+        tests.save(paper);
+
+        if (questions != null) {
+            for (var q : questions.findByTest_IdOrderByQuestionOrderAscIdAsc(test.getId())) {
+                Question qClone = new Question();
+                qClone.setTest(paper);
+                qClone.setQuestionText(q.getQuestionText());
+                qClone.setQuestionType(q.getQuestionType());
+                qClone.setDifficulty(q.getDifficulty());
+                qClone.setSkill(q.getSkill());
+                qClone.setQuestionOrder(q.getQuestionOrder());
+                qClone.setPoints(q.getPoints());
+                qClone.setExplanation(q.getExplanation());
+                qClone.setRubricJson(q.getRubricJson());
+                questions.save(qClone);
+                if (options != null) {
+                    for (var opt : options.findByQuestion_IdOrderByIdAsc(q.getId())) {
+                        Option optClone = new Option();
+                        optClone.setQuestion(qClone);
+                        optClone.setOptionText(opt.getOptionText());
+                        optClone.setCorrect(opt.isCorrect());
+                        options.save(optClone);
+                    }
+                }
+                if (codingProblems != null && q.getCodingProblem() != null) {
+                    var cp = q.getCodingProblem();
+                    CodingProblem cpClone = new CodingProblem();
+                    cpClone.setTest(paper);
+                    cpClone.setQuestion(qClone);
+                    cpClone.setTitle(cp.getTitle());
+                    cpClone.setPrompt(cp.getPrompt());
+                    cpClone.setCategory(cp.getCategory());
+                    cpClone.setTimeLimitMs(cp.getTimeLimitMs());
+                    cpClone.setMemoryMb(cp.getMemoryMb());
+                    cpClone.setStarterCodeJson(cp.getStarterCodeJson());
+                    cpClone.setHarnessJson(cp.getHarnessJson());
+                    codingProblems.save(cpClone);
+                    if (testCases != null) {
+                        for (var tc : cp.getTestCases()) {
+                            TestCase tcClone = new TestCase();
+                            tcClone.setCodingProblem(cpClone);
+                            tcClone.setInputData(tc.getInputData());
+                            tcClone.setExpectedOutput(tc.getExpectedOutput());
+                            tcClone.setSample(tc.isSample());
+                            tcClone.setWeight(tc.getWeight());
+                            testCases.save(tcClone);
+                        }
+                    }
+                }
+            }
+        }
+
+        if (application.getStatus() != ApplicationStatus.ASSESSMENT) {
+            ApplicationStatusHistory row = new ApplicationStatusHistory();
+            row.setApplication(application);
+            row.setFromStatus(application.getStatus().name());
+            row.setToStatus(ApplicationStatus.ASSESSMENT.name());
+            row.setChangedBy(actor.getId());
+            row.setNote("Assessment assigned: " + paper.getTitle());
+            history.save(row);
+            application.setStatus(ApplicationStatus.ASSESSMENT);
+            stages.findByJob_IdOrderBySortOrderAsc(application.getJob().getId()).stream()
+                    .filter(stage -> "Assessment".equalsIgnoreCase(stage.getName())).findFirst()
+                    .ifPresent(application::setStage);
+        }
+
+        return notifyCandidate(application, paper, actor,
+                "Nhà tuyển dụng mời bạn làm bài \"" + paper.getTitle() + "\" cho vị trí " + application.getJob().getTitle()
+                        + ". Thời gian làm bài " + paper.getDurationMinutes() + " phút, bắt đầu tính khi bạn bấm bắt đầu.");
+    }
+
 
     private SendAssessmentResponse notifyCandidate(Application application, JobTest test, User actor, String body) {
         Candidate candidate = application.getCandidate();

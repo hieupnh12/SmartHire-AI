@@ -61,6 +61,15 @@ public class CodingProblem {
     @Column(nullable = false, columnDefinition = "TEXT")
     String prompt;
 
+    @Column(name = "constraints_text", columnDefinition = "TEXT")
+    String constraintsText;
+
+    @Column(name = "verified_at")
+    java.time.Instant verifiedAt;
+
+    @Column(name = "verified_language", length = 32)
+    String verifiedLanguage;
+
     @Builder.Default
     @Column(name = "time_limit_ms", nullable = false)
     int timeLimitMs = 2000;

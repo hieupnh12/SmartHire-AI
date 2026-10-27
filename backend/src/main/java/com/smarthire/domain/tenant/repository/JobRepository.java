@@ -74,4 +74,18 @@ public interface JobRepository extends JpaRepository<Job, Long> {
               and j.deadline <= :now
             """)
     List<Job> dueToClose(@Param("now") Instant now, @Param("open") List<JobStatus> open);
+
+    @Query("""
+            select j.location, count(j) from Job j
+            where j.deletedAt is null and j.location is not null and trim(j.location) <> ''
+            group by j.location
+            """)
+    List<Object[]> countJobsByLocation();
+
+    @Query("""
+            select j.department, count(j) from Job j
+            where j.deletedAt is null and j.department is not null and trim(j.department) <> ''
+            group by j.department
+            """)
+    List<Object[]> countJobsByDepartment();
 }

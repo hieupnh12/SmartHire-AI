@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { Camera, CheckCircle2, Expand, Mic, MonitorUp, ShieldAlert, ShieldCheck, TriangleAlert } from "lucide-react";
+import { Camera, CheckCircle2, Expand, Mic, ShieldAlert, ShieldCheck, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ux/Button";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 import { candidateInterviewApi, type ProctorEvent } from "../api/candidateInterviewApi";
@@ -19,7 +19,7 @@ export function ProctoringStart({ busy, label = "Bắt đầu phỏng vấn", on
   const [preparing, setPreparing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
-  const [enableCamera, setEnableCamera] = useState(false);
+  const [enableCamera, setEnableCamera] = useState(true);
   const prepared = useRef<ProctorSession | null>(null);
   const mounted = useRef(true);
   const preparingRef = useRef(false);
@@ -47,8 +47,8 @@ export function ProctoringStart({ busy, label = "Bắt đầu phỏng vấn", on
         setReady(true);
         return;
       }
-      if ([...prepared.current.camera.getAudioTracks(), ...prepared.current.screen.getTracks()].some(track => track.readyState !== "live")) {
-        throw new Error("Thiết bị hoặc chia sẻ tab phỏng vấn đã dừng. Hãy kiểm tra thiết bị lại.");
+      if (prepared.current.camera.getAudioTracks().some(track => track.readyState !== "live")) {
+        throw new Error("Microphone đã dừng hoạt động. Hãy kiểm tra thiết bị lại.");
       }
       if (!document.documentElement.requestFullscreen) throw new Error("Trình duyệt không hỗ trợ chế độ toàn màn hình.");
       await document.documentElement.requestFullscreen();
@@ -72,9 +72,9 @@ export function ProctoringStart({ busy, label = "Bắt đầu phỏng vấn", on
 
   return <div className="space-y-4 rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-container-low)] p-4">
     <div className="grid gap-3 sm:grid-cols-3">
-      <Requirement icon={Camera} title="Camera" text="Tùy chọn, tạm thời không bắt buộc" />
-      <Requirement icon={Mic} title="Microphone" text="Theo dõi trạng thái thiết bị" />
-      <Requirement icon={MonitorUp} title="Tab phỏng vấn" text="Chia sẻ tab đang sử dụng hệ thống" />
+      <Requirement icon={Camera} title="Camera (Webcam)" text="Góc quay trực diện khuôn mặt ứng viên" />
+      <Requirement icon={Mic} title="Microphone" text="Thu âm giọng nói để trả lời câu hỏi phỏng vấn" />
+      <Requirement icon={Expand} title="Toàn màn hình" text="Tự động mở toàn màn hình (Fullscreen) chống gian lận" />
     </div>
     <label className="flex cursor-pointer items-start gap-3 rounded-lg bg-white p-3 text-sm leading-6">
       <input className="mt-1 size-4 accent-[var(--color-primary)]" type="checkbox" checked={accepted} disabled={preparing} onChange={event => {
@@ -83,15 +83,15 @@ export function ProctoringStart({ busy, label = "Bắt đầu phỏng vấn", on
         prepared.current = null;
         setReady(false);
       }} />
-      <span>Tôi đồng ý bật microphone, chia sẻ tab phỏng vấn và ghi nhận các sự kiện vi phạm trong thời gian thực hiện.</span>
+      <span>Tôi đồng ý bật camera, microphone, vào chế độ toàn màn hình và tuân thủ quy chế phỏng vấn.</span>
     </label>
     <label className="flex items-center gap-3 text-sm">
       <input type="checkbox" checked={enableCamera} disabled={preparing || ready} onChange={event => setEnableCamera(event.target.checked)} />
-      Bật camera (tùy chọn). Nếu camera không mở được, bạn vẫn có thể tiếp tục.
+      Bật camera (khuyến nghị). Nếu camera không mở được, bạn vẫn có thể tiếp tục với microphone.
     </label>
     {error && <p className="rounded-lg bg-[var(--color-error-container)] p-3 text-sm text-[var(--color-on-error-container)]" role="alert">{error}</p>}
-    {!ready && <p className="text-sm text-[var(--color-on-surface-variant)]">Khi trình duyệt hỏi chia sẻ, chọn tab phỏng vấn hiện tại và xác nhận. Hệ thống chỉ chia sẻ nội dung tab này.</p>}
-    {ready && <p className="text-sm" role="status">Microphone và chia sẻ tab phỏng vấn đã sẵn sàng. {enableCamera && !prepared.current?.camera.getVideoTracks().length ? "Camera không mở được; bạn vẫn có thể tiếp tục. " : ""}Bấm tiếp để vào toàn màn hình và bắt đầu.</p>}
+    {!ready && <p className="text-sm text-[var(--color-on-surface-variant)]">Bấm nút bên dưới để cấp quyền Camera và Microphone cho trình duyệt.</p>}
+    {ready && <p className="text-sm font-medium text-emerald-600" role="status">Camera và Microphone đã sẵn sàng. {enableCamera && !prepared.current?.camera.getVideoTracks().length ? "(Camera chưa mở được; phiên sẽ chạy với microphone). " : ""}Bấm tiếp để vào toàn màn hình và bắt đầu.</p>}
     <Button size="lg" disabled={!accepted || preparing || busy} onClick={() => void prepare()}>
       <ShieldCheck className="size-4" aria-hidden="true" />{preparing || busy ? ready ? "Đang mở phiên phỏng vấn…" : "Đang kiểm tra thiết bị…" : ready ? label : "Bước 1: Kiểm tra thiết bị"}
     </Button>
@@ -143,14 +143,14 @@ export function ProctoredInterviewGuard({ interviewId, session, children, onAuto
   useEffect(() => {
     if (videoRef.current) videoRef.current.srcObject = session.camera;
     const microphoneTrack = session.camera.getAudioTracks()[0];
-    const screenTrack = session.screen.getVideoTracks()[0];
+    const cameraTrack = session.camera.getVideoTracks()[0];
     const microphoneLost = () => violate("MICROPHONE_LOST", "Microphone đã bị tắt");
-    const screenLost = () => violate("SCREEN_SHARE_STOPPED", "Chia sẻ tab phỏng vấn đã dừng");
+    const cameraLost = () => violate("CAMERA_LOST", "Camera giám sát đã bị dừng");
     microphoneTrack?.addEventListener("ended", microphoneLost);
-    screenTrack?.addEventListener("ended", screenLost);
+    cameraTrack?.addEventListener("ended", cameraLost);
     return () => {
       microphoneTrack?.removeEventListener("ended", microphoneLost);
-      screenTrack?.removeEventListener("ended", screenLost);
+      cameraTrack?.removeEventListener("ended", cameraLost);
       // The room owns device lifetime; this guard only attaches monitoring listeners.
     };
   }, [session, violate]);
@@ -206,11 +206,14 @@ export function ProctoredInterviewGuard({ interviewId, session, children, onAuto
         {Array.from({ length: 18 }, (_, index) => <span key={index}>{watermark}</span>)}
       </div>
     </div>
-    <div className="fixed bottom-4 right-4 z-50 w-44 overflow-hidden rounded-xl border border-white/20 bg-slate-950 p-2 text-white shadow-2xl">
+    <div className="fixed bottom-4 right-4 z-50 w-48 overflow-hidden rounded-xl border border-white/20 bg-slate-950 p-2 text-white shadow-2xl">
       {session.camera.getVideoTracks().length > 0
         ? <video ref={videoRef} autoPlay muted playsInline className="aspect-video w-full rounded-lg bg-slate-900 object-cover" />
-        : <p className="p-3 text-xs">Đang giám sát microphone và tab phỏng vấn. Camera không bật.</p>}
-      <div className="mt-2 flex items-center justify-between text-[11px]"><span className="inline-flex items-center gap-1"><span className="size-2 rounded-full bg-emerald-400" />Đang giám sát</span><span>{violations}/{MAX_VIOLATIONS}</span></div>
+        : <div className="flex aspect-video w-full flex-col items-center justify-center rounded-lg bg-slate-900 p-2 text-center text-xs text-slate-400">
+            <Camera className="mb-1 size-5 text-slate-500" />
+            <span>Camera không bật</span>
+          </div>}
+      <div className="mt-2 flex items-center justify-between text-[11px]"><span className="inline-flex items-center gap-1.5 font-medium text-emerald-400"><span className="size-2 animate-pulse rounded-full bg-emerald-400" />Đang giám sát</span><span className="font-mono text-slate-300">{violations}/{MAX_VIOLATIONS}</span></div>
     </div>
     {warning && <div className="fixed inset-0 z-[70] grid place-items-center bg-slate-950/65 p-4" role="alertdialog" aria-modal="true" aria-labelledby="proctor-warning-title">
       <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">

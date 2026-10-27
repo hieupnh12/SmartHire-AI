@@ -8,6 +8,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import com.smarthire.common.exception.BusinessException;
+import com.smarthire.domain.enums.TestOrigin;
 import com.smarthire.domain.enums.TestStatus;
 import com.smarthire.domain.tenant.entity.JobTest;
 import com.smarthire.domain.tenant.repository.JobRepository;
@@ -41,18 +42,29 @@ public class AssessmentService {
         JobTest test = new JobTest();
         test.setJob(job);
         test.setStatus(TestStatus.DRAFT);
+        test.setOrigin(TestOrigin.AUTHORED);
         test.setCreatedBy(access.actor());
         apply(test, request);
         return mapper.response(tests.save(test));
     }
 
     @Transactional(readOnly = true)
-    public JobTestPage list(int page, int size) {
+    public JobTestPage list(Long jobId, int page, int size) {
         requireStaff();
         int safePage = Math.max(page, 0);
-        int safeSize = Math.min(Math.max(size, 1), 50);
-        var result = tests.findAll(PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "id")));
+        int safeSize = Math.min(Math.max(size, 1), 100);
+        org.springframework.data.domain.Page<JobTest> result;
+        if (jobId != null) {
+            result = tests.findByJob_Id(jobId, PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "id")));
+        } else {
+            result = tests.findAll(PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "id")));
+        }
         return new JobTestPage(result.map(mapper::response).getContent(), result.getTotalElements(), safePage, safeSize);
+    }
+
+    @Transactional(readOnly = true)
+    public JobTestPage list(int page, int size) {
+        return list(null, page, size);
     }
 
     @Transactional(readOnly = true)
@@ -98,6 +110,7 @@ public class AssessmentService {
         test.setObjectiveDurationMinutes(request.objectiveDurationMinutes());
         test.setDurationMinutes(request.durationMinutes());
         test.setPassingScore(request.passingScore());
+        if (request.codingTestWeightPercent() != null) test.setCodingTestWeightPercent(request.codingTestWeightPercent());
     }
 
     public Map<String, String> health() {

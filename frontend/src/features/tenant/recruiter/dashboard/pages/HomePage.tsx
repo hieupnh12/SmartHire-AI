@@ -1,6 +1,29 @@
 import { keepPreviousData, useQueries, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
-import { AlertCircle, ArrowRight, Bot, CalendarDays, ChevronLeft, ChevronRight, Library, FileSearch, Gauge, Layers3, MapPin, Plus, RefreshCw, Search, Target, TrendingUp, UserCheck, Users, X, type LucideIcon } from "lucide-react";
+import {
+  Activity,
+  AlertCircle,
+  ArrowRight,
+  Bot,
+  Building2,
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
+  Library,
+  FileSearch,
+  Gauge,
+  Layers3,
+  MapPin,
+  Plus,
+  RefreshCw,
+  Search,
+  Target,
+  TrendingUp,
+  UserCheck,
+  Users,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import { dashboardApi } from "@/api/tenant/dashboardApi";
 import { applicantApi } from "@/api/tenant/applicantApi";
@@ -8,13 +31,35 @@ import { cvApi } from "@/api/tenant/cvApi";
 import { jobApi } from "@/api/tenant/jobApi";
 import type { JobListItem, JobStatus } from "@/api/types/job";
 import type { ApplicationSummary } from "@/api/types/applicant";
-import { mockInterviews } from "@/features/tenant/recruiter/schedules/constants/mockInterviews";
+import { humanInterviewApi } from "@/api/tenant/humanInterviewApi";
+import { mapHumanInterview } from "@/features/tenant/recruiter/schedules/utils/mapHumanInterview";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 import { hasRecruiterFeature } from "@/features/tenant/recruiter/permissions";
 import { getApiErrorMessage } from "@/lib/axios";
 import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
 import { LoadingState, Skeleton } from "@/components/ux/Skeleton";
+import {
+  RecruiterFilterDropdown,
+  type FilterOption,
+} from "../components/RecruiterFilterDropdown";
+
+const STATUS_FILTER_OPTIONS: FilterOption<"ALL" | JobStatus>[] = [
+  { value: "ALL", label: "Tất cả trạng thái", dotColor: "bg-slate-400" },
+  {
+    value: "PUBLISHED",
+    label: "Đang tuyển",
+    dotColor: "bg-emerald-500",
+    badge: (
+      <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold text-emerald-800">
+        Mở
+      </span>
+    ),
+  },
+  { value: "DRAFT", label: "Bản nháp", dotColor: "bg-slate-400" },
+  { value: "PAUSED", label: "Tạm dừng", dotColor: "bg-amber-500" },
+  { value: "CLOSED", label: "Đã đóng", dotColor: "bg-slate-500" },
+];
 
 const statusLabel: Record<JobStatus, string> = { DRAFT: "Bản nháp", PUBLISHED: "Đang tuyển", PAUSED: "Tạm dừng", CLOSED: "Đã đóng", ARCHIVED: "Lưu trữ" };
 const statusStyle: Record<JobStatus, string> = {
@@ -213,6 +258,14 @@ export function HomePage() {
       refetchInterval: 5_000,
     })),
   });
+  const scheduleTaskQueries = useQueries({
+    queries: (taskJobsQuery.data?.data ?? []).map((job) => ({
+      queryKey: ["human-interviews", "dashboard-tasks", job.id],
+      queryFn: () => humanInterviewApi.list({ jobId: job.id, size: 100 }),
+      enabled: taskDrawer === "schedules",
+      refetchInterval: 5_000,
+    })),
+  });
   const departmentsQuery = useQuery({ queryKey: ["jobs", "departments"], queryFn: jobApi.departments, enabled: !!token });
   const jobs = jobsQuery.data?.data.items ?? [];
   const jobPage = jobsQuery.data?.data;
@@ -227,6 +280,10 @@ export function HomePage() {
   const totalJobs = summary?.totalJobs ?? 0;
   const averageApplications = summary?.averageApplicationsPerOpenJob ?? 0;
   const departments = departmentsQuery.data?.data ?? [];
+  const departmentOptions: FilterOption<string>[] = useMemo(() => [
+    { value: "ALL", label: "Tất cả phòng ban", icon: Building2 },
+    ...departments.map((dept) => ({ value: dept, label: dept, icon: Building2 })),
+  ], [departments]);
   const visibleJobs = expiringOnly ? jobs.filter((job) => {
     if (!job.deadline) return false;
     const remaining = new Date(job.deadline).getTime() - Date.now();
@@ -254,13 +311,28 @@ export function HomePage() {
     })).sort((a, b) => b.items.length - a.items.length);
   }, [newApplicantsQuery.data]);
   const cvGroups = useMemo<TaskDrawerGroup[]>(() => (taskJobsQuery.data?.data ?? []).flatMap((job, index) => {
-    const rows = (cvTaskQueries[index]?.data?.data ?? []).filter((cv) => cv.status === "UPLOADED" || cv.status === "PARSED");
+    const payload = cvTaskQueries[index]?.data?.data;
+    const list = Array.isArray(payload) ? payload : payload?.items ?? [];
+    const rows = list.filter((cv) => cv.status === "UPLOADED" || cv.status === "PARSED");
     return rows.length === 0 ? [] : [{ jobId: job.id, title: job.title, to: `/recruiter/jobs/${job.id}/cvs`, items: rows.map((cv) => ({ id: cv.id, title: cv.candidateName, detail: cv.originalFilename, to: `/recruiter/jobs/${job.id}/cvs?cvId=${cv.id}` })) }];
   }).sort((a, b) => b.items.length - a.items.length), [cvTaskQueries, taskJobsQuery.data]);
-  const scheduleGroups = useMemo<TaskDrawerGroup[]>(() => (taskJobsQuery.data?.data ?? []).flatMap((job) => {
-    const rows = mockInterviews.filter((interview) => interview.jobTitle === job.title && interview.status !== "CANCELLED" && interview.status !== "DONE" && new Date(interview.startsAt).getTime() >= Date.now());
-    return rows.length === 0 ? [] : [{ jobId: job.id, title: job.title, to: `/recruiter/jobs/${job.id}/schedules?status=upcoming`, items: rows.map((interview) => ({ id: interview.id, title: interview.candidateName, detail: new Date(interview.startsAt).toLocaleString("vi-VN"), to: `/recruiter/jobs/${job.id}/schedules?status=upcoming&scheduleId=${interview.id}` })) }];
-  }).sort((a, b) => b.items.length - a.items.length), [taskJobsQuery.data]);
+  const scheduleGroups = useMemo<TaskDrawerGroup[]>(() => (taskJobsQuery.data?.data ?? []).flatMap((job, index) => {
+    const rows = (scheduleTaskQueries[index]?.data?.items ?? [])
+      .map(mapHumanInterview)
+      .filter((interview): interview is NonNullable<typeof interview> =>
+        !!interview && interview.status !== "CANCELLED" && interview.status !== "DONE" && new Date(interview.startsAt).getTime() >= Date.now());
+    return rows.length === 0 ? [] : [{
+      jobId: job.id,
+      title: job.title,
+      to: `/recruiter/jobs/${job.id}/schedules?status=upcoming`,
+      items: rows.map((interview) => ({
+        id: interview.id,
+        title: interview.candidateName,
+        detail: new Date(interview.startsAt).toLocaleString("vi-VN"),
+        to: `/recruiter/jobs/${job.id}/schedules?status=upcoming&scheduleId=${interview.id}`,
+      })),
+    }];
+  }).sort((a, b) => b.items.length - a.items.length), [scheduleTaskQueries, taskJobsQuery.data]);
 
   return (
     <section className="grid min-h-[calc(100vh-4rem)] items-stretch xl:grid-cols-[220px_minmax(0,1fr)] 2xl:grid-cols-[228px_minmax(0,1fr)]">
@@ -302,8 +374,31 @@ export function HomePage() {
         </div>
         <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-[var(--color-border-default)] bg-white p-2">
           <label className="relative min-w-[180px] flex-1"><span className="sr-only">Tìm kiếm job</span><Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-[var(--color-outline)]" aria-hidden="true" /><input data-search-input data-job-list-search value={jobSearch} onChange={(event) => { setJobSearch(event.target.value); setPage(0); }} placeholder="Tìm theo tên hoặc phòng ban" className="min-h-9 w-full rounded-lg bg-[var(--color-surface-alt)] pl-9 pr-3 text-xs outline-none focus:ring-2 focus:ring-brand-primary/20" /></label>
-          <select aria-label="Lọc trạng thái" value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value as "ALL" | JobStatus); setPage(0); clearStatusParam(); }} className="min-h-9 rounded-lg border border-[var(--color-border-default)] bg-white px-2 text-xs outline-none focus:ring-2 focus:ring-brand-primary/20"><option value="ALL">Tất cả trạng thái</option><option value="PUBLISHED">Đang tuyển</option><option value="DRAFT">Bản nháp</option><option value="PAUSED">Tạm dừng</option><option value="CLOSED">Đã đóng</option></select>
-          {!departmentsQuery.isError && <select aria-label="Lọc phòng ban" value={departmentFilter} onChange={(event) => { setDepartmentFilter(event.target.value); setPage(0); }} disabled={departmentsQuery.isPending} className="min-h-9 rounded-lg border border-[var(--color-border-default)] bg-white px-2 text-xs outline-none focus:ring-2 focus:ring-brand-primary/20 disabled:opacity-50"><option value="ALL">{departmentsQuery.isPending ? "Đang tải phòng ban…" : "Tất cả phòng ban"}</option>{departments.map((department) => <option key={department} value={department}>{department}</option>)}</select>}
+          <RecruiterFilterDropdown
+            label="Trạng thái tin"
+            value={statusFilter}
+            options={STATUS_FILTER_OPTIONS}
+            onChange={(val) => {
+              setStatusFilter(val);
+              setPage(0);
+              clearStatusParam();
+            }}
+            icon={Activity}
+          />
+          {!departmentsQuery.isError && (
+            <RecruiterFilterDropdown
+              label="Phòng ban"
+              value={departmentFilter}
+              options={departmentOptions}
+              disabled={departmentsQuery.isPending}
+              onChange={(val) => {
+                setDepartmentFilter(val);
+                setPage(0);
+              }}
+              icon={Building2}
+              align="right"
+            />
+          )}
           {departmentsQuery.isError && <button type="button" onClick={() => void departmentsQuery.refetch()} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-[var(--color-border-default)] bg-white px-2.5 text-xs font-medium text-[var(--color-on-surface-variant)] hover:bg-[var(--color-surface-alt)]"><RefreshCw className="size-3.5" aria-hidden="true" />Tải bộ lọc phòng ban</button>}
           {expiringOnly && <button type="button" onClick={clearStatusParam} aria-label="Bỏ lọc sắp hết hạn" className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-amber-50 px-2.5 text-xs font-semibold text-amber-700 hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300">Hết hạn trong 7 ngày<X className="size-3.5" aria-hidden="true" /></button>}
           <span className="px-2 text-[10px] font-medium text-[var(--color-on-surface-variant)]">{expiringOnly ? visibleJobs.length : jobPage?.total ?? 0} kết quả</span>

@@ -161,6 +161,25 @@ public class DynamicAiConfigProvider {
                         grading.endpointUrl(), grading.temperature(), grading.maxTokens(), grading.timeoutSeconds(),
                         grading.failoverProvider(), grading.failoverModel(), grading.fallbackChain());
             }
+            // Prefer Admin QUESTION_GEN (primary + Model Dự Phòng) for coding/async generation.
+            Optional<AiModelConfig> questionGen = modelConfigRepository.findByTaskType("QUESTION_GEN");
+            if ("ASSESSMENT_GEN".equals(normalizedTask)
+                    && questionGen.isPresent()
+                    && !Boolean.FALSE.equals(questionGen.get().getIsActive())) {
+                var source = getOrResolveBaseConfig("QUESTION_GEN");
+                return new ResolvedAiConfig(
+                        normalizedTask,
+                        source.provider(),
+                        source.modelName(),
+                        source.apiKey(),
+                        source.endpointUrl(),
+                        new BigDecimal("0.30"),
+                        source.maxTokens() != null ? Math.max(8192, source.maxTokens()) : 8192,
+                        Math.max(assessmentTimeout, source.timeoutSeconds() != null ? source.timeoutSeconds() : 30),
+                        source.failoverProvider(),
+                        source.failoverModel(),
+                        source.fallbackChain());
+            }
             var interview = resolveConfig("INTERVIEW_GEN");
             boolean openAi = "OPENAI".equalsIgnoreCase(interview.provider());
             return new ResolvedAiConfig(normalizedTask, "OPENAI", assessmentModel,
@@ -427,6 +446,9 @@ public class DynamicAiConfigProvider {
                         null,
                         null
                 ));
+            } else {
+                log.warn("Skipping fallback model {}:{} for task {} because no active API key was found for provider {}",
+                        stepProvider, stepModel, normalizedTask, stepProvider);
             }
         }
 
@@ -510,7 +532,7 @@ public class DynamicAiConfigProvider {
 
     public void evictAll() {
         try {
-            for (String task : new String[]{"CV_PARSING", "INTERVIEW_GEN", "INTERVIEW_NLP", "INTERVIEW_STT", "INTERVIEW_TTS", "CODE_GRADING", "MATCHING"}) {
+            for (String task : new String[]{"CV_PARSING", "INTERVIEW_GEN", "INTERVIEW_NLP", "INTERVIEW_STT", "INTERVIEW_TTS", "CODE_GRADING", "QUESTION_GEN", "MATCHING"}) {
                 redisService.delete(taskCacheKey(task));
             }
         } catch (Exception ex) {

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { cvApi } from "@/api/tenant/cvApi";
 import { getApiErrorMessage } from "@/lib/axios";
 import { muted } from "@/features/tenant/recruiter/matching/components/rankingUi";
+import { Skeleton } from "@/components/ux/Skeleton";
 
 export function CvFilePreview({ cvId, mimeType, filename }: { cvId: number; mimeType: string | null; filename: string }) {
   const [url, setUrl] = useState<string | null>(null);
@@ -26,7 +27,15 @@ export function CvFilePreview({ cvId, mimeType, filename }: { cvId: number; mime
     };
   }, [cvId, pdf]);
   if (error) return <p role="alert">{error}</p>;
-  if (!url) return <p className={muted}>Đang tải file CV…</p>;
+  if (!url) {
+    return (
+      <div className="space-y-3" role="status" aria-busy="true">
+        <Skeleton className="h-6 w-48" />
+        <Skeleton className="h-[30rem] w-full rounded-xl" />
+        <span className="sr-only">Đang tải file CV…</span>
+      </div>
+    );
+  }
   if (!pdf) {
     return <a className={muted} href={url} download={filename}>Tải CV về máy</a>;
   }

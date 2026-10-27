@@ -12,7 +12,6 @@ import com.smarthire.domain.tenant.repository.RecruitmentStageRepository;
 import com.smarthire.tenant.company.service.CompanyDirectoryService;
 import com.smarthire.tenant.cv.service.CvAccess;
 import com.smarthire.tenant.cv.service.CvSkillAnalysisService;
-import com.smarthire.tenant.job.dto.JobModels.JobUpsertRequest;
 import com.smarthire.tenant.job.mapper.JobMapper;
 import com.smarthire.tenant.job.screening.JobScreeningConfigService;
 import com.smarthire.tenant.job.service.JobAccess;
@@ -32,20 +31,34 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class JobServiceTest {
-    @Mock JobRepository jobs;
-    @Mock JobSkillRepository jobSkills;
-    @Mock RecruitmentStageRepository stages;
-    @Mock ApplicationRepository applications;
-    @Mock CvAccess access;
-    @Mock JobAccess jobAccess;
-    @Mock CvSkillAnalysisService taxonomy;
-    @Mock JobAssignmentService assignments;
-    @Mock JobScreeningConfigService screening;
-    @Mock JobScreeningConfigRepository screeningConfigs;
-    @Mock JobCloseScreeningService closeScreening;
-    @Mock CompanyDirectoryService companyDirectory;
-    @Mock org.springframework.amqp.rabbit.core.RabbitTemplate rabbitTemplate;
-    @Mock com.smarthire.tenant.applicant.service.ApplicationClosureService closures;
+    @Mock
+    JobRepository jobs;
+    @Mock
+    JobSkillRepository jobSkills;
+    @Mock
+    RecruitmentStageRepository stages;
+    @Mock
+    ApplicationRepository applications;
+    @Mock
+    CvAccess access;
+    @Mock
+    JobAccess jobAccess;
+    @Mock
+    CvSkillAnalysisService taxonomy;
+    @Mock
+    JobAssignmentService assignments;
+    @Mock
+    JobScreeningConfigService screening;
+    @Mock
+    JobScreeningConfigRepository screeningConfigs;
+    @Mock
+    JobCloseScreeningService closeScreening;
+    @Mock
+    CompanyDirectoryService companyDirectory;
+    @Mock
+    org.springframework.amqp.rabbit.core.RabbitTemplate rabbitTemplate;
+    @Mock
+    com.smarthire.tenant.applicant.service.ApplicationClosureService closures;
 
     JobService service;
     User recruiter;
@@ -91,10 +104,12 @@ class JobServiceTest {
     @Test
     void parseDeadlineAcceptsDateAndDateTime() {
         assertThat(JobService.parseDeadline("2026-09-30"))
-                .isEqualTo(java.time.LocalDate.parse("2026-09-30").atTime(23, 59, 59).toInstant(java.time.ZoneOffset.UTC));
+                .isEqualTo(
+                        java.time.LocalDate.parse("2026-09-30").atTime(23, 59, 59).toInstant(java.time.ZoneOffset.UTC));
         assertThat(JobService.parseDeadline("2026-09-30T17:30"))
                 .isEqualTo(java.time.LocalDateTime.parse("2026-09-30T17:30").toInstant(java.time.ZoneOffset.UTC));
-        assertThat(JobService.parseDeadline("2026-09-30T17:30:00Z")).isEqualTo(java.time.Instant.parse("2026-09-30T17:30:00Z"));
+        assertThat(JobService.parseDeadline("2026-09-30T17:30:00Z"))
+                .isEqualTo(java.time.Instant.parse("2026-09-30T17:30:00Z"));
         assertThat(JobService.parseDeadline("")).isNull();
     }
 }

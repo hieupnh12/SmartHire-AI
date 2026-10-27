@@ -8,6 +8,7 @@ import type { BankQuestion } from "../constants/excelTemplateMock";
 import { questionBankApi } from "@/api/tenant/questionBankApi";
 import { queryKeys } from "@/lib/query-keys";
 import { AssessmentError } from "@/components/ux/assessmentUi";
+import { PageSkeleton } from "@/components/ux/Skeleton";
 import { bankQuestionAuthoring } from "../utils/bankQuestionAuthoring";
 import { toQuestionRequest } from "../utils/assessmentQuestionRequest";
 import { validateExcelQuestions } from "../utils/excelImportValidation";
@@ -41,7 +42,7 @@ export function GeneralQuestionEditorPage() {
       navigate("/recruiter/question-bank", { state: { savedQuestions: questions.length } });
     },
   });
-  if (questionId && editingQuery.isPending) return <p role="status">Đang tải câu hỏi…</p>;
+  if (questionId && editingQuery.isPending) return <PageSkeleton variant="form" />;
   if (questionId && editingQuery.isError) return <AssessmentError error={editingQuery.error} retry={() => void editingQuery.refetch()} />;
   if (editing?.testId) return <section className="space-y-4"><h1 className="text-xl font-semibold">Câu hỏi thuộc bài đánh giá</h1><p>Mở bài đánh giá gốc để sửa câu hỏi trong bản nháp.</p><Link to={`/recruiter/jobs/${editing.jobId}/assessments/${editing.testId}`} className="text-brand-primary">Mở bài đánh giá</Link></section>;
   return <ExcelQuestionEditor key={draftKey} generalBank={{

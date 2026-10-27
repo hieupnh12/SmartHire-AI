@@ -16,6 +16,7 @@ import { getDeadlineInfo } from "@/features/tenant/candidate/jobs/utils/jobDeadl
 import { CareerHeader } from "@/features/tenant/candidate/jobs/components/CareerHeader";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 import { toast } from "@/stores/toastStore";
+import { Skeleton } from "@/components/ux/Skeleton";
 import "../career-page.css";
 import {
   Search,
@@ -865,7 +866,7 @@ export function TenantCareerPage() {
                           <p className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-white/75">{slide.eyebrow}</p>
                           <h2 className="text-2xl font-semibold leading-tight sm:text-3xl lg:text-4xl">{slide.title}</h2>
                           <p className="mt-4 max-w-xl text-sm leading-6 text-white/80 sm:text-base">{slide.description}</p>
-                          <Link to={jobsHref} tabIndex={index === activeHeroSlide ? 0 : -1} className="mt-6 inline-flex min-h-11 w-fit items-center gap-2 rounded-xl bg-white px-5 text-sm font-semibold text-slate-900 transition-colors hover:bg-slate-100">Khám phá cơ hội <ArrowRight className="size-4" aria-hidden="true" /></Link>
+                          <Link to={jobsHref} tabIndex={index === activeHeroSlide ? 0 : -1} className="mt-6 inline-flex min-h-11 w-fit items-center gap-2 rounded-xl bg-white px-5 text-sm font-semibold text-slate-900 transition-colors hover:bg-slate-100">{customLanding?.hero?.primaryCtaText || "Khám phá cơ hội"} <ArrowRight className="size-4" aria-hidden="true" /></Link>
                         </div>
                       </article>
                     ))}
@@ -1234,7 +1235,13 @@ export function TenantCareerPage() {
                     <legend className="font-semibold text-slate-800">Chọn CV để ứng tuyển <span className="text-[var(--color-error)]">*</span></legend>
                     <p className="mt-1 text-xs text-slate-500">Chọn một CV đã lưu hoặc tải lên bản mới dành cho vị trí này.</p>
 
-                    {candidateCvs.isPending && <p className="mt-3 rounded-xl bg-slate-50 p-3 text-xs text-slate-500">Đang tải danh sách CV…</p>}
+                    {candidateCvs.isPending && (
+                      <div className="mt-3 space-y-2" role="status" aria-busy="true">
+                        <Skeleton className="h-14 w-full rounded-xl" />
+                        <Skeleton className="h-14 w-full rounded-xl" />
+                        <span className="sr-only">Đang tải danh sách CV…</span>
+                      </div>
+                    )}
                     {candidateCvs.isError && <p role="alert" className="mt-3 rounded-xl bg-[var(--color-error-container)] p-3 text-xs text-[var(--color-on-error-container)]">Không thể tải CV đã lưu. Bạn vẫn có thể tải file mới bên dưới.</p>}
                     {(candidateCvs.data?.data.length ?? 0) > 0 && (
                       <div className="mt-3 max-h-52 space-y-2 overflow-y-auto pr-1">

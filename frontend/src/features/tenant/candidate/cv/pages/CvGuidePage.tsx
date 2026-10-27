@@ -1,9 +1,10 @@
 import { useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import {
-  AlertTriangle, ArrowRight, BookOpenCheck, Check, ChevronRight, Clock3, ExternalLink,
+  AlertTriangle, ArrowRight, BookOpenCheck, Check, Clock3, ExternalLink,
   FileStack, LayoutTemplate, ListChecks, Lock, Sigma, X,
 } from "lucide-react";
+import { Breadcrumb } from "@/components/ux/Breadcrumb";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 import {
   actionVerbGroups, commonMistakes, cvSections, formatRules, guideSections, guideSources,
@@ -19,11 +20,7 @@ export function CvGuidePage() {
   return (
     <div className="space-y-8">
       <section className="overflow-hidden rounded-3xl border border-slate-200 px-6 py-8 sm:px-10 sm:py-10" style={{ background: `linear-gradient(135deg, ${tint(10)} 0%, #ffffff 70%)` }}>
-        <nav aria-label="Breadcrumb" className="flex items-center gap-1 text-sm text-slate-500">
-          <Link to="/" className="hover:text-[var(--color-primary)]">Trang chủ</Link>
-          <ChevronRight className="size-4" aria-hidden="true" />
-          <span className="font-medium text-slate-700">Hướng dẫn viết CV</span>
-        </nav>
+        <Breadcrumb size="md" items={[{ label: "Trang chủ", to: "/" }, { label: "Hướng dẫn viết CV" }]} />
         <div className="mt-4 max-w-3xl">
           <span className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-semibold text-[var(--color-primary)] shadow-sm"><BookOpenCheck className="size-4" aria-hidden="true" />Cẩm nang ứng viên IT</span>
           <h1 className="mt-3 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">Hướng dẫn viết CV IT gây ấn tượng ngay lần đọc đầu</h1>

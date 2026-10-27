@@ -1,5 +1,6 @@
 package com.smarthire.domain.tenant.entity;
 
+import com.smarthire.domain.enums.TestOrigin;
 import com.smarthire.domain.enums.TestStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -61,10 +62,21 @@ public class JobTest {
     @Column(name = "passing_score", precision = 10, scale = 2)
     BigDecimal passingScore;
 
+    /** Share of coding score from hidden tests (0–100); AI review gets the remainder. */
+    @Builder.Default
+    @Column(name = "coding_test_weight_percent", nullable = false)
+    int codingTestWeightPercent = 90;
+
     @Builder.Default
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)
     TestStatus status = TestStatus.DRAFT;
+
+    /** AUTHORED = recruiter wrote the paper. GENERATED = drawn from the question bank. */
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 32)
+    TestOrigin origin = TestOrigin.AUTHORED;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by")

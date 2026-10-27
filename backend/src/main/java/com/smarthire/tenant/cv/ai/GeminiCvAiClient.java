@@ -100,13 +100,6 @@ public class GeminiCvAiClient implements CvAiClient {
         return "GEMINI";
     }
 
-    private String getEffectiveEndpoint() {
-        if (configProvider != null) {
-            return configProvider.resolveConfig("CV_PARSING").endpointUrl();
-        }
-        return null;
-    }
-
     @Override
     public String extractJson(String rawText, String jobContext) {
         if (!configured()) return fallback.extractJson(rawText, jobContext);
