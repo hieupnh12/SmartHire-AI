@@ -75,7 +75,7 @@ export function AddAiKeyModal({ isOpen, onClose, onSuccess, initialKey }: Props)
 
   const getEndpointPlaceholder = (p: string) => {
     switch (p) {
-      case "CURSOR": return "Mặc định: https://api.cursor.com/v1/agents";
+      case "CURSOR": return "Mặc định: https://api.cursor.com";
       case "OPENROUTER": return "Mặc định: https://openrouter.ai/api/v1/chat/completions";
       case "GROQ": return "Mặc định: https://api.groq.com/openai/v1/chat/completions";
       case "DEEPSEEK": return "Mặc định: https://api.deepseek.com/chat/completions";
@@ -314,7 +314,7 @@ export function AddAiKeyModal({ isOpen, onClose, onSuccess, initialKey }: Props)
             />
             {provider === "CURSOR" && (
               <div className="mt-2 rounded-xl border border-blue-200 bg-blue-50/80 p-2.5 text-[11px] text-blue-900 leading-relaxed">
-                ℹ️ <strong>Cursor Cloud Agents API:</strong> Khóa API chính hãng của Cursor bắt đầu bằng <code className="font-mono bg-blue-100 px-1 rounded font-bold text-blue-800">crsr_...</code>. Hệ thống sẽ tự động xác thực trực tiếp qua endpoint <code className="font-mono bg-blue-100 px-1 rounded font-bold">https://api.cursor.com/v1/agents</code>.
+                ℹ️ <strong>Cursor Cloud Agents API:</strong> Khóa API của Cursor bắt đầu bằng <code className="font-mono bg-blue-100 px-1 rounded font-bold text-blue-800">crsr_...</code>. Hệ thống sẽ tự động giao tiếp trực tiếp qua <code className="font-mono bg-blue-100 px-1 rounded font-bold">https://api.cursor.com/v1/agents</code> và kiểm tra tài khoản qua <code className="font-mono bg-blue-100 px-1 rounded font-bold">/v1/me</code> (hỗ trợ composer-2, composer-2.5, claude-4-sonnet-thinking, claude-3-5-sonnet, gpt-4o, cursor-small...).
               </div>
             )}
           </div>

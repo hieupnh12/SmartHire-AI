@@ -15,8 +15,10 @@ function formatDuration(seconds: number | null | undefined) {
 }
 
 /**
- * Compact Stat Bar (1 dòng): Pass-rate, TB thời gian, Tín hiệu giám sát, Tổng lượt làm.
- * Thay thế hoàn toàn khối báo cáo lớn và bảng con trùng lặp, tối ưu 100% diện tích First Fold.
+ * High-Hierarchy Metric Cards for Assessment Submissions:
+ * - Clear typographic weight
+ * - Visual sub-indicators / progress bars
+ * - Distinct status badges for high-level recruiter insights
  */
 export function AssessmentJobReportPanel({ jobId }: { jobId: number }) {
   const report = useQuery({
@@ -45,90 +47,151 @@ export function AssessmentJobReportPanel({ jobId }: { jobId: number }) {
   const totalProctorEvents = attempts.reduce((acc, a) => acc + (a.proctorEventCount ?? 0), 0);
   const totalSubmissions = attempts.length;
   const submittedCount = attempts.filter((a) => a.status === "SUBMITTED" || a.status === "GRADED").length;
+  const inProgressCount = attempts.filter((a) => a.status === "IN_PROGRESS" || a.status === "NOT_STARTED").length;
   const expiredCount = attempts.filter((a) => a.status === "EXPIRED").length;
 
   return (
     <section aria-label="Báo cáo tóm tắt bài làm" className="flex flex-col gap-2">
       <AssessmentError error={report.error} retry={() => void report.refetch()} />
 
-      {/* 4 Compact Metric Cards (1 dòng gọn gàng) */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {/* Pass-rate */}
-        <div className="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs dark:border-slate-800 dark:bg-slate-900">
-          <div className="flex items-center gap-2">
-            <div className="grid size-7 place-items-center rounded-lg bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400">
-              <CheckCircle2 className="size-4" />
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {/* 1. Pass-rate Card */}
+        <div className="group relative flex flex-col justify-between overflow-hidden rounded-xl border border-slate-200/90 bg-white p-4 shadow-2xs transition-all hover:border-slate-300 hover:shadow-xs dark:border-slate-800 dark:bg-slate-900">
+          <div className="flex items-start justify-between gap-2">
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Tỷ lệ Đạt (Pass-rate)</span>
+            <div className="grid size-8 place-items-center rounded-lg bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400">
+              <CheckCircle2 className="size-4.5" />
             </div>
-            <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Pass-rate TB</p>
           </div>
-          <div className="mt-2">
-            <p className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
-              {passRate != null ? `${passRate}%` : "—"}
-            </p>
-            <p className="mt-0.5 truncate text-[11px] text-slate-500 dark:text-slate-400">
+          <div className="mt-2.5">
+            <div className="flex items-baseline justify-between gap-2">
+              <p className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">
+                {passRate != null ? `${passRate}%` : "—"}
+              </p>
+              {passRate != null && (
+                <span
+                  className={cn(
+                    "rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider",
+                    passRate >= 70
+                      ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300"
+                      : "bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300"
+                  )}
+                >
+                  {passRate >= 70 ? "Tốt" : "Cần chú ý"}
+                </span>
+              )}
+            </div>
+            {/* Visual Mini Progress Bar */}
+            <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+              <div
+                className="h-full rounded-full bg-emerald-500 transition-all duration-500"
+                style={{ width: `${passRate ?? 0}%` }}
+              />
+            </div>
+            <p className="mt-2 truncate text-xs text-slate-500 dark:text-slate-400">
               {gradedAttempts.length ? `${passedAttempts.length}/${gradedAttempts.length} lượt đạt yêu cầu` : "Chưa có bài chấm"}
             </p>
           </div>
         </div>
 
-        {/* Average Duration */}
-        <div className="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs dark:border-slate-800 dark:bg-slate-900">
-          <div className="flex items-center gap-2">
-            <div className="grid size-7 place-items-center rounded-lg bg-sky-50 text-sky-600 dark:bg-sky-950/40 dark:text-sky-400">
-              <Clock3 className="size-4" />
+        {/* 2. Average Duration Card */}
+        <div className="group relative flex flex-col justify-between overflow-hidden rounded-xl border border-slate-200/90 bg-white p-4 shadow-2xs transition-all hover:border-slate-300 hover:shadow-xs dark:border-slate-800 dark:bg-slate-900">
+          <div className="flex items-start justify-between gap-2">
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">TB Thời gian làm bài</span>
+            <div className="grid size-8 place-items-center rounded-lg bg-sky-50 text-sky-600 dark:bg-sky-950/40 dark:text-sky-400">
+              <Clock3 className="size-4.5" />
             </div>
-            <p className="text-xs font-medium text-slate-500 dark:text-slate-400">TB Thời gian</p>
           </div>
-          <div className="mt-2">
-            <p className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
-              {formatDuration(avgDurationSec)}
-            </p>
-            <p className="mt-0.5 truncate text-[11px] text-slate-500 dark:text-slate-400">
-              {withDuration.length ? `Dựa trên ${withDuration.length} lượt hoàn thành` : "Đang ghi nhận"}
-            </p>
+          <div className="mt-2.5">
+            <div className="flex items-baseline justify-between gap-2">
+              <p className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">
+                {formatDuration(avgDurationSec)}
+              </p>
+              <span className="rounded-full bg-sky-50 px-2 py-0.5 text-[10px] font-semibold text-sky-700 dark:bg-sky-950/50 dark:text-sky-300">
+                {withDuration.length > 0 ? "Thực tế" : "Chờ dữ liệu"}
+              </span>
+            </div>
+            <div className="mt-2 flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+              <span className="size-1.5 rounded-full bg-sky-500" />
+              <p className="truncate">
+                {withDuration.length ? `Dựa trên ${withDuration.length} lượt hoàn thành` : "Đang ghi nhận lượt thi"}
+              </p>
+            </div>
           </div>
         </div>
 
-        {/* Proctor / Anti-cheat */}
-        <div className="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs dark:border-slate-800 dark:bg-slate-900">
-          <div className="flex items-center gap-2">
+        {/* 3. Proctor / Anti-cheat Card */}
+        <div className="group relative flex flex-col justify-between overflow-hidden rounded-xl border border-slate-200/90 bg-white p-4 shadow-2xs transition-all hover:border-slate-300 hover:shadow-xs dark:border-slate-800 dark:bg-slate-900">
+          <div className="flex items-start justify-between gap-2">
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Tín hiệu Giám sát (Proctor)</span>
             <div
               className={cn(
-                "grid size-7 place-items-center rounded-lg",
+                "grid size-8 place-items-center rounded-lg",
                 totalProctorEvents > 0
                   ? "bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400"
                   : "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400"
               )}
             >
-              {totalProctorEvents > 0 ? <ShieldAlert className="size-4" /> : <ShieldCheck className="size-4" />}
+              {totalProctorEvents > 0 ? <ShieldAlert className="size-4.5" /> : <ShieldCheck className="size-4.5" />}
             </div>
-            <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Tín hiệu Vi phạm</p>
           </div>
-          <div className="mt-2">
-            <p className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
-              {totalProctorEvents} <span className="text-xs font-normal text-slate-500">cảnh báo</span>
-            </p>
-            <p className="mt-0.5 truncate text-[11px] text-slate-500 dark:text-slate-400">
-              {totalProctorEvents > 0 ? "Phát hiện rời tab / đổi cửa sổ" : "Môi trường thi an toàn"}
-            </p>
+          <div className="mt-2.5">
+            <div className="flex items-baseline justify-between gap-2">
+              <p className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">
+                {totalProctorEvents}{" "}
+                <span className="text-xs font-normal text-slate-500">cảnh báo</span>
+              </p>
+              <span
+                className={cn(
+                  "rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider",
+                  totalProctorEvents > 0
+                    ? "bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300"
+                    : "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300"
+                )}
+              >
+                {totalProctorEvents > 0 ? "Cần xem xét" : "An toàn 100%"}
+              </span>
+            </div>
+            <div className="mt-2 flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+              <span className={cn("size-1.5 rounded-full", totalProctorEvents > 0 ? "bg-amber-500" : "bg-emerald-500")} />
+              <p className="truncate">
+                {totalProctorEvents > 0 ? "Có ghi nhận rời tab / đổi cửa sổ" : "Môi trường thi trung thực"}
+              </p>
+            </div>
           </div>
         </div>
 
-        {/* Total Attempts */}
-        <div className="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs dark:border-slate-800 dark:bg-slate-900">
-          <div className="flex items-center gap-2">
-            <div className="grid size-7 place-items-center rounded-lg bg-[var(--color-primary-subtle)] text-[var(--color-primary)]">
-              <Users className="size-4" />
+        {/* 4. Total Submissions Card */}
+        <div className="group relative flex flex-col justify-between overflow-hidden rounded-xl border border-slate-200/90 bg-white p-4 shadow-2xs transition-all hover:border-slate-300 hover:shadow-xs dark:border-slate-800 dark:bg-slate-900">
+          <div className="flex items-start justify-between gap-2">
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Tổng số lượt làm</span>
+            <div className="grid size-8 place-items-center rounded-lg bg-[var(--color-primary-subtle)] text-[var(--color-primary)]">
+              <Users className="size-4.5" />
             </div>
-            <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Tổng lượt làm</p>
           </div>
-          <div className="mt-2">
-            <p className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
-              {totalSubmissions} <span className="text-xs font-normal text-slate-500">lượt</span>
-            </p>
-            <p className="mt-0.5 truncate text-[11px] text-slate-500 dark:text-slate-400">
-              {submittedCount} đã nộp{expiredCount > 0 ? ` · ${expiredCount} quá giờ` : ""}
-            </p>
+          <div className="mt-2.5">
+            <div className="flex items-baseline justify-between gap-2">
+              <p className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">
+                {totalSubmissions}{" "}
+                <span className="text-xs font-normal text-slate-500">lượt</span>
+              </p>
+              <div className="flex items-center gap-1">
+                <span className="rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700 dark:bg-blue-950/50 dark:text-blue-300">
+                  {submittedCount} nộp
+                </span>
+                {inProgressCount > 0 && (
+                  <span className="rounded bg-sky-50 px-1.5 py-0.5 text-[10px] font-semibold text-sky-700 dark:bg-sky-950/50 dark:text-sky-300">
+                    {inProgressCount} đang thi
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="mt-2 flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+              <span className="size-1.5 rounded-full bg-[var(--color-primary)]" />
+              <p className="truncate">
+                {submittedCount} đã nộp{expiredCount > 0 ? ` · ${expiredCount} quá giờ` : " · tiến độ ổn định"}
+              </p>
+            </div>
           </div>
         </div>
       </div>

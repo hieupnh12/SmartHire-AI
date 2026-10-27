@@ -198,6 +198,7 @@ public class AssessmentGenerationService {
                 .durationMinutes(config.durationMinutes()).objectiveDurationMinutes(config.objectiveDurationMinutes())
                 .passingScore(BigDecimal.valueOf(total).multiply(BigDecimal.valueOf(config.passingPercent()))
                         .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP))
+                .origin(TestOrigin.GENERATED)
                 .status(application == null ? TestStatus.DRAFT : TestStatus.PUBLISHED).build();
         tests.save(test);
         int order = 0;
