@@ -72,18 +72,20 @@ function SubmissionRoom({ id }: { id: number }) {
     };
   }, []);
 
-  // Proctor session if available (pure fullscreen mode does not require media session).
+  // Device check only lives on invite — bounce back if /take opened without an active proctor session.
   useEffect(() => {
     if (room.query.isPending || !submission) return;
     if (submission.status !== "IN_PROGRESS") return;
     const session = getAssessmentProctor(id);
     if (session) {
       setProctor(session);
+      return;
     }
-  }, [id, room.query.isPending, submission]);
+    navigate(invite, { replace: true });
+  }, [id, invite, navigate, room.query.isPending, submission]);
 
   useEffect(() => {
-    if (!active) return;
+    if (!active || !proctor) return;
     const blockLeave = (event: BeforeUnloadEvent) => {
       event.preventDefault();
       event.returnValue = "";
@@ -179,6 +181,16 @@ function SubmissionRoom({ id }: { id: number }) {
       : room.unsaved
         ? "Chưa lưu hết thay đổi"
         : "Đã lưu";
+
+  if (!proctor) {
+    return (
+      <main className="grid min-h-dvh place-items-center bg-[var(--color-surface-alt)] p-4 text-[var(--color-on-surface)]">
+        <p role="status" className="text-sm text-[var(--color-on-surface-variant)]">
+          Đang chuyển về lời mời để kiểm tra thiết bị…
+        </p>
+      </main>
+    );
+  }
 
   return (
     <AssessmentProctorGuard submissionId={id} session={proctor} onAutoSubmit={() => void finishExam(false)}>

@@ -81,13 +81,13 @@ export function AssessmentCreationPage() {
       {mode === "config" && (
         <div id="creation-config" role="tabpanel">
           <JobAssessmentConfiguration />
-        </div>
+    </div>
       )}
 
       {mode === "assign" && (
         <div id="creation-assign" role="tabpanel" className="space-y-4">
           <AutomaticAssessmentCandidateAssigner />
-        </div>
+    </div>
       )}
 
       {mode === "manual" && (
@@ -103,7 +103,7 @@ export function AssessmentCreationPage() {
             <Plus className="size-4" />
             Thêm câu hỏi thủ công
           </Link>
-        </div>
+    </div>
       )}
     </section>
   );
