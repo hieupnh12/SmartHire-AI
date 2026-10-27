@@ -14,7 +14,7 @@ Quản lý Interview trực tiếp (human) trong workspace của từng job: lê
 
 ## Luồng hoạt động
 
-1. Trang Interview lấy danh sách, KPI, tùy chọn ứng viên/hội đồng và lịch tuần từ API tenant.
+1. Trang Interview lấy danh sách, KPI, tùy chọn ứng viên/hội đồng và lịch tuần từ API tenant. Tab recruiter **Lịch hẹn** (`/recruiter/schedules`, `/recruiter/jobs/:id/schedules`) là lịch tháng đồng bộ cùng API `GET /interviews?jobId=` (ẩn nháp); lên lịch / sửa chi tiết chuyển sang trang Phỏng vấn. Dashboard “Lịch phỏng vấn sắp tới” cũng đọc API này, không dùng mock/localStorage.
 2. Recruiter chỉ chọn ứng viên thuộc job đã vượt qua AI Interview, vòng/rubric, online/offline, link họp hoặc địa điểm, thời gian và hội đồng có đúng một Lead.
 3. Kiểm tra lịch rảnh; lưu nháp hoặc gửi lời mời. Khi gửi/sửa lịch công khai, transaction lưu lịch, notification và email outbox. Worker RabbitMQ gửi email kèm ICS nếu được chọn.
 4. Candidate mở `/schedules` (menu tài khoản → "Lịch của tôi"): lịch tháng gom toàn bộ mốc của từng job — nộp CV (`applications.created_at`), mỗi lần đổi trạng thái (`application_status_history`), lời mời/hoàn thành/hạn chót AI Interview, lịch phỏng vấn trực tiếp (kể cả lịch đã hủy, gạch ngang). Lọc theo job, xem chi tiết theo ngày và 5 sự kiện sắp tới. Ô ngày và danh sách theo ngày xếp sự kiện mới nhất lên trước; sự kiện kéo dài nhiều ngày (lời mời AI Interview từ lúc mời đến khi hoàn thành/hạn chót, hoặc lịch qua đêm) được tô thanh màu liên tục trên mọi ngày nó bao phủ. Frontend tổng hợp từ API có sẵn (`/applications/me`, `/applications/{id}`, `/ai-interviews/me`, `/interviews/mine`), không thêm endpoint.
