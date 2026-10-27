@@ -69,29 +69,62 @@ export function AssessmentResult({ submission, back, onRetake, retaking }: Props
         ? "Đạt yêu cầu"
         : "Chưa đạt yêu cầu";
 
-  const verdictTone = failed
-    ? {
-        chip: "bg-[var(--color-error-container)] text-[var(--color-on-error-container)]",
-        icon: "bg-[var(--color-error)] text-white",
-        score: "text-[var(--color-error)]",
-        bar: "bg-[var(--color-error)]",
-        panel: "border-[var(--color-error)]/20 bg-[linear-gradient(180deg,var(--color-error-container)_0%,white_48%)]",
-      }
+  /** Score panel color follows % (red → amber → yellow → green). Verdict chip still uses pass/fail. */
+  const scoreTone = (() => {
+    if (pending) {
+      return {
+        score: "text-[var(--color-primary)]",
+        bar: "bg-[var(--color-primary)]",
+        panel: "border-[var(--color-primary)]/20 bg-[linear-gradient(180deg,var(--color-primary-subtle)_0%,white_48%)]",
+        icon: "bg-[var(--color-primary)] text-white",
+      };
+    }
+    const pct = scorePct ?? 0;
+    if (pct >= 80 || passed) {
+      return {
+        score: "text-emerald-700",
+        bar: "bg-emerald-500",
+        panel: "border-emerald-200 bg-[linear-gradient(180deg,#ecfdf5_0%,white_48%)]",
+        icon: "bg-emerald-600 text-white",
+      };
+    }
+    if (pct >= 60) {
+      return {
+        score: "text-lime-700",
+        bar: "bg-lime-500",
+        panel: "border-lime-200 bg-[linear-gradient(180deg,#f7fee7_0%,white_48%)]",
+        icon: "bg-lime-600 text-white",
+      };
+    }
+    if (pct >= 40) {
+      return {
+        score: "text-amber-700",
+        bar: "bg-amber-400",
+        panel: "border-amber-200 bg-[linear-gradient(180deg,#fffbeb_0%,white_48%)]",
+        icon: "bg-amber-500 text-white",
+      };
+    }
+    if (pct >= 20) {
+      return {
+        score: "text-orange-700",
+        bar: "bg-orange-500",
+        panel: "border-orange-200 bg-[linear-gradient(180deg,#fff7ed_0%,white_48%)]",
+        icon: "bg-orange-500 text-white",
+      };
+    }
+    return {
+      score: "text-[var(--color-error)]",
+      bar: "bg-[var(--color-error)]",
+      panel: "border-[var(--color-error)]/20 bg-[linear-gradient(180deg,var(--color-error-container)_0%,white_48%)]",
+      icon: "bg-[var(--color-error)] text-white",
+    };
+  })();
+
+  const verdictChip = failed
+    ? "bg-[var(--color-error-container)] text-[var(--color-on-error-container)]"
     : passed
-      ? {
-          chip: "bg-emerald-50 text-emerald-800",
-          icon: "bg-emerald-600 text-white",
-          score: "text-emerald-700",
-          bar: "bg-emerald-500",
-          panel: "border-emerald-200 bg-[linear-gradient(180deg,#ecfdf5_0%,white_48%)]",
-        }
-      : {
-          chip: "bg-[var(--color-primary-subtle)] text-[var(--color-primary)]",
-          icon: "bg-[var(--color-primary)] text-white",
-          score: "text-[var(--color-primary)]",
-          bar: "bg-[var(--color-primary)]",
-          panel: "border-[var(--color-primary)]/20 bg-[linear-gradient(180deg,var(--color-primary-subtle)_0%,white_48%)]",
-        };
+      ? "bg-emerald-50 text-emerald-800"
+      : "bg-[var(--color-primary-subtle)] text-[var(--color-primary)]";
 
   const nextStep = pending
     ? "Theo dõi điểm trong danh sách bài đánh giá khi nhà tuyển dụng hoàn tất chấm."
@@ -109,7 +142,7 @@ export function AssessmentResult({ submission, back, onRetake, retaking }: Props
       <header className="shrink-0 border-b border-[var(--color-border-default)] bg-[linear-gradient(135deg,var(--color-primary-subtle),white_68%)] px-5 py-3.5 sm:px-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
-            <span className={`grid size-10 shrink-0 place-items-center rounded-xl ${verdictTone.icon}`}>
+            <span className={`grid size-10 shrink-0 place-items-center rounded-xl ${scoreTone.icon}`}>
               <ResultIcon className="size-5" aria-hidden="true" />
             </span>
             <div className="min-w-0">
@@ -128,7 +161,7 @@ export function AssessmentResult({ submission, back, onRetake, retaking }: Props
                 Demo UI
               </span>
             )}
-            <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${verdictTone.chip}`}>
+            <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${verdictChip}`}>
               <ResultIcon className="size-3.5" aria-hidden="true" />
               {verdictLabel}
             </span>
@@ -139,14 +172,13 @@ export function AssessmentResult({ submission, back, onRetake, retaking }: Props
 
       <div className="min-h-0 flex-1 overflow-hidden p-4 sm:p-5">
         <div className="mx-auto grid h-full min-h-0 w-full max-w-6xl gap-4 lg:grid-cols-[minmax(17rem,0.9fr)_minmax(0,1.1fr)]">
-          {/* Tổng hợp — nhìn hết một lượt */}
-          <section className={`flex min-h-0 flex-col rounded-2xl border ${verdictTone.panel}`}>
+          <section className={`flex min-h-0 flex-col rounded-2xl border ${scoreTone.panel}`}>
             <div className="border-b border-[var(--color-border-default)]/60 px-4 py-2.5">
               <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--color-on-surface-variant)]">
                 Tổng hợp
               </p>
             </div>
-            <div className="flex min-h-0 flex-1 flex-col justify-between gap-3 p-4">
+            <div className="flex min-h-0 flex-1 flex-col gap-3 p-4">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--color-on-surface-variant)]">
                   Điểm số
@@ -163,7 +195,7 @@ export function AssessmentResult({ submission, back, onRetake, retaking }: Props
                   </div>
                 ) : (
                   <div className="mt-2">
-                    <p className={`flex items-baseline gap-1.5 tabular-nums ${verdictTone.score}`}>
+                    <p className={`flex items-baseline gap-1.5 tabular-nums ${scoreTone.score}`}>
                       <span className="text-4xl font-semibold tracking-tight">{submission.score}</span>
                       <span className="text-base text-[var(--color-on-surface-variant)]">/ {submission.totalPoints}</span>
                     </p>
@@ -178,7 +210,7 @@ export function AssessmentResult({ submission, back, onRetake, retaking }: Props
                           aria-valuemax={100}
                           aria-label="Tỷ lệ điểm đạt được"
                         >
-                          <div className={`h-full rounded-full ${verdictTone.bar}`} style={{ width: `${scorePct}%` }} />
+                          <div className={`h-full rounded-full ${scoreTone.bar}`} style={{ width: `${scorePct}%` }} />
                         </div>
                       </>
                     )}
@@ -190,7 +222,7 @@ export function AssessmentResult({ submission, back, onRetake, retaking }: Props
                 <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--color-on-surface-variant)]">
                   Đánh giá
                 </p>
-                <p className={`mt-1.5 inline-flex items-center gap-2 text-sm font-semibold ${verdictTone.score}`}>
+                <p className={`mt-1.5 inline-flex items-center gap-2 text-sm font-semibold ${scoreTone.score}`}>
                   <ResultIcon className="size-4" aria-hidden="true" />
                   {verdictLabel}
                 </p>
@@ -210,7 +242,6 @@ export function AssessmentResult({ submission, back, onRetake, retaking }: Props
             </div>
           </section>
 
-          {/* Chi tiết — không trùng với tổng hợp */}
           <section className="flex min-h-0 flex-col rounded-2xl border border-[var(--color-border-default)] bg-white">
             <div className="flex items-center gap-2 border-b border-[var(--color-border-default)] bg-[var(--color-surface-container-low)] px-4 py-2.5">
               <ClipboardCheck className="size-4 text-[var(--color-primary)]" aria-hidden="true" />
@@ -218,9 +249,8 @@ export function AssessmentResult({ submission, back, onRetake, retaking }: Props
                 Chi tiết phiên
               </p>
             </div>
-            <div className="flex min-h-0 flex-1 flex-col justify-between gap-4 p-4">
+            <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
               <dl className="rounded-xl border border-[var(--color-border-default)] divide-y divide-[var(--color-border-default)]">
-                <DetailRow label="Bài kiểm tra" value={title} />
                 {startedLabel && <DetailRow label="Bắt đầu" value={startedLabel} />}
                 {submittedLabel && <DetailRow label="Nộp bài" value={submittedLabel} />}
                 <DetailRow label="Mã bài nộp" value={`#${submission.id}`} />
