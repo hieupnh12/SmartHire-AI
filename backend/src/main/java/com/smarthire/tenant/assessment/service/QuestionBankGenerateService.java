@@ -464,7 +464,7 @@ public class QuestionBankGenerateService {
                     sendSse(emitter, "generation_error", Map.of("message", ex.getMessage()));
                 } catch (Exception ignored) {
                 }
-                emitter.completeWithError(ex);
+                emitter.complete();
             } finally {
                 TenantContext.clear();
             }
