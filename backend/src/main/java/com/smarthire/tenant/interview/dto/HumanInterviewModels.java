@@ -12,7 +12,7 @@ public final class HumanInterviewModels {
         @NotBlank @Pattern(regexp="ONLINE|OFFLINE") String mode,
         @NotNull Instant start, @NotNull Instant end,
         @Size(max=512) String meetingUrl, @Size(max=255) String location,
-        @NotBlank @Pattern(regexp="GOOGLE_MEET|ZOOM|TEAMS|OFFICE") String provider,
+        @NotBlank @Pattern(regexp="SMARTHIRE|GOOGLE_MEET|ZOOM|TEAMS|OFFICE") String provider,
         @NotBlank @Pattern(regexp="TECHNICAL|CULTURE|GENERAL") String rubric,
         @NotBlank @Pattern(regexp="STANDARD|EXPRESS|EXECUTIVE") String emailTemplate,
         @Size(max=2000) String notes, boolean attachCalendar, boolean smsReminder, boolean draft,

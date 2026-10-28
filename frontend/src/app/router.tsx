@@ -65,6 +65,7 @@ import { TakeAssessmentPage } from "@/features/tenant/candidate/assessments/page
 import { CandidateAssessmentSamplePage } from "@/features/tenant/candidate/assessments/pages/CandidateAssessmentSamplePage";
 import { InterviewsPage as CandidateInterviewsPage } from "@/features/tenant/candidate/interviews/pages/InterviewsPage";
 import { AiInterviewRoomPage } from "@/features/tenant/candidate/interviews/pages/AiInterviewRoomPage";
+import { HumanInterviewRoomPage } from "@/features/tenant/shared/humanInterview/HumanInterviewRoomPage";
 import { SchedulesPage as CandidateSchedulesPage } from "@/features/tenant/candidate/schedules/pages/SchedulesPage";
 import { InterviewSchedulesPage as CandidateInterviewSchedulesPage } from "@/features/tenant/candidate/schedules/pages/InterviewSchedulesPage";
 import { NotificationsPage as CandidateNotificationsPage } from "@/features/tenant/candidate/notifications/pages/NotificationsPage";
@@ -185,6 +186,10 @@ export function AppRouter() {
         {/* Immersive exam room — no career chrome / no leave until submit */}
         <Route path="/assessments/:submissionId/take" element={<TakeAssessmentPage />} />
         <Route path="/interviews/:id" element={<AiInterviewRoomPage />} />
+      </Route>
+
+      <Route element={<RoleRoute workspaces={["CANDIDATE", "RECRUITER", "ADMIN"]} authRequired />}>
+        <Route path="/meet/human/:interviewId" element={<HumanInterviewRoomPage />} />
       </Route>
 
       <Route element={<RoleRoute workspaces={["RECRUITER", "ADMIN"]} />}>
