@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useFieldArray, useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ClipboardList, Plus, Settings2, Trash2, AlertCircle, Code2, FileText, ListChecks, Sliders, Check, Scale, BookOpen, GitCompare, Network, AlertTriangle, HelpCircle, Clock, RotateCcw, Save, Target, Zap } from "lucide-react";
+import { ClipboardList, Plus, Settings2, Trash2, AlertCircle, Code2, FileText, ListChecks, Sliders, Check, CheckCircle2, Scale, BookOpen, GitCompare, Network, AlertTriangle, HelpCircle, Clock, RotateCcw, Save, Target, Zap } from "lucide-react";
 import { assessmentGenerationApi } from "@/api/tenant/assessmentGenerationApi";
 import type { AssessmentConfiguration, RubricCriterionConfig } from "@/api/types/assessmentGeneration";
 import { AssessmentError } from "@/components/ux/assessmentUi";

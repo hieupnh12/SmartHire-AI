@@ -40,21 +40,21 @@ import { toast } from "@/stores/toastStore";
 import { useUiStore } from "@/stores/uiStore";
 
 // --- Safe Data Helpers ---
-function safeObject(value: unknown): Record<string, unknown> {
+function safeObject<T = Record<string, unknown>>(value: unknown): T {
   if (value && typeof value === "object" && !Array.isArray(value)) {
-    return value as Record<string, unknown>;
+    return value as T;
   }
   if (typeof value === "string") {
     try {
       const parsed = JSON.parse(value);
       if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-        return parsed as Record<string, unknown>;
+        return parsed as T;
       }
     } catch {
       // ignore
     }
   }
-  return {};
+  return {} as T;
 }
 
 function safeText(value: unknown, fallback = "AI chưa cung cấp phân tích này."): string {
@@ -1090,8 +1090,39 @@ type RubricCriterionView = {
   weight?: number;
 };
 
+type EssayEvaluation = {
+  status?: string;
+  general_comment?: string | null;
+  criteria_results?: Array<Record<string, unknown>>;
+};
+
+type CodeReviewData = {
+  time_complexity?: unknown;
+  space_complexity?: unknown;
+  clean_code?: unknown;
+  naming_conventions?: unknown;
+  exception_safety?: unknown;
+  general_comment?: string | null;
+};
+
+type CodingEvaluation = {
+  status?: string;
+  manual_review_required?: boolean;
+  hardcode_capped?: boolean;
+  tests?: Array<Record<string, unknown>>;
+  code_review?: CodeReviewData;
+  hidden_passed?: number | string | null;
+  hidden_total?: number | string | null;
+  tests_percent?: number | string | null;
+  ai_percent?: number | string | null;
+  formula_percent?: number | string | null;
+  test_weight?: number | string | null;
+  ai_weight?: number | string | null;
+  general_comment?: string | null;
+};
+
 function EssayEvidenceDetail({ review }: { review: GradingReview }) {
-  const evaluation = safeObject(review.evaluation);
+  const evaluation = safeObject<EssayEvaluation>(review.evaluation);
   const results = Array.isArray(evaluation.criteria_results) ? evaluation.criteria_results : [];
   const [showRef, setShowRef] = useState(false);
 
@@ -1109,7 +1140,7 @@ function EssayEvidenceDetail({ review }: { review: GradingReview }) {
       )}
 
       {/* Reference Answer Collapsible */}
-      {referenceAnswer && (
+      {Boolean(referenceAnswer) && (
         <div className="rounded-xl border border-slate-200/80 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
           <button
             type="button"
@@ -1130,7 +1161,6 @@ function EssayEvidenceDetail({ review }: { review: GradingReview }) {
         </div>
       )}
 
-      {/* Rubric Criteria Table */}
       {criteria.length > 0 ? (
         <div className="overflow-x-auto rounded-xl border border-slate-200/80 bg-white dark:border-slate-800 dark:bg-slate-900">
           <table className="w-full text-left text-xs">
@@ -1158,7 +1188,7 @@ function EssayEvidenceDetail({ review }: { review: GradingReview }) {
                   <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20">
                     <td className="p-3 align-top font-semibold text-[#101828] dark:text-white">
                       {safeText(criterion.name || criterion.description, `Tiêu chí ${idx + 1}`)}
-                      {criterion.guide && (
+                      {Boolean(criterion.guide) && (
                         <p className="mt-0.5 text-[11px] font-normal text-slate-400">
                           {safeText(criterion.guide)}
                         </p>
@@ -1193,7 +1223,7 @@ function EssayEvidenceDetail({ review }: { review: GradingReview }) {
       )}
 
       {/* General AI Summary Comment */}
-      {evaluation.general_comment && (
+      {Boolean(evaluation.general_comment) && (
         <div className="flex items-start gap-2.5 rounded-xl bg-violet-50/70 p-3.5 text-xs text-violet-900 dark:bg-violet-950/30 dark:text-violet-200 border border-violet-100 dark:border-violet-900/40">
           <Sparkles className="size-4 shrink-0 text-violet-600 dark:text-violet-400 mt-0.5" />
           <div className="space-y-1 min-w-0">
@@ -1210,9 +1240,9 @@ function EssayEvidenceDetail({ review }: { review: GradingReview }) {
 // SUBCOMPONENT: CODING EVIDENCE DETAIL
 // ==========================================
 function CodingEvidenceDetail({ review }: { review: GradingReview }) {
-  const evaluation = safeObject(review.evaluation);
+  const evaluation = safeObject<CodingEvaluation>(review.evaluation);
   const tests = Array.isArray(evaluation.tests) ? evaluation.tests : [];
-  const codeReview = safeObject(evaluation.code_review);
+  const codeReview = safeObject<CodeReviewData>(evaluation.code_review);
   const hiddenPassed = safeNumber(evaluation.hidden_passed);
   const hiddenTotal = safeNumber(evaluation.hidden_total);
   const testsPercent = safeNumber(evaluation.tests_percent);
@@ -1245,7 +1275,6 @@ function CodingEvidenceDetail({ review }: { review: GradingReview }) {
         </div>
       )}
 
-      {/* 1. Sandbox Test Matrix */}
       <div className="rounded-xl border border-slate-200/80 bg-white p-4 dark:border-slate-800 dark:bg-slate-900 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2.5 dark:border-slate-800">
           <div className="flex items-center gap-2 font-bold text-slate-800 dark:text-slate-200">
@@ -1360,7 +1389,7 @@ function CodingEvidenceDetail({ review }: { review: GradingReview }) {
             ))}
           </div>
 
-          {codeReview.general_comment && (
+          {Boolean(codeReview.general_comment) && (
             <div className="rounded-xl bg-violet-50/70 p-3 text-violet-900 dark:bg-violet-950/30 dark:text-violet-200 border border-violet-100 dark:border-violet-900/40">
               <span className="font-bold block mb-1">Nhận xét tổng thể AI:</span>
               <p className="leading-relaxed whitespace-pre-wrap">{safeText(codeReview.general_comment)}</p>
@@ -1370,7 +1399,7 @@ function CodingEvidenceDetail({ review }: { review: GradingReview }) {
       )}
 
       {/* Fallback AI comment when codeReview object is empty */}
-      {evaluation.general_comment && Object.keys(codeReview).length === 0 && (
+      {Boolean(evaluation.general_comment) && Object.keys(codeReview).length === 0 && (
         <div className="rounded-xl bg-violet-50/70 p-3 text-violet-900 dark:bg-violet-950/30 dark:text-violet-200 border border-violet-100 dark:border-violet-900/40">
           <span className="font-bold block mb-1">Nhận xét tổng thể AI:</span>
           <p className="leading-relaxed whitespace-pre-wrap">{safeText(evaluation.general_comment)}</p>
