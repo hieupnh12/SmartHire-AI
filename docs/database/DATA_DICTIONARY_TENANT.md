@@ -1,5 +1,21 @@
 # Data Dictionary - Tenant DB (MySQL)
 
+## Tự động chấm điểm và công bố kết quả V59 (2026-10-28)
+
+Nguồn: `V59__test_auto_grading.sql`. Không tạo bảng mới.
+
+| Bảng · cột / index | Kiểu | Null | Default | Ý nghĩa |
+|---|---|---|---|---|
+| `tests.auto_grading_enabled` | BOOLEAN | Không | FALSE | Khi bật (`true`), AI/Sandbox chấm xong sẽ tự động chốt điểm chính thức và gửi email kết quả cho ứng viên ngay mà không cần duyệt thủ công |
+
+## Nguồn gốc đề thi V58 (2026-10-27)
+
+Nguồn: `V58__test_origin.sql`. Không tạo bảng mới.
+
+| Bảng · cột / index | Kiểu | Null | Default | Ý nghĩa |
+|---|---|---|---|---|
+| `tests.origin` | VARCHAR(32) | Không | `'AUTHORED'` | Nguồn gốc đề thi (`AUTHORED` = tạo thủ công bởi nhà tuyển dụng; `GENERATED` = tạo tự động từ ngân hàng câu hỏi) |
+
 ## Assessment ops hardening V55 (2026-10-25)
 
 Nguồn: `V55__assessment_ops_hardening.sql`. Không tạo bảng mới.

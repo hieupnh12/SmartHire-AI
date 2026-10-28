@@ -65,6 +65,7 @@ import { TakeAssessmentPage } from "@/features/tenant/candidate/assessments/page
 import { CandidateAssessmentSamplePage } from "@/features/tenant/candidate/assessments/pages/CandidateAssessmentSamplePage";
 import { InterviewsPage as CandidateInterviewsPage } from "@/features/tenant/candidate/interviews/pages/InterviewsPage";
 import { AiInterviewRoomPage } from "@/features/tenant/candidate/interviews/pages/AiInterviewRoomPage";
+import { HumanInterviewRoomPage } from "@/features/tenant/shared/humanInterview/HumanInterviewRoomPage";
 import { SchedulesPage as CandidateSchedulesPage } from "@/features/tenant/candidate/schedules/pages/SchedulesPage";
 import { InterviewSchedulesPage as CandidateInterviewSchedulesPage } from "@/features/tenant/candidate/schedules/pages/InterviewSchedulesPage";
 import { NotificationsPage as CandidateNotificationsPage } from "@/features/tenant/candidate/notifications/pages/NotificationsPage";
@@ -80,6 +81,7 @@ import { PipelinePage } from "@/features/tenant/recruiter/pipeline/pages/Pipelin
 import { AssessmentsPage as RecruiterAssessmentsPage } from "@/features/tenant/recruiter/assessments/pages/AssessmentsPage";
 import { AssessmentDetailPage } from "@/features/tenant/recruiter/assessments/pages/AssessmentDetailPage";
 import { AssessmentSubmissionsPage } from "@/features/tenant/recruiter/assessments/pages/AssessmentSubmissionsPage";
+import { AssessmentSubmissionDetailPage } from "@/features/tenant/recruiter/assessments/pages/AssessmentSubmissionDetailPage";
 import { GeneralQuestionBankPage } from "@/features/tenant/recruiter/assessments/pages/GeneralQuestionBankPage";
 import { GeneralQuestionEditorPage } from "@/features/tenant/recruiter/assessments/pages/GeneralQuestionEditorPage";
 import { QuestionBankPage } from "@/features/tenant/recruiter/assessments/pages/QuestionBankPage";
@@ -187,6 +189,10 @@ export function AppRouter() {
         <Route path="/interviews/:id" element={<AiInterviewRoomPage />} />
       </Route>
 
+      <Route element={<RoleRoute workspaces={["CANDIDATE", "RECRUITER", "ADMIN"]} authRequired />}>
+        <Route path="/meet/human/:interviewId" element={<HumanInterviewRoomPage />} />
+      </Route>
+
       <Route element={<RoleRoute workspaces={["RECRUITER", "ADMIN"]} />}>
         <Route
           path="/recruiter"
@@ -238,6 +244,7 @@ export function AppRouter() {
             <Route path="jobs/:id/assessments" element={<JobRecruitmentWorkspace><RecruiterAssessmentsPage /></JobRecruitmentWorkspace>} />
             <Route path="jobs/:id/assessments/new" element={<JobRecruitmentWorkspace><AssessmentCreationPage /></JobRecruitmentWorkspace>} />
             <Route path="jobs/:id/assessments/submissions" element={<JobRecruitmentWorkspace><AssessmentSubmissionsPage /></JobRecruitmentWorkspace>} />
+            <Route path="jobs/:id/assessments/submissions/:submissionId" element={<JobRecruitmentWorkspace><AssessmentSubmissionDetailPage /></JobRecruitmentWorkspace>} />
             <Route path="jobs/:id/assessments/:assessmentId" element={<JobRecruitmentWorkspace><AssessmentDetailPage /></JobRecruitmentWorkspace>} />
             <Route path="assessments" element={<Navigate to="/recruiter" replace />} />
             <Route path="assessments/new" element={<Navigate to="/recruiter" replace />} />
