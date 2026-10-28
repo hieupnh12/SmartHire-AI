@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useFieldArray, useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ClipboardList, Plus, Settings2, Trash2, AlertCircle, Code2, FileText, ListChecks, Sliders, Check, CheckCircle2, Scale, BookOpen, GitCompare, Network, AlertTriangle, HelpCircle, Clock, RotateCcw, Save, Target, Zap } from "lucide-react";
+import { ClipboardList, Plus, Settings2, Trash2, AlertCircle, Code2, FileText, ListChecks, Sliders, Check, CheckCircle2, Scale, BookOpen, GitCompare, Network, AlertTriangle, HelpCircle, Clock, RotateCcw, Save, Sparkles, Target, Zap } from "lucide-react";
 import { assessmentGenerationApi } from "@/api/tenant/assessmentGenerationApi";
 import type { AssessmentConfiguration, RubricCriterionConfig } from "@/api/types/assessmentGeneration";
 import { AssessmentError } from "@/components/ux/assessmentUi";
@@ -114,6 +114,14 @@ const essayPresets: Record<string, {
 
 const defaultEssayCriteria: RubricCriterionConfig[] = essayPresets.conceptual.criteria;
 
+const quickAiTags = [
+  "+ Chấp nhận tiếng Anh",
+  "+ Ưu tiên ví dụ thực tế",
+  "+ Yêu cầu phân tích trade-off",
+  "+ Không trừ điểm chính tả nhỏ",
+  "+ Nhấn mạnh bảo mật & edge-case",
+];
+
 const inputClass = "mt-1 h-9 w-full rounded-lg border border-slate-300 bg-white px-3 text-[13px] font-normal text-[#101828] transition-all focus:border-[#0066FF] focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-white";
 const cardClass = "rounded-2xl border border-slate-200/80 bg-white p-6 shadow-2xs dark:border-slate-800 dark:bg-slate-900";
 
@@ -183,6 +191,7 @@ export function ConfigurationForm({
     control,
     handleSubmit,
     watch,
+    getValues,
     setValue,
     reset,
     formState: { errors, isDirty },
@@ -235,6 +244,14 @@ export function ConfigurationForm({
   const handleReset = () => {
     reset();
     toast.info("Đã khôi phục cấu hình về giá trị ban đầu");
+  };
+
+  const handleAddAiTag = (tag: string) => {
+    const current = getValues("essayGradingGuide") || "";
+    const cleanTag = tag.replace(/^\+\s*/, "");
+    if (current.includes(cleanTag)) return;
+    const next = current.trim() ? `${current.trim()}; ${cleanTag}` : cleanTag;
+    setValue("essayGradingGuide", next, { shouldDirty: true });
   };
 
   const watchedEssayCriteria = watch("essayCriteria") || [];
@@ -1035,15 +1052,15 @@ export function ConfigurationForm({
                   {essayItems.map(({ field, index }, groupOrder) => (
                     <fieldset
                       key={field.id}
-                      className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 transition-all hover:border-slate-300 dark:border-slate-800 dark:bg-slate-900/50"
+                      className="rounded-xl border border-slate-200/90 bg-slate-50/60 p-4 transition-all hover:border-slate-300 dark:border-slate-800 dark:bg-slate-900/50 space-y-3"
                     >
-                      <div className="flex items-center justify-between pb-2">
+                      <div className="flex items-center justify-between pb-1 border-b border-slate-100 dark:border-slate-800">
                         <legend className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200">
                           <span className="size-2 rounded-full bg-amber-500" />
-                          Nhóm tự luận lý thuyết {groupOrder + 1}
+                          Nhóm tự luận lý thuyết #{groupOrder + 1}
                         </legend>
                         <div className="flex items-center gap-2">
-                          <span className="rounded bg-amber-50 px-2 py-0.5 font-mono text-xs font-bold text-amber-700 border border-amber-200/60 dark:bg-amber-950 dark:text-amber-300">
+                          <span className="rounded-md bg-amber-50 px-2 py-0.5 font-mono text-xs font-bold text-amber-700 border border-amber-200/60 dark:bg-amber-950 dark:text-amber-300">
                             {(Number(watch(`sections.${index}.count`)) || 0) * (Number(watch(`sections.${index}.points`)) || 0)} đ
                           </span>
                           <button
@@ -1051,16 +1068,17 @@ export function ConfigurationForm({
                             disabled={fields.length === 1 || mutation.isPending}
                             onClick={() => remove(index)}
                             aria-label={`Xóa nhóm tự luận lý thuyết ${groupOrder + 1}`}
-                            className="inline-flex size-7 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-600 disabled:opacity-30"
+                            className="inline-flex size-7 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-600 disabled:opacity-30 cursor-pointer"
                           >
                             <Trash2 className="size-3.5" />
                           </button>
                         </div>
                       </div>
 
-                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-                        <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 lg:col-span-2">
-                          Skill
+                      {/* 1 hàng ngang (Inline Form) chứa Skill, Độ khó, Số câu, Điểm/câu */}
+                      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-12 items-end">
+                        <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 lg:col-span-5">
+                          <span className="text-slate-500 text-[11px] block mb-0.5">Kỹ năng (Skill)</span>
                           <select {...register(`sections.${index}.skill`)} className={inputClass}>
                             <option value="">Chọn skill</option>
                             {jobSkills.map((skill) => (
@@ -1071,8 +1089,8 @@ export function ConfigurationForm({
                           </select>
                         </label>
 
-                        <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                          Độ khó
+                        <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 lg:col-span-3">
+                          <span className="text-slate-500 text-[11px] block mb-0.5">Độ khó</span>
                           <select {...register(`sections.${index}.difficulty`)} className={inputClass}>
                             <option value="Easy">Dễ (Easy)</option>
                             <option value="Medium">Trung bình (Medium)</option>
@@ -1080,8 +1098,8 @@ export function ConfigurationForm({
                           </select>
                         </label>
 
-                        <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                          Số câu
+                        <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 lg:col-span-2">
+                          <span className="text-slate-500 text-[11px] block mb-0.5">Số câu</span>
                           <input
                             type="number"
                             min={1}
@@ -1091,8 +1109,8 @@ export function ConfigurationForm({
                           />
                         </label>
 
-                        <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                          Điểm / câu
+                        <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 lg:col-span-2">
+                          <span className="text-slate-500 text-[11px] block mb-0.5">Điểm / câu</span>
                           <input
                             type="number"
                             min={1}
@@ -1104,7 +1122,7 @@ export function ConfigurationForm({
                       </div>
 
                       {errors.sections?.[index] && (
-                        <p className="mt-2 text-xs text-[var(--color-error)]">
+                        <p className="mt-1 text-xs text-[var(--color-error)]">
                           {errors.sections?.[index]?.skill?.message ??
                             errors.sections?.[index]?.count?.message ??
                             errors.sections?.[index]?.points?.message}
@@ -1127,29 +1145,32 @@ export function ConfigurationForm({
                     points: 5,
                   })
                 }
-                className="w-full flex items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50/50 hover:bg-slate-100/80 hover:border-slate-400 py-3 text-xs font-semibold text-slate-700 transition-all dark:border-slate-700 dark:bg-slate-800/40 dark:text-slate-300"
+                className="w-full flex items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50/50 hover:bg-slate-100/80 hover:border-slate-400 py-3 text-xs font-semibold text-slate-700 transition-all dark:border-slate-700 dark:bg-slate-800/40 dark:text-slate-300 cursor-pointer"
               >
                 <Plus className="size-4 text-amber-600" /> Thêm nhóm tự luận lý thuyết
               </button>
 
               {/* KHỐI CẤU HÌNH TÍNH ĐIỂM TỰ LUẬN LÝ THUYẾT (AI RUBRIC ARCHETYPES) */}
-              <div className="mt-5 rounded-2xl border border-amber-200/80 bg-amber-50/20 p-5 space-y-4 dark:border-amber-900/40 dark:bg-amber-950/10">
-                <div className="flex items-center justify-between">
-                  <h5 className="flex items-center gap-1.5 text-sm font-bold text-slate-900 dark:text-white">
-                    <Scale className="size-4 text-amber-600" /> Mẫu tiêu chuẩn chấm điểm tự luận AI (Rubric Archetypes)
+              <div className="mt-5 rounded-2xl border border-slate-200/90 bg-slate-50/40 p-5 space-y-5 dark:border-slate-800 dark:bg-slate-900/40">
+                <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                  <h5 className="flex items-center gap-2 text-sm font-bold text-slate-900 dark:text-white">
+                    <Scale className="size-4 text-[#0066FF]" /> Mẫu tiêu chuẩn chấm điểm tự luận AI (Rubric Archetypes)
                     <Tooltip
                       content="Bộ tiêu chuẩn mặc định cho Job. Khi soạn câu hỏi trong ngân hàng, câu hỏi sẽ kế thừa hoặc người ra đề có thể ghi đè riêng nếu có yêu cầu đặc thù."
                       side="top"
                     >
-                      <span className="inline-flex cursor-help items-center text-slate-400 hover:text-amber-600 transition-colors">
+                      <span className="inline-flex cursor-help items-center text-slate-400 hover:text-blue-600 transition-colors">
                         <HelpCircle className="size-3.5" aria-hidden="true" />
                       </span>
                     </Tooltip>
                   </h5>
+                  <span className="text-[11px] font-medium text-slate-500">
+                    Nhấp chọn mẫu để tự động điền tiêu chuẩn chấm
+                  </span>
                 </div>
 
-                {/* 4 Thẻ chọn nhanh Rubric Archetype */}
-                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
+                {/* 2. Mẫu tiêu chuẩn (Rubric Archetypes) - Grid 4 cột có Radio & Active Border xanh */}
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
                   {Object.entries(essayPresets).map(([key, preset]) => {
                     const IconComp = key === "conceptual" ? BookOpen : key === "comparison" ? GitCompare : key === "scenario" ? AlertTriangle : Network;
                     const isMatching = watchedEssayCriteria.length === preset.criteria.length &&
@@ -1160,29 +1181,42 @@ export function ConfigurationForm({
                         type="button"
                         onClick={() => replaceRubric(preset.criteria.map(c => ({ ...c })))}
                         className={cn(
-                          "group relative flex flex-col justify-between rounded-xl border p-3.5 text-left transition-all",
+                          "group relative flex flex-col justify-between rounded-xl border p-3.5 text-left transition-all cursor-pointer",
                           isMatching
-                            ? "border-amber-500 bg-amber-50/50 shadow-sm ring-1 ring-amber-500/30 dark:border-amber-600 dark:bg-amber-950/30"
+                            ? "border-[#0066FF] bg-blue-50/40 shadow-xs ring-2 ring-blue-500/20 dark:border-blue-500 dark:bg-blue-950/30 dark:ring-blue-400/20"
                             : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900"
                         )}
                       >
-                        <div className="space-y-1.5">
+                        <div className="space-y-2">
                           <div className="flex items-center justify-between">
                             <span className={cn(
-                              "flex size-7 items-center justify-center rounded-lg text-xs",
-                              isMatching ? "bg-amber-500 text-white shadow-2xs" : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                              "flex size-7 items-center justify-center rounded-lg text-xs transition-colors",
+                              isMatching ? "bg-[#0066FF] text-white shadow-2xs" : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
                             )}>
                               <IconComp className="size-3.5" />
                             </span>
-                            {isMatching ? (
-                              <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800 dark:bg-amber-900/60 dark:text-amber-300">
-                                <Check className="size-3" /> Đang áp dụng
+                            <div className="flex items-center gap-1.5">
+                              {isMatching ? (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-800 dark:bg-blue-950 dark:text-blue-300">
+                                  <Check className="size-2.5" /> Đang áp dụng
+                                </span>
+                              ) : (
+                                <span className="font-mono text-[10px] text-slate-500 font-semibold">{preset.badge}</span>
+                              )}
+                              {/* Radio indicator */}
+                              <span
+                                className={cn(
+                                  "flex size-4 shrink-0 items-center justify-center rounded-full border transition-all",
+                                  isMatching
+                                    ? "border-[#0066FF] bg-white dark:bg-slate-900 ring-2 ring-blue-500/20"
+                                    : "border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-800",
+                                )}
+                              >
+                                {isMatching && <span className="size-2 rounded-full bg-[#0066FF]" />}
                               </span>
-                            ) : (
-                              <span className="font-mono text-[10px] text-slate-500 font-semibold">{preset.badge}</span>
-                            )}
+                            </div>
                           </div>
-                          <h6 className={cn("text-xs font-bold leading-tight", isMatching ? "text-amber-950 dark:text-amber-200" : "text-slate-800 dark:text-slate-200")}>
+                          <h6 className={cn("text-xs font-bold leading-tight", isMatching ? "text-blue-950 dark:text-blue-200" : "text-slate-800 dark:text-slate-200")}>
                             {preset.label}
                           </h6>
                           <p className="text-[11px] leading-relaxed text-slate-500 dark:text-slate-400 line-clamp-2">
@@ -1197,128 +1231,159 @@ export function ConfigurationForm({
                   })}
                 </div>
 
-                {/* Status Bar tổng trọng số Rubric */}
-                <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-2xs dark:border-slate-800 dark:bg-slate-900">
-                  <div className="flex items-center justify-between text-xs font-medium">
-                    <span className="text-slate-600 dark:text-slate-400">Tổng trọng số tiêu chí đã phân bổ:</span>
-                    <span
-                      className={cn(
-                        "font-mono font-bold px-2 py-0.5 rounded-md",
-                        totalRubricWeight === 100
-                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200/60 dark:bg-emerald-950 dark:text-emerald-300"
-                          : "bg-rose-50 text-rose-700 border border-rose-200/60 dark:bg-rose-950 dark:text-rose-300"
-                      )}
-                    >
-                      {totalRubricWeight}% / 100% {totalRubricWeight === 100 ? "✓ Hợp lệ" : "⚠ Chưa đủ 100%"}
-                    </span>
+                {/* 1. BẢNG TIÊU CHÍ CHẤM ĐIỂM (RUBRIC MATRIX DATA TABLE) */}
+                <div className="space-y-2">
+                  <div className="overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-2xs dark:border-slate-800 dark:bg-slate-900">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs">
+                        <thead>
+                          <tr className="border-b border-slate-200/80 bg-slate-50/80 text-slate-700 dark:border-slate-800 dark:bg-slate-800/60 dark:text-slate-300">
+                            <th className="px-3.5 py-3 font-bold w-[34%]">Tiêu chí đánh giá</th>
+                            <th className="px-3.5 py-3 font-bold w-[16%] text-center">Trọng số (%)</th>
+                            <th className="px-3.5 py-3 font-bold">Hướng dẫn chấm cho AI (Prompt Guide)</th>
+                            <th className="px-3.5 py-3 font-bold w-12 text-center">Thao tác</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                          {rubricFields.map((field, rIndex) => (
+                            <tr key={field.id} className="hover:bg-slate-50/40 dark:hover:bg-slate-800/30 transition-colors">
+                              {/* 1. Tiêu chí đánh giá */}
+                              <td className="p-3 align-top">
+                                <input
+                                  {...register(`essayCriteria.${rIndex}.name`)}
+                                  placeholder="Ví dụ: Bản chất cốt lõi & Khái niệm..."
+                                  className="h-9 w-full rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-[#101828] transition-all focus:border-[#0066FF] focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                                />
+                                {errors.essayCriteria?.[rIndex]?.name && (
+                                  <span className="mt-1 block text-[11px] font-medium text-[var(--color-error)]">
+                                    {errors.essayCriteria[rIndex]?.name?.message}
+                                  </span>
+                                )}
+                              </td>
+
+                              {/* 2. Trọng số (%) */}
+                              <td className="p-3 align-top">
+                                <div className="relative mx-auto max-w-[110px]">
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    max={100}
+                                    {...register(`essayCriteria.${rIndex}.weight`, { valueAsNumber: true })}
+                                    className="h-9 w-full rounded-lg border border-slate-300 bg-white pl-3 pr-7 text-center text-xs font-bold text-slate-900 transition-all focus:border-[#0066FF] focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                                  />
+                                  <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
+                                    %
+                                  </span>
+                                </div>
+                                {errors.essayCriteria?.[rIndex]?.weight && (
+                                  <span className="mt-1 block text-center text-[11px] font-medium text-[var(--color-error)]">
+                                    {errors.essayCriteria[rIndex]?.weight?.message}
+                                  </span>
+                                )}
+                              </td>
+
+                              {/* 3. Hướng dẫn chấm cho AI */}
+                              <td className="p-3 align-top">
+                                <textarea
+                                  rows={1}
+                                  {...register(`essayCriteria.${rIndex}.guide`)}
+                                  placeholder="Mô tả các ý cần có để đạt điểm tối đa..."
+                                  className="w-full rounded-lg border border-slate-300 bg-white p-2 text-xs text-slate-800 leading-relaxed transition-all focus:border-[#0066FF] focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 resize-y min-h-[36px]"
+                                />
+                              </td>
+
+                              {/* 4. Thao tác xóa */}
+                              <td className="p-3 align-middle text-center">
+                                <button
+                                  type="button"
+                                  disabled={rubricFields.length <= 1}
+                                  onClick={() => removeRubric(rIndex)}
+                                  title="Xóa tiêu chí này"
+                                  className="inline-flex size-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-600 disabled:opacity-20 cursor-pointer"
+                                >
+                                  <Trash2 className="size-4" />
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot className="border-t border-slate-200/90 bg-slate-50/70 dark:border-slate-800 dark:bg-slate-800/40">
+                          <tr>
+                            <td colSpan={2} className="px-3.5 py-2.5">
+                              <button
+                                type="button"
+                                onClick={() => appendRubric({ name: "", weight: 10, guide: "" })}
+                                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 hover:text-[#0066FF] hover:border-blue-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 transition-all cursor-pointer"
+                              >
+                                <Plus className="size-3.5 text-blue-600" />
+                                <span>Thêm tiêu chí</span>
+                              </button>
+                            </td>
+                            <td colSpan={2} className="px-3.5 py-2.5 text-right">
+                              <div className="inline-flex items-center gap-2">
+                                <span className="text-xs text-slate-600 dark:text-slate-400 font-medium">Tổng trọng số:</span>
+                                <span
+                                  className={cn(
+                                    "font-mono font-bold text-xs px-2.5 py-1 rounded-md transition-colors",
+                                    totalRubricWeight === 100
+                                      ? "bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300"
+                                      : "bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950 dark:text-rose-300"
+                                  )}
+                                >
+                                  {totalRubricWeight}% / 100% {totalRubricWeight === 100 ? "✓ Hợp lệ" : "⚠ Chưa đủ 100%"}
+                                </span>
+                              </div>
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
                   </div>
-                  <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-                    <div
-                      className={cn(
-                        "h-full transition-all duration-300",
-                        totalRubricWeight === 100 ? "bg-emerald-500" : totalRubricWeight > 100 ? "bg-rose-500" : "bg-amber-500"
-                      )}
-                      style={{ width: `${Math.min(totalRubricWeight, 100)}%` }}
-                    />
-                  </div>
+
                   {errors.essayCriteria && (
-                    <p className="mt-1.5 text-xs text-[var(--color-error)] font-medium">
+                    <p className="text-xs text-[var(--color-error)] font-medium">
                       {errors.essayCriteria.message ?? errors.essayCriteria.root?.message}
                     </p>
                   )}
                 </div>
 
-                {/* Danh sách tiêu chí Rubric */}
-                <div className="space-y-3">
-                  {rubricFields.map((field, rIndex) => (
-                    <div
-                      key={field.id}
-                      className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs transition-all hover:border-slate-300 dark:border-slate-800 dark:bg-slate-900"
-                    >
-                      <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
-                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                          Tiêu chí {rIndex + 1}
+                {/* 3. LƯU Ý CHO AI: Textarea tự co giãn có sẵn các Tag gợi ý nhanh */}
+                <div className="space-y-2 rounded-xl border border-slate-200/80 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <label className="flex items-center gap-1.5 text-xs font-bold text-slate-800 dark:text-slate-200">
+                      <Sparkles className="size-3.5 text-violet-600 dark:text-violet-400" />
+                      Lưu ý đặc biệt cho AI khi chấm tự luận (Tùy chọn)
+                      <Tooltip
+                        content="Nội dung này sẽ được chuyển thành System Prompt hướng dẫn AI khi chấm điểm và phân tích câu trả lời của ứng viên"
+                        side="top"
+                      >
+                        <span className="inline-flex cursor-help items-center text-slate-400 hover:text-blue-600 transition-colors">
+                          <HelpCircle className="size-3.5" aria-hidden="true" />
                         </span>
-                        <button
-                          type="button"
-                          disabled={rubricFields.length <= 1}
-                          onClick={() => removeRubric(rIndex)}
-                          title="Xóa tiêu chí này"
-                          className="inline-flex size-6 items-center justify-center rounded-md text-slate-400 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-20"
-                        >
-                          <Trash2 className="size-3.5" />
-                        </button>
-                      </div>
+                      </Tooltip>
+                    </label>
+                    <span className="text-[11px] text-slate-400">Gợi ý nhanh (nhấp để chèn):</span>
+                  </div>
 
-                      <div className="mt-2.5 grid gap-3 sm:grid-cols-4">
-                        <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 sm:col-span-3">
-                          Tên tiêu chí đánh giá
-                          <input
-                            {...register(`essayCriteria.${rIndex}.name`)}
-                            placeholder="Ví dụ: Bản chất cốt lõi & Khái niệm..."
-                            className={inputClass}
-                          />
-                          {errors.essayCriteria?.[rIndex]?.name && (
-                            <span className="text-[11px] text-[var(--color-error)]">{errors.essayCriteria[rIndex]?.name?.message}</span>
-                          )}
-                        </label>
+                  {/* Quick Suggestion Tags */}
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {quickAiTags.map((tag) => (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => handleAddAiTag(tag)}
+                        className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-600 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-blue-600 dark:hover:bg-blue-950/40 dark:hover:text-blue-300 transition-colors cursor-pointer"
+                      >
+                        {tag}
+                      </button>
+                    ))}
+                  </div>
 
-                        <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                          Trọng số (%)
-                          <div className="relative mt-1">
-                            <input
-                              type="number"
-                              min={1}
-                              max={100}
-                              {...register(`essayCriteria.${rIndex}.weight`, { valueAsNumber: true })}
-                              className="h-10 w-full rounded-lg border border-slate-300 bg-white px-3 pr-8 text-sm font-bold text-slate-900 transition-all focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-                            />
-                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">%</span>
-                          </div>
-                          {errors.essayCriteria?.[rIndex]?.weight && (
-                            <span className="text-[11px] text-[var(--color-error)]">{errors.essayCriteria[rIndex]?.weight?.message}</span>
-                          )}
-                        </label>
-                      </div>
-
-                      <label className="mt-2 block text-xs font-semibold text-slate-700 dark:text-slate-300">
-                        Hướng dẫn chấm cho AI (Guide)
-                        <input
-                          {...register(`essayCriteria.${rIndex}.guide`)}
-                          placeholder="Mô tả các ý cần có để đạt điểm tối đa..."
-                          className={inputClass}
-                        />
-                      </label>
-                    </div>
-                  ))}
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => appendRubric({ name: "", weight: 10, guide: "" })}
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
-                >
-                  <Plus className="size-3.5 text-amber-600" /> Thêm tiêu chí đánh giá
-                </button>
-
-                {/* Hướng dẫn chung cho AI khi chấm lý thuyết */}
-                <div className="mt-3">
-                  <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    Lưu ý đặc biệt cho AI khi chấm tự luận (Tùy chọn)
-                    <Tooltip
-                      content="Nội dung này sẽ được chuyển thành System Prompt hướng dẫn AI khi chấm điểm và phân tích câu trả lời của ứng viên"
-                      side="top"
-                    >
-                      <span className="inline-flex cursor-help items-center text-slate-400 hover:text-amber-600 transition-colors">
-                        <HelpCircle className="size-3.5" aria-hidden="true" />
-                      </span>
-                    </Tooltip>
-                  </label>
                   <textarea
-                    rows={2}
+                    rows={3}
                     {...register("essayGradingGuide")}
                     placeholder="Ví dụ: Chấp nhận thuật ngữ tiếng Anh tương đương; Ưu tiên câu trả lời đưa ra ví dụ minh họa thực tế; Không bắt bẻ lỗi chính tả nhỏ..."
-                    className="w-full rounded-lg border border-slate-300 bg-white p-2.5 text-xs text-slate-900 transition-all focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                    className="w-full rounded-xl border border-slate-300 bg-white p-3 text-xs text-slate-900 leading-relaxed transition-all focus:border-[#0066FF] focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-white resize-y"
                   />
                 </div>
               </div>
@@ -1352,155 +1417,7 @@ export function ConfigurationForm({
                 </span>
               </div>
 
-              {/* CARD CẤU HÌNH TỶ TRỌNG TÍNH ĐIỂM CODE */}
-              <div className="rounded-2xl border border-emerald-200/80 bg-emerald-50/20 p-5 space-y-4 dark:border-emerald-900/40 dark:bg-emerald-950/10">
-                <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                  <h5 className="flex items-center gap-1.5 text-sm font-bold text-slate-900 dark:text-white">
-                    <Sliders className="size-4 text-emerald-600" /> Tỷ trọng tính điểm bài tập Code
-                    <Tooltip
-                      content="Tỷ lệ phân bổ điểm giữa việc vượt qua Test Cases trong Sandbox và chất lượng mã nguồn do AI đánh giá"
-                      side="top"
-                    >
-                      <span className="inline-flex cursor-help items-center text-slate-400 hover:text-emerald-600 transition-colors">
-                        <HelpCircle className="size-3.5" aria-hidden="true" />
-                      </span>
-                    </Tooltip>
-                  </h5>
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => handleCodingTestWeightChange(80)}
-                      className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
-                    >
-                      Chuẩn 80/20
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleCodingTestWeightChange(70)}
-                      className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
-                    >
-                      70/30
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleCodingTestWeightChange(50)}
-                      className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
-                    >
-                      50/50
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleCodingTestWeightChange(100)}
-                      className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
-                    >
-                      100% Test
-                    </button>
-                  </div>
-                </div>
-
-                {/* Stacked bar trực quan */}
-                <div className="space-y-1.5">
-                  <div className="flex h-7 w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-100 p-0.5 shadow-2xs dark:border-slate-700 dark:bg-slate-800">
-                    <div
-                      className="flex items-center justify-center rounded-lg bg-emerald-500 font-mono text-xs font-bold text-white transition-all duration-300"
-                      style={{ width: `${codingTestWeight}%` }}
-                    >
-                      {codingTestWeight >= 15 ? `${codingTestWeight}% Sandbox Tests` : `${codingTestWeight}%`}
-                    </div>
-                    <div
-                      className="flex items-center justify-center rounded-lg bg-indigo-500 font-mono text-xs font-bold text-white transition-all duration-300"
-                      style={{ width: `${codingAiWeight}%` }}
-                    >
-                      {codingAiWeight >= 15 ? `${codingAiWeight}% AI Review` : `${codingAiWeight}%`}
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                    <span className="flex items-center gap-1.5">
-                      <span className="size-2 rounded-full bg-emerald-500" /> Tầng 1: Sandbox Execution ({codingTestWeight}%)
-                    </span>
-                    <span className="flex items-center gap-1.5">
-                      <span className="size-2 rounded-full bg-indigo-500" /> Tầng 2: AI Code Review ({codingAiWeight}%)
-                    </span>
-                  </div>
-                </div>
-
-                {/* 2 Cột Điều khiển */}
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs dark:border-slate-800 dark:bg-slate-900">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                        <span className="size-2 rounded-full bg-emerald-500" /> Tỷ trọng Sandbox Test Cases
-                      </span>
-                      <div className="flex items-center gap-1">
-                        <input
-                          type="number"
-                          min={0}
-                          max={100}
-                          value={codingTestWeight}
-                          onChange={(e) => handleCodingTestWeightChange(Number(e.target.value) || 0)}
-                          className="h-8 w-16 rounded-md border border-slate-300 bg-white px-2 text-right font-mono text-xs font-bold text-slate-900 focus:border-emerald-600 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-                        />
-                        <span className="text-xs font-bold text-slate-500">%</span>
-                      </div>
-                    </div>
-                    <input
-                      type="range"
-                      min={0}
-                      max={100}
-                      value={codingTestWeight}
-                      onChange={(e) => handleCodingTestWeightChange(Number(e.target.value))}
-                      className="mt-3 w-full accent-emerald-600"
-                    />
-                    <p className="mt-2 text-[11px] text-slate-500 leading-relaxed dark:text-slate-400">
-                      Chạy mã nguồn thực tế trong máy ảo Sandbox cách ly. Điểm tính theo tỷ lệ test ẩn vượt qua (Passed/Failed) hoặc theo trọng số từng test case ẩn.
-                    </p>
-                  </div>
-
-                  <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs dark:border-slate-800 dark:bg-slate-900">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                        <span className="size-2 rounded-full bg-indigo-500" /> Tỷ trọng AI Code Review
-                      </span>
-                      <div className="flex items-center gap-1">
-                        <input
-                          type="number"
-                          min={0}
-                          max={100}
-                          value={codingAiWeight}
-                          onChange={(e) => handleCodingAiWeightChange(Number(e.target.value) || 0)}
-                          className="h-8 w-16 rounded-md border border-slate-300 bg-white px-2 text-right font-mono text-xs font-bold text-slate-900 focus:border-indigo-600 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-                        />
-                        <span className="text-xs font-bold text-slate-500">%</span>
-                      </div>
-                    </div>
-                    <input
-                      type="range"
-                      min={0}
-                      max={100}
-                      value={codingAiWeight}
-                      onChange={(e) => handleCodingAiWeightChange(Number(e.target.value))}
-                      className="mt-3 w-full accent-indigo-600"
-                    />
-                    <p className="mt-2 text-[11px] text-slate-500 leading-relaxed dark:text-slate-400">
-                      AI phân tích 5 tiêu chí: Clean Code, Time Complexity, Space Complexity, Naming Conventions và Exception Safety. Phát hiện nghi ngờ hardcoded.
-                    </p>
-                  </div>
-                </div>
-
-                {/* Box công thức tính điểm thực tế */}
-                <div className="rounded-xl bg-white border border-slate-200/80 p-3 text-xs text-slate-600 space-y-1 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-300">
-                  <div className="font-semibold text-slate-900 dark:text-white flex items-center gap-1.5">
-                    <Check className="size-3.5 text-emerald-600" /> Công thức tính điểm tự động của từng bài tập Code:
-                  </div>
-                  <div className="font-mono bg-slate-50 rounded-lg p-2 text-slate-800 border border-slate-200/60 dark:bg-slate-800/60 dark:text-slate-200 dark:border-slate-700">
-                    Điểm đề xuất = Điểm bài × [ (Tỷ lệ pass test × <strong>{codingTestWeight}%</strong>) + (Điểm AI Review × <strong>{codingAiWeight}%</strong>) ]
-                  </div>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 pt-0.5">
-                    Ví dụ bài 10 điểm: Ứng viên đạt 100% test ẩn và được AI chấm 80% về Clean Code/Complexity ➔ Tổng điểm = (10 × {codingTestWeight}%) + (8 × {codingAiWeight}%) = <strong>{(10 * codingTestWeight / 100 + 8 * codingAiWeight / 100).toFixed(1)} / 10 điểm</strong>.
-                  </p>
-                </div>
-              </div>
-
+              {/* 1. Danh sách các nhóm bài tập code (Inline Form) */}
               {codingItems.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-slate-300 p-6 text-center text-xs text-slate-500 dark:border-slate-700">
                   Chưa có nhóm bài tập lập trình nào trong cấu hình này.
@@ -1510,15 +1427,15 @@ export function ConfigurationForm({
                   {codingItems.map(({ field, index }, groupOrder) => (
                     <fieldset
                       key={field.id}
-                      className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 transition-all hover:border-slate-300 dark:border-slate-800 dark:bg-slate-900/50"
+                      className="rounded-xl border border-slate-200/90 bg-slate-50/60 p-4 transition-all hover:border-slate-300 dark:border-slate-800 dark:bg-slate-900/50 space-y-3"
                     >
-                      <div className="flex items-center justify-between pb-2">
+                      <div className="flex items-center justify-between pb-1 border-b border-slate-100 dark:border-slate-800">
                         <legend className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200">
                           <span className="size-2 rounded-full bg-emerald-500" />
-                          Nhóm bài tập code {groupOrder + 1}
+                          Nhóm bài tập code #{groupOrder + 1}
                         </legend>
                         <div className="flex items-center gap-2">
-                          <span className="rounded bg-emerald-50 px-2 py-0.5 font-mono text-xs font-bold text-emerald-700 border border-emerald-200/60 dark:bg-emerald-950 dark:text-emerald-300">
+                          <span className="rounded-md bg-emerald-50 px-2 py-0.5 font-mono text-xs font-bold text-emerald-700 border border-emerald-200/60 dark:bg-emerald-950 dark:text-emerald-300">
                             {(Number(watch(`sections.${index}.count`)) || 0) * (Number(watch(`sections.${index}.points`)) || 0)} đ
                           </span>
                           <button
@@ -1526,16 +1443,17 @@ export function ConfigurationForm({
                             disabled={fields.length === 1 || mutation.isPending}
                             onClick={() => remove(index)}
                             aria-label={`Xóa nhóm bài tập code ${groupOrder + 1}`}
-                            className="inline-flex size-7 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-600 disabled:opacity-30"
+                            className="inline-flex size-7 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-600 disabled:opacity-30 cursor-pointer"
                           >
                             <Trash2 className="size-3.5" />
                           </button>
                         </div>
                       </div>
 
-                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-                        <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 lg:col-span-2">
-                          Skill
+                      {/* 1 hàng ngang (Inline Form) chứa Skill, Độ khó, Số bài tập, Điểm/bài */}
+                      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-12 items-end">
+                        <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 lg:col-span-5">
+                          <span className="text-slate-500 text-[11px] block mb-0.5">Kỹ năng (Skill)</span>
                           <select {...register(`sections.${index}.skill`)} className={inputClass}>
                             <option value="">Chọn skill</option>
                             {jobSkills.map((skill) => (
@@ -1546,8 +1464,8 @@ export function ConfigurationForm({
                           </select>
                         </label>
 
-                        <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                          Độ khó
+                        <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 lg:col-span-3">
+                          <span className="text-slate-500 text-[11px] block mb-0.5">Độ khó</span>
                           <select {...register(`sections.${index}.difficulty`)} className={inputClass}>
                             <option value="Easy">Dễ (Easy)</option>
                             <option value="Medium">Trung bình (Medium)</option>
@@ -1555,8 +1473,8 @@ export function ConfigurationForm({
                           </select>
                         </label>
 
-                        <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                          Số bài tập
+                        <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 lg:col-span-2">
+                          <span className="text-slate-500 text-[11px] block mb-0.5">Số bài tập</span>
                           <input
                             type="number"
                             min={1}
@@ -1566,8 +1484,8 @@ export function ConfigurationForm({
                           />
                         </label>
 
-                        <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                          Điểm / bài
+                        <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 lg:col-span-2">
+                          <span className="text-slate-500 text-[11px] block mb-0.5">Điểm / bài</span>
                           <input
                             type="number"
                             min={1}
@@ -1579,7 +1497,7 @@ export function ConfigurationForm({
                       </div>
 
                       {errors.sections?.[index] && (
-                        <p className="mt-2 text-xs text-[var(--color-error)]">
+                        <p className="mt-1 text-xs text-[var(--color-error)]">
                           {errors.sections?.[index]?.skill?.message ??
                             errors.sections?.[index]?.count?.message ??
                             errors.sections?.[index]?.points?.message}
@@ -1602,10 +1520,163 @@ export function ConfigurationForm({
                     points: 10,
                   })
                 }
-                className="w-full flex items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50/50 hover:bg-slate-100/80 hover:border-slate-400 py-3 text-xs font-semibold text-slate-700 transition-all dark:border-slate-700 dark:bg-slate-800/40 dark:text-slate-300"
+                className="w-full flex items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50/50 hover:bg-slate-100/80 hover:border-slate-400 py-3 text-xs font-semibold text-slate-700 transition-all dark:border-slate-700 dark:bg-slate-800/40 dark:text-slate-300 cursor-pointer"
               >
                 <Plus className="size-4 text-emerald-600" /> Thêm nhóm bài tập lập trình
               </button>
+
+              {/* 2. KHỐI PHÂN BỔ TỶ TRỌNG (SANDBOX VS AI REVIEW) - ĐẶT Ở CUỐI TRANG */}
+              <div className="mt-5 rounded-2xl border border-slate-200/90 bg-slate-50/40 p-5 space-y-4 dark:border-slate-800 dark:bg-slate-900/40">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <h5 className="flex items-center gap-2 text-sm font-bold text-slate-900 dark:text-white">
+                    <Sliders className="size-4 text-emerald-600" /> Phân bổ Tỷ trọng (Sandbox vs AI Review)
+                    <Tooltip
+                      content="Tỷ lệ phân bổ điểm giữa việc vượt qua Test Cases trong máy ảo Sandbox và chất lượng mã nguồn do AI đánh giá"
+                      side="top"
+                    >
+                      <span className="inline-flex cursor-help items-center text-slate-400 hover:text-emerald-600 transition-colors">
+                        <HelpCircle className="size-3.5" aria-hidden="true" />
+                      </span>
+                    </Tooltip>
+                  </h5>
+
+                  {/* Thao tác nhanh (Presets) */}
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-[11px] font-medium text-slate-500 mr-0.5">Thao tác nhanh:</span>
+                    {[
+                      { label: "80/20", test: 80 },
+                      { label: "70/30", test: 70 },
+                      { label: "50/50", test: 50 },
+                      { label: "100% Test", test: 100 },
+                    ].map((p) => {
+                      const isSelected = codingTestWeight === p.test;
+                      return (
+                        <button
+                          key={p.label}
+                          type="button"
+                          onClick={() => handleCodingTestWeightChange(p.test)}
+                          className={cn(
+                            "rounded-lg px-2.5 py-1 text-xs font-semibold transition-all cursor-pointer",
+                            isSelected
+                              ? "bg-emerald-600 text-white shadow-2xs font-bold"
+                              : "border border-slate-200 bg-white text-slate-700 hover:border-emerald-300 hover:bg-emerald-50/50 hover:text-emerald-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                          )}
+                        >
+                          {p.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 2 Ô Input có ràng buộc tổng = 100% */}
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  {/* Ô Sandbox */}
+                  <div className="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs dark:border-slate-800 dark:bg-slate-900">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                        <span className="size-2 rounded-full bg-emerald-500" /> Sandbox Test Cases (Máy chấm)
+                      </span>
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          min={0}
+                          max={100}
+                          value={codingTestWeight}
+                          onChange={(e) => handleCodingTestWeightChange(Number(e.target.value) || 0)}
+                          className="h-8 w-16 rounded-lg border border-slate-300 bg-white px-2 text-right font-mono text-xs font-bold text-slate-900 focus:border-emerald-600 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                        />
+                        <span className="text-xs font-bold text-slate-500">%</span>
+                      </div>
+                    </div>
+                    <p className="mt-1.5 text-[11px] text-slate-500 leading-relaxed dark:text-slate-400">
+                      Chạy mã nguồn trong máy ảo Sandbox cách ly, tính điểm theo tỷ lệ test cases ẩn passed.
+                    </p>
+                  </div>
+
+                  {/* Ô AI Code Review */}
+                  <div className="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-2xs dark:border-slate-800 dark:bg-slate-900">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                        <span className="size-2 rounded-full bg-indigo-500" /> AI Code Review (Chấm tiêu chuẩn)
+                      </span>
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          min={0}
+                          max={100}
+                          value={codingAiWeight}
+                          onChange={(e) => handleCodingAiWeightChange(Number(e.target.value) || 0)}
+                          className="h-8 w-16 rounded-lg border border-slate-300 bg-white px-2 text-right font-mono text-xs font-bold text-slate-900 focus:border-indigo-600 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                        />
+                        <span className="text-xs font-bold text-slate-500">%</span>
+                      </div>
+                    </div>
+                    <p className="mt-1.5 text-[11px] text-slate-500 leading-relaxed dark:text-slate-400">
+                      AI chấm 5 tiêu chí: Clean Code, Time & Space Complexity, Exception Safety, phát hiện hardcode.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Segmented Slider kép (Tự động chia 2 màu tương ứng với con số nhập vào) */}
+                <div className="space-y-2">
+                  <div className="relative flex h-8 w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-100 p-0.5 shadow-2xs dark:border-slate-700 dark:bg-slate-800">
+                    <div
+                      className="flex items-center justify-center rounded-lg bg-emerald-600 font-mono text-xs font-bold text-white transition-all duration-200 shadow-2xs select-none"
+                      style={{ width: `${codingTestWeight}%` }}
+                    >
+                      {codingTestWeight >= 15 ? `${codingTestWeight}% Sandbox` : `${codingTestWeight}%`}
+                    </div>
+                    <div
+                      className="flex items-center justify-center rounded-lg bg-indigo-600 font-mono text-xs font-bold text-white transition-all duration-200 shadow-2xs select-none"
+                      style={{ width: `${codingAiWeight}%` }}
+                    >
+                      {codingAiWeight >= 15 ? `${codingAiWeight}% AI Review` : `${codingAiWeight}%`}
+                    </div>
+                  </div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    step={5}
+                    value={codingTestWeight}
+                    onChange={(e) => handleCodingTestWeightChange(Number(e.target.value))}
+                    className="w-full accent-emerald-600 cursor-pointer h-2 bg-slate-200 rounded-lg appearance-none dark:bg-slate-700"
+                    title="Kéo thanh trượt để phân bổ tỷ trọng Sandbox / AI Review"
+                  />
+                </div>
+
+                {/* 2. Công thức tính điểm & Diễn giải - 1 dòng gọn nhẹ kèm Tooltip hover */}
+                <div className="flex items-center justify-between rounded-xl border border-slate-200/80 bg-white px-4 py-2.5 text-xs text-slate-600 shadow-2xs dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
+                  <div className="flex items-center gap-2">
+                    <Tooltip
+                      content={
+                        <div className="p-1 space-y-1.5 max-w-xs text-xs">
+                          <span className="font-bold block text-slate-900 dark:text-white">Ví dụ minh họa bài 10 điểm:</span>
+                          <p className="text-slate-600 dark:text-slate-300 leading-relaxed">
+                            Ứng viên đạt 100% test ẩn và được AI chấm 80% về Clean Code/Complexity:
+                          </p>
+                          <div className="font-mono font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 p-2 rounded-lg border border-emerald-200/60 dark:border-emerald-900/40">
+                            (10 × {codingTestWeight}%) + (8 × {codingAiWeight}%) = {(10 * codingTestWeight / 100 + 8 * codingAiWeight / 100).toFixed(1)} / 10 điểm
+                          </div>
+                        </div>
+                      }
+                      side="top"
+                    >
+                      <span className="inline-flex cursor-help items-center text-blue-600 hover:text-blue-700 transition-colors">
+                        <HelpCircle className="size-4" aria-hidden="true" />
+                      </span>
+                    </Tooltip>
+                    <span className="font-medium text-slate-700 dark:text-slate-300">
+                      Công thức: <strong className="font-mono text-[#101828] dark:text-white">Điểm = (Pass% × {codingTestWeight}%) + (AI% × {codingAiWeight}%)</strong>
+                    </span>
+                  </div>
+
+                  <span className="text-[11px] text-slate-400 italic hidden sm:inline">
+                    Rê chuột vào ⓘ để xem ví dụ tính điểm
+                  </span>
+                </div>
+              </div>
             </div>
           )}
 
@@ -1618,17 +1689,17 @@ export function ConfigurationForm({
       {/* Thông báo lỗi */}
       <AssessmentError error={mutation.error} />
 
-      {/* Hành động (Sticky Bottom Bar) */}
-      <div className="sticky bottom-0 z-10 -mx-4 -mb-6 mt-4 flex items-center justify-between border-t border-slate-200/80 bg-white/95 px-6 py-3.5 backdrop-blur-md dark:border-slate-800 dark:bg-slate-900/95 sm:-mx-6 rounded-b-2xl shadow-lg">
+      {/* Hành động (Sticky Bottom Bar với hiệu ứng Glassmorphism & Shadow cao cấp) */}
+      <div className="sticky bottom-0 z-20 -mx-6 -mb-6 mt-6 flex items-center justify-between border-t border-slate-200/90 bg-white/90 backdrop-blur-md px-6 py-3.5 rounded-b-2xl shadow-[0_-8px_25px_-6px_rgba(0,0,0,0.08)] dark:border-slate-800 dark:bg-slate-900/90 dark:shadow-[0_-8px_25px_-6px_rgba(0,0,0,0.35)]">
         <div className="flex items-center gap-2">
           {isDirty ? (
-            <span className="inline-flex items-center gap-2 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 border border-amber-200/60 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800">
+            <span className="inline-flex items-center gap-2 rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700 border border-amber-200/70 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800">
               <span className="size-2 rounded-full bg-amber-500 animate-pulse" aria-hidden="true" />
               Có thay đổi chưa lưu
             </span>
           ) : (
-            <span className="inline-flex items-center gap-2 rounded-full bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-500 border border-slate-200/60 dark:bg-slate-800/50 dark:text-slate-400 dark:border-slate-700">
-              <span className="size-2 rounded-full bg-emerald-500" aria-hidden="true" />
+            <span className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 border border-emerald-200/70 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800">
+              <CheckCircle2 className="size-3.5 text-emerald-600" aria-hidden="true" />
               Cấu hình đã đồng bộ
             </span>
           )}

@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { RefreshCw, Save, Sparkles, Trash2 } from "lucide-react";
 import { Button } from "@/components/ux/Button";
 import { AssessmentError } from "@/components/ux/assessmentUi";
@@ -83,6 +84,27 @@ export function AiReviewWorkspace({
   onPatchDraft,
   onPatchOption,
 }: AiReviewWorkspaceProps) {
+  // Xác định số thứ tự đợt sinh lớn nhất để gắn badge "Mới" cho các câu mới sinh
+  const latestBatchNumber = useMemo(() => {
+    if (drafts.length === 0) return 0;
+    return Math.max(...drafts.map((d) => d.batch ?? 1));
+  }, [drafts]);
+
+  // Phân tách đợt đang sinh hiện tại (nếu đang sinh) và các đợt trước đó
+  const isCurrentlyStreaming = isGenerating && stage !== "completed";
+  const currentGeneratingBatch = batchCount + 1;
+  const remainingCount = Math.max(0, count - streamedCount);
+
+  const currentBatchDrafts = useMemo(() => {
+    if (!isCurrentlyStreaming) return [];
+    return filteredDrafts.filter((item) => item.batch === currentGeneratingBatch);
+  }, [isCurrentlyStreaming, filteredDrafts, currentGeneratingBatch]);
+
+  const olderBatchDrafts = useMemo(() => {
+    if (!isCurrentlyStreaming) return [];
+    return filteredDrafts.filter((item) => item.batch !== currentGeneratingBatch);
+  }, [isCurrentlyStreaming, filteredDrafts, currentGeneratingBatch]);
+
   return (
     <main className="flex flex-col gap-4 min-w-0">
       {/* Thanh công cụ kiểm duyệt (Review Bar) */}
@@ -219,37 +241,85 @@ export function AiReviewWorkspace({
           />
         )}
 
-        {/* Danh sách câu hỏi đã sinh (bao gồm các câu hỏi streaming xuất hiện ngay lập tức với hiệu ứng Fade-in) */}
-        {filteredDrafts.map((item, index) => (
-          <div
-            key={item.id}
-            className="animate-in fade-in slide-in-from-bottom-2 duration-500"
-          >
-            <AiQuestionCard
-              item={item}
-              index={index}
-              isSelected={selected.has(item.id)}
-              batchCount={batchCount}
-              busy={isSaving}
-              onToggleSelect={onToggleSelect}
-              onRemove={onRemoveDraft}
-              onPatchDraft={onPatchDraft}
-              onPatchOption={onPatchOption}
-            />
-          </div>
-        ))}
-
-        {/* Skeleton UI Cards đại diện cho các câu hỏi còn lại đang chờ AI soạn thảo */}
-        {isGenerating && stage !== "completed" && Math.max(0, count - streamedCount) > 0 && (
-          <div className="space-y-4">
-            {Array.from({ length: Math.max(0, count - streamedCount) }).map((_, idx) => (
-              <AiQuestionSkeletonCard
-                key={`skeleton-${streamedCount + idx}`}
-                index={streamedCount + idx}
-                questionType={questionType}
-              />
+        {/* Danh sách câu hỏi đã sinh (hoặc đang sinh theo thời gian thực) */}
+        {isCurrentlyStreaming ? (
+          <>
+            {/* 1. Các câu hỏi của đợt mới vừa được stream tới (nằm ngay trên đầu) */}
+            {currentBatchDrafts.map((item, index) => (
+              <div
+                key={item.id}
+                className="animate-in fade-in slide-in-from-top-2 duration-400"
+              >
+                <AiQuestionCard
+                  item={item}
+                  index={index}
+                  isSelected={selected.has(item.id)}
+                  batchCount={batchCount + 1}
+                  isLatestBatch={true}
+                  busy={isSaving}
+                  onToggleSelect={onToggleSelect}
+                  onRemove={onRemoveDraft}
+                  onPatchDraft={onPatchDraft}
+                  onPatchOption={onPatchOption}
+                />
+              </div>
             ))}
-          </div>
+
+            {/* 2. Skeleton UI Cards cho các câu tiếp theo của đợt này đang chờ AI soạn thảo */}
+            {remainingCount > 0 && (
+              <div className="space-y-4">
+                {Array.from({ length: remainingCount }).map((_, idx) => (
+                  <AiQuestionSkeletonCard
+                    key={`skeleton-${streamedCount + idx}`}
+                    index={currentBatchDrafts.length + idx}
+                    questionType={questionType}
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* 3. Các câu hỏi của các đợt trước đó (nằm phía dưới đợt mới) */}
+            {olderBatchDrafts.map((item, index) => (
+              <div
+                key={item.id}
+                className="opacity-90 transition-opacity"
+              >
+                <AiQuestionCard
+                  item={item}
+                  index={currentBatchDrafts.length + remainingCount + index}
+                  isSelected={selected.has(item.id)}
+                  batchCount={batchCount + 1}
+                  isLatestBatch={false}
+                  busy={isSaving}
+                  onToggleSelect={onToggleSelect}
+                  onRemove={onRemoveDraft}
+                  onPatchDraft={onPatchDraft}
+                  onPatchOption={onPatchOption}
+                />
+              </div>
+            ))}
+          </>
+        ) : (
+          /* Trạng thái bình thường: hiển thị toàn bộ danh sách đã sắp xếp (đợt mới nhất ở trên đầu) */
+          filteredDrafts.map((item, index) => (
+            <div
+              key={item.id}
+              className="animate-in fade-in slide-in-from-top-2 duration-300"
+            >
+              <AiQuestionCard
+                item={item}
+                index={index}
+                isSelected={selected.has(item.id)}
+                batchCount={batchCount}
+                isLatestBatch={batchCount > 1 && item.batch === latestBatchNumber}
+                busy={isSaving}
+                onToggleSelect={onToggleSelect}
+                onRemove={onRemoveDraft}
+                onPatchDraft={onPatchDraft}
+                onPatchOption={onPatchOption}
+              />
+            </div>
+          ))
         )}
       </div>
 

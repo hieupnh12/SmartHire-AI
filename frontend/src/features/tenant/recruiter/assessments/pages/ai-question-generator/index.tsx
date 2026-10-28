@@ -111,6 +111,7 @@ export function AiQuestionGeneratorPage() {
   });
   const [typeFilter, setTypeFilter] = useState<string>("ALL");
 
+  const workspaceRef = useRef<HTMLDivElement>(null);
   const isMountedRef = useRef(false);
   const prevKeyRef = useRef(storageKey);
 
@@ -363,7 +364,14 @@ export function AiQuestionGeneratorPage() {
                 hasClearedForReplace = true;
                 return [newDraftItem];
               }
-              return [...prev, newDraftItem];
+              if (generationMode === "REPLACE") {
+                return [...prev, newDraftItem];
+              }
+              // APPEND mode: Đưa các câu hỏi của đợt sinh mới nhất lên trên đầu danh sách,
+              // các câu trong cùng đợt này giữ đúng thứ tự xuất hiện (1, 2, 3...)
+              const currentBatchItems = prev.filter((d) => d.batch === targetBatch);
+              const otherBatchItems = prev.filter((d) => d.batch !== targetBatch);
+              return [...currentBatchItems, newDraftItem, ...otherBatchItems];
             });
 
             setSelected((prev) => {
@@ -419,7 +427,8 @@ export function AiQuestionGeneratorPage() {
         }));
 
         if (generationMode === "APPEND" && drafts.length > 0) {
-          setDrafts((prev) => [...prev, ...newDraftItems]);
+          // Đưa toàn bộ các câu code mới lên đầu danh sách nháp
+          setDrafts((prev) => [...newDraftItems, ...prev]);
           setSelected((prev) => {
             const next = new Set(prev);
             newDraftItems.forEach((d) => next.add(d.id));
@@ -525,6 +534,15 @@ export function AiQuestionGeneratorPage() {
     });
   };
 
+  const handleStartGenerate = () => {
+    if (workspaceRef.current) {
+      const yOffset = -90;
+      const y = workspaceRef.current.getBoundingClientRect().top + window.pageYOffset + yOffset;
+      window.scrollTo({ top: Math.max(0, y), behavior: "smooth" });
+    }
+    generate.mutate();
+  };
+
   return (
     <section className="space-y-4 text-[var(--color-on-surface)]">
       {/* Tầng 1: SubNav chính của Job (nếu nằm trong Job Workspace) */}
@@ -568,45 +586,47 @@ export function AiQuestionGeneratorPage() {
           setGenerationMode={setGenerationMode}
           busy={busy}
           isGenerating={generate.isPending}
-          onGenerate={() => generate.mutate()}
+          onGenerate={handleStartGenerate}
           onCancel={handleCancelGenerate}
         />
 
         {/* CỘT PHẢI: Không gian kiểm duyệt & Chỉnh sửa nháp */}
-        <AiReviewWorkspace
-          drafts={drafts}
-          filteredDrafts={filteredDrafts}
-          selected={selected}
-          selectedCount={selectedCount}
-          batchCount={batchCount}
-          typeFilter={typeFilter}
-          setTypeFilter={setTypeFilter}
-          toggleSelectAll={toggleSelectAll}
-          clearAllDrafts={clearAllDrafts}
-          coding={coding}
-          count={count}
-          skill={skill}
-          questionType={questionType}
-          hasJdContext={includeJd && Boolean(job)}
-          busy={busy}
-          isGenerating={generate.isPending}
-          isSaving={save.isPending}
-          generateError={generate.error}
-          saveError={save.error}
-          stage={stage}
-          progressPercent={progressPercent}
-          socketStatus={socketStatus}
-          statusMessage={statusMessage}
-          streamedCount={streamedCount}
-          onCancelGenerate={handleCancelGenerate}
-          backPath={backPath}
-          onNavigateBack={() => navigate(backPath)}
-          onSave={() => save.mutate()}
-          onToggleSelect={toggleSelect}
-          onRemoveDraft={removeDraft}
-          onPatchDraft={patchDraft}
-          onPatchOption={patchOption}
-        />
+        <div ref={workspaceRef} className="min-w-0">
+          <AiReviewWorkspace
+            drafts={drafts}
+            filteredDrafts={filteredDrafts}
+            selected={selected}
+            selectedCount={selectedCount}
+            batchCount={batchCount}
+            typeFilter={typeFilter}
+            setTypeFilter={setTypeFilter}
+            toggleSelectAll={toggleSelectAll}
+            clearAllDrafts={clearAllDrafts}
+            coding={coding}
+            count={count}
+            skill={skill}
+            questionType={questionType}
+            hasJdContext={includeJd && Boolean(job)}
+            busy={busy}
+            isGenerating={generate.isPending}
+            isSaving={save.isPending}
+            generateError={generate.error}
+            saveError={save.error}
+            stage={stage}
+            progressPercent={progressPercent}
+            socketStatus={socketStatus}
+            statusMessage={statusMessage}
+            streamedCount={streamedCount}
+            onCancelGenerate={handleCancelGenerate}
+            backPath={backPath}
+            onNavigateBack={() => navigate(backPath)}
+            onSave={() => save.mutate()}
+            onToggleSelect={toggleSelect}
+            onRemoveDraft={removeDraft}
+            onPatchDraft={patchDraft}
+            onPatchOption={patchOption}
+          />
+        </div>
       </div>
     </section>
   );
