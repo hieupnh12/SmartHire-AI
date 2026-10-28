@@ -2,15 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import {
   AlertTriangle,
-  Check,
   CheckCheck,
-  CheckCircle2,
   CircleHelp,
   Code2,
-  Copy,
   FileText,
-  Filter,
-  Layers,
   ListChecks,
   Plus,
   RefreshCw,
@@ -24,7 +19,7 @@ import {
 import { questionBankApi } from "@/api/tenant/questionBankApi";
 import type { BankQuestionRequest } from "@/api/types/questionBank";
 import type { CodingContent, QuestionRequest } from "@/api/types/assessment";
-import { AssessmentError, assessmentInput, FieldError } from "@/components/ux/assessmentUi";
+import { AssessmentError, assessmentInput } from "@/components/ux/assessmentUi";
 import { Button } from "@/components/ux/Button";
 import { Tooltip } from "@/components/ux/Tooltip";
 import { SKILL_CATALOG } from "@/features/tenant/recruiter/jobs/skillCatalog";
