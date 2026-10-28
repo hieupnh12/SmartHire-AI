@@ -108,7 +108,14 @@ public class SubmissionService {
             application.setStatus(ApplicationStatus.ASSESSMENT);
             applications.save(application);
         }
-        requireVisible(application);
+        try {
+            requireVisible(application);
+        } catch (BusinessException ex) {
+            if ("APPLICATION_NOT_ELIGIBLE".equals(ex.getCode())) {
+                return java.util.List.of();
+            }
+            throw ex;
+        }
         if (demoSeed != null && application.getJob().getDeletedAt() == null) demoSeed.ensurePublishedDemo(application.getJob());
         return tests.findByJob_IdAndStatusOrderByIdDesc(application.getJob().getId(), TestStatus.PUBLISHED).stream()
                 .filter(test -> assignedTo(test, application) || isDemoPaper(test))

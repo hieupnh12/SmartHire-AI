@@ -1,7 +1,7 @@
 import { AssessmentJobReportPanel } from "../components/AssessmentJobReportPanel";
-import { useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ChevronLeft,
   ChevronRight,
@@ -17,24 +17,39 @@ import {
   SlidersHorizontal,
   Users,
   X,
-  Zap,
 } from "lucide-react";
 import { assessmentApi } from "@/api/tenant/assessmentApi";
-import { assessmentGenerationApi } from "@/api/tenant/assessmentGenerationApi";
 import type { SubmissionStatus, SubmissionSummary } from "@/api/types/assessment";
 import { AssessmentError } from "@/components/ux/assessmentUi";
 import { AssessmentSubNav } from "../components/AssessmentSubNav";
-import { Button } from "@/components/ux/Button";
 import { TableSkeleton } from "@/components/ux/Skeleton";
 import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
-import { toast } from "@/stores/toastStore";
 import { useRecruitmentJob } from "../../jobs/components/JobRecruitmentWorkspace";
 
 type StatusTab = "ALL" | "IN_PROGRESS" | "DONE" | "EXPIRED";
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
 const REFRESH_MS = 15_000;
+
+function getPaginationItems(current: number, total: number): (number | "ellipsis-start" | "ellipsis-end")[] {
+  if (total <= 7) {
+    return Array.from({ length: total }, (_, i) => i + 1);
+  }
+
+  const showStartEllipsis = current > 4;
+  const showEndEllipsis = current < total - 3;
+
+  if (!showStartEllipsis && showEndEllipsis) {
+    return [1, 2, 3, 4, 5, "ellipsis-end", total];
+  }
+
+  if (showStartEllipsis && !showEndEllipsis) {
+    return [1, "ellipsis-start", total - 4, total - 3, total - 2, total - 1, total];
+  }
+
+  return [1, "ellipsis-start", current - 1, current, current + 1, "ellipsis-end", total];
+}
 
 const tabs: { id: StatusTab; label: string; match: (status: SubmissionStatus) => boolean }[] = [
   { id: "ALL", label: "Tất cả", match: () => true },
@@ -137,19 +152,37 @@ function StatusBadge({ status }: { status: SubmissionStatus }) {
 export function AssessmentSubmissionsPage() {
   const job = useRecruitmentJob();
   const navigate = useNavigate();
-  const [tab, setTab] = useState<StatusTab>("ALL");
-  const [query, setQuery] = useState("");
-  const [density, setDensity] = useState<"compact" | "normal">("normal");
-  const [page, setPage] = useState(0);
-
   const queryClient = useQueryClient();
-  const [gradingSubmissionId, setGradingSubmissionId] = useState<number | null>(null);
+  const [params, setParams] = useSearchParams();
 
-  const configQuery = useQuery({
-    queryKey: ["assessment-job-config", job.id],
-    queryFn: () => assessmentGenerationApi.configuration(job.id),
-  });
-  const autoGradingEnabled = Boolean(configQuery.data?.autoGradingEnabled);
+  const requestedPage = Math.max(1, parseInt(params.get("page") || "1", 10) || 1);
+  const rawSize = parseInt(params.get("limit") || params.get("size") || "10", 10);
+  const requestedSize = (PAGE_SIZE_OPTIONS as readonly number[]).includes(rawSize) ? rawSize : 10;
+  const requestedQ = params.get("q") ?? "";
+  const requestedTab = (params.get("tab") as StatusTab) ?? "ALL";
+  const initialTab: StatusTab = ["ALL", "IN_PROGRESS", "DONE", "EXPIRED"].includes(requestedTab) ? requestedTab : "ALL";
+
+  const [tab, setTab] = useState<StatusTab>(initialTab);
+  const [query, setQuery] = useState(requestedQ);
+  const [density, setDensity] = useState<"compact" | "normal">("normal");
+  const [page, setPage] = useState(requestedPage);
+  const [pageSize, setPageSize] = useState(requestedSize);
+  const [jumpVal, setJumpVal] = useState("");
+  const [isTableTransitioning, setIsTableTransitioning] = useState(false);
+
+  useEffect(() => {
+    const p = Math.max(1, parseInt(params.get("page") || "1", 10) || 1);
+    const rs = parseInt(params.get("limit") || params.get("size") || "10", 10);
+    const s = (PAGE_SIZE_OPTIONS as readonly number[]).includes(rs) ? rs : 10;
+    const q = params.get("q") ?? "";
+    const t = (params.get("tab") as StatusTab) ?? "ALL";
+    const validTab: StatusTab = ["ALL", "IN_PROGRESS", "DONE", "EXPIRED"].includes(t) ? t : "ALL";
+
+    if (p !== page) setPage(p);
+    if (s !== pageSize) setPageSize(s);
+    if (q !== query) setQuery(q);
+    if (validTab !== tab) setTab(validTab);
+  }, [params]);
 
   const submissions = useQuery({
     queryKey: queryKeys.assessments.jobSubmissions(job.id),
@@ -157,45 +190,6 @@ export function AssessmentSubmissionsPage() {
     refetchInterval: REFRESH_MS,
   });
   const items = submissions.data ?? [];
-
-  const pendingSubmissions = useMemo(
-    () => items.filter((row) => row.status === "SUBMITTED"),
-    [items],
-  );
-
-  const autoGradeAll = useMutation({
-    mutationFn: () => assessmentApi.autoGradePendingSubmissions(job.id),
-    onSuccess: (res) => {
-      toast.success(
-        res.finalizedCount > 0
-          ? `Đã tự động chấm và chốt điểm thành công cho ${res.finalizedCount} bài làm!`
-          : "Tất cả các bài làm đã được chấm điểm trước đó.",
-      );
-      void submissions.refetch();
-      void queryClient.invalidateQueries({ queryKey: queryKeys.assessments.all() });
-    },
-    onError: (err: any) => {
-      toast.error(err?.response?.data?.message || "Lỗi khi tự động chốt điểm bài làm.");
-    },
-  });
-
-  const autoGradeOne = useMutation({
-    mutationFn: (submissionId: number) => {
-      setGradingSubmissionId(submissionId);
-      return assessmentApi.autoGradeSubmission(submissionId);
-    },
-    onSuccess: () => {
-      toast.success("Đã tự động chấm và chốt điểm bài làm thành công!");
-      void submissions.refetch();
-      void queryClient.invalidateQueries({ queryKey: queryKeys.assessments.all() });
-    },
-    onError: (err: any) => {
-      toast.error(err?.response?.data?.message || "Lỗi khi tự động chấm bài làm này.");
-    },
-    onSettled: () => {
-      setGradingSubmissionId(null);
-    },
-  });
 
   // Group attempts by candidateId + testId to accurately label "Lần 1", "Lần 2"
   const attemptMap = useMemo(() => {
@@ -241,10 +235,73 @@ export function AssessmentSubmissionsPage() {
     );
   }, [items, tab, query]);
 
-  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const safePage = Math.min(page, pageCount - 1);
-  const pageRows = filtered.slice(safePage * PAGE_SIZE, safePage * PAGE_SIZE + PAGE_SIZE);
-  const resetPage = () => setPage(0);
+  const totalItems = filtered.length;
+  const pageCount = Math.max(1, Math.ceil(totalItems / pageSize));
+  const safePage = Math.min(page, pageCount);
+  const startIndex = (safePage - 1) * pageSize;
+  const pageRows = useMemo(
+    () => filtered.slice(startIndex, startIndex + pageSize),
+    [filtered, startIndex, pageSize],
+  );
+  const pageItems = useMemo(() => getPaginationItems(safePage, pageCount), [safePage, pageCount]);
+
+  const prefetchSubmission = (submissionId: number) => {
+    queryClient.prefetchQuery({
+      queryKey: [...queryKeys.assessments.all(), "grading-detail", submissionId],
+      queryFn: () => assessmentApi.gradingDetail(submissionId),
+      staleTime: 30_000,
+    });
+  };
+
+  const triggerTableTransition = (action: () => void) => {
+    setIsTableTransitioning(true);
+    action();
+    setTimeout(() => {
+      setIsTableTransitioning(false);
+    }, 200);
+  };
+
+  const goToPage = (nextPage: number, nextSize: number = pageSize) => {
+    const calcTotalPages = Math.max(1, Math.ceil(totalItems / nextSize));
+    const target = Math.max(1, Math.min(nextPage, calcTotalPages));
+    triggerTableTransition(() => {
+      setPage(target);
+      if (nextSize !== pageSize) {
+        setPageSize(nextSize);
+      }
+      const nextParams = new URLSearchParams(params);
+      nextParams.set("page", String(target));
+      nextParams.set("limit", String(nextSize));
+      nextParams.delete("size");
+      setParams(nextParams, { replace: true });
+    });
+  };
+
+  const handleQueryChange = (newQ: string) => {
+    setQuery(newQ);
+    const nextParams = new URLSearchParams(params);
+    if (newQ.trim()) {
+      nextParams.set("q", newQ.trim());
+    } else {
+      nextParams.delete("q");
+    }
+    nextParams.set("page", "1");
+    setParams(nextParams, { replace: true });
+    setPage(1);
+  };
+
+  const handleTabChange = (newTab: StatusTab) => {
+    setTab(newTab);
+    const nextParams = new URLSearchParams(params);
+    if (newTab !== "ALL") {
+      nextParams.set("tab", newTab);
+    } else {
+      nextParams.delete("tab");
+    }
+    nextParams.set("page", "1");
+    setParams(nextParams, { replace: true });
+    setPage(1);
+  };
 
   return (
     <section className="flex flex-col gap-4 text-[var(--color-on-surface)]">
@@ -256,96 +313,6 @@ export function AssessmentSubmissionsPage() {
       {/* 2. Visual Metric Cards with Enhanced Typography & Progress Trackers */}
       <AssessmentJobReportPanel jobId={job.id} />
 
-      {/* 2.1. Grading Policy & Delivery Automation Banner */}
-      {autoGradingEnabled ? (
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-emerald-200/80 bg-gradient-to-r from-emerald-50/90 via-emerald-50/40 to-teal-50/50 p-4 shadow-2xs dark:border-emerald-900/60 dark:from-emerald-950/30 dark:via-emerald-950/20 dark:to-teal-950/20">
-          <div className="flex items-start sm:items-center gap-3 min-w-0">
-            <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-emerald-600 text-white shadow-xs">
-              <Zap className="size-4.5 fill-current" />
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="font-semibold text-emerald-900 dark:text-emerald-200 text-sm">
-                  Quy tắc: Tự động chấm điểm & Giao kết quả đang BẬT
-                </span>
-                <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300">
-                  ⚡ Tự động
-                </span>
-              </div>
-              <p className="mt-0.5 text-xs text-emerald-800/85 dark:text-emerald-300/85">
-                {pendingSubmissions.length > 0
-                  ? `Có ${pendingSubmissions.length} bài nộp trước đó đang ở trạng thái "Chờ chấm bài". Nhấn nút bên cạnh để AI chốt điểm và giao kết quả ngay.`
-                  : "Mọi bài nộp sẽ được AI phân tích, tự động chốt điểm và gửi email kết quả cho ứng viên ngay khi nộp."}
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
-            {pendingSubmissions.length > 0 && (
-              <Button
-                type="button"
-                size="sm"
-                onClick={() => autoGradeAll.mutate()}
-                disabled={autoGradeAll.isPending}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
-              >
-                {autoGradeAll.isPending ? (
-                  <Loader2 className="size-3.5 animate-spin" />
-                ) : (
-                  <Zap className="size-3.5 fill-current" />
-                )}
-                Chốt điểm tự động ({pendingSubmissions.length} bài chờ)
-              </Button>
-            )}
-            <Link
-              to={`/recruiter/jobs/${job.id}/assessments/new`}
-              className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 hover:text-emerald-900 dark:text-emerald-400 dark:hover:text-emerald-200 hover:underline px-2 py-1"
-            >
-              Cài đặt chung →
-            </Link>
-          </div>
-        </div>
-      ) : (
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-slate-50/70 p-3.5 shadow-2xs dark:border-slate-800 dark:bg-slate-900/50">
-          <div className="flex items-start sm:items-center gap-3 min-w-0">
-            <div className="grid size-8.5 shrink-0 place-items-center rounded-xl bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
-              <SlidersHorizontal className="size-4" />
-            </div>
-            <div className="min-w-0">
-              <span className="font-semibold text-slate-800 dark:text-slate-200 text-xs sm:text-sm">
-                Quy tắc chấm đề: Đang duyệt thủ công bởi Nhà tuyển dụng
-              </span>
-              <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                Bài làm có câu tự luận & coding sẽ ở trạng thái "Chờ chấm bài" để bạn rà soát và xác nhận điểm trước khi giao kết quả.
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
-            {pendingSubmissions.length > 0 && (
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                onClick={() => autoGradeAll.mutate()}
-                disabled={autoGradeAll.isPending}
-              >
-                {autoGradeAll.isPending ? (
-                  <Loader2 className="size-3.5 animate-spin" />
-                ) : (
-                  <Zap className="size-3.5 text-amber-500 fill-amber-500" />
-                )}
-                Chốt tự động 1 lần ({pendingSubmissions.length})
-              </Button>
-            )}
-            <Link
-              to={`/recruiter/jobs/${job.id}/assessments/new`}
-              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 shadow-2xs hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
-            >
-              Bật tự động chấm →
-            </Link>
-          </div>
-        </div>
-      )}
-
       {/* 3. Single-line Responsive Toolbar (Left: Status Tabs, Right: Search & Actions) */}
       <div className="flex flex-col gap-2.5 rounded-2xl border border-slate-200/80 bg-white p-2.5 shadow-2xs dark:border-slate-800 dark:bg-slate-900 md:flex-row md:items-center md:justify-between">
         {/* Left: Segmented Status Tabs (Cuộn ngang êm ái trên mobile, không vỡ layout) */}
@@ -356,10 +323,7 @@ export function AssessmentSubmissionsPage() {
               <button
                 key={item.id}
                 type="button"
-                onClick={() => {
-                  setTab(item.id);
-                  resetPage();
-                }}
+                onClick={() => handleTabChange(item.id)}
                 className={cn(
                   "inline-flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-medium transition-all cursor-pointer",
                   active
@@ -397,18 +361,12 @@ export function AssessmentSubmissionsPage() {
               className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-9 pr-8 text-[13px] text-[#101828] placeholder:text-[#667085] outline-none transition focus:border-[#0066FF] focus:bg-white focus:ring-2 focus:ring-blue-500/20 dark:border-slate-800 dark:bg-slate-800/40 dark:text-white dark:focus:bg-slate-900"
               placeholder="Tìm ứng viên, email…"
               value={query}
-              onChange={(e) => {
-                setQuery(e.target.value);
-                resetPage();
-              }}
+              onChange={(e) => handleQueryChange(e.target.value)}
             />
             {query && (
               <button
                 type="button"
-                onClick={() => {
-                  setQuery("");
-                  resetPage();
-                }}
+                onClick={() => handleQueryChange("")}
                 className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md p-0.5 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer dark:hover:text-slate-200"
                 title="Xóa tìm kiếm"
                 aria-label="Xóa tìm kiếm"
@@ -488,7 +446,7 @@ export function AssessmentSubmissionsPage() {
 
         {pageRows.length > 0 && (
           <>
-            <div className="overflow-x-auto scrollbar-thin">
+            <div className="overflow-x-auto lg:overflow-x-hidden scrollbar-thin">
               <table className="w-full table-fixed border-collapse text-left text-sm">
                 <colgroup>
                   <col className="w-[20%] min-w-[160px]" />
@@ -520,65 +478,191 @@ export function AssessmentSubmissionsPage() {
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                <tbody className={cn("divide-y divide-slate-100 dark:divide-slate-800/60 transition-opacity duration-150", isTableTransitioning && "opacity-50")}>
                   {pageRows.map((row) => (
                     <SubmissionRow
                       key={row.id}
                       row={row}
                       attemptInfo={attemptMap.get(row.id)}
                       density={density}
+                      onPrefetch={() => prefetchSubmission(row.id)}
                       onReview={() => navigate(`/recruiter/jobs/${job.id}/assessments/submissions/${row.id}`)}
-                      onAutoGrade={(subId) => autoGradeOne.mutate(subId)}
-                      isAutoGrading={gradingSubmissionId === row.id}
                     />
                   ))}
                 </tbody>
               </table>
             </div>
 
-            {/* Pagination footer */}
-            <div className="flex flex-col items-center justify-between gap-3 border-t border-slate-100 px-4 py-3 sm:flex-row dark:border-slate-800">
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Hiển thị{" "}
-                <span className="font-semibold text-slate-900 dark:text-slate-100">
-                  {safePage * PAGE_SIZE + 1}–{Math.min((safePage + 1) * PAGE_SIZE, filtered.length)}
-                </span>{" "}
-                trên <span className="font-semibold text-slate-900 dark:text-slate-100">{filtered.length}</span> lượt làm
-              </p>
-              <div className="flex items-center gap-1">
-                <Button variant="secondary" size="sm" disabled={safePage === 0} aria-label="Trang đầu" onClick={() => setPage(0)}>
-                  <ChevronsLeft className="size-3.5" aria-hidden="true" />
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  disabled={safePage === 0}
-                  aria-label="Trang trước"
-                  onClick={() => setPage((p) => Math.max(0, p - 1))}
+            {/* Pagination footer (Chuẩn UX Enterprise 4 nhóm theo UX_PAGINATION_LOADING.md) */}
+            <div
+              className={cn(
+                "flex flex-col gap-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/40 px-4 py-3 sm:px-6 lg:flex-row lg:items-center lg:justify-between transition-opacity",
+                isTableTransitioning && "opacity-50 pointer-events-none"
+              )}
+            >
+              {/* Nhóm 1: Thông tin Dữ liệu (Left) */}
+              <div className="flex items-center gap-2 text-xs sm:text-[13px] text-slate-600 dark:text-slate-400">
+                <p>
+                  Hiển thị{" "}
+                  <strong className="font-semibold text-slate-900 dark:text-slate-100">
+                    {totalItems > 0 ? startIndex + 1 : 0}–{Math.min(startIndex + pageSize, totalItems)}
+                  </strong>{" "}
+                  trên <strong className="font-semibold text-slate-900 dark:text-slate-100">{totalItems}</strong> lượt làm
+                </p>
+                <span className="text-slate-300 dark:text-slate-700">·</span>
+                <span className="tabular-nums">Trang {safePage} / {pageCount}</span>
+                {submissions.isFetching && (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-medium text-[#0066FF] ml-1" role="status">
+                    <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+                    <span className="hidden sm:inline">Đang tải…</span>
+                  </span>
+                )}
+              </div>
+
+              {/* Nhóm 2: Chọn số bản ghi / trang (Center) */}
+              <div className="flex items-center justify-start lg:justify-center">
+                <label className="flex items-center gap-1.5 text-xs sm:text-[13px] text-slate-600 dark:text-slate-400">
+                  <span>Hiển thị</span>
+                  <select
+                    aria-label="Số lượt làm mỗi trang"
+                    value={pageSize}
+                    onChange={(e) => {
+                      const nextSize = Number(e.target.value);
+                      goToPage(1, nextSize);
+                    }}
+                    className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs sm:text-[13px] font-semibold text-slate-800 shadow-2xs outline-none transition-colors hover:border-[#0066FF] focus:border-[#0066FF] focus:ring-2 focus:ring-[#0066FF]/20 cursor-pointer dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                  >
+                    {PAGE_SIZE_OPTIONS.map((size) => (
+                      <option key={size} value={size}>
+                        {size} / trang
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              {/* Nhóm 3 & 4: Điều hướng & Nhảy trang (Right) */}
+              <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+                <nav className="flex items-center gap-1" aria-label="Phân trang danh sách lượt làm bài">
+                  {/* First Page [|<] */}
+                  <button
+                    type="button"
+                    aria-label="Về trang đầu"
+                    title="Về trang đầu (Trang 1)"
+                    disabled={safePage === 1}
+                    onClick={() => goToPage(1)}
+                    className="grid size-8 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-2xs transition-colors hover:border-[#0066FF] hover:bg-[#0066FF]/5 hover:text-[#0066FF] disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                  >
+                    <ChevronsLeft className="size-4" aria-hidden="true" />
+                  </button>
+
+                  {/* Previous [<] */}
+                  <button
+                    type="button"
+                    aria-label="Trang trước"
+                    title="Trang trước"
+                    disabled={safePage === 1}
+                    onClick={() => goToPage(safePage - 1)}
+                    className="grid size-8 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-2xs transition-colors hover:border-[#0066FF] hover:bg-[#0066FF]/5 hover:text-[#0066FF] disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                  >
+                    <ChevronLeft className="size-4" aria-hidden="true" />
+                  </button>
+
+                  {/* Page Numbers with Ellipsis */}
+                  {pageItems.map((item, idx) => {
+                    if (typeof item === "string") {
+                      return (
+                        <span
+                          key={`${item}-${idx}`}
+                          className="grid size-8 place-items-center text-xs text-slate-400 select-none dark:text-slate-500"
+                          aria-hidden="true"
+                        >
+                          …
+                        </span>
+                      );
+                    }
+                    const isActive = item === safePage;
+                    return (
+                      <button
+                        key={item}
+                        type="button"
+                        aria-label={`Trang ${item}`}
+                        aria-current={isActive ? "page" : undefined}
+                        onClick={() => goToPage(item)}
+                        className={cn(
+                          "grid size-8 place-items-center rounded-lg text-xs font-semibold transition-all cursor-pointer",
+                          isActive
+                            ? "bg-[#0066FF] text-white shadow-xs font-bold"
+                            : "border border-slate-200 bg-white text-slate-700 hover:border-[#0066FF] hover:bg-[#0066FF]/5 hover:text-[#0066FF] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-[#0066FF]"
+                        )}
+                      >
+                        {item}
+                      </button>
+                    );
+                  })}
+
+                  {/* Next [>] */}
+                  <button
+                    type="button"
+                    aria-label="Trang sau"
+                    title="Trang sau"
+                    disabled={safePage >= pageCount}
+                    onClick={() => goToPage(safePage + 1)}
+                    className="grid size-8 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-2xs transition-colors hover:border-[#0066FF] hover:bg-[#0066FF]/5 hover:text-[#0066FF] disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                  >
+                    <ChevronRight className="size-4" aria-hidden="true" />
+                  </button>
+
+                  {/* Last Page [>|] */}
+                  <button
+                    type="button"
+                    aria-label="Đến trang cuối"
+                    title={`Đến trang cuối (Trang ${pageCount})`}
+                    disabled={safePage >= pageCount}
+                    onClick={() => goToPage(pageCount)}
+                    className="grid size-8 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-2xs transition-colors hover:border-[#0066FF] hover:bg-[#0066FF]/5 hover:text-[#0066FF] disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                  >
+                    <ChevronsRight className="size-4" aria-hidden="true" />
+                  </button>
+                </nav>
+
+                <div className="hidden h-4 w-px bg-slate-300 sm:block dark:bg-slate-700" />
+
+                {/* Nhóm 4: Nhảy trang nhanh (Jump To Page) */}
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const target = parseInt(jumpVal, 10);
+                    if (!Number.isNaN(target)) {
+                      goToPage(target);
+                      setJumpVal("");
+                    }
+                  }}
+                  className="flex items-center gap-1.5 text-xs sm:text-[13px] text-slate-600 dark:text-slate-400"
                 >
-                  <ChevronLeft className="size-3.5" aria-hidden="true" />
-                </Button>
-                <span className="min-w-16 px-2 text-center text-xs font-semibold text-slate-700 dark:text-slate-300">
-                  {safePage + 1} / {pageCount}
-                </span>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  disabled={safePage >= pageCount - 1}
-                  aria-label="Trang sau"
-                  onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
-                >
-                  <ChevronRight className="size-3.5" aria-hidden="true" />
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  disabled={safePage >= pageCount - 1}
-                  aria-label="Trang cuối"
-                  onClick={() => setPage(pageCount - 1)}
-                >
-                  <ChevronsRight className="size-3.5" aria-hidden="true" />
-                </Button>
+                  <label htmlFor="submission-jump-page" className="whitespace-nowrap">
+                    Đi đến:
+                  </label>
+                  <input
+                    id="submission-jump-page"
+                    type="number"
+                    min={1}
+                    max={pageCount}
+                    value={jumpVal}
+                    onChange={(e) => setJumpVal(e.target.value)}
+                    placeholder={String(safePage)}
+                    aria-label="Nhập số trang cần đến"
+                    className="h-8 w-14 rounded-lg border border-slate-200 bg-white px-2 text-center text-xs sm:text-[13px] font-semibold text-slate-800 shadow-2xs outline-none transition-colors hover:border-[#0066FF] focus:border-[#0066FF] focus:ring-2 focus:ring-[#0066FF]/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                  />
+                  <span>Trang</span>
+                  <button
+                    type="submit"
+                    disabled={!jumpVal || Number(jumpVal) < 1 || Number(jumpVal) > pageCount}
+                    className="h-8 rounded-lg border border-slate-200 bg-white px-2.5 text-xs sm:text-[13px] font-semibold text-slate-700 shadow-2xs transition-colors hover:border-[#0066FF] hover:bg-[#0066FF]/5 hover:text-[#0066FF] disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                  >
+                    Đi
+                  </button>
+                </form>
               </div>
             </div>
           </>
@@ -592,16 +676,14 @@ function SubmissionRow({
   row,
   attemptInfo,
   density,
+  onPrefetch,
   onReview,
-  onAutoGrade,
-  isAutoGrading,
 }: {
   row: SubmissionSummary;
   attemptInfo?: { attempt: number; totalAttempts: number };
   density: "compact" | "normal";
+  onPrefetch?: () => void;
   onReview: () => void;
-  onAutoGrade: (id: number) => void;
-  isAutoGrading: boolean;
 }) {
   const inProgress = row.status === "IN_PROGRESS";
   const isPendingGrading = row.status === "SUBMITTED" || (row.status !== "IN_PROGRESS" && row.score == null);
@@ -612,7 +694,10 @@ function SubmissionRow({
   const padY = density === "compact" ? "py-1.5" : "py-3.5";
 
   return (
-    <tr className="group transition-colors hover:bg-slate-50/70 dark:hover:bg-slate-800/30">
+    <tr
+      className="group transition-colors hover:bg-slate-50/70 dark:hover:bg-slate-800/30"
+      onMouseEnter={onPrefetch}
+    >
       {/* 1. Candidate Info */}
       <td className={cn("px-4", padY)}>
         <div className="flex items-center gap-2.5 min-w-0">
@@ -804,41 +889,25 @@ function SubmissionRow({
         )}
       >
         {isPendingGrading ? (
-          <div className="inline-flex items-center gap-1.5 justify-end">
+          density === "compact" ? (
             <button
               type="button"
-              onClick={() => onAutoGrade(row.id)}
-              disabled={isAutoGrading}
-              title="Chốt điểm tự động ngay theo gợi ý của AI"
-              className="inline-flex items-center gap-1 rounded-lg border border-amber-300 bg-amber-50 px-2 py-1.5 text-xs font-semibold text-amber-800 shadow-2xs hover:bg-amber-100 dark:border-amber-700/60 dark:bg-amber-950/40 dark:text-amber-300 transition-all cursor-pointer disabled:opacity-50"
+              onClick={onReview}
+              title="Xem & duyệt điểm chi tiết"
+              className="inline-flex size-7 items-center justify-center rounded-lg bg-[var(--color-primary)] text-white shadow-xs hover:bg-[var(--color-primary-hover)] active:scale-95 transition-all cursor-pointer"
             >
-              {isAutoGrading ? (
-                <Loader2 className="size-3.5 animate-spin text-amber-600" />
-              ) : (
-                <Zap className="size-3.5 fill-amber-500 text-amber-500" />
-              )}
-              <span className="hidden xl:inline">Chốt tự động</span>
+              <Pencil className="size-3.5" />
             </button>
-            {density === "compact" ? (
-              <button
-                type="button"
-                onClick={onReview}
-                title="Xem & duyệt điểm chi tiết"
-                className="inline-flex size-7 items-center justify-center rounded-lg bg-[var(--color-primary)] text-white shadow-xs hover:bg-[var(--color-primary-hover)] active:scale-95 transition-all cursor-pointer"
-              >
-                <Pencil className="size-3.5" />
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={onReview}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--color-primary)] px-2.5 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-[var(--color-primary-hover)] active:scale-95 transition-all cursor-pointer"
-              >
-                <Pencil className="size-3.5" />
-                Chấm bài
-              </button>
-            )}
-          </div>
+          ) : (
+            <button
+              type="button"
+              onClick={onReview}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--color-primary)] px-2.5 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-[var(--color-primary-hover)] active:scale-95 transition-all cursor-pointer"
+            >
+              <Pencil className="size-3.5" />
+              Chấm bài
+            </button>
+          )
         ) : canReview ? (
           density === "compact" ? (
             <button

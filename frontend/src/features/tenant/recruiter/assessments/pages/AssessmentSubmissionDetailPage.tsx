@@ -1,9 +1,72 @@
-import { ArrowLeft, ChevronRight } from "lucide-react";
-import { Link, useNavigate, useParams } from "react-router-dom";
-import { AssessmentSubNav } from "../components/AssessmentSubNav";
+import React from "react";
+import { AlertCircle, ArrowLeft } from "lucide-react";
+import { useNavigate, useParams } from "react-router-dom";
 import { SubmissionGradingDetail } from "../components/SubmissionGradingDetail";
 import { useRecruitmentJob } from "../../jobs/components/JobRecruitmentWorkspace";
 import { Button } from "@/components/ux/Button";
+
+interface ErrorBoundaryProps {
+  children: React.ReactNode;
+  backUrl: string;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+export class GradingDetailErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error("GradingDetail render crash caught:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="rounded-2xl border border-rose-200 bg-white p-8 text-center shadow-xs dark:border-rose-900/50 dark:bg-slate-900 space-y-4">
+          <div className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-rose-50 text-rose-600 dark:bg-rose-950/50 dark:text-rose-400">
+            <AlertCircle className="size-6" />
+          </div>
+          <div>
+            <h3 className="text-base font-bold text-slate-900 dark:text-white">
+              Không thể hiển thị chi tiết bài làm
+            </h3>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto">
+              Đã xảy ra lỗi không mong muốn khi dựng dữ liệu bài thi. Vui lòng thử tải lại hoặc quay lại danh sách bài nộp.
+            </p>
+            {this.state.error?.message && (
+              <p className="mt-2 text-[11px] font-mono text-rose-500 bg-rose-50/50 dark:bg-rose-950/30 p-2 rounded-lg max-w-lg mx-auto break-words">
+                {this.state.error.message}
+              </p>
+            )}
+          </div>
+          <div className="flex items-center justify-center gap-3 pt-2">
+            <Button
+              variant="secondary"
+              onClick={() => this.setState({ hasError: false, error: null })}
+            >
+              Thử lại
+            </Button>
+            <Button onClick={() => window.location.assign(this.props.backUrl)}>
+              <ArrowLeft className="size-4" /> Quay lại danh sách bài nộp
+            </Button>
+          </div>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
 
 export function AssessmentSubmissionDetailPage() {
   const job = useRecruitmentJob();
@@ -16,7 +79,6 @@ export function AssessmentSubmissionDetailPage() {
   if (!submissionId || Number.isNaN(submissionId)) {
     return (
       <div className="space-y-6">
-        <AssessmentSubNav jobId={job.id} activeTab="submissions" />
         <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center dark:border-slate-800 dark:bg-slate-900">
           <p className="text-base font-semibold text-slate-800 dark:text-slate-100">
             Không tìm thấy bài làm
@@ -33,42 +95,14 @@ export function AssessmentSubmissionDetailPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6 text-[#101828] dark:text-slate-100 pb-16">
-      {/* 1. Job Sub-Nav */}
-      <AssessmentSubNav jobId={job.id} activeTab="submissions" />
-
-      {/* 2. Breadcrumbs Bar */}
-      <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
-          <Link
-            to={backUrl}
-            className="inline-flex items-center gap-1 font-semibold text-slate-600 hover:text-blue-600 transition-colors dark:text-slate-300"
-          >
-            <ArrowLeft className="size-3.5" />
-            Danh sách bài nộp
-          </Link>
-          <ChevronRight className="size-3 text-slate-400" />
-          <span className="font-bold text-[#101828] dark:text-slate-200">
-            Chi tiết &amp; Duyệt điểm bài #{submissionId}
-          </span>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => navigate(backUrl)}
-          className="inline-flex items-center gap-1.5 self-start sm:self-auto rounded-xl border border-slate-200/80 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 hover:text-blue-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 transition-all cursor-pointer"
-        >
-          <ArrowLeft className="size-3.5" />
-          Quay lại danh sách
-        </button>
-      </div>
-
-      {/* 2. Main Submission Grading Card */}
-      <SubmissionGradingDetail
-        key={submissionId}
-        id={submissionId}
-        onClose={() => navigate(backUrl)}
-      />
+    <div className="flex flex-col gap-4 text-[#101828] dark:text-slate-100 pb-16">
+      <GradingDetailErrorBoundary backUrl={backUrl}>
+        <SubmissionGradingDetail
+          key={submissionId}
+          id={submissionId}
+          onClose={() => navigate(backUrl)}
+        />
+      </GradingDetailErrorBoundary>
     </div>
   );
 }

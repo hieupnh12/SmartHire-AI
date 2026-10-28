@@ -24,9 +24,30 @@ export function SkeletonCard({ className }: { className?: string }) {
   return <div className={cn("rounded-[var(--radius-xl)] border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-5", className)}><div className="flex items-start gap-3"><Skeleton className="size-11 shrink-0 rounded-full" /><div className="min-w-0 flex-1 space-y-2"><Skeleton className="h-4 w-2/5" /><Skeleton className="h-3 w-3/5" /></div></div><SkeletonText className="mt-5" /></div>;
 }
 
-export function TableSkeleton({ columns = 5, rows = 5 }: { columns?: number; rows?: number }) {
+export function TableSkeleton({ columns = 5, rows = 5, className }: { columns?: number; rows?: number; className?: string }) {
   const gridStyle = { gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` };
-  return <div className="min-w-[42rem] overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-[var(--color-surface-card)]" aria-hidden="true"><div className="grid gap-4 bg-[var(--color-surface-alt)] px-5 py-3" style={gridStyle}>{Array.from({ length: columns }, (_, index) => <Skeleton key={index} className="h-3 w-2/3" />)}</div>{Array.from({ length: rows }, (_, row) => <div key={row} className="grid gap-4 border-t border-[var(--color-border-default)] px-5 py-4" style={gridStyle}>{Array.from({ length: columns }, (_, column) => <Skeleton key={column} className={cn("h-4", column === 0 ? "w-4/5" : "w-2/3")} />)}</div>)}</div>;
+  return (
+    <div
+      className={cn(
+        "min-w-[42rem] overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-[var(--color-surface-card)]",
+        className
+      )}
+      aria-hidden="true"
+    >
+      <div className="grid gap-4 bg-[var(--color-surface-alt)] px-5 py-3" style={gridStyle}>
+        {Array.from({ length: columns }, (_, index) => (
+          <Skeleton key={index} className="h-3 w-2/3" />
+        ))}
+      </div>
+      {Array.from({ length: rows }, (_, row) => (
+        <div key={row} className="grid gap-4 border-t border-[var(--color-border-default)] px-5 py-4" style={gridStyle}>
+          {Array.from({ length: columns }, (_, column) => (
+            <Skeleton key={column} className={cn("h-4", column === 0 ? "w-4/5" : "w-2/3")} />
+          ))}
+        </div>
+      ))}
+    </div>
+  );
 }
 
 export function LoadingState({ children, label = "Đang tải dữ liệu", className }: { children: ReactNode; label?: string; className?: string }) {

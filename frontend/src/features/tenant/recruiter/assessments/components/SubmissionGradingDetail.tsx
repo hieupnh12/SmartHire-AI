@@ -14,11 +14,10 @@ import {
   Code2,
   Copy,
   Eye,
-  FileCheck2,
   FileText,
+  Loader2,
   Mail,
   RefreshCw,
-  Send,
   ShieldAlert,
   ShieldCheck,
   Sparkles,
@@ -32,7 +31,6 @@ import type {
   SubmissionGradingDetail as GradingDetail,
 } from "@/api/types/assessment";
 import { Button } from "@/components/ux/Button";
-import { Skeleton } from "@/components/ux/Skeleton";
 import { AssessmentError } from "@/components/ux/assessmentUi";
 import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
@@ -59,11 +57,28 @@ function safeObject<T = Record<string, unknown>>(value: unknown): T {
 
 function safeText(value: unknown, fallback = "AI chưa cung cấp phân tích này."): string {
   if (value == null) return fallback;
-  if (typeof value === "string" && value.trim()) return value.trim();
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return fallback;
+    // Attempt parsing JSON string to extract human-readable text (e.g. '{"detail": "..."}')
+    if ((trimmed.startsWith("{") && trimmed.endsWith("}")) || (trimmed.startsWith("[") && trimmed.endsWith("]"))) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (parsed && typeof parsed === "object") {
+          return safeText(parsed, fallback);
+        }
+      } catch {
+        // use raw string
+      }
+    }
+    return trimmed;
+  }
   if (typeof value === "number" || typeof value === "boolean") return String(value);
   if (typeof value === "object") {
     const obj = value as Record<string, unknown>;
     for (const key of [
+      "message",
+      "detail",
       "analysis",
       "explanation",
       "comment",
@@ -71,6 +86,7 @@ function safeText(value: unknown, fallback = "AI chưa cung cấp phân tích n�
       "details",
       "text",
       "summary",
+      "feedback",
       "complexity",
       "rating",
       "value",
@@ -105,14 +121,9 @@ function display(value: unknown): string {
   return Number(num.toFixed(2)).toLocaleString("vi-VN");
 }
 
-function getInitials(name: unknown): string {
-  if (!name || typeof name !== "string" || !name.trim()) return "UV";
-  const parts = name.trim().split(/\s+/);
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-}
 
-type TabFilter = "ALL" | "NEED_REVIEW" | "OBJECTIVE" | "ESSAY" | "CODING" | "INTEGRITY";
+
+type CategoryTab = "ESSAY" | "CODING" | "INTEGRITY" | "OBJECTIVE";
 
 export function SubmissionGradingDetail({
   id,
@@ -129,6 +140,7 @@ export function SubmissionGradingDetail({
     queryKey: key,
     queryFn: () => assessmentApi.gradingDetail(id),
     refetchInterval: 12000,
+    staleTime: 30_000,
   });
 
   const {
@@ -144,12 +156,16 @@ export function SubmissionGradingDetail({
     defaultValues: { scores: {} },
   });
 
-  const [activeTab, setActiveTab] = useState<TabFilter>("ALL");
+  const [userSelectedTab, setUserSelectedTab] = useState<CategoryTab | null>(null);
   const values = watch("scores");
   const heading = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => {
-    heading.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+    try {
+      heading.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+    } catch {
+      // ignore
+    }
   }, [id]);
 
   const refresh = async () => {
@@ -217,17 +233,21 @@ export function SubmissionGradingDetail({
 
   const busy = approve.isPending || update.isPending || email.isPending || retry.isPending;
   const detail = query.data;
-  const reviews = useMemo(() => detail?.reviews ?? [], [detail?.reviews]);
+  const reviews = useMemo(() => (detail?.reviews ?? []).filter(Boolean), [detail?.reviews]);
 
-  // Dirty entries in form
-  const dirtyEntries = Object.entries(values ?? {}).filter(
-    ([, val]) => val !== undefined && val !== null && val.trim() !== "",
-  );
+  // Dirty entries in form - safely handle string/number/null values
+  const dirtyEntries = Object.entries(values ?? {}).filter(([, val]) => {
+    if (val == null) return false;
+    if (typeof val === "string") return val.trim() !== "";
+    if (typeof val === "number") return !Number.isNaN(val);
+    return false;
+  });
   const isDirty = dirtyEntries.length > 0;
 
   // Question validation
   const decisionFor = (review: GradingReview): GradeDecision | null => {
-    const raw = getValues(`scores.${review.questionId}`)?.trim() ?? "";
+    const rawVal = getValues(`scores.${review.questionId}`);
+    const raw = typeof rawVal === "string" ? rawVal.trim() : rawVal != null ? String(rawVal).trim() : "";
     if (!raw && review.suggestedScore == null) {
       setError(`scores.${review.questionId}`, {
         message: "Chưa có điểm AI. Nhập điểm để duyệt thủ công.",
@@ -267,78 +287,103 @@ export function SubmissionGradingDetail({
     approve.mutate({ questionId: review.questionId, score: null });
   };
 
-  // Quick accept all AI scores
-  const handleApproveAllSuggested = () => {
-    const unreviewed = reviews.filter((r) => !r.reviewedAt);
-    if (unreviewed.length === 0) {
-      toast.info("Tất cả câu hỏi đã được duyệt.");
-      return;
+  const unreviewedReviews = reviews.filter((r) => !r.reviewedAt);
+
+  const handleBack = () => {
+    if (isDirty) {
+      askConfirm({
+        title: "Rời khỏi màn hình duyệt?",
+        description: "Có điểm ghi đè chưa lưu sẽ bị hủy bỏ.",
+        confirmLabel: "Rời khỏi",
+        onConfirm: onClose,
+      });
+    } else {
+      onClose();
     }
-    const missingAi = unreviewed.filter((r) => r.suggestedScore == null);
-    if (missingAi.length > 0) {
-      toast.warning(
-        `Còn ${missingAi.length} câu chưa có điểm gợi ý từ AI. Vui lòng chấm tay các câu đó.`,
-      );
-      return;
-    }
-    askConfirm({
-      title: "Chấp nhận toàn bộ điểm AI đề xuất?",
-      description: `Hệ thống sẽ áp dụng điểm gợi ý của AI cho ${unreviewed.length} câu hỏi chưa duyệt và chốt kết quả bài thi.`,
-      confirmLabel: "Chấp nhận & Chốt điểm",
-      onConfirm: () => {
-        const decisions: GradeDecision[] = unreviewed.map((r) => ({
-          questionId: r.questionId,
-          score: null,
-        }));
-        update.mutate(decisions);
-      },
-    });
   };
 
-  // Filter reviews
-  const unreviewedReviews = reviews.filter((r) => !r.reviewedAt);
-  const essayReviews = reviews.filter((r) => r.type === "ESSAY");
-  const codingReviews = reviews.filter((r) => r.type === "CODING");
-
-  const filteredReviews = useMemo(() => {
-    if (activeTab === "NEED_REVIEW") return unreviewedReviews;
-    if (activeTab === "ESSAY") return essayReviews;
-    if (activeTab === "CODING") return codingReviews;
-    return reviews;
-  }, [activeTab, reviews, unreviewedReviews, essayReviews, codingReviews]);
-
-  // Loading skeleton
+  // Loading skeleton matching new Split View layout with high-contrast borders and active spinner
   if (query.isPending) {
     return (
-      <div className="space-y-6">
-        <Skeleton className="h-32 w-full rounded-2xl" />
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Skeleton className="h-28 rounded-2xl" />
-          <Skeleton className="h-28 rounded-2xl" />
-          <Skeleton className="h-28 rounded-2xl" />
-          <Skeleton className="h-28 rounded-2xl" />
+      <div className="space-y-6 text-[#101828] dark:text-slate-100">
+        <header className="rounded-2xl border border-slate-200/80 bg-white px-5 py-3.5 shadow-2xs dark:border-slate-800 dark:bg-slate-900">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                title="Quay lại Danh sách bài nộp"
+                aria-label="Quay lại Danh sách bài nộp"
+              >
+                <ArrowLeft className="size-4" />
+              </button>
+              <div className="space-y-1.5">
+                <div className="h-4 w-44 rounded-lg bg-slate-200/80 dark:bg-slate-700 animate-pulse" />
+                <div className="h-3 w-28 rounded-md bg-slate-100 dark:bg-slate-800 animate-pulse" />
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Loader2 className="size-4 animate-spin text-[#0066FF]" />
+              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Đang tải bài làm...</span>
+            </div>
+          </div>
+        </header>
+
+        <div className="flex flex-col lg:flex-row items-start gap-6">
+          <div className="w-full lg:w-60 shrink-0">
+            <div className="rounded-2xl border border-slate-200/80 bg-white p-2 shadow-2xs dark:border-slate-800 dark:bg-slate-900 flex flex-col gap-1">
+              {[1, 2, 3, 4].map((i) => (
+                <div
+                  key={i}
+                  className="flex h-10 w-full items-center justify-between rounded-xl px-3.5 py-2"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <div className="size-4 rounded-md bg-slate-200/80 dark:bg-slate-700 animate-pulse" />
+                    <div className="h-3.5 w-24 rounded-md bg-slate-200/80 dark:bg-slate-700 animate-pulse" />
+                  </div>
+                  <div className="size-5 rounded-full bg-slate-100 dark:bg-slate-800 animate-pulse" />
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="flex-1 min-w-0 space-y-4">
+            <div className="h-6 w-36 rounded-lg bg-slate-200/80 dark:bg-slate-700 animate-pulse" />
+            <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-2xs space-y-4 dark:border-slate-800 dark:bg-slate-900">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-4 dark:border-slate-800">
+                <div className="h-4 w-32 rounded-md bg-slate-200/80 dark:bg-slate-700 animate-pulse" />
+                <div className="h-4 w-20 rounded-md bg-slate-200/80 dark:bg-slate-700 animate-pulse" />
+              </div>
+              <div className="space-y-2">
+                <div className="h-4 w-3/4 rounded-md bg-slate-100 dark:bg-slate-800 animate-pulse" />
+                <div className="h-4 w-1/2 rounded-md bg-slate-100 dark:bg-slate-800 animate-pulse" />
+              </div>
+              <div className="h-36 rounded-xl border border-slate-200/80 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-800/40" />
+            </div>
+          </div>
         </div>
-        <Skeleton className="h-96 w-full rounded-2xl" />
       </div>
     );
   }
 
   if (query.error || !detail) {
     return (
-      <div className="rounded-2xl border border-rose-200 bg-white p-8 text-center dark:border-rose-900/50 dark:bg-slate-900">
+      <div className="rounded-2xl border border-rose-200 bg-white p-8 text-center dark:border-rose-900/50 dark:bg-slate-900 space-y-3">
         <AssessmentError error={query.error} retry={() => void query.refetch()} />
-        <Button className="mt-4" onClick={onClose}>
-          <ArrowLeft className="size-4" /> Quay lại danh sách
-        </Button>
+        {!query.error && (
+          <p className="text-sm text-slate-600 dark:text-slate-300">
+            Không tìm thấy thông tin bài thi hoặc bài thi chưa được nộp.
+          </p>
+        )}
+        <div>
+          <Button className="mt-2" onClick={onClose}>
+            <ArrowLeft className="size-4" /> Quay lại danh sách
+          </Button>
+        </div>
       </div>
     );
   }
 
-  const numScore = safeNumber(detail.score);
-  const numPassing = safeNumber(detail.passingScore);
-  const totalPoints = safeNumber(detail.totalPoints) || 0;
-  const isPassed =
-    numScore != null && numPassing != null ? numScore >= numPassing : null;
   const objective = detail.objective ?? {
     correctCount: 0,
     questionCount: 0,
@@ -346,70 +391,148 @@ export function SubmissionGradingDetail({
     totalPoints: 0,
   };
   const integrity = detail.integrity;
-  const proctorCount = safeNumber(integrity?.proctorEventCount) ?? 0;
-  const customRunCount =
-    integrity?.customRuns?.reduce((sum, r) => sum + (safeNumber(r?.count) || 0), 0) ?? 0;
+
+  // Category breakdown
+  const essayReviews = useMemo(() => reviews.filter((r) => r.type === "ESSAY"), [reviews]);
+  const codingReviews = useMemo(() => reviews.filter((r) => r.type === "CODING"), [reviews]);
+  const unreviewedEssay = useMemo(() => essayReviews.filter((r) => !r.reviewedAt), [essayReviews]);
+  const unreviewedCoding = useMemo(() => codingReviews.filter((r) => !r.reviewedAt), [codingReviews]);
+  const proctorCount = safeNumber(detail.integrity?.proctorEventCount) ?? 0;
+  const hasObjective = (detail.objective?.questionCount ?? 0) > 0;
+
+  const tabs = useMemo(() => {
+    const list: {
+      key: CategoryTab;
+      label: string;
+      count: number;
+      allGraded: boolean;
+      icon: any;
+    }[] = [];
+
+    if (essayReviews.length > 0) {
+      list.push({
+        key: "ESSAY",
+        label: "Tự luận",
+        count: essayReviews.length,
+        allGraded: unreviewedEssay.length === 0,
+        icon: unreviewedEssay.length === 0 ? CheckCircle2 : FileText,
+      });
+    }
+
+    if (codingReviews.length > 0) {
+      list.push({
+        key: "CODING",
+        label: "Lập trình",
+        count: codingReviews.length,
+        allGraded: unreviewedCoding.length === 0,
+        icon: unreviewedCoding.length === 0 ? CheckCircle2 : Code2,
+      });
+    }
+
+    if (hasObjective) {
+      list.push({
+        key: "OBJECTIVE",
+        label: "Trắc nghiệm",
+        count: detail.objective?.questionCount ?? 0,
+        allGraded: true,
+        icon: CheckCircle2,
+      });
+    }
+
+    list.push({
+      key: "INTEGRITY",
+      label: "Nhật ký giám sát",
+      count: proctorCount,
+      allGraded: true,
+      icon: proctorCount === 0 ? ShieldCheck : ShieldAlert,
+    });
+
+    return list;
+  }, [
+    essayReviews.length,
+    codingReviews.length,
+    unreviewedEssay.length,
+    unreviewedCoding.length,
+    proctorCount,
+    hasObjective,
+    detail.objective?.questionCount,
+  ]);
+
+  const activeTab: CategoryTab =
+    userSelectedTab && tabs.some((t) => t.key === userSelectedTab)
+      ? userSelectedTab
+      : tabs[0]?.key ?? (hasObjective ? "OBJECTIVE" : "INTEGRITY");
 
   return (
     <div className="space-y-6 text-[#101828] dark:text-slate-100">
-      {/* 1. HERO HEADER: Candidate Profile & Quick Actions */}
-      <header className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm transition-all dark:border-slate-800 dark:bg-slate-900/90 sm:p-6">
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-          {/* Left: Avatar & Candidate Info */}
-          <div className="flex items-start gap-4">
-            <div className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-violet-600 text-lg font-black text-white shadow-sm ring-4 ring-blue-50 dark:ring-blue-950/50">
-              {getInitials(detail.candidateName)}
+      {/* 1. COMPACT TOP HEADER BAR (Candidate Info, Total Score & Quick Actions) */}
+      <header className="rounded-2xl border border-slate-200/80 bg-white px-5 py-3.5 shadow-2xs dark:border-slate-800 dark:bg-slate-900">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          {/* Left: Back Button + Candidate Details + Total Score */}
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={handleBack}
+              className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+              title="Quay lại Danh sách bài nộp"
+              aria-label="Quay lại Danh sách bài nộp"
+            >
+              <ArrowLeft className="size-4" />
+            </button>
+
+            <div className="min-w-0">
+              <h1
+                ref={heading}
+                tabIndex={-1}
+                className="text-sm font-extrabold text-[#101828] dark:text-white sm:text-base truncate"
+              >
+                {detail.candidateName || "Ứng viên"}
+              </h1>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Bài làm ID #{detail.id} · Trạng thái:{" "}
+                <span
+                  className={cn(
+                    "font-bold",
+                    detail.status === "GRADED"
+                      ? "text-emerald-600 dark:text-emerald-400"
+                      : detail.status === "EXPIRED"
+                        ? "text-rose-600 dark:text-rose-400"
+                        : "text-amber-600 dark:text-amber-400",
+                  )}
+                >
+                  {detail.status === "GRADED"
+                    ? "Đã chốt điểm"
+                    : detail.status === "EXPIRED"
+                      ? "Quá giờ"
+                      : "Chờ duyệt"}
+                </span>
+              </p>
             </div>
 
-            <div className="min-w-0 space-y-1.5">
-              <div className="flex flex-wrap items-center gap-2.5">
-                <h1
-                  ref={heading}
-                  tabIndex={-1}
-                  className="text-xl font-extrabold tracking-tight text-[#101828] dark:text-white sm:text-2xl"
-                >
-                  {detail.candidateName || "Ứng viên"}
-                </h1>
-                <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                  Bài làm #{detail.id}
-                </span>
-                {detail.status === "GRADED" ? (
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700 border border-emerald-200/80 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800">
-                    <CheckCircle2 className="size-3.5" /> Đã chốt điểm
-                  </span>
-                ) : detail.status === "EXPIRED" ? (
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-3 py-1 text-xs font-bold text-rose-700 border border-rose-200/80 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800">
-                    <AlertTriangle className="size-3.5" /> Quá giờ quy định
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700 border border-amber-200/80 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800">
-                    <Clock className="size-3.5" /> Chờ duyệt kết quả
-                  </span>
-                )}
-              </div>
+            <div className="hidden sm:block h-8 w-px bg-slate-200 dark:bg-slate-800 mx-2" />
 
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
-                <span className="flex items-center gap-1.5 font-medium">
-                  <Mail className="size-3.5 text-slate-400" />
-                  {detail.candidateEmail || "Chưa có email"}
-                </span>
-                <span className="flex items-center gap-1.5 font-medium text-slate-600 dark:text-slate-300">
-                  <FileCheck2 className="size-3.5 text-blue-500" />
-                  {detail.testTitle || "Bài kiểm tra kỹ thuật"}
-                </span>
+            <div className="hidden sm:block">
+              <div className="text-[11px] font-medium text-slate-400 uppercase tracking-wide">
+                Tổng điểm
+              </div>
+              <div className="text-xs font-bold text-[#101828] dark:text-white">
+                {reviews.length > 0
+                  ? `${reviews.length - unreviewedReviews.length}/${reviews.length} câu`
+                  : `${display(detail.score)}/${detail.totalPoints} đ`}
               </div>
             </div>
           </div>
 
           {/* Right: Master Control Actions */}
-          <div className="flex flex-wrap items-center gap-2.5 self-start lg:self-center">
+          <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
             {/* Retry AI button */}
             <button
               type="button"
               disabled={busy}
               onClick={() => retry.mutate()}
               title="Yêu cầu AI chấm lại các câu chưa có kết quả"
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 hover:text-blue-600 disabled:opacity-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 transition-all cursor-pointer"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 hover:text-blue-600 disabled:opacity-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 transition-all cursor-pointer"
             >
               <RefreshCw className={cn("size-3.5", retry.isPending && "animate-spin")} />
               Chấm AI lại
@@ -442,9 +565,9 @@ export function SubmissionGradingDetail({
                       ? "Chỉ gửi được email khi mọi câu hỏi đã được chốt điểm"
                       : "Gửi thông báo điểm chính thức tới ứng viên"
               }
-              className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 dark:disabled:bg-slate-800 dark:disabled:text-slate-500 transition-all cursor-pointer"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 hover:text-blue-600 disabled:opacity-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 transition-all cursor-pointer"
             >
-              <Send className="size-3.5" />
+              <Mail className="size-3.5 text-slate-500" />
               Gửi email kết quả
             </button>
 
@@ -452,19 +575,8 @@ export function SubmissionGradingDetail({
             <button
               type="button"
               disabled={busy}
-              onClick={() => {
-                if (isDirty) {
-                  askConfirm({
-                    title: "Rời khỏi màn hình duyệt?",
-                    description: "Có điểm ghi đè chưa lưu sẽ bị hủy bỏ.",
-                    confirmLabel: "Rời khỏi",
-                    onConfirm: onClose,
-                  });
-                } else {
-                  onClose();
-                }
-              }}
-              className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 transition-all cursor-pointer"
+              onClick={handleBack}
+              className="inline-flex items-center rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 transition-all cursor-pointer"
             >
               Đóng
             </button>
@@ -472,382 +584,242 @@ export function SubmissionGradingDetail({
         </div>
       </header>
 
-      {/* 2. EXECUTIVE METRIC RIBBON (4 KPIs) */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {/* Card 1: Official Score */}
-        <div className="flex flex-col justify-between rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 min-h-[148px]">
-          <div>
-            <div className="flex items-center justify-between text-xs font-semibold text-slate-500 dark:text-slate-400">
-              <span>Tổng điểm bài thi</span>
-              {detail.status === "GRADED" ? (
-                isPassed === true ? (
-                  <span className="rounded-md bg-emerald-100 px-2 py-0.5 text-[10px] font-extrabold uppercase text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-                    ĐẠT YÊU CẦU
+      {/* 2. SPLIT VIEW: Left Navigation Sidebar + Right Content Area */}
+      <div className="flex flex-col lg:flex-row items-start gap-6">
+        {/* Left Sidebar Nav (Gộp chung 1 section, cuộn tự nhiên theo trang) */}
+        <aside className="w-full lg:w-60 shrink-0">
+          <div className="rounded-2xl border border-slate-200/80 bg-white p-2 shadow-2xs dark:border-slate-800 dark:bg-slate-900 flex flex-col gap-1">
+            {tabs.map((tab) => {
+              const isActive = activeTab === tab.key;
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setUserSelectedTab(tab.key)}
+                  className={cn(
+                    "flex w-full items-center justify-between rounded-xl px-3.5 py-2.5 text-xs font-semibold transition-all text-left cursor-pointer",
+                    isActive
+                      ? "bg-slate-100 font-bold text-[#101828] dark:bg-slate-800 dark:text-white shadow-2xs"
+                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800/60 dark:hover:text-slate-200",
+                  )}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <Icon
+                      className={cn(
+                        "size-4 shrink-0",
+                        isActive
+                          ? "text-[#0066FF] dark:text-blue-400"
+                          : tab.allGraded && tab.count > 0 && (tab.key === "ESSAY" || tab.key === "CODING")
+                            ? "text-emerald-600 dark:text-emerald-400"
+                            : "text-slate-400 dark:text-slate-500",
+                      )}
+                    />
+                    <span className="truncate">{tab.label}</span>
+                  </div>
+                  <span
+                    className={cn(
+                      "rounded-full px-2 py-0.5 text-[11px] font-bold tabular-nums",
+                      isActive
+                        ? "bg-white text-slate-900 shadow-2xs dark:bg-slate-700 dark:text-white"
+                        : "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400",
+                    )}
+                  >
+                    {tab.count}
                   </span>
-                ) : isPassed === false ? (
-                  <span className="rounded-md bg-rose-100 px-2 py-0.5 text-[10px] font-extrabold uppercase text-rose-800 dark:bg-rose-950 dark:text-rose-300">
-                    CHƯA ĐẠT
-                  </span>
-                ) : (
-                  <span className="rounded-md bg-emerald-100 px-2 py-0.5 text-[10px] font-extrabold uppercase text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-                    ĐÃ CHỐT ĐIỂM
-                  </span>
-                )
-              ) : (
-                <span className="rounded-md bg-amber-100 px-2 py-0.5 text-[10px] font-extrabold uppercase text-amber-800 dark:bg-amber-950 dark:text-amber-300">
-                  CHỜ DUYỆT
-                </span>
-              )}
-            </div>
-            <div className="mt-2.5 flex items-baseline gap-1.5">
-              <span className="text-3xl font-black tracking-tight text-[#101828] dark:text-white">
-                {numScore == null ? "—" : display(numScore)}
-              </span>
-              <span className="text-sm font-semibold text-slate-400">
-                / {totalPoints} đ
-              </span>
-            </div>
+                </button>
+              );
+            })}
           </div>
-          <div>
-            <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
-              <span>
-                Ngưỡng đạt: <strong>{numPassing != null ? `${display(numPassing)} đ` : "Không đặt"}</strong>
-              </span>
-              {numScore != null && totalPoints > 0 && (
-                <span className="font-semibold text-blue-600 dark:text-blue-400">
-                  {Math.round((numScore / totalPoints) * 100)}%
-                </span>
-              )}
-            </div>
-            {/* Progress bar */}
-            <div className="relative mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-              <div
-                className={cn(
-                  "h-full rounded-full transition-all duration-500",
-                  isPassed === true ? "bg-emerald-500" : isPassed === false ? "bg-rose-500" : "bg-blue-600",
-                )}
-                style={{
-                  width: `${Math.min(100, Math.max(0, ((numScore ?? 0) / (totalPoints || 1)) * 100))}%`,
+        </aside>
+
+        {/* Right Main Content Panel */}
+        <main className="flex-1 min-w-0 space-y-6">
+          {/* Section Header Title & Bulk Action */}
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-extrabold text-[#101828] dark:text-white">
+              {activeTab === "ESSAY"
+                ? "Tự luận"
+                : activeTab === "CODING"
+                  ? "Lập trình"
+                  : activeTab === "INTEGRITY"
+                    ? "Nhật ký giám sát"
+                    : "Trắc nghiệm"}
+            </h2>
+
+            {/* Bulk AI approve for current section if unreviewed */}
+            {activeTab === "ESSAY" && unreviewedEssay.length > 0 && (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  askConfirm({
+                    title: "Chấp nhận điểm AI cho các câu tự luận?",
+                    description: `Áp dụng điểm gợi ý của AI cho ${unreviewedEssay.length} câu tự luận chưa duyệt.`,
+                    confirmLabel: "Chấp nhận & Lưu",
+                    onConfirm: () => {
+                      const decisions: GradeDecision[] = unreviewedEssay.map((r) => ({
+                        questionId: r.questionId,
+                        score: null,
+                      }));
+                      update.mutate(decisions);
+                    },
+                  });
                 }}
-              />
-            </div>
-          </div>
-        </div>
+                className="inline-flex items-center gap-1.5 rounded-xl bg-violet-50 px-3 py-1.5 text-xs font-bold text-violet-700 hover:bg-violet-100 dark:bg-violet-950/50 dark:text-violet-300 border border-violet-200/70 transition-all cursor-pointer"
+              >
+                <Sparkles className="size-3.5 text-violet-600 dark:text-violet-400" />
+                Áp dụng điểm AI (${unreviewedEssay.length} câu)
+              </button>
+            )}
 
-        {/* Card 2: Trắc nghiệm (Objective) */}
-        <div className="flex flex-col justify-between rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 min-h-[148px]">
-          <div>
-            <div className="flex items-center justify-between text-xs font-semibold text-slate-500 dark:text-slate-400">
-              <span>Trắc nghiệm (MCQ)</span>
-              <div className="flex size-6 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400">
-                <CheckCircle2 className="size-3.5" />
-              </div>
-            </div>
-            {objective.questionCount > 0 ? (
-              <div className="mt-2.5 flex items-baseline gap-1.5">
-                <span className="text-3xl font-black tracking-tight text-[#101828] dark:text-white">
-                  {display(objective.score)}
-                </span>
-                <span className="text-sm font-semibold text-slate-400">
-                  / {display(objective.totalPoints)} đ
-                </span>
-              </div>
-            ) : (
-              <div className="mt-2.5 flex items-baseline gap-1.5">
-                <span className="text-3xl font-black tracking-tight text-slate-400 dark:text-slate-500">
-                  0
-                </span>
-                <span className="text-sm font-semibold text-slate-400">
-                  / 0 đ
-                </span>
-              </div>
+            {activeTab === "CODING" && unreviewedCoding.length > 0 && (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  askConfirm({
+                    title: "Chấp nhận điểm AI cho các câu lập trình?",
+                    description: `Áp dụng điểm gợi ý của AI cho ${unreviewedCoding.length} câu lập trình chưa duyệt.`,
+                    confirmLabel: "Chấp nhận & Lưu",
+                    onConfirm: () => {
+                      const decisions: GradeDecision[] = unreviewedCoding.map((r) => ({
+                        questionId: r.questionId,
+                        score: null,
+                      }));
+                      update.mutate(decisions);
+                    },
+                  });
+                }}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-violet-50 px-3 py-1.5 text-xs font-bold text-violet-700 hover:bg-violet-100 dark:bg-violet-950/50 dark:text-violet-300 border border-violet-200/70 transition-all cursor-pointer"
+              >
+                <Sparkles className="size-3.5 text-violet-600 dark:text-violet-400" />
+                Áp dụng điểm AI (${unreviewedCoding.length} câu)
+              </button>
             )}
           </div>
-          <div>
-            <p className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">
-              {objective.questionCount > 0
-                ? `Đúng ${objective.correctCount}/${objective.questionCount} câu (${Math.round((objective.correctCount / objective.questionCount) * 100)}%) · Tự động chấm máy`
-                : "Đề thi không có phần câu hỏi trắc nghiệm"}
-            </p>
-          </div>
-        </div>
 
-        {/* Card 3: Tự luận & Lập trình (AI Reviews) */}
-        <div className="flex flex-col justify-between rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 min-h-[148px]">
-          <div>
-            <div className="flex items-center justify-between text-xs font-semibold text-slate-500 dark:text-slate-400">
-              <span>Tự luận &amp; Coding</span>
-              <div className="flex size-6 items-center justify-center rounded-lg bg-violet-50 text-violet-600 dark:bg-violet-950 dark:text-violet-400">
-                <Sparkles className="size-3.5" />
-              </div>
-            </div>
-            {reviews.length > 0 ? (
-              <div className="mt-2.5 flex items-baseline gap-1.5">
-                <span className="text-3xl font-black tracking-tight text-[#101828] dark:text-white">
-                  {reviews.length - unreviewedReviews.length}
-                </span>
-                <span className="text-sm font-semibold text-slate-400">
-                  / {reviews.length} câu đã duyệt
-                </span>
-              </div>
-            ) : (
-              <div className="mt-2.5 flex items-baseline gap-1.5">
-                <span className="text-3xl font-black tracking-tight text-slate-400 dark:text-slate-500">
-                  0
-                </span>
-                <span className="text-sm font-semibold text-slate-400">
-                  câu tự luận/code
-                </span>
-              </div>
-            )}
-          </div>
-          <div>
-            <p className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">
-              {reviews.length === 0 ? (
-                "Đề thi hoàn toàn bằng trắc nghiệm"
-              ) : unreviewedReviews.length === 0 ? (
-                <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-                  ✓ Hoàn thành 100% duyệt điểm
-                </span>
+          {/* Section 1: Essay Questions */}
+          {activeTab === "ESSAY" && (
+            <div className="space-y-6">
+              {essayReviews.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-12 text-center dark:border-slate-800 dark:bg-slate-900">
+                  <CheckCircle2 className="mx-auto size-8 text-emerald-500" />
+                  <h3 className="mt-2 text-sm font-bold text-[#101828] dark:text-white">
+                    Không có câu hỏi tự luận nào
+                  </h3>
+                </div>
               ) : (
-                <span className="font-semibold text-amber-600 dark:text-amber-400">
-                  ⚡ Còn {unreviewedReviews.length} câu cần bạn duyệt điểm
-                </span>
+                essayReviews.map((review, idx) => (
+                  <QuestionReviewCard
+                    key={review.questionId}
+                    index={idx + 1}
+                    review={review}
+                    submissionId={id}
+                    busy={busy}
+                    register={register}
+                    errors={errors}
+                    clearErrors={clearErrors}
+                    onQuickApprove={handleQuickApproveAi}
+                    onApprove={approve.mutate}
+                    decisionFor={decisionFor}
+                  />
+                ))
               )}
-            </p>
-          </div>
-        </div>
-
-        {/* Card 4: Tín hiệu toàn vẹn (Integrity & Proctoring) */}
-        <div className="flex flex-col justify-between rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 min-h-[148px]">
-          <div>
-            <div className="flex items-center justify-between text-xs font-semibold text-slate-500 dark:text-slate-400">
-              <span>Giám sát gian lận</span>
-              <div
-                className={cn(
-                  "flex size-6 items-center justify-center rounded-lg",
-                  proctorCount === 0
-                    ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400"
-                    : "bg-amber-50 text-amber-600 dark:bg-amber-950 dark:text-amber-400",
-                )}
-              >
-                {proctorCount === 0 ? (
-                  <ShieldCheck className="size-3.5" />
-                ) : (
-                  <ShieldAlert className="size-3.5" />
-                )}
-              </div>
             </div>
-            <div className="mt-2.5 flex items-baseline gap-1.5">
-              <span
-                className={cn(
-                  "text-3xl font-black tracking-tight",
-                  proctorCount === 0
-                    ? "text-emerald-600 dark:text-emerald-400"
-                    : "text-amber-600 dark:text-amber-400",
-                )}
-              >
-                {proctorCount}
-              </span>
-              <span className="text-sm font-semibold text-slate-400">
-                sự kiện ghi nhận
-              </span>
+          )}
+
+          {/* Section 2: Coding Questions */}
+          {activeTab === "CODING" && (
+            <div className="space-y-6">
+              {codingReviews.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-12 text-center dark:border-slate-800 dark:bg-slate-900">
+                  <CheckCircle2 className="mx-auto size-8 text-emerald-500" />
+                  <h3 className="mt-2 text-sm font-bold text-[#101828] dark:text-white">
+                    Không có câu hỏi lập trình nào
+                  </h3>
+                </div>
+              ) : (
+                codingReviews.map((review, idx) => (
+                  <QuestionReviewCard
+                    key={review.questionId}
+                    index={idx + 1}
+                    review={review}
+                    submissionId={id}
+                    busy={busy}
+                    register={register}
+                    errors={errors}
+                    clearErrors={clearErrors}
+                    onQuickApprove={handleQuickApproveAi}
+                    onApprove={approve.mutate}
+                    decisionFor={decisionFor}
+                  />
+                ))
+              )}
             </div>
-          </div>
-          <div>
-            <p className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">
-              {proctorCount === 0
-                ? "Không ghi nhận rời tab / copy / gian lận"
-                : `${proctorCount} cảnh báo rời tab · ${customRunCount} lượt chạy thử code`}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* 3. TABS / SEGMENTED FILTER & QUICK BULK ACTION */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-slate-200/80 pb-3 dark:border-slate-800">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <button
-            type="button"
-            onClick={() => setActiveTab("ALL")}
-            className={cn(
-              "rounded-xl px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer",
-              activeTab === "ALL"
-                ? "bg-slate-900 text-white shadow-sm dark:bg-white dark:text-slate-900"
-                : "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800",
-            )}
-          >
-            Tất cả ({reviews.length + (objective.questionCount > 0 ? 1 : 0)})
-          </button>
-
-          {unreviewedReviews.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setActiveTab("NEED_REVIEW")}
-              className={cn(
-                "inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer",
-                activeTab === "NEED_REVIEW"
-                  ? "bg-amber-500 text-white shadow-sm"
-                  : "bg-amber-50 text-amber-700 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-300",
-              )}
-            >
-              <span className="size-1.5 rounded-full bg-amber-400 animate-pulse" />
-              Chờ duyệt ({unreviewedReviews.length})
-            </button>
           )}
 
-          {objective.questionCount > 0 && (
-            <button
-              type="button"
-              onClick={() => setActiveTab("OBJECTIVE")}
-              className={cn(
-                "rounded-xl px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer",
-                activeTab === "OBJECTIVE"
-                  ? "bg-slate-900 text-white shadow-sm dark:bg-white dark:text-slate-900"
-                  : "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800",
-              )}
-            >
-              Trắc nghiệm ({objective.questionCount})
-            </button>
-          )}
-
-          {essayReviews.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setActiveTab("ESSAY")}
-              className={cn(
-                "rounded-xl px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer",
-                activeTab === "ESSAY"
-                  ? "bg-slate-900 text-white shadow-sm dark:bg-white dark:text-slate-900"
-                  : "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800",
-              )}
-            >
-              Tự luận ({essayReviews.length})
-            </button>
-          )}
-
-          {codingReviews.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setActiveTab("CODING")}
-              className={cn(
-                "rounded-xl px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer",
-                activeTab === "CODING"
-                  ? "bg-slate-900 text-white shadow-sm dark:bg-white dark:text-slate-900"
-                  : "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800",
-              )}
-            >
-              Lập trình ({codingReviews.length})
-            </button>
-          )}
-
-          <button
-            type="button"
-            onClick={() => setActiveTab("INTEGRITY")}
-            className={cn(
-              "inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer",
-              activeTab === "INTEGRITY"
-                ? "bg-slate-900 text-white shadow-sm dark:bg-white dark:text-slate-900"
-                : "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800",
-            )}
-          >
-            <ShieldCheck className="size-3.5 text-slate-400" />
-            Nhật ký giám sát ({proctorCount})
-          </button>
-        </div>
-
-        {/* Bulk Action: Accept All AI */}
-        {unreviewedReviews.length > 0 && (
-          <button
-            type="button"
-            disabled={busy}
-            onClick={handleApproveAllSuggested}
-            className="inline-flex items-center gap-1.5 self-start sm:self-auto rounded-xl bg-violet-50 px-3.5 py-1.5 text-xs font-bold text-violet-700 hover:bg-violet-100 dark:bg-violet-950/50 dark:text-violet-300 dark:hover:bg-violet-900/60 border border-violet-200/70 transition-all cursor-pointer"
-          >
-            <Sparkles className="size-3.5 text-violet-600 dark:text-violet-400" />
-            Áp dụng tất cả điểm AI gợi ý
-          </button>
-        )}
-      </div>
-
-      {/* 4. MAIN CONTENT AREA */}
-      <div className="space-y-6">
-        {/* Objective MCQ Card */}
-        {(activeTab === "ALL" || activeTab === "OBJECTIVE") && objective.questionCount > 0 && (
-          <section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-3.5">
-                <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900/50">
-                  <CheckCircle2 className="size-5" />
-                </div>
-                <div>
-                  <h2 className="text-sm font-bold text-[#101828] dark:text-white">
-                    Phần 1: Trắc nghiệm khách quan (MCQ)
-                  </h2>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Hệ thống đã tự động đối chiếu đáp án và chốt điểm ngay khi ứng viên nộp bài.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-6 self-start sm:self-auto border-t sm:border-t-0 pt-3 sm:pt-0 border-slate-100 dark:border-slate-800">
-                <div className="text-right">
-                  <div className="text-xs text-slate-400 font-medium">Tỷ lệ chính xác</div>
-                  <div className="text-base font-extrabold text-emerald-600 dark:text-emerald-400">
-                    {objective.questionCount
-                      ? Math.round((objective.correctCount / objective.questionCount) * 100)
-                      : 0}
-                    %
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className="text-xs text-slate-400 font-medium">Điểm đạt được</div>
-                  <div className="text-base font-extrabold text-[#101828] dark:text-white">
-                    {display(objective.score)} / {objective.totalPoints} đ
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
-        )}
-
-        {/* Subjective Reviews: Essay & Coding Question Cards */}
-        {activeTab !== "INTEGRITY" && (
-          <div className="space-y-6">
-            {filteredReviews.length === 0 && activeTab !== "OBJECTIVE" && (
-              <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-12 text-center dark:border-slate-800 dark:bg-slate-900">
-                <CheckCircle2 className="mx-auto size-8 text-emerald-500" />
-                <h3 className="mt-2 text-sm font-bold text-[#101828] dark:text-white">
-                  Không có câu hỏi nào trong mục này
-                </h3>
-                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                  Tất cả câu hỏi phù hợp bộ lọc đã được xử lý xong.
+          {/* Section 3: Integrity Timeline */}
+          {activeTab === "INTEGRITY" && (
+            integrity ? (
+              <IntegrityTimelineSection integrity={integrity} />
+            ) : (
+              <section className="rounded-2xl border border-slate-200/80 bg-white p-8 text-center dark:border-slate-800 dark:bg-slate-900">
+                <ShieldCheck className="mx-auto size-7 text-emerald-500/80 mb-2" />
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Không ghi nhận dữ liệu giám sát cho bài thi này.
                 </p>
-              </div>
-            )}
+              </section>
+            )
+          )}
 
-            {filteredReviews.map((review, idx) => (
-              <QuestionReviewCard
-                key={review.questionId}
-                index={idx + 1}
-                review={review}
-                submissionId={id}
-                busy={busy}
-                register={register}
-                errors={errors}
-                clearErrors={clearErrors}
-                onQuickApprove={handleQuickApproveAi}
-                onApprove={approve.mutate}
-                decisionFor={decisionFor}
-              />
-            ))}
-          </div>
-        )}
+          {/* Section 4: Objective MCQ Summary */}
+          {activeTab === "OBJECTIVE" && (
+            objective.questionCount > 0 ? (
+              <section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-2xs dark:border-slate-800 dark:bg-slate-900">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-3.5">
+                    <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900/50">
+                      <CheckCircle2 className="size-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-[#101828] dark:text-white">
+                        Trắc nghiệm khách quan (MCQ)
+                      </h3>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        Hệ thống đã tự động đối chiếu đáp án và chốt điểm ngay khi ứng viên nộp bài.
+                      </p>
+                    </div>
+                  </div>
 
-        {/* Integrity Timeline Log Tab */}
-        {(activeTab === "ALL" || activeTab === "INTEGRITY") && integrity && (
-          <IntegrityTimelineSection integrity={integrity} />
-        )}
+                  <div className="flex items-center gap-6 self-start sm:self-auto border-t sm:border-t-0 pt-3 sm:pt-0 border-slate-100 dark:border-slate-800">
+                    <div className="text-right">
+                      <div className="text-xs text-slate-400 font-medium">Tỷ lệ chính xác</div>
+                      <div className="text-base font-extrabold text-emerald-600 dark:text-emerald-400">
+                        {objective.questionCount
+                          ? Math.round(((objective.correctCount ?? 0) / objective.questionCount) * 100)
+                          : 0}
+                        %
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xs text-slate-400 font-medium">Điểm đạt được</div>
+                      <div className="text-base font-extrabold text-[#101828] dark:text-white">
+                        {display(objective.score)} / {objective.totalPoints ?? 0} đ
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            ) : (
+              <section className="rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center dark:border-slate-800 dark:bg-slate-900">
+                <p className="text-xs text-slate-400 italic">
+                  Không có câu hỏi trắc nghiệm nào trong đề thi này.
+                </p>
+              </section>
+            )
+          )}
+        </main>
       </div>
 
       {/* 5. FLOATING DOCK ACTION BAR (When Recruiter entered overrides) */}
@@ -865,7 +837,10 @@ export function SubmissionGradingDetail({
             disabled={busy}
             onClick={() => {
               const decisions = validateReviews(
-                reviews.filter((r) => values[r.questionId]?.trim()),
+                reviews.filter((r) => {
+                  const v = values?.[r.questionId];
+                  return typeof v === "string" ? v.trim() !== "" : v != null;
+                }),
               );
               if (decisions) update.mutate(decisions);
             }}
@@ -915,10 +890,18 @@ function QuestionReviewCard({
   onApprove: (d: GradeDecision) => void;
   decisionFor: (r: GradingReview) => GradeDecision | null;
 }) {
+  if (!review) return null;
   const isEssay = review.type === "ESSAY";
   const isReviewed = review.reviewedAt != null;
   const fieldName = `scores.${review.questionId}`;
-  const hasError = !!errors.scores?.[String(review.questionId)];
+  const hasError = !!errors?.scores?.[String(review.questionId)];
+  const points = review.points ?? 0;
+  const answerText =
+    typeof review.answerText === "string"
+      ? review.answerText.trim()
+      : review.answerText != null
+        ? String(review.answerText).trim()
+        : "";
 
   return (
     <article className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm transition-all dark:border-slate-800 dark:bg-slate-900 sm:p-6 space-y-5">
@@ -941,12 +924,12 @@ function QuestionReviewCard({
 
           {review.language && (
             <span className="rounded-md bg-slate-100 px-2 py-0.5 font-mono text-[11px] font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300 uppercase">
-              {review.language}
+              {String(review.language).toUpperCase()}
             </span>
           )}
 
           <span className="text-xs font-semibold text-slate-400">
-            · Thang điểm: {review.points} đ
+            · Thang điểm: {points} đ
           </span>
         </div>
 
@@ -954,7 +937,7 @@ function QuestionReviewCard({
         <div>
           {isReviewed ? (
             <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200/60">
-              <Check className="size-3.5" /> Đã duyệt: {display(review.score)}/{review.points} đ
+              <Check className="size-3.5" /> Đã duyệt: {display(review.score)}/{points} đ
             </span>
           ) : (
             <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200/60">
@@ -967,7 +950,7 @@ function QuestionReviewCard({
       {/* 2. Question Prompt */}
       <div className="space-y-1.5">
         <h3 className="text-sm font-bold text-[#101828] dark:text-white leading-relaxed whitespace-pre-wrap break-words">
-          {review.prompt}
+          {typeof review.prompt === "string" ? review.prompt : safeText(review.prompt, "Câu hỏi")}
         </h3>
       </div>
 
@@ -975,13 +958,13 @@ function QuestionReviewCard({
       <div className="space-y-2">
         <div className="flex items-center justify-between text-xs font-semibold text-slate-500 dark:text-slate-400">
           <span>{isEssay ? "Bài làm của ứng viên" : "Mã nguồn ứng viên nộp"}</span>
-          <CopyButton text={review.answerText ?? ""} />
+          <CopyButton text={answerText} />
         </div>
 
         {isEssay ? (
           <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 text-[13px] leading-relaxed text-[#101828] dark:border-slate-800 dark:bg-slate-950/60 dark:text-slate-200 whitespace-pre-wrap break-words min-h-[5rem] max-h-96 overflow-y-auto">
-            {review.answerText?.trim() ? (
-              review.answerText
+            {answerText ? (
+              answerText
             ) : (
               <span className="italic text-slate-400">Ứng viên không trả lời câu hỏi này.</span>
             )}
@@ -989,7 +972,7 @@ function QuestionReviewCard({
         ) : (
           <div className="relative rounded-xl border border-slate-800 bg-slate-950 p-4 text-xs font-mono text-slate-100 dark:border-slate-800 dark:bg-slate-950 max-h-96 overflow-auto">
             <pre className="whitespace-pre-wrap break-words leading-relaxed">
-              <code>{review.answerText?.trim() || "// Ứng viên không nộp mã nguồn cho câu này"}</code>
+              <code>{answerText || "// Ứng viên không nộp mã nguồn cho câu này"}</code>
             </pre>
           </div>
         )}
@@ -1123,7 +1106,6 @@ type CodingEvaluation = {
 
 function EssayEvidenceDetail({ review }: { review: GradingReview }) {
   const evaluation = safeObject<EssayEvaluation>(review.evaluation);
-  const results = Array.isArray(evaluation.criteria_results) ? evaluation.criteria_results : [];
   const [showRef, setShowRef] = useState(false);
 
   const rubric = safeObject(review.rubric);
@@ -1162,14 +1144,12 @@ function EssayEvidenceDetail({ review }: { review: GradingReview }) {
       )}
 
       {criteria.length > 0 ? (
-        <div className="overflow-x-auto rounded-xl border border-slate-200/80 bg-white dark:border-slate-800 dark:bg-slate-900">
+        <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-white dark:border-slate-800 dark:bg-slate-900">
           <table className="w-full text-left text-xs">
             <thead>
-              <tr className="border-b border-slate-100 bg-slate-50/70 text-slate-500 dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-400">
-                <th className="p-3 font-bold">Tiêu chí Rubric</th>
-                <th className="p-3 font-bold text-center w-28">Trọng số</th>
-                <th className="p-3 font-bold text-center w-36">Điểm đạt</th>
-                <th className="p-3 font-bold">Nhận xét chi tiết từ AI</th>
+              <tr className="border-b border-slate-100 bg-slate-50/80 text-slate-600 dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-400">
+                <th className="px-4 py-2.5 font-bold">Tiêu chí</th>
+                <th className="px-4 py-2.5 font-bold text-center w-36">Trọng số</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -1178,15 +1158,11 @@ function EssayEvidenceDetail({ review }: { review: GradingReview }) {
                   typeof cRaw === "string"
                     ? { name: cRaw, description: cRaw, weight: Math.round(100 / (criteria.length || 1)) }
                     : (safeObject(cRaw) as RubricCriterionView);
-                const res = safeObject(results[idx]);
-                const percent = safeNumber(res.score_percent);
-                const weight = safeNumber(criterion.weight) ?? 0;
-                const maxPts = (review.points * weight) / 100;
-                const earnedPts = percent != null ? (maxPts * percent) / 100 : null;
+                const weight = safeNumber(criterion.weight) ?? Math.round(100 / (criteria.length || 1));
 
                 return (
                   <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20">
-                    <td className="p-3 align-top font-semibold text-[#101828] dark:text-white">
+                    <td className="px-4 py-3 align-middle font-medium text-[#101828] dark:text-white">
                       {safeText(criterion.name || criterion.description, `Tiêu chí ${idx + 1}`)}
                       {Boolean(criterion.guide) && (
                         <p className="mt-0.5 text-[11px] font-normal text-slate-400">
@@ -1194,21 +1170,8 @@ function EssayEvidenceDetail({ review }: { review: GradingReview }) {
                         </p>
                       )}
                     </td>
-                    <td className="p-3 align-top text-center text-slate-500 font-medium">
+                    <td className="px-4 py-3 align-middle text-center text-slate-600 dark:text-slate-300 font-semibold">
                       {weight}%
-                    </td>
-                    <td className="p-3 align-top text-center">
-                      <div className="font-bold text-[#101828] dark:text-white">
-                        {display(earnedPts)} / {display(maxPts)} đ
-                      </div>
-                      {percent != null && (
-                        <div className="text-[10px] text-slate-400 font-medium">
-                          ({percent}%)
-                        </div>
-                      )}
-                    </td>
-                    <td className="p-3 align-top leading-relaxed text-slate-600 dark:text-slate-300">
-                      {safeText(res.feedback, "Đang đánh giá tiêu chí này.")}
                     </td>
                   </tr>
                 );
@@ -1453,19 +1416,24 @@ function IntegrityTimelineSection({
             Số lần chạy thử nghiệm mã nguồn (Custom Runs):
           </span>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {runs.map((r, i) => (
-              <div
-                key={r?.questionId ?? i}
-                className="flex items-center justify-between rounded-xl border border-slate-200/70 bg-slate-50/60 px-3 py-2 text-xs dark:border-slate-800 dark:bg-slate-800/40"
-              >
-                <span className="font-semibold text-slate-700 dark:text-slate-300">
-                  Câu #{r?.questionId}
-                </span>
-                <span className="rounded-md bg-blue-100 px-2 py-0.5 font-bold text-blue-800 dark:bg-blue-950 dark:text-blue-300">
-                  {r?.count || 0} lượt run
-                </span>
-              </div>
-            ))}
+            {runs.map((rawRun, i) => {
+              const r = safeObject<{ questionId?: unknown; count?: unknown }>(rawRun);
+              const qId = r.questionId ?? i + 1;
+              const runCount = safeNumber(r.count) ?? 0;
+              return (
+                <div
+                  key={String(qId)}
+                  className="flex items-center justify-between rounded-xl border border-slate-200/70 bg-slate-50/60 px-3 py-2 text-xs dark:border-slate-800 dark:bg-slate-800/40"
+                >
+                  <span className="font-semibold text-slate-700 dark:text-slate-300">
+                    Câu #{String(qId)}
+                  </span>
+                  <span className="rounded-md bg-blue-100 px-2 py-0.5 font-bold text-blue-800 dark:bg-blue-950 dark:text-blue-300">
+                    {runCount} lượt run
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -1482,24 +1450,40 @@ function IntegrityTimelineSection({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {events.map((e, idx) => (
-                <tr key={idx} className="hover:bg-slate-50/40 dark:hover:bg-slate-800/20">
-                  <td className="p-3 font-semibold text-slate-700 dark:text-slate-300">
-                    <span className="rounded-md bg-amber-50 px-2 py-0.5 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 font-mono text-[11px]">
-                      {e.eventType || "EVENT"}
-                    </span>
-                  </td>
-                  <td className="p-3 text-slate-500 whitespace-nowrap">
-                    {e.createdAt ? new Date(e.createdAt).toLocaleString("vi-VN") : "—"}
-                  </td>
-                  <td
-                    className="p-3 text-slate-600 dark:text-slate-300 leading-relaxed max-w-md truncate"
-                    title={typeof e.detail === "string" ? e.detail : undefined}
-                  >
-                    {safeText(e.detail, "—")}
-                  </td>
-                </tr>
-              ))}
+              {events.map((rawEvent, idx) => {
+                const e = safeObject<{ eventType?: unknown; createdAt?: unknown; detail?: unknown }>(rawEvent);
+                let formattedTime = "—";
+                if (e.createdAt) {
+                  try {
+                    const d = new Date(e.createdAt as string | number);
+                    if (!Number.isNaN(d.getTime())) {
+                      formattedTime = d.toLocaleString("vi-VN");
+                    }
+                  } catch {
+                    formattedTime = "—";
+                  }
+                }
+                const detailStr = safeText(e.detail, "—");
+
+                return (
+                  <tr key={idx} className="hover:bg-slate-50/40 dark:hover:bg-slate-800/20">
+                    <td className="p-3 font-semibold text-slate-700 dark:text-slate-300">
+                      <span className="rounded-md bg-amber-50 px-2 py-0.5 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 font-mono text-[11px]">
+                        {safeText(e.eventType, "EVENT")}
+                      </span>
+                    </td>
+                    <td className="p-3 text-slate-500 whitespace-nowrap">
+                      {formattedTime}
+                    </td>
+                    <td
+                      className="p-3 text-slate-600 dark:text-slate-300 leading-relaxed max-w-md truncate"
+                      title={detailStr}
+                    >
+                      {detailStr}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

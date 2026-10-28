@@ -14,6 +14,7 @@ interface AiQuestionCardProps {
   index: number;
   isSelected: boolean;
   batchCount: number;
+  isLatestBatch?: boolean;
   busy: boolean;
   onToggleSelect: (id: string) => void;
   onRemove: (id: string) => void;
@@ -30,6 +31,7 @@ export function AiQuestionCard({
   index,
   isSelected,
   batchCount,
+  isLatestBatch = false,
   busy,
   onToggleSelect,
   onRemove,
@@ -97,8 +99,21 @@ export function AiQuestionCard({
           {/* Badges thông tin */}
           <div className="flex flex-wrap items-center gap-1.5">
             {batchCount > 1 && (
-              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
-                Đợt {item.batch}
+              <span
+                className={cn(
+                  "rounded-full px-2 py-0.5 text-[10px] font-bold border inline-flex items-center gap-1",
+                  isLatestBatch
+                    ? "bg-blue-50 text-[#0066FF] border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800"
+                    : "bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700",
+                )}
+              >
+                {isLatestBatch && <Sparkles className="size-2.5 text-[#0066FF]" />}
+                <span>Đợt {item.batch}</span>
+                {isLatestBatch && (
+                  <span className="rounded bg-[#0066FF] px-1 py-0.2 text-[9px] font-bold text-white">
+                    MỚI
+                  </span>
+                )}
               </span>
             )}
             <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-bold text-[#0066FF] border border-blue-200/60 dark:bg-blue-950 dark:text-blue-300">
