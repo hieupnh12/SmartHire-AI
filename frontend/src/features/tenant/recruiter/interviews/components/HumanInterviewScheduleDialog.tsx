@@ -19,7 +19,14 @@ const schema = z.object({
 }).superRefine((v, ctx) => {
   const start = new Date(`${v.date}T${v.time}`).getTime();
   if (!Number.isFinite(start) || start <= Date.now()) ctx.addIssue({ code:"custom", path:["date"], message:"Chọn thời gian trong tương lai." });
-  if (v.mode === "ONLINE") { try { const url = new URL(v.meetingUrl); if (!["http:","https:"].includes(url.protocol)) throw new Error(); } catch { ctx.addIssue({ code:"custom", path:["meetingUrl"], message:"Nhập link họp http/https hợp lệ." }); } }
+  if (v.mode === "ONLINE" && v.provider !== "SMARTHIRE") {
+    try {
+      const url = new URL(v.meetingUrl);
+      if (!["http:", "https:"].includes(url.protocol)) throw new Error();
+    } catch {
+      ctx.addIssue({ code: "custom", path: ["meetingUrl"], message: "Nhập link họp http/https hợp lệ." });
+    }
+  }
   if (v.mode === "OFFLINE" && !v.location.trim()) ctx.addIssue({ code:"custom", path:["location"], message:"Nhập địa điểm." });
   if (v.participants.filter(p => p.role === "LEAD").length !== 1) ctx.addIssue({ code:"custom",path:["participants"],message:"Chọn đúng một Lead Interviewer." });
 });
@@ -45,7 +52,7 @@ export function HumanInterviewScheduleDialog({ jobId, options, existing, lockedA
   const form = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: {
     applicationId: lockedId ?? options.candidates[0]?.applicationId ?? 0,
     round: existing?.round ?? "TECHNICAL", rubric: existing?.configuration.rubric ?? "TECHNICAL", mode: existing?.mode ?? "ONLINE",
-    provider: existing?.configuration.provider === "OFFICE" ? "GOOGLE_MEET" : existing?.configuration.provider ?? "GOOGLE_MEET",
+    provider: existing?.configuration.provider === "OFFICE" ? "SMARTHIRE" : existing?.configuration.provider ?? "SMARTHIRE",
     meetingUrl: existing?.meetingUrl ?? "", location: existing?.location ?? "", date: localDate(start), time: localTime(start),
     duration: existing ? Math.round((new Date(existing.end).getTime() - new Date(existing.start).getTime()) / 60000) : 60,
     emailTemplate: existing?.configuration.emailTemplate ?? "STANDARD", notes: existing?.configuration.notes ?? "", attachCalendar: existing?.configuration.attachCalendar ?? true,
@@ -65,7 +72,10 @@ export function HumanInterviewScheduleDialog({ jobId, options, existing, lockedA
   }, onError:e => setError(getApiErrorMessage(e)) });
   const resetAvailability = check.reset;
   useEffect(() => { resetAvailability(); }, [values.date, values.time, values.duration, values.applicationId, resetAvailability]);
-  const preview = `Xin chào ${candidate?.name ?? "ứng viên"},\nSmartHire trân trọng mời bạn tham dự ${options.rounds.find(r => r.code===values.round)?.label ?? "phỏng vấn"} cho vị trí ${candidate?.jobTitle ?? ""} vào ${values.time} ngày ${values.date}.\n${values.mode === "ONLINE" ? values.meetingUrl : values.location}`;
+  const previewPlace = values.mode === "ONLINE"
+    ? (values.provider === "SMARTHIRE" ? "Phòng họp SmartHire (trong web)" : values.meetingUrl)
+    : values.location;
+  const preview = `Xin chào ${candidate?.name ?? "ứng viên"},\nSmartHire trân trọng mời bạn tham dự ${options.rounds.find(r => r.code===values.round)?.label ?? "phỏng vấn"} cho vị trí ${candidate?.jobTitle ?? ""} vào ${values.time} ngày ${values.date}.\n${previewPlace}`;
   const [showPreview, setShowPreview] = useState(false);
   useEffect(() => {
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -85,8 +95,10 @@ export function HumanInterviewScheduleDialog({ jobId, options, existing, lockedA
   },[onClose]);
   const submit = (draft:boolean) => void form.handleSubmit(v => {
     setError(null); const start = new Date(`${v.date}T${v.time}`);
-    save.mutate({ body:{ jobId, applicationId:v.applicationId, round:v.round, rubric:v.rubric, mode:v.mode, provider:v.mode==="OFFLINE"?"OFFICE":v.provider,
-      start:start.toISOString(),end:new Date(start.getTime()+v.duration*60000).toISOString(),meetingUrl:v.meetingUrl,location:v.location,emailTemplate:v.emailTemplate,notes:v.notes,attachCalendar:v.attachCalendar,smsReminder:false,draft,participants:v.participants } });
+    const provider = v.mode === "OFFLINE" ? "OFFICE" : v.provider;
+    save.mutate({ body:{ jobId, applicationId:v.applicationId, round:v.round, rubric:v.rubric, mode:v.mode, provider,
+      start:start.toISOString(),end:new Date(start.getTime()+v.duration*60000).toISOString(),
+      meetingUrl: provider === "SMARTHIRE" ? "" : v.meetingUrl, location:v.location, emailTemplate:v.emailTemplate, notes:v.notes, attachCalendar:v.attachCalendar, smsReminder:false, draft, participants:v.participants } });
   })();
   const section = "bg-surface-container-lowest p-space-lg rounded-xl shadow-sm flex flex-col gap-space-md";
   const heading = (number:number, title:string) => <h3 className="flex items-center gap-space-sm font-headline-sm text-headline-sm"><span className="w-6 h-6 rounded-full bg-primary-fixed text-primary text-label-sm flex items-center justify-center">{number}</span>{title}</h3>;
@@ -103,7 +115,7 @@ export function HumanInterviewScheduleDialog({ jobId, options, existing, lockedA
         </section>
         <section className={section}>{heading(2,"Hình thức & Thời gian phỏng vấn")}<p className="text-label-sm text-tertiary">Timezone: {Intl.DateTimeFormat().resolvedOptions().timeZone}</p>
           <div className="grid md:grid-cols-2 gap-space-md">{(["ONLINE","OFFLINE"] as const).map(mode=><label key={mode} className={`cursor-pointer p-space-md rounded-xl bg-surface-container-low ${values.mode===mode?"ring-2 ring-primary":""}`}><input type="radio" value={mode} {...form.register("mode")} /> <Icon name={mode==="ONLINE"?"videocam":"apartment"} /> <span className="font-semibold">{mode==="ONLINE"?"Phỏng vấn Trực tuyến":"Gặp mặt Trực tiếp"}</span><p className="text-body-sm text-outline">{mode==="ONLINE"?"Video Call & Live Coding Canvas":"Tại văn phòng trụ sở công ty"}</p></label>)}</div>
-          {values.mode==="ONLINE"?<div className="p-space-md bg-surface-container-low rounded-xl"><div className="flex flex-wrap justify-between gap-space-sm"><label htmlFor="human-meeting" className="text-label-md font-semibold">Đường dẫn cuộc họp (Meeting Room URL)</label><select aria-label="Nền tảng họp" {...form.register("provider")} className="rounded bg-surface-container-lowest text-label-sm"><option value="GOOGLE_MEET">Google Meet</option><option value="ZOOM">Zoom</option><option value="TEAMS">MS Teams</option></select></div><div className="flex gap-space-xs mt-2"><input id="human-meeting" className={input} placeholder="https://meet.google.com/…" {...form.register("meetingUrl")} /><button type="button" aria-label="Sao chép link" onClick={()=>void navigator.clipboard?.writeText(values.meetingUrl).catch(()=>setError("Không thể sao chép link."))}><Icon name="content_copy" /></button></div>{err("meetingUrl")}<p className="text-body-sm text-outline">Nhập link phòng họp đã tạo trên nền tảng của bạn.</p></div>:<label className="text-label-lg">Địa điểm / Phòng họp<input className={input} {...form.register("location")} />{err("location")}</label>}
+          {values.mode==="ONLINE"?<div className="p-space-md bg-surface-container-low rounded-xl space-y-space-sm"><div className="flex flex-wrap justify-between gap-space-sm"><label htmlFor="human-meeting" className="text-label-md font-semibold">Phòng họp trực tuyến</label><select aria-label="Nền tảng họp" {...form.register("provider")} className="rounded bg-surface-container-lowest text-label-sm"><option value="SMARTHIRE">SmartHire Meeting (trong web)</option><option value="GOOGLE_MEET">Google Meet</option><option value="ZOOM">Zoom</option><option value="TEAMS">MS Teams</option></select></div>{values.provider==="SMARTHIRE"?<p className="text-body-sm text-outline">Hệ thống tự tạo phòng họp trong SmartHire (video/mic live, không ghi hình). Ứng viên và hội đồng vào từ lịch phỏng vấn.</p>:<><div className="flex gap-space-xs mt-2"><input id="human-meeting" className={input} placeholder="https://meet.google.com/…" {...form.register("meetingUrl")} /><button type="button" aria-label="Sao chép link" onClick={()=>void navigator.clipboard?.writeText(values.meetingUrl).catch(()=>setError("Không thể sao chép link."))}><Icon name="content_copy" /></button></div>{err("meetingUrl")}<p className="text-body-sm text-outline">Nhập link phòng họp đã tạo trên nền tảng của bạn.</p></>}</div>:<label className="text-label-lg">Địa điểm / Phòng họp<input className={input} {...form.register("location")} />{err("location")}</label>}
           <div className="grid md:grid-cols-3 gap-space-md"><label className="text-label-lg">Ngày phỏng vấn *<input type="date" className={input} {...form.register("date")} />{err("date")}</label><label className="text-label-lg">Khung giờ *<input type="time" className={input} {...form.register("time")} /></label><label className="text-label-lg">Thời lượng dự kiến<input type="number" min={15} max={240} className={input} {...form.register("duration", { valueAsNumber: true })} /><div className="flex gap-1 mt-1">{[30,45,60,90].map(d=><button type="button" key={d} className={`px-2 py-1 rounded text-label-sm ${values.duration===d?"bg-primary text-on-primary":"bg-surface-container-low"}`} onClick={()=>form.setValue("duration",d)}>{d}p</button>)}</div>{err("duration")}</label></div>
         </section>
         <section className={section}>{heading(3,"Hội đồng Phỏng vấn (Interviewer Panel)")}
