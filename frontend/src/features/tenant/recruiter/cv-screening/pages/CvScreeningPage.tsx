@@ -28,7 +28,7 @@ import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 import { useUiStore } from "@/stores/uiStore";
 import { toast } from "@/stores/toastStore";
-import { button, muted, primary } from "@/features/tenant/recruiter/matching/components/rankingUi";
+import { button, primary } from "@/features/tenant/recruiter/matching/components/rankingUi";
 import { DetailDialog } from "@/components/ux/DetailDialog";
 import { CvFilePreview } from "@/components/shared/CvFilePreview";
 import { ScreeningBreakdown } from "@/features/tenant/recruiter/cv-screening/components/ScreeningBreakdown";

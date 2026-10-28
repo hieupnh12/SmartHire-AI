@@ -2,15 +2,16 @@ import { useRecruitmentJob } from "../../jobs/components/JobRecruitmentWorkspace
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, ClipboardList, Clock, Pencil, Plus, Send, Target, Trash2 } from "lucide-react";
+import { ClipboardList, Clock, Pencil, Plus, Send, Target, Trash2 } from "lucide-react";
 import { assessmentApi } from "@/api/tenant/assessmentApi";
 import type { Question, QuestionRequest, TestRequest } from "@/api/types/assessment";
 import { queryKeys } from "@/lib/query-keys";
 import { Button } from "@/components/ux/Button";
 import { Tooltip } from "@/components/ux/Tooltip";
-import { PageSkeleton, SkeletonCard } from "@/components/ux/Skeleton";
+import { SkeletonCard } from "@/components/ux/Skeleton";
 import { AssessmentError, assessmentLink, assessmentMuted as muted, assessmentStatus } from "@/components/ux/assessmentUi";
 import { TestForm } from "../components/TestForm";
+import { QuestionForm } from "../components/QuestionForm";
 import { AssessmentQuestionCard } from "../components/AssessmentQuestionCard";
 import { AssessmentSubNav } from "../components/AssessmentSubNav";
 
@@ -81,7 +82,7 @@ export function AssessmentDetailPage() {
           ))}
         </div>
       )}
-      {editor && <QuestionForm key={editor === "new" ? "new" : editor.id} question={editor === "new" ? undefined : editor} order={Math.max(-1, ...(questions.data ?? []).map(q => q.questionOrder)) + 1} busy={busy} onSave={body => saveQuestion.mutate(body)} onCancel={() => setEditor(null)} />}
+      {editor && <QuestionForm key={editor === "new" ? "new" : editor.id} question={editor === "new" ? undefined : editor} order={Math.max(-1, ...(questions.data ?? []).map(q => q.questionOrder)) + 1} busy={busy} onSave={(body: QuestionRequest) => saveQuestion.mutate(body)} onCancel={() => setEditor(null)} />}
       {questions.data?.map((q, index) => <AssessmentQuestionCard key={q.id} question={q} index={index} actions={draft ? <div className="flex shrink-0"><Tooltip content="Sửa câu hỏi"><Button variant="ghost" disabled={busy || !!editor} aria-label={`Sửa câu ${index + 1}`} onClick={() => { saveQuestion.reset(); setEditor(q); }}><Pencil className="size-4" aria-hidden="true" /></Button></Tooltip><Tooltip content="Xóa câu hỏi"><Button variant="ghost" disabled={busy || !!editor} aria-label={`Xóa câu ${index + 1}`} onClick={() => { if (window.confirm("Xóa câu hỏi này?")) remove.mutate(q.id); }}><Trash2 className="size-4" aria-hidden="true" /></Button></Tooltip></div> : undefined} />)}
       </section>
     </div>}
