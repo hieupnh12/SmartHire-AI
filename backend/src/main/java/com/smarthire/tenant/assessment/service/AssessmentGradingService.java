@@ -30,6 +30,8 @@ public class AssessmentGradingService {
     private final ApplicationEventPublisher events;
     @org.springframework.beans.factory.annotation.Autowired
     private org.springframework.beans.factory.ObjectProvider<com.smarthire.tenant.applicant.service.ApplicantService> applicants;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private org.springframework.beans.factory.ObjectProvider<SubmissionGradingDetailService> gradingDetailService;
     public AssessmentGradingService(SubmissionRepository submissions, AnswerRepository answers,
             CodingSubmissionRepository codingSubmissions, AiInterviewClient ai, CodingJudge judge,
             ObjectMapper json, CvAccess access, ApplicationEventPublisher events) {
@@ -55,6 +57,30 @@ public class AssessmentGradingService {
                 // Do not turn provider outages into a candidate's zero score or expose credentials.
                 answer.setEvaluationJson(json.createObjectNode().put("status", "ERROR")
                         .put("general_comment", "Automatic grading unavailable. Retry or review manually."));
+            }
+        }
+        if (submission.getTest().isAutoGradingEnabled()) {
+            for (Answer answer : answers.findBySubmission_IdOrderByQuestion_QuestionOrderAscQuestion_IdAsc(id)) {
+                if (answer.getScore() == null && answer.getSuggestedScore() != null) {
+                    answer.setScore(answer.getSuggestedScore());
+                    answer.setReviewedAt(Instant.now());
+                }
+            }
+            var all = answers.findBySubmission_IdOrderByQuestion_QuestionOrderAscQuestion_IdAsc(id);
+            if (all.stream().allMatch(a -> a.getScore() != null)) {
+                submission.setScore(all.stream().map(Answer::getScore).reduce(BigDecimal.ZERO, BigDecimal::add));
+                if (submission.getStatus() != TestSubmissionStatus.EXPIRED) {
+                    submission.setStatus(TestSubmissionStatus.GRADED);
+                }
+                submissions.save(submission);
+                var applicantService = applicants == null ? null : applicants.getIfAvailable();
+                if (applicantService != null) {
+                    applicantService.settleAfterAssessment(submission.getApplication().getId());
+                }
+                var detailSvc = gradingDetailService == null ? null : gradingDetailService.getIfAvailable();
+                if (detailSvc != null) {
+                    detailSvc.sendResultEmailSilently(submission.getId());
+                }
             }
         }
     }

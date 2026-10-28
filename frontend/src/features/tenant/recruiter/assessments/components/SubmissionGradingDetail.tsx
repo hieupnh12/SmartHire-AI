@@ -9,6 +9,7 @@ import { Button } from "@/components/ux/Button";
 import { Skeleton, SkeletonCard } from "@/components/ux/Skeleton";
 import { AssessmentError, assessmentInput, FieldError } from "@/components/ux/assessmentUi";
 import { queryKeys } from "@/lib/query-keys";
+import { toast } from "@/stores/toastStore";
 import { useUiStore } from "@/stores/uiStore";
 
 function object(value: unknown): Record<string, unknown> {
@@ -29,14 +30,59 @@ export function SubmissionGradingDetail({ id, onClose }: { id: number; onClose: 
   const errorSummary = useRef<HTMLDivElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   useEffect(() => { heading.current?.scrollIntoView({ block: "start" }); heading.current?.focus({ preventScroll: true }); }, [id]);
-  const [notice, setNotice] = useState("");
   const refresh = async () => { await client.invalidateQueries({ queryKey: queryKeys.assessments.all() }); };
-  const approve = useMutation({ mutationFn: (decision: GradeDecision) => assessmentApi.approveGrade(id, decision.questionId, decision.score),
-    onSuccess: async (_, decision) => { setValue(`scores.${decision.questionId}`, ""); setNotice("Đã xác nhận duyệt điểm."); await refresh(); } });
-  const update = useMutation({ mutationFn: (decisions: GradeDecision[]) => assessmentApi.updateGradingResult(id, decisions),
-    onSuccess: async (data, decisions) => { client.setQueryData(key, data); decisions.forEach(decision => setValue(`scores.${decision.questionId}`, "")); setNotice(data.score == null ? "Đã cập nhật điểm. Còn câu hỏi chờ duyệt." : "Đã cập nhật kết quả chính thức."); await refresh(); } });
-  const email = useMutation({ mutationFn: () => assessmentApi.sendResultEmail(id), onSuccess: result => setNotice(result.status === "SENT" ? "Kết quả này đã được gửi trước đó (idempotent)." : result.status === "PENDING" ? "Đã đưa / tái xếp hàng email kết quả (PENDING). Đây chưa phải xác nhận giao thành công." : "Email kết quả đang FAILED — hệ thống đã reset attempts để worker thử lại.") });
-  const retry = useMutation({ mutationFn: () => assessmentApi.retryGrading(id), onSuccess: async () => { setNotice("Đã yêu cầu chấm lại các câu chưa có điểm gợi ý."); await refresh(); } });
+  const approve = useMutation({
+    mutationFn: (decision: GradeDecision) => assessmentApi.approveGrade(id, decision.questionId, decision.score),
+    onSuccess: async (_, decision) => {
+      setValue(`scores.${decision.questionId}`, "");
+      toast.success("Đã xác nhận duyệt điểm thành công.");
+      await refresh();
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || "Lỗi khi duyệt điểm câu hỏi.");
+    },
+  });
+  const update = useMutation({
+    mutationFn: (decisions: GradeDecision[]) => assessmentApi.updateGradingResult(id, decisions),
+    onSuccess: async (data, decisions) => {
+      client.setQueryData(key, data);
+      decisions.forEach(decision => setValue(`scores.${decision.questionId}`, ""));
+      if (data.score == null) {
+        toast.info("Đã cập nhật điểm. Còn câu hỏi chờ duyệt.");
+      } else {
+        toast.success("Đã cập nhật và chốt kết quả chính thức thành công.");
+      }
+      await refresh();
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || "Lỗi khi cập nhật kết quả bài thi.");
+    },
+  });
+  const email = useMutation({
+    mutationFn: () => assessmentApi.sendResultEmail(id),
+    onSuccess: (result) => {
+      if (result.status === "SENT") {
+        toast.info("Kết quả này đã được gửi trước đó.");
+      } else if (result.status === "PENDING") {
+        toast.success("Đã xếp hàng gửi email kết quả cho ứng viên.");
+      } else {
+        toast.warning("Email kết quả đang FAILED — hệ thống đã reset để worker thử lại.");
+      }
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || "Lỗi khi gửi email kết quả.");
+    },
+  });
+  const retry = useMutation({
+    mutationFn: () => assessmentApi.retryGrading(id),
+    onSuccess: async () => {
+      toast.success("Đã yêu cầu AI chấm lại các câu chưa có điểm gợi ý.");
+      await refresh();
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || "Lỗi khi yêu cầu chấm lại.");
+    },
+  });
   const busy = approve.isPending || update.isPending || email.isPending || retry.isPending;
   const detail = query.data;
   const reviews = detail?.reviews ?? [];
@@ -61,7 +107,6 @@ export function SubmissionGradingDetail({ id, onClose }: { id: number; onClose: 
     }}>Đóng</Button></header>
     <AssessmentError error={query.error} retry={() => void query.refetch()} />
     <AssessmentError error={approve.error || update.error || email.error || retry.error} />
-    {notice && <p role="status" className="rounded-lg bg-[var(--color-primary-subtle)] p-3 text-sm text-[var(--color-primary)]">{notice}</p>}
     {query.isPending && (
       <div className="space-y-4">
         <Skeleton className="h-24 w-full rounded-xl" />

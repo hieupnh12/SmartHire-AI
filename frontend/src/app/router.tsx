@@ -80,6 +80,7 @@ import { PipelinePage } from "@/features/tenant/recruiter/pipeline/pages/Pipelin
 import { AssessmentsPage as RecruiterAssessmentsPage } from "@/features/tenant/recruiter/assessments/pages/AssessmentsPage";
 import { AssessmentDetailPage } from "@/features/tenant/recruiter/assessments/pages/AssessmentDetailPage";
 import { AssessmentSubmissionsPage } from "@/features/tenant/recruiter/assessments/pages/AssessmentSubmissionsPage";
+import { AssessmentSubmissionDetailPage } from "@/features/tenant/recruiter/assessments/pages/AssessmentSubmissionDetailPage";
 import { GeneralQuestionBankPage } from "@/features/tenant/recruiter/assessments/pages/GeneralQuestionBankPage";
 import { GeneralQuestionEditorPage } from "@/features/tenant/recruiter/assessments/pages/GeneralQuestionEditorPage";
 import { QuestionBankPage } from "@/features/tenant/recruiter/assessments/pages/QuestionBankPage";
@@ -238,6 +239,7 @@ export function AppRouter() {
             <Route path="jobs/:id/assessments" element={<JobRecruitmentWorkspace><RecruiterAssessmentsPage /></JobRecruitmentWorkspace>} />
             <Route path="jobs/:id/assessments/new" element={<JobRecruitmentWorkspace><AssessmentCreationPage /></JobRecruitmentWorkspace>} />
             <Route path="jobs/:id/assessments/submissions" element={<JobRecruitmentWorkspace><AssessmentSubmissionsPage /></JobRecruitmentWorkspace>} />
+            <Route path="jobs/:id/assessments/submissions/:submissionId" element={<JobRecruitmentWorkspace><AssessmentSubmissionDetailPage /></JobRecruitmentWorkspace>} />
             <Route path="jobs/:id/assessments/:assessmentId" element={<JobRecruitmentWorkspace><AssessmentDetailPage /></JobRecruitmentWorkspace>} />
             <Route path="assessments" element={<Navigate to="/recruiter" replace />} />
             <Route path="assessments/new" element={<Navigate to="/recruiter" replace />} />

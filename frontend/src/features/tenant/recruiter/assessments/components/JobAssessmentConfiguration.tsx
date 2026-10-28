@@ -26,6 +26,7 @@ const schema = z.object({
   durationMinutes: z.number().int().min(1, "Thời lượng tối thiểu 1 phút").max(480, "Tối đa 480 phút"),
   passingPercent: z.number().int().min(0).max(100, "Ngưỡng đạt tối đa 100%"),
   autoAssign: z.boolean(),
+  autoGradingEnabled: z.boolean().optional(),
   sections: z.array(z.object({
     skill: z.string().trim().min(1, "Chọn skill của job"),
     questionType: z.enum(["MCQ", "MULTIPLE_CHOICE", "ESSAY", "CODING"]),
@@ -190,6 +191,7 @@ export function ConfigurationForm({
     defaultValues: initial
       ? {
           ...initial,
+          autoGradingEnabled: initial.autoGradingEnabled ?? false,
           sections: initial.sections && initial.sections.length > 0
             ? initial.sections
             : [{ skill: jobSkills[0]?.name ?? "", questionType: "MCQ", difficulty: "Easy", count: 5, points: 2 }],
@@ -203,6 +205,7 @@ export function ConfigurationForm({
           objectiveDurationMinutes: null,
           passingPercent: 70,
           autoAssign: true,
+          autoGradingEnabled: false,
           sections: [{ skill: jobSkills[0]?.name ?? "", questionType: "MCQ", difficulty: "Easy", count: 5, points: 2 }],
           codingTestWeightPercent: 80,
           codingAiWeightPercent: 20,
@@ -227,6 +230,7 @@ export function ConfigurationForm({
 
   const passingPercent = watch("passingPercent") ?? 70;
   const autoAssign = watch("autoAssign");
+  const autoGradingEnabled = watch("autoGradingEnabled");
   const minRequiredPoints = Math.ceil((total * (Number(passingPercent) || 0)) / 100);
 
   const handleReset = () => {
@@ -668,6 +672,70 @@ export function ConfigurationForm({
                 ) : (
                   <span className="rounded-full bg-slate-200 px-2.5 py-0.5 text-[11px] font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-400">
                     Thủ công
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Khối 4: Quy tắc chấm đề & Giao kết quả (Grading & Result Publishing) */}
+          <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-2xs dark:border-slate-800 dark:bg-slate-900/80">
+            <div className="mb-4 flex items-center gap-3 border-b border-slate-100 pb-3 dark:border-slate-800">
+              <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-purple-50 text-purple-600 dark:bg-purple-950 dark:text-purple-400 border border-purple-100 dark:border-purple-900/50">
+                <CheckCircle2 className="size-4" aria-hidden="true" />
+              </div>
+              <div className="flex items-center gap-1.5">
+                <h3 className="text-sm font-bold text-[#101828] dark:text-white">
+                  Quy tắc chấm đề &amp; Giao kết quả (Grading &amp; Delivery)
+                </h3>
+                <Tooltip
+                  content="Cấu hình cơ chế công bố điểm: Tự động gửi kết quả cho ứng viên ngay sau khi chấm hoặc chờ Nhà tuyển dụng duyệt."
+                  side="top"
+                >
+                  <span className="inline-flex cursor-help items-center text-slate-400 hover:text-purple-600 transition-colors">
+                    <HelpCircle className="size-3.5" aria-hidden="true" />
+                  </span>
+                </Tooltip>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-3 rounded-xl border border-slate-200/80 bg-slate-50/70 p-4 transition-colors dark:border-slate-800 dark:bg-slate-900/50 sm:flex-row sm:items-center sm:justify-between">
+              <label className="flex items-start gap-3.5 cursor-pointer min-w-0 flex-1">
+                <input
+                  type="checkbox"
+                  {...register("autoGradingEnabled")}
+                  disabled={mutation.isPending}
+                  className="mt-0.5 size-4 shrink-0 rounded border-slate-300 text-[#0066FF] focus:ring-[#0066FF] accent-[#0066FF]"
+                />
+                <div className="flex flex-col gap-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[13px] font-bold text-[#101828] dark:text-white">
+                      Tự động chấm điểm đề và giao kết quả cho ứng viên
+                    </span>
+                    <Tooltip
+                      content="Nếu bật: Sau khi AI & Sandbox chấm xong bài, hệ thống sẽ tự động chốt điểm chính thức và gửi email kết quả cho ứng viên ngay lập tức, không cần Nhà tuyển dụng xác nhận."
+                      side="top"
+                    >
+                      <span className="inline-flex cursor-help items-center text-slate-400 hover:text-purple-600 transition-colors">
+                        <HelpCircle className="size-3.5" aria-hidden="true" />
+                      </span>
+                    </Tooltip>
+                  </div>
+                  <p className="text-[12px] text-slate-500 dark:text-slate-400">
+                    {autoGradingEnabled
+                      ? "Đang bật: AI & Sandbox chấm xong sẽ chốt điểm và gửi email kết quả cho ứng viên ngay, không cần xác nhận thủ công."
+                      : "Đang tắt: AI chấm đề xuất trước, Nhà tuyển dụng có thể vào xem bài thi, điều chỉnh điểm và duyệt kết quả như hiện tại."}
+                  </p>
+                </div>
+              </label>
+              <div className="shrink-0 self-start sm:self-center">
+                {autoGradingEnabled ? (
+                  <span className="rounded-full bg-purple-100 px-2.5 py-0.5 text-[11px] font-bold text-purple-700 dark:bg-purple-950 dark:text-purple-300 border border-purple-200/60">
+                    Tự động gửi điểm
+                  </span>
+                ) : (
+                  <span className="rounded-full bg-slate-200 px-2.5 py-0.5 text-[11px] font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-400">
+                    Duyệt thủ công
                   </span>
                 )}
               </div>

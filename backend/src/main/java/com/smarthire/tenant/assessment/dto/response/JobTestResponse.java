@@ -20,5 +20,6 @@ public record JobTestResponse(
         Integer objectiveDurationMinutes,
         int codingTestWeightPercent,
         Long assignedApplicationId,
-        TestOrigin origin) {
+        TestOrigin origin,
+        boolean autoGradingEnabled) {
 }

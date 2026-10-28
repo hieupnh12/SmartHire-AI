@@ -41,9 +41,10 @@ public class SubmissionService {
 
     @org.springframework.beans.factory.annotation.Autowired
     private org.springframework.context.ApplicationEventPublisher events;
-    /** Absent in tests that do not load the demo seeder. Production creates the practice paper on demand. */
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private AssessmentDemoSeedService demoSeed;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private org.springframework.beans.factory.ObjectProvider<SubmissionGradingDetailService> gradingDetailService;
 
     public SubmissionService(JobTestRepository tests, ApplicationRepository applications, SubmissionRepository submissions,
             QuestionRepository questions, OptionRepository options, AnswerRepository answers,
@@ -416,6 +417,12 @@ public class SubmissionService {
         var applicantService = applicants.getIfAvailable();
         if (applicantService != null) {
             applicantService.settleAfterAssessment(submission.getApplication().getId());
+        }
+        if (!needsReview && submission.getTest().isAutoGradingEnabled() && !expired && gradingDetailService != null) {
+            var detailSvc = gradingDetailService.getIfAvailable();
+            if (detailSvc != null) {
+                detailSvc.sendResultEmailSilently(submission.getId());
+            }
         }
     }
 

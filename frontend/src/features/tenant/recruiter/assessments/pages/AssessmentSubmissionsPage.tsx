@@ -1,6 +1,6 @@
 import { AssessmentJobReportPanel } from "../components/AssessmentJobReportPanel";
-import { SubmissionGradingDetail } from "../components/SubmissionGradingDetail";
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
   ChevronLeft,
@@ -132,7 +132,7 @@ function StatusBadge({ status }: { status: SubmissionStatus }) {
 
 export function AssessmentSubmissionsPage() {
   const job = useRecruitmentJob();
-  const [reviewId, setReviewId] = useState<number | null>(null);
+  const navigate = useNavigate();
   const [tab, setTab] = useState<StatusTab>("ALL");
   const [query, setQuery] = useState("");
   const [density, setDensity] = useState<"compact" | "normal">("normal");
@@ -199,7 +199,6 @@ export function AssessmentSubmissionsPage() {
       {/* 1. Sub-tabs Navigation */}
       <AssessmentSubNav jobId={job.id} activeTab="submissions" />
 
-      {reviewId != null && <SubmissionGradingDetail key={reviewId} id={reviewId} onClose={() => setReviewId(null)} />}
       <AssessmentError error={submissions.error} retry={() => void submissions.refetch()} />
 
       {/* 2. Visual Metric Cards with Enhanced Typography & Progress Trackers */}
@@ -386,7 +385,7 @@ export function AssessmentSubmissionsPage() {
                       row={row}
                       attemptInfo={attemptMap.get(row.id)}
                       density={density}
-                      onReview={() => setReviewId(row.id)}
+                      onReview={() => navigate(`/recruiter/jobs/${job.id}/assessments/submissions/${row.id}`)}
                     />
                   ))}
                 </tbody>
