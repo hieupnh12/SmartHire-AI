@@ -597,17 +597,45 @@ public class AiInterviewClient {
                 + ", runId=" + runId + ")");
     }
 
+    private String extractProviderErrorMessage(String body) {
+        if (body == null || body.isBlank()) return null;
+        try {
+            JsonNode tree = mapper.readTree(body);
+            if (tree.has("error")) {
+                JsonNode err = tree.get("error");
+                if (err.isObject() && err.has("message") && !err.get("message").asText().isBlank()) {
+                    return err.get("message").asText().trim();
+                }
+                if (err.isTextual() && !err.asText().isBlank()) {
+                    return err.asText().trim();
+                }
+            }
+            if (tree.has("message") && !tree.get("message").asText().isBlank()) {
+                return tree.get("message").asText().trim();
+            }
+        } catch (Exception ignored) {}
+        String trimmed = body.trim();
+        if (trimmed.length() <= 200 && !trimmed.startsWith("<")) {
+            return trimmed;
+        }
+        return null;
+    }
+
     private ProviderException mapHttp(RestClientResponseException ex, String task, String effectiveModel) {
         int status = ex.getStatusCode().value();
-        log.error("AI Interview call failed: task={}, model={}, HTTP {}", task, effectiveModel, status,
-                safeDiagnostic(ex));
+        String detail = extractProviderErrorMessage(ex.getResponseBodyAsString());
+        log.error("AI Interview call failed: task={}, model={}, HTTP {}, detail={}", task, effectiveModel, status,
+                detail != null ? detail : "none", safeDiagnostic(ex));
         String message = switch (status) {
             case 429 -> "Dịch vụ AI đang giới hạn lượt gọi (HTTP 429). Vui lòng thử lại sau.";
             case 503, 502, 504 -> "Dịch vụ AI tạm thời không khả dụng (HTTP " + status + "). Vui lòng thử lại sau.";
             case 401, 403 -> "Dịch vụ AI từ chối xác thực. Kiểm tra cấu hình API key.";
             case 404 -> "Không tìm thấy model AI đã cấu hình (" + effectiveModel
-                    + "). Kiểm tra tên model và Endpoint URL của task QUESTION_GEN.";
-            default -> "Dịch vụ AI trả lỗi HTTP " + status + ". Kiểm tra cấu hình và thử lại.";
+                    + "). Kiểm tra tên model và Endpoint URL của task " + task + ".";
+            case 400 -> detail != null
+                    ? "Dịch vụ AI từ chối yêu cầu (HTTP 400): " + detail
+                    : "Dịch vụ AI trả lỗi HTTP 400. Kiểm tra cấu hình API key/model và thử lại.";
+            default -> "Dịch vụ AI trả lỗi HTTP " + status + (detail != null ? ": " + detail : "") + ". Kiểm tra cấu hình và thử lại.";
         };
         return new ProviderException(message);
     }

@@ -39,6 +39,8 @@ public class AssessmentGenerationService {
     private ApplicationStatusHistoryRepository history;
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private RecruitmentStageRepository stages;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private AssessmentGradingService grading;
 
     public AssessmentGenerationService(JobRepository jobs, JobTestRepository tests, JobSkillRepository skills,
             QuestionRepository questions, OptionRepository options, ApplicationRepository applications,
@@ -76,6 +78,18 @@ public class AssessmentGenerationService {
         // The configuration acts as a template/rule; question availability is validated during actual test generation
         // or reported via automation_status.
         job.setAssessmentConfigJson(json.valueToTree(config));
+
+        if (config.autoGradingEnabled() != null) {
+            var jobTests = tests.findByJob_IdOrderByIdDesc(jobId);
+            for (var t : jobTests) {
+                t.setAutoGradingEnabled(config.autoGradingEnabled());
+            }
+            tests.saveAll(jobTests);
+
+            if (Boolean.TRUE.equals(config.autoGradingEnabled()) && grading != null) {
+                grading.autoGradeJobSubmissions(jobId);
+            }
+        }
         return config;
     }
 

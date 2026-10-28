@@ -32,6 +32,8 @@ public class AssessmentGradingService {
     private org.springframework.beans.factory.ObjectProvider<com.smarthire.tenant.applicant.service.ApplicantService> applicants;
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private org.springframework.beans.factory.ObjectProvider<SubmissionGradingDetailService> gradingDetailService;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private JobTestRepository tests;
     public AssessmentGradingService(SubmissionRepository submissions, AnswerRepository answers,
             CodingSubmissionRepository codingSubmissions, AiInterviewClient ai, CodingJudge judge,
             ObjectMapper json, CvAccess access, ApplicationEventPublisher events) {
@@ -283,6 +285,81 @@ public class AssessmentGradingService {
         Submission submission = staff(id);
         if (submission.getStatus() == TestSubmissionStatus.IN_PROGRESS || submission.getStatus() == TestSubmissionStatus.NOT_STARTED) throw invalid("Submit before grading");
         events.publishEvent(new AssessmentGradeEvent(id, com.smarthire.multitenancy.context.TenantContext.getCurrentTenant()));
+    }
+    @Transactional
+    public boolean autoGradeSubmission(long id) {
+        Submission submission = staff(id);
+        if (submission.getStatus() == TestSubmissionStatus.IN_PROGRESS || submission.getStatus() == TestSubmissionStatus.NOT_STARTED) {
+            throw invalid("Submit before grading");
+        }
+        if (submission.getStatus() == TestSubmissionStatus.GRADED) {
+            return true;
+        }
+        if (submission.getTest() != null && !submission.getTest().isAutoGradingEnabled()) {
+            submission.getTest().setAutoGradingEnabled(true);
+            if (tests != null) tests.save(submission.getTest());
+        }
+        var savedAnswers = answers.findBySubmission_IdOrderByQuestion_QuestionOrderAscQuestion_IdAsc(id);
+        for (Answer answer : savedAnswers) {
+            String qType = answer.getQuestion().getQuestionType();
+            if (SubmissionService.isObjective(answer.getQuestion())) {
+                continue;
+            }
+            if (answer.getSuggestedScore() == null) {
+                try {
+                    if (answer.getAnswerText() == null || answer.getAnswerText().isBlank()) {
+                        answer.setSuggestedScore(BigDecimal.ZERO);
+                        answer.setEvaluationJson(json.createObjectNode().put("status", "READY").put("general_comment", "No answer submitted"));
+                    } else if ("ESSAY".equals(qType)) {
+                        essay(answer);
+                    } else if ("CODING".equals(qType)) {
+                        code(answer);
+                    }
+                } catch (RuntimeException failure) {
+                    answer.setEvaluationJson(json.createObjectNode().put("status", "ERROR")
+                            .put("general_comment", "Automatic grading unavailable. Retry or review manually."));
+                }
+            }
+            if (answer.getScore() == null && answer.getSuggestedScore() != null) {
+                answer.setScore(answer.getSuggestedScore());
+                answer.setReviewedAt(Instant.now());
+            }
+        }
+        answers.saveAll(savedAnswers);
+
+        var all = answers.findBySubmission_IdOrderByQuestion_QuestionOrderAscQuestion_IdAsc(id);
+        if (all.stream().allMatch(a -> a.getScore() != null)) {
+            submission.setScore(all.stream().map(Answer::getScore).reduce(BigDecimal.ZERO, BigDecimal::add));
+            if (submission.getStatus() != TestSubmissionStatus.EXPIRED) {
+                submission.setStatus(TestSubmissionStatus.GRADED);
+            }
+            submissions.save(submission);
+            var applicantService = applicants == null ? null : applicants.getIfAvailable();
+            if (applicantService != null) {
+                applicantService.settleAfterAssessment(submission.getApplication().getId());
+            }
+            var detailSvc = gradingDetailService == null ? null : gradingDetailService.getIfAvailable();
+            if (detailSvc != null) {
+                detailSvc.sendResultEmailSilently(submission.getId());
+            }
+            return true;
+        }
+        return false;
+    }
+    @Transactional
+    public int autoGradeJobSubmissions(long jobId) {
+        if (!access.staff()) throw new BusinessException("Staff access required", HttpStatus.FORBIDDEN, "ASSESSMENT_FORBIDDEN");
+        access.actor();
+        var jobSubmissions = submissions.findByJobId(jobId);
+        int count = 0;
+        for (var sub : jobSubmissions) {
+            if (sub.getStatus() == TestSubmissionStatus.SUBMITTED) {
+                if (autoGradeSubmission(sub.getId())) {
+                    count++;
+                }
+            }
+        }
+        return count;
     }
     private Submission staff(long id) {
         if (!access.staff()) throw new BusinessException("Staff access required", HttpStatus.FORBIDDEN, "ASSESSMENT_FORBIDDEN");
