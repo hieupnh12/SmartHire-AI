@@ -652,6 +652,16 @@ export function QuestionBankPage() {
     setSelected((current) => (current.includes(key) ? current.filter((item) => item !== key) : [...current, key]));
   };
 
+  const [isScrolled, setIsScrolled] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 60);
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
   const openRow = (key: string) => {
     setActiveKey(key);
     setDrawerTab("content");
@@ -665,9 +675,24 @@ export function QuestionBankPage() {
       <AssessmentError error={tests.error} retry={() => void tests.refetch()} />
 
       <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[224px_minmax(0,1fr)]">
-        <aside className="flex w-full flex-col gap-3 rounded-2xl border border-slate-200/80 bg-white p-3 shadow-2xs dark:border-slate-800 dark:bg-slate-900">
+        <aside
+          className={cn(
+            "flex w-full flex-col gap-3 rounded-2xl border bg-white p-3 transition-all duration-300 dark:bg-slate-900",
+            "lg:sticky lg:top-[128px] lg:self-start lg:max-h-[calc(100vh-9.5rem)] lg:overflow-y-auto lg:scrollbar-thin",
+            isScrolled
+              ? "border-slate-300/90 shadow-md shadow-slate-200/60 dark:border-slate-700 dark:shadow-black/40"
+              : "border-slate-200/80 shadow-2xs dark:border-slate-800"
+          )}
+        >
           {/* Widget Độ phủ đề thi - Compact Progress Card */}
-          <div className="rounded-xl border border-slate-100 bg-slate-50/80 p-2.5 dark:border-slate-800 dark:bg-slate-800/40">
+          <div
+            className={cn(
+              "rounded-xl border p-2.5 transition-all duration-300",
+              isScrolled
+                ? "border-slate-200 bg-white/95 shadow-2xs dark:border-slate-700/80 dark:bg-slate-800/80"
+                : "border-slate-100 bg-slate-50/80 dark:border-slate-800 dark:bg-slate-800/40"
+            )}
+          >
             <div className="flex items-center justify-between text-xs">
               <span className="font-semibold text-slate-700 dark:text-slate-300">Độ phủ đề thi</span>
               <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">{coverage}%</span>

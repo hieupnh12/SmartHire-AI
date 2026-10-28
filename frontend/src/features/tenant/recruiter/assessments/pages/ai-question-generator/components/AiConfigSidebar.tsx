@@ -304,7 +304,7 @@ export function AiConfigSidebar({
               )}
             >
               <Plus className="size-3.5" />
-              <span>Cộng dồn (Đợt {batchCount + 1})</span>
+              <span>Thêm vào đầu (Đợt {batchCount + 1})</span>
             </button>
             <button
               type="button"
@@ -323,7 +323,7 @@ export function AiConfigSidebar({
           </div>
           <p className="text-[11px] text-blue-800/80 dark:text-blue-300/80">
             {generationMode === "APPEND"
-              ? "Giữ nguyên các câu hiện có và nối tiếp đợt sinh mới vào danh sách nháp."
+              ? "Giữ nguyên các câu hiện có và đưa đợt sinh mới lên trên đầu danh sách nháp."
               : "Xóa toàn bộ câu nháp cũ và thay thế bằng đợt sinh mới."}
           </p>
         </div>
