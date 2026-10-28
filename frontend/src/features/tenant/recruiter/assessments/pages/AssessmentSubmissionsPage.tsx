@@ -1,7 +1,7 @@
 import { AssessmentJobReportPanel } from "../components/AssessmentJobReportPanel";
-import { SubmissionGradingDetail } from "../components/SubmissionGradingDetail";
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { Link, useNavigate } from "react-router-dom";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ChevronLeft,
   ChevronRight,
@@ -9,6 +9,7 @@ import {
   ChevronsRight,
   Clock3,
   Eye,
+  Loader2,
   Pencil,
   RefreshCw,
   Rows3,
@@ -16,8 +17,10 @@ import {
   SlidersHorizontal,
   Users,
   X,
+  Zap,
 } from "lucide-react";
 import { assessmentApi } from "@/api/tenant/assessmentApi";
+import { assessmentGenerationApi } from "@/api/tenant/assessmentGenerationApi";
 import type { SubmissionStatus, SubmissionSummary } from "@/api/types/assessment";
 import { AssessmentError } from "@/components/ux/assessmentUi";
 import { AssessmentSubNav } from "../components/AssessmentSubNav";
@@ -25,6 +28,7 @@ import { Button } from "@/components/ux/Button";
 import { TableSkeleton } from "@/components/ux/Skeleton";
 import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
+import { toast } from "@/stores/toastStore";
 import { useRecruitmentJob } from "../../jobs/components/JobRecruitmentWorkspace";
 
 type StatusTab = "ALL" | "IN_PROGRESS" | "DONE" | "EXPIRED";
@@ -132,11 +136,20 @@ function StatusBadge({ status }: { status: SubmissionStatus }) {
 
 export function AssessmentSubmissionsPage() {
   const job = useRecruitmentJob();
-  const [reviewId, setReviewId] = useState<number | null>(null);
+  const navigate = useNavigate();
   const [tab, setTab] = useState<StatusTab>("ALL");
   const [query, setQuery] = useState("");
   const [density, setDensity] = useState<"compact" | "normal">("normal");
   const [page, setPage] = useState(0);
+
+  const queryClient = useQueryClient();
+  const [gradingSubmissionId, setGradingSubmissionId] = useState<number | null>(null);
+
+  const configQuery = useQuery({
+    queryKey: ["assessment-job-config", job.id],
+    queryFn: () => assessmentGenerationApi.configuration(job.id),
+  });
+  const autoGradingEnabled = Boolean(configQuery.data?.autoGradingEnabled);
 
   const submissions = useQuery({
     queryKey: queryKeys.assessments.jobSubmissions(job.id),
@@ -144,6 +157,45 @@ export function AssessmentSubmissionsPage() {
     refetchInterval: REFRESH_MS,
   });
   const items = submissions.data ?? [];
+
+  const pendingSubmissions = useMemo(
+    () => items.filter((row) => row.status === "SUBMITTED"),
+    [items],
+  );
+
+  const autoGradeAll = useMutation({
+    mutationFn: () => assessmentApi.autoGradePendingSubmissions(job.id),
+    onSuccess: (res) => {
+      toast.success(
+        res.finalizedCount > 0
+          ? `Đã tự động chấm và chốt điểm thành công cho ${res.finalizedCount} bài làm!`
+          : "Tất cả các bài làm đã được chấm điểm trước đó.",
+      );
+      void submissions.refetch();
+      void queryClient.invalidateQueries({ queryKey: queryKeys.assessments.all() });
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || "Lỗi khi tự động chốt điểm bài làm.");
+    },
+  });
+
+  const autoGradeOne = useMutation({
+    mutationFn: (submissionId: number) => {
+      setGradingSubmissionId(submissionId);
+      return assessmentApi.autoGradeSubmission(submissionId);
+    },
+    onSuccess: () => {
+      toast.success("Đã tự động chấm và chốt điểm bài làm thành công!");
+      void submissions.refetch();
+      void queryClient.invalidateQueries({ queryKey: queryKeys.assessments.all() });
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || "Lỗi khi tự động chấm bài làm này.");
+    },
+    onSettled: () => {
+      setGradingSubmissionId(null);
+    },
+  });
 
   // Group attempts by candidateId + testId to accurately label "Lần 1", "Lần 2"
   const attemptMap = useMemo(() => {
@@ -199,11 +251,100 @@ export function AssessmentSubmissionsPage() {
       {/* 1. Sub-tabs Navigation */}
       <AssessmentSubNav jobId={job.id} activeTab="submissions" />
 
-      {reviewId != null && <SubmissionGradingDetail key={reviewId} id={reviewId} onClose={() => setReviewId(null)} />}
       <AssessmentError error={submissions.error} retry={() => void submissions.refetch()} />
 
       {/* 2. Visual Metric Cards with Enhanced Typography & Progress Trackers */}
       <AssessmentJobReportPanel jobId={job.id} />
+
+      {/* 2.1. Grading Policy & Delivery Automation Banner */}
+      {autoGradingEnabled ? (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-emerald-200/80 bg-gradient-to-r from-emerald-50/90 via-emerald-50/40 to-teal-50/50 p-4 shadow-2xs dark:border-emerald-900/60 dark:from-emerald-950/30 dark:via-emerald-950/20 dark:to-teal-950/20">
+          <div className="flex items-start sm:items-center gap-3 min-w-0">
+            <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-emerald-600 text-white shadow-xs">
+              <Zap className="size-4.5 fill-current" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-emerald-900 dark:text-emerald-200 text-sm">
+                  Quy tắc: Tự động chấm điểm & Giao kết quả đang BẬT
+                </span>
+                <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300">
+                  ⚡ Tự động
+                </span>
+              </div>
+              <p className="mt-0.5 text-xs text-emerald-800/85 dark:text-emerald-300/85">
+                {pendingSubmissions.length > 0
+                  ? `Có ${pendingSubmissions.length} bài nộp trước đó đang ở trạng thái "Chờ chấm bài". Nhấn nút bên cạnh để AI chốt điểm và giao kết quả ngay.`
+                  : "Mọi bài nộp sẽ được AI phân tích, tự động chốt điểm và gửi email kết quả cho ứng viên ngay khi nộp."}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+            {pendingSubmissions.length > 0 && (
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => autoGradeAll.mutate()}
+                disabled={autoGradeAll.isPending}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
+              >
+                {autoGradeAll.isPending ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <Zap className="size-3.5 fill-current" />
+                )}
+                Chốt điểm tự động ({pendingSubmissions.length} bài chờ)
+              </Button>
+            )}
+            <Link
+              to={`/recruiter/jobs/${job.id}/assessments/new`}
+              className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 hover:text-emerald-900 dark:text-emerald-400 dark:hover:text-emerald-200 hover:underline px-2 py-1"
+            >
+              Cài đặt chung →
+            </Link>
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-slate-50/70 p-3.5 shadow-2xs dark:border-slate-800 dark:bg-slate-900/50">
+          <div className="flex items-start sm:items-center gap-3 min-w-0">
+            <div className="grid size-8.5 shrink-0 place-items-center rounded-xl bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+              <SlidersHorizontal className="size-4" />
+            </div>
+            <div className="min-w-0">
+              <span className="font-semibold text-slate-800 dark:text-slate-200 text-xs sm:text-sm">
+                Quy tắc chấm đề: Đang duyệt thủ công bởi Nhà tuyển dụng
+              </span>
+              <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                Bài làm có câu tự luận & coding sẽ ở trạng thái "Chờ chấm bài" để bạn rà soát và xác nhận điểm trước khi giao kết quả.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+            {pendingSubmissions.length > 0 && (
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => autoGradeAll.mutate()}
+                disabled={autoGradeAll.isPending}
+              >
+                {autoGradeAll.isPending ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <Zap className="size-3.5 text-amber-500 fill-amber-500" />
+                )}
+                Chốt tự động 1 lần ({pendingSubmissions.length})
+              </Button>
+            )}
+            <Link
+              to={`/recruiter/jobs/${job.id}/assessments/new`}
+              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 shadow-2xs hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+            >
+              Bật tự động chấm →
+            </Link>
+          </div>
+        </div>
+      )}
 
       {/* 3. Single-line Responsive Toolbar (Left: Status Tabs, Right: Search & Actions) */}
       <div className="flex flex-col gap-2.5 rounded-2xl border border-slate-200/80 bg-white p-2.5 shadow-2xs dark:border-slate-800 dark:bg-slate-900 md:flex-row md:items-center md:justify-between">
@@ -350,12 +491,12 @@ export function AssessmentSubmissionsPage() {
             <div className="overflow-x-auto scrollbar-thin">
               <table className="w-full table-fixed border-collapse text-left text-sm">
                 <colgroup>
+                  <col className="w-[20%] min-w-[160px]" />
                   <col className="w-[22%] min-w-[170px]" />
-                  <col className="w-[24%] min-w-[180px]" />
-                  <col className="w-[13%] min-w-[110px]" />
-                  <col className="w-[20%] min-w-[170px]" />
+                  <col className="w-[12%] min-w-[100px]" />
+                  <col className="w-[20%] min-w-[160px]" />
                   <col className="w-[11%] min-w-[95px]" />
-                  <col className="w-[10%] min-w-[90px]" />
+                  <col className="w-[15%] min-w-[130px]" />
                 </colgroup>
                 <thead>
                   <tr
@@ -386,7 +527,9 @@ export function AssessmentSubmissionsPage() {
                       row={row}
                       attemptInfo={attemptMap.get(row.id)}
                       density={density}
-                      onReview={() => setReviewId(row.id)}
+                      onReview={() => navigate(`/recruiter/jobs/${job.id}/assessments/submissions/${row.id}`)}
+                      onAutoGrade={(subId) => autoGradeOne.mutate(subId)}
+                      isAutoGrading={gradingSubmissionId === row.id}
                     />
                   ))}
                 </tbody>
@@ -450,11 +593,15 @@ function SubmissionRow({
   attemptInfo,
   density,
   onReview,
+  onAutoGrade,
+  isAutoGrading,
 }: {
   row: SubmissionSummary;
   attemptInfo?: { attempt: number; totalAttempts: number };
   density: "compact" | "normal";
   onReview: () => void;
+  onAutoGrade: (id: number) => void;
+  isAutoGrading: boolean;
 }) {
   const inProgress = row.status === "IN_PROGRESS";
   const isPendingGrading = row.status === "SUBMITTED" || (row.status !== "IN_PROGRESS" && row.score == null);
@@ -657,25 +804,41 @@ function SubmissionRow({
         )}
       >
         {isPendingGrading ? (
-          density === "compact" ? (
+          <div className="inline-flex items-center gap-1.5 justify-end">
             <button
               type="button"
-              onClick={onReview}
-              title="Chấm bài thi này"
-              className="inline-flex size-7 items-center justify-center rounded-lg bg-[var(--color-primary)] text-white shadow-xs hover:bg-[var(--color-primary-hover)] active:scale-95 transition-all cursor-pointer"
+              onClick={() => onAutoGrade(row.id)}
+              disabled={isAutoGrading}
+              title="Chốt điểm tự động ngay theo gợi ý của AI"
+              className="inline-flex items-center gap-1 rounded-lg border border-amber-300 bg-amber-50 px-2 py-1.5 text-xs font-semibold text-amber-800 shadow-2xs hover:bg-amber-100 dark:border-amber-700/60 dark:bg-amber-950/40 dark:text-amber-300 transition-all cursor-pointer disabled:opacity-50"
             >
-              <Pencil className="size-3.5" />
+              {isAutoGrading ? (
+                <Loader2 className="size-3.5 animate-spin text-amber-600" />
+              ) : (
+                <Zap className="size-3.5 fill-amber-500 text-amber-500" />
+              )}
+              <span className="hidden xl:inline">Chốt tự động</span>
             </button>
-          ) : (
-            <button
-              type="button"
-              onClick={onReview}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--color-primary)] px-2.5 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-[var(--color-primary-hover)] active:scale-95 transition-all cursor-pointer"
-            >
-              <Pencil className="size-3.5" />
-              Chấm bài
-            </button>
-          )
+            {density === "compact" ? (
+              <button
+                type="button"
+                onClick={onReview}
+                title="Xem & duyệt điểm chi tiết"
+                className="inline-flex size-7 items-center justify-center rounded-lg bg-[var(--color-primary)] text-white shadow-xs hover:bg-[var(--color-primary-hover)] active:scale-95 transition-all cursor-pointer"
+              >
+                <Pencil className="size-3.5" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={onReview}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--color-primary)] px-2.5 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-[var(--color-primary-hover)] active:scale-95 transition-all cursor-pointer"
+              >
+                <Pencil className="size-3.5" />
+                Chấm bài
+              </button>
+            )}
+          </div>
         ) : canReview ? (
           density === "compact" ? (
             <button

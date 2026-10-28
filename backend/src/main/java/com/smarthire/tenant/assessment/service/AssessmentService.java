@@ -111,6 +111,7 @@ public class AssessmentService {
         test.setDurationMinutes(request.durationMinutes());
         test.setPassingScore(request.passingScore());
         if (request.codingTestWeightPercent() != null) test.setCodingTestWeightPercent(request.codingTestWeightPercent());
+        if (request.autoGradingEnabled() != null) test.setAutoGradingEnabled(request.autoGradingEnabled());
     }
 
     public Map<String, String> health() {

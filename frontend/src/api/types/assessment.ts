@@ -20,9 +20,11 @@ export type JobTest = {
   assignedApplicationId?: number | null;
   /** Hidden-test share of coding score (0–100). AI gets the remainder. */
   codingTestWeightPercent?: number;
+  autoGradingEnabled?: boolean;
 };
 export type TestRequest = Pick<JobTest, "jobId" | "title" | "description" | "durationMinutes" | "passingScore" | "objectiveDurationMinutes"> & {
   codingTestWeightPercent?: number | null;
+  autoGradingEnabled?: boolean;
 };
 export type TestPage = { items: JobTest[]; total: number; page: number; size: number };
 export type QuestionRequest = {

@@ -16,6 +16,7 @@ export type AssessmentConfiguration = {
   durationMinutes: number;
   passingPercent: number;
   autoAssign: boolean;
+  autoGradingEnabled?: boolean;
   sections: AssessmentSection[];
   codingTestWeightPercent?: number;
   codingAiWeightPercent?: number;
