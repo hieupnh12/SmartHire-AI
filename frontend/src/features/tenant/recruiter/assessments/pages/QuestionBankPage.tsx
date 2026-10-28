@@ -1,5 +1,5 @@
 import { useRecruitmentJob } from "../../jobs/components/JobRecruitmentWorkspace";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
 import {
@@ -44,8 +44,8 @@ import { Skeleton } from "@/components/ux/Skeleton";
 import { Tooltip } from "@/components/ux/Tooltip";
 import { SKILL_CATALOG } from "@/features/tenant/recruiter/jobs/skillCatalog";
 import { queryKeys } from "@/lib/query-keys";
-import { getTenantIdFromWindow } from "@/lib/tenant";
-import { getTenantTheme } from "@/lib/tenantTheme";
+
+
 import { cn } from "@/lib/utils";
 import { toast } from "@/stores/toastStore";
 
@@ -260,7 +260,7 @@ export function QuestionBankPage() {
   const job = useRecruitmentJob();
   const client = useQueryClient();
   const basePath = `/recruiter/jobs/${job.id}/assessments`;
-  const workspace = getTenantTheme(getTenantIdFromWindow() ?? "acme").name;
+
 
   const [params, setParams] = useSearchParams();
 

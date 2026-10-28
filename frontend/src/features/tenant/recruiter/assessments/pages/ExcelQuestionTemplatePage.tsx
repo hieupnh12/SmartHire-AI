@@ -20,11 +20,9 @@ import {
   Code2,
   HelpCircle,
   ListChecks,
-  Pencil,
   Plus,
   Save,
   ShieldCheck,
-  Table2,
   Trash2,
 } from "lucide-react";
 import { Breadcrumb } from "@/components/ux/Breadcrumb";

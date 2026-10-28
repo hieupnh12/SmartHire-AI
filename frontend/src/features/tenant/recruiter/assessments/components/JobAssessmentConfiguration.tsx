@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useFieldArray, useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { CheckCircle2, ClipboardList, Plus, Settings2, Sparkles, Trash2, AlertCircle, Code2, FileText, ListChecks, Sliders, Check, Scale, BookOpen, GitCompare, Network, AlertTriangle, HelpCircle, Clock, RotateCcw, Save, Target, Zap } from "lucide-react";
+import { ClipboardList, Plus, Settings2, Trash2, AlertCircle, Code2, FileText, ListChecks, Sliders, Check, Scale, BookOpen, GitCompare, Network, AlertTriangle, HelpCircle, Clock, RotateCcw, Save, Target, Zap } from "lucide-react";
 import { assessmentGenerationApi } from "@/api/tenant/assessmentGenerationApi";
 import type { AssessmentConfiguration, RubricCriterionConfig } from "@/api/types/assessmentGeneration";
 import { AssessmentError } from "@/components/ux/assessmentUi";
@@ -222,7 +222,6 @@ export function ConfigurationForm({
   const sections = watch("sections") || [];
   const count = sections.reduce((sum, row) => sum + (Number(row?.count) || 0), 0);
   const total = sections.reduce((sum, row) => sum + (Number(row?.count) || 0) * (Number(row?.points) || 0), 0);
-  const totalPoints = total;
   const [exerciseFilter, setExerciseFilter] = useState<"ALL" | "MCQ" | "ESSAY" | "CODING">("MCQ");
 
   const passingPercent = watch("passingPercent") ?? 70;
@@ -274,15 +273,6 @@ export function ConfigurationForm({
   const codingCount = codingItems.reduce((sum, item) => sum + (Number(item.section?.count) || 0), 0);
   const codingPoints = codingItems.reduce((sum, item) => sum + (Number(item.section?.count) || 0) * (Number(item.section?.points) || 0), 0);
   const codingPercent = total ? Math.round((codingPoints / total) * 10000) / 100 : 0;
-
-  const toggleSkill = (skill: string) => {
-    if (selectedSkills.has(skill)) {
-      const indexes = sections.flatMap((section, index) => (section?.skill === skill ? [index] : []));
-      remove(indexes);
-    } else {
-      append({ skill, questionType: "MCQ", difficulty: "Easy", count: 1, points: 1 });
-    }
-  };
 
   const mutation = useMutation({
     mutationFn: async ({ data, generate }: { data: AssessmentConfiguration; generate: boolean }) => {
