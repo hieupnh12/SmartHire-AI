@@ -279,15 +279,6 @@ export function ConfigurationForm({
   const codingPoints = codingItems.reduce((sum, item) => sum + (Number(item.section?.count) || 0) * (Number(item.section?.points) || 0), 0);
   const codingPercent = total ? Math.round((codingPoints / total) * 10000) / 100 : 0;
 
-  const toggleSkill = (skill: string) => {
-    if (selectedSkills.has(skill)) {
-      const indexes = sections.flatMap((section, index) => (section?.skill === skill ? [index] : []));
-      remove(indexes);
-    } else {
-      append({ skill, questionType: "MCQ", difficulty: "Easy", count: 1, points: 1 });
-    }
-  };
-
   const mutation = useMutation({
     mutationFn: async ({ data, generate }: { data: AssessmentConfiguration; generate: boolean }) => {
       await assessmentGenerationApi.save(job.id, data);

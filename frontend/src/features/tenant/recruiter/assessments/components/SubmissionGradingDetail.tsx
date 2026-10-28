@@ -511,7 +511,7 @@ export function SubmissionGradingDetail({
           <div>
             <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
               <span>
-                Ngưỡng đạt: <strong>{passingNum != null ? `${display(passingNum)} đ` : "Không đặt"}</strong>
+                Ngưỡng đạt: <strong>{numPassing != null ? `${display(numPassing)} đ` : "Không đặt"}</strong>
               </span>
               {numScore != null && totalPoints > 0 && (
                 <span className="font-semibold text-blue-600 dark:text-blue-400">
@@ -895,7 +895,7 @@ export function SubmissionGradingDetail({
 function QuestionReviewCard({
   index,
   review,
-  submissionId,
+  submissionId: _submissionId,
   busy,
   register,
   errors,
@@ -926,7 +926,7 @@ function QuestionReviewCard({
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3 dark:border-slate-800">
         <div className="flex flex-wrap items-center gap-2">
           <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-black text-slate-800 dark:bg-slate-800 dark:text-slate-200">
-            Câu #{review.questionId}
+            Câu {index} (ID #{review.questionId})
           </span>
 
           {isEssay ? (
@@ -1083,6 +1083,13 @@ function QuestionReviewCard({
 // ==========================================
 // SUBCOMPONENT: ESSAY EVIDENCE DETAIL
 // ==========================================
+type RubricCriterionView = {
+  name?: string;
+  description?: string;
+  guide?: string;
+  weight?: number;
+};
+
 function EssayEvidenceDetail({ review }: { review: GradingReview }) {
   const evaluation = safeObject(review.evaluation);
   const results = Array.isArray(evaluation.criteria_results) ? evaluation.criteria_results : [];
@@ -1137,10 +1144,10 @@ function EssayEvidenceDetail({ review }: { review: GradingReview }) {
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {criteria.map((cRaw, idx) => {
-                const criterion =
+                const criterion: RubricCriterionView =
                   typeof cRaw === "string"
-                    ? { description: cRaw, weight: Math.round(100 / (criteria.length || 1)) }
-                    : safeObject(cRaw);
+                    ? { name: cRaw, description: cRaw, weight: Math.round(100 / (criteria.length || 1)) }
+                    : (safeObject(cRaw) as RubricCriterionView);
                 const res = safeObject(results[idx]);
                 const percent = safeNumber(res.score_percent);
                 const weight = safeNumber(criterion.weight) ?? 0;
