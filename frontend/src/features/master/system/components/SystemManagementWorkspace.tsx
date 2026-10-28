@@ -7,7 +7,6 @@ import {
   Cpu,
   FileDown,
   Gauge,
-  Loader2,
   PowerOff,
   RefreshCw,
   RotateCcw,

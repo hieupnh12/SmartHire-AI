@@ -18,7 +18,6 @@ import {
   FileSpreadsheet,
   Loader2,
   MoreVertical,
-  Plus,
   Search,
   Settings2,
   Users,

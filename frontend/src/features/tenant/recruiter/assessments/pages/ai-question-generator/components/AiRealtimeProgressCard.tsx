@@ -8,7 +8,6 @@ import {
   Sparkles,
   StopCircle,
 } from "lucide-react";
-import { Button } from "@/components/ux/Button";
 import { cn } from "@/lib/utils";
 
 export type RealtimeStage = "analyzing" | "generating" | "verifying" | "completed";

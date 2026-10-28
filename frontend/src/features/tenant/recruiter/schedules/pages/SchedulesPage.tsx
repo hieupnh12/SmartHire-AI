@@ -407,16 +407,22 @@ export function SchedulesPage() {
                         <span className={cn("rounded px-1.5 text-[10px] font-medium", meta?.chip)}>{meta?.label || item.round}</span>
                       </div>
                       <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-                        {item.mode === "ONLINE" && item.locationOrLink.startsWith("http") && (
-                          <>
-                            <a href={item.locationOrLink} target="_blank" rel="noreferrer" className="inline-flex h-6 items-center gap-1 rounded bg-brand-primary px-2 text-[11px] font-semibold text-white hover:bg-brand-primary-hover">
-                              <Video className="size-3" /> Vào họp
-                            </a>
-                            <button type="button" onClick={() => handleCopyLink(item.locationOrLink)} className="inline-flex h-6 items-center gap-0.5 rounded border border-[var(--color-border-default)] px-1.5 text-[11px] hover:bg-[var(--color-surface-alt)]">
+                        {item.mode === "ONLINE" && (item.locationOrLink.includes("/meet/human/") || item.locationOrLink.startsWith("http")) && (
+                            <>
+                            {item.locationOrLink.includes("/meet/human/") ? (
+                              <Link to={`/meet/human/${item.id}`} className="inline-flex h-6 items-center gap-1 rounded bg-brand-primary px-2 text-[11px] font-semibold text-white hover:bg-brand-primary-hover">
+                                <Video className="size-3" /> Vào họp
+                              </Link>
+                            ) : (
+                              <a href={item.locationOrLink} target="_blank" rel="noreferrer" className="inline-flex h-6 items-center gap-1 rounded bg-brand-primary px-2 text-[11px] font-semibold text-white hover:bg-brand-primary-hover">
+                                <Video className="size-3" /> Vào họp
+                              </a>
+                            )}
+                            <button type="button" onClick={() => handleCopyLink(item.locationOrLink.includes("/meet/human/") ? `${window.location.origin}/meet/human/${item.id}` : item.locationOrLink)} className="inline-flex h-6 items-center gap-0.5 rounded border border-[var(--color-border-default)] px-1.5 text-[11px] hover:bg-[var(--color-surface-alt)]">
                               <Copy className="size-2.5" /> Copy link
                             </button>
-                          </>
-                        )}
+                            </>
+                          )}
                         {item.jobId && (
                           <Link
                             to={`/recruiter/jobs/${item.jobId}/interviews`}

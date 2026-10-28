@@ -8,7 +8,7 @@ import { HELP } from "../types";
 interface AiStudioHeaderProps {
   job: JobDetail | null | undefined;
   backPath: string;
-  busy: boolean;
+  busy?: boolean;
   selectedCount: number;
   isSaving: boolean;
   onSave: () => void;
@@ -17,7 +17,6 @@ interface AiStudioHeaderProps {
 export function AiStudioHeader({
   job,
   backPath,
-  busy,
   selectedCount,
   isSaving,
   onSave,
