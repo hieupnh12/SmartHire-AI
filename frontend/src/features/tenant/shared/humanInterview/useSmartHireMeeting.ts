@@ -122,7 +122,7 @@ export function useSmartHireMeeting({ interviewId, displayName, enabled }: Optio
       peer.on("connection", (conn) => acceptData(peer, stream, conn));
     };
 
-    const startAsHost = (stream: MediaStream) =>
+    const startAsHost = (_stream: MediaStream) =>
       new Promise<Peer>((resolve, reject) => {
         const hostId = hostPeerId(interviewId);
         const host = new Peer(hostId, { debug: 0 });
