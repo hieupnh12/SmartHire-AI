@@ -12,14 +12,36 @@ import { useCandidateInterviewScope } from "../hooks/useCandidateInterviews";
 const turnSchema = z.string().trim().min(1, "Hãy nhập hoặc ghi âm câu trả lời.").max(10000, "Câu trả lời tối đa 10.000 ký tự.");
 
 function cleanStreamingText(raw: string): string {
-  return raw
+  let cleaned = raw
+    .replace(/<think>[\s\S]*?<\/think>/gi, "")
+    .replace(/<think>[\s\S]*$/gi, "")
+    .replace(/<thought>[\s\S]*?<\/thought>/gi, "")
+    .replace(/<thought>[\s\S]*$/gi, "")
+    .replace(/<reasoning>[\s\S]*?<\/reasoning>/gi, "")
+    .replace(/<reasoning>[\s\S]*$/gi, "")
     .replace(/^#{1,6}\s+.*$/gm, "")
     .replace(/^(AI Interviewer|Interviewer|Assistant|AI|Trợ lý AI|Người phỏng vấn|面接官|AI面接官)\s*[:：\-]\s*/i, "")
     .replace(/^(Certainly|Sure|Alright|Okay|OK)[!.,]?\s*(Here (is|are) (the|your|a) (opening|first|next)?\s*(question|scenario|follow-up)[:.]?\s*)?/i, "")
     .replace(/^(Dưới đây là|Sau đây là)\s*(câu hỏi|lời chào|nội dung phỏng vấn)[^.?!:]*[:：.]\s*/i, "")
     .replace(/^(承知いたしました|かしこまりました|以下が質問です|それでは最初の質問です)[!！。、\s]*([:：]\s*)?/i, "")
     .replace(/^\*\*.*?\*\*[:：]?\s*/, "")
+    .replace(/^(Okay|OK|Alright|So|Now|First|Looking at)[^.!?\n]*(mentioned|said|noted|used|focus|question|candidate|user)[^.!?\n]*[.!?\n]+\s*/i, "")
     .trimStart();
+
+  let matched = false;
+  do {
+    matched = false;
+    const before = cleaned;
+    cleaned = cleaned
+      .replace(/^(Hello|Hi|Greetings|Good (morning|afternoon|evening|day))[!.,]?\s*(and\s+)?(welcome (to (the|this|our|your)?\s*[^.!\n]*)?)?[!.,]?\s*/i, "")
+      .replace(/^Welcome to (the|this|our|your)?\s*[^.!\n]*[!.,]\s*/i, "")
+      .replace(/^(Let's (begin|start)( the interview)?|To (begin|start)( with)?)[!.,:]?\\s*/i, "")
+      .replace(/^Thank you for (joining|participating in|attending)[^.!\n]*[!.,]\s*/i, "")
+      .trimStart();
+    if (cleaned !== before) matched = true;
+  } while (matched && cleaned.length > 0);
+
+  return cleaned || raw.trimStart();
 }
 
 export function ConversationRoom({ id, active, disabled, voiceEnabled, recordingEnabled, onActivity }: {
@@ -29,7 +51,7 @@ export function ConversationRoom({ id, active, disabled, voiceEnabled, recording
   const scope = useCandidateInterviewScope(); const key = [...scope, id, "conversation"];
   const client = useQueryClient();
   const session = useQuery({ queryKey: key, queryFn: () => interviewConversationApi.get(id), enabled: !!scope[2] });
-  const { register, watch, setValue, reset, handleSubmit, formState: { errors } } = useForm<{ content: string }>({ defaultValues: { content: "" } });
+  const { watch, setValue, reset, handleSubmit, formState: { errors } } = useForm<{ content: string }>({ defaultValues: { content: "" } });
   const draft = watch("content"); const [partial, setPartial] = useState("");
   const [error, setError] = useState<string | null>(null); const [speaking, setSpeaking] = useState<number | null>(null);
   const [browserSpeech, setBrowserSpeech] = useState(false);
@@ -63,7 +85,11 @@ export function ConversationRoom({ id, active, disabled, voiceEnabled, recording
       setValue("content", content, { shouldDirty: true, shouldValidate: true });
       if (submitRecording.current) {
         submitRecording.current = false;
-        setVoiceSubmission(content);
+        if (content.trim() && active && !disabled && !send.isPending) {
+          submit({ content: content.trim() });
+        } else {
+          setVoiceSubmission(content);
+        }
       }
     },
     {
@@ -136,13 +162,40 @@ export function ConversationRoom({ id, active, disabled, voiceEnabled, recording
   }
 
   function stopPlayback() {
-    playbackRequest.current++; audio.current?.pause(); window.speechSynthesis?.cancel();
+    playbackRequest.current++;
+    audio.current?.pause();
+    window.speechSynthesis?.cancel();
     if (audioUrl.current) { URL.revokeObjectURL(audioUrl.current); audioUrl.current = null; }
-    setSpeaking(null); setBrowserSpeech(false);
+    setSpeaking(null);
+    setBrowserSpeech(false);
   }
 
   function submit(value: { content: string }) {
     stopPlayback(); setError(null); send.mutate(value.content.trim());
+  }
+
+  function handleStopMic() {
+    submitRecording.current = false;
+    const current = (draft || liveTranscript || "").trim();
+    voice.stop();
+    if (current) {
+      baseDraftRef.current = current;
+      setValue("content", current, { shouldDirty: true, shouldValidate: true });
+    }
+  }
+
+  function handleSendVoiceAnswer() {
+    stopPlayback();
+    const current = (draft || liveTranscript || "").trim();
+    if (current && !send.isPending) {
+      submitRecording.current = false;
+      voice.stop();
+      setValue("content", current, { shouldDirty: true, shouldValidate: true });
+      submit({ content: current });
+    } else {
+      submitRecording.current = true;
+      voice.stop();
+    }
   }
 
   async function play(message: ConversationMessage) {
@@ -151,48 +204,80 @@ export function ConversationRoom({ id, active, disabled, voiceEnabled, recording
       return;
     }
     const request = ++playbackRequest.current;
-    audio.current?.pause(); if (audioUrl.current) URL.revokeObjectURL(audioUrl.current);
-    window.speechSynthesis?.cancel(); setSpeaking(message.id); setError(null); setBrowserSpeech(false);
+    audio.current?.pause();
+    if (audioUrl.current) URL.revokeObjectURL(audioUrl.current);
+    window.speechSynthesis?.cancel();
+    setSpeaking(message.id);
+    setError(null);
+    setBrowserSpeech(false);
+
     try {
       const blob = active ? await interviewConversationApi.speech(id, message.id) : await interviewConversationApi.recording(id, message.id);
       if (request !== playbackRequest.current) return;
-      const url = URL.createObjectURL(blob); audioUrl.current = url;
-      const player = new Audio(url); audio.current = player;
-      player.onended = () => { setSpeaking(null); URL.revokeObjectURL(url); audioUrl.current = null; };
-      player.onerror = () => { setSpeaking(null); setError("Không phát được bản ghi. Vui lòng thử lại."); };
+      const url = URL.createObjectURL(blob);
+      audioUrl.current = url;
+      const player = new Audio(url);
+      audio.current = player;
+      player.onended = () => {
+        if (request === playbackRequest.current) {
+          setSpeaking(null);
+          URL.revokeObjectURL(url);
+          audioUrl.current = null;
+        }
+      };
+      player.onerror = () => {
+        if (request === playbackRequest.current) {
+          setSpeaking(null);
+          setError("Không phát được bản ghi. Vui lòng thử lại.");
+        }
+      };
       await player.play();
     } catch (failure) {
       if (request !== playbackRequest.current) return;
+      // If autoplay was blocked by browser policy without user gesture, resume on first click
+      if (failure instanceof Error && failure.name === "NotAllowedError") {
+        setSpeaking(null);
+        const resumeOnInteraction = () => {
+          window.removeEventListener("click", resumeOnInteraction);
+          window.removeEventListener("keydown", resumeOnInteraction);
+          if (active && autoPlayVoice) {
+            void play(message);
+          }
+        };
+        window.addEventListener("click", resumeOnInteraction, { once: true });
+        window.addEventListener("keydown", resumeOnInteraction, { once: true });
+        return;
+      }
       if (active && "speechSynthesis" in window && typeof SpeechSynthesisUtterance !== "undefined") {
         const langCode = session.data?.language === "Vietnamese" ? "vi" : session.data?.language === "Japanese" ? "ja" : "en";
         const fullLang = session.data?.language === "Vietnamese" ? "vi-VN" : session.data?.language === "Japanese" ? "ja-JP" : "en-US";
         const voices = window.speechSynthesis.getVoices?.() ?? [];
         const matchedVoice = voices.find(v => v.lang.toLowerCase().replace("_", "-").startsWith(langCode));
 
-        if (!matchedVoice && langCode !== "en") {
-          setSpeaking(null);
-          setBrowserSpeech(false);
-          const langLabel = session.data?.language === "Japanese" ? "tiếng Nhật" : "tiếng Việt";
-          setError(`Trình duyệt chưa có gói giọng đọc ${langLabel}. Bạn vui lòng đọc nội dung câu hỏi trên màn hình.`);
-          return;
-        }
-
-        const cleanContent = message.content
-          .replace(/^#{1,6}\s+.*$/gm, "")
-          .replace(/^(AI Interviewer|Interviewer|Assistant|AI|Trợ lý AI|Người phỏng vấn|面接官|AI面接官)\s*[:：\-]\s*/i, "")
-          .replace(/^(Certainly|Sure|Alright|Okay|OK)[!.,]?\s*(Here (is|are) (the|your|a) (opening|first|next)?\s*(question|scenario|follow-up)[:.]?\s*)?/i, "")
-          .replace(/^(Dưới đây là|Sau đây là)\s*(câu hỏi|lời chào|nội dung phỏng vấn)[^.?!:]*[:：.]\s*/i, "")
-          .replace(/^(承知いたしました|かしこまりました|以下が質問です|それでは最初の質問です)[!！。、\s]*([:：]\s*)?/i, "")
-          .replace(/\*\*/g, "")
-          .trim();
-
+        const cleanContent = cleanStreamingText(message.content);
         const utterance = new SpeechSynthesisUtterance(cleanContent || message.content);
         utterance.lang = fullLang;
         if (matchedVoice) utterance.voice = matchedVoice;
-        utterance.onend = () => { if (request === playbackRequest.current) { setSpeaking(null); setBrowserSpeech(false); } };
-        utterance.onerror = event => { if (request !== playbackRequest.current) return; setSpeaking(null); setBrowserSpeech(false); if (event.error !== "canceled" && event.error !== "interrupted") setError("Không phát được giọng đọc. Bạn có thể đọc nội dung câu hỏi và thử lại."); };
-        setBrowserSpeech(true); window.speechSynthesis.speak(utterance);
-      } else { setError(getApiErrorMessage(failure)); setSpeaking(null); }
+        utterance.onend = () => {
+          if (request === playbackRequest.current) {
+            setSpeaking(null);
+            setBrowserSpeech(false);
+          }
+        };
+        utterance.onerror = event => {
+          if (request !== playbackRequest.current) return;
+          setSpeaking(null);
+          setBrowserSpeech(false);
+          if (event.error !== "canceled" && event.error !== "interrupted") {
+            setError("Không phát được giọng đọc. Bạn có thể đọc nội dung câu hỏi và thử lại.");
+          }
+        };
+        setBrowserSpeech(true);
+        window.speechSynthesis.speak(utterance);
+      } else {
+        setError(getApiErrorMessage(failure));
+        setSpeaking(null);
+      }
     }
   }
 
@@ -241,7 +326,9 @@ export function ConversationRoom({ id, active, disabled, voiceEnabled, recording
     <ol className="max-h-[55vh] space-y-4 overflow-y-auto p-1" aria-label="Lịch sử hội thoại">
       {session.data?.messages.map(message => <li key={message.id} className={`max-w-[95%] rounded-2xl p-4 sm:max-w-[85%] ${message.role === "USER" ? "ml-auto bg-[var(--color-primary-container)] text-[var(--color-on-primary-container)]" : "bg-[var(--color-surface-container-low)] border border-[var(--color-border-subtle)]"}`}>
         <p className="mb-1 text-xs font-semibold">{message.role === "USER" ? "Bạn" : "AI Interviewer"}</p>
-        <p className="whitespace-pre-wrap break-words text-sm leading-6">{message.content}</p>
+        <p className="whitespace-pre-wrap break-words text-sm leading-6">
+          {message.role === "ASSISTANT" ? cleanStreamingText(message.content) : message.content}
+        </p>
         {(active && voiceEnabled && message.role === "ASSISTANT" || !active && message.hasRecording) && (
           <button
             type="button"
@@ -287,7 +374,7 @@ export function ConversationRoom({ id, active, disabled, voiceEnabled, recording
             {liveTranscript || "Hãy nói câu trả lời của bạn vào microphone..."}
           </span>
         </div>
-        <Button size="sm" variant="secondary" onClick={voice.stop}>
+        <Button size="sm" variant="secondary" onClick={handleStopMic}>
           <Square className="size-3.5" aria-hidden="true" />
           Dừng mic
         </Button>
@@ -304,18 +391,20 @@ export function ConversationRoom({ id, active, disabled, voiceEnabled, recording
 
     {active && !session.data?.dialogueComplete && <form onSubmit={handleSubmit(submit)} className="space-y-3">
       <label htmlFor={`conversation-draft-${id}`} className="block text-sm font-medium">Câu trả lời của bạn</label>
-      <textarea id={`conversation-draft-${id}`} {...register("content", { validate: value => { const parsed = turnSchema.safeParse(value); return parsed.success || parsed.error.issues[0].message; } })}
+      <textarea id={`conversation-draft-${id}`}
+        value={draft}
+        onChange={e => setValue("content", e.target.value, { shouldDirty: true, shouldValidate: true })}
         aria-invalid={!!errors.content} aria-describedby={errors.content ? `conversation-error-${id}` : undefined}
-        disabled={busy || disabled || !!pendingRecording} maxLength={10000} rows={4}
+        disabled={send.isPending || upload.isPending || disabled || !!pendingRecording} maxLength={10000} rows={4}
         placeholder="Nhập câu trả lời hoặc bấm 'Trả lời bằng giọng nói' để nói trực tiếp…"
         className="w-full resize-y rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-container-lowest)] p-3 text-sm outline-none focus:ring-2 focus:ring-[var(--color-primary)] disabled:opacity-60" />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <span className="text-xs text-[var(--color-on-surface-variant)]">{draft.length}/10.000 ký tự · Có thể chỉnh sửa văn bản trước khi gửi</span>
         <div className="flex flex-wrap gap-2">
           {voiceEnabled && (voice.status === "recording"
-            ? <Button type="button" variant="secondary" onClick={voice.stop}><Square className="size-4" aria-hidden="true" />Dừng micro</Button>
+            ? <Button type="button" variant="secondary" onClick={handleStopMic}><Square className="size-4" aria-hidden="true" />Dừng micro</Button>
             : <Button type="button" variant="secondary" disabled={busy || disabled || !!pendingRecording} onClick={() => { stopPlayback(); submitRecording.current = false; baseDraftRef.current = draft.trim(); setLiveTranscript(""); void voice.start(); }}><Mic className="size-4" aria-hidden="true" />Trả lời bằng giọng nói</Button>)}
-          {voice.status === "recording" ? <Button type="button" disabled={disabled} onClick={() => { submitRecording.current = true; voice.stop(); }}><Send className="size-4" aria-hidden="true" />Gửi câu trả lời</Button> : <Button type="submit" disabled={busy || disabled || !!pendingRecording || !draft.trim()}><Send className="size-4" aria-hidden="true" />{send.isPending ? "Đang gửi…" : "Gửi câu trả lời"}</Button>}
+          {voice.status === "recording" ? <Button type="button" disabled={disabled || send.isPending} onClick={handleSendVoiceAnswer}><Send className="size-4" aria-hidden="true" />{send.isPending ? "Đang gửi…" : "Gửi câu trả lời"}</Button> : <Button type="submit" disabled={busy || disabled || !!pendingRecording || !draft.trim()}><Send className="size-4" aria-hidden="true" />{send.isPending ? "Đang gửi…" : "Gửi câu trả lời"}</Button>}
         </div>
       </div>
     </form>}

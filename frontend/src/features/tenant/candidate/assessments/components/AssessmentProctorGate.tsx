@@ -55,7 +55,7 @@ export function AssessmentProctorGate({ busy, label = "Bắt đầu làm bài", 
       const live = (tracks: MediaStreamTrack[]) => tracks.some((track) => track.readyState === "live");
       if (
         !live(prepared.current.camera.getAudioTracks()) ||
-        !live(prepared.current.screen.getVideoTracks())
+        (prepared.current.screen && !live(prepared.current.screen.getVideoTracks()))
       ) {
         throw new Error("Microphone hoặc chia sẻ màn hình đã dừng. Hãy kiểm tra thiết bị lại.");
       }

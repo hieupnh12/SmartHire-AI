@@ -86,8 +86,10 @@ export function useConversationVoice(
   interimCallback.current = options?.onInterim;
 
   const isRecordingRef = useRef(false);
+  const accumulatedFinalRef = useRef("");
   const finalTranscriptRef = useRef("");
   const interimTranscriptRef = useRef("");
+  const lastRecognizedRef = useRef("");
   const mounted = useRef(true);
 
   function cleanup() {
@@ -229,8 +231,10 @@ export function useConversationVoice(
     setError(null);
     setBlob(null);
     setStatus("connecting");
+    accumulatedFinalRef.current = "";
     finalTranscriptRef.current = "";
     interimTranscriptRef.current = "";
+    lastRecognizedRef.current = "";
 
     try {
       window.speechSynthesis?.cancel();
@@ -280,45 +284,67 @@ export function useConversationVoice(
         recognition.maxAlternatives = 1;
 
         recognition.onresult = (event: SpeechRecognitionEventLike) => {
-          let currentFinal = "";
-          let currentInterim = "";
+          let sessionFinal = "";
+          let sessionInterim = "";
           for (let i = 0; i < event.results.length; i++) {
             const item = event.results[i];
             if (item.isFinal) {
-              currentFinal += item[0].transcript + " ";
+              sessionFinal += item[0].transcript + " ";
             } else {
-              currentInterim += item[0].transcript;
+              sessionInterim += item[0].transcript;
             }
           }
-          finalTranscriptRef.current = currentFinal;
-          interimTranscriptRef.current = currentInterim;
-          const combined = (currentFinal + currentInterim).trim();
-          if (combined && interimCallback.current) {
-            interimCallback.current(combined);
+          finalTranscriptRef.current = sessionFinal.trim();
+          interimTranscriptRef.current = sessionInterim.trim();
+
+          const parts = [
+            accumulatedFinalRef.current,
+            finalTranscriptRef.current,
+            interimTranscriptRef.current,
+          ].filter(Boolean);
+          const combined = parts.join(" ").replace(/\s+/g, " ").trim();
+          if (combined) {
+            lastRecognizedRef.current = combined;
+            if (interimCallback.current) {
+              interimCallback.current(combined);
+            }
           }
         };
 
         recognition.onerror = event => {
           if (event.error === "no-speech") return;
           console.warn("SpeechRecognition notice:", event.error);
-          // If permission denied or service blocked, fallback if no text has been recorded
-          if (
-            (event.error === "not-allowed" || event.error === "service-not-allowed") &&
-            !finalTranscriptRef.current.trim() &&
-            !interimTranscriptRef.current.trim()
-          ) {
+          // If permission denied, network error, or service error and no text was recognized yet, fallback to backend STT
+          if (!lastRecognizedRef.current.trim() && !accumulatedFinalRef.current.trim()) {
             cleanup();
             void startWebSocketFallback(audioStream, mime);
           }
         };
 
         recognition.onend = () => {
-          // Restart if candidate hasn't pressed stop yet (browser auto-ends on long pause)
+          // Accumulate recognized text across browser silence timeouts (even if still in interim)
+          const endingText = finalTranscriptRef.current || interimTranscriptRef.current;
+          if (endingText) {
+            accumulatedFinalRef.current = [accumulatedFinalRef.current, endingText]
+              .filter(Boolean)
+              .join(" ")
+              .trim();
+            finalTranscriptRef.current = "";
+            interimTranscriptRef.current = "";
+          }
+
+          // Restart if candidate is still actively recording
           if (isRecordingRef.current && mounted.current) {
             try {
               recognition.start();
             } catch {
-              // Ignore restart error if already stopping
+              setTimeout(() => {
+                if (isRecordingRef.current && mounted.current && recognitionRef.current) {
+                  try {
+                    recognitionRef.current.start();
+                  } catch {}
+                }
+              }, 50);
             }
           }
         };
@@ -367,9 +393,15 @@ export function useConversationVoice(
       media.current?.getTracks().forEach(track => track.stop());
       media.current = null;
 
-      // Extract full recognized text
-      const full = (finalTranscriptRef.current + " " + interimTranscriptRef.current).trim();
+      // Extract full recognized text from accumulated, current final, interim, or last recognized text
+      const parts = [
+        accumulatedFinalRef.current,
+        finalTranscriptRef.current,
+        interimTranscriptRef.current,
+      ].filter(Boolean);
+      const full = parts.join(" ").replace(/\s+/g, " ").trim() || lastRecognizedRef.current.trim();
       if (full) {
+        setError(null);
         callback.current(full);
       } else {
         setError("Không nhận được lời nói. Hãy thu lại hoặc nhập câu trả lời.");

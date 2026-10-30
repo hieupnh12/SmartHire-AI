@@ -57,7 +57,7 @@ public class InterviewConversationClient {
             @org.springframework.beans.factory.annotation.Qualifier("interviewConversationHttp") RestClient.Builder builder,
             @Value("${AI_INTERVIEW_NATIVE_BASE_URL:https://generativelanguage.googleapis.com/v1beta}") String nativeBase,
             @org.springframework.beans.factory.annotation.Qualifier("interviewConversationWebClient") WebClient.Builder webBuilder,
-            @Value("${AI_INTERVIEW_CONVERSATION_TIMEOUT_SECONDS:60}") int timeoutSeconds) {
+            @Value("${AI_INTERVIEW_CONVERSATION_TIMEOUT_SECONDS:240}") int timeoutSeconds) {
         this.configs = configs; this.mapper = mapper;
         this.nativeBase = nativeBase.replaceAll("/+$", "");
         http = builder.clone().build();
@@ -77,36 +77,55 @@ public class InterviewConversationClient {
 
     private java.util.Optional<DynamicAiConfigProvider.ResolvedAiConfig> resolveGeminiFailover(
             DynamicAiConfigProvider.ResolvedAiConfig primary, String primaryModel) {
-        if (primary == null || !primary.hasFailover()) {
+        if (primary == null) {
             return java.util.Optional.empty();
         }
         if (configs != null) {
             var resolved = configs.resolveFailoverConfig(primary);
-            if (resolved.isPresent()
-                    && "GEMINI".equalsIgnoreCase(resolved.get().provider())
-                    && !resolved.get().modelName().equalsIgnoreCase(primaryModel)) {
+            if (resolved.isPresent() && !resolved.get().modelName().equalsIgnoreCase(primaryModel)) {
+                var res = resolved.get();
+                if ("GEMINI".equalsIgnoreCase(res.provider())
+                        && ("gemini-2.0-flash".equalsIgnoreCase(res.modelName()) || "gemini-1.5-flash".equalsIgnoreCase(res.modelName()))) {
+                    return java.util.Optional.of(new DynamicAiConfigProvider.ResolvedAiConfig(
+                            res.taskType(), res.provider(), "gemini-3.1-flash-lite", res.apiKey(),
+                            res.endpointUrl(), res.temperature(), res.maxTokens(), res.timeoutSeconds(),
+                            res.failoverProvider(), res.failoverModel()));
+                }
                 return resolved;
             }
         }
         String targetProvider = (primary.failoverProvider() == null || primary.failoverProvider().isBlank())
-                ? primary.provider()
+                ? "GEMINI"
                 : primary.failoverProvider().trim().toUpperCase();
-        if (primary.failoverModel() == null || primary.failoverModel().isBlank()) {
-            return java.util.Optional.empty();
+        String targetModel = (primary.failoverModel() == null || primary.failoverModel().isBlank())
+                ? "gemini-3.1-flash-lite"
+                : primary.failoverModel().trim();
+        if ("gemini-2.0-flash".equalsIgnoreCase(targetModel) || "gemini-1.5-flash".equalsIgnoreCase(targetModel)) {
+            targetModel = "gemini-3.1-flash-lite";
         }
-        String targetModel = primary.failoverModel().trim();
         if ("GEMINI".equalsIgnoreCase(targetProvider) && !targetModel.equalsIgnoreCase(primaryModel)) {
-            return java.util.Optional.of(new DynamicAiConfigProvider.ResolvedAiConfig(
-                    primary.taskType(),
-                    "GEMINI",
-                    targetModel,
-                    primary.apiKey(),
-                    primary.endpointUrl(),
-                    primary.temperature(),
-                    primary.maxTokens(),
-                    primary.timeoutSeconds(),
-                    null,
-                    null));
+            String apiKey = primary.apiKey();
+            String endpoint = primary.endpointUrl();
+            if (!"GEMINI".equalsIgnoreCase(primary.provider()) && configs != null) {
+                var geminiCfg = configs.resolveConfig("INTERVIEW_STT");
+                if (geminiCfg != null && InterviewChatEndpoint.gemini(geminiCfg.provider())) {
+                    apiKey = geminiCfg.apiKey();
+                    endpoint = geminiCfg.endpointUrl();
+                }
+            }
+            if (apiKey != null && !apiKey.isBlank()) {
+                return java.util.Optional.of(new DynamicAiConfigProvider.ResolvedAiConfig(
+                        primary.taskType(),
+                        "GEMINI",
+                        targetModel,
+                        apiKey,
+                        endpoint,
+                        primary.temperature(),
+                        primary.maxTokens(),
+                        primary.timeoutSeconds(),
+                        null,
+                        null));
+            }
         }
         return java.util.Optional.empty();
     }
@@ -201,9 +220,29 @@ public class InterviewConversationClient {
 
     public JsonNode evaluate(String instruction, JsonNode transcript) {
         var config = configs.resolveConfig("INTERVIEW_NLP");
+        String effectiveModel = model(config);
+        try {
+            return executeEvaluate(config, effectiveModel, instruction, transcript);
+        } catch (RuntimeException primaryEx) {
+            if (!failoverEligible(primaryEx)) throw primaryEx;
+            var failoverOpt = resolveGeminiFailover(config, effectiveModel);
+            if (failoverOpt.isPresent()) {
+                var failover = failoverOpt.get();
+                log.warn("Primary AI Conversation model {} failed for evaluation, attempting failover to {}",
+                        effectiveModel, failover.modelName());
+                return executeEvaluate(failover, failover.modelName(), instruction, transcript);
+            }
+            throw primaryEx;
+        }
+    }
+
+    private JsonNode executeEvaluate(
+            DynamicAiConfigProvider.ResolvedAiConfig config,
+            String effectiveModel,
+            String instruction,
+            JsonNode transcript) {
         long startNs = System.nanoTime(); boolean success = false;
         long[] tokens = new long[]{0L, 0L};
-        String effectiveModel = model(config);
         try {
             if (rateLimiterService != null) rateLimiterService.checkAndAcquire("INTERVIEW_NLP");
             var complete = new java.util.concurrent.atomic.AtomicBoolean();
@@ -227,7 +266,7 @@ public class InterviewConversationClient {
                     .reduce(new StringBuilder(), (buffer, delta) -> {
                         if (buffer.length() + delta.length() > 32000) throw new IllegalStateException("Evaluation report too long");
                         return buffer.append(delta);
-                    }).map(StringBuilder::toString).block(Duration.ofSeconds(180));
+                    }).map(StringBuilder::toString).block(Duration.ofSeconds(240));
             if (!complete.get() || text == null || text.isBlank()) throw new IllegalStateException("Incomplete transcript evaluation");
             var result = mapper.readTree(text);
             if (result == null || !result.isObject()) throw new IllegalStateException("Invalid transcript evaluation");
@@ -277,8 +316,7 @@ public class InterviewConversationClient {
         var options = OpenAiChatOptions.builder().model(model).temperature(json ? 0.1 : 0.4)
                 .maxTokens(config.maxTokens() != null && config.maxTokens() > 0 ? config.maxTokens() : json ? 8192 : 2048).streamUsage(false);
         if (model.startsWith("gemini-2.5-flash")) options.reasoningEffort("none");
-        if (json) options.responseFormat(InterviewChatEndpoint.gemini(config.provider())
-                ? new ResponseFormat(ResponseFormat.Type.JSON_OBJECT, null) : evaluationFormat());
+        if (json) options.responseFormat(InterviewChatEndpoint.gemini(config.provider()) ? new ResponseFormat(ResponseFormat.Type.JSON_OBJECT, null) : evaluationFormat());
         // HTTP retries are bounded in the exchange filter; never replay a partially streamed reply.
         var chatModel = OpenAiChatModel.builder().openAiApi(api).defaultOptions(options.build())
                 .retryTemplate(RetryTemplate.builder().maxAttempts(1).build()).build();
@@ -336,7 +374,8 @@ public class InterviewConversationClient {
     public byte[] speech(String content, String language) {
         var config = configs.resolveConfig("INTERVIEW_TTS");
         requireNativeSpeech(config);
-        var body = request(null, List.of(new Message("USER", "Read the following interview message naturally and verbatim in " + language + ". Do not translate it:\n" + content)));
+        String textToSpeak = (content == null || content.isBlank()) ? "" : content.trim();
+        var body = request(null, List.of(new Message("USER", textToSpeak)));
         var generation = body.putObject("generationConfig"); generation.putArray("responseModalities").add("AUDIO");
         generation.putObject("speechConfig").putObject("voiceConfig").putObject("prebuiltVoiceConfig").put("voiceName", "Kore");
         var response = generate(config, config.modelName(), body);

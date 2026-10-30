@@ -309,10 +309,12 @@ class InterviewConversationServiceTest {
                     .put("quote", key.equals("COMMUNICATION") ? "REST APIs" : "Expert solution");
         }
         when(ai.evaluate(anyString(), any())).thenReturn(output);
-        assertThat(service.evaluate(interview)).isEqualByComparingTo("20.00");
+        assertThat(service.evaluate(interview)).isEqualByComparingTo("80.00");
         var report = InterviewPolicies.tree(interview.getReportJson());
         assertThat(report.path("evaluationMode").asText()).isEqualTo("POST_SESSION");
-        assertThat(report.path("communicationCriteria").path("TECHNICAL_KNOWLEDGE").asInt()).isZero();
+        assertThat(report.path("communicationCriteria").path("TECHNICAL_KNOWLEDGE").asInt()).isEqualTo(80);
+        assertThat(report.path("criteriaEvidence").path("TECHNICAL_KNOWLEDGE")).isEmpty();
+        assertThat(report.path("criteriaEvidence").path("COMMUNICATION")).hasSize(1);
         verify(ai, never()).dialogue(anyString(), anyList(), any());
         ((ObjectNode) criteria.path("COMMUNICATION")).put("score", 101);
         assertThatThrownBy(() -> service.evaluate(interview)).hasMessageContaining("criterion score");
@@ -349,5 +351,17 @@ class InterviewConversationServiceTest {
         var audio = new byte[12]; audio[0] = 0x1a; audio[1] = 0x45; audio[2] = (byte) 0xdf; audio[3] = (byte) 0xa3;
         assertThatCode(() -> InterviewConversationService.validateAudio(audio, "audio/webm")).doesNotThrowAnyException();
         assertThatThrownBy(() -> InterviewConversationService.validateAudio(audio, "text/plain")).hasMessageContaining("Invalid audio");
+    }
+
+    @Test void cleanDialogueTextStripsLeadingEnglishGreetingLinesAndFillers() {
+        assertThat(InterviewConversationService.cleanDialogueText(
+                "Hello and welcome to the interview! Chào bạn, hãy giới thiệu về bản thân."))
+                .isEqualTo("Chào bạn, hãy giới thiệu về bản thân.");
+        assertThat(InterviewConversationService.cleanDialogueText(
+                "Hello! Welcome to SmartHire AI interview. Let's begin. Chào bạn, hôm nay bạn thế nào?"))
+                .isEqualTo("Chào bạn, hôm nay bạn thế nào?");
+        assertThat(InterviewConversationService.cleanDialogueText(
+                "Certainly! Here is your first question: Chào bạn, bạn có kinh nghiệm với Spring Boot không?"))
+                .isEqualTo("Chào bạn, bạn có kinh nghiệm với Spring Boot không?");
     }
 }

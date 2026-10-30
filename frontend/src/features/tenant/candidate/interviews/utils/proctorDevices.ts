@@ -1,7 +1,7 @@
-export type ProctorSession = { camera: MediaStream; screen: MediaStream };
+export type ProctorSession = { camera: MediaStream; screen?: MediaStream };
 type DeviceStep = "camera" | "microphone" | "screen";
 // Chromium capture hints are not yet included in TypeScript's DOM definitions.
-type CaptureKind = "tab" | "monitor";
+type CaptureKind = "none" | "tab" | "monitor";
 type DisplayCaptureOptions = DisplayMediaStreamOptions & {
   preferCurrentTab: boolean;
   selfBrowserSurface: "include" | "exclude";
@@ -28,11 +28,11 @@ export function captureExamTab() {
 }
 
 export function stopProctorSession(session: ProctorSession) {
-  session.camera.getTracks().forEach(track => track.stop());
-  session.screen.getTracks().forEach(track => track.stop());
+  session.camera?.getTracks().forEach(track => track.stop());
+  session.screen?.getTracks().forEach(track => track.stop());
 }
 
-export function deviceError(cause: unknown, step: DeviceStep, capture: CaptureKind = "tab") {
+export function deviceError(cause: unknown, step: DeviceStep, capture: CaptureKind = "none") {
   const screenLabel = capture === "monitor" ? "chia sẻ toàn màn hình" : "chia sẻ tab phỏng vấn";
   const device = { camera: "camera", microphone: "microphone", screen: screenLabel }[step];
   const name = cause instanceof Error ? cause.name : "";
@@ -46,29 +46,34 @@ export function deviceError(cause: unknown, step: DeviceStep, capture: CaptureKi
   if (name === "InvalidStateError") {
     return capture === "monitor"
       ? "Hãy quay lại tab làm bài và bấm Kiểm tra thiết bị để chia sẻ toàn màn hình."
-      : "Hãy quay lại tab phỏng vấn và bấm Kiểm tra thiết bị để chia sẻ tab này.";
+      : "Hãy quay lại tab phỏng vấn và bấm Kiểm tra thiết bị để tiếp tục.";
   }
   return cause instanceof Error ? cause.message : `Không thể kiểm tra ${device}.`;
 }
 
-export async function prepareProctorDevices(enableCamera = false, capture: CaptureKind = "tab"): Promise<ProctorSession> {
+export async function prepareProctorDevices(enableCamera = false, capture: CaptureKind = "none"): Promise<ProctorSession> {
   if (!window.isSecureContext) throw new Error("Kiểm tra thiết bị cần HTTPS hoặc localhost.");
-  if (!navigator.mediaDevices?.getUserMedia || !navigator.mediaDevices?.getDisplayMedia) {
-    throw new Error("Trình duyệt không hỗ trợ microphone hoặc chia sẻ màn hình. Hãy dùng Chrome hoặc Edge trên máy tính.");
+  if (!navigator.mediaDevices?.getUserMedia) {
+    throw new Error("Trình duyệt không hỗ trợ microphone hoặc camera. Hãy dùng Chrome hoặc Edge trên máy tính.");
+  }
+  if (capture !== "none" && !navigator.mediaDevices?.getDisplayMedia) {
+    throw new Error("Trình duyệt không hỗ trợ chia sẻ màn hình. Hãy dùng Chrome hoặc Edge trên máy tính.");
   }
   const requireCamera = enableCamera;
-  let step: DeviceStep = "screen";
+  let step: DeviceStep = capture !== "none" ? "screen" : "microphone";
   const streams: MediaStream[] = [];
   try {
-    // Screen capture must be requested directly from the user's click.
-    const screen = await navigator.mediaDevices.getDisplayMedia(capture === "monitor" ? examMonitorCapture : examTabCapture);
-    streams.push(screen);
-    const surface = screen.getVideoTracks()[0]?.getSettings().displaySurface;
-    if (capture === "tab" && surface && surface !== "browser") {
-      throw new Error("Vui lòng chia sẻ tab đang mở phòng phỏng vấn, không chọn cửa sổ hoặc toàn màn hình.");
-    }
-    if (capture === "monitor" && (surface === "browser" || surface === "window")) {
-      throw new Error("Hãy chọn « Toàn bộ màn hình » trong hộp thoại Chrome (không chọn Cửa sổ hay Tab Chrome).");
+    let screen: MediaStream | undefined;
+    if (capture !== "none") {
+      screen = await navigator.mediaDevices.getDisplayMedia(capture === "monitor" ? examMonitorCapture : examTabCapture);
+      streams.push(screen);
+      const surface = screen.getVideoTracks()[0]?.getSettings().displaySurface;
+      if (capture === "tab" && surface && surface !== "browser") {
+        throw new Error("Vui lòng chia sẻ tab đang mở phòng phỏng vấn, không chọn cửa sổ hoặc toàn màn hình.");
+      }
+      if (capture === "monitor" && (surface === "browser" || surface === "window")) {
+        throw new Error("Hãy chọn « Toàn bộ màn hình » trong hộp thoại Chrome (không chọn Cửa sổ hay Tab Chrome).");
+      }
     }
     step = "microphone";
     const microphone = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
@@ -79,9 +84,8 @@ export async function prepareProctorDevices(enableCamera = false, capture: Captu
         const camera = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
         streams.push(camera);
         camera.getVideoTracks().forEach(track => microphone.addTrack(track));
-      } catch (cause) {
-        if (enableCamera) throw cause;
-        // Interview camera is optional; microphone and screen capture remain required.
+      } catch {
+        // Interview camera is optional; microphone remains required.
       }
     }
     return { camera: microphone, screen };

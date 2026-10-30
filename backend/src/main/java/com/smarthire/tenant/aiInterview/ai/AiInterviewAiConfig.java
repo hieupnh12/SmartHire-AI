@@ -28,7 +28,7 @@ public class AiInterviewAiConfig {
 
     private String baseUrl = DEFAULT_INTERVIEW_BASE;
 
-    private int timeoutSeconds = 10;
+    private int timeoutSeconds = 240;
 
     @Bean
     @Qualifier("aiInterviewRestClientBuilder")
