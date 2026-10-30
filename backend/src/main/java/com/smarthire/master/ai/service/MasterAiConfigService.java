@@ -83,12 +83,17 @@ public class MasterAiConfigService {
         var factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(Duration.ofSeconds(10));
         factory.setReadTimeout(Duration.ofSeconds(30));
-        return RestClient.builder().requestFactory(factory).build();
+        return RestClient.builder()
+                .requestFactory(factory)
+                .defaultHeader("User-Agent", "SmartHire-AI/1.0")
+                .defaultHeader("ngrok-skip-browser-warning", "true")
+                .build();
     }
 
     @Transactional(transactionManager = "masterTransactionManager", readOnly = true)
     public List<AiProviderKeyDto> getAllProviderKeys() {
         return providerKeyRepository.findAll().stream()
+                .sorted(java.util.Comparator.comparing(AiProviderKey::getId, java.util.Comparator.nullsLast(java.util.Comparator.naturalOrder())))
                 .map(this::toProviderKeyDto)
                 .collect(Collectors.toList());
     }
@@ -173,6 +178,7 @@ public class MasterAiConfigService {
     @Transactional(transactionManager = "masterTransactionManager", readOnly = true)
     public List<AiModelConfigDto> getAllTaskConfigs() {
         return modelConfigRepository.findAll().stream()
+                .sorted(java.util.Comparator.comparing(AiModelConfig::getId, java.util.Comparator.nullsLast(java.util.Comparator.naturalOrder())))
                 .map(this::toModelConfigDto)
                 .collect(Collectors.toList());
     }
@@ -520,20 +526,11 @@ public class MasterAiConfigService {
             if (ex instanceof org.springframework.web.client.RestClientResponseException rre) {
                 statusCode = rre.getStatusCode().value();
                 String responseBody = rre.getResponseBodyAsString();
-                if (statusCode == 401) {
-                    errorMsg = "401 Unauthorized: API Key không chính xác, đã hết hạn hoặc không có quyền truy cập";
-                    if ("ANTHROPIC".equalsIgnoreCase(provider) && apiKey.trim().startsWith("crsr_")) {
-                        errorMsg += " (Lưu ý: Bạn đang dùng API Key của Cursor 'crsr_...'. Vui lòng chọn Nhà cung cấp là 'Cursor / AI' thay vì 'Anthropic Claude').";
-                    } else if (responseBody != null && !responseBody.isBlank()) {
-                        errorMsg += " (" + responseBody + ")";
-                    }
-                } else if (statusCode == 404) {
-                    errorMsg = "404 Not Found: Đường dẫn endpoint hoặc model không tồn tại" + (responseBody != null && !responseBody.isBlank() ? " (" + responseBody + ")" : ".");
-                } else if (statusCode == 429) {
-                    errorMsg = "429 Too Many Requests: Model đang bị giới hạn tần suất (đã đưa vào Redis cooldown 60s)" + (responseBody != null && !responseBody.isBlank() ? " (" + responseBody + ")" : ".");
-                } else if (responseBody != null && !responseBody.isBlank()) {
-                    errorMsg = statusCode + " " + rre.getStatusText() + ": " + responseBody;
-                }
+                errorMsg = extractCleanErrorMessage(statusCode, rre.getStatusText(), responseBody, provider, apiKey);
+            } else if (ex.getCause() instanceof java.net.ConnectException || ex instanceof java.net.ConnectException) {
+                errorMsg = "Không thể kết nối đến máy chủ AI (Connection refused / Server offline). Vui lòng kiểm tra lại URL endpoint.";
+            } else if (ex instanceof java.net.SocketTimeoutException) {
+                errorMsg = "Hết thời gian chờ phản hồi từ máy chủ AI (Timeout). Máy chủ đang quá tải hoặc mạng chập chờn.";
             }
             updateKeyLastTested(request.getKeyId(), false, statusCode, provider, model);
 
@@ -543,6 +540,81 @@ public class MasterAiConfigService {
                     .latencyMs(latency)
                     .build();
         }
+    }
+
+
+    private String extractCleanErrorMessage(int statusCode, String statusText, String responseBody, String provider, String apiKey) {
+        if (responseBody == null || responseBody.isBlank()) {
+            return switch (statusCode) {
+                case 401 -> "401 Unauthorized: API Key không chính xác hoặc không có quyền truy cập";
+                case 403 -> "403 Forbidden: Truy cập bị từ chối";
+                case 404 -> "404 Not Found: Đường dẫn endpoint hoặc model không tồn tại";
+                case 429 -> "429 Too Many Requests: Model đang bị giới hạn tần suất (đã đưa vào Redis cooldown 60s)";
+                default -> statusCode + " " + (statusText != null ? statusText : "Error");
+            };
+        }
+
+        String trimmed = responseBody.trim();
+
+        // 1. Detect HTML error responses (ngrok offline/warning, Cloudflare challenge, Web server 404/502)
+        if (trimmed.startsWith("<!DOCTYPE") || trimmed.startsWith("<html") || trimmed.contains("<head") || trimmed.contains("<body")) {
+            if (trimmed.contains("ngrok") || trimmed.contains("assets.ngrok.com") || trimmed.contains("ERR_NGROK_")) {
+                return "Ngrok Tunnel không khả dụng (Ngrok trả về 404/Offline). Vui lòng kiểm tra lại tiến trình ngrok và cập nhật đúng URL endpoint.";
+            }
+            if (trimmed.contains("Cloudflare") || trimmed.contains("cf-browser-verification")) {
+                return "Yêu cầu bị chặn bởi Cloudflare (" + statusCode + "). Vui lòng cấu hình bỏ qua xác thực bot hoặc dùng IP/domain trực tiếp.";
+            }
+            return switch (statusCode) {
+                case 404 -> "404 Not Found: Endpoint hoặc model không tồn tại (máy chủ trả về trang web HTML thay vì JSON API).";
+                case 502 -> "502 Bad Gateway: Không thể kết nối tới dịch vụ AI phía sau cổng Reverse Proxy.";
+                case 503 -> "503 Service Unavailable: Dịch vụ đích đang tạm thời không khả dụng.";
+                default -> "Máy chủ AI trả về trang HTML (" + statusCode + ") thay vì phản hồi API JSON hợp lệ.";
+            };
+        }
+
+        // 2. Specific case: Cursor key mistakenly used for Anthropic
+        if (statusCode == 401 && "ANTHROPIC".equalsIgnoreCase(provider) && apiKey != null && apiKey.trim().startsWith("crsr_")) {
+            return "401 Unauthorized: Bạn đang dùng API Key của Cursor 'crsr_...'. Vui lòng chọn Nhà cung cấp là 'Cursor / AI' thay vì 'Anthropic Claude'.";
+        }
+
+        // 3. Try parsing JSON error structure
+        try {
+            var json = mapper.readTree(trimmed);
+            if (json.has("error")) {
+                var errNode = json.get("error");
+                if (errNode.isTextual() && !errNode.asText().isBlank()) {
+                    return formatStatusWithDetail(statusCode, statusText, errNode.asText());
+                } else if (errNode.has("message") && errNode.get("message").isTextual()) {
+                    return formatStatusWithDetail(statusCode, statusText, errNode.get("message").asText());
+                }
+            }
+            if (json.has("detail") && json.get("detail").isTextual()) {
+                return formatStatusWithDetail(statusCode, statusText, json.get("detail").asText());
+            }
+            if (json.has("message") && json.get("message").isTextual()) {
+                return formatStatusWithDetail(statusCode, statusText, json.get("message").asText());
+            }
+        } catch (Exception ignored) {
+            // Not JSON
+        }
+
+        // 4. Plain text - sanitize and truncate if long
+        String cleanText = trimmed.replaceAll("\\s+", " ");
+        if (cleanText.length() > 200) {
+            cleanText = cleanText.substring(0, 200) + "...";
+        }
+        return formatStatusWithDetail(statusCode, statusText, cleanText);
+    }
+
+    private String formatStatusWithDetail(int statusCode, String statusText, String detail) {
+        String prefix = switch (statusCode) {
+            case 401 -> "401 Unauthorized";
+            case 403 -> "403 Forbidden";
+            case 404 -> "404 Not Found";
+            case 429 -> "429 Too Many Requests";
+            default -> statusCode + (statusText != null && !statusText.isBlank() ? " " + statusText : "");
+        };
+        return prefix + ": " + detail;
     }
 
     private void updateKeyLastTested(Long keyId, boolean success, Integer statusCode, String provider, String model) {
