@@ -7,7 +7,6 @@ import com.smarthire.domain.enums.CvStatus;
 import com.smarthire.domain.tenant.entity.Cv;
 import com.smarthire.domain.tenant.entity.CvDocument;
 import com.smarthire.domain.tenant.entity.CvExtraction;
-import com.smarthire.domain.tenant.entity.JobSkill;
 import com.smarthire.domain.tenant.repository.CvDocumentRepository;
 import com.smarthire.domain.tenant.repository.CvExtractionRepository;
 import com.smarthire.domain.tenant.repository.CvRepository;
@@ -82,10 +81,14 @@ public class CvPipelineService {
     /** Used when RabbitMQ is down so recruiters can still screen a CV locally. */
     @Transactional
     public void processInline(long cvId) {
-        if (!parse(cvId, false)) return;
-        if (!extract(cvId, false)) return;
-        if (!analyze(cvId, false)) return;
-        if (match(cvId, false)) github.analyzeSafely(cvId);
+        if (!parse(cvId, false))
+            return;
+        if (!extract(cvId, false))
+            return;
+        if (!analyze(cvId, false))
+            return;
+        if (match(cvId, false))
+            github.analyzeSafely(cvId);
     }
 
     @Transactional
@@ -95,7 +98,8 @@ public class CvPipelineService {
 
     @Transactional
     public boolean parse(long cvId, boolean enqueue) {
-        if (!lock(cvId)) return false;
+        if (!lock(cvId))
+            return false;
         Cv cv = require(cvId);
         try {
             cv.mark(CvStatus.PARSING);
@@ -110,7 +114,8 @@ public class CvPipelineService {
             documents.save(document);
             cv.mark(CvStatus.PARSED);
             cvs.save(cv);
-            if (enqueue) afterCommit(() -> publisher.publishExtract(cvId));
+            if (enqueue)
+                afterCommit(() -> publisher.publishExtract(cvId));
             return true;
         } catch (Exception ex) {
             fail(cv, "PARSE_FAILED", ex, enqueue);
@@ -127,7 +132,8 @@ public class CvPipelineService {
 
     @Transactional
     public boolean extract(long cvId, boolean enqueue) {
-        if (!lock(cvId)) return false;
+        if (!lock(cvId))
+            return false;
         Cv cv = require(cvId);
         try {
             CvDocument document = documents.findByCv_Id(cvId)
@@ -141,9 +147,12 @@ public class CvPipelineService {
             extraction.setPromptVersion(ai.promptVersionFor(json));
             extractions.save(extraction);
             cvs.save(cv);
-            // Publish after commit + unlock so the next worker does not skip on the Redis lock
-            // or race a still-open transaction (stuck EXTRACTING with extraction already saved).
-            if (enqueue) afterCommit(() -> publisher.publishAnalysis(cvId));
+            // Publish after commit + unlock so the next worker does not skip on the Redis
+            // lock
+            // or race a still-open transaction (stuck EXTRACTING with extraction already
+            // saved).
+            if (enqueue)
+                afterCommit(() -> publisher.publishAnalysis(cvId));
             return true;
         } catch (Exception ex) {
             fail(cv, "EXTRACT_FAILED", ex, enqueue);
@@ -160,7 +169,8 @@ public class CvPipelineService {
 
     @Transactional
     public boolean analyze(long cvId, boolean enqueue) {
-        if (!lock(cvId)) return false;
+        if (!lock(cvId))
+            return false;
         Cv cv = require(cvId);
         try {
             cv.mark(CvStatus.ANALYZING);
@@ -170,7 +180,8 @@ public class CvPipelineService {
             analysis.analyze(cv, json);
             cv.mark(CvStatus.ANALYZED);
             cvs.save(cv);
-            if (enqueue) afterCommit(() -> publisher.publishMatching(cvId));
+            if (enqueue)
+                afterCommit(() -> publisher.publishMatching(cvId));
             return true;
         } catch (Exception ex) {
             fail(cv, "ANALYZE_FAILED", ex, enqueue);
@@ -187,16 +198,19 @@ public class CvPipelineService {
 
     @Transactional
     public boolean match(long cvId, boolean enqueue) {
-        if (!lock(cvId)) return false;
+        if (!lock(cvId))
+            return false;
         try {
             Cv cv = require(cvId);
-            if (cv.getJob() == null) return true;
+            if (cv.getJob() == null)
+                return true;
             var score = matching.score(cv);
             applicants.advanceFromCvScreening(cv, score);
             if (cv.getApplication() != null) {
                 gateScreening.recalculate(cv.getApplication());
             }
-            if (enqueue) afterCommit(() -> publishGithub(cvId));
+            if (enqueue)
+                afterCommit(() -> publishGithub(cvId));
             return true;
         } catch (Exception ex) {
             fail(require(cvId), "MATCH_FAILED", ex, enqueue);
@@ -208,13 +222,15 @@ public class CvPipelineService {
 
     private String jobContext(Cv cv) {
         var job = cv.getJob();
-        if (job == null) return "Personal CV (no job context)";
+        if (job == null)
+            return "Personal CV (no job context)";
         String skills = jobSkills.findByJob_IdOrderByIdAsc(job.getId()).stream()
                 .filter(js -> js.getSkill() != null && js.getSkill().getName() != null)
                 .map(js -> js.getSkill().getName() + (js.isRequired() ? " (required)" : ""))
                 .collect(Collectors.joining(", "));
         String description = job.getDescription() == null ? "" : job.getDescription();
-        if (description.length() > 1500) description = description.substring(0, 1500);
+        if (description.length() > 1500)
+            description = description.substring(0, 1500);
         return "Title: " + nullToEmpty(job.getTitle())
                 + "\nSkills: " + skills
                 + "\nEducation: " + nullToEmpty(job.getEducationLevel())
@@ -229,7 +245,7 @@ public class CvPipelineService {
     private void fail(Cv cv, String code, Exception ex, boolean enqueue) {
         cv.fail(code, ex.getMessage());
         cvs.save(cv);
-        
+
         try {
             String tenantCode = com.smarthire.multitenancy.context.TenantContext.getCurrentTenant();
             if (tenantCode != null) {
@@ -239,7 +255,8 @@ public class CvPipelineService {
             log.error("Failed to rollback quota for CV {}", cv.getId(), rollbackEx);
         }
 
-        if (enqueue) throw new IllegalStateException(ex);
+        if (enqueue)
+            throw new IllegalStateException(ex);
         log.error("CV {} failed at {}", cv.getId(), code, ex);
     }
 
@@ -251,7 +268,10 @@ public class CvPipelineService {
         }
     }
 
-    /** Queue the next pipeline step only after this TX commits and the Redis lock is released. */
+    /**
+     * Queue the next pipeline step only after this TX commits and the Redis lock is
+     * released.
+     */
     private void afterCommit(Runnable publish) {
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
@@ -267,7 +287,8 @@ public class CvPipelineService {
 
     private boolean lock(long cvId) {
         try {
-            if (redis.setIfAbsent(RedisKeys.cvAnalyzeLock(cvId), "1", Duration.ofSeconds(120))) return true;
+            if (redis.setIfAbsent(RedisKeys.cvAnalyzeLock(cvId), "1", Duration.ofSeconds(120)))
+                return true;
             log.info("Skip CV {} — already processing", cvId);
             return false;
         } catch (Exception ex) {

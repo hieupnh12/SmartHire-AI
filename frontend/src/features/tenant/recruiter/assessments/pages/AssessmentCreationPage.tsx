@@ -1,78 +1,161 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
-import { ArrowLeft, Check, ClipboardList, Plus, Sparkles } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import {
+  ChevronRight,
+  Settings2,
+  Sliders,
+  Users,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
+import { AssessmentSubNav } from "../components/AssessmentSubNav";
 import { useRecruitmentJob } from "../../jobs/components/JobRecruitmentWorkspace";
 import { AutomaticAssessmentCandidateAssigner } from "../components/AutomaticAssessmentCandidateAssigner";
+import { JobAssessmentConfiguration } from "../components/JobAssessmentConfiguration";
 
-const cardClass = "rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-5 shadow-[var(--shadow-card)]";
+export type ConfigSection = "general" | "exercise" | "assign";
+
+const configNavGroups = [
+  {
+    groupTitle: "CẤU HÌNH",
+    items: [
+      {
+        id: "general" as const,
+        title: "Chung",
+        icon: Settings2,
+      },
+      {
+        id: "exercise" as const,
+        title: "Bài tập",
+        icon: Sliders,
+      },
+    ],
+  },
+  {
+    groupTitle: "ỨNG VIÊN",
+    items: [
+      {
+        id: "assign" as const,
+        title: "Giao đề",
+        icon: Users,
+      },
+    ],
+  },
+];
 
 export function AssessmentCreationPage() {
   const job = useRecruitmentJob();
-  const basePath = `/recruiter/jobs/${job.id}/assessments`;
-  const [mode, setMode] = useState<"manual" | "automatic">("manual");
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const sectionParam = searchParams.get("section") as ConfigSection | null;
+  const activeSection: ConfigSection =
+    sectionParam && ["general", "exercise", "assign"].includes(sectionParam)
+      ? sectionParam
+      : "general";
+
+  const setSection = (section: ConfigSection) => {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.set("section", section);
+        return next;
+      },
+      { replace: true },
+    );
+  };
+
+  const [isScrolled, setIsScrolled] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 60);
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   return (
-    <section className="space-y-6">
-      <Link to={basePath} className="inline-flex items-center gap-2 text-sm text-[var(--color-primary)] hover:underline">
-        <ArrowLeft className="size-4" />
-        Danh sách bài đánh giá
-      </Link>
-      <header>
-        <p className="text-xs font-semibold uppercase tracking-wider text-[var(--color-primary)]">Thiết lập bài đánh giá</p>
-        <h1 className="mt-2 text-2xl font-semibold">Tạo bài assessment</h1>
-        <p className="mt-2 text-sm text-[var(--color-on-surface-variant)]">
-          Soạn câu hỏi thủ công hoặc tạo đề tự động cho ứng viên theo cấu hình bài tập của vị trí tuyển dụng.
-        </p>
-      </header>
+    <section className="space-y-6 text-[#101828] dark:text-slate-100">
+      {/* Tầng 1: Sub-nav chính của Job */}
+      <AssessmentSubNav jobId={job.id} activeTab="config" />
 
-      <div className="grid gap-4 md:grid-cols-2" role="tablist" aria-label="Cách tạo bài đánh giá">
-        {([
-          { id: "manual", title: "Tạo thủ công", detail: "Thêm câu hỏi → Kiểm tra → Tạo bài assessment", icon: ClipboardList },
-          { id: "automatic", title: "Tạo tự động", detail: "Bốc đề từ ngân hàng câu hỏi → Chọn ứng viên giao bài", icon: Sparkles },
-        ] as const).map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            role="tab"
-            aria-selected={mode === item.id}
-            aria-controls={`creation-${item.id}`}
-            onClick={() => setMode(item.id)}
+      {/* Tầng 2: Master-Detail Setting Layout (Chuẩn SaaS Google / Notion) */}
+      <div className="flex flex-col md:flex-row items-start gap-6">
+        {/* Menu điều hướng dọc bên trái (Left Sidebar) - Di chuyển mượt mà đi theo màn hình khi cuộn */}
+        <aside
+          className={cn(
+            "w-full md:w-48 lg:w-52 shrink-0 transition-all duration-300",
+            "md:sticky md:top-[128px] md:self-start md:max-h-[calc(100vh-9.5rem)] md:overflow-y-auto md:scrollbar-thin",
+          )}
+        >
+          <div
             className={cn(
-              cardClass,
-              "flex items-start gap-4 text-left transition-colors",
-              mode === item.id && "border-[var(--color-primary)] bg-[var(--color-primary-soft)]",
+              "space-y-3 rounded-2xl border bg-white p-2.5 transition-all duration-300 dark:bg-slate-900",
+              isScrolled
+                ? "border-slate-300/90 shadow-md shadow-slate-200/60 dark:border-slate-700 dark:shadow-black/40"
+                : "border-slate-200/80 shadow-2xs dark:border-slate-800",
             )}
           >
-            <item.icon className="size-6 shrink-0 text-[var(--color-primary)]" />
-            <span className="flex-1">
-              <strong className="block">{item.title}</strong>
-              <span className="mt-1 block text-sm text-[var(--color-on-surface-variant)]">{item.detail}</span>
-            </span>
-            {mode === item.id && <Check className="size-5 text-[var(--color-primary)]" />}
-          </button>
-        ))}
-      </div>
+            {configNavGroups.map((group) => (
+              <div key={group.groupTitle} className="space-y-1">
+                <div className="px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-[#667085] dark:text-slate-400">
+                  {group.groupTitle}
+                </div>
+                <div className="space-y-0.5">
+                  {group.items.map((item) => {
+                    const isActive = activeSection === item.id;
+                    const Icon = item.icon;
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => setSection(item.id)}
+                        className={cn(
+                          "w-full flex items-center gap-2.5 rounded-xl px-3 py-2 text-left transition-all cursor-pointer group",
+                          isActive
+                            ? "bg-blue-50 text-[#0066FF] font-semibold dark:bg-blue-950/40 dark:text-blue-300 shadow-2xs"
+                            : "text-[#475467] hover:bg-slate-50 hover:text-[#101828] dark:text-slate-400 dark:hover:bg-slate-800/50 dark:hover:text-white",
+                        )}
+                      >
+                        <Icon
+                          className={cn(
+                            "size-4 shrink-0 transition-colors",
+                            isActive
+                              ? "text-[#0066FF] dark:text-blue-400"
+                              : "text-[#667085] group-hover:text-slate-700 dark:text-slate-500 dark:group-hover:text-slate-300",
+                          )}
+                        />
+                        <span className="flex-1 text-[13px] font-medium leading-tight">{item.title}</span>
+                        {isActive && (
+                          <ChevronRight className="size-3.5 shrink-0 text-[#0066FF] self-center ml-auto dark:text-blue-400" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </aside>
 
-      {mode === "manual" ? (
-        <div id="creation-manual" role="tabpanel" className={cardClass}>
-          <h2 className="text-lg font-semibold">Bắt đầu từ câu hỏi</h2>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--color-on-surface-variant)]">
-            Soạn câu hỏi và đáp án trên bảng, kiểm tra nội dung, sau đó nhập thông tin bài assessment và lưu bản nháp để xuất bản khi sẵn sàng.
-          </p>
-          <Link
-            to={`${basePath}/excel-template`}
-            className="mt-5 inline-flex min-h-10 items-center gap-2 rounded-lg bg-[var(--color-primary)] px-4 font-semibold text-[var(--color-on-primary)] shadow-sm hover:bg-[var(--color-primary-hover)]"
-          >
-            <Plus className="size-4" />
-            Thêm câu hỏi thủ công
-          </Link>
-        </div>
-      ) : (
-        <div id="creation-automatic" role="tabpanel" className="space-y-4">
-          <AutomaticAssessmentCandidateAssigner />
-        </div>
-      )}
+        {/* Khung nội dung chi tiết bên phải (Main Detail Panel) */}
+        <main className="flex-1 min-w-0 w-full">
+          {/* Cấu hình chung & Cấu hình bài tập */}
+          <div className={cn(activeSection !== "general" && activeSection !== "exercise" && "hidden")}>
+            <JobAssessmentConfiguration
+              activeSubTab={activeSection === "exercise" ? "exercise" : "general"}
+              onSubTabChange={(tab) => setSection(tab)}
+              hideInternalTabs
+            />
+          </div>
+
+          {/* Giao đề cho ứng viên */}
+          {activeSection === "assign" && (
+            <div className="space-y-4">
+              <AutomaticAssessmentCandidateAssigner />
+            </div>
+          )}
+        </main>
+      </div>
     </section>
   );
 }

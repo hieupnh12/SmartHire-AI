@@ -5,6 +5,7 @@ import { getApiErrorMessage } from "@/lib/axios";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 import { getTenantIdFromWindow } from "@/lib/tenant";
 import { Button } from "@/components/ux/Button";
+import { Skeleton } from "@/components/ux/Skeleton";
 
 export function useInterviewTranscript(interviewId: number, enabled = true) {
   const userId = useAuthStore(state => state.user?.id);
@@ -26,7 +27,14 @@ export function ConversationTranscript({ interviewId }: { interviewId: number })
   }
   return <section className="space-y-4 rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-5" aria-label="Transcript toàn phiên">
     <h3 className="font-semibold">Transcript hội thoại</h3>
-    {transcript.isPending && <p role="status">Đang tải transcript…</p>}
+    {transcript.isPending && (
+      <div className="space-y-3" role="status" aria-busy="true">
+        <Skeleton className="h-16 w-3/4 rounded-xl" />
+        <Skeleton className="ml-auto h-16 w-2/3 rounded-xl" />
+        <Skeleton className="h-16 w-4/5 rounded-xl" />
+        <span className="sr-only">Đang tải transcript…</span>
+      </div>
+    )}
     {(transcript.error || error) && <p role="alert">{error ?? getApiErrorMessage(transcript.error)}</p>}
     <ol className="max-h-[60vh] space-y-3 overflow-y-auto">{transcript.data?.messages.map(message => <li key={message.id} className="rounded-xl bg-[var(--color-surface-container-low)] p-3">
       <p className="text-xs font-semibold">{message.role === "USER" ? "Ứng viên" : "AI Interviewer"} · Tin #{message.id}</p>

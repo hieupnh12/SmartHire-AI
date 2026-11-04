@@ -1,6 +1,5 @@
 package com.smarthire.tenant.aiInterview.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.smarthire.common.exception.BusinessException;
 import com.smarthire.domain.tenant.entity.Job;
 import com.smarthire.domain.tenant.repository.ApplicationRepository;

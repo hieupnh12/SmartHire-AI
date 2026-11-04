@@ -80,6 +80,12 @@ public class ApplicantController {
         return ApiResponse.ok(applicants.list(jobId, q, status, source, archived, includeWithdrawn, page, size));
     }
 
+    @GetMapping("/jobs/{jobId}/applications/status-counts")
+    @Operation(summary = "Get application counts grouped by status for a job")
+    public ApiResponse<Map<String, Long>> statusCounts(@PathVariable long jobId) {
+        return ApiResponse.ok(applicants.statusCounts(jobId));
+    }
+
     @PostMapping("/jobs/{jobId}/applications")
     @Operation(summary = "Candidate apply to a published job")
     public ApiResponse<ApplicationSummary> apply(

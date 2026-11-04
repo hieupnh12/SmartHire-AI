@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ux/Button";
 import { Card } from "@/components/ux/Card";
+import { Skeleton } from "@/components/ux/Skeleton";
 import { useT } from "@/i18n";
 import { getApiErrorMessage } from "@/lib/axios";
 import { useUiStore } from "@/stores/uiStore";
@@ -349,7 +350,14 @@ export function RolesPage() {
                 Tạo vai trò
               </Button>
             </div>
-            {query.isLoading && <p className="text-sm text-[var(--color-text-secondary)]">Đang tải…</p>}
+            {query.isLoading && (
+              <div className="space-y-2 py-1" role="status" aria-busy="true">
+                {Array.from({ length: 4 }, (_, i) => (
+                  <Skeleton key={i} className="h-9 w-full rounded-[var(--radius-md)]" />
+                ))}
+                <span className="sr-only">Đang tải danh sách vai trò…</span>
+              </div>
+            )}
             {query.isError && (
               <p className="text-sm text-status-danger" role="alert">
                 {getApiErrorMessage(query.error, "Không tải được danh sách vai trò")}

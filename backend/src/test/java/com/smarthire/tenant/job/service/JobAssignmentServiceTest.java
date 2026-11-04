@@ -173,6 +173,7 @@ class JobAssignmentServiceTest {
         verify(access).actor();
     }
 
+    @SuppressWarnings("deprecation")
     @Test
     void listForUserReturnsAssignedJobs() {
         job.setStatus(JobStatus.PUBLISHED);

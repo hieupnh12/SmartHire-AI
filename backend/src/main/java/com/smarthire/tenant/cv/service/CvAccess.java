@@ -135,6 +135,7 @@ public class CvAccess {
         }
     }
 
+    @SuppressWarnings("deprecation")
     public boolean canEditRecruitmentWorkflow(Job job) {
         if (companyAdmin()) {
             return true;

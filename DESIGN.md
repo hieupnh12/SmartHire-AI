@@ -198,3 +198,14 @@ The shape language is **Rounded**, moving away from the "sharpness" of tradition
 - **Chips:** Highly translucent backgrounds (e.g., `rgba(59, 130, 246, 0.15)`) with a slightly darker version of the hue for the text. No borders on chips.
 - **Sidebars:** Use a backdrop blur and a 1px right border. Active navigation items are signaled by a soft blue container with 10% opacity and a pill-shaped indicator.
 - **Lists:** Table rows should not have borders. Use a subtle `rgba(59, 130, 246, 0.04)` background on hover to maintain the light, airy feel.
+- **Toast Notifications:**
+  - **Viewport:** Fixed container placed at bottom-right (`bottom-5 right-5 z-[9999]`), max-width `24rem` (`w-[min(100%-2rem,24rem)]`), stacking vertically with `gap-2.5`.
+  - **Card Surface:** Glassmorphism with `bg-white/95 dark:bg-slate-900/95 backdrop-blur-md`, `rounded-xl`, soft subtle shadow (`shadow-lg hover:shadow-xl`), 1px outline with 4px left-border accent matching tone.
+  - **Tone Mappings & Icons:**
+    - `success`: Emerald accent (`text-emerald-600 dark:text-emerald-400`, `border-l-emerald-500`, `bg-emerald-50/80 dark:bg-emerald-950/30`), Icon: `CheckCircle2`.
+    - `error` / `danger`: Rose accent (`text-rose-600 dark:text-rose-400`, `border-l-rose-500`, `bg-rose-50/80 dark:bg-rose-950/30`), Icon: `AlertCircle`.
+    - `warning`: Amber accent (`text-amber-600 dark:text-amber-400`, `border-l-amber-500`, `bg-amber-50/80 dark:bg-amber-950/30`), Icon: `AlertTriangle`.
+    - `info`: Sky accent (`text-sky-600 dark:text-sky-400`, `border-l-sky-500`, `bg-sky-50/80 dark:bg-sky-950/30`), Icon: `Info`.
+  - **Durations:** Default 4000ms (info/success/warning), 5000ms (error/danger), custom duration override supported.
+  - **Usage:** Always import `toast` from `@/stores/toastStore` (`toast.success(...)`, `toast.error(...)`, `toast.warning(...)`, `toast.info(...)`). Avoid local alert boxes for temporary user feedback.
+

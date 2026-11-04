@@ -12,7 +12,8 @@ export const humanInterviewApi = {
   complete: (id: number) => api.post(`/interviews/${id}/complete`),
   remind: (id: number) => api.post(`/interviews/${id}/remind`),
   bulk: (ids: number[], action: "REMIND" | "CANCEL" | "RESCHEDULE", shiftMinutes?: number) => api.post("/interviews/bulk", { ids, action, shiftMinutes }),
-  evaluate: (id: number, body: Pick<Evaluation, "technicalScore" | "communicationScore" | "cultureScore" | "comments" | "recommendation">) => api.post(`/interviews/${id}/evaluations`, body),
+  evaluate: (id: number, body: Pick<Evaluation, "technicalScore" | "communicationScore" | "cultureScore" | "comments" | "recommendation"> & { finalizeDecision?: boolean }) =>
+    api.post(`/interviews/${id}/evaluations`, body),
   preview: (id: number) => api.get<ApiResponse<{ subject: string; body: string }>>(`/interviews/${id}/email-preview`).then(r => r.data.data),
   export: (jobId: number) => api.get<Blob>("/interviews/export", { params: { jobId }, responseType: "blob" }).then(r => r.data),
   calendar: (id: number) => api.get<Blob>(`/interviews/${id}/calendar`, { responseType: "blob" }).then(r => r.data),

@@ -33,7 +33,7 @@ class InterviewConversationControllerTest {
     @Test void sseAcknowledgesTheCommittedHistoryAndDisablesProxyBuffering() throws Exception {
         var response = new ConversationResponse(21L, 1, 3, false, "English", List.of());
         when(conversation.turn(eq(11L), any(), any())).thenAnswer(call -> {
-            @SuppressWarnings("unchecked") Consumer<String> delta = call.getArgument(2); delta.accept("Hello"); return response;
+            Consumer<String> delta = call.getArgument(2); delta.accept("Hello"); return response;
         });
         executeTenant(); var mvc = mvc();
         var result = mvc.perform(post("/api/v1/ai-interviews/11/conversation/turns").contentType(MediaType.APPLICATION_JSON)

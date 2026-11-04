@@ -17,6 +17,8 @@ export const applicantApi = {
     api.get<ApiResponse<ApplicationPage>>("/applications", { params }).then((r) => r.data),
   listByJob: (jobId: number | string, params: ApplicationListParams = {}) =>
     api.get<ApiResponse<ApplicationPage>>(`/jobs/${jobId}/applications`, { params }).then((r) => r.data),
+  statusCounts: (jobId: number | string) =>
+    api.get<ApiResponse<Record<string, number>>>(`/jobs/${jobId}/applications/status-counts`).then((r) => r.data),
   apply: (jobId: number | string, body?: Record<string, unknown>) =>
     api.post<ApiResponse<ApplicationSummary>>(`/jobs/${jobId}/applications`, body ?? {}).then((r) => r.data),
   mine: () => api.get<ApiResponse<ApplicationSummary[]>>("/applications/me").then((r) => r.data),

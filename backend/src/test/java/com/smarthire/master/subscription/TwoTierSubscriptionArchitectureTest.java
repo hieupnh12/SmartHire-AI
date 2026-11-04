@@ -1,7 +1,6 @@
 package com.smarthire.master.subscription;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.smarthire.domain.enums.JobStatus;
 import com.smarthire.domain.master.entity.Invoice;
 import com.smarthire.domain.master.entity.SubscriptionPlan;
 import com.smarthire.domain.master.entity.TenantInfo;

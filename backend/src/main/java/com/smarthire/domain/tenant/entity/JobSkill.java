@@ -40,9 +40,11 @@ public class JobSkill {
     @JoinColumn(name = "skill_id", nullable = false)
     Skill skill;
 
+    @Builder.Default
     @Column(nullable = false)
     boolean required = true;
 
+    @Builder.Default
     @Column(nullable = false, precision = 5, scale = 2)
     BigDecimal weight = BigDecimal.ONE;
 

@@ -17,7 +17,7 @@ Ghi nhận tín hiệu gian lận (tab blur, paste, multi-focus) và gắn risk 
 1. Mọi bước quy chế + kiểm tra thiết bị chỉ ở `/assessments/:testId/invite` (bắt đầu **và** tiếp tục phiên).
 2. Gate pass → `start_submission` (hoặc bind proctor cho submission đang mở) → `/take`. Nếu `/take` thiếu phiên giám sát → redirect lại invite (không hiện form check lần 2).
 3. Trong `/take`: bấm Bắt đầu (cùng nút kiểm tra thiết bị) thì camera và chia sẻ **toàn bộ màn hình** vẫn chạy, rồi gọi fullscreen trong cú bấm đó. Chia sẻ đúng tab làm bài thì Chrome không ẩn thanh địa chỉ, nên bài thi không dùng kiểu ghi đó. Đề hiện khi cửa sổ phủ kín `screen.height`. Tắt camera, tắt microphone, dừng chia sẻ màn hình, thoát toàn màn hình, rời tab, mất focus, copy/paste bị tính vi phạm; 3 vi phạm → tự nộp. Camera chạy nhận diện khuôn mặt trên trình duyệt (MediaPipe): đúng 1 mặt trong khung; mất mặt ~0,9 giây hoặc ≥2 mặt ~1 giây → 1 vi phạm (cooldown ~5 giây). Chưa lưu video/snapshot lên server; chưa có gaze / phát hiện điện thoại.
-4. API `proctor-events` cho assessment (BE) — chưa có; AI Interview đã có.
+4. Frontend gửi sự kiện giám sát qua `POST /api/v1/submissions/{id}/proctor-events` (mất mặt, nhiều người, thoát fullscreen, rời tab, …).
 5. Recruiter xem báo cáo khi BE sẵn sàng.
 
 ## Business Rules

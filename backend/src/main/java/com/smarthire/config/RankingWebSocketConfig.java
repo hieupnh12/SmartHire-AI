@@ -20,10 +20,22 @@ import org.springframework.web.util.UriComponentsBuilder;
 public class RankingWebSocketConfig implements WebSocketConfigurer {
     private final RankingWebSocketHandler handler;
     private final JwtTokenProvider tokens;
-    private final String[] allowedOrigins;
+    private final String[] allowedOriginPatterns;
     public RankingWebSocketConfig(RankingWebSocketHandler handler, JwtTokenProvider tokens,
             @Value("${app.cors.allowed-origins:http://localhost:5173}") String allowedOrigins) {
-        this.handler = handler; this.tokens = tokens; this.allowedOrigins = allowedOrigins.split(",");
+        this.handler = handler;
+        this.tokens = tokens;
+        // Match CorsConfig: tenant subdomains like http://se36.localhost:5173 must be allowed.
+        java.util.ArrayList<String> patterns = new java.util.ArrayList<>();
+        for (String origin : allowedOrigins.split(",")) {
+            String trimmed = origin.trim();
+            if (!trimmed.isEmpty()) patterns.add(trimmed);
+        }
+        patterns.add("http://localhost:*");
+        patterns.add("http://*.localhost:*");
+        patterns.add("https://*.smarthire.top");
+        patterns.add("https://smarthire.top");
+        this.allowedOriginPatterns = patterns.toArray(String[]::new);
     }
     @Override public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
         registry.addHandler(handler, "/ws/rankings").addInterceptors(new HandshakeInterceptor() {
@@ -39,6 +51,6 @@ public class RankingWebSocketConfig implements WebSocketConfigurer {
             }
             @Override public void afterHandshake(ServerHttpRequest request, ServerHttpResponse response,
                     WebSocketHandler wsHandler, Exception exception) { }
-        }).setAllowedOrigins(allowedOrigins);
+        }).setAllowedOriginPatterns(allowedOriginPatterns);
     }
 }

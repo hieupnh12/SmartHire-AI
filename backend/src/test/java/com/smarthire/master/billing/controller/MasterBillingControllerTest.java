@@ -1,6 +1,5 @@
 package com.smarthire.master.billing.controller;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.smarthire.common.exception.BusinessException;
 import com.smarthire.common.exception.GlobalExceptionHandler;
 import com.smarthire.master.billing.dto.InvoiceResponse;
@@ -30,7 +29,6 @@ class MasterBillingControllerTest {
     private MasterBillingService billingService;
 
     private MockMvc mockMvc;
-    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @BeforeEach
     void setUp() {

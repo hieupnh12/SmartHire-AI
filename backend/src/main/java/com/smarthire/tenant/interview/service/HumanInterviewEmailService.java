@@ -12,11 +12,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.mail.javamail.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 @Service
 public class HumanInterviewEmailService {
+    private static final Logger log = LoggerFactory.getLogger(HumanInterviewEmailService.class);
     private final EmailOutboxRepository outbox;
     private final ObjectProvider<JavaMailSender> sender;
     private final ObjectMapper json;
@@ -52,7 +55,10 @@ public class HumanInterviewEmailService {
         var e=outbox.findLockedById(id).orElse(null);
         if(e==null || !HumanInterviewNotificationService.PURPOSE.equals(e.getPurpose()) || e.getStatus()==NotificationStatus.SENT || e.getAttempts()>=5) return;
         var mail=sender.getIfAvailable();
-        if(mail==null || from.isBlank()) return;
+        if(mail==null || from.isBlank()) {
+            log.warn("Skip human interview email id={} — JavaMailSender or spring.mail.username is not configured", id);
+            return;
+        }
         e.setAttempts(e.getAttempts()+1);
         try {
             var content=json.readValue(e.getBody(),HumanInterviewNotificationService.EmailContent.class);
@@ -70,6 +76,9 @@ public class HumanInterviewEmailService {
             helper.setTo(e.getToEmail());helper.setSubject(e.getSubject());helper.setText(content.text());
             if(content.calendar()!=null) helper.addAttachment("interview.ics",new ByteArrayResource(content.calendar().getBytes(StandardCharsets.UTF_8)),"text/calendar");
             mail.send(message);e.setStatus(NotificationStatus.SENT);e.setSentAt(Instant.now());
-        } catch(Exception ex) { e.setStatus(NotificationStatus.FAILED); }
+        } catch(Exception ex) {
+            e.setStatus(NotificationStatus.FAILED);
+            log.warn("Failed human interview email id={} to={}: {}", id, e.getToEmail(), ex.toString());
+        }
     }
 }

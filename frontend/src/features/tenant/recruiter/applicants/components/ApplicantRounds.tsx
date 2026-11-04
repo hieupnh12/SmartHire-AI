@@ -111,7 +111,13 @@ export function ApplicantRounds({
       <div className="flex flex-wrap gap-2">
         <Link className={button} to="/recruiter/assessments">Quản lý đề</Link>
         <Link className={button} to="/recruiter/interviews">Phỏng vấn AI</Link>
-        <Link className={button} to="/recruiter/schedules">Đặt lịch PV</Link>
+        {rounds?.cv.passed && rounds?.aiInterview.passed && rounds?.assessment.passed ? (
+          <Link className={button} to="/recruiter/interviews">Đặt lịch phỏng vấn trực tiếp</Link>
+        ) : (
+          <span className={`${button} cursor-not-allowed opacity-60`} title="Cần đạt CV, AI Interview và Assessment">
+            Chưa đủ điều kiện mời PV trực tiếp
+          </span>
+        )}
       </div>
     </div>
   );

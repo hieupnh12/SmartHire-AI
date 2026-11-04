@@ -26,4 +26,5 @@ export type BankQuestionQuery = {
   source?: "AI";
   sort?: string;
   favoriteIds?: number[];
+  jobId?: number;
 };

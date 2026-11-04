@@ -1,0 +1,2 @@
+ALTER TABLE tests
+    ADD COLUMN auto_grading_enabled BOOLEAN NOT NULL DEFAULT FALSE;

@@ -116,6 +116,9 @@ public class GateScreeningService {
         AiInterview interview = latestInterviewAny(application.getId());
         Submission assessment = latestAssessmentAny(application.getId());
         Boolean cvPassed = cvRoundPassed(application, match);
+        Boolean interviewPassed = interviewRoundPassed(interview);
+        BigDecimal assessmentThreshold = assessment == null || assessment.getTest() == null ? null : assessment.getTest().getPassingScore();
+        Boolean assessmentPassed = assessmentRoundPassed(assessment, assessmentThreshold);
         return new ScreeningRoundsView(
                 new RoundItemView(
                         cvPassed == null ? "MISSING" : (cvPassed ? "PASSED" : "FAILED"),
@@ -128,18 +131,33 @@ public class GateScreeningService {
                                 ? (application.getAiInterviewInvitedAt() != null ? "INVITED" : "MISSING")
                                 : interview.getStatus().name(),
                         interview == null ? null : interview.getOverallScore(),
-                        null,
-                        interview == null ? null
-                                : interview.getStatus() == AiInterviewStatus.SCORED || interview.getStatus() == AiInterviewStatus.PASSED ? Boolean.TRUE
-                                : interview.getStatus() == AiInterviewStatus.FAILED ? Boolean.FALSE : null,
+                        interview == null ? null : interview.getPassingScoreSnapshot(),
+                        interviewPassed,
                         config.getGateInterviewWeight()),
                 new RoundItemView(
                         assessment == null ? "MISSING" : assessment.getStatus().name(),
                         assessment == null ? null : assessment.getScore(),
-                        null,
-                        assessment != null && assessment.getStatus() == TestSubmissionStatus.GRADED ? Boolean.TRUE : null,
+                        assessmentThreshold,
+                        assessmentPassed,
                         config.getGateAssessmentWeight()),
                 application.getAiInterviewInvitedAt());
+    }
+
+    private static Boolean interviewRoundPassed(AiInterview interview) {
+        if (interview == null) return null;
+        if (interview.getStatus() == AiInterviewStatus.PASSED) return Boolean.TRUE;
+        if (interview.getStatus() == AiInterviewStatus.FAILED) return Boolean.FALSE;
+        if (interview.getStatus() != AiInterviewStatus.SCORED || interview.getOverallScore() == null
+                || interview.getPassingScoreSnapshot() == null) return null;
+        return interview.getOverallScore().compareTo(interview.getPassingScoreSnapshot()) >= 0;
+    }
+
+    private static Boolean assessmentRoundPassed(Submission assessment, BigDecimal threshold) {
+        if (assessment == null || assessment.getStatus() != TestSubmissionStatus.GRADED || assessment.getScore() == null) {
+            return null;
+        }
+        if (threshold == null) return Boolean.TRUE;
+        return assessment.getScore().compareTo(threshold) >= 0;
     }
 
     @Transactional(readOnly = true)

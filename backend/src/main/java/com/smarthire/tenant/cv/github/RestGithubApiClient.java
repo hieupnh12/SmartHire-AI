@@ -2,10 +2,6 @@ package com.smarthire.tenant.cv.github;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.smarthire.tenant.cv.github.GithubApiClient.CompareResult;
-import com.smarthire.tenant.cv.github.GithubApiClient.RepoSnapshot;
-import com.smarthire.tenant.cv.github.GithubApiClient.TreeItem;
-import com.smarthire.tenant.cv.github.GithubApiClient.TreePage;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;

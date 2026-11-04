@@ -43,9 +43,21 @@ public class QuestionBankController {
         return ApiResponse.ok(generate.generate(body));
     }
 
+    @PostMapping(value = "/generate_stream", produces = org.springframework.http.MediaType.TEXT_EVENT_STREAM_VALUE)
+    @Operation(summary = "Real-time SSE stream drafting questions one-by-one with progressive events (staff only)",
+            description = "Streams events: generation_started, generation_progress, question_created, generation_completed")
+    public ResponseEntity<org.springframework.web.servlet.mvc.method.annotation.SseEmitter> generateStream(@Valid @RequestBody QuestionBankGenerateRequest body) {
+        return ResponseEntity.ok()
+                .header("X-Accel-Buffering", "no")
+                .header("Cache-Control", "no-cache, no-transform")
+                .body(generate.generateStream(body));
+    }
+
     @GetMapping("/list_questions")
     @Operation(summary = "List standalone and assessment questions in the current tenant (staff only)")
-    public ApiResponse<BankQuestionPage> list(@RequestParam(defaultValue = "0") int page,
+    public ApiResponse<BankQuestionPage> list(
+            @RequestParam(required = false) Long jobId,
+            @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "50") int size,
             @RequestParam(required = false) String collection,
             @RequestParam(required = false) String query,
@@ -57,7 +69,7 @@ public class QuestionBankController {
             @RequestParam(defaultValue = "latest") String sort,
             @RequestParam(required = false) List<Long> favoriteIds) {
         return ApiResponse.ok(service.list(page, size, collection, query, skill, difficulty, status,
-                questionType, source, sort, favoriteIds));
+                questionType, source, sort, favoriteIds, jobId));
     }
 
     @GetMapping("/get_question/{id}")

@@ -93,6 +93,7 @@ class CvAccessTest {
         access.requirePrimaryRecruiter(job);
     }
 
+    @SuppressWarnings("deprecation")
     @Test
     void requirePrimaryRecruiterAllowsPrimaryAssignment() {
         when(users.findByEmailIgnoreCase("recruiter@acme.test")).thenReturn(Optional.of(recruiter));
@@ -102,6 +103,7 @@ class CvAccessTest {
         access.requirePrimaryRecruiter(job);
     }
 
+    @SuppressWarnings("deprecation")
     @Test
     void requirePrimaryRecruiterRejectsCoRecruiter() {
         when(users.findByEmailIgnoreCase("recruiter@acme.test")).thenReturn(Optional.of(recruiter));

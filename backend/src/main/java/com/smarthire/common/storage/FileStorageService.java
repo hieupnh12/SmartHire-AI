@@ -98,6 +98,7 @@ public class FileStorageService {
             return id;
         } catch (Exception ex) { throw new IOException("Cannot store private interview audio", ex); }
     }
+    @SuppressWarnings("unchecked")
     public byte[] readInterviewAudio(String key) throws IOException {
         if (key == null || !key.matches("interview_[a-z0-9_-]+")) throw new IOException("Invalid audio key");
         try {
@@ -175,6 +176,7 @@ public class FileStorageService {
         return new ArrayList<>(urls);
     }
 
+    @SuppressWarnings("unchecked")
     private void addDownload(LinkedHashSet<String> urls, String publicId, String format, String resourceType, String type) {
         try {
             urls.add(cloudinary.privateDownload(publicId, format, ObjectUtils.asMap(

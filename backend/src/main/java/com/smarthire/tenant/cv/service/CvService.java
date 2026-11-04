@@ -30,6 +30,7 @@ import com.smarthire.tenant.cv.dto.CvModels.ImageUploadView;
 import com.smarthire.tenant.cv.dto.CvModels.ShareView;
 import com.smarthire.tenant.cv.dto.CvModels.SharedCvView;
 import com.smarthire.tenant.cv.dto.CvModels.MatchView;
+import com.smarthire.tenant.cv.dto.CvModels;
 import com.smarthire.tenant.cv.github.GithubAnalysisViews;
 import com.smarthire.tenant.cv.mapper.CvMapper;
 import java.nio.charset.StandardCharsets;
@@ -134,7 +135,8 @@ public class CvService {
     @Transactional
     public CvDetail upload(MultipartFile file, Long jobId, Long applicationId, String candidateEmail) {
         if (!access.candidate()) {
-            throw new BusinessException("Only candidates can upload CVs", HttpStatus.FORBIDDEN, "CV_UPLOAD_CANDIDATE_ONLY");
+            throw new BusinessException("Only candidates can upload CVs", HttpStatus.FORBIDDEN,
+                    "CV_UPLOAD_CANDIDATE_ONLY");
         }
         Candidate actor = access.candidateActor();
         Candidate owner = owner(actor, candidateEmail);
@@ -147,7 +149,8 @@ public class CvService {
         if (jobId != null) {
             job = jobs.findById(jobId).orElseThrow(() -> notFound("Job not found", "JOB_NOT_FOUND"));
             if (job.getStatus() != JobStatus.PUBLISHED) {
-                throw new BusinessException("Job is not open for applications", HttpStatus.BAD_REQUEST, "JOB_NOT_PUBLISHED");
+                throw new BusinessException("Job is not open for applications", HttpStatus.BAD_REQUEST,
+                        "JOB_NOT_PUBLISHED");
             }
             application = resolveApplication(job, owner, applicationId);
         }
@@ -264,14 +267,16 @@ public class CvService {
         }
         String mime = file.getContentType() == null ? "" : file.getContentType().toLowerCase(Locale.ROOT);
         if (!AVATAR_MIME.contains(mime)) {
-            throw new BusinessException("Only JPG, PNG and WEBP images are allowed", HttpStatus.BAD_REQUEST, "CV_AVATAR_TYPE_REJECTED");
+            throw new BusinessException("Only JPG, PNG and WEBP images are allowed", HttpStatus.BAD_REQUEST,
+                    "CV_AVATAR_TYPE_REJECTED");
         }
         try {
             String tenant = tenants.requireActive(TenantContext.getCurrentTenant()).getSubdomain();
             return new ImageUploadView(storage.storeImage(tenant, file.getBytes()));
         } catch (Exception ex) {
             log.error("Failed to store CV avatar", ex);
-            throw new BusinessException("Failed to store image", HttpStatus.INTERNAL_SERVER_ERROR, "CV_AVATAR_STORE_FAILED");
+            throw new BusinessException("Failed to store image", HttpStatus.INTERNAL_SERVER_ERROR,
+                    "CV_AVATAR_STORE_FAILED");
         }
     }
 
@@ -328,7 +333,8 @@ public class CvService {
 
     private Candidate builderActor() {
         if (!access.candidate()) {
-            throw new BusinessException("Only candidates can upload CVs", HttpStatus.FORBIDDEN, "CV_UPLOAD_CANDIDATE_ONLY");
+            throw new BusinessException("Only candidates can upload CVs", HttpStatus.FORBIDDEN,
+                    "CV_UPLOAD_CANDIDATE_ONLY");
         }
         return access.candidateActor();
     }
@@ -368,8 +374,8 @@ public class CvService {
             String name = cv.getOriginalFilename() == null ? "cv.pdf" : cv.getOriginalFilename();
             String mime = cv.getMimeType() == null || cv.getMimeType().isBlank()
                     ? (name.toLowerCase(Locale.ROOT).endsWith(".pdf")
-                    ? "application/pdf"
-                    : "application/octet-stream")
+                            ? "application/pdf"
+                            : "application/octet-stream")
                     : cv.getMimeType();
             return new StoredCvFile(storage.read(cv.getStorageKey()), name, mime);
         } catch (Exception ex) {
@@ -378,7 +384,8 @@ public class CvService {
         }
     }
 
-    public record StoredCvFile(byte[] content, String filename, String mimeType) {}
+    public record StoredCvFile(byte[] content, String filename, String mimeType) {
+    }
 
     @Transactional
     public void delete(long id) {
@@ -411,9 +418,107 @@ public class CvService {
     public List<CvSummary> listByJob(long jobId) {
         Job job = jobs.findById(jobId).orElseThrow(() -> notFound("Job not found", "JOB_NOT_FOUND"));
         access.requireJob(job);
+        Map<Long, com.smarthire.domain.tenant.entity.MatchScore> scoreMap = scores.findByJob_Id(jobId).stream()
+                .filter(s -> s.getCv() != null)
+                .collect(java.util.stream.Collectors.toMap(s -> s.getCv().getId(), s -> s, (a, b) -> a));
         return cvs.findByJob_IdOrderByIdDesc(jobId).stream()
-                .map(cv -> mapper.summary(cv, scores.findByJob_IdAndCv_Id(jobId, cv.getId()).orElse(null)))
+                .map(cv -> mapper.summary(cv, scoreMap.get(cv.getId())))
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public CvModels.CvPageResult listByJobPaged(long jobId, String tab, String sort, int page, int size) {
+        Job job = jobs.findById(jobId).orElseThrow(() -> notFound("Job not found", "JOB_NOT_FOUND"));
+        access.requireJob(job);
+
+        List<Cv> jobCvs = cvs.findByJob_IdOrderByIdDesc(jobId);
+        Map<Long, com.smarthire.domain.tenant.entity.MatchScore> scoreMap = scores.findByJob_Id(jobId).stream()
+                .filter(s -> s.getCv() != null)
+                .collect(java.util.stream.Collectors.toMap(s -> s.getCv().getId(), s -> s, (a, b) -> a));
+
+        List<CvSummary> allSummaries = jobCvs.stream()
+                .map(cv -> mapper.summary(cv, scoreMap.get(cv.getId())))
+                .toList();
+
+        long totalCount = allSummaries.size();
+        List<CvSummary> scoredList = allSummaries.stream()
+                .filter(s -> s.matchScore() != null)
+                .toList();
+        long scoredCount = scoredList.size();
+        long processingCount = allSummaries.stream()
+                .filter(s -> isProcessing(s.status()))
+                .count();
+        long failedCount = allSummaries.stream()
+                .filter(s -> "FAILED".equalsIgnoreCase(s.status()))
+                .count();
+
+        java.math.BigDecimal averageScore = null;
+        if (!scoredList.isEmpty()) {
+            java.math.BigDecimal sum = scoredList.stream()
+                    .map(CvSummary::matchScore)
+                    .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
+            averageScore = sum.divide(java.math.BigDecimal.valueOf(scoredList.size()), 2,
+                    java.math.RoundingMode.HALF_UP);
+        }
+
+        CvModels.CvJobStats stats = new CvModels.CvJobStats(totalCount, scoredCount, processingCount, failedCount,
+                averageScore);
+
+        String normalizedTab = tab == null ? "ALL" : tab.trim().toUpperCase(Locale.ROOT);
+        List<CvSummary> filtered = allSummaries.stream()
+                .filter(s -> matchesTab(s, normalizedTab))
+                .toList();
+
+        List<CvSummary> sorted = new java.util.ArrayList<>(filtered);
+        String normalizedSort = sort == null ? "newest" : sort.trim().toLowerCase(Locale.ROOT);
+        if ("score".equalsIgnoreCase(normalizedSort)) {
+            sorted.sort((a, b) -> {
+                if (a.matchScore() == null && b.matchScore() == null)
+                    return Long.compare(b.id(), a.id());
+                if (a.matchScore() == null)
+                    return 1;
+                if (b.matchScore() == null)
+                    return -1;
+                int cmp = b.matchScore().compareTo(a.matchScore());
+                return cmp != 0 ? cmp : Long.compare(b.id(), a.id());
+            });
+        } else {
+            sorted.sort((a, b) -> Long.compare(b.id(), a.id()));
+        }
+
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.min(Math.max(size, 1), 100);
+        int filteredTotal = sorted.size();
+        int fromIndex = Math.min(safePage * safeSize, filteredTotal);
+        int toIndex = Math.min(fromIndex + safeSize, filteredTotal);
+        List<CvSummary> pageItems = sorted.subList(fromIndex, toIndex);
+
+        return new CvModels.CvPageResult(pageItems, filteredTotal, safePage, safeSize, stats);
+    }
+
+    private boolean isProcessing(String status) {
+        if (status == null)
+            return false;
+        return switch (status.toUpperCase(Locale.ROOT)) {
+            case "UPLOADED", "PARSING", "PARSED", "EXTRACTING", "ANALYZING" -> true;
+            default -> false;
+        };
+    }
+
+    private boolean matchesTab(CvSummary item, String tab) {
+        if (tab == null || tab.isBlank() || "ALL".equalsIgnoreCase(tab)) {
+            return true;
+        }
+        if ("SCORED".equalsIgnoreCase(tab)) {
+            return item.matchScore() != null;
+        }
+        if ("PROCESSING".equalsIgnoreCase(tab)) {
+            return isProcessing(item.status());
+        }
+        if ("FAILED".equalsIgnoreCase(tab)) {
+            return "FAILED".equalsIgnoreCase(item.status());
+        }
+        return true;
     }
 
     @Transactional(readOnly = true)
@@ -427,7 +532,8 @@ public class CvService {
     @Transactional(readOnly = true)
     public MatchView match(long jobId, long cvId) {
         Cv cv = cvs.findById(cvId).orElseThrow(() -> notFound("CV not found", "CV_NOT_FOUND"));
-        if (cv.getJob() == null || !cv.getJob().getId().equals(jobId)) throw notFound("CV not found", "CV_NOT_FOUND");
+        if (cv.getJob() == null || !cv.getJob().getId().equals(jobId))
+            throw notFound("CV not found", "CV_NOT_FOUND");
         access.requireJob(cv.getJob());
         var score = scores.findByJob_IdAndCv_Id(jobId, cvId)
                 .orElseThrow(() -> notFound("Match score not found", "MATCH_NOT_FOUND"));
@@ -460,7 +566,8 @@ public class CvService {
     @Transactional
     public MatchView recomputeMatch(long jobId, long cvId) {
         Cv cv = cvs.findById(cvId).orElseThrow(() -> notFound("CV not found", "CV_NOT_FOUND"));
-        if (cv.getJob() == null || !cv.getJob().getId().equals(jobId)) throw notFound("CV not found", "CV_NOT_FOUND");
+        if (cv.getJob() == null || !cv.getJob().getId().equals(jobId))
+            throw notFound("CV not found", "CV_NOT_FOUND");
         access.requireJob(cv.getJob());
         if (cv.getStatus() != CvStatus.ANALYZED) {
             throw new BusinessException("CV is not analyzed yet", HttpStatus.CONFLICT, "CV_NOT_ANALYZED");
@@ -506,14 +613,17 @@ public class CvService {
     private CvDetail toDetail(Cv cv) {
         boolean includeMatch = access.staff();
         var github = includeMatch && cv.getJob() != null
-                ? githubAnalyses.findByCv_IdAndJob_Id(cv.getId(), cv.getJob().getId()).map(row -> GithubAnalysisViews.toView(row, objectMapper)).orElse(null)
+                ? githubAnalyses.findByCv_IdAndJob_Id(cv.getId(), cv.getJob().getId())
+                        .map(row -> GithubAnalysisViews.toView(row, objectMapper)).orElse(null)
                 : null;
         return mapper.detail(
                 cv,
                 extractions.findByCv_Id(cv.getId()).orElse(null),
                 cvSkills.findByCv_Id(cv.getId()),
                 analyses.findByCv_Id(cv.getId()).orElse(null),
-                includeMatch && cv.getJob() != null ? scores.findByJob_IdAndCv_Id(cv.getJob().getId(), cv.getId()).orElse(null) : null,
+                includeMatch && cv.getJob() != null
+                        ? scores.findByJob_IdAndCv_Id(cv.getJob().getId(), cv.getId()).orElse(null)
+                        : null,
                 github,
                 includeMatch);
     }
@@ -530,7 +640,8 @@ public class CvService {
             Application application = applications.findByIdAndJob_Id(applicationId, job.getId())
                     .orElseThrow(() -> notFound("Application not found", "APPLICATION_NOT_FOUND"));
             if (!application.getCandidate().getId().equals(owner.getId())) {
-                throw new BusinessException("Application does not belong to candidate", HttpStatus.BAD_REQUEST, "APPLICATION_MISMATCH");
+                throw new BusinessException("Application does not belong to candidate", HttpStatus.BAD_REQUEST,
+                        "APPLICATION_MISMATCH");
             }
             return application;
         }
@@ -550,7 +661,9 @@ public class CvService {
                 || name.endsWith(".pdf")
                 || name.endsWith(".doc")
                 || name.endsWith(".docx");
-        if (!allowed) throw new BusinessException("Only PDF, DOC, and DOCX are allowed", HttpStatus.BAD_REQUEST, "CV_TYPE_REJECTED");
+        if (!allowed)
+            throw new BusinessException("Only PDF, DOC, and DOCX are allowed", HttpStatus.BAD_REQUEST,
+                    "CV_TYPE_REJECTED");
     }
 
     private static String safeName(String original) {

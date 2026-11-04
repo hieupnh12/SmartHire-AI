@@ -1,4 +1,5 @@
 export type TestStatus = "DRAFT" | "PUBLISHED" | "ARCHIVED";
+export type TestOrigin = "AUTHORED" | "GENERATED";
 export type SubmissionStatus = "NOT_STARTED" | "IN_PROGRESS" | "SUBMITTED" | "GRADED" | "EXPIRED";
 export type QuestionDifficulty = "Easy" | "Medium" | "Hard";
 export type JobTest = {
@@ -10,6 +11,8 @@ export type JobTest = {
   durationMinutes: number;
   passingScore: number | null;
   status: TestStatus;
+  /** AUTHORED = recruiter wrote the paper. GENERATED = drawn from the question bank. */
+  origin?: TestOrigin;
   createdAt: string;
   updatedAt: string | null;
   createdById: number | null;
@@ -17,9 +20,11 @@ export type JobTest = {
   assignedApplicationId?: number | null;
   /** Hidden-test share of coding score (0–100). AI gets the remainder. */
   codingTestWeightPercent?: number;
+  autoGradingEnabled?: boolean;
 };
 export type TestRequest = Pick<JobTest, "jobId" | "title" | "description" | "durationMinutes" | "passingScore" | "objectiveDurationMinutes"> & {
   codingTestWeightPercent?: number | null;
+  autoGradingEnabled?: boolean;
 };
 export type TestPage = { items: JobTest[]; total: number; page: number; size: number };
 export type QuestionRequest = {

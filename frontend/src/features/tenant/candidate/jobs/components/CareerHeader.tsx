@@ -18,9 +18,11 @@ import { LanguageSwitcher } from "@/components/ux/LanguageSwitcher";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
 import { localeLabels, locales, useI18nStore, useT } from "@/i18n";
 import { useNotifications } from "@/hooks/useNotifications";
-import { buildPlatformUrl, getTenantIdFromWindow } from "@/lib/tenant";
+import { getTenantIdFromWindow } from "@/lib/tenant";
+import { workspaceOf } from "@/features/tenant/auth/workspace";
 import { notificationPath } from "@/features/tenant/candidate/shared/utils/notificationPath";
 import { cvRoleKeys, cvRoles, cvStyleKeys, cvStyles, type CvStyleKey } from "@/features/tenant/candidate/shared/constants/cvTemplates";
+import { Skeleton } from "@/components/ux/Skeleton";
 
 const styleIcons: Record<CvStyleKey, ElementType> = { simple: Box, impressive: DraftingCompass, professional: Star };
 
@@ -114,7 +116,8 @@ export function CareerHeader({ tenantName, tenantCode, logoUrl, slogan, primaryC
   const notifications = useNotifications(Boolean(token));
   const unreadCount = notifications.data?.filter((item) => !item.readAt).length ?? 0;
   const markRead = useMutation({ mutationFn: notificationApi.markRead, onSuccess: () => queryClient.invalidateQueries({ queryKey: notifications.queryKey.slice(0, 3) }) });
-  const recruiterUrl = buildPlatformUrl("/");
+  const isRecruiter = user ? workspaceOf(user.role, user.workspace) === "RECRUITER" : false;
+  const recruiterTarget = isRecruiter ? "/recruiter" : "/internal/login";
 
   useEffect(() => { if (!storedUser && profile.data?.data) setUser(profile.data.data); }, [profile.data, setUser, storedUser]);
   useEffect(() => {
@@ -173,7 +176,7 @@ export function CareerHeader({ tenantName, tenantCode, logoUrl, slogan, primaryC
               {profileOpen && <AccountPanel user={user} onClose={() => setProfileOpen(false)} onLogout={() => void signOut()} />}
             </div>
           </> : <button type="button" onClick={() => navigate("/login", { state: { from: { pathname: "/" } } })} className="hidden min-h-10 rounded-lg px-4 text-sm font-semibold text-white shadow-sm sm:inline-flex sm:items-center" style={{ backgroundColor: primaryColor }}>Đăng nhập</button>}
-          <a href={recruiterUrl} className="hidden min-h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 text-sm font-semibold text-slate-700 transition-colors hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] lg:inline-flex"><Building2 className="size-4" aria-hidden="true" />Nhà tuyển dụng</a>
+          <Link to={recruiterTarget} className="hidden min-h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3.5 text-sm font-semibold text-slate-700 transition-colors hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] lg:inline-flex"><Building2 className="size-4" aria-hidden="true" />Nhà tuyển dụng</Link>
           <button type="button" aria-expanded={mobileOpen} aria-label={mobileOpen ? "Đóng menu" : "Mở menu"} onClick={() => setMobileOpen((value) => !value)} className="grid size-11 place-items-center rounded-full text-slate-700 hover:bg-slate-100 lg:hidden">{mobileOpen ? <X className="size-5" /> : <Menu className="size-5" />}</button>
         </div>
       </div>
@@ -247,7 +250,20 @@ function NotificationPreview({ items, loading, unreadCount, onClose, onOpen }: {
   return <div role="dialog" aria-label="Thông báo gần đây" className="absolute right-0 top-[calc(100%+10px)] w-[min(390px,calc(100vw-24px))] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_18px_48px_rgba(15,23,42,0.18)]">
     <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4"><div><h2 className="font-semibold text-slate-900">Thông báo</h2><p className="mt-0.5 text-xs text-slate-500">{unreadCount > 0 ? `${unreadCount} thông báo chưa đọc` : "Bạn đã xem hết thông báo mới"}</p></div><span className="grid size-9 place-items-center rounded-full bg-[var(--color-primary-subtle)] text-[var(--color-primary)]"><Bell className="size-4" aria-hidden="true" /></span></div>
     <div className="max-h-[min(60vh,420px)] overflow-y-auto">
-      {loading && <p className="p-5 text-sm text-slate-500" role="status">Đang tải thông báo…</p>}
+      {loading && (
+        <div className="space-y-3 p-4" role="status" aria-busy="true">
+          {Array.from({ length: 3 }, (_, i) => (
+            <div key={i} className="flex gap-3">
+              <Skeleton className="mt-2 size-2 shrink-0 rounded-full" />
+              <div className="flex-1 space-y-1.5">
+                <Skeleton className="h-4 w-3/4" />
+                <Skeleton className="h-3 w-full" />
+              </div>
+            </div>
+          ))}
+          <span className="sr-only">Đang tải thông báo…</span>
+        </div>
+      )}
       {!loading && recent.length === 0 && <div className="px-5 py-10 text-center"><Bell className="mx-auto size-7 text-slate-300" aria-hidden="true" /><p className="mt-3 text-sm font-semibold text-slate-700">Chưa có thông báo</p><p className="mt-1 text-xs text-slate-500">Cập nhật về hồ sơ và phỏng vấn sẽ xuất hiện tại đây.</p></div>}
       {recent.map((item) => <button key={item.id} type="button" onClick={() => onOpen(item)} className={`relative block w-full border-b border-slate-100 px-5 py-4 text-left transition-colors last:border-b-0 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--color-primary)]/30 ${item.readAt ? "bg-white" : "bg-[var(--color-primary-subtle)]/45"}`}><div className="flex gap-3">{!item.readAt && <span className="mt-2 size-2 shrink-0 rounded-full bg-[var(--color-primary)]" aria-hidden="true" />}<div className="min-w-0 flex-1"><h3 className="line-clamp-1 text-sm font-semibold text-slate-800">{!item.readAt && <span className="sr-only">Chưa đọc: </span>}{item.title}</h3>{item.body && <p className="mt-1 line-clamp-2 whitespace-pre-line text-xs leading-5 text-slate-600">{item.body}</p>}<time className="mt-2 block text-[11px] text-slate-400" dateTime={item.createdAt}>{formatNotificationTime(item.createdAt)}</time></div><ChevronRight className="mt-1 size-4 shrink-0 text-slate-400" aria-hidden="true" /></div></button>)}
     </div>

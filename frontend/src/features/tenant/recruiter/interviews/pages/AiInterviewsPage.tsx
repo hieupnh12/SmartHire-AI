@@ -33,6 +33,7 @@ import { aiInterviewApi } from "@/api/tenant/aiInterviewApi";
 import { companyApi } from "@/api/tenant/companyApi";
 import type { AiInterviewStatus } from "@/api/types/aiInterview";
 import { AssessmentError } from "@/components/ux/assessmentUi";
+import { Skeleton } from "@/components/ux/Skeleton";
 import { AiInterviewConfigPanel } from "../components/AiInterviewConfigPanel";
 import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
@@ -535,13 +536,19 @@ export function AiInterviewsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--color-surface-container-low)]">
-                {interviews.isPending && (
-                  <tr>
-                    <td colSpan={8} className="px-4 py-10 text-center text-sm text-[var(--color-on-surface-variant)]" role="status">
-                      Đang tải phiên phỏng vấn AI…
-                    </td>
-                  </tr>
-                )}
+                {interviews.isPending &&
+                  Array.from({ length: 5 }, (_, rowIndex) => (
+                    <tr key={rowIndex} className="border-b border-[var(--color-surface-container-low)]">
+                      <td className="py-4 pl-6 pr-4"><Skeleton className="h-5 w-40" /></td>
+                      <td className="px-4 py-4"><Skeleton className="h-4 w-28" /></td>
+                      <td className="px-4 py-4"><Skeleton className="h-4 w-24" /></td>
+                      <td className="px-4 py-4"><Skeleton className="h-6 w-20 rounded-full" /></td>
+                      <td className="px-4 py-4"><Skeleton className="h-4 w-32" /></td>
+                      <td className="px-4 py-4"><Skeleton className="h-6 w-24 rounded-full" /></td>
+                      <td className="px-4 py-4"><Skeleton className="h-4 w-16" /></td>
+                      <td className="py-4 pr-4 text-right"><Skeleton className="ml-auto h-8 w-20 rounded-lg" /></td>
+                    </tr>
+                  ))}
                 {pageRows.map((row) => {
                   const schedule = scheduleOf(row);
                   const name = candidateName(row);

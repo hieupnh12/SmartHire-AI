@@ -7,7 +7,6 @@ import {
   Cpu,
   FileDown,
   Gauge,
-  Loader2,
   PowerOff,
   RefreshCw,
   RotateCcw,
@@ -23,6 +22,9 @@ import {
 } from "@/api/master/aiConfigApi";
 import { cn } from "@/lib/utils";
 import { HeaderActions } from "@/features/master/shell/HeaderActions";
+import { PageSkeleton } from "@/components/ux/Skeleton";
+import { toast } from "@/stores/toastStore";
+import { useUiStore } from "@/stores/uiStore";
 import { AiEngineConfiguration } from "./AiEngineConfiguration";
 
 export type SystemManagementView = "ai-usage" | "ai-quotas" | "ai-config";
@@ -163,14 +165,7 @@ function AiUsageReportView() {
   };
 
   if (loading && !report) {
-    return (
-      <div className="flex min-h-[360px] items-center justify-center">
-        <div className="flex flex-col items-center gap-3 text-slate-500">
-          <Loader2 className="size-8 animate-spin text-blue-600" />
-          <p className="text-sm font-medium">Đang tải thống kê tiêu thụ AI...</p>
-        </div>
-      </div>
-    );
+    return <PageSkeleton variant="detail" />;
   }
 
   const trend = report?.monthlyTrend || [];
@@ -429,6 +424,7 @@ function AiUsageReportView() {
 }
 
 function AiQuotaManagementView() {
+  const askConfirm = useUiStore((s) => s.askConfirm);
   const [rows, setRows] = useState<TenantAiQuota[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -481,63 +477,75 @@ function AiQuotaManagementView() {
       );
       setSavedId(row.tenantId);
       window.setTimeout(() => setSavedId(null), 2000);
+      toast.success(`Đã lưu hạn mức cho "${row.tenantName}"`);
     } catch (err: any) {
-      alert(err.response?.data?.message || err.message || "Lỗi khi lưu hạn mức");
+      toast.error(err.response?.data?.message || err.message || "Lỗi khi lưu hạn mức");
     } finally {
       setSavingId(null);
     }
   };
 
-  const handleToggleKillSwitch = async (row: TenantAiQuota) => {
+  const handleToggleKillSwitch = (row: TenantAiQuota) => {
     const enablingKill = !row.aiKillSwitch;
-    const confirmMsg = enablingKill
-      ? `Khóa khẩn cấp toàn bộ tính năng AI (CV Screening & AI Interview) của "${row.tenantName}"?`
-      : `Mở khóa lại hạn mức AI theo gói mặc định cho "${row.tenantName}"?`;
-    if (!window.confirm(confirmMsg)) return;
-
-    try {
-      setSavingId(row.tenantId);
-      const updated = await aiConfigApi.updateTenantAiQuota(
-        row.tenantId,
-        enablingKill ? { killSwitch: true } : { resetToPlanDefault: true }
-      );
-      setRows((prev) =>
-        prev.map((item) => (item.tenantId === row.tenantId ? updated : item))
-      );
-    } catch (err: any) {
-      alert(err.response?.data?.message || err.message || "Lỗi khi cập nhật Kill Switch");
-    } finally {
-      setSavingId(null);
-    }
+    askConfirm({
+      title: enablingKill ? "Khóa khẩn cấp AI" : "Mở khóa AI",
+      description: enablingKill
+        ? `Khóa khẩn cấp toàn bộ tính năng AI (CV Screening & AI Interview) của "${row.tenantName}"? Mọi API AI của tenant này sẽ bị tạm dừng ngay lập tức.`
+        : `Mở khóa lại hạn mức AI theo gói mặc định cho "${row.tenantName}"?`,
+      confirmLabel: enablingKill ? "Khóa khẩn cấp" : "Mở khóa",
+      danger: enablingKill,
+      onConfirm: async () => {
+        try {
+          setSavingId(row.tenantId);
+          const updated = await aiConfigApi.updateTenantAiQuota(
+            row.tenantId,
+            enablingKill ? { killSwitch: true } : { resetToPlanDefault: true }
+          );
+          setRows((prev) =>
+            prev.map((item) => (item.tenantId === row.tenantId ? updated : item))
+          );
+          toast.success(
+            enablingKill
+              ? `Đã kích hoạt Kill Switch cho "${row.tenantName}"`
+              : `Đã mở khóa AI cho "${row.tenantName}"`
+          );
+        } catch (err: any) {
+          toast.error(err.response?.data?.message || err.message || "Lỗi khi cập nhật Kill Switch");
+        } finally {
+          setSavingId(null);
+        }
+      },
+    });
   };
 
-  const handleResetToPlan = async (row: TenantAiQuota) => {
-    try {
-      setSavingId(row.tenantId);
-      const updated = await aiConfigApi.updateTenantAiQuota(row.tenantId, {
-        resetToPlanDefault: true,
-      });
-      setRows((prev) =>
-        prev.map((item) => (item.tenantId === row.tenantId ? updated : item))
-      );
-      setSavedId(row.tenantId);
-      window.setTimeout(() => setSavedId(null), 2000);
-    } catch (err: any) {
-      alert(err.response?.data?.message || err.message || "Lỗi khi khôi phục hạn mức gốc");
-    } finally {
-      setSavingId(null);
-    }
+  const handleResetToPlan = (row: TenantAiQuota) => {
+    askConfirm({
+      title: "Khôi phục hạn mức",
+      description: `Khôi phục hạn mức AI của "${row.tenantName}" về cấu hình mặc định của gói dịch vụ?`,
+      confirmLabel: "Khôi phục",
+      onConfirm: async () => {
+        try {
+          setSavingId(row.tenantId);
+          const updated = await aiConfigApi.updateTenantAiQuota(row.tenantId, {
+            resetToPlanDefault: true,
+          });
+          setRows((prev) =>
+            prev.map((item) => (item.tenantId === row.tenantId ? updated : item))
+          );
+          setSavedId(row.tenantId);
+          window.setTimeout(() => setSavedId(null), 2000);
+          toast.success(`Đã khôi phục hạn mức gốc cho "${row.tenantName}"`);
+        } catch (err: any) {
+          toast.error(err.response?.data?.message || err.message || "Lỗi khi khôi phục hạn mức gốc");
+        } finally {
+          setSavingId(null);
+        }
+      },
+    });
   };
 
   if (loading && rows.length === 0) {
-    return (
-      <div className="flex min-h-[360px] items-center justify-center">
-        <div className="flex flex-col items-center gap-3 text-slate-500">
-          <Loader2 className="size-8 animate-spin text-blue-600" />
-          <p className="text-sm font-medium">Đang tải hạn ngạch AI các Tenant...</p>
-        </div>
-      </div>
-    );
+    return <PageSkeleton variant="list" />;
   }
 
   const nearLimitCount = rows.filter((row) => {

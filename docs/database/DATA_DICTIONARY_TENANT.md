@@ -1,5 +1,21 @@
 # Data Dictionary - Tenant DB (MySQL)
 
+## Tự động chấm điểm và công bố kết quả V59 (2026-10-28)
+
+Nguồn: `V59__test_auto_grading.sql`. Không tạo bảng mới.
+
+| Bảng · cột / index | Kiểu | Null | Default | Ý nghĩa |
+|---|---|---|---|---|
+| `tests.auto_grading_enabled` | BOOLEAN | Không | FALSE | Khi bật (`true`), AI/Sandbox chấm xong sẽ tự động chốt điểm chính thức và gửi email kết quả cho ứng viên ngay mà không cần duyệt thủ công |
+
+## Nguồn gốc đề thi V58 (2026-10-27)
+
+Nguồn: `V58__test_origin.sql`. Không tạo bảng mới.
+
+| Bảng · cột / index | Kiểu | Null | Default | Ý nghĩa |
+|---|---|---|---|---|
+| `tests.origin` | VARCHAR(32) | Không | `'AUTHORED'` | Nguồn gốc đề thi (`AUTHORED` = tạo thủ công bởi nhà tuyển dụng; `GENERATED` = tạo tự động từ ngân hàng câu hỏi) |
+
 ## Assessment ops hardening V55 (2026-10-25)
 
 Nguồn: `V55__assessment_ops_hardening.sql`. Không tạo bảng mới.
@@ -739,6 +755,7 @@ Entity `JobTest` (class Java tránh xung đột JUnit `Test`).
 | `duration_minutes` | INT | | Không | — | Thời lượng (phút) |
 | `passing_score` | DECIMAL(10,2) | | Có | NULL | Điểm đạt |
 | `status` | VARCHAR(32) | | Không | `'DRAFT'` | `TestStatus`: DRAFT, PUBLISHED, ARCHIVED |
+| `origin` | VARCHAR(32) | | Không | `'AUTHORED'` | V58: `TestOrigin`. `AUTHORED` hiện nhãn **Thường** (soạn từ ngân hàng câu hỏi); `GENERATED` hiện nhãn **AI** (Tạo tự động / worker). Không đổi `status` |
 | `created_by` | BIGINT | FK → `users.id` | Có | NULL | Người tạo đề (staff); NULL với đề cũ trước V13 |
 | `created_at` | TIMESTAMP | | Không | now | |
 | `updated_at` | TIMESTAMP | | Có | NULL | Cập nhật lần cuối; backfill = `created_at` ở V13 |

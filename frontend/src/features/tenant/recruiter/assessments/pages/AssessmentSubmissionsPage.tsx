@@ -1,31 +1,89 @@
 import { AssessmentJobReportPanel } from "../components/AssessmentJobReportPanel";
-import { SubmissionGradingDetail } from "../components/SubmissionGradingDetail";
-import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Clock3, RefreshCw, Search, Users } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  Clock3,
+  Eye,
+  Loader2,
+  Pencil,
+  RefreshCw,
+  Rows3,
+  Search,
+  SlidersHorizontal,
+  Users,
+  X,
+} from "lucide-react";
 import { assessmentApi } from "@/api/tenant/assessmentApi";
 import type { SubmissionStatus, SubmissionSummary } from "@/api/types/assessment";
-import { AssessmentError, assessmentStatus } from "@/components/ux/assessmentUi";
-import { Breadcrumb } from "@/components/ux/Breadcrumb";
-import { Button } from "@/components/ux/Button";
+import { AssessmentError } from "@/components/ux/assessmentUi";
+import { AssessmentSubNav } from "../components/AssessmentSubNav";
+import { TableSkeleton } from "@/components/ux/Skeleton";
 import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
 import { useRecruitmentJob } from "../../jobs/components/JobRecruitmentWorkspace";
 
 type StatusTab = "ALL" | "IN_PROGRESS" | "DONE" | "EXPIRED";
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
 const REFRESH_MS = 15_000;
 
+function getPaginationItems(current: number, total: number): (number | "ellipsis-start" | "ellipsis-end")[] {
+  if (total <= 7) {
+    return Array.from({ length: total }, (_, i) => i + 1);
+  }
+
+  const showStartEllipsis = current > 4;
+  const showEndEllipsis = current < total - 3;
+
+  if (!showStartEllipsis && showEndEllipsis) {
+    return [1, 2, 3, 4, 5, "ellipsis-end", total];
+  }
+
+  if (showStartEllipsis && !showEndEllipsis) {
+    return [1, "ellipsis-start", total - 4, total - 3, total - 2, total - 1, total];
+  }
+
+  return [1, "ellipsis-start", current - 1, current, current + 1, "ellipsis-end", total];
+}
+
 const tabs: { id: StatusTab; label: string; match: (status: SubmissionStatus) => boolean }[] = [
-  { id: "ALL", label: "Tất cả lượt làm", match: () => true },
+  { id: "ALL", label: "Tất cả", match: () => true },
   { id: "IN_PROGRESS", label: "Đang làm bài", match: (status) => status === "IN_PROGRESS" || status === "NOT_STARTED" },
   { id: "DONE", label: "Đã nộp", match: (status) => status === "SUBMITTED" || status === "GRADED" },
-  { id: "EXPIRED", label: "Hết thời gian", match: (status) => status === "EXPIRED" },
+  { id: "EXPIRED", label: "Quá giờ", match: (status) => status === "EXPIRED" },
 ];
 
-function formatDateTime(iso: string | null) {
-  return iso ? new Date(iso).toLocaleString("vi-VN", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit" }) : "—";
+function formatTime(iso: string | null) {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+}
+
+function formatDate(iso: string | null) {
+  if (!iso) return "";
+  return new Date(iso).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+function isSameDay(iso1: string | null, iso2: string | null) {
+  if (!iso1 || !iso2) return true;
+  const d1 = new Date(iso1);
+  const d2 = new Date(iso2);
+  return d1.getFullYear() === d2.getFullYear() && d1.getMonth() === d2.getMonth() && d1.getDate() === d2.getDate();
+}
+
+function computeDuration(startedAt: string | null, submittedAt: string | null): string | null {
+  if (!startedAt || !submittedAt) return null;
+  const diffMs = new Date(submittedAt).getTime() - new Date(startedAt).getTime();
+  if (diffMs <= 0) return null;
+  const totalMinutes = Math.round(diffMs / 60000);
+  if (totalMinutes < 60) return `${Math.max(1, totalMinutes)} phút`;
+  const hours = Math.floor(totalMinutes / 60);
+  const mins = totalMinutes % 60;
+  return mins > 0 ? `${hours}h ${mins}p` : `${hours} giờ`;
 }
 
 function formatRemaining(seconds: number) {
@@ -40,31 +98,91 @@ function initials(name: string | null | undefined) {
   return `${parts[0][0] ?? ""}${parts[parts.length - 1][0] ?? ""}`.toUpperCase();
 }
 
-function statusTone(status: SubmissionStatus) {
-  if (status === "IN_PROGRESS") return { badge: "bg-sky-50 text-sky-700", dot: "bg-sky-500 animate-pulse" };
-  if (status === "GRADED") return { badge: "bg-emerald-50 text-emerald-700", dot: "bg-emerald-500" };
-  if (status === "SUBMITTED") return { badge: "bg-amber-50 text-amber-800", dot: "bg-amber-500" };
-  return { badge: "bg-[var(--color-surface-container)] text-[var(--color-on-surface-variant)]", dot: "bg-[var(--color-outline)]" };
+function statusMeta(status: SubmissionStatus) {
+  switch (status) {
+    case "GRADED":
+      return {
+        label: "Đã chấm",
+        badge: "bg-emerald-50 text-emerald-700 border border-emerald-200/70 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/40",
+        dot: "bg-emerald-500",
+      };
+    case "SUBMITTED":
+      return {
+        label: "Đã nộp",
+        badge: "bg-blue-50 text-blue-700 border border-blue-200/70 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800/40",
+        dot: "bg-blue-500",
+      };
+    case "IN_PROGRESS":
+      return {
+        label: "Đang làm bài",
+        badge: "bg-sky-50 text-sky-700 border border-sky-200/70 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800/40",
+        dot: "bg-sky-500 animate-pulse",
+      };
+    case "NOT_STARTED":
+      return {
+        label: "Chưa bắt đầu",
+        badge: "bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700",
+        dot: "bg-slate-400",
+      };
+    case "EXPIRED":
+      return {
+        label: "Quá hạn",
+        badge: "bg-rose-50 text-rose-700 border border-rose-200/70 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800/40",
+        dot: "bg-rose-500",
+      };
+    default:
+      return {
+        label: "Đã hủy",
+        badge: "bg-slate-100 text-slate-600 border border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700",
+        dot: "bg-slate-400",
+      };
+  }
 }
 
 function StatusBadge({ status }: { status: SubmissionStatus }) {
-  const tone = statusTone(status);
+  const meta = statusMeta(status);
   return (
-    <span className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold", tone.badge)}>
-      <span className={cn("size-1.5 rounded-full", tone.dot)} />
-      {assessmentStatus[status]}
+    <span className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold", meta.badge)}>
+      <span className={cn("size-1.5 rounded-full", meta.dot)} />
+      {meta.label}
     </span>
   );
 }
 
 export function AssessmentSubmissionsPage() {
   const job = useRecruitmentJob();
-  const basePath = `/recruiter/jobs/${job.id}/assessments`;
-  const [reviewId, setReviewId] = useState<number | null>(null);
-  const [tab, setTab] = useState<StatusTab>("ALL");
-  const [query, setQuery] = useState("");
-  const [testFilter, setTestFilter] = useState<number | "ALL">("ALL");
-  const [page, setPage] = useState(0);
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [params, setParams] = useSearchParams();
+
+  const requestedPage = Math.max(1, parseInt(params.get("page") || "1", 10) || 1);
+  const rawSize = parseInt(params.get("limit") || params.get("size") || "10", 10);
+  const requestedSize = (PAGE_SIZE_OPTIONS as readonly number[]).includes(rawSize) ? rawSize : 10;
+  const requestedQ = params.get("q") ?? "";
+  const requestedTab = (params.get("tab") as StatusTab) ?? "ALL";
+  const initialTab: StatusTab = ["ALL", "IN_PROGRESS", "DONE", "EXPIRED"].includes(requestedTab) ? requestedTab : "ALL";
+
+  const [tab, setTab] = useState<StatusTab>(initialTab);
+  const [query, setQuery] = useState(requestedQ);
+  const [density, setDensity] = useState<"compact" | "normal">("normal");
+  const [page, setPage] = useState(requestedPage);
+  const [pageSize, setPageSize] = useState(requestedSize);
+  const [jumpVal, setJumpVal] = useState("");
+  const [isTableTransitioning, setIsTableTransitioning] = useState(false);
+
+  useEffect(() => {
+    const p = Math.max(1, parseInt(params.get("page") || "1", 10) || 1);
+    const rs = parseInt(params.get("limit") || params.get("size") || "10", 10);
+    const s = (PAGE_SIZE_OPTIONS as readonly number[]).includes(rs) ? rs : 10;
+    const q = params.get("q") ?? "";
+    const t = (params.get("tab") as StatusTab) ?? "ALL";
+    const validTab: StatusTab = ["ALL", "IN_PROGRESS", "DONE", "EXPIRED"].includes(t) ? t : "ALL";
+
+    if (p !== page) setPage(p);
+    if (s !== pageSize) setPageSize(s);
+    if (q !== query) setQuery(q);
+    if (validTab !== tab) setTab(validTab);
+  }, [params]);
 
   const submissions = useQuery({
     queryKey: queryKeys.assessments.jobSubmissions(job.id),
@@ -73,89 +191,153 @@ export function AssessmentSubmissionsPage() {
   });
   const items = submissions.data ?? [];
 
-  const testOptions = useMemo(() => {
-    const map = new Map<number, string>();
-    for (const item of items) map.set(item.testId, item.testTitle);
-    return [...map.entries()];
+  // Group attempts by candidateId + testId to accurately label "Lần 1", "Lần 2"
+  const attemptMap = useMemo(() => {
+    const map = new Map<string, number[]>();
+    const sorted = [...items].sort((a, b) => {
+      const timeA = a.startedAt ? new Date(a.startedAt).getTime() : a.id;
+      const timeB = b.startedAt ? new Date(b.startedAt).getTime() : b.id;
+      return timeA - timeB;
+    });
+    for (const item of sorted) {
+      const key = `${item.candidateId}_${item.testId}`;
+      const list = map.get(key) ?? [];
+      list.push(item.id);
+      map.set(key, list);
+    }
+    const result = new Map<number, { attempt: number; totalAttempts: number }>();
+    for (const [, ids] of map.entries()) {
+      ids.forEach((id, index) => {
+        result.set(id, { attempt: index + 1, totalAttempts: ids.length });
+      });
+    }
+    return result;
   }, [items]);
 
-  const scoped = useMemo(
-    () => (testFilter === "ALL" ? items : items.filter((item) => item.testId === testFilter)),
-    [items, testFilter],
-  );
-
   const counts = useMemo(
-    () => Object.fromEntries(tabs.map((item) => [item.id, scoped.filter((row) => item.match(row.status)).length])) as Record<StatusTab, number>,
-    [scoped],
+    () =>
+      Object.fromEntries(
+        tabs.map((item) => [item.id, items.filter((row) => item.match(row.status)).length]),
+      ) as Record<StatusTab, number>,
+    [items],
   );
 
   const filtered = useMemo(() => {
     const matcher = tabs.find((item) => item.id === tab)!.match;
     const q = query.trim().toLowerCase();
-    return scoped.filter(
+    return items.filter(
       (item) =>
         matcher(item.status) &&
-        (!q || item.candidateName.toLowerCase().includes(q) || item.candidateEmail.toLowerCase().includes(q) || item.testTitle.toLowerCase().includes(q)),
+        (!q ||
+          item.candidateName.toLowerCase().includes(q) ||
+          item.candidateEmail.toLowerCase().includes(q) ||
+          item.testTitle.toLowerCase().includes(q)),
     );
-  }, [scoped, tab, query]);
+  }, [items, tab, query]);
 
-  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const safePage = Math.min(page, pageCount - 1);
-  const pageRows = filtered.slice(safePage * PAGE_SIZE, safePage * PAGE_SIZE + PAGE_SIZE);
-  const resetPage = () => setPage(0);
+  const totalItems = filtered.length;
+  const pageCount = Math.max(1, Math.ceil(totalItems / pageSize));
+  const safePage = Math.min(page, pageCount);
+  const startIndex = (safePage - 1) * pageSize;
+  const pageRows = useMemo(
+    () => filtered.slice(startIndex, startIndex + pageSize),
+    [filtered, startIndex, pageSize],
+  );
+  const pageItems = useMemo(() => getPaginationItems(safePage, pageCount), [safePage, pageCount]);
+
+  const prefetchSubmission = (submissionId: number) => {
+    queryClient.prefetchQuery({
+      queryKey: [...queryKeys.assessments.all(), "grading-detail", submissionId],
+      queryFn: () => assessmentApi.gradingDetail(submissionId),
+      staleTime: 30_000,
+    });
+  };
+
+  const triggerTableTransition = (action: () => void) => {
+    setIsTableTransitioning(true);
+    action();
+    setTimeout(() => {
+      setIsTableTransitioning(false);
+    }, 200);
+  };
+
+  const goToPage = (nextPage: number, nextSize: number = pageSize) => {
+    const calcTotalPages = Math.max(1, Math.ceil(totalItems / nextSize));
+    const target = Math.max(1, Math.min(nextPage, calcTotalPages));
+    triggerTableTransition(() => {
+      setPage(target);
+      if (nextSize !== pageSize) {
+        setPageSize(nextSize);
+      }
+      const nextParams = new URLSearchParams(params);
+      nextParams.set("page", String(target));
+      nextParams.set("limit", String(nextSize));
+      nextParams.delete("size");
+      setParams(nextParams, { replace: true });
+    });
+  };
+
+  const handleQueryChange = (newQ: string) => {
+    setQuery(newQ);
+    const nextParams = new URLSearchParams(params);
+    if (newQ.trim()) {
+      nextParams.set("q", newQ.trim());
+    } else {
+      nextParams.delete("q");
+    }
+    nextParams.set("page", "1");
+    setParams(nextParams, { replace: true });
+    setPage(1);
+  };
+
+  const handleTabChange = (newTab: StatusTab) => {
+    setTab(newTab);
+    const nextParams = new URLSearchParams(params);
+    if (newTab !== "ALL") {
+      nextParams.set("tab", newTab);
+    } else {
+      nextParams.delete("tab");
+    }
+    nextParams.set("page", "1");
+    setParams(nextParams, { replace: true });
+    setPage(1);
+  };
 
   return (
-    <section className="flex flex-col gap-8 text-[var(--color-on-surface)]">
-      <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div className="min-w-0">
-          <Breadcrumb
-            items={[
-              { label: "Tuyển dụng" },
-              { label: "Bài đánh giá năng lực", to: basePath },
-              { label: "Theo dõi bài làm" },
-            ]}
-          />
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight">Theo dõi bài làm của ứng viên</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--color-on-surface-variant)]">
-            Xem ai đang làm bài, ai đã nộp và kết quả của từng lượt làm. Danh sách tự làm mới mỗi 15 giây.
-          </p>
-        </div>
-        <Button variant="secondary" onClick={() => void submissions.refetch()} disabled={submissions.isFetching}>
-          <RefreshCw className={cn("size-4", submissions.isFetching && "animate-spin")} aria-hidden="true" />
-          Làm mới
-        </Button>
-      </header>
+    <section className="flex flex-col gap-4 text-[var(--color-on-surface)]">
+      {/* 1. Sub-tabs Navigation */}
+      <AssessmentSubNav jobId={job.id} activeTab="submissions" />
 
-      {reviewId != null && <SubmissionGradingDetail key={reviewId} id={reviewId} onClose={() => setReviewId(null)} />}
       <AssessmentError error={submissions.error} retry={() => void submissions.refetch()} />
+
+      {/* 2. Visual Metric Cards with Enhanced Typography & Progress Trackers */}
       <AssessmentJobReportPanel jobId={job.id} />
 
-      <div className="flex flex-col gap-4 rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-4 shadow-[var(--shadow-card)]">
-        <div className="flex flex-wrap items-center gap-1 rounded-xl bg-[var(--color-surface-container-low)]/80 p-1">
+      {/* 3. Single-line Responsive Toolbar (Left: Status Tabs, Right: Search & Actions) */}
+      <div className="flex flex-col gap-2.5 rounded-2xl border border-slate-200/80 bg-white p-2.5 shadow-2xs dark:border-slate-800 dark:bg-slate-900 md:flex-row md:items-center md:justify-between">
+        {/* Left: Segmented Status Tabs (Cuộn ngang êm ái trên mobile, không vỡ layout) */}
+        <div className="flex items-center gap-1 overflow-x-auto scrollbar-none rounded-xl bg-slate-100/70 p-1 dark:bg-slate-800/60 shrink-0">
           {tabs.map((item) => {
             const active = tab === item.id;
             return (
               <button
                 key={item.id}
                 type="button"
-                onClick={() => {
-                  setTab(item.id);
-                  resetPage();
-                }}
+                onClick={() => handleTabChange(item.id)}
                 className={cn(
-                  "inline-flex items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-sm transition-colors",
+                  "inline-flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-medium transition-all cursor-pointer",
                   active
-                    ? "bg-[var(--color-surface-card)] font-semibold text-[var(--color-primary)] shadow-sm"
-                    : "text-[var(--color-on-surface-variant)] hover:bg-[var(--color-surface-container)] hover:text-[var(--color-on-surface)]",
+                    ? "bg-white font-semibold text-[#0066FF] shadow-2xs dark:bg-slate-900 dark:text-blue-400"
+                    : "text-[#475467] hover:text-[#101828] dark:text-slate-400 dark:hover:text-slate-200",
                 )}
               >
-                {item.label}
+                <span>{item.label}</span>
                 <span
                   className={cn(
-                    "rounded-full px-2 py-0.5 text-[11px] font-semibold",
+                    "rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
                     active
-                      ? "bg-[var(--color-primary-soft)] text-[var(--color-primary-hover)]"
-                      : "bg-[var(--color-surface-container-high)] text-[var(--color-on-surface-variant)]",
+                      ? "bg-blue-50 text-[#0066FF] dark:bg-blue-950 dark:text-blue-300"
+                      : "bg-slate-200/60 text-[#667085] dark:bg-slate-700/60 dark:text-slate-400",
                   )}
                 >
                   {counts[item.id]}
@@ -165,55 +347,98 @@ export function AssessmentSubmissionsPage() {
           })}
         </div>
 
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-12">
-          <label className="relative md:col-span-8">
-            <span className="sr-only">Tìm kiếm ứng viên</span>
-            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--color-outline)]" aria-hidden="true" />
+        {/* Right: Search & Action Icons (Làm mới & Mật độ hiển thị) */}
+        <div className="flex flex-wrap items-center gap-2 flex-1 md:flex-initial justify-end min-w-0">
+          {/* Search bar co giãn linh hoạt: Tiêu chuẩn (rộng 280-320px) vs Thu gọn (rộng 200-240px) */}
+          <div
+            className={cn(
+              "relative flex-1 transition-all duration-200 min-w-[150px]",
+              density === "compact" ? "md:w-52 max-w-xs" : "md:w-72 max-w-sm",
+            )}
+          >
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#667085]" />
             <input
-              className="h-10 w-full rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-low)] pl-10 pr-3 text-sm outline-none transition-[box-shadow,border-color] placeholder:text-[var(--color-outline)] focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20"
-              placeholder="Tìm theo tên, email ứng viên hoặc tên bài…"
+              className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-9 pr-8 text-[13px] text-[#101828] placeholder:text-[#667085] outline-none transition focus:border-[#0066FF] focus:bg-white focus:ring-2 focus:ring-blue-500/20 dark:border-slate-800 dark:bg-slate-800/40 dark:text-white dark:focus:bg-slate-900"
+              placeholder="Tìm ứng viên, email…"
               value={query}
-              onChange={(e) => {
-                setQuery(e.target.value);
-                resetPage();
-              }}
+              onChange={(e) => handleQueryChange(e.target.value)}
             />
-          </label>
-          <label className="md:col-span-4">
-            <span className="sr-only">Lọc theo bài đánh giá</span>
-            <select
-              className="h-10 w-full appearance-none rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-low)] px-3 text-sm outline-none focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20"
-              value={testFilter}
-              onChange={(e) => {
-                setTestFilter(e.target.value === "ALL" ? "ALL" : Number(e.target.value));
-                resetPage();
-              }}
+            {query && (
+              <button
+                type="button"
+                onClick={() => handleQueryChange("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md p-0.5 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer dark:hover:text-slate-200"
+                title="Xóa tìm kiếm"
+                aria-label="Xóa tìm kiếm"
+              >
+                <X className="size-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Nút Làm mới */}
+          <button
+            type="button"
+            onClick={() => void submissions.refetch()}
+            disabled={submissions.isFetching}
+            className="inline-flex size-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-50/50 text-[#475467] transition-all hover:bg-slate-100 hover:text-[#101828] active:scale-95 disabled:opacity-50 cursor-pointer dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-300 dark:hover:bg-slate-800"
+            title="Làm mới dữ liệu"
+            aria-label="Làm mới dữ liệu"
+          >
+            <RefreshCw className={cn("size-3.5", submissions.isFetching && "animate-spin text-[#0066FF]")} aria-hidden="true" />
+          </button>
+
+          {/* Nút Chuyển chế độ: Tiêu chuẩn / Thu gọn (Segmented Control trực quan) */}
+          <div className="inline-flex shrink-0 items-center rounded-xl border border-slate-200 bg-slate-100/70 p-0.5 dark:border-slate-800 dark:bg-slate-800/60">
+            <button
+              type="button"
+              onClick={() => setDensity("normal")}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs transition-all cursor-pointer",
+                density === "normal"
+                  ? "bg-white font-semibold text-slate-900 shadow-2xs border border-slate-200/60 dark:bg-slate-900 dark:text-white dark:border-slate-700"
+                  : "font-medium text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200",
+              )}
+              title="Chế độ Tiêu chuẩn: Thoáng mắt, hiển thị đầy đủ thông tin"
             >
-              <option value="ALL">Tất cả bài đánh giá</option>
-              {testOptions.map(([id, title]) => (
-                <option key={id} value={id}>
-                  {title} (ASM-{id})
-                </option>
-              ))}
-            </select>
-          </label>
+              <Rows3 className="size-3.5" />
+              <span className="hidden sm:inline">Tiêu chuẩn</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setDensity("compact")}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs transition-all cursor-pointer",
+                density === "compact"
+                  ? "bg-white font-semibold text-slate-900 shadow-2xs border border-slate-200/60 dark:bg-slate-900 dark:text-white dark:border-slate-700"
+                  : "font-medium text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200",
+              )}
+              title="Chế độ Thu gọn: Tối ưu số dòng trên màn hình, mật độ dữ liệu cao"
+            >
+              <SlidersHorizontal className="size-3.5" />
+              <span className="hidden sm:inline">Thu gọn</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border-default)] bg-[var(--color-surface-card)] shadow-[var(--shadow-card)]">
+      {/* 4. Main Submissions Table */}
+      <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-2xs dark:border-slate-800 dark:bg-slate-900">
         {submissions.isPending && (
-          <p className="p-6 text-sm text-[var(--color-on-surface-variant)]" role="status">
-            Đang tải danh sách bài làm…
-          </p>
+          <div className="p-4">
+            <TableSkeleton columns={6} rows={6} />
+          </div>
         )}
 
         {submissions.data && !pageRows.length && (
           <div className="flex items-center gap-3 p-8">
             <Users className="size-8 text-[var(--color-primary)]" aria-hidden="true" />
             <div>
-              <p className="font-semibold">Chưa có lượt làm bài phù hợp</p>
-              <p className="text-sm text-[var(--color-on-surface-variant)]">
-                {items.length === 0 ? "Chưa ứng viên nào bắt đầu bài đánh giá của vị trí này." : "Thử đổi bộ lọc hoặc từ khóa tìm kiếm."}
+              <p className="font-semibold text-slate-900 dark:text-slate-100">Chưa có lượt làm bài phù hợp</p>
+              <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                {items.length === 0
+                  ? "Chưa ứng viên nào bắt đầu bài đánh giá của vị trí này."
+                  : "Thử đổi bộ lọc hoặc từ khóa tìm kiếm."}
               </p>
             </div>
           </div>
@@ -221,56 +446,223 @@ export function AssessmentSubmissionsPage() {
 
         {pageRows.length > 0 && (
           <>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[1000px] border-collapse text-left text-sm">
+            <div className="overflow-x-auto lg:overflow-x-hidden scrollbar-thin">
+              <table className="w-full table-fixed border-collapse text-left text-sm">
+                <colgroup>
+                  <col className="w-[20%] min-w-[160px]" />
+                  <col className="w-[22%] min-w-[170px]" />
+                  <col className="w-[12%] min-w-[100px]" />
+                  <col className="w-[20%] min-w-[160px]" />
+                  <col className="w-[11%] min-w-[95px]" />
+                  <col className="w-[15%] min-w-[130px]" />
+                </colgroup>
                 <thead>
-                  <tr className="h-11 bg-[var(--color-surface-container-low)] text-[11px] font-semibold uppercase tracking-wider text-[var(--color-outline)]">
-                    <th className="px-4 py-2">Ứng viên</th>
-                    <th className="px-4 py-2">Bài đánh giá</th>
-                    <th className="px-4 py-2">Trạng thái</th>
-                    <th className="px-4 py-2">Bắt đầu</th>
-                    <th className="px-4 py-2">Nộp bài / Thời gian</th>
-                    <th className="px-4 py-2">Điểm</th>
+                  <tr
+                    className={cn(
+                      "border-b border-slate-100 bg-slate-50/70 font-semibold uppercase tracking-wider text-slate-500 dark:border-slate-800 dark:bg-slate-800/30 dark:text-slate-400",
+                      density === "compact" ? "text-[10px]" : "text-[11px]",
+                    )}
+                  >
+                    <th className={cn("px-4", density === "compact" ? "py-2" : "py-3")}>Ứng viên</th>
+                    <th className={cn("px-4", density === "compact" ? "py-2" : "py-3")}>Bài đánh giá &amp; Lượt thi</th>
+                    <th className={cn("px-4", density === "compact" ? "py-2" : "py-3")}>Trạng thái</th>
+                    <th className={cn("px-4", density === "compact" ? "py-2" : "py-3")}>Thời gian</th>
+                    <th className={cn("px-4", density === "compact" ? "py-2" : "py-3")}>Điểm số &amp; Đạt</th>
+                    <th
+                      className={cn(
+                        "sticky right-0 z-10 bg-slate-50/95 px-4 text-right shadow-[-4px_0_8px_-2px_rgba(0,0,0,0.05)] backdrop-blur-xs dark:bg-slate-800/95",
+                        density === "compact" ? "py-2" : "py-3",
+                      )}
+                    >
+                      Thao tác
+                    </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[var(--color-surface-container-low)]">
+                <tbody className={cn("divide-y divide-slate-100 dark:divide-slate-800/60 transition-opacity duration-150", isTableTransitioning && "opacity-50")}>
                   {pageRows.map((row) => (
-                    <SubmissionRow key={row.id} row={row} onReview={() => setReviewId(row.id)} />
+                    <SubmissionRow
+                      key={row.id}
+                      row={row}
+                      attemptInfo={attemptMap.get(row.id)}
+                      density={density}
+                      onPrefetch={() => prefetchSubmission(row.id)}
+                      onReview={() => navigate(`/recruiter/jobs/${job.id}/assessments/submissions/${row.id}`)}
+                    />
                   ))}
                 </tbody>
               </table>
             </div>
 
-            <div className="flex flex-col items-center justify-between gap-3 border-t border-[var(--color-border-default)] px-4 py-3 sm:flex-row">
-              <p className="text-sm text-[var(--color-outline)]">
-                Hiển thị{" "}
-                <span className="font-semibold text-[var(--color-on-surface)]">
-                  {safePage * PAGE_SIZE + 1}–{Math.min((safePage + 1) * PAGE_SIZE, filtered.length)}
-                </span>{" "}
-                của <span className="font-semibold text-[var(--color-on-surface)]">{filtered.length}</span> lượt làm
-              </p>
-              <div className="flex items-center gap-1">
-                <Button variant="secondary" size="sm" disabled={safePage === 0} aria-label="Trang đầu" onClick={() => setPage(0)}>
-                  <ChevronsLeft className="size-4" aria-hidden="true" />
-                </Button>
-                <Button variant="secondary" size="sm" disabled={safePage === 0} aria-label="Trang trước" onClick={() => setPage((p) => Math.max(0, p - 1))}>
-                  <ChevronLeft className="size-4" aria-hidden="true" />
-                </Button>
-                <span className="min-w-16 px-2 text-center text-sm font-semibold">
-                  {safePage + 1} / {pageCount}
-                </span>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  disabled={safePage >= pageCount - 1}
-                  aria-label="Trang sau"
-                  onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+            {/* Pagination footer (Chuẩn UX Enterprise 4 nhóm theo UX_PAGINATION_LOADING.md) */}
+            <div
+              className={cn(
+                "flex flex-col gap-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/40 px-4 py-3 sm:px-6 lg:flex-row lg:items-center lg:justify-between transition-opacity",
+                isTableTransitioning && "opacity-50 pointer-events-none"
+              )}
+            >
+              {/* Nhóm 1: Thông tin Dữ liệu (Left) */}
+              <div className="flex items-center gap-2 text-xs sm:text-[13px] text-slate-600 dark:text-slate-400">
+                <p>
+                  Hiển thị{" "}
+                  <strong className="font-semibold text-slate-900 dark:text-slate-100">
+                    {totalItems > 0 ? startIndex + 1 : 0}–{Math.min(startIndex + pageSize, totalItems)}
+                  </strong>{" "}
+                  trên <strong className="font-semibold text-slate-900 dark:text-slate-100">{totalItems}</strong> lượt làm
+                </p>
+                <span className="text-slate-300 dark:text-slate-700">·</span>
+                <span className="tabular-nums">Trang {safePage} / {pageCount}</span>
+                {submissions.isFetching && (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-medium text-[#0066FF] ml-1" role="status">
+                    <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+                    <span className="hidden sm:inline">Đang tải…</span>
+                  </span>
+                )}
+              </div>
+
+              {/* Nhóm 2: Chọn số bản ghi / trang (Center) */}
+              <div className="flex items-center justify-start lg:justify-center">
+                <label className="flex items-center gap-1.5 text-xs sm:text-[13px] text-slate-600 dark:text-slate-400">
+                  <span>Hiển thị</span>
+                  <select
+                    aria-label="Số lượt làm mỗi trang"
+                    value={pageSize}
+                    onChange={(e) => {
+                      const nextSize = Number(e.target.value);
+                      goToPage(1, nextSize);
+                    }}
+                    className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs sm:text-[13px] font-semibold text-slate-800 shadow-2xs outline-none transition-colors hover:border-[#0066FF] focus:border-[#0066FF] focus:ring-2 focus:ring-[#0066FF]/20 cursor-pointer dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                  >
+                    {PAGE_SIZE_OPTIONS.map((size) => (
+                      <option key={size} value={size}>
+                        {size} / trang
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              {/* Nhóm 3 & 4: Điều hướng & Nhảy trang (Right) */}
+              <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+                <nav className="flex items-center gap-1" aria-label="Phân trang danh sách lượt làm bài">
+                  {/* First Page [|<] */}
+                  <button
+                    type="button"
+                    aria-label="Về trang đầu"
+                    title="Về trang đầu (Trang 1)"
+                    disabled={safePage === 1}
+                    onClick={() => goToPage(1)}
+                    className="grid size-8 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-2xs transition-colors hover:border-[#0066FF] hover:bg-[#0066FF]/5 hover:text-[#0066FF] disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                  >
+                    <ChevronsLeft className="size-4" aria-hidden="true" />
+                  </button>
+
+                  {/* Previous [<] */}
+                  <button
+                    type="button"
+                    aria-label="Trang trước"
+                    title="Trang trước"
+                    disabled={safePage === 1}
+                    onClick={() => goToPage(safePage - 1)}
+                    className="grid size-8 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-2xs transition-colors hover:border-[#0066FF] hover:bg-[#0066FF]/5 hover:text-[#0066FF] disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                  >
+                    <ChevronLeft className="size-4" aria-hidden="true" />
+                  </button>
+
+                  {/* Page Numbers with Ellipsis */}
+                  {pageItems.map((item, idx) => {
+                    if (typeof item === "string") {
+                      return (
+                        <span
+                          key={`${item}-${idx}`}
+                          className="grid size-8 place-items-center text-xs text-slate-400 select-none dark:text-slate-500"
+                          aria-hidden="true"
+                        >
+                          …
+                        </span>
+                      );
+                    }
+                    const isActive = item === safePage;
+                    return (
+                      <button
+                        key={item}
+                        type="button"
+                        aria-label={`Trang ${item}`}
+                        aria-current={isActive ? "page" : undefined}
+                        onClick={() => goToPage(item)}
+                        className={cn(
+                          "grid size-8 place-items-center rounded-lg text-xs font-semibold transition-all cursor-pointer",
+                          isActive
+                            ? "bg-[#0066FF] text-white shadow-xs font-bold"
+                            : "border border-slate-200 bg-white text-slate-700 hover:border-[#0066FF] hover:bg-[#0066FF]/5 hover:text-[#0066FF] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-[#0066FF]"
+                        )}
+                      >
+                        {item}
+                      </button>
+                    );
+                  })}
+
+                  {/* Next [>] */}
+                  <button
+                    type="button"
+                    aria-label="Trang sau"
+                    title="Trang sau"
+                    disabled={safePage >= pageCount}
+                    onClick={() => goToPage(safePage + 1)}
+                    className="grid size-8 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-2xs transition-colors hover:border-[#0066FF] hover:bg-[#0066FF]/5 hover:text-[#0066FF] disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                  >
+                    <ChevronRight className="size-4" aria-hidden="true" />
+                  </button>
+
+                  {/* Last Page [>|] */}
+                  <button
+                    type="button"
+                    aria-label="Đến trang cuối"
+                    title={`Đến trang cuối (Trang ${pageCount})`}
+                    disabled={safePage >= pageCount}
+                    onClick={() => goToPage(pageCount)}
+                    className="grid size-8 place-items-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-2xs transition-colors hover:border-[#0066FF] hover:bg-[#0066FF]/5 hover:text-[#0066FF] disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                  >
+                    <ChevronsRight className="size-4" aria-hidden="true" />
+                  </button>
+                </nav>
+
+                <div className="hidden h-4 w-px bg-slate-300 sm:block dark:bg-slate-700" />
+
+                {/* Nhóm 4: Nhảy trang nhanh (Jump To Page) */}
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const target = parseInt(jumpVal, 10);
+                    if (!Number.isNaN(target)) {
+                      goToPage(target);
+                      setJumpVal("");
+                    }
+                  }}
+                  className="flex items-center gap-1.5 text-xs sm:text-[13px] text-slate-600 dark:text-slate-400"
                 >
-                  <ChevronRight className="size-4" aria-hidden="true" />
-                </Button>
-                <Button variant="secondary" size="sm" disabled={safePage >= pageCount - 1} aria-label="Trang cuối" onClick={() => setPage(pageCount - 1)}>
-                  <ChevronsRight className="size-4" aria-hidden="true" />
-                </Button>
+                  <label htmlFor="submission-jump-page" className="whitespace-nowrap">
+                    Đi đến:
+                  </label>
+                  <input
+                    id="submission-jump-page"
+                    type="number"
+                    min={1}
+                    max={pageCount}
+                    value={jumpVal}
+                    onChange={(e) => setJumpVal(e.target.value)}
+                    placeholder={String(safePage)}
+                    aria-label="Nhập số trang cần đến"
+                    className="h-8 w-14 rounded-lg border border-slate-200 bg-white px-2 text-center text-xs sm:text-[13px] font-semibold text-slate-800 shadow-2xs outline-none transition-colors hover:border-[#0066FF] focus:border-[#0066FF] focus:ring-2 focus:ring-[#0066FF]/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                  />
+                  <span>Trang</span>
+                  <button
+                    type="submit"
+                    disabled={!jumpVal || Number(jumpVal) < 1 || Number(jumpVal) > pageCount}
+                    className="h-8 rounded-lg border border-slate-200 bg-white px-2.5 text-xs sm:text-[13px] font-semibold text-slate-700 shadow-2xs transition-colors hover:border-[#0066FF] hover:bg-[#0066FF]/5 hover:text-[#0066FF] disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                  >
+                    Đi
+                  </button>
+                </form>
               </div>
             </div>
           </>
@@ -280,56 +672,265 @@ export function AssessmentSubmissionsPage() {
   );
 }
 
-function SubmissionRow({ row, onReview }: { row: SubmissionSummary; onReview: () => void }) {
+function SubmissionRow({
+  row,
+  attemptInfo,
+  density,
+  onPrefetch,
+  onReview,
+}: {
+  row: SubmissionSummary;
+  attemptInfo?: { attempt: number; totalAttempts: number };
+  density: "compact" | "normal";
+  onPrefetch?: () => void;
+  onReview: () => void;
+}) {
   const inProgress = row.status === "IN_PROGRESS";
+  const isPendingGrading = row.status === "SUBMITTED" || (row.status !== "IN_PROGRESS" && row.score == null);
+  const canReview = ["SUBMITTED", "GRADED", "EXPIRED"].includes(row.status);
+  const durationText = computeDuration(row.startedAt, row.submittedAt);
+  const sameDay = isSameDay(row.startedAt, row.submittedAt);
+
+  const padY = density === "compact" ? "py-1.5" : "py-3.5";
+
   return (
-    <tr className="transition-colors hover:bg-[var(--color-primary-subtle)]">
-      <td className="px-4 py-3.5">
-        <div className="flex items-center gap-3">
-          <div className="grid size-9 shrink-0 place-items-center rounded-full bg-[var(--color-secondary-container)] text-xs font-bold">
+    <tr
+      className="group transition-colors hover:bg-slate-50/70 dark:hover:bg-slate-800/30"
+      onMouseEnter={onPrefetch}
+    >
+      {/* 1. Candidate Info */}
+      <td className={cn("px-4", padY)}>
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div
+            className={cn(
+              "grid shrink-0 place-items-center rounded-full bg-[var(--color-primary-subtle)] font-bold text-[var(--color-primary)]",
+              density === "compact" ? "size-6.5 text-[10px]" : "size-8.5 text-xs",
+            )}
+          >
             {initials(row.candidateName)}
           </div>
-          <div className="min-w-0">
-            <span className="block truncate font-semibold">{row.candidateName}</span>
-            <span className="block truncate text-xs text-[var(--color-outline)]">{row.candidateEmail}</span>
+          <div className="min-w-0 flex-1">
+            <span
+              className={cn(
+                "block truncate font-semibold text-slate-900 dark:text-slate-100",
+                density === "compact" ? "text-xs" : "text-[13.5px]",
+              )}
+              title={row.candidateName}
+            >
+              {row.candidateName}
+            </span>
+            <span
+              className={cn(
+                "block truncate text-slate-500 dark:text-slate-400",
+                density === "compact" ? "text-[11px]" : "text-xs mt-0.5",
+              )}
+              title={row.candidateEmail}
+            >
+              {row.candidateEmail}
+            </span>
           </div>
         </div>
       </td>
-      <td className="px-4 py-3.5">
-        <span className="block truncate font-medium">{row.testTitle}</span>
-        <span className="font-mono text-xs text-[var(--color-outline)]">Mã: ASM-{row.testId}</span>
-      </td>
-      <td className="whitespace-nowrap px-4 py-3.5">
-        <StatusBadge status={row.status} />
-        {["SUBMITTED", "GRADED", "EXPIRED"].includes(row.status) && <button type="button" onClick={onReview} className="mt-2 block text-xs font-medium text-[var(--color-primary)]">Xem & chấm bài</button>}
-      </td>
-      <td className="whitespace-nowrap px-4 py-3.5">{formatDateTime(row.startedAt)}</td>
-      <td className="whitespace-nowrap px-4 py-3.5">
-        {inProgress ? (
-          <span className="inline-flex items-center gap-1.5 font-medium text-sky-700">
-            <Clock3 className="size-3.5" aria-hidden="true" />
-            {formatRemaining(row.remainingSeconds)}
+
+      {/* 2. Assessment Name & Attempt / Retry Badge */}
+      <td className={cn("px-4", padY)}>
+        <div className="flex flex-col min-w-0">
+          <span
+            className={cn(
+              "truncate font-medium text-slate-900 dark:text-slate-100",
+              density === "compact" ? "text-xs" : "text-sm",
+            )}
+            title={row.testTitle}
+          >
+            {row.testTitle}
           </span>
-        ) : row.submittedAt ? (
-          formatDateTime(row.submittedAt)
-        ) : (
-          <span className="text-[var(--color-outline)]">Chưa nộp</span>
-        )}
-      </td>
-      <td className="whitespace-nowrap px-4 py-3.5">
-        {row.score == null ? (
-          <span className="text-[var(--color-outline)]">{row.status === "SUBMITTED" ? "Chờ chấm tự luận" : "—"}</span>
-        ) : (
-          <div className="flex flex-col">
-            <span className="font-semibold">
-              {row.score} / {row.totalPoints} điểm
-            </span>
-            {row.passed != null && (
-              <span className={cn("text-[11px] font-medium", row.passed ? "text-emerald-700" : "text-[var(--color-status-danger)]")}>
-                {row.passed ? "Đạt" : "Chưa đạt"}
+          <div className={cn("flex items-center gap-1.5", density === "compact" ? "text-[10px]" : "mt-0.5 text-[11px]")}>
+            <span className="font-mono text-slate-400 dark:text-slate-500">ASM-{row.testId}</span>
+            <span className="text-slate-300 dark:text-slate-600">•</span>
+            {attemptInfo && attemptInfo.totalAttempts > 1 ? (
+              <span className="inline-flex items-center rounded bg-amber-50 px-1.5 py-0.2 text-[10px] font-bold text-amber-700 border border-amber-200/60 dark:bg-amber-950/40 dark:text-amber-300">
+                Lần {attemptInfo.attempt}/{attemptInfo.totalAttempts}
               </span>
+            ) : (
+              <span className="text-slate-400 dark:text-slate-500">Lần 1</span>
             )}
           </div>
+        </div>
+      </td>
+
+      {/* 3. Status Badge */}
+      <td className={cn("whitespace-nowrap px-4", padY)}>
+        <StatusBadge status={row.status} />
+      </td>
+
+      {/* 4. Combined Time Column (Bắt đầu - Nộp bài / Thời lượng) */}
+      <td className={cn("px-4 text-xs", padY)}>
+        {inProgress ? (
+          density === "compact" ? (
+            <div className="truncate text-xs text-sky-600 dark:text-sky-400 font-medium inline-flex items-center gap-1">
+              <Clock3 className="size-3 shrink-0" />
+              <span>{formatTime(row.startedAt)} · {formatRemaining(row.remainingSeconds)}</span>
+            </div>
+          ) : (
+            <div className="flex flex-col min-w-0">
+              <span className="truncate font-semibold text-slate-800 dark:text-slate-200 text-xs sm:text-[13px]">
+                {formatTime(row.startedAt)} ({formatDate(row.startedAt)})
+              </span>
+              <span className="mt-0.5 inline-flex items-center gap-1 text-[11px] font-medium text-sky-600 dark:text-sky-400">
+                <Clock3 className="size-3 shrink-0" aria-hidden="true" />
+                {formatRemaining(row.remainingSeconds)}
+              </span>
+            </div>
+          )
+        ) : row.submittedAt ? (
+          density === "compact" ? (
+            <div
+              className="truncate text-xs text-slate-700 dark:text-slate-300"
+              title={`Bắt đầu: ${formatTime(row.startedAt)} (${formatDate(row.startedAt)})\nNộp bài: ${formatTime(row.submittedAt)} (${formatDate(row.submittedAt)})\nThời lượng: ${durationText ?? "—"}`}
+            >
+              <span>{formatTime(row.startedAt)} ({formatDate(row.startedAt)})</span>
+              <span className="text-slate-400 mx-1">·</span>
+              <strong className="font-semibold text-slate-900 dark:text-slate-100">{durationText ?? "—"}</strong>
+            </div>
+          ) : (
+            <div
+              className="flex flex-col min-w-0"
+              title={`Bắt đầu: ${new Date(row.startedAt ?? "").toLocaleString("vi-VN")}\nNộp bài: ${new Date(row.submittedAt).toLocaleString("vi-VN")}`}
+            >
+              <span className="truncate font-semibold text-slate-800 dark:text-slate-200 text-xs sm:text-[13px]">
+                {sameDay ? (
+                  <>
+                    {formatTime(row.startedAt)} - {formatTime(row.submittedAt)}{" "}
+                    <span className="font-normal text-slate-500 dark:text-slate-400">({formatDate(row.submittedAt)})</span>
+                  </>
+                ) : (
+                  <>
+                    {formatTime(row.startedAt)} {formatDate(row.startedAt)} - {formatTime(row.submittedAt)} {formatDate(row.submittedAt)}
+                  </>
+                )}
+              </span>
+              <span className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+                Thời lượng: <strong className="font-medium text-slate-700 dark:text-slate-300">{durationText ?? "—"}</strong>
+              </span>
+            </div>
+          )
+        ) : (
+          <div className="flex flex-col min-w-0">
+            <span className="truncate font-semibold text-slate-800 dark:text-slate-200 text-xs sm:text-[13px]">
+              {formatTime(row.startedAt)} ({formatDate(row.startedAt)})
+            </span>
+            <span className="mt-0.5 text-[11px] text-slate-400 italic">Chưa nộp bài</span>
+          </div>
+        )}
+      </td>
+
+      {/* 5. Score & Passed / Failed */}
+      <td className={cn("whitespace-nowrap px-4", padY)}>
+        {inProgress || row.status === "NOT_STARTED" ? (
+          <span className="inline-flex items-center gap-1 text-xs text-sky-600 dark:text-sky-400 font-medium">
+            <Clock3 className="size-3" /> Đang thi
+          </span>
+        ) : row.status === "SUBMITTED" && row.score == null ? (
+          <span className="inline-flex items-center gap-1 rounded-md bg-blue-50 dark:bg-blue-950/40 px-2 py-0.5 text-xs font-semibold text-blue-700 dark:text-blue-300 border border-blue-200/60 dark:border-blue-800/40">
+            Chờ chấm bài
+          </span>
+        ) : row.status === "EXPIRED" && row.score == null ? (
+          <span className="inline-flex items-center gap-1 rounded-md bg-rose-50 dark:bg-rose-950/40 px-2 py-0.5 text-xs font-semibold text-rose-700 dark:text-rose-300 border border-rose-200/60 dark:border-rose-800/40">
+            Quá giờ (0đ)
+          </span>
+        ) : row.score != null ? (
+          density === "compact" ? (
+            <div className="flex items-center gap-1.5">
+              <span className="font-bold text-slate-900 dark:text-slate-100 text-xs">
+                {row.score}/{row.totalPoints ?? "—"}đ
+              </span>
+              {row.passed != null && (
+                <span
+                  className={cn(
+                    "text-[10px] font-bold px-1.5 py-0.2 rounded",
+                    row.passed
+                      ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+                      : "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300",
+                  )}
+                >
+                  {row.passed ? "Đạt" : "Trượt"}
+                </span>
+              )}
+            </div>
+          ) : (
+            <div className="flex flex-col">
+              <span className="font-bold text-slate-900 dark:text-slate-100 text-sm">
+                {row.score} <span className="text-xs font-normal text-slate-500">/ {row.totalPoints ?? "—"}đ</span>
+              </span>
+              {row.passed != null && (
+                <span
+                  className={cn(
+                    "text-[11px] font-semibold mt-0.5",
+                    row.passed ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400",
+                  )}
+                >
+                  {row.passed ? "✓ Đạt" : "✗ Chưa đạt"}
+                </span>
+              )}
+            </div>
+          )
+        ) : (
+          <span className="text-xs text-slate-400 italic">Chưa có điểm</span>
+        )}
+      </td>
+
+      {/* 6. Sticky Action Column (Contextual: Primary for Pending Grading, Secondary for View) */}
+      <td
+        className={cn(
+          "sticky right-0 z-10 whitespace-nowrap px-4 text-right transition-colors",
+          "bg-white/95 group-hover:bg-slate-50/95 dark:bg-slate-900/95 dark:group-hover:bg-slate-800/95 backdrop-blur-xs",
+          "shadow-[-4px_0_8px_-2px_rgba(0,0,0,0.05)]",
+          padY,
+        )}
+      >
+        {isPendingGrading ? (
+          density === "compact" ? (
+            <button
+              type="button"
+              onClick={onReview}
+              title="Xem & duyệt điểm chi tiết"
+              className="inline-flex size-7 items-center justify-center rounded-lg bg-[var(--color-primary)] text-white shadow-xs hover:bg-[var(--color-primary-hover)] active:scale-95 transition-all cursor-pointer"
+            >
+              <Pencil className="size-3.5" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onReview}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--color-primary)] px-2.5 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-[var(--color-primary-hover)] active:scale-95 transition-all cursor-pointer"
+            >
+              <Pencil className="size-3.5" />
+              Chấm bài
+            </button>
+          )
+        ) : canReview ? (
+          density === "compact" ? (
+            <button
+              type="button"
+              onClick={onReview}
+              title="Xem chi tiết bài làm & nhận xét"
+              className="inline-flex size-7 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 shadow-2xs hover:border-[var(--color-primary)] hover:bg-[var(--color-primary-subtle)] hover:text-[var(--color-primary)] dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 transition-all cursor-pointer"
+            >
+              <Eye className="size-3.5" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onReview}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 shadow-2xs hover:border-[var(--color-primary)] hover:bg-[var(--color-primary-subtle)] hover:text-[var(--color-primary)] dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 transition-all cursor-pointer"
+              title="Xem chi tiết bài làm & nhận xét"
+            >
+              <Eye className="size-3.5" />
+              Xem bài làm
+            </button>
+          )
+        ) : (
+          <span className="text-xs text-slate-400 italic">Đang làm bài</span>
         )}
       </td>
     </tr>

@@ -135,5 +135,36 @@ public class SubmissionGradingDetailService {
         return new EmailReceipt(email.getId(), email.getStatus());
     }
 
+    @Transactional
+    public void sendResultEmailSilently(long id) {
+        try {
+            var submission = submissions.findById(id).orElse(null);
+            if (submission == null || submission.getScore() == null) return;
+            var candidate = submission.getCandidate();
+            if (candidate == null || candidate.getEmail() == null || candidate.getEmail().isBlank()) return;
+            if (preferences.emailOff(candidate, NotificationCategory.ASSESSMENT)) return;
+
+            var paper = questions.findByTest_IdOrderByQuestionOrderAscIdAsc(submission.getTest().getId());
+            int total = paper.stream().mapToInt(com.smarthire.domain.tenant.entity.Question::getPoints).sum();
+            String rawSubject = "Kết quả bài đánh giá: " + submission.getTest().getTitle();
+            String subject = rawSubject.substring(0, Math.min(255, rawSubject.length()));
+            String result = submission.getTest().getPassingScore() == null ? "Đã chấm điểm"
+                    : submission.getScore().compareTo(submission.getTest().getPassingScore()) >= 0 ? "Đạt yêu cầu" : "Chưa đạt yêu cầu";
+            String body = "Chào " + candidate.getFullName() + ",\n\nBài đánh giá của bạn đã được chấm tự động.\n"
+                    + "Bài: " + submission.getTest().getTitle() + "\nLượt làm: #" + id + "\nĐiểm: "
+                    + submission.getScore().stripTrailingZeros().toPlainString() + "/" + total + "\nKết quả: " + result
+                    + "\n\nĐăng nhập vào workspace và mở mục Bài kiểm tra để xem kết quả chính thức.";
+            String reference = "assessment-result:" + id;
+            var existing = emails.findFirstByPurposeAndReferenceKeyOrderByIdDesc("ASSESSMENT_RESULT", reference);
+            if (existing.isEmpty()) {
+                emails.save(EmailOutbox.builder().purpose("ASSESSMENT_RESULT").referenceKey(reference)
+                        .toEmail(candidate.getEmail()).subject(subject).body(body)
+                        .status(NotificationStatus.PENDING).attempts(0).build());
+            }
+        } catch (Exception ignored) {
+            // Do not fail auto-grading flow on notification delivery issue
+        }
+    }
+
     private BusinessException conflict(String message, String code) { return new BusinessException(message, HttpStatus.CONFLICT, code); }
 }

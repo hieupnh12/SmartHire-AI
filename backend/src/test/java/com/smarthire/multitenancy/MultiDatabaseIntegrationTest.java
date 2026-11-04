@@ -39,7 +39,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class MultiDatabaseIntegrationTest {
     @MockBean FileStorageService fileStorageService;
     private static final String PROVISION_PASSWORD = "a".repeat(48);
+    @SuppressWarnings("resource")
     @Container static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine");
+    @SuppressWarnings("resource")
     @Container static MySQLContainer<?> mysql = new MySQLContainer<>("mysql:8.4")
             .withDatabaseName("bootstrap").withUsername("test").withPassword("integration-password")
             .withEnv("TENANT_PROVISIONING_PASSWORD", PROVISION_PASSWORD)

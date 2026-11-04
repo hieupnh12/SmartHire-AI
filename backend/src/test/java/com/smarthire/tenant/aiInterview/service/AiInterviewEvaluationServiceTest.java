@@ -40,6 +40,7 @@ class AiInterviewEvaluationServiceTest {
     @Mock InterviewConversationService conversation;
     @Mock NotificationPreferenceService preferences;
     @Mock com.smarthire.tenant.applicant.service.ApplicationClosureService closures;
+    @Mock RankingDataRepository rankingData;
     final ObjectMapper mapper = new ObjectMapper();
     AiInterviewEvaluationService service;
     Application application;
@@ -47,7 +48,7 @@ class AiInterviewEvaluationServiceTest {
 
     @BeforeEach void setup() {
         service = new AiInterviewEvaluationService(interviews, questions, answers, feedbacks, skills, cvs, extractions,
-                history, stages, notifications, emails, ai, mapper, activity, processEngine, conversation, preferences, closures);
+                history, stages, notifications, emails, ai, mapper, activity, processEngine, conversation, preferences, closures, rankingData);
         var job = new Job();
         job.setId(13L);
         job.setTitle("Java Backend Developer");
@@ -143,20 +144,35 @@ class AiInterviewEvaluationServiceTest {
 
 
 
-    @Test void passingScoreMovesApplicationToHumanInterview() {
+    @Test void passingScoreKeepsRoundUntilAssessmentAlsoPasses() {
+        when(rankingData.submissions(7L)).thenReturn(List.of());
         interview.setStatus(AiInterviewStatus.SCORING);
         interview.setPassingScoreSnapshot(new BigDecimal("70.00"));
 
         service.finish(interview, new BigDecimal("78.00"));
 
         assertThat(interview.getStatus()).isEqualTo(AiInterviewStatus.PASSED);
-        assertThat(application.getStatus()).isEqualTo(ApplicationStatus.HUMAN_INTERVIEW);
+        assertThat(application.getStatus()).isEqualTo(ApplicationStatus.INTERVIEW);
         var row = ArgumentCaptor.forClass(ApplicationStatusHistory.class);
         verify(history).save(row.capture());
-        assertThat(row.getValue().getFromStatus()).isEqualTo("INTERVIEW");
-        assertThat(row.getValue().getToStatus()).isEqualTo("HUMAN_INTERVIEW");
-        verify(notifications).save(any());
-        verify(emails).save(any());
+        assertThat(row.getValue().getToStatus()).isEqualTo("INTERVIEW");
+        verify(activity, never()).record(eq(interview), eq("HUMAN_INTERVIEW_UNLOCKED"), anyString());
+    }
+
+    @Test void passingScoreUnlocksHumanInterviewWhenAssessmentAlreadyPassed() {
+        var test = new JobTest();
+        test.setPassingScore(new BigDecimal("50"));
+        var submission = new Submission();
+        submission.setStatus(com.smarthire.domain.enums.TestSubmissionStatus.GRADED);
+        submission.setScore(new BigDecimal("80"));
+        submission.setTest(test);
+        when(rankingData.submissions(7L)).thenReturn(List.of(submission));
+        interview.setStatus(AiInterviewStatus.SCORING);
+        interview.setPassingScoreSnapshot(new BigDecimal("70.00"));
+
+        service.finish(interview, new BigDecimal("78.00"));
+
+        assertThat(application.getStatus()).isEqualTo(ApplicationStatus.HUMAN_INTERVIEW);
         verify(activity).record(eq(interview), eq("HUMAN_INTERVIEW_UNLOCKED"), anyString());
     }
 

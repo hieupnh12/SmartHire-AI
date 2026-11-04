@@ -45,6 +45,7 @@ public class MemberInvitationService {
     private final CompanyEmailSettingService companyEmailSettingService;
     private final TenantRoleService tenantRoleService;
     private final TenantPublicUrlService publicUrls;
+    private final org.springframework.beans.factory.ObjectProvider<org.thymeleaf.TemplateEngine> templateEngineProvider;
 
     @Value("${smarthire.invite.expire-hours:72}")
     private long expireHours;
@@ -75,10 +76,8 @@ public class MemberInvitationService {
 
         String brand = TenantPublicUrlService.brandOrDefault(publicUrls);
         String acceptUrl = publicUrls.path("/invite/accept?token=" + rawToken);
-        String subject = "Invitation to " + brand + " workspace";
-        String body = "You were invited to join " + brand + " as " + role.getName()
-                + ".\nSet your password:\n" + acceptUrl + "\nThis link expires in "
-                + expireHours + " hours.";
+        String subject = "[" + brand + "] Lời mời tham gia đội ngũ & Thiết lập mật khẩu tài khoản";
+        String body = buildInviteEmailBody(brand, invitation.getFullName(), email, role.getName(), acceptUrl);
         boolean emailSent = deliverInviteEmail(email, subject, body);
 
         return InviteMemberResponse.builder()
@@ -89,6 +88,33 @@ public class MemberInvitationService {
                 .emailSent(emailSent)
                 .acceptUrl(acceptUrl)
                 .build();
+    }
+
+    private String buildInviteEmailBody(
+            String brand, String recipientName, String recipientEmail, String roleName, String acceptUrl) {
+        org.thymeleaf.TemplateEngine engine = templateEngineProvider != null ? templateEngineProvider.getIfAvailable() : null;
+        if (engine != null) {
+            try {
+                org.thymeleaf.context.Context context = new org.thymeleaf.context.Context(Locale.forLanguageTag("vi"));
+                context.setVariable("workspaceName", brand);
+                context.setVariable("recipientName", recipientName);
+                context.setVariable("recipientEmail", recipientEmail);
+                context.setVariable("roleName", roleName);
+                context.setVariable("activationUrl", acceptUrl);
+                context.setVariable("expireHours", expireHours);
+                context.setVariable("workspaceLoginUrl", publicUrls.path("/internal/login"));
+                context.setVariable("supportEmail", "support@smarthire.top");
+                context.setVariable("supportHotline", "0988.888.888");
+                return engine.process("emails/member-invitation", context);
+            } catch (Exception ex) {
+                log.warn("Could not render member-invitation template, falling back: {}", ex.getMessage());
+            }
+        }
+        return "Xin chào " + recipientName + ",\n\n"
+                + "Bạn vừa nhận được lời mời tham gia không gian làm việc của " + brand + " với vai trò " + roleName + ".\n\n"
+                + "Vui lòng truy cập liên kết sau để kích hoạt tài khoản và thiết lập mật khẩu (hiệu lực trong " + expireHours + " giờ):\n"
+                + acceptUrl + "\n\n"
+                + "Trân trọng,\nĐội ngũ " + brand;
     }
 
     /**

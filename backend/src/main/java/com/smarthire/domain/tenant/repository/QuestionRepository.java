@@ -38,6 +38,10 @@ public interface QuestionRepository extends JpaRepository<Question, Long>, JpaSp
     @EntityGraph(attributePaths = {"test", "test.job"})
     Page<Question> findAll(Pageable pageable);
 
+    @Override
+    @EntityGraph(attributePaths = {"test", "test.job"})
+    Page<Question> findAll(org.springframework.data.jpa.domain.Specification<Question> spec, Pageable pageable);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select q from Question q where q.id = :id")
     Optional<Question> findLockedById(@Param("id") Long id);

@@ -446,6 +446,9 @@ public class DynamicAiConfigProvider {
                         null,
                         null
                 ));
+            } else {
+                log.warn("Skipping fallback model {}:{} for task {} because no active API key was found for provider {}",
+                        stepProvider, stepModel, normalizedTask, stepProvider);
             }
         }
 

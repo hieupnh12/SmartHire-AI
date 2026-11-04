@@ -24,16 +24,23 @@ class HumanInterviewServiceTest {
     @Mock InterviewRepository interviews; @Mock InterviewScheduleRepository schedules;
     @Mock InterviewParticipantRepository participants; @Mock InterviewEvaluationRepository evaluations;
     @Mock ApplicationRepository applications; @Mock JobRepository jobs; @Mock UserRepository users;
-    @Mock AiInterviewRepository aiInterviews;
+    @Mock AiInterviewRepository aiInterviews; @Mock RankingDataRepository rankingData;
     @Mock CvAccess access; @Mock JobAccess jobAccess; @Mock HumanInterviewNotificationService notifications;
-    InterviewService service; Candidate candidate; Job job; Interview interview; InterviewSchedule slot;
+    InterviewService service; Candidate candidate; Job job; Application application; Interview interview; InterviewSchedule slot;
     @BeforeEach void setup() {
-        service=new InterviewService(interviews,schedules,participants,evaluations,applications,aiInterviews,jobs,users,access,jobAccess,new HumanInterviewMapper(),new ObjectMapper().findAndRegisterModules(),notifications);
+        service=new InterviewService(interviews,schedules,participants,evaluations,applications,aiInterviews,rankingData,jobs,users,access,jobAccess,new HumanInterviewMapper(),new ObjectMapper().findAndRegisterModules(),notifications);
         candidate=new Candidate();candidate.setId(2L);candidate.setFullName("Candidate");candidate.setEmail("candidate@example.test");
         job=new Job();job.setId(3L);job.setTitle("Engineer");
-        var application=new Application();application.setId(4L);application.setCandidate(candidate);application.setJob(job);
+        application=new Application();application.setId(4L);application.setCandidate(candidate);application.setJob(job);
+        application.setCvScreeningStatus(CvScreeningStatus.PASSED);
         interview=new Interview();interview.setId(5L);application.setCandidate(candidate);interview.setApplication(application);interview.setInterviewType("HUMAN_TECHNICAL");interview.setMode("ONLINE");
         slot=new InterviewSchedule();slot.setInterview(interview);slot.setStatus(ScheduleStatus.PROPOSED);slot.setScheduledStart(Instant.now().plusSeconds(3600));slot.setScheduledEnd(Instant.now().plusSeconds(7200));
+        lenient().when(rankingData.submissions(4L)).thenReturn(List.of(passedSubmission()));
+    }
+    private Submission passedSubmission() {
+        var test=new JobTest();test.setPassingScore(java.math.BigDecimal.valueOf(50));
+        var submission=new Submission();submission.setStatus(TestSubmissionStatus.GRADED);submission.setScore(java.math.BigDecimal.valueOf(80));submission.setTest(test);
+        return submission;
     }
     @Test void candidateConfirmsOwnSchedule() {
         when(access.candidate()).thenReturn(true);when(access.candidateActor()).thenReturn(candidate);
@@ -73,13 +80,14 @@ class HumanInterviewServiceTest {
         var request=new SaveRequest(3,4,"TECHNICAL","OFFLINE",slot.getScheduledStart(),slot.getScheduledEnd(),null,"Office","OFFICE","GENERAL","STANDARD","",false,false,true,List.of(new ParticipantInput(6L,"LEAD")));
         assertThrows(BusinessException.class,()->service.save(null,request));verifyNoInteractions(applications);
     }
-    @Test void candidateOptionsOnlyIncludePassedAiInterviewForThisApplication() {
+    @Test void candidateOptionsOnlyIncludeCandidatesWhoPassedAllThreeRounds() {
         when(jobs.findById(3L)).thenReturn(Optional.of(job));
         var passed=interview.getApplication();
-        var notPassed=new Application();notPassed.setId(7L);notPassed.setJob(job);notPassed.setCandidate(candidate);
+        var notPassed=new Application();notPassed.setId(7L);notPassed.setJob(job);notPassed.setCandidate(candidate);notPassed.setCvScreeningStatus(CvScreeningStatus.PASSED);
         var rejected=new Application();rejected.setId(8L);rejected.setStatus(ApplicationStatus.REJECTED);
         when(applications.findByJob_IdOrderByIdDesc(3L)).thenReturn(List.of(passed,notPassed,rejected));
         when(aiInterviews.existsByApplication_IdAndStatus(4L,AiInterviewStatus.PASSED)).thenReturn(true);
+        when(aiInterviews.existsByApplication_IdAndStatus(7L,AiInterviewStatus.PASSED)).thenReturn(false);
         var result=service.options(3);
         assertEquals(List.of(4L),result.candidates().stream().map(CandidateOption::applicationId).toList());
         verify(aiInterviews).existsByApplication_IdAndStatus(7L,AiInterviewStatus.PASSED);
@@ -88,10 +96,20 @@ class HumanInterviewServiceTest {
     @Test void rejectsSchedulingAndDraftForApplicationWithoutPassedAiInterview() {
         when(jobs.findById(3L)).thenReturn(Optional.of(job));
         when(applications.findByIdAndJob_Id(4L,3L)).thenReturn(Optional.of(interview.getApplication()));
+        when(aiInterviews.existsByApplication_IdAndStatus(4L,AiInterviewStatus.PASSED)).thenReturn(false);
         for (boolean draft:List.of(false,true)) {
             var request=new SaveRequest(3,4,"TECHNICAL","OFFLINE",slot.getScheduledStart(),slot.getScheduledEnd(),null,"Office","OFFICE","GENERAL","STANDARD","",false,false,draft,List.of(new ParticipantInput(6L,"LEAD")));
             assertEquals("AI_INTERVIEW_NOT_PASSED",assertThrows(BusinessException.class,()->service.save(null,request)).getCode());
         }
+        verifyNoInteractions(interviews,participants,users,notifications);
+    }
+    @Test void rejectsSchedulingWhenAssessmentNotPassed() {
+        when(jobs.findById(3L)).thenReturn(Optional.of(job));
+        when(applications.findByIdAndJob_Id(4L,3L)).thenReturn(Optional.of(interview.getApplication()));
+        when(aiInterviews.existsByApplication_IdAndStatus(4L,AiInterviewStatus.PASSED)).thenReturn(true);
+        when(rankingData.submissions(4L)).thenReturn(List.of());
+        var request=new SaveRequest(3,4,"TECHNICAL","OFFLINE",slot.getScheduledStart(),slot.getScheduledEnd(),null,"Office","OFFICE","GENERAL","STANDARD","",false,false,false,List.of(new ParticipantInput(6L,"LEAD")));
+        assertEquals("ASSESSMENT_NOT_PASSED",assertThrows(BusinessException.class,()->service.save(null,request)).getCode());
         verifyNoInteractions(interviews,participants,users,notifications);
     }
     @Test void createsPublishedScheduleAndQueuesInvitation() {

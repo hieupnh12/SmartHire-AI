@@ -6,6 +6,7 @@ import { usersApi } from "@/api/tenant/usersApi";
 import { tenantRolesApi } from "@/api/tenant/tenantRolesApi";
 import { Button } from "@/components/ux/Button";
 import { Card } from "@/components/ux/Card";
+import { Skeleton } from "@/components/ux/Skeleton";
 import { getApiErrorMessage } from "@/lib/axios";
 import { queryKeys } from "@/lib/query-keys";
 import { useUiStore } from "@/stores/uiStore";
@@ -209,7 +210,14 @@ export function AssignmentsPage() {
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Tìm theo tiêu đề, địa điểm, phòng ban"
           />
-          {jobsQuery.isLoading && <p className="text-sm text-[var(--color-text-secondary)]">Đang tải…</p>}
+          {jobsQuery.isLoading && (
+            <div className="space-y-2 py-1" role="status" aria-busy="true">
+              {Array.from({ length: 4 }, (_, i) => (
+                <Skeleton key={i} className="h-10 w-full rounded-[var(--radius-md)]" />
+              ))}
+              <span className="sr-only">Đang tải danh sách công việc…</span>
+            </div>
+          )}
           {jobsQuery.isError && <p className="text-sm text-status-danger" role="alert">{getApiErrorMessage(jobsQuery.error, "Không tải được danh sách job")}</p>}
           {jobs.length === 0 && !jobsQuery.isLoading && <p className="text-sm text-[var(--color-text-secondary)]">Chưa có tin tuyển dụng.</p>}
           <ul className="space-y-1">
@@ -323,7 +331,14 @@ export function AssignmentsPage() {
                 </p>
               </div>
 
-              {assignmentsQuery.isLoading && <p className="text-sm text-[var(--color-text-secondary)]">Đang tải danh sách phụ trách…</p>}
+              {assignmentsQuery.isLoading && (
+                <div className="space-y-2 py-2" role="status" aria-busy="true">
+                  {Array.from({ length: 3 }, (_, i) => (
+                    <Skeleton key={i} className="h-12 w-full rounded-xl" />
+                  ))}
+                  <span className="sr-only">Đang tải danh sách phụ trách…</span>
+                </div>
+              )}
               {assignmentsQuery.isError && (
                 <p className="text-sm text-status-danger" role="alert">
                   {getApiErrorMessage(assignmentsQuery.error, "Không tải được danh sách phụ trách")}

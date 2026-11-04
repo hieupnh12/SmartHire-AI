@@ -7,6 +7,7 @@ import { aiInterviewApi } from "@/api/tenant/aiInterviewApi";
 import { jobApi } from "@/api/tenant/jobApi";
 import { COMPETENCY_LABELS, WEIGHT_PRESETS, type AiInterviewConfig, type CompetencyKey } from "@/api/types/aiInterview";
 import { Button } from "@/components/ux/Button";
+import { SkeletonCard } from "@/components/ux/Skeleton";
 import { AssessmentError, FieldError, assessmentInput, assessmentMuted } from "@/components/ux/assessmentUi";
 import { queryKeys } from "@/lib/query-keys";
 import { COMPETENCY_KEYS, configSchema, toFormValues, toRequest, type ConfigValues } from "../utils/aiInterviewConfigSchema";
@@ -25,7 +26,7 @@ export function AiInterviewConfigPanel({ jobId }: { jobId: number }) {
   return <section id="ai-interview-config" className="space-y-4 rounded-2xl border border-[var(--color-border-default)] bg-surface-card p-6">
     <h2 className="text-lg font-semibold">Cấu hình AI Interview của Job</h2>
     <AssessmentError error={config.error ?? skills.error} retry={() => { void config.refetch(); void skills.refetch(); }} />
-    {(config.isPending || skills.isPending) && <p role="status">Đang tải cấu hình…</p>}
+    {(config.isPending || skills.isPending) && <SkeletonCard className="h-64" />}
     {config.data && skills.data && <InterviewConfigurationTabs key={jobId} jobId={jobId} config={config.data} jobSkills={skills.data} />}
   </section>;
 }

@@ -91,7 +91,8 @@ public class InviteMailSender {
                 }
                 helper.setTo(to);
                 helper.setSubject(subject);
-                helper.setText(body, false);
+                boolean isHtml = body != null && (body.contains("<html") || body.contains("<!DOCTYPE") || body.contains("<table"));
+                helper.setText(body, isHtml);
                 sender.send(mimeMessage);
                 return true;
             }

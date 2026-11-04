@@ -4,6 +4,7 @@ import { assessmentApi } from "@/api/tenant/assessmentApi";
 import { getApiErrorMessage } from "@/lib/axios";
 import { queryKeys } from "@/lib/query-keys";
 import { button, input, muted } from "@/features/tenant/recruiter/matching/components/rankingUi";
+import { Skeleton } from "@/components/ux/Skeleton";
 import type { ApplicationDetail } from "@/api/types/applicant";
 import { CheckCircle2, Send, RefreshCw } from "lucide-react";
 
@@ -64,12 +65,11 @@ export function SendAssessmentPanel({ detail, onSent }: { detail: ApplicationDet
         </p>
       )}
 
-      {tests.isPending && <p className={muted}>Đang tải danh sách đề…</p>}
+      {tests.isPending && <Skeleton className="h-10 w-full sm:max-w-xs" />}
       {tests.isError && <p role="alert" className="text-sm text-red-600">{getApiErrorMessage(tests.error)}</p>}
       {tests.isSuccess && availableTests.length === 0 && (
         <p className={muted}>Vị trí tuyển dụng này chưa có đề thi nào ở trạng thái xuất bản (PUBLISHED).</p>
       )}
-
       {selected && (
         <div className="flex flex-wrap items-center gap-2">
           {!candidateAssignedTest && (
@@ -126,4 +126,3 @@ export function SendAssessmentPanel({ detail, onSent }: { detail: ApplicationDet
     </div>
   );
 }
-

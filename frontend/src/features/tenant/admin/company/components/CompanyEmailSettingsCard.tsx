@@ -18,6 +18,7 @@ import {
 import { companyApi } from "@/api/tenant/companyApi";
 import { Button } from "@/components/ux/Button";
 import { Card } from "@/components/ux/Card";
+import { SkeletonCard } from "@/components/ux/Skeleton";
 import { getApiErrorMessage } from "@/lib/axios";
 import { toast } from "@/stores/toastStore";
 import { useAuthStore } from "@/features/tenant/auth/stores/authStore";
@@ -130,14 +131,7 @@ export function CompanyEmailSettingsCard() {
   };
 
   if (isLoading) {
-    return (
-      <Card className="p-6 space-y-4">
-        <div className="flex items-center gap-2 text-sm text-[var(--color-text-secondary)]">
-          <Loader2 className="size-4 animate-spin" />
-          <span>Đang tải cấu hình email...</span>
-        </div>
-      </Card>
-    );
+    return <SkeletonCard className="min-h-72" />;
   }
 
   if (isError) {

@@ -13,6 +13,7 @@ import com.smarthire.tenant.cv.dto.CvModels.RenameCvRequest;
 import com.smarthire.tenant.cv.dto.CvModels.ShareView;
 import com.smarthire.tenant.cv.dto.CvModels.SharedCvView;
 import com.smarthire.tenant.cv.dto.CvModels.MatchView;
+import com.smarthire.tenant.cv.dto.CvModels;
 import com.smarthire.tenant.cv.service.CvBuilderAssistService;
 import com.smarthire.tenant.cv.service.CvPdfExportService;
 import com.smarthire.tenant.cv.service.CvService;
@@ -80,7 +81,8 @@ public class CvController {
     @PutMapping("/cvs/{id}/builder")
     @Operation(summary = "Update a CV Builder CV: re-render the PDF and re-run parsing")
     @com.smarthire.multitenancy.quota.RequireMeteredQuota(type = com.smarthire.multitenancy.quota.QuotaType.CV_PARSE)
-    public ResponseEntity<ApiResponse<CvDetail>> updateFromBuilder(@PathVariable long id, @Valid @RequestBody CvBuilderData data) {
+    public ResponseEntity<ApiResponse<CvDetail>> updateFromBuilder(@PathVariable long id,
+            @Valid @RequestBody CvBuilderData data) {
         return ResponseEntity.status(HttpStatus.ACCEPTED)
                 .body(ApiResponse.ok("Queued", cvs.updateFromBuilder(id, data)));
     }
@@ -203,9 +205,16 @@ public class CvController {
     }
 
     @GetMapping("/jobs/{jobId}/cvs")
-    @Operation(summary = "List CVs for a job (recruiter screening)")
-    public ApiResponse<List<CvSummary>> list(@PathVariable long jobId) {
-        return ApiResponse.ok(cvs.listByJob(jobId));
+    @Operation(summary = "List CVs for a job (recruiter screening) with pagination, filter and stats")
+    public ApiResponse<CvModels.CvPageResult> list(
+            @PathVariable long jobId,
+            @RequestParam(required = false) String tab,
+            @RequestParam(required = false) String sort,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) Integer limit) {
+        int effectiveSize = limit != null ? limit : (size != null ? size : 10);
+        return ApiResponse.ok(cvs.listByJobPaged(jobId, tab, sort, page, effectiveSize));
     }
 
     @GetMapping("/jobs/{jobId}/cvs/{cvId}/match")

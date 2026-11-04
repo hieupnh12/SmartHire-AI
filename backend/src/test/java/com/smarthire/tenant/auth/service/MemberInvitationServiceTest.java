@@ -59,6 +59,8 @@ class MemberInvitationServiceTest {
     private TenantRoleService tenantRoleService;
     @Mock
     private TenantPublicUrlService publicUrls;
+    @Mock
+    private org.springframework.beans.factory.ObjectProvider<org.thymeleaf.TemplateEngine> templateEngineProvider;
     @Spy
     private AuthMapper authMapper = Mappers.getMapper(AuthMapper.class);
 

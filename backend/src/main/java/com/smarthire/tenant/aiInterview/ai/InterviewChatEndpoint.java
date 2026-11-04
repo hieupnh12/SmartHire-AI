@@ -14,7 +14,8 @@ final class InterviewChatEndpoint {
             "MISTRAL", "https://api.mistral.ai/v1",
             "PERPLEXITY", "https://api.perplexity.ai",
             "XAI", "https://api.x.ai/v1",
-            "OLLAMA", "http://localhost:11434/v1");
+            "OLLAMA", "http://localhost:11434/v1",
+            "CURSOR", "https://api.cursor.com");
     /** OpenAI-compatible gateway with no default host; the API key's Endpoint URL is mandatory. */
     private static final String CUSTOM = "CUSTOM";
     /** Ollama ignores authentication, but the OpenAI client still needs a non-empty bearer token. */
@@ -26,11 +27,15 @@ final class InterviewChatEndpoint {
         return "GEMINI".equalsIgnoreCase(provider);
     }
 
+    static boolean cursor(String provider) {
+        return "CURSOR".equalsIgnoreCase(provider);
+    }
+
     static void requireSupported(String provider) {
         String normalized = provider == null ? "" : provider.toUpperCase(Locale.ROOT);
         if (!gemini(provider) && !DEFAULT_BASE_URLS.containsKey(normalized) && !CUSTOM.equals(normalized)) {
             throw new IllegalStateException("AI interview requires a Gemini, OpenAI, DeepSeek, Groq, OpenRouter, "
-                    + "Mistral, Perplexity, xAI, Ollama or Custom (OpenAI-compatible) provider");
+                    + "Mistral, Perplexity, xAI, Ollama, Cursor or Custom (OpenAI-compatible) provider");
         }
     }
 
@@ -48,7 +53,7 @@ final class InterviewChatEndpoint {
             throw new IllegalStateException("Provider " + provider
                     + " requires an Endpoint URL on its API key in Admin > AI Config");
         }
-        base = base.replaceAll("/+$", "").replaceAll("/chat/completions$", "");
+        base = base.replaceAll("/+$", "").replaceAll("/chat/completions$", "").replaceAll("/v1/agents$", "");
         return gemini(provider) ? base.replaceAll("/models$", "/openai") : base;
     }
 }

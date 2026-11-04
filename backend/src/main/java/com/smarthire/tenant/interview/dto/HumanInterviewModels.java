@@ -12,7 +12,7 @@ public final class HumanInterviewModels {
         @NotBlank @Pattern(regexp="ONLINE|OFFLINE") String mode,
         @NotNull Instant start, @NotNull Instant end,
         @Size(max=512) String meetingUrl, @Size(max=255) String location,
-        @NotBlank @Pattern(regexp="GOOGLE_MEET|ZOOM|TEAMS|OFFICE") String provider,
+        @NotBlank @Pattern(regexp="SMARTHIRE|GOOGLE_MEET|ZOOM|TEAMS|OFFICE") String provider,
         @NotBlank @Pattern(regexp="TECHNICAL|CULTURE|GENERAL") String rubric,
         @NotBlank @Pattern(regexp="STANDARD|EXPRESS|EXECUTIVE") String emailTemplate,
         @Size(max=2000) String notes, boolean attachCalendar, boolean smsReminder, boolean draft,
@@ -42,7 +42,14 @@ public final class HumanInterviewModels {
     public record EvaluationRequest(@NotNull @DecimalMin("0") @DecimalMax("100") BigDecimal technicalScore,
         @NotNull @DecimalMin("0") @DecimalMax("100") BigDecimal communicationScore,
         @NotNull @DecimalMin("0") @DecimalMax("100") BigDecimal cultureScore,
-        @Size(max=4000) String comments, @NotBlank @Pattern(regexp="STRONG_HIRE|HIRE|NO_HIRE|STRONG_NO_HIRE") String recommendation) {}
+        @Size(max=4000) String comments, @NotBlank @Pattern(regexp="STRONG_HIRE|HIRE|NO_HIRE|STRONG_NO_HIRE") String recommendation,
+        /** When true, Lead applies Đậu→OFFER or Trượt→REJECTED on the application. Scorecard alone never does this. */
+        Boolean finalizeDecision) {
+        public EvaluationRequest(BigDecimal technicalScore, BigDecimal communicationScore, BigDecimal cultureScore,
+                String comments, String recommendation) {
+            this(technicalScore, communicationScore, cultureScore, comments, recommendation, false);
+        }
+    }
     public record BulkRequest(@NotEmpty @Size(max=100) List<@Positive Long> ids,
         @NotBlank @Pattern(regexp="REMIND|CANCEL|RESCHEDULE") String action, @Min(-10080) @Max(10080) Integer shiftMinutes) {}
     public record BulkResult(int affected) {}

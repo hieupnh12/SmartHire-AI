@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { useLandingModal } from "../context/LandingModalContext";
 import { checkoutApi, PublicSubscriptionPlan } from "@/api/master/checkoutApi";
+import { SkeletonCard } from "@/components/ux/Skeleton";
 
 export function SaasLandingPage() {
   const navigate = useNavigate();
@@ -558,10 +559,9 @@ export function SaasLandingPage() {
 
         <div data-reveal-stagger className="grid lg:grid-cols-3 gap-8 items-stretch mb-12">
           {loadingPlans ? (
-            <div className="col-span-3 py-20 text-center text-slate-500 flex flex-col items-center">
-              <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-              <p>Đang tải bảng giá...</p>
-            </div>
+            Array.from({ length: 3 }, (_, i) => (
+              <SkeletonCard key={i} className="min-h-[520px] rounded-3xl" />
+            ))
           ) : plans.length === 0 ? (
             <div className="col-span-3 py-20 text-center text-slate-500">
               Không có gói cước nào khả dụng.
