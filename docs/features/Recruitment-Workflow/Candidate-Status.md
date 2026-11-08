@@ -58,7 +58,7 @@ WF-01
 
 ## Quy tắc ứng tuyển phía ứng viên (2026-10-12)
 
-**Trạng thái:** `Done` (trừ thời gian chờ sau khi bị loại và ứng viên từ chối offer — `To Do`).
+**Trạng thái:** `Done`. Ứng viên chấp nhận/từ chối offer (`OFFER` → `HIRED` / `WITHDRAWN`) đã triển khai ở WF-03 — xem [Hiring-Decision](Hiring-Decision.md). Thời gian chờ sau khi bị loại: đã chốt không áp dụng.
 
 ### Business Rules
 

@@ -1,7 +1,6 @@
 import { api } from "@/lib/axios";
 import type { ApiResponse } from "@/types/api";
 import type {
-  AiFeedback,
   AiInterview,
   AiInterviewPage,
   AiInterviewStatus,
@@ -11,7 +10,6 @@ import type {
   AiQuestionRequest,
   CreateAiInterviewRequest,
   UpdateAiInterviewRequest,
-  UpsertAiFeedbackRequest,
 } from "@/api/types/aiInterview";
 
 type ListParams = { applicationId?: number; status?: AiInterviewStatus; page?: number; size?: number };
@@ -50,6 +48,4 @@ export const aiInterviewApi = {
   updateQuestion: (id: number, questionId: number, body: AiQuestionRequest) =>
     api.put<ApiResponse<AiQuestion>>(`/ai-interviews/${id}/questions/${questionId}`, body).then((r) => r.data.data),
   deleteQuestion: (id: number, questionId: number) => api.delete(`/ai-interviews/${id}/questions/${questionId}`),
-  upsertFeedback: (id: number, answerId: number, body: UpsertAiFeedbackRequest) =>
-    api.put<ApiResponse<AiFeedback>>(`/ai-interviews/${id}/answers/${answerId}/feedback`, body).then((r) => r.data.data),
 };
