@@ -25,9 +25,9 @@ function isAccepted(result?: SampleResult) {
   return result?.status?.id === 3;
 }
 
-export function CandidateCodingStudio({ submissionId, question, answer, locked, onChange, onSave, saving = false }: {
+export function CandidateCodingStudio({ submissionId, question, answer, locked, onChange, onSave, saving = false, isDemo = false }: {
   submissionId: number; question: CandidateQuestion; answer?: SavedAnswer; locked: boolean; onChange: (answer: SavedAnswer) => void;
-  onSave?: () => Promise<void>; saving?: boolean;
+  onSave?: () => Promise<void>; saving?: boolean; isDemo?: boolean;
 }) {
   const askConfirm = useUiStore(state => state.askConfirm);
   const starters = question.coding?.starterCode ?? {};
@@ -287,19 +287,21 @@ export function CandidateCodingStudio({ submissionId, question, answer, locked, 
               </select>
             </label>
             <div className="flex items-center gap-2">
-              <Button
-                variant="secondary"
-                disabled={locked || run.isPending || custom.isPending || !language}
-                onClick={() => {
-                  const solution = sampleSolutions[language] ?? `// Code mẫu giải bài\n`;
-                  changeCode(solution);
-                  toast.success("Đã chèn code mẫu giải bài.");
-                }}
-                title="Chèn code mẫu giải thuật toán để test thử"
-              >
-                <Sparkles className="size-4 text-amber-500" aria-hidden="true" />
-                Code mẫu test
-              </Button>
+              {isDemo && (
+                <Button
+                  variant="secondary"
+                  disabled={locked || run.isPending || custom.isPending || !language}
+                  onClick={() => {
+                    const solution = sampleSolutions[language] ?? `// Code mẫu giải bài\n`;
+                    changeCode(solution);
+                    toast.success("Đã chèn code mẫu giải bài.");
+                  }}
+                  title="Chèn code mẫu giải thuật toán để test thử (chỉ dùng cho bài thi Demo UI)"
+                >
+                  <Sparkles className="size-4 text-amber-500" aria-hidden="true" />
+                  Code mẫu test
+                </Button>
+              )}
               <Button
                 variant="secondary"
                 disabled={locked || run.isPending || custom.isPending || !language}

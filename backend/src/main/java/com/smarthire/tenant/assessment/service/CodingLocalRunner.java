@@ -18,12 +18,22 @@ import org.springframework.stereotype.Component;
 
 /**
  * Local code runner fallback when remote Judge0 sandbox is not configured or unavailable.
- * Safely executes Python and JavaScript code locally, or evaluates mathematical/algorithmic problems in-process.
+ * Safely executes Java, Python, and JavaScript code locally, or evaluates mathematical/algorithmic problems in-process for demo tests.
  */
 @Component
 public class CodingLocalRunner {
     private static final Logger log = LoggerFactory.getLogger(CodingLocalRunner.class);
     private final ObjectMapper json = new ObjectMapper();
+
+    private static final List<String> JAVA_CANDIDATES = List.of(
+            "java",
+            "/Library/Java/JavaVirtualMachines/jdk-22.jdk/Contents/Home/bin/java",
+            "/Library/Java/JavaVirtualMachines/jdk-21.jdk/Contents/Home/bin/java",
+            "/Library/Java/JavaVirtualMachines/jdk-17.jdk/Contents/Home/bin/java",
+            "/usr/bin/java",
+            "/usr/local/bin/java",
+            "/opt/homebrew/bin/java"
+    );
 
     private static final List<String> PYTHON_CANDIDATES = List.of(
             "python3",
@@ -52,13 +62,42 @@ public class CodingLocalRunner {
             } else if ("javascript".equals(lang) || "js".equals(lang)) {
                 JsonNode result = executeNode(problem, source, safeInput, safeExpected);
                 if (result != null) return result;
+            } else if ("java".equals(lang)) {
+                JsonNode result = executeJava(problem, source, safeInput, safeExpected);
+                if (result != null) return result;
             }
         } catch (Exception ex) {
             log.warn("Local process execution error: {}", ex.getMessage());
         }
 
-        // 2. Intelligent in-process simulation fallback for demo/algorithmic problems
-        return evaluateInProcess(problem, lang, source, safeInput, safeExpected);
+        // 2. Fallback only for the dedicated Demo UI test suite if local runtime isn't available
+        if (isDemoProblem(problem)) {
+            return evaluateDemoInProcess(problem, lang, source, safeInput, safeExpected);
+        }
+
+        // 3. For real recruitment assessments: DO NOT fake accepted! Return explicit execution failure.
+        return buildResult(11, "Runtime Error", "",
+                "Không thể thực thi mã nguồn: môi trường sandbox Judge0 hoặc runtime " + lang + " cục bộ chưa được cấu hình trên máy chủ.", 10);
+    }
+
+    private JsonNode executeJava(CodingProblem problem, String source, String input, String expected) {
+        String binary = findJavaBinary();
+        if (binary == null) {
+            log.warn("Java runtime binary not found for local execution");
+            return null;
+        }
+
+        String harness = problem != null && problem.getHarnessJson() != null && problem.getHarnessJson().has("java")
+                ? problem.getHarnessJson().path("java").asText()
+                : "{{SOURCE}}\n";
+        String executable = harness.contains("{{SOURCE}}")
+                ? harness.replace("{{SOURCE}}", source != null ? source : "")
+                : (source != null ? source : "");
+
+        // Make classes other than Main package-private to avoid single-file compilation errors
+        executable = makeNonMainClassesPackagePrivate(executable);
+
+        return runJavaProcess(new String[]{binary}, executable, input, expected);
     }
 
     private JsonNode executePython(CodingProblem problem, String source, String input, String expected) {
@@ -68,7 +107,9 @@ public class CodingLocalRunner {
         String harness = problem != null && problem.getHarnessJson() != null && problem.getHarnessJson().has("python")
                 ? problem.getHarnessJson().path("python").asText()
                 : "{{SOURCE}}\n";
-        String executable = harness.contains("{{SOURCE}}") ? harness.replace("{{SOURCE}}", source) : source;
+        String executable = harness.contains("{{SOURCE}}")
+                ? harness.replace("{{SOURCE}}", source != null ? source : "")
+                : (source != null ? source : "");
 
         return runProcess(new String[]{binary}, executable, input, expected, ".py");
     }
@@ -80,9 +121,33 @@ public class CodingLocalRunner {
         String harness = problem != null && problem.getHarnessJson() != null && problem.getHarnessJson().has("javascript")
                 ? problem.getHarnessJson().path("javascript").asText()
                 : "{{SOURCE}}\n";
-        String executable = harness.contains("{{SOURCE}}") ? harness.replace("{{SOURCE}}", source) : source;
+        String executable = harness.contains("{{SOURCE}}")
+                ? harness.replace("{{SOURCE}}", source != null ? source : "")
+                : (source != null ? source : "");
 
         return runProcess(new String[]{binary}, executable, input, expected, ".js");
+    }
+
+    private JsonNode runJavaProcess(String[] cmd, String scriptContent, String input, String expected) {
+        File tempDir = null;
+        try {
+            tempDir = Files.createTempDirectory("smarthire_java_").toFile();
+            File mainFile = new File(tempDir, "Main.java");
+            Files.writeString(mainFile.toPath(), scriptContent, StandardCharsets.UTF_8);
+
+            String[] fullCmd = new String[cmd.length + 1];
+            System.arraycopy(cmd, 0, fullCmd, 0, cmd.length);
+            fullCmd[cmd.length] = mainFile.getAbsolutePath();
+
+            return executeProcessAndCaptureResult(fullCmd, input, expected);
+        } catch (Exception e) {
+            log.warn("Java process execution failed: {}", e.getMessage());
+            return null;
+        } finally {
+            if (tempDir != null && tempDir.exists()) {
+                deleteRecursively(tempDir);
+            }
+        }
     }
 
     private JsonNode runProcess(String[] cmd, String scriptContent, String input, String expected, String ext) {
@@ -95,49 +160,7 @@ public class CodingLocalRunner {
             System.arraycopy(cmd, 0, fullCmd, 0, cmd.length);
             fullCmd[cmd.length] = tempScript.getAbsolutePath();
 
-            ProcessBuilder pb = new ProcessBuilder(fullCmd);
-            long startMs = System.currentTimeMillis();
-            Process process = pb.start();
-
-            // Send input to stdin
-            if (!input.isEmpty()) {
-                try (OutputStream os = process.getOutputStream()) {
-                    os.write((input + "\n").getBytes(StandardCharsets.UTF_8));
-                    os.flush();
-                } catch (Exception ignored) {}
-            } else {
-                try {
-                    process.getOutputStream().close();
-                } catch (Exception ignored) {}
-            }
-
-            boolean finished = process.waitFor(4, TimeUnit.SECONDS);
-            long durationMs = Math.max(1, System.currentTimeMillis() - startMs);
-
-            if (!finished) {
-                process.destroyForcibly();
-                return buildResult(5, "Time Limit Exceeded", "", "Execution timed out (limit: 4s)", durationMs);
-            }
-
-            String stdout;
-            String stderr;
-            try (BufferedReader stdoutReader = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8));
-                 BufferedReader stderrReader = new BufferedReader(new InputStreamReader(process.getErrorStream(), StandardCharsets.UTF_8))) {
-                stdout = readAll(stdoutReader);
-                stderr = readAll(stderrReader);
-            }
-
-            int exitCode = process.exitValue();
-            if (exitCode != 0) {
-                return buildResult(11, "Runtime Error", stdout, stderr, durationMs);
-            }
-
-            String actualTrimmed = stdout.trim();
-            if (expected.isEmpty() || actualTrimmed.equals(expected)) {
-                return buildResult(3, "Accepted", stdout, null, durationMs);
-            } else {
-                return buildResult(4, "Wrong Answer", stdout, null, durationMs);
-            }
+            return executeProcessAndCaptureResult(fullCmd, input, expected);
         } catch (Exception e) {
             log.warn("Process execution failed: {}", e.getMessage());
             return null;
@@ -150,42 +173,92 @@ public class CodingLocalRunner {
         }
     }
 
-    /**
-     * In-process logic evaluation for common test algorithms (e.g. sum 1..n for the demo problem).
-     */
-    private JsonNode evaluateInProcess(CodingProblem problem, String lang, String source, String input, String expected) {
-        String src = source != null ? source : "";
-        String prompt = problem != null && problem.getPrompt() != null ? problem.getPrompt().toLowerCase() : "";
-        String title = problem != null && problem.getTitle() != null ? problem.getTitle().toLowerCase() : "";
+    private JsonNode executeProcessAndCaptureResult(String[] fullCmd, String input, String expected) throws Exception {
+        ProcessBuilder pb = new ProcessBuilder(fullCmd);
+        long startMs = System.currentTimeMillis();
+        Process process = pb.start();
 
-        // Check if this is the demo "Tổng dãy số" / sum 1..n problem
-        boolean isSumProblem = title.contains("tổng") || prompt.contains("tổng các số") || prompt.contains("1 đến n");
-
-        if (isSumProblem) {
+        // Send input to stdin
+        if (input != null && !input.isEmpty()) {
+            try (OutputStream os = process.getOutputStream()) {
+                os.write((input + "\n").getBytes(StandardCharsets.UTF_8));
+                os.flush();
+            } catch (Exception ignored) {}
+        } else {
             try {
-                long n = Long.parseLong(input.trim());
-                long expectedSum = n * (n + 1) / 2;
-
-                // Check if candidate wrote the correct formula or loop
-                boolean hasFormula = src.contains("n * (n + 1)") || src.contains("n*(n+1)") || src.contains("n * (n+1)");
-                boolean hasLoop = (src.contains("for") || src.contains("while")) && (src.contains("+=") || src.contains("+ i") || src.contains("sum"));
-                boolean hasSumFunc = src.contains("sum(range(");
-
-                boolean correct = hasFormula || hasLoop || hasSumFunc;
-                if (correct) {
-                    return buildResult(3, "Accepted", String.valueOf(expectedSum) + "\n", null, 15);
-                } else {
-                    return buildResult(4, "Wrong Answer", "0\n", null, 15);
-                }
+                process.getOutputStream().close();
             } catch (Exception ignored) {}
         }
 
-        // General fallback: if source is non-empty and contains return, evaluate generously
-        if (!src.trim().isEmpty() && src.contains("return")) {
-            return buildResult(3, "Accepted", expected + "\n", null, 20);
+        boolean finished = process.waitFor(4, TimeUnit.SECONDS);
+        long durationMs = Math.max(1, System.currentTimeMillis() - startMs);
+
+        if (!finished) {
+            process.destroyForcibly();
+            return buildResult(5, "Time Limit Exceeded", "", "Execution timed out (limit: 4s)", durationMs);
         }
 
-        return buildResult(4, "Wrong Answer", "0\n", null, 10);
+        String stdout;
+        String stderr;
+        try (BufferedReader stdoutReader = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8));
+             BufferedReader stderrReader = new BufferedReader(new InputStreamReader(process.getErrorStream(), StandardCharsets.UTF_8))) {
+            stdout = readAll(stdoutReader);
+            stderr = readAll(stderrReader);
+        }
+
+        int exitCode = process.exitValue();
+        if (exitCode != 0) {
+            String lowerErr = stderr.toLowerCase();
+            if (lowerErr.contains("compilation failed") || lowerErr.contains("syntaxerror")
+                    || lowerErr.contains("error:") || lowerErr.contains("illegal start")) {
+                return buildResult(6, "Compilation Error", stdout, stderr, durationMs);
+            }
+            return buildResult(11, "Runtime Error", stdout, stderr, durationMs);
+        }
+
+        String actualTrimmed = stdout.trim();
+        String expectedTrimmed = expected != null ? expected.trim() : "";
+        if (expectedTrimmed.isEmpty() || actualTrimmed.equals(expectedTrimmed)) {
+            return buildResult(3, "Accepted", stdout, null, durationMs);
+        } else {
+            return buildResult(4, "Wrong Answer", stdout, null, durationMs);
+        }
+    }
+
+    private boolean isDemoProblem(CodingProblem problem) {
+        if (problem == null) return false;
+        if (problem.getTest() != null && problem.getTest().getTitle() != null
+                && problem.getTest().getTitle().contains("[Demo UI]")) {
+            return true;
+        }
+        String title = problem.getTitle() != null ? problem.getTitle().trim().toLowerCase() : "";
+        String prompt = problem.getPrompt() != null ? problem.getPrompt().trim().toLowerCase() : "";
+        return title.equals("tổng dãy số") && (prompt.contains("solve(n)") || prompt.contains("1 đến n"));
+    }
+
+    /**
+     * In-process logic evaluation strictly for the demo sum 1..n problem when local runtime is not installed.
+     */
+    private JsonNode evaluateDemoInProcess(CodingProblem problem, String lang, String source, String input, String expected) {
+        String src = source != null ? source : "";
+        try {
+            long n = Long.parseLong(input.trim());
+            long expectedSum = n * (n + 1) / 2;
+
+            // Check if candidate wrote the correct formula or loop
+            boolean hasFormula = src.contains("n * (n + 1)") || src.contains("n*(n+1)") || src.contains("n * (n+1)");
+            boolean hasLoop = (src.contains("for") || src.contains("while")) && (src.contains("+=") || src.contains("+ i") || src.contains("sum"));
+            boolean hasSumFunc = src.contains("sum(range(");
+
+            boolean correct = hasFormula || hasLoop || hasSumFunc;
+            if (correct) {
+                return buildResult(3, "Accepted", String.valueOf(expectedSum) + "\n", null, 15);
+            } else {
+                return buildResult(4, "Wrong Answer", "0\n", null, 15);
+            }
+        } catch (Exception ex) {
+            return buildResult(4, "Wrong Answer", "0\n", null, 15);
+        }
     }
 
     private JsonNode buildResult(int statusId, String description, String stdout, String stderr, long timeMs) {
@@ -213,6 +286,17 @@ public class CodingLocalRunner {
         return sb.toString();
     }
 
+    private String findJavaBinary() {
+        String javaHome = System.getProperty("java.home");
+        if (javaHome != null && !javaHome.isBlank()) {
+            File jvmBin = new File(javaHome, "bin/java");
+            if (jvmBin.exists() && jvmBin.canExecute()) {
+                return jvmBin.getAbsolutePath();
+            }
+        }
+        return findBinary(JAVA_CANDIDATES);
+    }
+
     private String findBinary(List<String> candidates) {
         for (String cmd : candidates) {
             try {
@@ -224,5 +308,24 @@ public class CodingLocalRunner {
         }
         return null;
     }
-}
 
+    private static String makeNonMainClassesPackagePrivate(String code) {
+        if (code == null) return "";
+        return code.replaceAll("public\\s+class\\s+(?!Main\\b)", "class ");
+    }
+
+    private void deleteRecursively(File file) {
+        if (file == null || !file.exists()) return;
+        if (file.isDirectory()) {
+            File[] children = file.listFiles();
+            if (children != null) {
+                for (File child : children) {
+                    deleteRecursively(child);
+                }
+            }
+        }
+        try {
+            file.delete();
+        } catch (Exception ignored) {}
+    }
+}
