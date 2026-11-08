@@ -10,6 +10,7 @@
 
 | Thông tin | Giá trị |
 |---|---|
+| Tự động chấm đề & giao kết quả 2026-10-28 | Tenant V59 thêm `tests.auto_grading_enabled` BOOLEAN NOT NULL DEFAULT FALSE (entity `JobTest.autoGradingEnabled`). Khi bật (`true`): AI & Sandbox chấm xong sẽ tự động chốt điểm chính thức (`score = suggestedScore`), cập nhật trạng thái `GRADED`, settle trạng thái ứng viên và gửi email kết quả cho ứng viên ngay mà không cần nhà tuyển dụng duyệt thủ công. Không thêm bảng/FK/UNIQUE/index |
 | Nguồn đề thi 2026-10-27 | Tenant V58 thêm `tests.origin` VARCHAR(32) NOT NULL DEFAULT `AUTHORED` (entity `JobTest.origin`, enum `TestOrigin`: `AUTHORED`, `GENERATED`). Backfill `GENERATED` khi description là câu tạo tự động từ ngân hàng. Không thêm bảng/FK/UNIQUE/index. `TestStatus` giữ nguyên |
 | Assessment ops hardening 2026-10-25 | Tenant V55: `coding_problems.verified_at` / `verified_language`; `tests.coding_test_weight_percent` INT NOT NULL DEFAULT 90; `answers.custom_run_count` INT NOT NULL DEFAULT 0; `email_outbox.reference_key` VARCHAR(128) + UNIQUE `(purpose, reference_key)`. Không thêm bảng/entity mới |
 | Coding authoring aids 2026-10-25 | Tenant V56 thêm `coding_problems.constraints_text` TEXT nullable (entity `CodingProblem.constraintsText`) và `test_cases.explanation` TEXT nullable (entity `TestCase.explanation`). Không thêm bảng/FK/UNIQUE/index |
@@ -48,9 +49,9 @@
 | Entity JPA tenant | 66 class `@Entity` theo checkout hiện tại; V57 bổ sung `CompanyLocationDepartment` |
 | Khoá ngoại tenant | 93 (91 trước V54 + `fk_github_analyses_cv` và `fk_github_analyses_job`; `github_repo_caches` và `company_location_departments` không có FK) |
 | Ràng buộc UNIQUE tenant | V57 thêm `uk_company_loc_dept`. V55 thêm `uk_email_outbox_purpose_ref`. V54 thêm `uk_github_analyses_cv_job` và `uk_github_repo_cache`. V53 thêm `uk_cp_question`. V51 thêm `uk_candidates_email` và `uk_notification_preference_candidate_category` |
-| Số file migration trong repo | 84 (34 master + 50 tenant); V9 redesign nằm ngoài pipeline |
+| Số file migration trong repo | 86 (34 master + 52 tenant); V9 redesign nằm ngoài pipeline |
 | Assessment đa phần 2026-10-12 | Tenant V53: rubric, khóa phần trắc nghiệm, gợi ý/duyệt điểm, liên kết coding→question và template sandbox; không thêm bảng/entity; thêm 2 FK và 1 UNIQUE |
-| Cập nhật lần cuối | Tenant `V58` (`tests.origin`), `V57` (`company_location_departments`), `V56` (constraints/explanation), `V55` (assessment ops) |
+| Cập nhật lần cuối | Tenant `V59` (`tests.auto_grading_enabled`), `V58` (`tests.origin`), `V57` (`company_location_departments`), `V56` (constraints/explanation), `V55` (assessment ops) |
 | Dọn legacy V21 | Xóa 19 bảng và dữ liệu legacy, xóa 2 cột ID legacy trong ranking; không chuyển ID cũ sang bản ghi mới |
 | Metadata assessment 2026-09-25 | V13: `tests.created_by/updated_at`, `questions.difficulty/skill/explanation` cho Excel/UI authoring |
 | Sửa lỗi assessment 2026-09-24 | V10/V11 khớp checksum lịch sử; V12 tạo schema mới và giữ bảng cũ; migration lỗi phải chặn mở tenant pool |

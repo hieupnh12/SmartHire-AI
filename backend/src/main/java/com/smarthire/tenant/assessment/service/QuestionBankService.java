@@ -304,16 +304,28 @@ public class QuestionBankService {
         var fields = node.fields();
         while (fields.hasNext()) {
             var field = fields.next();
+            JsonNode val = field.getValue();
             if ("rubric".equals(field.getKey())) {
-                if (!field.getValue().isArray() || field.getValue().size() > 3) throw invalid("Invalid rubric metadata");
-                for (JsonNode item : field.getValue()) {
+                if (!val.isArray() || val.size() > 3) throw invalid("Invalid rubric metadata");
+                for (JsonNode item : val) {
                     if (!item.isObject() || !item.path("level").isTextual()
                             || !List.of("excellent", "pass", "fail").contains(item.path("level").asText())
                             || !item.path("text").isTextual() || item.path("text").asText().length() > 10000) {
                         throw invalid("Invalid rubric metadata");
                     }
                 }
-            } else if (!field.getValue().isTextual() || field.getValue().asText().length() > 10000) {
+            } else if ("similarQuestionIds".equals(field.getKey())) {
+                if (!val.isArray() || val.size() > 100) throw invalid("Invalid similar question ids metadata");
+                for (JsonNode item : val) {
+                    if (!item.isIntegralNumber()) throw invalid("Invalid similar question id");
+                }
+            } else if (val.isBoolean() || val.isNumber() || val.isNull()) {
+                // Primitive metadata values (e.g. aiGenerated: true) are allowed
+            } else if (val.isTextual()) {
+                if (val.asText().length() > 10000) {
+                    throw invalid("Authoring metadata fields must be text with at most 10000 characters");
+                }
+            } else {
                 throw invalid("Authoring metadata fields must be text with at most 10000 characters");
             }
         }

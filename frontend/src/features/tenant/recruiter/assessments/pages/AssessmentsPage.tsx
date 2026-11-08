@@ -1,5 +1,6 @@
 import { useRecruitmentJob } from "../../jobs/components/JobRecruitmentWorkspace";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
 import {
@@ -647,7 +648,7 @@ export function AssessmentsPage() {
 
         {tests.isPending && (
           <div className="p-4">
-            <TableSkeleton columns={6} rows={5} />
+            <TableSkeleton columns={8} rows={5} className="min-w-0 w-full border-0" />
           </div>
         )}
 
@@ -678,11 +679,21 @@ export function AssessmentsPage() {
 
         {pageRows.length > 0 && (
           <>
-            <div className={cn("overflow-x-auto transition-opacity", isTableTransitioning && "opacity-50 pointer-events-none")}>
-              <table className="w-full min-w-[1100px] border-collapse text-left text-sm">
+            <div className={cn("overflow-x-auto lg:overflow-x-hidden transition-opacity", isTableTransitioning && "opacity-50 pointer-events-none")}>
+              <table className="w-full min-w-[856px] lg:min-w-0 lg:table-fixed border-collapse text-left text-sm">
+                <colgroup>
+                  <col className="w-10" />
+                  <col />
+                  <col className="w-36" />
+                  <col className="w-24" />
+                  <col className="w-32" />
+                  <col className="w-28" />
+                  <col className="w-40" />
+                  <col className="w-44" />
+                </colgroup>
                 <thead>
                   <tr className="h-11 bg-[var(--color-surface-container-low)] text-[11px] font-semibold uppercase tracking-wider text-[var(--color-outline)]">
-                    <th className="w-12 px-4 py-2 text-center">
+                    <th className="w-10 px-2.5 py-2 text-center">
                       <input
                         type="checkbox"
                         className="size-4 cursor-pointer accent-[var(--color-primary)]"
@@ -692,12 +703,12 @@ export function AssessmentsPage() {
                       />
                     </th>
                     <th className="px-4 py-2">Tên bài đánh giá &amp; Mã đề</th>
-                    <th className="px-4 py-2">Cấu trúc đề</th>
-                    <th className="px-4 py-2">Thời lượng</th>
-                    <th className="px-4 py-2">Thang điểm / Đạt</th>
-                    <th className="px-4 py-2">Trạng thái</th>
-                    <th className="px-4 py-2">Người tạo &amp; Cập nhật</th>
-                    <th className="px-4 py-2 text-right">Thao tác</th>
+                    <th className="w-36 px-3 py-2 whitespace-nowrap">Cấu trúc đề</th>
+                    <th className="w-24 px-3 py-2 whitespace-nowrap">Thời lượng</th>
+                    <th className="w-32 px-3 py-2 whitespace-nowrap">Thang điểm / Đạt</th>
+                    <th className="w-28 px-3 py-2 whitespace-nowrap">Trạng thái</th>
+                    <th className="w-40 px-3 py-2 whitespace-nowrap">Người tạo &amp; Cập nhật</th>
+                    <th className="w-44 px-3 py-2 text-right whitespace-nowrap">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[var(--color-surface-container-low)]">
@@ -913,21 +924,59 @@ function AssessmentRow({
   basePath: string;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [coords, setCoords] = useState<{ top: number; left: number; openUp: boolean }>({ top: 0, left: 0, openUp: false });
   const draft = test.status === "DRAFT";
   const totalPoints = structure?.loading ? null : structure?.totalPoints ?? 0;
   const questionCount = structure?.loading ? null : structure?.count ?? 0;
   const title = shortAssessmentTitle(jobTitle, test.title);
 
+  useLayoutEffect(() => {
+    if (!menuOpen || !triggerRef.current) return;
+
+    const updatePosition = () => {
+      const trigger = triggerRef.current;
+      if (!trigger) return;
+      const rect = trigger.getBoundingClientRect();
+      const menuWidth = 192;
+      const menuHeight = 175;
+      const gap = 6;
+      const padding = 12;
+
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const spaceAbove = rect.top;
+      const openUp = spaceBelow < menuHeight + gap && spaceAbove > spaceBelow;
+
+      const top = openUp ? rect.top - menuHeight - gap : rect.bottom + gap;
+      let left = rect.right - menuWidth;
+      left = Math.max(padding, Math.min(window.innerWidth - menuWidth - padding, left));
+
+      setCoords({ top, left, openUp });
+    };
+
+    updatePosition();
+    window.addEventListener("scroll", updatePosition, true);
+    window.addEventListener("resize", updatePosition);
+    return () => {
+      window.removeEventListener("scroll", updatePosition, true);
+      window.removeEventListener("resize", updatePosition);
+    };
+  }, [menuOpen]);
+
   useEffect(() => {
     if (!menuOpen) return;
     const handleClick = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      if (!target.closest(`[data-row-action="${test.id}"]`)) {
-        setMenuOpen(false);
-      }
+      const target = e.target as Node;
+      if (triggerRef.current?.contains(target)) return;
+      if (menuRef.current?.contains(target)) return;
+      setMenuOpen(false);
     };
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setMenuOpen(false);
+      if (e.key === "Escape") {
+        setMenuOpen(false);
+        triggerRef.current?.focus();
+      }
     };
     document.addEventListener("mousedown", handleClick);
     document.addEventListener("keydown", handleKey);
@@ -935,11 +984,11 @@ function AssessmentRow({
       document.removeEventListener("mousedown", handleClick);
       document.removeEventListener("keydown", handleKey);
     };
-  }, [menuOpen, test.id]);
+  }, [menuOpen]);
 
   return (
     <tr className="group transition-colors hover:bg-[var(--color-primary-subtle)]">
-      <td className="px-4 py-3.5 text-center" onClick={(e) => e.stopPropagation()}>
+      <td className="w-10 px-2.5 py-3.5 text-center" onClick={(e) => e.stopPropagation()}>
         <input
           type="checkbox"
           className="size-4 cursor-pointer accent-[var(--color-primary)]"
@@ -948,15 +997,16 @@ function AssessmentRow({
           aria-label={`Chọn ${title}`}
         />
       </td>
-      <td className="px-4 py-3.5">
+      <td className="min-w-0 px-4 py-3.5">
         <div className="flex items-center gap-3">
           <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-blue-50 text-[#0066FF] border border-blue-100 dark:bg-blue-950/60 dark:border-blue-900 dark:text-blue-300">
             <ClipboardList className="size-4" aria-hidden="true" />
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <Link
               to={String(test.id)}
               className="block truncate font-semibold transition-colors group-hover:text-[var(--color-primary)] text-slate-900 dark:text-slate-100"
+              title={title}
             >
               {title}
             </Link>
@@ -973,7 +1023,7 @@ function AssessmentRow({
           </div>
         </div>
       </td>
-      <td className="whitespace-nowrap px-4 py-3.5">
+      <td className="w-36 whitespace-nowrap px-3 py-3.5">
         {questionCount === null ? (
           <span className="text-slate-400">Đang tải…</span>
         ) : (
@@ -985,13 +1035,13 @@ function AssessmentRow({
           </>
         )}
       </td>
-      <td className="whitespace-nowrap px-4 py-3.5">
+      <td className="w-24 whitespace-nowrap px-3 py-3.5">
         <span className="inline-flex items-center gap-1.5 font-medium text-slate-700 dark:text-slate-300">
           <Clock3 className="size-3.5 text-slate-400" aria-hidden="true" />
           {test.durationMinutes} phút
         </span>
       </td>
-      <td className="whitespace-nowrap px-4 py-3.5">
+      <td className="w-32 whitespace-nowrap px-3 py-3.5">
         <div className="flex flex-col">
           <span className="font-semibold text-slate-900 dark:text-slate-100">
             {totalPoints === null ? "…" : totalPoints > 0 ? `${totalPoints} điểm` : "Chưa có điểm"}
@@ -1001,23 +1051,23 @@ function AssessmentRow({
           </span>
         </div>
       </td>
-      <td className="whitespace-nowrap px-4 py-3.5">
+      <td className="w-28 whitespace-nowrap px-3 py-3.5">
         <StatusBadge status={test.status} />
       </td>
-      <td className="whitespace-nowrap px-4 py-3.5">
+      <td className="w-40 whitespace-nowrap px-3 py-3.5">
         <div className="flex items-center gap-2">
           <div className="grid size-7 place-items-center rounded-full bg-slate-100 dark:bg-slate-800 text-[10px] font-bold text-slate-700 dark:text-slate-300">
             {initials(test.createdByName)}
           </div>
-          <div className="flex flex-col">
-            <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">{test.createdByName?.trim() || "Chưa ghi nhận"}</span>
+          <div className="flex flex-col min-w-0">
+            <span className="truncate text-xs font-semibold text-slate-800 dark:text-slate-200">{test.createdByName?.trim() || "Chưa ghi nhận"}</span>
             <span className="text-[11px] text-slate-400">
               {formatRelative(test.updatedAt ?? test.createdAt)}
             </span>
           </div>
         </div>
       </td>
-      <td className="whitespace-nowrap px-4 py-3.5 text-right" onClick={(e) => e.stopPropagation()}>
+      <td className="w-44 whitespace-nowrap px-3 py-3.5 text-right" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-end gap-1.5">
           {draft ? (
             <Link
@@ -1047,11 +1097,14 @@ function AssessmentRow({
             </Link>
           </Tooltip>
 
-          <div className="relative" data-row-action={test.id}>
+          <div className="relative">
             <Tooltip content="Tùy chọn khác" side="top">
               <button
+                ref={triggerRef}
                 type="button"
                 aria-label="Tùy chọn khác"
+                aria-haspopup="menu"
+                aria-expanded={menuOpen}
                 onClick={() => setMenuOpen((prev) => !prev)}
                 className={cn(
                   "inline-flex size-8 items-center justify-center rounded-xl text-slate-500 transition-colors cursor-pointer",
@@ -1064,47 +1117,62 @@ function AssessmentRow({
               </button>
             </Tooltip>
 
-            {menuOpen && (
-              <div className="absolute right-0 top-full mt-1.5 z-40 w-48 rounded-2xl bg-white dark:bg-slate-900 p-1.5 text-left text-xs shadow-xl border border-slate-200 dark:border-slate-800 animate-in fade-in-50 zoom-in-95">
-                <button
-                  type="button"
-                  className="flex w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                  onClick={() => {
-                    void navigator.clipboard.writeText(`ASM-${test.id}`);
-                    setMenuOpen(false);
-                    toast.success("Đã sao chép mã đề ASM-" + test.id);
+            {menuOpen &&
+              createPortal(
+                <div
+                  ref={menuRef}
+                  style={{
+                    position: "fixed",
+                    top: `${coords.top}px`,
+                    left: `${coords.left}px`,
+                    zIndex: 9999,
                   }}
+                  className={cn(
+                    "w-48 rounded-2xl bg-white dark:bg-slate-900 p-1.5 text-left text-xs shadow-2xl border border-slate-200/90 dark:border-slate-800 animate-in fade-in-50 zoom-in-95",
+                    coords.openUp ? "origin-bottom-right" : "origin-top-right"
+                  )}
+                  onClick={(e) => e.stopPropagation()}
                 >
-                  <Copy className="size-3.5 text-slate-500" /> Sao chép mã đề
-                </button>
-                <button
-                  type="button"
-                  className="flex w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                  onClick={() => {
-                    void navigator.clipboard.writeText(test.title);
-                    setMenuOpen(false);
-                    toast.success("Đã sao chép tên bài đánh giá");
-                  }}
-                >
-                  <Copy className="size-3.5 text-slate-500" /> Sao chép tên bài thi
-                </button>
-                <div className="my-1 border-t border-slate-100 dark:border-slate-800" />
-                <Link
-                  to={`${basePath}/submissions?testId=${test.id}`}
-                  className="flex w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                  onClick={() => setMenuOpen(false)}
-                >
-                  <Users className="size-3.5 text-blue-600" /> Bài nộp ứng viên
-                </Link>
-                <Link
-                  to={String(test.id)}
-                  className="flex w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                  onClick={() => setMenuOpen(false)}
-                >
-                  <Eye className="size-3.5 text-slate-600" /> Chi tiết bài đánh giá
-                </Link>
-              </div>
-            )}
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                    onClick={() => {
+                      void navigator.clipboard.writeText(`ASM-${test.id}`);
+                      setMenuOpen(false);
+                      toast.success("Đã sao chép mã đề ASM-" + test.id);
+                    }}
+                  >
+                    <Copy className="size-3.5 text-slate-500" /> Sao chép mã đề
+                  </button>
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                    onClick={() => {
+                      void navigator.clipboard.writeText(test.title);
+                      setMenuOpen(false);
+                      toast.success("Đã sao chép tên bài đánh giá");
+                    }}
+                  >
+                    <Copy className="size-3.5 text-slate-500" /> Sao chép tên bài thi
+                  </button>
+                  <div className="my-1 border-t border-slate-100 dark:border-slate-800" />
+                  <Link
+                    to={`${basePath}/submissions?testId=${test.id}`}
+                    className="flex w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    <Users className="size-3.5 text-blue-600" /> Bài nộp ứng viên
+                  </Link>
+                  <Link
+                    to={String(test.id)}
+                    className="flex w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    <Eye className="size-3.5 text-slate-600" /> Chi tiết bài đánh giá
+                  </Link>
+                </div>,
+                document.body
+              )}
           </div>
         </div>
       </td>

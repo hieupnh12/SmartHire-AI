@@ -16,11 +16,16 @@ Tự chấm MCQ + coding; tổng điểm assessment.
 
 1. MCQ và MULTIPLE_CHOICE được chấm khi submit hoặc khi truy cập lượt hết hạn; nhiều đáp án cần chọn chính xác toàn bộ tập đáp án đúng (không điểm một phần).
 2. Lưu điểm từng câu vào `answers.score`, đúng/sai vào `answers.is_correct`, tổng vào `submissions.score`.
-3. Bài có ESSAY: lưu nội dung, để điểm câu/đúng-sai tự luận NULL, tổng điểm/passed NULL; SUBMITTED chờ chấm hoặc EXPIRED nếu hết hạn. V53 bổ sung worker AI/sandbox và endpoint staff duyệt/chấm lại; chưa tích hợp overall.
+3. Bài có ESSAY / CODING: lưu nội dung, worker AI / sandbox chấm điểm đề xuất (`suggestedScore`) bất đồng bộ qua RabbitMQ.
+4. **Quy tắc công bố & giao kết quả (`auto_grading_enabled`):**
+   - **Khi BẬT (`auto_grading_enabled = true`):** Ngay khi tất cả câu hỏi được chấm (MCQ/Essay/Coding), hệ thống tự động chốt điểm chính thức (`score = suggestedScore`), chuyển trạng thái bài thi sang `GRADED`, cập nhật trạng thái tuyển dụng (`settleAfterAssessment`) và tự động gửi email kết quả cho ứng viên mà không cần nhà tuyển dụng xác nhận thủ công.
+   - **Khi TẮT (`auto_grading_enabled = false`):** AI & Sandbox chỉ lưu điểm gợi ý, bài làm giữ trạng thái `SUBMITTED`, nhà tuyển dụng truy cập trang chi tiết để xem bằng chứng, điều chỉnh điểm và phê duyệt công bố thủ công.
 
 ## Business Rules
 
-- Deterministic grading.
+- Deterministic grading cho MCQ và test cases của CODING.
+- Cấu hình `auto_grading_enabled` được thiết lập tại "Cài đặt chung" của Assessment (`jobs.assessment_config_json.autoGradingEnabled`) và được kế thừa vào từng đề thi sinh ra (`tests.auto_grading_enabled`).
+- Khi `auto_grading_enabled = true`, email kết quả (`email_outbox`) được sinh tự động idempotent qua `sendResultEmailSilently`.
 - Đề đã publish không được sửa. Submit lặp trả kết quả cũ; không có API regrade trong bước hiện tại.
 - Điểm thô: đúng nhận điểm câu, sai/bỏ trống nhận 0; candidate không được truyền điểm hoặc gọi API chấm riêng.
 

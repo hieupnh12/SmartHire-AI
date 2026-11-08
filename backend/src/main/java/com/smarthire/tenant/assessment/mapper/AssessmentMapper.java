@@ -64,6 +64,7 @@ public class AssessmentMapper {
                 test.getObjectiveDurationMinutes(),
                 test.getCodingTestWeightPercent(),
                 test.getAssignedApplication() != null ? test.getAssignedApplication().getId() : null,
-                test.getOrigin() == null ? TestOrigin.AUTHORED : test.getOrigin());
+                test.getOrigin() == null ? TestOrigin.AUTHORED : test.getOrigin(),
+                test.isAutoGradingEnabled());
     }
 }

@@ -4,6 +4,7 @@ import com.smarthire.common.exception.BusinessException;
 import com.smarthire.domain.enums.*;
 import com.smarthire.domain.tenant.entity.*;
 import com.smarthire.domain.tenant.repository.*;
+import com.smarthire.multitenancy.service.TenantPublicUrlService;
 import com.smarthire.tenant.applicant.service.ApplicantService;
 import com.smarthire.tenant.applicant.service.ApplicationClosureService;
 import com.smarthire.tenant.cv.service.CvAccess;
@@ -15,6 +16,7 @@ import java.net.URI;
 import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -40,6 +42,7 @@ public class InterviewService {
     private final ObjectMapper json;
     private final HumanInterviewNotificationService notifications;
     private final ApplicantService applicants;
+    private final ObjectProvider<TenantPublicUrlService> publicUrls;
 
     public InterviewService(
             InterviewRepository interviews,
@@ -56,7 +59,7 @@ public class InterviewService {
             HumanInterviewMapper mapper,
             ObjectMapper json,
             HumanInterviewNotificationService notifications) {
-        this(interviews, schedules, participants, evaluations, applications, aiInterviews, rankingData, jobs, users, null, access, jobAccess, mapper, json, notifications, null);
+        this(interviews, schedules, participants, evaluations, applications, aiInterviews, rankingData, jobs, users, null, access, jobAccess, mapper, json, notifications, null, null);
     }
 
     @Autowired
@@ -76,7 +79,8 @@ public class InterviewService {
             HumanInterviewMapper mapper,
             ObjectMapper json,
             HumanInterviewNotificationService notifications,
-            ApplicantService applicants) {
+            ApplicantService applicants,
+            ObjectProvider<TenantPublicUrlService> publicUrls) {
         this.interviews = interviews;
         this.schedules = schedules;
         this.participants = participants;
@@ -93,6 +97,7 @@ public class InterviewService {
         this.json = json;
         this.notifications = notifications;
         this.applicants = applicants;
+        this.publicUrls = publicUrls;
     }
 
     public Map<String,String> health() { return Map.of("module", "human-interview", "status", "ready"); }
@@ -167,16 +172,19 @@ public class InterviewService {
                 .map(u -> new ParticipantView(u.getId(),u.getFullName(),u.getEmail(),"CO_INTERVIEWER")).toList(),
             List.of(new Choice("TECHNICAL","Vòng 1: Kỹ thuật Chuyên sâu"),new Choice("CULTURE","Vòng 2: Culture & Leadership Fit"),new Choice("EXECUTIVE","Vòng 3: Phỏng vấn Ban Giám Đốc")),
             List.of(new Choice("TECHNICAL","Kỹ thuật, Giao tiếp & Văn hóa"),new Choice("CULTURE","Culture & Leadership"),new Choice("GENERAL","SmartHire General")),
-            List.of(new Choice("STANDARD","Thư mời song ngữ Việt - Anh"),new Choice("EXPRESS","Lịch hẹn nhanh"),new Choice("EXECUTIVE","Phỏng vấn Ban Giám đốc")),false,false);
+            List.of(new Choice("STANDARD","Thư mời song ngữ Việt - Anh"),new Choice("EXPRESS","Lịch hẹn nhanh"),new Choice("EXECUTIVE","Phỏng vấn Ban Giám đốc")),true,false);
     }
     public InterviewView save(Long id, SaveRequest r) {
         requireJob(r.jobId(),true); window(r.start(),r.end(),true);
         if (r.smsReminder()) throw new BusinessException("SMS/Zalo provider is not configured",HttpStatus.NOT_IMPLEMENTED,"INTERVIEW_SMS_UNAVAILABLE");
+        boolean smartHireRoom = r.mode().equals("ONLINE") && "SMARTHIRE".equals(r.provider());
         if (r.mode().equals("ONLINE")) {
-            if (r.meetingUrl()==null || r.meetingUrl().isBlank()) throw invalid("Enter a meeting URL; automatic meeting creation is not configured");
-            try { var uri=URI.create(r.meetingUrl()); if (!List.of("http","https").contains(uri.getScheme()) || uri.getHost()==null) throw invalid("Invalid meeting URL"); }
-            catch (IllegalArgumentException ex) { throw invalid("Invalid meeting URL"); }
             if (r.provider().equals("OFFICE")) throw invalid("Choose an online meeting provider");
+            if (!smartHireRoom) {
+                if (r.meetingUrl()==null || r.meetingUrl().isBlank()) throw invalid("Enter a meeting URL; automatic meeting creation is not configured");
+                try { var uri=URI.create(r.meetingUrl()); if (!List.of("http","https").contains(uri.getScheme()) || uri.getHost()==null) throw invalid("Invalid meeting URL"); }
+                catch (IllegalArgumentException ex) { throw invalid("Invalid meeting URL"); }
+            }
         } else if (r.location()==null || r.location().isBlank()) throw invalid("Enter the interview location");
         var a=applications.findByIdAndJob_Id(r.applicationId(),r.jobId()).orElseThrow(() -> missing("Application"));
         if (a.getArchivedAt()!=null || a.getWithdrawnAt()!=null || List.of(ApplicationStatus.REJECTED,ApplicationStatus.WITHDRAWN,ApplicationStatus.HIRED).contains(a.getStatus())) throw invalid("Application is not eligible for scheduling");
@@ -214,7 +222,13 @@ public class InterviewService {
         i.setApplication(a); i.setInterviewType(PREFIX+r.round()); i.setMode(r.mode()); i.setStatus(r.draft()?InterviewStatus.CREATED:InterviewStatus.SCHEDULED);
         configure(i,new Configuration(r.rubric(),r.provider(),r.emailTemplate(),r.notes(),r.attachCalendar(),null,null,null)); interviews.saveAndFlush(i);
         var s=id==null ? new InterviewSchedule() : schedule(i); s.setInterview(i); s.setScheduledStart(r.start()); s.setScheduledEnd(r.end());
-        s.setMeetingUrl(r.mode().equals("ONLINE")?r.meetingUrl().trim():null); s.setLocation(r.mode().equals("OFFLINE")?r.location().trim():null);
+        if (r.mode().equals("ONLINE")) {
+            s.setMeetingUrl(smartHireRoom ? smartHireMeetingUrl(i.getId()) : r.meetingUrl().trim());
+            s.setLocation(null);
+        } else {
+            s.setMeetingUrl(null);
+            s.setLocation(r.location().trim());
+        }
         s.setStatus(r.draft()?ScheduleStatus.DRAFT:ScheduleStatus.PROPOSED); schedules.save(s);
         var existingPanel=id==null ? List.<InterviewParticipant>of() : participants.findByInterviewIdOrderByUserId(i.getId());
         participants.deleteAll(existingPanel.stream().filter(p -> !ids.contains(p.getUserId())).toList());
@@ -270,14 +284,18 @@ public class InterviewService {
     }
     public InterviewView evaluate(long id, EvaluationRequest r) {
         var i=load(id,false); if (access.candidate()) throw forbidden(); var s=schedule(i);
-        if (List.of(ScheduleStatus.DRAFT,ScheduleStatus.CANCELLED).contains(s.getStatus()) || s.getScheduledEnd().isAfter(Instant.now())) throw invalid("Scorecard is available after the interview");
+        if (List.of(ScheduleStatus.DRAFT, ScheduleStatus.CANCELLED).contains(s.getStatus())) {
+            throw invalid("Scorecard is unavailable for this schedule");
+        }
+        // Live scoring: panel may grade during the call once the slot has started (not only after end).
+        if (s.getScheduledStart().isAfter(Instant.now())) {
+            throw invalid("Scorecard opens when the interview starts");
+        }
         boolean reject = r.recommendation().equals("NO_HIRE") || r.recommendation().equals("STRONG_NO_HIRE");
         boolean pass = r.recommendation().equals("HIRE") || r.recommendation().equals("STRONG_HIRE");
         boolean finalize = Boolean.TRUE.equals(r.finalizeDecision());
-        if ((reject || finalize) && (r.comments() == null || r.comments().isBlank())) {
-            throw invalid(reject
-                    ? "Nhập lý do khi đánh giá Trượt / không tuyển"
-                    : "Nhập nhận xét khi ra quyết định cuối cùng");
+        if (r.comments() == null || r.comments().isBlank()) {
+            throw invalid("Scorecard requires evidence comments");
         }
         var actor=access.actor();
         var panel = participants.findByInterviewIdOrderByUserId(id);
@@ -288,9 +306,12 @@ public class InterviewService {
         var e=evaluations.findFirstByInterview_IdAndEvaluator_Id(id,actor.getId()).orElseGet(InterviewEvaluation::new);
         e.setInterview(i); e.setEvaluator(actor); e.setTechnicalScore(r.technicalScore()); e.setCommunicationScore(r.communicationScore()); e.setCultureScore(r.cultureScore());
         e.setOverallScore(r.technicalScore().add(r.communicationScore()).add(r.cultureScore()).divide(BigDecimal.valueOf(3),2,RoundingMode.HALF_UP));
-        e.setComments(r.comments()); e.setRecommendation(r.recommendation()); evaluations.saveAndFlush(e);
-        // Completing the slot ≠ hiring decision. Finalize only when Lead opts in.
-        s.setStatus(ScheduleStatus.DONE); i.setStatus(InterviewStatus.EVALUATED);
+        e.setComments(r.comments().trim()); e.setRecommendation(r.recommendation()); evaluations.saveAndFlush(e);
+        // Mid-call save keeps schedule open; close on finalize or after scheduledEnd.
+        if (finalize || !s.getScheduledEnd().isAfter(Instant.now())) {
+            s.setStatus(ScheduleStatus.DONE);
+            i.setStatus(InterviewStatus.EVALUATED);
+        }
         if (finalize && applicants != null) {
             var application = i.getApplication();
             if (ApplicationClosureService.closed(application.getStatus())) {
@@ -376,6 +397,14 @@ public class InterviewService {
                     HttpStatus.CONFLICT,
                     "ASSESSMENT_NOT_PASSED");
         }
+    }
+
+    /** In-app Jitsi room link hosted on the tenant SPA (`/meet/human/{id}`). */
+    private String smartHireMeetingUrl(long interviewId) {
+        String path = "/meet/human/" + interviewId;
+        if (publicUrls == null) return path;
+        var urls = publicUrls.getIfAvailable();
+        return urls == null ? path : urls.path(path);
     }
 
     private static BusinessException missing(String item) { return new BusinessException(item+" not found",HttpStatus.NOT_FOUND,"INTERVIEW_NOT_FOUND"); }

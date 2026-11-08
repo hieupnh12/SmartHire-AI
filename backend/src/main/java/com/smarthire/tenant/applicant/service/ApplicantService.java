@@ -149,6 +149,13 @@ public class ApplicantService {
         this.aiInterviews = aiInterviews;
     }
 
+    private com.smarthire.tenant.matching.service.RankingRecomputeTrigger rankingRecompute;
+
+    @Autowired(required = false)
+    public void setRankingRecompute(com.smarthire.tenant.matching.service.RankingRecomputeTrigger rankingRecompute) {
+        this.rankingRecompute = rankingRecompute;
+    }
+
     public Map<String, String> health() {
         return Map.of("module", "applicant", "status", "ready");
     }
@@ -452,6 +459,29 @@ public class ApplicantService {
         return toDetail(application);
     }
 
+    /** Candidate answers an OFFER: accept hires immediately, decline closes the application as withdrawn. */
+    @Transactional
+    public ApplicationDetail respondToOffer(long id, boolean accept, String reason) {
+        if (!access.candidate()) {
+            throw new BusinessException("Only the candidate can respond to an offer", HttpStatus.FORBIDDEN,
+                    "APPLICATION_FORBIDDEN");
+        }
+        Application application = load(id);
+        application = applications.findByIdForUpdate(application.getId()).orElseThrow();
+        if (application.getStatus() != ApplicationStatus.OFFER || application.getArchivedAt() != null) {
+            throw new BusinessException("Application has no open offer", HttpStatus.CONFLICT, "APPLICATION_NO_OFFER");
+        }
+        if (accept) {
+            record(application, ApplicationStatus.HIRED, noteOr(reason, "Candidate accepted the offer"));
+        } else {
+            application.setWithdrawnAt(Instant.now());
+            application.setWithdrawReason(blankToValue(reason, "Declined offer"));
+            record(application, ApplicationStatus.WITHDRAWN, noteOr(reason, "Candidate declined the offer"));
+            closures.onClosed(application, null);
+        }
+        return toDetail(application);
+    }
+
     /**
      * Candidates may withdraw any open application, including after CV screening.
      */
@@ -569,6 +599,8 @@ public class ApplicantService {
         Application application = applications.findByIdForUpdate(applicationId).orElse(null);
         if (application == null || application.getArchivedAt() != null || application.getWithdrawnAt() != null)
             return;
+        if (rankingRecompute != null)
+            rankingRecompute.request(application.getJob().getId());
         if (application.getStatus() != ApplicationStatus.ASSESSMENT
                 && application.getStatus() != ApplicationStatus.INTERVIEW) {
             gateScreening.recalculate(application);

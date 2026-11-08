@@ -472,10 +472,19 @@ public class AiInterviewEvaluationService {
         return value.asText();
     }
 
+    private com.smarthire.tenant.matching.service.RankingRecomputeTrigger rankingRecompute;
+
+    @Autowired(required = false)
+    public void setRankingRecompute(com.smarthire.tenant.matching.service.RankingRecomputeTrigger rankingRecompute) {
+        this.rankingRecompute = rankingRecompute;
+    }
+
     void finish(AiInterview interview, BigDecimal score) {
         boolean passed = score.compareTo(interview.getPassingScoreSnapshot()) >= 0;
         interview.setOverallScore(score);
         interview.setStatus(passed ? AiInterviewStatus.PASSED : AiInterviewStatus.FAILED);
+        if (rankingRecompute != null)
+            rankingRecompute.request(interview.getApplication().getJob().getId());
         activity.record(interview, passed ? "PASSED" : "FAILED",
                 "Score " + score + "/100; passing score " + interview.getPassingScoreSnapshot());
         var application = interview.getApplication();

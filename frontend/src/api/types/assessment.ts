@@ -20,9 +20,11 @@ export type JobTest = {
   assignedApplicationId?: number | null;
   /** Hidden-test share of coding score (0–100). AI gets the remainder. */
   codingTestWeightPercent?: number;
+  autoGradingEnabled?: boolean;
 };
 export type TestRequest = Pick<JobTest, "jobId" | "title" | "description" | "durationMinutes" | "passingScore" | "objectiveDurationMinutes"> & {
   codingTestWeightPercent?: number | null;
+  autoGradingEnabled?: boolean;
 };
 export type TestPage = { items: JobTest[]; total: number; page: number; size: number };
 export type QuestionRequest = {
@@ -117,6 +119,9 @@ export type SubmissionGradingDetail = {
     proctorEventCount: number;
     proctorEvents: { eventType: string; createdAt: string; detail: string | null }[];
     customRuns: { questionId: number; prompt: string; count: number }[];
+    riskScore?: number;
+    riskLevel?: "LOW" | "MEDIUM" | "HIGH";
+    eventCounts?: Record<string, number>;
   };
 };
 

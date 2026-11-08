@@ -163,10 +163,3 @@ export type UpdateAiInterviewRequest = {
 };
 
 export type AiQuestionRequest = { questionText: string; questionType: string; questionOrder: number };
-
-export type UpsertAiFeedbackRequest = {
-  score: number | null;
-  feedbackText: string | null;
-  strengths: string | null;
-  weaknesses: string | null;
-};

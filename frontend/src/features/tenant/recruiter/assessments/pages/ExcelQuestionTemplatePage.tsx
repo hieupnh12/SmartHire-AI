@@ -13,6 +13,7 @@ import { useRecruitmentJob } from "../../jobs/components/JobRecruitmentWorkspace
 import { useEffect, useMemo, useRef, useState, type ClipboardEvent, type ReactNode } from "react";
 import {
   AlertTriangle,
+  ArrowLeft,
   Check,
   CheckCircle2,
   Clock3,
@@ -25,7 +26,7 @@ import {
   ShieldCheck,
   Trash2,
 } from "lucide-react";
-import { Breadcrumb } from "@/components/ux/Breadcrumb";
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ux/Button";
 import { DetailDialog } from "@/components/ux/DetailDialog";
 import { toast } from "@/stores/toastStore";
@@ -1448,33 +1449,47 @@ export function ExcelQuestionEditor({ job, generalBank }: {
 
   return (
     <section className="flex flex-col gap-3 text-[var(--color-on-surface)]">
-      <Breadcrumb
-        items={[
-          { label: generalBank ? "Trang tuyển dụng" : "Assessment", to: basePath },
-          { label: "Ngân hàng câu hỏi", to: bankPath },
-          { label: "Soạn câu hỏi trên bảng" },
-        ]}
-        actions={
-          <>
-            <Button type="button" variant="ghost" size="sm" onClick={() => setShowHelpModal(true)}>
-              <HelpCircle className="size-3.5 text-blue-600 dark:text-blue-400" aria-hidden="true" />
-              Hướng dẫn & Phím tắt
-            </Button>
-            <Button type="button" variant="secondary" size="sm" onClick={handleValidate}>
-              <ListChecks className="size-3.5 text-[var(--color-primary)]" aria-hidden="true" />
-              Kiểm tra
-            </Button>
-            <Button type="button" variant="secondary" size="sm" onClick={handleSaveDraft}>
-              <Save className="size-3.5" aria-hidden="true" />
-              Lưu bản nháp
-            </Button>
-            <Button type="button" size="sm" onClick={handleValidate}>
-              <CloudUpload className="size-3.5" aria-hidden="true" />
-              {generalBank ? "Lưu vào ngân hàng" : "Tạo bài đánh giá"}
-            </Button>
-          </>
-        }
-      />
+      <header className="flex flex-col gap-3 rounded-2xl border border-slate-200/80 bg-white px-4 py-3 shadow-2xs dark:border-slate-800 dark:bg-slate-900 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-center gap-3">
+          <Link
+            to={bankPath}
+            className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+            title="Quay lại Ngân hàng câu hỏi"
+            aria-label="Quay lại Ngân hàng câu hỏi"
+          >
+            <ArrowLeft className="size-4" />
+          </Link>
+          <div className="min-w-0">
+            <h1 className="text-sm font-bold text-slate-900 dark:text-white sm:text-base">
+              Soạn câu hỏi trên bảng
+            </h1>
+            {job?.title && (
+              <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                {job.title}
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Button type="button" variant="ghost" size="sm" onClick={() => setShowHelpModal(true)}>
+            <HelpCircle className="size-3.5 text-blue-600 dark:text-blue-400" aria-hidden="true" />
+            Hướng dẫn & Phím tắt
+          </Button>
+          <Button type="button" variant="secondary" size="sm" onClick={handleValidate}>
+            <ListChecks className="size-3.5 text-[var(--color-primary)]" aria-hidden="true" />
+            Kiểm tra
+          </Button>
+          <Button type="button" variant="secondary" size="sm" onClick={handleSaveDraft}>
+            <Save className="size-3.5" aria-hidden="true" />
+            Lưu bản nháp
+          </Button>
+          <Button type="button" size="sm" onClick={handleValidate}>
+            <CloudUpload className="size-3.5" aria-hidden="true" />
+            {generalBank ? "Lưu vào ngân hàng" : "Tạo bài đánh giá"}
+          </Button>
+        </div>
+      </header>
 
       {generalBank && (
         <p className="text-xs text-[var(--color-on-surface-variant)]">

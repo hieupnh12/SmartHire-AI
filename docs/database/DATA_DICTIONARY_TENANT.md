@@ -1,5 +1,21 @@
 # Data Dictionary - Tenant DB (MySQL)
 
+## Tự động chấm điểm và công bố kết quả V59 (2026-10-28)
+
+Nguồn: `V59__test_auto_grading.sql`. Không tạo bảng mới.
+
+| Bảng · cột / index | Kiểu | Null | Default | Ý nghĩa |
+|---|---|---|---|---|
+| `tests.auto_grading_enabled` | BOOLEAN | Không | FALSE | Khi bật (`true`), AI/Sandbox chấm xong sẽ tự động chốt điểm chính thức và gửi email kết quả cho ứng viên ngay mà không cần duyệt thủ công |
+
+## Nguồn gốc đề thi V58 (2026-10-27)
+
+Nguồn: `V58__test_origin.sql`. Không tạo bảng mới.
+
+| Bảng · cột / index | Kiểu | Null | Default | Ý nghĩa |
+|---|---|---|---|---|
+| `tests.origin` | VARCHAR(32) | Không | `'AUTHORED'` | Nguồn gốc đề thi (`AUTHORED` = tạo thủ công bởi nhà tuyển dụng; `GENERATED` = tạo tự động từ ngân hàng câu hỏi) |
+
 ## Assessment ops hardening V55 (2026-10-25)
 
 Nguồn: `V55__assessment_ops_hardening.sql`. Không tạo bảng mới.
@@ -931,8 +947,8 @@ Entity `ProctorReport`.
 |---|---|---|---|---|---|
 | `id` | BIGINT | PK | Không | auto | |
 | `submission_id` | BIGINT | FK → `submissions.id`, UQ | Không | — | Lượt làm |
-| `risk_score` | DECIMAL(5,2) | | Không | — | Điểm rủi ro |
-| `summary_json` | JSON | | Có | NULL | Tổng hợp |
+| `risk_score` | DECIMAL(5,2) | | Không | — | Điểm rủi ro 0–100 (tổng trọng số `proctor_events`, chặn trần 100); tính lại mỗi khi ghi sự kiện |
+| `summary_json` | JSON | | Có | NULL | `{"level":"LOW|MEDIUM|HIGH","counts":{"<event_type>":n}}` |
 | `created_at` | TIMESTAMP | | Không | now | |
 
 **Ràng buộc:** `fk_pr_submission`, `uk_pr_submission (submission_id)`

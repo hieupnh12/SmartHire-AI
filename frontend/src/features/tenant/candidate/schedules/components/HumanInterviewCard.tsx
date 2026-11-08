@@ -4,6 +4,7 @@ import type { HumanInterview } from "@/api/types/humanInterview";
 import { StatusPill } from "@/components/ux/StatusPill";
 import { statusLabels } from "@/components/ux/humanInterviewUtilities";
 import { button, primary } from "@/features/tenant/recruiter/matching/components/rankingUi";
+import { humanInterviewJoinHref, isSmartHireMeeting } from "@/features/tenant/shared/humanInterview/meetingRoom";
 import { RESCHEDULABLE_STATUSES, ROUND_LABELS } from "../constants/humanInterview";
 
 type Props = {
@@ -48,9 +49,14 @@ export function HumanInterviewCard({ row, busy, onConfirm, onReschedule, onDownl
           <dt>{row.mode === "ONLINE" ? <Video className="mt-0.5 size-4 text-[var(--color-primary)]" aria-hidden="true" /> : <MapPin className="mt-0.5 size-4 text-[var(--color-primary)]" aria-hidden="true" />}<span className="sr-only">{row.mode === "ONLINE" ? "Hình thức trực tuyến" : "Địa điểm"}</span></dt>
           <dd className="min-w-0 break-words">
             {row.mode === "ONLINE"
-              ? row.meetingUrl
-                ? <a className="inline-flex items-center gap-1 font-medium text-[var(--color-primary)] underline-offset-2 hover:underline" href={row.meetingUrl} target="_blank" rel="noreferrer">Tham gia phỏng vấn trực tuyến<ExternalLink className="size-3.5" aria-hidden="true" /></a>
-                : "Trực tuyến — link sẽ được gửi sau"
+              ? (() => {
+                  const href = humanInterviewJoinHref(row);
+                  if (!href) return "Trực tuyến — link sẽ được gửi sau";
+                  if (isSmartHireMeeting(row)) {
+                    return <Link className="inline-flex items-center gap-1 font-medium text-[var(--color-primary)] underline-offset-2 hover:underline" to={href}>Vào phòng họp SmartHire<Video className="size-3.5" aria-hidden="true" /></Link>;
+                  }
+                  return <a className="inline-flex items-center gap-1 font-medium text-[var(--color-primary)] underline-offset-2 hover:underline" href={href} target="_blank" rel="noreferrer">Tham gia phỏng vấn trực tuyến<ExternalLink className="size-3.5" aria-hidden="true" /></a>;
+                })()
               : row.location || "Địa điểm sẽ được thông báo sau"}
           </dd>
         </div>

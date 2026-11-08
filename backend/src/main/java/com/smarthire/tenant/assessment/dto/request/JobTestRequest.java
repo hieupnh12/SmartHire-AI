@@ -23,11 +23,13 @@ public record JobTestRequest(
         BigDecimal passingScore, @Min(1) Integer objectiveDurationMinutes,
         @Min(0) @jakarta.validation.constraints.Max(100)
         @Schema(description = "Coding score share from hidden tests (0–100). AI review gets the remainder. Default 90.")
-        Integer codingTestWeightPercent) {
+        Integer codingTestWeightPercent,
+        @Schema(description = "When true, AI/sandbox grades are automatically approved and emailed to candidate without manual review.")
+        Boolean autoGradingEnabled) {
     public JobTestRequest(Long jobId, String title, String description, Integer duration, BigDecimal passingScore) {
-        this(jobId, title, description, duration, passingScore, null, null);
+        this(jobId, title, description, duration, passingScore, null, null, false);
     }
     public JobTestRequest(Long jobId, String title, String description, Integer duration, BigDecimal passingScore, Integer objectiveDurationMinutes) {
-        this(jobId, title, description, duration, passingScore, objectiveDurationMinutes, null);
+        this(jobId, title, description, duration, passingScore, objectiveDurationMinutes, null, false);
     }
 }

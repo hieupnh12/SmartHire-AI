@@ -160,7 +160,40 @@ export const questionBankApi = {
     params: { size: 100 },
     signal,
   }).then(response => response.data.data.items),
-  create: (questions: BankQuestionRequest[]) => api.post<ApiResponse<BankQuestion[]>>("/question-bank/create_questions", { questions }).then(response => response.data.data),
-  update: (id: number, body: BankQuestionRequest) => api.put<ApiResponse<BankQuestion>>(`/question-bank/update_question/${id}`, body).then(response => response.data.data),
+  create: (questions: BankQuestionRequest[]) =>
+    api.post<ApiResponse<BankQuestion[]>>("/question-bank/create_questions", {
+      questions: questions.map(sanitizeBankQuestionRequest),
+    }).then(response => response.data.data),
+  update: (id: number, body: BankQuestionRequest) =>
+    api.put<ApiResponse<BankQuestion>>(`/question-bank/update_question/${id}`, sanitizeBankQuestionRequest(body)).then(response => response.data.data),
   archive: (questionIds: number[], archived = true) => api.put("/question-bank/archive_questions", { questionIds, archived }),
 };
+
+export function sanitizeAuthoringMetadata(meta: Record<string, unknown> | null | undefined): Record<string, unknown> | null {
+  if (!meta || typeof meta !== "object") return null;
+  const clean: Record<string, unknown> = {};
+  for (const [key, val] of Object.entries(meta)) {
+    if (key === "similarQuestionIds") {
+      // Ephemeral UI duplicate-warning list; omitted to keep persisted metadata clean
+      continue;
+    }
+    if (val === null || val === undefined) continue;
+    if (typeof val === "boolean") {
+      clean[key] = String(val);
+    } else if (typeof val === "number") {
+      clean[key] = String(val);
+    } else if (typeof val === "string") {
+      clean[key] = val.slice(0, 10000);
+    } else if (key === "rubric" && Array.isArray(val)) {
+      clean[key] = val;
+    }
+  }
+  return Object.keys(clean).length > 0 ? clean : null;
+}
+
+export function sanitizeBankQuestionRequest(req: BankQuestionRequest): BankQuestionRequest {
+  return {
+    ...req,
+    authoringMetadata: sanitizeAuthoringMetadata(req.authoringMetadata),
+  };
+}

@@ -46,8 +46,11 @@ public class QuestionBankController {
     @PostMapping(value = "/generate_stream", produces = org.springframework.http.MediaType.TEXT_EVENT_STREAM_VALUE)
     @Operation(summary = "Real-time SSE stream drafting questions one-by-one with progressive events (staff only)",
             description = "Streams events: generation_started, generation_progress, question_created, generation_completed")
-    public org.springframework.web.servlet.mvc.method.annotation.SseEmitter generateStream(@Valid @RequestBody QuestionBankGenerateRequest body) {
-        return generate.generateStream(body);
+    public ResponseEntity<org.springframework.web.servlet.mvc.method.annotation.SseEmitter> generateStream(@Valid @RequestBody QuestionBankGenerateRequest body) {
+        return ResponseEntity.ok()
+                .header("X-Accel-Buffering", "no")
+                .header("Cache-Control", "no-cache, no-transform")
+                .body(generate.generateStream(body));
     }
 
     @GetMapping("/list_questions")

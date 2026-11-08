@@ -14,14 +14,15 @@ public record AssessmentConfigRequest(
         @Min(0) @Max(100) Integer codingTestWeightPercent,
         @Min(0) @Max(100) Integer codingAiWeightPercent,
         List<@Valid RubricCriterionConfig> essayCriteria,
-        @Size(max = 2000) String essayGradingGuide) {
+        @Size(max = 2000) String essayGradingGuide,
+        Boolean autoGradingEnabled) {
 
     public AssessmentConfigRequest(int duration, int passingPercent, boolean autoAssign, List<Section> sections) {
-        this(duration, passingPercent, autoAssign, sections, null, 80, 20, null, null);
+        this(duration, passingPercent, autoAssign, sections, null, 80, 20, null, null, false);
     }
 
     public AssessmentConfigRequest(int duration, int passingPercent, boolean autoAssign, List<Section> sections, Integer objectiveDurationMinutes) {
-        this(duration, passingPercent, autoAssign, sections, objectiveDurationMinutes, 80, 20, null, null);
+        this(duration, passingPercent, autoAssign, sections, objectiveDurationMinutes, 80, 20, null, null, false);
     }
 
     public record Section(@NotBlank @Size(max = 128) String skill,

@@ -305,18 +305,7 @@ export function InterviewsPage() {
           <HumanInterviewScorecardPanel
             interview={detail.row}
             pending={mutation.isPending}
-            onSubmit={(values) =>
-              run(() =>
-                api.evaluate(detail.row!.id, {
-                  technicalScore: values.technicalScore,
-                  communicationScore: values.communicationScore,
-                  cultureScore: values.cultureScore,
-                  comments: values.comments,
-                  recommendation: values.recommendation,
-                  finalizeDecision: values.finalizeDecision,
-                }),
-              )
-            }
+            onSubmit={(values) => run(() => api.evaluate(detail.row!.id, values))}
           />
         )}
       </DetailDialog>

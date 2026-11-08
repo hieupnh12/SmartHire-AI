@@ -67,6 +67,11 @@ public class JobTest {
     @Column(name = "coding_test_weight_percent", nullable = false)
     int codingTestWeightPercent = 90;
 
+    /** When true, AI/sandbox grades are automatically approved and emailed to candidate without manual review. */
+    @Builder.Default
+    @Column(name = "auto_grading_enabled", nullable = false)
+    boolean autoGradingEnabled = false;
+
     @Builder.Default
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)

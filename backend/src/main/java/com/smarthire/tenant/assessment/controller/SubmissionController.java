@@ -113,6 +113,20 @@ public class SubmissionController {
     @Operation(summary = "Retry outstanding AI or sandbox grading (staff only)")
     public ApiResponse<Void> retry(@PathVariable long id) { grading.retry(id); return ApiResponse.ok(null); }
 
+    @PostMapping("/jobs/{jobId}/auto_grade_pending_submissions")
+    @Operation(summary = "Auto-grade and finalize all pending SUBMITTED submissions for a job (staff only)")
+    public ApiResponse<java.util.Map<String, Object>> autoGradePendingSubmissions(@PathVariable long jobId) {
+        int count = grading.autoGradeJobSubmissions(jobId);
+        return ApiResponse.ok(java.util.Map.of("finalizedCount", count));
+    }
+
+    @PostMapping("/submissions/{id}/auto_grade")
+    @Operation(summary = "Auto-grade and finalize a single submission immediately using AI suggestions (staff only)")
+    public ApiResponse<Void> autoGradeSingle(@PathVariable long id) {
+        grading.autoGradeSubmission(id);
+        return ApiResponse.ok(null);
+    }
+
     @GetMapping("/jobs/{jobId}/list_assessment_submissions")
     @Operation(summary = "List candidate submissions for all tests of a job (staff only)",
             description = "Newest first. Requires job assignment (company admin sees all). Read-only: an IN_PROGRESS paper past its "

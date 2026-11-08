@@ -39,4 +39,8 @@ export const assessmentApi = {
   retryGrading: (id: number) => api.post(`/submissions/${id}/retry_grading`),
   submit: (id: number) => api.post<ApiResponse<Submission>>(`/submissions/${id}/submit_test`).then(r => r.data.data),
   jobSubmissions: (jobId: number) => api.get<ApiResponse<SubmissionSummary[]>>(`/jobs/${jobId}/list_assessment_submissions`).then(r => r.data.data),
+  autoGradePendingSubmissions: (jobId: number) =>
+    api.post<ApiResponse<{ finalizedCount: number }>>(`/jobs/${jobId}/auto_grade_pending_submissions`).then(r => r.data.data),
+  autoGradeSubmission: (id: number) =>
+    api.post<ApiResponse<void>>(`/submissions/${id}/auto_grade`).then(r => r.data.data),
 };

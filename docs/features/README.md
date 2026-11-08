@@ -64,36 +64,36 @@ Mỗi trang gồm: Mục đích · Actor · Luồng · Business Rules · API · 
 |---|---|---|---|
 | RANK-01 | Candidate Ranking Algorithm | [Ranking-Algorithm](Matching-Ranking/Ranking-Algorithm.md) | Doing |
 | RANK-02 | Recommendation Engine | [Recommendation-Engine](Matching-Ranking/Recommendation-Engine.md) | To Do |
-| RANK-03 | Overall Candidate Score | [Overall-Candidate-Score](Matching-Ranking/Overall-Candidate-Score.md) | To Do |
+| RANK-03 | Overall Candidate Score | [Overall-Candidate-Score](Matching-Ranking/Overall-Candidate-Score.md) | Doing |
 
 ## 6. FE-05: Online Technical Assessment
 
 | Code | Feature | Doc | Status |
 |---|---|---|---|
-| ASSESS-01 | Multiple Choice Test | [Multiple-Choice-Test](Technical-Assessment/Multiple-Choice-Test.md) | To Do |
-| ASSESS-02 | Coding Challenge | [Coding-Challenge](Technical-Assessment/Coding-Challenge.md) | To Do |
-| ASSESS-03 | Auto Grading | [Auto-Grading](Technical-Assessment/Auto-Grading.md) | To Do |
-| ASSESS-04 | Timer Control | [Timer-Control](Technical-Assessment/Timer-Control.md) | To Do |
-| ASSESS-05 | Anti-cheating Detection | [Anti-Cheating](Technical-Assessment/Anti-Cheating.md) | To Do |
+| ASSESS-01 | Multiple Choice Test | [Multiple-Choice-Test](Technical-Assessment/Multiple-Choice-Test.md) | Doing |
+| ASSESS-02 | Coding Challenge | [Coding-Challenge](Technical-Assessment/Coding-Challenge.md) | Doing |
+| ASSESS-03 | Auto Grading | [Auto-Grading](Technical-Assessment/Auto-Grading.md) | Doing |
+| ASSESS-04 | Timer Control | [Timer-Control](Technical-Assessment/Timer-Control.md) | Doing |
+| ASSESS-05 | Anti-cheating Detection | [Anti-Cheating](Technical-Assessment/Anti-Cheating.md) | Doing |
 
 ## 7. AI Interview System
 
 | Code | Feature | Doc | Status |
 |---|---|---|---|
-| INT-01 | AI Question Generation | [Question-Generation](AI-Interview/Question-Generation.md) | To Do |
-| INT-02 | Speech-to-Text Integration | [Speech-to-Text](AI-Interview/Speech-to-Text.md) | To Do |
-| INT-03 | NLP Response Analysis | [NLP-Response-Analysis](AI-Interview/NLP-Response-Analysis.md) | To Do |
-| INT-04 | AI Interview Scoring | [AI-Scoring](AI-Interview/AI-Scoring.md) | To Do |
-| INT-05 | Interview Feedback | [Interview-Feedback](AI-Interview/Interview-Feedback.md) | To Do |
+| INT-01 | AI Question Generation | [Question-Generation](AI-Interview/Question-Generation.md) | Doing |
+| INT-02 | Speech-to-Text Integration | [Speech-to-Text](AI-Interview/Speech-to-Text.md) | Doing |
+| INT-03 | NLP Response Analysis | [NLP-Response-Analysis](AI-Interview/NLP-Response-Analysis.md) | Doing |
+| INT-04 | AI Interview Scoring | [AI-Scoring](AI-Interview/AI-Scoring.md) | Doing |
+| INT-05 | Interview Feedback | [Interview-Feedback](AI-Interview/Interview-Feedback.md) | Done |
 | Guide | Hướng dẫn sử dụng & cấu hình AI Interview | [AI-Interview-Configuration-Guide](AI-Interview/AI-Interview-Configuration-Guide.md) | Doing |
 
 ## 8. Recruitment Workflow Management
 
 | Code | Feature | Doc | Status |
 |---|---|---|---|
-| WF-01 | Recruitment Pipeline | [Recruitment-Pipeline](Recruitment-Workflow/Recruitment-Pipeline.md) | To Do |
+| WF-01 | Recruitment Pipeline | [Recruitment-Pipeline](Recruitment-Workflow/Recruitment-Pipeline.md) | Done |
 | WF-02 | Candidate Status Management | [Candidate-Status](Recruitment-Workflow/Candidate-Status.md) | Done |
-| WF-03 | Hiring Decision Management | [Hiring-Decision](Recruitment-Workflow/Hiring-Decision.md) | To Do |
+| WF-03 | Hiring Decision Management | [Hiring-Decision](Recruitment-Workflow/Hiring-Decision.md) | Doing |
 
 ## 9. Recruitment Analytics Dashboard
 
@@ -107,9 +107,9 @@ Mỗi trang gồm: Mục đích · Actor · Luồng · Business Rules · API · 
 
 | Code | Feature | Doc | Status |
 |---|---|---|---|
-| SCHED-01 | Interview Scheduling | [Interview-Scheduling](Scheduling-Notifications/Interview-Scheduling.md) | To Do |
-| SCHED-02 | WebSocket Notification | [WebSocket-Notifications](Scheduling-Notifications/WebSocket-Notifications.md) | To Do |
-| SCHED-03 | Email Notification | [Email-Notifications](Scheduling-Notifications/Email-Notifications.md) | To Do |
+| SCHED-01 | Interview Scheduling | [Interview-Scheduling](Scheduling-Notifications/Interview-Scheduling.md) | Doing |
+| SCHED-02 | WebSocket Notification | [WebSocket-Notifications](Scheduling-Notifications/WebSocket-Notifications.md) | Doing |
+| SCHED-03 | Email Notification | [Email-Notifications](Scheduling-Notifications/Email-Notifications.md) | Doing |
 
 ## 11. AI Practice Interview for Candidates
 
