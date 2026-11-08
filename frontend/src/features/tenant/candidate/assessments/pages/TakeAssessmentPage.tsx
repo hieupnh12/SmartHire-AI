@@ -14,6 +14,7 @@ import { ExamStepper } from "../components/ExamStepper";
 import { hasAnswer } from "../utils/hasAnswer";
 import { getAssessmentProctor, releaseAssessmentProctor } from "../utils/assessmentProctorHandoff";
 import { useSubmission } from "../hooks/useSubmission";
+import { isDemoAssessmentTitle } from "@/lib/assessmentTitle";
 
 const isQuiz = (type: string) => type === "MCQ" || type === "MULTIPLE_CHOICE" || type === "ESSAY";
 
@@ -307,6 +308,7 @@ function SubmissionRoom({ id }: { id: number }) {
                     number={safeIndex + 1}
                     onSave={room.saveNow}
                     saving={room.saving}
+                    isDemo={isDemoAssessmentTitle(submission?.title)}
                   />
                 </div>
               )}
