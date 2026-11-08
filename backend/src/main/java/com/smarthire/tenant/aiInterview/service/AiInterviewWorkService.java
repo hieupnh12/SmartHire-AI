@@ -16,7 +16,13 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class AiInterviewWorkService {
     public record Pending(long id, String kind) {}
-    private static final List<String> EMAIL_PURPOSES = List.of("AI_INTERVIEW_RESULT", "ASSESSMENT_INVITATION", ApplicationClosureService.EMAIL_PURPOSE, "ASSESSMENT_RESULT", StaffNotificationService.EMAIL_PURPOSE);
+    private static final List<String> EMAIL_PURPOSES = List.of(
+            "AI_INTERVIEW_RESULT",
+            "ASSESSMENT_INVITATION",
+            ApplicationClosureService.EMAIL_PURPOSE,
+            "ASSESSMENT_RESULT",
+            StaffNotificationService.EMAIL_PURPOSE,
+            com.smarthire.tenant.notification.service.CandidateNotificationService.EMAIL_PURPOSE);
     private final AiInterviewRepository interviews;
     private final EmailOutboxRepository emails;
     private final InviteMailSender mail;
@@ -41,6 +47,7 @@ public class AiInterviewWorkService {
         emails.findTop50ByPurposeAndStatusInAndAttemptsLessThanOrderByIdAsc("ASSESSMENT_RESULT", List.of(NotificationStatus.PENDING, NotificationStatus.FAILED), 3)
                 .forEach(e -> result.add(new Pending(e.getId(), "EMAIL")));
         emails.findTop50ByPurposeAndStatusInAndAttemptsLessThanOrderByIdAsc(StaffNotificationService.EMAIL_PURPOSE, List.of(NotificationStatus.PENDING, NotificationStatus.FAILED), 3).forEach(e -> result.add(new Pending(e.getId(), "EMAIL")));
+        emails.findTop50ByPurposeAndStatusInAndAttemptsLessThanOrderByIdAsc(com.smarthire.tenant.notification.service.CandidateNotificationService.EMAIL_PURPOSE, List.of(NotificationStatus.PENDING, NotificationStatus.FAILED), 3).forEach(e -> result.add(new Pending(e.getId(), "EMAIL")));
         return result;
     }
     @Transactional

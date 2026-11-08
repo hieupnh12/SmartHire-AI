@@ -62,12 +62,12 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
   const inbox = useNotifications(isCandidateWorkspace || isRecruiterWorkspace);
   const unreadCount = inbox.data?.filter(item => !item.readAt).length ?? 0;
   const markRead = useMutation({
-    mutationFn: notificationApi.markRead,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: inbox.queryKey.slice(0, 3) }),
+    mutationFn: (id: number | string) => notificationApi.markRead(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["notifications"] }),
   });
   const markAllRead = useMutation({
-    mutationFn: notificationApi.markAllRead,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: inbox.queryKey.slice(0, 3) }),
+    mutationFn: () => notificationApi.markAllRead(),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["notifications"] }),
   });
   const isRecruiterDashboard = isRecruiterWorkspace && /^\/recruiter\/?$/.test(location.pathname);
   const isRecruiterQuestionBank = isRecruiterWorkspace && /^\/recruiter\/question-bank(?:\/|$)/.test(location.pathname);
@@ -106,6 +106,7 @@ export function RoleShell({ brandKey, basePath, links }: RoleShellProps) {
     "/ai-interviews",
     "/interviews",
     "/schedules",
+    "/notifications",
   ]);
   const displayedLinks = isRecruiterWorkspace
     ? isRecruiterJobForm || (accessToken && !user)

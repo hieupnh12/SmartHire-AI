@@ -9,19 +9,19 @@ import { getApiErrorMessage } from "@/lib/axios";
 import { toast } from "@/stores/toastStore";
 import { NotificationCard } from "./NotificationCard";
 
-export function NotificationInbox() {
+export function NotificationInbox({ jobId }: { jobId?: number } = {}) {
   const [page, setPage] = useState(0);
-  const inbox = useNotifications(true, page);
+  const inbox = useNotifications(true, page, jobId);
   const client = useQueryClient();
   const read = useMutation({
     mutationFn: notificationApi.markRead,
-    onSuccess: () => client.invalidateQueries({ queryKey: inbox.queryKey.slice(0, 3) }),
+    onSuccess: () => client.invalidateQueries({ queryKey: ["notifications"] }),
   });
   const markAllRead = useMutation({
-    mutationFn: notificationApi.markAllRead,
+    mutationFn: () => notificationApi.markAllRead(jobId),
     onSuccess: () => {
-      client.invalidateQueries({ queryKey: inbox.queryKey.slice(0, 3) });
-      toast.success("Đã đánh dấu tất cả thông báo là đã đọc");
+      client.invalidateQueries({ queryKey: ["notifications"] });
+      toast.success(jobId ? "Đã đánh dấu tất cả thông báo của tin tuyển dụng này là đã đọc" : "Đã đánh dấu tất cả thông báo là đã đọc");
     },
     onError: (err) => toast.error(getApiErrorMessage(err)),
   });
@@ -29,6 +29,12 @@ export function NotificationInbox() {
   const hasUnread = inbox.data?.some((item) => !item.readAt) ?? false;
 
   return <div className="space-y-5">
+    {jobId && (
+      <div className="flex items-center justify-between rounded-xl border border-[var(--color-primary)]/20 bg-[var(--color-primary-subtle)]/40 px-4 py-2.5 text-xs text-[var(--color-primary)]">
+        <span className="font-semibold">Đang lọc thông báo cho tin tuyển dụng #{jobId}</span>
+        <span className="text-[11px] text-[var(--color-on-surface-variant)]">Chỉ hiển thị các hoạt động thuộc công việc này</span>
+      </div>
+    )}
     {inbox.isPending && (
       <div className="space-y-3" role="status" aria-busy="true">
         {Array.from({ length: 4 }, (_, i) => (

@@ -161,6 +161,14 @@ public class ApplicantService {
         this.staffNotifications = staffNotifications;
     }
 
+    /** Optional in unit tests; notifies candidate on web + Gmail for stage progression. */
+    private com.smarthire.tenant.notification.service.CandidateNotificationService candidateNotifications;
+
+    @Autowired(required = false)
+    public void setCandidateNotifications(com.smarthire.tenant.notification.service.CandidateNotificationService candidateNotifications) {
+        this.candidateNotifications = candidateNotifications;
+    }
+
     private void notifyStaff(Application application, String type, String title, String body) {
         if (staffNotifications == null) return;
         Job job = application.getJob();
@@ -386,9 +394,12 @@ public class ApplicantService {
         if (next == ApplicationStatus.REJECTED) {
             application.setRejectReason(blankToNull(note));
         }
+        ApplicationStatus oldStatus = application.getStatus();
         record(application, next, note);
         if (ApplicationClosureService.closed(next)) {
             closures.onClosed(application, "Nhà tuyển dụng đã quyết định không tiếp tục với hồ sơ này.");
+        } else if (candidateNotifications != null) {
+            candidateNotifications.notifyStageChanged(application, oldStatus, next, note);
         }
         return toDetail(application);
     }
@@ -491,6 +502,9 @@ public class ApplicantService {
             record(application, ApplicationStatus.ASSESSMENT, "CV passed screening; opened the assessment round", null);
             attachAssessmentStage(application);
             inviteAssessmentAndAiInterview(application);
+            if (candidateNotifications != null) {
+                candidateNotifications.notifyCvPassed(application, "Hồ sơ đạt tiêu chuẩn sơ loại CV");
+            }
         } else {
             rejectAtCvRound(application, "CV did not pass screening", null);
         }
@@ -516,6 +530,9 @@ public class ApplicantService {
             record(application, ApplicationStatus.ASSESSMENT, noteOr(note, "Recruiter passed CV screening"));
             attachAssessmentStage(application);
             inviteAssessmentAndAiInterview(application);
+            if (candidateNotifications != null) {
+                candidateNotifications.notifyCvPassed(application, note);
+            }
         } else {
             application.setCvScreeningStatus(CvScreeningStatus.FAILED);
             rejectAtCvRound(application, noteOr(note, "Recruiter marked CV screening as not passed"), actorIdOrNull());
