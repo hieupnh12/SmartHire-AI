@@ -343,8 +343,8 @@ public class InterviewConversationClient {
             entry.putObject("quote").put("type", "string").put("maxLength", 240);
         }
         schema.putArray("required").add("criteria").add("summary").add("strengths").add("weaknesses");
-        for (String name : List.of("summary", "strengths", "weaknesses"))
-            properties.putObject(name).put("type", "string").put("minLength", 1).put("maxLength", 600);
+        for (String name : List.of("summary", "strengths", "weaknesses", "advice"))
+            properties.putObject(name).put("type", "string").put("minLength", 1).put("maxLength", 1000);
         return new ResponseFormat(ResponseFormat.Type.JSON_SCHEMA, schema.toString());
     }
 

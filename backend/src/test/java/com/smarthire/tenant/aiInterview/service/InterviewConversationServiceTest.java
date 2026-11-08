@@ -364,4 +364,13 @@ class InterviewConversationServiceTest {
                 "Certainly! Here is your first question: Chào bạn, bạn có kinh nghiệm với Spring Boot không?"))
                 .isEqualTo("Chào bạn, bạn có kinh nghiệm với Spring Boot không?");
     }
+
+    @Test void isRepeatRequestDetectsVariousPhrasings() {
+        assertThat(InterviewConversationService.isRepeatRequest("Em chưa nghe rõ câu hỏi, anh nhắc lại giúp em với")).isTrue();
+        assertThat(InterviewConversationService.isRepeatRequest("Bạn có thể nhắc lại câu hỏi được không?")).isTrue();
+        assertThat(InterviewConversationService.isRepeatRequest("Xin nhắc lại câu hỏi")).isTrue();
+        assertThat(InterviewConversationService.isRepeatRequest("Could you please repeat that?")).isTrue();
+        assertThat(InterviewConversationService.isRepeatRequest("もう一度お願いします")).isTrue();
+        assertThat(InterviewConversationService.isRepeatRequest("Tôi từng làm dự án Spring Boot và React")).isFalse();
+    }
 }

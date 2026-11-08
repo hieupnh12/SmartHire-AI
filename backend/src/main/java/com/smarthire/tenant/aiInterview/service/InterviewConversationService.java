@@ -10,6 +10,12 @@ import com.smarthire.tenant.aiInterview.ai.InterviewConversationClient;
 import com.smarthire.tenant.aiInterview.dto.request.ConversationTurnRequest;
 import com.smarthire.tenant.aiInterview.dto.response.ConversationResponse;
 import com.smarthire.tenant.cv.service.CvAccess;
+import com.smarthire.common.redis.RedisKeys;
+import com.smarthire.common.redis.RedisService;
+import com.smarthire.multitenancy.context.TenantContext;
+import java.time.Duration;
+import java.util.Base64;
+import org.springframework.beans.factory.annotation.Autowired;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
@@ -32,7 +38,7 @@ public class InterviewConversationService {
             + "Output ONLY the final question in Vietnamese. Do NOT include any internal thoughts, reasoning, or English preambles. "
             + "Use only job-related evidence, never protected characteristics. Conduct a natural conversation, acknowledge the candidate's answer briefly "
             + "and ask ONE relevant question per turn, adapting to the full history. Explore job knowledge, problem solving, reasoning and clarity. "
-            + "Do not grade answers, expose a rubric/reference answer, invent CV claims or reveal private context. "
+            + "Do not grade answers, expose a rubric/reference answer, invent CV claims or reveal private context. If the candidate asks to repeat or did not hear clearly (e.g. 'nhắc lại câu hỏi', 'chưa nghe rõ', 'repeat please'), politely repeat or clarify the previous question without advancing to a new question and without penalizing them. "
             + "Keep questions short and approachable. Increase depth gradually based on demonstrated understanding; "
             + "if the candidate struggles, simplify or clarify instead of escalating. Never combine multiple subquestions. "
             + "Anchor every question in a specific responsibility, required skill or requirement from the supplied job context and configured topics. "
@@ -48,9 +54,10 @@ public class InterviewConversationService {
             + "Return exactly this JSON structure, replacing the scores and text with your assessment: "
             + "{\"criteria\":{\"TECHNICAL_KNOWLEDGE\":{\"score\":0,\"evidence\":[]},"
             + "\"PROBLEM_SOLVING\":{\"score\":0,\"evidence\":[]},\"REASONING\":{\"score\":0,\"evidence\":[]},"
-            + "\"COMMUNICATION\":{\"score\":0,\"evidence\":[]}},\"summary\":\"Assessment\",\"strengths\":\"Strengths\",\"weaknesses\":\"Weaknesses\"}. "
+            + "\"COMMUNICATION\":{\"score\":0,\"evidence\":[]}},\"summary\":\"Assessment\",\"strengths\":\"Strengths\",\"weaknesses\":\"Weaknesses\",\"advice\":\"Constructive actionable advice\"}. "
             + "Each evidence entry must be an object with a numeric messageId and a string quote. Scores must be JSON numbers, not strings. "
-            + "Provide genuine, specific assessment text in Vietnamese for summary, strengths, and weaknesses (at most 100 words each, do NOT use placeholder text). "
+            + "Provide genuine, specific assessment text in Vietnamese for summary, strengths, weaknesses, and advice (at most 150 words each, do NOT use placeholder text). "
+            + "For 'advice', provide concrete, practical instructions for the candidate explaining exactly what mistakes to fix, what technical knowledge to improve, and how to structure better responses for the questions asked in the conversation. "
             + "Use at most two short exact quotes per criterion. Do not repeat the transcript or job context. "
             + "Scores are 0-100 based on answer correctness, relevance, and depth. Quotes must be exact excerpts from USER messages, never ASSISTANT messages. "
             + "Consider every USER answer, including answers to clarification and follow-up questions, as evidence contributing to the final criterion scores. Base this holistic assessment on the whole conversation; do not generate per-question rubrics or calculate an overall score.";
@@ -61,12 +68,20 @@ public class InterviewConversationService {
     private final CvAccess access;
     private final InterviewConversationClient ai;
     private final ObjectMapper mapper;
+    private final RedisService redis;
+
+    @Autowired
+    public InterviewConversationService(AiInterviewRepository interviews, InterviewSessionRepository sessions,
+            InterviewMessageRepository messages, AiInterviewConsentRepository consents, CvAccess access,
+            InterviewConversationClient ai, ObjectMapper mapper, @Autowired(required = false) RedisService redis) {
+        this.interviews = interviews; this.sessions = sessions; this.messages = messages; this.consents = consents;
+        this.access = access; this.ai = ai; this.mapper = mapper; this.redis = redis;
+    }
 
     public InterviewConversationService(AiInterviewRepository interviews, InterviewSessionRepository sessions,
             InterviewMessageRepository messages, AiInterviewConsentRepository consents, CvAccess access,
             InterviewConversationClient ai, ObjectMapper mapper) {
-        this.interviews = interviews; this.sessions = sessions; this.messages = messages; this.consents = consents;
-        this.access = access; this.ai = ai; this.mapper = mapper;
+        this(interviews, sessions, messages, consents, access, ai, mapper, null);
     }
 
     @Transactional(noRollbackFor = {IllegalStateException.class, BusinessException.class})
@@ -120,8 +135,19 @@ public class InterviewConversationService {
         prompt.add(new InterviewConversationClient.Message("USER", context(interview).toString()));
         for (var message : history) prompt.add(new InterviewConversationClient.Message(message.getRole(), message.getContent()));
         prompt.add(new InterviewConversationClient.Message("USER", user.getContent()));
-        session.setCandidateTurns(session.getCandidateTurns() + 1);
-        String rawReply = ai.dialogue(instruction(interview, session), prompt, onDelta);
+        boolean isRepeat = isRepeatRequest(user.getContent());
+        if (!isRepeat) {
+            session.setCandidateTurns(session.getCandidateTurns() + 1);
+        }
+        String instructionText = instruction(interview, session);
+        if (isRepeat) {
+            instructionText += switch (language(interview)) {
+                case "Vietnamese" -> " [CHÚ Ý: Ứng viên yêu cầu nhắc lại câu hỏi do chưa nghe rõ. Hãy lịch sự xác nhận ('Vâng, tôi xin nhắc lại câu hỏi: ...') và nhắc lại chính xác câu hỏi trước đó. TUYỆT ĐỐI không chuyển sang câu hỏi mới và không trừ điểm.]";
+                case "Japanese" -> " [注意：候補者が質問の聞き直しを求めています。丁寧に応答し、前回の質問を繰り返してください。新しい質問に進まないでください。]";
+                default -> " [NOTE: The candidate asked to repeat the question because they did not hear clearly. Politely repeat the previous question. Do NOT move to a new question.]";
+            };
+        }
+        String rawReply = ai.dialogue(instructionText, prompt, onDelta);
         String reply = cleanDialogueText(rawReply);
         messages.save(user);
         messages.save(InterviewMessage.builder().session(session).sequenceNo(nextSequence + 1).role("ASSISTANT").content(reply).build());
@@ -181,6 +207,9 @@ public class InterviewConversationService {
         report.put("summary", hasAnswer ? requiredText(output, "summary") : "No candidate answer was submitted.");
         report.put("strengths", hasAnswer ? requiredText(output, "strengths") : "No evidence.");
         report.put("weaknesses", hasAnswer ? requiredText(output, "weaknesses") : "No candidate answer.");
+        if (output != null && output.hasNonNull("advice") && !output.path("advice").asText().isBlank()) {
+            report.put("advice", output.path("advice").asText().trim());
+        }
         interview.setReportJson(report.toString());
         session.setEndedAt(interview.getCompletedAt());
         return score;
@@ -198,7 +227,36 @@ public class InterviewConversationService {
         var interview = accessible(id, false); requireCandidate(interview); requireActive(interview); requireVoice(interview);
         var message = messages.findById(messageId).filter(value -> value.getSession().getAiInterview().getId().equals(id)
                 && "ASSISTANT".equals(value.getRole())).orElseThrow(() -> missing("Message not found"));
-        return ai.speech(cleanDialogueText(message.getContent()), language(interview));
+
+        String tenant = TenantContext.getCurrentTenant();
+        String cacheKey = RedisKeys.interviewSpeech(tenant, messageId);
+        if (redis != null) {
+            var cached = redis.get(cacheKey);
+            if (cached.isPresent()) {
+                return Base64.getDecoder().decode(cached.get());
+            }
+        }
+
+        byte[] audioBytes = ai.speech(cleanDialogueText(message.getContent()), language(interview));
+        if (redis != null && audioBytes != null && audioBytes.length > 0) {
+            redis.set(cacheKey, Base64.getEncoder().encodeToString(audioBytes), Duration.ofHours(24));
+        }
+        return audioBytes;
+    }
+
+    public static boolean isRepeatRequest(String text) {
+        if (text == null || text.isBlank()) return false;
+        String normalized = text.toLowerCase().trim();
+        if (normalized.matches(".*(chưa nghe rõ|nghe không rõ|không nghe rõ|chưa rõ câu hỏi|nhắc lại|đọc lại|nói lại|lặp lại|hỏi lại|xin nhắc lại|xin lặp lại|nhắc lại câu hỏi|đọc lại câu hỏi|nói lại câu hỏi).*")) {
+            return true;
+        }
+        if (normalized.matches(".*(repeat|pardon|say that again|say again|didn't hear|could not hear|once more|repeat the question).*")) {
+            return true;
+        }
+        if (normalized.matches(".*(もう一度|聞き取れ|繰り返して|再度|もう1回).*")) {
+            return true;
+        }
+        return false;
     }
 
     @Transactional(readOnly = true)
