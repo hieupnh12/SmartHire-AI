@@ -69,8 +69,30 @@ public class HumanInterviewNotificationService {
     public void remind(InterviewView r,Candidate candidate) { enqueue(r,candidate,"HUMAN_INTERVIEW_REMINDER","Nhắc lịch phỏng vấn trực tiếp"); }
     public void cancel(InterviewView r,Candidate candidate) { enqueue(r,candidate,"HUMAN_INTERVIEW_CANCELLED","Lịch phỏng vấn đã hủy"); }
     public void requestChange(InterviewView r) {
+        if (staffNotifications != null) {
+            String body = r.candidateName() + " đề nghị đổi lịch phỏng vấn vị trí " + r.jobTitle()
+                    + (StringUtils.hasText(r.configuration().rescheduleReason()) ? ". Lý do: " + r.configuration().rescheduleReason() : ".");
+            notifyPanel(r, "HUMAN_INTERVIEW_RESCHEDULE", "Ứng viên yêu cầu đổi lịch", body);
+            return;
+        }
         for(var p:r.participants()) if(!preferences.webOff(users.getReferenceById(p.userId()),NotificationCategory.HUMAN_INTERVIEW)) notifications.save(Notification.builder().user(users.getReferenceById(p.userId())).type("HUMAN_INTERVIEW_RESCHEDULE").title("Ứng viên yêu cầu đổi lịch").body(r.configuration().rescheduleReason()).payloadJson("{\"interviewId\":"+r.id()+"}").build());
     }
+    public void confirmed(InterviewView r) {
+        if (staffNotifications == null) return;
+        String time=DateTimeFormatter.ofPattern("HH:mm dd/MM/yyyy").withZone(ZoneId.of("Asia/Bangkok")).format(r.start());
+        notifyPanel(r, "HUMAN_INTERVIEW_CONFIRMED", "Ứng viên xác nhận lịch phỏng vấn",
+                r.candidateName() + " đã xác nhận tham gia phỏng vấn vị trí " + r.jobTitle() + " lúc " + time + " (GMT+07).");
+    }
+    private void notifyPanel(InterviewView r, String type, String title, String body) {
+        var panel=new ArrayList<User>();
+        for(var p:r.participants()) users.findById(p.userId()).ifPresent(panel::add);
+        staffNotifications.notifyUsers(panel, NotificationCategory.HUMAN_INTERVIEW, type, title, body,
+                r.jobId(), r.jobTitle(), r.applicationId(), "/recruiter/jobs/"+r.jobId()+"/interviews");
+    }
+
+    /** Optional in unit tests; sends staff events on web + Gmail. */
+    @Autowired(required = false)
+    private com.smarthire.tenant.notification.service.StaffNotificationService staffNotifications;
     private void enqueue(InterviewView r,Candidate candidate,String type,String title) {
         var recipients=new LinkedHashMap<Long,User>();
         for(var p:r.participants()) recipients.put(p.userId(),users.getReferenceById(p.userId()));

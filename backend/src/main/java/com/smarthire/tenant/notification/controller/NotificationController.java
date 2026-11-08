@@ -46,10 +46,18 @@ public class NotificationController {
     }
 
     @GetMapping
-    @Operation(summary = "List the current user's notification inbox")
+    @Operation(summary = "List the current user's notification inbox, optionally filtered by job")
     public ApiResponse<java.util.List<com.smarthire.tenant.notification.dto.NotificationView>> mine(
-            @org.springframework.web.bind.annotation.RequestParam(defaultValue = "0") int page) {
-        return ApiResponse.ok(notificationService.mine(page));
+            @org.springframework.web.bind.annotation.RequestParam(defaultValue = "0") int page,
+            @org.springframework.web.bind.annotation.RequestParam(required = false) Long jobId) {
+        return ApiResponse.ok(notificationService.mine(page, jobId));
+    }
+
+    @org.springframework.web.bind.annotation.PatchMapping("/read-all")
+    @Operation(summary = "Mark every unread notification of the current user as read, optionally filtered by job")
+    public ApiResponse<Map<String, Integer>> markAllRead(
+            @org.springframework.web.bind.annotation.RequestParam(required = false) Long jobId) {
+        return ApiResponse.ok(Map.of("updated", notificationService.markAllRead(jobId)));
     }
 
     @org.springframework.web.bind.annotation.PatchMapping("/{id}")
