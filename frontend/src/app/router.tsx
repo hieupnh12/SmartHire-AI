@@ -77,6 +77,7 @@ import { JobDetailPage } from "@/features/tenant/recruiter/jobs/pages/JobDetailP
 import { ApplicantsPage } from "@/features/tenant/recruiter/applicants/pages/ApplicantsPage";
 import { CvScreeningPage } from "@/features/tenant/recruiter/cv-screening/pages/CvScreeningPage";
 import { RankingPage } from "@/features/tenant/recruiter/matching/pages/MatchingPage";
+import { RankingCandidateDetailPage } from "@/features/tenant/recruiter/matching/pages/RankingCandidateDetailPage";
 import { PipelinePage } from "@/features/tenant/recruiter/pipeline/pages/PipelinePage";
 import { AssessmentsPage as RecruiterAssessmentsPage } from "@/features/tenant/recruiter/assessments/pages/AssessmentsPage";
 import { AssessmentDetailPage } from "@/features/tenant/recruiter/assessments/pages/AssessmentDetailPage";
@@ -223,6 +224,7 @@ export function AppRouter() {
           </Route>
           <Route element={<FeatureRoute feature="RANKING" />}>
             <Route path="jobs/:id/rank" element={<RankingPage />} />
+            <Route path="jobs/:id/rank/:applicationId" element={<RankingCandidateDetailPage />} />
             <Route path="rank" element={<Navigate to="/recruiter" replace />} />
             <Route path="matching" element={<Navigate to="/recruiter" replace />} />
           </Route>

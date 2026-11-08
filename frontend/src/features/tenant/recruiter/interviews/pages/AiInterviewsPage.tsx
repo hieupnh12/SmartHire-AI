@@ -4,13 +4,10 @@ import { useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowRight,
-  ArrowUpRight,
-  AudioLines,
   Ban,
   Bot,
   Building2,
   Check,
-  CheckCircle2,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -300,8 +297,6 @@ export function AiInterviewsPage() {
     };
   }, [rows]);
 
-  const completionRate = counts.all ? Math.round((counts.scored / counts.all) * 100) : 0;
-
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     const since = timeRange === "all" ? 0 : Date.now() - Number(timeRange) * DAY_MS;
@@ -444,118 +439,6 @@ export function AiInterviewsPage() {
       {/* TAB CONTENT: THEO DÕI KẾT QUẢ / NỘP BÀI (TRACKING) */}
       {activeSubNavTab === "tracking" && (
         <div className="flex flex-col gap-4 animate-in fade-in-50 duration-200">
-          {/* 4 Metric KPI Cards */}
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            {/* Card 1: Tổng số phiên */}
-            <div className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-slate-200/90 bg-white p-4 shadow-2xs transition-all hover:border-slate-300 hover:shadow-xs dark:border-slate-800 dark:bg-slate-900">
-              <div className="flex items-start justify-between gap-2">
-                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Tổng số phiên</span>
-                <div className="grid size-8 place-items-center rounded-xl bg-blue-50 text-[#0066FF] dark:bg-blue-950/40 dark:text-blue-400">
-                  <LayoutList className="size-4" />
-                </div>
-              </div>
-              <div className="mt-2.5">
-                <div className="flex items-baseline justify-between gap-2">
-                  <p className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">
-                    {counts.all}
-                  </p>
-                  <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-[#0066FF] dark:bg-blue-950/50 dark:text-blue-300">
-                    Đang mở
-                  </span>
-                </div>
-                <p className="mt-2 truncate text-xs text-slate-500 dark:text-slate-400">
-                  Vị trí: <strong className="text-slate-700 dark:text-slate-300">{job.title}</strong>
-                </p>
-              </div>
-            </div>
-
-            {/* Card 2: Đang diễn ra */}
-            <div className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-slate-200/90 bg-white p-4 shadow-2xs transition-all hover:border-slate-300 hover:shadow-xs dark:border-slate-800 dark:bg-slate-900">
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Đang diễn ra</span>
-                  {counts.live > 0 && (
-                    <span className="relative flex size-2">
-                      <span className="absolute inline-flex size-full animate-ping rounded-full bg-sky-400 opacity-75" />
-                      <span className="relative inline-flex size-2 rounded-full bg-sky-500" />
-                    </span>
-                  )}
-                </div>
-                <div className="grid size-8 place-items-center rounded-xl bg-sky-50 text-sky-600 dark:bg-sky-950/40 dark:text-sky-400">
-                  <AudioLines className="size-4" />
-                </div>
-              </div>
-              <div className="mt-2.5">
-                <div className="flex items-baseline justify-between gap-2">
-                  <p className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">
-                    {counts.live}
-                  </p>
-                  <span className="rounded-full bg-sky-50 px-2 py-0.5 text-[10px] font-semibold text-sky-700 dark:bg-sky-950/50 dark:text-sky-300">
-                    {counts.live > 0 ? "Trực tiếp" : "Không có"}
-                  </span>
-                </div>
-                <div className="mt-2 flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
-                  <span className={cn("size-1.5 rounded-full", counts.live > 0 ? "bg-sky-500 animate-pulse" : "bg-slate-300 dark:bg-slate-600")} />
-                  <p className="truncate">
-                    {counts.live > 0 ? `${counts.live} ứng viên đang trong phòng phỏng vấn` : "Chờ ứng viên truy cập phòng thi"}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Card 3: Đã chấm điểm */}
-            <div className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-slate-200/90 bg-white p-4 shadow-2xs transition-all hover:border-slate-300 hover:shadow-xs dark:border-slate-800 dark:bg-slate-900">
-              <div className="flex items-start justify-between gap-2">
-                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Đã chấm điểm</span>
-                <div className="grid size-8 place-items-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400">
-                  <CheckCircle2 className="size-4" />
-                </div>
-              </div>
-              <div className="mt-2.5">
-                <div className="flex items-baseline justify-between gap-2">
-                  <p className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">
-                    {counts.scored}
-                  </p>
-                  <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
-                    Sẵn sàng xem
-                  </span>
-                </div>
-                <p className="mt-2 truncate text-xs text-slate-500 dark:text-slate-400">
-                  Đã tổng hợp điểm và feedback AI đầy đủ
-                </p>
-              </div>
-            </div>
-
-            {/* Card 4: Tỷ lệ hoàn tất */}
-            <div className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-slate-200/90 bg-white p-4 shadow-2xs transition-all hover:border-slate-300 hover:shadow-xs dark:border-slate-800 dark:bg-slate-900">
-              <div className="flex items-start justify-between gap-2">
-                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Tỷ lệ hoàn tất phiên</span>
-                <div className="grid size-8 place-items-center rounded-xl bg-violet-50 text-violet-600 dark:bg-violet-950/40 dark:text-violet-400">
-                  <Sparkles className="size-4" />
-                </div>
-              </div>
-              <div className="mt-2.5">
-                <div className="flex items-baseline justify-between gap-2">
-                  <p className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">
-                    {completionRate}%
-                  </p>
-                  <span className="inline-flex items-center text-[11px] font-semibold text-[#0066FF]">
-                    <ArrowUpRight className="size-3.5" aria-hidden="true" /> {counts.scored}/{counts.all} phiên
-                  </span>
-                </div>
-                <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-                  <div
-                    className="h-full rounded-full bg-[#0066FF] transition-all duration-500"
-                    style={{ width: `${completionRate}%` }}
-                  />
-                </div>
-                <p className="mt-2 truncate text-xs text-slate-500 dark:text-slate-400">
-                  Số phiên đã chấm trên tổng số phiên được tạo
-                </p>
-              </div>
-            </div>
-          </div>
-
           {/* Subscription Usage Card if available */}
           {sub && (
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-2xs dark:border-slate-800 dark:bg-slate-900">
