@@ -10,6 +10,7 @@ import { ApplicationPipeline } from "@/features/tenant/recruiter/matching/compon
 import { getApiErrorMessage } from "@/lib/axios";
 import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
+import { OfferResponsePanel } from "../components/OfferResponsePanel";
 import { RoundEvaluation, ROUND_TITLES, type RoundKey } from "../components/RoundEvaluations";
 
 const STATUS_LABELS: Record<string, string> = {
@@ -55,6 +56,8 @@ export function ApplicationDetailPage() {
         </div>
         <div className="flex flex-wrap gap-2 border-t border-[var(--color-border-default)] px-5 py-4 sm:px-7"><Link to={`/jobs/${application.jobId}`} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-[var(--color-border-default)] px-4 text-sm font-semibold hover:bg-[var(--color-surface-alt)]"><BriefcaseBusiness className="size-4" aria-hidden="true" />Xem công việc</Link>{application.status === "ASSESSMENT" && <Link to={`/assessments?applicationId=${application.id}`} className="inline-flex min-h-10 items-center rounded-lg bg-[var(--color-primary)] px-4 text-sm font-semibold text-white">Làm bài đánh giá</Link>}{application.status === "INTERVIEW" && <Link to="/interviews" className="inline-flex min-h-10 items-center rounded-lg bg-[var(--color-primary)] px-4 text-sm font-semibold text-white">Xem phỏng vấn AI</Link>}</div>
       </header>
+
+      {application.status === "OFFER" && <OfferResponsePanel applicationId={application.id} jobTitle={application.jobTitle} />}
 
       <div className="space-y-2">
         <p className="text-sm text-[var(--color-on-surface-variant)]">Bấm vào từng vòng để xem lý do điểm và kết quả.</p>

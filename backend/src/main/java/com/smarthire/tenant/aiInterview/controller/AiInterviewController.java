@@ -6,10 +6,8 @@ import com.smarthire.tenant.aiInterview.dto.request.AiQuestionRequest;
 import com.smarthire.tenant.aiInterview.dto.request.CreateAiInterviewRequest;
 import com.smarthire.tenant.aiInterview.dto.request.UpdateAiInterviewRequest;
 import com.smarthire.tenant.aiInterview.dto.request.UpsertAiAnswerRequest;
-import com.smarthire.tenant.aiInterview.dto.request.UpsertAiFeedbackRequest;
 import com.smarthire.tenant.aiInterview.dto.request.ProctorEventRequest;
 import com.smarthire.tenant.aiInterview.dto.response.AiAnswerResponse;
-import com.smarthire.tenant.aiInterview.dto.response.AiFeedbackResponse;
 import com.smarthire.tenant.aiInterview.dto.response.AiInterviewLogResponse;
 import com.smarthire.tenant.aiInterview.dto.response.AiInterviewPage;
 import com.smarthire.tenant.aiInterview.dto.response.AiInterviewResponse;
@@ -210,14 +208,5 @@ public class AiInterviewController {
             @PathVariable long questionId,
             @Valid @RequestBody UpsertAiAnswerRequest request) {
         return ApiResponse.ok(aiInterviewService.upsertAnswer(id, questionId, request));
-    }
-
-    @PutMapping("/{id}/answers/{answerId}/feedback")
-    @Operation(summary = "Upsert feedback for an answer (staff)")
-    public ApiResponse<AiFeedbackResponse> upsertFeedback(
-            @PathVariable long id,
-            @PathVariable long answerId,
-            @Valid @RequestBody UpsertAiFeedbackRequest request) {
-        return ApiResponse.ok(aiInterviewService.upsertFeedback(id, answerId, request));
     }
 }

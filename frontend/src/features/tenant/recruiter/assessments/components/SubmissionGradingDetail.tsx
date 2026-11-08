@@ -302,6 +302,77 @@ export function SubmissionGradingDetail({
     }
   };
 
+  // Category breakdown
+  const essayReviews = useMemo(() => reviews.filter((r) => r.type === "ESSAY"), [reviews]);
+  const codingReviews = useMemo(() => reviews.filter((r) => r.type === "CODING"), [reviews]);
+  const unreviewedEssay = useMemo(() => essayReviews.filter((r) => !r.reviewedAt), [essayReviews]);
+  const unreviewedCoding = useMemo(() => codingReviews.filter((r) => !r.reviewedAt), [codingReviews]);
+  const proctorCount = safeNumber(detail?.integrity?.proctorEventCount) ?? 0;
+  const hasObjective = (detail?.objective?.questionCount ?? 0) > 0;
+
+  const tabs = useMemo(() => {
+    const list: {
+      key: CategoryTab;
+      label: string;
+      count: number;
+      allGraded: boolean;
+      icon: any;
+    }[] = [];
+
+    if (essayReviews.length > 0) {
+      list.push({
+        key: "ESSAY",
+        label: "Tự luận",
+        count: essayReviews.length,
+        allGraded: unreviewedEssay.length === 0,
+        icon: unreviewedEssay.length === 0 ? CheckCircle2 : FileText,
+      });
+    }
+
+    if (codingReviews.length > 0) {
+      list.push({
+        key: "CODING",
+        label: "Lập trình",
+        count: codingReviews.length,
+        allGraded: unreviewedCoding.length === 0,
+        icon: unreviewedCoding.length === 0 ? CheckCircle2 : Code2,
+      });
+    }
+
+    if (hasObjective) {
+      list.push({
+        key: "OBJECTIVE",
+        label: "Trắc nghiệm",
+        count: detail?.objective?.questionCount ?? 0,
+        allGraded: true,
+        icon: CheckCircle2,
+      });
+    }
+
+    list.push({
+      key: "INTEGRITY",
+      label: "Nhật ký giám sát",
+      count: proctorCount,
+      allGraded: true,
+      icon: proctorCount === 0 ? ShieldCheck : ShieldAlert,
+    });
+
+    return list;
+  }, [
+    essayReviews.length,
+    codingReviews.length,
+    unreviewedEssay.length,
+    unreviewedCoding.length,
+    proctorCount,
+    hasObjective,
+    detail?.objective?.questionCount,
+  ]);
+
+  const activeTab: CategoryTab =
+    userSelectedTab && tabs.some((t) => t.key === userSelectedTab)
+      ? userSelectedTab
+      : tabs[0]?.key ?? (hasObjective ? "OBJECTIVE" : "INTEGRITY");
+
   // Loading skeleton matching new Split View layout with high-contrast borders and active spinner
   if (query.isPending) {
     return (
@@ -391,77 +462,6 @@ export function SubmissionGradingDetail({
     totalPoints: 0,
   };
   const integrity = detail.integrity;
-
-  // Category breakdown
-  const essayReviews = useMemo(() => reviews.filter((r) => r.type === "ESSAY"), [reviews]);
-  const codingReviews = useMemo(() => reviews.filter((r) => r.type === "CODING"), [reviews]);
-  const unreviewedEssay = useMemo(() => essayReviews.filter((r) => !r.reviewedAt), [essayReviews]);
-  const unreviewedCoding = useMemo(() => codingReviews.filter((r) => !r.reviewedAt), [codingReviews]);
-  const proctorCount = safeNumber(detail.integrity?.proctorEventCount) ?? 0;
-  const hasObjective = (detail.objective?.questionCount ?? 0) > 0;
-
-  const tabs = useMemo(() => {
-    const list: {
-      key: CategoryTab;
-      label: string;
-      count: number;
-      allGraded: boolean;
-      icon: any;
-    }[] = [];
-
-    if (essayReviews.length > 0) {
-      list.push({
-        key: "ESSAY",
-        label: "Tự luận",
-        count: essayReviews.length,
-        allGraded: unreviewedEssay.length === 0,
-        icon: unreviewedEssay.length === 0 ? CheckCircle2 : FileText,
-      });
-    }
-
-    if (codingReviews.length > 0) {
-      list.push({
-        key: "CODING",
-        label: "Lập trình",
-        count: codingReviews.length,
-        allGraded: unreviewedCoding.length === 0,
-        icon: unreviewedCoding.length === 0 ? CheckCircle2 : Code2,
-      });
-    }
-
-    if (hasObjective) {
-      list.push({
-        key: "OBJECTIVE",
-        label: "Trắc nghiệm",
-        count: detail.objective?.questionCount ?? 0,
-        allGraded: true,
-        icon: CheckCircle2,
-      });
-    }
-
-    list.push({
-      key: "INTEGRITY",
-      label: "Nhật ký giám sát",
-      count: proctorCount,
-      allGraded: true,
-      icon: proctorCount === 0 ? ShieldCheck : ShieldAlert,
-    });
-
-    return list;
-  }, [
-    essayReviews.length,
-    codingReviews.length,
-    unreviewedEssay.length,
-    unreviewedCoding.length,
-    proctorCount,
-    hasObjective,
-    detail.objective?.questionCount,
-  ]);
-
-  const activeTab: CategoryTab =
-    userSelectedTab && tabs.some((t) => t.key === userSelectedTab)
-      ? userSelectedTab
-      : tabs[0]?.key ?? (hasObjective ? "OBJECTIVE" : "INTEGRITY");
 
   return (
     <div className="space-y-6 text-[#101828] dark:text-slate-100">
@@ -1404,9 +1404,25 @@ function IntegrityTimelineSection({
           <ShieldCheck className="size-4 text-blue-600" />
           <span>Nhật ký giám sát &amp; Tín hiệu toàn vẹn (Proctoring Log)</span>
         </div>
-        <span className="text-xs font-semibold text-slate-500">
-          Tổng cộng {integrity.proctorEventCount || 0} sự kiện giám sát
-        </span>
+        <div className="flex items-center gap-2">
+          {integrity.riskLevel && (
+            <span
+              className={`rounded-md px-2 py-0.5 text-xs font-bold ${
+                integrity.riskLevel === "HIGH"
+                  ? "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300"
+                  : integrity.riskLevel === "MEDIUM"
+                    ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"
+                    : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+              }`}
+            >
+              Rủi ro {integrity.riskLevel === "HIGH" ? "cao" : integrity.riskLevel === "MEDIUM" ? "trung bình" : "thấp"} ·{" "}
+              {Math.round(Number(integrity.riskScore ?? 0))}/100
+            </span>
+          )}
+          <span className="text-xs font-semibold text-slate-500">
+            Tổng cộng {integrity.proctorEventCount || 0} sự kiện giám sát
+          </span>
+        </div>
       </div>
 
       {/* Custom Runs Summary */}
