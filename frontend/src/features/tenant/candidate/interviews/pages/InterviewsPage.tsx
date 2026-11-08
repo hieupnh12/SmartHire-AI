@@ -18,15 +18,16 @@ const STATUS_TONE: Record<AiInterviewStatus, string> = {
 
 export function InterviewsPage() {
   const interviews = useCandidateInterviews();
-  const rows = [mockInterviewInvitation, ...(interviews.data ?? [])].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  const ready = rows.filter((item) => item.status === "QUESTIONS_READY" || item.status === "IN_PROGRESS").length;
-  const completed = rows.filter((item) => ["SCORED", "PASSED", "FAILED"].includes(item.status)).length;
+  const realRows = interviews.data ?? [];
+  const rows = [mockInterviewInvitation, ...realRows].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  const ready = realRows.filter((item) => item.status === "QUESTIONS_READY" || item.status === "IN_PROGRESS").length;
+  const completed = realRows.filter((item) => ["SCORED", "PASSED", "FAILED"].includes(item.status)).length;
 
   return <section className="space-y-6 text-[var(--color-on-surface)]" aria-labelledby="interviews-title">
     <header className="overflow-hidden rounded-3xl border border-[var(--color-border-default)] bg-[linear-gradient(135deg,var(--color-primary-subtle),white_62%)] px-5 py-6 shadow-[var(--shadow-card)] sm:px-7">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
         <div className="max-w-2xl"><p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--color-primary)]">Vòng phỏng vấn tự động</p><h1 id="interviews-title" className="mt-2 text-3xl font-semibold tracking-tight">AI Interview</h1><p className="mt-2 text-sm leading-6 text-[var(--color-on-surface-variant)]">Quản lý lời mời phỏng vấn từ nhà tuyển dụng, kiểm tra thời hạn và tiếp tục phiên đang thực hiện.</p></div>
-        <div className="grid grid-cols-3 gap-2 sm:gap-3"><Metric value={rows.length} label="Lời mời" /><Metric value={ready} label="Cần thực hiện" /><Metric value={completed} label="Đã hoàn tất" /></div>
+        <div className="grid grid-cols-3 gap-2 sm:gap-3"><Metric value={realRows.length} label="Lời mời" /><Metric value={ready} label="Cần thực hiện" /><Metric value={completed} label="Đã hoàn tất" /></div>
       </div>
     </header>
 

@@ -44,10 +44,14 @@ export function HumanInterviewRoomPage() {
     refetchInterval: scorecardOpen ? 15_000 : false,
   });
 
+  const isExpired = interview.data
+    ? new Date(interview.data.end).getTime() < Date.now()
+    : false;
+
   const meeting = useSmartHireMeeting({
     interviewId,
     displayName,
-    enabled: Number.isFinite(interviewId) && interview.isSuccess && engine === "peerjs",
+    enabled: Number.isFinite(interviewId) && interview.isSuccess && engine === "peerjs" && !isExpired,
   });
 
   const evaluate = useMutation({
@@ -82,6 +86,26 @@ export function HumanInterviewRoomPage() {
           <p className="text-lg font-semibold">Không vào được phòng họp</p>
           <p className="text-sm text-slate-300">{getApiErrorMessage(interview.error)}</p>
           <Button variant="secondary" onClick={() => navigate(-1)}>Quay lại</Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (interview.isSuccess && isExpired) {
+    const backToExpired = isCandidate
+      ? "/interview-schedules"
+      : `/recruiter/jobs/${interview.data.jobId}/interviews`;
+    return (
+      <div className="grid min-h-dvh place-items-center bg-slate-950 p-6 text-center text-white">
+        <div className="max-w-md space-y-3">
+          <p className="text-2xl">⏰</p>
+          <p className="text-lg font-semibold">Buổi phỏng vấn đã kết thúc</p>
+          <p className="text-sm text-slate-300">
+            Lịch phỏng vấn này đã qua thời gian kết thúc. Phòng họp không còn hoạt động.
+          </p>
+          <Button variant="secondary" onClick={() => navigate(backToExpired)}>
+            Quay lại danh sách
+          </Button>
         </div>
       </div>
     );

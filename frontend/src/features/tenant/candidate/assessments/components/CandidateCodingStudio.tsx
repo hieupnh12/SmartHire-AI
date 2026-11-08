@@ -8,12 +8,13 @@ import "monaco-editor/languages/definitions/sql/register.js";
 import "monaco-editor/languages/definitions/cpp/register.js";
 import EditorWorker from "monaco-editor/editor/editor.worker.js?worker";
 import { useMutation } from "@tanstack/react-query";
-import { CheckCircle2, CircleAlert, Clock, Play, RotateCcw, Save, XCircle } from "lucide-react";
+import { CheckCircle2, CircleAlert, Clock, Play, RotateCcw, Save, Sparkles, XCircle } from "lucide-react";
 import { assessmentApi } from "@/api/tenant/assessmentApi";
 import type { CandidateQuestion, SavedAnswer, SampleResult } from "@/api/types/assessment";
 import { Button } from "@/components/ux/Button";
 import { AssessmentError, assessmentInput, FieldError } from "@/components/ux/assessmentUi";
 import { useUiStore } from "@/stores/uiStore";
+import { toast } from "@/stores/toastStore";
 import { ExamMarkdown } from "./ExamMarkdown";
 
 self.MonacoEnvironment = { getWorker: () => new EditorWorker() };
@@ -43,6 +44,14 @@ export function CandidateCodingStudio({ submissionId, question, answer, locked, 
   const editorInstance = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const safeIndex = Math.min(sampleIndex, Math.max(0, samples.length - 1));
   const sample = samples[safeIndex];
+
+  const sampleSolutions: Record<string, string> = {
+    python: `def solve(n):\n    # Code mẫu: tính tổng các số từ 1 đến n\n    return n * (n + 1) // 2\n`,
+    javascript: `function solve(n) {\n  // Code mẫu: tính tổng các số từ 1 đến n\n  return (n * (n + 1)) / 2;\n}\n`,
+    java: `public class Solution {\n    // Code mẫu: tính tổng các số từ 1 đến n\n    public static int solve(int n) {\n        return n * (n + 1) / 2;\n    }\n}\n`,
+    cpp: `#include <iostream>\nusing namespace std;\n\nint solve(int n) {\n    return n * (n + 1) / 2;\n}\n`,
+  };
+
   const run = useMutation({ mutationFn: () => assessmentApi.runSamples(submissionId, question.id, source, language) });
   const custom = useMutation({ mutationFn: () => assessmentApi.runCustom(submissionId, question.id, source, language, customInput) });
   const latest = useRef({ locked, pending: run.isPending, source, language, run: () => run.mutate() });
@@ -277,23 +286,38 @@ export function CandidateCodingStudio({ submissionId, question, answer, locked, 
                 ))}
               </select>
             </label>
-            <Button
-              variant="secondary"
-              disabled={locked || run.isPending || custom.isPending || !language}
-              onClick={() =>
-                askConfirm({
-                  title: "Khôi phục code ban đầu?",
-                  description: "Thao tác này thay mã đang viết bằng starter code. Bạn sẽ cần viết lại các thay đổi.",
-                  confirmLabel: "Khôi phục",
-                  onConfirm: () => {
-                    if (!latest.current.locked) changeCode(starters[language] ?? "");
-                  },
-                })
-              }
-            >
-              <RotateCcw className="size-4" aria-hidden="true" />
-              Khôi phục code ban đầu
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="secondary"
+                disabled={locked || run.isPending || custom.isPending || !language}
+                onClick={() => {
+                  const solution = sampleSolutions[language] ?? `// Code mẫu giải bài\n`;
+                  changeCode(solution);
+                  toast.success("Đã chèn code mẫu giải bài.");
+                }}
+                title="Chèn code mẫu giải thuật toán để test thử"
+              >
+                <Sparkles className="size-4 text-amber-500" aria-hidden="true" />
+                Code mẫu test
+              </Button>
+              <Button
+                variant="secondary"
+                disabled={locked || run.isPending || custom.isPending || !language}
+                onClick={() =>
+                  askConfirm({
+                    title: "Khôi phục code ban đầu?",
+                    description: "Thao tác này thay mã đang viết bằng starter code. Bạn sẽ cần viết lại các thay đổi.",
+                    confirmLabel: "Khôi phục",
+                    onConfirm: () => {
+                      if (!latest.current.locked) changeCode(starters[language] ?? "");
+                    },
+                  })
+                }
+              >
+                <RotateCcw className="size-4" aria-hidden="true" />
+                Khôi phục
+              </Button>
+            </div>
           </div>
           <div className="h-full min-h-0 select-text overflow-hidden rounded-xl border border-slate-700 bg-[#1e1e1e]">
             <Editor

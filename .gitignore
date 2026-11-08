@@ -18,7 +18,10 @@ docker-compose.override.yml
 **/coverage/
 **/.vite/
 **/*.tsbuildinfo
+**/target
 **/target/
+**/target.nosync
+**/target.nosync/
 *.class
 *.jar
 *.war

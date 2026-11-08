@@ -14,5 +14,15 @@ public record SubmissionResponse(Long id, Long testId, Long applicationId, Strin
     public record CandidateOption(Long id, String optionText) {}
     public record SavedAnswer(Long questionId, Long selectedOptionId, List<Long> selectedOptionIds,
             @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
-            String answerText, String language) {}
+            String answerText, String language,
+            @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+            BigDecimal score,
+            @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+            BigDecimal suggestedScore,
+            @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+            com.fasterxml.jackson.databind.JsonNode evaluation) {
+        public SavedAnswer(Long questionId, Long selectedOptionId, List<Long> selectedOptionIds, String answerText, String language) {
+            this(questionId, selectedOptionId, selectedOptionIds, answerText, language, null, null, null);
+        }
+    }
 }

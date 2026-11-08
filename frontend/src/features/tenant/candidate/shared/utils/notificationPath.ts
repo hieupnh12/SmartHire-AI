@@ -1,4 +1,4 @@
-const SAFE_PATH = /^\/(?:interviews\/\d+|assessments(?:\/\d+\/take)?|interview-schedules|schedules|applications(?:\/\d+)?|recruiter\/jobs\/\d+\/(?:interviews|applicants|rankings|notifications))(?:\?[\w=&%-]*)?$/;
+const SAFE_PATH = /^\/(?:meet\/human\/\d+|interviews\/\d+|assessments(?:\/\d+\/(?:take|invite))?|interview-schedules|schedules|applications(?:\/\d+)?|recruiter\/jobs\/\d+\/(?:interviews|applicants|rankings|notifications))(?:\?[\w=&%-]*)?$/;
 
 export function notificationPath(payload: string | null): string | null {
   try {
