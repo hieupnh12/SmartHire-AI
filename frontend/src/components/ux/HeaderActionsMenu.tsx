@@ -1,4 +1,4 @@
-import { Check, ChevronDown, Home, Languages, LogOut } from "lucide-react";
+import { Bell, Check, ChevronDown, Home, Languages, LogOut } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { locales, useI18nStore, useT, type Locale } from "@/i18n";
@@ -11,6 +11,7 @@ type HeaderActionsMenuProps = {
   variant?: "default" | "icon";
   menuSide?: "bottom" | "right";
   accountPath?: string;
+  notificationsPath?: string;
   showHomeLink?: boolean;
   onLogout: () => void;
 };
@@ -22,6 +23,7 @@ export function HeaderActionsMenu({
   variant = "default",
   menuSide = "bottom",
   accountPath,
+  notificationsPath,
   showHomeLink = true,
   onLogout,
 }: HeaderActionsMenuProps) {
@@ -135,6 +137,17 @@ export function HeaderActionsMenu({
           </div>
 
           <div className="my-1.5 border-t border-[var(--color-border-default)]" />
+          {notificationsPath && (
+            <Link
+              to={notificationsPath}
+              role="menuitem"
+              className="flex min-h-10 items-center gap-2.5 rounded-lg px-2.5 text-sm font-medium text-[var(--color-on-surface)] hover:bg-[var(--color-primary-subtle)] hover:text-brand-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-primary"
+              onClick={() => setOpen(false)}
+            >
+              <Bell className="size-4" aria-hidden="true" />
+              Cài đặt thông báo
+            </Link>
+          )}
           {showHomeLink && (
             <Link
               to="/"

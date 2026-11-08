@@ -38,6 +38,19 @@ WS endpoint `/ws` + REST `GET /api/v1/notifications`
 - Header Recruiter: nút chuông mở panel thông báo tại chỗ, không điều hướng khỏi workspace; panel đóng khi nhấn `Esc` hoặc click ra ngoài.
 - Header Candidate: nút chuông mở panel xem nhanh tối đa 5 thông báo mới nhất, có trạng thái đang tải/rỗng và số chưa đọc. Người dùng chọn `Xem tất cả thông báo` để vào `/notifications` xem chi tiết và đánh dấu đã đọc.
 
+## Thông báo cho Nhân viên (Recruiter / Staff — 2026-10-28)
+
+- **Chuông thông báo cạnh Avatar trên Header:**
+  - Badge số lượng thông báo chưa đọc hiển thị nền đỏ nổi bật (`bg-[var(--color-error)] text-white`).
+  - Bấm chuông mở Popup xem nhanh 5 thông báo mới nhất từ **tất cả các Job** phụ trách.
+  - Các thông báo chưa đọc hiển thị **tiêu đề màu đỏ (`text-[var(--color-error)] font-bold`)** và chấm đỏ nhận diện.
+  - Có nút "Đọc tất cả" để đánh dấu đã đọc toàn bộ (`PATCH /api/v1/notifications/read-all`).
+  - Bấm vào từng thông báo sẽ tự động đánh dấu đã đọc và điều hướng tới đúng trang chức năng của Job tương ứng (`/recruiter/jobs/{jobId}/applicants`, `/ai-interviews`, `/assessments`, `/interviews`).
+- **Phạm vi thông báo:**
+  - Tổng hợp từ tất cả các Job mà nhân viên là Creator (Owner), được phân quyền xem (`job_assignments`), phụ trách đơn (`assignee`) hoặc thuộc hội đồng phỏng vấn (`participants`).
+  - Đồng thời gửi trên Web và qua Gmail (`STAFF_NOTIFICATION`), tôn trọng cài đặt `notification_preferences`.
+  - Tab Cài đặt thông báo dành riêng cho nhân viên hiển thị 4 nhóm: Hồ sơ & Phân công, Phỏng vấn AI, Bài đánh giá năng lực, Phỏng vấn trực tiếp.
+
 ## Phụ thuộc
 
 AUTH-02
@@ -66,3 +79,8 @@ AUTH-02
 - API: `GET /api/v1/notifications/preferences` trả đủ 3 loại (mặc định bật cả hai); `PUT /api/v1/notifications/preferences` nhận danh sách `{category, webEnabled, emailEnabled}` của người dùng hiện tại.
 - Backend kiểm tra cài đặt của người nhận trước khi tạo thông báo web cho: lời mời/kết quả AI Interview, lời mời Assessment (gửi tay và tự sinh), lịch/nhắc/hủy/đề nghị đổi lịch phỏng vấn trực tiếp.
 - Database: bảng tenant `notification_preferences` (V49).
+- **Lọc thông báo theo Tin tuyển dụng & Phân quyền theo Job:**
+  - Tab "Thông báo" trên thanh sub-nav của Job (`/recruiter/jobs/:id/notifications`) chỉ lọc và hiển thị thông báo thuộc về tin tuyển dụng đó thông qua query param `jobId`.
+  - Backend `GET /api/v1/notifications?jobId=...` và `PATCH /api/v1/notifications/read-all?jobId=...` truy vấn JSON payload (`JSON_EXTRACT(payload_json, '$.jobId') = :jobId`).
+  - Phân quyền thông báo nhân viên: chỉ thành viên phụ trách (Job creator, thành viên trong `job_assignments` có `canView=true`, người phụ trách hồ sơ) mới nhận được thông báo web và email của tin tuyển dụng đó.
+  - Thông báo tiến trình cho Ứng viên: gửi in-app và email Gmail (`candidate.getEmail()`) khi hồ sơ vượt qua vòng CV (`CANDIDATE_CV_PASSED`), chuyển vòng Đánh giá năng lực (`CANDIDATE_STAGE_ASSESSMENT`), Phỏng vấn AI (`CANDIDATE_STAGE_AI_INTERVIEW`), Phỏng vấn trực tiếp (`CANDIDATE_STAGE_HUMAN_INTERVIEW`), Đề nghị nhận việc (`CANDIDATE_STAGE_OFFER`) và Trúng tuyển (`CANDIDATE_STAGE_HIRED`).
