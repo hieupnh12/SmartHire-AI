@@ -14,10 +14,6 @@ export const interviewApi = {
     }).then((r) => r.data),
   score: (id: number | string) =>
     api.post<ApiResponse<unknown>>(`/interviews/${id}/score`).then((r) => r.data),
-  feedback: (id: number | string) =>
-    api.get<ApiResponse<unknown>>(`/interviews/${id}/feedback`).then((r) => r.data),
-  shareFeedback: (id: number | string) =>
-    api.post<ApiResponse<unknown>>(`/interviews/${id}/feedback/share`).then((r) => r.data),
   health: () =>
     api.get<ApiResponse<Record<string, string>>>("/interviews/health").then((r) => r.data),
 };

@@ -301,6 +301,48 @@ class ApplicantServiceTest {
     }
 
     @Test
+    void candidateAcceptingOfferIsHired() {
+        application.setStatus(ApplicationStatus.OFFER);
+        when(applications.findById(4L)).thenReturn(Optional.of(application));
+        when(applications.findByIdForUpdate(4L)).thenReturn(Optional.of(application));
+        when(access.candidateActor()).thenReturn(candidate);
+        when(access.candidate()).thenReturn(true);
+
+        assertThat(service.respondToOffer(4L, true, null).status()).isEqualTo("HIRED");
+        assertThat(application.getWithdrawnAt()).isNull();
+        org.mockito.Mockito.verifyNoInteractions(closures);
+    }
+
+    @Test
+    void candidateDecliningOfferClosesAsWithdrawn() {
+        application.setStatus(ApplicationStatus.OFFER);
+        when(applications.findById(4L)).thenReturn(Optional.of(application));
+        when(applications.findByIdForUpdate(4L)).thenReturn(Optional.of(application));
+        when(access.candidateActor()).thenReturn(candidate);
+        when(access.candidate()).thenReturn(true);
+
+        assertThat(service.respondToOffer(4L, false, "Salary").status()).isEqualTo("WITHDRAWN");
+        assertThat(application.getWithdrawReason()).isEqualTo("Salary");
+        assertThat(application.getWithdrawnAt()).isNotNull();
+        verify(closures).onClosed(application, null);
+    }
+
+    @Test
+    void offerResponseRequiresOpenOffer() {
+        application.setStatus(ApplicationStatus.HUMAN_INTERVIEW);
+        when(applications.findById(4L)).thenReturn(Optional.of(application));
+        when(applications.findByIdForUpdate(4L)).thenReturn(Optional.of(application));
+        when(access.candidateActor()).thenReturn(candidate);
+        when(access.candidate()).thenReturn(true);
+
+        assertThatThrownBy(() -> service.respondToOffer(4L, true, null))
+                .isInstanceOf(BusinessException.class)
+                .extracting(ex -> ((BusinessException) ex).getCode())
+                .isEqualTo("APPLICATION_NO_OFFER");
+        org.mockito.Mockito.verifyNoInteractions(history);
+    }
+
+    @Test
     void withdrawLockedWhenArchived() {
         application.setArchivedAt(java.time.Instant.now());
         when(applications.findById(4L)).thenReturn(Optional.of(application));

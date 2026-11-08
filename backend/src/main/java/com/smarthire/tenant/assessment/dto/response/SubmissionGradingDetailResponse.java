@@ -11,7 +11,8 @@ public record SubmissionGradingDetailResponse(long id, String testTitle, String 
         boolean emailAvailable, ObjectiveSummary objective, List<AssessmentGradingService.Review> reviews,
         Integrity integrity) {
     public record ObjectiveSummary(int correctCount, int questionCount, BigDecimal score, int totalPoints) {}
-    public record Integrity(int proctorEventCount, List<ProctorRow> proctorEvents, List<CustomRunRow> customRuns) {}
+    public record Integrity(int proctorEventCount, List<ProctorRow> proctorEvents, List<CustomRunRow> customRuns,
+            java.math.BigDecimal riskScore, String riskLevel, java.util.Map<String, Integer> eventCounts) {}
     public record ProctorRow(String eventType, Instant createdAt, String detail) {}
     public record CustomRunRow(long questionId, String prompt, int count) {}
 }

@@ -63,12 +63,14 @@ public class SubmissionGradingDetailService {
         boolean canEmail = candidate.getEmail() != null && !candidate.getEmail().isBlank()
                 && !preferences.emailOff(candidate, NotificationCategory.ASSESSMENT);
         var proctor = proctorEvents.findBySubmission_IdOrderByCreatedAtAsc(submission.getId());
+        var risk = ProctorRisk.of(proctor);
         var integrity = new SubmissionGradingDetailResponse.Integrity(proctor.size(),
                 proctor.stream().map(event -> new SubmissionGradingDetailResponse.ProctorRow(event.getEventType(), event.getCreatedAt(),
                         event.getPayloadJson())).toList(),
                 saved.stream().filter(answer -> answer.getCustomRunCount() > 0)
                         .map(answer -> new SubmissionGradingDetailResponse.CustomRunRow(answer.getQuestion().getId(),
-                                answer.getQuestion().getQuestionText(), answer.getCustomRunCount())).toList());
+                                answer.getQuestion().getQuestionText(), answer.getCustomRunCount())).toList(),
+                risk.score(), risk.level(), risk.counts());
         return new SubmissionGradingDetailResponse(submission.getId(), submission.getTest().getTitle(), candidate.getFullName(), candidate.getEmail(),
                 submission.getStatus(), submission.getScore(), paper.stream().mapToInt(question -> question.getPoints()).sum(), submission.getTest().getPassingScore(), canEmail,
                 new SubmissionGradingDetailResponse.ObjectiveSummary((int) objectiveAnswers.stream().filter(answer -> Boolean.TRUE.equals(answer.getCorrect())).count(), objective.size(),

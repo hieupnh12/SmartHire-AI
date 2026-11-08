@@ -18,19 +18,22 @@ Ghi nhận tín hiệu gian lận (tab blur, paste, multi-focus) và gắn risk 
 2. Gate pass → `start_submission` (hoặc bind proctor cho submission đang mở) → `/take`. Nếu `/take` thiếu phiên giám sát → redirect lại invite (không hiện form check lần 2).
 3. Trong `/take`: bấm Bắt đầu (cùng nút kiểm tra thiết bị) thì camera và chia sẻ **toàn bộ màn hình** vẫn chạy, rồi gọi fullscreen trong cú bấm đó. Chia sẻ đúng tab làm bài thì Chrome không ẩn thanh địa chỉ, nên bài thi không dùng kiểu ghi đó. Đề hiện khi cửa sổ phủ kín `screen.height`. Tắt camera, tắt microphone, dừng chia sẻ màn hình, thoát toàn màn hình, rời tab, mất focus, copy/paste bị tính vi phạm; 3 vi phạm → tự nộp. Camera chạy nhận diện khuôn mặt trên trình duyệt (MediaPipe): đúng 1 mặt trong khung; mất mặt ~0,9 giây hoặc ≥2 mặt ~1 giây → 1 vi phạm (cooldown ~5 giây). Chưa lưu video/snapshot lên server; chưa có gaze / phát hiện điện thoại.
 4. Frontend gửi sự kiện giám sát qua `POST /api/v1/submissions/{id}/proctor-events` (mất mặt, nhiều người, thoát fullscreen, rời tab, …).
-5. Recruiter xem báo cáo khi BE sẵn sàng.
+5. Mỗi sự kiện hợp lệ được ghi vào `proctor_events`, sau đó backend tính lại risk và upsert `proctor_reports` (1 dòng / submission).
+6. Recruiter xem risk (mức + điểm /100) cùng timeline sự kiện trong khối "Nhật ký giám sát" của màn chấm bài.
 
 ## Business Rules
 
-- Events append-only.
-- Risk không auto-fail trừ khi policy bật.
+- Events append-only. Loại sự kiện hợp lệ: `FULLSCREEN_EXIT`, `PAGE_HIDDEN`, `WINDOW_BLUR`, `COPY_ATTEMPT`, `PASTE_ATTEMPT`, `CONTEXT_MENU`, `BLOCKED_SHORTCUT`, `CAMERA_LOST`, `MICROPHONE_LOST`, `SCREEN_SHARE_STOPPED`, `MULTI_FACE`, `LOST_FACE`; loại khác → 400 `INVALID_PROCTOR_EVENT`.
+- Risk score = tổng trọng số, chặn trần 100 (`ProctorRisk`): `MULTI_FACE` 25; `SCREEN_SHARE_STOPPED`, `CAMERA_LOST` 20; `LOST_FACE`, `PAGE_HIDDEN` 15; `MICROPHONE_LOST`, `FULLSCREEN_EXIT`, `PASTE_ATTEMPT` 10; `WINDOW_BLUR`, `COPY_ATTEMPT` 5; `BLOCKED_SHORTCUT` 3; `CONTEXT_MENU` 2.
+- Mức: `LOW` < 30 ≤ `MEDIUM` < 60 ≤ `HIGH`.
+- Risk chỉ để recruiter tham khảo, không auto-fail (chưa có policy bật auto-fail). Tự nộp sau 3 vi phạm vẫn do frontend xử lý.
 
 ## API liên quan
 
-| Method | Path |
-|---|---|
-| POST | `/api/v1/attempts/{id}/proctor-events` |
-| GET | `/api/v1/attempts/{id}/proctor-report` |
+| Method | Path | Ghi chú |
+|---|---|---|
+| POST | `/api/v1/submissions/{id}/proctor-events` | Candidate, submission `IN_PROGRESS` |
+| GET | `/api/v1/submissions/{id}/grading_detail` | Staff; `integrity.riskScore`, `integrity.riskLevel`, `integrity.eventCounts`, `integrity.proctorEvents` |
 
 ## Database liên quan
 

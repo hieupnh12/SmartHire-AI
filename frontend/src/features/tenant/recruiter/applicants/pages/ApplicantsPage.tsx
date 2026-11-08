@@ -45,6 +45,7 @@ import { CvFilePreview } from "@/components/shared/CvFilePreview";
 import { ScreeningBreakdown } from "@/features/tenant/recruiter/cv-screening/components/ScreeningBreakdown";
 import { GithubEvidencePanel } from "@/features/tenant/recruiter/cv-screening/components/GithubEvidencePanel";
 import { CvScreeningDecision } from "@/features/tenant/recruiter/cv-screening/components/CvScreeningDecision";
+import { HiringDecisionPanel } from "../components/HiringDecisionPanel";
 import type { ApplicationDetail, ApplicationSummary, CvRef } from "@/api/types/applicant";
 import { PipelineBoard } from "@/features/tenant/recruiter/pipeline/pages/PipelinePage";
 
@@ -777,6 +778,8 @@ function ApplicationPanel({ detail, onChanged }: { detail: ApplicationDetail; on
       </div>
 
       <CvScreeningDecision applicationId={detail.id} onDecided={onChanged} />
+
+      <HiringDecisionPanel detail={detail} onChanged={onChanged} />
 
       <Section icon={FileText} title="CV đã nộp">
         <AppliedCvReview cvs={detail.cvs} />

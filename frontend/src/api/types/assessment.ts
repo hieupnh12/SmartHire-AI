@@ -119,6 +119,9 @@ export type SubmissionGradingDetail = {
     proctorEventCount: number;
     proctorEvents: { eventType: string; createdAt: string; detail: string | null }[];
     customRuns: { questionId: number; prompt: string; count: number }[];
+    riskScore?: number;
+    riskLevel?: "LOW" | "MEDIUM" | "HIGH";
+    eventCounts?: Record<string, number>;
   };
 };
 

@@ -18,8 +18,10 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.FieldDefaults;
+import com.smarthire.domain.tenant.event.NotificationChanged;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
+import org.springframework.data.domain.DomainEvents;
 
 @Getter
 @Setter
@@ -64,4 +66,9 @@ public class Notification {
 
     @PrePersist
     void onCreate() { createdAt = Instant.now(); }
+
+    @DomainEvents
+    java.util.List<NotificationChanged> changed() {
+        return java.util.List.of(new NotificationChanged(user == null ? null : user.getId(), candidate == null ? null : candidate.getId()));
+    }
 }

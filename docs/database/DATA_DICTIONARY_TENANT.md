@@ -947,8 +947,8 @@ Entity `ProctorReport`.
 |---|---|---|---|---|---|
 | `id` | BIGINT | PK | Không | auto | |
 | `submission_id` | BIGINT | FK → `submissions.id`, UQ | Không | — | Lượt làm |
-| `risk_score` | DECIMAL(5,2) | | Không | — | Điểm rủi ro |
-| `summary_json` | JSON | | Có | NULL | Tổng hợp |
+| `risk_score` | DECIMAL(5,2) | | Không | — | Điểm rủi ro 0–100 (tổng trọng số `proctor_events`, chặn trần 100); tính lại mỗi khi ghi sự kiện |
+| `summary_json` | JSON | | Có | NULL | `{"level":"LOW|MEDIUM|HIGH","counts":{"<event_type>":n}}` |
 | `created_at` | TIMESTAMP | | Không | now | |
 
 **Ràng buộc:** `fk_pr_submission`, `uk_pr_submission (submission_id)`

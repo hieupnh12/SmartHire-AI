@@ -1,8 +1,7 @@
 import { useMemo } from "react";
-import { RefreshCw, Save, Sparkles, Trash2 } from "lucide-react";
+import { RefreshCw, Save, Sparkles } from "lucide-react";
 import { Button } from "@/components/ux/Button";
 import { AssessmentError } from "@/components/ux/assessmentUi";
-import { cn } from "@/lib/utils";
 import type { QuestionRequest } from "@/api/types/assessment";
 import type { DraftItem, QuestionKind } from "../types";
 import { AiQuestionCard } from "./AiQuestionCard";
@@ -19,10 +18,6 @@ interface AiReviewWorkspaceProps {
   selected: Set<string>;
   selectedCount: number;
   batchCount: number;
-  typeFilter: string;
-  setTypeFilter: (filter: string) => void;
-  toggleSelectAll: () => void;
-  clearAllDrafts: () => void;
   coding: boolean;
   count: number;
   skill: string;
@@ -58,10 +53,6 @@ export function AiReviewWorkspace({
   selected,
   selectedCount,
   batchCount,
-  typeFilter,
-  setTypeFilter,
-  toggleSelectAll,
-  clearAllDrafts,
   count,
   skill,
   questionType,
@@ -107,93 +98,6 @@ export function AiReviewWorkspace({
 
   return (
     <main className="flex flex-col gap-4 min-w-0">
-      {/* Thanh công cụ kiểm duyệt (Review Bar) */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-white px-5 py-3 shadow-2xs dark:border-slate-800 dark:bg-slate-900">
-        <div className="flex items-center gap-3">
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={
-                filteredDrafts.length > 0 && selected.size === filteredDrafts.length
-              }
-              onChange={toggleSelectAll}
-              disabled={filteredDrafts.length === 0 || isSaving}
-              className="size-4 rounded border-slate-300 text-[#0066FF] accent-[#0066FF]"
-            />
-            <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">
-              Chọn tất cả ({filteredDrafts.length})
-            </span>
-          </label>
-
-          {drafts.length > 0 && (
-            <>
-              <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-bold text-[#0066FF] border border-blue-200/60 dark:bg-blue-950 dark:text-blue-300">
-                Đã chọn {selectedCount} / {drafts.length} câu
-              </span>
-              <span className="hidden sm:inline-flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400 font-medium">
-                <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                Đã tự động lưu nháp
-              </span>
-            </>
-          )}
-        </div>
-
-        {/* Bộ lọc loại câu (Filter) & Nút xóa hết */}
-        {drafts.length > 0 && (
-          <div className="flex items-center gap-2">
-            <div className="flex items-center rounded-lg border border-slate-200 bg-white p-0.5 dark:border-slate-700 dark:bg-slate-800">
-              <button
-                type="button"
-                onClick={() => setTypeFilter("ALL")}
-                className={cn(
-                  "rounded-md px-2 py-0.5 text-xs font-medium transition-all",
-                  typeFilter === "ALL"
-                    ? "bg-slate-100 font-bold text-slate-900 dark:bg-slate-700 dark:text-white"
-                    : "text-slate-500 hover:text-slate-900 dark:text-slate-400",
-                )}
-              >
-                Tất cả ({drafts.length})
-              </button>
-              {["MCQ", "MULTIPLE_CHOICE", "ESSAY", "CODING"].map((type) => {
-                const c = drafts.filter((d) => d.question.questionType === type).length;
-                if (!c) return null;
-                return (
-                  <button
-                    key={type}
-                    type="button"
-                    onClick={() => setTypeFilter(type)}
-                    className={cn(
-                      "rounded-md px-2 py-0.5 text-xs font-medium transition-all",
-                      typeFilter === type
-                        ? "bg-slate-100 font-bold text-slate-900 dark:bg-slate-700 dark:text-white"
-                        : "text-slate-500 hover:text-slate-900 dark:text-slate-400",
-                    )}
-                  >
-                    {type === "MCQ"
-                      ? "Trắc nghiệm"
-                      : type === "MULTIPLE_CHOICE"
-                        ? "Nhiều ĐA"
-                        : type === "ESSAY"
-                          ? "Tự luận"
-                          : "Code"}{" "}
-                    ({c})
-                  </button>
-                );
-              })}
-            </div>
-
-            <button
-              type="button"
-              disabled={isSaving}
-              onClick={clearAllDrafts}
-              className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
-            >
-              <Trash2 className="size-3.5" />
-              <span>Xóa nháp</span>
-            </button>
-          </div>
-        )}
-      </div>
 
       {/* Vùng danh sách câu hỏi nháp */}
       <div className="space-y-4">
