@@ -24,10 +24,19 @@ public class NotificationService {
 
     @Transactional(readOnly = true)
     public List<NotificationView> mine(int page) {
+        return mine(page, null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<NotificationView> mine(int page, Long jobId) {
         var pageable = PageRequest.of(Math.max(0, page), 50);
         var pageResult = access.candidate()
-                ? notifications.findByCandidate_IdOrderByIdDesc(access.candidateActor().getId(), pageable)
-                : notifications.findByUser_IdOrderByIdDesc(access.actor().getId(), pageable);
+                ? (jobId != null
+                        ? notifications.findByCandidate_IdAndJobId(access.candidateActor().getId(), jobId, pageable)
+                        : notifications.findByCandidate_IdOrderByIdDesc(access.candidateActor().getId(), pageable))
+                : (jobId != null
+                        ? notifications.findByUser_IdAndJobId(access.actor().getId(), jobId, pageable)
+                        : notifications.findByUser_IdOrderByIdDesc(access.actor().getId(), pageable));
         return pageResult.map(NotificationView::from).getContent();
     }
 
@@ -40,6 +49,24 @@ public class NotificationService {
                 () -> new BusinessException("Notification not found", HttpStatus.NOT_FOUND, "NOTIFICATION_NOT_FOUND"));
         if (notification.getReadAt() == null) notification.setReadAt(Instant.now());
         return NotificationView.from(notification);
+    }
+
+    @Transactional
+    public int markAllRead() {
+        return markAllRead(null);
+    }
+
+    @Transactional
+    public int markAllRead(Long jobId) {
+        var now = Instant.now();
+        if (jobId != null) {
+            return access.candidate()
+                    ? notifications.markAllReadForCandidateAndJob(access.candidateActor().getId(), jobId, now)
+                    : notifications.markAllReadForUserAndJob(access.actor().getId(), jobId, now);
+        }
+        return access.candidate()
+                ? notifications.markAllReadForCandidate(access.candidateActor().getId(), now)
+                : notifications.markAllReadForUser(access.actor().getId(), now);
     }
 
     public Map<String, String> health() {

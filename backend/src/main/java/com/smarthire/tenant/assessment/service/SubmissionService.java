@@ -431,7 +431,21 @@ public class SubmissionService {
                 detailSvc.sendResultEmailSilently(submission.getId());
             }
         }
+        if (staffNotifications != null && !isDemoPaper(submission.getTest())) {
+            var application = submission.getApplication();
+            var job = application.getJob();
+            String result = needsReview ? "Cần chấm phần tự luận/coding." : "Điểm tự động: " + total.stripTrailingZeros().toPlainString() + ".";
+            staffNotifications.notifyJobStaff(job, application, com.smarthire.domain.enums.NotificationCategory.ASSESSMENT,
+                    "STAFF_ASSESSMENT_SUBMITTED", expired ? "Bài đánh giá hết giờ" : "Ứng viên đã nộp bài đánh giá",
+                    submission.getCandidate().getFullName() + (expired ? " hết thời gian làm bài " : " đã hoàn thành bài ")
+                            + submission.getTest().getTitle() + " — vị trí " + job.getTitle() + ". " + result,
+                    "/recruiter/jobs/" + job.getId() + "/assessments");
+        }
     }
+
+    /** Optional in unit tests; notifies job staff on web + Gmail. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.smarthire.tenant.notification.service.StaffNotificationService staffNotifications;
 
     private SubmissionResponse response(Submission submission) {
         var paper = questions.findByTest_IdOrderByQuestionOrderAscIdAsc(submission.getTest().getId());

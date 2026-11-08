@@ -518,6 +518,21 @@ public class AiInterviewEvaluationService {
                         : retry ? "Bạn chưa đạt ngưỡng " + interview.getPassingScoreSnapshot() + "/100. Bạn còn lượt làm lại trước hạn."
                         : "Bạn chưa đạt ngưỡng " + interview.getPassingScoreSnapshot() + "/100. Hồ sơ kết thúc ở vòng AI Interview.");
         notify(interview, passed ? "AI_INTERVIEW_PASSED" : "AI_INTERVIEW_FAILED", "Kết quả AI Interview", body, true);
+        if (staffNotifications != null) {
+            staffNotifications.notifyJobStaff(application.getJob(), application, NotificationCategory.AI_INTERVIEW,
+                    "STAFF_AI_INTERVIEW_COMPLETED", "Ứng viên hoàn thành Phỏng vấn AI",
+                    application.getCandidate().getFullName() + " đạt " + score + "/100 (" + (passed ? "Đạt" : "Chưa đạt")
+                            + ", ngưỡng " + interview.getPassingScoreSnapshot() + ") — vị trí " + application.getJob().getTitle() + ".",
+                    "/recruiter/jobs/" + application.getJob().getId() + "/ai-interviews");
+        }
+    }
+
+    /** Optional in unit tests; notifies job staff on web + Gmail. */
+    private com.smarthire.tenant.notification.service.StaffNotificationService staffNotifications;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    public void setStaffNotifications(com.smarthire.tenant.notification.service.StaffNotificationService staffNotifications) {
+        this.staffNotifications = staffNotifications;
     }
 
     /** A failed attempt keeps the application open only while a retry is still allowed. */
