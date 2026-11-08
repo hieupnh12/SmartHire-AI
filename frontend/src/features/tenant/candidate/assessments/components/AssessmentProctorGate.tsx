@@ -56,7 +56,7 @@ export function AssessmentProctorGate({ busy, label = "Bắt đầu làm bài", 
       if (
         !live(prepared.current.camera.getVideoTracks()) ||
         !live(prepared.current.camera.getAudioTracks()) ||
-        !live(prepared.current.screen.getVideoTracks())
+        (prepared.current.screen && !live(prepared.current.screen.getVideoTracks()))
       ) {
         throw new Error("Camera, microphone hoặc chia sẻ màn hình đã dừng. Hãy kiểm tra thiết bị lại.");
       }
