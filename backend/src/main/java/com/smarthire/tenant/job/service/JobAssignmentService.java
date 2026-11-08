@@ -146,7 +146,24 @@ public class JobAssignmentService {
         assignment.setCanEdit(canEdit);
         assignment.setAssignmentRole(role);
         assignment.setAssignedBy(cvAccess.actor());
-        return toResponse(assignments.save(assignment), false);
+        var saved = assignments.save(assignment);
+        notifyAssigned(job, recruiter, role);
+        return toResponse(saved, false);
+    }
+
+    /** Optional in unit tests; notifies the assigned staff member on web + Gmail. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.smarthire.tenant.notification.service.StaffNotificationService staffNotifications;
+
+    private void notifyAssigned(Job job, User user, AssignmentRole role) {
+        if (staffNotifications == null) return;
+        User actor = cvAccess.actor();
+        if (actor != null && actor.getId().equals(user.getId())) return;
+        staffNotifications.notifyUsers(List.of(user), com.smarthire.domain.enums.NotificationCategory.APPLICATION,
+                "STAFF_JOB_ASSIGNED", "Bạn được phân công tin tuyển dụng",
+                (actor == null ? "Quản trị viên" : actor.getFullName()) + " đã thêm bạn vào vị trí " + job.getTitle()
+                        + " với vai trò " + role.name() + ".",
+                job, null, "/recruiter/jobs/" + job.getId());
     }
 
     /**
@@ -231,7 +248,9 @@ public class JobAssignmentService {
         assignment.setCanView(true);
         assignment.setCanEdit(true);
         assignment.setAssignmentRole(AssignmentRole.OWNER);
-        return toResponse(assignments.save(assignment), true);
+        var saved = assignments.save(assignment);
+        notifyAssigned(job, newOwner, AssignmentRole.OWNER);
+        return toResponse(saved, true);
     }
 
     /**

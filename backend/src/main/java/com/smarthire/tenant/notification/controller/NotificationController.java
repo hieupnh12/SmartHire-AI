@@ -52,6 +52,12 @@ public class NotificationController {
         return ApiResponse.ok(notificationService.mine(page));
     }
 
+    @org.springframework.web.bind.annotation.PatchMapping("/read-all")
+    @Operation(summary = "Mark every unread notification of the current user as read")
+    public ApiResponse<Map<String, Integer>> markAllRead() {
+        return ApiResponse.ok(Map.of("updated", notificationService.markAllRead()));
+    }
+
     @org.springframework.web.bind.annotation.PatchMapping("/{id}")
     @Operation(summary = "Mark an owned notification as read")
     public ApiResponse<com.smarthire.tenant.notification.dto.NotificationView> markRead(

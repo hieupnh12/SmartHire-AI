@@ -3,6 +3,7 @@ import { Inbox, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NotificationInbox } from "@/features/tenant/candidate/notifications/components/NotificationInbox";
 import { NotificationSettings } from "@/features/tenant/candidate/notifications/components/NotificationSettings";
+import { recruiterNotificationCategories } from "@/features/tenant/candidate/notifications/constants/notificationCategories";
 
 const tabs = [
   { key: "inbox", label: "Hộp thư", icon: Inbox },
@@ -17,12 +18,12 @@ export function NotificationsPage() {
       <header className="rounded-3xl border border-[var(--color-border-default)] bg-[linear-gradient(135deg,var(--color-primary-subtle),white_58%)] px-5 py-6 shadow-[var(--shadow-card)] sm:px-7">
         <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--color-primary)]">Thông báo</p>
         <h1 id="recruiter-notifications-title" className="mt-2 text-3xl font-semibold tracking-tight">
-          {active === "settings" ? "Cài đặt thông báo" : "Hộp thư thông báo"}
+          {active === "settings" ? "Cài đặt thông báo nhân viên" : "Hộp thư thông báo tuyển dụng"}
         </h1>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--color-on-surface-variant)]">
           {active === "settings"
-            ? "Chọn loại thông báo bạn muốn nhận trên web hoặc qua email."
-            : "Lời mời phỏng vấn trực tiếp, đổi lịch và cập nhật liên quan đến hội đồng của bạn."}
+            ? "Tùy chọn nhận thông báo trên Web hoặc gửi qua Gmail cho từng nhóm sự kiện tuyển dụng."
+            : "Tổng hợp thông báo từ tất cả các tin tuyển dụng: ứng viên nộp hồ sơ, kết quả AI Interview, bài đánh giá và lịch phỏng vấn."}
         </p>
       </header>
       <div role="tablist" aria-label="Thông báo" className="flex gap-2">
@@ -45,7 +46,16 @@ export function NotificationsPage() {
           </button>
         ))}
       </div>
-      <div role="tabpanel">{active === "settings" ? <NotificationSettings /> : <NotificationInbox />}</div>
+      <div role="tabpanel">
+        {active === "settings" ? (
+          <NotificationSettings
+            categories={recruiterNotificationCategories}
+            noteText="Thay đổi được lưu ngay. Tắt cả hai kênh, bạn vẫn có thể theo dõi tiến trình trực tiếp trên danh sách tin tuyển dụng."
+          />
+        ) : (
+          <NotificationInbox />
+        )}
+      </div>
     </section>
   );
 }

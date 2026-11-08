@@ -153,6 +153,21 @@ public class ApplicantService {
         return Map.of("module", "applicant", "status", "ready");
     }
 
+    /** Optional in unit tests; notifies job staff on web + Gmail. */
+    private com.smarthire.tenant.notification.service.StaffNotificationService staffNotifications;
+
+    @Autowired(required = false)
+    public void setStaffNotifications(com.smarthire.tenant.notification.service.StaffNotificationService staffNotifications) {
+        this.staffNotifications = staffNotifications;
+    }
+
+    private void notifyStaff(Application application, String type, String title, String body) {
+        if (staffNotifications == null) return;
+        Job job = application.getJob();
+        staffNotifications.notifyJobStaff(job, application, com.smarthire.domain.enums.NotificationCategory.APPLICATION,
+                type, title, body, "/recruiter/jobs/" + job.getId() + "/applicants");
+    }
+
     @Transactional
     public ApplicationSummary apply(long jobId, String source, String referralCode) {
         return apply(jobId, source, referralCode, null);
@@ -183,6 +198,8 @@ public class ApplicantService {
                 closures.onReopened(current);
                 attachCv(cvId, job, current, actor);
                 record(current, ApplicationStatus.NEW, "Re-applied");
+                notifyStaff(current, "STAFF_NEW_APPLICATION", "Ứng viên mới ứng tuyển",
+                        actor.getFullName() + " vừa ứng tuyển lại vị trí " + job.getTitle() + ".");
                 return mapper.summary(current, false);
             }
             if (current.getStatus() == ApplicationStatus.REJECTED || current.getStatus() == ApplicationStatus.FAILED) {
@@ -202,6 +219,8 @@ public class ApplicantService {
         applications.save(application);
         attachCv(cvId, job, application, actor);
         record(application, ApplicationStatus.NEW, "Applied");
+        notifyStaff(application, "STAFF_NEW_APPLICATION", "Ứng viên mới ứng tuyển",
+                actor.getFullName() + " vừa nộp hồ sơ vào vị trí " + job.getTitle() + ".");
         return mapper.summary(application, false);
     }
 
@@ -415,6 +434,9 @@ public class ApplicantService {
         application.setWithdrawnAt(Instant.now());
         application.setWithdrawReason(blankToNull(reason));
         record(application, ApplicationStatus.WITHDRAWN, "Withdrawn by candidate");
+        notifyStaff(application, "STAFF_APPLICATION_WITHDRAWN", "Ứng viên rút hồ sơ",
+                actor.getFullName() + " đã rút hồ sơ khỏi vị trí " + application.getJob().getTitle()
+                        + (application.getWithdrawReason() == null ? "." : ". Lý do: " + application.getWithdrawReason()));
         closures.onClosed(application, null);
         return toDetail(application);
     }

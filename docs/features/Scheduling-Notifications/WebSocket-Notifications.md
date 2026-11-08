@@ -38,6 +38,19 @@ WS endpoint `/ws` + REST `GET /api/v1/notifications`
 - Header Recruiter: nút chuông mở panel thông báo tại chỗ, không điều hướng khỏi workspace; panel đóng khi nhấn `Esc` hoặc click ra ngoài.
 - Header Candidate: nút chuông mở panel xem nhanh tối đa 5 thông báo mới nhất, có trạng thái đang tải/rỗng và số chưa đọc. Người dùng chọn `Xem tất cả thông báo` để vào `/notifications` xem chi tiết và đánh dấu đã đọc.
 
+## Thông báo cho Nhân viên (Recruiter / Staff — 2026-10-28)
+
+- **Chuông thông báo cạnh Avatar trên Header:**
+  - Badge số lượng thông báo chưa đọc hiển thị nền đỏ nổi bật (`bg-[var(--color-error)] text-white`).
+  - Bấm chuông mở Popup xem nhanh 5 thông báo mới nhất từ **tất cả các Job** phụ trách.
+  - Các thông báo chưa đọc hiển thị **tiêu đề màu đỏ (`text-[var(--color-error)] font-bold`)** và chấm đỏ nhận diện.
+  - Có nút "Đọc tất cả" để đánh dấu đã đọc toàn bộ (`PATCH /api/v1/notifications/read-all`).
+  - Bấm vào từng thông báo sẽ tự động đánh dấu đã đọc và điều hướng tới đúng trang chức năng của Job tương ứng (`/recruiter/jobs/{jobId}/applicants`, `/ai-interviews`, `/assessments`, `/interviews`).
+- **Phạm vi thông báo:**
+  - Tổng hợp từ tất cả các Job mà nhân viên là Creator (Owner), được phân quyền xem (`job_assignments`), phụ trách đơn (`assignee`) hoặc thuộc hội đồng phỏng vấn (`participants`).
+  - Đồng thời gửi trên Web và qua Gmail (`STAFF_NOTIFICATION`), tôn trọng cài đặt `notification_preferences`.
+  - Tab Cài đặt thông báo dành riêng cho nhân viên hiển thị 4 nhóm: Hồ sơ & Phân công, Phỏng vấn AI, Bài đánh giá năng lực, Phỏng vấn trực tiếp.
+
 ## Phụ thuộc
 
 AUTH-02

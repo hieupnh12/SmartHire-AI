@@ -6,6 +6,7 @@ import com.smarthire.domain.tenant.repository.AiInterviewRepository;
 import com.smarthire.domain.tenant.repository.EmailOutboxRepository;
 import com.smarthire.tenant.applicant.service.ApplicationClosureService;
 import com.smarthire.tenant.auth.service.InviteMailSender;
+import com.smarthire.tenant.notification.service.StaffNotificationService;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -15,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class AiInterviewWorkService {
     public record Pending(long id, String kind) {}
+    private static final List<String> EMAIL_PURPOSES = List.of("AI_INTERVIEW_RESULT", "ASSESSMENT_INVITATION", ApplicationClosureService.EMAIL_PURPOSE, "ASSESSMENT_RESULT", StaffNotificationService.EMAIL_PURPOSE);
     private final AiInterviewRepository interviews;
     private final EmailOutboxRepository emails;
     private final InviteMailSender mail;
@@ -38,12 +40,13 @@ public class AiInterviewWorkService {
                 .forEach(e -> result.add(new Pending(e.getId(), "EMAIL")));
         emails.findTop50ByPurposeAndStatusInAndAttemptsLessThanOrderByIdAsc("ASSESSMENT_RESULT", List.of(NotificationStatus.PENDING, NotificationStatus.FAILED), 3)
                 .forEach(e -> result.add(new Pending(e.getId(), "EMAIL")));
+        emails.findTop50ByPurposeAndStatusInAndAttemptsLessThanOrderByIdAsc(StaffNotificationService.EMAIL_PURPOSE, List.of(NotificationStatus.PENDING, NotificationStatus.FAILED), 3).forEach(e -> result.add(new Pending(e.getId(), "EMAIL")));
         return result;
     }
     @Transactional
     public void sendEmail(long id) {
         var email = emails.findLockedById(id).orElse(null);
-        if (email == null || !List.of("AI_INTERVIEW_RESULT", "ASSESSMENT_INVITATION", ApplicationClosureService.EMAIL_PURPOSE, "ASSESSMENT_RESULT").contains(email.getPurpose()) || email.getStatus() == NotificationStatus.SENT || email.getAttempts() >= 3) return;
+        if (email == null || !EMAIL_PURPOSES.contains(email.getPurpose()) || email.getStatus() == NotificationStatus.SENT || email.getAttempts() >= 3) return;
         email.setAttempts(email.getAttempts() + 1);
         boolean sent = mail.send(email.getToEmail(), email.getSubject(), email.getBody());
         email.setStatus(sent ? NotificationStatus.SENT : NotificationStatus.FAILED);

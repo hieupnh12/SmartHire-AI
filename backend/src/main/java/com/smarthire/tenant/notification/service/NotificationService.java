@@ -42,6 +42,14 @@ public class NotificationService {
         return NotificationView.from(notification);
     }
 
+    @Transactional
+    public int markAllRead() {
+        var now = Instant.now();
+        return access.candidate()
+                ? notifications.markAllReadForCandidate(access.candidateActor().getId(), now)
+                : notifications.markAllReadForUser(access.actor().getId(), now);
+    }
+
     public Map<String, String> health() {
         return Map.of("module", "notification", "status", "scaffold");
     }
