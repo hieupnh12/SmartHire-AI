@@ -162,7 +162,7 @@ export function AssessmentProctorGuard({ submissionId, session = null, children,
     if (!session) return;
     const microphoneTrack = session.camera.getAudioTracks()[0];
     const cameraTrack = session.camera.getVideoTracks()[0];
-    const screenTrack = session.screen.getVideoTracks()[0];
+    const screenTrack = session.screen?.getVideoTracks()[0];
     const microphoneLost = () => violate("Microphone đã bị tắt", "MICROPHONE_LOST");
     const cameraLost = () => violate("Camera đã bị tắt", "CAMERA_LOST");
     const screenLost = () => onScreenEnded.current();

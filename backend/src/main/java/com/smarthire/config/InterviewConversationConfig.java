@@ -23,7 +23,7 @@ public class InterviewConversationConfig {
     @Bean("interviewConversationHttp")
     public RestClient.Builder interviewConversationHttp(
             @Value("${AI_INTERVIEW_CONVERSATION_CONNECT_TIMEOUT_SECONDS:10}") int connectTimeoutSeconds,
-            @Value("${AI_INTERVIEW_CONVERSATION_TIMEOUT_SECONDS:60}") int readTimeoutSeconds) {
+            @Value("${AI_INTERVIEW_CONVERSATION_TIMEOUT_SECONDS:240}") int readTimeoutSeconds) {
         var factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(Duration.ofSeconds(Math.max(1, connectTimeoutSeconds)));
         factory.setReadTimeout(Duration.ofSeconds(Math.max(1, readTimeoutSeconds)));

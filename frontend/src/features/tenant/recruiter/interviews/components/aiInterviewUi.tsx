@@ -1,4 +1,4 @@
-import { AlertTriangle, CheckCircle2, CircleDashed, ListChecks, RefreshCw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import type { AiInterviewStatus } from "@/api/types/aiInterview";
 import { cn } from "@/lib/utils";
 
@@ -40,28 +40,44 @@ export function formatDateTime(value: string | null | undefined) {
 }
 
 export const aiStatusTone: Record<AiInterviewStatus, string> = {
-  CREATED: "bg-[var(--color-interview-created-bg)] text-[var(--color-interview-created)]",
-  GENERATING: "bg-[var(--color-interview-generating-bg)] text-[var(--color-interview-generating)]",
-  QUESTIONS_READY: "bg-[var(--color-interview-ready-bg)] text-[var(--color-interview-ready)]",
-  IN_PROGRESS: "bg-[var(--color-interview-live-bg)] text-[var(--color-interview-live)]",
-  SCORING: "bg-[var(--color-interview-scoring-bg)] text-[var(--color-interview-scoring)]",
-  SCORED: "bg-[var(--color-interview-scored-bg)] text-[var(--color-interview-scored)]",
-  PASSED: "bg-[var(--color-interview-passed-bg)] text-[var(--color-interview-passed)]",
-  FAILED: "bg-[var(--color-interview-failed-bg)] text-[var(--color-interview-failed)]",
-  ERROR: "bg-[var(--color-interview-error-bg)] text-[var(--color-interview-error)]",
+  CREATED: "bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700",
+  GENERATING: "bg-violet-50 text-violet-700 border border-violet-200/70 dark:bg-violet-950/40 dark:text-violet-300 dark:border-violet-800/40",
+  QUESTIONS_READY: "bg-amber-50 text-amber-700 border border-amber-200/70 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/40",
+  IN_PROGRESS: "bg-sky-50 text-sky-700 border border-sky-200/70 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800/40",
+  SCORING: "bg-blue-50 text-[#0066FF] border border-blue-200/70 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800/40",
+  SCORED: "bg-emerald-50 text-emerald-700 border border-emerald-200/70 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/40",
+  PASSED: "bg-emerald-50 text-emerald-700 border border-emerald-200/70 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/40",
+  FAILED: "bg-rose-50 text-rose-700 border border-rose-200/70 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800/40",
+  ERROR: "bg-red-50 text-red-700 border border-red-200/70 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800/40",
+};
+
+export const aiStatusDot: Record<AiInterviewStatus, string> = {
+  CREATED: "bg-slate-400",
+  GENERATING: "bg-violet-500 animate-pulse",
+  QUESTIONS_READY: "bg-amber-500",
+  IN_PROGRESS: "bg-sky-500 animate-pulse",
+  SCORING: "bg-blue-500 animate-spin",
+  SCORED: "bg-emerald-500",
+  PASSED: "bg-emerald-500",
+  FAILED: "bg-rose-500",
+  ERROR: "bg-red-500",
 };
 
 export function AiStatusBadge({ status }: { status: AiInterviewStatus }) {
-  const Icon =
-    (status === "SCORING" || status === "GENERATING") ? RefreshCw
-      : (status === "SCORED" || status === "PASSED") ? CheckCircle2
-        : (status === "FAILED" || status === "ERROR") ? AlertTriangle
-          : status === "QUESTIONS_READY" ? ListChecks
-            : CircleDashed;
+  const isSpinning = status === "SCORING" || status === "GENERATING";
   return (
-    <span className={cn("inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1 text-xs font-bold shadow-sm", aiStatusTone[status])}>
-      <Icon className={cn("size-3.5", status === "SCORING" && "animate-spin")} aria-hidden="true" />
-      {aiStatusLabel[status]}
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold shadow-2xs transition-colors",
+        aiStatusTone[status],
+      )}
+    >
+      {isSpinning ? (
+        <RefreshCw className="size-3 animate-spin" aria-hidden="true" />
+      ) : (
+        <span className={cn("size-1.5 rounded-full shrink-0", aiStatusDot[status])} />
+      )}
+      <span>{aiStatusLabel[status]}</span>
     </span>
   );
 }

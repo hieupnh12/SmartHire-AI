@@ -36,6 +36,7 @@ import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
 import { toast } from "@/stores/toastStore";
 import { useUiStore } from "@/stores/uiStore";
+import { localizeAiComment } from "@/features/tenant/candidate/assessments/utils/aiLocalization";
 
 // --- Safe Data Helpers ---
 function safeObject<T = Record<string, unknown>>(value: unknown): T {
@@ -1191,7 +1192,7 @@ function EssayEvidenceDetail({ review }: { review: GradingReview }) {
           <Sparkles className="size-4 shrink-0 text-violet-600 dark:text-violet-400 mt-0.5" />
           <div className="space-y-1 min-w-0">
             <span className="font-bold block">Tổng kết đánh giá từ AI:</span>
-            <p className="leading-relaxed whitespace-pre-wrap">{safeText(evaluation.general_comment)}</p>
+            <p className="leading-relaxed whitespace-pre-wrap">{localizeAiComment(safeText(evaluation.general_comment))}</p>
           </div>
         </div>
       )}
@@ -1355,7 +1356,7 @@ function CodingEvidenceDetail({ review }: { review: GradingReview }) {
           {Boolean(codeReview.general_comment) && (
             <div className="rounded-xl bg-violet-50/70 p-3 text-violet-900 dark:bg-violet-950/30 dark:text-violet-200 border border-violet-100 dark:border-violet-900/40">
               <span className="font-bold block mb-1">Nhận xét tổng thể AI:</span>
-              <p className="leading-relaxed whitespace-pre-wrap">{safeText(codeReview.general_comment)}</p>
+              <p className="leading-relaxed whitespace-pre-wrap">{localizeAiComment(safeText(codeReview.general_comment))}</p>
             </div>
           )}
         </div>
@@ -1365,7 +1366,7 @@ function CodingEvidenceDetail({ review }: { review: GradingReview }) {
       {Boolean(evaluation.general_comment) && Object.keys(codeReview).length === 0 && (
         <div className="rounded-xl bg-violet-50/70 p-3 text-violet-900 dark:bg-violet-950/30 dark:text-violet-200 border border-violet-100 dark:border-violet-900/40">
           <span className="font-bold block mb-1">Nhận xét tổng thể AI:</span>
-          <p className="leading-relaxed whitespace-pre-wrap">{safeText(evaluation.general_comment)}</p>
+          <p className="leading-relaxed whitespace-pre-wrap">{localizeAiComment(safeText(evaluation.general_comment))}</p>
         </div>
       )}
 
