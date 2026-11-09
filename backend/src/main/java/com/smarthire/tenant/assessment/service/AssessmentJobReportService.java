@@ -41,8 +41,11 @@ public class AssessmentJobReportService {
         var job = jobs.findById(jobId).orElseThrow(() -> new BusinessException("Job not found", HttpStatus.NOT_FOUND, "JOB_NOT_FOUND"));
         access.requireJob(job);
         List<Submission> attempts = submissions.findByJobId(jobId).stream()
-                .filter(s -> s.getStatus() == TestSubmissionStatus.SUBMITTED
-                        || s.getStatus() == TestSubmissionStatus.GRADED
+                .filter(s -> s.getStatus().isFinished()
+                        || s.getStatus() == TestSubmissionStatus.SUBMITTED
+                        || s.getStatus() == TestSubmissionStatus.PENDING
+                        || s.getStatus() == TestSubmissionStatus.GRADING
+                        || s.getStatus() == TestSubmissionStatus.FAILED
                         || s.getStatus() == TestSubmissionStatus.EXPIRED)
                 .toList();
         Map<Long, Agg> byQuestion = new HashMap<>();

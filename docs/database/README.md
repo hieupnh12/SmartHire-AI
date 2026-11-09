@@ -305,7 +305,7 @@ V44 không thêm enum hoặc trạng thái lifecycle: session dùng lifecycle c�
 | `CvStatus` | `cvs.status` | `UPLOADED`, `PARSING`, `PARSED`, `EXTRACTING`, `ANALYZING`, `ANALYZED`, `FAILED` |
 | `TestStatus` | `tests.status` | `DRAFT`, `PUBLISHED`, `ARCHIVED` |
 | `TestOrigin` | `tests.origin` | `AUTHORED` (người soạn), `GENERATED` (hệ thống bốc từ ngân hàng). Không thay `TestStatus` |
-| `TestSubmissionStatus` | `submissions.status` | `NOT_STARTED`, `IN_PROGRESS`, `SUBMITTED`, `GRADED`, `EXPIRED` |
+| `TestSubmissionStatus` | `submissions.status` | `NOT_STARTED`, `IN_PROGRESS`, `SUBMITTED`, `PENDING`, `GRADING`, `COMPLETED`, `GRADED`, `FAILED`, `EXPIRED` |
 | `SubmissionStatus` | `coding_submissions.status` | `QUEUED`, `RUNNING`, `PASSED`, `PARTIAL`, `FAILED`, `ERROR` |
 | `InterviewStatus` | `interviews.status` | `CREATED`, `SCHEDULED`, `IN_PROGRESS`, `EVALUATED`, `CANCELLED` |
 | `AiInterviewStatus` | `ai_interviews.status`, `ai_interview_logs.status` | `CREATED`, `GENERATING`, `QUESTIONS_READY`, `IN_PROGRESS`, `SCORING`, `SCORED`, `PASSED`, `ERROR`, `FAILED` |

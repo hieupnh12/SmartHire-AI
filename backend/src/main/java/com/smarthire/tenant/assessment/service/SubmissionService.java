@@ -173,18 +173,10 @@ public class SubmissionService {
         if (!expire(submission) && submission.getStatus() == TestSubmissionStatus.IN_PROGRESS) {
             requirePlayable(submission.getApplication(), submission.getTest());
             grade(submission, false);
-            boolean isDemo = submission.getTest().getTitle() != null && submission.getTest().getTitle().contains("[Demo UI]");
-            if ((submission.getTest().isAutoGradingEnabled() || isDemo) && gradingService != null) {
-                var autoGrader = gradingService.getIfAvailable();
-                if (autoGrader != null) {
-                    try {
-                        autoGrader.autoGradeSubmission(submission.getId());
-                        submission = submissions.findById(id).orElse(submission);
-                    } catch (Exception ignored) {}
-                }
-            }
-        } else if (submission.getStatus() != TestSubmissionStatus.GRADED
-                && submission.getStatus() != TestSubmissionStatus.SUBMITTED
+        } else if (!submission.getStatus().isFinished()
+                && !submission.getStatus().isPendingOrSubmitted()
+                && !submission.getStatus().isGrading()
+                && submission.getStatus() != TestSubmissionStatus.FAILED
                 && submission.getStatus() != TestSubmissionStatus.EXPIRED) {
             throw conflict("Submission cannot be submitted in its current state", "SUBMISSION_CLOSED");
         }
@@ -477,11 +469,18 @@ public class SubmissionService {
                         answer.getScore(), answer.getSuggestedScore(), answer.getEvaluationJson())).toList();
         BigDecimal threshold = submission.getTest().getPassingScore();
         Boolean passed = threshold == null || submission.getScore() == null ? null : submission.getScore().compareTo(threshold) >= 0;
+        boolean sanitizeForCandidate = submission.getStatus() != TestSubmissionStatus.IN_PROGRESS && !access.staff();
+        var questionDtos = paper.stream().map(q -> {
+            if (sanitizeForCandidate) {
+                return new SubmissionResponse.CandidateQuestion(q.getId(), null, q.getQuestionType(), q.getPoints(), q.getQuestionOrder(), java.util.List.of(), null);
+            }
+            return mapper.candidateQuestion(q, options.findByQuestion_IdOrderByIdAsc(q.getId()));
+        }).toList();
         return new SubmissionResponse(submission.getId(), submission.getTest().getId(), submission.getApplication().getId(),
                 submission.getTest().getTitle(), submission.getStatus(), submission.getStartedAt(), expiresAt,
                 submission.getSubmittedAt(), now, remaining, submission.getScore(),
                 paper.stream().mapToInt(Question::getPoints).sum(), passed,
-                paper.stream().map(q -> mapper.candidateQuestion(q, options.findByQuestion_IdOrderByIdAsc(q.getId()))).toList(), saved, submission.getObjectiveCompletedAt(), objectiveDeadline(submission));
+                questionDtos, saved, submission.getObjectiveCompletedAt(), objectiveDeadline(submission));
     }
 
     private void applyAnswer(Answer answer, Question question, SaveAnswersRequest.AnswerInput input) {
