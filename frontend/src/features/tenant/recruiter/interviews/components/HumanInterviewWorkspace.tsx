@@ -398,7 +398,7 @@ export function HumanInterviewWorkspace(p: Props) {
                             <span className="truncate max-w-[140px]">
                               {r.mode === "ONLINE" ? r.configuration.provider : r.location}
                             </span>
-                            {r.mode === "ONLINE" && (r.meetingUrl || r.configuration.provider === "SMARTHIRE") && (
+                            {r.mode === "ONLINE" && (r.meetingUrl || r.configuration.provider === "SMARTHIRE") && new Date(r.end).getTime() > Date.now() && (
                               r.configuration.provider === "SMARTHIRE" || (r.meetingUrl?.includes("/meet/human/") ?? false) ? (
                                 <Link to={`/meet/human/${r.id}`} className="ml-1 underline font-semibold text-[10px]">
                                   Vào họp

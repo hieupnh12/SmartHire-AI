@@ -21,8 +21,8 @@ export function useOptionalRecruitmentJob() {
 export function JobRecruitmentWorkspace({ children }: { children: ReactNode }) {
   const { id, assessmentId } = useParams();
   const location = useLocation();
-  // Assessment and Interview module pages use the shared Breadcrumb instead of the job title link.
-  const hideJobTitle = /\/jobs\/\d+\/(assessments|interviews)(?:\/|$)/.test(location.pathname);
+  // Assessment and Interview module pages use the shared Breadcrumb / SubNav instead of the job title link.
+  const hideJobTitle = /\/jobs\/\d+\/(assessments|interviews|ai-interviews)(?:\/|$)/.test(location.pathname);
   const valid = Number.isSafeInteger(Number(id)) && Number(id) > 0;
   const job = useQuery({
     queryKey: ["jobs", "detail", id],

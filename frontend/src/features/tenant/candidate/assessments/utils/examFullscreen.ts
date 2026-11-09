@@ -67,7 +67,7 @@ function settleFullscreen(ms = 1500) {
 }
 
 function liveScreenTrack(session: ProctorSession | null) {
-  return session?.screen.getVideoTracks().find((item) => item.readyState === "live") ?? null;
+  return session?.screen?.getVideoTracks().find((item) => item.readyState === "live") ?? null;
 }
 
 /**

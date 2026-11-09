@@ -54,6 +54,11 @@ public final class RedisKeys {
 
     public static String interviewVoiceTicket(String ticket) { return "interview:voice:ticket:" + ticket; }
 
+    public static String interviewSpeech(String tenant, Long messageId) {
+        String t = (tenant == null ? "default" : tenant.trim().toLowerCase());
+        return "cache:interview:speech:" + t + ":" + messageId;
+    }
+
     public static String aiTaskConfig(String taskType) {
         return "cache:ai:config:" + (taskType == null ? "DEFAULT" : taskType.trim().toUpperCase());
     }

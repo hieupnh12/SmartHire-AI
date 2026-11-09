@@ -20,7 +20,7 @@ import {
   handoffAssessmentProctor,
 } from "../utils/assessmentProctorHandoff";
 
-const OPEN_ASSESSMENT = new Set(["ASSESSMENT", "INTERVIEW", "HUMAN_INTERVIEW", "FAILED"]);
+const OPEN_ASSESSMENT = new Set(["ASSESSMENT", "INTERVIEW", "HUMAN_INTERVIEW", "OFFER", "HIRED", "REJECTED", "FAILED"]);
 
 /** Career header is h-[76px]; cancel CareerNavigationLayout padding so this page fills one frame. */
 const roomShell =

@@ -173,6 +173,16 @@ public class SubmissionService {
         if (!expire(submission) && submission.getStatus() == TestSubmissionStatus.IN_PROGRESS) {
             requirePlayable(submission.getApplication(), submission.getTest());
             grade(submission, false);
+            boolean isDemo = submission.getTest().getTitle() != null && submission.getTest().getTitle().contains("[Demo UI]");
+            if ((submission.getTest().isAutoGradingEnabled() || isDemo) && gradingService != null) {
+                var autoGrader = gradingService.getIfAvailable();
+                if (autoGrader != null) {
+                    try {
+                        autoGrader.autoGradeSubmission(submission.getId());
+                        submission = submissions.findById(id).orElse(submission);
+                    } catch (Exception ignored) {}
+                }
+            }
         } else if (submission.getStatus() != TestSubmissionStatus.GRADED
                 && submission.getStatus() != TestSubmissionStatus.SUBMITTED
                 && submission.getStatus() != TestSubmissionStatus.EXPIRED) {
@@ -223,6 +233,10 @@ public class SubmissionService {
 
     @org.springframework.beans.factory.annotation.Autowired
     private CodingJudge judge;
+    @org.springframework.beans.factory.annotation.Autowired
+    private CodingLocalRunner localRunner;
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private org.springframework.beans.factory.ObjectProvider<AssessmentGradingService> gradingService;
     public record SampleRun(@jakarta.validation.constraints.NotNull @jakarta.validation.constraints.Size(max=10000) String source,
             @jakarta.validation.constraints.NotBlank String language) {}
     public record CustomRun(@jakarta.validation.constraints.NotNull @jakarta.validation.constraints.Size(max=10000) String source,
@@ -231,12 +245,14 @@ public class SubmissionService {
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public java.util.List<com.fasterxml.jackson.databind.JsonNode> runSamples(long id, long questionId, SampleRun body) {
         CodingProblem problem = codingProblemForRun(id, questionId, body.language());
-        try {
-            return problem.getTestCases().stream().filter(TestCase::isSample).limit(5)
-                    .map(c -> judge.run(problem, body.language(), body.source(), c.getInputData(), c.getExpectedOutput())).toList();
-        } catch (RuntimeException failure) {
-            throw new BusinessException("Coding sandbox unavailable", HttpStatus.SERVICE_UNAVAILABLE, "SANDBOX_UNAVAILABLE");
-        }
+        return problem.getTestCases().stream().filter(TestCase::isSample).limit(5)
+                .map(c -> {
+                    try {
+                        return judge.run(problem, body.language(), body.source(), c.getInputData(), c.getExpectedOutput());
+                    } catch (Exception ex) {
+                        return localRunner.run(problem, body.language(), body.source(), c.getInputData(), c.getExpectedOutput());
+                    }
+                }).toList();
     }
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public com.fasterxml.jackson.databind.JsonNode runCustom(long id, long questionId, CustomRun body) {
@@ -252,8 +268,8 @@ public class SubmissionService {
         answer.setCustomRunCount(answer.getCustomRunCount() + 1);
         try {
             return judge.run(problem, body.language(), body.source(), body.input(), null);
-        } catch (RuntimeException failure) {
-            throw new BusinessException("Coding sandbox unavailable", HttpStatus.SERVICE_UNAVAILABLE, "SANDBOX_UNAVAILABLE");
+        } catch (Exception ex) {
+            return localRunner.run(problem, body.language(), body.source(), body.input(), null);
         }
     }
     private CodingProblem codingProblemForRun(long id, long questionId, String language) {
@@ -431,7 +447,21 @@ public class SubmissionService {
                 detailSvc.sendResultEmailSilently(submission.getId());
             }
         }
+        if (staffNotifications != null && !isDemoPaper(submission.getTest())) {
+            var application = submission.getApplication();
+            var job = application.getJob();
+            String result = needsReview ? "Cần chấm phần tự luận/coding." : "Điểm tự động: " + total.stripTrailingZeros().toPlainString() + ".";
+            staffNotifications.notifyJobStaff(job, application, com.smarthire.domain.enums.NotificationCategory.ASSESSMENT,
+                    "STAFF_ASSESSMENT_SUBMITTED", expired ? "Bài đánh giá hết giờ" : "Ứng viên đã nộp bài đánh giá",
+                    submission.getCandidate().getFullName() + (expired ? " hết thời gian làm bài " : " đã hoàn thành bài ")
+                            + submission.getTest().getTitle() + " — vị trí " + job.getTitle() + ". " + result,
+                    "/recruiter/jobs/" + job.getId() + "/assessments");
+        }
     }
+
+    /** Optional in unit tests; notifies job staff on web + Gmail. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private com.smarthire.tenant.notification.service.StaffNotificationService staffNotifications;
 
     private SubmissionResponse response(Submission submission) {
         var paper = questions.findByTest_IdOrderByQuestionOrderAscIdAsc(submission.getTest().getId());
@@ -443,7 +473,8 @@ public class SubmissionService {
                 .map(answer -> new SavedAnswer(answer.getQuestion().getId(),
                         answer.getSelectedOption() == null ? null : answer.getSelectedOption().getId(),
                         answer.getSelectedOptions().stream().map(row -> row.getOption().getId()).sorted().toList(),
-                        answer.getAnswerText(), answer.getLanguage())).toList();
+                        answer.getAnswerText(), answer.getLanguage(),
+                        answer.getScore(), answer.getSuggestedScore(), answer.getEvaluationJson())).toList();
         BigDecimal threshold = submission.getTest().getPassingScore();
         Boolean passed = threshold == null || submission.getScore() == null ? null : submission.getScore().compareTo(threshold) >= 0;
         return new SubmissionResponse(submission.getId(), submission.getTest().getId(), submission.getApplication().getId(),

@@ -1,20 +1,24 @@
 import {
+  AlertTriangle,
   ArrowLeft,
   CheckCircle2,
   Clock,
   ClipboardCheck,
   CircleAlert,
   Code2,
+  Cpu,
   FileQuestion,
   Hash,
   RotateCcw,
   ShieldCheck,
+  Sparkles,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import type { Submission } from "@/api/types/assessment";
 import { Button } from "@/components/ux/Button";
 import { assessmentStatus } from "@/components/ux/assessmentUi";
 import { isDemoAssessmentTitle, shortAssessmentTitle } from "@/lib/assessmentTitle";
+import { localizeAiComment } from "../utils/aiLocalization";
 
 type Props = {
   submission: Submission;
@@ -51,6 +55,17 @@ export function AssessmentResult({ submission, back, onRetake, retaking }: Props
   const startedLabel = formatWhen(submission.startedAt);
   const submittedLabel = formatWhen(submission.submittedAt);
   const title = shortAssessmentTitle(null, submission.title);
+
+  const evaluatedAnswers = (submission.answers ?? [])
+    .map((ans) => {
+      const q = (submission.questions ?? []).find((question) => question.id === ans.questionId);
+      return { answer: ans, question: q };
+    })
+    .filter(
+      (item) =>
+        item.question &&
+        (item.answer.evaluation || item.answer.score !== undefined || item.answer.suggestedScore !== undefined)
+    );
 
   const headline = expired ? "Đã hết thời gian làm bài" : "Bài làm đã được ghi nhận";
   const detail = pending
@@ -269,6 +284,116 @@ export function AssessmentResult({ submission, back, onRetake, retaking }: Props
                 <p className="rounded-xl border border-dashed border-[var(--color-border-default)] bg-[var(--color-surface-container-low)] px-3.5 py-2.5 text-sm leading-5 text-[var(--color-on-surface-variant)]">
                   Bài demo giao diện — điểm không ảnh hưởng vòng tuyển dụng.
                 </p>
+              )}
+
+              {/* AI Assessment & Code Review Feedback */}
+              {evaluatedAnswers.length > 0 && (
+                <div className="space-y-3 pt-2">
+                  <div className="flex items-center justify-between gap-2 border-t border-[var(--color-border-default)] pt-4">
+                    <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-[var(--color-primary)]">
+                      <Sparkles className="size-3.5 text-[var(--color-primary)]" aria-hidden="true" />
+                      Đánh giá từ Trợ lý AI
+                    </span>
+                    <span className="rounded-full bg-[var(--color-primary-subtle)] px-2.5 py-0.5 text-[11px] font-medium text-[var(--color-primary)]">
+                      Hybrid AI Engine
+                    </span>
+                  </div>
+
+                  {evaluatedAnswers.map(({ answer, question }) => {
+                    const evalData = (answer.evaluation ?? {}) as Record<string, any>;
+                    const codeReview = (evalData.code_review ?? evalData) as Record<string, any>;
+                    const isCoding = question?.questionType === "CODING";
+                    const isEssay = question?.questionType === "ESSAY";
+                    const testsPassed = evalData.passed !== undefined ? `${evalData.passed}/${evalData.total}` : null;
+                    const generalComment = codeReview.general_comment || evalData.general_comment;
+                    const timeComp = codeReview.time_complexity;
+                    const spaceComp = codeReview.space_complexity;
+                    const cleanCode = codeReview.clean_code;
+                    const hardcodeFlag = evalData.hardcode_suspected || codeReview.hardcode_suspected;
+                    const criteria = Array.isArray(evalData.criteria_results) ? evalData.criteria_results : [];
+
+                    return (
+                      <div
+                        key={answer.questionId}
+                        className="rounded-xl border border-[var(--color-border-default)] bg-[var(--color-surface-container-lowest)] p-3.5 shadow-sm"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <span className="inline-flex items-center gap-1 rounded bg-[var(--color-surface-container)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--color-on-surface-variant)]">
+                              Câu {question?.questionOrder ?? 1} · {isCoding ? "Lập trình" : isEssay ? "Tự luận" : "Đánh giá"}
+                            </span>
+                            <p className="mt-1 line-clamp-2 text-xs font-medium text-[var(--color-on-surface)]">
+                              {question?.coding?.title || question?.questionText}
+                            </p>
+                          </div>
+                          {(answer.score !== undefined || answer.suggestedScore !== undefined) && (
+                            <span className="shrink-0 rounded-md bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-800">
+                              {answer.score ?? answer.suggestedScore} / {question?.points ?? 0} đ
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Coding Metrics Chips */}
+                        {isCoding && (
+                          <div className="mt-2.5 flex flex-wrap gap-1.5">
+                            {testsPassed && (
+                              <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
+                                <CheckCircle2 className="size-3" aria-hidden="true" />
+                                Kiểm thử: {testsPassed}
+                              </span>
+                            )}
+                            {timeComp && (
+                              <span className="inline-flex items-center gap-1 rounded-md bg-indigo-50 px-2 py-0.5 text-[11px] font-medium text-indigo-700">
+                                <Cpu className="size-3" aria-hidden="true" />
+                                Thời gian: {timeComp}
+                              </span>
+                            )}
+                            {spaceComp && (
+                              <span className="inline-flex items-center gap-1 rounded-md bg-purple-50 px-2 py-0.5 text-[11px] font-medium text-purple-700">
+                                Bộ nhớ: {spaceComp}
+                              </span>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Hardcode Warning */}
+                        {hardcodeFlag && (
+                          <div className="mt-2 flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800">
+                            <AlertTriangle className="size-3.5 shrink-0 text-amber-600" aria-hidden="true" />
+                            <span>Phát hiện nghi vấn hardcode test case (áp trần 50% số điểm).</span>
+                          </div>
+                        )}
+
+                        {/* General Comment */}
+                        {generalComment && (
+                          <div className="mt-2.5 rounded-lg border-l-2 border-[var(--color-primary)] bg-[var(--color-surface-container-low)] p-2.5 text-xs text-[var(--color-on-surface-variant)]">
+                            <p className="font-semibold text-[var(--color-on-surface)]">Nhận xét của AI:</p>
+                            <p className="mt-0.5 leading-relaxed">{localizeAiComment(generalComment)}</p>
+                            {cleanCode && <p className="mt-1 text-[11px] text-[var(--color-on-surface-variant)]">• {localizeAiComment(cleanCode)}</p>}
+                          </div>
+                        )}
+
+                        {/* Essay Rubric Criteria Breakdown */}
+                        {isEssay && criteria.length > 0 && (
+                          <div className="mt-2.5 space-y-1.5 border-t border-[var(--color-border-default)]/70 pt-2">
+                            <p className="text-[11px] font-semibold text-[var(--color-on-surface-variant)]">
+                              Tiêu chí Rubric:
+                            </p>
+                            {criteria.map((c: any, idx: number) => (
+                              <div key={idx} className="rounded bg-[var(--color-surface-container-low)] p-2 text-xs">
+                                <div className="flex items-center justify-between font-medium">
+                                  <span>{c.name || `Tiêu chí ${idx + 1}`}</span>
+                                  <span className="font-semibold text-[var(--color-primary)]">{c.score_percent ?? 0}%</span>
+                                </div>
+                                {c.feedback && <p className="mt-0.5 text-[11px] text-[var(--color-on-surface-variant)]">{localizeAiComment(c.feedback)}</p>}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               )}
             </div>
           </section>

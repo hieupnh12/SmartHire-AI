@@ -8,14 +8,19 @@ import { subscribeNotifications } from "@/lib/ws";
 /** WebSocket pushes refresh the inbox; slow polling stays as a fallback when the socket is down. */
 const FALLBACK_POLL_MS = 60_000;
 
-export function useNotifications(enabled = true, page = 0) {
+export function useNotifications(enabled = true, page = 0, jobId?: number) {
   const client = useQueryClient();
   const userId = useAuthStore(s => s.user?.id);
   const token = useAuthStore(s => s.accessToken);
   const tenant = getTenantIdFromWindow();
-  const key = ["notifications", tenant, userId, page] as const;
+  const key = ["notifications", tenant, userId, page, jobId] as const;
   const active = enabled && !!userId;
-  const query = useQuery({ queryKey: key, queryFn: () => notificationApi.list(page), enabled: active, refetchInterval: FALLBACK_POLL_MS });
+  const query = useQuery({
+    queryKey: key,
+    queryFn: () => notificationApi.list(page, jobId),
+    enabled: active,
+    refetchInterval: FALLBACK_POLL_MS,
+  });
 
   useEffect(() => {
     if (!active || !token) return;

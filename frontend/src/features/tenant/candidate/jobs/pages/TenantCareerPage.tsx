@@ -667,6 +667,7 @@ export function TenantCareerPage() {
       }
       await applicantApi.apply(jobId, { source: "CAREER", cvId: String(cvId) });
       setApplySubmitted(true);
+      toast.success("Nộp đơn ứng tuyển thành công!");
       setTimeout(() => {
         setApplySubmitted(false);
         setShowApplyModal(null);
@@ -676,8 +677,21 @@ export function TenantCareerPage() {
       }, 1200);
     } catch (err: unknown) {
       const code = (err as { response?: { data?: { code?: string } } })?.response?.data?.code;
-      if (code === "APPLICATION_EXISTS") navigate("/applications");
-      else setApplyError(getApiErrorMessage(err));
+      const message = getApiErrorMessage(err);
+      if (code === "APPLICATION_EXISTS") {
+        toast.info("Bạn đã nộp đơn cho vị trí này rồi. Đang chuyển đến danh sách đơn của bạn.");
+        setShowApplyModal(null);
+        navigate("/applications");
+      } else if (code === "APPLICATION_ACTIVE_EXISTS") {
+        toast.warning(message || "Bạn đang có một đơn ứng tuyển đang mở. Mỗi ứng viên chỉ được tham gia một vị trí tại một thời điểm.");
+        setApplyError(message);
+      } else if (code === "APPLICATION_CLOSED") {
+        toast.error(message || "Hồ sơ của bạn đã bị loại ở vị trí này nên không thể ứng tuyển lại.");
+        setApplyError(message);
+      } else {
+        toast.error(message);
+        setApplyError(message);
+      }
     } finally {
       setApplyPending(false);
     }

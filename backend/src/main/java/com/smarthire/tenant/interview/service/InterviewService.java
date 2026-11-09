@@ -262,7 +262,7 @@ public class InterviewService {
     public InterviewView confirm(long id) {
         if (!access.candidate()) throw forbidden(); var i=load(id,false); var s=schedule(i);
         if (!List.of(ScheduleStatus.PROPOSED,ScheduleStatus.CONFIRMED).contains(s.getStatus()) || !s.getScheduledStart().isAfter(Instant.now())) throw invalid("Schedule cannot be confirmed");
-        s.setStatus(ScheduleStatus.CONFIRMED); return view(i);
+        s.setStatus(ScheduleStatus.CONFIRMED); var confirmed=view(i); notifications.confirmed(confirmed); return confirmed;
     }
     public InterviewView requestReschedule(long id, RescheduleRequest r) {
         if (!access.candidate()) throw forbidden(); var i=load(id,false); var s=schedule(i); window(r.start(),r.end(),true);

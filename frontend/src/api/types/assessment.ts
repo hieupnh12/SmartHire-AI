@@ -53,6 +53,9 @@ export type SavedAnswer = {
   selectedOptionIds?: number[] | null;
   answerText?: string | null;
   language?: string | null;
+  score?: number | null;
+  suggestedScore?: number | null;
+  evaluation?: Record<string, unknown> | null;
 };
 export type Submission = {
   id: number; testId: number; applicationId: number; title: string; status: SubmissionStatus;
