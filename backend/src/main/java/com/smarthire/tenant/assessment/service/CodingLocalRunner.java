@@ -36,6 +36,17 @@ public class CodingLocalRunner {
             "/opt/homebrew/bin/java"
     );
 
+    private static final List<String> JAVAC_CANDIDATES = List.of(
+            "javac",
+            "/opt/java/openjdk/bin/javac",
+            "/Library/Java/JavaVirtualMachines/jdk-22.jdk/Contents/Home/bin/javac",
+            "/Library/Java/JavaVirtualMachines/jdk-21.jdk/Contents/Home/bin/javac",
+            "/Library/Java/JavaVirtualMachines/jdk-17.jdk/Contents/Home/bin/javac",
+            "/usr/bin/javac",
+            "/usr/local/bin/javac",
+            "/opt/homebrew/bin/javac"
+    );
+
     private static final List<String> PYTHON_CANDIDATES = List.of(
             "python3",
             "/usr/bin/python3",
@@ -82,11 +93,12 @@ public class CodingLocalRunner {
     }
 
     private JsonNode executeJava(CodingProblem problem, String source, String input, String expected) {
-        String binary = findJavaBinary();
-        if (binary == null) {
+        String javaBinary = findJavaBinary();
+        if (javaBinary == null) {
             log.warn("Java runtime binary not found for local execution");
             return null;
         }
+        String javacBinary = findJavacBinary();
 
         String harness = problem != null && problem.getHarnessJson() != null && problem.getHarnessJson().has("java")
                 ? problem.getHarnessJson().path("java").asText()
@@ -98,7 +110,7 @@ public class CodingLocalRunner {
         // Make classes other than Main package-private to avoid single-file compilation errors
         executable = makeNonMainClassesPackagePrivate(executable);
 
-        return runJavaProcess(new String[]{binary}, executable, input, expected);
+        return runJavaProcess(javaBinary, javacBinary, executable, input, expected);
     }
 
     private JsonNode executePython(CodingProblem problem, String source, String input, String expected) {
@@ -129,17 +141,45 @@ public class CodingLocalRunner {
         return runProcess(new String[]{binary}, executable, input, expected, ".js");
     }
 
-    private JsonNode runJavaProcess(String[] cmd, String scriptContent, String input, String expected) {
+    private JsonNode runJavaProcess(String javaBinary, String javacBinary, String scriptContent, String input, String expected) {
         File tempDir = null;
         try {
             tempDir = Files.createTempDirectory("smarthire_java_").toFile();
             File mainFile = new File(tempDir, "Main.java");
             Files.writeString(mainFile.toPath(), scriptContent, StandardCharsets.UTF_8);
 
-            String[] fullCmd = new String[cmd.length + 1];
-            System.arraycopy(cmd, 0, fullCmd, 0, cmd.length);
-            fullCmd[cmd.length] = mainFile.getAbsolutePath();
+            // Step 1: If javac is available, compile first (clean LeetCode/HackerRank style)
+            if (javacBinary != null) {
+                ProcessBuilder compilePb = new ProcessBuilder(javacBinary, "-d", tempDir.getAbsolutePath(), mainFile.getAbsolutePath());
+                long compileStartMs = System.currentTimeMillis();
+                Process compileProcess = compilePb.start();
+                boolean finished = compileProcess.waitFor(6, TimeUnit.SECONDS);
+                long compileDurationMs = Math.max(1, System.currentTimeMillis() - compileStartMs);
 
+                if (!finished) {
+                    compileProcess.destroyForcibly();
+                    return buildResult(5, "Time Limit Exceeded", "", "Compilation timed out (limit: 6s)", compileDurationMs);
+                }
+
+                String compileStdout;
+                String compileStderr;
+                try (BufferedReader stdoutReader = new BufferedReader(new InputStreamReader(compileProcess.getInputStream(), StandardCharsets.UTF_8));
+                     BufferedReader stderrReader = new BufferedReader(new InputStreamReader(compileProcess.getErrorStream(), StandardCharsets.UTF_8))) {
+                    compileStdout = readAll(stdoutReader);
+                    compileStderr = readAll(stderrReader);
+                }
+
+                if (compileProcess.exitValue() != 0) {
+                    return buildResult(6, "Compilation Error", compileStdout, compileStderr, compileDurationMs);
+                }
+
+                // Step 2: Run the compiled Main class directly
+                String[] runCmd = new String[]{javaBinary, "-cp", tempDir.getAbsolutePath(), "Main"};
+                return executeProcessAndCaptureResult(runCmd, input, expected);
+            }
+
+            // Fallback if javac is not present: single file runner
+            String[] fullCmd = new String[]{javaBinary, mainFile.getAbsolutePath()};
             return executeProcessAndCaptureResult(fullCmd, input, expected);
         } catch (Exception e) {
             log.warn("Java process execution failed: {}", e.getMessage());
@@ -296,6 +336,17 @@ public class CodingLocalRunner {
             }
         }
         return findBinary(JAVA_CANDIDATES);
+    }
+
+    private String findJavacBinary() {
+        String javaHome = System.getProperty("java.home");
+        if (javaHome != null && !javaHome.isBlank()) {
+            File jvmBin = new File(javaHome, "bin/javac");
+            if (jvmBin.exists() && jvmBin.canExecute()) {
+                return jvmBin.getAbsolutePath();
+            }
+        }
+        return findBinary(JAVAC_CANDIDATES);
     }
 
     private String findBinary(List<String> candidates) {
