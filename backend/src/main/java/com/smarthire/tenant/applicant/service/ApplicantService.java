@@ -641,7 +641,7 @@ public class ApplicantService {
         Submission latest = assessmentSubmissions.findById(ids.getFirst()).orElse(null);
         if (latest == null || latest.getScore() == null)
             return null;
-        if (latest.getStatus() != TestSubmissionStatus.GRADED && latest.getStatus() != TestSubmissionStatus.EXPIRED)
+        if (!latest.getStatus().isFinished() && latest.getStatus() != TestSubmissionStatus.EXPIRED)
             return null;
         return latest;
     }

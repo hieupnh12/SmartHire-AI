@@ -153,7 +153,7 @@ public class GateScreeningService {
     }
 
     private static Boolean assessmentRoundPassed(Submission assessment, BigDecimal threshold) {
-        if (assessment == null || assessment.getStatus() != TestSubmissionStatus.GRADED || assessment.getScore() == null) {
+        if (assessment == null || !assessment.getStatus().isFinished() || assessment.getScore() == null) {
             return null;
         }
         if (threshold == null) return Boolean.TRUE;
@@ -225,7 +225,7 @@ public class GateScreeningService {
         Submission chosen = null;
         for (Submission submission : submissionsOfAssignedPaper(applicationId).toList()) {
             if (submission.getId() == null || submission.getScore() == null) continue;
-            if (submission.getStatus() != TestSubmissionStatus.GRADED && submission.getStatus() != TestSubmissionStatus.EXPIRED) continue;
+            if (!submission.getStatus().isFinished() && submission.getStatus() != TestSubmissionStatus.EXPIRED) continue;
             if (chosen == null || submission.getId() > chosen.getId()) chosen = submission;
         }
         return chosen;

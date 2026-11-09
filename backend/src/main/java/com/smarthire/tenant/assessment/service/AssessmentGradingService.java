@@ -13,11 +13,13 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.List;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+@Slf4j
 @Service
 public class AssessmentGradingService {
     private final SubmissionRepository submissions;
@@ -47,46 +49,66 @@ public class AssessmentGradingService {
 
     @Transactional
     public void suggest(long id, String type) {
-        Submission submission = submissions.findLockedById(id).orElseThrow();
+        Submission submission = submissions.findLockedById(id).orElse(null);
+        if (submission == null) return;
         if (submission.getStatus() == TestSubmissionStatus.IN_PROGRESS || submission.getStatus() == TestSubmissionStatus.NOT_STARTED) return;
-        for (Answer answer : answers.findBySubmission_IdOrderByQuestion_QuestionOrderAscQuestion_IdAsc(id)) {
-            if (!type.equals(answer.getQuestion().getQuestionType()) || answer.getReviewedAt() != null || answer.getSuggestedScore() != null) continue;
-            try {
-                if (answer.getAnswerText() == null || answer.getAnswerText().isBlank()) {
-                    answer.setSuggestedScore(BigDecimal.ZERO);
-                    answer.setEvaluationJson(json.createObjectNode().put("status", "READY").put("general_comment", "Chưa nộp câu trả lời"));
-                } else if ("ESSAY".equals(type)) essay(answer);
-                else code(answer);
-            } catch (RuntimeException failure) {
-                // Do not turn provider outages into a candidate's zero score or expose credentials.
-                answer.setEvaluationJson(json.createObjectNode().put("status", "ERROR")
-                        .put("general_comment", "Chấm điểm tự động tạm thời chưa khả dụng. Vui lòng thử lại hoặc chấm thủ công."));
-            }
+        if (submission.getStatus().isFinished()) {
+            log.info("Submission {} is already graded/completed. Skipping duplicate task for type {}.", id, type);
+            return;
         }
-        boolean isDemo = submission.getTest().getTitle() != null && submission.getTest().getTitle().contains("[Demo UI]");
-        if (submission.getTest().isAutoGradingEnabled() || isDemo) {
+
+        if (submission.getStatus() == TestSubmissionStatus.SUBMITTED || submission.getStatus() == TestSubmissionStatus.PENDING) {
+            submission.setStatus(TestSubmissionStatus.GRADING);
+            submissions.save(submission);
+        }
+
+        try {
             for (Answer answer : answers.findBySubmission_IdOrderByQuestion_QuestionOrderAscQuestion_IdAsc(id)) {
-                if (answer.getScore() == null && answer.getSuggestedScore() != null) {
-                    answer.setScore(answer.getSuggestedScore());
-                    answer.setReviewedAt(Instant.now());
+                if (!type.equals(answer.getQuestion().getQuestionType()) || answer.getReviewedAt() != null || answer.getSuggestedScore() != null) continue;
+                try {
+                    if (answer.getAnswerText() == null || answer.getAnswerText().isBlank()) {
+                        answer.setSuggestedScore(BigDecimal.ZERO);
+                        answer.setEvaluationJson(json.createObjectNode().put("status", "READY").put("general_comment", "Chưa nộp câu trả lời"));
+                    } else if ("ESSAY".equals(type)) essay(answer);
+                    else code(answer);
+                } catch (RuntimeException failure) {
+                    log.error("Error evaluating answer {} for submission {}: {}", answer.getId(), id, failure.getMessage(), failure);
+                    answer.setEvaluationJson(json.createObjectNode().put("status", "ERROR")
+                            .put("general_comment", "Chấm điểm tự động tạm thời chưa khả dụng. Vui lòng thử lại hoặc chấm thủ công."));
                 }
             }
-            var all = answers.findBySubmission_IdOrderByQuestion_QuestionOrderAscQuestion_IdAsc(id);
-            if (all.stream().allMatch(a -> a.getScore() != null)) {
-                submission.setScore(all.stream().map(Answer::getScore).reduce(BigDecimal.ZERO, BigDecimal::add));
-                if (submission.getStatus() != TestSubmissionStatus.EXPIRED) {
-                    submission.setStatus(TestSubmissionStatus.GRADED);
+            boolean isDemo = submission.getTest().getTitle() != null && submission.getTest().getTitle().contains("[Demo UI]");
+            if (submission.getTest().isAutoGradingEnabled() || isDemo) {
+                for (Answer answer : answers.findBySubmission_IdOrderByQuestion_QuestionOrderAscQuestion_IdAsc(id)) {
+                    if (answer.getScore() == null && answer.getSuggestedScore() != null) {
+                        answer.setScore(answer.getSuggestedScore());
+                        answer.setReviewedAt(Instant.now());
+                    }
                 }
+                var all = answers.findBySubmission_IdOrderByQuestion_QuestionOrderAscQuestion_IdAsc(id);
+                if (all.stream().allMatch(a -> a.getScore() != null)) {
+                    submission.setScore(all.stream().map(Answer::getScore).reduce(BigDecimal.ZERO, BigDecimal::add));
+                    if (submission.getStatus() != TestSubmissionStatus.EXPIRED) {
+                        submission.setStatus(TestSubmissionStatus.COMPLETED);
+                    }
+                    submissions.save(submission);
+                    var applicantService = applicants == null ? null : applicants.getIfAvailable();
+                    if (applicantService != null) {
+                        applicantService.settleAfterAssessment(submission.getApplication().getId());
+                    }
+                    var detailSvc = gradingDetailService == null ? null : gradingDetailService.getIfAvailable();
+                    if (detailSvc != null) {
+                        detailSvc.sendResultEmailSilently(submission.getId());
+                    }
+                }
+            }
+        } catch (Exception ex) {
+            log.error("Fatal error during asynchronous grading for submission {} and type {}: {}", id, type, ex.getMessage(), ex);
+            try {
+                submission.setStatus(TestSubmissionStatus.FAILED);
                 submissions.save(submission);
-                var applicantService = applicants == null ? null : applicants.getIfAvailable();
-                if (applicantService != null) {
-                    applicantService.settleAfterAssessment(submission.getApplication().getId());
-                }
-                var detailSvc = gradingDetailService == null ? null : gradingDetailService.getIfAvailable();
-                if (detailSvc != null) {
-                    detailSvc.sendResultEmailSilently(submission.getId());
-                }
-            }
+            } catch (Exception ignored) {}
+            throw ex;
         }
     }
     private AssessmentConfigRequest getJobConfig(Answer answer) {
@@ -162,12 +184,7 @@ public class AssessmentGradingService {
             data.put("recruiter_grading_guide", jobConfig.essayGradingGuide().trim());
             prompt += " Tuân thủ các chỉ dẫn trong recruiter_grading_guide nếu có.";
         }
-        JsonNode result;
-        try {
-            result = ai.evaluateAssessment(prompt, data);
-        } catch (Exception ex) {
-            result = fallbackEssayEvaluation(question, answer, rubricNode);
-        }
+        JsonNode result = ai.evaluateAssessment(prompt, data);
         var criteria = result.path("criteria_results");
         if (!criteria.isArray() || criteria.size() != rubricNode.path("criteria").size()) {
             result = fallbackEssayEvaluation(question, answer, rubricNode);
@@ -346,7 +363,7 @@ public class AssessmentGradingService {
         if (submission.getStatus() == TestSubmissionStatus.IN_PROGRESS || submission.getStatus() == TestSubmissionStatus.NOT_STARTED) {
             return false;
         }
-        if (submission.getStatus() == TestSubmissionStatus.GRADED) {
+        if (submission.getStatus().isFinished()) {
             return true;
         }
         if (submission.getTest() != null && !submission.getTest().isAutoGradingEnabled()) {
@@ -385,7 +402,7 @@ public class AssessmentGradingService {
         if (all.stream().allMatch(a -> a.getScore() != null)) {
             submission.setScore(all.stream().map(Answer::getScore).reduce(BigDecimal.ZERO, BigDecimal::add));
             if (submission.getStatus() != TestSubmissionStatus.EXPIRED) {
-                submission.setStatus(TestSubmissionStatus.GRADED);
+                submission.setStatus(TestSubmissionStatus.COMPLETED);
             }
             submissions.save(submission);
             var applicantService = applicants == null ? null : applicants.getIfAvailable();
@@ -407,7 +424,7 @@ public class AssessmentGradingService {
         var jobSubmissions = submissions.findByJobId(jobId);
         int count = 0;
         for (var sub : jobSubmissions) {
-            if (sub.getStatus() == TestSubmissionStatus.SUBMITTED) {
+            if (sub.getStatus() == TestSubmissionStatus.SUBMITTED || sub.getStatus() == TestSubmissionStatus.FAILED) {
                 if (autoGradeSubmission(sub.getId())) {
                     count++;
                 }

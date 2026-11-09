@@ -11,8 +11,17 @@ const draftKey = (id: number) => `assessment-draft:${id}`;
 
 export function useSubmission(id: number) {
   const client = useQueryClient();
-  const query = useQuery({ queryKey: queryKeys.assessments.submission(id), queryFn: ({ signal }) => assessmentApi.submission(id, signal),
-    enabled: Number.isSafeInteger(id) && id > 0, refetchOnWindowFocus: false, retry: false });
+  const query = useQuery({
+    queryKey: queryKeys.assessments.submission(id),
+    queryFn: ({ signal }) => assessmentApi.submission(id, signal),
+    enabled: Number.isSafeInteger(id) && id > 0,
+    refetchOnWindowFocus: false,
+    retry: false,
+    refetchInterval: (query) => {
+      const s = query.state.data?.status;
+      return s === "SUBMITTED" || s === "PENDING" || s === "GRADING" ? 2500 : false;
+    },
+  });
   const [choices, setChoices] = useState<Record<number, SavedAnswer>>({});
   const [draftSavedAt, setDraftSavedAt] = useState<number | undefined>();
   const [draftError, setDraftError] = useState(false);
