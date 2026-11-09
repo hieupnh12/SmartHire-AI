@@ -6,9 +6,9 @@ COPY src ./src
 RUN mvn -B -DskipTests package \
     && cp target/*.jar /workspace/app.jar
 
-FROM eclipse-temurin:21-jre-alpine
+FROM eclipse-temurin:21-jdk-alpine
 WORKDIR /app
-RUN apk add --no-cache curl \
+RUN apk add --no-cache curl python3 nodejs \
     && addgroup -S smarthire && adduser -S smarthire -G smarthire
 COPY --from=build /workspace/app.jar app.jar
 USER smarthire
