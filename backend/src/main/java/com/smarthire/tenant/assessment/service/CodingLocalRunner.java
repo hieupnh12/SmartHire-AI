@@ -27,6 +27,7 @@ public class CodingLocalRunner {
 
     private static final List<String> JAVA_CANDIDATES = List.of(
             "java",
+            "/opt/java/openjdk/bin/java",
             "/Library/Java/JavaVirtualMachines/jdk-22.jdk/Contents/Home/bin/java",
             "/Library/Java/JavaVirtualMachines/jdk-21.jdk/Contents/Home/bin/java",
             "/Library/Java/JavaVirtualMachines/jdk-17.jdk/Contents/Home/bin/java",
