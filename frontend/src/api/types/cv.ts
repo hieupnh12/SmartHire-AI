@@ -34,6 +34,9 @@ export type MatchBreakdown = {
   verdict?: string;
   explanation?: string;
   advice?: string;
+  strengths?: string[];
+  risks?: string[];
+  interviewQuestions?: string[];
   source?: string;
   matched?: RequirementMatch[];
   partialMatches?: RequirementMatch[];

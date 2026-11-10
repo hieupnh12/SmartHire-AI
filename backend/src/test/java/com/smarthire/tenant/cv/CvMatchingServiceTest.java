@@ -339,6 +339,91 @@ class CvMatchingServiceTest {
         assertThat(score.getScore()).isEqualByComparingTo("72.75");
     }
 
+    @Test
+    void passesJobAndCvProfileToAdvisorAndPersistsStructuredRecruiterInsights() throws Exception {
+        var mapper = new ObjectMapper();
+        var scoring = new SkillScoringService();
+        Job job = new Job();
+        job.setId(22L);
+        job.setTitle("Middle Java Backend");
+        job.setMinYearsExperience(new BigDecimal("3.0"));
+        job.setEducationLevel("Đại học");
+        job.setDescription("Build REST APIs with Spring Boot and PostgreSQL");
+        Cv cv = new Cv();
+        cv.setId(22L);
+        cv.setJob(job);
+        when(jobSkillRepository.findByJob_IdOrderByIdAsc(22L)).thenReturn(List.of(
+                jobSkill("Java", "backend", true),
+                jobSkill("Docker", "devops", true)));
+        when(cvSkillRepository.findByCv_Id(22L)).thenReturn(List.of(cvSkill("Java")));
+        CvExtraction extraction = extraction(cv, """
+                {
+                  "education":[{"degree":"Đại học FPT","school":"FPT University"}],
+                  "experience":[{"title":"Java Intern","company":"Acme","startDate":"2025-01","endDate":"2025-07"}],
+                  "projects":[{"name":"JavaOJT","description":"Built Spring Boot APIs"}],
+                  "skills":[{"name":"Java"}],
+                  "screening":{"verdict":"Phù hợp Fresher hơn Middle"}
+                }
+                """);
+        extraction.setModelVersion("gemini:gemini-3.6-flash");
+        when(extractionRepository.findByCv_Id(22L)).thenReturn(Optional.of(extraction));
+        when(analysisRepository.findByCv_Id(22L)).thenReturn(Optional.empty());
+        when(matchScoreRepository.findByJob_IdAndCv_Id(22L, 22L)).thenReturn(Optional.empty());
+        when(matchScoreRepository.save(any(MatchScore.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        java.util.concurrent.atomic.AtomicReference<JsonNode> captured = new java.util.concurrent.atomic.AtomicReference<>();
+        CvScreeningAdvisor advisor = (ctx, formulaPassed) -> {
+            captured.set(ctx);
+            return Optional.of(new CvScreeningAdvisor.Decision(
+                    false,
+                    "Ứng viên học tại Đại học FPT, có nền tảng Java nhưng mới có khoảng 6 tháng thực tập, phù hợp Fresher hơn vị trí Middle 3+ năm.",
+                    "Chưa nên chuyển phỏng vấn vòng Middle; cân nhắc điều chuyển sang job Fresher Java.",
+                    "Bạn nên bổ sung thêm kinh nghiệm triển khai Docker thực tế vào CV.",
+                    List.of("Có dự án JavaOJT với Spring Boot thực tế"),
+                    List.of("Chưa đủ 3 năm kinh nghiệm theo yêu cầu vị trí Middle", "Thiếu kỹ năng bắt buộc Docker"),
+                    List.of("Trong dự án JavaOJT bạn phụ trách module nào và xử lý transaction ra sao?")));
+        };
+
+        MatchScore score = matching(mapper, scoring, advisor).score(cv);
+        JsonNode ctx = captured.get();
+        assertThat(ctx.path("jobContext").path("title").asText()).isEqualTo("Middle Java Backend");
+        assertThat(ctx.path("candidateProfile").path("education").get(0).path("degree").asText()).contains("FPT");
+        assertThat(ctx.path("candidateProfile").path("projects").get(0).path("name").asText()).isEqualTo("JavaOJT");
+        assertThat(ctx.path("initialCvVerdict").asText()).contains("Fresher");
+
+        JsonNode savedBreakdown = mapper.readTree(score.getBreakdownJson());
+        assertThat(savedBreakdown.path("strengths").get(0).asText()).contains("JavaOJT");
+        assertThat(savedBreakdown.path("risks")).hasSize(2);
+        assertThat(savedBreakdown.path("interviewQuestions").get(0).asText()).contains("JavaOJT");
+    }
+
+    @Test
+    void heuristicVerdictFormatsMissingSkillsWithoutJsonBrackets() {
+        var mapper = new ObjectMapper();
+        var scoring = new SkillScoringService();
+        Job job = new Job();
+        job.setId(23L);
+        job.setTitle("Backend");
+        Cv cv = new Cv();
+        cv.setId(23L);
+        cv.setJob(job);
+        when(jobSkillRepository.findByJob_IdOrderByIdAsc(23L)).thenReturn(List.of(
+                jobSkill("Java", "backend", true),
+                jobSkill("Docker", "devops", true)));
+        when(cvSkillRepository.findByCv_Id(23L)).thenReturn(List.of());
+        when(extractionRepository.findByCv_Id(23L)).thenReturn(Optional.of(extraction(cv, "{\"skills\":[]}")));
+        when(analysisRepository.findByCv_Id(23L)).thenReturn(Optional.empty());
+        when(matchScoreRepository.findByJob_IdAndCv_Id(23L, 23L)).thenReturn(Optional.empty());
+        when(matchScoreRepository.save(any(MatchScore.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        MatchScore score = matching(mapper, scoring).score(cv);
+        JsonNode breakdown = read(mapper, score.getBreakdownJson());
+        assertThat(breakdown.path("verdict").asText())
+                .contains("khớp 0/2")
+                .contains("thiếu kỹ năng bắt buộc: Java, Docker")
+                .doesNotContain("[\"Java\"");
+    }
+
     private void stubHybridCoverage(long jobId, Cv cv) {
         when(jobSkillRepository.findByJob_IdOrderByIdAsc(jobId)).thenReturn(List.of(
                 jobSkill("Java", "backend", true),

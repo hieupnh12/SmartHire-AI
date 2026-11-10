@@ -1,4 +1,4 @@
-import { BriefcaseBusiness, CheckCircle2, ChevronDown, CircleHelp, GraduationCap, Lightbulb, MinusCircle, Sparkles, XCircle } from "lucide-react";
+import { AlertTriangle, BriefcaseBusiness, CheckCircle2, ChevronDown, CircleHelp, GraduationCap, Lightbulb, MessageCircleQuestion, MinusCircle, Sparkles, XCircle } from "lucide-react";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import type { MatchBreakdown, RequirementMatch, RequirementStatus } from "@/api/types/cv";
@@ -25,12 +25,20 @@ function screeningCopy(value: string) {
   if (missing) return `Không thấy ${missing[1]} trong CV.`;
   const exact = /^Normalized CV skill matches (.+)\.$/.exec(value);
   if (exact) return `Kỹ năng trên CV khớp với ${exact[1]}.`;
-  return value
+  const normalized = value
     .replace("Job chưa có skill yêu cầu để sàng lọc.", "Tin tuyển dụng chưa có kỹ năng yêu cầu để sàng lọc.")
     .replace(" skill yêu cầu", " kỹ năng yêu cầu")
     .replace("không thiếu skill bắt buộc", "không thiếu kỹ năng bắt buộc")
     .replace("; thiếu: ", "; thiếu kỹ năng bắt buộc: ")
     .replace(/ Điểm hybrid \(taxonomy \+ Jaccard \+ semantic\), không phải điểm Matching sau assessment\/interview\./, "");
+  return normalized.replace(/thiếu kỹ năng bắt buộc:\s*\[([^\]]+)\]/g, (_all, inner: string) => {
+    const cleaned = inner
+      .split(",")
+      .map((s) => s.trim().replace(/^"(.*)"$/, "$1"))
+      .filter(Boolean)
+      .join(", ");
+    return `thiếu kỹ năng bắt buộc: ${cleaned}`;
+  });
 }
 
 const STATUS_META: Record<RequirementStatus, { label: string; tone: string; icon: typeof CheckCircle2 }> = {
@@ -43,19 +51,25 @@ const STATUS_META: Record<RequirementStatus, { label: string; tone: string; icon
 function localAdvice(breakdown: MatchBreakdown) {
   const missing = breakdown.requiredMissing ?? [];
   const partial = (breakdown.partialMatches ?? []).map((item) => item.requirement).filter(Boolean);
+  const matched = (breakdown.matched ?? []).map((item) => item.requirement).filter(Boolean);
+  const exp = breakdown.experienceAnalysis;
   const parts: string[] = [];
   if (missing.length > 0) {
-    parts.push(`Nên làm rõ các kỹ năng bắt buộc còn thiếu: ${missing.join(", ")}.`);
+    parts.push(`Cần làm rõ hoặc kiểm tra thêm các kỹ năng bắt buộc còn thiếu: ${missing.join(", ")}.`);
   }
   if (partial.length > 0) {
-    parts.push(`Kỹ năng khớp một phần (${partial.join(", ")}) nên được hỏi thêm trong vòng phỏng vấn.`);
+    parts.push(`Các kỹ năng khớp một phần (${partial.join(", ")}) nên được hỏi sâu tình huống thực tế ở vòng phỏng vấn.`);
+  }
+  if (exp?.requiredYears != null && exp.candidateYears != null && exp.candidateYears < exp.requiredYears) {
+    parts.push(`Kinh nghiệm hiện tại (${exp.candidateYears} năm) thấp hơn mức yêu cầu (${exp.requiredYears} năm), cần đánh giá thêm độ phức tạp dự án đã làm.`);
   }
   if (breakdown.passed) {
-    parts.push("Hồ sơ đạt sàng lọc. Nên chuyển sang phỏng vấn AI và kiểm tra mức độ làm việc thực tế với các kỹ năng đã khớp.");
+    const focus = matched.length > 0 ? ` tập trung vào ${matched.slice(0, 4).join(", ")}` : "";
+    parts.push(`Hồ sơ đạt sàng lọc. Nên chuyển sang phỏng vấn AI và kiểm tra mức độ làm việc thực tế${focus}.`);
   } else if (missing.length > 0) {
     parts.push("Chưa nên cho qua vòng CV cho đến khi xác nhận được các kỹ năng bắt buộc còn thiếu.");
   } else if (breakdown.passed === false) {
-    parts.push("Hồ sơ chưa đạt ngưỡng. Chỉ nên xem lại nếu phần điểm thấp không phải yêu cầu cốt lõi của vị trí.");
+    parts.push("Hồ sơ chưa đạt ngưỡng. Chỉ nên cân nhắc nếu ứng viên có dự án nổi bật bù đắp cho phần điểm còn thiếu.");
   }
   return parts.join(" ");
 }
@@ -136,14 +150,58 @@ export function ScreeningBreakdown({
         </div>
       </div>
 
-      <div className="space-y-5">
+      <div className="space-y-4">
         {breakdown?.verdict && (
-          <div className="rounded-2xl bg-[var(--color-primary-subtle)] p-4">
-            <div className="flex items-center gap-2 text-sm font-semibold">
-              <Sparkles className="size-4 text-[var(--color-primary)]" aria-hidden="true" />
-              Nhận xét của AI
+          <div className="space-y-3 rounded-2xl bg-[var(--color-primary-subtle)] p-4">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-sm font-semibold">
+                <Sparkles className="size-4 text-[var(--color-primary)]" aria-hidden="true" />
+                Nhận xét của AI
+              </div>
+              {Boolean(breakdown.strengths?.length || breakdown.risks?.length) && (
+                <span className="rounded-full bg-white/80 px-2.5 py-0.5 text-[11px] font-medium text-[var(--color-primary)]">
+                  Đánh giá chuyên sâu
+                </span>
+              )}
             </div>
-            <p className="mt-2 text-sm leading-relaxed text-[var(--color-on-surface)]">{screeningCopy(breakdown.verdict)}</p>
+            <p className="text-sm leading-relaxed text-[var(--color-on-surface)]">{screeningCopy(breakdown.verdict)}</p>
+
+            {(Boolean(breakdown.strengths?.length) || Boolean(breakdown.risks?.length)) && (
+              <div className="grid gap-3 border-t border-[var(--color-primary)]/15 pt-3 sm:grid-cols-2">
+                {breakdown.strengths && breakdown.strengths.length > 0 && (
+                  <div className="space-y-1.5">
+                    <p className="flex items-center gap-1.5 text-xs font-semibold text-emerald-800">
+                      <CheckCircle2 className="size-3.5 shrink-0 text-emerald-600" aria-hidden="true" />
+                      Điểm mạnh nổi bật
+                    </p>
+                    <ul className="space-y-1 text-xs leading-relaxed text-[var(--color-on-surface)]">
+                      {breakdown.strengths.map((item, idx) => (
+                        <li key={idx} className="flex items-start gap-1.5">
+                          <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-emerald-600" aria-hidden="true" />
+                          <span>{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {breakdown.risks && breakdown.risks.length > 0 && (
+                  <div className="space-y-1.5">
+                    <p className="flex items-center gap-1.5 text-xs font-semibold text-amber-800">
+                      <AlertTriangle className="size-3.5 shrink-0 text-amber-600" aria-hidden="true" />
+                      Rủi ro / Cần kiểm chứng
+                    </p>
+                    <ul className="space-y-1 text-xs leading-relaxed text-[var(--color-on-surface)]">
+                      {breakdown.risks.map((item, idx) => (
+                        <li key={idx} className="flex items-start gap-1.5">
+                          <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-amber-600" aria-hidden="true" />
+                          <span>{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
         {breakdown && <AdviceBlock breakdown={breakdown} />}
@@ -168,14 +226,28 @@ export function ScreeningBreakdown({
 function AdviceBlock({ breakdown }: { breakdown: MatchBreakdown }) {
   const stored = breakdown.advice?.trim() ?? "";
   const text = stored ? screeningCopy(stored) : localAdvice(breakdown);
-  if (!text) return null;
+  const questions = breakdown.interviewQuestions ?? [];
+  if (!text && questions.length === 0) return null;
   return (
-    <div className="rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-4">
+    <div className="space-y-3 rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-surface-card)] p-4">
       <div className="flex items-center gap-2 text-sm font-semibold">
         <Lightbulb className="size-4 text-[var(--color-primary)]" aria-hidden="true" />
         {stored ? "Lời khuyên của AI" : "Gợi ý xử lý"}
       </div>
-      <p className="mt-2 text-sm leading-relaxed text-[var(--color-on-surface)]">{text}</p>
+      {text && <p className="text-sm leading-relaxed text-[var(--color-on-surface)]">{text}</p>}
+      {questions.length > 0 && (
+        <div className="space-y-1.5 border-t border-[var(--color-border-default)]/70 pt-3">
+          <p className="flex items-center gap-1.5 text-xs font-semibold text-[var(--color-on-surface-variant)]">
+            <MessageCircleQuestion className="size-3.5 text-[var(--color-primary)]" aria-hidden="true" />
+            Gợi ý câu hỏi phỏng vấn kiểm chứng
+          </p>
+          <ol className="list-decimal space-y-1 pl-4 text-xs leading-relaxed text-[var(--color-on-surface)]">
+            {questions.map((q, idx) => (
+              <li key={idx}>{q}</li>
+            ))}
+          </ol>
+        </div>
+      )}
     </div>
   );
 }

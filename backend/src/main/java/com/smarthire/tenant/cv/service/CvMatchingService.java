@@ -260,18 +260,28 @@ public class CvMatchingService {
         boolean passed = formulaPassed;
         String advice = "";
         String candidateAdvice = "";
-        var decision = advisor.decide(breakdown, formulaPassed);
+        List<String> strengths = List.of();
+        List<String> risks = List.of();
+        List<String> interviewQuestions = List.of();
+        ObjectNode advisorContext = buildAdvisorContext(breakdown, cv, requirements, root, screening.path("verdict").asText(""));
+        var decision = advisor.decide(advisorContext, formulaPassed);
         if (decision.isPresent()) {
             decisionSource = "ai";
             verdict = decision.get().verdict();
             advice = decision.get().advice();
             candidateAdvice = decision.get().candidateAdvice();
+            strengths = decision.get().strengths();
+            risks = decision.get().risks();
+            interviewQuestions = decision.get().interviewQuestions();
             passed = formulaPassed && decision.get().passed();
         }
         breakdown.put("verdict", verdict);
         breakdown.put("explanation", verdict);
         if (!advice.isBlank()) breakdown.put("advice", advice);
         if (!candidateAdvice.isBlank()) breakdown.put("candidateAdvice", candidateAdvice);
+        putStringArray(breakdown, "strengths", strengths);
+        putStringArray(breakdown, "risks", risks);
+        putStringArray(breakdown, "interviewQuestions", interviewQuestions);
         breakdown.put("source", model.equals(HYBRID_SCREEN) ? "hybrid" : "heuristic");
         breakdown.put("decisionSource", decisionSource);
         breakdown.put("passed", passed);
@@ -481,8 +491,78 @@ public class CvMatchingService {
     private static String heuristicVerdict(String title, int hits, int total, ArrayNode missing) {
         String job = title == null || title.isBlank() ? "vị trí này" : title;
         if (total == 0) return "Tin tuyển dụng chưa có kỹ năng yêu cầu để sàng lọc.";
-        String miss = missing.size() == 0 ? "không thiếu kỹ năng bắt buộc" : "thiếu kỹ năng bắt buộc: " + missing.toString();
+        String missList = formatSkillArray(missing);
+        String miss = missList.isEmpty() ? "không thiếu kỹ năng bắt buộc" : "thiếu kỹ năng bắt buộc: " + missList;
         return "Sàng lọc CV cho " + job + ": khớp " + hits + "/" + total + " kỹ năng yêu cầu; " + miss + ".";
+    }
+
+    private ObjectNode buildAdvisorContext(
+            ObjectNode breakdown,
+            Cv cv,
+            List<JobSkill> requirements,
+            JsonNode extractionRoot,
+            String initialVerdict) {
+        ObjectNode context = breakdown.deepCopy();
+        ObjectNode jobContext = context.putObject("jobContext");
+        var job = cv.getJob();
+        if (job != null) {
+            if (job.getTitle() != null) jobContext.put("title", job.getTitle());
+            if (job.getMinYearsExperience() != null) jobContext.put("minYearsExperience", job.getMinYearsExperience());
+            if (job.getEducationLevel() != null && !job.getEducationLevel().isBlank()) {
+                jobContext.put("educationLevel", job.getEducationLevel());
+            }
+            if (job.getDescription() != null && !job.getDescription().isBlank()) {
+                String desc = job.getDescription().trim();
+                jobContext.put("description", desc.length() <= 1200 ? desc : desc.substring(0, 1200));
+            }
+        }
+        ArrayNode reqSkills = jobContext.putArray("requiredSkills");
+        ArrayNode prefSkills = jobContext.putArray("preferredSkills");
+        for (JobSkill req : requirements) {
+            if (req.getSkill() == null || req.getSkill().getName() == null) continue;
+            if (req.isRequired()) reqSkills.add(req.getSkill().getName());
+            else prefSkills.add(req.getSkill().getName());
+        }
+        if (initialVerdict != null && !initialVerdict.isBlank()) {
+            context.put("initialCvVerdict", initialVerdict.trim());
+        }
+        if (extractionRoot != null && !extractionRoot.isMissingNode() && !extractionRoot.isEmpty()) {
+            ObjectNode profile = context.putObject("candidateProfile");
+            copyLimitedArray(extractionRoot.path("education"), profile, "education", 5);
+            copyLimitedArray(extractionRoot.path("experience"), profile, "experience", 8);
+            copyLimitedArray(extractionRoot.path("projects"), profile, "projects", 6);
+            copyLimitedArray(extractionRoot.path("certifications"), profile, "certifications", 5);
+            copyLimitedArray(extractionRoot.path("languages"), profile, "languages", 5);
+        }
+        return context;
+    }
+
+    private static void copyLimitedArray(JsonNode source, ObjectNode target, String field, int maxItems) {
+        if (!source.isArray() || source.isEmpty()) return;
+        ArrayNode out = target.putArray(field);
+        int count = 0;
+        for (JsonNode item : source) {
+            out.add(item);
+            if (++count >= maxItems) break;
+        }
+    }
+
+    private static void putStringArray(ObjectNode target, String field, List<String> values) {
+        if (values == null || values.isEmpty()) return;
+        ArrayNode arr = target.putArray(field);
+        values.forEach(arr::add);
+    }
+
+    private static String formatSkillArray(ArrayNode array) {
+        if (array == null || array.isEmpty()) return "";
+        StringBuilder sb = new StringBuilder();
+        for (JsonNode node : array) {
+            String text = node.asText("").trim();
+            if (text.isEmpty()) continue;
+            if (sb.length() > 0) sb.append(", ");
+            sb.append(text);
+        }
+        return sb.toString();
     }
 
     private JsonNode read(String json) {

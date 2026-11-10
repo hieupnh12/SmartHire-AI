@@ -25,6 +25,7 @@ import {
   HelpCircle,
   Code2,
   Cpu,
+  GitBranch,
   Layers,
   Search,
   X,
@@ -160,6 +161,8 @@ const getTaskIcon = (taskType: string) => {
       return <BrainCircuit className="size-4 text-amber-600" />;
     case "CV_PARSING":
       return <FileText className="size-4 text-sky-600" />;
+    case "GITHUB_ANALYSIS":
+      return <GitBranch className="size-4 text-teal-600" />;
     case "MATCHING":
       return <Target className="size-4 text-rose-600" />;
     case "QUESTION_GEN":
@@ -226,6 +229,11 @@ const TASK_METADATA: Record<string, TaskMeta> = {
     description:
       "Đọc và phân tích cấu trúc file CV ứng viên (PDF/DOCX), chuyển đổi thành dữ liệu JSON chuẩn hóa gồm Học vấn, Kinh nghiệm làm việc, Kỹ năng và Dự án.",
   },
+  GITHUB_ANALYSIS: {
+    shortName: "Phân tích bằng chứng GitHub",
+    description:
+      "Đọc mã nguồn công khai từ các repository GitHub trong CV ứng viên, kiểm chứng năng lực lập trình thực tế và đối chiếu với kỹ năng yêu cầu của Job.",
+  },
   MATCHING: {
     shortName: "Độ phù hợp & Xếp hạng",
     description:
@@ -274,10 +282,11 @@ const CLUSTERS: ClusterDefinition[] = [
     icon: FileText,
     headerBg: "bg-gradient-to-r from-emerald-50/90 via-slate-50/40 to-white border-b border-emerald-100",
     accentColor: "text-emerald-700 border-emerald-200/80",
-    matcher: (type) => type.startsWith("CV_") || type.startsWith("MATCHING") || type === "MATCHING",
+    matcher: (type) => type.startsWith("CV_") || type.startsWith("MATCHING") || type === "MATCHING" || type === "GITHUB_ANALYSIS",
     orderMap: {
       CV_PARSING: 1,
       MATCHING: 2,
+      GITHUB_ANALYSIS: 3,
     },
   },
   {
